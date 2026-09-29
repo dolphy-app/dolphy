@@ -47,3 +47,4 @@ export type {
   RemediationTracker,
   RewardProjection,
 } from './context.ts';
+export { createSyncService } from './services/sync.ts';

@@ -7,8 +7,12 @@ import {
 } from '@lms/testkit';
 import type { MemoryCourseSource } from '@lms/testkit';
 import { describe, expect, it, vi } from 'vitest';
-import { createMemoryEventStore } from '../../../src/node/index.ts';
+import {
+  createMemoryEventStore,
+  createNodeFsCourseSource,
+} from '../../../src/node/index.ts';
 import type {
+  CourseSource,
   RawVerdict,
   Verifier,
   VerifyRequest,
@@ -596,6 +600,126 @@ describe('library.reload', () => {
       (await engine.library.listCourses()).items.map(({ id }) => id),
     ).toEqual(['a', 'b']);
   });
+});
+
+describe('missing library root', () => {
+  const vanishing = (
+    problem: 'missing' | 'unreadable' = 'missing',
+  ): { source: CourseSource; vanish: (isGone: boolean) => void } => {
+    const inner = createMemoryCourseSource(sampleLibrary());
+    let isGone = false;
+    const source: CourseSource = {
+      root: inner.root,
+      list: (dir) => inner.list(dir),
+      readText: (path) => inner.readText(path),
+      readBytes: (path) => inner.readBytes(path),
+      readArtifact: () => inner.readArtifact(),
+      writeArtifact: (text) => inner.writeArtifact(text),
+      stat: async (path) => {
+        if (isGone && path === '') {
+          if (problem === 'unreadable') throw new Error('EACCES');
+          return null;
+        }
+        return inner.stat(path);
+      },
+    };
+    return {
+      source,
+      vanish: (gone) => {
+        isGone = gone;
+      },
+    };
+  };
+
+  const ioErrors = (diagnostics: readonly Diagnostic[]) =>
+    diagnostics.filter(({ code }) => code === 'E_IO');
+
+  it('opens as invalid; validate, compile and reload report E_IO instead of throwing', async () => {
+    const source = createNodeFsCourseSource('/nonexistent/lms-root');
+    const { engine, events } = await createTestEngine({ library: source });
+    const info = await engine.library.getInfo();
+    expect(info).toMatchObject({ state: 'invalid', revision: '' });
+    expect(info.diagnostics.errors).toBe(1);
+
+    const validation = await engine.library.validate({ runChecks: false });
+    expect(ioErrors(validation.items)).toHaveLength(1);
+    expect(validation).toMatchObject({
+      summary: { errors: 1, warnings: 0 },
+      revision: '',
+      checksRun: false,
+    });
+
+    const compiled = await engine.library.compile();
+    expect(compiled).toEqual({
+      revision: '',
+      diagnosticsSummary: { errors: 1, warnings: 0, infos: 0 },
+      artifactWritten: false,
+    });
+    expect(events).toContainEqual({
+      type: 'library-compiled',
+      revision: '',
+      artifactWritten: false,
+      errors: 1,
+      warnings: 0,
+    });
+
+    const reloaded = await engine.library.reload();
+    expect(reloaded).toMatchObject({ state: 'invalid' });
+    expect(reloaded.diagnostics.errors).toBe(1);
+    expect(events).toContainEqual({
+      type: 'library-reloaded',
+      revision: '',
+      errors: 1,
+      warnings: 0,
+    });
+    expect(
+      ioErrors((await engine.library.getDiagnostics()).items),
+    ).toHaveLength(1);
+    await expect(engine.library.listCourses()).rejects.toMatchObject({
+      code: 'LIBRARY_INVALID',
+    });
+  });
+
+  it.each(['missing', 'unreadable'] as const)(
+    'a %s root after opening keeps the working library on reload',
+    async (problem) => {
+      const { source, vanish } = vanishing(problem);
+      const { engine, ctx, events } = await createTestEngine({
+        library: source,
+      });
+      const invalidate = vi.spyOn(ctx, 'invalidateDerived');
+      const before = await engine.library.getInfo();
+
+      vanish(true);
+      const info = await engine.library.reload();
+      expect(info).toMatchObject({
+        state: 'ready',
+        revision: before.revision,
+        counts: before.counts,
+      });
+      expect(info.diagnostics.errors).toBe(1);
+      expect(invalidate).not.toHaveBeenCalled();
+      expect(events).toContainEqual({
+        type: 'library-reloaded',
+        revision: before.revision,
+        errors: 1,
+        warnings: 0,
+      });
+      expect(
+        ioErrors((await engine.library.getDiagnostics()).items),
+      ).toHaveLength(1);
+      expect((await engine.library.listCourses()).items).toHaveLength(3);
+
+      const validation = await engine.library.validate();
+      expect(validation.summary.errors).toBe(1);
+      expect((await engine.library.compile()).artifactWritten).toBe(false);
+
+      vanish(false);
+      const recovered = await engine.library.reload();
+      expect(recovered.diagnostics.errors).toBe(0);
+      expect(await engine.library.getDiagnostics()).toEqual({ items: [] });
+    },
+  );
 });
 
 describe('W_ORPHAN_EVENTS', () => {

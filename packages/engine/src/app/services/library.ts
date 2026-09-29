@@ -12,7 +12,7 @@ import type {
   ValidateResult,
 } from '@lms/engine-contract';
 import { CONTRACT_VERSION } from '@lms/engine-contract';
-import { sortDiagnostics } from '../../authoring/diagnostics.ts';
+import { sortDiagnostics, summarize } from '../../authoring/diagnostics.ts';
 import { compile } from '../../authoring/compile.ts';
 import type { CompileOptions } from '../../authoring/compile.ts';
 import { probeArtifact } from '../../authoring/freshness.ts';
@@ -32,6 +32,7 @@ import {
 import { EngineError } from '../errors.ts';
 import { findOrphanDiagnostics } from '../orphans.ts';
 import { paginate } from '../pagination.ts';
+import { checkLibraryRoot, invalidStatus } from '../library-root.ts';
 
 const SEVERITY_RANK: Record<Severity, number> = {
   error: 0,
@@ -221,6 +222,17 @@ export const createLibraryService = (ctx: EngineContext): LibraryService => {
       }
       return pageOfSnapshot(snapshot, req);
     }
+    const rootProblem = await checkLibraryRoot(ctx.courseSource);
+    if (rootProblem !== null) {
+      snapshot = {
+        id: ctx.ids.next(),
+        diagnostics: [rootProblem],
+        revision: '',
+        summary: summarize([rootProblem]),
+        checksRun: false,
+      };
+      return pageOfSnapshot(snapshot, req);
+    }
     const runChecks = req.runChecks === true;
     assertRunnerAvailable(runChecks);
     const result = await compile(
@@ -249,6 +261,22 @@ export const createLibraryService = (ctx: EngineContext): LibraryService => {
   const compileLibrary = async (
     req: CompileRequest = {},
   ): Promise<CompileResult> => {
+    const rootProblem = await checkLibraryRoot(ctx.courseSource);
+    if (rootProblem !== null) {
+      const summary = summarize([rootProblem]);
+      ctx.emit({
+        type: 'library-compiled',
+        revision: '',
+        artifactWritten: false,
+        errors: summary.errors,
+        warnings: summary.warnings,
+      });
+      return {
+        revision: '',
+        diagnosticsSummary: summary,
+        artifactWritten: false,
+      };
+    }
     const runChecks = req.runChecks === true;
     assertRunnerAvailable(runChecks);
     const options = await compileOptions(runChecks);
@@ -288,15 +316,29 @@ export const createLibraryService = (ctx: EngineContext): LibraryService => {
     return { revision, diagnosticsSummary: summary, artifactWritten };
   };
 
+  /** Пропавший корень: рабочая библиотека остаётся, иначе — состояние `invalid`. */
+  const rejectMissingRoot = (problem: Diagnostic) => {
+    const status = invalidStatus(problem, ctx.clock);
+    if (ctx.library.current()?.state === 'ready') {
+      return { swapped: false, status };
+    }
+    ctx.library.swap(status);
+    return { swapped: true, status };
+  };
+
   const reload = async (): Promise<LibraryInfo> => {
     const { ignored_paths: ignoredPaths } =
       await ctx.settings.loadPreferences();
-    const { swapped, status } = await reloadLibrary(
-      ctx.library,
-      ctx.courseSource,
-      { clock: ctx.clock },
-      { compile: { scan: { ignoredPaths } } },
-    );
+    const rootProblem = await checkLibraryRoot(ctx.courseSource);
+    const { swapped, status } =
+      rootProblem === null
+        ? await reloadLibrary(
+            ctx.library,
+            ctx.courseSource,
+            { clock: ctx.clock },
+            { compile: { scan: { ignoredPaths } } },
+          )
+        : rejectMissingRoot(rootProblem);
     const current = requireStatus();
     if (swapped) {
       rejected = null;

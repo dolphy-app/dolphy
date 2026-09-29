@@ -20,6 +20,14 @@ export type {
 } from './journal-writer.ts';
 export { UNQUEUED, createFacade, wrapTree } from './facade.ts';
 export type { EngineServices, WrapMethod } from './facade.ts';
+export {
+  DEFAULT_PAGE_LIMIT,
+  MAX_PAGE_LIMIT,
+  decodeCursor,
+  encodeCursor,
+  paginate,
+  resolveLimit,
+} from './pagination.ts';
 export type {
   AttemptIndex,
   AttemptRecord,

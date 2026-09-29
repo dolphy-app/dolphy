@@ -89,7 +89,7 @@ export interface UnitGraphBuilder extends UnitGraph {
 
 const EMPTY_SET: ReadonlySet<string> = new Set();
 const EMPTY_LIST: readonly string[] = [];
-const compare = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+const compare = (a: string, b: string) => Number(a > b) - Number(a < b);
 
 const getOrCreate = <K, V>(map: Map<K, V>, key: K, create: () => V): V => {
   let value = map.get(key);

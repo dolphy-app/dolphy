@@ -13,7 +13,7 @@
 | `@lms/engine-rpc`        | RPC: `./client` (renderer, без zod), `./host` (диспетчер, zod)       | contract, engine, zod                             |
 | `@lms/testkit`           | часы, RNG, id, билдеры журнала и библиотек (dev-пакет)               | contract, engine, fast-check                      |
 
-`./node` в `@lms/engine` объявлен в `exports` заранее; файла `src/node/index.ts` ещё нет — создать вместе с первым fs-адаптером. `@lms/testkit` подключён в корневой `package.json` (`workspace:*`), поэтому тесты любого пакета импортируют его без цикла зависимостей `engine ↔ testkit`.
+`@lms/engine` экспортирует подпути `./ports`, `./app`, `./node` (fs-адаптеры: `createNodeFsCourseSource`) и `./authoring` (сканер, компилятор курса, артефакт, `LibraryHolder`; `yaml` подгружается только компилятором). CLI компилятора — `pnpm -F @lms/engine engine-cli validate|compile <каталог библиотеки>` (`src/cli`, код выхода 1 при ошибках, 2 при неверных аргументах). `@lms/testkit` подключён в корневой `package.json` (`workspace:*`), поэтому тесты любого пакета импортируют его без цикла зависимостей `engine ↔ testkit`.
 
 ## Команды (из корня)
 

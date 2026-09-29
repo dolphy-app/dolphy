@@ -44,7 +44,7 @@ export const summarize = (
 };
 
 const SEVERITY_RANK = { error: 0, warning: 1, info: 2 } as const;
-const compare = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+const compare = (a: string, b: string) => Number(a > b) - Number(a < b);
 
 /** Детерминированный порядок: серьёзность, файл, строка, код, юнит, текст. */
 export const sortDiagnostics = (diagnostics: Diagnostic[]): Diagnostic[] =>

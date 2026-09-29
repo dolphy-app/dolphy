@@ -6,7 +6,7 @@ import type {
   LessonManifest,
 } from './manifest.ts';
 
-const compare = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+const compare = (a: string, b: string) => Number(a > b) - Number(a < b);
 
 /**
  * Неизменяемая библиотека курсов: манифесты (пути ассетов приведены к

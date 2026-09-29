@@ -1,0 +1,26 @@
+{
+  "name": "@lms/testkit",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Тестовые утилиты: часы, RNG, идентификаторы, билдеры (dev-пакет)",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@lms/engine": "workspace:*",
+    "@lms/engine-contract": "workspace:*",
+    "fast-check": "4.10.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "typescript": "7.0.2"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}

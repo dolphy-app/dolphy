@@ -1,0 +1,42 @@
+{
+  "name": "@lms/engine",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Домен, приложение и fs/memory-адаптеры движка обучения",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./ports": "./src/ports/index.ts",
+    "./scoring": "./src/scoring/index.ts",
+    "./app": "./src/app/index.ts",
+    "./node": "./src/node/index.ts",
+    "./authoring": "./src/authoring/index.ts",
+    "./scheduler": "./src/scheduler/index.ts",
+    "./verify": "./src/verify/index.ts",
+    "./sync": "./src/sync/index.ts",
+    "./placement": "./src/placement/index.ts",
+    "./planning": "./src/planning/index.ts"
+  },
+  "bin": {
+    "engine-cli": "./src/cli/main.ts"
+  },
+  "scripts": {
+    "engine-cli": "node --disable-warning=ExperimentalWarning src/cli/main.ts",
+    "bench": "vitest run --config vitest.bench.config.ts",
+    "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@lms/engine-contract": "workspace:*",
+    "ts-fsrs": "5.4.2",
+    "yaml": "2.9.1",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "typescript": "7.0.2"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}

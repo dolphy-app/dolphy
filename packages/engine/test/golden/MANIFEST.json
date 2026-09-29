@@ -1,0 +1,25 @@
+{
+  "trane": { "version": "v0.34.1", "commit": "6f5f84a" },
+  "toolchain": { "rustc": "1.97.0", "fsrs": "6.6.2" },
+  "generator": "golden-rs (cargo run --release --offline --bin <name>); повторный запуск даёт побайтово тот же файл",
+  "fixtures": {
+    "powerlaw.jsonl": {
+      "bin": "powerlaw-golden",
+      "seed": "0x5EED7A4E20260929",
+      "cases": 5919,
+      "sha256": "5aa6d51576f449381c0514f05485420a6da871b5f86640a95d303ab08e903325"
+    },
+    "fsrs-scorer.jsonl": {
+      "bin": "fsrs_golden",
+      "input": "powerlaw.jsonl",
+      "cases": 11838,
+      "sha256": "a39caa290d7bb65f79fe15800a9b075180a82857ca94126b45447b391e48e1d8"
+    },
+    "reward-scorer.jsonl": {
+      "bin": "reward_golden",
+      "seed": "0x5EED4E3A20260929",
+      "cases": 3000,
+      "sha256": "fc333d4aa205efd1131272c2f8cccb2e923d5632fb1db354044215ce59f13e65"
+    }
+  }
+}

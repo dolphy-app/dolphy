@@ -10,3 +10,5 @@ spike
 .agents
 .claude
 apps/desktop/LICENSE
+packages/*/test/fixtures
+packages/*/test/golden/golden-rs/target

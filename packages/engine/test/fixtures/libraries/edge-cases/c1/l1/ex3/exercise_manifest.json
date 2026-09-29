@@ -1,0 +1,13 @@
+{
+  "id": "c1::l1::ex3",
+  "lesson_id": "c1::l1",
+  "course_id": "c1",
+  "exercise_asset": {
+    "TranscriptionAsset": {
+      "content": "abc",
+      "external_link": {
+        "YouTube": "https://y"
+      }
+    }
+  }
+}

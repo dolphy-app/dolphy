@@ -12,3 +12,4 @@ release
 .vscode/.debug.env
 *.suo
 *.sw?
+*.tsbuildinfo

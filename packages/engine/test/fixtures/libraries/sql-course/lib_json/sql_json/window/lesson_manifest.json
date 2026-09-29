@@ -1,0 +1,24 @@
+{
+  "course_id": "sql_json",
+  "dependencies": [
+    "sql_json::subquery"
+  ],
+  "encompassed": [
+    [
+      "sql_json::aggregate",
+      0.5
+    ]
+  ],
+  "id": "sql_json::window",
+  "name": "Window functions",
+  "engine": {
+    "keyPrerequisites": [
+      "sql_json::subquery"
+    ],
+    "tags": [
+      "window"
+    ],
+    "bloom": "apply",
+    "dok": 2
+  }
+}

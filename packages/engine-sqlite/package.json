@@ -1,0 +1,27 @@
+{
+  "name": "@lms/engine-sqlite",
+  "version": "0.0.0",
+  "private": true,
+  "description": "SQLite-хранилище журнала событий (better-sqlite3)",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
+    "test": "vitest run",
+    "crash": "node --experimental-strip-types --disable-warning=ExperimentalWarning test/crash/crash-driver.ts"
+  },
+  "dependencies": {
+    "@lms/engine": "workspace:*",
+    "better-sqlite3": "13.0.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.20.4",
+    "typescript": "7.0.2"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}

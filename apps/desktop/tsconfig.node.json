@@ -1,14 +1,27 @@
 {
   "compilerOptions": {
-    "composite": true,
+    "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "bundler",
     "moduleDetection": "force",
+    "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "strict": true,
     "types": ["node"],
+    "lib": ["ESNext"],
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "noEmit": true
   },
-  "include": ["electron", "vite.config.ts", "package.json"]
+  "include": [
+    "electron/main",
+    "electron/host",
+    "shared",
+    "test",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "package.json"
+  ]
 }

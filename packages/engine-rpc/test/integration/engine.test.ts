@@ -1,0 +1,371 @@
+/**
+ * Клиент `@lms/engine-rpc` → диспетчер → настоящий `createEngine` через
+ * in-process пару (structuredClone на каждом сообщении, как в Electron).
+ */
+import { RPC_METHODS } from '@lms/engine-contract';
+import type { EngineEvent, SavedFilterDto } from '@lms/engine-contract';
+import { createEngine } from '@lms/engine/app';
+import {
+  createMemoryEventStore,
+  createMemorySettingsStore,
+} from '@lms/engine/node';
+import { createTsFsrsMemoryModel } from '@lms/engine';
+import type { Verifier } from '@lms/engine';
+import {
+  buildExercise,
+  buildLibrary,
+  createFakeClock,
+  createMemoryCourseSource,
+  createSeededRng,
+  createTestIds,
+  silentLogger,
+} from '@lms/testkit';
+import { describe, expect, it } from 'vitest';
+import { EngineCallError, createEngineClient } from '../../src/client/index.ts';
+import { createDispatcher, schemas } from '../../src/host/index.ts';
+import { createInProcessPair } from '../../src/in-process.ts';
+
+const library = buildLibrary({
+  courses: [
+    {
+      id: 'c',
+      lessons: [
+        { id: 'l1', exercises: 2 },
+        { id: 'l2', dependencies: ['l1'], exercises: 2 },
+        { id: 'l3', dependencies: ['l2'], exercises: 2 },
+        { id: 'l4', dependencies: ['l3'], exercises: 2 },
+      ],
+    },
+  ],
+});
+const VERIFIABLE = 'c::l1::v0';
+library.exercises.push(
+  buildExercise({
+    id: VERIFIABLE,
+    engine: { verification: { runner: 'sql', timeoutMs: 500 } },
+  }),
+);
+const E1 = 'c::l1::e0';
+
+/** Раннер, всегда отвечающий `passed`: проверяет путь вердикта через RPC. */
+const passingVerifier: Verifier = {
+  runner: 'sql',
+  check: async () => ({ outcome: 'passed', durationMs: 1 }),
+  close: async () => {},
+};
+
+const start = async () => {
+  const clock = createFakeClock();
+  const source = createMemoryCourseSource(library);
+  const engine = await createEngine(
+    {
+      clock,
+      rng: createSeededRng(1),
+      ids: createTestIds('e'),
+      logger: silentLogger,
+      courseSource: source,
+      eventStore: createMemoryEventStore({ deviceId: 'device-a' }),
+      settings: createMemorySettingsStore(),
+      memoryModel: createTsFsrsMemoryModel(),
+      verifiers: [passingVerifier],
+    },
+    { libraryRoot: source.root, dataDir: '/tmp/rpc-integration' },
+  );
+  const dispatcher = createDispatcher({
+    engine,
+    schemas,
+    logger: silentLogger,
+    verifyCloneable: true,
+  });
+  const [hostSide, clientSide] = createInProcessPair();
+  dispatcher.attach(hostSide, 'window-1');
+  const client = createEngineClient();
+  await client.attach(clientSide);
+  return { engine, client: client.engine, clock };
+};
+
+describe('rpc → dispatcher → real engine', () => {
+  it('recordAttempt through RPC is idempotent', async () => {
+    const { client } = await start();
+    const request = { requestId: 'r1', exerciseId: E1, grade: 5 } as const;
+    const first = await client.practice.recordAttempt(request);
+    const second = await client.practice.recordAttempt(request);
+    expect(first).toMatchObject({ eventId: 'r1', duplicate: false });
+    expect(second).toMatchObject({ eventId: first.eventId, duplicate: true });
+    expect((await client.practice.getAttempts(E1)).items).toHaveLength(1);
+  });
+
+  it('pushes engine events to subscribers after the command', async () => {
+    const { client } = await start();
+    const events: EngineEvent[] = [];
+    const unsubscribe = client.subscribe((event) => events.push(event));
+    await client.practice.recordAttempt({
+      requestId: 'r1',
+      exerciseId: E1,
+      grade: 4,
+    });
+    await client.curation.blacklist.add('c::l4');
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 10);
+    });
+    expect(events.map(({ type }) => type)).toEqual([
+      'progress',
+      'settings-changed',
+    ]);
+    unsubscribe();
+  });
+
+  it('carries engine errors as EngineCallError with code and retryable', async () => {
+    const { client } = await start();
+    await expect(
+      client.practice.recordAttempt({
+        requestId: 'r1',
+        exerciseId: 'nope',
+        grade: 4,
+      }),
+    ).rejects.toMatchObject({
+      name: expect.any(String),
+      code: 'NOT_FOUND',
+      retryable: false,
+    });
+    await expect(
+      client.practice
+        .recordAttempt({ requestId: 'r1', exerciseId: E1, grade: 4 })
+        .then(() => client.practice.getAttempts('nope')),
+    ).rejects.toBeInstanceOf(EngineCallError);
+  });
+
+  it('validates params on the host: a bad grade never reaches the engine', async () => {
+    const { client, engine } = await start();
+    const before = (await engine.sync.getState()).entryCount;
+    await expect(
+      client.practice.recordAttempt({
+        requestId: 'r',
+        exerciseId: E1,
+        grade: 9 as 5,
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+    expect((await engine.sync.getState()).entryCount).toBe(before);
+  });
+
+  it('every method of RPC_METHODS is callable end to end and its result survives structured clone', async () => {
+    const { client, clock } = await start();
+    const called = new Set<string>();
+    const call = async <T>(
+      name: keyof typeof RPC_METHODS,
+      run: () => Promise<T>,
+    ) => {
+      called.add(name);
+      return run();
+    };
+
+    await call('library.getInfo', () => client.library.getInfo());
+    await call('library.getDiagnostics', () => client.library.getDiagnostics());
+    await call('library.validate', () => client.library.validate());
+    await call('library.compile', () => client.library.compile());
+    await call('library.reload', () => client.library.reload());
+    await call('library.listCourses', () => client.library.listCourses());
+    await call('library.listLessons', () => client.library.listLessons('c'));
+    await call('library.listExercises', () =>
+      client.library.listExercises('c::l1'),
+    );
+    await call('library.getUnit', () => client.library.getUnit(E1));
+    await call('library.matchPrefix', () =>
+      client.library.matchPrefix('c::', 'lesson'),
+    );
+    await call('library.getGraph', () => client.library.getGraph());
+    await call('library.readAsset', async () => {
+      const unit = await client.library.getUnit(E1);
+      if (unit.kind !== 'exercise' || unit.content.type !== 'flashcard') {
+        throw new Error('expected a flashcard');
+      }
+      return client.library.readAsset(unit.content.front);
+    });
+
+    await call('practice.startSession', () => client.practice.startSession());
+    await call('practice.getBatch', () => client.practice.getBatch());
+    const attempt = await call('practice.beginAttempt', () =>
+      client.practice.beginAttempt({ exerciseId: E1 }),
+    );
+    await call('practice.completeAttempt', () =>
+      client.practice.completeAttempt({
+        attemptId: attempt.attemptId,
+        grade: 4,
+      }),
+    );
+    const checked = await client.practice.beginAttempt({
+      exerciseId: VERIFIABLE,
+    });
+    const verdict = await call('practice.submitAnswer', () =>
+      client.practice.submitAnswer({
+        attemptId: checked.attemptId,
+        submission: { kind: 'sql', sql: 'select 1' },
+      }),
+    );
+    expect(verdict).toMatchObject({ outcome: 'passed', attemptsUsed: 1 });
+    expect(
+      await client.practice.completeAttempt({ attemptId: checked.attemptId }),
+    ).toMatchObject({ grade: 5 });
+    await call('practice.recordAttempt', () =>
+      client.practice.recordAttempt({
+        requestId: 'r2',
+        exerciseId: 'c::l1::e1',
+        grade: 5,
+      }),
+    );
+    await call('practice.getUnitScore', () =>
+      client.practice.getUnitScore('c::l1'),
+    );
+    await call('practice.getAttempts', () => client.practice.getAttempts(E1));
+    await call('practice.getProgress', () =>
+      client.practice.getProgress({ includeExercises: true }),
+    );
+    await call('practice.getFrontier', () => client.practice.getFrontier());
+    clock.advance(60 * 86_400_000);
+    await call('practice.getDue', () => client.practice.getDue());
+    await call('practice.resetProgress', () =>
+      client.practice.resetProgress({ unitId: 'c::l4', requestId: 'reset' }),
+    );
+
+    await call('curation.blacklist.list', () =>
+      client.curation.blacklist.list(),
+    );
+    await call('curation.blacklist.has', () =>
+      client.curation.blacklist.has('c::l4'),
+    );
+    await call('curation.blacklist.add', () =>
+      client.curation.blacklist.add('c::l4'),
+    );
+    await call('curation.blacklist.remove', () =>
+      client.curation.blacklist.remove('c::l4'),
+    );
+    await call('curation.blacklist.removePrefix', () =>
+      client.curation.blacklist.removePrefix('c::l'),
+    );
+    await call('curation.reviewList.list', () =>
+      client.curation.reviewList.list(),
+    );
+    await call('curation.reviewList.has', () =>
+      client.curation.reviewList.has(E1),
+    );
+    await call('curation.reviewList.add', () =>
+      client.curation.reviewList.add(E1),
+    );
+    await call('curation.reviewList.remove', () =>
+      client.curation.reviewList.remove(E1),
+    );
+    await call('curation.reviewList.removePrefix', () =>
+      client.curation.reviewList.removePrefix('c::'),
+    );
+    const filter: SavedFilterDto = {
+      id: 'f',
+      description: 'lesson 1',
+      filter: { LessonFilter: { lesson_ids: ['c::l1'] } },
+    };
+    await call('curation.filters.save', () =>
+      client.curation.filters.save(filter),
+    );
+    await call('curation.filters.list', () => client.curation.filters.list());
+    await call('curation.filters.get', () => client.curation.filters.get('f'));
+    await call('curation.filters.delete', () =>
+      client.curation.filters.delete('f'),
+    );
+    const session = { id: 's', parts: [{ NoFilter: { duration: 10 } }] };
+    await call('curation.sessions.save', () =>
+      client.curation.sessions.save(session),
+    );
+    await call('curation.sessions.list', () => client.curation.sessions.list());
+    await call('curation.sessions.get', () =>
+      client.curation.sessions.get('s'),
+    );
+    await call('curation.sessions.delete', () =>
+      client.curation.sessions.delete('s'),
+    );
+
+    await call('settings.getScheduler', () => client.settings.getScheduler());
+    await call('settings.setScheduler', () =>
+      client.settings.setScheduler({ batchSize: 20 }),
+    );
+    await call('settings.resetScheduler', () =>
+      client.settings.resetScheduler(),
+    );
+    await call('settings.getPreferences', () =>
+      client.settings.getPreferences(),
+    );
+    await call('settings.setPreferences', () =>
+      client.settings.setPreferences({ ignoredPaths: [] }),
+    );
+    await call('settings.getScorer', () => client.settings.getScorer());
+
+    await call('plan.getDay', () =>
+      client.plan.getDay({ maxItems: 10, seed: 1 }),
+    );
+    await call('remediation.getPlan', () =>
+      client.remediation.getPlan({ exerciseId: E1 }),
+    );
+    const placement = await call('placement.start', () =>
+      client.placement.start({ budget: 3, seed: 1 }),
+    );
+    const probe = await call('placement.nextProbe', () =>
+      client.placement.nextProbe(placement.sessionId),
+    );
+    if (probe !== null) {
+      await call('placement.answer', () =>
+        client.placement.answer({
+          probeId: probe.probeId,
+          result: { kind: 'grade', grade: 4 },
+        }),
+      );
+    } else {
+      called.add('placement.answer');
+    }
+    await call('placement.finish', () =>
+      client.placement.finish({
+        sessionId: placement.sessionId,
+        requestId: 'fin',
+      }),
+    );
+    await call('placement.abort', () =>
+      client.placement.abort({ sessionId: 'unknown' }),
+    );
+
+    const state = await call('sync.getState', () => client.sync.getState());
+    expect(state.entryCount).toBeGreaterThan(0);
+    const exported = await call('sync.exportSince', () =>
+      client.sync.exportSince(),
+    );
+    await call('sync.import', () => client.sync.import(exported.entries));
+    await call('sync.rebuild', () => client.sync.rebuild());
+    await call('sync.getConflicts', () => client.sync.getConflicts());
+    await call('sync.resolveConflict', () =>
+      client.sync
+        .resolveConflict({ conflictId: 'nope', keep: 'none' })
+        .catch((error) => {
+          expect(error).toMatchObject({ code: 'SYNC_CONFLICT_NOT_FOUND' });
+        }),
+    );
+    await call('sync.importFromTrane', () =>
+      client.sync.importFromTrane({ traneDir: '/nowhere' }).catch((error) => {
+        expect(error).toBeInstanceOf(EngineCallError);
+      }),
+    );
+    await call('sync.folder.configure', () =>
+      client.sync.folder.configure({ dir: '/nowhere' }).catch((error) => {
+        expect(error).toBeInstanceOf(EngineCallError);
+      }),
+    );
+    await call('sync.folder.sync', () =>
+      client.sync.folder.sync().catch((error) => {
+        expect(error).toMatchObject({ code: 'SYNC_FOLDER_NOT_CONFIGURED' });
+      }),
+    );
+    await call('sync.folder.checkRestore', () =>
+      client.sync.folder.checkRestore().catch((error) => {
+        expect(error).toMatchObject({ code: 'SYNC_FOLDER_NOT_CONFIGURED' });
+      }),
+    );
+    await call('diagnostics', () => client.diagnostics());
+
+    expect([...called].sort()).toEqual(Object.keys(RPC_METHODS).sort());
+  });
+});

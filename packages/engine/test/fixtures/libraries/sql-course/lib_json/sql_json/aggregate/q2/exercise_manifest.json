@@ -1,0 +1,14 @@
+{
+  "course_id": "sql_json",
+  "exercise_type": "Procedural",
+  "id": "sql_json::aggregate::q2",
+  "lesson_id": "sql_json::aggregate",
+  "name": "q2",
+  "exercise_asset": {
+    "BasicAsset": {
+      "MarkdownAsset": {
+        "path": "q2.md"
+      }
+    }
+  }
+}

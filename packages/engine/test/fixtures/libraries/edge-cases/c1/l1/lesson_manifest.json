@@ -1,0 +1,23 @@
+{
+  "id": "c1::l1",
+  "course_id": "c1",
+  "dependencies": [
+    "c1::l0",
+    "missing::course"
+  ],
+  "encompassed": [
+    [
+      "c1::l0",
+      0
+    ],
+    [
+      "c1::not_a_dep",
+      0.3
+    ]
+  ],
+  "lesson_instructions": {
+    "MarkdownAsset": {
+      "path": "./notes/../notes.md"
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "name": "@lms/engine-sql-runner",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Раннер проверок SQL в дочерних процессах (Verifier)",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./worker": "./src/worker.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
+    "test": "vitest run",
+    "bench": "vitest bench --run --config vitest.bench.config.ts --reporter=verbose"
+  },
+  "dependencies": {
+    "@lms/engine": "workspace:*",
+    "@lms/engine-contract": "workspace:*",
+    "better-sqlite3": "13.0.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.20.4",
+    "typescript": "7.0.2"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}

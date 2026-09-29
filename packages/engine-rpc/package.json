@@ -1,0 +1,28 @@
+{
+  "name": "@lms/engine-rpc",
+  "version": "0.0.0",
+  "private": true,
+  "description": "RPC-транспорт: клиент для renderer, диспетчер для хоста",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./src/client/index.ts",
+    "./host": "./src/host/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@lms/engine": "workspace:*",
+    "@lms/engine-contract": "workspace:*",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "typescript": "7.0.2"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}

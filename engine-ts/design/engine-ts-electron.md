@@ -1,6 +1,6 @@
 # engine-ts: слой бизнес-логики внутри Electron-приложения (псевдокод)
 
-Статус: проект v1, 2026-09-29; кода нет; псевдокод — ориентир для M0–M6, имена портов и контракт — из `engine-ts.md` и `engine-ts-api.md`. Типы в блоках намеренно неполные (`ExerciseManifest`, `LibraryHolder` и т. п. — только имена): блоки проверяются на синтаксис, а не на типы.
+Статус: проект v1, 2026-09-29; §9–§14 реализованы в `apps/desktop` (смоук в Electron 44.4.5 — §16); псевдокод — ориентир для M0–M6, имена портов и контракт — из `engine-ts.md` и `engine-ts-api.md`. Типы в блоках намеренно неполные (`ExerciseManifest`, `LibraryHolder` и т. п. — только имена): блоки проверяются на синтаксис, а не на типы.
 Связанные документы (в этом же каталоге): `engine-ts.md` (главный дизайн), `engine-ts-api.md` (контракт для UI), `engine-ts-testing.md` (тесты на vitest).
 Пометки: **[ИЗМЕРЕНО]** — получено прогоном; **[ВЫВОД]** — наше умозаключение; **[ОЦЕНКА]** — расчёт, не замер; **[НЕ ПОДТВЕРЖДЕНО]** — не проверено.
 
@@ -1061,7 +1061,12 @@ export const boot = async (config: EngineConfig) => {
     durability: config.durability ?? 'full',
   });
   const verifiers = [
-    createSqlVerifier({ logger: defaults.logger, spawnWorker: fork }),
+    createSqlVerifier({
+      source: defaults.courseSource, // fixture и expected читаются из библиотеки
+      logger: defaults.logger,
+      spawnWorker, // fork с ELECTRON_RUN_AS_NODE=1
+      workerPath, // собранный worker.js пакета раннера
+    }),
   ];
   const engine = await createEngine(
     { ...defaults, eventStore, verifiers },
@@ -1103,7 +1108,7 @@ parentPort.on('message', async ({ data, ports }) => {
 });
 ```
 
-`spawnWorker` — внедряемая функция (по умолчанию `child_process.fork`): если `fork` внутри `utilityProcess` Electron 44 не заработает (открытый вопрос `engine-ts.md` §12.13), main порождает процессы раннера сам и передаёт хосту порты — тогда меняется только фабрика `spawnWorker` в `boot.ts` **[НЕ ПОДТВЕРЖДЕНО]**. Ошибка `boot` (кроме ошибок библиотеки — они внутри движка как состояние `library-invalid`) приводит к падению процесса и перезапуску супервизором; `STORE_CORRUPT` движок обрабатывает сам (режим чтения журнала).
+`spawnWorker` — внедряемая функция: `child_process.fork` внутри `utilityProcess` работает, если передать детям `ELECTRON_RUN_AS_NODE=1` (`process.execPath` там — бинарь `Electron Helper`, без флага он запустил бы приложение); раннер стартует как Node с полным профилем (`node:sqlite`, `setAuthorizer`, `db.limits`), пул убивается и переживает падение хоста без осиротевших процессов **[ИЗМЕРЕНО]** (2026-09-29, Electron 44.4.5 (Node 24.21.0, Chrome 152), macOS arm64, смоук `sql`, `apps/desktop/scripts/smoke.mjs`). Запасной вариант (main порождает раннеры и передаёт порты) не понадобился. `workerPath` — собранный `sql-worker.js` рядом с бандлом хоста (`electron/host/sql-worker.ts` импортирует `@lms/engine-sql-runner/worker`); в упакованном приложении он читается из `app.asar`, `better-sqlite3` — из `app.asar.unpacked` **[ИЗМЕРЕНО]** (электрон запущен как Node на упакованном `.app`). В упакованном приложении фьюз `runAsNode` должен оставаться включённым (по умолчанию так) **[ВЫВОД]**. Ошибка `boot` (кроме ошибок библиотеки — они внутри движка как состояние `library-invalid`) приводит к падению процесса и перезапуску супервизором; при первом запуске `boot` создаёт `libraryRoot` и `dataDir` (без каталога `scandir` падал и хост уходил в цикл перезапусков до `onFatal`) **[ИЗМЕРЕНО]**; `STORE_CORRUPT` движок обрабатывает сам (режим чтения журнала).
 
 ## 10. Main: шеллы и супервизор
 
@@ -1336,7 +1341,7 @@ export const useDue = (engine: LearningEngine) => {
 };
 ```
 
-Мост не отдаёт `ipcRenderer` и произвольные каналы (Habr, LogRocket) — шаблонный мост `window.ipcRenderer` удаляется; в preload проверяются типы входных параметров. Порт до renderer доходит цепочкой main → preload → `window.postMessage` (документация Electron «MessagePorts», проверка `event.source === window`); `contextBridge` порт не передаёт. Тип `Window.lms` объявляется в `src/vite-env.d.ts`. Перезагрузка окна = повторный `engine:connect`: старый порт закрывается, хост снимает подписку (`onClose`).
+Мост не отдаёт `ipcRenderer` и произвольные каналы (Habr, LogRocket) — шаблонный мост `window.ipcRenderer` удаляется; в preload проверяются типы входных параметров. Порт до renderer доходит цепочкой main → preload → `window.postMessage` (документация Electron «MessagePorts», проверка `event.source === window`); `contextBridge` порт не передаёт. Тип `Window.lms` объявляется в `src/vite-env.d.ts`. Перезагрузка окна = повторный `engine:connect`: старый порт закрывается, хост снимает подписку (`onClose`). Preload собирается в CJS (`dist-electron/preload/index.cjs`): при `sandbox: true` Electron не загружает ESM-preload (документация Electron) **[ВЫВОД]**. Путь порта main → preload → `window.postMessage` → `MessagePort` в renderer, обрыв порта при убийстве хоста (`onClose`), повторная выдача порта после перезапуска и повтор идемпотентного вызова проверены смоуком `crash` **[ИЗМЕРЕНО]** (2026-09-29, Electron 44.4.5 (Node 24.21.0, Chrome 152), macOS arm64).
 
 ## 12. Безопасность
 
@@ -1347,7 +1352,7 @@ export const useDue = (engine: LearningEngine) => {
 - Все аргументы RPC валидируются zod на хосте; `ipcMain` принимает только от `mainFrame`.
 - Диалоги и остальное Electron-API — только в main.
 - Загрузка страницы через собственный протокол вместо `file:` (совет Habr; в современном Electron — `protocol.handle`) сейчас не делается **[НЕ ПОДТВЕРЖДЕНО]** для Electron 44.
-- Статьи 2021 года про CJS в main неактуальны: шаблон уже собирает ESM (`"type": "module"`, `index.mjs` у preload); ESM и нативные модули в `utilityProcess` проверены (API §9).
+- Статьи 2021 года про CJS в main неактуальны: main и хост собираются в ESM (`"type": "module"`), а preload — в CJS (`index.cjs`), потому что sandbox-preload не грузит ESM. ESM-хост и нативный `better-sqlite3` в `utilityProcess` работают **[ИЗМЕРЕНО]** (2026-09-29, Electron 44.4.5 (Node 24.21.0, Chrome 152), macOS arm64).
 
 ## 13. Отказы и жизненный цикл
 
@@ -1363,16 +1368,15 @@ export const useDue = (engine: LearningEngine) => {
 | Сбой применения события к проекциям | Состояние `dirty`; повтор `recordAttempt` даёт `duplicate: true`; следующее чтение перестраивает проекции |
 | Старт до `ready` | Окно запомнено, порт выдаётся по `ready` |
 
-## 14. Что менять в `apps/desktop` при реализации
+## 14. Что сделано в `apps/desktop`
 
-Не выполняется в этой задаче; список отличий от текущего шаблона.
+Список отличий от шаблона выполнен (M-desktop, 2026-09-29, Electron 44.4.5 (Node 24.21.0, Chrome 152), macOS arm64); устройство и команды — `apps/desktop/README.md`.
 
-- Удалить мост `window.ipcRenderer`, `src/demos/ipc.ts` и обработчик `open-win`.
-- Добавить `sandbox: true` и `will-navigate`.
-- Вход `electron/host/index.ts` в сборку: сначала проверить многовходовую форму `vite-plugin-electron` (массив входов), при неудаче собрать хост отдельным скриптом сборки **[НЕ ПОДТВЕРЖДЕНО]**.
-- `electron-builder.json`: `asarUnpack` для `better-sqlite3` (N-API-prebuild, пересборка под Electron по дизайну §8 не нужна — проверить) **[НЕ ПОДТВЕРЖДЕНО]**.
-- `tsconfig`: включить `shared/` в оба проекта; `Window.lms` — в `vite-env.d.ts`.
-- Заменить заглушки `YourAppID`/`YourAppName`.
+- Удалены мост `window.ipcRenderer`, `src/demos/ipc.ts` и обработчик `open-win`; мост — `window.lms` (`shared/bridge.ts`).
+- Окно: `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`, `will-navigate` → `preventDefault`, `setWindowOpenHandler` → `deny`; CSP «запретить всё» в `index.html` (в dev — с websocket для HMR).
+- Сборка: `vite-plugin-electron/multi-env` принимает массив входов `main`, `preload`, `host` (у `host` два входа: `index` и `sql-worker`) — один `vite build`, отдельный скрипт не нужен; хост бандлит workspace-пакеты и зависимости (`bundleDeps: { both: { include: true, exclude: ['better-sqlite3'] } }` и `rolldownOptions.external`), нативный модуль остаётся внешним **[ИЗМЕРЕНО]**.
+- `electron-builder.json`: `asarUnpack: ['**/node_modules/better-sqlite3/prebuilds/**']`, из архива исключены `deps` и `src` пакета, `npmRebuild: false` — N-API-prebuild под Electron пересборки не требует **[ИЗМЕРЕНО]**: `electron-builder` 26.15.3 собрал `.app` и `.dmg`, `better-sqlite3` открылся из `app.asar` (SQLite 3.53.4), раннер запустился из `app.asar`; `productName` `LMS`, `appId` `com.lms.desktop`.
+- `tsconfig`: `shared/` в обоих проектах; `Window.lms` — в `vite-env.d.ts`; проекты `tsconfig.json` (renderer, preload, DOM) и `tsconfig.node.json` (main, host, тесты, без DOM: пакеты движка не проходят проверку типов вместе с DOM-`lib` под TS 6).
 
 ## 15. Что взято из статей
 
@@ -1394,9 +1398,16 @@ export const useDue = (engine: LearningEngine) => {
 
 ## 16. Не подтверждено и открыто
 
-- `fork` раннера внутри `utilityProcess` Electron 44 (`engine-ts.md` §12.13).
-- Многовходовая сборка хоста в `vite-plugin-electron`.
-- Поведение `z.tuple` с необязательным хвостом в zod 4.6.5.
-- `protocol.handle` вместо `file:` на Electron 44.
-- Выбор папки библиотеки пользователем (сейчас `libraryRoot = userData/library`, `dataDir = userData/data`).
+Измерено смоуком `pnpm smoke` (2026-09-29, Electron 44.4.5 (Node 24.21.0, Chrome 152), macOS arm64):
+
+- `fork` раннера внутри `utilityProcess` работает с `ELECTRON_RUN_AS_NODE=1`; профиль раннера `full` (`node-sqlite`) **[ИЗМЕРЕНО]** (`engine-ts.md` §12.13).
+- Многовходовая сборка хоста в `vite-plugin-electron` (`multi-env`, массив входов) **[ИЗМЕРЕНО]**.
+- `z.tuple` с необязательным хвостом в zod 4.6.5: вызовы `library.listCourses()`, `practice.getBatch()`, `practice.getDue()` без аргументов проходят схемы диспетчера (схемы — `exactOptional`, отчёт KernelRpc) **[ИЗМЕРЕНО]**.
+- Перезапуск хоста: убийство процесса → супервизор перезапускает, клиент переподключается, идемпотентный вызов повторяется, неидемпотентный получает `ENGINE_CLOSED`, журнал на диске переживает рестарт (`duplicate: true`), подписка на события восстанавливается **[ИЗМЕРЕНО]**.
+
+Остаётся открытым:
+
+- `protocol.handle` вместо `file:` на Electron 44 (страница грузится через `file:`, CSP `'self'` работает) **[НЕ ПОДТВЕРЖДЕНО]**.
+- Выбор папки библиотеки пользователем (сейчас `libraryRoot = userData/library`, `dataDir = userData/data`; `Platform.pickDirectory` и диалог в main готовы, UI и сохранение выбора — нет).
 - Политика выбора `GradePolicy` (M5).
+- Упакованное приложение целиком (хост из `app.asar` под `utilityProcess`) запускается и поднимает `better-sqlite3`, но сквозной смоук в нём отключён по замыслу; проверены части: `.app` стартует и хост доходит до `ready`, раннер и `better-sqlite3` работают из `app.asar` **[ИЗМЕРЕНО]**; подпись и нотаризация — вне задачи.

@@ -1,0 +1,28 @@
+{
+  "course_id": "sql_json",
+  "exercise_type": "Procedural",
+  "id": "sql_json::aggregate::q3",
+  "lesson_id": "sql_json::aggregate",
+  "name": "q3",
+  "exercise_asset": {
+    "BasicAsset": {
+      "InlinedAsset": {
+        "content": "Ids of departments that have at least two employees.\n\nTables: `dept(id, name)` and `emp(id, name, dept_id, salary, mgr_id)`. Write a single `SELECT`.\n"
+      }
+    }
+  },
+  "engine": {
+    "verification": {
+      "runner": "sql",
+      "fixture": "fixtures/emp.sql",
+      "expected": "checks/agg-having.csv",
+      "reference": "solutions/agg-having.sql",
+      "timeoutMs": 2000
+    },
+    "tags": [
+      "having"
+    ],
+    "bloom": "apply",
+    "dok": 2
+  }
+}

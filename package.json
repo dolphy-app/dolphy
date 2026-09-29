@@ -8,18 +8,28 @@
   "scripts": {
     "dev": "pnpm --filter @lms/desktop dev",
     "build": "pnpm --filter @lms/desktop build",
+    "smoke": "pnpm --filter @lms/desktop smoke",
+    "typecheck": "pnpm -r --workspace-concurrency=1 run typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "lint": "pnpm lint:eslint && pnpm lint:format",
     "lint:eslint": "eslint .",
     "lint:format": "prettier --check .",
     "fix": "eslint . --fix && prettier --write ."
   },
   "devDependencies": {
+    "@fast-check/vitest": "0.5.0",
+    "@lms/testkit": "workspace:*",
+    "@types/node": "^22.20.4",
+    "@vitest/coverage-v8": "5.0.2",
     "eslint": "^9",
     "eslint-config-metarhia": "^9.2.1",
     "eslint-plugin-vue": "^10.11.1",
+    "fast-check": "4.10.2",
     "globals": "^17.12.0",
     "prettier": "^3.9.9",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.71.0"
+    "typescript-eslint": "^8.71.0",
+    "vitest": "5.0.2"
   }
 }

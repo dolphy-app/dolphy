@@ -1,12 +1,18 @@
 {
   "$schema": "./node_modules/app-builder-lib/scheme.json",
-  "appId": "YourAppID",
+  "appId": "com.lms.desktop",
   "asar": true,
-  "productName": "YourAppName",
+  "productName": "LMS",
   "directories": {
     "output": "release/${version}"
   },
-  "files": ["dist", "dist-electron"],
+  "files": [
+    "dist",
+    "dist-electron",
+    "!**/node_modules/better-sqlite3/{deps,src}/**"
+  ],
+  "asarUnpack": ["**/node_modules/better-sqlite3/prebuilds/**"],
+  "npmRebuild": false,
   "mac": {
     "target": ["dmg"],
     "artifactName": "${productName}-Mac-${version}-Installer.${ext}"

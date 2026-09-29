@@ -222,6 +222,12 @@ export interface CrashSummary {
     iterations: number;
     killedMidTransaction: number;
     finishedBeforeKill: number;
+    /**
+     * Коммит успел, а отчёт `bigDone` до родителя нет (SIGKILL пришёл сразу
+     * после коммита, обычно при нагрузке на машину): пачка целая, атомарность
+     * не нарушена.
+     */
+    commitRacedKill: number;
     rowsLeftByKilled: number;
     violations: string[];
   };
@@ -267,6 +273,7 @@ export const runCrashCampaign = async ({
       iterations: bigIterations,
       killedMidTransaction: 0,
       finishedBeforeKill: 0,
+      commitRacedKill: 0,
       rowsLeftByKilled: 0,
       violations: [],
     },
@@ -367,6 +374,8 @@ export const runCrashCampaign = async ({
         summary.big.finishedBeforeKill++;
         if (rows !== bigRows)
           summary.big.violations.push('finished batch is partial');
+      } else if (rows === bigRows) {
+        summary.big.commitRacedKill++;
       } else {
         summary.big.killedMidTransaction++;
         summary.big.rowsLeftByKilled += rows;

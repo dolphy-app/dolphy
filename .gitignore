@@ -1,3 +1,14 @@
 .DS_Store
 node_modules/
 *.log
+
+dist
+dist-ssr
+dist-electron
+release
+*.local
+
+.idea
+.vscode/.debug.env
+*.suo
+*.sw?

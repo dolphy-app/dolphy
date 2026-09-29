@@ -42,7 +42,18 @@ export const interleave = (
   const keys = entries.map(() => rng.random());
   const { maxSameCourseRun, minTagDistance } = options;
 
+  // необходимое условие правила курса: остальные элементы делят курс на серии
+  // не длиннее `maxSameCourseRun`; нарушено — поиск заведомо безуспешен
+  const perCourse = new Map<number, number>();
+  for (const { course } of entries) {
+    perCourse.set(course, (perCourse.get(course) ?? 0) + 1);
+  }
+  const courseRuleFeasible = [...perCourse.values()].every(
+    (count) => count <= maxSameCourseRun * (n - count + 1),
+  );
+
   for (const level of LEVELS) {
+    if (level >= 1 && !courseRuleFeasible) continue;
     const remaining = new Map<number, number>();
     for (const { course } of entries) {
       remaining.set(course, (remaining.get(course) ?? 0) + 1);

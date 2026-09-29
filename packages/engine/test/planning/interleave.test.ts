@@ -252,6 +252,25 @@ describe('rule parameters', () => {
   });
 });
 
+describe('infeasible course rule', () => {
+  test('a course too large for the series bound is rejected at once and the input order is kept', () => {
+    const entries: InterleaveEntry[] = [
+      ...Array.from({ length: 30 }, () => ({ course: 0, tags: [] })),
+      ...Array.from({ length: 5 }, () => ({ course: 1, tags: [] })),
+    ];
+    const rng = createSeededRng(1);
+    const started = performance.now();
+    const result = interleave(
+      entries,
+      { maxSameCourseRun: 2, minTagDistance: 2 },
+      rng,
+    );
+    expect(performance.now() - started).toBeLessThan(50);
+    expect(result.ok).toBe(false);
+    expect(result.order).toEqual(entries.map((_, i) => i));
+  });
+});
+
 describe('daily plans of 20-40 items', () => {
   test('whenever the planner reports interleaveOk the rules hold; the ok share is measured, not pinned', () => {
     let ok = 0;

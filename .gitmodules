@@ -1,0 +1,3 @@
+[submodule "vendor/metaskills"]
+	path = vendor/metaskills
+	url = https://github.com/metarhia/metaskills.git

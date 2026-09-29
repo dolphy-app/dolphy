@@ -1,0 +1,31 @@
+# Генератор golden-fixtures для packages/engine/test/golden: настоящий Rust-Trane
+# v0.34.1 (коммит 6f5f84a) считает эталон, TS-порт сверяется с ним.
+#
+# `trane-pristine` — символическая ссылка на чистый checkout Trane v0.34.1
+# (в git не входит):  ln -s <путь>/trane-pristine trane-pristine
+# Запуск (из этого каталога, крейты берутся из локального кэша cargo):
+#   cargo run --release --offline                      # ../powerlaw.jsonl
+#   cargo run --release --offline --bin fsrs_golden    # ../fsrs-scorer.jsonl
+#   cargo run --release --offline --bin reward_golden  # ../reward-scorer.jsonl
+# Повторный запуск даёт побайтово тот же файл; sha256 — в ../MANIFEST.json.
+[package]
+name = "engine-golden"
+version = "0.1.0"
+edition = "2024"
+license = "AGPL-3.0-or-later"
+publish = false
+default-run = "powerlaw-golden"
+
+[[bin]]
+name = "powerlaw-golden"
+path = "src/main.rs"
+
+[dependencies]
+trane = { path = "trane-pristine" }
+serde_json = "1.0.151"
+anyhow = "1.0.104"
+fsrs = "6.6.2"
+ustr = "1.1.0"
+
+[profile.release]
+opt-level = 3

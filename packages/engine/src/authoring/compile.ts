@@ -21,6 +21,11 @@ import {
   readInputBytes,
   statFingerprint,
 } from './revision.ts';
+import { checkReferences } from './reference-check.ts';
+import type {
+  ReferenceCheckOptions,
+  ReferenceCheckStats,
+} from './reference-check.ts';
 import { scan } from './scan.ts';
 import type { ScanOptions, ScanStats } from './scan.ts';
 
@@ -31,11 +36,15 @@ export interface CompileOptions {
   emit?: 'clean' | 'always';
   /** Пути (от корня), не входящие в `revision`, например выходной файл CLI. */
   excludeFromRevision?: readonly string[];
+  /** Прогнать эталонные решения через раннеры и выдать `E_REFERENCE_FAILS` (M5). */
+  runChecks?: ReferenceCheckOptions;
 }
 
 export interface CompileTimings {
   scanMs: number;
   checksMs: number;
+  /** Только при `runChecks`. */
+  referenceMs?: number;
   revisionMs: number;
   buildMs: number;
   totalMs: number;
@@ -48,6 +57,8 @@ export interface CompileResult {
   /** `null` при ошибках (`emit: 'clean'`) или сбое чтения входов. */
   artifact: Artifact | null;
   timings: CompileTimings;
+  /** Есть только при `runChecks`: сколько эталонов прогнано, пропущено, не прошло. */
+  referenceChecks?: ReferenceCheckStats;
 }
 
 export const compile = async (
@@ -68,14 +79,23 @@ export const compile = async (
   const scanned = performance.now();
   const index = buildIndex(scanResult.model);
   const { findings, redundant } = runChecks(index, checkOptions);
+  const checked = performance.now();
+  // эталонные решения через внедрённый Verifier (M5): ядро зависит только от порта
+  const reference =
+    options.runChecks === undefined
+      ? null
+      : await checkReferences(index, source, options.runChecks);
+  const referenced = performance.now();
   const diagnostics = sortDiagnostics([
     ...scanResult.diagnostics,
-    ...findings.map((finding) => locateFinding(index, finding)),
+    ...[...findings, ...(reference?.findings ?? [])].map((finding) =>
+      locateFinding(index, finding),
+    ),
   ]);
-  const checked = performance.now();
   const timings: CompileTimings = {
     scanMs: scanned - started,
     checksMs: checked - scanned,
+    ...(reference === null ? {} : { referenceMs: referenced - checked }),
     revisionMs: 0,
     buildMs: 0,
     totalMs: 0,
@@ -86,7 +106,13 @@ export const compile = async (
     artifact: Artifact | null,
   ): CompileResult => {
     timings.totalMs = performance.now() - started;
-    return { diagnostics: all, summary: summarize(all), artifact, timings };
+    return {
+      diagnostics: all,
+      summary: summarize(all),
+      artifact,
+      timings,
+      ...(reference === null ? {} : { referenceChecks: reference.stats }),
+    };
   };
   if (summarize(diagnostics).errors > 0 && emit === 'clean') {
     return finish(diagnostics, null);
@@ -106,7 +132,7 @@ export const compile = async (
     return finish(failed, null);
   }
   const hashed = performance.now();
-  timings.revisionMs = hashed - checked;
+  timings.revisionMs = hashed - referenced;
   const artifact = buildArtifact({
     index,
     revision,

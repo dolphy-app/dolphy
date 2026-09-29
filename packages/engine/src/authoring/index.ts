@@ -61,3 +61,13 @@ export type {
   ReloadResult,
 } from './library-holder.ts';
 export { MAX_ASSET_BYTES, readAsset } from './read-asset.ts';
+export {
+  DEFAULT_REFERENCE_CONCURRENCY,
+  DEFAULT_REFERENCE_TIMEOUT_MS,
+  checkReferences,
+} from './reference-check.ts';
+export type {
+  ReferenceCheckOptions,
+  ReferenceCheckResult,
+  ReferenceCheckStats,
+} from './reference-check.ts';

@@ -1,0 +1,41 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "packages/engine-contract"
+    },
+    {
+      "path": "packages/engine-contract/tsconfig.test.json"
+    },
+    {
+      "path": "packages/engine"
+    },
+    {
+      "path": "packages/engine/tsconfig.test.json"
+    },
+    {
+      "path": "packages/engine-sqlite"
+    },
+    {
+      "path": "packages/engine-sqlite/tsconfig.test.json"
+    },
+    {
+      "path": "packages/engine-sql-runner"
+    },
+    {
+      "path": "packages/engine-sql-runner/tsconfig.test.json"
+    },
+    {
+      "path": "packages/engine-rpc"
+    },
+    {
+      "path": "packages/engine-rpc/tsconfig.test.json"
+    },
+    {
+      "path": "packages/testkit"
+    },
+    {
+      "path": "packages/testkit/tsconfig.test.json"
+    }
+  ]
+}

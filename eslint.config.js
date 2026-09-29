@@ -36,6 +36,8 @@ module.exports = [
       strict: 'off',
       'no-undef': 'off',
       'no-unused-vars': 'off',
+      // wire-форматы Trane и ts-fsrs — snake_case: ключи объектов не переименовываем
+      camelcase: ['error', { properties: 'never' }],
       '@typescript-eslint/no-unused-vars': 'error',
       'vue/multi-word-component-names': ['error', { ignores: ['App'] }],
     },

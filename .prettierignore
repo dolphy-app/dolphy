@@ -10,3 +10,4 @@ spike
 .agents
 .claude
 apps/desktop/LICENSE
+packages/*/test/fixtures

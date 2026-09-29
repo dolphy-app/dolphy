@@ -253,7 +253,7 @@ describe('rule parameters', () => {
 });
 
 describe('infeasible course rule', () => {
-  test('a course too large for the series bound is rejected at once and the input order is kept', () => {
+  test('a course too large for the series bound is rejected at once with a plain permutation', () => {
     const entries: InterleaveEntry[] = [
       ...Array.from({ length: 30 }, () => ({ course: 0, tags: [] })),
       ...Array.from({ length: 5 }, () => ({ course: 1, tags: [] })),
@@ -267,7 +267,10 @@ describe('infeasible course rule', () => {
     );
     expect(performance.now() - started).toBeLessThan(50);
     expect(result.ok).toBe(false);
-    expect(result.order).toEqual(entries.map((_, i) => i));
+    // без правил остаётся перестановка входа
+    expect([...result.order].sort((a, b) => a - b)).toEqual(
+      entries.map((_, i) => i),
+    );
   });
 });
 

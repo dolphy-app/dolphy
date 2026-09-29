@@ -18,7 +18,8 @@
     "build:app": "vite build",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json && vue-tsc --noEmit -p tsconfig.node.json",
     "test": "vitest run",
-    "smoke": "vite build && node scripts/smoke.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "smoke:packaged": "node scripts/smoke.mjs --packaged",
     "preview": "vite preview"
   },
   "devDependencies": {

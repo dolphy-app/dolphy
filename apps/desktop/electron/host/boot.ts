@@ -31,11 +31,14 @@ export const boot = async (config: EngineConfig) => {
     },
     config,
   );
-  if (process.env.LMS_SMOKE === '1') {
+  if (__LMS_SMOKE_BUILD__ && process.env.LMS_SMOKE === '1') {
     sqlVerifier
       .info()
       .then((info) => {
-        defaults.logger.info({ ...info }, 'sql runner started');
+        defaults.logger.info(
+          { ...info, worker: SQL_WORKER_PATH },
+          'sql runner started',
+        );
       })
       .catch((error) => {
         defaults.logger.warn({ error }, 'sql runner did not start');

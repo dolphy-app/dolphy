@@ -9,6 +9,7 @@
     "dev": "pnpm --filter @lms/desktop dev",
     "build": "pnpm --filter @lms/desktop build",
     "smoke": "pnpm --filter @lms/desktop smoke",
+    "smoke:packaged": "pnpm --filter @lms/desktop smoke:packaged",
     "typecheck": "pnpm -r --workspace-concurrency=1 run typecheck",
     "test": "vitest run",
     "test:watch": "vitest",

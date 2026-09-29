@@ -1,0 +1,2 @@
+# смоук-сборка (LMS_SMOKE_BUILD=1): scripts/smoke.mjs
+dist-smoke

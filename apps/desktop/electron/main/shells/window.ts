@@ -1,5 +1,4 @@
 import type { MainLogger } from '../logger.ts';
-import { SMOKE_ARGUMENT } from '../../../shared/bridge.ts';
 import type { Shell } from './types.ts';
 
 interface WindowWebContentsLike {
@@ -50,33 +49,42 @@ export interface WindowShellDeps {
   preloadPath: string;
   indexHtml: string;
   devServerUrl?: string;
-  smoke: boolean;
+  /** Скрытое окно (смоук): без показа и без DevTools. */
+  hidden?: boolean;
+  /** Аргументы командной строки renderer (доступны preload через `process.argv`). */
+  additionalArguments?: readonly string[];
   platform?: string;
 }
 
 export const createWindowOptions = (
   preloadPath: string,
-  smoke: boolean,
+  hidden: boolean,
+  additionalArguments: readonly string[],
 ): WindowOptions => ({
   title: 'LMS',
-  show: !smoke,
+  show: !hidden,
   webPreferences: {
     preload: preloadPath,
     sandbox: true,
     contextIsolation: true,
     nodeIntegration: false,
-    additionalArguments: smoke ? [SMOKE_ARGUMENT] : [],
+    additionalArguments: [...additionalArguments],
   },
 });
 
 export const createWindowShell = (deps: WindowShellDeps): Shell => ({
   register: () => {
-    const { app, BrowserWindow, shell, logger, smoke } = deps;
+    const { app, BrowserWindow, shell, logger } = deps;
+    const hidden = deps.hidden ?? false;
     let win: BrowserWindowLike | null = null;
 
     const createWindow = async () => {
       const created = new BrowserWindow(
-        createWindowOptions(deps.preloadPath, smoke),
+        createWindowOptions(
+          deps.preloadPath,
+          hidden,
+          deps.additionalArguments ?? [],
+        ),
       );
       win = created;
       const { webContents } = created;
@@ -92,7 +100,7 @@ export const createWindowShell = (deps: WindowShellDeps): Shell => ({
       });
       if (deps.devServerUrl) {
         await created.loadURL(deps.devServerUrl);
-        if (!smoke) webContents.openDevTools();
+        if (!hidden) webContents.openDevTools();
       } else {
         await created.loadFile(deps.indexHtml);
       }

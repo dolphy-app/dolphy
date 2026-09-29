@@ -1,4 +1,4 @@
-import { CHANNELS } from '../../../shared/bridge.ts';
+import { SMOKE_CHANNELS } from '../../../shared/smoke.ts';
 import type { MainLogger } from '../logger.ts';
 import type { Supervisor } from '../supervisor.ts';
 import type { EngineConnectEvent } from './engine.ts';
@@ -22,6 +22,8 @@ export interface SmokeShellDeps {
   supervisor: Pick<Supervisor, 'stop' | 'kill'>;
   logger: MainLogger;
   versions: NodeJS.ProcessVersions;
+  /** `app.isPackaged`: скрипт сверяет с ожидаемым режимом запуска. */
+  packaged: boolean;
   print(line: string): void;
   timeoutMs?: number;
 }
@@ -32,7 +34,7 @@ const isPassed = (result: unknown): boolean =>
   (result as { ok?: unknown }).ok === true;
 
 /**
- * Только для `LMS_SMOKE=1` в неупакованной сборке: renderer сообщает итог
+ * Только в смоук-сборке (`LMS_SMOKE_BUILD=1`) при `LMS_SMOKE=1`: renderer сообщает итог
  * сквозной проверки, main печатает его в stdout, останавливает хост и выходит.
  */
 export const createSmokeShell = (deps: SmokeShellDeps): Shell => ({
@@ -43,7 +45,11 @@ export const createSmokeShell = (deps: SmokeShellDeps): Shell => ({
     const finish = async (result: unknown) => {
       if (finished) return;
       finished = true;
-      const payload = { versions: deps.versions, result };
+      const payload = {
+        versions: deps.versions,
+        packaged: deps.packaged,
+        result,
+      };
       deps.print(`${SMOKE_RESULT_PREFIX}${JSON.stringify(payload)}`);
       await supervisor.stop();
       app.exit(isPassed(result) ? 0 : 1);
@@ -60,14 +66,14 @@ export const createSmokeShell = (deps: SmokeShellDeps): Shell => ({
     const trusted = (event: EngineConnectEvent) =>
       event.senderFrame === event.sender.mainFrame;
 
-    ipcMain.on(CHANNELS.smokeReport, (event, result) => {
+    ipcMain.on(SMOKE_CHANNELS.report, (event, result) => {
       if (!trusted(event)) return;
       finish(result).catch((error) => {
         logger.error({ error }, 'smoke finish failed');
         app.exit(1);
       });
     });
-    ipcMain.handle(CHANNELS.smokeKillHost, (event) =>
+    ipcMain.handle(SMOKE_CHANNELS.killHost, (event) =>
       trusted(event) ? supervisor.kill() : false,
     );
   },

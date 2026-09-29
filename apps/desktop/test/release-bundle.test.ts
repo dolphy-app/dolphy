@@ -1,0 +1,79 @@
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { afterAll, describe, expect, it } from 'vitest';
+
+const appDir = fileURLToPath(new URL('..', import.meta.url));
+const viteBin = join(
+  dirname(createRequire(import.meta.url).resolve('vite/package.json')),
+  'bin/vite.js',
+);
+const BUILD_TIMEOUT_MS = 120_000;
+
+const outputs: string[] = [];
+
+/** Настоящий `vite build` (без electron-builder) во временный каталог. */
+const build = (smokeBuild: boolean): string => {
+  const out = mkdtempSync(join(tmpdir(), 'lms-bundle-'));
+  outputs.push(out);
+  const env: NodeJS.ProcessEnv = { ...process.env, LMS_BUILD_OUT: out };
+  delete env.LMS_SMOKE_BUILD;
+  if (smokeBuild) env.LMS_SMOKE_BUILD = '1';
+  execFileSync(process.execPath, [viteBin, 'build'], {
+    cwd: appDir,
+    env,
+    stdio: 'pipe',
+  });
+  return out;
+};
+
+const filesOf = (dir: string): string[] =>
+  readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+    entry.isDirectory()
+      ? filesOf(join(dir, entry.name))
+      : [join(dir, entry.name)],
+  );
+
+const textOf = (root: string, part: string): string =>
+  filesOf(root)
+    .filter((file) => file.includes(part))
+    .map((file) => readFileSync(file, 'utf8'))
+    .join('\n');
+
+afterAll(() => {
+  for (const out of outputs) rmSync(out, { recursive: true, force: true });
+});
+
+describe('смоук и релизная сборка', () => {
+  it(
+    'релизный бандл не содержит кода смоука',
+    () => {
+      const out = build(false);
+      const files = filesOf(out);
+      expect(files.some((file) => file.includes('dist-electron/main'))).toBe(
+        true,
+      );
+      const leaks = files.filter((file) => {
+        const text = readFileSync(file, 'utf8');
+        return /smoke/i.test(text) || text.includes('sql_kb::where');
+      });
+      expect(leaks).toEqual([]);
+    },
+    BUILD_TIMEOUT_MS,
+  );
+
+  it(
+    'смоук-сборка содержит смоук во всех процессах: детектор не слепой',
+    () => {
+      const out = build(true);
+      expect(textOf(out, 'dist-electron/main')).toContain('LMS_SMOKE');
+      expect(textOf(out, 'dist-electron/preload')).toContain('smoke:report');
+      expect(textOf(out, 'dist-electron/host')).toContain('LMS_SMOKE');
+      expect(textOf(out, '/dist/')).toContain('sql_kb::where::q2');
+    },
+    BUILD_TIMEOUT_MS,
+  );
+});

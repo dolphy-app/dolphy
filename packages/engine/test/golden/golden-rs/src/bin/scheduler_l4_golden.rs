@@ -6,10 +6,13 @@
 //!   batchSizes[n]      number of batches of size n
 //!   exerciseCounts[id] number of batches containing the exercise (once per batch)
 //!   lessonCounts[id]   number of batches containing at least one exercise of the lesson
-//! Only non-zero counters are written. Output: `../../scheduler/golden/l4.json` (or the first
-//! argument) and the `l4.json` entry of the neighbouring `MANIFEST.json`.
+//! Only non-zero counters are written. Output (JSON Lines): `../../scheduler/golden/l4.jsonl` (or
+//! the first argument) and the `l4.jsonl` entry of the neighbouring `MANIFEST.json`. Line 1 is the
+//! header `{"nowMs", "trane"}`, every next line is one case
+//! `{"attempts", "batches", "blacklist", "expect", "id", "library", "options"}`.
 //!
-//! Usage: `cargo run --release --offline --bin scheduler_l4_golden -- [out.json]`.
+//! Usage: `cargo run --release --offline --bin scheduler_l4_golden -- [out.jsonl]`.
+//! `SCHEDULER_GOLDEN_BATCHES=<n>` runs a smoke test with `n` batches per case (no manifest update).
 
 #[allow(dead_code)]
 #[path = "../scheduler_common.rs"]
@@ -320,14 +323,14 @@ fn cases() -> Vec<Case> {
     cases
 }
 
-fn run_case(case: &Case) -> Result<(Value, usize, usize, usize)> {
+fn run_case(case: &Case, batches: usize, smoke: bool) -> Result<(Value, usize, usize, usize)> {
     let opts = options(case.batch_size, case.max_lessons_in_progress);
-    let batches = run_batches(&case.state, &opts, BATCHES, THREADS)?;
+    let batches_drawn = run_batches(&case.state, &opts, batches, THREADS)?;
 
     let mut sizes = BTreeMap::<usize, usize>::new();
     let mut exercises = BTreeMap::<String, usize>::new();
     let mut lessons = BTreeMap::<String, usize>::new();
-    for batch in &batches {
+    for batch in &batches_drawn {
         *sizes.entry(batch.len()).or_default() += 1;
         let unique: BTreeSet<&String> = batch.iter().collect();
         if unique.len() != batch.len() {
@@ -344,14 +347,14 @@ fn run_case(case: &Case) -> Result<(Value, usize, usize, usize)> {
     }
 
     let partial = |counts: &BTreeMap<String, usize>| {
-        counts.values().filter(|c| **c > 0 && **c < BATCHES).count()
+        counts.values().filter(|c| **c > 0 && **c < batches).count()
     };
     let (partial_exercises, partial_lessons) = (partial(&exercises), partial(&lessons));
     let test_range = exercises
         .values()
-        .filter(|c| (**c as f64 / BATCHES as f64) > 0.01 && (**c as f64 / BATCHES as f64) < 0.99)
+        .filter(|c| (**c as f64 / batches as f64) > 0.01 && (**c as f64 / batches as f64) < 0.99)
         .count();
-    if partial_exercises == 0 {
+    if !smoke && partial_exercises == 0 {
         bail!("case {} has no exercise with 0 < p < 1", case.id);
     }
 
@@ -367,7 +370,7 @@ fn run_case(case: &Case) -> Result<(Value, usize, usize, usize)> {
         "blacklist": case.state.blacklist,
         "options": options_json,
         "attempts": case.state.attempts_json(),
-        "batches": BATCHES,
+        "batches": batches,
         "expect": {
             "batchSizes": sizes_json,
             "exerciseCounts": exercises,
@@ -378,13 +381,15 @@ fn run_case(case: &Case) -> Result<(Value, usize, usize, usize)> {
 }
 
 fn main() -> Result<()> {
-    let out_path = output_path("l4.json");
+    let out_path = output_path("l4.jsonl");
+    let (batches, smoke) = batches_from_env(BATCHES);
     let started = Instant::now();
     let cases = cases();
     let mut values = Vec::new();
     for case in &cases {
         let t = Instant::now();
-        let (value, partial_exercises, partial_lessons, in_test_range) = run_case(case)?;
+        let (value, partial_exercises, partial_lessons, in_test_range) =
+            run_case(case, batches, smoke)?;
         eprintln!(
             "{:<34} {:>4} ex  p in (0,1): {:>3} ex, {:>2} lessons; p in (0.01,0.99): {:>3} ex; {:.1}s  # {}",
             case.id,
@@ -398,18 +403,22 @@ fn main() -> Result<()> {
         values.push(value);
     }
 
-    let document = json!({"trane": trane_json(), "nowMs": NOW_MS, "cases": values});
-    write_json(&out_path, &document)?;
-    update_manifest(
-        &out_path,
-        json!({
-            "bin": "scheduler_l4_golden",
-            "seed": format!("{SEED:#X}"),
-            "seedScope": "scripted states only; batches use Trane's thread-local RNG and are not reproducible",
-            "cases": cases.len(),
-            "batchesPerCase": BATCHES,
-        }),
-    )?;
+    let header = json!({"trane": trane_json(), "nowMs": NOW_MS});
+    write_jsonl(&out_path, &header, &values)?;
+    if smoke {
+        eprintln!("smoke run ({batches} batches per case): manifest not updated");
+    } else {
+        update_manifest(
+            &out_path,
+            json!({
+                "bin": "scheduler_l4_golden",
+                "seed": format!("{SEED:#X}"),
+                "seedScope": "scripted states only; batches use Trane's thread-local RNG and are not reproducible",
+                "cases": cases.len(),
+                "batchesPerCase": batches,
+            }),
+        )?;
+    }
     eprintln!(
         "{} cases in {:.1}s -> {}",
         cases.len(),

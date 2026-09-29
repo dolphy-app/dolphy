@@ -381,12 +381,27 @@ pub fn trane_json() -> Value {
     json!({"version": TRANE_VERSION, "commit": TRANE_COMMIT})
 }
 
-/// Writes pretty JSON with LF endings and a trailing newline.
+/// Writes pretty JSON with LF endings and a trailing newline (the manifest).
 pub fn write_json(path: &Path, value: &Value) -> Result<()> {
     if let Some(dir) = path.parent() {
         fs::create_dir_all(dir)?;
     }
     let text = serde_json::to_string_pretty(value)? + "\n";
+    fs::File::create(path)?.write_all(text.as_bytes())?;
+    Ok(())
+}
+
+/// Writes JSON Lines: the header object, then one compact case object per line (keys sorted by
+/// serde_json, LF endings, trailing newline).
+pub fn write_jsonl(path: &Path, header: &Value, cases: &[Value]) -> Result<()> {
+    if let Some(dir) = path.parent() {
+        fs::create_dir_all(dir)?;
+    }
+    let mut text = serde_json::to_string(header)? + "\n";
+    for case in cases {
+        text += &serde_json::to_string(case)?;
+        text.push('\n');
+    }
     fs::File::create(path)?.write_all(text.as_bytes())?;
     Ok(())
 }
@@ -433,4 +448,13 @@ pub fn output_path(default_name: &str) -> PathBuf {
     std::env::args()
         .nth(1)
         .map_or_else(|| Path::new("../../scheduler/golden").join(default_name), PathBuf::from)
+}
+
+/// Batches per case: `default`, or `SCHEDULER_GOLDEN_BATCHES` for a smoke run. The flag says that
+/// the run is a smoke run: its statistics checks and manifest update are skipped.
+pub fn batches_from_env(default: usize) -> (usize, bool) {
+    match std::env::var("SCHEDULER_GOLDEN_BATCHES") {
+        Ok(text) => (text.parse().expect("SCHEDULER_GOLDEN_BATCHES must be a number"), true),
+        Err(_) => (default, false),
+    }
 }

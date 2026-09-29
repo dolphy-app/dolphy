@@ -5,15 +5,19 @@
 //! whose exercises shows up in some batch. Batches are drawn with `maxLessonsInProgress` 10000 and
 //! batch size 50 (a freshly reopened `Trane` per batch, see `scheduler_common`), `BATCHES` per
 //! run. The set is computed by TWO independent runs; the generator aborts if they disagree, so a
-//! committed fixture is stable under a rerun at this batch count. Output:
-//! `../../scheduler/golden/frontier.json` (or the first argument) and the `frontier.json` entry
-//! of the neighbouring `MANIFEST.json`.
+//! committed fixture is stable under a rerun at this batch count. Output (JSON Lines):
+//! `../../scheduler/golden/frontier.jsonl` (or the first argument) and the `frontier.jsonl` entry
+//! of the neighbouring `MANIFEST.json`. Line 1 is the header `{"nowMs", "options", "trane"}`,
+//! every next line is one case
+//! `{"attempts", "batches", "blacklist", "expect", "group", "id", "library", "nowMs"}`.
 //!
 //! Stderr diagnostics per case: the weakest source lesson (share of batches that reach it),
 //! untouched lessons that are NOT sources, and the difference to the naive rule "every dependency
 //! is passed" (see `naive_sources`).
 //!
-//! Usage: `cargo run --release --offline --bin scheduler_frontier_golden -- [out.json]`.
+//! Usage: `cargo run --release --offline --bin scheduler_frontier_golden -- [out.jsonl]`.
+//! `SCHEDULER_GOLDEN_BATCHES=<n>` runs a smoke test with `n` batches per case, one run per case,
+//! no stability checks and no manifest update.
 
 #[allow(dead_code)]
 #[path = "../scheduler_common.rs"]
@@ -691,7 +695,8 @@ fn sources_of(reach: &BTreeMap<String, usize>) -> BTreeSet<String> {
 }
 
 fn main() -> Result<()> {
-    let out_path = output_path("frontier.json");
+    let out_path = output_path("frontier.jsonl");
+    let (batches, smoke) = batches_from_env(BATCHES);
     let started = Instant::now();
     let opts = options(BATCH_SIZE, Some(MAX_LESSONS_IN_PROGRESS));
     let cases = cases();
@@ -705,8 +710,13 @@ fn main() -> Result<()> {
         }
         *groups.entry(case.group).or_default() += 1;
         let t = Instant::now();
-        let first = reach(&case.state, &run_batches(&case.state, &opts, BATCHES, THREADS)?);
-        let second = reach(&case.state, &run_batches(&case.state, &opts, BATCHES, THREADS)?);
+        let first = reach(&case.state, &run_batches(&case.state, &opts, batches, THREADS)?);
+        // A smoke run draws one run only and checks nothing about stability.
+        let second = if smoke {
+            first.clone()
+        } else {
+            reach(&case.state, &run_batches(&case.state, &opts, batches, THREADS)?)
+        };
         let (sources, again) = (sources_of(&first), sources_of(&second));
         if sources != again {
             bail!(
@@ -718,10 +728,10 @@ fn main() -> Result<()> {
         }
         let weakest = sources
             .iter()
-            .map(|s| (first[s].min(second[s]) as f64 / BATCHES as f64, s))
+            .map(|s| (first[s].min(second[s]) as f64 / batches as f64, s))
             .min_by(|a, b| a.0.total_cmp(&b.0));
         if let Some((share, lesson)) = weakest {
-            if share < MIN_REACH {
+            if !smoke && share < MIN_REACH {
                 bail!(
                     "case {}: lesson {lesson} reached by only {:.3} of the batches",
                     case.id,
@@ -754,7 +764,7 @@ fn main() -> Result<()> {
             "blacklist": case.state.blacklist,
             "attempts": case.state.attempts_json(),
             "nowMs": NOW_MS,
-            "batches": BATCHES,
+            "batches": batches,
             "expect": { "sourceLessons": sources },
         }));
     }
@@ -764,23 +774,26 @@ fn main() -> Result<()> {
         }
     }
 
-    let document = json!({
+    let header = json!({
         "trane": trane_json(),
         "nowMs": NOW_MS,
         "options": {"batchSize": BATCH_SIZE, "maxLessonsInProgress": MAX_LESSONS_IN_PROGRESS},
-        "cases": values,
     });
-    write_json(&out_path, &document)?;
-    update_manifest(
-        &out_path,
-        json!({
-            "bin": "scheduler_frontier_golden",
-            "seed": format!("{SEED:#X}"),
-            "seedScope": "random states of the `mixed` group only; batches use Trane's thread-local RNG and are not reproducible, the source sets are checked for stability across two independent runs",
-            "cases": cases.len(),
-            "batchesPerCase": BATCHES,
-        }),
-    )?;
+    write_jsonl(&out_path, &header, &values)?;
+    if smoke {
+        eprintln!("smoke run ({batches} batches per case): manifest not updated");
+    } else {
+        update_manifest(
+            &out_path,
+            json!({
+                "bin": "scheduler_frontier_golden",
+                "seed": format!("{SEED:#X}"),
+                "seedScope": "random states of the `mixed` group only; batches use Trane's thread-local RNG and are not reproducible, the source sets are checked for stability across two independent runs",
+                "cases": cases.len(),
+                "batchesPerCase": batches,
+            }),
+        )?;
+    }
     eprintln!(
         "{} cases in {:.1}s -> {}",
         cases.len(),

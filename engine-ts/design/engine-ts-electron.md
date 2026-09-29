@@ -1061,7 +1061,12 @@ export const boot = async (config: EngineConfig) => {
     durability: config.durability ?? 'full',
   });
   const verifiers = [
-    createSqlVerifier({ logger: defaults.logger, spawnWorker: fork }),
+    createSqlVerifier({
+      source: defaults.courseSource, // fixture и expected читаются из библиотеки
+      logger: defaults.logger,
+      spawnWorker: fork,
+      workerPath, // собранный worker.js пакета раннера
+    }),
   ];
   const engine = await createEngine(
     { ...defaults, eventStore, verifiers },

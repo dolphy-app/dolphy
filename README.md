@@ -42,4 +42,12 @@ git submodule update --remote vendor/metaskills && scripts/link-skills.sh   # о
 
 Почему не `npx metaskills`: он создаёт одну ссылку `<ide>/skills/metaskills` на всю папку, то есть раскладку `skills/metaskills/<name>/SKILL.md`, а omp ищет скиллы ровно на один уровень ниже `skills/` (документация omp, `skills.md`). Поэтому `scripts/link-skills.sh` линкует каждый скилл отдельно.
 
+Скилл [`vuetify-skilld`](https://github.com/harlan-zw/vue-ecosystem-skills/tree/main/skills/vuetify-skilld) (harlan-zw/vue-ecosystem-skills, Vuetify 4.0.1) лежит в git как обычный каталог `.agents/skills/vuetify-skilld` (копия из GitHub, не через market.lobehub.com), `.claude/skills/vuetify-skilld` — симлинк на него. `scripts/link-skills.sh` его не трогает: скрипт снимает только висячие ссылки на `vendor/metaskills`.
+
+Скилл [`feature-sliced-design`](https://github.com/feature-sliced/skills) (Feature-Sliced Design v2.1) поставлен `npx skills add https://github.com/feature-sliced/skills --skill feature-sliced-design` (с `DISABLE_TELEMETRY=1`); CLI кладёт копию в `.claude/skills/`, каталог перенесён в `.agents/skills/feature-sliced-design`, в `.claude/skills/` — симлинк, как у остальных. Источник и хэш записаны в `skills-lock.json`.
+
+Свой скилл `storybook-vue-stories` (`.agents/skills/storybook-vue-stories`, симлинк в `.claude/skills/`) — как писать Storybook stories для Vue 3 компонентов (CSF 3, Storybook 10, Vuetify, `play`); основан на статье https://habr.com/ru/articles/761570/.
+
+Скилл `vue-design-reviewer` (`.agents/skills/vue-design-reviewer`, симлинк в `.claude/skills/`) — визуальный review страницы или компонента Vue; для компонентов со stories проверка идёт через Storybook, по умолчанию только отчёт. Основан на [web-design-reviewer](https://github.com/github/awesome-copilot/blob/main/skills/web-design-reviewer/SKILL.md) из github/awesome-copilot, браузер — встроенный `browser` omp вместо Playwright MCP.
+
 Линтер и форматтер: ESLint (`eslint-config-metarhia`) + Prettier, как требует `js-conventions`; решение принято вместо Biome из первоначального дизайна `engine-ts` (M0).

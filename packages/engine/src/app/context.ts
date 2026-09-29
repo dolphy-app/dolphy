@@ -123,6 +123,8 @@ export interface AttemptIndex extends AttemptCatalog {
   cutOf(exerciseId: UnitId): EntryKey | null;
   /** Все неотменённые попытки всех упражнений по возрастанию ключа. */
   allInOrder(): AttemptRecord[];
+  /** Запоминает юнит из записи флага (для `W_ORPHAN_EVENTS`). */
+  noteUnit(unitId: UnitId): void;
   /** Все идентификаторы юнитов, встреченные в применённых записях (попытки, флаги, сбросы). */
   seenUnitIds(): Iterable<UnitId>;
   clear(): void;
@@ -205,6 +207,10 @@ export interface Projections {
   apply(entry: LogEntry): UnitId[];
   /** Очищает всё и складывает записи в порядке журнала; возвращает их число. */
   rebuildFrom(entries: AsyncIterable<LogEntry>): Promise<number>;
+  /** Смена библиотеки, опций или настроек: награды, память и ремедиация досчитаются при чтении. */
+  invalidateDerived(): void;
+  /** Производные проекции помечены устаревшими и ещё не досчитаны: кэши оценок надо сбросить целиком. */
+  isStale(): boolean;
   clear(): void;
 }
 
@@ -300,6 +306,13 @@ export interface EngineContext extends FacadeContext {
   commit(inputs: readonly CommitInput[]): Promise<CommitResult>;
   /** Сообщение подписчикам: уходит после завершения команды (`bus.flush`). */
   emit(event: EngineEvent): void;
+  /**
+   * Применяет записи, уже лежащие в журнале (импорт, синхронизация), к
+   * проекциям и сбрасывает кэши `UnitScorer`; возвращает затронутые юниты.
+   * Записи старше применённых и сбросы допустимы: производные проекции
+   * досчитываются при чтении.
+   */
+  applyEntries(entries: readonly LogEntry[]): UnitId[];
   /** Полная перестройка проекций из журнала; `state-rebuilt` в шину; `dirty = false`. */
   rebuild(): Promise<void>;
   markDirty(): void;

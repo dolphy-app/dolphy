@@ -33,16 +33,19 @@ const compareStrings = (a: string, b: string) => Number(a > b) - Number(a < b);
  * `UnitScorer` (engine-ts-api.md §4). Эффективные зависимости урока — его
  * зависимости плюс зависимости курса, если урок стартовый.
  *
- * **Нет данных = закрыто**: зависимость, у которой нет оценки или среднего
- * числа попыток, блокирует урок (в `getBatch` Trane такая зависимость
- * считается выполненной). Исключения, где Trane и порт совпадают по смыслу
- * «пользователь снял препятствие»: зависимость в blacklist (или урок из
- * blacklisted курса) и вытесненная (`superseded`) считаются выполненными;
- * зависимость на несуществующий юнит (нет в графе или манифеста) — тоже,
- * потому что изучить её нельзя. Из фронтира исключаются уроки без валидных
- * упражнений, из blacklist и вытесненные. Порядок: курс, затем урок (по коду
- * символов). Фронтир не учитывает лимит `maxLessonsInProgress` и выбор
- * `getBatch`.
+ * **Нет данных = закрыто**: зависимость с упражнениями, но без попыток, имеет
+ * оценку 0 и среднее число попыток 0 и порог не проходит — как у Trane
+ * (дифференциальный тест T-49: множество совпадает с Rust на 46 из 47
+ * состояний). Юнит без валидных упражнений (пустой, из blacklist, вытесненный)
+ * оценки не имеет и, как в Trane (`satisfied_effective_dependency`), считается
+ * выполненным — иначе цепочка за пустым уроком закрылась бы навсегда;
+ * зависимость на несуществующий юнит — тоже. Осознанное расхождение с DFS
+ * Trane: зависимые курса, вытесненного до завершения его уроков, DFS не
+ * достигает (счётчик «непройденных уроков» курса не обнуляется), а фронтир их
+ * открывает — вытесненный юнит считается выполненным. Из фронтира исключаются
+ * уроки без валидных упражнений, из blacklist и вытесненные. Порядок: курс,
+ * затем урок (по коду символов). Фронтир не учитывает лимит
+ * `maxLessonsInProgress` и выбор `getBatch`.
  */
 export const getFrontier = (
   deps: FrontierDeps,
@@ -75,15 +78,58 @@ export const getFrontier = (
     return type === 'Exercise' && library.getExercise(unitId) !== undefined;
   };
 
-  const isDependencyOpen = (dependencyId: UnitId) => {
+  /** Зависимости юнита: у урока плюс зависимости курса, если урок стартовый. */
+  const effectiveDependencies = (unitId: UnitId) => {
+    const dependencies = new Set(graph.getDependencies(unitId));
+    if (graph.getUnitType(unitId) !== 'Lesson') return dependencies;
+    const courseId = graph.getLessonCourse(unitId) ?? '';
+    const starting = graph.getStartingLessons(courseId) ?? EMPTY_SET;
+    if (starting.has(unitId)) {
+      for (const id of graph.getDependencies(courseId) ?? EMPTY_SET) {
+        dependencies.add(id);
+      }
+    }
+    return dependencies;
+  };
+
+  const openCache = new Map<UnitId, boolean>();
+  const areDependenciesOpen = (unitId: UnitId) => {
+    for (const id of effectiveDependencies(unitId)) {
+      // eslint-disable-next-line no-use-before-define
+      if (!isDependencyOpen(id)) return false;
+    }
+    return true;
+  };
+
+  /**
+   * Зависимость выполнена, если прошла порог. Юнит без оценки (нет валидных
+   * упражнений, blacklist) «прозрачен»: он выполнен, когда выполнены его
+   * собственные зависимости — Trane не достигает зависимых за таким юнитом,
+   * пока не пройдены его предки. Вытесненный юнит выполнен безусловно.
+   */
+  const isDependencyOpen = (dependencyId: UnitId): boolean => {
+    const cached = openCache.get(dependencyId);
+    if (cached !== undefined) return cached;
+    openCache.set(dependencyId, true); // защита от циклов
+    // eslint-disable-next-line no-use-before-define
+    const open = computeDependencyOpen(dependencyId);
+    openCache.set(dependencyId, open);
+    return open;
+  };
+
+  const computeDependencyOpen = (dependencyId: UnitId) => {
     if (!unitExists(dependencyId)) return true;
-    if (blacklist.isBlacklisted(dependencyId)) return true;
     const courseId = graph.getLessonCourse(dependencyId) ?? '';
-    if (blacklist.isBlacklisted(courseId)) return true;
+    const isBlacklisted =
+      blacklist.isBlacklisted(dependencyId) ||
+      blacklist.isBlacklisted(courseId);
+    if (isBlacklisted) return areDependenciesOpen(dependencyId);
     if (isSuperseded(dependencyId)) return true;
     const score = scoreOf(dependencyId);
     const averageTrials = scorer.getAvgTrials(dependencyId);
-    if (score === null || averageTrials === null) return false;
+    if (score === null || averageTrials === null) {
+      return areDependenciesOpen(dependencyId);
+    }
     return passesThreshold(passingScore, score, averageTrials);
   };
 
@@ -94,26 +140,12 @@ export const getFrontier = (
     return false;
   };
 
-  const effectiveDependencies = (lessonId: UnitId, courseId: UnitId) => {
-    const dependencies = new Set(graph.getDependencies(lessonId));
-    const starting = graph.getStartingLessons(courseId) ?? EMPTY_SET;
-    if (starting.has(lessonId)) {
-      for (const id of graph.getDependencies(courseId) ?? EMPTY_SET) {
-        dependencies.add(id);
-      }
-    }
-    return dependencies;
-  };
-
   const isOnFrontier = (lessonId: UnitId, courseId: UnitId) => {
     if (blacklist.isBlacklisted(lessonId)) return false;
     if (blacklist.isBlacklisted(courseId)) return false;
     if (isSuperseded(lessonId) || isSuperseded(courseId)) return false;
     if (isStarted(lessonId)) return false;
-    for (const id of effectiveDependencies(lessonId, courseId)) {
-      if (!isDependencyOpen(id)) return false;
-    }
-    return true;
+    return areDependenciesOpen(lessonId);
   };
 
   const items: FrontierItemDto[] = [];

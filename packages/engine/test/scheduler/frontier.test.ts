@@ -220,7 +220,7 @@ describe('getFrontier', () => {
     expect(lessonsOf(world)).toEqual(['1::0']);
   });
 
-  it('урок без валидных упражнений не во фронтире и как зависимость закрыт', () => {
+  it('пустой урок не во фронтире и не блокирует зависимых (как в Trane)', () => {
     const world = createWorld({
       courses: [
         {
@@ -233,6 +233,44 @@ describe('getFrontier', () => {
         },
       ],
     });
+    expect(lessonsOf(world)).toEqual(['0::1', '0::2']);
+  });
+
+  it('пустой урок прозрачен: зависимые за ним ждут предков пустого урока', () => {
+    const world = createWorld({
+      courses: [
+        {
+          id: '0',
+          lessons: [
+            { id: '0::0', exercises: 2 },
+            { id: '0::1', dependencies: ['0::0'], exercises: 0 },
+            { id: '0::2', dependencies: ['0::1'], exercises: 2 },
+          ],
+        },
+      ],
+    });
+    practice(world, '0::0', { count: 2, attempts: 1 });
+    expect(lessonsOf(world)).toEqual([]);
+    practice(world, '0::0', { count: 2, attempts: 1 });
+    expect(lessonsOf(world)).toEqual(['0::2']);
+  });
+
+  it('зависимость в blacklist прозрачна так же, как пустой урок', () => {
+    const world = createWorld({
+      courses: [
+        {
+          id: '0',
+          lessons: [
+            { id: '0::0', exercises: 2 },
+            { id: '0::1', dependencies: ['0::0'], exercises: 2 },
+            { id: '0::2', dependencies: ['0::1'], exercises: 2 },
+          ],
+        },
+      ],
+    });
+    world.blacklist.add('0::1');
+    expect(lessonsOf(world)).toEqual(['0::0']);
+    practice(world, '0::0', { count: 2, attempts: 2 });
     expect(lessonsOf(world)).toEqual(['0::2']);
   });
 

@@ -72,7 +72,7 @@ describe('курсы, порождённые генераторами', () => {
     const expected = [
       `${COURSE}::lesson_0::exercise_0`,
       `${COURSE}::lesson_1::exercise_1`,
-    ];
+    ] as const;
     expect(library.getAllExerciseIds()).toEqual(expected);
     // зависимость `lesson_0` в файле превращается в полный id
     expect(library.getLesson(`${COURSE}::lesson_1`)?.dependencies).toEqual([

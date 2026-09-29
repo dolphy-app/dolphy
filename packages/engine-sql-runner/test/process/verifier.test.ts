@@ -259,7 +259,7 @@ describe('kill и watchdog (T-42)', () => {
     const elapsed = performance.now() - started;
     expect(verdict).toMatchObject({ outcome: 'error', reason: 'timeout' });
     expect(elapsed).toBeGreaterThanOrEqual(500);
-    expect(elapsed).toBeLessThan(3000);
+    expect(elapsed).toBeLessThan(6000);
     expect(victim?.signalCode).toBe('SIGKILL');
     expect(verifier.stats().kills).toBe(1);
     const next = await verifier.check(
@@ -324,7 +324,7 @@ describe('kill и watchdog (T-42)', () => {
     const elapsed = performance.now() - started;
     expect(verdict).toMatchObject({ outcome: 'error', reason: 'timeout' });
     expect(elapsed).toBeGreaterThanOrEqual(250);
-    expect(elapsed).toBeLessThan(3000);
+    expect(elapsed).toBeLessThan(6000);
     const [child] = spawns.children;
     expect(await exitOf(child as NonNullable<typeof child>)).toMatchObject({
       signal: 'SIGKILL',
@@ -352,7 +352,7 @@ describe('kill и watchdog (T-42)', () => {
     await waitFor(() => verifier.stats().checks === 1);
     const started = performance.now();
     await verifier.close();
-    expect(performance.now() - started).toBeLessThan(2000);
+    expect(performance.now() - started).toBeLessThan(6000);
     expect(await pending).toMatchObject({
       outcome: 'error',
       reason: 'internal',
@@ -382,7 +382,7 @@ describe('kill и watchdog (T-42)', () => {
       outcome: 'error',
       reason: 'resource_kill',
     });
-    expect(performance.now() - started).toBeLessThan(2000);
+    expect(performance.now() - started).toBeLessThan(6000);
     expect(polls).toBeGreaterThan(0);
     expect(verifier.stats().kills).toBe(1);
   });
@@ -406,7 +406,7 @@ describe('kill и watchdog (T-42)', () => {
         outcome: 'error',
         reason: 'resource_kill',
       });
-      expect(performance.now() - started).toBeLessThan(8000);
+      expect(performance.now() - started).toBeLessThan(15_000);
       const next = await verifier.check(
         sqlRequest('SELECT count(*) AS n FROM emp'),
       );

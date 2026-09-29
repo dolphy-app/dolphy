@@ -6,12 +6,12 @@
 
 pnpm-workspace (`pnpm-workspace.yaml`): `apps/*`, `packages/*`.
 
-| Путь                                    | Что                                                                                                     |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `apps/desktop`                          | Electron + Vue 3 + Vite, шаблон [electron-vite-vue](https://github.com/electron-vite/electron-vite-vue) |
-| `packages/`                             | пакеты `@lms/*` слоя бизнес-логики `engine-ts`, карта — `packages/README.md`                            |
-| `docs/`, `engine-ts/`, `spike/`         | документы системного дизайна; кода там нет, линтер и форматтер их не трогают                            |
-| `vendor/metaskills`, `.agents/skills/*` | скиллы для агентов (git submodule и симлинки, см. `README.md`)                                          |
+| Путь                                    | Что                                                                                          |
+| --------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `apps/desktop`                          | Electron 44 + Vue 3 + Vite; движок в `utilityProcess`, устройство — `apps/desktop/README.md` |
+| `packages/`                             | пакеты `@lms/*` слоя бизнес-логики `engine-ts`, карта — `packages/README.md`                 |
+| `docs/`, `engine-ts/`, `spike/`         | документы системного дизайна; кода там нет, линтер и форматтер их не трогают                 |
+| `vendor/metaskills`, `.agents/skills/*` | скиллы для агентов (git submodule и симлинки, см. `README.md`)                               |
 
 ## Команды
 
@@ -22,8 +22,9 @@ Node ≥ 22.12 (`.nvmrc`), pnpm 9.15.9 (поле `packageManager`). Устана
 | `pnpm install`   | зависимости всего workspace                             |
 | `pnpm dev`       | `apps/desktop` в режиме разработки                      |
 | `pnpm build`     | сборка `apps/desktop` (vue-tsc, vite, electron-builder) |
+| `pnpm smoke`     | сквозной смоук `apps/desktop` в настоящем Electron      |
 | `pnpm typecheck` | `tsc -b` (TS 7) по пакетам `packages/*`                 |
-| `pnpm test`      | `vitest run` по проектам `packages/*`                   |
+| `pnpm test`      | `vitest run` по проектам `packages/*` и `apps/*`        |
 | `pnpm lint`      | `eslint .` и `prettier --check .`                       |
 | `pnpm fix`       | `eslint . --fix` и `prettier --write .`                 |
 | `pnpm <cmd> -r`  | команда во всех пакетах workspace                       |

@@ -200,7 +200,8 @@ export const createProgressReader = (ctx: EngineContext): ProgressReader => {
       return [unitId, ...below];
     };
 
-    return unitIds.flatMap(expand).map(nodeOf);
+    const isExplicit = query.scope !== undefined && 'unitIds' in query.scope;
+    return (isExplicit ? unitIds : unitIds.flatMap(expand)).map(nodeOf);
   };
 
   return { unitScore, scoresOfExercise, progress };

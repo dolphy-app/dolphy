@@ -20,3 +20,22 @@ export type {
 } from './journal-writer.ts';
 export { UNQUEUED, createFacade, wrapTree } from './facade.ts';
 export type { EngineServices, WrapMethod } from './facade.ts';
+export type {
+  AttemptIndex,
+  AttemptRecord,
+  CommitInput,
+  CommitResult,
+  EffectiveAttempt,
+  EngineContext,
+  EngineDeps,
+  EngineMetrics,
+  EntryKey,
+  FlagState,
+  FolderSyncPort,
+  LibraryHolder,
+  MemoryIndex,
+  OpenAttempt,
+  Projections,
+  RemediationTracker,
+  RewardProjection,
+} from './context.ts';

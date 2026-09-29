@@ -8,6 +8,12 @@
 #   cargo run --release --offline --bin fsrs_golden    # ../fsrs-scorer.jsonl
 #   cargo run --release --offline --bin reward_golden  # ../reward-scorer.jsonl
 # Повторный запуск даёт побайтово тот же файл; sha256 — в ../MANIFEST.json.
+#
+# Планировщик (M3): fixtures в ../../scheduler/golden/, манифест там же; общий модуль —
+# src/scheduler_common.rs. Батчи Rust берут тред-RNG (rand::rng()), поэтому повторный запуск
+# этих двух бинарников даёт другие числа и другой sha256:
+#   cargo run --release --offline --bin scheduler_l4_golden        # l4.json
+#   cargo run --release --offline --bin scheduler_frontier_golden  # frontier.json
 [package]
 name = "engine-golden"
 version = "0.1.0"
@@ -19,6 +25,14 @@ default-run = "powerlaw-golden"
 [[bin]]
 name = "powerlaw-golden"
 path = "src/main.rs"
+
+[[bin]]
+name = "scheduler_l4_golden"
+path = "src/bin/scheduler_l4_golden.rs"
+
+[[bin]]
+name = "scheduler_frontier_golden"
+path = "src/bin/scheduler_frontier_golden.rs"
 
 [dependencies]
 trane = { path = "trane-pristine" }

@@ -1,0 +1,4617 @@
+{
+  "cases": [
+    {
+      "attempts": [],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "0::0",
+          "0::2",
+          "1::0"
+        ]
+      },
+      "group": "untouched-lesson",
+      "id": "fr-untouched-two-courses",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "0::0"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 4,
+                "id": "0::1"
+              },
+              {
+                "exercises": 4,
+                "id": "0::2"
+              },
+              {
+                "dependencies": [
+                  "0::1",
+                  "0::2"
+                ],
+                "exercises": 4,
+                "id": "0::3"
+              }
+            ]
+          },
+          {
+            "id": "1",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "1::0"
+              },
+              {
+                "dependencies": [
+                  "1::0"
+                ],
+                "exercises": 4,
+                "id": "1::1"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "0::0",
+          "2::0"
+        ]
+      },
+      "group": "untouched-lesson",
+      "id": "fr-untouched-course-chain",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 3,
+                "id": "0::0"
+              }
+            ]
+          },
+          {
+            "dependencies": [
+              "0"
+            ],
+            "id": "1",
+            "lessons": [
+              {
+                "exercises": 3,
+                "id": "1::0"
+              },
+              {
+                "dependencies": [
+                  "1::0"
+                ],
+                "exercises": 3,
+                "id": "1::1"
+              }
+            ]
+          },
+          {
+            "id": "2",
+            "lessons": [
+              {
+                "exercises": 3,
+                "id": "2::0"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "0::0",
+          "0::4"
+        ]
+      },
+      "group": "untouched-lesson",
+      "id": "fr-untouched-diamond",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 5,
+                "id": "0::0"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 5,
+                "id": "0::1"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 5,
+                "id": "0::2"
+              },
+              {
+                "dependencies": [
+                  "0::1",
+                  "0::2"
+                ],
+                "exercises": 5,
+                "id": "0::3"
+              },
+              {
+                "exercises": 5,
+                "id": "0::4"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::2",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::3",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::2",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::3",
+          "score": 5
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "0::1",
+          "0::4"
+        ]
+      },
+      "group": "untouched-dependency",
+      "id": "fr-dep-untouched-blocks",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "0::0"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 4,
+                "id": "0::1"
+              },
+              {
+                "dependencies": [
+                  "0::1"
+                ],
+                "exercises": 4,
+                "id": "0::2"
+              },
+              {
+                "dependencies": [
+                  "0::0",
+                  "0::4"
+                ],
+                "exercises": 4,
+                "id": "0::3"
+              },
+              {
+                "exercises": 4,
+                "id": "0::4"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::2",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::3",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::2",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::3",
+          "score": 5
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "1::0"
+        ]
+      },
+      "group": "untouched-dependency",
+      "id": "fr-dep-untouched-second-course",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "0::0"
+              }
+            ]
+          },
+          {
+            "id": "1",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "1::0"
+              },
+              {
+                "dependencies": [
+                  "1::0"
+                ],
+                "exercises": 4,
+                "id": "1::1"
+              }
+            ]
+          },
+          {
+            "dependencies": [
+              "0",
+              "1"
+            ],
+            "id": "2",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "2::0"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::1",
+          "score": 5
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "0::2"
+        ]
+      },
+      "group": "untouched-dependency",
+      "id": "fr-dep-partially-touched",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "0::0"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 4,
+                "id": "0::1"
+              },
+              {
+                "exercises": 3,
+                "id": "0::2"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::2",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::3",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::2",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::3",
+          "score": 5
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "0::2"
+        ]
+      },
+      "group": "empty-lesson",
+      "id": "fr-empty-mid-chain",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "0::0"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 0,
+                "id": "0::1"
+              },
+              {
+                "dependencies": [
+                  "0::1"
+                ],
+                "exercises": 4,
+                "id": "0::2"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "0::1",
+          "1::0"
+        ]
+      },
+      "group": "empty-lesson",
+      "id": "fr-empty-start",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 0,
+                "id": "0::0"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 4,
+                "id": "0::1"
+              },
+              {
+                "dependencies": [
+                  "0::1"
+                ],
+                "exercises": 4,
+                "id": "0::2"
+              }
+            ]
+          },
+          {
+            "id": "1",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "1::0"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::2",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::3",
+          "score": 5
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "0::3"
+        ]
+      },
+      "group": "empty-lesson",
+      "id": "fr-empty-after-weak-lesson",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "0::0"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 0,
+                "id": "0::1"
+              },
+              {
+                "dependencies": [
+                  "0::1"
+                ],
+                "exercises": 4,
+                "id": "0::2"
+              },
+              {
+                "exercises": 4,
+                "id": "0::3"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "1::0"
+        ]
+      },
+      "group": "empty-lesson",
+      "id": "fr-empty-course-only-lesson",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 0,
+                "id": "0::0"
+              }
+            ]
+          },
+          {
+            "dependencies": [
+              "0"
+            ],
+            "id": "1",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "1::0"
+              },
+              {
+                "dependencies": [
+                  "1::0"
+                ],
+                "exercises": 4,
+                "id": "1::1"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "1::0"
+        ]
+      },
+      "group": "empty-lesson",
+      "id": "fr-empty-course-without-lessons",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": []
+          },
+          {
+            "dependencies": [
+              "0"
+            ],
+            "id": "1",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "1::0"
+              },
+              {
+                "dependencies": [
+                  "1::0"
+                ],
+                "exercises": 4,
+                "id": "1::1"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::0",
+          "score": 3
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::1",
+          "score": 3
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::2",
+          "score": 3
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::0",
+          "score": 3
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::1",
+          "score": 3
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::2",
+          "score": 3
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "0::3"
+        ]
+      },
+      "group": "chain",
+      "id": "fr-chain-score3-two-attempts",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 3,
+                "id": "0::0"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 3,
+                "id": "0::1"
+              },
+              {
+                "dependencies": [
+                  "0::1"
+                ],
+                "exercises": 3,
+                "id": "0::2"
+              },
+              {
+                "exercises": 3,
+                "id": "0::3"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 3600000,
+          "exerciseId": "0::0::0",
+          "score": 3
+        },
+        {
+          "agoMs": 3600000,
+          "exerciseId": "0::0::1",
+          "score": 3
+        },
+        {
+          "agoMs": 3600000,
+          "exerciseId": "0::0::2",
+          "score": 3
+        },
+        {
+          "agoMs": 0,
+          "exerciseId": "0::0::0",
+          "score": 3
+        },
+        {
+          "agoMs": 0,
+          "exerciseId": "0::0::1",
+          "score": 3
+        },
+        {
+          "agoMs": 0,
+          "exerciseId": "0::0::2",
+          "score": 3
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "0::1",
+          "0::3"
+        ]
+      },
+      "group": "chain",
+      "id": "fr-chain-score3-two-attempts-just-now",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 3,
+                "id": "0::0"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 3,
+                "id": "0::1"
+              },
+              {
+                "dependencies": [
+                  "0::1"
+                ],
+                "exercises": 3,
+                "id": "0::2"
+              },
+              {
+                "exercises": 3,
+                "id": "0::3"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 7200000,
+          "exerciseId": "0::0::0",
+          "score": 3
+        },
+        {
+          "agoMs": 7200000,
+          "exerciseId": "0::0::1",
+          "score": 3
+        },
+        {
+          "agoMs": 7200000,
+          "exerciseId": "0::0::2",
+          "score": 3
+        },
+        {
+          "agoMs": 3600000,
+          "exerciseId": "0::0::0",
+          "score": 3
+        },
+        {
+          "agoMs": 3600000,
+          "exerciseId": "0::0::1",
+          "score": 3
+        },
+        {
+          "agoMs": 3600000,
+          "exerciseId": "0::0::2",
+          "score": 3
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "0::3"
+        ]
+      },
+      "group": "chain",
+      "id": "fr-chain-score3-two-attempts-hours-ago",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 3,
+                "id": "0::0"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 3,
+                "id": "0::1"
+              },
+              {
+                "dependencies": [
+                  "0::1"
+                ],
+                "exercises": 3,
+                "id": "0::2"
+              },
+              {
+                "exercises": 3,
+                "id": "0::3"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::0",
+          "score": 2
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::1",
+          "score": 2
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::2",
+          "score": 2
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::0",
+          "score": 2
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::1",
+          "score": 2
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::2",
+          "score": 2
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "0::3"
+        ]
+      },
+      "group": "chain",
+      "id": "fr-chain-score2-two-attempts",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 3,
+                "id": "0::0"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 3,
+                "id": "0::1"
+              },
+              {
+                "dependencies": [
+                  "0::1"
+                ],
+                "exercises": 3,
+                "id": "0::2"
+              },
+              {
+                "exercises": 3,
+                "id": "0::3"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 0,
+          "exerciseId": "0::0::0",
+          "score": 3
+        },
+        {
+          "agoMs": 0,
+          "exerciseId": "0::0::1",
+          "score": 3
+        },
+        {
+          "agoMs": 0,
+          "exerciseId": "0::0::2",
+          "score": 3
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "0::3"
+        ]
+      },
+      "group": "chain",
+      "id": "fr-chain-score3-one-attempt",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 3,
+                "id": "0::0"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 3,
+                "id": "0::1"
+              },
+              {
+                "dependencies": [
+                  "0::1"
+                ],
+                "exercises": 3,
+                "id": "0::2"
+              },
+              {
+                "exercises": 3,
+                "id": "0::3"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::2",
+          "score": 5
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "0::3"
+        ]
+      },
+      "group": "chain",
+      "id": "fr-chain-score5-one-attempt",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 3,
+                "id": "0::0"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 3,
+                "id": "0::1"
+              },
+              {
+                "dependencies": [
+                  "0::1"
+                ],
+                "exercises": 3,
+                "id": "0::2"
+              },
+              {
+                "exercises": 3,
+                "id": "0::3"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::0",
+          "score": 5
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "0::3"
+        ]
+      },
+      "group": "chain",
+      "id": "fr-chain-two-attempts-on-one-of-three",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 3,
+                "id": "0::0"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 3,
+                "id": "0::1"
+              },
+              {
+                "dependencies": [
+                  "0::1"
+                ],
+                "exercises": 3,
+                "id": "0::2"
+              },
+              {
+                "exercises": 3,
+                "id": "0::3"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::1",
+          "score": 5
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "0::3"
+        ]
+      },
+      "group": "chain",
+      "id": "fr-chain-two-attempts-on-two-of-three",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 3,
+                "id": "0::0"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 3,
+                "id": "0::1"
+              },
+              {
+                "dependencies": [
+                  "0::1"
+                ],
+                "exercises": 3,
+                "id": "0::2"
+              },
+              {
+                "exercises": 3,
+                "id": "0::3"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::2",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::3",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::4",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::2",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::3",
+          "score": 5
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "0::1",
+          "0::3"
+        ]
+      },
+      "group": "chain",
+      "id": "fr-chain-avg-trials-exactly-1.8",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 5,
+                "id": "0::0"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 5,
+                "id": "0::1"
+              },
+              {
+                "dependencies": [
+                  "0::1"
+                ],
+                "exercises": 5,
+                "id": "0::2"
+              },
+              {
+                "exercises": 5,
+                "id": "0::3"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 5184000000,
+          "exerciseId": "0::0::0",
+          "score": 3
+        },
+        {
+          "agoMs": 5184000000,
+          "exerciseId": "0::0::1",
+          "score": 3
+        },
+        {
+          "agoMs": 5184000000,
+          "exerciseId": "0::0::2",
+          "score": 3
+        },
+        {
+          "agoMs": 4320000000,
+          "exerciseId": "0::0::0",
+          "score": 3
+        },
+        {
+          "agoMs": 4320000000,
+          "exerciseId": "0::0::1",
+          "score": 3
+        },
+        {
+          "agoMs": 4320000000,
+          "exerciseId": "0::0::2",
+          "score": 3
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "0::3"
+        ]
+      },
+      "group": "chain",
+      "id": "fr-chain-score3-old-attempts",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 3,
+                "id": "0::0"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 3,
+                "id": "0::1"
+              },
+              {
+                "dependencies": [
+                  "0::1"
+                ],
+                "exercises": 3,
+                "id": "0::2"
+              },
+              {
+                "exercises": 3,
+                "id": "0::3"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 10368000000,
+          "exerciseId": "0::0::0",
+          "score": 4
+        },
+        {
+          "agoMs": 10368000000,
+          "exerciseId": "0::0::1",
+          "score": 4
+        },
+        {
+          "agoMs": 10368000000,
+          "exerciseId": "0::0::2",
+          "score": 4
+        },
+        {
+          "agoMs": 8640000000,
+          "exerciseId": "0::0::0",
+          "score": 4
+        },
+        {
+          "agoMs": 8640000000,
+          "exerciseId": "0::0::1",
+          "score": 4
+        },
+        {
+          "agoMs": 8640000000,
+          "exerciseId": "0::0::2",
+          "score": 4
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "0::1",
+          "0::3"
+        ]
+      },
+      "group": "chain",
+      "id": "fr-chain-score4-old-attempts",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 3,
+                "id": "0::0"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 3,
+                "id": "0::1"
+              },
+              {
+                "dependencies": [
+                  "0::1"
+                ],
+                "exercises": 3,
+                "id": "0::2"
+              },
+              {
+                "exercises": 3,
+                "id": "0::3"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::0",
+          "score": 3
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::1",
+          "score": 3
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::2",
+          "score": 3
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::0",
+          "score": 4
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::1",
+          "score": 4
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::2",
+          "score": 4
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "0::1",
+          "0::3"
+        ]
+      },
+      "group": "chain",
+      "id": "fr-chain-score3-then-4",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 3,
+                "id": "0::0"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 3,
+                "id": "0::1"
+              },
+              {
+                "dependencies": [
+                  "0::1"
+                ],
+                "exercises": 3,
+                "id": "0::2"
+              },
+              {
+                "exercises": 3,
+                "id": "0::3"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::0",
+          "score": 4
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::1",
+          "score": 4
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::2",
+          "score": 4
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::0",
+          "score": 3
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::1",
+          "score": 3
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::2",
+          "score": 3
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "0::1",
+          "0::3"
+        ]
+      },
+      "group": "chain",
+      "id": "fr-chain-score4-then-3",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 3,
+                "id": "0::0"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 3,
+                "id": "0::1"
+              },
+              {
+                "dependencies": [
+                  "0::1"
+                ],
+                "exercises": 3,
+                "id": "0::2"
+              },
+              {
+                "exercises": 3,
+                "id": "0::3"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::0",
+          "score": 2
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::1",
+          "score": 2
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::2",
+          "score": 2
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::0",
+          "score": 4
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::1",
+          "score": 4
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::2",
+          "score": 4
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "0::3"
+        ]
+      },
+      "group": "chain",
+      "id": "fr-chain-score2-then-4",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 3,
+                "id": "0::0"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 3,
+                "id": "0::1"
+              },
+              {
+                "dependencies": [
+                  "0::1"
+                ],
+                "exercises": 3,
+                "id": "0::2"
+              },
+              {
+                "exercises": 3,
+                "id": "0::3"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::2",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::2",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::1::0",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::1::1",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::1::2",
+          "score": 5
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "0::3"
+        ]
+      },
+      "group": "chain",
+      "id": "fr-chain-second-lesson-weak",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 3,
+                "id": "0::0"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 3,
+                "id": "0::1"
+              },
+              {
+                "dependencies": [
+                  "0::1"
+                ],
+                "exercises": 3,
+                "id": "0::2"
+              },
+              {
+                "exercises": 3,
+                "id": "0::3"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::2",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::3",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::2",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::3",
+          "score": 5
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "1::0",
+          "1::2"
+        ]
+      },
+      "group": "course-deps",
+      "id": "fr-course-dep-passed",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "0::0"
+              }
+            ]
+          },
+          {
+            "dependencies": [
+              "0"
+            ],
+            "id": "1",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "1::0"
+              },
+              {
+                "dependencies": [
+                  "1::0"
+                ],
+                "exercises": 4,
+                "id": "1::1"
+              },
+              {
+                "exercises": 4,
+                "id": "1::2"
+              }
+            ]
+          },
+          {
+            "dependencies": [
+              "1"
+            ],
+            "id": "2",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "2::0"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::2",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::3",
+          "score": 5
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "2::0"
+        ]
+      },
+      "group": "course-deps",
+      "id": "fr-course-dep-not-passed",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "0::0"
+              }
+            ]
+          },
+          {
+            "dependencies": [
+              "0"
+            ],
+            "id": "1",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "1::0"
+              },
+              {
+                "dependencies": [
+                  "1::0"
+                ],
+                "exercises": 4,
+                "id": "1::1"
+              }
+            ]
+          },
+          {
+            "id": "2",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "2::0"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::2",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::3",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::2",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::3",
+          "score": 5
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "0::1"
+        ]
+      },
+      "group": "course-deps",
+      "id": "fr-course-dep-incomplete-course",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "0::0"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 4,
+                "id": "0::1"
+              },
+              {
+                "dependencies": [
+                  "0::1"
+                ],
+                "exercises": 4,
+                "id": "0::2"
+              }
+            ]
+          },
+          {
+            "dependencies": [
+              "0"
+            ],
+            "id": "1",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "1::0"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::2",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::1::0",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::1::1",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::1::2",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::2",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::1::0",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::1::1",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::1::2",
+          "score": 5
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "1::0"
+        ]
+      },
+      "group": "course-deps",
+      "id": "fr-course-dep-all-lessons-mastered",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 3,
+                "id": "0::0"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 3,
+                "id": "0::1"
+              }
+            ]
+          },
+          {
+            "dependencies": [
+              "0"
+            ],
+            "id": "1",
+            "lessons": [
+              {
+                "exercises": 3,
+                "id": "1::0"
+              }
+            ]
+          },
+          {
+            "dependencies": [
+              "0",
+              "1"
+            ],
+            "id": "2",
+            "lessons": [
+              {
+                "exercises": 3,
+                "id": "2::0"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::2",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::2",
+          "score": 5
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "1::0"
+        ]
+      },
+      "group": "course-deps",
+      "id": "fr-course-dep-two-parents",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 3,
+                "id": "0::0"
+              }
+            ]
+          },
+          {
+            "id": "1",
+            "lessons": [
+              {
+                "exercises": 3,
+                "id": "1::0"
+              }
+            ]
+          },
+          {
+            "dependencies": [
+              "0",
+              "1"
+            ],
+            "id": "2",
+            "lessons": [
+              {
+                "exercises": 3,
+                "id": "2::0"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::2",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::2",
+          "score": 5
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "0::1",
+          "1::0"
+        ]
+      },
+      "group": "course-deps",
+      "id": "fr-course-dep-on-lesson",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 3,
+                "id": "0::0"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 3,
+                "id": "0::1"
+              }
+            ]
+          },
+          {
+            "dependencies": [
+              "0::0"
+            ],
+            "id": "1",
+            "lessons": [
+              {
+                "exercises": 3,
+                "id": "1::0"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [],
+      "batches": 1500,
+      "blacklist": [
+        "0::0"
+      ],
+      "expect": {
+        "sourceLessons": [
+          "0::1",
+          "0::3"
+        ]
+      },
+      "group": "blacklist",
+      "id": "fr-blacklist-lesson",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "0::0"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 4,
+                "id": "0::1"
+              },
+              {
+                "dependencies": [
+                  "0::1"
+                ],
+                "exercises": 4,
+                "id": "0::2"
+              },
+              {
+                "exercises": 4,
+                "id": "0::3"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [],
+      "batches": 1500,
+      "blacklist": [
+        "0"
+      ],
+      "expect": {
+        "sourceLessons": [
+          "1::0",
+          "2::0"
+        ]
+      },
+      "group": "blacklist",
+      "id": "fr-blacklist-course",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "0::0"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 4,
+                "id": "0::1"
+              }
+            ]
+          },
+          {
+            "dependencies": [
+              "0"
+            ],
+            "id": "1",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "1::0"
+              },
+              {
+                "dependencies": [
+                  "1::0"
+                ],
+                "exercises": 4,
+                "id": "1::1"
+              }
+            ]
+          },
+          {
+            "id": "2",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "2::0"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::2",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::3",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::2",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::3",
+          "score": 5
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [
+        "0::1"
+      ],
+      "expect": {
+        "sourceLessons": [
+          "0::2"
+        ]
+      },
+      "group": "blacklist",
+      "id": "fr-blacklist-mid-chain",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "0::0"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 4,
+                "id": "0::1"
+              },
+              {
+                "dependencies": [
+                  "0::1"
+                ],
+                "exercises": 4,
+                "id": "0::2"
+              },
+              {
+                "dependencies": [
+                  "0::2"
+                ],
+                "exercises": 4,
+                "id": "0::3"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [],
+      "batches": 1500,
+      "blacklist": [
+        "0::0::0",
+        "0::1::0",
+        "0::1::1"
+      ],
+      "expect": {
+        "sourceLessons": [
+          "0::0",
+          "0::2"
+        ]
+      },
+      "group": "blacklist",
+      "id": "fr-blacklist-exercises",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 3,
+                "id": "0::0"
+              },
+              {
+                "exercises": 2,
+                "id": "0::1"
+              },
+              {
+                "dependencies": [
+                  "0::1"
+                ],
+                "exercises": 3,
+                "id": "0::2"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::3::0",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::3::1",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::3::2",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::3::3",
+          "score": 5
+        },
+        {
+          "agoMs": 172800000,
+          "exerciseId": "0::0::0",
+          "score": 2
+        },
+        {
+          "agoMs": 172800000,
+          "exerciseId": "0::0::1",
+          "score": 2
+        },
+        {
+          "agoMs": 172800000,
+          "exerciseId": "0::0::2",
+          "score": 2
+        },
+        {
+          "agoMs": 172800000,
+          "exerciseId": "0::0::3",
+          "score": 2
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::3::0",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::3::1",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::3::2",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::3::3",
+          "score": 5
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "0::1"
+        ]
+      },
+      "group": "superseded",
+      "id": "fr-superseded-lesson",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "0::0"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 4,
+                "id": "0::1"
+              },
+              {
+                "dependencies": [
+                  "0::1"
+                ],
+                "exercises": 4,
+                "id": "0::2"
+              },
+              {
+                "exercises": 4,
+                "id": "0::3",
+                "superseded": [
+                  "0::0"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::3::0",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::3::1",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::3::2",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::3::3",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::3::0",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::3::1",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::3::2",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::3::3",
+          "score": 5
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "0::0"
+        ]
+      },
+      "group": "superseded",
+      "id": "fr-superseded-lesson-unseen-exercises",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "0::0"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 4,
+                "id": "0::1"
+              },
+              {
+                "dependencies": [
+                  "0::1"
+                ],
+                "exercises": 4,
+                "id": "0::2"
+              },
+              {
+                "exercises": 4,
+                "id": "0::3",
+                "superseded": [
+                  "0::0"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 259200000,
+          "exerciseId": "2::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "2::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "2::0::2",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "2::0::3",
+          "score": 5
+        },
+        {
+          "agoMs": 172800000,
+          "exerciseId": "1::0::0",
+          "score": 2
+        },
+        {
+          "agoMs": 172800000,
+          "exerciseId": "1::0::1",
+          "score": 2
+        },
+        {
+          "agoMs": 172800000,
+          "exerciseId": "1::0::2",
+          "score": 2
+        },
+        {
+          "agoMs": 172800000,
+          "exerciseId": "1::0::3",
+          "score": 2
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "2::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "2::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "2::0::2",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "2::0::3",
+          "score": 5
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "3::0"
+        ]
+      },
+      "group": "superseded",
+      "id": "fr-superseded-course",
+      "library": {
+        "courses": [
+          {
+            "id": "1",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "1::0"
+              }
+            ]
+          },
+          {
+            "id": "2",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "2::0"
+              }
+            ],
+            "superseded": [
+              "1"
+            ]
+          },
+          {
+            "dependencies": [
+              "1"
+            ],
+            "id": "3",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "3::0"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 259200000,
+          "exerciseId": "2::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "2::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "2::0::2",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "2::0::3",
+          "score": 5
+        },
+        {
+          "agoMs": 172800000,
+          "exerciseId": "1::0::0",
+          "score": 2
+        },
+        {
+          "agoMs": 172800000,
+          "exerciseId": "1::0::1",
+          "score": 2
+        },
+        {
+          "agoMs": 172800000,
+          "exerciseId": "1::0::2",
+          "score": 2
+        },
+        {
+          "agoMs": 172800000,
+          "exerciseId": "1::0::3",
+          "score": 2
+        },
+        {
+          "agoMs": 172800000,
+          "exerciseId": "1::1::0",
+          "score": 2
+        },
+        {
+          "agoMs": 172800000,
+          "exerciseId": "1::1::1",
+          "score": 2
+        },
+        {
+          "agoMs": 172800000,
+          "exerciseId": "1::1::2",
+          "score": 2
+        },
+        {
+          "agoMs": 172800000,
+          "exerciseId": "1::1::3",
+          "score": 2
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "2::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "2::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "2::0::2",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "2::0::3",
+          "score": 5
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": []
+      },
+      "group": "superseded",
+      "id": "fr-superseded-course-blocked-lesson",
+      "library": {
+        "courses": [
+          {
+            "id": "1",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "1::0"
+              },
+              {
+                "dependencies": [
+                  "1::0"
+                ],
+                "exercises": 4,
+                "id": "1::1"
+              }
+            ]
+          },
+          {
+            "id": "2",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "2::0"
+              }
+            ],
+            "superseded": [
+              "1"
+            ]
+          },
+          {
+            "dependencies": [
+              "1"
+            ],
+            "id": "3",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "3::0"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 259200000,
+          "exerciseId": "2::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "2::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "2::0::2",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "2::0::3",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "2::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "2::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "2::0::2",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "2::0::3",
+          "score": 5
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "1::0"
+        ]
+      },
+      "group": "superseded",
+      "id": "fr-superseded-course-unseen-exercises",
+      "library": {
+        "courses": [
+          {
+            "id": "1",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "1::0"
+              },
+              {
+                "dependencies": [
+                  "1::0"
+                ],
+                "exercises": 4,
+                "id": "1::1"
+              }
+            ]
+          },
+          {
+            "id": "2",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "2::0"
+              }
+            ],
+            "superseded": [
+              "1"
+            ]
+          },
+          {
+            "dependencies": [
+              "1"
+            ],
+            "id": "3",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "3::0"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::3::0",
+          "score": 3
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::3::1",
+          "score": 3
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::3::2",
+          "score": 3
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::3::3",
+          "score": 3
+        },
+        {
+          "agoMs": 172800000,
+          "exerciseId": "0::0::0",
+          "score": 2
+        },
+        {
+          "agoMs": 172800000,
+          "exerciseId": "0::0::1",
+          "score": 2
+        },
+        {
+          "agoMs": 172800000,
+          "exerciseId": "0::0::2",
+          "score": 2
+        },
+        {
+          "agoMs": 172800000,
+          "exerciseId": "0::0::3",
+          "score": 2
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::3::0",
+          "score": 3
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::3::1",
+          "score": 3
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::3::2",
+          "score": 3
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::3::3",
+          "score": 3
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "0::4"
+        ]
+      },
+      "group": "superseded",
+      "id": "fr-superseded-not-mastered",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "0::0"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 4,
+                "id": "0::1"
+              },
+              {
+                "exercises": 4,
+                "id": "0::3",
+                "superseded": [
+                  "0::0"
+                ]
+              },
+              {
+                "exercises": 4,
+                "id": "0::4"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::2",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::0::3",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::4::0",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::4::1",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::4::2",
+          "score": 5
+        },
+        {
+          "agoMs": 259200000,
+          "exerciseId": "0::4::3",
+          "score": 5
+        },
+        {
+          "agoMs": 172800000,
+          "exerciseId": "0::1::0",
+          "score": 2
+        },
+        {
+          "agoMs": 172800000,
+          "exerciseId": "0::1::1",
+          "score": 2
+        },
+        {
+          "agoMs": 172800000,
+          "exerciseId": "0::1::2",
+          "score": 2
+        },
+        {
+          "agoMs": 172800000,
+          "exerciseId": "0::1::3",
+          "score": 2
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::2",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::0::3",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::4::0",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::4::1",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::4::2",
+          "score": 5
+        },
+        {
+          "agoMs": 86400000,
+          "exerciseId": "0::4::3",
+          "score": 5
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "0::2"
+        ]
+      },
+      "group": "superseded",
+      "id": "fr-superseded-mid-chain",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "0::0"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 4,
+                "id": "0::1"
+              },
+              {
+                "dependencies": [
+                  "0::1"
+                ],
+                "exercises": 4,
+                "id": "0::2"
+              },
+              {
+                "dependencies": [
+                  "0::2"
+                ],
+                "exercises": 4,
+                "id": "0::3"
+              },
+              {
+                "exercises": 4,
+                "id": "0::4",
+                "superseded": [
+                  "0::1"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 2584800000,
+          "exerciseId": "2::0::1",
+          "score": 2
+        },
+        {
+          "agoMs": 2494800000,
+          "exerciseId": "2::2::0",
+          "score": 2
+        },
+        {
+          "agoMs": 2462400000,
+          "exerciseId": "2::0::0",
+          "score": 2
+        },
+        {
+          "agoMs": 2458800000,
+          "exerciseId": "2::0::2",
+          "score": 2
+        },
+        {
+          "agoMs": 2455200000,
+          "exerciseId": "0::0::4",
+          "score": 2
+        },
+        {
+          "agoMs": 2433600000,
+          "exerciseId": "2::1::0",
+          "score": 4
+        },
+        {
+          "agoMs": 2383200000,
+          "exerciseId": "0::0::1",
+          "score": 2
+        },
+        {
+          "agoMs": 2350800000,
+          "exerciseId": "1::0::2",
+          "score": 3
+        },
+        {
+          "agoMs": 2307600000,
+          "exerciseId": "3::2::2",
+          "score": 5
+        },
+        {
+          "agoMs": 2289600000,
+          "exerciseId": "1::0::1",
+          "score": 3
+        },
+        {
+          "agoMs": 2235600000,
+          "exerciseId": "0::0::2",
+          "score": 3
+        },
+        {
+          "agoMs": 2174400000,
+          "exerciseId": "3::2::1",
+          "score": 5
+        },
+        {
+          "agoMs": 2116800000,
+          "exerciseId": "2::1::1",
+          "score": 4
+        },
+        {
+          "agoMs": 2088000000,
+          "exerciseId": "0::4::1",
+          "score": 5
+        },
+        {
+          "agoMs": 2026800000,
+          "exerciseId": "0::0::3",
+          "score": 3
+        },
+        {
+          "agoMs": 1980000000,
+          "exerciseId": "2::2::1",
+          "score": 3
+        },
+        {
+          "agoMs": 1944000000,
+          "exerciseId": "2::0::3",
+          "score": 3
+        },
+        {
+          "agoMs": 1911600000,
+          "exerciseId": "0::4::0",
+          "score": 4
+        },
+        {
+          "agoMs": 1908000000,
+          "exerciseId": "0::0::0",
+          "score": 3
+        },
+        {
+          "agoMs": 1879200000,
+          "exerciseId": "1::0::0",
+          "score": 5
+        },
+        {
+          "agoMs": 1872000000,
+          "exerciseId": "3::2::0",
+          "score": 4
+        },
+        {
+          "agoMs": 1778400000,
+          "exerciseId": "1::0::3",
+          "score": 1
+        },
+        {
+          "agoMs": 1486800000,
+          "exerciseId": "2::2::0",
+          "score": 3
+        },
+        {
+          "agoMs": 1483200000,
+          "exerciseId": "2::0::2",
+          "score": 2
+        },
+        {
+          "agoMs": 1422000000,
+          "exerciseId": "2::2::1",
+          "score": 2
+        },
+        {
+          "agoMs": 1418400000,
+          "exerciseId": "2::1::1",
+          "score": 5
+        },
+        {
+          "agoMs": 1321200000,
+          "exerciseId": "2::0::3",
+          "score": 2
+        },
+        {
+          "agoMs": 1296000000,
+          "exerciseId": "2::0::1",
+          "score": 3
+        },
+        {
+          "agoMs": 1202400000,
+          "exerciseId": "3::2::1",
+          "score": 5
+        },
+        {
+          "agoMs": 1170000000,
+          "exerciseId": "0::0::4",
+          "score": 2
+        },
+        {
+          "agoMs": 1090800000,
+          "exerciseId": "0::4::0",
+          "score": 4
+        },
+        {
+          "agoMs": 1083600000,
+          "exerciseId": "0::0::1",
+          "score": 3
+        },
+        {
+          "agoMs": 1065600000,
+          "exerciseId": "2::1::0",
+          "score": 5
+        },
+        {
+          "agoMs": 1004400000,
+          "exerciseId": "0::0::0",
+          "score": 2
+        },
+        {
+          "agoMs": 990000000,
+          "exerciseId": "2::0::0",
+          "score": 3
+        },
+        {
+          "agoMs": 928800000,
+          "exerciseId": "0::0::2",
+          "score": 2
+        },
+        {
+          "agoMs": 853200000,
+          "exerciseId": "3::2::2",
+          "score": 4
+        },
+        {
+          "agoMs": 752400000,
+          "exerciseId": "0::4::1",
+          "score": 5
+        },
+        {
+          "agoMs": 748800000,
+          "exerciseId": "0::0::3",
+          "score": 3
+        },
+        {
+          "agoMs": 727200000,
+          "exerciseId": "3::2::0",
+          "score": 5
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [
+        "1::3"
+      ],
+      "expect": {
+        "sourceLessons": [
+          "0::1",
+          "0::3",
+          "1::1"
+        ]
+      },
+      "group": "mixed",
+      "id": "fr-mixed-random-3",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 5,
+                "id": "0::0"
+              },
+              {
+                "exercises": 3,
+                "id": "0::1"
+              },
+              {
+                "exercises": 0,
+                "id": "0::2",
+                "superseded": [
+                  "0::0"
+                ]
+              },
+              {
+                "exercises": 2,
+                "id": "0::3"
+              },
+              {
+                "dependencies": [
+                  "0::1"
+                ],
+                "exercises": 2,
+                "id": "0::4"
+              },
+              {
+                "dependencies": [
+                  "0::1",
+                  "0::2"
+                ],
+                "exercises": 2,
+                "id": "0::5"
+              }
+            ]
+          },
+          {
+            "id": "1",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "1::0"
+              },
+              {
+                "exercises": 4,
+                "id": "1::1"
+              },
+              {
+                "dependencies": [
+                  "1::0"
+                ],
+                "exercises": 0,
+                "id": "1::2"
+              },
+              {
+                "dependencies": [
+                  "1::1",
+                  "1::2"
+                ],
+                "exercises": 4,
+                "id": "1::3"
+              }
+            ]
+          },
+          {
+            "id": "2",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "2::0"
+              },
+              {
+                "dependencies": [
+                  "2::0"
+                ],
+                "exercises": 2,
+                "id": "2::1"
+              },
+              {
+                "exercises": 2,
+                "id": "2::2",
+                "superseded": [
+                  "2::1"
+                ]
+              }
+            ]
+          },
+          {
+            "dependencies": [
+              "1"
+            ],
+            "id": "3",
+            "lessons": [
+              {
+                "exercises": 0,
+                "id": "3::0"
+              },
+              {
+                "exercises": 4,
+                "id": "3::1",
+                "superseded": [
+                  "3::0"
+                ]
+              },
+              {
+                "exercises": 3,
+                "id": "3::2"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 2588400000,
+          "exerciseId": "2::0::2",
+          "score": 4
+        },
+        {
+          "agoMs": 2527200000,
+          "exerciseId": "0::4::0",
+          "score": 5
+        },
+        {
+          "agoMs": 2484000000,
+          "exerciseId": "2::0::0",
+          "score": 4
+        },
+        {
+          "agoMs": 2365200000,
+          "exerciseId": "1::0::0",
+          "score": 4
+        },
+        {
+          "agoMs": 2347200000,
+          "exerciseId": "1::1::0",
+          "score": 3
+        },
+        {
+          "agoMs": 2304000000,
+          "exerciseId": "2::0::3",
+          "score": 5
+        },
+        {
+          "agoMs": 2250000000,
+          "exerciseId": "0::4::1",
+          "score": 4
+        },
+        {
+          "agoMs": 2246400000,
+          "exerciseId": "2::4::1",
+          "score": 2
+        },
+        {
+          "agoMs": 2034000000,
+          "exerciseId": "1::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 1911600000,
+          "exerciseId": "1::0::2",
+          "score": 4
+        },
+        {
+          "agoMs": 1886400000,
+          "exerciseId": "1::0::3",
+          "score": 4
+        },
+        {
+          "agoMs": 1818000000,
+          "exerciseId": "2::4::0",
+          "score": 2
+        },
+        {
+          "agoMs": 1738800000,
+          "exerciseId": "2::0::1",
+          "score": 4
+        },
+        {
+          "agoMs": 1519200000,
+          "exerciseId": "0::4::0",
+          "score": 5
+        },
+        {
+          "agoMs": 1476000000,
+          "exerciseId": "0::4::1",
+          "score": 4
+        },
+        {
+          "agoMs": 1288800000,
+          "exerciseId": "2::4::0",
+          "score": 3
+        },
+        {
+          "agoMs": 1227600000,
+          "exerciseId": "2::4::1",
+          "score": 2
+        },
+        {
+          "agoMs": 972000000,
+          "exerciseId": "1::1::0",
+          "score": 2
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [
+        "0::4"
+      ],
+      "expect": {
+        "sourceLessons": [
+          "0::0",
+          "0::2",
+          "1::2"
+        ]
+      },
+      "group": "mixed",
+      "id": "fr-mixed-random-8",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 3,
+                "id": "0::0"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 5,
+                "id": "0::1"
+              },
+              {
+                "exercises": 2,
+                "id": "0::2",
+                "superseded": [
+                  "0::0"
+                ]
+              },
+              {
+                "dependencies": [
+                  "0::1"
+                ],
+                "exercises": 0,
+                "id": "0::3"
+              },
+              {
+                "dependencies": [
+                  "0::1",
+                  "0::2"
+                ],
+                "exercises": 3,
+                "id": "0::4"
+              }
+            ]
+          },
+          {
+            "id": "1",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "1::0"
+              },
+              {
+                "exercises": 4,
+                "id": "1::1"
+              },
+              {
+                "exercises": 4,
+                "id": "1::2"
+              },
+              {
+                "exercises": 0,
+                "id": "1::3"
+              }
+            ]
+          },
+          {
+            "id": "2",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "2::0"
+              },
+              {
+                "dependencies": [
+                  "2::0"
+                ],
+                "exercises": 2,
+                "id": "2::1"
+              },
+              {
+                "dependencies": [
+                  "2::1"
+                ],
+                "exercises": 5,
+                "id": "2::2"
+              },
+              {
+                "dependencies": [
+                  "2::1"
+                ],
+                "exercises": 3,
+                "id": "2::3"
+              },
+              {
+                "dependencies": [
+                  "2::2"
+                ],
+                "exercises": 2,
+                "id": "2::4"
+              },
+              {
+                "dependencies": [
+                  "2::1"
+                ],
+                "exercises": 4,
+                "id": "2::5"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 2588400000,
+          "exerciseId": "0::3::1",
+          "score": 5
+        },
+        {
+          "agoMs": 2570400000,
+          "exerciseId": "0::2::0",
+          "score": 5
+        },
+        {
+          "agoMs": 2559600000,
+          "exerciseId": "1::2::0",
+          "score": 5
+        },
+        {
+          "agoMs": 2538000000,
+          "exerciseId": "3::3::2",
+          "score": 3
+        },
+        {
+          "agoMs": 2502000000,
+          "exerciseId": "3::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 2350800000,
+          "exerciseId": "0::3::2",
+          "score": 5
+        },
+        {
+          "agoMs": 2347200000,
+          "exerciseId": "3::0::0",
+          "score": 4
+        },
+        {
+          "agoMs": 2322000000,
+          "exerciseId": "2::3::1",
+          "score": 4
+        },
+        {
+          "agoMs": 2314800000,
+          "exerciseId": "1::3::1",
+          "score": 5
+        },
+        {
+          "agoMs": 2300400000,
+          "exerciseId": "1::3::2",
+          "score": 5
+        },
+        {
+          "agoMs": 2282400000,
+          "exerciseId": "3::3::1",
+          "score": 2
+        },
+        {
+          "agoMs": 2138400000,
+          "exerciseId": "2::3::2",
+          "score": 5
+        },
+        {
+          "agoMs": 2055600000,
+          "exerciseId": "2::3::0",
+          "score": 5
+        },
+        {
+          "agoMs": 2034000000,
+          "exerciseId": "1::1::0",
+          "score": 5
+        },
+        {
+          "agoMs": 1998000000,
+          "exerciseId": "2::4::0",
+          "score": 5
+        },
+        {
+          "agoMs": 1983600000,
+          "exerciseId": "0::3::0",
+          "score": 5
+        },
+        {
+          "agoMs": 1918800000,
+          "exerciseId": "3::3::0",
+          "score": 2
+        },
+        {
+          "agoMs": 1904400000,
+          "exerciseId": "3::5::0",
+          "score": 2
+        },
+        {
+          "agoMs": 1882800000,
+          "exerciseId": "2::3::3",
+          "score": 5
+        },
+        {
+          "agoMs": 1868400000,
+          "exerciseId": "0::2::1",
+          "score": 5
+        },
+        {
+          "agoMs": 1868400000,
+          "exerciseId": "3::5::1",
+          "score": 2
+        },
+        {
+          "agoMs": 1818000000,
+          "exerciseId": "1::3::0",
+          "score": 4
+        },
+        {
+          "agoMs": 1476000000,
+          "exerciseId": "0::2::1",
+          "score": 5
+        },
+        {
+          "agoMs": 1458000000,
+          "exerciseId": "2::3::3",
+          "score": 4
+        },
+        {
+          "agoMs": 1396800000,
+          "exerciseId": "0::3::1",
+          "score": 5
+        },
+        {
+          "agoMs": 1321200000,
+          "exerciseId": "2::3::1",
+          "score": 4
+        },
+        {
+          "agoMs": 1252800000,
+          "exerciseId": "3::0::1",
+          "score": 4
+        },
+        {
+          "agoMs": 1177200000,
+          "exerciseId": "2::4::0",
+          "score": 2
+        },
+        {
+          "agoMs": 1159200000,
+          "exerciseId": "1::2::0",
+          "score": 4
+        },
+        {
+          "agoMs": 1101600000,
+          "exerciseId": "0::3::0",
+          "score": 4
+        },
+        {
+          "agoMs": 993600000,
+          "exerciseId": "2::3::0",
+          "score": 5
+        },
+        {
+          "agoMs": 925200000,
+          "exerciseId": "1::1::0",
+          "score": 4
+        },
+        {
+          "agoMs": 874800000,
+          "exerciseId": "3::0::0",
+          "score": 4
+        },
+        {
+          "agoMs": 871200000,
+          "exerciseId": "0::2::0",
+          "score": 5
+        },
+        {
+          "agoMs": 727200000,
+          "exerciseId": "2::3::2",
+          "score": 5
+        },
+        {
+          "agoMs": 716400000,
+          "exerciseId": "0::3::2",
+          "score": 4
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [],
+      "expect": {
+        "sourceLessons": [
+          "0::0",
+          "0::1",
+          "1::0",
+          "1::4"
+        ]
+      },
+      "group": "mixed",
+      "id": "fr-mixed-random-10",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "0::0"
+              },
+              {
+                "exercises": 4,
+                "id": "0::1"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 2,
+                "id": "0::2"
+              },
+              {
+                "dependencies": [
+                  "0::2"
+                ],
+                "exercises": 3,
+                "id": "0::3"
+              }
+            ]
+          },
+          {
+            "id": "1",
+            "lessons": [
+              {
+                "exercises": 2,
+                "id": "1::0"
+              },
+              {
+                "exercises": 3,
+                "id": "1::1"
+              },
+              {
+                "dependencies": [
+                  "1::0",
+                  "1::1"
+                ],
+                "exercises": 2,
+                "id": "1::2"
+              },
+              {
+                "dependencies": [
+                  "1::1",
+                  "1::2"
+                ],
+                "exercises": 3,
+                "id": "1::3"
+              },
+              {
+                "exercises": 2,
+                "id": "1::4"
+              }
+            ]
+          },
+          {
+            "dependencies": [
+              "0"
+            ],
+            "id": "2",
+            "lessons": [
+              {
+                "exercises": 5,
+                "id": "2::0"
+              },
+              {
+                "exercises": 4,
+                "id": "2::1"
+              },
+              {
+                "exercises": 2,
+                "id": "2::2"
+              },
+              {
+                "dependencies": [
+                  "2::2"
+                ],
+                "exercises": 4,
+                "id": "2::3"
+              },
+              {
+                "dependencies": [
+                  "2::1"
+                ],
+                "exercises": 3,
+                "id": "2::4"
+              }
+            ]
+          },
+          {
+            "dependencies": [
+              "2"
+            ],
+            "id": "3",
+            "lessons": [
+              {
+                "exercises": 5,
+                "id": "3::0"
+              },
+              {
+                "exercises": 2,
+                "id": "3::1",
+                "superseded": [
+                  "3::0"
+                ]
+              },
+              {
+                "exercises": 0,
+                "id": "3::2"
+              },
+              {
+                "dependencies": [
+                  "3::0"
+                ],
+                "exercises": 3,
+                "id": "3::3"
+              },
+              {
+                "dependencies": [
+                  "3::3"
+                ],
+                "exercises": 2,
+                "id": "3::4"
+              },
+              {
+                "dependencies": [
+                  "3::4"
+                ],
+                "exercises": 3,
+                "id": "3::5"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    },
+    {
+      "attempts": [
+        {
+          "agoMs": 2588400000,
+          "exerciseId": "3::4::0",
+          "score": 5
+        },
+        {
+          "agoMs": 2584800000,
+          "exerciseId": "2::2::0",
+          "score": 4
+        },
+        {
+          "agoMs": 2534400000,
+          "exerciseId": "4::1::0",
+          "score": 2
+        },
+        {
+          "agoMs": 2509200000,
+          "exerciseId": "1::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 2430000000,
+          "exerciseId": "4::1::2",
+          "score": 3
+        },
+        {
+          "agoMs": 2408400000,
+          "exerciseId": "1::0::0",
+          "score": 4
+        },
+        {
+          "agoMs": 2397600000,
+          "exerciseId": "0::0::4",
+          "score": 4
+        },
+        {
+          "agoMs": 2340000000,
+          "exerciseId": "3::3::2",
+          "score": 3
+        },
+        {
+          "agoMs": 2329200000,
+          "exerciseId": "3::3::0",
+          "score": 4
+        },
+        {
+          "agoMs": 2322000000,
+          "exerciseId": "3::2::1",
+          "score": 4
+        },
+        {
+          "agoMs": 2286000000,
+          "exerciseId": "3::4::2",
+          "score": 4
+        },
+        {
+          "agoMs": 2257200000,
+          "exerciseId": "0::0::0",
+          "score": 4
+        },
+        {
+          "agoMs": 2246400000,
+          "exerciseId": "3::2::0",
+          "score": 4
+        },
+        {
+          "agoMs": 2203200000,
+          "exerciseId": "3::4::1",
+          "score": 5
+        },
+        {
+          "agoMs": 2167200000,
+          "exerciseId": "4::1::1",
+          "score": 3
+        },
+        {
+          "agoMs": 2156400000,
+          "exerciseId": "3::3::3",
+          "score": 1
+        },
+        {
+          "agoMs": 2127600000,
+          "exerciseId": "0::0::2",
+          "score": 4
+        },
+        {
+          "agoMs": 2080800000,
+          "exerciseId": "0::0::3",
+          "score": 5
+        },
+        {
+          "agoMs": 1987200000,
+          "exerciseId": "3::3::1",
+          "score": 2
+        },
+        {
+          "agoMs": 1861200000,
+          "exerciseId": "0::0::1",
+          "score": 5
+        },
+        {
+          "agoMs": 1861200000,
+          "exerciseId": "1::4::0",
+          "score": 2
+        },
+        {
+          "agoMs": 1800000000,
+          "exerciseId": "3::1::0",
+          "score": 5
+        },
+        {
+          "agoMs": 1774800000,
+          "exerciseId": "2::2::2",
+          "score": 5
+        },
+        {
+          "agoMs": 1735200000,
+          "exerciseId": "2::2::1",
+          "score": 2
+        },
+        {
+          "agoMs": 1522800000,
+          "exerciseId": "3::3::0",
+          "score": 2
+        },
+        {
+          "agoMs": 1440000000,
+          "exerciseId": "3::3::1",
+          "score": 3
+        },
+        {
+          "agoMs": 1335600000,
+          "exerciseId": "3::3::3",
+          "score": 3
+        },
+        {
+          "agoMs": 720000000,
+          "exerciseId": "3::1::0",
+          "score": 4
+        },
+        {
+          "agoMs": 694800000,
+          "exerciseId": "3::3::2",
+          "score": 2
+        }
+      ],
+      "batches": 1500,
+      "blacklist": [
+        "0::2"
+      ],
+      "expect": {
+        "sourceLessons": [
+          "0::4",
+          "2::1",
+          "4::0"
+        ]
+      },
+      "group": "mixed",
+      "id": "fr-mixed-random-15",
+      "library": {
+        "courses": [
+          {
+            "id": "0",
+            "lessons": [
+              {
+                "exercises": 5,
+                "id": "0::0"
+              },
+              {
+                "dependencies": [
+                  "0::0"
+                ],
+                "exercises": 3,
+                "id": "0::1"
+              },
+              {
+                "exercises": 4,
+                "id": "0::2"
+              },
+              {
+                "exercises": 0,
+                "id": "0::3"
+              },
+              {
+                "dependencies": [
+                  "0::3"
+                ],
+                "exercises": 3,
+                "id": "0::4"
+              }
+            ]
+          },
+          {
+            "dependencies": [
+              "0"
+            ],
+            "id": "1",
+            "lessons": [
+              {
+                "exercises": 2,
+                "id": "1::0"
+              },
+              {
+                "exercises": 2,
+                "id": "1::1",
+                "superseded": [
+                  "1::0"
+                ]
+              },
+              {
+                "exercises": 0,
+                "id": "1::2"
+              },
+              {
+                "dependencies": [
+                  "1::0",
+                  "1::1"
+                ],
+                "exercises": 0,
+                "id": "1::3"
+              },
+              {
+                "exercises": 2,
+                "id": "1::4",
+                "superseded": [
+                  "1::3"
+                ]
+              }
+            ]
+          },
+          {
+            "id": "2",
+            "lessons": [
+              {
+                "exercises": 0,
+                "id": "2::0"
+              },
+              {
+                "exercises": 2,
+                "id": "2::1"
+              },
+              {
+                "exercises": 3,
+                "id": "2::2"
+              }
+            ]
+          },
+          {
+            "dependencies": [
+              "0",
+              "1"
+            ],
+            "id": "3",
+            "lessons": [
+              {
+                "exercises": 0,
+                "id": "3::0"
+              },
+              {
+                "dependencies": [
+                  "3::0"
+                ],
+                "exercises": 2,
+                "id": "3::1"
+              },
+              {
+                "dependencies": [
+                  "3::1"
+                ],
+                "exercises": 2,
+                "id": "3::2"
+              },
+              {
+                "dependencies": [
+                  "3::2"
+                ],
+                "exercises": 4,
+                "id": "3::3"
+              },
+              {
+                "dependencies": [
+                  "3::1"
+                ],
+                "exercises": 3,
+                "id": "3::4"
+              },
+              {
+                "dependencies": [
+                  "3::3",
+                  "3::4"
+                ],
+                "exercises": 4,
+                "id": "3::5"
+              }
+            ]
+          },
+          {
+            "id": "4",
+            "lessons": [
+              {
+                "exercises": 4,
+                "id": "4::0"
+              },
+              {
+                "exercises": 3,
+                "id": "4::1",
+                "superseded": [
+                  "4::0"
+                ]
+              },
+              {
+                "dependencies": [
+                  "4::1"
+                ],
+                "exercises": 0,
+                "id": "4::2"
+              }
+            ]
+          }
+        ]
+      },
+      "nowMs": 1800000000000
+    }
+  ],
+  "nowMs": 1800000000000,
+  "options": {
+    "batchSize": 50,
+    "maxLessonsInProgress": 10000
+  },
+  "trane": {
+    "commit": "6f5f84a",
+    "version": "v0.34.1"
+  }
+}

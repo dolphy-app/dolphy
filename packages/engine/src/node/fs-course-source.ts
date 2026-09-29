@@ -5,6 +5,9 @@ import { writeTextAtomic } from './atomic-write.ts';
 
 const ARTIFACT_PATH = '.engine/compiled.json';
 
+/** Срок жизни кэша реальных путей каталогов. */
+const REAL_DIRS_TTL_MS = 100;
+
 /** Ошибки ФС, означающие «пути нет» (в том числе висячая ссылка и петля). */
 const MISSING_CODES: Record<string, true> = {
   ENOENT: true,
@@ -41,7 +44,9 @@ export const createNodeFsCourseSource = (root: string): CourseSource => {
   const rootPrefix = rootAbs.endsWith(sep) ? rootAbs : rootAbs + sep;
   let realRootPromise: Promise<string> | undefined;
   const realRoot = () => (realRootPromise ??= realpath(rootAbs));
-  // реальный путь каталога по его пути в библиотеке
+  // реальный путь каталога по его пути в библиотеке; кэш живёт недолго:
+  // при обходе он экономит `realpath`, а подмена каталога симлинком в
+  // долгоживущем источнике не остаётся незамеченной
   const realDirs = new Map<string, Promise<string>>();
 
   const absolute = (path: string) => {
@@ -67,6 +72,9 @@ export const createNodeFsCourseSource = (root: string): CourseSource => {
       if (link.isSymbolicLink()) return realpath(abs);
       return join(await realDirOf(parentOf(dir)), basename(abs));
     })();
+    if (realDirs.size === 0) {
+      setTimeout(() => realDirs.clear(), REAL_DIRS_TTL_MS).unref();
+    }
     realDirs.set(dir, pending);
     // неудачу не кэшируем: каталог может появиться позже
     pending.catch(() => realDirs.delete(dir));

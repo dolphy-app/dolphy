@@ -10,6 +10,7 @@ import {
 } from 'node:fs/promises';
 import { statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { setTimeout } from 'node:timers/promises';
 import { join } from 'node:path';
 import type { CourseSource } from '@lms/engine';
 import { createMemoryCourseSource, buildLibrary } from '@lms/testkit';
@@ -246,6 +247,22 @@ describe('CourseSource contract: nodeFs', () => {
     expect(await readFile(join(root, '.engine/compiled.json'), 'utf8')).toBe(
       stored,
     );
+  });
+
+  it('подмена каталога симлинком наружу видна долгоживущему источнику', async () => {
+    const outer = await makeTmp();
+    const root = join(outer, 'lib');
+    await mkdir(join(root, 'dir'), { recursive: true });
+    await writeFile(join(root, 'dir/f.txt'), 'inside');
+    await mkdir(join(outer, 'other'));
+    await writeFile(join(outer, 'other/f.txt'), 'outside');
+    const source = createNodeFsCourseSource(root);
+    expect((await source.stat('dir/f.txt'))?.outsideRoot).toBeUndefined();
+    await rm(join(root, 'dir'), { recursive: true });
+    await symlink(join(outer, 'other'), join(root, 'dir'));
+    // кэш реальных путей короткоживущий: ждём его срока
+    await setTimeout(150);
+    expect((await source.stat('dir/f.txt'))?.outsideRoot).toBe(true);
   });
 
   it('выход за корень отвергается до обращения к ФС', async () => {

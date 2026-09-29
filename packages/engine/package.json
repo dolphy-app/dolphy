@@ -1,0 +1,29 @@
+{
+  "name": "@lms/engine",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Домен, приложение и fs/memory-адаптеры движка обучения",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./ports": "./src/ports/index.ts",
+    "./node": "./src/node/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@lms/engine-contract": "workspace:*",
+    "ts-fsrs": "5.4.2",
+    "yaml": "2.9.1",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "typescript": "7.0.2"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}

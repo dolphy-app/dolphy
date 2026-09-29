@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>engine-ts v1: архитектура слоя бизнес-логики</title>
+  <!-- Self-contained rendering: system monospace stack, no web-font fetch.
+       The two scripts below are OPTIONAL and power only the PNG/PDF export
+       buttons; the diagram renders fully offline without them. -->
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js" integrity="sha384-en/ztfPSRkGfME4KIm05joYXynqzUgbsG5nMrj/xEFAHXkeZfO3yMK8QQ+mP7p1/" crossorigin="anonymous"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+      background: #020617;
+      min-height: 100vh;
+      padding: 2rem;
+      color: white;
+    }
+    
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    
+    .header {
+      margin-bottom: 2rem;
+    }
+    
+    .header-row {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 0.5rem;
+    }
+    
+    .pulse-dot {
+      width: 12px;
+      height: 12px;
+      background: #22d3ee;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+    }
+    
+    .subtitle {
+      color: #94a3b8;
+      font-size: 0.875rem;
+      margin-left: 1.75rem;
+    }
+    
+    .diagram-container {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 1rem;
+      border: 1px solid #1e293b;
+      padding: 1rem;
+      overflow-x: auto;
+    }
+    
+    svg {
+      width: 100%;
+      min-width: 1100px;
+      display: block;
+    }
+    
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    
+    .card {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 0.75rem;
+      border: 1px solid #1e293b;
+      padding: 1.25rem;
+    }
+    
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+    
+    .card-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+    
+    .card-dot.cyan { background: #22d3ee; }
+    .card-dot.emerald { background: #34d399; }
+    .card-dot.violet { background: #a78bfa; }
+    .card-dot.amber { background: #fbbf24; }
+    .card-dot.rose { background: #fb7185; }
+    
+    .card h3 {
+      font-size: 0.875rem;
+      font-weight: 600;
+    }
+    
+    .card ul {
+      list-style: none;
+      color: #94a3b8;
+      font-size: 0.75rem;
+    }
+    
+    .card li {
+      margin-bottom: 0.375rem;
+    }
+    
+    .footer {
+      text-align: center;
+      margin-top: 1.5rem;
+      color: #475569;
+      font-size: 0.75rem;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 0.5rem;
+      margin-left: auto;
+      flex-shrink: 0;
+      align-items: center;
+    }
+    .toolbar-toggle {
+      background: transparent;
+      border: none;
+      color: #475569;
+      cursor: pointer;
+      font-size: 1.25rem;
+      line-height: 1;
+      padding: 0.25rem 0.5rem;
+      border-radius: 0.375rem;
+      transition: color 0.2s, background 0.2s;
+    }
+    .toolbar-toggle:hover { color: #94a3b8; background: rgba(30, 41, 59, 0.5); }
+    .toolbar-actions {
+      display: none;
+      gap: 0.5rem;
+    }
+    .toolbar.expanded .toolbar-actions { display: flex; }
+    .toolbar-actions button {
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid #334155;
+      color: #94a3b8;
+      padding: 0.375rem 0.75rem;
+      border-radius: 0.375rem;
+      font-family: inherit;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .toolbar-actions button:hover {
+      background: rgba(51, 65, 85, 0.8);
+      color: white;
+      border-color: #475569;
+    }
+
+
+    .card code { color: #cbd5e1; font-family: inherit; }
+    .ftable { margin-top: 2rem; }
+    .ftable table { width: 100%; border-collapse: collapse; font-size: 0.75rem; table-layout: fixed; }
+    .ftable th { text-align: left; color: #cbd5e1; font-weight: 600; padding: 0.375rem 0.5rem; border-bottom: 1px solid #334155; }
+    .ftable td { color: #94a3b8; padding: 0.375rem 0.5rem; border-bottom: 1px solid #1e293b; vertical-align: top; overflow-wrap: anywhere; }
+    .ftable td.f { color: white; font-weight: 700; white-space: nowrap; }
+    .ftable td.m { color: #e2e8f0; }
+    .ftable td.unv { color: #fb923c; }
+    .ftable td.flag { color: #a3e635; }
+    .chips { margin-top: 0.75rem; display: flex; flex-wrap: wrap; gap: 0.375rem; }
+    .chips span { color: #94a3b8; font-size: 0.6875rem; border: 1px solid #334155; border-radius: 0.375rem; padding: 0.125rem 0.5rem; }
+
+    @media print {
+      body { background: #020617; padding: 1rem; }
+      .toolbar { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container" id="report-container">
+    <!-- Header -->
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>engine-ts v1: слой бизнес-логики (TS-порт Trane + ts-fsrs), F1–F7</h1>
+        <div class="toolbar">
+          <div class="toolbar-actions">
+            <button onclick="copyAsImage(this)">📋 Copy</button>
+            <button onclick="downloadPNG(this)">🖼️ PNG</button>
+            <button onclick="downloadPDF(this)">📄 PDF</button>
+          </div>
+          <button class="toolbar-toggle" onclick="this.parentElement.classList.toggle('expanded')" title="Export options" aria-label="Export options">⋯</button>
+        </div>
+      </div>
+      <p class="subtitle">Порты и адаптеры: чистый синхронный домен, async DTO-фасад, журнал событий в SQLite; 4 пакета, хост в utilityProcess, раннер SQL — пул дочерних процессов, синхронизация папкой. Пояснения — engine-ts.md</p>
+    </div>
+
+    <!-- Main Diagram -->
+    <div class="diagram-container">
+      <svg viewBox="0 0 1400 900">
+<defs>
+<marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto-start-reverse"><polygon points="0 0, 10 3.5, 0 7" fill="#64748b" /></marker>
+<pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/></pattern>
+</defs>
+<rect width="100%" height="100%" fill="url(#grid)" />
+<rect x="170" y="20" width="1002" height="772" rx="12" fill="rgba(251, 191, 36, 0.05)" stroke="#fbbf24" stroke-width="1" stroke-dasharray="8,4"/>
+<text x="182" y="37" fill="#fbbf24" font-size="10" font-weight="600">utilityProcess: engine host (Node 24.21, ESM) · owner decision · engine code has no electron imports</text>
+<rect x="180" y="90" width="982" height="600" rx="10" fill="none" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="2,3"/>
+<text x="192" y="104" fill="#e2e8f0" font-size="10" font-weight="700">@lms/engine</text>
+<text x="268" y="104" fill="#94a3b8" font-size="9">· domain + application + fs/memory adapters · no native dependencies</text>
+<rect x="195" y="444" width="682" height="144" rx="8" fill="rgba(52, 211, 153, 0.04)" stroke="#34d399" stroke-width="1" stroke-dasharray="4,4"/>
+<text x="207" y="459" fill="#34d399" font-size="9">Domain: pure, synchronous, no I/O</text>
+<rect x="195" y="256" width="138" height="164" rx="8" fill="rgba(6, 78, 59, 0.10)" stroke="#34d399" stroke-width="1" stroke-dasharray="2,3"/>
+<text x="203" y="273" fill="#34d399" font-size="10.5" font-weight="700">authoring/</text>
+<rect x="338" y="256" width="116" height="164" rx="8" fill="rgba(6, 78, 59, 0.10)" stroke="#34d399" stroke-width="1" stroke-dasharray="2,3"/>
+<text x="346" y="273" fill="#34d399" font-size="10.5" font-weight="700">placement/</text>
+<rect x="459" y="256" width="232" height="164" rx="8" fill="rgba(6, 78, 59, 0.10)" stroke="#34d399" stroke-width="1" stroke-dasharray="2,3"/>
+<text x="467" y="273" fill="#34d399" font-size="10.5" font-weight="700">planning/</text>
+<rect x="882" y="256" width="144" height="164" rx="8" fill="rgba(6, 78, 59, 0.10)" stroke="#34d399" stroke-width="1" stroke-dasharray="2,3"/>
+<text x="890" y="273" fill="#34d399" font-size="10.5" font-weight="700">sync/</text>
+<rect x="1031" y="256" width="118" height="164" rx="8" fill="rgba(6, 78, 59, 0.10)" stroke="#34d399" stroke-width="1" stroke-dasharray="2,3"/>
+<text x="1039" y="273" fill="#34d399" font-size="10.5" font-weight="700">verify/</text>
+<rect x="772" y="706" width="168" height="76" rx="10" fill="none" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="2,3"/>
+<text x="782" y="720" fill="#e2e8f0" font-size="9.5" font-weight="700">@lms/engine-sqlite</text>
+<rect x="1192" y="256" width="188" height="348" rx="10" fill="none" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="2,3"/>
+<text x="1202" y="272" fill="#e2e8f0" font-size="9.5" font-weight="700">@lms/engine-sql-runner</text>
+<rect x="1202" y="372" width="168" height="112" rx="8" fill="rgba(251, 191, 36, 0.05)" stroke="#fbbf24" stroke-width="1" stroke-dasharray="6,3"/>
+<text x="1210" y="386" fill="#fbbf24" font-size="8.5" font-weight="600">OS processes</text>
+<line x1="85" y1="204" x2="85" y2="166" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+<line x1="150" y1="136" x2="193" y2="136" stroke="#fb7185" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+<line x1="150" y1="358" x2="168" y2="358" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="5,4" marker-end="url(#arrowhead)"/>
+<line x1="1100" y1="76" x2="1100" y2="112" stroke="#22d3ee" stroke-width="1.5" stroke-dasharray="5,4" marker-end="url(#arrowhead)"/>
+<line x1="264.0" y1="158" x2="264.0" y2="178" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+<line x1="396.0" y1="158" x2="396.0" y2="178" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+<line x1="515.5" y1="158" x2="515.5" y2="178" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+<line x1="598" y1="158" x2="598" y2="178" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+<line x1="740.0" y1="158" x2="740.0" y2="178" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+<line x1="833.0" y1="158" x2="833.0" y2="178" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+<line x1="954.0" y1="158" x2="954.0" y2="178" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+<line x1="1090.0" y1="158" x2="1090.0" y2="178" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+<line x1="264" y1="234" x2="264" y2="254" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+<line x1="396" y1="234" x2="396" y2="254" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+<line x1="515" y1="234" x2="515" y2="254" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+<line x1="598" y1="234" x2="598" y2="254" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+<line x1="954" y1="234" x2="954" y2="254" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+<line x1="1090" y1="234" x2="1090" y2="254" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+<line x1="740" y1="234" x2="740" y2="442" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+<line x1="833" y1="234" x2="833" y2="442" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+<path d="M 1045,234 V 245 H 856 V 442" fill="none" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+<line x1="264" y1="420" x2="264" y2="442" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+<line x1="396" y1="420" x2="396" y2="442" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+<line x1="575" y1="420" x2="575" y2="442" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+<line x1="1143" y1="302" x2="1200" y2="302" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="5,4" marker-end="url(#arrowhead)"/>
+<line x1="1330" y1="346" x2="1330" y2="394" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="5,4" marker-end="url(#arrowhead)"/>
+<line x1="290" y1="588" x2="290" y2="616" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+<line x1="486" y1="588" x2="486" y2="616" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+<line x1="655" y1="588" x2="655" y2="616" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5,4" marker-end="url(#arrowhead)"/>
+<line x1="830" y1="588" x2="830" y2="616" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+<line x1="905" y1="420" x2="905" y2="616" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+<line x1="915" y1="674" x2="915" y2="730" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+<line x1="800" y1="706" x2="800" y2="692" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="2,3" marker-end="url(#arrowhead)"/>
+<text x="792" y="701" fill="#94a3b8" font-size="8" text-anchor="end">types only</text>
+<line x1="1192" y1="268" x2="1164" y2="268" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="2,3" marker-end="url(#arrowhead)"/>
+<line x1="150" y1="473" x2="178" y2="473" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="2,3" marker-end="url(#arrowhead)"/>
+<line x1="915" y1="772" x2="915" y2="818" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+<line x1="295" y1="674" x2="295" y2="818" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+<line x1="486" y1="674" x2="486" y2="818" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+<line x1="985" y1="404" x2="985" y2="818" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5,4" marker-end="url(#arrowhead)"/>
+<line x1="1192" y1="846" x2="1150" y2="846" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5,4" marker-start="url(#arrowhead)" marker-end="url(#arrowhead)"/>
+<g class="bx">
+<rect x="20" y="108" width="130" height="56" rx="6" fill="#0f172a"/>
+<rect x="20" y="108" width="130" height="56" rx="6" fill="rgba(136, 19, 55, 0.4)" stroke="#fb7185" stroke-width="1.5"/>
+<text x="85.0" y="125" fill="white" font-size="11" font-weight="600" text-anchor="middle">Preload / IPC</text>
+<text x="85.0" y="138" fill="#94a3b8" font-size="9" text-anchor="middle">MessagePort · DTO only</text>
+<text x="85.0" y="150" fill="#94a3b8" font-size="9" text-anchor="middle">contextBridge</text>
+</g>
+<g class="bx">
+<rect x="20" y="204" width="130" height="56" rx="6" fill="#0f172a"/>
+<rect x="20" y="204" width="130" height="56" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+<text x="85.0" y="221" fill="white" font-size="11" font-weight="600" text-anchor="middle">Renderer (UI)</text>
+<text x="85.0" y="234" fill="#94a3b8" font-size="9" text-anchor="middle">import type contract</text>
+<text x="85.0" y="246" fill="#94a3b8" font-size="9" text-anchor="middle">no fs · no ts-fsrs</text>
+</g>
+<g class="bx">
+<rect x="20" y="330" width="130" height="56" rx="6" fill="#0f172a"/>
+<rect x="20" y="330" width="130" height="56" rx="6" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+<text x="85.0" y="347" fill="white" font-size="11" font-weight="600" text-anchor="middle">Electron main</text>
+<text x="85.0" y="360" fill="#94a3b8" font-size="9" text-anchor="middle">supervises host: fork</text>
+<text x="85.0" y="372" fill="#94a3b8" font-size="9" text-anchor="middle">restart · single lock</text>
+</g>
+<g class="bx">
+<rect x="195" y="46" width="956" height="30" rx="6" fill="#0f172a"/>
+<rect x="195" y="46" width="956" height="30" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+<text x="673" y="65" fill="white" font-size="11" font-weight="600" text-anchor="middle">@lms/engine-contract<tspan fill="#94a3b8" font-size="9" font-weight="400">  types only: DTO · EngineError codes · CONTRACT_VERSION · import type · shared with renderer</tspan></text>
+</g>
+<g class="bx">
+<rect x="195" y="114" width="956" height="44" rx="6" fill="#0f172a"/>
+<rect x="195" y="114" width="956" height="44" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+<text x="673.0" y="131" fill="white" font-size="12" font-weight="600" text-anchor="middle">LearningEngine facade</text>
+<text x="673.0" y="144" fill="#94a3b8" font-size="9.5" text-anchor="middle">async · DTO-only · typed errors · events · CONTRACT_VERSION</text>
+</g>
+<g class="bx">
+<rect x="195" y="180" width="138" height="54" rx="6" fill="#0f172a"/>
+<rect x="195" y="180" width="138" height="54" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+<text x="264.0" y="197" fill="white" font-size="11" font-weight="600" text-anchor="middle">library</text>
+<text x="264.0" y="210" fill="#94a3b8" font-size="9" text-anchor="middle">load · graph · assets</text>
+<text x="264.0" y="222" fill="#94a3b8" font-size="9" text-anchor="middle">validate · compile</text>
+</g>
+<g class="bx">
+<rect x="338" y="180" width="116" height="54" rx="6" fill="#0f172a"/>
+<rect x="338" y="180" width="116" height="54" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+<text x="396.0" y="197" fill="white" font-size="11" font-weight="600" text-anchor="middle">placement</text>
+<text x="396.0" y="210" fill="#94a3b8" font-size="9" text-anchor="middle">start · nextProbe</text>
+<text x="396.0" y="222" fill="#94a3b8" font-size="9" text-anchor="middle">answer · finish</text>
+</g>
+<g class="bx">
+<rect x="459" y="180" width="113" height="54" rx="6" fill="#0f172a"/>
+<rect x="459" y="180" width="113" height="54" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+<text x="515.5" y="197" fill="white" font-size="11" font-weight="600" text-anchor="middle">plan</text>
+<text x="515.5" y="210" fill="#94a3b8" font-size="9" text-anchor="middle">getDay</text>
+</g>
+<g class="bx">
+<rect x="578" y="180" width="113" height="54" rx="6" fill="#0f172a"/>
+<rect x="578" y="180" width="113" height="54" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+<text x="634.5" y="197" fill="white" font-size="11" font-weight="600" text-anchor="middle">remediation</text>
+<text x="634.5" y="210" fill="#94a3b8" font-size="9" text-anchor="middle">getPlan</text>
+</g>
+<g class="bx">
+<rect x="696" y="180" width="88" height="54" rx="6" fill="#0f172a"/>
+<rect x="696" y="180" width="88" height="54" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+<text x="740.0" y="197" fill="white" font-size="11" font-weight="600" text-anchor="middle">curation</text>
+<text x="740.0" y="210" fill="#94a3b8" font-size="9" text-anchor="middle">flags · filters</text>
+<text x="740.0" y="222" fill="#94a3b8" font-size="9" text-anchor="middle">sessions</text>
+</g>
+<g class="bx">
+<rect x="789" y="180" width="88" height="54" rx="6" fill="#0f172a"/>
+<rect x="789" y="180" width="88" height="54" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+<text x="833.0" y="197" fill="white" font-size="11" font-weight="600" text-anchor="middle">settings</text>
+<text x="833.0" y="210" fill="#94a3b8" font-size="9" text-anchor="middle">scheduler</text>
+<text x="833.0" y="222" fill="#94a3b8" font-size="9" text-anchor="middle">preferences</text>
+</g>
+<g class="bx">
+<rect x="882" y="180" width="144" height="54" rx="6" fill="#0f172a"/>
+<rect x="882" y="180" width="144" height="54" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+<text x="954.0" y="197" fill="white" font-size="11" font-weight="600" text-anchor="middle">sync</text>
+<text x="954.0" y="210" fill="#94a3b8" font-size="9" text-anchor="middle">export · import · rebuild</text>
+<text x="954.0" y="222" fill="#94a3b8" font-size="9" text-anchor="middle">conflicts · folder</text>
+</g>
+<g class="bx">
+<rect x="1031" y="180" width="118" height="54" rx="6" fill="#0f172a"/>
+<rect x="1031" y="180" width="118" height="54" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+<text x="1090.0" y="197" fill="white" font-size="11" font-weight="600" text-anchor="middle">practice</text>
+<text x="1090.0" y="210" fill="#94a3b8" font-size="9" text-anchor="middle">batch · attempts</text>
+<text x="1090.0" y="222" fill="#94a3b8" font-size="9" text-anchor="middle">frontier · due</text>
+</g>
+<g class="bd"><rect x="626.0" y="173" width="61.0" height="13" rx="3" fill="#0f172a"/><rect x="626.0" y="173" width="61.0" height="13" rx="3" fill="rgba(124, 45, 18, 0.45)" stroke="#fb923c" stroke-width="1"/><text x="656.5" y="183" fill="#fb923c" font-size="8.5" font-weight="600" text-anchor="middle">unverified</text></g>
+<g class="bx">
+<rect x="201" y="286" width="126" height="32" rx="6" fill="#0f172a"/>
+<rect x="201" y="286" width="126" height="32" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.2"/>
+<text x="264.0" y="299" fill="white" font-size="9.5" font-weight="600" text-anchor="middle">frontmatter</text>
+<text x="264.0" y="311" fill="#94a3b8" font-size="8.5" text-anchor="middle">YAML → engine{…}</text>
+</g>
+<g class="bx">
+<rect x="201" y="326" width="126" height="32" rx="6" fill="#0f172a"/>
+<rect x="201" y="326" width="126" height="32" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.2"/>
+<text x="264.0" y="339" fill="white" font-size="9.5" font-weight="600" text-anchor="middle">compiler</text>
+<text x="264.0" y="351" fill="#94a3b8" font-size="8.5" text-anchor="middle">36 + 2 codes, 1 pass</text>
+</g>
+<g class="bx">
+<rect x="201" y="366" width="126" height="32" rx="6" fill="#0f172a"/>
+<rect x="201" y="366" width="126" height="32" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.2"/>
+<text x="264.0" y="379" fill="white" font-size="9.5" font-weight="600" text-anchor="middle">artifact · isFresh</text>
+<text x="264.0" y="391" fill="#94a3b8" font-size="8.5" text-anchor="middle">.engine/compiled.json</text>
+</g>
+<g class="bx">
+<rect x="344" y="286" width="104" height="32" rx="6" fill="#0f172a"/>
+<rect x="344" y="286" width="104" height="32" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.2"/>
+<text x="396.0" y="299" fill="white" font-size="9.5" font-weight="600" text-anchor="middle">V3 probes</text>
+<text x="396.0" y="311" fill="#94a3b8" font-size="8.5" text-anchor="middle">hard closure</text>
+</g>
+<g class="bx">
+<rect x="344" y="326" width="104" height="32" rx="6" fill="#0f172a"/>
+<rect x="344" y="326" width="104" height="32" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.2"/>
+<text x="396.0" y="339" fill="white" font-size="9.5" font-weight="600" text-anchor="middle">session</text>
+<text x="396.0" y="351" fill="#94a3b8" font-size="8.5" text-anchor="middle">in host memory</text>
+</g>
+<g class="bx">
+<rect x="344" y="366" width="104" height="32" rx="6" fill="#0f172a"/>
+<rect x="344" y="366" width="104" height="32" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.2"/>
+<text x="396.0" y="379" fill="white" font-size="9.5" font-weight="600" text-anchor="middle">finish()</text>
+<text x="396.0" y="391" fill="#94a3b8" font-size="8.5" text-anchor="middle">1 tx · &#x27;placement&#x27;</text>
+</g>
+<g class="bx">
+<rect x="465" y="286" width="220" height="32" rx="6" fill="#0f172a"/>
+<rect x="465" y="286" width="220" height="32" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.2"/>
+<text x="575.0" y="299" fill="white" font-size="9.5" font-weight="600" text-anchor="middle">planner · interleaving</text>
+<text x="575.0" y="311" fill="#94a3b8" font-size="8.5" text-anchor="middle">getDay: due + 25% new · seed</text>
+</g>
+<g class="bx">
+<rect x="465" y="326" width="220" height="32" rx="6" fill="#0f172a"/>
+<rect x="465" y="326" width="220" height="32" rx="6" fill="rgba(124, 45, 18, 0.45)" stroke="#fb923c" stroke-width="1.2" stroke-dasharray="4,3"/>
+<text x="575.0" y="339" fill="white" font-size="9.5" font-weight="600" text-anchor="middle">RemediationTracker</text>
+<text x="575.0" y="351" fill="#94a3b8" font-size="8.5" text-anchor="middle">2 fails → keyPrerequisites</text>
+</g>
+<g class="bx">
+<rect x="465" y="366" width="220" height="32" rx="6" fill="#0f172a"/>
+<rect x="465" y="366" width="220" height="32" rx="6" fill="rgba(54, 83, 20, 0.45)" stroke="#a3e635" stroke-width="1.2" stroke-dasharray="4,3"/>
+<text x="575.0" y="379" fill="white" font-size="9.5" font-weight="600" text-anchor="middle">MemoryIndex + implicit credit</text>
+<text x="575.0" y="391" fill="#94a3b8" font-size="8.5" text-anchor="middle">stepFractional · declared edges only</text>
+</g>
+<g class="bx">
+<rect x="1037" y="286" width="106" height="32" rx="6" fill="#0f172a"/>
+<rect x="1037" y="286" width="106" height="32" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.2" stroke-dasharray="4,3"/>
+<text x="1090.0" y="299" fill="white" font-size="9.5" font-weight="600" text-anchor="middle">Verifier port</text>
+<text x="1090.0" y="311" fill="#94a3b8" font-size="8.5" text-anchor="middle">req → verdict</text>
+</g>
+<g class="bx">
+<rect x="1037" y="326" width="106" height="32" rx="6" fill="#0f172a"/>
+<rect x="1037" y="326" width="106" height="32" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.2"/>
+<text x="1090.0" y="339" fill="white" font-size="9.5" font-weight="600" text-anchor="middle">GradePolicy</text>
+<text x="1090.0" y="351" fill="#94a3b8" font-size="8.5" text-anchor="middle">verdict → grade 1–5</text>
+</g>
+<g class="bx">
+<rect x="1037" y="366" width="106" height="32" rx="6" fill="#0f172a"/>
+<rect x="1037" y="366" width="106" height="32" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.2"/>
+<text x="1090.0" y="379" fill="white" font-size="9.5" font-weight="600" text-anchor="middle">verdict rule</text>
+<text x="1090.0" y="391" fill="#94a3b8" font-size="8.5" text-anchor="middle">error → no event</text>
+</g>
+<g class="bx">
+<rect x="888" y="286" width="132" height="32" rx="6" fill="#0f172a"/>
+<rect x="888" y="286" width="132" height="32" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.2"/>
+<text x="954.0" y="299" fill="white" font-size="9.5" font-weight="600" text-anchor="middle">Replica</text>
+<text x="954.0" y="311" fill="#94a3b8" font-size="8.5" text-anchor="middle">set + quarantine</text>
+</g>
+<g class="bx">
+<rect x="888" y="326" width="132" height="32" rx="6" fill="#0f172a"/>
+<rect x="888" y="326" width="132" height="32" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.2"/>
+<text x="954.0" y="339" fill="white" font-size="9.5" font-weight="600" text-anchor="middle">HLC · vector</text>
+<text x="954.0" y="351" fill="#94a3b8" font-size="8.5" text-anchor="middle">at rule · seq prefix</text>
+</g>
+<g class="bx">
+<rect x="888" y="366" width="132" height="32" rx="6" fill="#0f172a"/>
+<rect x="888" y="366" width="132" height="32" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.2"/>
+<text x="954.0" y="379" fill="white" font-size="9.5" font-weight="600" text-anchor="middle">FolderSync</text>
+<text x="954.0" y="391" fill="#94a3b8" font-size="8.5" text-anchor="middle">own seg-*.jsonl + head</text>
+</g>
+<g class="bd"><rect x="267.0" y="249" width="61.0" height="13" rx="3" fill="#0f172a"/><rect x="267.0" y="249" width="61.0" height="13" rx="3" fill="rgba(30,41,59,0.95)" stroke="#e2e8f0" stroke-width="1"/><text x="297.5" y="259" fill="#e2e8f0" font-size="8.5" font-weight="600" text-anchor="middle">F1 F2 · M1</text></g>
+<g class="bd"><rect x="403.3" y="249" width="45.7" height="13" rx="3" fill="#0f172a"/><rect x="403.3" y="249" width="45.7" height="13" rx="3" fill="rgba(30,41,59,0.95)" stroke="#e2e8f0" stroke-width="1"/><text x="426.2" y="259" fill="#e2e8f0" font-size="8.5" font-weight="600" text-anchor="middle">F3 · M6</text></g>
+<g class="bd"><rect x="609.7" y="249" width="76.3" height="13" rx="3" fill="#0f172a"/><rect x="609.7" y="249" width="76.3" height="13" rx="3" fill="rgba(30,41,59,0.95)" stroke="#e2e8f0" stroke-width="1"/><text x="647.9" y="259" fill="#e2e8f0" font-size="8.5" font-weight="600" text-anchor="middle">F4 F6 · M3 M6</text></g>
+<g class="bd"><rect x="975.3" y="249" width="45.7" height="13" rx="3" fill="#0f172a"/><rect x="975.3" y="249" width="45.7" height="13" rx="3" fill="rgba(30,41,59,0.95)" stroke="#e2e8f0" stroke-width="1"/><text x="998.1" y="259" fill="#e2e8f0" font-size="8.5" font-weight="600" text-anchor="middle">F7 · M4</text></g>
+<g class="bd"><rect x="1098.3" y="249" width="45.7" height="13" rx="3" fill="#0f172a"/><rect x="1098.3" y="249" width="45.7" height="13" rx="3" fill="rgba(30,41,59,0.95)" stroke="#e2e8f0" stroke-width="1"/><text x="1121.1" y="259" fill="#e2e8f0" font-size="8.5" font-weight="600" text-anchor="middle">F5 · M5</text></g>
+<g class="bd"><rect x="592.5" y="316" width="86.5" height="13" rx="3" fill="#0f172a"/><rect x="592.5" y="316" width="86.5" height="13" rx="3" fill="rgba(124, 45, 18, 0.45)" stroke="#fb923c" stroke-width="1"/><text x="635.8" y="326" fill="#fb923c" font-size="8.5" font-weight="600" text-anchor="middle">unverified · F6</text></g>
+<g class="bd"><rect x="618.0" y="356" width="61.0" height="13" rx="3" fill="#0f172a"/><rect x="618.0" y="356" width="61.0" height="13" rx="3" fill="rgba(54, 83, 20, 0.45)" stroke="#a3e635" stroke-width="1"/><text x="648.5" y="366" fill="#a3e635" font-size="8.5" font-weight="600" text-anchor="middle">FLAG · off</text></g>
+<g class="bx">
+<rect x="205" y="468" width="150" height="50" rx="6" fill="#0f172a"/>
+<rect x="205" y="468" width="150" height="50" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+<text x="280.0" y="485" fill="white" font-size="11" font-weight="600" text-anchor="middle">Graph</text>
+<text x="280.0" y="498" fill="#94a3b8" font-size="8.5" text-anchor="middle">units · deps · reduction</text>
+<text x="280.0" y="510" fill="#94a3b8" font-size="8.5" text-anchor="middle">encompassed · superseded</text>
+</g>
+<g class="bx">
+<rect x="365" y="468" width="160" height="50" rx="6" fill="#0f172a"/>
+<rect x="365" y="468" width="160" height="50" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+<text x="445.0" y="485" fill="white" font-size="11" font-weight="600" text-anchor="middle">Scheduler</text>
+<text x="445.0" y="498" fill="#94a3b8" font-size="9" text-anchor="middle">DFS · filter · knocker</text>
+<text x="445.0" y="510" fill="#94a3b8" font-size="9" text-anchor="middle">relearn · shuffler</text>
+</g>
+<g class="bx">
+<rect x="535" y="468" width="160" height="50" rx="6" fill="#0f172a"/>
+<rect x="535" y="468" width="160" height="50" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+<text x="615.0" y="485" fill="white" font-size="11" font-weight="600" text-anchor="middle">UnitScorer</text>
+<text x="615.0" y="498" fill="#94a3b8" font-size="8.5" text-anchor="middle">cache 2h · rewards</text>
+<text x="615.0" y="510" fill="#94a3b8" font-size="8.5" text-anchor="middle">exercise → lesson → course</text>
+</g>
+<g class="bx">
+<rect x="705" y="468" width="160" height="50" rx="6" fill="#0f172a"/>
+<rect x="705" y="468" width="160" height="50" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+<text x="785.0" y="485" fill="white" font-size="11" font-weight="600" text-anchor="middle">FsrsScorer (H)</text>
+<text x="785.0" y="498" fill="#94a3b8" font-size="9" text-anchor="middle">value = R × performance</text>
+<text x="785.0" y="510" fill="#94a3b8" font-size="9" text-anchor="middle">urgency = 1 − R</text>
+</g>
+<g class="bx">
+<rect x="205" y="526" width="490" height="50" rx="6" fill="#0f172a"/>
+<rect x="205" y="526" width="490" height="50" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#38bdf8" stroke-width="1.5"/>
+<text x="450.0" y="543" fill="white" font-size="11" font-weight="600" text-anchor="middle">Projections (in-memory)</text>
+<text x="450.0" y="556" fill="#94a3b8" font-size="9" text-anchor="middle">AttemptIndex · RewardIndex · FlagState · SessionState</text>
+<text x="450.0" y="568" fill="#94a3b8" font-size="9" text-anchor="middle">rebuilt from the log · MemoryIndex only with credit flag</text>
+</g>
+<g class="bx">
+<rect x="705" y="526" width="160" height="50" rx="6" fill="#0f172a"/>
+<rect x="705" y="526" width="160" height="50" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+<text x="785.0" y="543" fill="white" font-size="11" font-weight="600" text-anchor="middle">MemoryModel port</text>
+<text x="785.0" y="556" fill="#94a3b8" font-size="9" text-anchor="middle">ts-fsrs 5.4.2 next_state</text>
+<text x="785.0" y="568" fill="#94a3b8" font-size="9" text-anchor="middle">forgetting_curve</text>
+</g>
+<g class="bx">
+<rect x="195" y="618" width="200" height="56" rx="6" fill="#0f172a"/>
+<rect x="195" y="618" width="200" height="56" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+<text x="295.0" y="635" fill="white" font-size="11" font-weight="600" text-anchor="middle">NodeFsCourseSource</text>
+<text x="295.0" y="648" fill="#94a3b8" font-size="9" text-anchor="middle">port CourseSource</text>
+<text x="295.0" y="660" fill="#94a3b8" font-size="9" text-anchor="middle">sorted walk · limits · artifact</text>
+</g>
+<g class="bx">
+<rect x="401" y="618" width="170" height="56" rx="6" fill="#0f172a"/>
+<rect x="401" y="618" width="170" height="56" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+<text x="486.0" y="635" fill="white" font-size="11" font-weight="600" text-anchor="middle">JsonSettingsStore</text>
+<text x="486.0" y="648" fill="#94a3b8" font-size="9" text-anchor="middle">port SettingsStore</text>
+<text x="486.0" y="660" fill="#94a3b8" font-size="9" text-anchor="middle">atomic tmp + rename</text>
+</g>
+<g class="bx">
+<rect x="577" y="618" width="160" height="56" rx="6" fill="#0f172a"/>
+<rect x="577" y="618" width="160" height="56" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+<text x="657.0" y="635" fill="white" font-size="11" font-weight="600" text-anchor="middle">Clock · Rng · Ids</text>
+<text x="657.0" y="648" fill="#94a3b8" font-size="9" text-anchor="middle">ports</text>
+<text x="657.0" y="660" fill="#94a3b8" font-size="9" text-anchor="middle">test doubles</text>
+</g>
+<g class="bx">
+<rect x="782" y="618" width="148" height="56" rx="6" fill="#0f172a"/>
+<rect x="782" y="618" width="148" height="56" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+<text x="856.0" y="635" fill="white" font-size="11" font-weight="600" text-anchor="middle">EventStore port</text>
+<text x="856.0" y="648" fill="#94a3b8" font-size="9" text-anchor="middle">append · read · merge</text>
+<text x="856.0" y="660" fill="#94a3b8" font-size="9" text-anchor="middle">Memory adapter (tests)</text>
+</g>
+<g class="bx">
+<rect x="782" y="732" width="148" height="40" rx="6" fill="#0f172a"/>
+<rect x="782" y="732" width="148" height="40" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.2"/>
+<text x="856.0" y="745" fill="white" font-size="9.5" font-weight="600" text-anchor="middle">SqliteEventStore</text>
+<text x="856.0" y="757" fill="#94a3b8" font-size="8.5" text-anchor="middle">better-sqlite3 13 · WAL</text>
+</g>
+<g class="bx">
+<rect x="195" y="820" width="200" height="56" rx="6" fill="#0f172a"/>
+<rect x="195" y="820" width="200" height="56" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+<text x="295.0" y="837" fill="white" font-size="11" font-weight="600" text-anchor="middle">Course library</text>
+<text x="295.0" y="850" fill="#94a3b8" font-size="9" text-anchor="middle">JSON + Markdown · in Git</text>
+<text x="295.0" y="862" fill="#94a3b8" font-size="9" text-anchor="middle">.engine/compiled.json</text>
+</g>
+<g class="bx">
+<rect x="401" y="820" width="170" height="56" rx="6" fill="#0f172a"/>
+<rect x="401" y="820" width="170" height="56" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+<text x="486.0" y="837" fill="white" font-size="11" font-weight="600" text-anchor="middle">settings/*.json</text>
+<text x="486.0" y="850" fill="#94a3b8" font-size="9" text-anchor="middle">Trane wire format</text>
+<text x="486.0" y="862" fill="#94a3b8" font-size="9" text-anchor="middle">filters · sessions</text>
+</g>
+<g class="bx">
+<rect x="772" y="820" width="168" height="56" rx="6" fill="#0f172a"/>
+<rect x="772" y="820" width="168" height="56" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="856.0" y="837" fill="white" font-size="11" font-weight="600" text-anchor="middle">engine.db (per device)</text>
+<text x="856.0" y="850" fill="#94a3b8" font-size="8.5" text-anchor="middle">SQLite · WAL · FULL + fullfsync</text>
+<text x="856.0" y="862" fill="#94a3b8" font-size="8.5" text-anchor="middle">log_entry · meta</text>
+</g>
+<g class="bx">
+<rect x="580" y="820" width="182" height="56" rx="6" fill="#0f172a"/>
+<rect x="580" y="820" width="182" height="56" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5" stroke-dasharray="4,3"/>
+<text x="671.0" y="837" fill="white" font-size="11" font-weight="600" text-anchor="middle">engine.db tables</text>
+<text x="671.0" y="850" fill="#94a3b8" font-size="8.5" text-anchor="middle">log_conflict · imported_segment</text>
+<text x="671.0" y="862" fill="#94a3b8" font-size="8.5" text-anchor="middle">schema untested (spike: RAM)</text>
+</g>
+<g class="bd"><rect x="695.0" y="813" width="61.0" height="13" rx="3" fill="#0f172a"/><rect x="695.0" y="813" width="61.0" height="13" rx="3" fill="rgba(124, 45, 18, 0.45)" stroke="#fb923c" stroke-width="1"/><text x="725.5" y="823" fill="#fb923c" font-size="8.5" font-weight="600" text-anchor="middle">unverified</text></g>
+<g class="bx">
+<rect x="502" y="712" width="256" height="74" rx="6" fill="#0f172a"/>
+<rect x="502" y="712" width="256" height="74" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4,3"/>
+<text x="630.0" y="729" fill="white" font-size="11" font-weight="600" text-anchor="middle">Package dependencies</text>
+<text x="630.0" y="742" fill="#94a3b8" font-size="8.5" text-anchor="middle">sqlite → engine: port types only</text>
+<text x="630.0" y="754" fill="#94a3b8" font-size="8.5" text-anchor="middle">sql-runner → engine: port types only</text>
+<text x="630.0" y="766" fill="#94a3b8" font-size="8.5" text-anchor="middle">engine → neither; the app registers</text>
+<text x="630.0" y="778" fill="#94a3b8" font-size="8.5" text-anchor="middle">them in EngineDeps (eventStore, verifiers)</text>
+</g>
+<g class="bx">
+<rect x="20" y="440" width="130" height="66" rx="6" fill="#0f172a"/>
+<rect x="20" y="440" width="130" height="66" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4,3"/>
+<text x="85.0" y="457" fill="white" font-size="11" font-weight="600" text-anchor="middle">@lms/testkit</text>
+<text x="85.0" y="470" fill="#94a3b8" font-size="8.5" text-anchor="middle">FakeClock · SeededRng</text>
+<text x="85.0" y="482" fill="#94a3b8" font-size="8.5" text-anchor="middle">TestId · builders</text>
+<text x="85.0" y="494" fill="#94a3b8" font-size="8.5" text-anchor="middle">dev-only, not published</text>
+</g>
+<g class="bx">
+<rect x="958" y="820" width="192" height="56" rx="6" fill="#0f172a"/>
+<rect x="958" y="820" width="192" height="56" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+<text x="1054.0" y="837" fill="white" font-size="11" font-weight="600" text-anchor="middle">Shared sync folder</text>
+<text x="1054.0" y="850" fill="#94a3b8" font-size="8.5" text-anchor="middle">&lt;deviceId&gt;/seg-*.jsonl + head.json</text>
+<text x="1054.0" y="862" fill="#94a3b8" font-size="8.5" text-anchor="middle">file-sync tool or Git</text>
+</g>
+<g class="bd"><rect x="1021.8" y="813" width="122.2" height="13" rx="3" fill="#0f172a"/><rect x="1021.8" y="813" width="122.2" height="13" rx="3" fill="rgba(124, 45, 18, 0.45)" stroke="#fb923c" stroke-width="1"/><text x="1082.9" y="823" fill="#fb923c" font-size="8.5" font-weight="600" text-anchor="middle">real tools: unverified</text></g>
+<g class="bx">
+<rect x="1192" y="820" width="188" height="56" rx="6" fill="#0f172a"/>
+<rect x="1192" y="820" width="188" height="56" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+<text x="1286.0" y="837" fill="white" font-size="11" font-weight="600" text-anchor="middle">Devices B, C …</text>
+<text x="1286.0" y="850" fill="#94a3b8" font-size="8.5" text-anchor="middle">own journal, own segments</text>
+<text x="1286.0" y="862" fill="#94a3b8" font-size="8.5" text-anchor="middle">never write foreign files</text>
+</g>
+<g class="bx">
+<rect x="1202" y="286" width="168" height="60" rx="6" fill="#0f172a"/>
+<rect x="1202" y="286" width="168" height="60" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5" stroke-dasharray="4,3"/>
+<text x="1286.0" y="303" fill="white" font-size="11" font-weight="600" text-anchor="middle">SqlVerifier + pool</text>
+<text x="1286.0" y="316" fill="#94a3b8" font-size="9" text-anchor="middle">owned by SqlVerifier (host)</text>
+<text x="1286.0" y="328" fill="#94a3b8" font-size="9" text-anchor="middle">min(4, cores−1) processes</text>
+<text x="1286.0" y="340" fill="#94a3b8" font-size="9" text-anchor="middle">recycle ~500–1000 checks</text>
+</g>
+<g class="bd"><rect x="1183.5" y="249" width="188.5" height="13" rx="3" fill="#0f172a"/><rect x="1183.5" y="249" width="188.5" height="13" rx="3" fill="rgba(124, 45, 18, 0.45)" stroke="#fb923c" stroke-width="1"/><text x="1277.8" y="259" fill="#fb923c" font-size="8.5" font-weight="600" text-anchor="middle">spawn in utilityProcess: unverified</text></g>
+<rect x="1220" y="404" width="146" height="56" rx="6" fill="#0f172a" stroke="#34d399" stroke-width="1" opacity="0.7"/>
+<rect x="1216" y="400" width="146" height="56" rx="6" fill="#0f172a" stroke="#34d399" stroke-width="1" opacity="0.7"/>
+<g class="bx">
+<rect x="1212" y="396" width="146" height="56" rx="6" fill="#0f172a"/>
+<rect x="1212" y="396" width="146" height="56" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+<text x="1285.0" y="413" fill="white" font-size="11" font-weight="600" text-anchor="middle">child process ×N</text>
+<text x="1285.0" y="426" fill="#94a3b8" font-size="8.5" text-anchor="middle">node:sqlite · authorizer</text>
+<text x="1285.0" y="438" fill="#94a3b8" font-size="8.5" text-anchor="middle">limits · defensive</text>
+</g>
+<text x="1286" y="474" fill="#fbbf24" font-size="8.5" text-anchor="middle">kill: timeout + 100 ms / RSS</text>
+<text x="1336" y="362" fill="#fbbf24" font-size="8.5" text-anchor="start">fork</text>
+<text x="1210" y="508" fill="#94a3b8" font-size="8.5">IPC JSON: check → verdict</text>
+<text x="1210" y="520" fill="#94a3b8" font-size="8.5">RSS watcher: all profiles,</text>
+<text x="1210" y="532" fill="#94a3b8" font-size="8.5">256–400 MB, poll 20 ms</text>
+<text x="1210" y="544" fill="#94a3b8" font-size="8.5">not worker_threads</text>
+<text x="1210" y="556" fill="#94a3b8" font-size="8.5">SIGKILL 1–8 ms</text>
+<text x="1210" y="568" fill="#94a3b8" font-size="8.5">respawn 41–52 ms</text>
+<text x="1210" y="580" fill="#94a3b8" font-size="8.5">error verdict → no event</text>
+<g class="bx">
+<rect x="1192" y="620" width="188" height="118" rx="6" fill="#0f172a"/>
+<rect x="1192" y="620" width="188" height="118" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+<text x="1286" y="637" fill="white" font-size="11" font-weight="600" text-anchor="middle">Process layout</text>
+<text x="1202" y="654" fill="#94a3b8" font-size="8.5">main: supervises the host</text>
+<text x="1202" y="667" fill="#94a3b8" font-size="8.5">host: utilityProcess, 1 writer</text>
+<text x="1202" y="680" fill="#94a3b8" font-size="8.5">renderer ⇄ host: MessagePort,</text>
+<text x="1202" y="693" fill="#94a3b8" font-size="8.5">  DTOs only (structured clone)</text>
+<text x="1202" y="706" fill="#94a3b8" font-size="8.5">runner: pool in host process,</text>
+<text x="1202" y="719" fill="#94a3b8" font-size="8.5">  children via fork, not threads</text>
+</g>
+<text x="92" y="190" fill="#22d3ee" font-size="13">①</text>
+<text x="153" y="130" fill="#fb7185" font-size="13">②</text>
+<text x="1095" y="174" fill="#34d399" font-size="13">③</text>
+<text x="860" y="264" fill="#34d399" font-size="13">④</text>
+<text x="824" y="606" fill="#94a3b8" font-size="8.5" text-anchor="end">⑤ append/read</text>
+<text x="300" y="700" fill="#94a3b8" font-size="8.5">load() · artifact</text>
+<text x="492" y="700" fill="#94a3b8" font-size="8.5">read / write</text>
+<text x="992" y="640" fill="#94a3b8" font-size="8.5">seg-* + head.json</text>
+<text x="992" y="652" fill="#94a3b8" font-size="8.5">(own files only)</text>
+<text x="1192" y="34" fill="white" font-size="10" font-weight="600">Legend</text>
+<rect x="1192" y="46" width="16" height="10" rx="2" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1"/>
+<text x="1214" y="54" fill="#94a3b8" font-size="8.5">Frontend / types</text>
+<rect x="1192" y="60" width="16" height="10" rx="2" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1"/>
+<text x="1214" y="68" fill="#94a3b8" font-size="8.5">Engine / adapter</text>
+<rect x="1192" y="74" width="16" height="10" rx="2" fill="rgba(8, 51, 68, 0.4)" stroke="#38bdf8" stroke-width="1"/>
+<text x="1214" y="82" fill="#94a3b8" font-size="8.5">In-memory state</text>
+<rect x="1192" y="88" width="16" height="10" rx="2" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1"/>
+<text x="1214" y="96" fill="#94a3b8" font-size="8.5">Database</text>
+<rect x="1192" y="102" width="16" height="10" rx="2" fill="rgba(136, 19, 55, 0.4)" stroke="#fb7185" stroke-width="1"/>
+<text x="1214" y="110" fill="#94a3b8" font-size="8.5">IPC boundary</text>
+<rect x="1192" y="116" width="16" height="10" rx="2" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1"/>
+<text x="1214" y="124" fill="#94a3b8" font-size="8.5">External / library / disk</text>
+<rect x="1192" y="130" width="16" height="10" rx="2" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1"/>
+<text x="1214" y="138" fill="#94a3b8" font-size="8.5">Electron main · process</text>
+<rect x="1192" y="144" width="16" height="10" rx="2" fill="rgba(54, 83, 20, 0.45)" stroke="#a3e635" stroke-width="1" stroke-dasharray="3,2"/>
+<text x="1214" y="152" fill="#94a3b8" font-size="8.5">FLAG: default off</text>
+<rect x="1192" y="158" width="16" height="10" rx="2" fill="rgba(124, 45, 18, 0.45)" stroke="#fb923c" stroke-width="1" stroke-dasharray="3,2"/>
+<text x="1214" y="166" fill="#94a3b8" font-size="8.5">unverified [НЕ ПОДТВ.]</text>
+<rect x="1192" y="172" width="16" height="10" rx="2" fill="none" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="2,3"/>
+<text x="1214" y="180" fill="#94a3b8" font-size="8.5">package boundary</text>
+<line x1="1192" y1="191" x2="1208" y2="191" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,3"/>
+<text x="1214" y="194" fill="#94a3b8" font-size="8.5">optional / async / files</text>
+<line x1="1192" y1="205" x2="1208" y2="205" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="2,3" marker-end="url(#arrowhead)"/>
+<text x="1214" y="208" fill="#94a3b8" font-size="8.5">import type (package dep)</text>
+<rect x="1192" y="214" width="34" height="11" rx="3" fill="rgba(30,41,59,0.95)" stroke="#e2e8f0" stroke-width="1"/>
+<text x="1209" y="222.5" fill="#e2e8f0" font-size="7.5" font-weight="600" text-anchor="middle">F · M</text>
+<text x="1232" y="222" fill="#94a3b8" font-size="8.5">requirement · milestone</text>
+<text x="1192" y="236" fill="#94a3b8" font-size="8.5">① – ⑤ recordAttempt path</text>
+</svg>
+    </div>
+
+    <!-- Info Cards -->
+    <div class="cards">
+      <div class="card">
+        <div class="card-header"><div class="card-dot cyan"></div><h3>Четыре пакета и границы</h3></div>
+        <ul>
+          <li>• <code>@lms/engine-contract</code>: только типы DTO, коды ошибок, CONTRACT_VERSION; renderer-safe</li>
+          <li>• <code>@lms/engine</code>: домен + приложение + fs/memory-адаптеры; модули authoring/, placement/, planning/, verify/, sync/; без electron и нативных зависимостей</li>
+          <li>• <code>@lms/engine-sqlite</code>: better-sqlite3 13.0.3 за портом SqlDatabase; зависит от <code>@lms/engine</code> только типами портов</li>
+          <li>• <code>@lms/engine-sql-runner</code>: SqlVerifier и пул дочерних процессов на <code>node:sqlite</code>; зависит от <code>@lms/engine</code> только типами портов</li>
+          <li>• ядро от sqlite и раннера не зависит: приложение регистрирует их в <code>EngineDeps</code> (<code>eventStore</code>, <code>verifiers</code>)</li>
+          <li>• <code>@lms/testkit</code>: dev-пакет (FakeClock, SeededRng, TestId, билдеры), не публикуется</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-dot amber"></div><h3>Процессы Electron</h3></div>
+        <ul>
+          <li>• main только супервизор: поднимает хост и перезапускает его (авто-перезапуска в Electron нет [ИЗМЕРЕНО]), держит single-instance lock</li>
+          <li>• хост движка — utilityProcess (решение владельца); код движка от этого не зависит</li>
+          <li>• renderer говорит с хостом по MessagePort, наружу идут только plain-DTO (structured clone)</li>
+          <li>• раннер SQL: пул дочерних процессов (не worker_threads: <code>worker.terminate()</code> не прерывает <code>sqlite3_step</code>); пулом владеет <code>SqlVerifier</code> в процессе хоста, дети — <code>child_process.fork</code>; kill процесса 1–8 мс [ИЗМЕРЕНО]</li>
+          <li>• наблюдатель RSS работает во всех профилях раннера (порог 256–400 МБ, опрос 20 мс)</li>
+          <li>• порождение детей внутри utilityProcess в настоящем Electron 44 — смоук M5 [НЕ ПОДТВЕРЖДЕНО]</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-dot violet"></div><h3>Синхронизация папкой (F7)</h3></div>
+        <ul>
+          <li>• журнал устройства — SQLite: WAL, <code>synchronous=FULL</code> + <code>fullfsync</code> (≈ 3 мс на коммит [ИЗМЕРЕНО])</li>
+          <li>• каждое устройство пишет только свои неизменяемые сегменты <code>&lt;deviceId&gt;/seg-*.jsonl</code> и <code>head.json</code> в общую папку</li>
+          <li>• папку разносит файловый синхронизатор или Git; сегмент применяется целиком или остаётся pending</li>
+          <li>• слияние — множество + карантин конфликтов; вектор — непрерывный префикс seq; <code>at</code> по HLC-правилу</li>
+          <li>• iCloud, Syncthing, Dropbox, Git не проверялись [НЕ ПОДТВЕРЖДЕНО]</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-dot emerald"></div><h3>Из Trane: сохранено и изменено</h3></div>
+        <ul>
+          <li>• Сохранено: граф, DFS-планировщик, окна, knocker, rewards, фильтры</li>
+          <li>• PowerLaw → FSRS (вариант H) за интерфейсом ExerciseScorer</li>
+          <li>• practice_* → журнал событий и проекции, deltas удалены</li>
+          <li>• Clock и Rng инъектируются, единый holder опций</li>
+          <li>• Новое: компилятор курса, placement, план дня, ремедиация, проверка ответов, синхронизация</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-dot violet"></div><h3>Проверено измерениями</h3></div>
+        <ul>
+          <li>• ts-fsrs next_state совпадает с py-fsrs (S ≤ 1.4e-7); next() расходится на 47% интервалов</li>
+          <li>• Открытие 3 000 уроков: 0.31–0.50 с из каталога, 33 мс из артефакта; журнал 500k: 0.21 с с маппингом</li>
+          <li>• Компилятор: 48 внесённых дефектов, 35 из 36 кодов; SQL: authorizer закрывает 27 из 30 угроз, проверка 0.06–0.15 мс на прогретом пуле</li>
+          <li>• Синхронизация: 65 тестов, 16 строк матрицы отказов, потерь 0; план дня 40 позиций — 1.6–2.7 мс</li>
+          <li>• Placement и неявный повтор измерены только в круговой синтетической модели</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-dot amber"></div><h3>Слабые места</h3></div>
+        <ul>
+          <li>• F6 ремедиация: спайка нет, пороги (2 неудачи, 3 элемента) — предположения [НЕ ПОДТВЕРЖДЕНО]</li>
+          <li>• Неявный повтор выключен по умолчанию: без него в реальности удержание падает (0.99 → 0.42–0.47 в модели); нужен A/B</li>
+          <li>• Латентность батча в TS — оценка, замер на M3; потеря питания и Windows/Linux не проверялись</li>
+          <li>• Смоук раннера в настоящем Electron 44 и упаковка (pnpm + electron-builder) не пробовались</li>
+          <li>• AGPL на всё приложение: допущение A1; ts-fsrs 6.0-beta — pin 5.4.2</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- F1-F7 table -->
+    <div class="card ftable">
+      <div class="card-header"><div class="card-dot cyan"></div><h3>F1–F7 → модуль → веха (как в engine-ts.md §1.1 и §11)</h3></div>
+      <table>
+        <colgroup><col style="width:3%"><col style="width:20%"><col style="width:22%"><col style="width:16%"><col style="width:10%"><col style="width:29%"></colgroup>
+        <thead><tr><th>F</th><th>Требование</th><th>Модуль</th><th>API</th><th>Веха</th><th>Статус</th></tr></thead>
+        <tbody>
+          <tr><td class="f">F1</td><td>Курс — репозиторий Markdown/JSON с <code>engine</code>-frontmatter</td><td><code>@lms/engine</code> · authoring/ (frontmatter)</td><td><code>library.readAsset</code></td><td class="m">M1</td><td class="ok">7 библиотек [ИЗМЕРЕНО]; открытие курса с frontmatter в Rust-Trane [НЕ ПОДТВЕРЖДЕНО]</td></tr>
+          <tr><td class="f">F2</td><td>Компилятор и валидатор, артефакт <code>.engine/compiled.json</code>, <code>isFresh</code></td><td><code>@lms/engine</code> · authoring/ (compiler, artifact)</td><td><code>library.validate/compile</code>, <code>engine-cli</code></td><td class="m">M1; M5 (<code>--run-checks</code>)</td><td class="ok">48 дефектов, 35 из 36 кодов [ИЗМЕРЕНО]; <code>W_GRANULARITY</code>, <code>E_REFERENCE_FAILS</code> не прототипировались</td></tr>
+          <tr><td class="f">F3</td><td>Диагностический вход-тест на графе</td><td><code>@lms/engine</code> · placement/</td><td><code>placement.*</code></td><td class="m">M6</td><td class="ok">N = 3 000, шум 3%: 20 проб → 87.5% [ИЗМЕРЕНО, круговая модель]</td></tr>
+          <tr><td class="f">F4</td><td>План дня: фронтир, due, интерливинг; сжатие повторов</td><td><code>@lms/engine</code> · planning/ (planner, interleaving; MemoryIndex + implicit credit — флаг)</td><td><code>practice.getFrontier/getDue</code>, <code>plan.getDay</code></td><td class="m">M3 (фронтир, due); M6 (план, кредит)</td><td class="flag">план 1.6–2.7 мс [ИЗМЕРЕНО]; кредит выключен: выигрыш только в круговой модели; <code>getFrontier</code> против Rust [НЕ ПОДТВЕРЖДЕНО]</td></tr>
+          <tr><td class="f">F5</td><td>Проверка ответов локальным детерминированным раннером</td><td><code>@lms/engine</code> · verify/ (Verifier, GradePolicy) + <code>@lms/engine-sql-runner</code></td><td><code>practice.beginAttempt/submitAnswer/completeAttempt</code></td><td class="m">M5</td><td class="ok">27 из 30 угроз закрыты authorizer, kill 1–8 мс [ИЗМЕРЕНО]; приёмка: 1 000 проверок ≤ 1 с на прогретом пуле; смоук в Electron 44 [НЕ ПОДТВЕРЖДЕНО]</td></tr>
+          <tr><td class="f">F6</td><td>Ремедиация по <code>keyPrerequisites</code></td><td><code>@lms/engine</code> · planning/ (RemediationTracker)</td><td><code>remediation.getPlan</code></td><td class="m">M6</td><td class="unv">спайка нет [НЕ ПОДТВЕРЖДЕНО]; пороги — предположения</td></tr>
+          <tr><td class="f">F7</td><td>Несколько устройств без облака</td><td><code>@lms/engine</code> · sync/ (Replica, HLC, FolderSync) + <code>@lms/engine-sqlite</code></td><td><code>sync.getConflicts</code>, <code>sync.folder.*</code></td><td class="m">M4</td><td class="ok">65 тестов, 16 строк матрицы отказов, потерь 0 [ИЗМЕРЕНО]; iCloud/Syncthing/Dropbox/Git [НЕ ПОДТВЕРЖДЕНО]</td></tr>
+        </tbody>
+      </table>
+      <p class="chips"><span>M0 каркас, contract</span><span>M1 библиотека, компилятор (F1, F2)</span><span>M2 скоринг</span><span>M3 планировщик, фронтир, due (F4 ч.1)</span><span>M4 журнал, фасад, синхронизация (F7)</span><span>M5 проверка ответов (F5)</span><span>M6 placement, план, ремедиация (F3, F4 ч.2, F6)</span><span>M7 по данным, не блокирует F1–F7</span></p>
+    </div>
+
+    <!-- Footer -->
+    <p class="footer">engine-ts • проект v1 • 2026-09-29 • числа [ИЗМЕРЕНО] — engine-ts/research; [НЕ ПОДТВЕРЖДЕНО] помечено на схеме</p>
+  </div>
+
+  <script>
+    async function copyAsImage(btn) {
+      const orig = btn.textContent;
+      try {
+        const el = document.getElementById('report-container');
+        const r = el.getBoundingClientRect();
+        const pad = 32;
+        const canvas = await html2canvas(document.body, { backgroundColor: '#020617', scale: 2, useCORS: true, ignoreElements: (e) => e.classList && e.classList.contains('toolbar'), x: r.left + window.scrollX - pad, y: r.top + window.scrollY - pad, width: r.width + pad * 2, height: r.height + pad * 2 });
+        const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        btn.textContent = '✓ Copied!';
+      } catch (e) {
+        btn.textContent = '✗ Failed';
+      }
+      setTimeout(() => btn.textContent = orig, 2000);
+    }
+
+    async function downloadPNG(btn) {
+      const orig = btn.textContent;
+      btn.textContent = '⏳ ...';
+      try {
+        const el = document.getElementById('report-container');
+        const r = el.getBoundingClientRect();
+        const pad = 32;
+        const canvas = await html2canvas(document.body, { backgroundColor: '#020617', scale: 2, useCORS: true, ignoreElements: (e) => e.classList && e.classList.contains('toolbar'), x: r.left + window.scrollX - pad, y: r.top + window.scrollY - pad, width: r.width + pad * 2, height: r.height + pad * 2 });
+        const link = document.createElement('a');
+        link.download = 'diagram.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        btn.textContent = '✓ Done!';
+      } catch (e) {
+        btn.textContent = '✗ Failed';
+      }
+      setTimeout(() => btn.textContent = orig, 2000);
+    }
+
+    async function downloadPDF(btn) {
+      const orig = btn.textContent;
+      btn.textContent = '⏳ ...';
+      try {
+        const el = document.getElementById('report-container');
+        const r = el.getBoundingClientRect();
+        const pad = 32;
+        const canvas = await html2canvas(document.body, { backgroundColor: '#020617', scale: 2, useCORS: true, ignoreElements: (e) => e.classList && e.classList.contains('toolbar'), x: r.left + window.scrollX - pad, y: r.top + window.scrollY - pad, width: r.width + pad * 2, height: r.height + pad * 2 });
+        const imgData = canvas.toDataURL('image/png');
+        const { jsPDF } = window.jspdf;
+        const orientation = canvas.width > canvas.height ? 'landscape' : 'portrait';
+        const pdf = new jsPDF({ orientation, unit: 'px', format: [canvas.width, canvas.height], hotfixes: ['px_scaling'] });
+        pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+        pdf.save('diagram.pdf');
+        btn.textContent = '✓ Done!';
+      } catch (e) {
+        btn.textContent = '✗ Failed';
+      }
+      setTimeout(() => btn.textContent = orig, 2000);
+    }
+  </script>
+</body>
+</html>

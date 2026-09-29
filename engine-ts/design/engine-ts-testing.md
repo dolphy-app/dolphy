@@ -21,7 +21,7 @@
 | fast-check | 4.10.2 + `@fast-check/vitest` 0.5.0 | property-тесты | Совместимость с vitest 5.0.2 подтверждена: `test.prop` проходит, ложное свойство даёт минимальный контрпример `[1000]` [ИЗМЕРЕНО] |
 | Node | 22.22 (dev) и 24.x (Electron 44 = Node 24.21.0) — матрица CI | Electron 44 внутри Node 24.21.0; на dev-машине 22.22.3 | `vitest` 5 требует ≥ 22.12 [ИЗМЕРЕНО]; спайки F-слоя прогнаны на 22.22.3, `sql-runner` — ещё и на 24.21.0 (`report-sql-runner.md` §7, §10) |
 | Rust (cargo) | 1.97 | только регенерация golden-fixtures (`tools/golden-rs`) | не нужен для обычного прогона |
-| Biome | 2.5.14 | линт и формат | совместимость с TS 7 не проверена [НЕ ПОДТВЕРЖДЕНО]; typescript-eslint 8.71 требует alias на `@typescript/typescript6` |
+| ESLint + Prettier | 9 / 3.9 | линт и формат | выбраны вместо Biome (решение владельца); typescript-eslint 8.71 с TS 7 требует alias на `@typescript/typescript6`, пока корень на TS 6.0.x |
 | SQLite в тестах F-слоя | `node:sqlite` (Node 22.22.3: SQLite 3.51.3; Node 24.21.0: 3.53.4) и `better-sqlite3` 13.0.3 (SQLite 3.53.4 на обеих Node) | EventStore, SQL-раннер, `portability` | версии из `report-sql-runner.md` §0, `report-journal-sync.md` (шапка) [ИЗМЕРЕНО] |
 
 **Конфигурация.** Проекты по умолчанию наследуют корневой конфиг: на vitest 5.0.2 `testTimeout` корня виден в проекте и без `extends: true` (проверено печатью `ctx.task.timeout`; при апгрейде vitest перепроверить) [ИЗМЕРЕНО]. `pool: 'forks'` безопасен для нативных модулей:

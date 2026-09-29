@@ -5,11 +5,13 @@
   "description": "Раннер проверок SQL в дочерних процессах (Verifier)",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./worker": "./src/worker.ts"
   },
   "scripts": {
     "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "bench": "vitest bench --run --config vitest.bench.config.ts --reporter=verbose"
   },
   "dependencies": {
     "@lms/engine": "workspace:*",

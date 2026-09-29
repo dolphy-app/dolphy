@@ -1,0 +1,50 @@
+import type { EngineEvent } from '@lms/engine-contract';
+import type { Logger } from '../ports/index.ts';
+
+export type EngineEventListener = (event: EngineEvent) => void;
+
+export interface EventBus {
+  /** Кладёт событие в буфер; слушатели узнают о нём при `flush`. */
+  emit(event: EngineEvent): void;
+  /** Команда провалилась: буферизованные события не доставляются. */
+  discard(): void;
+  /** Команда завершена: доставить буфер по порядку. */
+  flush(): void;
+  subscribe(listener: EngineEventListener): () => void;
+}
+
+export const createEventBus = (logger: Logger): EventBus => {
+  const listeners = new Set<EngineEventListener>();
+  let buffer: EngineEvent[] = [];
+
+  const emit = (event: EngineEvent): void => {
+    buffer.push(event);
+  };
+
+  const discard = (): void => {
+    buffer = [];
+  };
+
+  const flush = (): void => {
+    const batch = buffer;
+    buffer = [];
+    for (const event of batch) {
+      for (const listener of [...listeners]) {
+        try {
+          listener(event);
+        } catch (error) {
+          logger.error({ error, type: event.type }, 'event listener failed');
+        }
+      }
+    }
+  };
+
+  const subscribe = (listener: EngineEventListener): (() => void) => {
+    listeners.add(listener);
+    return () => {
+      listeners.delete(listener);
+    };
+  };
+
+  return { emit, discard, flush, subscribe };
+};

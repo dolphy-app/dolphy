@@ -1,0 +1,179 @@
+{
+  "dumper": {
+    "source": "spike/loader-bench/dump-rs/src/main.rs",
+    "sourceSha256": "81279e808ecfe50c0c0ce806d58a7a54436843dc4f1d2e2d9a875bf25c8c9a98",
+    "trane": "0.34.1",
+    "note": "LocalCourseLibrary::new + UnitGraph; open_ms из дампа удалён (недетерминирован)"
+  },
+  "maxCommittedBytes": 1000000,
+  "dumps": {
+    "trane-embedded": {
+      "file": "trane-embedded.json",
+      "sha256": "d312a32e55c16ab9ea4546caeb89888ace4abc358edd99f0e1c438b30c88a1c0",
+      "bytes": 1217,
+      "libraryTreeSha256": "a94eec5f2409558f313d6381b8ace9ab39bc336df5faedbfa0f7e2f54ba45294",
+      "scope": "full",
+      "ignoredPaths": [],
+      "prefs": false,
+      "params": null,
+      "counts": {
+        "courses": 1,
+        "exercises": 1,
+        "lessons": 1
+      },
+      "command": "dump-rs <trane-embedded> --out dump.json"
+    },
+    "sql-course-json": {
+      "file": "sql-course-json.json",
+      "sha256": "d0b0420c596d07b521f51efff5754b1928830e5eac6816155a32a289846422e1",
+      "bytes": 6824,
+      "libraryTreeSha256": "209f63d3ceb4b57e1ca96ffbdc0a707124aa93ffd0a9e6ae425308c483c3d1c1",
+      "scope": "full",
+      "ignoredPaths": [],
+      "prefs": false,
+      "params": null,
+      "counts": {
+        "courses": 1,
+        "exercises": 21,
+        "lessons": 7
+      },
+      "command": "dump-rs <sql-course-json> --out dump.json"
+    },
+    "sql-course-kb": {
+      "file": "sql-course-kb.json",
+      "sha256": "a84c14e7b4ae126cf24a2aa2a63b788da7e031eb9faf396c9d05babe23fe4545",
+      "bytes": 5713,
+      "libraryTreeSha256": "7ce65d481f93c9ba75ee67efbc7517a01919076e393270930f17d2baaaeffb03",
+      "scope": "full",
+      "ignoredPaths": [],
+      "prefs": false,
+      "params": null,
+      "counts": {
+        "courses": 1,
+        "exercises": 21,
+        "lessons": 7
+      },
+      "command": "dump-rs <sql-course-kb> --out dump.json"
+    },
+    "synthetic-banded-300": {
+      "file": "synthetic-banded-300.json",
+      "sha256": "ba07b2ed9c9a20fad48b269cde95f4968ea7bf3e760f07c252b4b207927282cc",
+      "bytes": 363483,
+      "libraryTreeSha256": "af8bc45d08d531541708a1fff868898da88e3cdd761f360e1a24650476bfc562",
+      "scope": "full",
+      "ignoredPaths": [],
+      "prefs": false,
+      "params": {
+        "lessons": 300,
+        "exercises": [
+          3,
+          5
+        ],
+        "deps": 3,
+        "courses": 1,
+        "topology": "banded",
+        "rich": false,
+        "seed": 1
+      },
+      "counts": {
+        "courses": 1,
+        "exercises": 1200,
+        "lessons": 300
+      },
+      "command": "dump-rs <synthetic-banded-300> --out dump.json"
+    },
+    "synthetic-window-600": {
+      "file": "synthetic-window-600.json",
+      "sha256": "a74cba0e39dbdf2dfcacbad3332a12333d8f1ed196ff35b467b87f95f2bd2a4b",
+      "bytes": 756396,
+      "libraryTreeSha256": "80cb24c7fd72179b6ff4d7d2b21d359458f8c431704375acb59365fb2e97c77d",
+      "scope": "full",
+      "ignoredPaths": [],
+      "prefs": false,
+      "params": {
+        "lessons": 600,
+        "exercises": [
+          3,
+          5
+        ],
+        "deps": 3,
+        "courses": 12,
+        "topology": "window",
+        "rich": true,
+        "seed": 2
+      },
+      "counts": {
+        "courses": 12,
+        "exercises": 2400,
+        "lessons": 600
+      },
+      "command": "dump-rs <synthetic-window-600> --out dump.json"
+    },
+    "edge-cases": {
+      "file": "edge-cases.json",
+      "sha256": "7104fcc8dbfadc19bd624cf967db3b9d52c4339e1babe79580144b1ebb922cf5",
+      "bytes": 2264,
+      "libraryTreeSha256": "f0af90a5b230e7c37234a8077a452b8df3c188c8001ce8d5bde211bbe0f86c70",
+      "scope": "full",
+      "ignoredPaths": [
+        "ign"
+      ],
+      "prefs": true,
+      "params": null,
+      "counts": {
+        "courses": 3,
+        "exercises": 5,
+        "lessons": 3
+      },
+      "command": "dump-rs <edge-cases> --prefs user_preferences.json --out dump.json"
+    },
+    "trane-small": {
+      "file": "trane-small.json",
+      "sha256": "8c860c14facdc36878192719dce8bb3b8bbea7d97cb7093bd3c1b874a6171939",
+      "bytes": 168926,
+      "libraryTreeSha256": "29995159ee4af0407504a494e278ab43bf29cda6adef431507dfc4889e9cc246",
+      "scope": "full",
+      "ignoredPaths": [],
+      "prefs": true,
+      "params": null,
+      "counts": {
+        "courses": 3,
+        "exercises": 126,
+        "lessons": 126
+      },
+      "command": "dump-rs <trane-small> --prefs user_preferences.json --out dump.json"
+    },
+    "trane-large": {
+      "file": "trane-large.json",
+      "sha256": "a71076fb62c02e6a444325fffb408ad4dbce552e93e8ed5ec9d3159942e8b464",
+      "bytes": 5036,
+      "libraryTreeSha256": "2e2f7ce3844d0eb54bd4b4d3256f70bb75a17726d7c47d90ecfba5f3ded7088f",
+      "scope": "course-skeleton",
+      "ignoredPaths": [],
+      "prefs": true,
+      "params": null,
+      "counts": {
+        "courses": 51,
+        "exercises": 1710,
+        "lessons": 270
+      },
+      "command": "dump-rs <trane-large> --prefs user_preferences.json --out dump.json"
+    },
+    "trane-small-engine": {
+      "file": "trane-small-engine.json",
+      "sha256": "9a3ffbabcdd7689567db14c5e3a4eb688030debef2a17122a005dc46c6eb0415",
+      "bytes": 170577,
+      "libraryTreeSha256": "9747f879bec6957b92322ae3d634cfe02fc56b4feec329a4dbe5d2e00e24a0e7",
+      "scope": "full",
+      "ignoredPaths": [],
+      "prefs": true,
+      "params": null,
+      "counts": {
+        "courses": 4,
+        "exercises": 132,
+        "lessons": 128
+      },
+      "command": "dump-rs <trane-small-engine> --prefs user_preferences.json --out dump.json"
+    }
+  }
+}

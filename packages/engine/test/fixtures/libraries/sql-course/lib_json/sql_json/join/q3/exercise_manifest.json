@@ -1,0 +1,31 @@
+{
+  "course_id": "sql_json",
+  "exercise_type": "Procedural",
+  "id": "sql_json::join::q3",
+  "lesson_id": "sql_json::join",
+  "name": "q3",
+  "exercise_asset": {
+    "BasicAsset": {
+      "InlinedAsset": {
+        "content": "For every employee that has a manager return the employee name `emp` and the manager name `boss`.\n\nTables: `dept(id, name)` and `emp(id, name, dept_id, salary, mgr_id)`. Write a single `SELECT`.\n"
+      }
+    }
+  },
+  "engine": {
+    "verification": {
+      "runner": "sql",
+      "fixture": "fixtures/emp.sql",
+      "expected": "checks/join-self-manager.csv",
+      "reference": "solutions/join-self-manager.sql",
+      "timeoutMs": 2000
+    },
+    "keyPrerequisites": [
+      "sql_json::where"
+    ],
+    "tags": [
+      "self-join"
+    ],
+    "bloom": "analyze",
+    "dok": 3
+  }
+}

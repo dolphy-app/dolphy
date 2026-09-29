@@ -1,0 +1,15 @@
+{
+  "dependencies": [],
+  "description": "SQL course with verifiable exercises (KnowledgeBase layout)",
+  "engine": {
+    "requiresChecks": true,
+    "tags": [
+      "sql"
+    ]
+  },
+  "generator_config": {
+    "KnowledgeBase": {}
+  },
+  "id": "sql_kb",
+  "name": "SQL (KnowledgeBase)"
+}

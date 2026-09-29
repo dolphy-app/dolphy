@@ -1,0 +1,20 @@
+{
+  "id": "c1",
+  "name": "C1",
+  "dependencies": [],
+  "course_material": {
+    "MarkdownAsset": {
+      "path": "../shared/material.md"
+    }
+  },
+  "course_instructions": {
+    "MarkdownAsset": {
+      "path": "/c1/instr.md"
+    }
+  },
+  "metadata": {
+    "k": [
+      "v"
+    ]
+  }
+}

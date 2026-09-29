@@ -1,0 +1,28 @@
+{
+  "course_id": "sql_json",
+  "exercise_type": "Procedural",
+  "id": "sql_json::select::q3",
+  "lesson_id": "sql_json::select",
+  "name": "q3",
+  "exercise_asset": {
+    "BasicAsset": {
+      "InlinedAsset": {
+        "content": "Return the total salary of all employees in one column named `total`.\n\nTables: `dept(id, name)` and `emp(id, name, dept_id, salary, mgr_id)`. Write a single `SELECT`.\n"
+      }
+    }
+  },
+  "engine": {
+    "verification": {
+      "runner": "sql",
+      "fixture": "fixtures/emp.sql",
+      "expected": "checks/select-column-alias-case.csv",
+      "reference": "solutions/select-column-alias-case.sql",
+      "timeoutMs": 2000
+    },
+    "tags": [
+      "alias"
+    ],
+    "bloom": "remember",
+    "dok": 1
+  }
+}

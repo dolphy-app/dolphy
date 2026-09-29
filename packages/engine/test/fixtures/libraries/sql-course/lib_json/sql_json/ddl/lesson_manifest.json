@@ -1,0 +1,7 @@
+{
+  "course_id": "sql_json",
+  "dependencies": [],
+  "encompassed": [],
+  "id": "sql_json::ddl",
+  "name": "CREATE TABLE / INSERT"
+}

@@ -1,0 +1,29 @@
+{
+  "course_id": "sql_json",
+  "exercise_type": "Procedural",
+  "id": "sql_json::where::q3",
+  "lesson_id": "sql_json::where",
+  "name": "q3",
+  "exercise_asset": {
+    "BasicAsset": {
+      "InlinedAsset": {
+        "content": "Names of employees whose department id differs from 1. A comparison with `NULL` is never true.\n\nTables: `dept(id, name)` and `emp(id, name, dept_id, salary, mgr_id)`. Write a single `SELECT`.\n"
+      }
+    }
+  },
+  "engine": {
+    "verification": {
+      "runner": "sql",
+      "fixture": "fixtures/emp.sql",
+      "expected": "checks/where-ne-null-trap.csv",
+      "reference": "solutions/where-ne-null-trap.sql",
+      "timeoutMs": 2000
+    },
+    "tags": [
+      "nulls",
+      "trap"
+    ],
+    "bloom": "analyze",
+    "dok": 3
+  }
+}

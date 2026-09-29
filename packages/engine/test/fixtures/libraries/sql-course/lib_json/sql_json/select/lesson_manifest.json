@@ -1,0 +1,9 @@
+{
+  "course_id": "sql_json",
+  "dependencies": [
+    "sql_json::ddl"
+  ],
+  "encompassed": [],
+  "id": "sql_json::select",
+  "name": "SELECT basics"
+}

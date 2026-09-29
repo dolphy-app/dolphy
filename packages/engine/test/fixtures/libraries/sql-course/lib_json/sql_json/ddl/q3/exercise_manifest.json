@@ -1,0 +1,28 @@
+{
+  "course_id": "sql_json",
+  "exercise_type": "Procedural",
+  "id": "sql_json::ddl::q3",
+  "lesson_id": "sql_json::ddl",
+  "name": "q3",
+  "exercise_asset": {
+    "BasicAsset": {
+      "InlinedAsset": {
+        "content": "How many rows does `emp` contain after the fixture ran? Name the column `n`.\n\nTables: `dept(id, name)` and `emp(id, name, dept_id, salary, mgr_id)`. Write a single `SELECT`.\n"
+      }
+    }
+  },
+  "engine": {
+    "verification": {
+      "runner": "sql",
+      "fixture": "fixtures/emp.sql",
+      "expected": "checks/ddl-count-emp-rows.csv",
+      "reference": "solutions/ddl-count-emp-rows.sql",
+      "timeoutMs": 2000
+    },
+    "tags": [
+      "insert"
+    ],
+    "bloom": "understand",
+    "dok": 1
+  }
+}

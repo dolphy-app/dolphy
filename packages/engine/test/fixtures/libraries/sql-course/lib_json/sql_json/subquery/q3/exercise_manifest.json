@@ -1,0 +1,31 @@
+{
+  "course_id": "sql_json",
+  "exercise_type": "Procedural",
+  "id": "sql_json::subquery::q3",
+  "lesson_id": "sql_json::subquery",
+  "name": "q3",
+  "exercise_asset": {
+    "BasicAsset": {
+      "InlinedAsset": {
+        "content": "Names of departments that have no employees.\n\nTables: `dept(id, name)` and `emp(id, name, dept_id, salary, mgr_id)`. Write a single `SELECT`.\n"
+      }
+    }
+  },
+  "engine": {
+    "verification": {
+      "runner": "sql",
+      "fixture": "fixtures/emp.sql",
+      "expected": "checks/subq-not-exists.csv",
+      "reference": "solutions/subq-not-exists.sql",
+      "timeoutMs": 2000
+    },
+    "keyPrerequisites": [
+      "sql_json::join"
+    ],
+    "tags": [
+      "exists"
+    ],
+    "bloom": "apply",
+    "dok": 2
+  }
+}

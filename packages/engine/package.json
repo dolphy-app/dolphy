@@ -7,9 +7,16 @@
   "exports": {
     ".": "./src/index.ts",
     "./ports": "./src/ports/index.ts",
-    "./node": "./src/node/index.ts"
+    "./scoring": "./src/scoring/index.ts",
+    "./app": "./src/app/index.ts",
+    "./node": "./src/node/index.ts",
+    "./authoring": "./src/authoring/index.ts"
+  },
+  "bin": {
+    "engine-cli": "./src/cli/main.ts"
   },
   "scripts": {
+    "engine-cli": "node --disable-warning=ExperimentalWarning src/cli/main.ts",
     "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
     "test": "vitest run"
   },

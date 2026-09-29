@@ -1,0 +1,10 @@
+{
+  "id": "c1::l1::ex5",
+  "lesson_id": "c1::l1",
+  "course_id": "c1",
+  "exercise_asset": {
+    "InlineFlashcardAsset": {
+      "front_content": "f"
+    }
+  }
+}

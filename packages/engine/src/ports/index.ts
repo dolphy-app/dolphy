@@ -99,19 +99,31 @@ export interface Verifier {
 
 export interface SourceEntry {
   name: string;
+  /** Для симлинка — вид цели; висячая ссылка в список не попадает. */
   kind: 'file' | 'directory';
+  /** Запись — символическая ссылка (M1: сканер проверяет корень). */
+  symlink?: true;
 }
 
 export interface SourceStat {
   kind: 'file' | 'directory';
   bytes: number;
   mtimeMs: number;
+  /** Время смены inode: пользовательские инструменты не могут его подделать. */
+  ctimeMs?: number;
+  ino?: number;
+  /** Путь (с учётом симлинков) ведёт за корень библиотеки. */
+  outsideRoot?: true;
+  /** Идентификатор конечной цели симлинка (защита от петель); иначе не задан. */
+  realPath?: string;
 }
 
 /**
  * Библиотека курсов: чтение каталога в раскладке Trane и артефакт
  * компилятора. Пути относительны корня библиотеки, разделитель `/`,
- * `''` — корень [ВЫВОД: сигнатуры не были выписаны в дизайне, M1 уточнит].
+ * `''` — корень [ВЫВОД: сигнатуры не были выписаны в дизайне, M1 уточнил:
+ * `readBytes`, `ctimeMs`, `ino`, `outsideRoot`, `realPath`, `symlink` —
+ * аддитивные расширения для `isFresh` и проверки симлинков].
  */
 export interface CourseSource {
   /** Идентификатор корня для диагностик и логов. */
@@ -120,6 +132,8 @@ export interface CourseSource {
   list(dir: string): Promise<readonly SourceEntry[]>;
   /** Текст UTF-8; нет файла — отказ. */
   readText(path: string): Promise<string>;
+  /** Байты файла как есть (для content-`revision`); нет файла — отказ. */
+  readBytes(path: string): Promise<Uint8Array>;
   /** `null`, если пути нет (в том числе висячая ссылка). */
   stat(path: string): Promise<SourceStat | null>;
   /** Артефакт `.engine/compiled.json`; `null`, если его нет. */

@@ -28,6 +28,17 @@ export {
   paginate,
   resolveLimit,
 } from './pagination.ts';
+export {
+  DEFAULT_GRAPH_LIMIT,
+  DEFAULT_VERIFICATION_TIMEOUT_MS,
+  MAX_GRAPH_LIMIT,
+  toCourseDto,
+  toExerciseDto,
+  toGraphDto,
+  toLessonDto,
+  toUnitDto,
+} from './dto.ts';
+export { findOrphanDiagnostics } from './orphans.ts';
 export type {
   AttemptIndex,
   AttemptRecord,

@@ -1,6 +1,8 @@
 import type {
   EpochMs,
+  MissingSeqs,
   SavedFilterDto,
+  StateVector,
   StudySessionWire,
   SubmissionDto,
   VerdictDto,
@@ -65,14 +67,105 @@ export interface AppendResult {
   duplicates: readonly string[]; // id уже был в журнале
 }
 
+/** Причина скрытия записи от проекций (engine-ts.md §5.1, `log_conflict`). */
+export type ConflictReason = 'id-content' | 'seq-two-ids' | 'clock-skew';
+export type ConflictState = 'open' | 'kept' | 'discarded';
+
+/**
+ * Строка `log_conflict`: запись, скрытая от проекций. Ключ — `(conflictId,
+ * entryHash)`; `conflictId` = `<reason>:<id | deviceId#seq>`. Одна запись может
+ * входить в несколько конфликтов (общий `entryHash`).
+ */
+export interface ConflictRow {
+  conflictId: string;
+  reason: ConflictReason;
+  /** sha256 канонического JSON записи. */
+  entryHash: string;
+  state: ConflictState;
+  entry: LogEntry;
+  detectedAt: EpochMs;
+}
+
+/** Строка `imported_segment`: применённый сегмент FolderSync. */
+export interface SegmentRecord {
+  deviceId: string;
+  name: string;
+  sha256: string;
+  firstSeq: number;
+  lastSeq: number;
+  importedAt: EpochMs;
+}
+
+/**
+ * Синхронные примитивы внутри одной транзакции хранилища [ВЫВОД: в дизайне
+ * порт назван без сигнатур]. Алгоритм слияния и решения конфликтов написан один
+ * раз (`@lms/engine/sync`) поверх этих примитивов, адаптеры их только реализуют.
+ * «Живые» записи — `log_entry`, скрытые — `log_conflict`; вместе они образуют
+ * множество записей реплики.
+ */
+export interface StoreTx {
+  findById(id: string): LogEntry | null;
+  findByPair(deviceId: string, seq: number): LogEntry | null;
+  /** Живая запись; нарушение уникальности `id` или `(deviceId, seq)` — ошибка. */
+  insert(entry: LogEntry): void;
+  /** Убирает живую запись (перенос в конфликт делает вызывающий). */
+  remove(id: string): void;
+  conflictRowsByHash(entryHash: string): readonly ConflictRow[];
+  conflictRowsById(id: string): readonly ConflictRow[];
+  conflictRowsByPair(deviceId: string, seq: number): readonly ConflictRow[];
+  conflictRowsByGroup(conflictId: string): readonly ConflictRow[];
+  /** Вставка или замена по `(conflictId, entryHash)`. */
+  putConflictRow(row: ConflictRow): void;
+  putSegment(segment: SegmentRecord): void;
+}
+
 export interface EventStore {
+  /** Меняется только через `rotateDeviceId` (форк после восстановления). */
   readonly deviceId: string;
-  lastSeq(): number; // кэш, обновляется append
-  maxAt(): EpochMs; // максимальный увиденный at
-  append(entries: readonly LogEntry[]): Promise<AppendResult>; // одна транзакция
-  readAll(): AsyncIterable<LogEntry>; // ORDER BY at, device_id, seq
+  /** Наибольший `seq` своего устройства среди живых и скрытых записей; 0 — записей нет. */
+  lastSeq(): number;
+  /** Наибольший `at` среди живых записей (скрытые в него не входят); 0 — записей нет. */
+  maxAt(): EpochMs;
+  /**
+   * Одна транзакция. Запись с уже известным `id` (живая или скрытая) — в
+   * `duplicates`; нарушение схемы, занятый `(deviceId, seq)` под другим `id` —
+   * ошибка, ничего не записывается.
+   */
+  append(entries: readonly LogEntry[]): Promise<AppendResult>;
+  /** Живые записи в порядке `(at, deviceId, seq)`. */
+  readAll(): AsyncIterable<LogEntry>;
   close(): Promise<void>;
-  // методы синхронизации и конфликтов — engine-ts.md §6a.6
+  /**
+   * Одна транзакция записи (`BEGIN IMMEDIATE`); исключение из `work` откатывает
+   * всё. `work` синхронна: адаптеры не отдают управление посреди транзакции.
+   * Кэши (`lastSeq`, `maxAt`, вектор) обновляются только после фиксации.
+   */
+  transact<T>(work: (tx: StoreTx) => T): Promise<T>;
+  /** Непрерывный префикс `seq` по устройствам (живые и скрытые записи). */
+  vector(): StateVector;
+  /** Дыры за префиксом (не более 1 000 `seq` на устройство). */
+  missing(): MissingSeqs;
+  /** Наибольший `seq` устройства (с дырами); 0 — записей нет. */
+  maxSeq(deviceId: string): number;
+  /** Число живых записей. */
+  entryCount(): number;
+  /**
+   * Живые записи с `seq` больше `since[deviceId]` (для неуказанных — со всех),
+   * по `(deviceId, seq)`; включая записи за дырами. Не более `limit`.
+   */
+  readSince(since: StateVector, limit: number): Promise<readonly LogEntry[]>;
+  /** Живые записи устройства с `seq` из `[fromSeq, toSeq]`, по возрастанию `seq`. */
+  readDevice(
+    deviceId: string,
+    fromSeq: number,
+    toSeq?: number,
+  ): Promise<readonly LogEntry[]>;
+  /** Все строки `log_conflict` в любом состоянии. */
+  conflicts(): Promise<readonly ConflictRow[]>;
+  /** Реестр применённых сегментов (`imported_segment`). */
+  segments(): Promise<readonly SegmentRecord[]>;
+  /** Новый `deviceId` (форк); `lastSeq` нового устройства — 0. */
+  rotateDeviceId(deviceId: string): Promise<void>;
 }
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown

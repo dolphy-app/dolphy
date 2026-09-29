@@ -1,7 +1,7 @@
 # engine-ts: слой бизнес-логики (TypeScript-порт Trane на ts-fsrs) для Electron-приложения
 
 Статус: проект v1, 2026-09-29 (v0 + слой F1–F7 и результаты пяти спайков F-слоя). Кода движка ещё нет; основания проверены в песочнице `engine-ts/spike/`. Пометки: **[ИЗМЕРЕНО]** — получено прогоном; **[ВЫВОД]** — наше умозаключение; **[ОЦЕНКА]** — расчёт, не замер; **[НЕ ПОДТВЕРЖДЕНО]** — не проверено.
-Связанные документы (в этом же каталоге): `engine-ts-api.md` (контракт для UI), `engine-ts-testing.md` (стратегия тестов на vitest), `engine-ts-diagram.html` (схема). Спеки и отчёты агентов: `engine-ts/research/`; код и fixtures песочницы: `engine-ts/spike/`. Предшествующие документы: `docs/design/fsrs-in-trane.md`, `docs/design/build-vs-port.md`. Пути внутри отчётов и спек, написанные до переноса, указывают на `spike/engine-ts/` — теперь это `engine-ts/spike/`. Каталоги `spike/trane-mvp/` и `spike/trane-fsrs/` удалены по решению владельца; эталон Rust-Trane v0.34.1, образцовый курс и Rust-адаптер FSRS — в `engine-ts/reference/` (`trane-pristine/`, `sql-course/`, `fsrs-scorer/`).
+Связанные документы (в этом же каталоге): `engine-ts-api.md` (контракт для UI), `engine-ts-electron.md` (псевдокод сервисов и транспорта в Electron), `engine-ts-testing.md` (стратегия тестов на vitest), `engine-ts-diagram.html` (схема). Спеки и отчёты агентов: `engine-ts/research/`; код и fixtures песочницы: `engine-ts/spike/`. Предшествующие документы: `docs/design/fsrs-in-trane.md`, `docs/design/build-vs-port.md`. Пути внутри отчётов и спек, написанные до переноса, указывают на `spike/engine-ts/` — теперь это `engine-ts/spike/`. Каталоги `spike/trane-mvp/` и `spike/trane-fsrs/` удалены по решению владельца; эталон Rust-Trane v0.34.1, образцовый курс и Rust-адаптер FSRS — в `engine-ts/reference/` (`trane-pristine/`, `sql-course/`, `fsrs-scorer/`).
 
 > **Лицензия — решение владельца (2026-09-29): вопрос не блокирует работу.** Порт повторяет структуру, константы и тесты Trane (AGPL-3.0-or-later), то есть это производная работа; при публикации или распространении приложения обязательства AGPL применимы [ВЫВОД, не юридическая оценка; `LICENSE` и `Cargo.toml` Trane прочитаны ранее]. Запасной путь — «чистая комната» (без переноса констант, кода и тестов, только по опубликованным идеям FIRe, KST, FSRS); решение отложено до первого внешнего релиза.
 
@@ -10,7 +10,7 @@
 | Вопрос | Решение |
 |---|---|
 | Язык, рантайм | TypeScript 7.0.2 (`strict`, `erasableSyntaxOnly`, ESM). Dev/CI: Node ≥ 22.12 и 24; прод: Electron 44.4.5 = Node 24.21.0 [ИЗМЕРЕНО] |
-| Границы | 4 пакета: `@lms/engine-contract` (типы для UI), `@lms/engine` (домен + приложение + fs/memory-адаптеры, без нативных зависимостей), `@lms/engine-sqlite` (better-sqlite3 13.0.3), `@lms/engine-sql-runner` (раннер проверок SQL в дочерних процессах на `node:sqlite`, §6a.4) |
+| Границы | 4 пакета: `@lms/engine-contract` (типы для UI), `@lms/engine` (домен + приложение + fs/memory-адаптеры, без нативных зависимостей), `@lms/engine-sqlite` (better-sqlite3 13.0.3), `@lms/engine-sql-runner` (раннер проверок SQL в дочерних процессах на `node:sqlite`, §6a.4); пятый пакет `@lms/engine-rpc` (клиент для renderer, диспетчер для хоста, `MessageEndpoint`; `engine-ts-electron.md` §2) |
 | Хост | Движок не импортирует `electron`. API асинхронный, только plain-DTO. Размещение — `utilityProcess` (решение владельца, 2026-09-29); на код движка не влияет |
 | Модель памяти | ts-fsrs 5.4.2 (pin) за портом `MemoryModel`; вызывать `next_state` + `forgetting_curve`, **не** `next()`/`Card` |
 | Скорер | Интерфейс `ExerciseScorer` как в Trane. По умолчанию `FsrsScorer` (вариант H: `value = R_fsrs × performance`). `PowerLawScorer` — эталон для сверки |
@@ -165,6 +165,7 @@
         │                         SystemClock, CryptoRng, Uuidv7Generator, FolderSync   (subpath ./node)
 @lms/engine-sqlite       SqliteEventStore, миграции, порт SqlDatabase (better-sqlite3 13.0.3)   ← типы портов из @lms/engine
 @lms/engine-sql-runner   SqlVerifier (реализует порт Verifier), пул дочерних процессов, раннер на node:sqlite   ← типы портов из @lms/engine
+@lms/engine-rpc          client (renderer) / host (диспетчер, zod), MessageEndpoint, in-process пара   ← типы из @lms/engine-contract
 @lms/testkit             FakeClock, SeededRng, TestId, билдеры курсов и журнала (dev-пакет, не публикуется)
 apps/desktop (позже)     main (супервизор) / utilityProcess-хост движка / preload / renderer
 ```

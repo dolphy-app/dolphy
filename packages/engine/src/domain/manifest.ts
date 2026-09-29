@@ -14,7 +14,15 @@ export type BasicAsset =
   | { InlinedUniqueAsset: { content: string } };
 
 export type ExerciseType = 'Declarative' | 'Procedural';
+export type LiteracyLessonType = 'Reading' | 'Dictation';
+export type TranscriptionLink = { YouTube: string };
+export type LiteracyExample = [string, string | null];
 
+/**
+ * Варианты `Literacy`, `SoundSlice` и `Transcription` движок не исполняет:
+ * они разбираются схемой (реальные манифесты Trane их содержат), компилятор
+ * даёт `W_UNSUPPORTED_GENERATOR` и `W_ASSET_KIND_UNSUPPORTED`.
+ */
 export type ExerciseAsset =
   | { BasicAsset: BasicAsset }
   | { FlashcardAsset: { front_path: string; back_path: string | null } }
@@ -23,9 +31,65 @@ export type ExerciseAsset =
         front_content: string;
         back_content: string | null;
       };
+    }
+  | {
+      LiteracyAsset: {
+        lesson_type: LiteracyLessonType;
+        examples: LiteracyExample[];
+        exceptions: LiteracyExample[];
+      };
+    }
+  | {
+      SoundSliceAsset: {
+        link: string;
+        description: string | null;
+        backup: string | null;
+      };
+    }
+  | {
+      TranscriptionAsset: {
+        content: string;
+        external_link: TranscriptionLink | null;
+      };
     };
 
-export type CourseGenerator = { KnowledgeBase: { inlined: boolean } };
+export type TranscriptionAssetDefinition = {
+  Track: {
+    short_id: string;
+    track_name: string;
+    artist_name: string | null;
+    album_name: string | null;
+    duration: string | null;
+    external_link: TranscriptionLink | null;
+  };
+};
+
+export interface TranscriptionPassages {
+  asset: TranscriptionAssetDefinition;
+  intervals: Record<string, [string, string]>;
+}
+
+export interface KnowledgeBaseConfig {
+  inlined: boolean;
+}
+
+export interface LiteracyConfig {
+  generate_dictation: boolean;
+  exercise_type: ExerciseType;
+}
+
+export interface TranscriptionConfig {
+  transcription_dependencies: string[];
+  passage_directory: string;
+  inlined_passages: TranscriptionPassages[];
+  skip_singing_lessons: boolean;
+  skip_advanced_lessons: boolean;
+}
+
+export type CourseGenerator =
+  | { KnowledgeBase: KnowledgeBaseConfig }
+  | { Literacy: LiteracyConfig }
+  | { Transcription: TranscriptionConfig };
 
 export type Bloom =
   'remember' | 'understand' | 'apply' | 'analyze' | 'evaluate' | 'create';
@@ -47,6 +111,11 @@ export interface EngineExtension {
   requiresChecks?: boolean;
   /** Урок: `true` — все охваты, массив — перечисленные id. */
   nonAncestor?: boolean | string[];
+  /**
+   * Курс: пороги числа упражнений на урок для `W_GRANULARITY`
+   * (по умолчанию 3 и 12 [НЕ ПОДТВЕРЖДЕНО, engine-ts.md §12.18]).
+   */
+  granularity?: { min?: number; max?: number };
 }
 
 export interface CourseManifest {
@@ -89,7 +158,20 @@ export interface ExerciseManifest {
   engine?: EngineExtension;
 }
 
+export interface Instrument {
+  id: string;
+  name: string;
+}
+
+export interface TranscriptionPreferences {
+  instruments: Instrument[];
+  download_path: string | null;
+  download_path_alias: string | null;
+}
+
 export interface UserPreferences {
   scheduler: { batch_size: number | null } | null;
   ignored_paths: string[];
+  /** Настройка загрузчика транскрипций Trane: разбирается, движком не используется. */
+  transcription?: TranscriptionPreferences | null;
 }

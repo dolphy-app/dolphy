@@ -82,6 +82,9 @@ export const createMemoryCourseSource = (
     return text;
   };
 
+  const readBytes = async (path: string) =>
+    encoder.encode(await readText(path));
+
   const stat = async (path: string): Promise<SourceStat | null> => {
     const text = files.get(path);
     if (text !== undefined) {
@@ -102,6 +105,7 @@ export const createMemoryCourseSource = (
     files,
     list,
     readText,
+    readBytes,
     stat,
     readArtifact: async () => files.get(ARTIFACT_PATH) ?? null,
     writeArtifact: async (text) => {

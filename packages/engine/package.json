@@ -13,7 +13,9 @@
     "./authoring": "./src/authoring/index.ts",
     "./scheduler": "./src/scheduler/index.ts",
     "./verify": "./src/verify/index.ts",
-    "./sync": "./src/sync/index.ts"
+    "./sync": "./src/sync/index.ts",
+    "./placement": "./src/placement/index.ts",
+    "./planning": "./src/planning/index.ts"
   },
   "bin": {
     "engine-cli": "./src/cli/main.ts"

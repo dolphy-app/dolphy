@@ -31,7 +31,14 @@ export interface JournalWriter {
     fields: F,
     options?: BuildOptions,
   ): F & Pick<LogEntry, BaseKey>;
-  /** Вызывать после успешного `append`: `seq` растёт только тогда, без пропусков. */
+  /**
+   * Пакет записей одной транзакции: `seq` подряд от `lastSeq + 1`, `at` по
+   * HLC-правилу с учётом предыдущих записей пакета. Состояние не меняется.
+   */
+  buildBatch<F extends EntryFields>(
+    items: readonly { fields: F; options?: BuildOptions }[],
+  ): (F & Pick<LogEntry, BaseKey>)[];
+  /** Вызывать после успешного `append`: `seq` берётся из хранилища, без пропусков. */
   commit(entry: Pick<LogEntry, 'seq' | 'at'>): void;
 }
 
@@ -40,29 +47,50 @@ export const createJournalWriter = ({
   ids,
   eventStore,
 }: JournalWriterDeps): JournalWriter => {
-  let seq = eventStore.lastSeq();
   let ownPrevAt: EpochMs = 0;
 
   /** HLC-правило (engine-ts.md §5.1). */
-  const computeAt = (requestedAt: EpochMs | undefined): EpochMs => {
+  const computeAt = (
+    requestedAt: EpochMs | undefined,
+    prevAt: EpochMs,
+  ): EpochMs => {
     const now = clock.now();
     const clamped = Math.min(requestedAt ?? now, now + FIVE_MIN_MS);
-    return Math.max(clamped, eventStore.maxAt() + 1, ownPrevAt);
+    return Math.max(clamped, eventStore.maxAt() + 1, prevAt);
   };
 
-  const build: JournalWriter['build'] = (fields, options = {}) => ({
+  // `seq` не кэшируется: после `checkRestore` (догон или форк `deviceId`)
+  // хранилище знает верный `lastSeq`, а писатель — нет
+  const buildAt = <F extends EntryFields>(
+    fields: F,
+    options: BuildOptions,
+    seq: number,
+    prevAt: EpochMs,
+  ) => ({
     ...fields,
     id: options.id ?? ids.next(),
     deviceId: eventStore.deviceId,
-    seq: seq + 1,
-    at: computeAt(options.at),
+    seq,
+    at: computeAt(options.at, prevAt),
     recordedAt: clock.now(),
   });
 
+  const build: JournalWriter['build'] = (fields, options = {}) =>
+    buildAt(fields, options, eventStore.lastSeq() + 1, ownPrevAt);
+
+  const buildBatch: JournalWriter['buildBatch'] = (items) => {
+    let prevAt = ownPrevAt;
+    const firstSeq = eventStore.lastSeq() + 1;
+    return items.map(({ fields, options = {} }, index) => {
+      const entry = buildAt(fields, options, firstSeq + index, prevAt);
+      prevAt = entry.at;
+      return entry;
+    });
+  };
+
   const commit: JournalWriter['commit'] = (entry) => {
-    seq = entry.seq;
     ownPrevAt = entry.at;
   };
 
-  return { build, commit };
+  return { build, buildBatch, commit };
 };

@@ -20,3 +20,52 @@ export type {
 } from './journal-writer.ts';
 export { UNQUEUED, createFacade, wrapTree } from './facade.ts';
 export type { EngineServices, WrapMethod } from './facade.ts';
+export {
+  DEFAULT_PAGE_LIMIT,
+  MAX_PAGE_LIMIT,
+  decodeCursor,
+  encodeCursor,
+  paginate,
+  resolveLimit,
+} from './pagination.ts';
+export {
+  DEFAULT_GRAPH_LIMIT,
+  DEFAULT_VERIFICATION_TIMEOUT_MS,
+  MAX_GRAPH_LIMIT,
+  toCourseDto,
+  toExerciseDto,
+  toGraphDto,
+  toLessonDto,
+  toUnitDto,
+} from './dto.ts';
+export { findOrphanDiagnostics } from './orphans.ts';
+export type {
+  AttemptIndex,
+  AttemptRecord,
+  CommitInput,
+  CommitResult,
+  EffectiveAttempt,
+  EngineContext,
+  EngineDeps,
+  EngineMetrics,
+  EntryKey,
+  FlagState,
+  FolderSyncPort,
+  LibraryHolder,
+  MemoryIndex,
+  OpenAttempt,
+  Projections,
+  RemediationTracker,
+  RewardProjection,
+} from './context.ts';
+export { createSyncService } from './services/sync.ts';
+export { createLibraryService } from './services/library.ts';
+export { createCurationService } from './services/curation.ts';
+export { createSettingsService } from './services/settings.ts';
+export { createContext } from './create-context.ts';
+export { createEngine, createEngineFromContext } from './create-engine.ts';
+export { ENGINE_VERSION, collectDiagnostics } from './diagnostics.ts';
+export { createPracticeService } from './services/practice.ts';
+export { createRemediationService } from './services/remediation.ts';
+export { createProgressReader } from './progress.ts';
+export type { ProgressReader } from './progress.ts';

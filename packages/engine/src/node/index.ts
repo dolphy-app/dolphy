@@ -19,3 +19,19 @@ export type {
 } from './folder-sync.ts';
 export { createMemoryEventStore } from './memory-event-store.ts';
 export type { MemoryEventStoreOptions } from './memory-event-store.ts';
+export {
+  createCryptoRng,
+  createJsonLogger,
+  createSystemClock,
+  createUuidv7Generator,
+  nodeDefaults,
+} from './defaults.ts';
+export type {
+  FillRandom,
+  JsonLoggerDeps,
+  LogStream,
+  NodeDefaults,
+  Uuidv7Deps,
+} from './defaults.ts';
+export { createNodeFolderSyncPort } from './folder-sync-port.ts';
+export type { NodeFolderSyncPortDeps } from './folder-sync-port.ts';

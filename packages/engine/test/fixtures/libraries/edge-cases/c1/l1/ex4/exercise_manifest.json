@@ -1,0 +1,12 @@
+{
+  "id": "c1::l1::ex4",
+  "lesson_id": "c1::l1",
+  "course_id": "c1",
+  "exercise_asset": {
+    "BasicAsset": {
+      "MarkdownAsset": {
+        "path": "../../l0/q.md"
+      }
+    }
+  }
+}

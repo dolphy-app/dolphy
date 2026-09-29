@@ -1,0 +1,12 @@
+{
+  "id": "c1::l1::ex1",
+  "lesson_id": "c1::l1",
+  "course_id": "c1",
+  "exercise_asset": {
+    "SoundSliceAsset": {
+      "link": "https://soundslice.com/x",
+      "description": null,
+      "backup": "../backup.xml"
+    }
+  }
+}

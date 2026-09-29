@@ -1,0 +1,21 @@
+{
+  "id": "c1::l1::ex2",
+  "lesson_id": "c1::l1",
+  "course_id": "c1",
+  "exercise_type": "Declarative",
+  "exercise_asset": {
+    "LiteracyAsset": {
+      "lesson_type": "Dictation",
+      "examples": [
+        [
+          "a",
+          "b"
+        ],
+        [
+          "c",
+          null
+        ]
+      ]
+    }
+  }
+}

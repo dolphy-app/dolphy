@@ -1,0 +1,25 @@
+{
+  "course_id": "sql_json",
+  "dependencies": [
+    "sql_json::where",
+    "sql_json::aggregate"
+  ],
+  "encompassed": [
+    [
+      "sql_json::where",
+      0.5
+    ]
+  ],
+  "id": "sql_json::join",
+  "name": "JOIN",
+  "engine": {
+    "keyPrerequisites": [
+      "sql_json::where"
+    ],
+    "tags": [
+      "join"
+    ],
+    "bloom": "apply",
+    "dok": 2
+  }
+}

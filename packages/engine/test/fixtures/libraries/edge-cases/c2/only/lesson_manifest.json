@@ -1,0 +1,7 @@
+{
+  "id": "c2::only",
+  "course_id": "c2",
+  "dependencies": [
+    "c1::l1"
+  ]
+}

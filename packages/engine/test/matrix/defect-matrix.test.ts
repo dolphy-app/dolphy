@@ -4,12 +4,36 @@
  * (безобидные заглушки frontmatter, `nonAncestor`, пороги гранулярности)
  * не порождают диагностик. Синтетика 3000 уроков × 4 упражнения.
  */
+import {
+  chmodSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { runMatrix } from '../helpers/matrix.ts';
 import type { Layout } from '../helpers/defects.ts';
 import type { MatrixResult } from '../helpers/matrix.ts';
 
 const MIN_CHECKED = 52;
+
+const rootMasksChmod = (() => {
+  const dir = mkdtempSync(join(tmpdir(), 'chmod-probe-'));
+  const file = join(dir, 'probe');
+  writeFileSync(file, 'x');
+  chmodSync(file, 0o000);
+  try {
+    readFileSync(file);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+})();
 const TIMEOUT_MS = 120_000;
 
 // матрица строится один раз на раскладку: чтение 3000×4 файлов — секунды
@@ -78,8 +102,11 @@ describe('матрица: состав (T-32)', () => {
         r.injected.expect.filter(({ code }) => code === 'W_GRANULARITY').length;
       expect(granularity(kb)).toBe(3);
       expect(granularity(json)).toBe(3);
-      expect(kb.injected.expect.length - granularity(kb)).toBe(32);
-      expect(json.injected.expect.length - granularity(json)).toBe(16);
+      // для root chmod 000 не закрывает файл: дефект «нечитаемый файл» в
+      // каждой раскладке не вносится (см. `isUnreadable` в helpers/defects)
+      const masked = rootMasksChmod ? 1 : 0;
+      expect(kb.injected.expect.length - granularity(kb)).toBe(32 - masked);
+      expect(json.injected.expect.length - granularity(json)).toBe(16 - masked);
       const checked = (r: MatrixResult) =>
         r.injected.expect.length + r.injected.mustNot.length;
       expect(checked(kb) + checked(json)).toBeGreaterThanOrEqual(MIN_CHECKED);

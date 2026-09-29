@@ -189,9 +189,6 @@ export interface World {
   getDue(query?: { minNeed?: number }): DueItemDto[];
 }
 
-export const createWorld = (options: WorldOptions): World =>
-  createWorldFromLibrary(buildWorldLibrary(options.courses), options);
-
 /** Мир поверх готовой библиотеки (например, собранной сканером). */
 export const createWorldFromLibrary = (
   library: Library,
@@ -345,3 +342,6 @@ export const createWorldFromLibrary = (
       ),
   };
 };
+
+export const createWorld = (options: WorldOptions): World =>
+  createWorldFromLibrary(buildWorldLibrary(options.courses), options);

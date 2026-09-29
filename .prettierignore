@@ -1,0 +1,12 @@
+node_modules
+dist
+dist-electron
+release
+pnpm-lock.yaml
+vendor
+docs
+engine-ts
+spike
+.agents
+.claude
+apps/desktop/LICENSE

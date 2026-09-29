@@ -524,3 +524,41 @@ describe('agreement with the scorer replay', () => {
     expect(index.trialsOf(exerciseId)).toBe(attempts.length);
   });
 });
+
+describe('full credit (weight 1)', () => {
+  test('lambda 1 with a weight-1 edge still leaves D untouched', () => {
+    const spec = (
+      id: string,
+      deps: string[],
+      encompassed?: [string, number][],
+    ): LessonSpec => ({
+      id,
+      courseId: 'c',
+      deps,
+      ...(encompassed !== undefined && { encompassed }),
+      exercises: [`${id}::e0`],
+      tags: [],
+    });
+    const library = buildSpecLibrary([
+      spec('a', []),
+      spec('b', ['a'], [['a', 1]]),
+    ]);
+    const index = indexOf(
+      () => ({
+        implicitCredit: { enabled: true, lambda: 1, minCredit: 0.2, kappa: 1 },
+      }),
+      'declared',
+    );
+    index.rebuild([], library);
+    index.apply(attemptOf(0, at(0), 'a::e0', 5), library);
+    const before = index.getMemory('a::e0');
+    index.apply(attemptOf(1, at(30), 'b::e0', 5), library);
+    const after = index.getMemory('a::e0');
+    expect(after?.state.difficulty).toBe(before?.state.difficulty);
+    expect(after?.lastAt).toBe(at(30)); // полный кредит — реальный обзор во времени
+    expect(after?.state.stability).toBeGreaterThan(
+      before?.state.stability ?? Infinity,
+    );
+    expect(index.trialsOf('a::e0')).toBe(1);
+  });
+});

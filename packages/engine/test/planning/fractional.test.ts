@@ -290,6 +290,19 @@ describe('updateDifficulty: false', () => {
     );
   });
 
+  test('w = 1 is a real review of S and lastAt but still keeps D', () => {
+    fc.assert(
+      fc.property(stateArb, rating, (state, r) => {
+        const kept = fractionalOf(state, r, 1, { updateDifficulty: false });
+        const real = stepper.review(state, NOW, r);
+        expect(kept.difficulty).toBe(state.difficulty);
+        expect(kept.stability).toBe(real.stability);
+        expect(kept.lastAt).toBe(NOW);
+      }),
+      run,
+    );
+  });
+
   test('default is to update D (spike behaviour)', () => {
     const state: FireState = {
       stability: 12,

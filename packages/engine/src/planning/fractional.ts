@@ -114,7 +114,12 @@ export const createFractionalStepper = (
   ) => {
     if (state === null) return null;
     if (!(w > 0)) return { ...state };
-    if (w >= 1) return review(state, now, rating);
+    if (w >= 1) {
+      const next = review(state, now, rating);
+      return updateDifficulty
+        ? next
+        : { ...next, difficulty: state.difficulty };
+    }
     const days = Math.max(0, now - state.lastAt) / MS_PER_DAY;
     const r0 = model.retrievability(state, days);
     const plus = model.step(state, wholeDaysBetween(state.lastAt, now), rating);

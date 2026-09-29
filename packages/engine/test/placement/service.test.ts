@@ -2,7 +2,7 @@ import type { PlacementSummaryDto } from '@lms/engine-contract';
 import { buildLibrary } from '@lms/testkit';
 import { describe, expect, test } from 'vitest';
 import { EngineError } from '../../src/app/index.ts';
-import type { EventStore } from '../../src/ports/index.ts';
+import type { EventStore, StoreTx } from '../../src/ports/index.ts';
 import { createTestEngine } from '../helpers/engine.ts';
 import type { TestEngine } from '../helpers/engine.ts';
 
@@ -127,9 +127,9 @@ describe('placement service on sql-course', () => {
       fail();
       return append.call(store, entries);
     };
-    store.transact = async (work) => {
+    store.transact = async <T>(work: (tx: StoreTx) => T): Promise<T> => {
       fail();
-      return transact.call(store, work);
+      return transact.call(store, work) as Promise<T>;
     };
     const before = t.eventStore.entryCount();
     await expect(

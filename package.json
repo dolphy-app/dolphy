@@ -1,0 +1,25 @@
+{
+  "name": "lms-platform",
+  "private": true,
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @lms/desktop dev",
+    "build": "pnpm --filter @lms/desktop build",
+    "lint": "pnpm lint:eslint && pnpm lint:format",
+    "lint:eslint": "eslint .",
+    "lint:format": "prettier --check .",
+    "fix": "eslint . --fix && prettier --write ."
+  },
+  "devDependencies": {
+    "eslint": "^9",
+    "eslint-config-metarhia": "^9.2.1",
+    "eslint-plugin-vue": "^10.11.1",
+    "globals": "^17.12.0",
+    "prettier": "^3.9.9",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.71.0"
+  }
+}

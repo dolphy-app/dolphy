@@ -263,13 +263,6 @@ describe('engine-cli: неверные аргументы → код 2', () => {
     expect(stderr).toMatch(/usage: engine-cli/);
   });
 
-  it('--run-checks не поддержан до M5', async () => {
-    const dir = await tmp.copy(TRANE_LIBRARIES.embedded);
-    const { code, stderr } = await cli('validate', dir, '--run-checks');
-    expect(code).toBe(2);
-    expect(stderr).toContain('M5');
-  });
-
   it('каталога нет или это файл', async () => {
     const dir = await tmp.make();
     const missing = await cli('validate', join(dir, 'nope'));

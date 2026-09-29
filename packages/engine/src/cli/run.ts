@@ -2,8 +2,15 @@ import { basename, relative, resolve } from 'node:path';
 import type { Diagnostic } from '@lms/engine-contract';
 import { encodeArtifact } from '../authoring/artifact.ts';
 import { compile } from '../authoring/compile.ts';
+import type { CompileResult } from '../authoring/compile.ts';
+import type { Logger } from '../ports/index.ts';
 import { writeTextAtomic } from '../node/atomic-write.ts';
 import { createNodeFsCourseSource } from '../node/fs-course-source.ts';
+import {
+  loadSqlRunnerVerifiers,
+  VerifiersUnavailableError,
+} from './sql-runner.ts';
+import type { CliVerifiers, CreateVerifiers } from './sql-runner.ts';
 
 export interface CliIo {
   stdout(text: string): void;
@@ -17,13 +24,15 @@ export const EXIT_USAGE = 2;
 const COMMANDS = ['validate', 'compile'] as const;
 type Command = (typeof COMMANDS)[number];
 
-const USAGE = `usage: engine-cli validate|compile <dir> [--json] [--verbose] [--out <file>]
+const USAGE = `usage: engine-cli validate|compile <dir> [--json] [--verbose] [--run-checks] [--out <file>]
 
   validate <dir>   проверить библиотеку курсов (код выхода 1 при ошибках)
   compile <dir>    проверить и записать артефакт (<dir>/.engine/compiled.json)
 
   --json           машиночитаемый вывод
   --verbose        показывать info-диагностики
+  --run-checks     прогнать эталонные решения (engine.verification.reference)
+                   через раннер; провал — E_REFERENCE_FAILS
   --out <file>     куда записать артефакт (только compile)
 `;
 
@@ -33,7 +42,30 @@ interface ParsedArgs {
   json: boolean;
   verbose: boolean;
   out: string | undefined;
+  runChecks: boolean;
 }
+
+/** Внедряемые зависимости CLI: тесты подставляют раннер, по умолчанию — `@lms/engine-sql-runner`. */
+export interface CliDeps {
+  createVerifiers?: CreateVerifiers;
+}
+
+/** Предупреждения и ошибки раннера — в stderr одной JSON-строкой. */
+const createStderrLogger = (io: CliIo): Logger => {
+  const write = (level: string) => (fields: object, message?: string) => {
+    const line = JSON.stringify({ level, ...fields, message }, (_key, value) =>
+      value instanceof Error ? value.message : value,
+    );
+    io.stderr(`${line}\n`);
+  };
+  const ignore = () => {};
+  return {
+    debug: ignore,
+    info: ignore,
+    warn: write('warn'),
+    error: write('error'),
+  };
+};
 
 type ParseOutcome = ParsedArgs | { help: true } | { usageError: string };
 
@@ -45,14 +77,14 @@ const parseArgs = (argv: readonly string[]): ParseOutcome => {
   let json = false;
   let verbose = false;
   let out: string | undefined;
+  let runChecks = false;
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i] as string;
     if (arg === '--help' || arg === '-h') return { help: true };
     if (arg === '--json') json = true;
     else if (arg === '--verbose') verbose = true;
-    else if (arg === '--run-checks') {
-      return { usageError: '--run-checks не поддержано до M5' };
-    } else if (arg === '--out') {
+    else if (arg === '--run-checks') runChecks = true;
+    else if (arg === '--out') {
       out = argv[++i];
       if (out === undefined)
         return { usageError: '--out требует путь к файлу' };
@@ -76,7 +108,7 @@ const parseArgs = (argv: readonly string[]): ParseOutcome => {
   if (out !== undefined && command !== 'compile') {
     return { usageError: '--out поддерживается только командой compile' };
   }
-  return { command, dir, json, verbose, out };
+  return { command, dir, json, verbose, out, runChecks };
 };
 
 const location = ({ path, line }: Diagnostic) => {
@@ -90,11 +122,12 @@ const formatDiagnostic = (d: Diagnostic) =>
 /**
  * `engine-cli validate|compile <dir>`; `argv` без `node` и имени скрипта.
  * Код выхода: 0 — ошибок нет, 1 — в библиотеке есть `error`, 2 — неверные
- * аргументы.
+ * аргументы или недоступен раннер для `--run-checks`.
  */
 export const runCli = async (
   argv: readonly string[],
   io: CliIo,
+  deps: CliDeps = {},
 ): Promise<number> => {
   const parsed = parseArgs(argv);
   if ('help' in parsed) {
@@ -105,7 +138,7 @@ export const runCli = async (
     io.stderr(`${parsed.usageError}\n${USAGE}`);
     return EXIT_USAGE;
   }
-  const { command, json, verbose, out } = parsed;
+  const { command, json, verbose, out, runChecks } = parsed;
   const root = resolve(parsed.dir);
   const source = createNodeFsCourseSource(root);
   const rootStat = await source.stat('');
@@ -120,21 +153,56 @@ export const runCli = async (
     const rel = relative(root, resolve(out));
     if (!rel.startsWith('..')) excludeFromRevision.push(rel);
   }
+  let verifiers: CliVerifiers | null = null;
+  if (runChecks) {
+    try {
+      verifiers = await (deps.createVerifiers ?? loadSqlRunnerVerifiers)(
+        source,
+        createStderrLogger(io),
+      );
+    } catch (error) {
+      if (!(error instanceof VerifiersUnavailableError)) throw error;
+      io.stderr(`${error.message}\n`);
+      return EXIT_USAGE;
+    }
+  }
   const started = performance.now();
-  const result = await compile(source, { excludeFromRevision });
+  let result: CompileResult;
+  try {
+    result = await compile(source, {
+      excludeFromRevision,
+      ...(verifiers === null
+        ? {}
+        : { runChecks: { verifiers: verifiers.verifiers } }),
+    });
+  } finally {
+    // пул раннера держит дочерние процессы: без close() CLI не завершится
+    await verifiers?.close();
+  }
   const elapsedMs = performance.now() - started;
-  const { summary, artifact } = result;
+  const { summary, artifact, referenceChecks } = result;
 
   const shown = verbose
     ? result.diagnostics
     : result.diagnostics.filter((d) => d.severity !== 'info');
   if (json) {
     const revision = artifact?.revision ?? null;
-    io.stdout(
-      `${JSON.stringify({ root, summary, diagnostics: shown, revision }, null, 2)}\n`,
-    );
+    const report = {
+      root,
+      summary,
+      diagnostics: shown,
+      revision,
+      ...(referenceChecks === undefined ? {} : { referenceChecks }),
+    };
+    io.stdout(`${JSON.stringify(report, null, 2)}\n`);
   } else {
     for (const d of shown) io.stdout(formatDiagnostic(d));
+    if (referenceChecks !== undefined) {
+      const { checked, skipped, failed } = referenceChecks;
+      io.stdout(
+        `reference solutions: ${checked} checked, ${failed} failed, ${skipped} skipped (no reference)\n`,
+      );
+    }
     io.stdout(
       `${basename(root)}: ${summary.errors} error(s), ${summary.warnings} warning(s), ${summary.infos} info; ${elapsedMs.toFixed(0)} ms\n`,
     );

@@ -1,0 +1,28 @@
+{
+  "fixtures": {
+    "frontier.jsonl": {
+      "batchesPerCase": 1500,
+      "bin": "scheduler_frontier_golden",
+      "cases": 47,
+      "seed": "0x5EEDF40720260929",
+      "seedScope": "random states of the `mixed` group only; batches use Trane's thread-local RNG and are not reproducible, the source sets are checked for stability across two independent runs",
+      "sha256": "ab3d62ffdaa14c17ba93669aeb42954059a1e4a87f38478fdc08d62dda4c48b0"
+    },
+    "l4.jsonl": {
+      "batchesPerCase": 5000,
+      "bin": "scheduler_l4_golden",
+      "cases": 12,
+      "seed": "0x5EED140020260929",
+      "seedScope": "scripted states only; batches use Trane's thread-local RNG and are not reproducible",
+      "sha256": "264d3fe01aa07f55bb6ac7e053de420d15f5f39e0758bbd2837b60aa4950dd2e"
+    }
+  },
+  "generator": "golden-rs (cargo run --release --offline --bin <name>); the states are deterministic, the batches are NOT: Trane's RNG is thread-local (rand::rng()), so a rerun changes the counts and the sha256; the fixtures are regenerated only deliberately",
+  "toolchain": {
+    "rustc": "1.97.0"
+  },
+  "trane": {
+    "commit": "6f5f84a",
+    "version": "v0.34.1"
+  }
+}

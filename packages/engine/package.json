@@ -10,13 +10,17 @@
     "./scoring": "./src/scoring/index.ts",
     "./app": "./src/app/index.ts",
     "./node": "./src/node/index.ts",
-    "./authoring": "./src/authoring/index.ts"
+    "./authoring": "./src/authoring/index.ts",
+    "./scheduler": "./src/scheduler/index.ts",
+    "./verify": "./src/verify/index.ts",
+    "./sync": "./src/sync/index.ts"
   },
   "bin": {
     "engine-cli": "./src/cli/main.ts"
   },
   "scripts": {
     "engine-cli": "node --disable-warning=ExperimentalWarning src/cli/main.ts",
+    "bench": "vitest run --config vitest.bench.config.ts",
     "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
     "test": "vitest run"
   },

@@ -133,6 +133,9 @@ importers:
       '@lms/engine':
         specifier: workspace:*
         version: link:../engine
+      '@lms/engine-contract':
+        specifier: workspace:*
+        version: link:../engine-contract
       better-sqlite3:
         specifier: 13.0.3
         version: 13.0.3

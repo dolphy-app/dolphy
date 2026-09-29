@@ -219,16 +219,14 @@ export const createPlacementService = (
     const session = requireOpen(parsed.sessionId);
     const { diagnostic } = session;
     if (session.issued !== parsed.topic) {
-      if (
-        session.issued === null &&
-        diagnostic.probes.length >= session.budget
-      ) {
+      const answered = diagnostic.probes.includes(parsed.topic);
+      if (answered || diagnostic.probes.length >= session.budget) {
         throw new EngineError('PLACEMENT_BUDGET_EXHAUSTED', {
           details: { sessionId: session.sessionId, budget: session.budget },
         });
       }
       throw new EngineError('INVALID_ARGUMENT', {
-        details: { probeId, reason: 'not-current' },
+        details: { probeId, reason: 'not-issued' },
       });
     }
     const pass = passedBy(
@@ -237,6 +235,8 @@ export const createPlacementService = (
     );
     diagnostic.answer(parsed.topic, pass);
     session.issued = null;
+    // итог открытой попытки принят: попытка закрыта, события в журнал нет
+    if (result.kind === 'attempt') ctx.attempts.delete(result.attemptId);
     return {
       asked: diagnostic.probes.length,
       budget: session.budget,
@@ -314,9 +314,10 @@ export const createPlacementService = (
     };
   };
 
+  /** Неизвестная, истёкшая и завершённая сессии — no-op (engine-ts-api.md §4.2). */
   const abort = async ({ sessionId }: { sessionId: string }): Promise<void> => {
-    const session = touch(sessionId);
-    if (session.finished !== null) throw notFound(sessionId);
+    const session = sessions.get(sessionId);
+    if (session === undefined || session.finished !== null) return;
     sessions.delete(sessionId);
     if (activeId === sessionId) activeId = null;
   };

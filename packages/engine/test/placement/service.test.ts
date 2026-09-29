@@ -104,6 +104,11 @@ describe('placement service on sql-course', () => {
         t.engine.placement.finish({ sessionId, requestId: 'other' }),
       ),
     ).toBe('PLACEMENT_SESSION_NOT_FOUND');
+    // abort завершённой сессии ничего не меняет: повтор finish по-прежнему идемпотентен
+    await t.engine.placement.abort({ sessionId });
+    expect(
+      await t.engine.placement.finish({ sessionId, requestId: 'r' }),
+    ).toEqual({ ...first, duplicate: true });
   });
 
   test('a failing append writes nothing; retry with the same requestId succeeds', async () => {
@@ -186,6 +191,11 @@ describe('placement service on sql-course', () => {
     expect(await codeOf(() => placement.nextProbe(sessionId))).toBe(
       'PLACEMENT_SESSION_NOT_FOUND',
     );
+    // неизвестная и повторно прерванная сессии — no-op
+    expect(await codeOf(() => placement.abort({ sessionId }))).toBeNull();
+    expect(
+      await codeOf(() => placement.abort({ sessionId: 'unknown' })),
+    ).toBeNull();
 
     const second = await placement.start({ budget: 5 });
     t.clock.advance(DAY_MS + 1);
@@ -226,6 +236,21 @@ describe('placement service on sql-course', () => {
     ).toBe('INVALID_ARGUMENT');
   });
 
+  test('an answered probe cannot be answered again, even with budget left', async () => {
+    const t = await createTestEngine({ library: 'sql-course' });
+    const { placement } = t.engine;
+    const { sessionId } = await placement.start({ budget: 5, seed: 3 });
+    const probe = await placement.nextProbe(sessionId);
+    const request = {
+      probeId: probe?.probeId ?? '',
+      result: { kind: 'grade', grade: 5 },
+    } as const;
+    await placement.answer(request);
+    expect(await codeOf(() => placement.answer(request))).toBe(
+      'PLACEMENT_BUDGET_EXHAUSTED',
+    );
+  });
+
   test('an open attempt with a verdict is accepted as a result; grades are validated', async () => {
     const t = await createTestEngine({ library: 'sql-course' });
     const { placement, practice } = t.engine;
@@ -264,8 +289,8 @@ describe('placement service on sql-course', () => {
       result: { kind: 'attempt', attemptId },
     });
     expect(progress.asked).toBe(1);
-    // попытка не закрыта и в журнал не записана
-    expect(t.ctx.attempts.get(attemptId)?.result).toBeNull();
+    // попытка закрыта без события: результата нет, в реестре её больше нет
+    expect(t.ctx.attempts.get(attemptId)).toBeUndefined();
     expect((await practice.getAttempts(exerciseId)).items).toEqual([]);
   });
 });

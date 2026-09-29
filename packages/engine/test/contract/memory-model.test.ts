@@ -79,7 +79,7 @@ describe.each(adapters)('MemoryModel contract: %s', (_name, create) => {
     expect(() => model.step(null, 0, 5 as 4)).toThrow(RangeError);
   });
 
-  describe(`py-fsrs ${reference.pyfsrs_version} reference`, () => {
+  describe(`py-fsrs ${reference.pyfsrs_version} reference (T-07)`, () => {
     it('replays all histories step by step', () => {
       expect(reference.items).toHaveLength(600);
       let steps = 0;

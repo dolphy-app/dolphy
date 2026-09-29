@@ -15,7 +15,7 @@ import { sqlExercise, sqlRequest } from '../helpers/verifier.ts';
 const CHECKS_PER_ROUND = 1000;
 const BUDGET_MS = 1000;
 
-test('1000 проверок на прогретом пуле укладываются в секунду', async ({
+test('T-44 1000 проверок на прогретом пуле укладываются в секунду', async ({
   bench,
 }) => {
   const files: Record<string, string> = { 'fixtures/emp.sql': EMP_FIXTURE };

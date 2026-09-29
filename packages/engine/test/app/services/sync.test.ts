@@ -113,7 +113,7 @@ describe('sync exchange', () => {
     expect(result.rejected[0]!.reason).not.toBe('');
   });
 
-  it('rebuilds when imported entries are older than applied ones', async () => {
+  it('rebuilds when imported entries are older than applied ones (T-08)', async () => {
     const { a, b } = await pair();
     await attempt(a);
     const old = await exportAll(a);

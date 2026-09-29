@@ -93,7 +93,7 @@ const exists = (path: string) =>
     () => false,
   );
 
-describe('engine-cli --run-checks: внедрённый верификатор', () => {
+describe('engine-cli --run-checks: внедрённый верификатор (T-38)', () => {
   it('эталоны прошли: код 0, счётчики в выводе, верификатор закрыт', async () => {
     const dir = await tmp.copy(SQL_KB);
     const { deps, state } = stubDeps();
@@ -163,7 +163,7 @@ describe('engine-cli --run-checks: внедрённый верификатор',
   });
 });
 
-describe('engine-cli --run-checks: процесс CLI с настоящим SQL-раннером', () => {
+describe('engine-cli --run-checks: процесс CLI с настоящим SQL-раннером (T-38)', () => {
   it(
     'sql-course (KB и JSON): 21 эталон проходит собственную проверку, код 0',
     async () => {

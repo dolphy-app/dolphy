@@ -39,7 +39,7 @@ const CRASH_WORKER = fileURLToPath(
 const verifiers = createTestVerifiers();
 afterEach(() => verifiers.closeAll());
 
-describe('вердикты через порт Verifier', () => {
+describe('вердикты через порт Verifier (T-41)', () => {
   it('passed: результат совпал', async () => {
     const { verifier } = verifiers.make();
     const verdict = await verifier.check(

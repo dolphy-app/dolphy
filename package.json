@@ -16,6 +16,7 @@
     "lint": "pnpm lint:eslint && pnpm lint:format",
     "lint:eslint": "eslint .",
     "lint:format": "prettier --check .",
+    "check:tests": "node --test tools/check-test-coverage.test.mjs && node tools/check-test-coverage.mjs",
     "fix": "eslint . --fix && prettier --write ."
   },
   "devDependencies": {

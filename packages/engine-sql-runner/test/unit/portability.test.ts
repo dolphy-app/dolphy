@@ -45,7 +45,7 @@ const probe = (driver: DriverId, sql: string): string => {
   }
 };
 
-describe('переносимость', () => {
+describe('переносимость (T-40)', () => {
   it('снимок: 41 проба, 38 стабильных и 3 расходящихся', () => {
     expect(Object.keys(expected.stable)).toHaveLength(38);
     expect(expected.volatile).toHaveLength(3);

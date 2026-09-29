@@ -23,7 +23,7 @@ const getResult = (layout: Layout) => {
   return result;
 };
 
-describe.each(['kb', 'json'] as const)('матрица дефектов: %s', (layout) => {
+describe.each(['kb', 'json'] as const)('T-32 матрица: %s', (layout) => {
   const run = () => getResult(layout);
 
   it(
@@ -66,7 +66,7 @@ describe.each(['kb', 'json'] as const)('матрица дефектов: %s', (l
   );
 });
 
-describe('матрица: состав', () => {
+describe('матрица: состав (T-32)', () => {
   it(
     'KB: 32 исходных дефекта и 3 на W_GRANULARITY; JSON: 16 и 3',
     async () => {

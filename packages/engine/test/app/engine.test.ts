@@ -7,7 +7,10 @@ import { CONTRACT_VERSION } from '@lms/engine-contract';
 import { buildAttempt, createFakeClock, T0_MS } from '@lms/testkit';
 import { describe, expect, it, vi } from 'vitest';
 import { createEngine } from '../../src/app/index.ts';
-import { createMemoryEventStore } from '../../src/node/index.ts';
+import {
+  createMemoryEventStore,
+  createNodeFsCourseSource,
+} from '../../src/node/index.ts';
 import { createTestEngine } from '../helpers/engine.ts';
 
 const idsOf = async (engine: LearningEngine, lessonId: string) =>
@@ -22,6 +25,27 @@ describe('createEngine', () => {
     });
     expect(t.events).toEqual([]);
     expect(t.ctx.state).toEqual({ dirty: false, closed: false });
+  });
+
+  it('a missing library root opens as invalid with E_IO, the journal and settings stay usable', async () => {
+    const t = await createTestEngine({
+      library: createNodeFsCourseSource('/nonexistent/library-root'),
+    });
+    expect(await t.engine.library.getInfo()).toMatchObject({
+      state: 'invalid',
+      diagnostics: { errors: 1 },
+    });
+    const { items } = await t.engine.library.getDiagnostics();
+    expect(items).toEqual([
+      expect.objectContaining({ code: 'E_IO', severity: 'error' }),
+    ]);
+    await expect(t.engine.practice.getBatch()).rejects.toMatchObject({
+      code: 'LIBRARY_INVALID',
+    });
+    await expect(t.engine.settings.getScheduler()).resolves.toBeDefined();
+    await expect(t.engine.sync.getState()).resolves.toMatchObject({
+      entryCount: 0,
+    });
   });
 
   it('rebuilds the projections from an existing journal on open', async () => {

@@ -39,6 +39,7 @@ import type {
   OpenAttempt,
 } from './context.ts';
 import { createEventBus } from './event-bus.ts';
+import { checkLibraryRoot, invalidStatus } from './library-root.ts';
 import { createExpiringMap } from './expiring-map.ts';
 import { createJournalWriter } from './journal-writer.ts';
 
@@ -117,11 +118,15 @@ export const createContext = async (
   }
 
   const openStarted = performance.now();
-  const status: LibraryStatus = await openLibrary(
-    courseSource,
-    { clock },
-    { compile: { scan: { ignoredPaths: preferences.ignored_paths } } },
-  );
+  const rootProblem = await checkLibraryRoot(courseSource);
+  const status: LibraryStatus =
+    rootProblem === null
+      ? await openLibrary(
+          courseSource,
+          { clock },
+          { compile: { scan: { ignoredPaths: preferences.ignored_paths } } },
+        )
+      : invalidStatus(rootProblem, clock);
   library.swap(status);
   metrics.openLibraryMs = performance.now() - openStarted;
 

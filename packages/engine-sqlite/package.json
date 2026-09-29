@@ -9,7 +9,8 @@
   },
   "scripts": {
     "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "crash": "node --experimental-strip-types --disable-warning=ExperimentalWarning test/crash/crash-driver.ts"
   },
   "dependencies": {
     "@lms/engine": "workspace:*",

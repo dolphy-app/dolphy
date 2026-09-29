@@ -6,7 +6,7 @@
 
 1. `design/engine-ts.md` — главный документ: решения (§0), трассировка F1–F7 → FR → API → веха → приёмка (§1.1), модель данных (§5), F-слой (§6a), дорожная карта M0–M7 (§11), открытые вопросы (§12).
 2. `design/engine-ts-api.md` — контракт `@lms/engine-contract` (типы проверены `tsc` 7.0.2).
-3. `design/engine-ts-testing.md` — стратегия vitest, обязательные тесты T-01…T-57, CI-матрица Node 22 + 24.
+3. `design/engine-ts-testing.md` — стратегия vitest, обязательные тесты T-01…T-60, CI-матрица Node 22 + 24.
 4. `design/engine-ts-diagram.html` — схема (открывать через `python3 -m http.server`, не `file://`).
 5. `research/report-*.md` — числа и контрпримеры за каждым решением; `research/spec-*.md` — поведение модулей Trane с `file:line`.
 
@@ -16,10 +16,12 @@
 |---|---|
 | `design/` | четыре документа выше |
 | `research/` | 4 спеки Trane, 8 отчётов (FSRS, PowerLaw, загрузчик, F1–F7) и `facts-stack.md` (факты о стеке) |
-| `spike/` | прототипы с тестами; `node_modules` и `target` удалены, ставятся `npm ci` |
-| `reference/trane-pristine/` | Rust-эталон v0.34.1 (тег, коммит `6f5f84a`) для golden-тестов |
-| `reference/sql-course/` | образцовый курс на 7 уроков (неполон: нет фикстур и эталонных CSV, ключ `check:` вместо `engine.verification`) |
-| `reference/fsrs-scorer/` | Rust-адаптер FSRS, 12 тестов |
+| `spike/` (вне репозитория) | прототипы с тестами: песочница `/Users/tinkerbells/projects/lms-platform/engine-ts/spike/`; `node_modules` и `target` удалены, ставятся `npm ci` |
+| `reference/trane-pristine/` (вне репозитория) | Rust-эталон v0.34.1 (тег `v0.34.1`, коммит `6f5f84a85667b4bf0402b1185ae5a889ff57e01d`, https://github.com/trane-project/trane) для golden-тестов |
+| `reference/sql-course/` (вне репозитория) | образцовый курс на 7 уроков (неполон: нет фикстур и эталонных CSV, ключ `check:` вместо `engine.verification`) |
+| `reference/fsrs-scorer/` (вне репозитория) | Rust-адаптер FSRS, 12 тестов |
+
+Каталоги `spike/` и `reference/` остались в песочнице `/Users/tinkerbells/projects/lms-platform/engine-ts/` и в git не входят. Пути `engine-ts/spike/…` и `engine-ts/reference/…` в документах относятся к ней (список — в корневом `README.md`).
 
 ## Что переносить из спайков (M0–M6)
 
@@ -34,7 +36,7 @@
 | `sql-runner/` | `@lms/engine-sql-runner` | `engine`, `compare`, `pool`, `prefilter`, `types`, `verifier`, `worker` |
 | `journal-sync/` | `sync/`, `@lms/engine-sqlite` | `log`, `proj`, `replica`, `folder-sync`, `sqlite-store`, `writer` |
 
-Проверка любого спайка: `cd spike/<имя> && npm ci && npx tsc --noEmit && npx vitest run` (на 2026-09-29 прошли все: 13, 25, 44, 153 + 1 пропущенный, 65 тестов).
+Проверка любого спайка: `cd /Users/tinkerbells/projects/lms-platform/engine-ts/spike/<имя> && npm ci && npx tsc --noEmit && npx vitest run` (на 2026-09-29 прошли все: 13, 25, 44, 153 + 1 пропущенный, 65 тестов).
 
 ## Старт M0 (800 строк)
 

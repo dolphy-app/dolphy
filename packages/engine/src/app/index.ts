@@ -59,3 +59,6 @@ export type {
   RewardProjection,
 } from './context.ts';
 export { createSyncService } from './services/sync.ts';
+export { createLibraryService } from './services/library.ts';
+export { createCurationService } from './services/curation.ts';
+export { createSettingsService } from './services/settings.ts';

@@ -12,6 +12,7 @@ import {
 import { createTsFsrsMemoryModel } from '@lms/engine';
 import type { Verifier } from '@lms/engine';
 import {
+  buildAttempt,
   buildExercise,
   buildLibrary,
   createFakeClock,
@@ -19,6 +20,7 @@ import {
   createSeededRng,
   createTestIds,
   silentLogger,
+  T0_MS,
 } from '@lms/testkit';
 import { describe, expect, it } from 'vitest';
 import { EngineCallError, createEngineClient } from '../../src/client/index.ts';
@@ -147,6 +149,42 @@ describe('rpc → dispatcher → real engine', () => {
     ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
     expect((await engine.sync.getState()).entryCount).toBe(before);
   });
+
+  it.each([0, 1])(
+    'resolves an id-content conflict by entryHash through RPC (side %i)',
+    async (index) => {
+      const { client } = await start();
+      const original = buildAttempt({
+        id: 'same-id',
+        deviceId: 'device-x',
+        seq: 1,
+        at: T0_MS + 10,
+        exerciseId: E1,
+        grade: 5,
+      });
+      const forged = { ...original, grade: 1 } as const;
+      await client.sync.import([original]);
+      await client.sync.import([forged]);
+
+      const [conflict] = (await client.sync.getConflicts()).items;
+      expect(conflict!.entryHashes).toHaveLength(2);
+      const chosen = conflict!.entries[index]!;
+      const chosenGrade = chosen.kind === 'attempt' ? chosen.grade : null;
+      const result = await client.sync.resolveConflict({
+        conflictId: conflict!.conflictId,
+        keep: conflict!.entryHashes[index]!,
+      });
+      expect(result).toMatchObject({ kept: 'same-id', rebuilt: true });
+      expect(
+        (await client.practice.getAttempts(E1)).items.map(({ grade }) => grade),
+      ).toEqual([chosenGrade]);
+      expect(await client.sync.import([original, forged])).toMatchObject({
+        inserted: 0,
+        conflicts: 0,
+      });
+      expect((await client.sync.getConflicts()).items).toEqual([]);
+    },
+  );
 
   it('every method of RPC_METHODS is callable end to end and its result survives structured clone', async () => {
     const { client, clock } = await start();

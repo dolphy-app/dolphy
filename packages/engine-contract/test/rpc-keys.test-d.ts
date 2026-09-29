@@ -1,9 +1,12 @@
 import { expectTypeOf, test } from 'vitest';
 import type {
   LearningEngine,
+  LogEntryDto,
   RecordAttemptRequest,
+  ResolveConflictRequest,
   RpcMethodName,
   RpcRequest,
+  SyncConflictDto,
 } from '../src/index.ts';
 
 type Callable = (...args: never[]) => unknown;
@@ -52,4 +55,10 @@ test('каждый ключ RPC_METHODS указывает на метод дв�
 test('RpcRequest.method принимает строку, params — позиционные аргументы', () => {
   expectTypeOf<RpcRequest['method']>().toEqualTypeOf<string>();
   expectTypeOf<RpcRequest['params']>().toEqualTypeOf<unknown>();
+});
+
+test('SyncConflictDto: entryHashes добавлено рядом с неизменным entries', () => {
+  expectTypeOf<SyncConflictDto['entries']>().toEqualTypeOf<LogEntryDto[]>();
+  expectTypeOf<SyncConflictDto['entryHashes']>().toEqualTypeOf<string[]>();
+  expectTypeOf<ResolveConflictRequest['keep']>().toEqualTypeOf<string>();
 });

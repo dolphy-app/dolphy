@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type { LogEntryDto } from '@lms/engine-contract';
 import { describe, expect, it } from 'vitest';
 import { createNodeFolderSyncPort } from '../../../src/node/index.ts';
+import { entryHash } from '../../../src/sync/index.ts';
 import type { TraneSource } from '../../../src/sync/index.ts';
 import { createTestEngine } from '../../helpers/engine.ts';
 import type { TestEngine } from '../../helpers/engine.ts';
@@ -47,6 +48,9 @@ const foreignAttempt = (
   grade,
   source: 'self',
 });
+
+const gradeOf = (entry: LogEntryDto) =>
+  entry.kind === 'attempt' ? entry.grade : null;
 
 const pair = async () => {
   const a = await createTestEngine({ deviceId: 'device-a' });
@@ -207,6 +211,66 @@ describe('sync conflicts', () => {
     const again = await b.engine.sync.import([left, right]);
     expect(again).toMatchObject({ inserted: 0, conflicts: 0, rebuilt: false });
     expect((await b.engine.sync.getConflicts()).items).toEqual([]);
+  });
+
+  it('exposes entryHashes aligned with entries and distinct for id-content sides', async () => {
+    const { b, left, right } = await setup();
+    const [conflict] = (await b.engine.sync.getConflicts()).items;
+    expect(conflict!.entryHashes).toHaveLength(conflict!.entries.length);
+    expect(new Set(conflict!.entryHashes)).toEqual(
+      new Set([entryHash(left), entryHash(right)]),
+    );
+    conflict!.entries.forEach((entry, index) => {
+      expect(conflict!.entryHashes[index]).toBe(entryHash(entry));
+    });
+  });
+
+  it.each([0, 1])(
+    'keeps exactly the side chosen by entryHash (side %i) and does not resurrect the rest',
+    async (index) => {
+      const { b, left, right } = await setup();
+      const [conflict] = (await b.engine.sync.getConflicts()).items;
+      const chosenGrade = gradeOf(conflict!.entries[index]!);
+      const otherGrade = gradeOf(conflict!.entries[1 - index]!);
+      expect(chosenGrade).not.toBe(otherGrade);
+
+      const result = await b.engine.sync.resolveConflict({
+        conflictId: conflict!.conflictId,
+        keep: conflict!.entryHashes[index]!,
+      });
+      expect(result).toEqual({
+        conflictId: 'id-content:same-id',
+        kept: 'same-id',
+        rebuilt: true,
+      });
+      const visible = async () =>
+        (await b.engine.practice.getAttempts(EXERCISE)).items.map(
+          ({ eventId, grade }) => ({ eventId, grade }),
+        );
+      expect(await visible()).toEqual([
+        { eventId: 'same-id', grade: chosenGrade },
+      ]);
+
+      const again = await b.engine.sync.import([left, right]);
+      expect(again).toMatchObject({ inserted: 0, conflicts: 0 });
+      expect((await b.engine.sync.getConflicts()).items).toEqual([]);
+      expect(await visible()).toEqual([
+        { eventId: 'same-id', grade: chosenGrade },
+      ]);
+    },
+  );
+
+  it('rejects the entryHash of a side from another conflict', async () => {
+    const { b } = await setup();
+    const other = foreignAttempt('other', 2, 1);
+    await b.engine.sync.import([other, foreignAttempt('other', 2, 3)]);
+    await expect(
+      b.engine.sync.resolveConflict({
+        conflictId: 'id-content:same-id',
+        keep: entryHash(other),
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+    expect((await b.engine.sync.getConflicts()).items).toHaveLength(2);
   });
 
   it('keep none leaves everything hidden without a rebuild', async () => {

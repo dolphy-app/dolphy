@@ -10,7 +10,9 @@ import {
   createMemorySettingsStore,
 } from '@lms/engine/node';
 import { createTsFsrsMemoryModel } from '@lms/engine';
+import type { Verifier } from '@lms/engine';
 import {
+  buildExercise,
   buildLibrary,
   createFakeClock,
   createMemoryCourseSource,
@@ -36,7 +38,21 @@ const library = buildLibrary({
     },
   ],
 });
+const VERIFIABLE = 'c::l1::v0';
+library.exercises.push(
+  buildExercise({
+    id: VERIFIABLE,
+    engine: { verification: { runner: 'sql', timeoutMs: 500 } },
+  }),
+);
 const E1 = 'c::l1::e0';
+
+/** Раннер, всегда отвечающий `passed`: проверяет путь вердикта через RPC. */
+const passingVerifier: Verifier = {
+  runner: 'sql',
+  check: async () => ({ outcome: 'passed', durationMs: 1 }),
+  close: async () => {},
+};
 
 const start = async () => {
   const clock = createFakeClock();
@@ -51,7 +67,7 @@ const start = async () => {
       eventStore: createMemoryEventStore({ deviceId: 'device-a' }),
       settings: createMemorySettingsStore(),
       memoryModel: createTsFsrsMemoryModel(),
-      verifiers: [],
+      verifiers: [passingVerifier],
     },
     { libraryRoot: source.root, dataDir: '/tmp/rpc-integration' },
   );
@@ -177,6 +193,19 @@ describe('rpc → dispatcher → real engine', () => {
         grade: 4,
       }),
     );
+    const checked = await client.practice.beginAttempt({
+      exerciseId: VERIFIABLE,
+    });
+    const verdict = await call('practice.submitAnswer', () =>
+      client.practice.submitAnswer({
+        attemptId: checked.attemptId,
+        submission: { kind: 'sql', sql: 'select 1' },
+      }),
+    );
+    expect(verdict).toMatchObject({ outcome: 'passed', attemptsUsed: 1 });
+    expect(
+      await client.practice.completeAttempt({ attemptId: checked.attemptId }),
+    ).toMatchObject({ grade: 5 });
     await call('practice.recordAttempt', () =>
       client.practice.recordAttempt({
         requestId: 'r2',

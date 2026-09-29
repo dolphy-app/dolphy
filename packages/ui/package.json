@@ -1,0 +1,25 @@
+{
+  "name": "@lms/ui",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Сложные Vue 3 компоненты (редактор, quiz и т. п.); Vuetify — peer, плагин и тема в приложении",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -b tsconfig.json"
+  },
+  "peerDependencies": {
+    "vue": "^3.5.35",
+    "vuetify": "^4.0.1"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2",
+    "vue": "^3.5.35",
+    "vuetify": "^4.0.1"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}

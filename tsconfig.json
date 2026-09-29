@@ -36,6 +36,9 @@
     },
     {
       "path": "packages/testkit/tsconfig.test.json"
+    },
+    {
+      "path": "packages/ui"
     }
   ]
 }

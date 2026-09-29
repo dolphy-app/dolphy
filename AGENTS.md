@@ -6,12 +6,12 @@
 
 pnpm-workspace (`pnpm-workspace.yaml`): `apps/*`, `packages/*`.
 
-| Путь                                    | Что                                                                                          |
-| --------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `apps/desktop`                          | Electron 44 + Vue 3 + Vite; движок в `utilityProcess`, устройство — `apps/desktop/README.md` |
-| `packages/`                             | пакеты `@lms/*` слоя бизнес-логики `engine-ts`, карта — `packages/README.md`                 |
-| `docs/`, `engine-ts/`, `spike/`         | документы системного дизайна; кода там нет, линтер и форматтер их не трогают                 |
-| `vendor/metaskills`, `.agents/skills/*` | скиллы для агентов (git submodule и симлинки, см. `README.md`)                               |
+| Путь                                    | Что                                                                                                                                                       |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/desktop`                          | Electron 44 + Vue 3 + Vite; движок в `utilityProcess`, устройство — `apps/desktop/README.md`                                                              |
+| `packages/`                             | пакеты `@lms/*` слоя бизнес-логики `engine-ts` и сложные UI-компоненты (`@lms/ui`: редактор, quiz; Vue 3, Vuetify 4 — peer), карта — `packages/README.md` |
+| `docs/`, `engine-ts/`, `spike/`         | документы системного дизайна; кода там нет, линтер и форматтер их не трогают                                                                              |
+| `vendor/metaskills`, `.agents/skills/*` | скиллы для агентов (git submodule и симлинки, см. `README.md`)                                                                                            |
 
 ## Команды
 

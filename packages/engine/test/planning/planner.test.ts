@@ -39,7 +39,7 @@ const planArb = fc.record({
   update: fc.constantFrom<ResidualUpdate>('subtractive', 'multiplicative'),
 });
 
-describe('planner invariants', () => {
+describe('planner invariants (T-50)', () => {
   test('maxItems, uniqueness, determinism, non-increasing gains, covers are due with CreditModel weights, new reserve, reasons', () => {
     let multiCover = 0;
     let withNew = 0;
@@ -445,7 +445,7 @@ describe('new exercises: started lessons first, then the frontier round-robin ov
   });
 });
 
-describe('remediation', () => {
+describe('remediation (T-55)', () => {
   const { graph, stateOf, options } = fixture();
   const planner = createPlanner(graph, null, options);
   const due = (ids: string[]): PlanState['due'] =>

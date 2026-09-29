@@ -16,6 +16,20 @@ import {
 import type { Diagnostic, DiagnosticCode } from '@lms/engine-contract';
 import { plan } from './gen.ts';
 
+/**
+ * `chmod 000` не закрывает файл для root (контейнеры, CI): такой дефект
+ * вносится в ожидания, только если файл действительно нечитаем (проба
+ * возможности, а не проверка uid).
+ */
+const isUnreadable = (absolutePath: string): boolean => {
+  try {
+    readFileSync(absolutePath);
+    return false;
+  } catch {
+    return true;
+  }
+};
+
 export interface Expect {
   /** Короткое имя дефекта. */
   name: string;
@@ -464,11 +478,13 @@ export const injectKb = (root: string): Injected => {
   });
   json(lf(490, 'lesson.description.json'), 'd');
   chmodSync(at(lf(490, 'lesson.description.json')), 0o000);
-  ok({
-    name: 'unreadable_file',
-    code: 'E_IO',
-    path: lf(490, 'lesson.description.json'),
-  });
+  if (isUnreadable(at(lf(490, 'lesson.description.json')))) {
+    ok({
+      name: 'unreadable_file',
+      code: 'E_IO',
+      path: lf(490, 'lesson.description.json'),
+    });
+  }
 
   // урок-сирота без упражнений законно выходит за порог гранулярности
   out.collateral.push({ code: 'W_GRANULARITY', path: 'c01/l09999.lesson' });
@@ -655,7 +671,9 @@ export const injectJson = (root: string): Injected => {
   write(em(34, 0), read(em(34, 0)).slice(0, 60));
   ok({ name: 'json_parse', code: 'E_JSON_PARSE', path: em(34, 0) });
   chmodSync(at(fr(35, 0)), 0o000);
-  ok({ name: 'unreadable_front', code: 'E_IO', path: fr(35, 0) });
+  if (isUnreadable(at(fr(35, 0)))) {
+    ok({ name: 'unreadable_front', code: 'E_IO', path: fr(35, 0) });
+  }
   {
     const rel = `${lessonDir(36, false)}/lesson_manifest.json`;
     const manifest = readJson(rel);

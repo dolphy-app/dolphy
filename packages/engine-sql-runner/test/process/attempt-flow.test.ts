@@ -52,7 +52,7 @@ const createAttempt = (verifier: SqlVerifier, journal: JournalEntry[]) => {
   };
 };
 
-describe('поток попытки с проверкой', () => {
+describe('поток попытки с проверкой (T-41)', () => {
   it('failed → error(timeout) → passed: error не пишет и не считается, оценка pass@2 = 4', async () => {
     const { verifier } = verifiers.make(defaultFiles());
     const journal: JournalEntry[] = [];

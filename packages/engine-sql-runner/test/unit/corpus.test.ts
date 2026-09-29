@@ -8,7 +8,7 @@ import { runCheck } from '../../src/check.ts';
 import { CHECKS, EMP_FIXTURE, toRequest } from '../helpers/checks.ts';
 import { AVAILABLE_DRIVERS } from '../helpers/capabilities.ts';
 
-describe('корпус', () => {
+describe('корпус (T-43)', () => {
   it('30 проверок, у каждой ожидаемый CSV', () => {
     expect(CHECKS).toHaveLength(30);
     expect(new Set(CHECKS.map(({ id }) => id)).size).toBe(30);
@@ -16,7 +16,7 @@ describe('корпус', () => {
   });
 });
 
-describe.each(AVAILABLE_DRIVERS)('проверки на %s', (driver) => {
+describe.each(AVAILABLE_DRIVERS)('проверки на %s (T-43)', (driver) => {
   for (const check of CHECKS) {
     it(`${check.id}: эталон проходит`, () => {
       expect(runCheck(toRequest(check, check.solution), driver)).toMatchObject({

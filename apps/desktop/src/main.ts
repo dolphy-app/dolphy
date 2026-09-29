@@ -17,17 +17,17 @@ const showStartupError = (error: unknown) => {
 };
 
 const bootstrap = async () => {
-  const { smoke } = window.lms;
+  const smoke = __LMS_SMOKE_BUILD__ ? window.lms.smoke : undefined;
   try {
     const engine = await connectEngine(); // UI монтируется после рукопожатия
     createApp(App).provide(ENGINE_KEY, engine).mount('#app');
-    if (smoke) {
+    if (__LMS_SMOKE_BUILD__ && smoke) {
       const { runSmoke } = await import('./engine/smoke.ts');
       smoke.report(await runSmoke(engine, smoke));
     }
   } catch (error) {
     showStartupError(error);
-    smoke?.report({ ok: false, error: String(error) });
+    if (__LMS_SMOKE_BUILD__) smoke?.report({ ok: false, error: String(error) });
   }
 };
 

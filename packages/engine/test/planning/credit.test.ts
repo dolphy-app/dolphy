@@ -47,7 +47,7 @@ const chain = (length: number) => {
   return specs;
 };
 
-describe('credit weight = max over paths of prod(edge) * lambda^depth', () => {
+describe('credit weight = max over paths of prod(edge) * lambda^depth (T-51)', () => {
   test('graph A: default chain d->c->b->a, all edges 1.0', () => {
     const specs = [
       lesson('a', []),

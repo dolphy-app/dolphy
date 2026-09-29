@@ -46,7 +46,7 @@ const runSession = async (
 const start = (test: TestEngine, seed = 5) =>
   test.engine.placement.start({ budget: 20, seed });
 
-describe('placement service on sql-course', () => {
+describe('placement service on sql-course (T-47)', () => {
   test('finish writes 2 attempts per exercise of known lessons and the gate opens exactly the frontier', async () => {
     const t = await createTestEngine({ library: 'sql-course' });
     const { sessionId, lessonCount } = await start(t);
@@ -164,6 +164,34 @@ describe('placement service on sql-course', () => {
     const first = await t.engine.placement.nextProbe(sessionId);
     expect(await t.engine.placement.nextProbe(sessionId)).toEqual(first);
     expect(first?.exerciseId.startsWith(`${first?.lessonId}::`)).toBe(true);
+  });
+
+  test('a host crash before finish loses the session and leaves the journal untouched', async () => {
+    const first = await createTestEngine({ library: 'sql-course' });
+    const { sessionId } = await start(first);
+    const probe = await first.engine.placement.nextProbe(sessionId);
+    await first.engine.placement.answer({
+      probeId: probe?.probeId ?? '',
+      result: { kind: 'grade', grade: 5 },
+    });
+    const entriesBefore = first.eventStore.entryCount();
+
+    // «падение хоста»: сессия жила только в памяти процесса; журнал тот же
+    const second = await createTestEngine({
+      library: 'sql-course',
+      eventStore: first.eventStore,
+    });
+    const { placement } = second.engine;
+    expect(await codeOf(() => placement.nextProbe(sessionId))).toBe(
+      'PLACEMENT_SESSION_NOT_FOUND',
+    );
+    expect(
+      await codeOf(() => placement.finish({ sessionId, requestId: 'late' })),
+    ).toBe('PLACEMENT_SESSION_NOT_FOUND');
+    expect(second.eventStore.entryCount()).toBe(entriesBefore);
+    expect(entriesBefore).toBe(0);
+    // новая сессия стартует: старая не блокирует
+    expect(await codeOf(() => placement.start({ budget: 5 }))).toBeNull();
   });
 
   test('validation, one active session, abort writes nothing, TTL 24 h', async () => {
@@ -317,7 +345,7 @@ describe('placement feeds the day plan', () => {
   });
 });
 
-describe('placement on a library without verification', () => {
+describe('placement on a library without verification (T-47)', () => {
   /** Цепочка a ← b ← c без `engine.verification`: пробы самооценкой, `minPass = 2`. */
   const chain = buildLibrary({
     courses: [

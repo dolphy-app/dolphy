@@ -11,7 +11,7 @@ const iterations = Number(process.env.ENGINE_CRASH_ITERATIONS ?? 15);
 const bigIterations = iterations > 15 ? 10 : 2;
 const bigRows = iterations > 15 ? 200_000 : 50_000;
 
-describe('SIGKILL crash recovery', () => {
+describe('SIGKILL crash recovery (T-30)', () => {
   for (const sync of ['NORMAL', 'FULL'] as const satisfies SyncMode[]) {
     it(
       `${sync}: every killed run keeps every invariant and every ACKed batch`,

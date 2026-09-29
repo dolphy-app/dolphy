@@ -9,12 +9,14 @@
     "dev": "pnpm --filter @lms/desktop dev",
     "build": "pnpm --filter @lms/desktop build",
     "smoke": "pnpm --filter @lms/desktop smoke",
+    "smoke:packaged": "pnpm --filter @lms/desktop smoke:packaged",
     "typecheck": "pnpm -r --workspace-concurrency=1 run typecheck",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "pnpm lint:eslint && pnpm lint:format",
     "lint:eslint": "eslint .",
     "lint:format": "prettier --check .",
+    "check:tests": "node --test tools/check-test-coverage.test.mjs && node tools/check-test-coverage.mjs",
     "fix": "eslint . --fix && prettier --write ."
   },
   "devDependencies": {

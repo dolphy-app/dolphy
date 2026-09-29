@@ -10,6 +10,7 @@
   "scripts": {
     "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
     "test": "vitest run",
+    "bench": "vitest run --config vitest.bench.config.ts",
     "crash": "node --experimental-strip-types --disable-warning=ExperimentalWarning test/crash/crash-driver.ts"
   },
   "dependencies": {

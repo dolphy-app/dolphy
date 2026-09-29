@@ -46,7 +46,7 @@ describe('FlagState (LWW)', () => {
     expect(state.list('blacklist')).toEqual(['b', 'a']);
   });
 
-  it('ties on at are decided by deviceId, then seq', () => {
+  it('ties on at are decided by deviceId, then seq (T-03)', () => {
     const state = createFlagState();
     state.apply(flag(1, 'u', 'set', 'blacklist', { deviceId: 'a', at: 5 }));
     state.apply(flag(1, 'u', 'unset', 'blacklist', { deviceId: 'b', at: 5 }));

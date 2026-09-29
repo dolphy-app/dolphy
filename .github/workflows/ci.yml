@@ -41,6 +41,9 @@ jobs:
       - name: Prettier
         run: pnpm lint:format
 
+      - name: Tests vs testing document (T-NN)
+        run: pnpm check:tests
+
   typecheck:
     name: Typecheck (Node ${{ matrix.node }})
     runs-on: ubuntu-latest

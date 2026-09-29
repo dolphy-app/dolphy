@@ -56,7 +56,7 @@ const creditParams = (enabled: boolean, lambda = 0.9): CreditOptions => ({
   implicitCredit: { enabled, lambda, minCredit: 0.2, kappa: 1 },
 });
 
-describe('rebuild == incremental apply', () => {
+describe('rebuild == incremental apply (T-52)', () => {
   test.each(REGIMES)(
     'in order, shuffled arrival with duplicates and shuffled rebuild are bit-identical (%s)',
     (regime) => {

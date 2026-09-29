@@ -52,7 +52,7 @@ const setup = (options?: SchedulerOptionsDto) => {
   return { ...target, record, at, nextSeq: () => ++seq };
 };
 
-describe('RemediationTracker', () => {
+describe('RemediationTracker (T-55)', () => {
   it('a single failure, or a failure diluted by a success, does not trigger', () => {
     const { projections, record } = setup();
     record(B1, 1, 0);

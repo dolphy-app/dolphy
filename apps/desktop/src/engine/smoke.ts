@@ -1,10 +1,10 @@
 /**
- * Сквозная проверка в настоящем Electron (`LMS_SMOKE=1`, неупакованная сборка):
+ * Сквозная проверка в настоящем Electron (смоук-сборка, `LMS_SMOKE=1`):
  * renderer → preload → main → utilityProcess → движок → раннер SQL.
  * Библиотека — `sql-course` (`lib_kb`), см. `scripts/smoke.mjs`.
  */
 import type { EngineEvent, LearningEngine } from '@lms/engine-contract';
-import type { SmokeBridge } from '../../shared/bridge.ts';
+import type { SmokeBridge } from '../../shared/smoke.ts';
 
 const EXERCISE_ID = 'sql_kb::where::q2';
 const RIGHT_SQL = 'SELECT name FROM emp WHERE salary IS NULL;';

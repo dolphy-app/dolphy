@@ -95,7 +95,7 @@ const rebuilt = (entries: readonly LogEntry[]) => {
   return target;
 };
 
-describe('projections: incremental == rebuild (T-24, T-55 б)', () => {
+describe('projections: incremental == rebuild (T-08, T-24, T-55 б)', () => {
   it('any arrival order with duplicates gives the rebuilt state', async () => {
     await fc.assert(
       fc.asyncProperty(

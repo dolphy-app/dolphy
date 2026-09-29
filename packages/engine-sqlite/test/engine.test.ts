@@ -5,6 +5,7 @@
  */
 import { buildAttempt, createFakeClock, T0_MS } from '@lms/testkit';
 import { describe, expect, it, vi } from 'vitest';
+import { entryHash } from '@lms/engine/sync';
 import { createTestEngine } from '../../engine/test/helpers/engine.ts';
 import { openTestStore, useTempDir } from './store-factory.ts';
 
@@ -188,4 +189,52 @@ describe('engine over SqliteEventStore', () => {
     ).toMatchObject({ conflicts: 0 });
     expect((await restarted.engine.sync.getConflicts()).items).toEqual([]);
   });
+
+  it.each([0, 1])(
+    'keep by entryHash restores exactly that side of an id-content conflict (side %i); it survives a restart',
+    async (index) => {
+      const clock = createFakeClock();
+      const slot = `conflict-hash-${index}`;
+      const a = await createTestEngine(options(slot, 'device-a', clock));
+      const original = buildAttempt({
+        id: 'same-id',
+        deviceId: 'device-x',
+        seq: 1,
+        at: T0_MS + 10,
+        exerciseId: EXERCISE,
+        grade: 5,
+      });
+      const forged = { ...original, grade: 1 } as const;
+      await a.engine.sync.import([original]);
+      await a.engine.sync.import([forged]);
+
+      const [conflict] = (await a.engine.sync.getConflicts()).items;
+      expect(new Set(conflict!.entryHashes)).toEqual(
+        new Set([entryHash(original), entryHash(forged)]),
+      );
+      const chosen = conflict!.entries[index]!;
+      const chosenGrade = chosen.kind === 'attempt' ? chosen.grade : null;
+      const grades = async (engine: typeof a.engine) =>
+        (await engine.practice.getAttempts(EXERCISE)).items.map(
+          ({ grade }) => grade,
+        );
+
+      await a.engine.sync.resolveConflict({
+        conflictId: conflict!.conflictId,
+        keep: conflict!.entryHashes[index]!,
+      });
+      expect(await grades(a.engine)).toEqual([chosenGrade]);
+      await a.engine.close();
+
+      const restarted = await createTestEngine(
+        options(slot, 'device-a', clock),
+      );
+      expect(await grades(restarted.engine)).toEqual([chosenGrade]);
+      expect(
+        await restarted.engine.sync.import([original, forged]),
+      ).toMatchObject({ inserted: 0, conflicts: 0 });
+      expect((await restarted.engine.sync.getConflicts()).items).toEqual([]);
+      expect(await grades(restarted.engine)).toEqual([chosenGrade]);
+    },
+  );
 });

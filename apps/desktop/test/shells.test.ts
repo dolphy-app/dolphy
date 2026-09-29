@@ -132,7 +132,13 @@ describe('lifecycle shell', () => {
 });
 
 describe('window shell', () => {
-  const setup = (options: { smoke?: boolean; devServerUrl?: string } = {}) => {
+  const setup = (
+    options: {
+      hidden?: boolean;
+      additionalArguments?: string[];
+      devServerUrl?: string;
+    } = {},
+  ) => {
     const created: { options: WindowOptions; window: BrowserWindowLike }[] = [];
     const listeners = new Map<string, () => void>();
     const navigation: { handler: (e: { preventDefault(): void }) => void }[] =
@@ -183,7 +189,8 @@ describe('window shell', () => {
       logger: silentLogger,
       preloadPath: '/preload/index.cjs',
       indexHtml: '/dist/index.html',
-      smoke: options.smoke ?? false,
+      hidden: options.hidden ?? false,
+      additionalArguments: options.additionalArguments ?? [],
       platform: 'linux',
       ...(options.devServerUrl ? { devServerUrl: options.devServerUrl } : {}),
     }).register();
@@ -211,8 +218,11 @@ describe('window shell', () => {
     expect(created[0]?.options.show).toBe(true);
   });
 
-  it('смоук: окно скрыто, preload узнаёт о режиме из аргумента', async () => {
-    const { created } = setup({ smoke: true });
+  it('скрытое окно передаёт renderer дополнительные аргументы', async () => {
+    const { created } = setup({
+      hidden: true,
+      additionalArguments: ['--lms-smoke'],
+    });
     await vi.waitFor(() => expect(created).toHaveLength(1));
     expect(created[0]?.options.show).toBe(false);
     expect(created[0]?.options.webPreferences.additionalArguments).toEqual([

@@ -20,6 +20,13 @@
       "seed": "0x5EED4E3A20260929",
       "cases": 3000,
       "sha256": "fc333d4aa205efd1131272c2f8cccb2e923d5632fb1db354044215ce59f13e65"
+    },
+    "unit-score-l2.jsonl": {
+      "bin": "unit_score_l2_golden",
+      "header": true,
+      "seed": "0x5EED125920260930",
+      "cases": 100,
+      "sha256": "ce4f35c36fd97ccee5537ebdb073d42f9a11e3733dc89ce986811aac27561695"
     }
   }
 }

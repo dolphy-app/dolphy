@@ -171,7 +171,7 @@ describe('createEngine', () => {
   });
 });
 
-describe('remediation through the facade', () => {
+describe('remediation through the facade (T-55)', () => {
   const LESSON = 'sql_json::select';
   const PREREQUISITE = 'sql_json::ddl';
 

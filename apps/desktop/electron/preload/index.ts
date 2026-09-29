@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { CHANNELS, SMOKE_ARGUMENT } from '../../shared/bridge.ts';
+import { CHANNELS } from '../../shared/bridge.ts';
 import type { LmsBridge } from '../../shared/bridge.ts';
+import { SMOKE_ARGUMENT, SMOKE_CHANNELS } from '../../shared/smoke.ts';
 
 const windowLoaded = new Promise<void>((resolve) => {
   window.addEventListener('load', () => resolve(), { once: true });
@@ -21,12 +22,12 @@ const bridge: LmsBridge = {
       return ipcRenderer.invoke(CHANNELS.pickDirectory, { title });
     },
   },
-  ...(process.argv.includes(SMOKE_ARGUMENT)
+  ...(__LMS_SMOKE_BUILD__ && process.argv.includes(SMOKE_ARGUMENT)
     ? {
         smoke: {
           report: (result: unknown) =>
-            ipcRenderer.send(CHANNELS.smokeReport, result),
-          killHost: () => ipcRenderer.invoke(CHANNELS.smokeKillHost),
+            ipcRenderer.send(SMOKE_CHANNELS.report, result),
+          killHost: () => ipcRenderer.invoke(SMOKE_CHANNELS.killHost),
         },
       }
     : {}),

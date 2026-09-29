@@ -39,7 +39,7 @@ const CRASH_WORKER = fileURLToPath(
 const verifiers = createTestVerifiers();
 afterEach(() => verifiers.closeAll());
 
-describe('вердикты через порт Verifier', () => {
+describe('вердикты через порт Verifier (T-41)', () => {
   it('passed: результат совпал', async () => {
     const { verifier } = verifiers.make();
     const verdict = await verifier.check(
@@ -495,7 +495,10 @@ describe('политика пула', () => {
       Array(8).fill('passed'),
     );
     expect(spawns.children).toHaveLength(2);
-    expect(verifier.stats()).toMatchObject({ checks: 8, spawned: 2, kills: 0 });
+    // `spawned` растёт по сообщению `ready`: второй процесс мог ещё не
+    // успеть отчитаться, пока первый обслужил очередь (медленный старт).
+    expect(verifier.stats()).toMatchObject({ checks: 8, kills: 0 });
+    expect(verifier.stats().spawned).toBeLessThanOrEqual(2);
   });
 
   it('recycleAfter: процесс заменяется после N проверок', async () => {

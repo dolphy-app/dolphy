@@ -64,7 +64,7 @@ export const describeEventStoreContract = (
   name: string,
   create: HarnessFactory,
 ) => {
-  describe(`EventStore contract: ${name}`, () => {
+  describe(`EventStore contract: ${name} (T-31)`, () => {
     const harnesses: StoreHarness[] = [];
     const open = async (deviceId = 'dev-a') => {
       const harness = await create(deviceId);
@@ -109,7 +109,7 @@ export const describeEventStoreContract = (
       expect(store.maxAt()).toBe(1_003);
     });
 
-    it('reads in (at, deviceId, seq) order regardless of insertion order', async () => {
+    it('reads in (at, deviceId, seq) order regardless of insertion order (T-03)', async () => {
       const { store } = await open();
       const entries = [
         attempt('b', 1, 10),
@@ -250,7 +250,7 @@ export const describeEventStoreContract = (
       expect(store.lastSeq()).toBe(2);
     });
 
-    it('hides both sides of id-content and seq-two-ids conflicts from readers', async () => {
+    it('hides both sides of id-content and seq-two-ids conflicts from readers (T-22)', async () => {
       const { store } = await open();
       const bystander = attempt('a', 2, 7);
       const outcome = await merge(store, [bystander, CLASH_A, CLASH_B]);
@@ -266,7 +266,7 @@ export const describeEventStoreContract = (
       expect(store.vector()).toEqual({ a: 2 });
     });
 
-    it('produces the same conflicts for either arrival order', async () => {
+    it('produces the same conflicts for either arrival order (T-22)', async () => {
       const first = await open();
       const second = await open();
       await merge(first.store, [CLASH_A, CLASH_B]);

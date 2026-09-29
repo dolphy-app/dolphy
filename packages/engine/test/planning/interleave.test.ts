@@ -80,7 +80,7 @@ const optionsArb = fc.record({
   minTagDistance: fc.integer({ min: 1, max: 3 }),
 });
 
-describe('small sets against brute force over all permutations', () => {
+describe('small sets against brute force over all permutations (T-54)', () => {
   test('whenever ANY permutation satisfies both rules interleave finds one; otherwise ok is false and the fallback is honest', () => {
     let feasible = 0;
     let infeasible = 0;
@@ -274,7 +274,7 @@ describe('infeasible course rule', () => {
   });
 });
 
-describe('daily plans of 20-40 items', () => {
+describe('daily plans of 20-40 items (T-54)', () => {
   test('whenever the planner reports interleaveOk the rules hold; the ok share is measured, not pinned', () => {
     let ok = 0;
     let total = 0;

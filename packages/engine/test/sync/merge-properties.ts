@@ -154,7 +154,7 @@ export const describeMergeProperties = ({
   const replica = (entries: LogEntry[]) => mergeSets(entries);
 
   describe(`merge algebra (${name}, ${numRuns} runs)`, { timeout }, () => {
-    it('state equals the oracle for any order, chunking and duplicates', async () => {
+    it('state equals the oracle for any order, chunking and duplicates (T-21)', async () => {
       await fc.assert(
         fc.asyncProperty(
           wildLog,
@@ -175,7 +175,7 @@ export const describeMergeProperties = ({
       );
     });
 
-    it('merge is commutative for live entries and conflicts', async () => {
+    it('merge is commutative for live entries and conflicts (T-08, T-21)', async () => {
       await fc.assert(
         fc.asyncProperty(wildLog, wildLog, async (a, b) => {
           const ab = await mergeSets(a, b);
@@ -186,7 +186,7 @@ export const describeMergeProperties = ({
       );
     });
 
-    it('merge is associative over replica sets', async () => {
+    it('merge is associative over replica sets (T-08, T-21)', async () => {
       await fc.assert(
         fc.asyncProperty(wildLog, wildLog, wildLog, async (a, b, c) => {
           const ab = await mergeSets(a, b);
@@ -200,7 +200,7 @@ export const describeMergeProperties = ({
       );
     });
 
-    it('merge is idempotent', async () => {
+    it('merge is idempotent (T-08, T-21)', async () => {
       await fc.assert(
         fc.asyncProperty(wildLog, wildLog, async (a, b) => {
           const once = await replica(a);
@@ -231,7 +231,7 @@ export const describeMergeProperties = ({
       );
     });
 
-    it('the order key is antisymmetric and transitive', () => {
+    it('the order key is antisymmetric and transitive (T-21)', () => {
       fc.assert(
         fc.property(wildEntry, wildEntry, wildEntry, (x, y, z) => {
           expect(Math.sign(compareEntries(x, y))).toBe(
@@ -286,7 +286,7 @@ export const describeMergeProperties = ({
       return [...byId.values()].map((entry) => canon(entry));
     };
 
-    it('first-wins is order dependent (spike counterexample) while set merge is not', async () => {
+    it('first-wins is order dependent (spike counterexample) while set merge is not (T-22)', async () => {
       const a = [attemptEntry()];
       const b = [flagEntry()];
       expect(mergeFirstWins(a, b)).not.toEqual(mergeFirstWins(b, a));
@@ -410,7 +410,7 @@ export const describeMergeProperties = ({
       );
     });
 
-    it('a reset and unset written after import outrank imported entries at ±1 day of skew', async () => {
+    it('a reset and unset written after import outrank imported entries at ±1 day of skew (T-23)', async () => {
       await fc.assert(
         fc.asyncProperty(
           fc.integer({ min: -DAY_MS, max: DAY_MS }),

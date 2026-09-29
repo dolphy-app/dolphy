@@ -16,6 +16,7 @@ import { createPlatformShell } from './shells/platform.ts';
 import { createSmokeShell } from './shells/smoke.ts';
 import { createWindowShell } from './shells/window.ts';
 import { createSupervisor } from './supervisor.ts';
+import { SMOKE_ARGUMENT } from '../../shared/smoke.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -26,9 +27,12 @@ const devServerUrl = process.env.VITE_DEV_SERVER_URL;
 
 const logger = createMainLogger();
 
-// smoke — только для проверки сквозного пути; упакованное приложение его игнорирует
-const smoke = process.env.LMS_SMOKE === '1' && !app.isPackaged;
-const smokeUserData = process.env.LMS_SMOKE_USER_DATA;
+// смоук существует только в смоук-сборке (LMS_SMOKE_BUILD=1 при vite build):
+// в релизном бандле флаг — false, весь код за ним вырезан
+const smoke = __LMS_SMOKE_BUILD__ && process.env.LMS_SMOKE === '1';
+const smokeUserData = __LMS_SMOKE_BUILD__
+  ? process.env.LMS_SMOKE_USER_DATA
+  : undefined;
 if (smoke && smokeUserData) app.setPath('userData', smokeUserData);
 
 if (!app.requestSingleInstanceLock()) {
@@ -66,7 +70,8 @@ const shells = [
     preloadPath: path.join(__dirname, '../preload/index.cjs'),
     indexHtml: path.join(RENDERER_DIST, 'index.html'),
     ...(devServerUrl ? { devServerUrl } : {}),
-    smoke,
+    hidden: smoke,
+    additionalArguments: smoke ? [SMOKE_ARGUMENT] : [],
   }),
   createEngineShell({ ipcMain, supervisor }),
   createPlatformShell({
@@ -84,6 +89,7 @@ const shells = [
           supervisor,
           logger,
           versions: process.versions,
+          packaged: app.isPackaged,
           print: (line) => console.log(line),
         }),
       ]

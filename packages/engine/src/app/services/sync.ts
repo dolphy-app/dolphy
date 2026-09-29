@@ -110,6 +110,7 @@ export const createSyncService = (ctx: EngineContext): SyncService => {
       conflictId: group.conflictId,
       reason: group.reason,
       entries: group.entries,
+      entryHashes: group.entryHashes,
       detectedAt: group.detectedAt,
     }));
     return paginate(dtos, req);

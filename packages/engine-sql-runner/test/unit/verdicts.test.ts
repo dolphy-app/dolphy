@@ -18,7 +18,7 @@ const base = (learnerSql: string): CheckRequest => ({
   expected: { csv: 'n\n6' },
 });
 
-describe.each(AVAILABLE_DRIVERS)('вердикты на %s', (driver) => {
+describe.each(AVAILABLE_DRIVERS)('вердикты на %s (T-41)', (driver) => {
   it('синтаксическая ошибка и неизвестная таблица — failed/sql_error', () => {
     expect(runCheck(base('SELEC 1'), driver)).toMatchObject({
       status: 'failed',

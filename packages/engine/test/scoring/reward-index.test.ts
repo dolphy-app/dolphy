@@ -25,7 +25,7 @@ const reward = (
   unitId = 'lesson',
 ): UnitReward => ({ unitId, value, weight, timestamp });
 
-describe('reward dedup', () => {
+describe('reward dedup (T-02)', () => {
   it('skips a reward with the same value, close time and close weight', () => {
     const index = createRewardIndex();
     expect(index.record([reward(0.8, 1.0, T0)])).toEqual(['lesson']);

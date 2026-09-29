@@ -1409,5 +1409,6 @@ export const useDue = (engine: LearningEngine) => {
 
 - `protocol.handle` вместо `file:` на Electron 44 (страница грузится через `file:`, CSP `'self'` работает) **[НЕ ПОДТВЕРЖДЕНО]**.
 - Выбор папки библиотеки пользователем (сейчас `libraryRoot = userData/library`, `dataDir = userData/data`; `Platform.pickDirectory` и диалог в main готовы, UI и сохранение выбора — нет).
-- Политика выбора `GradePolicy` (M5).
-- Упакованное приложение целиком (хост из `app.asar` под `utilityProcess`) запускается и поднимает `better-sqlite3`, но сквозной смоук в нём отключён по замыслу; проверены части: `.app` стартует и хост доходит до `ready`, раннер и `better-sqlite3` работают из `app.asar` **[ИЗМЕРЕНО]**; подпись и нотаризация — вне задачи.
+- Политика выбора `GradePolicy`: решено (2026-09-30) — `passAtN` по умолчанию без настройки (`engine-ts-api.md` §13.3).
+- Упакованное приложение: сквозной смоук (`pnpm smoke:packaged`, 2026-09-30, macOS arm64, Electron 44.4.5) проходит три сценария (`basic`, `sql`, `crash`) в неподписанном `.app` (`electron-builder --dir`): хост и раннер грузятся из `app.asar`, `better-sqlite3` — из `app.asar.unpacked` **[ИЗМЕРЕНО]**. Код смоука попадает в сборку только при `LMS_SMOKE_BUILD=1`; релизная сборка его не содержит (тест `apps/desktop/test/release-bundle.test.ts`). Подпись и нотаризация — вне задачи.
+- Windows и Linux-упаковка не проверялись. Под Windows раннер SQL работает без наблюдателя RSS (`ps` нет, `engine-sql-runner/src/rss.ts`): блокер релиза под Windows, нужна замена (например `process.memoryUsage` в дочернем процессе или Job Object).

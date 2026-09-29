@@ -47,7 +47,7 @@ const overSeeds = (
 ): SimResult[] =>
   SEEDS.map((seed) => simulate(regime, policy, seed, truthHasCredit));
 
-describe(`study simulation (${SEEDS.length} seeds x ${DAYS} days, budget ${BUDGET})`, () => {
+describe(`study simulation (${SEEDS.length} seeds x ${DAYS} days, budget ${BUDGET}) (T-56)`, () => {
   test('plans respect the budget and the learner actually studies', () => {
     for (const policy of ['P0', 'P1', 'P2'] as const) {
       for (const seed of SEEDS) {

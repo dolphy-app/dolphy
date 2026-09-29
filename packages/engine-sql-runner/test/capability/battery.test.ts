@@ -46,7 +46,7 @@ const effectsOf = (matrix: Matrix) =>
     .filter(([, value]) => value === 'X')
     .map(([id]) => id);
 
-describe('батарея угроз', () => {
+describe('батарея угроз (T-39)', () => {
   it('30 случаев, снимок спайка полон', () => {
     expect(THREATS).toHaveLength(30);
     for (const key of ['full', 'fullNoPrefilter', 'fallback'] as const) {

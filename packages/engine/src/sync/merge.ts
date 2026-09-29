@@ -10,6 +10,7 @@ import type {
 import {
   assertEntry,
   compareEntries,
+  compareStrings,
   entryHash,
   isClockSkewed,
 } from './entry.ts';
@@ -226,6 +227,8 @@ export interface ConflictGroup {
   reason: ConflictReason;
   /** Все стороны конфликта в каноническом порядке. */
   entries: LogEntry[];
+  /** `entryHash` сторон, в том же порядке, что и `entries`. */
+  entryHashes: string[];
   /** Есть строка в состоянии `open`. */
   isOpen: boolean;
   detectedAt: EpochMs;
@@ -243,13 +246,16 @@ export const groupConflicts = (
   }
   const groups: ConflictGroup[] = [];
   for (const [conflictId, members] of byGroup) {
-    const entries = members
-      .map((row) => row.entry)
-      .sort((a, b) => compareEntries(a, b));
+    const sides = [...members].sort(
+      (a, b) =>
+        compareEntries(a.entry, b.entry) ||
+        compareStrings(a.entryHash, b.entryHash),
+    );
     groups.push({
       conflictId,
       reason: members[0]!.reason,
-      entries,
+      entries: sides.map((row) => row.entry),
+      entryHashes: sides.map((row) => row.entryHash),
       isOpen: members.some((row) => row.state === 'open'),
       detectedAt: Math.min(...members.map((row) => row.detectedAt)),
     });
@@ -270,8 +276,9 @@ export interface ResolveOutcome {
 /**
  * Локальное решение: оставленная запись → `kept` и (если её больше ничто не
  * держит) обратно в `log_entry`, остальные → `discarded`. `keep` — `id` записи
- * или её `entryHash` (в `id-content` у сторон общий `id`: берётся первая в
- * каноническом порядке).
+ * или её `entryHash` (в `id-content` у сторон общий `id`: по `id` берётся
+ * первая в каноническом порядке `(at, deviceId, seq, id, entryHash)`, точная
+ * сторона выбирается по `entryHash`).
  */
 export const resolveConflictGroup = (
   tx: StoreTx,
@@ -287,7 +294,11 @@ export const resolveConflictGroup = (
   }
   const candidates = open
     .filter((row) => row.entry.id === keep || row.entryHash === keep)
-    .sort((a, b) => compareEntries(a.entry, b.entry));
+    .sort(
+      (a, b) =>
+        compareEntries(a.entry, b.entry) ||
+        compareStrings(a.entryHash, b.entryHash),
+    );
   if (keep !== 'none' && candidates.length === 0) {
     throw new EngineError('INVALID_ARGUMENT', {
       details: { conflictId, keep },

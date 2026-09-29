@@ -80,7 +80,7 @@ const defectiveLibrary = async () => {
   return dir;
 };
 
-describe('engine-cli: дефектная библиотека', () => {
+describe('engine-cli: дефектная библиотека (T-38)', () => {
   it('validate: код 1, диагностики в человекочитаемом виде и сводка', async () => {
     const dir = await defectiveLibrary();
     const { code, stdout, stderr } = await cli('validate', dir);
@@ -132,7 +132,7 @@ describe('engine-cli: дефектная библиотека', () => {
   });
 });
 
-describe('engine-cli: чистые библиотеки', () => {
+describe('engine-cli: чистые библиотеки (T-38)', () => {
   it('validate trane-embedded: код 0, артефакт не пишется', async () => {
     const dir = await tmp.copy(TRANE_LIBRARIES.embedded);
     const { code, stdout } = await cli('validate', dir);
@@ -245,7 +245,7 @@ describe('engine-cli: чистые библиотеки', () => {
   });
 });
 
-describe('engine-cli: неверные аргументы → код 2', () => {
+describe('engine-cli: неверные аргументы → код 2 (T-38)', () => {
   const cases: Array<[string, string[]]> = [
     ['нет команды', []],
     ['validate без каталога', ['validate']],
@@ -279,7 +279,7 @@ describe('engine-cli: неверные аргументы → код 2', () => {
   });
 });
 
-describe('engine-cli: процесс (нативный Node снимает типы)', () => {
+describe('engine-cli: процесс (нативный Node снимает типы) (T-38)', () => {
   const main = (...args: string[]) =>
     run(
       process.execPath,

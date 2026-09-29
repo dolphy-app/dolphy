@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import { defineConfig } from 'vite';
 import type { Plugin } from 'vite';
 import vue from '@vitejs/plugin-vue';
@@ -22,13 +23,22 @@ const NATIVE = ['better-sqlite3'];
 
 // https://vitejs.dev/config/
 export default defineConfig(({ command }) => {
-  fs.rmSync('dist-electron', { recursive: true, force: true });
+  // смоук-сборка (LMS_SMOKE_BUILD=1) включает код смоука и пишет в dist-smoke,
+  // релизная — в dist и dist-electron; LMS_BUILD_OUT задаёт корень явно
+  // (тест «релиз без смоука» собирает во временный каталог)
+  const smokeBuild = process.env.LMS_SMOKE_BUILD === '1';
+  const outRoot =
+    process.env.LMS_BUILD_OUT ?? (smokeBuild ? 'dist-smoke' : '.');
+  const out = (dir: string) => path.join(outRoot, dir);
+  fs.rmSync(out('dist-electron'), { recursive: true, force: true });
 
   const isServe = command === 'serve';
   const isBuild = command === 'build';
   const sourcemap = isServe || !!process.env.VSCODE_DEBUG;
 
   return {
+    define: { __LMS_SMOKE_BUILD__: JSON.stringify(smokeBuild) },
+    build: { outDir: out('dist'), emptyOutDir: true },
     plugins: [
       vue(),
       csp(command),
@@ -40,7 +50,7 @@ export default defineConfig(({ command }) => {
             build: {
               sourcemap,
               minify: isBuild,
-              outDir: 'dist-electron/main',
+              outDir: out('dist-electron/main'),
               copyPublicDir: false,
             },
           },
@@ -54,7 +64,7 @@ export default defineConfig(({ command }) => {
             build: {
               sourcemap: sourcemap ? 'inline' : undefined, // #332
               minify: isBuild,
-              outDir: 'dist-electron/preload',
+              outDir: out('dist-electron/preload'),
               copyPublicDir: false,
               rolldownOptions: {
                 output: { format: 'cjs', entryFileNames: '[name].cjs' },
@@ -75,7 +85,7 @@ export default defineConfig(({ command }) => {
             build: {
               sourcemap,
               minify: false,
-              outDir: 'dist-electron/host',
+              outDir: out('dist-electron/host'),
               copyPublicDir: false,
               rolldownOptions: { external: NATIVE },
             },

@@ -800,11 +800,20 @@ export interface SyncConflictDto {
   reason: 'id-content' | 'seq-two-ids' | 'clock-skew';
   /** Все стороны конфликта; скрыты от проекций, пока конфликт открыт. */
   entries: LogEntryDto[];
+  /**
+   * `entryHash` (sha256 канонического JSON записи) каждой стороны — в том же порядке, что и `entries`.
+   * В `id-content` у сторон общий `id`; конкретную сторону выбирают по `entryHash` в `ResolveConflictRequest.keep`.
+   */
+  entryHashes: string[];
   detectedAt: EpochMs;
 }
 export interface ResolveConflictRequest {
   conflictId: string;
-  /** `id` записи, которую вернуть в проекции, либо `'none'` — оставить скрытыми все. */
+  /**
+   * `id` записи либо её `entryHash` (из `SyncConflictDto.entryHashes`), которую вернуть в проекции;
+   * `'none'` — оставить скрытыми все. В `id-content` у сторон общий `id` — по `id` берётся первая сторона
+   * в каноническом порядке, точную сторону выбирают по `entryHash`.
+   */
   keep: string | 'none';
 }
 export interface ResolveConflictResult {

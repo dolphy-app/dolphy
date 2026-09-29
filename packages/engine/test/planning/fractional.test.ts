@@ -107,7 +107,7 @@ describe('createFractionalStepper curve check', () => {
   });
 });
 
-describe('fractional step properties (fixed seed)', () => {
+describe('fractional step properties (fixed seed) (T-53)', () => {
   test('null state: no implicit step; review of null is the first review', () => {
     expect(stepper.fractional(null, NOW, 3, 0.5)).toBeNull();
     expect(stepper.retrievability(null, NOW)).toBe(0);

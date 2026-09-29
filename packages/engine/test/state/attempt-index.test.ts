@@ -49,7 +49,7 @@ describe('AttemptIndex', () => {
     expect(index.count(E1)).toBe(25);
   });
 
-  it('orders equal timestamps by deviceId, then seq', () => {
+  it('orders equal timestamps by deviceId, then seq (T-03)', () => {
     const index = createAttemptIndex(() => graph);
     index.applyAttempt(
       buildAttempt({ exerciseId: E1, deviceId: 'b', seq: 1, at: 5 }),

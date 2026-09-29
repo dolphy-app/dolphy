@@ -131,7 +131,7 @@ export const describeFolderMatrix = ({
         expect(b.store.vector()).toEqual({ a: 12, b: 3 });
       }));
 
-    it('F-01 segment before head: ignored, imported when head lands', () =>
+    it('F-01 segment before head: ignored, imported when head lands (T-27)', () =>
       scenario(async ({ clock, dir }) => {
         const source = dirs();
         const a = await node(source, 'a', { clock });
@@ -155,7 +155,7 @@ export const describeFolderMatrix = ({
         expect(await b.fs.import()).toMatchObject({ inserted: 5, pending: 0 });
       }));
 
-    it('F-02 head before segment: pending, imported when the segment lands', () =>
+    it('F-02 head before segment: pending, imported when the segment lands (T-27)', () =>
       scenario(async ({ clock, dir }) => {
         const source = dirs();
         const a = await node(source, 'a', { clock });
@@ -177,7 +177,7 @@ export const describeFolderMatrix = ({
         expect(await b.fs.import()).toMatchObject({ inserted: 5, pending: 0 });
       }));
 
-    it('F-03 truncated segment (0 B, 1 B, half, all but 1 B): sha256 mismatch → pending', () =>
+    it('F-03 truncated segment (0 B, 1 B, half, all but 1 B): sha256 mismatch → pending (T-27)', () =>
       scenario(async ({ clock, dir }) => {
         const a = await node(dir, 'a', { clock });
         await a.many(5);
@@ -203,7 +203,7 @@ export const describeFolderMatrix = ({
         expect(await b.fs.import()).toMatchObject({ inserted: 5, pending: 0 });
       }));
 
-    it('F-04 truncated, empty or garbage head.json: device skipped this round', () =>
+    it('F-04 truncated, empty or garbage head.json: device skipped this round (T-27)', () =>
       scenario(async ({ clock, dir }) => {
         const a = await node(dir, 'a', { clock });
         await a.many(5);
@@ -238,7 +238,7 @@ export const describeFolderMatrix = ({
       writeFileSync(join(dir, 'a', 'head.json'), JSON.stringify(head));
     };
 
-    it('F-05 valid sha256 but a bad line or foreign deviceId: whole segment rejected once', () =>
+    it('F-05 valid sha256 but a bad line or foreign deviceId: whole segment rejected once (T-27)', () =>
       scenario(async ({ clock, dir }) => {
         const a = await node(dir, 'a', { clock });
         await a.many(5);
@@ -275,7 +275,7 @@ export const describeFolderMatrix = ({
         expect(d.store.entryCount()).toBe(0);
       }));
 
-    it('F-06 duplicates, conflicted copies and tmp files are ignored', () =>
+    it('F-06 duplicates, conflicted copies and tmp files are ignored (T-27)', () =>
       scenario(async ({ clock, dir }) => {
         const a = await node(dir, 'a', { clock });
         await a.many(5);
@@ -309,7 +309,7 @@ export const describeFolderMatrix = ({
         });
       }));
 
-    it('F-07 reordering: segments 6-12 before 1-5 wait, then apply in order', () =>
+    it('F-07 reordering: segments 6-12 before 1-5 wait, then apply in order (T-27)', () =>
       scenario(async ({ clock, dir }) => {
         const source = dirs();
         const a = await node(source, 'a', { clock });
@@ -333,7 +333,7 @@ export const describeFolderMatrix = ({
         expect(await b.fs.import()).toMatchObject({ inserted: 12, pending: 0 });
       }));
 
-    it('F-08 stale head after a newer one: no harm, late joiners see the older prefix', () =>
+    it('F-08 stale head after a newer one: no harm, late joiners see the older prefix (T-27)', () =>
       scenario(async ({ clock, dir }) => {
         const a = await node(dir, 'a', { clock });
         await a.many(5);
@@ -351,7 +351,7 @@ export const describeFolderMatrix = ({
         expect((await c.fs.import()).inserted).toBe(5);
       }));
 
-    it('F-09 peer compaction: importers re-read the overlap, states equal', () =>
+    it('F-09 peer compaction: importers re-read the overlap, states equal (T-27)', () =>
       scenario(async ({ clock, dir }) => {
         const a = await node(dir, 'a', { clock });
         await a.many(12);
@@ -375,7 +375,7 @@ export const describeFolderMatrix = ({
         await same(b, c);
       }));
 
-    it('F-10 segment edited in place after head: pending forever, nothing applied', () =>
+    it('F-10 segment edited in place after head: pending forever, nothing applied (T-27)', () =>
       scenario(async ({ clock, dir }) => {
         const a = await node(dir, 'a', { clock });
         await a.many(5);
@@ -386,7 +386,7 @@ export const describeFolderMatrix = ({
         expect(await b.fs.import()).toMatchObject({ inserted: 0, pending: 1 });
       }));
 
-    it('F-11 restore from an old backup with the folder intact: catch-up, no seq reuse', () =>
+    it('F-11 restore from an old backup with the folder intact: catch-up, no seq reuse (T-29)', () =>
       scenario(async ({ clock, dir }) => {
         const a = await node(dir, 'a', { clock });
         await a.many(40);
@@ -417,7 +417,7 @@ export const describeFolderMatrix = ({
         await same(a2, b);
       }));
 
-    it('F-12 restore while a peer saw more: fork to a new deviceId', () =>
+    it('F-12 restore while a peer saw more: fork to a new deviceId (T-29)', () =>
       scenario(async ({ clock, dir }) => {
         const a = await node(dir, 'a', { clock });
         await a.many(40);
@@ -448,7 +448,7 @@ export const describeFolderMatrix = ({
         expect(b.store.vector().a).toBe(40);
       }));
 
-    it('F-13 undetected restore: seq-two-ids is reported, real entries hidden not lost', () =>
+    it('F-13 undetected restore: seq-two-ids is reported, real entries hidden not lost (T-29)', () =>
       scenario(async ({ clock, dir }) => {
         const a = await node(dir, 'a', { clock });
         await a.many(10);
@@ -476,7 +476,7 @@ export const describeFolderMatrix = ({
         expect(state).toEqual(oracleState(await setOf(b.store)));
       }));
 
-    it('F-14 cloned deviceId: the second export throws SYNC_DEVICE_ID_CLASH', () =>
+    it('F-14 cloned deviceId: the second export throws SYNC_DEVICE_ID_CLASH (T-29)', () =>
       scenario(async ({ clock, dir }) => {
         const x = await node(dir, 'a', { clock, slot: 'x' });
         const y = await node(dir, 'a', { clock, slot: 'y' });
@@ -489,7 +489,7 @@ export const describeFolderMatrix = ({
         });
       }));
 
-    it('F-15 clone replaced the files: importer sees seq-two-ids ×4, 8 entries quarantined', () =>
+    it('F-15 clone replaced the files: importer sees seq-two-ids ×4, 8 entries quarantined (T-29)', () =>
       scenario(async ({ clock, dir }) => {
         const dirY = dirs();
         const x = await node(dir, 'a', { clock, slot: 'x' });

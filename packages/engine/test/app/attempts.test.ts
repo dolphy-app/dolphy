@@ -214,7 +214,7 @@ describe('completeAttempt derives the grade from verdicts (passAtN)', () => {
     ).toBe(true);
   });
 
-  it('submitAnswer writes nothing to the journal, whatever the outcome', async () => {
+  it('submitAnswer writes nothing to the journal, whatever the outcome (T-41)', async () => {
     const run = await finish([FAILED, ERROR, PASSED]);
     expect(run.t.eventStore.entryCount()).toBe(0);
     expect(run.t.events).toEqual([]);
@@ -328,7 +328,7 @@ describe('submitAnswer', () => {
     expect(await submit(shown)).toMatchObject({ detail: 'expected: 1' });
   });
 
-  it('SQL longer than MAX_SQL_CHARS fails with sqlite_limit without calling the runner', async () => {
+  it('SQL longer than MAX_SQL_CHARS fails with sqlite_limit without calling the runner (T-41)', async () => {
     const verifier = createFakeVerifier();
     const t = await setup(verifier);
     const { attemptId } = await t.engine.practice.beginAttempt({

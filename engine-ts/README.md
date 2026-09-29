@@ -7,14 +7,15 @@
 1. `design/engine-ts.md` — главный документ: решения (§0), трассировка F1–F7 → FR → API → веха → приёмка (§1.1), модель данных (§5), F-слой (§6a), дорожная карта M0–M7 (§11), открытые вопросы (§12).
 2. `design/engine-ts-api.md` — контракт `@lms/engine-contract` (типы проверены `tsc` 7.0.2).
 3. `design/engine-ts-testing.md` — стратегия vitest, обязательные тесты T-01…T-60, CI-матрица Node 22 + 24.
-4. `design/engine-ts-diagram.html` — схема (открывать через `python3 -m http.server`, не `file://`).
-5. `research/report-*.md` — числа и контрпримеры за каждым решением; `research/spec-*.md` — поведение модулей Trane с `file:line`.
+4. `design/engine-ts-electron.md` — псевдокод сервисов, транспорта и процессов внутри Electron (`@lms/engine-rpc`, хост в `utilityProcess`, main, preload).
+5. `design/engine-ts-diagram.html` — схема (открывать через `python3 -m http.server`, не `file://`).
+6. `research/report-*.md` — числа и контрпримеры за каждым решением; `research/spec-*.md` — поведение модулей Trane с `file:line`.
 
 ## Каталоги
 
 | Каталог | Что там |
 |---|---|
-| `design/` | четыре документа выше |
+| `design/` | пять документов выше (пункты 1–5) |
 | `research/` | 4 спеки Trane, 8 отчётов (FSRS, PowerLaw, загрузчик, F1–F7) и `facts-stack.md` (факты о стеке) |
 | `spike/` (вне репозитория) | прототипы с тестами: песочница `/Users/tinkerbells/projects/lms-platform/engine-ts/spike/`; `node_modules` и `target` удалены, ставятся `npm ci` |
 | `reference/trane-pristine/` (вне репозитория) | Rust-эталон v0.34.1 (тег `v0.34.1`, коммит `6f5f84a85667b4bf0402b1185ae5a889ff57e01d`, https://github.com/trane-project/trane) для golden-тестов |

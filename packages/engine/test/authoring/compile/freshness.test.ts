@@ -252,7 +252,7 @@ describe('checkFreshness (T-37)', () => {
 
   it('(6) another formatVersion is not usable', async () => {
     const { root, artifact } = await setup();
-    expect(await freshnessOf(root, { ...artifact, formatVersion: 2 })).toEqual({
+    expect(await freshnessOf(root, { ...artifact, formatVersion: 3 })).toEqual({
       fresh: false,
       via: 'none',
     });

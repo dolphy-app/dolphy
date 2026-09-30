@@ -1,0 +1,27 @@
+{
+  "name": "@lms/extension-sdk",
+  "version": "0.0.0",
+  "private": true,
+  "description": "SDK автора расширений: defineExtension, defineAnswerElement, помощники тестирования",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./src/testing.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@lms/extension-api": "workspace:*",
+    "ajv": "^8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "happy-dom": "^20.14.5",
+    "typescript": "7.0.2"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}

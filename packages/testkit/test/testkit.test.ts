@@ -1,3 +1,4 @@
+import type { ExtensionInfoDto } from '@lms/engine-contract';
 import { describe, expect, it } from 'vitest';
 import {
   buildAttempt,
@@ -5,6 +6,9 @@ import {
   buildProgressReset,
   buildUnitFlag,
   createFakeClock,
+  createFakeExerciseTypes,
+  createFakeExtensionPolicy,
+  createFakeExtensionRegistry,
   createJournalBuilder,
   createMemoryCourseSource,
   createSeededRng,
@@ -224,5 +228,101 @@ describe('MemoryCourseSource', () => {
     expect(await source.readArtifact()).toBeNull();
     await source.writeArtifact('{"revision":"r"}');
     expect(await source.readArtifact()).toBe('{"revision":"r"}');
+  });
+});
+
+describe('createFakeExerciseTypes', () => {
+  const passed = { outcome: 'passed', durationMs: 1 } as const;
+  const failed = {
+    outcome: 'failed',
+    reason: 'mismatch',
+    durationMs: 1,
+  } as const;
+  const request = (answer: unknown) => ({
+    type: 'fake.t',
+    exerciseId: 'c::l::e',
+    spec: {},
+    answer,
+    timeoutMs: 2000,
+    authorMode: false,
+  });
+
+  it('plays the script in order and records every request', async () => {
+    const types = createFakeExerciseTypes({
+      types: { 'fake.t': { script: [failed, passed] } },
+    });
+    expect(await types.grade(request('a'))).toBe(failed);
+    expect(await types.grade(request('b'))).toBe(passed);
+    expect(types.requests.map((r) => r.answer)).toEqual(['a', 'b']);
+    await expect(types.grade(request('c'))).rejects.toThrow(
+      'script is exhausted',
+    );
+  });
+
+  it('describes only configured types and reports missing references', async () => {
+    const types = createFakeExerciseTypes({
+      types: { 'fake.t': { element: 'fake-el' } },
+    });
+    expect(types.describe('fake.t')?.element).toBe('fake-el');
+    expect(types.describe('other')).toBeUndefined();
+    expect(types.validateSpec('other', {})).toEqual(['unknown exercise type']);
+    expect(
+      await types.referenceAnswer({
+        type: 'fake.t',
+        exerciseId: 'x',
+        spec: {},
+      }),
+    ).toEqual({ found: false });
+    await types.close();
+    expect(types.closed).toBe(true);
+  });
+});
+
+describe('createFakeExtensionRegistry', () => {
+  it('is empty by default and returns the given items', () => {
+    expect(createFakeExtensionRegistry().list()).toEqual([]);
+    const item: ExtensionInfoDto = {
+      id: 'a.b',
+      version: null,
+      origin: 'user',
+      state: 'invalid',
+      contributes: {
+        exerciseTypes: [],
+        themes: [],
+        markdownRenderers: [],
+        gradePolicies: [],
+      },
+      message: 'broken',
+      permissions: [],
+      isolation: 'isolated',
+      toggleable: false,
+    };
+    expect(createFakeExtensionRegistry([{ ...item }]).list()).toEqual([item]);
+  });
+
+  it('has empty contributions by default and returns the given ones', () => {
+    const empty = { themes: [], markdownRenderers: [], gradePolicies: [] };
+    expect(createFakeExtensionRegistry().contributions()).toEqual(empty);
+    const given = {
+      ...empty,
+      gradePolicies: [{ id: 'a.p', extensionId: 'a', label: 'P' }],
+    };
+    expect(createFakeExtensionRegistry([], given).contributions()).toEqual(
+      given,
+    );
+  });
+});
+
+describe('createFakeExtensionPolicy', () => {
+  it('isolates everything except bundled and trusted; disabled only by settings', () => {
+    const policy = createFakeExtensionPolicy({ bundled: ['lms.sql'] });
+    expect(policy.isIsolated('acme.x')).toBe(true);
+    expect(policy.isIsolated('lms.sql')).toBe(false);
+    expect(policy.isEnabled('acme.x')).toBe(true);
+    policy.update({ disabled: ['acme.x', 'lms.sql'], trusted: ['acme.x'] });
+    expect(policy.isEnabled('acme.x')).toBe(false);
+    expect(policy.isEnabled('lms.sql')).toBe(true);
+    expect(policy.isIsolated('acme.x')).toBe(false);
+    expect(policy.updates).toHaveLength(1);
   });
 });

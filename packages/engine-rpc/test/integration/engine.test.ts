@@ -3,7 +3,11 @@
  * in-process пару (structuredClone на каждом сообщении, как в Electron).
  */
 import { RPC_METHODS } from '@lms/engine-contract';
-import type { EngineEvent, SavedFilterDto } from '@lms/engine-contract';
+import type {
+  EngineEvent,
+  ExtensionInfoDto,
+  SavedFilterDto,
+} from '@lms/engine-contract';
 import { createEngine } from '@lms/engine/app';
 import {
   createMemoryEventStore,
@@ -14,12 +18,15 @@ import {
 import { GitFetchError } from '@lms/engine/ports';
 import type { GitSnapshotFetcher } from '@lms/engine/ports';
 import { createTsFsrsMemoryModel } from '@lms/engine';
-import type { Verifier } from '@lms/engine';
 import {
   buildAttempt,
   buildExercise,
   buildLibrary,
   createFakeClock,
+  createFakeExerciseTypes,
+  createFakeExtensionPolicy,
+  createFakeExtensionRegistry,
+  createFakeGradePolicies,
   createMemoryCourseSource,
   createSeededRng,
   createTestIds,
@@ -48,17 +55,43 @@ const VERIFIABLE = 'c::l1::v0';
 library.exercises.push(
   buildExercise({
     id: VERIFIABLE,
-    engine: { verification: { runner: 'sql', timeoutMs: 500 } },
+    engine: { exercise: { type: 'lms.sql', timeoutMs: 500, spec: {} } },
   }),
 );
 const E1 = 'c::l1::e0';
-
-/** Раннер, всегда отвечающий `passed`: проверяет путь вердикта через RPC. */
-const passingVerifier: Verifier = {
-  runner: 'sql',
-  check: async () => ({ outcome: 'passed', durationMs: 1 }),
-  close: async () => {},
+const REGISTERED: ExtensionInfoDto = {
+  id: 'lms.sql',
+  version: '1.0.0',
+  origin: 'bundled',
+  state: 'loaded',
+  contributes: {
+    exerciseTypes: ['lms.sql'],
+    themes: [],
+    markdownRenderers: [],
+    gradePolicies: [],
+  },
+  message: null,
+  permissions: ['library.read'],
+  isolation: 'trusted',
+  toggleable: false,
 };
+const USER_EXTENSION: ExtensionInfoDto = {
+  ...REGISTERED,
+  id: 'acme.user',
+  origin: 'user',
+  contributes: { ...REGISTERED.contributes, exerciseTypes: [] },
+  permissions: [],
+  isolation: 'isolated',
+  toggleable: true,
+};
+
+/** Вид задания, всегда отвечающий `passed`: проверяет путь вердикта через RPC. */
+const passingTypes = () =>
+  createFakeExerciseTypes({
+    types: {
+      'lms.sql': { script: [{ outcome: 'passed', durationMs: 1 }] },
+    },
+  });
 
 /** Сеть недоступна: любой вызов падает как `GIT_FETCH_FAILED/network`. */
 const offlineFetcher: GitSnapshotFetcher = {
@@ -83,7 +116,13 @@ const start = async () => {
       eventStore: createMemoryEventStore({ deviceId: 'device-a' }),
       settings: createMemorySettingsStore(),
       memoryModel: createTsFsrsMemoryModel(),
-      verifiers: [passingVerifier],
+      exerciseTypes: passingTypes(),
+      gradePolicies: createFakeGradePolicies(),
+      extensionRegistry: createFakeExtensionRegistry([
+        REGISTERED,
+        USER_EXTENSION,
+      ]),
+      extensionPolicy: createFakeExtensionPolicy(),
       repositoryStore: createMemoryRepositoryStore(),
       snapshotFetcher: offlineFetcher,
       snapshotInstaller: createNodeSnapshotInstaller({
@@ -286,7 +325,7 @@ describe('rpc → dispatcher → real engine', () => {
     const verdict = await call('practice.submitAnswer', () =>
       client.practice.submitAnswer({
         attemptId: checked.attemptId,
-        submission: { kind: 'sql', sql: 'select 1' },
+        answer: 'select 1',
       }),
     );
     expect(verdict).toMatchObject({ outcome: 'passed', attemptsUsed: 1 });
@@ -384,6 +423,10 @@ describe('rpc → dispatcher → real engine', () => {
     );
     await call('settings.getScorer', () => client.settings.getScorer());
     await call('settings.getUi', () => client.settings.getUi());
+    await call('settings.getLearning', () => client.settings.getLearning());
+    await call('settings.setLearning', () =>
+      client.settings.setLearning({ gradePolicy: 'acme.policy' }),
+    );
     await call('settings.setUi', () =>
       client.settings.setUi({ theme: 'dark', locale: 'en' }),
     );
@@ -455,6 +498,39 @@ describe('rpc → dispatcher → real engine', () => {
         expect(error).toMatchObject({ code: 'SYNC_FOLDER_NOT_CONFIGURED' });
       }),
     );
+    expect(
+      await call('extensions.list', () => client.extensions.list()),
+    ).toEqual([USER_EXTENSION, REGISTERED]);
+    expect(
+      await call('extensions.getSettings', () =>
+        client.extensions.getSettings(),
+      ),
+    ).toEqual({ disabled: [], trusted: [] });
+    expect(
+      await call('extensions.setEnabled', () =>
+        client.extensions.setEnabled('acme.user', false),
+      ),
+    ).toEqual({ disabled: ['acme.user'], trusted: [] });
+    expect(
+      await call('extensions.setTrusted', () =>
+        client.extensions.setTrusted('acme.user', true),
+      ),
+    ).toEqual({ disabled: ['acme.user'], trusted: ['acme.user'] });
+    await expect(
+      client.extensions.setEnabled('lms.sql', false),
+    ).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+      details: { reason: 'bundled' },
+    });
+    expect(
+      await call('extensions.contributions', () =>
+        client.extensions.contributions(),
+      ),
+    ).toEqual({
+      themes: [],
+      markdownRenderers: [],
+      gradePolicies: [{ id: 'passAtN', extensionId: null, label: null }],
+    });
     await call('diagnostics', () => client.diagnostics());
 
     expect([...called].sort()).toEqual(Object.keys(RPC_METHODS).sort());

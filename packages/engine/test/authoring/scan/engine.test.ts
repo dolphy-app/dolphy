@@ -35,10 +35,11 @@ describe('engine из frontmatter front-файла', () => {
       [
         '---',
         'engine:',
-        '  verification:',
-        '    runner: sql',
+        '  exercise:',
+        '    type: lms.sql',
         '    timeoutMs: 2000',
-        '    fixture: fixtures/a.sql',
+        '    spec:',
+        '      fixture: fixtures/a.sql',
         '  keyPrerequisites: [c::l2]',
         '  tags: [x, y]',
         '  bloom: apply',
@@ -49,10 +50,10 @@ describe('engine из frontmatter front-файла', () => {
     );
     expect(diagnostics).toEqual([]);
     expect(unit?.engine).toEqual({
-      verification: {
-        runner: 'sql',
+      exercise: {
+        type: 'lms.sql',
         timeoutMs: 2000,
-        fixture: 'fixtures/a.sql',
+        spec: { fixture: 'fixtures/a.sql' },
       },
       keyPrerequisites: ['c::l2'],
       tags: ['x', 'y'],
@@ -99,12 +100,12 @@ describe('engine из frontmatter front-файла', () => {
 
   it('неизвестный ключ engine — W_ENGINE_UNKNOWN_KEY на своей строке; в значение не входит', async () => {
     const { diagnostics, unit } = await scanFront(
-      '---\nengine:\n  verification:\n    runner: sql\n  frobnicate: 1\n---\nBody',
+      '---\nengine:\n  exercise:\n    type: lms.sql\n  frobnicate: 1\n---\nBody',
     );
     expect(diagnostics.map((d) => [d.code, d.path, d.line])).toEqual([
       ['W_ENGINE_UNKNOWN_KEY', FRONT, 5],
     ]);
-    expect(unit?.engine).toEqual({ verification: { runner: 'sql' } });
+    expect(unit?.engine).toEqual({ exercise: { type: 'lms.sql' } });
     expect(unit?.engineBroken).toBeUndefined();
   });
 
@@ -122,7 +123,7 @@ describe('engine из frontmatter front-файла', () => {
     ['bloom: nonsense', 3],
     ['dok: 9', 3],
     ['tags: 5', 3],
-    ['verification: {runner: "", timeoutMs: 100}', 3],
+    ['exercise: {type: "", timeoutMs: 100}', 3],
   ])(
     'ошибка схемы `%s` — E_ENGINE_SCHEMA на строке ключа, каскад подавлен',
     async (line, at) => {
@@ -183,10 +184,10 @@ describe('engine из frontmatter front-файла', () => {
 describe('engine из манифеста и дубликаты', () => {
   it('ключ engine манифеста упражнения: значение и строка', async () => {
     const { unit, diagnostics } = await scanFront('body', {
-      engine: { verification: { runner: 'sql' } },
+      engine: { exercise: { type: 'lms.sql' } },
     });
     expect(diagnostics).toEqual([]);
-    expect(unit?.engine).toEqual({ verification: { runner: 'sql' } });
+    expect(unit?.engine).toEqual({ exercise: { type: 'lms.sql' } });
     expect(unit?.engineSrc?.path).toBe(EXERCISE);
   });
 
@@ -257,33 +258,40 @@ describe('схема engine (parseEngine)', () => {
     return result.ok ? result.value : result.issues;
   };
 
-  it('verification сохраняет прочие ключи раннера', () => {
+  it('exercise сохраняет spec как есть', () => {
     expect(
       ok(
         {
-          verification: {
-            runner: 'sql',
+          exercise: {
+            type: 'lms.sql',
             timeoutMs: 1000,
-            fixture: 'f',
-            n: [1],
+            spec: { fixture: 'f', n: [1] },
           },
         },
         'exercise',
       ),
     ).toEqual({
-      verification: { runner: 'sql', timeoutMs: 1000, fixture: 'f', n: [1] },
+      exercise: {
+        type: 'lms.sql',
+        timeoutMs: 1000,
+        spec: { fixture: 'f', n: [1] },
+      },
     });
   });
 
+  it('exercise: лишний ключ блока — ошибка', () => {
+    expect(
+      parseEngine({ exercise: { type: 'a', runner: 'sql' } }, 'exercise').ok,
+    ).toBe(false);
+  });
+
   it.each([
-    ['runner пуст', { verification: { runner: '' } }],
-    ['runner отсутствует', { verification: {} }],
-    ['timeoutMs = 0', { verification: { runner: 'sql', timeoutMs: 0 } }],
-    ['timeoutMs дробный', { verification: { runner: 'sql', timeoutMs: 1.5 } }],
-    [
-      'timeoutMs отрицателен',
-      { verification: { runner: 'sql', timeoutMs: -1 } },
-    ],
+    ['type пуст', { exercise: { type: '' } }],
+    ['type отсутствует', { exercise: {} }],
+    ['spec не объект', { exercise: { type: 'a', spec: 'x' } }],
+    ['timeoutMs = 0', { exercise: { type: 'a', timeoutMs: 0 } }],
+    ['timeoutMs дробный', { exercise: { type: 'a', timeoutMs: 1.5 } }],
+    ['timeoutMs отрицателен', { exercise: { type: 'a', timeoutMs: -1 } }],
     ['dok = 0', { dok: 0 }],
     ['dok = 5', { dok: 5 }],
     ['dok строкой', { dok: '2' }],

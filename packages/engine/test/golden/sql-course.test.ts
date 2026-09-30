@@ -1,5 +1,5 @@
 /**
- * Мигрированный `sql-course` (engine.verification вместо `check:`): 0
+ * Мигрированный `sql-course` (engine.exercise вместо `check:`): 0
  * диагностик, три источника `engine`, все файлы проверок на месте, а
  * ожидаемые CSV (написаны вручную) совпадают с результатом эталонных
  * решений на фикстуре `emp.sql` — оракул независим от кода движка.
@@ -35,10 +35,15 @@ const load = async (layout: keyof typeof LIBRARIES) => {
   return { source, library };
 };
 
+/** Блок `engine.exercise`: `type`, `timeoutMs` и ключи `spec` плоским объектом. */
 const verificationOf = (library: Library, id: string) => {
-  const verification = library.exercises.get(id)?.engine?.verification;
-  if (verification === undefined) throw new Error(`no verification: ${id}`);
-  return verification;
+  const block = library.exercises.get(id)?.engine?.exercise;
+  if (block === undefined) throw new Error(`no engine.exercise: ${id}`);
+  return {
+    ...(block.spec as Record<string, unknown>),
+    type: block.type,
+    timeoutMs: block.timeoutMs,
+  } as Record<string, unknown> & { type: string; timeoutMs?: number };
 };
 
 describe.each(['kb', 'json'] as const)('sql-course: %s', (layout) => {
@@ -67,14 +72,14 @@ describe.each(['kb', 'json'] as const)('sql-course: %s', (layout) => {
     ]);
   });
 
-  it('курс требует проверок; у каждого упражнения есть sql-verification', async () => {
+  it('курс требует проверок; у каждого упражнения есть engine.exercise вида lms.sql', async () => {
     const { library, source } = await load(layout);
     expect(library.courses.get(course)?.engine?.requiresChecks).toBe(true);
     for (const id of library.exercises.keys()) {
       const verification = verificationOf(library, id);
-      expect(verification.runner, id).toBe('sql');
+      expect(verification.type, id).toBe('lms.sql');
       expect(verification.timeoutMs, id).toBe(2000);
-      expect(verification.fixture, id).toBe('fixtures/emp.sql');
+      expect(verification['fixture'], id).toBe('fixtures/emp.sql');
       for (const key of ['fixture', 'expected', 'reference'] as const) {
         const path = verification[key];
         expect(typeof path, `${id}.${key}`).toBe('string');
@@ -92,7 +97,9 @@ describe.each(['kb', 'json'] as const)('sql-course: %s', (layout) => {
       const verification = verificationOf(library, id);
       const db = new DatabaseSync(':memory:');
       db.exec(fixture);
-      const reference = (await source.readText(String(verification.reference)))
+      const reference = (
+        await source.readText(String(verification['reference']))
+      )
         .trim()
         .replace(/;$/, '');
       const statement = db.prepare(reference);
@@ -110,12 +117,12 @@ describe.each(['kb', 'json'] as const)('sql-course: %s', (layout) => {
         .map((row) => columns.map((name) => render(row[name])).join(','));
       db.close();
 
-      const expected = (await source.readText(String(verification.expected)))
+      const expected = (await source.readText(String(verification['expected'])))
         .trimEnd()
         .split('\n');
       expect(expected[0], id).toBe(columns.join(','));
       const rows = expected.slice(1);
-      if (verification.orderSensitive === true)
+      if (verification['orderSensitive'] === true)
         expect(actual, id).toEqual(rows);
       else expect([...actual].sort(), id).toEqual([...rows].sort());
     }
@@ -150,14 +157,14 @@ describe('sql-course: три источника engine', () => {
     expect(q3?.exercise_asset).toMatchObject({
       BasicAsset: { InlinedAsset: expect.anything() },
     });
-    expect(q3?.engine?.verification?.expected).toBe(
+    expect(q3?.engine?.exercise?.spec?.expected).toBe(
       'checks/join-self-manager.csv',
     );
     const q1 = library.exercises.get('sql_json::join::q1');
     expect(q1?.exercise_asset).toEqual({
       BasicAsset: { MarkdownAsset: { path: 'sql_json/join/q1/q1.md' } },
     });
-    expect(q1?.engine?.verification?.expected).toBe(
+    expect(q1?.engine?.exercise?.spec?.expected).toBe(
       'checks/join-inner-alias.csv',
     );
     expect(library.lessons.get('sql_json::window')?.engine?.tags).toEqual([

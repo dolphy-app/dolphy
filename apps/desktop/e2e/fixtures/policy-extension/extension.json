@@ -1,0 +1,9 @@
+{
+  "id": "acme.policy",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "main": "./main.mjs",
+  "contributes": {
+    "gradePolicies": [{ "id": "acme.policy.generous", "label": "Generous" }]
+  }
+}

@@ -108,11 +108,11 @@ const createSession = (
 
   const http: HttpClient = {
     async request(req: GitHttpRequest): Promise<GitHttpResponse> {
-      let body: Buffer | undefined;
+      let body: Uint8Array<ArrayBuffer> | undefined;
       if (req.body) {
         const parts: Uint8Array[] = [];
         for await (const part of req.body) parts.push(part);
-        body = Buffer.concat(parts);
+        body = new Uint8Array(Buffer.concat(parts));
       }
       arm();
       let res: Response;

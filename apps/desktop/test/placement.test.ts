@@ -110,7 +110,13 @@ const createFakeEngine = (options: FakeOptions = {}) => {
     exerciseType: 'declarative',
     content: { type: 'inlineFlashcard', front: `Q ${id}`, back: `A ${id}` },
     ...(verifiable.has(id) && {
-      verification: { runner: 'sql', timeoutMs: 1000, params: {} },
+      task: {
+        type: 'lms.sql',
+        timeoutMs: 1000,
+        element: 'lms-sql-answer',
+        rendererUrl: 'lms-ext://lms.sql/view.mjs',
+        isolated: false,
+      },
     }),
     keyPrerequisites: [],
   });
@@ -161,6 +167,7 @@ const createFakeEngine = (options: FakeOptions = {}) => {
         exercise: exercise(exerciseId),
         startedAt: 0,
         verifiable: true,
+        view: { hint: 'v' },
       }),
       submitAnswer: async (request: SubmitAnswerRequest) => {
         calls.submitted.push(request);
@@ -287,12 +294,13 @@ describe('placement model', () => {
     expect(placement.current.value).toMatchObject({
       probeId: 'probe-2',
       verifiable: true,
-      submissionKind: 'sql',
+      task: { type: 'lms.sql', element: 'lms-sql-answer' },
+      view: { hint: 'v' },
       attemptId: 'attempt-1',
     });
     await placement.submit('SELECT 1');
     expect(calls.submitted).toEqual([
-      { attemptId: 'attempt-1', submission: { kind: 'sql', sql: 'SELECT 1' } },
+      { attemptId: 'attempt-1', answer: 'SELECT 1' },
     ]);
     expect(placement.passed.value).toBe(true);
     await placement.confirm();

@@ -44,9 +44,7 @@ const createHarness = () => {
     logger,
     bus,
     state,
-    verifiers: new Map([
-      ['sql', { close: async () => void closed.push('verifier') }],
-    ]),
+    exerciseTypes: { close: async () => void closed.push('verifier') },
     eventStore: { close: async () => void closed.push('store') },
     rebuild: async () => {
       calls.push('rebuild');
@@ -232,7 +230,7 @@ describe('createFacade', () => {
     await expect(engine.diagnostics()).resolves.toBe(DIAGNOSTICS);
   });
 
-  it('close drains the running command, closes verifiers and the store, then rejects new calls', async () => {
+  it('close drains the running command, closes exercise types and the store, then rejects new calls', async () => {
     const h = createHarness();
     const gate = deferred();
     const engine = create(

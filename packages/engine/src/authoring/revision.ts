@@ -33,7 +33,13 @@ const toHex = (buffer: ArrayBuffer) =>
 
 /** sha256 в hex через Web Crypto (без `node:crypto`: слой чистый). */
 export const sha256Hex = async (data: Uint8Array): Promise<string> =>
-  toHex(await globalThis.crypto.subtle.digest('SHA-256', data));
+  // DOM-типы (окно, TS 6) требуют Uint8Array<ArrayBuffer>; байты всегда из ArrayBuffer
+  toHex(
+    await globalThis.crypto.subtle.digest(
+      'SHA-256',
+      data as Uint8Array<ArrayBuffer>,
+    ),
+  );
 
 /** `mapper` над `items` не более чем в `limit` потоков; порядок результата — порядок входа. */
 const mapPool = async <T, R>(

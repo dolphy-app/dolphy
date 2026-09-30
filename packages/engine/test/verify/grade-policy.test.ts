@@ -6,13 +6,15 @@
  */
 import type { VerdictDto } from '@lms/engine-contract';
 import fc from 'fast-check';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { GradePolicyError } from '../../src/ports/grade-policies.ts';
 import {
   DEFAULT_GRADE_POLICY,
   GRADE_POLICIES,
   countGradedVerdicts,
   isGradedVerdict,
   passAtN,
+  resolveGradePolicy,
 } from '../../src/verify/index.ts';
 
 const passed = (): VerdictDto => ({
@@ -106,5 +108,75 @@ describe('хелперы вердиктов', () => {
   it('политики выбираются по имени; по умолчанию — passAtN', () => {
     expect(GRADE_POLICIES[DEFAULT_GRADE_POLICY]).toBe(passAtN);
     expect(Object.keys(GRADE_POLICIES)).toEqual(['passAtN']);
+  });
+});
+
+describe('resolveGradePolicy', () => {
+  const input = { verdicts: [failed(), passed()], gaveUp: false };
+  const setup = (
+    selectedId: string,
+    evaluate: (id: string) => Promise<unknown>,
+  ) => {
+    const logger = { warn: vi.fn() };
+    const remote = { evaluate: vi.fn(evaluate as never) };
+    return {
+      logger,
+      remote,
+      policy: resolveGradePolicy({
+        selectedId,
+        builtin: GRADE_POLICIES,
+        remote,
+        logger,
+      }),
+    };
+  };
+
+  it('a built-in id is used directly, the remote is not asked', async () => {
+    const { policy, remote } = setup('passAtN', async () => 5);
+    expect(await policy(input)).toBe(4);
+    expect(remote.evaluate).not.toHaveBeenCalled();
+  });
+
+  it('an extension id is evaluated remotely, null included', async () => {
+    const generous = setup('acme.generous', async () => 5);
+    expect(await generous.policy(input)).toBe(5);
+    expect(generous.remote.evaluate).toHaveBeenCalledWith(
+      'acme.generous',
+      input,
+    );
+    expect(await setup('acme.none', async () => null).policy(input)).toBeNull();
+  });
+
+  it.each([
+    ['unknown-policy'],
+    ['host-down'],
+    ['timeout'],
+    ['invalid-result'],
+    ['handler-failed'],
+  ] as const)('%s → passAtN and a warning', async (cause) => {
+    const error = new GradePolicyError(cause, 'acme.p', 'boom');
+    const { policy, logger } = setup('acme.p', async () => {
+      throw error;
+    });
+    expect(await policy(input)).toBe(4);
+    expect(logger.warn).toHaveBeenCalledWith(
+      { error, policyId: 'acme.p' },
+      expect.any(String),
+    );
+  });
+
+  it.each([0, 6, 2.5, '5', NaN, undefined])(
+    'a result of %j is not a grade → passAtN and a warning',
+    async (value) => {
+      const { policy, logger } = setup('acme.p', async () => value);
+      expect(await policy(input)).toBe(4);
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('an inherited key of the builtin table is not a built-in policy', async () => {
+    const { policy, remote } = setup('toString', async () => 2);
+    expect(await policy(input)).toBe(2);
+    expect(remote.evaluate).toHaveBeenCalledTimes(1);
   });
 });

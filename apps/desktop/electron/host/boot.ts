@@ -4,11 +4,23 @@ import { createEngine } from '@lms/engine/app';
 import { nodeDefaults } from '@lms/engine/node';
 import type { EngineConfig } from '@lms/engine-contract';
 import { createIsomorphicGitFetcher } from '@lms/engine-git';
-import { createSqlVerifier } from '@lms/engine-sql-runner';
 import { openSqliteStorage, readTraneDirectory } from '@lms/engine-sqlite';
-import { SQL_WORKER_PATH, spawnSqlWorker } from './spawn-worker.ts';
+import {
+  createCatalog,
+  createExtensionPolicy,
+  createExtensionRegistry,
+  createHostChannel,
+  createRemoteExerciseTypes,
+  createRemoteGradePolicies,
+  discoverExtensions,
+} from '@lms/extension-host';
+import { extensionRoots } from '../extension-roots.ts';
 
-export const boot = async (config: EngineConfig) => {
+export const boot = async (
+  config: EngineConfig,
+  /** Синхронный цикл в расширении не прервать: просим main перезапустить хост расширений. */
+  restartExtHost: () => void,
+) => {
   // первый запуск: каталогов ещё нет, библиотека может быть пустой
   mkdirSync(config.libraryRoot, { recursive: true });
   mkdirSync(config.dataDir, { recursive: true });
@@ -32,12 +44,37 @@ export const boot = async (config: EngineConfig) => {
   } catch (error) {
     defaults.logger.warn({ error }, 'legacy settings were not imported');
   }
-  const sqlVerifier = createSqlVerifier({
-    source: defaults.courseSource, // fixture и expected читаются из библиотеки
+  // расширения: манифесты читаем здесь (без запуска кода), код исполняется в хосте расширений
+  const discovery = await discoverExtensions({
+    roots: extensionRoots(config),
     logger: defaults.logger,
-    spawnWorker: spawnSqlWorker,
-    workerPath: SQL_WORKER_PATH,
   });
+  // один канал к хосту расширений: виды заданий и правила оценки делят порт, дедлайны и перезапуск
+  const channel = createHostChannel({
+    logger: defaults.logger,
+    restart: restartExtHost,
+  });
+  // одна политика на каталог, клиентов хоста, реестр и движок: «Настройки → Расширения» действует сразу
+  const policy = createExtensionPolicy(discovery);
+  const catalog = createCatalog(discovery.extensions, policy);
+  const exerciseTypes = createRemoteExerciseTypes({
+    channel,
+    catalog,
+    policy,
+    logger: defaults.logger,
+  });
+  const gradePolicies = createRemoteGradePolicies({
+    channel,
+    catalog,
+    policy,
+    logger: defaults.logger,
+  });
+  if (__LMS_SMOKE_BUILD__ && process.env.LMS_SMOKE === '1') {
+    defaults.logger.info(
+      { types: exerciseTypes.list().map(({ type }) => type) },
+      'exercise types discovered',
+    );
+  }
   const engine = await createEngine(
     {
       ...defaults,
@@ -45,23 +82,13 @@ export const boot = async (config: EngineConfig) => {
       eventStore,
       repositoryStore,
       snapshotFetcher: createIsomorphicGitFetcher(),
-      verifiers: [sqlVerifier],
+      exerciseTypes,
+      gradePolicies,
+      extensionRegistry: createExtensionRegistry(discovery, policy),
+      extensionPolicy: policy,
       openTraneSource: readTraneDirectory,
     },
     config,
   );
-  if (__LMS_SMOKE_BUILD__ && process.env.LMS_SMOKE === '1') {
-    sqlVerifier
-      .info()
-      .then((info) => {
-        defaults.logger.info(
-          { ...info, worker: SQL_WORKER_PATH },
-          'sql runner started',
-        );
-      })
-      .catch((error) => {
-        defaults.logger.warn({ error }, 'sql runner did not start');
-      });
-  }
-  return { engine, logger: defaults.logger };
+  return { engine, logger: defaults.logger, channel };
 };

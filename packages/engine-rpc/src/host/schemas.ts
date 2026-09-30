@@ -1,3 +1,9 @@
+import {
+  BUILTIN_GRADE_POLICY,
+  EXTENSION_ID_PATTERN,
+  GRADE_POLICY_ID_PATTERN,
+  THEME_ID_PATTERN,
+} from '@lms/engine-contract';
 import * as z from 'zod';
 import type {
   AttemptEntryDto,
@@ -31,6 +37,7 @@ const optional = <T extends z.core.SomeType>(schema: T) =>
 
 const unitId = z.string().min(1);
 const str = z.string();
+const extensionId = z.string().min(1).max(64).regex(EXTENSION_ID_PATTERN);
 const num = z.number();
 const int = z.int();
 const bool = z.boolean();
@@ -150,12 +157,6 @@ const exerciseFilter: z.ZodType<ExerciseFilterDto> = z.union([
       definition: studySession,
     }),
   }),
-]);
-
-const submission = z.discriminatedUnion('kind', [
-  z.strictObject({ kind: z.literal('text'), text: str }),
-  z.strictObject({ kind: z.literal('sql'), sql: str }),
-  z.strictObject({ kind: z.literal('json'), value: z.unknown() }),
 ]);
 
 const progressQuery = z.strictObject({
@@ -293,7 +294,7 @@ export const schemas = {
   ]),
   'practice.beginAttempt': z.tuple([z.strictObject({ exerciseId: unitId })]),
   'practice.submitAnswer': z.tuple([
-    z.strictObject({ attemptId: str.min(1), submission }),
+    z.strictObject({ attemptId: str.min(1), answer: z.unknown() }),
   ]),
   'practice.completeAttempt': z.tuple([
     z.strictObject({
@@ -343,6 +344,11 @@ export const schemas = {
   ]),
   'placement.abort': z.tuple([z.strictObject({ sessionId: str.min(1) })]),
   'remediation.getPlan': z.tuple([z.strictObject({ exerciseId: unitId })]),
+  'extensions.list': z.tuple([]),
+  'extensions.contributions': z.tuple([]),
+  'extensions.getSettings': z.tuple([]),
+  'extensions.setEnabled': z.tuple([extensionId, z.boolean()]),
+  'extensions.setTrusted': z.tuple([extensionId, z.boolean()]),
   'curation.blacklist.list': z.tuple([optional(pageRequest)]),
   'curation.blacklist.has': z.tuple([unitId]),
   'curation.blacklist.add': z.tuple([unitId]),
@@ -375,9 +381,20 @@ export const schemas = {
   'settings.getUi': z.tuple([]),
   'settings.setUi': z.tuple([
     z.strictObject({
-      theme: optional(z.enum(['system', 'light', 'dark'])),
+      theme: optional(z.string().max(64).regex(THEME_ID_PATTERN)),
       locale: optional(z.enum(['system', 'ru', 'en'])),
       activeCourseId: optional(unitId.nullable()),
+    }),
+  ]),
+  'settings.getLearning': z.tuple([]),
+  'settings.setLearning': z.tuple([
+    z.strictObject({
+      gradePolicy: optional(
+        z.union([
+          z.literal(BUILTIN_GRADE_POLICY),
+          z.string().max(64).regex(GRADE_POLICY_ID_PATTERN),
+        ]),
+      ),
     }),
   ]),
   'sync.getState': z.tuple([]),

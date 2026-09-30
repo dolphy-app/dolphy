@@ -13,7 +13,10 @@ import { createNodeSnapshotInstaller } from './snapshot-installer.ts';
 export type NodeDefaults = Omit<
   EngineDeps,
   | 'eventStore'
-  | 'verifiers'
+  | 'exerciseTypes'
+  | 'gradePolicies'
+  | 'extensionRegistry'
+  | 'extensionPolicy'
   | 'openTraneSource'
   | 'repositoryStore'
   | 'snapshotFetcher'

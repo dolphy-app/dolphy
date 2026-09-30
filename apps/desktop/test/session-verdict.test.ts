@@ -10,6 +10,7 @@ describe('describeVerdict', () => {
       type: 'success',
       titleKey: 'exercisePanel.verdict.passed',
       reasonKey: null,
+      reasonRaw: null,
       feedback: null,
       retryable: false,
     });
@@ -56,5 +57,19 @@ describe('describeVerdict', () => {
     expect(failed.reasonKey).toBe(
       'exercisePanel.verdict.failedReason.mismatch',
     );
+  });
+
+  it('keeps the raw reason when the extension reason has no translation', () => {
+    const failed = describeVerdict(
+      verdict({ outcome: 'failed', reason: 'acme_custom' }),
+    );
+    expect(failed.reasonKey).toBeNull();
+    expect(failed.reasonRaw).toBe('acme_custom');
+    const error = describeVerdict(
+      verdict({ outcome: 'error', reason: 'acme_broken' }),
+    );
+    expect(error.reasonKey).toBeNull();
+    expect(error.reasonRaw).toBe('acme_broken');
+    expect(error.retryable).toBe(true);
   });
 });

@@ -16,6 +16,7 @@
   "dependencies": {
     "@lms/engine": "workspace:*",
     "@lms/engine-contract": "workspace:*",
+    "@lms/extension-api": "workspace:*",
     "better-sqlite3": "13.0.3"
   },
   "devDependencies": {

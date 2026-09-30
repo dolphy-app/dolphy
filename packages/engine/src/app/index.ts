@@ -30,7 +30,7 @@ export {
 } from './pagination.ts';
 export {
   DEFAULT_GRAPH_LIMIT,
-  DEFAULT_VERIFICATION_TIMEOUT_MS,
+  DEFAULT_EXERCISE_TIMEOUT_MS,
   MAX_GRAPH_LIMIT,
   toCourseDto,
   toExerciseDto,
@@ -61,6 +61,7 @@ export type {
 export { createSyncService } from './services/sync.ts';
 export { createLibraryService } from './services/library.ts';
 export { createCurationService } from './services/curation.ts';
+export { createExtensionsService } from './services/extensions.ts';
 export { createSettingsService } from './services/settings.ts';
 export {
   createRepositoriesService,

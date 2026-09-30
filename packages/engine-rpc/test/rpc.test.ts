@@ -126,6 +126,62 @@ describe('dispatcher validation', () => {
     expect(fake.calls).not.toContain('practice.recordAttempt');
   });
 
+  it('settings.setUi accepts a theme id of an extension and rejects malformed ids', async () => {
+    const { dispatcher } = await connect();
+    const [hostSide, rawSide] = createInProcessPair();
+    dispatcher.attach(hostSide, 'raw-theme');
+    const raw = createRawClient(rawSide);
+    const ok = await raw.call('settings.setUi', [{ theme: 'acme.midnight' }]);
+    expect(ok).toMatchObject({ ok: true });
+    for (const theme of ['Sepia', 'a..b', `a${'b'.repeat(70)}`, 5]) {
+      expect(await raw.call('settings.setUi', [{ theme }])).toMatchObject({
+        ok: false,
+        error: { code: 'INVALID_ARGUMENT' },
+      });
+    }
+  });
+
+  it('settings.setLearning accepts passAtN and extension policy ids, rejects malformed ones', async () => {
+    const { dispatcher } = await connect();
+    const [hostSide, rawSide] = createInProcessPair();
+    dispatcher.attach(hostSide, 'raw-learning');
+    const raw = createRawClient(rawSide);
+    for (const gradePolicy of ['passAtN', 'acme.policy.generous', 'acme']) {
+      expect(
+        await raw.call('settings.setLearning', [{ gradePolicy }]),
+      ).toMatchObject({ ok: true });
+    }
+    for (const gradePolicy of ['Sepia', 'a..b', `a${'b'.repeat(70)}`, 5]) {
+      expect(
+        await raw.call('settings.setLearning', [{ gradePolicy }]),
+      ).toMatchObject({ ok: false, error: { code: 'INVALID_ARGUMENT' } });
+    }
+  });
+
+  it('extensions.setEnabled / setTrusted require an extension id and a boolean', async () => {
+    const { dispatcher } = await connect();
+    const [hostSide, rawSide] = createInProcessPair();
+    dispatcher.attach(hostSide, 'raw-extensions');
+    const raw = createRawClient(rawSide);
+    for (const method of ['extensions.setEnabled', 'extensions.setTrusted']) {
+      expect(await raw.call(method, ['acme.ext', true])).toMatchObject({
+        ok: true,
+      });
+      for (const args of [
+        ['Acme', true],
+        ['', true],
+        [`a${'b'.repeat(70)}`, true],
+        ['acme.ext', 'yes'],
+        ['acme.ext'],
+      ]) {
+        expect(await raw.call(method, args)).toMatchObject({
+          ok: false,
+          error: { code: 'INVALID_ARGUMENT' },
+        });
+      }
+    }
+  });
+
   it('rejects unknown keys, extra arguments and non-array params', async () => {
     const { dispatcher } = await connect();
     const [hostSide, rawSide] = createInProcessPair();
@@ -228,7 +284,7 @@ describe('ordering and events', () => {
     const slow = client.engine.practice
       .submitAnswer({
         attemptId: 'a',
-        submission: { kind: 'sql', sql: 'select 1' },
+        answer: 'select 1',
       })
       .then((value) => {
         order.push('submit');

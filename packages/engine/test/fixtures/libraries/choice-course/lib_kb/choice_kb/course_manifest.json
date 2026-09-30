@@ -1,0 +1,13 @@
+{
+  "dependencies": [],
+  "description": "Choice course with verifiable exercises (KnowledgeBase layout)",
+  "engine": {
+    "requiresChecks": true,
+    "tags": ["choice"]
+  },
+  "generator_config": {
+    "KnowledgeBase": {}
+  },
+  "id": "choice_kb",
+  "name": "Choice (KnowledgeBase)"
+}

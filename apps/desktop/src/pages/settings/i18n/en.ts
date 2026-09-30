@@ -9,6 +9,7 @@ export const en: typeof ru = {
         learning: 'Learning',
         library: 'Library',
         appearance: 'Appearance',
+        extensions: 'Extensions',
         about: 'About the engine',
       },
     },
@@ -19,7 +20,21 @@ export const en: typeof ru = {
         plan: 'Daily plan',
         sessions: 'Sessions',
         remediation: 'Reinforcing the basics',
+        grading: 'Grading',
         experimental: 'Experimental',
+      },
+      gradePolicy: {
+        title: 'Grade rule',
+        description:
+          'How the results of answer checks turn into a grade from 1 to 5.',
+        builtin: 'Built-in',
+        passAtN: {
+          title: "Pass{'@'}N",
+          description:
+            'Correct on the first try — 5, on the second — 4, on the third or later — 3, “Give up” — 1. Check failures are not counted.',
+        },
+        missing:
+          "The selected rule “{id}” is unavailable: its extension was not found. Pass{'@'}N applies for now.",
       },
       targetRetention: {
         title: 'Target retention',
@@ -154,6 +169,60 @@ export const en: typeof ru = {
         system: 'System default',
         ru: 'Русский',
         en: 'English',
+      },
+    },
+    extensions: {
+      title: 'Extensions',
+      subtitle: 'What extensions add: bundled, your own and in development.',
+      listLabel: 'Installed extensions',
+      count: 'no extensions | {n} extension | {n} extensions',
+      refresh: 'Refresh',
+      retry: 'Retry',
+      loadFailed: 'Could not load the list of extensions',
+      empty: 'No extensions.',
+      version: 'Version {version}',
+      points: {
+        exerciseTypes: 'Exercise types',
+        themes: 'Themes',
+        markdownRenderers: 'Content renderers',
+        gradePolicies: 'Grade policies',
+      },
+      origin: {
+        bundled: 'Bundled',
+        user: 'User',
+        dev: 'Development',
+      },
+      state: {
+        loaded: 'Loaded',
+        overridden: 'Overridden',
+        invalid: 'Failed to load',
+        disabled: 'Disabled',
+      },
+      builtIn: 'Built in',
+      isolation: {
+        isolated: 'Isolated',
+        trusted: 'Trusted',
+      },
+      enabledLabel: 'Enabled',
+      trustLabel: 'Trust (no isolation)',
+      trustHint:
+        'A trusted extension runs without isolation: its code runs with the app’s rights and its elements live in the app window and can see its data. Trust only extensions you believe in.',
+      permissionsTitle: 'Permissions',
+      permissionsNone: 'none requested',
+      permissions: {
+        library: { read: 'Read the course library' },
+        process: { spawn: 'Launch processes' },
+        worker: { threads: 'Threads' },
+        native: { addons: 'Native modules' },
+        network: 'Network',
+      },
+      networkCaveat:
+        'Network is declared only, not restricted: the extension can reach the network even when isolated.',
+      switchFailed: 'Could not change the extension setting',
+      reload: {
+        message:
+          'The change applies to new checks right away, while themes and renderers are read at startup: reload the window.',
+        action: 'Reload window',
       },
     },
     about: {

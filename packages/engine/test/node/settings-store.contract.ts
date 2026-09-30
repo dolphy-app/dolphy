@@ -153,12 +153,51 @@ export const describeSettingsStoreContract = (
       expect(await store.loadUi()).toEqual({ theme: 'dark', locale: 'en' });
       await store.saveUi({ theme: 'light', locale: 'ru' });
       expect(await store.loadUi()).toEqual({ theme: 'light', locale: 'ru' });
+      await store.saveUi({ theme: 'acme.midnight', locale: 'ru' });
+      expect(await store.loadUi()).toEqual({
+        theme: 'acme.midnight',
+        locale: 'ru',
+      });
+    });
+
+    it('обучение: по умолчанию passAtN, save → load', async () => {
+      const store = await make();
+      expect(await store.loadLearning()).toEqual({ gradePolicy: 'passAtN' });
+      await store.saveLearning({ gradePolicy: 'acme.policy.generous' });
+      expect(await store.loadLearning()).toEqual({
+        gradePolicy: 'acme.policy.generous',
+      });
+      await store.saveLearning({ gradePolicy: 'passAtN' });
+      expect(await store.loadLearning()).toEqual({ gradePolicy: 'passAtN' });
+    });
+
+    it('расширения: по умолчанию пусто, save → load, списки канонические', async () => {
+      const store = await make();
+      expect(await store.loadExtensions()).toEqual({
+        disabled: [],
+        trusted: [],
+      });
+      await store.saveExtensions({
+        disabled: ['acme.b', 'acme.a', 'acme.b'],
+        trusted: ['acme.z'],
+      });
+      expect(await store.loadExtensions()).toEqual({
+        disabled: ['acme.a', 'acme.b'],
+        trusted: ['acme.z'],
+      });
+      await store.saveExtensions({ disabled: [], trusted: [] });
+      expect(await store.loadExtensions()).toEqual({
+        disabled: [],
+        trusted: [],
+      });
     });
 
     it('значения разных видов не мешают друг другу', async () => {
       const store = await make();
       await store.saveSchedulerOverrides({ batchSize: 3 });
       await store.saveUi({ theme: 'dark', locale: 'ru' });
+      await store.saveLearning({ gradePolicy: 'acme.policy' });
+      await store.saveExtensions({ disabled: ['acme.x'], trusted: [] });
       await store.savePreferences({
         scheduler: null,
         ignored_paths: ['x'],
@@ -166,6 +205,13 @@ export const describeSettingsStoreContract = (
       });
       expect((await store.loadSchedulerOverrides()).batchSize).toBe(3);
       expect(await store.loadUi()).toEqual({ theme: 'dark', locale: 'ru' });
+      expect(await store.loadLearning()).toEqual({
+        gradePolicy: 'acme.policy',
+      });
+      expect(await store.loadExtensions()).toEqual({
+        disabled: ['acme.x'],
+        trusted: [],
+      });
       expect((await store.loadPreferences()).ignored_paths).toEqual(['x']);
     });
   });

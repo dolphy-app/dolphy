@@ -11,7 +11,7 @@ import {
 import type { LibraryStatus } from '../authoring/library-holder.ts';
 import type { LogEntry } from '../domain/journal.ts';
 import type { Library } from '../domain/library.ts';
-import type { StoreTx, Verifier } from '../ports/index.ts';
+import type { StoreTx } from '../ports/index.ts';
 import { createDepthFirstScheduler } from '../scheduler/depth-first-scheduler.ts';
 import { getDue } from '../scheduler/due.ts';
 import { getFrontier } from '../scheduler/frontier.ts';
@@ -28,10 +28,6 @@ import { createReplica } from '../sync/replica.ts';
 import { appendInTx } from '../sync/merge.ts';
 import { createCurrentScoringGraph } from '../state/current-graph.ts';
 import { createProjections } from '../state/projections.ts';
-import {
-  DEFAULT_GRADE_POLICY,
-  GRADE_POLICIES,
-} from '../verify/grade-policy.ts';
 import type {
   CommitInput,
   EngineContext,
@@ -84,12 +80,6 @@ const createMetrics = (startedAt: number): EngineMetrics => {
 const isKnown = (tx: StoreTx, id: string) =>
   tx.findById(id) !== null || tx.conflictRowsById(id).length > 0;
 
-const indexVerifiers = (verifiers: readonly Verifier[]) => {
-  const byRunner = new Map<string, Verifier>();
-  for (const verifier of verifiers) byRunner.set(verifier.runner, verifier);
-  return byRunner;
-};
-
 /**
  * Собирает `EngineContext`: библиотека → настройки и опции → проекции и
  * скорер → перестройка проекций из журнала (engine-ts-electron.md §4).
@@ -138,7 +128,12 @@ export const createContext = async (
       ? await openLibrary(
           courseSource,
           { clock },
-          { compile: { scan: { ignoredPaths: preferences.ignored_paths } } },
+          {
+            compile: {
+              scan: { ignoredPaths: preferences.ignored_paths },
+              checks: { exerciseTypes: deps.exerciseTypes },
+            },
+          },
         )
       : invalidStatus(rootProblem, clock);
   library.swap(status);
@@ -260,6 +255,8 @@ export const createContext = async (
     }
   };
 
+  deps.extensionPolicy.update(await settings.loadExtensions());
+
   const ctx: EngineContext = {
     config,
     clock,
@@ -270,7 +267,9 @@ export const createContext = async (
     courseSource,
     settings,
     memoryModel,
-    verifiers: indexVerifiers(deps.verifiers),
+    exerciseTypes: deps.exerciseTypes,
+    extensionRegistry: deps.extensionRegistry,
+    extensionPolicy: deps.extensionPolicy,
     folderSync: deps.folderSync ?? null,
     openTraneSource: deps.openTraneSource,
     repositoryStore: deps.repositoryStore,
@@ -290,7 +289,8 @@ export const createContext = async (
       ttlMs: OPEN_ATTEMPT_TTL_MS,
       clock,
     }),
-    gradePolicy: GRADE_POLICIES[DEFAULT_GRADE_POLICY],
+    gradePolicies: deps.gradePolicies,
+    learning: { ...(await settings.loadLearning()) },
     journal,
     bus,
     state,

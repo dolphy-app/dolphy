@@ -4,7 +4,15 @@
  * в памяти. Журнал SQLite — `packages/engine-sqlite/test/engine.test.ts`.
  */
 import type { EngineConfig, LearningEngine } from '@lms/engine-contract';
-import { createFakeClock, createSeededRng, createTestIds } from '@lms/testkit';
+import {
+  createFakeClock,
+  createFakeExerciseTypes,
+  createFakeGradePolicies,
+  createFakeExtensionPolicy,
+  createFakeExtensionRegistry,
+  createSeededRng,
+  createTestIds,
+} from '@lms/testkit';
 import { describe, expect, it } from 'vitest';
 import { createEngine } from '../../src/app/index.ts';
 import {
@@ -119,7 +127,10 @@ describe('a profile on disk: nodeDefaults over a copied library', () => {
         rng: createSeededRng(1),
         ids: createTestIds('e'),
         eventStore,
-        verifiers: [],
+        exerciseTypes: createFakeExerciseTypes(),
+        gradePolicies: createFakeGradePolicies(),
+        extensionRegistry: createFakeExtensionRegistry(),
+        extensionPolicy: createFakeExtensionPolicy(),
         repositoryStore: createMemoryRepositoryStore(),
         snapshotFetcher: {
           resolve: async () => {

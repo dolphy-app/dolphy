@@ -1,6 +1,5 @@
 /**
- * Параметры `engine.verification` для `runner: 'sql'` (engine-ts.md §6, пример
- * манифеста): `fixture` и `expected` — пути от корня библиотеки, `reference` —
+ * Параметры `engine.exercise.spec` вида `lms.sql`: `fixture` и `expected` — пути от корня библиотеки, `reference` —
  * эталонное решение (читает компилятор при `--run-checks`, не раннер),
  * остальное — правила сравнения и лимиты.
  */
@@ -12,7 +11,6 @@ export interface SqlCheckParams {
   expected: string;
   reference?: string;
   compare: CompareOptions;
-  timeoutMs?: number;
   maxRows?: number;
   maxBytes?: number;
 }
@@ -28,7 +26,7 @@ export const HARD_MAX_BYTES = 10_000_000;
 const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
 
-export const isSafeRelativePath = (path: string): boolean =>
+export const isSafePath = (path: string): boolean =>
   path !== '' &&
   !path.startsWith('/') &&
   !path.includes('\\') &&
@@ -49,48 +47,36 @@ const bad = (
   message: string,
 ): ParamsResult => ({ ok: false, code, message });
 
-/** Разбирает блок `verification`; ошибка — баг курса (`error/*_error`, не вина ученика). */
-export const parseVerification = (verification: unknown): ParamsResult => {
-  if (!isPlainRecord(verification)) {
-    return bad('fixture_error', 'exercise has no engine.verification');
+/** Разбирает `spec`; ошибка — баг курса (`error/*_error`, не вина ученика). */
+export const parseSpec = (spec: unknown): ParamsResult => {
+  if (!isPlainRecord(spec)) {
+    return bad('fixture_error', 'exercise has no spec');
   }
-  const { fixture, expected, reference } = verification;
-  if (typeof fixture !== 'string' || !isSafeRelativePath(fixture)) {
-    return bad('fixture_error', 'verification.fixture must be a library path');
+  const { fixture, expected, reference } = spec;
+  if (typeof fixture !== 'string' || !isSafePath(fixture)) {
+    return bad('fixture_error', 'spec.fixture must be a library path');
   }
-  if (typeof expected !== 'string' || !isSafeRelativePath(expected)) {
-    return bad(
-      'expected_error',
-      'verification.expected must be a library path',
-    );
+  if (typeof expected !== 'string' || !isSafePath(expected)) {
+    return bad('expected_error', 'spec.expected must be a library path');
   }
   if (
     reference !== undefined &&
-    (typeof reference !== 'string' || !isSafeRelativePath(reference))
+    (typeof reference !== 'string' || !isSafePath(reference))
   ) {
-    return bad(
-      'expected_error',
-      'verification.reference must be a library path',
-    );
+    return bad('expected_error', 'spec.reference must be a library path');
   }
   const compare: CompareOptions = {};
   const { orderSensitive, ignoreColumnNames, numericTolerance, columnOrder } =
-    verification;
+    spec;
   if (orderSensitive !== undefined) {
     if (typeof orderSensitive !== 'boolean') {
-      return bad(
-        'expected_error',
-        'verification.orderSensitive must be boolean',
-      );
+      return bad('expected_error', 'spec.orderSensitive must be boolean');
     }
     compare.orderSensitive = orderSensitive;
   }
   if (ignoreColumnNames !== undefined) {
     if (typeof ignoreColumnNames !== 'boolean') {
-      return bad(
-        'expected_error',
-        'verification.ignoreColumnNames must be boolean',
-      );
+      return bad('expected_error', 'spec.ignoreColumnNames must be boolean');
     }
     compare.ignoreColumnNames = ignoreColumnNames;
   }
@@ -102,7 +88,7 @@ export const parseVerification = (verification: unknown): ParamsResult => {
     ) {
       return bad(
         'expected_error',
-        'verification.numericTolerance must be a number >= 0',
+        'spec.numericTolerance must be a number >= 0',
       );
     }
     compare.numericTolerance = numericTolerance;
@@ -111,7 +97,7 @@ export const parseVerification = (verification: unknown): ParamsResult => {
     if (columnOrder !== 'strict' && columnOrder !== 'any') {
       return bad(
         'expected_error',
-        "verification.columnOrder must be 'strict' or 'any'",
+        "spec.columnOrder must be 'strict' or 'any'",
       );
     }
     compare.columnOrder = columnOrder;
@@ -122,13 +108,13 @@ export const parseVerification = (verification: unknown): ParamsResult => {
     ['maxRows', HARD_MAX_ROWS],
     ['maxBytes', HARD_MAX_BYTES],
   ] as const) {
-    const raw = verification[key];
+    const raw = spec[key];
     if (raw === undefined) continue;
     const value = positiveInt(raw, ceiling);
     if (value === null) {
       return bad(
         'expected_error',
-        `verification.${key} must be an integer in 1..${ceiling}`,
+        `spec.${key} must be an integer in 1..${ceiling}`,
       );
     }
     params[key] = value;

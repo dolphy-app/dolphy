@@ -1,14 +1,53 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { renderMarkdown } from '@/shared/lib/markdown.ts';
+import {
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  useTemplateRef,
+  watch,
+} from 'vue';
+import { useI18n } from 'vue-i18n';
+import { useContributions } from '@/shared/api/engine/contributions.ts';
+import { hydrateMarkdownBlocks } from '@/shared/lib/markdown-blocks.ts';
+import { createMarkdownRenderer } from '@/shared/lib/markdown.ts';
 
 const props = defineProps<{ source: string }>();
-const html = computed(() => renderMarkdown(props.source));
+const { t } = useI18n();
+const contributions = useContributions();
+const root = useTemplateRef<HTMLElement>('root');
+
+const render = computed(() =>
+  createMarkdownRenderer(
+    new Set(contributions.markdownRenderers.map((r) => r.language)),
+  ),
+);
+const html = computed(() => render.value(props.source));
+
+const controller: { current: AbortController | null } = { current: null };
+
+const hydrate = () => {
+  controller.current?.abort();
+  const element = root.value;
+  if (element === null) return;
+  const next = new AbortController();
+  controller.current = next;
+  void hydrateMarkdownBlocks({
+    root: element,
+    renderers: contributions.markdownRenderers,
+    signal: next.signal,
+    describeError: (language) => t('markdown.renderFailed', { language }),
+    describeFrame: (language) => t('markdown.frameTitle', { language }),
+  });
+};
+
+onMounted(hydrate);
+watch(html, hydrate, { flush: 'post' });
+onBeforeUnmount(() => controller.current?.abort());
 </script>
 
 <template>
   <!-- eslint-disable-next-line vue/no-v-html -- markdown-it с html: false -->
-  <div class="markdown" v-html="html" />
+  <div ref="root" class="markdown" v-html="html" />
 </template>
 
 <style scoped>
@@ -59,5 +98,26 @@ const html = computed(() => renderMarkdown(props.source));
 .markdown :deep(td) {
   padding: 0.35em 0.75em;
   border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+.markdown :deep(.lms-md-block) {
+  margin: 1em 0;
+  overflow-x: auto;
+}
+
+.markdown :deep(.lms-md-block[data-state='error']) {
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 12px;
+  opacity: 0.8;
+}
+
+.markdown :deep(.lms-md-block pre) {
+  margin: 0;
+}
+
+.markdown :deep(.lms-md-error) {
+  margin: 0;
+  padding: 0.5em 1em;
+  color: rgba(var(--v-theme-on-surface), var(--v-medium-emphasis-opacity));
+  font-size: 0.875em;
 }
 </style>

@@ -107,6 +107,7 @@ describe('lifecycle shell', () => {
           finishStop = resolve;
         }),
     );
+    const stopExt = vi.fn(async () => undefined);
     createLifecycleShell({
       app: {
         on: (_event, listener) => {
@@ -114,7 +115,7 @@ describe('lifecycle shell', () => {
         },
         quit,
       },
-      supervisor: { stop },
+      supervisors: [{ stop }, { stop: stopExt }],
     }).register();
 
     const first = { preventDefault: vi.fn() };
@@ -128,6 +129,30 @@ describe('lifecycle shell', () => {
     registered.handler?.(second);
     expect(second.preventDefault).not.toHaveBeenCalled();
     expect(stop).toHaveBeenCalledTimes(1);
+    expect(stopExt).toHaveBeenCalledTimes(1);
+  });
+
+  it('хосты останавливаются по очереди: сначала движок, затем расширения', async () => {
+    const registered: {
+      handler?: (event: { preventDefault(): void }) => void;
+    } = {};
+    const order: string[] = [];
+    const quit = vi.fn();
+    createLifecycleShell({
+      app: {
+        on: (_event, listener) => {
+          registered.handler = listener;
+        },
+        quit,
+      },
+      supervisors: [
+        { stop: async () => void order.push('engine') },
+        { stop: async () => void order.push('ext') },
+      ],
+    }).register();
+    registered.handler?.({ preventDefault: vi.fn() });
+    await vi.waitFor(() => expect(quit).toHaveBeenCalledTimes(1));
+    expect(order).toEqual(['engine', 'ext']);
   });
 });
 
@@ -141,8 +166,9 @@ describe('window shell', () => {
   ) => {
     const created: { options: WindowOptions; window: BrowserWindowLike }[] = [];
     const listeners = new Map<string, () => void>();
-    const navigation: { handler: (e: { preventDefault(): void }) => void }[] =
-      [];
+    const navigation: {
+      handler: (e: { preventDefault(): void; url: string }) => void;
+    }[] = [];
     const openHandlers: ((d: { url: string }) => { action: 'deny' })[] = [];
     const openExternal = vi.fn(async () => undefined);
     const loaded: string[] = [];
@@ -154,6 +180,7 @@ describe('window shell', () => {
         on: (_event: 'will-navigate', handler: never) => {
           navigation.push({ handler });
         },
+        getURL: () => 'file:///app/index.html',
         openDevTools: () => undefined,
       };
       declare isMinimized: () => boolean;
@@ -234,8 +261,11 @@ describe('window shell', () => {
     const { navigation, openHandlers, openExternal } = setup();
     await vi.waitFor(() => expect(navigation).toHaveLength(1));
     const preventDefault = vi.fn();
-    navigation[0]?.handler({ preventDefault });
-    expect(preventDefault).toHaveBeenCalled();
+    navigation[0]?.handler({ preventDefault, url: 'https://example.org/' });
+    expect(preventDefault).toHaveBeenCalledTimes(1);
+    // перезагрузка текущей страницы не блокируется
+    navigation[0]?.handler({ preventDefault, url: 'file:///app/index.html' });
+    expect(preventDefault).toHaveBeenCalledTimes(1);
     expect(openHandlers[0]?.({ url: 'https://example.org/' })).toEqual({
       action: 'deny',
     });

@@ -7,10 +7,13 @@ import type { Logger } from '../ports/index.ts';
 import { writeTextAtomic } from '../node/atomic-write.ts';
 import { createNodeFsCourseSource } from '../node/fs-course-source.ts';
 import {
-  loadSqlRunnerVerifiers,
-  VerifiersUnavailableError,
-} from './sql-runner.ts';
-import type { CliVerifiers, CreateVerifiers } from './sql-runner.ts';
+  ExerciseTypesUnavailableError,
+  loadExerciseTypes,
+} from './exercise-types.ts';
+import type {
+  CliExerciseTypes,
+  CreateExerciseTypes,
+} from './exercise-types.ts';
 
 export interface CliIo {
   stdout(text: string): void;
@@ -24,15 +27,17 @@ export const EXIT_USAGE = 2;
 const COMMANDS = ['validate', 'compile'] as const;
 type Command = (typeof COMMANDS)[number];
 
-const USAGE = `usage: engine-cli validate|compile <dir> [--json] [--verbose] [--run-checks] [--out <file>]
+const USAGE = `usage: engine-cli validate|compile <dir> [--json] [--verbose] [--run-checks] [--extensions <dir>]... [--out <file>]
 
   validate <dir>   проверить библиотеку курсов (код выхода 1 при ошибках)
   compile <dir>    проверить и записать артефакт (<dir>/.engine/compiled.json)
 
   --json           машиночитаемый вывод
   --verbose        показывать info-диагностики
-  --run-checks     прогнать эталонные решения (engine.verification.reference)
-                   через раннер; провал — E_REFERENCE_FAILS
+  --extensions <dir>  каталог-корень расширений (подкаталоги <id>/extension.json);
+                   повторяемый флаг; включает проверку spec (E_EXERCISE_SPEC)
+  --run-checks     прогнать эталонные решения через расширения (нужен
+                   --extensions); провал — E_REFERENCE_FAILS
   --out <file>     куда записать артефакт (только compile)
 `;
 
@@ -43,11 +48,12 @@ interface ParsedArgs {
   verbose: boolean;
   out: string | undefined;
   runChecks: boolean;
+  extensions: string[];
 }
 
-/** Внедряемые зависимости CLI: тесты подставляют раннер, по умолчанию — `@lms/engine-sql-runner`. */
+/** Внедряемые зависимости CLI: тесты подставляют каталог видов, по умолчанию — `@lms/extension-host`. */
 export interface CliDeps {
-  createVerifiers?: CreateVerifiers;
+  createExerciseTypes?: CreateExerciseTypes;
 }
 
 /** Предупреждения и ошибки раннера — в stderr одной JSON-строкой. */
@@ -78,13 +84,20 @@ const parseArgs = (argv: readonly string[]): ParseOutcome => {
   let verbose = false;
   let out: string | undefined;
   let runChecks = false;
+  const extensions: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i] as string;
     if (arg === '--help' || arg === '-h') return { help: true };
     if (arg === '--json') json = true;
     else if (arg === '--verbose') verbose = true;
     else if (arg === '--run-checks') runChecks = true;
-    else if (arg === '--out') {
+    else if (arg === '--extensions') {
+      const dir = argv[++i];
+      if (dir === undefined) {
+        return { usageError: '--extensions требует путь к каталогу' };
+      }
+      extensions.push(dir);
+    } else if (arg === '--out') {
       out = argv[++i];
       if (out === undefined)
         return { usageError: '--out требует путь к файлу' };
@@ -108,7 +121,7 @@ const parseArgs = (argv: readonly string[]): ParseOutcome => {
   if (out !== undefined && command !== 'compile') {
     return { usageError: '--out поддерживается только командой compile' };
   }
-  return { command, dir, json, verbose, out, runChecks };
+  return { command, dir, json, verbose, out, runChecks, extensions };
 };
 
 const location = ({ path, line }: Diagnostic) => {
@@ -122,7 +135,7 @@ const formatDiagnostic = (d: Diagnostic) =>
 /**
  * `engine-cli validate|compile <dir>`; `argv` без `node` и имени скрипта.
  * Код выхода: 0 — ошибок нет, 1 — в библиотеке есть `error`, 2 — неверные
- * аргументы или недоступен раннер для `--run-checks`.
+ * аргументы или недоступны расширения для `--extensions`/`--run-checks`.
  */
 export const runCli = async (
   argv: readonly string[],
@@ -138,7 +151,7 @@ export const runCli = async (
     io.stderr(`${parsed.usageError}\n${USAGE}`);
     return EXIT_USAGE;
   }
-  const { command, json, verbose, out, runChecks } = parsed;
+  const { command, json, verbose, out, runChecks, extensions } = parsed;
   const root = resolve(parsed.dir);
   const source = createNodeFsCourseSource(root);
   const rootStat = await source.stat('');
@@ -153,15 +166,20 @@ export const runCli = async (
     const rel = relative(root, resolve(out));
     if (!rel.startsWith('..')) excludeFromRevision.push(rel);
   }
-  let verifiers: CliVerifiers | null = null;
-  if (runChecks) {
+  if (runChecks && extensions.length === 0) {
+    io.stderr(`${command}: --run-checks требует --extensions <dir>\n`);
+    return EXIT_USAGE;
+  }
+  let types: CliExerciseTypes | null = null;
+  if (extensions.length > 0) {
     try {
-      verifiers = await (deps.createVerifiers ?? loadSqlRunnerVerifiers)(
+      types = await (deps.createExerciseTypes ?? loadExerciseTypes)(
         source,
         createStderrLogger(io),
+        extensions.map((dir) => resolve(dir)),
       );
     } catch (error) {
-      if (!(error instanceof VerifiersUnavailableError)) throw error;
+      if (!(error instanceof ExerciseTypesUnavailableError)) throw error;
       io.stderr(`${error.message}\n`);
       return EXIT_USAGE;
     }
@@ -171,13 +189,16 @@ export const runCli = async (
   try {
     result = await compile(source, {
       excludeFromRevision,
-      ...(verifiers === null
+      ...(types === null
         ? {}
-        : { runChecks: { verifiers: verifiers.verifiers } }),
+        : { checks: { exerciseTypes: types.exerciseTypes } }),
+      ...(types === null || !runChecks
+        ? {}
+        : { runChecks: { exerciseTypes: types.exerciseTypes } }),
     });
   } finally {
-    // пул раннера держит дочерние процессы: без close() CLI не завершится
-    await verifiers?.close();
+    // хост расширений держит дочерние процессы: без close() CLI не завершится
+    await types?.close();
   }
   const elapsedMs = performance.now() - started;
   const { summary, artifact, referenceChecks } = result;

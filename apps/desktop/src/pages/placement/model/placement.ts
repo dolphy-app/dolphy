@@ -1,12 +1,12 @@
 import { computed, ref, shallowRef } from 'vue';
 import type {
   ExerciseDto,
+  ExerciseTaskDto,
   Grade,
   LearningEngine,
   PlacementProgressDto,
   PlacementProbeDto,
   PlacementResult,
-  SubmissionDto,
   UnitId,
   VerdictDto,
 } from '@lms/engine-contract';
@@ -48,8 +48,10 @@ export interface CurrentProbe {
   answer: string | null;
   /** Ответ проверяет раннер; иначе ученик ставит себе оценку. */
   verifiable: boolean;
-  /** Что вводит ученик: `sql` для раннера SQL, иначе текст. */
-  submissionKind: 'sql' | 'text';
+  /** Вид задания от расширения; `null` — задание без проверки. */
+  task: ExerciseTaskDto | null;
+  /** Публичный вид для элемента ответа (`project()` расширения). */
+  view: unknown;
   /** Открытая попытка проверяемого упражнения. */
   attemptId: string | null;
   /** Markdown материала урока. */
@@ -146,8 +148,7 @@ export const createPlacement = (
     if (lesson.kind !== 'lesson')
       throw new Error(`${lesson.id} is not a lesson`);
     const material = await readOptionalText(engine, lesson.material);
-    const sql = exercise.verification?.runner === 'sql';
-    const attempt = sql
+    const attempt = exercise.task
       ? await engine.practice.beginAttempt({ exerciseId: exercise.id })
       : null;
     current.value = {
@@ -159,7 +160,8 @@ export const createPlacement = (
       prompt: text.prompt,
       answer: text.answer,
       verifiable: attempt?.verifiable ?? false,
-      submissionKind: sql ? 'sql' : 'text',
+      task: exercise.task ?? null,
+      view: attempt?.view ?? null,
       attemptId: attempt?.attemptId ?? null,
       material,
     };
@@ -280,18 +282,14 @@ export const createPlacement = (
     }
   };
 
-  /** Проверка SQL раннером; засчитывается отдельным шагом `confirm`. */
-  const submit = (text: string) =>
+  /** Проверка ответа расширением; засчитывается отдельным шагом `confirm`. */
+  const submit = (answer: unknown) =>
     guarded(async () => {
       const probe = current.value;
       if (!probe?.verifiable || probe.attemptId === null) return;
-      const submission: SubmissionDto =
-        probe.submissionKind === 'sql'
-          ? { kind: 'sql', sql: text }
-          : { kind: 'text', text };
       verdict.value = await engine.practice.submitAnswer({
         attemptId: probe.attemptId,
-        submission,
+        answer,
       });
     });
 

@@ -1,0 +1,25 @@
+{
+  "name": "@lms/ext-choice",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Расширение lms.choice: задания с выбором вариантов",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
+    "test": "vitest run",
+    "build": "lms-ext build"
+  },
+  "dependencies": {
+    "@lms/extension-api": "workspace:*",
+    "@lms/extension-sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "typescript": "7.0.2",
+    "@lms/extension-tools": "workspace:*",
+    "happy-dom": "^20.14.5"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}

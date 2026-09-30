@@ -1,10 +1,10 @@
 import { fork } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
-import type { RawVerdict, VerifyRequest } from '@lms/engine/ports';
-import { buildExercise, createCapturingLogger } from '@lms/testkit';
+import type { GradeResult } from '@lms/extension-api';
+import { createCapturingLogger } from '@lms/testkit';
 import type { SpawnWorker } from '../../src/pool.ts';
 import { createSqlVerifier } from '../../src/verifier.ts';
-import type { SqlVerifierOptions } from '../../src/verifier.ts';
+import type { SqlCheckInput, SqlVerifierOptions } from '../../src/verifier.ts';
 import { EMP_FIXTURE } from './checks.ts';
 import { createFilesSource } from './files-source.ts';
 import type { MutableFiles } from './files-source.ts';
@@ -17,26 +17,19 @@ export const defaultFiles = (): Record<string, string> => ({
   [EXPECTED_PATH]: 'n\n6\n',
 });
 
-/** Упражнение с проверкой `sql`; `extra` дополняет или переопределяет `verification`. */
-export const sqlExercise = (extra: Record<string, unknown> = {}) =>
-  buildExercise({
-    id: 'sql::select::q1',
-    engine: {
-      verification: {
-        runner: 'sql',
-        fixture: FIXTURE_PATH,
-        expected: EXPECTED_PATH,
-        ...extra,
-      },
-    },
-  });
+/** Спецификация вида `lms.sql`; `extra` дополняет или переопределяет поля. */
+export const sqlSpec = (extra: Record<string, unknown> = {}) => ({
+  fixture: FIXTURE_PATH,
+  expected: EXPECTED_PATH,
+  ...extra,
+});
 
 export const sqlRequest = (
   sql: string,
-  overrides: Partial<VerifyRequest> = {},
-): VerifyRequest => ({
-  exercise: sqlExercise(),
-  submission: { kind: 'sql', sql },
+  overrides: Partial<SqlCheckInput> = {},
+): SqlCheckInput => ({
+  spec: sqlSpec(),
+  answer: sql,
   timeoutMs: 2000,
   authorMode: false,
   ...overrides,
@@ -122,7 +115,7 @@ export const createTestVerifiers = () => {
 };
 
 /** `detail` есть только у `failed`-вердикта в режиме автора. */
-export const detailOf = (verdict: RawVerdict): string | undefined =>
+export const detailOf = (verdict: GradeResult): string | undefined =>
   verdict.outcome === 'failed' ? verdict.detail : undefined;
 
 /** Записи логгера одной строкой (Error → message), чтобы искать по тексту. */

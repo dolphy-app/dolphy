@@ -9,20 +9,23 @@ export interface LifecycleShellDeps {
     ): unknown;
     quit(): void;
   };
-  supervisor: Pick<Supervisor, 'stop'>;
+  /** Порядок остановки: сначала движок, затем хост расширений. */
+  supervisors: readonly Pick<Supervisor, 'stop'>[];
 }
 
-/** Выход из приложения: сначала graceful-остановка хоста (не дольше 5 с, затем kill). */
+/** Выход из приложения: graceful-остановка хостов по очереди (каждый не дольше 5 с, затем kill). */
 export const createLifecycleShell = ({
   app,
-  supervisor,
+  supervisors,
 }: LifecycleShellDeps): Shell => ({
   register: () => {
     let stopped = false;
     app.on('before-quit', (event) => {
       if (stopped) return;
       event.preventDefault();
-      supervisor.stop().finally(() => {
+      (async () => {
+        for (const supervisor of supervisors) await supervisor.stop();
+      })().finally(() => {
         stopped = true;
         app.quit();
       });

@@ -1,9 +1,9 @@
 /** Префильтр — удобство и сокращение поверхности, но не защита (report-sql-runner.md §2). */
 import { describe, expect, it } from 'vitest';
 import { prefilter } from '../../src/prefilter.ts';
-import { DEFAULT_MAX_SQL_CHARS } from '../../src/types.ts';
+import { MAX_SQL_CHARS } from '../../src/types.ts';
 
-const check = (sql: string) => prefilter(sql, DEFAULT_MAX_SQL_CHARS);
+const check = (sql: string) => prefilter(sql, MAX_SQL_CHARS);
 
 describe('prefilter', () => {
   it('принимает SELECT/WITH/VALUES, скобки, комментарии и хвостовую точку с запятой', () => {

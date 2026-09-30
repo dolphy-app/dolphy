@@ -1,5 +1,9 @@
 export { createSqlVerifier } from './verifier.ts';
-export type { SqlVerifier, SqlVerifierOptions } from './verifier.ts';
+export type {
+  SqlCheckInput,
+  SqlVerifier,
+  SqlVerifierOptions,
+} from './verifier.ts';
 export { createPool, defaultPoolSize } from './pool.ts';
 export type {
   PoolOptions,
@@ -17,7 +21,7 @@ export type { PrefilterResult } from './prefilter.ts';
 export { runCheck } from './check.ts';
 export { openSandbox } from './sandbox.ts';
 export type { Sandbox, SandboxStatement } from './sandbox.ts';
-export { parseVerification } from './verification-params.ts';
+export { isSafePath, parseSpec } from './verification-params.ts';
 export type { SqlCheckParams } from './verification-params.ts';
 export { DEFAULT_LIMITS, FULL_HARDENING } from './types.ts';
 export type {

@@ -1,6 +1,6 @@
-export const CONTRACT_VERSION = 2 as const;
-/** Кап длины SQL ученика в символах (`String.length`); хост применяет его до IPC раннера (§9). Длиннее — `failed/sqlite_limit` без запуска раннера. */
-export const MAX_SQL_CHARS = 100_000 as const;
+export const CONTRACT_VERSION = 7 as const;
+/** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
+export const MAX_ANSWER_CHARS = 200_000 as const;
 
 export type UnitId = string;
 export type EpochMs = number;
@@ -27,8 +27,7 @@ export type EngineErrorCode =
   | 'ASSET_TOO_LARGE'
   | 'ATTEMPT_NOT_FOUND'
   | 'ATTEMPT_CLOSED'
-  | 'VERIFIER_UNAVAILABLE'
-  | 'VERIFIER_TIMEOUT'
+  | 'EXERCISE_TYPE_UNAVAILABLE'
   | 'PLACEMENT_SESSION_NOT_FOUND'
   | 'PLACEMENT_SESSION_ACTIVE'
   | 'PLACEMENT_BUDGET_EXHAUSTED'
@@ -63,7 +62,8 @@ export type DiagnosticCode =
   | 'E_ENGINE_SCHEMA'
   | 'W_ENGINE_UNKNOWN_KEY'
   | 'E_ENGINE_DUPLICATE'
-  | 'W_UNKNOWN_RUNNER'
+  | 'W_UNKNOWN_EXERCISE_TYPE'
+  | 'E_EXERCISE_SPEC'
   // идентификаторы
   | 'E_ID_EMPTY'
   | 'E_ID_DUPLICATE'
@@ -111,7 +111,8 @@ export const DIAGNOSTIC_SEVERITY: Record<DiagnosticCode, Severity> = {
   E_ENGINE_SCHEMA: 'error',
   W_ENGINE_UNKNOWN_KEY: 'warning',
   E_ENGINE_DUPLICATE: 'error',
-  W_UNKNOWN_RUNNER: 'warning',
+  W_UNKNOWN_EXERCISE_TYPE: 'warning',
+  E_EXERCISE_SPEC: 'error',
   E_ID_EMPTY: 'error',
   E_ID_DUPLICATE: 'error',
   E_ID_MISMATCH: 'error',
@@ -221,10 +222,14 @@ export type ExerciseContentDto =
   | { type: 'markdown'; ref: AssetRef }
   | { type: 'inlineMarkdown'; text: string };
 
-export interface VerificationSpecDto {
-  runner: string;
+/** Вид задания и элемент ввода ответа, объявленные расширением. */
+export interface ExerciseTaskDto {
+  type: string;
   timeoutMs: number;
-  params: Record<string, unknown>;
+  element: string;
+  rendererUrl: string;
+  /** Расширение не из поставки и не доверенное: элемент ответа исполняется в изолированной рамке. */
+  isolated: boolean;
 }
 export interface ExerciseDto {
   kind: 'exercise';
@@ -235,7 +240,7 @@ export interface ExerciseDto {
   description?: string;
   exerciseType: 'declarative' | 'procedural';
   content: ExerciseContentDto;
-  verification?: VerificationSpecDto;
+  task?: ExerciseTaskDto;
   keyPrerequisites: UnitId[];
 }
 export type UnitDto = CourseDto | LessonDto | ExerciseDto;
@@ -404,45 +409,40 @@ export interface AttemptDto {
   exercise: ExerciseDto;
   startedAt: EpochMs;
   verifiable: boolean;
+  /** Результат `project()` расширения; `null`, если упражнение не проверяемое. */
+  view: unknown;
 }
-export type SubmissionDto =
-  | { kind: 'text'; text: string }
-  | { kind: 'sql'; sql: string }
-  | { kind: 'json'; value: unknown };
 export interface SubmitAnswerRequest {
   attemptId: string;
-  submission: SubmissionDto;
+  answer: unknown;
 }
-export type FailedReason =
-  | 'mismatch'
-  | 'sql_error'
-  | 'forbidden'
-  | 'row_limit'
-  | 'byte_limit'
-  | 'sqlite_limit';
-export type ErrorReason =
-  | 'fixture_error'
-  | 'expected_error'
-  | 'timeout'
-  | 'resource_kill'
-  | 'worker_crash'
-  | 'internal';
-export type VerdictReason = FailedReason | ErrorReason;
+/**
+ * Причины `error`-вердикта, которые порождает хост, а не расширение
+ * (остальные причины открытые строки расширения).
+ */
+export const HOST_ERROR_REASONS = [
+  'timeout',
+  'resource_kill',
+  'worker_crash',
+  'internal',
+] as const;
+export type HostErrorReason = (typeof HOST_ERROR_REASONS)[number];
 
 interface VerdictBase {
   attemptId: string;
   /** Число вердиктов `passed`/`failed` по попытке; `error` не считается. */
   attemptsUsed: number;
   durationMs: number;
-  rowCount?: number;
   feedback?: string;
+  /** Данные расширения, непрозрачны для движка (например, `{ rowCount }` у SQL). */
+  data?: unknown;
 }
 export type VerdictDto =
   | (VerdictBase & { outcome: 'passed' })
   /** Вина ученика. `detail` (ожидаемые строки) — только при `EngineConfig.authorMode`. */
-  | (VerdictBase & { outcome: 'failed'; reason: FailedReason; detail?: string })
+  | (VerdictBase & { outcome: 'failed'; reason: string; detail?: string })
   /** Не вина ученика: журнал не затрагивается, повтор `submitAnswer` разрешён. */
-  | (VerdictBase & { outcome: 'error'; reason: ErrorReason });
+  | (VerdictBase & { outcome: 'error'; reason: string });
 export interface CompleteAttemptRequest {
   attemptId: string;
   grade?: Grade;
@@ -714,12 +714,17 @@ export interface PreferencesDto {
   schedulerBatchSize?: number;
 }
 
+/** Встроенные режимы темы; кроме них `theme` может быть id темы расширения. */
 export type ThemeMode = 'system' | 'light' | 'dark';
+export const BUILTIN_THEMES = ['system', 'light', 'dark'] as const;
+/** Допустимый вид id темы расширения (движок не проверяет, что тема есть). */
+export const THEME_ID_PATTERN = /^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*$/;
 /** `system` — язык системы; renderer сам выбирает из поддерживаемых. */
 export type LocaleMode = 'system' | 'ru' | 'en';
 /** Настройки интерфейса; хранятся вместе с остальными настройками в `engine.db`. */
 export interface UiSettingsDto {
-  theme: ThemeMode;
+  /** Встроенный режим или id темы расширения. */
+  theme: string;
   locale: LocaleMode;
   /** Курс в фокусе: клиент передаёт его в `courseIds` плана и повторений. Нет поля — все курсы. Движок не проверяет, что курс есть в библиотеке: курс могли убрать, клиент сверяет сам. */
   activeCourseId?: UnitId;
@@ -728,6 +733,16 @@ export interface UiSettingsDto {
 export type UiSettingsPatch = Partial<Omit<UiSettingsDto, 'activeCourseId'>> & {
   activeCourseId?: UnitId | null;
 };
+
+/** Id встроенного правила оценки (`pass@N`). */
+export const BUILTIN_GRADE_POLICY = 'passAtN' as const;
+/** Допустимый вид id правила оценки расширения (движок не проверяет, что правило есть). */
+export const GRADE_POLICY_ID_PATTERN = /^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*$/;
+/** Настройки обучения; хранятся вместе с остальными настройками в `engine.db`. */
+export interface LearningSettingsDto {
+  /** `passAtN` или id правила оценки расширения. */
+  gradePolicy: string;
+}
 
 export interface SettingsService {
   getScheduler(): Promise<SchedulerOptionsDto>;
@@ -742,6 +757,11 @@ export interface SettingsService {
   getUi(): Promise<UiSettingsDto>;
   /** Валидирует и сохраняет; возвращает итоговые настройки. */
   setUi(patch: UiSettingsPatch): Promise<UiSettingsDto>;
+  getLearning(): Promise<LearningSettingsDto>;
+  /** Валидирует вид id (существование правила не проверяется) и сохраняет; возвращает итоговые настройки. */
+  setLearning(
+    patch: Partial<LearningSettingsDto>,
+  ): Promise<LearningSettingsDto>;
 }
 
 /** Вектор для дельта-экспорта: `{deviceId: contiguous}` — непрерывный префикс seq (1..contiguous без пропусков), не `maxSeq`. */
@@ -924,7 +944,9 @@ export type EngineEvent =
         | 'sessions'
         | 'blacklist'
         | 'reviewList'
-        | 'ui';
+        | 'ui'
+        | 'learning'
+        | 'extensions';
     }
   | {
       type: 'repository-progress';
@@ -943,6 +965,12 @@ export interface EngineConfig {
   durability?: 'full' | 'normal';
   /** Авторский режим: вердикт `failed` содержит `detail` (ожидаемые строки). По умолчанию false. */
   authorMode?: boolean;
+  /** Каталог расширений из поставки (read-only). */
+  bundledExtensionsDir?: string;
+  /** Каталог пользовательских расширений; побеждает при совпадении id. Оба каталога не заданы — вид заданий недоступен. */
+  userExtensionsDir?: string;
+  /** Каталог разработчика расширений (`LMS_DEV_EXTENSIONS`): корень с наивысшим приоритетом, побеждает пользовательский и поставляемый при совпадении id. */
+  devExtensionsDir?: string;
 }
 
 export interface EngineDiagnosticsDto {
@@ -1019,6 +1047,89 @@ export interface RepositoriesService {
   cancel(id: string): Promise<boolean>;
 }
 
+export type ExtensionOriginDto = 'bundled' | 'user' | 'dev';
+export type ExtensionStateDto =
+  'loaded' | 'overridden' | 'invalid' | 'disabled';
+
+export interface ExtensionInfoDto {
+  /** Id манифеста; у некорректного расширения — имя каталога. */
+  id: string;
+  /** `null`, если манифест не удалось прочитать. */
+  version: string | null;
+  origin: ExtensionOriginDto;
+  state: ExtensionStateDto;
+  /** Вклады по точкам (id/языки); пусто, если расширение не `loaded`/`overridden`. */
+  contributes: ExtensionContributesDto;
+  /** Почему некорректно / кем перекрыто; `null` у загруженного и отключённого. */
+  message: string | null;
+  /** Возможности, объявленные в манифесте; пусто, если манифест не прочитан. */
+  permissions: string[];
+  /** Действующий режим кода и интерфейса: расширения из поставки — всегда `trusted`. */
+  isolation: 'trusted' | 'isolated';
+  /** `false` у расширений из поставки, перекрытых и некорректных: переключатели недоступны. */
+  toggleable: boolean;
+}
+
+export interface ExtensionContributesDto {
+  exerciseTypes: string[];
+  themes: string[];
+  markdownRenderers: string[];
+  gradePolicies: string[];
+}
+
+export interface ThemeContributionDto {
+  id: string;
+  extensionId: string;
+  label: string;
+  dark: boolean;
+  colors: Record<string, string>;
+  variables: Record<string, string | number>;
+}
+
+export interface MarkdownRendererDto {
+  language: string;
+  extensionId: string;
+  /** `lms-ext://<extensionId>/<путь>`. */
+  rendererUrl: string;
+  /** Модуль исполняется в изолированной рамке (расширение не из поставки и не доверенное). */
+  isolated: boolean;
+}
+
+export interface GradePolicyInfoDto {
+  id: string;
+  /** `null` у встроенного правила. */
+  extensionId: string | null;
+  /** `null` у встроенного правила: название переводит окно. */
+  label: string | null;
+}
+
+export interface ContributionsDto {
+  themes: ThemeContributionDto[];
+  markdownRenderers: MarkdownRendererDto[];
+  gradePolicies: GradePolicyInfoDto[];
+}
+
+/** Допустимый вид id расширения (как в манифесте). */
+export const EXTENSION_ID_PATTERN = /^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*$/;
+
+/** Настройки расширений; хранятся вместе с остальными настройками в `engine.db`. */
+export interface ExtensionSettingsDto {
+  /** Отключённые расширения (по id), отсортированы, без повторов. */
+  disabled: string[];
+  /** Доверенные расширения (исполняются без изоляции), отсортированы, без повторов. */
+  trusted: string[];
+}
+
+export interface ExtensionsService {
+  list(): Promise<ExtensionInfoDto[]>;
+  getSettings(): Promise<ExtensionSettingsDto>;
+  /** `NOT_FOUND` — нет такого расширения; `INVALID_ARGUMENT` `{reason:'bundled'}` — расширение из поставки. */
+  setEnabled(id: string, enabled: boolean): Promise<ExtensionSettingsDto>;
+  setTrusted(id: string, trusted: boolean): Promise<ExtensionSettingsDto>;
+  /** Вклады загруженных расширений для окна (только чтение). */
+  contributions(): Promise<ContributionsDto>;
+}
+
 export interface LearningEngine {
   readonly library: LibraryService;
   readonly repositories: RepositoriesService;
@@ -1029,6 +1140,7 @@ export interface LearningEngine {
   readonly plan: PlanService;
   readonly placement: PlacementService;
   readonly remediation: RemediationService;
+  readonly extensions: ExtensionsService;
   diagnostics(): Promise<EngineDiagnosticsDto>;
   /** In-process. По RPC — сообщения `events.subscribe` / `events.unsubscribe` и push `EngineEvent`. */
   subscribe(listener: (event: EngineEvent) => void): () => void;

@@ -1,4 +1,4 @@
-import { MAX_SQL_CHARS } from '@lms/engine-contract';
+import { MAX_ANSWER_CHARS } from '@lms/engine-contract';
 import type {
   AttemptRecordDto,
   BatchDto,
@@ -17,18 +17,19 @@ import type {
   VerdictDto,
 } from '@lms/engine-contract';
 import type { ExerciseManifest } from '../../domain/manifest.ts';
-import type { RawVerdict } from '../../ports/index.ts';
 import { SchedulerError } from '../../scheduler/types.ts';
-import { countGradedVerdicts } from '../../verify/grade-policy.ts';
+import {
+  GRADE_POLICIES,
+  countGradedVerdicts,
+  resolveGradePolicy,
+} from '../../verify/grade-policy.ts';
 import { resolveCourseScope } from '../course-scope.ts';
 import type { EngineContext } from '../context.ts';
-import { DEFAULT_VERIFICATION_TIMEOUT_MS, toExerciseDto } from '../dto.ts';
+import { ExerciseTypeError } from '../../ports/exercise-types.ts';
+import { DEFAULT_EXERCISE_TIMEOUT_MS, toExerciseDto } from '../dto.ts';
 import { EngineError } from '../errors.ts';
 import { paginate } from '../pagination.ts';
 import { createProgressReader } from '../progress.ts';
-
-/** Запас к `timeoutMs` раннера: ожидание в очереди пула входит в дедлайн вызова (engine-ts-api.md §8) [ВЫВОД]. */
-export const VERIFIER_DEADLINE_GRACE_MS = 5_000;
 
 const GRADES: ReadonlySet<unknown> = new Set([1, 2, 3, 4, 5]);
 const SOURCES: ReadonlySet<unknown> = new Set([
@@ -200,20 +201,48 @@ export const createPracticeService = (ctx: EngineContext): PracticeService => {
     }
     ctx.metrics.record('batch', performance.now() - started);
     return {
-      exercises: items.map(({ manifest }) => toExerciseDto(manifest)),
+      exercises: items.map(({ manifest }) =>
+        toExerciseDto(manifest, ctx.exerciseTypes, ctx.extensionPolicy),
+      ),
       reasons: items.map(({ reason }) => reason),
       generatedAt: clock.now(),
       sessionId,
     };
   };
 
+  const unavailable = (error: ExerciseTypeError) =>
+    new EngineError('EXERCISE_TYPE_UNAVAILABLE', {
+      details: { cause: error.cause, type: error.type },
+      cause: error,
+    });
+
   const beginAttempt = async ({ exerciseId }: { exerciseId: UnitId }) => {
     const exercise = library.require().getExercise(exerciseId);
     if (exercise === undefined) {
       throw new EngineError('NOT_FOUND', { details: { exerciseId } });
     }
+    const block = exercise.engine?.exercise;
+    const verifiable = block !== undefined;
+    let view: unknown = null;
+    if (block !== undefined) {
+      if (ctx.exerciseTypes.describe(block.type) === undefined) {
+        throw new EngineError('EXERCISE_TYPE_UNAVAILABLE', {
+          details: { cause: 'unknown-type', type: block.type },
+          retryable: false,
+        });
+      }
+      try {
+        view = await ctx.exerciseTypes.project({
+          type: block.type,
+          exerciseId,
+          spec: block.spec ?? {},
+        });
+      } catch (error) {
+        if (error instanceof ExerciseTypeError) throw unavailable(error);
+        throw error;
+      }
+    }
     const attemptId = ids.next();
-    const verifiable = exercise.engine?.verification !== undefined;
     const startedAt = clock.now();
     attempts.set(attemptId, {
       attemptId,
@@ -226,9 +255,10 @@ export const createPracticeService = (ctx: EngineContext): PracticeService => {
     });
     return {
       attemptId,
-      exercise: toExerciseDto(exercise),
+      exercise: toExerciseDto(exercise, ctx.exerciseTypes, ctx.extensionPolicy),
       startedAt,
       verifiable,
+      view: view ?? null,
     };
   };
 
@@ -240,45 +270,9 @@ export const createPracticeService = (ctx: EngineContext): PracticeService => {
     return attempt;
   };
 
-  const oversizedVerdict = (
-    attemptId: string,
-    attemptsUsed: number,
-  ): VerdictDto => ({
-    outcome: 'failed',
-    reason: 'sqlite_limit',
-    attemptId,
-    attemptsUsed,
-    durationMs: 0,
-  });
-
-  /** Вердикт раннера или дедлайн вызова (`VERIFIER_TIMEOUT`). */
-  const checkWithDeadline = async (
-    check: Promise<RawVerdict>,
-    timeoutMs: number,
-    attemptId: string,
-  ) => {
-    let timer: NodeJS.Timeout | undefined;
-    const deadline = new Promise<never>((_, reject) => {
-      timer = setTimeout(
-        () =>
-          reject(
-            new EngineError('VERIFIER_TIMEOUT', {
-              details: { attemptId, timeoutMs },
-            }),
-          ),
-        timeoutMs + VERIFIER_DEADLINE_GRACE_MS,
-      );
-    });
-    try {
-      return await Promise.race([check, deadline]);
-    } finally {
-      clearTimeout(timer);
-    }
-  };
-
   const submitAnswer = async ({
     attemptId,
-    submission,
+    answer,
   }: SubmitAnswerRequest): Promise<VerdictDto> => {
     const attempt = openAttempt(attemptId);
     if (attempt.result !== null) {
@@ -291,40 +285,39 @@ export const createPracticeService = (ctx: EngineContext): PracticeService => {
       });
     }
     const exercise = library.require().getExercise(attempt.exerciseId);
-    const verification = exercise?.engine?.verification;
-    if (exercise === undefined || verification === undefined) {
+    const block = exercise?.engine?.exercise;
+    if (exercise === undefined || block === undefined) {
       throw new EngineError('NOT_FOUND', {
         details: { exerciseId: attempt.exerciseId },
       });
     }
-    const { runner } = verification;
-    const timeoutMs = verification.timeoutMs ?? DEFAULT_VERIFICATION_TIMEOUT_MS;
-    const verifier = ctx.verifiers.get(runner); // Strategy через Map
-    if (verifier === undefined) {
-      throw new EngineError('VERIFIER_UNAVAILABLE', {
-        details: { cause: 'no-runner', runner },
-        retryable: false,
-      });
+    let serialized: string | undefined;
+    try {
+      serialized = JSON.stringify(answer);
+    } catch {
+      serialized = undefined;
+    }
+    if (serialized === undefined) {
+      throw invalid({ attemptId, reason: 'answer-not-json' });
+    }
+    if (serialized.length > MAX_ANSWER_CHARS) {
+      throw invalid({ attemptId, reason: 'answer-too-large' });
+    }
+    const issues = ctx.exerciseTypes.validateAnswer(block.type, answer);
+    if (issues.length > 0) {
+      throw invalid({ attemptId, reason: 'answer', issues });
     }
     const used = countGradedVerdicts(attempt.verdicts);
-    // кап хоста до раннера: длиннее — `failed/sqlite_limit` без запуска
-    if (submission.kind === 'sql' && submission.sql.length > MAX_SQL_CHARS) {
-      const verdict = oversizedVerdict(attemptId, used + 1);
-      attempt.verdicts.push(verdict);
-      return verdict;
-    }
     attempt.busy = true; // критическая секция вокруг await: один вердикт за раз
     try {
-      const raw = await checkWithDeadline(
-        verifier.check({
-          exercise,
-          submission,
-          timeoutMs,
-          authorMode: ctx.config.authorMode ?? false,
-        }),
-        timeoutMs,
-        attemptId,
-      );
+      const raw = await ctx.exerciseTypes.grade({
+        type: block.type,
+        exerciseId: attempt.exerciseId,
+        spec: block.spec ?? {},
+        answer,
+        timeoutMs: block.timeoutMs ?? DEFAULT_EXERCISE_TIMEOUT_MS,
+        authorMode: ctx.config.authorMode ?? false,
+      });
       const attemptsUsed = raw.outcome === 'error' ? used : used + 1;
       const verdict = { ...raw, attemptId, attemptsUsed } as VerdictDto;
       if (verdict.outcome === 'failed' && ctx.config.authorMode !== true) {
@@ -351,7 +344,12 @@ export const createPracticeService = (ctx: EngineContext): PracticeService => {
     const gaveUp = outcome === 'gave-up';
     const derived =
       attempt.verifiable || gaveUp
-        ? ctx.gradePolicy({ verdicts: attempt.verdicts, gaveUp })
+        ? await resolveGradePolicy({
+            selectedId: ctx.learning.gradePolicy,
+            builtin: GRADE_POLICIES,
+            remote: ctx.gradePolicies,
+            logger: ctx.logger,
+          })({ verdicts: attempt.verdicts, gaveUp })
         : null;
     const finalGrade: Grade | null = derived ?? grade ?? null;
     if (finalGrade === null) {

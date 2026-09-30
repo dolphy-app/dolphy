@@ -11,6 +11,10 @@ import type {
 import {
   createCapturingLogger,
   createFakeClock,
+  createFakeExerciseTypes,
+  createFakeExtensionPolicy,
+  createFakeExtensionRegistry,
+  createFakeGradePolicies,
   createMemoryCourseSource,
   createSeededRng,
   createTestIds,
@@ -39,8 +43,11 @@ import type {
   RepositoryStore,
   SettingsStore,
   SnapshotInstaller,
-  Verifier,
 } from '../../src/ports/index.ts';
+import type { ExerciseTypes } from '../../src/ports/exercise-types.ts';
+import type { GradePolicies } from '../../src/ports/grade-policies.ts';
+import type { ExtensionPolicy } from '../../src/ports/extension-policy.ts';
+import type { ExtensionRegistry } from '../../src/ports/extension-registry.ts';
 import { createTsFsrsMemoryModel } from '../../src/scoring/memory-model.ts';
 import { LIBRARIES_DIR } from './fixtures.ts';
 
@@ -61,7 +68,10 @@ export interface TestEngineOptions {
   eventStore?: EventStore;
   deviceId?: string;
   settings?: SettingsStore;
-  verifiers?: readonly Verifier[];
+  exerciseTypes?: ExerciseTypes;
+  gradePolicies?: GradePolicies;
+  extensionRegistry?: ExtensionRegistry;
+  extensionPolicy?: ExtensionPolicy;
   clock?: FakeClock;
   seed?: number;
   config?: Partial<EngineConfig>;
@@ -150,7 +160,11 @@ export const createTestContext = async (
     eventStore,
     settings,
     memoryModel: createTsFsrsMemoryModel(),
-    verifiers: options.verifiers ?? [],
+    exerciseTypes: options.exerciseTypes ?? createFakeExerciseTypes(),
+    gradePolicies: options.gradePolicies ?? createFakeGradePolicies(),
+    extensionRegistry:
+      options.extensionRegistry ?? createFakeExtensionRegistry(),
+    extensionPolicy: options.extensionPolicy ?? createFakeExtensionPolicy(),
     repositoryStore,
     snapshotFetcher: options.snapshotFetcher ?? offlineFetcher,
     snapshotInstaller:

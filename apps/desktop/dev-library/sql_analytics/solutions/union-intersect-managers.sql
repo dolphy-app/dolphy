@@ -1,0 +1,1 @@
+SELECT id FROM emp INTERSECT SELECT mgr_id FROM emp;

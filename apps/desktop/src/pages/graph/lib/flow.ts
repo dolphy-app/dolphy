@@ -94,14 +94,24 @@ const MARKER = {
 
 const EDGE_CLASS = { dependency: 'edge-dependency', cover: 'edge-cover' };
 
+/** Тексты рёбер: подпись веса на линии и описание для чтения с экрана. */
+export interface EdgeLabels {
+  weight: (weight: number) => string;
+  /** `from` требует `to`. */
+  dependency: (from: UnitId, to: UnitId) => string;
+  /** `from` охватывает `to`. */
+  cover: (from: UnitId, to: UnitId, weight: number) => string;
+}
+
 /**
  * Рёбра: зависимости — от пререквизита к уроку; охват — пунктиром поверх, с
- * подписью веса (`weightLabel`), только при `showCovers`.
+ * подписью веса, только при `showCovers`. У каждого ребра есть описание для
+ * чтения с экрана (`role="img"` без имени — нарушение доступности).
  */
 export const buildEdges = (
   view: GraphView,
   showCovers: boolean,
-  weightLabel: (weight: number) => string,
+  labels: EdgeLabels,
 ): Edge[] => {
   const edges: Edge[] = view.dependencies.map(({ from, to }) => ({
     id: `dependency:${to}->${from}`,
@@ -114,7 +124,7 @@ export const buildEdges = (
     markerEnd: MARKER,
     focusable: false,
     selectable: false,
-    ariaLabel: null,
+    ariaLabel: labels.dependency(from, to),
     zIndex: 1,
   }));
   if (showCovers) {
@@ -127,11 +137,11 @@ export const buildEdges = (
         targetHandle: HANDLE.coverIn,
         type: 'default',
         class: EDGE_CLASS.cover,
-        label: weightLabel(weight),
+        label: labels.weight(weight),
         markerEnd: MARKER,
         focusable: false,
         selectable: false,
-        ariaLabel: null,
+        ariaLabel: labels.cover(from, to, weight),
         zIndex: 2,
       });
     }

@@ -64,6 +64,7 @@ const canStart = computed(() => props.intro.lessonCount > 0);
       </div>
       <v-slider
         id="placement-budget"
+        :aria-label="t('placement.intro.budget')"
         v-model="budget"
         :min="1"
         :max="intro.maxBudget"

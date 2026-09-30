@@ -54,6 +54,8 @@ export const ru = {
     },
     edge: {
       weight: 'Охват {weight}',
+      dependencyAria: '«{lesson}» требует «{prerequisite}»',
+      coverAria: '«{lesson}» охватывает «{covered}», вес {weight}',
     },
     panel: {
       label: 'Сведения об уроке',

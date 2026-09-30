@@ -56,6 +56,8 @@ export const en: typeof ru = {
     },
     edge: {
       weight: 'Coverage {weight}',
+      dependencyAria: '“{lesson}” requires “{prerequisite}”',
+      coverAria: '“{lesson}” covers “{covered}”, weight {weight}',
     },
     panel: {
       label: 'Lesson details',

@@ -31,7 +31,12 @@ const light: ThemeDefinition = {
     'hero-start': '#4F46E5',
     'hero-end': '#7C3AED',
   },
-  variables: { 'border-color': '#1E1B4B', 'border-opacity': 0.1 },
+  // подписи полей и вторичный текст: 0.60 давал 4.21:1 на фоне `background`
+  variables: {
+    'border-color': '#1E1B4B',
+    'border-opacity': 0.1,
+    'medium-emphasis-opacity': 0.72,
+  },
 };
 
 const dark: ThemeDefinition = {

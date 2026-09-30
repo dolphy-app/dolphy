@@ -219,7 +219,11 @@ describe('buildEdges', () => {
     graph: GRAPH,
     progress: PROGRESS,
   });
-  const label = (weight: number) => `w${weight}`;
+  const label = {
+    weight: (weight: number) => `w${weight}`,
+    dependency: (from: string, to: string) => `${from} requires ${to}`,
+    cover: (from: string, to: string) => `${from} covers ${to}`,
+  };
 
   it('зависимость рисуется от пререквизита к уроку', () => {
     const [edge] = buildEdges(view, false, label);
@@ -235,6 +239,12 @@ describe('buildEdges', () => {
       target: 'c1::a',
       label: 'w0.4',
     });
+  });
+
+  it('у каждого ребра есть описание для чтения с экрана', () => {
+    const [dependency, cover] = buildEdges(view, true, label);
+    expect(dependency?.ariaLabel).toBe('c1::b requires c1::a');
+    expect(cover?.ariaLabel).toBe('c1::b covers c1::a');
   });
 
   it('id рёбер уникальны', () => {

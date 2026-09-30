@@ -19,6 +19,9 @@ const MIN_ZOOM = 0.05;
 const MAX_ZOOM = 1.5;
 const FIT_PADDING = 0.08;
 const FOCUS_ZOOM = 0.6;
+/** Ниже этого масштаба подписи узлов не читаются: стартовый вид не «вписывает» весь граф. */
+const READABLE_ZOOM = 0.85;
+const START_MARGIN = 48;
 const FOCUS_FRAMES = 6;
 const ZOOM_STEP_MS = 150;
 
@@ -43,10 +46,23 @@ const activeId = ref<UnitId | null>(null);
 const structure = computed(() => props.laidOut.structure);
 const layout = computed(() => props.laidOut.layout);
 const nodes = computed(() => buildNodes(structure.value, layout.value));
+const lessonName = (id: UnitId) => props.view.lessons.get(id)?.name ?? id;
 const edges = computed(() =>
-  buildEdges(structure.value, props.showCovers, (weight) =>
-    t('graph.edge.weight', { weight: n(weight, { style: 'percent' }) }),
-  ),
+  buildEdges(structure.value, props.showCovers, {
+    weight: (weight) =>
+      t('graph.edge.weight', { weight: n(weight, { style: 'percent' }) }),
+    dependency: (from, to) =>
+      t('graph.edge.dependencyAria', {
+        lesson: lessonName(from),
+        prerequisite: lessonName(to),
+      }),
+    cover: (from, to, weight) =>
+      t('graph.edge.coverAria', {
+        lesson: lessonName(from),
+        covered: lessonName(to),
+        weight: n(weight, { style: 'percent' }),
+      }),
+  }),
 );
 const legend = computed(() => legendStatuses(props.view));
 
@@ -71,6 +87,35 @@ const fit = () => {
   return fitBounds(
     { x: 0, y: 0, width, height },
     { padding: FIT_PADDING, duration: 0 },
+  );
+};
+
+/** Откуда начинать: первый по раскладке урок, доступный к изучению, иначе первый вообще. */
+const startLessonId = computed(() => {
+  const lessons = [...layout.value.absolute].sort(
+    ([, a], [, b]) => a.x - b.x || a.y - b.y,
+  );
+  const open = lessons.find(([id]) => {
+    const status = props.view.lessons.get(id)?.status;
+    return status === 'ready' || status === 'in-progress';
+  });
+  return (open ?? lessons[0])?.[0] ?? null;
+});
+
+/**
+ * Стартовый вид: весь граф, если подписи при этом читаются, иначе читаемый
+ * масштаб у первого доступного урока (весь граф — кнопкой «вписать»).
+ */
+const arrive = async () => {
+  await fit();
+  if (viewport.value.zoom >= READABLE_ZOOM) return;
+  const point =
+    startLessonId.value && layout.value.absolute.get(startLessonId.value);
+  if (!point) return;
+  await setCenter(
+    point.x + (dimensions.value.width / 2 - START_MARGIN) / READABLE_ZOOM,
+    point.y + NODE_HEIGHT / 2,
+    { zoom: READABLE_ZOOM, duration: 0 },
   );
 };
 
@@ -141,7 +186,7 @@ watch(
   () => props.selectedId,
   (id) => id !== null && void reveal(id),
 );
-watch(structure, () => void nextTick(fit), { immediate: true });
+watch(structure, () => void nextTick(arrive), { immediate: true });
 
 const controls = computed(() => [
   {
@@ -202,12 +247,10 @@ const controls = computed(() => [
         size="small"
         variant="tonal"
         :aria-label="control.label"
+        :title="control.label"
         @click="control.act"
       >
         <v-icon :icon="control.icon" />
-        <v-tooltip activator="parent" location="left">
-          {{ control.label }}
-        </v-tooltip>
       </v-btn>
     </div>
 
@@ -216,12 +259,13 @@ const controls = computed(() => [
       role="group"
       :aria-label="t('graph.legend.title')"
     >
-      <div class="overline-label mb-2">{{ t('graph.legend.title') }}</div>
+      <div class="overline-label mb-1">{{ t('graph.legend.title') }}</div>
       <ul class="legend-list">
         <li
           v-for="status in legend"
           :key="status"
           class="d-flex align-center ga-2"
+          :title="t(`graph.statusHint.${status}`)"
         >
           <v-icon
             :icon="STATUS_VIEW[status].icon"
@@ -231,9 +275,6 @@ const controls = computed(() => [
           <span class="text-label-large">
             {{ t(`graph.status.${status}`) }}
           </span>
-          <v-tooltip activator="parent" location="right">
-            {{ t(`graph.statusHint.${status}`) }}
-          </v-tooltip>
         </li>
       </ul>
     </v-card>
@@ -294,12 +335,13 @@ const controls = computed(() => [
   bottom: 12px;
   left: 12px;
   z-index: 10;
+  max-width: calc(100% - 24px);
 }
 
 .legend-list {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 6px 16px;
   padding: 0;
   list-style: none;
 }

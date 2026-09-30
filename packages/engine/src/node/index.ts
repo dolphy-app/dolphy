@@ -36,3 +36,6 @@ export type {
 } from './defaults.ts';
 export { createNodeFolderSyncPort } from './folder-sync-port.ts';
 export type { NodeFolderSyncPortDeps } from './folder-sync-port.ts';
+export { createMemoryRepositoryStore } from './memory-repository-store.ts';
+export { createNodeSnapshotInstaller } from './snapshot-installer.ts';
+export type { NodeSnapshotInstallerDeps } from './snapshot-installer.ts';

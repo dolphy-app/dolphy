@@ -29,6 +29,9 @@ import type {
   MemoryModel,
   Rng,
   SettingsStore,
+  GitSnapshotFetcher,
+  RepositoryStore,
+  SnapshotInstaller,
   Verifier,
 } from '../ports/index.ts';
 import type { FsrsScorer } from '../scoring/fsrs-scorer.ts';
@@ -87,6 +90,12 @@ export interface EngineDeps {
   folderSync?: FolderSyncPort;
   /** Чтение каталога `.trane` (`readTraneDirectory` из `@lms/engine-sqlite`); нет — `importFromTrane` отказывает. */
   openTraneSource?: (traneDir: string) => TraneSource | Promise<TraneSource>;
+  /** Реестр git-репозиториев (`repositories.*`); SQLite или память. */
+  repositoryStore: RepositoryStore;
+  /** Получение снимков по `http(s)`; `createIsomorphicGitFetcher` из `@lms/engine-git`. */
+  snapshotFetcher: GitSnapshotFetcher;
+  /** Подмена каталогов снимков; `createNodeSnapshotInstaller` из `@lms/engine/node`. */
+  snapshotInstaller: SnapshotInstaller;
 }
 
 /* -------------------------------- проекции -------------------------------- */
@@ -275,6 +284,9 @@ export interface EngineContext extends FacadeContext {
   readonly verifiers: ReadonlyMap<string, Verifier>;
   readonly folderSync: FolderSyncPort | null;
   readonly openTraneSource: EngineDeps['openTraneSource'];
+  readonly repositoryStore: RepositoryStore;
+  readonly snapshotFetcher: GitSnapshotFetcher;
+  readonly snapshotInstaller: SnapshotInstaller;
   /** `current()` / `require()` / `swap()` — атомарная подмена. */
   readonly library: LibraryHolder;
   readonly projections: Projections;

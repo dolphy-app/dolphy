@@ -26,13 +26,19 @@ import { createContext, createEngineFromContext } from '../../src/app/index.ts';
 import type { EngineContext, EngineDeps } from '../../src/app/index.ts';
 import {
   createMemoryEventStore,
+  createMemoryRepositoryStore,
   createMemorySettingsStore,
   createNodeFsCourseSource,
+  createNodeSnapshotInstaller,
 } from '../../src/node/index.ts';
+import { GitFetchError } from '../../src/ports/index.ts';
 import type {
   CourseSource,
   EventStore,
+  GitSnapshotFetcher,
+  RepositoryStore,
   SettingsStore,
+  SnapshotInstaller,
   Verifier,
 } from '../../src/ports/index.ts';
 import { createTsFsrsMemoryModel } from '../../src/scoring/memory-model.ts';
@@ -61,6 +67,11 @@ export interface TestEngineOptions {
   config?: Partial<EngineConfig>;
   folderSync?: EngineDeps['folderSync'];
   openTraneSource?: EngineDeps['openTraneSource'];
+  repositoryStore?: RepositoryStore;
+  /** По умолчанию — без сети (`GIT_FETCH_FAILED/network`). */
+  snapshotFetcher?: GitSnapshotFetcher;
+  /** По умолчанию — `createNodeSnapshotInstaller` над `libraryRoot` и `dataDir`. */
+  snapshotInstaller?: SnapshotInstaller;
 }
 
 export interface TestContext {
@@ -101,6 +112,16 @@ const sourceOf = (library: TestEngineOptions['library']): CourseSource => {
   return isCourseLibrary(library) ? createMemoryCourseSource(library) : library;
 };
 
+/** Сети нет: `repositories.add` падает `GIT_FETCH_FAILED/network`. */
+const offlineFetcher: GitSnapshotFetcher = {
+  resolve: async () => {
+    throw new GitFetchError('network', 'offline');
+  },
+  fetchSnapshot: async () => {
+    throw new GitFetchError('network', 'offline');
+  },
+};
+
 export const createTestContext = async (
   options: TestEngineOptions = {},
 ): Promise<TestContext> => {
@@ -113,6 +134,13 @@ export const createTestContext = async (
     options.eventStore ??
     createMemoryEventStore({ deviceId: options.deviceId ?? 'device-a' });
   const settings = options.settings ?? createMemorySettingsStore();
+  const config: EngineConfig = {
+    libraryRoot: source.root,
+    dataDir: '/tmp/engine-test-data',
+    ...options.config,
+  };
+  const repositoryStore =
+    options.repositoryStore ?? createMemoryRepositoryStore();
   const deps: EngineDeps = {
     clock,
     rng,
@@ -123,15 +151,18 @@ export const createTestContext = async (
     settings,
     memoryModel: createTsFsrsMemoryModel(),
     verifiers: options.verifiers ?? [],
+    repositoryStore,
+    snapshotFetcher: options.snapshotFetcher ?? offlineFetcher,
+    snapshotInstaller:
+      options.snapshotInstaller ??
+      createNodeSnapshotInstaller({
+        libraryRoot: config.libraryRoot,
+        dataDir: config.dataDir,
+      }),
     ...(options.folderSync !== undefined && { folderSync: options.folderSync }),
     ...(options.openTraneSource !== undefined && {
       openTraneSource: options.openTraneSource,
     }),
-  };
-  const config: EngineConfig = {
-    libraryRoot: source.root,
-    dataDir: '/tmp/engine-test-data',
-    ...options.config,
   };
   const ctx = await createContext(deps, config);
   return { ctx, deps, clock, rng, ids, source, eventStore, settings, logs };

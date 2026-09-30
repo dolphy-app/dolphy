@@ -8,10 +8,15 @@ import { createTsFsrsMemoryModel } from '../scoring/memory-model.ts';
 import { createNodeFsCourseSource } from './fs-course-source.ts';
 import { createNodeFolderSyncPort } from './folder-sync-port.ts';
 import { createJsonSettingsStore } from './json-settings-store.ts';
+import { createNodeSnapshotInstaller } from './snapshot-installer.ts';
 
 export type NodeDefaults = Omit<
   EngineDeps,
-  'eventStore' | 'verifiers' | 'openTraneSource'
+  | 'eventStore'
+  | 'verifiers'
+  | 'openTraneSource'
+  | 'repositoryStore'
+  | 'snapshotFetcher'
 >;
 
 export const createSystemClock = (): Clock => ({ now: () => Date.now() });
@@ -152,5 +157,9 @@ export const nodeDefaults = (config: EngineConfig): NodeDefaults => {
     }),
     memoryModel: createTsFsrsMemoryModel(),
     folderSync: createNodeFolderSyncPort(config, { logger }),
+    snapshotInstaller: createNodeSnapshotInstaller({
+      libraryRoot: config.libraryRoot,
+      dataDir: config.dataDir,
+    }),
   };
 };

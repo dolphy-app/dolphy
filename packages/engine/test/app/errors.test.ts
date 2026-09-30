@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { ERRORS, EngineError, createErrorMapper } from '../../src/app/index.ts';
 
 describe('EngineError', () => {
-  it('has all 22 codes of API §8 with the documented default retryable', () => {
-    expect(Object.keys(ERRORS)).toHaveLength(22);
+  it('has all 25 codes (API §8 and repositories) with the documented default retryable', () => {
+    expect(Object.keys(ERRORS)).toHaveLength(25);
     const retryable = Object.entries(ERRORS)
       .filter(([, spec]) => spec.retryable)
       .map(([code]) => code)
@@ -16,6 +16,21 @@ describe('EngineError', () => {
       'VERIFIER_TIMEOUT',
       'VERIFIER_UNAVAILABLE',
     ]);
+  });
+
+  it('GIT_FETCH_FAILED is retryable only for network, timeout and cancellation', () => {
+    const retryable = (reason: string) =>
+      new EngineError('GIT_FETCH_FAILED', { details: { reason } }).retryable;
+    expect(['network', 'timeout', 'cancelled'].map(retryable)).toEqual([
+      true,
+      true,
+      true,
+    ]);
+    expect(
+      ['not-found', 'auth-required', 'ref-not-found', 'too-large'].map(
+        retryable,
+      ),
+    ).toEqual([false, false, false, false]);
   });
 
   it('VERIFIER_UNAVAILABLE is not retryable without a runner', () => {

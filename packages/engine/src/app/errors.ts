@@ -54,6 +54,16 @@ export const ERRORS: Record<EngineErrorCode, ErrorSpec> = {
   STORE_BUSY: { message: 'Store is busy', retryable: true },
   STORE_READONLY: { message: 'Store is read-only', retryable: false },
   STORE_CORRUPT: { message: 'Store is corrupt', retryable: false },
+  REPOSITORY_EXISTS: {
+    message: 'Repository is already added',
+    retryable: false,
+  },
+  REPOSITORY_REJECTED: {
+    message: 'Repository snapshot was rejected',
+    retryable: false,
+  },
+  // retryable зависит от details.reason: network, timeout, cancelled → true
+  GIT_FETCH_FAILED: { message: 'Git fetch failed', retryable: false },
   INTERNAL: { message: 'Internal engine error', retryable: true },
 };
 
@@ -69,6 +79,12 @@ const defaultRetryable = (
   details: Record<string, unknown> | undefined,
 ): boolean => {
   if (code === 'VERIFIER_UNAVAILABLE') return details?.cause !== 'no-runner';
+  if (code === 'GIT_FETCH_FAILED') {
+    const reason = details?.reason;
+    return (
+      reason === 'network' || reason === 'timeout' || reason === 'cancelled'
+    );
+  }
   return ERRORS[code].retryable;
 };
 

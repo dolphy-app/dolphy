@@ -7,7 +7,12 @@ import type { EngineConfig, LearningEngine } from '@lms/engine-contract';
 import { createFakeClock, createSeededRng, createTestIds } from '@lms/testkit';
 import { describe, expect, it } from 'vitest';
 import { createEngine } from '../../src/app/index.ts';
-import { createMemoryEventStore, nodeDefaults } from '../../src/node/index.ts';
+import {
+  createMemoryEventStore,
+  createMemoryRepositoryStore,
+  nodeDefaults,
+} from '../../src/node/index.ts';
+import { GitFetchError } from '../../src/ports/index.ts';
 import type { EventStore } from '../../src/ports/index.ts';
 import { FIXTURE_LIBRARIES, createTestEngine } from '../helpers/engine.ts';
 import { useTmpDirs } from '../helpers/tmp.ts';
@@ -115,6 +120,15 @@ describe('a profile on disk: nodeDefaults over a copied library', () => {
         ids: createTestIds('e'),
         eventStore,
         verifiers: [],
+        repositoryStore: createMemoryRepositoryStore(),
+        snapshotFetcher: {
+          resolve: async () => {
+            throw new GitFetchError('network', 'offline');
+          },
+          fetchSnapshot: async () => {
+            throw new GitFetchError('network', 'offline');
+          },
+        },
       },
       config,
     );

@@ -76,4 +76,21 @@ describe('createEventBus', () => {
     bus.flush();
     expect(seen).toEqual([1, 2, 2]);
   });
+
+  it('publish delivers at once and leaves the buffer alone', () => {
+    const { logger } = createCapturingLogger();
+    const bus = createEventBus(logger);
+    const seen: EngineEvent[] = [];
+    bus.subscribe((event) => seen.push(event));
+    bus.emit(progress(1));
+    bus.publish(progress(2));
+    expect(seen).toEqual([progress(2)]);
+    bus.discard();
+    bus.flush();
+    expect(seen).toEqual([progress(2)]);
+    bus.emit(progress(3));
+    bus.publish(progress(4));
+    bus.flush();
+    expect(seen).toEqual([progress(2), progress(4), progress(3)]);
+  });
 });

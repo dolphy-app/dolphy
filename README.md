@@ -50,4 +50,6 @@ git submodule update --remote vendor/metaskills && scripts/link-skills.sh   # о
 
 Скилл `vue-design-reviewer` (`.agents/skills/vue-design-reviewer`, симлинк в `.claude/skills/`) — визуальный review страницы или компонента Vue; для компонентов со stories проверка идёт через Storybook, по умолчанию только отчёт. Основан на [web-design-reviewer](https://github.com/github/awesome-copilot/blob/main/skills/web-design-reviewer/SKILL.md) из github/awesome-copilot, браузер — встроенный `browser` omp вместо Playwright MCP.
 
+Скилл [`vue-i18n-skilld`](https://github.com/skilld-dev/vue-ecosystem-skills/tree/main/skills/vue-i18n-skilld) (skilld-dev/vue-ecosystem-skills, vue-i18n 11.4.12; листинг https://mcpmarket.com/tools/skills/vue-i18n-internationalization) скопирован из GitHub в `.agents/skills/vue-i18n-skilld`, симлинк в `.claude/skills/`. `vue-i18n` в проект пока не подключён.
+
 Линтер и форматтер: ESLint (`eslint-config-metarhia`) + Prettier, как требует `js-conventions`; решение принято вместо Biome из первоначального дизайна `engine-ts` (M0).

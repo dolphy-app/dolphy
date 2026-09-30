@@ -1,0 +1,8 @@
+dept_id,title,n,payroll
+1,CTO,1,9000
+1,Dev,3,17000
+1,Lead,1,7000
+2,Analyst,3,9000
+2,Manager,1,6500
+3,Manager,1,7500
+3,Rep,3,12000

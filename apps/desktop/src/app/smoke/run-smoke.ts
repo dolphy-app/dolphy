@@ -6,7 +6,7 @@
  */
 import type { EngineEvent, LearningEngine } from '@lms/engine-contract';
 import type { SmokeBridge } from '../../../shared/smoke.ts';
-import { ensureAnswerElement } from '@/pages/session/api/answer-element.ts';
+import { ensureAnswerElement } from '@/shared/lib/answer-element.ts';
 
 const EXERCISE_ID = 'sql_kb::where::q2';
 const CHOICE_EXERCISE_ID = 'choice_kb::basic::q1';

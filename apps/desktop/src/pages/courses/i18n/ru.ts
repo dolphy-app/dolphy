@@ -31,6 +31,7 @@ export const ru = {
       recommended: 'Рекомендуем',
       study: 'Учить',
       openPlan: 'План курса',
+      check: 'Проверить, что я знаю',
     },
     empty: {
       title: 'Курсов пока нет',

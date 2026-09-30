@@ -1,10 +1,13 @@
 import { en as vuetifyEn, ru as vuetifyRu } from 'vuetify/locale';
 import { coursesMessages } from '@/pages/courses';
 import { dailyPlanMessages } from '@/pages/daily-plan';
+import { graphMessages } from '@/pages/graph';
+import { placementMessages } from '@/pages/placement';
 import { sessionMessages } from '@/pages/session';
 import { settingsMessages } from '@/pages/settings';
 import { courseScopeMessages } from '@/features/course-scope';
 import { sharedMessages } from '@/shared/i18n';
+import { exercisePanelMessages } from '@/widgets/exercise-panel';
 import { en as appEn } from './en.ts';
 import { ru as appRu } from './ru.ts';
 
@@ -16,6 +19,9 @@ export const appMessages = {
     ...courseScopeMessages.ru,
     ...coursesMessages.ru,
     ...dailyPlanMessages.ru,
+    ...exercisePanelMessages.ru,
+    ...graphMessages.ru,
+    ...placementMessages.ru,
     ...sessionMessages.ru,
     ...settingsMessages.ru,
   },
@@ -25,6 +31,9 @@ export const appMessages = {
     ...courseScopeMessages.en,
     ...coursesMessages.en,
     ...dailyPlanMessages.en,
+    ...exercisePanelMessages.en,
+    ...graphMessages.en,
+    ...placementMessages.en,
     ...sessionMessages.en,
     ...settingsMessages.en,
   },

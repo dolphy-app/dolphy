@@ -1,0 +1,17 @@
+{
+  "id": "lms.choice",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "main": "./main.mjs",
+  "contributes": {
+    "exerciseTypes": [
+      {
+        "id": "lms.choice",
+        "specSchema": "./schema/spec.json",
+        "answerSchema": "./schema/answer.json",
+        "element": "lms-choice-answer",
+        "renderer": "./view.mjs"
+      }
+    ]
+  }
+}

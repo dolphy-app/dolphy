@@ -1,5 +1,6 @@
 import type {
   AddRepositoryRequest,
+  Diagnostic,
   LibraryInfo,
   LibraryService,
   RepositoriesService,
@@ -182,14 +183,26 @@ export const createRepositoriesService = (
     return suffixed;
   };
 
-  /** Сканирование staging как отдельной библиотеки: курсы есть, ошибок нет. */
-  const validateStaging = async (opId: string): Promise<string[]> => {
+  /**
+   * Сканирование staging: снимок `<id>` — дочерний каталог корня, как потом в
+   * `repositories/<id>`; курсы есть, ошибок нет. Пути диагностик — от корня
+   * репозитория (префикс `<id>/` снимается).
+   */
+  const validateStaging = async (
+    id: string,
+    opId: string,
+  ): Promise<string[]> => {
     const result = await compile(installer.stagingSource(opId), {
       scan: { ignoredPaths: [] },
     });
-    const errors = result.diagnostics.filter(
-      ({ severity }) => severity === 'error',
-    );
+    const prefix = `${id}/`;
+    const relative = (diagnostic: Diagnostic): Diagnostic =>
+      diagnostic.path?.startsWith(prefix)
+        ? { ...diagnostic, path: diagnostic.path.slice(prefix.length) }
+        : diagnostic;
+    const errors = result.diagnostics
+      .filter(({ severity }) => severity === 'error')
+      .map(relative);
     if (result.artifact === null || errors.length > 0) {
       throw rejected('Repository contains an invalid course library', {
         reason: 'invalid-library',
@@ -345,7 +358,7 @@ export const createRepositoriesService = (
         return { changed: false, record: await settle(previous) };
       }
       began = true;
-      const dirs = await installer.begin(opId);
+      const dirs = await installer.begin(id, opId);
       signal.throwIfAborted();
       progress(id, 'fetch');
       const snapshot = await fetcher.fetchSnapshot({
@@ -363,7 +376,7 @@ export const createRepositoriesService = (
         return { changed: false, record: await settle(previous) };
       }
       progress(id, 'validate');
-      const courseIds = await validateStaging(opId);
+      const courseIds = await validateStaging(id, opId);
       signal.throwIfAborted();
       return await exclusive(() =>
         commit(op, target, opId, { commit: snapshot.commit, courseIds }),

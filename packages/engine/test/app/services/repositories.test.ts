@@ -396,10 +396,58 @@ describe('atomic add (R2)', () => {
       diagnostics: { code: string; path?: string }[];
     };
     expect(diagnostics.map(({ code }) => code)).toContain('E_JSON_PARSE');
+    // пути — от корня репозитория, без каталога снимка
+    expect(diagnostics.map(({ path }) => path)).toContain(
+      'sql/course_manifest.json',
+    );
+    expect(diagnostics.every(({ path }) => !path?.startsWith(ID_SQL))).toBe(
+      true,
+    );
     expect(diagnostics.length).toBeLessThanOrEqual(50);
     await expectUntouched(t);
     // библиотека даже не перезагружалась
     expect(phasesOf(t.events)).not.toContain('reload');
+  });
+});
+
+describe('repository layout', () => {
+  /** Курс в корне репозитория: `course_manifest.json`, `<урок>/...` без каталога курса. */
+  const rootCourse = (id: string): Record<string, string> =>
+    Object.fromEntries(
+      Object.entries(filesOf(course(id))).map(([path, text]) => [
+        path.slice(path.indexOf('/') + 1),
+        text,
+      ]),
+    );
+
+  it('accepts a repository whose root is a course and shows it after the real reload', async () => {
+    const t = await open();
+    t.git.remotes.set(URL_SQL, { commit: sha(1), files: rootCourse('sql') });
+    const dto = await t.engine.repositories.add({ url: URL_SQL });
+    expect(dto).toMatchObject({ status: 'ready', courseIds: ['sql'] });
+    expect(await t.courseIds()).toEqual(['base', 'sql']);
+    expect(
+      await exists(
+        join(t.libraryRoot, 'repositories', ID_SQL, 'course_manifest.json'),
+      ),
+    ).toBe(true);
+    expect((await t.engine.library.listLessons('sql')).items).toHaveLength(1);
+    await expectClean(t);
+  });
+
+  it('still accepts courses in subdirectories, several per repository', async () => {
+    const t = await open();
+    t.git.remotes.set(URL_SQL, {
+      commit: sha(1),
+      files: {
+        ...filesOf(course('one')),
+        ...filesOf(course('two')),
+        'docs/readme.md': '#',
+      },
+    });
+    const dto = await t.engine.repositories.add({ url: URL_SQL });
+    expect(dto.courseIds).toEqual(['one', 'two']);
+    expect(await t.courseIds()).toEqual(['base', 'one', 'two']);
   });
 });
 

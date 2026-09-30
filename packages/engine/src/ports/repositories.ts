@@ -146,13 +146,21 @@ export interface OperationDirs {
 export interface SnapshotInstaller {
   /** Относительный путь снимка в библиотеке: `repositories/<id>`. */
   snapshotPath(id: string): string;
-  /** Создаёт пустые каталоги операции. */
-  begin(opId: string): Promise<OperationDirs>;
-  /** Источник курсов над каталогом операции (для проверки до подмены). */
+  /**
+   * Создаёт пустые каталоги операции; `stagingDir` — `.staging/<opId>/<id>`.
+   * Снимок лежит в `<id>` внутри `.staging/<opId>`, чтобы сканер видел его
+   * дочерним каталогом корня библиотеки, как в `repositories/<id>` (корневой
+   * `course_manifest.json` репозитория — курс).
+   */
+  begin(id: string, opId: string): Promise<OperationDirs>;
+  /**
+   * Источник курсов над `.staging/<opId>` (для проверки до подмены): снимок
+   * виден каталогом `<id>`, пути диагностик начинаются с `<id>/`.
+   */
   stagingSource(opId: string): CourseSource;
   /** Есть ли каталог снимка. */
   exists(id: string): Promise<boolean>;
-  /** `repositories/<id>` (если есть) → `.trash/<opId>`, `.staging/<opId>` → `repositories/<id>`. */
+  /** `repositories/<id>` (если есть) → `.trash/<opId>`, `.staging/<opId>/<id>` → `repositories/<id>`. */
   install(id: string, opId: string): Promise<void>;
   /** Обратно после `install`: новый снимок удаляется, старый из `.trash` возвращается. */
   rollback(id: string, opId: string): Promise<void>;

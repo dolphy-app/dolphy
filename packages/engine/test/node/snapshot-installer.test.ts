@@ -28,9 +28,9 @@ const exists = (path: string) =>
 describe('createNodeSnapshotInstaller', () => {
   it('begin creates empty operation dirs next to the library and in dataDir', async () => {
     const { installer, libraryRoot, dataDir } = await setup();
-    const dirs = await installer.begin('op1');
+    const dirs = await installer.begin('acme', 'op1');
     expect(dirs).toEqual({
-      stagingDir: join(libraryRoot, '.staging', 'op1'),
+      stagingDir: join(libraryRoot, '.staging', 'op1', 'acme'),
       tmpDir: join(dataDir, 'git-tmp', 'op1'),
     });
     expect(await readdir(dirs.stagingDir)).toEqual([]);
@@ -40,7 +40,7 @@ describe('createNodeSnapshotInstaller', () => {
 
   it('install puts the staging tree under repositories/<id>; finish removes the operation dirs', async () => {
     const { installer, libraryRoot, dataDir } = await setup();
-    const { stagingDir } = await installer.begin('op1');
+    const { stagingDir } = await installer.begin('acme', 'op1');
     await writeFiles(stagingDir, { 'course/a.txt': 'one' });
     expect(await installer.exists('acme')).toBe(false);
     await installer.install('acme', 'op1');
@@ -59,12 +59,12 @@ describe('createNodeSnapshotInstaller', () => {
 
   it('install replaces an existing snapshot and rollback brings the old one back', async () => {
     const { installer, libraryRoot } = await setup();
-    const first = await installer.begin('op1');
+    const first = await installer.begin('acme', 'op1');
     await writeFiles(first.stagingDir, { 'v.txt': 'old' });
     await installer.install('acme', 'op1');
     await installer.finish('op1');
 
-    const second = await installer.begin('op2');
+    const second = await installer.begin('acme', 'op2');
     await writeFiles(second.stagingDir, { 'v.txt': 'new' });
     await installer.install('acme', 'op2');
     const target = join(libraryRoot, 'repositories/acme/v.txt');
@@ -81,25 +81,25 @@ describe('createNodeSnapshotInstaller', () => {
 
   it('rollback of a first install leaves no snapshot', async () => {
     const { installer } = await setup();
-    const { stagingDir } = await installer.begin('op1');
+    const { stagingDir } = await installer.begin('acme', 'op1');
     await writeFiles(stagingDir, { 'v.txt': 'new' });
     await installer.install('acme', 'op1');
     await installer.rollback('acme', 'op1');
     expect(await installer.exists('acme')).toBe(false);
   });
 
-  it('stagingSource reads the operation dir as a course source', async () => {
+  it('stagingSource shows the snapshot as a child dir of the operation root', async () => {
     const { installer } = await setup();
-    const { stagingDir } = await installer.begin('op1');
-    await writeFiles(stagingDir, { 'c/course_manifest.json': '{}' });
+    const { stagingDir } = await installer.begin('acme', 'op1');
+    await writeFiles(stagingDir, { 'course_manifest.json': '{}', 'c/x': '1' });
     const source = installer.stagingSource('op1');
-    expect((await source.list('')).map(({ name }) => name)).toEqual(['c']);
-    expect(await source.readText('c/course_manifest.json')).toBe('{}');
+    expect((await source.list('')).map(({ name }) => name)).toEqual(['acme']);
+    expect(await source.readText('acme/course_manifest.json')).toBe('{}');
   });
 
   it('remove deletes the snapshot and tolerates a missing one', async () => {
     const { installer } = await setup();
-    const { stagingDir } = await installer.begin('op1');
+    const { stagingDir } = await installer.begin('acme', 'op1');
     await writeFiles(stagingDir, { 'v.txt': 'x' });
     await installer.install('acme', 'op1');
     await installer.remove('acme');
@@ -110,7 +110,8 @@ describe('createNodeSnapshotInstaller', () => {
   it('rejects ids and operation ids that could escape the library', async () => {
     const { installer } = await setup();
     for (const bad of ['', '..', '.', 'a/b', '../x', 'A', 'a b']) {
-      await expect(installer.begin(bad)).rejects.toThrow('Unsafe');
+      await expect(installer.begin(bad, 'op1')).rejects.toThrow('Unsafe');
+      await expect(installer.begin('ok', bad)).rejects.toThrow('Unsafe');
       await expect(installer.exists(bad)).rejects.toThrow('Unsafe');
       await expect(installer.remove(bad)).rejects.toThrow('Unsafe');
       expect(() => installer.snapshotPath(bad)).toThrow('Unsafe');

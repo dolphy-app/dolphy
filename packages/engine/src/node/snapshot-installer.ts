@@ -71,12 +71,12 @@ export const createNodeSnapshotInstaller = ({
     return join(trashRoot, opId, id);
   };
 
-  const begin = async (opId: string): Promise<OperationDirs> => {
-    const stagingDir = staging(opId);
-    assertSafe('operation id', opId);
+  const begin = async (id: string, opId: string): Promise<OperationDirs> => {
+    assertSafe('repository id', id);
+    const stagingDir = join(staging(opId), id);
     const tmpDir = join(gitTmpRoot, opId);
     // остатки прерванной операции с тем же id не смешиваются с новой
-    await Promise.all([removeTree(stagingDir), removeTree(tmpDir)]);
+    await Promise.all([removeTree(staging(opId)), removeTree(tmpDir)]);
     await mkdir(stagingDir, { recursive: true });
     await mkdir(tmpDir, { recursive: true });
     return { stagingDir, tmpDir };
@@ -84,7 +84,7 @@ export const createNodeSnapshotInstaller = ({
 
   const install = async (id: string, opId: string): Promise<void> => {
     const dest = target(id);
-    const source = staging(opId);
+    const source = join(staging(opId), id);
     const trash = trashed(id, opId);
     await mkdir(repositoriesRoot, { recursive: true });
     const replaced = await exists(dest);

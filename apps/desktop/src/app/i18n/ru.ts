@@ -5,6 +5,7 @@ export const ru = {
     more: 'Дополнительно',
     dailyPlan: 'План на сегодня',
     courses: 'Курсы',
+    graph: 'Граф знаний',
     settings: 'Настройки',
   },
   startup: {

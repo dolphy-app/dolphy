@@ -14,6 +14,8 @@ const viteBin = join(
 const BUILD_TIMEOUT_MS = 120_000;
 // шрифты и CSS (иконки MDI: `mdi-smoke-detector`) кода смоука содержать не могут
 const CODE_FILE = /\.(?:[cm]?js|html)$/;
+// `whitesmoke` — имя цвета CSS в таблице Vue Flow (граф знаний), не смоук
+const SMOKE_MARKER = /(?<!white)smoke/i;
 
 const outputs: string[] = [];
 
@@ -61,7 +63,7 @@ describe('смоук и релизная сборка', () => {
       const leaks = files.filter((file) => {
         if (!CODE_FILE.test(file)) return false;
         const text = readFileSync(file, 'utf8');
-        return /smoke/i.test(text) || text.includes('sql_kb::where');
+        return SMOKE_MARKER.test(text) || text.includes('sql_kb::where');
       });
       expect(leaks).toEqual([]);
     },

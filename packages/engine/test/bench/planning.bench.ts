@@ -192,6 +192,7 @@ describe('T-57 планирование: MemoryIndex 500k, planDay, проба p
           frontierLessons: order
             .slice(dueLessons, dueLessons + 100)
             .map((lesson) => graph.lessonIds[lesson] as UnitId),
+          lessonPasses: () => true,
           isExcluded: () => false,
           remediation: [],
         };

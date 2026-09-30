@@ -1,11 +1,11 @@
 ---
 name: git-workflow
-description: Git-процесс репозитория lms-platform-design через gh — ветка feature/<name> от develop, коммиты по Conventional Commits (commitlint), PR в develop с описанием и слияние после зелёного pipeline, релиз слиянием develop в main (semantic-release, сборка установщиков). Использовать при любой просьбе "закоммить", "сделай ветку", "открой PR/MR", "влей в develop", "сделай релиз", "выпусти версию", "влей в main", а также перед первым коммитом любой задачи. Git workflow with gh, Conventional Commits, PR to develop, semantic-release.
+description: Git-процесс репозитория lms-platform-design через gh — ветка feature/<name> от develop, коммиты по Conventional Commits (commitlint), PR в develop с описанием и слияние после зелёного pipeline, релиз через ветку release-<version> от develop и слияние её в main (semantic-release, сборка установщиков). Использовать при любой просьбе "закоммить", "сделай ветку", "открой PR/MR", "влей в develop", "сделай релиз", "выпусти версию", "влей в main", а также перед первым коммитом любой задачи. Git workflow with gh, Conventional Commits, PR to develop, release-<version> branch, semantic-release.
 ---
 
 # Git-процесс через gh
 
-Ветки: `main` (только релизы), `develop` (интеграционная), `feature/<feature-name>` (любая работа, kebab-case, латиница). Прямые коммиты и push в `develop` и `main` запрещены. Всё, что касается GitHub (PR, слияние, релиз), делается через `gh`, не через веб-интерфейс и не локальным `git merge` в `develop`/`main`.
+Ветки: `main` (только релизы), `develop` (интеграционная), `feature/<feature-name>` (любая работа, kebab-case, латиница), `release-<version>` (релиз, от `develop`, вливается в `main`). Прямые коммиты и push в `develop` и `main` запрещены. Всё, что касается GitHub (PR, слияние, релиз), делается через `gh`, не через веб-интерфейс и не локальным `git merge` в `develop`/`main`.
 
 Настройки репозитория (приватный, бесплатный тариф): защиты веток нет, поэтому дисциплину держат этот скилл, husky-хук `commit-msg` и job `commitlint` в CI. Слияние — только merge-коммитом (`--merge`): squash и rebase стирают отдельные коммиты, а semantic-release считает версию по ним.
 
@@ -86,29 +86,37 @@ gh pr view "$pr" --json mergeable,mergeStateStatus
 
 PR в `main` (релиз) и PR `main` → `develop` (возврат релизного коммита) сливаются по тому же правилу: сначала зелёный pipeline.
 
-## 4. Релиз (слияние develop в main)
+## 4. Релиз через ветку release-<version>
 
-Релиз делается только по просьбе. Порядок: все нужные фичи уже в `develop`.
+Релиз делается только по просьбе. В `main` вливается только ветка `release-<version>` (например `release-1.2.0`), созданная от `develop`; PR из любой другой ветки в `main` job `Release branch` в CI отклонит. Порядок: все нужные фичи уже в `develop`, а `develop` содержит `main` (после прошлого релиза слит PR «sync», см. ниже: тег `v*` находится на `main`, без него версия считается от устаревшей точки).
+
+**1. Версия.** semantic-release считает её по Conventional Commits `develop` с прошлого тега; скрипт делает то же на временном клоне `origin/develop`:
 
 ```sh
 git fetch origin
-git log --oneline origin/main..origin/develop     # что войдёт; если пусто — релиза нет
+version=$(pnpm -s release:version) || exit 1   # код 1: нет feat, fix, perf и breaking — релиза нет, сообщить об этом
+git log --oneline origin/main..origin/develop   # что войдёт
 ```
 
-Если среди коммитов нет ни одного `feat`, `fix`, `perf` или breaking, semantic-release версию не выпустит — сообщить об этом до слияния.
+**2. Ветка и PR.**
 
 ```sh
-gh pr create --base main --head develop --title "release: merge develop into main" --body "$(cat <<'BODY'
+git switch -c "release-$version" origin/develop   # или worktree: git worktree add -b "release-$version" ../lms-platform-design-release-$version origin/develop
+git push -u origin HEAD
+gh pr create --base main --head "release-$version" --title "release: $version" --body "$(cat <<'BODY'
 ## Что войдёт в релиз
 - <фича или исправление, по одному пункту на PR из develop>
 BODY
 )"
 ```
 
-Список для тела: `gh pr list --base develop --state merged --search "merged:>=<дата прошлого релиза>" --json number,title`; дату — из `gh release list --limit 1`. Дальше те же проверки `mergeable` и pipeline (шаг 3), затем:
+Список для тела: `gh pr list --base develop --state merged --search "merged:>=<дата прошлого релиза>" --json number,title`; дату — из `gh release list --limit 1`. Если перед релизом нужна правка, она идёт коммитом (Conventional Commits) прямо в `release-<version>`; версия при этом может измениться — тогда ветку пересоздать под новое имя.
+
+**3. Pipeline и слияние.** Те же проверки `mergeable` и pipeline (шаг 3). Помимо обычных jobs PR в `main` запускает `Release branch`: имя ветки должно быть `release-<version>`, а версия, которую считает semantic-release, — совпадать с ней. Зелёный pipeline и `MERGEABLE` → релиз вливается:
 
 ```sh
-gh pr merge "$pr" --merge --subject "Merge develop into main"   # без --delete-branch: develop не удаляется
+gh pr merge "$pr" --merge --subject "Merge release-$version into main"
+git push origin --delete "release-$version"
 ```
 
 Push в `main` запускает `.github/workflows/release.yml`:
@@ -124,7 +132,9 @@ gh run watch "$run" --exit-status
 gh release view --json tagName,url,assets -q '{tag: .tagName, url: .url, assets: [.assets[].name]}'
 ```
 
-Затем вернуть релизный коммит в `develop` (иначе там устаревшие `version` и `CHANGELOG.md`) — тоже PR, не прямой push:
+Тег должен совпасть с `v$version`; если нет — релиз собран из другой версии, разобраться до следующего шага.
+
+**4. Sync main в develop.** Релизный коммит (`CHANGELOG.md`, `version`, тег) есть только в `main`. Вернуть его в `develop` — тоже PR, не прямой push; без этого следующий релиз посчитает версию от устаревшего тега:
 
 ```sh
 gh pr create --base develop --head main --title "chore(release): sync main into develop" --body "Возврат релизного коммита semantic-release (CHANGELOG.md, version) в develop."
@@ -147,7 +157,7 @@ git worktree prune
 ## Чего не делать
 
 - Не коммитить и не пушить в `develop`/`main`; не делать `git merge feature/… ` в них локально.
-- Не использовать `--squash` и `--rebase` при слиянии, не удалять `develop`/`main`.
+- Не использовать `--squash` и `--rebase` при слиянии, не удалять `develop`/`main`; в `main` вливать только `release-<version>`, а не `develop` или `feature/*`.
 - Не править `CHANGELOG.md` и версию в корневом `package.json` руками, не ставить теги `v*` вручную.
 - Не обходить хуки (`--no-verify`), не переписывать историю уже запушенных веток (`push --force`) без явной просьбы.
 - Не сливать PR с конфликтами, с красным или ещё не завершённым pipeline и без описания.

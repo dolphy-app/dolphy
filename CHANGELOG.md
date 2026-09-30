@@ -1,0 +1,68 @@
+# [0.1.0](https://github.com/Tinkerbells/lms/compare/v0.0.0...v0.1.0) (2026-09-30)
+
+
+### Bug Fixes
+
+* **desktop:** set linux executableName so AppImage builds ([08edb05](https://github.com/Tinkerbells/lms/commit/08edb05b4f612f1febf304e8ab2c0f1e8ee49361))
+* **engine:** a missing library root opens as invalid with E_IO instead of failing createEngine ([d1e28a2](https://github.com/Tinkerbells/lms/commit/d1e28a2060d342e3a15bd91a76903c7064127a25))
+* **engine:** expire cached real directory paths in node fs source ([88aeea6](https://github.com/Tinkerbells/lms/commit/88aeea6b64c5bdf97d7f3abe7065823d65243f4b))
+* **engine:** keep started lessons below the Trane passing threshold in the day plan ([3c12293](https://github.com/Tinkerbells/lms/commit/3c12293ceedf2e921dcae8be9c0f970bb8936efc))
+* **engine:** library service reports a missing root as E_IO data ([accfabb](https://github.com/Tinkerbells/lms/commit/accfabbdcda33462689492c16191bb8be7a63e2c))
+* **engine:** placement.abort is a no-op for unknown sessions, answered probe is rejected, attempt result closes the attempt ([3a7edd1](https://github.com/Tinkerbells/lms/commit/3a7edd117dfa09320be8aba7d77779d4f820b5aa))
+* **engine:** weight-1 implicit credit keeps difficulty; test typing ([c85b7ee](https://github.com/Tinkerbells/lms/commit/c85b7ee6a24eefb2bdc1ecb57083d785f66d6fe9))
+* match only package vitest configs in root projects glob ([3332561](https://github.com/Tinkerbells/lms/commit/33325614e0a06942e439f4fe62b8626cf0314d09))
+
+
+### Features
+
+* **contract:** add engine contract types and RPC method table ([9215376](https://github.com/Tinkerbells/lms/commit/92153761663f358680e497f4658bd03a50cfb04f))
+* **contract:** expose entryHashes in SyncConflictDto for choosing id-content side ([b2259b8](https://github.com/Tinkerbells/lms/commit/b2259b84df2a19f5f7e04f270e26aff76614e355))
+* **desktop:** courses screen, course scope switcher, dev library seed and reset scripts ([c2f5d7e](https://github.com/Tinkerbells/lms/commit/c2f5d7e2b2e1db507b29a29cb3610ad01a9f746c))
+* **desktop:** engine host process, renderer connection, demo screen and Electron smoke ([8498050](https://github.com/Tinkerbells/lms/commit/84980502216fc437675f7e32cff0a96d149377cb))
+* **desktop:** FSD app shell, daily plan, study session, settings, i18n ([3cc7440](https://github.com/Tinkerbells/lms/commit/3cc74400a4b218049b17198990d02be439a544b9))
+* **desktop:** main shells, engine host supervisor and narrow preload bridge ([a3f5aae](https://github.com/Tinkerbells/lms/commit/a3f5aae45b88772f4fb0f69d28cc8f8d942a079b))
+* **desktop:** packaged smoke build with release-bundle guard ([0e7ee9d](https://github.com/Tinkerbells/lms/commit/0e7ee9dc1e7c720d5c97ce47ab799df4c03c7993))
+* **engine-rpc:** add RPC client, host dispatcher with zod schemas and in-process transport ([753d4b5](https://github.com/Tinkerbells/lms/commit/753d4b521d72efa65525188edf724f3a986d3fd0))
+* **engine-sql-runner:** SqlVerifier with process pool, node:sqlite full profile and better-sqlite3 fallback ([be33fb1](https://github.com/Tinkerbells/lms/commit/be33fb1aa044479205f9992e44ed618d64e67a2a))
+* **engine-sqlite:** SqliteEventStore, migrations, SqlDatabase port, Trane reader and SIGKILL test ([0dfd3eb](https://github.com/Tinkerbells/lms/commit/0dfd3eba8ca5ffa1c3208c90aacc27b38a7859ae))
+* **engine:** add command queue, event bus, expiring map, journal writer and facade ([bf01ce7](https://github.com/Tinkerbells/lms/commit/bf01ce7cc15449e71125ce9adabf805827c3b7a0))
+* **engine:** add compile, artifact, revision, freshness and loadDirectory ([d57301f](https://github.com/Tinkerbells/lms/commit/d57301f6fd892daf407b56e39f07d8609b8620cc))
+* **engine:** add directory scanner, frontmatter, engine schema and KnowledgeBase generator ([c2ffc10](https://github.com/Tinkerbells/lms/commit/c2ffc10a1111e2e0ca92539ca14fcbc8b39d5701))
+* **engine:** add EngineError, error table and mapper ([ffed6bf](https://github.com/Tinkerbells/lms/commit/ffed6bfbb3a7f6f1835c0939543a21f21f6b985e))
+* **engine:** add library holder with atomic reload and readAsset ([10955e7](https://github.com/Tinkerbells/lms/commit/10955e7c6376ad8e363722bf44123cddceb5a88a))
+* **engine:** add M3 scheduler (DFS, candidate filter, knocker, relearn, shuffler, options holder, frontier, due) ([8db5713](https://github.com/Tinkerbells/lms/commit/8db5713ee74bca119215c1544cb31e413ee6ca6c))
+* **engine:** add manifest schemas, asset path resolution and domain tests ([7c18f84](https://github.com/Tinkerbells/lms/commit/7c18f84614307ab8aee32a5e8389c137a519509a))
+* **engine:** add node fs course source, engine-cli, sql-course migration, rust graph dumps and defect matrix ([74d0163](https://github.com/Tinkerbells/lms/commit/74d0163c5ceff37404fbdf9499676f31b30a7276))
+* **engine:** add ports, journal and manifest types, ts-fsrs memory model ([f002beb](https://github.com/Tinkerbells/lms/commit/f002beb2ad57376abdaededad116bd8c037f8499))
+* **engine:** add scoring module (PowerLaw port, FsrsScorer, rewards, UnitScorer) ([6f23d71](https://github.com/Tinkerbells/lms/commit/6f23d711b8b5578340eb8edadec2305db4c20167))
+* **engine:** add semantic checks and graph closure for the compiler (37 codes incl. W_GRANULARITY) ([cdb4604](https://github.com/Tinkerbells/lms/commit/cdb4604ecbf94f02c24bc0a5b5aab692b6a9e31b))
+* **engine:** add unit graph, library assembly, extended manifest types and CourseSource additions ([fcdc200](https://github.com/Tinkerbells/lms/commit/fcdc2007574e8492e4834071a7e7e8ef723c702a))
+* **engine:** add verify module with GradePolicy (passAtN) and verdict helpers ([9f5a728](https://github.com/Tinkerbells/lms/commit/9f5a728c2a4c2e4cafea8a6c25555bd465c7dcbf))
+* **engine:** curation and settings services ([2acfb7d](https://github.com/Tinkerbells/lms/commit/2acfb7dd653d22006ba04d4404ce9a7eb986304e))
+* **engine:** cursor pagination helper for app services ([93720ce](https://github.com/Tinkerbells/lms/commit/93720ce236a11d92f20da39d148d38c1f31c5cd3))
+* **engine:** E_REFERENCE_FAILS reference checks and engine-cli --run-checks ([5e3fd95](https://github.com/Tinkerbells/lms/commit/5e3fd95c315b8fff9ab37d0f512f1fb83247013c))
+* **engine:** EngineContext contract for services and projections ([6afec8e](https://github.com/Tinkerbells/lms/commit/6afec8e0ae67c39b4ab157336d7d6c0ea4605902))
+* **engine:** export authoring subpath and engine-cli, document M1 modules ([32bd1d3](https://github.com/Tinkerbells/lms/commit/32bd1d33316b36d553f5d48017726e285fdc93c1))
+* **engine:** export node defaults ([765ad6d](https://github.com/Tinkerbells/lms/commit/765ad6d308e4867fcdc50429c4e37fe74a84c3ce))
+* **engine:** export pagination helpers from app ([667835c](https://github.com/Tinkerbells/lms/commit/667835c093a4ba082a6813ea19f45f42a864b324))
+* **engine:** JSON and in-memory SettingsStore adapters ([df1fa46](https://github.com/Tinkerbells/lms/commit/df1fa46b3511f3923709e1e11e092a4f8a27c90f))
+* **engine:** library service ([bc3b689](https://github.com/Tinkerbells/lms/commit/bc3b689c664a8cbaff9ff5c03ac1f61581b7f0e0))
+* **engine:** manifest to DTO mappers and orphan-events diagnostics ([77650c4](https://github.com/Tinkerbells/lms/commit/77650c41480468661e5ba64310e2bd33e639ae09))
+* **engine:** MemoryEventStore and FolderSync with deviceId protection ([60280c6](https://github.com/Tinkerbells/lms/commit/60280c69a3821501eb5d1c4047e5a19d6db31709))
+* **engine:** merge core for the journal (Replica, conflict quarantine, vector, segments, Trane import) ([4898bd9](https://github.com/Tinkerbells/lms/commit/4898bd9d46f7bc66648057e185b6d571ea849b12))
+* **engine:** node defaults, uuidv7, JSON logger and folder sync port ([02be385](https://github.com/Tinkerbells/lms/commit/02be385802593ab1aa1f80a06c49709343c96df3))
+* **engine:** placement diagnostic and day planning modules (M6) ([cee42a4](https://github.com/Tinkerbells/lms/commit/cee42a42456c3fb45bec81ce66238c424d02dee9))
+* **engine:** plan and placement services ([fce7ceb](https://github.com/Tinkerbells/lms/commit/fce7cebdd1f0737d165cd695db6d4cd8f89eaf81))
+* **engine:** projections, createContext, createEngine, practice and remediation services ([dfb4c36](https://github.com/Tinkerbells/lms/commit/dfb4c3679c4966cb70b51b457d3bd6516f13794a))
+* **engine:** pure Trane filter functions and zod wire codecs ([94d98a7](https://github.com/Tinkerbells/lms/commit/94d98a77b4cdb5edc562724420f4b801e94416d2))
+* **engine:** scope plan and due lists to selected courses, store active course in settings ([0628586](https://github.com/Tinkerbells/lms/commit/06285866ea300896207ec7d8ddd4c9ecaaccee82))
+* **engine:** store settings in SQLite, add interface language, import legacy JSON ([13eca8f](https://github.com/Tinkerbells/lms/commit/13eca8ff4662144eab47a27f30aec4fa9baae48b))
+* **engine:** sync service ([b8ddf37](https://github.com/Tinkerbells/lms/commit/b8ddf37df9f560d21e350823654ca182a3d94cc9))
+* **testkit:** add clock, seeded rng, ids, journal and library builders ([0869d32](https://github.com/Tinkerbells/lms/commit/0869d329193969fdf407247662a013ccdb0ba01d))
+* **ui:** add @lms/ui package and Vuetify plugin in desktop shared/ui ([aa271df](https://github.com/Tinkerbells/lms/commit/aa271df6959b82962b3255fc878a56f8b26285ed))
+
+
+### Performance Improvements
+
+* **engine:** interleave skips levels the course rule makes infeasible ([f479a40](https://github.com/Tinkerbells/lms/commit/f479a407be4fef07ec561e454ef5cde19b5c1d08))
+* **engine:** interleave skips levels the course rule makes infeasible ([59cc623](https://github.com/Tinkerbells/lms/commit/59cc623db655f43c52f8a6b48dff63e5166d3ab9))

@@ -20,6 +20,7 @@
     "lint:format": "prettier --check .",
     "check:tests": "node --test tools/check-test-coverage.test.mjs && node tools/check-test-coverage.mjs",
     "fix": "eslint . --fix && prettier --write .",
+    "release:version": "sh scripts/next-version.sh",
     "prepare": "husky"
   },
   "devDependencies": {
@@ -43,5 +44,6 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.0",
     "vitest": "5.0.2"
-  }
+  },
+  "version": "0.1.0"
 }

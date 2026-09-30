@@ -1,14 +1,16 @@
 ---
-status: draft
+status: done
 branch: feature/course-git-source
 created: 2026-09-30
-closed: null
+closed: 2026-09-30
 touches:
   [engine-contract, engine, engine-rpc, engine-sqlite, engine-git, testkit, desktop]
 depends-on: []
 supersedes: null
 superseded-by: null
 ---
+
+> Исторический документ. Не источник требований.
 
 # Подгрузка курсов из git-репозитория
 
@@ -51,7 +53,7 @@ superseded-by: null
 
 **Снимок вместо клона.** На диске нет `.git`: `<libraryRoot>/repositories/<id>/` — полный снимок дерева коммита, read-only по смыслу. Следствия: сканер видит курсы штатно (`ignored_paths` работает по префиксу `repositories/<id>`), нет локальных правок и конфликтов слияния, нет хуков и подмодулей, нет состояния объектного хранилища, которое можно повредить. Цена: при новом коммите скачивается снимок целиком (`depth: 1`); курсы — текст и небольшие ассеты, для больших репозиториев пересмотреть (Decision Log). Имя каталога `repositories` не занято курсами из `dev-library`; ручной курс с таким именем в корне библиотеки — конфликт, который сервис проверяет при `add` (`REPOSITORY_REJECTED`, если `repositories/<id>` существует без записи).
 
-**Поток `add`/`update`.** `resolve` (запрос refs, без скачивания; совпавший коммит — выход, R5) → `fetch` (shallow, single-branch во временный `gitdir` `<dataDir>/git-tmp/<opId>`) → `export` (обход дерева коммита своим кодом с проверками R7, запись в `<libraryRoot>/.staging/<opId>/`) → `validate` (сканирование staging как отдельной библиотеки: есть манифесты курса, нет ошибок сканера) → подмена: `rename(repositories/<id> → .trash/<opId>)`, `rename(.staging/<opId> → repositories/<id>)` → `reload` (ошибки → обратная подмена и отказ R2/R5) → запись в БД → удаление `.trash/<opId>` и временных каталогов. `.staging` и `.trash` лежат в корне библиотеки, поэтому `rename` остаётся в одной файловой системе, а сканер пропускает каталоги с точкой (`scan.ts:583`). Запись в БД — последний шаг: она фиксирует, какой коммит загружен. Старт (`boot`): удалить `git-tmp`, `.staging`, `.trash`; каталоги `repositories/*` без записи в БД удалить; записи без каталога пометить `error`.
+**Поток `add`/`update`.** `resolve` (запрос refs, без скачивания; совпавший коммит — выход, R5) → `fetch` (shallow, single-branch во временный `gitdir` `<dataDir>/git-tmp/<opId>`) → `export` (обход дерева коммита своим кодом с проверками R7, запись в `<libraryRoot>/.staging/<opId>/<id>/`) → `validate` (сканирование `.staging/<opId>` как библиотеки, в которой снимок — дочерний каталог `<id>`: так же он виден в настоящей библиотеке, поэтому `course_manifest.json` в корне репозитория находится, а корень самой библиотеки курсом не считается; есть манифесты курса, нет ошибок сканера; пути диагностик отдаются относительно корня репозитория) → подмена: `rename(repositories/<id> → .trash/<opId>)`, `rename(.staging/<opId>/<id> → repositories/<id>)` → `reload` (ошибки → обратная подмена и отказ R2/R5) → запись в БД → удаление `.trash/<opId>` и временных каталогов. `.staging` и `.trash` лежат в корне библиотеки, поэтому `rename` остаётся в одной файловой системе, а сканер пропускает каталоги с точкой (`scan.ts:583`). Запись в БД — последний шаг: она фиксирует, какой коммит загружен. Старт (`boot`): удалить `git-tmp`, `.staging`, `.trash` (снимок, оставшийся в `.trash` при пропавшем `repositories/<id>`, сначала возвращается на место); каталоги `repositories/*` без записи в БД удалить; записи без каталога пометить `error`.
 
 **Git-клиент.** Пакет `@lms/engine-git` (новый): порт `GitSnapshotFetcher {resolve(url, ref, signal), fetch(url, ref, dest, limits, signal, onProgress)}` объявлен в `@lms/engine/ports`, адаптер — на `isomorphic-git` 1.42 (MIT, чистый JS, без бинарника `git`; `listServerRefs`/`getRemoteInfo2` для `resolve`, `clone` с `depth: 1, singleBranch: true, noCheckout: true` для `fetch`, обход дерева через `walk`/`readBlob`). Системный `git` отвергнут: его нет у части пользователей Windows и macOS, а приложение ставится неподписанным установщиком без зависимостей; запуск внешнего процесса с пользовательским URL расширил бы поверхность атаки (`ext::`, `file://`, хуки). Цена isomorphic-git: нет SSH, LFS, partial clone, медленнее на больших репозиториях — все вне целей.
 
@@ -70,21 +72,26 @@ superseded-by: null
 ## Progress
 
 - [x] 2026-09-30 worktree `../lms-platform-design-course-git-source` от `origin/develop`, исследование кода и черновик спеки
-- [ ] согласовать развилки из `Decision Log` (git-клиент, снимок вместо клона, лимиты)
-- [ ] `@lms/engine-contract`: типы, коды ошибок, событие, `RPC_METHODS`, `CONTRACT_VERSION`
-- [ ] `@lms/engine/ports`: `RepositoryStore`, `GitSnapshotFetcher`, `SnapshotInstaller`; память и fs-адаптеры
-- [ ] `@lms/engine-sqlite`: миграция, `RepositoryStore`, `describeRepositoryStoreContract`
-- [ ] `@lms/engine-git`: адаптер на isomorphic-git, проверки R7, лимиты
-- [ ] `@lms/testkit`: `serveGitRepo`
-- [ ] `@lms/engine/app/services/repositories.ts`: очередь, поток add/update/remove, восстановление при старте
-- [ ] `@lms/engine-rpc`: схемы и клиент
-- [ ] `apps/desktop`: `boot.ts`, диалог, секция настроек, i18n ru/en, e2e
-- [ ] документация: `apps/desktop/README.md`, `packages/README.md`, `engine-ts/design/engine-ts-api.md`, строка этапа 5
+- [x] 2026-09-30 развилки согласованы (git-клиент, снимок вместо клона, лимиты)
+- [x] 2026-09-30 `@lms/engine-contract`: типы, коды ошибок, событие, `RPC_METHODS`, `CONTRACT_VERSION` = 2
+- [x] 2026-09-30 `@lms/engine/ports`: `RepositoryStore`, `GitSnapshotFetcher`, `SnapshotInstaller`; память и fs-адаптеры
+- [x] 2026-09-30 `@lms/engine-sqlite`: миграция 3, `RepositoryStore`, `describeRepositoryStoreContract`
+- [x] 2026-09-30 `@lms/engine-git`: адаптер на isomorphic-git, проверки R7, лимиты
+- [x] 2026-09-30 `@lms/testkit`: `serveGitRepo`
+- [x] 2026-09-30 `@lms/engine/app/services/repositories.ts`: очередь, поток add/update/remove, восстановление при старте
+- [x] 2026-09-30 `@lms/engine-rpc`: схемы и клиент
+- [x] 2026-09-30 `apps/desktop`: `boot.ts`, диалог, секция настроек, i18n ru/en, e2e
+- [x] 2026-09-30 документация: `apps/desktop/README.md`, `packages/README.md`, `engine-ts/design/engine-ts-api.md`, строка этапа 5
+- [x] 2026-09-30 корень репозитория как курс (валидация staging как дочернего каталога библиотеки), e2e на этот случай
+- [x] 2026-09-30 закрытие: `Outcomes`, архив спеки
 
 ## Surprises & Discoveries
 
 - `origin/develop` не содержит `specs/` и `docs/adr/`: ветка `feature/extension-isolation` (спека `extension-isolation`, ADR 0001–0002) ещё не влита. Она трогает те же `engine-contract`, `engine-rpc`, `engine-sqlite`, `testkit`, `desktop`; конфликты в `rpc.ts`/`schemas.ts`/`migrations.ts` ожидаемы — подтягивать `develop` в ветку по мере слияния. Номер следующего ADR зависит от того, что влито первым.
 - Сканер уже пропускает каталоги с `.` (включая `.git`) и при отклонённом `reload` сохраняет прежний граф (`library.ts`) — на этом держатся откаты R2/R5.
+- `isomorphic-git` 1.42.4: у `clone`/`fetch` нет `signal`, отмена и таймаут простоя сделаны обёрткой над HTTP-клиентом (свой клиент на `fetch`, не `isomorphic-git/http/node`); `readBlob` разжимает блоб целиком, поэтому `maxFileBytes` проверяется после чтения и до записи, память ограничена лимитом скачивания; `readTree` сам отвергает небезопасные имена (`.`, `..`, `.git`, `git~1`) — адаптер мапит их в `git-segment`/`path-escapes`.
+- Сканер не считает корень библиотеки курсом (`dir !== ''` в `scan.ts`), поэтому валидация staging как самостоятельной библиотеки отвергала репозиторий с `course_manifest.json` в корне; в настоящей библиотеке снимок лежит в дочернем `repositories/<id>` и корневой манифест находится (как в Trane `managed_courses`). Нашёл e2e на реальном Electron.
+- `repositories.remove` не может быть в очереди команд: он ждёт цепочку операций над репозиториями, а операция из цепочки ждёт очередь (взаимная блокировка) — `remove` внеочередной и сам берёт очередь на удаление и `reload`.
 
 ## Decision Log
 
@@ -94,7 +101,13 @@ superseded-by: null
 - 2026-09-30. Реестр репозиториев в `engine.db`, не синхронизируется. Причина: правило `AGENTS.md` о пользовательском состоянии; устройства не делят настройки.
 - 2026-09-30. Обновление только по действию ученика. Причина: приложение не ходит в сеть без просьбы; периодическая проверка — отдельная спека.
 - 2026-09-30. Уникальность по нормализованному URL; смена ветки — `remove` + `add`. Причина: детерминированное имя каталога и простая модель, прогресс сохраняется по `unitId`.
+- 2026-09-30. Отмена операции — `GIT_FETCH_FAILED` с `details.reason: 'cancelled'` (повторяемый): отдельного кода отмены в контракте нет, добавлять его ради одного случая избыточно.
+- 2026-09-30. Схема `repositories.*` идемпотентна по-разному: `add` — нет (повтор даёт `REPOSITORY_EXISTS`), остальные — да.
 
 ## Outcomes
 
-<Заполняется при закрытии.>
+Сделано всё из `Требований` R1–R12: сервис `repositories` (`add`/`update`/`remove`/`cancel`/`list`) в движке, контракт `CONTRACT_VERSION = 2`, реестр в `engine.db` (миграция 3), пакет `@lms/engine-git` на isomorphic-git, `serveGitRepo` в `@lms/testkit`, диалог «Добавить из Git» и список репозиториев в настройках. Проверено: `pnpm lint`, `pnpm typecheck`, `pnpm test` (157 файлов), e2e в настоящем Electron на локальном git-сервере (добавление, перезапуск, обновление без изменений и с новым коммитом, удаление, ошибки, курс в корне репозитория).
+
+Отличия от плана: `remove` не стоит в очереди команд (иначе взаимная блокировка с цепочкой операций); отмена — `GIT_FETCH_FAILED` с `details.reason: 'cancelled'`; `begin(id, opId)` вместо `begin(opId)` — снимок валидируется как дочерний каталог библиотеки; лимиты из `Решений` подтверждены только на фикстурах.
+
+Осталось (новая спека или issue): приватные репозитории и хранение токенов (`safeStorage`), автообновление, системный прокси для `utilityProcess`, замер скорости на больших репозиториях. ADR не заведён: `docs/adr/` в `develop` пока нет, а ветка `feature/extension-isolation` занимает номера 0001–0002 — решения (isomorphic-git вместо системного `git`, снимок без `.git`) описаны в `Decision Log` этой спеки и в `engine-ts-api.md` §3.1; оформить ADR после слияния соседней ветки. Тест `golden/graph-l2` один раз упал при полном прогоне под нагрузкой и прошёл при повторе (не связан с фичей).

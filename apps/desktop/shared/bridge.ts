@@ -5,10 +5,17 @@ export interface Platform {
   pickDirectory(options?: { title?: string }): Promise<string | null>;
 }
 
-/** Узкий мост `window.lms`: ни `ipcRenderer`, ни произвольных каналов. */
-export interface LmsBridge {
+/** Применение изменений в каталогах расширений. */
+export interface ExtensionsBridge {
+  /** Перезапускает хосты (движок и расширений) и перезагружает окно; ответ приходит до перезагрузки. */
+  apply(): Promise<void>;
+}
+
+/** Узкий мост `window.dolphy`: ни `ipcRenderer`, ни произвольных каналов. */
+export interface DolphyBridge {
   engine: { connect(): void };
   platform: Platform;
+  extensions: ExtensionsBridge;
   /** Только в смоук-сборке (`shared/smoke.ts`). */
   smoke?: SmokeBridge;
 }
@@ -17,4 +24,5 @@ export const CHANNELS = {
   engineConnect: 'engine:connect',
   enginePort: 'engine:port',
   pickDirectory: 'platform:pickDirectory',
+  applyExtensions: 'extensions:apply',
 } as const;

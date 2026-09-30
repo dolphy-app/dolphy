@@ -5,7 +5,7 @@ import type {
   UnitKind,
   UnitScoreDto,
   UnitStatus,
-} from '@lms/engine-contract';
+} from '@dolphy-app/engine-contract';
 import type { UnitType } from '../domain/graph.ts';
 import type { Library } from '../domain/library.ts';
 import { windowNameOf } from '../scheduler/options.ts';

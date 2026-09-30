@@ -1,27 +1,41 @@
 /**
- * Клиент `@lms/engine-rpc` → диспетчер → настоящий `createEngine` через
+ * Клиент `@dolphy-app/engine-rpc` → диспетчер → настоящий `createEngine` через
  * in-process пару (structuredClone на каждом сообщении, как в Electron).
  */
-import { RPC_METHODS } from '@lms/engine-contract';
-import type { EngineEvent, SavedFilterDto } from '@lms/engine-contract';
-import { createEngine } from '@lms/engine/app';
+import { RPC_METHODS } from '@dolphy-app/engine-contract';
+import type {
+  CatalogDto,
+  EngineEvent,
+  ExtensionInfoDto,
+  ExtensionUpdateDto,
+  SavedFilterDto,
+} from '@dolphy-app/engine-contract';
+import { createEngine } from '@dolphy-app/engine/app';
 import {
   createMemoryEventStore,
+  createMemoryRepositoryStore,
   createMemorySettingsStore,
-} from '@lms/engine/node';
-import { createTsFsrsMemoryModel } from '@lms/engine';
-import type { Verifier } from '@lms/engine';
+  createNodeSnapshotInstaller,
+} from '@dolphy-app/engine/node';
+import { GitFetchError } from '@dolphy-app/engine/ports';
+import type { GitSnapshotFetcher } from '@dolphy-app/engine/ports';
+import { createTsFsrsMemoryModel } from '@dolphy-app/engine';
 import {
   buildAttempt,
   buildExercise,
   buildLibrary,
   createFakeClock,
+  createFakeExerciseTypes,
+  createFakeExtensionInstaller,
+  createFakeExtensionPolicy,
+  createFakeExtensionRegistry,
+  createFakeGradePolicies,
   createMemoryCourseSource,
   createSeededRng,
   createTestIds,
   silentLogger,
   T0_MS,
-} from '@lms/testkit';
+} from '@dolphy-app/testkit';
 import { describe, expect, it } from 'vitest';
 import { EngineCallError, createEngineClient } from '../../src/client/index.ts';
 import { createDispatcher, schemas } from '../../src/host/index.ts';
@@ -44,16 +58,78 @@ const VERIFIABLE = 'c::l1::v0';
 library.exercises.push(
   buildExercise({
     id: VERIFIABLE,
-    engine: { verification: { runner: 'sql', timeoutMs: 500 } },
+    engine: { exercise: { type: 'dolphy.sql', timeoutMs: 500, spec: {} } },
   }),
 );
 const E1 = 'c::l1::e0';
+const REGISTERED: ExtensionInfoDto = {
+  id: 'dolphy.sql',
+  version: '1.0.0',
+  origin: 'bundled',
+  state: 'loaded',
+  contributes: {
+    exerciseTypes: ['dolphy.sql'],
+    themes: [],
+    markdownRenderers: [],
+    gradePolicies: [],
+  },
+  message: null,
+  permissions: ['library.read'],
+  isolation: 'trusted',
+  toggleable: false,
+  name: null,
+  description: null,
+  author: null,
+  installed: null,
+  removable: false,
+  revoked: null,
+};
+const USER_EXTENSION: ExtensionInfoDto = {
+  ...REGISTERED,
+  id: 'acme.user',
+  origin: 'user',
+  contributes: { ...REGISTERED.contributes, exerciseTypes: [] },
+  permissions: [],
+  isolation: 'isolated',
+  toggleable: true,
+  removable: true,
+};
 
-/** Раннер, всегда отвечающий `passed`: проверяет путь вердикта через RPC. */
-const passingVerifier: Verifier = {
-  runner: 'sql',
-  check: async () => ({ outcome: 'passed', durationMs: 1 }),
-  close: async () => {},
+const CATALOG: CatalogDto = {
+  entries: [],
+  fetchedAt: '2026-10-01T00:00:00.000Z',
+  stale: false,
+  error: null,
+};
+const UPDATE: ExtensionUpdateDto = {
+  id: 'acme.user',
+  name: 'Acme',
+  installed: '1.0.0',
+  available: {
+    version: '1.1.0',
+    permissions: [],
+    publishedAt: '2026-10-01T00:00:00.000Z',
+    size: 10,
+    minAppVersion: null,
+  },
+};
+
+/** Вид задания, всегда отвечающий `passed`: проверяет путь вердикта через RPC. */
+const passingTypes = () =>
+  createFakeExerciseTypes({
+    types: {
+      'dolphy.sql': { script: [{ outcome: 'passed', durationMs: 1 }] },
+    },
+  });
+
+/** Сеть недоступна: любой вызов падает как `GIT_FETCH_FAILED/network`. */
+const offlineFetcher: GitSnapshotFetcher = {
+  resolve: async () => {
+    throw new GitFetchError('network', 'offline');
+  },
+  fetchSnapshot: async () => {
+    throw new GitFetchError('network', 'offline');
+  },
 };
 
 const start = async () => {
@@ -69,7 +145,23 @@ const start = async () => {
       eventStore: createMemoryEventStore({ deviceId: 'device-a' }),
       settings: createMemorySettingsStore(),
       memoryModel: createTsFsrsMemoryModel(),
-      verifiers: [passingVerifier],
+      exerciseTypes: passingTypes(),
+      gradePolicies: createFakeGradePolicies(),
+      extensionRegistry: createFakeExtensionRegistry([
+        REGISTERED,
+        USER_EXTENSION,
+      ]),
+      extensionPolicy: createFakeExtensionPolicy(),
+      extensionInstaller: createFakeExtensionInstaller({
+        catalog: CATALOG,
+        updates: [UPDATE],
+      }),
+      repositoryStore: createMemoryRepositoryStore(),
+      snapshotFetcher: offlineFetcher,
+      snapshotInstaller: createNodeSnapshotInstaller({
+        libraryRoot: source.root,
+        dataDir: '/tmp/rpc-integration',
+      }),
     },
     { libraryRoot: source.root, dataDir: '/tmp/rpc-integration' },
   );
@@ -220,6 +312,35 @@ describe('rpc → dispatcher → real engine', () => {
       return client.library.readAsset(unit.content.front);
     });
 
+    expect(
+      await call('repositories.list', () => client.repositories.list()),
+    ).toEqual([]);
+    await call('repositories.add', () =>
+      client.repositories
+        .add({ url: 'https://example.com/a.git' })
+        .catch((error) => {
+          expect(error).toMatchObject({
+            code: 'GIT_FETCH_FAILED',
+            details: { reason: 'network' },
+          });
+        }),
+    );
+    await call('repositories.update', () =>
+      client.repositories.update('nope').catch((error) => {
+        expect(error).toMatchObject({ code: 'NOT_FOUND' });
+      }),
+    );
+    await call('repositories.remove', () =>
+      client.repositories.remove('nope').catch((error) => {
+        expect(error).toMatchObject({ code: 'NOT_FOUND' });
+      }),
+    );
+    expect(
+      await call('repositories.cancel', () =>
+        client.repositories.cancel('nope'),
+      ),
+    ).toBe(false);
+
     await call('practice.startSession', () => client.practice.startSession());
     await call('practice.getBatch', () => client.practice.getBatch());
     const attempt = await call('practice.beginAttempt', () =>
@@ -237,7 +358,7 @@ describe('rpc → dispatcher → real engine', () => {
     const verdict = await call('practice.submitAnswer', () =>
       client.practice.submitAnswer({
         attemptId: checked.attemptId,
-        submission: { kind: 'sql', sql: 'select 1' },
+        answer: 'select 1',
       }),
     );
     expect(verdict).toMatchObject({ outcome: 'passed', attemptsUsed: 1 });
@@ -335,6 +456,10 @@ describe('rpc → dispatcher → real engine', () => {
     );
     await call('settings.getScorer', () => client.settings.getScorer());
     await call('settings.getUi', () => client.settings.getUi());
+    await call('settings.getLearning', () => client.settings.getLearning());
+    await call('settings.setLearning', () =>
+      client.settings.setLearning({ gradePolicy: 'acme.policy' }),
+    );
     await call('settings.setUi', () =>
       client.settings.setUi({ theme: 'dark', locale: 'en' }),
     );
@@ -406,6 +531,69 @@ describe('rpc → dispatcher → real engine', () => {
         expect(error).toMatchObject({ code: 'SYNC_FOLDER_NOT_CONFIGURED' });
       }),
     );
+    expect(
+      await call('extensions.list', () => client.extensions.list()),
+    ).toEqual([USER_EXTENSION, REGISTERED]);
+    expect(
+      await call('extensions.getSettings', () =>
+        client.extensions.getSettings(),
+      ),
+    ).toEqual({ disabled: [], trusted: [], checkUpdates: true });
+    expect(
+      await call('extensions.setEnabled', () =>
+        client.extensions.setEnabled('acme.user', false),
+      ),
+    ).toEqual({ disabled: ['acme.user'], trusted: [], checkUpdates: true });
+    expect(
+      await call('extensions.setTrusted', () =>
+        client.extensions.setTrusted('acme.user', true),
+      ),
+    ).toEqual({
+      disabled: ['acme.user'],
+      trusted: ['acme.user'],
+      checkUpdates: true,
+    });
+    expect(
+      await call('extensions.setCheckUpdates', () =>
+        client.extensions.setCheckUpdates(false),
+      ),
+    ).toMatchObject({ checkUpdates: false });
+    expect(
+      await call('extensions.catalog', () =>
+        client.extensions.catalog({ refresh: true }),
+      ),
+    ).toEqual(CATALOG);
+    expect(
+      await call('extensions.install', () =>
+        client.extensions.install('acme.new', '2.0.0'),
+      ),
+    ).toEqual({
+      id: 'acme.new',
+      version: '2.0.0',
+      previousVersion: null,
+      restartRequired: true,
+    });
+    expect(
+      await call('extensions.updates', () => client.extensions.updates()),
+    ).toEqual([UPDATE]);
+    await call('extensions.uninstall', () =>
+      client.extensions.uninstall('acme.user'),
+    );
+    await expect(
+      client.extensions.setEnabled('dolphy.sql', false),
+    ).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+      details: { reason: 'bundled' },
+    });
+    expect(
+      await call('extensions.contributions', () =>
+        client.extensions.contributions(),
+      ),
+    ).toEqual({
+      themes: [],
+      markdownRenderers: [],
+      gradePolicies: [{ id: 'passAtN', extensionId: null, label: null }],
+    });
     await call('diagnostics', () => client.diagnostics());
 
     expect([...called].sort()).toEqual(Object.keys(RPC_METHODS).sort());

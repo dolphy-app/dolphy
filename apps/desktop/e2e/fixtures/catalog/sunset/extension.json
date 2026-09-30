@@ -1,0 +1,23 @@
+{
+  "id": "acme.sunset",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "name": "Sunset",
+  "description": "Тёмная тема «Закат»",
+  "author": "dana-k",
+  "contributes": {
+    "themes": [
+      {
+        "id": "acme.sunset",
+        "label": "Закат",
+        "dark": true,
+        "colors": {
+          "background": "#1C1018",
+          "surface": "#2A1A24",
+          "primary": "#FB923C",
+          "on-primary": "#1C1018"
+        }
+      }
+    ]
+  }
+}

@@ -1,4 +1,4 @@
-import { EngineError } from '@lms/engine/app';
+import { EngineError } from '@dolphy-app/engine/app';
 import type { SqlDatabase } from './sql-database.ts';
 
 /**
@@ -49,6 +49,9 @@ CREATE TABLE imported_segment (
 CREATE TABLE setting (key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT;
 CREATE TABLE saved_filter (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;
 CREATE TABLE study_session (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;
+`,
+  `
+CREATE TABLE repository (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;
 `,
 ];
 

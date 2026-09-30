@@ -20,6 +20,7 @@ const selected = computed({
     v-if="scope.courses.value.length > 1"
     v-model="selected"
     mandatory
+    column
     color="primary"
     variant="tonal"
     filter

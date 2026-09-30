@@ -3,8 +3,8 @@
  * подписчики и T-01 — смена опций доходит до `UnitScorer`, `CandidateFilter`,
  * `RelearnPile` и поиска сразу (в Rust у компонентов устаревшие клоны).
  */
-import type { SchedulerOptionsDto } from '@lms/engine-contract';
-import { createSeededRng } from '@lms/testkit';
+import type { SchedulerOptionsDto } from '@dolphy-app/engine-contract';
+import { createSeededRng } from '@dolphy-app/testkit';
 import { describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_SCHEDULER_OPTIONS,

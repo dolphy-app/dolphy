@@ -4,7 +4,7 @@
  * значения. Считаются только вызовы методов обёртки; вызовы `random()` внутри
  * `shuffle`/`sample*` базового генератора в счётчик `random` не попадают.
  */
-import { createSeededRng } from '@lms/testkit';
+import { createSeededRng } from '@dolphy-app/testkit';
 import type { Rng } from '../../../src/ports/index.ts';
 
 export interface RngCalls {

@@ -1,4 +1,4 @@
-import type { UnitId } from '@lms/engine-contract';
+import type { UnitId } from '@dolphy-app/engine-contract';
 import type { Library } from '../domain/library.ts';
 
 const compareStrings = (a: string, b: string) => Number(a > b) - Number(a < b);

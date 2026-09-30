@@ -1,0 +1,25 @@
+{
+  "name": "@dolphy-app/ext-choice",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Расширение dolphy.choice: задания с выбором вариантов",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
+    "test": "vitest run",
+    "build": "dolphy-ext build"
+  },
+  "dependencies": {
+    "@dolphy-app/extension-api": "workspace:*",
+    "@dolphy-app/extension-sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "typescript": "7.0.2",
+    "@dolphy-app/extension-tools": "workspace:*",
+    "happy-dom": "^20.14.5"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}

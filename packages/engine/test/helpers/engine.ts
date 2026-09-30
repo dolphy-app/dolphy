@@ -7,34 +7,49 @@ import type {
   EngineConfig,
   EngineEvent,
   LearningEngine,
-} from '@lms/engine-contract';
+} from '@dolphy-app/engine-contract';
 import {
   createCapturingLogger,
   createFakeClock,
+  createFakeExerciseTypes,
+  createFakeExtensionInstaller,
+  createFakeExtensionPolicy,
+  createFakeExtensionRegistry,
+  createFakeGradePolicies,
   createMemoryCourseSource,
   createSeededRng,
   createTestIds,
-} from '@lms/testkit';
+} from '@dolphy-app/testkit';
 import type {
   CapturedLog,
   CourseLibrary,
   FakeClock,
   SeededRng,
   TestIds,
-} from '@lms/testkit';
+} from '@dolphy-app/testkit';
 import { createContext, createEngineFromContext } from '../../src/app/index.ts';
 import type { EngineContext, EngineDeps } from '../../src/app/index.ts';
 import {
   createMemoryEventStore,
+  createMemoryRepositoryStore,
   createMemorySettingsStore,
   createNodeFsCourseSource,
+  createNodeSnapshotInstaller,
 } from '../../src/node/index.ts';
+import { GitFetchError } from '../../src/ports/index.ts';
 import type {
   CourseSource,
   EventStore,
+  GitSnapshotFetcher,
+  RepositoryStore,
   SettingsStore,
-  Verifier,
+  SnapshotInstaller,
 } from '../../src/ports/index.ts';
+import type { ExerciseTypes } from '../../src/ports/exercise-types.ts';
+import type { GradePolicies } from '../../src/ports/grade-policies.ts';
+import type { ExtensionInstaller } from '../../src/ports/extension-installer.ts';
+import type { ExtensionPolicy } from '../../src/ports/extension-policy.ts';
+import type { ExtensionRegistry } from '../../src/ports/extension-registry.ts';
 import { createTsFsrsMemoryModel } from '../../src/scoring/memory-model.ts';
 import { LIBRARIES_DIR } from './fixtures.ts';
 
@@ -49,18 +64,27 @@ export const FIXTURE_LIBRARIES = {
 export type FixtureLibraryName = keyof typeof FIXTURE_LIBRARIES;
 
 export interface TestEngineOptions {
-  /** Фикстура, синтетическая библиотека (`@lms/testkit`) или готовый источник. По умолчанию `embedded`. */
+  /** Фикстура, синтетическая библиотека (`@dolphy-app/testkit`) или готовый источник. По умолчанию `embedded`. */
   library?: FixtureLibraryName | CourseLibrary | CourseSource;
   /** По умолчанию `createMemoryEventStore({ deviceId })`. */
   eventStore?: EventStore;
   deviceId?: string;
   settings?: SettingsStore;
-  verifiers?: readonly Verifier[];
+  exerciseTypes?: ExerciseTypes;
+  gradePolicies?: GradePolicies;
+  extensionRegistry?: ExtensionRegistry;
+  extensionPolicy?: ExtensionPolicy;
+  extensionInstaller?: ExtensionInstaller;
   clock?: FakeClock;
   seed?: number;
   config?: Partial<EngineConfig>;
   folderSync?: EngineDeps['folderSync'];
   openTraneSource?: EngineDeps['openTraneSource'];
+  repositoryStore?: RepositoryStore;
+  /** По умолчанию — без сети (`GIT_FETCH_FAILED/network`). */
+  snapshotFetcher?: GitSnapshotFetcher;
+  /** По умолчанию — `createNodeSnapshotInstaller` над `libraryRoot` и `dataDir`. */
+  snapshotInstaller?: SnapshotInstaller;
 }
 
 export interface TestContext {
@@ -101,6 +125,16 @@ const sourceOf = (library: TestEngineOptions['library']): CourseSource => {
   return isCourseLibrary(library) ? createMemoryCourseSource(library) : library;
 };
 
+/** Сети нет: `repositories.add` падает `GIT_FETCH_FAILED/network`. */
+const offlineFetcher: GitSnapshotFetcher = {
+  resolve: async () => {
+    throw new GitFetchError('network', 'offline');
+  },
+  fetchSnapshot: async () => {
+    throw new GitFetchError('network', 'offline');
+  },
+};
+
 export const createTestContext = async (
   options: TestEngineOptions = {},
 ): Promise<TestContext> => {
@@ -113,6 +147,13 @@ export const createTestContext = async (
     options.eventStore ??
     createMemoryEventStore({ deviceId: options.deviceId ?? 'device-a' });
   const settings = options.settings ?? createMemorySettingsStore();
+  const config: EngineConfig = {
+    libraryRoot: source.root,
+    dataDir: '/tmp/engine-test-data',
+    ...options.config,
+  };
+  const repositoryStore =
+    options.repositoryStore ?? createMemoryRepositoryStore();
   const deps: EngineDeps = {
     clock,
     rng,
@@ -122,16 +163,25 @@ export const createTestContext = async (
     eventStore,
     settings,
     memoryModel: createTsFsrsMemoryModel(),
-    verifiers: options.verifiers ?? [],
+    exerciseTypes: options.exerciseTypes ?? createFakeExerciseTypes(),
+    gradePolicies: options.gradePolicies ?? createFakeGradePolicies(),
+    extensionRegistry:
+      options.extensionRegistry ?? createFakeExtensionRegistry(),
+    extensionPolicy: options.extensionPolicy ?? createFakeExtensionPolicy(),
+    extensionInstaller:
+      options.extensionInstaller ?? createFakeExtensionInstaller(),
+    repositoryStore,
+    snapshotFetcher: options.snapshotFetcher ?? offlineFetcher,
+    snapshotInstaller:
+      options.snapshotInstaller ??
+      createNodeSnapshotInstaller({
+        libraryRoot: config.libraryRoot,
+        dataDir: config.dataDir,
+      }),
     ...(options.folderSync !== undefined && { folderSync: options.folderSync }),
     ...(options.openTraneSource !== undefined && {
       openTraneSource: options.openTraneSource,
     }),
-  };
-  const config: EngineConfig = {
-    libraryRoot: source.root,
-    dataDir: '/tmp/engine-test-data',
-    ...options.config,
   };
   const ctx = await createContext(deps, config);
   return { ctx, deps, clock, rng, ids, source, eventStore, settings, logs };

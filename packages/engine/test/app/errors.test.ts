@@ -1,32 +1,59 @@
-import { createCapturingLogger } from '@lms/testkit';
+import { createCapturingLogger } from '@dolphy-app/testkit';
 import { describe, expect, it } from 'vitest';
 import { ERRORS, EngineError, createErrorMapper } from '../../src/app/index.ts';
 
 describe('EngineError', () => {
-  it('has all 22 codes of API §8 with the documented default retryable', () => {
-    expect(Object.keys(ERRORS)).toHaveLength(22);
+  it('has all 26 codes (API §8 and repositories) with the documented default retryable', () => {
+    expect(Object.keys(ERRORS)).toHaveLength(26);
     const retryable = Object.entries(ERRORS)
       .filter(([, spec]) => spec.retryable)
       .map(([code]) => code)
       .sort();
     expect(retryable).toEqual([
+      'CATALOG_UNAVAILABLE',
       'ENGINE_CLOSED',
+      'EXERCISE_TYPE_UNAVAILABLE',
       'INTERNAL',
       'STORE_BUSY',
-      'VERIFIER_TIMEOUT',
-      'VERIFIER_UNAVAILABLE',
     ]);
   });
 
-  it('VERIFIER_UNAVAILABLE is not retryable without a runner', () => {
-    const noRunner = new EngineError('VERIFIER_UNAVAILABLE', {
-      details: { cause: 'no-runner', runner: 'sql' },
+  it('GIT_FETCH_FAILED is retryable only for network, timeout and cancellation', () => {
+    const retryable = (reason: string) =>
+      new EngineError('GIT_FETCH_FAILED', { details: { reason } }).retryable;
+    expect(['network', 'timeout', 'cancelled'].map(retryable)).toEqual([
+      true,
+      true,
+      true,
+    ]);
+    expect(
+      ['not-found', 'auth-required', 'ref-not-found', 'too-large'].map(
+        retryable,
+      ),
+    ).toEqual([false, false, false, false]);
+  });
+
+  it('EXTENSION_INSTALL_FAILED is retryable only for network failures', () => {
+    const retryable = (reason: string) =>
+      new EngineError('EXTENSION_INSTALL_FAILED', { details: { reason } })
+        .retryable;
+    expect(retryable('network')).toBe(true);
+    expect(
+      ['incompatible', 'integrity', 'limits', 'invalid', 'conflict'].map(
+        retryable,
+      ),
+    ).toEqual([false, false, false, false, false]);
+  });
+
+  it('EXERCISE_TYPE_UNAVAILABLE is not retryable for an unknown type', () => {
+    const unknown = new EngineError('EXERCISE_TYPE_UNAVAILABLE', {
+      details: { cause: 'unknown-type', type: 'x.y' },
     });
-    const notStarted = new EngineError('VERIFIER_UNAVAILABLE', {
-      details: { cause: 'pool-stopped' },
+    const hostDown = new EngineError('EXERCISE_TYPE_UNAVAILABLE', {
+      details: { cause: 'host-down' },
     });
-    expect(noRunner.retryable).toBe(false);
-    expect(notStarted.retryable).toBe(true);
+    expect(unknown.retryable).toBe(false);
+    expect(hostDown.retryable).toBe(true);
   });
 
   it('toDto carries code, message, retryable and details only when set', () => {

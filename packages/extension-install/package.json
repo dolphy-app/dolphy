@@ -1,0 +1,27 @@
+{
+  "name": "@dolphy-app/extension-install",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Установщик расширений из каталога: кэш индекса, скачивание с проверкой sha256, стейджинг и замена каталога с откатом (Node-адаптер порта ExtensionInstaller)",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@dolphy-app/engine": "workspace:*",
+    "@dolphy-app/engine-contract": "workspace:*",
+    "@dolphy-app/extension-api": "workspace:*",
+    "@dolphy-app/extension-catalog": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "typescript": "7.0.2"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}

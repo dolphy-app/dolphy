@@ -1,4 +1,4 @@
-import type { Diagnostic, UnitId } from '@lms/engine-contract';
+import type { Diagnostic, UnitId } from '@dolphy-app/engine-contract';
 import { diag } from '../authoring/diagnostics.ts';
 import type { Library } from '../domain/library.ts';
 

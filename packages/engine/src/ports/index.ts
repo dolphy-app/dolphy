@@ -6,12 +6,13 @@ import type {
   SchedulerOptionsDto,
   StateVector,
   StudySessionWire,
-  SubmissionDto,
+  ExtensionSettingsDto,
+  LearningSettingsDto,
   UiSettingsDto,
   VerdictDto,
-} from '@lms/engine-contract';
+} from '@dolphy-app/engine-contract';
 import type { LogEntry } from '../domain/journal.ts';
-import type { ExerciseManifest, UserPreferences } from '../domain/manifest.ts';
+import type { UserPreferences } from '../domain/manifest.ts';
 
 export interface Clock {
   now(): EpochMs;
@@ -102,7 +103,7 @@ export interface SegmentRecord {
 /**
  * Синхронные примитивы внутри одной транзакции хранилища [ВЫВОД: в дизайне
  * порт назван без сигнатур]. Алгоритм слияния и решения конфликтов написан один
- * раз (`@lms/engine/sync`) поверх этих примитивов, адаптеры их только реализуют.
+ * раз (`@dolphy-app/engine/sync`) поверх этих примитивов, адаптеры их только реализуют.
  * «Живые» записи — `log_entry`, скрытые — `log_conflict`; вместе они образуют
  * множество записей реплики.
  */
@@ -180,19 +181,6 @@ export type RawVerdict = DistributiveOmit<
   'attemptId' | 'attemptsUsed'
 >;
 
-export interface VerifyRequest {
-  exercise: ExerciseManifest;
-  submission: SubmissionDto;
-  timeoutMs: number;
-  authorMode: boolean;
-}
-
-export interface Verifier {
-  readonly runner: string; // 'sql'
-  check(request: VerifyRequest): Promise<RawVerdict>; // error-вердикт — данные, не исключение
-  close(): Promise<void>;
-}
-
 export interface SourceEntry {
   name: string;
   /** Для симлинка — вид цели; висячая ссылка в список не попадает. */
@@ -262,4 +250,20 @@ export interface SettingsStore {
   /** Настройки интерфейса; без сохранённых — тема и язык `system`. */
   loadUi(): Promise<UiSettingsDto>;
   saveUi(ui: UiSettingsDto): Promise<void>;
+  /** Настройки обучения; без сохранённых — правило оценки `passAtN`. */
+  loadLearning(): Promise<LearningSettingsDto>;
+  saveLearning(learning: LearningSettingsDto): Promise<void>;
+  /** Настройки расширений; без сохранённых — ничего не отключено и не доверено. */
+  loadExtensions(): Promise<ExtensionSettingsDto>;
+  saveExtensions(extensions: ExtensionSettingsDto): Promise<void>;
+  /** Время последней фоновой проверки обновлений расширений (epoch ms); `null` — не проверяли. */
+  loadUpdateCheckedAt(): Promise<number | null>;
+  saveUpdateCheckedAt(at: number): Promise<void>;
 }
+
+export * from './exercise-types.ts';
+export * from './grade-policies.ts';
+export * from './extension-installer.ts';
+export * from './extension-policy.ts';
+export * from './extension-registry.ts';
+export * from './repositories.ts';

@@ -10,8 +10,8 @@ import type {
   UnitKind,
   ValidateRequest,
   ValidateResult,
-} from '@lms/engine-contract';
-import { CONTRACT_VERSION } from '@lms/engine-contract';
+} from '@dolphy-app/engine-contract';
+import { CONTRACT_VERSION } from '@dolphy-app/engine-contract';
 import { sortDiagnostics, summarize } from '../../authoring/diagnostics.ts';
 import { compile } from '../../authoring/compile.ts';
 import type { CompileOptions } from '../../authoring/compile.ts';
@@ -131,19 +131,9 @@ export const createLibraryService = (ctx: EngineContext): LibraryService => {
     return {
       emit: 'always',
       scan: { ignoredPaths },
-      ...(runChecks
-        ? { runChecks: { verifiers: [...ctx.verifiers.values()] } }
-        : {}),
+      checks: { exerciseTypes: ctx.exerciseTypes },
+      ...(runChecks ? { runChecks: { exerciseTypes: ctx.exerciseTypes } } : {}),
     };
-  };
-
-  const assertRunnerAvailable = (runChecks: boolean) => {
-    if (runChecks && ctx.verifiers.size === 0) {
-      throw new EngineError('VERIFIER_UNAVAILABLE', {
-        message: 'No verifier is registered to run reference checks',
-        details: { cause: 'no-runner' },
-      });
-    }
   };
 
   const getInfo = async (): Promise<LibraryInfo> => {
@@ -234,7 +224,6 @@ export const createLibraryService = (ctx: EngineContext): LibraryService => {
       return pageOfSnapshot(snapshot, req);
     }
     const runChecks = req.runChecks === true;
-    assertRunnerAvailable(runChecks);
     const result = await compile(
       ctx.courseSource,
       await compileOptions(runChecks),
@@ -278,7 +267,6 @@ export const createLibraryService = (ctx: EngineContext): LibraryService => {
       };
     }
     const runChecks = req.runChecks === true;
-    assertRunnerAvailable(runChecks);
     const options = await compileOptions(runChecks);
     const probe = await probeArtifact(ctx.courseSource, options);
     const fresh = probe.artifact;
@@ -336,7 +324,12 @@ export const createLibraryService = (ctx: EngineContext): LibraryService => {
             ctx.library,
             ctx.courseSource,
             { clock: ctx.clock },
-            { compile: { scan: { ignoredPaths } } },
+            {
+              compile: {
+                scan: { ignoredPaths },
+                checks: { exerciseTypes: ctx.exerciseTypes },
+              },
+            },
           )
         : rejectMissingRoot(rootProblem);
     const current = requireStatus();
@@ -395,7 +388,13 @@ export const createLibraryService = (ctx: EngineContext): LibraryService => {
       throw new EngineError('NOT_FOUND', { details: { unitId: lessonId } });
     }
     const page = paginate(library.getExerciseIds(lessonId) ?? [], req);
-    return mapPage(page, (id) => toExerciseDto(library.exercises.get(id)!));
+    return mapPage(page, (id) =>
+      toExerciseDto(
+        library.exercises.get(id)!,
+        ctx.exerciseTypes,
+        ctx.extensionPolicy,
+      ),
+    );
   };
 
   const matchPrefix: LibraryService['matchPrefix'] = async (
@@ -423,7 +422,13 @@ export const createLibraryService = (ctx: EngineContext): LibraryService => {
     listCourses,
     listLessons,
     listExercises,
-    getUnit: async (id) => toUnitDto(ctx.library.require(), id),
+    getUnit: async (id) =>
+      toUnitDto(
+        ctx.library.require(),
+        id,
+        ctx.exerciseTypes,
+        ctx.extensionPolicy,
+      ),
     matchPrefix,
     getGraph: async (query) => toGraphDto(ctx.library.require(), query),
     readAsset: async (ref) =>

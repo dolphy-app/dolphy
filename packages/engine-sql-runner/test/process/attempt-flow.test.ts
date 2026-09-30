@@ -5,8 +5,9 @@
  * `completeAttempt`; `error`-вердикты не пишут событие и не считаются в
  * `attemptsUsed`; вердикт `failed` учитывается.
  */
-import type { VerdictDto } from '@lms/engine-contract';
-import { countGradedVerdicts, passAtN } from '@lms/engine/verify';
+import type { VerdictDto } from '@dolphy-app/engine-contract';
+import type { RawVerdict } from '@dolphy-app/engine/ports';
+import { countGradedVerdicts, passAtN } from '@dolphy-app/engine/verify';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { SqlVerifier } from '../../src/verifier.ts';
 import {
@@ -31,7 +32,8 @@ const createAttempt = (verifier: SqlVerifier, journal: JournalEntry[]) => {
   return {
     verdicts,
     submit: async (sql: string, timeoutMs = 2000): Promise<VerdictDto> => {
-      const raw = await verifier.check(sqlRequest(sql, { timeoutMs }));
+      const graded = await verifier.check(sqlRequest(sql, { timeoutMs }));
+      const raw = { ...graded, durationMs: 0 } as RawVerdict;
       const verdict: VerdictDto = {
         ...raw,
         attemptId,

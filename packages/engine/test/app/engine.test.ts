@@ -2,9 +2,9 @@
  * `createEngine` целиком: открытие, диагностика, восстановление проекций из
  * журнала, ремедиация через фасад (T-55 е, з), закрытие.
  */
-import type { LearningEngine } from '@lms/engine-contract';
-import { CONTRACT_VERSION } from '@lms/engine-contract';
-import { buildAttempt, createFakeClock, T0_MS } from '@lms/testkit';
+import type { LearningEngine } from '@dolphy-app/engine-contract';
+import { CONTRACT_VERSION } from '@dolphy-app/engine-contract';
+import { buildAttempt, createFakeClock, T0_MS } from '@dolphy-app/testkit';
 import { describe, expect, it, vi } from 'vitest';
 import { createEngine } from '../../src/app/index.ts';
 import {

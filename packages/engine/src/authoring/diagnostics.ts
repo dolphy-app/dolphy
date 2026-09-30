@@ -1,9 +1,9 @@
-import { DIAGNOSTIC_SEVERITY } from '@lms/engine-contract';
+import { DIAGNOSTIC_SEVERITY } from '@dolphy-app/engine-contract';
 import type {
   Diagnostic,
   DiagnosticCode,
   DiagnosticSummary,
-} from '@lms/engine-contract';
+} from '@dolphy-app/engine-contract';
 
 export interface DiagnosticLocation {
   unitId?: string;

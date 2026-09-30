@@ -1,9 +1,9 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { createFakeClock } from '@lms/testkit';
+import { createFakeClock } from '@dolphy-app/testkit';
 import { describe, expect, it } from 'vitest';
-import type { LogEntry } from '@lms/engine';
-import { importFromTrane } from '@lms/engine/sync';
+import type { LogEntry } from '@dolphy-app/engine';
+import { importFromTrane } from '@dolphy-app/engine/sync';
 import {
   openBetterSqliteDatabase,
   openSqliteEventStore,

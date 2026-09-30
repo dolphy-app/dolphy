@@ -3,7 +3,7 @@
  * `R ≤ plan.targetRetention`, по убыванию `need = 1 − R`. Проверяются
  * свойства выдачи (порог, порядок, монотонность по времени), а не числа FSRS.
  */
-import type { Grade, UnitId } from '@lms/engine-contract';
+import type { Grade, UnitId } from '@dolphy-app/engine-contract';
 import { describe, expect, it } from 'vitest';
 import { retrievabilityAt } from '../../src/scheduler/index.ts';
 import { type World, createWorld } from './helpers/world.ts';

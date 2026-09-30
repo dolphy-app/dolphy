@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { EngineError } from '@lms/engine/app';
-import type { TraneSource, TraneTrial } from '@lms/engine/sync';
+import { EngineError } from '@dolphy-app/engine/app';
+import type { TraneSource, TraneTrial } from '@dolphy-app/engine/sync';
 import { openBetterSqliteDatabase } from './sql-database.ts';
 
 /** Файлы каталога `.trane` (`trane-pristine/src/lib.rs`). */

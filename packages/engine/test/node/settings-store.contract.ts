@@ -1,4 +1,7 @@
-import type { SavedFilterDto, StudySessionWire } from '@lms/engine-contract';
+import type {
+  SavedFilterDto,
+  StudySessionWire,
+} from '@dolphy-app/engine-contract';
 import { describe, expect, it } from 'vitest';
 import type { SettingsStore } from '../../src/ports/index.ts';
 
@@ -153,12 +156,74 @@ export const describeSettingsStoreContract = (
       expect(await store.loadUi()).toEqual({ theme: 'dark', locale: 'en' });
       await store.saveUi({ theme: 'light', locale: 'ru' });
       expect(await store.loadUi()).toEqual({ theme: 'light', locale: 'ru' });
+      await store.saveUi({ theme: 'acme.midnight', locale: 'ru' });
+      expect(await store.loadUi()).toEqual({
+        theme: 'acme.midnight',
+        locale: 'ru',
+      });
+    });
+
+    it('обучение: по умолчанию passAtN, save → load', async () => {
+      const store = await make();
+      expect(await store.loadLearning()).toEqual({ gradePolicy: 'passAtN' });
+      await store.saveLearning({ gradePolicy: 'acme.policy.generous' });
+      expect(await store.loadLearning()).toEqual({
+        gradePolicy: 'acme.policy.generous',
+      });
+      await store.saveLearning({ gradePolicy: 'passAtN' });
+      expect(await store.loadLearning()).toEqual({ gradePolicy: 'passAtN' });
+    });
+
+    it('расширения: по умолчанию пусто, проверка обновлений включена', async () => {
+      const store = await make();
+      expect(await store.loadExtensions()).toEqual({
+        disabled: [],
+        trusted: [],
+        checkUpdates: true,
+      });
+    });
+
+    it('расширения: save → load, списки канонические, checkUpdates=false переживает круг', async () => {
+      const store = await make();
+      await store.saveExtensions({
+        disabled: ['acme.b', 'acme.a', 'acme.b'],
+        trusted: ['acme.z'],
+        checkUpdates: false,
+      });
+      expect(await store.loadExtensions()).toEqual({
+        disabled: ['acme.a', 'acme.b'],
+        trusted: ['acme.z'],
+        checkUpdates: false,
+      });
+      await store.saveExtensions({
+        disabled: [],
+        trusted: [],
+        checkUpdates: true,
+      });
+      expect(await store.loadExtensions()).toEqual({
+        disabled: [],
+        trusted: [],
+        checkUpdates: true,
+      });
+    });
+
+    it('метка проверки обновлений: по умолчанию null, save → load', async () => {
+      const store = await make();
+      expect(await store.loadUpdateCheckedAt()).toBeNull();
+      await store.saveUpdateCheckedAt(1_700_000_000_000);
+      expect(await store.loadUpdateCheckedAt()).toBe(1_700_000_000_000);
     });
 
     it('значения разных видов не мешают друг другу', async () => {
       const store = await make();
       await store.saveSchedulerOverrides({ batchSize: 3 });
       await store.saveUi({ theme: 'dark', locale: 'ru' });
+      await store.saveLearning({ gradePolicy: 'acme.policy' });
+      await store.saveExtensions({
+        disabled: ['acme.x'],
+        trusted: [],
+        checkUpdates: true,
+      });
       await store.savePreferences({
         scheduler: null,
         ignored_paths: ['x'],
@@ -166,6 +231,14 @@ export const describeSettingsStoreContract = (
       });
       expect((await store.loadSchedulerOverrides()).batchSize).toBe(3);
       expect(await store.loadUi()).toEqual({ theme: 'dark', locale: 'ru' });
+      expect(await store.loadLearning()).toEqual({
+        gradePolicy: 'acme.policy',
+      });
+      expect(await store.loadExtensions()).toEqual({
+        disabled: ['acme.x'],
+        trusted: [],
+        checkUpdates: true,
+      });
       expect((await store.loadPreferences()).ignored_paths).toEqual(['x']);
     });
   });

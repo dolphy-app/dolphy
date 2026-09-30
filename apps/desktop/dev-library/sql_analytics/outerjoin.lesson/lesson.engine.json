@@ -1,0 +1,6 @@
+{
+  "keyPrerequisites": ["sql_analytics::join"],
+  "tags": ["join", "left-join", "self-join"],
+  "bloom": "analyze",
+  "dok": 3
+}

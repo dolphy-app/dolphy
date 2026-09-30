@@ -3,7 +3,7 @@
  * истины — content-`revision`. Сравнение «mtime новее артефакта» не
  * используется: оно пропускает правки с восстановленным mtime (report-compiler.md §6.3).
  */
-import type { ArtifactState } from '@lms/engine-contract';
+import type { ArtifactState } from '@dolphy-app/engine-contract';
 import type { CourseSource } from '../ports/index.ts';
 import { decodeArtifact, FORMAT_VERSION } from './artifact.ts';
 import type { Artifact } from './artifact.ts';

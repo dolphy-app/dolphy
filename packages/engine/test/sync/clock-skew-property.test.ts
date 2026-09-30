@@ -6,7 +6,11 @@
  * `now + 5 мин` из-за неё. Примеры границ и устройство с часами 2099 года —
  * в `replica.test.ts`.
  */
-import { buildAttempt, createFakeClock, createTestIds } from '@lms/testkit';
+import {
+  buildAttempt,
+  createFakeClock,
+  createTestIds,
+} from '@dolphy-app/testkit';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { FIVE_MIN_MS, createJournalWriter } from '../../src/app/index.ts';

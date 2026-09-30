@@ -1,4 +1,4 @@
-import type { EpochMs } from '@lms/engine-contract';
+import type { EpochMs } from '@dolphy-app/engine-contract';
 import { type Constants, MS_PER_DAY, constantsFor } from './constants.ts';
 import type { Precision } from './types.ts';
 

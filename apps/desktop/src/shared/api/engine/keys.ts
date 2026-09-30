@@ -1,4 +1,9 @@
 import type { InjectionKey } from 'vue';
-import type { LearningEngine } from '@lms/engine-contract';
+import type {
+  ContributionsDto,
+  LearningEngine,
+} from '@dolphy-app/engine-contract';
 
 export const ENGINE_KEY: InjectionKey<LearningEngine> = Symbol('engine');
+export const CONTRIBUTIONS_KEY: InjectionKey<ContributionsDto> =
+  Symbol('contributions');

@@ -1,4 +1,4 @@
-import type { SourceStat } from '@lms/engine/ports';
+import type { SourceStat } from '@dolphy-app/engine/ports';
 
 export interface FilesSource {
   readText(path: string): Promise<string>;

@@ -26,6 +26,12 @@
       "path": "packages/engine-sql-runner/tsconfig.test.json"
     },
     {
+      "path": "packages/engine-git"
+    },
+    {
+      "path": "packages/engine-git/tsconfig.test.json"
+    },
+    {
       "path": "packages/engine-rpc"
     },
     {
@@ -39,6 +45,66 @@
     },
     {
       "path": "packages/ui"
+    },
+    {
+      "path": "packages/extension-api"
+    },
+    {
+      "path": "packages/extension-api/tsconfig.test.json"
+    },
+    {
+      "path": "packages/extension-catalog"
+    },
+    {
+      "path": "packages/extension-catalog/tsconfig.test.json"
+    },
+    {
+      "path": "packages/extension-host"
+    },
+    {
+      "path": "packages/extension-host/tsconfig.test.json"
+    },
+    {
+      "path": "packages/extension-install"
+    },
+    {
+      "path": "packages/extension-install/tsconfig.test.json"
+    },
+    {
+      "path": "packages/ext-sql"
+    },
+    {
+      "path": "packages/ext-sql/tsconfig.test.json"
+    },
+    {
+      "path": "packages/ext-choice"
+    },
+    {
+      "path": "packages/ext-choice/tsconfig.test.json"
+    },
+    {
+      "path": "packages/ext-math"
+    },
+    {
+      "path": "packages/ext-math/tsconfig.test.json"
+    },
+    {
+      "path": "packages/extension-sdk"
+    },
+    {
+      "path": "packages/extension-sdk/tsconfig.test.json"
+    },
+    {
+      "path": "packages/extension-tools"
+    },
+    {
+      "path": "packages/extension-tools/tsconfig.test.json"
+    },
+    {
+      "path": "packages/create-extension"
+    },
+    {
+      "path": "packages/create-extension/tsconfig.test.json"
     }
   ]
 }

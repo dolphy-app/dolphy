@@ -2,9 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   HostProcessLike,
   MessageChannelLike,
+  SupervisorOptions,
   WebContentsLike,
 } from '../electron/main/supervisor.ts';
 import {
+  BACKOFF_BASE_MS,
   BACKOFF_CAP_MS,
   MAX_CRASHES,
   STOP_TIMEOUT_MS,
@@ -80,7 +82,7 @@ const silentLogger = {
   error: () => undefined,
 };
 
-const setup = () => {
+const setup = (extra: Partial<SupervisorOptions> = {}) => {
   const hosts: FakeHost[] = [];
   let channels = 0;
   const onFatal = vi.fn();
@@ -101,6 +103,7 @@ const setup = () => {
     config,
     logger: silentLogger,
     onFatal,
+    ...extra,
   });
   const boot = (host: FakeHost) => {
     host.emit('spawn');
@@ -123,7 +126,7 @@ describe('supervisor', () => {
     const win = createFakeWindow(7);
     supervisor.start();
     expect(fork).toHaveBeenCalledWith('/host/index.js', [], {
-      serviceName: 'lms-engine',
+      serviceName: 'dolphy-engine',
     });
     const [host] = hosts;
     supervisor.connect(win.webContents);
@@ -170,6 +173,26 @@ describe('supervisor', () => {
     win.destroy();
     hosts[0]?.emit('message', { type: 'ready' });
     expect(win.webContents.sent).toEqual([]);
+  });
+
+  it('сообщает onHostReady и onHostExit, а прочие сообщения хоста — в onMessage', () => {
+    const calls: string[] = [];
+    const { supervisor, hosts } = setup({
+      onHostReady: (host) => calls.push(`ready:${host.pid}`),
+      onHostExit: () => calls.push('exit'),
+      onMessage: (message) => calls.push(`message:${JSON.stringify(message)}`),
+    });
+    supervisor.start();
+    const [host] = hosts;
+    host?.emit('spawn');
+    host?.emit('message', { type: 'restart-ext-host' });
+    host?.emit('message', { type: 'ready' });
+    host?.emit('exit', 1);
+    expect(calls).toEqual([
+      'message:{"type":"restart-ext-host"}',
+      'ready:100',
+      'exit',
+    ]);
   });
 
   it('после падения перезапускает хост с экспоненциальным backoff и заново выдаёт порты', () => {
@@ -249,6 +272,61 @@ describe('supervisor', () => {
     hosts[0]?.emit('exit', 137);
     vi.advanceTimersByTime(500);
     expect(fork).toHaveBeenCalledTimes(2);
+  });
+
+  it('restart: убивает хост и поднимает новый сразу, заново выдаёт порты окнам', () => {
+    const { supervisor, hosts, fork, boot } = setup();
+    const win = createFakeWindow(5);
+    supervisor.start();
+    supervisor.connect(win.webContents);
+    boot(hosts[0] as FakeHost);
+    supervisor.restart();
+    expect(hosts[0]?.killed).toBe(1);
+    expect(fork).toHaveBeenCalledTimes(1); // новый хост — после фактического exit
+    hosts[0]?.emit('exit', 0);
+    expect(fork).toHaveBeenCalledTimes(2); // без backoff
+    boot(hosts[1] as FakeHost);
+    expect(win.webContents.sent).toHaveLength(2);
+  });
+
+  it('restart не считается падением: без onFatal и без роста backoff', () => {
+    const { supervisor, hosts, fork, onFatal } = setup();
+    supervisor.start();
+    for (let round = 0; round < MAX_CRASHES + 3; round++) {
+      supervisor.restart();
+      hosts[round]?.emit('exit', 0);
+    }
+    expect(onFatal).not.toHaveBeenCalled();
+    expect(fork).toHaveBeenCalledTimes(MAX_CRASHES + 4);
+    // первое настоящее падение после перезапусков — базовая задержка
+    hosts[MAX_CRASHES + 3]?.emit('exit', 1);
+    vi.advanceTimersByTime(BACKOFF_BASE_MS - 1);
+    expect(fork).toHaveBeenCalledTimes(MAX_CRASHES + 4);
+    vi.advanceTimersByTime(1);
+    expect(fork).toHaveBeenCalledTimes(MAX_CRASHES + 5);
+  });
+
+  it('restart без хоста (ожидание backoff) запускает его сразу, отложенный запуск отменяется', () => {
+    const { supervisor, hosts, fork } = setup();
+    supervisor.start();
+    hosts[0]?.emit('exit', 1);
+    supervisor.restart();
+    expect(fork).toHaveBeenCalledTimes(2);
+    vi.advanceTimersByTime(BACKOFF_CAP_MS);
+    expect(fork).toHaveBeenCalledTimes(2);
+  });
+
+  it('restart во время остановки игнорируется', async () => {
+    const { supervisor, hosts, fork, boot } = setup();
+    supervisor.start();
+    boot(hosts[0] as FakeHost);
+    const stopped = supervisor.stop();
+    supervisor.restart();
+    expect(hosts[0]?.killed).toBe(0);
+    hosts[0]?.emit('exit', 0);
+    await stopped;
+    supervisor.restart();
+    expect(fork).toHaveBeenCalledTimes(1);
   });
 
   it('stop: shutdown хосту, ожидание exit, без перезапуска', async () => {

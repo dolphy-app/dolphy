@@ -1,0 +1,5 @@
+{
+  "type": "object",
+  "required": ["expected"],
+  "properties": { "expected": { "type": "string" } }
+}

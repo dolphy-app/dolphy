@@ -1,5 +1,5 @@
-import type { EngineEvent } from '@lms/engine-contract';
-import { createCapturingLogger } from '@lms/testkit';
+import type { EngineEvent } from '@dolphy-app/engine-contract';
+import { createCapturingLogger } from '@dolphy-app/testkit';
 import { describe, expect, it } from 'vitest';
 import { createEngineClient } from '../src/client/index.ts';
 import { createDispatcher, schemas } from '../src/host/index.ts';

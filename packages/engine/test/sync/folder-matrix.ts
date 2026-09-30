@@ -12,8 +12,8 @@ import {
 import { spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createFakeClock, createSeededRng } from '@lms/testkit';
-import type { FakeClock } from '@lms/testkit';
+import { createFakeClock, createSeededRng } from '@dolphy-app/testkit';
+import type { FakeClock } from '@dolphy-app/testkit';
 import fc from 'fast-check';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { LogEntry } from '../../src/domain/journal.ts';

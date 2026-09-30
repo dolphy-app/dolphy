@@ -1,3 +1,4 @@
+import { reactive } from 'vue';
 import { describe, expect, it } from 'vitest';
 import type {
   CompleteAttemptRequest,
@@ -10,12 +11,12 @@ import type {
   SubmitAnswerRequest,
   UnitDto,
   VerdictDto,
-} from '@lms/engine-contract';
+} from '@dolphy-app/engine-contract';
 import { createSession } from '@/pages/session/model/session.ts';
 
 interface FakeOptions {
   plan: Array<{ id: string; reason?: ItemReason }>;
-  /** Упражнения с раннером SQL (`verifiable`). */
+  /** Проверяемые упражнения (у них есть `task` и `view`). */
   verifiable?: string[];
   verdicts?: VerdictDto[];
   remediation?: RemediationDto;
@@ -30,9 +31,17 @@ const exercise = (id: string, verifiable: boolean): ExerciseDto => ({
   name: `Exercise ${id}`,
   exerciseType: verifiable ? 'procedural' : 'declarative',
   content: { type: 'inlineFlashcard', front: `Q ${id}`, back: `A ${id}` },
-  verification: verifiable
-    ? { runner: 'sql', timeoutMs: 1000, params: {} }
-    : undefined,
+  ...(verifiable
+    ? {
+        task: {
+          type: 'dolphy.sql',
+          timeoutMs: 1000,
+          element: 'dolphy-sql-answer',
+          rendererUrl: 'dolphy-ext://dolphy.sql/view.mjs',
+          isolated: false,
+        },
+      }
+    : {}),
   keyPrerequisites: [],
 });
 
@@ -122,6 +131,7 @@ const createFakeEngine = (options: FakeOptions) => {
         exercise: exercise(exerciseId, verifiable.has(exerciseId)),
         startedAt: 0,
         verifiable: verifiable.has(exerciseId),
+        view: verifiable.has(exerciseId) ? { hint: exerciseId } : null,
       }),
       submitAnswer: async (request: SubmitAnswerRequest) => {
         submitted.push(request);
@@ -182,16 +192,20 @@ describe('session model', () => {
     });
     const session = createSession(engine);
     await session.start();
-    expect(session.current.value?.submissionKind).toBe('sql');
+    expect(session.current.value?.task).toMatchObject({
+      type: 'dolphy.sql',
+      element: 'dolphy-sql-answer',
+    });
+    expect(session.current.value?.view).toEqual({ hint: 'e1' });
 
     await session.submit('SELECT 1');
     expect(session.stage.value).toBe('answering');
     expect(completed).toHaveLength(0);
 
     await session.submit('SELECT 2');
-    expect(submitted.map(({ submission }) => submission)).toEqual([
-      { kind: 'sql', sql: 'SELECT 1' },
-      { kind: 'sql', sql: 'SELECT 2' },
+    expect(submitted.map(({ answer }) => answer)).toEqual([
+      'SELECT 1',
+      'SELECT 2',
     ]);
     // оценку ставит политика движка, а не UI
     expect(completed).toEqual([{ attemptId: 'attempt-e1' }]);
@@ -199,6 +213,20 @@ describe('session model', () => {
 
     await session.next();
     expect(session.stage.value).toBe('finished');
+  });
+
+  it('sends a cloneable answer even when the input is a reactive proxy', async () => {
+    const { engine, submitted } = createFakeEngine({
+      plan: [{ id: 'e1' }],
+      verifiable: ['e1'],
+      verdicts: [failed],
+    });
+    const session = createSession(engine);
+    await session.start();
+    // ответ элемента, попавший в реактивное состояние (ref, props), — Proxy
+    await session.submit(reactive([0, 2]));
+    expect(() => structuredClone(submitted[0]?.answer)).not.toThrow();
+    expect(submitted[0]?.answer).toEqual([0, 2]);
   });
 
   it('records a give-up and reveals the answer', async () => {

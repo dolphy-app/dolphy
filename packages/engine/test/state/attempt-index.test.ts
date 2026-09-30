@@ -1,5 +1,5 @@
-import type { Grade } from '@lms/engine-contract';
-import { buildAttempt, buildLibrary, T0_MS } from '@lms/testkit';
+import type { Grade } from '@dolphy-app/engine-contract';
+import { buildAttempt, buildLibrary, T0_MS } from '@dolphy-app/testkit';
 import { describe, expect, it } from 'vitest';
 import { createAttemptIndex } from '../../src/state/attempt-index.ts';
 import { createCurrentScoringGraph } from '../../src/state/current-graph.ts';

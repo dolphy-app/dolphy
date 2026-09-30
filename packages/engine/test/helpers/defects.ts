@@ -13,7 +13,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import type { Diagnostic, DiagnosticCode } from '@lms/engine-contract';
+import type { Diagnostic, DiagnosticCode } from '@dolphy-app/engine-contract';
 import { plan } from './gen.ts';
 
 /**
@@ -66,7 +66,7 @@ const pad = (n: number, width: number) => String(n).padStart(width, '0');
 const lessonDir = (i: number, kb: boolean) =>
   `c${pad(Math.floor(i / P.perCourse), 2)}/${P.short(i)}${kb ? '.lesson' : ''}`;
 const lid = (i: number) => P.lid(i);
-const VER = ['  verification:', '    runner: sql', '    timeoutMs: 2000'];
+const VER = ['  exercise:', '    type: dolphy.sql', '    timeoutMs: 2000'];
 const front = (engine: string[], top: string[] = []) =>
   ['---', 'engine:', ...engine, ...top, '---', 'Body text.', ''].join('\n');
 
@@ -264,13 +264,6 @@ export const injectKb = (root: string): Injected => {
     path: ex(68, 0),
     line: 3,
     unitId: eid(68, 0),
-  });
-  write(ex(69, 0), front(['  verification:', '    runner: python']));
-  ok({
-    name: 'unknown_runner',
-    code: 'W_UNKNOWN_RUNNER',
-    path: ex(69, 0),
-    unitId: eid(69, 0),
   });
 
   // -- id и ссылки
@@ -504,7 +497,7 @@ export const injectKb = (root: string): Injected => {
   );
   write(
     ex(1000, 1),
-    'Intro paragraph.\n\n---\nengine:\n  verification:\n    runner: nonsense\n---\nSecond half.\n',
+    'Intro paragraph.\n\n---\nengine:\n  exercise:\n    type: nonsense\n---\nSecond half.\n',
   );
   write(
     ex(1000, 2),

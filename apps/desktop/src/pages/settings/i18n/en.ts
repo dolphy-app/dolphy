@@ -9,6 +9,7 @@ export const en: typeof ru = {
         learning: 'Learning',
         library: 'Library',
         appearance: 'Appearance',
+        extensions: 'Extensions',
         about: 'About the engine',
       },
     },
@@ -19,7 +20,21 @@ export const en: typeof ru = {
         plan: 'Daily plan',
         sessions: 'Sessions',
         remediation: 'Reinforcing the basics',
+        grading: 'Grading',
         experimental: 'Experimental',
+      },
+      gradePolicy: {
+        title: 'Grade rule',
+        description:
+          'How the results of answer checks turn into a grade from 1 to 5.',
+        builtin: 'Built-in',
+        passAtN: {
+          title: "Pass{'@'}N",
+          description:
+            'Correct on the first try — 5, on the second — 4, on the third or later — 3, “Give up” — 1. Check failures are not counted.',
+        },
+        missing:
+          "The selected rule “{id}” is unavailable: its extension was not found. Pass{'@'}N applies for now.",
       },
       targetRetention: {
         title: 'Target retention',
@@ -100,6 +115,29 @@ export const en: typeof ru = {
         missing: 'none',
         compiling: 'building',
       },
+      repositories: {
+        title: 'Repositories',
+        description:
+          'Courses from Git. Updating and removing happen only on your command; the app never uses the network on its own.',
+        empty: 'No repositories yet. Add one on the Courses screen.',
+        defaultBranch: 'default branch',
+        courses: 'no courses | {n} course | {n} courses',
+        update: 'Update',
+        updateLabel: 'Update repository {url}',
+        remove: 'Remove',
+        removeLabel: 'Remove repository {url}',
+        cancelling: 'Cancelling…',
+        notice: {
+          upToDate: 'Already up to date',
+          updated:
+            'Updated: no courses | Updated: {n} course | Updated: {n} courses',
+          removed: 'Repository removed',
+        },
+        confirm: {
+          title: 'Remove the repository?',
+          text: 'Its courses will disappear from the library. Your progress is kept and comes back if you add the repository again.',
+        },
+      },
       ignored: {
         title: 'Ignored folders',
         description:
@@ -131,6 +169,168 @@ export const en: typeof ru = {
         system: 'System default',
         ru: 'Русский',
         en: 'English',
+      },
+    },
+    extensions: {
+      title: 'Extensions',
+      subtitle: 'What extensions add: bundled, your own and in development.',
+      listLabel: 'Installed extensions',
+      count: 'no extensions | {n} extension | {n} extensions',
+      refresh: 'Refresh',
+      retry: 'Retry',
+      loadFailed: 'Could not load the list of extensions',
+      empty: 'No extensions.',
+      version: 'Version {version}',
+      points: {
+        exerciseTypes: 'Exercise types',
+        themes: 'Themes',
+        markdownRenderers: 'Content renderers',
+        gradePolicies: 'Grade policies',
+      },
+      origin: {
+        bundled: 'Bundled',
+        user: 'User',
+        dev: 'Development',
+      },
+      state: {
+        loaded: 'Loaded',
+        overridden: 'Overridden',
+        invalid: 'Failed to load',
+        disabled: 'Disabled',
+      },
+      builtIn: 'Built in',
+      isolation: {
+        isolated: 'Isolated',
+        trusted: 'Trusted',
+      },
+      enabledLabel: 'Enabled',
+      trustLabel: 'Trust (no isolation)',
+      trustHint:
+        'A trusted extension runs without isolation: its code runs with the app’s rights and its elements live in the app window and can see its data. Trust only extensions you believe in.',
+      permissionsTitle: 'Permissions',
+      permissionsNone: 'none requested',
+      permissions: {
+        library: { read: 'Read the course library' },
+        process: { spawn: 'Launch processes' },
+        worker: { threads: 'Threads' },
+        native: { addons: 'Native modules' },
+        network: 'Network',
+      },
+      networkCaveat:
+        'Network is declared only, not restricted: the extension can reach the network even when isolated.',
+      switchFailed: 'Could not change the extension setting',
+      reload: {
+        message:
+          'The change applies to new checks right away, while themes and renderers are read at startup: reload the window.',
+        action: 'Reload window',
+      },
+      tabs: {
+        label: 'Extension sections',
+        installed: 'Installed',
+        catalog: 'Catalog',
+      },
+      author: 'Author',
+      action: {
+        install: 'Install',
+        installLabel: 'Install extension “{name}” v{version}',
+        update: 'Update to v{version}',
+        updateLabel: 'Update to v{version}: extension “{name}”',
+        installDisabledLabel: 'Install extension “{name}”',
+        installFallback: 'Install v{version} (compatible)',
+        installFallbackLabel:
+          'Install v{version} (compatible): extension “{name}”',
+        remove: 'Remove',
+        removeLabel: 'Remove extension “{name}”',
+      },
+      installed: {
+        fromCatalog: 'From the catalog v{version}',
+        updatesBanner: 'Updates available: {n}',
+        updateAll: 'Update all',
+        checkUpdates: 'Check for updates at startup',
+        revokedTitle: 'Extension revoked',
+        revokedReason: 'Reason: {reason}',
+        revokedHint:
+          'It is disabled and stays disabled until a fixed version is released.',
+        pending: {
+          installed: 'Installed: takes effect after a reload',
+          updated: 'Updated to v{version}: takes effect after a reload',
+          removed: 'Removed: disappears from the list after a reload',
+        },
+        applyMessage: 'Changes take effect after a reload',
+        applyAction: 'Reload now',
+        applyFailed: 'Could not reload the window',
+      },
+      remove: {
+        title: 'Remove “{name}”?',
+        text: 'The extension will be deleted from disk. The extension’s data, your courses and your progress are not affected.',
+        confirm: 'Remove',
+        cancel: 'Cancel',
+        failed: 'Could not remove the extension',
+      },
+      catalog: {
+        listLabel: 'Catalog extensions',
+        searchLabel: 'Search the catalog',
+        searchHint: 'Name, id, description or author',
+        kindsLabel: 'Filter by contribution kind',
+        refresh: 'Refresh catalog',
+        resetFilters: 'Reset filters',
+        found: 'nothing found | Found: {n} extension | Found: {n} extensions',
+        loading: 'Loading the catalog',
+        empty: 'The catalog has no extensions yet.',
+        noMatches: 'Nothing found. Change the query or reset the filters.',
+        offline: 'No connection to the catalog. Showing saved data',
+        reason: 'Reason: {reason}',
+        fetchedAt: 'Catalog data from {date}',
+        unavailable: 'The catalog is unavailable',
+        incompatible: 'Incompatible: {detail}',
+        installedStatus: 'Installed v{version}',
+        installedFrom: 'Now v{version}',
+      },
+      install: {
+        titleInstall: 'Install “{name}”?',
+        titleUpdate: 'Update “{name}”?',
+        titleUpdateAll:
+          'nothing to update | Update {n} extension? | Update {n} extensions?',
+        titleRunning: 'Installing',
+        titleFinished: 'Installation finished',
+        titleFailed: 'Installation failed',
+        versionChange: 'v{from} → v{to}',
+        platforms: 'Platforms',
+        size: 'Size',
+        isolation:
+          'The extension will run in isolation: its code and interface are separated from the app.',
+        confirmInstall: 'Install',
+        confirmUpdate: 'Update',
+        cancel: 'Cancel',
+        progress: 'Installing',
+        itemStatus: {
+          pending: 'Waiting',
+          running: 'Installing',
+          done: 'Done',
+          failed: 'Failed',
+        },
+        done: 'Installed. Reload the window to make the extension work.',
+        partial:
+          'Some extensions were installed. Reload the window to make them work.',
+        reloadNow: 'Reload now',
+        later: 'Later',
+        close: 'Close',
+        retry: 'Retry',
+        errors: {
+          network: 'Could not download the extension. Check your connection.',
+          integrity:
+            'The extension files failed the integrity check. Nothing was installed.',
+          incompatible:
+            'The extension is not compatible with this app version or platform.',
+          limits: 'The extension exceeds the allowed size limits.',
+          invalid:
+            'The extension failed validation: its files do not match the catalog entry.',
+          conflict:
+            'A directory with this name already exists and was not created from the catalog. Remove it manually.',
+          unavailable: 'The catalog is unavailable. Check your connection.',
+          notFound: 'The extension is not in the catalog.',
+          unknown: 'Could not install the extension.',
+        },
       },
     },
     about: {

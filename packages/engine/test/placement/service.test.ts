@@ -1,5 +1,5 @@
-import type { PlacementSummaryDto } from '@lms/engine-contract';
-import { buildLibrary } from '@lms/testkit';
+import type { PlacementSummaryDto } from '@dolphy-app/engine-contract';
+import { buildLibrary, createFakeExerciseTypes } from '@dolphy-app/testkit';
 import { describe, expect, test } from 'vitest';
 import { EngineError } from '../../src/app/index.ts';
 import type { EventStore, StoreTx } from '../../src/ports/index.ts';
@@ -280,7 +280,10 @@ describe('placement service on sql-course (T-47)', () => {
   });
 
   test('an open attempt with a verdict is accepted as a result; grades are validated', async () => {
-    const t = await createTestEngine({ library: 'sql-course' });
+    const t = await createTestEngine({
+      library: 'sql-course',
+      exerciseTypes: createFakeExerciseTypes({ types: { 'dolphy.sql': {} } }),
+    });
     const { placement, practice } = t.engine;
     const { sessionId } = await placement.start({ budget: 5, seed: 1 });
     const probe = await placement.nextProbe(sessionId);
@@ -346,7 +349,7 @@ describe('placement feeds the day plan', () => {
 });
 
 describe('placement on a library without verification (T-47)', () => {
-  /** Цепочка a ← b ← c без `engine.verification`: пробы самооценкой, `minPass = 2`. */
+  /** Цепочка a ← b ← c без `engine.exercise`: пробы самооценкой, `minPass = 2`. */
   const chain = buildLibrary({
     courses: [
       {

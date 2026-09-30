@@ -1,5 +1,5 @@
-import { createRng, f64FromWords } from '@lms/engine';
-import type { Rng } from '@lms/engine';
+import { createRng, f64FromWords } from '@dolphy-app/engine';
+import type { Rng } from '@dolphy-app/engine';
 
 export interface SeededRng extends Rng {
   readonly seed: number;

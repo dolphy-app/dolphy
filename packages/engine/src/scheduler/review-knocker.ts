@@ -1,4 +1,4 @@
-import type { UnitId } from '@lms/engine-contract';
+import type { UnitId } from '@dolphy-app/engine-contract';
 import type { UnitGraph } from '../domain/graph.ts';
 import {
   REWARD_FACTOR,

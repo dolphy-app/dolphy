@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive } from 'vue';
+import { computed, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import type { CourseSummary } from '@/entities/course';
@@ -13,6 +13,7 @@ import {
   recommendCourse,
 } from '../model/courses-view.ts';
 import type { CourseFilters } from '../model/courses-view.ts';
+import AddRepositoryDialog from './AddRepositoryDialog.vue';
 import CourseCard from './CourseCard.vue';
 
 /** Цвета плиток-инициалов по кругу, в порядке библиотеки: соседние курсы различимы. */
@@ -56,20 +57,44 @@ const study = async (course: CourseSummary) => {
   await scope.select(course.id);
   await router.push({ name: ROUTE.dailyPlan });
 };
+/** Вход-тест по курсу: `?course=` выбирает курс. */
+const checkKnowledge = (course: CourseSummary) =>
+  router.push({ name: ROUTE.placement, query: { course: course.id } });
 const openPlan = () => router.push({ name: ROUTE.dailyPlan });
+
+const gitDialog = ref(false);
+const addedNotice = ref<number | null>(null);
+const noticeOpen = computed({
+  get: () => addedNotice.value !== null,
+  set: (value: boolean) => {
+    if (!value) addedNotice.value = null;
+  },
+});
 </script>
 
 <template>
   <v-container max-width="1200" class="pa-8">
     <PageHeader :title="t('courses.title')" :subtitle="t('courses.subtitle')">
-      <template v-if="scope.activeId.value !== null" #actions>
-        <v-btn
-          variant="text"
-          prepend-icon="mdi-close"
-          @click="scope.select(null)"
-        >
-          {{ t('courses.clearFocus') }}
-        </v-btn>
+      <template #actions>
+        <div class="d-flex flex-wrap ga-2">
+          <v-btn
+            v-if="scope.activeId.value !== null"
+            variant="text"
+            prepend-icon="mdi-close"
+            @click="scope.select(null)"
+          >
+            {{ t('courses.clearFocus') }}
+          </v-btn>
+          <!-- заливка на экране одна — у курса в фокусе, поэтому тональная -->
+          <v-btn
+            variant="tonal"
+            color="primary"
+            prepend-icon="mdi-source-branch-plus"
+            @click="gitDialog = true"
+          >
+            {{ t('courses.git.open') }}
+          </v-btn>
+        </div>
       </template>
     </PageHeader>
 
@@ -142,9 +167,15 @@ const openPlan = () => router.push({ name: ROUTE.dailyPlan });
           :recommended="recommendedId === course.id"
           @study="study(course)"
           @open-plan="openPlan"
+          @check="checkKnowledge(course)"
         />
       </li>
     </ul>
+
+    <AddRepositoryDialog v-model="gitDialog" @added="addedNotice = $event" />
+    <v-snackbar v-model="noticeOpen" timeout="6000" role="status">
+      {{ t('courses.git.added', { n: addedNotice ?? 0 }) }}
+    </v-snackbar>
   </v-container>
 </template>
 

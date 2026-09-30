@@ -1,11 +1,11 @@
 /**
  * Настоящий движок поверх `SqliteEventStore`: сценарии через фасад на файле
- * БД (перезапуск, сбой проекции, обмен журналами и конфликты). Ядро `@lms/engine`
+ * БД (перезапуск, сбой проекции, обмен журналами и конфликты). Ядро `@dolphy-app/engine`
  * от SQLite не зависит, поэтому эти сценарии живут здесь.
  */
-import { buildAttempt, createFakeClock, T0_MS } from '@lms/testkit';
+import { buildAttempt, createFakeClock, T0_MS } from '@dolphy-app/testkit';
 import { describe, expect, it, vi } from 'vitest';
-import { entryHash } from '@lms/engine/sync';
+import { entryHash } from '@dolphy-app/engine/sync';
 import { createTestEngine } from '../../engine/test/helpers/engine.ts';
 import { openTestStore, useTempDir } from './store-factory.ts';
 

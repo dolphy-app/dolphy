@@ -1,4 +1,4 @@
-import type { StateVector } from '@lms/engine-contract';
+import type { StateVector } from '@dolphy-app/engine-contract';
 import type { LogEntry } from '../domain/journal.ts';
 import { DEVICE_ID_PATTERN, canon, parseEntry, sha256Hex } from './entry.ts';
 

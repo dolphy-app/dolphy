@@ -7,10 +7,11 @@ import type {
   LearningEngine,
   UnitDto,
   UnitId,
-} from '@lms/engine-contract';
+} from '@dolphy-app/engine-contract';
 import { PLAN_MAX_ITEMS } from '@/shared/config/plan.ts';
 
-const DUE_LIMIT = 5;
+/** Как размер плана: у каждого повторения в плане должна быть своя оценка. */
+const DUE_LIMIT = PLAN_MAX_ITEMS;
 const REFRESH_ON: Partial<Record<EngineEvent['type'], true>> = {
   progress: true,
   'library-reloaded': true,
@@ -24,14 +25,8 @@ export interface PlanEntry {
   /** «Курс · урок». */
   origin: string;
   reason: ItemReason;
-}
-
-export interface DueEntry {
-  exerciseId: UnitId;
-  title: string;
-  origin: string;
-  /** Вероятность вспомнить сейчас, 0..100. */
-  remembered: number;
+  /** Вероятность вспомнить сейчас, 0..100; `null` — упражнение не в очереди повторений. */
+  remembered: number | null;
 }
 
 export interface DailyPlan {
@@ -39,7 +34,6 @@ export interface DailyPlan {
   /** Курс, по которому построен план; `null` — все курсы. */
   courseId: UnitId | null;
   entries: PlanEntry[];
-  due: DueEntry[];
 }
 
 type UnitReader = (id: UnitId) => Promise<UnitDto>;
@@ -84,21 +78,21 @@ export const loadDailyPlan = async (
     engine.plan.getDay({ maxItems: PLAN_MAX_ITEMS, ...scope }),
     engine.practice.getDue({ limit: DUE_LIMIT, ...scope }),
   ]);
+  const remembered = new Map(
+    due.items.map(({ exerciseId, retrievability }) => [
+      exerciseId,
+      Math.round(retrievability * 100),
+    ]),
+  );
   const entries = await Promise.all(
     plan.items.map(async ({ exerciseId, reason }) => ({
       exerciseId,
       reason,
+      remembered: remembered.get(exerciseId) ?? null,
       ...(await describeExercise(readUnit, exerciseId)),
     })),
   );
-  const dueEntries = await Promise.all(
-    due.items.map(async ({ exerciseId, retrievability }) => ({
-      exerciseId,
-      remembered: Math.round(retrievability * 100),
-      ...(await describeExercise(readUnit, exerciseId)),
-    })),
-  );
-  return { seed: plan.seed, courseId, entries, due: dueEntries };
+  return { seed: plan.seed, courseId, entries };
 };
 
 /** Состояние строится из событий движка (см. API §7), а не из опроса. */
@@ -110,6 +104,8 @@ export const useDailyPlan = (
   const loading = ref(true);
   const error = ref<string | null>(null);
   let latestRequest = 0;
+  const today = ref(new Date());
+  let midnight = 0;
 
   const refresh = async () => {
     const request = ++latestRequest;
@@ -132,7 +128,21 @@ export const useDailyPlan = (
   });
   onScopeDispose(unsubscribe);
   watch(courseId, () => void refresh());
+
+  // план строится на день: после полуночи дата и план обновляются сами
+  const scheduleMidnight = () => {
+    const now = new Date();
+    const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    midnight = window.setTimeout(() => {
+      today.value = new Date();
+      void refresh();
+      scheduleMidnight();
+    }, next.getTime() - now.getTime());
+  };
+  scheduleMidnight();
+  onScopeDispose(() => window.clearTimeout(midnight));
+
   void refresh();
 
-  return { plan, loading, error, refresh };
+  return { plan, today, loading, error, refresh };
 };

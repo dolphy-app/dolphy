@@ -5,11 +5,11 @@ import type {
   EngineEvent,
   LearningEngine,
   SchedulerOptionsDto,
-} from '@lms/engine-contract';
+} from '@dolphy-app/engine-contract';
 import {
   applySchedulerPatch,
   DEFAULT_SCHEDULER_OPTIONS,
-} from '@lms/engine/scheduler';
+} from '@dolphy-app/engine/scheduler';
 import {
   toLearningForm,
   toSchedulerPatch,

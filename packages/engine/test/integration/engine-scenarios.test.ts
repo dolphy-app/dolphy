@@ -1,13 +1,27 @@
 /**
- * Сценарии на всём стеке `@lms/engine` без нативных модулей: настоящие
+ * Сценарии на всём стеке `@dolphy-app/engine` без нативных модулей: настоящие
  * библиотеки-фикстуры, `nodeDefaults` (fs-источник, JSON-настройки), журнал
  * в памяти. Журнал SQLite — `packages/engine-sqlite/test/engine.test.ts`.
  */
-import type { EngineConfig, LearningEngine } from '@lms/engine-contract';
-import { createFakeClock, createSeededRng, createTestIds } from '@lms/testkit';
+import type { EngineConfig, LearningEngine } from '@dolphy-app/engine-contract';
+import {
+  createFakeClock,
+  createFakeExerciseTypes,
+  createFakeGradePolicies,
+  createFakeExtensionInstaller,
+  createFakeExtensionPolicy,
+  createFakeExtensionRegistry,
+  createSeededRng,
+  createTestIds,
+} from '@dolphy-app/testkit';
 import { describe, expect, it } from 'vitest';
 import { createEngine } from '../../src/app/index.ts';
-import { createMemoryEventStore, nodeDefaults } from '../../src/node/index.ts';
+import {
+  createMemoryEventStore,
+  createMemoryRepositoryStore,
+  nodeDefaults,
+} from '../../src/node/index.ts';
+import { GitFetchError } from '../../src/ports/index.ts';
 import type { EventStore } from '../../src/ports/index.ts';
 import { FIXTURE_LIBRARIES, createTestEngine } from '../helpers/engine.ts';
 import { useTmpDirs } from '../helpers/tmp.ts';
@@ -114,7 +128,23 @@ describe('a profile on disk: nodeDefaults over a copied library', () => {
         rng: createSeededRng(1),
         ids: createTestIds('e'),
         eventStore,
-        verifiers: [],
+        exerciseTypes: createFakeExerciseTypes(),
+        gradePolicies: createFakeGradePolicies(),
+        extensionRegistry: createFakeExtensionRegistry(),
+        extensionPolicy: createFakeExtensionPolicy(),
+        // фоновая проверка обновлений сюда не относится: профиль на диске удаляется после теста
+        extensionInstaller: createFakeExtensionInstaller({
+          handlers: { ready: () => new Promise<void>(() => {}) },
+        }),
+        repositoryStore: createMemoryRepositoryStore(),
+        snapshotFetcher: {
+          resolve: async () => {
+            throw new GitFetchError('network', 'offline');
+          },
+          fetchSnapshot: async () => {
+            throw new GitFetchError('network', 'offline');
+          },
+        },
       },
       config,
     );

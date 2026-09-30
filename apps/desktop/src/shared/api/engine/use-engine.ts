@@ -1,5 +1,5 @@
 import { inject } from 'vue';
-import type { LearningEngine } from '@lms/engine-contract';
+import type { LearningEngine } from '@dolphy-app/engine-contract';
 import { ENGINE_KEY } from './keys.ts';
 
 export const useEngine = (): LearningEngine => {

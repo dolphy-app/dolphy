@@ -1,5 +1,11 @@
-# смоук-сборка (LMS_SMOKE_BUILD=1): scripts/smoke.mjs
+# смоук-сборка (DOLPHY_SMOKE_BUILD=1): scripts/smoke.mjs
 dist-smoke
 
 # сборка для e2e (pnpm e2e): e2e/global-setup.ts
 dist-e2e
+
+# расширения по умолчанию, собранные плагином dolphy:extensions (vite.config.ts)
+/extensions
+
+# дочерний процесс для кода расширений (плагин dolphy:restricted-child, vite.config.ts)
+/restricted

@@ -8,7 +8,7 @@
 import { writeSync } from 'node:fs';
 import { createSqliteEventStore } from '../../src/event-store.ts';
 import { openBetterSqliteDatabase } from '../../src/sql-database.ts';
-import type { LogEntry } from '@lms/engine';
+import type { LogEntry } from '@dolphy-app/engine';
 
 const [dbPath, syncArg, deviceId, seedArg, modeArg, bigRowsArg] =
   process.argv.slice(2);

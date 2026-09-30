@@ -1,4 +1,4 @@
-import { createFakeClock } from '@lms/testkit';
+import { createFakeClock } from '@dolphy-app/testkit';
 import { describe, expect, it } from 'vitest';
 import { createExpiringMap } from '../../src/app/index.ts';
 

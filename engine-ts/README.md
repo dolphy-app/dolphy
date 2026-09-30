@@ -5,9 +5,9 @@
 ## Порядок чтения
 
 1. `design/engine-ts.md` — главный документ: решения (§0), трассировка F1–F7 → FR → API → веха → приёмка (§1.1), модель данных (§5), F-слой (§6a), дорожная карта M0–M7 (§11), открытые вопросы (§12).
-2. `design/engine-ts-api.md` — контракт `@lms/engine-contract` (типы проверены `tsc` 7.0.2).
+2. `design/engine-ts-api.md` — контракт `@dolphy-app/engine-contract` (типы проверены `tsc` 7.0.2).
 3. `design/engine-ts-testing.md` — стратегия vitest, обязательные тесты T-01…T-60, CI-матрица Node 22 + 24.
-4. `design/engine-ts-electron.md` — псевдокод сервисов, транспорта и процессов внутри Electron (`@lms/engine-rpc`, хост в `utilityProcess`, main, preload).
+4. `design/engine-ts-electron.md` — псевдокод сервисов, транспорта и процессов внутри Electron (`@dolphy-app/engine-rpc`, хост в `utilityProcess`, main, preload).
 5. `design/engine-ts-diagram.html` — схема (открывать через `python3 -m http.server`, не `file://`).
 6. `research/report-*.md` — числа и контрпримеры за каждым решением; `research/spec-*.md` — поведение модулей Trane с `file:line`.
 
@@ -28,21 +28,21 @@
 
 | Спайк | Куда | Замечание |
 |---|---|---|
-| `powerlaw-port/` | `@lms/engine` scoring | 31 тест ×2 precision, fixture 5 919 кейсов, генератор `golden-rs/` |
+| `powerlaw-port/` | `@dolphy-app/engine` scoring | 31 тест ×2 precision, fixture 5 919 кейсов, генератор `golden-rs/` |
 | `fsrs-check/` | `MemoryModel` | рецепт `next_state` + `forgetting_curve`, не `next()`; эталон py-fsrs |
 | `loader-bench/` | схемы zod, loader, граф, редукция | `algo.ts` — редукция на битовых множествах |
 | `compiler/` | `authoring/`, CLI | `scan`, `checks`, `diagnostics`, `compile`, `revision`, `cli`; мини-парсер YAML и `loader-ref.ts` не переносить |
 | `diagnostic/` | `placement/` | `dag.ts`, `engine.ts` (V3, жёсткое замыкание) |
 | `fire-plan/` | `planning/` | `memory.ts`, `memory-index.ts`, `planner.ts`, кредит в `graph.ts`; за флагом |
-| `sql-runner/` | `@lms/engine-sql-runner` | `engine`, `compare`, `pool`, `prefilter`, `types`, `verifier`, `worker` |
-| `journal-sync/` | `sync/`, `@lms/engine-sqlite` | `log`, `proj`, `replica`, `folder-sync`, `sqlite-store`, `writer` |
+| `sql-runner/` | `@dolphy-app/engine-sql-runner` | `engine`, `compare`, `pool`, `prefilter`, `types`, `verifier`, `worker` |
+| `journal-sync/` | `sync/`, `@dolphy-app/engine-sqlite` | `log`, `proj`, `replica`, `folder-sync`, `sqlite-store`, `writer` |
 
 Проверка любого спайка: `cd /Users/tinkerbells/projects/lms-platform/engine-ts/spike/<имя> && npm ci && npx tsc --noEmit && npx vitest run` (на 2026-09-29 прошли все: 13, 25, 44, 153 + 1 пропущенный, 65 тестов).
 
 ## Старт M0 (800 строк)
 
 1. `pnpm` 9.15.9 workspace, Node 22.22 (dev) и 24.x (Electron 44), TypeScript 7.0.2 (`tsc -b`, нет JS API), vitest 5.0.2 (`test.projects`, `pool: 'forks'`), ESLint + Prettier, CI на обеих Node.
-2. Пакеты: `@lms/engine-contract`, `@lms/engine`, `@lms/engine-sqlite`, `@lms/engine-sql-runner`, dev-пакет `@lms/testkit` (FakeClock, SeededRng, TestId, билдеры курсов и журнала).
+2. Пакеты: `@dolphy-app/engine-contract`, `@dolphy-app/engine`, `@dolphy-app/engine-sqlite`, `@dolphy-app/engine-sql-runner`, dev-пакет `@dolphy-app/testkit` (FakeClock, SeededRng, TestId, билдеры курсов и журнала).
 3. Приёмка M0: `pnpm test` и typecheck зелёные на Node 22 и 24; эталон py-fsrs проходит контрактный тест `MemoryModel`.
 4. Дальше по порядку M1 → M7 (§11 главного документа); у каждой вехи автоматическая приёмка.
 

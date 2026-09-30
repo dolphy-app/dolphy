@@ -12,7 +12,7 @@ import type {
   ExerciseFilterDto,
   FilterOp,
   KeyValueFilterWire,
-} from '@lms/engine-contract';
+} from '@dolphy-app/engine-contract';
 import { createWorld } from '../helpers/world.ts';
 import type { WorldCourseSpec } from '../helpers/world.ts';
 import {

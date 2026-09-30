@@ -1,6 +1,6 @@
 import { getRandomValues } from 'node:crypto';
 import { join } from 'node:path';
-import type { EngineConfig, EpochMs } from '@lms/engine-contract';
+import type { EngineConfig, EpochMs } from '@dolphy-app/engine-contract';
 import type { EngineDeps } from '../app/context.ts';
 import { createRng, f64FromWords } from '../domain/rng.ts';
 import type { Clock, IdGenerator, Logger, Rng } from '../ports/index.ts';
@@ -8,10 +8,19 @@ import { createTsFsrsMemoryModel } from '../scoring/memory-model.ts';
 import { createNodeFsCourseSource } from './fs-course-source.ts';
 import { createNodeFolderSyncPort } from './folder-sync-port.ts';
 import { createJsonSettingsStore } from './json-settings-store.ts';
+import { createNodeSnapshotInstaller } from './snapshot-installer.ts';
 
 export type NodeDefaults = Omit<
   EngineDeps,
-  'eventStore' | 'verifiers' | 'openTraneSource'
+  | 'eventStore'
+  | 'exerciseTypes'
+  | 'gradePolicies'
+  | 'extensionRegistry'
+  | 'extensionPolicy'
+  | 'extensionInstaller'
+  | 'openTraneSource'
+  | 'repositoryStore'
+  | 'snapshotFetcher'
 >;
 
 export const createSystemClock = (): Clock => ({ now: () => Date.now() });
@@ -152,5 +161,9 @@ export const nodeDefaults = (config: EngineConfig): NodeDefaults => {
     }),
     memoryModel: createTsFsrsMemoryModel(),
     folderSync: createNodeFolderSyncPort(config, { logger }),
+    snapshotInstaller: createNodeSnapshotInstaller({
+      libraryRoot: config.libraryRoot,
+      dataDir: config.dataDir,
+    }),
   };
 };

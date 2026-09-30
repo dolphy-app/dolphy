@@ -1,4 +1,4 @@
-import type { Page } from '@lms/engine-contract';
+import type { Page } from '@dolphy-app/engine-contract';
 import { describe, expect, it } from 'vitest';
 import { EngineError } from '../../src/app/index.ts';
 import { paginate } from '../../src/app/pagination.ts';

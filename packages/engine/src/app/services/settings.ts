@@ -1,17 +1,15 @@
 import type {
   DeepPartial,
+  LearningSettingsDto,
   PreferencesDto,
   SchedulerOptionsDto,
   SettingsService,
   UiSettingsDto,
   UiSettingsPatch,
-} from '@lms/engine-contract';
+} from '@dolphy-app/engine-contract';
 import type { UserPreferences } from '../../domain/manifest.ts';
-import {
-  isLocaleMode,
-  isThemeMode,
-  isUnitId,
-} from '../../domain/ui-settings.ts';
+import { isGradePolicyId } from '../../domain/learning-settings.ts';
+import { isLocaleMode, isThemeId, isUnitId } from '../../domain/ui-settings.ts';
 import {
   InvalidSchedulerOptionsError,
   applySchedulerPatch,
@@ -139,8 +137,33 @@ export const createSettingsService = (ctx: EngineContext): SettingsService => {
     return publish(before, ctx.options.reset());
   };
 
+  const setLearning = async (
+    patch: Partial<LearningSettingsDto>,
+  ): Promise<LearningSettingsDto> => {
+    if (
+      patch.gradePolicy !== undefined &&
+      !isGradePolicyId(patch.gradePolicy)
+    ) {
+      throw new EngineError('INVALID_ARGUMENT', {
+        message: `Invalid grade policy id: ${String(patch.gradePolicy)}`,
+        details: { field: 'gradePolicy' },
+      });
+    }
+    const next: LearningSettingsDto = {
+      ...ctx.learning,
+      ...(patch.gradePolicy !== undefined && {
+        gradePolicy: patch.gradePolicy,
+      }),
+    };
+    // сначала хранилище: отказ записи не должен менять живую настройку
+    await ctx.settings.saveLearning(next);
+    ctx.learning.gradePolicy = next.gradePolicy;
+    ctx.emit({ type: 'settings-changed', scope: 'learning' });
+    return { ...next };
+  };
+
   const setUi = async (patch: UiSettingsPatch) => {
-    if (patch.theme !== undefined && !isThemeMode(patch.theme)) {
+    if (patch.theme !== undefined && !isThemeId(patch.theme)) {
       throw new EngineError('INVALID_ARGUMENT', {
         message: `Invalid theme: ${String(patch.theme)}`,
         details: { field: 'theme' },
@@ -204,5 +227,7 @@ export const createSettingsService = (ctx: EngineContext): SettingsService => {
     }),
     getUi: async () => ctx.settings.loadUi(),
     setUi,
+    getLearning: async () => ({ ...ctx.learning }),
+    setLearning,
   };
 };

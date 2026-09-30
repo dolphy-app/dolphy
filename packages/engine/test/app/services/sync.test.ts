@@ -1,6 +1,6 @@
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { LogEntryDto } from '@lms/engine-contract';
+import type { LogEntryDto } from '@dolphy-app/engine-contract';
 import { describe, expect, it } from 'vitest';
 import { createNodeFolderSyncPort } from '../../../src/node/index.ts';
 import { entryHash } from '../../../src/sync/index.ts';

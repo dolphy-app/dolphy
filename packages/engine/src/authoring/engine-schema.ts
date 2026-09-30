@@ -2,7 +2,7 @@
  * Расширение `engine` (engine-ts.md §5.4): frontmatter front-файла, ключ
  * манифеста или `lesson.engine.json`. Trane его не видит, схема — наша.
  */
-import type { Diagnostic } from '@lms/engine-contract';
+import type { Diagnostic } from '@dolphy-app/engine-contract';
 import { z } from 'zod';
 import type { EngineExtension } from '../domain/manifest.ts';
 import { diag } from './diagnostics.ts';
@@ -14,7 +14,7 @@ export type UnitKind = 'course' | 'lesson' | 'exercise';
 export const ENGINE_KEYS: Record<UnitKind, readonly string[]> = {
   course: ['requiresChecks', 'tags', 'granularity'],
   lesson: ['keyPrerequisites', 'tags', 'bloom', 'dok', 'nonAncestor'],
-  exercise: ['verification', 'keyPrerequisites', 'tags', 'bloom', 'dok'],
+  exercise: ['exercise', 'keyPrerequisites', 'tags', 'bloom', 'dok'],
 };
 
 const idList = z.array(z.string().min(1));
@@ -29,10 +29,11 @@ const granularity = z
   );
 
 const engineSchema = z.object({
-  verification: z
-    .looseObject({
-      runner: z.string().min(1),
+  exercise: z
+    .strictObject({
+      type: z.string().min(1),
       timeoutMs: z.number().int().positive().optional(),
+      spec: z.record(z.string(), z.unknown()).optional(),
     })
     .optional(),
   keyPrerequisites: idList.optional(),
@@ -51,7 +52,7 @@ const engineSchema = z.object({
 export interface EngineIssue {
   /** Верхнеуровневый ключ `engine`, к которому относится ошибка (`''` — сам блок). */
   key: string;
-  /** Путь внутри `engine`, например `verification.timeoutMs`. */
+  /** Путь внутри `engine`, например `exercise.timeoutMs`. */
   path: string;
   message: string;
 }

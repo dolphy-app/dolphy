@@ -72,8 +72,8 @@ const WINDOW = {
 const ENGINE_FRONT = [
   '---',
   'engine:',
-  '  verification:',
-  '    runner: sql',
+  '  exercise:',
+  '    type: dolphy.sql',
   '    timeoutMs: 2000',
   '  tags: [sing, numbers]',
   '  bloom: apply',
@@ -107,7 +107,7 @@ const listFiles = (dir: string, suffix: string): string[] => {
 
 /**
  * T-36: копия `trane-small` (KB-курсы) с расширением `engine`: YAML-frontmatter
- * в `<ex>.front.md` (каждый 4-й файл, у каждого 8-го — с `verification`),
+ * в `<ex>.front.md` (каждый 4-й файл, у каждого 8-го — с `engine.exercise`),
  * `lesson.engine.json` (каждый 5-й урок), `engine` в манифесте курса и
  * малый JSON-курс `engine_json` с `engine` в манифестах и во frontmatter.
  */
@@ -154,11 +154,13 @@ export const prepareEngineFrontmatterLibrary = async (
     dependencies: [],
     engine: { requiresChecks: true, tags: ['sql'] },
   });
-  const verification = (n: number) => ({
-    runner: 'sql',
-    fixture: 'fixtures/emp.sql',
-    expected: `checks/engine-json-${n}.csv`,
+  const exercise = (n: number) => ({
+    type: 'dolphy.sql',
     timeoutMs: 2000,
+    spec: {
+      fixture: 'fixtures/emp.sql',
+      expected: `checks/engine-json-${n}.csv`,
+    },
   });
   for (const [l, dependencies] of [
     [0, []],
@@ -185,13 +187,11 @@ export const prepareEngineFrontmatterLibrary = async (
           FlashcardAsset: { front_path: 'front.md', back_path: 'back.md' },
         },
         // e1 берёт `engine` из frontmatter, остальные — из манифеста
-        ...(e === 1
-          ? {}
-          : { engine: { verification: verification(l * 3 + e) } }),
+        ...(e === 1 ? {} : { engine: { exercise: exercise(l * 3 + e) } }),
       });
       const front =
         e === 1
-          ? `---\nengine:\n  verification:\n    runner: sql\n    timeoutMs: 2000\n---\nSELECT ${l}.\n`
+          ? `---\nengine:\n  exercise:\n    type: dolphy.sql\n    timeoutMs: 2000\n---\nSELECT ${l}.\n`
           : `SELECT ${l}.\n`;
       await writeFile(join(dir, 'front.md'), front);
       await writeFile(join(dir, 'back.md'), 'Answer.\n');

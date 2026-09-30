@@ -4,15 +4,22 @@ import { useTheme } from 'vuetify';
 import type {
   LearningEngine,
   LocaleMode,
-  ThemeMode,
-} from '@lms/engine-contract';
+  ThemeContributionDto,
+} from '@dolphy-app/engine-contract';
 import { resolveLocale } from '@/shared/i18n';
+import {
+  effectiveThemeId,
+  resolveThemeName,
+} from '@/shared/lib/extension-themes.ts';
 
 /** Тема и язык хранятся в БД движка; применяются сразу. */
-export const useAppearanceSettings = (engine: LearningEngine) => {
+export const useAppearanceSettings = (
+  engine: LearningEngine,
+  themes: readonly ThemeContributionDto[] = [],
+) => {
   const vuetifyTheme = useTheme();
   const { locale } = useI18n({ useScope: 'global' });
-  const mode = ref<ThemeMode | null>(null);
+  const mode = ref<string | null>(null);
   const localeMode = ref<LocaleMode | null>(null);
   const error = ref<string | null>(null);
 
@@ -24,26 +31,27 @@ export const useAppearanceSettings = (engine: LearningEngine) => {
   onMounted(async () => {
     try {
       const ui = await engine.settings.getUi();
-      mode.value = ui.theme;
+      // неизвестная тема показывается как «Системная», сохранённое не трогаем
+      mode.value = effectiveThemeId(ui.theme, themes);
       localeMode.value = ui.locale;
     } catch (caught) {
       error.value = caught instanceof Error ? caught.message : String(caught);
     }
   });
 
-  /** `null` шлёт переключатель при снятии выбора; режим обязателен. */
-  const select = async (next: ThemeMode | null) => {
+  /** `null` шлёт переключатель при снятии выбора; тема обязательна. */
+  const select = async (next: string | null) => {
     if (next === null) return;
     const previous = mode.value;
     mode.value = next;
-    vuetifyTheme.change(next);
+    vuetifyTheme.change(resolveThemeName(next, themes));
     error.value = null;
     try {
       await engine.settings.setUi({ theme: next });
     } catch (caught) {
       // не сохранилось — возвращаем прежний вид, чтобы экран не лгал
       mode.value = previous;
-      if (previous) vuetifyTheme.change(previous);
+      if (previous) vuetifyTheme.change(resolveThemeName(previous, themes));
       error.value = caught instanceof Error ? caught.message : String(caught);
     }
   };

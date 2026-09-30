@@ -18,6 +18,11 @@ export const RPC_METHODS = {
   'library.matchPrefix': { idempotent: true },
   'library.getGraph': { idempotent: true },
   'library.readAsset': { idempotent: true },
+  'repositories.list': { idempotent: true },
+  'repositories.add': { idempotent: false },
+  'repositories.update': { idempotent: true }, // по коммиту на сервере
+  'repositories.remove': { idempotent: true },
+  'repositories.cancel': { idempotent: true },
   'practice.startSession': { idempotent: false },
   'practice.getBatch': { idempotent: false }, // RNG и счётчик показов
   'practice.beginAttempt': { idempotent: false },
@@ -37,6 +42,16 @@ export const RPC_METHODS = {
   'placement.finish': { idempotent: true }, // по requestId
   'placement.abort': { idempotent: false },
   'remediation.getPlan': { idempotent: true },
+  'extensions.list': { idempotent: true },
+  'extensions.contributions': { idempotent: true },
+  'extensions.getSettings': { idempotent: true },
+  'extensions.setEnabled': { idempotent: false },
+  'extensions.setTrusted': { idempotent: false },
+  'extensions.catalog': { idempotent: true },
+  'extensions.install': { idempotent: false },
+  'extensions.uninstall': { idempotent: false },
+  'extensions.updates': { idempotent: true },
+  'extensions.setCheckUpdates': { idempotent: false },
   'curation.blacklist.list': { idempotent: true },
   'curation.blacklist.has': { idempotent: true },
   'curation.blacklist.add': { idempotent: false },
@@ -63,6 +78,8 @@ export const RPC_METHODS = {
   'settings.getScorer': { idempotent: true },
   'settings.getUi': { idempotent: true },
   'settings.setUi': { idempotent: true }, // патч задаёт значения, не приращения
+  'settings.getLearning': { idempotent: true },
+  'settings.setLearning': { idempotent: true }, // патч задаёт значения, не приращения
   'sync.getState': { idempotent: true },
   'sync.exportSince': { idempotent: true },
   'sync.import': { idempotent: true }, // по id записи

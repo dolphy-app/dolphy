@@ -2,8 +2,11 @@ import { join } from 'node:path';
 import {
   createJsonSettingsStore,
   createMemorySettingsStore,
-} from '@lms/engine/node';
-import type { SavedFilterDto, StudySessionWire } from '@lms/engine-contract';
+} from '@dolphy-app/engine/node';
+import type {
+  SavedFilterDto,
+  StudySessionWire,
+} from '@dolphy-app/engine-contract';
 import { describe, expect, it } from 'vitest';
 import { describeSettingsStoreContract } from '../../engine/test/node/settings-store.contract.ts';
 import {
@@ -67,6 +70,23 @@ describe('SQLite settings store', () => {
     expect(await settings.loadUi()).toEqual({ theme: 'light', locale: 'ru' });
   });
 
+  it('запись расширений прежней формы (без checkUpdates) — проверка включена', async () => {
+    const path = nextPath();
+    const { events } = open(path);
+    await events.close();
+    const raw = openBetterSqliteDatabase({ path });
+    raw
+      .prepare("INSERT INTO setting (key, value) VALUES ('extensions', ?)")
+      .run('{"disabled":["acme.a"],"trusted":["acme.b"]}');
+    raw.close();
+
+    expect(await open(path).settings.loadExtensions()).toEqual({
+      disabled: ['acme.a'],
+      trusted: ['acme.b'],
+      checkUpdates: true,
+    });
+  });
+
   it('повреждённая запись — STORE_CORRUPT, а не тихие умолчания', async () => {
     const path = nextPath();
     const { events } = open(path);
@@ -108,11 +128,29 @@ describe('SQLite settings store', () => {
     const broken = openBetterSqliteDatabase({ path });
     broken
       .prepare("UPDATE setting SET value = ? WHERE key = 'ui'")
-      .run('{"theme":"sepia","locale":"de"}');
+      .run('{"theme":"Sepia!","locale":"de"}');
     broken.close();
     expect(await open(path).settings.loadUi()).toEqual({
       theme: 'system',
       locale: 'system',
+    });
+  });
+});
+
+describe('настройки расширений', () => {
+  it('неверная сохранённая форма читается как пустые списки', async () => {
+    const path = nextPath();
+    const { events } = open(path);
+    await events.close();
+    const raw = openBetterSqliteDatabase({ path });
+    raw
+      .prepare("INSERT INTO setting (key, value) VALUES ('extensions', ?)")
+      .run('{"disabled":["Bad Id"],"trusted":[]}');
+    raw.close();
+    expect(await open(path).settings.loadExtensions()).toEqual({
+      disabled: [],
+      trusted: [],
+      checkUpdates: true,
     });
   });
 });

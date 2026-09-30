@@ -13,7 +13,7 @@ import type {
   Diagnostic,
   DiagnosticCode,
   DiagnosticSummary,
-} from '@lms/engine-contract';
+} from '@dolphy-app/engine-contract';
 import { assembleLibrary } from '../domain/library.ts';
 import type { Library } from '../domain/library.ts';
 import type { CourseSource } from '../ports/index.ts';

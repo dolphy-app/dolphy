@@ -1,4 +1,4 @@
-import { buildLibrary } from '@lms/testkit';
+import { buildLibrary } from '@dolphy-app/testkit';
 import { describe, expect, it } from 'vitest';
 import { findOrphanDiagnostics } from '../../src/app/index.ts';
 import { assembleLibrary } from '../../src/domain/library.ts';

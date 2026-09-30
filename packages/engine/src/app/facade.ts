@@ -1,8 +1,9 @@
 import type {
   EngineDiagnosticsDto,
   LearningEngine,
-} from '@lms/engine-contract';
+} from '@dolphy-app/engine-contract';
 import { createCommandQueue } from './command-queue.ts';
+import type { CommandQueue } from './command-queue.ts';
 import type { FacadeContext } from './context-types.ts';
 import { EngineError, createErrorMapper } from './errors.ts';
 
@@ -15,8 +16,24 @@ export type EngineServices = Omit<
 type AnyMethod = (...args: never[]) => Promise<unknown>;
 export type WrapMethod = (name: string, method: AnyMethod) => AnyMethod;
 
-/** Команды, которые не встают в очередь: вердикт ждёт раннер до `timeoutMs`+запас. */
-export const UNQUEUED: ReadonlySet<string> = new Set(['practice.submitAnswer']);
+/**
+ * Команды, которые не встают в очередь: вердикт ждёт раннер до
+ * `timeoutMs`+запас; `repositories.add`/`update`/`remove`/`cancel` ходят в
+ * сеть и ждут свою цепочку операций, а очередь берут сами (`exclusive`) только
+ * на подмену снимка и `reload`: из очереди ждать цепочку нельзя — её
+ * операция ждёт очередь (взаимная блокировка). `extensions.catalog` и
+ * `extensions.install` тоже ходят в сеть (индекс, файлы версии) и очередь не
+ * держат; событие `extensions-changed` они публикуют сами.
+ */
+export const UNQUEUED: ReadonlySet<string> = new Set([
+  'practice.submitAnswer',
+  'repositories.add',
+  'repositories.update',
+  'repositories.remove',
+  'repositories.cancel',
+  'extensions.catalog',
+  'extensions.install',
+]);
 
 const isMethod = (value: unknown): value is AnyMethod =>
   typeof value === 'function';
@@ -47,9 +64,9 @@ export const createFacade = (
   ctx: FacadeContext,
   services: EngineServices,
   diagnostics: () => Promise<EngineDiagnosticsDto>,
+  queue: CommandQueue = createCommandQueue(),
 ): LearningEngine => {
   const { bus, logger, state } = ctx;
-  const queue = createCommandQueue();
   const mapError = createErrorMapper(ctx);
   const inflightUnqueued = new Set<Promise<unknown>>();
 
@@ -91,9 +108,7 @@ export const createFacade = (
     closing ??= (async () => {
       state.closed = true; // новые вызовы → ENGINE_CLOSED
       await queue.idle();
-      await Promise.allSettled(
-        [...ctx.verifiers.values()].map((verifier) => verifier.close()),
-      );
+      await Promise.allSettled([ctx.exerciseTypes.close()]);
       await Promise.allSettled([...inflightUnqueued]);
       await ctx.eventStore.close();
     })();

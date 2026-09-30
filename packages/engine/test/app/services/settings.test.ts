@@ -1,5 +1,5 @@
-import type { EngineEvent } from '@lms/engine-contract';
-import { buildLibrary } from '@lms/testkit';
+import type { EngineEvent } from '@dolphy-app/engine-contract';
+import { buildLibrary } from '@dolphy-app/testkit';
 import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SCHEDULER_OPTIONS } from '../../../src/scheduler/options.ts';
 import {
@@ -383,10 +383,21 @@ describe('settings ui', () => {
     });
   });
 
+  it('accepts the id of a contributed theme without checking it exists', async () => {
+    const { engine } = await open();
+    expect(await engine.settings.setUi({ theme: 'acme.midnight' })).toEqual({
+      theme: 'acme.midnight',
+      locale: 'system',
+    });
+    await expect(
+      engine.settings.setUi({ theme: `a${'b'.repeat(64)}` }),
+    ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+  });
+
   it('rejects an unknown theme or language and saves nothing', async () => {
     const { engine, settings, events } = await open();
     await expect(
-      engine.settings.setUi({ theme: 'sepia' as 'dark' }),
+      engine.settings.setUi({ theme: 'Sepia!' }),
     ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
     await expect(
       engine.settings.setUi({ theme: 'dark', locale: 'de' as 'en' }),
@@ -396,5 +407,71 @@ describe('settings ui', () => {
       locale: 'system',
     });
     expect(changed(events, 'ui')).toEqual([]);
+  });
+});
+
+describe('settings learning', () => {
+  it('defaults to passAtN; a change is stored, returned and announced', async () => {
+    const { engine, events, settings } = await open();
+    expect(await engine.settings.getLearning()).toEqual({
+      gradePolicy: 'passAtN',
+    });
+    expect(
+      await engine.settings.setLearning({
+        gradePolicy: 'acme.policy.generous',
+      }),
+    ).toEqual({ gradePolicy: 'acme.policy.generous' });
+    expect(await engine.settings.getLearning()).toEqual({
+      gradePolicy: 'acme.policy.generous',
+    });
+    expect(await settings.loadLearning()).toEqual({
+      gradePolicy: 'acme.policy.generous',
+    });
+    expect(changed(events, 'learning')).toHaveLength(1);
+    expect(await engine.settings.setLearning({})).toEqual({
+      gradePolicy: 'acme.policy.generous',
+    });
+  });
+
+  it('reads the saved choice on open, even when no extension provides the policy', async () => {
+    const settings = createMemorySettingsStore({
+      learning: { gradePolicy: 'gone.policy' },
+    });
+    const { engine } = await open({ settings });
+    expect(await engine.settings.getLearning()).toEqual({
+      gradePolicy: 'gone.policy',
+    });
+  });
+
+  it.each(['Bad Id', 'acme.', 'A', 'x'.repeat(65), ''])(
+    'rejects the malformed id %j and keeps the stored value',
+    async (gradePolicy) => {
+      const { engine, events, settings } = await open();
+      await expect(
+        engine.settings.setLearning({ gradePolicy }),
+      ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+      expect(await settings.loadLearning()).toEqual({
+        gradePolicy: 'passAtN',
+      });
+      expect(changed(events, 'learning')).toEqual([]);
+    },
+  );
+
+  it('a failed write keeps the live setting', async () => {
+    const settings = createMemorySettingsStore();
+    const { engine } = await open({
+      settings: {
+        ...settings,
+        saveLearning: async () => {
+          throw new SettingsStoreError('cannot write', 'x');
+        },
+      },
+    });
+    await expect(
+      engine.settings.setLearning({ gradePolicy: 'acme.policy' }),
+    ).rejects.toThrow();
+    expect(await engine.settings.getLearning()).toEqual({
+      gradePolicy: 'passAtN',
+    });
   });
 });

@@ -7,8 +7,9 @@ interface WindowWebContentsLike {
   ): void;
   on(
     event: 'will-navigate',
-    listener: (event: { preventDefault(): void }) => void,
+    listener: (event: { preventDefault(): void; url: string }) => void,
   ): unknown;
+  getURL(): string;
   openDevTools(): void;
 }
 
@@ -21,9 +22,15 @@ export interface BrowserWindowLike {
   loadFile(path: string): Promise<void>;
 }
 
+/** Ниже этой ширины боковое меню (240px) оставляет странице меньше 660px. */
+const MIN_WINDOW_WIDTH = 900;
+const MIN_WINDOW_HEIGHT = 600;
+
 export interface WindowOptions {
   title: string;
   show: boolean;
+  minWidth: number;
+  minHeight: number;
   webPreferences: {
     preload: string;
     sandbox: true;
@@ -61,8 +68,10 @@ export const createWindowOptions = (
   hidden: boolean,
   additionalArguments: readonly string[],
 ): WindowOptions => ({
-  title: 'LMS',
+  title: 'Dolphy',
   show: !hidden,
+  minWidth: MIN_WINDOW_WIDTH,
+  minHeight: MIN_WINDOW_HEIGHT,
   webPreferences: {
     preload: preloadPath,
     sandbox: true,
@@ -88,8 +97,11 @@ export const createWindowShell = (deps: WindowShellDeps): Shell => ({
       );
       win = created;
       const { webContents } = created;
-      // страница остаётся той, что загрузили: навигация только через main
-      webContents.on('will-navigate', (event) => event.preventDefault());
+      // страница остаётся той, что загрузили: навигация только через main;
+      // перезагрузка текущего адреса («Перезагрузить окно» в настройках) разрешена
+      webContents.on('will-navigate', (event) => {
+        if (event.url !== webContents.getURL()) event.preventDefault();
+      });
       webContents.setWindowOpenHandler(({ url }) => {
         if (url.startsWith('https:')) {
           shell.openExternal(url).catch((error) => {

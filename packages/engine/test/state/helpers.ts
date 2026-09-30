@@ -1,5 +1,5 @@
-import type { SchedulerOptionsDto, UnitId } from '@lms/engine-contract';
-import type { CourseLibrary } from '@lms/testkit';
+import type { SchedulerOptionsDto, UnitId } from '@dolphy-app/engine-contract';
+import type { CourseLibrary } from '@dolphy-app/testkit';
 import { assembleLibrary } from '../../src/domain/library.ts';
 import type { Library } from '../../src/domain/library.ts';
 import type { Projections } from '../../src/app/index.ts';

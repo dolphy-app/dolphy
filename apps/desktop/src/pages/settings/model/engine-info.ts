@@ -3,7 +3,7 @@ import type {
   EngineDiagnosticsDto,
   LearningEngine,
   ScorerInfoDto,
-} from '@lms/engine-contract';
+} from '@dolphy-app/engine-contract';
 
 export interface EngineInfo {
   diagnostics: EngineDiagnosticsDto;

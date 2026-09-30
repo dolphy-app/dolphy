@@ -13,7 +13,7 @@
  * проходить. Rust и TS используют разные ГСЧ и разные алгоритмы выборки
  * (A-ExpJ против A-Res), поэтому сверяется распределение, не потоки чисел.
  */
-import type { UnitId } from '@lms/engine-contract';
+import type { UnitId } from '@dolphy-app/engine-contract';
 import { describe, expect, it } from 'vitest';
 import { readGoldenJsonl } from './helpers/golden.ts';
 import { createWorld } from './helpers/world.ts';

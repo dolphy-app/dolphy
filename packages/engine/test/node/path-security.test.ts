@@ -5,7 +5,7 @@
  */
 import { mkdir, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { Diagnostic, DiagnosticCode } from '@lms/engine-contract';
+import type { Diagnostic, DiagnosticCode } from '@dolphy-app/engine-contract';
 import { describe, expect, it } from 'vitest';
 import { compile } from '../../src/authoring/compile.ts';
 import { createNodeFsCourseSource } from '../../src/node/index.ts';

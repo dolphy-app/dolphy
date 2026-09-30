@@ -3,7 +3,7 @@ import type {
   DeepPartial,
   LearningEngine,
   SchedulerOptionsDto,
-} from '@lms/engine-contract';
+} from '@dolphy-app/engine-contract';
 
 const PERCENT = 100;
 

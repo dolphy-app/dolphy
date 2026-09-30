@@ -1,6 +1,7 @@
-import { CONTRACT_VERSION, RPC_METHODS } from '@lms/engine-contract';
-import type { EngineEvent } from '@lms/engine-contract';
-import { createCapturingLogger, silentLogger } from '@lms/testkit';
+import { CONTRACT_VERSION, RPC_METHODS } from '@dolphy-app/engine-contract';
+import type { EngineEvent } from '@dolphy-app/engine-contract';
+import { EngineError } from '@dolphy-app/engine/app';
+import { createCapturingLogger, silentLogger } from '@dolphy-app/testkit';
 import { describe, expect, it } from 'vitest';
 import { EngineCallError, createEngineClient } from '../src/client/index.ts';
 import { createDispatcher, schemas } from '../src/host/index.ts';
@@ -125,6 +126,103 @@ describe('dispatcher validation', () => {
     expect(fake.calls).not.toContain('practice.recordAttempt');
   });
 
+  it('settings.setUi accepts a theme id of an extension and rejects malformed ids', async () => {
+    const { dispatcher } = await connect();
+    const [hostSide, rawSide] = createInProcessPair();
+    dispatcher.attach(hostSide, 'raw-theme');
+    const raw = createRawClient(rawSide);
+    const ok = await raw.call('settings.setUi', [{ theme: 'acme.midnight' }]);
+    expect(ok).toMatchObject({ ok: true });
+    for (const theme of ['Sepia', 'a..b', `a${'b'.repeat(70)}`, 5]) {
+      expect(await raw.call('settings.setUi', [{ theme }])).toMatchObject({
+        ok: false,
+        error: { code: 'INVALID_ARGUMENT' },
+      });
+    }
+  });
+
+  it('settings.setLearning accepts passAtN and extension policy ids, rejects malformed ones', async () => {
+    const { dispatcher } = await connect();
+    const [hostSide, rawSide] = createInProcessPair();
+    dispatcher.attach(hostSide, 'raw-learning');
+    const raw = createRawClient(rawSide);
+    for (const gradePolicy of ['passAtN', 'acme.policy.generous', 'acme']) {
+      expect(
+        await raw.call('settings.setLearning', [{ gradePolicy }]),
+      ).toMatchObject({ ok: true });
+    }
+    for (const gradePolicy of ['Sepia', 'a..b', `a${'b'.repeat(70)}`, 5]) {
+      expect(
+        await raw.call('settings.setLearning', [{ gradePolicy }]),
+      ).toMatchObject({ ok: false, error: { code: 'INVALID_ARGUMENT' } });
+    }
+  });
+
+  it('extensions.setEnabled / setTrusted require an extension id and a boolean', async () => {
+    const { dispatcher } = await connect();
+    const [hostSide, rawSide] = createInProcessPair();
+    dispatcher.attach(hostSide, 'raw-extensions');
+    const raw = createRawClient(rawSide);
+    for (const method of ['extensions.setEnabled', 'extensions.setTrusted']) {
+      expect(await raw.call(method, ['acme.ext', true])).toMatchObject({
+        ok: true,
+      });
+      for (const args of [
+        ['Acme', true],
+        ['', true],
+        [`a${'b'.repeat(70)}`, true],
+        ['acme.ext', 'yes'],
+        ['acme.ext'],
+      ]) {
+        expect(await raw.call(method, args)).toMatchObject({
+          ok: false,
+          error: { code: 'INVALID_ARGUMENT' },
+        });
+      }
+    }
+  });
+
+  it('extensions catalog/install/uninstall/updates/setCheckUpdates validate their arguments', async () => {
+    const { dispatcher } = await connect();
+    const [hostSide, rawSide] = createInProcessPair();
+    dispatcher.attach(hostSide, 'raw-install');
+    const raw = createRawClient(rawSide);
+    const accepted: [string, unknown[]][] = [
+      ['extensions.catalog', []],
+      ['extensions.catalog', [{}]],
+      ['extensions.catalog', [{ refresh: true }]],
+      ['extensions.install', ['acme.ext']],
+      ['extensions.install', ['acme.ext', '1.2.3']],
+      ['extensions.install', ['acme.ext', '1.2.3-beta.1']],
+      ['extensions.uninstall', ['acme.ext']],
+      ['extensions.updates', []],
+      ['extensions.setCheckUpdates', [false]],
+    ];
+    const rejected: [string, unknown[]][] = [
+      ['extensions.catalog', [{ refresh: 'yes' }]],
+      ['extensions.catalog', [{ force: true }]],
+      ['extensions.install', []],
+      ['extensions.install', ['Acme']],
+      ['extensions.install', ['acme.ext', 'latest']],
+      ['extensions.install', ['acme.ext', '1.2']],
+      ['extensions.install', ['acme.ext', '1.2.3', 'x']],
+      ['extensions.uninstall', ['']],
+      ['extensions.uninstall', []],
+      ['extensions.updates', ['x']],
+      ['extensions.setCheckUpdates', ['no']],
+      ['extensions.setCheckUpdates', []],
+    ];
+    for (const [method, args] of accepted) {
+      expect(await raw.call(method, args), method).toMatchObject({ ok: true });
+    }
+    for (const [method, args] of rejected) {
+      expect(await raw.call(method, args), method).toMatchObject({
+        ok: false,
+        error: { code: 'INVALID_ARGUMENT' },
+      });
+    }
+  });
+
   it('rejects unknown keys, extra arguments and non-array params', async () => {
     const { dispatcher } = await connect();
     const [hostSide, rawSide] = createInProcessPair();
@@ -201,7 +299,7 @@ describe('dispatcher validation', () => {
   });
 
   it('an engine EngineError keeps code and details across the wire', async () => {
-    const { EngineError } = await import('@lms/engine/app');
+    const { EngineError } = await import('@dolphy-app/engine/app');
     const { client } = await connect({
       'practice.getUnitScore': (async () => {
         throw new EngineError('NOT_FOUND', { details: { unitId: 'x' } });
@@ -227,7 +325,7 @@ describe('ordering and events', () => {
     const slow = client.engine.practice
       .submitAnswer({
         attemptId: 'a',
-        submission: { kind: 'sql', sql: 'select 1' },
+        answer: 'select 1',
       })
       .then((value) => {
         order.push('submit');
@@ -304,5 +402,98 @@ describe('ordering and events', () => {
     await b.attach(clientB);
     await tick();
     expect(fake.listenerCount()).toBe(0); // подписка старого окна снята
+  });
+
+  describe('repositories', () => {
+    it.each([
+      ['add', [{ url: '' }]],
+      ['add', [{ url: 'https://h/r.git', ref: '' }]],
+      ['add', [{ url: 'https://h/r.git', extra: 1 }]],
+      ['add', [{ url: `https://h/${'a'.repeat(2048)}` }]],
+      ['add', [{ url: 'https://h/r.git', ref: 'r'.repeat(256) }]],
+      ['update', ['']],
+      ['remove', ['x'.repeat(201)]],
+      ['cancel', [42]],
+      ['list', ['extra']],
+    ] as const)(
+      '%s rejects bad params without reaching the engine',
+      async (name, params) => {
+        const { fake, hostSide, clientSide } = await connect();
+        void hostSide;
+        const raw = createRawClient(clientSide);
+        const response = await raw.call(`repositories.${name}`, params);
+        expect(response).toMatchObject({
+          ok: false,
+          error: { code: 'INVALID_ARGUMENT' },
+        });
+        expect(fake.calls).not.toContain(`repositories.${name}`);
+      },
+    );
+
+    it('routes valid calls to the engine with positional args', async () => {
+      const { client, fake } = await connect();
+      await client.engine.repositories.add({
+        url: 'https://h/r.git',
+        ref: 'main',
+      });
+      await client.engine.repositories.update('id1');
+      await client.engine.repositories.remove('id2');
+      await client.engine.repositories.cancel('id3');
+      await client.engine.repositories.list();
+      expect(fake.calls.filter((name) => name !== 'diagnostics')).toEqual([
+        'repositories.add',
+        'repositories.update',
+        'repositories.remove',
+        'repositories.cancel',
+        'repositories.list',
+      ]);
+    });
+
+    it('add is not replayed after a drop; update/remove/cancel/list are', () => {
+      expect(RPC_METHODS['repositories.add'].idempotent).toBe(false);
+      for (const name of ['list', 'update', 'remove', 'cancel'] as const) {
+        expect(RPC_METHODS[`repositories.${name}`].idempotent).toBe(true);
+      }
+    });
+
+    it('error details (reason) survive the round trip', async () => {
+      const { client } = await connect({
+        'repositories.add': (async () => {
+          throw new EngineError('GIT_FETCH_FAILED', {
+            details: { reason: 'auth-required', url: 'https://h/r.git' },
+          });
+        }) as Method,
+      });
+      await expect(
+        client.engine.repositories.add({ url: 'https://h/r.git' }),
+      ).rejects.toMatchObject({
+        code: 'GIT_FETCH_FAILED',
+        details: { reason: 'auth-required', url: 'https://h/r.git' },
+      });
+    });
+
+    it('repository-progress events reach a subscribed client', async () => {
+      const { client, fake } = await connect();
+      const events: EngineEvent[] = [];
+      client.engine.subscribe((event) => events.push(event));
+      await tick(5);
+      fake.emit({
+        type: 'repository-progress',
+        id: 'r',
+        phase: 'fetch',
+        loaded: 1,
+        total: 2,
+      });
+      await tick(5);
+      expect(events).toEqual([
+        {
+          type: 'repository-progress',
+          id: 'r',
+          phase: 'fetch',
+          loaded: 1,
+          total: 2,
+        },
+      ]);
+    });
   });
 });

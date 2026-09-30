@@ -1,4 +1,8 @@
-import type { EpochMs, ScorerInfoDto, UnitId } from '@lms/engine-contract';
+import type {
+  EpochMs,
+  ScorerInfoDto,
+  UnitId,
+} from '@dolphy-app/engine-contract';
 import type { ExerciseType } from '../domain/manifest.ts';
 
 /**

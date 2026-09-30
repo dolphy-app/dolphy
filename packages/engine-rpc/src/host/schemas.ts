@@ -1,3 +1,9 @@
+import {
+  BUILTIN_GRADE_POLICY,
+  EXTENSION_ID_PATTERN,
+  GRADE_POLICY_ID_PATTERN,
+  THEME_ID_PATTERN,
+} from '@dolphy-app/engine-contract';
 import * as z from 'zod';
 import type {
   AttemptEntryDto,
@@ -12,7 +18,7 @@ import type {
   SessionPartWire,
   StudySessionWire,
   UnitFilterWire,
-} from '@lms/engine-contract';
+} from '@dolphy-app/engine-contract';
 
 type Path<T, K extends string> = K extends `${infer Head}.${infer Tail}`
   ? Head extends keyof T
@@ -31,11 +37,17 @@ const optional = <T extends z.core.SomeType>(schema: T) =>
 
 const unitId = z.string().min(1);
 const str = z.string();
+const extensionId = z.string().min(1).max(64).regex(EXTENSION_ID_PATTERN);
+const extensionVersion = z
+  .string()
+  .max(64)
+  .regex(/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/);
 const num = z.number();
 const int = z.int();
 const bool = z.boolean();
 const epochMs = z.number().int().nonnegative();
 const requestId = z.string().min(1);
+const repositoryId = z.string().min(1).max(200);
 const grade = z.union([
   z.literal(1),
   z.literal(2),
@@ -149,12 +161,6 @@ const exerciseFilter: z.ZodType<ExerciseFilterDto> = z.union([
       definition: studySession,
     }),
   }),
-]);
-
-const submission = z.discriminatedUnion('kind', [
-  z.strictObject({ kind: z.literal('text'), text: str }),
-  z.strictObject({ kind: z.literal('sql'), sql: str }),
-  z.strictObject({ kind: z.literal('json'), value: z.unknown() }),
 ]);
 
 const progressQuery = z.strictObject({
@@ -276,13 +282,23 @@ export const schemas = {
   ]),
   'library.getGraph': z.tuple([optional(graphQuery)]),
   'library.readAsset': z.tuple([assetRef]),
+  'repositories.list': z.tuple([]),
+  'repositories.add': z.tuple([
+    z.strictObject({
+      url: str.min(1).max(2048),
+      ref: optional(str.min(1).max(255)),
+    }),
+  ]),
+  'repositories.update': z.tuple([repositoryId]),
+  'repositories.remove': z.tuple([repositoryId]),
+  'repositories.cancel': z.tuple([repositoryId]),
   'practice.startSession': z.tuple([]),
   'practice.getBatch': z.tuple([
     optional(z.strictObject({ filter: optional(exerciseFilter) })),
   ]),
   'practice.beginAttempt': z.tuple([z.strictObject({ exerciseId: unitId })]),
   'practice.submitAnswer': z.tuple([
-    z.strictObject({ attemptId: str.min(1), submission }),
+    z.strictObject({ attemptId: str.min(1), answer: z.unknown() }),
   ]),
   'practice.completeAttempt': z.tuple([
     z.strictObject({
@@ -332,6 +348,18 @@ export const schemas = {
   ]),
   'placement.abort': z.tuple([z.strictObject({ sessionId: str.min(1) })]),
   'remediation.getPlan': z.tuple([z.strictObject({ exerciseId: unitId })]),
+  'extensions.list': z.tuple([]),
+  'extensions.contributions': z.tuple([]),
+  'extensions.getSettings': z.tuple([]),
+  'extensions.setEnabled': z.tuple([extensionId, z.boolean()]),
+  'extensions.setTrusted': z.tuple([extensionId, z.boolean()]),
+  'extensions.catalog': z.tuple([
+    optional(z.strictObject({ refresh: optional(bool) })),
+  ]),
+  'extensions.install': z.tuple([extensionId, optional(extensionVersion)]),
+  'extensions.uninstall': z.tuple([extensionId]),
+  'extensions.updates': z.tuple([]),
+  'extensions.setCheckUpdates': z.tuple([bool]),
   'curation.blacklist.list': z.tuple([optional(pageRequest)]),
   'curation.blacklist.has': z.tuple([unitId]),
   'curation.blacklist.add': z.tuple([unitId]),
@@ -364,9 +392,20 @@ export const schemas = {
   'settings.getUi': z.tuple([]),
   'settings.setUi': z.tuple([
     z.strictObject({
-      theme: optional(z.enum(['system', 'light', 'dark'])),
+      theme: optional(z.string().max(64).regex(THEME_ID_PATTERN)),
       locale: optional(z.enum(['system', 'ru', 'en'])),
       activeCourseId: optional(unitId.nullable()),
+    }),
+  ]),
+  'settings.getLearning': z.tuple([]),
+  'settings.setLearning': z.tuple([
+    z.strictObject({
+      gradePolicy: optional(
+        z.union([
+          z.literal(BUILTIN_GRADE_POLICY),
+          z.string().max(64).regex(GRADE_POLICY_ID_PATTERN),
+        ]),
+      ),
     }),
   ]),
   'sync.getState': z.tuple([]),

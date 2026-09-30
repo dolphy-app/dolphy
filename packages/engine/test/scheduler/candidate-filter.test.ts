@@ -11,8 +11,8 @@
 import type {
   MasteryWindowDto,
   SchedulerOptionsDto,
-} from '@lms/engine-contract';
-import { createSeededRng } from '@lms/testkit';
+} from '@dolphy-app/engine-contract';
+import { createSeededRng } from '@dolphy-app/testkit';
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_SCHEDULER_OPTIONS,

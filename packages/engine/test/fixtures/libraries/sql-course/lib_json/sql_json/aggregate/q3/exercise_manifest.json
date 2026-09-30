@@ -12,12 +12,14 @@
     }
   },
   "engine": {
-    "verification": {
-      "runner": "sql",
-      "fixture": "fixtures/emp.sql",
-      "expected": "checks/agg-having.csv",
-      "reference": "solutions/agg-having.sql",
-      "timeoutMs": 2000
+    "exercise": {
+      "type": "dolphy.sql",
+      "timeoutMs": 2000,
+      "spec": {
+        "fixture": "fixtures/emp.sql",
+        "expected": "checks/agg-having.csv",
+        "reference": "solutions/agg-having.sql"
+      }
     },
     "tags": [
       "having"

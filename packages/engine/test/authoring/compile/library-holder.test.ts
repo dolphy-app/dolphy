@@ -1,11 +1,11 @@
 import { mkdtempSync, rmSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import type { CourseLibrary, MemoryCourseSource } from '@lms/testkit';
+import type { CourseLibrary, MemoryCourseSource } from '@dolphy-app/testkit';
 import {
   buildLibrary,
   createFakeClock,
   createMemoryCourseSource,
-} from '@lms/testkit';
+} from '@dolphy-app/testkit';
 import { afterEach, describe, expect, it } from 'vitest';
 import { EngineError } from '../../../src/app/errors.ts';
 import { probeArtifact } from '../../../src/authoring/freshness.ts';

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { buildLibrary, createMemoryCourseSource } from '@lms/testkit';
+import { buildLibrary, createMemoryCourseSource } from '@dolphy-app/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   ArtifactFormatError,
@@ -236,7 +236,7 @@ describe('artifact', () => {
     expect(() => decodeArtifact(JSON.stringify(withoutGraph))).toThrow(
       ArtifactFormatError,
     );
-    expect(() => loadCompiled({ ...artifact, formatVersion: 2 })).toThrow(
+    expect(() => loadCompiled({ ...artifact, formatVersion: 3 })).toThrow(
       ArtifactFormatError,
     );
   });

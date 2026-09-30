@@ -3,6 +3,13 @@ name: Release
 on:
   push:
     branches: [main]
+  # пересобрать установщики уже выпущенной версии: gh workflow run release.yml -f version=X.Y.Z
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Версия существующего релиза (X.Y.Z), для которой пересобрать установщики
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -14,6 +21,7 @@ concurrency:
 jobs:
   release:
     name: Version and changelog
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -47,7 +55,7 @@ jobs:
   build:
     name: Build installer (${{ matrix.os }})
     needs: release
-    if: needs.release.outputs.version != ''
+    if: ${{ !cancelled() && (needs.release.outputs.version != '' || inputs.version != '') }}
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
@@ -56,12 +64,12 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     env:
-      VERSION: ${{ needs.release.outputs.version }}
+      VERSION: ${{ needs.release.outputs.version || inputs.version }}
     steps:
       - name: Checkout release tag
         uses: actions/checkout@v7
         with:
-          ref: v${{ needs.release.outputs.version }}
+          ref: v${{ needs.release.outputs.version || inputs.version }}
           persist-credentials: false
 
       - name: Setup pnpm
@@ -73,8 +81,10 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
 
+      # better-sqlite3 поставляет N-API prebuilds (asarUnpack), компилировать его не нужно:
+      # на Windows runner node-gyp не находит Visual Studio
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       # версию приложения задаёт тег релиза, а не apps/desktop/package.json
       - name: Build
@@ -92,3 +102,63 @@ jobs:
           gh release upload "v$VERSION" "${files[@]}" --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-packages:
+    name: Publish packages (npm)
+    needs: release
+    if: ${{ !cancelled() && (needs.release.outputs.version != '' || inputs.version != '') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      VERSION: ${{ needs.release.outputs.version || inputs.version }}
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v7
+        with:
+          ref: v${{ needs.release.outputs.version || inputs.version }}
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+          scope: '@dolphy-app'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      # версия пакетов — версия релиза (тег), а не package.json рабочих пакетов
+      - name: Build packages
+        run: pnpm build:packages --version "$VERSION"
+
+      - name: Verify packages
+        run: pnpm verify:packages
+
+      # повторный запуск для уже выпущенной версии не падает: реестр отвечает E409
+      - name: Publish
+        shell: bash
+        run: |
+          failed=0
+          for short in extension-api extension-sdk extension-tools create-extension; do
+            name="@dolphy-app/$short"
+            if output=$(cd "dist-publish/$short" && npm publish 2>&1); then
+              echo "$output"
+              echo "published $name@$VERSION"
+            elif grep -qiE 'E409|already exists|cannot publish over' <<<"$output"; then
+              echo "$output"
+              echo "::notice::$name@$VERSION is already published, skipped"
+            else
+              echo "$output"
+              echo "::error::failed to publish $name@$VERSION"
+              failed=1
+            fi
+          done
+          exit "$failed"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

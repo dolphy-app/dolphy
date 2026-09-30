@@ -10,7 +10,7 @@ import { loadBetterSqlite3, loadNodeSqlite } from '../../src/drivers.ts';
 import { prefilter } from '../../src/prefilter.ts';
 import { openSandbox } from '../../src/sandbox.ts';
 import type { DriverId, HardeningOptions } from '../../src/types.ts';
-import { DEFAULT_MAX_SQL_CHARS, FULL_HARDENING } from '../../src/types.ts';
+import { MAX_SQL_CHARS, FULL_HARDENING } from '../../src/types.ts';
 
 export type Outcome = 'B' | 'A' | 'X';
 
@@ -252,7 +252,7 @@ export const runThreat = (
     let blocked = false;
     for (const step of threat.steps(dir)) {
       if (hardening.prefilter) {
-        const outcome = prefilter(step, DEFAULT_MAX_SQL_CHARS);
+        const outcome = prefilter(step, MAX_SQL_CHARS);
         if (!outcome.ok) {
           blocked = true;
           break;

@@ -3,7 +3,7 @@ import type {
   ScorerInfoDto,
   SchedulerOptionsDto,
   UnitId,
-} from '@lms/engine-contract';
+} from '@dolphy-app/engine-contract';
 import type { ExerciseType } from '../domain/manifest.ts';
 import type { Clock } from '../ports/index.ts';
 import { ScoringError, UnknownUnitError } from './errors.ts';

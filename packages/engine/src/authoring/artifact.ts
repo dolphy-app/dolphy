@@ -5,7 +5,10 @@
  * JSON (report-compiler.md §5: загрузка ≈ 33 мс, gzip и v8 не нужны).
  */
 import { z } from 'zod';
-import type { Diagnostic, DiagnosticSummary } from '@lms/engine-contract';
+import type {
+  Diagnostic,
+  DiagnosticSummary,
+} from '@dolphy-app/engine-contract';
 import { buildIndexedGraph } from '../domain/graph-algorithms.ts';
 import { assembleLibrary } from '../domain/library.ts';
 import type { Library } from '../domain/library.ts';
@@ -19,8 +22,8 @@ import type { Index } from './checks.ts';
 import type { Src } from './model.ts';
 
 /** Меняется при любом несовместимом изменении формата, состава или порядка входов `revision`. */
-export const FORMAT_VERSION = 1;
-export const COMPILER_ID = 'engine-compiler/1';
+export const FORMAT_VERSION = 2;
+export const COMPILER_ID = 'engine-compiler/2';
 
 export interface ArtifactUnit<M> {
   m: M;

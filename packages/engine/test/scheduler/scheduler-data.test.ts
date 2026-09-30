@@ -13,8 +13,8 @@ import type {
   SavedFilterDto,
   StudySessionWire,
   UnitFilterWire,
-} from '@lms/engine-contract';
-import { T0_MS } from '@lms/testkit';
+} from '@dolphy-app/engine-contract';
+import { T0_MS } from '@dolphy-app/testkit';
 import { describe, expect, it } from 'vitest';
 import { createUnitGraph } from '../../src/domain/graph.ts';
 import { allValidExercises } from '../../src/scoring/graph.ts';

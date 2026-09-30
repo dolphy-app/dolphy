@@ -1,4 +1,8 @@
-import type { LearningEngine, UnitId, UnitStatus } from '@lms/engine-contract';
+import type {
+  LearningEngine,
+  UnitId,
+  UnitStatus,
+} from '@dolphy-app/engine-contract';
 import { readAllPages } from '@/shared/lib/read-all-pages.ts';
 
 export interface CourseSummary {

@@ -5,7 +5,8 @@
  * источников сканера, файлы заново не читаются.
  * Источник: spike/compiler/src/checks.ts, каталог кодов — report-compiler.md §3.1.
  */
-import type { Diagnostic, DiagnosticCode } from '@lms/engine-contract';
+import type { Diagnostic, DiagnosticCode } from '@dolphy-app/engine-contract';
+import type { ExerciseTypes } from '../ports/exercise-types.ts';
 import { findCycle } from '../domain/graph-algorithms.ts';
 import { buildClosure, hasAncestor, redundantEdges } from './closure.ts';
 import type { Closure } from './closure.ts';
@@ -35,15 +36,15 @@ export interface Finding {
 export interface CheckOptions {
   /** Больше пререквизитов — `W_FAN_IN`. */
   maxFanIn: number;
-  /** Раннеры `engine.verification`, известные движку. */
-  knownRunners: readonly string[];
+  /** Каталог видов заданий; `null` — проверки вида пропускаются. */
+  exerciseTypes: Pick<ExerciseTypes, 'describe' | 'validateSpec'> | null;
   /** Циклов на граф, после чего поиск прекращается. */
   maxCycles: number;
 }
 
 export const DEFAULT_CHECK_OPTIONS: CheckOptions = {
   maxFanIn: 7,
-  knownRunners: ['sql'],
+  exerciseTypes: null,
   maxCycles: 20,
 };
 
@@ -515,7 +516,7 @@ export const checkKeyPrerequisites = (
 
 export const checkVerification = (
   index: Index,
-  { knownRunners }: Pick<CheckOptions, 'knownRunners'>,
+  { exerciseTypes }: Pick<CheckOptions, 'exerciseTypes'>,
 ): Finding[] => {
   const findings: Finding[] = [];
   const missingByLesson = new Map<string, string[]>();
@@ -523,15 +524,30 @@ export const checkVerification = (
     // сломанный front/engine уже назван сканером: каскад подавлен
     if (exercise.engineBroken === true) continue;
     const { id } = exercise.manifest;
-    const verification = exercise.engine?.verification;
-    if (verification !== undefined) {
-      if (!knownRunners.includes(verification.runner)) {
-        findings.push({
-          code: 'W_UNKNOWN_RUNNER',
-          message: `verification runner '${verification.runner}' is not registered (known: ${knownRunners.join(', ')})`,
-          unitId: id,
-          field: 'engine.verification',
-        });
+    const block = exercise.engine?.exercise;
+    if (block !== undefined) {
+      if (exerciseTypes !== null) {
+        if (exerciseTypes.describe(block.type) === undefined) {
+          findings.push({
+            code: 'W_UNKNOWN_EXERCISE_TYPE',
+            message: `exercise type '${block.type}' is not provided by any installed extension`,
+            unitId: id,
+            field: 'engine.exercise',
+          });
+        } else {
+          const issues = exerciseTypes.validateSpec(
+            block.type,
+            block.spec ?? {},
+          );
+          if (issues.length > 0) {
+            findings.push({
+              code: 'E_EXERCISE_SPEC',
+              message: issues.join('; '),
+              unitId: id,
+              field: 'engine.exercise',
+            });
+          }
+        }
       }
       continue;
     }
@@ -539,7 +555,7 @@ export const checkVerification = (
     if (index.courses.get(parentCourseId)?.engine?.requiresChecks === true) {
       findings.push({
         code: 'E_NO_VERIFICATION',
-        message: `exercise has no engine.verification but course '${parentCourseId}' sets requiresChecks`,
+        message: `exercise has no engine.exercise but course '${parentCourseId}' sets requiresChecks`,
         unitId: id,
         field: 'engine',
       });
@@ -549,7 +565,7 @@ export const checkVerification = (
   for (const [lessonId, exerciseIds] of missingByLesson) {
     findings.push({
       code: 'I_NO_VERIFICATION',
-      message: `${exerciseIds.length} exercise(s) without engine.verification`,
+      message: `${exerciseIds.length} exercise(s) without engine.exercise`,
       unitId: lessonId,
       related: exerciseIds.slice(0, 20),
     });

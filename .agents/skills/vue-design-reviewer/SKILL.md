@@ -16,7 +16,7 @@ description: Визуальный review страницы или Vue 3 комп�
 |Компонент, рядом есть `<Name>.stories.ts`|**Storybook** (предпочтительно)|каждая story — отдельное состояние, проверять все|
 |Компонент без stories|предложить story|по скиллу `storybook-vue-stories`; без story изолированно смонтировать компонент нечем, а вёрстка «в приложении» смешивает проблемы компонента и страницы|
 |Страница по URL (dev-сервер, staging)|**URL**|обычная вкладка `browser`|
-|Страница `apps/desktop`|**Storybook со story страницы** или Electron|рендерер зависит от `window.lms` из preload (`apps/desktop/electron/preload`); в обычном браузере откроется `StartupError`. Story страницы делается с моком `ENGINE_KEY` через decorator/`provide`; запуск настоящего Electron под `browser` (`app.path`/`app.cdp_url`) не проверялся [НЕ ПОДТВЕРЖДЕНО]|
+|Страница `apps/desktop`|**Storybook со story страницы** или Electron|рендерер зависит от `window.dolphy` из preload (`apps/desktop/electron/preload`); в обычном браузере откроется `StartupError`. Story страницы делается с моком `ENGINE_KEY` через decorator/`provide`; запуск настоящего Electron под `browser` (`app.path`/`app.cdp_url`) не проверялся [НЕ ПОДТВЕРЖДЕНО]|
 
 Наличие stories: `glob` по `**/<Name>.stories.ts` и `.storybook/main.ts` в пакете. Storybook в репозитории ставится отдельно (см. `storybook-vue-stories`): если его нет, сказать об этом и предложить установку, а не подменять проверку.
 

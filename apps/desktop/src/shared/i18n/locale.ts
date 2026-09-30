@@ -1,4 +1,4 @@
-import type { LocaleMode } from '@lms/engine-contract';
+import type { LocaleMode } from '@dolphy-app/engine-contract';
 
 export const LOCALES = ['ru', 'en'] as const;
 export type AppLocale = (typeof LOCALES)[number];

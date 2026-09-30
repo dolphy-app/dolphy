@@ -1,0 +1,17 @@
+{
+  "id": "dolphy.choice",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "main": "./main.mjs",
+  "contributes": {
+    "exerciseTypes": [
+      {
+        "id": "dolphy.choice",
+        "specSchema": "./schema/spec.json",
+        "answerSchema": "./schema/answer.json",
+        "element": "dolphy-choice-answer",
+        "renderer": "./view.mjs"
+      }
+    ]
+  }
+}

@@ -2,21 +2,24 @@
  * Попытка с проверкой: `beginAttempt` → `submitAnswer`* → `completeAttempt`
  * (T-10, T-41 в части движка, `GradePolicy` passAtN, лимиты реестра попыток).
  */
-import type { SubmissionDto, VerdictDto } from '@lms/engine-contract';
-import { MAX_SQL_CHARS } from '@lms/engine-contract';
-import { buildLibrary } from '@lms/testkit';
-import { describe, expect, it, vi } from 'vitest';
+import type { VerdictDto } from '@dolphy-app/engine-contract';
+import { MAX_ANSWER_CHARS } from '@dolphy-app/engine-contract';
+import {
+  buildLibrary,
+  createFakeExerciseTypes,
+  createFakeGradePolicies,
+} from '@dolphy-app/testkit';
+import type { FakeExerciseTypes } from '@dolphy-app/testkit';
+import { describe, expect, it } from 'vitest';
 import type { LogEntry } from '../../src/domain/journal.ts';
-import type {
-  RawVerdict,
-  VerifyRequest,
-  Verifier,
-} from '../../src/ports/index.ts';
+import type { RawVerdict } from '../../src/ports/index.ts';
+import { ExerciseTypeError } from '../../src/ports/exercise-types.ts';
+import { GradePolicyError } from '../../src/ports/grade-policies.ts';
 import { createTestEngine } from '../helpers/engine.ts';
 import type { TestEngineOptions } from '../helpers/engine.ts';
 
 const VERIFIABLE = 'sql_json::aggregate::q1';
-const SUBMISSION: SubmissionDto = { kind: 'sql', sql: 'select 1' };
+const ANSWER = 'select 1';
 
 const PASSED: RawVerdict = { outcome: 'passed', durationMs: 3 };
 const FAILED: RawVerdict = {
@@ -30,38 +33,19 @@ const ERROR: RawVerdict = {
   durationMs: 2000,
 };
 
-interface FakeVerifier extends Verifier {
-  readonly requests: VerifyRequest[];
-  closed: boolean;
-}
-
-/** Раннер, отдающий вердикты по сценарию; каждый вызов сохраняется. */
-const createFakeVerifier = (
+/** Вид `dolphy.sql`, отдающий вердикты по сценарию; каждый вызов `grade` сохраняется. */
+const createFakeSqlTypes = (
   ...script: (RawVerdict | Promise<RawVerdict>)[]
-): FakeVerifier => {
-  const requests: VerifyRequest[] = [];
-  const queue = [...script];
-  const verifier: FakeVerifier = {
-    runner: 'sql',
-    requests,
-    closed: false,
-    check: async (request) => {
-      requests.push(request);
-      const next = queue.shift();
-      if (next === undefined) throw new Error('script is exhausted');
-      return next;
-    },
-    close: async () => {
-      verifier.closed = true;
-    },
-  };
-  return verifier;
-};
+): FakeExerciseTypes =>
+  createFakeExerciseTypes({ types: { 'dolphy.sql': { script } } });
 
-const setup = (verifier: Verifier | null, options: TestEngineOptions = {}) =>
+const setup = (
+  types: FakeExerciseTypes | null,
+  options: TestEngineOptions = {},
+) =>
   createTestEngine({
     library: 'sql-course',
-    verifiers: verifier === null ? [] : [verifier],
+    exerciseTypes: types ?? createFakeExerciseTypes(),
     ...options,
   });
 
@@ -73,14 +57,18 @@ const journalOf = async (readAll: () => AsyncIterable<LogEntry>) => {
 
 describe('beginAttempt', () => {
   it('reports verifiable exercises and returns the exercise DTO', async () => {
-    const t = await setup(createFakeVerifier());
+    const t = await setup(createFakeSqlTypes());
     const attempt = await t.engine.practice.beginAttempt({
       exerciseId: VERIFIABLE,
     });
     expect(attempt).toMatchObject({
       verifiable: true,
       startedAt: t.clock.now(),
-      exercise: { id: VERIFIABLE, verification: { runner: 'sql' } },
+      exercise: {
+        id: VERIFIABLE,
+        task: { type: 'dolphy.sql', element: 'fake-dolphy-sql' },
+      },
+      view: {},
     });
     expect(attempt.attemptId).toBeTruthy();
     await expect(
@@ -101,7 +89,7 @@ describe('beginAttempt', () => {
     await expect(
       t.engine.practice.submitAnswer({
         attemptId: attempt.attemptId,
-        submission: SUBMISSION,
+        answer: ANSWER,
       }),
     ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
     await expect(
@@ -121,7 +109,7 @@ describe('beginAttempt', () => {
   });
 
   it('keeps at most 100 open attempts: the oldest is evicted', async () => {
-    const t = await setup(createFakeVerifier());
+    const t = await setup(createFakeSqlTypes());
     const first = await t.engine.practice.beginAttempt({
       exerciseId: VERIFIABLE,
     });
@@ -137,7 +125,7 @@ describe('beginAttempt', () => {
   });
 
   it('forgets an attempt after 24 hours', async () => {
-    const t = await setup(createFakeVerifier());
+    const t = await setup(createFakeSqlTypes());
     const attempt = await t.engine.practice.beginAttempt({
       exerciseId: VERIFIABLE,
     });
@@ -145,7 +133,7 @@ describe('beginAttempt', () => {
     await expect(
       t.engine.practice.submitAnswer({
         attemptId: attempt.attemptId,
-        submission: SUBMISSION,
+        answer: ANSWER,
       }),
     ).rejects.toMatchObject({ code: 'ATTEMPT_NOT_FOUND' });
   });
@@ -156,7 +144,7 @@ describe('completeAttempt derives the grade from verdicts (passAtN)', () => {
     script: RawVerdict[],
     complete: { grade?: 1 | 2 | 3 | 4 | 5; outcome?: 'gave-up' } = {},
   ) => {
-    const verifier = createFakeVerifier(...script);
+    const verifier = createFakeSqlTypes(...script);
     const t = await setup(verifier);
     const { attemptId } = await t.engine.practice.beginAttempt({
       exerciseId: VERIFIABLE,
@@ -166,7 +154,7 @@ describe('completeAttempt derives the grade from verdicts (passAtN)', () => {
       verdicts.push(
         await t.engine.practice.submitAnswer({
           attemptId,
-          submission: SUBMISSION,
+          answer: ANSWER,
         }),
       );
     }
@@ -261,7 +249,7 @@ describe('completeAttempt derives the grade from verdicts (passAtN)', () => {
     await expect(
       run.t.engine.practice.submitAnswer({
         attemptId: run.attemptId,
-        submission: SUBMISSION,
+        answer: ANSWER,
       }),
     ).rejects.toMatchObject({ code: 'ATTEMPT_CLOSED' });
   });
@@ -274,7 +262,7 @@ describe('completeAttempt derives the grade from verdicts (passAtN)', () => {
   });
 
   it('rejects unknown attempts and out-of-range grades', async () => {
-    const t = await setup(createFakeVerifier());
+    const t = await setup(createFakeSqlTypes());
     await expect(
       t.engine.practice.completeAttempt({ attemptId: 'nope', grade: 3 }),
     ).rejects.toMatchObject({ code: 'ATTEMPT_NOT_FOUND' });
@@ -287,18 +275,181 @@ describe('completeAttempt derives the grade from verdicts (passAtN)', () => {
   });
 });
 
+describe('completeAttempt with a selected grade policy', () => {
+  const run = async (
+    policies: Parameters<typeof createFakeGradePolicies>[0],
+    selected: string | null,
+    script: RawVerdict[] = [FAILED, PASSED],
+    complete: { grade?: 1 | 2 | 3 | 4 | 5; outcome?: 'gave-up' } = {},
+  ) => {
+    const gradePolicies = createFakeGradePolicies(policies);
+    const t = await setup(createFakeSqlTypes(...script), { gradePolicies });
+    if (selected !== null) {
+      await t.engine.settings.setLearning({ gradePolicy: selected });
+    }
+    const { attemptId } = await t.engine.practice.beginAttempt({
+      exerciseId: VERIFIABLE,
+    });
+    for (let i = 0; i < script.length; i++) {
+      await t.engine.practice.submitAnswer({ attemptId, answer: ANSWER });
+    }
+    const complete_ = () =>
+      t.engine.practice.completeAttempt({ attemptId, ...complete });
+    return { t, gradePolicies, complete: complete_ };
+  };
+
+  it('the selected extension policy decides the grade and gets the verdicts', async () => {
+    const { complete, gradePolicies, t } = await run(
+      { 'acme.generous': { handler: () => 5 } },
+      'acme.generous',
+    );
+    const result = await complete();
+    expect(result.grade).toBe(5);
+    expect(gradePolicies.calls).toHaveLength(1);
+    expect(gradePolicies.calls[0]).toMatchObject({
+      id: 'acme.generous',
+      input: { gaveUp: false },
+    });
+    expect(
+      gradePolicies.calls[0]?.input.verdicts.map((v) => v.outcome),
+    ).toEqual(['failed', 'passed']);
+    const [entry] = await journalOf(() => t.eventStore.readAll());
+    expect(entry).toMatchObject({ source: 'runner', grade: 5 });
+  });
+
+  it('switching back to passAtN takes effect on the next completion without asking the extension', async () => {
+    const { complete, gradePolicies, t } = await run(
+      { 'acme.generous': { handler: () => 5 } },
+      'acme.generous',
+    );
+    await t.engine.settings.setLearning({ gradePolicy: 'passAtN' });
+    expect((await complete()).grade).toBe(4);
+    expect(gradePolicies.calls).toEqual([]);
+  });
+
+  it('the default is passAtN and never asks the extension', async () => {
+    const { complete, gradePolicies } = await run(
+      { 'acme.generous': { handler: () => 5 } },
+      null,
+    );
+    expect((await complete()).grade).toBe(4);
+    expect(gradePolicies.calls).toEqual([]);
+  });
+
+  it.each([
+    [
+      'throws a host error',
+      () => {
+        throw new GradePolicyError('host-down', 'acme.p', 'down');
+      },
+    ],
+    [
+      'throws anything',
+      () => {
+        throw new Error('kaboom');
+      },
+    ],
+    ['returns 9', () => 9],
+    ['returns a string', () => 'five'],
+  ])(
+    'a policy that %s → passAtN grade, the attempt is still recorded, a warning is logged',
+    async (_name, handler) => {
+      const { complete, t } = await run({ 'acme.p': { handler } }, 'acme.p');
+      const result = await complete();
+      expect(result.grade).toBe(4);
+      const [entry] = await journalOf(() => t.eventStore.readAll());
+      expect(entry).toMatchObject({ source: 'runner', grade: 4 });
+      expect(
+        t.logs.filter(
+          ({ level, fields }) =>
+            level === 'warn' &&
+            (fields as { policyId?: string }).policyId === 'acme.p',
+        ),
+      ).toHaveLength(1);
+    },
+  );
+
+  it('a saved policy that no extension provides any more falls back to passAtN', async () => {
+    const { complete } = await run({}, 'gone.policy');
+    expect((await complete()).grade).toBe(4);
+  });
+
+  it('gave-up goes through the selected policy too', async () => {
+    const { complete, gradePolicies } = await run(
+      { 'acme.p': { handler: ({ gaveUp }) => (gaveUp ? 2 : 5) } },
+      'acme.p',
+      [],
+      { outcome: 'gave-up' },
+    );
+    expect((await complete()).grade).toBe(2);
+    expect(gradePolicies.calls[0]?.input.gaveUp).toBe(true);
+  });
+
+  it('a policy answering null falls back to the self-assessed grade', async () => {
+    const { complete } = await run(
+      { 'acme.p': { handler: () => null } },
+      'acme.p',
+      [FAILED],
+      { grade: 3 },
+    );
+    const result = await complete();
+    expect(result.grade).toBe(3);
+  });
+});
+
+describe('exercise type availability', () => {
+  it('unknown type: beginAttempt throws EXERCISE_TYPE_UNAVAILABLE, not retryable', async () => {
+    const t = await setup(null);
+    await expect(
+      t.engine.practice.beginAttempt({ exerciseId: VERIFIABLE }),
+    ).rejects.toMatchObject({
+      code: 'EXERCISE_TYPE_UNAVAILABLE',
+      retryable: false,
+      details: { cause: 'unknown-type', type: 'dolphy.sql' },
+    });
+  });
+
+  it('project failure with host-down is retryable and opens no attempt', async () => {
+    const types = createFakeSqlTypes();
+    types.project = async ({ type }) => {
+      throw new ExerciseTypeError('host-down', type, 'host is down');
+    };
+    const t = await setup(types);
+    await expect(
+      t.engine.practice.beginAttempt({ exerciseId: VERIFIABLE }),
+    ).rejects.toMatchObject({
+      code: 'EXERCISE_TYPE_UNAVAILABLE',
+      retryable: true,
+      details: { cause: 'host-down' },
+    });
+  });
+
+  it('returns the view produced by project()', async () => {
+    const types = createFakeExerciseTypes({
+      types: { 'dolphy.sql': { project: { hint: 'h' } } },
+    });
+    const t = await setup(types);
+    const attempt = await t.engine.practice.beginAttempt({
+      exerciseId: VERIFIABLE,
+    });
+    expect(attempt.view).toEqual({ hint: 'h' });
+  });
+});
+
 describe('submitAnswer', () => {
-  it('passes the exercise, submission, timeout and authorMode to the runner', async () => {
-    const verifier = createFakeVerifier(PASSED);
+  it('passes the type, spec, answer, timeout and authorMode to the exercise type', async () => {
+    const verifier = createFakeSqlTypes(PASSED);
     const t = await setup(verifier, { config: { authorMode: true } });
     const { attemptId } = await t.engine.practice.beginAttempt({
       exerciseId: VERIFIABLE,
     });
-    await t.engine.practice.submitAnswer({ attemptId, submission: SUBMISSION });
+    await t.engine.practice.submitAnswer({ attemptId, answer: ANSWER });
     expect(verifier.requests).toHaveLength(1);
     expect(verifier.requests[0]).toMatchObject({
-      exercise: { id: VERIFIABLE },
-      submission: SUBMISSION,
+      type: 'dolphy.sql',
+      exerciseId: VERIFIABLE,
+      spec: expect.objectContaining({ fixture: expect.any(String) }),
+      answer: ANSWER,
       timeoutMs: 2000,
       authorMode: true,
     });
@@ -311,8 +462,8 @@ describe('submitAnswer', () => {
       reason: 'mismatch',
       detail: 'expected: 1',
     };
-    const hidden = await setup(createFakeVerifier(detailed));
-    const shown = await setup(createFakeVerifier(detailed), {
+    const hidden = await setup(createFakeSqlTypes(detailed));
+    const shown = await setup(createFakeSqlTypes(detailed), {
       config: { authorMode: true },
     });
     const submit = async (t: Awaited<ReturnType<typeof setup>>) => {
@@ -321,43 +472,64 @@ describe('submitAnswer', () => {
       });
       return t.engine.practice.submitAnswer({
         attemptId,
-        submission: SUBMISSION,
+        answer: ANSWER,
       });
     };
     expect(await submit(hidden)).not.toHaveProperty('detail');
     expect(await submit(shown)).toMatchObject({ detail: 'expected: 1' });
   });
 
-  it('SQL longer than MAX_SQL_CHARS fails with sqlite_limit without calling the runner (T-41)', async () => {
-    const verifier = createFakeVerifier();
+  it('an answer longer than MAX_ANSWER_CHARS is rejected without calling the exercise type (T-41)', async () => {
+    const verifier = createFakeSqlTypes();
     const t = await setup(verifier);
     const { attemptId } = await t.engine.practice.beginAttempt({
       exerciseId: VERIFIABLE,
     });
-    const verdict = await t.engine.practice.submitAnswer({
-      attemptId,
-      submission: { kind: 'sql', sql: 'x'.repeat(MAX_SQL_CHARS + 1) },
-    });
-    expect(verdict).toMatchObject({
-      outcome: 'failed',
-      reason: 'sqlite_limit',
-      attemptsUsed: 1,
+    await expect(
+      t.engine.practice.submitAnswer({
+        attemptId,
+        answer: 'x'.repeat(MAX_ANSWER_CHARS),
+      }),
+    ).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+      details: { reason: 'answer-too-large' },
     });
     expect(verifier.requests).toEqual([]);
   });
 
-  it('without a runner for the exercise: VERIFIER_UNAVAILABLE, not retryable', async () => {
-    const t = await setup(null);
+  it('an answer that is not JSON is rejected', async () => {
+    const t = await setup(createFakeSqlTypes());
     const { attemptId } = await t.engine.practice.beginAttempt({
       exerciseId: VERIFIABLE,
     });
     await expect(
-      t.engine.practice.submitAnswer({ attemptId, submission: SUBMISSION }),
+      t.engine.practice.submitAnswer({ attemptId, answer: undefined }),
     ).rejects.toMatchObject({
-      code: 'VERIFIER_UNAVAILABLE',
-      retryable: false,
-      details: { cause: 'no-runner', runner: 'sql' },
+      code: 'INVALID_ARGUMENT',
+      details: { reason: 'answer-not-json' },
     });
+  });
+
+  it('answer schema violations are INVALID_ARGUMENT, spend no attempt and skip grade', async () => {
+    const types = createFakeExerciseTypes({
+      types: {
+        'dolphy.sql': {
+          answerErrors: ['/ must be array'],
+          script: [PASSED],
+        },
+      },
+    });
+    const t = await setup(types);
+    const { attemptId } = await t.engine.practice.beginAttempt({
+      exerciseId: VERIFIABLE,
+    });
+    await expect(
+      t.engine.practice.submitAnswer({ attemptId, answer: ANSWER }),
+    ).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+      details: { reason: 'answer', issues: ['/ must be array'] },
+    });
+    expect(types.requests).toEqual([]);
   });
 
   it('does not queue behind other commands, and one verdict at a time per attempt', async () => {
@@ -365,13 +537,13 @@ describe('submitAnswer', () => {
     const pending = new Promise<RawVerdict>((resolve) => {
       release = resolve;
     });
-    const t = await setup(createFakeVerifier(pending));
+    const t = await setup(createFakeSqlTypes(pending));
     const { attemptId } = await t.engine.practice.beginAttempt({
       exerciseId: VERIFIABLE,
     });
     const submitting = t.engine.practice.submitAnswer({
       attemptId,
-      submission: SUBMISSION,
+      answer: ANSWER,
     });
     // остальные команды не ждут вердикта
     const other = await t.engine.practice.recordAttempt({
@@ -381,7 +553,7 @@ describe('submitAnswer', () => {
     });
     expect(other.duplicate).toBe(false);
     await expect(
-      t.engine.practice.submitAnswer({ attemptId, submission: SUBMISSION }),
+      t.engine.practice.submitAnswer({ attemptId, answer: ANSWER }),
     ).rejects.toMatchObject({
       code: 'INVALID_ARGUMENT',
       details: { reason: 'busy' },
@@ -392,38 +564,11 @@ describe('submitAnswer', () => {
     release(PASSED);
     expect(await submitting).toMatchObject({ outcome: 'passed' });
   });
-
-  it('a runner that never answers ends with VERIFIER_TIMEOUT at the call deadline', async () => {
-    vi.useFakeTimers();
-    try {
-      const never = new Promise<RawVerdict>(() => {});
-      const t = await setup(createFakeVerifier(never, PASSED));
-      const { attemptId } = await t.engine.practice.beginAttempt({
-        exerciseId: VERIFIABLE,
-      });
-      const submitting = t.engine.practice.submitAnswer({
-        attemptId,
-        submission: SUBMISSION,
-      });
-      const outcome = expect(submitting).rejects.toMatchObject({
-        code: 'VERIFIER_TIMEOUT',
-        retryable: true,
-      });
-      await vi.advanceTimersByTimeAsync(2_000 + 5_000 + 1);
-      await outcome;
-      // критическая секция освобождена, попытка жива: повтор разрешён
-      await expect(
-        t.engine.practice.submitAnswer({ attemptId, submission: SUBMISSION }),
-      ).resolves.toMatchObject({ outcome: 'passed', attemptsUsed: 1 });
-    } finally {
-      vi.useRealTimers();
-    }
-  });
 });
 
 describe('close', () => {
   it('rejects new calls, closes runners and the store, and is idempotent', async () => {
-    const verifier = createFakeVerifier();
+    const verifier = createFakeSqlTypes();
     const t = await setup(verifier);
     await t.engine.close();
     expect(verifier.closed).toBe(true);

@@ -4,7 +4,7 @@ import type {
   SchedulerOptionsDto,
   UnitFilterWire,
   UnitId,
-} from '@lms/engine-contract';
+} from '@dolphy-app/engine-contract';
 import type { ExerciseManifest } from '../domain/manifest.ts';
 import type { Clock, Rng } from '../ports/index.ts';
 import { ScoringError } from '../scoring/errors.ts';

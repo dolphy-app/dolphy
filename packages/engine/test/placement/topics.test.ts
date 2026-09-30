@@ -1,4 +1,4 @@
-import { buildLibrary } from '@lms/testkit';
+import { buildLibrary } from '@dolphy-app/testkit';
 import { describe, expect, it } from 'vitest';
 import { assembleLibrary } from '../../src/domain/library.ts';
 import { buildPlacementTopics } from '../../src/placement/index.ts';
@@ -33,7 +33,7 @@ const libraryWith = (verified: readonly string[] = []) => {
   });
   const exercises = spec.exercises.map((exercise) =>
     verified.includes(exercise.id)
-      ? { ...exercise, engine: { verification: { runner: 'sql' } } }
+      ? { ...exercise, engine: { exercise: { type: 'dolphy.sql' } } }
       : exercise,
   );
   return assembleLibrary(spec.courses, spec.lessons, exercises, {
@@ -123,7 +123,7 @@ describe('buildPlacementTopics', () => {
     ).toBe(0);
   });
 
-  it('проба — упражнение с engine.verification в приоритете, иначе первое по id', () => {
+  it('проба — упражнение с engine.exercise в приоритете, иначе первое по id', () => {
     const topics = buildPlacementTopics(
       libraryWith(['c1::l1::e1', 'c2::y::e0']),
     );
@@ -136,7 +136,7 @@ describe('buildPlacementTopics', () => {
     expect(topics.verifiable[at('c2::y')]).toBe(true);
   });
 
-  it('blacklisted упражнение с verification не становится пробой', () => {
+  it('blacklisted упражнение с engine.exercise не становится пробой', () => {
     const topics = buildPlacementTopics(libraryWith(['c1::l1::e1']), {
       blacklist: blacklistOf('c1::l1::e1'),
     });

@@ -44,10 +44,21 @@ export {
 } from './manifest-schema.ts';
 export type { ParseResult, SchemaIssue } from './manifest-schema.ts';
 export {
+  DEFAULT_EXTENSION_SETTINGS,
+  decodeExtensionSettings,
+  decodeUpdateCheckedAt,
+  isExtensionId,
+  normalizeExtensionSettings,
+} from './extension-settings.ts';
+export {
+  DEFAULT_LEARNING_SETTINGS,
+  decodeLearningSettings,
+  isGradePolicyId,
+} from './learning-settings.ts';
+export {
   DEFAULT_UI_SETTINGS,
   LOCALE_MODES,
-  THEME_MODES,
   decodeUiSettings,
   isLocaleMode,
-  isThemeMode,
+  isThemeId,
 } from './ui-settings.ts';

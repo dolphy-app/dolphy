@@ -1,5 +1,5 @@
-import type { Diagnostic } from '@lms/engine-contract';
-import { createMemoryCourseSource } from '@lms/testkit';
+import type { Diagnostic } from '@dolphy-app/engine-contract';
+import { createMemoryCourseSource } from '@dolphy-app/testkit';
 import { createFileReader } from '../../src/authoring/file-reader.ts';
 import type { CourseSource, SourceStat } from '../../src/ports/index.ts';
 

@@ -2,13 +2,14 @@ import type {
   EngineDiagnosticsDto,
   EngineEvent,
   LearningEngine,
-} from '@lms/engine-contract';
-import { createCapturingLogger } from '@lms/testkit';
+} from '@dolphy-app/engine-contract';
+import { createCapturingLogger } from '@dolphy-app/testkit';
 import { describe, expect, it } from 'vitest';
 import {
   EngineError,
   UNQUEUED,
   createEventBus,
+  createCommandQueue,
   createFacade,
   wrapTree,
   type EngineServices,
@@ -43,9 +44,7 @@ const createHarness = () => {
     logger,
     bus,
     state,
-    verifiers: new Map([
-      ['sql', { close: async () => void closed.push('verifier') }],
-    ]),
+    exerciseTypes: { close: async () => void closed.push('verifier') },
     eventStore: { close: async () => void closed.push('store') },
     rebuild: async () => {
       calls.push('rebuild');
@@ -231,7 +230,7 @@ describe('createFacade', () => {
     await expect(engine.diagnostics()).resolves.toBe(DIAGNOSTICS);
   });
 
-  it('close drains the running command, closes verifiers and the store, then rejects new calls', async () => {
+  it('close drains the running command, closes exercise types and the store, then rejects new calls', async () => {
     const h = createHarness();
     const gate = deferred();
     const engine = create(
@@ -251,5 +250,39 @@ describe('createFacade', () => {
     expect(h.closed).toEqual(['verifier', 'store']);
     await engine.close();
     expect(h.closed).toEqual(['verifier', 'store']); // повторный close — no-op
+  });
+
+  it('repositories commands run outside the queue and enter it only for their commit', async () => {
+    for (const name of ['add', 'update', 'remove', 'cancel']) {
+      expect(UNQUEUED.has(`repositories.${name}`)).toBe(true);
+    }
+    expect(UNQUEUED.has('repositories.list')).toBe(false);
+    const h = createHarness();
+    const queue = createCommandQueue();
+    const gate = deferred();
+    const services = {
+      ...createServices(h, { onGetBatch: () => gate.promise }),
+      repositories: {
+        add: async () => {
+          h.calls.push('add:network');
+          await queue.enqueue(async () => void h.calls.push('add:commit'));
+          return 'added';
+        },
+      },
+    } as unknown as EngineServices;
+    const engine = createFacade(
+      h.ctx,
+      services,
+      async () => DIAGNOSTICS,
+      queue,
+    );
+    const batch = practiceOf(engine)['getBatch']!();
+    const add = (engine.repositories as unknown as Practice)['add']!();
+    await sleep(5);
+    expect(h.calls).toEqual(['add:network', 'getBatch:start', 'getDue']);
+    gate.resolve();
+    await expect(add).resolves.toBe('added');
+    await batch;
+    expect(h.calls.slice(-2)).toEqual(['getBatch:end', 'add:commit']);
   });
 });

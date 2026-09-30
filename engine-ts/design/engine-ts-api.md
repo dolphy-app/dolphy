@@ -1,6 +1,6 @@
-# engine-ts: контракт API слоя бизнес-логики (`@lms/engine-contract`)
+# engine-ts: контракт API слоя бизнес-логики (`@dolphy-app/engine-contract`)
 
-Статус: проект v1, 2026-09-29 (v0 + слой F1–F7: `library.validate/compile`, `plan`, `placement`, `remediation`, конфликты и `folder` в `sync`, вердикт `outcome`/`reason`; трассировка F1–F7 — `engine-ts.md` §1.1). Основной документ: `engine-ts.md`. Тестирование: `engine-ts-testing.md`. Типы ниже — источник для пакета `@lms/engine-contract`. Все блоки ```` ```ts ```` (10 штук, в порядке файла) склеены в один модуль `contract.ts` и проверены командой `npx -y -p typescript@7.0.2 tsc --ignoreConfig --noEmit --target es2022 --module esnext --moduleResolution bundler --strict --exactOptionalPropertyTypes --noUncheckedIndexedAccess --verbatimModuleSyntax --erasableSyntaxOnly --types "" --allowImportingTsExtensions contract.ts examples.ts` (TypeScript 7.0.2) — **0 ошибок** [ИЗМЕРЕНО 2026-09-29, повтор после сверки с `engine-ts.md` v1]. `examples.ts` — блоки ```` ```ts example ```` (§12), обёрнутые в `async function (engine: LearningEngine)` с `import type` из `contract.ts`; они тоже проходят без ошибок [ИЗМЕРЕНО]. Негативный контроль (проверка идёт «вживую»): обращение к удалённому полю `FrontierItemDto.newExercises` в копии модуля даёт `TS2353`, оценка `9` в примере placement — `TS2322`. Компиляция проверяет типы, а не поведение: семантика сервисов — в тексте и в `engine-ts.md`.
+Статус: проект v1, 2026-09-29 (v0 + слой F1–F7: `library.validate/compile`, `plan`, `placement`, `remediation`, конфликты и `folder` в `sync`, вердикт `outcome`/`reason`; трассировка F1–F7 — `engine-ts.md` §1.1). Основной документ: `engine-ts.md`. Тестирование: `engine-ts-testing.md`. Типы ниже — источник для пакета `@dolphy-app/engine-contract`. Все блоки ```` ```ts ```` (10 штук, в порядке файла) склеены в один модуль `contract.ts` и проверены командой `npx -y -p typescript@7.0.2 tsc --ignoreConfig --noEmit --target es2022 --module esnext --moduleResolution bundler --strict --exactOptionalPropertyTypes --noUncheckedIndexedAccess --verbatimModuleSyntax --erasableSyntaxOnly --types "" --allowImportingTsExtensions contract.ts examples.ts` (TypeScript 7.0.2) — **0 ошибок** [ИЗМЕРЕНО 2026-09-29, повтор после сверки с `engine-ts.md` v1]. `examples.ts` — блоки ```` ```ts example ```` (§12), обёрнутые в `async function (engine: LearningEngine)` с `import type` из `contract.ts`; они тоже проходят без ошибок [ИЗМЕРЕНО]. Негативный контроль (проверка идёт «вживую»): обращение к удалённому полю `FrontierItemDto.newExercises` в копии модуля даёт `TS2353`, оценка `9` в примере placement — `TS2322`. Компиляция проверяет типы, а не поведение: семантика сервисов — в тексте и в `engine-ts.md`.
 Пометки: **[ИЗМЕРЕНО]**, **[ВЫВОД]**, **[ОЦЕНКА]**, **[НЕ ПОДТВЕРЖДЕНО]** — как в основном документе.
 
 ## 1. Принципы контракта
@@ -14,12 +14,12 @@
 - **Идемпотентность.** `recordAttempt` — по `requestId` (он становится `id` события), `completeAttempt` — по `attemptId`, `placement.finish` — по `requestId`, `resetProgress` — по `requestId`, `import` — по `id` записи, `sync.folder.sync` — по содержимому сегментов (повтор даёт `duplicates`). Чтения без побочных эффектов (`plan.getDay` при заданном `seed`, `remediation.getPlan`, `library.validate`, `placement.nextProbe` до ответа на выданную пробу) безопасно повторять. Не идемпотентны: `getBatch` (RNG и счётчик показов), `startSession`, `beginAttempt`, `placement.start`, `placement.answer`, `sync.resolveConflict`. UI кэширует батч и не повторяет эти вызовы вслепую.
 - **Версионирование.** `CONTRACT_VERSION` (целое) отдаётся в `library.getInfo()` и проверяется при рукопожатии хоста и renderer. Внутри версии — только аддитивные изменения (новые необязательные поля, новые значения перечислений; клиент обязан терпеть неизвестные значения).
 - **Не экспортируется** (в Rust есть, в API нет): сырые записи в `practice_*` (`record_*`, `trim_*`), мутаторы графа (`add_*`), `invalidate_cached_score*`, `override_current_timestamp`, `get_scheduler_data`. Единственный путь записи попытки — `recordAttempt`/`completeAttempt`.
-- **Пакет типов** `@lms/engine-contract` содержит только `export type` и константы; renderer импортирует его через `import type`, не подтягивая `ts-fsrs`, zod и fs.
+- **Пакет типов** `@dolphy-app/engine-contract` содержит только `export type` и константы; renderer импортирует его через `import type`, не подтягивая `ts-fsrs`, zod и fs.
 
 ## 2. Общие типы
 
 ```ts
-export const CONTRACT_VERSION = 1 as const;
+export const CONTRACT_VERSION = 2 as const;
 /** Кап длины SQL ученика в символах (`String.length`); хост применяет его до IPC раннера (§9). Длиннее — `failed/sqlite_limit` без запуска раннера. */
 export const MAX_SQL_CHARS = 100_000 as const;
 
@@ -223,6 +223,18 @@ export interface LibraryService {
 - Списки отсортированы по коду символов id (как в Trane, `get_course_ids`); `getGraph` ограничен `limit` (по умолчанию 500, максимум 2 000), `truncated` сообщает об обрезке.
 - `readAsset` принимает только `AssetRef`, выданный самим движком; путь проверяется на выход за корень библиотеки (включая симлинки), размер — не более 2 МБ. Тип — только текст; движок возвращает Markdown сырым, санитайзинг — на стороне UI.
 - Отсутствующие метаданные — пустая запись, не `undefined`.
+
+### 3.1 Репозитории курсов (`repositories`)
+
+Курсы можно подгрузить из публичного git-репозитория (`http`/`https`, без учётных данных в URL). Состояние: `RepositoryDto { id, url, ref, commit, fetchedAt, status: 'ready' | 'updating' | 'error', courseIds, lastError? }`. Методы: `list()`, `add({url, ref?})`, `update(id)` → `{changed, repository}`, `remove(id)`, `cancel(id)`.
+
+- На диске лежит **снимок** дерева коммита (`<libraryRoot>/repositories/<id>/`, без `.git`): только обычные файлы, без символических ссылок, путей с `..` и `.git`, коллизий регистра; лимиты — 20 000 файлов, 256 МиБ, 32 МиБ на файл, 60 с сети без байта. Сканер видит курсы штатно.
+- `id` — slug нормализованного URL; уникальность по URL (`REPOSITORY_EXISTS`); `ref` — имя ветки или тега, `null` — ветка по умолчанию. Смена ветки — `remove` + `add`.
+- `add`/`update` атомарны: снимок проверяется сканером во временном каталоге, затем подменяется каталог и вызывается `library.reload()`; отклонённый `reload` (например, `E_ID_DUPLICATE` с уже загруженным курсом) откатывает подмену, запись и граф остаются прежними (`REPOSITORY_REJECTED`, диагностики в `details`). Запись реестра — последний шаг.
+- `update` сначала спрашивает у сервера только коммит ветки/тега; совпал — `changed: false`, объекты не скачиваются.
+- Сетевая часть идёт вне очереди команд (остальные методы не ждут загрузку), подмена и `reload` — внутри очереди; события `repository-progress` уходят сразу. `cancel` прерывает операцию (вызов падает `GIT_FETCH_FAILED`, `details.reason: 'cancelled'`).
+- `remove` удаляет снимок и запись, журнал не трогает: события пропавших курсов дают `W_ORPHAN_EVENTS`, повторное добавление возвращает прогресс.
+- Реестр лежит в `engine.db` (таблица `repository`), устройства его не синхронизируют. Автообновления нет.
 
 ## 4. Практика
 
@@ -747,7 +759,8 @@ export type EngineEvent =
   | { type: 'state-rebuilt'; entries: number; ms: number }
   | { type: 'sync-conflict'; conflictIds: string[]; unresolved: number }
   | { type: 'remediation-triggered'; exerciseId: UnitId; steps: number; at: EpochMs }
-  | { type: 'settings-changed'; scope: 'scheduler' | 'preferences' | 'filters' | 'sessions' | 'blacklist' | 'reviewList' };
+  | { type: 'settings-changed'; scope: 'scheduler' | 'preferences' | 'filters' | 'sessions' | 'blacklist' | 'reviewList' }
+  | { type: 'repository-progress'; id: string; phase: 'resolve' | 'fetch' | 'export' | 'validate' | 'reload'; loaded?: number; total?: number };
 
 /** Конфигурация хоста при открытии движка (`createEngine`); через RPC не передаётся и renderer её не меняет. */
 export interface EngineConfig {
@@ -815,6 +828,9 @@ export interface LearningEngine {
 | `STORE_BUSY` | `SQLITE_BUSY`: второй процесс-писатель | да |
 | `STORE_READONLY`, `STORE_CORRUPT` | БД только для чтения; порча (движок остаётся в режиме чтения журнала) | нет |
 | `INTERNAL` | Ошибка движка; состояние помечено `dirty`, перестройка при следующем чтении | да |
+| `REPOSITORY_EXISTS` | `repositories.add` для URL, который уже в реестре (`details.id`) | нет |
+| `REPOSITORY_REJECTED` | Снимок нарушает правила (`details.reason`: `symlink`, `path-escapes`, `git-segment`, `unsafe-name`, `case-collision`, `special-file`, `too-many-files`, `too-large`, `file-too-large`), в нём нет курсов (`no-courses`), сканер нашёл ошибки (`invalid-library`, `reload-rejected`; `details.diagnostics` ≤ 50), либо каталог `repositories/<id>` занят (`path-conflict`) | нет |
+| `GIT_FETCH_FAILED` | Сеть или сервер; `details.reason`: `not-found`, `auth-required`, `ref-not-found`, `timeout`, `network`, `too-large`, `cancelled` | да для `network`, `timeout`, `cancelled` |
 
 ## 9. Транспорт (справочно; обвязка вне области)
 

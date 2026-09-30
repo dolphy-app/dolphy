@@ -2,8 +2,8 @@
  * Сценарии `practice` через фасад на настоящем движке: запись попытки
  * (T-10, T-11, T-13), `progress_reset` (T-09, T-25), статусы, фронтир и due.
  */
-import type { LearningEngine } from '@lms/engine-contract';
-import { buildLibrary } from '@lms/testkit';
+import type { LearningEngine } from '@dolphy-app/engine-contract';
+import { buildLibrary } from '@dolphy-app/testkit';
 import { describe, expect, it, vi } from 'vitest';
 import { createTestEngine } from '../helpers/engine.ts';
 

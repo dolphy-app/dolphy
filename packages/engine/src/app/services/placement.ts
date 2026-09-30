@@ -9,7 +9,7 @@ import type {
   PlacementStartResult,
   PlacementSummaryDto,
   UnitId,
-} from '@lms/engine-contract';
+} from '@dolphy-app/engine-contract';
 import {
   CLASS_KNOWN,
   CLASS_UNCERTAIN,

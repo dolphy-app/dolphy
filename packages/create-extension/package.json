@@ -1,0 +1,31 @@
+{
+  "name": "@dolphy-app/create-extension",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Генератор проекта расширения: create-dolphy-extension <каталог>",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "bin": {
+    "create-dolphy-extension": "./src/cli/main.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
+    "test": "vitest run",
+    "create-extension": "node --disable-warning=ExperimentalWarning src/cli/main.ts"
+  },
+  "dependencies": {
+    "@dolphy-app/extension-api": "workspace:*"
+  },
+  "devDependencies": {
+    "@dolphy-app/extension-host": "workspace:*",
+    "@dolphy-app/extension-sdk": "workspace:*",
+    "@dolphy-app/extension-tools": "workspace:*",
+    "@types/node": "^22.20.4",
+    "typescript": "7.0.2"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}

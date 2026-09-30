@@ -1,4 +1,4 @@
-import type { UnitId } from '@lms/engine-contract';
+import type { UnitId } from '@dolphy-app/engine-contract';
 import type { Library } from '../domain/library.ts';
 import type { BlacklistView } from '../scoring/graph.ts';
 import { type TopicGraph, buildTopicGraph } from './topic-graph.ts';
@@ -18,9 +18,9 @@ export interface PlacementTopics {
   readonly graph: TopicGraph;
   /** Упражнения темы (без blacklist) по коду символов id. */
   readonly exercises: readonly (readonly UnitId[])[];
-  /** Упражнение-проба: первое с `engine.verification`, иначе первое по id. */
+  /** Упражнение-проба: первое с `engine.exercise`, иначе первое по id. */
   readonly probeExercise: readonly UnitId[];
-  /** У пробы есть исполняемая проверка (шум ≈ 0, `Verifier`). */
+  /** У пробы есть исполняемая проверка (шум ≈ 0, расширение вида задания). */
   readonly verifiable: readonly boolean[];
 }
 
@@ -85,7 +85,7 @@ export const buildPlacementTopics = (
   const graph = buildTopicGraph(lessonIds, effective);
   const probeExercise = exercises.map((own) => {
     const verifiable = own.find(
-      (id) => library.getExercise(id)?.engine?.verification !== undefined,
+      (id) => library.getExercise(id)?.engine?.exercise !== undefined,
     );
     return verifiable ?? (own[0] as UnitId);
   });
@@ -94,7 +94,7 @@ export const buildPlacementTopics = (
     exercises,
     probeExercise,
     verifiable: probeExercise.map(
-      (id) => library.getExercise(id)?.engine?.verification !== undefined,
+      (id) => library.getExercise(id)?.engine?.exercise !== undefined,
     ),
   };
 };

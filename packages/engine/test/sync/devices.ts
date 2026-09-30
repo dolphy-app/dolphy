@@ -1,5 +1,5 @@
-import { createFakeClock, createTestIds } from '@lms/testkit';
-import type { FakeClock } from '@lms/testkit';
+import { createFakeClock, createTestIds } from '@dolphy-app/testkit';
+import type { FakeClock } from '@dolphy-app/testkit';
 import { createJournalWriter } from '../../src/app/index.ts';
 import type {
   BuildOptions,

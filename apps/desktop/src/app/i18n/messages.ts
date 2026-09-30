@@ -1,10 +1,14 @@
 import { en as vuetifyEn, ru as vuetifyRu } from 'vuetify/locale';
 import { coursesMessages } from '@/pages/courses';
 import { dailyPlanMessages } from '@/pages/daily-plan';
+import { graphMessages } from '@/pages/graph';
+import { placementMessages } from '@/pages/placement';
 import { sessionMessages } from '@/pages/session';
 import { settingsMessages } from '@/pages/settings';
+import { repositoryMessages } from '@/entities/repository';
 import { courseScopeMessages } from '@/features/course-scope';
 import { sharedMessages } from '@/shared/i18n';
+import { exercisePanelMessages } from '@/widgets/exercise-panel';
 import { en as appEn } from './en.ts';
 import { ru as appRu } from './ru.ts';
 
@@ -14,8 +18,12 @@ export const appMessages = {
     ...sharedMessages.ru,
     ...appRu,
     ...courseScopeMessages.ru,
+    ...repositoryMessages.ru,
     ...coursesMessages.ru,
     ...dailyPlanMessages.ru,
+    ...exercisePanelMessages.ru,
+    ...graphMessages.ru,
+    ...placementMessages.ru,
     ...sessionMessages.ru,
     ...settingsMessages.ru,
   },
@@ -23,8 +31,12 @@ export const appMessages = {
     ...sharedMessages.en,
     ...appEn,
     ...courseScopeMessages.en,
+    ...repositoryMessages.en,
     ...coursesMessages.en,
     ...dailyPlanMessages.en,
+    ...exercisePanelMessages.en,
+    ...graphMessages.en,
+    ...placementMessages.en,
     ...sessionMessages.en,
     ...settingsMessages.en,
   },
@@ -46,7 +58,15 @@ const fullDate: Intl.DateTimeFormatOptions = {
   year: 'numeric',
 };
 
+const shortDateTime: Intl.DateTimeFormatOptions = {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+};
+
 export const datetimeFormats = {
-  ru: { fullDate },
-  en: { fullDate },
+  ru: { fullDate, shortDateTime },
+  en: { fullDate, shortDateTime },
 };

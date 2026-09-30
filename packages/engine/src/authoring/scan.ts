@@ -3,7 +3,7 @@
  * порт `CourseSource` в `Model` и собирает диагностики разбора вместо
  * остановки на первой ошибке. Семантические проверки графа — не здесь.
  */
-import type { Diagnostic } from '@lms/engine-contract';
+import type { Diagnostic } from '@dolphy-app/engine-contract';
 import {
   InvalidAssetPathError,
   normalizeCourseManifest,

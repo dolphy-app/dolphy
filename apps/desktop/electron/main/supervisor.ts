@@ -47,6 +47,12 @@ export interface SupervisorOptions {
   logger: MainLogger;
   /** Слишком частые падения хоста: показать ошибку и завершить приложение. */
   onFatal(): void;
+  /** Хост сообщил `ready` (вызывается до выдачи портов окнам). */
+  onHostReady?(host: HostProcessLike): void;
+  /** Процесс хоста завершился (в том числе при остановке). */
+  onHostExit?(): void;
+  /** Любое сообщение хоста, кроме `ready`. */
+  onMessage?(message: unknown): void;
   stopTimeoutMs?: number;
 }
 
@@ -58,6 +64,12 @@ export interface Supervisor {
   stop(): Promise<void>;
   /** Убить хост без остановки супервизора (перезапуск сработает как при крэше). */
   kill(): boolean;
+  /**
+   * Перезапустить хост сразу, без backoff и не считая перезапуск падением
+   * (счётчики не меняются, `onFatal` не вызывается). Хоста нет — запустить;
+   * во время остановки игнорируется.
+   */
+  restart(): void;
 }
 
 const isReadyMessage = (message: unknown): boolean =>
@@ -75,6 +87,7 @@ export const createSupervisor = (options: SupervisorOptions): Supervisor => {
   let ready = false;
   let stopping = false;
   let restartTimer: NodeJS.Timeout | null = null;
+  let restarting: HostProcessLike | null = null;
   let crashTimes: number[] = [];
   const windows = new Set<WebContentsLike>();
 
@@ -92,7 +105,14 @@ export const createSupervisor = (options: SupervisorOptions): Supervisor => {
     ready = false;
     spawned = false;
     child = null;
+    options.onHostExit?.();
     if (stopping) return;
+    if (restarting === self) {
+      restarting = null;
+      logger.info({ code }, 'engine host restarted on request');
+      start();
+      return;
+    }
     const now = Date.now();
     crashTimes = [...crashTimes.filter((at) => now - at < WINDOW_MS), now];
     logger.error({ code, crashes: crashTimes.length }, 'engine host exited');
@@ -111,7 +131,7 @@ export const createSupervisor = (options: SupervisorOptions): Supervisor => {
     restartTimer = null;
     if (stopping || child) return;
     const self = utilityProcess.fork(hostPath, [], {
-      serviceName: 'lms-engine',
+      serviceName: 'dolphy-engine',
     });
     child = self;
     self.once('spawn', () => {
@@ -119,9 +139,14 @@ export const createSupervisor = (options: SupervisorOptions): Supervisor => {
       self.postMessage({ type: 'init', config });
     });
     self.on('message', (message) => {
-      if (child !== self || !isReadyMessage(message)) return;
+      if (child !== self) return;
+      if (!isReadyMessage(message)) {
+        options.onMessage?.(message);
+        return;
+      }
       ready = true;
       logger.info({ pid: self.pid, message }, 'engine host ready');
+      options.onHostReady?.(self);
       for (const webContents of windows) link(webContents);
     });
     self.on('exit', (code) => onExit(self, code));
@@ -159,5 +184,19 @@ export const createSupervisor = (options: SupervisorOptions): Supervisor => {
 
   const kill = () => child?.kill() ?? false;
 
-  return { start, connect, stop, kill };
+  const restart = () => {
+    if (stopping) return;
+    if (child) {
+      restarting = child;
+      child.kill();
+      return;
+    }
+    if (restartTimer) {
+      clearTimeout(restartTimer);
+      restartTimer = null;
+    }
+    start();
+  };
+
+  return { start, connect, stop, kill, restart };
 };

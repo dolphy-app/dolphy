@@ -1,4 +1,4 @@
-import { buildLibrary, createMemoryCourseSource } from '@lms/testkit';
+import { buildLibrary, createMemoryCourseSource } from '@dolphy-app/testkit';
 import { describe, expect, it } from 'vitest';
 import { assembleLibrary } from '../../../src/domain/library.ts';
 import { scan } from '../../../src/authoring/scan.ts';

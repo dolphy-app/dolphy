@@ -1,6 +1,6 @@
-export const CONTRACT_VERSION = 1 as const;
-/** Кап длины SQL ученика в символах (`String.length`); хост применяет его до IPC раннера (§9). Длиннее — `failed/sqlite_limit` без запуска раннера. */
-export const MAX_SQL_CHARS = 100_000 as const;
+export const CONTRACT_VERSION = 8 as const;
+/** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
+export const MAX_ANSWER_CHARS = 200_000 as const;
 
 export type UnitId = string;
 export type EpochMs = number;
@@ -27,8 +27,7 @@ export type EngineErrorCode =
   | 'ASSET_TOO_LARGE'
   | 'ATTEMPT_NOT_FOUND'
   | 'ATTEMPT_CLOSED'
-  | 'VERIFIER_UNAVAILABLE'
-  | 'VERIFIER_TIMEOUT'
+  | 'EXERCISE_TYPE_UNAVAILABLE'
   | 'PLACEMENT_SESSION_NOT_FOUND'
   | 'PLACEMENT_SESSION_ACTIVE'
   | 'PLACEMENT_BUDGET_EXHAUSTED'
@@ -38,6 +37,11 @@ export type EngineErrorCode =
   | 'STORE_BUSY'
   | 'STORE_READONLY'
   | 'STORE_CORRUPT'
+  | 'REPOSITORY_EXISTS'
+  | 'REPOSITORY_REJECTED'
+  | 'GIT_FETCH_FAILED'
+  | 'CATALOG_UNAVAILABLE'
+  | 'EXTENSION_INSTALL_FAILED'
   | 'INTERNAL';
 
 export interface EngineErrorDto {
@@ -60,7 +64,8 @@ export type DiagnosticCode =
   | 'E_ENGINE_SCHEMA'
   | 'W_ENGINE_UNKNOWN_KEY'
   | 'E_ENGINE_DUPLICATE'
-  | 'W_UNKNOWN_RUNNER'
+  | 'W_UNKNOWN_EXERCISE_TYPE'
+  | 'E_EXERCISE_SPEC'
   // идентификаторы
   | 'E_ID_EMPTY'
   | 'E_ID_DUPLICATE'
@@ -108,7 +113,8 @@ export const DIAGNOSTIC_SEVERITY: Record<DiagnosticCode, Severity> = {
   E_ENGINE_SCHEMA: 'error',
   W_ENGINE_UNKNOWN_KEY: 'warning',
   E_ENGINE_DUPLICATE: 'error',
-  W_UNKNOWN_RUNNER: 'warning',
+  W_UNKNOWN_EXERCISE_TYPE: 'warning',
+  E_EXERCISE_SPEC: 'error',
   E_ID_EMPTY: 'error',
   E_ID_DUPLICATE: 'error',
   E_ID_MISMATCH: 'error',
@@ -218,10 +224,14 @@ export type ExerciseContentDto =
   | { type: 'markdown'; ref: AssetRef }
   | { type: 'inlineMarkdown'; text: string };
 
-export interface VerificationSpecDto {
-  runner: string;
+/** Вид задания и элемент ввода ответа, объявленные расширением. */
+export interface ExerciseTaskDto {
+  type: string;
   timeoutMs: number;
-  params: Record<string, unknown>;
+  element: string;
+  rendererUrl: string;
+  /** Расширение не из поставки и не доверенное: элемент ответа исполняется в изолированной рамке. */
+  isolated: boolean;
 }
 export interface ExerciseDto {
   kind: 'exercise';
@@ -232,7 +242,7 @@ export interface ExerciseDto {
   description?: string;
   exerciseType: 'declarative' | 'procedural';
   content: ExerciseContentDto;
-  verification?: VerificationSpecDto;
+  task?: ExerciseTaskDto;
   keyPrerequisites: UnitId[];
 }
 export type UnitDto = CourseDto | LessonDto | ExerciseDto;
@@ -401,45 +411,40 @@ export interface AttemptDto {
   exercise: ExerciseDto;
   startedAt: EpochMs;
   verifiable: boolean;
+  /** Результат `project()` расширения; `null`, если упражнение не проверяемое. */
+  view: unknown;
 }
-export type SubmissionDto =
-  | { kind: 'text'; text: string }
-  | { kind: 'sql'; sql: string }
-  | { kind: 'json'; value: unknown };
 export interface SubmitAnswerRequest {
   attemptId: string;
-  submission: SubmissionDto;
+  answer: unknown;
 }
-export type FailedReason =
-  | 'mismatch'
-  | 'sql_error'
-  | 'forbidden'
-  | 'row_limit'
-  | 'byte_limit'
-  | 'sqlite_limit';
-export type ErrorReason =
-  | 'fixture_error'
-  | 'expected_error'
-  | 'timeout'
-  | 'resource_kill'
-  | 'worker_crash'
-  | 'internal';
-export type VerdictReason = FailedReason | ErrorReason;
+/**
+ * Причины `error`-вердикта, которые порождает хост, а не расширение
+ * (остальные причины открытые строки расширения).
+ */
+export const HOST_ERROR_REASONS = [
+  'timeout',
+  'resource_kill',
+  'worker_crash',
+  'internal',
+] as const;
+export type HostErrorReason = (typeof HOST_ERROR_REASONS)[number];
 
 interface VerdictBase {
   attemptId: string;
   /** Число вердиктов `passed`/`failed` по попытке; `error` не считается. */
   attemptsUsed: number;
   durationMs: number;
-  rowCount?: number;
   feedback?: string;
+  /** Данные расширения, непрозрачны для движка (например, `{ rowCount }` у SQL). */
+  data?: unknown;
 }
 export type VerdictDto =
   | (VerdictBase & { outcome: 'passed' })
   /** Вина ученика. `detail` (ожидаемые строки) — только при `EngineConfig.authorMode`. */
-  | (VerdictBase & { outcome: 'failed'; reason: FailedReason; detail?: string })
+  | (VerdictBase & { outcome: 'failed'; reason: string; detail?: string })
   /** Не вина ученика: журнал не затрагивается, повтор `submitAnswer` разрешён. */
-  | (VerdictBase & { outcome: 'error'; reason: ErrorReason });
+  | (VerdictBase & { outcome: 'error'; reason: string });
 export interface CompleteAttemptRequest {
   attemptId: string;
   grade?: Grade;
@@ -711,12 +716,17 @@ export interface PreferencesDto {
   schedulerBatchSize?: number;
 }
 
+/** Встроенные режимы темы; кроме них `theme` может быть id темы расширения. */
 export type ThemeMode = 'system' | 'light' | 'dark';
+export const BUILTIN_THEMES = ['system', 'light', 'dark'] as const;
+/** Допустимый вид id темы расширения (движок не проверяет, что тема есть). */
+export const THEME_ID_PATTERN = /^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*$/;
 /** `system` — язык системы; renderer сам выбирает из поддерживаемых. */
 export type LocaleMode = 'system' | 'ru' | 'en';
 /** Настройки интерфейса; хранятся вместе с остальными настройками в `engine.db`. */
 export interface UiSettingsDto {
-  theme: ThemeMode;
+  /** Встроенный режим или id темы расширения. */
+  theme: string;
   locale: LocaleMode;
   /** Курс в фокусе: клиент передаёт его в `courseIds` плана и повторений. Нет поля — все курсы. Движок не проверяет, что курс есть в библиотеке: курс могли убрать, клиент сверяет сам. */
   activeCourseId?: UnitId;
@@ -725,6 +735,16 @@ export interface UiSettingsDto {
 export type UiSettingsPatch = Partial<Omit<UiSettingsDto, 'activeCourseId'>> & {
   activeCourseId?: UnitId | null;
 };
+
+/** Id встроенного правила оценки (`pass@N`). */
+export const BUILTIN_GRADE_POLICY = 'passAtN' as const;
+/** Допустимый вид id правила оценки расширения (движок не проверяет, что правило есть). */
+export const GRADE_POLICY_ID_PATTERN = /^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*$/;
+/** Настройки обучения; хранятся вместе с остальными настройками в `engine.db`. */
+export interface LearningSettingsDto {
+  /** `passAtN` или id правила оценки расширения. */
+  gradePolicy: string;
+}
 
 export interface SettingsService {
   getScheduler(): Promise<SchedulerOptionsDto>;
@@ -739,6 +759,11 @@ export interface SettingsService {
   getUi(): Promise<UiSettingsDto>;
   /** Валидирует и сохраняет; возвращает итоговые настройки. */
   setUi(patch: UiSettingsPatch): Promise<UiSettingsDto>;
+  getLearning(): Promise<LearningSettingsDto>;
+  /** Валидирует вид id (существование правила не проверяется) и сохраняет; возвращает итоговые настройки. */
+  setLearning(
+    patch: Partial<LearningSettingsDto>,
+  ): Promise<LearningSettingsDto>;
 }
 
 /** Вектор для дельта-экспорта: `{deviceId: contiguous}` — непрерывный префикс seq (1..contiguous без пропусков), не `maxSeq`. */
@@ -921,7 +946,18 @@ export type EngineEvent =
         | 'sessions'
         | 'blacklist'
         | 'reviewList'
-        | 'ui';
+        | 'ui'
+        | 'learning'
+        | 'extensions';
+    }
+  | { type: 'extensions-changed' }
+  | {
+      type: 'repository-progress';
+      id: string;
+      phase: RepositoryPhase;
+      /** Байты или объекты — по фазе; `total` неизвестен, пока сервер его не сообщил. */
+      loaded?: number;
+      total?: number;
     };
 
 /** Конфигурация хоста при открытии движка (`createEngine`); через RPC не передаётся и renderer её не меняет. */
@@ -932,6 +968,16 @@ export interface EngineConfig {
   durability?: 'full' | 'normal';
   /** Авторский режим: вердикт `failed` содержит `detail` (ожидаемые строки). По умолчанию false. */
   authorMode?: boolean;
+  /** Каталог расширений из поставки (read-only). */
+  bundledExtensionsDir?: string;
+  /** Каталог пользовательских расширений; побеждает при совпадении id. Оба каталога не заданы — вид заданий недоступен. */
+  userExtensionsDir?: string;
+  /** Каталог разработчика расширений (`DOLPHY_DEV_EXTENSIONS`): корень с наивысшим приоритетом, побеждает пользовательский и поставляемый при совпадении id. */
+  devExtensionsDir?: string;
+  /** Адрес `index.json` каталога расширений; не задан — используется официальный. */
+  extensionCatalogUrl?: string;
+  /** Версия приложения; не задана — проверка `minAppVersion` расширений не выполняется. */
+  appVersion?: string;
 }
 
 export interface EngineDiagnosticsDto {
@@ -950,8 +996,254 @@ export interface EngineDiagnosticsDto {
   dirty: boolean;
 }
 
+/** Причина `GIT_FETCH_FAILED` (`details.reason`). */
+export type GitFetchFailureReason =
+  | 'not-found'
+  | 'auth-required'
+  | 'ref-not-found'
+  | 'timeout'
+  | 'network'
+  | 'too-large'
+  /** Операция прервана `repositories.cancel`. */
+  | 'cancelled';
+
+/** Этап `repositories.add` / `repositories.update` (событие `repository-progress`). */
+export type RepositoryPhase =
+  'resolve' | 'fetch' | 'export' | 'validate' | 'reload';
+
+/** `updating` — идёт операция; `error` — последняя операция отклонена или снимок пропал (`lastError`). */
+export type RepositoryStatus = 'ready' | 'updating' | 'error';
+
+/** Git-репозиторий с курсами: снимок коммита лежит в `<libraryRoot>/repositories/<id>`. */
+export interface RepositoryDto {
+  /** Стабильный slug нормализованного URL. */
+  id: string;
+  /** Нормализованный URL (`http(s)`, без учётных данных). */
+  url: string;
+  /** Ветка или тег; `null` — ветка по умолчанию удалённого репозитория. */
+  ref: string | null;
+  /** Полный SHA-1 загруженного коммита. */
+  commit: string;
+  fetchedAt: EpochMs;
+  status: RepositoryStatus;
+  /** Курсы, пришедшие из этого репозитория. */
+  courseIds: UnitId[];
+  lastError?: EngineErrorDto;
+}
+
+export interface AddRepositoryRequest {
+  url: string;
+  ref?: string;
+}
+
+export interface UpdateRepositoryResult {
+  /** `false` — коммит на сервере совпал с загруженным, ничего не скачивалось. */
+  changed: boolean;
+  repository: RepositoryDto;
+}
+
+export interface RepositoriesService {
+  list(): Promise<RepositoryDto[]>;
+  /** `INVALID_ARGUMENT`, `REPOSITORY_EXISTS`, `GIT_FETCH_FAILED`, `REPOSITORY_REJECTED`. */
+  add(req: AddRepositoryRequest): Promise<RepositoryDto>;
+  /** `NOT_FOUND`, `GIT_FETCH_FAILED`, `REPOSITORY_REJECTED`. */
+  update(id: string): Promise<UpdateRepositoryResult>;
+  /** Снимок и запись удаляются, журнал не меняется. `NOT_FOUND`. */
+  remove(id: string): Promise<void>;
+  /** `true`, если операция над репозиторием шла и прервана. */
+  cancel(id: string): Promise<boolean>;
+}
+
+export type ExtensionOriginDto = 'bundled' | 'user' | 'dev';
+export type ExtensionStateDto =
+  'loaded' | 'overridden' | 'invalid' | 'disabled';
+
+export interface ExtensionInfoDto {
+  /** Id манифеста; у некорректного расширения — имя каталога. */
+  id: string;
+  /** `null`, если манифест не удалось прочитать. */
+  version: string | null;
+  origin: ExtensionOriginDto;
+  state: ExtensionStateDto;
+  /** Вклады по точкам (id/языки); пусто, если расширение не `loaded`/`overridden`. */
+  contributes: ExtensionContributesDto;
+  /** Почему некорректно / кем перекрыто; `null` у загруженного и отключённого. */
+  message: string | null;
+  /** Возможности, объявленные в манифесте; пусто, если манифест не прочитан. */
+  permissions: string[];
+  /** Действующий режим кода и интерфейса: расширения из поставки — всегда `trusted`. */
+  isolation: 'trusted' | 'isolated';
+  /** `false` у расширений из поставки, перекрытых и некорректных: переключатели недоступны. */
+  toggleable: boolean;
+  /** Название из манифеста; `null` — не задано. */
+  name: string | null;
+  description: string | null;
+  /** GitHub-логин автора из манифеста. */
+  author: string | null;
+  /** Установлено из каталога; `null` — скопировано вручную, из поставки или из режима разработчика. */
+  installed: ExtensionInstallDto | null;
+  /** `true` у расширений с origin `user`: их можно удалить. */
+  removable: boolean;
+  /** Причина отзыва установленной версии в каталоге; `null` — не отозвана. Отозванное расширение в состоянии `disabled`, включить его нельзя. */
+  revoked: string | null;
+}
+
+/** Метаданные установки из каталога (файл `.dolphy-install.json` в каталоге расширения). */
+export interface ExtensionInstallDto {
+  catalogUrl: string;
+  version: string;
+  /** ISO-время установки. */
+  installedAt: string;
+}
+
+export interface ExtensionContributesDto {
+  exerciseTypes: string[];
+  themes: string[];
+  markdownRenderers: string[];
+  gradePolicies: string[];
+}
+
+export interface ThemeContributionDto {
+  id: string;
+  extensionId: string;
+  label: string;
+  dark: boolean;
+  colors: Record<string, string>;
+  variables: Record<string, string | number>;
+}
+
+export interface MarkdownRendererDto {
+  language: string;
+  extensionId: string;
+  /** `dolphy-ext://<extensionId>/<путь>`. */
+  rendererUrl: string;
+  /** Модуль исполняется в изолированной рамке (расширение не из поставки и не доверенное). */
+  isolated: boolean;
+}
+
+export interface GradePolicyInfoDto {
+  id: string;
+  /** `null` у встроенного правила. */
+  extensionId: string | null;
+  /** `null` у встроенного правила: название переводит окно. */
+  label: string | null;
+}
+
+export interface ContributionsDto {
+  themes: ThemeContributionDto[];
+  markdownRenderers: MarkdownRendererDto[];
+  gradePolicies: GradePolicyInfoDto[];
+}
+
+/** Допустимый вид id расширения (как в манифесте). */
+export const EXTENSION_ID_PATTERN = /^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*$/;
+
+/** Настройки расширений; хранятся вместе с остальными настройками в `engine.db`. */
+export interface ExtensionSettingsDto {
+  /** Отключённые расширения (по id), отсортированы, без повторов. */
+  disabled: string[];
+  /** Доверенные расширения (исполняются без изоляции), отсортированы, без повторов. */
+  trusted: string[];
+  /** Проверять обновления расширений из каталога при запуске. По умолчанию включено. */
+  checkUpdates: boolean;
+}
+
+export interface ExtensionsService {
+  list(): Promise<ExtensionInfoDto[]>;
+  getSettings(): Promise<ExtensionSettingsDto>;
+  /** `NOT_FOUND` — нет такого расширения; `INVALID_ARGUMENT` `{reason:'bundled'}` — расширение из поставки. */
+  setEnabled(id: string, enabled: boolean): Promise<ExtensionSettingsDto>;
+  setTrusted(id: string, trusted: boolean): Promise<ExtensionSettingsDto>;
+  /** Вклады загруженных расширений для окна (только чтение). */
+  contributions(): Promise<ContributionsDto>;
+  /**
+   * Каталог расширений. `refresh` — запросить индекс у сервера (иначе — кэш,
+   * если он свежий). Нет сети: последний кэш и `stale: true`; кэша нет —
+   * `CATALOG_UNAVAILABLE`.
+   */
+  catalog(options?: { refresh?: boolean }): Promise<CatalogDto>;
+  /**
+   * Устанавливает (или обновляет) расширение из каталога; `version` — точная
+   * версия, иначе новейшая совместимая. `NOT_FOUND` — нет в каталоге;
+   * `EXTENSION_INSTALL_FAILED` с `details.reason`:
+   * `incompatible` | `network` | `integrity` | `limits` | `invalid` | `conflict`.
+   * Установленное вступает в силу после перезапуска хостов и перезагрузки окна.
+   */
+  install(id: string, version?: string): Promise<InstallResultDto>;
+  /** Удаляет расширение с origin `user`. `NOT_FOUND`; `INVALID_ARGUMENT` `{reason:'not-removable'}`. */
+  uninstall(id: string): Promise<void>;
+  /** Доступные обновления установленных из каталога расширений (по последнему известному индексу). */
+  updates(): Promise<ExtensionUpdateDto[]>;
+  setCheckUpdates(enabled: boolean): Promise<ExtensionSettingsDto>;
+}
+
+export type CatalogStatusDto =
+  'available' | 'installed' | 'update' | 'incompatible';
+
+export interface CatalogVersionDto {
+  version: string;
+  permissions: string[];
+  /** ISO-время публикации. */
+  publishedAt: string;
+  /** Суммарный размер файлов, байты. */
+  size: number;
+  minAppVersion: string | null;
+}
+
+export interface CatalogIncompatibleDto {
+  reason: 'platform' | 'api' | 'app' | 'revoked';
+  /** Человекочитаемая причина на английском (`requires app >= 1.2.0`). */
+  detail: string;
+  /** Ближайшая более старая совместимая версия; `null` — нет. */
+  fallback: CatalogVersionDto | null;
+}
+
+export interface CatalogEntryDto {
+  id: string;
+  name: string;
+  description: string;
+  author: string;
+  /** Адрес исходников (страница в репозитории каталога). */
+  source: string;
+  platforms: string[];
+  contributes: ExtensionContributesDto;
+  status: CatalogStatusDto;
+  /** Версия, установленная из каталога; `null` — не установлено (или скопировано вручную). */
+  installedVersion: string | null;
+  /** Версия, которая будет установлена (новейшая совместимая); `null` у несовместимых. */
+  latest: CatalogVersionDto | null;
+  incompatible: CatalogIncompatibleDto | null;
+}
+
+export interface CatalogDto {
+  entries: CatalogEntryDto[];
+  /** ISO-время получения индекса; `null` — индекса нет. */
+  fetchedAt: string | null;
+  /** Показан кэш, потому что свежий индекс получить не удалось. */
+  stale: boolean;
+  /** Причина, по которой не удалось обновить индекс; `null` — без ошибок. */
+  error: string | null;
+}
+
+export interface ExtensionUpdateDto {
+  id: string;
+  name: string;
+  installed: string;
+  available: CatalogVersionDto;
+}
+
+export interface InstallResultDto {
+  id: string;
+  version: string;
+  /** Прежняя версия из каталога; `null` — новая установка. */
+  previousVersion: string | null;
+  /** Всегда `true`: изменения вступают в силу после перезапуска хостов и окна. */
+  restartRequired: true;
+}
+
 export interface LearningEngine {
   readonly library: LibraryService;
+  readonly repositories: RepositoriesService;
   readonly practice: PracticeService;
   readonly curation: CurationService;
   readonly settings: SettingsService;
@@ -959,6 +1251,7 @@ export interface LearningEngine {
   readonly plan: PlanService;
   readonly placement: PlacementService;
   readonly remediation: RemediationService;
+  readonly extensions: ExtensionsService;
   diagnostics(): Promise<EngineDiagnosticsDto>;
   /** In-process. По RPC — сообщения `events.subscribe` / `events.unsubscribe` и push `EngineEvent`. */
   subscribe(listener: (event: EngineEvent) => void): () => void;

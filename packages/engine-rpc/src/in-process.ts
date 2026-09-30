@@ -1,4 +1,4 @@
-import type { MessageEndpoint } from '@lms/engine-contract';
+import type { MessageEndpoint } from '@dolphy-app/engine-contract';
 
 interface Side {
   messageListeners: Set<(message: unknown) => void>;

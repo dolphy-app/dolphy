@@ -1,3 +1,5 @@
+import type { ExtensionInfoDto } from '@dolphy-app/engine-contract';
+import { ExtensionInstallError } from '@dolphy-app/engine/ports';
 import { describe, expect, it } from 'vitest';
 import {
   buildAttempt,
@@ -5,6 +7,10 @@ import {
   buildProgressReset,
   buildUnitFlag,
   createFakeClock,
+  createFakeExerciseTypes,
+  createFakeExtensionInstaller,
+  createFakeExtensionPolicy,
+  createFakeExtensionRegistry,
   createJournalBuilder,
   createMemoryCourseSource,
   createSeededRng,
@@ -224,5 +230,161 @@ describe('MemoryCourseSource', () => {
     expect(await source.readArtifact()).toBeNull();
     await source.writeArtifact('{"revision":"r"}');
     expect(await source.readArtifact()).toBe('{"revision":"r"}');
+  });
+});
+
+describe('createFakeExerciseTypes', () => {
+  const passed = { outcome: 'passed', durationMs: 1 } as const;
+  const failed = {
+    outcome: 'failed',
+    reason: 'mismatch',
+    durationMs: 1,
+  } as const;
+  const request = (answer: unknown) => ({
+    type: 'fake.t',
+    exerciseId: 'c::l::e',
+    spec: {},
+    answer,
+    timeoutMs: 2000,
+    authorMode: false,
+  });
+
+  it('plays the script in order and records every request', async () => {
+    const types = createFakeExerciseTypes({
+      types: { 'fake.t': { script: [failed, passed] } },
+    });
+    expect(await types.grade(request('a'))).toBe(failed);
+    expect(await types.grade(request('b'))).toBe(passed);
+    expect(types.requests.map((r) => r.answer)).toEqual(['a', 'b']);
+    await expect(types.grade(request('c'))).rejects.toThrow(
+      'script is exhausted',
+    );
+  });
+
+  it('describes only configured types and reports missing references', async () => {
+    const types = createFakeExerciseTypes({
+      types: { 'fake.t': { element: 'fake-el' } },
+    });
+    expect(types.describe('fake.t')?.element).toBe('fake-el');
+    expect(types.describe('other')).toBeUndefined();
+    expect(types.validateSpec('other', {})).toEqual(['unknown exercise type']);
+    expect(
+      await types.referenceAnswer({
+        type: 'fake.t',
+        exerciseId: 'x',
+        spec: {},
+      }),
+    ).toEqual({ found: false });
+    await types.close();
+    expect(types.closed).toBe(true);
+  });
+});
+
+describe('createFakeExtensionRegistry', () => {
+  it('is empty by default and returns the given items', () => {
+    expect(createFakeExtensionRegistry().list()).toEqual([]);
+    const item: ExtensionInfoDto = {
+      id: 'a.b',
+      version: null,
+      origin: 'user',
+      state: 'invalid',
+      contributes: {
+        exerciseTypes: [],
+        themes: [],
+        markdownRenderers: [],
+        gradePolicies: [],
+      },
+      message: 'broken',
+      permissions: [],
+      isolation: 'isolated',
+      toggleable: false,
+      name: null,
+      description: null,
+      author: null,
+      installed: null,
+      removable: true,
+      revoked: null,
+    };
+    expect(createFakeExtensionRegistry([{ ...item }]).list()).toEqual([item]);
+  });
+
+  it('has empty contributions by default and returns the given ones', () => {
+    const empty = { themes: [], markdownRenderers: [], gradePolicies: [] };
+    expect(createFakeExtensionRegistry().contributions()).toEqual(empty);
+    const given = {
+      ...empty,
+      gradePolicies: [{ id: 'a.p', extensionId: 'a', label: 'P' }],
+    };
+    expect(createFakeExtensionRegistry([], given).contributions()).toEqual(
+      given,
+    );
+  });
+});
+
+describe('createFakeExtensionPolicy', () => {
+  it('isolates everything except bundled and trusted; disabled only by settings', () => {
+    const policy = createFakeExtensionPolicy({ bundled: ['dolphy.sql'] });
+    expect(policy.isIsolated('acme.x')).toBe(true);
+    expect(policy.isIsolated('dolphy.sql')).toBe(false);
+    expect(policy.isEnabled('acme.x')).toBe(true);
+    policy.update({
+      disabled: ['acme.x', 'dolphy.sql'],
+      trusted: ['acme.x'],
+      checkUpdates: true,
+    });
+    expect(policy.isEnabled('acme.x')).toBe(false);
+    expect(policy.isEnabled('dolphy.sql')).toBe(true);
+    expect(policy.isIsolated('acme.x')).toBe(false);
+    expect(policy.updates).toHaveLength(1);
+  });
+
+  it('revoked extensions are disabled regardless of settings, except bundled', () => {
+    const policy = createFakeExtensionPolicy({
+      bundled: ['dolphy.sql'],
+      revoked: { 'acme.x': 'bad', 'dolphy.sql': 'bad' },
+    });
+    expect(policy.isEnabled('acme.x')).toBe(false);
+    expect(policy.isEnabled('dolphy.sql')).toBe(true);
+    policy.setRevoked('acme.x', null);
+    expect(policy.isEnabled('acme.x')).toBe(true);
+    policy.setRevoked('acme.x', 'again');
+    expect(policy.isEnabled('acme.x')).toBe(false);
+  });
+});
+
+describe('createFakeExtensionInstaller', () => {
+  it('records calls and returns scripted results; handlers may throw', async () => {
+    const installer = createFakeExtensionInstaller({
+      revoked: { 'acme.x': 'bad' },
+      handlers: {
+        install: async (id) => {
+          if (id === 'acme.broken') {
+            throw new ExtensionInstallError('network', id, 'offline');
+          }
+          return {
+            id,
+            version: '2.0.0',
+            previousVersion: '1.0.0',
+            restartRequired: true,
+          };
+        },
+      },
+    });
+    expect(await installer.install('acme.ok')).toMatchObject({
+      version: '2.0.0',
+    });
+    await expect(
+      installer.install('acme.broken', '1.0.0'),
+    ).rejects.toMatchObject({ cause: 'network' });
+    expect(await installer.updates()).toEqual([]);
+    expect(await installer.checkForUpdates()).toBe(0);
+    expect(installer.revocationOf('acme.x', '1.0.0')).toBe('bad');
+    expect(installer.revocationOf('acme.y', '1.0.0')).toBeNull();
+    expect(installer.calls).toEqual([
+      { method: 'install', args: ['acme.ok'] },
+      { method: 'install', args: ['acme.broken', '1.0.0'] },
+      { method: 'updates', args: [] },
+      { method: 'checkForUpdates', args: [] },
+    ]);
   });
 });

@@ -16,9 +16,19 @@ const RU = {
   sessionFinished: 'Сессия завершена',
   sessionEmpty: 'Сегодня нечего проходить',
   planEmpty: 'План на сегодня пуст',
+  navSettings: 'Настройки',
+  settingsExtensions: 'Расширения',
+  settingsLearning: 'Обучение',
+  gradePolicy: 'Правило оценки',
+  gradePolicyMissing: 'недоступно',
+  settingsAppearance: 'Внешний вид',
+  themeGroup: 'Тема оформления',
+  extensionList: 'Установленные расширения',
+  extensionEnabled: 'Включено',
+  extensionTrust: 'Доверять (без изоляции)',
+  reloadWindow: 'Перезагрузить окно',
   verdictPassed: 'Верно',
   verdictFailed: 'Пока неверно',
-  answerLabel: 'SQL-запрос',
   grades: {
     1: 'Не вспомнил',
     2: 'С трудом',
@@ -37,6 +47,9 @@ const RU = {
 } as const;
 
 const TIMEOUT = 15_000;
+
+/** Рамка элемента ответа недоверенного расширения (`IsolatedFrame`, режим `answer`). */
+export const ANSWER_FRAME = 'iframe[sandbox][data-mode="answer"]';
 
 export type Grade = 1 | 2 | 3 | 4 | 5;
 
@@ -64,8 +77,12 @@ export interface Exercise {
   verifiable: boolean;
 }
 
-/** Ответ на упражнение сессии: оценка для самопроверки, SQL — для проверяемых. */
-export type Answerer = (exercise: Exercise) => Grade | { sql: string };
+/** Ввод ответа проверяемого упражнения: SQL, варианты выбора или текст поля расширения. */
+export type AnswerInput =
+  { sql: string } | { choose: string[] } | { text: string };
+
+/** Ответ на упражнение сессии: оценка для самопроверки, `AnswerInput` — для проверяемых. */
+export type Answerer = (exercise: Exercise) => Grade | AnswerInput;
 
 const int = (match: RegExpMatchArray | null, index = 1) =>
   match ? Number(match[index]) : Number.NaN;
@@ -185,7 +202,8 @@ export class Client {
     return { prompt: text, verifiable };
   }
 
-  private async promptOf(): Promise<Exercise> {
+  /** Текущее упражнение сессии (ждёт, пока экран не покажет формулировку). */
+  async currentExercise(): Promise<Exercise> {
     let exercise: Exercise | null = null;
     await expect
       .poll(async () => (exercise = await this.readPrompt()), {
@@ -201,10 +219,10 @@ export class Client {
    */
   async runSession(answer: Answerer): Promise<SessionSummary> {
     for (;;) {
-      const exercise = await this.promptOf();
+      const exercise = await this.currentExercise();
       const reply = answer(exercise);
       if (typeof reply === 'object') {
-        await this.page.getByLabel(RU.answerLabel).fill(reply.sql);
+        await this.fillAnswer(reply);
         await this.page
           .getByRole('button', { name: RU.check, exact: true })
           .click();
@@ -262,9 +280,43 @@ export class Client {
     };
   }
 
-  /** Неверный SQL: вердикт «Пока неверно», попытка не закрыта. */
-  async submitWrongSql(sql: string) {
-    await this.page.getByLabel(RU.answerLabel).fill(sql);
+  /**
+   * Элемент ответа: в окне (расширение из поставки или доверенное) либо в
+   * изолированной рамке (остальные). Ждёт, пока появится любой из двух.
+   */
+  async answerElement(tag: string): Promise<Locator> {
+    const inPage = this.page.locator(tag);
+    const framed = this.page.frameLocator(ANSWER_FRAME).locator(tag);
+    await expect
+      .poll(async () => (await inPage.count()) + (await framed.count()), {
+        timeout: TIMEOUT,
+      })
+      .toBeGreaterThan(0);
+    return (await inPage.count()) > 0 ? inPage : framed;
+  }
+
+  /** Вводит ответ в элемент расширения (custom element в окне или в рамке). */
+  async fillAnswer(reply: AnswerInput) {
+    if ('sql' in reply) {
+      const element = await this.answerElement('dolphy-sql-answer');
+      await element.locator('textarea').fill(reply.sql);
+    } else if ('choose' in reply) {
+      const element = await this.answerElement('dolphy-choice-answer');
+      // после неверной попытки флажки остаются отмеченными: начинаем с чистого выбора
+      const marked = element.locator('input[type=checkbox]:checked');
+      while ((await marked.count()) > 0) await marked.first().uncheck();
+      for (const option of reply.choose) {
+        await element.getByLabel(option, { exact: true }).check();
+      }
+    } else {
+      const element = await this.answerElement('acme-echo-answer');
+      await element.locator('input').fill(reply.text);
+    }
+  }
+
+  /** Неверный ответ: вердикт «Пока неверно», попытка не закрыта. */
+  async submitWrong(reply: AnswerInput) {
+    await this.fillAnswer(reply);
     await this.page
       .getByRole('button', { name: RU.check, exact: true })
       .click();
@@ -289,5 +341,168 @@ export class Client {
 
   async sessionIsEmpty(): Promise<boolean> {
     return this.page.getByText(RU.sessionEmpty, { exact: true }).isVisible();
+  }
+
+  /** «Настройки» → «Расширения»: ждёт список установленных расширений. */
+  async openSettingsExtensions() {
+    await this.page
+      .getByRole('link', { name: RU.navSettings, exact: true })
+      .click();
+    await this.page
+      .getByRole('tab', { name: RU.settingsExtensions, exact: true })
+      .click();
+    await this.extensionList().waitFor({ timeout: TIMEOUT });
+  }
+
+  private extensionList(): Locator {
+    return this.page.getByRole('list', { name: RU.extensionList, exact: true });
+  }
+
+  /** Тексты строк расширения `id` из списка «Расширения» (id может повторяться). */
+  async readExtensions(id: string): Promise<string[]> {
+    const rows = this.extensionList()
+      .getByRole('listitem')
+      .filter({
+        has: this.page.getByRole('heading', { name: id, exact: true }),
+      });
+    await rows.first().waitFor({ timeout: TIMEOUT });
+    return rows.allInnerTexts();
+  }
+
+  private extensionSwitch(id: string, which: 'enabled' | 'trusted'): Locator {
+    // переключатели есть только у строк не из поставки: id таких строк уникален
+    return this.extensionList()
+      .getByRole('listitem')
+      .filter({
+        has: this.page.getByRole('heading', { name: id, exact: true }),
+      })
+      .getByRole('checkbox', {
+        name: which === 'enabled' ? RU.extensionEnabled : RU.extensionTrust,
+        exact: true,
+      });
+  }
+
+  /** Число переключателей в строках расширения `id` (у строк из поставки — 0). */
+  async extensionSwitchCount(id: string): Promise<number> {
+    await this.readExtensions(id);
+    return this.extensionList()
+      .getByRole('listitem')
+      .filter({
+        has: this.page.getByRole('heading', { name: id, exact: true }),
+      })
+      .getByRole('checkbox')
+      .count();
+  }
+
+  async extensionSwitchChecked(
+    id: string,
+    which: 'enabled' | 'trusted',
+  ): Promise<boolean> {
+    return this.extensionSwitch(id, which).isChecked();
+  }
+
+  /** Переключает «Включено» / «Доверять» и ждёт, пока движок ответит (появится просьба перезагрузить). */
+  async setExtensionSwitch(
+    id: string,
+    which: 'enabled' | 'trusted',
+    value: boolean,
+  ) {
+    const control = this.extensionSwitch(id, which);
+    await control.waitFor({ state: 'attached', timeout: TIMEOUT });
+    await control.setChecked(value, { force: true });
+    await this.page
+      .getByRole('button', { name: RU.reloadWindow, exact: true })
+      .waitFor({ timeout: TIMEOUT });
+  }
+
+  /** «Перезагрузить окно» в просьбе после изменения; ждёт перезагруженный экран расширений. */
+  async reloadFromExtensions() {
+    const reload = this.page.getByRole('button', {
+      name: RU.reloadWindow,
+      exact: true,
+    });
+    const reloaded = this.page.waitForEvent('load', { timeout: 30_000 });
+    await reload.click({ noWaitAfter: true });
+    await reloaded;
+    await this.openSettingsExtensions();
+  }
+
+  /** «Настройки» → «Обучение»: ждёт выбор правила оценки. */
+  async openSettingsLearning() {
+    await this.page
+      .getByRole('link', { name: RU.navSettings, exact: true })
+      .click();
+    await this.page
+      .getByRole('tab', { name: RU.settingsLearning, exact: true })
+      .click();
+    await this.gradePolicySelect().waitFor({ timeout: TIMEOUT });
+  }
+
+  private gradePolicySelect(): Locator {
+    return this.page.getByRole('combobox', { name: RU.gradePolicy });
+  }
+
+  /** Название выбранного правила оценки, как его показывает выбор. */
+  async selectedGradePolicy(): Promise<string> {
+    return (
+      await this.page
+        .locator('.grade-policy-select .v-select__selection')
+        .innerText()
+    ).trim();
+  }
+
+  async selectGradePolicy(title: string) {
+    // поле перекрывает скрытый input: открываем меню кликом по самому полю
+    await this.page.locator('.grade-policy-select .v-field').click();
+    await this.page
+      .getByRole('option', { name: new RegExp(`^${title}`) })
+      .click();
+    await expect
+      .poll(() => this.selectedGradePolicy(), { timeout: TIMEOUT })
+      .toBe(title);
+  }
+
+  /** Предупреждение о недоступном сохранённом правиле или `null`. */
+  async gradePolicyWarning(): Promise<string | null> {
+    const alert = this.page.locator('.grade-policy-missing');
+    return (await alert.isVisible()) ? (await alert.innerText()).trim() : null;
+  }
+
+  /** «Настройки» → «Внешний вид»: ждёт группу плиток тем. */
+  async openSettingsAppearance() {
+    await this.page
+      .getByRole('link', { name: RU.navSettings, exact: true })
+      .click();
+    await this.page
+      .getByRole('tab', { name: RU.settingsAppearance, exact: true })
+      .click();
+    await this.themeTile('').first().waitFor({ timeout: TIMEOUT });
+  }
+
+  private themeTile(label: string): Locator {
+    return this.page
+      .getByRole('radiogroup', { name: RU.themeGroup, exact: true })
+      .getByRole('radio', { name: label });
+  }
+
+  async themeTileExists(label: string): Promise<boolean> {
+    return (await this.themeTile(label).count()) > 0;
+  }
+
+  async selectTheme(label: string) {
+    await this.themeTile(label).first().check({ force: true });
+  }
+
+  /** Подпись выбранной плитки темы (по `checked` радио). */
+  async isThemeSelected(label: string): Promise<boolean> {
+    return this.themeTile(label).first().isChecked();
+  }
+
+  /** Вычисленный фон корня приложения (`.v-application`). */
+  async appBackground(): Promise<string> {
+    return this.page
+      .locator('.v-application')
+      .first()
+      .evaluate((node) => getComputedStyle(node).backgroundColor);
   }
 }

@@ -1,12 +1,18 @@
 /**
- * Сквозная проверка в настоящем Electron (смоук-сборка, `LMS_SMOKE=1`):
- * renderer → preload → main → utilityProcess → движок → раннер SQL.
- * Библиотека — `sql-course` (`lib_kb`), см. `scripts/smoke.mjs`.
+ * Сквозная проверка в настоящем Electron (смоук-сборка, `DOLPHY_SMOKE=1`):
+ * renderer → preload → main → utilityProcess → движок → хост расширений
+ * (`dolphy.sql`, `dolphy.choice`). Библиотеки — `sql-course` и `choice-course`
+ * (`lib_kb`), см. `scripts/smoke.mjs`.
  */
-import type { EngineEvent, LearningEngine } from '@lms/engine-contract';
+import type { EngineEvent, LearningEngine } from '@dolphy-app/engine-contract';
 import type { SmokeBridge } from '../../../shared/smoke.ts';
+import { ensureAnswerElement } from '@/shared/lib/answer-element.ts';
 
 const EXERCISE_ID = 'sql_kb::where::q2';
+const CHOICE_EXERCISE_ID = 'choice_kb::basic::q1';
+const ISOLATED_EXERCISE_ID = 'hostile_kb::basic::q1';
+/** Путь, который «враждебное» расширение пробует записать; smoke.mjs проверяет, что файла нет. */
+const ISOLATED_MARKER = '/tmp/dolphy-smoke-pwned.txt';
 const RIGHT_SQL = 'SELECT name FROM emp WHERE salary IS NULL;';
 const WRONG_SQL = 'SELECT name FROM emp WHERE salary IS NOT NULL;';
 const EVENT_TIMEOUT_MS = 5_000;
@@ -97,11 +103,11 @@ const sql = async (engine: LearningEngine): Promise<Scenario> => {
   });
   const wrong = await engine.practice.submitAnswer({
     attemptId: attempt.attemptId,
-    submission: { kind: 'sql', sql: WRONG_SQL },
+    answer: WRONG_SQL,
   });
   const right = await engine.practice.submitAnswer({
     attemptId: attempt.attemptId,
-    submission: { kind: 'sql', sql: RIGHT_SQL },
+    answer: RIGHT_SQL,
   });
   const result = await engine.practice.completeAttempt({
     attemptId: attempt.attemptId,
@@ -116,6 +122,77 @@ const sql = async (engine: LearningEngine): Promise<Scenario> => {
     wrong,
     right,
     grade: result.grade,
+  };
+};
+
+const choice = async (engine: LearningEngine): Promise<Scenario> => {
+  const attempt = await engine.practice.beginAttempt({
+    exerciseId: CHOICE_EXERCISE_ID,
+  });
+  const view = attempt.view as { options?: unknown } | null;
+  const wrong = await engine.practice.submitAnswer({
+    attemptId: attempt.attemptId,
+    answer: [1],
+  });
+  const right = await engine.practice.submitAnswer({
+    attemptId: attempt.attemptId,
+    answer: [0],
+  });
+  const result = await engine.practice.completeAttempt({
+    attemptId: attempt.attemptId,
+  });
+  return {
+    ok:
+      attempt.verifiable &&
+      Array.isArray(view?.options) &&
+      wrong.outcome === 'failed' &&
+      right.outcome === 'passed' &&
+      !result.duplicate,
+    verifiable: attempt.verifiable,
+    options: view?.options ?? null,
+    wrong,
+    right,
+    grade: result.grade,
+  };
+};
+
+/** Скрипты элементов ввода грузятся по `dolphy-ext://` (CSP, CORS с file://) и определяют свои теги. */
+const renderer = async (engine: LearningEngine): Promise<Scenario> => {
+  const loaded: Record<string, boolean> = {};
+  for (const exerciseId of [EXERCISE_ID, CHOICE_EXERCISE_ID]) {
+    const { exercise } = await engine.practice.beginAttempt({ exerciseId });
+    if (exercise.task === undefined) {
+      loaded[exerciseId] = false;
+      continue;
+    }
+    await ensureAnswerElement(exercise.task);
+    loaded[exerciseId] =
+      customElements.get(exercise.task.element) !== undefined;
+  }
+  return { ok: Object.values(loaded).every(Boolean), loaded };
+};
+
+/** Код пользовательского расширения исполняется в ограниченном процессе (режим разрешений Node). */
+const isolated = async (engine: LearningEngine): Promise<Scenario> => {
+  const attempt = await engine.practice.beginAttempt({
+    exerciseId: ISOLATED_EXERCISE_ID,
+  });
+  const verdict = await engine.practice.submitAnswer({
+    attemptId: attempt.attemptId,
+    answer: ISOLATED_MARKER,
+  });
+  const feedback = verdict.outcome === 'failed' ? (verdict.feedback ?? '') : '';
+  const denied = [
+    'read:/etc/hosts=denied',
+    'write=denied',
+    'spawn=denied',
+    'worker=denied',
+    'env:HOME=unset',
+  ].every((probe) => feedback.includes(probe));
+  return {
+    ok: attempt.exercise.task?.isolated === true && denied,
+    isolated: attempt.exercise.task?.isolated ?? null,
+    feedback,
   };
 };
 
@@ -183,6 +260,9 @@ export const runSmoke = async (engine: LearningEngine, smoke: SmokeBridge) => {
   const scenarios = {
     basic: await attempt(() => basic(engine, events)),
     sql: await attempt(() => sql(engine)),
+    choice: await attempt(() => choice(engine)),
+    renderer: await attempt(() => renderer(engine)),
+    isolated: await attempt(() => isolated(engine)),
     crash: await attempt(() => crash(engine, events, smoke)),
   };
   return {

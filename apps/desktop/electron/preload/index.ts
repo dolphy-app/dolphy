@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { CHANNELS } from '../../shared/bridge.ts';
-import type { LmsBridge } from '../../shared/bridge.ts';
+import type { DolphyBridge } from '../../shared/bridge.ts';
 import { SMOKE_ARGUMENT, SMOKE_CHANNELS } from '../../shared/smoke.ts';
 
 const windowLoaded = new Promise<void>((resolve) => {
@@ -13,7 +13,7 @@ ipcRenderer.on(CHANNELS.enginePort, async (event) => {
   window.postMessage(CHANNELS.enginePort, '*', [...event.ports]);
 });
 
-const bridge: LmsBridge = {
+const bridge: DolphyBridge = {
   engine: { connect: () => ipcRenderer.send(CHANNELS.engineConnect) },
   platform: {
     pickDirectory: (options) => {
@@ -22,7 +22,10 @@ const bridge: LmsBridge = {
       return ipcRenderer.invoke(CHANNELS.pickDirectory, { title });
     },
   },
-  ...(__LMS_SMOKE_BUILD__ && process.argv.includes(SMOKE_ARGUMENT)
+  extensions: {
+    apply: () => ipcRenderer.invoke(CHANNELS.applyExtensions),
+  },
+  ...(__DOLPHY_SMOKE_BUILD__ && process.argv.includes(SMOKE_ARGUMENT)
     ? {
         smoke: {
           report: (result: unknown) =>
@@ -32,4 +35,4 @@ const bridge: LmsBridge = {
       }
     : {}),
 };
-contextBridge.exposeInMainWorld('lms', bridge);
+contextBridge.exposeInMainWorld('dolphy', bridge);

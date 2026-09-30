@@ -1,11 +1,11 @@
 /** T-55: `RemediationTracker` — триггер, шаги, снятие, границы (сценарии в–ж). */
-import type { Grade, SchedulerOptionsDto } from '@lms/engine-contract';
+import type { Grade, SchedulerOptionsDto } from '@dolphy-app/engine-contract';
 import {
   buildAttempt,
   buildLibrary,
   buildProgressReset,
   T0_MS,
-} from '@lms/testkit';
+} from '@dolphy-app/testkit';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SCHEDULER_OPTIONS } from '../../src/scheduler/options.ts';
 import { createTestProjections, toLibrary } from './helpers.ts';

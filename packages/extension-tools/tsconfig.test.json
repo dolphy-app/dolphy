@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"],
+    "incremental": true,
+    "tsBuildInfoFile": "dist/tsconfig.test.tsbuildinfo"
+  },
+  "include": ["test", "vitest.config.ts"],
+  "exclude": ["test/fixtures"],
+  "references": [
+    {
+      "path": "."
+    },
+    {
+      "path": "../extension-install"
+    }
+  ]
+}

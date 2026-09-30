@@ -7,8 +7,8 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import type { AssetRef } from '@lms/engine-contract';
-import { buildLibrary, createMemoryCourseSource } from '@lms/testkit';
+import type { AssetRef } from '@dolphy-app/engine-contract';
+import { buildLibrary, createMemoryCourseSource } from '@dolphy-app/testkit';
 import { afterEach, describe, expect, it } from 'vitest';
 import { EngineError } from '../../../src/app/errors.ts';
 import { loadDirectory } from '../../../src/authoring/load-directory.ts';

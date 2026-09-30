@@ -1,6 +1,6 @@
 /**
  * Всё, что связано со смоуком, живёт здесь и достижимо только из кода за
- * флагом сборки `__LMS_SMOKE_BUILD__`: в релизном бандле этих имён нет
+ * флагом сборки `__DOLPHY_SMOKE_BUILD__`: в релизном бандле этих имён нет
  * (`test/release-bundle.test.ts`).
  */
 
@@ -16,4 +16,4 @@ export const SMOKE_CHANNELS = {
 } as const;
 
 /** Аргумент командной строки renderer: preload по нему включает `smoke`. */
-export const SMOKE_ARGUMENT = '--lms-smoke';
+export const SMOKE_ARGUMENT = '--dolphy-smoke';

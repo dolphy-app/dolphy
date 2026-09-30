@@ -1,4 +1,5 @@
-import type { Diagnostic, DiagnosticCode } from '@lms/engine-contract';
+import type { Diagnostic, DiagnosticCode } from '@dolphy-app/engine-contract';
+import { createFakeExerciseTypes } from '@dolphy-app/testkit';
 import { describe, expect, it } from 'vitest';
 import {
   buildIndex,
@@ -555,7 +556,7 @@ describe('engine extension', () => {
   });
 
   it('E_NO_VERIFICATION with requiresChecks, aggregated I_NO_VERIFICATION without', () => {
-    const verification = { runner: 'sql' };
+    const exercise = { type: 'dolphy.sql' };
     const found = run({
       courses: [
         { id: 'strict', engine: { requiresChecks: true } },
@@ -567,10 +568,10 @@ describe('engine extension', () => {
       ],
       exercises: [
         { id: 'strict::a::x', lesson: 'strict::a' },
-        { id: 'strict::a::ok', lesson: 'strict::a', engine: { verification } },
+        { id: 'strict::a::ok', lesson: 'strict::a', engine: { exercise } },
         { id: 'loose::a::x', lesson: 'loose::a' },
         { id: 'loose::a::y', lesson: 'loose::a' },
-        { id: 'loose::a::ok', lesson: 'loose::a', engine: { verification } },
+        { id: 'loose::a::ok', lesson: 'loose::a', engine: { exercise } },
       ],
     });
     expect(ofCode(found, 'E_NO_VERIFICATION').map((d) => d.unitId)).toEqual([
@@ -599,7 +600,7 @@ describe('engine extension', () => {
     expect(ofCode(found, 'I_NO_VERIFICATION')).toEqual([]);
   });
 
-  it('W_UNKNOWN_RUNNER follows knownRunners', () => {
+  describe('exercise types', () => {
     const spec: ModelSpec = {
       courses: [{ id: 'crs' }],
       lessons: lessons('a'),
@@ -607,19 +608,58 @@ describe('engine extension', () => {
         {
           id: 'crs::a::x',
           lesson: 'crs::a',
-          engine: { verification: { runner: 'python' } },
+          engine: { exercise: { type: 'dolphy.sql', spec: { fixture: 1 } } },
         },
       ],
     };
-    expect(ofCode(run(spec), 'W_UNKNOWN_RUNNER')).toEqual([
-      expect.objectContaining({ unitId: 'crs::a::x', line: 6 }),
-    ]);
-    expect(
-      ofCode(
-        run(spec, { knownRunners: ['sql', 'python'] }),
-        'W_UNKNOWN_RUNNER',
-      ),
-    ).toEqual([]);
+
+    it('W_UNKNOWN_EXERCISE_TYPE for a type outside the catalog', () => {
+      const exerciseTypes = createFakeExerciseTypes();
+      expect(
+        ofCode(run(spec, { exerciseTypes }), 'W_UNKNOWN_EXERCISE_TYPE'),
+      ).toEqual([
+        expect.objectContaining({
+          unitId: 'crs::a::x',
+          severity: 'warning',
+          message:
+            "exercise type 'dolphy.sql' is not provided by any installed extension",
+        }),
+      ]);
+    });
+
+    it('E_EXERCISE_SPEC joins the schema violations of a spec', () => {
+      const exerciseTypes = createFakeExerciseTypes({
+        types: {
+          'dolphy.sql': {
+            specErrors: ['/fixture must be string', '/ missing'],
+          },
+        },
+      });
+      const found = run(spec, { exerciseTypes });
+      expect(ofCode(found, 'E_EXERCISE_SPEC')).toEqual([
+        expect.objectContaining({
+          unitId: 'crs::a::x',
+          severity: 'error',
+          message: '/fixture must be string; / missing',
+        }),
+      ]);
+      expect(ofCode(found, 'W_UNKNOWN_EXERCISE_TYPE')).toEqual([]);
+    });
+
+    it('a valid spec gives neither code', () => {
+      const exerciseTypes = createFakeExerciseTypes({
+        types: { 'dolphy.sql': {} },
+      });
+      const found = run(spec, { exerciseTypes });
+      expect(ofCode(found, 'E_EXERCISE_SPEC')).toEqual([]);
+      expect(ofCode(found, 'W_UNKNOWN_EXERCISE_TYPE')).toEqual([]);
+    });
+
+    it('without a catalog (exerciseTypes: null) neither code is reported', () => {
+      const found = run(spec, { exerciseTypes: null });
+      expect(ofCode(found, 'E_EXERCISE_SPEC')).toEqual([]);
+      expect(ofCode(found, 'W_UNKNOWN_EXERCISE_TYPE')).toEqual([]);
+    });
   });
 });
 
@@ -691,7 +731,7 @@ describe('several defects in one pass (T-17)', () => {
         {
           id: 'crs::e::x',
           lesson: 'crs::e',
-          engine: { verification: { runner: 'python' } },
+          engine: { exercise: { type: 'python' } },
         },
       ],
     });
@@ -700,7 +740,6 @@ describe('several defects in one pass (T-17)', () => {
       'E_DEP_MISSING',
       'E_DEP_SELF',
       'W_REDUNDANT_EDGE',
-      'W_UNKNOWN_RUNNER',
     ]);
     const cycle = ofCode(found, 'E_CYCLE_DEPENDENCY')[0];
     expect(cycle?.related).toEqual(['crs::a', 'crs::c', 'crs::b', 'crs::a']);

@@ -2,7 +2,7 @@ import type {
   DueItemDto,
   SchedulerOptionsDto,
   UnitId,
-} from '@lms/engine-contract';
+} from '@dolphy-app/engine-contract';
 import type { Clock, MemoryModel } from '../ports/index.ts';
 import { MS_PER_DAY } from '../scoring/constants.ts';
 import { ScoringError } from '../scoring/errors.ts';

@@ -13,10 +13,10 @@ import type {
   Grade,
   SchedulerOptionsDto,
   UnitId,
-} from '@lms/engine-contract';
-import { createFakeClock, createSeededRng } from '@lms/testkit';
-import type { FakeClock, SeededRng } from '@lms/testkit';
-import { buildCourse, buildExercise, buildLesson } from '@lms/testkit';
+} from '@dolphy-app/engine-contract';
+import { createFakeClock, createSeededRng } from '@dolphy-app/testkit';
+import type { FakeClock, SeededRng } from '@dolphy-app/testkit';
+import { buildCourse, buildExercise, buildLesson } from '@dolphy-app/testkit';
 import { assembleLibrary } from '../../../src/domain/library.ts';
 import type { Library } from '../../../src/domain/library.ts';
 import type { Metadata } from '../../../src/domain/manifest.ts';
@@ -52,7 +52,7 @@ import type {
   DueItemDto,
   FrontierItemDto,
   SavedFilterDto,
-} from '@lms/engine-contract';
+} from '@dolphy-app/engine-contract';
 import type { MemoryModel } from '../../../src/ports/index.ts';
 
 export interface WorldLessonSpec {

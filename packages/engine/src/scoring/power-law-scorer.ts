@@ -1,4 +1,4 @@
-import type { EpochMs } from '@lms/engine-contract';
+import type { EpochMs } from '@dolphy-app/engine-contract';
 import type { ExerciseType } from '../domain/manifest.ts';
 import {
   type Constants,

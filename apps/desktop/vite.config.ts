@@ -1,7 +1,9 @@
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import { builtinModules } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { defineConfig } from 'vite';
+import { build, defineConfig } from 'vite';
 import type { Plugin } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import vuetify from 'vite-plugin-vuetify';
@@ -11,14 +13,89 @@ import electron from 'vite-plugin-electron/multi-env';
 // (Vite инлайнит мелкие подмножества шрифтов); в dev HMR требует websocket
 const CSP = {
   build:
-    "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'",
+    "default-src 'none'; script-src 'self' dolphy-ext:; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-src dolphy-ext:",
   serve:
-    "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' ws://localhost:* http://localhost:*",
+    "default-src 'none'; script-src 'self' dolphy-ext:; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' ws://localhost:* http://localhost:*; frame-src dolphy-ext:",
 } as const;
 
 const csp = (command: 'build' | 'serve'): Plugin => ({
-  name: 'lms:csp',
+  name: 'dolphy:csp',
   transformIndexHtml: (html) => html.replace('__CSP__', CSP[command]),
+});
+
+const REPO_ROOT = path.resolve(
+  fileURLToPath(new URL('.', import.meta.url)),
+  '../..',
+);
+
+// расширения по умолчанию (packages/ext-*) собираются в каталоги и кладутся
+// рядом с приложением: <outRoot>/extensions/<id>/ (в упаковке — extraResources)
+const extensions = (target: string): Plugin => ({
+  name: 'dolphy:extensions',
+  buildStart() {
+    const packages = path.join(REPO_ROOT, 'packages');
+    fs.rmSync(target, { recursive: true, force: true });
+    const dirs = fs
+      .readdirSync(packages)
+      .filter((name) => name.startsWith('ext-'));
+    for (const name of dirs) {
+      const dir = path.join(packages, name);
+      const pkg = JSON.parse(
+        fs.readFileSync(path.join(dir, 'package.json'), 'utf8'),
+      ) as { name: string };
+      execFileSync('pnpm', ['-F', pkg.name, 'build'], {
+        cwd: REPO_ROOT,
+        stdio: 'inherit',
+      });
+      const built = path.join(dir, 'dist-ext');
+      const ids = fs
+        .readdirSync(built, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => entry.name);
+      if (ids.length !== 1) {
+        throw new Error(`${pkg.name}: dist-ext must contain one extension`);
+      }
+      const [id] = ids;
+      const manifest = JSON.parse(
+        fs.readFileSync(path.join(built, id, 'extension.json'), 'utf8'),
+      ) as { id: string };
+      if (manifest.id !== id) {
+        throw new Error(`${pkg.name}: manifest id '${manifest.id}' != '${id}'`);
+      }
+      fs.cpSync(path.join(built, id), path.join(target, id), {
+        recursive: true,
+      });
+    }
+  },
+});
+
+// дочерний процесс для кода расширений не из поставки: один самодостаточный
+// ES-модуль <outRoot>/restricted/ext-restricted.mjs (в упаковке — extraResources,
+// вне asar: режим разрешений Node проверяет настоящие пути файлов)
+const restrictedChild = (target: string): Plugin => ({
+  name: 'dolphy:restricted-child',
+  async buildStart() {
+    fs.rmSync(target, { recursive: true, force: true });
+    await build({
+      root: fileURLToPath(new URL('.', import.meta.url)),
+      configFile: false,
+      publicDir: false,
+      logLevel: 'warn',
+      build: {
+        target: 'node22',
+        outDir: path.resolve(target),
+        emptyOutDir: true,
+        minify: false,
+        copyPublicDir: false,
+        lib: {
+          entry: 'electron/ext-host/restricted-child.ts',
+          formats: ['es'],
+          fileName: () => 'ext-restricted.mjs',
+        },
+        rolldownOptions: { external: [/^node:/, ...builtinModules] },
+      },
+    });
+  },
 });
 
 // нативный модуль не бандлится: грузится из node_modules (asarUnpack)
@@ -26,12 +103,12 @@ const NATIVE = ['better-sqlite3'];
 
 // https://vitejs.dev/config/
 export default defineConfig(({ command }) => {
-  // смоук-сборка (LMS_SMOKE_BUILD=1) включает код смоука и пишет в dist-smoke,
-  // релизная — в dist и dist-electron; LMS_BUILD_OUT задаёт корень явно
+  // смоук-сборка (DOLPHY_SMOKE_BUILD=1) включает код смоука и пишет в dist-smoke,
+  // релизная — в dist и dist-electron; DOLPHY_BUILD_OUT задаёт корень явно
   // (тест «релиз без смоука» собирает во временный каталог)
-  const smokeBuild = process.env.LMS_SMOKE_BUILD === '1';
+  const smokeBuild = process.env.DOLPHY_SMOKE_BUILD === '1';
   const outRoot =
-    process.env.LMS_BUILD_OUT ?? (smokeBuild ? 'dist-smoke' : '.');
+    process.env.DOLPHY_BUILD_OUT ?? (smokeBuild ? 'dist-smoke' : '.');
   const out = (dir: string) => path.join(outRoot, dir);
   fs.rmSync(out('dist-electron'), { recursive: true, force: true });
 
@@ -41,7 +118,7 @@ export default defineConfig(({ command }) => {
 
   // vite-plugin-electron/multi-env задаёт окружениям свой `define`, и
   // верхнеуровневый не доходит до main/preload/host — дублируем в каждое
-  const define = { __LMS_SMOKE_BUILD__: JSON.stringify(smokeBuild) };
+  const define = { __DOLPHY_SMOKE_BUILD__: JSON.stringify(smokeBuild) };
 
   return {
     define,
@@ -53,6 +130,8 @@ export default defineConfig(({ command }) => {
       vue(),
       vuetify(),
       csp(command),
+      extensions(out('extensions')),
+      restrictedChild(out('restricted')),
       electron([
         {
           name: 'main',
@@ -86,12 +165,12 @@ export default defineConfig(({ command }) => {
           },
         },
         {
-          // хост движка и вход дочернего процесса раннера SQL: бандл с
-          // workspace-пакетами и зависимостями, кроме нативного модуля
+          // хост движка и хост расширений: бандл с workspace-пакетами и
+          // зависимостями, кроме нативного модуля
           name: 'host',
           input: {
             index: 'electron/host/index.ts',
-            'sql-worker': 'electron/host/sql-worker.ts',
+            'ext-host': 'electron/ext-host/index.ts',
           },
           bundleDeps: { both: { include: true, exclude: NATIVE } },
           options: {

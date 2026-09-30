@@ -3,7 +3,10 @@
  * диагностик → артефакт. Не останавливается на первой ошибке: все дефекты
  * библиотеки собираются за один проход (T-17).
  */
-import type { Diagnostic, DiagnosticSummary } from '@lms/engine-contract';
+import type {
+  Diagnostic,
+  DiagnosticSummary,
+} from '@dolphy-app/engine-contract';
 import type { CourseSource } from '../ports/index.ts';
 import { buildArtifact } from './artifact.ts';
 import type { Artifact } from './artifact.ts';
@@ -80,7 +83,7 @@ export const compile = async (
   const index = buildIndex(scanResult.model);
   const { findings, redundant } = runChecks(index, checkOptions);
   const checked = performance.now();
-  // эталонные решения через внедрённый Verifier (M5): ядро зависит только от порта
+  // эталонные решения через внедрённый порт ExerciseTypes (M5): ядро зависит только от порта
   const reference =
     options.runChecks === undefined
       ? null

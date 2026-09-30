@@ -1,28 +1,22 @@
 /**
- * `createSqlVerifier` — порт `Verifier` (`runner: 'sql'`) поверх пула
- * дочерних процессов. Читает фикстуру и ожидаемый CSV из библиотеки
+ * `createSqlVerifier` — проверка SQL-ответа поверх пула дочерних процессов
+ * (используется расширением `dolphy.sql`). Читает фикстуру и ожидаемый CSV из библиотеки
  * (`CourseSource`), кэширует их по отпечатку `stat`, режет ответ по
- * `MAX_SQL_CHARS` до IPC и переводит вердикт раннера в `RawVerdict`.
+ * `MAX_SQL_CHARS` до IPC и переводит вердикт раннера в `GradeResult`.
  *
  * `failed` — вина ученика (событие пишет `completeAttempt`); `error` — баг
  * курса или среды: журнал не затрагивается, повтор разрешён.
  */
-import type { ErrorReason, FailedReason } from '@lms/engine-contract';
-import { MAX_SQL_CHARS } from '@lms/engine-contract';
-import type {
-  CourseSource,
-  RawVerdict,
-  Verifier,
-  VerifyRequest,
-} from '@lms/engine/ports';
+import type { CourseSource } from '@dolphy-app/engine/ports';
+import type { GradeResult } from '@dolphy-app/extension-api';
 import { createPool } from './pool.ts';
 import type { PoolOptions, PoolStats, RunnerPool } from './pool.ts';
-import { DEFAULT_LIMITS } from './types.ts';
+import { DEFAULT_LIMITS, MAX_SQL_CHARS } from './types.ts';
 import type { CheckRequest, ReadyInfo, Verdict } from './types.ts';
 import {
   CourseFileError,
   createTextCache,
-  parseVerification,
+  parseSpec,
 } from './verification-params.ts';
 
 export interface SqlVerifierOptions extends PoolOptions {
@@ -33,8 +27,16 @@ export interface SqlVerifierOptions extends PoolOptions {
   maxBytes?: number;
 }
 
-export interface SqlVerifier extends Verifier {
-  readonly runner: 'sql';
+export interface SqlCheckInput {
+  spec: unknown;
+  answer: unknown;
+  timeoutMs: number;
+  authorMode: boolean;
+}
+
+export interface SqlVerifier {
+  check(input: SqlCheckInput): Promise<GradeResult>;
+  close(): Promise<void>;
   /** Поднять пул заранее (иначе процессы порождаются по требованию). */
   warm(): Promise<void>;
   /** Драйвер и профиль (`full` | `fallback`) раннера. */
@@ -50,43 +52,41 @@ const LEARNER_FEEDBACK: Record<string, string> = {
 };
 
 /** Раннер → `RawVerdict`: тексты SQLite наружу только в режиме автора. */
-const toRawVerdict = (verdict: Verdict, authorMode: boolean): RawVerdict => {
-  const { status, code, reason, durationMs, rowCount, detail } = verdict;
-  if (status === 'passed') return { outcome: 'passed', durationMs, rowCount };
+const toRawVerdict = (verdict: Verdict, authorMode: boolean): GradeResult => {
+  const { status, code, reason, rowCount, detail } = verdict;
+  if (status === 'passed') {
+    return { outcome: 'passed', data: { rowCount } };
+  }
   const learnerFeedback = LEARNER_FEEDBACK[code] ?? reason;
   let feedback: string | undefined;
   if (status === 'failed') feedback = learnerFeedback;
   else if (authorMode) feedback = reason;
   const extra = {
-    ...(rowCount > 0 ? { rowCount } : {}),
+    ...(rowCount > 0 ? { data: { rowCount } } : {}),
     ...(feedback === undefined ? {} : { feedback }),
   };
   if (status === 'failed') {
     return {
       outcome: 'failed',
-      reason: code as FailedReason,
-      durationMs,
+      reason: code,
       ...extra,
       ...(authorMode && detail !== undefined ? { detail } : {}),
     };
   }
   return {
     outcome: 'error',
-    reason: code as ErrorReason,
-    durationMs,
+    reason: code,
     ...extra,
   };
 };
 
 const errorVerdict = (
-  reason: ErrorReason,
+  reason: string,
   feedback: string,
   authorMode: boolean,
-  startedAt: number,
-): RawVerdict => ({
+): GradeResult => ({
   outcome: 'error',
   reason,
-  durationMs: performance.now() - startedAt,
   ...(authorMode ? { feedback } : {}),
 });
 
@@ -97,37 +97,22 @@ export const createSqlVerifier = (options: SqlVerifierOptions): SqlVerifier => {
   const defaultMaxRows = maxRows ?? DEFAULT_LIMITS.maxRows;
   const defaultMaxBytes = maxBytes ?? DEFAULT_LIMITS.maxBytes;
 
-  const check = async (request: VerifyRequest): Promise<RawVerdict> => {
-    const startedAt = performance.now();
-    const { exercise, submission, authorMode } = request;
-    const verification = exercise.engine?.verification;
-    if (verification?.runner !== 'sql') {
-      return errorVerdict(
-        'internal',
-        'exercise is not verified by the sql runner',
-        authorMode,
-        startedAt,
-      );
-    }
-    const parsed = parseVerification(verification);
+  const check = async (input: SqlCheckInput): Promise<GradeResult> => {
+    const { authorMode } = input;
+    const parsed = parseSpec(input.spec);
     if (!parsed.ok) {
-      return errorVerdict(parsed.code, parsed.message, authorMode, startedAt);
+      return errorVerdict(parsed.code, parsed.message, authorMode);
     }
     const { params } = parsed;
-    if (submission.kind !== 'sql') {
-      return errorVerdict(
-        'internal',
-        `submission kind '${submission.kind}' is not sql`,
-        authorMode,
-        startedAt,
-      );
+    if (typeof input.answer !== 'string') {
+      return errorVerdict('internal', 'answer is not a string', authorMode);
     }
+    const learnerSql = input.answer;
     // кап до IPC: 50 МБ через канал дают 95 мс лага event loop хоста
-    if (submission.sql.length > MAX_SQL_CHARS) {
+    if (learnerSql.length > MAX_SQL_CHARS) {
       return {
         outcome: 'failed',
         reason: 'sqlite_limit',
-        durationMs: performance.now() - startedAt,
         feedback: `SQL longer than ${MAX_SQL_CHARS} characters`,
       };
     }
@@ -136,32 +121,22 @@ export const createSqlVerifier = (options: SqlVerifierOptions): SqlVerifier => {
       fixtureSql = await files.read(params.fixture);
     } catch (error) {
       if (!(error instanceof CourseFileError)) throw error;
-      return errorVerdict(
-        'fixture_error',
-        error.message,
-        authorMode,
-        startedAt,
-      );
+      return errorVerdict('fixture_error', error.message, authorMode);
     }
     let csv: string;
     try {
       csv = await files.read(params.expected);
     } catch (error) {
       if (!(error instanceof CourseFileError)) throw error;
-      return errorVerdict(
-        'expected_error',
-        error.message,
-        authorMode,
-        startedAt,
-      );
+      return errorVerdict('expected_error', error.message, authorMode);
     }
     const timeoutMs =
-      Number.isFinite(request.timeoutMs) && request.timeoutMs > 0
-        ? request.timeoutMs
+      Number.isFinite(input.timeoutMs) && input.timeoutMs > 0
+        ? input.timeoutMs
         : DEFAULT_LIMITS.timeoutMs;
     const message: CheckRequest = {
       fixtureSql,
-      learnerSql: submission.sql,
+      learnerSql,
       expected: { csv },
       compare: params.compare,
       limits: {
@@ -177,7 +152,6 @@ export const createSqlVerifier = (options: SqlVerifierOptions): SqlVerifier => {
   };
 
   return {
-    runner: 'sql',
     check,
     close: () => pool.close(),
     warm: () => pool.warm(),

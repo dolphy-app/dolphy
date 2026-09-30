@@ -1,4 +1,7 @@
-import type { EngineErrorCode, EngineErrorDto } from '@lms/engine-contract';
+import type {
+  EngineErrorCode,
+  EngineErrorDto,
+} from '@dolphy-app/engine-contract';
 import type { Logger } from '../ports/index.ts';
 
 interface ErrorSpec {
@@ -24,9 +27,11 @@ export const ERRORS: Record<EngineErrorCode, ErrorSpec> = {
   ASSET_TOO_LARGE: { message: 'Asset is too large', retryable: false },
   ATTEMPT_NOT_FOUND: { message: 'Attempt not found', retryable: false },
   ATTEMPT_CLOSED: { message: 'Attempt is already closed', retryable: false },
-  // retryable зависит от details.cause: 'no-runner' → false, иначе true
-  VERIFIER_UNAVAILABLE: { message: 'Verifier is unavailable', retryable: true },
-  VERIFIER_TIMEOUT: { message: 'Verifier deadline exceeded', retryable: true },
+  // retryable зависит от details.cause: 'unknown-type' → false, иначе true
+  EXERCISE_TYPE_UNAVAILABLE: {
+    message: 'Exercise type is unavailable',
+    retryable: true,
+  },
   PLACEMENT_SESSION_NOT_FOUND: {
     message: 'Placement session not found',
     retryable: false,
@@ -54,6 +59,25 @@ export const ERRORS: Record<EngineErrorCode, ErrorSpec> = {
   STORE_BUSY: { message: 'Store is busy', retryable: true },
   STORE_READONLY: { message: 'Store is read-only', retryable: false },
   STORE_CORRUPT: { message: 'Store is corrupt', retryable: false },
+  REPOSITORY_EXISTS: {
+    message: 'Repository is already added',
+    retryable: false,
+  },
+  REPOSITORY_REJECTED: {
+    message: 'Repository snapshot was rejected',
+    retryable: false,
+  },
+  // retryable зависит от details.reason: network, timeout, cancelled → true
+  GIT_FETCH_FAILED: { message: 'Git fetch failed', retryable: false },
+  CATALOG_UNAVAILABLE: {
+    message: 'Extension catalog is unavailable',
+    retryable: true,
+  },
+  // retryable зависит от details.reason: network → true
+  EXTENSION_INSTALL_FAILED: {
+    message: 'Extension installation failed',
+    retryable: false,
+  },
   INTERNAL: { message: 'Internal engine error', retryable: true },
 };
 
@@ -68,7 +92,18 @@ const defaultRetryable = (
   code: EngineErrorCode,
   details: Record<string, unknown> | undefined,
 ): boolean => {
-  if (code === 'VERIFIER_UNAVAILABLE') return details?.cause !== 'no-runner';
+  if (code === 'EXERCISE_TYPE_UNAVAILABLE') {
+    return details?.cause !== 'unknown-type';
+  }
+  if (code === 'EXTENSION_INSTALL_FAILED') {
+    return details?.reason === 'network';
+  }
+  if (code === 'GIT_FETCH_FAILED') {
+    const reason = details?.reason;
+    return (
+      reason === 'network' || reason === 'timeout' || reason === 'cancelled'
+    );
+  }
   return ERRORS[code].retryable;
 };
 

@@ -1,4 +1,4 @@
-import type { Grade, UnitId } from '@lms/engine-contract';
+import type { Grade, UnitId } from '@dolphy-app/engine-contract';
 import { CLASS_KNOWN } from './diagnostic.ts';
 import type { PlacementTopics } from './topics.ts';
 

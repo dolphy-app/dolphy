@@ -1,5 +1,5 @@
-import type { EpochMs } from '@lms/engine-contract';
-import type { Clock } from '@lms/engine';
+import type { EpochMs } from '@dolphy-app/engine-contract';
+import type { Clock } from '@dolphy-app/engine';
 
 /** 2027-01-15T08:00:00Z: значение `T0` спайков; далеко от нуля и от `Date.now()`. */
 export const T0_MS: EpochMs = 1_800_000_000_000;

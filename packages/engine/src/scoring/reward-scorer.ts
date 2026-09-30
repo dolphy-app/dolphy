@@ -1,4 +1,4 @@
-import type { EpochMs } from '@lms/engine-contract';
+import type { EpochMs } from '@dolphy-app/engine-contract';
 import { MS_PER_DAY } from './constants.ts';
 import type { ExerciseTrial, UnitReward } from './types.ts';
 

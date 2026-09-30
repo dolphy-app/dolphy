@@ -11,6 +11,12 @@ spike
 .claude
 apps/desktop/LICENSE
 packages/*/test/fixtures
+apps/*/e2e/fixtures
 packages/*/test/golden/golden-rs/target
 dist-e2e
+dist-smoke
+dist-ext
+apps/desktop/extensions
 CHANGELOG.md
+specs
+dist-publish

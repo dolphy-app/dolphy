@@ -15,7 +15,7 @@ import type {
   SavedFilterDto,
   UnitId,
   VerdictDto,
-} from '@lms/engine-contract';
+} from '@dolphy-app/engine-contract';
 import type { LibraryHolder } from '../authoring/library-holder.ts';
 import type { AttemptEntry, LogEntry } from '../domain/journal.ts';
 import type { Library } from '../domain/library.ts';
@@ -29,8 +29,15 @@ import type {
   MemoryModel,
   Rng,
   SettingsStore,
-  Verifier,
+  GitSnapshotFetcher,
+  RepositoryStore,
+  SnapshotInstaller,
 } from '../ports/index.ts';
+import type { ExerciseTypes } from '../ports/exercise-types.ts';
+import type { GradePolicies } from '../ports/grade-policies.ts';
+import type { ExtensionInstaller } from '../ports/extension-installer.ts';
+import type { ExtensionPolicy } from '../ports/extension-policy.ts';
+import type { ExtensionRegistry } from '../ports/extension-registry.ts';
 import type { FsrsScorer } from '../scoring/fsrs-scorer.ts';
 import type {
   AttemptSource,
@@ -46,7 +53,6 @@ import type { SessionState } from '../scheduler/session-state.ts';
 import type { FolderSync, FolderSyncOptions } from '../node/folder-sync.ts';
 import type { Replica } from '../sync/replica.ts';
 import type { TraneSource } from '../sync/trane-import.ts';
-import type { GradePolicy } from '../verify/grade-policy.ts';
 import type { EngineState, FacadeContext } from './context-types.ts';
 import type { EventBus } from './event-bus.ts';
 import type { ExpiringMap } from './expiring-map.ts';
@@ -58,7 +64,7 @@ export type { LibraryHolder } from '../authoring/library-holder.ts';
 
 /**
  * Порт общей папки синхронизации. Реализация — `nodeFolderSyncPort(config)`
- * (`@lms/engine/node`): `dataDir/settings/sync.json` и `createFolderSync`.
+ * (`@dolphy-app/engine/node`): `dataDir/settings/sync.json` и `createFolderSync`.
  * Ядро `app/` от `node:fs` не зависит.
  */
 export interface FolderSyncPort {
@@ -81,12 +87,26 @@ export interface EngineDeps {
   eventStore: EventStore;
   settings: SettingsStore;
   memoryModel: MemoryModel;
-  /** `SqlVerifier` из `@lms/engine-sql-runner` регистрируется здесь. */
-  verifiers: readonly Verifier[];
+  /** Виды заданий из расширений (`@dolphy-app/extension-host`). */
+  exerciseTypes: ExerciseTypes;
+  /** Правила оценки из расширений (`@dolphy-app/extension-host`). */
+  gradePolicies: GradePolicies;
+  /** Обзор расширений для `extensions.list`. */
+  extensionRegistry: ExtensionRegistry;
+  /** Политика расширений (включено / изолировано); тот же экземпляр, что у реестра и клиентов хоста. */
+  extensionPolicy: ExtensionPolicy;
+  /** Установка расширений из каталога (`@dolphy-app/extension-install`). */
+  extensionInstaller: ExtensionInstaller;
   /** Нет порта — `sync.folder.*` отвечает `SYNC_FOLDER_NOT_CONFIGURED`. */
   folderSync?: FolderSyncPort;
-  /** Чтение каталога `.trane` (`readTraneDirectory` из `@lms/engine-sqlite`); нет — `importFromTrane` отказывает. */
+  /** Чтение каталога `.trane` (`readTraneDirectory` из `@dolphy-app/engine-sqlite`); нет — `importFromTrane` отказывает. */
   openTraneSource?: (traneDir: string) => TraneSource | Promise<TraneSource>;
+  /** Реестр git-репозиториев (`repositories.*`); SQLite или память. */
+  repositoryStore: RepositoryStore;
+  /** Получение снимков по `http(s)`; `createIsomorphicGitFetcher` из `@dolphy-app/engine-git`. */
+  snapshotFetcher: GitSnapshotFetcher;
+  /** Подмена каталогов снимков; `createNodeSnapshotInstaller` из `@dolphy-app/engine/node`. */
+  snapshotInstaller: SnapshotInstaller;
 }
 
 /* -------------------------------- проекции -------------------------------- */
@@ -272,9 +292,15 @@ export interface EngineContext extends FacadeContext {
   readonly courseSource: CourseSource;
   readonly settings: SettingsStore;
   readonly memoryModel: MemoryModel;
-  readonly verifiers: ReadonlyMap<string, Verifier>;
+  readonly exerciseTypes: ExerciseTypes;
+  readonly extensionRegistry: ExtensionRegistry;
+  readonly extensionPolicy: ExtensionPolicy;
+  readonly extensionInstaller: ExtensionInstaller;
   readonly folderSync: FolderSyncPort | null;
   readonly openTraneSource: EngineDeps['openTraneSource'];
+  readonly repositoryStore: RepositoryStore;
+  readonly snapshotFetcher: GitSnapshotFetcher;
+  readonly snapshotInstaller: SnapshotInstaller;
   /** `current()` / `require()` / `swap()` — атомарная подмена. */
   readonly library: LibraryHolder;
   readonly projections: Projections;
@@ -288,7 +314,9 @@ export interface EngineContext extends FacadeContext {
   /** Сохранённые фильтры в памяти (для планировщика: чтение синхронное). */
   readonly savedFilters: Map<string, SavedFilterDto>;
   readonly attempts: ExpiringMap<OpenAttempt>;
-  readonly gradePolicy: GradePolicy;
+  readonly gradePolicies: GradePolicies;
+  /** Настройки обучения в памяти (читаются при каждом закрытии попытки); пишет только `settings.setLearning`. */
+  readonly learning: { gradePolicy: string };
   readonly journal: JournalWriter;
   readonly bus: EventBus;
   readonly state: EngineState;

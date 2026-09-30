@@ -1,4 +1,4 @@
-import type { LogEntryDto } from '@lms/engine-contract';
+import type { LogEntryDto } from '@dolphy-app/engine-contract';
 import { expectTypeOf, test } from 'vitest';
 import type { LogEntry } from '../src/index.ts';
 

@@ -1,4 +1,4 @@
-import type { MissingSeqs, StateVector } from '@lms/engine-contract';
+import type { MissingSeqs, StateVector } from '@dolphy-app/engine-contract';
 import { compareStrings } from './entry.ts';
 
 /** Не более стольких дыр на устройство попадает в `missing()`. */

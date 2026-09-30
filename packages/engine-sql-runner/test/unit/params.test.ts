@@ -1,21 +1,21 @@
-/** Разбор `engine.verification` (runner sql) и кэш файлов библиотеки. */
+/** Разбор `spec` вида dolphy.sql и кэш файлов библиотеки. */
 import { describe, expect, it } from 'vitest';
 import {
   createTextCache,
-  isSafeRelativePath,
-  parseVerification,
+  isSafePath,
+  parseSpec,
 } from '../../src/verification-params.ts';
 import { createFilesSource } from '../helpers/files-source.ts';
 
-const valid = { runner: 'sql', fixture: 'f/emp.sql', expected: 'c/a.csv' };
+const valid = { fixture: 'f/emp.sql', expected: 'c/a.csv' };
 
-describe('parseVerification', () => {
+describe('parseSpec', () => {
   it('минимальный блок и все необязательные поля', () => {
-    expect(parseVerification(valid)).toEqual({
+    expect(parseSpec(valid)).toEqual({
       ok: true,
       params: { fixture: 'f/emp.sql', expected: 'c/a.csv', compare: {} },
     });
-    const full = parseVerification({
+    const full = parseSpec({
       ...valid,
       reference: 'solutions/a.sql',
       orderSensitive: true,
@@ -44,16 +44,18 @@ describe('parseVerification', () => {
   });
 
   it('нет блока или нет fixture — fixture_error; нет expected или кривые правила — expected_error', () => {
-    expect(parseVerification(undefined)).toMatchObject({
+    expect(parseSpec(undefined)).toMatchObject({
       ok: false,
       code: 'fixture_error',
     });
-    expect(
-      parseVerification({ runner: 'sql', expected: 'a.csv' }),
-    ).toMatchObject({ ok: false, code: 'fixture_error' });
-    expect(
-      parseVerification({ runner: 'sql', fixture: 'a.sql' }),
-    ).toMatchObject({ ok: false, code: 'expected_error' });
+    expect(parseSpec({ expected: 'a.csv' })).toMatchObject({
+      ok: false,
+      code: 'fixture_error',
+    });
+    expect(parseSpec({ fixture: 'a.sql' })).toMatchObject({
+      ok: false,
+      code: 'expected_error',
+    });
     for (const bad of [
       { orderSensitive: 'yes' },
       { ignoreColumnNames: 1 },
@@ -66,7 +68,7 @@ describe('parseVerification', () => {
       { reference: 5 },
     ]) {
       expect(
-        parseVerification({ ...valid, ...bad }),
+        parseSpec({ ...valid, ...bad }),
         JSON.stringify(bad),
       ).toMatchObject({ ok: false, code: 'expected_error' });
     }
@@ -81,13 +83,13 @@ describe('parseVerification', () => {
       'C:x',
       '',
     ]) {
-      expect(isSafeRelativePath(path), path).toBe(false);
-      expect(
-        parseVerification({ ...valid, fixture: path }),
-        path,
-      ).toMatchObject({ ok: false, code: 'fixture_error' });
+      expect(isSafePath(path), path).toBe(false);
+      expect(parseSpec({ ...valid, fixture: path }), path).toMatchObject({
+        ok: false,
+        code: 'fixture_error',
+      });
     }
-    expect(isSafeRelativePath('fixtures/emp.sql')).toBe(true);
+    expect(isSafePath('fixtures/emp.sql')).toBe(true);
   });
 });
 

@@ -8,7 +8,7 @@
  * зависимости с весом покрытия 1.0 по умолчанию); карты названы по смыслу
  * `computeEncompassingMap(reverse)`; кандидаты не мутируются — копии.
  */
-import type { UnitId } from '@lms/engine-contract';
+import type { UnitId } from '@dolphy-app/engine-contract';
 import { describe, expect, it } from 'vitest';
 import type { UnitGraph } from '../../src/domain/graph.ts';
 import {

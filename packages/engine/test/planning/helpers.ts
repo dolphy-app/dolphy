@@ -13,8 +13,8 @@ import type {
   EpochMs,
   SchedulerOptionsDto,
   UnitId,
-} from '@lms/engine-contract';
-import { buildCourse, buildExercise, buildLesson } from '@lms/testkit';
+} from '@dolphy-app/engine-contract';
+import { buildCourse, buildExercise, buildLesson } from '@dolphy-app/testkit';
 import { assembleLibrary } from '../../src/domain/library.ts';
 import type { Library } from '../../src/domain/library.ts';
 import type { AttemptRecord } from '../../src/app/context.ts';

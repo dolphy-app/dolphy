@@ -5,6 +5,7 @@ node_modules/
 dist
 dist-ssr
 dist-electron
+dist-ext
 release
 *.local
 
@@ -13,3 +14,4 @@ release
 *.suo
 *.sw?
 *.tsbuildinfo
+dist-publish

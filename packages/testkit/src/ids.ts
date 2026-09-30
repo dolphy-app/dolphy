@@ -1,4 +1,4 @@
-import type { IdGenerator } from '@lms/engine';
+import type { IdGenerator } from '@dolphy-app/engine';
 
 export interface TestIds extends IdGenerator {
   /** Сколько идентификаторов выдано. */

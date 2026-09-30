@@ -4,7 +4,7 @@ import type { Supervisor } from '../supervisor.ts';
 import type { EngineConnectEvent } from './engine.ts';
 import type { Shell } from './types.ts';
 
-export const SMOKE_RESULT_PREFIX = 'LMS_SMOKE_RESULT ';
+export const SMOKE_RESULT_PREFIX = 'DOLPHY_SMOKE_RESULT ';
 export const SMOKE_TIMEOUT_MS = 90_000;
 
 export interface SmokeShellDeps {
@@ -34,7 +34,7 @@ const isPassed = (result: unknown): boolean =>
   (result as { ok?: unknown }).ok === true;
 
 /**
- * Только в смоук-сборке (`LMS_SMOKE_BUILD=1`) при `LMS_SMOKE=1`: renderer сообщает итог
+ * Только в смоук-сборке (`DOLPHY_SMOKE_BUILD=1`) при `DOLPHY_SMOKE=1`: renderer сообщает итог
  * сквозной проверки, main печатает его в stdout, останавливает хост и выходит.
  */
 export const createSmokeShell = (deps: SmokeShellDeps): Shell => ({

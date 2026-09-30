@@ -63,6 +63,12 @@
     },
     {
       "path": "packages/ext-choice/tsconfig.test.json"
+    },
+    {
+      "path": "packages/extension-sdk"
+    },
+    {
+      "path": "packages/extension-sdk/tsconfig.test.json"
     }
   ]
 }

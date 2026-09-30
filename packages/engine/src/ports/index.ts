@@ -263,3 +263,5 @@ export interface SettingsStore {
   loadUi(): Promise<UiSettingsDto>;
   saveUi(ui: UiSettingsDto): Promise<void>;
 }
+
+export * from './exercise-types.ts';

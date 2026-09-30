@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { GenerateError, generateExtension } from '../generate.ts';
+import type { GenerateResult } from '../generate.ts';
 
 export interface CliIo {
   stdout(text: string): void;
@@ -46,7 +47,28 @@ const parseArgs = (argv: readonly string[]): Parsed => {
   return { dir, id: values.get('--id'), local: values.get('--local') };
 };
 
-const nextSteps = (dir: string, id: string, isLocal: boolean): string => {
+const TOKEN_NOTE =
+  '\nПакеты @spirula-app/* лежат в GitHub Packages: перед установкой добавьте в ' +
+  '~/.npmrc\nтокен (classic, право read:packages), см. README проекта, ' +
+  '«Установка зависимостей».\n';
+
+const PLACEHOLDER_NOTE =
+  '\nЗамечание: @spirula-app/extension-sdk и @spirula-app/extension-tools не опубликованы, ' +
+  'версия ^0.0.0 не установится.\nУкажите пути к репозиторию Spirula: ' +
+  'create-spirula-extension <dir> --local <repoRoot>.\n';
+
+const installNote = ({
+  isLocal,
+  isPublished,
+}: Pick<GenerateResult, 'isLocal' | 'isPublished'>): string => {
+  if (isLocal) return '';
+  return isPublished ? TOKEN_NOTE : PLACEHOLDER_NOTE;
+};
+
+const nextSteps = (
+  result: Pick<GenerateResult, 'dir' | 'id' | 'isLocal' | 'isPublished'>,
+): string => {
+  const { dir, id } = result;
   const steps = [
     `  cd ${dir}`,
     '  pnpm install',
@@ -56,12 +78,7 @@ const nextSteps = (dir: string, id: string, isLocal: boolean): string => {
     'Запуск приложения с вашим расширением (из репозитория Spirula):',
     `  SPIRULA_DEV_EXTENSIONS=${path.join(dir, 'dist-ext')} pnpm dev`,
   ];
-  const note = isLocal
-    ? ''
-    : '\nЗамечание: @spirula-app/extension-sdk и @spirula-app/extension-tools не опубликованы, ' +
-      'версия ^0.0.0 не установится.\nУкажите пути к репозиторию Spirula: ' +
-      'create-spirula-extension <dir> --local <repoRoot>.\n';
-  return `\nДальше:\n${steps.join('\n')}\n${note}`;
+  return `\nДальше:\n${steps.join('\n')}\n${installNote(result)}`;
 };
 
 /**
@@ -93,7 +110,7 @@ export const runCli = async (
     io.stdout(
       `created ${result.id} in ${result.dir} (${result.files.length} files)\n`,
     );
-    io.stdout(nextSteps(result.dir, result.id, result.isLocal));
+    io.stdout(nextSteps(result));
     return EXIT_OK;
   } catch (error) {
     if (!(error instanceof GenerateError)) throw error;

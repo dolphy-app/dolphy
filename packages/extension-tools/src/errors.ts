@@ -8,3 +8,6 @@ export class BuildError extends Error {
     this.subject = subject;
   }
 }
+
+/** Неверные входные данные команды (несуществующий каталог): код выхода 2. */
+export class CatalogUsageError extends BuildError {}

@@ -14,7 +14,14 @@ export const MAX_VERSIONS = 5;
 export const MAX_FILES = 50;
 export const MAX_TOTAL_BYTES = 10_000_000;
 const MAX_PATH_LENGTH = 200;
-const FILE_EXTENSIONS = new Set(['json', 'js', 'mjs', 'md', 'txt']);
+export const CATALOG_FILE_EXTENSIONS: readonly string[] = [
+  'json',
+  'js',
+  'mjs',
+  'md',
+  'txt',
+];
+const FILE_EXTENSIONS = new Set(CATALOG_FILE_EXTENSIONS);
 const SHA256 = /^[0-9a-f]{64}$/;
 /** Допустимые символы сегмента пути: без `:` (потоки NTFS), пробелов и управляющих символов. */
 const SEGMENT = /^[A-Za-z0-9_-][A-Za-z0-9._-]*$/;
@@ -32,7 +39,8 @@ const isSafeSegment = (segment: string): boolean =>
   !segment.endsWith('.') &&
   !RESERVED_NAME.test(segment);
 
-const isSafePath = (value: string): boolean => {
+/** Путь файла версии: безопасные сегменты и расширение из `FILE_EXTENSIONS`. */
+export const isSafeCatalogPath = (value: string): boolean => {
   if (value.length > MAX_PATH_LENGTH) return false;
   const segments = value.split('/');
   if (!segments.every(isSafeSegment)) return false;
@@ -41,7 +49,9 @@ const isSafePath = (value: string): boolean => {
   return dot > 0 && FILE_EXTENSIONS.has(name.slice(dot + 1));
 };
 
-const filePath = z.string().refine(isSafePath, 'must be a safe relative path');
+const filePath = z
+  .string()
+  .refine(isSafeCatalogPath, 'must be a safe relative path');
 
 /**
  * Каталог файлов версии относительно адреса `index.json` (`extensions/<id>/<version>/`).

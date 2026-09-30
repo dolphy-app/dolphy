@@ -15,6 +15,7 @@ module.exports = [
       '**/dist-e2e/**',
       '**/dist-smoke/**',
       '**/dist-ext/**',
+      '**/dist-publish/**',
       'apps/desktop/extensions/**',
       'packages/*/test/fixtures/**',
       'apps/*/e2e/fixtures/**',

@@ -6,13 +6,20 @@ import {
   watchExtension,
 } from '../index.ts';
 import type { BuildOptions, BuildResult } from '../index.ts';
+import {
+  CATALOG_HELP,
+  CATALOG_SYNOPSIS,
+  parseCatalogArgs,
+  runCatalog,
+} from '../catalog/cli.ts';
+import type { CatalogDeps } from '../catalog/cli.ts';
 
 export interface CliIo {
   stdout(text: string): void;
   stderr(text: string): void;
 }
 
-export interface CliDeps {
+export interface CliDeps extends CatalogDeps {
   /** Резолвится, когда watch-режим нужно завершить (по умолчанию SIGINT/SIGTERM). */
   waitForExit?: () => Promise<void>;
 }
@@ -23,12 +30,12 @@ export const EXIT_USAGE = 2;
 
 const USAGE = `usage: spirula-ext build [dir] [--out <dir>] [--watch]
        spirula-ext validate <dir>
-
+${CATALOG_SYNOPSIS}
   build [dir]      собрать расширение из проекта (по умолчанию — текущий каталог)
                    в <dir>/dist-ext/<id>
   validate <dir>   проверить каталог собранного расширения (extension.json,
                    схемы, main и renderer)
-
+${CATALOG_HELP}
   --out <dir>      корень вывода (расширение кладётся в <dir>/<id>)
   --watch          пересобирать бандлы при изменении исходников
   --help           эта справка
@@ -38,7 +45,8 @@ type Parsed =
   | { help: true }
   | { usageError: string }
   | { command: 'build'; dir: string; out: string | undefined; watch: boolean }
-  | { command: 'validate'; dir: string };
+  | { command: 'validate'; dir: string }
+  | { command: 'catalog'; args: readonly string[] };
 
 const parseBuild = (args: readonly string[]): Parsed => {
   const positional: string[] = [];
@@ -76,6 +84,7 @@ const parseArgs = (argv: readonly string[]): Parsed => {
   const [command, ...rest] = argv;
   if (command === 'build') return parseBuild(rest);
   if (command === 'validate') return parseValidate(rest);
+  if (command === 'catalog') return { command: 'catalog', args: rest };
   return {
     usageError:
       command === undefined
@@ -142,7 +151,7 @@ const runValidate = async (dir: string, io: CliIo): Promise<number> => {
   return EXIT_PROBLEMS;
 };
 
-/** `spirula-ext build|validate`; `argv` без `node` и имени скрипта. */
+/** `spirula-ext build|validate|catalog`; `argv` без `node` и имени скрипта. */
 export const runCli = async (
   argv: readonly string[],
   io: CliIo,
@@ -156,6 +165,14 @@ export const runCli = async (
   if ('usageError' in parsed) {
     io.stderr(`${parsed.usageError}\n${USAGE}`);
     return EXIT_USAGE;
+  }
+  if (parsed.command === 'catalog') {
+    const catalog = parseCatalogArgs(parsed.args);
+    if ('usageError' in catalog) {
+      io.stderr(`${catalog.usageError}\n${USAGE}`);
+      return EXIT_USAGE;
+    }
+    return runCatalog(catalog, io, deps);
   }
   if (parsed.command === 'validate') return runValidate(parsed.dir, io);
   return runBuild(parsed, io, deps);

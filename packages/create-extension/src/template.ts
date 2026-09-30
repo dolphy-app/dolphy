@@ -7,7 +7,13 @@ export interface TemplateInput {
   id: string;
   /** Спецификаторы зависимостей на SDK и инструменты (см. `dependencySpecs`). */
   dependencies: { sdk: string; tools: string };
+  /** Пакеты ставятся из GitHub Packages: проекту нужны `.npmrc` и раздел README про токен. */
+  githubPackages?: boolean;
 }
+
+/** Реестр GitHub Packages для scope `@spirula-app` (токен в файл проекта не кладут). */
+export const GITHUB_PACKAGES_NPMRC =
+  '@spirula-app:registry=https://npm.pkg.github.com';
 
 const lines = (parts: readonly string[]): string => `${parts.join('\n')}\n`;
 
@@ -314,7 +320,27 @@ describe('${tag}', () => {
 `;
 };
 
-export const readme = (id: string): string =>
+export const npmrc = (): string => lines([GITHUB_PACKAGES_NPMRC]);
+
+const installSection = (): string[] => [
+  '## Установка зависимостей',
+  '',
+  'Пакеты `@spirula-app/*` лежат в GitHub Packages, а не в npmjs, поэтому даже',
+  'публичные ставятся только с токеном. Файл `.npmrc` проекта уже указывает реестр',
+  'для scope `@spirula-app`; токен хранится в вашем `~/.npmrc`, в репозиторий его',
+  'не кладут.',
+  '',
+  '1. Создайте персональный токен (classic) на GitHub: Settings → Developer',
+  '   settings → Personal access tokens → Tokens (classic), право `read:packages`.',
+  '2. Добавьте строку в `~/.npmrc`:',
+  '',
+  '```ini',
+  '//npm.pkg.github.com/:_authToken=<TOKEN>',
+  '```',
+  '',
+];
+
+export const readme = (id: string, githubPackages = false): string =>
   lines([
     `# ${id}`,
     '',
@@ -328,6 +354,7 @@ export const readme = (id: string): string =>
     '- `src/view.ts` — элемент ввода ответа: `defineAnswerElement`;',
     '- `test/` — тесты обработчика и элемента (`vitest`, `happy-dom`).',
     '',
+    ...(githubPackages ? installSection() : []),
     '## Цикл разработки',
     '',
     '```sh',

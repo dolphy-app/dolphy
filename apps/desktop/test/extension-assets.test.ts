@@ -69,6 +69,7 @@ describe('extension assets shell', () => {
     expect(response.status).toBe(200);
     expect(response.headers.get('Content-Type')).toBe('text/javascript');
     expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
+    expect(response.headers.get('Cache-Control')).toBe('no-cache');
     expect(fetched).toHaveLength(1);
     expect(fetched[0]).toContain('/bundled-ext/lms.sql/view.mjs');
   });

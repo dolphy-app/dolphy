@@ -67,7 +67,10 @@ export interface LmsApp {
  * `--user-data-dir` отделяет данные (и single-instance lock) от dev-запуска;
  * `--lang=ru` фиксирует язык интерфейса, на который рассчитаны селекторы.
  */
-export const launchApp = async (userData: string): Promise<LmsApp> => {
+export const launchApp = async (
+  userData: string,
+  env?: Record<string, string>,
+): Promise<LmsApp> => {
   const executablePath = createRequire(import.meta.url)('electron') as string;
   const app: ElectronApplication = await electron.launch({
     executablePath,
@@ -77,6 +80,10 @@ export const launchApp = async (userData: string): Promise<LmsApp> => {
       `--user-data-dir=${userData}`,
       '--lang=ru',
     ],
+    // `env` в Playwright заменяет окружение целиком: добавки накладываются на process.env
+    ...(env
+      ? { env: { ...(process.env as Record<string, string>), ...env } }
+      : {}),
   });
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');

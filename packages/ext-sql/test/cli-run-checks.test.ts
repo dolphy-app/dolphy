@@ -19,8 +19,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { runCli } from '../../engine/src/cli/run.ts';
 import type { CreateExerciseTypes } from '../../engine/src/cli/exercise-types.ts';
 import {
-  EXTENSION_SRC,
   createSqlExerciseTypes,
+  extensionRoot,
 } from './helpers/exercise-types.ts';
 
 const SQL_KB = fileURLToPath(
@@ -51,7 +51,7 @@ const cli = async (dir: string) => {
     return { exerciseTypes, close: () => exerciseTypes.close() };
   };
   const code = await runCli(
-    ['validate', dir, '--run-checks', '--extensions', EXTENSION_SRC],
+    ['validate', dir, '--run-checks', '--extensions', await extensionRoot()],
     {
       stdout: (text) => {
         stdout += text;

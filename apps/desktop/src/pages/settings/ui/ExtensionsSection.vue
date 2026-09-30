@@ -1,0 +1,167 @@
+<script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+import type { ExtensionStateDto } from '@lms/engine-contract';
+import { useEngine } from '@/shared/api/engine';
+import { useExtensions } from '../model/extensions.ts';
+import SectionHeader from './SectionHeader.vue';
+
+interface StateView {
+  icon: string;
+  color: string;
+}
+
+const STATE_VIEW: Record<ExtensionStateDto, StateView> = {
+  loaded: { icon: 'mdi-check-circle-outline', color: 'success' },
+  overridden: { icon: 'mdi-layers-outline', color: 'secondary' },
+  invalid: { icon: 'mdi-alert-circle-outline', color: 'error' },
+};
+
+const { t } = useI18n();
+const { items, state, error, busy, load } = useExtensions(useEngine());
+</script>
+
+<template>
+  <section :aria-label="t('settings.extensions.title')">
+    <SectionHeader
+      :title="t('settings.extensions.title')"
+      :subtitle="t('settings.extensions.subtitle')"
+    />
+
+    <v-progress-linear
+      v-if="state === 'loading'"
+      indeterminate
+      rounded
+      :aria-label="t('settings.extensions.title')"
+    />
+
+    <v-alert v-if="error" type="error" variant="tonal" class="mb-6">
+      <div class="d-flex align-center ga-3">
+        <span class="flex-grow-1">
+          {{ t('settings.extensions.loadFailed') }}: {{ error }}
+        </span>
+        <v-btn
+          variant="text"
+          prepend-icon="mdi-refresh"
+          :loading="busy"
+          @click="load"
+        >
+          {{ t('settings.extensions.retry') }}
+        </v-btn>
+      </div>
+    </v-alert>
+
+    <template v-if="state === 'loaded'">
+      <div class="d-flex align-center mb-4">
+        <p class="text-body-medium text-medium-emphasis">
+          {{
+            t('settings.extensions.count', { n: items.length }, items.length)
+          }}
+        </p>
+        <v-spacer />
+        <v-btn
+          variant="tonal"
+          color="primary"
+          prepend-icon="mdi-refresh"
+          :loading="busy"
+          @click="load"
+        >
+          {{ t('settings.extensions.refresh') }}
+        </v-btn>
+      </div>
+
+      <p
+        v-if="items.length === 0"
+        class="text-body-medium text-medium-emphasis"
+      >
+        {{ t('settings.extensions.empty') }}
+      </p>
+
+      <ul v-else class="list" :aria-label="t('settings.extensions.listLabel')">
+        <li
+          v-for="extension in items"
+          :key="`${extension.origin}:${extension.id}`"
+          :class="{ muted: extension.state === 'overridden' }"
+        >
+          <v-card class="pa-4">
+            <div class="d-flex flex-wrap align-center ga-2">
+              <h3 class="id text-title-medium font-weight-bold">
+                {{ extension.id }}
+              </h3>
+              <v-chip v-if="extension.version !== null" size="small" label>
+                {{
+                  t('settings.extensions.version', {
+                    version: extension.version,
+                  })
+                }}
+              </v-chip>
+              <v-chip size="small" label>
+                {{ t(`settings.extensions.origin.${extension.origin}`) }}
+              </v-chip>
+              <v-spacer />
+              <span class="d-inline-flex align-center ga-1 text-body-medium">
+                <v-icon
+                  :icon="STATE_VIEW[extension.state].icon"
+                  :color="STATE_VIEW[extension.state].color"
+                  size="small"
+                  aria-hidden="true"
+                />
+                {{ t(`settings.extensions.state.${extension.state}`) }}
+              </span>
+            </div>
+
+            <p
+              v-if="extension.message !== null"
+              class="message text-body-medium mt-2"
+            >
+              {{ extension.message }}
+            </p>
+
+            <div
+              v-if="extension.exerciseTypes.length > 0"
+              class="d-flex flex-wrap align-center ga-2 mt-3"
+            >
+              <span class="text-body-small text-medium-emphasis">
+                {{ t('settings.extensions.exerciseTypes') }}:
+              </span>
+              <ul class="types">
+                <li v-for="type in extension.exerciseTypes" :key="type">
+                  <v-chip size="small" variant="tonal" class="id">
+                    {{ type }}
+                  </v-chip>
+                </li>
+              </ul>
+            </div>
+          </v-card>
+        </li>
+      </ul>
+    </template>
+  </section>
+</template>
+
+<style scoped>
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  list-style: none;
+  padding: 0;
+}
+
+.muted {
+  opacity: 0.7;
+}
+
+.types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+  padding: 0;
+}
+
+.id,
+.message {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  overflow-wrap: anywhere;
+}
+</style>

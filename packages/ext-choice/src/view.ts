@@ -1,13 +1,8 @@
 /** Элемент ввода ответа `lms-choice-answer`; побочный эффект загрузки — регистрация. */
-import { ANSWER_EVENT } from '@lms/extension-api';
-import type {
-  AnswerChangeDetail,
-  AnswerElementProps,
-} from '@lms/extension-api';
+import { defineAnswerElement } from '@lms/extension-sdk';
+import type { AnswerElementApi } from '@lms/extension-sdk';
 import { normalizeValue, selectedIndices } from './choice-model.ts';
 import type { ChoiceView } from './grade.ts';
-
-const NAME = 'lms-choice-answer';
 
 const STYLE = `
   :host { display: block; }
@@ -25,101 +20,83 @@ const isChoiceView = (view: unknown): view is ChoiceView =>
   view !== null &&
   Array.isArray((view as ChoiceView).options);
 
-class ChoiceAnswer extends HTMLElement implements AnswerElementProps {
-  #view: unknown = null;
-  #value: unknown = undefined;
-  #disabled = false;
-  #verdict: AnswerElementProps['verdict'] = null;
-  readonly #root = this.attachShadow({ mode: 'open' });
+const createRow = (text: string, multiple: boolean) => {
+  const row = document.createElement('label');
+  const input = document.createElement('input');
+  input.type = multiple ? 'checkbox' : 'radio';
+  input.name = 'choice';
+  const caption = document.createElement('span');
+  caption.textContent = text;
+  row.append(input, caption);
+  return { row, input };
+};
 
-  connectedCallback(): void {
-    this.setAttribute('role', 'group');
-    this.#render();
-  }
+const mount = (
+  api: AnswerElementApi,
+  initial: { view: unknown; value: unknown; disabled: boolean },
+) => {
+  const style = document.createElement('style');
+  style.textContent = STYLE;
+  const fieldset = document.createElement('fieldset');
+  if (api.label !== null) fieldset.setAttribute('aria-label', api.label);
+  api.root.append(style, fieldset);
 
-  static get observedAttributes(): string[] {
-    return ['aria-label'];
-  }
+  const state = {
+    view: undefined as unknown,
+    // последнее значение свойства `value`, а не введённое пользователем:
+    // приложение может не возвращать ответ, и он не должен стираться
+    value: undefined as unknown,
+    disabled: false,
+    inputs: [] as HTMLInputElement[],
+  };
 
-  attributeChangedCallback(): void {
-    this.#render();
-  }
-
-  get view(): unknown {
-    return this.#view;
-  }
-  set view(next: unknown) {
-    this.#view = next;
-    this.#render();
-  }
-
-  get value(): unknown {
-    return this.#value;
-  }
-  set value(next: unknown) {
-    this.#value = next;
-    this.#render();
-  }
-
-  get disabled(): boolean {
-    return this.#disabled;
-  }
-  set disabled(next: boolean) {
-    this.#disabled = next;
-    for (const input of this.#root.querySelectorAll('input')) {
-      input.disabled = next;
-    }
-  }
-
-  get verdict(): AnswerElementProps['verdict'] {
-    return this.#verdict;
-  }
-  set verdict(next: AnswerElementProps['verdict']) {
-    this.#verdict = next;
-  }
-
-  #render(): void {
-    const view = this.#view;
-    if (!isChoiceView(view)) {
-      this.#root.replaceChildren();
-      return;
-    }
-    const selected = new Set(normalizeValue(this.#value, view.options.length));
-    const style = document.createElement('style');
-    style.textContent = STYLE;
-    const fieldset = document.createElement('fieldset');
-    const label = this.getAttribute('aria-label');
-    if (label !== null) fieldset.setAttribute('aria-label', label);
-    const name = `choice-${Math.random().toString(36).slice(2)}`;
-    view.options.forEach((text, index) => {
-      const row = document.createElement('label');
-      const input = document.createElement('input');
-      input.type = view.multiple ? 'checkbox' : 'radio';
-      input.name = name;
+  const applyValue = (value: unknown) => {
+    const selected = new Set(normalizeValue(value, state.inputs.length));
+    state.inputs.forEach((input, index) => {
       input.checked = selected.has(index);
-      input.disabled = this.#disabled;
-      input.addEventListener('change', () => this.#emit(fieldset));
-      const caption = document.createElement('span');
-      caption.textContent = text;
-      row.append(input, caption);
-      fieldset.append(row);
     });
-    this.#root.replaceChildren(style, fieldset);
-  }
+  };
 
-  #emit(fieldset: HTMLFieldSetElement): void {
-    const inputs = [...fieldset.querySelectorAll('input')];
-    const value = selectedIndices(inputs.map((input) => input.checked));
-    this.#value = value;
-    const detail: AnswerChangeDetail = { value, complete: value.length > 0 };
-    this.dispatchEvent(
-      new CustomEvent(ANSWER_EVENT.change, {
-        detail,
-        bubbles: true,
-        composed: true,
-      }),
-    );
-  }
-}
+  const applyDisabled = (disabled: boolean) => {
+    for (const input of state.inputs) input.disabled = disabled;
+  };
 
-if (!customElements.get(NAME)) customElements.define(NAME, ChoiceAnswer);
+  const emit = () => {
+    const value = selectedIndices(state.inputs.map((input) => input.checked));
+    api.setAnswer(value, value.length > 0);
+  };
+
+  const renderOptions = (view: unknown) => {
+    const rows = isChoiceView(view)
+      ? view.options.map((text) => createRow(text, view.multiple))
+      : [];
+    for (const { input } of rows) input.addEventListener('change', emit);
+    state.inputs = rows.map(({ input }) => input);
+    fieldset.replaceChildren(...rows.map(({ row }) => row));
+  };
+
+  const update = (props: {
+    view: unknown;
+    value: unknown;
+    disabled: boolean;
+  }) => {
+    const isViewChanged = props.view !== state.view;
+    if (isViewChanged) {
+      state.view = props.view;
+      renderOptions(props.view);
+    }
+    if (isViewChanged || props.value !== state.value) {
+      state.value = props.value;
+      applyValue(props.value);
+    }
+    if (isViewChanged || props.disabled !== state.disabled) {
+      state.disabled = props.disabled;
+      applyDisabled(props.disabled);
+    }
+  };
+
+  update(initial);
+  return { update };
+};
+
+defineAnswerElement('lms-choice-answer', mount);

@@ -326,6 +326,7 @@ export const schemas = {
   ]),
   'placement.abort': z.tuple([z.strictObject({ sessionId: str.min(1) })]),
   'remediation.getPlan': z.tuple([z.strictObject({ exerciseId: unitId })]),
+  'extensions.list': z.tuple([]),
   'curation.blacklist.list': z.tuple([optional(pageRequest)]),
   'curation.blacklist.has': z.tuple([unitId]),
   'curation.blacklist.add': z.tuple([unitId]),

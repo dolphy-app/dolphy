@@ -3,7 +3,11 @@
  * in-process пару (structuredClone на каждом сообщении, как в Electron).
  */
 import { RPC_METHODS } from '@lms/engine-contract';
-import type { EngineEvent, SavedFilterDto } from '@lms/engine-contract';
+import type {
+  EngineEvent,
+  ExtensionInfoDto,
+  SavedFilterDto,
+} from '@lms/engine-contract';
 import { createEngine } from '@lms/engine/app';
 import {
   createMemoryEventStore,
@@ -16,6 +20,7 @@ import {
   buildLibrary,
   createFakeClock,
   createFakeExerciseTypes,
+  createFakeExtensionRegistry,
   createMemoryCourseSource,
   createSeededRng,
   createTestIds,
@@ -48,6 +53,14 @@ library.exercises.push(
   }),
 );
 const E1 = 'c::l1::e0';
+const REGISTERED: ExtensionInfoDto = {
+  id: 'lms.sql',
+  version: '1.0.0',
+  origin: 'bundled',
+  state: 'loaded',
+  exerciseTypes: ['lms.sql'],
+  message: null,
+};
 
 /** Вид задания, всегда отвечающий `passed`: проверяет путь вердикта через RPC. */
 const passingTypes = () =>
@@ -71,6 +84,7 @@ const start = async () => {
       settings: createMemorySettingsStore(),
       memoryModel: createTsFsrsMemoryModel(),
       exerciseTypes: passingTypes(),
+      extensionRegistry: createFakeExtensionRegistry([REGISTERED]),
     },
     { libraryRoot: source.root, dataDir: '/tmp/rpc-integration' },
   );
@@ -407,6 +421,9 @@ describe('rpc → dispatcher → real engine', () => {
         expect(error).toMatchObject({ code: 'SYNC_FOLDER_NOT_CONFIGURED' });
       }),
     );
+    expect(
+      await call('extensions.list', () => client.extensions.list()),
+    ).toEqual([REGISTERED]);
     await call('diagnostics', () => client.diagnostics());
 
     expect([...called].sort()).toEqual(Object.keys(RPC_METHODS).sort());

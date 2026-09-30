@@ -31,6 +31,7 @@ import type {
   SettingsStore,
 } from '../ports/index.ts';
 import type { ExerciseTypes } from '../ports/exercise-types.ts';
+import type { ExtensionRegistry } from '../ports/extension-registry.ts';
 import type { FsrsScorer } from '../scoring/fsrs-scorer.ts';
 import type {
   AttemptSource,
@@ -83,6 +84,8 @@ export interface EngineDeps {
   memoryModel: MemoryModel;
   /** Виды заданий из расширений (`@lms/extension-host`). */
   exerciseTypes: ExerciseTypes;
+  /** Обзор расширений для `extensions.list`. */
+  extensionRegistry: ExtensionRegistry;
   /** Нет порта — `sync.folder.*` отвечает `SYNC_FOLDER_NOT_CONFIGURED`. */
   folderSync?: FolderSyncPort;
   /** Чтение каталога `.trane` (`readTraneDirectory` из `@lms/engine-sqlite`); нет — `importFromTrane` отказывает. */
@@ -273,6 +276,7 @@ export interface EngineContext extends FacadeContext {
   readonly settings: SettingsStore;
   readonly memoryModel: MemoryModel;
   readonly exerciseTypes: ExerciseTypes;
+  readonly extensionRegistry: ExtensionRegistry;
   readonly folderSync: FolderSyncPort | null;
   readonly openTraneSource: EngineDeps['openTraneSource'];
   /** `current()` / `require()` / `swap()` — атомарная подмена. */

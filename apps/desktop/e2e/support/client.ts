@@ -16,6 +16,9 @@ const RU = {
   sessionFinished: 'Сессия завершена',
   sessionEmpty: 'Сегодня нечего проходить',
   planEmpty: 'План на сегодня пуст',
+  navSettings: 'Настройки',
+  settingsExtensions: 'Расширения',
+  extensionList: 'Установленные расширения',
   verdictPassed: 'Верно',
   verdictFailed: 'Пока неверно',
   grades: {
@@ -271,6 +274,11 @@ export class Client {
     if ('sql' in reply) {
       await this.page.locator('lms-sql-answer textarea').fill(reply.sql);
     } else if ('choose' in reply) {
+      // после неверной попытки флажки остаются отмеченными: начинаем с чистого выбора
+      const marked = this.page.locator(
+        'lms-choice-answer input[type=checkbox]:checked',
+      );
+      while ((await marked.count()) > 0) await marked.first().uncheck();
       for (const option of reply.choose) {
         await this.page
           .locator('lms-choice-answer')
@@ -309,5 +317,31 @@ export class Client {
 
   async sessionIsEmpty(): Promise<boolean> {
     return this.page.getByText(RU.sessionEmpty, { exact: true }).isVisible();
+  }
+
+  /** «Настройки» → «Расширения»: ждёт список установленных расширений. */
+  async openSettingsExtensions() {
+    await this.page
+      .getByRole('link', { name: RU.navSettings, exact: true })
+      .click();
+    await this.page
+      .getByRole('tab', { name: RU.settingsExtensions, exact: true })
+      .click();
+    await this.extensionList().waitFor({ timeout: TIMEOUT });
+  }
+
+  private extensionList(): Locator {
+    return this.page.getByRole('list', { name: RU.extensionList, exact: true });
+  }
+
+  /** Тексты строк расширения `id` из списка «Расширения» (id может повторяться). */
+  async readExtensions(id: string): Promise<string[]> {
+    const rows = this.extensionList()
+      .getByRole('listitem')
+      .filter({
+        has: this.page.getByRole('heading', { name: id, exact: true }),
+      });
+    await rows.first().waitFor({ timeout: TIMEOUT });
+    return rows.allInnerTexts();
   }
 }

@@ -1,10 +1,11 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
+import { DEFAULT_MAIN, DEFAULT_RENDERER } from '@lms/extension-api';
 import type { ExtensionLogger, JsonSchema } from '@lms/extension-api';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import { parseManifest } from './manifest.ts';
 
-export type ExtensionOrigin = 'bundled' | 'user';
+export type ExtensionOrigin = 'bundled' | 'user' | 'dev';
 
 export interface ExtensionRoot {
   dir: string;
@@ -30,11 +31,25 @@ export interface ResolvedExtension {
 
 export interface DiscoveryDiagnostic {
   extensionId: string;
+  origin: ExtensionOrigin;
   message: string;
 }
 
+export interface OverriddenExtension {
+  id: string;
+  version: string;
+  origin: ExtensionOrigin;
+  by: { origin: ExtensionOrigin; version: string };
+}
+
+export interface DiscoveryResult {
+  extensions: ResolvedExtension[];
+  diagnostics: DiscoveryDiagnostic[];
+  overridden: OverriddenExtension[];
+}
+
 export interface DiscoverOptions {
-  /** Порядок значим: bundled раньше user. */
+  /** Порядок значим: более поздний корень побеждает при совпадении id. */
   roots: readonly ExtensionRoot[];
   logger: ExtensionLogger;
   /** false — не проверять существование `main` и `renderer` (тесты исходных манифестов). */
@@ -63,44 +78,75 @@ const rendererUrlOf = (id: string, renderer: string): string =>
     .map(encodeURIComponent)
     .join('/')}`;
 
-const readSchema = async (
+const deepFreeze = <T>(value: T): T => {
+  if (typeof value === 'object' && value !== null) {
+    for (const child of Object.values(value)) deepFreeze(child);
+    Object.freeze(value);
+  }
+  return value;
+};
+
+const compileSchema = (ajv: Ajv2020, schema: JsonSchema, label: string) => {
+  try {
+    ajv.compile(schema);
+  } catch (error) {
+    throw new Error(
+      `schema ${label} does not compile: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+};
+
+/** Схема объектом (копия, заморожена) или файлом внутри каталога расширения. */
+const resolveSchema = async (
   ajv: Ajv2020,
   dir: string,
-  relative: string,
+  source: string | JsonSchema,
+  label: string,
 ): Promise<JsonSchema> => {
-  const file = inside(dir, relative);
+  if (typeof source !== 'string') {
+    const schema = deepFreeze(structuredClone(source));
+    compileSchema(ajv, schema, `${label} (inline)`);
+    return schema;
+  }
+  const file = inside(dir, source);
   let parsed: unknown;
   try {
     parsed = JSON.parse(await readFile(file, 'utf8'));
   } catch (error) {
     throw new Error(
-      `schema '${relative}' is unreadable: ${error instanceof Error ? error.message : String(error)}`,
+      `schema '${source}' is unreadable: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    throw new Error(`schema '${relative}' is not an object`);
+    throw new Error(`schema '${source}' is not an object`);
   }
-  try {
-    ajv.compile(parsed);
-  } catch (error) {
-    throw new Error(
-      `schema '${relative}' does not compile: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
+  compileSchema(ajv, parsed as JsonSchema, `'${source}'`);
   return parsed as JsonSchema;
 };
 
-/** Полностью разбирает каталог расширения; ошибка — сообщение для диагностики. */
-const loadOne = async (
-  dir: string,
-  dirName: string,
-  origin: ExtensionOrigin,
-  verifyFiles: boolean,
-  ajv: Ajv2020,
-): Promise<
-  | { ok: true; extension: ResolvedExtension }
-  | { ok: false; id: string; message: string }
-> => {
+const defaultNote = (value: string, fallback: string): string =>
+  value === fallback ? ' (default)' : '';
+
+export interface InspectOptions {
+  /** false — не проверять существование `main` и `renderer`; по умолчанию true. */
+  verifyFiles?: boolean;
+  /** Ожидаемый `id` (имя каталога при обнаружении); `null`/не задан — не проверять. */
+  expectedId?: string | null;
+}
+
+export type InspectResult =
+  | { ok: true; extension: Omit<ResolvedExtension, 'origin'> }
+  | { ok: false; id: string; message: string };
+
+/** Полностью разбирает каталог одного расширения; ошибка — сообщение для диагностики. */
+export const inspectExtensionDir = async (
+  directory: string,
+  options: InspectOptions = {},
+): Promise<InspectResult> => {
+  const { verifyFiles = true, expectedId = null } = options;
+  const dir = path.resolve(directory);
+  const dirName = expectedId ?? path.basename(dir);
+  const ajv = new Ajv2020({ allErrors: true, strict: false });
   let raw: unknown;
   try {
     raw = JSON.parse(await readFile(path.join(dir, 'extension.json'), 'utf8'));
@@ -114,28 +160,42 @@ const loadOne = async (
   const parsed = parseManifest(raw);
   if (!parsed.ok) return { ok: false, id: dirName, message: parsed.message };
   const { manifest } = parsed;
-  if (manifest.id !== dirName) {
+  if (expectedId !== null && manifest.id !== expectedId) {
     return {
       ok: false,
-      id: manifest.id,
-      message: `directory name '${dirName}' does not match manifest id '${manifest.id}'`,
+      id: dirName,
+      message: `directory name '${expectedId}' does not match manifest id '${manifest.id}'`,
     };
   }
   try {
     const mainPath = inside(dir, manifest.main);
     if (verifyFiles && !(await isFile(mainPath))) {
-      throw new Error(`main '${manifest.main}' is not a file`);
+      throw new Error(
+        `main '${manifest.main}'${defaultNote(manifest.main, DEFAULT_MAIN)} is not a file`,
+      );
     }
     const exerciseTypes: ResolvedExerciseType[] = [];
     for (const contribution of manifest.contributes.exerciseTypes) {
       const renderer = inside(dir, contribution.renderer);
       if (verifyFiles && !(await isFile(renderer))) {
-        throw new Error(`renderer '${contribution.renderer}' is not a file`);
+        throw new Error(
+          `renderer '${contribution.renderer}'${defaultNote(contribution.renderer, DEFAULT_RENDERER)} is not a file`,
+        );
       }
       exerciseTypes.push({
         id: contribution.id,
-        specSchema: await readSchema(ajv, dir, contribution.specSchema),
-        answerSchema: await readSchema(ajv, dir, contribution.answerSchema),
+        specSchema: await resolveSchema(
+          ajv,
+          dir,
+          contribution.specSchema,
+          `specSchema of '${contribution.id}'`,
+        ),
+        answerSchema: await resolveSchema(
+          ajv,
+          dir,
+          contribution.answerSchema,
+          `answerSchema of '${contribution.id}'`,
+        ),
         element: contribution.element,
         rendererUrl: rendererUrlOf(manifest.id, contribution.renderer),
       });
@@ -145,7 +205,6 @@ const loadOne = async (
       extension: {
         id: manifest.id,
         version: manifest.version,
-        origin,
         dir,
         mainPath,
         exerciseTypes,
@@ -162,17 +221,18 @@ const loadOne = async (
 
 export const discoverExtensions = async (
   options: DiscoverOptions,
-): Promise<{
-  extensions: ResolvedExtension[];
-  diagnostics: DiscoveryDiagnostic[];
-}> => {
+): Promise<DiscoveryResult> => {
   const { logger, verifyFiles = true } = options;
   const diagnostics: DiscoveryDiagnostic[] = [];
-  const skip = (extensionId: string, message: string): void => {
-    diagnostics.push({ extensionId, message });
+  const overridden: OverriddenExtension[] = [];
+  const skip = (
+    extensionId: string,
+    origin: ExtensionOrigin,
+    message: string,
+  ): void => {
+    diagnostics.push({ extensionId, origin, message });
     logger.warn({ extensionId }, `extension skipped: ${message}`);
   };
-  const ajv = new Ajv2020({ allErrors: true, strict: false });
 
   // id расширения → выигравшее; порядок вставки = порядок первого появления
   const byId = new Map<string, ResolvedExtension>();
@@ -183,14 +243,26 @@ export const discoverExtensions = async (
       const dir = path.resolve(root.dir, name);
       if (!(await isDirectory(dir))) continue;
       if (!(await isFile(path.join(dir, 'extension.json')))) continue;
-      const loaded = await loadOne(dir, name, root.origin, verifyFiles, ajv);
+      const loaded = await inspectExtensionDir(dir, {
+        verifyFiles,
+        expectedId: name,
+      });
       if (!loaded.ok) {
-        skip(loaded.id, loaded.message);
+        skip(loaded.id, root.origin, loaded.message);
         continue;
       }
-      const { extension } = loaded;
+      const extension: ResolvedExtension = {
+        ...loaded.extension,
+        origin: root.origin,
+      };
       const previous = byId.get(extension.id);
       if (previous !== undefined) {
+        overridden.push({
+          id: previous.id,
+          version: previous.version,
+          origin: previous.origin,
+          by: { origin: extension.origin, version: extension.version },
+        });
         logger.info(
           { extensionId: extension.id },
           `extension '${extension.id}' from ${extension.origin} root overrides ${previous.origin} ${previous.version} → ${extension.version}`,
@@ -218,7 +290,7 @@ export const discoverExtensions = async (
       })
       .find((message) => message !== null);
     if (clash !== undefined && clash !== null) {
-      skip(extension.id, clash);
+      skip(extension.id, extension.origin, clash);
       continue;
     }
     for (const type of extension.exerciseTypes) {
@@ -227,5 +299,5 @@ export const discoverExtensions = async (
     }
     extensions.push(extension);
   }
-  return { extensions, diagnostics };
+  return { extensions, diagnostics, overridden };
 };

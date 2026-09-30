@@ -2,7 +2,14 @@ import { fork } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createSqlVerifier, isSafePath } from '@lms/engine-sql-runner';
-import type { ExtensionModule } from '@lms/extension-api';
+import { defineExerciseType, defineExtension } from '@lms/extension-sdk';
+import type { ExtensionContext } from '@lms/extension-sdk';
+
+interface SqlSpec {
+  reference?: unknown;
+}
+
+type SqlVerifier = ReturnType<typeof createSqlVerifier>;
 
 // в собранном каталоге рядом лежит `worker.mjs`; при запуске из исходников
 // (тесты) — `worker.ts`, который Node исполняет через type stripping
@@ -15,11 +22,43 @@ const resolveWorkerPath = (): string => {
     : fileURLToPath(new URL(/* @vite-ignore */ './worker.ts', import.meta.url));
 };
 
-let verifier: ReturnType<typeof createSqlVerifier> | undefined;
+// обработчики регистрируются до `activate`, раннер создаётся в нём
+const holder: {
+  verifier?: SqlVerifier;
+  library?: ExtensionContext['library'];
+} = {};
 
-const module: ExtensionModule = {
+const requireVerifier = (): SqlVerifier => {
+  if (holder.verifier === undefined) {
+    throw new Error('lms.sql extension is not activated');
+  }
+  return holder.verifier;
+};
+
+const readReference = async (reference: string) => {
+  if (!isSafePath(reference)) throw new Error('reference path is not safe');
+  const { library } = holder;
+  if (library === undefined) {
+    throw new Error('lms.sql extension is not activated');
+  }
+  return (await library.readText(reference)).trim();
+};
+
+export default defineExtension({
+  exerciseTypes: {
+    'lms.sql': defineExerciseType<SqlSpec, string, Record<string, never>>({
+      project: () => ({}),
+      grade: ({ spec, answer, timeoutMs, authorMode }) =>
+        requireVerifier().check({ spec, answer, timeoutMs, authorMode }),
+      referenceAnswer: ({ spec }) =>
+        typeof spec.reference === 'string'
+          ? readReference(spec.reference)
+          : undefined,
+    }),
+  },
   activate(context) {
-    const active = createSqlVerifier({
+    holder.library = context.library;
+    holder.verifier = createSqlVerifier({
       source: context.library,
       logger: context.logger,
       workerPath: resolveWorkerPath(),
@@ -31,26 +70,11 @@ const module: ExtensionModule = {
           env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
         }),
     });
-    verifier = active;
-    context.registerExerciseType('lms.sql', {
-      project: () => ({}),
-      grade: ({ spec, answer, timeoutMs, authorMode }) =>
-        active.check({ spec, answer, timeoutMs, authorMode }),
-      referenceAnswer: async ({ spec }) => {
-        const reference = (spec as { reference?: unknown }).reference;
-        if (typeof reference === 'string' && !isSafePath(reference)) {
-          throw new Error('reference path is not safe');
-        }
-        return typeof reference === 'string'
-          ? (await context.library.readText(reference)).trim()
-          : undefined;
-      },
-    });
   },
   async deactivate() {
+    const { verifier } = holder;
+    delete holder.verifier;
+    delete holder.library;
     await verifier?.close();
-    verifier = undefined;
   },
-};
-
-export default module;
+});

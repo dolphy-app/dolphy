@@ -39,16 +39,17 @@ export type JsonSchema = Record<string, unknown>;
 export interface ExerciseTypeContribution {
   /** Равен id расширения или начинается с `<id расширения>.`. */
   id: string;
-  /** Путь внутри каталога расширения к JSON Schema 2020-12 для `engine.exercise.spec` (`./schema/spec.json`). */
-  specSchema: string;
-  /** Путь к JSON Schema 2020-12 для ответа ученика (`submitAnswer.answer`). */
-  answerSchema: string;
+  /** JSON Schema 2020-12 для `engine.exercise.spec`: путь внутри каталога расширения (`./schema/spec.json`) или схема объектом. */
+  specSchema: string | JsonSchema;
+  /** JSON Schema 2020-12 для ответа ученика (`submitAnswer.answer`): путь или схема объектом. */
+  answerSchema: string | JsonSchema;
   /** Тег custom element'а (дефис обязателен), рисующего ввод ответа. */
   element: string;
   /** Путь к ES-модулю, определяющему элемент (`./view.mjs`). */
   renderer: string;
 }
 
+/** Нормализованный манифест: все умолчания применены. */
 export interface ExtensionManifest {
   id: string;
   /** semver */
@@ -58,6 +59,34 @@ export interface ExtensionManifest {
   main: string;
   contributes: { exerciseTypes: ExerciseTypeContribution[] };
 }
+
+/** Вид задания в `extension.json`, как его пишет автор. */
+export interface ExerciseTypeContributionInput {
+  id: string;
+  specSchema: string | JsonSchema;
+  answerSchema: string | JsonSchema;
+  /** По умолчанию `defaultElementName(id)`. */
+  element?: string;
+  /** По умолчанию `DEFAULT_RENDERER`. */
+  renderer?: string;
+}
+
+/** `extension.json`, как его пишет автор. */
+export interface ExtensionManifestInput {
+  id: string;
+  version: string;
+  apiVersion: typeof EXTENSION_API_VERSION;
+  /** По умолчанию `DEFAULT_MAIN`. */
+  main?: string;
+  contributes: { exerciseTypes: ExerciseTypeContributionInput[] };
+}
+
+export const DEFAULT_MAIN = './main.mjs';
+export const DEFAULT_RENDERER = './view.mjs';
+
+/** Тег элемента по умолчанию: `lms.sql` → `lms-sql-answer`. */
+export const defaultElementName = (id: string): string =>
+  `${id.replaceAll('.', '-')}-answer`;
 
 export type GradeResult =
   | { outcome: 'passed'; feedback?: string; data?: unknown }

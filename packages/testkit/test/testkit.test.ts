@@ -1,3 +1,4 @@
+import type { ExtensionInfoDto } from '@lms/engine-contract';
 import { describe, expect, it } from 'vitest';
 import {
   buildAttempt,
@@ -6,6 +7,7 @@ import {
   buildUnitFlag,
   createFakeClock,
   createFakeExerciseTypes,
+  createFakeExtensionRegistry,
   createJournalBuilder,
   createMemoryCourseSource,
   createSeededRng,
@@ -272,5 +274,20 @@ describe('createFakeExerciseTypes', () => {
     ).toEqual({ found: false });
     await types.close();
     expect(types.closed).toBe(true);
+  });
+});
+
+describe('createFakeExtensionRegistry', () => {
+  it('is empty by default and returns the given items', () => {
+    expect(createFakeExtensionRegistry().list()).toEqual([]);
+    const item: ExtensionInfoDto = {
+      id: 'a.b',
+      version: null,
+      origin: 'user',
+      state: 'invalid',
+      exerciseTypes: [],
+      message: 'broken',
+    };
+    expect(createFakeExtensionRegistry([{ ...item }]).list()).toEqual([item]);
   });
 });

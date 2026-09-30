@@ -77,6 +77,8 @@ export const createExtensionAssetsShell = ({
         headers: {
           'Content-Type': 'text/javascript',
           'Access-Control-Allow-Origin': '*',
+          // после перезагрузки в режиме разработчика окно обязано увидеть свежий код
+          'Cache-Control': 'no-cache',
         },
       });
     } catch (error) {

@@ -47,10 +47,23 @@ const extensions = (target: string): Plugin => ({
         stdio: 'inherit',
       });
       const built = path.join(dir, 'dist-ext');
+      const ids = fs
+        .readdirSync(built, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => entry.name);
+      if (ids.length !== 1) {
+        throw new Error(`${pkg.name}: dist-ext must contain one extension`);
+      }
+      const [id] = ids;
       const manifest = JSON.parse(
-        fs.readFileSync(path.join(built, 'extension.json'), 'utf8'),
+        fs.readFileSync(path.join(built, id, 'extension.json'), 'utf8'),
       ) as { id: string };
-      fs.cpSync(built, path.join(target, manifest.id), { recursive: true });
+      if (manifest.id !== id) {
+        throw new Error(`${pkg.name}: manifest id '${manifest.id}' != '${id}'`);
+      }
+      fs.cpSync(path.join(built, id), path.join(target, id), {
+        recursive: true,
+      });
     }
   },
 });

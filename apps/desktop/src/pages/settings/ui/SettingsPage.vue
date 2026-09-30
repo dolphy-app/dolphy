@@ -26,6 +26,11 @@ const SECTIONS: SectionLink[] = [
     icon: 'mdi-palette-outline',
   },
   {
+    name: ROUTE.settingsExtensions,
+    title: 'settings.page.nav.extensions',
+    icon: 'mdi-puzzle-outline',
+  },
+  {
     name: ROUTE.settingsAbout,
     title: 'settings.page.nav.about',
     icon: 'mdi-information-outline',

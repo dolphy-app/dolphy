@@ -25,11 +25,12 @@ import type {
   CatalogVersion,
 } from '@spirula-app/extension-catalog';
 import { buildExtension } from '../index.ts';
-import { BuildError } from '../errors.ts';
+import { BuildError, CatalogUsageError } from '../errors.ts';
 import { loadIndexFile } from './check.ts';
 import {
   INDEX_FILE,
   assembleIndex,
+  hasSameContent,
   newestFirst,
   sameFiles,
   writeIndexAtomically,
@@ -330,9 +331,65 @@ export const buildCatalog = async (
       if (item.shouldWrite) await writeVersion(item, out);
     }
     await mkdir(out, { recursive: true });
-    await writeIndexAtomically(path.join(out, INDEX_FILE), index);
+    const indexFile = path.join(out, INDEX_FILE);
+    if (!hasSameContent(await loadIndexFile(indexFile), index)) {
+      await writeIndexAtomically(indexFile, index);
+    }
     return plans.map(resultOf);
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
+};
+
+export interface ReindexOptions {
+  out: string;
+  previousIndex?: string;
+  revoked?: string;
+  /** Значение `generatedAt`; по умолчанию сейчас. */
+  publishedAt?: string;
+  now?: () => Date;
+}
+
+export interface ReindexResult {
+  extensions: number;
+  revoked: number;
+  changed: boolean;
+}
+
+export const formatReindexResult = (result: ReindexResult): string =>
+  `reindexed (${result.extensions} extensions, ${result.revoked} revoked)${result.changed ? '' : ' — no changes'}`;
+
+/** Перезаписывает `revoked` и `generatedAt` существующего индекса; записи расширений не меняются. */
+export const reindexCatalog = async (
+  options: ReindexOptions,
+): Promise<ReindexResult> => {
+  const out = path.resolve(options.out);
+  const source = path.resolve(
+    options.previousIndex ?? path.join(out, INDEX_FILE),
+  );
+  const previous = await loadIndexFile(source);
+  if (previous === null) {
+    throw new CatalogUsageError(
+      `nothing to reindex: ${source} does not exist`,
+      source,
+    );
+  }
+  const index = assembleIndex({
+    generatedAt:
+      options.publishedAt ??
+      (options.now ?? (() => new Date()))().toISOString(),
+    extensions: previous.extensions,
+    revoked: await loadRevoked(options.revoked, previous),
+  });
+  const indexFile = path.join(out, INDEX_FILE);
+  const changed = !hasSameContent(await loadIndexFile(indexFile), index);
+  if (changed) {
+    await mkdir(out, { recursive: true });
+    await writeIndexAtomically(indexFile, index);
+  }
+  return {
+    extensions: index.extensions.length,
+    revoked: index.revoked.length,
+    changed,
+  };
 };

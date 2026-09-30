@@ -1,7 +1,12 @@
 import path from 'node:path';
 import { isSemver } from '@spirula-app/extension-catalog';
 import { BuildError, CatalogUsageError } from '../errors.ts';
-import { buildCatalog, formatPublishResult } from './build.ts';
+import {
+  buildCatalog,
+  formatPublishResult,
+  formatReindexResult,
+  reindexCatalog,
+} from './build.ts';
 import { checkCatalog, formatFinding, hasErrors, listRules } from './check.ts';
 
 export interface CatalogIo {
@@ -21,6 +26,9 @@ export const CATALOG_SYNOPSIS = `       spirula-ext catalog check <extensionsDir
        spirula-ext catalog build --src <extensionsDir> --ids a,b --out <siteDir>
                    [--previous-index <path>] [--revoked <path>]
                    [--source-base <url>] [--published-at <iso>]
+       spirula-ext catalog build --reindex --out <siteDir>
+                   [--previous-index <path>] [--revoked <path>]
+                   [--published-at <iso>]
 `;
 
 export const CATALOG_HELP = `  catalog check    проверить исходники расширений каталога; строки
@@ -29,6 +37,9 @@ export const CATALOG_HELP = `  catalog check    проверить исходн�
   catalog build    собрать версии в <siteDir>/extensions/<id>/<version>/ и
                    обновить <siteDir>/index.json (опубликованные версии
                    неизменны)
+  catalog build --reindex
+                   только заменить revoked и generatedAt в существующем
+                   <siteDir>/index.json (--src и --ids не нужны)
 
   --ids a,b              только эти расширения (check: по умолчанию все)
   --published-index <p>  index.json опубликованного каталога (нет файла —
@@ -42,7 +53,8 @@ export const CATALOG_HELP = `  catalog check    проверить исходн�
   --previous-index <p>   исходный индекс (по умолчанию <out>/index.json)
   --revoked <p>          JSON-массив {id, versions, reason}
   --source-base <url>    основа поля source записи индекса
-  --published-at <iso>   publishedAt новых версий (по умолчанию сейчас)
+  --published-at <iso>   publishedAt новых версий (по умолчанию сейчас);
+                         с --reindex — generatedAt
 `;
 
 type Flags = Record<string, string | true>;
@@ -61,7 +73,7 @@ const VALUE_FLAGS = {
 } as const;
 const SWITCHES = {
   check: ['--skip-github-check', '--list-rules'],
-  build: [],
+  build: ['--reindex'],
 } as const;
 
 export type CatalogParsed =
@@ -83,6 +95,13 @@ export type CatalogParsed =
       previousIndex: string | undefined;
       revoked: string | undefined;
       sourceBase: string | undefined;
+      publishedAt: string | undefined;
+    }
+  | {
+      command: 'reindex';
+      out: string;
+      previousIndex: string | undefined;
+      revoked: string | undefined;
       publishedAt: string | undefined;
     };
 
@@ -151,6 +170,24 @@ const parseCheck = (args: readonly string[]): CatalogParsed => {
   };
 };
 
+const REINDEX_FORBIDDEN = ['--src', '--ids', '--source-base'];
+
+const parseReindex = (flags: Flags): CatalogParsed => {
+  const forbidden = REINDEX_FORBIDDEN.find((name) => name in flags);
+  if (forbidden !== undefined) {
+    return { usageError: `catalog build --reindex: ${forbidden} не нужен` };
+  }
+  const out = text(flags, '--out');
+  if (out === undefined) return { usageError: 'catalog build: нужен --out' };
+  return {
+    command: 'reindex',
+    out,
+    previousIndex: text(flags, '--previous-index'),
+    revoked: text(flags, '--revoked'),
+    publishedAt: text(flags, '--published-at'),
+  };
+};
+
 const parseBuild = (args: readonly string[]): CatalogParsed => {
   const read = readFlags('build', args);
   if (typeof read === 'string') return { usageError: read };
@@ -158,6 +195,7 @@ const parseBuild = (args: readonly string[]): CatalogParsed => {
   if (positional.length > 0) {
     return { usageError: `лишние аргументы: ${positional.join(' ')}` };
   }
+  if (flags['--reindex'] === true) return parseReindex(flags);
   const src = text(flags, '--src');
   const out = text(flags, '--out');
   const ids = idsOf(flags);
@@ -216,6 +254,26 @@ const runCheck = async (
   return hasErrors(findings) ? 1 : 0;
 };
 
+const runReindex = async (
+  parsed: Extract<CatalogParsed, { command: 'reindex' }>,
+  io: CatalogIo,
+  deps: CatalogDeps,
+): Promise<number> => {
+  const result = await reindexCatalog({
+    out: parsed.out,
+    ...(parsed.previousIndex === undefined
+      ? {}
+      : { previousIndex: parsed.previousIndex }),
+    ...(parsed.revoked === undefined ? {} : { revoked: parsed.revoked }),
+    ...(parsed.publishedAt === undefined
+      ? {}
+      : { publishedAt: parsed.publishedAt }),
+    ...(deps.now === undefined ? {} : { now: deps.now }),
+  });
+  io.stdout(`${formatReindexResult(result)}\n`);
+  return 0;
+};
+
 const runBuild = async (
   parsed: Extract<CatalogParsed, { command: 'build' }>,
   io: CatalogIo,
@@ -248,9 +306,9 @@ export const runCatalog = async (
   deps: CatalogDeps = {},
 ): Promise<number> => {
   try {
-    return parsed.command === 'check'
-      ? await runCheck(parsed, io, deps)
-      : await runBuild(parsed, io, deps);
+    if (parsed.command === 'check') return await runCheck(parsed, io, deps);
+    if (parsed.command === 'reindex') return await runReindex(parsed, io, deps);
+    return await runBuild(parsed, io, deps);
   } catch (error) {
     if (!(error instanceof BuildError)) throw error;
     io.stderr(`error ${error.subject}: ${error.message}\n`);

@@ -218,3 +218,184 @@ describe('spirula-ext catalog build', () => {
     expect(index.revoked).toHaveLength(1);
   });
 });
+
+describe('spirula-ext catalog build --reindex', () => {
+  const setup = async () => {
+    const repo = await createRepo([{ fixture: 'theme-only' }]);
+    const out = await makeTemp();
+    await exec([
+      'catalog',
+      'build',
+      '--src',
+      repo.extensionsDir,
+      '--ids',
+      'acme.night',
+      '--out',
+      out,
+    ]);
+    const indexFile = path.join(out, 'index.json');
+    const revokedFile = path.join(out, 'revoked.json');
+    return { out, indexFile, revokedFile };
+  };
+  const readIndex = async (file: string) =>
+    JSON.parse(await readFile(file, 'utf8'));
+
+  it('добавляет отзыв, сохраняя записи расширений, и обновляет generatedAt', async () => {
+    const { out, indexFile, revokedFile } = await setup();
+    const before = await readIndex(indexFile);
+    await writeFile(
+      revokedFile,
+      JSON.stringify([
+        { id: 'acme.night', versions: '<=1.0.0', reason: 'bad' },
+      ]),
+    );
+    const now = new Date('2030-01-02T03:04:05.000Z');
+    const result = await exec(
+      ['catalog', 'build', '--reindex', '--out', out, '--revoked', revokedFile],
+      { now: () => now },
+    );
+    expect(result).toEqual({
+      code: 0,
+      stdout: 'reindexed (1 extensions, 1 revoked)\n',
+      stderr: '',
+    });
+    const after = await readIndex(indexFile);
+    expect(after.extensions).toEqual(before.extensions);
+    expect(after.revoked).toEqual([
+      { id: 'acme.night', versions: '<=1.0.0', reason: 'bad' },
+    ]);
+    expect(after.generatedAt).toBe(now.toISOString());
+  });
+
+  it('без --revoked список сохраняется, пустой массив его очищает', async () => {
+    const { out, indexFile, revokedFile } = await setup();
+    await writeFile(
+      revokedFile,
+      JSON.stringify([{ id: 'acme.night', versions: '<1.0.0', reason: 'old' }]),
+    );
+    const base = ['catalog', 'build', '--reindex', '--out', out];
+    await exec([...base, '--revoked', revokedFile]);
+    expect((await exec(base)).stdout).toBe(
+      'reindexed (1 extensions, 1 revoked) — no changes\n',
+    );
+    expect((await readIndex(indexFile)).revoked).toHaveLength(1);
+    await writeFile(revokedFile, '[]');
+    expect((await exec([...base, '--revoked', revokedFile])).stdout).toBe(
+      'reindexed (1 extensions, 0 revoked)\n',
+    );
+    expect((await readIndex(indexFile)).revoked).toEqual([]);
+  });
+
+  it('--previous-index берёт исходный индекс из другого файла', async () => {
+    const { indexFile } = await setup();
+    const target = await makeTemp();
+    const result = await exec([
+      'catalog',
+      'build',
+      '--reindex',
+      '--out',
+      target,
+      '--previous-index',
+      indexFile,
+    ]);
+    expect(result.code).toBe(0);
+    expect(
+      (await readIndex(path.join(target, 'index.json'))).extensions,
+    ).toHaveLength(1);
+  });
+
+  it('нет индекса — ошибка использования', async () => {
+    const result = await exec([
+      'catalog',
+      'build',
+      '--reindex',
+      '--out',
+      await makeTemp(),
+    ]);
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain('nothing to reindex');
+  });
+
+  it('неверный диапазон в --revoked: код 1, индекс не тронут', async () => {
+    const { out, indexFile, revokedFile } = await setup();
+    const before = await readFile(indexFile, 'utf8');
+    await writeFile(
+      revokedFile,
+      JSON.stringify([{ id: 'acme.night', versions: 'nonsense', reason: 'x' }]),
+    );
+    const result = await exec([
+      'catalog',
+      'build',
+      '--reindex',
+      '--out',
+      out,
+      '--revoked',
+      revokedFile,
+    ]);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('resulting index is invalid');
+    expect(await readFile(indexFile, 'utf8')).toBe(before);
+  });
+
+  it('--src, --ids и --source-base вместе с --reindex, а также отсутствие --out — ошибки использования', async () => {
+    for (const extra of [
+      ['--ids', 'a'],
+      ['--src', 'x'],
+      ['--source-base', 'https://example.org'],
+    ]) {
+      const result = await exec([
+        'catalog',
+        'build',
+        '--reindex',
+        '--out',
+        'o',
+        ...extra,
+      ]);
+      expect(result.code, extra.join(' ')).toBe(2);
+    }
+    expect((await exec(['catalog', 'build', '--reindex'])).code).toBe(2);
+  });
+
+  it('тот же список отзыва — файл не переписывается', async () => {
+    const { out, indexFile, revokedFile } = await setup();
+    await writeFile(
+      revokedFile,
+      JSON.stringify([{ id: 'acme.night', versions: '<1.0.0', reason: 'old' }]),
+    );
+    const args = ['catalog', 'build', '--reindex', '--out', out];
+    await exec([...args, '--revoked', revokedFile]);
+    const before = await readFile(indexFile, 'utf8');
+    const result = await exec([...args, '--revoked', revokedFile], {
+      now: () => new Date('2040-01-01T00:00:00.000Z'),
+    });
+    expect(result.stdout).toBe(
+      'reindexed (1 extensions, 1 revoked) — no changes\n',
+    );
+    expect(await readFile(indexFile, 'utf8')).toBe(before);
+  });
+});
+
+describe('catalog build: повторный запуск без изменений', () => {
+  it('все расширения unchanged и отзыв тот же — index.json остаётся прежним', async () => {
+    const repo = await createRepo([{ fixture: 'theme-only' }]);
+    const out = await makeTemp();
+    const args = [
+      'catalog',
+      'build',
+      '--src',
+      repo.extensionsDir,
+      '--ids',
+      'acme.night',
+      '--out',
+      out,
+    ];
+    await exec(args);
+    const indexFile = path.join(out, 'index.json');
+    const before = await readFile(indexFile, 'utf8');
+    const again = await exec(args, {
+      now: () => new Date('2040-01-01T00:00:00.000Z'),
+    });
+    expect(again.stdout).toBe('unchanged acme.night@1.0.0\n');
+    expect(await readFile(indexFile, 'utf8')).toBe(before);
+  });
+});

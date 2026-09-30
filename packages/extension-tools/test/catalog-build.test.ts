@@ -168,7 +168,7 @@ describe('catalog build: неизменность версий', () => {
     expect(again[0]?.status).toBe('unchanged');
     const after = await indexOf(out);
     expect(after.extensions).toEqual(before.extensions);
-    expect(after.generatedAt).toBe('2026-11-01T00:00:00.000Z');
+    expect(after.generatedAt).toBe(before.generatedAt);
   });
 
   it('другое содержимое той же версии — ошибка, диск и индекс не тронуты', async () => {

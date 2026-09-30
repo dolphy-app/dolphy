@@ -102,3 +102,18 @@ export const writeIndexAtomically = async (
   await writeFile(temporary, `${JSON.stringify(index, null, 2)}\n`);
   await rename(temporary, file);
 };
+
+const contentOf = (index: CatalogIndex): string => {
+  const { extensions, revoked } = assembleIndex({
+    generatedAt: index.generatedAt,
+    extensions: index.extensions,
+    revoked: index.revoked,
+  });
+  return JSON.stringify({ extensions, revoked });
+};
+
+/** Совпадают ли записи и список отзыва (без `generatedAt`). */
+export const hasSameContent = (
+  current: CatalogIndex | null,
+  next: CatalogIndex,
+): boolean => current !== null && contentOf(current) === contentOf(next);

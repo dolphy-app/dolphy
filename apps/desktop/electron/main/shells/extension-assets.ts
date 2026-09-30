@@ -18,6 +18,7 @@ export interface ExtensionAssetsDeps {
           standard: boolean;
           secure: boolean;
           supportFetchAPI: boolean;
+          corsEnabled: boolean;
         };
       }[],
     ): void;
@@ -72,7 +73,11 @@ export const createExtensionAssetsShell = ({
       const upstream = await net.fetch(pathToFileURL(file).href);
       return new Response(upstream.body, {
         status: upstream.status,
-        headers: { 'Content-Type': 'text/javascript' },
+        // renderer грузится с file:// (origin null): модульный import() идёт в режиме CORS
+        headers: {
+          'Content-Type': 'text/javascript',
+          'Access-Control-Allow-Origin': '*',
+        },
       });
     } catch (error) {
       logger.warn({ error, file }, 'extension asset was not read');
@@ -85,7 +90,12 @@ export const createExtensionAssetsShell = ({
       protocol.registerSchemesAsPrivileged([
         {
           scheme: EXTENSION_SCHEME,
-          privileges: { standard: true, secure: true, supportFetchAPI: true },
+          privileges: {
+            standard: true,
+            secure: true,
+            supportFetchAPI: true,
+            corsEnabled: true,
+          },
         },
       ]);
       void app

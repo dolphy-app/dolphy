@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref, shallowRef, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import type { AnswerChangeDetail } from '@lms/extension-api';
@@ -41,7 +41,8 @@ const {
 void session.start();
 
 const NO_ANSWER: AnswerChangeDetail = { value: undefined, complete: false };
-const answer = ref<AnswerChangeDetail>(NO_ANSWER);
+// shallowRef: ответ уходит в RPC (structured clone), реактивный Proxy не клонируется
+const answer = shallowRef<AnswerChangeDetail>(NO_ANSWER);
 const paused = ref(false);
 
 watch(current, () => {

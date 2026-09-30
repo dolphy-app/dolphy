@@ -52,7 +52,12 @@ describe('extension assets shell', () => {
     expect(privileged()).toEqual([
       {
         scheme: 'lms-ext',
-        privileges: { standard: true, secure: true, supportFetchAPI: true },
+        privileges: {
+          standard: true,
+          secure: true,
+          supportFetchAPI: true,
+          corsEnabled: true,
+        },
       },
     ]);
   });
@@ -63,6 +68,7 @@ describe('extension assets shell', () => {
     const response = await request('lms-ext://lms.sql/view.mjs');
     expect(response.status).toBe(200);
     expect(response.headers.get('Content-Type')).toBe('text/javascript');
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
     expect(fetched).toHaveLength(1);
     expect(fetched[0]).toContain('/bundled-ext/lms.sql/view.mjs');
   });

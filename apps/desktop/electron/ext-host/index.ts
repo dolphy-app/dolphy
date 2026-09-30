@@ -14,6 +14,7 @@ type ExtHostMessage =
       libraryRoot: string;
       bundledExtensionsDir?: string;
       userExtensionsDir?: string;
+      devExtensionsDir?: string;
     }
   | { type: 'connect' }
   | { type: 'shutdown' };

@@ -934,6 +934,8 @@ export interface EngineConfig {
   bundledExtensionsDir?: string;
   /** Каталог пользовательских расширений; побеждает при совпадении id. Оба каталога не заданы — вид заданий недоступен. */
   userExtensionsDir?: string;
+  /** Каталог разработчика расширений (`LMS_DEV_EXTENSIONS`): корень с наивысшим приоритетом, побеждает пользовательский и поставляемый при совпадении id. */
+  devExtensionsDir?: string;
 }
 
 export interface EngineDiagnosticsDto {

@@ -9,12 +9,13 @@ import {
   shell,
   utilityProcess,
 } from 'electron';
-import { existsSync } from 'node:fs';
+import { existsSync, watch } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { createExtSupervisor, isTypedMessage } from './ext-supervisor.ts';
 import { createHostLink } from './host-link.ts';
 import { createMainLogger } from './logger.ts';
+import { createDevExtensionsShell } from './shells/dev-extensions.ts';
 import { createEngineShell } from './shells/engine.ts';
 import { createExtensionAssetsShell } from './shells/extension-assets.ts';
 import { createLifecycleShell } from './shells/lifecycle.ts';
@@ -54,6 +55,10 @@ const bundledExtensionsDir = app.isPackaged
   ? path.join(process.resourcesPath, 'extensions')
   : path.join(APP_ROOT, 'extensions');
 const userExtensionsDir = path.join(userData, 'extensions');
+// режим разработчика: каталог с приоритетом выше пользовательского, под наблюдением
+const devExtensionsDir = process.env.LMS_DEV_EXTENSIONS
+  ? path.resolve(process.env.LMS_DEV_EXTENSIONS)
+  : undefined;
 
 const hostLink = createHostLink({ MessageChannelMain });
 const extSupervisor = createExtSupervisor({
@@ -64,6 +69,7 @@ const extSupervisor = createExtSupervisor({
     libraryRoot,
     bundledExtensionsDir,
     userExtensionsDir,
+    ...(devExtensionsDir ? { devExtensionsDir } : {}),
   },
   logger,
   onHostReady: (host) => hostLink.setExtHost(host),
@@ -78,6 +84,7 @@ const supervisor = createSupervisor({
     dataDir: path.join(userData, 'data'),
     bundledExtensionsDir,
     userExtensionsDir,
+    ...(devExtensionsDir ? { devExtensionsDir } : {}),
   },
   logger,
   onFatal: () => {
@@ -119,10 +126,40 @@ const shells = [
     app,
     protocol,
     net,
-    roots: [userExtensionsDir, bundledExtensionsDir],
+    roots: [
+      ...(devExtensionsDir ? [devExtensionsDir] : []),
+      userExtensionsDir,
+      bundledExtensionsDir,
+    ],
     exists: existsSync,
     logger,
   }),
+  ...(devExtensionsDir
+    ? [
+        createDevExtensionsShell({
+          app,
+          dir: devExtensionsDir,
+          watch: (dir, listener) => {
+            const watcher = watch(dir, { recursive: true }, (_event, name) =>
+              listener(name),
+            );
+            watcher.on('error', (error) => {
+              logger.warn({ error, dir }, 'dev extensions watcher failed');
+            });
+            return watcher;
+          },
+          timers: { setTimeout, clearTimeout },
+          restartHosts: () => {
+            extSupervisor.restart();
+            supervisor.restart();
+          },
+          windows: () =>
+            BrowserWindow.getAllWindows().map((win) => win.webContents),
+          exists: existsSync,
+          logger,
+        }),
+      ]
+    : []),
   ...(smoke
     ? [
         createSmokeShell({

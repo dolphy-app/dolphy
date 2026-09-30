@@ -64,6 +64,12 @@ export interface Supervisor {
   stop(): Promise<void>;
   /** Убить хост без остановки супервизора (перезапуск сработает как при крэше). */
   kill(): boolean;
+  /**
+   * Перезапустить хост сразу, без backoff и не считая перезапуск падением
+   * (счётчики не меняются, `onFatal` не вызывается). Хоста нет — запустить;
+   * во время остановки игнорируется.
+   */
+  restart(): void;
 }
 
 const isReadyMessage = (message: unknown): boolean =>
@@ -81,6 +87,7 @@ export const createSupervisor = (options: SupervisorOptions): Supervisor => {
   let ready = false;
   let stopping = false;
   let restartTimer: NodeJS.Timeout | null = null;
+  let restarting: HostProcessLike | null = null;
   let crashTimes: number[] = [];
   const windows = new Set<WebContentsLike>();
 
@@ -100,6 +107,12 @@ export const createSupervisor = (options: SupervisorOptions): Supervisor => {
     child = null;
     options.onHostExit?.();
     if (stopping) return;
+    if (restarting === self) {
+      restarting = null;
+      logger.info({ code }, 'engine host restarted on request');
+      start();
+      return;
+    }
     const now = Date.now();
     crashTimes = [...crashTimes.filter((at) => now - at < WINDOW_MS), now];
     logger.error({ code, crashes: crashTimes.length }, 'engine host exited');
@@ -171,5 +184,19 @@ export const createSupervisor = (options: SupervisorOptions): Supervisor => {
 
   const kill = () => child?.kill() ?? false;
 
-  return { start, connect, stop, kill };
+  const restart = () => {
+    if (stopping) return;
+    if (child) {
+      restarting = child;
+      child.kill();
+      return;
+    }
+    if (restartTimer) {
+      clearTimeout(restartTimer);
+      restartTimer = null;
+    }
+    start();
+  };
+
+  return { start, connect, stop, kill, restart };
 };

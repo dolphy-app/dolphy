@@ -5,6 +5,7 @@ import { graphMessages } from '@/pages/graph';
 import { placementMessages } from '@/pages/placement';
 import { sessionMessages } from '@/pages/session';
 import { settingsMessages } from '@/pages/settings';
+import { repositoryMessages } from '@/entities/repository';
 import { courseScopeMessages } from '@/features/course-scope';
 import { sharedMessages } from '@/shared/i18n';
 import { exercisePanelMessages } from '@/widgets/exercise-panel';
@@ -17,6 +18,7 @@ export const appMessages = {
     ...sharedMessages.ru,
     ...appRu,
     ...courseScopeMessages.ru,
+    ...repositoryMessages.ru,
     ...coursesMessages.ru,
     ...dailyPlanMessages.ru,
     ...exercisePanelMessages.ru,
@@ -29,6 +31,7 @@ export const appMessages = {
     ...sharedMessages.en,
     ...appEn,
     ...courseScopeMessages.en,
+    ...repositoryMessages.en,
     ...coursesMessages.en,
     ...dailyPlanMessages.en,
     ...exercisePanelMessages.en,
@@ -55,7 +58,15 @@ const fullDate: Intl.DateTimeFormatOptions = {
   year: 'numeric',
 };
 
+const shortDateTime: Intl.DateTimeFormatOptions = {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+};
+
 export const datetimeFormats = {
-  ru: { fullDate },
-  en: { fullDate },
+  ru: { fullDate, shortDateTime },
+  en: { fullDate, shortDateTime },
 };

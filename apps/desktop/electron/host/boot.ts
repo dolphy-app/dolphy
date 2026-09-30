@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { createEngine } from '@lms/engine/app';
 import { nodeDefaults } from '@lms/engine/node';
 import type { EngineConfig } from '@lms/engine-contract';
+import { createIsomorphicGitFetcher } from '@lms/engine-git';
 import { openSqliteStorage, readTraneDirectory } from '@lms/engine-sqlite';
 import {
   createCatalog,
@@ -23,9 +24,13 @@ export const boot = async (
   // первый запуск: каталогов ещё нет, библиотека может быть пустой
   mkdirSync(config.libraryRoot, { recursive: true });
   mkdirSync(config.dataDir, { recursive: true });
-  const defaults = nodeDefaults(config); // clock, rng, ids, logger, courseSource, memoryModel
-  // журнал событий и настройки — одна БД, одно соединение
-  const { events: eventStore, settings } = openSqliteStorage({
+  const defaults = nodeDefaults(config); // clock, rng, ids, logger, courseSource, snapshotInstaller, memoryModel
+  // журнал событий, настройки и реестр репозиториев — одна БД, одно соединение
+  const {
+    events: eventStore,
+    settings,
+    repositories: repositoryStore,
+  } = openSqliteStorage({
     path: join(config.dataDir, 'engine.db'),
     durability: config.durability ?? 'full',
   });
@@ -75,6 +80,8 @@ export const boot = async (
       ...defaults,
       settings,
       eventStore,
+      repositoryStore,
+      snapshotFetcher: createIsomorphicGitFetcher(),
       exerciseTypes,
       gradePolicies,
       extensionRegistry: createExtensionRegistry(discovery, policy),

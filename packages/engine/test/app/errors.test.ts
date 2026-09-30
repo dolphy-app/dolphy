@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { ERRORS, EngineError, createErrorMapper } from '../../src/app/index.ts';
 
 describe('EngineError', () => {
-  it('has all 21 codes of API §8 with the documented default retryable', () => {
-    expect(Object.keys(ERRORS)).toHaveLength(21);
+  it('has all 24 codes (API §8 and repositories) with the documented default retryable', () => {
+    expect(Object.keys(ERRORS)).toHaveLength(24);
     const retryable = Object.entries(ERRORS)
       .filter(([, spec]) => spec.retryable)
       .map(([code]) => code)
@@ -15,6 +15,21 @@ describe('EngineError', () => {
       'INTERNAL',
       'STORE_BUSY',
     ]);
+  });
+
+  it('GIT_FETCH_FAILED is retryable only for network, timeout and cancellation', () => {
+    const retryable = (reason: string) =>
+      new EngineError('GIT_FETCH_FAILED', { details: { reason } }).retryable;
+    expect(['network', 'timeout', 'cancelled'].map(retryable)).toEqual([
+      true,
+      true,
+      true,
+    ]);
+    expect(
+      ['not-found', 'auth-required', 'ref-not-found', 'too-large'].map(
+        retryable,
+      ),
+    ).toEqual([false, false, false, false]);
   });
 
   it('EXERCISE_TYPE_UNAVAILABLE is not retryable for an unknown type', () => {

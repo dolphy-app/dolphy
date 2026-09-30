@@ -30,6 +30,7 @@
     "@fontsource/roboto": "^5.2.10",
     "@lms/engine": "workspace:*",
     "@lms/engine-contract": "workspace:*",
+    "@lms/engine-git": "workspace:*",
     "@lms/engine-rpc": "workspace:*",
     "@lms/engine-sqlite": "workspace:*",
     "@lms/extension-api": "workspace:*",

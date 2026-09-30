@@ -18,6 +18,11 @@ export const RPC_METHODS = {
   'library.matchPrefix': { idempotent: true },
   'library.getGraph': { idempotent: true },
   'library.readAsset': { idempotent: true },
+  'repositories.list': { idempotent: true },
+  'repositories.add': { idempotent: false },
+  'repositories.update': { idempotent: true }, // по коммиту на сервере
+  'repositories.remove': { idempotent: true },
+  'repositories.cancel': { idempotent: true },
   'practice.startSession': { idempotent: false },
   'practice.getBatch': { idempotent: false }, // RNG и счётчик показов
   'practice.beginAttempt': { idempotent: false },

@@ -23,6 +23,8 @@ const describeEvent = (event: EngineEvent): string => {
       return `remediation ${event.exerciseId} ${event.steps}`;
     case 'settings-changed':
       return event.scope;
+    case 'repository-progress':
+      return `repository ${event.id} ${event.phase}`;
     default: {
       const unhandled: never = event;
       return unhandled;
@@ -58,6 +60,7 @@ test('T-20 EngineEvent: набор типов события зафиксиро�
     | 'sync-conflict'
     | 'remediation-triggered'
     | 'settings-changed'
+    | 'repository-progress'
   >();
   expectTypeOf(describeEvent).returns.toEqualTypeOf<string>();
 });

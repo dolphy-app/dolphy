@@ -43,6 +43,7 @@ const int = z.int();
 const bool = z.boolean();
 const epochMs = z.number().int().nonnegative();
 const requestId = z.string().min(1);
+const repositoryId = z.string().min(1).max(200);
 const grade = z.union([
   z.literal(1),
   z.literal(2),
@@ -277,6 +278,16 @@ export const schemas = {
   ]),
   'library.getGraph': z.tuple([optional(graphQuery)]),
   'library.readAsset': z.tuple([assetRef]),
+  'repositories.list': z.tuple([]),
+  'repositories.add': z.tuple([
+    z.strictObject({
+      url: str.min(1).max(2048),
+      ref: optional(str.min(1).max(255)),
+    }),
+  ]),
+  'repositories.update': z.tuple([repositoryId]),
+  'repositories.remove': z.tuple([repositoryId]),
+  'repositories.cancel': z.tuple([repositoryId]),
   'practice.startSession': z.tuple([]),
   'practice.getBatch': z.tuple([
     optional(z.strictObject({ filter: optional(exerciseFilter) })),

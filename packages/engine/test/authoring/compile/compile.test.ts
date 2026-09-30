@@ -236,7 +236,7 @@ describe('artifact', () => {
     expect(() => decodeArtifact(JSON.stringify(withoutGraph))).toThrow(
       ArtifactFormatError,
     );
-    expect(() => loadCompiled({ ...artifact, formatVersion: 2 })).toThrow(
+    expect(() => loadCompiled({ ...artifact, formatVersion: 3 })).toThrow(
       ArtifactFormatError,
     );
   });

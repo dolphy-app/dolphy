@@ -2,21 +2,19 @@
  * Попытка с проверкой: `beginAttempt` → `submitAnswer`* → `completeAttempt`
  * (T-10, T-41 в части движка, `GradePolicy` passAtN, лимиты реестра попыток).
  */
-import type { SubmissionDto, VerdictDto } from '@lms/engine-contract';
-import { MAX_SQL_CHARS } from '@lms/engine-contract';
-import { buildLibrary } from '@lms/testkit';
-import { describe, expect, it, vi } from 'vitest';
+import type { VerdictDto } from '@lms/engine-contract';
+import { MAX_ANSWER_CHARS } from '@lms/engine-contract';
+import { buildLibrary, createFakeExerciseTypes } from '@lms/testkit';
+import type { FakeExerciseTypes } from '@lms/testkit';
+import { describe, expect, it } from 'vitest';
 import type { LogEntry } from '../../src/domain/journal.ts';
-import type {
-  RawVerdict,
-  VerifyRequest,
-  Verifier,
-} from '../../src/ports/index.ts';
+import type { RawVerdict } from '../../src/ports/index.ts';
+import { ExerciseTypeError } from '../../src/ports/exercise-types.ts';
 import { createTestEngine } from '../helpers/engine.ts';
 import type { TestEngineOptions } from '../helpers/engine.ts';
 
 const VERIFIABLE = 'sql_json::aggregate::q1';
-const SUBMISSION: SubmissionDto = { kind: 'sql', sql: 'select 1' };
+const ANSWER = 'select 1';
 
 const PASSED: RawVerdict = { outcome: 'passed', durationMs: 3 };
 const FAILED: RawVerdict = {
@@ -30,38 +28,19 @@ const ERROR: RawVerdict = {
   durationMs: 2000,
 };
 
-interface FakeVerifier extends Verifier {
-  readonly requests: VerifyRequest[];
-  closed: boolean;
-}
-
-/** Раннер, отдающий вердикты по сценарию; каждый вызов сохраняется. */
-const createFakeVerifier = (
+/** Вид `lms.sql`, отдающий вердикты по сценарию; каждый вызов `grade` сохраняется. */
+const createFakeSqlTypes = (
   ...script: (RawVerdict | Promise<RawVerdict>)[]
-): FakeVerifier => {
-  const requests: VerifyRequest[] = [];
-  const queue = [...script];
-  const verifier: FakeVerifier = {
-    runner: 'sql',
-    requests,
-    closed: false,
-    check: async (request) => {
-      requests.push(request);
-      const next = queue.shift();
-      if (next === undefined) throw new Error('script is exhausted');
-      return next;
-    },
-    close: async () => {
-      verifier.closed = true;
-    },
-  };
-  return verifier;
-};
+): FakeExerciseTypes =>
+  createFakeExerciseTypes({ types: { 'lms.sql': { script } } });
 
-const setup = (verifier: Verifier | null, options: TestEngineOptions = {}) =>
+const setup = (
+  types: FakeExerciseTypes | null,
+  options: TestEngineOptions = {},
+) =>
   createTestEngine({
     library: 'sql-course',
-    verifiers: verifier === null ? [] : [verifier],
+    exerciseTypes: types ?? createFakeExerciseTypes(),
     ...options,
   });
 
@@ -73,14 +52,18 @@ const journalOf = async (readAll: () => AsyncIterable<LogEntry>) => {
 
 describe('beginAttempt', () => {
   it('reports verifiable exercises and returns the exercise DTO', async () => {
-    const t = await setup(createFakeVerifier());
+    const t = await setup(createFakeSqlTypes());
     const attempt = await t.engine.practice.beginAttempt({
       exerciseId: VERIFIABLE,
     });
     expect(attempt).toMatchObject({
       verifiable: true,
       startedAt: t.clock.now(),
-      exercise: { id: VERIFIABLE, verification: { runner: 'sql' } },
+      exercise: {
+        id: VERIFIABLE,
+        task: { type: 'lms.sql', element: 'fake-lms-sql' },
+      },
+      view: {},
     });
     expect(attempt.attemptId).toBeTruthy();
     await expect(
@@ -101,7 +84,7 @@ describe('beginAttempt', () => {
     await expect(
       t.engine.practice.submitAnswer({
         attemptId: attempt.attemptId,
-        submission: SUBMISSION,
+        answer: ANSWER,
       }),
     ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
     await expect(
@@ -121,7 +104,7 @@ describe('beginAttempt', () => {
   });
 
   it('keeps at most 100 open attempts: the oldest is evicted', async () => {
-    const t = await setup(createFakeVerifier());
+    const t = await setup(createFakeSqlTypes());
     const first = await t.engine.practice.beginAttempt({
       exerciseId: VERIFIABLE,
     });
@@ -137,7 +120,7 @@ describe('beginAttempt', () => {
   });
 
   it('forgets an attempt after 24 hours', async () => {
-    const t = await setup(createFakeVerifier());
+    const t = await setup(createFakeSqlTypes());
     const attempt = await t.engine.practice.beginAttempt({
       exerciseId: VERIFIABLE,
     });
@@ -145,7 +128,7 @@ describe('beginAttempt', () => {
     await expect(
       t.engine.practice.submitAnswer({
         attemptId: attempt.attemptId,
-        submission: SUBMISSION,
+        answer: ANSWER,
       }),
     ).rejects.toMatchObject({ code: 'ATTEMPT_NOT_FOUND' });
   });
@@ -156,7 +139,7 @@ describe('completeAttempt derives the grade from verdicts (passAtN)', () => {
     script: RawVerdict[],
     complete: { grade?: 1 | 2 | 3 | 4 | 5; outcome?: 'gave-up' } = {},
   ) => {
-    const verifier = createFakeVerifier(...script);
+    const verifier = createFakeSqlTypes(...script);
     const t = await setup(verifier);
     const { attemptId } = await t.engine.practice.beginAttempt({
       exerciseId: VERIFIABLE,
@@ -166,7 +149,7 @@ describe('completeAttempt derives the grade from verdicts (passAtN)', () => {
       verdicts.push(
         await t.engine.practice.submitAnswer({
           attemptId,
-          submission: SUBMISSION,
+          answer: ANSWER,
         }),
       );
     }
@@ -261,7 +244,7 @@ describe('completeAttempt derives the grade from verdicts (passAtN)', () => {
     await expect(
       run.t.engine.practice.submitAnswer({
         attemptId: run.attemptId,
-        submission: SUBMISSION,
+        answer: ANSWER,
       }),
     ).rejects.toMatchObject({ code: 'ATTEMPT_CLOSED' });
   });
@@ -274,7 +257,7 @@ describe('completeAttempt derives the grade from verdicts (passAtN)', () => {
   });
 
   it('rejects unknown attempts and out-of-range grades', async () => {
-    const t = await setup(createFakeVerifier());
+    const t = await setup(createFakeSqlTypes());
     await expect(
       t.engine.practice.completeAttempt({ attemptId: 'nope', grade: 3 }),
     ).rejects.toMatchObject({ code: 'ATTEMPT_NOT_FOUND' });
@@ -287,18 +270,59 @@ describe('completeAttempt derives the grade from verdicts (passAtN)', () => {
   });
 });
 
+describe('exercise type availability', () => {
+  it('unknown type: beginAttempt throws EXERCISE_TYPE_UNAVAILABLE, not retryable', async () => {
+    const t = await setup(null);
+    await expect(
+      t.engine.practice.beginAttempt({ exerciseId: VERIFIABLE }),
+    ).rejects.toMatchObject({
+      code: 'EXERCISE_TYPE_UNAVAILABLE',
+      retryable: false,
+      details: { cause: 'unknown-type', type: 'lms.sql' },
+    });
+  });
+
+  it('project failure with host-down is retryable and opens no attempt', async () => {
+    const types = createFakeSqlTypes();
+    types.project = async ({ type }) => {
+      throw new ExerciseTypeError('host-down', type, 'host is down');
+    };
+    const t = await setup(types);
+    await expect(
+      t.engine.practice.beginAttempt({ exerciseId: VERIFIABLE }),
+    ).rejects.toMatchObject({
+      code: 'EXERCISE_TYPE_UNAVAILABLE',
+      retryable: true,
+      details: { cause: 'host-down' },
+    });
+  });
+
+  it('returns the view produced by project()', async () => {
+    const types = createFakeExerciseTypes({
+      types: { 'lms.sql': { project: { hint: 'h' } } },
+    });
+    const t = await setup(types);
+    const attempt = await t.engine.practice.beginAttempt({
+      exerciseId: VERIFIABLE,
+    });
+    expect(attempt.view).toEqual({ hint: 'h' });
+  });
+});
+
 describe('submitAnswer', () => {
-  it('passes the exercise, submission, timeout and authorMode to the runner', async () => {
-    const verifier = createFakeVerifier(PASSED);
+  it('passes the type, spec, answer, timeout and authorMode to the exercise type', async () => {
+    const verifier = createFakeSqlTypes(PASSED);
     const t = await setup(verifier, { config: { authorMode: true } });
     const { attemptId } = await t.engine.practice.beginAttempt({
       exerciseId: VERIFIABLE,
     });
-    await t.engine.practice.submitAnswer({ attemptId, submission: SUBMISSION });
+    await t.engine.practice.submitAnswer({ attemptId, answer: ANSWER });
     expect(verifier.requests).toHaveLength(1);
     expect(verifier.requests[0]).toMatchObject({
-      exercise: { id: VERIFIABLE },
-      submission: SUBMISSION,
+      type: 'lms.sql',
+      exerciseId: VERIFIABLE,
+      spec: expect.objectContaining({ fixture: expect.any(String) }),
+      answer: ANSWER,
       timeoutMs: 2000,
       authorMode: true,
     });
@@ -311,8 +335,8 @@ describe('submitAnswer', () => {
       reason: 'mismatch',
       detail: 'expected: 1',
     };
-    const hidden = await setup(createFakeVerifier(detailed));
-    const shown = await setup(createFakeVerifier(detailed), {
+    const hidden = await setup(createFakeSqlTypes(detailed));
+    const shown = await setup(createFakeSqlTypes(detailed), {
       config: { authorMode: true },
     });
     const submit = async (t: Awaited<ReturnType<typeof setup>>) => {
@@ -321,43 +345,64 @@ describe('submitAnswer', () => {
       });
       return t.engine.practice.submitAnswer({
         attemptId,
-        submission: SUBMISSION,
+        answer: ANSWER,
       });
     };
     expect(await submit(hidden)).not.toHaveProperty('detail');
     expect(await submit(shown)).toMatchObject({ detail: 'expected: 1' });
   });
 
-  it('SQL longer than MAX_SQL_CHARS fails with sqlite_limit without calling the runner (T-41)', async () => {
-    const verifier = createFakeVerifier();
+  it('an answer longer than MAX_ANSWER_CHARS is rejected without calling the exercise type (T-41)', async () => {
+    const verifier = createFakeSqlTypes();
     const t = await setup(verifier);
     const { attemptId } = await t.engine.practice.beginAttempt({
       exerciseId: VERIFIABLE,
     });
-    const verdict = await t.engine.practice.submitAnswer({
-      attemptId,
-      submission: { kind: 'sql', sql: 'x'.repeat(MAX_SQL_CHARS + 1) },
-    });
-    expect(verdict).toMatchObject({
-      outcome: 'failed',
-      reason: 'sqlite_limit',
-      attemptsUsed: 1,
+    await expect(
+      t.engine.practice.submitAnswer({
+        attemptId,
+        answer: 'x'.repeat(MAX_ANSWER_CHARS),
+      }),
+    ).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+      details: { reason: 'answer-too-large' },
     });
     expect(verifier.requests).toEqual([]);
   });
 
-  it('without a runner for the exercise: VERIFIER_UNAVAILABLE, not retryable', async () => {
-    const t = await setup(null);
+  it('an answer that is not JSON is rejected', async () => {
+    const t = await setup(createFakeSqlTypes());
     const { attemptId } = await t.engine.practice.beginAttempt({
       exerciseId: VERIFIABLE,
     });
     await expect(
-      t.engine.practice.submitAnswer({ attemptId, submission: SUBMISSION }),
+      t.engine.practice.submitAnswer({ attemptId, answer: undefined }),
     ).rejects.toMatchObject({
-      code: 'VERIFIER_UNAVAILABLE',
-      retryable: false,
-      details: { cause: 'no-runner', runner: 'sql' },
+      code: 'INVALID_ARGUMENT',
+      details: { reason: 'answer-not-json' },
     });
+  });
+
+  it('answer schema violations are INVALID_ARGUMENT, spend no attempt and skip grade', async () => {
+    const types = createFakeExerciseTypes({
+      types: {
+        'lms.sql': {
+          answerErrors: ['/ must be array'],
+          script: [PASSED],
+        },
+      },
+    });
+    const t = await setup(types);
+    const { attemptId } = await t.engine.practice.beginAttempt({
+      exerciseId: VERIFIABLE,
+    });
+    await expect(
+      t.engine.practice.submitAnswer({ attemptId, answer: ANSWER }),
+    ).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+      details: { reason: 'answer', issues: ['/ must be array'] },
+    });
+    expect(types.requests).toEqual([]);
   });
 
   it('does not queue behind other commands, and one verdict at a time per attempt', async () => {
@@ -365,13 +410,13 @@ describe('submitAnswer', () => {
     const pending = new Promise<RawVerdict>((resolve) => {
       release = resolve;
     });
-    const t = await setup(createFakeVerifier(pending));
+    const t = await setup(createFakeSqlTypes(pending));
     const { attemptId } = await t.engine.practice.beginAttempt({
       exerciseId: VERIFIABLE,
     });
     const submitting = t.engine.practice.submitAnswer({
       attemptId,
-      submission: SUBMISSION,
+      answer: ANSWER,
     });
     // остальные команды не ждут вердикта
     const other = await t.engine.practice.recordAttempt({
@@ -381,7 +426,7 @@ describe('submitAnswer', () => {
     });
     expect(other.duplicate).toBe(false);
     await expect(
-      t.engine.practice.submitAnswer({ attemptId, submission: SUBMISSION }),
+      t.engine.practice.submitAnswer({ attemptId, answer: ANSWER }),
     ).rejects.toMatchObject({
       code: 'INVALID_ARGUMENT',
       details: { reason: 'busy' },
@@ -392,38 +437,11 @@ describe('submitAnswer', () => {
     release(PASSED);
     expect(await submitting).toMatchObject({ outcome: 'passed' });
   });
-
-  it('a runner that never answers ends with VERIFIER_TIMEOUT at the call deadline', async () => {
-    vi.useFakeTimers();
-    try {
-      const never = new Promise<RawVerdict>(() => {});
-      const t = await setup(createFakeVerifier(never, PASSED));
-      const { attemptId } = await t.engine.practice.beginAttempt({
-        exerciseId: VERIFIABLE,
-      });
-      const submitting = t.engine.practice.submitAnswer({
-        attemptId,
-        submission: SUBMISSION,
-      });
-      const outcome = expect(submitting).rejects.toMatchObject({
-        code: 'VERIFIER_TIMEOUT',
-        retryable: true,
-      });
-      await vi.advanceTimersByTimeAsync(2_000 + 5_000 + 1);
-      await outcome;
-      // критическая секция освобождена, попытка жива: повтор разрешён
-      await expect(
-        t.engine.practice.submitAnswer({ attemptId, submission: SUBMISSION }),
-      ).resolves.toMatchObject({ outcome: 'passed', attemptsUsed: 1 });
-    } finally {
-      vi.useRealTimers();
-    }
-  });
 });
 
 describe('close', () => {
   it('rejects new calls, closes runners and the store, and is idempotent', async () => {
-    const verifier = createFakeVerifier();
+    const verifier = createFakeSqlTypes();
     const t = await setup(verifier);
     await t.engine.close();
     expect(verifier.closed).toBe(true);

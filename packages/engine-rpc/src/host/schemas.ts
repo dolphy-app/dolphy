@@ -151,12 +151,6 @@ const exerciseFilter: z.ZodType<ExerciseFilterDto> = z.union([
   }),
 ]);
 
-const submission = z.discriminatedUnion('kind', [
-  z.strictObject({ kind: z.literal('text'), text: str }),
-  z.strictObject({ kind: z.literal('sql'), sql: str }),
-  z.strictObject({ kind: z.literal('json'), value: z.unknown() }),
-]);
-
 const progressQuery = z.strictObject({
   scope: optional(
     z.union([
@@ -282,7 +276,7 @@ export const schemas = {
   ]),
   'practice.beginAttempt': z.tuple([z.strictObject({ exerciseId: unitId })]),
   'practice.submitAnswer': z.tuple([
-    z.strictObject({ attemptId: str.min(1), submission }),
+    z.strictObject({ attemptId: str.min(1), answer: z.unknown() }),
   ]),
   'practice.completeAttempt': z.tuple([
     z.strictObject({

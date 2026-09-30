@@ -91,9 +91,7 @@ export const createFacade = (
     closing ??= (async () => {
       state.closed = true; // новые вызовы → ENGINE_CLOSED
       await queue.idle();
-      await Promise.allSettled(
-        [...ctx.verifiers.values()].map((verifier) => verifier.close()),
-      );
+      await Promise.allSettled([ctx.exerciseTypes.close()]);
       await Promise.allSettled([...inflightUnqueued]);
       await ctx.eventStore.close();
     })();

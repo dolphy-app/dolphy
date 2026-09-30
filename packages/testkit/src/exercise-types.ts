@@ -42,14 +42,15 @@ export const createFakeExerciseTypes = (
   );
   const infoOf = (type: string): ExerciseTypeInfo | undefined => {
     const fake = types.get(type);
-    if (fake === undefined) return undefined;
-    return {
-      type,
-      extensionId: type,
-      extensionVersion: '0.0.0',
-      element: fake.element ?? `fake-${type.replaceAll('.', '-')}`,
-      rendererUrl: `lms-ext://fake/${type}.mjs`,
-    };
+    return fake === undefined
+      ? undefined
+      : {
+          type,
+          extensionId: type,
+          extensionVersion: '0.0.0',
+          element: fake.element ?? `fake-${type.replaceAll('.', '-')}`,
+          rendererUrl: `lms-ext://fake/${type}.mjs`,
+        };
   };
   const requests: FakeGradeRequest[] = [];
   const fake: FakeExerciseTypes = {
@@ -58,11 +59,11 @@ export const createFakeExerciseTypes = (
     describe: infoOf,
     list: () =>
       [...types.keys()].map((type) => infoOf(type) as ExerciseTypeInfo),
-    validateSpec: (type, _spec) =>
+    validateSpec: (type) =>
       types.has(type)
         ? (types.get(type)?.specErrors ?? [])
         : ['unknown exercise type'],
-    validateAnswer: (type, _answer) =>
+    validateAnswer: (type) =>
       types.has(type)
         ? (types.get(type)?.answerErrors ?? [])
         : ['unknown exercise type'],

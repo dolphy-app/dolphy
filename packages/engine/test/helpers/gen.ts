@@ -94,12 +94,13 @@ export function frontFor(
   const lines: string[] = ['---', 'engine:'];
   if (verify) {
     lines.push(
-      '  verification:',
-      '    runner: sql',
+      '  exercise:',
+      '    type: lms.sql',
       '    timeoutMs: 2000',
-      `    fixture: "fixtures/${layoutId}.sql"`,
-      `    expected: sql/${layoutId}_e${e}.csv`,
-      '    orderSensitive: false',
+      '    spec:',
+      `      fixture: "fixtures/${layoutId}.sql"`,
+      `      expected: sql/${layoutId}_e${e}.csv`,
+      '      orderSensitive: false',
     );
   }
   if (keys.length > 0) lines.push(`  keyPrerequisites: [${keys.join(', ')}]`);

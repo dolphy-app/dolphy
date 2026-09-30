@@ -1,17 +1,29 @@
 import type { GraphQuery } from '@lms/engine-contract';
-import { buildCourse, buildExercise, buildLesson } from '@lms/testkit';
+import {
+  buildCourse,
+  buildExercise,
+  buildLesson,
+  createFakeExerciseTypes,
+} from '@lms/testkit';
 import { describe, expect, it } from 'vitest';
 import {
-  DEFAULT_VERIFICATION_TIMEOUT_MS,
+  DEFAULT_EXERCISE_TIMEOUT_MS,
   EngineError,
   toCourseDto,
-  toExerciseDto,
+  toExerciseDto as toExerciseDtoWith,
   toGraphDto,
   toLessonDto,
   toUnitDto,
 } from '../../src/app/index.ts';
 import { assembleLibrary } from '../../src/domain/library.ts';
-import type { ExerciseAsset } from '../../src/domain/manifest.ts';
+import type {
+  ExerciseAsset,
+  ExerciseManifest,
+} from '../../src/domain/manifest.ts';
+
+const noTypes = createFakeExerciseTypes();
+const toExerciseDto = (exercise: ExerciseManifest) =>
+  toExerciseDtoWith(exercise, noTypes);
 
 const exerciseWith = (exerciseAsset: ExerciseAsset, id = 'a::l0::e0') =>
   buildExercise({ id, exercise_asset: exerciseAsset });
@@ -228,61 +240,78 @@ describe('toExerciseDto', () => {
     expect(plain.exerciseType).toBe('declarative');
     expect(plain.keyPrerequisites).toEqual([]);
     expect('description' in plain).toBe(false);
-    expect('verification' in plain).toBe(false);
+    expect('task' in plain).toBe(false);
   });
 
-  it('splits verification into runner, timeout and params', () => {
-    const verification = {
-      runner: 'sql',
-      timeoutMs: 500,
-      fixture: 'fx',
-      expected: { rows: [[1]] },
-    };
-    const dto = toExerciseDto(
-      buildExercise({ id: 'a::l0::e0', engine: { verification } }),
-    );
-    expect(dto.verification).toEqual({
-      runner: 'sql',
-      timeoutMs: 500,
-      params: { fixture: 'fx', expected: { rows: [[1]] } },
+  it('describes the task from the exercise type catalog', () => {
+    const types = createFakeExerciseTypes({
+      types: { 'lms.sql': { element: 'lms-sql-answer' } },
     });
-    expect(dto.verification?.params.expected).not.toBe(verification.expected);
+    const dto = toExerciseDtoWith(
+      buildExercise({
+        id: 'a::l0::e0',
+        engine: {
+          exercise: {
+            type: 'lms.sql',
+            timeoutMs: 500,
+            spec: { fixture: 'fx' },
+          },
+        },
+      }),
+      types,
+    );
+    expect(dto.task).toEqual({
+      type: 'lms.sql',
+      timeoutMs: 500,
+      element: 'lms-sql-answer',
+      rendererUrl: 'lms-ext://fake/lms.sql.mjs',
+    });
   });
 
-  it('defaults verification timeout to 2000 ms', () => {
+  it('defaults the task timeout to 2000 ms', () => {
+    const types = createFakeExerciseTypes({ types: { 'lms.sql': {} } });
+    const dto = toExerciseDtoWith(
+      buildExercise({
+        id: 'a::l0::e0',
+        engine: { exercise: { type: 'lms.sql' } },
+      }),
+      types,
+    );
+    expect(dto.task?.timeoutMs).toBe(DEFAULT_EXERCISE_TIMEOUT_MS);
+    expect(DEFAULT_EXERCISE_TIMEOUT_MS).toBe(2000);
+  });
+
+  it('omits the task when the type is not in the catalog', () => {
     const dto = toExerciseDto(
       buildExercise({
         id: 'a::l0::e0',
-        engine: { verification: { runner: 'text' } },
+        engine: { exercise: { type: 'gone.type' } },
       }),
     );
-    expect(dto.verification).toEqual({
-      runner: 'text',
-      timeoutMs: DEFAULT_VERIFICATION_TIMEOUT_MS,
-      params: {},
-    });
-    expect(DEFAULT_VERIFICATION_TIMEOUT_MS).toBe(2000);
+    expect('task' in dto).toBe(false);
   });
 });
 
 describe('toUnitDto', () => {
   it('resolves units of every kind with counts from the graph', () => {
     const library = sampleLibrary();
-    expect(toUnitDto(library, 'a')).toMatchObject({
+    expect(toUnitDto(library, 'a', noTypes)).toMatchObject({
       kind: 'course',
       lessonCount: 2,
     });
-    expect(toUnitDto(library, 'a::l0')).toMatchObject({
+    expect(toUnitDto(library, 'a::l0', noTypes)).toMatchObject({
       kind: 'lesson',
       exerciseCount: 2,
     });
-    expect(toUnitDto(library, 'a::l1::e0')).toMatchObject({ kind: 'exercise' });
+    expect(toUnitDto(library, 'a::l1::e0', noTypes)).toMatchObject({
+      kind: 'exercise',
+    });
   });
 
   it('unknown id is NOT_FOUND', () => {
-    expect(catchError(() => toUnitDto(sampleLibrary(), 'nope')).code).toBe(
-      'NOT_FOUND',
-    );
+    expect(
+      catchError(() => toUnitDto(sampleLibrary(), 'nope', noTypes)).code,
+    ).toBe('NOT_FOUND');
   });
 });
 

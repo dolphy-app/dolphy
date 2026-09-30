@@ -30,7 +30,7 @@ export {
 } from './pagination.ts';
 export {
   DEFAULT_GRAPH_LIMIT,
-  DEFAULT_VERIFICATION_TIMEOUT_MS,
+  DEFAULT_EXERCISE_TIMEOUT_MS,
   MAX_GRAPH_LIMIT,
   toCourseDto,
   toExerciseDto,

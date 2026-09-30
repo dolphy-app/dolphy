@@ -1,6 +1,6 @@
-export const CONTRACT_VERSION = 1 as const;
-/** Кап длины SQL ученика в символах (`String.length`); хост применяет его до IPC раннера (§9). Длиннее — `failed/sqlite_limit` без запуска раннера. */
-export const MAX_SQL_CHARS = 100_000 as const;
+export const CONTRACT_VERSION = 2 as const;
+/** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
+export const MAX_ANSWER_CHARS = 200_000 as const;
 
 export type UnitId = string;
 export type EpochMs = number;
@@ -27,8 +27,7 @@ export type EngineErrorCode =
   | 'ASSET_TOO_LARGE'
   | 'ATTEMPT_NOT_FOUND'
   | 'ATTEMPT_CLOSED'
-  | 'VERIFIER_UNAVAILABLE'
-  | 'VERIFIER_TIMEOUT'
+  | 'EXERCISE_TYPE_UNAVAILABLE'
   | 'PLACEMENT_SESSION_NOT_FOUND'
   | 'PLACEMENT_SESSION_ACTIVE'
   | 'PLACEMENT_BUDGET_EXHAUSTED'
@@ -60,7 +59,8 @@ export type DiagnosticCode =
   | 'E_ENGINE_SCHEMA'
   | 'W_ENGINE_UNKNOWN_KEY'
   | 'E_ENGINE_DUPLICATE'
-  | 'W_UNKNOWN_RUNNER'
+  | 'W_UNKNOWN_EXERCISE_TYPE'
+  | 'E_EXERCISE_SPEC'
   // идентификаторы
   | 'E_ID_EMPTY'
   | 'E_ID_DUPLICATE'
@@ -108,7 +108,8 @@ export const DIAGNOSTIC_SEVERITY: Record<DiagnosticCode, Severity> = {
   E_ENGINE_SCHEMA: 'error',
   W_ENGINE_UNKNOWN_KEY: 'warning',
   E_ENGINE_DUPLICATE: 'error',
-  W_UNKNOWN_RUNNER: 'warning',
+  W_UNKNOWN_EXERCISE_TYPE: 'warning',
+  E_EXERCISE_SPEC: 'error',
   E_ID_EMPTY: 'error',
   E_ID_DUPLICATE: 'error',
   E_ID_MISMATCH: 'error',
@@ -218,10 +219,12 @@ export type ExerciseContentDto =
   | { type: 'markdown'; ref: AssetRef }
   | { type: 'inlineMarkdown'; text: string };
 
-export interface VerificationSpecDto {
-  runner: string;
+/** Вид задания и элемент ввода ответа, объявленные расширением. */
+export interface ExerciseTaskDto {
+  type: string;
   timeoutMs: number;
-  params: Record<string, unknown>;
+  element: string;
+  rendererUrl: string;
 }
 export interface ExerciseDto {
   kind: 'exercise';
@@ -232,7 +235,7 @@ export interface ExerciseDto {
   description?: string;
   exerciseType: 'declarative' | 'procedural';
   content: ExerciseContentDto;
-  verification?: VerificationSpecDto;
+  task?: ExerciseTaskDto;
   keyPrerequisites: UnitId[];
 }
 export type UnitDto = CourseDto | LessonDto | ExerciseDto;
@@ -401,14 +404,12 @@ export interface AttemptDto {
   exercise: ExerciseDto;
   startedAt: EpochMs;
   verifiable: boolean;
+  /** Результат `project()` расширения; `null`, если упражнение не проверяемое. */
+  view: unknown;
 }
-export type SubmissionDto =
-  | { kind: 'text'; text: string }
-  | { kind: 'sql'; sql: string }
-  | { kind: 'json'; value: unknown };
 export interface SubmitAnswerRequest {
   attemptId: string;
-  submission: SubmissionDto;
+  answer: unknown;
 }
 /**
  * Причины `error`-вердикта, которые порождает хост, а не расширение
@@ -929,6 +930,10 @@ export interface EngineConfig {
   durability?: 'full' | 'normal';
   /** Авторский режим: вердикт `failed` содержит `detail` (ожидаемые строки). По умолчанию false. */
   authorMode?: boolean;
+  /** Каталог расширений из поставки (read-only). */
+  bundledExtensionsDir?: string;
+  /** Каталог пользовательских расширений; побеждает при совпадении id. Оба каталога не заданы — вид заданий недоступен. */
+  userExtensionsDir?: string;
 }
 
 export interface EngineDiagnosticsDto {

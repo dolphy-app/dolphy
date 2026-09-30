@@ -10,6 +10,7 @@ import type {
   CourseDto,
   ExerciseContentDto,
   ExerciseDto,
+  ExerciseTaskDto,
   GraphDto,
   GraphEdgeDto,
   GraphNodeDto,
@@ -19,9 +20,9 @@ import type {
   UnitId,
   UnitKind,
   UnitCommon,
-  VerificationSpecDto,
   WeightedRef,
 } from '@lms/engine-contract';
+import type { ExerciseTypes } from '../ports/exercise-types.ts';
 import type { UnitType } from '../domain/graph.ts';
 import type { Library } from '../domain/library.ts';
 import type {
@@ -34,8 +35,8 @@ import type {
 } from '../domain/manifest.ts';
 import { EngineError } from './errors.ts';
 
-/** Таймаут проверки, если в `engine.verification` нет `timeoutMs`. */
-export const DEFAULT_VERIFICATION_TIMEOUT_MS = 2000;
+/** Таймаут проверки, если в `engine.exercise` нет `timeoutMs`. */
+export const DEFAULT_EXERCISE_TIMEOUT_MS = 2000;
 export const DEFAULT_GRAPH_LIMIT = 500;
 export const MAX_GRAPH_LIMIT = 2000;
 
@@ -156,22 +157,28 @@ const toContent = (
   return unsupportedContent('TranscriptionAsset');
 };
 
-const toVerificationField = (
+const toTaskField = (
   exercise: ExerciseManifest,
-): { verification?: VerificationSpecDto } => {
-  const verification = exercise.engine?.verification;
-  if (verification === undefined) return {};
-  const { runner, timeoutMs, ...params } = verification;
+  types: ExerciseTypes,
+): { task?: ExerciseTaskDto } => {
+  const block = exercise.engine?.exercise;
+  if (block === undefined) return {};
+  const info = types.describe(block.type);
+  if (info === undefined) return {};
   return {
-    verification: {
-      runner,
-      timeoutMs: timeoutMs ?? DEFAULT_VERIFICATION_TIMEOUT_MS,
-      params: structuredClone(params),
+    task: {
+      type: block.type,
+      timeoutMs: block.timeoutMs ?? DEFAULT_EXERCISE_TIMEOUT_MS,
+      element: info.element,
+      rendererUrl: info.rendererUrl,
     },
   };
 };
 
-export const toExerciseDto = (exercise: ExerciseManifest): ExerciseDto => ({
+export const toExerciseDto = (
+  exercise: ExerciseManifest,
+  types: ExerciseTypes,
+): ExerciseDto => ({
   kind: 'exercise',
   id: exercise.id,
   lessonId: exercise.lesson_id,
@@ -183,14 +190,18 @@ export const toExerciseDto = (exercise: ExerciseManifest): ExerciseDto => ({
   exerciseType:
     exercise.exercise_type === 'Declarative' ? 'declarative' : 'procedural',
   content: toContent(exercise.id, exercise.exercise_asset),
-  ...toVerificationField(exercise),
+  ...toTaskField(exercise, types),
   keyPrerequisites: [...(exercise.engine?.keyPrerequisites ?? [])],
 });
 
 const notFound = (id: UnitId) =>
   new EngineError('NOT_FOUND', { details: { unitId: id } });
 
-export const toUnitDto = (library: Library, id: UnitId): UnitDto => {
+export const toUnitDto = (
+  library: Library,
+  id: UnitId,
+  types: ExerciseTypes,
+): UnitDto => {
   const course = library.getCourse(id);
   if (course !== undefined) {
     return toCourseDto(course, library.getLessonIds(id)?.length ?? 0);
@@ -200,7 +211,7 @@ export const toUnitDto = (library: Library, id: UnitId): UnitDto => {
     return toLessonDto(lesson, library.getExerciseIds(id)?.length ?? 0);
   }
   const exercise = library.getExercise(id);
-  if (exercise !== undefined) return toExerciseDto(exercise);
+  if (exercise !== undefined) return toExerciseDto(exercise, types);
   throw notFound(id);
 };
 

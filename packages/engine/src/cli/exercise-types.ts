@@ -1,47 +1,74 @@
 /**
- * Верификаторы для `engine-cli --run-checks`. Ядро от `@lms/engine-sql-runner`
- * не зависит (раннер зависит от `@lms/engine`): пакет подгружается динамически
- * по имени, тип — локальный. Так `--run-checks` работает в монорепозитории,
- * а сборка ядра не тянет нативные зависимости раннера.
+ * Виды заданий для `engine-cli --extensions`. Ядро от `@lms/extension-host`
+ * не зависит (хост зависит от `@lms/engine`): пакеты подгружаются динамически
+ * по имени, типы — локальные. Так CLI работает в монорепозитории, а сборка
+ * ядра не тянет код хоста расширений.
  */
-import type { CourseSource, Logger, Verifier } from '../ports/index.ts';
+import type { CourseSource, Logger } from '../ports/index.ts';
+import type { ExerciseTypes } from '../ports/exercise-types.ts';
 
-export interface CliVerifiers {
-  verifiers: readonly Verifier[];
+export interface CliExerciseTypes {
+  exerciseTypes: ExerciseTypes;
   close(): Promise<void>;
 }
 
-export type CreateVerifiers = (
+/** `roots` — каталоги-корни с подкаталогами `<id>/extension.json`. */
+export type CreateExerciseTypes = (
   source: CourseSource,
   logger: Logger,
-) => Promise<CliVerifiers>;
+  roots: readonly string[],
+) => Promise<CliExerciseTypes>;
 
-interface SqlRunnerModule {
-  createSqlVerifier(options: {
-    source: CourseSource;
-    logger: Logger;
-  }): Verifier & { warm(): Promise<void> };
+interface ResolvedExtensionLike {
+  id: string;
 }
 
-/** Имя в переменной: без литерала `tsc` не пытается разрешить пакет в этот проект. */
-const SQL_RUNNER_PACKAGE = '@lms/engine-sql-runner';
+interface ExtensionHostModule {
+  discoverExtensions(options: {
+    roots: readonly { dir: string; origin: 'bundled' | 'user' }[];
+    logger: Logger;
+  }): Promise<{ extensions: ResolvedExtensionLike[] }>;
+}
 
-export class VerifiersUnavailableError extends Error {}
+interface ExtensionHostLocalModule {
+  createLocalExerciseTypes(options: {
+    extensions: readonly ResolvedExtensionLike[];
+    library: CourseSource;
+    logger: Logger;
+  }): ExerciseTypes;
+}
 
-export const loadSqlRunnerVerifiers: CreateVerifiers = async (
+/** Имена в переменных: без литерала `tsc` не пытается разрешить пакеты в этот проект. */
+const HOST_PACKAGE = '@lms/extension-host';
+const HOST_LOCAL_PACKAGE = '@lms/extension-host/local';
+
+export class ExerciseTypesUnavailableError extends Error {}
+
+export const loadExerciseTypes: CreateExerciseTypes = async (
   source,
   logger,
+  roots,
 ) => {
-  let module: SqlRunnerModule;
+  let host: ExtensionHostModule;
+  let local: ExtensionHostLocalModule;
   try {
-    module = (await import(SQL_RUNNER_PACKAGE)) as SqlRunnerModule;
+    host = (await import(HOST_PACKAGE)) as ExtensionHostModule;
+    local = (await import(HOST_LOCAL_PACKAGE)) as ExtensionHostLocalModule;
   } catch (error) {
-    throw new VerifiersUnavailableError(
-      `--run-checks требует пакет ${SQL_RUNNER_PACKAGE}: ${
+    throw new ExerciseTypesUnavailableError(
+      `--extensions требует пакет ${HOST_PACKAGE}: ${
         error instanceof Error ? error.message : String(error)
       }`,
     );
   }
-  const verifier = module.createSqlVerifier({ source, logger });
-  return { verifiers: [verifier], close: () => verifier.close() };
+  const { extensions } = await host.discoverExtensions({
+    roots: roots.map((dir) => ({ dir, origin: 'user' as const })),
+    logger,
+  });
+  const exerciseTypes = local.createLocalExerciseTypes({
+    extensions,
+    library: source,
+    logger,
+  });
+  return { exerciseTypes, close: () => exerciseTypes.close() };
 };

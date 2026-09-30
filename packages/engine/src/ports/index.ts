@@ -6,12 +6,11 @@ import type {
   SchedulerOptionsDto,
   StateVector,
   StudySessionWire,
-  SubmissionDto,
   UiSettingsDto,
   VerdictDto,
 } from '@lms/engine-contract';
 import type { LogEntry } from '../domain/journal.ts';
-import type { ExerciseManifest, UserPreferences } from '../domain/manifest.ts';
+import type { UserPreferences } from '../domain/manifest.ts';
 
 export interface Clock {
   now(): EpochMs;
@@ -179,19 +178,6 @@ export type RawVerdict = DistributiveOmit<
   VerdictDto,
   'attemptId' | 'attemptsUsed'
 >;
-
-export interface VerifyRequest {
-  exercise: ExerciseManifest;
-  submission: SubmissionDto;
-  timeoutMs: number;
-  authorMode: boolean;
-}
-
-export interface Verifier {
-  readonly runner: string; // 'sql'
-  check(request: VerifyRequest): Promise<RawVerdict>; // error-вердикт — данные, не исключение
-  close(): Promise<void>;
-}
 
 export interface SourceEntry {
   name: string;

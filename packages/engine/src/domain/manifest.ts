@@ -94,20 +94,19 @@ export type CourseGenerator =
 export type Bloom =
   'remember' | 'understand' | 'apply' | 'analyze' | 'evaluate' | 'create';
 
-export interface Verification {
-  runner: string;
+export interface ExerciseBlock {
+  type: string;
   timeoutMs?: number;
-  /** Параметры раннера (`fixture`, `expected`, …). */
-  [param: string]: unknown;
+  spec?: Record<string, unknown>;
 }
 
 export interface EngineExtension {
-  verification?: Verification;
+  exercise?: ExerciseBlock;
   keyPrerequisites?: string[];
   tags?: string[];
   bloom?: Bloom;
   dok?: 1 | 2 | 3 | 4;
-  /** Курс: у каждого упражнения должна быть `verification`. */
+  /** Курс: у каждого упражнения должен быть `engine.exercise`. */
   requiresChecks?: boolean;
   /** Урок: `true` — все охваты, массив — перечисленные id. */
   nonAncestor?: boolean | string[];

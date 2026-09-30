@@ -1,8 +1,8 @@
 ---
-status: active
+status: done
 branch: feature/extension-host
 created: 2026-09-30
-closed: null
+closed: 2026-09-30
 touches:
   [
     engine-contract,
@@ -20,6 +20,8 @@ depends-on: []
 supersedes: null
 superseded-by: null
 ---
+
+> Исторический документ. Не источник требований.
 
 # Расширения и хост расширений: виды заданий
 
@@ -74,14 +76,20 @@ superseded-by: null
 - [x] 2026-09-30 `@lms/extension-host` (манифест, обнаружение, каталог, рантайм, клиент, local; тесты)
 - [x] 2026-09-30 пакеты `ext-sql`, `ext-choice` (сборка `dist-ext`, тесты)
 - [x] 2026-09-30 миграция фикстур на `engine.exercise`, библиотека `choice-course`
-- [ ] контракт v2, движок, авторинг, CLI, RPC и их тесты
-- [ ] desktop: процессы, протокол `lms-ext://`, сборка, renderer
-- [ ] смоук и e2e
-- [ ] закрытие: перенос в документацию, ADR, архив
+- [x] 2026-09-30 контракт v2, движок, авторинг, CLI, RPC и их тесты
+- [x] 2026-09-30 desktop: процессы, протокол `lms-ext://`, сборка, renderer
+- [x] 2026-09-30 смоук (`pnpm smoke`, `pnpm smoke:packaged`) и e2e (11 сценариев)
+- [x] 2026-09-30 закрытие: `docs/design/extensions.md`, `docs/adr/0001-exercise-types-as-extensions.md`, README пакетов и desktop, архив
 
 ## Surprises & Discoveries
 
 - `AGENTS.md` ветки `develop` требует спеки для таких фич; спека заведена после начала реализации (первые коммиты шагов 1–3 без неё).
+- Модульный `import()` скрипта элемента с `file://` идёт в режиме CORS: без `corsEnabled` у схемы `lms-ext` и `Access-Control-Allow-Origin` renderer получал `net::ERR_FAILED`. Нашёл e2e; unit-тесты протокола этого не видят.
+- Ответ в `ref` Vue становится реактивным Proxy и не клонируется при отправке по `MessagePort` (`could not be cloned`): SQL (строка) проходил, choice (массив) — нет. Нашёл e2e; ответ хранится в `shallowRef`.
+- Ключи ответов и `spec` в renderer не попадают: `ExerciseDto` содержит только `task`, `AttemptDto.view` — результат `project`.
+- Убийство хоста расширений `SIGKILL` при открытом SQL-упражнении: main перезапускает его за ~0,6 с, ожидающий запрос выполняется после перезапуска, вердикт «Верно» через 646 мс; хост движка не перезапускался.
+- Пул раннера в бандле расширения тянул `data:`-копию `worker.ts` через путь по умолчанию; убрано `/* @vite-ignore */`.
+- Регенерация golden `unit-score-l2.jsonl` (`cargo`, офлайн) изменила только строку заголовка с хешем библиотеки; хеши деревьев в `rust-dumps/MANIFEST.json` для `sql-course-*` и `trane-small-engine` обновлены после миграции фикстур (сами дампы Rust не менялись: блок `engine` Trane не читает).
 
 ## Decision Log
 
@@ -92,8 +100,14 @@ superseded-by: null
 - 2026-09-30. Манифест — `extension.json`, не `package.json`. Причина: независимость рантайма от npm, простая установка копированием.
 - 2026-09-30. `engine.verification` удалён, фикстуры мигрированы (чистый переход). Причина: выбор пользователя; единая модель без двух форматов.
 - 2026-09-30. `CONTRACT_VERSION = 2`. Причина: несовместимые клиент и хост должны отказать в `engine.hello`.
+- 2026-09-30. Скрипты расширений отдаёт `lms-ext://` с `corsEnabled` и `Access-Control-Allow-Origin: *`. Причина: renderer загружается с `file://`, модульный `import()` требует CORS.
+- 2026-09-30. `pnpm test` включает реальную сборку расширений (`release-bundle.test.ts`), а тесты движка и пакетов расширений от `dist-ext` не зависят (фейк `createFakeExerciseTypes`, шов `modules` рантайма). Причина: артефакты проверяются в CI, юнит-тесты остаются быстрыми.
 - 2026-09-30. Коды `E_NO_VERIFICATION`/`I_NO_VERIFICATION`/`E_REFERENCE_FAILS` сохранены, `W_UNKNOWN_RUNNER` заменён на `W_UNKNOWN_EXERCISE_TYPE`, добавлен `E_EXERCISE_SPEC`. Причина: каталог кодов — публичный, «verification» по-прежнему означает «проверяемое упражнение».
 
 ## Outcomes
 
-<Заполняется при закрытии.>
+Сделано всё из «Требований» R1–R8. Виды `lms.sql` и `lms.choice` — расширения-каталоги, собираемые пакетами `packages/ext-sql` и `packages/ext-choice`; код исполняется в `utilityProcess` `lms-ext-host`; пользовательские расширения из `<userData>/extensions` загружаются тем же кодом и переопределяют встроенные по `id`. Проверено: `pnpm typecheck`, `pnpm lint`, `pnpm test` (159 файлов, 2904 теста), `pnpm check:tests` (60/60), `pnpm smoke` и `pnpm smoke:packaged` (сценарии `basic`, `sql`, `choice`, `crash`), `pnpm -F @lms/desktop e2e` (11 сценариев, включая `acme.echo` и переопределение `lms.choice`), `engine-cli validate --run-checks --extensions` (21 эталон SQL, 3 эталона choice; `E_EXERCISE_SPEC`, `E_REFERENCE_FAILS`), убийство хоста расширений в живом приложении.
+
+Отличия от плана: добавлены CORS для `lms-ext://` и `shallowRef` ответа (оба найдены e2e), регенерация golden после миграции фикстур; в `CheckOptions` тип `exerciseTypes` по умолчанию `null` (проверки видов выключены без каталога), поэтому дефект `unknown_runner` удалён из defect-matrix.
+
+Осталось (новые спеки, не TODO): установка и скачивание расширений (URL, архив, интерфейс), песочница и права для пользовательского кода (`iframe sandbox`), другие точки вклада (темы, рендереры контента, импортёры, политики оценки), локализация сообщений расширений, горячая перезагрузка. Долговечное описание — `docs/design/extensions.md`, решение — ADR 0001.

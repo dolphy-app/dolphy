@@ -256,6 +256,11 @@ const controls = computed(() => [
   color: rgb(var(--v-theme-on-surface-variant));
 }
 
+/* узлы не draggable и не selectable, поэтому Vue Flow ставит им инлайновый `pointer-events: none`, и клик уходил в подложку; `!important` перебивает инлайн. Мышь нужна только урокам, рамка курса остаётся прозрачной для pan */
+.graph-canvas :deep(.vue-flow__node-lesson) {
+  pointer-events: all !important;
+}
+
 .graph-canvas :deep(.vue-flow__edge-path) {
   stroke: currentColor;
   stroke-width: 1.5;

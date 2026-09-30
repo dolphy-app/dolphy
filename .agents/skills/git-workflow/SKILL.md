@@ -134,13 +134,15 @@ gh release view --json tagName,url,assets -q '{tag: .tagName, url: .url, assets:
 
 Тег должен совпасть с `v$version`; если нет — релиз собран из другой версии, разобраться до следующего шага.
 
+Не собрался установщик одной из платформ (job `Build installer (…)` красный): исправить причину отдельной веткой `feature/*` в `develop`, затем пересобрать без нового релиза — `gh workflow run release.yml --ref develop -f version=$version`; файлы заменяются в существующем Release.
+
 **4. Sync main в develop.** Релизный коммит (`CHANGELOG.md`, `version`, тег) есть только в `main`. Вернуть его в `develop` — тоже PR, не прямой push; без этого следующий релиз посчитает версию от устаревшего тега:
 
 ```sh
 gh pr create --base develop --head main --title "chore(release): sync main into develop" --body "Возврат релизного коммита semantic-release (CHANGELOG.md, version) в develop."
 ```
 
-Дальше те же проверки `mergeable` и pipeline (шаг 3), затем `gh pr merge "$pr" --merge --subject "Merge main into develop"` (без `--delete-branch`).
+У этого PR pipeline может не быть вовсе: релизный коммит `chore(release): … [skip ci]`, а всё остальное уже прошло проверки в PR `release-<version>`. Тогда достаточно `MERGEABLE`: `gh pr merge "$pr" --merge --subject "Merge main into develop"` (без `--delete-branch`; `main` не удаляется).
 
 ## 5. После слияния
 

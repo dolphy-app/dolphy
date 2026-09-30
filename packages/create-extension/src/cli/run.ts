@@ -47,11 +47,6 @@ const parseArgs = (argv: readonly string[]): Parsed => {
   return { dir, id: values.get('--id'), local: values.get('--local') };
 };
 
-const TOKEN_NOTE =
-  '\nПакеты @dolphy-app/* лежат в GitHub Packages: перед установкой добавьте в ' +
-  '~/.npmrc\nтокен (classic, право read:packages), см. README проекта, ' +
-  '«Установка зависимостей».\n';
-
 const PLACEHOLDER_NOTE =
   '\nЗамечание: @dolphy-app/extension-sdk и @dolphy-app/extension-tools не опубликованы, ' +
   'версия ^0.0.0 не установится.\nУкажите пути к репозиторию Dolphy: ' +
@@ -62,7 +57,7 @@ const installNote = ({
   isPublished,
 }: Pick<GenerateResult, 'isLocal' | 'isPublished'>): string => {
   if (isLocal) return '';
-  return isPublished ? TOKEN_NOTE : PLACEHOLDER_NOTE;
+  return isPublished ? '' : PLACEHOLDER_NOTE;
 };
 
 const nextSteps = (

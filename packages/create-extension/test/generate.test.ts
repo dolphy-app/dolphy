@@ -34,7 +34,6 @@ describe('generateExtension', () => {
     expect(result.id).toBe('acme-hello');
     expect(result.files).toEqual([
       '.gitignore',
-      '.npmrc',
       'README.md',
       'extension.json',
       'package.json',
@@ -140,30 +139,21 @@ describe('generateExtension', () => {
     });
   });
 
-  it('без --local проект получает .npmrc с реестром и раздел README про токен', async () => {
+  it('проект не получает .npmrc и раздел про токен: пакеты лежат в npmjs', async () => {
     const root = await makeTemp();
-    const { dir } = await generateExtension({
-      dir: path.join(root, 'acme-hello'),
-      packageVersion: '1.2.3',
-    });
-    await expect(readFile(path.join(dir, '.npmrc'), 'utf8')).resolves.toBe(
-      '@dolphy-app:registry=https://npm.pkg.github.com\n',
-    );
-    const readme = await readFile(path.join(dir, 'README.md'), 'utf8');
-    expect(readme).toContain('## Установка зависимостей');
-    expect(readme).toContain('read:packages');
-    expect(readme).toContain('//npm.pkg.github.com/:_authToken=<TOKEN>');
-  });
-
-  it('--local не пишет .npmrc и раздел про токен: пакеты берутся по link:', async () => {
-    const root = await makeTemp();
-    const { dir, files } = await generateExtension({
-      dir: path.join(root, 'acme-hello'),
-      localRoot: REPO_ROOT,
-    });
-    expect(files).not.toContain('.npmrc');
-    const readme = await readFile(path.join(dir, 'README.md'), 'utf8');
-    expect(readme).not.toContain('Установка зависимостей');
+    for (const options of [
+      { packageVersion: '1.2.3' },
+      { localRoot: REPO_ROOT },
+    ]) {
+      const { dir, files } = await generateExtension({
+        dir: path.join(root, options.localRoot === undefined ? 'npm' : 'local'),
+        ...options,
+      });
+      expect(files).not.toContain('.npmrc');
+      const readme = await readFile(path.join(dir, 'README.md'), 'utf8');
+      expect(readme).not.toContain('Установка зависимостей');
+      expect(readme).not.toContain('_authToken');
+    }
   });
 
   it('--local не на корень репозитория — ошибка до записи файлов', async () => {

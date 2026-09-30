@@ -37,7 +37,6 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(ROOT, 'dist-publish');
 const SHEBANG = '#!/usr/bin/env node';
 const FORBIDDEN_RANGE = /^(workspace|link|file):/;
-const NPMRC = `${SCOPE}:registry=${REGISTRY}\n`;
 
 const fail = (message) => {
   throw new Error(message);
@@ -116,8 +115,9 @@ const assertManifest = ({ manifest, spec }) => {
   check(manifest.private === undefined, `${name}: manifest is private`);
   check(manifest.type === 'module', `${name}: type is not module`);
   check(
-    manifest.publishConfig?.registry === REGISTRY,
-    `${name}: publishConfig.registry is not ${REGISTRY}`,
+    manifest.publishConfig?.registry === REGISTRY &&
+      manifest.publishConfig?.access === 'public',
+    `${name}: publishConfig is not public access on ${REGISTRY}`,
   );
   check(
     manifest.repository?.directory === `packages/${spec.dir}`,
@@ -261,14 +261,13 @@ const assertGeneratedProject = ({ demo, version }) => {
     );
   }
   check(
-    readFileSync(path.join(demo, '.npmrc'), 'utf8') === NPMRC,
-    'demo: .npmrc is not exactly the scope registry line',
+    !existsSync(path.join(demo, '.npmrc')),
+    'demo: .npmrc is generated, but the packages live in npmjs',
   );
   const readme = readFileSync(path.join(demo, 'README.md'), 'utf8');
   check(
-    readme.includes('## Установка зависимостей') &&
-      readme.includes('read:packages'),
-    'demo: README has no token section',
+    !readme.includes('_authToken') && !readme.includes('read:packages'),
+    'demo: README still has a token section',
   );
 };
 

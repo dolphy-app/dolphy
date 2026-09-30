@@ -4,7 +4,7 @@
  */
 
 export const SCOPE = '@dolphy-app';
-export const REGISTRY = 'https://npm.pkg.github.com';
+export const REGISTRY = 'https://registry.npmjs.org';
 export const REPOSITORY_URL = 'git+https://github.com/dolphy-app/dolphy.git';
 export const NODE_RANGE = '>=22.12';
 export const DOCS_URL =
@@ -85,7 +85,7 @@ export const PACKAGES = [
       'npx @dolphy-app/create-extension <каталог>',
       '```',
       '',
-      'Проект получает `.npmrc` с реестром GitHub Packages, тесты, сборку и README.',
+      'Проект получает тесты, сборку и README.',
     ],
   },
 ];
@@ -232,7 +232,7 @@ export const createManifest = ({
       url: REPOSITORY_URL,
       directory: `packages/${spec.dir}`,
     },
-    publishConfig: { registry: REGISTRY },
+    publishConfig: { access: 'public', registry: REGISTRY },
   };
   const text = JSON.stringify(manifest);
   if (text.includes('workspace:') || text.includes('link:')) {

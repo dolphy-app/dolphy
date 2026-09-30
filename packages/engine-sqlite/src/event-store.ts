@@ -19,6 +19,8 @@ import {
 import type { LogEntry } from '@lms/engine';
 import { guard, mapSqliteError } from './errors.ts';
 import { SCHEMA_VERSION, migrate, readSchemaVersion } from './migrations.ts';
+import type { RepositoryStore } from '@lms/engine/ports';
+import { createSqliteRepositoryStore } from './repository-store.ts';
 import { createSqliteSettingsStore } from './settings-store.ts';
 import type { SqliteSettingsStore } from './settings-store.ts';
 import { openBetterSqliteDatabase } from './sql-database.ts';
@@ -530,6 +532,8 @@ export interface SqliteStorage {
   events: SqliteEventStore;
   /** Настройки ученика в той же БД; соединение закрывает `events.close()`. */
   settings: SqliteSettingsStore;
+  /** Реестр git-репозиториев в той же БД. */
+  repositories: RepositoryStore;
 }
 
 /** `engine.db` целиком: журнал событий и настройки на одном соединении. */
@@ -538,5 +542,9 @@ export const openSqliteStorage = (
 ): SqliteStorage => {
   const db = openDatabase(options);
   const events = createSqliteEventStore(db, options);
-  return { events, settings: createSqliteSettingsStore(db) };
+  return {
+    events,
+    settings: createSqliteSettingsStore(db),
+    repositories: createSqliteRepositoryStore(db),
+  };
 };

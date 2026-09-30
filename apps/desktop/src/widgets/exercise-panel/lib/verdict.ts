@@ -14,21 +14,21 @@ export interface VerdictView {
 }
 
 const FAILED_REASON_KEY: Record<FailedReason, string> = {
-  mismatch: 'session.verdict.failedReason.mismatch',
-  sql_error: 'session.verdict.failedReason.sql_error',
-  forbidden: 'session.verdict.failedReason.forbidden',
-  row_limit: 'session.verdict.failedReason.row_limit',
-  byte_limit: 'session.verdict.failedReason.byte_limit',
-  sqlite_limit: 'session.verdict.failedReason.sqlite_limit',
+  mismatch: 'exercisePanel.verdict.failedReason.mismatch',
+  sql_error: 'exercisePanel.verdict.failedReason.sql_error',
+  forbidden: 'exercisePanel.verdict.failedReason.forbidden',
+  row_limit: 'exercisePanel.verdict.failedReason.row_limit',
+  byte_limit: 'exercisePanel.verdict.failedReason.byte_limit',
+  sqlite_limit: 'exercisePanel.verdict.failedReason.sqlite_limit',
 };
 
 const ERROR_REASON_KEY: Record<ErrorReason, string> = {
-  fixture_error: 'session.verdict.errorReason.fixture_error',
-  expected_error: 'session.verdict.errorReason.expected_error',
-  internal: 'session.verdict.errorReason.internal',
-  timeout: 'session.verdict.errorReason.timeout',
-  resource_kill: 'session.verdict.errorReason.resource_kill',
-  worker_crash: 'session.verdict.errorReason.worker_crash',
+  fixture_error: 'exercisePanel.verdict.errorReason.fixture_error',
+  expected_error: 'exercisePanel.verdict.errorReason.expected_error',
+  internal: 'exercisePanel.verdict.errorReason.internal',
+  timeout: 'exercisePanel.verdict.errorReason.timeout',
+  resource_kill: 'exercisePanel.verdict.errorReason.resource_kill',
+  worker_crash: 'exercisePanel.verdict.errorReason.worker_crash',
 };
 
 export const describeVerdict = (verdict: VerdictDto): VerdictView => {
@@ -36,7 +36,7 @@ export const describeVerdict = (verdict: VerdictDto): VerdictView => {
     case 'passed':
       return {
         type: 'success',
-        titleKey: 'session.verdict.passed',
+        titleKey: 'exercisePanel.verdict.passed',
         reasonKey: null,
         feedback: verdict.feedback ?? null,
         retryable: false,
@@ -44,7 +44,7 @@ export const describeVerdict = (verdict: VerdictDto): VerdictView => {
     case 'failed':
       return {
         type: 'warning',
-        titleKey: 'session.verdict.failed',
+        titleKey: 'exercisePanel.verdict.failed',
         reasonKey: FAILED_REASON_KEY[verdict.reason],
         feedback: verdict.feedback ?? null,
         retryable: false,
@@ -52,7 +52,7 @@ export const describeVerdict = (verdict: VerdictDto): VerdictView => {
     default:
       return {
         type: 'error',
-        titleKey: 'session.verdict.error',
+        titleKey: 'exercisePanel.verdict.error',
         reasonKey: ERROR_REASON_KEY[verdict.reason],
         feedback: null,
         retryable: true,

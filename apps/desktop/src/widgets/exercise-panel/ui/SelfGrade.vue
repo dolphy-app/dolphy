@@ -23,7 +23,7 @@ const { t } = useI18n();
 <template>
   <section aria-labelledby="self-grade-title">
     <p id="self-grade-title" class="overline-label mb-3">
-      {{ t('session.selfGrade.title') }}
+      {{ t('exercisePanel.selfGrade.title') }}
     </p>
     <div class="options">
       <v-btn
@@ -40,7 +40,7 @@ const { t } = useI18n();
           {{ option.grade }}
         </span>
         <span class="text-label-medium">{{
-          t(`session.selfGrade.options.${option.grade}`)
+          t(`exercisePanel.selfGrade.options.${option.grade}`)
         }}</span>
       </v-btn>
     </div>

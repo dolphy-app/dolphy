@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { renderMarkdown } from '../lib/markdown.ts';
+import { renderMarkdown } from '@/shared/lib/markdown.ts';
 
 const props = defineProps<{ source: string }>();
 const html = computed(() => renderMarkdown(props.source));

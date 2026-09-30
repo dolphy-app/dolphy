@@ -3,6 +3,13 @@ name: Release
 on:
   push:
     branches: [main]
+  # пересобрать установщики уже выпущенной версии: gh workflow run release.yml -f version=X.Y.Z
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Версия существующего релиза (X.Y.Z), для которой пересобрать установщики
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -14,6 +21,7 @@ concurrency:
 jobs:
   release:
     name: Version and changelog
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -47,7 +55,7 @@ jobs:
   build:
     name: Build installer (${{ matrix.os }})
     needs: release
-    if: needs.release.outputs.version != ''
+    if: ${{ !cancelled() && (needs.release.outputs.version != '' || inputs.version != '') }}
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
@@ -56,12 +64,12 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     env:
-      VERSION: ${{ needs.release.outputs.version }}
+      VERSION: ${{ needs.release.outputs.version || inputs.version }}
     steps:
       - name: Checkout release tag
         uses: actions/checkout@v7
         with:
-          ref: v${{ needs.release.outputs.version }}
+          ref: v${{ needs.release.outputs.version || inputs.version }}
           persist-credentials: false
 
       - name: Setup pnpm
@@ -73,8 +81,10 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
 
+      # better-sqlite3 поставляет N-API prebuilds (asarUnpack), компилировать его не нужно:
+      # на Windows runner node-gyp не находит Visual Studio
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       # версию приложения задаёт тег релиза, а не apps/desktop/package.json
       - name: Build

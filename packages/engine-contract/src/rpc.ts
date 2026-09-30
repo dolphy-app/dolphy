@@ -61,6 +61,8 @@ export const RPC_METHODS = {
   'settings.getPreferences': { idempotent: true },
   'settings.setPreferences': { idempotent: false },
   'settings.getScorer': { idempotent: true },
+  'settings.getUi': { idempotent: true },
+  'settings.setUi': { idempotent: true }, // патч задаёт значения, не приращения
   'sync.getState': { idempotent: true },
   'sync.exportSince': { idempotent: true },
   'sync.import': { idempotent: true }, // по id записи

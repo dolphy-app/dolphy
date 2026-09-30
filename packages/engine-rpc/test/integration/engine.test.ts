@@ -334,6 +334,10 @@ describe('rpc → dispatcher → real engine', () => {
       client.settings.setPreferences({ ignoredPaths: [] }),
     );
     await call('settings.getScorer', () => client.settings.getScorer());
+    await call('settings.getUi', () => client.settings.getUi());
+    await call('settings.setUi', () =>
+      client.settings.setUi({ theme: 'dark', locale: 'en' }),
+    );
 
     await call('plan.getDay', () =>
       client.plan.getDay({ maxItems: 10, seed: 1 }),

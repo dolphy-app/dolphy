@@ -15,6 +15,8 @@ import {
   createRelearnPile,
   createSchedulerOptions,
   createSchedulerOptionsHolder,
+  decodeSchedulerOverrides,
+  diffSchedulerOptions,
   isInWindow,
   verifySchedulerOptions,
   windowNameOf,
@@ -314,5 +316,50 @@ describe('T-01: опции доходят до всех компонентов �
       InvalidSchedulerOptionsError,
     );
     expect(world.options.get().numTrials).toBe(20);
+  });
+});
+
+describe('отличия от умолчаний (сохранённые настройки)', () => {
+  it('одинаковые опции дают пустой патч', () => {
+    expect(diffSchedulerOptions(defaults(), defaults())).toEqual({});
+  });
+
+  it('патч содержит только изменённые поля и воспроизводит результат', () => {
+    const next = applySchedulerPatch(defaults(), {
+      batchSize: 7,
+      passingScore: { minScore: 3.5 },
+      implicitCredit: { enabled: true },
+    });
+    const diff = diffSchedulerOptions(defaults(), next);
+    expect(diff).toEqual({
+      batchSize: 7,
+      passingScore: { minScore: 3.5 },
+      implicitCredit: { enabled: true },
+    });
+    expect(applySchedulerPatch(defaults(), diff)).toEqual(next);
+  });
+
+  it('изменённое окно мастерства сохраняется целиком, включая границы', () => {
+    const next = applySchedulerPatch(defaults(), {
+      masteryWindows: {
+        new: { percentage: 0.1, range: [0, 1.5] },
+        target: { percentage: 0.3 },
+      },
+    });
+    const diff = diffSchedulerOptions(defaults(), next);
+    expect(diff.masteryWindows?.new).toEqual({
+      percentage: 0.1,
+      range: [0, 1.5],
+    });
+    expect(applySchedulerPatch(defaults(), diff)).toEqual(next);
+  });
+
+  it('decodeSchedulerOverrides принимает только объект', () => {
+    expect(decodeSchedulerOverrides({ batchSize: 3 })).toEqual({
+      batchSize: 3,
+    });
+    for (const raw of [null, undefined, 'x', 5, [1]]) {
+      expect(decodeSchedulerOverrides(raw)).toEqual({});
+    }
   });
 });

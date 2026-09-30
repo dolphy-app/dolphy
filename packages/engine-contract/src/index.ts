@@ -707,6 +707,15 @@ export interface PreferencesDto {
   schedulerBatchSize?: number;
 }
 
+export type ThemeMode = 'system' | 'light' | 'dark';
+/** `system` — язык системы; renderer сам выбирает из поддерживаемых. */
+export type LocaleMode = 'system' | 'ru' | 'en';
+/** Настройки интерфейса; хранятся вместе с остальными настройками в `engine.db`. */
+export interface UiSettingsDto {
+  theme: ThemeMode;
+  locale: LocaleMode;
+}
+
 export interface SettingsService {
   getScheduler(): Promise<SchedulerOptionsDto>;
   /** Валидирует (`verify` как при открытии), применяет ко всем компонентам сразу. */
@@ -717,6 +726,9 @@ export interface SettingsService {
   getPreferences(): Promise<PreferencesDto>;
   setPreferences(prefs: PreferencesDto): Promise<{ restartRequired: boolean }>;
   getScorer(): Promise<ScorerInfoDto>;
+  getUi(): Promise<UiSettingsDto>;
+  /** Валидирует и сохраняет; возвращает итоговые настройки. */
+  setUi(patch: Partial<UiSettingsDto>): Promise<UiSettingsDto>;
 }
 
 /** Вектор для дельта-экспорта: `{deviceId: contiguous}` — непрерывный префикс seq (1..contiguous без пропусков), не `maxSeq`. */
@@ -898,7 +910,8 @@ export type EngineEvent =
         | 'filters'
         | 'sessions'
         | 'blacklist'
-        | 'reviewList';
+        | 'reviewList'
+        | 'ui';
     };
 
 /** Конфигурация хоста при открытии движка (`createEngine`); через RPC не передаётся и renderer её не меняет. */

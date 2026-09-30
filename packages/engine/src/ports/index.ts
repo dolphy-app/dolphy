@@ -1,10 +1,13 @@
 import type {
+  DeepPartial,
   EpochMs,
   MissingSeqs,
   SavedFilterDto,
+  SchedulerOptionsDto,
   StateVector,
   StudySessionWire,
   SubmissionDto,
+  UiSettingsDto,
   VerdictDto,
 } from '@lms/engine-contract';
 import type { LogEntry } from '../domain/journal.ts';
@@ -236,9 +239,9 @@ export interface CourseSource {
 }
 
 /**
- * Настройки ученика: `dataDir/settings/user_preferences.json`,
- * `filters/*.json`, `study_sessions/*.json` — wire Trane, запись атомарная
- * (engine-ts.md §5.3) [ВЫВОД: сигнатуры не были выписаны в дизайне].
+ * Настройки ученика. Адаптеры: SQLite (`engine.db`, продукт), JSON-файлы
+ * `dataDir/settings` (wire Trane, запись атомарная, engine-ts.md §5.3) и
+ * память (тесты) [ВЫВОД: сигнатуры не были выписаны в дизайне].
  */
 export interface SettingsStore {
   loadPreferences(): Promise<UserPreferences>;
@@ -251,4 +254,12 @@ export interface SettingsStore {
   saveSession(session: StudySessionWire): Promise<void>;
   /** `false`, если сессии не было. */
   deleteSession(id: string): Promise<boolean>;
+  /** Отличия опций планировщика от умолчаний; `{}` — своих значений нет. */
+  loadSchedulerOverrides(): Promise<DeepPartial<SchedulerOptionsDto>>;
+  saveSchedulerOverrides(
+    overrides: DeepPartial<SchedulerOptionsDto>,
+  ): Promise<void>;
+  /** Настройки интерфейса; без сохранённых — тема и язык `system`. */
+  loadUi(): Promise<UiSettingsDto>;
+  saveUi(ui: UiSettingsDto): Promise<void>;
 }

@@ -359,6 +359,13 @@ export const schemas = {
     }),
   ]),
   'settings.getScorer': z.tuple([]),
+  'settings.getUi': z.tuple([]),
+  'settings.setUi': z.tuple([
+    z.strictObject({
+      theme: optional(z.enum(['system', 'light', 'dark'])),
+      locale: optional(z.enum(['system', 'ru', 'en'])),
+    }),
+  ]),
   'sync.getState': z.tuple([]),
   'sync.exportSince': z.tuple([
     optional(

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { LocaleMode } from '@lms/engine-contract';
+import type { LocaleMode } from '@spirula/engine-contract';
 import { useContributions, useEngine } from '@/shared/api/engine';
 import { vuetifyThemeName } from '@/shared/lib/extension-themes.ts';
 import { useAppearanceSettings } from '../model/appearance.ts';

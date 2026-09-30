@@ -8,7 +8,7 @@ import type {
   ArtifactState,
   Diagnostic,
   DiagnosticSummary,
-} from '@lms/engine-contract';
+} from '@spirula/engine-contract';
 import { EngineError } from '../app/errors.ts';
 import type { Library } from '../domain/library.ts';
 import type { Clock, CourseSource } from '../ports/index.ts';

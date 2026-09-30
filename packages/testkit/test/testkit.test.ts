@@ -1,4 +1,4 @@
-import type { ExtensionInfoDto } from '@lms/engine-contract';
+import type { ExtensionInfoDto } from '@spirula/engine-contract';
 import { describe, expect, it } from 'vitest';
 import {
   buildAttempt,
@@ -315,13 +315,13 @@ describe('createFakeExtensionRegistry', () => {
 
 describe('createFakeExtensionPolicy', () => {
   it('isolates everything except bundled and trusted; disabled only by settings', () => {
-    const policy = createFakeExtensionPolicy({ bundled: ['lms.sql'] });
+    const policy = createFakeExtensionPolicy({ bundled: ['spirula.sql'] });
     expect(policy.isIsolated('acme.x')).toBe(true);
-    expect(policy.isIsolated('lms.sql')).toBe(false);
+    expect(policy.isIsolated('spirula.sql')).toBe(false);
     expect(policy.isEnabled('acme.x')).toBe(true);
-    policy.update({ disabled: ['acme.x', 'lms.sql'], trusted: ['acme.x'] });
+    policy.update({ disabled: ['acme.x', 'spirula.sql'], trusted: ['acme.x'] });
     expect(policy.isEnabled('acme.x')).toBe(false);
-    expect(policy.isEnabled('lms.sql')).toBe(true);
+    expect(policy.isEnabled('spirula.sql')).toBe(true);
     expect(policy.isIsolated('acme.x')).toBe(false);
     expect(policy.updates).toHaveLength(1);
   });

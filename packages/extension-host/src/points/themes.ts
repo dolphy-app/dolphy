@@ -2,7 +2,7 @@ import {
   BUILTIN_THEME_IDS,
   THEME_COLOR_KEYS,
   THEME_VARIABLE_KEYS,
-} from '@lms/extension-api';
+} from '@spirula/extension-api';
 import { z } from 'zod';
 import { extensionId, idPrefixIssues } from './support.ts';
 import type { ContributionPoint } from './types.ts';

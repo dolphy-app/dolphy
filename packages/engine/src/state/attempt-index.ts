@@ -1,4 +1,4 @@
-import type { UnitId } from '@lms/engine-contract';
+import type { UnitId } from '@spirula/engine-contract';
 import type { AttemptIndex, AttemptRecord, EntryKey } from '../app/context.ts';
 import type { ScoringGraph } from '../scoring/graph.ts';
 import type { ExerciseTrial } from '../scoring/types.ts';

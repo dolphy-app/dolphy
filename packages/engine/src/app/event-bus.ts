@@ -1,4 +1,4 @@
-import type { EngineEvent } from '@lms/engine-contract';
+import type { EngineEvent } from '@spirula/engine-contract';
 import type { Logger } from '../ports/index.ts';
 
 export type EngineEventListener = (event: EngineEvent) => void;

@@ -1,4 +1,4 @@
-import type { EngineErrorCode, EngineErrorDto } from '@lms/engine-contract';
+import type { EngineErrorCode, EngineErrorDto } from '@spirula/engine-contract';
 import type { Logger } from '../ports/index.ts';
 
 interface ErrorSpec {

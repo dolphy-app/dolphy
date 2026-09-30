@@ -10,12 +10,12 @@ import {
   SnapshotRejectedError,
   type SnapshotLimits,
   type SnapshotViolation,
-} from '@lms/engine/ports';
+} from '@spirula/engine/ports';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { createIsomorphicGitFetcher } from '../src/index.ts';
-import { serveGitRepo } from '@lms/testkit';
-import type { GitFiles, GitServer } from '@lms/testkit';
+import { serveGitRepo } from '@spirula/testkit';
+import type { GitFiles, GitServer } from '@spirula/testkit';
 
 // Тесты требуют системный git с `http-backend`; без него падаем громко.
 beforeAll(() => {
@@ -58,7 +58,7 @@ const fetchSnapshot = async (
   limits: Partial<SnapshotLimits> = {},
   signal?: AbortSignal,
 ) => {
-  const root = await mkdtemp(join(tmpdir(), 'lms-git-test-'));
+  const root = await mkdtemp(join(tmpdir(), 'spirula-git-test-'));
   dirs.push(root);
   await mkdir(join(root, 'dest'));
   await mkdir(join(root, 'tmp'));

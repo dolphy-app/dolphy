@@ -1,5 +1,5 @@
 import { computed, onScopeDispose, ref, shallowRef } from 'vue';
-import type { LearningEngine, RepositoryDto } from '@lms/engine-contract';
+import type { LearningEngine, RepositoryDto } from '@spirula/engine-contract';
 import {
   describeRepositoryError,
   isProgressEvent,

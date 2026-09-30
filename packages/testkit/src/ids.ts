@@ -1,4 +1,4 @@
-import type { IdGenerator } from '@lms/engine';
+import type { IdGenerator } from '@spirula/engine';
 
 export interface TestIds extends IdGenerator {
   /** Сколько идентификаторов выдано. */

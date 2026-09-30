@@ -3,7 +3,7 @@ import type {
   MasteryWindowDto,
   MasteryWindowName,
   SchedulerOptionsDto,
-} from '@lms/engine-contract';
+} from '@spirula/engine-contract';
 
 /** Оценка, при которой дробный отбор урока достигает 100% кандидатов. */
 export const FULL_CANDIDATES_SCORE = 4.0;

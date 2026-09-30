@@ -3,7 +3,7 @@ import '@mdi/font/css/materialdesignicons.css';
 import '@fontsource/roboto/400.css';
 import '@fontsource/roboto/500.css';
 import '@fontsource/roboto/700.css';
-import type { ThemeContributionDto } from '@lms/engine-contract';
+import type { ThemeContributionDto } from '@spirula/engine-contract';
 import { useI18n } from 'vue-i18n';
 import { createVuetify } from 'vuetify';
 import { createVueI18nAdapter } from 'vuetify/locale/adapters/vue-i18n';
@@ -14,14 +14,14 @@ import {
   toVuetifyTheme,
   vuetifyThemeName,
 } from '@/shared/lib/extension-themes.ts';
-import type { LmsI18n } from './i18n.ts';
+import type { SpirulaI18n } from './i18n.ts';
 
 // components/directives не перечисляем: их подключает vite-plugin-vuetify
 // в vite.config (после @vitejs/plugin-vue); режим темы хранится в БД движка,
 // встроенные строки Vuetify берутся из каталога vue-i18n (`$vuetify`)
-export const createLmsVuetify = (
+export const createSpirulaVuetify = (
   theme: string,
-  i18n: LmsI18n,
+  i18n: SpirulaI18n,
   contributed: readonly ThemeContributionDto[] = [],
 ) =>
   createVuetify({

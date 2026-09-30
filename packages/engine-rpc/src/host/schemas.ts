@@ -3,7 +3,7 @@ import {
   EXTENSION_ID_PATTERN,
   GRADE_POLICY_ID_PATTERN,
   THEME_ID_PATTERN,
-} from '@lms/engine-contract';
+} from '@spirula/engine-contract';
 import * as z from 'zod';
 import type {
   AttemptEntryDto,
@@ -18,7 +18,7 @@ import type {
   SessionPartWire,
   StudySessionWire,
   UnitFilterWire,
-} from '@lms/engine-contract';
+} from '@spirula/engine-contract';
 
 type Path<T, K extends string> = K extends `${infer Head}.${infer Tail}`
   ? Head extends keyof T

@@ -1,4 +1,4 @@
-import type { EpochMs } from '@lms/engine-contract';
+import type { EpochMs } from '@spirula/engine-contract';
 import type { LogEntry } from '../domain/journal.ts';
 import type { Clock, EventStore, IdGenerator } from '../ports/index.ts';
 

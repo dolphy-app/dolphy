@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
-import type { ItemReason } from '@lms/engine-contract';
+import type { ItemReason } from '@spirula/engine-contract';
 import { useEngine } from '@/shared/api/engine';
 import { ITEM_REASON } from '@/shared/config/item-reason.ts';
 import { ROUTE } from '@/shared/config/routes.ts';

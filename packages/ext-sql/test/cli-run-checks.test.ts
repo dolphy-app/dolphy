@@ -1,5 +1,5 @@
 /**
- * T-38: `engine-cli validate --run-checks` с настоящим расширением `lms.sql`:
+ * T-38: `engine-cli validate --run-checks` с настоящим расширением `spirula.sql`:
  * эталоны sql-course проходят собственную проверку (код 0); испорченный
  * `reference` даёт `E_REFERENCE_FAILS` и код 1.
  */
@@ -65,7 +65,7 @@ const cli = async (dir: string) => {
   return { code, stdout, stderr };
 };
 
-describe('engine-cli --run-checks с расширением lms.sql (T-38)', () => {
+describe('engine-cli --run-checks с расширением spirula.sql (T-38)', () => {
   it('sql-course: эталоны проходят, код 0', async () => {
     const { code, stdout, stderr } = await cli(await copyLibrary());
     expect(stderr, stderr).not.toContain('"level":"error"');

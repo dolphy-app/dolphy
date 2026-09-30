@@ -1,12 +1,12 @@
-import { ExerciseTypeError, GradePolicyError } from '@lms/engine/ports';
+import { ExerciseTypeError, GradePolicyError } from '@spirula/engine/ports';
 import type {
   ExerciseTypes,
   ExtensionPolicy,
   GradePolicies,
   GradePolicyErrorCause,
   RawVerdict,
-} from '@lms/engine/ports';
-import type { ExtensionLogger } from '@lms/extension-api';
+} from '@spirula/engine/ports';
+import type { ExtensionLogger } from '@spirula/extension-api';
 import type { createCatalog } from './catalog.ts';
 import type { ChannelOutcome, ChannelParams, HostChannel } from './channel.ts';
 import { gradeResultSchema, gradeValueSchema } from './protocol.ts';

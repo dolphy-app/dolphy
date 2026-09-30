@@ -2,7 +2,7 @@ import {
   DEFAULT_RENDERER,
   ELEMENT_NAME_PATTERN,
   defaultElementName,
-} from '@lms/extension-api';
+} from '@spirula/extension-api';
 import { z } from 'zod';
 import {
   extensionId,

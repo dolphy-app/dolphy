@@ -1,4 +1,4 @@
-import { buildAttempt, buildUnitFlag, createFakeClock } from '@lms/testkit';
+import { buildAttempt, buildUnitFlag, createFakeClock } from '@spirula/testkit';
 import { describe, expect, it } from 'vitest';
 import type { LogEntry } from '../../src/domain/journal.ts';
 import { createMemoryEventStore } from '../../src/node/index.ts';

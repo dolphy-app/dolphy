@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createWorkspace, launchApp } from './support/app.ts';
-import type { LmsApp, Workspace } from './support/app.ts';
+import type { SpirulaApp, Workspace } from './support/app.ts';
 
 let workspace: Workspace;
-let app: LmsApp;
+let app: SpirulaApp;
 
 beforeEach(async () => {
   workspace = await createWorkspace();

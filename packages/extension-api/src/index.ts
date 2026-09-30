@@ -18,8 +18,8 @@ export const ELEMENT_NAME_PATTERN = /^[a-z][a-z0-9]*(-[a-z0-9]+)+$/;
 
 /** Имена событий custom element'а ответа. */
 export const ANSWER_EVENT = {
-  change: 'lms-answer-change',
-  submit: 'lms-answer-submit',
+  change: 'spirula-answer-change',
+  submit: 'spirula-answer-submit',
 } as const;
 
 export interface AnswerChangeDetail {
@@ -211,7 +211,7 @@ export interface MarkdownRendererModule<Container = unknown> {
 export const DEFAULT_MAIN = './main.mjs';
 export const DEFAULT_RENDERER = './view.mjs';
 
-/** Тег элемента по умолчанию: `lms.sql` → `lms-sql-answer`. */
+/** Тег элемента по умолчанию: `spirula.sql` → `spirula-sql-answer`. */
 export const defaultElementName = (id: string): string =>
   `${id.replaceAll('.', '-')}-answer`;
 

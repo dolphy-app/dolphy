@@ -1,4 +1,4 @@
-import { DEFAULT_MARKDOWN_RENDERER } from '@lms/extension-api';
+import { DEFAULT_MARKDOWN_RENDERER } from '@spirula/extension-api';
 import { z } from 'zod';
 import { resolveModuleUrl, safePath } from './support.ts';
 import type { ContributionPoint } from './types.ts';

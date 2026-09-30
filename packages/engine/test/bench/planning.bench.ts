@@ -2,7 +2,7 @@
  * T-57 (engine-ts-testing.md §7.1), M6: `MemoryIndex.rebuild` на журнале 500k
  * (режимы `none`, `sparse`, `trane`) и инкрементальное применение, `planDay`
  * на 40 позиций из просроченных 500…5 000 и выбор пробы placement (V3,
- * N = 3 000 тем). Запуск: `pnpm -F @lms/engine bench`. Бенчмарки советуют, не
+ * N = 3 000 тем). Запуск: `pnpm -F @spirula/engine bench`. Бенчмарки советуют, не
  * блокируют: числа печатаются, регресс более чем вдвое от базы документа —
  * `console.warn`; падают только ошибки корректности.
  *
@@ -10,8 +10,8 @@
  * `sparse` — кредит на объявленных охватах (30 % зависимостей); `trane` —
  * кредит на охватах по графу зависимостей.
  */
-import type { UnitId } from '@lms/engine-contract';
-import { T0_MS } from '@lms/testkit';
+import type { UnitId } from '@spirula/engine-contract';
+import { T0_MS } from '@spirula/testkit';
 import { describe, expect, it } from 'vitest';
 import { createDiagnosticSession } from '../../src/placement/index.ts';
 import { createCreditModel } from '../../src/planning/credit-model.ts';

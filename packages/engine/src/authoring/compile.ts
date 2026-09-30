@@ -3,7 +3,7 @@
  * диагностик → артефакт. Не останавливается на первой ошибке: все дефекты
  * библиотеки собираются за один проход (T-17).
  */
-import type { Diagnostic, DiagnosticSummary } from '@lms/engine-contract';
+import type { Diagnostic, DiagnosticSummary } from '@spirula/engine-contract';
 import type { CourseSource } from '../ports/index.ts';
 import { buildArtifact } from './artifact.ts';
 import type { Artifact } from './artifact.ts';

@@ -4,7 +4,7 @@
  * с запасом: тесты гоняются рядом с другими пакетами.
  */
 import { fileURLToPath } from 'node:url';
-import { silentLogger } from '@lms/testkit';
+import { silentLogger } from '@spirula/testkit';
 import { afterEach, describe, expect, it } from 'vitest';
 import { defaultPoolSize } from '../../src/pool.ts';
 import { createSqlVerifier } from '../../src/verifier.ts';

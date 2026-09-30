@@ -1,4 +1,4 @@
-import type { UnitId } from '@lms/engine-contract';
+import type { UnitId } from '@spirula/engine-contract';
 
 export type UnitKind = 'course' | 'lesson' | 'exercise';
 

@@ -7,10 +7,10 @@ type LoadModule = (url: string) => Promise<unknown>;
 type Runtime = (win: unknown, loadModule: LoadModule) => void;
 
 const runtime = new Function(
-  `${runtimeSource}\nreturn lmsFrameRuntime;`,
+  `${runtimeSource}\nreturn spirulaFrameRuntime;`,
 )() as Runtime;
 
-const URL_PREFIX = 'lms-ext://acme.echo';
+const URL_PREFIX = 'spirula-ext://acme.echo';
 
 class FakeResizeObserver {
   static instances: FakeResizeObserver[] = [];
@@ -48,7 +48,7 @@ const setup = (loadModule: LoadModule = async () => ({})) => {
     {
       document,
       parent,
-      location: new URL(`${URL_PREFIX}/__lms/frame.html`),
+      location: new URL(`${URL_PREFIX}/__spirula/frame.html`),
       addEventListener: happy.addEventListener.bind(happy),
       customElements: happy.customElements,
       ResizeObserver: FakeResizeObserver,
@@ -81,7 +81,7 @@ const setup = (loadModule: LoadModule = async () => ({})) => {
 };
 
 const answerInit = (element = 'x-answer') => ({
-  lms: 1,
+  spirula: 1,
   type: 'init',
   mode: 'answer',
   rendererUrl: `${URL_PREFIX}/view.mjs`,
@@ -97,9 +97,9 @@ afterEach(() => {
 });
 
 describe('рантайм рамки', () => {
-  it('сообщает ready и помечает сообщения маркером lmsFrame', () => {
+  it('сообщает ready и помечает сообщения маркером spirulaFrame', () => {
     const { posted } = setup();
-    expect(posted).toEqual([{ lmsFrame: 1, type: 'ready' }]);
+    expect(posted).toEqual([{ spirulaFrame: 1, type: 'ready' }]);
   });
 
   it('answer: грузит модуль, создаёт элемент с aria-label и выставляет свойства', async () => {
@@ -118,7 +118,7 @@ describe('рантайм рамки', () => {
     };
     expect(element.getAttribute('aria-label')).toBe('Ответ');
     send({
-      lms: 1,
+      spirula: 1,
       type: 'props',
       view: { options: ['a'] },
       disabled: true,
@@ -133,7 +133,7 @@ describe('рантайм рамки', () => {
   it('свойства, присланные до создания элемента, применяются при создании', async () => {
     const { send, define, flush, document } = setup();
     define('x-answer');
-    send({ lms: 1, type: 'props', view: 'early', disabled: true });
+    send({ spirula: 1, type: 'props', view: 'early', disabled: true });
     send(answerInit());
     await flush();
     const element = document.querySelector('x-answer') as unknown as {
@@ -153,13 +153,13 @@ describe('рантайм рамки', () => {
       'x-answer',
     ) as unknown as HTMLElement;
     element.dispatchEvent(
-      new CustomEvent('lms-answer-change', {
+      new CustomEvent('spirula-answer-change', {
         detail: { value: 'select 1', complete: true, extra: 1 },
       }),
     );
-    element.dispatchEvent(new CustomEvent('lms-answer-submit'));
+    element.dispatchEvent(new CustomEvent('spirula-answer-submit'));
     expect(posted).toContainEqual({
-      lmsFrame: 1,
+      spirulaFrame: 1,
       type: 'answer-change',
       detail: { value: 'select 1', complete: true },
     });
@@ -170,7 +170,7 @@ describe('рантайм рамки', () => {
     const { send, define, flush, document, posted } = setup();
     define('x-answer');
     send(answerInit(), { postMessage: () => undefined });
-    send({ ...answerInit(), lms: 2 });
+    send({ ...answerInit(), spirula: 2 });
     send('init');
     send(null);
     await flush();
@@ -191,7 +191,7 @@ describe('рантайм рамки', () => {
   it('модуль вне своего расширения и неверное имя элемента — error', async () => {
     const load = vi.fn(async () => ({}));
     const { send, flush, posted } = setup(load);
-    send({ ...answerInit(), rendererUrl: 'lms-ext://other.ext/view.mjs' });
+    send({ ...answerInit(), rendererUrl: 'spirula-ext://other.ext/view.mjs' });
     await flush();
     expect(load).not.toHaveBeenCalled();
     expect(posted.at(-1)).toMatchObject({
@@ -215,7 +215,7 @@ describe('рантайм рамки', () => {
     send(answerInit());
     await flush();
     expect(posted.at(-1)).toEqual({
-      lmsFrame: 1,
+      spirulaFrame: 1,
       type: 'error',
       message: 'import failed',
     });
@@ -237,7 +237,7 @@ describe('рантайм рамки', () => {
     const { send, define, document, posted, happy } = setup();
     define('x-answer', (el) =>
       el.addEventListener('keydown', () =>
-        el.dispatchEvent(new CustomEvent('lms-answer-submit')),
+        el.dispatchEvent(new CustomEvent('spirula-answer-submit')),
       ),
     );
     send(answerInit());
@@ -278,7 +278,7 @@ describe('рантайм рамки', () => {
     const { send, document } = setup();
     const style = document.documentElement.style;
     send({
-      lms: 1,
+      spirula: 1,
       type: 'theme',
       variables: {
         '--v-theme-primary': '1,2,3',
@@ -297,7 +297,7 @@ describe('рантайм рамки', () => {
     expect(style.getPropertyValue('color-scheme')).toBe('dark');
 
     send({
-      lms: 1,
+      spirula: 1,
       type: 'theme',
       variables: { '--v-theme-primary': '9,9,9' },
       dark: false,
@@ -330,7 +330,7 @@ describe('рантайм рамки', () => {
       default: { render },
     }));
     send({
-      lms: 1,
+      spirula: 1,
       type: 'init',
       mode: 'markdown',
       rendererUrl: `${URL_PREFIX}/markdown.mjs`,
@@ -356,7 +356,7 @@ describe('рантайм рамки', () => {
       },
     }));
     const init = {
-      lms: 1,
+      spirula: 1,
       type: 'init',
       mode: 'markdown',
       rendererUrl: `${URL_PREFIX}/markdown.mjs`,
@@ -393,7 +393,7 @@ describe('рантайм рамки', () => {
       },
     }));
     send({
-      lms: 1,
+      spirula: 1,
       type: 'init',
       mode: 'markdown',
       rendererUrl: `${URL_PREFIX}/markdown.mjs`,
@@ -402,7 +402,7 @@ describe('рантайм рамки', () => {
     });
     await flush();
     expect(document.body.children).toHaveLength(1);
-    send({ lms: 1, type: 'dispose' });
+    send({ spirula: 1, type: 'dispose' });
     expect(signals[0]?.aborted).toBe(true);
     expect(document.body.children).toHaveLength(0);
     expect(FakeResizeObserver.instances[0]?.disconnected).toBe(true);

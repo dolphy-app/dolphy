@@ -13,8 +13,8 @@ import {
   buildLesson,
   generateLibrary,
   renderLibrary,
-} from '@lms/testkit';
-import type { CourseLibrary } from '@lms/testkit';
+} from '@spirula/testkit';
+import type { CourseLibrary } from '@spirula/testkit';
 import { DUMP_CASES } from '../helpers/rust-dumps.ts';
 import { generateLoaderLibrary } from '../helpers/loader-gen.ts';
 
@@ -151,7 +151,7 @@ export const L2_LIBRARIES: readonly L2Library[] = [
   {
     name: 'testkit-generated',
     description:
-      '@lms/testkit generateLibrary: 3 курса цепочкой, 8 уроков, 3 упражнения, оба типа',
+      '@spirula/testkit generateLibrary: 3 курса цепочкой, 8 уроков, 3 упражнения, оба типа',
     prepare: async (tmp) => {
       const root = join(tmp, 'l2-testkit-generated');
       writeLibrary(
@@ -171,7 +171,7 @@ export const L2_LIBRARIES: readonly L2Library[] = [
   {
     name: 'testkit-nested',
     description:
-      '@lms/testkit buildCourse/buildLesson: вложенные зависимости, веса охвата, вытеснение уроков и курса',
+      '@spirula/testkit buildCourse/buildLesson: вложенные зависимости, веса охвата, вытеснение уроков и курса',
     prepare: async (tmp) => {
       const root = join(tmp, 'l2-testkit-nested');
       writeLibrary(buildNestedLibrary(), root);
@@ -181,7 +181,7 @@ export const L2_LIBRARIES: readonly L2Library[] = [
   {
     name: 'testkit-fanin',
     description:
-      '@lms/testkit: узел, охваченный 12 уроками с разными весами (дедуп наград)',
+      '@spirula/testkit: узел, охваченный 12 уроками с разными весами (дедуп наград)',
     prepare: async (tmp) => {
       const root = join(tmp, 'l2-testkit-fanin');
       writeLibrary(buildFanInLibrary(), root);

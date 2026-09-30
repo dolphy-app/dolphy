@@ -4,7 +4,7 @@ import type {
   FlagService,
   SessionStoreService,
   UnitId,
-} from '@lms/engine-contract';
+} from '@spirula/engine-contract';
 import type { ParseResult } from '../../domain/manifest-schema.ts';
 import {
   parseSavedFilter,

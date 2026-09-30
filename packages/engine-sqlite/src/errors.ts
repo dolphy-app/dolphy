@@ -1,5 +1,5 @@
-import { EngineError } from '@lms/engine/app';
-import type { EngineErrorOptions } from '@lms/engine/app';
+import { EngineError } from '@spirula/engine/app';
+import type { EngineErrorOptions } from '@spirula/engine/app';
 
 type StoreCode = 'STORE_BUSY' | 'STORE_READONLY' | 'STORE_CORRUPT';
 

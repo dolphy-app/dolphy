@@ -5,8 +5,8 @@ export interface Platform {
   pickDirectory(options?: { title?: string }): Promise<string | null>;
 }
 
-/** Узкий мост `window.lms`: ни `ipcRenderer`, ни произвольных каналов. */
-export interface LmsBridge {
+/** Узкий мост `window.spirula`: ни `ipcRenderer`, ни произвольных каналов. */
+export interface SpirulaBridge {
   engine: { connect(): void };
   platform: Platform;
   /** Только в смоук-сборке (`shared/smoke.ts`). */

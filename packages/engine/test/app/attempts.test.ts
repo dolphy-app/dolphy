@@ -2,14 +2,14 @@
  * Попытка с проверкой: `beginAttempt` → `submitAnswer`* → `completeAttempt`
  * (T-10, T-41 в части движка, `GradePolicy` passAtN, лимиты реестра попыток).
  */
-import type { VerdictDto } from '@lms/engine-contract';
-import { MAX_ANSWER_CHARS } from '@lms/engine-contract';
+import type { VerdictDto } from '@spirula/engine-contract';
+import { MAX_ANSWER_CHARS } from '@spirula/engine-contract';
 import {
   buildLibrary,
   createFakeExerciseTypes,
   createFakeGradePolicies,
-} from '@lms/testkit';
-import type { FakeExerciseTypes } from '@lms/testkit';
+} from '@spirula/testkit';
+import type { FakeExerciseTypes } from '@spirula/testkit';
 import { describe, expect, it } from 'vitest';
 import type { LogEntry } from '../../src/domain/journal.ts';
 import type { RawVerdict } from '../../src/ports/index.ts';
@@ -33,11 +33,11 @@ const ERROR: RawVerdict = {
   durationMs: 2000,
 };
 
-/** Вид `lms.sql`, отдающий вердикты по сценарию; каждый вызов `grade` сохраняется. */
+/** Вид `spirula.sql`, отдающий вердикты по сценарию; каждый вызов `grade` сохраняется. */
 const createFakeSqlTypes = (
   ...script: (RawVerdict | Promise<RawVerdict>)[]
 ): FakeExerciseTypes =>
-  createFakeExerciseTypes({ types: { 'lms.sql': { script } } });
+  createFakeExerciseTypes({ types: { 'spirula.sql': { script } } });
 
 const setup = (
   types: FakeExerciseTypes | null,
@@ -66,7 +66,7 @@ describe('beginAttempt', () => {
       startedAt: t.clock.now(),
       exercise: {
         id: VERIFIABLE,
-        task: { type: 'lms.sql', element: 'fake-lms-sql' },
+        task: { type: 'spirula.sql', element: 'fake-spirula-sql' },
       },
       view: {},
     });
@@ -405,7 +405,7 @@ describe('exercise type availability', () => {
     ).rejects.toMatchObject({
       code: 'EXERCISE_TYPE_UNAVAILABLE',
       retryable: false,
-      details: { cause: 'unknown-type', type: 'lms.sql' },
+      details: { cause: 'unknown-type', type: 'spirula.sql' },
     });
   });
 
@@ -426,7 +426,7 @@ describe('exercise type availability', () => {
 
   it('returns the view produced by project()', async () => {
     const types = createFakeExerciseTypes({
-      types: { 'lms.sql': { project: { hint: 'h' } } },
+      types: { 'spirula.sql': { project: { hint: 'h' } } },
     });
     const t = await setup(types);
     const attempt = await t.engine.practice.beginAttempt({
@@ -446,7 +446,7 @@ describe('submitAnswer', () => {
     await t.engine.practice.submitAnswer({ attemptId, answer: ANSWER });
     expect(verifier.requests).toHaveLength(1);
     expect(verifier.requests[0]).toMatchObject({
-      type: 'lms.sql',
+      type: 'spirula.sql',
       exerciseId: VERIFIABLE,
       spec: expect.objectContaining({ fixture: expect.any(String) }),
       answer: ANSWER,
@@ -513,7 +513,7 @@ describe('submitAnswer', () => {
   it('answer schema violations are INVALID_ARGUMENT, spend no attempt and skip grade', async () => {
     const types = createFakeExerciseTypes({
       types: {
-        'lms.sql': {
+        'spirula.sql': {
           answerErrors: ['/ must be array'],
           script: [PASSED],
         },

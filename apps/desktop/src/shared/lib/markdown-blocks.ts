@@ -1,5 +1,5 @@
-import type { MarkdownRendererDto } from '@lms/engine-contract';
-import type { MarkdownRendererModule } from '@lms/extension-api';
+import type { MarkdownRendererDto } from '@spirula/engine-contract';
+import type { MarkdownRendererModule } from '@spirula/extension-api';
 import { createFrameHost, frameUrlOf } from '@/shared/lib/frame-bridge.ts';
 import type { FrameHost } from '@/shared/lib/frame-bridge.ts';
 import { MARKDOWN_BLOCK_CLASS } from './markdown.ts';
@@ -47,7 +47,7 @@ const fail = (
   console.error({ error, language }, 'markdown block was not rendered');
   block.dataset.state = 'error';
   const note = block.ownerDocument.createElement('p');
-  note.className = 'lms-md-error';
+  note.className = 'spirula-md-error';
   note.setAttribute('role', 'note');
   note.textContent = describeError(language);
   block.append(note);

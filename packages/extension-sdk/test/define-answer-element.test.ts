@@ -128,8 +128,8 @@ describe('defineAnswerElement', () => {
     apis[0]?.setAnswer([1, 2], true);
     apis[0]?.submit();
     expect(received.map((event) => event.type)).toEqual([
-      'lms-answer-change',
-      'lms-answer-submit',
+      'spirula-answer-change',
+      'spirula-answer-submit',
     ]);
     expect(received[0]?.detail).toEqual({ value: [1, 2], complete: true });
     expect(received[0]?.bubbles).toBe(true);

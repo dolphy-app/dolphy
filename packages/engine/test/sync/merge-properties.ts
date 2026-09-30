@@ -1,7 +1,7 @@
-import { createFakeClock } from '@lms/testkit';
+import { createFakeClock } from '@spirula/testkit';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import type { Grade } from '@lms/engine-contract';
+import type { Grade } from '@spirula/engine-contract';
 import type { EntryFields } from '../../src/app/index.ts';
 import type { LogEntry } from '../../src/domain/journal.ts';
 import type { EventStore } from '../../src/ports/index.ts';

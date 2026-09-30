@@ -1,8 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { ExerciseTaskDto, Grade, VerdictDto } from '@lms/engine-contract';
-import type { AnswerChangeDetail } from '@lms/extension-api';
+import type {
+  ExerciseTaskDto,
+  Grade,
+  VerdictDto,
+} from '@spirula/engine-contract';
+import type { AnswerChangeDetail } from '@spirula/extension-api';
 import MarkdownView from '@/shared/ui/MarkdownView.vue';
 import { describeVerdict } from '../lib/verdict.ts';
 import AnswerElement from './AnswerElement.vue';

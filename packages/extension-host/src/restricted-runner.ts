@@ -1,7 +1,7 @@
 import { spawn as nodeSpawn } from 'node:child_process';
 import { realpath } from 'node:fs/promises';
 import path from 'node:path';
-import type { ExtensionLogger, LibraryReader } from '@lms/extension-api';
+import type { ExtensionLogger, LibraryReader } from '@spirula/extension-api';
 import type { ResolvedExtension } from './discover.ts';
 import type { ExtRequest, ExtResponse } from './protocol.ts';
 import { RESTRICTED_ENV, restrictedArgs } from './permissions.ts';

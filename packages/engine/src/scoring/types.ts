@@ -1,4 +1,4 @@
-import type { EpochMs, ScorerInfoDto, UnitId } from '@lms/engine-contract';
+import type { EpochMs, ScorerInfoDto, UnitId } from '@spirula/engine-contract';
 import type { ExerciseType } from '../domain/manifest.ts';
 
 /**

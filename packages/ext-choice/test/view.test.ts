@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
-import { ANSWER_EVENT } from '@lms/extension-api';
-import type { AnswerChangeDetail } from '@lms/extension-api';
+import { ANSWER_EVENT } from '@spirula/extension-api';
+import type { AnswerChangeDetail } from '@spirula/extension-api';
 import { afterEach, describe, expect, it } from 'vitest';
 import '../src/view.ts';
 
@@ -16,7 +16,9 @@ const multi = { multiple: true, options: ['a', 'b', 'c', 'd'] };
 const flush = () => Promise.resolve();
 
 const mountElement = async (view: unknown, label: string | null = null) => {
-  const element = document.createElement('lms-choice-answer') as ChoiceElement;
+  const element = document.createElement(
+    'spirula-choice-answer',
+  ) as ChoiceElement;
   if (label !== null) element.setAttribute('aria-label', label);
   document.body.append(element);
   element.view = view;
@@ -38,7 +40,7 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-describe('lms-choice-answer', () => {
+describe('spirula-choice-answer', () => {
   it('рисует радиокнопки для одиночного выбора', async () => {
     const { element } = await mountElement(single);
     const radios = inputs(element);
@@ -121,7 +123,7 @@ describe('lms-choice-answer', () => {
 
   it('disabled, выставленный до view, применяется к вариантам', async () => {
     const element = document.createElement(
-      'lms-choice-answer',
+      'spirula-choice-answer',
     ) as ChoiceElement;
     document.body.append(element);
     element.disabled = true;

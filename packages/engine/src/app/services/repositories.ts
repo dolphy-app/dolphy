@@ -8,7 +8,7 @@ import type {
   RepositoryPhase,
   RepositoryStatus,
   UpdateRepositoryResult,
-} from '@lms/engine-contract';
+} from '@spirula/engine-contract';
 import { loadCompiled } from '../../authoring/artifact.ts';
 import { compile } from '../../authoring/compile.ts';
 import {

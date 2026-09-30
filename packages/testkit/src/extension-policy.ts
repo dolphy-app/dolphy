@@ -1,5 +1,5 @@
-import type { ExtensionSettingsDto } from '@lms/engine-contract';
-import type { ExtensionPolicy } from '@lms/engine/ports';
+import type { ExtensionSettingsDto } from '@spirula/engine-contract';
+import type { ExtensionPolicy } from '@spirula/engine/ports';
 
 export interface FakeExtensionPolicyOptions {
   /** Id расширений из поставки: всегда включены и не изолированы. */

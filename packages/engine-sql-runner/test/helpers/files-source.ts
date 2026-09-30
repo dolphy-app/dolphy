@@ -1,4 +1,4 @@
-import type { SourceStat } from '@lms/engine/ports';
+import type { SourceStat } from '@spirula/engine/ports';
 
 export interface FilesSource {
   readText(path: string): Promise<string>;

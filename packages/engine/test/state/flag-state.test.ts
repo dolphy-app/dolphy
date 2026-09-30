@@ -1,4 +1,4 @@
-import { buildUnitFlag, T0_MS } from '@lms/testkit';
+import { buildUnitFlag, T0_MS } from '@spirula/testkit';
 import { describe, expect, it } from 'vitest';
 import { createFlagState } from '../../src/state/flag-state.ts';
 

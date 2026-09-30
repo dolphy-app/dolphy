@@ -1,4 +1,4 @@
-import type { MessageEndpoint } from '@lms/engine-contract';
+import type { MessageEndpoint } from '@spirula/engine-contract';
 
 /** Структурный тип DOM `MessagePort` (в `lib` пакета нет DOM). */
 export interface DomPortLike {

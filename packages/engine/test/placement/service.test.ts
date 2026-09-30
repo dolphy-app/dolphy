@@ -1,5 +1,5 @@
-import type { PlacementSummaryDto } from '@lms/engine-contract';
-import { buildLibrary, createFakeExerciseTypes } from '@lms/testkit';
+import type { PlacementSummaryDto } from '@spirula/engine-contract';
+import { buildLibrary, createFakeExerciseTypes } from '@spirula/testkit';
 import { describe, expect, test } from 'vitest';
 import { EngineError } from '../../src/app/index.ts';
 import type { EventStore, StoreTx } from '../../src/ports/index.ts';
@@ -282,7 +282,7 @@ describe('placement service on sql-course (T-47)', () => {
   test('an open attempt with a verdict is accepted as a result; grades are validated', async () => {
     const t = await createTestEngine({
       library: 'sql-course',
-      exerciseTypes: createFakeExerciseTypes({ types: { 'lms.sql': {} } }),
+      exerciseTypes: createFakeExerciseTypes({ types: { 'spirula.sql': {} } }),
     });
     const { placement, practice } = t.engine;
     const { sessionId } = await placement.start({ budget: 5, seed: 1 });

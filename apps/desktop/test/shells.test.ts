@@ -248,12 +248,12 @@ describe('window shell', () => {
   it('скрытое окно передаёт renderer дополнительные аргументы', async () => {
     const { created } = setup({
       hidden: true,
-      additionalArguments: ['--lms-smoke'],
+      additionalArguments: ['--spirula-smoke'],
     });
     await vi.waitFor(() => expect(created).toHaveLength(1));
     expect(created[0]?.options.show).toBe(false);
     expect(created[0]?.options.webPreferences.additionalArguments).toEqual([
-      '--lms-smoke',
+      '--spirula-smoke',
     ]);
   });
 

@@ -21,8 +21,8 @@ export const EXIT_OK = 0;
 export const EXIT_PROBLEMS = 1;
 export const EXIT_USAGE = 2;
 
-const USAGE = `usage: lms-ext build [dir] [--out <dir>] [--watch]
-       lms-ext validate <dir>
+const USAGE = `usage: spirula-ext build [dir] [--out <dir>] [--watch]
+       spirula-ext validate <dir>
 
   build [dir]      собрать расширение из проекта (по умолчанию — текущий каталог)
                    в <dir>/dist-ext/<id>
@@ -142,7 +142,7 @@ const runValidate = async (dir: string, io: CliIo): Promise<number> => {
   return EXIT_PROBLEMS;
 };
 
-/** `lms-ext build|validate`; `argv` без `node` и имени скрипта. */
+/** `spirula-ext build|validate`; `argv` без `node` и имени скрипта. */
 export const runCli = async (
   argv: readonly string[],
   io: CliIo,

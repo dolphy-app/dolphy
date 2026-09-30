@@ -2,8 +2,8 @@ import type {
   EngineDiagnosticsDto,
   EngineEvent,
   LearningEngine,
-} from '@lms/engine-contract';
-import { createCapturingLogger } from '@lms/testkit';
+} from '@spirula/engine-contract';
+import { createCapturingLogger } from '@spirula/testkit';
 import { describe, expect, it } from 'vitest';
 import {
   EngineError,

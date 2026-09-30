@@ -7,14 +7,14 @@ import {
   useTemplateRef,
   watch,
 } from 'vue';
-import type { AnswerChangeDetail } from '@lms/extension-api';
+import type { AnswerChangeDetail } from '@spirula/extension-api';
 import { createFrameHost } from '@/shared/lib/frame-bridge.ts';
 import type { FrameHost, FrameInit } from '@/shared/lib/frame-bridge.ts';
 
 const MIN_HEIGHT_PX = 40;
 
 const props = defineProps<{
-  /** Страница рамки: `lms-ext://<id>/__lms/frame.html`. */
+  /** Страница рамки: `spirula-ext://<id>/__spirula/frame.html`. */
   src: string;
   title: string;
   init: FrameInit;

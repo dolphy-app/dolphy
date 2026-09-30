@@ -9,7 +9,7 @@ import type {
   RecordResultDto,
   UnitId,
   VerdictDto,
-} from '@lms/engine-contract';
+} from '@spirula/engine-contract';
 import { PLAN_MAX_ITEMS } from '@/shared/config/plan.ts';
 import {
   readExerciseContent,

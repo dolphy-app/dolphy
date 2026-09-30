@@ -86,7 +86,7 @@ const extensions = async (): Promise<Map<string, ResolvedExtension>> => {
 let tmp = '';
 const disposables: (() => Promise<void>)[] = [];
 beforeEach(async () => {
-  tmp = await mkdtemp(path.join(tmpdir(), 'lms-restricted-'));
+  tmp = await mkdtemp(path.join(tmpdir(), 'spirula-restricted-'));
 });
 afterEach(async () => {
   for (const dispose of disposables.splice(0)) await dispose();

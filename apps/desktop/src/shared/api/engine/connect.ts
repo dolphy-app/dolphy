@@ -1,6 +1,6 @@
-import { createEngineClient, fromDomPort } from '@lms/engine-rpc/client';
-import type { DomPortLike } from '@lms/engine-rpc/client';
-import type { LearningEngine } from '@lms/engine-contract';
+import { createEngineClient, fromDomPort } from '@spirula/engine-rpc/client';
+import type { DomPortLike } from '@spirula/engine-rpc/client';
+import type { LearningEngine } from '@spirula/engine-contract';
 import { CHANNELS } from '../../../../shared/bridge.ts';
 
 /**
@@ -26,5 +26,5 @@ export const connectEngine = () =>
         else console.error(error); // переподключение не удалось
       }
     });
-    window.lms.engine.connect();
+    window.spirula.engine.connect();
   });

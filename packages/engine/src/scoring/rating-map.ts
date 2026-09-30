@@ -1,4 +1,4 @@
-import type { ScorerInfoDto } from '@lms/engine-contract';
+import type { ScorerInfoDto } from '@spirula/engine-contract';
 import { NonFiniteScoreError } from './errors.ts';
 
 export type RatingMapName = ScorerInfoDto['ratingMap'];

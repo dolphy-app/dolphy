@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { EngineError } from '@lms/engine/app';
+import { EngineError } from '@spirula/engine/app';
 import type {
   ConflictReason,
   ConflictRow,
@@ -7,7 +7,7 @@ import type {
   EventStore,
   SegmentRecord,
   StoreTx,
-} from '@lms/engine/ports';
+} from '@spirula/engine/ports';
 import {
   DEVICE_ID_PATTERN,
   appendInTx,
@@ -15,11 +15,11 @@ import {
   createVectorTracker,
   parseEntry,
   unitOf,
-} from '@lms/engine/sync';
-import type { LogEntry } from '@lms/engine';
+} from '@spirula/engine/sync';
+import type { LogEntry } from '@spirula/engine';
 import { guard, mapSqliteError } from './errors.ts';
 import { SCHEMA_VERSION, migrate, readSchemaVersion } from './migrations.ts';
-import type { RepositoryStore } from '@lms/engine/ports';
+import type { RepositoryStore } from '@spirula/engine/ports';
 import { createSqliteRepositoryStore } from './repository-store.ts';
 import { createSqliteSettingsStore } from './settings-store.ts';
 import type { SqliteSettingsStore } from './settings-store.ts';

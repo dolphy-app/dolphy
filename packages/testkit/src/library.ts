@@ -3,7 +3,7 @@ import type {
   ExerciseManifest,
   LessonManifest,
   Rng,
-} from '@lms/engine';
+} from '@spirula/engine';
 import { createSeededRng } from './rng.ts';
 
 /** Библиотека курсов в памяти: разобранные манифесты (умолчания применены). */

@@ -1,6 +1,6 @@
-/** Элемент ввода ответа `lms-choice-answer`; побочный эффект загрузки — регистрация. */
-import { defineAnswerElement } from '@lms/extension-sdk';
-import type { AnswerElementApi } from '@lms/extension-sdk';
+/** Элемент ввода ответа `spirula-choice-answer`; побочный эффект загрузки — регистрация. */
+import { defineAnswerElement } from '@spirula/extension-sdk';
+import type { AnswerElementApi } from '@spirula/extension-sdk';
 import { normalizeValue, selectedIndices } from './choice-model.ts';
 import type { ChoiceView } from './grade.ts';
 
@@ -99,4 +99,4 @@ const mount = (
   return { update };
 };
 
-defineAnswerElement('lms-choice-answer', mount);
+defineAnswerElement('spirula-choice-answer', mount);

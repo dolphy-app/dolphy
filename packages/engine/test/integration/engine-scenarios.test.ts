@@ -1,9 +1,9 @@
 /**
- * Сценарии на всём стеке `@lms/engine` без нативных модулей: настоящие
+ * Сценарии на всём стеке `@spirula/engine` без нативных модулей: настоящие
  * библиотеки-фикстуры, `nodeDefaults` (fs-источник, JSON-настройки), журнал
  * в памяти. Журнал SQLite — `packages/engine-sqlite/test/engine.test.ts`.
  */
-import type { EngineConfig, LearningEngine } from '@lms/engine-contract';
+import type { EngineConfig, LearningEngine } from '@spirula/engine-contract';
 import {
   createFakeClock,
   createFakeExerciseTypes,
@@ -12,7 +12,7 @@ import {
   createFakeExtensionRegistry,
   createSeededRng,
   createTestIds,
-} from '@lms/testkit';
+} from '@spirula/testkit';
 import { describe, expect, it } from 'vitest';
 import { createEngine } from '../../src/app/index.ts';
 import {

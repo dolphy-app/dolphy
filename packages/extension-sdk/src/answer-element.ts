@@ -3,15 +3,15 @@ import {
   ELEMENT_NAME_PATTERN,
   type AnswerChangeDetail,
   type AnswerElementProps,
-} from '@lms/extension-api';
+} from '@spirula/extension-api';
 
 export interface AnswerElementApi {
   readonly root: ShadowRoot;
   /** `aria-label` хост-элемента, выставленный приложением; `null`, если нет. */
   readonly label: string | null;
-  /** Сообщает приложению текущий ответ: событие `lms-answer-change`. */
+  /** Сообщает приложению текущий ответ: событие `spirula-answer-change`. */
   setAnswer(value: unknown, complete: boolean): void;
-  /** Просит приложение отправить ответ: событие `lms-answer-submit`. */
+  /** Просит приложение отправить ответ: событие `spirula-answer-submit`. */
   submit(): void;
 }
 

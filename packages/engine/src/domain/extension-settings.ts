@@ -1,7 +1,7 @@
 import {
   EXTENSION_ID_PATTERN,
   type ExtensionSettingsDto,
-} from '@lms/engine-contract';
+} from '@spirula/engine-contract';
 
 export const MAX_EXTENSION_ID_LENGTH = 64;
 

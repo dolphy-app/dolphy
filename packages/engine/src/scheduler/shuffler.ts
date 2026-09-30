@@ -1,4 +1,4 @@
-import type { SchedulerOptionsDto } from '@lms/engine-contract';
+import type { SchedulerOptionsDto } from '@spirula/engine-contract';
 import type { Rng } from '../ports/index.ts';
 import type { Precision } from '../scoring/types.ts';
 import { roundOf } from './precision.ts';

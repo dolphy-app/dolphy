@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import type { MarkdownRendererDto } from '@lms/engine-contract';
+import type { MarkdownRendererDto } from '@spirula/engine-contract';
 import { describe, expect, it, vi } from 'vitest';
 import { hydrateMarkdownBlocks } from '../src/shared/lib/markdown-blocks.ts';
 import { createMarkdownRenderer } from '../src/shared/lib/markdown.ts';
@@ -8,13 +8,13 @@ const renderers: MarkdownRendererDto[] = [
   {
     language: 'wild',
     extensionId: 'acme.wild',
-    rendererUrl: 'lms-ext://acme.wild/markdown.mjs',
+    rendererUrl: 'spirula-ext://acme.wild/markdown.mjs',
     isolated: true,
   },
   {
     language: 'math',
-    extensionId: 'lms.math',
-    rendererUrl: 'lms-ext://lms.math/markdown.mjs',
+    extensionId: 'spirula.math',
+    rendererUrl: 'spirula-ext://spirula.math/markdown.mjs',
     isolated: false,
   },
 ];
@@ -38,7 +38,7 @@ const attachWindow = (frame: HTMLIFrameElement) => {
   ) =>
     window.dispatchEvent(
       Object.assign(new Event('message'), {
-        data: { lmsFrame: 1, ...message },
+        data: { spirulaFrame: 1, ...message },
         source,
       }),
     );
@@ -65,12 +65,12 @@ describe('изолированный рендерер блока Markdown', () =
     const { frame, loadModule } = start(root);
     expect(frame.getAttribute('sandbox')).toBe('allow-scripts');
     expect(frame.getAttribute('src')).toBe(
-      'lms-ext://acme.wild/__lms/frame.html',
+      'spirula-ext://acme.wild/__spirula/frame.html',
     );
     expect(frame.title).toBe('frame:wild');
     expect(frame.dataset.mode).toBe('markdown');
     expect(loadModule).not.toHaveBeenCalled();
-    const block = root.querySelector('.lms-md-block');
+    const block = root.querySelector('.spirula-md-block');
     expect(block?.getAttribute('data-state')).toBe('loading');
     expect(block?.querySelector('pre code')?.textContent).toBe(
       'raw <b>x</b>\n',
@@ -83,10 +83,10 @@ describe('изолированный рендерер блока Markdown', () =
     const { posted, send } = attachWindow(frame);
     send({ type: 'ready' });
     expect(posted[0]).toMatchObject({
-      lms: 1,
+      spirula: 1,
       type: 'init',
       mode: 'markdown',
-      rendererUrl: 'lms-ext://acme.wild/markdown.mjs',
+      rendererUrl: 'spirula-ext://acme.wild/markdown.mjs',
       language: 'wild',
       source: 'E=mc^2\n',
     });
@@ -94,7 +94,7 @@ describe('изолированный рендерер блока Markdown', () =
     expect(frame.style.height).toBe('222px');
     send({ type: 'done' });
     await done;
-    const block = root.querySelector('.lms-md-block');
+    const block = root.querySelector('.spirula-md-block');
     expect(block?.getAttribute('data-state')).toBe('done');
     expect(block?.querySelector('pre')).toBeNull();
     expect(block?.contains(frame)).toBe(true);
@@ -108,10 +108,10 @@ describe('изолированный рендерер блока Markdown', () =
     const { send } = attachWindow(frame);
     send({ type: 'error', message: 'boom' });
     await done;
-    const block = root.querySelector('.lms-md-block');
+    const block = root.querySelector('.spirula-md-block');
     expect(block?.getAttribute('data-state')).toBe('error');
     expect(block?.querySelector('pre code')?.textContent).toBe('raw\n');
-    expect(block?.querySelector('p.lms-md-error')?.textContent).toBe(
+    expect(block?.querySelector('p.spirula-md-error')?.textContent).toBe(
       'failed:wild',
     );
     expect(root.querySelector('iframe')).toBeNull();
@@ -122,7 +122,7 @@ describe('изолированный рендерер блока Markdown', () =
     const { frame } = start(root);
     const { send } = attachWindow(frame);
     send({ type: 'done' }, { postMessage: () => undefined });
-    const block = root.querySelector('.lms-md-block');
+    const block = root.querySelector('.spirula-md-block');
     expect(block?.getAttribute('data-state')).toBe('loading');
     expect(block?.querySelector('pre')).not.toBeNull();
   });
@@ -134,7 +134,7 @@ describe('изолированный рендерер блока Markdown', () =
     attachWindow(frame);
     controller.abort();
     await done;
-    const block = root.querySelector('.lms-md-block');
+    const block = root.querySelector('.spirula-md-block');
     expect(block?.getAttribute('data-state')).toBe('pending');
     expect(block?.querySelector('pre')).not.toBeNull();
     expect(root.querySelector('iframe')).toBeNull();
@@ -149,11 +149,11 @@ describe('изолированный рендерер блока Markdown', () =
     send({ type: 'done' });
     await done;
     controller.abort();
-    expect(posted.at(-1)).toEqual({ lms: 1, type: 'dispose' });
+    expect(posted.at(-1)).toEqual({ spirula: 1, type: 'dispose' });
     send({ type: 'size', height: 500 });
     expect(frame.style.height).not.toBe('500px');
     expect(
-      root.querySelector('.lms-md-block')?.getAttribute('data-state'),
+      root.querySelector('.spirula-md-block')?.getAttribute('data-state'),
     ).toBe('done');
   });
 
@@ -177,7 +177,9 @@ describe('изолированный рендерер блока Markdown', () =
     send({ type: 'done' });
     await done;
     expect(loadModule).toHaveBeenCalledOnce();
-    expect(loadModule).toHaveBeenCalledWith('lms-ext://lms.math/markdown.mjs');
+    expect(loadModule).toHaveBeenCalledWith(
+      'spirula-ext://spirula.math/markdown.mjs',
+    );
     expect(root.querySelector('[data-language=math] svg')).not.toBeNull();
     expect(root.querySelectorAll('iframe')).toHaveLength(1);
   });

@@ -3,7 +3,7 @@ import type {
   EngineDiagnosticsDto,
   LearningEngine,
   ScorerInfoDto,
-} from '@lms/engine-contract';
+} from '@spirula/engine-contract';
 
 export interface EngineInfo {
   diagnostics: EngineDiagnosticsDto;

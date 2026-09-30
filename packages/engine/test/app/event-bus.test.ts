@@ -1,5 +1,5 @@
-import type { EngineEvent } from '@lms/engine-contract';
-import { createCapturingLogger } from '@lms/testkit';
+import type { EngineEvent } from '@spirula/engine-contract';
+import { createCapturingLogger } from '@spirula/testkit';
 import { describe, expect, it } from 'vitest';
 import { createEventBus } from '../../src/app/index.ts';
 

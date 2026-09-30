@@ -126,7 +126,7 @@ describe('supervisor', () => {
     const win = createFakeWindow(7);
     supervisor.start();
     expect(fork).toHaveBeenCalledWith('/host/index.js', [], {
-      serviceName: 'lms-engine',
+      serviceName: 'spirula-engine',
     });
     const [host] = hosts;
     supervisor.connect(win.webContents);

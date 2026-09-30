@@ -1,5 +1,5 @@
 {
-  "name": "@lms/extension-sdk",
+  "name": "@spirula/extension-sdk",
   "version": "0.0.0",
   "private": true,
   "description": "SDK автора расширений: defineExtension, defineAnswerElement, помощники тестирования",
@@ -13,7 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@lms/extension-api": "workspace:*",
+    "@spirula/extension-api": "workspace:*",
     "ajv": "^8"
   },
   "devDependencies": {

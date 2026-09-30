@@ -1,4 +1,7 @@
-import type { ContributionsDto, ExtensionInfoDto } from '@lms/engine-contract';
+import type {
+  ContributionsDto,
+  ExtensionInfoDto,
+} from '@spirula/engine-contract';
 
 /** Обзор найденных расширений (загруженные, перекрытые, некорректные). */
 export interface ExtensionRegistry {

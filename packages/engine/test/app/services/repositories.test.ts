@@ -1,6 +1,6 @@
 import { mkdir, readFile, readdir, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { EngineEvent, RepositoryPhase } from '@lms/engine-contract';
+import type { EngineEvent, RepositoryPhase } from '@spirula/engine-contract';
 import {
   buildLibrary,
   createFakeClock,
@@ -11,8 +11,8 @@ import {
   createSeededRng,
   createTestIds,
   renderLibrary,
-} from '@lms/testkit';
-import type { CourseLibrary } from '@lms/testkit';
+} from '@spirula/testkit';
+import type { CourseLibrary } from '@spirula/testkit';
 import { describe, expect, it } from 'vitest';
 import {
   EngineError,

@@ -1,34 +1,34 @@
 /**
- * Рантайм изолированной рамки расширения (`lms-ext://<id>/__lms/frame.js`).
+ * Рантайм изолированной рамки расширения (`spirula-ext://<id>/__spirula/frame.js`).
  *
  * Рамка — `<iframe sandbox="allow-scripts">` без `allow-same-origin`: у неё
  * непрозрачный origin, поэтому она не видит ни DOM приложения, ни
- * `window.lms`, ни его хранилище; сеть закрыта CSP страницы рамки.
+ * `window.spirula`, ни его хранилище; сеть закрыта CSP страницы рамки.
  * Единственный канал с приложением — `postMessage` (контракт ниже, родитель —
  * `src/shared/lib/frame-bridge.ts`). Файл — обычный JS без импортов: его
  * отдаёт протокол как есть (Vite `?raw`), поэтому константы здесь и в мосте
  * совпадают вручную.
  *
- * Приложение → рамка (`lms: 1`; принимаются только от `window.parent`):
- *   { lms: 1, type: 'init', mode: 'answer', rendererUrl, element, label }
- *   { lms: 1, type: 'init', mode: 'markdown', rendererUrl, language, source }
- *   { lms: 1, type: 'props', view?, value?, disabled?, verdict? }   (answer)
- *   { lms: 1, type: 'theme', variables: { '--v-…': string }, dark: boolean }
- *   { lms: 1, type: 'dispose' }
+ * Приложение → рамка (`spirula: 1`; принимаются только от `window.parent`):
+ *   { spirula: 1, type: 'init', mode: 'answer', rendererUrl, element, label }
+ *   { spirula: 1, type: 'init', mode: 'markdown', rendererUrl, language, source }
+ *   { spirula: 1, type: 'props', view?, value?, disabled?, verdict? }   (answer)
+ *   { spirula: 1, type: 'theme', variables: { '--v-…': string }, dark: boolean }
+ *   { spirula: 1, type: 'dispose' }
  *
- * Рамка → приложение (`lmsFrame: 1`):
- *   { lmsFrame: 1, type: 'ready' }                  рантайм слушает сообщения
- *   { lmsFrame: 1, type: 'answer-change', detail }  { value, complete }
- *   { lmsFrame: 1, type: 'answer-submit' }          в том числе Ctrl/⌘+Enter
- *   { lmsFrame: 1, type: 'size', height }           высота содержимого, px
- *   { lmsFrame: 1, type: 'done' }                   markdown: блок выведен
- *   { lmsFrame: 1, type: 'error', message }
+ * Рамка → приложение (`spirulaFrame: 1`):
+ *   { spirulaFrame: 1, type: 'ready' }                  рантайм слушает сообщения
+ *   { spirulaFrame: 1, type: 'answer-change', detail }  { value, complete }
+ *   { spirulaFrame: 1, type: 'answer-submit' }          в том числе Ctrl/⌘+Enter
+ *   { spirulaFrame: 1, type: 'size', height }           высота содержимого, px
+ *   { spirulaFrame: 1, type: 'done' }                   markdown: блок выведен
+ *   { spirulaFrame: 1, type: 'error', message }
  *
  * Порядок: приложение ждёт `ready`, затем шлёт `init`, `theme`, `props`.
- * Модуль расширения грузится только с того же `lms-ext://<id>`, что и рамка.
+ * Модуль расширения грузится только с того же `spirula-ext://<id>`, что и рамка.
  */
 // eslint-disable-next-line no-unused-vars -- вызывается из собранного источника (extension-assets.ts)
-const lmsFrameRuntime = (win, loadModule) => {
+const spirulaFrameRuntime = (win, loadModule) => {
   const doc = win.document;
   const LOAD_TIMEOUT_MS = 5000;
   const MAX_MESSAGE_CHARS = 10000;
@@ -49,7 +49,7 @@ const lmsFrameRuntime = (win, loadModule) => {
   };
 
   const post = (message) => {
-    win.parent.postMessage({ lmsFrame: 1, ...message }, '*');
+    win.parent.postMessage({ spirulaFrame: 1, ...message }, '*');
   };
 
   const fail = (error) => {
@@ -123,7 +123,7 @@ const lmsFrameRuntime = (win, loadModule) => {
     );
     const created = doc.createElement(element);
     if (typeof label === 'string') created.setAttribute('aria-label', label);
-    created.addEventListener('lms-answer-change', (event) => {
+    created.addEventListener('spirula-answer-change', (event) => {
       const { value, complete } = event.detail ?? {};
       try {
         post({
@@ -134,7 +134,7 @@ const lmsFrameRuntime = (win, loadModule) => {
         fail(error);
       }
     });
-    created.addEventListener('lms-answer-submit', submit);
+    created.addEventListener('spirula-answer-submit', submit);
     doc.body.append(created);
     state.element = created;
     applyProps();
@@ -207,7 +207,7 @@ const lmsFrameRuntime = (win, loadModule) => {
     if (event.source !== win.parent) return;
     const message = event.data;
     if (typeof message !== 'object' || message === null) return;
-    if (message.lms !== 1 || typeof message.type !== 'string') return;
+    if (message.spirula !== 1 || typeof message.type !== 'string') return;
     if (Object.hasOwn(handlers, message.type)) handlers[message.type](message);
   });
 

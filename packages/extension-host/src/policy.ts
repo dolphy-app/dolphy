@@ -1,5 +1,5 @@
-import type { ExtensionSettingsDto } from '@lms/engine-contract';
-import type { ExtensionPolicy } from '@lms/engine/ports';
+import type { ExtensionSettingsDto } from '@spirula/engine-contract';
+import type { ExtensionPolicy } from '@spirula/engine/ports';
 import type { DiscoveryResult } from './discover.ts';
 
 /** Все расширения включены и доверены: CLI и сторона рантайма, где политики нет. */

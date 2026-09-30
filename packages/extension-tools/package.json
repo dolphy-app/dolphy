@@ -1,23 +1,23 @@
 {
-  "name": "@lms/extension-tools",
+  "name": "@spirula/extension-tools",
   "version": "0.0.0",
   "private": true,
-  "description": "Инструменты автора расширений: lms-ext build и lms-ext validate",
+  "description": "Инструменты автора расширений: spirula-ext build и spirula-ext validate",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
   },
   "bin": {
-    "lms-ext": "./src/cli/main.ts"
+    "spirula-ext": "./src/cli/main.ts"
   },
   "scripts": {
     "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
     "test": "vitest run",
-    "lms-ext": "node --disable-warning=ExperimentalWarning src/cli/main.ts"
+    "spirula-ext": "node --disable-warning=ExperimentalWarning src/cli/main.ts"
   },
   "dependencies": {
-    "@lms/extension-api": "workspace:*",
-    "@lms/extension-host": "workspace:*",
+    "@spirula/extension-api": "workspace:*",
+    "@spirula/extension-host": "workspace:*",
     "vite": "^8.0.16"
   },
   "devDependencies": {

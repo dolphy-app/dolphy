@@ -1,11 +1,11 @@
-import type { GraphQuery } from '@lms/engine-contract';
+import type { GraphQuery } from '@spirula/engine-contract';
 import {
   buildCourse,
   buildExercise,
   buildLesson,
   createFakeExerciseTypes,
   createFakeExtensionPolicy,
-} from '@lms/testkit';
+} from '@spirula/testkit';
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_EXERCISE_TIMEOUT_MS,
@@ -247,14 +247,14 @@ describe('toExerciseDto', () => {
 
   it('describes the task from the exercise type catalog', () => {
     const types = createFakeExerciseTypes({
-      types: { 'lms.sql': { element: 'lms-sql-answer' } },
+      types: { 'spirula.sql': { element: 'spirula-sql-answer' } },
     });
     const dto = toExerciseDtoWith(
       buildExercise({
         id: 'a::l0::e0',
         engine: {
           exercise: {
-            type: 'lms.sql',
+            type: 'spirula.sql',
             timeoutMs: 500,
             spec: { fixture: 'fx' },
           },
@@ -264,43 +264,43 @@ describe('toExerciseDto', () => {
       policy,
     );
     expect(dto.task).toEqual({
-      type: 'lms.sql',
+      type: 'spirula.sql',
       timeoutMs: 500,
-      element: 'lms-sql-answer',
-      rendererUrl: 'lms-ext://fake/lms.sql.mjs',
+      element: 'spirula-sql-answer',
+      rendererUrl: 'spirula-ext://fake/spirula.sql.mjs',
       isolated: true,
     });
   });
 
   it('marks the task isolated unless the owner is bundled or trusted', () => {
     const types = createFakeExerciseTypes({
-      types: { 'lms.sql': {} },
+      types: { 'spirula.sql': {} },
     });
     const exercise = buildExercise({
       id: 'a::l0::e0',
-      engine: { exercise: { type: 'lms.sql' } },
+      engine: { exercise: { type: 'spirula.sql' } },
     });
     const flag = (p: typeof policy) =>
       toExerciseDtoWith(exercise, types, p).task?.isolated;
     expect(flag(createFakeExtensionPolicy())).toBe(true);
-    expect(flag(createFakeExtensionPolicy({ bundled: ['lms.sql'] }))).toBe(
+    expect(flag(createFakeExtensionPolicy({ bundled: ['spirula.sql'] }))).toBe(
       false,
     );
     expect(
       flag(
         createFakeExtensionPolicy({
-          settings: { disabled: [], trusted: ['lms.sql'] },
+          settings: { disabled: [], trusted: ['spirula.sql'] },
         }),
       ),
     ).toBe(false);
   });
 
   it('defaults the task timeout to 2000 ms', () => {
-    const types = createFakeExerciseTypes({ types: { 'lms.sql': {} } });
+    const types = createFakeExerciseTypes({ types: { 'spirula.sql': {} } });
     const dto = toExerciseDtoWith(
       buildExercise({
         id: 'a::l0::e0',
-        engine: { exercise: { type: 'lms.sql' } },
+        engine: { exercise: { type: 'spirula.sql' } },
       }),
       types,
       policy,

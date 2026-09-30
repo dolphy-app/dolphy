@@ -59,9 +59,9 @@ describe('dev extensions shell', () => {
   it('серия изменений даёт один перезапуск хостов и одну перезагрузку окон', () => {
     const { calls, watch, change } = setup();
     expect(watch).toHaveBeenCalledWith(DIR, expect.any(Function));
-    change('lms.x/main.mjs');
+    change('spirula.x/main.mjs');
     vi.advanceTimersByTime(DEFAULT_DEV_DEBOUNCE_MS - 50);
-    change('lms.x/view.mjs'); // сдвигает срабатывание
+    change('spirula.x/view.mjs'); // сдвигает срабатывание
     vi.advanceTimersByTime(DEFAULT_DEV_DEBOUNCE_MS - 1);
     expect(calls).toEqual([]);
     vi.advanceTimersByTime(1);

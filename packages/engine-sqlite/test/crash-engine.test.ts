@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createTestEngine } from '../../engine/test/helpers/engine.ts';
-import type { LogEntry } from '@lms/engine';
+import type { LogEntry } from '@spirula/engine';
 import {
   CRASH_DEVICE_ID,
   CRASH_EXERCISES,

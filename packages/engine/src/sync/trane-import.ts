@@ -1,4 +1,4 @@
-import type { EpochMs, Grade } from '@lms/engine-contract';
+import type { EpochMs, Grade } from '@spirula/engine-contract';
 import type { LogEntry } from '../domain/journal.ts';
 import type { Clock, EventStore } from '../ports/index.ts';
 import { FIVE_MIN_MS } from '../app/journal-writer.ts';
@@ -15,7 +15,7 @@ export interface TraneTrial {
 
 /**
  * Чтение каталога `.trane` (`practice_stats.db`, `blacklist.db`,
- * `review_list.db`); SQLite-реализация — в `@lms/engine-sqlite`.
+ * `review_list.db`); SQLite-реализация — в `@spirula/engine-sqlite`.
  */
 export interface TraneSource {
   trials(): Iterable<TraneTrial>;

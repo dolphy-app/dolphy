@@ -1,4 +1,4 @@
-import type { ExerciseTypeErrorCause } from '@lms/engine/ports';
+import type { ExerciseTypeErrorCause } from '@spirula/engine/ports';
 import { z } from 'zod';
 
 export type ExtRequest =

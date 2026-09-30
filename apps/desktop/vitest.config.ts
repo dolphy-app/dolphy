@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
-  define: { __LMS_SMOKE_BUILD__: false },
+  define: { __SPIRULA_SMOKE_BUILD__: false },
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },

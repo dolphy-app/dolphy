@@ -1,4 +1,4 @@
-import type { Page, PageRequest } from '@lms/engine-contract';
+import type { Page, PageRequest } from '@spirula/engine-contract';
 import { EngineError } from './errors.ts';
 
 export const DEFAULT_PAGE_LIMIT = 100;

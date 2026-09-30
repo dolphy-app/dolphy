@@ -1,5 +1,5 @@
-import { createFakeClock, createTestIds } from '@lms/testkit';
-import type { FakeClock } from '@lms/testkit';
+import { createFakeClock, createTestIds } from '@spirula/testkit';
+import type { FakeClock } from '@spirula/testkit';
 import { createJournalWriter } from '../../src/app/index.ts';
 import type {
   BuildOptions,

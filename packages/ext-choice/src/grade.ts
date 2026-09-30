@@ -1,5 +1,5 @@
-/** Чистая логика вида `lms.choice`: без DOM и без зависимостей от хоста. */
-import type { GradeResult } from '@lms/extension-api';
+/** Чистая логика вида `spirula.choice`: без DOM и без зависимостей от хоста. */
+import type { GradeResult } from '@spirula/extension-api';
 
 export interface ChoiceSpec {
   options: string[];

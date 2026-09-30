@@ -18,7 +18,7 @@ import {
 import type { ThemeSnapshot } from '../src/shared/lib/frame-theme.ts';
 
 const frameMessage = (extra: Record<string, unknown>) => ({
-  lmsFrame: 1,
+  spirulaFrame: 1,
   ...extra,
 });
 
@@ -40,7 +40,7 @@ describe('parseFrameMessage', () => {
     ['не объект', 'ready'],
     ['null', null],
     ['без маркера', { type: 'ready' }],
-    ['другая версия', { lmsFrame: 2, type: 'ready' }],
+    ['другая версия', { spirulaFrame: 2, type: 'ready' }],
     ['неизвестный тип', frameMessage({ type: 'eval' })],
     ['change без detail', frameMessage({ type: 'answer-change' })],
     [
@@ -96,8 +96,8 @@ describe('parseFrameMessage', () => {
 
 describe('frameUrlOf', () => {
   it('строит адрес страницы рамки по адресу модуля расширения', () => {
-    expect(frameUrlOf('lms-ext://acme.echo/view.mjs')).toBe(
-      'lms-ext://acme.echo/__lms/frame.html',
+    expect(frameUrlOf('spirula-ext://acme.echo/view.mjs')).toBe(
+      'spirula-ext://acme.echo/__spirula/frame.html',
     );
   });
 
@@ -108,7 +108,7 @@ describe('frameUrlOf', () => {
 
 const ANSWER: FrameInit = {
   mode: 'answer',
-  rendererUrl: 'lms-ext://acme.echo/view.mjs',
+  rendererUrl: 'spirula-ext://acme.echo/view.mjs',
   element: 'acme-echo-answer',
   label: 'Ответ',
 };
@@ -180,7 +180,7 @@ describe('createFrameHost', () => {
     receive(frameMessage({ type: 'ready' }));
     expect(types()).toEqual(['init', 'theme', 'props']);
     expect(posted.every(({ origin }) => origin === '*')).toBe(true);
-    expect(posted.every(({ message }) => message.lms === 1)).toBe(true);
+    expect(posted.every(({ message }) => message.spirula === 1)).toBe(true);
     expect(posted[0]?.message).toMatchObject({
       type: 'init',
       mode: 'answer',
@@ -188,7 +188,7 @@ describe('createFrameHost', () => {
       label: 'Ответ',
     });
     expect(posted[1]?.message).toEqual({
-      lms: 1,
+      spirula: 1,
       type: 'theme',
       variables: { '--v-theme-primary': '1,2,3' },
       dark: false,
@@ -253,7 +253,7 @@ describe('createFrameHost', () => {
     host.update({ verdict: { outcome: 'passed' } });
     expect(types().at(-1)).toBe('props');
     expect(posted.at(-1)?.message).toEqual({
-      lms: 1,
+      spirula: 1,
       type: 'props',
       verdict: { outcome: 'passed' },
     });
@@ -271,7 +271,7 @@ describe('createFrameHost', () => {
     };
     notify();
     expect(posted.at(-1)?.message).toEqual({
-      lms: 1,
+      spirula: 1,
       type: 'theme',
       variables: { '--v-theme-primary': '9,9,9' },
       dark: true,

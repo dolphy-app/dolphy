@@ -4,7 +4,7 @@ import type {
   ExtensionOriginDto,
   ExtensionSettingsDto,
   ExtensionsService,
-} from '@lms/engine-contract';
+} from '@spirula/engine-contract';
 import {
   isExtensionId,
   normalizeExtensionSettings,

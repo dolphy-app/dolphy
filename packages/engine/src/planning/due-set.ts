@@ -1,4 +1,4 @@
-import type { EpochMs } from '@lms/engine-contract';
+import type { EpochMs } from '@spirula/engine-contract';
 import type { MemoryModel } from '../ports/index.ts';
 import type { MemorySource } from '../scheduler/due.ts';
 import { retrievabilityAt } from '../scheduler/due.ts';

@@ -1,4 +1,4 @@
-import { EngineError } from '@lms/engine/app';
+import { EngineError } from '@spirula/engine/app';
 import type { SqlDatabase } from './sql-database.ts';
 
 /**

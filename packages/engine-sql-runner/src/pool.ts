@@ -11,7 +11,7 @@ import { fork } from 'node:child_process';
 import type { ChildProcess, ForkOptions } from 'node:child_process';
 import { availableParallelism } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import type { Logger } from '@lms/engine/ports';
+import type { Logger } from '@spirula/engine/ports';
 import { readRssKbWithPs } from './rss.ts';
 import type { ReadRssKb } from './rss.ts';
 import { DEFAULT_LIMITS } from './types.ts';

@@ -9,7 +9,7 @@ import type {
   PlacementResult,
   UnitId,
   VerdictDto,
-} from '@lms/engine-contract';
+} from '@spirula/engine-contract';
 import { readAllPages } from '@/shared/lib/read-all-pages.ts';
 import {
   readExerciseContent,

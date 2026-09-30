@@ -2,7 +2,7 @@ import type {
   AssetRef,
   ExerciseContentDto,
   LearningEngine,
-} from '@lms/engine-contract';
+} from '@spirula/engine-contract';
 
 export interface ExerciseText {
   /** Markdown условия. */

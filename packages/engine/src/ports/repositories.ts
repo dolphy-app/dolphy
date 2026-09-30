@@ -3,7 +3,7 @@ import type {
   EpochMs,
   GitFetchFailureReason,
   UnitId,
-} from '@lms/engine-contract';
+} from '@spirula/engine-contract';
 import type { CourseSource } from './index.ts';
 
 /**

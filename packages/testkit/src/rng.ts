@@ -1,5 +1,5 @@
-import { createRng, f64FromWords } from '@lms/engine';
-import type { Rng } from '@lms/engine';
+import { createRng, f64FromWords } from '@spirula/engine';
+import type { Rng } from '@spirula/engine';
 
 export interface SeededRng extends Rng {
   readonly seed: number;

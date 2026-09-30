@@ -1,1 +1,1 @@
-export const APP_NAME = 'LMS';
+export const APP_NAME = 'Spirula';

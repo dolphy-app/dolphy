@@ -6,7 +6,7 @@ import type {
   ExtensionSettingsDto,
   LearningSettingsDto,
   UiSettingsDto,
-} from '@lms/engine-contract';
+} from '@spirula/engine-contract';
 import type { UserPreferences } from '../domain/manifest.ts';
 import {
   DEFAULT_EXTENSION_SETTINGS,

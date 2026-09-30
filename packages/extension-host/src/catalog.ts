@@ -3,7 +3,7 @@ import type {
   ExtensionPolicy,
   ExerciseTypes,
   GradePolicyInfo,
-} from '@lms/engine/ports';
+} from '@spirula/engine/ports';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import type { ErrorObject, ValidateFunction } from 'ajv/dist/2020.js';
 import type { ResolvedExtension } from './discover.ts';

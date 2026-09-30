@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url';
-import type { ExtensionModule } from '@lms/extension-api';
+import type { ExtensionModule } from '@spirula/extension-api';
 import { describe, expect, it, vi } from 'vitest';
 import { discoverExtensions } from '../src/discover.ts';
 import type { ExtensionOrigin } from '../src/discover.ts';

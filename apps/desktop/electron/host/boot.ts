@@ -1,10 +1,10 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { createEngine } from '@lms/engine/app';
-import { nodeDefaults } from '@lms/engine/node';
-import type { EngineConfig } from '@lms/engine-contract';
-import { createIsomorphicGitFetcher } from '@lms/engine-git';
-import { openSqliteStorage, readTraneDirectory } from '@lms/engine-sqlite';
+import { createEngine } from '@spirula/engine/app';
+import { nodeDefaults } from '@spirula/engine/node';
+import type { EngineConfig } from '@spirula/engine-contract';
+import { createIsomorphicGitFetcher } from '@spirula/engine-git';
+import { openSqliteStorage, readTraneDirectory } from '@spirula/engine-sqlite';
 import {
   createCatalog,
   createExtensionPolicy,
@@ -13,7 +13,7 @@ import {
   createRemoteExerciseTypes,
   createRemoteGradePolicies,
   discoverExtensions,
-} from '@lms/extension-host';
+} from '@spirula/extension-host';
 import { extensionRoots } from '../extension-roots.ts';
 
 export const boot = async (
@@ -69,7 +69,7 @@ export const boot = async (
     policy,
     logger: defaults.logger,
   });
-  if (__LMS_SMOKE_BUILD__ && process.env.LMS_SMOKE === '1') {
+  if (__SPIRULA_SMOKE_BUILD__ && process.env.SPIRULA_SMOKE === '1') {
     defaults.logger.info(
       { types: exerciseTypes.list().map(({ type }) => type) },
       'exercise types discovered',

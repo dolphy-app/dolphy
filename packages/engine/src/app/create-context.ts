@@ -3,7 +3,7 @@ import type {
   EngineEvent,
   SavedFilterDto,
   UnitId,
-} from '@lms/engine-contract';
+} from '@spirula/engine-contract';
 import {
   createLibraryHolder,
   openLibrary,

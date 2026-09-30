@@ -1,23 +1,23 @@
 /**
- * Клиент `@lms/engine-rpc` → диспетчер → настоящий `createEngine` через
+ * Клиент `@spirula/engine-rpc` → диспетчер → настоящий `createEngine` через
  * in-process пару (structuredClone на каждом сообщении, как в Electron).
  */
-import { RPC_METHODS } from '@lms/engine-contract';
+import { RPC_METHODS } from '@spirula/engine-contract';
 import type {
   EngineEvent,
   ExtensionInfoDto,
   SavedFilterDto,
-} from '@lms/engine-contract';
-import { createEngine } from '@lms/engine/app';
+} from '@spirula/engine-contract';
+import { createEngine } from '@spirula/engine/app';
 import {
   createMemoryEventStore,
   createMemoryRepositoryStore,
   createMemorySettingsStore,
   createNodeSnapshotInstaller,
-} from '@lms/engine/node';
-import { GitFetchError } from '@lms/engine/ports';
-import type { GitSnapshotFetcher } from '@lms/engine/ports';
-import { createTsFsrsMemoryModel } from '@lms/engine';
+} from '@spirula/engine/node';
+import { GitFetchError } from '@spirula/engine/ports';
+import type { GitSnapshotFetcher } from '@spirula/engine/ports';
+import { createTsFsrsMemoryModel } from '@spirula/engine';
 import {
   buildAttempt,
   buildExercise,
@@ -32,7 +32,7 @@ import {
   createTestIds,
   silentLogger,
   T0_MS,
-} from '@lms/testkit';
+} from '@spirula/testkit';
 import { describe, expect, it } from 'vitest';
 import { EngineCallError, createEngineClient } from '../../src/client/index.ts';
 import { createDispatcher, schemas } from '../../src/host/index.ts';
@@ -55,17 +55,17 @@ const VERIFIABLE = 'c::l1::v0';
 library.exercises.push(
   buildExercise({
     id: VERIFIABLE,
-    engine: { exercise: { type: 'lms.sql', timeoutMs: 500, spec: {} } },
+    engine: { exercise: { type: 'spirula.sql', timeoutMs: 500, spec: {} } },
   }),
 );
 const E1 = 'c::l1::e0';
 const REGISTERED: ExtensionInfoDto = {
-  id: 'lms.sql',
+  id: 'spirula.sql',
   version: '1.0.0',
   origin: 'bundled',
   state: 'loaded',
   contributes: {
-    exerciseTypes: ['lms.sql'],
+    exerciseTypes: ['spirula.sql'],
     themes: [],
     markdownRenderers: [],
     gradePolicies: [],
@@ -89,7 +89,7 @@ const USER_EXTENSION: ExtensionInfoDto = {
 const passingTypes = () =>
   createFakeExerciseTypes({
     types: {
-      'lms.sql': { script: [{ outcome: 'passed', durationMs: 1 }] },
+      'spirula.sql': { script: [{ outcome: 'passed', durationMs: 1 }] },
     },
   });
 
@@ -517,7 +517,7 @@ describe('rpc → dispatcher → real engine', () => {
       ),
     ).toEqual({ disabled: ['acme.user'], trusted: ['acme.user'] });
     await expect(
-      client.extensions.setEnabled('lms.sql', false),
+      client.extensions.setEnabled('spirula.sql', false),
     ).rejects.toMatchObject({
       code: 'INVALID_ARGUMENT',
       details: { reason: 'bundled' },

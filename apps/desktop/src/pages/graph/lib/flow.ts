@@ -1,6 +1,6 @@
 import { MarkerType } from '@vue-flow/core';
 import type { Edge, Node } from '@vue-flow/core';
-import type { UnitId } from '@lms/engine-contract';
+import type { UnitId } from '@spirula/engine-contract';
 import { NODE_HEIGHT, NODE_WIDTH } from './layout.ts';
 import type { CoursesLayout, LayoutInput, Point } from './layout.ts';
 import type { GraphView } from './view.ts';

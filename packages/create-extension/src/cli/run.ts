@@ -10,12 +10,12 @@ export const EXIT_OK = 0;
 export const EXIT_PROBLEMS = 1;
 export const EXIT_USAGE = 2;
 
-const USAGE = `usage: create-lms-extension <dir> [--id <id>] [--local <repoRoot>]
+const USAGE = `usage: create-spirula-extension <dir> [--id <id>] [--local <repoRoot>]
 
   <dir>              каталог нового проекта (должен быть пуст или отсутствовать)
   --id <id>          id расширения (по умолчанию — kebab-case имени каталога)
-  --local <repoRoot> корень репозитория LMS: @lms/extension-sdk и
-                     @lms/extension-tools подключаются как link:<repoRoot>/packages/...
+  --local <repoRoot> корень репозитория Spirula: @spirula/extension-sdk и
+                     @spirula/extension-tools подключаются как link:<repoRoot>/packages/...
   --help             эта справка
 `;
 
@@ -53,19 +53,19 @@ const nextSteps = (dir: string, id: string, isLocal: boolean): string => {
     '  pnpm test',
     `  pnpm dev    # пересборка в dist-ext/${id}`,
     '',
-    'Запуск приложения с вашим расширением (из репозитория LMS):',
-    `  LMS_DEV_EXTENSIONS=${path.join(dir, 'dist-ext')} pnpm dev`,
+    'Запуск приложения с вашим расширением (из репозитория Spirula):',
+    `  SPIRULA_DEV_EXTENSIONS=${path.join(dir, 'dist-ext')} pnpm dev`,
   ];
   const note = isLocal
     ? ''
-    : '\nЗамечание: @lms/extension-sdk и @lms/extension-tools не опубликованы, ' +
-      'версия ^0.0.0 не установится.\nУкажите пути к репозиторию LMS: ' +
-      'create-lms-extension <dir> --local <repoRoot>.\n';
+    : '\nЗамечание: @spirula/extension-sdk и @spirula/extension-tools не опубликованы, ' +
+      'версия ^0.0.0 не установится.\nУкажите пути к репозиторию Spirula: ' +
+      'create-spirula-extension <dir> --local <repoRoot>.\n';
   return `\nДальше:\n${steps.join('\n')}\n${note}`;
 };
 
 /**
- * `create-lms-extension`; `argv` без `node` и имени скрипта, относительные пути
+ * `create-spirula-extension`; `argv` без `node` и имени скрипта, относительные пути
  * считаются от `cwd`.
  */
 export const runCli = async (

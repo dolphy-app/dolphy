@@ -1,5 +1,5 @@
 {
-  "name": "@lms/extension-host",
+  "name": "@spirula/extension-host",
   "version": "0.0.0",
   "private": true,
   "description": "Хост расширений: манифесты, обнаружение, рантайм и клиент видов заданий",
@@ -13,9 +13,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@lms/engine": "workspace:*",
-    "@lms/engine-contract": "workspace:*",
-    "@lms/extension-api": "workspace:*",
+    "@spirula/engine": "workspace:*",
+    "@spirula/engine-contract": "workspace:*",
+    "@spirula/extension-api": "workspace:*",
     "ajv": "^8",
     "zod": "4.6.5"
   },

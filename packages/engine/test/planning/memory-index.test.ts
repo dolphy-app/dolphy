@@ -5,7 +5,7 @@
  */
 import fc from 'fast-check';
 import { describe, expect, test } from 'vitest';
-import type { SchedulerOptionsDto } from '@lms/engine-contract';
+import type { SchedulerOptionsDto } from '@spirula/engine-contract';
 import type { AttemptRecord } from '../../src/app/context.ts';
 import { MS_PER_DAY } from '../../src/scoring/constants.ts';
 import { createFsrsScorer } from '../../src/scoring/fsrs-scorer.ts';

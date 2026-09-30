@@ -1,6 +1,6 @@
 import { mkdir, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { EXTENSION_ID_PATTERN } from '@lms/extension-api';
+import { EXTENSION_ID_PATTERN } from '@spirula/extension-api';
 import * as template from './template.ts';
 import type { TemplateInput } from './template.ts';
 
@@ -26,7 +26,7 @@ export interface GenerateOptions {
   dir: string;
   /** По умолчанию — kebab-case имени каталога. */
   id?: string;
-  /** Корень репозитория LMS: зависимости пишутся как `link:<корень>/packages/...`. */
+  /** Корень репозитория Spirula: зависимости пишутся как `link:<корень>/packages/...`. */
   localRoot?: string;
 }
 
@@ -77,7 +77,7 @@ const dependencySpecs = async (
     if (!(await isDirectory(dir))) {
       throw new GenerateError(
         'invalid-local',
-        `${dir} not found: --local must point to the LMS repository root`,
+        `${dir} not found: --local must point to the Spirula repository root`,
       );
     }
   }

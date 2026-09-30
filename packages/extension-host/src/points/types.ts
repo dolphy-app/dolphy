@@ -3,7 +3,7 @@ import type {
   ExtensionManifestInput,
   GradePolicyContribution,
   JsonSchema,
-} from '@lms/extension-api';
+} from '@spirula/extension-api';
 import type { Ajv2020 } from 'ajv/dist/2020.js';
 import type { z } from 'zod';
 

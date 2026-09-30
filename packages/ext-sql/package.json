@@ -1,27 +1,27 @@
 {
-  "name": "@lms/ext-sql",
+  "name": "@spirula/ext-sql",
   "version": "0.0.0",
   "private": true,
-  "description": "Расширение lms.sql: SQL-задания с проверкой раннером",
+  "description": "Расширение spirula.sql: SQL-задания с проверкой раннером",
   "type": "module",
   "scripts": {
     "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
     "test": "vitest run",
-    "build": "lms-ext build"
+    "build": "spirula-ext build"
   },
   "dependencies": {
-    "@lms/engine-sql-runner": "workspace:*",
-    "@lms/extension-api": "workspace:*",
-    "@lms/extension-sdk": "workspace:*"
+    "@spirula/engine-sql-runner": "workspace:*",
+    "@spirula/extension-api": "workspace:*",
+    "@spirula/extension-sdk": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.20.4",
     "typescript": "7.0.2",
-    "@lms/engine": "workspace:*",
-    "@lms/engine-contract": "workspace:*",
-    "@lms/extension-host": "workspace:*",
-    "@lms/testkit": "workspace:*",
-    "@lms/extension-tools": "workspace:*",
+    "@spirula/engine": "workspace:*",
+    "@spirula/engine-contract": "workspace:*",
+    "@spirula/extension-host": "workspace:*",
+    "@spirula/testkit": "workspace:*",
+    "@spirula/extension-tools": "workspace:*",
     "happy-dom": "^20.14.5"
   },
   "engines": {

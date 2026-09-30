@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createWorkspace, launchApp } from './support/app.ts';
-import type { LmsApp, Workspace } from './support/app.ts';
+import type { SpirulaApp, Workspace } from './support/app.ts';
 import { Client } from './support/client.ts';
 import { readJournal } from './support/journal.ts';
 
@@ -50,11 +50,11 @@ const ALWAYS_PASSES = `export default {
 
 let workspace: Workspace;
 let devRoot: string;
-let app: LmsApp | null = null;
+let app: SpirulaApp | null = null;
 
 beforeEach(async () => {
   workspace = await createWorkspace({ libraryFiles: ECHO_LIBRARY });
-  devRoot = await mkdtemp(join(tmpdir(), 'lms-e2e-dev-ext-'));
+  devRoot = await mkdtemp(join(tmpdir(), 'spirula-e2e-dev-ext-'));
   await cp(ECHO_EXTENSION, join(devRoot, 'acme.echo'), { recursive: true });
 });
 
@@ -65,10 +65,10 @@ afterEach(async () => {
   await rm(devRoot, { recursive: true, force: true });
 });
 
-describe('режим разработчика (LMS_DEV_EXTENSIONS)', () => {
+describe('режим разработчика (SPIRULA_DEV_EXTENSIONS)', () => {
   it('правка main.mjs в каталоге разработчика меняет вердикт без перезапуска приложения', async () => {
     app = await launchApp(workspace.userData, {
-      LMS_DEV_EXTENSIONS: devRoot,
+      SPIRULA_DEV_EXTENSIONS: devRoot,
     });
     const { page } = app;
     const client = new Client(page);

@@ -2,8 +2,11 @@ import { join } from 'node:path';
 import {
   createJsonSettingsStore,
   createMemorySettingsStore,
-} from '@lms/engine/node';
-import type { SavedFilterDto, StudySessionWire } from '@lms/engine-contract';
+} from '@spirula/engine/node';
+import type {
+  SavedFilterDto,
+  StudySessionWire,
+} from '@spirula/engine-contract';
 import { describe, expect, it } from 'vitest';
 import { describeSettingsStoreContract } from '../../engine/test/node/settings-store.contract.ts';
 import {

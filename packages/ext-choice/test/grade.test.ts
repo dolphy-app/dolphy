@@ -9,7 +9,7 @@ const multi: ChoiceSpec = {
   multiple: true,
 };
 
-describe('lms.choice: grade', () => {
+describe('spirula.choice: grade', () => {
   const table: [string, ChoiceSpec, number[], object][] = [
     ['одиночный верный', single, [1], { outcome: 'passed' }],
     [

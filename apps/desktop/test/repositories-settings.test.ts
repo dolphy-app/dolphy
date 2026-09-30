@@ -5,7 +5,7 @@ import type {
   LearningEngine,
   RepositoryDto,
   UpdateRepositoryResult,
-} from '@lms/engine-contract';
+} from '@spirula/engine-contract';
 import { useRepositories } from '@/pages/settings/model/repositories.ts';
 
 const repo = (id: string, courses = 1): RepositoryDto => ({

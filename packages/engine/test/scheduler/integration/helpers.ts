@@ -8,7 +8,11 @@
  * (`createWorld`); `RandomCourseLibrary` использует сидируемый `Rng`, а не
  * `rand::rng()`, поэтому библиотека воспроизводима.
  */
-import type { ExerciseFilterDto, Grade, UnitId } from '@lms/engine-contract';
+import type {
+  ExerciseFilterDto,
+  Grade,
+  UnitId,
+} from '@spirula/engine-contract';
 import { expect } from 'vitest';
 import type { Rng } from '../../../src/ports/index.ts';
 import type {

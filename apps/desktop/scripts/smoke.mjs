@@ -1,5 +1,5 @@
 // Сквозной смоук в настоящем Electron.
-//   pnpm smoke           смоук-сборка (LMS_SMOKE_BUILD=1 → dist-smoke) и запуск
+//   pnpm smoke           смоук-сборка (SPIRULA_SMOKE_BUILD=1 → dist-smoke) и запуск
 //                        неупакованного приложения
 //   pnpm smoke:packaged  та же сборка, упакованная в неподписанный .app
 //                        (electron-builder --dir, вывод во временный каталог) и
@@ -7,7 +7,7 @@
 //                        из Resources/extensions, better-sqlite3 из
 //                        app.asar.unpacked
 // Смоук-код есть только в смоук-сборке; релизная сборка его не содержит
-// (test/release-bundle.test.ts). Режим включает LMS_SMOKE=1 в окружении.
+// (test/release-bundle.test.ts). Режим включает SPIRULA_SMOKE=1 в окружении.
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
@@ -17,15 +17,15 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 
-const RESULT_PREFIX = 'LMS_SMOKE_RESULT ';
+const RESULT_PREFIX = 'SPIRULA_SMOKE_RESULT ';
 const TIMEOUT_MS = 120_000;
 const ORPHAN_WAIT_MS = 5_000;
 const SMOKE_DIR = 'dist-smoke';
 const SCENARIOS = ['basic', 'sql', 'choice', 'renderer', 'isolated', 'crash'];
 // путь, который «враждебное» расширение пробует записать (см. run-smoke.ts)
-const ISOLATED_MARKER = '/tmp/lms-smoke-pwned.txt';
+const ISOLATED_MARKER = '/tmp/spirula-smoke-pwned.txt';
 
-const root = await mkdtemp(join(tmpdir(), 'lms-smoke-'));
+const root = await mkdtemp(join(tmpdir(), 'spirula-smoke-'));
 const appDir = fileURLToPath(new URL('..', import.meta.url));
 const libraryFixture = fileURLToPath(
   new URL(
@@ -88,7 +88,7 @@ const listProcesses = () => {
 };
 
 // 1. смоук-сборка: renderer, main, preload, host, хост расширений и расширения (dist-smoke/extensions) с кодом смоука
-run('pnpm', ['exec', 'vite', 'build'], { LMS_SMOKE_BUILD: '1' });
+run('pnpm', ['exec', 'vite', 'build'], { SPIRULA_SMOKE_BUILD: '1' });
 
 // 2. упаковка (только --packaged): без подписи, во временный каталог
 let command = createRequire(import.meta.url)('electron');
@@ -129,11 +129,13 @@ if (packaged) {
   const unpacked = join(packagedOut, unpackedDir);
   let resourcesDir;
   if (process.platform === 'darwin') {
-    command = join(unpacked, 'LMS.app/Contents/MacOS/LMS');
-    resourcesDir = join(unpacked, 'LMS.app/Contents/Resources');
+    command = join(unpacked, 'Spirula.app/Contents/MacOS/Spirula');
+    resourcesDir = join(unpacked, 'Spirula.app/Contents/Resources');
   } else {
     const names =
-      process.platform === 'win32' ? ['LMS.exe'] : ['LMS', 'lms', 'desktop'];
+      process.platform === 'win32'
+        ? ['Spirula.exe']
+        : ['Spirula', 'spirula', 'desktop'];
     const found = names.find((name) => existsSync(join(unpacked, name)));
     if (!found) fail(`no executable in ${unpacked}`);
     command = join(unpacked, found);
@@ -151,13 +153,13 @@ if (packaged) {
     );
   }
   for (const file of [
-    'lms.sql/extension.json',
-    'lms.sql/main.mjs',
-    'lms.sql/worker.mjs',
-    'lms.sql/view.mjs',
-    'lms.choice/extension.json',
-    'lms.choice/main.mjs',
-    'lms.choice/view.mjs',
+    'spirula.sql/extension.json',
+    'spirula.sql/main.mjs',
+    'spirula.sql/worker.mjs',
+    'spirula.sql/view.mjs',
+    'spirula.choice/extension.json',
+    'spirula.choice/main.mjs',
+    'spirula.choice/view.mjs',
   ]) {
     if (!existsSync(join(resourcesDir, 'extensions', file))) {
       fail(`extension file ${file} missing in ${resourcesDir}/extensions`);
@@ -196,9 +198,9 @@ const child = spawn(command, args, {
   cwd: appDir,
   env: {
     ...process.env,
-    LMS_SMOKE: '1',
-    LMS_SMOKE_USER_DATA: userData,
-    LMS_SMOKE_LIBRARY: library,
+    SPIRULA_SMOKE: '1',
+    SPIRULA_SMOKE_USER_DATA: userData,
+    SPIRULA_SMOKE_LIBRARY: library,
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });

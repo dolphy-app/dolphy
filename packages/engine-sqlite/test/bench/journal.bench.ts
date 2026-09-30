@@ -1,7 +1,7 @@
 /**
  * T-57 (engine-ts-testing.md §7.1), журнал F-слоя на SQLite: чтение, вставка,
  * латентность коммита и обмен сегментами `FolderSync` на журнале 500k записей
- * (3 устройства, 730 дней, 85 % успехов). Запуск: `pnpm -F @lms/engine-sqlite
+ * (3 устройства, 730 дней, 85 % успехов). Запуск: `pnpm -F @spirula/engine-sqlite
  * bench`. Проект отдельный: в `pnpm test` не входит. Бенчмарки советуют, не
  * блокируют: числа печатаются, регресс более чем вдвое от базы документа —
  * `console.warn`; падают только ошибки корректности (не то число записей,
@@ -11,12 +11,12 @@ import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
-import { createFakeClock } from '@lms/testkit';
+import { createFakeClock } from '@spirula/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { LogEntry } from '@lms/engine';
-import { createFolderSync } from '@lms/engine/node';
-import type { FolderImportReport } from '@lms/engine/node';
-import { createReplica } from '@lms/engine/sync';
+import type { LogEntry } from '@spirula/engine';
+import { createFolderSync } from '@spirula/engine/node';
+import type { FolderImportReport } from '@spirula/engine/node';
+import { createReplica } from '@spirula/engine/sync';
 import {
   RUNS,
   report,

@@ -1,4 +1,4 @@
-import type { ExtensionModule } from '@lms/extension-api';
+import type { ExtensionModule } from '@spirula/extension-api';
 
 const extension: ExtensionModule = {
   activate: (context) => {

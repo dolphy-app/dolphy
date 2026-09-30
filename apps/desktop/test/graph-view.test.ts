@@ -3,7 +3,7 @@ import type {
   GraphDto,
   GraphNodeDto,
   ProgressNodeDto,
-} from '@lms/engine-contract';
+} from '@spirula/engine-contract';
 import { buildEdges } from '@/pages/graph/lib/flow.ts';
 import {
   applyProgress,

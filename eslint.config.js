@@ -18,6 +18,7 @@ module.exports = [
       'docs/**',
       'engine-ts/**',
       'spike/**',
+      'specs/**',
     ],
   },
   ...metarhia,

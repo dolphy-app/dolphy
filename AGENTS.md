@@ -11,6 +11,7 @@ pnpm-workspace (`pnpm-workspace.yaml`): `apps/*`, `packages/*`.
 | `apps/desktop`                          | Electron 44 + Vue 3 + Vite; движок в `utilityProcess`, устройство — `apps/desktop/README.md`                                                              |
 | `packages/`                             | пакеты `@lms/*` слоя бизнес-логики `engine-ts` и сложные UI-компоненты (`@lms/ui`: редактор, quiz; Vue 3, Vuetify 4 — peer), карта — `packages/README.md` |
 | `docs/`, `engine-ts/`, `spike/`         | документы системного дизайна; кода там нет, линтер и форматтер их не трогают                                                                              |
+| `specs/`                                | спеки фич: активные в `specs/<feature-name>/`, завершённые в `specs/archive/`; каталог появляется с первой спекой, линтер и форматтер его не трогают      |
 | `vendor/metaskills`, `.agents/skills/*` | скиллы для агентов (git submodule и симлинки, см. `README.md`)                                                                                            |
 
 ## Команды
@@ -45,6 +46,16 @@ Node ≥ 22.12 (`.nvmrc`), pnpm 9.15.9 (поле `packageManager`). Устана
 **Все строки интерфейса — только через `vue-i18n`** (скилл `vue-i18n-skilld`): ни одной русской или английской строки в шаблонах, `aria-label`, `label`, `placeholder`, моделях и `lib/*.ts`. Сообщения лежат в слайсе (`pages/<слайс>/i18n/{ru,en,index}.ts`; `en: typeof ru`), общие — в `shared/i18n`, оболочка — в `app/i18n`; код возвращает ключи или данные, текст собирает компонент через `t`. Числительные — формами (`ru`: четыре варианта, `en`: три), даты и числа — `d`/`n`, а не `Intl` с зашитым языком. Не переводятся данные движка (названия курсов, уроков, упражнений, `feedback` раннера, ошибки движка). Подробности — `apps/desktop/README.md`.
 
 **Настройки хранятся в `engine.db`** (порт `SettingsStore`, адаптер `@lms/engine-sqlite`), не в файлах и не в `localStorage`. Новая настройка — поле контракта `@lms/engine-contract`, проверка в сервисе `settings`, схема RPC, тест адаптеров (общий набор `describeSettingsStoreContract`).
+
+## Спеки фич
+
+Порядок, шаблоны и правила закрытия — скилл `spec-workflow`; обоснование выбора — `docs/research/spec-workflows.md` (§9).
+
+**Фича, которая меняет контракт `@lms/engine-contract`, схему RPC или БД либо добавляет пакет, экран или настройку, начинается со спеки `specs/<feature-name>/SPEC.md`** (имя каталога совпадает с веткой `feature/<feature-name>`). Багфиксы, рефакторинг и правки внутри пакета — без спеки.
+
+- Источники требований: спека фичи и её `depends-on`, `docs/adr/`, `docs/design`, README пакетов. **`specs/archive/` без явной ссылки не читать и не считать источником требований.**
+- Закрытие фичи — в той же ветке до слияния: долговечное переносится в `docs/design` или README, решения, ограничивающие будущее, — в ADR (`docs/adr/NNNN-название.md`), затем `git mv specs/<name> specs/archive/ГГГГ-ММ-ДД-<name>`, `status: done`, заполнить `Outcomes`.
+- Архивная спека неизменна; изменение поведения — новая спека со `supersedes`. Старые фичи задним числом в спеки не переносятся.
 
 ## Git-процесс
 

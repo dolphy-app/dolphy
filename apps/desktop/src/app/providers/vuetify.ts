@@ -30,8 +30,15 @@ const light: ThemeDefinition = {
     // градиент акцентной карточки «плана дня»: белый текст ≥ 4.5:1
     'hero-start': '#4F46E5',
     'hero-end': '#7C3AED',
+    // заливная кнопка на акцентной карточке
+    'hero-contrast': '#FFFFFF',
   },
-  variables: { 'border-color': '#1E1B4B', 'border-opacity': 0.1 },
+  // подзаголовки и подписи (`medium-emphasis`): 0.6 давало 4.29:1 на белом
+  variables: {
+    'border-color': '#1E1B4B',
+    'border-opacity': 0.1,
+    'medium-emphasis-opacity': 0.7,
+  },
 };
 
 const dark: ThemeDefinition = {
@@ -51,6 +58,7 @@ const dark: ThemeDefinition = {
     info: '#38BDF8',
     'hero-start': '#4338CA',
     'hero-end': '#6D28D9',
+    'hero-contrast': '#FFFFFF',
   },
   variables: { 'border-color': '#E0E3FF', 'border-opacity': 0.12 },
 };

@@ -1,16 +1,19 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import type { Plugin } from 'vite';
 import vue from '@vitejs/plugin-vue';
+import vuetify from 'vite-plugin-vuetify';
 import electron from 'vite-plugin-electron/multi-env';
 
-// «запретить всё», кроме нужного; в dev Vite HMR требует websocket
+// «запретить всё», кроме нужного; шрифты (Roboto, MDI) — с 'self' и data:
+// (Vite инлайнит мелкие подмножества шрифтов); в dev HMR требует websocket
 const CSP = {
   build:
-    "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'",
+    "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'",
   serve:
-    "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws://localhost:* http://localhost:*",
+    "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' ws://localhost:* http://localhost:*",
 } as const;
 
 const csp = (command: 'build' | 'serve'): Plugin => ({
@@ -36,17 +39,26 @@ export default defineConfig(({ command }) => {
   const isBuild = command === 'build';
   const sourcemap = isServe || !!process.env.VSCODE_DEBUG;
 
+  // vite-plugin-electron/multi-env задаёт окружениям свой `define`, и
+  // верхнеуровневый не доходит до main/preload/host — дублируем в каждое
+  const define = { __LMS_SMOKE_BUILD__: JSON.stringify(smokeBuild) };
+
   return {
-    define: { __LMS_SMOKE_BUILD__: JSON.stringify(smokeBuild) },
+    define,
+    resolve: {
+      alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
+    },
     build: { outDir: out('dist'), emptyOutDir: true },
     plugins: [
       vue(),
+      vuetify(),
       csp(command),
       electron([
         {
           name: 'main',
           input: 'electron/main/index.ts',
           options: {
+            define,
             build: {
               sourcemap,
               minify: isBuild,
@@ -61,6 +73,7 @@ export default defineConfig(({ command }) => {
           // sandbox: true не грузит ESM-preload, поэтому CJS
           onstart: ({ reload }) => reload(),
           options: {
+            define,
             build: {
               sourcemap: sourcemap ? 'inline' : undefined, // #332
               minify: isBuild,
@@ -82,6 +95,7 @@ export default defineConfig(({ command }) => {
           },
           bundleDeps: { both: { include: true, exclude: NATIVE } },
           options: {
+            define,
             build: {
               sourcemap,
               minify: false,

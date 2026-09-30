@@ -1,7 +1,7 @@
 import { createEngineClient, fromDomPort } from '@lms/engine-rpc/client';
 import type { DomPortLike } from '@lms/engine-rpc/client';
 import type { LearningEngine } from '@lms/engine-contract';
-import { CHANNELS } from '../../shared/bridge.ts';
+import { CHANNELS } from '../../../../shared/bridge.ts';
 
 /**
  * Ждёт порт от main (через preload) и рукопожатие `engine.hello`. Каждый

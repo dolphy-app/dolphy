@@ -12,6 +12,8 @@ const viteBin = join(
   'bin/vite.js',
 );
 const BUILD_TIMEOUT_MS = 120_000;
+// шрифты и CSS (иконки MDI: `mdi-smoke-detector`) кода смоука содержать не могут
+const CODE_FILE = /\.(?:[cm]?js|html)$/;
 
 const outputs: string[] = [];
 
@@ -57,6 +59,7 @@ describe('смоук и релизная сборка', () => {
         true,
       );
       const leaks = files.filter((file) => {
+        if (!CODE_FILE.test(file)) return false;
         const text = readFileSync(file, 'utf8');
         return /smoke/i.test(text) || text.includes('sql_kb::where');
       });

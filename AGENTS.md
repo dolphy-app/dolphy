@@ -37,6 +37,14 @@ Node ≥ 22.12 (`.nvmrc`), pnpm 9.15.9 (поле `packageManager`). Устана
 
 Скилл `js-conventions` (Metarhia): ESLint (`eslint-config-metarhia` + `typescript-eslint` + `eslint-plugin-vue`) и Prettier (`.prettierrc.json`: одинарные кавычки, точки с запятой, запятые в конце, 80 колонок). Конфиг — корневой `eslint.config.js`. Перед коммитом `pnpm fix`, затем `pnpm lint`; CI запускает то же самое.
 
+## Интерфейс
+
+Слои — Feature-Sliced Design (скилл `feature-sliced-design`), компоненты — Vuetify 4 (скилл `vuetify-skilld`).
+
+**Все строки интерфейса — только через `vue-i18n`** (скилл `vue-i18n-skilld`): ни одной русской или английской строки в шаблонах, `aria-label`, `label`, `placeholder`, моделях и `lib/*.ts`. Сообщения лежат в слайсе (`pages/<слайс>/i18n/{ru,en,index}.ts`; `en: typeof ru`), общие — в `shared/i18n`, оболочка — в `app/i18n`; код возвращает ключи или данные, текст собирает компонент через `t`. Числительные — формами (`ru`: четыре варианта, `en`: три), даты и числа — `d`/`n`, а не `Intl` с зашитым языком. Не переводятся данные движка (названия курсов, уроков, упражнений, `feedback` раннера, ошибки движка). Подробности — `apps/desktop/README.md`.
+
+**Настройки хранятся в `engine.db`** (порт `SettingsStore`, адаптер `@lms/engine-sqlite`), не в файлах и не в `localStorage`. Новая настройка — поле контракта `@lms/engine-contract`, проверка в сервисе `settings`, схема RPC, тест адаптеров (общий набор `describeSettingsStoreContract`).
+
 ## Git-процесс
 
 Ветки: `main` (стабильная), `develop` (интеграционная), `feature/<feature-name>` (любая работа).

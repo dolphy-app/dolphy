@@ -1,23 +1,17 @@
-:root {
-  font-family: system-ui, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  color-scheme: light dark;
+html {
+  overflow-y: auto;
 }
 
-body {
-  margin: 0;
-  padding: 1rem;
+/* мелкий капс-заголовок над блоками (как в wireframes) */
+.overline-label {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(var(--v-theme-on-surface-variant));
 }
 
-section {
-  margin-bottom: 1.5rem;
-}
-
-button {
-  margin-right: 0.25rem;
-}
-
-.startup-error {
-  max-width: 40rem;
-  margin: 3rem auto;
+/* дата «среда, 30 сентября» → «Среда, …» без пересборки строки */
+.first-upper::first-letter {
+  text-transform: uppercase;
 }

@@ -17,19 +17,20 @@ pnpm-workspace (`pnpm-workspace.yaml`): `apps/*`, `packages/*`.
 
 Node ≥ 22.12 (`.nvmrc`), pnpm 9.15.9 (поле `packageManager`). Устанавливать зависимости только через `pnpm`, `pnpm-lock.yaml` коммитить.
 
-| Команда               | Что делает                                              |
-| --------------------- | ------------------------------------------------------- |
-| `pnpm install`        | зависимости всего workspace                             |
-| `pnpm dev`            | `apps/desktop` в режиме разработки                      |
-| `pnpm build`          | сборка `apps/desktop` (vue-tsc, vite, electron-builder) |
-| `pnpm smoke`          | сквозной смоук `apps/desktop` в настоящем Electron      |
-| `pnpm smoke:packaged` | то же в упакованном неподписанном `.app` (смоук-сборка) |
-| `pnpm typecheck`      | `tsc -b` (TS 7) по пакетам `packages/*`                 |
-| `pnpm test`           | `vitest run` по проектам `packages/*` и `apps/*`        |
-| `pnpm lint`           | `eslint .` и `prettier --check .`                       |
-| `pnpm fix`            | `eslint . --fix` и `prettier --write .`                 |
-| `pnpm <cmd> -r`       | команда во всех пакетах workspace                       |
-| `pnpm -F <name>`      | команда в одном пакете, например `-F @lms/desktop`      |
+| Команда                    | Что делает                                                                                                |
+| -------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `pnpm install`             | зависимости всего workspace                                                                               |
+| `pnpm dev`                 | `apps/desktop` в режиме разработки                                                                        |
+| `pnpm build`               | сборка `apps/desktop` (vue-tsc, vite, electron-builder)                                                   |
+| `pnpm smoke`               | сквозной смоук `apps/desktop` в настоящем Electron                                                        |
+| `pnpm smoke:packaged`      | то же в упакованном неподписанном `.app` (смоук-сборка)                                                   |
+| `pnpm -F @lms/desktop e2e` | e2e через клиент в настоящем Electron: прохождение курсов, журнал в `engine.db` (в `pnpm test` не входит) |
+| `pnpm typecheck`           | `tsc -b` (TS 7) по пакетам `packages/*`                                                                   |
+| `pnpm test`                | `vitest run` по проектам `packages/*` и `apps/*`                                                          |
+| `pnpm lint`                | `eslint .` и `prettier --check .`                                                                         |
+| `pnpm fix`                 | `eslint . --fix` и `prettier --write .`                                                                   |
+| `pnpm <cmd> -r`            | команда во всех пакетах workspace                                                                         |
+| `pnpm -F <name>`           | команда в одном пакете, например `-F @lms/desktop`                                                        |
 
 Новый пакет: `apps/<name>` или `packages/<name>`, имя в `package.json` — `@lms/<name>`.
 

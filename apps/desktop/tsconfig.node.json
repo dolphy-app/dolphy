@@ -23,6 +23,8 @@
     "electron/host",
     "shared",
     "test",
+    "e2e",
+    "vitest.e2e.config.ts",
     "vite.config.ts",
     "vitest.config.ts",
     "package.json"

@@ -6,6 +6,10 @@ export const en: typeof ru = {
     cancel: 'Cancel',
     retry: 'Try again',
   },
+  markdown: {
+    renderFailed:
+      'Could not render the “{language}” block; showing the source.',
+  },
   reason: {
     new: 'New',
     review: 'Review',

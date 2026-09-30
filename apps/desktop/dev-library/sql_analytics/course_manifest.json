@@ -1,0 +1,13 @@
+{
+  "dependencies": [],
+  "description": "Аналитические запросы на SQLite: от SELECT до оконных функций. Каждое упражнение проверяется запуском запроса на учебной базе.",
+  "engine": {
+    "requiresChecks": true,
+    "tags": ["sql", "analytics"]
+  },
+  "generator_config": {
+    "KnowledgeBase": {}
+  },
+  "id": "sql_analytics",
+  "name": "SQL: аналитика данных"
+}

@@ -1,0 +1,6 @@
+{
+  "keyPrerequisites": ["sql_analytics::joinagg"],
+  "tags": ["cte", "recursive"],
+  "bloom": "apply",
+  "dok": 3
+}

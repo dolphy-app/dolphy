@@ -1,0 +1,6 @@
+{
+  "keyPrerequisites": ["sql_analytics::nulls"],
+  "tags": ["ddl", "dml"],
+  "bloom": "apply",
+  "dok": 3
+}

@@ -17,9 +17,6 @@ importers:
       '@fast-check/vitest':
         specifier: 0.5.0
         version: 0.5.0(vitest@5.0.2)
-      '@lms/testkit':
-        specifier: workspace:*
-        version: link:packages/testkit
       '@semantic-release/changelog':
         specifier: ^7.0.0
         version: 7.0.0(semantic-release@25.0.9(typescript@6.0.3))
@@ -29,6 +26,9 @@ importers:
       '@semantic-release/git':
         specifier: ^11.0.1
         version: 11.0.1(semantic-release@25.0.9(typescript@6.0.3))
+      '@spirula/testkit':
+        specifier: workspace:*
+        version: link:packages/testkit
       '@types/node':
         specifier: ^22.20.4
         version: 22.20.4
@@ -81,30 +81,30 @@ importers:
       '@fontsource/roboto':
         specifier: ^5.2.10
         version: 5.3.0
-      '@lms/engine':
-        specifier: workspace:*
-        version: link:../../packages/engine
-      '@lms/engine-contract':
-        specifier: workspace:*
-        version: link:../../packages/engine-contract
-      '@lms/engine-git':
-        specifier: workspace:*
-        version: link:../../packages/engine-git
-      '@lms/engine-rpc':
-        specifier: workspace:*
-        version: link:../../packages/engine-rpc
-      '@lms/engine-sqlite':
-        specifier: workspace:*
-        version: link:../../packages/engine-sqlite
-      '@lms/extension-api':
-        specifier: workspace:*
-        version: link:../../packages/extension-api
-      '@lms/extension-host':
-        specifier: workspace:*
-        version: link:../../packages/extension-host
       '@mdi/font':
         specifier: ^7.4.47
         version: 7.4.47
+      '@spirula/engine':
+        specifier: workspace:*
+        version: link:../../packages/engine
+      '@spirula/engine-contract':
+        specifier: workspace:*
+        version: link:../../packages/engine-contract
+      '@spirula/engine-git':
+        specifier: workspace:*
+        version: link:../../packages/engine-git
+      '@spirula/engine-rpc':
+        specifier: workspace:*
+        version: link:../../packages/engine-rpc
+      '@spirula/engine-sqlite':
+        specifier: workspace:*
+        version: link:../../packages/engine-sqlite
+      '@spirula/extension-api':
+        specifier: workspace:*
+        version: link:../../packages/extension-api
+      '@spirula/extension-host':
+        specifier: workspace:*
+        version: link:../../packages/extension-host
       '@types/better-sqlite3':
         specifier: ^7.6.13
         version: 7.6.13
@@ -168,17 +168,17 @@ importers:
 
   packages/create-extension:
     dependencies:
-      '@lms/extension-api':
+      '@spirula/extension-api':
         specifier: workspace:*
         version: link:../extension-api
     devDependencies:
-      '@lms/extension-host':
+      '@spirula/extension-host':
         specifier: workspace:*
         version: link:../extension-host
-      '@lms/extension-sdk':
+      '@spirula/extension-sdk':
         specifier: workspace:*
         version: link:../extension-sdk
-      '@lms/extension-tools':
+      '@spirula/extension-tools':
         specifier: workspace:*
         version: link:../extension-tools
       '@types/node':
@@ -190,7 +190,7 @@ importers:
 
   packages/engine:
     dependencies:
-      '@lms/engine-contract':
+      '@spirula/engine-contract':
         specifier: workspace:*
         version: link:../engine-contract
       ts-fsrs:
@@ -221,10 +221,10 @@ importers:
 
   packages/engine-git:
     dependencies:
-      '@lms/engine':
+      '@spirula/engine':
         specifier: workspace:*
         version: link:../engine
-      '@lms/engine-contract':
+      '@spirula/engine-contract':
         specifier: workspace:*
         version: link:../engine-contract
       isomorphic-git:
@@ -240,10 +240,10 @@ importers:
 
   packages/engine-rpc:
     dependencies:
-      '@lms/engine':
+      '@spirula/engine':
         specifier: workspace:*
         version: link:../engine
-      '@lms/engine-contract':
+      '@spirula/engine-contract':
         specifier: workspace:*
         version: link:../engine-contract
       zod:
@@ -259,13 +259,13 @@ importers:
 
   packages/engine-sql-runner:
     dependencies:
-      '@lms/engine':
+      '@spirula/engine':
         specifier: workspace:*
         version: link:../engine
-      '@lms/engine-contract':
+      '@spirula/engine-contract':
         specifier: workspace:*
         version: link:../engine-contract
-      '@lms/extension-api':
+      '@spirula/extension-api':
         specifier: workspace:*
         version: link:../extension-api
       better-sqlite3:
@@ -284,7 +284,7 @@ importers:
 
   packages/engine-sqlite:
     dependencies:
-      '@lms/engine':
+      '@spirula/engine':
         specifier: workspace:*
         version: link:../engine
       better-sqlite3:
@@ -303,14 +303,14 @@ importers:
 
   packages/ext-choice:
     dependencies:
-      '@lms/extension-api':
+      '@spirula/extension-api':
         specifier: workspace:*
         version: link:../extension-api
-      '@lms/extension-sdk':
+      '@spirula/extension-sdk':
         specifier: workspace:*
         version: link:../extension-sdk
     devDependencies:
-      '@lms/extension-tools':
+      '@spirula/extension-tools':
         specifier: workspace:*
         version: link:../extension-tools
       '@types/node':
@@ -325,17 +325,17 @@ importers:
 
   packages/ext-math:
     dependencies:
-      '@lms/extension-api':
+      '@spirula/extension-api':
         specifier: workspace:*
         version: link:../extension-api
-      '@lms/extension-sdk':
+      '@spirula/extension-sdk':
         specifier: workspace:*
         version: link:../extension-sdk
       mathjax-full:
         specifier: ^3
         version: 3.2.2
     devDependencies:
-      '@lms/extension-tools':
+      '@spirula/extension-tools':
         specifier: workspace:*
         version: link:../extension-tools
       '@types/node':
@@ -350,29 +350,29 @@ importers:
 
   packages/ext-sql:
     dependencies:
-      '@lms/engine-sql-runner':
+      '@spirula/engine-sql-runner':
         specifier: workspace:*
         version: link:../engine-sql-runner
-      '@lms/extension-api':
+      '@spirula/extension-api':
         specifier: workspace:*
         version: link:../extension-api
-      '@lms/extension-sdk':
+      '@spirula/extension-sdk':
         specifier: workspace:*
         version: link:../extension-sdk
     devDependencies:
-      '@lms/engine':
+      '@spirula/engine':
         specifier: workspace:*
         version: link:../engine
-      '@lms/engine-contract':
+      '@spirula/engine-contract':
         specifier: workspace:*
         version: link:../engine-contract
-      '@lms/extension-host':
+      '@spirula/extension-host':
         specifier: workspace:*
         version: link:../extension-host
-      '@lms/extension-tools':
+      '@spirula/extension-tools':
         specifier: workspace:*
         version: link:../extension-tools
-      '@lms/testkit':
+      '@spirula/testkit':
         specifier: workspace:*
         version: link:../testkit
       '@types/node':
@@ -396,13 +396,13 @@ importers:
 
   packages/extension-host:
     dependencies:
-      '@lms/engine':
+      '@spirula/engine':
         specifier: workspace:*
         version: link:../engine
-      '@lms/engine-contract':
+      '@spirula/engine-contract':
         specifier: workspace:*
         version: link:../engine-contract
-      '@lms/extension-api':
+      '@spirula/extension-api':
         specifier: workspace:*
         version: link:../extension-api
       ajv:
@@ -421,7 +421,7 @@ importers:
 
   packages/extension-sdk:
     dependencies:
-      '@lms/extension-api':
+      '@spirula/extension-api':
         specifier: workspace:*
         version: link:../extension-api
       ajv:
@@ -440,10 +440,10 @@ importers:
 
   packages/extension-tools:
     dependencies:
-      '@lms/extension-api':
+      '@spirula/extension-api':
         specifier: workspace:*
         version: link:../extension-api
-      '@lms/extension-host':
+      '@spirula/extension-host':
         specifier: workspace:*
         version: link:../extension-host
       vite:
@@ -459,10 +459,10 @@ importers:
 
   packages/testkit:
     dependencies:
-      '@lms/engine':
+      '@spirula/engine':
         specifier: workspace:*
         version: link:../engine
-      '@lms/engine-contract':
+      '@spirula/engine-contract':
         specifier: workspace:*
         version: link:../engine-contract
       fast-check:

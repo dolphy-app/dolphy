@@ -68,7 +68,7 @@ export const createWindowOptions = (
   hidden: boolean,
   additionalArguments: readonly string[],
 ): WindowOptions => ({
-  title: 'LMS',
+  title: 'Spirula',
   show: !hidden,
   minWidth: MIN_WINDOW_WIDTH,
   minHeight: MIN_WINDOW_HEIGHT,

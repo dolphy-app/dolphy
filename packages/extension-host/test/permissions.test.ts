@@ -1,4 +1,4 @@
-import { EXTENSION_PERMISSIONS } from '@lms/extension-api';
+import { EXTENSION_PERMISSIONS } from '@spirula/extension-api';
 import { describe, expect, it } from 'vitest';
 import {
   RESTRICTED_ENV,

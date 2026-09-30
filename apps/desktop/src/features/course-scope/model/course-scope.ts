@@ -1,6 +1,10 @@
 import { computed, ref, shallowRef } from 'vue';
 import type { ComputedRef, InjectionKey, Ref, ShallowRef } from 'vue';
-import type { EngineEvent, LearningEngine, UnitId } from '@lms/engine-contract';
+import type {
+  EngineEvent,
+  LearningEngine,
+  UnitId,
+} from '@spirula/engine-contract';
 import { loadCourses } from '@/entities/course';
 import type { CourseSummary } from '@/entities/course';
 

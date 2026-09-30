@@ -15,7 +15,7 @@ import {
   createRestrictedRunner,
   discoverExtensions,
   inspectExtensionDir,
-} from '@lms/extension-host';
+} from '@spirula/extension-host';
 
 const appDir = fileURLToPath(new URL('..', import.meta.url));
 const hostileDir = join(appDir, 'e2e/fixtures/hostile-extension');
@@ -33,11 +33,11 @@ const outputs: string[] = [];
 
 /** Настоящий `vite build` (без electron-builder) во временный каталог. */
 const build = (smokeBuild: boolean): string => {
-  const out = mkdtempSync(join(tmpdir(), 'lms-bundle-'));
+  const out = mkdtempSync(join(tmpdir(), 'spirula-bundle-'));
   outputs.push(out);
-  const env: NodeJS.ProcessEnv = { ...process.env, LMS_BUILD_OUT: out };
-  delete env.LMS_SMOKE_BUILD;
-  if (smokeBuild) env.LMS_SMOKE_BUILD = '1';
+  const env: NodeJS.ProcessEnv = { ...process.env, SPIRULA_BUILD_OUT: out };
+  delete env.SPIRULA_SMOKE_BUILD;
+  if (smokeBuild) env.SPIRULA_SMOKE_BUILD = '1';
   execFileSync(process.execPath, [viteBin, 'build'], {
     cwd: appDir,
     env,
@@ -87,7 +87,7 @@ describe('смоук и релизная сборка', () => {
     async () => {
       const out = build(false);
       const expected = {
-        'lms.sql': [
+        'spirula.sql': [
           'extension.json',
           'main.mjs',
           'worker.mjs',
@@ -95,14 +95,14 @@ describe('смоук и релизная сборка', () => {
           'schema/spec.json',
           'schema/answer.json',
         ],
-        'lms.choice': [
+        'spirula.choice': [
           'extension.json',
           'main.mjs',
           'view.mjs',
           'schema/spec.json',
           'schema/answer.json',
         ],
-        'lms.math': ['extension.json', 'markdown.mjs'],
+        'spirula.math': ['extension.json', 'markdown.mjs'],
       };
       for (const [id, names] of Object.entries(expected)) {
         for (const name of names) {
@@ -123,9 +123,9 @@ describe('смоук и релизная сборка', () => {
         logger,
       });
       expect(extensions.map(({ id }) => id).sort()).toEqual([
-        'lms.choice',
-        'lms.math',
-        'lms.sql',
+        'spirula.choice',
+        'spirula.math',
+        'spirula.sql',
       ]);
       expect(diagnostics).toEqual([]);
       expect(warnings).toEqual([]);
@@ -174,9 +174,9 @@ describe('смоук и релизная сборка', () => {
     'смоук-сборка содержит смоук во всех процессах: детектор не слепой',
     () => {
       const out = build(true);
-      expect(textOf(out, 'dist-electron/main')).toContain('LMS_SMOKE');
+      expect(textOf(out, 'dist-electron/main')).toContain('SPIRULA_SMOKE');
       expect(textOf(out, 'dist-electron/preload')).toContain('smoke:report');
-      expect(textOf(out, 'dist-electron/host')).toContain('LMS_SMOKE');
+      expect(textOf(out, 'dist-electron/host')).toContain('SPIRULA_SMOKE');
       expect(textOf(out, 'dist-electron/host')).toContain(
         'exercise types discovered',
       );

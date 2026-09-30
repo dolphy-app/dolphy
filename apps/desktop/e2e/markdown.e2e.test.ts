@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createWorkspace, launchApp } from './support/app.ts';
-import type { LmsApp, Workspace } from './support/app.ts';
+import type { SpirulaApp, Workspace } from './support/app.ts';
 import { Client } from './support/client.ts';
 
 const NAME = 'Markdown (KnowledgeBase)';
@@ -25,7 +25,7 @@ const markdownCourse = (prompt: string) => ({
 });
 
 let workspace: Workspace | null = null;
-let app: LmsApp | null = null;
+let app: SpirulaApp | null = null;
 
 afterEach(async () => {
   await app?.close();
@@ -68,16 +68,18 @@ describe('блоки кода в Markdown', () => {
       ),
     );
     await page
-      .locator('.lms-md-block[data-language=math] svg')
+      .locator('.spirula-md-block[data-language=math] svg')
       .waitFor({ state: 'visible' });
     expect(
-      await page.locator('.lms-md-block[data-language=math] pre').count(),
+      await page.locator('.spirula-md-block[data-language=math] pre').count(),
     ).toBe(0);
     await page
       .locator('pre code', { hasText: 'plain text' })
       .waitFor({ state: 'visible' });
     expect(
-      await page.locator('.lms-md-block[data-language=unknownlang]').count(),
+      await page
+        .locator('.spirula-md-block[data-language=unknownlang]')
+        .count(),
     ).toBe(0);
   });
 
@@ -86,8 +88,8 @@ describe('блоки кода в Markdown', () => {
       markdownCourse(['Broken', '', '```boom', 'raw source', '```'].join('\n')),
       { 'acme.bad-markdown': BAD_EXTENSION },
     );
-    const block = page.locator('.lms-md-block[data-language=boom]');
-    await block.locator('.lms-md-error').waitFor({ state: 'visible' });
+    const block = page.locator('.spirula-md-block[data-language=boom]');
+    await block.locator('.spirula-md-error').waitFor({ state: 'visible' });
     expect(await block.locator('pre code').textContent()).toContain(
       'raw source',
     );

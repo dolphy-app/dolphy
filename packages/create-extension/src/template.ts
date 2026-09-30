@@ -1,4 +1,4 @@
-import { defaultElementName } from '@lms/extension-api';
+import { defaultElementName } from '@spirula/extension-api';
 
 /** Версия расширения в шаблоне и его умолчание для `apiVersion`. */
 const INITIAL_VERSION = '0.1.0';
@@ -19,14 +19,14 @@ export const packageJson = ({ id, dependencies }: TemplateInput): string =>
       private: true,
       type: 'module',
       scripts: {
-        build: 'lms-ext build',
-        dev: 'lms-ext build --watch',
-        validate: `lms-ext validate dist-ext/${id}`,
+        build: 'spirula-ext build',
+        dev: 'spirula-ext build --watch',
+        validate: `spirula-ext validate dist-ext/${id}`,
         test: 'vitest run',
       },
       devDependencies: {
-        '@lms/extension-sdk': dependencies.sdk,
-        '@lms/extension-tools': dependencies.tools,
+        '@spirula/extension-sdk': dependencies.sdk,
+        '@spirula/extension-tools': dependencies.tools,
         '@types/node': '^22.20.4',
         'happy-dom': '^20.14.5',
         typescript: '^6.0.3',
@@ -84,7 +84,7 @@ export const manifestJson = (id: string): string => `{
 
 export const mainTs = (
   id: string,
-): string => `import { defineExerciseType, defineExtension } from '@lms/extension-sdk';
+): string => `import { defineExerciseType, defineExtension } from '@spirula/extension-sdk';
 
 interface Spec {
   expected: string;
@@ -115,7 +115,7 @@ export default defineExtension({
 
 export const viewTs = (
   id: string,
-): string => `import { defineAnswerElement } from '@lms/extension-sdk';
+): string => `import { defineAnswerElement } from '@spirula/extension-sdk';
 
 defineAnswerElement('${defaultElementName(id)}', (api, initial) => {
   const input = document.createElement('input');
@@ -154,7 +154,7 @@ defineAnswerElement('${defaultElementName(id)}', (api, initial) => {
 export const mainTestTs = (id: string): string => `import {
   createSchemaValidator,
   loadExerciseType,
-} from '@lms/extension-sdk/testing';
+} from '@spirula/extension-sdk/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import manifest from '../extension.json';
 import module from '../src/main.ts';
@@ -239,8 +239,8 @@ describe('${id}: схемы', () => {
 export const viewTestTs = (id: string): string => {
   const tag = defaultElementName(id);
   return `// @vitest-environment happy-dom
-import { ANSWER_EVENT } from '@lms/extension-sdk';
-import type { AnswerChangeDetail } from '@lms/extension-sdk';
+import { ANSWER_EVENT } from '@spirula/extension-sdk';
+import type { AnswerChangeDetail } from '@spirula/extension-sdk';
 import { afterEach, describe, expect, it } from 'vitest';
 import '../src/view.ts';
 
@@ -318,8 +318,8 @@ export const readme = (id: string): string =>
   lines([
     `# ${id}`,
     '',
-    'Расширение LMS: вид задания «text match» (ученик вводит строку, она',
-    'сравнивается с `spec.expected`). Сгенерировано `create-lms-extension`.',
+    'Расширение Spirula: вид задания «text match» (ученик вводит строку, она',
+    'сравнивается с `spec.expected`). Сгенерировано `create-spirula-extension`.',
     '',
     '## Раскладка',
     '',
@@ -332,14 +332,14 @@ export const readme = (id: string): string =>
     '',
     '```sh',
     'pnpm install',
-    `pnpm dev # lms-ext build --watch: пересборка в dist-ext/${id}`,
+    `pnpm dev # spirula-ext build --watch: пересборка в dist-ext/${id}`,
     '```',
     '',
     'Запустите приложение с корнем режима разработчика — каталогом `dist-ext`',
     'этого проекта (абсолютный путь):',
     '',
     '```sh',
-    'LMS_DEV_EXTENSIONS=<путь к проекту>/dist-ext pnpm dev # из репозитория LMS',
+    'SPIRULA_DEV_EXTENSIONS=<путь к проекту>/dist-ext pnpm dev # из репозитория Spirula',
     '```',
     '',
     'Правка файла в `dist-ext` перезапускает хосты и перезагружает окно.',

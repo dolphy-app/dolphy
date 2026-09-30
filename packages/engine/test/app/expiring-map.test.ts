@@ -1,4 +1,4 @@
-import { createFakeClock } from '@lms/testkit';
+import { createFakeClock } from '@spirula/testkit';
 import { describe, expect, it } from 'vitest';
 import { createExpiringMap } from '../../src/app/index.ts';
 

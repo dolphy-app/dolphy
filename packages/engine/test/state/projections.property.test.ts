@@ -3,13 +3,13 @@
  * применение в любом порядке и с дублями даёт то же состояние, что полная
  * перестройка; «живость» попытки совпадает с брутфорс-определением.
  */
-import type { Grade, UnitId } from '@lms/engine-contract';
+import type { Grade, UnitId } from '@spirula/engine-contract';
 import {
   buildAttempt,
   buildProgressReset,
   buildUnitFlag,
   generateLibrary,
-} from '@lms/testkit';
+} from '@spirula/testkit';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import type { LogEntry } from '../../src/domain/journal.ts';

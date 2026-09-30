@@ -1,10 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import type { JsonSchema } from '@lms/extension-sdk';
+import type { JsonSchema } from '@spirula/extension-sdk';
 import {
   createSchemaValidator,
   loadExerciseType,
-} from '@lms/extension-sdk/testing';
+} from '@spirula/extension-sdk/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import module from '../src/main.ts';
 
@@ -24,12 +24,12 @@ afterEach(async () => {
 });
 
 const load = async () => {
-  const type = await loadExerciseType(module, 'lms.choice');
+  const type = await loadExerciseType(module, 'spirula.choice');
   disposables.push(type);
   return type;
 };
 
-describe('lms.choice: модуль расширения', () => {
+describe('spirula.choice: модуль расширения', () => {
   it('project не раскрывает correct', async () => {
     const type = await load();
     const view = await type.project({ ...spec, multiple: true });
@@ -62,7 +62,7 @@ describe('lms.choice: модуль расширения', () => {
   });
 });
 
-describe('lms.choice: схемы', () => {
+describe('spirula.choice: схемы', () => {
   it.each([
     ['одиночный', { options: ['a', 'b'], correct: [0] }],
     [

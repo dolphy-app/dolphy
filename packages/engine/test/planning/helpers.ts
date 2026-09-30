@@ -13,8 +13,8 @@ import type {
   EpochMs,
   SchedulerOptionsDto,
   UnitId,
-} from '@lms/engine-contract';
-import { buildCourse, buildExercise, buildLesson } from '@lms/testkit';
+} from '@spirula/engine-contract';
+import { buildCourse, buildExercise, buildLesson } from '@spirula/testkit';
 import { assembleLibrary } from '../../src/domain/library.ts';
 import type { Library } from '../../src/domain/library.ts';
 import type { AttemptRecord } from '../../src/app/context.ts';

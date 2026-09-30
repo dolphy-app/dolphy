@@ -1,4 +1,4 @@
-import type { Page, PageRequest } from '@lms/engine-contract';
+import type { Page, PageRequest } from '@spirula/engine-contract';
 
 /** Максимальная страница списка (API §10); курсов и узлов прогресса по курсам заведомо меньше. */
 const PAGE_LIMIT = 500;

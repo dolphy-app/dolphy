@@ -1,7 +1,7 @@
 import { fork } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
-import type { GradeResult } from '@lms/extension-api';
-import { createCapturingLogger } from '@lms/testkit';
+import type { GradeResult } from '@spirula/extension-api';
+import { createCapturingLogger } from '@spirula/testkit';
 import type { SpawnWorker } from '../../src/pool.ts';
 import { createSqlVerifier } from '../../src/verifier.ts';
 import type { SqlCheckInput, SqlVerifierOptions } from '../../src/verifier.ts';
@@ -17,7 +17,7 @@ export const defaultFiles = (): Record<string, string> => ({
   [EXPECTED_PATH]: 'n\n6\n',
 });
 
-/** Спецификация вида `lms.sql`; `extra` дополняет или переопределяет поля. */
+/** Спецификация вида `spirula.sql`; `extra` дополняет или переопределяет поля. */
 export const sqlSpec = (extra: Record<string, unknown> = {}) => ({
   fixture: FIXTURE_PATH,
   expected: EXPECTED_PATH,

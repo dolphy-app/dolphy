@@ -88,7 +88,7 @@ export const createExtSupervisor = (
     restartTimer = undefined;
     if (stopping || gaveUp || child) return;
     const self = utilityProcess.fork(hostPath, [], {
-      serviceName: 'lms-ext-host',
+      serviceName: 'spirula-ext-host',
     });
     child = self;
     self.once('spawn', () => {

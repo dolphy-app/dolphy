@@ -9,7 +9,7 @@ import type {
   GradeValue,
   JsonSchema,
   LibraryReader,
-} from '@lms/extension-api';
+} from '@spirula/extension-api';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 
 const MAX_MESSAGES = 6;

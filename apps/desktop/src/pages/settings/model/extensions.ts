@@ -4,7 +4,7 @@ import type {
   ExtensionInfoDto,
   ExtensionSettingsDto,
   LearningEngine,
-} from '@lms/engine-contract';
+} from '@spirula/engine-contract';
 
 export type ContributionPoint = keyof ExtensionContributesDto;
 

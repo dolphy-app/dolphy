@@ -5,7 +5,7 @@ import type {
   LearningEngine,
   LocaleMode,
   ThemeContributionDto,
-} from '@lms/engine-contract';
+} from '@spirula/engine-contract';
 import { resolveLocale } from '@/shared/i18n';
 import {
   effectiveThemeId,

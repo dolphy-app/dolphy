@@ -11,7 +11,7 @@ import type {
   SubmitAnswerRequest,
   UnitDto,
   VerdictDto,
-} from '@lms/engine-contract';
+} from '@spirula/engine-contract';
 import { createSession } from '@/pages/session/model/session.ts';
 
 interface FakeOptions {
@@ -34,10 +34,10 @@ const exercise = (id: string, verifiable: boolean): ExerciseDto => ({
   ...(verifiable
     ? {
         task: {
-          type: 'lms.sql',
+          type: 'spirula.sql',
           timeoutMs: 1000,
-          element: 'lms-sql-answer',
-          rendererUrl: 'lms-ext://lms.sql/view.mjs',
+          element: 'spirula-sql-answer',
+          rendererUrl: 'spirula-ext://spirula.sql/view.mjs',
           isolated: false,
         },
       }
@@ -193,8 +193,8 @@ describe('session model', () => {
     const session = createSession(engine);
     await session.start();
     expect(session.current.value?.task).toMatchObject({
-      type: 'lms.sql',
-      element: 'lms-sql-answer',
+      type: 'spirula.sql',
+      element: 'spirula-sql-answer',
     });
     expect(session.current.value?.view).toEqual({ hint: 'e1' });
 

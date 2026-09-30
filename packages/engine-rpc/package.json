@@ -1,5 +1,5 @@
 {
-  "name": "@lms/engine-rpc",
+  "name": "@spirula/engine-rpc",
   "version": "0.0.0",
   "private": true,
   "description": "RPC-транспорт: клиент для renderer, диспетчер для хоста",
@@ -14,8 +14,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@lms/engine": "workspace:*",
-    "@lms/engine-contract": "workspace:*",
+    "@spirula/engine": "workspace:*",
+    "@spirula/engine-contract": "workspace:*",
     "zod": "4.6.5"
   },
   "devDependencies": {

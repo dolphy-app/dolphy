@@ -1,4 +1,4 @@
-import type { UnitId } from '@lms/engine-contract';
+import type { UnitId } from '@spirula/engine-contract';
 import type { EntryKey, FlagState } from '../app/context.ts';
 import { compareEntryKeys } from './attempt-index.ts';
 

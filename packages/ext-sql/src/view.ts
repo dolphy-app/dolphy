@@ -1,5 +1,5 @@
-/** Элемент ввода ответа `lms-sql-answer`; побочный эффект загрузки — регистрация. */
-import { defineAnswerElement } from '@lms/extension-sdk';
+/** Элемент ввода ответа `spirula-sql-answer`; побочный эффект загрузки — регистрация. */
+import { defineAnswerElement } from '@spirula/extension-sdk';
 
 const STYLE = `
   :host { display: block; }
@@ -17,7 +17,7 @@ const STYLE = `
 
 const toText = (value: unknown) => (typeof value === 'string' ? value : '');
 
-defineAnswerElement('lms-sql-answer', (api, initial) => {
+defineAnswerElement('spirula-sql-answer', (api, initial) => {
   const style = document.createElement('style');
   style.textContent = STYLE;
   const textarea = document.createElement('textarea');

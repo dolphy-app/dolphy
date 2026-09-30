@@ -7,7 +7,7 @@ import { _electron as electron } from 'playwright-core';
 import type { ElectronApplication, Page } from 'playwright-core';
 
 const APP_DIR = fileURLToPath(new URL('../..', import.meta.url));
-/** Релизная сборка для e2e: `vite build` с `LMS_BUILD_OUT=dist-e2e` (global-setup). */
+/** Релизная сборка для e2e: `vite build` с `SPIRULA_BUILD_OUT=dist-e2e` (global-setup). */
 export const E2E_BUILD_DIR = 'dist-e2e';
 
 const LIBRARY_SOURCES = [
@@ -36,7 +36,7 @@ export interface Workspace {
 export const createWorkspace = async (
   options: WorkspaceOptions = {},
 ): Promise<Workspace> => {
-  const root = await mkdtemp(join(tmpdir(), 'lms-e2e-'));
+  const root = await mkdtemp(join(tmpdir(), 'spirula-e2e-'));
   const userData = join(root, 'userData');
   const library = join(userData, 'library');
   await mkdir(library, { recursive: true });
@@ -56,7 +56,7 @@ export const createWorkspace = async (
   };
 };
 
-export interface LmsApp {
+export interface SpirulaApp {
   readonly page: Page;
   /** Закрывает приложение и ждёт, пока хост движка отпустит `engine.db`. */
   close(): Promise<void>;
@@ -70,7 +70,7 @@ export interface LmsApp {
 export const launchApp = async (
   userData: string,
   env?: Record<string, string>,
-): Promise<LmsApp> => {
+): Promise<SpirulaApp> => {
   const executablePath = createRequire(import.meta.url)('electron') as string;
   const app: ElectronApplication = await electron.launch({
     executablePath,

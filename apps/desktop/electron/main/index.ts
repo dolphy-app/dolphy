@@ -34,11 +34,11 @@ const devServerUrl = process.env.VITE_DEV_SERVER_URL;
 
 const logger = createMainLogger();
 
-// смоук существует только в смоук-сборке (LMS_SMOKE_BUILD=1 при vite build):
+// смоук существует только в смоук-сборке (SPIRULA_SMOKE_BUILD=1 при vite build):
 // в релизном бандле флаг — false, весь код за ним вырезан
-const smoke = __LMS_SMOKE_BUILD__ && process.env.LMS_SMOKE === '1';
-const smokeUserData = __LMS_SMOKE_BUILD__
-  ? process.env.LMS_SMOKE_USER_DATA
+const smoke = __SPIRULA_SMOKE_BUILD__ && process.env.SPIRULA_SMOKE === '1';
+const smokeUserData = __SPIRULA_SMOKE_BUILD__
+  ? process.env.SPIRULA_SMOKE_USER_DATA
   : undefined;
 if (smoke && smokeUserData) app.setPath('userData', smokeUserData);
 
@@ -49,7 +49,8 @@ if (!app.requestSingleInstanceLock()) {
 
 const userData = app.getPath('userData');
 const libraryRoot =
-  (smoke && process.env.LMS_SMOKE_LIBRARY) || path.join(userData, 'library');
+  (smoke && process.env.SPIRULA_SMOKE_LIBRARY) ||
+  path.join(userData, 'library');
 // расширения из поставки (read-only) и пользовательские; пользовательское с тем же id побеждает
 const bundledExtensionsDir = app.isPackaged
   ? path.join(process.resourcesPath, 'extensions')
@@ -62,8 +63,8 @@ const restrictedEntry = path.join(
   'ext-restricted.mjs',
 );
 // режим разработчика: каталог с приоритетом выше пользовательского, под наблюдением
-const devExtensionsDir = process.env.LMS_DEV_EXTENSIONS
-  ? path.resolve(process.env.LMS_DEV_EXTENSIONS)
+const devExtensionsDir = process.env.SPIRULA_DEV_EXTENSIONS
+  ? path.resolve(process.env.SPIRULA_DEV_EXTENSIONS)
   : undefined;
 
 const hostLink = createHostLink({ MessageChannelMain });
@@ -96,7 +97,7 @@ const supervisor = createSupervisor({
   logger,
   onFatal: () => {
     dialog.showErrorBox(
-      'LMS',
+      'Spirula',
       'Движок обучения неоднократно завершался с ошибкой. Приложение будет закрыто.',
     );
     app.quit();

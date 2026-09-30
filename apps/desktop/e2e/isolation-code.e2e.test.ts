@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createWorkspace, launchApp } from './support/app.ts';
-import type { LmsApp, Workspace } from './support/app.ts';
+import type { SpirulaApp, Workspace } from './support/app.ts';
 import { Client } from './support/client.ts';
 import { readJournal } from './support/journal.ts';
 
@@ -48,7 +48,7 @@ const probeCourse = (kind: 'hostile' | 'permitted', name: string) => ({
 });
 
 let workspace: Workspace | null = null;
-let app: LmsApp | null = null;
+let app: SpirulaApp | null = null;
 
 const launch = async (userData: string) => {
   app = await launchApp(userData);

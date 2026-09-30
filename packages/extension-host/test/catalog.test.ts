@@ -23,7 +23,7 @@ const extension: ResolvedExtension = {
       },
       answerSchema: { type: 'string' },
       element: 'acme-t-answer',
-      rendererUrl: 'lms-ext://acme.t/view.mjs',
+      rendererUrl: 'spirula-ext://acme.t/view.mjs',
     },
   ],
   themes: [],
@@ -40,7 +40,7 @@ describe('createCatalog', () => {
       extensionId: 'acme.t',
       extensionVersion: '2.0.0',
       element: 'acme-t-answer',
-      rendererUrl: 'lms-ext://acme.t/view.mjs',
+      rendererUrl: 'spirula-ext://acme.t/view.mjs',
     });
     expect(catalog.list()).toHaveLength(1);
     expect(catalog.ownerOf('acme.t')).toBe(extension);

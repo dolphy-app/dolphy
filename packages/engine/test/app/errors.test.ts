@@ -1,4 +1,4 @@
-import { createCapturingLogger } from '@lms/testkit';
+import { createCapturingLogger } from '@spirula/testkit';
 import { describe, expect, it } from 'vitest';
 import { ERRORS, EngineError, createErrorMapper } from '../../src/app/index.ts';
 

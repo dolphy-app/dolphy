@@ -1,7 +1,7 @@
 import type {
   EngineDiagnosticsDto,
   LearningEngine,
-} from '@lms/engine-contract';
+} from '@spirula/engine-contract';
 import { createCommandQueue } from './command-queue.ts';
 import type { CommandQueue } from './command-queue.ts';
 import type { FacadeContext } from './context-types.ts';

@@ -1,4 +1,4 @@
-import type { UnitId } from '@lms/engine-contract';
+import type { UnitId } from '@spirula/engine-contract';
 import { MS_PER_DAY } from './constants.ts';
 import type { UnitReward } from './types.ts';
 

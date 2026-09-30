@@ -3,7 +3,7 @@ import {
   THEME_ID_PATTERN,
   type LocaleMode,
   type UiSettingsDto,
-} from '@lms/engine-contract';
+} from '@spirula/engine-contract';
 
 export const MAX_THEME_ID_LENGTH = 64;
 export const LOCALE_MODES: readonly LocaleMode[] = ['system', 'ru', 'en'];

@@ -1,10 +1,10 @@
 /**
  * Порт правил оценки из расширений: список правил из манифестов и вызов
- * правила в хосте расширений. Адаптеры живут в `@lms/extension-host`; ядро
+ * правила в хосте расширений. Адаптеры живут в `@spirula/extension-host`; ядро
  * знает только этот интерфейс. Сбой вызова — `GradePolicyError`: запасное
  * правило выбирает слой композиции (`resolveGradePolicy`), не порт.
  */
-import type { Grade } from '@lms/engine-contract';
+import type { Grade } from '@spirula/engine-contract';
 import type { GradeInput } from '../verify/grade-policy.ts';
 
 export interface GradePolicyInfo {

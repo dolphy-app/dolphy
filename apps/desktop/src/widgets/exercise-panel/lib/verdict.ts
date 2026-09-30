@@ -1,4 +1,4 @@
-import type { VerdictDto } from '@lms/engine-contract';
+import type { VerdictDto } from '@spirula/engine-contract';
 
 export interface VerdictView {
   type: 'success' | 'warning' | 'error';

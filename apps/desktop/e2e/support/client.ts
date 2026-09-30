@@ -298,10 +298,10 @@ export class Client {
   /** Вводит ответ в элемент расширения (custom element в окне или в рамке). */
   async fillAnswer(reply: AnswerInput) {
     if ('sql' in reply) {
-      const element = await this.answerElement('lms-sql-answer');
+      const element = await this.answerElement('spirula-sql-answer');
       await element.locator('textarea').fill(reply.sql);
     } else if ('choose' in reply) {
-      const element = await this.answerElement('lms-choice-answer');
+      const element = await this.answerElement('spirula-choice-answer');
       // после неверной попытки флажки остаются отмеченными: начинаем с чистого выбора
       const marked = element.locator('input[type=checkbox]:checked');
       while ((await marked.count()) > 0) await marked.first().uncheck();

@@ -1,10 +1,10 @@
-import type { ExerciseTaskDto } from '@lms/engine-contract';
+import type { ExerciseTaskDto } from '@spirula/engine-contract';
 
 const LOAD_TIMEOUT_MS = 5_000;
 
 /**
  * Гарантирует, что custom element ввода ответа определён: подгружает
- * renderer-модуль расширения (`lms-ext://`), если тега ещё нет.
+ * renderer-модуль расширения (`spirula-ext://`), если тега ещё нет.
  */
 export const ensureAnswerElement = async (
   task: ExerciseTaskDto,

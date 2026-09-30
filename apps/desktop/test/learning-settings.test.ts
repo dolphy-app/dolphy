@@ -5,11 +5,11 @@ import type {
   EngineEvent,
   LearningEngine,
   SchedulerOptionsDto,
-} from '@lms/engine-contract';
+} from '@spirula/engine-contract';
 import {
   applySchedulerPatch,
   DEFAULT_SCHEDULER_OPTIONS,
-} from '@lms/engine/scheduler';
+} from '@spirula/engine/scheduler';
 import {
   toLearningForm,
   toSchedulerPatch,

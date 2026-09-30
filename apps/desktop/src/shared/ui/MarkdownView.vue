@@ -99,22 +99,22 @@ onBeforeUnmount(() => controller.current?.abort());
   padding: 0.35em 0.75em;
   border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
 }
-.markdown :deep(.lms-md-block) {
+.markdown :deep(.spirula-md-block) {
   margin: 1em 0;
   overflow-x: auto;
 }
 
-.markdown :deep(.lms-md-block[data-state='error']) {
+.markdown :deep(.spirula-md-block[data-state='error']) {
   border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
   border-radius: 12px;
   opacity: 0.8;
 }
 
-.markdown :deep(.lms-md-block pre) {
+.markdown :deep(.spirula-md-block pre) {
   margin: 0;
 }
 
-.markdown :deep(.lms-md-error) {
+.markdown :deep(.spirula-md-error) {
   margin: 0;
   padding: 0.5em 1em;
   color: rgba(var(--v-theme-on-surface), var(--v-medium-emphasis-opacity));

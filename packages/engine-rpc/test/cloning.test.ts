@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createEngineClient } from '../src/client/index.ts';
 import { createDispatcher, schemas } from '../src/host/index.ts';
 import { createInProcessPair } from '../src/in-process.ts';
-import { createCapturingLogger } from '@lms/testkit';
+import { createCapturingLogger } from '@spirula/testkit';
 import { createFakeEngine, type Method } from './helpers.ts';
 
 const leaky = (async () => ({ callback: () => 1 })) as Method;

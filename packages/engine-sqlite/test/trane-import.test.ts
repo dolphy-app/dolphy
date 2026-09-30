@@ -1,9 +1,9 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { createFakeClock } from '@lms/testkit';
+import { createFakeClock } from '@spirula/testkit';
 import { describe, expect, it } from 'vitest';
-import type { LogEntry } from '@lms/engine';
-import { importFromTrane } from '@lms/engine/sync';
+import type { LogEntry } from '@spirula/engine';
+import { importFromTrane } from '@spirula/engine/sync';
 import {
   openBetterSqliteDatabase,
   openSqliteEventStore,

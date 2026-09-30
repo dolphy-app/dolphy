@@ -1,4 +1,4 @@
-import type { EngineConfig, LearningEngine } from '@lms/engine-contract';
+import type { EngineConfig, LearningEngine } from '@spirula/engine-contract';
 import { createCommandQueue } from './command-queue.ts';
 import { createContext } from './create-context.ts';
 import type { EngineContext, EngineDeps } from './context.ts';

@@ -1,4 +1,4 @@
-import type { MessageEndpoint } from '@lms/engine-contract';
+import type { MessageEndpoint } from '@spirula/engine-contract';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createCatalog } from '../src/catalog.ts';
 import type { ResolvedExtension } from '../src/discover.ts';
@@ -31,7 +31,7 @@ const resolved: ResolvedExtension[] = [
         specSchema: {},
         answerSchema: {},
         element: 'acme-t-answer',
-        rendererUrl: 'lms-ext://acme.t/view.mjs',
+        rendererUrl: 'spirula-ext://acme.t/view.mjs',
       },
     ],
     themes: [],

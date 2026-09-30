@@ -1,5 +1,5 @@
 import { basename, relative, resolve } from 'node:path';
-import type { Diagnostic } from '@lms/engine-contract';
+import type { Diagnostic } from '@spirula/engine-contract';
 import { encodeArtifact } from '../authoring/artifact.ts';
 import { compile } from '../authoring/compile.ts';
 import type { CompileResult } from '../authoring/compile.ts';
@@ -51,7 +51,7 @@ interface ParsedArgs {
   extensions: string[];
 }
 
-/** Внедряемые зависимости CLI: тесты подставляют каталог видов, по умолчанию — `@lms/extension-host`. */
+/** Внедряемые зависимости CLI: тесты подставляют каталог видов, по умолчанию — `@spirula/extension-host`. */
 export interface CliDeps {
   createExerciseTypes?: CreateExerciseTypes;
 }

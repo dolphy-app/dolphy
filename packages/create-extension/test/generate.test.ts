@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { defaultElementName } from '@lms/extension-api';
-import { parseManifest } from '@lms/extension-host';
+import { defaultElementName } from '@spirula/extension-api';
+import { parseManifest } from '@spirula/extension-host';
 import { describe, expect, it } from 'vitest';
 import {
   GenerateError,
@@ -106,8 +106,8 @@ describe('generateExtension', () => {
     const pkg = await readJson(path.join(dir, 'package.json'));
     expect(isLocal).toBe(false);
     expect(pkg['devDependencies']).toMatchObject({
-      '@lms/extension-sdk': '^0.0.0',
-      '@lms/extension-tools': '^0.0.0',
+      '@spirula/extension-sdk': '^0.0.0',
+      '@spirula/extension-tools': '^0.0.0',
     });
   });
 
@@ -120,8 +120,8 @@ describe('generateExtension', () => {
     const pkg = await readJson(path.join(dir, 'package.json'));
     expect(isLocal).toBe(true);
     expect(pkg['devDependencies']).toMatchObject({
-      '@lms/extension-sdk': `link:${REPO_ROOT}/packages/extension-sdk`,
-      '@lms/extension-tools': `link:${REPO_ROOT}/packages/extension-tools`,
+      '@spirula/extension-sdk': `link:${REPO_ROOT}/packages/extension-sdk`,
+      '@spirula/extension-tools': `link:${REPO_ROOT}/packages/extension-tools`,
     });
   });
 
@@ -142,9 +142,9 @@ describe('generateExtension', () => {
     });
     const pkg = await readJson(path.join(dir, 'package.json'));
     expect(pkg['scripts']).toEqual({
-      build: 'lms-ext build',
-      dev: 'lms-ext build --watch',
-      validate: 'lms-ext validate dist-ext/acme.hello',
+      build: 'spirula-ext build',
+      dev: 'spirula-ext build --watch',
+      validate: 'spirula-ext validate dist-ext/acme.hello',
       test: 'vitest run',
     });
     await expect(

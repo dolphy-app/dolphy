@@ -3,13 +3,13 @@ import type {
   EpochMs,
   Grade,
   UnitId,
-} from '@lms/engine-contract';
+} from '@spirula/engine-contract';
 import type {
   AttemptEntry,
   LogEntry,
   ProgressResetEntry,
   UnitFlagEntry,
-} from '@lms/engine';
+} from '@spirula/engine';
 import { T0_MS } from './clock.ts';
 
 export const DEFAULT_DEVICE_ID = 'device-a';

@@ -1,12 +1,12 @@
-import { CONTRACT_VERSION } from '@lms/engine-contract';
-import type { Diagnostic } from '@lms/engine-contract';
+import { CONTRACT_VERSION } from '@spirula/engine-contract';
+import type { Diagnostic } from '@spirula/engine-contract';
 import {
   buildAttempt,
   buildLibrary,
   createFakeExerciseTypes,
   createMemoryCourseSource,
-} from '@lms/testkit';
-import type { MemoryCourseSource } from '@lms/testkit';
+} from '@spirula/testkit';
+import type { MemoryCourseSource } from '@spirula/testkit';
 import { describe, expect, it, vi } from 'vitest';
 import {
   createMemoryEventStore,
@@ -74,12 +74,12 @@ const codes = (diagnostics: readonly Diagnostic[]) =>
 
 const PASSED: RawVerdict = { outcome: 'passed', durationMs: 1 };
 
-/** Вид `lms.sql` с эталоном; `decide` выбирает вердикт по запросу. */
+/** Вид `spirula.sql` с эталоном; `decide` выбирает вердикт по запросу. */
 const stubExerciseTypes = (
   decide: (request: { exerciseId: string }) => RawVerdict = () => PASSED,
 ) => {
   const types = createFakeExerciseTypes({
-    types: { 'lms.sql': { reference: 'select 1' } },
+    types: { 'spirula.sql': { reference: 'select 1' } },
   });
   const calls: { exerciseId: string }[] = [];
   types.grade = async (request) => {
@@ -616,7 +616,7 @@ describe('missing library root', () => {
     diagnostics.filter(({ code }) => code === 'E_IO');
 
   it('opens as invalid; validate, compile and reload report E_IO instead of throwing', async () => {
-    const source = createNodeFsCourseSource('/nonexistent/lms-root');
+    const source = createNodeFsCourseSource('/nonexistent/spirula-root');
     const { engine, events } = await createTestEngine({ library: source });
     const info = await engine.library.getInfo();
     expect(info).toMatchObject({ state: 'invalid', revision: '' });

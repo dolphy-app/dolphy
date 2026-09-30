@@ -1,5 +1,8 @@
 import { inject } from 'vue';
-import type { ContributionsDto, LearningEngine } from '@lms/engine-contract';
+import type {
+  ContributionsDto,
+  LearningEngine,
+} from '@spirula/engine-contract';
 import { CONTRIBUTIONS_KEY } from './keys.ts';
 
 export const NO_CONTRIBUTIONS: ContributionsDto = {

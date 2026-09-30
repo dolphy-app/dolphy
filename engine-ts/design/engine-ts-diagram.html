@@ -225,7 +225,7 @@
 <rect x="170" y="20" width="1002" height="772" rx="12" fill="rgba(251, 191, 36, 0.05)" stroke="#fbbf24" stroke-width="1" stroke-dasharray="8,4"/>
 <text x="182" y="37" fill="#fbbf24" font-size="10" font-weight="600">utilityProcess: engine host (Node 24.21, ESM) · owner decision · engine code has no electron imports</text>
 <rect x="180" y="90" width="982" height="600" rx="10" fill="none" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="2,3"/>
-<text x="192" y="104" fill="#e2e8f0" font-size="10" font-weight="700">@lms/engine</text>
+<text x="192" y="104" fill="#e2e8f0" font-size="10" font-weight="700">@spirula/engine</text>
 <text x="268" y="104" fill="#94a3b8" font-size="9">· domain + application + fs/memory adapters · no native dependencies</text>
 <rect x="195" y="444" width="682" height="144" rx="8" fill="rgba(52, 211, 153, 0.04)" stroke="#34d399" stroke-width="1" stroke-dasharray="4,4"/>
 <text x="207" y="459" fill="#34d399" font-size="9">Domain: pure, synchronous, no I/O</text>
@@ -240,9 +240,9 @@
 <rect x="1031" y="256" width="118" height="164" rx="8" fill="rgba(6, 78, 59, 0.10)" stroke="#34d399" stroke-width="1" stroke-dasharray="2,3"/>
 <text x="1039" y="273" fill="#34d399" font-size="10.5" font-weight="700">verify/</text>
 <rect x="772" y="706" width="168" height="76" rx="10" fill="none" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="2,3"/>
-<text x="782" y="720" fill="#e2e8f0" font-size="9.5" font-weight="700">@lms/engine-sqlite</text>
+<text x="782" y="720" fill="#e2e8f0" font-size="9.5" font-weight="700">@spirula/engine-sqlite</text>
 <rect x="1192" y="256" width="188" height="348" rx="10" fill="none" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="2,3"/>
-<text x="1202" y="272" fill="#e2e8f0" font-size="9.5" font-weight="700">@lms/engine-sql-runner</text>
+<text x="1202" y="272" fill="#e2e8f0" font-size="9.5" font-weight="700">@spirula/engine-sql-runner</text>
 <rect x="1202" y="372" width="168" height="112" rx="8" fill="rgba(251, 191, 36, 0.05)" stroke="#fbbf24" stroke-width="1" stroke-dasharray="6,3"/>
 <text x="1210" y="386" fill="#fbbf24" font-size="8.5" font-weight="600">OS processes</text>
 <line x1="85" y1="204" x2="85" y2="166" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrowhead)"/>
@@ -310,7 +310,7 @@
 <g class="bx">
 <rect x="195" y="46" width="956" height="30" rx="6" fill="#0f172a"/>
 <rect x="195" y="46" width="956" height="30" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
-<text x="673" y="65" fill="white" font-size="11" font-weight="600" text-anchor="middle">@lms/engine-contract<tspan fill="#94a3b8" font-size="9" font-weight="400">  types only: DTO · EngineError codes · CONTRACT_VERSION · import type · shared with renderer</tspan></text>
+<text x="673" y="65" fill="white" font-size="11" font-weight="600" text-anchor="middle">@spirula/engine-contract<tspan fill="#94a3b8" font-size="9" font-weight="400">  types only: DTO · EngineError codes · CONTRACT_VERSION · import type · shared with renderer</tspan></text>
 </g>
 <g class="bx">
 <rect x="195" y="114" width="956" height="44" rx="6" fill="#0f172a"/>
@@ -587,7 +587,7 @@
 <g class="bx">
 <rect x="20" y="440" width="130" height="66" rx="6" fill="#0f172a"/>
 <rect x="20" y="440" width="130" height="66" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4,3"/>
-<text x="85.0" y="457" fill="white" font-size="11" font-weight="600" text-anchor="middle">@lms/testkit</text>
+<text x="85.0" y="457" fill="white" font-size="11" font-weight="600" text-anchor="middle">@spirula/testkit</text>
 <text x="85.0" y="470" fill="#94a3b8" font-size="8.5" text-anchor="middle">FakeClock · SeededRng</text>
 <text x="85.0" y="482" fill="#94a3b8" font-size="8.5" text-anchor="middle">TestId · builders</text>
 <text x="85.0" y="494" fill="#94a3b8" font-size="8.5" text-anchor="middle">dev-only, not published</text>
@@ -691,12 +691,12 @@
       <div class="card">
         <div class="card-header"><div class="card-dot cyan"></div><h3>Четыре пакета и границы</h3></div>
         <ul>
-          <li>• <code>@lms/engine-contract</code>: только типы DTO, коды ошибок, CONTRACT_VERSION; renderer-safe</li>
-          <li>• <code>@lms/engine</code>: домен + приложение + fs/memory-адаптеры; модули authoring/, placement/, planning/, verify/, sync/; без electron и нативных зависимостей</li>
-          <li>• <code>@lms/engine-sqlite</code>: better-sqlite3 13.0.3 за портом SqlDatabase; зависит от <code>@lms/engine</code> только типами портов</li>
-          <li>• <code>@lms/engine-sql-runner</code>: SqlVerifier и пул дочерних процессов на <code>node:sqlite</code>; зависит от <code>@lms/engine</code> только типами портов</li>
+          <li>• <code>@spirula/engine-contract</code>: только типы DTO, коды ошибок, CONTRACT_VERSION; renderer-safe</li>
+          <li>• <code>@spirula/engine</code>: домен + приложение + fs/memory-адаптеры; модули authoring/, placement/, planning/, verify/, sync/; без electron и нативных зависимостей</li>
+          <li>• <code>@spirula/engine-sqlite</code>: better-sqlite3 13.0.3 за портом SqlDatabase; зависит от <code>@spirula/engine</code> только типами портов</li>
+          <li>• <code>@spirula/engine-sql-runner</code>: SqlVerifier и пул дочерних процессов на <code>node:sqlite</code>; зависит от <code>@spirula/engine</code> только типами портов</li>
           <li>• ядро от sqlite и раннера не зависит: приложение регистрирует их в <code>EngineDeps</code> (<code>eventStore</code>, <code>verifiers</code>)</li>
-          <li>• <code>@lms/testkit</code>: dev-пакет (FakeClock, SeededRng, TestId, билдеры), не публикуется</li>
+          <li>• <code>@spirula/testkit</code>: dev-пакет (FakeClock, SeededRng, TestId, билдеры), не публикуется</li>
         </ul>
       </div>
       <div class="card">
@@ -759,13 +759,13 @@
         <colgroup><col style="width:3%"><col style="width:20%"><col style="width:22%"><col style="width:16%"><col style="width:10%"><col style="width:29%"></colgroup>
         <thead><tr><th>F</th><th>Требование</th><th>Модуль</th><th>API</th><th>Веха</th><th>Статус</th></tr></thead>
         <tbody>
-          <tr><td class="f">F1</td><td>Курс — репозиторий Markdown/JSON с <code>engine</code>-frontmatter</td><td><code>@lms/engine</code> · authoring/ (frontmatter)</td><td><code>library.readAsset</code></td><td class="m">M1</td><td class="ok">7 библиотек [ИЗМЕРЕНО]; открытие курса с frontmatter в Rust-Trane [НЕ ПОДТВЕРЖДЕНО]</td></tr>
-          <tr><td class="f">F2</td><td>Компилятор и валидатор, артефакт <code>.engine/compiled.json</code>, <code>isFresh</code></td><td><code>@lms/engine</code> · authoring/ (compiler, artifact)</td><td><code>library.validate/compile</code>, <code>engine-cli</code></td><td class="m">M1; M5 (<code>--run-checks</code>)</td><td class="ok">48 дефектов, 35 из 36 кодов [ИЗМЕРЕНО]; <code>W_GRANULARITY</code>, <code>E_REFERENCE_FAILS</code> не прототипировались</td></tr>
-          <tr><td class="f">F3</td><td>Диагностический вход-тест на графе</td><td><code>@lms/engine</code> · placement/</td><td><code>placement.*</code></td><td class="m">M6</td><td class="ok">N = 3 000, шум 3%: 20 проб → 87.5% [ИЗМЕРЕНО, круговая модель]</td></tr>
-          <tr><td class="f">F4</td><td>План дня: фронтир, due, интерливинг; сжатие повторов</td><td><code>@lms/engine</code> · planning/ (planner, interleaving; MemoryIndex + implicit credit — флаг)</td><td><code>practice.getFrontier/getDue</code>, <code>plan.getDay</code></td><td class="m">M3 (фронтир, due); M6 (план, кредит)</td><td class="flag">план 1.6–2.7 мс [ИЗМЕРЕНО]; кредит выключен: выигрыш только в круговой модели; <code>getFrontier</code> против Rust [НЕ ПОДТВЕРЖДЕНО]</td></tr>
-          <tr><td class="f">F5</td><td>Проверка ответов локальным детерминированным раннером</td><td><code>@lms/engine</code> · verify/ (Verifier, GradePolicy) + <code>@lms/engine-sql-runner</code></td><td><code>practice.beginAttempt/submitAnswer/completeAttempt</code></td><td class="m">M5</td><td class="ok">27 из 30 угроз закрыты authorizer, kill 1–8 мс [ИЗМЕРЕНО]; приёмка: 1 000 проверок ≤ 1 с на прогретом пуле; смоук в Electron 44 [НЕ ПОДТВЕРЖДЕНО]</td></tr>
-          <tr><td class="f">F6</td><td>Ремедиация по <code>keyPrerequisites</code></td><td><code>@lms/engine</code> · planning/ (RemediationTracker)</td><td><code>remediation.getPlan</code></td><td class="m">M6</td><td class="unv">спайка нет [НЕ ПОДТВЕРЖДЕНО]; пороги — предположения</td></tr>
-          <tr><td class="f">F7</td><td>Несколько устройств без облака</td><td><code>@lms/engine</code> · sync/ (Replica, HLC, FolderSync) + <code>@lms/engine-sqlite</code></td><td><code>sync.getConflicts</code>, <code>sync.folder.*</code></td><td class="m">M4</td><td class="ok">65 тестов, 16 строк матрицы отказов, потерь 0 [ИЗМЕРЕНО]; iCloud/Syncthing/Dropbox/Git [НЕ ПОДТВЕРЖДЕНО]</td></tr>
+          <tr><td class="f">F1</td><td>Курс — репозиторий Markdown/JSON с <code>engine</code>-frontmatter</td><td><code>@spirula/engine</code> · authoring/ (frontmatter)</td><td><code>library.readAsset</code></td><td class="m">M1</td><td class="ok">7 библиотек [ИЗМЕРЕНО]; открытие курса с frontmatter в Rust-Trane [НЕ ПОДТВЕРЖДЕНО]</td></tr>
+          <tr><td class="f">F2</td><td>Компилятор и валидатор, артефакт <code>.engine/compiled.json</code>, <code>isFresh</code></td><td><code>@spirula/engine</code> · authoring/ (compiler, artifact)</td><td><code>library.validate/compile</code>, <code>engine-cli</code></td><td class="m">M1; M5 (<code>--run-checks</code>)</td><td class="ok">48 дефектов, 35 из 36 кодов [ИЗМЕРЕНО]; <code>W_GRANULARITY</code>, <code>E_REFERENCE_FAILS</code> не прототипировались</td></tr>
+          <tr><td class="f">F3</td><td>Диагностический вход-тест на графе</td><td><code>@spirula/engine</code> · placement/</td><td><code>placement.*</code></td><td class="m">M6</td><td class="ok">N = 3 000, шум 3%: 20 проб → 87.5% [ИЗМЕРЕНО, круговая модель]</td></tr>
+          <tr><td class="f">F4</td><td>План дня: фронтир, due, интерливинг; сжатие повторов</td><td><code>@spirula/engine</code> · planning/ (planner, interleaving; MemoryIndex + implicit credit — флаг)</td><td><code>practice.getFrontier/getDue</code>, <code>plan.getDay</code></td><td class="m">M3 (фронтир, due); M6 (план, кредит)</td><td class="flag">план 1.6–2.7 мс [ИЗМЕРЕНО]; кредит выключен: выигрыш только в круговой модели; <code>getFrontier</code> против Rust [НЕ ПОДТВЕРЖДЕНО]</td></tr>
+          <tr><td class="f">F5</td><td>Проверка ответов локальным детерминированным раннером</td><td><code>@spirula/engine</code> · verify/ (Verifier, GradePolicy) + <code>@spirula/engine-sql-runner</code></td><td><code>practice.beginAttempt/submitAnswer/completeAttempt</code></td><td class="m">M5</td><td class="ok">27 из 30 угроз закрыты authorizer, kill 1–8 мс [ИЗМЕРЕНО]; приёмка: 1 000 проверок ≤ 1 с на прогретом пуле; смоук в Electron 44 [НЕ ПОДТВЕРЖДЕНО]</td></tr>
+          <tr><td class="f">F6</td><td>Ремедиация по <code>keyPrerequisites</code></td><td><code>@spirula/engine</code> · planning/ (RemediationTracker)</td><td><code>remediation.getPlan</code></td><td class="m">M6</td><td class="unv">спайка нет [НЕ ПОДТВЕРЖДЕНО]; пороги — предположения</td></tr>
+          <tr><td class="f">F7</td><td>Несколько устройств без облака</td><td><code>@spirula/engine</code> · sync/ (Replica, HLC, FolderSync) + <code>@spirula/engine-sqlite</code></td><td><code>sync.getConflicts</code>, <code>sync.folder.*</code></td><td class="m">M4</td><td class="ok">65 тестов, 16 строк матрицы отказов, потерь 0 [ИЗМЕРЕНО]; iCloud/Syncthing/Dropbox/Git [НЕ ПОДТВЕРЖДЕНО]</td></tr>
         </tbody>
       </table>
       <p class="chips"><span>M0 каркас, contract</span><span>M1 библиотека, компилятор (F1, F2)</span><span>M2 скоринг</span><span>M3 планировщик, фронтир, due (F4 ч.1)</span><span>M4 журнал, фасад, синхронизация (F7)</span><span>M5 проверка ответов (F5)</span><span>M6 placement, план, ремедиация (F3, F4 ч.2, F6)</span><span>M7 по данным, не блокирует F1–F7</span></p>

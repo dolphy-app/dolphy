@@ -10,7 +10,7 @@ import type {
   SessionPartWire,
   StudySessionWire,
   UnitFilterWire,
-} from '@lms/engine-contract';
+} from '@spirula/engine-contract';
 import type { Metadata } from '../domain/manifest.ts';
 
 export type UnitFilterKind =

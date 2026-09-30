@@ -3,11 +3,11 @@ import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createNodeFsCourseSource } from '@lms/engine/node';
-import type { ExerciseTypes } from '@lms/engine/ports';
-import { discoverExtensions } from '@lms/extension-host';
-import { createLocalExerciseTypes } from '@lms/extension-host/local';
-import { silentLogger } from '@lms/testkit';
+import { createNodeFsCourseSource } from '@spirula/engine/node';
+import type { ExerciseTypes } from '@spirula/engine/ports';
+import { discoverExtensions } from '@spirula/extension-host';
+import { createLocalExerciseTypes } from '@spirula/extension-host/local';
+import { silentLogger } from '@spirula/testkit';
 import sqlModule from '../../src/main.ts';
 
 const PACKAGE_DIR = fileURLToPath(new URL('../..', import.meta.url));
@@ -15,14 +15,14 @@ const PACKAGE_DIR = fileURLToPath(new URL('../..', import.meta.url));
 let rootPromise: Promise<string> | null = null;
 
 /**
- * Корень обнаружения `<tmp>/lms.sql/{extension.json,schema}` из исходников
+ * Корень обнаружения `<tmp>/spirula.sql/{extension.json,schema}` из исходников
  * пакета (без сборки); один на процесс, удаляется при выходе.
  */
 export const extensionRoot = (): Promise<string> => {
   rootPromise ??= (async () => {
     const root = await mkdtemp(join(tmpdir(), 'ext-sql-root-'));
     process.on('exit', () => rmSync(root, { recursive: true, force: true }));
-    const dir = join(root, 'lms.sql');
+    const dir = join(root, 'spirula.sql');
     await cp(join(PACKAGE_DIR, 'extension.json'), join(dir, 'extension.json'));
     await cp(join(PACKAGE_DIR, 'schema'), join(dir, 'schema'), {
       recursive: true,
@@ -32,7 +32,7 @@ export const extensionRoot = (): Promise<string> => {
   return rootPromise;
 };
 
-/** Настоящее расширение `lms.sql` (исходники) поверх библиотеки `libraryDir`. */
+/** Настоящее расширение `spirula.sql` (исходники) поверх библиотеки `libraryDir`. */
 export const createSqlExerciseTypes = async (
   libraryDir: string,
 ): Promise<ExerciseTypes> => {
@@ -48,6 +48,6 @@ export const createSqlExerciseTypes = async (
     extensions,
     library: createNodeFsCourseSource(libraryDir),
     logger: silentLogger,
-    modules: { 'lms.sql': sqlModule },
+    modules: { 'spirula.sql': sqlModule },
   });
 };

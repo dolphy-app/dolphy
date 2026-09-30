@@ -1,8 +1,8 @@
 {
   "$schema": "./node_modules/app-builder-lib/scheme.json",
-  "appId": "com.lms.desktop",
+  "appId": "com.spirula.desktop",
   "asar": true,
-  "productName": "LMS",
+  "productName": "Spirula",
   "directories": {
     "output": "release/${version}"
   },
@@ -39,6 +39,6 @@
   "linux": {
     "target": ["AppImage"],
     "artifactName": "${productName}-Linux-${version}.${ext}",
-    "executableName": "lms"
+    "executableName": "spirula"
   }
 }

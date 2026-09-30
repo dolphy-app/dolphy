@@ -1,7 +1,7 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { discoverExtensions } from '@lms/extension-host';
+import { discoverExtensions } from '@spirula/extension-host';
 import { describe, expect, it } from 'vitest';
 import { BuildError, buildExtension, validateExtension } from '../src/index.ts';
 import { copyProject, makeTemp } from './helpers.ts';
@@ -74,11 +74,11 @@ describe('buildExtension', () => {
       'worker.mjs',
     ]);
     const main = await readFile(path.join(dir, 'main.mjs'), 'utf8');
-    expect(main).toContain('lms-fixture-external');
+    expect(main).toContain('spirula-fixture-external');
     expect(main).toContain('bundled-helper');
     const worker = await readFile(path.join(dir, 'worker.mjs'), 'utf8');
     expect(worker).toContain('bundled-helper');
-    expect(worker).not.toContain('lms-fixture-external');
+    expect(worker).not.toContain('spirula-fixture-external');
   });
 
   it('T-06 неверный манифест — BuildError с текстом приложения', async () => {

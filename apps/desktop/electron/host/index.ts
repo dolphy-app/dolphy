@@ -1,7 +1,11 @@
-import { createDispatcher, fromNodePort, schemas } from '@lms/engine-rpc/host';
-import type { Dispatcher } from '@lms/engine-rpc/host';
-import type { HostChannel } from '@lms/extension-host';
-import type { EngineConfig, LearningEngine } from '@lms/engine-contract';
+import {
+  createDispatcher,
+  fromNodePort,
+  schemas,
+} from '@spirula/engine-rpc/host';
+import type { Dispatcher } from '@spirula/engine-rpc/host';
+import type { HostChannel } from '@spirula/extension-host';
+import type { EngineConfig, LearningEngine } from '@spirula/engine-contract';
 import { boot } from './boot.ts';
 
 /** Сообщения main → хост (`process.parentPort`). */

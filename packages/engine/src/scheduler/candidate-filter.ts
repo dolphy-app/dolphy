@@ -3,7 +3,7 @@ import type {
   MasteryWindowName,
   SchedulerOptionsDto,
   UnitId,
-} from '@lms/engine-contract';
+} from '@spirula/engine-contract';
 import type { Rng } from '../ports/index.ts';
 import { rustClamp, rustMax } from '../scoring/numeric.ts';
 import type { Precision } from '../scoring/types.ts';

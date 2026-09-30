@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createWorkspace, launchApp } from './support/app.ts';
-import type { LmsApp, Workspace } from './support/app.ts';
+import type { SpirulaApp, Workspace } from './support/app.ts';
 import { Client } from './support/client.ts';
 import { readJournal, readSetting } from './support/journal.ts';
 
@@ -34,7 +34,7 @@ const UNIT_OF: Record<string, string> = {
 };
 
 let workspace: Workspace;
-let app: LmsApp | null = null;
+let app: SpirulaApp | null = null;
 let client: Client;
 
 const start = async () => {

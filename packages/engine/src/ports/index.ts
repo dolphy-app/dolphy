@@ -10,7 +10,7 @@ import type {
   LearningSettingsDto,
   UiSettingsDto,
   VerdictDto,
-} from '@lms/engine-contract';
+} from '@spirula/engine-contract';
 import type { LogEntry } from '../domain/journal.ts';
 import type { UserPreferences } from '../domain/manifest.ts';
 
@@ -103,7 +103,7 @@ export interface SegmentRecord {
 /**
  * Синхронные примитивы внутри одной транзакции хранилища [ВЫВОД: в дизайне
  * порт назван без сигнатур]. Алгоритм слияния и решения конфликтов написан один
- * раз (`@lms/engine/sync`) поверх этих примитивов, адаптеры их только реализуют.
+ * раз (`@spirula/engine/sync`) поверх этих примитивов, адаптеры их только реализуют.
  * «Живые» записи — `log_entry`, скрытые — `log_conflict`; вместе они образуют
  * множество записей реплики.
  */

@@ -1,10 +1,10 @@
-# LMS
+# Spirula
 
 **English** · [Русский](README.ru.md)
 
 **Learn in the right order. Remember for good. Keep everything on your computer.**
 
-LMS is a desktop app for learning skills that build on each other: SQL, Git, HTTP, JavaScript, or anything you can break into lessons. It does three things flashcards alone can't:
+Spirula is a desktop app for learning skills that build on each other: SQL, Git, HTTP, JavaScript, or anything you can break into lessons. It does three things flashcards alone can't:
 
 - **Plans your day.** Every morning it picks what to review and which new lesson to start, and it only opens a lesson once the lessons it depends on are mastered.
 - **Checks real answers.** Write a SQL query and the app runs it and tells you if it's right. No grading yourself, no fooling yourself.
@@ -12,11 +12,11 @@ LMS is a desktop app for learning skills that build on each other: SQL, Git, HTT
 
 [Download](#download) · [Try it from source](#try-it-from-source) · [What's inside](#whats-inside) · [Built on Trane](#built-on-trane)
 
-## Why LMS
+## Why Spirula
 
 Most study tools treat knowledge as a pile of cards. But skills aren't a pile. You can't write a window function before you understand `GROUP BY`, and you can't rebase a branch before you understand commits. So you either follow a fixed syllabus and forget the early lessons, or you shuffle a deck and hit material you aren't ready for.
 
-LMS models a course as a **graph of lessons with prerequisites** and schedules it with **FSRS**, the modern spaced-repetition algorithm. You always see what is ready to learn, what is due to review, and what is still locked, and the plan makes sure old topics don't fade while you push forward.
+Spirula models a course as a **graph of lessons with prerequisites** and schedules it with **FSRS**, the modern spaced-repetition algorithm. You always see what is ready to learn, what is due to review, and what is still locked, and the plan makes sure old topics don't fade while you push forward.
 
 ## What's inside
 
@@ -32,7 +32,7 @@ LMS models a course as a **graph of lessons with prerequisites** and schedules i
 | **Yours to write**           | A course is a folder of Markdown and small JSON files. Edit it in any editor, keep it in Git, share it as a zip.                                                                                                                  |
 | **Comfortable**              | Light and dark themes, interface in English and Russian.                                                                                                                                                                          |
 
-## A day with LMS
+## A day with Spirula
 
 1. Open the app. The plan for today is already there.
 2. Start a session. Answer a question, run a query, rate how it went.
@@ -42,7 +42,7 @@ LMS models a course as a **graph of lessons with prerequisites** and schedules i
 
 ## If you know Anki
 
-You'll feel at home: spaced repetition on FSRS (the algorithm [Anki](https://apps.ankiweb.net) itself now offers), a daily queue, a rating after each item. LMS adds what a flat deck cannot express:
+You'll feel at home: spaced repetition on FSRS (the algorithm [Anki](https://apps.ankiweb.net) itself now offers), a daily queue, a rating after each item. Spirula adds what a flat deck cannot express:
 
 - **Structure.** Lessons depend on each other. New material appears when you're ready, not when it happens to be next in the deck.
 - **Verification.** Code exercises are graded by running them.
@@ -52,11 +52,11 @@ It is not an Anki replacement for vocabulary or trivia. It's aimed at skills wit
 
 ## Built on Trane
 
-LMS stands on [**Trane**](https://github.com/trane-project/trane), an open-source practice engine written in Rust for mastering complex, hierarchical skills, originally for jazz improvisation and named after John Coltrane. Trane's core idea is the one this project is built around: skills form a graph, practice follows it, new skills unlock as their prerequisites are mastered, and old ones are reinforced along the way.
+Spirula stands on [**Trane**](https://github.com/trane-project/trane), an open-source practice engine written in Rust for mastering complex, hierarchical skills, originally for jazz improvisation and named after John Coltrane. Trane's core idea is the one this project is built around: skills form a graph, practice follows it, new skills unlock as their prerequisites are mastered, and old ones are reinforced along the way.
 
 We started by reading Trane's source and running experiments against it, then **ported its scheduler to TypeScript** and built a product around it.
 
-| From Trane                                                                             | Added in LMS                                                                                                                  |
+| From Trane                                                                             | Added in Spirula                                                                                                              |
 | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | Courses as plain-text files: lessons, exercises, dependencies                          | FSRS memory model (via [ts-fsrs](https://github.com/open-spaced-repetition/ts-fsrs)) instead of Trane's own scoring heuristic |
 | Depth-first scheduler: lesson gating, mastery windows, relearn pile, shuffling         | Answers verified by runners (SQL today) instead of self-rating only                                                           |

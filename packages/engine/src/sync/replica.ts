@@ -1,4 +1,4 @@
-import type { MissingSeqs, StateVector } from '@lms/engine-contract';
+import type { MissingSeqs, StateVector } from '@spirula/engine-contract';
 import { EngineError } from '../app/errors.ts';
 import type { LogEntry } from '../domain/journal.ts';
 import type { Clock, EventStore, SegmentRecord } from '../ports/index.ts';

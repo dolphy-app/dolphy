@@ -1,7 +1,7 @@
-import { CONTRACT_VERSION, RPC_METHODS } from '@lms/engine-contract';
-import type { EngineEvent } from '@lms/engine-contract';
-import { EngineError } from '@lms/engine/app';
-import { createCapturingLogger, silentLogger } from '@lms/testkit';
+import { CONTRACT_VERSION, RPC_METHODS } from '@spirula/engine-contract';
+import type { EngineEvent } from '@spirula/engine-contract';
+import { EngineError } from '@spirula/engine/app';
+import { createCapturingLogger, silentLogger } from '@spirula/testkit';
 import { describe, expect, it } from 'vitest';
 import { EngineCallError, createEngineClient } from '../src/client/index.ts';
 import { createDispatcher, schemas } from '../src/host/index.ts';
@@ -258,7 +258,7 @@ describe('dispatcher validation', () => {
   });
 
   it('an engine EngineError keeps code and details across the wire', async () => {
-    const { EngineError } = await import('@lms/engine/app');
+    const { EngineError } = await import('@spirula/engine/app');
     const { client } = await connect({
       'practice.getUnitScore': (async () => {
         throw new EngineError('NOT_FOUND', { details: { unitId: 'x' } });

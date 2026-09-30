@@ -1,5 +1,5 @@
-import type { EngineConfig } from '@lms/engine-contract';
-import type { ExtensionRoot } from '@lms/extension-host';
+import type { EngineConfig } from '@spirula/engine-contract';
+import type { ExtensionRoot } from '@spirula/extension-host';
 
 /** Корни расширений в порядке приоритета: поставка, пользовательский, затем каталог разработчика (побеждает). */
 export const extensionRoots = ({

@@ -1,7 +1,7 @@
 import type {
   MarkdownRenderContext,
   MarkdownRendererModule,
-} from '@lms/extension-api';
+} from '@spirula/extension-api';
 
 /** `export default defineMarkdownRenderer(...)` в модуле рендерера содержимого. */
 export const defineMarkdownRenderer = (

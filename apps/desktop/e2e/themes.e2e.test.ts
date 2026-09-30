@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createWorkspace, launchApp } from './support/app.ts';
-import type { LmsApp, Workspace } from './support/app.ts';
+import type { SpirulaApp, Workspace } from './support/app.ts';
 import { Client } from './support/client.ts';
 
 const THEME_EXTENSION = fileURLToPath(
@@ -13,7 +13,7 @@ const MIDNIGHT = 'rgb(16, 24, 32)';
 const BUILTIN_BACKGROUNDS = ['rgb(245, 246, 251)', 'rgb(14, 16, 32)'];
 
 let workspace: Workspace | null = null;
-let app: LmsApp | null = null;
+let app: SpirulaApp | null = null;
 
 const launch = async (userData: string) => {
   app = await launchApp(userData);

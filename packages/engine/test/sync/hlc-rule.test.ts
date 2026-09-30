@@ -6,8 +6,12 @@
  * зажим `now + 5 мин`; (г) мутант «`at` = стенные часы» валит (а) и (б): попытка
  * переживает сброс ⇔ перекос ≥ 60 000 мс. Оракул — проекции над журналом.
  */
-import { createFakeClock, createTestIds, generateLibrary } from '@lms/testkit';
-import type { FakeClock } from '@lms/testkit';
+import {
+  createFakeClock,
+  createTestIds,
+  generateLibrary,
+} from '@spirula/testkit';
+import type { FakeClock } from '@spirula/testkit';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import type { EntryFields } from '../../src/app/index.ts';

@@ -4,7 +4,7 @@ import type {
   EngineEvent,
   LearningEngine,
   ProgressNodeDto,
-} from '@lms/engine-contract';
+} from '@spirula/engine-contract';
 import { readAllPages } from '@/shared/lib/read-all-pages.ts';
 import { applyProgress, buildGraphView } from '../lib/view.ts';
 import type { CourseRef, GraphView } from '../lib/view.ts';

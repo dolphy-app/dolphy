@@ -9,14 +9,14 @@
  * Проводка планировщика как в `PlanService`: кредит-модель — только при
  * `enabled`.
  */
-import type { EpochMs, SchedulerOptionsDto } from '@lms/engine-contract';
+import type { EpochMs, SchedulerOptionsDto } from '@spirula/engine-contract';
 import { MS_PER_DAY } from '../../src/scoring/constants.ts';
 import { createCreditModel } from '../../src/planning/credit-model.ts';
 import { createMemoryIndex } from '../../src/planning/memory-index.ts';
 import type { MemoryIndexProjection } from '../../src/planning/memory-index.ts';
 import { createPlanner } from '../../src/planning/planner.ts';
 import { createSeededRng } from '../../src/planning/seeded-random.ts';
-import type { UnitId } from '@lms/engine-contract';
+import type { UnitId } from '@spirula/engine-contract';
 import {
   CREDIT_OFF,
   CREDIT_ON,

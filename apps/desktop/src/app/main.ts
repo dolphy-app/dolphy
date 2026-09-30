@@ -1,8 +1,8 @@
 import { createApp } from 'vue';
-import { EngineCallError } from '@lms/engine-rpc/client';
+import { EngineCallError } from '@spirula/engine-rpc/client';
 import App from './App.vue';
-import { createLmsI18n } from './providers/i18n.ts';
-import { createLmsVuetify } from './providers/vuetify.ts';
+import { createSpirulaI18n } from './providers/i18n.ts';
+import { createSpirulaVuetify } from './providers/vuetify.ts';
 import { router } from './router';
 import StartupError from './startup-error/StartupError.vue';
 import { COURSE_SCOPE_KEY, createCourseScope } from '@/features/course-scope';
@@ -20,41 +20,42 @@ import './styles/global.css';
 const showStartupError = (error: unknown) => {
   const incompatible =
     error instanceof EngineCallError && error.code === 'INCOMPATIBLE_CONTRACT';
-  const i18n = createLmsI18n(resolveLocale('system', navigator.language));
+  const i18n = createSpirulaI18n(resolveLocale('system', navigator.language));
   createApp(StartupError, {
     kind: incompatible ? 'update' : 'failed',
     message: error instanceof Error ? error.message : String(error),
   })
     .use(i18n)
-    .use(createLmsVuetify('system', i18n))
+    .use(createSpirulaVuetify('system', i18n))
     .mount('#app');
 };
 
 const bootstrap = async () => {
-  const smoke = __LMS_SMOKE_BUILD__ ? window.lms.smoke : undefined;
+  const smoke = __SPIRULA_SMOKE_BUILD__ ? window.spirula.smoke : undefined;
   try {
     const engine = await connectEngine(); // UI монтируется после рукопожатия
     const [{ theme, locale }, contributions] = await Promise.all([
       engine.settings.getUi(),
       loadContributions(engine),
     ]);
-    const i18n = createLmsI18n(resolveLocale(locale, navigator.language));
+    const i18n = createSpirulaI18n(resolveLocale(locale, navigator.language));
     const courseScope = await createCourseScope(engine);
     createApp(App)
       .use(i18n)
-      .use(createLmsVuetify(theme, i18n, contributions.themes))
+      .use(createSpirulaVuetify(theme, i18n, contributions.themes))
       .use(router)
       .provide(ENGINE_KEY, engine)
       .provide(CONTRIBUTIONS_KEY, contributions)
       .provide(COURSE_SCOPE_KEY, courseScope)
       .mount('#app');
-    if (__LMS_SMOKE_BUILD__ && smoke) {
+    if (__SPIRULA_SMOKE_BUILD__ && smoke) {
       const { runSmoke } = await import('./smoke/run-smoke.ts');
       smoke.report(await runSmoke(engine, smoke));
     }
   } catch (error) {
     showStartupError(error);
-    if (__LMS_SMOKE_BUILD__) smoke?.report({ ok: false, error: String(error) });
+    if (__SPIRULA_SMOKE_BUILD__)
+      smoke?.report({ ok: false, error: String(error) });
   }
 };
 

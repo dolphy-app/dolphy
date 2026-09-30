@@ -1,4 +1,4 @@
-import type { EpochMs } from '@lms/engine-contract';
+import type { EpochMs } from '@spirula/engine-contract';
 import type { ExerciseType } from '../domain/manifest.ts';
 import type { MemoryModel, MemoryState } from '../ports/index.ts';
 import { MS_PER_DAY } from './constants.ts';

@@ -1,4 +1,7 @@
-import type { SavedFilterDto, StudySessionWire } from '@lms/engine-contract';
+import type {
+  SavedFilterDto,
+  StudySessionWire,
+} from '@spirula/engine-contract';
 import { describe, expect, it } from 'vitest';
 import type { SettingsStore } from '../../src/ports/index.ts';
 

@@ -3,7 +3,7 @@ import '@vue-flow/core/dist/style.css';
 import { computed, nextTick, provide, ref, useId, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { VueFlow, useVueFlow } from '@vue-flow/core';
-import type { UnitId } from '@lms/engine-contract';
+import type { UnitId } from '@spirula/engine-contract';
 import { buildEdges, buildNodes, neighborInDirection } from '../lib/flow.ts';
 import type { Direction } from '../lib/flow.ts';
 import { NODE_HEIGHT, NODE_WIDTH } from '../lib/layout.ts';

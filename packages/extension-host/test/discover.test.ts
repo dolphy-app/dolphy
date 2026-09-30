@@ -12,7 +12,7 @@ const fixturesDir = fileURLToPath(
 
 let tmp: string;
 beforeEach(async () => {
-  tmp = await mkdtemp(path.join(tmpdir(), 'lms-discover-'));
+  tmp = await mkdtemp(path.join(tmpdir(), 'spirula-discover-'));
 });
 afterEach(() => rm(tmp, { recursive: true, force: true }));
 
@@ -76,8 +76,8 @@ describe('discoverExtensions', () => {
   it('user-корень переопределяет bundled с тем же id', async () => {
     const bundled = await rootDir('bundled');
     const user = await rootDir('user');
-    await makeExtension(bundled, 'lms.choice', { version: '1.0.0' });
-    await makeExtension(user, 'lms.choice', { version: '1.0.1' });
+    await makeExtension(bundled, 'spirula.choice', { version: '1.0.0' });
+    await makeExtension(user, 'spirula.choice', { version: '1.0.1' });
     const logger = createLogger();
     const { extensions, diagnostics, overridden } = await discoverExtensions({
       roots: [
@@ -89,7 +89,7 @@ describe('discoverExtensions', () => {
     expect(diagnostics).toEqual([]);
     expect(overridden).toEqual([
       {
-        id: 'lms.choice',
+        id: 'spirula.choice',
         version: '1.0.0',
         origin: 'bundled',
         by: { origin: 'user', version: '1.0.1' },
@@ -97,7 +97,7 @@ describe('discoverExtensions', () => {
     ]);
     expect(extensions).toHaveLength(1);
     expect(extensions[0]).toMatchObject({
-      id: 'lms.choice',
+      id: 'spirula.choice',
       version: '1.0.1',
       origin: 'user',
     });
@@ -118,7 +118,7 @@ describe('discoverExtensions', () => {
     expect(extension!.exerciseTypes[0]).toMatchObject({
       id: 'acme.one',
       specSchema: { type: 'object' },
-      rendererUrl: 'lms-ext://acme.one/view.mjs',
+      rendererUrl: 'spirula-ext://acme.one/view.mjs',
     });
   });
 
@@ -247,7 +247,7 @@ describe('discoverExtensions', () => {
     );
     expect(minimal?.exerciseTypes[0]).toMatchObject({
       element: 'acme-minimal-answer',
-      rendererUrl: 'lms-ext://acme.minimal/view.mjs',
+      rendererUrl: 'spirula-ext://acme.minimal/view.mjs',
       specSchema: { type: 'object' },
       answerSchema: { type: 'string' },
     });
@@ -312,7 +312,7 @@ describe('inspectExtensionDir', () => {
       path.join(root, 'acme.ok', 'main.mjs'),
     );
     expect(result.extension.exerciseTypes[0]!.rendererUrl).toBe(
-      'lms-ext://acme.ok/view.mjs',
+      'spirula-ext://acme.ok/view.mjs',
     );
   });
 

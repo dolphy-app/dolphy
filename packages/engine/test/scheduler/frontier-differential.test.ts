@@ -6,7 +6,7 @@
  * восстанавливается теми же попытками; TS-фронтир должен совпасть с множеством
  * Rust везде, кроме перечисленного ниже намеренного расхождения.
  */
-import type { UnitId } from '@lms/engine-contract';
+import type { UnitId } from '@spirula/engine-contract';
 import { describe, expect, it } from 'vitest';
 import { readGoldenJsonl } from './helpers/golden.ts';
 import { createWorld } from './helpers/world.ts';

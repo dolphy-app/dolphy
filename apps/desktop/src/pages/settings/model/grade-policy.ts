@@ -1,6 +1,9 @@
 import { computed, onMounted, ref } from 'vue';
-import { BUILTIN_GRADE_POLICY } from '@lms/engine-contract';
-import type { GradePolicyInfoDto, LearningEngine } from '@lms/engine-contract';
+import { BUILTIN_GRADE_POLICY } from '@spirula/engine-contract';
+import type {
+  GradePolicyInfoDto,
+  LearningEngine,
+} from '@spirula/engine-contract';
 
 export interface GradePolicyOption {
   id: string;

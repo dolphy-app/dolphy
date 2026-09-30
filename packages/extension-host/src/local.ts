@@ -2,12 +2,12 @@ import type {
   ExerciseTypes,
   ExtensionPolicy,
   GradePolicies,
-} from '@lms/engine/ports';
+} from '@spirula/engine/ports';
 import type {
   ExtensionLogger,
   ExtensionModule,
   LibraryReader,
-} from '@lms/extension-api';
+} from '@spirula/extension-api';
 import { createCatalog } from './catalog.ts';
 import { createHostChannel } from './channel.ts';
 import {

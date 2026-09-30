@@ -10,7 +10,7 @@ import type {
   SubmitAnswerRequest,
   UnitDto,
   VerdictDto,
-} from '@lms/engine-contract';
+} from '@spirula/engine-contract';
 import {
   defaultBudget,
   maxBudget,
@@ -111,10 +111,10 @@ const createFakeEngine = (options: FakeOptions = {}) => {
     content: { type: 'inlineFlashcard', front: `Q ${id}`, back: `A ${id}` },
     ...(verifiable.has(id) && {
       task: {
-        type: 'lms.sql',
+        type: 'spirula.sql',
         timeoutMs: 1000,
-        element: 'lms-sql-answer',
-        rendererUrl: 'lms-ext://lms.sql/view.mjs',
+        element: 'spirula-sql-answer',
+        rendererUrl: 'spirula-ext://spirula.sql/view.mjs',
         isolated: false,
       },
     }),
@@ -294,7 +294,7 @@ describe('placement model', () => {
     expect(placement.current.value).toMatchObject({
       probeId: 'probe-2',
       verifiable: true,
-      task: { type: 'lms.sql', element: 'lms-sql-answer' },
+      task: { type: 'spirula.sql', element: 'spirula-sql-answer' },
       view: { hint: 'v' },
       attemptId: 'attempt-1',
     });

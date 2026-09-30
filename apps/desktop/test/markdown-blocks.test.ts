@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import type { MarkdownRendererDto } from '@lms/engine-contract';
+import type { MarkdownRendererDto } from '@spirula/engine-contract';
 import { describe, expect, it, vi } from 'vitest';
 import { hydrateMarkdownBlocks } from '../src/shared/lib/markdown-blocks.ts';
 import { createMarkdownRenderer } from '../src/shared/lib/markdown.ts';
@@ -7,8 +7,8 @@ import { createMarkdownRenderer } from '../src/shared/lib/markdown.ts';
 const renderers: MarkdownRendererDto[] = [
   {
     language: 'math',
-    extensionId: 'lms.math',
-    rendererUrl: 'lms-ext://m/a.mjs',
+    extensionId: 'spirula.math',
+    rendererUrl: 'spirula-ext://m/a.mjs',
     isolated: false,
   },
 ];
@@ -23,7 +23,7 @@ const mount = (source: string, languages = ['math']) => {
 describe('правило fence', () => {
   it('объявленный язык становится заглушкой с экранированным исходником', () => {
     const root = mount('```math\n<script>alert(1)</script> & x\n```');
-    const block = root.querySelector('.lms-md-block');
+    const block = root.querySelector('.spirula-md-block');
     expect(block?.getAttribute('data-language')).toBe('math');
     expect(block?.getAttribute('data-state')).toBe('pending');
     expect(block?.querySelector('script')).toBeNull();
@@ -34,14 +34,14 @@ describe('правило fence', () => {
 
   it('необъявленный язык остаётся обычным кодом', () => {
     const root = mount('```other\nx\n```');
-    expect(root.querySelector('.lms-md-block')).toBeNull();
+    expect(root.querySelector('.spirula-md-block')).toBeNull();
     expect(root.querySelector('pre code')?.textContent).toBe('x\n');
   });
 
   it('дополнительные слова info-строки не мешают', () => {
     const root = mount('```math title="a"\nx\n```');
     expect(
-      root.querySelector('.lms-md-block')?.getAttribute('data-language'),
+      root.querySelector('.spirula-md-block')?.getAttribute('data-language'),
     ).toBe('math');
   });
 });
@@ -68,7 +68,7 @@ describe('hydrateMarkdownBlocks', () => {
       sources.push(source);
       container.innerHTML = '<svg></svg>';
     });
-    const block = root.querySelector('.lms-md-block');
+    const block = root.querySelector('.spirula-md-block');
     expect(sources).toEqual(['E=mc^2\n']);
     expect(block?.getAttribute('data-state')).toBe('done');
     expect(block?.querySelector('pre')).toBeNull();
@@ -87,10 +87,10 @@ describe('hydrateMarkdownBlocks', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const root = mount('```math\nE\n```');
     await run(root, render);
-    const block = root.querySelector('.lms-md-block');
+    const block = root.querySelector('.spirula-md-block');
     expect(block?.getAttribute('data-state')).toBe('error');
     expect(block?.querySelector('pre code')?.textContent).toBe('E\n');
-    const note = block?.querySelector('p.lms-md-error');
+    const note = block?.querySelector('p.spirula-md-error');
     expect(note?.getAttribute('role')).toBe('note');
     expect(note?.textContent).toBe('failed:math');
   });
@@ -122,7 +122,7 @@ describe('hydrateMarkdownBlocks', () => {
     await run(root, render);
     await run(root, render);
     expect(render).toHaveBeenCalledTimes(2);
-    expect(root.querySelectorAll('.lms-md-error')).toHaveLength(1);
+    expect(root.querySelectorAll('.spirula-md-error')).toHaveLength(1);
   });
 
   it('прерванный сигнал останавливает работу и оставляет блоки ожидающими', async () => {
@@ -131,7 +131,7 @@ describe('hydrateMarkdownBlocks', () => {
     const render = vi.fn(() => controller.abort());
     await run(root, render, controller.signal);
     expect(render).toHaveBeenCalledTimes(1);
-    const states = [...root.querySelectorAll('.lms-md-block')].map((b) =>
+    const states = [...root.querySelectorAll('.spirula-md-block')].map((b) =>
       b.getAttribute('data-state'),
     );
     expect(states).toEqual(['pending', 'pending']);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { VerdictDto } from '@lms/engine-contract';
+import type { VerdictDto } from '@spirula/engine-contract';
 import { describeVerdict } from '@/widgets/exercise-panel/lib/verdict.ts';
 
 const verdict = (dto: Record<string, unknown>) => dto as unknown as VerdictDto;

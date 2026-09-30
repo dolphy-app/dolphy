@@ -2,7 +2,7 @@
  * Расширение `engine` (engine-ts.md §5.4): frontmatter front-файла, ключ
  * манифеста или `lesson.engine.json`. Trane его не видит, схема — наша.
  */
-import type { Diagnostic } from '@lms/engine-contract';
+import type { Diagnostic } from '@spirula/engine-contract';
 import { z } from 'zod';
 import type { EngineExtension } from '../domain/manifest.ts';
 import { diag } from './diagnostics.ts';

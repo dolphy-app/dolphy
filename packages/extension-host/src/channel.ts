@@ -1,5 +1,5 @@
-import type { MessageEndpoint } from '@lms/engine-contract';
-import type { ExtensionLogger } from '@lms/extension-api';
+import type { MessageEndpoint } from '@spirula/engine-contract';
+import type { ExtensionLogger } from '@spirula/extension-api';
 import type { ExtRequest, ExtResponse } from './protocol.ts';
 
 export interface HostChannelOptions {

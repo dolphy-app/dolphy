@@ -1,11 +1,11 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import type { JsonSchema } from '@lms/extension-sdk';
+import type { JsonSchema } from '@spirula/extension-sdk';
 import {
   createMemoryLibrary,
   createSchemaValidator,
   loadExerciseType,
-} from '@lms/extension-sdk/testing';
+} from '@spirula/extension-sdk/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import module from '../src/main.ts';
 
@@ -23,7 +23,7 @@ afterEach(async () => {
 });
 
 const load = async (files: Record<string, string> = {}) => {
-  const type = await loadExerciseType(module, 'lms.sql', {
+  const type = await loadExerciseType(module, 'spirula.sql', {
     library: createMemoryLibrary(files),
   });
   disposables.push(type);
@@ -32,7 +32,7 @@ const load = async (files: Record<string, string> = {}) => {
 
 const spec = { fixture: 'fixtures/emp.sql', expected: 'checks/q1.csv' };
 
-describe('lms.sql: модуль расширения', () => {
+describe('spirula.sql: модуль расширения', () => {
   it('project не требует данных', async () => {
     const type = await load();
     expect(await type.project(spec)).toEqual({});
@@ -70,7 +70,7 @@ describe('lms.sql: модуль расширения', () => {
   });
 });
 
-describe('lms.sql: схемы', () => {
+describe('spirula.sql: схемы', () => {
   it.each([
     ['минимальный', spec],
     [

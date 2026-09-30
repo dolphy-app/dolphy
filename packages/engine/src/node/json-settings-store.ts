@@ -21,7 +21,7 @@ import type {
   ExtensionSettingsDto,
   LearningSettingsDto,
   UiSettingsDto,
-} from '@lms/engine-contract';
+} from '@spirula/engine-contract';
 import { parseUserPreferences } from '../domain/manifest-schema.ts';
 import type { ParseResult } from '../domain/manifest-schema.ts';
 import {

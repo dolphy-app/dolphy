@@ -4,7 +4,7 @@ import type {
   PlanRequest,
   PlanService,
   UnitId,
-} from '@lms/engine-contract';
+} from '@spirula/engine-contract';
 import type { Library } from '../../domain/library.ts';
 import { collectDue } from '../../planning/due-set.ts';
 import {

@@ -1,10 +1,10 @@
 /**
- * Сквозная проверка в настоящем Electron (смоук-сборка, `LMS_SMOKE=1`):
+ * Сквозная проверка в настоящем Electron (смоук-сборка, `SPIRULA_SMOKE=1`):
  * renderer → preload → main → utilityProcess → движок → хост расширений
- * (`lms.sql`, `lms.choice`). Библиотеки — `sql-course` и `choice-course`
+ * (`spirula.sql`, `spirula.choice`). Библиотеки — `sql-course` и `choice-course`
  * (`lib_kb`), см. `scripts/smoke.mjs`.
  */
-import type { EngineEvent, LearningEngine } from '@lms/engine-contract';
+import type { EngineEvent, LearningEngine } from '@spirula/engine-contract';
 import type { SmokeBridge } from '../../../shared/smoke.ts';
 import { ensureAnswerElement } from '@/shared/lib/answer-element.ts';
 
@@ -12,7 +12,7 @@ const EXERCISE_ID = 'sql_kb::where::q2';
 const CHOICE_EXERCISE_ID = 'choice_kb::basic::q1';
 const ISOLATED_EXERCISE_ID = 'hostile_kb::basic::q1';
 /** Путь, который «враждебное» расширение пробует записать; smoke.mjs проверяет, что файла нет. */
-const ISOLATED_MARKER = '/tmp/lms-smoke-pwned.txt';
+const ISOLATED_MARKER = '/tmp/spirula-smoke-pwned.txt';
 const RIGHT_SQL = 'SELECT name FROM emp WHERE salary IS NULL;';
 const WRONG_SQL = 'SELECT name FROM emp WHERE salary IS NOT NULL;';
 const EVENT_TIMEOUT_MS = 5_000;
@@ -156,7 +156,7 @@ const choice = async (engine: LearningEngine): Promise<Scenario> => {
   };
 };
 
-/** Скрипты элементов ввода грузятся по `lms-ext://` (CSP, CORS с file://) и определяют свои теги. */
+/** Скрипты элементов ввода грузятся по `spirula-ext://` (CSP, CORS с file://) и определяют свои теги. */
 const renderer = async (engine: LearningEngine): Promise<Scenario> => {
   const loaded: Record<string, boolean> = {};
   for (const exerciseId of [EXERCISE_ID, CHOICE_EXERCISE_ID]) {

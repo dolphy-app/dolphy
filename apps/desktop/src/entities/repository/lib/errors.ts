@@ -1,4 +1,4 @@
-import type { EngineErrorDto } from '@lms/engine-contract';
+import type { EngineErrorDto } from '@spirula/engine-contract';
 
 /** Ключи сообщений `repository.error.*`: лист каталога, без текста в коде. */
 export type RepositoryErrorKey =

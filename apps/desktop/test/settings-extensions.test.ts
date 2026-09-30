@@ -4,7 +4,7 @@ import type {
   ExtensionInfoDto,
   ExtensionSettingsDto,
   LearningEngine,
-} from '@lms/engine-contract';
+} from '@spirula/engine-contract';
 import {
   contributionGroups,
   hasSwitches,
@@ -73,8 +73,8 @@ describe('useExtensions', () => {
     expect(model.busy.value).toBe(true);
 
     const list = [
-      extension('lms.sql'),
-      extension('lms.choice', {
+      extension('spirula.sql'),
+      extension('spirula.choice', {
         state: 'overridden',
         message: 'overridden by user 1.0.1',
       }),
@@ -86,8 +86,8 @@ describe('useExtensions', () => {
     expect(model.busy.value).toBe(false);
     expect(model.error.value).toBeNull();
     expect(model.items.value.map((item) => item.id)).toEqual([
-      'lms.sql',
-      'lms.choice',
+      'spirula.sql',
+      'spirula.choice',
     ]);
   });
 
@@ -102,7 +102,7 @@ describe('useExtensions', () => {
 
     const retry = model.load();
     expect(model.state.value).toBe('loading');
-    pending[1]?.resolve([extension('lms.sql')]);
+    pending[1]?.resolve([extension('spirula.sql')]);
     await retry;
 
     expect(model.state.value).toBe('loaded');
@@ -113,7 +113,7 @@ describe('useExtensions', () => {
   it('обновление перечитывает список и не прячет прежний на время запроса', async () => {
     const { engine, pending } = createFakeEngine();
     const model = mount(engine);
-    pending[0]?.resolve([extension('lms.sql')]);
+    pending[0]?.resolve([extension('spirula.sql')]);
     await flush();
 
     const refresh = model.load();
@@ -121,10 +121,10 @@ describe('useExtensions', () => {
     expect(model.busy.value).toBe(true);
     expect(model.items.value).toHaveLength(1);
 
-    pending[1]?.resolve([extension('lms.sql'), extension('acme.echo')]);
+    pending[1]?.resolve([extension('spirula.sql'), extension('acme.echo')]);
     await refresh;
     expect(model.items.value.map((item) => item.id)).toEqual([
-      'lms.sql',
+      'spirula.sql',
       'acme.echo',
     ]);
     expect(model.busy.value).toBe(false);
@@ -133,7 +133,7 @@ describe('useExtensions', () => {
   it('сбой обновления оставляет прежний список и показывает ошибку', async () => {
     const { engine, pending } = createFakeEngine();
     const model = mount(engine);
-    pending[0]?.resolve([extension('lms.sql')]);
+    pending[0]?.resolve([extension('spirula.sql')]);
     await flush();
 
     const refresh = model.load();

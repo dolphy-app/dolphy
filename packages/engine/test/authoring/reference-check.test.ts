@@ -2,7 +2,7 @@
  * `E_REFERENCE_FAILS` (F2, M5): компилятор прогоняет эталонное решение
  * (`referenceAnswer` вида задания) через внедрённый порт `ExerciseTypes`. Здесь —
  * поведение хука на подставном каталоге видов; настоящий SQL-раннер на
- * `sql-course` — в `@lms/ext-sql` (test/reference.test.ts) и CLI-тесте
+ * `sql-course` — в `@spirula/ext-sql` (test/reference.test.ts) и CLI-тесте
  * `--run-checks`.
  */
 import { readFile } from 'node:fs/promises';
@@ -13,7 +13,7 @@ import { createNodeFsCourseSource } from '../../src/node/index.ts';
 import { ExerciseTypeError } from '../../src/ports/exercise-types.ts';
 import type { ExerciseTypes } from '../../src/ports/exercise-types.ts';
 import type { RawVerdict } from '../../src/ports/index.ts';
-import { createFakeExerciseTypes } from '@lms/testkit';
+import { createFakeExerciseTypes } from '@spirula/testkit';
 import { LIBRARIES_DIR } from '../helpers/fixtures.ts';
 import { useTmpDirs, writeFiles } from '../helpers/tmp.ts';
 
@@ -36,11 +36,11 @@ interface StubTypes extends ExerciseTypes {
   maxParallel: number;
 }
 
-/** Вид `lms.sql`: эталон — `ref:<spec.reference>`, есть только у упражнений с `spec.reference`. */
+/** Вид `spirula.sql`: эталон — `ref:<spec.reference>`, есть только у упражнений с `spec.reference`. */
 const stubTypes = (
   decide: (request: GradeCall) => RawVerdict | Promise<RawVerdict> = () =>
     PASSED,
-  type = 'lms.sql',
+  type = 'spirula.sql',
 ): StubTypes => {
   let running = 0;
   const base = createFakeExerciseTypes({ types: { [type]: {} } });
@@ -107,7 +107,7 @@ describe('compile: runChecks', () => {
       ({ exerciseId }) => exerciseId === 'sql_kb::join::q1',
     );
     expect(call).toBeDefined();
-    expect(call?.type).toBe('lms.sql');
+    expect(call?.type).toBe('spirula.sql');
     expect(call?.answer).toBe('ref:solutions/join-inner-alias.sql');
     expect(call?.timeoutMs).toBe(2000);
     expect(call?.authorMode).toBe(true);

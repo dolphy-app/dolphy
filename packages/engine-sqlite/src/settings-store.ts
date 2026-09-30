@@ -6,7 +6,7 @@ import type {
   SchedulerOptionsDto,
   StudySessionWire,
   UiSettingsDto,
-} from '@lms/engine-contract';
+} from '@spirula/engine-contract';
 import {
   decodeExtensionSettings,
   decodeLearningSettings,
@@ -14,17 +14,21 @@ import {
   encodeUserPreferences,
   parseUserPreferences,
   stringifyManifest,
-} from '@lms/engine';
-import type { ParseResult, SettingsStore, UserPreferences } from '@lms/engine';
-import { EngineError } from '@lms/engine/app';
-import { createDefaultPreferences } from '@lms/engine/node';
+} from '@spirula/engine';
+import type {
+  ParseResult,
+  SettingsStore,
+  UserPreferences,
+} from '@spirula/engine';
+import { EngineError } from '@spirula/engine/app';
+import { createDefaultPreferences } from '@spirula/engine/node';
 import {
   decodeSchedulerOverrides,
   encodeSavedFilter,
   encodeStudySession,
   parseSavedFilter,
   parseStudySession,
-} from '@lms/engine/scheduler';
+} from '@spirula/engine/scheduler';
 import { guard } from './errors.ts';
 import type { SqlDatabase } from './sql-database.ts';
 

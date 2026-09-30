@@ -1,4 +1,4 @@
-import type { MessageEndpoint } from '@lms/engine-contract';
+import type { MessageEndpoint } from '@spirula/engine-contract';
 
 interface Side {
   listeners: ((message: unknown) => void)[];

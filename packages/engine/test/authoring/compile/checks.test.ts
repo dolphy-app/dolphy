@@ -1,5 +1,5 @@
-import type { Diagnostic, DiagnosticCode } from '@lms/engine-contract';
-import { createFakeExerciseTypes } from '@lms/testkit';
+import type { Diagnostic, DiagnosticCode } from '@spirula/engine-contract';
+import { createFakeExerciseTypes } from '@spirula/testkit';
 import { describe, expect, it } from 'vitest';
 import {
   buildIndex,
@@ -556,7 +556,7 @@ describe('engine extension', () => {
   });
 
   it('E_NO_VERIFICATION with requiresChecks, aggregated I_NO_VERIFICATION without', () => {
-    const exercise = { type: 'lms.sql' };
+    const exercise = { type: 'spirula.sql' };
     const found = run({
       courses: [
         { id: 'strict', engine: { requiresChecks: true } },
@@ -608,7 +608,7 @@ describe('engine extension', () => {
         {
           id: 'crs::a::x',
           lesson: 'crs::a',
-          engine: { exercise: { type: 'lms.sql', spec: { fixture: 1 } } },
+          engine: { exercise: { type: 'spirula.sql', spec: { fixture: 1 } } },
         },
       ],
     };
@@ -622,7 +622,7 @@ describe('engine extension', () => {
           unitId: 'crs::a::x',
           severity: 'warning',
           message:
-            "exercise type 'lms.sql' is not provided by any installed extension",
+            "exercise type 'spirula.sql' is not provided by any installed extension",
         }),
       ]);
     });
@@ -630,7 +630,9 @@ describe('engine extension', () => {
     it('E_EXERCISE_SPEC joins the schema violations of a spec', () => {
       const exerciseTypes = createFakeExerciseTypes({
         types: {
-          'lms.sql': { specErrors: ['/fixture must be string', '/ missing'] },
+          'spirula.sql': {
+            specErrors: ['/fixture must be string', '/ missing'],
+          },
         },
       });
       const found = run(spec, { exerciseTypes });
@@ -646,7 +648,7 @@ describe('engine extension', () => {
 
     it('a valid spec gives neither code', () => {
       const exerciseTypes = createFakeExerciseTypes({
-        types: { 'lms.sql': {} },
+        types: { 'spirula.sql': {} },
       });
       const found = run(spec, { exerciseTypes });
       expect(ofCode(found, 'E_EXERCISE_SPEC')).toEqual([]);

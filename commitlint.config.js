@@ -1,6 +1,6 @@
 const fs = require('node:fs');
 
-// scope = имя каталога в apps/ или packages/ (без префикса @lms/) либо один из служебных
+// scope = имя каталога в apps/ или packages/ (без префикса @spirula/) либо один из служебных
 const WORKSPACE_DIRS = ['apps', 'packages'];
 const EXTRA_SCOPES = [
   'deps',

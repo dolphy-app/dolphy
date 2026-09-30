@@ -1,4 +1,4 @@
-import type { Grade, UnitId } from '@lms/engine-contract';
+import type { Grade, UnitId } from '@spirula/engine-contract';
 import {
   type RelearnPile,
   type RelearnPileDeps,

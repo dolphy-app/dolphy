@@ -4,7 +4,7 @@ import type {
   ProgressNodeDto,
   UnitId,
   UnitStatus,
-} from '@lms/engine-contract';
+} from '@spirula/engine-contract';
 
 export interface CourseRef {
   id: UnitId;

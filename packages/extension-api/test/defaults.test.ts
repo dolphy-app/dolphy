@@ -8,7 +8,7 @@ import {
 
 describe('defaultElementName', () => {
   it.each([
-    ['lms.sql', 'lms-sql-answer'],
+    ['spirula.sql', 'spirula-sql-answer'],
     ['acme', 'acme-answer'],
     ['acme.quiz-pack.choice', 'acme-quiz-pack-choice-answer'],
   ])('%s → %s', (id, expected) => {

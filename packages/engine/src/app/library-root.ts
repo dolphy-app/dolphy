@@ -1,4 +1,4 @@
-import type { Diagnostic } from '@lms/engine-contract';
+import type { Diagnostic } from '@spirula/engine-contract';
 import { diag, summarize } from '../authoring/diagnostics.ts';
 import type { LibraryStatus } from '../authoring/library-holder.ts';
 import type { Clock, CourseSource } from '../ports/index.ts';

@@ -6,6 +6,7 @@
  */
 import type { EngineEvent, LearningEngine } from '@lms/engine-contract';
 import type { SmokeBridge } from '../../../shared/smoke.ts';
+import { ensureAnswerElement } from '@/pages/session/api/answer-element.ts';
 
 const EXERCISE_ID = 'sql_kb::where::q2';
 const CHOICE_EXERCISE_ID = 'choice_kb::basic::q1';
@@ -152,6 +153,22 @@ const choice = async (engine: LearningEngine): Promise<Scenario> => {
   };
 };
 
+/** Скрипты элементов ввода грузятся по `lms-ext://` (CSP, CORS с file://) и определяют свои теги. */
+const renderer = async (engine: LearningEngine): Promise<Scenario> => {
+  const loaded: Record<string, boolean> = {};
+  for (const exerciseId of [EXERCISE_ID, CHOICE_EXERCISE_ID]) {
+    const { exercise } = await engine.practice.beginAttempt({ exerciseId });
+    if (exercise.task === undefined) {
+      loaded[exerciseId] = false;
+      continue;
+    }
+    await ensureAnswerElement(exercise.task);
+    loaded[exerciseId] =
+      customElements.get(exercise.task.element) !== undefined;
+  }
+  return { ok: Object.values(loaded).every(Boolean), loaded };
+};
+
 const crash = async (
   engine: LearningEngine,
   events: Events,
@@ -217,6 +234,7 @@ export const runSmoke = async (engine: LearningEngine, smoke: SmokeBridge) => {
     basic: await attempt(() => basic(engine, events)),
     sql: await attempt(() => sql(engine)),
     choice: await attempt(() => choice(engine)),
+    renderer: await attempt(() => renderer(engine)),
     crash: await attempt(() => crash(engine, events, smoke)),
   };
   return {

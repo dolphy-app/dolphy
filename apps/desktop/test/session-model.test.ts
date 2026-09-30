@@ -1,3 +1,4 @@
+import { reactive } from 'vue';
 import { describe, expect, it } from 'vitest';
 import type {
   CompleteAttemptRequest,
@@ -211,6 +212,20 @@ describe('session model', () => {
 
     await session.next();
     expect(session.stage.value).toBe('finished');
+  });
+
+  it('sends a cloneable answer even when the input is a reactive proxy', async () => {
+    const { engine, submitted } = createFakeEngine({
+      plan: [{ id: 'e1' }],
+      verifiable: ['e1'],
+      verdicts: [failed],
+    });
+    const session = createSession(engine);
+    await session.start();
+    // ответ элемента, попавший в реактивное состояние (ref, props), — Proxy
+    await session.submit(reactive([0, 2]));
+    expect(() => structuredClone(submitted[0]?.answer)).not.toThrow();
+    expect(submitted[0]?.answer).toEqual([0, 2]);
   });
 
   it('records a give-up and reveals the answer', async () => {

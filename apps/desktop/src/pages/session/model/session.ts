@@ -1,4 +1,4 @@
-import { computed, ref, shallowRef } from 'vue';
+import { computed, ref, shallowRef, toRaw } from 'vue';
 import type {
   CompleteAttemptRequest,
   Grade,
@@ -191,7 +191,8 @@ export const createSession = (
       if (!exercise?.verifiable) return;
       const checked = await engine.practice.submitAnswer({
         attemptId: exercise.attemptId,
-        answer,
+        // реактивный Proxy не клонируется при отправке по MessagePort
+        answer: toRaw(answer),
       });
       verdict.value = checked;
       if (checked.outcome === 'passed') await complete({});

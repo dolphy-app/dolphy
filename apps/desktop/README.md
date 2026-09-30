@@ -102,7 +102,8 @@ Layout берётся из `assets/wireframes-screens.pdf`, палитра — �
 1. `basic` — `library.getInfo`, `recordAttempt`, повторный `recordAttempt` (`duplicate: true`), событие `progress`;
 2. `sql` — `beginAttempt` / `submitAnswer` (неверный и верный SQL) / `completeAttempt`; проверку выполняет расширение `lms.sql` в хосте расширений (воркер раннера порождён из `utilityProcess`);
 3. `choice` — то же для расширения `lms.choice` (`view` содержит варианты, неверный и верный ответ);
-4. `crash` — убийство хоста, перезапуск супервизором, переподключение клиента, повтор идемпотентного вызова, `duplicate: true` после рестарта (журнал на диске), `progress` после переподключения.
+4. `renderer` — скрипты элементов ввода (`lms.sql`, `lms.choice`) грузятся в renderer по `lms-ext://` под CSP и CORS `file://` и определяют свои теги (`ensureAnswerElement`);
+5. `crash` — убийство хоста, перезапуск супервизором, переподключение клиента, повтор идемпотентного вызова, `duplicate: true` после рестарта (журнал на диске), `progress` после переподключения.
 
 - `pnpm smoke` — смоук-сборка и запуск неупакованного приложения (`electron dist-smoke/dist-electron/main/index.js`).
 - `pnpm smoke:packaged` — та же сборка, упакованная `electron-builder --dir` без подписи (`CSC_IDENTITY_AUTO_DISCOVERY=false`) во временный каталог вне репозитория; запускается бинарник `.app`: хосты грузятся из `app.asar`, расширения — из `Resources/extensions` (вне asar), `better-sqlite3` — из `app.asar.unpacked`, воркер раннера SQL стартует с `ELECTRON_RUN_AS_NODE`. Скрипт сверяет `packaged` в отчёте, наличие `app.asar` и `app.asar.unpacked` и после выхода ждёт до 5 с, затем убивает и считает ошибкой любые оставшиеся процессы из каталога упакованного приложения. Проверено на macOS arm64; пути бинарника для Linux и Windows заданы по раскладке electron-builder и не проверялись.

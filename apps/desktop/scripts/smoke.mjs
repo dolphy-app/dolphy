@@ -21,7 +21,7 @@ const RESULT_PREFIX = 'LMS_SMOKE_RESULT ';
 const TIMEOUT_MS = 120_000;
 const ORPHAN_WAIT_MS = 5_000;
 const SMOKE_DIR = 'dist-smoke';
-const SCENARIOS = ['basic', 'sql', 'choice', 'crash'];
+const SCENARIOS = ['basic', 'sql', 'choice', 'renderer', 'crash'];
 
 const root = await mkdtemp(join(tmpdir(), 'lms-smoke-'));
 const appDir = fileURLToPath(new URL('..', import.meta.url));

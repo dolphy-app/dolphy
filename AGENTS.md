@@ -55,7 +55,7 @@ Node ≥ 22.12 (`.nvmrc`), pnpm 9.15.9 (поле `packageManager`). Устана
 1. Создать ветку от актуальной `develop`: `git fetch origin && git switch -c feature/<feature-name> origin/develop`.
 2. Работать и коммитить в ней по Conventional Commits (`feat`, `fix`, `perf`, `docs`, `test`, `refactor`, `build`, `ci`, `chore`, `revert`; заголовок на английском, `scope` — каталог из `apps/` или `packages/`); хук `commit-msg` (commitlint) отклонит неверное сообщение. Перед push `pnpm lint` должен проходить.
 3. Запушить и открыть PR в `develop` (`gh pr create --base develop`) с кратким описанием: что за фича и что сделано.
-4. Сразу влить PR, если нет конфликтов (`gh pr merge --merge --delete-branch`): только merge-коммитом, без squash и rebase. Конфликты — сначала подтянуть `develop` в ветку и решить их.
+4. Влить PR только при зелёном pipeline и отсутствии конфликтов (`gh pr checks --watch --fail-fast`, затем `gh pr merge --merge` и `git push origin --delete feature/<feature-name>`): только merge-коммитом, без squash и rebase. Упавший pipeline чинится коммитом в той же ветке; конфликты — сначала подтянуть `develop` в ветку и решить их. То же для PR в `main`.
 5. Релиз — по просьбе: PR `develop` → `main` (`gh pr create --base main --head develop`) и слияние merge-коммитом. Минуя `develop` в `main` не вливать. Затем PR `main` → `develop`, возвращающий релизный коммит.
 
 `<feature-name>` — kebab-case, латиница: `feature/course-loader`, `feature/monorepo-setup`.

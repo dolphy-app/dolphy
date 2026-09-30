@@ -12,6 +12,7 @@ module.exports = [
       '**/node_modules/**',
       '**/dist/**',
       '**/dist-electron/**',
+      '**/dist-e2e/**',
       '**/release/**',
       'vendor/**',
       'docs/**',

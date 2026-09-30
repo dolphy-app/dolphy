@@ -241,6 +241,38 @@ export const applySchedulerPatch = (
   patch: DeepPartial<SchedulerOptionsDto>,
 ): SchedulerOptionsDto => mergeValue(base, patch) as SchedulerOptionsDto;
 
+const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const diffValue = (base: unknown, next: unknown): unknown => {
+  if (isPlainRecord(base) && isPlainRecord(next)) {
+    const changed: Record<string, unknown> = {};
+    for (const key of Object.keys(next)) {
+      const part = diffValue(base[key], next[key]);
+      if (part !== undefined) changed[key] = part;
+    }
+    return Object.keys(changed).length > 0 ? changed : undefined;
+  }
+  // массивы (границы окон) сохраняются целиком: патч по индексам хрупок
+  return JSON.stringify(base) === JSON.stringify(next) ? undefined : next;
+};
+
+/** Патч, который превращает `base` в `next`; `{}`, если опции совпадают. */
+export const diffSchedulerOptions = (
+  base: SchedulerOptionsDto,
+  next: SchedulerOptionsDto,
+): DeepPartial<SchedulerOptionsDto> =>
+  (diffValue(base, next) ?? {}) as DeepPartial<SchedulerOptionsDto>;
+
+/**
+ * Сохранённые отличия от умолчаний → патч. Содержимое проверяет
+ * `verifySchedulerOptions` при применении; не объект — «своих значений нет».
+ */
+export const decodeSchedulerOverrides = (
+  raw: unknown,
+): DeepPartial<SchedulerOptionsDto> =>
+  isPlainRecord(raw) ? (raw as DeepPartial<SchedulerOptionsDto>) : {};
+
 const cloneOptions = (options: SchedulerOptionsDto): SchedulerOptionsDto =>
   structuredClone(options);
 

@@ -99,3 +99,101 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+  commitlint:
+    name: Commit messages
+    if: github.event_name == 'pull_request' && github.base_ref == 'develop'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Commitlint
+        run: >-
+          pnpm exec commitlint
+          --from ${{ github.event.pull_request.base.sha }}
+          --to ${{ github.event.pull_request.head.sha }}
+
+  build:
+    name: Build (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+  release-branch:
+    name: Release branch
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      HEAD_REF: ${{ github.head_ref }}
+    steps:
+      - name: Branch name
+        run: |
+          case "$HEAD_REF" in
+            release-[0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "Only release-<version> branches are merged into main, got '$HEAD_REF'" >&2; exit 1 ;;
+          esac
+
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Version matches branch
+        run: |
+          expected="${HEAD_REF#release-}"
+          actual=$(sh scripts/next-version.sh "$HEAD_REF")
+          if [ "$actual" != "$expected" ]; then
+            echo "Branch says $expected, semantic-release computes $actual. Is main merged into develop (sync PR)?" >&2
+            exit 1
+          fi

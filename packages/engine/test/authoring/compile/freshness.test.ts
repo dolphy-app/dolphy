@@ -185,6 +185,12 @@ describe('checkFreshness (T-37)', () => {
             'user.email=t@example.com',
             '-c',
             'commit.gpgsign=false',
+            // фоновая уборка git создаёт и удаляет .git/objects/maintenance.lock,
+            // а backdate обходит файлы каталога: ENOENT на utime
+            '-c',
+            'gc.auto=0',
+            '-c',
+            'maintenance.auto=false',
             ...args,
           ],
           { cwd: root, stdio: 'pipe' },

@@ -473,6 +473,8 @@ export interface FrontierItemDto {
 }
 export interface DueRequest extends PageRequest {
   minNeed?: number;
+  /** Область курсов (как `PlacementStartRequest.courseIds`): пусто или нет поля — все курсы; неизвестный курс — `NOT_FOUND`. */
+  courseIds?: UnitId[];
 }
 export interface DueItemDto {
   exerciseId: UnitId;
@@ -514,6 +516,8 @@ export interface PlanRequest {
   maxItems: number;
   /** uint32; при равных (состояние, seed) план одинаков. Без `seed` хост берёт его из `Rng` и возвращает в `DayPlanDto.seed`. */
   seed?: number;
+  /** Область курсов: в план попадают упражнения (в том числе ремедиация) только этих курсов, порядок и чередование считаются внутри области. Пусто или нет поля — все курсы; неизвестный курс — `NOT_FOUND`. При равных (состояние, seed, область) план одинаков. */
+  courseIds?: UnitId[];
 }
 export interface PlanCoverDto {
   exerciseId: UnitId;
@@ -707,6 +711,21 @@ export interface PreferencesDto {
   schedulerBatchSize?: number;
 }
 
+export type ThemeMode = 'system' | 'light' | 'dark';
+/** `system` — язык системы; renderer сам выбирает из поддерживаемых. */
+export type LocaleMode = 'system' | 'ru' | 'en';
+/** Настройки интерфейса; хранятся вместе с остальными настройками в `engine.db`. */
+export interface UiSettingsDto {
+  theme: ThemeMode;
+  locale: LocaleMode;
+  /** Курс в фокусе: клиент передаёт его в `courseIds` плана и повторений. Нет поля — все курсы. Движок не проверяет, что курс есть в библиотеке: курс могли убрать, клиент сверяет сам. */
+  activeCourseId?: UnitId;
+}
+/** `activeCourseId: null` снимает фокус. */
+export type UiSettingsPatch = Partial<Omit<UiSettingsDto, 'activeCourseId'>> & {
+  activeCourseId?: UnitId | null;
+};
+
 export interface SettingsService {
   getScheduler(): Promise<SchedulerOptionsDto>;
   /** Валидирует (`verify` как при открытии), применяет ко всем компонентам сразу. */
@@ -717,6 +736,9 @@ export interface SettingsService {
   getPreferences(): Promise<PreferencesDto>;
   setPreferences(prefs: PreferencesDto): Promise<{ restartRequired: boolean }>;
   getScorer(): Promise<ScorerInfoDto>;
+  getUi(): Promise<UiSettingsDto>;
+  /** Валидирует и сохраняет; возвращает итоговые настройки. */
+  setUi(patch: UiSettingsPatch): Promise<UiSettingsDto>;
 }
 
 /** Вектор для дельта-экспорта: `{deviceId: contiguous}` — непрерывный префикс seq (1..contiguous без пропусков), не `maxSeq`. */
@@ -898,7 +920,8 @@ export type EngineEvent =
         | 'filters'
         | 'sessions'
         | 'blacklist'
-        | 'reviewList';
+        | 'reviewList'
+        | 'ui';
     };
 
 /** Конфигурация хоста при открытии движка (`createEngine`); через RPC не передаётся и renderer её не меняет. */

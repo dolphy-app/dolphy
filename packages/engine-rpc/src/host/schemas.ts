@@ -58,6 +58,7 @@ const frontierRequest = z.strictObject({
 const dueRequest = z.strictObject({
   ...pageRequest.shape,
   minNeed: optional(num),
+  courseIds: optional(z.array(unitId)),
 });
 const diagnosticsPageRequest = z.strictObject({
   ...pageRequest.shape,
@@ -312,6 +313,7 @@ export const schemas = {
     z.strictObject({
       maxItems: z.int().min(1),
       seed: optional(z.int().nonnegative()),
+      courseIds: optional(z.array(unitId)),
     }),
   ]),
   'placement.start': z.tuple([
@@ -359,6 +361,14 @@ export const schemas = {
     }),
   ]),
   'settings.getScorer': z.tuple([]),
+  'settings.getUi': z.tuple([]),
+  'settings.setUi': z.tuple([
+    z.strictObject({
+      theme: optional(z.enum(['system', 'light', 'dark'])),
+      locale: optional(z.enum(['system', 'ru', 'en'])),
+      activeCourseId: optional(unitId.nullable()),
+    }),
+  ]),
   'sync.getState': z.tuple([]),
   'sync.exportSince': z.tuple([
     optional(

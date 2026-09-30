@@ -183,6 +183,162 @@ describe('plan.getDay', () => {
   });
 });
 
+/** Два курса: `k` (a ← b) и `m` (один урок x), по три упражнения. */
+const pair = () =>
+  buildLibrary({
+    courses: [
+      {
+        id: 'k',
+        lessons: [
+          { id: 'a', exercises: 3 },
+          { id: 'b', dependencies: ['a'], exercises: 3 },
+        ],
+      },
+      { id: 'm', lessons: [{ id: 'x', exercises: 3 }] },
+    ],
+  });
+
+const courseOf = (plan: DayPlanDto) => [
+  ...new Set(plan.items.map((item) => item.exerciseId.split('::')[0])),
+];
+
+describe('plan.getDay keeps unfinished lessons in the plan', () => {
+  test('one perfect pass does not pass the lesson: it stays in the plan without being due, the next stays locked', async () => {
+    const t = await createTestEngine({ library: chain() });
+    for (const e of ['e0', 'e1', 'e2']) await attempt(t, `k::a::${e}`, 5);
+    const day = await t.engine.plan.getDay({ maxItems: 10, seed: 1 });
+    expect(reasons(day)).toEqual({
+      'k::a::e0': 'review',
+      'k::a::e1': 'review',
+      'k::a::e2': 'review',
+    });
+  });
+
+  test('a second pass passes the lesson: the plan moves on to the next lesson', async () => {
+    const t = await createTestEngine({ library: chain() });
+    for (const e of ['e0', 'e1', 'e2']) await attempt(t, `k::a::${e}`, 5, 2);
+    const day = await t.engine.plan.getDay({ maxItems: 10, seed: 1 });
+    expect(reasons(day)).toEqual({
+      'k::b::e0': 'new',
+      'k::b::e1': 'new',
+      'k::b::e2': 'new',
+    });
+  });
+
+  test('failing grades keep the lesson in the plan until it passes', async () => {
+    const t = await createTestEngine({ library: chain() });
+    for (const e of ['e0', 'e1', 'e2']) await attempt(t, `k::a::${e}`, 1, 3);
+    const day = await t.engine.plan.getDay({ maxItems: 10, seed: 1 });
+    expect(Object.keys(reasons(day)).sort()).toEqual([
+      'k::a::e0',
+      'k::a::e1',
+      'k::a::e2',
+    ]);
+  });
+});
+
+describe('plan.getDay with courseIds', () => {
+  test('new items come only from the requested courses', async () => {
+    const t = await createTestEngine({ library: pair() });
+    const { plan } = t.engine;
+    expect(
+      courseOf(await plan.getDay({ maxItems: 10, seed: 1 })).sort(),
+    ).toEqual(['k', 'm']);
+    expect(
+      courseOf(await plan.getDay({ maxItems: 10, seed: 1, courseIds: ['m'] })),
+    ).toEqual(['m']);
+    expect(
+      courseOf(await plan.getDay({ maxItems: 10, seed: 1, courseIds: ['k'] })),
+    ).toEqual(['k']);
+  });
+
+  test('all courses, an empty list and no list give the same plan', async () => {
+    const t = await createTestEngine({ library: pair() });
+    const { plan } = t.engine;
+    const base = await plan.getDay({ maxItems: 10, seed: 3 });
+    expect(
+      await plan.getDay({ maxItems: 10, seed: 3, courseIds: ['k', 'm'] }),
+    ).toEqual(base);
+    expect(await plan.getDay({ maxItems: 10, seed: 3, courseIds: [] })).toEqual(
+      base,
+    );
+  });
+
+  test('reviews of other courses stay out of the plan', async () => {
+    const t = await createTestEngine({ library: pair() });
+    for (const e of ['e0', 'e1', 'e2']) {
+      await attempt(t, `k::a::${e}`, 4, 2);
+      await attempt(t, `m::x::${e}`, 4, 2);
+    }
+    t.clock.advance(3 * DAY_MS);
+    const { plan } = t.engine;
+
+    const onlyM = await plan.getDay({
+      maxItems: 20,
+      seed: 1,
+      courseIds: ['m'],
+    });
+    expect(courseOf(onlyM)).toEqual(['m']);
+    expect(onlyM.items.filter((item) => item.reason === 'review').length).toBe(
+      3,
+    );
+    const all = await plan.getDay({ maxItems: 20, seed: 1 });
+    expect(all.items.filter((item) => item.reason === 'review').length).toBe(6);
+  });
+
+  test('remediation of another course stays out of the plan', async () => {
+    const t = await createTestEngine({ library: pair() });
+    for (const e of ['e0', 'e1', 'e2']) await attempt(t, `k::a::${e}`, 4, 2);
+    await attempt(t, 'k::b::e0', 1, 2); // две неудачи подряд → ремедиация по a
+    const { plan } = t.engine;
+    const has = (day: DayPlanDto) =>
+      day.items.some((item) => item.reason === 'remediation');
+
+    expect(has(await plan.getDay({ maxItems: 20, seed: 1 }))).toBe(true);
+    expect(
+      has(await plan.getDay({ maxItems: 20, seed: 1, courseIds: ['k'] })),
+    ).toBe(true);
+    const onlyM = await plan.getDay({
+      maxItems: 20,
+      seed: 1,
+      courseIds: ['m'],
+    });
+    expect(has(onlyM)).toBe(false);
+    expect(courseOf(onlyM)).toEqual(['m']);
+  });
+
+  test('an unknown course is NOT_FOUND', async () => {
+    const t = await createTestEngine({ library: pair() });
+    expect(
+      await codeOf(() =>
+        t.engine.plan.getDay({ maxItems: 5, courseIds: ['k', 'nope'] }),
+      ),
+    ).toBe('NOT_FOUND');
+  });
+});
+
+describe('practice.getDue with courseIds', () => {
+  test('lists only due exercises of the requested courses', async () => {
+    const t = await createTestEngine({ library: pair() });
+    for (const e of ['e0', 'e1', 'e2']) {
+      await attempt(t, `k::a::${e}`, 4, 2);
+      await attempt(t, `m::x::${e}`, 4, 2);
+    }
+    t.clock.advance(3 * DAY_MS);
+    const { practice } = t.engine;
+    const ids = async (courseIds: string[] = []) =>
+      (await practice.getDue({ courseIds })).items
+        .map((item) => item.exerciseId.split('::')[0])
+        .sort();
+    expect(await ids()).toEqual(['k', 'k', 'k', 'm', 'm', 'm']);
+    expect(await ids(['m'])).toEqual(['m', 'm', 'm']);
+    expect(await ids(['k', 'm'])).toEqual(['k', 'k', 'k', 'm', 'm', 'm']);
+    expect(await codeOf(() => practice.getDue({ courseIds: ['nope'] }))).toBe(
+      'NOT_FOUND',
+    );
+  });
+});
+
 describe('plan.getDay with implicit credit', () => {
   /** Урок `t` охватывает `a` (вес 1): повтор `t` неявно повторяет `a`. */
   const encompassing = () => {

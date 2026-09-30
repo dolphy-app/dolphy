@@ -6,6 +6,8 @@ import type { SqlDatabase } from './sql-database.ts';
  * версия схемы — `PRAGMA user_version` (номер = позиция в массиве + 1).
  * Миграция 1 — схема `engine-ts.md` §5.1; индексы `log_conflict_*` добавлены
  * ради поиска сторон конфликта по `id`, `(device_id, seq)` и хэшу [ВЫВОД].
+ * Миграция 2 — настройки ученика (`SettingsStore`): не входят в журнал и не
+ * синхронизируются, у каждого устройства свои.
  */
 export const MIGRATIONS: readonly string[] = [
   `
@@ -42,6 +44,11 @@ CREATE TABLE imported_segment (
   first_seq INTEGER NOT NULL, last_seq INTEGER NOT NULL, imported_at INTEGER NOT NULL,
   PRIMARY KEY (device_id, name, sha256)
 ) STRICT;
+`,
+  `
+CREATE TABLE setting (key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT;
+CREATE TABLE saved_filter (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;
+CREATE TABLE study_session (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;
 `,
 ];
 

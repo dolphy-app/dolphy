@@ -19,6 +19,8 @@ import {
 import type { LogEntry } from '@lms/engine';
 import { guard, mapSqliteError } from './errors.ts';
 import { SCHEMA_VERSION, migrate, readSchemaVersion } from './migrations.ts';
+import { createSqliteSettingsStore } from './settings-store.ts';
+import type { SqliteSettingsStore } from './settings-store.ts';
 import { openBetterSqliteDatabase } from './sql-database.ts';
 import type { SqlDatabase, SqlParam } from './sql-database.ts';
 
@@ -506,18 +508,35 @@ export const createSqliteEventStore = (
   };
 };
 
-/** Открывает (и при необходимости создаёт и мигрирует) `engine.db`. */
-export const openSqliteEventStore = ({
+const openDatabase = ({
   path,
   busyTimeoutMs = DEFAULT_BUSY_TIMEOUT_MS,
-  ...options
-}: SqliteEventStoreOptions): SqliteEventStore => {
-  const db = guard(() =>
+  readOnly,
+}: SqliteEventStoreOptions) =>
+  guard(() =>
     openBetterSqliteDatabase({
       path,
       busyTimeoutMs,
-      ...(options.readOnly !== undefined && { readOnly: options.readOnly }),
+      ...(readOnly !== undefined && { readOnly }),
     }),
   );
-  return createSqliteEventStore(db, options);
+
+/** Открывает (и при необходимости создаёт и мигрирует) `engine.db`. */
+export const openSqliteEventStore = (
+  options: SqliteEventStoreOptions,
+): SqliteEventStore => createSqliteEventStore(openDatabase(options), options);
+
+export interface SqliteStorage {
+  events: SqliteEventStore;
+  /** Настройки ученика в той же БД; соединение закрывает `events.close()`. */
+  settings: SqliteSettingsStore;
+}
+
+/** `engine.db` целиком: журнал событий и настройки на одном соединении. */
+export const openSqliteStorage = (
+  options: SqliteEventStoreOptions,
+): SqliteStorage => {
+  const db = openDatabase(options);
+  const events = createSqliteEventStore(db, options);
+  return { events, settings: createSqliteSettingsStore(db) };
 };

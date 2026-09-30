@@ -31,6 +31,12 @@ export interface PlanState {
   hasAttempts(exerciseId: UnitId): boolean;
   /** Уроки фронтира (`getFrontier`). */
   readonly frontierLessons: readonly UnitId[];
+  /**
+   * Урок проходит порог Trane (`passesThreshold`). Начатый урок, не прошедший
+   * порог, — «тупик» поиска Trane: его упражнения остаются кандидатами и без
+   * просрочки, иначе следующие уроки закрыты, а план пуст, пока не забудется.
+   */
+  lessonPasses(lessonId: UnitId): boolean;
   /** Само упражнение, урок или курс в blacklist. */
   isExcluded(exerciseId: UnitId): boolean;
   /** Упражнения невыполненных шагов ремедиации по приоритету. */
@@ -132,7 +138,8 @@ const createHeap = (better: (a: Scored, b: Scored) => boolean) => {
  * покрытию (без кредит-модели вырождается в «наименьшая R первой»), резерв
  * `ceil(minNewFraction·maxItems)` под новое (недоделанные упражнения начатых
  * уроков, затем уроки фронтира по кругу между курсами), ремедиация перед новым
- * (входит в `maxItems`, вытесняя новое), интерливинг. Чистая функция состояния
+ * (входит в `maxItems`, вытесняя новое), повтор начатых уроков, не прошедших
+ * порог Trane (`PlanState.lessonPasses`), интерливинг. Чистая функция состояния
  * и потока `rng`.
  */
 export const createPlanner = (
@@ -410,6 +417,34 @@ export const createPlanner = (
       }
     };
     addNew(reserve);
+
+    // повтор непройденных уроков (dead-end Trane): после резерва нового, до
+    // добора новым; порядок — по тай-брейку, детерминирован для потока `rng`
+    const practice: number[] = [];
+    for (let lesson = 0; lesson < lessonCount; lesson++) {
+      if (
+        introduced[lesson] !== 1 ||
+        state.lessonPasses(graph.lessonIds[lesson] as UnitId)
+      ) {
+        continue;
+      }
+      for (const exercise of lessonExercises[lesson] as readonly number[]) {
+        if (attempted(exercise) && !excluded(exercise)) practice.push(exercise);
+      }
+    }
+    practice.sort((a, b) => (tie[a] as number) - (tie[b] as number));
+    for (const exercise of practice) {
+      if (items.length >= maxItems) break;
+      if (chosen.has(exercise)) continue;
+      chosen.add(exercise);
+      items.push({
+        exerciseId: idOf(exercise),
+        reason: 'review',
+        covers: [],
+        gain: 0,
+      });
+    }
+
     if (options.fillWithNew) addNew(maxItems);
 
     const entries = items.map(({ exerciseId }) => {

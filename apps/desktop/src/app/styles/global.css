@@ -1,0 +1,22 @@
+html {
+  overflow-y: auto;
+}
+
+/* браузерные поля заголовков ломают ритм: отступы задаём классами */
+:where(h1, h2, h3, h4, h5, h6) {
+  margin: 0;
+}
+
+/* мелкий капс-заголовок над блоками (как в wireframes) */
+.overline-label {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(var(--v-theme-on-surface-variant));
+}
+
+/* дата «среда, 30 сентября» → «Среда, …» без пересборки строки */
+.first-upper::first-letter {
+  text-transform: uppercase;
+}

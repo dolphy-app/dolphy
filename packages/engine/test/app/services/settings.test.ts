@@ -244,3 +244,157 @@ describe('settings.getScorer', () => {
     });
   });
 });
+
+describe('settings persistence', () => {
+  it('scheduler changes survive a restart and reset clears them', async () => {
+    const settings = createMemorySettingsStore();
+    const first = await open({ settings });
+    await first.engine.settings.setScheduler({
+      batchSize: 7,
+      passingScore: { minScore: 3.5 },
+    });
+    await first.engine.settings.setScheduler({ numTrials: 5 });
+
+    const second = await open({ settings });
+    expect(await second.engine.settings.getScheduler()).toEqual({
+      ...DEFAULT_SCHEDULER_OPTIONS,
+      batchSize: 7,
+      numTrials: 5,
+      passingScore: {
+        ...DEFAULT_SCHEDULER_OPTIONS.passingScore,
+        minScore: 3.5,
+      },
+    });
+
+    await second.engine.settings.resetScheduler();
+    const third = await open({ settings });
+    expect(await third.engine.settings.getScheduler()).toEqual(
+      DEFAULT_SCHEDULER_OPTIONS,
+    );
+  });
+
+  it('stores only what differs from the defaults', async () => {
+    const { engine, settings } = await open();
+    await engine.settings.setScheduler({ batchSize: 7, numTrials: 5 });
+    await engine.settings.setScheduler({
+      numTrials: DEFAULT_SCHEDULER_OPTIONS.numTrials,
+    });
+    expect(await settings.loadSchedulerOverrides()).toEqual({ batchSize: 7 });
+  });
+
+  it('an invalid patch is not persisted', async () => {
+    const { engine, settings } = await open();
+    await engine.settings.setScheduler({ batchSize: 7 });
+    await expect(
+      engine.settings.setScheduler({ batchSize: 0 }),
+    ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+    expect(await settings.loadSchedulerOverrides()).toEqual({ batchSize: 7 });
+  });
+
+  it('a failed write leaves the running options unchanged', async () => {
+    const failure = new SettingsStoreError('cannot write', '/x');
+    const settings = {
+      ...createMemorySettingsStore(),
+      saveSchedulerOverrides: async () => {
+        throw failure;
+      },
+    };
+    const { engine, events } = await open({ settings });
+    await expect(
+      engine.settings.setScheduler({ batchSize: 7 }),
+    ).rejects.toMatchObject({ code: 'INTERNAL' });
+    expect(await engine.settings.getScheduler()).toEqual(
+      DEFAULT_SCHEDULER_OPTIONS,
+    );
+    expect(changed(events, 'scheduler')).toEqual([]);
+  });
+
+  it('saved values that no longer verify do not stop the engine', async () => {
+    const settings = createMemorySettingsStore({
+      schedulerOverrides: { batchSize: 0 },
+    });
+    const { engine, logs } = await open({ settings });
+    expect(await engine.settings.getScheduler()).toEqual(
+      DEFAULT_SCHEDULER_OPTIONS,
+    );
+    expect(logs.length).toBeGreaterThan(0);
+  });
+});
+
+describe('settings ui', () => {
+  it('starts with system theme and language and round-trips a change with an event', async () => {
+    const { engine, events } = await open();
+    expect(await engine.settings.getUi()).toEqual({
+      theme: 'system',
+      locale: 'system',
+    });
+    expect(await engine.settings.setUi({ theme: 'dark' })).toEqual({
+      theme: 'dark',
+      locale: 'system',
+    });
+    expect(await engine.settings.setUi({ locale: 'en' })).toEqual({
+      theme: 'dark',
+      locale: 'en',
+    });
+    expect(await engine.settings.getUi()).toEqual({
+      theme: 'dark',
+      locale: 'en',
+    });
+    expect(changed(events, 'ui')).toHaveLength(2);
+  });
+
+  it('an empty patch keeps the saved values', async () => {
+    const settings = createMemorySettingsStore({
+      ui: { theme: 'light', locale: 'ru' },
+    });
+    const { engine } = await open({ settings });
+    expect(await engine.settings.setUi({})).toEqual({
+      theme: 'light',
+      locale: 'ru',
+    });
+  });
+
+  it('the active course is kept until it is cleared with null', async () => {
+    const { engine, settings } = await open();
+    expect(await engine.settings.setUi({ activeCourseId: 'k' })).toEqual({
+      theme: 'system',
+      locale: 'system',
+      activeCourseId: 'k',
+    });
+    // другие поля не трогают фокус
+    expect(await engine.settings.setUi({ theme: 'dark' })).toMatchObject({
+      activeCourseId: 'k',
+    });
+    expect(await settings.loadUi()).toMatchObject({ activeCourseId: 'k' });
+    expect(await engine.settings.setUi({ activeCourseId: null })).toEqual({
+      theme: 'dark',
+      locale: 'system',
+    });
+  });
+
+  it('rejects an empty active course id and saves nothing', async () => {
+    const { engine, settings } = await open();
+    await expect(
+      engine.settings.setUi({ activeCourseId: '' }),
+    ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+    expect(await settings.loadUi()).toEqual({
+      theme: 'system',
+      locale: 'system',
+    });
+  });
+
+  it('rejects an unknown theme or language and saves nothing', async () => {
+    const { engine, settings, events } = await open();
+    await expect(
+      engine.settings.setUi({ theme: 'sepia' as 'dark' }),
+    ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+    await expect(
+      engine.settings.setUi({ theme: 'dark', locale: 'de' as 'en' }),
+    ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+    expect(await settings.loadUi()).toEqual({
+      theme: 'system',
+      locale: 'system',
+    });
+    expect(changed(events, 'ui')).toEqual([]);
+  });
+});

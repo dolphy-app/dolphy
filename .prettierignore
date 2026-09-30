@@ -13,3 +13,4 @@ apps/desktop/LICENSE
 packages/*/test/fixtures
 packages/*/test/golden/golden-rs/target
 dist-e2e
+CHANGELOG.md

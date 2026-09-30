@@ -9,6 +9,7 @@ export const en: typeof ru = {
     empty: {
       title: 'Nothing planned for today',
       text: 'All scheduled exercises are done, or the library has no courses yet.',
+      scopedText: 'Nothing is planned for today in “{course}”.',
     },
     upcoming: {
       title: 'Up next',

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useEngine } from '@/shared/api/engine';
 import { useLearningSettings } from '../model/learning.ts';
@@ -15,6 +15,7 @@ const { form, busy, error, isDirty, save, revert, resetToDefaults } =
   useLearningSettings(useEngine());
 const { t } = useI18n();
 const confirmReset = ref(false);
+const revertDisabled = computed(() => !isDirty.value || busy.value);
 
 const setNumber = (field: NumericField, value: number | null) => {
   if (form.value && value !== null) form.value[field] = value;
@@ -227,7 +228,7 @@ const reset = async () => {
         <v-btn
           variant="text"
           size="large"
-          :disabled="!isDirty || busy"
+          :disabled="revertDisabled"
           @click="revert"
         >
           {{ t('settings.learning.actions.revert') }}

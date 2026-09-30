@@ -1,0 +1,12 @@
+{
+  "dependencies": [],
+  "description": "Методы, коды ответов, заголовки и кэширование",
+  "engine": {
+    "tags": ["http"]
+  },
+  "generator_config": {
+    "KnowledgeBase": {}
+  },
+  "id": "http_kb",
+  "name": "HTTP"
+}

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import { ROUTE } from '@/shared/config/routes.ts';
+import PageHeader from '@/shared/ui/PageHeader.vue';
 
 interface SectionLink {
   name: string;
@@ -35,53 +36,28 @@ const { t } = useI18n();
 </script>
 
 <template>
-  <div class="settings">
-    <aside class="nav pa-6">
-      <h1 class="text-headline-small font-weight-bold px-3 mb-4">
-        {{ t('settings.page.title') }}
-      </h1>
-      <v-list nav :aria-label="t('settings.page.navLabel')">
-        <v-list-item
-          v-for="section in SECTIONS"
-          :key="section.name"
-          :to="{ name: section.name }"
-          :prepend-icon="section.icon"
-          :title="t(section.title)"
-          color="primary"
-          rounded="lg"
-        />
-      </v-list>
-    </aside>
-    <div class="content">
-      <div class="content-inner">
-        <router-view />
-      </div>
-    </div>
-  </div>
+  <v-container max-width="900" class="pa-8">
+    <PageHeader :title="t('settings.page.title')" />
+    <v-tabs
+      color="primary"
+      show-arrows
+      class="tabs mb-8"
+      :aria-label="t('settings.page.navLabel')"
+    >
+      <v-tab
+        v-for="section in SECTIONS"
+        :key="section.name"
+        :to="{ name: section.name }"
+        :prepend-icon="section.icon"
+        :text="t(section.title)"
+      />
+    </v-tabs>
+    <router-view />
+  </v-container>
 </template>
 
 <style scoped>
-.settings {
-  display: flex;
-  min-height: 100vh;
-}
-
-.nav {
-  flex: 0 0 16rem;
-  border-right: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
-}
-
-.nav :deep(.v-list-item__spacer) {
-  width: 12px;
-}
-
-.content {
-  flex: 1;
-  min-width: 0;
-}
-
-.content-inner {
-  max-width: 48rem;
-  padding: 2rem 2.5rem 4rem;
+.tabs {
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
 }
 </style>

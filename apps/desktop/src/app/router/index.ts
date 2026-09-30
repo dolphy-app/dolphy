@@ -1,4 +1,5 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
+import { CoursesPage } from '@/pages/courses';
 import { DailyPlanPage } from '@/pages/daily-plan';
 import { SessionPage } from '@/pages/session';
 import {
@@ -41,6 +42,18 @@ export const router = createRouter({
               titleKey: 'nav.dailyPlan',
               icon: 'mdi-calendar-check',
               order: 1,
+            },
+          },
+        },
+        {
+          path: 'courses',
+          name: ROUTE.courses,
+          component: CoursesPage,
+          meta: {
+            nav: {
+              titleKey: 'nav.courses',
+              icon: 'mdi-bookshelf',
+              order: 2,
             },
           },
         },

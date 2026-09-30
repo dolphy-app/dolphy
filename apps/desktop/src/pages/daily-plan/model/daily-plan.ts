@@ -1,4 +1,5 @@
-import { onScopeDispose, ref, shallowRef } from 'vue';
+import { onScopeDispose, ref, shallowRef, watch } from 'vue';
+import type { Ref } from 'vue';
 import type {
   EngineEvent,
   ExerciseDto,
@@ -35,6 +36,8 @@ export interface DueEntry {
 
 export interface DailyPlan {
   seed: number;
+  /** Курс, по которому построен план; `null` — все курсы. */
+  courseId: UnitId | null;
   entries: PlanEntry[];
   due: DueEntry[];
 }
@@ -73,11 +76,13 @@ const describeExercise = async (
 
 export const loadDailyPlan = async (
   engine: LearningEngine,
+  courseId: UnitId | null,
 ): Promise<DailyPlan> => {
   const readUnit = createUnitReader(engine);
+  const scope = courseId === null ? {} : { courseIds: [courseId] };
   const [plan, due] = await Promise.all([
-    engine.plan.getDay({ maxItems: PLAN_MAX_ITEMS }),
-    engine.practice.getDue({ limit: DUE_LIMIT }),
+    engine.plan.getDay({ maxItems: PLAN_MAX_ITEMS, ...scope }),
+    engine.practice.getDue({ limit: DUE_LIMIT, ...scope }),
   ]);
   const entries = await Promise.all(
     plan.items.map(async ({ exerciseId, reason }) => ({
@@ -93,11 +98,14 @@ export const loadDailyPlan = async (
       ...(await describeExercise(readUnit, exerciseId)),
     })),
   );
-  return { seed: plan.seed, entries, due: dueEntries };
+  return { seed: plan.seed, courseId, entries, due: dueEntries };
 };
 
 /** Состояние строится из событий движка (см. API §7), а не из опроса. */
-export const useDailyPlan = (engine: LearningEngine) => {
+export const useDailyPlan = (
+  engine: LearningEngine,
+  courseId: Readonly<Ref<UnitId | null>>,
+) => {
   const plan = shallowRef<DailyPlan | null>(null);
   const loading = ref(true);
   const error = ref<string | null>(null);
@@ -106,7 +114,7 @@ export const useDailyPlan = (engine: LearningEngine) => {
   const refresh = async () => {
     const request = ++latestRequest;
     try {
-      const loaded = await loadDailyPlan(engine);
+      const loaded = await loadDailyPlan(engine, courseId.value);
       if (request !== latestRequest) return;
       plan.value = loaded;
       error.value = null;
@@ -123,6 +131,7 @@ export const useDailyPlan = (engine: LearningEngine) => {
     if (REFRESH_ON[event.type]) queueMicrotask(() => void refresh());
   });
   onScopeDispose(unsubscribe);
+  watch(courseId, () => void refresh());
   void refresh();
 
   return { plan, loading, error, refresh };

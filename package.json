@@ -7,6 +7,8 @@
   },
   "scripts": {
     "dev": "pnpm --filter @lms/desktop dev",
+    "dev:seed": "pnpm --filter @lms/desktop dev:seed",
+    "dev:reset": "pnpm --filter @lms/desktop dev:reset",
     "build": "pnpm --filter @lms/desktop build",
     "smoke": "pnpm --filter @lms/desktop smoke",
     "smoke:packaged": "pnpm --filter @lms/desktop smoke:packaged",

@@ -1,7 +1,9 @@
 import { en as vuetifyEn, ru as vuetifyRu } from 'vuetify/locale';
+import { coursesMessages } from '@/pages/courses';
 import { dailyPlanMessages } from '@/pages/daily-plan';
 import { sessionMessages } from '@/pages/session';
 import { settingsMessages } from '@/pages/settings';
+import { courseScopeMessages } from '@/features/course-scope';
 import { sharedMessages } from '@/shared/i18n';
 import { en as appEn } from './en.ts';
 import { ru as appRu } from './ru.ts';
@@ -11,6 +13,8 @@ export const appMessages = {
   ru: {
     ...sharedMessages.ru,
     ...appRu,
+    ...courseScopeMessages.ru,
+    ...coursesMessages.ru,
     ...dailyPlanMessages.ru,
     ...sessionMessages.ru,
     ...settingsMessages.ru,
@@ -18,6 +22,8 @@ export const appMessages = {
   en: {
     ...sharedMessages.en,
     ...appEn,
+    ...courseScopeMessages.en,
+    ...coursesMessages.en,
     ...dailyPlanMessages.en,
     ...sessionMessages.en,
     ...settingsMessages.en,

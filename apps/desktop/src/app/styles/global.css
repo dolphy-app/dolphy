@@ -2,6 +2,11 @@ html {
   overflow-y: auto;
 }
 
+/* браузерные поля заголовков ломают ритм: отступы задаём классами */
+:where(h1, h2, h3, h4, h5, h6) {
+  margin: 0;
+}
+
 /* мелкий капс-заголовок над блоками (как в wireframes) */
 .overline-label {
   font-size: 0.6875rem;

@@ -1,0 +1,12 @@
+{
+  "dependencies": [],
+  "description": "Типы, замыкания и асинхронность",
+  "engine": {
+    "tags": ["javascript"]
+  },
+  "generator_config": {
+    "KnowledgeBase": {}
+  },
+  "id": "js_kb",
+  "name": "JavaScript: основы"
+}

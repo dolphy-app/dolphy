@@ -45,6 +45,8 @@ export interface SessionSummary {
 
 export interface SessionOptions {
   seed?: number;
+  /** Курс, по которому строится сессия; без него — все курсы. */
+  courseId?: UnitId;
 }
 
 const PASSING_GRADE = 3;
@@ -167,6 +169,9 @@ export const createSession = (
       const plan = await engine.plan.getDay({
         maxItems: PLAN_MAX_ITEMS,
         seed: options.seed,
+        ...(options.courseId !== undefined && {
+          courseIds: [options.courseId],
+        }),
       });
       items = plan.items;
       total.value = items.length;

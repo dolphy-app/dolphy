@@ -137,7 +137,7 @@ export const createPool = (options: PoolOptions): RunnerPool => {
   const spawnWorker: SpawnWorker = options.spawnWorker ?? fork;
   const workerPath =
     options.workerPath ??
-    fileURLToPath(new URL('./worker.ts', import.meta.url));
+    fileURLToPath(new URL(/* @vite-ignore */ './worker.ts', import.meta.url));
   const readRssKb = options.readRssKb ?? readRssKbWithPs;
   const startTimeoutMs = options.startTimeoutMs ?? DEFAULT_START_TIMEOUT_MS;
   if (!(size >= 1)) throw new RangeError('pool size must be at least 1');

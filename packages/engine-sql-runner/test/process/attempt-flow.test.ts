@@ -6,6 +6,7 @@
  * `attemptsUsed`; вердикт `failed` учитывается.
  */
 import type { VerdictDto } from '@lms/engine-contract';
+import type { RawVerdict } from '@lms/engine/ports';
 import { countGradedVerdicts, passAtN } from '@lms/engine/verify';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { SqlVerifier } from '../../src/verifier.ts';
@@ -31,7 +32,8 @@ const createAttempt = (verifier: SqlVerifier, journal: JournalEntry[]) => {
   return {
     verdicts,
     submit: async (sql: string, timeoutMs = 2000): Promise<VerdictDto> => {
-      const raw = await verifier.check(sqlRequest(sql, { timeoutMs }));
+      const graded = await verifier.check(sqlRequest(sql, { timeoutMs }));
+      const raw = { ...graded, durationMs: 0 } as RawVerdict;
       const verdict: VerdictDto = {
         ...raw,
         attemptId,

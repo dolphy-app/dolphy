@@ -1,0 +1,17 @@
+{
+  "id": "lms.sql",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "main": "./main.mjs",
+  "contributes": {
+    "exerciseTypes": [
+      {
+        "id": "lms.sql",
+        "specSchema": "./schema/spec.json",
+        "answerSchema": "./schema/answer.json",
+        "element": "lms-sql-answer",
+        "renderer": "./view.mjs"
+      }
+    ]
+  }
+}

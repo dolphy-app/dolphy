@@ -10,7 +10,7 @@ import { expect, test } from 'vitest';
 import { createSqlVerifier } from '../../src/verifier.ts';
 import { CHECKS, EMP_FIXTURE } from '../helpers/checks.ts';
 import { createFilesSource } from '../helpers/files-source.ts';
-import { sqlExercise, sqlRequest } from '../helpers/verifier.ts';
+import { sqlSpec, sqlRequest } from '../helpers/verifier.ts';
 
 const CHECKS_PER_ROUND = 1000;
 const BUDGET_MS = 1000;
@@ -28,7 +28,7 @@ test('T-44 1000 проверок на прогретом пуле укладыв
   });
   const requests = CHECKS.map((check) =>
     sqlRequest(check.solution, {
-      exercise: sqlExercise({
+      spec: sqlSpec({
         expected: `checks/${check.id}.csv`,
         ...check.compare,
       }),

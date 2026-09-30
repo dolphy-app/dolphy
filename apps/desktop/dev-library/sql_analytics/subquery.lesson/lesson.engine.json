@@ -1,0 +1,6 @@
+{
+  "keyPrerequisites": ["sql_analytics::aggregate"],
+  "tags": ["subquery"],
+  "bloom": "apply",
+  "dok": 3
+}

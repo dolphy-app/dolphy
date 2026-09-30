@@ -56,6 +56,9 @@ const study = async (course: CourseSummary) => {
   await scope.select(course.id);
   await router.push({ name: ROUTE.dailyPlan });
 };
+/** Вход-тест по курсу: `?course=` выбирает курс. */
+const checkKnowledge = (course: CourseSummary) =>
+  router.push({ name: ROUTE.placement, query: { course: course.id } });
 const openPlan = () => router.push({ name: ROUTE.dailyPlan });
 </script>
 
@@ -142,6 +145,7 @@ const openPlan = () => router.push({ name: ROUTE.dailyPlan });
           :recommended="recommendedId === course.id"
           @study="study(course)"
           @open-plan="openPlan"
+          @check="checkKnowledge(course)"
         />
       </li>
     </ul>

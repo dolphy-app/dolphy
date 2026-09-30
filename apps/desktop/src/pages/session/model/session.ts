@@ -14,7 +14,7 @@ import { PLAN_MAX_ITEMS } from '@/shared/config/plan.ts';
 import {
   readExerciseContent,
   readOptionalText,
-} from '../api/read-exercise-content.ts';
+} from '@/shared/lib/read-exercise-content.ts';
 
 export type SessionStage =
   'loading' | 'failed' | 'empty' | 'answering' | 'reviewed' | 'finished';

@@ -1,0 +1,6 @@
+{
+  "keyPrerequisites": ["sql_analytics::subquery"],
+  "tags": ["subquery", "correlated", "exists"],
+  "bloom": "analyze",
+  "dok": 3
+}

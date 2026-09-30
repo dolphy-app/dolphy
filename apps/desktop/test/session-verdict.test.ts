@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { VerdictDto } from '@lms/engine-contract';
-import { describeVerdict } from '@/pages/session/lib/verdict.ts';
+import { describeVerdict } from '@/widgets/exercise-panel/lib/verdict.ts';
 
 const verdict = (dto: Record<string, unknown>) => dto as unknown as VerdictDto;
 
@@ -8,7 +8,7 @@ describe('describeVerdict', () => {
   it('maps passed to success without a reason', () => {
     expect(describeVerdict(verdict({ outcome: 'passed' }))).toEqual({
       type: 'success',
-      titleKey: 'session.verdict.passed',
+      titleKey: 'exercisePanel.verdict.passed',
       reasonKey: null,
       feedback: null,
       retryable: false,
@@ -25,8 +25,8 @@ describe('describeVerdict', () => {
   ])('maps failed/%s to a warning with its reason key', (reason) => {
     const view = describeVerdict(verdict({ outcome: 'failed', reason }));
     expect(view.type).toBe('warning');
-    expect(view.titleKey).toBe('session.verdict.failed');
-    expect(view.reasonKey).toBe(`session.verdict.failedReason.${reason}`);
+    expect(view.titleKey).toBe('exercisePanel.verdict.failed');
+    expect(view.reasonKey).toBe(`exercisePanel.verdict.failedReason.${reason}`);
     expect(view.retryable).toBe(false);
   });
 
@@ -40,8 +40,8 @@ describe('describeVerdict', () => {
   ])('maps error/%s to a retryable error', (reason) => {
     const view = describeVerdict(verdict({ outcome: 'error', reason }));
     expect(view.type).toBe('error');
-    expect(view.titleKey).toBe('session.verdict.error');
-    expect(view.reasonKey).toBe(`session.verdict.errorReason.${reason}`);
+    expect(view.titleKey).toBe('exercisePanel.verdict.error');
+    expect(view.reasonKey).toBe(`exercisePanel.verdict.errorReason.${reason}`);
     expect(view.retryable).toBe(true);
   });
 
@@ -53,6 +53,8 @@ describe('describeVerdict', () => {
       verdict({ outcome: 'failed', reason: 'mismatch', feedback: 'fb' }),
     );
     expect(failed.feedback).toBe('fb');
-    expect(failed.reasonKey).toBe('session.verdict.failedReason.mismatch');
+    expect(failed.reasonKey).toBe(
+      'exercisePanel.verdict.failedReason.mismatch',
+    );
   });
 });

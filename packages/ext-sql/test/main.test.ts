@@ -1,11 +1,11 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import type { JsonSchema } from '@spirula/extension-sdk';
+import type { JsonSchema } from '@spirula-app/extension-sdk';
 import {
   createMemoryLibrary,
   createSchemaValidator,
   loadExerciseType,
-} from '@spirula/extension-sdk/testing';
+} from '@spirula-app/extension-sdk/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import module from '../src/main.ts';
 

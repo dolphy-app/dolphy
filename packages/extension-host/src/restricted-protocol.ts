@@ -1,4 +1,4 @@
-import type { ExtensionPermission } from '@spirula/extension-api';
+import type { ExtensionPermission } from '@spirula-app/extension-api';
 import type { ResolvedExtension } from './discover.ts';
 import type { ExtRequest, ExtResponse } from './protocol.ts';
 

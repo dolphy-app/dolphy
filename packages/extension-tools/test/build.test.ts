@@ -1,7 +1,7 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { discoverExtensions } from '@spirula/extension-host';
+import { discoverExtensions } from '@spirula-app/extension-host';
 import { describe, expect, it } from 'vitest';
 import { BuildError, buildExtension, validateExtension } from '../src/index.ts';
 import { copyProject, makeTemp } from './helpers.ts';

@@ -1,5 +1,5 @@
-import type { MarkdownRendererDto } from '@spirula/engine-contract';
-import type { MarkdownRendererModule } from '@spirula/extension-api';
+import type { MarkdownRendererDto } from '@spirula-app/engine-contract';
+import type { MarkdownRendererModule } from '@spirula-app/extension-api';
 import { createFrameHost, frameUrlOf } from '@/shared/lib/frame-bridge.ts';
 import type { FrameHost } from '@/shared/lib/frame-bridge.ts';
 import { MARKDOWN_BLOCK_CLASS } from './markdown.ts';

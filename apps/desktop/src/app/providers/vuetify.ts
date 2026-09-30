@@ -3,7 +3,7 @@ import '@mdi/font/css/materialdesignicons.css';
 import '@fontsource/roboto/400.css';
 import '@fontsource/roboto/500.css';
 import '@fontsource/roboto/700.css';
-import type { ThemeContributionDto } from '@spirula/engine-contract';
+import type { ThemeContributionDto } from '@spirula-app/engine-contract';
 import { useI18n } from 'vue-i18n';
 import { createVuetify } from 'vuetify';
 import { createVueI18nAdapter } from 'vuetify/locale/adapters/vue-i18n';

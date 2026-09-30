@@ -1,5 +1,5 @@
 /** Чистая логика вида `spirula.choice`: без DOM и без зависимостей от хоста. */
-import type { GradeResult } from '@spirula/extension-api';
+import type { GradeResult } from '@spirula-app/extension-api';
 
 export interface ChoiceSpec {
   options: string[];

@@ -1,5 +1,5 @@
 import { Graph, layout } from '@dagrejs/dagre';
-import type { GraphEdgeDto, UnitId } from '@spirula/engine-contract';
+import type { GraphEdgeDto, UnitId } from '@spirula-app/engine-contract';
 
 /** Размер узла-урока в графе; CSS узла берёт те же значения. */
 export const NODE_WIDTH = 256;

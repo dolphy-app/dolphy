@@ -1,6 +1,6 @@
 import { mkdir, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { EXTENSION_ID_PATTERN } from '@spirula/extension-api';
+import { EXTENSION_ID_PATTERN } from '@spirula-app/extension-api';
 import * as template from './template.ts';
 import type { TemplateInput } from './template.ts';
 

@@ -2,7 +2,7 @@ import type {
   FrontierItemDto,
   SchedulerOptionsDto,
   UnitId,
-} from '@spirula/engine-contract';
+} from '@spirula-app/engine-contract';
 import { ScoringError } from '../scoring/errors.ts';
 import type { BlacklistView } from '../scoring/graph.ts';
 import type { UnitScorer } from '../scoring/unit-scorer.ts';

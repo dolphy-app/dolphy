@@ -2,14 +2,14 @@
  * Попытка с проверкой: `beginAttempt` → `submitAnswer`* → `completeAttempt`
  * (T-10, T-41 в части движка, `GradePolicy` passAtN, лимиты реестра попыток).
  */
-import type { VerdictDto } from '@spirula/engine-contract';
-import { MAX_ANSWER_CHARS } from '@spirula/engine-contract';
+import type { VerdictDto } from '@spirula-app/engine-contract';
+import { MAX_ANSWER_CHARS } from '@spirula-app/engine-contract';
 import {
   buildLibrary,
   createFakeExerciseTypes,
   createFakeGradePolicies,
-} from '@spirula/testkit';
-import type { FakeExerciseTypes } from '@spirula/testkit';
+} from '@spirula-app/testkit';
+import type { FakeExerciseTypes } from '@spirula-app/testkit';
 import { describe, expect, it } from 'vitest';
 import type { LogEntry } from '../../src/domain/journal.ts';
 import type { RawVerdict } from '../../src/ports/index.ts';

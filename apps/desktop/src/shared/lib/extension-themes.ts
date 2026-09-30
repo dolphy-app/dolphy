@@ -1,4 +1,4 @@
-import type { ThemeContributionDto } from '@spirula/engine-contract';
+import type { ThemeContributionDto } from '@spirula-app/engine-contract';
 import type { ThemeDefinition } from 'vuetify';
 import { DARK_THEME, LIGHT_THEME } from './builtin-themes.ts';
 

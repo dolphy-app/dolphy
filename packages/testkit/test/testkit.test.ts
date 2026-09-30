@@ -1,4 +1,4 @@
-import type { ExtensionInfoDto } from '@spirula/engine-contract';
+import type { ExtensionInfoDto } from '@spirula-app/engine-contract';
 import { describe, expect, it } from 'vitest';
 import {
   buildAttempt,

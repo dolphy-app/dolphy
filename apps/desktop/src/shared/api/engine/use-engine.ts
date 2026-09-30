@@ -1,5 +1,5 @@
 import { inject } from 'vue';
-import type { LearningEngine } from '@spirula/engine-contract';
+import type { LearningEngine } from '@spirula-app/engine-contract';
 import { ENGINE_KEY } from './keys.ts';
 
 export const useEngine = (): LearningEngine => {

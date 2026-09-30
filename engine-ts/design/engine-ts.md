@@ -10,7 +10,7 @@
 | Вопрос | Решение |
 |---|---|
 | Язык, рантайм | TypeScript 7.0.2 (`strict`, `erasableSyntaxOnly`, ESM). Dev/CI: Node ≥ 22.12 и 24; прод: Electron 44.4.5 = Node 24.21.0 [ИЗМЕРЕНО] |
-| Границы | 4 пакета: `@spirula/engine-contract` (типы для UI), `@spirula/engine` (домен + приложение + fs/memory-адаптеры, без нативных зависимостей), `@spirula/engine-sqlite` (better-sqlite3 13.0.3), `@spirula/engine-sql-runner` (раннер проверок SQL в дочерних процессах на `node:sqlite`, §6a.4); пятый пакет `@spirula/engine-rpc` (клиент для renderer, диспетчер для хоста, `MessageEndpoint`; `engine-ts-electron.md` §2) |
+| Границы | 4 пакета: `@spirula-app/engine-contract` (типы для UI), `@spirula-app/engine` (домен + приложение + fs/memory-адаптеры, без нативных зависимостей), `@spirula-app/engine-sqlite` (better-sqlite3 13.0.3), `@spirula-app/engine-sql-runner` (раннер проверок SQL в дочерних процессах на `node:sqlite`, §6a.4); пятый пакет `@spirula-app/engine-rpc` (клиент для renderer, диспетчер для хоста, `MessageEndpoint`; `engine-ts-electron.md` §2) |
 | Хост | Движок не импортирует `electron`. API асинхронный, только plain-DTO. Размещение — `utilityProcess` (решение владельца, 2026-09-29); на код движка не влияет |
 | Модель памяти | ts-fsrs 5.4.2 (pin) за портом `MemoryModel`; вызывать `next_state` + `forgetting_curve`, **не** `next()`/`Card` |
 | Скорер | Интерфейс `ExerciseScorer` как в Trane. По умолчанию `FsrsScorer` (вариант H: `value = R_fsrs × performance`). `PowerLawScorer` — эталон для сверки |
@@ -154,32 +154,32 @@
 Схема: `engine-ts-diagram.html`. Стиль — порты и адаптеры (hexagonal): домен чистый и синхронный, I/O только на границах.
 
 ```
-@spirula/engine-contract     типы DTO, коды ошибок, CONTRACT_VERSION   (renderer-safe, import type)
+@spirula-app/engine-contract     типы DTO, коды ошибок, CONTRACT_VERSION   (renderer-safe, import type)
         ▲
-@spirula/engine              domain ──► scoring ──► scheduler ──► app (LearningEngine, сервисы)
+@spirula-app/engine              domain ──► scoring ──► scheduler ──► app (LearningEngine, сервисы)
         │                  модули F-слоя: authoring/ (F1, F2), placement/ (F3), planning/ (F4, F6),
         │                                 verify/ (порт F5), sync/ (F7)
         │                  порты: CourseSource, EventStore, SettingsStore, Clock, Rng, IdGenerator,
         │                         Logger, Verifier, MemoryModel
         │                  адаптеры без нативного кода: NodeFsCourseSource, MemoryEventStore, JsonSettingsStore,
         │                         SystemClock, CryptoRng, Uuidv7Generator, FolderSync   (subpath ./node)
-@spirula/engine-sqlite       SqliteEventStore, миграции, порт SqlDatabase (better-sqlite3 13.0.3)   ← типы портов из @spirula/engine
-@spirula/engine-sql-runner   SqlVerifier (реализует порт Verifier), пул дочерних процессов, раннер на node:sqlite   ← типы портов из @spirula/engine
-@spirula/engine-rpc          client (renderer) / host (диспетчер, zod), MessageEndpoint, in-process пара   ← типы из @spirula/engine-contract
-@spirula/testkit             FakeClock, SeededRng, TestId, билдеры курсов и журнала (dev-пакет, не публикуется)
+@spirula-app/engine-sqlite       SqliteEventStore, миграции, порт SqlDatabase (better-sqlite3 13.0.3)   ← типы портов из @spirula-app/engine
+@spirula-app/engine-sql-runner   SqlVerifier (реализует порт Verifier), пул дочерних процессов, раннер на node:sqlite   ← типы портов из @spirula-app/engine
+@spirula-app/engine-rpc          client (renderer) / host (диспетчер, zod), MessageEndpoint, in-process пара   ← типы из @spirula-app/engine-contract
+@spirula-app/testkit             FakeClock, SeededRng, TestId, билдеры курсов и журнала (dev-пакет, не публикуется)
 apps/desktop (позже)     main (супервизор) / utilityProcess-хост движка / preload / renderer
 ```
 
-**Корень композиции** (в `@spirula/engine`; SQLite подключает приложение, чтобы ядро осталось без нативных зависимостей):
+**Корень композиции** (в `@spirula-app/engine`; SQLite подключает приложение, чтобы ядро осталось без нативных зависимостей):
 
 ```ts
 export interface EngineDeps {
   clock: Clock; rng: Rng; ids: IdGenerator; logger: Logger;
   courseSource: CourseSource; eventStore: EventStore; settings: SettingsStore;
-  memoryModel: MemoryModel; verifiers: readonly Verifier[];   // SqlVerifier из @spirula/engine-sql-runner регистрируется здесь
+  memoryModel: MemoryModel; verifiers: readonly Verifier[];   // SqlVerifier из @spirula-app/engine-sql-runner регистрируется здесь
 }
 export async function createEngine(deps: EngineDeps, config: EngineConfig): Promise<LearningEngine>;
-// EngineConfig = { libraryRoot, dataDir, durability?: 'full' | 'normal', authorMode?: boolean } — тип из @spirula/engine-contract;
+// EngineConfig = { libraryRoot, dataDir, durability?: 'full' | 'normal', authorMode?: boolean } — тип из @spirula-app/engine-contract;
 // хост: createEngine({ ...nodeDefaults(), eventStore: openSqliteEventStore({ path }), verifiers: [new SqlVerifier(...)] }, config)
 ```
 
@@ -198,7 +198,7 @@ export async function createEngine(deps: EngineDeps, config: EngineConfig): Prom
 
 | Компонент | Какое требование или число обслуживает |
 |---|---|
-| `@spirula/engine-contract` | FR/NFR6: renderer импортирует только типы, не тянет `ts-fsrs` и fs |
+| `@spirula-app/engine-contract` | FR/NFR6: renderer импортирует только типы, не тянет `ts-fsrs` и fs |
 | Домен и планировщик (порт Trane) | FR1–FR3, NF5: поведение и wire Trane |
 | `FsrsScorer` + `MemoryModel` | FR3/FR5: калиброванная R; NF: `next_state` 7× быстрее `next()` |
 | `EventStore` + проекции | FR4, FR8, NF2, NF3: журнал — единственный факт |
@@ -210,7 +210,7 @@ export async function createEngine(deps: EngineDeps, config: EngineConfig): Prom
 | `authoring/` (компилятор, артефакт) | FR2, FR12 (F1, F2): все диагностики за проход, загрузка артефакта 33 мс |
 | `placement/` | FR10 (F3): 20–40 проб на 3 000 тем, выбор пробы ≤ 0.33 мс |
 | `planning/` (план дня, интерливинг, `RemediationTracker`, `MemoryIndex`) | FR9, FR11 (F4, F6): план на 40 позиций 1.6–2.7 мс |
-| `SqlVerifier` (`@spirula/engine-sql-runner`) | FR7 (F5): изоляция процессом, kill 1–8 мс |
+| `SqlVerifier` (`@spirula-app/engine-sql-runner`) | FR7 (F5): изоляция процессом, kill 1–8 мс |
 | `sync/` (`Replica`, `FolderSync`) | FR8 (F7): слияние без сервера, сходимость 4 устройств |
 
 ## 5. Модель данных
@@ -343,7 +343,7 @@ interface MemoryModel {
 
 ## 6a. Слой F1–F7: решения по результатам спайков
 
-Общий принцип: логика F-слоя — чистые функции над проекциями и графом, порты и адаптеры те же, что в §4. Новые модули `@spirula/engine`: `authoring/` (F1, F2), `placement/` (F3), `planning/` (F4, F6), `verify/` (порт F5), `sync/` (F7); раннер SQL — пакет `@spirula/engine-sql-runner`. Числа — из `research/report-*.md`; все симуляции синтетические, круговость указана рядом с числом.
+Общий принцип: логика F-слоя — чистые функции над проекциями и графом, порты и адаптеры те же, что в §4. Новые модули `@spirula-app/engine`: `authoring/` (F1, F2), `placement/` (F3), `planning/` (F4, F6), `verify/` (порт F5), `sync/` (F7); раннер SQL — пакет `@spirula-app/engine-sql-runner`. Числа — из `research/report-*.md`; все симуляции синтетические, круговость указана рядом с числом.
 
 ### 6a.1 Курс и компилятор (F1, F2) — `report-compiler.md`
 
@@ -376,7 +376,7 @@ interface MemoryModel {
 - **Изоляция — пул дочерних процессов** (`child_process.fork`; в Electron — `utilityProcess`), не `worker_threads`: `worker.terminate()` не завершается, пока запрос стоит в `sqlite3_step` (нагрузка 1.00 ядра, `process.exit()` зависает), а у `node:sqlite` и better-sqlite3 нет `interrupt`. `SIGKILL` процесса — 1–8 мс, следующая проверка на новом процессе через 41–52 мс [ИЗМЕРЕНО на обеих Node и обоих драйверах].
 - **Драйвер раннера:** `node:sqlite` на Node ≥ 24.15 (Electron 44 = Node 24.21): `setAuthorizer` закрывает 27 из 30 угроз батареи без эффектов, `db.limits.length` останавливает `randomblob(1e9)` за 1 мс, `defensive`. Запасной профиль (Node 22, better-sqlite3): `query_only` + read-only + префильтр. Наблюдатель RSS работает во всех профилях: порог 256–400 МБ, опрос 20 мс; при пороге 400 МБ измеренный пик 378–488 МБ; без `db.limits` (Node 22, better-sqlite3) запрос без наблюдателя занимает 1–4 ГБ, поэтому наблюдатель обязателен; `ps` на Windows нет, замена не проверялась. Префильтр — не защита: `WITH c AS (SELECT 1) DELETE FROM emp` проходит его, а лексер расходится с SQLite (NBSP, NUL). Фикстура считается **публичной** (`sqlite_master` и `pragma_*` доступны): секретов в ней нет.
 - **Протокол:** `{type:'check', id, req}` → `{type:'verdict', id, verdict, rssKb}`; молчание дольше `timeoutMs + 100 мс` → kill и `error/timeout`; пул `min(4, cores − 1)`, `recycleAfter ≈ 500–1000` проверок (утечки не измерялись), респавн в фоне. Лимиты по умолчанию: `timeoutMs 2000`, `maxRows 10 000`, `maxBytes 1 МБ`, SQL ≤ 100 000 символов (кап в хосте до IPC).
-- **Владелец пула и зависимости:** пулом владеет `SqlVerifier` в процессе хоста движка; детей он порождает через `child_process.fork` (внутри `utilityProcess` Electron 44.4.5 работает с `ELECTRON_RUN_AS_NODE=1` [ИЗМЕРЕНО], §12.13). `@spirula/engine-sql-runner` зависит от `@spirula/engine` только типами портов, как `@spirula/engine-sqlite`; приложение регистрирует его в `EngineDeps.verifiers`, ядро от него не зависит.
+- **Владелец пула и зависимости:** пулом владеет `SqlVerifier` в процессе хоста движка; детей он порождает через `child_process.fork` (внутри `utilityProcess` Electron 44.4.5 работает с `ELECTRON_RUN_AS_NODE=1` [ИЗМЕРЕНО], §12.13). `@spirula-app/engine-sql-runner` зависит от `@spirula-app/engine` только типами портов, как `@spirula-app/engine-sqlite`; приложение регистрирует его в `EngineDeps.verifiers`, ядро от него не зависит.
 - **Вердикт:** `passed`; `failed` (вина ученика: `mismatch`, `sql_error`, `forbidden`, `row_limit`, `byte_limit`, `sqlite_limit`) — вердикт входит в число использованных попыток и в оценку, которую `GradePolicy` считает при `completeAttempt`; `error` (не вина ученика: `fixture_error`, `expected_error`, `timeout`, `resource_kill`, `worker_crash`, `internal`) — журнал не затрагивается, повтор разрешён. `submitAnswer` сам событий не пишет: единственная запись — `completeAttempt` (или `recordAttempt` для самооценки). `timeout` и `resource_kill` не отличают бесконечный CTE ученика от медленной машины, поэтому это `error`; правило отчёта «считать `timeout` ошибкой ученика, если эталон проходит быстрее `timeoutMs/10`» не принято ради простоты, UI может предложить самооценку. Ошибка `VERIFIER_TIMEOUT` — общий дедлайн вызова `submitAnswer`, включая ожидание в очереди пула [ВЫВОД]. Ожидаемые строки (`detail`) отдаются только при `EngineConfig.authorMode`.
 - **Сравнение:** мультимножество строк по умолчанию (`orderSensitive` — только при полном `ORDER BY` в эталоне); `1 == 1.0`; допуск `|a − b| ≤ tol·max(1, |a|, |b|)`, `tol = 1e-9`; `TEXT '1' ≠ INTEGER 1`. На SQLite 3.51.3 и 3.53.4 идентичны 38 из 41 проб; расходятся `sqlite_version()` и `median`/`percentile` (в эталонных решениях не использовать).
 - **CI:** Node 22 (153 теста, 1 пропущен) и Node 24 (154); возможности Node 24 проверяются feature-detection, а не версией; батарея угроз — контрактный тест профиля `full`.
@@ -477,16 +477,16 @@ interface MemoryModel {
 
 | Веха | Содержание | Приёмка | ≈ строк TS |
 |---|---|---|---|
-| M0 Каркас | pnpm-workspace, tsconfig (TS 7, `tsc -b`), vitest projects, ESLint + Prettier, CI на Node 22 и 24; `contract`, `@spirula/testkit` (dev-пакет: FakeClock, SeededRng, TestId, билдеры курсов и журнала, генераторы синтетических библиотек); перенос артефактов песочницы | `pnpm test` и typecheck зелёные на обеих Node; эталон py-fsrs проходит контрактный тест `MemoryModel` | 800 |
+| M0 Каркас | pnpm-workspace, tsconfig (TS 7, `tsc -b`), vitest projects, ESLint + Prettier, CI на Node 22 и 24; `contract`, `@spirula-app/testkit` (dev-пакет: FakeClock, SeededRng, TestId, билдеры курсов и журнала, генераторы синтетических библиотек); перенос артефактов песочницы | `pnpm test` и typecheck зелёные на обеих Node; эталон py-fsrs проходит контрактный тест `MemoryModel` | 800 |
 | M1 Данные, библиотека, компилятор (F1, F2) | схемы манифестов и кодек wire, граф, loader, генератор KnowledgeBase, `CourseSource` (fs, memory); authoring (`engine`-frontmatter, `yaml` только в компиляторе), компилятор (36 кодов + `W_GRANULARITY`; `E_REFERENCE_FAILS` — на M5), артефакт JSON, `isFresh`, CLI `engine-cli`; миграция `sql-course` на `engine.verification` и реальные фикстуры | 0 ошибок схемы на всех JSON-манифестах Trane; граф совпадает с Rust на 6 библиотеках без генераторов; матрица ≥ 48 дефектов и по одному на `W_GRANULARITY`; `loadCompiled == loadDirectory` на 7 библиотеках; Rust-Trane открывает курс с `engine`-frontmatter; ≈ 95 портированных тестов | 4 200 |
 | M2 Скоринг | performance, PowerLaw (из песочницы), `FsrsScorer` + `MemoryModel`, награды, `UnitScorer` | golden L1 (PowerLaw 5 919 кейсов) и L1b (FSRS против py-fsrs и Rust-адаптера); портированные тесты скореров (31 + 12 + 8 + 9) | 1 900 |
 | M3 Планировщик, фронтир, due (F4, часть 1) | DFS, фильтр кандидатов, knocker, relearn, shuffler, фильтры и сессии, holder опций, `getFrontier` («нет данных = закрыто») и `getDue` | портированные тесты (13 + 6 + 18 + 4 + 2 + 7); распределительный паритет L4 на ≥ 5 состояниях; `getFrontier` против Rust `get_candidates`; порт 43 интеграционных тестов на симуляциях; bench p95 против NF1 | 2 650 |
 | M4 Состояние, фасад, синхронизация (F7) | журнал (memory, SQLite), миграции, проекции, rebuild, `recordAttempt`, `progress_reset`, attempt sessions, сервисы, контракт + схемы запросов, события, импорт `.trane`; множество + карантин конфликтов, HLC-правило, вектор-префикс, реестр сегментов, `FolderSync`, защита `deviceId`; SQLite FULL + `fullfsync` | contract-тесты обоих хранилищ; property-тесты слияния, сброса, HLC и rebuild; матрица отказов `FolderSync` (16 строк) и сходимость 4 устройств; SIGKILL-тест SQLite; сценарии через фасад | 3 300 |
-| M5 Проверка ответов (F5) | `Verifier`, `GradePolicy`, `@spirula/engine-sql-runner` (пул процессов, `node:sqlite`, authorizer, kill по таймауту и RSS), `--run-checks` компилятора (`E_REFERENCE_FAILS`); смоук в настоящем Electron 44 (порождение процессов раннера из `utilityProcess`) | батарея угроз: 0 эффектов в профиле `full` на Node 24; тайм-аут и RSS-kill; отсутствие события при `error`; 1 000 проверок ≤ 1 с на прогретом пуле (запас ×8–30 к измеренным 0.03–0.13 с; проект `bench` блокирует релиз, не PR-CI) | 900 |
+| M5 Проверка ответов (F5) | `Verifier`, `GradePolicy`, `@spirula-app/engine-sql-runner` (пул процессов, `node:sqlite`, authorizer, kill по таймауту и RSS), `--run-checks` компилятора (`E_REFERENCE_FAILS`); смоук в настоящем Electron 44 (порождение процессов раннера из `utilityProcess`) | батарея угроз: 0 эффектов в профиле `full` на Node 24; тайм-аут и RSS-kill; отсутствие события при `error`; 1 000 проверок ≤ 1 с на прогретом пуле (запас ×8–30 к измеренным 0.03–0.13 с; проект `bench` блокирует релиз, не PR-CI) | 900 |
 | M6 Адаптивный слой (F3, F4 часть 2, F6) | `placement.*`, `plan.getDay`, интерливинг, неявный повтор за флагом (`MemoryIndex`, `stepFractional`), `RemediationTracker`, `remediation.getPlan` | инварианты планировщика и `rebuild == incremental` побитово; безшумный placement не противоречит downset и гейт открывает ровно фронтир; детерминизм ремедиации; симуляции F3/F4 воспроизводятся из seed | 1 900 |
 | M7 По данным (не блокирует F1–F7) | снапшот проекций, предпрогрев, `aliases`, `ParameterTrainer`, A/B неявного повтора | по отдельным исследованиям | 1 000 |
 
-Итого M0–M6 ≈ 15.7 тыс. строк TS без тестов (M7 ещё ≈ 1 тыс.): перенос Trane ≈ 6.4 тыс., новое ≈ 9 тыс. [ОЦЕНКА]. Основание для F-слоя — production-части спайков без bench/sim/матриц (строки без пустых и комментариев, `wc`): компилятор ≈ 2 000 (около половины пересекается с загрузчиком M1), диагностика ≈ 460, раннер SQL ≈ 730, план + память ≈ 850, журнал + синхронизация ≈ 860 [ИЗМЕРЕНО по спайкам]; множитель к боевому коду ×1.3 и ремедиация ≈ 400 без спайка — [ОЦЕНКА]. Тестов ≈ 6.8–8.8 тыс. строк (порт 5–7 тыс. и F-слой ≥ 1.8 тыс. по спайкам; в песочнице тесты `PowerLawScorer` заняли 0.21× строк Rust-тестов из-за хелперов). Что вырастет в 10 раз: библиотека → артефакт уже снимает загрузку (33 мс), компиляция 40k файлов ≈ 1.5–2 с [ВЫВОД, экстраполяция; измерены только fingerprint и 12k файлов]; журнал → снапшот проекций (M7); больше устройств → компактация сегментов и, при необходимости, сервер поверх тех же сегментов; серверный запуск → тот же `@spirula/engine` в Node.
+Итого M0–M6 ≈ 15.7 тыс. строк TS без тестов (M7 ещё ≈ 1 тыс.): перенос Trane ≈ 6.4 тыс., новое ≈ 9 тыс. [ОЦЕНКА]. Основание для F-слоя — production-части спайков без bench/sim/матриц (строки без пустых и комментариев, `wc`): компилятор ≈ 2 000 (около половины пересекается с загрузчиком M1), диагностика ≈ 460, раннер SQL ≈ 730, план + память ≈ 850, журнал + синхронизация ≈ 860 [ИЗМЕРЕНО по спайкам]; множитель к боевому коду ×1.3 и ремедиация ≈ 400 без спайка — [ОЦЕНКА]. Тестов ≈ 6.8–8.8 тыс. строк (порт 5–7 тыс. и F-слой ≥ 1.8 тыс. по спайкам; в песочнице тесты `PowerLawScorer` заняли 0.21× строк Rust-тестов из-за хелперов). Что вырастет в 10 раз: библиотека → артефакт уже снимает загрузку (33 мс), компиляция 40k файлов ≈ 1.5–2 с [ВЫВОД, экстраполяция; измерены только fingerprint и 12k файлов]; журнал → снапшот проекций (M7); больше устройств → компактация сегментов и, при необходимости, сервер поверх тех же сегментов; серверный запуск → тот же `@spirula-app/engine` в Node.
 
 Переиспользуемые артефакты песочницы (`engine-ts/spike/`): `powerlaw-port/` (порт PowerLaw, 31 тест ×2 precision, golden-генератор `golden-rs/`, fixture 5 919 кейсов), `fsrs-check/` (рецепт `next_state`, эталон py-fsrs, конфиги vitest 5/TS 7), `loader-bench/` (схемы zod, загрузчик, граф, редукция, Rust-дамп графа), `compiler/` (авторинг, 36 кодов, артефакт, матрица дефектов), `diagnostic/` (V3, симуляция, placement), `fire-plan/` (`stepFractional`, `MemoryIndex`, планировщик, симуляции), `sql-runner/` (`SqlVerifier`, батарея угроз, пул), `journal-sync/` (`Replica`, `FolderSync`, SQLite-хранилище, crash-тест). Эталоны: `engine-ts/reference/` (Rust-Trane v0.34.1, `sql-course`, Rust-адаптер FSRS).
 
@@ -539,7 +539,7 @@ interface MemoryModel {
 8. `createSqlVerifier` требует `source: CourseSource` (порт `Verifier` не даёт доступа к файлам); ключ эталонного решения — `engine.verification.reference`.
 9. `T-07`: допуски теста (S ≤ 1e-6, R ≤ 1e-7) мягче документа (S ≤ 1.4e-7, R ≤ 7e-9); измеренные максимумы — S 1.95e-7 (относительно), R 7.15e-9. `T-49`: эталон — golden от Rust `get_exercise_batch`, а не `get_candidates`.
 
-**Числа T-57** (Node 22.22, macOS arm64, без параллельной нагрузки, медианы; `pnpm -F @spirula/engine-sqlite bench`, `pnpm -F @spirula/engine bench`): вставка 500k — 10.7 с; чтение с маппингом — 216 мс; `append` (fullfsync, батч 1) — 3.9 мс; экспорт 500k — 3.0 с; импорт 500k — 10.8 с (в спайке 0.83 с, хуже в 13 раз; причина не выяснена, вероятно durable-запись `FULL` + `fullfsync` [ВЫВОД]; операция разовая); `MemoryIndex.rebuild` 500k — none 227 мс, sparse 1.35 с, trane 31.8 с (`implicitCredit` выключен по умолчанию); `planDay` 40 из 5 000 просроченных — none 0.9 мс, trane 24 мс; `getBatch` 3 000 уроков, тёплый p95 — 34 мс (бюджет NF1 100 мс); выбор пробы placement — 0.06 мс; компиляция 12 000 упражнений — KB 1.77 с, JSON 3.05 с (база спайка 0.75 и 1.2 с: компилятор медленнее в 2.4 раза, причина не выяснена).
+**Числа T-57** (Node 22.22, macOS arm64, без параллельной нагрузки, медианы; `pnpm -F @spirula-app/engine-sqlite bench`, `pnpm -F @spirula-app/engine bench`): вставка 500k — 10.7 с; чтение с маппингом — 216 мс; `append` (fullfsync, батч 1) — 3.9 мс; экспорт 500k — 3.0 с; импорт 500k — 10.8 с (в спайке 0.83 с, хуже в 13 раз; причина не выяснена, вероятно durable-запись `FULL` + `fullfsync` [ВЫВОД]; операция разовая); `MemoryIndex.rebuild` 500k — none 227 мс, sparse 1.35 с, trane 31.8 с (`implicitCredit` выключен по умолчанию); `planDay` 40 из 5 000 просроченных — none 0.9 мс, trane 24 мс; `getBatch` 3 000 уроков, тёплый p95 — 34 мс (бюджет NF1 100 мс); выбор пробы placement — 0.06 мс; компиляция 12 000 упражнений — KB 1.77 с, JSON 3.05 с (база спайка 0.75 и 1.2 с: компилятор медленнее в 2.4 раза, причина не выяснена).
 
 **Найдено на Linux:** три теста зависели от среды (не продукт): `chmod 000` не закрывает файл для root; счётчик `spawned` пула раннера растёт по `ready`; SIGKILL после коммита большой пачки ложно засчитывался как «остаток». Исправлено пробами возможностей и точной классификацией.
 

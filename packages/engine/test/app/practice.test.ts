@@ -2,8 +2,8 @@
  * Сценарии `practice` через фасад на настоящем движке: запись попытки
  * (T-10, T-11, T-13), `progress_reset` (T-09, T-25), статусы, фронтир и due.
  */
-import type { LearningEngine } from '@spirula/engine-contract';
-import { buildLibrary } from '@spirula/testkit';
+import type { LearningEngine } from '@spirula-app/engine-contract';
+import { buildLibrary } from '@spirula-app/testkit';
 import { describe, expect, it, vi } from 'vitest';
 import { createTestEngine } from '../helpers/engine.ts';
 

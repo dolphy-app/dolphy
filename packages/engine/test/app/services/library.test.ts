@@ -1,12 +1,12 @@
-import { CONTRACT_VERSION } from '@spirula/engine-contract';
-import type { Diagnostic } from '@spirula/engine-contract';
+import { CONTRACT_VERSION } from '@spirula-app/engine-contract';
+import type { Diagnostic } from '@spirula-app/engine-contract';
 import {
   buildAttempt,
   buildLibrary,
   createFakeExerciseTypes,
   createMemoryCourseSource,
-} from '@spirula/testkit';
-import type { MemoryCourseSource } from '@spirula/testkit';
+} from '@spirula-app/testkit';
+import type { MemoryCourseSource } from '@spirula-app/testkit';
 import { describe, expect, it, vi } from 'vitest';
 import {
   createMemoryEventStore,

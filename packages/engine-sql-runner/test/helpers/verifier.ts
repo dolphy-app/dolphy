@@ -1,7 +1,7 @@
 import { fork } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
-import type { GradeResult } from '@spirula/extension-api';
-import { createCapturingLogger } from '@spirula/testkit';
+import type { GradeResult } from '@spirula-app/extension-api';
+import { createCapturingLogger } from '@spirula-app/testkit';
 import type { SpawnWorker } from '../../src/pool.ts';
 import { createSqlVerifier } from '../../src/verifier.ts';
 import type { SqlCheckInput, SqlVerifierOptions } from '../../src/verifier.ts';

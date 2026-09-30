@@ -3,7 +3,7 @@
  * эталонное решение (читает компилятор при `--run-checks`, не раннер),
  * остальное — правила сравнения и лимиты.
  */
-import type { CourseSource } from '@spirula/engine/ports';
+import type { CourseSource } from '@spirula-app/engine/ports';
 import type { CompareOptions } from './types.ts';
 
 export interface SqlCheckParams {

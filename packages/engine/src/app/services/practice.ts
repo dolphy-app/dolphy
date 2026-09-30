@@ -1,4 +1,4 @@
-import { MAX_ANSWER_CHARS } from '@spirula/engine-contract';
+import { MAX_ANSWER_CHARS } from '@spirula-app/engine-contract';
 import type {
   AttemptRecordDto,
   BatchDto,
@@ -15,7 +15,7 @@ import type {
   SubmitAnswerRequest,
   UnitId,
   VerdictDto,
-} from '@spirula/engine-contract';
+} from '@spirula-app/engine-contract';
 import type { ExerciseManifest } from '../../domain/manifest.ts';
 import { SchedulerError } from '../../scheduler/types.ts';
 import {

@@ -1,4 +1,4 @@
-import type { AnswerElementProps } from '@spirula/extension-api';
+import type { AnswerElementProps } from '@spirula-app/extension-api';
 
 class HelloAnswer extends HTMLElement implements Partial<AnswerElementProps> {
   disabled = false;

@@ -7,8 +7,8 @@ import { cp, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { compile } from '@spirula/engine/authoring';
-import { createNodeFsCourseSource } from '@spirula/engine/node';
+import { compile } from '@spirula-app/engine/authoring';
+import { createNodeFsCourseSource } from '@spirula-app/engine/node';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createSqlExerciseTypes } from './helpers/exercise-types.ts';
 

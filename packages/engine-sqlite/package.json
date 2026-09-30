@@ -1,5 +1,5 @@
 {
-  "name": "@spirula/engine-sqlite",
+  "name": "@spirula-app/engine-sqlite",
   "version": "0.0.0",
   "private": true,
   "description": "SQLite-хранилище журнала событий (better-sqlite3)",
@@ -14,7 +14,7 @@
     "crash": "node --experimental-strip-types --disable-warning=ExperimentalWarning test/crash/crash-driver.ts"
   },
   "dependencies": {
-    "@spirula/engine": "workspace:*",
+    "@spirula-app/engine": "workspace:*",
     "better-sqlite3": "13.0.3"
   },
   "devDependencies": {

@@ -1,5 +1,5 @@
 {
-  "name": "@spirula/engine-rpc",
+  "name": "@spirula-app/engine-rpc",
   "version": "0.0.0",
   "private": true,
   "description": "RPC-транспорт: клиент для renderer, диспетчер для хоста",
@@ -14,8 +14,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@spirula/engine": "workspace:*",
-    "@spirula/engine-contract": "workspace:*",
+    "@spirula-app/engine": "workspace:*",
+    "@spirula-app/engine-contract": "workspace:*",
     "zod": "4.6.5"
   },
   "devDependencies": {

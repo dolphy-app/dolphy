@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { buildLibrary, createMemoryCourseSource } from '@spirula/testkit';
+import { buildLibrary, createMemoryCourseSource } from '@spirula-app/testkit';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   ArtifactFormatError,

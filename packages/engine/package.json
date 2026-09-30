@@ -1,5 +1,5 @@
 {
-  "name": "@spirula/engine",
+  "name": "@spirula-app/engine",
   "version": "0.0.0",
   "private": true,
   "description": "Домен, приложение и fs/memory-адаптеры движка обучения",
@@ -27,7 +27,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@spirula/engine-contract": "workspace:*",
+    "@spirula-app/engine-contract": "workspace:*",
     "ts-fsrs": "5.4.2",
     "yaml": "2.9.1",
     "zod": "4.6.5"

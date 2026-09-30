@@ -4,7 +4,7 @@
  * Вердикты `error` — не вина ученика: в оценку и в счёт попыток не входят,
  * поэтому серия из одних `error` не даёт оценки и, значит, события в журнале.
  */
-import type { VerdictDto } from '@spirula/engine-contract';
+import type { VerdictDto } from '@spirula-app/engine-contract';
 import fc from 'fast-check';
 import { describe, expect, it, vi } from 'vitest';
 import { GradePolicyError } from '../../src/ports/grade-policies.ts';

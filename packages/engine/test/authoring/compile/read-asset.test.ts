@@ -7,8 +7,8 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import type { AssetRef } from '@spirula/engine-contract';
-import { buildLibrary, createMemoryCourseSource } from '@spirula/testkit';
+import type { AssetRef } from '@spirula-app/engine-contract';
+import { buildLibrary, createMemoryCourseSource } from '@spirula-app/testkit';
 import { afterEach, describe, expect, it } from 'vitest';
 import { EngineError } from '../../../src/app/errors.ts';
 import { loadDirectory } from '../../../src/authoring/load-directory.ts';

@@ -7,7 +7,7 @@
  * их из единого источника при каждом выборе; `Rng` инжектируется, тесты
  * проверяют состав и длину, а не порядок.
  */
-import type { SchedulerOptionsDto } from '@spirula/engine-contract';
+import type { SchedulerOptionsDto } from '@spirula-app/engine-contract';
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_SCHEDULER_OPTIONS,

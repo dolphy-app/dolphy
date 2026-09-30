@@ -1,6 +1,6 @@
-import { GradePolicyError } from '@spirula/engine/ports';
-import type { GradePolicies, GradePolicyInfo } from '@spirula/engine/ports';
-import type { GradeInput } from '@spirula/engine/verify';
+import { GradePolicyError } from '@spirula-app/engine/ports';
+import type { GradePolicies, GradePolicyInfo } from '@spirula-app/engine/ports';
+import type { GradeInput } from '@spirula-app/engine/verify';
 
 export interface FakeGradePolicy {
   label?: string;

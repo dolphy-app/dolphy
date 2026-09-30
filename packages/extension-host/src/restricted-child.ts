@@ -1,11 +1,11 @@
-import { PermissionError } from '@spirula/extension-api';
+import { PermissionError } from '@spirula-app/extension-api';
 import type {
   ExtensionLogger,
   ExtensionPermission,
   LibraryReader,
   LibraryStat,
-} from '@spirula/extension-api';
-import type { MessageEndpoint } from '@spirula/engine-contract';
+} from '@spirula-app/extension-api';
+import type { MessageEndpoint } from '@spirula-app/engine-contract';
 import { extRequestSchema } from './protocol.ts';
 import type { ExtRequest } from './protocol.ts';
 import { createExtensionRuntime } from './runtime.ts';

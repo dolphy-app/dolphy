@@ -1,4 +1,4 @@
-import type { IdGenerator } from '@spirula/engine';
+import type { IdGenerator } from '@spirula-app/engine';
 
 export interface TestIds extends IdGenerator {
   /** Сколько идентификаторов выдано. */

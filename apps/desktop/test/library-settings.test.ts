@@ -4,7 +4,7 @@ import type {
   LearningEngine,
   LibraryInfo,
   PreferencesDto,
-} from '@spirula/engine-contract';
+} from '@spirula-app/engine-contract';
 import {
   normalizeIgnoredPath,
   useLibrarySettings,

@@ -1,5 +1,5 @@
-import type { Diagnostic, DiagnosticCode } from '@spirula/engine-contract';
-import { createFakeExerciseTypes } from '@spirula/testkit';
+import type { Diagnostic, DiagnosticCode } from '@spirula-app/engine-contract';
+import { createFakeExerciseTypes } from '@spirula-app/testkit';
 import { describe, expect, it } from 'vitest';
 import {
   buildIndex,

@@ -1,4 +1,4 @@
-import type { RemediationService } from '@spirula/engine-contract';
+import type { RemediationService } from '@spirula-app/engine-contract';
 import type { EngineContext } from '../context.ts';
 import { EngineError } from '../errors.ts';
 

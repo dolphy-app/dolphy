@@ -1,10 +1,13 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { createEngine } from '@spirula/engine/app';
-import { nodeDefaults } from '@spirula/engine/node';
-import type { EngineConfig } from '@spirula/engine-contract';
-import { createIsomorphicGitFetcher } from '@spirula/engine-git';
-import { openSqliteStorage, readTraneDirectory } from '@spirula/engine-sqlite';
+import { createEngine } from '@spirula-app/engine/app';
+import { nodeDefaults } from '@spirula-app/engine/node';
+import type { EngineConfig } from '@spirula-app/engine-contract';
+import { createIsomorphicGitFetcher } from '@spirula-app/engine-git';
+import {
+  openSqliteStorage,
+  readTraneDirectory,
+} from '@spirula-app/engine-sqlite';
 import {
   createCatalog,
   createExtensionPolicy,
@@ -13,7 +16,7 @@ import {
   createRemoteExerciseTypes,
   createRemoteGradePolicies,
   discoverExtensions,
-} from '@spirula/extension-host';
+} from '@spirula-app/extension-host';
 import { extensionRoots } from '../extension-roots.ts';
 
 export const boot = async (

@@ -1,4 +1,4 @@
-import type { MissingSeqs, StateVector } from '@spirula/engine-contract';
+import type { MissingSeqs, StateVector } from '@spirula-app/engine-contract';
 import { compareStrings } from './entry.ts';
 
 /** Не более стольких дыр на устройство попадает в `missing()`. */

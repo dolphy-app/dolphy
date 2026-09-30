@@ -1,4 +1,4 @@
-import { defineMarkdownRenderer } from '@spirula/extension-sdk';
+import { defineMarkdownRenderer } from '@spirula-app/extension-sdk';
 import { liteAdaptor } from 'mathjax-full/js/adaptors/liteAdaptor.js';
 import { RegisterHTMLHandler } from 'mathjax-full/js/handlers/html.js';
 import { TeX } from 'mathjax-full/js/input/tex.js';

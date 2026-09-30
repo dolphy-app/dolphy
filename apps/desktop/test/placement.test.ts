@@ -10,7 +10,7 @@ import type {
   SubmitAnswerRequest,
   UnitDto,
   VerdictDto,
-} from '@spirula/engine-contract';
+} from '@spirula-app/engine-contract';
 import {
   defaultBudget,
   maxBudget,

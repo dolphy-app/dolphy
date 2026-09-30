@@ -1,6 +1,6 @@
 import { cp, mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { inspectExtensionDir } from '@spirula/extension-host';
+import { inspectExtensionDir } from '@spirula-app/extension-host';
 import { bundleAll, watchAll } from './bundle.ts';
 import { BuildError } from './errors.ts';
 import { DEFAULT_OUT_DIR, MANIFEST_FILE, loadProject } from './project.ts';

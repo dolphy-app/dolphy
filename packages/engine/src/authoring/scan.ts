@@ -3,7 +3,7 @@
  * порт `CourseSource` в `Model` и собирает диагностики разбора вместо
  * остановки на первой ошибке. Семантические проверки графа — не здесь.
  */
-import type { Diagnostic } from '@spirula/engine-contract';
+import type { Diagnostic } from '@spirula-app/engine-contract';
 import {
   InvalidAssetPathError,
   normalizeCourseManifest,

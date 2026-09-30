@@ -1,5 +1,5 @@
-import { EngineError } from '@spirula/engine/app';
-import type { Logger } from '@spirula/engine/ports';
+import { EngineError } from '@spirula-app/engine/app';
+import type { Logger } from '@spirula-app/engine/ports';
 import {
   CONTRACT_VERSION,
   RPC_METHODS,
@@ -10,7 +10,7 @@ import {
   type RpcPush,
   type RpcRequest,
   type RpcResponse,
-} from '@spirula/engine-contract';
+} from '@spirula-app/engine-contract';
 import * as z from 'zod';
 import { assertSameKeys } from './assert-same-keys.ts';
 

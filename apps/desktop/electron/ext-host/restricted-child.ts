@@ -1,4 +1,4 @@
-import { startRestrictedChild } from '@spirula/extension-host';
+import { startRestrictedChild } from '@spirula-app/extension-host';
 
 // Вход ограниченного дочернего процесса хоста расширений. Собирается отдельным
 // самодостаточным файлом (`restricted/ext-restricted.mjs`, см. vite.config.ts) и

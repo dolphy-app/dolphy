@@ -1,8 +1,8 @@
-# @spirula/extension-tools
+# @spirula-app/extension-tools
 
 Инструменты автора расширений: `spirula-ext build` собирает проект в каталог
 расширения, `spirula-ext validate` проверяет каталог тем же кодом, каким его
-загрузит приложение (`inspectExtensionDir` из `@spirula/extension-host`).
+загрузит приложение (`inspectExtensionDir` из `@spirula-app/extension-host`).
 
 ## Раскладка проекта
 
@@ -55,7 +55,7 @@ spirula-ext --help
 
 `--watch` пересобирает бандлы при изменении исходников. Манифест, схемы и
 `assets/` копируются один раз — после их правки перезапустите команду.
-Запуск из репозитория: `pnpm -F @spirula/extension-tools spirula-ext build <dir>`.
+Запуск из репозитория: `pnpm -F @spirula-app/extension-tools spirula-ext build <dir>`.
 
 ## API
 
@@ -64,7 +64,7 @@ import {
   buildExtension,
   watchExtension,
   validateExtension,
-} from '@spirula/extension-tools';
+} from '@spirula-app/extension-tools';
 
 const { id, dir, files } = await buildExtension({ root, outDir });
 const handle = await watchExtension({ root, logger }); // handle.close()
@@ -83,6 +83,6 @@ const { ok, problems } = await validateExtension(dir);
 `permissions` в `extension.json` разбирает тот же `parseManifest`, что и
 приложение: `spirula-ext validate` (и проверка в конце `spirula-ext build`) отклоняет
 неизвестное имя (`permissions.0: …`) и дубль (`duplicate permission '…'`).
-Допустимые имена — `EXTENSION_PERMISSIONS` из `@spirula/extension-api`. Пример
+Допустимые имена — `EXTENSION_PERMISSIONS` из `@spirula-app/extension-api`. Пример
 манифеста с разрешениями — `docs/design/extensions.md`, «Права и изоляция»; он
 проверяется `test/docs-contributions.test.ts` вместе с примерами «Точек вклада».

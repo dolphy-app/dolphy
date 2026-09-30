@@ -1,5 +1,5 @@
 {
-  "name": "@spirula/ext-math",
+  "name": "@spirula-app/ext-math",
   "version": "0.0.0",
   "private": true,
   "description": "Расширение spirula.math: формулы в Markdown (MathJax)",
@@ -10,12 +10,12 @@
     "build": "spirula-ext build"
   },
   "dependencies": {
-    "@spirula/extension-api": "workspace:*",
-    "@spirula/extension-sdk": "workspace:*",
+    "@spirula-app/extension-api": "workspace:*",
+    "@spirula-app/extension-sdk": "workspace:*",
     "mathjax-full": "^3"
   },
   "devDependencies": {
-    "@spirula/extension-tools": "workspace:*",
+    "@spirula-app/extension-tools": "workspace:*",
     "@types/node": "^22.20.4",
     "happy-dom": "^20.14.5",
     "typescript": "7.0.2"

@@ -1,5 +1,5 @@
-import type { PlacementSummaryDto } from '@spirula/engine-contract';
-import { buildLibrary, createFakeExerciseTypes } from '@spirula/testkit';
+import type { PlacementSummaryDto } from '@spirula-app/engine-contract';
+import { buildLibrary, createFakeExerciseTypes } from '@spirula-app/testkit';
 import { describe, expect, test } from 'vitest';
 import { EngineError } from '../../src/app/index.ts';
 import type { EventStore, StoreTx } from '../../src/ports/index.ts';

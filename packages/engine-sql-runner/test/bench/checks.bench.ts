@@ -3,9 +3,9 @@
  * прогонам). Пул дочерних процессов `min(4, cores − 1)`, 30 проверок из
  * корпуса по кругу, фикстура из 9 строк (нижняя граница накладных расходов).
  * Аппаратно зависимо; блокирует релиз (предрелизный job), в PR-CI не идёт:
- * `pnpm -F @spirula/engine-sql-runner bench`.
+ * `pnpm -F @spirula-app/engine-sql-runner bench`.
  */
-import { silentLogger } from '@spirula/testkit';
+import { silentLogger } from '@spirula-app/testkit';
 import { expect, test } from 'vitest';
 import { createSqlVerifier } from '../../src/verifier.ts';
 import { CHECKS, EMP_FIXTURE } from '../helpers/checks.ts';

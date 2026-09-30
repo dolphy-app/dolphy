@@ -2,8 +2,11 @@ import { spawn } from 'node:child_process';
 import { mkdir, readFile, symlink } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { discoverExtensions } from '@spirula/extension-host';
-import { buildExtension, validateExtension } from '@spirula/extension-tools';
+import { discoverExtensions } from '@spirula-app/extension-host';
+import {
+  buildExtension,
+  validateExtension,
+} from '@spirula-app/extension-tools';
 import { describe, expect, it } from 'vitest';
 import { generateExtension } from '../src/index.ts';
 import { REPO_ROOT, makeTemp } from './helpers.ts';
@@ -15,11 +18,14 @@ const packageDir = (name: string): string =>
 /** node_modules проекта: ссылки на тулчейн репозитория (без сети и install). */
 const linkToolchain = async (project: string): Promise<void> => {
   const modules = path.join(project, 'node_modules');
-  await mkdir(path.join(modules, '@spirula'), { recursive: true });
+  await mkdir(path.join(modules, '@spirula-app'), { recursive: true });
   const links: [string, string][] = [
-    ['@spirula/extension-sdk', path.join(REPO_ROOT, 'packages/extension-sdk')],
     [
-      '@spirula/extension-tools',
+      '@spirula-app/extension-sdk',
+      path.join(REPO_ROOT, 'packages/extension-sdk'),
+    ],
+    [
+      '@spirula-app/extension-tools',
       path.join(REPO_ROOT, 'packages/extension-tools'),
     ],
     ['vitest', packageDir('vitest')],

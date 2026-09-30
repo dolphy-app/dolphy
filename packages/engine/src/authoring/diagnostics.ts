@@ -1,9 +1,9 @@
-import { DIAGNOSTIC_SEVERITY } from '@spirula/engine-contract';
+import { DIAGNOSTIC_SEVERITY } from '@spirula-app/engine-contract';
 import type {
   Diagnostic,
   DiagnosticCode,
   DiagnosticSummary,
-} from '@spirula/engine-contract';
+} from '@spirula-app/engine-contract';
 
 export interface DiagnosticLocation {
   unitId?: string;

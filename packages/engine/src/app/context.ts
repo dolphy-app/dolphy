@@ -15,7 +15,7 @@ import type {
   SavedFilterDto,
   UnitId,
   VerdictDto,
-} from '@spirula/engine-contract';
+} from '@spirula-app/engine-contract';
 import type { LibraryHolder } from '../authoring/library-holder.ts';
 import type { AttemptEntry, LogEntry } from '../domain/journal.ts';
 import type { Library } from '../domain/library.ts';
@@ -63,7 +63,7 @@ export type { LibraryHolder } from '../authoring/library-holder.ts';
 
 /**
  * Порт общей папки синхронизации. Реализация — `nodeFolderSyncPort(config)`
- * (`@spirula/engine/node`): `dataDir/settings/sync.json` и `createFolderSync`.
+ * (`@spirula-app/engine/node`): `dataDir/settings/sync.json` и `createFolderSync`.
  * Ядро `app/` от `node:fs` не зависит.
  */
 export interface FolderSyncPort {
@@ -86,9 +86,9 @@ export interface EngineDeps {
   eventStore: EventStore;
   settings: SettingsStore;
   memoryModel: MemoryModel;
-  /** Виды заданий из расширений (`@spirula/extension-host`). */
+  /** Виды заданий из расширений (`@spirula-app/extension-host`). */
   exerciseTypes: ExerciseTypes;
-  /** Правила оценки из расширений (`@spirula/extension-host`). */
+  /** Правила оценки из расширений (`@spirula-app/extension-host`). */
   gradePolicies: GradePolicies;
   /** Обзор расширений для `extensions.list`. */
   extensionRegistry: ExtensionRegistry;
@@ -96,13 +96,13 @@ export interface EngineDeps {
   extensionPolicy: ExtensionPolicy;
   /** Нет порта — `sync.folder.*` отвечает `SYNC_FOLDER_NOT_CONFIGURED`. */
   folderSync?: FolderSyncPort;
-  /** Чтение каталога `.trane` (`readTraneDirectory` из `@spirula/engine-sqlite`); нет — `importFromTrane` отказывает. */
+  /** Чтение каталога `.trane` (`readTraneDirectory` из `@spirula-app/engine-sqlite`); нет — `importFromTrane` отказывает. */
   openTraneSource?: (traneDir: string) => TraneSource | Promise<TraneSource>;
   /** Реестр git-репозиториев (`repositories.*`); SQLite или память. */
   repositoryStore: RepositoryStore;
-  /** Получение снимков по `http(s)`; `createIsomorphicGitFetcher` из `@spirula/engine-git`. */
+  /** Получение снимков по `http(s)`; `createIsomorphicGitFetcher` из `@spirula-app/engine-git`. */
   snapshotFetcher: GitSnapshotFetcher;
-  /** Подмена каталогов снимков; `createNodeSnapshotInstaller` из `@spirula/engine/node`. */
+  /** Подмена каталогов снимков; `createNodeSnapshotInstaller` из `@spirula-app/engine/node`. */
   snapshotInstaller: SnapshotInstaller;
 }
 

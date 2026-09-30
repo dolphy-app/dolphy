@@ -1,4 +1,4 @@
-import type { UnitId } from '@spirula/engine-contract';
+import type { UnitId } from '@spirula-app/engine-contract';
 
 /**
  * Кандидат в батч (`Candidate`, scheduler.rs:121). Поля стабильны по форме:

@@ -5,8 +5,8 @@ import type {
   ExerciseTaskDto,
   Grade,
   VerdictDto,
-} from '@spirula/engine-contract';
-import type { AnswerChangeDetail } from '@spirula/extension-api';
+} from '@spirula-app/engine-contract';
+import type { AnswerChangeDetail } from '@spirula-app/extension-api';
 import MarkdownView from '@/shared/ui/MarkdownView.vue';
 import { describeVerdict } from '../lib/verdict.ts';
 import AnswerElement from './AnswerElement.vue';

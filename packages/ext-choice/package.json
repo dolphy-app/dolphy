@@ -1,5 +1,5 @@
 {
-  "name": "@spirula/ext-choice",
+  "name": "@spirula-app/ext-choice",
   "version": "0.0.0",
   "private": true,
   "description": "Расширение spirula.choice: задания с выбором вариантов",
@@ -10,13 +10,13 @@
     "build": "spirula-ext build"
   },
   "dependencies": {
-    "@spirula/extension-api": "workspace:*",
-    "@spirula/extension-sdk": "workspace:*"
+    "@spirula-app/extension-api": "workspace:*",
+    "@spirula-app/extension-sdk": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.20.4",
     "typescript": "7.0.2",
-    "@spirula/extension-tools": "workspace:*",
+    "@spirula-app/extension-tools": "workspace:*",
     "happy-dom": "^20.14.5"
   },
   "engines": {

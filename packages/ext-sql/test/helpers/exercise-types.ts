@@ -3,11 +3,11 @@ import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createNodeFsCourseSource } from '@spirula/engine/node';
-import type { ExerciseTypes } from '@spirula/engine/ports';
-import { discoverExtensions } from '@spirula/extension-host';
-import { createLocalExerciseTypes } from '@spirula/extension-host/local';
-import { silentLogger } from '@spirula/testkit';
+import { createNodeFsCourseSource } from '@spirula-app/engine/node';
+import type { ExerciseTypes } from '@spirula-app/engine/ports';
+import { discoverExtensions } from '@spirula-app/extension-host';
+import { createLocalExerciseTypes } from '@spirula-app/extension-host/local';
+import { silentLogger } from '@spirula-app/testkit';
 import sqlModule from '../../src/main.ts';
 
 const PACKAGE_DIR = fileURLToPath(new URL('../..', import.meta.url));

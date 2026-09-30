@@ -1,5 +1,5 @@
 {
-  "name": "@spirula/testkit",
+  "name": "@spirula-app/testkit",
   "version": "0.0.0",
   "private": true,
   "description": "Тестовые утилиты: часы, RNG, идентификаторы, билдеры (dev-пакет)",
@@ -12,8 +12,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@spirula/engine": "workspace:*",
-    "@spirula/engine-contract": "workspace:*",
+    "@spirula-app/engine": "workspace:*",
+    "@spirula-app/engine-contract": "workspace:*",
     "fast-check": "4.10.2"
   },
   "devDependencies": {

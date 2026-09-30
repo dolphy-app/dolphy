@@ -7,8 +7,8 @@
  * `failed` — вина ученика (событие пишет `completeAttempt`); `error` — баг
  * курса или среды: журнал не затрагивается, повтор разрешён.
  */
-import type { CourseSource } from '@spirula/engine/ports';
-import type { GradeResult } from '@spirula/extension-api';
+import type { CourseSource } from '@spirula-app/engine/ports';
+import type { GradeResult } from '@spirula-app/extension-api';
 import { createPool } from './pool.ts';
 import type { PoolOptions, PoolStats, RunnerPool } from './pool.ts';
 import { DEFAULT_LIMITS, MAX_SQL_CHARS } from './types.ts';

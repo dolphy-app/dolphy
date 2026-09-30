@@ -1,4 +1,4 @@
-import type { UnitId } from '@spirula/engine-contract';
+import type { UnitId } from '@spirula-app/engine-contract';
 import type { Library } from '../domain/library.ts';
 import type { BlacklistView } from '../scoring/graph.ts';
 import { type TopicGraph, buildTopicGraph } from './topic-graph.ts';

@@ -2,7 +2,7 @@ import type {
   ExerciseTypeInfo,
   ExerciseTypes,
   RawVerdict,
-} from '@spirula/engine/ports';
+} from '@spirula-app/engine/ports';
 
 export interface FakeTypeOptions {
   element?: string;

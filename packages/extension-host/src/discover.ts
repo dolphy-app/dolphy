@@ -1,10 +1,10 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { DEFAULT_MAIN } from '@spirula/extension-api';
+import { DEFAULT_MAIN } from '@spirula-app/extension-api';
 import type {
   ExtensionLogger,
   ExtensionPermission,
-} from '@spirula/extension-api';
+} from '@spirula-app/extension-api';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import { parseManifest } from './manifest.ts';
 import { CONTRIBUTION_POINTS } from './points/index.ts';

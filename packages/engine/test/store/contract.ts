@@ -3,7 +3,7 @@ import {
   buildProgressReset,
   buildUnitFlag,
   createFakeClock,
-} from '@spirula/testkit';
+} from '@spirula-app/testkit';
 import { afterEach, describe, expect, it } from 'vitest';
 import { EngineError } from '../../src/app/index.ts';
 import type { LogEntry } from '../../src/domain/journal.ts';

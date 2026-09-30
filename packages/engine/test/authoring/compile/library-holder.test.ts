@@ -1,11 +1,11 @@
 import { mkdtempSync, rmSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import type { CourseLibrary, MemoryCourseSource } from '@spirula/testkit';
+import type { CourseLibrary, MemoryCourseSource } from '@spirula-app/testkit';
 import {
   buildLibrary,
   createFakeClock,
   createMemoryCourseSource,
-} from '@spirula/testkit';
+} from '@spirula-app/testkit';
 import { afterEach, describe, expect, it } from 'vitest';
 import { EngineError } from '../../../src/app/errors.ts';
 import { probeArtifact } from '../../../src/authoring/freshness.ts';

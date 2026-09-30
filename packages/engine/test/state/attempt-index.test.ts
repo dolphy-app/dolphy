@@ -1,5 +1,5 @@
-import type { Grade } from '@spirula/engine-contract';
-import { buildAttempt, buildLibrary, T0_MS } from '@spirula/testkit';
+import type { Grade } from '@spirula-app/engine-contract';
+import { buildAttempt, buildLibrary, T0_MS } from '@spirula-app/testkit';
 import { describe, expect, it } from 'vitest';
 import { createAttemptIndex } from '../../src/state/attempt-index.ts';
 import { createCurrentScoringGraph } from '../../src/state/current-graph.ts';

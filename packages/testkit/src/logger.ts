@@ -1,4 +1,4 @@
-import type { Logger } from '@spirula/engine';
+import type { Logger } from '@spirula-app/engine';
 
 export const silentLogger: Logger = {
   debug: () => {},

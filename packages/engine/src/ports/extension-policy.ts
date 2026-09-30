@@ -1,4 +1,4 @@
-import type { ExtensionSettingsDto } from '@spirula/engine-contract';
+import type { ExtensionSettingsDto } from '@spirula-app/engine-contract';
 
 /**
  * Политика расширений: включены ли они и исполняются ли в изоляции. Решает по

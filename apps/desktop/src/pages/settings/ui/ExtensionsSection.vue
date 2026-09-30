@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import type { ExtensionStateDto } from '@spirula/engine-contract';
+import type { ExtensionStateDto } from '@spirula-app/engine-contract';
 import { useEngine } from '@/shared/api/engine';
 import {
   contributionGroups,

@@ -1,4 +1,4 @@
-import { defaultElementName } from '@spirula/extension-api';
+import { defaultElementName } from '@spirula-app/extension-api';
 
 /** Версия расширения в шаблоне и его умолчание для `apiVersion`. */
 const INITIAL_VERSION = '0.1.0';
@@ -25,8 +25,8 @@ export const packageJson = ({ id, dependencies }: TemplateInput): string =>
         test: 'vitest run',
       },
       devDependencies: {
-        '@spirula/extension-sdk': dependencies.sdk,
-        '@spirula/extension-tools': dependencies.tools,
+        '@spirula-app/extension-sdk': dependencies.sdk,
+        '@spirula-app/extension-tools': dependencies.tools,
         '@types/node': '^22.20.4',
         'happy-dom': '^20.14.5',
         typescript: '^6.0.3',
@@ -84,7 +84,7 @@ export const manifestJson = (id: string): string => `{
 
 export const mainTs = (
   id: string,
-): string => `import { defineExerciseType, defineExtension } from '@spirula/extension-sdk';
+): string => `import { defineExerciseType, defineExtension } from '@spirula-app/extension-sdk';
 
 interface Spec {
   expected: string;
@@ -115,7 +115,7 @@ export default defineExtension({
 
 export const viewTs = (
   id: string,
-): string => `import { defineAnswerElement } from '@spirula/extension-sdk';
+): string => `import { defineAnswerElement } from '@spirula-app/extension-sdk';
 
 defineAnswerElement('${defaultElementName(id)}', (api, initial) => {
   const input = document.createElement('input');
@@ -154,7 +154,7 @@ defineAnswerElement('${defaultElementName(id)}', (api, initial) => {
 export const mainTestTs = (id: string): string => `import {
   createSchemaValidator,
   loadExerciseType,
-} from '@spirula/extension-sdk/testing';
+} from '@spirula-app/extension-sdk/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import manifest from '../extension.json';
 import module from '../src/main.ts';
@@ -239,8 +239,8 @@ describe('${id}: схемы', () => {
 export const viewTestTs = (id: string): string => {
   const tag = defaultElementName(id);
   return `// @vitest-environment happy-dom
-import { ANSWER_EVENT } from '@spirula/extension-sdk';
-import type { AnswerChangeDetail } from '@spirula/extension-sdk';
+import { ANSWER_EVENT } from '@spirula-app/extension-sdk';
+import type { AnswerChangeDetail } from '@spirula-app/extension-sdk';
 import { afterEach, describe, expect, it } from 'vitest';
 import '../src/view.ts';
 

@@ -3,8 +3,8 @@ import type {
   LogEntryDto,
   SavedFilterDto,
   StudySessionWire,
-} from '@spirula/engine-contract';
-import { buildLibrary, buildUnitFlag, T0_MS } from '@spirula/testkit';
+} from '@spirula-app/engine-contract';
+import { buildLibrary, buildUnitFlag, T0_MS } from '@spirula-app/testkit';
 import { describe, expect, it } from 'vitest';
 import {
   createMemoryEventStore,

@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import type { MarkdownRendererDto } from '@spirula/engine-contract';
+import type { MarkdownRendererDto } from '@spirula-app/engine-contract';
 import { describe, expect, it, vi } from 'vitest';
 import { hydrateMarkdownBlocks } from '../src/shared/lib/markdown-blocks.ts';
 import { createMarkdownRenderer } from '../src/shared/lib/markdown.ts';

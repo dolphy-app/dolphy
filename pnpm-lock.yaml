@@ -26,7 +26,7 @@ importers:
       '@semantic-release/git':
         specifier: ^11.0.1
         version: 11.0.1(semantic-release@25.0.9(typescript@6.0.3))
-      '@spirula/testkit':
+      '@spirula-app/testkit':
         specifier: workspace:*
         version: link:packages/testkit
       '@types/node':
@@ -84,25 +84,25 @@ importers:
       '@mdi/font':
         specifier: ^7.4.47
         version: 7.4.47
-      '@spirula/engine':
+      '@spirula-app/engine':
         specifier: workspace:*
         version: link:../../packages/engine
-      '@spirula/engine-contract':
+      '@spirula-app/engine-contract':
         specifier: workspace:*
         version: link:../../packages/engine-contract
-      '@spirula/engine-git':
+      '@spirula-app/engine-git':
         specifier: workspace:*
         version: link:../../packages/engine-git
-      '@spirula/engine-rpc':
+      '@spirula-app/engine-rpc':
         specifier: workspace:*
         version: link:../../packages/engine-rpc
-      '@spirula/engine-sqlite':
+      '@spirula-app/engine-sqlite':
         specifier: workspace:*
         version: link:../../packages/engine-sqlite
-      '@spirula/extension-api':
+      '@spirula-app/extension-api':
         specifier: workspace:*
         version: link:../../packages/extension-api
-      '@spirula/extension-host':
+      '@spirula-app/extension-host':
         specifier: workspace:*
         version: link:../../packages/extension-host
       '@types/better-sqlite3':
@@ -168,17 +168,17 @@ importers:
 
   packages/create-extension:
     dependencies:
-      '@spirula/extension-api':
+      '@spirula-app/extension-api':
         specifier: workspace:*
         version: link:../extension-api
     devDependencies:
-      '@spirula/extension-host':
+      '@spirula-app/extension-host':
         specifier: workspace:*
         version: link:../extension-host
-      '@spirula/extension-sdk':
+      '@spirula-app/extension-sdk':
         specifier: workspace:*
         version: link:../extension-sdk
-      '@spirula/extension-tools':
+      '@spirula-app/extension-tools':
         specifier: workspace:*
         version: link:../extension-tools
       '@types/node':
@@ -190,7 +190,7 @@ importers:
 
   packages/engine:
     dependencies:
-      '@spirula/engine-contract':
+      '@spirula-app/engine-contract':
         specifier: workspace:*
         version: link:../engine-contract
       ts-fsrs:
@@ -221,10 +221,10 @@ importers:
 
   packages/engine-git:
     dependencies:
-      '@spirula/engine':
+      '@spirula-app/engine':
         specifier: workspace:*
         version: link:../engine
-      '@spirula/engine-contract':
+      '@spirula-app/engine-contract':
         specifier: workspace:*
         version: link:../engine-contract
       isomorphic-git:
@@ -240,10 +240,10 @@ importers:
 
   packages/engine-rpc:
     dependencies:
-      '@spirula/engine':
+      '@spirula-app/engine':
         specifier: workspace:*
         version: link:../engine
-      '@spirula/engine-contract':
+      '@spirula-app/engine-contract':
         specifier: workspace:*
         version: link:../engine-contract
       zod:
@@ -259,13 +259,13 @@ importers:
 
   packages/engine-sql-runner:
     dependencies:
-      '@spirula/engine':
+      '@spirula-app/engine':
         specifier: workspace:*
         version: link:../engine
-      '@spirula/engine-contract':
+      '@spirula-app/engine-contract':
         specifier: workspace:*
         version: link:../engine-contract
-      '@spirula/extension-api':
+      '@spirula-app/extension-api':
         specifier: workspace:*
         version: link:../extension-api
       better-sqlite3:
@@ -284,7 +284,7 @@ importers:
 
   packages/engine-sqlite:
     dependencies:
-      '@spirula/engine':
+      '@spirula-app/engine':
         specifier: workspace:*
         version: link:../engine
       better-sqlite3:
@@ -303,14 +303,14 @@ importers:
 
   packages/ext-choice:
     dependencies:
-      '@spirula/extension-api':
+      '@spirula-app/extension-api':
         specifier: workspace:*
         version: link:../extension-api
-      '@spirula/extension-sdk':
+      '@spirula-app/extension-sdk':
         specifier: workspace:*
         version: link:../extension-sdk
     devDependencies:
-      '@spirula/extension-tools':
+      '@spirula-app/extension-tools':
         specifier: workspace:*
         version: link:../extension-tools
       '@types/node':
@@ -325,17 +325,17 @@ importers:
 
   packages/ext-math:
     dependencies:
-      '@spirula/extension-api':
+      '@spirula-app/extension-api':
         specifier: workspace:*
         version: link:../extension-api
-      '@spirula/extension-sdk':
+      '@spirula-app/extension-sdk':
         specifier: workspace:*
         version: link:../extension-sdk
       mathjax-full:
         specifier: ^3
         version: 3.2.2
     devDependencies:
-      '@spirula/extension-tools':
+      '@spirula-app/extension-tools':
         specifier: workspace:*
         version: link:../extension-tools
       '@types/node':
@@ -350,29 +350,29 @@ importers:
 
   packages/ext-sql:
     dependencies:
-      '@spirula/engine-sql-runner':
+      '@spirula-app/engine-sql-runner':
         specifier: workspace:*
         version: link:../engine-sql-runner
-      '@spirula/extension-api':
+      '@spirula-app/extension-api':
         specifier: workspace:*
         version: link:../extension-api
-      '@spirula/extension-sdk':
+      '@spirula-app/extension-sdk':
         specifier: workspace:*
         version: link:../extension-sdk
     devDependencies:
-      '@spirula/engine':
+      '@spirula-app/engine':
         specifier: workspace:*
         version: link:../engine
-      '@spirula/engine-contract':
+      '@spirula-app/engine-contract':
         specifier: workspace:*
         version: link:../engine-contract
-      '@spirula/extension-host':
+      '@spirula-app/extension-host':
         specifier: workspace:*
         version: link:../extension-host
-      '@spirula/extension-tools':
+      '@spirula-app/extension-tools':
         specifier: workspace:*
         version: link:../extension-tools
-      '@spirula/testkit':
+      '@spirula-app/testkit':
         specifier: workspace:*
         version: link:../testkit
       '@types/node':
@@ -396,13 +396,13 @@ importers:
 
   packages/extension-host:
     dependencies:
-      '@spirula/engine':
+      '@spirula-app/engine':
         specifier: workspace:*
         version: link:../engine
-      '@spirula/engine-contract':
+      '@spirula-app/engine-contract':
         specifier: workspace:*
         version: link:../engine-contract
-      '@spirula/extension-api':
+      '@spirula-app/extension-api':
         specifier: workspace:*
         version: link:../extension-api
       ajv:
@@ -421,7 +421,7 @@ importers:
 
   packages/extension-sdk:
     dependencies:
-      '@spirula/extension-api':
+      '@spirula-app/extension-api':
         specifier: workspace:*
         version: link:../extension-api
       ajv:
@@ -440,10 +440,10 @@ importers:
 
   packages/extension-tools:
     dependencies:
-      '@spirula/extension-api':
+      '@spirula-app/extension-api':
         specifier: workspace:*
         version: link:../extension-api
-      '@spirula/extension-host':
+      '@spirula-app/extension-host':
         specifier: workspace:*
         version: link:../extension-host
       vite:
@@ -459,10 +459,10 @@ importers:
 
   packages/testkit:
     dependencies:
-      '@spirula/engine':
+      '@spirula-app/engine':
         specifier: workspace:*
         version: link:../engine
-      '@spirula/engine-contract':
+      '@spirula-app/engine-contract':
         specifier: workspace:*
         version: link:../engine-contract
       fast-check:

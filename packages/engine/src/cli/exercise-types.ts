@@ -1,6 +1,6 @@
 /**
- * Виды заданий для `engine-cli --extensions`. Ядро от `@spirula/extension-host`
- * не зависит (хост зависит от `@spirula/engine`): пакеты подгружаются динамически
+ * Виды заданий для `engine-cli --extensions`. Ядро от `@spirula-app/extension-host`
+ * не зависит (хост зависит от `@spirula-app/engine`): пакеты подгружаются динамически
  * по имени, типы — локальные. Так CLI работает в монорепозитории, а сборка
  * ядра не тянет код хоста расширений.
  */
@@ -39,8 +39,8 @@ interface ExtensionHostLocalModule {
 }
 
 /** Имена в переменных: без литерала `tsc` не пытается разрешить пакеты в этот проект. */
-const HOST_PACKAGE = '@spirula/extension-host';
-const HOST_LOCAL_PACKAGE = '@spirula/extension-host/local';
+const HOST_PACKAGE = '@spirula-app/extension-host';
+const HOST_LOCAL_PACKAGE = '@spirula-app/extension-host/local';
 
 export class ExerciseTypesUnavailableError extends Error {}
 

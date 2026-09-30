@@ -14,8 +14,8 @@ const USAGE = `usage: create-spirula-extension <dir> [--id <id>] [--local <repoR
 
   <dir>              каталог нового проекта (должен быть пуст или отсутствовать)
   --id <id>          id расширения (по умолчанию — kebab-case имени каталога)
-  --local <repoRoot> корень репозитория Spirula: @spirula/extension-sdk и
-                     @spirula/extension-tools подключаются как link:<repoRoot>/packages/...
+  --local <repoRoot> корень репозитория Spirula: @spirula-app/extension-sdk и
+                     @spirula-app/extension-tools подключаются как link:<repoRoot>/packages/...
   --help             эта справка
 `;
 
@@ -58,7 +58,7 @@ const nextSteps = (dir: string, id: string, isLocal: boolean): string => {
   ];
   const note = isLocal
     ? ''
-    : '\nЗамечание: @spirula/extension-sdk и @spirula/extension-tools не опубликованы, ' +
+    : '\nЗамечание: @spirula-app/extension-sdk и @spirula-app/extension-tools не опубликованы, ' +
       'версия ^0.0.0 не установится.\nУкажите пути к репозиторию Spirula: ' +
       'create-spirula-extension <dir> --local <repoRoot>.\n';
   return `\nДальше:\n${steps.join('\n')}\n${note}`;

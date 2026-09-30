@@ -16,8 +16,8 @@
  *   не имеют и покрыты в тестах загрузчика/артефакта.
  */
 import { describe, expect, it } from 'vitest';
-import type { ExerciseFilterDto } from '@spirula/engine-contract';
-import { createSeededRng } from '@spirula/testkit';
+import type { ExerciseFilterDto } from '@spirula-app/engine-contract';
+import { createSeededRng } from '@spirula-app/testkit';
 import { DEFAULT_SCHEDULER_OPTIONS } from '../../../src/scheduler/index.ts';
 import { createWorld } from '../helpers/world.ts';
 import type { WorldCourseSpec } from '../helpers/world.ts';

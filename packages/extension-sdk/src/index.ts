@@ -1,4 +1,4 @@
-export * from '@spirula/extension-api';
+export * from '@spirula-app/extension-api';
 export {
   defineExerciseType,
   defineExtension,

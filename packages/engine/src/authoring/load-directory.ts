@@ -13,7 +13,7 @@ import type {
   Diagnostic,
   DiagnosticCode,
   DiagnosticSummary,
-} from '@spirula/engine-contract';
+} from '@spirula-app/engine-contract';
 import { assembleLibrary } from '../domain/library.ts';
 import type { Library } from '../domain/library.ts';
 import type { CourseSource } from '../ports/index.ts';

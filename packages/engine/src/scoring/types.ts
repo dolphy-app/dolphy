@@ -1,4 +1,8 @@
-import type { EpochMs, ScorerInfoDto, UnitId } from '@spirula/engine-contract';
+import type {
+  EpochMs,
+  ScorerInfoDto,
+  UnitId,
+} from '@spirula-app/engine-contract';
 import type { ExerciseType } from '../domain/manifest.ts';
 
 /**

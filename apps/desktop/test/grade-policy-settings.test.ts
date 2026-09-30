@@ -5,7 +5,7 @@ import type {
   GradePolicyInfoDto,
   LearningEngine,
   LearningSettingsDto,
-} from '@spirula/engine-contract';
+} from '@spirula-app/engine-contract';
 import { messages } from '@/pages/settings/i18n/index.ts';
 import {
   toGradePolicyOptions,

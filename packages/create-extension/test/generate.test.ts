@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { defaultElementName } from '@spirula/extension-api';
-import { parseManifest } from '@spirula/extension-host';
+import { defaultElementName } from '@spirula-app/extension-api';
+import { parseManifest } from '@spirula-app/extension-host';
 import { describe, expect, it } from 'vitest';
 import {
   GenerateError,
@@ -106,8 +106,8 @@ describe('generateExtension', () => {
     const pkg = await readJson(path.join(dir, 'package.json'));
     expect(isLocal).toBe(false);
     expect(pkg['devDependencies']).toMatchObject({
-      '@spirula/extension-sdk': '^0.0.0',
-      '@spirula/extension-tools': '^0.0.0',
+      '@spirula-app/extension-sdk': '^0.0.0',
+      '@spirula-app/extension-tools': '^0.0.0',
     });
   });
 
@@ -120,8 +120,8 @@ describe('generateExtension', () => {
     const pkg = await readJson(path.join(dir, 'package.json'));
     expect(isLocal).toBe(true);
     expect(pkg['devDependencies']).toMatchObject({
-      '@spirula/extension-sdk': `link:${REPO_ROOT}/packages/extension-sdk`,
-      '@spirula/extension-tools': `link:${REPO_ROOT}/packages/extension-tools`,
+      '@spirula-app/extension-sdk': `link:${REPO_ROOT}/packages/extension-sdk`,
+      '@spirula-app/extension-tools': `link:${REPO_ROOT}/packages/extension-tools`,
     });
   });
 

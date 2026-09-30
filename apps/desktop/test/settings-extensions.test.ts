@@ -4,7 +4,7 @@ import type {
   ExtensionInfoDto,
   ExtensionSettingsDto,
   LearningEngine,
-} from '@spirula/engine-contract';
+} from '@spirula-app/engine-contract';
 import {
   contributionGroups,
   hasSwitches,

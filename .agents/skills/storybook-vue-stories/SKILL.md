@@ -1,6 +1,6 @@
 ---
 name: storybook-vue-stories
-description: Пишет Storybook stories (CSF 3, Storybook 10) для Vue 3 компонентов. Использовать при создании или правке `*.stories.ts`, при просьбе "напиши story / сторис для компонента", "подключи storybook", "покажи компонент в storybook", для UI-компонентов `@spirula/ui` и `apps/desktop/src/shared/ui`. Write Storybook stories for Vue 3 components.
+description: Пишет Storybook stories (CSF 3, Storybook 10) для Vue 3 компонентов. Использовать при создании или правке `*.stories.ts`, при просьбе "напиши story / сторис для компонента", "подключи storybook", "покажи компонент в storybook", для UI-компонентов `@spirula-app/ui` и `apps/desktop/src/shared/ui`. Write Storybook stories for Vue 3 components.
 ---
 
 # Storybook stories для Vue 3
@@ -148,14 +148,14 @@ export default preview;
 
 `vite.config.ts` Storybook должен подхватывать `vite-plugin-vuetify` (после `@vitejs/plugin-vue`): если конфиг пакета его содержит, Storybook берёт этот файл сам. Пример выше собран именно так [ИЗМЕРЕНО]. Всё, что приложение регистрирует глобально (`app.use`, `app.component`, `provide`), регистрируется и в `setup((app) => ...)`, иначе story отличается от приложения. Остальные Vuetify-вызовы — по скиллу `vuetify-skilld`.
 
-`@spirula/ui` держит Vuetify как peer: `createSpirulaVuetify()` лежит в приложении (`apps/desktop/src/shared/ui`), поэтому в `.storybook/preview.ts` пакета плагин создаётся локально через `createVuetify`, приложение из пакета не импортировать.
+`@spirula-app/ui` держит Vuetify как peer: `createSpirulaVuetify()` лежит в приложении (`apps/desktop/src/shared/ui`), поэтому в `.storybook/preview.ts` пакета плагин создаётся локально через `createVuetify`, приложение из пакета не импортировать.
 
 ## Репозиторий
 
 - Язык: код и идентификаторы английские, комментарии и JSDoc-описания props — русские, как в остальном репозитории.
 - Стиль: скилл `js-conventions`, Prettier 80 колонок, одинарные кавычки, точки с запятой. Шаблон в `template` — обычная строка или шаблонный литерал.
 - Имена компонентов из нескольких слов (`AppButton`, не `Button`): правило `vue/multi-word-component-names` включено, а `<Button>` ещё и путается с нативным `<button>`.
-- Расположение: `packages/ui/src/<component>/<Name>.stories.ts` для сложных компонентов `@spirula/ui`; в приложении — рядом с компонентом, в `ui`-сегменте слайса (`skill://feature-sliced-design`). Story не экспортируются из `index.ts` слайса и не импортируют слои выше своего.
+- Расположение: `packages/ui/src/<component>/<Name>.stories.ts` для сложных компонентов `@spirula-app/ui`; в приложении — рядом с компонентом, в `ui`-сегменте слайса (`skill://feature-sliced-design`). Story не экспортируются из `index.ts` слайса и не импортируют слои выше своего.
 - Story исключаются из сборки типов библиотеки: `"exclude": ["src/**/*.stories.ts"]` в `tsconfig.json` пакета (`emitDeclarationOnly`, иначе `.d.ts` генерируются и для них). Типы самих stories проверяются отдельным проектом (`tsconfig.stories.json`), добавленным в `typecheck` пакета.
 - `play` — интеракционный тест внутри Storybook; unit-тесты Vitest остаются отдельно и не дублируют `play`.
 

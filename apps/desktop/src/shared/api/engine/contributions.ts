@@ -2,7 +2,7 @@ import { inject } from 'vue';
 import type {
   ContributionsDto,
   LearningEngine,
-} from '@spirula/engine-contract';
+} from '@spirula-app/engine-contract';
 import { CONTRIBUTIONS_KEY } from './keys.ts';
 
 export const NO_CONTRIBUTIONS: ContributionsDto = {

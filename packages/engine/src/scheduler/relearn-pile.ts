@@ -2,7 +2,7 @@ import type {
   Grade,
   SchedulerOptionsDto,
   UnitId,
-} from '@spirula/engine-contract';
+} from '@spirula-app/engine-contract';
 import type { Rng } from '../ports/index.ts';
 import type { Precision } from '../scoring/types.ts';
 import { roundOf } from './precision.ts';

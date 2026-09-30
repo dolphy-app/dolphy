@@ -1,4 +1,8 @@
-import { buildAttempt, buildUnitFlag, createFakeClock } from '@spirula/testkit';
+import {
+  buildAttempt,
+  buildUnitFlag,
+  createFakeClock,
+} from '@spirula-app/testkit';
 import { describe, expect, it } from 'vitest';
 import type { LogEntry } from '../../src/domain/journal.ts';
 import { createMemoryEventStore } from '../../src/node/index.ts';

@@ -1,5 +1,5 @@
 {
-  "name": "@spirula/engine-contract",
+  "name": "@spirula-app/engine-contract",
   "version": "0.0.0",
   "private": true,
   "description": "Типы и константы контракта UI ↔ движок (renderer-safe)",

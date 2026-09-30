@@ -13,7 +13,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import type { Diagnostic, DiagnosticCode } from '@spirula/engine-contract';
+import type { Diagnostic, DiagnosticCode } from '@spirula-app/engine-contract';
 import { plan } from './gen.ts';
 
 /**

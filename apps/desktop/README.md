@@ -75,6 +75,7 @@ Layout берётся из `assets/wireframes-screens.pdf`, палитра — �
 | `pnpm -F @lms/desktop build:app`            | только `vite build`                                                                          |
 | `pnpm -F @lms/desktop build` (`pnpm build`) | типы, `vite build`, `electron-builder` (пакет приложения)                                    |
 | `pnpm -F @lms/desktop smoke`                | смоук-сборка и сквозной смоук в настоящем Electron                                           |
+| `pnpm -F @lms/desktop e2e`                  | e2e через окно приложения в настоящем Electron (см. «E2E»)                                   |
 | `pnpm -F @lms/desktop smoke:packaged`       | то же в упакованном неподписанном `.app` (из корня: `pnpm smoke:packaged`)                   |
 
 ## Dev-данные
@@ -97,6 +98,14 @@ Layout берётся из `assets/wireframes-screens.pdf`, палитра — �
 - `pnpm smoke` — смоук-сборка и запуск неупакованного приложения (`electron dist-smoke/dist-electron/main/index.js`).
 - `pnpm smoke:packaged` — та же сборка, упакованная `electron-builder --dir` без подписи (`CSC_IDENTITY_AUTO_DISCOVERY=false`) во временный каталог вне репозитория; запускается бинарник `.app`: хост и раннер грузятся из `app.asar`, `better-sqlite3` — из `app.asar.unpacked`, раннер стартует с `ELECTRON_RUN_AS_NODE`. Скрипт сверяет `packaged` в отчёте, наличие `app.asar` и `app.asar.unpacked` и после выхода ждёт до 5 с, затем убивает и считает ошибкой любые оставшиеся процессы из каталога упакованного приложения. Проверено на macOS arm64; пути бинарника для Linux и Windows заданы по раскладке electron-builder и не проверялись.
 - `--verbose` печатает stderr хоста и main и вывод сборки.
+
+## E2E
+
+`e2e/` — сценарии от лица ученика: настоящий Electron, клики и чтение экрана (Playwright `_electron` под vitest, `vitest.e2e.config.ts`); в корневой `pnpm test` не входят. `pnpm -F @lms/desktop e2e` сам собирает релизный бандл в `dist-e2e` (`LMS_BUILD_OUT`, `dist` запущенного `pnpm dev` не трогается; `LMS_E2E_SKIP_BUILD=1` переиспользует сборку) и гоняет каждый тест на временном `userData` с теми же курсами, что кладёт `dev:seed`. Приложение запускается с `--user-data-dir` и `--lang=ru` (селекторы — по русским строкам интерфейса), поэтому не конфликтует с dev-запуском. Окна показываются на экране.
+
+- «Проходят дни»: приложение закрывается, `shiftJournalBack` сдвигает `at`/`recorded_at` всех записей `log_entry` временной БД в прошлое, приложение открывается снова — движок видит забывание, план дня заполняется повторениями. Так курс проходится целиком за один прогон.
+- Журнал и настройки проверяются прямым чтением `engine.db` (`better-sqlite3`, read-only): число и оценки попыток, `source`, непрерывный `seq`, `ui.activeCourseId`.
+- Сценарии: каталог курсов; «Учить» и фокус курса; Git до «Пройден 3 из 3» (оценки «5», с повторами через дни); один проход урока не открывает следующий; оценки «1» возвращаются в план через сутки; SQL — неверный ответ не пишется в журнал, верный пишется с `source=runner`, «Сдаться» даёт оценку 1.
 
 ## Безопасность
 

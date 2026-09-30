@@ -1,2 +1,5 @@
 # смоук-сборка (LMS_SMOKE_BUILD=1): scripts/smoke.mjs
 dist-smoke
+
+# сборка для e2e (pnpm e2e): e2e/global-setup.ts
+dist-e2e

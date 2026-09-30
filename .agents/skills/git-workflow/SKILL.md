@@ -72,7 +72,7 @@ until [ "$(gh pr view "$pr" --json mergeable -q .mergeable)" != UNKNOWN ]; do sl
 gh pr view "$pr" --json mergeable,mergeStateStatus
 ```
 
-- `MERGEABLE` → `gh pr merge "$pr" --merge --delete-branch --subject "Merge feature/<feature-name> into develop"`.
+- `MERGEABLE` → `gh pr merge "$pr" --merge --subject "Merge feature/<feature-name> into develop"`. Без `--delete-branch`: после слияния `gh` переключает локальную копию на `develop`, а из worktree это падает (`develop` занят основной копией), и удаление ветки на сервере не выполняется. Проверить итог: `gh pr view "$pr" --json state -q .state` → `MERGED`.
 - `CONFLICTING` → не сливать. Подтянуть `develop` в ветку, решить конфликты, проверить `pnpm lint`, запушить, повторить проверку:
   ```sh
   git fetch origin && git merge origin/develop   # конфликты → правка → git add → git commit
@@ -136,7 +136,7 @@ git worktree remove ../lms-platform-design-<feature-name>   # если рабо�
 git worktree prune
 ```
 
-Удалённая ветка уже удалена флагом `--delete-branch`.
+Удалённую ветку удалить явно: `git push origin --delete feature/<feature-name>`.
 
 ## Чего не делать
 

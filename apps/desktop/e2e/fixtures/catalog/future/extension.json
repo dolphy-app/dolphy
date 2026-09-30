@@ -1,0 +1,24 @@
+{
+  "id": "acme.future",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "name": "Future",
+  "description": "Тема для будущей версии приложения",
+  "author": "acme",
+  "minAppVersion": "99.0.0",
+  "contributes": {
+    "themes": [
+      {
+        "id": "acme.future",
+        "label": "Будущее",
+        "dark": true,
+        "colors": {
+          "background": "#0B1020",
+          "surface": "#141B30",
+          "primary": "#7DD3FC",
+          "on-primary": "#0B1020"
+        }
+      }
+    ]
+  }
+}

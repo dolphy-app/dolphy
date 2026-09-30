@@ -1,0 +1,24 @@
+{
+  "id": "acme.sunrise",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "name": "Sunrise",
+  "description": "Тёплая светлая тема «Рассвет»",
+  "author": "acme",
+  "permissions": ["library.read"],
+  "contributes": {
+    "themes": [
+      {
+        "id": "acme.sunrise",
+        "label": "Рассвет",
+        "dark": false,
+        "colors": {
+          "background": "#FFF4E5",
+          "surface": "#FFFFFF",
+          "primary": "#C2410C",
+          "on-primary": "#FFFFFF"
+        }
+      }
+    ]
+  }
+}

@@ -1,100 +1,102 @@
-# lms-platform-design
+# LMS
 
 **English** · [Русский](README.ru.md)
 
-A local adaptive learning platform: a knowledge graph, spaced repetition (FSRS), courses as Markdown in Git, and answers checked by deterministic runners (SQL). Data and progress stay on the device (SQLite, `engine.db`); there is no server. The repository holds both the system design documents and the code: the business-logic layer `engine-ts` (a TypeScript port of Trane on ts-fsrs) and a desktop app on Electron.
+**Learn in the right order. Remember for good. Keep everything on your computer.**
 
-## Status
+LMS is a desktop app for learning skills that build on each other: SQL, Git, HTTP, JavaScript, or anything you can break into lessons. It does three things flashcards alone can't:
 
-| Part                        | Status                                                                                                                                                                                                 |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Engine (`packages/engine*`) | implemented: course loading and compilation, attempt journal, scheduler, placement diagnostic, SQL answer checking, journal merge between devices; package map in `packages/README.md` (Russian)       |
-| App (`apps/desktop`)        | daily plan, course catalog and course switcher, study session (SQL runner and self-grading), settings (scheduler, library, theme, `ru`/`en` language); structure in `apps/desktop/README.md` (Russian) |
-| Not done                    | knowledge graph, analytics, Vault and adding content, command palette search                                                                                                                           |
+- **Plans your day.** Every morning it picks what to review and which new lesson to start, and it only opens a lesson once the lessons it depends on are mastered.
+- **Checks real answers.** Write a SQL query and the app runs it and tells you if it's right. No grading yourself, no fooling yourself.
+- **Stays yours.** No account, no server, no telemetry. Courses are plain Markdown files; your progress lives in a single SQLite file on your disk.
 
-Installers (macOS `.dmg`, Windows `.exe`, Linux `.AppImage`) are built on every release and attached to [GitHub Releases](../../releases). They are unsigned, so the OS warns on first launch.
+[Download](#download) · [Try it from source](#try-it-from-source) · [What's inside](#whats-inside) · [Built on Trane](#built-on-trane)
 
-## Quick start
+## Why LMS
 
-Requires Node ≥ 22.12 (`.nvmrc`) and pnpm 9.15.9 (the `packageManager` field).
+Most study tools treat knowledge as a pile of cards. But skills aren't a pile. You can't write a window function before you understand `GROUP BY`, and you can't rebase a branch before you understand commits. So you either follow a fixed syllabus and forget the early lessons, or you shuffle a deck and hit material you aren't ready for.
+
+LMS models a course as a **graph of lessons with prerequisites** and schedules it with **FSRS**, the modern spaced-repetition algorithm. You always see what is ready to learn, what is due to review, and what is still locked, and the plan makes sure old topics don't fade while you push forward.
+
+## What's inside
+
+|                              |                                                                                                                                                                                                                                   |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Daily plan**               | A short list for today: reviews that are due plus new material, mixed across your courses so similar topics don't pile up. Tune how much is new, how many lessons run in parallel and how strongly you want to remember things.   |
+| **Knowledge graph**          | See every lesson as a node: locked, ready, in progress, mastered. Know exactly what unlocks what and why you're stuck.                                                                                                            |
+| **Placement test**           | A short adaptive quiz finds what you already know and marks it done, so a course starts where you are, not at page one.                                                                                                           |
+| **Runner-checked exercises** | SQL answers are executed in an isolated worker against a practice database and compared with the expected result. Your rating comes from the outcome, not from your mood. Other exercises use classic flip-and-rate self-grading. |
+| **Reinforce the basics**     | Keep failing an exercise and the plan pulls in exercises from its prerequisites instead of letting you grind at a wall.                                                                                                           |
+| **Several courses at once**  | Switch focus between courses. Each keeps its own progress, and switching never loses anything.                                                                                                                                    |
+| **Local-first**              | Progress is an append-only journal in SQLite. It survives a killed process, never leaves the device, and is designed to merge cleanly between devices without a server.                                                           |
+| **Yours to write**           | A course is a folder of Markdown and small JSON files. Edit it in any editor, keep it in Git, share it as a zip.                                                                                                                  |
+| **Comfortable**              | Light and dark themes, interface in English and Russian.                                                                                                                                                                          |
+
+## A day with LMS
+
+1. Open the app. The plan for today is already there.
+2. Start a session. Answer a question, run a query, rate how it went.
+3. The scheduler updates your memory model and decides when you'll see each item again.
+4. Finish a lesson's exercises well enough and its dependents unlock on the graph.
+5. Come back tomorrow. Forgotten things return as reviews just before you'd forget them.
+
+## If you know Anki
+
+You'll feel at home: spaced repetition on FSRS (the algorithm [Anki](https://apps.ankiweb.net) itself now offers), a daily queue, a rating after each item. LMS adds what a flat deck cannot express:
+
+- **Structure.** Lessons depend on each other. New material appears when you're ready, not when it happens to be next in the deck.
+- **Verification.** Code exercises are graded by running them.
+- **A sense of progress.** A graph and per-course mastery instead of a single counter of cards.
+
+It is not an Anki replacement for vocabulary or trivia. It's aimed at skills with a dependency structure.
+
+## Built on Trane
+
+LMS stands on [**Trane**](https://github.com/trane-project/trane), an open-source practice engine written in Rust for mastering complex, hierarchical skills, originally for jazz improvisation and named after John Coltrane. Trane's core idea is the one this project is built around: skills form a graph, practice follows it, new skills unlock as their prerequisites are mastered, and old ones are reinforced along the way.
+
+We started by reading Trane's source and running experiments against it, then **ported its scheduler to TypeScript** and built a product around it.
+
+| From Trane                                                                             | Added in LMS                                                                                                                  |
+| -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Courses as plain-text files: lessons, exercises, dependencies                          | FSRS memory model (via [ts-fsrs](https://github.com/open-spaced-repetition/ts-fsrs)) instead of Trane's own scoring heuristic |
+| Depth-first scheduler: lesson gating, mastery windows, relearn pile, shuffling         | Answers verified by runners (SQL today) instead of self-rating only                                                           |
+| "Encompassing" links: practising a hard topic also practises the simple ones inside it | Placement test and targeted reinforcement of prerequisites                                                                    |
+| Practice history derived from a log of trials                                          | Mergeable multi-device journal, desktop app with Electron and Vue                                                             |
+
+Trane's own documentation lives at [trane-project.github.io](https://trane-project.github.io/). If you want a Rust library or a terminal workflow, go straight to Trane.
+
+Also studied along the way: [FSRS](https://github.com/open-spaced-repetition/free-spaced-repetition-scheduler) and Anki for memory scheduling, Math Academy for prerequisite graphs with weighted links, knowledge space theory for placement, and RemNote and Mochi for authoring ergonomics.
+
+## By the numbers
+
+- **5** sample courses in the repository, **34** lessons, **120** exercises, including **72** SQL exercises checked by running queries.
+- **2,800+** automated tests, including property tests for journal merging and a test that kills the process mid-write to prove the journal survives.
+- The FSRS implementation is cross-checked against the reference `py-fsrs` on **600** learner histories (**18,564** reviews).
+- **3** platforms: macOS, Windows, Linux.
+- **0** accounts, servers or trackers.
+
+## Download
+
+Installers for macOS (`.dmg`), Windows (`.exe`) and Linux (`.AppImage`) are attached to every [GitHub Release](../../releases). They are unsigned, so your OS will warn you on first launch.
+
+The installer doesn't include courses yet. A course is a folder; drop it into the app's `library` folder (inside its user-data directory) and press **Settings → Library → Reload**. The quickest way to see the app with real content is to run it from source with the sample courses.
+
+## Try it from source
+
+Needs Node ≥ 22.12 and pnpm 9.15.9.
 
 ```sh
 pnpm install
-pnpm dev:seed   # put the SQL course and the Git, HTTP, JavaScript courses from apps/desktop/dev-library into the library
-pnpm dev        # the app in development mode
+pnpm dev:seed   # copy the sample courses (SQL, Git, HTTP, JavaScript) into the library
+pnpm dev        # start the app
 ```
 
-| Command          | What it does                                     |
-| ---------------- | ------------------------------------------------ |
-| `pnpm test`      | tests of all packages (`vitest`)                 |
-| `pnpm typecheck` | types per package (`tsc -b`)                     |
-| `pnpm lint`      | ESLint and Prettier                              |
-| `pnpm build`     | build the app and an installer for this platform |
-| `pnpm smoke`     | end-to-end smoke in a real Electron              |
+## Roadmap
 
-The full command list and repository rules (style, UI, git process, releases, CI) are in `AGENTS.md` (Russian). Changes go `feature/*` → PR into `develop` → release by merging into `main`; versions, `CHANGELOG.md` and tags are produced by semantic-release from Conventional Commits.
+Working today: daily plan, courses screen and course focus, study sessions, knowledge graph, placement test, settings for the scheduler and library, themes, English and Russian interface.
 
-## Repository layout
+Next: analytics, adding content from inside the app, a command palette, more exercise types (drag and drop, matching), syncing between devices from the UI. The sample courses are written in Russian for now; the interface is fully bilingual.
 
-| Path                            | What                                                                                |
-| ------------------------------- | ----------------------------------------------------------------------------------- |
-| `apps/desktop`                  | Electron + Vue 3 + Vite + Vuetify; the engine runs in a `utilityProcess`            |
-| `packages/`                     | `@lms/*` packages of the business-logic layer and complex UI components (`@lms/ui`) |
-| `docs/`, `engine-ts/`, `spike/` | system design documents, research and spike reports; no code                        |
-| `vendor/metaskills`, `.agents/` | skills for agents (a git submodule and directories), see "Skills"                   |
+## Contributing
 
-The documents are written in Russian; identifiers and code are in English. Markers used in them: [ИЗМЕРЕНО] — obtained by a run, [ВЫВОД] — a conclusion, [ОЦЕНКА] — a calculation, [НЕ ПОДТВЕРЖДЕНО] — not verified. To start reading the design, see `engine-ts/README.md`.
-
-## Document map
-
-| Path                                                                                                   | What                                                                                                                                                                                                                                                                 |
-| ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `docs/design/platform-synthesis.md`                                                                    | synthesis of the research, platform requirements F1–F7 (§4), architecture                                                                                                                                                                                            |
-| `docs/design/mvp-trane.md`, `mvp-trane-vs-knowledge-spaces.md`, `build-vs-port.md`, `fsrs-in-trane.md` | options for building the core (Trane as the MVP engine, comparison with knowledge spaces, port versus own core, FSRS in Trane)                                                                                                                                       |
-| `docs/research/`                                                                                       | research: Trane (overview, source audit, spike), Math Academy, Vanderbilt Knowledge Spaces, RemNote, Mochi, FSRS versus PowerLaw, FSRS in Trane (scorer, history truncation, integration), how the industry structures specs and ADRs (`spec-workflows.md`, Russian) |
-| `engine-ts/README.md`                                                                                  | reading order, M0 start, open questions, pitfalls                                                                                                                                                                                                                    |
-| `engine-ts/design/`                                                                                    | main design v1 (`engine-ts.md`), API contract, test strategy, diagram (`.html`)                                                                                                                                                                                      |
-| `engine-ts/research/`                                                                                  | 4 specs of Trane behavior, 8 spike reports (FSRS, PowerLaw, loader, F1–F7), `facts-stack.md`                                                                                                                                                                         |
-| `spike/REPORT-audit.md`, `spike/REPORT-spike.md`                                                       | reports of the first round of Trane spikes; `REPORT-audit.md` differs from `docs/research/trane-source-audit.md` (48 KB versus 39.8 KB), `REPORT-spike.md` is a copy of `docs/research/trane-spike.md` with a different status note                                  |
-
-Paths inside the documents are written from the root of the original project and kept as they are in this repository (`docs/…`, `engine-ts/design/…`, `engine-ts/research/…`, `spike/REPORT-*.md`).
-
-## Artifacts outside the repository
-
-The sandbox code stayed in `/Users/tinkerbells/projects/lms-platform/` and is not part of git. References to these paths in the documents point there.
-
-| Path in the documents                                                 | What                                                                                                                                                                                                                                                                        |
-| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `engine-ts/spike/`                                                    | 8 prototypes and benchmarks (`compiler`, `diagnostic`, `fire-plan`, `fsrs-check`, `journal-sync`, `loader-bench`, `powerlaw-port`, `sql-runner`; `loader-bench` has no tests, only benchmarks) and the `probes/`, `specs/` probes; dependencies are installed with `npm ci` |
-| `engine-ts/reference/trane-pristine/`                                 | Rust reference of Trane v0.34.1 = tag `v0.34.1`, commit `6f5f84a85667b4bf0402b1185ae5a889ff57e01d` (https://github.com/trane-project/trane), needed for golden tests                                                                                                        |
-| `engine-ts/reference/sql-course/`, `engine-ts/reference/fsrs-scorer/` | a sample course of 7 lessons and a Rust FSRS adapter (12 tests)                                                                                                                                                                                                             |
-| `spike/fsrs-vs-trane/`                                                | the "FSRS versus PowerLaw" experiment (Rust + Python, CSV)                                                                                                                                                                                                                  |
-
-## Skills
-
-[metarhia/metaskills](https://github.com/metarhia/metaskills) (MIT) is connected as the git submodule `vendor/metaskills`, pinned to version 1.0.5 (commit `fe4c4230ea054e4b354d9e81400e26299f1be6d7`). Seven skills: `js-conventions`, `js-data-structures`, `data-structures`, `metautil-data-structures`, `js-gof`, `error-handling`, `npm-publish`.
-
-Agents see them through symlinks: `.agents/skills/<name>` → `vendor/metaskills/skills/<name>`, `.claude/skills/<name>` → `.agents/skills/<name>` (as in `~/.claude/skills`). The symlinks are stored in git. Verified: a headless `omp -p` session started in this directory sees all seven skills in its system prompt [ИЗМЕРЕНО].
-
-```sh
-git submodule update --init && scripts/link-skills.sh          # after cloning without --recurse-submodules
-git submodule update --remote vendor/metaskills && scripts/link-skills.sh   # update the skills
-```
-
-Why not `npx metaskills`: it creates one link `<ide>/skills/metaskills` to the whole folder, that is the layout `skills/metaskills/<name>/SKILL.md`, while omp looks for skills exactly one level below `skills/` (omp documentation, `skills.md`). So `scripts/link-skills.sh` links each skill separately.
-
-The skill [`vuetify-skilld`](https://github.com/harlan-zw/vue-ecosystem-skills/tree/main/skills/vuetify-skilld) (harlan-zw/vue-ecosystem-skills, Vuetify 4.0.1) is stored in git as a regular directory `.agents/skills/vuetify-skilld` (a copy from GitHub, not via market.lobehub.com); `.claude/skills/vuetify-skilld` is a symlink to it. `scripts/link-skills.sh` does not touch it: the script removes only dangling links to `vendor/metaskills`.
-
-The skill [`feature-sliced-design`](https://github.com/feature-sliced/skills) (Feature-Sliced Design v2.1) was installed with `npx skills add https://github.com/feature-sliced/skills --skill feature-sliced-design` (with `DISABLE_TELEMETRY=1`); the CLI puts a copy into `.claude/skills/`, the directory was moved to `.agents/skills/feature-sliced-design`, and `.claude/skills/` holds a symlink, like the others. The source and hash are recorded in `skills-lock.json`.
-
-Our own skill `storybook-vue-stories` (`.agents/skills/storybook-vue-stories`, symlink in `.claude/skills/`) explains how to write Storybook stories for Vue 3 components (CSF 3, Storybook 10, Vuetify, `play`); based on the article https://habr.com/ru/articles/761570/.
-
-The skill `vue-design-reviewer` (`.agents/skills/vue-design-reviewer`, symlink in `.claude/skills/`) is a visual review of a Vue page or component; for components with stories the check goes through Storybook, a report only by default. Based on [web-design-reviewer](https://github.com/github/awesome-copilot/blob/main/skills/web-design-reviewer/SKILL.md) from github/awesome-copilot, using the built-in omp `browser` instead of Playwright MCP.
-
-The skill [`vue-i18n-skilld`](https://github.com/skilld-dev/vue-ecosystem-skills/tree/main/skills/vue-i18n-skilld) (skilld-dev/vue-ecosystem-skills, vue-i18n 11.4.12; listing https://mcpmarket.com/tools/skills/vue-i18n-internationalization) was copied from GitHub into `.agents/skills/vue-i18n-skilld`, with a symlink in `.claude/skills/`. `vue-i18n` is not yet connected to the project.
-
-Our own skill `git-workflow` (`.agents/skills/git-workflow`, symlink in `.claude/skills/`) describes the git process through `gh`: a `feature/<name>` branch from `develop`, commits by Conventional Commits (commitlint, the husky `commit-msg` hook), a PR into `develop` with a short description and a merge commit after a green pipeline, and a release by merging `develop` into `main`. Releases use semantic-release (`release.config.js`, `.github/workflows/release.yml`): version, `CHANGELOG.md`, tag, GitHub Release and `apps/desktop` installers. The release scheme comes from `experience-mf-listing` (semantic-release + commitlint); the CI build follows the `pr-build` and `release` workflows of [longtail-labs/slide.code](https://github.com/longtail-labs/slide.code) (without Conveyor and signing).
-
-Our own skill `spec-workflow` (`.agents/skills/spec-workflow`, symlink in `.claude/skills/`) covers feature specs: `specs/<feature-name>/SPEC.md` for an active feature, moved to `specs/archive/YYYY-MM-DD-<name>/` when the feature is done, and ADRs in `docs/adr/` for decisions that constrain the future; the templates live in the skill's `assets/`. The scheme was chosen from a survey of PEP, Rust RFC, KEP, ADR, OpenSpec, Spec Kit and others: `docs/research/spec-workflows.md`.
-
-Linter and formatter: ESLint (`eslint-config-metarhia`) + Prettier, as `js-conventions` requires; chosen instead of the Biome from the original `engine-ts` design (M0).
+The rules for code, git workflow and releases are in [`AGENTS.md`](AGENTS.md) (Russian); the layout of the repository, design documents and research notes are in [`docs/repository.md`](docs/repository.md) (Russian). Commands you'll need most: `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm build`.

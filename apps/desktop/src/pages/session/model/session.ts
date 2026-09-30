@@ -2,11 +2,11 @@ import { computed, ref, shallowRef } from 'vue';
 import type {
   CompleteAttemptRequest,
   Grade,
+  ExerciseTaskDto,
   ItemReason,
   LearningEngine,
   PlanItemDto,
   RecordResultDto,
-  SubmissionDto,
   UnitId,
   VerdictDto,
 } from '@lms/engine-contract';
@@ -28,8 +28,10 @@ export interface CurrentExercise {
   answer: string | null;
   /** Ответ проверяет раннер; иначе ученик ставит себе оценку. */
   verifiable: boolean;
-  /** Что вводит ученик: `sql` для раннера SQL, иначе текст. */
-  submissionKind: 'sql' | 'text';
+  /** Вид проверяемого задания (элемент ввода ответа); `null` — самопроверка. */
+  task: ExerciseTaskDto | null;
+  /** Публичный вид от расширения (`project`), передаётся элементу ввода. */
+  view: unknown;
   lessonName: string;
   courseName: string;
   /** Markdown материала урока (панель справа). */
@@ -53,12 +55,6 @@ const PASSING_GRADE = 3;
 
 const errorText = (caught: unknown) =>
   caught instanceof Error ? caught.message : String(caught);
-
-const submissionOf = (
-  kind: CurrentExercise['submissionKind'],
-  text: string,
-): SubmissionDto =>
-  kind === 'sql' ? { kind: 'sql', sql: text } : { kind: 'text', text };
 
 export const createSession = (
   engine: LearningEngine,
@@ -108,7 +104,8 @@ export const createSession = (
       prompt: text.prompt,
       answer: text.answer,
       verifiable: attempt.verifiable,
-      submissionKind: exercise.verification?.runner === 'sql' ? 'sql' : 'text',
+      task: exercise.task ?? null,
+      view: attempt.view,
       lessonName: lesson.name,
       courseName: course.name,
       material,
@@ -188,13 +185,13 @@ export const createSession = (
   };
 
   /** Проверка ответа раннером; успех сразу фиксирует попытку. */
-  const submit = (text: string) =>
+  const submit = (answer: unknown) =>
     guarded(async () => {
       const exercise = current.value;
       if (!exercise?.verifiable) return;
       const checked = await engine.practice.submitAnswer({
         attemptId: exercise.attemptId,
-        submission: submissionOf(exercise.submissionKind, text),
+        answer,
       });
       verdict.value = checked;
       if (checked.outcome === 'passed') await complete({});

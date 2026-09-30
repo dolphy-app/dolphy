@@ -21,7 +21,7 @@ export const ru = {
       time: 'Время',
     },
     answer: {
-      sqlLabel: 'SQL-запрос',
+      loadFailed: 'Не удалось загрузить ввод ответа ({element}).',
       label: 'Ответ',
       hint: 'Ctrl/⌘ + Enter — проверить',
       title: 'Ответ',
@@ -66,10 +66,12 @@ export const ru = {
         row_limit: 'Запрос вернул слишком много строк.',
         byte_limit: 'Результат запроса слишком велик.',
         sqlite_limit: 'Запрос превысил лимит SQLite.',
+        invalid_answer: 'Ответ не подходит к заданию.',
       },
       errorReason: {
         fixture_error: 'Задание настроено неверно.',
         expected_error: 'Задание настроено неверно.',
+        invalid_spec: 'Задание настроено неверно.',
         internal: 'Внутренняя ошибка проверки.',
         timeout: 'Проверка заняла слишком много времени.',
         resource_kill: 'Проверка прервана: превышены лимиты ресурсов.',

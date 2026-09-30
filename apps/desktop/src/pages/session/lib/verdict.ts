@@ -19,11 +19,13 @@ const FAILED_REASON_KEY: Readonly<Record<string, string>> = {
   row_limit: 'session.verdict.failedReason.row_limit',
   byte_limit: 'session.verdict.failedReason.byte_limit',
   sqlite_limit: 'session.verdict.failedReason.sqlite_limit',
+  invalid_answer: 'session.verdict.failedReason.invalid_answer',
 };
 
 const ERROR_REASON_KEY: Readonly<Record<string, string>> = {
   fixture_error: 'session.verdict.errorReason.fixture_error',
   expected_error: 'session.verdict.errorReason.expected_error',
+  invalid_spec: 'session.verdict.errorReason.invalid_spec',
   internal: 'session.verdict.errorReason.internal',
   timeout: 'session.verdict.errorReason.timeout',
   resource_kill: 'session.verdict.errorReason.resource_kill',

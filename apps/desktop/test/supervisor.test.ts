@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   HostProcessLike,
   MessageChannelLike,
+  SupervisorOptions,
   WebContentsLike,
 } from '../electron/main/supervisor.ts';
 import {
@@ -80,7 +81,7 @@ const silentLogger = {
   error: () => undefined,
 };
 
-const setup = () => {
+const setup = (extra: Partial<SupervisorOptions> = {}) => {
   const hosts: FakeHost[] = [];
   let channels = 0;
   const onFatal = vi.fn();
@@ -101,6 +102,7 @@ const setup = () => {
     config,
     logger: silentLogger,
     onFatal,
+    ...extra,
   });
   const boot = (host: FakeHost) => {
     host.emit('spawn');
@@ -170,6 +172,26 @@ describe('supervisor', () => {
     win.destroy();
     hosts[0]?.emit('message', { type: 'ready' });
     expect(win.webContents.sent).toEqual([]);
+  });
+
+  it('сообщает onHostReady и onHostExit, а прочие сообщения хоста — в onMessage', () => {
+    const calls: string[] = [];
+    const { supervisor, hosts } = setup({
+      onHostReady: (host) => calls.push(`ready:${host.pid}`),
+      onHostExit: () => calls.push('exit'),
+      onMessage: (message) => calls.push(`message:${JSON.stringify(message)}`),
+    });
+    supervisor.start();
+    const [host] = hosts;
+    host?.emit('spawn');
+    host?.emit('message', { type: 'restart-ext-host' });
+    host?.emit('message', { type: 'ready' });
+    host?.emit('exit', 1);
+    expect(calls).toEqual([
+      'message:{"type":"restart-ext-host"}',
+      'ready:100',
+      'exit',
+    ]);
   });
 
   it('после падения перезапускает хост с экспоненциальным backoff и заново выдаёт порты', () => {

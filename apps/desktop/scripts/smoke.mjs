@@ -3,8 +3,9 @@
 //                        неупакованного приложения
 //   pnpm smoke:packaged  та же сборка, упакованная в неподписанный .app
 //                        (electron-builder --dir, вывод во временный каталог) и
-//                        запуск его бинарника: хост и раннер из app.asar,
-//                        better-sqlite3 из app.asar.unpacked
+//                        запуск его бинарника: хосты из app.asar, расширения
+//                        из Resources/extensions, better-sqlite3 из
+//                        app.asar.unpacked
 // Смоук-код есть только в смоук-сборке; релизная сборка его не содержит
 // (test/release-bundle.test.ts). Режим включает LMS_SMOKE=1 в окружении.
 import { spawn, spawnSync } from 'node:child_process';
@@ -20,13 +21,19 @@ const RESULT_PREFIX = 'LMS_SMOKE_RESULT ';
 const TIMEOUT_MS = 120_000;
 const ORPHAN_WAIT_MS = 5_000;
 const SMOKE_DIR = 'dist-smoke';
-const SCENARIOS = ['basic', 'sql', 'crash'];
+const SCENARIOS = ['basic', 'sql', 'choice', 'crash'];
 
 const root = await mkdtemp(join(tmpdir(), 'lms-smoke-'));
 const appDir = fileURLToPath(new URL('..', import.meta.url));
 const libraryFixture = fileURLToPath(
   new URL(
     '../../../packages/engine/test/fixtures/libraries/sql-course/lib_kb',
+    import.meta.url,
+  ),
+);
+const choiceFixture = fileURLToPath(
+  new URL(
+    '../../../packages/engine/test/fixtures/libraries/choice-course/lib_kb',
     import.meta.url,
   ),
 );
@@ -75,7 +82,7 @@ const listProcesses = () => {
     .filter((line) => Number(line.split(/\s+/)[0]) !== process.pid);
 };
 
-// 1. смоук-сборка: renderer, main, preload, host и sql-worker с кодом смоука
+// 1. смоук-сборка: renderer, main, preload, host, хост расширений и расширения (dist-smoke/extensions) с кодом смоука
 run('pnpm', ['exec', 'vite', 'build'], { LMS_SMOKE_BUILD: '1' });
 
 // 2. упаковка (только --packaged): без подписи, во временный каталог
@@ -88,6 +95,8 @@ if (packaged) {
     ...base,
     directories: { ...base.directories, output: packagedOut },
     files: [SMOKE_DIR, '!**/node_modules/better-sqlite3/{deps,src}/**'],
+    // расширения лежат вне asar: их код читают import() и child_process.fork
+    extraResources: [{ from: join(SMOKE_DIR, 'extensions'), to: 'extensions' }],
     extraMetadata: { main: `${SMOKE_DIR}/dist-electron/main/index.js` },
   };
   const configPath = join(root, 'electron-builder.smoke.json');
@@ -133,12 +142,26 @@ if (packaged) {
       `app.asar or app.asar.unpacked (better-sqlite3) missing in ${resourcesDir}`,
     );
   }
+  for (const file of [
+    'lms.sql/extension.json',
+    'lms.sql/main.mjs',
+    'lms.sql/worker.mjs',
+    'lms.sql/view.mjs',
+    'lms.choice/extension.json',
+    'lms.choice/main.mjs',
+    'lms.choice/view.mjs',
+  ]) {
+    if (!existsSync(join(resourcesDir, 'extensions', file))) {
+      fail(`extension file ${file} missing in ${resourcesDir}/extensions`);
+    }
+  }
   console.log(`packaged app: ${command}`);
 }
 
-// 3. запуск: временный userData, копия библиотеки sql-course
+// 3. запуск: временный userData, копии библиотек sql-course и choice-course
 await mkdir(userData, { recursive: true });
 await cp(libraryFixture, library, { recursive: true });
+await cp(choiceFixture, library, { recursive: true });
 const lines = { stdout: [], stderr: [] };
 const child = spawn(command, args, {
   cwd: appDir,
@@ -169,7 +192,7 @@ const code = await new Promise((resolve) => {
 });
 clearTimeout(timer);
 
-// 4. осиротевшие процессы (раннер SQL, хост, helper'ы)
+// 4. осиротевшие процессы (раннер SQL, хосты, helper'ы)
 const deadline = Date.now() + ORPHAN_WAIT_MS;
 let orphans = listProcesses();
 while (orphans.length > 0 && Date.now() < deadline) {

@@ -1,10 +1,17 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+} from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
+import { discoverExtensions } from '@lms/extension-host';
 
 const appDir = fileURLToPath(new URL('..', import.meta.url));
 const viteBin = join(
@@ -69,12 +76,70 @@ describe('смоук и релизная сборка', () => {
   );
 
   it(
+    'релизный бандл содержит расширения по умолчанию вне кода приложения',
+    async () => {
+      const out = build(false);
+      const expected = {
+        'lms.sql': [
+          'extension.json',
+          'main.mjs',
+          'worker.mjs',
+          'view.mjs',
+          'schema/spec.json',
+          'schema/answer.json',
+        ],
+        'lms.choice': [
+          'extension.json',
+          'main.mjs',
+          'view.mjs',
+          'schema/spec.json',
+          'schema/answer.json',
+        ],
+      };
+      for (const [id, names] of Object.entries(expected)) {
+        for (const name of names) {
+          expect(existsSync(join(out, 'extensions', id, name)), name).toBe(
+            true,
+          );
+        }
+      }
+      const warnings: object[] = [];
+      const logger = {
+        debug: () => undefined,
+        info: () => undefined,
+        warn: (fields: object) => warnings.push(fields),
+        error: () => undefined,
+      };
+      const { extensions, diagnostics } = await discoverExtensions({
+        roots: [{ dir: join(out, 'extensions'), origin: 'bundled' }],
+        logger,
+      });
+      expect(extensions.map(({ id }) => id).sort()).toEqual([
+        'lms.choice',
+        'lms.sql',
+      ]);
+      expect(diagnostics).toEqual([]);
+      expect(warnings).toEqual([]);
+      expect(existsSync(join(out, 'dist-electron/host/sql-worker.js'))).toBe(
+        false,
+      );
+      expect(existsSync(join(out, 'dist-electron/host/ext-host.js'))).toBe(
+        true,
+      );
+    },
+    BUILD_TIMEOUT_MS,
+  );
+
+  it(
     'смоук-сборка содержит смоук во всех процессах: детектор не слепой',
     () => {
       const out = build(true);
       expect(textOf(out, 'dist-electron/main')).toContain('LMS_SMOKE');
       expect(textOf(out, 'dist-electron/preload')).toContain('smoke:report');
       expect(textOf(out, 'dist-electron/host')).toContain('LMS_SMOKE');
+      expect(textOf(out, 'dist-electron/host')).toContain(
+        'exercise types discovered',
+      );
       expect(textOf(out, '/dist/')).toContain('sql_kb::where::q2');
     },
     BUILD_TIMEOUT_MS,

@@ -2,12 +2,14 @@
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
+import type { AnswerChangeDetail } from '@lms/extension-api';
 import { useEngine } from '@/shared/api/engine';
 import { ITEM_REASON } from '@/shared/config/item-reason.ts';
 import { ROUTE } from '@/shared/config/routes.ts';
 import { describeVerdict } from '../lib/verdict.ts';
 import { createSession } from '../model/session.ts';
 import { formatElapsed, useStopwatch } from '../model/stopwatch.ts';
+import ExerciseAnswer from './ExerciseAnswer.vue';
 import MarkdownView from './MarkdownView.vue';
 import SelfGrade from './SelfGrade.vue';
 import SessionTopBar from './SessionTopBar.vue';
@@ -38,11 +40,12 @@ const {
 } = session;
 void session.start();
 
-const draft = ref('');
+const NO_ANSWER: AnswerChangeDetail = { value: undefined, complete: false };
+const answer = ref<AnswerChangeDetail>(NO_ANSWER);
 const paused = ref(false);
 
 watch(current, () => {
-  draft.value = '';
+  answer.value = NO_ANSWER;
 });
 watch(paused, (isPaused) => {
   stopwatch.running.value = !isPaused;
@@ -68,21 +71,18 @@ const verdictText = computed(() => {
   if (!view) return null;
   const reason = view.reasonKey ? t(view.reasonKey) : null;
   if (view.retryable) {
-    return t('session.verdict.errorRetry', { reason: reason ?? '' });
+    return t('session.verdict.errorRetry', {
+      reason: reason ?? view.reasonRaw ?? '',
+    });
   }
-  return view.feedback ?? reason;
+  return view.feedback ?? reason ?? view.reasonRaw;
 });
 const alertText = computed(() => verdictText.value ?? undefined);
-const canSubmit = computed(() => draft.value.trim().length > 0);
+const canSubmit = computed(() => answer.value.complete);
 const canGrade = computed(() => revealed.value || !current.value?.answer);
 const isLast = computed(() => position.value >= total.value);
 const averageGrade = computed(() => summary.value.averageGrade.toFixed(1));
 const title = computed(() => current.value?.lessonName ?? t('session.title'));
-const answerLabel = computed(() =>
-  current.value?.submissionKind === 'sql'
-    ? t('session.answer.sqlLabel')
-    : t('session.answer.label'),
-);
 const answerLocked = computed(() => stage.value === 'reviewed' || busy.value);
 const nextLabel = computed(() =>
   isLast.value ? t('session.actions.finish') : t('session.actions.next'),
@@ -95,8 +95,8 @@ const selfAnswer = computed(() =>
   current.value?.verifiable ? null : (current.value?.answer ?? null),
 );
 
-const submitDraft = () => {
-  if (canSubmit.value) void session.submit(draft.value);
+const submitAnswer = () => {
+  if (canSubmit.value) void session.submit(answer.value.value);
 };
 const exit = () => void router.push({ name: ROUTE.dailyPlan });
 </script>
@@ -202,19 +202,21 @@ const exit = () => void router.push({ name: ROUTE.dailyPlan });
             />
 
             <template v-if="current.verifiable">
-              <v-textarea
-                v-model="draft"
-                class="answer mt-6"
-                :label="answerLabel"
-                auto-grow
-                rows="4"
-                spellcheck="false"
+              <ExerciseAnswer
+                v-if="current.task"
+                :key="current.attemptId"
+                class="mt-6"
+                :task="current.task"
+                :view="current.view"
                 :disabled="answerLocked"
-                :hint="t('session.answer.hint')"
-                persistent-hint
-                @keydown.ctrl.enter.prevent="submitDraft"
-                @keydown.meta.enter.prevent="submitDraft"
+                :verdict="verdict"
+                :label="t('session.answer.label')"
+                @change="answer = $event"
+                @submit="submitAnswer"
               />
+              <p class="text-body-small text-medium-emphasis mt-1">
+                {{ t('session.answer.hint') }}
+              </p>
               <v-alert
                 v-if="verdictView"
                 :type="verdictView.type"
@@ -230,7 +232,7 @@ const exit = () => void router.push({ name: ROUTE.dailyPlan });
                   size="large"
                   :loading="busy"
                   :disabled="!canSubmit"
-                  @click="submitDraft"
+                  @click="submitAnswer"
                 >
                   {{ t('session.actions.check') }}
                 </v-btn>
@@ -369,9 +371,5 @@ const exit = () => void router.push({ name: ROUTE.dailyPlan });
   max-width: 45rem;
   margin: 0 auto;
   padding: 3rem 1.5rem;
-}
-
-.answer :deep(textarea) {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 </style>

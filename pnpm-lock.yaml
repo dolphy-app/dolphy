@@ -87,12 +87,15 @@ importers:
       '@lms/engine-rpc':
         specifier: workspace:*
         version: link:../../packages/engine-rpc
-      '@lms/engine-sql-runner':
-        specifier: workspace:*
-        version: link:../../packages/engine-sql-runner
       '@lms/engine-sqlite':
         specifier: workspace:*
         version: link:../../packages/engine-sqlite
+      '@lms/extension-api':
+        specifier: workspace:*
+        version: link:../../packages/extension-api
+      '@lms/extension-host':
+        specifier: workspace:*
+        version: link:../../packages/extension-host
       '@mdi/font':
         specifier: ^7.4.47
         version: 7.4.47
@@ -209,6 +212,9 @@ importers:
       '@lms/engine-contract':
         specifier: workspace:*
         version: link:../engine-contract
+      '@lms/extension-api':
+        specifier: workspace:*
+        version: link:../extension-api
       better-sqlite3:
         specifier: 13.0.3
         version: 13.0.3

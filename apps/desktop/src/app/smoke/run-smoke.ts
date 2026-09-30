@@ -7,6 +7,7 @@ import type { EngineEvent, LearningEngine } from '@lms/engine-contract';
 import type { SmokeBridge } from '../../../shared/smoke.ts';
 
 const EXERCISE_ID = 'sql_kb::where::q2';
+const CHOICE_EXERCISE_ID = 'choice_kb::basic::q1';
 const RIGHT_SQL = 'SELECT name FROM emp WHERE salary IS NULL;';
 const WRONG_SQL = 'SELECT name FROM emp WHERE salary IS NOT NULL;';
 const EVENT_TIMEOUT_MS = 5_000;
@@ -97,11 +98,11 @@ const sql = async (engine: LearningEngine): Promise<Scenario> => {
   });
   const wrong = await engine.practice.submitAnswer({
     attemptId: attempt.attemptId,
-    submission: { kind: 'sql', sql: WRONG_SQL },
+    answer: WRONG_SQL,
   });
   const right = await engine.practice.submitAnswer({
     attemptId: attempt.attemptId,
-    submission: { kind: 'sql', sql: RIGHT_SQL },
+    answer: RIGHT_SQL,
   });
   const result = await engine.practice.completeAttempt({
     attemptId: attempt.attemptId,
@@ -113,6 +114,37 @@ const sql = async (engine: LearningEngine): Promise<Scenario> => {
       right.outcome === 'passed' &&
       !result.duplicate,
     verifiable: attempt.verifiable,
+    wrong,
+    right,
+    grade: result.grade,
+  };
+};
+
+const choice = async (engine: LearningEngine): Promise<Scenario> => {
+  const attempt = await engine.practice.beginAttempt({
+    exerciseId: CHOICE_EXERCISE_ID,
+  });
+  const view = attempt.view as { options?: unknown } | null;
+  const wrong = await engine.practice.submitAnswer({
+    attemptId: attempt.attemptId,
+    answer: [1],
+  });
+  const right = await engine.practice.submitAnswer({
+    attemptId: attempt.attemptId,
+    answer: [0],
+  });
+  const result = await engine.practice.completeAttempt({
+    attemptId: attempt.attemptId,
+  });
+  return {
+    ok:
+      attempt.verifiable &&
+      Array.isArray(view?.options) &&
+      wrong.outcome === 'failed' &&
+      right.outcome === 'passed' &&
+      !result.duplicate,
+    verifiable: attempt.verifiable,
+    options: view?.options ?? null,
     wrong,
     right,
     grade: result.grade,
@@ -183,6 +215,7 @@ export const runSmoke = async (engine: LearningEngine, smoke: SmokeBridge) => {
   const scenarios = {
     basic: await attempt(() => basic(engine, events)),
     sql: await attempt(() => sql(engine)),
+    choice: await attempt(() => choice(engine)),
     crash: await attempt(() => crash(engine, events, smoke)),
   };
   return {

@@ -11,8 +11,8 @@ export interface ExtensionsBridge {
   apply(): Promise<void>;
 }
 
-/** Узкий мост `window.spirula`: ни `ipcRenderer`, ни произвольных каналов. */
-export interface SpirulaBridge {
+/** Узкий мост `window.dolphy`: ни `ipcRenderer`, ни произвольных каналов. */
+export interface DolphyBridge {
   engine: { connect(): void };
   platform: Platform;
   extensions: ExtensionsBridge;

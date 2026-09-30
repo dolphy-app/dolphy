@@ -5,7 +5,7 @@ import type {
   StudySessionWire,
   UnitFilterWire,
   UnitId,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 import type { UnitGraph, UnitType } from '../domain/graph.ts';
 import type {
   CourseManifest,

@@ -1,4 +1,4 @@
-import type { ExtensionModule } from '@spirula-app/extension-api';
+import type { ExtensionModule } from '@dolphy-app/extension-api';
 
 const extension: ExtensionModule = {
   activate: (context) => {

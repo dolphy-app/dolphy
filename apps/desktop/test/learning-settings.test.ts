@@ -5,11 +5,11 @@ import type {
   EngineEvent,
   LearningEngine,
   SchedulerOptionsDto,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 import {
   applySchedulerPatch,
   DEFAULT_SCHEDULER_OPTIONS,
-} from '@spirula-app/engine/scheduler';
+} from '@dolphy-app/engine/scheduler';
 import {
   toLearningForm,
   toSchedulerPatch,

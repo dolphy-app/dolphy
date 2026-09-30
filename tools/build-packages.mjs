@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Сборка публикуемых пакетов (`@spirula-app/extension-api|sdk|tools|create-extension`)
+ * Сборка публикуемых пакетов (`@dolphy-app/extension-api|sdk|tools|create-extension`)
  * в `dist-publish/<каталог пакета>/`: собранный JS, `.d.ts`, сгенерированные
  * `package.json` и README. Рабочие пакеты остаются `private`: публикуется только
  * сгенерированный каталог.
@@ -29,7 +29,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT_DIR = path.join(ROOT, 'dist-publish');
 const README_TEMPLATE = path.join(ROOT, 'tools/templates/package-readme.md');
 /** Заменяется константой при сборке `create-extension`; в исходниках не определена. */
-const VERSION_CONSTANT = '__SPIRULA_PACKAGE_VERSION__';
+const VERSION_CONSTANT = '__DOLPHY_PACKAGE_VERSION__';
 const SHEBANG = '#!/usr/bin/env node';
 
 const readJson = async (file) => JSON.parse(await readFile(file, 'utf8'));
@@ -57,7 +57,7 @@ const workspaceManifests = async () => {
   return manifests.filter((manifest) => manifest !== null);
 };
 
-/** Внешние: всё из `node_modules` и встроенное; внутренние пакеты `@spirula-app/*` вшиваются. */
+/** Внешние: всё из `node_modules` и встроенное; внутренние пакеты `@dolphy-app/*` вшиваются. */
 const externalPredicate = (spec) => {
   const siblings = new Set(spec.siblings.map((dir) => `${SCOPE}/${dir}`));
   return (id) => {

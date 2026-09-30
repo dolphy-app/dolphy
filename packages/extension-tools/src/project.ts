@@ -1,11 +1,11 @@
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { parseManifest } from '@spirula-app/extension-host';
-import type { ExtensionManifest } from '@spirula-app/extension-api';
+import { parseManifest } from '@dolphy-app/extension-host';
+import type { ExtensionManifest } from '@dolphy-app/extension-api';
 import { BuildError } from './errors.ts';
 
 export const MANIFEST_FILE = 'extension.json';
-export const CONFIG_FILE = 'spirula-ext.config.json';
+export const CONFIG_FILE = 'dolphy-ext.config.json';
 export const DEFAULT_OUT_DIR = 'dist-ext';
 
 /** Одна точка входа сборки: исходник → файл относительно каталога расширения. */

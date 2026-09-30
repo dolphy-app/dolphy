@@ -1,8 +1,8 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { inspectExtensionDir } from '@spirula-app/extension-host';
-import { parseIndex } from '@spirula-app/extension-catalog';
-import type { CatalogIndex } from '@spirula-app/extension-catalog';
+import { inspectExtensionDir } from '@dolphy-app/extension-host';
+import { parseIndex } from '@dolphy-app/extension-catalog';
+import type { CatalogIndex } from '@dolphy-app/extension-catalog';
 import { BuildError, CatalogUsageError } from '../errors.ts';
 import { createGithubChecker } from './github.ts';
 import type { GithubUserChecker } from './github.ts';

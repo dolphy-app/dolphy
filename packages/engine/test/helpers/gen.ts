@@ -95,7 +95,7 @@ export function frontFor(
   if (verify) {
     lines.push(
       '  exercise:',
-      '    type: spirula.sql',
+      '    type: dolphy.sql',
       '    timeoutMs: 2000',
       '    spec:',
       `      fixture: "fixtures/${layoutId}.sql"`,

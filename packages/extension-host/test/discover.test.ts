@@ -14,7 +14,7 @@ const fixturesDir = fileURLToPath(
 
 let tmp: string;
 beforeEach(async () => {
-  tmp = await mkdtemp(path.join(tmpdir(), 'spirula-discover-'));
+  tmp = await mkdtemp(path.join(tmpdir(), 'dolphy-discover-'));
 });
 afterEach(() => rm(tmp, { recursive: true, force: true }));
 
@@ -80,8 +80,8 @@ describe('discoverExtensions', () => {
   it('user-корень переопределяет bundled с тем же id', async () => {
     const bundled = await rootDir('bundled');
     const user = await rootDir('user');
-    await makeExtension(bundled, 'spirula.choice', { version: '1.0.0' });
-    await makeExtension(user, 'spirula.choice', { version: '1.0.1' });
+    await makeExtension(bundled, 'dolphy.choice', { version: '1.0.0' });
+    await makeExtension(user, 'dolphy.choice', { version: '1.0.1' });
     const logger = createLogger();
     const { extensions, diagnostics, overridden } = await discoverExtensions({
       roots: [
@@ -93,7 +93,7 @@ describe('discoverExtensions', () => {
     expect(diagnostics).toEqual([]);
     expect(overridden).toEqual([
       {
-        id: 'spirula.choice',
+        id: 'dolphy.choice',
         version: '1.0.0',
         origin: 'bundled',
         by: { origin: 'user', version: '1.0.1' },
@@ -101,7 +101,7 @@ describe('discoverExtensions', () => {
     ]);
     expect(extensions).toHaveLength(1);
     expect(extensions[0]).toMatchObject({
-      id: 'spirula.choice',
+      id: 'dolphy.choice',
       version: '1.0.1',
       origin: 'user',
     });
@@ -122,7 +122,7 @@ describe('discoverExtensions', () => {
     expect(extension!.exerciseTypes[0]).toMatchObject({
       id: 'acme.one',
       specSchema: { type: 'object' },
-      rendererUrl: 'spirula-ext://acme.one/view.mjs',
+      rendererUrl: 'dolphy-ext://acme.one/view.mjs',
     });
   });
 
@@ -267,7 +267,7 @@ describe('discoverExtensions', () => {
     );
     expect(minimal?.exerciseTypes[0]).toMatchObject({
       element: 'acme-minimal-answer',
-      rendererUrl: 'spirula-ext://acme.minimal/view.mjs',
+      rendererUrl: 'dolphy-ext://acme.minimal/view.mjs',
       specSchema: { type: 'object' },
       answerSchema: { type: 'string' },
     });
@@ -332,7 +332,7 @@ describe('inspectExtensionDir', () => {
       path.join(root, 'acme.ok', 'main.mjs'),
     );
     expect(result.extension.exerciseTypes[0]!.rendererUrl).toBe(
-      'spirula-ext://acme.ok/view.mjs',
+      'dolphy-ext://acme.ok/view.mjs',
     );
   });
 

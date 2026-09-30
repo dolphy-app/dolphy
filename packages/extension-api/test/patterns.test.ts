@@ -6,7 +6,7 @@ import {
 } from '../src/index.ts';
 
 describe('extension id and element name patterns', () => {
-  it.each(['spirula.sql', 'acme', 'acme.quiz-pack.choice', 'a1.b2'])(
+  it.each(['dolphy.sql', 'acme', 'acme.quiz-pack.choice', 'a1.b2'])(
     'accepts extension id %s',
     (id) => {
       expect(EXTENSION_ID_PATTERN.test(id)).toBe(true);
@@ -15,25 +15,25 @@ describe('extension id and element name patterns', () => {
 
   it.each([
     '',
-    'Spirula.sql',
+    'Dolphy.sql',
     '.sql',
-    'spirula.',
-    'spirula..sql',
-    '1spirula',
-    'spirula_sql',
+    'dolphy.',
+    'dolphy..sql',
+    '1dolphy',
+    'dolphy_sql',
     'a/b',
   ])('rejects extension id %j', (id) => {
     expect(EXTENSION_ID_PATTERN.test(id)).toBe(false);
   });
 
-  it.each(['spirula-sql-answer', 'x-y', 'a1-b2'])(
+  it.each(['dolphy-sql-answer', 'x-y', 'a1-b2'])(
     'accepts element name %s',
     (name) => {
       expect(ELEMENT_NAME_PATTERN.test(name)).toBe(true);
     },
   );
 
-  it.each(['div', 'Spirula-sql', '-a', 'a-', 'a--b', 'a_b-c'])(
+  it.each(['div', 'Dolphy-sql', '-a', 'a-', 'a--b', 'a_b-c'])(
     'rejects element name %j',
     (name) => {
       expect(ELEMENT_NAME_PATTERN.test(name)).toBe(false);

@@ -4,7 +4,7 @@ import type {
   EngineEvent,
   LearningEngine,
   UnitId,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 import { loadCourses } from '@/entities/course';
 import type { CourseSummary } from '@/entities/course';
 

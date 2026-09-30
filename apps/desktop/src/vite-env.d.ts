@@ -8,5 +8,5 @@ declare module '*.vue' {
 
 interface Window {
   // expose in the `electron/preload/index.ts`
-  spirula: import('../shared/bridge.ts').SpirulaBridge;
+  dolphy: import('../shared/bridge.ts').DolphyBridge;
 }

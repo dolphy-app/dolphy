@@ -27,12 +27,12 @@ const policyFor = (...items: ResolvedExtension[]) =>
 describe('createExtensionPolicy', () => {
   it('до update ничего не отключено; не из поставки — изолировано', () => {
     const policy = policyFor(
-      extension('spirula.sql', 'bundled'),
+      extension('dolphy.sql', 'bundled'),
       extension('acme.u', 'user'),
       extension('acme.d', 'dev'),
     );
     expect(policy.isEnabled('acme.u')).toBe(true);
-    expect(policy.isIsolated('spirula.sql')).toBe(false);
+    expect(policy.isIsolated('dolphy.sql')).toBe(false);
     expect(policy.isIsolated('acme.u')).toBe(true);
     expect(policy.isIsolated('acme.d')).toBe(true);
   });
@@ -58,25 +58,25 @@ describe('createExtensionPolicy', () => {
   });
 
   it('расширение из поставки не изолируется и не отключается даже из настроек', () => {
-    const policy = policyFor(extension('spirula.sql', 'bundled'));
+    const policy = policyFor(extension('dolphy.sql', 'bundled'));
     policy.update({
-      disabled: ['spirula.sql'],
-      trusted: ['spirula.sql'],
+      disabled: ['dolphy.sql'],
+      trusted: ['dolphy.sql'],
       checkUpdates: true,
     });
-    expect(policy.isIsolated('spirula.sql')).toBe(false);
-    expect(policy.isEnabled('spirula.sql')).toBe(true);
+    expect(policy.isIsolated('dolphy.sql')).toBe(false);
+    expect(policy.isEnabled('dolphy.sql')).toBe(true);
   });
 
   it('пользовательская копия id из поставки — обычное пользовательское расширение', () => {
     // обнаружение оставило в `extensions` только победителя
-    const policy = policyFor(extension('spirula.sql', 'user'));
-    expect(policy.isIsolated('spirula.sql')).toBe(true);
+    const policy = policyFor(extension('dolphy.sql', 'user'));
+    expect(policy.isIsolated('dolphy.sql')).toBe(true);
     policy.update({
-      disabled: ['spirula.sql'],
+      disabled: ['dolphy.sql'],
       trusted: [],
       checkUpdates: true,
     });
-    expect(policy.isEnabled('spirula.sql')).toBe(false);
+    expect(policy.isEnabled('dolphy.sql')).toBe(false);
   });
 });

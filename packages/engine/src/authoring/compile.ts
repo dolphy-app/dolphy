@@ -6,7 +6,7 @@
 import type {
   Diagnostic,
   DiagnosticSummary,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 import type { CourseSource } from '../ports/index.ts';
 import { buildArtifact } from './artifact.ts';
 import type { Artifact } from './artifact.ts';

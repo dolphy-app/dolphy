@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createWorkspace, launchApp } from './support/app.ts';
-import type { SpirulaApp, Workspace } from './support/app.ts';
+import type { DolphyApp, Workspace } from './support/app.ts';
 import { CatalogClient } from './support/catalog-client.ts';
 import {
   CATALOG_FIXTURES,
@@ -65,7 +65,7 @@ const ID = 'acme.sunrise';
 
 let server: CatalogServer | null = null;
 let workspace: Workspace | null = null;
-let app: SpirulaApp | null = null;
+let app: DolphyApp | null = null;
 
 const launch = async (userData: string, catalogUrl: string) => {
   app = await launchApp(userData, catalogEnv(catalogUrl));
@@ -181,10 +181,10 @@ describe('Настройки → Расширения → Каталог', () =>
     );
     const installed = join(extensionsDir(userData), ID);
     expect(await readdir(installed)).toEqual(
-      expect.arrayContaining(['extension.json', '.spirula-install.json']),
+      expect.arrayContaining(['extension.json', '.dolphy-install.json']),
     );
     const meta = JSON.parse(
-      await readFile(join(installed, '.spirula-install.json'), 'utf8'),
+      await readFile(join(installed, '.dolphy-install.json'), 'utf8'),
     );
     expect(meta).toMatchObject({
       catalogUrl: catalogServer.url,
@@ -333,10 +333,10 @@ describe('Настройки → Расширения → Каталог', () =>
       catalogServer.url,
     );
     await client.openSettingsExtensions();
-    await catalog.installedText('spirula.sql');
+    await catalog.installedText('dolphy.sql');
     await expectCount(
       catalog
-        .installedRow('spirula.sql')
+        .installedRow('dolphy.sql')
         .getByRole('button', { name: /^Удалить/ }),
       0,
     );

@@ -1,14 +1,14 @@
 import path from 'node:path';
-import type { ExtensionLogger } from '@spirula-app/extension-api';
+import type { ExtensionLogger } from '@dolphy-app/extension-api';
 import {
   INSTALL_META_FILE,
   parseInstallMeta,
-} from '@spirula-app/extension-catalog';
-import type { InstallMeta } from '@spirula-app/extension-catalog';
+} from '@dolphy-app/extension-catalog';
+import type { InstallMeta } from '@dolphy-app/extension-catalog';
 import { isMissing } from './fs.ts';
 import type { InstallerFs } from './fs.ts';
 
-/** `.spirula-install.json` каталога расширения; нет или повреждён — `null` (расширение считается скопированным вручную). */
+/** `.dolphy-install.json` каталога расширения; нет или повреждён — `null` (расширение считается скопированным вручную). */
 export const readInstallMeta = async (
   fs: InstallerFs,
   logger: ExtensionLogger,

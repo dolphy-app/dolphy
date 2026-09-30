@@ -212,7 +212,7 @@ describe('обнаружение вкладов без кода', () => {
     expect(result.extension.markdownRenderers).toEqual([
       {
         language: 'chart',
-        rendererUrl: 'spirula-ext://acme.markdown/markdown.mjs',
+        rendererUrl: 'dolphy-ext://acme.markdown/markdown.mjs',
       },
     ]);
   });
@@ -234,7 +234,7 @@ describe('обнаружение вкладов без кода', () => {
   });
 
   it('нет файла рендерера — расширение отклонено при verifyFiles', async () => {
-    const dir = await mkdtemp(path.join(tmpdir(), 'spirula-contrib-'));
+    const dir = await mkdtemp(path.join(tmpdir(), 'dolphy-contrib-'));
     try {
       await mkdir(path.join(dir, 'acme.md'));
       await writeFile(
@@ -268,7 +268,7 @@ describe('обнаружение вкладов без кода', () => {
 describe('конфликты вкладов между расширениями', () => {
   let root: string;
   beforeEach(async () => {
-    root = await mkdtemp(path.join(tmpdir(), 'spirula-clash-'));
+    root = await mkdtemp(path.join(tmpdir(), 'dolphy-clash-'));
   });
   afterEach(() => rm(root, { recursive: true, force: true }));
 

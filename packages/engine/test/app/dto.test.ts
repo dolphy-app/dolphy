@@ -1,11 +1,11 @@
-import type { GraphQuery } from '@spirula-app/engine-contract';
+import type { GraphQuery } from '@dolphy-app/engine-contract';
 import {
   buildCourse,
   buildExercise,
   buildLesson,
   createFakeExerciseTypes,
   createFakeExtensionPolicy,
-} from '@spirula-app/testkit';
+} from '@dolphy-app/testkit';
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_EXERCISE_TIMEOUT_MS,
@@ -247,14 +247,14 @@ describe('toExerciseDto', () => {
 
   it('describes the task from the exercise type catalog', () => {
     const types = createFakeExerciseTypes({
-      types: { 'spirula.sql': { element: 'spirula-sql-answer' } },
+      types: { 'dolphy.sql': { element: 'dolphy-sql-answer' } },
     });
     const dto = toExerciseDtoWith(
       buildExercise({
         id: 'a::l0::e0',
         engine: {
           exercise: {
-            type: 'spirula.sql',
+            type: 'dolphy.sql',
             timeoutMs: 500,
             spec: { fixture: 'fx' },
           },
@@ -264,26 +264,26 @@ describe('toExerciseDto', () => {
       policy,
     );
     expect(dto.task).toEqual({
-      type: 'spirula.sql',
+      type: 'dolphy.sql',
       timeoutMs: 500,
-      element: 'spirula-sql-answer',
-      rendererUrl: 'spirula-ext://fake/spirula.sql.mjs',
+      element: 'dolphy-sql-answer',
+      rendererUrl: 'dolphy-ext://fake/dolphy.sql.mjs',
       isolated: true,
     });
   });
 
   it('marks the task isolated unless the owner is bundled or trusted', () => {
     const types = createFakeExerciseTypes({
-      types: { 'spirula.sql': {} },
+      types: { 'dolphy.sql': {} },
     });
     const exercise = buildExercise({
       id: 'a::l0::e0',
-      engine: { exercise: { type: 'spirula.sql' } },
+      engine: { exercise: { type: 'dolphy.sql' } },
     });
     const flag = (p: typeof policy) =>
       toExerciseDtoWith(exercise, types, p).task?.isolated;
     expect(flag(createFakeExtensionPolicy())).toBe(true);
-    expect(flag(createFakeExtensionPolicy({ bundled: ['spirula.sql'] }))).toBe(
+    expect(flag(createFakeExtensionPolicy({ bundled: ['dolphy.sql'] }))).toBe(
       false,
     );
     expect(
@@ -291,7 +291,7 @@ describe('toExerciseDto', () => {
         createFakeExtensionPolicy({
           settings: {
             disabled: [],
-            trusted: ['spirula.sql'],
+            trusted: ['dolphy.sql'],
             checkUpdates: true,
           },
         }),
@@ -300,11 +300,11 @@ describe('toExerciseDto', () => {
   });
 
   it('defaults the task timeout to 2000 ms', () => {
-    const types = createFakeExerciseTypes({ types: { 'spirula.sql': {} } });
+    const types = createFakeExerciseTypes({ types: { 'dolphy.sql': {} } });
     const dto = toExerciseDtoWith(
       buildExercise({
         id: 'a::l0::e0',
-        engine: { exercise: { type: 'spirula.sql' } },
+        engine: { exercise: { type: 'dolphy.sql' } },
       }),
       types,
       policy,

@@ -1,4 +1,4 @@
-import { buildLibrary } from '@spirula-app/testkit';
+import { buildLibrary } from '@dolphy-app/testkit';
 import { describe, expect, it } from 'vitest';
 import { assembleLibrary } from '../../src/domain/library.ts';
 import type { Library } from '../../src/domain/library.ts';

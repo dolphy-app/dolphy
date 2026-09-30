@@ -17,7 +17,7 @@ afterEach(async () => {
 });
 
 export const makeTemp = async (): Promise<string> => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'spirula-ext-tools-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'dolphy-ext-tools-'));
   tempDirs.push(dir);
   return dir;
 };

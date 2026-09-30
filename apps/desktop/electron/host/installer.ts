@@ -1,19 +1,16 @@
-import { ExtensionInstallError } from '@spirula-app/engine/ports';
-import type { ExtensionInstaller } from '@spirula-app/engine/ports';
-import type { EngineConfig } from '@spirula-app/engine-contract';
-import { EXTENSION_API_VERSION } from '@spirula-app/extension-api';
-import type { ExtensionLogger } from '@spirula-app/extension-api';
-import {
-  contributesOf,
-  inspectExtensionDir,
-} from '@spirula-app/extension-host';
-import type { DiscoveryResult } from '@spirula-app/extension-host';
-import { createExtensionInstaller } from '@spirula-app/extension-install';
-import type { InstallerOptions } from '@spirula-app/extension-install';
+import { ExtensionInstallError } from '@dolphy-app/engine/ports';
+import type { ExtensionInstaller } from '@dolphy-app/engine/ports';
+import type { EngineConfig } from '@dolphy-app/engine-contract';
+import { EXTENSION_API_VERSION } from '@dolphy-app/extension-api';
+import type { ExtensionLogger } from '@dolphy-app/extension-api';
+import { contributesOf, inspectExtensionDir } from '@dolphy-app/extension-host';
+import type { DiscoveryResult } from '@dolphy-app/extension-host';
+import { createExtensionInstaller } from '@dolphy-app/extension-install';
+import type { InstallerOptions } from '@dolphy-app/extension-install';
 
 /** Официальный каталог расширений: статические файлы GitHub Pages репозитория каталога. */
 export const DEFAULT_EXTENSION_CATALOG_URL =
-  'https://spirula-app.github.io/spirula-extensions/index.json';
+  'https://dolphy-app.github.io/dolphy-extensions/index.json';
 
 /** Заданный адрес годится, если это `http(s)`-URL; иначе — официальный (с предупреждением). */
 export const resolveCatalogUrl = (

@@ -11,12 +11,12 @@ export const EXIT_OK = 0;
 export const EXIT_PROBLEMS = 1;
 export const EXIT_USAGE = 2;
 
-const USAGE = `usage: create-spirula-extension <dir> [--id <id>] [--local <repoRoot>]
+const USAGE = `usage: create-dolphy-extension <dir> [--id <id>] [--local <repoRoot>]
 
   <dir>              каталог нового проекта (должен быть пуст или отсутствовать)
   --id <id>          id расширения (по умолчанию — kebab-case имени каталога)
-  --local <repoRoot> корень репозитория Spirula: @spirula-app/extension-sdk и
-                     @spirula-app/extension-tools подключаются как link:<repoRoot>/packages/...
+  --local <repoRoot> корень репозитория Dolphy: @dolphy-app/extension-sdk и
+                     @dolphy-app/extension-tools подключаются как link:<repoRoot>/packages/...
   --help             эта справка
 `;
 
@@ -48,14 +48,14 @@ const parseArgs = (argv: readonly string[]): Parsed => {
 };
 
 const TOKEN_NOTE =
-  '\nПакеты @spirula-app/* лежат в GitHub Packages: перед установкой добавьте в ' +
+  '\nПакеты @dolphy-app/* лежат в GitHub Packages: перед установкой добавьте в ' +
   '~/.npmrc\nтокен (classic, право read:packages), см. README проекта, ' +
   '«Установка зависимостей».\n';
 
 const PLACEHOLDER_NOTE =
-  '\nЗамечание: @spirula-app/extension-sdk и @spirula-app/extension-tools не опубликованы, ' +
-  'версия ^0.0.0 не установится.\nУкажите пути к репозиторию Spirula: ' +
-  'create-spirula-extension <dir> --local <repoRoot>.\n';
+  '\nЗамечание: @dolphy-app/extension-sdk и @dolphy-app/extension-tools не опубликованы, ' +
+  'версия ^0.0.0 не установится.\nУкажите пути к репозиторию Dolphy: ' +
+  'create-dolphy-extension <dir> --local <repoRoot>.\n';
 
 const installNote = ({
   isLocal,
@@ -75,14 +75,14 @@ const nextSteps = (
     '  pnpm test',
     `  pnpm dev    # пересборка в dist-ext/${id}`,
     '',
-    'Запуск приложения с вашим расширением (из репозитория Spirula):',
-    `  SPIRULA_DEV_EXTENSIONS=${path.join(dir, 'dist-ext')} pnpm dev`,
+    'Запуск приложения с вашим расширением (из репозитория Dolphy):',
+    `  DOLPHY_DEV_EXTENSIONS=${path.join(dir, 'dist-ext')} pnpm dev`,
   ];
   return `\nДальше:\n${steps.join('\n')}\n${installNote(result)}`;
 };
 
 /**
- * `create-spirula-extension`; `argv` без `node` и имени скрипта, относительные пути
+ * `create-dolphy-extension`; `argv` без `node` и имени скрипта, относительные пути
  * считаются от `cwd`.
  */
 export const runCli = async (

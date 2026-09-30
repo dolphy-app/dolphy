@@ -1,6 +1,6 @@
-/** Элемент ввода ответа `spirula-choice-answer`; побочный эффект загрузки — регистрация. */
-import { defineAnswerElement } from '@spirula-app/extension-sdk';
-import type { AnswerElementApi } from '@spirula-app/extension-sdk';
+/** Элемент ввода ответа `dolphy-choice-answer`; побочный эффект загрузки — регистрация. */
+import { defineAnswerElement } from '@dolphy-app/extension-sdk';
+import type { AnswerElementApi } from '@dolphy-app/extension-sdk';
 import { normalizeValue, selectedIndices } from './choice-model.ts';
 import type { ChoiceView } from './grade.ts';
 
@@ -99,4 +99,4 @@ const mount = (
   return { update };
 };
 
-defineAnswerElement('spirula-choice-answer', mount);
+defineAnswerElement('dolphy-choice-answer', mount);

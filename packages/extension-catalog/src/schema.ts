@@ -3,7 +3,7 @@ import {
   EXTENSION_PERMISSIONS,
   EXTENSION_PLATFORMS,
   GITHUB_LOGIN_PATTERN,
-} from '@spirula-app/extension-api';
+} from '@dolphy-app/extension-api';
 import { z } from 'zod';
 import { CatalogFormatError } from './errors.ts';
 import { compareSemver, isSemver, parseRange } from './semver.ts';

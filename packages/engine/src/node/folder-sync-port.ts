@@ -1,6 +1,6 @@
 import { readFile, realpath, stat } from 'node:fs/promises';
 import { join, resolve, sep } from 'node:path';
-import type { EngineConfig } from '@spirula-app/engine-contract';
+import type { EngineConfig } from '@dolphy-app/engine-contract';
 import type { FolderSyncPort } from '../app/context.ts';
 import { EngineError } from '../app/errors.ts';
 import type { Logger } from '../ports/index.ts';

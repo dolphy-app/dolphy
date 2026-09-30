@@ -14,12 +14,12 @@
  * - `build-with-code` — проект из `extension.json` и `src/*.ts` (блоки ```ts
  *   с маркером) собирается и проходит `validateExtension`;
  * - `index` — единственный файл `index.json` проходит `parseIndex`
- *   (`@spirula-app/extension-catalog`).
+ *   (`@dolphy-app/extension-catalog`).
  */
 import { mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { parseIndex } from '@spirula-app/extension-catalog';
-import { parseManifest } from '@spirula-app/extension-host';
+import { parseIndex } from '@dolphy-app/extension-catalog';
+import { parseManifest } from '@dolphy-app/extension-host';
 import { describe, expect, it } from 'vitest';
 import { buildExtension, validateExtension } from '../src/index.ts';
 import { makeTemp } from './helpers.ts';
@@ -107,7 +107,7 @@ const writeProject = async (
     await writeFile(target, content);
   }
   if (withCode) {
-    const modules = path.join(root, 'node_modules', '@spirula-app');
+    const modules = path.join(root, 'node_modules', '@dolphy-app');
     await mkdir(modules, { recursive: true });
     for (const name of ['extension-sdk', 'extension-api']) {
       await symlink(

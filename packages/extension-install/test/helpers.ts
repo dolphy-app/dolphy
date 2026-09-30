@@ -7,7 +7,7 @@ import { createExtensionInstaller } from '../src/index.ts';
 import type { InspectResult, InstallerOptions } from '../src/index.ts';
 
 export const CATALOG_URL = 'https://catalog.test/index.json';
-const INSTALL_META = '.spirula-install.json';
+const INSTALL_META = '.dolphy-install.json';
 
 export const createLogger = () => ({
   debug: vi.fn(),
@@ -75,7 +75,7 @@ export const rawEntry = (spec: ExtensionSpec): Record<string, unknown> => ({
   name: spec.name ?? spec.id,
   description: `Description of ${spec.id}`,
   author: 'octo-cat',
-  source: 'https://github.com/spirula-app/spirula-extensions',
+  source: 'https://github.com/dolphy-app/dolphy-extensions',
   platforms: spec.platforms ?? [],
   contributes: spec.contributes ?? contributesOf([spec.id]),
   versions: (spec.versions ?? [spec.version]).map((version) => ({
@@ -216,7 +216,7 @@ export const createClock = (start = Date.parse('2026-10-01T12:00:00Z')) => {
 };
 
 export const createEnv = async (overrides: Partial<InstallerOptions> = {}) => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'spirula-install-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'dolphy-install-'));
   const routes = new Map<string, Route>();
   const fake = createFakeFetch(routes);
   const logger = createLogger();
@@ -251,7 +251,7 @@ export const createEnv = async (overrides: Partial<InstallerOptions> = {}) => {
 
 export type Env = Awaited<ReturnType<typeof createEnv>>;
 
-/** Каталог, установленный «из каталога»: с файлом `.spirula-install.json`. */
+/** Каталог, установленный «из каталога»: с файлом `.dolphy-install.json`. */
 export const installFake = async (
   dir: string,
   id: string,

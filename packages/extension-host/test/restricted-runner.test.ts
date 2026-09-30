@@ -77,7 +77,7 @@ let extensionDir = '';
 let entryPath = '';
 
 beforeEach(async () => {
-  root = await realpath(await mkdtemp(path.join(tmpdir(), 'spirula-runner-')));
+  root = await realpath(await mkdtemp(path.join(tmpdir(), 'dolphy-runner-')));
   extensionDir = path.join(root, 'ext');
   await mkdir(extensionDir);
   entryPath = path.join(root, 'restricted', 'child.mjs');

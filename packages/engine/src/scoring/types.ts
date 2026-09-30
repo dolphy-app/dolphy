@@ -2,7 +2,7 @@ import type {
   EpochMs,
   ScorerInfoDto,
   UnitId,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 import type { ExerciseType } from '../domain/manifest.ts';
 
 /**

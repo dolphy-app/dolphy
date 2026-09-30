@@ -1,8 +1,4 @@
-import type {
-  CourseSource,
-  SourceEntry,
-  SourceStat,
-} from '@spirula-app/engine';
+import type { CourseSource, SourceEntry, SourceStat } from '@dolphy-app/engine';
 import { T0_MS } from './clock.ts';
 import type { CourseLibrary } from './library.ts';
 

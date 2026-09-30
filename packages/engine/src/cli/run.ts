@@ -1,5 +1,5 @@
 import { basename, relative, resolve } from 'node:path';
-import type { Diagnostic } from '@spirula-app/engine-contract';
+import type { Diagnostic } from '@dolphy-app/engine-contract';
 import { encodeArtifact } from '../authoring/artifact.ts';
 import { compile } from '../authoring/compile.ts';
 import type { CompileResult } from '../authoring/compile.ts';
@@ -51,7 +51,7 @@ interface ParsedArgs {
   extensions: string[];
 }
 
-/** Внедряемые зависимости CLI: тесты подставляют каталог видов, по умолчанию — `@spirula-app/extension-host`. */
+/** Внедряемые зависимости CLI: тесты подставляют каталог видов, по умолчанию — `@dolphy-app/extension-host`. */
 export interface CliDeps {
   createExerciseTypes?: CreateExerciseTypes;
 }

@@ -1,21 +1,21 @@
 {
-  "name": "@spirula-app/ext-math",
+  "name": "@dolphy-app/ext-math",
   "version": "0.0.0",
   "private": true,
-  "description": "Расширение spirula.math: формулы в Markdown (MathJax)",
+  "description": "Расширение dolphy.math: формулы в Markdown (MathJax)",
   "type": "module",
   "scripts": {
     "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
     "test": "vitest run",
-    "build": "spirula-ext build"
+    "build": "dolphy-ext build"
   },
   "dependencies": {
-    "@spirula-app/extension-api": "workspace:*",
-    "@spirula-app/extension-sdk": "workspace:*",
+    "@dolphy-app/extension-api": "workspace:*",
+    "@dolphy-app/extension-sdk": "workspace:*",
     "mathjax-full": "^3"
   },
   "devDependencies": {
-    "@spirula-app/extension-tools": "workspace:*",
+    "@dolphy-app/extension-tools": "workspace:*",
     "@types/node": "^22.20.4",
     "happy-dom": "^20.14.5",
     "typescript": "7.0.2"

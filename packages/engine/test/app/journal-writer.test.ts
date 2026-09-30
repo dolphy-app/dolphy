@@ -1,5 +1,5 @@
-import type { EpochMs } from '@spirula-app/engine-contract';
-import { createFakeClock, createTestIds } from '@spirula-app/testkit';
+import type { EpochMs } from '@dolphy-app/engine-contract';
+import { createFakeClock, createTestIds } from '@dolphy-app/testkit';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import type { LogEntry } from '../../src/domain/journal.ts';

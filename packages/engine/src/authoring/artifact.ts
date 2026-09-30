@@ -8,7 +8,7 @@ import { z } from 'zod';
 import type {
   Diagnostic,
   DiagnosticSummary,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 import { buildIndexedGraph } from '../domain/graph-algorithms.ts';
 import { assembleLibrary } from '../domain/library.ts';
 import type { Library } from '../domain/library.ts';

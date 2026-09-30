@@ -28,8 +28,8 @@ export const EXIT_OK = 0;
 export const EXIT_PROBLEMS = 1;
 export const EXIT_USAGE = 2;
 
-const USAGE = `usage: spirula-ext build [dir] [--out <dir>] [--watch]
-       spirula-ext validate <dir>
+const USAGE = `usage: dolphy-ext build [dir] [--out <dir>] [--watch]
+       dolphy-ext validate <dir>
 ${CATALOG_SYNOPSIS}
   build [dir]      собрать расширение из проекта (по умолчанию — текущий каталог)
                    в <dir>/dist-ext/<id>
@@ -151,7 +151,7 @@ const runValidate = async (dir: string, io: CliIo): Promise<number> => {
   return EXIT_PROBLEMS;
 };
 
-/** `spirula-ext build|validate|catalog`; `argv` без `node` и имени скрипта. */
+/** `dolphy-ext build|validate|catalog`; `argv` без `node` и имени скрипта. */
 export const runCli = async (
   argv: readonly string[],
   io: CliIo,

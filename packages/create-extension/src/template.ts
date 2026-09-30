@@ -1,4 +1,4 @@
-import { defaultElementName } from '@spirula-app/extension-api';
+import { defaultElementName } from '@dolphy-app/extension-api';
 
 /** Версия расширения в шаблоне и его умолчание для `apiVersion`. */
 const INITIAL_VERSION = '0.1.0';
@@ -11,9 +11,9 @@ export interface TemplateInput {
   githubPackages?: boolean;
 }
 
-/** Реестр GitHub Packages для scope `@spirula-app` (токен в файл проекта не кладут). */
+/** Реестр GitHub Packages для scope `@dolphy-app` (токен в файл проекта не кладут). */
 export const GITHUB_PACKAGES_NPMRC =
-  '@spirula-app:registry=https://npm.pkg.github.com';
+  '@dolphy-app:registry=https://npm.pkg.github.com';
 
 const lines = (parts: readonly string[]): string => `${parts.join('\n')}\n`;
 
@@ -25,14 +25,14 @@ export const packageJson = ({ id, dependencies }: TemplateInput): string =>
       private: true,
       type: 'module',
       scripts: {
-        build: 'spirula-ext build',
-        dev: 'spirula-ext build --watch',
-        validate: `spirula-ext validate dist-ext/${id}`,
+        build: 'dolphy-ext build',
+        dev: 'dolphy-ext build --watch',
+        validate: `dolphy-ext validate dist-ext/${id}`,
         test: 'vitest run',
       },
       devDependencies: {
-        '@spirula-app/extension-sdk': dependencies.sdk,
-        '@spirula-app/extension-tools': dependencies.tools,
+        '@dolphy-app/extension-sdk': dependencies.sdk,
+        '@dolphy-app/extension-tools': dependencies.tools,
         '@types/node': '^22.20.4',
         'happy-dom': '^20.14.5',
         typescript: '^6.0.3',
@@ -90,7 +90,7 @@ export const manifestJson = (id: string): string => `{
 
 export const mainTs = (
   id: string,
-): string => `import { defineExerciseType, defineExtension } from '@spirula-app/extension-sdk';
+): string => `import { defineExerciseType, defineExtension } from '@dolphy-app/extension-sdk';
 
 interface Spec {
   expected: string;
@@ -121,7 +121,7 @@ export default defineExtension({
 
 export const viewTs = (
   id: string,
-): string => `import { defineAnswerElement } from '@spirula-app/extension-sdk';
+): string => `import { defineAnswerElement } from '@dolphy-app/extension-sdk';
 
 defineAnswerElement('${defaultElementName(id)}', (api, initial) => {
   const input = document.createElement('input');
@@ -160,7 +160,7 @@ defineAnswerElement('${defaultElementName(id)}', (api, initial) => {
 export const mainTestTs = (id: string): string => `import {
   createSchemaValidator,
   loadExerciseType,
-} from '@spirula-app/extension-sdk/testing';
+} from '@dolphy-app/extension-sdk/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import manifest from '../extension.json';
 import module from '../src/main.ts';
@@ -245,8 +245,8 @@ describe('${id}: схемы', () => {
 export const viewTestTs = (id: string): string => {
   const tag = defaultElementName(id);
   return `// @vitest-environment happy-dom
-import { ANSWER_EVENT } from '@spirula-app/extension-sdk';
-import type { AnswerChangeDetail } from '@spirula-app/extension-sdk';
+import { ANSWER_EVENT } from '@dolphy-app/extension-sdk';
+import type { AnswerChangeDetail } from '@dolphy-app/extension-sdk';
 import { afterEach, describe, expect, it } from 'vitest';
 import '../src/view.ts';
 
@@ -325,9 +325,9 @@ export const npmrc = (): string => lines([GITHUB_PACKAGES_NPMRC]);
 const installSection = (): string[] => [
   '## Установка зависимостей',
   '',
-  'Пакеты `@spirula-app/*` лежат в GitHub Packages, а не в npmjs, поэтому даже',
+  'Пакеты `@dolphy-app/*` лежат в GitHub Packages, а не в npmjs, поэтому даже',
   'публичные ставятся только с токеном. Файл `.npmrc` проекта уже указывает реестр',
-  'для scope `@spirula-app`; токен хранится в вашем `~/.npmrc`, в репозиторий его',
+  'для scope `@dolphy-app`; токен хранится в вашем `~/.npmrc`, в репозиторий его',
   'не кладут.',
   '',
   '1. Создайте персональный токен (classic) на GitHub: Settings → Developer',
@@ -344,8 +344,8 @@ export const readme = (id: string, githubPackages = false): string =>
   lines([
     `# ${id}`,
     '',
-    'Расширение Spirula: вид задания «text match» (ученик вводит строку, она',
-    'сравнивается с `spec.expected`). Сгенерировано `create-spirula-extension`.',
+    'Расширение Dolphy: вид задания «text match» (ученик вводит строку, она',
+    'сравнивается с `spec.expected`). Сгенерировано `create-dolphy-extension`.',
     '',
     '## Раскладка',
     '',
@@ -359,14 +359,14 @@ export const readme = (id: string, githubPackages = false): string =>
     '',
     '```sh',
     'pnpm install',
-    `pnpm dev # spirula-ext build --watch: пересборка в dist-ext/${id}`,
+    `pnpm dev # dolphy-ext build --watch: пересборка в dist-ext/${id}`,
     '```',
     '',
     'Запустите приложение с корнем режима разработчика — каталогом `dist-ext`',
     'этого проекта (абсолютный путь):',
     '',
     '```sh',
-    'SPIRULA_DEV_EXTENSIONS=<путь к проекту>/dist-ext pnpm dev # из репозитория Spirula',
+    'DOLPHY_DEV_EXTENSIONS=<путь к проекту>/dist-ext pnpm dev # из репозитория Dolphy',
     '```',
     '',
     'Правка файла в `dist-ext` перезапускает хосты и перезагружает окно.',

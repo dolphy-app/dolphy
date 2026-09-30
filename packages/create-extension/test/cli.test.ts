@@ -29,7 +29,7 @@ describe('runCli', () => {
     expect(stderr).toBe('');
     expect(stdout).toContain(`cd ${path.join(cwd, 'acme-hello')}`);
     expect(stdout).toContain(
-      `SPIRULA_DEV_EXTENSIONS=${path.join(cwd, 'acme-hello', 'dist-ext')} pnpm dev`,
+      `DOLPHY_DEV_EXTENSIONS=${path.join(cwd, 'acme-hello', 'dist-ext')} pnpm dev`,
     );
     expect(stdout).not.toContain('не опубликованы');
     await expect(
@@ -76,7 +76,7 @@ describe('runCli', () => {
     const { code, stdout, stderr } = await run(argv, cwd);
     expect(code).toBe(2);
     expect(stdout).toBe('');
-    expect(stderr).toContain('usage: create-spirula-extension');
+    expect(stderr).toContain('usage: create-dolphy-extension');
   });
 
   it('id нельзя вывести из имени каталога — код 2 с просьбой указать --id', async () => {
@@ -96,6 +96,6 @@ describe('runCli', () => {
     const cwd = await makeTemp();
     const { code, stdout } = await run(['--help'], cwd);
     expect(code).toBe(0);
-    expect(stdout).toContain('usage: create-spirula-extension');
+    expect(stdout).toContain('usage: create-dolphy-extension');
   });
 });

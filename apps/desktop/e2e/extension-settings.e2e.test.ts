@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createWorkspace, launchApp } from './support/app.ts';
-import type { SpirulaApp, Workspace } from './support/app.ts';
+import type { DolphyApp, Workspace } from './support/app.ts';
 import { Client } from './support/client.ts';
 
 const PERMISSIONS_EXTENSION = fileURLToPath(
@@ -11,7 +11,7 @@ const ID = 'acme.perm';
 const THEME = 'Лаванда';
 
 let workspace: Workspace | null = null;
-let app: SpirulaApp | null = null;
+let app: DolphyApp | null = null;
 
 const launch = async (userData: string) => {
   app = await launchApp(userData);
@@ -41,13 +41,13 @@ describe('Настройки → Расширения: разрешения, в�
     expect(await client.extensionSwitchChecked(ID, 'enabled')).toBe(true);
     expect(await client.extensionSwitchChecked(ID, 'trusted')).toBe(false);
 
-    for (const bundled of ['spirula.sql', 'spirula.choice']) {
+    for (const bundled of ['dolphy.sql', 'dolphy.choice']) {
       const [text] = await client.readExtensions(bundled);
       expect(text).toContain('Встроенное');
       expect(text).toContain('Доверено');
       expect(await client.extensionSwitchCount(bundled)).toBe(0);
     }
-    const [sql] = await client.readExtensions('spirula.sql');
+    const [sql] = await client.readExtensions('dolphy.sql');
     expect(sql).toContain('Запуск процессов');
     expect(sql).toContain('Нативные модули');
   });

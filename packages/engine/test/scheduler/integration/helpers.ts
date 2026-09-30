@@ -12,7 +12,7 @@ import type {
   ExerciseFilterDto,
   Grade,
   UnitId,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 import { expect } from 'vitest';
 import type { Rng } from '../../../src/ports/index.ts';
 import type {

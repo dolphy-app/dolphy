@@ -129,7 +129,7 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
           registry-url: https://npm.pkg.github.com
-          scope: '@spirula-app'
+          scope: '@dolphy-app'
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
@@ -147,7 +147,7 @@ jobs:
         run: |
           failed=0
           for short in extension-api extension-sdk extension-tools create-extension; do
-            name="@spirula-app/$short"
+            name="@dolphy-app/$short"
             if output=$(cd "dist-publish/$short" && npm publish 2>&1); then
               echo "$output"
               echo "published $name@$VERSION"

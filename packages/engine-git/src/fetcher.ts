@@ -12,7 +12,7 @@ import {
   DEFAULT_SNAPSHOT_LIMITS,
   SnapshotRejectedError,
   type SnapshotLimits,
-} from '@spirula-app/engine/ports';
+} from '@dolphy-app/engine/ports';
 import git from 'isomorphic-git';
 import type {
   GitHttpRequest,

@@ -1,4 +1,4 @@
-import { EXTENSION_PERMISSIONS } from '@spirula-app/extension-api';
+import { EXTENSION_PERMISSIONS } from '@dolphy-app/extension-api';
 import { describe, expect, it } from 'vitest';
 import {
   RESTRICTED_ENV,

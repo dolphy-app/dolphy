@@ -1,11 +1,11 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { EXTENSION_ID_PATTERN } from '@spirula-app/extension-api';
+import { EXTENSION_ID_PATTERN } from '@dolphy-app/extension-api';
 import type { MainLogger } from '../logger.ts';
 import frameRuntime from './frame-runtime.js?raw';
 import type { Shell } from './types.ts';
 
-export const EXTENSION_SCHEME = 'spirula-ext';
+export const EXTENSION_SCHEME = 'dolphy-ext';
 
 const SCRIPT_EXTENSIONS: ReadonlySet<string> = new Set(['.js', '.mjs']);
 
@@ -38,14 +38,14 @@ export interface ExtensionAssetsDeps {
 const notFound = () => new Response(null, { status: 404 });
 
 /** Служебный префикс: пути под ним отдаёт только сам протокол, не каталог расширения. */
-export const RESERVED_PREFIX = '__spirula';
+export const RESERVED_PREFIX = '__dolphy';
 
 /**
  * Страница рамки: только загрузчик, никакого встроенного кода. Без сети,
- * форм и `<base>`; скрипты — только по схеме `spirula-ext:`.
+ * форм и `<base>`; скрипты — только по схеме `dolphy-ext:`.
  */
 export const FRAME_CSP =
-  "default-src 'none'; script-src spirula-ext:; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'";
+  "default-src 'none'; script-src dolphy-ext:; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'";
 
 const frameHtml = (id: string) =>
   `<!doctype html>
@@ -70,7 +70,7 @@ body {
 `;
 
 // сам рантайм — функция; вызов с настоящим `window` и динамическим import()
-const FRAME_SCRIPT = `${frameRuntime}\nspirulaFrameRuntime(window, (url) => import(url));\n`;
+const FRAME_SCRIPT = `${frameRuntime}\ndolphyFrameRuntime(window, (url) => import(url));\n`;
 
 type Route =
   | { kind: 'file'; file: string }
@@ -78,9 +78,9 @@ type Route =
   | { kind: 'frame-script' };
 
 /**
- * Протокол `spirula-ext://<id>/<путь>`: отдаёт renderer'у только скрипты
+ * Протокол `dolphy-ext://<id>/<путь>`: отдаёт renderer'у только скрипты
  * (`.js`/`.mjs`) из каталога расширения; выход за каталог — 404. Путь
- * `__spirula/frame.html` и `__spirula/frame.js` — страница и рантайм изолированной
+ * `__dolphy/frame.html` и `__dolphy/frame.js` — страница и рантайм изолированной
  * рамки: генерируются протоколом и не читаются из каталога расширения.
  */
 export const createExtensionAssetsShell = ({

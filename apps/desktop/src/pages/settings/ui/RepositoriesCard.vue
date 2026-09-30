@@ -10,7 +10,7 @@ import type { RepositoryProgress } from '@/entities/repository';
 import type {
   RepositoryDto,
   RepositoryStatus,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 import { useEngine } from '@/shared/api/engine';
 import { useRepositories } from '../model/repositories.ts';
 

@@ -1,5 +1,5 @@
-import type { ExtensionContributesDto } from '@spirula-app/engine-contract';
-import type { ExtensionLogger } from '@spirula-app/extension-api';
+import type { ExtensionContributesDto } from '@dolphy-app/engine-contract';
+import type { ExtensionLogger } from '@dolphy-app/extension-api';
 import type { InstallerFs } from './fs.ts';
 
 /** Разобранный манифест установленного в стейджинг каталога. */
@@ -31,7 +31,7 @@ export interface InstallerOptions {
   fetch?: typeof fetch;
   fs?: InstallerFs;
   now?: () => number;
-  /** По умолчанию `spirula/<appVersion ?? 'dev'>`. */
+  /** По умолчанию `dolphy/<appVersion ?? 'dev'>`. */
   userAgent?: string;
   /** Возраст кэша индекса, младше которого `catalog()` не ходит в сеть; по умолчанию 10 минут. */
   cacheMaxAgeMs?: number;

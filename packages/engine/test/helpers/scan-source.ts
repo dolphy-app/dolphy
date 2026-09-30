@@ -1,5 +1,5 @@
-import type { Diagnostic } from '@spirula-app/engine-contract';
-import { createMemoryCourseSource } from '@spirula-app/testkit';
+import type { Diagnostic } from '@dolphy-app/engine-contract';
+import { createMemoryCourseSource } from '@dolphy-app/testkit';
 import { createFileReader } from '../../src/authoring/file-reader.ts';
 import type { CourseSource, SourceStat } from '../../src/ports/index.ts';
 

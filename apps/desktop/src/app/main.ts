@@ -1,8 +1,8 @@
 import { createApp } from 'vue';
-import { EngineCallError } from '@spirula-app/engine-rpc/client';
+import { EngineCallError } from '@dolphy-app/engine-rpc/client';
 import App from './App.vue';
-import { createSpirulaI18n } from './providers/i18n.ts';
-import { createSpirulaVuetify } from './providers/vuetify.ts';
+import { createDolphyI18n } from './providers/i18n.ts';
+import { createDolphyVuetify } from './providers/vuetify.ts';
 import { router } from './router';
 import StartupError from './startup-error/StartupError.vue';
 import { COURSE_SCOPE_KEY, createCourseScope } from '@/features/course-scope';
@@ -20,41 +20,41 @@ import './styles/global.css';
 const showStartupError = (error: unknown) => {
   const incompatible =
     error instanceof EngineCallError && error.code === 'INCOMPATIBLE_CONTRACT';
-  const i18n = createSpirulaI18n(resolveLocale('system', navigator.language));
+  const i18n = createDolphyI18n(resolveLocale('system', navigator.language));
   createApp(StartupError, {
     kind: incompatible ? 'update' : 'failed',
     message: error instanceof Error ? error.message : String(error),
   })
     .use(i18n)
-    .use(createSpirulaVuetify('system', i18n))
+    .use(createDolphyVuetify('system', i18n))
     .mount('#app');
 };
 
 const bootstrap = async () => {
-  const smoke = __SPIRULA_SMOKE_BUILD__ ? window.spirula.smoke : undefined;
+  const smoke = __DOLPHY_SMOKE_BUILD__ ? window.dolphy.smoke : undefined;
   try {
     const engine = await connectEngine(); // UI монтируется после рукопожатия
     const [{ theme, locale }, contributions] = await Promise.all([
       engine.settings.getUi(),
       loadContributions(engine),
     ]);
-    const i18n = createSpirulaI18n(resolveLocale(locale, navigator.language));
+    const i18n = createDolphyI18n(resolveLocale(locale, navigator.language));
     const courseScope = await createCourseScope(engine);
     createApp(App)
       .use(i18n)
-      .use(createSpirulaVuetify(theme, i18n, contributions.themes))
+      .use(createDolphyVuetify(theme, i18n, contributions.themes))
       .use(router)
       .provide(ENGINE_KEY, engine)
       .provide(CONTRIBUTIONS_KEY, contributions)
       .provide(COURSE_SCOPE_KEY, courseScope)
       .mount('#app');
-    if (__SPIRULA_SMOKE_BUILD__ && smoke) {
+    if (__DOLPHY_SMOKE_BUILD__ && smoke) {
       const { runSmoke } = await import('./smoke/run-smoke.ts');
       smoke.report(await runSmoke(engine, smoke));
     }
   } catch (error) {
     showStartupError(error);
-    if (__SPIRULA_SMOKE_BUILD__)
+    if (__DOLPHY_SMOKE_BUILD__)
       smoke?.report({ ok: false, error: String(error) });
   }
 };

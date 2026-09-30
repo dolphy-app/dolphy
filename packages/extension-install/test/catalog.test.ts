@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { ExtensionInstallError } from '@spirula-app/engine/ports';
+import { ExtensionInstallError } from '@dolphy-app/engine/ports';
 import {
   CATALOG_URL,
   contributesOf,
@@ -159,11 +159,11 @@ describe('catalog: кэш и сеть', () => {
   it('запрос идёт с User-Agent версии приложения', async () => {
     serveIndex(env.routes, [{ id: 'acme.echo', version: '1.0.0' }]);
     await env.installer.catalog();
-    expect(env.fake.calls[0]?.headers['User-Agent']).toBe('spirula/1.0.0');
+    expect(env.fake.calls[0]?.headers['User-Agent']).toBe('dolphy/1.0.0');
     const dev = await createEnv({ appVersion: undefined });
     serveIndex(dev.routes, []);
     await dev.installer.catalog();
-    expect(dev.fake.calls[0]?.headers['User-Agent']).toBe('spirula/dev');
+    expect(dev.fake.calls[0]?.headers['User-Agent']).toBe('dolphy/dev');
     await dev.cleanup();
   });
 

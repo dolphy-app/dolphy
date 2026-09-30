@@ -4,7 +4,7 @@ import type {
   EngineEvent,
   LearningEngine,
   RepositoryDto,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 import { useAddRepository } from '@/pages/courses/model/add-repository.ts';
 
 const repo = (courseIds: string[]): RepositoryDto => ({

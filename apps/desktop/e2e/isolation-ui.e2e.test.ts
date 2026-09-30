@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { FrameLocator, Locator } from 'playwright-core';
 import { createWorkspace, launchApp } from './support/app.ts';
-import type { SpirulaApp, Workspace } from './support/app.ts';
+import type { DolphyApp, Workspace } from './support/app.ts';
 import { ANSWER_FRAME, Client } from './support/client.ts';
 import { readJournal } from './support/journal.ts';
 
@@ -11,7 +11,7 @@ const ECHO = 'Echo (KnowledgeBase)';
 const MARKDOWN = 'Frames (KnowledgeBase)';
 const MARKDOWN_FRAME = 'iframe[sandbox][data-mode="markdown"]';
 const PROBES = [
-  'parent.spirula',
+  'parent.dolphy',
   'top.document',
   'localStorage',
   'document.cookie',
@@ -70,7 +70,7 @@ const markdownCourse = (language: string) =>
   );
 
 let workspace: Workspace | null = null;
-let app: SpirulaApp | null = null;
+let app: DolphyApp | null = null;
 
 const launch = async (userData: string) => {
   app = await launchApp(userData);
@@ -123,7 +123,7 @@ describe('изоляция интерфейса расширений', () => {
     expect(await client.page.locator('iframe').count()).toBe(1);
     expect(await frame.getAttribute('sandbox')).toBe('allow-scripts');
     expect(await frame.getAttribute('src')).toBe(
-      'spirula-ext://acme.hostile-ui/__spirula/frame.html',
+      'dolphy-ext://acme.hostile-ui/__dolphy/frame.html',
     );
     expect(await frame.getAttribute('title')).toContain('Ответ');
     // элемента нет в окне приложения: только внутри рамки
@@ -143,10 +143,10 @@ describe('изоляция интерфейса расширений', () => {
       .toBeGreaterThanOrEqual(400);
     expect((await frame.boundingBox())?.height ?? 0).toBeLessThan(700);
 
-    // у приложения окно по-прежнему с window.spirula, у рамки его нет
+    // у приложения окно по-прежнему с window.dolphy, у рамки его нет
     expect(
       await client.page.evaluate(
-        () => typeof (window as unknown as { spirula?: unknown }).spirula,
+        () => typeof (window as unknown as { dolphy?: unknown }).dolphy,
       ),
     ).toBe('object');
   });
@@ -242,7 +242,7 @@ describe('изоляция интерфейса расширений', () => {
     const client = await launch(workspace.userData);
     await startSession(client, MARKDOWN);
 
-    const block = client.page.locator('.spirula-md-block[data-language=good]');
+    const block = client.page.locator('.dolphy-md-block[data-language=good]');
     await expect
       .poll(() => block.getAttribute('data-state'), { timeout: 15_000 })
       .toBe('done');
@@ -264,8 +264,8 @@ describe('изоляция интерфейса расширений', () => {
     const client = await launch(workspace.userData);
     await startSession(client, MARKDOWN);
 
-    const block = client.page.locator('.spirula-md-block[data-language=boom]');
-    await block.locator('.spirula-md-error').waitFor({ state: 'visible' });
+    const block = client.page.locator('.dolphy-md-block[data-language=boom]');
+    await block.locator('.dolphy-md-error').waitFor({ state: 'visible' });
     expect(await block.getAttribute('data-state')).toBe('error');
     expect(await block.locator('pre code').textContent()).toContain('hello');
     expect(await block.locator('iframe').count()).toBe(0);
@@ -290,7 +290,7 @@ describe('изоляция интерфейса расширений', () => {
     expect(await client.page.locator('iframe').count()).toBe(0);
     await expect
       .poll(() => readProbes(client.page.locator('body')), { timeout: 30_000 })
-      .toMatchObject({ 'parent.spirula': 'reachable', fetch: 'blocked' });
+      .toMatchObject({ 'parent.dolphy': 'reachable', fetch: 'blocked' });
 
     await element.locator('input').fill('x');
     await client.page

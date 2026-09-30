@@ -1,7 +1,7 @@
 import { fork } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import type { MessageEndpoint } from '@spirula-app/engine-contract';
+import type { MessageEndpoint } from '@dolphy-app/engine-contract';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createCatalog } from '../src/catalog.ts';
 import { createHostChannel } from '../src/channel.ts';

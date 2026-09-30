@@ -1,5 +1,5 @@
-/** Элемент ввода ответа `spirula-sql-answer`; побочный эффект загрузки — регистрация. */
-import { defineAnswerElement } from '@spirula-app/extension-sdk';
+/** Элемент ввода ответа `dolphy-sql-answer`; побочный эффект загрузки — регистрация. */
+import { defineAnswerElement } from '@dolphy-app/extension-sdk';
 
 const STYLE = `
   :host { display: block; }
@@ -17,7 +17,7 @@ const STYLE = `
 
 const toText = (value: unknown) => (typeof value === 'string' ? value : '');
 
-defineAnswerElement('spirula-sql-answer', (api, initial) => {
+defineAnswerElement('dolphy-sql-answer', (api, initial) => {
   const style = document.createElement('style');
   style.textContent = STYLE;
   const textarea = document.createElement('textarea');

@@ -1,27 +1,27 @@
 {
-  "name": "@spirula-app/ext-sql",
+  "name": "@dolphy-app/ext-sql",
   "version": "0.0.0",
   "private": true,
-  "description": "Расширение spirula.sql: SQL-задания с проверкой раннером",
+  "description": "Расширение dolphy.sql: SQL-задания с проверкой раннером",
   "type": "module",
   "scripts": {
     "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
     "test": "vitest run",
-    "build": "spirula-ext build"
+    "build": "dolphy-ext build"
   },
   "dependencies": {
-    "@spirula-app/engine-sql-runner": "workspace:*",
-    "@spirula-app/extension-api": "workspace:*",
-    "@spirula-app/extension-sdk": "workspace:*"
+    "@dolphy-app/engine-sql-runner": "workspace:*",
+    "@dolphy-app/extension-api": "workspace:*",
+    "@dolphy-app/extension-sdk": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.20.4",
     "typescript": "7.0.2",
-    "@spirula-app/engine": "workspace:*",
-    "@spirula-app/engine-contract": "workspace:*",
-    "@spirula-app/extension-host": "workspace:*",
-    "@spirula-app/testkit": "workspace:*",
-    "@spirula-app/extension-tools": "workspace:*",
+    "@dolphy-app/engine": "workspace:*",
+    "@dolphy-app/engine-contract": "workspace:*",
+    "@dolphy-app/extension-host": "workspace:*",
+    "@dolphy-app/testkit": "workspace:*",
+    "@dolphy-app/extension-tools": "workspace:*",
     "happy-dom": "^20.14.5"
   },
   "engines": {

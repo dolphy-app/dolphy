@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n';
 import type {
   CatalogEntryDto,
   CatalogVersionDto,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 import { useEngine } from '@/shared/api/engine';
 import {
   CONTRIBUTION_POINTS,

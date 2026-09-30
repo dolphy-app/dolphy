@@ -185,7 +185,7 @@ export const serveGitRepo = async (
   initial: GitServerOptions = {},
 ): Promise<GitServer> => {
   const list = Array.isArray(specs) ? specs : [specs];
-  const root = mkdtempSync(join(tmpdir(), 'spirula-git-server-'));
+  const root = mkdtempSync(join(tmpdir(), 'dolphy-git-server-'));
   const repos = new Map<string, Repo>();
   let options: GitServerOptions = { ...initial };
 

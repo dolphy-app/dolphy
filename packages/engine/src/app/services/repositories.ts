@@ -8,7 +8,7 @@ import type {
   RepositoryPhase,
   RepositoryStatus,
   UpdateRepositoryResult,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 import { loadCompiled } from '../../authoring/artifact.ts';
 import { compile } from '../../authoring/compile.ts';
 import {

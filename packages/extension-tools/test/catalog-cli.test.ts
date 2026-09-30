@@ -13,7 +13,7 @@ const exec = async (args: string[], deps: CliDeps = {}) => {
   return { code, stdout: cli.stdout(), stderr: cli.stderr() };
 };
 
-describe('spirula-ext catalog check', () => {
+describe('dolphy-ext catalog check', () => {
   it('без замечаний: код 0 и пустой вывод', async () => {
     const repo = await createRepo([{ fixture: 'theme-only' }]);
     const result = await exec([
@@ -41,7 +41,7 @@ describe('spirula-ext catalog check', () => {
     ]);
     expect(result.code).toBe(1);
     expect(result.stdout).toBe(
-      "warning acme.chart CHECK-011 name: package scope of '@acme/x' is not @spirula-app\n" +
+      "warning acme.chart CHECK-011 name: package scope of '@acme/x' is not @dolphy-app\n" +
         'error acme.night CHECK-004 README.md: README.md is missing or empty\n',
     );
 
@@ -128,12 +128,12 @@ describe('spirula-ext catalog check', () => {
 
   it('справка описывает подкоманды catalog', async () => {
     const result = await exec(['--help']);
-    expect(result.stdout).toContain('spirula-ext catalog check');
-    expect(result.stdout).toContain('spirula-ext catalog build');
+    expect(result.stdout).toContain('dolphy-ext catalog check');
+    expect(result.stdout).toContain('dolphy-ext catalog build');
   });
 });
 
-describe('spirula-ext catalog build', () => {
+describe('dolphy-ext catalog build', () => {
   it('печатает строку на расширение: published, затем unchanged', async () => {
     const repo = await createRepo([{ fixture: 'theme-only' }]);
     const out = await makeTemp();
@@ -219,7 +219,7 @@ describe('spirula-ext catalog build', () => {
   });
 });
 
-describe('spirula-ext catalog build --reindex', () => {
+describe('dolphy-ext catalog build --reindex', () => {
   const setup = async () => {
     const repo = await createRepo([{ fixture: 'theme-only' }]);
     const out = await makeTemp();

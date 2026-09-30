@@ -5,10 +5,10 @@ import type { AppLocale } from '@/shared/i18n';
 import { datetimeFormats, messages } from '../i18n/messages.ts';
 
 /** Экземпляр в том виде, который принимает адаптер локали Vuetify. */
-export type SpirulaI18n = Parameters<typeof createVueI18nAdapter>[0]['i18n'];
+export type DolphyI18n = Parameters<typeof createVueI18nAdapter>[0]['i18n'];
 
 /** Язык интерфейса выбирает вызывающий (из БД движка или из системы). */
-export const createSpirulaI18n = (locale: AppLocale): SpirulaI18n => {
+export const createDolphyI18n = (locale: AppLocale): DolphyI18n => {
   document.documentElement.lang = locale;
   const i18n = createI18n({
     legacy: false,
@@ -20,5 +20,5 @@ export const createSpirulaI18n = (locale: AppLocale): SpirulaI18n => {
   });
   // ключи `t()` проверяет глобальная схема (`i18n/vue-i18n.d.ts`), а адаптер
   // Vuetify ждёт экземпляр без привязки к списку языков
-  return i18n as unknown as SpirulaI18n;
+  return i18n as unknown as DolphyI18n;
 };

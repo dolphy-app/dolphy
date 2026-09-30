@@ -1,5 +1,5 @@
 {
-  "id": "spirula.sql",
+  "id": "dolphy.sql",
   "version": "1.0.0",
   "apiVersion": 1,
   "main": "./main.mjs",
@@ -7,10 +7,10 @@
   "contributes": {
     "exerciseTypes": [
       {
-        "id": "spirula.sql",
+        "id": "dolphy.sql",
         "specSchema": "./schema/spec.json",
         "answerSchema": "./schema/answer.json",
-        "element": "spirula-sql-answer",
+        "element": "dolphy-sql-answer",
         "renderer": "./view.mjs"
       }
     ]

@@ -1,16 +1,16 @@
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { ExtensionInstallError } from '@spirula-app/engine/ports';
+import { ExtensionInstallError } from '@dolphy-app/engine/ports';
 import {
   CatalogFormatError,
   MAX_FILES,
   MAX_TOTAL_BYTES,
   versionFileUrl,
-} from '@spirula-app/extension-catalog';
+} from '@dolphy-app/extension-catalog';
 import type {
   CatalogFile,
   CatalogVersion,
-} from '@spirula-app/extension-catalog';
+} from '@dolphy-app/extension-catalog';
 import { totalSize } from './dto.ts';
 import type { InstallerFs } from './fs.ts';
 import type { HttpClient } from './http.ts';

@@ -51,12 +51,12 @@ describe('versionFileUrl', () => {
   it('собирает адрес относительно index.json на том же origin', () => {
     expect(
       versionFileUrl(
-        'https://spirula-app.github.io/spirula-extensions/index.json',
+        'https://dolphy-app.github.io/dolphy-extensions/index.json',
         version,
         'main.mjs',
       ).href,
     ).toBe(
-      'https://spirula-app.github.io/spirula-extensions/extensions/acme.quiz/1.0.0/main.mjs',
+      'https://dolphy-app.github.io/dolphy-extensions/extensions/acme.quiz/1.0.0/main.mjs',
     );
   });
 

@@ -1,5 +1,5 @@
 import { computeDecayFactor, default_w as defaultWeights } from 'ts-fsrs';
-import type { EpochMs } from '@spirula-app/engine-contract';
+import type { EpochMs } from '@dolphy-app/engine-contract';
 import type { MemoryModel } from '../ports/index.ts';
 import { MS_PER_DAY } from '../scoring/constants.ts';
 

@@ -10,8 +10,8 @@ import {
   createFakeClock,
   createTestIds,
   generateLibrary,
-} from '@spirula-app/testkit';
-import type { FakeClock } from '@spirula-app/testkit';
+} from '@dolphy-app/testkit';
+import type { FakeClock } from '@dolphy-app/testkit';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import type { EntryFields } from '../../src/app/index.ts';

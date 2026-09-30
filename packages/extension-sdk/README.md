@@ -1,11 +1,11 @@
-# @spirula-app/extension-sdk
+# @dolphy-app/extension-sdk
 
-SDK автора расширений («видов заданий»). Всё публичное API `@spirula-app/extension-api`
+SDK автора расширений («видов заданий»). Всё публичное API `@dolphy-app/extension-api`
 реэкспортируется отсюда, отдельно ставить его не нужно.
 
 ```ts
 // main.ts — код расширения (utilityProcess)
-import { defineExtension } from '@spirula-app/extension-sdk';
+import { defineExtension } from '@dolphy-app/extension-sdk';
 export default defineExtension({
   exerciseTypes: {
     'acme.echo': {
@@ -19,7 +19,7 @@ export default defineExtension({
 });
 
 // view.ts — элемент ввода ответа (окно приложения)
-import { defineAnswerElement } from '@spirula-app/extension-sdk';
+import { defineAnswerElement } from '@dolphy-app/extension-sdk';
 defineAnswerElement('acme-echo-answer', (api, props) => {
   const input = document.createElement('input');
   input.oninput = () => api.setAnswer(input.value, input.value.length > 0);
@@ -28,7 +28,7 @@ defineAnswerElement('acme-echo-answer', (api, props) => {
 });
 
 // main.test.ts — проверка без приложения
-import { loadExerciseType } from '@spirula-app/extension-sdk/testing';
+import { loadExerciseType } from '@dolphy-app/extension-sdk/testing';
 const echo = await loadExerciseType(module, 'acme.echo');
 await echo.grade({ spec: { expected: '42' }, answer: '42' }); // { outcome: 'passed' }
 ```
@@ -37,7 +37,7 @@ await echo.grade({ spec: { expected: '42' }, answer: '42' }); // { outcome: 'pas
 
 ```ts
 // main.ts — правило оценки (вклад `gradePolicies`, нужен main)
-import { defineExtension } from '@spirula-app/extension-sdk';
+import { defineExtension } from '@dolphy-app/extension-sdk';
 export default defineExtension({
   gradePolicies: {
     // 1–5 или null («нужна самооценка»); сбой правила — оценка по passAtN
@@ -51,13 +51,13 @@ export default defineExtension({
 });
 
 // markdown.ts — рендерер содержимого (вклад `markdownRenderers`, main не нужен)
-import { defineMarkdownRenderer } from '@spirula-app/extension-sdk';
+import { defineMarkdownRenderer } from '@dolphy-app/extension-sdk';
 export default defineMarkdownRenderer((source, container, { language }) => {
   container.textContent = `${language}: ${source}`;
 });
 
 // main.test.ts — проверка правила без приложения
-import { loadGradePolicy } from '@spirula-app/extension-sdk/testing';
+import { loadGradePolicy } from '@dolphy-app/extension-sdk/testing';
 const policy = await loadGradePolicy(module, 'acme.policy.generous');
 await policy.evaluate({ verdicts: [{ outcome: 'passed' }], gaveUp: false }); // 5
 ```
@@ -68,7 +68,7 @@ await policy.evaluate({ verdicts: [{ outcome: 'passed' }], gaveUp: false }); // 
 - `defineMarkdownRenderer(render)` — `export default` модуля рендерера
   содержимого (`render(source, container, { language, signal })`); при
   исключении приложение оставляет исходный текст блока.
-- `loadGradePolicy(module, id)` (`@spirula-app/extension-sdk/testing`) — `evaluate`
+- `loadGradePolicy(module, id)` (`@dolphy-app/extension-sdk/testing`) — `evaluate`
   проверяет, что результат — целое 1–5 или `null`.
 
 Темам код не нужен: это данные в `extension.json`. Подробности по всем
@@ -91,7 +91,7 @@ await policy.evaluate({ verdicts: [{ outcome: 'passed' }], gaveUp: false }); // 
   `worker.threads` и `native.addons` падают с `ERR_ACCESS_DENIED` от Node;
   `network` — справочное разрешение, сеть кода им не ограничивается.
 - У доверенного расширения и у расширения из поставки ограничений нет.
-- `@spirula-app/extension-sdk/testing` запускает обработчик в вашем процессе, без
+- `@dolphy-app/extension-sdk/testing` запускает обработчик в вашем процессе, без
   ограничений и без проверки `permissions`: `PermissionError` и
   `ERR_ACCESS_DENIED` там не воспроизводятся, проверяйте разрешения в
   приложении (вид — от стороннего, не доверенного расширения).

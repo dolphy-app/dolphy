@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n';
 import type {
   ExtensionInfoDto,
   ExtensionStateDto,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 import { useEngine } from '@/shared/api/engine';
 import { displayName } from '../lib/catalog.ts';
 import {

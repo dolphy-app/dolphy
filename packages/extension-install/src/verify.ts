@@ -1,7 +1,7 @@
 import type {
   CatalogEntry,
   CatalogVersion,
-} from '@spirula-app/extension-catalog';
+} from '@dolphy-app/extension-catalog';
 import type { InspectedManifest } from './options.ts';
 
 const CONTRIBUTION_KEYS = [

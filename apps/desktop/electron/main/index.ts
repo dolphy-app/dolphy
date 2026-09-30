@@ -35,11 +35,11 @@ const devServerUrl = process.env.VITE_DEV_SERVER_URL;
 
 const logger = createMainLogger();
 
-// смоук существует только в смоук-сборке (SPIRULA_SMOKE_BUILD=1 при vite build):
+// смоук существует только в смоук-сборке (DOLPHY_SMOKE_BUILD=1 при vite build):
 // в релизном бандле флаг — false, весь код за ним вырезан
-const smoke = __SPIRULA_SMOKE_BUILD__ && process.env.SPIRULA_SMOKE === '1';
-const smokeUserData = __SPIRULA_SMOKE_BUILD__
-  ? process.env.SPIRULA_SMOKE_USER_DATA
+const smoke = __DOLPHY_SMOKE_BUILD__ && process.env.DOLPHY_SMOKE === '1';
+const smokeUserData = __DOLPHY_SMOKE_BUILD__
+  ? process.env.DOLPHY_SMOKE_USER_DATA
   : undefined;
 if (smoke && smokeUserData) app.setPath('userData', smokeUserData);
 
@@ -50,8 +50,7 @@ if (!app.requestSingleInstanceLock()) {
 
 const userData = app.getPath('userData');
 const libraryRoot =
-  (smoke && process.env.SPIRULA_SMOKE_LIBRARY) ||
-  path.join(userData, 'library');
+  (smoke && process.env.DOLPHY_SMOKE_LIBRARY) || path.join(userData, 'library');
 // расширения из поставки (read-only) и пользовательские; пользовательское с тем же id побеждает
 const bundledExtensionsDir = app.isPackaged
   ? path.join(process.resourcesPath, 'extensions')
@@ -64,23 +63,23 @@ const restrictedEntry = path.join(
   'ext-restricted.mjs',
 );
 // режим разработчика: каталог с приоритетом выше пользовательского, под наблюдением
-const devExtensionsDir = process.env.SPIRULA_DEV_EXTENSIONS
-  ? path.resolve(process.env.SPIRULA_DEV_EXTENSIONS)
+const devExtensionsDir = process.env.DOLPHY_DEV_EXTENSIONS
+  ? path.resolve(process.env.DOLPHY_DEV_EXTENSIONS)
   : undefined;
 
 // версия приложения известна у собранного приложения; в разработке проверка
-// minAppVersion отключена, если не задан SPIRULA_APP_VERSION (для e2e и отладки)
+// minAppVersion отключена, если не задан DOLPHY_APP_VERSION (для e2e и отладки)
 const devAppVersion = /^\d+\.\d+\.\d+$/.test(
-  process.env.SPIRULA_APP_VERSION ?? '',
+  process.env.DOLPHY_APP_VERSION ?? '',
 )
-  ? process.env.SPIRULA_APP_VERSION
+  ? process.env.DOLPHY_APP_VERSION
   : undefined;
 const appVersion = app.isPackaged ? app.getVersion() : devAppVersion;
 // адрес каталога расширений подменяется только в несобранном приложении (e2e, отладка):
 // в собранном идёт официальный
 const extensionCatalogUrl = app.isPackaged
   ? undefined
-  : process.env.SPIRULA_EXTENSION_CATALOG_URL || undefined;
+  : process.env.DOLPHY_EXTENSION_CATALOG_URL || undefined;
 
 const hostLink = createHostLink({ MessageChannelMain });
 const extSupervisor = createExtSupervisor({
@@ -115,7 +114,7 @@ const supervisor = createSupervisor({
   logger,
   onFatal: () => {
     dialog.showErrorBox(
-      'Spirula',
+      'Dolphy',
       'Движок обучения неоднократно завершался с ошибкой. Приложение будет закрыто.',
     );
     app.quit();

@@ -9,7 +9,7 @@ import {
   type RpcMethodName,
   type RpcRequest,
   type RpcResponse,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 
 /** Ошибка вызова движка по RPC; несёт код, `retryable` и `details` хоста. */
 export class EngineCallError extends Error {

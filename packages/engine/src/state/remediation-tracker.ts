@@ -3,7 +3,7 @@ import type {
   RemediationStepDto,
   SchedulerOptionsDto,
   UnitId,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 import type {
   AttemptIndex,
   AttemptRecord,

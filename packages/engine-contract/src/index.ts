@@ -972,7 +972,7 @@ export interface EngineConfig {
   bundledExtensionsDir?: string;
   /** Каталог пользовательских расширений; побеждает при совпадении id. Оба каталога не заданы — вид заданий недоступен. */
   userExtensionsDir?: string;
-  /** Каталог разработчика расширений (`SPIRULA_DEV_EXTENSIONS`): корень с наивысшим приоритетом, побеждает пользовательский и поставляемый при совпадении id. */
+  /** Каталог разработчика расширений (`DOLPHY_DEV_EXTENSIONS`): корень с наивысшим приоритетом, побеждает пользовательский и поставляемый при совпадении id. */
   devExtensionsDir?: string;
   /** Адрес `index.json` каталога расширений; не задан — используется официальный. */
   extensionCatalogUrl?: string;
@@ -1088,7 +1088,7 @@ export interface ExtensionInfoDto {
   revoked: string | null;
 }
 
-/** Метаданные установки из каталога (файл `.spirula-install.json` в каталоге расширения). */
+/** Метаданные установки из каталога (файл `.dolphy-install.json` в каталоге расширения). */
 export interface ExtensionInstallDto {
   catalogUrl: string;
   version: string;
@@ -1115,7 +1115,7 @@ export interface ThemeContributionDto {
 export interface MarkdownRendererDto {
   language: string;
   extensionId: string;
-  /** `spirula-ext://<extensionId>/<путь>`. */
+  /** `dolphy-ext://<extensionId>/<путь>`. */
   rendererUrl: string;
   /** Модуль исполняется в изолированной рамке (расширение не из поставки и не доверенное). */
   isolated: boolean;

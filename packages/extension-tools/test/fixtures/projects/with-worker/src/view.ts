@@ -1,4 +1,4 @@
-import type { AnswerElementProps } from '@spirula-app/extension-api';
+import type { AnswerElementProps } from '@dolphy-app/extension-api';
 
 class WorkerAnswer extends HTMLElement implements Partial<AnswerElementProps> {
   disabled = false;

@@ -2,7 +2,7 @@ import {
   buildAttempt,
   buildUnitFlag,
   createFakeClock,
-} from '@spirula-app/testkit';
+} from '@dolphy-app/testkit';
 import { describe, expect, it } from 'vitest';
 import type { LogEntry } from '../../src/domain/journal.ts';
 import { createMemoryEventStore } from '../../src/node/index.ts';

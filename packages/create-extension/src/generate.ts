@@ -1,6 +1,6 @@
 import { mkdir, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { EXTENSION_ID_PATTERN } from '@spirula-app/extension-api';
+import { EXTENSION_ID_PATTERN } from '@dolphy-app/extension-api';
 import * as template from './template.ts';
 import type { TemplateInput } from './template.ts';
 
@@ -10,11 +10,11 @@ const MAX_ID_CHARS = 64;
 export const UNPUBLISHED_VERSION = '^0.0.0';
 
 /** Подставляется сборкой `tools/build-packages.mjs`; в исходниках не определена. */
-declare const __SPIRULA_PACKAGE_VERSION__: string | undefined;
+declare const __DOLPHY_PACKAGE_VERSION__: string | undefined;
 
 const builtPackageVersion = (): string | null =>
-  typeof __SPIRULA_PACKAGE_VERSION__ === 'string'
-    ? __SPIRULA_PACKAGE_VERSION__
+  typeof __DOLPHY_PACKAGE_VERSION__ === 'string'
+    ? __DOLPHY_PACKAGE_VERSION__
     : null;
 
 export type GenerateErrorCode =
@@ -34,7 +34,7 @@ export interface GenerateOptions {
   dir: string;
   /** По умолчанию — kebab-case имени каталога. */
   id?: string;
-  /** Корень репозитория Spirula: зависимости пишутся как `link:<корень>/packages/...`. */
+  /** Корень репозитория Dolphy: зависимости пишутся как `link:<корень>/packages/...`. */
   localRoot?: string;
   /** Версия опубликованных пакетов; по умолчанию — версия самого генератора из сборки. */
   packageVersion?: string;
@@ -101,7 +101,7 @@ const dependencySpecs = async (
     if (!(await isDirectory(dir))) {
       throw new GenerateError(
         'invalid-local',
-        `${dir} not found: --local must point to the Spirula repository root`,
+        `${dir} not found: --local must point to the Dolphy repository root`,
       );
     }
   }

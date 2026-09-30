@@ -1,4 +1,4 @@
-import type { UnitId } from '@spirula-app/engine-contract';
+import type { UnitId } from '@dolphy-app/engine-contract';
 import type {
   AttemptIndex,
   AttemptRecord,

@@ -1,4 +1,4 @@
-import { defineMarkdownRenderer } from '@spirula-app/extension-sdk';
+import { defineMarkdownRenderer } from '@dolphy-app/extension-sdk';
 import { liteAdaptor } from 'mathjax-full/js/adaptors/liteAdaptor.js';
 import { RegisterHTMLHandler } from 'mathjax-full/js/handlers/html.js';
 import { TeX } from 'mathjax-full/js/input/tex.js';
@@ -29,7 +29,7 @@ export default defineMarkdownRenderer((source, container) => {
   if (source.trim() === '') throw new Error('empty formula');
   holder.convert ??= createConverter();
   const wrapper = container.ownerDocument.createElement('div');
-  wrapper.className = 'spirula-math';
+  wrapper.className = 'dolphy-math';
   wrapper.setAttribute('role', 'math');
   wrapper.setAttribute('aria-label', source.trim());
   wrapper.style.cssText =

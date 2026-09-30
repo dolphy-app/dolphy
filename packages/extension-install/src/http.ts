@@ -1,5 +1,5 @@
-import { ExtensionInstallError } from '@spirula-app/engine/ports';
-import type { ExtensionInstallErrorCause } from '@spirula-app/engine/ports';
+import { ExtensionInstallError } from '@dolphy-app/engine/ports';
+import type { ExtensionInstallErrorCause } from '@dolphy-app/engine/ports';
 
 const MAX_REDIRECTS = 3;
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);

@@ -11,7 +11,7 @@
  * проверка идёт по всему курсу `2` (`exercise_in_course(2::0)`).
  */
 import { describe, it } from 'vitest';
-import type { Grade } from '@spirula-app/engine-contract';
+import type { Grade } from '@dolphy-app/engine-contract';
 import { createWorld } from '../helpers/world.ts';
 import type { World, WorldCourseSpec } from '../helpers/world.ts';
 import {

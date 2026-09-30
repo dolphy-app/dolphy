@@ -1,4 +1,4 @@
-import type { ItemReason } from '@spirula-app/engine-contract';
+import type { ItemReason } from '@dolphy-app/engine-contract';
 
 interface ItemReasonView {
   icon: string;

@@ -1,7 +1,7 @@
-import { createFakeClock } from '@spirula-app/testkit';
+import { createFakeClock } from '@dolphy-app/testkit';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import type { Grade } from '@spirula-app/engine-contract';
+import type { Grade } from '@dolphy-app/engine-contract';
 import type { EntryFields } from '../../src/app/index.ts';
 import type { LogEntry } from '../../src/domain/journal.ts';
 import type { EventStore } from '../../src/ports/index.ts';

@@ -9,10 +9,10 @@ const render = async (source: string) => {
   return container;
 };
 
-describe('spirula.math renderer', () => {
+describe('dolphy.math renderer', () => {
   it('выводит формулу как svg с aria-label', async () => {
     const container = await render('E = mc^2');
-    const wrapper = container.querySelector('.spirula-math');
+    const wrapper = container.querySelector('.dolphy-math');
     expect(wrapper?.getAttribute('role')).toBe('math');
     expect(wrapper?.getAttribute('aria-label')).toBe('E = mc^2');
     expect(wrapper?.querySelector('svg')).not.toBeNull();

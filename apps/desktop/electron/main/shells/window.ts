@@ -68,7 +68,7 @@ export const createWindowOptions = (
   hidden: boolean,
   additionalArguments: readonly string[],
 ): WindowOptions => ({
-  title: 'Spirula',
+  title: 'Dolphy',
   show: !hidden,
   minWidth: MIN_WINDOW_WIDTH,
   minHeight: MIN_WINDOW_HEIGHT,

@@ -1,17 +1,17 @@
 import type {
   CatalogEntryDto,
   CatalogVersionDto,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 import {
   compareSemver,
   isSemver,
   resolveVersion,
-} from '@spirula-app/extension-catalog';
+} from '@dolphy-app/extension-catalog';
 import type {
   CatalogEntry,
   CatalogVersion,
   ResolveContext,
-} from '@spirula-app/extension-catalog';
+} from '@dolphy-app/extension-catalog';
 
 export const totalSize = (version: CatalogVersion): number =>
   version.files.reduce((sum, file) => sum + file.size, 0);

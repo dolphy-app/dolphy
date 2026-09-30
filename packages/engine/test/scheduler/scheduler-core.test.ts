@@ -9,7 +9,7 @@
  * ни одного при «все кандидаты»).
  */
 import { describe, expect, it } from 'vitest';
-import type { SchedulerOptionsDto } from '@spirula-app/engine-contract';
+import type { SchedulerOptionsDto } from '@dolphy-app/engine-contract';
 import {
   DEFAULT_SCHEDULER_OPTIONS,
   createCandidate,

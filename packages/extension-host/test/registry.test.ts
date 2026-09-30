@@ -22,7 +22,7 @@ const extension = (id: string, version = '1.0.0'): ResolvedExtension => ({
       specSchema: {},
       answerSchema: {},
       element: 'x-a',
-      rendererUrl: 'spirula-ext://x/view.mjs',
+      rendererUrl: 'dolphy-ext://x/view.mjs',
     },
   ],
   themes: [],
@@ -38,10 +38,10 @@ const NONE = {
 };
 
 const discovery: DiscoveryResult = {
-  extensions: [extension('spirula.sql', '1.0.1')],
+  extensions: [extension('dolphy.sql', '1.0.1')],
   overridden: [
     {
-      id: 'spirula.sql',
+      id: 'dolphy.sql',
       version: '1.0.0',
       origin: 'bundled',
       by: { origin: 'user', version: '1.0.1' },
@@ -60,11 +60,11 @@ describe('createExtensionRegistry', () => {
 
   it('maps loaded extensions with their exercise types', () => {
     expect(items).toContainEqual({
-      id: 'spirula.sql',
+      id: 'dolphy.sql',
       version: '1.0.1',
       origin: 'user',
       state: 'loaded',
-      contributes: { ...NONE, exerciseTypes: ['spirula.sql.a'] },
+      contributes: { ...NONE, exerciseTypes: ['dolphy.sql.a'] },
       message: null,
       permissions: ['library.read'],
       isolation: 'isolated',
@@ -80,7 +80,7 @@ describe('createExtensionRegistry', () => {
 
   it('maps overridden copies with the overriding origin and version', () => {
     expect(items).toContainEqual({
-      id: 'spirula.sql',
+      id: 'dolphy.sql',
       version: '1.0.0',
       origin: 'bundled',
       state: 'overridden',
@@ -125,20 +125,20 @@ describe('createExtensionRegistry', () => {
     );
     registry.list()[0]?.contributes.exerciseTypes.push('evil');
     expect(registry.list()[0]?.contributes.exerciseTypes).toEqual([
-      'spirula.sql.a',
+      'dolphy.sql.a',
     ]);
   });
 });
 
 describe('createExtensionRegistry: политика', () => {
   const bundled: ResolvedExtension = {
-    ...extension('spirula.math'),
+    ...extension('dolphy.math'),
     origin: 'bundled',
     permissions: [],
     markdownRenderers: [
       {
         language: 'math',
-        rendererUrl: 'spirula-ext://spirula.math/view.mjs',
+        rendererUrl: 'dolphy-ext://dolphy.math/view.mjs',
       },
     ],
   };
@@ -147,7 +147,7 @@ describe('createExtensionRegistry: политика', () => {
     markdownRenderers: [
       {
         language: 'chart',
-        rendererUrl: 'spirula-ext://acme.u/view.mjs',
+        rendererUrl: 'dolphy-ext://acme.u/view.mjs',
       },
     ],
     themes: [
@@ -200,12 +200,12 @@ describe('createExtensionRegistry: политика', () => {
         .list()
         .map(({ id, isolation, toggleable }) => [id, isolation, toggleable]),
     ).toEqual([
-      ['spirula.math', 'trusted', false],
+      ['dolphy.math', 'trusted', false],
       ['acme.u', 'isolated', true],
     ]);
     policy.update({
       disabled: [],
-      trusted: ['acme.u', 'spirula.math'],
+      trusted: ['acme.u', 'dolphy.math'],
       checkUpdates: true,
     });
     expect(flags()).toEqual({ math: false, chart: false });

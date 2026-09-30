@@ -2,7 +2,7 @@ import type {
   Grade,
   PlacementSummaryDto,
   UnitId,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 
 /** «Не знаю / пропустить» — самооценка 1 (ниже порога «знаю» — 3). */
 export const SKIP_GRADE: Grade = 1;

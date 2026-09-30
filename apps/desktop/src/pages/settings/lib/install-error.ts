@@ -1,4 +1,4 @@
-import type { EngineErrorDto } from '@spirula-app/engine-contract';
+import type { EngineErrorDto } from '@dolphy-app/engine-contract';
 
 /** Причины `details.reason` ошибки `EXTENSION_INSTALL_FAILED`. */
 const INSTALL_REASONS = [

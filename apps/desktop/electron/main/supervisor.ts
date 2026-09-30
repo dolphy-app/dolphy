@@ -131,7 +131,7 @@ export const createSupervisor = (options: SupervisorOptions): Supervisor => {
     restartTimer = null;
     if (stopping || child) return;
     const self = utilityProcess.fork(hostPath, [], {
-      serviceName: 'spirula-engine',
+      serviceName: 'dolphy-engine',
     });
     child = self;
     self.once('spawn', () => {

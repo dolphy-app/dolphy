@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { CHANNELS } from '../../shared/bridge.ts';
-import type { SpirulaBridge } from '../../shared/bridge.ts';
+import type { DolphyBridge } from '../../shared/bridge.ts';
 import { SMOKE_ARGUMENT, SMOKE_CHANNELS } from '../../shared/smoke.ts';
 
 const windowLoaded = new Promise<void>((resolve) => {
@@ -13,7 +13,7 @@ ipcRenderer.on(CHANNELS.enginePort, async (event) => {
   window.postMessage(CHANNELS.enginePort, '*', [...event.ports]);
 });
 
-const bridge: SpirulaBridge = {
+const bridge: DolphyBridge = {
   engine: { connect: () => ipcRenderer.send(CHANNELS.engineConnect) },
   platform: {
     pickDirectory: (options) => {
@@ -25,7 +25,7 @@ const bridge: SpirulaBridge = {
   extensions: {
     apply: () => ipcRenderer.invoke(CHANNELS.applyExtensions),
   },
-  ...(__SPIRULA_SMOKE_BUILD__ && process.argv.includes(SMOKE_ARGUMENT)
+  ...(__DOLPHY_SMOKE_BUILD__ && process.argv.includes(SMOKE_ARGUMENT)
     ? {
         smoke: {
           report: (result: unknown) =>
@@ -35,4 +35,4 @@ const bridge: SpirulaBridge = {
       }
     : {}),
 };
-contextBridge.exposeInMainWorld('spirula', bridge);
+contextBridge.exposeInMainWorld('dolphy', bridge);

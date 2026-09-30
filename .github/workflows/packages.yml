@@ -47,7 +47,7 @@ jobs:
       - name: Build packages
         run: pnpm build:packages
 
-      # tarball'ы, установка в пустой проект, create-spirula-extension → build/validate/test
+      # tarball'ы, установка в пустой проект, create-dolphy-extension → build/validate/test
       - name: Verify packages
         run: pnpm verify:packages
 

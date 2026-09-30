@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url';
-import { ExerciseTypeError } from '@spirula-app/engine/ports';
-import type { ExtensionModule } from '@spirula-app/extension-api';
+import { ExerciseTypeError } from '@dolphy-app/engine/ports';
+import type { ExtensionModule } from '@dolphy-app/extension-api';
 import { describe, expect, it, vi } from 'vitest';
 import { discoverExtensions } from '../src/discover.ts';
 import type { ResolvedExtension } from '../src/discover.ts';

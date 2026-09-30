@@ -1,5 +1,5 @@
 import { pathToFileURL } from 'node:url';
-import type { MessageEndpoint } from '@spirula-app/engine-contract';
+import type { MessageEndpoint } from '@dolphy-app/engine-contract';
 import type {
   Disposable,
   ExerciseTypeHandler,
@@ -8,7 +8,7 @@ import type {
   ExtensionModule,
   GradePolicyHandler,
   LibraryReader,
-} from '@spirula-app/extension-api';
+} from '@dolphy-app/extension-api';
 import { createCatalog } from './catalog.ts';
 import type { ResolvedExtension } from './discover.ts';
 import { createAllTrustedPolicy } from './policy.ts';

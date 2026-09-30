@@ -1,5 +1,5 @@
 {
-  "name": "@spirula-app/engine-sql-runner",
+  "name": "@dolphy-app/engine-sql-runner",
   "version": "0.0.0",
   "private": true,
   "description": "Раннер проверок SQL в дочерних процессах (Verifier)",
@@ -14,9 +14,9 @@
     "bench": "vitest bench --run --config vitest.bench.config.ts --reporter=verbose"
   },
   "dependencies": {
-    "@spirula-app/engine": "workspace:*",
-    "@spirula-app/engine-contract": "workspace:*",
-    "@spirula-app/extension-api": "workspace:*",
+    "@dolphy-app/engine": "workspace:*",
+    "@dolphy-app/engine-contract": "workspace:*",
+    "@dolphy-app/extension-api": "workspace:*",
     "better-sqlite3": "13.0.3"
   },
   "devDependencies": {

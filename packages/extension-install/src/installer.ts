@@ -1,12 +1,12 @@
 import path from 'node:path';
-import { EXTENSION_ID_PATTERN } from '@spirula-app/extension-api';
-import { ExtensionInstallError } from '@spirula-app/engine/ports';
-import type { ExtensionInstaller } from '@spirula-app/engine/ports';
+import { EXTENSION_ID_PATTERN } from '@dolphy-app/extension-api';
+import { ExtensionInstallError } from '@dolphy-app/engine/ports';
+import type { ExtensionInstaller } from '@dolphy-app/engine/ports';
 import type {
   CatalogDto,
   ExtensionUpdateDto,
   InstallResultDto,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 import {
   assertNotRolledBack,
   CatalogFormatError,
@@ -16,14 +16,14 @@ import {
   latestUpdate,
   parseIndex,
   resolveVersion,
-} from '@spirula-app/extension-catalog';
+} from '@dolphy-app/extension-catalog';
 import type {
   CatalogEntry,
   CatalogIndex,
   CatalogVersion,
   InstallMeta,
   ResolveContext,
-} from '@spirula-app/extension-catalog';
+} from '@dolphy-app/extension-catalog';
 import { randomSuffix } from './atomic.ts';
 import { createCatalogCache } from './cache.ts';
 import type { CachedIndex } from './cache.ts';
@@ -79,7 +79,7 @@ export const createExtensionInstaller = (
   const http = createHttpClient({
     fetch: options.fetch ?? fetch,
     origin: catalogLocation.origin,
-    userAgent: options.userAgent ?? `spirula/${options.appVersion ?? 'dev'}`,
+    userAgent: options.userAgent ?? `dolphy/${options.appVersion ?? 'dev'}`,
     timeoutMs: options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
   });
   const stagingRoot = path.join(extensionsDir, '.staging');

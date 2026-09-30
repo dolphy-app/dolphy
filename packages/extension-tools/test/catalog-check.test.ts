@@ -138,7 +138,7 @@ describe('catalog check: правила', () => {
     'prepack',
     'postpack',
   ])('CHECK-009: скрипт %s запрещён, build разрешён', async (script) => {
-    const allowed = JSON.stringify({ scripts: { build: 'spirula-ext build' } });
+    const allowed = JSON.stringify({ scripts: { build: 'dolphy-ext build' } });
     expect(
       await run(await single({ files: { 'package.json': allowed } })),
     ).toEqual([]);
@@ -191,7 +191,7 @@ describe('catalog check: правила', () => {
       'CHECK-011',
       'warning',
     );
-    for (const name of ['@spirula-app/x', 'plain']) {
+    for (const name of ['@dolphy-app/x', 'plain']) {
       const files = { 'package.json': JSON.stringify({ name }) };
       expect(await run(await single({ files }))).toEqual([]);
     }

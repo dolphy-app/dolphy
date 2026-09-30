@@ -13,7 +13,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import type { Diagnostic, DiagnosticCode } from '@spirula-app/engine-contract';
+import type { Diagnostic, DiagnosticCode } from '@dolphy-app/engine-contract';
 import { plan } from './gen.ts';
 
 /**
@@ -66,7 +66,7 @@ const pad = (n: number, width: number) => String(n).padStart(width, '0');
 const lessonDir = (i: number, kb: boolean) =>
   `c${pad(Math.floor(i / P.perCourse), 2)}/${P.short(i)}${kb ? '.lesson' : ''}`;
 const lid = (i: number) => P.lid(i);
-const VER = ['  exercise:', '    type: spirula.sql', '    timeoutMs: 2000'];
+const VER = ['  exercise:', '    type: dolphy.sql', '    timeoutMs: 2000'];
 const front = (engine: string[], top: string[] = []) =>
   ['---', 'engine:', ...engine, ...top, '---', 'Body text.', ''].join('\n');
 

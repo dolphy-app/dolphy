@@ -72,12 +72,12 @@ describe.each(['kb', 'json'] as const)('sql-course: %s', (layout) => {
     ]);
   });
 
-  it('курс требует проверок; у каждого упражнения есть engine.exercise вида spirula.sql', async () => {
+  it('курс требует проверок; у каждого упражнения есть engine.exercise вида dolphy.sql', async () => {
     const { library, source } = await load(layout);
     expect(library.courses.get(course)?.engine?.requiresChecks).toBe(true);
     for (const id of library.exercises.keys()) {
       const verification = verificationOf(library, id);
-      expect(verification.type, id).toBe('spirula.sql');
+      expect(verification.type, id).toBe('dolphy.sql');
       expect(verification.timeoutMs, id).toBe(2000);
       expect(verification['fixture'], id).toBe('fixtures/emp.sql');
       for (const key of ['fixture', 'expected', 'reference'] as const) {

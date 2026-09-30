@@ -6,34 +6,34 @@
 
 pnpm-workspace (`pnpm-workspace.yaml`): `apps/*`, `packages/*`.
 
-| Путь                                    | Что                                                                                                                                                                       |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/desktop`                          | Electron 44 + Vue 3 + Vite; движок в `utilityProcess`, устройство — `apps/desktop/README.md`                                                                              |
-| `packages/`                             | пакеты `@spirula-app/*` слоя бизнес-логики `engine-ts` и сложные UI-компоненты (`@spirula-app/ui`: редактор, quiz; Vue 3, Vuetify 4 — peer), карта — `packages/README.md` |
-| `docs/`, `engine-ts/`, `spike/`         | документы системного дизайна; кода там нет, линтер и форматтер их не трогают                                                                                              |
-| `specs/`                                | спеки фич: активные в `specs/<feature-name>/`, завершённые в `specs/archive/`; каталог появляется с первой спекой, линтер и форматтер его не трогают                      |
-| `vendor/metaskills`, `.agents/skills/*` | скиллы для агентов (git submodule и симлинки, см. `docs/repository.md`)                                                                                                   |
+| Путь                                    | Что                                                                                                                                                                     |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/desktop`                          | Electron 44 + Vue 3 + Vite; движок в `utilityProcess`, устройство — `apps/desktop/README.md`                                                                            |
+| `packages/`                             | пакеты `@dolphy-app/*` слоя бизнес-логики `engine-ts` и сложные UI-компоненты (`@dolphy-app/ui`: редактор, quiz; Vue 3, Vuetify 4 — peer), карта — `packages/README.md` |
+| `docs/`, `engine-ts/`, `spike/`         | документы системного дизайна; кода там нет, линтер и форматтер их не трогают                                                                                            |
+| `specs/`                                | спеки фич: активные в `specs/<feature-name>/`, завершённые в `specs/archive/`; каталог появляется с первой спекой, линтер и форматтер его не трогают                    |
+| `vendor/metaskills`, `.agents/skills/*` | скиллы для агентов (git submodule и симлинки, см. `docs/repository.md`)                                                                                                 |
 
 ## Команды
 
 Node ≥ 22.12 (`.nvmrc`), pnpm 9.15.9 (поле `packageManager`). Устанавливать зависимости только через `pnpm`, `pnpm-lock.yaml` коммитить.
 
-| Команда                        | Что делает                                                                                                |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------- |
-| `pnpm install`                 | зависимости всего workspace                                                                               |
-| `pnpm dev`                     | `apps/desktop` в режиме разработки                                                                        |
-| `pnpm build`                   | сборка `apps/desktop` (vue-tsc, vite, electron-builder)                                                   |
-| `pnpm smoke`                   | сквозной смоук `apps/desktop` в настоящем Electron                                                        |
-| `pnpm smoke:packaged`          | то же в упакованном неподписанном `.app` (смоук-сборка)                                                   |
-| `pnpm -F @spirula/desktop e2e` | e2e через клиент в настоящем Electron: прохождение курсов, журнал в `engine.db` (в `pnpm test` не входит) |
-| `pnpm typecheck`               | `tsc -b` (TS 7) по пакетам `packages/*`                                                                   |
-| `pnpm test`                    | `vitest run` по проектам `packages/*` и `apps/*`                                                          |
-| `pnpm lint`                    | `eslint .` и `prettier --check .`                                                                         |
-| `pnpm fix`                     | `eslint . --fix` и `prettier --write .`                                                                   |
-| `pnpm <cmd> -r`                | команда во всех пакетах workspace                                                                         |
-| `pnpm -F <name>`               | команда в одном пакете, например `-F @spirula/desktop`                                                    |
+| Команда                       | Что делает                                                                                                |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `pnpm install`                | зависимости всего workspace                                                                               |
+| `pnpm dev`                    | `apps/desktop` в режиме разработки                                                                        |
+| `pnpm build`                  | сборка `apps/desktop` (vue-tsc, vite, electron-builder)                                                   |
+| `pnpm smoke`                  | сквозной смоук `apps/desktop` в настоящем Electron                                                        |
+| `pnpm smoke:packaged`         | то же в упакованном неподписанном `.app` (смоук-сборка)                                                   |
+| `pnpm -F @dolphy/desktop e2e` | e2e через клиент в настоящем Electron: прохождение курсов, журнал в `engine.db` (в `pnpm test` не входит) |
+| `pnpm typecheck`              | `tsc -b` (TS 7) по пакетам `packages/*`                                                                   |
+| `pnpm test`                   | `vitest run` по проектам `packages/*` и `apps/*`                                                          |
+| `pnpm lint`                   | `eslint .` и `prettier --check .`                                                                         |
+| `pnpm fix`                    | `eslint . --fix` и `prettier --write .`                                                                   |
+| `pnpm <cmd> -r`               | команда во всех пакетах workspace                                                                         |
+| `pnpm -F <name>`              | команда в одном пакете, например `-F @dolphy/desktop`                                                     |
 
-Новый пакет: `apps/<name>` или `packages/<name>`, имя в `package.json` — `@spirula-app/<name>`.
+Новый пакет: `apps/<name>` или `packages/<name>`, имя в `package.json` — `@dolphy-app/<name>`.
 
 ## Стиль кода
 
@@ -45,13 +45,13 @@ Node ≥ 22.12 (`.nvmrc`), pnpm 9.15.9 (поле `packageManager`). Устана
 
 **Все строки интерфейса — только через `vue-i18n`** (скилл `vue-i18n-skilld`): ни одной русской или английской строки в шаблонах, `aria-label`, `label`, `placeholder`, моделях и `lib/*.ts`. Сообщения лежат в слайсе (`pages/<слайс>/i18n/{ru,en,index}.ts`; `en: typeof ru`), общие — в `shared/i18n`, оболочка — в `app/i18n`; код возвращает ключи или данные, текст собирает компонент через `t`. Числительные — формами (`ru`: четыре варианта, `en`: три), даты и числа — `d`/`n`, а не `Intl` с зашитым языком. Не переводятся данные движка (названия курсов, уроков, упражнений, `feedback` раннера, ошибки движка). Подробности — `apps/desktop/README.md`.
 
-**Настройки хранятся в `engine.db`** (порт `SettingsStore`, адаптер `@spirula-app/engine-sqlite`), не в файлах и не в `localStorage`. Новая настройка — поле контракта `@spirula-app/engine-contract`, проверка в сервисе `settings`, схема RPC, тест адаптеров (общий набор `describeSettingsStoreContract`).
+**Настройки хранятся в `engine.db`** (порт `SettingsStore`, адаптер `@dolphy-app/engine-sqlite`), не в файлах и не в `localStorage`. Новая настройка — поле контракта `@dolphy-app/engine-contract`, проверка в сервисе `settings`, схема RPC, тест адаптеров (общий набор `describeSettingsStoreContract`).
 
 ## Спеки фич
 
 Порядок, шаблоны и правила закрытия — скилл `spec-workflow`; обоснование выбора — `docs/research/spec-workflows.md` (§9).
 
-**Фича, которая меняет контракт `@spirula-app/engine-contract`, схему RPC или БД либо добавляет пакет, экран или настройку, начинается со спеки `specs/<feature-name>/SPEC.md`** (имя каталога совпадает с веткой `feature/<feature-name>`). Багфиксы, рефакторинг и правки внутри пакета — без спеки.
+**Фича, которая меняет контракт `@dolphy-app/engine-contract`, схему RPC или БД либо добавляет пакет, экран или настройку, начинается со спеки `specs/<feature-name>/SPEC.md`** (имя каталога совпадает с веткой `feature/<feature-name>`). Багфиксы, рефакторинг и правки внутри пакета — без спеки.
 
 - Источники требований: спека фичи и её `depends-on`, `docs/adr/`, `docs/design`, README пакетов. **`specs/archive/` без явной ссылки не читать и не считать источником требований.**
 - Закрытие фичи — в той же ветке до слияния: долговечное переносится в `docs/design` или README, решения, ограничивающие будущее, — в ADR (`docs/adr/NNNN-название.md`), затем `git mv specs/<name> specs/archive/ГГГГ-ММ-ДД-<name>`, `status: done`, заполнить `Outcomes`.

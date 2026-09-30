@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
-import { ANSWER_EVENT } from '@spirula-app/extension-api';
-import type { AnswerChangeDetail } from '@spirula-app/extension-api';
+import { ANSWER_EVENT } from '@dolphy-app/extension-api';
+import type { AnswerChangeDetail } from '@dolphy-app/extension-api';
 import { afterEach, describe, expect, it } from 'vitest';
 import '../src/view.ts';
 
@@ -17,7 +17,7 @@ const flush = () => Promise.resolve();
 
 const mountElement = async (view: unknown, label: string | null = null) => {
   const element = document.createElement(
-    'spirula-choice-answer',
+    'dolphy-choice-answer',
   ) as ChoiceElement;
   if (label !== null) element.setAttribute('aria-label', label);
   document.body.append(element);
@@ -40,7 +40,7 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-describe('spirula-choice-answer', () => {
+describe('dolphy-choice-answer', () => {
   it('рисует радиокнопки для одиночного выбора', async () => {
     const { element } = await mountElement(single);
     const radios = inputs(element);
@@ -123,7 +123,7 @@ describe('spirula-choice-answer', () => {
 
   it('disabled, выставленный до view, применяется к вариантам', async () => {
     const element = document.createElement(
-      'spirula-choice-answer',
+      'dolphy-choice-answer',
     ) as ChoiceElement;
     document.body.append(element);
     element.disabled = true;

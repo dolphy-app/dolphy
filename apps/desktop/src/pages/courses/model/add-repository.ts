@@ -2,7 +2,7 @@ import { computed, onScopeDispose, ref, shallowRef } from 'vue';
 import type {
   LearningEngine,
   RepositoryDto,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 import {
   describeRepositoryError,
   isProgressEvent,

@@ -3,15 +3,15 @@ import {
   ELEMENT_NAME_PATTERN,
   type AnswerChangeDetail,
   type AnswerElementProps,
-} from '@spirula-app/extension-api';
+} from '@dolphy-app/extension-api';
 
 export interface AnswerElementApi {
   readonly root: ShadowRoot;
   /** `aria-label` хост-элемента, выставленный приложением; `null`, если нет. */
   readonly label: string | null;
-  /** Сообщает приложению текущий ответ: событие `spirula-answer-change`. */
+  /** Сообщает приложению текущий ответ: событие `dolphy-answer-change`. */
   setAnswer(value: unknown, complete: boolean): void;
-  /** Просит приложение отправить ответ: событие `spirula-answer-submit`. */
+  /** Просит приложение отправить ответ: событие `dolphy-answer-submit`. */
   submit(): void;
 }
 

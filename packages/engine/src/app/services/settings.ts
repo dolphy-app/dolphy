@@ -6,7 +6,7 @@ import type {
   SettingsService,
   UiSettingsDto,
   UiSettingsPatch,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 import type { UserPreferences } from '../../domain/manifest.ts';
 import { isGradePolicyId } from '../../domain/learning-settings.ts';
 import { isLocaleMode, isThemeId, isUnitId } from '../../domain/ui-settings.ts';

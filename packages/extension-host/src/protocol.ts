@@ -1,4 +1,4 @@
-import type { ExerciseTypeErrorCause } from '@spirula-app/engine/ports';
+import type { ExerciseTypeErrorCause } from '@dolphy-app/engine/ports';
 import { z } from 'zod';
 
 export type ExtRequest =

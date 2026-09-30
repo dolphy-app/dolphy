@@ -10,7 +10,7 @@ import type {
   SubmitAnswerRequest,
   UnitDto,
   VerdictDto,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 import {
   defaultBudget,
   maxBudget,
@@ -111,10 +111,10 @@ const createFakeEngine = (options: FakeOptions = {}) => {
     content: { type: 'inlineFlashcard', front: `Q ${id}`, back: `A ${id}` },
     ...(verifiable.has(id) && {
       task: {
-        type: 'spirula.sql',
+        type: 'dolphy.sql',
         timeoutMs: 1000,
-        element: 'spirula-sql-answer',
-        rendererUrl: 'spirula-ext://spirula.sql/view.mjs',
+        element: 'dolphy-sql-answer',
+        rendererUrl: 'dolphy-ext://dolphy.sql/view.mjs',
         isolated: false,
       },
     }),
@@ -294,7 +294,7 @@ describe('placement model', () => {
     expect(placement.current.value).toMatchObject({
       probeId: 'probe-2',
       verifiable: true,
-      task: { type: 'spirula.sql', element: 'spirula-sql-answer' },
+      task: { type: 'dolphy.sql', element: 'dolphy-sql-answer' },
       view: { hint: 'v' },
       attemptId: 'attempt-1',
     });

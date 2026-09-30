@@ -2,7 +2,7 @@ import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createWorkspace, launchApp } from './support/app.ts';
-import type { SpirulaApp, Workspace } from './support/app.ts';
+import type { DolphyApp, Workspace } from './support/app.ts';
 import { GitClient } from './support/git-client.ts';
 import { courseTree, readRepositories, REMOTE_COURSE } from './support/git.ts';
 import { serveGitRepo } from '../../../packages/testkit/src/git-server.ts';
@@ -11,7 +11,7 @@ import type { GitServer } from '../../../packages/testkit/src/git-server.ts';
 const COMMIT = /^[0-9a-f]{40}$/;
 
 let workspace: Workspace;
-let app: SpirulaApp | null = null;
+let app: DolphyApp | null = null;
 let client: GitClient;
 let server: GitServer | null = null;
 

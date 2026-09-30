@@ -1,4 +1,4 @@
-export * from '@spirula-app/extension-api';
+export * from '@dolphy-app/extension-api';
 export {
   defineExerciseType,
   defineExtension,

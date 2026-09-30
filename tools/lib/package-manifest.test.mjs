@@ -45,10 +45,10 @@ describe('createManifest', () => {
 
   it('CLI-пакет: только bin, без exports и types', () => {
     const tools = manifestOf('extension-tools');
-    assert.deepEqual(tools.bin, { 'spirula-ext': './dist/cli/main.js' });
+    assert.deepEqual(tools.bin, { 'dolphy-ext': './dist/cli/main.js' });
     const create = manifestOf('create-extension');
     assert.deepEqual(create.bin, {
-      'create-spirula-extension': './dist/cli/main.js',
+      'create-dolphy-extension': './dist/cli/main.js',
     });
     for (const manifest of [tools, create]) {
       assert.equal(manifest.exports, undefined);
@@ -60,7 +60,7 @@ describe('createManifest', () => {
   it('публикуемые поля: реестр, репозиторий, files, engines; не private', () => {
     for (const spec of PACKAGES) {
       const manifest = manifestOf(spec.dir);
-      assert.equal(manifest.name, `@spirula-app/${spec.dir}`);
+      assert.equal(manifest.name, `@dolphy-app/${spec.dir}`);
       assert.equal(manifest.version, '1.2.3');
       assert.equal(manifest.type, 'module');
       assert.equal(manifest.private, undefined);
@@ -71,7 +71,7 @@ describe('createManifest', () => {
       });
       assert.deepEqual(manifest.repository, {
         type: 'git',
-        url: 'git+https://github.com/spirula-app/spirula.git',
+        url: 'git+https://github.com/dolphy-app/dolphy.git',
         directory: `packages/${spec.dir}`,
       });
     }
@@ -89,7 +89,7 @@ describe('createManifest', () => {
     assert.throws(
       () =>
         manifestOf('extension-sdk', {
-          dependencies: { '@spirula-app/extension-api': 'workspace:*' },
+          dependencies: { '@dolphy-app/extension-api': 'workspace:*' },
         }),
       /local range/,
     );
@@ -138,8 +138,8 @@ describe('deriveDependencies', () => {
   });
 
   it('публикуемый соседний пакет получает точную версию релиза', () => {
-    assert.deepEqual(derive('extension-sdk', ['@spirula-app/extension-api']), {
-      '@spirula-app/extension-api': '1.2.3',
+    assert.deepEqual(derive('extension-sdk', ['@dolphy-app/extension-api']), {
+      '@dolphy-app/extension-api': '1.2.3',
     });
   });
 
@@ -164,7 +164,7 @@ describe('deriveDependencies', () => {
 
   it('просочившийся закрытый пакет монорепозитория — ошибка', () => {
     assert.throws(
-      () => derive('extension-tools', ['@spirula-app/extension-host']),
+      () => derive('extension-tools', ['@dolphy-app/extension-host']),
       /extension-host/,
     );
   });
@@ -198,8 +198,8 @@ describe('packageOfSpecifier', () => {
   it('имя пакета с scope и без', () => {
     assert.equal(packageOfSpecifier('ajv/dist/2020.js'), 'ajv');
     assert.equal(
-      packageOfSpecifier('@spirula-app/extension-api'),
-      '@spirula-app/extension-api',
+      packageOfSpecifier('@dolphy-app/extension-api'),
+      '@dolphy-app/extension-api',
     );
     assert.equal(packageOfSpecifier('@a/b/c/d'), '@a/b');
   });
@@ -215,8 +215,8 @@ describe('renderReadme', () => {
       source: source(),
       version: '1.2.3',
     });
-    assert.match(text, /^# @spirula-app\/extension-tools\n/);
-    assert.match(text, /npx spirula-ext build/);
+    assert.match(text, /^# @dolphy-app\/extension-tools\n/);
+    assert.match(text, /npx dolphy-ext build/);
     assert.ok(!text.includes('{{'));
   });
 
@@ -253,7 +253,7 @@ describe('collectImports', () => {
   it('текст импорта внутри строки или шаблона — не импорт', () => {
     const code = [
       "import real from 'real-pkg';",
-      "const tpl = `import x from '@spirula-app/extension-sdk';`;",
+      "const tpl = `import x from '@dolphy-app/extension-sdk';`;",
       'const str = "import y from \'other\'";',
     ].join('\n');
     assert.deepEqual(collectImports(code), ['real-pkg']);

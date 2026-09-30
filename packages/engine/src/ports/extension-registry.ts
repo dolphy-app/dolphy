@@ -1,7 +1,7 @@
 import type {
   ContributionsDto,
   ExtensionInfoDto,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 
 /** Обзор найденных расширений (загруженные, перекрытые, некорректные). */
 export interface ExtensionRegistry {

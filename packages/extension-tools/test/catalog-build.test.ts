@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { parseIndex } from '@spirula-app/extension-catalog';
+import { parseIndex } from '@dolphy-app/extension-catalog';
 import { describe, expect, it } from 'vitest';
 import { buildCatalog } from '../src/catalog/build.ts';
 import type { BuildCatalogOptions } from '../src/catalog/build.ts';
@@ -69,7 +69,7 @@ describe('catalog build: публикация версии', () => {
       name: 'Sample',
       description: 'A sample extension for the catalog',
       author: 'octo-cat',
-      source: `https://github.com/spirula-app/spirula-extensions/tree/main/extensions/${NIGHT}`,
+      source: `https://github.com/dolphy-app/dolphy-extensions/tree/main/extensions/${NIGHT}`,
       platforms: [],
       contributes: {
         exerciseTypes: [],

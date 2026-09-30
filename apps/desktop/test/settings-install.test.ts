@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type {
   InstallResultDto,
   LearningEngine,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 import { targetFromEntry } from '@/pages/settings/lib/catalog.ts';
 import type { InstallTarget } from '@/pages/settings/lib/catalog.ts';
 import { useInstall } from '@/pages/settings/model/install.ts';
@@ -282,7 +282,7 @@ describe('удаление', () => {
         ),
       },
     );
-    expect(await install.remove('spirula.sql')).toBe(false);
+    expect(await install.remove('dolphy.sql')).toBe(false);
     expect(install.removeError.value).toBe('extension is not removable');
     expect(install.needsApply.value).toBe(false);
     expect(install.removing.value).toBeNull();

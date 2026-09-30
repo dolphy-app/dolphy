@@ -1,6 +1,6 @@
 import { effectScope } from 'vue';
 import { describe, expect, it } from 'vitest';
-import type { CatalogDto, LearningEngine } from '@spirula-app/engine-contract';
+import type { CatalogDto, LearningEngine } from '@dolphy-app/engine-contract';
 import { useCatalog } from '@/pages/settings/model/catalog.ts';
 import {
   FakeEngineError,

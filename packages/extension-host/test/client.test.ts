@@ -1,4 +1,4 @@
-import type { MessageEndpoint } from '@spirula-app/engine-contract';
+import type { MessageEndpoint } from '@dolphy-app/engine-contract';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createCatalog } from '../src/catalog.ts';
 import type { ResolvedExtension } from '../src/discover.ts';
@@ -37,7 +37,7 @@ const resolved: ResolvedExtension[] = [
         specSchema: {},
         answerSchema: {},
         element: 'acme-t-answer',
-        rendererUrl: 'spirula-ext://acme.t/view.mjs',
+        rendererUrl: 'dolphy-ext://acme.t/view.mjs',
       },
     ],
     themes: [],

@@ -1,6 +1,6 @@
 import { computed, inject, ref, shallowRef } from 'vue';
 import type { ComputedRef, InjectionKey, Ref, ShallowRef } from 'vue';
-import type { LearningEngine } from '@spirula-app/engine-contract';
+import type { LearningEngine } from '@dolphy-app/engine-contract';
 import { toEngineError } from '@/entities/repository';
 import type { InstallTarget } from '../lib/catalog.ts';
 import { describeInstallFailure } from '../lib/install-error.ts';
@@ -24,7 +24,7 @@ export interface PendingChange {
 }
 
 export interface InstallOptions {
-  /** Перезапускает хосты и перезагружает окно (`window.spirula.extensions.apply`). */
+  /** Перезапускает хосты и перезагружает окно (`window.dolphy.extensions.apply`). */
   apply(): Promise<void>;
 }
 

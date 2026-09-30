@@ -1,7 +1,7 @@
 import type {
   EngineErrorCode,
   EngineErrorDto,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 import type { Logger } from '../ports/index.ts';
 
 interface ErrorSpec {

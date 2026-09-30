@@ -12,12 +12,12 @@ import {
   SnapshotRejectedError,
   type SnapshotLimits,
   type SnapshotViolation,
-} from '@spirula-app/engine/ports';
+} from '@dolphy-app/engine/ports';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { createIsomorphicGitFetcher } from '../src/index.ts';
-import { serveGitRepo } from '@spirula-app/testkit';
-import type { GitFiles, GitServer } from '@spirula-app/testkit';
+import { serveGitRepo } from '@dolphy-app/testkit';
+import type { GitFiles, GitServer } from '@dolphy-app/testkit';
 
 // Тесты требуют системный git с `http-backend`; без него падаем громко.
 beforeAll(() => {
@@ -61,7 +61,7 @@ const fetchSnapshot = async (
   signal?: AbortSignal,
   f: typeof fetcher = fetcher,
 ) => {
-  const root = await mkdtemp(join(tmpdir(), 'spirula-git-test-'));
+  const root = await mkdtemp(join(tmpdir(), 'dolphy-git-test-'));
   dirs.push(root);
   await mkdir(join(root, 'dest'));
   await mkdir(join(root, 'tmp'));

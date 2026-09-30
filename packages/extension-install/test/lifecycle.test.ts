@@ -84,7 +84,7 @@ describe('uninstall', () => {
   );
 
   it('символическая ссылка не удаляется и не разыменовывается', async () => {
-    const target = path.join(tmpdir(), `spirula-link-target-${Date.now()}`);
+    const target = path.join(tmpdir(), `dolphy-link-target-${Date.now()}`);
     await mkdir(target, { recursive: true });
     await writeFile(path.join(target, 'keep.txt'), 'keep');
     await symlink(target, path.join(env.dir, 'linked.ext'), 'dir');
@@ -136,7 +136,7 @@ describe('ready: уборка', () => {
       await trashEntry('acme.echo-1000', {
         'extension.json': '{}',
         'main.mjs': 'previous',
-        '.spirula-install.json': JSON.stringify({
+        '.dolphy-install.json': JSON.stringify({
           catalogUrl: CATALOG_URL,
           version: '1.0.0',
           installedAt: '2026-09-01T00:00:00.000Z',
@@ -195,7 +195,7 @@ describe('ready: уборка', () => {
       ['нет extension.json', { 'main.mjs': 'x' }],
       [
         'sidecar не разбирается',
-        { 'extension.json': '{}', '.spirula-install.json': '{broken' },
+        { 'extension.json': '{}', '.dolphy-install.json': '{broken' },
       ],
     ])('%s: ничего не возвращается, запись удаляется', async (_name, files) => {
       await trashEntry('acme.echo-1000', files);

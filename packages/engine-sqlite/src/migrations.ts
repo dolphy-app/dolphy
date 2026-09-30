@@ -1,4 +1,4 @@
-import { EngineError } from '@spirula-app/engine/app';
+import { EngineError } from '@dolphy-app/engine/app';
 import type { SqlDatabase } from './sql-database.ts';
 
 /**

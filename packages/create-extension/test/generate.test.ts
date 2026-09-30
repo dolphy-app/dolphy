@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { defaultElementName } from '@spirula-app/extension-api';
-import { parseManifest } from '@spirula-app/extension-host';
+import { defaultElementName } from '@dolphy-app/extension-api';
+import { parseManifest } from '@dolphy-app/extension-host';
 import { describe, expect, it } from 'vitest';
 import {
   GenerateError,
@@ -107,8 +107,8 @@ describe('generateExtension', () => {
     const pkg = await readJson(path.join(dir, 'package.json'));
     expect(isLocal).toBe(false);
     expect(pkg['devDependencies']).toMatchObject({
-      '@spirula-app/extension-sdk': '^0.0.0',
-      '@spirula-app/extension-tools': '^0.0.0',
+      '@dolphy-app/extension-sdk': '^0.0.0',
+      '@dolphy-app/extension-tools': '^0.0.0',
     });
   });
 
@@ -121,8 +121,8 @@ describe('generateExtension', () => {
     const pkg = await readJson(path.join(dir, 'package.json'));
     expect(isLocal).toBe(true);
     expect(pkg['devDependencies']).toMatchObject({
-      '@spirula-app/extension-sdk': `link:${REPO_ROOT}/packages/extension-sdk`,
-      '@spirula-app/extension-tools': `link:${REPO_ROOT}/packages/extension-tools`,
+      '@dolphy-app/extension-sdk': `link:${REPO_ROOT}/packages/extension-sdk`,
+      '@dolphy-app/extension-tools': `link:${REPO_ROOT}/packages/extension-tools`,
     });
   });
 
@@ -135,8 +135,8 @@ describe('generateExtension', () => {
     const pkg = await readJson(path.join(dir, 'package.json'));
     expect(isPublished).toBe(true);
     expect(pkg['devDependencies']).toMatchObject({
-      '@spirula-app/extension-sdk': '^1.2.3',
-      '@spirula-app/extension-tools': '^1.2.3',
+      '@dolphy-app/extension-sdk': '^1.2.3',
+      '@dolphy-app/extension-tools': '^1.2.3',
     });
   });
 
@@ -147,7 +147,7 @@ describe('generateExtension', () => {
       packageVersion: '1.2.3',
     });
     await expect(readFile(path.join(dir, '.npmrc'), 'utf8')).resolves.toBe(
-      '@spirula-app:registry=https://npm.pkg.github.com\n',
+      '@dolphy-app:registry=https://npm.pkg.github.com\n',
     );
     const readme = await readFile(path.join(dir, 'README.md'), 'utf8');
     expect(readme).toContain('## Установка зависимостей');
@@ -183,9 +183,9 @@ describe('generateExtension', () => {
     });
     const pkg = await readJson(path.join(dir, 'package.json'));
     expect(pkg['scripts']).toEqual({
-      build: 'spirula-ext build',
-      dev: 'spirula-ext build --watch',
-      validate: 'spirula-ext validate dist-ext/acme.hello',
+      build: 'dolphy-ext build',
+      dev: 'dolphy-ext build --watch',
+      validate: 'dolphy-ext validate dist-ext/acme.hello',
       test: 'vitest run',
     });
     await expect(

@@ -1,8 +1,8 @@
 {
   "$schema": "./node_modules/app-builder-lib/scheme.json",
-  "appId": "com.spirula.desktop",
+  "appId": "com.dolphy.desktop",
   "asar": true,
-  "productName": "Spirula",
+  "productName": "Dolphy",
   "directories": {
     "output": "release/${version}"
   },
@@ -39,6 +39,6 @@
   "linux": {
     "target": ["AppImage"],
     "artifactName": "${productName}-Linux-${version}.${ext}",
-    "executableName": "spirula"
+    "executableName": "dolphy"
   }
 }

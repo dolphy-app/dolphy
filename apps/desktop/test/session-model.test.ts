@@ -11,7 +11,7 @@ import type {
   SubmitAnswerRequest,
   UnitDto,
   VerdictDto,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 import { createSession } from '@/pages/session/model/session.ts';
 
 interface FakeOptions {
@@ -34,10 +34,10 @@ const exercise = (id: string, verifiable: boolean): ExerciseDto => ({
   ...(verifiable
     ? {
         task: {
-          type: 'spirula.sql',
+          type: 'dolphy.sql',
           timeoutMs: 1000,
-          element: 'spirula-sql-answer',
-          rendererUrl: 'spirula-ext://spirula.sql/view.mjs',
+          element: 'dolphy-sql-answer',
+          rendererUrl: 'dolphy-ext://dolphy.sql/view.mjs',
           isolated: false,
         },
       }
@@ -193,8 +193,8 @@ describe('session model', () => {
     const session = createSession(engine);
     await session.start();
     expect(session.current.value?.task).toMatchObject({
-      type: 'spirula.sql',
-      element: 'spirula-sql-answer',
+      type: 'dolphy.sql',
+      element: 'dolphy-sql-answer',
     });
     expect(session.current.value?.view).toEqual({ hint: 'e1' });
 

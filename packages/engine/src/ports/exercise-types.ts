@@ -1,7 +1,7 @@
 /**
  * Порт видов заданий: каталог видов из манифестов расширений и вызовы
  * `project`/`grade`/`referenceAnswer` в хосте расширений. Адаптеры живут в
- * `@spirula-app/extension-host`; ядро знает только этот интерфейс.
+ * `@dolphy-app/extension-host`; ядро знает только этот интерфейс.
  */
 import type { RawVerdict } from './index.ts';
 
@@ -11,7 +11,7 @@ export interface ExerciseTypeInfo {
   extensionVersion: string;
   /** Тег custom element'а, рисующего ввод ответа. */
   element: string;
-  /** `spirula-ext://<extensionId>/<renderer>`. */
+  /** `dolphy-ext://<extensionId>/<renderer>`. */
   rendererUrl: string;
 }
 

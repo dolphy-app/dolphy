@@ -1,6 +1,6 @@
 /**
  * Бюджет NF1 для `getBatch` на библиотеках 1 500 и 3 000 уроков (engine-ts.md
- * §2: тёплый p95 < 100 мс, холодный < 500 мс). Запуск: `pnpm -F @spirula-app/engine
+ * §2: тёплый p95 < 100 мс, холодный < 500 мс). Запуск: `pnpm -F @dolphy-app/engine
  * bench`. Проект отдельный: в `pnpm test` не входит, тесты советуют и падают
  * только при превышении бюджета NF1.
  *
@@ -9,7 +9,7 @@
  * Rust: 54 мс на первый батч) и «середина обучения» (освоена первая половина
  * уроков каждого курса).
  */
-import { generateLibrary } from '@spirula-app/testkit';
+import { generateLibrary } from '@dolphy-app/testkit';
 import { describe, expect, it } from 'vitest';
 import { type World, createWorld } from '../scheduler/helpers/world.ts';
 import type { WorldCourseSpec } from '../scheduler/helpers/world.ts';

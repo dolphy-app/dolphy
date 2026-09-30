@@ -1,10 +1,10 @@
-# @spirula-app/extension-tools
+# @dolphy-app/extension-tools
 
-Инструменты автора расширений: `spirula-ext build` собирает проект в каталог
-расширения, `spirula-ext validate` проверяет каталог тем же кодом, каким его
-загрузит приложение (`inspectExtensionDir` из `@spirula-app/extension-host`),
-`spirula-ext catalog check|build` проверяет и собирает расширения для каталога
-(`spirula-app/spirula-extensions`, см. «Каталог»).
+Инструменты автора расширений: `dolphy-ext build` собирает проект в каталог
+расширения, `dolphy-ext validate` проверяет каталог тем же кодом, каким его
+загрузит приложение (`inspectExtensionDir` из `@dolphy-app/extension-host`),
+`dolphy-ext catalog check|build` проверяет и собирает расширения для каталога
+(`dolphy-app/dolphy-extensions`, см. «Каталог»).
 
 ## Раскладка проекта
 
@@ -13,7 +13,7 @@
   extension.json        # исходный манифест (обязателен), тот же формат, что у установленного
   src/main.ts           # node-вход -> <out>/<id>/main.mjs
   src/view.ts           # браузерный вход -> <out>/<id>/view.mjs
-  spirula-ext.config.json   # необязателен
+  dolphy-ext.config.json   # необязателен
   schema/, assets/      # необязательные каталоги, копируются как есть
 ```
 
@@ -29,7 +29,7 @@
   у `renderer` вида задания.
 - Node-бандлы: ES-модуль, цель `node22`, без минификации; внешними остаются
   только встроенные модули Node и пакеты из `external`.
-- `spirula-ext.config.json`:
+- `dolphy-ext.config.json`:
   `{ "nodeEntries": { "worker.mjs": "src/worker.ts" }, "external": ["better-sqlite3"] }` —
   дополнительные node-входы (выходной файл → исходник) и внешние пакеты.
 - Схемы-файлы, на которые ссылается манифест, копируются с сохранением
@@ -40,23 +40,23 @@
 
 `<project>/dist-ext/<id>/` (`--out <dir>` меняет корень; каталог расширения
 внутри всегда называется по `id`). Корень вывода — валидный корень обнаружения
-расширений и значение `SPIRULA_DEV_EXTENSIONS`. После сборки результат проверяется
+расширений и значение `DOLPHY_DEV_EXTENSIONS`. После сборки результат проверяется
 `validate`; проблемы завершают сборку ошибкой.
 
 ## CLI
 
 ```
-spirula-ext build [dir] [--out <dir>] [--watch]
-spirula-ext validate <dir>
-spirula-ext catalog check <extensionsDir> [--ids a,b]
+dolphy-ext build [dir] [--out <dir>] [--watch]
+dolphy-ext validate <dir>
+dolphy-ext catalog check <extensionsDir> [--ids a,b]
             [--published-index <path>] [--max-app-version <x.y.z>]
             [--skip-github-check] [--list-rules]
-spirula-ext catalog build --src <extensionsDir> --ids a,b --out <siteDir>
+dolphy-ext catalog build --src <extensionsDir> --ids a,b --out <siteDir>
             [--previous-index <path>] [--revoked <path>]
             [--source-base <url>] [--published-at <iso>]
-spirula-ext catalog build --reindex --out <siteDir>
+dolphy-ext catalog build --reindex --out <siteDir>
             [--previous-index <path>] [--revoked <path>] [--published-at <iso>]
-spirula-ext --help
+dolphy-ext --help
 ```
 
 Коды выхода: 0 — успех, 1 — проблемы сборки/проверки (у `catalog check` — хотя бы
@@ -70,19 +70,19 @@ spirula-ext --help
 
 `--watch` пересобирает бандлы при изменении исходников. Манифест, схемы и
 `assets/` копируются один раз — после их правки перезапустите команду.
-Запуск из репозитория: `pnpm -F @spirula-app/extension-tools spirula-ext build <dir>`.
+Запуск из репозитория: `pnpm -F @dolphy-app/extension-tools dolphy-ext build <dir>`.
 
 ## Каталог
 
 Подкоманды `catalog` обслуживают репозиторий каталога расширений
-(`spirula-app/spirula-extensions`, устройство и цепочка доверия — раздел
+(`dolphy-app/dolphy-extensions`, устройство и цепочка доверия — раздел
 «Установка и каталог» в `docs/design/extensions.md`). Формат индекса, выбор
-версии и отзыв разбирает `@spirula-app/extension-catalog` — тот же код, что в
+версии и отзыв разбирает `@dolphy-app/extension-catalog` — тот же код, что в
 приложении.
 
 ### `catalog check <extensionsDir>`
 
-Проверяет исходники `<extensionsDir>/<id>/` (проект `spirula-ext` без
+Проверяет исходники `<extensionsDir>/<id>/` (проект `dolphy-ext` без
 `node_modules`, `dist-ext` и `.git`) по правилам ниже. `--ids a,b` ограничивает
 проверку перечисленными расширениями (по умолчанию — все каталоги);
 `--published-index <path>` — `index.json` опубликованного каталога для правила
@@ -116,7 +116,7 @@ spirula-ext --help
 ### `catalog build`
 
 `--src <extensionsDir> --ids a,b --out <siteDir>`: для каждого id собирает
-проект тем же кодом, что `spirula-ext build`, добавляет `README.md` (обязателен),
+проект тем же кодом, что `dolphy-ext build`, добавляет `README.md` (обязателен),
 считает `size` и `sha256` файлов и кладёт версию в
 `<siteDir>/extensions/<id>/<version>/`, затем обновляет `<siteDir>/index.json`
 (у расширения не более 5 последних версий, от новой к старой). Манифест должен
@@ -129,18 +129,18 @@ spirula-ext --help
 - `--revoked <path>` — JSON-массив `{ id, versions, reason }` (без флага берётся
   список из исходного индекса);
 - `--source-base <url>` — основа поля `source` (по умолчанию дерево
-  `extensions` в `spirula-app/spirula-extensions`);
+  `extensions` в `dolphy-app/dolphy-extensions`);
 - `--published-at <iso>` — `publishedAt` новых версий (по умолчанию сейчас).
 
 `catalog build --reindex --out <siteDir>` заменяет в существующем индексе только
 `revoked` и `generatedAt` (записи расширений не меняются; `--src` и `--ids` не
 нужны): так публикуется отзыв версии без новой сборки.
 
-Локальный каталог для приложения: `spirula-ext catalog build --src <src> --ids <id> --out <site>`,
-любой статический сервер над `<site>` и `SPIRULA_EXTENSION_CATALOG_URL=http://localhost:<порт>/index.json pnpm dev`.
+Локальный каталог для приложения: `dolphy-ext catalog build --src <src> --ids <id> --out <site>`,
+любой статический сервер над `<site>` и `DOLPHY_EXTENSION_CATALOG_URL=http://localhost:<порт>/index.json pnpm dev`.
 
-Опубликованный пакет `@spirula-app/extension-tools` содержит только CLI
-(`bin` `spirula-ext`), без библиотечного входа; `API` ниже — для репозитория.
+Опубликованный пакет `@dolphy-app/extension-tools` содержит только CLI
+(`bin` `dolphy-ext`), без библиотечного входа; `API` ниже — для репозитория.
 
 ## API
 
@@ -149,7 +149,7 @@ import {
   buildExtension,
   watchExtension,
   validateExtension,
-} from '@spirula-app/extension-tools';
+} from '@dolphy-app/extension-tools';
 
 const { id, dir, files } = await buildExtension({ root, outDir });
 const handle = await watchExtension({ root, logger }); // handle.close()
@@ -166,8 +166,8 @@ const { ok, problems } = await validateExtension(dir);
 ## Разрешения
 
 `permissions` в `extension.json` разбирает тот же `parseManifest`, что и
-приложение: `spirula-ext validate` (и проверка в конце `spirula-ext build`) отклоняет
+приложение: `dolphy-ext validate` (и проверка в конце `dolphy-ext build`) отклоняет
 неизвестное имя (`permissions.0: …`) и дубль (`duplicate permission '…'`).
-Допустимые имена — `EXTENSION_PERMISSIONS` из `@spirula-app/extension-api`. Пример
+Допустимые имена — `EXTENSION_PERMISSIONS` из `@dolphy-app/extension-api`. Пример
 манифеста с разрешениями — `docs/design/extensions.md`, «Права и изоляция»; он
 проверяется `test/docs-contributions.test.ts` вместе с примерами «Точек вклада».

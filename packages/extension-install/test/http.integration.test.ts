@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createExtensionInstaller } from '../src/index.ts';
-import type { ExtensionInstaller } from '@spirula-app/engine/ports';
+import type { ExtensionInstaller } from '@dolphy-app/engine/ports';
 import {
   contributesOf,
   createClock,
@@ -68,7 +68,7 @@ const entry = (id: string) => ({
   name: id,
   description: `Description of ${id}`,
   author: 'octo-cat',
-  source: 'https://github.com/spirula-app/spirula-extensions',
+  source: 'https://github.com/dolphy-app/dolphy-extensions',
   platforms: [],
   contributes: contributesOf([id]),
   versions: [
@@ -131,7 +131,7 @@ beforeEach(async () => {
   requests.length = 0;
   foreignRequests.length = 0;
   notModified = 0;
-  work = await mkdtemp(path.join(tmpdir(), 'spirula-http-'));
+  work = await mkdtemp(path.join(tmpdir(), 'dolphy-http-'));
   extensionsDir = path.join(work, 'extensions');
   await mkdir(extensionsDir);
   foreign = await listen((req, res) => {
@@ -186,7 +186,7 @@ describe('установщик с настоящим HTTP-сервером', () 
       );
       expect(sha256(onDisk)).toBe(sha256(content));
     }
-    expect(requests.every((line) => line.endsWith('ua=spirula/1.2.3'))).toBe(
+    expect(requests.every((line) => line.endsWith('ua=dolphy/1.2.3'))).toBe(
       true,
     );
     expect(

@@ -18,7 +18,7 @@ import {
 import type { ThemeSnapshot } from '../src/shared/lib/frame-theme.ts';
 
 const frameMessage = (extra: Record<string, unknown>) => ({
-  spirulaFrame: 1,
+  dolphyFrame: 1,
   ...extra,
 });
 
@@ -40,7 +40,7 @@ describe('parseFrameMessage', () => {
     ['не объект', 'ready'],
     ['null', null],
     ['без маркера', { type: 'ready' }],
-    ['другая версия', { spirulaFrame: 2, type: 'ready' }],
+    ['другая версия', { dolphyFrame: 2, type: 'ready' }],
     ['неизвестный тип', frameMessage({ type: 'eval' })],
     ['change без detail', frameMessage({ type: 'answer-change' })],
     [
@@ -96,8 +96,8 @@ describe('parseFrameMessage', () => {
 
 describe('frameUrlOf', () => {
   it('строит адрес страницы рамки по адресу модуля расширения', () => {
-    expect(frameUrlOf('spirula-ext://acme.echo/view.mjs')).toBe(
-      'spirula-ext://acme.echo/__spirula/frame.html',
+    expect(frameUrlOf('dolphy-ext://acme.echo/view.mjs')).toBe(
+      'dolphy-ext://acme.echo/__dolphy/frame.html',
     );
   });
 
@@ -108,7 +108,7 @@ describe('frameUrlOf', () => {
 
 const ANSWER: FrameInit = {
   mode: 'answer',
-  rendererUrl: 'spirula-ext://acme.echo/view.mjs',
+  rendererUrl: 'dolphy-ext://acme.echo/view.mjs',
   element: 'acme-echo-answer',
   label: 'Ответ',
 };
@@ -180,7 +180,7 @@ describe('createFrameHost', () => {
     receive(frameMessage({ type: 'ready' }));
     expect(types()).toEqual(['init', 'theme', 'props']);
     expect(posted.every(({ origin }) => origin === '*')).toBe(true);
-    expect(posted.every(({ message }) => message.spirula === 1)).toBe(true);
+    expect(posted.every(({ message }) => message.dolphy === 1)).toBe(true);
     expect(posted[0]?.message).toMatchObject({
       type: 'init',
       mode: 'answer',
@@ -188,7 +188,7 @@ describe('createFrameHost', () => {
       label: 'Ответ',
     });
     expect(posted[1]?.message).toEqual({
-      spirula: 1,
+      dolphy: 1,
       type: 'theme',
       variables: { '--v-theme-primary': '1,2,3' },
       dark: false,
@@ -253,7 +253,7 @@ describe('createFrameHost', () => {
     host.update({ verdict: { outcome: 'passed' } });
     expect(types().at(-1)).toBe('props');
     expect(posted.at(-1)?.message).toEqual({
-      spirula: 1,
+      dolphy: 1,
       type: 'props',
       verdict: { outcome: 'passed' },
     });
@@ -271,7 +271,7 @@ describe('createFrameHost', () => {
     };
     notify();
     expect(posted.at(-1)?.message).toEqual({
-      spirula: 1,
+      dolphy: 1,
       type: 'theme',
       variables: { '--v-theme-primary': '9,9,9' },
       dark: true,

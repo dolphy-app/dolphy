@@ -7,7 +7,7 @@ export const DEFAULT_DEV_DEBOUNCE_MS = 300;
 
 export interface DevExtensionsDeps extends ExtensionReloadDeps {
   app: { on(event: 'before-quit', listener: () => void): unknown };
-  /** Каталог разработчика (`SPIRULA_DEV_EXTENSIONS`). */
+  /** Каталог разработчика (`DOLPHY_DEV_EXTENSIONS`). */
   dir: string;
   /** Рекурсивное наблюдение; `filename` — путь относительно `dir` (или `null`, если ОС его не сообщила). */
   watch(
@@ -41,7 +41,7 @@ export const createDevExtensionsShell = (deps: DevExtensionsDeps): Shell => ({
   register: () => {
     const { app, dir, timers, logger } = deps;
     if (!deps.exists(dir)) {
-      logger.warn({ dir }, 'SPIRULA_DEV_EXTENSIONS directory does not exist');
+      logger.warn({ dir }, 'DOLPHY_DEV_EXTENSIONS directory does not exist');
       return;
     }
     const debounceMs = deps.debounceMs ?? DEFAULT_DEV_DEBOUNCE_MS;

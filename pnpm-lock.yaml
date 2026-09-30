@@ -14,6 +14,9 @@ importers:
       '@commitlint/config-conventional':
         specifier: ^21.2.3
         version: 21.2.3
+      '@dolphy-app/testkit':
+        specifier: workspace:*
+        version: link:packages/testkit
       '@fast-check/vitest':
         specifier: 0.5.0
         version: 0.5.0(vitest@5.0.2)
@@ -26,9 +29,6 @@ importers:
       '@semantic-release/git':
         specifier: ^11.0.1
         version: 11.0.1(semantic-release@25.0.9(typescript@6.0.3))
-      '@spirula-app/testkit':
-        specifier: workspace:*
-        version: link:packages/testkit
       '@types/node':
         specifier: ^22.20.4
         version: 22.20.4
@@ -81,36 +81,36 @@ importers:
       '@dagrejs/dagre':
         specifier: ^3.1.1
         version: 3.1.1
+      '@dolphy-app/engine':
+        specifier: workspace:*
+        version: link:../../packages/engine
+      '@dolphy-app/engine-contract':
+        specifier: workspace:*
+        version: link:../../packages/engine-contract
+      '@dolphy-app/engine-git':
+        specifier: workspace:*
+        version: link:../../packages/engine-git
+      '@dolphy-app/engine-rpc':
+        specifier: workspace:*
+        version: link:../../packages/engine-rpc
+      '@dolphy-app/engine-sqlite':
+        specifier: workspace:*
+        version: link:../../packages/engine-sqlite
+      '@dolphy-app/extension-api':
+        specifier: workspace:*
+        version: link:../../packages/extension-api
+      '@dolphy-app/extension-host':
+        specifier: workspace:*
+        version: link:../../packages/extension-host
+      '@dolphy-app/extension-install':
+        specifier: workspace:*
+        version: link:../../packages/extension-install
       '@fontsource/roboto':
         specifier: ^5.2.10
         version: 5.3.0
       '@mdi/font':
         specifier: ^7.4.47
         version: 7.4.47
-      '@spirula-app/engine':
-        specifier: workspace:*
-        version: link:../../packages/engine
-      '@spirula-app/engine-contract':
-        specifier: workspace:*
-        version: link:../../packages/engine-contract
-      '@spirula-app/engine-git':
-        specifier: workspace:*
-        version: link:../../packages/engine-git
-      '@spirula-app/engine-rpc':
-        specifier: workspace:*
-        version: link:../../packages/engine-rpc
-      '@spirula-app/engine-sqlite':
-        specifier: workspace:*
-        version: link:../../packages/engine-sqlite
-      '@spirula-app/extension-api':
-        specifier: workspace:*
-        version: link:../../packages/extension-api
-      '@spirula-app/extension-host':
-        specifier: workspace:*
-        version: link:../../packages/extension-host
-      '@spirula-app/extension-install':
-        specifier: workspace:*
-        version: link:../../packages/extension-install
       '@types/better-sqlite3':
         specifier: ^7.6.13
         version: 7.6.13
@@ -174,17 +174,17 @@ importers:
 
   packages/create-extension:
     dependencies:
-      '@spirula-app/extension-api':
+      '@dolphy-app/extension-api':
         specifier: workspace:*
         version: link:../extension-api
     devDependencies:
-      '@spirula-app/extension-host':
+      '@dolphy-app/extension-host':
         specifier: workspace:*
         version: link:../extension-host
-      '@spirula-app/extension-sdk':
+      '@dolphy-app/extension-sdk':
         specifier: workspace:*
         version: link:../extension-sdk
-      '@spirula-app/extension-tools':
+      '@dolphy-app/extension-tools':
         specifier: workspace:*
         version: link:../extension-tools
       '@types/node':
@@ -196,7 +196,7 @@ importers:
 
   packages/engine:
     dependencies:
-      '@spirula-app/engine-contract':
+      '@dolphy-app/engine-contract':
         specifier: workspace:*
         version: link:../engine-contract
       ts-fsrs:
@@ -227,10 +227,10 @@ importers:
 
   packages/engine-git:
     dependencies:
-      '@spirula-app/engine':
+      '@dolphy-app/engine':
         specifier: workspace:*
         version: link:../engine
-      '@spirula-app/engine-contract':
+      '@dolphy-app/engine-contract':
         specifier: workspace:*
         version: link:../engine-contract
       isomorphic-git:
@@ -246,10 +246,10 @@ importers:
 
   packages/engine-rpc:
     dependencies:
-      '@spirula-app/engine':
+      '@dolphy-app/engine':
         specifier: workspace:*
         version: link:../engine
-      '@spirula-app/engine-contract':
+      '@dolphy-app/engine-contract':
         specifier: workspace:*
         version: link:../engine-contract
       zod:
@@ -265,13 +265,13 @@ importers:
 
   packages/engine-sql-runner:
     dependencies:
-      '@spirula-app/engine':
+      '@dolphy-app/engine':
         specifier: workspace:*
         version: link:../engine
-      '@spirula-app/engine-contract':
+      '@dolphy-app/engine-contract':
         specifier: workspace:*
         version: link:../engine-contract
-      '@spirula-app/extension-api':
+      '@dolphy-app/extension-api':
         specifier: workspace:*
         version: link:../extension-api
       better-sqlite3:
@@ -290,7 +290,7 @@ importers:
 
   packages/engine-sqlite:
     dependencies:
-      '@spirula-app/engine':
+      '@dolphy-app/engine':
         specifier: workspace:*
         version: link:../engine
       better-sqlite3:
@@ -309,14 +309,14 @@ importers:
 
   packages/ext-choice:
     dependencies:
-      '@spirula-app/extension-api':
+      '@dolphy-app/extension-api':
         specifier: workspace:*
         version: link:../extension-api
-      '@spirula-app/extension-sdk':
+      '@dolphy-app/extension-sdk':
         specifier: workspace:*
         version: link:../extension-sdk
     devDependencies:
-      '@spirula-app/extension-tools':
+      '@dolphy-app/extension-tools':
         specifier: workspace:*
         version: link:../extension-tools
       '@types/node':
@@ -331,17 +331,17 @@ importers:
 
   packages/ext-math:
     dependencies:
-      '@spirula-app/extension-api':
+      '@dolphy-app/extension-api':
         specifier: workspace:*
         version: link:../extension-api
-      '@spirula-app/extension-sdk':
+      '@dolphy-app/extension-sdk':
         specifier: workspace:*
         version: link:../extension-sdk
       mathjax-full:
         specifier: ^3
         version: 3.2.2
     devDependencies:
-      '@spirula-app/extension-tools':
+      '@dolphy-app/extension-tools':
         specifier: workspace:*
         version: link:../extension-tools
       '@types/node':
@@ -356,29 +356,29 @@ importers:
 
   packages/ext-sql:
     dependencies:
-      '@spirula-app/engine-sql-runner':
+      '@dolphy-app/engine-sql-runner':
         specifier: workspace:*
         version: link:../engine-sql-runner
-      '@spirula-app/extension-api':
+      '@dolphy-app/extension-api':
         specifier: workspace:*
         version: link:../extension-api
-      '@spirula-app/extension-sdk':
+      '@dolphy-app/extension-sdk':
         specifier: workspace:*
         version: link:../extension-sdk
     devDependencies:
-      '@spirula-app/engine':
+      '@dolphy-app/engine':
         specifier: workspace:*
         version: link:../engine
-      '@spirula-app/engine-contract':
+      '@dolphy-app/engine-contract':
         specifier: workspace:*
         version: link:../engine-contract
-      '@spirula-app/extension-host':
+      '@dolphy-app/extension-host':
         specifier: workspace:*
         version: link:../extension-host
-      '@spirula-app/extension-tools':
+      '@dolphy-app/extension-tools':
         specifier: workspace:*
         version: link:../extension-tools
-      '@spirula-app/testkit':
+      '@dolphy-app/testkit':
         specifier: workspace:*
         version: link:../testkit
       '@types/node':
@@ -402,7 +402,7 @@ importers:
 
   packages/extension-catalog:
     dependencies:
-      '@spirula-app/extension-api':
+      '@dolphy-app/extension-api':
         specifier: workspace:*
         version: link:../extension-api
       zod:
@@ -418,16 +418,16 @@ importers:
 
   packages/extension-host:
     dependencies:
-      '@spirula-app/engine':
+      '@dolphy-app/engine':
         specifier: workspace:*
         version: link:../engine
-      '@spirula-app/engine-contract':
+      '@dolphy-app/engine-contract':
         specifier: workspace:*
         version: link:../engine-contract
-      '@spirula-app/extension-api':
+      '@dolphy-app/extension-api':
         specifier: workspace:*
         version: link:../extension-api
-      '@spirula-app/extension-catalog':
+      '@dolphy-app/extension-catalog':
         specifier: workspace:*
         version: link:../extension-catalog
       ajv:
@@ -446,16 +446,16 @@ importers:
 
   packages/extension-install:
     dependencies:
-      '@spirula-app/engine':
+      '@dolphy-app/engine':
         specifier: workspace:*
         version: link:../engine
-      '@spirula-app/engine-contract':
+      '@dolphy-app/engine-contract':
         specifier: workspace:*
         version: link:../engine-contract
-      '@spirula-app/extension-api':
+      '@dolphy-app/extension-api':
         specifier: workspace:*
         version: link:../extension-api
-      '@spirula-app/extension-catalog':
+      '@dolphy-app/extension-catalog':
         specifier: workspace:*
         version: link:../extension-catalog
     devDependencies:
@@ -468,7 +468,7 @@ importers:
 
   packages/extension-sdk:
     dependencies:
-      '@spirula-app/extension-api':
+      '@dolphy-app/extension-api':
         specifier: workspace:*
         version: link:../extension-api
       ajv:
@@ -487,20 +487,20 @@ importers:
 
   packages/extension-tools:
     dependencies:
-      '@spirula-app/extension-api':
+      '@dolphy-app/extension-api':
         specifier: workspace:*
         version: link:../extension-api
-      '@spirula-app/extension-catalog':
+      '@dolphy-app/extension-catalog':
         specifier: workspace:*
         version: link:../extension-catalog
-      '@spirula-app/extension-host':
+      '@dolphy-app/extension-host':
         specifier: workspace:*
         version: link:../extension-host
       vite:
         specifier: ^8.0.16
         version: 8.3.1(@types/node@22.20.4)(jiti@2.7.0)(yaml@2.9.1)
     devDependencies:
-      '@spirula-app/extension-install':
+      '@dolphy-app/extension-install':
         specifier: workspace:*
         version: link:../extension-install
       '@types/node':
@@ -512,10 +512,10 @@ importers:
 
   packages/testkit:
     dependencies:
-      '@spirula-app/engine':
+      '@dolphy-app/engine':
         specifier: workspace:*
         version: link:../engine
-      '@spirula-app/engine-contract':
+      '@dolphy-app/engine-contract':
         specifier: workspace:*
         version: link:../engine-contract
       fast-check:

@@ -22,7 +22,7 @@ export const createGithubChecker = (
   const fetchUser = options.fetch ?? fetch;
   const headers: Record<string, string> = {
     accept: 'application/vnd.github+json',
-    'user-agent': 'spirula-ext',
+    'user-agent': 'dolphy-ext',
     ...(options.token ? { authorization: `Bearer ${options.token}` } : {}),
   };
   const cache = new Map<string, Promise<GithubUserStatus>>();

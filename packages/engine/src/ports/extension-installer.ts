@@ -2,7 +2,7 @@ import type {
   CatalogDto,
   ExtensionUpdateDto,
   InstallResultDto,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 
 export type ExtensionInstallErrorCause =
   | 'not-found'

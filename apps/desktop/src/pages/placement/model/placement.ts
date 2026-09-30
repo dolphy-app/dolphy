@@ -9,7 +9,7 @@ import type {
   PlacementResult,
   UnitId,
   VerdictDto,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 import { readAllPages } from '@/shared/lib/read-all-pages.ts';
 import {
   readExerciseContent,

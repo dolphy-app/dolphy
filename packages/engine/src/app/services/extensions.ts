@@ -7,7 +7,7 @@ import type {
   ExtensionUpdateDto,
   ExtensionsService,
   InstallResultDto,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 import {
   isExtensionId,
   normalizeExtensionSettings,

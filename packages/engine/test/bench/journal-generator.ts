@@ -7,7 +7,7 @@
  * `seq` каждого устройства идёт с 1 без пропусков, поэтому журнал можно
  * вставлять в хранилище батчами и публиковать сегментами `FolderSync`.
  */
-import { T0_MS, buildAttempt, generateLibrary } from '@spirula-app/testkit';
+import { T0_MS, buildAttempt, generateLibrary } from '@dolphy-app/testkit';
 import type { AttemptEntry } from '../../src/domain/journal.ts';
 import { createMulberry32 } from '../../src/planning/seeded-random.ts';
 
@@ -35,7 +35,7 @@ export interface JournalOptions {
   startAt?: number;
 }
 
-/** Упражнения библиотеки `lessons × exercisesPerLesson` из `@spirula-app/testkit`. */
+/** Упражнения библиотеки `lessons × exercisesPerLesson` из `@dolphy-app/testkit`. */
 export const benchExerciseIds = (
   lessons = BENCH_LESSONS,
   exercisesPerLesson = BENCH_EXERCISES_PER_LESSON,

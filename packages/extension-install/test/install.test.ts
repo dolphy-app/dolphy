@@ -60,7 +60,7 @@ describe('install', () => {
       );
     }
     const meta = JSON.parse(
-      await readText(env.dir, 'acme.echo', '.spirula-install.json'),
+      await readText(env.dir, 'acme.echo', '.dolphy-install.json'),
     ) as Record<string, string>;
     expect(meta).toEqual({
       catalogUrl: 'https://catalog.test/index.json',
@@ -84,7 +84,7 @@ describe('install', () => {
     );
     expect(fileCalls.length).toBeGreaterThan(0);
     for (const call of fileCalls) {
-      expect(call.headers['User-Agent']).toBe('spirula/1.0.0');
+      expect(call.headers['User-Agent']).toBe('dolphy/1.0.0');
       expect(call.redirect).toBe('manual');
     }
   });
@@ -177,7 +177,7 @@ describe('install: отказы до скачивания', () => {
     publish();
     await installFake(env.dir, 'acme.echo', '0.5.0');
     await nodeFs.remove(
-      path.join(env.dir, 'acme.echo', '.spirula-install.json'),
+      path.join(env.dir, 'acme.echo', '.dolphy-install.json'),
     );
     expect(await rejection(env.installer.install('acme.echo'))).toMatchObject({
       cause: 'conflict',
@@ -224,7 +224,7 @@ describe('install: сбой оставляет прежнюю установку
       "export default '1.0.0';",
     );
     const meta = JSON.parse(
-      await readText(env.dir, 'acme.echo', '.spirula-install.json'),
+      await readText(env.dir, 'acme.echo', '.dolphy-install.json'),
     ) as { version: string };
     expect(meta.version).toBe('1.0.0');
     expect(await entriesOf(path.join(env.dir, '.staging'))).toEqual([]);

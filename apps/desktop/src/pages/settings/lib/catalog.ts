@@ -5,7 +5,7 @@ import type {
   ExtensionContributesDto,
   ExtensionInfoDto,
   ExtensionUpdateDto,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 
 export type ContributionPoint = keyof ExtensionContributesDto;
 

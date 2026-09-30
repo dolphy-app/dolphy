@@ -1,6 +1,6 @@
 ---
 name: git-workflow
-description: Git-процесс репозитория lms-platform-design через gh — ветка feature/<name> от develop, коммиты по Conventional Commits (commitlint), PR в develop с описанием и немедленное слияние, релиз слиянием develop в main (semantic-release, сборка установщиков). Использовать при любой просьбе "закоммить", "сделай ветку", "открой PR/MR", "влей в develop", "сделай релиз", "выпусти версию", "влей в main", а также перед первым коммитом любой задачи. Git workflow with gh, Conventional Commits, PR to develop, semantic-release.
+description: Git-процесс репозитория lms-platform-design через gh — ветка feature/<name> от develop, коммиты по Conventional Commits (commitlint), PR в develop с описанием и слияние после зелёного pipeline, релиз слиянием develop в main (semantic-release, сборка установщиков). Использовать при любой просьбе "закоммить", "сделай ветку", "открой PR/MR", "влей в develop", "сделай релиз", "выпусти версию", "влей в main", а также перед первым коммитом любой задачи. Git workflow with gh, Conventional Commits, PR to develop, semantic-release.
 ---
 
 # Git-процесс через gh
@@ -64,7 +64,7 @@ BODY
 
 Описание краткое: суть фичи и список сделанного, без пересказа диффа. Язык — русский (как документы), идентификаторы — как в коде. Заголовок PR — в стиле Conventional Commits (на версию он не влияет: версию считают коммиты ветки).
 
-Сразу после создания — слить, если нет конфликтов. Поле `mergeable` вычисляется асинхронно и сначала может быть `UNKNOWN`, поэтому опрашиваем:
+Слить можно только при двух условиях: нет конфликтов и pipeline PR зелёный. Порядок: проверить конфликты, дождаться CI, слить. Поле `mergeable` вычисляется асинхронно и сначала может быть `UNKNOWN`, поэтому опрашиваем:
 
 ```sh
 pr=$(gh pr view --json number -q .number)
@@ -72,13 +72,19 @@ until [ "$(gh pr view "$pr" --json mergeable -q .mergeable)" != UNKNOWN ]; do sl
 gh pr view "$pr" --json mergeable,mergeStateStatus
 ```
 
-- `MERGEABLE` → `gh pr merge "$pr" --merge --delete-branch --subject "Merge feature/<feature-name> into develop"`.
 - `CONFLICTING` → не сливать. Подтянуть `develop` в ветку, решить конфликты, проверить `pnpm lint`, запушить, повторить проверку:
   ```sh
   git fetch origin && git merge origin/develop   # конфликты → правка → git add → git commit
   git push
   ```
-- Результаты CI не ждём: слияние сразу по правилу процесса; `pnpm lint`, типы и тесты проходят до push (шаг 2). Упавший позже CI на `develop` чинится новой веткой `feature/fix-…`.
+- `MERGEABLE` → дождаться pipeline. Сразу после создания PR проверки могут ещё не появиться (`no checks reported`), поэтому небольшая пауза:
+  ```sh
+  sleep 15 && gh pr checks "$pr" --watch --fail-fast --interval 10
+  ```
+  Код возврата 0 — все jobs (`lint`, `typecheck`, `test`, `build`, `commitlint`) зелёные, можно сливать. Иначе — не сливать: посмотреть лог упавшего job (`gh run view <run-id> --log-failed`; пока run идёт, `gh api --allow-escape-sequences repos/{owner}/{repo}/actions/jobs/<job-id>/logs`), исправить в этой же ветке отдельным коммитом, запушить и снова дождаться pipeline.
+- Зелёный pipeline и `MERGEABLE` → `gh pr merge "$pr" --merge --subject "Merge feature/<feature-name> into develop"`. Без `--delete-branch`: после слияния `gh` переключает локальную копию на `develop`, а из worktree это падает (`develop` занят основной копией), и удаление ветки на сервере не выполняется. Проверить итог: `gh pr view "$pr" --json state -q .state` → `MERGED`.
+
+PR в `main` (релиз) и PR `main` → `develop` (возврат релизного коммита) сливаются по тому же правилу: сначала зелёный pipeline.
 
 ## 4. Релиз (слияние develop в main)
 
@@ -99,7 +105,7 @@ BODY
 )"
 ```
 
-Список для тела: `gh pr list --base develop --state merged --search "merged:>=<дата прошлого релиза>" --json number,title`; дату — из `gh release list --limit 1`. Дальше те же проверки `mergeable`, затем:
+Список для тела: `gh pr list --base develop --state merged --search "merged:>=<дата прошлого релиза>" --json number,title`; дату — из `gh release list --limit 1`. Дальше те же проверки `mergeable` и pipeline (шаг 3), затем:
 
 ```sh
 gh pr merge "$pr" --merge --subject "Merge develop into main"   # без --delete-branch: develop не удаляется
@@ -124,7 +130,7 @@ gh release view --json tagName,url,assets -q '{tag: .tagName, url: .url, assets:
 gh pr create --base develop --head main --title "chore(release): sync main into develop" --body "Возврат релизного коммита semantic-release (CHANGELOG.md, version) в develop."
 ```
 
-Дальше проверка `mergeable` и `gh pr merge "$pr" --merge --subject "Merge main into develop"` (без `--delete-branch`).
+Дальше те же проверки `mergeable` и pipeline (шаг 3), затем `gh pr merge "$pr" --merge --subject "Merge main into develop"` (без `--delete-branch`).
 
 ## 5. После слияния
 
@@ -136,7 +142,7 @@ git worktree remove ../lms-platform-design-<feature-name>   # если рабо�
 git worktree prune
 ```
 
-Удалённая ветка уже удалена флагом `--delete-branch`.
+Удалённую ветку удалить явно: `git push origin --delete feature/<feature-name>`.
 
 ## Чего не делать
 
@@ -144,4 +150,4 @@ git worktree prune
 - Не использовать `--squash` и `--rebase` при слиянии, не удалять `develop`/`main`.
 - Не править `CHANGELOG.md` и версию в корневом `package.json` руками, не ставить теги `v*` вручную.
 - Не обходить хуки (`--no-verify`), не переписывать историю уже запушенных веток (`push --force`) без явной просьбы.
-- Не сливать PR с конфликтами и не сливать без описания.
+- Не сливать PR с конфликтами, с красным или ещё не завершённым pipeline и без описания.

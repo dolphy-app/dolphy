@@ -14,6 +14,8 @@ import {
 } from '../../planning/credit-model.ts';
 import { type PlanGraph, buildPlanGraph } from '../../planning/plan-graph.ts';
 import { createPlanner } from '../../planning/planner.ts';
+import { passesThreshold } from '../../scheduler/depth-first-scheduler.ts';
+import { ScoringError } from '../../scoring/errors.ts';
 import {
   createSeededRng,
   drawSeed,
@@ -84,7 +86,7 @@ export const createPlanService = (ctx: EngineContext): PlanService => {
     const library = ctx.library.require();
     const scope = resolveCourseScope(library, courseIds);
     const graph = graphOf(library);
-    const { plan, implicitCredit } = ctx.options.get();
+    const { plan, implicitCredit, passingScore } = ctx.options.get();
     const usedSeed = seed ?? drawSeed(ctx.rng);
     const { flags, attempts, memory, remediation } = ctx.projections;
 
@@ -98,6 +100,30 @@ export const createPlanService = (ctx: EngineContext): PlanService => {
         flags.isBlacklisted(exerciseId) ||
         flags.isBlacklisted(lessonId) ||
         flags.isBlacklisted(courseId)
+      );
+    };
+
+    // порог урока — как во фронтире и DFS Trane; вытесненный урок проходит
+    const lessonPasses = (lessonId: UnitId) => {
+      const { scorer } = ctx;
+      if (
+        scorer.isSuperseded(
+          lessonId,
+          scorer.getSupersedingRecursive(lessonId) ?? new Set(),
+        )
+      ) {
+        return true;
+      }
+      let score: number | null = null;
+      try {
+        score = scorer.getUnitScore(lessonId);
+      } catch (error) {
+        if (!(error instanceof ScoringError)) throw error;
+      }
+      return passesThreshold(
+        passingScore,
+        score,
+        scorer.getAvgTrials(lessonId),
       );
     };
 
@@ -122,6 +148,7 @@ export const createPlanService = (ctx: EngineContext): PlanService => {
         due,
         hasAttempts: (exerciseId) => attempts.count(exerciseId) > 0,
         frontierLessons: ctx.getFrontier().map(({ lessonId }) => lessonId),
+        lessonPasses,
         isExcluded,
         remediation: remediation.pendingExerciseIds(),
       },

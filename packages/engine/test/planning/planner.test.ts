@@ -306,6 +306,7 @@ const fixture = () => {
     due: [],
     hasAttempts: (id) => id === 'X::s::e0',
     frontierLessons: ['X::x1', 'X::x2', 'Y::y1'],
+    lessonPasses: () => true,
     isExcluded: () => false,
     remediation: [],
     ...overrides,
@@ -442,6 +443,37 @@ describe('new exercises: started lessons first, then the frontier round-robin ov
     );
     expect(nothing.items).toEqual([]);
     expect(nothing.newAvailable).toBe(0);
+  });
+
+  test('a started lesson below the passing threshold is practised without being due; a passing one is not', () => {
+    // X::s начат (e0), остальные упражнения — новые; фронтира нет
+    const request = { maxItems: 5, rng: createSeededRng(3) };
+    const reasonsById = (state: PlanState) =>
+      Object.fromEntries(
+        planner
+          .planDay(state, request)
+          .map(({ exerciseId, reason }) => [exerciseId, reason]),
+      );
+    const unfinished = stateOf({
+      frontierLessons: [],
+      lessonPasses: (lessonId) => lessonId !== 'X::s',
+    });
+    expect(reasonsById(unfinished)).toEqual({
+      'X::s::e0': 'review',
+      'X::s::e1': 'new',
+      'X::s::e2': 'new',
+    });
+    expect(reasonsById(stateOf({ frontierLessons: [] }))).toEqual({
+      'X::s::e1': 'new',
+      'X::s::e2': 'new',
+    });
+    // исключённое упражнение не возвращается в план
+    expect(
+      reasonsById({
+        ...unfinished,
+        isExcluded: (id) => id === 'X::s::e0',
+      }),
+    ).not.toHaveProperty('X::s::e0');
   });
 });
 

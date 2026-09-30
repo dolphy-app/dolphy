@@ -202,6 +202,41 @@ const courseOf = (plan: DayPlanDto) => [
   ...new Set(plan.items.map((item) => item.exerciseId.split('::')[0])),
 ];
 
+describe('plan.getDay keeps unfinished lessons in the plan', () => {
+  test('one perfect pass does not pass the lesson: it stays in the plan without being due, the next stays locked', async () => {
+    const t = await createTestEngine({ library: chain() });
+    for (const e of ['e0', 'e1', 'e2']) await attempt(t, `k::a::${e}`, 5);
+    const day = await t.engine.plan.getDay({ maxItems: 10, seed: 1 });
+    expect(reasons(day)).toEqual({
+      'k::a::e0': 'review',
+      'k::a::e1': 'review',
+      'k::a::e2': 'review',
+    });
+  });
+
+  test('a second pass passes the lesson: the plan moves on to the next lesson', async () => {
+    const t = await createTestEngine({ library: chain() });
+    for (const e of ['e0', 'e1', 'e2']) await attempt(t, `k::a::${e}`, 5, 2);
+    const day = await t.engine.plan.getDay({ maxItems: 10, seed: 1 });
+    expect(reasons(day)).toEqual({
+      'k::b::e0': 'new',
+      'k::b::e1': 'new',
+      'k::b::e2': 'new',
+    });
+  });
+
+  test('failing grades keep the lesson in the plan until it passes', async () => {
+    const t = await createTestEngine({ library: chain() });
+    for (const e of ['e0', 'e1', 'e2']) await attempt(t, `k::a::${e}`, 1, 3);
+    const day = await t.engine.plan.getDay({ maxItems: 10, seed: 1 });
+    expect(Object.keys(reasons(day)).sort()).toEqual([
+      'k::a::e0',
+      'k::a::e1',
+      'k::a::e2',
+    ]);
+  });
+});
+
 describe('plan.getDay with courseIds', () => {
   test('new items come only from the requested courses', async () => {
     const t = await createTestEngine({ library: pair() });

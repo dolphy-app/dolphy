@@ -325,6 +325,7 @@ export const planStateOf = (
   ),
   hasAttempts: (id) => index.trialsOf(id) > 0,
   frontierLessons: frontierOf(graph, index, now),
+  lessonPasses: () => true, // симуляция без непройденных уроков
   isExcluded: () => false,
   remediation: [],
   ...overrides,

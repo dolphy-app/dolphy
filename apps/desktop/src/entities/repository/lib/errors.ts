@@ -16,6 +16,7 @@ export type RepositoryErrorKey =
   | 'repository.error.rejected.symlink'
   | 'repository.error.rejected.path-escapes'
   | 'repository.error.rejected.git-segment'
+  | 'repository.error.rejected.unsafe-name'
   | 'repository.error.rejected.case-collision'
   | 'repository.error.rejected.special-file'
   | 'repository.error.rejected.too-many-files'
@@ -53,6 +54,7 @@ const REJECT_REASONS = new Set([
   'symlink',
   'path-escapes',
   'git-segment',
+  'unsafe-name',
   'case-collision',
   'special-file',
   'too-many-files',

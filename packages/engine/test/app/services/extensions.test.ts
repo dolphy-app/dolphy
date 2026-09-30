@@ -27,6 +27,12 @@ const info = (overrides: Partial<ExtensionInfoDto>): ExtensionInfoDto => ({
   permissions: [],
   isolation: 'trusted',
   toggleable: false,
+  name: null,
+  description: null,
+  author: null,
+  installed: null,
+  removable: false,
+  revoked: null,
   ...overrides,
 });
 
@@ -163,12 +169,13 @@ describe('extensions settings', () => {
 
   it('starts empty, loads stored settings into the policy at startup', async () => {
     const settings = createMemorySettingsStore({
-      extensions: { disabled: ['acme.user'], trusted: [] },
+      extensions: { disabled: ['acme.user'], trusted: [], checkUpdates: true },
     });
     const { engine, policy } = await openSettings([USER], settings);
     expect(await engine.extensions.getSettings()).toEqual({
       disabled: ['acme.user'],
       trusted: [],
+      checkUpdates: true,
     });
     expect(policy.isEnabled('acme.user')).toBe(false);
   });
@@ -178,14 +185,17 @@ describe('extensions settings', () => {
     expect(await engine.extensions.setEnabled('acme.user', false)).toEqual({
       disabled: ['acme.user'],
       trusted: [],
+      checkUpdates: true,
     });
     expect(await engine.extensions.setTrusted('acme.user', true)).toEqual({
       disabled: ['acme.user'],
       trusted: ['acme.user'],
+      checkUpdates: true,
     });
     expect(await settings.loadExtensions()).toEqual({
       disabled: ['acme.user'],
       trusted: ['acme.user'],
+      checkUpdates: true,
     });
     expect(policy.isEnabled('acme.user')).toBe(false);
     expect(policy.isIsolated('acme.user')).toBe(false);
@@ -193,6 +203,7 @@ describe('extensions settings', () => {
     expect(await engine.extensions.setEnabled('acme.user', true)).toEqual({
       disabled: [],
       trusted: ['acme.user'],
+      checkUpdates: true,
     });
     expect(policy.isEnabled('acme.user')).toBe(true);
   });
@@ -201,7 +212,11 @@ describe('extensions settings', () => {
     const { engine, events } = await openSettings();
     await engine.extensions.setTrusted('acme.user', true);
     const again = await engine.extensions.setTrusted('acme.user', true);
-    expect(again).toEqual({ disabled: [], trusted: ['acme.user'] });
+    expect(again).toEqual({
+      disabled: [],
+      trusted: ['acme.user'],
+      checkUpdates: true,
+    });
     expect(await engine.extensions.setEnabled('acme.user', true)).toEqual(
       again,
     );
@@ -219,6 +234,7 @@ describe('extensions settings', () => {
     expect(await settings.loadExtensions()).toEqual({
       disabled: [],
       trusted: [],
+      checkUpdates: true,
     });
   });
 
@@ -241,6 +257,7 @@ describe('extensions settings', () => {
     expect(await engine.extensions.setEnabled('acme.user', false)).toEqual({
       disabled: ['acme.user'],
       trusted: [],
+      checkUpdates: true,
     });
   });
 

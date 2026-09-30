@@ -334,8 +334,8 @@ describe('createExtensionRegistry: contributions', () => {
     if (!themes.ok || !mixed.ok) throw new Error('fixtures must load');
     const discovery = {
       extensions: [
-        { ...themes.extension, origin: 'user' as const },
-        { ...mixed.extension, origin: 'bundled' as const },
+        { ...themes.extension, origin: 'user' as const, install: null },
+        { ...mixed.extension, origin: 'bundled' as const, install: null },
       ],
       overridden: [],
       diagnostics: [],
@@ -367,7 +367,9 @@ describe('createExtensionRegistry: contributions', () => {
     );
     if (!themes.ok) throw new Error(themes.message);
     const discovery = {
-      extensions: [{ ...themes.extension, origin: 'user' as const }],
+      extensions: [
+        { ...themes.extension, origin: 'user' as const, install: null },
+      ],
       overridden: [],
       diagnostics: [],
     };

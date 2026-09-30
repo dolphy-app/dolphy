@@ -40,7 +40,7 @@ spirula.choice/
 
 Необязательные поля манифеста: `name` (название, 1–80 символов), `description` (1–500), `author` (GitHub-логин), `platforms` (подмножество `darwin`, `linux`, `win32`, без повторов; нет ключа — любая платформа) и `minAppVersion` (semver `x.y.z`). Локально их можно не указывать; для публикации в каталог `name`, `description` и `author` обязательны (см. спеку `extension-install`). Нормализованный манифест и `ResolvedExtension` хранят `null` / `[]` вместо отсутствующих значений.
 
-Совместимость проверяют `discoverExtensions` и `inspectExtensionDir` по `appVersion` и `platform` (по умолчанию `process.platform`). Расширение не загружается и получает состояние `invalid` с причиной `requires app >= X.Y.Z (running A.B.C)` или `not available on <platform> (supports: …)`. Версия приложения приходит из `EngineConfig.appVersion`; в несобранном приложении (режим разработки) она не задана, и `minAppVersion` не проверяется. `spirula-ext validate` версии приложения не знает и сообщает только об ошибках формы этих полей.
+Совместимость проверяют `discoverExtensions` и `inspectExtensionDir` по `appVersion` и `platform` (по умолчанию `process.platform`). Расширение не загружается и получает состояние `invalid` с причиной `requires app >= X.Y.Z` или `not available on <platform>` (текст даёт `checkCompatibility` из `@spirula-app/extension-catalog`, его же используют выбор версии каталога и установщик). Версия приложения приходит из `EngineConfig.appVersion`; в несобранном приложении (режим разработки) она не задана, и `minAppVersion` не проверяется, пока не задан `SPIRULA_APP_VERSION=x.y.z`. `spirula-ext validate` версии приложения не знает и сообщает только об ошибках формы этих полей.
 
 Типы и константы API — пакет `@spirula-app/extension-api`.
 

@@ -3,13 +3,14 @@ import { describe, expect, it } from 'vitest';
 import { ERRORS, EngineError, createErrorMapper } from '../../src/app/index.ts';
 
 describe('EngineError', () => {
-  it('has all 24 codes (API §8 and repositories) with the documented default retryable', () => {
-    expect(Object.keys(ERRORS)).toHaveLength(24);
+  it('has all 26 codes (API §8 and repositories) with the documented default retryable', () => {
+    expect(Object.keys(ERRORS)).toHaveLength(26);
     const retryable = Object.entries(ERRORS)
       .filter(([, spec]) => spec.retryable)
       .map(([code]) => code)
       .sort();
     expect(retryable).toEqual([
+      'CATALOG_UNAVAILABLE',
       'ENGINE_CLOSED',
       'EXERCISE_TYPE_UNAVAILABLE',
       'INTERNAL',
@@ -30,6 +31,18 @@ describe('EngineError', () => {
         retryable,
       ),
     ).toEqual([false, false, false, false]);
+  });
+
+  it('EXTENSION_INSTALL_FAILED is retryable only for network failures', () => {
+    const retryable = (reason: string) =>
+      new EngineError('EXTENSION_INSTALL_FAILED', { details: { reason } })
+        .retryable;
+    expect(retryable('network')).toBe(true);
+    expect(
+      ['incompatible', 'integrity', 'limits', 'invalid', 'conflict'].map(
+        retryable,
+      ),
+    ).toEqual([false, false, false, false, false]);
   });
 
   it('EXERCISE_TYPE_UNAVAILABLE is not retryable for an unknown type', () => {

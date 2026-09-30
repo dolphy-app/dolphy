@@ -28,7 +28,10 @@ import {
   encodeUserPreferences,
   stringifyManifest,
 } from '../domain/manifest-schema.ts';
-import { decodeExtensionSettings } from '../domain/extension-settings.ts';
+import {
+  decodeExtensionSettings,
+  decodeUpdateCheckedAt,
+} from '../domain/extension-settings.ts';
 import { decodeLearningSettings } from '../domain/learning-settings.ts';
 import { decodeUiSettings } from '../domain/ui-settings.ts';
 import type { UserPreferences } from '../domain/manifest.ts';
@@ -51,6 +54,7 @@ const SCHEDULER_OVERRIDES_FILE = 'scheduler_overrides.json';
 const UI_FILE = 'ui.json';
 const LEARNING_FILE = 'learning.json';
 const EXTENSIONS_FILE = 'extensions.json';
+const UPDATE_CHECK_FILE = 'extensions_update_check.json';
 const FILTERS_DIR = 'filters';
 const SESSIONS_DIR = 'study_sessions';
 const JSON_EXTENSION = '.json';
@@ -270,6 +274,7 @@ export const createJsonSettingsStore = ({
   const uiPath = join(dir, UI_FILE);
   const learningPath = join(dir, LEARNING_FILE);
   const extensionsPath = join(dir, EXTENSIONS_FILE);
+  const updateCheckPath = join(dir, UPDATE_CHECK_FILE);
 
   /** Нет файла — `null`: значения по умолчанию решает вызывающий. */
   const readOptionalJson = async (path: string): Promise<unknown> => {
@@ -331,5 +336,8 @@ export const createJsonSettingsStore = ({
     loadExtensions: async (): Promise<ExtensionSettingsDto> =>
       decodeExtensionSettings(await readOptionalJson(extensionsPath)),
     saveExtensions: (extensions) => writeJson(extensionsPath, extensions),
+    loadUpdateCheckedAt: async () =>
+      decodeUpdateCheckedAt(await readOptionalJson(updateCheckPath)),
+    saveUpdateCheckedAt: (at) => writeJson(updateCheckPath, at),
   };
 };

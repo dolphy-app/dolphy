@@ -69,6 +69,15 @@ export const ERRORS: Record<EngineErrorCode, ErrorSpec> = {
   },
   // retryable зависит от details.reason: network, timeout, cancelled → true
   GIT_FETCH_FAILED: { message: 'Git fetch failed', retryable: false },
+  CATALOG_UNAVAILABLE: {
+    message: 'Extension catalog is unavailable',
+    retryable: true,
+  },
+  // retryable зависит от details.reason: network → true
+  EXTENSION_INSTALL_FAILED: {
+    message: 'Extension installation failed',
+    retryable: false,
+  },
   INTERNAL: { message: 'Internal engine error', retryable: true },
 };
 
@@ -85,6 +94,9 @@ const defaultRetryable = (
 ): boolean => {
   if (code === 'EXERCISE_TYPE_UNAVAILABLE') {
     return details?.cause !== 'unknown-type';
+  }
+  if (code === 'EXTENSION_INSTALL_FAILED') {
+    return details?.reason === 'network';
   }
   if (code === 'GIT_FETCH_FAILED') {
     const reason = details?.reason;

@@ -6,7 +6,7 @@ import {
 export const MAX_EXTENSION_ID_LENGTH = 64;
 
 export const DEFAULT_EXTENSION_SETTINGS: Readonly<ExtensionSettingsDto> =
-  Object.freeze({ disabled: [], trusted: [] });
+  Object.freeze({ disabled: [], trusted: [], checkUpdates: true });
 
 export const isExtensionId = (value: unknown): value is string =>
   typeof value === 'string' &&
@@ -28,7 +28,11 @@ export const normalizeExtensionSettings = (
 ): ExtensionSettingsDto => ({
   disabled: normalizeIds(settings.disabled),
   trusted: normalizeIds(settings.trusted),
+  checkUpdates: settings.checkUpdates,
 });
+
+/** Только явное `false` выключает проверку: всё остальное — умолчание. */
+const decodeCheckUpdates = (raw: unknown): boolean => raw !== false;
 
 const decodeIds = (raw: unknown): string[] | null =>
   Array.isArray(raw) && raw.every(isExtensionId) ? normalizeIds(raw) : null;
@@ -43,8 +47,16 @@ export const decodeExtensionSettings = (raw: unknown): ExtensionSettingsDto => {
   }
   const disabled = decodeIds(Reflect.get(raw, 'disabled'));
   const trusted = decodeIds(Reflect.get(raw, 'trusted'));
+  const checkUpdates = decodeCheckUpdates(Reflect.get(raw, 'checkUpdates'));
   if (disabled === null || trusted === null) {
-    return normalizeExtensionSettings(DEFAULT_EXTENSION_SETTINGS);
+    return normalizeExtensionSettings({
+      ...DEFAULT_EXTENSION_SETTINGS,
+      checkUpdates,
+    });
   }
-  return { disabled, trusted };
+  return { disabled, trusted, checkUpdates };
 };
+
+/** Метка последней проверки обновлений (epoch ms): неверное значение — «не проверяли». */
+export const decodeUpdateCheckedAt = (raw: unknown): number | null =>
+  typeof raw === 'number' && Number.isFinite(raw) && raw >= 0 ? raw : null;

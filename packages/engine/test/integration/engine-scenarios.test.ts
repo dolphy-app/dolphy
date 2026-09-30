@@ -11,6 +11,7 @@ import {
   createFakeClock,
   createFakeExerciseTypes,
   createFakeGradePolicies,
+  createFakeExtensionInstaller,
   createFakeExtensionPolicy,
   createFakeExtensionRegistry,
   createSeededRng,
@@ -134,6 +135,10 @@ describe('a profile on disk: nodeDefaults over a copied library', () => {
         gradePolicies: createFakeGradePolicies(),
         extensionRegistry: createFakeExtensionRegistry(),
         extensionPolicy: createFakeExtensionPolicy(),
+        // фоновая проверка обновлений сюда не относится: профиль на диске удаляется после теста
+        extensionInstaller: createFakeExtensionInstaller({
+          handlers: { ready: () => new Promise<void>(() => {}) },
+        }),
         repositoryStore: createMemoryRepositoryStore(),
         snapshotFetcher: {
           resolve: async () => {

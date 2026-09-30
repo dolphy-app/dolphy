@@ -111,6 +111,7 @@ export type SnapshotViolation =
   | 'symlink'
   | 'path-escapes'
   | 'git-segment'
+  | 'unsafe-name'
   | 'case-collision'
   | 'special-file'
   | 'too-many-files'

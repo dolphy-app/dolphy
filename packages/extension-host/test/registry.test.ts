@@ -15,6 +15,7 @@ const extension = (id: string, version = '1.0.0'): ResolvedExtension => ({
   author: null,
   platforms: [],
   minAppVersion: null,
+  install: null,
   exerciseTypes: [
     {
       id: `${id}.a`,
@@ -68,6 +69,12 @@ describe('createExtensionRegistry', () => {
       permissions: ['library.read'],
       isolation: 'isolated',
       toggleable: true,
+      name: null,
+      description: null,
+      author: null,
+      installed: null,
+      removable: true,
+      revoked: null,
     });
   });
 
@@ -82,6 +89,12 @@ describe('createExtensionRegistry', () => {
       permissions: [],
       isolation: 'trusted',
       toggleable: false,
+      name: null,
+      description: null,
+      author: null,
+      installed: null,
+      removable: false,
+      revoked: null,
     });
   });
 
@@ -96,6 +109,12 @@ describe('createExtensionRegistry', () => {
       permissions: [],
       isolation: 'isolated',
       toggleable: false,
+      name: null,
+      description: null,
+      author: null,
+      installed: null,
+      removable: true,
+      revoked: null,
     });
   });
 
@@ -150,7 +169,7 @@ describe('createExtensionRegistry: политика', () => {
   it('отключённое расширение в списке со state disabled, без вкладов', () => {
     const policy = createExtensionPolicy(both);
     const registry = createExtensionRegistry(both, policy);
-    policy.update({ disabled: ['acme.u'], trusted: [] });
+    policy.update({ disabled: ['acme.u'], trusted: [], checkUpdates: true });
     const item = registry.list().find(({ id }) => id === 'acme.u');
     expect(item).toMatchObject({
       state: 'disabled',
@@ -184,7 +203,11 @@ describe('createExtensionRegistry: политика', () => {
       ['spirula.math', 'trusted', false],
       ['acme.u', 'isolated', true],
     ]);
-    policy.update({ disabled: [], trusted: ['acme.u', 'spirula.math'] });
+    policy.update({
+      disabled: [],
+      trusted: ['acme.u', 'spirula.math'],
+      checkUpdates: true,
+    });
     expect(flags()).toEqual({ math: false, chart: false });
     expect(registry.list().map(({ isolation }) => isolation)).toEqual([
       'trusted',

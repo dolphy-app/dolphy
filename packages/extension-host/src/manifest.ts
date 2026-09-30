@@ -3,6 +3,7 @@ import {
   EXTENSION_API_VERSION,
   EXTENSION_PERMISSIONS,
   EXTENSION_PLATFORMS,
+  GITHUB_LOGIN_PATTERN,
 } from '@spirula-app/extension-api';
 import type {
   ExtensionManifest,
@@ -35,9 +36,7 @@ const isEmpty = (contributes: unknown): boolean =>
 export const manifestSchema = z
   .strictObject({
     id: extensionId,
-    version: z
-      .string()
-      .regex(/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/, 'version must be semver'),
+    version: z.string().refine(isSemver, 'version must be semver'),
     apiVersion: z.literal(EXTENSION_API_VERSION),
     main: safePath(['.mjs']).optional(),
     permissions: z.array(z.enum(EXTENSION_PERMISSIONS)).optional(),
@@ -45,7 +44,7 @@ export const manifestSchema = z
     description: z.string().min(1).max(500).optional(),
     author: z
       .string()
-      .regex(/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/, 'must be a GitHub login')
+      .regex(GITHUB_LOGIN_PATTERN, 'must be a GitHub login')
       .optional(),
     platforms: z.array(z.enum(EXTENSION_PLATFORMS)).optional(),
     minAppVersion: z

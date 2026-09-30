@@ -104,6 +104,7 @@ const extensionOf = (
   author: null,
   platforms: [],
   minAppVersion: null,
+  install: null,
   exerciseTypes: [],
   themes: [],
   markdownRenderers: [],

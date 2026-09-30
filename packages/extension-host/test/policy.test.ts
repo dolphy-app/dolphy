@@ -14,6 +14,7 @@ const extension = (id: string, origin: ExtensionOrigin): ResolvedExtension => ({
   author: null,
   platforms: [],
   minAppVersion: null,
+  install: null,
   exerciseTypes: [],
   themes: [],
   markdownRenderers: [],
@@ -44,17 +45,25 @@ describe('createExtensionPolicy', () => {
 
   it('disabled и trusted действуют сразу и заменяют прежние настройки', () => {
     const policy = policyFor(extension('acme.u', 'user'));
-    policy.update({ disabled: ['acme.u'], trusted: ['acme.u'] });
+    policy.update({
+      disabled: ['acme.u'],
+      trusted: ['acme.u'],
+      checkUpdates: true,
+    });
     expect(policy.isEnabled('acme.u')).toBe(false);
     expect(policy.isIsolated('acme.u')).toBe(false);
-    policy.update({ disabled: [], trusted: [] });
+    policy.update({ disabled: [], trusted: [], checkUpdates: true });
     expect(policy.isEnabled('acme.u')).toBe(true);
     expect(policy.isIsolated('acme.u')).toBe(true);
   });
 
   it('расширение из поставки не изолируется и не отключается даже из настроек', () => {
     const policy = policyFor(extension('spirula.sql', 'bundled'));
-    policy.update({ disabled: ['spirula.sql'], trusted: ['spirula.sql'] });
+    policy.update({
+      disabled: ['spirula.sql'],
+      trusted: ['spirula.sql'],
+      checkUpdates: true,
+    });
     expect(policy.isIsolated('spirula.sql')).toBe(false);
     expect(policy.isEnabled('spirula.sql')).toBe(true);
   });
@@ -63,7 +72,11 @@ describe('createExtensionPolicy', () => {
     // обнаружение оставило в `extensions` только победителя
     const policy = policyFor(extension('spirula.sql', 'user'));
     expect(policy.isIsolated('spirula.sql')).toBe(true);
-    policy.update({ disabled: ['spirula.sql'], trusted: [] });
+    policy.update({
+      disabled: ['spirula.sql'],
+      trusted: [],
+      checkUpdates: true,
+    });
     expect(policy.isEnabled('spirula.sql')).toBe(false);
   });
 });

@@ -270,6 +270,7 @@ export const createContext = async (
     exerciseTypes: deps.exerciseTypes,
     extensionRegistry: deps.extensionRegistry,
     extensionPolicy: deps.extensionPolicy,
+    extensionInstaller: deps.extensionInstaller,
     folderSync: deps.folderSync ?? null,
     openTraneSource: deps.openTraneSource,
     repositoryStore: deps.repositoryStore,

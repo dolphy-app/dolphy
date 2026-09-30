@@ -145,12 +145,54 @@ describe('parseIndex', () => {
     ).toEqual([]);
   });
 
-  it.each(['http://example.com/x/', 'https://example.com/x', 'not a url'])(
-    'плохой baseUrl %j',
-    (baseUrl) => {
-      expect(issuesOf(withVersion({ baseUrl }))).not.toEqual([]);
-    },
-  );
+  it.each([
+    'https://example.com/x/',
+    'http://127.0.0.1:8080/x/',
+    '//example.com/x/',
+    '/x/',
+    'x',
+    '../x/',
+    'a/./b/',
+    'a//b/',
+    'a b/',
+    'x/?q=1/',
+    '',
+  ])('плохой baseUrl %j', (baseUrl) => {
+    expect(issuesOf(withVersion({ baseUrl }))).not.toEqual([]);
+  });
+
+  it('baseUrl — относительный каталог: подходит локальному http-каталогу', () => {
+    expect(issuesOf(withVersion({ baseUrl: 'extensions/a.b/1.0.0/' }))).toEqual(
+      [],
+    );
+  });
+
+  it.each([
+    'a:stream.json',
+    'a b.json',
+    'con.json',
+    'NUL.txt',
+    'lpt1.md',
+    'dir./x.json',
+  ])('небезопасное имя для Windows/NTFS %j', (path) => {
+    expect(issuesOf(withFiles([manifestFile, file(path)]))).not.toEqual([]);
+  });
+
+  it('пути, совпадающие без учёта регистра, — дубль', () => {
+    expect(
+      issuesOf(
+        withFiles([manifestFile, file('Main.mjs'), file('main.mjs')]),
+      ).join(),
+    ).toContain('duplicate path');
+  });
+
+  it('файл не может быть каталогом другого файла', () => {
+    expect(
+      issuesOf(
+        withFiles([manifestFile, file('x.json'), file('x.json/y.json')]),
+      ).join(),
+    ).toContain('lies inside a file');
+  });
 
   it.each(['<1.x', '^1.0.0', '', '>= 1.0.0'])(
     'плохой диапазон отзыва %j',

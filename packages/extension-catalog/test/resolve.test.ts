@@ -134,3 +134,30 @@ describe('latestUpdate', () => {
     ).toBeNull();
   });
 });
+
+describe('resolveVersion и отзыв', () => {
+  const revoked = [{ id: 'acme.quiz', versions: '>=2.0.0', reason: 'leak' }];
+
+  it('отозванная новейшая версия пропускается, fallback — прежняя', () => {
+    const e = entry({ versions: [v('2.0.0'), v('1.0.0')] });
+    expect(resolveVersion(e, context({ revoked }))).toMatchObject({
+      ok: false,
+      reason: 'revoked',
+      detail: 'leak',
+      fallback: { version: '1.0.0' },
+    });
+  });
+
+  it('отзыв другого расширения не влияет', () => {
+    const e = entry({ versions: [v('2.0.0')] });
+    const other = [{ id: 'acme.other', versions: '>=0.0.0', reason: 'x' }];
+    expect(resolveVersion(e, context({ revoked: other })).ok).toBe(true);
+  });
+
+  it('latestUpdate не предлагает отозванную версию', () => {
+    const e = entry({ versions: [v('2.0.0'), v('1.1.0'), v('1.0.0')] });
+    expect(latestUpdate('1.0.0', e, context({ revoked }))?.version).toBe(
+      '1.1.0',
+    );
+  });
+});

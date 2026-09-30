@@ -33,7 +33,11 @@ export type ExtensionsState = 'loading' | 'loaded' | 'failed';
 
 export type ExtensionSwitch = 'enabled' | 'trusted';
 
-const NO_SETTINGS: ExtensionSettingsDto = { disabled: [], trusted: [] };
+const NO_SETTINGS: ExtensionSettingsDto = {
+  disabled: [],
+  trusted: [],
+  checkUpdates: true,
+};
 
 const errorText = (caught: unknown) =>
   caught instanceof Error ? caught.message : String(caught);

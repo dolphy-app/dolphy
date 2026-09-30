@@ -829,7 +829,7 @@ export interface LearningEngine {
 | `STORE_READONLY`, `STORE_CORRUPT` | БД только для чтения; порча (движок остаётся в режиме чтения журнала) | нет |
 | `INTERNAL` | Ошибка движка; состояние помечено `dirty`, перестройка при следующем чтении | да |
 | `REPOSITORY_EXISTS` | `repositories.add` для URL, который уже в реестре (`details.id`) | нет |
-| `REPOSITORY_REJECTED` | Снимок нарушает правила (`details.reason`: `symlink`, `path-escapes`, `git-segment`, `case-collision`, `special-file`, `too-many-files`, `too-large`, `file-too-large`), в нём нет курсов (`no-courses`), сканер нашёл ошибки (`invalid-library`, `reload-rejected`; `details.diagnostics` ≤ 50), либо каталог `repositories/<id>` занят (`path-conflict`) | нет |
+| `REPOSITORY_REJECTED` | Снимок нарушает правила (`details.reason`: `symlink`, `path-escapes`, `git-segment`, `unsafe-name`, `case-collision`, `special-file`, `too-many-files`, `too-large`, `file-too-large`), в нём нет курсов (`no-courses`), сканер нашёл ошибки (`invalid-library`, `reload-rejected`; `details.diagnostics` ≤ 50), либо каталог `repositories/<id>` занят (`path-conflict`) | нет |
 | `GIT_FETCH_FAILED` | Сеть или сервер; `details.reason`: `not-found`, `auth-required`, `ref-not-found`, `timeout`, `network`, `too-large`, `cancelled` | да для `network`, `timeout`, `cancelled` |
 
 ## 9. Транспорт (справочно; обвязка вне области)

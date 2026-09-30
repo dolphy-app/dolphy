@@ -25,7 +25,7 @@ interface NetworkLimits {
   idleTimeoutMs: number;
   /**
    * Потолок байт в ответах `git-upload-pack` (pack); `undefined` — без
-   * потолка. Адвертайз ссылок в счёт не идёт.
+   * потолка. Адвертайз ссылок ограничен отдельно (`MAX_ADVERT_BYTES`).
    */
   maxBytes?: number;
 }
@@ -47,6 +47,9 @@ const PROTOCOL_SLACK_BYTES = 1024 * 1024;
 
 /** `.git` и его короткое имя NTFS `git~1`, в т.ч. с хвостовыми точками/пробелами. */
 const GIT_SEGMENT = /^(\.git|git~\d+)[. ]*$/i;
+
+/** Потолок одного ответа с адвертайзом ссылок (`info/refs`). */
+const MAX_ADVERT_BYTES = 8 * 1024 * 1024;
 
 /**
  * HTTP-клиент для isomorphic-git поверх `fetch`: `isomorphic-git/http/node`
@@ -82,22 +85,34 @@ const createSession = (
 
   async function* iterate(
     body: ReadableStream<Uint8Array>,
-    counted: boolean,
+    kind: 'pack' | 'advert',
   ): AsyncGenerator<Uint8Array> {
     const reader = body.getReader();
+    let advert = 0;
     try {
       for (;;) {
         arm();
         const { done, value } = await reader.read();
         disarm();
         if (done) return;
-        if (counted) received += value.byteLength;
-        if (limits.maxBytes !== undefined && received > limits.maxBytes) {
+        if (kind === 'advert') advert += value.byteLength;
+        else received += value.byteLength;
+        if (
+          (kind === 'advert' && advert > MAX_ADVERT_BYTES) ||
+          (kind === 'pack' &&
+            limits.maxBytes !== undefined &&
+            received > limits.maxBytes)
+        ) {
           tooLarge = true;
           controller.abort();
-          throw new GitFetchError('too-large', 'download exceeds maxBytes');
+          throw new GitFetchError(
+            'too-large',
+            kind === 'advert'
+              ? 'ref advertisement exceeds limit'
+              : 'download exceeds maxBytes',
+          );
         }
-        onBytes(received);
+        if (kind === 'pack') onBytes(received);
         yield value;
       }
     } finally {
@@ -138,7 +153,14 @@ const createSession = (
         headers,
         statusCode: res.status,
         statusMessage: res.statusText,
-        ...(res.body ? { body: iterate(res.body, req.method === 'POST') } : {}),
+        ...(res.body
+          ? {
+              body: iterate(
+                res.body,
+                req.method === 'POST' ? 'pack' : 'advert',
+              ),
+            }
+          : {}),
       };
     },
   };
@@ -234,6 +256,10 @@ const pickRef = async (
     symrefs: true,
     peelTags: true,
   });
+  // isomorphic-git может проглотить обрыв потока и отдать усечённый список.
+  if (session.tooLarge) {
+    throw new GitFetchError('too-large', 'ref advertisement exceeds limit');
+  }
   const byName = new Map(refs.map((r) => [r.ref, r]));
   const commitOf = (name: string): ResolvedRef | null => {
     const r = byName.get(name);
@@ -261,7 +287,22 @@ const pickRef = async (
   return found;
 };
 
-const assertSegment = (name: string, path: string): void => {
+/** Имена устройств Windows: недопустимы с любым расширением. */
+const WINDOWS_DEVICE = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
+/** Символы, недопустимые в имени файла Windows (включая управляющие). */
+// eslint-disable-next-line no-control-regex
+const WINDOWS_BAD_CHARS = /[:<>"|?*\u0000-\u001f]/;
+
+const isWindowsUnsafe = (name: string): boolean =>
+  WINDOWS_BAD_CHARS.test(name) ||
+  /[. ]$/.test(name) ||
+  WINDOWS_DEVICE.test(name);
+
+const assertSegment = (
+  name: string,
+  path: string,
+  platform: NodeJS.Platform,
+): void => {
   if (
     name === '' ||
     name === '.' ||
@@ -283,6 +324,13 @@ const assertSegment = (name: string, path: string): void => {
       path,
     );
   }
+  if (platform === 'win32' && isWindowsUnsafe(name)) {
+    throw new SnapshotRejectedError(
+      'unsafe-name',
+      `name is not allowed on Windows: ${path}`,
+      path,
+    );
+  }
 };
 
 const exportTree = async (
@@ -292,6 +340,7 @@ const exportTree = async (
   limits: SnapshotLimits,
   signal: AbortSignal,
   onProgress: FetchSnapshotRequest['onProgress'],
+  platform: NodeJS.Platform,
 ): Promise<{ files: number; bytes: number }> => {
   const seen = new Set<string>();
   let files = 0;
@@ -324,7 +373,7 @@ const exportTree = async (
           throw error;
         }
         const path = rel === '' ? name : `${rel}/${name}`;
-        assertSegment(name, path);
+        assertSegment(name, path, platform);
         throw new SnapshotRejectedError(
           'git-segment',
           `reserved path segment: ${path}`,
@@ -334,7 +383,7 @@ const exportTree = async (
     for (const entry of tree) {
       signal.throwIfAborted();
       const path = rel === '' ? entry.path : `${rel}/${entry.path}`;
-      assertSegment(entry.path, path);
+      assertSegment(entry.path, path, platform);
       if (entry.mode === '120000') {
         throw new SnapshotRejectedError(
           'symlink',
@@ -371,6 +420,9 @@ const exportTree = async (
           path,
         );
       }
+      // Известное ограничение: `readBlob` разжимает блоб целиком, а
+      // `maxFileBytes` проверяется лишь после. Сжатый pack ограничен
+      // лимитом скачивания, но разжатый размер — нет (риск decompression bomb).
       const { blob } = await git.readBlob({
         fs: nodeFs,
         gitdir,
@@ -406,7 +458,11 @@ const exportTree = async (
 };
 
 export const createIsomorphicGitFetcher = (
-  options: { resolveIdleTimeoutMs?: number } = {},
+  options: {
+    resolveIdleTimeoutMs?: number;
+    /** Платформа назначения для имён файлов; по умолчанию `process.platform`. */
+    platform?: NodeJS.Platform;
+  } = {},
 ): GitSnapshotFetcher => ({
   async resolve(req: ResolveRequest): Promise<ResolvedRef> {
     assertHttpUrl(req.url);
@@ -450,7 +506,7 @@ export const createIsomorphicGitFetcher = (
         remote: 'origin',
         url: req.url,
       });
-      await git.fetch({
+      const fetched = await git.fetch({
         fs: nodeFs,
         http: session.http,
         gitdir: req.tmpDir,
@@ -463,6 +519,12 @@ export const createIsomorphicGitFetcher = (
         tags: false,
       });
       signal.throwIfAborted();
+      // Ветка могла сдвинуться между `pickRef` и `fetch`: берём фактически
+      // скачанный коммит. Тег остаётся с очищенным oid (fetchHead мог бы быть
+      // объектом аннотированного тега).
+      if (resolved.ref.startsWith('refs/heads/') && fetched.fetchHead) {
+        resolved = { ...resolved, commit: fetched.fetchHead };
+      }
       const { commit } = await git.readCommit({
         fs: nodeFs,
         gitdir: req.tmpDir,
@@ -481,6 +543,7 @@ export const createIsomorphicGitFetcher = (
       limits,
       signal,
       req.onProgress,
+      options.platform ?? process.platform,
     );
     return { ...resolved, files, bytes };
   },

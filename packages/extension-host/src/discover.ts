@@ -7,7 +7,12 @@ import type {
   ExtensionPermission,
   ExtensionPlatform,
 } from '@spirula-app/extension-api';
-import { compareSemver } from '@spirula-app/extension-catalog';
+import {
+  INSTALL_META_FILE,
+  checkCompatibility,
+  parseInstallMeta,
+} from '@spirula-app/extension-catalog';
+import type { InstallMeta } from '@spirula-app/extension-catalog';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import { parseManifest } from './manifest.ts';
 import { CONTRIBUTION_POINTS } from './points/index.ts';
@@ -36,6 +41,8 @@ export interface ResolvedExtension extends ResolvedContributions {
   /** Пусто — любая платформа. */
   platforms: readonly ExtensionPlatform[];
   minAppVersion: string | null;
+  /** Метаданные установки из каталога (`.spirula-install.json`); `null` — нет или не читаются; читаются только у origin `user`. */
+  install: InstallMeta | null;
 }
 
 export interface DiscoveryDiagnostic {
@@ -73,20 +80,8 @@ const compatibilityIssue = (
   manifest: ExtensionManifest,
   appVersion: string | undefined,
   platform: string,
-): string | null => {
-  const { minAppVersion, platforms } = manifest;
-  if (
-    minAppVersion !== null &&
-    appVersion !== undefined &&
-    compareSemver(minAppVersion, appVersion) > 0
-  ) {
-    return `requires app >= ${minAppVersion} (running ${appVersion})`;
-  }
-  if (platforms.length > 0 && !platforms.some((p) => p === platform)) {
-    return `not available on ${platform} (supports: ${platforms.join(', ')})`;
-  }
-  return null;
-};
+): string | null =>
+  checkCompatibility(manifest, { appVersion, platform })?.detail ?? null;
 
 const resolveMain = async (
   dir: string,
@@ -131,10 +126,33 @@ export interface InspectOptions {
 }
 
 export type InspectResult =
-  | { ok: true; extension: Omit<ResolvedExtension, 'origin'> }
+  | { ok: true; extension: Omit<ResolvedExtension, 'origin' | 'install'> }
   | { ok: false; id: string; message: string };
 
 /** Полностью разбирает каталог одного расширения; ошибка — сообщение для диагностики. */
+/** Нет файла — `null` (расширение скопировано вручную); битый файл — `null` и предупреждение: сведения об установке не ломают обнаружение. */
+const readInstallMeta = async (
+  dir: string,
+  extensionId: string,
+  logger: ExtensionLogger,
+): Promise<InstallMeta | null> => {
+  let text: string;
+  try {
+    text = await readFile(path.join(dir, INSTALL_META_FILE), 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      logger.warn({ extensionId, error }, `${INSTALL_META_FILE} is unreadable`);
+    }
+    return null;
+  }
+  try {
+    return parseInstallMeta(JSON.parse(text));
+  } catch (error) {
+    logger.warn({ extensionId, error }, `${INSTALL_META_FILE} is invalid`);
+    return null;
+  }
+};
+
 export const inspectExtensionDir = async (
   directory: string,
   options: InspectOptions = {},
@@ -226,7 +244,10 @@ export const discoverExtensions = async (
   const byId = new Map<string, ResolvedExtension>();
   for (const root of options.roots) {
     if (!(await isDirectory(root.dir))) continue;
-    const names = (await readdir(root.dir)).sort();
+    // `.staging`, `.trash`, `.catalog` — служебные каталоги установщика
+    const names = (await readdir(root.dir))
+      .filter((name) => !name.startsWith('.'))
+      .sort();
     for (const name of names) {
       const dir = path.resolve(root.dir, name);
       if (!(await isDirectory(dir))) continue;
@@ -244,6 +265,10 @@ export const discoverExtensions = async (
       const extension: ResolvedExtension = {
         ...loaded.extension,
         origin: root.origin,
+        install:
+          root.origin === 'user'
+            ? await readInstallMeta(dir, loaded.extension.id, logger)
+            : null,
       };
       const previous = byId.get(extension.id);
       if (previous !== undefined) {

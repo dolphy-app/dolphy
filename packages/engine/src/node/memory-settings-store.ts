@@ -55,6 +55,7 @@ export const createMemorySettingsStore = (
   let extensions = normalizeExtensionSettings(
     initial.extensions ?? DEFAULT_EXTENSION_SETTINGS,
   );
+  let updateCheckedAt: number | null = null;
   const filters = new Map<string, SavedFilterDto>();
   const sessions = new Map<string, StudySessionWire>();
   // `encode*` строит новые объекты целиком: вход не разделяет память с картой.
@@ -91,6 +92,10 @@ export const createMemorySettingsStore = (
     loadExtensions: async () => structuredClone(extensions),
     saveExtensions: async (next) => {
       extensions = normalizeExtensionSettings(next);
+    },
+    loadUpdateCheckedAt: async () => updateCheckedAt,
+    saveUpdateCheckedAt: async (at) => {
+      updateCheckedAt = at;
     },
   };
 };

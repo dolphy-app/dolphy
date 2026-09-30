@@ -105,6 +105,9 @@ importers:
       '@spirula-app/extension-host':
         specifier: workspace:*
         version: link:../../packages/extension-host
+      '@spirula-app/extension-install':
+        specifier: workspace:*
+        version: link:../../packages/extension-install
       '@types/better-sqlite3':
         specifier: ^7.6.13
         version: 7.6.13
@@ -430,6 +433,28 @@ importers:
       zod:
         specifier: 4.6.5
         version: 4.6.5
+    devDependencies:
+      '@types/node':
+        specifier: ^22.20.4
+        version: 22.20.4
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  packages/extension-install:
+    dependencies:
+      '@spirula-app/engine':
+        specifier: workspace:*
+        version: link:../engine
+      '@spirula-app/engine-contract':
+        specifier: workspace:*
+        version: link:../engine-contract
+      '@spirula-app/extension-api':
+        specifier: workspace:*
+        version: link:../extension-api
+      '@spirula-app/extension-catalog':
+        specifier: workspace:*
+        version: link:../extension-catalog
     devDependencies:
       '@types/node':
         specifier: ^22.20.4

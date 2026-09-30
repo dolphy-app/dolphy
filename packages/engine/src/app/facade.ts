@@ -21,7 +21,9 @@ export type WrapMethod = (name: string, method: AnyMethod) => AnyMethod;
  * `timeoutMs`+запас; `repositories.add`/`update`/`remove`/`cancel` ходят в
  * сеть и ждут свою цепочку операций, а очередь берут сами (`exclusive`) только
  * на подмену снимка и `reload`: из очереди ждать цепочку нельзя — её
- * операция ждёт очередь (взаимная блокировка).
+ * операция ждёт очередь (взаимная блокировка). `extensions.catalog` и
+ * `extensions.install` тоже ходят в сеть (индекс, файлы версии) и очередь не
+ * держат; событие `extensions-changed` они публикуют сами.
  */
 export const UNQUEUED: ReadonlySet<string> = new Set([
   'practice.submitAnswer',
@@ -29,6 +31,8 @@ export const UNQUEUED: ReadonlySet<string> = new Set([
   'repositories.update',
   'repositories.remove',
   'repositories.cancel',
+  'extensions.catalog',
+  'extensions.install',
 ]);
 
 const isMethod = (value: unknown): value is AnyMethod =>

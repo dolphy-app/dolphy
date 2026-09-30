@@ -222,6 +222,22 @@ describe('discoverExtensions', () => {
     expect(logger.warn).not.toHaveBeenCalled();
   });
 
+  it('служебные каталоги установщика с точкой в имени не считаются расширениями', async () => {
+    const root = await rootDir('r');
+    await makeExtension(root, 'acme.real');
+    await makeExtension(path.join(root, '.staging'), 'acme.real-1a2b');
+    await makeExtension(root, '.trash');
+    await mkdir(path.join(root, '.catalog'));
+    const logger = createLogger();
+    const result = await discoverExtensions({
+      roots: [{ dir: root, origin: 'user' }],
+      logger,
+    });
+    expect(result.extensions.map((e) => e.id)).toEqual(['acme.real']);
+    expect(result.diagnostics).toEqual([]);
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
   it('verifyFiles управляет проверкой main/renderer', async () => {
     const root = await rootDir('r');
     await makeExtension(root, 'acme.nomain', { withMain: false });
@@ -375,9 +391,7 @@ describe('совместимость с приложением', () => {
       { appVersion: '1.1.9' },
     );
     expect(result.extensions).toEqual([]);
-    expect(result.diagnostics[0]!.message).toBe(
-      'requires app >= 1.2.0 (running 1.1.9)',
-    );
+    expect(result.diagnostics[0]!.message).toBe('requires app >= 1.2.0');
     const registry = createExtensionRegistry(
       result,
       createExtensionPolicy(result),
@@ -406,9 +420,7 @@ describe('совместимость с приложением', () => {
       { platform: 'win32' },
     );
     expect(result.extensions).toEqual([]);
-    expect(result.diagnostics[0]!.message).toBe(
-      'not available on win32 (supports: darwin, linux)',
-    );
+    expect(result.diagnostics[0]!.message).toBe('not available on win32');
   });
 
   it('платформа входит в platforms или platforms пусто — принимается', async () => {
@@ -433,7 +445,7 @@ describe('совместимость с приложением', () => {
     expect(await inspectExtensionDir(dir, { appVersion: '1.0.0' })).toEqual({
       ok: false,
       id: 'acme.i',
-      message: 'requires app >= 2.0.0 (running 1.0.0)',
+      message: 'requires app >= 2.0.0',
     });
     expect((await inspectExtensionDir(dir)).ok).toBe(true);
   });

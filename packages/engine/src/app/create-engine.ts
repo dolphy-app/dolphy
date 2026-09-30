@@ -9,7 +9,10 @@ import { collectDiagnostics } from './diagnostics.ts';
 import { createFacade } from './facade.ts';
 import type { EngineServices } from './facade.ts';
 import { createCurationService } from './services/curation.ts';
-import { createExtensionsService } from './services/extensions.ts';
+import {
+  createExtensionsService,
+  runStartupUpdateCheck,
+} from './services/extensions.ts';
 import { createLibraryService } from './services/library.ts';
 import { createPlacementService } from './services/placement.ts';
 import { createPlanService } from './services/plan.ts';
@@ -44,6 +47,8 @@ export const createEngineFromContext = (ctx: EngineContext): LearningEngine => {
     remediation: createRemediationService(ctx),
     extensions: createExtensionsService(ctx),
   };
+  // фоновая проверка обновлений: запуск не ждёт её и не зависит от её исхода
+  void runStartupUpdateCheck(ctx);
   const facade = createFacade(
     ctx,
     services,

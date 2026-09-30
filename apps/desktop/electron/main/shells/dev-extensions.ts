@@ -1,9 +1,11 @@
 import type { MainLogger } from '../logger.ts';
+import { restartExtensionHosts } from './extension-reload.ts';
+import type { ExtensionReloadDeps } from './extension-reload.ts';
 import type { Shell } from './types.ts';
 
 export const DEFAULT_DEV_DEBOUNCE_MS = 300;
 
-export interface DevExtensionsDeps {
+export interface DevExtensionsDeps extends ExtensionReloadDeps {
   app: { on(event: 'before-quit', listener: () => void): unknown };
   /** Каталог разработчика (`SPIRULA_DEV_EXTENSIONS`). */
   dir: string;
@@ -18,9 +20,6 @@ export interface DevExtensionsDeps {
     setTimeout(callback: () => void, ms: number): unknown;
     clearTimeout(handle: unknown): void;
   };
-  /** Перезапуск хоста движка и хоста расширений (не считается падением). */
-  restartHosts(): void;
-  windows(): readonly { reloadIgnoringCache(): void }[];
   exists(dir: string): boolean;
   logger: MainLogger;
 }
@@ -52,8 +51,7 @@ export const createDevExtensionsShell = (deps: DevExtensionsDeps): Shell => ({
     const reload = () => {
       pending = null;
       logger.info({ dir }, 'dev extensions changed, restarting hosts');
-      deps.restartHosts();
-      for (const win of deps.windows()) win.reloadIgnoringCache();
+      restartExtensionHosts(deps);
     };
 
     const onChange = (filename: string | null) => {

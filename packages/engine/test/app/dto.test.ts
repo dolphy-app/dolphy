@@ -289,7 +289,11 @@ describe('toExerciseDto', () => {
     expect(
       flag(
         createFakeExtensionPolicy({
-          settings: { disabled: [], trusted: ['spirula.sql'] },
+          settings: {
+            disabled: [],
+            trusted: ['spirula.sql'],
+            checkUpdates: true,
+          },
         }),
       ),
     ).toBe(false);

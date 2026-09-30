@@ -70,6 +70,23 @@ describe('SQLite settings store', () => {
     expect(await settings.loadUi()).toEqual({ theme: 'light', locale: 'ru' });
   });
 
+  it('запись расширений прежней формы (без checkUpdates) — проверка включена', async () => {
+    const path = nextPath();
+    const { events } = open(path);
+    await events.close();
+    const raw = openBetterSqliteDatabase({ path });
+    raw
+      .prepare("INSERT INTO setting (key, value) VALUES ('extensions', ?)")
+      .run('{"disabled":["acme.a"],"trusted":["acme.b"]}');
+    raw.close();
+
+    expect(await open(path).settings.loadExtensions()).toEqual({
+      disabled: ['acme.a'],
+      trusted: ['acme.b'],
+      checkUpdates: true,
+    });
+  });
+
   it('повреждённая запись — STORE_CORRUPT, а не тихие умолчания', async () => {
     const path = nextPath();
     const { events } = open(path);
@@ -133,6 +150,7 @@ describe('настройки расширений', () => {
     expect(await open(path).settings.loadExtensions()).toEqual({
       disabled: [],
       trusted: [],
+      checkUpdates: true,
     });
   });
 });

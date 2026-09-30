@@ -31,6 +31,12 @@ const extension = (
   permissions: [],
   isolation: 'trusted',
   toggleable: false,
+  name: null,
+  description: null,
+  author: null,
+  installed: null,
+  removable: false,
+  revoked: null,
   ...override,
 });
 
@@ -39,7 +45,11 @@ interface Deferred {
   reject(error: Error): void;
 }
 
-const NONE_SET: ExtensionSettingsDto = { disabled: [], trusted: [] };
+const NONE_SET: ExtensionSettingsDto = {
+  disabled: [],
+  trusted: [],
+  checkUpdates: true,
+};
 
 /** Каждый вызов `list()` ждёт, пока тест его не завершит. */
 const createFakeEngine = (stored: ExtensionSettingsDto = NONE_SET) => {
@@ -232,11 +242,19 @@ describe('переключатели', () => {
     const pending = model.setTrusted('acme.x', true);
     expect(model.settings.value.trusted).toEqual(['acme.x']);
     expect(model.switching.value.has('trusted:acme.x')).toBe(true);
-    calls[0]?.resolve({ disabled: [], trusted: ['acme.x'] });
+    calls[0]?.resolve({
+      disabled: [],
+      trusted: ['acme.x'],
+      checkUpdates: true,
+    });
     await pending;
 
     expect(calls[0]).toMatchObject({ method: 'setTrusted', value: true });
-    expect(model.settings.value).toEqual({ disabled: [], trusted: ['acme.x'] });
+    expect(model.settings.value).toEqual({
+      disabled: [],
+      trusted: ['acme.x'],
+      checkUpdates: true,
+    });
     expect(model.switching.value.size).toBe(0);
     expect(model.needsReload.value).toBe(true);
     expect(model.switchError.value).toBeNull();
@@ -248,12 +266,13 @@ describe('переключатели', () => {
     const { engine, calls } = createSwitchEngine({
       disabled: ['acme.x'],
       trusted: [],
+      checkUpdates: true,
     });
     const model = mount(engine);
     await flush();
     const pending = model.setEnabled('acme.x', true);
     expect(model.settings.value.disabled).toEqual([]);
-    calls[0]?.resolve({ disabled: [], trusted: [] });
+    calls[0]?.resolve({ disabled: [], trusted: [], checkUpdates: true });
     await pending;
     expect(calls[0]).toMatchObject({ method: 'setEnabled', value: true });
   });
@@ -281,7 +300,11 @@ describe('переключатели', () => {
     const first = model.setTrusted('acme.x', true);
     await model.setTrusted('acme.x', false);
     expect(calls).toHaveLength(1);
-    calls[0]?.resolve({ disabled: [], trusted: ['acme.x'] });
+    calls[0]?.resolve({
+      disabled: [],
+      trusted: ['acme.x'],
+      checkUpdates: true,
+    });
     await first;
   });
 });

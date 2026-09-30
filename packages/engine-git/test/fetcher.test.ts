@@ -3,6 +3,8 @@ import { randomBytes } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 
 import {
   DEFAULT_SNAPSHOT_LIMITS,
@@ -57,13 +59,14 @@ const fetchSnapshot = async (
   ref: string | null = null,
   limits: Partial<SnapshotLimits> = {},
   signal?: AbortSignal,
+  f: typeof fetcher = fetcher,
 ) => {
   const root = await mkdtemp(join(tmpdir(), 'spirula-git-test-'));
   dirs.push(root);
   await mkdir(join(root, 'dest'));
   await mkdir(join(root, 'tmp'));
   const progress: string[] = [];
-  const result = await fetcher.fetchSnapshot({
+  const result = await f.fetchSnapshot({
     url,
     ref,
     signal: signal ?? new AbortController().signal,
@@ -339,5 +342,96 @@ describe('snapshot rules (R7)', () => {
       maxBytes: 10,
     });
     expect(result.files).toBe(2);
+  });
+});
+
+describe('Windows names', () => {
+  const win = createIsomorphicGitFetcher({ platform: 'win32' });
+  const linux = createIsomorphicGitFetcher({ platform: 'linux' });
+  const names = [
+    'a:b.txt',
+    'a<b',
+    'q?.md',
+    'trail.',
+    'trail ',
+    'CON',
+    'nul.txt',
+    'Com1.md',
+    'lpt9',
+  ];
+
+  it.each(names)('rejects %s on win32 only', async (name) => {
+    const server = await serve({ [`dir/${name}`]: 'x' });
+    const error = await rejection(
+      fetchSnapshot(server.url, null, {}, undefined, win),
+    );
+    expect(error.violation).toBe('unsafe-name');
+    const { result } = await fetchSnapshot(
+      server.url,
+      null,
+      {},
+      undefined,
+      linux,
+    );
+    expect(result.files).toBe(1);
+  });
+
+  it('accepts ordinary names on win32', async () => {
+    const server = await serve({ 'console.md': 'x', 'a.b/c-d.txt': 'y' });
+    const { result } = await fetchSnapshot(
+      server.url,
+      null,
+      {},
+      undefined,
+      win,
+    );
+    expect(result.files).toBe(2);
+  });
+});
+
+describe('ref advertisement limit', () => {
+  it('fails with too-large when info/refs exceeds 8 MiB', async () => {
+    const http = createServer((_req, res) => {
+      res.writeHead(200, {
+        'content-type': 'application/x-git-upload-pack-advertisement',
+      });
+      // Валидные pkt-line: сервис, flush, затем бесконечный список ссылок.
+      const pkt = (text: string): string =>
+        `${(text.length + 4).toString(16).padStart(4, '0')}${text}`;
+      const line = pkt(`${'1'.repeat(40)} refs/tags/${'a'.repeat(900)}\n`);
+      res.write(
+        `${pkt('# service=git-upload-pack\n')}0000${pkt(`${'1'.repeat(40)} HEAD\0symref=HEAD:refs/heads/main\n`)}`,
+      );
+      const chunk = Buffer.from(line.repeat(1100));
+      let sent = 0;
+      const write = (): void => {
+        while (sent < 64) {
+          sent += 1;
+          if (!res.write(chunk)) {
+            res.once('drain', write);
+            return;
+          }
+        }
+        res.end();
+      };
+      write();
+    });
+    await new Promise<void>((resolve) => {
+      http.listen(0, '127.0.0.1', resolve);
+    });
+    const { port } = http.address() as AddressInfo;
+    try {
+      const reason = await fetchFailure(
+        fetcher.resolve({
+          url: `http://127.0.0.1:${port}/x.git`,
+          ref: null,
+          signal: new AbortController().signal,
+        }),
+      );
+      expect(reason).toBe('too-large');
+    } finally {
+      http.closeAllConnections();
+      http.close();
+    }
   });
 });

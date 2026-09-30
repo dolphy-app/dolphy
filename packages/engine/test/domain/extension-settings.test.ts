@@ -15,7 +15,18 @@ describe('decodeExtensionSettings', () => {
     expect(decodeExtensionSettings(raw)).toEqual({
       disabled: [],
       trusted: [],
+      checkUpdates: true,
     });
+  });
+
+  it.each([
+    [{ disabled: [], trusted: [] }, true],
+    [{ disabled: [], trusted: [], checkUpdates: false }, false],
+    [{ disabled: [], trusted: [], checkUpdates: 'no' }, true],
+    [{ disabled: [], trusted: [], checkUpdates: 0 }, true],
+    [{ disabled: 1, trusted: [], checkUpdates: false }, false],
+  ])('checkUpdates в %j — %s', (raw, expected) => {
+    expect(decodeExtensionSettings(raw).checkUpdates).toBe(expected);
   });
 
   it('сортирует и убирает повторы', () => {
@@ -25,6 +36,10 @@ describe('decodeExtensionSettings', () => {
         trusted: ['c.z'],
         extra: 1,
       }),
-    ).toEqual({ disabled: ['a.y', 'b.x'], trusted: ['c.z'] });
+    ).toEqual({
+      disabled: ['a.y', 'b.x'],
+      trusted: ['c.z'],
+      checkUpdates: true,
+    });
   });
 });

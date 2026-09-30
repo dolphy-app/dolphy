@@ -1,4 +1,5 @@
 import type { ExtensionInfoDto } from '@spirula-app/engine-contract';
+import { ExtensionInstallError } from '@spirula-app/engine/ports';
 import { describe, expect, it } from 'vitest';
 import {
   buildAttempt,
@@ -7,6 +8,7 @@ import {
   buildUnitFlag,
   createFakeClock,
   createFakeExerciseTypes,
+  createFakeExtensionInstaller,
   createFakeExtensionPolicy,
   createFakeExtensionRegistry,
   createJournalBuilder,
@@ -296,6 +298,12 @@ describe('createFakeExtensionRegistry', () => {
       permissions: [],
       isolation: 'isolated',
       toggleable: false,
+      name: null,
+      description: null,
+      author: null,
+      installed: null,
+      removable: true,
+      revoked: null,
     };
     expect(createFakeExtensionRegistry([{ ...item }]).list()).toEqual([item]);
   });
@@ -319,10 +327,64 @@ describe('createFakeExtensionPolicy', () => {
     expect(policy.isIsolated('acme.x')).toBe(true);
     expect(policy.isIsolated('spirula.sql')).toBe(false);
     expect(policy.isEnabled('acme.x')).toBe(true);
-    policy.update({ disabled: ['acme.x', 'spirula.sql'], trusted: ['acme.x'] });
+    policy.update({
+      disabled: ['acme.x', 'spirula.sql'],
+      trusted: ['acme.x'],
+      checkUpdates: true,
+    });
     expect(policy.isEnabled('acme.x')).toBe(false);
     expect(policy.isEnabled('spirula.sql')).toBe(true);
     expect(policy.isIsolated('acme.x')).toBe(false);
     expect(policy.updates).toHaveLength(1);
+  });
+
+  it('revoked extensions are disabled regardless of settings, except bundled', () => {
+    const policy = createFakeExtensionPolicy({
+      bundled: ['spirula.sql'],
+      revoked: { 'acme.x': 'bad', 'spirula.sql': 'bad' },
+    });
+    expect(policy.isEnabled('acme.x')).toBe(false);
+    expect(policy.isEnabled('spirula.sql')).toBe(true);
+    policy.setRevoked('acme.x', null);
+    expect(policy.isEnabled('acme.x')).toBe(true);
+    policy.setRevoked('acme.x', 'again');
+    expect(policy.isEnabled('acme.x')).toBe(false);
+  });
+});
+
+describe('createFakeExtensionInstaller', () => {
+  it('records calls and returns scripted results; handlers may throw', async () => {
+    const installer = createFakeExtensionInstaller({
+      revoked: { 'acme.x': 'bad' },
+      handlers: {
+        install: async (id) => {
+          if (id === 'acme.broken') {
+            throw new ExtensionInstallError('network', id, 'offline');
+          }
+          return {
+            id,
+            version: '2.0.0',
+            previousVersion: '1.0.0',
+            restartRequired: true,
+          };
+        },
+      },
+    });
+    expect(await installer.install('acme.ok')).toMatchObject({
+      version: '2.0.0',
+    });
+    await expect(
+      installer.install('acme.broken', '1.0.0'),
+    ).rejects.toMatchObject({ cause: 'network' });
+    expect(await installer.updates()).toEqual([]);
+    expect(await installer.checkForUpdates()).toBe(0);
+    expect(installer.revocationOf('acme.x', '1.0.0')).toBe('bad');
+    expect(installer.revocationOf('acme.y', '1.0.0')).toBeNull();
+    expect(installer.calls).toEqual([
+      { method: 'install', args: ['acme.ok'] },
+      { method: 'install', args: ['acme.broken', '1.0.0'] },
+      { method: 'updates', args: [] },
+      { method: 'checkForUpdates', args: [] },
+    ]);
   });
 });

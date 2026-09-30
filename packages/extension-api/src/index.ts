@@ -5,6 +5,8 @@
 
 export const EXTENSION_API_VERSION = 1 as const;
 export const EXTENSION_ID_PATTERN = /^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*$/;
+/** GitHub-логин автора расширения (`author` в манифесте и каталоге). */
+export const GITHUB_LOGIN_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
 /** Возможности, которые расширение объявляет в манифесте; без объявления — ни одной. */
 export const EXTENSION_PERMISSIONS = [
   'library.read',

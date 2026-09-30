@@ -10,7 +10,7 @@ export const version = (
   minAppVersion: null,
   permissions: [],
   publishedAt: '2026-10-01T00:00:00Z',
-  baseUrl: 'https://example.github.io/ext/extensions/acme.quiz/1.0.0/',
+  baseUrl: 'extensions/acme.quiz/1.0.0/',
   files: [
     { path: 'extension.json', size: 120, sha256: sha('a') },
     { path: 'main.mjs', size: 900, sha256: sha('b') },

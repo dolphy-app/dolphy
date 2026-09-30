@@ -11,6 +11,7 @@ import {
   decodeExtensionSettings,
   decodeLearningSettings,
   decodeUiSettings,
+  decodeUpdateCheckedAt,
   encodeUserPreferences,
   parseUserPreferences,
   stringifyManifest,
@@ -37,6 +38,7 @@ const SCHEDULER_OVERRIDES_KEY = 'scheduler_overrides';
 const UI_KEY = 'ui';
 const LEARNING_KEY = 'learning';
 const EXTENSIONS_KEY = 'extensions';
+const UPDATE_CHECK_KEY = 'extensions_update_checked_at';
 const LEGACY_IMPORT_KEY = 'legacy_settings_imported';
 
 /** Итог `importLegacySettings`. */
@@ -265,6 +267,10 @@ export const createSqliteSettingsStore = (
       decodeExtensionSettings(getSetting(EXTENSIONS_KEY)),
     saveExtensions: async (extensions) =>
       putSetting(EXTENSIONS_KEY, JSON.stringify(extensions)),
+    loadUpdateCheckedAt: async () =>
+      decodeUpdateCheckedAt(getSetting(UPDATE_CHECK_KEY)),
+    saveUpdateCheckedAt: async (at) =>
+      putSetting(UPDATE_CHECK_KEY, JSON.stringify(at)),
     importLegacySettings,
   };
 };

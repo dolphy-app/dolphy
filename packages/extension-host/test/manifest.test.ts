@@ -39,6 +39,7 @@ describe('parseManifest', () => {
     ['id не по паттерну', { ...valid(), id: 'Acme_Quiz' }],
     ['id длиннее 64 символов', { ...valid(), id: 'a'.repeat(65) }],
     ['версия не semver', { ...valid(), version: '1.0' }],
+    ['версия с ведущим нулём', { ...valid(), version: '01.0.0' }],
     ['вид вне префикса расширения', withType({ id: 'other.quiz' })],
     ['вид с общим началом без точки', withType({ id: 'acme.quizzes' })],
     ['main без .mjs', { ...valid(), main: './main.js' }],

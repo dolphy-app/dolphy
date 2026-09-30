@@ -65,6 +65,12 @@
       "path": "packages/extension-host/tsconfig.test.json"
     },
     {
+      "path": "packages/extension-install"
+    },
+    {
+      "path": "packages/extension-install/tsconfig.test.json"
+    },
+    {
       "path": "packages/ext-sql"
     },
     {

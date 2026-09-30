@@ -2,6 +2,7 @@ import {
   EXTENSION_ID_PATTERN,
   EXTENSION_PERMISSIONS,
   EXTENSION_PLATFORMS,
+  GITHUB_LOGIN_PATTERN,
 } from '@spirula-app/extension-api';
 import { z } from 'zod';
 import { CatalogFormatError } from './errors.ts';
@@ -14,25 +15,47 @@ export const MAX_FILES = 50;
 export const MAX_TOTAL_BYTES = 10_000_000;
 const MAX_PATH_LENGTH = 200;
 const FILE_EXTENSIONS = new Set(['json', 'js', 'mjs', 'md', 'txt']);
-const GITHUB_LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
 const SHA256 = /^[0-9a-f]{64}$/;
+/** Допустимые символы сегмента пути: без `:` (потоки NTFS), пробелов и управляющих символов. */
+const SEGMENT = /^[A-Za-z0-9_-][A-Za-z0-9._-]*$/;
+/** Имена устройств Windows: недоступны как файлы, с расширением или без. */
+const RESERVED_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
 
-const semver = z.string().refine(isSemver, 'must be semver x.y.z');
+const semver = z.string().refine(isSemver, 'must be semver');
 const timestamp = z.iso.datetime({ offset: true });
 const httpsUrl = z
   .url()
   .refine((value) => value.startsWith('https://'), 'must be an https URL');
 
+const isSafeSegment = (segment: string): boolean =>
+  SEGMENT.test(segment) &&
+  !segment.endsWith('.') &&
+  !RESERVED_NAME.test(segment);
+
 const isSafePath = (value: string): boolean => {
-  if (value.length > MAX_PATH_LENGTH || value.includes('\\')) return false;
+  if (value.length > MAX_PATH_LENGTH) return false;
   const segments = value.split('/');
-  if (segments.some((s) => s === '' || s.startsWith('.'))) return false;
+  if (!segments.every(isSafeSegment)) return false;
   const name = segments[segments.length - 1] ?? '';
   const dot = name.lastIndexOf('.');
   return dot > 0 && FILE_EXTENSIONS.has(name.slice(dot + 1));
 };
 
 const filePath = z.string().refine(isSafePath, 'must be a safe relative path');
+
+/**
+ * Каталог файлов версии относительно адреса `index.json` (`extensions/<id>/<version>/`).
+ * Абсолютный адрес не допускается: файлы версии по построению лежат на origin индекса,
+ * а локальный каталог разработчика и e2e не требуют https.
+ */
+const baseUrl = z
+  .string()
+  .max(MAX_PATH_LENGTH)
+  .refine(
+    (value) =>
+      value.endsWith('/') && value.slice(0, -1).split('/').every(isSafeSegment),
+    'must be a relative directory path ending with /',
+  );
 
 const fileSchema = z.strictObject({
   path: filePath,
@@ -51,23 +74,38 @@ const versionSchema = z.strictObject({
   minAppVersion: semver.nullable(),
   permissions: z.array(z.enum(EXTENSION_PERMISSIONS)),
   publishedAt: timestamp,
-  baseUrl: httpsUrl.refine((v) => v.endsWith('/'), 'must end with /'),
+  baseUrl,
   files: z
     .array(fileSchema)
     .max(MAX_FILES)
     .superRefine((files, ctx) => {
+      // Имена сравниваются без учёта регистра: на macOS и Windows `Main.mjs` и `main.mjs` — один файл.
       const seen = new Set<string>();
       files.forEach((file, index) => {
-        if (seen.has(file.path)) {
+        const key = file.path.toLowerCase();
+        if (seen.has(key)) {
           ctx.addIssue({
             code: 'custom',
             path: [index, 'path'],
             message: `duplicate path '${file.path}'`,
           });
         }
-        seen.add(file.path);
+        seen.add(key);
       });
-      if (!seen.has('extension.json')) {
+      files.forEach((file, index) => {
+        const segments = file.path.toLowerCase().split('/');
+        for (let depth = 1; depth < segments.length; depth++) {
+          if (seen.has(segments.slice(0, depth).join('/'))) {
+            ctx.addIssue({
+              code: 'custom',
+              path: [index, 'path'],
+              message: `'${file.path}' lies inside a file`,
+            });
+            break;
+          }
+        }
+      });
+      if (!files.some((file) => file.path === 'extension.json')) {
         ctx.addIssue({ code: 'custom', message: 'extension.json is required' });
       }
       const total = files.reduce((sum, file) => sum + file.size, 0);
@@ -116,7 +154,7 @@ const entrySchema = z.strictObject({
   id: extensionId,
   name: z.string().min(1).max(80),
   description: z.string().min(1).max(500),
-  author: z.string().regex(GITHUB_LOGIN, 'must be a GitHub login'),
+  author: z.string().regex(GITHUB_LOGIN_PATTERN, 'must be a GitHub login'),
   source: httpsUrl,
   platforms: z.array(z.enum(EXTENSION_PLATFORMS)),
   contributes: contributesSchema,

@@ -23,9 +23,11 @@ export const ru = {
     markdown: {
       renderFailed:
         'Не удалось вывести блок «{language}»; показан исходный текст.',
+      frameTitle: 'Блок «{language}» от расширения, изолированная рамка',
     },
     answer: {
       loadFailed: 'Не удалось загрузить ввод ответа ({element}).',
+      frameTitle: 'Ввод ответа от расширения в изолированной рамке: {label}',
       label: 'Ответ',
       hint: 'Ctrl/⌘ + Enter — проверить',
       title: 'Ответ',

@@ -267,6 +267,20 @@ export interface LibraryReader {
   stat(path: string): Promise<LibraryStat | null>;
 }
 
+/** Бросается, когда расширение вызывает возможность без объявленного разрешения. */
+export class PermissionError extends Error {
+  readonly permission: ExtensionPermission;
+  readonly code = 'EXT_PERMISSION';
+  constructor(permission: ExtensionPermission, message?: string) {
+    super(
+      message ??
+        `permission '${permission}' is not declared in the extension manifest`,
+    );
+    this.name = 'PermissionError';
+    this.permission = permission;
+  }
+}
+
 export interface Disposable {
   dispose(): void | Promise<void>;
 }

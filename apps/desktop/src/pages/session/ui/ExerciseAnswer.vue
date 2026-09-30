@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref, watch, watchEffect } from 'vue';
+import { computed, onBeforeUnmount, ref, watch, watchEffect } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { ExerciseTaskDto, VerdictDto } from '@lms/engine-contract';
 import { ANSWER_EVENT } from '@lms/extension-api';
 import type { AnswerChangeDetail } from '@lms/extension-api';
+import { frameUrlOf } from '@/shared/lib/frame-bridge.ts';
 import { ensureAnswerElement } from '../api/answer-element.ts';
+import IsolatedFrame from './IsolatedFrame.vue';
 
 const props = defineProps<{
   task: ExerciseTaskDto;
@@ -24,6 +26,30 @@ const element = ref<HTMLElement | null>(null);
 const loadError = ref(false);
 let token = 0;
 
+const frameSrc = computed(() => {
+  if (!props.task.isolated) return null;
+  try {
+    return frameUrlOf(props.task.rendererUrl);
+  } catch {
+    return null;
+  }
+});
+const failed = computed(
+  () => loadError.value || (props.task.isolated && frameSrc.value === null),
+);
+const frameKey = computed(() => `${props.task.type}:${props.task.element}`);
+const frameTitle = computed(() =>
+  t('session.answer.frameTitle', { label: props.label }),
+);
+
+const onFrameError = (message: string) => {
+  console.error(
+    { message, element: props.task.element },
+    'answer frame failed',
+  );
+  loadError.value = true;
+};
+
 const onChange = (event: Event) => {
   emit('change', (event as CustomEvent<AnswerChangeDetail>).detail);
 };
@@ -40,6 +66,7 @@ const mount = async () => {
   const current = ++token;
   detach();
   loadError.value = false;
+  if (props.task.isolated) return;
   try {
     await ensureAnswerElement(props.task);
   } catch {
@@ -55,7 +82,7 @@ const mount = async () => {
   element.value = created;
 };
 
-watch(() => [props.task.type, props.task.element], mount, {
+watch(() => [props.task.type, props.task.element, props.task.isolated], mount, {
   immediate: true,
   flush: 'post',
 });
@@ -78,11 +105,29 @@ onBeforeUnmount(() => {
 <template>
   <div>
     <v-alert
-      v-if="loadError"
+      v-if="failed"
       type="error"
       variant="tonal"
       :text="t('session.answer.loadFailed', { element: task.element })"
     />
-    <div ref="host" />
+    <IsolatedFrame
+      v-if="task.isolated && frameSrc !== null && !loadError"
+      :key="frameKey"
+      :src="frameSrc"
+      :title="frameTitle"
+      :init="{
+        mode: 'answer',
+        rendererUrl: task.rendererUrl,
+        element: task.element,
+        label,
+      }"
+      :disabled="disabled"
+      :view="view"
+      :verdict="verdict"
+      @change="emit('change', $event)"
+      @submit="emit('submit')"
+      @error="onFrameError"
+    />
+    <div v-else-if="!task.isolated" ref="host" />
   </div>
 </template>

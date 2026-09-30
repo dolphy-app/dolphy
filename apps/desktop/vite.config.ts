@@ -1,8 +1,9 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import { builtinModules } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { defineConfig } from 'vite';
+import { build, defineConfig } from 'vite';
 import type { Plugin } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import vuetify from 'vite-plugin-vuetify';
@@ -12,9 +13,9 @@ import electron from 'vite-plugin-electron/multi-env';
 // (Vite инлайнит мелкие подмножества шрифтов); в dev HMR требует websocket
 const CSP = {
   build:
-    "default-src 'none'; script-src 'self' lms-ext:; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'",
+    "default-src 'none'; script-src 'self' lms-ext:; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-src lms-ext:",
   serve:
-    "default-src 'none'; script-src 'self' lms-ext:; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' ws://localhost:* http://localhost:*",
+    "default-src 'none'; script-src 'self' lms-ext:; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' ws://localhost:* http://localhost:*; frame-src lms-ext:",
 } as const;
 
 const csp = (command: 'build' | 'serve'): Plugin => ({
@@ -68,6 +69,35 @@ const extensions = (target: string): Plugin => ({
   },
 });
 
+// дочерний процесс для кода расширений не из поставки: один самодостаточный
+// ES-модуль <outRoot>/restricted/ext-restricted.mjs (в упаковке — extraResources,
+// вне asar: режим разрешений Node проверяет настоящие пути файлов)
+const restrictedChild = (target: string): Plugin => ({
+  name: 'lms:restricted-child',
+  async buildStart() {
+    fs.rmSync(target, { recursive: true, force: true });
+    await build({
+      root: fileURLToPath(new URL('.', import.meta.url)),
+      configFile: false,
+      publicDir: false,
+      logLevel: 'warn',
+      build: {
+        target: 'node22',
+        outDir: path.resolve(target),
+        emptyOutDir: true,
+        minify: false,
+        copyPublicDir: false,
+        lib: {
+          entry: 'electron/ext-host/restricted-child.ts',
+          formats: ['es'],
+          fileName: () => 'ext-restricted.mjs',
+        },
+        rolldownOptions: { external: [/^node:/, ...builtinModules] },
+      },
+    });
+  },
+});
+
 // нативный модуль не бандлится: грузится из node_modules (asarUnpack)
 const NATIVE = ['better-sqlite3'];
 
@@ -101,6 +131,7 @@ export default defineConfig(({ command }) => {
       vuetify(),
       csp(command),
       extensions(out('extensions')),
+      restrictedChild(out('restricted')),
       electron([
         {
           name: 'main',

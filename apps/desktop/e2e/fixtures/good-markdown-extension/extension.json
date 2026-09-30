@@ -1,0 +1,8 @@
+{
+  "id": "acme.good-markdown",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "contributes": {
+    "markdownRenderers": [{ "language": "good" }]
+  }
+}

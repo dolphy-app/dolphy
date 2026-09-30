@@ -2,6 +2,7 @@ import { createJsonLogger, createNodeFsCourseSource } from '@lms/engine/node';
 import { fromNodePort } from '@lms/engine-rpc/host';
 import {
   createExtensionRuntime,
+  createRestrictedRunner,
   discoverExtensions,
 } from '@lms/extension-host';
 import type { ExtensionRuntime } from '@lms/extension-host';
@@ -12,6 +13,7 @@ type ExtHostMessage =
   | {
       type: 'init';
       libraryRoot: string;
+      restrictedEntry: string;
       bundledExtensionsDir?: string;
       userExtensionsDir?: string;
       devExtensionsDir?: string;
@@ -40,10 +42,21 @@ const handle = async (
       roots: extensionRoots(message),
       logger,
     });
+    const library = createNodeFsCourseSource(message.libraryRoot);
     runtime = createExtensionRuntime({
       extensions,
-      library: createNodeFsCourseSource(message.libraryRoot),
+      library,
       logger,
+      // расширения не из поставки с `isolated` исполняются в ограниченном процессе
+      runners: {
+        create: (extension) =>
+          createRestrictedRunner({
+            extension,
+            entryPath: message.restrictedEntry,
+            library,
+            logger,
+          }),
+      },
     });
     parentPort.postMessage({ type: 'ready' });
   } else if (message.type === 'connect') {

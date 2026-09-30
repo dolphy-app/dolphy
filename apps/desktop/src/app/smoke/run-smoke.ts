@@ -10,6 +10,9 @@ import { ensureAnswerElement } from '@/pages/session/api/answer-element.ts';
 
 const EXERCISE_ID = 'sql_kb::where::q2';
 const CHOICE_EXERCISE_ID = 'choice_kb::basic::q1';
+const ISOLATED_EXERCISE_ID = 'hostile_kb::basic::q1';
+/** Путь, который «враждебное» расширение пробует записать; smoke.mjs проверяет, что файла нет. */
+const ISOLATED_MARKER = '/tmp/lms-smoke-pwned.txt';
 const RIGHT_SQL = 'SELECT name FROM emp WHERE salary IS NULL;';
 const WRONG_SQL = 'SELECT name FROM emp WHERE salary IS NOT NULL;';
 const EVENT_TIMEOUT_MS = 5_000;
@@ -169,6 +172,30 @@ const renderer = async (engine: LearningEngine): Promise<Scenario> => {
   return { ok: Object.values(loaded).every(Boolean), loaded };
 };
 
+/** Код пользовательского расширения исполняется в ограниченном процессе (режим разрешений Node). */
+const isolated = async (engine: LearningEngine): Promise<Scenario> => {
+  const attempt = await engine.practice.beginAttempt({
+    exerciseId: ISOLATED_EXERCISE_ID,
+  });
+  const verdict = await engine.practice.submitAnswer({
+    attemptId: attempt.attemptId,
+    answer: ISOLATED_MARKER,
+  });
+  const feedback = verdict.outcome === 'failed' ? (verdict.feedback ?? '') : '';
+  const denied = [
+    'read:/etc/hosts=denied',
+    'write=denied',
+    'spawn=denied',
+    'worker=denied',
+    'env:HOME=unset',
+  ].every((probe) => feedback.includes(probe));
+  return {
+    ok: attempt.exercise.task?.isolated === true && denied,
+    isolated: attempt.exercise.task?.isolated ?? null,
+    feedback,
+  };
+};
+
 const crash = async (
   engine: LearningEngine,
   events: Events,
@@ -235,6 +262,7 @@ export const runSmoke = async (engine: LearningEngine, smoke: SmokeBridge) => {
     sql: await attempt(() => sql(engine)),
     choice: await attempt(() => choice(engine)),
     renderer: await attempt(() => renderer(engine)),
+    isolated: await attempt(() => isolated(engine)),
     crash: await attempt(() => crash(engine, events, smoke)),
   };
   return {

@@ -48,6 +48,9 @@ const RU = {
 
 const TIMEOUT = 15_000;
 
+/** Рамка элемента ответа недоверенного расширения (`IsolatedFrame`, режим `answer`). */
+export const ANSWER_FRAME = 'iframe[sandbox][data-mode="answer"]';
+
 export type Grade = 1 | 2 | 3 | 4 | 5;
 
 export interface CourseCardView {
@@ -277,24 +280,37 @@ export class Client {
     };
   }
 
-  /** Вводит ответ в элемент расширения (custom element в shadow DOM). */
-  private async fillAnswer(reply: AnswerInput) {
+  /**
+   * Элемент ответа: в окне (расширение из поставки или доверенное) либо в
+   * изолированной рамке (остальные). Ждёт, пока появится любой из двух.
+   */
+  async answerElement(tag: string): Promise<Locator> {
+    const inPage = this.page.locator(tag);
+    const framed = this.page.frameLocator(ANSWER_FRAME).locator(tag);
+    await expect
+      .poll(async () => (await inPage.count()) + (await framed.count()), {
+        timeout: TIMEOUT,
+      })
+      .toBeGreaterThan(0);
+    return (await inPage.count()) > 0 ? inPage : framed;
+  }
+
+  /** Вводит ответ в элемент расширения (custom element в окне или в рамке). */
+  async fillAnswer(reply: AnswerInput) {
     if ('sql' in reply) {
-      await this.page.locator('lms-sql-answer textarea').fill(reply.sql);
+      const element = await this.answerElement('lms-sql-answer');
+      await element.locator('textarea').fill(reply.sql);
     } else if ('choose' in reply) {
+      const element = await this.answerElement('lms-choice-answer');
       // после неверной попытки флажки остаются отмеченными: начинаем с чистого выбора
-      const marked = this.page.locator(
-        'lms-choice-answer input[type=checkbox]:checked',
-      );
+      const marked = element.locator('input[type=checkbox]:checked');
       while ((await marked.count()) > 0) await marked.first().uncheck();
       for (const option of reply.choose) {
-        await this.page
-          .locator('lms-choice-answer')
-          .getByLabel(option, { exact: true })
-          .check();
+        await element.getByLabel(option, { exact: true }).check();
       }
     } else {
-      await this.page.locator('acme-echo-answer input').fill(reply.text);
+      const element = await this.answerElement('acme-echo-answer');
+      await element.locator('input').fill(reply.text);
     }
   }
 

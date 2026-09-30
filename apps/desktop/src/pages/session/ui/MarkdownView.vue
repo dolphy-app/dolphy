@@ -37,6 +37,7 @@ const hydrate = () => {
     signal: next.signal,
     describeError: (language) =>
       t('session.markdown.renderFailed', { language }),
+    describeFrame: (language) => t('session.markdown.frameTitle', { language }),
   });
 };
 

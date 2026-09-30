@@ -25,9 +25,12 @@ export const en: typeof ru = {
     markdown: {
       renderFailed:
         'Could not render the “{language}” block; showing the source.',
+      frameTitle: '“{language}” block from an extension, isolated frame',
     },
     answer: {
       loadFailed: 'Could not load the answer input ({element}).',
+      frameTitle:
+        'Answer input from an extension in an isolated frame: {label}',
       label: 'Answer',
       hint: 'Ctrl/⌘ + Enter to check',
       title: 'Answer',

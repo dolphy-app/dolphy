@@ -18,9 +18,8 @@ afterEach(async () => {
 describe('граф знаний', () => {
   it('клик мышью по уроку открывает панель урока', async () => {
     const { page } = app;
-    await page.evaluate(() => {
-      location.hash = '#/graph?course=sql_analytics';
-    });
+    // строкой: tsconfig e2e без DOM-типов
+    await page.evaluate("location.hash = '#/graph?course=sql_analytics'");
     const node = page.locator('.vue-flow__node-lesson [role="button"]').first();
     await node.waitFor();
     // координаты центра, а не `locator.click()`: проверяем, что узел получает

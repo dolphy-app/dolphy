@@ -1,12 +1,14 @@
 import type {
   DeepPartial,
   SavedFilterDto,
+  ExtensionSettingsDto,
   LearningSettingsDto,
   SchedulerOptionsDto,
   StudySessionWire,
   UiSettingsDto,
 } from '@lms/engine-contract';
 import {
+  decodeExtensionSettings,
   decodeLearningSettings,
   decodeUiSettings,
   encodeUserPreferences,
@@ -30,6 +32,7 @@ const PREFERENCES_KEY = 'user_preferences';
 const SCHEDULER_OVERRIDES_KEY = 'scheduler_overrides';
 const UI_KEY = 'ui';
 const LEARNING_KEY = 'learning';
+const EXTENSIONS_KEY = 'extensions';
 const LEGACY_IMPORT_KEY = 'legacy_settings_imported';
 
 /** Итог `importLegacySettings`. */
@@ -254,6 +257,10 @@ export const createSqliteSettingsStore = (
       decodeLearningSettings(getSetting(LEARNING_KEY)),
     saveLearning: async (learning) =>
       putSetting(LEARNING_KEY, JSON.stringify(learning)),
+    loadExtensions: async (): Promise<ExtensionSettingsDto> =>
+      decodeExtensionSettings(getSetting(EXTENSIONS_KEY)),
+    saveExtensions: async (extensions) =>
+      putSetting(EXTENSIONS_KEY, JSON.stringify(extensions)),
     importLegacySettings,
   };
 };

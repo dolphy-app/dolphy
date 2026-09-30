@@ -202,7 +202,7 @@ export const createPracticeService = (ctx: EngineContext): PracticeService => {
     ctx.metrics.record('batch', performance.now() - started);
     return {
       exercises: items.map(({ manifest }) =>
-        toExerciseDto(manifest, ctx.exerciseTypes),
+        toExerciseDto(manifest, ctx.exerciseTypes, ctx.extensionPolicy),
       ),
       reasons: items.map(({ reason }) => reason),
       generatedAt: clock.now(),
@@ -255,7 +255,7 @@ export const createPracticeService = (ctx: EngineContext): PracticeService => {
     });
     return {
       attemptId,
-      exercise: toExerciseDto(exercise, ctx.exerciseTypes),
+      exercise: toExerciseDto(exercise, ctx.exerciseTypes, ctx.extensionPolicy),
       startedAt,
       verifiable,
       view: view ?? null,

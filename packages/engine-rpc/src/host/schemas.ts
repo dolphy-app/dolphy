@@ -1,5 +1,6 @@
 import {
   BUILTIN_GRADE_POLICY,
+  EXTENSION_ID_PATTERN,
   GRADE_POLICY_ID_PATTERN,
   THEME_ID_PATTERN,
 } from '@lms/engine-contract';
@@ -36,6 +37,7 @@ const optional = <T extends z.core.SomeType>(schema: T) =>
 
 const unitId = z.string().min(1);
 const str = z.string();
+const extensionId = z.string().min(1).max(64).regex(EXTENSION_ID_PATTERN);
 const num = z.number();
 const int = z.int();
 const bool = z.boolean();
@@ -333,6 +335,9 @@ export const schemas = {
   'remediation.getPlan': z.tuple([z.strictObject({ exerciseId: unitId })]),
   'extensions.list': z.tuple([]),
   'extensions.contributions': z.tuple([]),
+  'extensions.getSettings': z.tuple([]),
+  'extensions.setEnabled': z.tuple([extensionId, z.boolean()]),
+  'extensions.setTrusted': z.tuple([extensionId, z.boolean()]),
   'curation.blacklist.list': z.tuple([optional(pageRequest)]),
   'curation.blacklist.has': z.tuple([unitId]),
   'curation.blacklist.add': z.tuple([unitId]),

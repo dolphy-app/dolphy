@@ -6,6 +6,7 @@ import type { EngineConfig } from '@lms/engine-contract';
 import { openSqliteStorage, readTraneDirectory } from '@lms/engine-sqlite';
 import {
   createCatalog,
+  createExtensionPolicy,
   createExtensionRegistry,
   createHostChannel,
   createRemoteExerciseTypes,
@@ -48,15 +49,19 @@ export const boot = async (
     logger: defaults.logger,
     restart: restartExtHost,
   });
-  const catalog = createCatalog(discovery.extensions);
+  // одна политика на каталог, клиентов хоста, реестр и движок: «Настройки → Расширения» действует сразу
+  const policy = createExtensionPolicy(discovery);
+  const catalog = createCatalog(discovery.extensions, policy);
   const exerciseTypes = createRemoteExerciseTypes({
     channel,
     catalog,
+    policy,
     logger: defaults.logger,
   });
   const gradePolicies = createRemoteGradePolicies({
     channel,
     catalog,
+    policy,
     logger: defaults.logger,
   });
   if (__LMS_SMOKE_BUILD__ && process.env.LMS_SMOKE === '1') {
@@ -72,7 +77,8 @@ export const boot = async (
       eventStore,
       exerciseTypes,
       gradePolicies,
-      extensionRegistry: createExtensionRegistry(discovery),
+      extensionRegistry: createExtensionRegistry(discovery, policy),
+      extensionPolicy: policy,
       openTraneSource: readTraneDirectory,
     },
     config,

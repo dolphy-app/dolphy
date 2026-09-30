@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 5 as const;
+export const CONTRACT_VERSION = 6 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 
@@ -225,6 +225,8 @@ export interface ExerciseTaskDto {
   timeoutMs: number;
   element: string;
   rendererUrl: string;
+  /** Расширение не из поставки и не доверенное: элемент ответа исполняется в изолированной рамке. */
+  isolated: boolean;
 }
 export interface ExerciseDto {
   kind: 'exercise';
@@ -940,7 +942,8 @@ export type EngineEvent =
         | 'blacklist'
         | 'reviewList'
         | 'ui'
-        | 'learning';
+        | 'learning'
+        | 'extensions';
     };
 
 /** Конфигурация хоста при открытии движка (`createEngine`); через RPC не передаётся и renderer её не меняет. */
@@ -976,7 +979,8 @@ export interface EngineDiagnosticsDto {
 }
 
 export type ExtensionOriginDto = 'bundled' | 'user' | 'dev';
-export type ExtensionStateDto = 'loaded' | 'overridden' | 'invalid';
+export type ExtensionStateDto =
+  'loaded' | 'overridden' | 'invalid' | 'disabled';
 
 export interface ExtensionInfoDto {
   /** Id манифеста; у некорректного расширения — имя каталога. */
@@ -987,8 +991,14 @@ export interface ExtensionInfoDto {
   state: ExtensionStateDto;
   /** Вклады по точкам (id/языки); пусто, если расширение не `loaded`/`overridden`. */
   contributes: ExtensionContributesDto;
-  /** Почему некорректно / кем перекрыто; `null` у загруженного. */
+  /** Почему некорректно / кем перекрыто; `null` у загруженного и отключённого. */
   message: string | null;
+  /** Возможности, объявленные в манифесте; пусто, если манифест не прочитан. */
+  permissions: string[];
+  /** Действующий режим кода и интерфейса: расширения из поставки — всегда `trusted`. */
+  isolation: 'trusted' | 'isolated';
+  /** `false` у расширений из поставки, перекрытых и некорректных: переключатели недоступны. */
+  toggleable: boolean;
 }
 
 export interface ExtensionContributesDto {
@@ -1012,6 +1022,8 @@ export interface MarkdownRendererDto {
   extensionId: string;
   /** `lms-ext://<extensionId>/<путь>`. */
   rendererUrl: string;
+  /** Модуль исполняется в изолированной рамке (расширение не из поставки и не доверенное). */
+  isolated: boolean;
 }
 
 export interface GradePolicyInfoDto {
@@ -1028,8 +1040,23 @@ export interface ContributionsDto {
   gradePolicies: GradePolicyInfoDto[];
 }
 
+/** Допустимый вид id расширения (как в манифесте). */
+export const EXTENSION_ID_PATTERN = /^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*$/;
+
+/** Настройки расширений; хранятся вместе с остальными настройками в `engine.db`. */
+export interface ExtensionSettingsDto {
+  /** Отключённые расширения (по id), отсортированы, без повторов. */
+  disabled: string[];
+  /** Доверенные расширения (исполняются без изоляции), отсортированы, без повторов. */
+  trusted: string[];
+}
+
 export interface ExtensionsService {
   list(): Promise<ExtensionInfoDto[]>;
+  getSettings(): Promise<ExtensionSettingsDto>;
+  /** `NOT_FOUND` — нет такого расширения; `INVALID_ARGUMENT` `{reason:'bundled'}` — расширение из поставки. */
+  setEnabled(id: string, enabled: boolean): Promise<ExtensionSettingsDto>;
+  setTrusted(id: string, trusted: boolean): Promise<ExtensionSettingsDto>;
   /** Вклады загруженных расширений для окна (только чтение). */
   contributions(): Promise<ContributionsDto>;
 }

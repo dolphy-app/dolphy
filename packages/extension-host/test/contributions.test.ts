@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { discoverExtensions, inspectExtensionDir } from '../src/discover.ts';
 import { parseManifest } from '../src/manifest.ts';
 import { CONTRIBUTION_POINTS } from '../src/points/index.ts';
+import { createExtensionPolicy } from '../src/policy.ts';
 import { createExtensionRegistry } from '../src/registry.ts';
 import { createLogger } from './helpers.ts';
 
@@ -331,14 +332,18 @@ describe('createExtensionRegistry: contributions', () => {
       path.join(fixturesDir, 'acme.mixed'),
     );
     if (!themes.ok || !mixed.ok) throw new Error('fixtures must load');
-    const registry = createExtensionRegistry({
+    const discovery = {
       extensions: [
-        { ...themes.extension, origin: 'user' },
-        { ...mixed.extension, origin: 'bundled' },
+        { ...themes.extension, origin: 'user' as const },
+        { ...mixed.extension, origin: 'bundled' as const },
       ],
       overridden: [],
       diagnostics: [],
-    });
+    };
+    const registry = createExtensionRegistry(
+      discovery,
+      createExtensionPolicy(discovery),
+    );
     const contributions = registry.contributions();
     expect(contributions.themes.map(({ id }) => id).sort()).toEqual([
       'acme.mixed.paper',
@@ -361,11 +366,15 @@ describe('createExtensionRegistry: contributions', () => {
       path.join(fixturesDir, 'acme.themes'),
     );
     if (!themes.ok) throw new Error(themes.message);
-    const registry = createExtensionRegistry({
-      extensions: [{ ...themes.extension, origin: 'user' }],
+    const discovery = {
+      extensions: [{ ...themes.extension, origin: 'user' as const }],
       overridden: [],
       diagnostics: [],
-    });
+    };
+    const registry = createExtensionRegistry(
+      discovery,
+      createExtensionPolicy(discovery),
+    );
     const [first] = registry.contributions().themes;
     if (first !== undefined) first.colors['background'] = '#ffffff';
     expect(registry.contributions().themes[0]?.colors['background']).toBe(

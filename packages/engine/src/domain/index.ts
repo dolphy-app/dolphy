@@ -44,6 +44,12 @@ export {
 } from './manifest-schema.ts';
 export type { ParseResult, SchemaIssue } from './manifest-schema.ts';
 export {
+  DEFAULT_EXTENSION_SETTINGS,
+  decodeExtensionSettings,
+  isExtensionId,
+  normalizeExtensionSettings,
+} from './extension-settings.ts';
+export {
   DEFAULT_LEARNING_SETTINGS,
   decodeLearningSettings,
   isGradePolicyId,

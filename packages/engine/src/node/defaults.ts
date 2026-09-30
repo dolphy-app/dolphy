@@ -15,6 +15,7 @@ export type NodeDefaults = Omit<
   | 'exerciseTypes'
   | 'gradePolicies'
   | 'extensionRegistry'
+  | 'extensionPolicy'
   | 'openTraneSource'
 >;
 

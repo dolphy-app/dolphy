@@ -7,8 +7,9 @@ interface WindowWebContentsLike {
   ): void;
   on(
     event: 'will-navigate',
-    listener: (event: { preventDefault(): void }) => void,
+    listener: (event: { preventDefault(): void; url: string }) => void,
   ): unknown;
+  getURL(): string;
   openDevTools(): void;
 }
 
@@ -96,8 +97,11 @@ export const createWindowShell = (deps: WindowShellDeps): Shell => ({
       );
       win = created;
       const { webContents } = created;
-      // страница остаётся той, что загрузили: навигация только через main
-      webContents.on('will-navigate', (event) => event.preventDefault());
+      // страница остаётся той, что загрузили: навигация только через main;
+      // перезагрузка текущего адреса («Перезагрузить окно» в настройках) разрешена
+      webContents.on('will-navigate', (event) => {
+        if (event.url !== webContents.getURL()) event.preventDefault();
+      });
       webContents.setWindowOpenHandler(({ url }) => {
         if (url.startsWith('https:')) {
           shell.openExternal(url).catch((error) => {

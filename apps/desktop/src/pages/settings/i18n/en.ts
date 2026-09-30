@@ -173,6 +173,33 @@ export const en: typeof ru = {
         loaded: 'Loaded',
         overridden: 'Overridden',
         invalid: 'Failed to load',
+        disabled: 'Disabled',
+      },
+      builtIn: 'Built in',
+      isolation: {
+        isolated: 'Isolated',
+        trusted: 'Trusted',
+      },
+      enabledLabel: 'Enabled',
+      trustLabel: 'Trust (no isolation)',
+      trustHint:
+        'A trusted extension runs without isolation: its code runs with the app’s rights and its elements live in the app window and can see its data. Trust only extensions you believe in.',
+      permissionsTitle: 'Permissions',
+      permissionsNone: 'none requested',
+      permissions: {
+        library: { read: 'Read the course library' },
+        process: { spawn: 'Launch processes' },
+        worker: { threads: 'Threads' },
+        native: { addons: 'Native modules' },
+        network: 'Network',
+      },
+      networkCaveat:
+        'Network is declared only, not restricted: the extension can reach the network even when isolated.',
+      switchFailed: 'Could not change the extension setting',
+      reload: {
+        message:
+          'The change applies to new checks right away, while themes and renderers are read at startup: reload the window.',
+        action: 'Reload window',
       },
     },
     about: {

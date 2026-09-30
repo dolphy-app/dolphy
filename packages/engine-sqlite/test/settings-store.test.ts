@@ -117,6 +117,23 @@ describe('SQLite settings store', () => {
   });
 });
 
+describe('настройки расширений', () => {
+  it('неверная сохранённая форма читается как пустые списки', async () => {
+    const path = nextPath();
+    const { events } = open(path);
+    await events.close();
+    const raw = openBetterSqliteDatabase({ path });
+    raw
+      .prepare("INSERT INTO setting (key, value) VALUES ('extensions', ?)")
+      .run('{"disabled":["Bad Id"],"trusted":[]}');
+    raw.close();
+    expect(await open(path).settings.loadExtensions()).toEqual({
+      disabled: [],
+      trusted: [],
+    });
+  });
+});
+
 const filter = (id: string, description: string): SavedFilterDto => ({
   id,
   description,

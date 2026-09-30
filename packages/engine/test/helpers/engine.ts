@@ -12,6 +12,7 @@ import {
   createCapturingLogger,
   createFakeClock,
   createFakeExerciseTypes,
+  createFakeExtensionPolicy,
   createFakeExtensionRegistry,
   createFakeGradePolicies,
   createMemoryCourseSource,
@@ -39,6 +40,7 @@ import type {
 } from '../../src/ports/index.ts';
 import type { ExerciseTypes } from '../../src/ports/exercise-types.ts';
 import type { GradePolicies } from '../../src/ports/grade-policies.ts';
+import type { ExtensionPolicy } from '../../src/ports/extension-policy.ts';
 import type { ExtensionRegistry } from '../../src/ports/extension-registry.ts';
 import { createTsFsrsMemoryModel } from '../../src/scoring/memory-model.ts';
 import { LIBRARIES_DIR } from './fixtures.ts';
@@ -63,6 +65,7 @@ export interface TestEngineOptions {
   exerciseTypes?: ExerciseTypes;
   gradePolicies?: GradePolicies;
   extensionRegistry?: ExtensionRegistry;
+  extensionPolicy?: ExtensionPolicy;
   clock?: FakeClock;
   seed?: number;
   config?: Partial<EngineConfig>;
@@ -133,6 +136,7 @@ export const createTestContext = async (
     gradePolicies: options.gradePolicies ?? createFakeGradePolicies(),
     extensionRegistry:
       options.extensionRegistry ?? createFakeExtensionRegistry(),
+    extensionPolicy: options.extensionPolicy ?? createFakeExtensionPolicy(),
     ...(options.folderSync !== undefined && { folderSync: options.folderSync }),
     ...(options.openTraneSource !== undefined && {
       openTraneSource: options.openTraneSource,

@@ -6,6 +6,7 @@ import type {
   SchedulerOptionsDto,
   StateVector,
   StudySessionWire,
+  ExtensionSettingsDto,
   LearningSettingsDto,
   UiSettingsDto,
   VerdictDto,
@@ -252,8 +253,12 @@ export interface SettingsStore {
   /** Настройки обучения; без сохранённых — правило оценки `passAtN`. */
   loadLearning(): Promise<LearningSettingsDto>;
   saveLearning(learning: LearningSettingsDto): Promise<void>;
+  /** Настройки расширений; без сохранённых — ничего не отключено и не доверено. */
+  loadExtensions(): Promise<ExtensionSettingsDto>;
+  saveExtensions(extensions: ExtensionSettingsDto): Promise<void>;
 }
 
 export * from './exercise-types.ts';
 export * from './grade-policies.ts';
+export * from './extension-policy.ts';
 export * from './extension-registry.ts';

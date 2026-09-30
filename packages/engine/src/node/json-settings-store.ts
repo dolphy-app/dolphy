@@ -2,7 +2,7 @@
  * Настройки ученика на диске (`dataDir/settings`): `user_preferences.json`,
  * `filters/*.json`, `study_sessions/*.json` — wire Trane, JSON с двумя
  * пробелами и `\n` в конце, запись атомарная (engine-ts.md §5.3); свои
- * файлы движка — `scheduler_overrides.json`, `ui.json` и `learning.json`.
+ * файлы движка — `scheduler_overrides.json`, `ui.json`, `learning.json` и `extensions.json`.
  *
  * Отличия от `LocalFilterManager`/`LocalStudySessionManager` Trane, где
  * читается каждая запись каталога (`.DS_Store` ломает открытие): здесь
@@ -18,6 +18,7 @@ import type {
   SavedFilterDto,
   SchedulerOptionsDto,
   StudySessionWire,
+  ExtensionSettingsDto,
   LearningSettingsDto,
   UiSettingsDto,
 } from '@lms/engine-contract';
@@ -27,6 +28,7 @@ import {
   encodeUserPreferences,
   stringifyManifest,
 } from '../domain/manifest-schema.ts';
+import { decodeExtensionSettings } from '../domain/extension-settings.ts';
 import { decodeLearningSettings } from '../domain/learning-settings.ts';
 import { decodeUiSettings } from '../domain/ui-settings.ts';
 import type { UserPreferences } from '../domain/manifest.ts';
@@ -48,6 +50,7 @@ const PREFERENCES_FILE = 'user_preferences.json';
 const SCHEDULER_OVERRIDES_FILE = 'scheduler_overrides.json';
 const UI_FILE = 'ui.json';
 const LEARNING_FILE = 'learning.json';
+const EXTENSIONS_FILE = 'extensions.json';
 const FILTERS_DIR = 'filters';
 const SESSIONS_DIR = 'study_sessions';
 const JSON_EXTENSION = '.json';
@@ -266,6 +269,7 @@ export const createJsonSettingsStore = ({
   const overridesPath = join(dir, SCHEDULER_OVERRIDES_FILE);
   const uiPath = join(dir, UI_FILE);
   const learningPath = join(dir, LEARNING_FILE);
+  const extensionsPath = join(dir, EXTENSIONS_FILE);
 
   /** Нет файла — `null`: значения по умолчанию решает вызывающий. */
   const readOptionalJson = async (path: string): Promise<unknown> => {
@@ -324,5 +328,8 @@ export const createJsonSettingsStore = ({
     loadLearning: async (): Promise<LearningSettingsDto> =>
       decodeLearningSettings(await readOptionalJson(learningPath)),
     saveLearning: (learning) => writeJson(learningPath, learning),
+    loadExtensions: async (): Promise<ExtensionSettingsDto> =>
+      decodeExtensionSettings(await readOptionalJson(extensionsPath)),
+    saveExtensions: (extensions) => writeJson(extensionsPath, extensions),
   };
 };

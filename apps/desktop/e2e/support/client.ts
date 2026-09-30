@@ -24,6 +24,9 @@ const RU = {
   settingsAppearance: 'Внешний вид',
   themeGroup: 'Тема оформления',
   extensionList: 'Установленные расширения',
+  extensionEnabled: 'Включено',
+  extensionTrust: 'Доверять (без изоляции)',
+  reloadWindow: 'Перезагрузить окно',
   verdictPassed: 'Верно',
   verdictFailed: 'Пока неверно',
   grades: {
@@ -348,6 +351,64 @@ export class Client {
       });
     await rows.first().waitFor({ timeout: TIMEOUT });
     return rows.allInnerTexts();
+  }
+
+  private extensionSwitch(id: string, which: 'enabled' | 'trusted'): Locator {
+    // переключатели есть только у строк не из поставки: id таких строк уникален
+    return this.extensionList()
+      .getByRole('listitem')
+      .filter({
+        has: this.page.getByRole('heading', { name: id, exact: true }),
+      })
+      .getByRole('checkbox', {
+        name: which === 'enabled' ? RU.extensionEnabled : RU.extensionTrust,
+        exact: true,
+      });
+  }
+
+  /** Число переключателей в строках расширения `id` (у строк из поставки — 0). */
+  async extensionSwitchCount(id: string): Promise<number> {
+    await this.readExtensions(id);
+    return this.extensionList()
+      .getByRole('listitem')
+      .filter({
+        has: this.page.getByRole('heading', { name: id, exact: true }),
+      })
+      .getByRole('checkbox')
+      .count();
+  }
+
+  async extensionSwitchChecked(
+    id: string,
+    which: 'enabled' | 'trusted',
+  ): Promise<boolean> {
+    return this.extensionSwitch(id, which).isChecked();
+  }
+
+  /** Переключает «Включено» / «Доверять» и ждёт, пока движок ответит (появится просьба перезагрузить). */
+  async setExtensionSwitch(
+    id: string,
+    which: 'enabled' | 'trusted',
+    value: boolean,
+  ) {
+    const control = this.extensionSwitch(id, which);
+    await control.waitFor({ state: 'attached', timeout: TIMEOUT });
+    await control.setChecked(value, { force: true });
+    await this.page
+      .getByRole('button', { name: RU.reloadWindow, exact: true })
+      .waitFor({ timeout: TIMEOUT });
+  }
+
+  /** «Перезагрузить окно» в просьбе после изменения; ждёт перезагруженный экран расширений. */
+  async reloadFromExtensions() {
+    const reload = this.page.getByRole('button', {
+      name: RU.reloadWindow,
+      exact: true,
+    });
+    const reloaded = this.page.waitForEvent('load', { timeout: 30_000 });
+    await reload.click({ noWaitAfter: true });
+    await reloaded;
+    await this.openSettingsExtensions();
   }
 
   /** «Настройки» → «Обучение»: ждёт выбор правила оценки. */

@@ -11,6 +11,7 @@ import type {
 } from '@lms/extension-api';
 import { createCatalog } from './catalog.ts';
 import type { ResolvedExtension } from './discover.ts';
+import { createAllTrustedPolicy } from './policy.ts';
 import {
   extRequestSchema,
   gradeResultSchema,
@@ -60,7 +61,7 @@ export const createExtensionRuntime = (
   options: ExtensionRuntimeOptions,
 ): ExtensionRuntime => {
   const { logger } = options;
-  const catalog = createCatalog(options.extensions);
+  const catalog = createCatalog(options.extensions, createAllTrustedPolicy());
   // Активация запоминается вместе с отказом до конца жизни процесса.
   const activations = new Map<string, Promise<Activation>>();
   const activated: Activation[] = [];

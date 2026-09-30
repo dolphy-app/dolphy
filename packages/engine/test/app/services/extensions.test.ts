@@ -1,5 +1,9 @@
 import type { ContributionsDto, ExtensionInfoDto } from '@lms/engine-contract';
-import { createFakeExtensionRegistry } from '@lms/testkit';
+import {
+  createFakeExtensionPolicy,
+  createFakeExtensionRegistry,
+} from '@lms/testkit';
+import { createMemorySettingsStore } from '../../../src/node/memory-settings-store.ts';
 import { describe, expect, it } from 'vitest';
 import { createTestEngine } from '../../helpers/engine.ts';
 
@@ -17,6 +21,9 @@ const info = (overrides: Partial<ExtensionInfoDto>): ExtensionInfoDto => ({
   state: 'loaded',
   contributes: { ...NO_CONTRIBUTES, exerciseTypes: ['lms.sql'] },
   message: null,
+  permissions: [],
+  isolation: 'trusted',
+  toggleable: false,
   ...overrides,
 });
 
@@ -71,6 +78,7 @@ describe('extensions.contributions', () => {
     language,
     extensionId: 'a.ext',
     rendererUrl: `lms-ext://a.ext/${language}.mjs`,
+    isolated: true,
   });
   const policy = (id: string) => ({
     id,
@@ -117,5 +125,146 @@ describe('extensions.contributions', () => {
     const second = await engine.extensions.contributions();
     expect(second.themes).toHaveLength(2);
     expect(second.themes[0]?.colors['background']).toBe('#ffffff');
+  });
+});
+
+describe('extensions settings', () => {
+  const USER = info({
+    id: 'acme.user',
+    origin: 'user',
+    isolation: 'isolated',
+    toggleable: true,
+  });
+  const BUNDLED = info({ id: 'lms.sql' });
+  const OVERRIDDEN_BUNDLED = info({
+    id: 'acme.user',
+    origin: 'bundled',
+    state: 'overridden',
+  });
+  const openSettings = (
+    items: ExtensionInfoDto[] = [USER, BUNDLED],
+    settings = createMemorySettingsStore(),
+  ) => {
+    const policy = createFakeExtensionPolicy();
+    return createTestEngine({
+      extensionRegistry: createFakeExtensionRegistry(items),
+      extensionPolicy: policy,
+      settings,
+    }).then((t) => ({ ...t, policy }));
+  };
+  const changes = (events: { type: string; scope?: string }[]) =>
+    events.filter(
+      (event) =>
+        event.type === 'settings-changed' && event.scope === 'extensions',
+    );
+
+  it('starts empty, loads stored settings into the policy at startup', async () => {
+    const settings = createMemorySettingsStore({
+      extensions: { disabled: ['acme.user'], trusted: [] },
+    });
+    const { engine, policy } = await openSettings([USER], settings);
+    expect(await engine.extensions.getSettings()).toEqual({
+      disabled: ['acme.user'],
+      trusted: [],
+    });
+    expect(policy.isEnabled('acme.user')).toBe(false);
+  });
+
+  it('stores, returns, announces and applies a change to the policy', async () => {
+    const { engine, settings, events, policy } = await openSettings();
+    expect(await engine.extensions.setEnabled('acme.user', false)).toEqual({
+      disabled: ['acme.user'],
+      trusted: [],
+    });
+    expect(await engine.extensions.setTrusted('acme.user', true)).toEqual({
+      disabled: ['acme.user'],
+      trusted: ['acme.user'],
+    });
+    expect(await settings.loadExtensions()).toEqual({
+      disabled: ['acme.user'],
+      trusted: ['acme.user'],
+    });
+    expect(policy.isEnabled('acme.user')).toBe(false);
+    expect(policy.isIsolated('acme.user')).toBe(false);
+    expect(changes(events)).toHaveLength(2);
+    expect(await engine.extensions.setEnabled('acme.user', true)).toEqual({
+      disabled: [],
+      trusted: ['acme.user'],
+    });
+    expect(policy.isEnabled('acme.user')).toBe(true);
+  });
+
+  it('is idempotent: repeating a write changes and announces nothing', async () => {
+    const { engine, events } = await openSettings();
+    await engine.extensions.setTrusted('acme.user', true);
+    const again = await engine.extensions.setTrusted('acme.user', true);
+    expect(again).toEqual({ disabled: [], trusted: ['acme.user'] });
+    expect(await engine.extensions.setEnabled('acme.user', true)).toEqual(
+      again,
+    );
+    expect(changes(events)).toHaveLength(1);
+  });
+
+  it('rejects an unknown id with NOT_FOUND and a malformed one with INVALID_ARGUMENT', async () => {
+    const { engine, settings } = await openSettings();
+    await expect(
+      engine.extensions.setEnabled('acme.missing', false),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(
+      engine.extensions.setTrusted('Not An Id', true),
+    ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+    expect(await settings.loadExtensions()).toEqual({
+      disabled: [],
+      trusted: [],
+    });
+  });
+
+  it('rejects a bundled extension with reason bundled', async () => {
+    const { engine, events } = await openSettings();
+    for (const call of [
+      () => engine.extensions.setEnabled('lms.sql', false),
+      () => engine.extensions.setTrusted('lms.sql', true),
+    ]) {
+      await expect(call()).rejects.toMatchObject({
+        code: 'INVALID_ARGUMENT',
+        details: { reason: 'bundled' },
+      });
+    }
+    expect(changes(events)).toEqual([]);
+  });
+
+  it('a user copy of a bundled id is configurable; the overridden bundled entry is not the target', async () => {
+    const { engine } = await openSettings([OVERRIDDEN_BUNDLED, USER]);
+    expect(await engine.extensions.setEnabled('acme.user', false)).toEqual({
+      disabled: ['acme.user'],
+      trusted: [],
+    });
+  });
+
+  it('rejects an extension that is not loaded (invalid or overridden only)', async () => {
+    const { engine } = await openSettings([
+      info({ id: 'acme.broken', origin: 'user', state: 'invalid' }),
+    ]);
+    await expect(
+      engine.extensions.setEnabled('acme.broken', false),
+    ).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+      details: { reason: 'not-loaded' },
+    });
+  });
+
+  it('keeps the live policy when the store refuses the write', async () => {
+    const base = createMemorySettingsStore();
+    const settings = {
+      ...base,
+      saveExtensions: async () => {
+        throw new Error('disk full');
+      },
+    };
+    const { engine, policy } = await openSettings([USER], settings);
+    await expect(
+      engine.extensions.setEnabled('acme.user', false),
+    ).rejects.toMatchObject({ code: 'INTERNAL' });
+    expect(policy.isEnabled('acme.user')).toBe(true);
   });
 });

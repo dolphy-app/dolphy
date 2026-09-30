@@ -1,5 +1,5 @@
 import type { ExtensionInfoDto } from '@lms/engine-contract';
-import type { ExtensionRegistry } from '@lms/engine/ports';
+import type { ExtensionPolicy, ExtensionRegistry } from '@lms/engine/ports';
 import type { DiscoveryResult, ResolvedExtension } from './discover.ts';
 
 const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
@@ -9,11 +9,20 @@ const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
   gradePolicies: [],
 };
 
-const loaded = (extension: ResolvedExtension): ExtensionInfoDto => ({
+const isolationOf = (
+  extension: Pick<ResolvedExtension, 'id'>,
+  policy: ExtensionPolicy,
+): ExtensionInfoDto['isolation'] =>
+  policy.isIsolated(extension.id) ? 'isolated' : 'trusted';
+
+const loaded = (
+  extension: ResolvedExtension,
+  policy: ExtensionPolicy,
+): ExtensionInfoDto => ({
   id: extension.id,
   version: extension.version,
   origin: extension.origin,
-  state: 'loaded',
+  state: policy.isEnabled(extension.id) ? 'loaded' : 'disabled',
   contributes: {
     exerciseTypes: extension.exerciseTypes.map(({ id }) => id),
     themes: extension.themes.map(({ id }) => id),
@@ -23,11 +32,15 @@ const loaded = (extension: ResolvedExtension): ExtensionInfoDto => ({
     gradePolicies: extension.gradePolicies.map(({ id }) => id),
   },
   message: null,
+  permissions: [...extension.permissions],
+  isolation: isolationOf(extension, policy),
+  toggleable: extension.origin !== 'bundled',
 });
 
-/** Адаптер: результат обнаружения → порт `ExtensionRegistry`. */
+/** Адаптер: результат обнаружения + политика → порт `ExtensionRegistry`; политика читается при каждом вызове. */
 export const createExtensionRegistry = (
   discovery: DiscoveryResult,
+  policy: ExtensionPolicy,
 ): ExtensionRegistry => {
   const overriddenItems: ExtensionInfoDto[] = discovery.overridden.map(
     ({ id, version, origin, by }) => ({
@@ -37,6 +50,9 @@ export const createExtensionRegistry = (
       state: 'overridden',
       contributes: NO_CONTRIBUTES,
       message: `overridden by ${by.origin} ${by.version}`,
+      permissions: [],
+      isolation: origin === 'bundled' ? 'trusted' : 'isolated',
+      toggleable: false,
     }),
   );
   const invalidItems: ExtensionInfoDto[] = discovery.diagnostics.map(
@@ -47,31 +63,37 @@ export const createExtensionRegistry = (
       state: 'invalid',
       contributes: NO_CONTRIBUTES,
       message,
+      permissions: [],
+      isolation: origin === 'bundled' ? 'trusted' : 'isolated',
+      toggleable: false,
     }),
   );
-  const items = [
-    ...discovery.extensions.map(loaded),
-    ...overriddenItems,
-    ...invalidItems,
-  ];
   const { extensions } = discovery;
+  const enabled = (): ResolvedExtension[] =>
+    extensions.filter(({ id }) => policy.isEnabled(id));
   return {
-    list: () => items.map((item) => structuredClone(item)),
+    list: () =>
+      [
+        ...extensions.map((extension) => loaded(extension, policy)),
+        ...overriddenItems,
+        ...invalidItems,
+      ].map((item) => structuredClone(item)),
     contributions: () => ({
-      themes: extensions.flatMap(({ id, themes }) =>
+      themes: enabled().flatMap(({ id, themes }) =>
         themes.map((theme) => structuredClone({ ...theme, extensionId: id })),
       ),
-      markdownRenderers: extensions.flatMap(({ id, markdownRenderers }) =>
-        markdownRenderers.map((renderer) => ({
+      markdownRenderers: enabled().flatMap((extension) =>
+        extension.markdownRenderers.map((renderer) => ({
           ...renderer,
-          extensionId: id,
+          extensionId: extension.id,
+          isolated: policy.isIsolated(extension.id),
         })),
       ),
-      gradePolicies: extensions.flatMap(({ id, gradePolicies }) =>
-        gradePolicies.map((policy) => ({
-          id: policy.id,
+      gradePolicies: enabled().flatMap(({ id, gradePolicies }) =>
+        gradePolicies.map((policyItem) => ({
+          id: policyItem.id,
           extensionId: id,
-          label: policy.label,
+          label: policyItem.label,
         })),
       ),
     }),

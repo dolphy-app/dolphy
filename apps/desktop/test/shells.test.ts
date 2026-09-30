@@ -166,8 +166,9 @@ describe('window shell', () => {
   ) => {
     const created: { options: WindowOptions; window: BrowserWindowLike }[] = [];
     const listeners = new Map<string, () => void>();
-    const navigation: { handler: (e: { preventDefault(): void }) => void }[] =
-      [];
+    const navigation: {
+      handler: (e: { preventDefault(): void; url: string }) => void;
+    }[] = [];
     const openHandlers: ((d: { url: string }) => { action: 'deny' })[] = [];
     const openExternal = vi.fn(async () => undefined);
     const loaded: string[] = [];
@@ -179,6 +180,7 @@ describe('window shell', () => {
         on: (_event: 'will-navigate', handler: never) => {
           navigation.push({ handler });
         },
+        getURL: () => 'file:///app/index.html',
         openDevTools: () => undefined,
       };
       declare isMinimized: () => boolean;
@@ -259,8 +261,11 @@ describe('window shell', () => {
     const { navigation, openHandlers, openExternal } = setup();
     await vi.waitFor(() => expect(navigation).toHaveLength(1));
     const preventDefault = vi.fn();
-    navigation[0]?.handler({ preventDefault });
-    expect(preventDefault).toHaveBeenCalled();
+    navigation[0]?.handler({ preventDefault, url: 'https://example.org/' });
+    expect(preventDefault).toHaveBeenCalledTimes(1);
+    // перезагрузка текущей страницы не блокируется
+    navigation[0]?.handler({ preventDefault, url: 'file:///app/index.html' });
+    expect(preventDefault).toHaveBeenCalledTimes(1);
     expect(openHandlers[0]?.({ url: 'https://example.org/' })).toEqual({
       action: 'deny',
     });

@@ -7,6 +7,7 @@ import {
   buildUnitFlag,
   createFakeClock,
   createFakeExerciseTypes,
+  createFakeExtensionPolicy,
   createFakeExtensionRegistry,
   createJournalBuilder,
   createMemoryCourseSource,
@@ -292,6 +293,9 @@ describe('createFakeExtensionRegistry', () => {
         gradePolicies: [],
       },
       message: 'broken',
+      permissions: [],
+      isolation: 'isolated',
+      toggleable: false,
     };
     expect(createFakeExtensionRegistry([{ ...item }]).list()).toEqual([item]);
   });
@@ -306,5 +310,19 @@ describe('createFakeExtensionRegistry', () => {
     expect(createFakeExtensionRegistry([], given).contributions()).toEqual(
       given,
     );
+  });
+});
+
+describe('createFakeExtensionPolicy', () => {
+  it('isolates everything except bundled and trusted; disabled only by settings', () => {
+    const policy = createFakeExtensionPolicy({ bundled: ['lms.sql'] });
+    expect(policy.isIsolated('acme.x')).toBe(true);
+    expect(policy.isIsolated('lms.sql')).toBe(false);
+    expect(policy.isEnabled('acme.x')).toBe(true);
+    policy.update({ disabled: ['acme.x', 'lms.sql'], trusted: ['acme.x'] });
+    expect(policy.isEnabled('acme.x')).toBe(false);
+    expect(policy.isEnabled('lms.sql')).toBe(true);
+    expect(policy.isIsolated('acme.x')).toBe(false);
+    expect(policy.updates).toHaveLength(1);
   });
 });

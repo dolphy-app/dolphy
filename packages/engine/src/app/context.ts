@@ -32,6 +32,7 @@ import type {
 } from '../ports/index.ts';
 import type { ExerciseTypes } from '../ports/exercise-types.ts';
 import type { GradePolicies } from '../ports/grade-policies.ts';
+import type { ExtensionPolicy } from '../ports/extension-policy.ts';
 import type { ExtensionRegistry } from '../ports/extension-registry.ts';
 import type { FsrsScorer } from '../scoring/fsrs-scorer.ts';
 import type {
@@ -88,6 +89,8 @@ export interface EngineDeps {
   gradePolicies: GradePolicies;
   /** Обзор расширений для `extensions.list`. */
   extensionRegistry: ExtensionRegistry;
+  /** Политика расширений (включено / изолировано); тот же экземпляр, что у реестра и клиентов хоста. */
+  extensionPolicy: ExtensionPolicy;
   /** Нет порта — `sync.folder.*` отвечает `SYNC_FOLDER_NOT_CONFIGURED`. */
   folderSync?: FolderSyncPort;
   /** Чтение каталога `.trane` (`readTraneDirectory` из `@lms/engine-sqlite`); нет — `importFromTrane` отказывает. */
@@ -279,6 +282,7 @@ export interface EngineContext extends FacadeContext {
   readonly memoryModel: MemoryModel;
   readonly exerciseTypes: ExerciseTypes;
   readonly extensionRegistry: ExtensionRegistry;
+  readonly extensionPolicy: ExtensionPolicy;
   readonly folderSync: FolderSyncPort | null;
   readonly openTraneSource: EngineDeps['openTraneSource'];
   /** `current()` / `require()` / `swap()` — атомарная подмена. */

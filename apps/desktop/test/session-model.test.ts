@@ -38,6 +38,7 @@ const exercise = (id: string, verifiable: boolean): ExerciseDto => ({
           timeoutMs: 1000,
           element: 'lms-sql-answer',
           rendererUrl: 'lms-ext://lms.sql/view.mjs',
+          isolated: false,
         },
       }
     : {}),

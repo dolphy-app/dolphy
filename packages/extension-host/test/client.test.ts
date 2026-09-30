@@ -1,24 +1,30 @@
 import type { MessageEndpoint } from '@lms/engine-contract';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createCatalog } from '../src/catalog.ts';
+import type { ResolvedExtension } from '../src/discover.ts';
 import { createHostChannel } from '../src/channel.ts';
 import {
   createRemoteExerciseTypes,
   createRemoteGradePolicies,
 } from '../src/client.ts';
 import { createEndpointPair } from '../src/loopback.ts';
+import {
+  createAllTrustedPolicy,
+  createExtensionPolicy,
+} from '../src/policy.ts';
 import type { ExtRequest, ExtResponse } from '../src/protocol.ts';
 import { createLogger } from './helpers.ts';
 
 afterEach(() => vi.useRealTimers());
 
-const catalog = createCatalog([
+const resolved: ResolvedExtension[] = [
   {
     id: 'acme.t',
     version: '1.0.0',
-    origin: 'bundled',
+    origin: 'user',
     dir: '/x',
     mainPath: '/x/main.mjs',
+    permissions: [],
     exerciseTypes: [
       {
         id: 'acme.t',
@@ -32,7 +38,8 @@ const catalog = createCatalog([
     markdownRenderers: [],
     gradePolicies: [{ id: 'acme.t.gen', label: 'Generous' }],
   },
-]);
+];
+const catalog = createCatalog(resolved, createAllTrustedPolicy());
 
 const gradeRequest = {
   type: 'acme.t',
@@ -43,22 +50,30 @@ const gradeRequest = {
   authorMode: false,
 };
 
-const setup = (options: { restart?: () => void } = {}) => {
+const setup = (
+  options: {
+    restart?: () => void;
+    policy?: ReturnType<typeof createExtensionPolicy>;
+  } = {},
+) => {
+  const { policy = createAllTrustedPolicy(), ...channelOptions } = options;
   const logger = createLogger();
   const channel = createHostChannel({
     logger,
     connectTimeoutMs: 500,
-    ...options,
+    ...channelOptions,
   });
   const client = createRemoteExerciseTypes({
     channel,
     catalog,
+    policy,
     logger,
     graceMs: 50,
   });
   const policies = createRemoteGradePolicies({
     channel,
     catalog,
+    policy,
     logger,
     deadlineMs: 100,
   });
@@ -144,6 +159,7 @@ describe('createRemoteExerciseTypes', () => {
     const client = createRemoteExerciseTypes({
       channel,
       catalog,
+      policy: createAllTrustedPolicy(),
       logger,
       projectTimeoutMs: 300,
     });
@@ -182,6 +198,7 @@ describe('createRemoteExerciseTypes', () => {
     const client = createRemoteExerciseTypes({
       channel: createHostChannel({ logger, connectTimeoutMs: 1000 }),
       catalog,
+      policy: createAllTrustedPolicy(),
       logger,
     });
     const project = client.project({
@@ -421,5 +438,57 @@ describe('createEndpointPair', () => {
     (a as MessageEndpoint).close();
     a.close();
     expect(closed).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('isolated в запросах', () => {
+  const answering = (
+    hostSide: MessageEndpoint,
+    result: unknown = { outcome: 'passed' },
+  ) =>
+    hostSide.onMessage((message) => {
+      hostSide.post({ id: (message as ExtRequest).id, ok: true, result });
+    });
+
+  it('каждый запрос несёт режим владельца, вычисленный при вызове', async () => {
+    const policy = createExtensionPolicy({ extensions: resolved });
+    const { client, policies, channel, engineSide, hostSide, requests } = setup(
+      { policy },
+    );
+    answering(hostSide, null);
+    channel.attach(engineSide);
+    const call = async () => {
+      requests.length = 0;
+      await client.grade(gradeRequest);
+      await policies.evaluate('acme.t.gen', { verdicts: [], gaveUp: false });
+      return requests.map(
+        ({ params }) => (params as { isolated: boolean }).isolated,
+      );
+    };
+    expect(await call()).toEqual([true, true]);
+    policy.update({ disabled: [], trusted: ['acme.t'] });
+    expect(await call()).toEqual([false, false]);
+  });
+
+  it('project и referenceAnswer тоже несут isolated; неизвестный вид — изолирован', async () => {
+    const policy = createExtensionPolicy({ extensions: resolved });
+    const { client, channel, engineSide, hostSide, requests } = setup({
+      policy,
+    });
+    answering(hostSide, { found: false });
+    channel.attach(engineSide);
+    await client.project({ type: 'acme.t', exerciseId: 'e', spec: {} });
+    await client.referenceAnswer({ type: 'acme.t', exerciseId: 'e', spec: {} });
+    await client.project({ type: 'gone', exerciseId: 'e', spec: {} });
+    expect(
+      requests.map(({ method, params }) => [
+        method,
+        (params as { isolated: boolean }).isolated,
+      ]),
+    ).toEqual([
+      ['project', true],
+      ['referenceAnswer', true],
+      ['project', true],
+    ]);
   });
 });

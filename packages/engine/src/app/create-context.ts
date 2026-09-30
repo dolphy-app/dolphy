@@ -255,6 +255,8 @@ export const createContext = async (
     }
   };
 
+  deps.extensionPolicy.update(await settings.loadExtensions());
+
   const ctx: EngineContext = {
     config,
     clock,
@@ -267,6 +269,7 @@ export const createContext = async (
     memoryModel,
     exerciseTypes: deps.exerciseTypes,
     extensionRegistry: deps.extensionRegistry,
+    extensionPolicy: deps.extensionPolicy,
     folderSync: deps.folderSync ?? null,
     openTraneSource: deps.openTraneSource,
     library,

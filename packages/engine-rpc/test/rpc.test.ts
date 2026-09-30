@@ -1,5 +1,6 @@
 import { CONTRACT_VERSION, RPC_METHODS } from '@lms/engine-contract';
 import type { EngineEvent } from '@lms/engine-contract';
+import { EngineError } from '@lms/engine/app';
 import { createCapturingLogger, silentLogger } from '@lms/testkit';
 import { describe, expect, it } from 'vitest';
 import { EngineCallError, createEngineClient } from '../src/client/index.ts';
@@ -304,5 +305,98 @@ describe('ordering and events', () => {
     await b.attach(clientB);
     await tick();
     expect(fake.listenerCount()).toBe(0); // подписка старого окна снята
+  });
+
+  describe('repositories', () => {
+    it.each([
+      ['add', [{ url: '' }]],
+      ['add', [{ url: 'https://h/r.git', ref: '' }]],
+      ['add', [{ url: 'https://h/r.git', extra: 1 }]],
+      ['add', [{ url: `https://h/${'a'.repeat(2048)}` }]],
+      ['add', [{ url: 'https://h/r.git', ref: 'r'.repeat(256) }]],
+      ['update', ['']],
+      ['remove', ['x'.repeat(201)]],
+      ['cancel', [42]],
+      ['list', ['extra']],
+    ] as const)(
+      '%s rejects bad params without reaching the engine',
+      async (name, params) => {
+        const { fake, hostSide, clientSide } = await connect();
+        void hostSide;
+        const raw = createRawClient(clientSide);
+        const response = await raw.call(`repositories.${name}`, params);
+        expect(response).toMatchObject({
+          ok: false,
+          error: { code: 'INVALID_ARGUMENT' },
+        });
+        expect(fake.calls).not.toContain(`repositories.${name}`);
+      },
+    );
+
+    it('routes valid calls to the engine with positional args', async () => {
+      const { client, fake } = await connect();
+      await client.engine.repositories.add({
+        url: 'https://h/r.git',
+        ref: 'main',
+      });
+      await client.engine.repositories.update('id1');
+      await client.engine.repositories.remove('id2');
+      await client.engine.repositories.cancel('id3');
+      await client.engine.repositories.list();
+      expect(fake.calls.filter((name) => name !== 'diagnostics')).toEqual([
+        'repositories.add',
+        'repositories.update',
+        'repositories.remove',
+        'repositories.cancel',
+        'repositories.list',
+      ]);
+    });
+
+    it('add is not replayed after a drop; update/remove/cancel/list are', () => {
+      expect(RPC_METHODS['repositories.add'].idempotent).toBe(false);
+      for (const name of ['list', 'update', 'remove', 'cancel'] as const) {
+        expect(RPC_METHODS[`repositories.${name}`].idempotent).toBe(true);
+      }
+    });
+
+    it('error details (reason) survive the round trip', async () => {
+      const { client } = await connect({
+        'repositories.add': (async () => {
+          throw new EngineError('GIT_FETCH_FAILED', {
+            details: { reason: 'auth-required', url: 'https://h/r.git' },
+          });
+        }) as Method,
+      });
+      await expect(
+        client.engine.repositories.add({ url: 'https://h/r.git' }),
+      ).rejects.toMatchObject({
+        code: 'GIT_FETCH_FAILED',
+        details: { reason: 'auth-required', url: 'https://h/r.git' },
+      });
+    });
+
+    it('repository-progress events reach a subscribed client', async () => {
+      const { client, fake } = await connect();
+      const events: EngineEvent[] = [];
+      client.engine.subscribe((event) => events.push(event));
+      await tick(5);
+      fake.emit({
+        type: 'repository-progress',
+        id: 'r',
+        phase: 'fetch',
+        loaded: 1,
+        total: 2,
+      });
+      await tick(5);
+      expect(events).toEqual([
+        {
+          type: 'repository-progress',
+          id: 'r',
+          phase: 'fetch',
+          loaded: 1,
+          total: 2,
+        },
+      ]);
+    });
   });
 });

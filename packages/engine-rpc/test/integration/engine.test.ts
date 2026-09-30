@@ -7,8 +7,12 @@ import type { EngineEvent, SavedFilterDto } from '@lms/engine-contract';
 import { createEngine } from '@lms/engine/app';
 import {
   createMemoryEventStore,
+  createMemoryRepositoryStore,
   createMemorySettingsStore,
+  createNodeSnapshotInstaller,
 } from '@lms/engine/node';
+import { GitFetchError } from '@lms/engine/ports';
+import type { GitSnapshotFetcher } from '@lms/engine/ports';
 import { createTsFsrsMemoryModel } from '@lms/engine';
 import type { Verifier } from '@lms/engine';
 import {
@@ -56,6 +60,16 @@ const passingVerifier: Verifier = {
   close: async () => {},
 };
 
+/** Сеть недоступна: любой вызов падает как `GIT_FETCH_FAILED/network`. */
+const offlineFetcher: GitSnapshotFetcher = {
+  resolve: async () => {
+    throw new GitFetchError('network', 'offline');
+  },
+  fetchSnapshot: async () => {
+    throw new GitFetchError('network', 'offline');
+  },
+};
+
 const start = async () => {
   const clock = createFakeClock();
   const source = createMemoryCourseSource(library);
@@ -70,6 +84,12 @@ const start = async () => {
       settings: createMemorySettingsStore(),
       memoryModel: createTsFsrsMemoryModel(),
       verifiers: [passingVerifier],
+      repositoryStore: createMemoryRepositoryStore(),
+      snapshotFetcher: offlineFetcher,
+      snapshotInstaller: createNodeSnapshotInstaller({
+        libraryRoot: source.root,
+        dataDir: '/tmp/rpc-integration',
+      }),
     },
     { libraryRoot: source.root, dataDir: '/tmp/rpc-integration' },
   );
@@ -219,6 +239,35 @@ describe('rpc → dispatcher → real engine', () => {
       }
       return client.library.readAsset(unit.content.front);
     });
+
+    expect(
+      await call('repositories.list', () => client.repositories.list()),
+    ).toEqual([]);
+    await call('repositories.add', () =>
+      client.repositories
+        .add({ url: 'https://example.com/a.git' })
+        .catch((error) => {
+          expect(error).toMatchObject({
+            code: 'GIT_FETCH_FAILED',
+            details: { reason: 'network' },
+          });
+        }),
+    );
+    await call('repositories.update', () =>
+      client.repositories.update('nope').catch((error) => {
+        expect(error).toMatchObject({ code: 'NOT_FOUND' });
+      }),
+    );
+    await call('repositories.remove', () =>
+      client.repositories.remove('nope').catch((error) => {
+        expect(error).toMatchObject({ code: 'NOT_FOUND' });
+      }),
+    );
+    expect(
+      await call('repositories.cancel', () =>
+        client.repositories.cancel('nope'),
+      ),
+    ).toBe(false);
 
     await call('practice.startSession', () => client.practice.startSession());
     await call('practice.getBatch', () => client.practice.getBatch());

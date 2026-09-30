@@ -21,6 +21,9 @@ const extension: ResolvedExtension = {
       rendererUrl: 'lms-ext://acme.t/view.mjs',
     },
   ],
+  themes: [],
+  markdownRenderers: [],
+  gradePolicies: [],
 };
 
 describe('createCatalog', () => {

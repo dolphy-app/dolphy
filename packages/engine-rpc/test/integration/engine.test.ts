@@ -58,7 +58,12 @@ const REGISTERED: ExtensionInfoDto = {
   version: '1.0.0',
   origin: 'bundled',
   state: 'loaded',
-  exerciseTypes: ['lms.sql'],
+  contributes: {
+    exerciseTypes: ['lms.sql'],
+    themes: [],
+    markdownRenderers: [],
+    gradePolicies: [],
+  },
   message: null,
 };
 
@@ -424,6 +429,15 @@ describe('rpc → dispatcher → real engine', () => {
     expect(
       await call('extensions.list', () => client.extensions.list()),
     ).toEqual([REGISTERED]);
+    expect(
+      await call('extensions.contributions', () =>
+        client.extensions.contributions(),
+      ),
+    ).toEqual({
+      themes: [],
+      markdownRenderers: [],
+      gradePolicies: [{ id: 'passAtN', extensionId: null, label: null }],
+    });
     await call('diagnostics', () => client.diagnostics());
 
     expect([...called].sort()).toEqual(Object.keys(RPC_METHODS).sort());

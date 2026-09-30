@@ -49,15 +49,50 @@ export interface ExerciseTypeContribution {
   renderer: string;
 }
 
+/** Тема оформления, добавляемая расширением: только данные, без кода. */
+export interface ThemeContribution {
+  /** Равен id расширения или начинается с `<id расширения>.`; не из `BUILTIN_THEME_IDS`. */
+  id: string;
+  /** Название плитки в «Настройки → Внешний вид», до 60 символов. */
+  label: string;
+  dark: boolean;
+  /** Ключи из `THEME_COLOR_KEYS`, значения — `#rrggbb` или `#rrggbbaa`. */
+  colors: Record<string, string>;
+  /** Ключи из `THEME_VARIABLE_KEYS`: `border-color` — цвет, остальные — числа 0..1. */
+  variables?: Record<string, string | number>;
+}
+
+/** Рендерер содержимого: блоки ` ```<language> ` выводит модуль расширения. */
+export interface MarkdownRendererContribution {
+  /** Язык блока кода: `[a-z][a-z0-9-]{0,31}`. */
+  language: string;
+  /** Путь к ES-модулю; в нормализованном манифесте задан всегда. */
+  renderer?: string;
+}
+
+/** Правило оценки: как вердикты превращаются в оценку 1–5. */
+export interface GradePolicyContribution {
+  /** Равен id расширения или начинается с `<id расширения>.`; не `passAtN`. */
+  id: string;
+  label: string;
+}
+
 /** Нормализованный манифест: все умолчания применены. */
 export interface ExtensionManifest {
   id: string;
   /** semver */
   version: string;
   apiVersion: typeof EXTENSION_API_VERSION;
-  /** Путь к `.mjs` с кодом расширения: `export default` — `ExtensionModule`. */
-  main: string;
-  contributes: { exerciseTypes: ExerciseTypeContribution[] };
+  /** Путь к `.mjs` с кодом расширения; `null` — расширению код не нужен. */
+  main: string | null;
+  contributes: {
+    exerciseTypes: ExerciseTypeContribution[];
+    themes: ThemeContribution[];
+    markdownRenderers: (MarkdownRendererContribution & {
+      renderer: string;
+    })[];
+    gradePolicies: GradePolicyContribution[];
+  };
 }
 
 /** Вид задания в `extension.json`, как его пишет автор. */
@@ -76,9 +111,89 @@ export interface ExtensionManifestInput {
   id: string;
   version: string;
   apiVersion: typeof EXTENSION_API_VERSION;
-  /** По умолчанию `DEFAULT_MAIN`. */
+  /** По умолчанию `DEFAULT_MAIN`, если код нужен вкладам; иначе `null`. */
   main?: string;
-  contributes: { exerciseTypes: ExerciseTypeContributionInput[] };
+  contributes: {
+    exerciseTypes?: ExerciseTypeContributionInput[];
+    themes?: ThemeContribution[];
+    markdownRenderers?: MarkdownRendererContribution[];
+    gradePolicies?: GradePolicyContribution[];
+  };
+}
+
+/** Идентификаторы встроенных тем: расширения не могут их занять. */
+export const BUILTIN_THEME_IDS = ['system', 'light', 'dark'] as const;
+
+/** Допустимые ключи `ThemeContribution.colors`. */
+export const THEME_COLOR_KEYS: readonly string[] = [
+  'background',
+  'surface',
+  'surface-bright',
+  'surface-light',
+  'surface-variant',
+  'on-background',
+  'on-surface',
+  'on-surface-variant',
+  'primary',
+  'on-primary',
+  'secondary',
+  'on-secondary',
+  'error',
+  'on-error',
+  'warning',
+  'on-warning',
+  'success',
+  'on-success',
+  'info',
+  'on-info',
+  'hero-start',
+  'hero-end',
+  'hero-contrast',
+];
+
+/** Допустимые ключи `ThemeContribution.variables`. */
+export const THEME_VARIABLE_KEYS: readonly string[] = [
+  'border-color',
+  'border-opacity',
+  'medium-emphasis-opacity',
+  'high-emphasis-opacity',
+  'disabled-opacity',
+];
+
+export const DEFAULT_MARKDOWN_RENDERER = './markdown.mjs';
+
+export type GradeValue = 1 | 2 | 3 | 4 | 5;
+
+/** Вход правила оценки: вердикты попытки и признак «сдался». */
+export interface GradePolicyInput {
+  verdicts: readonly {
+    outcome: 'passed' | 'failed' | 'error';
+    reason?: string;
+  }[];
+  gaveUp: boolean;
+}
+
+/** `null` — правило не выставляет оценку. */
+export type GradePolicyHandler = (
+  input: GradePolicyInput,
+) => GradeValue | null | Promise<GradeValue | null>;
+
+/** Контекст вывода блока; структурный `AbortSignal` (в пакете нет DOM-типов). */
+export interface MarkdownRenderContext {
+  language: string;
+  signal: {
+    readonly aborted: boolean;
+    addEventListener(type: 'abort', listener: () => void): void;
+  };
+}
+
+/** `export default` модуля рендерера содержимого. */
+export interface MarkdownRendererModule<Container = unknown> {
+  render(
+    source: string,
+    container: Container,
+    context: MarkdownRenderContext,
+  ): void | Promise<void>;
 }
 
 export const DEFAULT_MAIN = './main.mjs';

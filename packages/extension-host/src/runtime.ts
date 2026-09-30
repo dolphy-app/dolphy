@@ -64,10 +64,13 @@ export const createExtensionRuntime = (
     extension: ResolvedExtension,
   ): Promise<ExtensionModule> => {
     const injected = options.modules?.[extension.id];
+    if (injected === undefined && extension.mainPath === null) {
+      throw new Error(`extension '${extension.id}' has no main`);
+    }
     const module =
       injected ??
       (
-        (await import(pathToFileURL(extension.mainPath).href)) as {
+        (await import(pathToFileURL(extension.mainPath ?? '').href)) as {
           default?: ExtensionModule;
         }
       ).default;

@@ -285,9 +285,26 @@ describe('createFakeExtensionRegistry', () => {
       version: null,
       origin: 'user',
       state: 'invalid',
-      exerciseTypes: [],
+      contributes: {
+        exerciseTypes: [],
+        themes: [],
+        markdownRenderers: [],
+        gradePolicies: [],
+      },
       message: 'broken',
     };
     expect(createFakeExtensionRegistry([{ ...item }]).list()).toEqual([item]);
+  });
+
+  it('has empty contributions by default and returns the given ones', () => {
+    const empty = { themes: [], markdownRenderers: [], gradePolicies: [] };
+    expect(createFakeExtensionRegistry().contributions()).toEqual(empty);
+    const given = {
+      ...empty,
+      gradePolicies: [{ id: 'a.p', extensionId: 'a', label: 'P' }],
+    };
+    expect(createFakeExtensionRegistry([], given).contributions()).toEqual(
+      given,
+    );
   });
 });

@@ -38,6 +38,7 @@ export const RPC_METHODS = {
   'placement.abort': { idempotent: false },
   'remediation.getPlan': { idempotent: true },
   'extensions.list': { idempotent: true },
+  'extensions.contributions': { idempotent: true },
   'curation.blacklist.list': { idempotent: true },
   'curation.blacklist.has': { idempotent: true },
   'curation.blacklist.add': { idempotent: false },

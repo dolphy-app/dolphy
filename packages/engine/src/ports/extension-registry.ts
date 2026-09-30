@@ -1,6 +1,8 @@
-import type { ExtensionInfoDto } from '@lms/engine-contract';
+import type { ContributionsDto, ExtensionInfoDto } from '@lms/engine-contract';
 
 /** Обзор найденных расширений (загруженные, перекрытые, некорректные). */
 export interface ExtensionRegistry {
   list(): readonly ExtensionInfoDto[];
+  /** Вклады загруженных расширений; без встроенного правила оценки. */
+  contributions(): ContributionsDto;
 }

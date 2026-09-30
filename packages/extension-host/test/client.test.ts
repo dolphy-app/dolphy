@@ -24,6 +24,9 @@ const catalog = createCatalog([
         rendererUrl: 'lms-ext://acme.t/view.mjs',
       },
     ],
+    themes: [],
+    markdownRenderers: [],
+    gradePolicies: [],
   },
 ]);
 

@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 3 as const;
+export const CONTRACT_VERSION = 4 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 
@@ -964,14 +964,53 @@ export interface ExtensionInfoDto {
   version: string | null;
   origin: ExtensionOriginDto;
   state: ExtensionStateDto;
-  /** Id видов заданий; `[]`, если расширение не `loaded`/`overridden`. */
-  exerciseTypes: string[];
+  /** Вклады по точкам (id/языки); пусто, если расширение не `loaded`/`overridden`. */
+  contributes: ExtensionContributesDto;
   /** Почему некорректно / кем перекрыто; `null` у загруженного. */
   message: string | null;
 }
 
+export interface ExtensionContributesDto {
+  exerciseTypes: string[];
+  themes: string[];
+  markdownRenderers: string[];
+  gradePolicies: string[];
+}
+
+export interface ThemeContributionDto {
+  id: string;
+  extensionId: string;
+  label: string;
+  dark: boolean;
+  colors: Record<string, string>;
+  variables: Record<string, string | number>;
+}
+
+export interface MarkdownRendererDto {
+  language: string;
+  extensionId: string;
+  /** `lms-ext://<extensionId>/<путь>`. */
+  rendererUrl: string;
+}
+
+export interface GradePolicyInfoDto {
+  id: string;
+  /** `null` у встроенного правила. */
+  extensionId: string | null;
+  /** `null` у встроенного правила: название переводит окно. */
+  label: string | null;
+}
+
+export interface ContributionsDto {
+  themes: ThemeContributionDto[];
+  markdownRenderers: MarkdownRendererDto[];
+  gradePolicies: GradePolicyInfoDto[];
+}
+
 export interface ExtensionsService {
   list(): Promise<ExtensionInfoDto[]>;
+  /** Вклады загруженных расширений для окна (только чтение). */
+  contributions(): Promise<ContributionsDto>;
 }
 
 export interface LearningEngine {

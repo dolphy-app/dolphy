@@ -1,7 +1,17 @@
 import { effectScope } from 'vue';
 import { describe, expect, it } from 'vitest';
 import type { ExtensionInfoDto, LearningEngine } from '@lms/engine-contract';
-import { useExtensions } from '@/pages/settings/model/extensions.ts';
+import {
+  contributionGroups,
+  useExtensions,
+} from '@/pages/settings/model/extensions.ts';
+
+const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
+  exerciseTypes: [],
+  themes: [],
+  markdownRenderers: [],
+  gradePolicies: [],
+};
 
 const extension = (
   id: string,
@@ -11,7 +21,7 @@ const extension = (
   version: '1.0.0',
   origin: 'bundled',
   state: 'loaded',
-  exerciseTypes: [id],
+  contributes: { ...NO_CONTRIBUTES, exerciseTypes: [id] },
   message: null,
   ...override,
 });
@@ -135,5 +145,26 @@ describe('useExtensions', () => {
 
     expect(model.items.value.map((item) => item.id)).toEqual(['fresh']);
     expect(model.busy.value).toBe(false);
+  });
+});
+
+describe('contributionGroups', () => {
+  it('пропускает пустые точки и сохраняет порядок точек и значения', () => {
+    expect(
+      contributionGroups({
+        exerciseTypes: [],
+        themes: ['acme.night', 'acme.day'],
+        markdownRenderers: ['math'],
+        gradePolicies: ['acme.strict'],
+      }),
+    ).toEqual([
+      { point: 'themes', values: ['acme.night', 'acme.day'] },
+      { point: 'markdownRenderers', values: ['math'] },
+      { point: 'gradePolicies', values: ['acme.strict'] },
+    ]);
+  });
+
+  it('расширение без вкладов — без групп', () => {
+    expect(contributionGroups(NO_CONTRIBUTES)).toEqual([]);
   });
 });

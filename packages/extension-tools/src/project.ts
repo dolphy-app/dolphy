@@ -86,6 +86,22 @@ const schemaPathsOf = (manifest: ExtensionManifest): string[] => {
   return [...new Set(paths)];
 };
 
+/** Без кода (`main: null`) node-входов нет. */
+const nodeEntriesOf = (
+  manifest: ExtensionManifest,
+  config: ToolConfig,
+): Entry[] => {
+  if (manifest.main === null) return [];
+  const main = stripDot(manifest.main);
+  return [
+    { source: entrySource(main), output: main },
+    ...Object.entries(config.nodeEntries).map(([output, source]) => ({
+      source,
+      output: stripDot(output),
+    })),
+  ];
+};
+
 /** Читает исходный манифест и конфиг проекта, вычисляет точки входа. */
 export const loadProject = async (rootDir: string): Promise<Project> => {
   const root = path.resolve(rootDir);
@@ -105,18 +121,12 @@ export const loadProject = async (rootDir: string): Promise<Project> => {
   const { manifest } = parsed;
   const config = await readConfig(root);
 
-  const main = stripDot(manifest.main);
-  const nodeEntries: Entry[] = [
-    { source: entrySource(main), output: main },
-    ...Object.entries(config.nodeEntries).map(([output, source]) => ({
-      source,
-      output: stripDot(output),
-    })),
-  ];
-  const renderers = new Set(
-    manifest.contributes.exerciseTypes.map((type) => stripDot(type.renderer)),
-  );
-  const browserEntries = [...renderers].map((output) => ({
+  const nodeEntries = nodeEntriesOf(manifest, config);
+  const renderers = new Set([
+    ...manifest.contributes.exerciseTypes.map((type) => type.renderer),
+    ...manifest.contributes.markdownRenderers.map((entry) => entry.renderer),
+  ]);
+  const browserEntries = [...renderers].map(stripDot).map((output) => ({
     source: entrySource(output),
     output,
   }));

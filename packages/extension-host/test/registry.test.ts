@@ -17,7 +17,17 @@ const extension = (id: string, version = '1.0.0'): ResolvedExtension => ({
       rendererUrl: 'lms-ext://x/view.mjs',
     },
   ],
+  themes: [],
+  markdownRenderers: [],
+  gradePolicies: [],
 });
+
+const NONE = {
+  exerciseTypes: [],
+  themes: [],
+  markdownRenderers: [],
+  gradePolicies: [],
+};
 
 const discovery: DiscoveryResult = {
   extensions: [extension('lms.sql', '1.0.1')],
@@ -43,7 +53,7 @@ describe('createExtensionRegistry', () => {
       version: '1.0.1',
       origin: 'user',
       state: 'loaded',
-      exerciseTypes: ['lms.sql.a'],
+      contributes: { ...NONE, exerciseTypes: ['lms.sql.a'] },
       message: null,
     });
   });
@@ -54,7 +64,7 @@ describe('createExtensionRegistry', () => {
       version: '1.0.0',
       origin: 'bundled',
       state: 'overridden',
-      exerciseTypes: [],
+      contributes: NONE,
       message: 'overridden by user 1.0.1',
     });
   });
@@ -65,14 +75,16 @@ describe('createExtensionRegistry', () => {
       version: null,
       origin: 'user',
       state: 'invalid',
-      exerciseTypes: [],
+      contributes: NONE,
       message: 'bad manifest',
     });
   });
 
   it('returns copies', () => {
     const registry = createExtensionRegistry(discovery);
-    registry.list()[0]?.exerciseTypes.push('evil');
-    expect(registry.list()[0]?.exerciseTypes).toEqual(['lms.sql.a']);
+    registry.list()[0]?.contributes.exerciseTypes.push('evil');
+    expect(registry.list()[0]?.contributes.exerciseTypes).toEqual([
+      'lms.sql.a',
+    ]);
   });
 });

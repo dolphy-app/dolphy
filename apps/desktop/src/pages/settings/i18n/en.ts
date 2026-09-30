@@ -136,8 +136,7 @@ export const en: typeof ru = {
     },
     extensions: {
       title: 'Extensions',
-      subtitle:
-        'Exercise types added by extensions: bundled, your own and in development.',
+      subtitle: 'What extensions add: bundled, your own and in development.',
       listLabel: 'Installed extensions',
       count: 'no extensions | {n} extension | {n} extensions',
       refresh: 'Refresh',
@@ -145,7 +144,12 @@ export const en: typeof ru = {
       loadFailed: 'Could not load the list of extensions',
       empty: 'No extensions.',
       version: 'Version {version}',
-      exerciseTypes: 'Exercise types',
+      points: {
+        exerciseTypes: 'Exercise types',
+        themes: 'Themes',
+        markdownRenderers: 'Content renderers',
+        gradePolicies: 'Grade policies',
+      },
       origin: {
         bundled: 'Bundled',
         user: 'User',

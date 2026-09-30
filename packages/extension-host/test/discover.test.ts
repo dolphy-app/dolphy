@@ -113,7 +113,7 @@ describe('discoverExtensions', () => {
       logger: createLogger(),
     });
     const [extension] = extensions;
-    expect(path.isAbsolute(extension!.mainPath)).toBe(true);
+    expect(path.isAbsolute(extension!.mainPath ?? '')).toBe(true);
     expect(extension!.exerciseTypes[0]).toMatchObject({
       id: 'acme.one',
       specSchema: { type: 'object' },

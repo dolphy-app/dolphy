@@ -1,3 +1,55 @@
+# [0.2.0](https://github.com/dolphy-app/dolphy/compare/v0.1.0...v0.2.0) (2026-09-30)
+
+
+### Bug Fixes
+
+* **desktop:** align daily plan hero counters over their labels ([cf1be4c](https://github.com/dolphy-app/dolphy/commit/cf1be4ca480fbe5ea39b6699defa7d5e7ba2f897))
+* **desktop:** allow cors for extension scripts and keep answers cloneable ([1063f50](https://github.com/dolphy-app/dolphy/commit/1063f5081484d8e46c2040c5c1eba8d16c350aef))
+* **desktop:** let lesson nodes receive mouse clicks in the graph ([2371f02](https://github.com/dolphy-app/dolphy/commit/2371f022a56b665618c50a63e73e3289d91069fe))
+* **desktop:** resolve daily plan design review findings ([05986e1](https://github.com/dolphy-app/dolphy/commit/05986e192c99bf53072f1754c638dfc42450d35d))
+* **desktop:** resolve design review findings for graph, placement and theme ([6c79dbf](https://github.com/dolphy-app/dolphy/commit/6c79dbf9568f49878a29ea2d7d39158a2aa50ff4))
+* **desktop:** type-check the graph e2e without DOM globals ([1629fa2](https://github.com/dolphy-app/dolphy/commit/1629fa2c3d69a8dfd8f0189923712b58ea0f542d))
+* **engine-sql-runner:** keep default worker path out of bundled extensions ([2d7bcd7](https://github.com/dolphy-app/dolphy/commit/2d7bcd712f411ec0dafcb6734622f9c9d6ce8d98))
+* **engine:** validate git snapshot as a child of the library root ([f35c82d](https://github.com/dolphy-app/dolphy/commit/f35c82dad96f9210d69a0ab35c67b19af792f90d))
+
+
+### Features
+
+* **create-extension:** add extension project generator and authoring guide ([ee7638b](https://github.com/dolphy-app/dolphy/commit/ee7638b750ba2a03460e1f26a6ad77c7a85db5aa))
+* **desktop:** add courses from git repositories ([6360bd6](https://github.com/dolphy-app/dolphy/commit/6360bd612257e9c906acadede7869b895e243840))
+* **desktop:** add knowledge graph screen and wire routes ([b69de56](https://github.com/dolphy-app/dolphy/commit/b69de56f95f176b350a36bcaff1025fc8503a27e))
+* **desktop:** add placement test screen and shared exercise panel ([5c811d2](https://github.com/dolphy-app/dolphy/commit/5c811d2a49157aaa89755bcf11f71ac45dbd963e))
+* **desktop:** add sql_analytics dev course with runner-verified exercises ([ba0f8f6](https://github.com/dolphy-app/dolphy/commit/ba0f8f66b6d4fbe632e357d3e1148911dc5b18cd))
+* **desktop:** developer mode with reload for extensions ([e68b1b2](https://github.com/dolphy-app/dolphy/commit/e68b1b235a93a933c9ae1fee282606addfac2586))
+* **desktop:** extension catalog, install and update screens ([d02cdca](https://github.com/dolphy-app/dolphy/commit/d02cdca029712c5b3c1f0cbda313e3ba6da78418))
+* **desktop:** load extension contributions at startup ([3c21528](https://github.com/dolphy-app/dolphy/commit/3c21528ff33e79800ce9bbf998c4ed1ce24e6a70))
+* **desktop:** run exercise types in an extension host ([e6af8e9](https://github.com/dolphy-app/dolphy/commit/e6af8e980939f4e3ab245c6188d16da91a5480f7))
+* **desktop:** show installed extensions and load errors in settings ([7205c6b](https://github.com/dolphy-app/dolphy/commit/7205c6b78e7b27372895d5d807826a4cc6203042))
+* **engine-contract:** add repositories service and git fetch errors ([07ffadb](https://github.com/dolphy-app/dolphy/commit/07ffadb8c18b9d3c6af55324095ddb2eb97f3301))
+* **engine-git:** fetch git snapshots with isomorphic-git ([4d0b568](https://github.com/dolphy-app/dolphy/commit/4d0b568cf068cca969550b1d93b29b77f811a413))
+* **engine-rpc:** route repositories methods ([24d23ae](https://github.com/dolphy-app/dolphy/commit/24d23ae907fa04e551c0dfb89401d6e16f647e5e))
+* **engine-sqlite:** store repository registry in engine.db ([cdd26de](https://github.com/dolphy-app/dolphy/commit/cdd26de055b715cc3a7c46f6f6e7782952c8a097))
+* **engine:** add exercise types port and fake ([51a794e](https://github.com/dolphy-app/dolphy/commit/51a794ee15709a9567f4c84dca3287ae4fe1f573))
+* **engine:** add repositories service for git course snapshots ([5a31b54](https://github.com/dolphy-app/dolphy/commit/5a31b5453db3f1d3f265d3e54aad11ff83abbab5))
+* **engine:** list installed extensions with load diagnostics ([2b8cb36](https://github.com/dolphy-app/dolphy/commit/2b8cb368de5c1c79b750b85000ee5c700a3fca2e))
+* **engine:** verify answers through extension exercise types ([0771234](https://github.com/dolphy-app/dolphy/commit/07712345659b7a68eef5b89d4baac66322dc9617))
+* **ext-choice:** add lms.choice default extension ([fbab7be](https://github.com/dolphy-app/dolphy/commit/fbab7be1e6aae3d4b5daea297196cd85224c831e))
+* **ext-sql:** move sql runner into lms.sql default extension ([043ab27](https://github.com/dolphy-app/dolphy/commit/043ab2762b50aa8709fbc59c77e8d65a60cd34fb))
+* **extension-api:** add extension api package and extension package skeletons ([7278ed9](https://github.com/dolphy-app/dolphy/commit/7278ed9d42040b50fd4db3a10f1079bb93709589))
+* **extension-catalog:** catalog index schema, version resolution and manifest compatibility ([c0329cc](https://github.com/dolphy-app/dolphy/commit/c0329ccecadff401218872ddc06bddd1d7b6df66))
+* **extension-host:** add extension host, catalog and exercise type client ([b1acc94](https://github.com/dolphy-app/dolphy/commit/b1acc94b907fd17437cc5b5980e113104bc7e171))
+* **extension-host:** contribution point registry with themes, markdown renderers and grade policies ([3b5924b](https://github.com/dolphy-app/dolphy/commit/3b5924bd1162219f2801bcb8c3d717ad2dc61449))
+* **extension-host:** default manifest fields and inline schemas ([de574c6](https://github.com/dolphy-app/dolphy/commit/de574c672babb0173a5f96adcfc247980f349e98))
+* **extension-host:** permissions, enable and trust settings for extensions ([bacf61a](https://github.com/dolphy-app/dolphy/commit/bacf61a9357d857f7ba23dc31ab38719243cf6de))
+* **extension-host:** run untrusted extensions in restricted process and sandboxed frames ([28f11d0](https://github.com/dolphy-app/dolphy/commit/28f11d0e221b48c91b148be3ccff12bb3fd68d3e))
+* **extension-host:** themes, content renderers and grade policies from extensions ([7f8f489](https://github.com/dolphy-app/dolphy/commit/7f8f489e807eba6f47678e66bd3993f83fd6848b))
+* **extension-install:** catalog installer, extensions service and apply changes ([907c0f0](https://github.com/dolphy-app/dolphy/commit/907c0f0024d0a85d150d749120c6d9acc9ee02ee))
+* **extension-sdk:** add sdk for extension authors ([581a7b1](https://github.com/dolphy-app/dolphy/commit/581a7b1f17b1ea2e7495a9a05cbce66dcc80021d))
+* **extension-tools:** add lms-ext build and validate ([cbe8dab](https://github.com/dolphy-app/dolphy/commit/cbe8dab40ccde3f6034dce6810f88c732e369107))
+* **extension-tools:** catalog build reindex mode and no-op publishing ([7a48f3e](https://github.com/dolphy-app/dolphy/commit/7a48f3e0dcce43b944b301ef7c12a2c4610bcc0b))
+* **extension-tools:** publish author packages to github packages and add catalog check and build ([b625f0c](https://github.com/dolphy-app/dolphy/commit/b625f0cab6ea072dd81fba19af4a67f893b1ba7c))
+* publish author packages to npm ([831175f](https://github.com/dolphy-app/dolphy/commit/831175fa2b136ce7df34c1a8f1c4b09ff8d447dd))
+
 # [0.1.0](https://github.com/Tinkerbells/lms/compare/v0.0.0...v0.1.0) (2026-09-30)
 
 

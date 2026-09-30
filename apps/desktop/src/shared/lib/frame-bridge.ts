@@ -1,18 +1,18 @@
-import type { AnswerChangeDetail } from '@spirula-app/extension-api';
+import type { AnswerChangeDetail } from '@dolphy-app/extension-api';
 import { createDomThemeSource } from './frame-theme.ts';
 import type { ThemeSource } from './frame-theme.ts';
 
 /**
  * Сторона приложения моста с изолированной рамкой расширения
  * (`<iframe sandbox="allow-scripts">`). Контракт сообщений описан в
- * `electron/main/shells/frame-runtime.js`: приложение шлёт `{ spirula: 1, … }`,
- * рамка отвечает `{ spirulaFrame: 1, … }`. Рамка имеет непрозрачный origin, поэтому
+ * `electron/main/shells/frame-runtime.js`: приложение шлёт `{ dolphy: 1, … }`,
+ * рамка отвечает `{ dolphyFrame: 1, … }`. Рамка имеет непрозрачный origin, поэтому
  * `postMessage` адресуется `'*'`, а подлинность отправителя проверяется по
  * `event.source === iframe.contentWindow`.
  */
 
-const SCHEME = 'spirula-ext:';
-const FRAME_PAGE = '/__spirula/frame.html';
+const SCHEME = 'dolphy-ext:';
+const FRAME_PAGE = '/__dolphy/frame.html';
 
 export const MAX_FRAME_HEIGHT = 4000;
 export const MAX_ERROR_CHARS = 10_000;
@@ -43,7 +43,7 @@ type Fields = Record<string, unknown>;
 export const parseFrameMessage = (raw: unknown): FrameEvent | null => {
   if (typeof raw !== 'object' || raw === null) return null;
   const data = raw as Fields;
-  if (data.spirulaFrame !== 1) return null;
+  if (data.dolphyFrame !== 1) return null;
   switch (data.type) {
     case 'ready':
     case 'answer-submit':
@@ -77,7 +77,7 @@ export const parseFrameMessage = (raw: unknown): FrameEvent | null => {
   }
 };
 
-/** Адрес страницы рамки расширения по адресу его модуля (`spirula-ext://<id>/…`). */
+/** Адрес страницы рамки расширения по адресу его модуля (`dolphy-ext://<id>/…`). */
 export const frameUrlOf = (rendererUrl: string): string => {
   const url = new URL(rendererUrl);
   if (url.protocol !== SCHEME) {
@@ -132,7 +132,7 @@ export const createFrameHost = (options: FrameHostOptions): FrameHost => {
   }, options.readyTimeoutMs ?? READY_TIMEOUT_MS);
 
   const post = (message: Record<string, unknown>) => {
-    frame.contentWindow?.postMessage({ spirula: 1, ...message }, '*');
+    frame.contentWindow?.postMessage({ dolphy: 1, ...message }, '*');
   };
   const postProps = (changed: Partial<FrameProps>) => {
     const plain: Record<string, unknown> = {};

@@ -1,25 +1,25 @@
 /**
- * Клиент `@spirula-app/engine-rpc` → диспетчер → настоящий `createEngine` через
+ * Клиент `@dolphy-app/engine-rpc` → диспетчер → настоящий `createEngine` через
  * in-process пару (structuredClone на каждом сообщении, как в Electron).
  */
-import { RPC_METHODS } from '@spirula-app/engine-contract';
+import { RPC_METHODS } from '@dolphy-app/engine-contract';
 import type {
   CatalogDto,
   EngineEvent,
   ExtensionInfoDto,
   ExtensionUpdateDto,
   SavedFilterDto,
-} from '@spirula-app/engine-contract';
-import { createEngine } from '@spirula-app/engine/app';
+} from '@dolphy-app/engine-contract';
+import { createEngine } from '@dolphy-app/engine/app';
 import {
   createMemoryEventStore,
   createMemoryRepositoryStore,
   createMemorySettingsStore,
   createNodeSnapshotInstaller,
-} from '@spirula-app/engine/node';
-import { GitFetchError } from '@spirula-app/engine/ports';
-import type { GitSnapshotFetcher } from '@spirula-app/engine/ports';
-import { createTsFsrsMemoryModel } from '@spirula-app/engine';
+} from '@dolphy-app/engine/node';
+import { GitFetchError } from '@dolphy-app/engine/ports';
+import type { GitSnapshotFetcher } from '@dolphy-app/engine/ports';
+import { createTsFsrsMemoryModel } from '@dolphy-app/engine';
 import {
   buildAttempt,
   buildExercise,
@@ -35,7 +35,7 @@ import {
   createTestIds,
   silentLogger,
   T0_MS,
-} from '@spirula-app/testkit';
+} from '@dolphy-app/testkit';
 import { describe, expect, it } from 'vitest';
 import { EngineCallError, createEngineClient } from '../../src/client/index.ts';
 import { createDispatcher, schemas } from '../../src/host/index.ts';
@@ -58,17 +58,17 @@ const VERIFIABLE = 'c::l1::v0';
 library.exercises.push(
   buildExercise({
     id: VERIFIABLE,
-    engine: { exercise: { type: 'spirula.sql', timeoutMs: 500, spec: {} } },
+    engine: { exercise: { type: 'dolphy.sql', timeoutMs: 500, spec: {} } },
   }),
 );
 const E1 = 'c::l1::e0';
 const REGISTERED: ExtensionInfoDto = {
-  id: 'spirula.sql',
+  id: 'dolphy.sql',
   version: '1.0.0',
   origin: 'bundled',
   state: 'loaded',
   contributes: {
-    exerciseTypes: ['spirula.sql'],
+    exerciseTypes: ['dolphy.sql'],
     themes: [],
     markdownRenderers: [],
     gradePolicies: [],
@@ -118,7 +118,7 @@ const UPDATE: ExtensionUpdateDto = {
 const passingTypes = () =>
   createFakeExerciseTypes({
     types: {
-      'spirula.sql': { script: [{ outcome: 'passed', durationMs: 1 }] },
+      'dolphy.sql': { script: [{ outcome: 'passed', durationMs: 1 }] },
     },
   });
 
@@ -580,7 +580,7 @@ describe('rpc → dispatcher → real engine', () => {
       client.extensions.uninstall('acme.user'),
     );
     await expect(
-      client.extensions.setEnabled('spirula.sql', false),
+      client.extensions.setEnabled('dolphy.sql', false),
     ).rejects.toMatchObject({
       code: 'INVALID_ARGUMENT',
       details: { reason: 'bundled' },

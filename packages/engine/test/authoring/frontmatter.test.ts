@@ -96,7 +96,7 @@ describe('parseFrontmatterYaml (T-35)', () => {
       [
         'engine:',
         '  exercise:',
-        '    type: spirula.sql',
+        '    type: dolphy.sql',
         '    timeoutMs: 2000',
         '    spec:',
         '      fixture: "fixtures/a: b.sql"',
@@ -112,7 +112,7 @@ describe('parseFrontmatterYaml (T-35)', () => {
     expect(doc).toEqual({
       engine: {
         exercise: {
-          type: 'spirula.sql',
+          type: 'dolphy.sql',
           timeoutMs: 2000,
           spec: { fixture: 'fixtures/a: b.sql', orderSensitive: false },
         },

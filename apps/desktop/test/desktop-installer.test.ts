@@ -6,7 +6,7 @@ import {
   createExtensionPolicy,
   createExtensionRegistry,
   discoverExtensions,
-} from '@spirula-app/extension-host';
+} from '@dolphy-app/extension-host';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_EXTENSION_CATALOG_URL,
@@ -111,7 +111,7 @@ const indexOf = (revoked: { id: string; versions: string; reason: string }[]) =>
         name: 'Acme theme',
         description: 'A theme',
         author: 'acme',
-        source: 'https://github.com/spirula-app/spirula-extensions',
+        source: 'https://github.com/dolphy-app/dolphy-extensions',
         platforms: [],
         contributes: {
           exerciseTypes: [],
@@ -144,7 +144,7 @@ const indexOf = (revoked: { id: string; versions: string; reason: string }[]) =>
 describe('установка из каталога → обнаружение → отзыв', () => {
   let dir: string;
   beforeEach(async () => {
-    dir = await mkdtemp(path.join(tmpdir(), 'spirula-desktop-installer-'));
+    dir = await mkdtemp(path.join(tmpdir(), 'dolphy-desktop-installer-'));
   });
   afterEach(() => rm(dir, { recursive: true, force: true }));
 

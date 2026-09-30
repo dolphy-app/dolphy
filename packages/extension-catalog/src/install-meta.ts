@@ -3,7 +3,7 @@ import { CatalogFormatError } from './errors.ts';
 import { isSemver } from './semver.ts';
 
 /** Имя файла метаданных установки внутри каталога расширения. */
-export const INSTALL_META_FILE = '.spirula-install.json';
+export const INSTALL_META_FILE = '.dolphy-install.json';
 
 const httpUrl = z
   .url()
@@ -20,7 +20,7 @@ export const installMetaSchema = z.strictObject({
 
 export type InstallMeta = z.infer<typeof installMetaSchema>;
 
-/** Разбирает содержимое `.spirula-install.json`; бросает `CatalogFormatError`. */
+/** Разбирает содержимое `.dolphy-install.json`; бросает `CatalogFormatError`. */
 export const parseInstallMeta = (raw: unknown): InstallMeta => {
   const result = installMetaSchema.safeParse(raw);
   if (result.success) return result.data;

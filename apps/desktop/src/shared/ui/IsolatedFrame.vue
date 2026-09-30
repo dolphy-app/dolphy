@@ -7,14 +7,14 @@ import {
   useTemplateRef,
   watch,
 } from 'vue';
-import type { AnswerChangeDetail } from '@spirula-app/extension-api';
+import type { AnswerChangeDetail } from '@dolphy-app/extension-api';
 import { createFrameHost } from '@/shared/lib/frame-bridge.ts';
 import type { FrameHost, FrameInit } from '@/shared/lib/frame-bridge.ts';
 
 const MIN_HEIGHT_PX = 40;
 
 const props = defineProps<{
-  /** Страница рамки: `spirula-ext://<id>/__spirula/frame.html`. */
+  /** Страница рамки: `dolphy-ext://<id>/__dolphy/frame.html`. */
   src: string;
   title: string;
   init: FrameInit;

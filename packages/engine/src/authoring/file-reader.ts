@@ -3,7 +3,7 @@
  * защита от выхода за корень и кэш прочитанных байт (`contents` идут в
  * content-revision без повторного чтения).
  */
-import type { Diagnostic } from '@spirula-app/engine-contract';
+import type { Diagnostic } from '@dolphy-app/engine-contract';
 import type { CourseSource, SourceEntry, SourceStat } from '../ports/index.ts';
 import { diag } from './diagnostics.ts';
 import { lineOfOffset } from './source-lines.ts';

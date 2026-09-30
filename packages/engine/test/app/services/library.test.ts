@@ -1,12 +1,12 @@
-import { CONTRACT_VERSION } from '@spirula-app/engine-contract';
-import type { Diagnostic } from '@spirula-app/engine-contract';
+import { CONTRACT_VERSION } from '@dolphy-app/engine-contract';
+import type { Diagnostic } from '@dolphy-app/engine-contract';
 import {
   buildAttempt,
   buildLibrary,
   createFakeExerciseTypes,
   createMemoryCourseSource,
-} from '@spirula-app/testkit';
-import type { MemoryCourseSource } from '@spirula-app/testkit';
+} from '@dolphy-app/testkit';
+import type { MemoryCourseSource } from '@dolphy-app/testkit';
 import { describe, expect, it, vi } from 'vitest';
 import {
   createMemoryEventStore,
@@ -74,12 +74,12 @@ const codes = (diagnostics: readonly Diagnostic[]) =>
 
 const PASSED: RawVerdict = { outcome: 'passed', durationMs: 1 };
 
-/** Вид `spirula.sql` с эталоном; `decide` выбирает вердикт по запросу. */
+/** Вид `dolphy.sql` с эталоном; `decide` выбирает вердикт по запросу. */
 const stubExerciseTypes = (
   decide: (request: { exerciseId: string }) => RawVerdict = () => PASSED,
 ) => {
   const types = createFakeExerciseTypes({
-    types: { 'spirula.sql': { reference: 'select 1' } },
+    types: { 'dolphy.sql': { reference: 'select 1' } },
   });
   const calls: { exerciseId: string }[] = [];
   types.grade = async (request) => {
@@ -616,7 +616,7 @@ describe('missing library root', () => {
     diagnostics.filter(({ code }) => code === 'E_IO');
 
   it('opens as invalid; validate, compile and reload report E_IO instead of throwing', async () => {
-    const source = createNodeFsCourseSource('/nonexistent/spirula-root');
+    const source = createNodeFsCourseSource('/nonexistent/dolphy-root');
     const { engine, events } = await createTestEngine({ library: source });
     const info = await engine.library.getInfo();
     expect(info).toMatchObject({ state: 'invalid', revision: '' });

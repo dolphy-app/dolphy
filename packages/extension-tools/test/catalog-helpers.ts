@@ -121,7 +121,7 @@ export const publishedIndex = (
       name: 'Sample',
       description: 'Sample',
       author: 'octo-cat',
-      source: `https://github.com/spirula-app/spirula-extensions/tree/main/extensions/${id}`,
+      source: `https://github.com/dolphy-app/dolphy-extensions/tree/main/extensions/${id}`,
       platforms: [],
       contributes: {
         exerciseTypes: [],

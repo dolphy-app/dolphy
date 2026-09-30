@@ -1,7 +1,7 @@
 import path from 'node:path';
-import { GITHUB_LOGIN_PATTERN } from '@spirula-app/extension-api';
-import { compareSemver } from '@spirula-app/extension-catalog';
-import type { CatalogEntry } from '@spirula-app/extension-catalog';
+import { GITHUB_LOGIN_PATTERN } from '@dolphy-app/extension-api';
+import { compareSemver } from '@dolphy-app/extension-catalog';
+import type { CatalogEntry } from '@dolphy-app/extension-catalog';
 import type { GithubUserChecker } from './github.ts';
 import type { Tree } from './tree.ts';
 
@@ -81,7 +81,7 @@ export const EXECUTABLE_EXTENSIONS = [
   '.sh',
   '.bat',
 ] as const;
-export const REQUIRED_SCOPE = '@spirula-app';
+export const REQUIRED_SCOPE = '@dolphy-app';
 
 const DEPENDENCY_FIELDS = [
   'dependencies',

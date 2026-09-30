@@ -1,9 +1,9 @@
 import { randomBytes } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { buildAttempt } from '@spirula-app/testkit';
+import { buildAttempt } from '@dolphy-app/testkit';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { LogEntry } from '@spirula-app/engine';
+import type { LogEntry } from '@dolphy-app/engine';
 import {
   MIGRATIONS,
   SCHEMA_VERSION,

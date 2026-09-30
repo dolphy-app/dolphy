@@ -110,13 +110,13 @@ describe('runCli', () => {
   ])('T-33 неверные аргументы %j — код 2', async (argv) => {
     const cli = createIo();
     expect(await runCli(argv, cli.io)).toBe(2);
-    expect(cli.stderr()).toContain('usage: spirula-ext');
+    expect(cli.stderr()).toContain('usage: dolphy-ext');
   });
 
   it('T-34 --help: код 0, справка в stdout', async () => {
     const cli = createIo();
     expect(await runCli(['--help'], cli.io)).toBe(0);
-    expect(cli.stdout()).toContain('usage: spirula-ext');
+    expect(cli.stdout()).toContain('usage: dolphy-ext');
   });
 
   it('T-35 build --watch работает до сигнала выхода', async () => {

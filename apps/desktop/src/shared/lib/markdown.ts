@@ -1,6 +1,6 @@
 import MarkdownIt from 'markdown-it';
 
-export const MARKDOWN_BLOCK_CLASS = 'spirula-md-block';
+export const MARKDOWN_BLOCK_CLASS = 'dolphy-md-block';
 
 /**
  * `languages` — языки блоков кода, которые объявили рендереры расширений.

@@ -15,7 +15,7 @@ import type {
   SessionPartWire,
   StudySessionWire,
   UnitFilterWire,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 import type { ParseResult } from '../domain/manifest-schema.ts';
 
 const MAX_DURATION_MINUTES = 2 ** 31;

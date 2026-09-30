@@ -1,4 +1,4 @@
-import { buildLibrary } from '@spirula-app/testkit';
+import { buildLibrary } from '@dolphy-app/testkit';
 import { describe, expect, it } from 'vitest';
 import { assembleLibrary } from '../../src/domain/library.ts';
 import { buildPlacementTopics } from '../../src/placement/index.ts';
@@ -33,7 +33,7 @@ const libraryWith = (verified: readonly string[] = []) => {
   });
   const exercises = spec.exercises.map((exercise) =>
     verified.includes(exercise.id)
-      ? { ...exercise, engine: { exercise: { type: 'spirula.sql' } } }
+      ? { ...exercise, engine: { exercise: { type: 'dolphy.sql' } } }
       : exercise,
   );
   return assembleLibrary(spec.courses, spec.lessons, exercises, {

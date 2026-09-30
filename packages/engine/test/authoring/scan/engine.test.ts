@@ -36,7 +36,7 @@ describe('engine из frontmatter front-файла', () => {
         '---',
         'engine:',
         '  exercise:',
-        '    type: spirula.sql',
+        '    type: dolphy.sql',
         '    timeoutMs: 2000',
         '    spec:',
         '      fixture: fixtures/a.sql',
@@ -51,7 +51,7 @@ describe('engine из frontmatter front-файла', () => {
     expect(diagnostics).toEqual([]);
     expect(unit?.engine).toEqual({
       exercise: {
-        type: 'spirula.sql',
+        type: 'dolphy.sql',
         timeoutMs: 2000,
         spec: { fixture: 'fixtures/a.sql' },
       },
@@ -100,12 +100,12 @@ describe('engine из frontmatter front-файла', () => {
 
   it('неизвестный ключ engine — W_ENGINE_UNKNOWN_KEY на своей строке; в значение не входит', async () => {
     const { diagnostics, unit } = await scanFront(
-      '---\nengine:\n  exercise:\n    type: spirula.sql\n  frobnicate: 1\n---\nBody',
+      '---\nengine:\n  exercise:\n    type: dolphy.sql\n  frobnicate: 1\n---\nBody',
     );
     expect(diagnostics.map((d) => [d.code, d.path, d.line])).toEqual([
       ['W_ENGINE_UNKNOWN_KEY', FRONT, 5],
     ]);
-    expect(unit?.engine).toEqual({ exercise: { type: 'spirula.sql' } });
+    expect(unit?.engine).toEqual({ exercise: { type: 'dolphy.sql' } });
     expect(unit?.engineBroken).toBeUndefined();
   });
 
@@ -184,10 +184,10 @@ describe('engine из frontmatter front-файла', () => {
 describe('engine из манифеста и дубликаты', () => {
   it('ключ engine манифеста упражнения: значение и строка', async () => {
     const { unit, diagnostics } = await scanFront('body', {
-      engine: { exercise: { type: 'spirula.sql' } },
+      engine: { exercise: { type: 'dolphy.sql' } },
     });
     expect(diagnostics).toEqual([]);
-    expect(unit?.engine).toEqual({ exercise: { type: 'spirula.sql' } });
+    expect(unit?.engine).toEqual({ exercise: { type: 'dolphy.sql' } });
     expect(unit?.engineSrc?.path).toBe(EXERCISE);
   });
 
@@ -263,7 +263,7 @@ describe('схема engine (parseEngine)', () => {
       ok(
         {
           exercise: {
-            type: 'spirula.sql',
+            type: 'dolphy.sql',
             timeoutMs: 1000,
             spec: { fixture: 'f', n: [1] },
           },
@@ -272,7 +272,7 @@ describe('схема engine (parseEngine)', () => {
       ),
     ).toEqual({
       exercise: {
-        type: 'spirula.sql',
+        type: 'dolphy.sql',
         timeoutMs: 1000,
         spec: { fixture: 'f', n: [1] },
       },

@@ -1,8 +1,8 @@
 import type {
   ContributionsDto,
   ExtensionInfoDto,
-} from '@spirula-app/engine-contract';
-import type { ExtensionRegistry } from '@spirula-app/engine/ports';
+} from '@dolphy-app/engine-contract';
+import type { ExtensionRegistry } from '@dolphy-app/engine/ports';
 
 /** Реестр расширений с фиксированным содержимым (по умолчанию пуст). */
 export const createFakeExtensionRegistry = (

@@ -3,12 +3,12 @@
  * Чистые функции без файловой системы: сборку и запись делает `build-packages.mjs`.
  */
 
-export const SCOPE = '@spirula-app';
+export const SCOPE = '@dolphy-app';
 export const REGISTRY = 'https://npm.pkg.github.com';
-export const REPOSITORY_URL = 'git+https://github.com/spirula-app/spirula.git';
+export const REPOSITORY_URL = 'git+https://github.com/dolphy-app/dolphy.git';
 export const NODE_RANGE = '>=22.12';
 export const DOCS_URL =
-  'https://github.com/spirula-app/spirula/blob/main/docs/design/extensions.md';
+  'https://github.com/dolphy-app/dolphy/blob/main/docs/design/extensions.md';
 
 const VERSION_PATTERN = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
 
@@ -28,10 +28,10 @@ export const PACKAGES = [
     usage: [
       'Типы и константы публичного API расширений: манифест, обработчики видов',
       'заданий, контракт элемента ответа. Обычно ставится транзитивно через',
-      '`@spirula-app/extension-sdk`, который реэкспортирует всё содержимое.',
+      '`@dolphy-app/extension-sdk`, который реэкспортирует всё содержимое.',
       '',
       '```ts',
-      "import { EXTENSION_API_VERSION } from '@spirula-app/extension-api';",
+      "import { EXTENSION_API_VERSION } from '@dolphy-app/extension-api';",
       '```',
     ],
   },
@@ -43,13 +43,13 @@ export const PACKAGES = [
     dts: true,
     siblings: ['extension-api'],
     usage: [
-      '`@spirula-app/extension-sdk` — код расширения (`defineExtension`,',
+      '`@dolphy-app/extension-sdk` — код расширения (`defineExtension`,',
       '`defineExerciseType`), элемент ответа (`defineAnswerElement`) и помощники',
-      'тестов (`@spirula-app/extension-sdk/testing`).',
+      'тестов (`@dolphy-app/extension-sdk/testing`).',
       '',
       '```ts',
-      "import { defineExtension } from '@spirula-app/extension-sdk';",
-      "import { loadExerciseType } from '@spirula-app/extension-sdk/testing';",
+      "import { defineExtension } from '@dolphy-app/extension-sdk';",
+      "import { loadExerciseType } from '@dolphy-app/extension-sdk/testing';",
       '```',
     ],
   },
@@ -57,17 +57,17 @@ export const PACKAGES = [
     dir: 'extension-tools',
     entries: { 'cli/main': 'src/cli/main.ts' },
     exports: null,
-    bin: { 'spirula-ext': 'cli/main' },
+    bin: { 'dolphy-ext': 'cli/main' },
     dts: false,
     siblings: [],
     usage: [
-      'Командная строка автора расширений `spirula-ext`: сборка проекта в',
+      'Командная строка автора расширений `dolphy-ext`: сборка проекта в',
       'каталог расширения и проверка манифеста.',
       '',
       '```sh',
-      'npx spirula-ext build',
-      'npx spirula-ext validate dist-ext/<id>',
-      'npx spirula-ext --help',
+      'npx dolphy-ext build',
+      'npx dolphy-ext validate dist-ext/<id>',
+      'npx dolphy-ext --help',
       '```',
     ],
   },
@@ -75,14 +75,14 @@ export const PACKAGES = [
     dir: 'create-extension',
     entries: { 'cli/main': 'src/cli/main.ts' },
     exports: null,
-    bin: { 'create-spirula-extension': 'cli/main' },
+    bin: { 'create-dolphy-extension': 'cli/main' },
     dts: false,
     siblings: [],
     usage: [
       'Генератор проекта расширения.',
       '',
       '```sh',
-      'npx @spirula-app/create-extension <каталог>',
+      'npx @dolphy-app/create-extension <каталог>',
       '```',
       '',
       'Проект получает `.npmrc` с реестром GitHub Packages, тесты, сборку и README.',

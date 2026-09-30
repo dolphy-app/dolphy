@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Grade } from '@spirula-app/engine-contract';
+import type { Grade } from '@dolphy-app/engine-contract';
 import { useI18n } from 'vue-i18n';
 
 interface GradeOption {

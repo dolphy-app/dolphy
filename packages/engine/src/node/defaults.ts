@@ -1,6 +1,6 @@
 import { getRandomValues } from 'node:crypto';
 import { join } from 'node:path';
-import type { EngineConfig, EpochMs } from '@spirula-app/engine-contract';
+import type { EngineConfig, EpochMs } from '@dolphy-app/engine-contract';
 import type { EngineDeps } from '../app/context.ts';
 import { createRng, f64FromWords } from '../domain/rng.ts';
 import type { Clock, IdGenerator, Logger, Rng } from '../ports/index.ts';

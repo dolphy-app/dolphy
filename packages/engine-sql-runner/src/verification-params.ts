@@ -1,9 +1,9 @@
 /**
- * Параметры `engine.exercise.spec` вида `spirula.sql`: `fixture` и `expected` — пути от корня библиотеки, `reference` —
+ * Параметры `engine.exercise.spec` вида `dolphy.sql`: `fixture` и `expected` — пути от корня библиотеки, `reference` —
  * эталонное решение (читает компилятор при `--run-checks`, не раннер),
  * остальное — правила сравнения и лимиты.
  */
-import type { CourseSource } from '@spirula-app/engine/ports';
+import type { CourseSource } from '@dolphy-app/engine/ports';
 import type { CompareOptions } from './types.ts';
 
 export interface SqlCheckParams {

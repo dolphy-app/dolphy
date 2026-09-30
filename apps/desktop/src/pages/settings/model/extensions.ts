@@ -5,7 +5,7 @@ import type {
   ExtensionSettingsDto,
   ExtensionUpdateDto,
   LearningEngine,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 import { CONTRIBUTION_POINTS, targetFromUpdate } from '../lib/catalog.ts';
 import type { ContributionPoint, InstallTarget } from '../lib/catalog.ts';
 

@@ -2,7 +2,7 @@
 /**
  * Проверка собранных пакетов (`pnpm build:packages` → `dist-publish/`): упаковка
  * `npm pack`, состав tarball'ов, установка всех четырёх в пустой проект, генерация
- * проекта расширения из установленного `create-spirula-extension` и его сборка,
+ * проекта расширения из установленного `create-dolphy-extension` и его сборка,
  * проверка, типы и тесты. Запускается в CI, не в `pnpm test` (нужна сеть: сторонние
  * зависимости ставятся из npmjs).
  *
@@ -277,7 +277,7 @@ const formatKb = (bytes) => `${(bytes / 1024).toFixed(1)} KiB`;
 const main = () => {
   const keep = process.argv.includes('--keep');
   check(existsSync(DIST), 'dist-publish is missing: run `pnpm build:packages`');
-  const work = mkdtempSync(path.join(tmpdir(), 'spirula-verify-'));
+  const work = mkdtempSync(path.join(tmpdir(), 'dolphy-verify-'));
   const env = createEnv(work);
   let succeeded = false;
   try {
@@ -318,10 +318,10 @@ const main = () => {
       ],
       { cwd: consumer, env },
     );
-    run(binOf(consumer, 'spirula-ext'), ['--help'], { cwd: consumer, env });
+    run(binOf(consumer, 'dolphy-ext'), ['--help'], { cwd: consumer, env });
 
-    step('create-spirula-extension demo');
-    run(binOf(consumer, 'create-spirula-extension'), ['demo'], {
+    step('create-dolphy-extension demo');
+    run(binOf(consumer, 'create-dolphy-extension'), ['demo'], {
       cwd: consumer,
       env,
     });
@@ -332,9 +332,9 @@ const main = () => {
     pointAtTarballs({ project: demo, tarballs });
     run('npm', ['install'], { cwd: demo, env });
 
-    step('spirula-ext build / validate, tsc, npm test');
-    run('npx', ['--no-install', 'spirula-ext', 'build'], { cwd: demo, env });
-    run('npx', ['--no-install', 'spirula-ext', 'validate', 'dist-ext/demo'], {
+    step('dolphy-ext build / validate, tsc, npm test');
+    run('npx', ['--no-install', 'dolphy-ext', 'build'], { cwd: demo, env });
+    run('npx', ['--no-install', 'dolphy-ext', 'validate', 'dist-ext/demo'], {
       cwd: demo,
       env,
     });

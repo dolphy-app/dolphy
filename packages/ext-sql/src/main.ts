@@ -1,12 +1,9 @@
 import { fork } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { createSqlVerifier, isSafePath } from '@spirula-app/engine-sql-runner';
-import {
-  defineExerciseType,
-  defineExtension,
-} from '@spirula-app/extension-sdk';
-import type { ExtensionContext } from '@spirula-app/extension-sdk';
+import { createSqlVerifier, isSafePath } from '@dolphy-app/engine-sql-runner';
+import { defineExerciseType, defineExtension } from '@dolphy-app/extension-sdk';
+import type { ExtensionContext } from '@dolphy-app/extension-sdk';
 
 interface SqlSpec {
   reference?: unknown;
@@ -33,7 +30,7 @@ const holder: {
 
 const requireVerifier = (): SqlVerifier => {
   if (holder.verifier === undefined) {
-    throw new Error('spirula.sql extension is not activated');
+    throw new Error('dolphy.sql extension is not activated');
   }
   return holder.verifier;
 };
@@ -42,14 +39,14 @@ const readReference = async (reference: string) => {
   if (!isSafePath(reference)) throw new Error('reference path is not safe');
   const { library } = holder;
   if (library === undefined) {
-    throw new Error('spirula.sql extension is not activated');
+    throw new Error('dolphy.sql extension is not activated');
   }
   return (await library.readText(reference)).trim();
 };
 
 export default defineExtension({
   exerciseTypes: {
-    'spirula.sql': defineExerciseType<SqlSpec, string, Record<string, never>>({
+    'dolphy.sql': defineExerciseType<SqlSpec, string, Record<string, never>>({
       project: () => ({}),
       grade: ({ spec, answer, timeoutMs, authorMode }) =>
         requireVerifier().check({ spec, answer, timeoutMs, authorMode }),

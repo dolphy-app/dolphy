@@ -1,5 +1,5 @@
-import type { EngineConfig } from '@spirula-app/engine-contract';
-import type { ExtensionRoot } from '@spirula-app/extension-host';
+import type { EngineConfig } from '@dolphy-app/engine-contract';
+import type { ExtensionRoot } from '@dolphy-app/extension-host';
 
 /** Корни расширений в порядке приоритета: поставка, пользовательский, затем каталог разработчика (побеждает). */
 export const extensionRoots = ({

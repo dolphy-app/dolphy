@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { isSemver } from '@spirula-app/extension-catalog';
+import { isSemver } from '@dolphy-app/extension-catalog';
 import { BuildError, CatalogUsageError } from '../errors.ts';
 import {
   buildCatalog,
@@ -20,13 +20,13 @@ export interface CatalogDeps {
   now?: () => Date;
 }
 
-export const CATALOG_SYNOPSIS = `       spirula-ext catalog check <extensionsDir> [--ids a,b]
+export const CATALOG_SYNOPSIS = `       dolphy-ext catalog check <extensionsDir> [--ids a,b]
                    [--published-index <path>] [--max-app-version <x.y.z>]
                    [--skip-github-check] [--list-rules]
-       spirula-ext catalog build --src <extensionsDir> --ids a,b --out <siteDir>
+       dolphy-ext catalog build --src <extensionsDir> --ids a,b --out <siteDir>
                    [--previous-index <path>] [--revoked <path>]
                    [--source-base <url>] [--published-at <iso>]
-       spirula-ext catalog build --reindex --out <siteDir>
+       dolphy-ext catalog build --reindex --out <siteDir>
                    [--previous-index <path>] [--revoked <path>]
                    [--published-at <iso>]
 `;

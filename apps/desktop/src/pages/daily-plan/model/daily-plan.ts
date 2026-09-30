@@ -7,7 +7,7 @@ import type {
   LearningEngine,
   UnitDto,
   UnitId,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 import { PLAN_MAX_ITEMS } from '@/shared/config/plan.ts';
 
 /** Как размер плана: у каждого повторения в плане должна быть своя оценка. */

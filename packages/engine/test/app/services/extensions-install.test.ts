@@ -2,13 +2,13 @@ import type {
   CatalogDto,
   ExtensionInfoDto,
   ExtensionUpdateDto,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 import {
   createFakeExtensionInstaller,
   createFakeExtensionPolicy,
   createFakeExtensionRegistry,
-} from '@spirula-app/testkit';
-import type { FakeExtensionInstallerOptions } from '@spirula-app/testkit';
+} from '@dolphy-app/testkit';
+import type { FakeExtensionInstallerOptions } from '@dolphy-app/testkit';
 import { describe, expect, it } from 'vitest';
 import {
   UPDATE_CHECK_INTERVAL_MS,
@@ -203,13 +203,13 @@ describe('extensions.uninstall', () => {
   it('validates through the registry before the installer, then announces', async () => {
     const { engine, events, installer } = await open([
       info({}),
-      info({ id: 'spirula.sql', origin: 'bundled', removable: false }),
+      info({ id: 'dolphy.sql', origin: 'bundled', removable: false }),
     ]);
     await expect(
       engine.extensions.uninstall('acme.nope'),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
     await expect(
-      engine.extensions.uninstall('spirula.sql'),
+      engine.extensions.uninstall('dolphy.sql'),
     ).rejects.toMatchObject({
       code: 'INVALID_ARGUMENT',
       details: { reason: 'not-removable' },

@@ -21,8 +21,8 @@ export const CATALOG_FIXTURES = fileURLToPath(
 
 /** Окружение запуска приложения с каталогом на `url`. */
 export const catalogEnv = (url: string): Record<string, string> => ({
-  SPIRULA_EXTENSION_CATALOG_URL: url,
-  SPIRULA_APP_VERSION: E2E_APP_VERSION,
+  DOLPHY_EXTENSION_CATALOG_URL: url,
+  DOLPHY_APP_VERSION: E2E_APP_VERSION,
 });
 
 export interface CatalogSource {
@@ -69,7 +69,7 @@ interface Revocation {
 }
 
 export interface CatalogServer {
-  /** Адрес `index.json` — значение `SPIRULA_EXTENSION_CATALOG_URL`. */
+  /** Адрес `index.json` — значение `DOLPHY_EXTENSION_CATALOG_URL`. */
   readonly url: string;
   /** Журнал запросов: `GET <путь> [304]`. */
   readonly requests: readonly string[];
@@ -315,7 +315,7 @@ export const startCatalogServer = async (
 
 /**
  * Расширение, уже установленное из каталога: каталог с метаданными установки
- * (`.spirula-install.json`), как его оставляет установщик.
+ * (`.dolphy-install.json`), как его оставляет установщик.
  */
 export const seedCatalogInstall = async (
   userData: string,
@@ -325,7 +325,7 @@ export const seedCatalogInstall = async (
   await mkdir(dirname(target), { recursive: true });
   await cp(options.dir, target, { recursive: true });
   await writeFile(
-    join(target, '.spirula-install.json'),
+    join(target, '.dolphy-install.json'),
     JSON.stringify({
       catalogUrl: options.catalogUrl,
       version: options.version,

@@ -1,14 +1,14 @@
 import {
   createJsonLogger,
   createNodeFsCourseSource,
-} from '@spirula-app/engine/node';
-import { fromNodePort } from '@spirula-app/engine-rpc/host';
+} from '@dolphy-app/engine/node';
+import { fromNodePort } from '@dolphy-app/engine-rpc/host';
 import {
   createExtensionRuntime,
   createRestrictedRunner,
   discoverExtensions,
-} from '@spirula-app/extension-host';
-import type { ExtensionRuntime } from '@spirula-app/extension-host';
+} from '@dolphy-app/extension-host';
+import type { ExtensionRuntime } from '@dolphy-app/extension-host';
 import { extensionRoots } from '../extension-roots.ts';
 
 /** Сообщения main → хост расширений (`process.parentPort`). */

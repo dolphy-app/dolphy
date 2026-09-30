@@ -1,5 +1,5 @@
-import { createRng, f64FromWords } from '@spirula-app/engine';
-import type { Rng } from '@spirula-app/engine';
+import { createRng, f64FromWords } from '@dolphy-app/engine';
+import type { Rng } from '@dolphy-app/engine';
 
 export interface SeededRng extends Rng {
   readonly seed: number;

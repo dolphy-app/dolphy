@@ -5,7 +5,7 @@ import type {
   EngineEvent,
   ExtensionContributesDto,
   ExtensionInfoDto,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 
 export const NO_CONTRIBUTES: ExtensionContributesDto = {
   exerciseTypes: [],

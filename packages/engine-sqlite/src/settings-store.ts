@@ -6,7 +6,7 @@ import type {
   SchedulerOptionsDto,
   StudySessionWire,
   UiSettingsDto,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 import {
   decodeExtensionSettings,
   decodeLearningSettings,
@@ -15,21 +15,21 @@ import {
   encodeUserPreferences,
   parseUserPreferences,
   stringifyManifest,
-} from '@spirula-app/engine';
+} from '@dolphy-app/engine';
 import type {
   ParseResult,
   SettingsStore,
   UserPreferences,
-} from '@spirula-app/engine';
-import { EngineError } from '@spirula-app/engine/app';
-import { createDefaultPreferences } from '@spirula-app/engine/node';
+} from '@dolphy-app/engine';
+import { EngineError } from '@dolphy-app/engine/app';
+import { createDefaultPreferences } from '@dolphy-app/engine/node';
 import {
   decodeSchedulerOverrides,
   encodeSavedFilter,
   encodeStudySession,
   parseSavedFilter,
   parseStudySession,
-} from '@spirula-app/engine/scheduler';
+} from '@dolphy-app/engine/scheduler';
 import { guard } from './errors.ts';
 import type { SqlDatabase } from './sql-database.ts';
 

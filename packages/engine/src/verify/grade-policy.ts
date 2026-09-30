@@ -3,7 +3,7 @@
  * `node:*`: политика выбирается по имени из `GRADE_POLICIES` (Strategy через
  * lookup), `completeAttempt` вызывает её один раз при закрытии попытки.
  */
-import type { Grade, VerdictDto } from '@spirula-app/engine-contract';
+import type { Grade, VerdictDto } from '@dolphy-app/engine-contract';
 import type { GradePolicies } from '../ports/grade-policies.ts';
 import type { Logger } from '../ports/index.ts';
 

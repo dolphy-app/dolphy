@@ -1,5 +1,5 @@
-import { CONTRACT_VERSION } from '@spirula-app/engine-contract';
-import type { EngineDiagnosticsDto } from '@spirula-app/engine-contract';
+import { CONTRACT_VERSION } from '@dolphy-app/engine-contract';
+import type { EngineDiagnosticsDto } from '@dolphy-app/engine-contract';
 import type { EngineContext } from './context.ts';
 
 /** Версия реализации движка для `engine.hello` и `diagnostics()`. */

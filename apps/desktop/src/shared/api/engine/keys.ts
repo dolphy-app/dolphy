@@ -2,7 +2,7 @@ import type { InjectionKey } from 'vue';
 import type {
   ContributionsDto,
   LearningEngine,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 
 export const ENGINE_KEY: InjectionKey<LearningEngine> = Symbol('engine');
 export const CONTRIBUTIONS_KEY: InjectionKey<ContributionsDto> =

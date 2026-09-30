@@ -127,14 +127,14 @@ export default defineConfig({
 
 Итого переносим или переписываем ≈ 280 из 353 (80%); пропускаем 6 (deltas) и 30 (генераторы и специфика Rust), остальное — служебное. Наблюдение по стоимости: порт 31 теста `PowerLawScorer` занял 0.21× строк Rust-тестов благодаря хелперам `trials(...)` вместо литералов структур; значит тесты порта ≈ 5–7 тыс. строк [ОЦЕНКА]. Тесты F-слоя оцениваются отдельно (§13): спайки F-слоя — ≈ 1.8 тыс. строк без пустых и комментариев, ≈ 300 тестов-кейсов.
 
-## 6. Testkit (`@spirula-app/testkit`)
+## 6. Testkit (`@dolphy-app/testkit`)
 
 - `FakeClock` (`now()`, `advance(ms)`, `set(ms)`); `SeededRng` — xoshiro128**, инициализация splitmix32, методы `random()`, `shuffle`, `sample`, `sampleWeighted` (Эфраимидис–Спиракис A-ExpJ, распределение Плакетта–Льюса, как `rand 0.10.3`; `engine-ts/research/spec-scoring-filter.md` §5.3); `SequentialIds`.
 - `MemoryCourseSource` и DSL курсов — порт `TestId`/`TestCourse`/`TestLesson` (`course::lesson::exercise`, каталоги `course_{c}/lesson_{l}/exercise_{e}`), `RandomCourseLibrary` (зависимости только на меньший индекс — ациклично).
 - `SimulatedLearner` — пять профилей из `benchmark.rs` (частота сессий, упражнений за сессию, вероятности оценок, порог стабилизации, доля провалов) над `FakeClock`.
 - `MemoryEventStore`, `MemorySettingsStore`; фабрики `makeEngine({ library, seed })`.
 - Утилиты: `assertBatchInvariants` (только доступные уроки; нет blacklisted; размер ≤ `batchSize + relearn`; без дублей); загрузчик golden JSONL (кодирование `NaN`/`±Infinity` строками, секунды → мс); `r = Math.fround`.
-- **F-слой** (что переезжает из спайков в `@spirula-app/testkit` на M0 и что остаётся в продукции) — §10. Testkit не входит в продуктовую сборку: `fast-check`, генераторы библиотек и crash-скрипты — только `devDependencies`.
+- **F-слой** (что переезжает из спайков в `@dolphy-app/testkit` на M0 и что остаётся в продукции) — §10. Testkit не входит в продуктовую сборку: `fast-check`, генераторы библиотек и crash-скрипты — только `devDependencies`.
 
 ## 7. Обязательные новые тесты (следуют из найденных фактов)
 
@@ -299,9 +299,9 @@ export default defineConfig({
 - **Сбои — реальные, не моки.** Порча файлов синхронизации — тест обрезает и подменяет настоящие файлы в tmp; крэш — настоящий `SIGKILL` дочернего процесса; SQL-раннер — настоящие процессы.
 - **Эталоны:** fixtures `tools/golden-rs` (Rust-Trane v0.34.1, `trane-pristine`), `spike/fsrs-check/fixtures/reference.json` (py-fsrs, 600 историй), `sql-course` (7 уроков; в нём нет `fixtures/*.sql` и `*.expected.csv` — до миграции на M1 SQL-тесты используют собственные `emp.sql` и 30 проверок).
 
-### 10.2 Что из спайков переезжает в `@spirula-app/testkit` на M0
+### 10.2 Что из спайков переезжает в `@dolphy-app/testkit` на M0
 
-В testkit переезжает **только тестовый** код; продукционные части спайков (`folder-sync`, `replica`, `proj`, `sqlite-store`, `compile`, `scan`, `checks`, `revision`, `DiagnosticSession`, `planner`, `memory`, `memory-index`, `verifier`, `pool`, `worker`, `prefilter`, `compare`) идут в `@spirula-app/engine` на своих вехах. Оракулы (`normalize`, брутфорс-определение сброса, наивный пересчёт планировщика) хранятся отдельно от продукционных реализаций — иначе тест совпадает с реализацией.
+В testkit переезжает **только тестовый** код; продукционные части спайков (`folder-sync`, `replica`, `proj`, `sqlite-store`, `compile`, `scan`, `checks`, `revision`, `DiagnosticSession`, `planner`, `memory`, `memory-index`, `verifier`, `pool`, `worker`, `prefilter`, `compare`) идут в `@dolphy-app/engine` на своих вехах. Оракулы (`normalize`, брутфорс-определение сброса, наивный пересчёт планировщика) хранятся отдельно от продукционных реализаций — иначе тест совпадает с реализацией.
 
 | Из спайка | В testkit | Для тестов |
 |---|---|---|
@@ -356,7 +356,7 @@ export default defineConfig({
 
 | Веха | Тесты | Проекты | Автоматическая приёмка |
 |---|---|---|---|
-| M0 Каркас | конфигурация из §2 на Node 22.22 и 24.x; пробы возможностей (`hasAuthorizer`, `hasLimits`); перенос из спайков в `@spirula-app/testkit` (§10.2); хеши golden-fixtures; T-07 (py-fsrs) | все, `types` | `pnpm test` и typecheck зелёные на обеих Node; py-fsrs проходит контрактный тест `MemoryModel` |
+| M0 Каркас | конфигурация из §2 на Node 22.22 и 24.x; пробы возможностей (`hasAuthorizer`, `hasLimits`); перенос из спайков в `@dolphy-app/testkit` (§10.2); хеши golden-fixtures; T-07 (py-fsrs) | все, `types` | `pnpm test` и typecheck зелёные на обеих Node; py-fsrs проходит контрактный тест `MemoryModel` |
 | M1 Данные, библиотека, компилятор | T-14, T-15, T-17, T-18, T-32…T-37 (матрица включает по одному дефекту на `W_GRANULARITY`), T-38 (CLI без `--run-checks`); ≈ 95 портированных тестов; golden L2 (граф на 6 библиотеках) | `unit`, `golden`, `integration` | 0 ошибок схемы на манифестах Trane; матрица ≥ 48 дефектов и по одному на `W_GRANULARITY`; `loadCompiled == loadDirectory` на 7 библиотеках; Rust-Trane открывает курс с `engine`-frontmatter (T-36) |
 | M2 Скоринг | T-02 (память процесса), T-06, T-07; golden L1 (PowerLaw 5 919 кейсов) и L1b; портированные тесты скореров (31 + 12 + 8 + 9) | `golden`, `unit` | golden L1, L1b зелёные |
 | M3 Планировщик, фронтир, due | T-01, T-04, T-16, **T-49**; L4 на ≥ 5 состояниях; портированные тесты (13 + 6 + 18 + 4 + 2 + 7); 43 интеграционных на симуляциях; bench p95 против NF1 | `unit`, `golden`, `sim`, `integration` | `getFrontier` против Rust (T-49); L4; bench |

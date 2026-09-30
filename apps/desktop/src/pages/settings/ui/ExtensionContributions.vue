@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import type { ExtensionContributesDto } from '@spirula-app/engine-contract';
+import type { ExtensionContributesDto } from '@dolphy-app/engine-contract';
 import { contributionGroups } from '../model/extensions.ts';
 
 defineProps<{ contributes: ExtensionContributesDto }>();

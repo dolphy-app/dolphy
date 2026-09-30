@@ -2,7 +2,7 @@ import type {
   ExerciseTypeInfo,
   ExerciseTypes,
   RawVerdict,
-} from '@spirula-app/engine/ports';
+} from '@dolphy-app/engine/ports';
 
 export interface FakeTypeOptions {
   element?: string;
@@ -49,7 +49,7 @@ export const createFakeExerciseTypes = (
           extensionId: type,
           extensionVersion: '0.0.0',
           element: fake.element ?? `fake-${type.replaceAll('.', '-')}`,
-          rendererUrl: `spirula-ext://fake/${type}.mjs`,
+          rendererUrl: `dolphy-ext://fake/${type}.mjs`,
         };
   };
   const requests: FakeGradeRequest[] = [];

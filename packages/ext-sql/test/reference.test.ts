@@ -1,5 +1,5 @@
 /**
- * `E_REFERENCE_FAILS` на настоящем расширении `spirula.sql`: компилятор ядра
+ * `E_REFERENCE_FAILS` на настоящем расширении `dolphy.sql`: компилятор ядра
  * получает каталог видов заданий и прогоняет эталоны `sql-course` (KB и JSON
  * раскладки) тем же кодом, что работает в рантайме.
  */
@@ -7,8 +7,8 @@ import { cp, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { compile } from '@spirula-app/engine/authoring';
-import { createNodeFsCourseSource } from '@spirula-app/engine/node';
+import { compile } from '@dolphy-app/engine/authoring';
+import { createNodeFsCourseSource } from '@dolphy-app/engine/node';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createSqlExerciseTypes } from './helpers/exercise-types.ts';
 

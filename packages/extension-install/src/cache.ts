@@ -1,7 +1,7 @@
 import path from 'node:path';
-import { parseIndex } from '@spirula-app/extension-catalog';
-import type { CatalogIndex } from '@spirula-app/extension-catalog';
-import type { ExtensionLogger } from '@spirula-app/extension-api';
+import { parseIndex } from '@dolphy-app/extension-catalog';
+import type { CatalogIndex } from '@dolphy-app/extension-catalog';
+import type { ExtensionLogger } from '@dolphy-app/extension-api';
 import { writeAtomic } from './atomic.ts';
 import { isMissing } from './fs.ts';
 import type { InstallerFs } from './fs.ts';

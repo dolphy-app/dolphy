@@ -23,7 +23,7 @@ export const entry = (overrides: Partial<CatalogEntry> = {}): CatalogEntry => ({
   name: 'Quiz',
   description: 'Вопросы с выбором',
   author: 'octo-cat',
-  source: 'https://github.com/spirula-app/spirula-extensions',
+  source: 'https://github.com/dolphy-app/dolphy-extensions',
   platforms: [],
   contributes: {
     exerciseTypes: ['acme.quiz'],

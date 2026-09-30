@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
-import { ANSWER_EVENT } from '@spirula-app/extension-api';
-import type { AnswerChangeDetail } from '@spirula-app/extension-api';
+import { ANSWER_EVENT } from '@dolphy-app/extension-api';
+import type { AnswerChangeDetail } from '@dolphy-app/extension-api';
 import { afterEach, describe, expect, it } from 'vitest';
 import '../src/view.ts';
 
@@ -13,7 +13,7 @@ interface SqlElement extends HTMLElement {
 const flush = () => Promise.resolve();
 
 const mountElement = async (label: string | null = null) => {
-  const element = document.createElement('spirula-sql-answer') as SqlElement;
+  const element = document.createElement('dolphy-sql-answer') as SqlElement;
   if (label !== null) element.setAttribute('aria-label', label);
   document.body.append(element);
   await flush();
@@ -52,7 +52,7 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-describe('spirula-sql-answer', () => {
+describe('dolphy-sql-answer', () => {
   it('рисует textarea без проверки орфографии', async () => {
     const { textarea } = await mountElement();
     expect(textarea.spellcheck).toBe(false);

@@ -4,7 +4,7 @@ export type CompatibilityReason = 'platform' | 'app';
 
 export interface CompatibilityFailure {
   reason: CompatibilityReason;
-  /** Причина по-английски: для логов, диагностики и `spirula-ext`; интерфейс строит текст из `reason` и данных. */
+  /** Причина по-английски: для логов, диагностики и `dolphy-ext`; интерфейс строит текст из `reason` и данных. */
   detail: string;
 }
 

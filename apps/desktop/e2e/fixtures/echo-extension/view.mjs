@@ -1,4 +1,4 @@
-// Элемент ввода ответа стороннего расширения: тот же контракт событий, что у spirula-choice-answer.
+// Элемент ввода ответа стороннего расширения: тот же контракт событий, что у dolphy-choice-answer.
 class AcmeEchoAnswer extends HTMLElement {
   constructor() {
     super();
@@ -7,7 +7,7 @@ class AcmeEchoAnswer extends HTMLElement {
     this.attachShadow({ mode: 'open' }).append(this.input);
     this.input.addEventListener('input', () => {
       this.dispatchEvent(
-        new CustomEvent('spirula-answer-change', {
+        new CustomEvent('dolphy-answer-change', {
           detail: {
             value: this.input.value,
             complete: this.input.value.length > 0,

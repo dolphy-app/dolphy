@@ -1,4 +1,4 @@
-import { createSeededRng } from '@spirula-app/testkit';
+import { createSeededRng } from '@dolphy-app/testkit';
 import { describe, expect, it } from 'vitest';
 import { createRng } from '../src/domain/rng.ts';
 

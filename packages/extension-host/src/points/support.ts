@@ -1,7 +1,7 @@
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { EXTENSION_ID_PATTERN } from '@spirula-app/extension-api';
-import type { JsonSchema } from '@spirula-app/extension-api';
+import { EXTENSION_ID_PATTERN } from '@dolphy-app/extension-api';
+import type { JsonSchema } from '@dolphy-app/extension-api';
 import type { Ajv2020 } from 'ajv/dist/2020.js';
 import { z } from 'zod';
 
@@ -53,7 +53,7 @@ export const inside = (dir: string, relative: string): string => {
 };
 
 export const rendererUrlOf = (id: string, renderer: string): string =>
-  `spirula-ext://${id}/${renderer
+  `dolphy-ext://${id}/${renderer
     .replace(/^\.\//, '')
     .split('/')
     .map(encodeURIComponent)

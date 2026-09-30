@@ -13,12 +13,12 @@
 | Где живёт логика | В `utilityProcess` (хост движка), никогда в main и не в скрытом renderer (LogRocket: CPU-нагрузка в main замораживает приложение, в скрытом renderer деградирует) |
 | Транспорт | Один `MessagePort` на окно: создаёт main (`MessageChannelMain`), UI получает порт через preload. `ipcMain` — только два канала: `engine:connect` и `platform:pickDirectory`. Синхронный IPC (`sendSync`) запрещён |
 | Абстракция транспорта | Интерфейс `MessageEndpoint` (аналог `Delegate` из Lyricistant): клиент и диспетчер не знают про Electron. Адаптеры: `fromDomPort` (renderer), `fromNodePort` (хост), `createInProcessPair` (тесты и возможный веб) |
-| Пакеты | К четырём пакетам `engine-ts.md` §0 добавляется пятый — `@spirula-app/engine-rpc` (subpath `./client` без zod для renderer, `./host` с zod и диспетчером) |
+| Пакеты | К четырём пакетам `engine-ts.md` §0 добавляется пятый — `@dolphy-app/engine-rpc` (subpath `./client` без zod для renderer, `./host` с zod и диспетчером) |
 | Стиль | Фабрики `createX(ctx)` и замыкания вместо классов (классы только `EngineError` и `EngineCallError`, наследники `Error`); стратегии — lookup-объекты и `Map`; Context вместо глобалов; GoF Proxy не используется, нативный `Proxy` запрещён (клиентский фасад строится из таблицы `RPC_METHODS`) |
 | Порядок команд | Одна FIFO-очередь на движок, внутри движка (не в транспорте); `practice.submitAnswer` вне очереди |
 | Ошибки | Домен бросает обычные `Error` (баги), операционные проблемы — `EngineError(code)`; на границе RPC → `EngineErrorDto` |
 | Параметры RPC | Позиционный массив аргументов метода (`params: unknown[]`), схема — `z.tuple` |
-| Платформенно-зависимое | Диалог выбора папки — интерфейс `Platform` в мосте preload `window.spirula.platform`, реализация в main (инверсия управления, как `Files` в Lyricistant) |
+| Платформенно-зависимое | Диалог выбора папки — интерфейс `Platform` в мосте preload `window.dolphy.platform`, реализация в main (инверсия управления, как `Files` в Lyricistant) |
 | Оболочка main | Собрана из «шеллов» `{ register() }` (аналог `Manager` из Lyricistant): `window`, `engine`, `platform`, `lifecycle` |
 
 ## 1. Три вида кода и процессы
@@ -26,8 +26,8 @@
 Схема: кто с кем говорит; движок и всё, что его окружает, — в одном отдельном процессе.
 
 ```
-renderer (Vue, sandbox)        preload (sandbox)          main (Electron API)              utilityProcess "spirula-engine"
-src/**  ── LearningEngine ──►  window.spirula.{engine,platform}  shells: window/engine/platform/lifecycle   host/index.ts
+renderer (Vue, sandbox)        preload (sandbox)          main (Electron API)              utilityProcess "dolphy-engine"
+src/**  ── LearningEngine ──►  window.dolphy.{engine,platform}  shells: window/engine/platform/lifecycle   host/index.ts
         ◄── MessagePort (RpcRequest/Response/Push) ──────────────────────── (порт передаёт main) ──►  dispatcher + engine
                                                                    supervisor: fork, restart, connect        SqliteEventStore
                                                                                                              SqlVerifier ─► дочерние процессы
@@ -37,9 +37,9 @@ src/**  ── LearningEngine ──►  window.spirula.{engine,platform}  shell
 
 | Вид кода | Где | Зависимости |
 |---|---|---|
-| UI-код | renderer, `apps/desktop/src/**` | Знает только `LearningEngine` из `@spirula-app/engine-contract` (через `import type`) и `@spirula-app/engine-rpc/client`; `electron` не импортирует |
-| Платформенно-специфичный | main, preload, `electron/host/index.ts` (тонкая проводка) | `electron`, типы и константы `@spirula-app/engine-contract` |
-| Платформенно-независимый | `@spirula-app/engine`, `@spirula-app/engine-rpc`, `@spirula-app/engine-sqlite`, `@spirula-app/engine-sql-runner` | Без `electron`; работает в Node, в vitest и, теоретически, в вебе |
+| UI-код | renderer, `apps/desktop/src/**` | Знает только `LearningEngine` из `@dolphy-app/engine-contract` (через `import type`) и `@dolphy-app/engine-rpc/client`; `electron` не импортирует |
+| Платформенно-специфичный | main, preload, `electron/host/index.ts` (тонкая проводка) | `electron`, типы и константы `@dolphy-app/engine-contract` |
+| Платформенно-независимый | `@dolphy-app/engine`, `@dolphy-app/engine-rpc`, `@dolphy-app/engine-sqlite`, `@dolphy-app/engine-sql-runner` | Без `electron`; работает в Node, в vitest и, теоретически, в вебе |
 
 ## 2. Раскладка пакетов и правила зависимостей
 
@@ -58,7 +58,7 @@ packages/engine-rpc/src/         client/ (client.ts, dom-port.ts)  host/ (dispat
 apps/desktop/electron/main/      index.ts, shells/{window,engine,platform,lifecycle}.ts, supervisor.ts
 apps/desktop/electron/host/      index.ts, boot.ts
 apps/desktop/electron/preload/   index.ts
-apps/desktop/shared/bridge.ts    тип SpirulaBridge (включён в оба tsconfig)
+apps/desktop/shared/bridge.ts    тип DolphyBridge (включён в оба tsconfig)
 apps/desktop/src/engine/         connect.ts, use-*.ts
 ```
 
@@ -67,12 +67,12 @@ apps/desktop/src/engine/         connect.ts, use-*.ts
 | `domain`, `scoring`, `scheduler` | друг друга и `ports` (только типы) | `node:*`, `app`, адаптеры |
 | `app` | домен и `ports` | адаптеры, `node:*` |
 | `node/` и адаптеры (`engine-sqlite`, `engine-sql-runner`) | `ports` (типы) и Node | `app`, `electron` |
-| `engine-rpc/client` | `engine-contract` | zod, `@spirula-app/engine`, `electron` |
-| `engine-rpc/host` | `engine-contract`, `@spirula-app/engine` (для `EngineError`), zod | `electron` |
-| main (`electron/main`) | `engine-contract` (типы, константы), `electron` | `@spirula-app/engine` |
-| renderer (`src/**`) | `engine-contract` (типы), `engine-rpc/client`, Vue | `electron`, `@spirula-app/engine`, `@spirula-app/engine-sqlite`, `@spirula-app/engine-sql-runner` |
+| `engine-rpc/client` | `engine-contract` | zod, `@dolphy-app/engine`, `electron` |
+| `engine-rpc/host` | `engine-contract`, `@dolphy-app/engine` (для `EngineError`), zod | `electron` |
+| main (`electron/main`) | `engine-contract` (типы, константы), `electron` | `@dolphy-app/engine` |
+| renderer (`src/**`) | `engine-contract` (типы), `engine-rpc/client`, Vue | `electron`, `@dolphy-app/engine`, `@dolphy-app/engine-sqlite`, `@dolphy-app/engine-sql-runner` |
 
-Планируемое усиление линтера (не в этой задаче): правила `no-restricted-imports` для `electron` и для `@spirula-app/engine`, `@spirula-app/engine-sqlite`, `@spirula-app/engine-sql-runner` в `apps/desktop/src/**` и для `@spirula-app/engine` в `apps/desktop/electron/main/**`; сейчас границы держатся только ревью.
+Планируемое усиление линтера (не в этой задаче): правила `no-restricted-imports` для `electron` и для `@dolphy-app/engine`, `@dolphy-app/engine-sqlite`, `@dolphy-app/engine-sql-runner` в `apps/desktop/src/**` и для `@dolphy-app/engine` в `apps/desktop/electron/main/**`; сейчас границы держатся только ревью.
 
 ## 3. Стиль реализации (metarhia)
 
@@ -90,7 +90,7 @@ apps/desktop/src/engine/         connect.ts, use-*.ts
 Порты `packages/engine/src/ports/index.ts`. `MemoryModel` и `Rng` — как в `engine-ts.md` §6, здесь не повторяются; остальные сигнатуры в дизайне не были выписаны, введены здесь **[ВЫВОД]**.
 
 ```ts
-import type { EpochMs, SubmissionDto, VerdictDto } from '@spirula-app/engine-contract';
+import type { EpochMs, SubmissionDto, VerdictDto } from '@dolphy-app/engine-contract';
 import type { LogEntry } from '../domain/journal.ts';
 
 export interface Clock {
@@ -267,7 +267,7 @@ export const createFacade = (ctx, services) => {
 `packages/engine/src/app/errors.ts`. Таблица `ERRORS` содержит все 22 кода `EngineErrorCode` (API §2) с `retryable` по API §8.
 
 ```ts
-import type { EngineErrorCode, EngineErrorDto } from '@spirula-app/engine-contract';
+import type { EngineErrorCode, EngineErrorDto } from '@dolphy-app/engine-contract';
 
 const ERRORS: Record<EngineErrorCode, { message: string; retryable: boolean }> =
   {
@@ -666,7 +666,7 @@ export const createPracticeService = (ctx: EngineContext): PracticeService => {
 | `placement` | `createExpiringMap` для сессий, `journal` при `finish` с `source: 'placement'` | Нет | В очереди |
 | `remediation` | Проекция `RemediationTracker`; `getPlan` — чтение | `remediation-triggered` эмитит `practice` | В очереди |
 
-## 8. Транспорт (`@spirula-app/engine-rpc`)
+## 8. Транспорт (`@dolphy-app/engine-rpc`)
 
 `packages/engine-contract/src/rpc.ts` — только типы и константы. Таблица `RPC_METHODS` содержит по одной строке на каждый метод `LearningEngine` и вложенных сервисов из API §3–§7, кроме `subscribe` и `close`: по RPC их нет (`subscribe` заменён служебными сообщениями `RPC_CONTROL`, `close` из renderer не вызывается никогда). `idempotent: true` — методы, перечисленные идемпотентными в API §1 (`recordAttempt`, `completeAttempt`, `placement.finish`, `resetProgress`, `sync.import`, `sync.folder.sync`) и все чтения без побочных эффектов (`get*`, `list*`, `matchPrefix`, `readAsset`, `has`, `plan.getDay`, `remediation.getPlan`, `library.validate`, `diagnostics`); остальные — `false` (API §1: `getBatch`, `startSession`, `beginAttempt`, `placement.start`/`answer`, `sync.resolveConflict` и прочие команды).
 
@@ -1031,7 +1031,7 @@ export const createInProcessPair = (): [MessageEndpoint, MessageEndpoint] => {
 
 ```ts
 it('recordAttempt через RPC идемпотентен', async () => {
-  const engine = await createTestEngine(); // @spirula-app/testkit
+  const engine = await createTestEngine(); // @dolphy-app/testkit
   const dispatcher = createDispatcher({
     engine,
     schemas,
@@ -1108,7 +1108,7 @@ parentPort.on('message', async ({ data, ports }) => {
 });
 ```
 
-`spawnWorker` — внедряемая функция: `child_process.fork` внутри `utilityProcess` работает, если передать детям `ELECTRON_RUN_AS_NODE=1` (`process.execPath` там — бинарь `Electron Helper`, без флага он запустил бы приложение); раннер стартует как Node с полным профилем (`node:sqlite`, `setAuthorizer`, `db.limits`), пул убивается и переживает падение хоста без осиротевших процессов **[ИЗМЕРЕНО]** (2026-09-29, Electron 44.4.5 (Node 24.21.0, Chrome 152), macOS arm64, смоук `sql`, `apps/desktop/scripts/smoke.mjs`). Запасной вариант (main порождает раннеры и передаёт порты) не понадобился. `workerPath` — собранный `sql-worker.js` рядом с бандлом хоста (`electron/host/sql-worker.ts` импортирует `@spirula-app/engine-sql-runner/worker`); в упакованном приложении он читается из `app.asar`, `better-sqlite3` — из `app.asar.unpacked` **[ИЗМЕРЕНО]** (электрон запущен как Node на упакованном `.app`). В упакованном приложении фьюз `runAsNode` должен оставаться включённым (по умолчанию так) **[ВЫВОД]**. Ошибка `boot` (кроме ошибок библиотеки — они внутри движка как состояние `library-invalid`) приводит к падению процесса и перезапуску супервизором; при первом запуске `boot` создаёт `libraryRoot` и `dataDir` (без каталога `scandir` падал и хост уходил в цикл перезапусков до `onFatal`) **[ИЗМЕРЕНО]**; `STORE_CORRUPT` движок обрабатывает сам (режим чтения журнала).
+`spawnWorker` — внедряемая функция: `child_process.fork` внутри `utilityProcess` работает, если передать детям `ELECTRON_RUN_AS_NODE=1` (`process.execPath` там — бинарь `Electron Helper`, без флага он запустил бы приложение); раннер стартует как Node с полным профилем (`node:sqlite`, `setAuthorizer`, `db.limits`), пул убивается и переживает падение хоста без осиротевших процессов **[ИЗМЕРЕНО]** (2026-09-29, Electron 44.4.5 (Node 24.21.0, Chrome 152), macOS arm64, смоук `sql`, `apps/desktop/scripts/smoke.mjs`). Запасной вариант (main порождает раннеры и передаёт порты) не понадобился. `workerPath` — собранный `sql-worker.js` рядом с бандлом хоста (`electron/host/sql-worker.ts` импортирует `@dolphy-app/engine-sql-runner/worker`); в упакованном приложении он читается из `app.asar`, `better-sqlite3` — из `app.asar.unpacked` **[ИЗМЕРЕНО]** (электрон запущен как Node на упакованном `.app`). В упакованном приложении фьюз `runAsNode` должен оставаться включённым (по умолчанию так) **[ВЫВОД]**. Ошибка `boot` (кроме ошибок библиотеки — они внутри движка как состояние `library-invalid`) приводит к падению процесса и перезапуску супервизором; при первом запуске `boot` создаёт `libraryRoot` и `dataDir` (без каталога `scandir` падал и хост уходил в цикл перезапусков до `onFatal`) **[ИЗМЕРЕНО]**; `STORE_CORRUPT` движок обрабатывает сам (режим чтения журнала).
 
 ## 10. Main: шеллы и супервизор
 
@@ -1212,7 +1212,7 @@ export const createSupervisor = ({
   };
 
   const start = () => {
-    child = utilityProcess.fork(hostPath, [], { serviceName: 'spirula-engine' });
+    child = utilityProcess.fork(hostPath, [], { serviceName: 'dolphy-engine' });
     child.once('spawn', () => child.postMessage({ type: 'init', config }));
     child.on('message', (message) => {
       if (message.type !== 'ready') return;
@@ -1261,14 +1261,14 @@ export const createSupervisor = ({
 
 ## 11. Preload и renderer
 
-Мост `window.spirula` — узкий: ни `ipcRenderer`, ни произвольных каналов. Тип моста лежит в `apps/desktop/shared/bridge.ts`, реализация — в `electron/preload/index.ts`.
+Мост `window.dolphy` — узкий: ни `ipcRenderer`, ни произвольных каналов. Тип моста лежит в `apps/desktop/shared/bridge.ts`, реализация — в `electron/preload/index.ts`.
 
 ```ts
 // shared/bridge.ts
 export interface Platform {
   pickDirectory(options?: { title?: string }): Promise<string | null>;
 }
-export interface SpirulaBridge {
+export interface DolphyBridge {
   engine: { connect(): void };
   platform: Platform;
 }
@@ -1285,7 +1285,7 @@ ipcRenderer.on('engine:port', async (event) => {
   window.postMessage('engine:port', '*', event.ports); // порт → main world
 });
 
-const bridge: SpirulaBridge = {
+const bridge: DolphyBridge = {
   engine: { connect: () => ipcRenderer.send('engine:connect') },
   platform: {
     pickDirectory: (options) => {
@@ -1295,7 +1295,7 @@ const bridge: SpirulaBridge = {
     },
   },
 };
-contextBridge.exposeInMainWorld('spirula', bridge);
+contextBridge.exposeInMainWorld('dolphy', bridge);
 ```
 
 Renderer `apps/desktop/src/engine/`: `connect.ts` ждёт порт и рукопожатие, `main.ts` монтирует UI после него, `use-due.ts` — пример состояния UI, построенного из событий, а не из опроса (LogRocket).
@@ -1319,7 +1319,7 @@ export const connectEngine = () =>
         else console.error(error); // переподключение не удалось
       }
     });
-    window.spirula.engine.connect();
+    window.dolphy.engine.connect();
   });
 
 // main.ts
@@ -1341,7 +1341,7 @@ export const useDue = (engine: LearningEngine) => {
 };
 ```
 
-Мост не отдаёт `ipcRenderer` и произвольные каналы (Habr, LogRocket) — шаблонный мост `window.ipcRenderer` удаляется; в preload проверяются типы входных параметров. Порт до renderer доходит цепочкой main → preload → `window.postMessage` (документация Electron «MessagePorts», проверка `event.source === window`); `contextBridge` порт не передаёт. Тип `Window.spirula` объявляется в `src/vite-env.d.ts`. Перезагрузка окна = повторный `engine:connect`: старый порт закрывается, хост снимает подписку (`onClose`). Preload собирается в CJS (`dist-electron/preload/index.cjs`): при `sandbox: true` Electron не загружает ESM-preload (документация Electron) **[ВЫВОД]**. Путь порта main → preload → `window.postMessage` → `MessagePort` в renderer, обрыв порта при убийстве хоста (`onClose`), повторная выдача порта после перезапуска и повтор идемпотентного вызова проверены смоуком `crash` **[ИЗМЕРЕНО]** (2026-09-29, Electron 44.4.5 (Node 24.21.0, Chrome 152), macOS arm64).
+Мост не отдаёт `ipcRenderer` и произвольные каналы (Habr, LogRocket) — шаблонный мост `window.ipcRenderer` удаляется; в preload проверяются типы входных параметров. Порт до renderer доходит цепочкой main → preload → `window.postMessage` (документация Electron «MessagePorts», проверка `event.source === window`); `contextBridge` порт не передаёт. Тип `Window.dolphy` объявляется в `src/vite-env.d.ts`. Перезагрузка окна = повторный `engine:connect`: старый порт закрывается, хост снимает подписку (`onClose`). Preload собирается в CJS (`dist-electron/preload/index.cjs`): при `sandbox: true` Electron не загружает ESM-preload (документация Electron) **[ВЫВОД]**. Путь порта main → preload → `window.postMessage` → `MessagePort` в renderer, обрыв порта при убийстве хоста (`onClose`), повторная выдача порта после перезапуска и повтор идемпотентного вызова проверены смоуком `crash` **[ИЗМЕРЕНО]** (2026-09-29, Electron 44.4.5 (Node 24.21.0, Chrome 152), macOS arm64).
 
 ## 12. Безопасность
 
@@ -1372,17 +1372,17 @@ export const useDue = (engine: LearningEngine) => {
 
 Список отличий от шаблона выполнен (M-desktop, 2026-09-29, Electron 44.4.5 (Node 24.21.0, Chrome 152), macOS arm64); устройство и команды — `apps/desktop/README.md`.
 
-- Удалены мост `window.ipcRenderer`, `src/demos/ipc.ts` и обработчик `open-win`; мост — `window.spirula` (`shared/bridge.ts`).
+- Удалены мост `window.ipcRenderer`, `src/demos/ipc.ts` и обработчик `open-win`; мост — `window.dolphy` (`shared/bridge.ts`).
 - Окно: `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`, `will-navigate` → `preventDefault`, `setWindowOpenHandler` → `deny`; CSP «запретить всё» в `index.html` (в dev — с websocket для HMR).
 - Сборка: `vite-plugin-electron/multi-env` принимает массив входов `main`, `preload`, `host` (у `host` два входа: `index` и `sql-worker`) — один `vite build`, отдельный скрипт не нужен; хост бандлит workspace-пакеты и зависимости (`bundleDeps: { both: { include: true, exclude: ['better-sqlite3'] } }` и `rolldownOptions.external`), нативный модуль остаётся внешним **[ИЗМЕРЕНО]**.
-- `electron-builder.json`: `asarUnpack: ['**/node_modules/better-sqlite3/prebuilds/**']`, из архива исключены `deps` и `src` пакета, `npmRebuild: false` — N-API-prebuild под Electron пересборки не требует **[ИЗМЕРЕНО]**: `electron-builder` 26.15.3 собрал `.app` и `.dmg`, `better-sqlite3` открылся из `app.asar` (SQLite 3.53.4), раннер запустился из `app.asar`; `productName` `Spirula`, `appId` `com.spirula.desktop`.
-- `tsconfig`: `shared/` в обоих проектах; `Window.spirula` — в `vite-env.d.ts`; проекты `tsconfig.json` (renderer, preload, DOM) и `tsconfig.node.json` (main, host, тесты, без DOM: пакеты движка не проходят проверку типов вместе с DOM-`lib` под TS 6).
+- `electron-builder.json`: `asarUnpack: ['**/node_modules/better-sqlite3/prebuilds/**']`, из архива исключены `deps` и `src` пакета, `npmRebuild: false` — N-API-prebuild под Electron пересборки не требует **[ИЗМЕРЕНО]**: `electron-builder` 26.15.3 собрал `.app` и `.dmg`, `better-sqlite3` открылся из `app.asar` (SQLite 3.53.4), раннер запустился из `app.asar`; `productName` `Dolphy`, `appId` `com.dolphy.desktop`.
+- `tsconfig`: `shared/` в обоих проектах; `Window.dolphy` — в `vite-env.d.ts`; проекты `tsconfig.json` (renderer, preload, DOM) и `tsconfig.node.json` (main, host, тесты, без DOM: пакеты движка не проходят проверку типов вместе с DOM-`lib` под TS 6).
 
 ## 15. Что взято из статей
 
 | Идея | Источник | Применение |
 |---|---|---|
-| Общий модуль типов сообщений | LogRocket | `@spirula-app/engine-contract` и `RPC_METHODS` |
+| Общий модуль типов сообщений | LogRocket | `@dolphy-app/engine-contract` и `RPC_METHODS` |
 | Бэкенд в отдельном Node-процессе, не в main и не в скрытом renderer | LogRocket | `utilityProcess`-хост |
 | Async request/response для коротких операций, события для долгих и для состояния UI | LogRocket | RPC и `subscribe` |
 | UI не знает про Electron | LogRocket, dev.to | Renderer видит `LearningEngine` |
@@ -1410,5 +1410,5 @@ export const useDue = (engine: LearningEngine) => {
 - `protocol.handle` вместо `file:` на Electron 44 (страница грузится через `file:`, CSP `'self'` работает) **[НЕ ПОДТВЕРЖДЕНО]**.
 - Выбор папки библиотеки пользователем (сейчас `libraryRoot = userData/library`, `dataDir = userData/data`; `Platform.pickDirectory` и диалог в main готовы, UI и сохранение выбора — нет).
 - Политика выбора `GradePolicy`: решено (2026-09-30) — `passAtN` по умолчанию без настройки (`engine-ts-api.md` §13.3).
-- Упакованное приложение: сквозной смоук (`pnpm smoke:packaged`, 2026-09-30, macOS arm64, Electron 44.4.5) проходит три сценария (`basic`, `sql`, `crash`) в неподписанном `.app` (`electron-builder --dir`): хост и раннер грузятся из `app.asar`, `better-sqlite3` — из `app.asar.unpacked` **[ИЗМЕРЕНО]**. Код смоука попадает в сборку только при `SPIRULA_SMOKE_BUILD=1`; релизная сборка его не содержит (тест `apps/desktop/test/release-bundle.test.ts`). Подпись и нотаризация — вне задачи.
+- Упакованное приложение: сквозной смоук (`pnpm smoke:packaged`, 2026-09-30, macOS arm64, Electron 44.4.5) проходит три сценария (`basic`, `sql`, `crash`) в неподписанном `.app` (`electron-builder --dir`): хост и раннер грузятся из `app.asar`, `better-sqlite3` — из `app.asar.unpacked` **[ИЗМЕРЕНО]**. Код смоука попадает в сборку только при `DOLPHY_SMOKE_BUILD=1`; релизная сборка его не содержит (тест `apps/desktop/test/release-bundle.test.ts`). Подпись и нотаризация — вне задачи.
 - Windows и Linux-упаковка не проверялись. Под Windows раннер SQL работает без наблюдателя RSS (`ps` нет, `engine-sql-runner/src/rss.ts`): блокер релиза под Windows, нужна замена (например `process.memoryUsage` в дочернем процессе или Job Object).

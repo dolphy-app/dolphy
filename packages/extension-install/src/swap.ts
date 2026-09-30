@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { ExtensionLogger } from '@spirula-app/extension-api';
+import type { ExtensionLogger } from '@dolphy-app/extension-api';
 import type { InstallerFs } from './fs.ts';
 
 export interface SwapOptions {

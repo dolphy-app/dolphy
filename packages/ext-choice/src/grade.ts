@@ -1,5 +1,5 @@
-/** Чистая логика вида `spirula.choice`: без DOM и без зависимостей от хоста. */
-import type { GradeResult } from '@spirula-app/extension-api';
+/** Чистая логика вида `dolphy.choice`: без DOM и без зависимостей от хоста. */
+import type { GradeResult } from '@dolphy-app/extension-api';
 
 export interface ChoiceSpec {
   options: string[];

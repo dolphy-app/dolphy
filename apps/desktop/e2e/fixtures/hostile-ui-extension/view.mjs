@@ -1,7 +1,7 @@
 // «Враждебный» элемент ответа: пробует выбраться из окна и выводит по строке на пробу
 // (`<проба>: blocked|reachable`), а также высокий блок для проверки высоты рамки.
 const probes = [
-  ['parent.spirula', () => window.parent.spirula],
+  ['parent.dolphy', () => window.parent.dolphy],
   ['top.document', () => window.top.document],
   ['localStorage', () => window.localStorage.length],
   ['document.cookie', () => document.cookie],
@@ -25,7 +25,7 @@ class AcmeHostileUiAnswer extends HTMLElement {
     this.input.type = 'text';
     this.input.addEventListener('input', () => {
       this.dispatchEvent(
-        new CustomEvent('spirula-answer-change', {
+        new CustomEvent('dolphy-answer-change', {
           detail: {
             value: this.input.value,
             complete: this.input.value.length > 0,

@@ -1,4 +1,4 @@
 {
   "nodeEntries": { "worker.mjs": "src/worker.ts" },
-  "external": ["spirula-fixture-external"]
+  "external": ["dolphy-fixture-external"]
 }

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { E2E_BUILD_DIR, createWorkspace, launchApp } from './support/app.ts';
-import type { SpirulaApp, Workspace } from './support/app.ts';
+import type { DolphyApp, Workspace } from './support/app.ts';
 import { Client } from './support/client.ts';
 
 const APP_DIR = fileURLToPath(new URL('..', import.meta.url));
@@ -13,7 +13,7 @@ const ECHO_EXTENSION = fileURLToPath(
 );
 
 let workspace: Workspace | null = null;
-let app: SpirulaApp | null = null;
+let app: DolphyApp | null = null;
 let scratch: string | null = null;
 
 const start = async (options: Parameters<typeof createWorkspace>[0] = {}) => {
@@ -26,7 +26,7 @@ const start = async (options: Parameters<typeof createWorkspace>[0] = {}) => {
 
 /** Временный каталог вне рабочего пространства для собираемых в тесте расширений. */
 const makeScratch = async () => {
-  scratch = await mkdtemp(join(tmpdir(), 'spirula-e2e-ext-'));
+  scratch = await mkdtemp(join(tmpdir(), 'dolphy-e2e-ext-'));
   return scratch;
 };
 
@@ -40,9 +40,9 @@ afterEach(async () => {
 });
 
 describe('Настройки → Расширения', () => {
-  it('расширения из поставки: spirula.sql и spirula.choice с источником «Поставка»', async () => {
+  it('расширения из поставки: dolphy.sql и dolphy.choice с источником «Поставка»', async () => {
     const client = await start();
-    for (const id of ['spirula.sql', 'spirula.choice']) {
+    for (const id of ['dolphy.sql', 'dolphy.choice']) {
       const rows = await client.readExtensions(id);
       expect(rows).toHaveLength(1);
       expect(rows[0]).toContain('Поставка');
@@ -74,11 +74,11 @@ describe('Настройки → Расширения', () => {
     expect(failed).toContain('version');
   });
 
-  it('пользовательская копия spirula.choice 1.0.1 перекрывает расширение из поставки', async () => {
+  it('пользовательская копия dolphy.choice 1.0.1 перекрывает расширение из поставки', async () => {
     const root = await makeScratch();
-    const copy = join(root, 'spirula.choice');
+    const copy = join(root, 'dolphy.choice');
     await cp(
-      join(APP_DIR, E2E_BUILD_DIR, 'extensions', 'spirula.choice'),
+      join(APP_DIR, E2E_BUILD_DIR, 'extensions', 'dolphy.choice'),
       copy,
       {
         recursive: true,
@@ -90,9 +90,9 @@ describe('Настройки → Расширения', () => {
     };
     manifest.version = '1.0.1';
     await writeFile(manifestPath, JSON.stringify(manifest));
-    const client = await start({ extensions: { 'spirula.choice': copy } });
+    const client = await start({ extensions: { 'dolphy.choice': copy } });
 
-    const rows = await client.readExtensions('spirula.choice');
+    const rows = await client.readExtensions('dolphy.choice');
     expect(rows).toHaveLength(2);
     const user = rows.find((row) => row.includes('Пользовательское'));
     const bundled = rows.find((row) => row.includes('Поставка'));

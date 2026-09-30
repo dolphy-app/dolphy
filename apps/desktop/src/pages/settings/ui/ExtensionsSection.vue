@@ -16,7 +16,7 @@ const tab = ref<ExtensionsTab>('installed');
 // «Перезагрузить сейчас»: главный процесс перезапускает хосты и окно
 provide(
   INSTALL_KEY,
-  useInstall(useEngine(), { apply: () => window.spirula.extensions.apply() }),
+  useInstall(useEngine(), { apply: () => window.dolphy.extensions.apply() }),
 );
 </script>
 

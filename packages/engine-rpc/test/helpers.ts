@@ -1,11 +1,11 @@
-import { RPC_METHODS } from '@spirula-app/engine-contract';
+import { RPC_METHODS } from '@dolphy-app/engine-contract';
 import type {
   EngineEvent,
   LearningEngine,
   MessageEndpoint,
   RpcRequest,
   RpcResponse,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 
 export type Method = (...args: never[]) => Promise<unknown>;
 

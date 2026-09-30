@@ -9,7 +9,7 @@
  * (попытка → инвалидация → награды → инвалидация обновлённых), время — мс на
  * `FakeClock`, `set_override_timestamp` заменён `clock.set`.
  */
-import { createFakeClock } from '@spirula-app/testkit';
+import { createFakeClock } from '@dolphy-app/testkit';
 import { describe, expect, it } from 'vitest';
 import type { ExerciseType } from '../../src/domain/manifest.ts';
 import {

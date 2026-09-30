@@ -1,5 +1,5 @@
 {
-  "name": "@spirula-app/extension-install",
+  "name": "@dolphy-app/extension-install",
   "version": "0.0.0",
   "private": true,
   "description": "Установщик расширений из каталога: кэш индекса, скачивание с проверкой sha256, стейджинг и замена каталога с откатом (Node-адаптер порта ExtensionInstaller)",
@@ -12,10 +12,10 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@spirula-app/engine": "workspace:*",
-    "@spirula-app/engine-contract": "workspace:*",
-    "@spirula-app/extension-api": "workspace:*",
-    "@spirula-app/extension-catalog": "workspace:*"
+    "@dolphy-app/engine": "workspace:*",
+    "@dolphy-app/engine-contract": "workspace:*",
+    "@dolphy-app/extension-api": "workspace:*",
+    "@dolphy-app/extension-catalog": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.20.4",

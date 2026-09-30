@@ -2,12 +2,12 @@ import type {
   ExerciseTypes,
   ExtensionPolicy,
   GradePolicies,
-} from '@spirula-app/engine/ports';
+} from '@dolphy-app/engine/ports';
 import type {
   ExtensionLogger,
   ExtensionModule,
   LibraryReader,
-} from '@spirula-app/extension-api';
+} from '@dolphy-app/extension-api';
 import { createCatalog } from './catalog.ts';
 import { createHostChannel } from './channel.ts';
 import {

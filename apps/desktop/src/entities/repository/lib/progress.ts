@@ -1,7 +1,4 @@
-import type {
-  EngineEvent,
-  RepositoryPhase,
-} from '@spirula-app/engine-contract';
+import type { EngineEvent, RepositoryPhase } from '@dolphy-app/engine-contract';
 
 export const REPOSITORY_PHASES: readonly RepositoryPhase[] = [
   'resolve',

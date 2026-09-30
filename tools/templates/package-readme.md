@@ -2,7 +2,7 @@
 
 {{description}}
 
-Версия пакетов равна версии приложения Spirula, из релиза которого они опубликованы ({{version}}).
+Версия пакетов равна версии приложения Dolphy, из релиза которого они опубликованы ({{version}}).
 
 {{usage}}
 
@@ -11,7 +11,7 @@
 Пакеты публикуются в GitHub Packages, а не в npmjs: даже публичный пакет ставится
 только с персональным токеном (classic) с правом `read:packages`.
 
-В `.npmrc` проекта (создаётся `create-spirula-extension`):
+В `.npmrc` проекта (создаётся `create-dolphy-extension`):
 
 ```ini
 {{scope}}:registry={{registry}}
@@ -31,4 +31,4 @@ npm install {{name}}
 
 ## Документация
 
-[Расширения Spirula]({{docsUrl}}).
+[Расширения Dolphy]({{docsUrl}}).

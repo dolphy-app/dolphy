@@ -1,4 +1,4 @@
-import type { EpochMs, Grade, UnitId } from '@spirula-app/engine-contract';
+import type { EpochMs, Grade, UnitId } from '@dolphy-app/engine-contract';
 import type { ScoringEdge, ScoringGraph } from './graph.ts';
 import type { UnitReward } from './types.ts';
 

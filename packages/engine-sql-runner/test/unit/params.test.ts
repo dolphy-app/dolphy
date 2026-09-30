@@ -1,4 +1,4 @@
-/** Разбор `spec` вида spirula.sql и кэш файлов библиотеки. */
+/** Разбор `spec` вида dolphy.sql и кэш файлов библиотеки. */
 import { describe, expect, it } from 'vitest';
 import {
   createTextCache,

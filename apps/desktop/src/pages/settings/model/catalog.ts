@@ -4,7 +4,7 @@ import type {
   CatalogDto,
   CatalogEntryDto,
   LearningEngine,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 import { toEngineError } from '@/entities/repository';
 import { filterEntries, hasActiveFilters } from '../lib/catalog.ts';
 import type { ContributionPoint } from '../lib/catalog.ts';

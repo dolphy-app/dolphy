@@ -1,5 +1,5 @@
 {
-  "name": "@spirula-app/extension-api",
+  "name": "@dolphy-app/extension-api",
   "version": "0.0.0",
   "private": true,
   "description": "Публичный API расширений: манифест, обработчики видов заданий, контракт элемента ответа",

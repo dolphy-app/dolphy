@@ -1,5 +1,5 @@
-import type { MessageEndpoint } from '@spirula-app/engine-contract';
-import type { ExtensionLogger } from '@spirula-app/extension-api';
+import type { MessageEndpoint } from '@dolphy-app/engine-contract';
+import type { ExtensionLogger } from '@dolphy-app/extension-api';
 import type { ExtRequest, ExtResponse } from './protocol.ts';
 
 export interface HostChannelOptions {

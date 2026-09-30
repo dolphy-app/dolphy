@@ -2,7 +2,7 @@ import type {
   EpochMs,
   MissingSeqs,
   StateVector,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 import { EngineError } from '../app/errors.ts';
 import type { LogEntry } from '../domain/journal.ts';
 import type {

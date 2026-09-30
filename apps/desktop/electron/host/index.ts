@@ -2,13 +2,10 @@ import {
   createDispatcher,
   fromNodePort,
   schemas,
-} from '@spirula-app/engine-rpc/host';
-import type { Dispatcher } from '@spirula-app/engine-rpc/host';
-import type { HostChannel } from '@spirula-app/extension-host';
-import type {
-  EngineConfig,
-  LearningEngine,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-rpc/host';
+import type { Dispatcher } from '@dolphy-app/engine-rpc/host';
+import type { HostChannel } from '@dolphy-app/extension-host';
+import type { EngineConfig, LearningEngine } from '@dolphy-app/engine-contract';
 import { boot } from './boot.ts';
 
 /** Сообщения main → хост (`process.parentPort`). */

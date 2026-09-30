@@ -21,7 +21,7 @@ import type {
   UnitKind,
   UnitCommon,
   WeightedRef,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 import type { ExerciseTypes } from '../ports/exercise-types.ts';
 import type { ExtensionPolicy } from '../ports/extension-policy.ts';
 import type { UnitType } from '../domain/graph.ts';

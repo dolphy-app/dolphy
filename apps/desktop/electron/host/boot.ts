@@ -1,13 +1,13 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { createEngine } from '@spirula-app/engine/app';
-import { nodeDefaults } from '@spirula-app/engine/node';
-import type { EngineConfig } from '@spirula-app/engine-contract';
-import { createIsomorphicGitFetcher } from '@spirula-app/engine-git';
+import { createEngine } from '@dolphy-app/engine/app';
+import { nodeDefaults } from '@dolphy-app/engine/node';
+import type { EngineConfig } from '@dolphy-app/engine-contract';
+import { createIsomorphicGitFetcher } from '@dolphy-app/engine-git';
 import {
   openSqliteStorage,
   readTraneDirectory,
-} from '@spirula-app/engine-sqlite';
+} from '@dolphy-app/engine-sqlite';
 import {
   createCatalog,
   createExtensionPolicy,
@@ -16,7 +16,7 @@ import {
   createRemoteExerciseTypes,
   createRemoteGradePolicies,
   discoverExtensions,
-} from '@spirula-app/extension-host';
+} from '@dolphy-app/extension-host';
 import { extensionRoots } from '../extension-roots.ts';
 import { createDesktopInstaller } from './installer.ts';
 
@@ -82,7 +82,7 @@ export const boot = async (
     policy,
     logger: defaults.logger,
   });
-  if (__SPIRULA_SMOKE_BUILD__ && process.env.SPIRULA_SMOKE === '1') {
+  if (__DOLPHY_SMOKE_BUILD__ && process.env.DOLPHY_SMOKE === '1') {
     defaults.logger.info(
       { types: exerciseTypes.list().map(({ type }) => type) },
       'exercise types discovered',

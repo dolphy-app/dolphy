@@ -15,7 +15,7 @@ import type {
   SavedFilterDto,
   UnitId,
   VerdictDto,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 import type { LibraryHolder } from '../authoring/library-holder.ts';
 import type { AttemptEntry, LogEntry } from '../domain/journal.ts';
 import type { Library } from '../domain/library.ts';
@@ -64,7 +64,7 @@ export type { LibraryHolder } from '../authoring/library-holder.ts';
 
 /**
  * Порт общей папки синхронизации. Реализация — `nodeFolderSyncPort(config)`
- * (`@spirula-app/engine/node`): `dataDir/settings/sync.json` и `createFolderSync`.
+ * (`@dolphy-app/engine/node`): `dataDir/settings/sync.json` и `createFolderSync`.
  * Ядро `app/` от `node:fs` не зависит.
  */
 export interface FolderSyncPort {
@@ -87,25 +87,25 @@ export interface EngineDeps {
   eventStore: EventStore;
   settings: SettingsStore;
   memoryModel: MemoryModel;
-  /** Виды заданий из расширений (`@spirula-app/extension-host`). */
+  /** Виды заданий из расширений (`@dolphy-app/extension-host`). */
   exerciseTypes: ExerciseTypes;
-  /** Правила оценки из расширений (`@spirula-app/extension-host`). */
+  /** Правила оценки из расширений (`@dolphy-app/extension-host`). */
   gradePolicies: GradePolicies;
   /** Обзор расширений для `extensions.list`. */
   extensionRegistry: ExtensionRegistry;
   /** Политика расширений (включено / изолировано); тот же экземпляр, что у реестра и клиентов хоста. */
   extensionPolicy: ExtensionPolicy;
-  /** Установка расширений из каталога (`@spirula-app/extension-install`). */
+  /** Установка расширений из каталога (`@dolphy-app/extension-install`). */
   extensionInstaller: ExtensionInstaller;
   /** Нет порта — `sync.folder.*` отвечает `SYNC_FOLDER_NOT_CONFIGURED`. */
   folderSync?: FolderSyncPort;
-  /** Чтение каталога `.trane` (`readTraneDirectory` из `@spirula-app/engine-sqlite`); нет — `importFromTrane` отказывает. */
+  /** Чтение каталога `.trane` (`readTraneDirectory` из `@dolphy-app/engine-sqlite`); нет — `importFromTrane` отказывает. */
   openTraneSource?: (traneDir: string) => TraneSource | Promise<TraneSource>;
   /** Реестр git-репозиториев (`repositories.*`); SQLite или память. */
   repositoryStore: RepositoryStore;
-  /** Получение снимков по `http(s)`; `createIsomorphicGitFetcher` из `@spirula-app/engine-git`. */
+  /** Получение снимков по `http(s)`; `createIsomorphicGitFetcher` из `@dolphy-app/engine-git`. */
   snapshotFetcher: GitSnapshotFetcher;
-  /** Подмена каталогов снимков; `createNodeSnapshotInstaller` из `@spirula-app/engine/node`. */
+  /** Подмена каталогов снимков; `createNodeSnapshotInstaller` из `@dolphy-app/engine/node`. */
   snapshotInstaller: SnapshotInstaller;
 }
 

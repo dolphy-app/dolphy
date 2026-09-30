@@ -1,7 +1,7 @@
 import {
   EXTENSION_ID_PATTERN,
   type ExtensionSettingsDto,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 
 export const MAX_EXTENSION_ID_LENGTH = 64;
 

@@ -4,12 +4,12 @@ import {
   EXTENSION_PERMISSIONS,
   EXTENSION_PLATFORMS,
   GITHUB_LOGIN_PATTERN,
-} from '@spirula-app/extension-api';
+} from '@dolphy-app/extension-api';
 import type {
   ExtensionManifest,
   ExtensionManifestInput,
-} from '@spirula-app/extension-api';
-import { isSemver } from '@spirula-app/extension-catalog';
+} from '@dolphy-app/extension-api';
+import { isSemver } from '@dolphy-app/extension-catalog';
 import { z } from 'zod';
 import { CONTRIBUTION_POINTS } from './points/index.ts';
 import { extensionId, safePath } from './points/support.ts';

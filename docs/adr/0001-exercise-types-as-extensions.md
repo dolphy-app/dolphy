@@ -12,7 +12,7 @@ spec: specs/archive/2026-09-30-extension-host/SPEC.md
 
 ## Решение
 
-Мы делаем каждый вид задания расширением: каталогом с `extension.json`, кодом проверки (`main.mjs`), элементом ввода ответа (`view.mjs`) и JSON Schema для `spec` и ответа. Ядро знает конверт «вид + spec + ответ → вердикт» (порт `ExerciseTypes`), причины вердикта — открытые строки, данные расширения — `data`. Код расширений исполняется в отдельном `utilityProcess`; движок вызывает `project`/`grade`/`referenceAnswer` по RPC с дедлайном и обработкой падений. Виды по умолчанию (`spirula.sql`, `spirula.choice`) — такие же каталоги, поставляемые вне кода приложения; пользовательские лежат в `<userData>/extensions` и побеждают по `id`. Манифест — отдельный `extension.json`, а не `package.json`. Контракт `@spirula-app/engine-contract` поднят до версии 2.
+Мы делаем каждый вид задания расширением: каталогом с `extension.json`, кодом проверки (`main.mjs`), элементом ввода ответа (`view.mjs`) и JSON Schema для `spec` и ответа. Ядро знает конверт «вид + spec + ответ → вердикт» (порт `ExerciseTypes`), причины вердикта — открытые строки, данные расширения — `data`. Код расширений исполняется в отдельном `utilityProcess`; движок вызывает `project`/`grade`/`referenceAnswer` по RPC с дедлайном и обработкой падений. Виды по умолчанию (`dolphy.sql`, `dolphy.choice`) — такие же каталоги, поставляемые вне кода приложения; пользовательские лежат в `<userData>/extensions` и побеждают по `id`. Манифест — отдельный `extension.json`, а не `package.json`. Контракт `@dolphy-app/engine-contract` поднят до версии 2.
 
 ## Рассмотренные варианты
 
@@ -35,4 +35,4 @@ spec: specs/archive/2026-09-30-extension-host/SPEC.md
 
 ## Проверка
 
-`packages/extension-host` (тесты процесса, дедлайна, перекрытия), `apps/desktop/test/release-bundle.test.ts` (расширения по умолчанию собираются и находятся), `pnpm smoke`, `pnpm -F @spirula/desktop e2e` (пользовательское расширение и переопределение по `id`).
+`packages/extension-host` (тесты процесса, дедлайна, перекрытия), `apps/desktop/test/release-bundle.test.ts` (расширения по умолчанию собираются и находятся), `pnpm smoke`, `pnpm -F @dolphy/desktop e2e` (пользовательское расширение и переопределение по `id`).

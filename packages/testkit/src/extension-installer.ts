@@ -2,8 +2,8 @@ import type {
   CatalogDto,
   ExtensionUpdateDto,
   InstallResultDto,
-} from '@spirula-app/engine-contract';
-import type { ExtensionInstaller } from '@spirula-app/engine/ports';
+} from '@dolphy-app/engine-contract';
+import type { ExtensionInstaller } from '@dolphy-app/engine/ports';
 
 /** Поведение метода фейка: свой обработчик (может бросать, в том числе `ExtensionInstallError`). */
 export interface FakeExtensionInstallerHandlers {

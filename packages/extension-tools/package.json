@@ -1,28 +1,28 @@
 {
-  "name": "@spirula-app/extension-tools",
+  "name": "@dolphy-app/extension-tools",
   "version": "0.0.0",
   "private": true,
-  "description": "Инструменты автора расширений: spirula-ext build и spirula-ext validate",
+  "description": "Инструменты автора расширений: dolphy-ext build и dolphy-ext validate",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
   },
   "bin": {
-    "spirula-ext": "./src/cli/main.ts"
+    "dolphy-ext": "./src/cli/main.ts"
   },
   "scripts": {
     "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
     "test": "vitest run",
-    "spirula-ext": "node --disable-warning=ExperimentalWarning src/cli/main.ts"
+    "dolphy-ext": "node --disable-warning=ExperimentalWarning src/cli/main.ts"
   },
   "dependencies": {
-    "@spirula-app/extension-api": "workspace:*",
-    "@spirula-app/extension-catalog": "workspace:*",
-    "@spirula-app/extension-host": "workspace:*",
+    "@dolphy-app/extension-api": "workspace:*",
+    "@dolphy-app/extension-catalog": "workspace:*",
+    "@dolphy-app/extension-host": "workspace:*",
     "vite": "^8.0.16"
   },
   "devDependencies": {
-    "@spirula-app/extension-install": "workspace:*",
+    "@dolphy-app/extension-install": "workspace:*",
     "@types/node": "^22.20.4",
     "typescript": "7.0.2"
   },

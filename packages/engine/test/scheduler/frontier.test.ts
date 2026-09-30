@@ -4,7 +4,7 @@
  * берутся из фактического значения скорера, чтобы тест не зависел от чисел
  * `PowerLawScorer`. T-16 — гейт FSRS закрывается после перерыва.
  */
-import type { Grade, UnitId } from '@spirula-app/engine-contract';
+import type { Grade, UnitId } from '@dolphy-app/engine-contract';
 import { describe, expect, it } from 'vitest';
 import { type World, createWorld } from './helpers/world.ts';
 import type { WorldCourseSpec } from './helpers/world.ts';

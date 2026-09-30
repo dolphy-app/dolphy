@@ -10,7 +10,7 @@ import {
   buildAttempt,
   createFakeClock,
   createTestIds,
-} from '@spirula-app/testkit';
+} from '@dolphy-app/testkit';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { FIVE_MIN_MS, createJournalWriter } from '../../src/app/index.ts';

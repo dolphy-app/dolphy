@@ -3,13 +3,13 @@ import {
   MAX_VERSIONS,
   compareSemver,
   parseIndex,
-} from '@spirula-app/extension-catalog';
+} from '@dolphy-app/extension-catalog';
 import type {
   CatalogEntry,
   CatalogFile,
   CatalogIndex,
   CatalogVersion,
-} from '@spirula-app/extension-catalog';
+} from '@dolphy-app/extension-catalog';
 import { BuildError } from '../errors.ts';
 import { compareText } from './tree.ts';
 

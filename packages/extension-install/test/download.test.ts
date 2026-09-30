@@ -2,7 +2,7 @@ import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { CatalogVersion } from '@spirula-app/extension-catalog';
+import type { CatalogVersion } from '@dolphy-app/extension-catalog';
 import { downloadVersion } from '../src/download.ts';
 import { nodeFs } from '../src/index.ts';
 import { createHttpClient } from '../src/http.ts';
@@ -19,14 +19,14 @@ let calls: ReturnType<typeof createFakeFetch>['calls'];
 let httpClient: ReturnType<typeof createHttpClient>;
 
 beforeEach(async () => {
-  dir = await mkdtemp(path.join(tmpdir(), 'spirula-download-'));
+  dir = await mkdtemp(path.join(tmpdir(), 'dolphy-download-'));
   routes = new Map();
   const fake = createFakeFetch(routes);
   calls = fake.calls;
   httpClient = createHttpClient({
     fetch: fake.fetch,
     origin: new URL(CATALOG_URL).origin,
-    userAgent: 'spirula/test',
+    userAgent: 'dolphy/test',
     timeoutMs: 1000,
   });
 });

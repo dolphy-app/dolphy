@@ -3,11 +3,11 @@
  * Эталонное решение упражнения проходит собственную проверку тем же видом
  * задания, что в рантайме, иначе `E_REFERENCE_FAILS`; без флага код не
  * выдаётся. Здесь — CLI на подставном каталоге видов; настоящий SQL-раннер
- * запускается в `@spirula-app/ext-sql` (test/cli-run-checks.test.ts, T-38).
+ * запускается в `@dolphy-app/ext-sql` (test/cli-run-checks.test.ts, T-38).
  */
 import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import { createFakeExerciseTypes } from '@spirula-app/testkit';
+import { createFakeExerciseTypes } from '@dolphy-app/testkit';
 import { describe, expect, it } from 'vitest';
 import { runCli } from '../../src/cli/run.ts';
 import type { CliDeps } from '../../src/cli/run.ts';
@@ -56,7 +56,7 @@ const stubDeps = (
       createExerciseTypes: async () => {
         state.created++;
         const exerciseTypes = createFakeExerciseTypes({
-          types: { 'spirula.sql': { reference: 'select 1', specErrors } },
+          types: { 'dolphy.sql': { reference: 'select 1', specErrors } },
         });
         exerciseTypes.grade = async () => decide();
         return {

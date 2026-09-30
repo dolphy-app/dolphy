@@ -1,18 +1,18 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { DEFAULT_MAIN } from '@spirula-app/extension-api';
+import { DEFAULT_MAIN } from '@dolphy-app/extension-api';
 import type {
   ExtensionLogger,
   ExtensionManifest,
   ExtensionPermission,
   ExtensionPlatform,
-} from '@spirula-app/extension-api';
+} from '@dolphy-app/extension-api';
 import {
   INSTALL_META_FILE,
   checkCompatibility,
   parseInstallMeta,
-} from '@spirula-app/extension-catalog';
-import type { InstallMeta } from '@spirula-app/extension-catalog';
+} from '@dolphy-app/extension-catalog';
+import type { InstallMeta } from '@dolphy-app/extension-catalog';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import { parseManifest } from './manifest.ts';
 import { CONTRIBUTION_POINTS } from './points/index.ts';
@@ -41,7 +41,7 @@ export interface ResolvedExtension extends ResolvedContributions {
   /** Пусто — любая платформа. */
   platforms: readonly ExtensionPlatform[];
   minAppVersion: string | null;
-  /** Метаданные установки из каталога (`.spirula-install.json`); `null` — нет или не читаются; читаются только у origin `user`. */
+  /** Метаданные установки из каталога (`.dolphy-install.json`); `null` — нет или не читаются; читаются только у origin `user`. */
   install: InstallMeta | null;
 }
 

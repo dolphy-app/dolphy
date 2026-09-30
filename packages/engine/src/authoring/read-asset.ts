@@ -3,7 +3,7 @@
  * Курс недоверенный: ссылка должна быть путём ассета своего юнита, файл — внутри
  * корня (в том числе после симлинков), размер — не больше 2 МБ.
  */
-import type { AssetContent, AssetRef } from '@spirula-app/engine-contract';
+import type { AssetContent, AssetRef } from '@dolphy-app/engine-contract';
 import { EngineError } from '../app/errors.ts';
 import { assetPathsOf, resolveAssetPath } from '../domain/asset-path.ts';
 import type { Library } from '../domain/library.ts';

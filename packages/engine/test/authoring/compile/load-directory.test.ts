@@ -1,4 +1,4 @@
-import { buildLibrary, createMemoryCourseSource } from '@spirula-app/testkit';
+import { buildLibrary, createMemoryCourseSource } from '@dolphy-app/testkit';
 import { describe, expect, it } from 'vitest';
 import { loadDirectory } from '../../../src/authoring/load-directory.ts';
 

@@ -1,9 +1,9 @@
-import type { ExtensionModule } from '@spirula-app/extension-api';
+import type { ExtensionModule } from '@dolphy-app/extension-api';
 import { helper } from './helper.ts';
 
 const extension: ExtensionModule = {
   activate: async (context) => {
-    const external = await import('spirula-fixture-external');
+    const external = await import('dolphy-fixture-external');
     context.logger.info({}, helper(external));
   },
 };

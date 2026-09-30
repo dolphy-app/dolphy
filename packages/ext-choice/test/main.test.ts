@@ -1,10 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import type { JsonSchema } from '@spirula-app/extension-sdk';
+import type { JsonSchema } from '@dolphy-app/extension-sdk';
 import {
   createSchemaValidator,
   loadExerciseType,
-} from '@spirula-app/extension-sdk/testing';
+} from '@dolphy-app/extension-sdk/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import module from '../src/main.ts';
 
@@ -24,12 +24,12 @@ afterEach(async () => {
 });
 
 const load = async () => {
-  const type = await loadExerciseType(module, 'spirula.choice');
+  const type = await loadExerciseType(module, 'dolphy.choice');
   disposables.push(type);
   return type;
 };
 
-describe('spirula.choice: модуль расширения', () => {
+describe('dolphy.choice: модуль расширения', () => {
   it('project не раскрывает correct', async () => {
     const type = await load();
     const view = await type.project({ ...spec, multiple: true });
@@ -62,7 +62,7 @@ describe('spirula.choice: модуль расширения', () => {
   });
 });
 
-describe('spirula.choice: схемы', () => {
+describe('dolphy.choice: схемы', () => {
   it.each([
     ['одиночный', { options: ['a', 'b'], correct: [0] }],
     [

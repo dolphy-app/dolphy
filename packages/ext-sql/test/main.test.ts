@@ -1,11 +1,11 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import type { JsonSchema } from '@spirula-app/extension-sdk';
+import type { JsonSchema } from '@dolphy-app/extension-sdk';
 import {
   createMemoryLibrary,
   createSchemaValidator,
   loadExerciseType,
-} from '@spirula-app/extension-sdk/testing';
+} from '@dolphy-app/extension-sdk/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import module from '../src/main.ts';
 
@@ -23,7 +23,7 @@ afterEach(async () => {
 });
 
 const load = async (files: Record<string, string> = {}) => {
-  const type = await loadExerciseType(module, 'spirula.sql', {
+  const type = await loadExerciseType(module, 'dolphy.sql', {
     library: createMemoryLibrary(files),
   });
   disposables.push(type);
@@ -32,7 +32,7 @@ const load = async (files: Record<string, string> = {}) => {
 
 const spec = { fixture: 'fixtures/emp.sql', expected: 'checks/q1.csv' };
 
-describe('spirula.sql: модуль расширения', () => {
+describe('dolphy.sql: модуль расширения', () => {
   it('project не требует данных', async () => {
     const type = await load();
     expect(await type.project(spec)).toEqual({});
@@ -70,7 +70,7 @@ describe('spirula.sql: модуль расширения', () => {
   });
 });
 
-describe('spirula.sql: схемы', () => {
+describe('dolphy.sql: схемы', () => {
   it.each([
     ['минимальный', spec],
     [

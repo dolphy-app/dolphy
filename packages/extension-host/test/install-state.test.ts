@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { INSTALL_META_FILE } from '@spirula-app/extension-catalog';
+import { INSTALL_META_FILE } from '@dolphy-app/extension-catalog';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { discoverExtensions } from '../src/discover.ts';
 import type { ExtensionRoot } from '../src/discover.ts';
@@ -11,7 +11,7 @@ import { createLogger } from './helpers.ts';
 
 let tmp: string;
 beforeEach(async () => {
-  tmp = await mkdtemp(path.join(tmpdir(), 'spirula-install-state-'));
+  tmp = await mkdtemp(path.join(tmpdir(), 'dolphy-install-state-'));
 });
 afterEach(() => rm(tmp, { recursive: true, force: true }));
 
@@ -60,7 +60,7 @@ const discover = async (roots: ExtensionRoot[]) => {
   return { ...result, logger };
 };
 
-describe('discoverExtensions: .spirula-install.json', () => {
+describe('discoverExtensions: .dolphy-install.json', () => {
   it('reads the sidecar of user extensions only', async () => {
     const user = path.join(tmp, 'user');
     const dev = path.join(tmp, 'dev');
@@ -102,7 +102,7 @@ describe('registry and policy: metadata and revocation', () => {
     const bundled = path.join(tmp, 'bundled');
     await writeExtension(user, 'acme.u', JSON.stringify(META));
     await writeExtension(user, 'acme.manual');
-    await writeExtension(bundled, 'spirula.b');
+    await writeExtension(bundled, 'dolphy.b');
     const discovery = await discover([
       { dir: bundled, origin: 'bundled' },
       { dir: user, origin: 'user' },
@@ -129,7 +129,7 @@ describe('registry and policy: metadata and revocation', () => {
       installed: null,
       removable: true,
     });
-    expect(info('spirula.b')).toMatchObject({ removable: false });
+    expect(info('dolphy.b')).toMatchObject({ removable: false });
   });
 
   it('a revoked installed extension is disabled, not toggleable, and hidden from contributions', async () => {
@@ -145,7 +145,7 @@ describe('registry and policy: metadata and revocation', () => {
     policy.update({ disabled: [], trusted: [], checkUpdates: true });
     expect(policy.isEnabled('acme.u')).toBe(false);
     expect(registry.contributions().themes.map(({ id }) => id)).toEqual([
-      'spirula.b.night',
+      'dolphy.b.night',
       'acme.manual.night',
     ]);
   });
@@ -161,11 +161,11 @@ describe('registry and policy: metadata and revocation', () => {
   it('does not touch extensions copied by hand or shipped with the app', async () => {
     const { info, policy } = await setup({
       'acme.manual': 'bad',
-      'spirula.b': 'bad',
+      'dolphy.b': 'bad',
     });
     expect(policy.isEnabled('acme.manual')).toBe(true);
-    expect(policy.isEnabled('spirula.b')).toBe(true);
+    expect(policy.isEnabled('dolphy.b')).toBe(true);
     expect(info('acme.manual')?.revoked).toBeNull();
-    expect(info('spirula.b')?.revoked).toBeNull();
+    expect(info('dolphy.b')?.revoked).toBeNull();
   });
 });

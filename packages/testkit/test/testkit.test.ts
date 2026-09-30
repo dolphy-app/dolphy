@@ -1,5 +1,5 @@
-import type { ExtensionInfoDto } from '@spirula-app/engine-contract';
-import { ExtensionInstallError } from '@spirula-app/engine/ports';
+import type { ExtensionInfoDto } from '@dolphy-app/engine-contract';
+import { ExtensionInstallError } from '@dolphy-app/engine/ports';
 import { describe, expect, it } from 'vitest';
 import {
   buildAttempt,
@@ -323,28 +323,28 @@ describe('createFakeExtensionRegistry', () => {
 
 describe('createFakeExtensionPolicy', () => {
   it('isolates everything except bundled and trusted; disabled only by settings', () => {
-    const policy = createFakeExtensionPolicy({ bundled: ['spirula.sql'] });
+    const policy = createFakeExtensionPolicy({ bundled: ['dolphy.sql'] });
     expect(policy.isIsolated('acme.x')).toBe(true);
-    expect(policy.isIsolated('spirula.sql')).toBe(false);
+    expect(policy.isIsolated('dolphy.sql')).toBe(false);
     expect(policy.isEnabled('acme.x')).toBe(true);
     policy.update({
-      disabled: ['acme.x', 'spirula.sql'],
+      disabled: ['acme.x', 'dolphy.sql'],
       trusted: ['acme.x'],
       checkUpdates: true,
     });
     expect(policy.isEnabled('acme.x')).toBe(false);
-    expect(policy.isEnabled('spirula.sql')).toBe(true);
+    expect(policy.isEnabled('dolphy.sql')).toBe(true);
     expect(policy.isIsolated('acme.x')).toBe(false);
     expect(policy.updates).toHaveLength(1);
   });
 
   it('revoked extensions are disabled regardless of settings, except bundled', () => {
     const policy = createFakeExtensionPolicy({
-      bundled: ['spirula.sql'],
-      revoked: { 'acme.x': 'bad', 'spirula.sql': 'bad' },
+      bundled: ['dolphy.sql'],
+      revoked: { 'acme.x': 'bad', 'dolphy.sql': 'bad' },
     });
     expect(policy.isEnabled('acme.x')).toBe(false);
-    expect(policy.isEnabled('spirula.sql')).toBe(true);
+    expect(policy.isEnabled('dolphy.sql')).toBe(true);
     policy.setRevoked('acme.x', null);
     expect(policy.isEnabled('acme.x')).toBe(true);
     policy.setRevoked('acme.x', 'again');

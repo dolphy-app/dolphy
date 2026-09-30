@@ -73,7 +73,7 @@ const ENGINE_FRONT = [
   '---',
   'engine:',
   '  exercise:',
-  '    type: spirula.sql',
+  '    type: dolphy.sql',
   '    timeoutMs: 2000',
   '  tags: [sing, numbers]',
   '  bloom: apply',
@@ -155,7 +155,7 @@ export const prepareEngineFrontmatterLibrary = async (
     engine: { requiresChecks: true, tags: ['sql'] },
   });
   const exercise = (n: number) => ({
-    type: 'spirula.sql',
+    type: 'dolphy.sql',
     timeoutMs: 2000,
     spec: {
       fixture: 'fixtures/emp.sql',
@@ -191,7 +191,7 @@ export const prepareEngineFrontmatterLibrary = async (
       });
       const front =
         e === 1
-          ? `---\nengine:\n  exercise:\n    type: spirula.sql\n    timeoutMs: 2000\n---\nSELECT ${l}.\n`
+          ? `---\nengine:\n  exercise:\n    type: dolphy.sql\n    timeoutMs: 2000\n---\nSELECT ${l}.\n`
           : `SELECT ${l}.\n`;
       await writeFile(join(dir, 'front.md'), front);
       await writeFile(join(dir, 'back.md'), 'Answer.\n');

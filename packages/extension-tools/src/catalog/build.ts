@@ -10,20 +10,20 @@ import {
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { parseManifest } from '@spirula-app/extension-host';
-import type { ExtensionManifest } from '@spirula-app/extension-api';
+import { parseManifest } from '@dolphy-app/extension-host';
+import type { ExtensionManifest } from '@dolphy-app/extension-api';
 import {
   CATALOG_FILE_EXTENSIONS,
   MAX_FILES,
   MAX_TOTAL_BYTES,
   isSafeCatalogPath,
-} from '@spirula-app/extension-catalog';
+} from '@dolphy-app/extension-catalog';
 import type {
   CatalogEntry,
   CatalogFile,
   CatalogIndex,
   CatalogVersion,
-} from '@spirula-app/extension-catalog';
+} from '@dolphy-app/extension-catalog';
 import { buildExtension } from '../index.ts';
 import { BuildError, CatalogUsageError } from '../errors.ts';
 import { loadIndexFile } from './check.ts';
@@ -38,7 +38,7 @@ import {
 import { hashTree, readTree } from './tree.ts';
 
 export const DEFAULT_SOURCE_BASE =
-  'https://github.com/spirula-app/spirula-extensions/tree/main/extensions';
+  'https://github.com/dolphy-app/dolphy-extensions/tree/main/extensions';
 
 export interface BuildCatalogOptions {
   /** Каталог с проектами `<src>/<id>`. */
@@ -308,7 +308,7 @@ export const buildCatalog = async (
     path.resolve(options.previousIndex ?? path.join(out, INDEX_FILE)),
   );
   const revoked = await loadRevoked(options.revoked, previous);
-  const scratch = await mkdtemp(path.join(tmpdir(), 'spirula-catalog-'));
+  const scratch = await mkdtemp(path.join(tmpdir(), 'dolphy-catalog-'));
   try {
     const plans: Plan[] = [];
     const entries = new Map<string, CatalogEntry>(

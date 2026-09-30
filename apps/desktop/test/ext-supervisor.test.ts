@@ -94,7 +94,7 @@ describe('ext supervisor', () => {
     const { supervisor, hosts, fork, init, events } = setup();
     supervisor.start();
     expect(fork).toHaveBeenCalledWith('/host/ext-host.js', [], {
-      serviceName: 'spirula-ext-host',
+      serviceName: 'dolphy-ext-host',
     });
     const [host] = hosts;
     host?.emit('spawn');

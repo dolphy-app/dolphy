@@ -1,11 +1,11 @@
 import type {
   ContributionsDto,
   ExtensionInfoDto,
-} from '@spirula-app/engine-contract';
+} from '@dolphy-app/engine-contract';
 import {
   createFakeExtensionPolicy,
   createFakeExtensionRegistry,
-} from '@spirula-app/testkit';
+} from '@dolphy-app/testkit';
 import { createMemorySettingsStore } from '../../../src/node/memory-settings-store.ts';
 import { describe, expect, it } from 'vitest';
 import { createTestEngine } from '../../helpers/engine.ts';
@@ -18,11 +18,11 @@ const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
 };
 
 const info = (overrides: Partial<ExtensionInfoDto>): ExtensionInfoDto => ({
-  id: 'spirula.sql',
+  id: 'dolphy.sql',
   version: '1.0.0',
   origin: 'bundled',
   state: 'loaded',
-  contributes: { ...NO_CONTRIBUTES, exerciseTypes: ['spirula.sql'] },
+  contributes: { ...NO_CONTRIBUTES, exerciseTypes: ['dolphy.sql'] },
   message: null,
   permissions: [],
   isolation: 'trusted',
@@ -86,7 +86,7 @@ describe('extensions.contributions', () => {
   const renderer = (language: string) => ({
     language,
     extensionId: 'a.ext',
-    rendererUrl: `spirula-ext://a.ext/${language}.mjs`,
+    rendererUrl: `dolphy-ext://a.ext/${language}.mjs`,
     isolated: true,
   });
   const policy = (id: string) => ({
@@ -144,7 +144,7 @@ describe('extensions settings', () => {
     isolation: 'isolated',
     toggleable: true,
   });
-  const BUNDLED = info({ id: 'spirula.sql' });
+  const BUNDLED = info({ id: 'dolphy.sql' });
   const OVERRIDDEN_BUNDLED = info({
     id: 'acme.user',
     origin: 'bundled',
@@ -241,8 +241,8 @@ describe('extensions settings', () => {
   it('rejects a bundled extension with reason bundled', async () => {
     const { engine, events } = await openSettings();
     for (const call of [
-      () => engine.extensions.setEnabled('spirula.sql', false),
-      () => engine.extensions.setTrusted('spirula.sql', true),
+      () => engine.extensions.setEnabled('dolphy.sql', false),
+      () => engine.extensions.setTrusted('dolphy.sql', true),
     ]) {
       await expect(call()).rejects.toMatchObject({
         code: 'INVALID_ARGUMENT',

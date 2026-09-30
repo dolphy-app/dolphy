@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { E2E_BUILD_DIR, createWorkspace, launchApp } from './support/app.ts';
-import type { SpirulaApp, Workspace } from './support/app.ts';
+import type { DolphyApp, Workspace } from './support/app.ts';
 import { Client } from './support/client.ts';
 import {
   readJournal,
@@ -64,7 +64,7 @@ const GIT_EXERCISES = ['commits', 'branches', 'history'].flatMap((lesson) =>
 );
 
 let workspace: Workspace;
-let app: SpirulaApp | null = null;
+let app: DolphyApp | null = null;
 let client: Client;
 
 const start = async () => {
@@ -291,7 +291,7 @@ describe('SQL-курс: проверка ответа раннером', () => {
   });
 });
 
-describe('виды заданий: spirula.choice', () => {
+describe('виды заданий: dolphy.choice', () => {
   it('неверный ответ не записывается, верные — записываются с source=runner', async () => {
     await start();
     await client.openCourses();
@@ -333,10 +333,10 @@ describe('виды заданий: spirula.choice', () => {
     });
   });
 
-  it('пользовательская копия spirula.choice побеждает расширение из поставки', async () => {
-    const target = join(workspace.userData, 'extensions', 'spirula.choice');
+  it('пользовательская копия dolphy.choice побеждает расширение из поставки', async () => {
+    const target = join(workspace.userData, 'extensions', 'dolphy.choice');
     await cp(
-      join(APP_DIR, E2E_BUILD_DIR, 'extensions', 'spirula.choice'),
+      join(APP_DIR, E2E_BUILD_DIR, 'extensions', 'dolphy.choice'),
       target,
       {
         recursive: true,
@@ -353,7 +353,7 @@ describe('виды заданий: spirula.choice', () => {
       join(target, 'main.mjs'),
       `export default {
         activate(ctx) {
-          ctx.registerExerciseType('spirula.choice', {
+          ctx.registerExerciseType('dolphy.choice', {
             project: ({ spec }) => ({ multiple: spec.multiple === true, options: spec.options }),
             grade: () => ({ outcome: 'passed' }),
           });
@@ -382,7 +382,7 @@ describe('пользовательское расширение acme.echo', () =
     });
   });
 
-  it('элемент ввода грузится с диска через spirula-ext://, ответ проверяется расширением', async () => {
+  it('элемент ввода грузится с диска через dolphy-ext://, ответ проверяется расширением', async () => {
     await start();
     await client.openCourses();
     await client.focusCourse(ECHO);

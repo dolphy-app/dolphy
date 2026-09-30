@@ -1,5 +1,5 @@
-import type { DayPlanDto } from '@spirula-app/engine-contract';
-import { buildLibrary } from '@spirula-app/testkit';
+import type { DayPlanDto } from '@dolphy-app/engine-contract';
+import { buildLibrary } from '@dolphy-app/testkit';
 import { describe, expect, test } from 'vitest';
 import { EngineError } from '../../src/app/index.ts';
 import { createTestEngine } from '../helpers/engine.ts';

@@ -4,7 +4,7 @@ import type {
   ExtensionContext,
   ExtensionModule,
   GradePolicyHandler,
-} from '@spirula-app/extension-api';
+} from '@dolphy-app/extension-api';
 
 export interface ExtensionDefinition {
   exerciseTypes?: Readonly<Record<string, ExerciseTypeHandler>>;

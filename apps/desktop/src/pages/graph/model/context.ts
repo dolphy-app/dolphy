@@ -1,6 +1,6 @@
 import { inject } from 'vue';
 import type { InjectionKey, Ref } from 'vue';
-import type { UnitId } from '@spirula-app/engine-contract';
+import type { UnitId } from '@dolphy-app/engine-contract';
 import type { Direction } from '../lib/flow.ts';
 import type { GraphView } from '../lib/view.ts';
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { GraphEdgeDto } from '@spirula-app/engine-contract';
+import type { GraphEdgeDto } from '@dolphy-app/engine-contract';
 import { neighborInDirection } from '@/pages/graph/lib/flow.ts';
 import {
   FRAME_HEADER,

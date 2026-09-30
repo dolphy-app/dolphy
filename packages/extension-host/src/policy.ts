@@ -1,5 +1,5 @@
-import type { ExtensionSettingsDto } from '@spirula-app/engine-contract';
-import type { ExtensionPolicy } from '@spirula-app/engine/ports';
+import type { ExtensionSettingsDto } from '@dolphy-app/engine-contract';
+import type { ExtensionPolicy } from '@dolphy-app/engine/ports';
 import type { DiscoveryResult } from './discover.ts';
 import { revocationReason } from './revocation.ts';
 import type { RevocationLookup } from './revocation.ts';

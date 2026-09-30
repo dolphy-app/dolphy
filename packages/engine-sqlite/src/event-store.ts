@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { EngineError } from '@spirula-app/engine/app';
+import { EngineError } from '@dolphy-app/engine/app';
 import type {
   ConflictReason,
   ConflictRow,
@@ -7,7 +7,7 @@ import type {
   EventStore,
   SegmentRecord,
   StoreTx,
-} from '@spirula-app/engine/ports';
+} from '@dolphy-app/engine/ports';
 import {
   DEVICE_ID_PATTERN,
   appendInTx,
@@ -15,11 +15,11 @@ import {
   createVectorTracker,
   parseEntry,
   unitOf,
-} from '@spirula-app/engine/sync';
-import type { LogEntry } from '@spirula-app/engine';
+} from '@dolphy-app/engine/sync';
+import type { LogEntry } from '@dolphy-app/engine';
 import { guard, mapSqliteError } from './errors.ts';
 import { SCHEMA_VERSION, migrate, readSchemaVersion } from './migrations.ts';
-import type { RepositoryStore } from '@spirula-app/engine/ports';
+import type { RepositoryStore } from '@dolphy-app/engine/ports';
 import { createSqliteRepositoryStore } from './repository-store.ts';
 import { createSqliteSettingsStore } from './settings-store.ts';
 import type { SqliteSettingsStore } from './settings-store.ts';

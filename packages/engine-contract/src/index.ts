@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 1 as const;
+export const CONTRACT_VERSION = 2 as const;
 /** Кап длины SQL ученика в символах (`String.length`); хост применяет его до IPC раннера (§9). Длиннее — `failed/sqlite_limit` без запуска раннера. */
 export const MAX_SQL_CHARS = 100_000 as const;
 
@@ -38,6 +38,9 @@ export type EngineErrorCode =
   | 'STORE_BUSY'
   | 'STORE_READONLY'
   | 'STORE_CORRUPT'
+  | 'REPOSITORY_EXISTS'
+  | 'REPOSITORY_REJECTED'
+  | 'GIT_FETCH_FAILED'
   | 'INTERNAL';
 
 export interface EngineErrorDto {
@@ -922,6 +925,14 @@ export type EngineEvent =
         | 'blacklist'
         | 'reviewList'
         | 'ui';
+    }
+  | {
+      type: 'repository-progress';
+      id: string;
+      phase: RepositoryPhase;
+      /** Байты или объекты — по фазе; `total` неизвестен, пока сервер его не сообщил. */
+      loaded?: number;
+      total?: number;
     };
 
 /** Конфигурация хоста при открытии движка (`createEngine`); через RPC не передаётся и renderer её не меняет. */
@@ -950,8 +961,67 @@ export interface EngineDiagnosticsDto {
   dirty: boolean;
 }
 
+/** Причина `GIT_FETCH_FAILED` (`details.reason`). */
+export type GitFetchFailureReason =
+  | 'not-found'
+  | 'auth-required'
+  | 'ref-not-found'
+  | 'timeout'
+  | 'network'
+  | 'too-large'
+  /** Операция прервана `repositories.cancel`. */
+  | 'cancelled';
+
+/** Этап `repositories.add` / `repositories.update` (событие `repository-progress`). */
+export type RepositoryPhase =
+  'resolve' | 'fetch' | 'export' | 'validate' | 'reload';
+
+/** `updating` — идёт операция; `error` — последняя операция отклонена или снимок пропал (`lastError`). */
+export type RepositoryStatus = 'ready' | 'updating' | 'error';
+
+/** Git-репозиторий с курсами: снимок коммита лежит в `<libraryRoot>/repositories/<id>`. */
+export interface RepositoryDto {
+  /** Стабильный slug нормализованного URL. */
+  id: string;
+  /** Нормализованный URL (`http(s)`, без учётных данных). */
+  url: string;
+  /** Ветка или тег; `null` — ветка по умолчанию удалённого репозитория. */
+  ref: string | null;
+  /** Полный SHA-1 загруженного коммита. */
+  commit: string;
+  fetchedAt: EpochMs;
+  status: RepositoryStatus;
+  /** Курсы, пришедшие из этого репозитория. */
+  courseIds: UnitId[];
+  lastError?: EngineErrorDto;
+}
+
+export interface AddRepositoryRequest {
+  url: string;
+  ref?: string;
+}
+
+export interface UpdateRepositoryResult {
+  /** `false` — коммит на сервере совпал с загруженным, ничего не скачивалось. */
+  changed: boolean;
+  repository: RepositoryDto;
+}
+
+export interface RepositoriesService {
+  list(): Promise<RepositoryDto[]>;
+  /** `INVALID_ARGUMENT`, `REPOSITORY_EXISTS`, `GIT_FETCH_FAILED`, `REPOSITORY_REJECTED`. */
+  add(req: AddRepositoryRequest): Promise<RepositoryDto>;
+  /** `NOT_FOUND`, `GIT_FETCH_FAILED`, `REPOSITORY_REJECTED`. */
+  update(id: string): Promise<UpdateRepositoryResult>;
+  /** Снимок и запись удаляются, журнал не меняется. `NOT_FOUND`. */
+  remove(id: string): Promise<void>;
+  /** `true`, если операция над репозиторием шла и прервана. */
+  cancel(id: string): Promise<boolean>;
+}
+
 export interface LearningEngine {
   readonly library: LibraryService;
+  readonly repositories: RepositoriesService;
   readonly practice: PracticeService;
   readonly curation: CurationService;
   readonly settings: SettingsService;

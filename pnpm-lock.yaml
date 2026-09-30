@@ -253,16 +253,22 @@ importers:
       '@lms/extension-api':
         specifier: workspace:*
         version: link:../extension-api
+      '@lms/extension-sdk':
+        specifier: workspace:*
+        version: link:../extension-sdk
     devDependencies:
+      '@lms/extension-tools':
+        specifier: workspace:*
+        version: link:../extension-tools
       '@types/node':
         specifier: ^22.20.4
         version: 22.20.4
+      happy-dom:
+        specifier: ^20.14.5
+        version: 20.14.5
       typescript:
         specifier: 7.0.2
         version: 7.0.2
-      vite:
-        specifier: ^8.0.16
-        version: 8.3.1(@types/node@22.20.4)(jiti@2.7.0)(yaml@2.9.1)
 
   packages/ext-sql:
     dependencies:
@@ -272,6 +278,9 @@ importers:
       '@lms/extension-api':
         specifier: workspace:*
         version: link:../extension-api
+      '@lms/extension-sdk':
+        specifier: workspace:*
+        version: link:../extension-sdk
     devDependencies:
       '@lms/engine':
         specifier: workspace:*
@@ -282,18 +291,21 @@ importers:
       '@lms/extension-host':
         specifier: workspace:*
         version: link:../extension-host
+      '@lms/extension-tools':
+        specifier: workspace:*
+        version: link:../extension-tools
       '@lms/testkit':
         specifier: workspace:*
         version: link:../testkit
       '@types/node':
         specifier: ^22.20.4
         version: 22.20.4
+      happy-dom:
+        specifier: ^20.14.5
+        version: 20.14.5
       typescript:
         specifier: 7.0.2
         version: 7.0.2
-      vite:
-        specifier: ^8.0.16
-        version: 8.3.1(@types/node@22.20.4)(jiti@2.7.0)(yaml@2.9.1)
 
   packages/extension-api:
     devDependencies:
@@ -344,6 +356,25 @@ importers:
       happy-dom:
         specifier: ^20.14.5
         version: 20.14.5
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  packages/extension-tools:
+    dependencies:
+      '@lms/extension-api':
+        specifier: workspace:*
+        version: link:../extension-api
+      '@lms/extension-host':
+        specifier: workspace:*
+        version: link:../extension-host
+      vite:
+        specifier: ^8.0.16
+        version: 8.3.1(@types/node@22.20.4)(jiti@2.7.0)(yaml@2.9.1)
+    devDependencies:
+      '@types/node':
+        specifier: ^22.20.4
+        version: 22.20.4
       typescript:
         specifier: 7.0.2
         version: 7.0.2

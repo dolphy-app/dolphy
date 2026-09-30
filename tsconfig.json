@@ -69,6 +69,12 @@
     },
     {
       "path": "packages/extension-sdk/tsconfig.test.json"
+    },
+    {
+      "path": "packages/extension-tools"
+    },
+    {
+      "path": "packages/extension-tools/tsconfig.test.json"
     }
   ]
 }

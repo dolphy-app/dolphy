@@ -1,0 +1,4 @@
+{
+  "nodeEntries": { "worker.mjs": "src/worker.ts" },
+  "external": ["lms-fixture-external"]
+}

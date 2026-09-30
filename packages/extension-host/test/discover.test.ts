@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { discoverExtensions } from '../src/discover.ts';
+import { discoverExtensions, inspectExtensionDir } from '../src/discover.ts';
 import { fileURLToPath } from 'node:url';
 import { createLogger } from './helpers.ts';
 
@@ -79,7 +79,7 @@ describe('discoverExtensions', () => {
     await makeExtension(bundled, 'lms.choice', { version: '1.0.0' });
     await makeExtension(user, 'lms.choice', { version: '1.0.1' });
     const logger = createLogger();
-    const { extensions, diagnostics } = await discoverExtensions({
+    const { extensions, diagnostics, overridden } = await discoverExtensions({
       roots: [
         { dir: bundled, origin: 'bundled' },
         { dir: user, origin: 'user' },
@@ -87,6 +87,14 @@ describe('discoverExtensions', () => {
       logger,
     });
     expect(diagnostics).toEqual([]);
+    expect(overridden).toEqual([
+      {
+        id: 'lms.choice',
+        version: '1.0.0',
+        origin: 'bundled',
+        by: { origin: 'user', version: '1.0.1' },
+      },
+    ]);
     expect(extensions).toHaveLength(1);
     expect(extensions[0]).toMatchObject({
       id: 'lms.choice',
@@ -149,6 +157,10 @@ describe('discoverExtensions', () => {
       logger: createLogger(),
     });
     expect(extensions.map((e) => e.id)).toEqual(['acme.ok']);
+    expect(diagnostics[0]).toMatchObject({
+      extensionId: 'acme.dir',
+      origin: 'bundled',
+    });
     expect(diagnostics[0]!.message).toContain('does not match');
   });
 
@@ -186,7 +198,11 @@ describe('discoverExtensions', () => {
       roots: [{ dir: path.join(tmp, 'nope'), origin: 'user' }],
       logger: createLogger(),
     });
-    expect(result).toEqual({ extensions: [], diagnostics: [] });
+    expect(result).toEqual({
+      extensions: [],
+      diagnostics: [],
+      overridden: [],
+    });
   });
 
   it('подкаталог без extension.json пропускается молча', async () => {
@@ -278,5 +294,58 @@ describe('discoverExtensions', () => {
     expect(diagnostics[0]!.message).toBe(
       "main './main.mjs' (default) is not a file",
     );
+  });
+});
+
+describe('inspectExtensionDir', () => {
+  it('разбирает корректный каталог без проверки имени', async () => {
+    const root = await rootDir('r');
+    await makeExtension(root, 'acme.ok');
+    const result = await inspectExtensionDir(path.join(root, 'acme.ok'), {
+      expectedId: null,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.extension.id).toBe('acme.ok');
+    expect(result.extension.mainPath).toBe(
+      path.join(root, 'acme.ok', 'main.mjs'),
+    );
+    expect(result.extension.exerciseTypes[0]!.rendererUrl).toBe(
+      'lms-ext://acme.ok/view.mjs',
+    );
+  });
+
+  it('невалидный манифест — сообщение парсера', async () => {
+    const root = await rootDir('r');
+    await makeExtension(root, 'acme.bad');
+    await writeFile(path.join(root, 'acme.bad', 'extension.json'), '{}');
+    const result = await inspectExtensionDir(path.join(root, 'acme.bad'));
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.message).toContain('id');
+  });
+
+  it('нет main.mjs по умолчанию — сообщение называет файл', async () => {
+    const root = await rootDir('r');
+    await makeExtension(root, 'acme.nomain', { withMain: false });
+    const dir = path.join(root, 'acme.nomain');
+    const strict = await inspectExtensionDir(dir);
+    expect(strict).toEqual({
+      ok: false,
+      id: 'acme.nomain',
+      message: "main './main.mjs' (default) is not a file",
+    });
+    expect((await inspectExtensionDir(dir, { verifyFiles: false })).ok).toBe(
+      true,
+    );
+  });
+
+  it('expectedId отличается от id манифеста — отказ', async () => {
+    const root = await rootDir('r');
+    await makeExtension(root, 'acme.ok');
+    const result = await inspectExtensionDir(path.join(root, 'acme.ok'), {
+      expectedId: 'other',
+    });
+    expect(result.ok).toBe(false);
   });
 });

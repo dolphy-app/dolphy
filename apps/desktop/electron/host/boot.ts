@@ -6,6 +6,7 @@ import type { EngineConfig } from '@lms/engine-contract';
 import { openSqliteStorage, readTraneDirectory } from '@lms/engine-sqlite';
 import {
   createCatalog,
+  createExtensionRegistry,
   createRemoteExerciseTypes,
   discoverExtensions,
 } from '@lms/extension-host';
@@ -36,12 +37,12 @@ export const boot = async (
     defaults.logger.warn({ error }, 'legacy settings were not imported');
   }
   // расширения: манифесты читаем здесь (без запуска кода), код исполняется в хосте расширений
-  const { extensions } = await discoverExtensions({
+  const discovery = await discoverExtensions({
     roots: extensionRoots(config),
     logger: defaults.logger,
   });
   const exerciseTypes = createRemoteExerciseTypes({
-    catalog: createCatalog(extensions),
+    catalog: createCatalog(discovery.extensions),
     logger: defaults.logger,
     restart: restartExtHost,
   });
@@ -57,6 +58,7 @@ export const boot = async (
       settings,
       eventStore,
       exerciseTypes,
+      extensionRegistry: createExtensionRegistry(discovery),
       openTraneSource: readTraneDirectory,
     },
     config,

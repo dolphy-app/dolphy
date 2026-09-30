@@ -5,6 +5,7 @@ import { collectDiagnostics } from './diagnostics.ts';
 import { createFacade } from './facade.ts';
 import type { EngineServices } from './facade.ts';
 import { createCurationService } from './services/curation.ts';
+import { createExtensionsService } from './services/extensions.ts';
 import { createLibraryService } from './services/library.ts';
 import { createPlacementService } from './services/placement.ts';
 import { createPlanService } from './services/plan.ts';
@@ -24,6 +25,7 @@ export const createEngineFromContext = (ctx: EngineContext): LearningEngine => {
     plan: createPlanService(ctx),
     placement: createPlacementService(ctx),
     remediation: createRemediationService(ctx),
+    extensions: createExtensionsService(ctx),
   };
   return createFacade(ctx, services, async () => collectDiagnostics(ctx));
 };

@@ -251,3 +251,4 @@ export interface SettingsStore {
 }
 
 export * from './exercise-types.ts';
+export * from './extension-registry.ts';

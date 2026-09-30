@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 2 as const;
+export const CONTRACT_VERSION = 3 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 
@@ -952,6 +952,26 @@ export interface EngineDiagnosticsDto {
   dirty: boolean;
 }
 
+export type ExtensionOriginDto = 'bundled' | 'user' | 'dev';
+export type ExtensionStateDto = 'loaded' | 'overridden' | 'invalid';
+
+export interface ExtensionInfoDto {
+  /** Id манифеста; у некорректного расширения — имя каталога. */
+  id: string;
+  /** `null`, если манифест не удалось прочитать. */
+  version: string | null;
+  origin: ExtensionOriginDto;
+  state: ExtensionStateDto;
+  /** Id видов заданий; `[]`, если расширение не `loaded`/`overridden`. */
+  exerciseTypes: string[];
+  /** Почему некорректно / кем перекрыто; `null` у загруженного. */
+  message: string | null;
+}
+
+export interface ExtensionsService {
+  list(): Promise<ExtensionInfoDto[]>;
+}
+
 export interface LearningEngine {
   readonly library: LibraryService;
   readonly practice: PracticeService;
@@ -961,6 +981,7 @@ export interface LearningEngine {
   readonly plan: PlanService;
   readonly placement: PlacementService;
   readonly remediation: RemediationService;
+  readonly extensions: ExtensionsService;
   diagnostics(): Promise<EngineDiagnosticsDto>;
   /** In-process. По RPC — сообщения `events.subscribe` / `events.unsubscribe` и push `EngineEvent`. */
   subscribe(listener: (event: EngineEvent) => void): () => void;

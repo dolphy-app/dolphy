@@ -61,6 +61,7 @@ export type {
 export { createSyncService } from './services/sync.ts';
 export { createLibraryService } from './services/library.ts';
 export { createCurationService } from './services/curation.ts';
+export { createExtensionsService } from './services/extensions.ts';
 export { createSettingsService } from './services/settings.ts';
 export { createContext } from './create-context.ts';
 export { createEngine, createEngineFromContext } from './create-engine.ts';

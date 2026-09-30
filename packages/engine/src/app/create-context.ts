@@ -270,6 +270,7 @@ export const createContext = async (
     settings,
     memoryModel,
     exerciseTypes: deps.exerciseTypes,
+    extensionRegistry: deps.extensionRegistry,
     folderSync: deps.folderSync ?? null,
     openTraneSource: deps.openTraneSource,
     library,

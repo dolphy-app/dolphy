@@ -326,7 +326,11 @@ export interface RecordResultDto {
 
 export interface FrontierRequest extends PageRequest { courseId?: UnitId }
 export interface FrontierItemDto { lessonId: UnitId; courseId: UnitId; exerciseCount: number }
-export interface DueRequest extends PageRequest { minNeed?: number }
+export interface DueRequest extends PageRequest {
+  minNeed?: number;
+  /** Область курсов (§4.1): пусто или нет поля — все курсы; неизвестный курс — `NOT_FOUND`. */
+  courseIds?: UnitId[];
+}
 export interface DueItemDto {
   exerciseId: UnitId;
   lessonId: UnitId;
@@ -370,8 +374,10 @@ export interface PracticeService {
 export interface PlanRequest {
   /** 1..200 (граница — самый большой замеренный размер плана, §10). */
   maxItems: number;
-  /** uint32; при равных (состояние, seed) план одинаков. Без `seed` хост берёт его из `Rng` и возвращает в `DayPlanDto.seed`. */
+  /** uint32; при равных (состояние, seed, область) план одинаков. Без `seed` хост берёт его из `Rng` и возвращает в `DayPlanDto.seed`. */
   seed?: number;
+  /** Область курсов (см. ниже): пусто или нет поля — все курсы; неизвестный курс — `NOT_FOUND`. */
+  courseIds?: UnitId[];
 }
 export interface PlanCoverDto { exerciseId: UnitId; credit: number }
 export interface PlanItemDto {
@@ -394,6 +400,14 @@ export interface PlanService {
 ```
 
 `getDay` (M6) — чистая функция состояния и `seed`: не меняет счётчик показов и `SessionState` (в отличие от `getBatch`). Состав: просроченные (`R ≤ plan.targetRetention`) по возрастанию R; резерв `ceil(plan.minNewFraction × maxItems)` позиций под новое — `getDay` берёт новое **только** из `getFrontier` и из начатых уроков с упражнениями без попыток (сначала недоделанные упражнения начатых уроков, затем уроки фронтира по кругу между курсами); `remediation` — перед новым материалом (§4.3), входит в `maxItems` и вытесняет самые низкоприоритетные новые [ВЫВОД]; затем интерливинг. При `implicitCredit.enabled` просроченные выбираются жадным покрытием (`covers`), иначе `covers` нет. `≤ maxItems` позиций; повторов `exerciseId` нет. План на 40 позиций из due-набора 500–5 000 — 1.6–2.7 мс без кредита [ИЗМЕРЕНО, `report-fire-plan.md`]. Что UI зовёт по умолчанию, `getDay` или `getBatch` — §13.
+
+**Область курсов (`courseIds`).** Курсы можно учить параллельно, не смешивая: клиент передаёт выбранный курс в `plan.getDay` и `practice.getDue`, и в результате остаются только упражнения этого курса.
+- Вне области то же, что в blacklist, но без записи в журнал: ни просроченных, ни нового, ни `remediation` — планировщик проверяет один предикат `isExcluded` для всех трёх источников. Порядок и интерливинг считаются внутри области (для одного курса `plan.maxSameCourseRun` не действует).
+- Область — параметр запроса, а не состояние: переключение курса ничего не пишет в журнал, не синхронизируется и не влияет на другие устройства. План остаётся чистой функцией (состояние, `seed`, область).
+- Зависимости не зависят от области: граф `getFrontier` и оценки считаются по всей библиотеке, урок, закрытый зависимостью, остаётся закрытым. Область только отфильтровывает результат.
+- Просроченное и незавершённая `remediation` остальных курсов ждут: не забываются и не исчезают, а вернутся в план, когда курс снова окажется в области. Клиент может показать их счётчик из `getProgress` (`dueExercises` по курсам).
+- Пусто (`[]`) или нет поля — все курсы вперемешку, вывод не отличается от вызова без области (тест). Как `placement.start`, а не «пустая область — пустой план».
+- Какой курс сейчас в фокусе, хранит клиент: `UiSettingsDto.activeCourseId` (§5). `getBatch` область не принимает: у него свой `CourseFilter` (§4).
 
 ### 4.2 Диагностический вход-тест
 
@@ -559,12 +573,31 @@ export interface SettingsService {
   getPreferences(): Promise<PreferencesDto>;
   setPreferences(prefs: PreferencesDto): Promise<{ restartRequired: boolean }>;
   getScorer(): Promise<ScorerInfoDto>;
+  getUi(): Promise<UiSettingsDto>;
+  /** Валидирует и сохраняет; возвращает итоговые настройки. */
+  setUi(patch: UiSettingsPatch): Promise<UiSettingsDto>;
 }
+
+export type ThemeMode = 'system' | 'light' | 'dark';
+/** `system` — язык системы; клиент сам выбирает из поддерживаемых. */
+export type LocaleMode = 'system' | 'ru' | 'en';
+/** Настройки интерфейса; хранятся вместе с остальными настройками в БД движка. */
+export interface UiSettingsDto {
+  theme: ThemeMode;
+  locale: LocaleMode;
+  /** Курс в фокусе: клиент передаёт его в `courseIds` плана и повторений (§4.1). Нет поля — все курсы. Движок не проверяет, что курс есть в библиотеке: курс могли убрать, клиент сверяет сам. */
+  activeCourseId?: UnitId;
+}
+/** `activeCourseId: null` снимает фокус. */
+export type UiSettingsPatch = Partial<Omit<UiSettingsDto, 'activeCourseId'>> & {
+  activeCourseId?: UnitId | null;
+};
 ```
 
 Семантика:
 - Изменения blacklist и review list — записи журнала (LWW), сбрасывают кэши оценок затронутых юнитов до ответа (порядок «запись → инвалидация», а не наоборот, как в Rust).
 - `setScheduler` в Trane не вызывал `verify()` и не доходил до `UnitScorer`, `CandidateFilter`, `ReviewKnocker`, `RelearnPile` (у них клоны опций); в порте один holder, поведение покрыто тестом. Поля `numDeltas` в DTO нет: в Rust оно не читается.
+- `setUi` меняет только переданные поля (`activeCourseId` — `null` снимает); пустой `activeCourseId` — `INVALID_ARGUMENT`; запись сопровождается событием `settings-changed` (`scope: 'ui'`). Настройки интерфейса не синхронизируются между устройствами.
 - `ignoredPaths` применяется при следующем `library.reload()`; `setPreferences` возвращает `restartRequired`, если изменились пути данных.
 - Настройки фильтров и сессий пишутся атомарно (tmp + rename) в `settings/`; читаются только `*.json`.
 - `implicitCredit.*` меняет `MemoryIndex`: `setScheduler` пересобирает проекцию (событие `state-rebuilt`); rebuild 500k событий — 0.4 с без кредита, 1.1 с при разреженных явных `encompassed`, 17.6 с при «зависимость = охват @1.0» [ИЗМЕРЕНО в спайке], поэтому кредит идёт только по явно объявленным `encompassed`. Валидация (`verify`) как при открытии: диапазоны выше, `failThreshold`, `maxItems`, `maxSameCourseRun` — целые ≥ 1, `minTagDistance` — целое ≥ 0, `targetRetention` и `minNewFraction` в (0, 1) и [0, 1] [диапазоны — ВЫВОД].

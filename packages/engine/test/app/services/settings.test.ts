@@ -354,6 +354,35 @@ describe('settings ui', () => {
     });
   });
 
+  it('the active course is kept until it is cleared with null', async () => {
+    const { engine, settings } = await open();
+    expect(await engine.settings.setUi({ activeCourseId: 'k' })).toEqual({
+      theme: 'system',
+      locale: 'system',
+      activeCourseId: 'k',
+    });
+    // другие поля не трогают фокус
+    expect(await engine.settings.setUi({ theme: 'dark' })).toMatchObject({
+      activeCourseId: 'k',
+    });
+    expect(await settings.loadUi()).toMatchObject({ activeCourseId: 'k' });
+    expect(await engine.settings.setUi({ activeCourseId: null })).toEqual({
+      theme: 'dark',
+      locale: 'system',
+    });
+  });
+
+  it('rejects an empty active course id and saves nothing', async () => {
+    const { engine, settings } = await open();
+    await expect(
+      engine.settings.setUi({ activeCourseId: '' }),
+    ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+    expect(await settings.loadUi()).toEqual({
+      theme: 'system',
+      locale: 'system',
+    });
+  });
+
   it('rejects an unknown theme or language and saves nothing', async () => {
     const { engine, settings, events } = await open();
     await expect(

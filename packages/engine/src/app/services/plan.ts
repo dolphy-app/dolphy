@@ -19,6 +19,7 @@ import {
   drawSeed,
   isUint32,
 } from '../../planning/seeded-random.ts';
+import { resolveCourseScope } from '../course-scope.ts';
 import type { EngineContext } from '../context.ts';
 import { EngineError } from '../errors.ts';
 
@@ -66,6 +67,7 @@ export const createPlanService = (ctx: EngineContext): PlanService => {
   const getDay = async ({
     maxItems,
     seed,
+    courseIds,
   }: PlanRequest): Promise<DayPlanDto> => {
     if (
       !Number.isInteger(maxItems) ||
@@ -80,15 +82,19 @@ export const createPlanService = (ctx: EngineContext): PlanService => {
       throw new EngineError('INVALID_ARGUMENT', { details: { seed } });
     }
     const library = ctx.library.require();
+    const scope = resolveCourseScope(library, courseIds);
     const graph = graphOf(library);
     const { plan, implicitCredit } = ctx.options.get();
     const usedSeed = seed ?? drawSeed(ctx.rng);
     const { flags, attempts, memory, remediation } = ctx.projections;
 
+    // вне области курсов — то же, что blacklist: ни просроченных, ни новых,
+    // ни ремедиации (планировщик проверяет `isExcluded` для всех троих)
     const isExcluded = (exerciseId: UnitId) => {
       const lessonId = library.graph.getExerciseLesson(exerciseId) ?? '';
       const courseId = library.graph.getLessonCourse(lessonId) ?? '';
       return (
+        (scope !== null && !scope.hasLesson(lessonId)) ||
         flags.isBlacklisted(exerciseId) ||
         flags.isBlacklisted(lessonId) ||
         flags.isBlacklisted(courseId)

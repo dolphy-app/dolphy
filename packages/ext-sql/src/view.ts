@@ -1,11 +1,5 @@
 /** Элемент ввода ответа `lms-sql-answer`; побочный эффект загрузки — регистрация. */
-import { ANSWER_EVENT } from '@lms/extension-api';
-import type {
-  AnswerChangeDetail,
-  AnswerElementProps,
-} from '@lms/extension-api';
-
-const NAME = 'lms-sql-answer';
+import { defineAnswerElement } from '@lms/extension-sdk';
 
 const STYLE = `
   :host { display: block; }
@@ -21,87 +15,39 @@ const STYLE = `
   }
 `;
 
-class SqlAnswer extends HTMLElement implements AnswerElementProps {
-  #view: unknown = null;
-  #verdict: AnswerElementProps['verdict'] = null;
-  readonly #textarea = document.createElement('textarea');
+const toText = (value: unknown) => (typeof value === 'string' ? value : '');
 
-  constructor() {
-    super();
-    const root = this.attachShadow({ mode: 'open' });
-    const style = document.createElement('style');
-    style.textContent = STYLE;
-    this.#textarea.spellcheck = false;
-    this.#textarea.rows = 6;
-    this.#textarea.addEventListener('input', () => {
-      const { value } = this.#textarea;
-      const detail: AnswerChangeDetail = {
-        value,
-        complete: value.trim().length > 0,
-      };
-      this.dispatchEvent(
-        new CustomEvent(ANSWER_EVENT.change, {
-          detail,
-          bubbles: true,
-          composed: true,
-        }),
-      );
-    });
-    this.#textarea.addEventListener('keydown', (event) => {
-      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-        event.preventDefault();
-        this.dispatchEvent(
-          new CustomEvent(ANSWER_EVENT.submit, {
-            bubbles: true,
-            composed: true,
-          }),
-        );
+defineAnswerElement('lms-sql-answer', (api, initial) => {
+  const style = document.createElement('style');
+  style.textContent = STYLE;
+  const textarea = document.createElement('textarea');
+  textarea.spellcheck = false;
+  textarea.rows = 6;
+  if (api.label !== null) textarea.setAttribute('aria-label', api.label);
+  // значение свойства применяется только при его смене: приложение может не
+  // возвращать введённый текст, и обновление `disabled` не должно его стирать
+  const state = { value: initial.value };
+  textarea.value = toText(initial.value);
+  textarea.disabled = initial.disabled;
+
+  textarea.addEventListener('input', () => {
+    api.setAnswer(textarea.value, textarea.value.trim().length > 0);
+  });
+  textarea.addEventListener('keydown', (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+      event.preventDefault();
+      api.submit();
+    }
+  });
+  api.root.append(style, textarea);
+
+  return {
+    update: (props) => {
+      if (props.value !== state.value) {
+        state.value = props.value;
+        textarea.value = toText(props.value);
       }
-    });
-    root.append(style, this.#textarea);
-  }
-
-  static get observedAttributes(): string[] {
-    return ['aria-label'];
-  }
-
-  attributeChangedCallback(
-    name: string,
-    _old: string | null,
-    next: string | null,
-  ) {
-    if (name !== 'aria-label') return;
-    if (next === null) this.#textarea.removeAttribute('aria-label');
-    else this.#textarea.setAttribute('aria-label', next);
-  }
-
-  get view(): unknown {
-    return this.#view;
-  }
-  set view(next: unknown) {
-    this.#view = next;
-  }
-
-  get value(): unknown {
-    return this.#textarea.value;
-  }
-  set value(next: unknown) {
-    this.#textarea.value = typeof next === 'string' ? next : '';
-  }
-
-  get disabled(): boolean {
-    return this.#textarea.disabled;
-  }
-  set disabled(next: boolean) {
-    this.#textarea.disabled = next;
-  }
-
-  get verdict(): AnswerElementProps['verdict'] {
-    return this.#verdict;
-  }
-  set verdict(next: AnswerElementProps['verdict']) {
-    this.#verdict = next;
-  }
-}
-
-if (!customElements.get(NAME)) customElements.define(NAME, SqlAnswer);
+      textarea.disabled = props.disabled;
+    },
+  };
+});

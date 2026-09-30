@@ -16,6 +16,9 @@
     },
     {
       "path": "../engine-sql-runner"
+    },
+    {
+      "path": "../extension-sdk"
     }
   ]
 }

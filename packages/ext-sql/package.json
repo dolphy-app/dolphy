@@ -7,11 +7,12 @@
   "scripts": {
     "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
     "test": "vitest run",
-    "build": "vite build --mode main && vite build --mode view && node scripts/assemble.mjs"
+    "build": "lms-ext build"
   },
   "dependencies": {
     "@lms/engine-sql-runner": "workspace:*",
-    "@lms/extension-api": "workspace:*"
+    "@lms/extension-api": "workspace:*",
+    "@lms/extension-sdk": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.20.4",
@@ -20,7 +21,8 @@
     "@lms/engine-contract": "workspace:*",
     "@lms/extension-host": "workspace:*",
     "@lms/testkit": "workspace:*",
-    "vite": "^8.0.16"
+    "@lms/extension-tools": "workspace:*",
+    "happy-dom": "^20.14.5"
   },
   "engines": {
     "node": ">=22.12"

@@ -45,7 +45,9 @@ export default {
   activate(ctx) {
     ctx.registerExerciseType('lms.choice', {
       project: ({ spec }) => ({ options: spec.options }), // публичный вид, без ключей ответов
-      grade: ({ spec, answer, timeoutMs, authorMode }) => ({ outcome: 'passed' }),
+      grade: ({ spec, answer, timeoutMs, authorMode }) => ({
+        outcome: 'passed',
+      }),
       referenceAnswer: ({ spec }) => spec.correct, // для проверки компилятором
     });
   },
@@ -102,7 +104,7 @@ engine:
 
 ## Расширения по умолчанию
 
-`lms.sql` (`packages/ext-sql`, раннер SQL из `@lms/engine-sql-runner` в дочерних процессах, воркер `worker.mjs`) и `lms.choice` (`packages/ext-choice`, один или несколько верных вариантов) собираются `pnpm -F <пакет> build` в `dist-ext/`. Плагин Vite `lms:extensions` (`apps/desktop/vite.config.ts`) собирает все `packages/ext-*` и копирует в `<outRoot>/extensions/<id>/`; упаковка кладёт каталог в `Resources/extensions` (`extraResources`).
+`lms.sql` (`packages/ext-sql`, раннер SQL из `@lms/engine-sql-runner` в дочерних процессах, воркер `worker.mjs`) и `lms.choice` (`packages/ext-choice`, один или несколько верных вариантов) — проекты `lms-ext` (`extension.json`, `src/main.ts`, `src/view.ts`, `schema/`; у `ext-sql` ещё `lms-ext.config.json` с воркером и внешним `better-sqlite3`): `pnpm -F <пакет> build` (`lms-ext build`, `@lms/extension-tools`) собирает тем же кодом, что и у сторонних авторов, каталог `dist-ext/<id>/`. Плагин Vite `lms:extensions` (`apps/desktop/vite.config.ts`) собирает все `packages/ext-*` и копирует единственный каталог `dist-ext/<id>/` в `<outRoot>/extensions/<id>/` (имя каталога должно совпасть с `id` манифеста); упаковка кладёт его в `Resources/extensions` (`extraResources`).
 
 ## Границы
 

@@ -4,8 +4,10 @@
  */
 import { RPC_METHODS } from '@spirula-app/engine-contract';
 import type {
+  CatalogDto,
   EngineEvent,
   ExtensionInfoDto,
+  ExtensionUpdateDto,
   SavedFilterDto,
 } from '@spirula-app/engine-contract';
 import { createEngine } from '@spirula-app/engine/app';
@@ -24,6 +26,7 @@ import {
   buildLibrary,
   createFakeClock,
   createFakeExerciseTypes,
+  createFakeExtensionInstaller,
   createFakeExtensionPolicy,
   createFakeExtensionRegistry,
   createFakeGradePolicies,
@@ -74,6 +77,12 @@ const REGISTERED: ExtensionInfoDto = {
   permissions: ['library.read'],
   isolation: 'trusted',
   toggleable: false,
+  name: null,
+  description: null,
+  author: null,
+  installed: null,
+  removable: false,
+  revoked: null,
 };
 const USER_EXTENSION: ExtensionInfoDto = {
   ...REGISTERED,
@@ -83,6 +92,26 @@ const USER_EXTENSION: ExtensionInfoDto = {
   permissions: [],
   isolation: 'isolated',
   toggleable: true,
+  removable: true,
+};
+
+const CATALOG: CatalogDto = {
+  entries: [],
+  fetchedAt: '2026-10-01T00:00:00.000Z',
+  stale: false,
+  error: null,
+};
+const UPDATE: ExtensionUpdateDto = {
+  id: 'acme.user',
+  name: 'Acme',
+  installed: '1.0.0',
+  available: {
+    version: '1.1.0',
+    permissions: [],
+    publishedAt: '2026-10-01T00:00:00.000Z',
+    size: 10,
+    minAppVersion: null,
+  },
 };
 
 /** Вид задания, всегда отвечающий `passed`: проверяет путь вердикта через RPC. */
@@ -123,6 +152,10 @@ const start = async () => {
         USER_EXTENSION,
       ]),
       extensionPolicy: createFakeExtensionPolicy(),
+      extensionInstaller: createFakeExtensionInstaller({
+        catalog: CATALOG,
+        updates: [UPDATE],
+      }),
       repositoryStore: createMemoryRepositoryStore(),
       snapshotFetcher: offlineFetcher,
       snapshotInstaller: createNodeSnapshotInstaller({
@@ -505,17 +538,47 @@ describe('rpc → dispatcher → real engine', () => {
       await call('extensions.getSettings', () =>
         client.extensions.getSettings(),
       ),
-    ).toEqual({ disabled: [], trusted: [] });
+    ).toEqual({ disabled: [], trusted: [], checkUpdates: true });
     expect(
       await call('extensions.setEnabled', () =>
         client.extensions.setEnabled('acme.user', false),
       ),
-    ).toEqual({ disabled: ['acme.user'], trusted: [] });
+    ).toEqual({ disabled: ['acme.user'], trusted: [], checkUpdates: true });
     expect(
       await call('extensions.setTrusted', () =>
         client.extensions.setTrusted('acme.user', true),
       ),
-    ).toEqual({ disabled: ['acme.user'], trusted: ['acme.user'] });
+    ).toEqual({
+      disabled: ['acme.user'],
+      trusted: ['acme.user'],
+      checkUpdates: true,
+    });
+    expect(
+      await call('extensions.setCheckUpdates', () =>
+        client.extensions.setCheckUpdates(false),
+      ),
+    ).toMatchObject({ checkUpdates: false });
+    expect(
+      await call('extensions.catalog', () =>
+        client.extensions.catalog({ refresh: true }),
+      ),
+    ).toEqual(CATALOG);
+    expect(
+      await call('extensions.install', () =>
+        client.extensions.install('acme.new', '2.0.0'),
+      ),
+    ).toEqual({
+      id: 'acme.new',
+      version: '2.0.0',
+      previousVersion: null,
+      restartRequired: true,
+    });
+    expect(
+      await call('extensions.updates', () => client.extensions.updates()),
+    ).toEqual([UPDATE]);
+    await call('extensions.uninstall', () =>
+      client.extensions.uninstall('acme.user'),
+    );
     await expect(
       client.extensions.setEnabled('spirula.sql', false),
     ).rejects.toMatchObject({

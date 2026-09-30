@@ -1,0 +1,27 @@
+{
+  "name": "@spirula-app/extension-install",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Установщик расширений из каталога: кэш индекса, скачивание с проверкой sha256, стейджинг и замена каталога с откатом (Node-адаптер порта ExtensionInstaller)",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@spirula-app/engine": "workspace:*",
+    "@spirula-app/engine-contract": "workspace:*",
+    "@spirula-app/extension-api": "workspace:*",
+    "@spirula-app/extension-catalog": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "typescript": "7.0.2"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}

@@ -42,4 +42,18 @@ describe('createJsonSettingsStore: свои файлы движка', () => {
     expect(await store.loadUi()).toEqual({ theme: 'system', locale: 'ru' });
     expect(await store.loadSchedulerOverrides()).toEqual({});
   });
+
+  it('файл расширений прежней формы (без checkUpdates) — проверка включена', async () => {
+    const dir = await tmp.make('settings-');
+    await writeFile(
+      `${dir}/extensions.json`,
+      '{"disabled":["acme.a"],"trusted":[]}',
+    );
+    const store = createJsonSettingsStore({ dir });
+    expect(await store.loadExtensions()).toEqual({
+      disabled: ['acme.a'],
+      trusted: [],
+      checkUpdates: true,
+    });
+  });
 });

@@ -1,39 +1,39 @@
-import { ref, shallowRef } from 'vue';
+import { onScopeDispose, ref, shallowRef } from 'vue';
 import type {
   ExtensionContributesDto,
   ExtensionInfoDto,
   ExtensionSettingsDto,
+  ExtensionUpdateDto,
   LearningEngine,
 } from '@spirula-app/engine-contract';
-
-export type ContributionPoint = keyof ExtensionContributesDto;
+import { CONTRIBUTION_POINTS, targetFromUpdate } from '../lib/catalog.ts';
+import type { ContributionPoint, InstallTarget } from '../lib/catalog.ts';
 
 export interface ContributionGroup {
   point: ContributionPoint;
   values: string[];
 }
 
-const POINT_ORDER: readonly ContributionPoint[] = [
-  'exerciseTypes',
-  'themes',
-  'markdownRenderers',
-  'gradePolicies',
-];
-
 /** Непустые группы вкладов расширения в порядке точек; значения как есть. */
 export const contributionGroups = (
   contributes: ExtensionContributesDto,
 ): ContributionGroup[] =>
-  POINT_ORDER.filter((point) => contributes[point].length > 0).map((point) => ({
-    point,
-    values: contributes[point],
-  }));
+  CONTRIBUTION_POINTS.filter((point) => contributes[point].length > 0).map(
+    (point) => ({
+      point,
+      values: contributes[point],
+    }),
+  );
 
 export type ExtensionsState = 'loading' | 'loaded' | 'failed';
 
 export type ExtensionSwitch = 'enabled' | 'trusted';
 
-const NO_SETTINGS: ExtensionSettingsDto = { disabled: [], trusted: [] };
+const NO_SETTINGS: ExtensionSettingsDto = {
+  disabled: [],
+  trusted: [],
+  checkUpdates: true,
+};
 
 const errorText = (caught: unknown) =>
   caught instanceof Error ? caught.message : String(caught);
@@ -44,9 +44,10 @@ export const isEnabled = (settings: ExtensionSettingsDto, id: string) =>
 export const isTrusted = (settings: ExtensionSettingsDto, id: string) =>
   settings.trusted.includes(id);
 
-/** Строка с переключателями: не из поставки и действующая (загружена или отключена). */
+/** Строка с переключателями: не из поставки, действующая (загружена или отключена) и не отозванная. */
 export const hasSwitches = (extension: ExtensionInfoDto): boolean =>
   extension.toggleable &&
+  extension.revoked === null &&
   (extension.state === 'loaded' || extension.state === 'disabled');
 
 /** Ключ переключателя в списке занятых запросом. */
@@ -59,9 +60,12 @@ const switchKey = (id: string, which: ExtensionSwitch) => `${which}:${id}`;
  * `loading` только пока данных нет. Переключатель меняется сразу и
  * откатывается, если движок отказал; вклады расширений читаются при запуске,
  * поэтому после успешного изменения `needsReload` просит перезагрузить окно.
+ * `updates` — доступные обновления установленных из каталога расширений;
+ * сбой их чтения не прячет список. `extensions-changed` перечитывает всё.
  */
 export const useExtensions = (engine: LearningEngine) => {
   const items = shallowRef<ExtensionInfoDto[]>([]);
+  const updates = shallowRef<ExtensionUpdateDto[]>([]);
   const settings = shallowRef<ExtensionSettingsDto>(NO_SETTINGS);
   const state = ref<ExtensionsState>('loading');
   const error = ref<string | null>(null);
@@ -77,13 +81,15 @@ export const useExtensions = (engine: LearningEngine) => {
     busy.value = true;
     if (state.value === 'failed') state.value = 'loading';
     try {
-      const [list, stored] = await Promise.all([
+      const [list, stored, available] = await Promise.all([
         engine.extensions.list(),
         engine.extensions.getSettings(),
+        engine.extensions.updates().catch(() => []),
       ]);
       if (request !== lastRequest) return;
       items.value = list;
       settings.value = stored;
+      updates.value = available;
       error.value = null;
       state.value = 'loaded';
     } catch (caught) {
@@ -141,9 +147,55 @@ export const useExtensions = (engine: LearningEngine) => {
     }
   };
 
+  /** «Проверять обновления при запуске»: меняется сразу, при отказе движка откатывается. */
+  const setCheckUpdates = async (value: boolean) => {
+    const key = 'checkUpdates';
+    if (switching.value.has(key)) return;
+    const previous = settings.value;
+    settings.value = { ...previous, checkUpdates: value };
+    switchError.value = null;
+    setSwitching(key, true);
+    try {
+      settings.value = await engine.extensions.setCheckUpdates(value);
+    } catch (caught) {
+      settings.value = previous;
+      switchError.value = errorText(caught);
+    } finally {
+      setSwitching(key, false);
+    }
+  };
+
+  const unsubscribe = engine.subscribe((event) => {
+    // слушатель не вызывает команды синхронно (API §7)
+    if (event.type === 'extensions-changed') queueMicrotask(() => void load());
+  });
+  onScopeDispose(unsubscribe);
+  /**
+   * Что показать в диалоге обновления: все доступные (`ids` не задан) или
+   * выбранные. Вклады и платформы берутся из записи каталога, если индекс
+   * доступен.
+   */
+  const updateTargets = async (
+    ids?: readonly string[],
+  ): Promise<InstallTarget[]> => {
+    const chosen = updates.value.filter(
+      ({ id }) => ids === undefined || ids.includes(id),
+    );
+    if (chosen.length === 0) return [];
+    const catalog = await engine.extensions.catalog().catch(() => null);
+    return chosen.map((update) =>
+      targetFromUpdate(
+        update,
+        items.value.find(({ id }) => id === update.id),
+        catalog?.entries.find(({ id }) => id === update.id),
+      ),
+    );
+  };
+
   void load();
   return {
     items,
+    updates,
     settings,
     state,
     error,
@@ -152,6 +204,8 @@ export const useExtensions = (engine: LearningEngine) => {
     switching,
     switchError,
     needsReload,
+    setCheckUpdates,
+    updateTargets,
     setEnabled: (id: string, value: boolean) => change(id, 'enabled', value),
     setTrusted: (id: string, value: boolean) => change(id, 'trusted', value),
   };

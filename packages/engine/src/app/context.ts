@@ -35,6 +35,7 @@ import type {
 } from '../ports/index.ts';
 import type { ExerciseTypes } from '../ports/exercise-types.ts';
 import type { GradePolicies } from '../ports/grade-policies.ts';
+import type { ExtensionInstaller } from '../ports/extension-installer.ts';
 import type { ExtensionPolicy } from '../ports/extension-policy.ts';
 import type { ExtensionRegistry } from '../ports/extension-registry.ts';
 import type { FsrsScorer } from '../scoring/fsrs-scorer.ts';
@@ -94,6 +95,8 @@ export interface EngineDeps {
   extensionRegistry: ExtensionRegistry;
   /** Политика расширений (включено / изолировано); тот же экземпляр, что у реестра и клиентов хоста. */
   extensionPolicy: ExtensionPolicy;
+  /** Установка расширений из каталога (`@spirula-app/extension-install`). */
+  extensionInstaller: ExtensionInstaller;
   /** Нет порта — `sync.folder.*` отвечает `SYNC_FOLDER_NOT_CONFIGURED`. */
   folderSync?: FolderSyncPort;
   /** Чтение каталога `.trane` (`readTraneDirectory` из `@spirula-app/engine-sqlite`); нет — `importFromTrane` отказывает. */
@@ -292,6 +295,7 @@ export interface EngineContext extends FacadeContext {
   readonly exerciseTypes: ExerciseTypes;
   readonly extensionRegistry: ExtensionRegistry;
   readonly extensionPolicy: ExtensionPolicy;
+  readonly extensionInstaller: ExtensionInstaller;
   readonly folderSync: FolderSyncPort | null;
   readonly openTraneSource: EngineDeps['openTraneSource'];
   readonly repositoryStore: RepositoryStore;

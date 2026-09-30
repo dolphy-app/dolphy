@@ -18,6 +18,7 @@ import {
   discoverExtensions,
 } from '@spirula-app/extension-host';
 import { extensionRoots } from '../extension-roots.ts';
+import { createDesktopInstaller } from './installer.ts';
 
 export const boot = async (
   config: EngineConfig,
@@ -51,14 +52,23 @@ export const boot = async (
   const discovery = await discoverExtensions({
     roots: extensionRoots(config),
     logger: defaults.logger,
+    ...(config.appVersion ? { appVersion: config.appVersion } : {}),
   });
+  // установка из каталога: отзыв читается из кэша индекса, поэтому кэш загружается до движка
+  const extensionInstaller = createDesktopInstaller({
+    config,
+    discovery,
+    logger: defaults.logger,
+  });
+  await extensionInstaller.ready();
+  const { revocationOf } = extensionInstaller;
   // один канал к хосту расширений: виды заданий и правила оценки делят порт, дедлайны и перезапуск
   const channel = createHostChannel({
     logger: defaults.logger,
     restart: restartExtHost,
   });
   // одна политика на каталог, клиентов хоста, реестр и движок: «Настройки → Расширения» действует сразу
-  const policy = createExtensionPolicy(discovery);
+  const policy = createExtensionPolicy(discovery, revocationOf);
   const catalog = createCatalog(discovery.extensions, policy);
   const exerciseTypes = createRemoteExerciseTypes({
     channel,
@@ -87,8 +97,13 @@ export const boot = async (
       snapshotFetcher: createIsomorphicGitFetcher(),
       exerciseTypes,
       gradePolicies,
-      extensionRegistry: createExtensionRegistry(discovery, policy),
+      extensionRegistry: createExtensionRegistry(
+        discovery,
+        policy,
+        revocationOf,
+      ),
       extensionPolicy: policy,
+      extensionInstaller,
       openTraneSource: readTraneDirectory,
     },
     config,

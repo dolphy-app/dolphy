@@ -15,6 +15,9 @@
     },
     {
       "path": "../extension-host"
+    },
+    {
+      "path": "../extension-catalog"
     }
   ]
 }

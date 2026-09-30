@@ -1,0 +1,60 @@
+name: Packages
+
+on:
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - 'packages/extension-*/**'
+      - 'packages/create-extension/**'
+      # закрытые пакеты, вшиваемые в extension-tools
+      - 'packages/engine/**'
+      - 'packages/engine-contract/**'
+      - 'tools/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/packages.yml'
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: packages-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  packages:
+    name: Build, verify and dry-run publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Build packages
+        run: pnpm build:packages
+
+      # tarball'ы, установка в пустой проект, create-spirula-extension → build/validate/test
+      - name: Verify packages
+        run: pnpm verify:packages
+
+      # без публикации: проверка состава и метаданных для реестра GitHub Packages
+      - name: Publish (dry run, no token needed)
+        shell: bash
+        run: |
+          for short in extension-api extension-sdk extension-tools create-extension; do
+            (cd "dist-publish/$short" && npm publish --dry-run --registry https://npm.pkg.github.com)
+          done

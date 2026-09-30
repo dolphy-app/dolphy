@@ -77,6 +77,29 @@ describe('runCli', () => {
     expect(bad.stderr()).toMatch(/permissions\.0: /);
   });
 
+  it('метаданные и совместимость: build копирует манифест как есть, validate проверяет форму', async () => {
+    const root = await copyProject('with-metadata');
+    const built = createIo();
+    expect(await runCli(['build', root], built.io)).toBe(0);
+    const dir = path.join(root, 'dist-ext', 'acme.meta');
+    expect(await readFile(path.join(dir, 'extension.json'), 'utf8')).toBe(
+      await readFile(path.join(root, 'extension.json'), 'utf8'),
+    );
+    const good = createIo();
+    expect(await runCli(['validate', dir], good.io)).toBe(0);
+
+    const manifestPath = path.join(dir, 'extension.json');
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as object;
+    await writeFile(
+      manifestPath,
+      JSON.stringify({ ...manifest, minAppVersion: '1.0', platforms: ['bsd'] }),
+    );
+    const bad = createIo();
+    expect(await runCli(['validate', dir], bad.io)).toBe(1);
+    expect(bad.stderr()).toMatch(/minAppVersion/);
+    expect(bad.stderr()).toMatch(/platforms\.0/);
+  });
+
   it.each([
     [[]],
     [['publish']],

@@ -182,6 +182,47 @@ describe('dispatcher validation', () => {
     }
   });
 
+  it('extensions catalog/install/uninstall/updates/setCheckUpdates validate their arguments', async () => {
+    const { dispatcher } = await connect();
+    const [hostSide, rawSide] = createInProcessPair();
+    dispatcher.attach(hostSide, 'raw-install');
+    const raw = createRawClient(rawSide);
+    const accepted: [string, unknown[]][] = [
+      ['extensions.catalog', []],
+      ['extensions.catalog', [{}]],
+      ['extensions.catalog', [{ refresh: true }]],
+      ['extensions.install', ['acme.ext']],
+      ['extensions.install', ['acme.ext', '1.2.3']],
+      ['extensions.install', ['acme.ext', '1.2.3-beta.1']],
+      ['extensions.uninstall', ['acme.ext']],
+      ['extensions.updates', []],
+      ['extensions.setCheckUpdates', [false]],
+    ];
+    const rejected: [string, unknown[]][] = [
+      ['extensions.catalog', [{ refresh: 'yes' }]],
+      ['extensions.catalog', [{ force: true }]],
+      ['extensions.install', []],
+      ['extensions.install', ['Acme']],
+      ['extensions.install', ['acme.ext', 'latest']],
+      ['extensions.install', ['acme.ext', '1.2']],
+      ['extensions.install', ['acme.ext', '1.2.3', 'x']],
+      ['extensions.uninstall', ['']],
+      ['extensions.uninstall', []],
+      ['extensions.updates', ['x']],
+      ['extensions.setCheckUpdates', ['no']],
+      ['extensions.setCheckUpdates', []],
+    ];
+    for (const [method, args] of accepted) {
+      expect(await raw.call(method, args), method).toMatchObject({ ok: true });
+    }
+    for (const [method, args] of rejected) {
+      expect(await raw.call(method, args), method).toMatchObject({
+        ok: false,
+        error: { code: 'INVALID_ARGUMENT' },
+      });
+    }
+  });
+
   it('rejects unknown keys, extra arguments and non-array params', async () => {
     const { dispatcher } = await connect();
     const [hostSide, rawSide] = createInProcessPair();

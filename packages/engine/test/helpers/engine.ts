@@ -12,6 +12,7 @@ import {
   createCapturingLogger,
   createFakeClock,
   createFakeExerciseTypes,
+  createFakeExtensionInstaller,
   createFakeExtensionPolicy,
   createFakeExtensionRegistry,
   createFakeGradePolicies,
@@ -46,6 +47,7 @@ import type {
 } from '../../src/ports/index.ts';
 import type { ExerciseTypes } from '../../src/ports/exercise-types.ts';
 import type { GradePolicies } from '../../src/ports/grade-policies.ts';
+import type { ExtensionInstaller } from '../../src/ports/extension-installer.ts';
 import type { ExtensionPolicy } from '../../src/ports/extension-policy.ts';
 import type { ExtensionRegistry } from '../../src/ports/extension-registry.ts';
 import { createTsFsrsMemoryModel } from '../../src/scoring/memory-model.ts';
@@ -72,6 +74,7 @@ export interface TestEngineOptions {
   gradePolicies?: GradePolicies;
   extensionRegistry?: ExtensionRegistry;
   extensionPolicy?: ExtensionPolicy;
+  extensionInstaller?: ExtensionInstaller;
   clock?: FakeClock;
   seed?: number;
   config?: Partial<EngineConfig>;
@@ -165,6 +168,8 @@ export const createTestContext = async (
     extensionRegistry:
       options.extensionRegistry ?? createFakeExtensionRegistry(),
     extensionPolicy: options.extensionPolicy ?? createFakeExtensionPolicy(),
+    extensionInstaller:
+      options.extensionInstaller ?? createFakeExtensionInstaller(),
     repositoryStore,
     snapshotFetcher: options.snapshotFetcher ?? offlineFetcher,
     snapshotInstaller:

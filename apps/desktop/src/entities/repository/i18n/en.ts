@@ -41,6 +41,7 @@ export const en: typeof ru = {
         symlink: 'The repository contains symbolic links.',
         'path-escapes': 'The repository has paths outside the course folder.',
         'git-segment': 'The repository contains .git directories.',
+        'unsafe-name': 'The repository has file names not allowed on Windows.',
         'case-collision': 'The repository has paths that differ only in case.',
         'special-file': 'The repository contains files of a disallowed type.',
         'too-many-files': 'The repository has too many files.',

@@ -22,6 +22,9 @@ const bridge: SpirulaBridge = {
       return ipcRenderer.invoke(CHANNELS.pickDirectory, { title });
     },
   },
+  extensions: {
+    apply: () => ipcRenderer.invoke(CHANNELS.applyExtensions),
+  },
   ...(__SPIRULA_SMOKE_BUILD__ && process.argv.includes(SMOKE_ARGUMENT)
     ? {
         smoke: {

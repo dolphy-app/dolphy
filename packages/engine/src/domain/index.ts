@@ -46,6 +46,7 @@ export type { ParseResult, SchemaIssue } from './manifest-schema.ts';
 export {
   DEFAULT_EXTENSION_SETTINGS,
   decodeExtensionSettings,
+  decodeUpdateCheckedAt,
   isExtensionId,
   normalizeExtensionSettings,
 } from './extension-settings.ts';

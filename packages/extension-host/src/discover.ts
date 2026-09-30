@@ -3,8 +3,16 @@ import path from 'node:path';
 import { DEFAULT_MAIN } from '@spirula-app/extension-api';
 import type {
   ExtensionLogger,
+  ExtensionManifest,
   ExtensionPermission,
+  ExtensionPlatform,
 } from '@spirula-app/extension-api';
+import {
+  INSTALL_META_FILE,
+  checkCompatibility,
+  parseInstallMeta,
+} from '@spirula-app/extension-catalog';
+import type { InstallMeta } from '@spirula-app/extension-catalog';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import { parseManifest } from './manifest.ts';
 import { CONTRIBUTION_POINTS } from './points/index.ts';
@@ -27,6 +35,14 @@ export interface ResolvedExtension extends ResolvedContributions {
   mainPath: string | null;
   /** Объявленные в манифесте возможности кода; по умолчанию пусто. */
   permissions: ExtensionPermission[];
+  name: string | null;
+  description: string | null;
+  author: string | null;
+  /** Пусто — любая платформа. */
+  platforms: readonly ExtensionPlatform[];
+  minAppVersion: string | null;
+  /** Метаданные установки из каталога (`.spirula-install.json`); `null` — нет или не читаются; читаются только у origin `user`. */
+  install: InstallMeta | null;
 }
 
 export interface DiscoveryDiagnostic {
@@ -54,7 +70,18 @@ export interface DiscoverOptions {
   logger: ExtensionLogger;
   /** false — не проверять существование `main` и `renderer` (тесты исходных манифестов). */
   verifyFiles?: boolean;
+  /** Версия приложения; не задана — `minAppVersion` не проверяется. */
+  appVersion?: string;
+  /** Текущая платформа; по умолчанию `process.platform`. */
+  platform?: string;
 }
+
+const compatibilityIssue = (
+  manifest: ExtensionManifest,
+  appVersion: string | undefined,
+  platform: string,
+): string | null =>
+  checkCompatibility(manifest, { appVersion, platform })?.detail ?? null;
 
 const resolveMain = async (
   dir: string,
@@ -92,18 +119,50 @@ export interface InspectOptions {
   verifyFiles?: boolean;
   /** Ожидаемый `id` (имя каталога при обнаружении); `null`/не задан — не проверять. */
   expectedId?: string | null;
+  /** Версия приложения; не задана — `minAppVersion` не проверяется. */
+  appVersion?: string;
+  /** Текущая платформа; по умолчанию `process.platform`. */
+  platform?: string;
 }
 
 export type InspectResult =
-  | { ok: true; extension: Omit<ResolvedExtension, 'origin'> }
+  | { ok: true; extension: Omit<ResolvedExtension, 'origin' | 'install'> }
   | { ok: false; id: string; message: string };
 
 /** Полностью разбирает каталог одного расширения; ошибка — сообщение для диагностики. */
+/** Нет файла — `null` (расширение скопировано вручную); битый файл — `null` и предупреждение: сведения об установке не ломают обнаружение. */
+const readInstallMeta = async (
+  dir: string,
+  extensionId: string,
+  logger: ExtensionLogger,
+): Promise<InstallMeta | null> => {
+  let text: string;
+  try {
+    text = await readFile(path.join(dir, INSTALL_META_FILE), 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      logger.warn({ extensionId, error }, `${INSTALL_META_FILE} is unreadable`);
+    }
+    return null;
+  }
+  try {
+    return parseInstallMeta(JSON.parse(text));
+  } catch (error) {
+    logger.warn({ extensionId, error }, `${INSTALL_META_FILE} is invalid`);
+    return null;
+  }
+};
+
 export const inspectExtensionDir = async (
   directory: string,
   options: InspectOptions = {},
 ): Promise<InspectResult> => {
-  const { verifyFiles = true, expectedId = null } = options;
+  const {
+    verifyFiles = true,
+    expectedId = null,
+    appVersion,
+    platform = process.platform,
+  } = options;
   const dir = path.resolve(directory);
   const dirName = expectedId ?? path.basename(dir);
   const ajv = new Ajv2020({ allErrors: true, strict: false });
@@ -127,6 +186,10 @@ export const inspectExtensionDir = async (
       message: `directory name '${expectedId}' does not match manifest id '${manifest.id}'`,
     };
   }
+  const incompatible = compatibilityIssue(manifest, appVersion, platform);
+  if (incompatible !== null) {
+    return { ok: false, id: manifest.id, message: incompatible };
+  }
   try {
     const mainPath = await resolveMain(dir, manifest.main, verifyFiles);
     const context = { dir, extensionId: manifest.id, verifyFiles, ajv };
@@ -145,6 +208,11 @@ export const inspectExtensionDir = async (
         dir,
         mainPath,
         permissions: manifest.permissions,
+        name: manifest.name,
+        description: manifest.description,
+        author: manifest.author,
+        platforms: manifest.platforms,
+        minAppVersion: manifest.minAppVersion,
         ...(resolved as unknown as ResolvedContributions),
       },
     };
@@ -160,7 +228,7 @@ export const inspectExtensionDir = async (
 export const discoverExtensions = async (
   options: DiscoverOptions,
 ): Promise<DiscoveryResult> => {
-  const { logger, verifyFiles = true } = options;
+  const { logger, verifyFiles = true, appVersion, platform } = options;
   const diagnostics: DiscoveryDiagnostic[] = [];
   const overridden: OverriddenExtension[] = [];
   const skip = (
@@ -176,7 +244,10 @@ export const discoverExtensions = async (
   const byId = new Map<string, ResolvedExtension>();
   for (const root of options.roots) {
     if (!(await isDirectory(root.dir))) continue;
-    const names = (await readdir(root.dir)).sort();
+    // `.staging`, `.trash`, `.catalog` — служебные каталоги установщика
+    const names = (await readdir(root.dir))
+      .filter((name) => !name.startsWith('.'))
+      .sort();
     for (const name of names) {
       const dir = path.resolve(root.dir, name);
       if (!(await isDirectory(dir))) continue;
@@ -184,6 +255,8 @@ export const discoverExtensions = async (
       const loaded = await inspectExtensionDir(dir, {
         verifyFiles,
         expectedId: name,
+        ...(appVersion !== undefined && { appVersion }),
+        ...(platform !== undefined && { platform }),
       });
       if (!loaded.ok) {
         skip(loaded.id, root.origin, loaded.message);
@@ -192,6 +265,10 @@ export const discoverExtensions = async (
       const extension: ResolvedExtension = {
         ...loaded.extension,
         origin: root.origin,
+        install:
+          root.origin === 'user'
+            ? await readInstallMeta(dir, loaded.extension.id, logger)
+            : null,
       };
       const previous = byId.get(extension.id);
       if (previous !== undefined) {

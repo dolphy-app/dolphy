@@ -38,6 +38,10 @@ const optional = <T extends z.core.SomeType>(schema: T) =>
 const unitId = z.string().min(1);
 const str = z.string();
 const extensionId = z.string().min(1).max(64).regex(EXTENSION_ID_PATTERN);
+const extensionVersion = z
+  .string()
+  .max(64)
+  .regex(/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/);
 const num = z.number();
 const int = z.int();
 const bool = z.boolean();
@@ -349,6 +353,13 @@ export const schemas = {
   'extensions.getSettings': z.tuple([]),
   'extensions.setEnabled': z.tuple([extensionId, z.boolean()]),
   'extensions.setTrusted': z.tuple([extensionId, z.boolean()]),
+  'extensions.catalog': z.tuple([
+    optional(z.strictObject({ refresh: optional(bool) })),
+  ]),
+  'extensions.install': z.tuple([extensionId, optional(extensionVersion)]),
+  'extensions.uninstall': z.tuple([extensionId]),
+  'extensions.updates': z.tuple([]),
+  'extensions.setCheckUpdates': z.tuple([bool]),
   'curation.blacklist.list': z.tuple([optional(pageRequest)]),
   'curation.blacklist.has': z.tuple([unitId]),
   'curation.blacklist.add': z.tuple([unitId]),

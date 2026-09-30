@@ -53,10 +53,22 @@
       "path": "packages/extension-api/tsconfig.test.json"
     },
     {
+      "path": "packages/extension-catalog"
+    },
+    {
+      "path": "packages/extension-catalog/tsconfig.test.json"
+    },
+    {
       "path": "packages/extension-host"
     },
     {
       "path": "packages/extension-host/tsconfig.test.json"
+    },
+    {
+      "path": "packages/extension-install"
+    },
+    {
+      "path": "packages/extension-install/tsconfig.test.json"
     },
     {
       "path": "packages/ext-sql"

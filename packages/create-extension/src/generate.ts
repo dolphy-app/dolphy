@@ -6,8 +6,16 @@ import type { TemplateInput } from './template.ts';
 
 /** Совпадает с ограничением манифеста (`parseManifest`). */
 const MAX_ID_CHARS = 64;
-/** Сами пакеты не опубликованы, поэтому без `--local` версия условная. */
+/** Без сборки (исходники, `--local`) версия пакетов условная. */
 export const UNPUBLISHED_VERSION = '^0.0.0';
+
+/** Подставляется сборкой `tools/build-packages.mjs`; в исходниках не определена. */
+declare const __SPIRULA_PACKAGE_VERSION__: string | undefined;
+
+const builtPackageVersion = (): string | null =>
+  typeof __SPIRULA_PACKAGE_VERSION__ === 'string'
+    ? __SPIRULA_PACKAGE_VERSION__
+    : null;
 
 export type GenerateErrorCode =
   'invalid-id' | 'invalid-local' | 'target-not-empty';
@@ -28,6 +36,8 @@ export interface GenerateOptions {
   id?: string;
   /** Корень репозитория Spirula: зависимости пишутся как `link:<корень>/packages/...`. */
   localRoot?: string;
+  /** Версия опубликованных пакетов; по умолчанию — версия самого генератора из сборки. */
+  packageVersion?: string;
 }
 
 export interface GenerateResult {
@@ -37,6 +47,8 @@ export interface GenerateResult {
   files: string[];
   id: string;
   isLocal: boolean;
+  /** Зависимости указывают на опубликованную версию, а не на условную `^0.0.0`. */
+  isPublished: boolean;
 }
 
 /** `AcmeHello`, `acme_hello`, `acme.hello` → `acme-hello`. */
@@ -64,11 +76,23 @@ const resolveId = (dir: string, id: string | undefined): string => {
   return resolved;
 };
 
+interface DependencySpecs {
+  dependencies: TemplateInput['dependencies'];
+  /** Версия пакетов известна (сборка опубликованного пакета), а не условная. */
+  isPublished: boolean;
+}
+
 const dependencySpecs = async (
   localRoot: string | undefined,
-): Promise<TemplateInput['dependencies']> => {
+  packageVersion: string | null,
+): Promise<DependencySpecs> => {
   if (localRoot === undefined) {
-    return { sdk: UNPUBLISHED_VERSION, tools: UNPUBLISHED_VERSION };
+    const range =
+      packageVersion === null ? UNPUBLISHED_VERSION : `^${packageVersion}`;
+    return {
+      dependencies: { sdk: range, tools: range },
+      isPublished: packageVersion !== null,
+    };
   }
   const root = path.resolve(localRoot);
   const sdk = path.join(root, 'packages', 'extension-sdk');
@@ -81,7 +105,10 @@ const dependencySpecs = async (
       );
     }
   }
-  return { sdk: `link:${sdk}`, tools: `link:${tools}` };
+  return {
+    dependencies: { sdk: `link:${sdk}`, tools: `link:${tools}` },
+    isPublished: false,
+  };
 };
 
 const assertEmpty = async (dir: string): Promise<void> => {
@@ -95,8 +122,8 @@ const assertEmpty = async (dir: string): Promise<void> => {
 
 /** Файлы проекта: относительный путь → содержимое. */
 export const renderProject = (input: TemplateInput): Map<string, string> => {
-  const { id } = input;
-  return new Map([
+  const { id, githubPackages = false } = input;
+  return new Map<string, string>([
     ['package.json', template.packageJson(input)],
     ['tsconfig.json', template.tsconfigJson()],
     ['extension.json', template.manifestJson(id)],
@@ -104,8 +131,11 @@ export const renderProject = (input: TemplateInput): Map<string, string> => {
     ['src/view.ts', template.viewTs(id)],
     ['test/main.test.ts', template.mainTestTs(id)],
     ['test/view.test.ts', template.viewTestTs(id)],
-    ['README.md', template.readme(id)],
+    ['README.md', template.readme(id, githubPackages)],
     ['.gitignore', template.gitignore()],
+    ...(githubPackages
+      ? [['.npmrc', template.npmrc()] as [string, string]]
+      : []),
   ]);
 };
 
@@ -114,10 +144,18 @@ export const generateExtension = async (
 ): Promise<GenerateResult> => {
   const dir = path.resolve(options.dir);
   const id = resolveId(dir, options.id);
-  const dependencies = await dependencySpecs(options.localRoot);
+  const { dependencies, isPublished } = await dependencySpecs(
+    options.localRoot,
+    options.packageVersion ?? builtPackageVersion(),
+  );
   await assertEmpty(dir);
 
-  const project = renderProject({ id, dependencies });
+  const isLocal = options.localRoot !== undefined;
+  const project = renderProject({
+    id,
+    dependencies,
+    githubPackages: !isLocal,
+  });
   for (const [file, content] of project) {
     const target = path.join(dir, ...file.split('/'));
     await mkdir(path.dirname(target), { recursive: true });
@@ -127,6 +165,7 @@ export const generateExtension = async (
     dir,
     files: [...project.keys()].sort(),
     id,
-    isLocal: options.localRoot !== undefined,
+    isLocal,
+    isPublished,
   };
 };

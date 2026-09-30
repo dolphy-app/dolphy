@@ -20,6 +20,7 @@ type ExtHostMessage =
       bundledExtensionsDir?: string;
       userExtensionsDir?: string;
       devExtensionsDir?: string;
+      appVersion?: string;
     }
   | { type: 'connect' }
   | { type: 'shutdown' };
@@ -44,6 +45,7 @@ const handle = async (
     const { extensions } = await discoverExtensions({
       roots: extensionRoots(message),
       logger,
+      ...(message.appVersion ? { appVersion: message.appVersion } : {}),
     });
     const library = createNodeFsCourseSource(message.libraryRoot);
     runtime = createExtensionRuntime({

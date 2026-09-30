@@ -9,6 +9,7 @@ export * from './permissions.ts';
 export * from './policy.ts';
 export * from './protocol.ts';
 export * from './registry.ts';
+export * from './revocation.ts';
 export * from './restricted-child.ts';
 export * from './restricted-protocol.ts';
 export * from './restricted-runner.ts';

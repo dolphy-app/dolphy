@@ -13,6 +13,12 @@ const extension: ResolvedExtension = {
   dir: '/x/acme.t',
   mainPath: '/x/acme.t/main.mjs',
   permissions: [],
+  name: null,
+  description: null,
+  author: null,
+  platforms: [],
+  minAppVersion: null,
+  install: null,
   exerciseTypes: [
     {
       id: 'acme.t',
@@ -104,7 +110,7 @@ describe('createCatalog: отключённые расширения', () => {
   const catalog = createCatalog([withPolicy], policy);
 
   it('ведёт себя так, будто расширения нет, и сразу возвращается при включении', () => {
-    policy.update({ disabled: ['acme.t'], trusted: [] });
+    policy.update({ disabled: ['acme.t'], trusted: [], checkUpdates: true });
     expect(catalog.describe('acme.t')).toBeUndefined();
     expect(catalog.list()).toEqual([]);
     expect(catalog.ownerOf('acme.t')).toBeUndefined();
@@ -116,7 +122,7 @@ describe('createCatalog: отключённые расширения', () => {
     expect(catalog.validateAnswer('acme.t', 'x')).toEqual([
       'unknown exercise type',
     ]);
-    policy.update({ disabled: [], trusted: [] });
+    policy.update({ disabled: [], trusted: [], checkUpdates: true });
     expect(catalog.describe('acme.t')?.extensionId).toBe('acme.t');
     expect(catalog.list()).toHaveLength(1);
     expect(catalog.ownerOfPolicy('acme.t.generous')?.id).toBe('acme.t');

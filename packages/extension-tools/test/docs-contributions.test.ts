@@ -1,6 +1,6 @@
 /**
- * Примеры из разделов «Точки вклада» и «Права и изоляция» `docs/design/extensions.md` проверяются
- * машиной: документ не расходится с кодом.
+ * Примеры из разделов «Точки вклада», «Права и изоляция» и «Установка и каталог»
+ * `docs/design/extensions.md` проверяются машиной: документ не расходится с кодом.
  *
  * Соглашение о маркерах: пример — обычный блок кода, последняя непустая строка
  * перед открывающей оградой имеет вид ``Файл `<путь>` (<метка>):``. Блоки без такой
@@ -12,16 +12,19 @@
  * - `build-no-code` — проект из одного `extension.json` собирается и проходит
  *   `validateExtension`;
  * - `build-with-code` — проект из `extension.json` и `src/*.ts` (блоки ```ts
- *   с маркером) собирается и проходит `validateExtension`.
+ *   с маркером) собирается и проходит `validateExtension`;
+ * - `index` — единственный файл `index.json` проходит `parseIndex`
+ *   (`@spirula-app/extension-catalog`).
  */
 import { mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { parseIndex } from '@spirula-app/extension-catalog';
 import { parseManifest } from '@spirula-app/extension-host';
 import { describe, expect, it } from 'vitest';
 import { buildExtension, validateExtension } from '../src/index.ts';
 import { makeTemp } from './helpers.ts';
 
-type Mode = 'manifest' | 'build-no-code' | 'build-with-code';
+type Mode = 'manifest' | 'build-no-code' | 'build-with-code' | 'index';
 
 const EXAMPLES: Readonly<Record<string, Mode>> = {
   'вид задания': 'manifest',
@@ -29,11 +32,17 @@ const EXAMPLES: Readonly<Record<string, Mode>> = {
   'рендерер содержимого': 'build-with-code',
   'правило оценки': 'build-with-code',
   'вид задания с правами': 'manifest',
+  'расширение для каталога': 'build-no-code',
+  'индекс каталога': 'index',
 };
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../../..');
 const DOC = path.join(REPO_ROOT, 'docs/design/extensions.md');
-const SECTIONS = ['## Точки вклада', '## Права и изоляция'];
+const SECTIONS = [
+  '## Точки вклада',
+  '## Права и изоляция',
+  '## Установка и каталог',
+];
 const MARKER = /^Файл `([^`]+)` \(([^)]+)\):$/;
 
 interface ExampleFile {
@@ -111,13 +120,23 @@ const writeProject = async (
   return root;
 };
 
-describe('примеры разделов «Точки вклада» и «Права и изоляция»', () => {
+describe('примеры разделов «Точки вклада», «Права и изоляция» и «Установка и каталог»', () => {
   it('метки примеров совпадают с таблицей проверок', () => {
     expect([...examples.keys()].sort()).toEqual(Object.keys(EXAMPLES).sort());
   });
 
   for (const [label, mode] of Object.entries(EXAMPLES)) {
     describe(label, () => {
+      if (mode === 'index') {
+        it('index.json проходит parseIndex', () => {
+          const files = examples.get(label) ?? [];
+          expect(files.map(({ file }) => file)).toEqual(['index.json']);
+          const index = parseIndex(JSON.parse(files[0]?.content ?? ''));
+          expect(index.extensions.length).toBeGreaterThan(0);
+        });
+        return;
+      }
+
       it('extension.json проходит parseManifest', () => {
         const result = parseManifest(manifestOf(examples.get(label) ?? []));
         expect(result).toMatchObject({ ok: true });

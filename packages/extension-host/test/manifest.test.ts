@@ -39,6 +39,7 @@ describe('parseManifest', () => {
     ['id не по паттерну', { ...valid(), id: 'Acme_Quiz' }],
     ['id длиннее 64 символов', { ...valid(), id: 'a'.repeat(65) }],
     ['версия не semver', { ...valid(), version: '1.0' }],
+    ['версия с ведущим нулём', { ...valid(), version: '01.0.0' }],
     ['вид вне префикса расширения', withType({ id: 'other.quiz' })],
     ['вид с общим началом без точки', withType({ id: 'acme.quizzes' })],
     ['main без .mjs', { ...valid(), main: './main.js' }],
@@ -189,5 +190,79 @@ describe('normalizeManifest', () => {
     const before = structuredClone(input);
     normalizeManifest(input);
     expect(input).toEqual(before);
+  });
+});
+
+describe('метаданные и совместимость', () => {
+  const withMeta = (patch: Record<string, unknown>) => ({
+    ...valid(),
+    ...patch,
+  });
+
+  it('по умолчанию null и пустые платформы', () => {
+    expect(parseManifest(valid())).toMatchObject({
+      ok: true,
+      manifest: {
+        name: null,
+        description: null,
+        author: null,
+        platforms: [],
+        minAppVersion: null,
+      },
+    });
+  });
+
+  it('принимает корректные значения', () => {
+    const result = parseManifest(
+      withMeta({
+        name: 'Quiz',
+        description: 'Вопросы',
+        author: 'octo-cat',
+        platforms: ['darwin', 'win32'],
+        minAppVersion: '1.2.3',
+      }),
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      manifest: {
+        name: 'Quiz',
+        author: 'octo-cat',
+        platforms: ['darwin', 'win32'],
+        minAppVersion: '1.2.3',
+      },
+    });
+  });
+
+  it.each([
+    ['name', ''],
+    ['name', 'x'.repeat(81)],
+    ['description', ''],
+    ['description', 'x'.repeat(501)],
+    ['author', '-bad'],
+    ['author', 'a'.repeat(40)],
+    ['author', 'has space'],
+    ['platforms', ['freebsd']],
+    ['platforms', ['linux', 'linux']],
+    ['minAppVersion', '1.2'],
+    ['minAppVersion', '01.2.3'],
+    ['minAppVersion', '1.2.3+build'],
+  ])('отклоняет %s = %j', (key, value) => {
+    expect(parseManifest(withMeta({ [key]: value })).ok).toBe(false);
+  });
+
+  it('граничные длины принимаются', () => {
+    expect(
+      parseManifest(
+        withMeta({
+          name: 'x'.repeat(80),
+          description: 'x'.repeat(500),
+          author: 'a'.repeat(39),
+        }),
+      ).ok,
+    ).toBe(true);
+  });
+
+  it('неизвестный ключ по-прежнему отвергается', () => {
+    expect(parseManifest(withMeta({ homepage: 'x' })).ok).toBe(false);
   });
 });

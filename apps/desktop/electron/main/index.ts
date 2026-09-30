@@ -16,6 +16,7 @@ import { createExtSupervisor, isTypedMessage } from './ext-supervisor.ts';
 import { createHostLink } from './host-link.ts';
 import { createMainLogger } from './logger.ts';
 import { createDevExtensionsShell } from './shells/dev-extensions.ts';
+import { createExtensionsApplyShell } from './shells/extensions-apply.ts';
 import { createEngineShell } from './shells/engine.ts';
 import { createExtensionAssetsShell } from './shells/extension-assets.ts';
 import { createLifecycleShell } from './shells/lifecycle.ts';
@@ -67,6 +68,20 @@ const devExtensionsDir = process.env.SPIRULA_DEV_EXTENSIONS
   ? path.resolve(process.env.SPIRULA_DEV_EXTENSIONS)
   : undefined;
 
+// версия приложения известна у собранного приложения; в разработке проверка
+// minAppVersion отключена, если не задан SPIRULA_APP_VERSION (для e2e и отладки)
+const devAppVersion = /^\d+\.\d+\.\d+$/.test(
+  process.env.SPIRULA_APP_VERSION ?? '',
+)
+  ? process.env.SPIRULA_APP_VERSION
+  : undefined;
+const appVersion = app.isPackaged ? app.getVersion() : devAppVersion;
+// адрес каталога расширений подменяется только в несобранном приложении (e2e, отладка):
+// в собранном идёт официальный
+const extensionCatalogUrl = app.isPackaged
+  ? undefined
+  : process.env.SPIRULA_EXTENSION_CATALOG_URL || undefined;
+
 const hostLink = createHostLink({ MessageChannelMain });
 const extSupervisor = createExtSupervisor({
   utilityProcess,
@@ -77,6 +92,7 @@ const extSupervisor = createExtSupervisor({
     bundledExtensionsDir,
     userExtensionsDir,
     restrictedEntry,
+    ...(appVersion ? { appVersion } : {}),
     ...(devExtensionsDir ? { devExtensionsDir } : {}),
   },
   logger,
@@ -92,7 +108,9 @@ const supervisor = createSupervisor({
     dataDir: path.join(userData, 'data'),
     bundledExtensionsDir,
     userExtensionsDir,
+    ...(appVersion ? { appVersion } : {}),
     ...(devExtensionsDir ? { devExtensionsDir } : {}),
+    ...(extensionCatalogUrl ? { extensionCatalogUrl } : {}),
   },
   logger,
   onFatal: () => {
@@ -109,6 +127,14 @@ const supervisor = createSupervisor({
     if (isTypedMessage(message, 'restart-ext-host')) extSupervisor.kill();
   },
 });
+
+// один путь «применить изменения расширений» для режима разработчика и кнопки в настройках
+const restartHosts = () => {
+  extSupervisor.restart();
+  supervisor.restart();
+};
+const windows = () =>
+  BrowserWindow.getAllWindows().map((win) => win.webContents);
 
 const shells = [
   createWindowShell({
@@ -128,6 +154,13 @@ const shells = [
     dialog,
     fromWebContents: (sender) =>
       BrowserWindow.fromWebContents(sender as Electron.WebContents),
+  }),
+  createExtensionsApplyShell({
+    ipcMain,
+    restartHosts,
+    windows,
+    timers: { setTimeout },
+    logger,
   }),
   createLifecycleShell({ app, supervisors: [supervisor, extSupervisor] }),
   createExtensionAssetsShell({
@@ -157,12 +190,8 @@ const shells = [
             return watcher;
           },
           timers: { setTimeout, clearTimeout },
-          restartHosts: () => {
-            extSupervisor.restart();
-            supervisor.restart();
-          },
-          windows: () =>
-            BrowserWindow.getAllWindows().map((win) => win.webContents),
+          restartHosts,
+          windows,
           exists: existsSync,
           logger,
         }),

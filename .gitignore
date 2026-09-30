@@ -14,3 +14,4 @@ release
 *.suo
 *.sw?
 *.tsbuildinfo
+dist-publish

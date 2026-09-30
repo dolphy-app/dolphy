@@ -25,6 +25,12 @@ const resolved: ResolvedExtension[] = [
     dir: '/x',
     mainPath: '/x/main.mjs',
     permissions: [],
+    name: null,
+    description: null,
+    author: null,
+    platforms: [],
+    minAppVersion: null,
+    install: null,
     exerciseTypes: [
       {
         id: 'acme.t',
@@ -466,7 +472,7 @@ describe('isolated в запросах', () => {
       );
     };
     expect(await call()).toEqual([true, true]);
-    policy.update({ disabled: [], trusted: ['acme.t'] });
+    policy.update({ disabled: [], trusted: ['acme.t'], checkUpdates: true });
     expect(await call()).toEqual([false, false]);
   });
 

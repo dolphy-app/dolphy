@@ -174,25 +174,44 @@ export const describeSettingsStoreContract = (
       expect(await store.loadLearning()).toEqual({ gradePolicy: 'passAtN' });
     });
 
-    it('расширения: по умолчанию пусто, save → load, списки канонические', async () => {
+    it('расширения: по умолчанию пусто, проверка обновлений включена', async () => {
       const store = await make();
       expect(await store.loadExtensions()).toEqual({
         disabled: [],
         trusted: [],
+        checkUpdates: true,
       });
+    });
+
+    it('расширения: save → load, списки канонические, checkUpdates=false переживает круг', async () => {
+      const store = await make();
       await store.saveExtensions({
         disabled: ['acme.b', 'acme.a', 'acme.b'],
         trusted: ['acme.z'],
+        checkUpdates: false,
       });
       expect(await store.loadExtensions()).toEqual({
         disabled: ['acme.a', 'acme.b'],
         trusted: ['acme.z'],
+        checkUpdates: false,
       });
-      await store.saveExtensions({ disabled: [], trusted: [] });
+      await store.saveExtensions({
+        disabled: [],
+        trusted: [],
+        checkUpdates: true,
+      });
       expect(await store.loadExtensions()).toEqual({
         disabled: [],
         trusted: [],
+        checkUpdates: true,
       });
+    });
+
+    it('метка проверки обновлений: по умолчанию null, save → load', async () => {
+      const store = await make();
+      expect(await store.loadUpdateCheckedAt()).toBeNull();
+      await store.saveUpdateCheckedAt(1_700_000_000_000);
+      expect(await store.loadUpdateCheckedAt()).toBe(1_700_000_000_000);
     });
 
     it('значения разных видов не мешают друг другу', async () => {
@@ -200,7 +219,11 @@ export const describeSettingsStoreContract = (
       await store.saveSchedulerOverrides({ batchSize: 3 });
       await store.saveUi({ theme: 'dark', locale: 'ru' });
       await store.saveLearning({ gradePolicy: 'acme.policy' });
-      await store.saveExtensions({ disabled: ['acme.x'], trusted: [] });
+      await store.saveExtensions({
+        disabled: ['acme.x'],
+        trusted: [],
+        checkUpdates: true,
+      });
       await store.savePreferences({
         scheduler: null,
         ignored_paths: ['x'],
@@ -214,6 +237,7 @@ export const describeSettingsStoreContract = (
       expect(await store.loadExtensions()).toEqual({
         disabled: ['acme.x'],
         trusted: [],
+        checkUpdates: true,
       });
       expect((await store.loadPreferences()).ignored_paths).toEqual(['x']);
     });

@@ -34,11 +34,19 @@ const bottomItems = computed(() =>
       <span class="text-title-large font-weight-bold">{{ APP_NAME }}</span>
     </div>
     <v-divider />
-    <v-list nav role="navigation" class="pa-3" :aria-label="t('nav.main')">
+    <!-- ссылки меню — обычные остановки Tab, а не пункты списка со стрелками -->
+    <v-list
+      nav
+      role="navigation"
+      class="pa-3"
+      tabindex="-1"
+      :aria-label="t('nav.main')"
+    >
       <v-list-item
         v-for="item in topItems"
         :key="item.name"
         :to="{ name: item.name }"
+        tabindex="0"
         exact
         :prepend-icon="item.icon"
         :title="t(item.titleKey)"
@@ -47,11 +55,18 @@ const bottomItems = computed(() =>
       />
     </v-list>
     <template #append>
-      <v-list nav role="navigation" class="pa-3" :aria-label="t('nav.more')">
+      <v-list
+        nav
+        role="navigation"
+        class="pa-3"
+        tabindex="-1"
+        :aria-label="t('nav.more')"
+      >
         <v-list-item
           v-for="item in bottomItems"
           :key="item.name"
           :to="{ name: item.name }"
+          tabindex="0"
           :prepend-icon="item.icon"
           :title="t(item.titleKey)"
           color="primary"

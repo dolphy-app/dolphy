@@ -1,6 +1,6 @@
 # Расширения: виды заданий
 
-Любой вид задания (SQL, выбор варианта, дальше — перетаскивание, сопоставление) — расширение. Ядро движка знает только конверт «вид + spec + ответ → вердикт», содержимое видов ему непрозрачно. Решение и его причины — `docs/adr/0001-exercise-types-as-extensions.md`.
+Любой вид задания (SQL, выбор варианта, дальше — перетаскивание, сопоставление) — расширение. Ядро движка знает только конверт «вид + spec + ответ → вердикт», содержимое видов ему непрозрачно. Решение и его причины — `docs/adr/0001-exercise-types-as-extensions.md`; форма расширения для авторов и принятый риск безопасности — `docs/adr/0002-authoring-simplicity-over-isolation.md`.
 
 ## Что такое расширение
 
@@ -39,6 +39,8 @@ lms.choice/
 Типы и константы API — пакет `@lms/extension-api`.
 
 ## Код расширения
+
+Ниже — низкоуровневый API `ExtensionModule`. Писать расширение проще через SDK: `defineExtension` и `defineAnswerElement` (раздел «Как написать расширение»).
 
 ```ts
 export default {
@@ -101,6 +103,140 @@ engine:
 Компилятор проверяет `spec` по схеме вида (`E_EXERCISE_SPEC`), сообщает о неизвестном виде (`W_UNKNOWN_EXERCISE_TYPE`) и прогоняет эталон: `referenceAnswer` → `grade` (`E_REFERENCE_FAILS`). CLI: `engine-cli validate <библиотека> --run-checks --extensions <каталог-корень>` (флаг повторяемый; без него проверки видов пропускаются, а `--run-checks` требует его).
 
 Ответ ученика не попадает в журнал как есть: журнал хранит оценку и источник (`runner`); `spec` и ключи ответов в renderer не уходят — там только `task { type, timeoutMs, element, rendererUrl }` и `view` из `project`.
+
+## Как написать расширение
+
+Расширение — каталог с `extension.json`, кодом для процесса расширений (`main.mjs`) и, при необходимости, элементом ввода ответа (`view.mjs`). Писать его удобнее всего на TypeScript с [`@lms/extension-sdk`](../../packages/extension-sdk/README.md), собирать — [`lms-ext`](../../packages/extension-tools/README.md).
+
+### Быстрый старт
+
+Из корня репозитория:
+
+```sh
+pnpm create-extension ~/projects/acme-hello --local .
+cd ~/projects/acme-hello
+pnpm install
+pnpm test
+pnpm dev # lms-ext build --watch
+```
+
+`--local <корень>` подключает `@lms/extension-sdk` и `@lms/extension-tools` как `link:<корень>/packages/...` (пакеты не опубликованы; без флага в `package.json` попадёт условное `^0.0.0`, и генератор напечатает предупреждение). Id по умолчанию — kebab-case имени каталога, задаётся флагом `--id`. Во втором терминале запустите приложение с каталогом сборки:
+
+```sh
+LMS_DEV_EXTENSIONS=~/projects/acme-hello/dist-ext pnpm dev
+```
+
+Правка исходника пересобирает бандл, приложение перезапускает хосты и перезагружает окно (см. «Режим разработчика» ниже).
+
+### Раскладка проекта
+
+```
+acme-hello/
+  extension.json      # манифест
+  src/main.ts         # defineExtension: код вида задания (utilityProcess)
+  src/view.ts         # defineAnswerElement: элемент ввода ответа (окно)
+  test/               # vitest: обработчик без приложения и элемент в happy-dom
+  package.json  tsconfig.json  README.md  .gitignore
+  dist-ext/acme.hello/  # результат сборки (extension.json, main.mjs, view.mjs)
+```
+
+Схемы `spec` и ответа можно писать объектами прямо в манифесте или путями к файлам в `schema/`; `main`, `renderer` и `element` по умолчанию — `./main.mjs`, `./view.mjs` и `<id без точек>-answer`.
+
+### Минимальный манифест и код
+
+Так выглядит проект, который создаёт генератор для id `acme.hello` (вид «text match»: ответ сравнивается с `spec.expected`).
+
+`extension.json`:
+
+```json
+{
+  "id": "acme.hello",
+  "version": "0.1.0",
+  "apiVersion": 1,
+  "contributes": {
+    "exerciseTypes": [
+      {
+        "id": "acme.hello",
+        "specSchema": {
+          "type": "object",
+          "required": ["expected"],
+          "additionalProperties": false,
+          "properties": {
+            "expected": { "type": "string", "minLength": 1 },
+            "ignoreCase": { "type": "boolean" }
+          }
+        },
+        "answerSchema": { "type": "string" }
+      }
+    ]
+  }
+}
+```
+
+`src/main.ts`:
+
+```ts
+import { defineExerciseType, defineExtension } from '@lms/extension-sdk';
+
+interface Spec {
+  expected: string;
+  ignoreCase?: boolean;
+}
+
+const matches = (answer: string, spec: Spec): boolean => {
+  if (spec.ignoreCase === true) {
+    return answer.toLowerCase() === spec.expected.toLowerCase();
+  }
+  return answer === spec.expected;
+};
+
+// схемы из extension.json уже проверили spec и ответ до вызова обработчиков
+export default defineExtension({
+  exerciseTypes: {
+    'acme.hello': defineExerciseType<Spec, string, Record<string, never>>({
+      project: () => ({}),
+      grade: ({ spec, answer }) =>
+        matches(answer, spec)
+          ? { outcome: 'passed' }
+          : { outcome: 'failed', reason: 'mismatch' },
+      referenceAnswer: ({ spec }) => spec.expected,
+    }),
+  },
+});
+```
+
+Элемент ввода `src/view.ts` — обычное поле `<input>` внутри shadow DOM (`defineAnswerElement('acme-hello-answer', mount)`); полный текст — в сгенерированном проекте.
+
+### Шпаргалка по SDK
+
+- `defineExtension({ exerciseTypes, activate?, deactivate? })` — готовый модуль расширения (`export default` в `main.ts`): виды из `exerciseTypes` регистрируются сами, при `deactivate` освобождаются.
+- `defineExerciseType<Spec, Answer, View>({ project, grade, referenceAnswer? })` — типизированный обработчик. `project` отдаёт элементу публичный вид задания (без ключей ответа); `grade` возвращает `{ outcome: 'passed' }`, `{ outcome: 'failed', reason, detail? }` или `{ outcome: 'error', reason }`; `referenceAnswer` — эталон для проверки библиотеки компилятором. К моменту вызова `grade` `spec` и ответ уже проверены схемами из манифеста.
+- `defineAnswerElement(tag, mount)` — определяет custom element с shadow DOM. `mount(api, props)` получает `api.root`, `api.label` (`aria-label` от приложения), `api.setAnswer(value, complete)` и `api.submit()`, возвращает `{ update(props), destroy?() }`; `props` — `view`, `value`, `disabled`, `verdict`.
+- `@lms/extension-sdk/testing`: `loadExerciseType(module, type)` запускает `project`/`grade`/`referenceAnswer` без приложения и проверяет форму результата; `createSchemaValidator(schema)` — проверка `spec` и ответа по своим схемам; `createMemoryLibrary(files)` — библиотека в памяти для видов, читающих файлы курса.
+
+### Сборка и проверка
+
+```sh
+pnpm build     # lms-ext build → dist-ext/<id>
+pnpm validate  # lms-ext validate dist-ext/<id>
+pnpm test
+```
+
+`lms-ext validate` разбирает манифест тем же кодом, что приложение (`inspectExtensionDir`), и завершается кодом 1 при проблеме. Подробности, дополнительные входы и внешние пакеты — в README `@lms/extension-tools`.
+
+### Режим разработчика
+
+`LMS_DEV_EXTENSIONS=<каталог>` добавляет корень расширений `dev` с наивысшим приоритетом. Для проекта это `<проект>/dist-ext`; `pnpm dev` (`lms-ext build --watch`) пересобирает бандлы, приложение по правке файла перезапускает хосты и перезагружает окно. Манифест и схемы копируются один раз — после их правки перезапустите `pnpm dev`. Причины, по которым расширение не загрузилось, видны в «Настройки → Расширения».
+
+### Установка вручную
+
+Скопируйте `dist-ext/<id>` в `<userData>/extensions/` и перезапустите приложение. Совпадение id с расширением из поставки — побеждает пользовательское.
+
+### Текущие ограничения
+
+- Установки из приложения (по адресу, из архива, каталог) пока нет: расширение — каталог, установка — копирование.
+- Прав (`permissions`) нет: код расширения исполняется с правами пользователя, элемент ввода — в общем JS-контексте приложения.
+- Из точек вклада есть только `exerciseTypes`; расширения подхватываются при запуске приложения.
 
 ## Расширения по умолчанию
 

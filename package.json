@@ -12,6 +12,7 @@
     "build": "pnpm --filter @lms/desktop build",
     "smoke": "pnpm --filter @lms/desktop smoke",
     "smoke:packaged": "pnpm --filter @lms/desktop smoke:packaged",
+    "create-extension": "pnpm -F @lms/create-extension create-extension",
     "typecheck": "pnpm -r --workspace-concurrency=1 run typecheck",
     "test": "vitest run",
     "test:watch": "vitest",

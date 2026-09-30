@@ -13,6 +13,11 @@ const extension: ResolvedExtension = {
   dir: '/x/acme.t',
   mainPath: '/x/acme.t/main.mjs',
   permissions: [],
+  name: null,
+  description: null,
+  author: null,
+  platforms: [],
+  minAppVersion: null,
   exerciseTypes: [
     {
       id: 'acme.t',

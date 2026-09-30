@@ -1,0 +1,25 @@
+{
+  "name": "@spirula-app/extension-catalog",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Каталог расширений: схема индекса, semver, выбор совместимой версии, отзыв (без Node-зависимостей)",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@spirula-app/extension-api": "workspace:*",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "typescript": "7.0.2"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}

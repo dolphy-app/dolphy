@@ -10,6 +10,11 @@ const extension = (id: string, version = '1.0.0'): ResolvedExtension => ({
   dir: `/x/${id}`,
   mainPath: `/x/${id}/main.mjs`,
   permissions: ['library.read'],
+  name: null,
+  description: null,
+  author: null,
+  platforms: [],
+  minAppVersion: null,
   exerciseTypes: [
     {
       id: `${id}.a`,

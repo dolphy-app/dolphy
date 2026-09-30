@@ -2,11 +2,13 @@ import {
   DEFAULT_MAIN,
   EXTENSION_API_VERSION,
   EXTENSION_PERMISSIONS,
+  EXTENSION_PLATFORMS,
 } from '@spirula-app/extension-api';
 import type {
   ExtensionManifest,
   ExtensionManifestInput,
 } from '@spirula-app/extension-api';
+import { isSemver } from '@spirula-app/extension-catalog';
 import { z } from 'zod';
 import { CONTRIBUTION_POINTS } from './points/index.ts';
 import { extensionId, safePath } from './points/support.ts';
@@ -39,10 +41,30 @@ export const manifestSchema = z
     apiVersion: z.literal(EXTENSION_API_VERSION),
     main: safePath(['.mjs']).optional(),
     permissions: z.array(z.enum(EXTENSION_PERMISSIONS)).optional(),
+    name: z.string().min(1).max(80).optional(),
+    description: z.string().min(1).max(500).optional(),
+    author: z
+      .string()
+      .regex(/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/, 'must be a GitHub login')
+      .optional(),
+    platforms: z.array(z.enum(EXTENSION_PLATFORMS)).optional(),
+    minAppVersion: z
+      .string()
+      .refine(isSemver, 'minAppVersion must be semver x.y.z')
+      .optional(),
     contributes: contributesSchema,
   })
   .superRefine((manifest, ctx) => {
-    const { permissions = [] } = manifest;
+    const { permissions = [], platforms = [] } = manifest;
+    platforms.forEach((platform, index) => {
+      if (platforms.indexOf(platform) !== index) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['platforms', index],
+          message: `duplicate platform '${platform}'`,
+        });
+      }
+    });
     permissions.forEach((permission, index) => {
       if (permissions.indexOf(permission) !== index) {
         ctx.addIssue({
@@ -83,6 +105,11 @@ export const normalizeManifest = (
     apiVersion: input.apiVersion,
     main: input.main ?? (needsMain(input.contributes) ? DEFAULT_MAIN : null),
     permissions: [...(input.permissions ?? [])],
+    name: input.name ?? null,
+    description: input.description ?? null,
+    author: input.author ?? null,
+    platforms: [...(input.platforms ?? [])],
+    minAppVersion: input.minAppVersion ?? null,
     contributes: contributes as ExtensionManifest['contributes'],
   };
 };

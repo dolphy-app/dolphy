@@ -67,6 +67,9 @@ const devExtensionsDir = process.env.SPIRULA_DEV_EXTENSIONS
   ? path.resolve(process.env.SPIRULA_DEV_EXTENSIONS)
   : undefined;
 
+// версия приложения известна только у собранного приложения; в разработке проверка minAppVersion отключена
+const appVersion = app.isPackaged ? app.getVersion() : undefined;
+
 const hostLink = createHostLink({ MessageChannelMain });
 const extSupervisor = createExtSupervisor({
   utilityProcess,
@@ -77,6 +80,7 @@ const extSupervisor = createExtSupervisor({
     bundledExtensionsDir,
     userExtensionsDir,
     restrictedEntry,
+    ...(appVersion ? { appVersion } : {}),
     ...(devExtensionsDir ? { devExtensionsDir } : {}),
   },
   logger,
@@ -92,6 +96,7 @@ const supervisor = createSupervisor({
     dataDir: path.join(userData, 'data'),
     bundledExtensionsDir,
     userExtensionsDir,
+    ...(appVersion ? { appVersion } : {}),
     ...(devExtensionsDir ? { devExtensionsDir } : {}),
   },
   logger,

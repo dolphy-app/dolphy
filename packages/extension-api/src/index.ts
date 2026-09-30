@@ -14,6 +14,9 @@ export const EXTENSION_PERMISSIONS = [
   'network',
 ] as const;
 export type ExtensionPermission = (typeof EXTENSION_PERMISSIONS)[number];
+/** Платформы, на которых расширение может работать (`process.platform`). */
+export const EXTENSION_PLATFORMS = ['darwin', 'linux', 'win32'] as const;
+export type ExtensionPlatform = (typeof EXTENSION_PLATFORMS)[number];
 export const ELEMENT_NAME_PATTERN = /^[a-z][a-z0-9]*(-[a-z0-9]+)+$/;
 
 /** Имена событий custom element'а ответа. */
@@ -96,6 +99,15 @@ export interface ExtensionManifest {
   main: string | null;
   /** Объявленные возможности кода расширения; по умолчанию пусто. */
   permissions: ExtensionPermission[];
+  /** Человекочитаемое название; `null` — не задано. */
+  name: string | null;
+  description: string | null;
+  /** GitHub-логин автора; `null` — не задан. */
+  author: string | null;
+  /** Пусто — любая платформа. */
+  platforms: readonly ExtensionPlatform[];
+  /** Минимальная версия приложения (semver); `null` — любая. */
+  minAppVersion: string | null;
   contributes: {
     exerciseTypes: ExerciseTypeContribution[];
     themes: ThemeContribution[];
@@ -125,6 +137,12 @@ export interface ExtensionManifestInput {
   /** По умолчанию `DEFAULT_MAIN`, если код нужен вкладам; иначе `null`. */
   main?: string;
   permissions?: ExtensionPermission[];
+  name?: string;
+  description?: string;
+  author?: string;
+  /** Нет ключа — любая платформа. */
+  platforms?: ExtensionPlatform[];
+  minAppVersion?: string;
   contributes: {
     exerciseTypes?: ExerciseTypeContributionInput[];
     themes?: ThemeContribution[];

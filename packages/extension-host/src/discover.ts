@@ -3,8 +3,11 @@ import path from 'node:path';
 import { DEFAULT_MAIN } from '@spirula-app/extension-api';
 import type {
   ExtensionLogger,
+  ExtensionManifest,
   ExtensionPermission,
+  ExtensionPlatform,
 } from '@spirula-app/extension-api';
+import { compareSemver } from '@spirula-app/extension-catalog';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import { parseManifest } from './manifest.ts';
 import { CONTRIBUTION_POINTS } from './points/index.ts';
@@ -27,6 +30,12 @@ export interface ResolvedExtension extends ResolvedContributions {
   mainPath: string | null;
   /** Объявленные в манифесте возможности кода; по умолчанию пусто. */
   permissions: ExtensionPermission[];
+  name: string | null;
+  description: string | null;
+  author: string | null;
+  /** Пусто — любая платформа. */
+  platforms: readonly ExtensionPlatform[];
+  minAppVersion: string | null;
 }
 
 export interface DiscoveryDiagnostic {
@@ -54,7 +63,30 @@ export interface DiscoverOptions {
   logger: ExtensionLogger;
   /** false — не проверять существование `main` и `renderer` (тесты исходных манифестов). */
   verifyFiles?: boolean;
+  /** Версия приложения; не задана — `minAppVersion` не проверяется. */
+  appVersion?: string;
+  /** Текущая платформа; по умолчанию `process.platform`. */
+  platform?: string;
 }
+
+const compatibilityIssue = (
+  manifest: ExtensionManifest,
+  appVersion: string | undefined,
+  platform: string,
+): string | null => {
+  const { minAppVersion, platforms } = manifest;
+  if (
+    minAppVersion !== null &&
+    appVersion !== undefined &&
+    compareSemver(minAppVersion, appVersion) > 0
+  ) {
+    return `requires app >= ${minAppVersion} (running ${appVersion})`;
+  }
+  if (platforms.length > 0 && !platforms.some((p) => p === platform)) {
+    return `not available on ${platform} (supports: ${platforms.join(', ')})`;
+  }
+  return null;
+};
 
 const resolveMain = async (
   dir: string,
@@ -92,6 +124,10 @@ export interface InspectOptions {
   verifyFiles?: boolean;
   /** Ожидаемый `id` (имя каталога при обнаружении); `null`/не задан — не проверять. */
   expectedId?: string | null;
+  /** Версия приложения; не задана — `minAppVersion` не проверяется. */
+  appVersion?: string;
+  /** Текущая платформа; по умолчанию `process.platform`. */
+  platform?: string;
 }
 
 export type InspectResult =
@@ -103,7 +139,12 @@ export const inspectExtensionDir = async (
   directory: string,
   options: InspectOptions = {},
 ): Promise<InspectResult> => {
-  const { verifyFiles = true, expectedId = null } = options;
+  const {
+    verifyFiles = true,
+    expectedId = null,
+    appVersion,
+    platform = process.platform,
+  } = options;
   const dir = path.resolve(directory);
   const dirName = expectedId ?? path.basename(dir);
   const ajv = new Ajv2020({ allErrors: true, strict: false });
@@ -127,6 +168,10 @@ export const inspectExtensionDir = async (
       message: `directory name '${expectedId}' does not match manifest id '${manifest.id}'`,
     };
   }
+  const incompatible = compatibilityIssue(manifest, appVersion, platform);
+  if (incompatible !== null) {
+    return { ok: false, id: manifest.id, message: incompatible };
+  }
   try {
     const mainPath = await resolveMain(dir, manifest.main, verifyFiles);
     const context = { dir, extensionId: manifest.id, verifyFiles, ajv };
@@ -145,6 +190,11 @@ export const inspectExtensionDir = async (
         dir,
         mainPath,
         permissions: manifest.permissions,
+        name: manifest.name,
+        description: manifest.description,
+        author: manifest.author,
+        platforms: manifest.platforms,
+        minAppVersion: manifest.minAppVersion,
         ...(resolved as unknown as ResolvedContributions),
       },
     };
@@ -160,7 +210,7 @@ export const inspectExtensionDir = async (
 export const discoverExtensions = async (
   options: DiscoverOptions,
 ): Promise<DiscoveryResult> => {
-  const { logger, verifyFiles = true } = options;
+  const { logger, verifyFiles = true, appVersion, platform } = options;
   const diagnostics: DiscoveryDiagnostic[] = [];
   const overridden: OverriddenExtension[] = [];
   const skip = (
@@ -184,6 +234,8 @@ export const discoverExtensions = async (
       const loaded = await inspectExtensionDir(dir, {
         verifyFiles,
         expectedId: name,
+        ...(appVersion !== undefined && { appVersion }),
+        ...(platform !== undefined && { platform }),
       });
       if (!loaded.ok) {
         skip(loaded.id, root.origin, loaded.message);

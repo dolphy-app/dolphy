@@ -16,6 +16,7 @@
     "@spirula-app/engine": "workspace:*",
     "@spirula-app/engine-contract": "workspace:*",
     "@spirula-app/extension-api": "workspace:*",
+    "@spirula-app/extension-catalog": "workspace:*",
     "ajv": "^8",
     "zod": "4.6.5"
   },

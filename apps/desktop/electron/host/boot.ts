@@ -51,6 +51,7 @@ export const boot = async (
   const discovery = await discoverExtensions({
     roots: extensionRoots(config),
     logger: defaults.logger,
+    ...(config.appVersion ? { appVersion: config.appVersion } : {}),
   });
   // один канал к хосту расширений: виды заданий и правила оценки делят порт, дедлайны и перезапуск
   const channel = createHostChannel({

@@ -5,22 +5,13 @@
     "emitDeclarationOnly": true,
     "outDir": "dist",
     "rootDir": "src",
-    "types": ["node"],
+    "types": [],
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
   },
   "include": ["src"],
   "references": [
     {
       "path": "../extension-api"
-    },
-    {
-      "path": "../extension-catalog"
-    },
-    {
-      "path": "../engine-contract"
-    },
-    {
-      "path": "../engine"
     }
   ]
 }

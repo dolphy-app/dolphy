@@ -4,6 +4,8 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { discoverExtensions, inspectExtensionDir } from '../src/discover.ts';
 import { fileURLToPath } from 'node:url';
+import { createExtensionPolicy } from '../src/policy.ts';
+import { createExtensionRegistry } from '../src/registry.ts';
 import { createLogger } from './helpers.ts';
 
 const fixturesDir = fileURLToPath(
@@ -24,6 +26,7 @@ interface Options {
   specSchema?: string;
   withMain?: boolean;
   schemaBody?: string;
+  extra?: Record<string, unknown>;
 }
 
 /** Создаёт каталог `<root>/<dirName>` с манифестом расширения. */
@@ -42,6 +45,7 @@ const makeExtension = async (
       version: o.version ?? '1.0.0',
       apiVersion: 1,
       main: './main.mjs',
+      ...o.extra,
       contributes: {
         exerciseTypes: [
           {
@@ -348,5 +352,89 @@ describe('inspectExtensionDir', () => {
       expectedId: 'other',
     });
     expect(result.ok).toBe(false);
+  });
+});
+
+describe('совместимость с приложением', () => {
+  const discover = async (
+    extra: Record<string, unknown>,
+    options: { appVersion?: string; platform?: string },
+  ) => {
+    const root = await rootDir('compat');
+    await makeExtension(root, 'acme.c', { extra });
+    return discoverExtensions({
+      roots: [{ dir: root, origin: 'user' }],
+      logger: createLogger(),
+      ...options,
+    });
+  };
+
+  it('minAppVersion новее приложения — пропуск с диагностикой и state invalid', async () => {
+    const result = await discover(
+      { minAppVersion: '1.2.0' },
+      { appVersion: '1.1.9' },
+    );
+    expect(result.extensions).toEqual([]);
+    expect(result.diagnostics[0]!.message).toBe(
+      'requires app >= 1.2.0 (running 1.1.9)',
+    );
+    const registry = createExtensionRegistry(
+      result,
+      createExtensionPolicy(result),
+    );
+    expect(registry.list()).toMatchObject([{ id: 'acme.c', state: 'invalid' }]);
+  });
+
+  it.each(['1.2.0', '1.3.0'])(
+    'appVersion %s принимает minAppVersion 1.2.0',
+    async (appVersion) => {
+      const result = await discover({ minAppVersion: '1.2.0' }, { appVersion });
+      expect(result.extensions[0]).toMatchObject({
+        minAppVersion: '1.2.0',
+      });
+    },
+  );
+
+  it('appVersion не задана — minAppVersion не проверяется', async () => {
+    const result = await discover({ minAppVersion: '99.0.0' }, {});
+    expect(result.extensions).toHaveLength(1);
+  });
+
+  it('платформа не входит в platforms — пропуск', async () => {
+    const result = await discover(
+      { platforms: ['darwin', 'linux'] },
+      { platform: 'win32' },
+    );
+    expect(result.extensions).toEqual([]);
+    expect(result.diagnostics[0]!.message).toBe(
+      'not available on win32 (supports: darwin, linux)',
+    );
+  });
+
+  it('платформа входит в platforms или platforms пусто — принимается', async () => {
+    const listed = await discover(
+      { platforms: ['linux'], name: 'Q', author: 'octo-cat' },
+      { platform: 'linux' },
+    );
+    expect(listed.extensions[0]).toMatchObject({
+      platforms: ['linux'],
+      name: 'Q',
+      author: 'octo-cat',
+      description: null,
+    });
+    const any = await discover({ platforms: [] }, { platform: 'win32' });
+    expect(any.extensions).toHaveLength(1);
+  });
+
+  it('inspectExtensionDir применяет те же проверки', async () => {
+    const root = await rootDir('inspect');
+    await makeExtension(root, 'acme.i', { extra: { minAppVersion: '2.0.0' } });
+    const dir = path.join(root, 'acme.i');
+    expect(await inspectExtensionDir(dir, { appVersion: '1.0.0' })).toEqual({
+      ok: false,
+      id: 'acme.i',
+      message: 'requires app >= 2.0.0 (running 1.0.0)',
+    });
+    expect((await inspectExtensionDir(dir)).ok).toBe(true);
   });
 });

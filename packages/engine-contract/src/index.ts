@@ -971,6 +971,8 @@ export interface EngineConfig {
   userExtensionsDir?: string;
   /** Каталог разработчика расширений (`SPIRULA_DEV_EXTENSIONS`): корень с наивысшим приоритетом, побеждает пользовательский и поставляемый при совпадении id. */
   devExtensionsDir?: string;
+  /** Версия приложения; не задана — проверка `minAppVersion` расширений не выполняется. */
+  appVersion?: string;
 }
 
 export interface EngineDiagnosticsDto {

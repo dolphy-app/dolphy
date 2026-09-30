@@ -25,6 +25,11 @@ const resolved: ResolvedExtension[] = [
     dir: '/x',
     mainPath: '/x/main.mjs',
     permissions: [],
+    name: null,
+    description: null,
+    author: null,
+    platforms: [],
+    minAppVersion: null,
     exerciseTypes: [
       {
         id: 'acme.t',

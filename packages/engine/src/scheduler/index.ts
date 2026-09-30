@@ -8,6 +8,8 @@ export {
   applySchedulerPatch,
   createSchedulerOptions,
   createSchedulerOptionsHolder,
+  decodeSchedulerOverrides,
+  diffSchedulerOptions,
   isInWindow,
   verifySchedulerOptions,
   windowNameOf,

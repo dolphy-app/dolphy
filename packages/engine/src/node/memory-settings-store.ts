@@ -1,5 +1,12 @@
-import type { SavedFilterDto, StudySessionWire } from '@lms/engine-contract';
+import type {
+  DeepPartial,
+  SavedFilterDto,
+  SchedulerOptionsDto,
+  StudySessionWire,
+  UiSettingsDto,
+} from '@lms/engine-contract';
 import type { UserPreferences } from '../domain/manifest.ts';
+import { DEFAULT_UI_SETTINGS } from '../domain/ui-settings.ts';
 import type { SettingsStore } from '../ports/index.ts';
 import {
   encodeSavedFilter,
@@ -14,6 +21,8 @@ export interface MemorySettingsInit {
   preferences?: UserPreferences;
   filters?: readonly SavedFilterDto[];
   sessions?: readonly StudySessionWire[];
+  schedulerOverrides?: DeepPartial<SchedulerOptionsDto>;
+  ui?: UiSettingsDto;
 }
 
 const sortedById = <T extends { id: string }>(map: Map<string, T>): T[] =>
@@ -31,6 +40,8 @@ export const createMemorySettingsStore = (
   let preferences = structuredClone(
     initial.preferences ?? createDefaultPreferences(),
   );
+  let schedulerOverrides = structuredClone(initial.schedulerOverrides ?? {});
+  let ui = structuredClone(initial.ui ?? DEFAULT_UI_SETTINGS);
   const filters = new Map<string, SavedFilterDto>();
   const sessions = new Map<string, StudySessionWire>();
   // `encode*` строит новые объекты целиком: вход не разделяет память с картой.
@@ -52,5 +63,13 @@ export const createMemorySettingsStore = (
     listSessions: async () => sortedById(sessions),
     saveSession: async (session) => putSession(session),
     deleteSession: async (id) => sessions.delete(id),
+    loadSchedulerOverrides: async () => structuredClone(schedulerOverrides),
+    saveSchedulerOverrides: async (next) => {
+      schedulerOverrides = structuredClone(next);
+    },
+    loadUi: async () => ({ ...ui }),
+    saveUi: async (next) => {
+      ui = { ...next };
+    },
   };
 };

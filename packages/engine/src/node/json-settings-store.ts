@@ -1,7 +1,8 @@
 /**
  * Настройки ученика на диске (`dataDir/settings`): `user_preferences.json`,
  * `filters/*.json`, `study_sessions/*.json` — wire Trane, JSON с двумя
- * пробелами и `\n` в конце, запись атомарная (engine-ts.md §5.3).
+ * пробелами и `\n` в конце, запись атомарная (engine-ts.md §5.3); свои
+ * файлы движка — `scheduler_overrides.json` и `ui.json`.
  *
  * Отличия от `LocalFilterManager`/`LocalStudySessionManager` Trane, где
  * читается каждая запись каталога (`.DS_Store` ломает открытие): здесь
@@ -12,15 +13,23 @@
  */
 import { readdir, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { SavedFilterDto, StudySessionWire } from '@lms/engine-contract';
+import type {
+  DeepPartial,
+  SavedFilterDto,
+  SchedulerOptionsDto,
+  StudySessionWire,
+  UiSettingsDto,
+} from '@lms/engine-contract';
 import { parseUserPreferences } from '../domain/manifest-schema.ts';
 import type { ParseResult } from '../domain/manifest-schema.ts';
 import {
   encodeUserPreferences,
   stringifyManifest,
 } from '../domain/manifest-schema.ts';
+import { decodeUiSettings } from '../domain/ui-settings.ts';
 import type { UserPreferences } from '../domain/manifest.ts';
 import type { Logger, SettingsStore } from '../ports/index.ts';
+import { decodeSchedulerOverrides } from '../scheduler/options.ts';
 import {
   encodeSavedFilter,
   encodeStudySession,
@@ -34,6 +43,8 @@ import {
 } from './settings-common.ts';
 
 const PREFERENCES_FILE = 'user_preferences.json';
+const SCHEDULER_OVERRIDES_FILE = 'scheduler_overrides.json';
+const UI_FILE = 'ui.json';
 const FILTERS_DIR = 'filters';
 const SESSIONS_DIR = 'study_sessions';
 const JSON_EXTENSION = '.json';
@@ -249,6 +260,28 @@ export const createJsonSettingsStore = ({
     encode: encodeStudySession,
   };
   const preferencesPath = join(dir, PREFERENCES_FILE);
+  const overridesPath = join(dir, SCHEDULER_OVERRIDES_FILE);
+  const uiPath = join(dir, UI_FILE);
+
+  /** Нет файла — `null`: значения по умолчанию решает вызывающий. */
+  const readOptionalJson = async (path: string): Promise<unknown> => {
+    try {
+      return await readJson(path);
+    } catch (error) {
+      if (error instanceof SettingsStoreError && isMissing(error.cause)) {
+        return null;
+      }
+      throw error;
+    }
+  };
+
+  const writeJson = async (path: string, value: unknown): Promise<void> => {
+    try {
+      await writeTextAtomic(path, stringifyManifest(value));
+    } catch (error) {
+      throw fail('cannot write', path, error);
+    }
+  };
 
   return {
     loadPreferences: async (): Promise<UserPreferences> => {
@@ -277,5 +310,12 @@ export const createJsonSettingsStore = ({
     listSessions: () => list(sessions),
     saveSession: (session) => save(sessions, session),
     deleteSession: (id) => remove(sessions, id),
+    loadSchedulerOverrides: async (): Promise<
+      DeepPartial<SchedulerOptionsDto>
+    > => decodeSchedulerOverrides(await readOptionalJson(overridesPath)),
+    saveSchedulerOverrides: (overrides) => writeJson(overridesPath, overrides),
+    loadUi: async (): Promise<UiSettingsDto> =>
+      decodeUiSettings(await readOptionalJson(uiPath)),
+    saveUi: (ui) => writeJson(uiPath, ui),
   };
 };

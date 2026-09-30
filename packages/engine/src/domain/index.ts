@@ -43,3 +43,11 @@ export {
   stringifyManifest,
 } from './manifest-schema.ts';
 export type { ParseResult, SchemaIssue } from './manifest-schema.ts';
+export {
+  DEFAULT_UI_SETTINGS,
+  LOCALE_MODES,
+  THEME_MODES,
+  decodeUiSettings,
+  isLocaleMode,
+  isThemeMode,
+} from './ui-settings.ts';

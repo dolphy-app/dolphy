@@ -1,0 +1,58 @@
+import { describe, expect, it } from 'vitest';
+import type { VerdictDto } from '@lms/engine-contract';
+import { describeVerdict } from '@/pages/session/lib/verdict.ts';
+
+const verdict = (dto: Record<string, unknown>) => dto as unknown as VerdictDto;
+
+describe('describeVerdict', () => {
+  it('maps passed to success without a reason', () => {
+    expect(describeVerdict(verdict({ outcome: 'passed' }))).toEqual({
+      type: 'success',
+      titleKey: 'session.verdict.passed',
+      reasonKey: null,
+      feedback: null,
+      retryable: false,
+    });
+  });
+
+  it.each([
+    'mismatch',
+    'sql_error',
+    'forbidden',
+    'row_limit',
+    'byte_limit',
+    'sqlite_limit',
+  ])('maps failed/%s to a warning with its reason key', (reason) => {
+    const view = describeVerdict(verdict({ outcome: 'failed', reason }));
+    expect(view.type).toBe('warning');
+    expect(view.titleKey).toBe('session.verdict.failed');
+    expect(view.reasonKey).toBe(`session.verdict.failedReason.${reason}`);
+    expect(view.retryable).toBe(false);
+  });
+
+  it.each([
+    'fixture_error',
+    'expected_error',
+    'internal',
+    'timeout',
+    'resource_kill',
+    'worker_crash',
+  ])('maps error/%s to a retryable error', (reason) => {
+    const view = describeVerdict(verdict({ outcome: 'error', reason }));
+    expect(view.type).toBe('error');
+    expect(view.titleKey).toBe('session.verdict.error');
+    expect(view.reasonKey).toBe(`session.verdict.errorReason.${reason}`);
+    expect(view.retryable).toBe(true);
+  });
+
+  it('passes runner feedback through for passed and failed', () => {
+    expect(
+      describeVerdict(verdict({ outcome: 'passed', feedback: 'fb' })).feedback,
+    ).toBe('fb');
+    const failed = describeVerdict(
+      verdict({ outcome: 'failed', reason: 'mismatch', feedback: 'fb' }),
+    );
+    expect(failed.feedback).toBe('fb');
+    expect(failed.reasonKey).toBe('session.verdict.failedReason.mismatch');
+  });
+});

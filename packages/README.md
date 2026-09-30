@@ -4,15 +4,15 @@
 
 ## Карта
 
-| Пакет                    | Что                                                                                                                           | Зависит от                                        |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| `@lms/engine-contract`   | типы DTO, `CONTRACT_VERSION`, `MAX_SQL_CHARS`, `RPC_METHODS`, `Rpc*`                                                          | —                                                 |
-| `@lms/engine`            | домен, порты, приложение, fs/memory-адаптеры (`./ports`, `./node`)                                                            | contract, ts-fsrs, yaml, zod                      |
-| `@lms/engine-sqlite`     | `EventStore` на better-sqlite3                                                                                                | engine, better-sqlite3                            |
-| `@lms/engine-sql-runner` | `Verifier` для SQL в дочерних процессах                                                                                       | engine, better-sqlite3 (запасной профиль Node 22) |
-| `@lms/engine-rpc`        | RPC: `./client` (renderer, без zod), `./host` (диспетчер, zod)                                                                | contract, engine, zod                             |
-| `@lms/testkit`           | часы, RNG, id, билдеры журнала и библиотек (dev-пакет)                                                                        | contract, engine, fast-check                      |
-| `@lms/ui`                | сложные компоненты (редактор, quiz); пока пусто. Vuetify — peer, плагин `createLmsVuetify()` — в `apps/desktop/src/shared/ui` | vue, vuetify                                      |
+| Пакет                    | Что                                                                                                                               | Зависит от                                        |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `@lms/engine-contract`   | типы DTO, `CONTRACT_VERSION`, `MAX_SQL_CHARS`, `RPC_METHODS`, `Rpc*`                                                              | —                                                 |
+| `@lms/engine`            | домен, порты, приложение, fs/memory-адаптеры (`./ports`, `./node`)                                                                | contract, ts-fsrs, yaml, zod                      |
+| `@lms/engine-sqlite`     | `EventStore` и `SettingsStore` на better-sqlite3 (`openSqliteStorage`: одно соединение к `engine.db`)                             | engine, better-sqlite3                            |
+| `@lms/engine-sql-runner` | `Verifier` для SQL в дочерних процессах                                                                                           | engine, better-sqlite3 (запасной профиль Node 22) |
+| `@lms/engine-rpc`        | RPC: `./client` (renderer, без zod), `./host` (диспетчер, zod)                                                                    | contract, engine, zod                             |
+| `@lms/testkit`           | часы, RNG, id, билдеры журнала и библиотек (dev-пакет)                                                                            | contract, engine, fast-check                      |
+| `@lms/ui`                | сложные компоненты (редактор, quiz); пока пусто. Vuetify — peer, плагин `createLmsVuetify()` — в `apps/desktop/src/app/providers` | vue, vuetify                                      |
 
 `@lms/engine` экспортирует подпути `./ports`, `./app`, `./node` (fs-адаптеры: `createNodeFsCourseSource`) и `./authoring` (сканер, компилятор курса, артефакт, `LibraryHolder`; `yaml` подгружается только компилятором). CLI компилятора — `pnpm -F @lms/engine engine-cli validate|compile <каталог библиотеки>` (`src/cli`, код выхода 1 при ошибках, 2 при неверных аргументах). `@lms/testkit` подключён в корневой `package.json` (`workspace:*`), поэтому тесты любого пакета импортируют его без цикла зависимостей `engine ↔ testkit`.
 

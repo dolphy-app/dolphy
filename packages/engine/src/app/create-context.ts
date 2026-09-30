@@ -16,6 +16,7 @@ import { createDepthFirstScheduler } from '../scheduler/depth-first-scheduler.ts
 import { getDue } from '../scheduler/due.ts';
 import { getFrontier } from '../scheduler/frontier.ts';
 import {
+  InvalidSchedulerOptionsError,
   createSchedulerOptions,
   createSchedulerOptionsHolder,
 } from '../scheduler/options.ts';
@@ -112,6 +113,19 @@ export const createContext = async (
       batchSize: preferences.scheduler?.batch_size ?? null,
     }),
   );
+  const savedOverrides = await settings.loadSchedulerOverrides();
+  if (Object.keys(savedOverrides).length > 0) {
+    try {
+      options.set(savedOverrides);
+    } catch (error) {
+      // запуск не должен ломаться из-за устаревших сохранённых значений
+      if (!(error instanceof InvalidSchedulerOptionsError)) throw error;
+      logger.warn(
+        { issues: error.issues },
+        'saved scheduler options are invalid; defaults are used',
+      );
+    }
+  }
   const savedFilters = new Map<string, SavedFilterDto>();
   for (const filter of await settings.listFilters()) {
     savedFilters.set(filter.id, filter);

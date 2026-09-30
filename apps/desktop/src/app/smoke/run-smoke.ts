@@ -1,7 +1,8 @@
 /**
  * Сквозная проверка в настоящем Electron (смоук-сборка, `LMS_SMOKE=1`):
- * renderer → preload → main → utilityProcess → движок → раннер SQL.
- * Библиотека — `sql-course` (`lib_kb`), см. `scripts/smoke.mjs`.
+ * renderer → preload → main → utilityProcess → движок → хост расширений
+ * (`lms.sql`, `lms.choice`). Библиотеки — `sql-course` и `choice-course`
+ * (`lib_kb`), см. `scripts/smoke.mjs`.
  */
 import type { EngineEvent, LearningEngine } from '@lms/engine-contract';
 import type { SmokeBridge } from '../../../shared/smoke.ts';

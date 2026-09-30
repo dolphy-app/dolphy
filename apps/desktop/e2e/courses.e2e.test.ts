@@ -1,5 +1,8 @@
+import { cp, readFile, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { createWorkspace, launchApp } from './support/app.ts';
+import { E2E_BUILD_DIR, createWorkspace, launchApp } from './support/app.ts';
 import type { LmsApp, Workspace } from './support/app.ts';
 import { Client } from './support/client.ts';
 import {
@@ -11,6 +14,51 @@ import { sqlReferenceSolutions } from './support/library.ts';
 
 const GIT = 'Git: основы';
 const SQL = 'SQL (KnowledgeBase)';
+const CHOICE = 'Choice (KnowledgeBase)';
+const ECHO = 'Echo (KnowledgeBase)';
+const APP_DIR = fileURLToPath(new URL('..', import.meta.url));
+const ECHO_EXTENSION = fileURLToPath(
+  new URL('./fixtures/echo-extension', import.meta.url),
+);
+
+/** Ответы на упражнения курса choice по первой строке формулировки. */
+const CHOICE_RIGHT: Record<string, string[]> = {
+  'Which statement reads data from a table?': ['SELECT'],
+  'Which of these are SQL join types? Select all that apply.': [
+    'INNER',
+    'LEFT',
+    'FULL',
+  ],
+  'Pick the second option.': ['b'],
+};
+const CHOICE_WRONG: Record<string, string[]> = {
+  'Which statement reads data from a table?': ['GROUP'],
+  'Which of these are SQL join types? Select all that apply.': ['FORWARD'],
+  'Pick the second option.': ['a'],
+};
+
+const ECHO_LIBRARY = {
+  'echo_kb/course_manifest.json': JSON.stringify({
+    dependencies: [],
+    description: 'Echo course',
+    engine: { tags: ['echo'] },
+    generator_config: { KnowledgeBase: {} },
+    id: 'echo_kb',
+    name: ECHO,
+  }),
+  'echo_kb/basic.lesson/lesson.name.json': JSON.stringify('Echo basics'),
+  'echo_kb/basic.lesson/q1.front.md': [
+    '---',
+    'engine:',
+    '  exercise:',
+    '    type: acme.echo',
+    '    spec:',
+    '      expected: "42"',
+    '---',
+    'What is the answer to everything?',
+    '',
+  ].join('\n'),
+};
 const GIT_EXERCISES = ['commits', 'branches', 'history'].flatMap((lesson) =>
   ['q1', 'q2', 'q3'].map((q) => `git_kb::${lesson}::${q}`),
 );
@@ -206,7 +254,7 @@ describe('SQL-курс: проверка ответа раннером', () => {
     expect(await client.planTotal()).toBe(3);
     await client.startSession();
 
-    await client.submitWrongSql('SELECT 1');
+    await client.submitWrong({ sql: 'SELECT 1' });
     expect(
       readJournal(workspace.userData),
       'неверный ответ не в журнале',
@@ -238,6 +286,114 @@ describe('SQL-курс: проверка ответа раннером', () => {
     await expect.poll(() => readJournal(workspace.userData).length).toBe(1);
     expect(readJournal(workspace.userData)[0]).toMatchObject({
       grade: 1,
+      source: 'runner',
+    });
+  });
+});
+
+describe('виды заданий: lms.choice', () => {
+  it('неверный ответ не записывается, верные — записываются с source=runner', async () => {
+    await start();
+    await client.openCourses();
+    await client.focusCourse(CHOICE);
+    expect(await client.planTotal()).toBe(3);
+    await client.startSession();
+
+    const first = await client.currentExercise();
+    expect(first.verifiable).toBe(true);
+    await client.submitWrong({ choose: CHOICE_WRONG[first.prompt] ?? [] });
+    expect(
+      readJournal(workspace.userData),
+      'неверный ответ не в журнале',
+    ).toHaveLength(0);
+
+    const summary = await client.runSession(({ prompt }) => ({
+      choose: CHOICE_RIGHT[prompt] ?? [],
+    }));
+    expect(summary.count).toBe(3);
+    const journal = readJournal(workspace.userData);
+    expect(journal).toHaveLength(3);
+    for (const row of journal) {
+      expect(row.source).toBe('runner');
+      expect(row.grade).toBeGreaterThan(1);
+      expect(row.unit_id).toMatch(/^choice_kb::basic::q[123]$/);
+    }
+  });
+
+  it('«Сдаться» засчитывает попытку как «не решено» (оценка 1)', async () => {
+    await start();
+    await client.openCourses();
+    await client.focusCourse(CHOICE);
+    await client.startSession();
+    await client.giveUp();
+    await expect.poll(() => readJournal(workspace.userData).length).toBe(1);
+    expect(readJournal(workspace.userData)[0]).toMatchObject({
+      grade: 1,
+      source: 'runner',
+    });
+  });
+
+  it('пользовательская копия lms.choice побеждает расширение из поставки', async () => {
+    const target = join(workspace.userData, 'extensions', 'lms.choice');
+    await cp(join(APP_DIR, E2E_BUILD_DIR, 'extensions', 'lms.choice'), target, {
+      recursive: true,
+    });
+    const manifestPath = join(target, 'extension.json');
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as {
+      version: string;
+    };
+    manifest.version = '1.0.1';
+    await writeFile(manifestPath, JSON.stringify(manifest));
+    // копия засчитывает любой ответ: неверный вариант проходит
+    await writeFile(
+      join(target, 'main.mjs'),
+      `export default {
+        activate(ctx) {
+          ctx.registerExerciseType('lms.choice', {
+            project: ({ spec }) => ({ multiple: spec.multiple === true, options: spec.options }),
+            grade: () => ({ outcome: 'passed' }),
+          });
+        },
+      };`,
+    );
+
+    await start();
+    await client.openCourses();
+    await client.focusCourse(CHOICE);
+    await client.startSession();
+    const summary = await client.runSession(({ prompt }) => ({
+      choose: CHOICE_WRONG[prompt] ?? [],
+    }));
+    expect(summary.count).toBe(3);
+    expect(readJournal(workspace.userData)).toHaveLength(3);
+  });
+});
+
+describe('пользовательское расширение acme.echo', () => {
+  beforeEach(async () => {
+    await workspace.dispose();
+    workspace = await createWorkspace({
+      extensions: { 'acme.echo': ECHO_EXTENSION },
+      libraryFiles: ECHO_LIBRARY,
+    });
+  });
+
+  it('элемент ввода грузится с диска через lms-ext://, ответ проверяется расширением', async () => {
+    await start();
+    await client.openCourses();
+    await client.focusCourse(ECHO);
+    expect(await client.planTotal()).toBe(1);
+    await client.startSession();
+
+    await client.submitWrong({ text: '41' });
+    expect(readJournal(workspace.userData)).toHaveLength(0);
+
+    const summary = await client.runSession(() => ({ text: '42' }));
+    expect(summary.count).toBe(1);
+    const journal = readJournal(workspace.userData);
+    expect(journal).toHaveLength(1);
+    expect(journal[0]).toMatchObject({
+      unit_id: 'echo_kb::basic::q1',
       source: 'runner',
     });
   });

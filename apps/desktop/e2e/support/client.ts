@@ -18,7 +18,6 @@ const RU = {
   planEmpty: 'План на сегодня пуст',
   verdictPassed: 'Верно',
   verdictFailed: 'Пока неверно',
-  answerLabel: 'SQL-запрос',
   grades: {
     1: 'Не вспомнил',
     2: 'С трудом',
@@ -64,8 +63,12 @@ export interface Exercise {
   verifiable: boolean;
 }
 
-/** Ответ на упражнение сессии: оценка для самопроверки, SQL — для проверяемых. */
-export type Answerer = (exercise: Exercise) => Grade | { sql: string };
+/** Ввод ответа проверяемого упражнения: SQL, варианты выбора или текст поля расширения. */
+export type AnswerInput =
+  { sql: string } | { choose: string[] } | { text: string };
+
+/** Ответ на упражнение сессии: оценка для самопроверки, `AnswerInput` — для проверяемых. */
+export type Answerer = (exercise: Exercise) => Grade | AnswerInput;
 
 const int = (match: RegExpMatchArray | null, index = 1) =>
   match ? Number(match[index]) : Number.NaN;
@@ -185,7 +188,8 @@ export class Client {
     return { prompt: text, verifiable };
   }
 
-  private async promptOf(): Promise<Exercise> {
+  /** Текущее упражнение сессии (ждёт, пока экран не покажет формулировку). */
+  async currentExercise(): Promise<Exercise> {
     let exercise: Exercise | null = null;
     await expect
       .poll(async () => (exercise = await this.readPrompt()), {
@@ -201,10 +205,10 @@ export class Client {
    */
   async runSession(answer: Answerer): Promise<SessionSummary> {
     for (;;) {
-      const exercise = await this.promptOf();
+      const exercise = await this.currentExercise();
       const reply = answer(exercise);
       if (typeof reply === 'object') {
-        await this.page.getByLabel(RU.answerLabel).fill(reply.sql);
+        await this.fillAnswer(reply);
         await this.page
           .getByRole('button', { name: RU.check, exact: true })
           .click();
@@ -262,9 +266,25 @@ export class Client {
     };
   }
 
-  /** Неверный SQL: вердикт «Пока неверно», попытка не закрыта. */
-  async submitWrongSql(sql: string) {
-    await this.page.getByLabel(RU.answerLabel).fill(sql);
+  /** Вводит ответ в элемент расширения (custom element в shadow DOM). */
+  private async fillAnswer(reply: AnswerInput) {
+    if ('sql' in reply) {
+      await this.page.locator('lms-sql-answer textarea').fill(reply.sql);
+    } else if ('choose' in reply) {
+      for (const option of reply.choose) {
+        await this.page
+          .locator('lms-choice-answer')
+          .getByLabel(option, { exact: true })
+          .check();
+      }
+    } else {
+      await this.page.locator('acme-echo-answer input').fill(reply.text);
+    }
+  }
+
+  /** Неверный ответ: вердикт «Пока неверно», попытка не закрыта. */
+  async submitWrong(reply: AnswerInput) {
+    await this.fillAnswer(reply);
     await this.page
       .getByRole('button', { name: RU.check, exact: true })
       .click();

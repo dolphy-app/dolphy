@@ -33,6 +33,7 @@ export const en: typeof ru = {
       recommended: 'Recommended',
       study: 'Study',
       openPlan: 'Course plan',
+      check: 'Check what I already know',
     },
     empty: {
       title: 'No courses yet',

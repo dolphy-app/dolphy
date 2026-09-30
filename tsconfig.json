@@ -39,6 +39,30 @@
     },
     {
       "path": "packages/ui"
+    },
+    {
+      "path": "packages/extension-api"
+    },
+    {
+      "path": "packages/extension-api/tsconfig.test.json"
+    },
+    {
+      "path": "packages/extension-host"
+    },
+    {
+      "path": "packages/extension-host/tsconfig.test.json"
+    },
+    {
+      "path": "packages/ext-sql"
+    },
+    {
+      "path": "packages/ext-sql/tsconfig.test.json"
+    },
+    {
+      "path": "packages/ext-choice"
+    },
+    {
+      "path": "packages/ext-choice/tsconfig.test.json"
     }
   ]
 }

@@ -1,0 +1,29 @@
+{
+  "name": "@lms/extension-host",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Хост расширений: манифесты, обнаружение, рантайм и клиент видов заданий",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./local": "./src/local.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@lms/engine": "workspace:*",
+    "@lms/engine-contract": "workspace:*",
+    "@lms/extension-api": "workspace:*",
+    "ajv": "^8",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "typescript": "7.0.2"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}

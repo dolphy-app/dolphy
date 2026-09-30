@@ -1,7 +1,11 @@
 import type { MessageEndpoint } from '@lms/engine-contract';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createCatalog } from '../src/catalog.ts';
-import { createRemoteExerciseTypes } from '../src/client.ts';
+import { createHostChannel } from '../src/channel.ts';
+import {
+  createRemoteExerciseTypes,
+  createRemoteGradePolicies,
+} from '../src/client.ts';
 import { createEndpointPair } from '../src/loopback.ts';
 import type { ExtRequest, ExtResponse } from '../src/protocol.ts';
 import { createLogger } from './helpers.ts';
@@ -26,7 +30,7 @@ const catalog = createCatalog([
     ],
     themes: [],
     markdownRenderers: [],
-    gradePolicies: [],
+    gradePolicies: [{ id: 'acme.t.gen', label: 'Generous' }],
   },
 ]);
 
@@ -40,17 +44,28 @@ const gradeRequest = {
 };
 
 const setup = (options: { restart?: () => void } = {}) => {
-  const client = createRemoteExerciseTypes({
-    catalog,
-    logger: createLogger(),
-    graceMs: 50,
+  const logger = createLogger();
+  const channel = createHostChannel({
+    logger,
     connectTimeoutMs: 500,
     ...options,
+  });
+  const client = createRemoteExerciseTypes({
+    channel,
+    catalog,
+    logger,
+    graceMs: 50,
+  });
+  const policies = createRemoteGradePolicies({
+    channel,
+    catalog,
+    logger,
+    deadlineMs: 100,
   });
   const [engineSide, hostSide] = createEndpointPair();
   const requests: ExtRequest[] = [];
   hostSide.onMessage((message) => requests.push(message as ExtRequest));
-  return { client, engineSide, hostSide, requests };
+  return { client, policies, channel, engineSide, hostSide, requests };
 };
 
 const flush = async (): Promise<void> => {
@@ -59,7 +74,7 @@ const flush = async (): Promise<void> => {
 
 describe('createRemoteExerciseTypes', () => {
   it('ответ хоста превращается в RawVerdict, durationMs замеряет клиент', async () => {
-    const { client, engineSide, hostSide, requests } = setup();
+    const { client, channel, engineSide, hostSide, requests } = setup();
     hostSide.onMessage((message) => {
       const { id } = message as ExtRequest;
       hostSide.post({
@@ -68,7 +83,7 @@ describe('createRemoteExerciseTypes', () => {
         result: { outcome: 'failed', reason: 'mismatch', detail: 'd', data: 1 },
       } satisfies ExtResponse);
     });
-    client.attach(engineSide);
+    channel.attach(engineSide);
     const verdict = await client.grade(gradeRequest);
     expect(verdict).toMatchObject({
       outcome: 'failed',
@@ -81,8 +96,8 @@ describe('createRemoteExerciseTypes', () => {
   });
 
   it('закрытие endpoint во время grade → error/worker_crash', async () => {
-    const { client, engineSide, hostSide } = setup();
-    client.attach(engineSide);
+    const { client, channel, engineSide, hostSide } = setup();
+    channel.attach(engineSide);
     const pending = client.grade(gradeRequest);
     await flush();
     hostSide.close();
@@ -93,8 +108,8 @@ describe('createRemoteExerciseTypes', () => {
   });
 
   it('закрытие endpoint во время project → ExerciseTypeError host-down', async () => {
-    const { client, engineSide, hostSide } = setup();
-    client.attach(engineSide);
+    const { client, channel, engineSide, hostSide } = setup();
+    channel.attach(engineSide);
     const pending = client.project({
       type: 'acme.t',
       exerciseId: 'e',
@@ -108,8 +123,8 @@ describe('createRemoteExerciseTypes', () => {
   it('зависший обработчик → error/timeout и вызов restart', async () => {
     vi.useFakeTimers();
     const restart = vi.fn();
-    const { client, engineSide } = setup({ restart });
-    client.attach(engineSide);
+    const { client, channel, engineSide } = setup({ restart });
+    channel.attach(engineSide);
     const pending = client.grade(gradeRequest);
     await vi.advanceTimersByTimeAsync(149);
     expect(restart).not.toHaveBeenCalled();
@@ -124,13 +139,15 @@ describe('createRemoteExerciseTypes', () => {
   it('project по таймауту → ExerciseTypeError timeout', async () => {
     vi.useFakeTimers();
     const restart = vi.fn();
+    const logger = createLogger();
+    const channel = createHostChannel({ logger, restart });
     const client = createRemoteExerciseTypes({
+      channel,
       catalog,
-      logger: createLogger(),
+      logger,
       projectTimeoutMs: 300,
-      restart,
     });
-    client.attach(createEndpointPair()[0]);
+    channel.attach(createEndpointPair()[0]);
     const pending = client.project({
       type: 'acme.t',
       exerciseId: 'e',
@@ -145,7 +162,7 @@ describe('createRemoteExerciseTypes', () => {
   });
 
   it('запрос до attach ждёт и выполняется после attach', async () => {
-    const { client, engineSide, hostSide } = setup();
+    const { client, channel, engineSide, hostSide } = setup();
     hostSide.onMessage((message) => {
       hostSide.post({
         id: (message as ExtRequest).id,
@@ -155,16 +172,17 @@ describe('createRemoteExerciseTypes', () => {
     });
     const pending = client.grade(gradeRequest);
     await flush();
-    client.attach(engineSide);
+    channel.attach(engineSide);
     expect(await pending).toMatchObject({ outcome: 'passed' });
   });
 
   it('без attach дольше connectTimeoutMs → host-down / worker_crash', async () => {
     vi.useFakeTimers();
+    const logger = createLogger();
     const client = createRemoteExerciseTypes({
+      channel: createHostChannel({ logger, connectTimeoutMs: 1000 }),
       catalog,
-      logger: createLogger(),
-      connectTimeoutMs: 1000,
+      logger,
     });
     const project = client.project({
       type: 'acme.t',
@@ -187,7 +205,7 @@ describe('createRemoteExerciseTypes', () => {
     const first = setup();
     const onClose = vi.fn();
     first.engineSide.onClose(onClose);
-    first.client.attach(first.engineSide);
+    first.channel.attach(first.engineSide);
     const pending = first.client.grade(gradeRequest);
     await flush();
     const [nextEngine, nextHost] = createEndpointPair();
@@ -198,7 +216,7 @@ describe('createRemoteExerciseTypes', () => {
         result: { outcome: 'passed' },
       });
     });
-    first.client.attach(nextEngine);
+    first.channel.attach(nextEngine);
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(await pending).toMatchObject({ reason: 'worker_crash' });
     expect(await first.client.grade(gradeRequest)).toMatchObject({
@@ -207,7 +225,7 @@ describe('createRemoteExerciseTypes', () => {
   });
 
   it('ответ ok:false: error/internal, feedback только в authorMode', async () => {
-    const { client, engineSide, hostSide } = setup();
+    const { client, channel, engineSide, hostSide } = setup();
     hostSide.onMessage((message) => {
       hostSide.post({
         id: (message as ExtRequest).id,
@@ -215,7 +233,7 @@ describe('createRemoteExerciseTypes', () => {
         error: { cause: 'handler-failed', message: 'kaboom' },
       } satisfies ExtResponse);
     });
-    client.attach(engineSide);
+    channel.attach(engineSide);
     const learner = await client.grade(gradeRequest);
     expect(learner).toMatchObject({ outcome: 'error', reason: 'internal' });
     expect(learner).not.toHaveProperty('feedback');
@@ -228,8 +246,8 @@ describe('createRemoteExerciseTypes', () => {
   });
 
   it('close() закрывает endpoint и завершает ожидающие вызовы', async () => {
-    const { client, engineSide } = setup();
-    client.attach(engineSide);
+    const { client, channel, engineSide } = setup();
+    channel.attach(engineSide);
     const pending = client.grade(gradeRequest);
     await flush();
     await client.close();
@@ -240,7 +258,7 @@ describe('createRemoteExerciseTypes', () => {
   });
 
   it('сообщение, не являющееся ответом, игнорируется', async () => {
-    const { client, engineSide, hostSide } = setup();
+    const { client, channel, engineSide, hostSide } = setup();
     hostSide.onMessage((message) => {
       hostSide.post('garbage');
       hostSide.post({
@@ -249,10 +267,141 @@ describe('createRemoteExerciseTypes', () => {
         result: { outcome: 'passed' },
       });
     });
-    client.attach(engineSide);
+    channel.attach(engineSide);
     expect(await client.grade(gradeRequest)).toMatchObject({
       outcome: 'passed',
     });
+  });
+});
+
+describe('createRemoteGradePolicies', () => {
+  const base = { attemptId: 'a', attemptsUsed: 1, durationMs: 1 };
+  const input = {
+    verdicts: [
+      { ...base, outcome: 'failed' as const, reason: 'mismatch' },
+      { ...base, outcome: 'passed' as const },
+    ],
+    gaveUp: false,
+  };
+
+  it('list отдаёт правила из каталога', () => {
+    const { policies } = setup();
+    expect(policies.list()).toEqual([
+      { id: 'acme.t.gen', label: 'Generous', extensionId: 'acme.t' },
+    ]);
+  });
+
+  it('передаёт вердикты как {outcome, reason?} и возвращает оценку', async () => {
+    const { policies, channel, engineSide, hostSide, requests } = setup();
+    hostSide.onMessage((message) => {
+      hostSide.post({
+        id: (message as ExtRequest).id,
+        ok: true,
+        result: 5,
+      } satisfies ExtResponse);
+    });
+    channel.attach(engineSide);
+    const verdicts = [
+      {
+        outcome: 'failed' as const,
+        reason: 'mismatch',
+        attemptId: 'a',
+        attemptsUsed: 1,
+        durationMs: 3,
+      },
+      {
+        outcome: 'passed' as const,
+        attemptId: 'a',
+        attemptsUsed: 2,
+        durationMs: 4,
+      },
+    ];
+    expect(
+      await policies.evaluate('acme.t.gen', { verdicts, gaveUp: false }),
+    ).toBe(5);
+    expect(requests[0]).toMatchObject({
+      method: 'gradePolicy',
+      params: {
+        policyId: 'acme.t.gen',
+        verdicts: [
+          { outcome: 'failed', reason: 'mismatch' },
+          { outcome: 'passed' },
+        ],
+        gaveUp: false,
+      },
+    });
+  });
+
+  it('null проходит как есть', async () => {
+    const { policies, channel, engineSide, hostSide } = setup();
+    hostSide.onMessage((message) => {
+      hostSide.post({ id: (message as ExtRequest).id, ok: true, result: null });
+    });
+    channel.attach(engineSide);
+    expect(
+      await policies.evaluate('acme.t.gen', { verdicts: [], gaveUp: false }),
+    ).toBeNull();
+  });
+
+  it.each([0, 6, 2.5, 'x'])('результат %j → invalid-result', async (result) => {
+    const { policies, channel, engineSide, hostSide } = setup();
+    hostSide.onMessage((message) => {
+      hostSide.post({ id: (message as ExtRequest).id, ok: true, result });
+    });
+    channel.attach(engineSide);
+    await expect(
+      policies.evaluate('acme.t.gen', { verdicts: [], gaveUp: false }),
+    ).rejects.toMatchObject({ cause: 'invalid-result' });
+  });
+
+  it('ok:false → handler-failed / unknown-policy', async () => {
+    const { policies, channel, engineSide, hostSide } = setup();
+    let cause = 'handler-failed';
+    hostSide.onMessage((message) => {
+      hostSide.post({
+        id: (message as ExtRequest).id,
+        ok: false,
+        error: { cause, message: 'nope' },
+      } as ExtResponse);
+    });
+    channel.attach(engineSide);
+    await expect(
+      policies.evaluate('acme.t.gen', { verdicts: [], gaveUp: false }),
+    ).rejects.toMatchObject({ cause: 'handler-failed', message: 'nope' });
+    cause = 'unknown-policy';
+    await expect(
+      policies.evaluate('acme.t.gen', { verdicts: [], gaveUp: false }),
+    ).rejects.toMatchObject({ cause: 'unknown-policy' });
+  });
+
+  it('зависшее правило → timeout и вызов restart', async () => {
+    vi.useFakeTimers();
+    const restart = vi.fn();
+    const { policies, channel, engineSide } = setup({ restart });
+    channel.attach(engineSide);
+    const assertion = expect(
+      policies.evaluate('acme.t.gen', input),
+    ).rejects.toMatchObject({ cause: 'timeout' });
+    await vi.advanceTimersByTimeAsync(100);
+    await assertion;
+    expect(restart).toHaveBeenCalledTimes(1);
+  });
+
+  it('закрытие endpoint и отсутствие хоста → host-down', async () => {
+    const { policies, channel, engineSide, hostSide } = setup();
+    channel.attach(engineSide);
+    const pending = policies.evaluate('acme.t.gen', input);
+    await flush();
+    hostSide.close();
+    await expect(pending).rejects.toMatchObject({ cause: 'host-down' });
+
+    vi.useFakeTimers();
+    const lonely = setup();
+    const assertion = expect(
+      lonely.policies.evaluate('acme.t.gen', input),
+    ).rejects.toMatchObject({ cause: 'host-down' });
+    await vi.advanceTimersByTimeAsync(500);
+    await assertion;
   });
 });
 

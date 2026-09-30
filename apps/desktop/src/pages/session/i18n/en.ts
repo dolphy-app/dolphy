@@ -22,6 +22,10 @@ export const en: typeof ru = {
       averageGrade: 'Average grade',
       time: 'Time',
     },
+    markdown: {
+      renderFailed:
+        'Could not render the “{language}” block; showing the source.',
+    },
     answer: {
       loadFailed: 'Could not load the answer input ({element}).',
       label: 'Answer',

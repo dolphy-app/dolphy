@@ -42,7 +42,7 @@ const bootstrap = async () => {
     const courseScope = await createCourseScope(engine);
     createApp(App)
       .use(i18n)
-      .use(createLmsVuetify(theme, i18n))
+      .use(createLmsVuetify(theme, i18n, contributions.themes))
       .use(router)
       .provide(ENGINE_KEY, engine)
       .provide(CONTRIBUTIONS_KEY, contributions)

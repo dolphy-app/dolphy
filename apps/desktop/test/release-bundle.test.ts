@@ -95,6 +95,7 @@ describe('смоук и релизная сборка', () => {
           'schema/spec.json',
           'schema/answer.json',
         ],
+        'lms.math': ['extension.json', 'markdown.mjs'],
       };
       for (const [id, names] of Object.entries(expected)) {
         for (const name of names) {
@@ -116,6 +117,7 @@ describe('смоук и релизная сборка', () => {
       });
       expect(extensions.map(({ id }) => id).sort()).toEqual([
         'lms.choice',
+        'lms.math',
         'lms.sql',
       ]);
       expect(diagnostics).toEqual([]);

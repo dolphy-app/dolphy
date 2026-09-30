@@ -1,4 +1,5 @@
 export * from './catalog.ts';
+export * from './channel.ts';
 export * from './client.ts';
 export * from './discover.ts';
 export * from './loopback.ts';

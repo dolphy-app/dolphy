@@ -1,6 +1,6 @@
 import { createDispatcher, fromNodePort, schemas } from '@lms/engine-rpc/host';
 import type { Dispatcher } from '@lms/engine-rpc/host';
-import type { RemoteExerciseTypes } from '@lms/extension-host';
+import type { HostChannel } from '@lms/extension-host';
 import type { EngineConfig, LearningEngine } from '@lms/engine-contract';
 import { boot } from './boot.ts';
 
@@ -14,7 +14,7 @@ type HostMessage =
 const { parentPort } = process;
 let engine: LearningEngine | null = null;
 let dispatcher: Dispatcher | null = null;
-let exerciseTypes: RemoteExerciseTypes | null = null;
+let channel: HostChannel | null = null;
 
 process.on('uncaughtException', (error) => {
   console.error({ error }, 'uncaught'); // состояние могло испортиться
@@ -39,7 +39,7 @@ const handle = async (
       parentPort.postMessage({ type: 'restart-ext-host' }),
     );
     engine = booted.engine;
-    exerciseTypes = booted.exerciseTypes;
+    channel = booted.channel;
     dispatcher = createDispatcher({
       engine: booted.engine,
       schemas,
@@ -57,7 +57,7 @@ const handle = async (
     }
   } else if (message.type === 'ext-port') {
     const [port] = ports;
-    if (exerciseTypes && port) exerciseTypes.attach(fromNodePort(port));
+    if (channel && port) channel.attach(fromNodePort(port));
   } else {
     await shutdown();
   }

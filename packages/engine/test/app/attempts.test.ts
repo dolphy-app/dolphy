@@ -4,12 +4,17 @@
  */
 import type { VerdictDto } from '@lms/engine-contract';
 import { MAX_ANSWER_CHARS } from '@lms/engine-contract';
-import { buildLibrary, createFakeExerciseTypes } from '@lms/testkit';
+import {
+  buildLibrary,
+  createFakeExerciseTypes,
+  createFakeGradePolicies,
+} from '@lms/testkit';
 import type { FakeExerciseTypes } from '@lms/testkit';
 import { describe, expect, it } from 'vitest';
 import type { LogEntry } from '../../src/domain/journal.ts';
 import type { RawVerdict } from '../../src/ports/index.ts';
 import { ExerciseTypeError } from '../../src/ports/exercise-types.ts';
+import { GradePolicyError } from '../../src/ports/grade-policies.ts';
 import { createTestEngine } from '../helpers/engine.ts';
 import type { TestEngineOptions } from '../helpers/engine.ts';
 
@@ -267,6 +272,128 @@ describe('completeAttempt derives the grade from verdicts (passAtN)', () => {
     await expect(
       t.engine.practice.completeAttempt({ attemptId, grade: 9 as 5 }),
     ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+  });
+});
+
+describe('completeAttempt with a selected grade policy', () => {
+  const run = async (
+    policies: Parameters<typeof createFakeGradePolicies>[0],
+    selected: string | null,
+    script: RawVerdict[] = [FAILED, PASSED],
+    complete: { grade?: 1 | 2 | 3 | 4 | 5; outcome?: 'gave-up' } = {},
+  ) => {
+    const gradePolicies = createFakeGradePolicies(policies);
+    const t = await setup(createFakeSqlTypes(...script), { gradePolicies });
+    if (selected !== null) {
+      await t.engine.settings.setLearning({ gradePolicy: selected });
+    }
+    const { attemptId } = await t.engine.practice.beginAttempt({
+      exerciseId: VERIFIABLE,
+    });
+    for (let i = 0; i < script.length; i++) {
+      await t.engine.practice.submitAnswer({ attemptId, answer: ANSWER });
+    }
+    const complete_ = () =>
+      t.engine.practice.completeAttempt({ attemptId, ...complete });
+    return { t, gradePolicies, complete: complete_ };
+  };
+
+  it('the selected extension policy decides the grade and gets the verdicts', async () => {
+    const { complete, gradePolicies, t } = await run(
+      { 'acme.generous': { handler: () => 5 } },
+      'acme.generous',
+    );
+    const result = await complete();
+    expect(result.grade).toBe(5);
+    expect(gradePolicies.calls).toHaveLength(1);
+    expect(gradePolicies.calls[0]).toMatchObject({
+      id: 'acme.generous',
+      input: { gaveUp: false },
+    });
+    expect(
+      gradePolicies.calls[0]?.input.verdicts.map((v) => v.outcome),
+    ).toEqual(['failed', 'passed']);
+    const [entry] = await journalOf(() => t.eventStore.readAll());
+    expect(entry).toMatchObject({ source: 'runner', grade: 5 });
+  });
+
+  it('switching back to passAtN takes effect on the next completion without asking the extension', async () => {
+    const { complete, gradePolicies, t } = await run(
+      { 'acme.generous': { handler: () => 5 } },
+      'acme.generous',
+    );
+    await t.engine.settings.setLearning({ gradePolicy: 'passAtN' });
+    expect((await complete()).grade).toBe(4);
+    expect(gradePolicies.calls).toEqual([]);
+  });
+
+  it('the default is passAtN and never asks the extension', async () => {
+    const { complete, gradePolicies } = await run(
+      { 'acme.generous': { handler: () => 5 } },
+      null,
+    );
+    expect((await complete()).grade).toBe(4);
+    expect(gradePolicies.calls).toEqual([]);
+  });
+
+  it.each([
+    [
+      'throws a host error',
+      () => {
+        throw new GradePolicyError('host-down', 'acme.p', 'down');
+      },
+    ],
+    [
+      'throws anything',
+      () => {
+        throw new Error('kaboom');
+      },
+    ],
+    ['returns 9', () => 9],
+    ['returns a string', () => 'five'],
+  ])(
+    'a policy that %s → passAtN grade, the attempt is still recorded, a warning is logged',
+    async (_name, handler) => {
+      const { complete, t } = await run({ 'acme.p': { handler } }, 'acme.p');
+      const result = await complete();
+      expect(result.grade).toBe(4);
+      const [entry] = await journalOf(() => t.eventStore.readAll());
+      expect(entry).toMatchObject({ source: 'runner', grade: 4 });
+      expect(
+        t.logs.filter(
+          ({ level, fields }) =>
+            level === 'warn' &&
+            (fields as { policyId?: string }).policyId === 'acme.p',
+        ),
+      ).toHaveLength(1);
+    },
+  );
+
+  it('a saved policy that no extension provides any more falls back to passAtN', async () => {
+    const { complete } = await run({}, 'gone.policy');
+    expect((await complete()).grade).toBe(4);
+  });
+
+  it('gave-up goes through the selected policy too', async () => {
+    const { complete, gradePolicies } = await run(
+      { 'acme.p': { handler: ({ gaveUp }) => (gaveUp ? 2 : 5) } },
+      'acme.p',
+      [],
+      { outcome: 'gave-up' },
+    );
+    expect((await complete()).grade).toBe(2);
+    expect(gradePolicies.calls[0]?.input.gaveUp).toBe(true);
+  });
+
+  it('a policy answering null falls back to the self-assessed grade', async () => {
+    const { complete } = await run(
+      { 'acme.p': { handler: () => null } },
+      'acme.p',
+      [FAILED],
+      { grade: 3 },
+    );
+    const result = await complete();
+    expect(result.grade).toBe(3);
   });
 });
 

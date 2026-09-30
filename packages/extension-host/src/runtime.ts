@@ -6,11 +6,16 @@ import type {
   ExtensionContext,
   ExtensionLogger,
   ExtensionModule,
+  GradePolicyHandler,
   LibraryReader,
 } from '@lms/extension-api';
 import { createCatalog } from './catalog.ts';
 import type { ResolvedExtension } from './discover.ts';
-import { extRequestSchema, gradeResultSchema } from './protocol.ts';
+import {
+  extRequestSchema,
+  gradeResultSchema,
+  gradeValueSchema,
+} from './protocol.ts';
 import type { ExtRequest, ExtResponse } from './protocol.ts';
 
 export interface ExtensionRuntimeOptions {
@@ -47,6 +52,7 @@ const messageOf = (error: unknown): string =>
 interface Activation {
   module: ExtensionModule;
   handlers: Map<string, ExerciseTypeHandler>;
+  policies: Map<string, GradePolicyHandler>;
   disposables: Disposable[];
 }
 
@@ -89,9 +95,13 @@ export const createExtensionRuntime = (
   ): Promise<Activation> => {
     const module = await loadModule(extension);
     const declared = new Set(extension.exerciseTypes.map((type) => type.id));
+    const declaredPolicies = new Set(
+      extension.gradePolicies.map((policy) => policy.id),
+    );
     const activation: Activation = {
       module,
       handlers: new Map(),
+      policies: new Map(),
       disposables: [],
     };
     activated.push(activation);
@@ -115,9 +125,40 @@ export const createExtensionRuntime = (
         activation.disposables.push(disposable);
         return disposable;
       },
+      registerGradePolicy(id, handler) {
+        if (!declaredPolicies.has(id)) {
+          throw new Error(
+            `grade policy '${id}' is not declared in the manifest of '${extension.id}'`,
+          );
+        }
+        if (activation.policies.has(id)) {
+          throw new Error(`grade policy '${id}' is already registered`);
+        }
+        activation.policies.set(id, handler);
+        const disposable: Disposable = {
+          dispose: () => void activation.policies.delete(id),
+        };
+        activation.disposables.push(disposable);
+        return disposable;
+      },
     };
     await module.activate(context);
     return activation;
+  };
+
+  const activationOf = async (
+    extension: ResolvedExtension,
+  ): Promise<Activation> => {
+    let pending = activations.get(extension.id);
+    if (pending === undefined) {
+      pending = activate(extension);
+      activations.set(extension.id, pending);
+    }
+    try {
+      return await pending;
+    } catch (error) {
+      throw new RuntimeFailure('activation-failed', messageOf(error));
+    }
   };
 
   const handlerFor = async (type: string): Promise<ExerciseTypeHandler> => {
@@ -128,22 +169,29 @@ export const createExtensionRuntime = (
         `unknown exercise type '${type}'`,
       );
     }
-    let pending = activations.get(extension.id);
-    if (pending === undefined) {
-      pending = activate(extension);
-      activations.set(extension.id, pending);
-    }
-    let activation: Activation;
-    try {
-      activation = await pending;
-    } catch (error) {
-      throw new RuntimeFailure('activation-failed', messageOf(error));
-    }
-    const handler = activation.handlers.get(type);
+    const handler = (await activationOf(extension)).handlers.get(type);
     if (handler === undefined) {
       throw new RuntimeFailure(
         'activation-failed',
         `extension '${extension.id}' did not register '${type}'`,
+      );
+    }
+    return handler;
+  };
+
+  const policyFor = async (id: string): Promise<GradePolicyHandler> => {
+    const extension = catalog.ownerOfPolicy(id);
+    if (extension === undefined) {
+      throw new RuntimeFailure(
+        'unknown-policy',
+        `unknown grade policy '${id}'`,
+      );
+    }
+    const handler = (await activationOf(extension)).policies.get(id);
+    if (handler === undefined) {
+      throw new RuntimeFailure(
+        'activation-failed',
+        `extension '${extension.id}' did not register '${id}'`,
       );
     }
     return handler;
@@ -157,7 +205,25 @@ export const createExtensionRuntime = (
     }
   };
 
+  const evaluatePolicy = async (
+    params: Extract<ExtRequest, { method: 'gradePolicy' }>['params'],
+  ): Promise<unknown> => {
+    const policy = await policyFor(params.policyId);
+    const result = await invoke(() =>
+      policy({ verdicts: params.verdicts, gaveUp: params.gaveUp }),
+    );
+    const parsed = gradeValueSchema.safeParse(result);
+    if (!parsed.success) {
+      throw new RuntimeFailure(
+        'invalid-result',
+        `grade policy returned ${JSON.stringify(result) ?? 'undefined'}, expected an integer 1..5 or null`,
+      );
+    }
+    return parsed.data;
+  };
+
   const run = async (request: ExtRequest): Promise<unknown> => {
+    if (request.method === 'gradePolicy') return evaluatePolicy(request.params);
     const { params } = request;
     const handler = await handlerFor(params.type);
     switch (request.method) {

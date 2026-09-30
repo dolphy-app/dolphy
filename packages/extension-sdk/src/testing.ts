@@ -3,7 +3,10 @@ import type {
   ExtensionContext,
   ExtensionLogger,
   ExtensionModule,
+  GradePolicyHandler,
+  GradePolicyInput,
   GradeResult,
+  GradeValue,
   JsonSchema,
   LibraryReader,
 } from '@lms/extension-api';
@@ -129,6 +132,7 @@ export const loadExerciseType = async (
       handlers.set(registeredType, handler);
       return { dispose: () => void handlers.delete(registeredType) };
     },
+    registerGradePolicy: () => ({ dispose: () => undefined }),
   };
   await module.activate(context);
   const handler = handlers.get(type);
@@ -165,6 +169,52 @@ export const loadExerciseType = async (
     ) => {
       const answer = await handler.referenceAnswer?.({ exerciseId, spec });
       return answer === undefined ? { found: false } : { found: true, answer };
+    },
+    dispose: async () => {
+      await module.deactivate?.();
+    },
+  };
+};
+
+export interface LoadedGradePolicy {
+  evaluate(input: GradePolicyInput): Promise<GradeValue | null>;
+  /** Деактивирует модуль расширения. */
+  dispose(): Promise<void>;
+}
+
+const isGradeValue = (value: unknown): value is GradeValue =>
+  Number.isInteger(value) && (value as number) >= 1 && (value as number) <= 5;
+
+export const loadGradePolicy = async (
+  module: ExtensionModule,
+  id: string,
+  options: { library?: LibraryReader; logger?: ExtensionLogger } = {},
+): Promise<LoadedGradePolicy> => {
+  const handlers = new Map<string, GradePolicyHandler>();
+  const context: ExtensionContext = {
+    extensionId: 'test',
+    logger: options.logger ?? silentLogger,
+    library: options.library ?? createMemoryLibrary({}),
+    registerExerciseType: () => ({ dispose: () => undefined }),
+    registerGradePolicy: (registeredId, handler) => {
+      handlers.set(registeredId, handler);
+      return { dispose: () => void handlers.delete(registeredId) };
+    },
+  };
+  await module.activate(context);
+  const handler = handlers.get(id);
+  if (handler === undefined) {
+    throw new Error(`grade policy '${id}' was not registered`);
+  }
+  return {
+    evaluate: async (input) => {
+      const result = await handler(input);
+      if (result !== null && !isGradeValue(result)) {
+        throw new Error(
+          `invalid grade policy result: ${JSON.stringify(result)} is not an integer 1..5 or null`,
+        );
+      }
+      return result;
     },
     dispose: async () => {
       await module.deactivate?.();

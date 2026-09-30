@@ -1,3 +1,8 @@
+import {
+  BUILTIN_GRADE_POLICY,
+  GRADE_POLICY_ID_PATTERN,
+  THEME_ID_PATTERN,
+} from '@lms/engine-contract';
 import * as z from 'zod';
 import type {
   AttemptEntryDto,
@@ -360,9 +365,20 @@ export const schemas = {
   'settings.getUi': z.tuple([]),
   'settings.setUi': z.tuple([
     z.strictObject({
-      theme: optional(z.enum(['system', 'light', 'dark'])),
+      theme: optional(z.string().max(64).regex(THEME_ID_PATTERN)),
       locale: optional(z.enum(['system', 'ru', 'en'])),
       activeCourseId: optional(unitId.nullable()),
+    }),
+  ]),
+  'settings.getLearning': z.tuple([]),
+  'settings.setLearning': z.tuple([
+    z.strictObject({
+      gradePolicy: optional(
+        z.union([
+          z.literal(BUILTIN_GRADE_POLICY),
+          z.string().max(64).regex(GRADE_POLICY_ID_PATTERN),
+        ]),
+      ),
     }),
   ]),
   'sync.getState': z.tuple([]),

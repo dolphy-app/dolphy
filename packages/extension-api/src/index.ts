@@ -273,6 +273,8 @@ export interface ExtensionContext {
   readonly library: LibraryReader;
   /** `type` обязан быть объявлен в манифесте этого расширения, иначе бросает. */
   registerExerciseType(type: string, handler: ExerciseTypeHandler): Disposable;
+  /** `id` обязан быть объявлен в `gradePolicies` манифеста этого расширения, иначе бросает. */
+  registerGradePolicy(id: string, handler: GradePolicyHandler): Disposable;
 }
 
 export interface ExtensionModule {

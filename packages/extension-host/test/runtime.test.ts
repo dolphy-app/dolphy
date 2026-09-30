@@ -4,7 +4,10 @@ import type { ExtensionModule } from '@lms/extension-api';
 import { describe, expect, it, vi } from 'vitest';
 import { discoverExtensions } from '../src/discover.ts';
 import type { ResolvedExtension } from '../src/discover.ts';
-import { createLocalExerciseTypes } from '../src/local.ts';
+import {
+  createLocalExerciseTypes,
+  createLocalExtensionHost,
+} from '../src/local.ts';
 import { createLogger, nullLibrary } from './helpers.ts';
 
 const fixtures = fileURLToPath(
@@ -291,5 +294,110 @@ describe('createExtensionRuntime (через local)', () => {
     await second.project({ type: 'acme.echo', exerciseId: 'e', spec: {} });
     await second.close();
     expect(deactivate).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('правила оценки (через local)', () => {
+  const open = async () => {
+    const extensions = await loadFixtures();
+    return createLocalExtensionHost({
+      extensions,
+      library: nullLibrary,
+      logger: createLogger(),
+    });
+  };
+  const input = {
+    verdicts: [
+      {
+        outcome: 'passed' as const,
+        attemptId: 'a',
+        attemptsUsed: 1,
+        durationMs: 1,
+      },
+    ],
+    gaveUp: false,
+  };
+
+  it('list отдаёт объявленные правила; вычисление грузит настоящий main.mjs', async () => {
+    const host = await open();
+    expect(host.gradePolicies.list().map(({ id }) => id)).toContain(
+      'acme.policy.generous',
+    );
+    expect(
+      await host.gradePolicies.evaluate('acme.policy.generous', input),
+    ).toBe(5);
+    expect(
+      await host.gradePolicies.evaluate('acme.policy.generous', {
+        verdicts: [],
+        gaveUp: true,
+      }),
+    ).toBe(1);
+    expect(
+      await host.gradePolicies.evaluate('acme.policy.generous', {
+        verdicts: [],
+        gaveUp: false,
+      }),
+    ).toBeNull();
+    await host.close();
+  });
+
+  it('неверный результат, исключение, неизвестное и незарегистрированное правило → типизированные отказы', async () => {
+    const host = await open();
+    const cause = async (id: string) =>
+      ((await rejection(host.gradePolicies.evaluate(id, input))) as Error)
+        .cause;
+    expect(await cause('acme.policy.broken')).toBe('invalid-result');
+    expect(await cause('acme.policy.throws')).toBe('handler-failed');
+    expect(await cause('acme.policy.forgotten')).toBe('handler-failed');
+    expect(await cause('acme.nothing')).toBe('unknown-policy');
+    await host.close();
+  });
+
+  it('registerGradePolicy с необъявленным id бросает, отказ активации запоминается', async () => {
+    const extensions = await loadFixtures();
+    const activate = vi.fn(
+      (ctx: Parameters<ExtensionModule['activate']>[0]) => {
+        ctx.registerGradePolicy('acme.policy.undeclared', () => 5);
+      },
+    );
+    const host = createLocalExtensionHost({
+      extensions,
+      library: nullLibrary,
+      logger: createLogger(),
+      modules: { 'acme.policy': { activate } },
+    });
+    await rejection(host.gradePolicies.evaluate('acme.policy.generous', input));
+    await rejection(host.gradePolicies.evaluate('acme.policy.generous', input));
+    expect(activate).toHaveBeenCalledTimes(1);
+    await host.close();
+  });
+
+  it('виды заданий и правила одного расширения активируют его один раз', async () => {
+    const extensions = await loadFixtures();
+    const activate = vi.fn(
+      (ctx: Parameters<ExtensionModule['activate']>[0]) => {
+        ctx.registerExerciseType('acme.mixed', {
+          project: () => 1,
+          grade: () => ({ outcome: 'passed' }),
+        });
+        ctx.registerGradePolicy('acme.mixed.strict', () => 2);
+      },
+    );
+    const host = createLocalExtensionHost({
+      extensions,
+      library: nullLibrary,
+      logger: createLogger(),
+      modules: { 'acme.mixed': { activate } },
+    });
+    await host.exerciseTypes.project({
+      type: 'acme.mixed',
+      exerciseId: 'e',
+      spec: {},
+    });
+    expect(await host.gradePolicies.evaluate('acme.mixed.strict', input)).toBe(
+      2,
+    );
+    expect(activate).toHaveBeenCalledTimes(1);
+    await host.close();
   });
 });

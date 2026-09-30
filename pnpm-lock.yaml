@@ -117,6 +117,9 @@ importers:
       electron-builder:
         specifier: ^26.8.1
         version: 26.15.3(electron-builder-squirrel-windows@26.15.3)
+      happy-dom:
+        specifier: ^20.14.5
+        version: 20.14.5
       markdown-it:
         specifier: ^15.0.2
         version: 15.0.2
@@ -278,6 +281,31 @@ importers:
       '@lms/extension-sdk':
         specifier: workspace:*
         version: link:../extension-sdk
+    devDependencies:
+      '@lms/extension-tools':
+        specifier: workspace:*
+        version: link:../extension-tools
+      '@types/node':
+        specifier: ^22.20.4
+        version: 22.20.4
+      happy-dom:
+        specifier: ^20.14.5
+        version: 20.14.5
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  packages/ext-math:
+    dependencies:
+      '@lms/extension-api':
+        specifier: workspace:*
+        version: link:../extension-api
+      '@lms/extension-sdk':
+        specifier: workspace:*
+        version: link:../extension-sdk
+      mathjax-full:
+        specifier: ^3
+        version: 3.2.2
     devDependencies:
       '@lms/extension-tools':
         specifier: workspace:*
@@ -1362,6 +1390,11 @@ packages:
     resolution: {integrity: sha512-/5NV/vDALVFDXgLmfsy9TRCBlKwO2LNBFzpzvb9iIj+jR+eSc6DLYYvVOdivT/jm7MtU6TebYuRmzEOI7w40UA==}
     engines: {node: '>=10.0.0'}
 
+  '@xmldom/xmldom@0.9.10':
+    resolution: {integrity: sha512-A9gOqLdi6cV4ibazAjcQufGj0B1y/vDqYrcuP6d/6x8P27gRS8643Dj9o1dEKtB6O7fwxb2FgBmJS2mX7gpvdw==}
+    engines: {node: '>=14.6'}
+    deprecated: this version has critical issues, please update to the latest version
+
   abbrev@4.0.0:
     resolution: {integrity: sha512-a1wflyaL0tHtJSmLSOVybYhy22vRih4eduhhrkcjgrWGnRfrZtovJ2FRjxuTtkkj47O/baf0R86QU5OuYpz8fA==}
     engines: {node: ^20.17.0 || >=22.9.0}
@@ -1655,6 +1688,10 @@ packages:
   combined-stream@1.0.8:
     resolution: {integrity: sha512-FQN4MRfuJeHf7cBbBMJFXhKSDq+2kAArBlmRBvcvFE5BB1HZKXtSFASDhdlz9zOYwxh8lDdnvmMOe/+5cdoEdg==}
     engines: {node: '>= 0.8'}
+
+  commander@13.1.0:
+    resolution: {integrity: sha512-/rFeCpNJQbhSZjGVwO9RFV3xPqbnERS8MmIQzCtD/zl6gpJuV/bMLuN92oG3F7d8oDEHHRrujSXNUr8fpjntKw==}
+    engines: {node: '>=18'}
 
   commander@5.1.0:
     resolution: {integrity: sha512-P0CysNDQ7rtVw4QIQtm+MRxV66vKFSvlsQvGYXZWR3qFU0jlMKHZZZgw8e+8DSah4UDKMqnknRDQz+xuQXQ/Zg==}
@@ -2012,6 +2049,10 @@ packages:
     peerDependenciesMeta:
       jiti:
         optional: true
+
+  esm@3.2.25:
+    resolution: {integrity: sha512-U1suiZ2oDVWv4zPO56S0NcR5QriEahGtdN2OR6FiOG4WJvcjBVFB0qI4+eKoWFH483PKGuLuu6V8Z4T5g63UVA==}
+    engines: {node: '>=6'}
 
   espree@10.4.0:
     resolution: {integrity: sha512-j6PAQ2uUr79PZhBjP5C5fhl8e39FmRnOjsD5lGnWrFU8i2G776tBK7+nP8KuQUTTyAZUwfQqXAgrVH5MbH9CYQ==}
@@ -2702,6 +2743,10 @@ packages:
     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==}
     engines: {node: '>= 0.4'}
 
+  mathjax-full@3.2.2:
+    resolution: {integrity: sha512-+LfG9Fik+OuI8SLwsiR02IVdjcnRCy5MufYLi0C3TdMT56L/pjB0alMVGgoWJF8pN9Rc7FESycZB9BMNWIid5w==}
+    deprecated: Version 4 replaces this package with the scoped package @mathjax/src
+
   mdurl@2.1.0:
     resolution: {integrity: sha512-1+HBaOx0zi/dQWht8rNv9MYf9qqpqL/kxI0hXImU6Y547zM6Sni8BQibt7ifgMcYtQg41ao3Ivd6cnSM86inpg==}
 
@@ -2711,6 +2756,9 @@ packages:
 
   merge-stream@2.0.0:
     resolution: {integrity: sha512-abv/qOcuPfk3URPfDzmZU1LKmuw8kT+0nIHvKrKgFrwifol/doWcdA4ZqsWQ8ENrFKkd67Mfpo/LovbIUsbt3w==}
+
+  mhchemparser@4.2.1:
+    resolution: {integrity: sha512-kYmyrCirqJf3zZ9t/0wGgRZ4/ZJw//VwaRVGA75C4nhE60vtnIzhl9J9ndkX/h6hxSN7pjg/cE0VxbnNM+bnDQ==}
 
   micromatch@4.0.8:
     resolution: {integrity: sha512-PXwfBhYu0hBCPw8Dn0E+WDYb7af3dSLVWKi3HGv84IdF4TyFoC0ysxFd0Goxw7nSv4T/PzEJQxsYsEiFCKo2BA==}
@@ -2771,6 +2819,9 @@ packages:
   minizlib@3.1.0:
     resolution: {integrity: sha512-KZxYo1BUkWD2TVFLr0MQoM8vUUigWD3LlD83a/75BqC+4qE0Hb1Vo5v1FgcfaNXvfXzr+5EhQ6ing/CaBijTlw==}
     engines: {node: '>= 18'}
+
+  mj-context-menu@0.6.1:
+    resolution: {integrity: sha512-7NO5s6n10TIV96d4g2uDpG7ZDpIhMh0QNfGdJw/W47JswFcosz457wqz/b5sAKvl12sxINGFCn80NZHKwxQEXA==}
 
   mkdirp@0.5.6:
     resolution: {integrity: sha512-FP+p8RB8OWpF3YZBCrP5gtADmtXApB5AMLn+vdyA+PyxCjrCs00mjyUozssO33cwDeT3wNGdLxJ5M//YqtHAJw==}
@@ -3378,6 +3429,10 @@ packages:
   spdx-license-ids@3.0.24:
     resolution: {integrity: sha512-cLS9TtWkIQFyLkJ3/5aFQAOHOSKTlOs/7WDut/XPSdjom1fJhUdkepeJAKXa9Y05+FabHd0sti+Et559vDtkpQ==}
 
+  speech-rule-engine@4.1.4:
+    resolution: {integrity: sha512-i/VCLG1fvRc95pMHRqG4aQNscv+9aIsqA2oI7ZQS51sTdUcDHYX6cpT8/tqZ+enjs1tKVwbRBWgxut9SWn+f9g==}
+    hasBin: true
+
   split2@1.0.0:
     resolution: {integrity: sha512-NKywug4u4pX/AZBB1FCPzZ6/7O+Xhz1qMVbzTvvKvikjO99oPN87SkK08mEY9P63/5lWjK+wgOOgApnTg5r6qg==}
 
@@ -3915,6 +3970,9 @@ packages:
     resolution: {integrity: sha512-NKUzAelcoCXhXL4dJzKIwXeR8iEVqsA0Lq6Vnd0UXvgaKbzVo4ZTHROF2Jidrv+SgxOQ03fMinnNhzZATxOD3A==}
     engines: {node: '>=20.11'}
     hasBin: true
+
+  wicked-good-xpath@1.3.0:
+    resolution: {integrity: sha512-Gd9+TUn5nXdwj/hFsPVx5cuHHiF5Bwuc30jZ4+ronF1qHK5O7HD0sgmXWSEgwKquT3ClLoKPVbO6qGwVwLzvAw==}
 
   word-wrap@1.2.5:
     resolution: {integrity: sha512-BN22B5eaMMI9UMtjrGd5g5eCYPpCPDUy0FJXbYsaT5zYxjFOckS53SQDE3pWkVoWpHXVb3BrYcEN4Twa55B5cA==}
@@ -5051,6 +5109,8 @@ snapshots:
 
   '@xmldom/xmldom@0.8.15': {}
 
+  '@xmldom/xmldom@0.9.10': {}
+
   abbrev@4.0.0: {}
 
   acorn-jsx@5.3.2(acorn@8.18.0):
@@ -5382,6 +5442,8 @@ snapshots:
   combined-stream@1.0.8:
     dependencies:
       delayed-stream: 1.0.0
+
+  commander@13.1.0: {}
 
   commander@5.1.0: {}
 
@@ -5773,6 +5835,8 @@ snapshots:
       jiti: 2.7.0
     transitivePeerDependencies:
       - supports-color
+
+  esm@3.2.25: {}
 
   espree@10.4.0:
     dependencies:
@@ -6467,11 +6531,20 @@ snapshots:
 
   math-intrinsics@1.1.0: {}
 
+  mathjax-full@3.2.2:
+    dependencies:
+      esm: 3.2.25
+      mhchemparser: 4.2.1
+      mj-context-menu: 0.6.1
+      speech-rule-engine: 4.1.4
+
   mdurl@2.1.0: {}
 
   meow@13.2.0: {}
 
   merge-stream@2.0.0: {}
+
+  mhchemparser@4.2.1: {}
 
   micromatch@4.0.8:
     dependencies:
@@ -6517,6 +6590,8 @@ snapshots:
   minizlib@3.1.0:
     dependencies:
       minipass: 7.1.3
+
+  mj-context-menu@0.6.1: {}
 
   mkdirp@0.5.6:
     dependencies:
@@ -7066,6 +7141,12 @@ snapshots:
 
   spdx-license-ids@3.0.24: {}
 
+  speech-rule-engine@4.1.4:
+    dependencies:
+      '@xmldom/xmldom': 0.9.10
+      commander: 13.1.0
+      wicked-good-xpath: 1.3.0
+
   split2@1.0.0:
     dependencies:
       through2: 2.0.5
@@ -7599,6 +7680,8 @@ snapshots:
       isexe: 4.0.0
 
   why-is-node-running@3.2.2: {}
+
+  wicked-good-xpath@1.3.0: {}
 
   word-wrap@1.2.5: {}
 

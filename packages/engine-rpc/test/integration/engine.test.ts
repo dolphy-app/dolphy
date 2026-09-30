@@ -21,6 +21,7 @@ import {
   createFakeClock,
   createFakeExerciseTypes,
   createFakeExtensionRegistry,
+  createFakeGradePolicies,
   createMemoryCourseSource,
   createSeededRng,
   createTestIds,
@@ -89,6 +90,7 @@ const start = async () => {
       settings: createMemorySettingsStore(),
       memoryModel: createTsFsrsMemoryModel(),
       exerciseTypes: passingTypes(),
+      gradePolicies: createFakeGradePolicies(),
       extensionRegistry: createFakeExtensionRegistry([REGISTERED]),
     },
     { libraryRoot: source.root, dataDir: '/tmp/rpc-integration' },
@@ -355,6 +357,10 @@ describe('rpc → dispatcher → real engine', () => {
     );
     await call('settings.getScorer', () => client.settings.getScorer());
     await call('settings.getUi', () => client.settings.getUi());
+    await call('settings.getLearning', () => client.settings.getLearning());
+    await call('settings.setLearning', () =>
+      client.settings.setLearning({ gradePolicy: 'acme.policy' }),
+    );
     await call('settings.setUi', () =>
       client.settings.setUi({ theme: 'dark', locale: 'en' }),
     );

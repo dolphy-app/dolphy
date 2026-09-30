@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import type { MessageEndpoint } from '@lms/engine-contract';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createCatalog } from '../src/catalog.ts';
+import { createHostChannel } from '../src/channel.ts';
 import { createRemoteExerciseTypes } from '../src/client.ts';
 import { discoverExtensions } from '../src/discover.ts';
 import { createLogger } from './helpers.ts';
@@ -65,10 +66,12 @@ describe('extension host в отдельном процессе', () => {
       roots: [{ dir: extensionsDir, origin: 'bundled' }],
       logger: createLogger(),
     });
+    const logger = createLogger();
+    const channel = createHostChannel({ logger, connectTimeoutMs: 5000 });
     const client = createRemoteExerciseTypes({
+      channel,
       catalog: createCatalog(extensions),
-      logger: createLogger(),
-      connectTimeoutMs: 5000,
+      logger,
     });
     const grade = (type: string, answer: string) =>
       client.grade({
@@ -81,7 +84,7 @@ describe('extension host в отдельном процессе', () => {
       });
 
     const first = await spawnHost();
-    client.attach(ipcEndpoint(first));
+    channel.attach(ipcEndpoint(first));
     expect(await grade('acme.echo', '42')).toMatchObject({ outcome: 'passed' });
     expect(await grade('acme.crash', 'crash')).toMatchObject({
       outcome: 'error',
@@ -92,7 +95,7 @@ describe('extension host в отдельном процессе', () => {
     // между падением и новым attach вызовы ждут хост, а не падают
     const waiting = grade('acme.echo', '42');
     const second = await spawnHost();
-    client.attach(ipcEndpoint(second));
+    channel.attach(ipcEndpoint(second));
     expect(await waiting).toMatchObject({ outcome: 'passed' });
     expect(await grade('acme.echo', '1')).toMatchObject({
       outcome: 'failed',

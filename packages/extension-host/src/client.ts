@@ -1,110 +1,42 @@
-import type { MessageEndpoint } from '@lms/engine-contract';
-import { ExerciseTypeError } from '@lms/engine/ports';
-import type { ExerciseTypes, RawVerdict } from '@lms/engine/ports';
+import { ExerciseTypeError, GradePolicyError } from '@lms/engine/ports';
+import type {
+  ExerciseTypes,
+  GradePolicies,
+  GradePolicyErrorCause,
+  RawVerdict,
+} from '@lms/engine/ports';
 import type { ExtensionLogger } from '@lms/extension-api';
 import type { createCatalog } from './catalog.ts';
-import { gradeResultSchema } from './protocol.ts';
-import type { ExtRequest, ExtResponse } from './protocol.ts';
+import type { ChannelOutcome, ChannelParams, HostChannel } from './channel.ts';
+import { gradeResultSchema, gradeValueSchema } from './protocol.ts';
+import type { ExtFailureCause, ExtResponse } from './protocol.ts';
 
 export interface RemoteExerciseTypesOptions {
+  channel: HostChannel;
   catalog: ReturnType<typeof createCatalog>;
   logger: ExtensionLogger;
-  /** Вызывается, когда вызов не уложился в дедлайн: синхронный цикл в расширении не прервать, хост надо перезапустить. */
-  restart?: () => void;
   /** Дедлайн `grade` = `timeoutMs + graceMs`. */
   graceMs?: number;
   projectTimeoutMs?: number;
-  /** Сколько ждать первый `attach`. */
-  connectTimeoutMs?: number;
 }
 
-export type RemoteExerciseTypes = ExerciseTypes & {
-  attach(endpoint: MessageEndpoint): void;
-};
-
-type Outcome =
-  | { kind: 'response'; response: ExtResponse }
-  | { kind: 'closed' }
-  | { kind: 'timeout' }
-  | { kind: 'no-host' };
-
-interface Pending {
-  settle(outcome: Outcome): void;
+export interface RemoteGradePoliciesOptions {
+  channel: HostChannel;
+  catalog: ReturnType<typeof createCatalog>;
+  logger: ExtensionLogger;
+  deadlineMs?: number;
 }
-
-type RequestParams<M extends ExtRequest['method']> = Extract<
-  ExtRequest,
-  { method: M }
->['params'];
-
-const isResponse = (value: unknown): value is ExtResponse =>
-  typeof value === 'object' &&
-  value !== null &&
-  typeof (value as { id?: unknown }).id === 'string' &&
-  typeof (value as { ok?: unknown }).ok === 'boolean';
 
 export const createRemoteExerciseTypes = (
   options: RemoteExerciseTypesOptions,
-): RemoteExerciseTypes => {
-  const { catalog, logger } = options;
+): ExerciseTypes => {
+  const { catalog, channel } = options;
   const graceMs = options.graceMs ?? 2000;
   const projectTimeoutMs = options.projectTimeoutMs ?? 5000;
-  const connectTimeoutMs = options.connectTimeoutMs ?? 10_000;
-
-  let nextId = 0;
-  let endpoint: MessageEndpoint | null = null;
-  let closed = false;
-  const pending = new Map<string, Pending>();
-  const connectWaiters = new Set<(endpoint: MessageEndpoint | null) => void>();
-
-  const dropEndpoint = (dropped: MessageEndpoint): void => {
-    if (endpoint !== dropped) return;
-    endpoint = null;
-    for (const entry of [...pending.values()]) entry.settle({ kind: 'closed' });
-  };
-
-  const awaitEndpoint = (): Promise<MessageEndpoint | null> => {
-    if (endpoint !== null) return Promise.resolve(endpoint);
-    if (closed) return Promise.resolve(null);
-    return new Promise((resolve) => {
-      const slot: { timer?: ReturnType<typeof setTimeout> } = {};
-      const done = (value: MessageEndpoint | null): void => {
-        clearTimeout(slot.timer);
-        connectWaiters.delete(done);
-        resolve(value);
-      };
-      slot.timer = setTimeout(() => done(null), connectTimeoutMs);
-      connectWaiters.add(done);
-    });
-  };
-
-  const call = async (
-    method: ExtRequest['method'],
-    params: RequestParams<typeof method>,
-    deadlineMs: number,
-  ): Promise<Outcome> => {
-    const target = await awaitEndpoint();
-    if (target === null) return { kind: 'no-host' };
-    const id = String(nextId++);
-    return new Promise<Outcome>((resolve) => {
-      const slot: { timer?: ReturnType<typeof setTimeout> } = {};
-      const settle = (outcome: Outcome): void => {
-        clearTimeout(slot.timer);
-        pending.delete(id);
-        resolve(outcome);
-      };
-      slot.timer = setTimeout(() => {
-        settle({ kind: 'timeout' });
-        options.restart?.();
-      }, deadlineMs);
-      pending.set(id, { settle });
-      target.post({ id, method, params } as ExtRequest);
-    });
-  };
 
   const failure = (
     type: string,
-    outcome: Exclude<Outcome, { kind: 'response' }>,
+    outcome: Exclude<ChannelOutcome, { kind: 'response' }>,
   ): ExerciseTypeError =>
     outcome.kind === 'timeout'
       ? new ExerciseTypeError('timeout', type, 'extension call timed out')
@@ -112,14 +44,15 @@ export const createRemoteExerciseTypes = (
 
   const request = async (
     method: 'project' | 'referenceAnswer',
-    params: RequestParams<'project'>,
+    params: ChannelParams<'project'>,
   ): Promise<unknown> => {
-    const outcome = await call(method, params, projectTimeoutMs);
+    const outcome = await channel.call(method, params, projectTimeoutMs);
     if (outcome.kind !== 'response') throw failure(params.type, outcome);
     const { response } = outcome;
     if (!response.ok) {
+      const { cause } = response.error;
       throw new ExerciseTypeError(
-        response.error.cause,
+        cause === 'unknown-policy' ? 'handler-failed' : cause,
         params.type,
         response.error.message,
       );
@@ -162,13 +95,6 @@ export const createRemoteExerciseTypes = (
     return { outcome: 'error', reason: result.reason, ...common };
   };
 
-  const closeEndpoint = (): void => {
-    const current = endpoint;
-    if (current === null) return;
-    current.close();
-    dropEndpoint(current);
-  };
-
   return {
     describe: catalog.describe,
     list: catalog.list,
@@ -185,7 +111,7 @@ export const createRemoteExerciseTypes = (
 
     async grade(req) {
       const started = performance.now();
-      const outcome = await call('grade', req, req.timeoutMs + graceMs);
+      const outcome = await channel.call('grade', req, req.timeoutMs + graceMs);
       const durationMs = Math.round(performance.now() - started);
       switch (outcome.kind) {
         case 'response':
@@ -197,27 +123,60 @@ export const createRemoteExerciseTypes = (
       }
     },
 
-    attach(next) {
-      closeEndpoint();
-      endpoint = next;
-      next.onMessage((message) => {
-        if (endpoint !== next) return;
-        if (!isResponse(message)) {
-          logger.warn({}, 'invalid extension host response ignored');
-          return;
-        }
-        pending
-          .get(message.id)
-          ?.settle({ kind: 'response', response: message });
-      });
-      next.onClose(() => dropEndpoint(next));
-      for (const waiter of [...connectWaiters]) waiter(next);
-    },
+    /** Канал общий с клиентом правил оценки: закрытие движка закрывает оба. */
+    close: () => channel.close(),
+  };
+};
 
-    async close() {
-      closed = true;
-      closeEndpoint();
-      for (const waiter of [...connectWaiters]) waiter(null);
+const POLICY_DEADLINE_MS = 2000;
+
+const policyCause = (cause: ExtFailureCause): GradePolicyErrorCause =>
+  cause === 'unknown-policy' || cause === 'invalid-result'
+    ? cause
+    : 'handler-failed';
+
+export const createRemoteGradePolicies = (
+  options: RemoteGradePoliciesOptions,
+): GradePolicies => {
+  const { catalog, channel, logger } = options;
+  const deadlineMs = options.deadlineMs ?? POLICY_DEADLINE_MS;
+  return {
+    list: catalog.describePolicies,
+
+    async evaluate(id, { verdicts, gaveUp }) {
+      const outcome = await channel.call(
+        'gradePolicy',
+        {
+          policyId: id,
+          verdicts: verdicts.map((verdict) => ({
+            outcome: verdict.outcome,
+            ...(verdict.outcome !== 'passed' && { reason: verdict.reason }),
+          })),
+          gaveUp,
+        },
+        deadlineMs,
+      );
+      if (outcome.kind === 'timeout') {
+        throw new GradePolicyError('timeout', id, 'grade policy timed out');
+      }
+      if (outcome.kind !== 'response') {
+        throw new GradePolicyError('host-down', id, 'extension host is down');
+      }
+      const { response } = outcome;
+      if (!response.ok) {
+        const cause = policyCause(response.error.cause);
+        logger.debug({ policyId: id, cause }, 'grade policy call failed');
+        throw new GradePolicyError(cause, id, response.error.message);
+      }
+      const parsed = gradeValueSchema.safeParse(response.result);
+      if (!parsed.success) {
+        throw new GradePolicyError(
+          'invalid-result',
+          id,
+          'grade policy returned an invalid result',
+        );
+      }
+      return parsed.data;
     },
   };
 };

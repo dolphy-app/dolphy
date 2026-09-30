@@ -18,6 +18,11 @@ const RU = {
   planEmpty: 'План на сегодня пуст',
   navSettings: 'Настройки',
   settingsExtensions: 'Расширения',
+  settingsLearning: 'Обучение',
+  gradePolicy: 'Правило оценки',
+  gradePolicyMissing: 'недоступно',
+  settingsAppearance: 'Внешний вид',
+  themeGroup: 'Тема оформления',
   extensionList: 'Установленные расширения',
   verdictPassed: 'Верно',
   verdictFailed: 'Пока неверно',
@@ -343,5 +348,84 @@ export class Client {
       });
     await rows.first().waitFor({ timeout: TIMEOUT });
     return rows.allInnerTexts();
+  }
+
+  /** «Настройки» → «Обучение»: ждёт выбор правила оценки. */
+  async openSettingsLearning() {
+    await this.page
+      .getByRole('link', { name: RU.navSettings, exact: true })
+      .click();
+    await this.page
+      .getByRole('tab', { name: RU.settingsLearning, exact: true })
+      .click();
+    await this.gradePolicySelect().waitFor({ timeout: TIMEOUT });
+  }
+
+  private gradePolicySelect(): Locator {
+    return this.page.getByRole('combobox', { name: RU.gradePolicy });
+  }
+
+  /** Название выбранного правила оценки, как его показывает выбор. */
+  async selectedGradePolicy(): Promise<string> {
+    return (
+      await this.page
+        .locator('.grade-policy-select .v-select__selection')
+        .innerText()
+    ).trim();
+  }
+
+  async selectGradePolicy(title: string) {
+    // поле перекрывает скрытый input: открываем меню кликом по самому полю
+    await this.page.locator('.grade-policy-select .v-field').click();
+    await this.page
+      .getByRole('option', { name: new RegExp(`^${title}`) })
+      .click();
+    await expect
+      .poll(() => this.selectedGradePolicy(), { timeout: TIMEOUT })
+      .toBe(title);
+  }
+
+  /** Предупреждение о недоступном сохранённом правиле или `null`. */
+  async gradePolicyWarning(): Promise<string | null> {
+    const alert = this.page.locator('.grade-policy-missing');
+    return (await alert.isVisible()) ? (await alert.innerText()).trim() : null;
+  }
+
+  /** «Настройки» → «Внешний вид»: ждёт группу плиток тем. */
+  async openSettingsAppearance() {
+    await this.page
+      .getByRole('link', { name: RU.navSettings, exact: true })
+      .click();
+    await this.page
+      .getByRole('tab', { name: RU.settingsAppearance, exact: true })
+      .click();
+    await this.themeTile('').first().waitFor({ timeout: TIMEOUT });
+  }
+
+  private themeTile(label: string): Locator {
+    return this.page
+      .getByRole('radiogroup', { name: RU.themeGroup, exact: true })
+      .getByRole('radio', { name: label });
+  }
+
+  async themeTileExists(label: string): Promise<boolean> {
+    return (await this.themeTile(label).count()) > 0;
+  }
+
+  async selectTheme(label: string) {
+    await this.themeTile(label).first().check({ force: true });
+  }
+
+  /** Подпись выбранной плитки темы (по `checked` радио). */
+  async isThemeSelected(label: string): Promise<boolean> {
+    return this.themeTile(label).first().isChecked();
+  }
+
+  /** Вычисленный фон корня приложения (`.v-application`). */
+  async appBackground(): Promise<string> {
+    return this.page
+      .locator('.v-application')
+      .first()
+      .evaluate((node) => getComputedStyle(node).backgroundColor);
   }
 }

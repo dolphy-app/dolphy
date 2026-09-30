@@ -1,4 +1,8 @@
-import type { ExerciseTypeInfo, ExerciseTypes } from '@lms/engine/ports';
+import type {
+  ExerciseTypeInfo,
+  ExerciseTypes,
+  GradePolicyInfo,
+} from '@lms/engine/ports';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import type { ErrorObject, ValidateFunction } from 'ajv/dist/2020.js';
 import type { ResolvedExtension } from './discover.ts';
@@ -8,7 +12,11 @@ const MAX_ISSUES = 6;
 export type Catalog = Pick<
   ExerciseTypes,
   'describe' | 'list' | 'validateSpec' | 'validateAnswer'
-> & { ownerOf(type: string): ResolvedExtension | undefined };
+> & {
+  ownerOf(type: string): ResolvedExtension | undefined;
+  ownerOfPolicy(id: string): ResolvedExtension | undefined;
+  describePolicies(): readonly GradePolicyInfo[];
+};
 
 interface Entry {
   info: ExerciseTypeInfo;
@@ -43,6 +51,14 @@ export const createCatalog = (
       });
     }
   }
+  const policyOwners = new Map<string, ResolvedExtension>();
+  const policyInfos: GradePolicyInfo[] = [];
+  for (const owner of extensions) {
+    for (const { id, label } of owner.gradePolicies) {
+      policyOwners.set(id, owner);
+      policyInfos.push({ id, label, extensionId: owner.id });
+    }
+  }
   const infos = [...entries.values()].map((entry) => entry.info);
   const validate = (
     type: string,
@@ -61,5 +77,7 @@ export const createCatalog = (
     validateAnswer: (type, answer) =>
       validate(type, (e) => e.validateAnswer, answer),
     ownerOf: (type) => entries.get(type)?.owner,
+    ownerOfPolicy: (id) => policyOwners.get(id),
+    describePolicies: () => policyInfos,
   };
 };

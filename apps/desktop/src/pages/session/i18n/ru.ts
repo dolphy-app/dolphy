@@ -20,6 +20,10 @@ export const ru = {
       averageGrade: 'Средняя оценка',
       time: 'Время',
     },
+    markdown: {
+      renderFailed:
+        'Не удалось вывести блок «{language}»; показан исходный текст.',
+    },
     answer: {
       loadFailed: 'Не удалось загрузить ввод ответа ({element}).',
       label: 'Ответ',

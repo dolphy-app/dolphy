@@ -10,3 +10,4 @@ export {
   type AnswerElementInstance,
   type MountAnswerElement,
 } from './answer-element.ts';
+export { defineMarkdownRenderer } from './markdown-renderer.ts';

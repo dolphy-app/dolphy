@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 4 as const;
+export const CONTRACT_VERSION = 5 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 
@@ -709,12 +709,17 @@ export interface PreferencesDto {
   schedulerBatchSize?: number;
 }
 
+/** Встроенные режимы темы; кроме них `theme` может быть id темы расширения. */
 export type ThemeMode = 'system' | 'light' | 'dark';
+export const BUILTIN_THEMES = ['system', 'light', 'dark'] as const;
+/** Допустимый вид id темы расширения (движок не проверяет, что тема есть). */
+export const THEME_ID_PATTERN = /^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*$/;
 /** `system` — язык системы; renderer сам выбирает из поддерживаемых. */
 export type LocaleMode = 'system' | 'ru' | 'en';
 /** Настройки интерфейса; хранятся вместе с остальными настройками в `engine.db`. */
 export interface UiSettingsDto {
-  theme: ThemeMode;
+  /** Встроенный режим или id темы расширения. */
+  theme: string;
   locale: LocaleMode;
   /** Курс в фокусе: клиент передаёт его в `courseIds` плана и повторений. Нет поля — все курсы. Движок не проверяет, что курс есть в библиотеке: курс могли убрать, клиент сверяет сам. */
   activeCourseId?: UnitId;
@@ -723,6 +728,16 @@ export interface UiSettingsDto {
 export type UiSettingsPatch = Partial<Omit<UiSettingsDto, 'activeCourseId'>> & {
   activeCourseId?: UnitId | null;
 };
+
+/** Id встроенного правила оценки (`pass@N`). */
+export const BUILTIN_GRADE_POLICY = 'passAtN' as const;
+/** Допустимый вид id правила оценки расширения (движок не проверяет, что правило есть). */
+export const GRADE_POLICY_ID_PATTERN = /^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*$/;
+/** Настройки обучения; хранятся вместе с остальными настройками в `engine.db`. */
+export interface LearningSettingsDto {
+  /** `passAtN` или id правила оценки расширения. */
+  gradePolicy: string;
+}
 
 export interface SettingsService {
   getScheduler(): Promise<SchedulerOptionsDto>;
@@ -737,6 +752,11 @@ export interface SettingsService {
   getUi(): Promise<UiSettingsDto>;
   /** Валидирует и сохраняет; возвращает итоговые настройки. */
   setUi(patch: UiSettingsPatch): Promise<UiSettingsDto>;
+  getLearning(): Promise<LearningSettingsDto>;
+  /** Валидирует вид id (существование правила не проверяется) и сохраняет; возвращает итоговые настройки. */
+  setLearning(
+    patch: Partial<LearningSettingsDto>,
+  ): Promise<LearningSettingsDto>;
 }
 
 /** Вектор для дельта-экспорта: `{deviceId: contiguous}` — непрерывный префикс seq (1..contiguous без пропусков), не `maxSeq`. */
@@ -919,7 +939,8 @@ export type EngineEvent =
         | 'sessions'
         | 'blacklist'
         | 'reviewList'
-        | 'ui';
+        | 'ui'
+        | 'learning';
     };
 
 /** Конфигурация хоста при открытии движка (`createEngine`); через RPC не передаётся и renderer её не меняет. */

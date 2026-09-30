@@ -23,7 +23,20 @@ export type ExtRequest =
       id: string;
       method: 'referenceAnswer';
       params: { type: string; exerciseId: string; spec: unknown };
+    }
+  | {
+      id: string;
+      method: 'gradePolicy';
+      params: {
+        policyId: string;
+        verdicts: { outcome: 'passed' | 'failed' | 'error'; reason?: string }[];
+        gaveUp: boolean;
+      };
     };
+
+/** Причины отказа, которые сообщает сам хост расширений (остальные порождает клиент). */
+export type ExtFailureCause =
+  Exclude<ExerciseTypeErrorCause, 'host-down' | 'timeout'> | 'unknown-policy';
 
 export type ExtResponse =
   | { id: string; ok: true; result: unknown }
@@ -31,7 +44,7 @@ export type ExtResponse =
       id: string;
       ok: false;
       error: {
-        cause: Exclude<ExerciseTypeErrorCause, 'host-down' | 'timeout'>;
+        cause: ExtFailureCause;
         message: string;
       };
     };
@@ -59,7 +72,24 @@ export const extRequestSchema = z.discriminatedUnion('method', [
     method: z.literal('referenceAnswer'),
     params: z.strictObject(typed),
   }),
+  z.strictObject({
+    id: z.string(),
+    method: z.literal('gradePolicy'),
+    params: z.strictObject({
+      policyId: z.string(),
+      verdicts: z.array(
+        z.strictObject({
+          outcome: z.enum(['passed', 'failed', 'error']),
+          reason: z.string().optional(),
+        }),
+      ),
+      gaveUp: z.boolean(),
+    }),
+  }),
 ]);
+
+/** Результат правила оценки: целое 1–5 или `null`. */
+export const gradeValueSchema = z.union([z.literal([1, 2, 3, 4, 5]), z.null()]);
 
 const reason = z.string().min(1).max(100);
 const text = z.string().max(4000);

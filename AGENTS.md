@@ -48,17 +48,22 @@ Node ≥ 22.12 (`.nvmrc`), pnpm 9.15.9 (поле `packageManager`). Устана
 
 ## Git-процесс
 
-Ветки: `main` (стабильная), `develop` (интеграционная), `feature/<feature-name>` (любая работа).
+Подробный порядок с командами `gh` — скилл `git-workflow`. Ветки: `main` (только релизы), `develop` (интеграционная), `feature/<feature-name>` (любая работа).
 
-**Любое изменение делается в отдельной ветке `feature/<feature-name>`.** Прямые коммиты в `develop` и `main` запрещены.
+**Любое изменение делается в отдельной ветке `feature/<feature-name>`.** Прямые коммиты в `develop` и `main` запрещены. GitHub-операции (PR, слияние, релиз) — только через `gh`.
 
-1. Создать ветку от актуальной `develop`: `git switch develop && git switch -c feature/<feature-name>`.
-2. Работать и коммитить в ней (Conventional Commits: `feat:`, `fix:`, `docs:`, `chore:`, `ci:`); перед слиянием `pnpm lint` должен проходить.
-3. Влить `feature/<feature-name>` в `develop` (PR в `develop`, либо локально `git merge --no-ff`).
-4. Только после этого влить `develop` в `main`. Минуя `develop` в `main` не вливать.
+1. Создать ветку от актуальной `develop`: `git fetch origin && git switch -c feature/<feature-name> origin/develop`.
+2. Работать и коммитить в ней по Conventional Commits (`feat`, `fix`, `perf`, `docs`, `test`, `refactor`, `build`, `ci`, `chore`, `revert`; заголовок на английском, `scope` — каталог из `apps/` или `packages/`); хук `commit-msg` (commitlint) отклонит неверное сообщение. Перед push `pnpm lint` должен проходить.
+3. Запушить и открыть PR в `develop` (`gh pr create --base develop`) с кратким описанием: что за фича и что сделано.
+4. Сразу влить PR, если нет конфликтов (`gh pr merge --merge --delete-branch`): только merge-коммитом, без squash и rebase. Конфликты — сначала подтянуть `develop` в ветку и решить их.
+5. Релиз — по просьбе: PR `develop` → `main` (`gh pr create --base main --head develop`) и слияние merge-коммитом. Минуя `develop` в `main` не вливать. Затем PR `main` → `develop`, возвращающий релизный коммит.
 
 `<feature-name>` — kebab-case, латиница: `feature/course-loader`, `feature/monorepo-setup`.
 
+## Релизы
+
+Релиз запускает push в `main` (`.github/workflows/release.yml`), версию считает semantic-release (`release.config.js`) по Conventional Commits: `feat` — minor, `fix` и `perf` — patch, `!` или `BREAKING CHANGE` — major, остальные типы релиз не создают. Он дописывает `CHANGELOG.md`, поднимает `version` в корневом `package.json`, коммитит `chore(release): X.Y.Z [skip ci]`, ставит тег `vX.Y.Z` и создаёт GitHub Release. Затем собираются неподписанные установщики `apps/desktop` (macOS `.dmg`, Windows `.exe`, Linux `.AppImage`) с версией из тега; они прикладываются к Release. Версию, `CHANGELOG.md` и теги `v*` руками не менять; `apps/desktop/package.json` версией релиза не управляется (версия сборки передаётся `-c.extraMetadata.version`).
+
 ## CI/CD
 
-GitHub Actions, `.github/workflows/ci.yml`. Запускается на push и pull request в `develop` и `main`. Jobs (каждый начинается с `pnpm install --frozen-lockfile`): `lint` — `pnpm lint:eslint`, `pnpm lint:format`; `typecheck` — `pnpm typecheck` и `test` — `pnpm test`, оба на Node 22 и 24. Сборки и деплоя в CI пока нет.
+GitHub Actions. `.github/workflows/ci.yml` запускается на push и pull request в `develop` и `main`. Jobs (каждый начинается с `pnpm install --frozen-lockfile`): `lint` — `pnpm lint:eslint`, `pnpm lint:format`; `typecheck` — `pnpm typecheck` и `test` — `pnpm test`, оба на Node 22 и 24; `build` — `pnpm build --publish never` на Linux (типы, `vite build`, `electron-builder`; без подписи); `commitlint` — сообщения коммитов PR в `develop` (`commitlint --from <base> --to <head>`). `.github/workflows/release.yml` — релиз из `main` (см. «Релизы»). Деплоя нет.

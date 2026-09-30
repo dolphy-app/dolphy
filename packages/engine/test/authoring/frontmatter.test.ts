@@ -95,11 +95,12 @@ describe('parseFrontmatterYaml (T-35)', () => {
     const doc = await parseFrontmatterYaml(
       [
         'engine:',
-        '  verification:',
-        '    runner: sql',
+        '  exercise:',
+        '    type: lms.sql',
         '    timeoutMs: 2000',
-        '    fixture: "fixtures/a: b.sql"',
-        '    orderSensitive: false',
+        '    spec:',
+        '      fixture: "fixtures/a: b.sql"',
+        '      orderSensitive: false',
         "  keyPrerequisites: [a::b, 'c d']",
         '  tags:',
         '    - x',
@@ -110,11 +111,10 @@ describe('parseFrontmatterYaml (T-35)', () => {
     );
     expect(doc).toEqual({
       engine: {
-        verification: {
-          runner: 'sql',
+        exercise: {
+          type: 'lms.sql',
           timeoutMs: 2000,
-          fixture: 'fixtures/a: b.sql',
-          orderSensitive: false,
+          spec: { fixture: 'fixtures/a: b.sql', orderSensitive: false },
         },
         keyPrerequisites: ['a::b', 'c d'],
         tags: ['x', 'y'],

@@ -10,12 +10,12 @@ import {
   createMemorySettingsStore,
 } from '@lms/engine/node';
 import { createTsFsrsMemoryModel } from '@lms/engine';
-import type { Verifier } from '@lms/engine';
 import {
   buildAttempt,
   buildExercise,
   buildLibrary,
   createFakeClock,
+  createFakeExerciseTypes,
   createMemoryCourseSource,
   createSeededRng,
   createTestIds,
@@ -44,17 +44,18 @@ const VERIFIABLE = 'c::l1::v0';
 library.exercises.push(
   buildExercise({
     id: VERIFIABLE,
-    engine: { verification: { runner: 'sql', timeoutMs: 500 } },
+    engine: { exercise: { type: 'lms.sql', timeoutMs: 500, spec: {} } },
   }),
 );
 const E1 = 'c::l1::e0';
 
-/** Раннер, всегда отвечающий `passed`: проверяет путь вердикта через RPC. */
-const passingVerifier: Verifier = {
-  runner: 'sql',
-  check: async () => ({ outcome: 'passed', durationMs: 1 }),
-  close: async () => {},
-};
+/** Вид задания, всегда отвечающий `passed`: проверяет путь вердикта через RPC. */
+const passingTypes = () =>
+  createFakeExerciseTypes({
+    types: {
+      'lms.sql': { script: [{ outcome: 'passed', durationMs: 1 }] },
+    },
+  });
 
 const start = async () => {
   const clock = createFakeClock();
@@ -69,7 +70,7 @@ const start = async () => {
       eventStore: createMemoryEventStore({ deviceId: 'device-a' }),
       settings: createMemorySettingsStore(),
       memoryModel: createTsFsrsMemoryModel(),
-      verifiers: [passingVerifier],
+      exerciseTypes: passingTypes(),
     },
     { libraryRoot: source.root, dataDir: '/tmp/rpc-integration' },
   );
@@ -237,7 +238,7 @@ describe('rpc → dispatcher → real engine', () => {
     const verdict = await call('practice.submitAnswer', () =>
       client.practice.submitAnswer({
         attemptId: checked.attemptId,
-        submission: { kind: 'sql', sql: 'select 1' },
+        answer: 'select 1',
       }),
     );
     expect(verdict).toMatchObject({ outcome: 'passed', attemptsUsed: 1 });

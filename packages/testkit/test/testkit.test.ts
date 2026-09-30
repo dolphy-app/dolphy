@@ -5,6 +5,7 @@ import {
   buildProgressReset,
   buildUnitFlag,
   createFakeClock,
+  createFakeExerciseTypes,
   createJournalBuilder,
   createMemoryCourseSource,
   createSeededRng,
@@ -224,5 +225,52 @@ describe('MemoryCourseSource', () => {
     expect(await source.readArtifact()).toBeNull();
     await source.writeArtifact('{"revision":"r"}');
     expect(await source.readArtifact()).toBe('{"revision":"r"}');
+  });
+});
+
+describe('createFakeExerciseTypes', () => {
+  const passed = { outcome: 'passed', durationMs: 1 } as const;
+  const failed = {
+    outcome: 'failed',
+    reason: 'mismatch',
+    durationMs: 1,
+  } as const;
+  const request = (answer: unknown) => ({
+    type: 'fake.t',
+    exerciseId: 'c::l::e',
+    spec: {},
+    answer,
+    timeoutMs: 2000,
+    authorMode: false,
+  });
+
+  it('plays the script in order and records every request', async () => {
+    const types = createFakeExerciseTypes({
+      types: { 'fake.t': { script: [failed, passed] } },
+    });
+    expect(await types.grade(request('a'))).toBe(failed);
+    expect(await types.grade(request('b'))).toBe(passed);
+    expect(types.requests.map((r) => r.answer)).toEqual(['a', 'b']);
+    await expect(types.grade(request('c'))).rejects.toThrow(
+      'script is exhausted',
+    );
+  });
+
+  it('describes only configured types and reports missing references', async () => {
+    const types = createFakeExerciseTypes({
+      types: { 'fake.t': { element: 'fake-el' } },
+    });
+    expect(types.describe('fake.t')?.element).toBe('fake-el');
+    expect(types.describe('other')).toBeUndefined();
+    expect(types.validateSpec('other', {})).toEqual(['unknown exercise type']);
+    expect(
+      await types.referenceAnswer({
+        type: 'fake.t',
+        exerciseId: 'x',
+        spec: {},
+      }),
+    ).toEqual({ found: false });
+    await types.close();
+    expect(types.closed).toBe(true);
   });
 });

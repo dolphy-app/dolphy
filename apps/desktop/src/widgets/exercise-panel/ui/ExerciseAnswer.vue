@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { Grade, VerdictDto } from '@lms/engine-contract';
+import type { ExerciseTaskDto, Grade, VerdictDto } from '@lms/engine-contract';
+import type { AnswerChangeDetail } from '@lms/extension-api';
 import MarkdownView from '@/shared/ui/MarkdownView.vue';
 import { describeVerdict } from '../lib/verdict.ts';
+import AnswerElement from './AnswerElement.vue';
 import SelfGrade from './SelfGrade.vue';
 
 const props = withDefaults(
@@ -14,8 +16,10 @@ const props = withDefaults(
     answer: string | null;
     /** Ответ проверяет раннер; иначе ученик ставит себе оценку. */
     verifiable: boolean;
-    /** Что вводит ученик: `sql` для раннера SQL, иначе текст. */
-    submissionKind: 'sql' | 'text';
+    /** Вид задания от расширения (элемент ввода ответа); `null` — нет. */
+    task: ExerciseTaskDto | null;
+    /** Публичный вид для элемента ответа (`project()` расширения). */
+    view: unknown;
     verdict: VerdictDto | null;
     /** Ученик открыл эталонный ответ. */
     revealed: boolean;
@@ -29,7 +33,7 @@ const props = withDefaults(
   { allowGiveUp: true },
 );
 const emit = defineEmits<{
-  submit: [text: string];
+  submit: [answer: unknown];
   giveUp: [];
   reveal: [];
   selfGrade: [grade: Grade];
@@ -37,8 +41,11 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
-// черновик живёт, пока смонтирована панель: у нового упражнения свой `key`
-const draft = ref('');
+// ответ живёт, пока смонтирована панель: у нового упражнения свой `key`
+const answerState = ref<AnswerChangeDetail>({
+  value: undefined,
+  complete: false,
+});
 
 const verdictView = computed(() =>
   props.verdict ? describeVerdict(props.verdict) : null,
@@ -51,17 +58,12 @@ const alertText = computed(() => {
   }
   return view?.feedback ?? reason ?? undefined;
 });
-const canSubmit = computed(() => draft.value.trim().length > 0);
+const canSubmit = computed(() => answerState.value.complete);
 const canGrade = computed(() => props.revealed || !props.answer);
-const answerLabel = computed(() =>
-  props.submissionKind === 'sql'
-    ? t('exercisePanel.answer.sqlLabel')
-    : t('exercisePanel.answer.label'),
-);
 const locked = computed(() => props.reviewed || props.busy);
 
-const submitDraft = () => {
-  if (canSubmit.value && !locked.value) emit('submit', draft.value);
+const submitAnswer = () => {
+  if (canSubmit.value && !locked.value) emit('submit', answerState.value.value);
 };
 </script>
 
@@ -73,19 +75,20 @@ const submitDraft = () => {
     />
 
     <template v-if="verifiable">
-      <v-textarea
-        v-model="draft"
-        class="answer mt-6"
-        :label="answerLabel"
-        auto-grow
-        rows="4"
-        spellcheck="false"
+      <AnswerElement
+        v-if="task"
+        class="mt-6"
+        :task="task"
+        :view="view"
         :disabled="locked"
-        :hint="t('exercisePanel.answer.hint')"
-        persistent-hint
-        @keydown.ctrl.enter.prevent="submitDraft"
-        @keydown.meta.enter.prevent="submitDraft"
+        :verdict="verdict"
+        :label="t('exercisePanel.answer.label')"
+        @change="answerState = $event"
+        @submit="submitAnswer"
       />
+      <p class="text-body-small text-medium-emphasis mt-1">
+        {{ t('exercisePanel.answer.hint') }}
+      </p>
       <v-alert
         v-if="verdictView"
         :type="verdictView.type"
@@ -101,7 +104,7 @@ const submitDraft = () => {
           size="large"
           :loading="busy"
           :disabled="!canSubmit"
-          @click="submitDraft"
+          @click="submitAnswer"
         >
           {{ t('exercisePanel.actions.check') }}
         </v-btn>
@@ -145,9 +148,3 @@ const submitDraft = () => {
     </template>
   </div>
 </template>
-
-<style scoped>
-.answer :deep(textarea) {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-</style>

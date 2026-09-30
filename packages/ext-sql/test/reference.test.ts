@@ -1,7 +1,7 @@
 /**
- * `E_REFERENCE_FAILS` на настоящем раннере: компилятор ядра получает
- * `createSqlVerifier` как порт `Verifier` и прогоняет эталоны `sql-course`
- * (KB и JSON-раскладки) тем же верификатором, что работает в рантайме.
+ * `E_REFERENCE_FAILS` на настоящем расширении `lms.sql`: компилятор ядра
+ * получает каталог видов заданий и прогоняет эталоны `sql-course` (KB и JSON
+ * раскладки) тем же кодом, что работает в рантайме.
  */
 import { cp, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -9,15 +9,11 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { compile } from '@lms/engine/authoring';
 import { createNodeFsCourseSource } from '@lms/engine/node';
-import { silentLogger } from '@lms/testkit';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createSqlVerifier } from '../../src/verifier.ts';
+import { createSqlExerciseTypes } from './helpers/exercise-types.ts';
 
 const LIBRARIES = fileURLToPath(
-  new URL(
-    '../../../engine/test/fixtures/libraries/sql-course/',
-    import.meta.url,
-  ),
+  new URL('../../engine/test/fixtures/libraries/sql-course/', import.meta.url),
 );
 const dirs: string[] = [];
 afterEach(async () => {
@@ -35,11 +31,14 @@ const copyLibrary = async (name: 'lib_kb' | 'lib_json') => {
 
 const compileWithRunner = async (dir: string) => {
   const source = createNodeFsCourseSource(dir);
-  const verifier = createSqlVerifier({ source, logger: silentLogger, size: 2 });
+  const exerciseTypes = await createSqlExerciseTypes(dir);
   try {
-    return await compile(source, { runChecks: { verifiers: [verifier] } });
+    return await compile(source, {
+      checks: { exerciseTypes },
+      runChecks: { exerciseTypes },
+    });
   } finally {
-    await verifier.close();
+    await exerciseTypes.close();
   }
 };
 
@@ -107,7 +106,14 @@ describe('E_REFERENCE_FAILS на sql-course', () => {
   it('без runChecks E_REFERENCE_FAILS не выдаётся даже на сломанной библиотеке', async () => {
     const dir = await copyLibrary('lib_kb');
     await writeFile(join(dir, 'solutions/where-is-null.sql'), 'SELECT 1;\n');
-    const result = await compile(createNodeFsCourseSource(dir));
-    expect(result.diagnostics).toEqual([]);
+    const exerciseTypes = await createSqlExerciseTypes(dir);
+    try {
+      const result = await compile(createNodeFsCourseSource(dir), {
+        checks: { exerciseTypes },
+      });
+      expect(result.diagnostics).toEqual([]);
+    } finally {
+      await exerciseTypes.close();
+    }
   });
 });

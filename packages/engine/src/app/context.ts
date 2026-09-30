@@ -29,8 +29,8 @@ import type {
   MemoryModel,
   Rng,
   SettingsStore,
-  Verifier,
 } from '../ports/index.ts';
+import type { ExerciseTypes } from '../ports/exercise-types.ts';
 import type { FsrsScorer } from '../scoring/fsrs-scorer.ts';
 import type {
   AttemptSource,
@@ -81,8 +81,8 @@ export interface EngineDeps {
   eventStore: EventStore;
   settings: SettingsStore;
   memoryModel: MemoryModel;
-  /** `SqlVerifier` из `@lms/engine-sql-runner` регистрируется здесь. */
-  verifiers: readonly Verifier[];
+  /** Виды заданий из расширений (`@lms/extension-host`). */
+  exerciseTypes: ExerciseTypes;
   /** Нет порта — `sync.folder.*` отвечает `SYNC_FOLDER_NOT_CONFIGURED`. */
   folderSync?: FolderSyncPort;
   /** Чтение каталога `.trane` (`readTraneDirectory` из `@lms/engine-sqlite`); нет — `importFromTrane` отказывает. */
@@ -272,7 +272,7 @@ export interface EngineContext extends FacadeContext {
   readonly courseSource: CourseSource;
   readonly settings: SettingsStore;
   readonly memoryModel: MemoryModel;
-  readonly verifiers: ReadonlyMap<string, Verifier>;
+  readonly exerciseTypes: ExerciseTypes;
   readonly folderSync: FolderSyncPort | null;
   readonly openTraneSource: EngineDeps['openTraneSource'];
   /** `current()` / `require()` / `swap()` — атомарная подмена. */

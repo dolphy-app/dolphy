@@ -12,12 +12,14 @@
     }
   },
   "engine": {
-    "verification": {
-      "runner": "sql",
-      "fixture": "fixtures/emp.sql",
-      "expected": "checks/join-self-manager.csv",
-      "reference": "solutions/join-self-manager.sql",
-      "timeoutMs": 2000
+    "exercise": {
+      "type": "lms.sql",
+      "timeoutMs": 2000,
+      "spec": {
+        "fixture": "fixtures/emp.sql",
+        "expected": "checks/join-self-manager.csv",
+        "reference": "solutions/join-self-manager.sql"
+      }
     },
     "keyPrerequisites": [
       "sql_json::where"

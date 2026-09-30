@@ -1,0 +1,21 @@
+{
+  "name": "@lms/extension-api",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Публичный API расширений: манифест, обработчики видов заданий, контракт элемента ответа",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "typescript": "7.0.2"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}

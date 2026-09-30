@@ -92,7 +92,7 @@ describe.each(['kb', 'json'] as const)('T-32 матрица: %s', (layout) => {
 
 describe('матрица: состав (T-32)', () => {
   it(
-    'KB: 32 исходных дефекта и 3 на W_GRANULARITY; JSON: 16 и 3',
+    'KB: 31 исходный дефект и 3 на W_GRANULARITY; JSON: 16 и 3',
     async () => {
       const [kb, json] = await Promise.all([
         getResult('kb'),
@@ -105,7 +105,7 @@ describe('матрица: состав (T-32)', () => {
       // для root chmod 000 не закрывает файл: дефект «нечитаемый файл» в
       // каждой раскладке не вносится (см. `isUnreadable` в helpers/defects)
       const masked = rootMasksChmod ? 1 : 0;
-      expect(kb.injected.expect.length - granularity(kb)).toBe(32 - masked);
+      expect(kb.injected.expect.length - granularity(kb)).toBe(31 - masked);
       expect(json.injected.expect.length - granularity(json)).toBe(16 - masked);
       const checked = (r: MatrixResult) =>
         r.injected.expect.length + r.injected.mustNot.length;

@@ -1,0 +1,17 @@
+{
+  "id": "acme.crash",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "main": "./main.mjs",
+  "contributes": {
+    "exerciseTypes": [
+      {
+        "id": "acme.crash",
+        "specSchema": "./schema/spec.json",
+        "answerSchema": "./schema/answer.json",
+        "element": "acme-crash-answer",
+        "renderer": "./view.mjs"
+      }
+    ]
+  }
+}

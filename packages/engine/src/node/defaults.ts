@@ -11,7 +11,7 @@ import { createJsonSettingsStore } from './json-settings-store.ts';
 
 export type NodeDefaults = Omit<
   EngineDeps,
-  'eventStore' | 'verifiers' | 'openTraneSource'
+  'eventStore' | 'exerciseTypes' | 'openTraneSource'
 >;
 
 export const createSystemClock = (): Clock => ({ now: () => Date.now() });

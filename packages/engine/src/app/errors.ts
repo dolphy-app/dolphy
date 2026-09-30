@@ -24,9 +24,11 @@ export const ERRORS: Record<EngineErrorCode, ErrorSpec> = {
   ASSET_TOO_LARGE: { message: 'Asset is too large', retryable: false },
   ATTEMPT_NOT_FOUND: { message: 'Attempt not found', retryable: false },
   ATTEMPT_CLOSED: { message: 'Attempt is already closed', retryable: false },
-  // retryable зависит от details.cause: 'no-runner' → false, иначе true
-  VERIFIER_UNAVAILABLE: { message: 'Verifier is unavailable', retryable: true },
-  VERIFIER_TIMEOUT: { message: 'Verifier deadline exceeded', retryable: true },
+  // retryable зависит от details.cause: 'unknown-type' → false, иначе true
+  EXERCISE_TYPE_UNAVAILABLE: {
+    message: 'Exercise type is unavailable',
+    retryable: true,
+  },
   PLACEMENT_SESSION_NOT_FOUND: {
     message: 'Placement session not found',
     retryable: false,
@@ -68,7 +70,9 @@ const defaultRetryable = (
   code: EngineErrorCode,
   details: Record<string, unknown> | undefined,
 ): boolean => {
-  if (code === 'VERIFIER_UNAVAILABLE') return details?.cause !== 'no-runner';
+  if (code === 'EXERCISE_TYPE_UNAVAILABLE') {
+    return details?.cause !== 'unknown-type';
+  }
   return ERRORS[code].retryable;
 };
 

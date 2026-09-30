@@ -14,7 +14,7 @@ export interface FacadeContext {
   readonly logger: Logger;
   readonly bus: Pick<EventBus, 'flush' | 'discard' | 'subscribe'>;
   readonly state: EngineState;
-  readonly verifiers: ReadonlyMap<string, { close(): Promise<void> }>;
+  readonly exerciseTypes: { close(): Promise<void> };
   readonly eventStore: { close(): Promise<void> };
   /** Перестраивает проекции из журнала и сбрасывает `state.dirty`. */
   rebuild(): Promise<void>;

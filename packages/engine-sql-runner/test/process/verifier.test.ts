@@ -23,7 +23,7 @@ import {
   isAlive,
   logText,
   recordSpawns,
-  sqlExercise,
+  sqlSpec,
   sqlRequest,
   waitFor,
 } from '../helpers/verifier.ts';
@@ -39,13 +39,16 @@ const CRASH_WORKER = fileURLToPath(
 const verifiers = createTestVerifiers();
 afterEach(() => verifiers.closeAll());
 
-describe('вердикты через порт Verifier (T-41)', () => {
+describe('вердикты через SqlVerifier (T-41)', () => {
   it('passed: результат совпал', async () => {
     const { verifier } = verifiers.make();
     const verdict = await verifier.check(
       sqlRequest('SELECT count(*) AS n FROM emp'),
     );
-    expect(verdict).toMatchObject({ outcome: 'passed', rowCount: 1 });
+    expect(verdict).toMatchObject({
+      outcome: 'passed',
+      data: { rowCount: 1 },
+    });
   });
 
   it('failed/mismatch — вина ученика; ожидаемых значений в вердикте нет', async () => {
@@ -70,12 +73,12 @@ describe('вердикты через порт Verifier (T-41)', () => {
     const rows =
       'WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c LIMIT 1000) SELECT x AS n FROM c';
     const capped = await verifier.check(
-      sqlRequest(rows, { exercise: sqlExercise({ maxRows: 10 }) }),
+      sqlRequest(rows, { spec: sqlSpec({ maxRows: 10 }) }),
     );
     expect(capped).toMatchObject({ outcome: 'failed', reason: 'row_limit' });
     const bytes = await verifier.check(
       sqlRequest('SELECT hex(randomblob(2000)) AS n', {
-        exercise: sqlExercise({ maxBytes: 1000 }),
+        spec: sqlSpec({ maxBytes: 1000 }),
       }),
     );
     expect(bytes).toMatchObject({ outcome: 'failed', reason: 'byte_limit' });
@@ -90,13 +93,13 @@ describe('вердикты через порт Verifier (T-41)', () => {
     const sql = 'SELECT name FROM emp WHERE id <= 2 ORDER BY name DESC';
     const unordered = await verifier.check(
       sqlRequest(sql, {
-        exercise: sqlExercise({ expected: 'checks/order.csv' }),
+        spec: sqlSpec({ expected: 'checks/order.csv' }),
       }),
     );
     expect(unordered.outcome).toBe('passed');
     const ordered = await verifier.check(
       sqlRequest(sql, {
-        exercise: sqlExercise({
+        spec: sqlSpec({
           expected: 'checks/order.csv',
           orderSensitive: true,
         }),
@@ -167,7 +170,7 @@ describe('вердикты через порт Verifier (T-41)', () => {
     const { verifier } = verifiers.make();
     const badBlock = await verifier.check(
       sqlRequest('SELECT 1', {
-        exercise: sqlExercise({ orderSensitive: 'yes' }),
+        spec: sqlSpec({ orderSensitive: 'yes' }),
       }),
     );
     expect(badBlock).toMatchObject({
@@ -176,18 +179,10 @@ describe('вердикты через порт Verifier (T-41)', () => {
     });
   });
 
-  it('чужой раннер и не-SQL ответ — error/internal (баг вызывающего)', async () => {
+  it('не-строковый ответ — error/internal (баг вызывающего)', async () => {
     const { verifier } = verifiers.make();
-    const foreign = await verifier.check(
-      sqlRequest('SELECT 1', {
-        exercise: sqlExercise({ runner: 'json' }),
-      }),
-    );
-    expect(foreign).toMatchObject({ outcome: 'error', reason: 'internal' });
-    const text = await verifier.check(
-      sqlRequest('', { submission: { kind: 'text', text: 'SELECT 1' } }),
-    );
-    expect(text).toMatchObject({ outcome: 'error', reason: 'internal' });
+    const verdict = await verifier.check(sqlRequest('', { answer: 42 }));
+    expect(verdict).toMatchObject({ outcome: 'error', reason: 'internal' });
   });
 
   it('SQL длиннее MAX_SQL_CHARS отвергается в хосте до IPC: процесс даже не порождён', async () => {
@@ -449,7 +444,7 @@ describe('kill и watchdog (T-42)', () => {
       sqlRequest(
         'WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c LIMIT 1500000) SELECT count(*) AS n FROM c',
         {
-          exercise: sqlExercise({ expected: 'checks/big.csv' }),
+          spec: sqlSpec({ expected: 'checks/big.csv' }),
           timeoutMs: 20_000,
         },
       ),

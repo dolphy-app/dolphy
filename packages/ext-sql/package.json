@@ -1,0 +1,28 @@
+{
+  "name": "@lms/ext-sql",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Расширение lms.sql: SQL-задания с проверкой раннером",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
+    "test": "vitest run",
+    "build": "vite build --mode main && vite build --mode view && node scripts/assemble.mjs"
+  },
+  "dependencies": {
+    "@lms/engine-sql-runner": "workspace:*",
+    "@lms/extension-api": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "typescript": "7.0.2",
+    "@lms/engine": "workspace:*",
+    "@lms/engine-contract": "workspace:*",
+    "@lms/extension-host": "workspace:*",
+    "@lms/testkit": "workspace:*",
+    "vite": "^8.0.16"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}

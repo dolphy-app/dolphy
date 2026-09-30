@@ -80,7 +80,7 @@ export const compile = async (
   const index = buildIndex(scanResult.model);
   const { findings, redundant } = runChecks(index, checkOptions);
   const checked = performance.now();
-  // эталонные решения через внедрённый Verifier (M5): ядро зависит только от порта
+  // эталонные решения через внедрённый порт ExerciseTypes (M5): ядро зависит только от порта
   const reference =
     options.runChecks === undefined
       ? null

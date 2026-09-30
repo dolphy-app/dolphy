@@ -47,6 +47,12 @@ export interface SupervisorOptions {
   logger: MainLogger;
   /** Слишком частые падения хоста: показать ошибку и завершить приложение. */
   onFatal(): void;
+  /** Хост сообщил `ready` (вызывается до выдачи портов окнам). */
+  onHostReady?(host: HostProcessLike): void;
+  /** Процесс хоста завершился (в том числе при остановке). */
+  onHostExit?(): void;
+  /** Любое сообщение хоста, кроме `ready`. */
+  onMessage?(message: unknown): void;
   stopTimeoutMs?: number;
 }
 
@@ -92,6 +98,7 @@ export const createSupervisor = (options: SupervisorOptions): Supervisor => {
     ready = false;
     spawned = false;
     child = null;
+    options.onHostExit?.();
     if (stopping) return;
     const now = Date.now();
     crashTimes = [...crashTimes.filter((at) => now - at < WINDOW_MS), now];
@@ -119,9 +126,14 @@ export const createSupervisor = (options: SupervisorOptions): Supervisor => {
       self.postMessage({ type: 'init', config });
     });
     self.on('message', (message) => {
-      if (child !== self || !isReadyMessage(message)) return;
+      if (child !== self) return;
+      if (!isReadyMessage(message)) {
+        options.onMessage?.(message);
+        return;
+      }
       ready = true;
       logger.info({ pid: self.pid, message }, 'engine host ready');
+      options.onHostReady?.(self);
       for (const webContents of windows) link(webContents);
     });
     self.on('exit', (code) => onExit(self, code));

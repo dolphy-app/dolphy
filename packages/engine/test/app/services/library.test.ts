@@ -3,6 +3,7 @@ import type { Diagnostic } from '@lms/engine-contract';
 import {
   buildAttempt,
   buildLibrary,
+  createFakeExerciseTypes,
   createMemoryCourseSource,
 } from '@lms/testkit';
 import type { MemoryCourseSource } from '@lms/testkit';
@@ -11,12 +12,7 @@ import {
   createMemoryEventStore,
   createNodeFsCourseSource,
 } from '../../../src/node/index.ts';
-import type {
-  CourseSource,
-  RawVerdict,
-  Verifier,
-  VerifyRequest,
-} from '../../../src/ports/index.ts';
+import type { CourseSource, RawVerdict } from '../../../src/ports/index.ts';
 import { createTestEngine } from '../../helpers/engine.ts';
 
 const ARTIFACT = '.engine/compiled.json';
@@ -78,19 +74,19 @@ const codes = (diagnostics: readonly Diagnostic[]) =>
 
 const PASSED: RawVerdict = { outcome: 'passed', durationMs: 1 };
 
-const stubVerifier = (
-  decide: (request: VerifyRequest) => RawVerdict = () => PASSED,
-): Verifier & { calls: VerifyRequest[] } => {
-  const calls: VerifyRequest[] = [];
-  return {
-    runner: 'sql',
-    calls,
-    check: async (request) => {
-      calls.push(request);
-      return decide(request);
-    },
-    close: async () => {},
+/** Вид `lms.sql` с эталоном; `decide` выбирает вердикт по запросу. */
+const stubExerciseTypes = (
+  decide: (request: { exerciseId: string }) => RawVerdict = () => PASSED,
+) => {
+  const types = createFakeExerciseTypes({
+    types: { 'lms.sql': { reference: 'select 1' } },
+  });
+  const calls: { exerciseId: string }[] = [];
+  types.grade = async (request) => {
+    calls.push(request);
+    return decide(request);
   };
+  return Object.assign(types, { calls });
 };
 
 describe('library.getInfo', () => {
@@ -402,30 +398,15 @@ describe('library.validate', () => {
     expect(errorsOnly.summary).toEqual(all.summary);
   });
 
-  it('runChecks without a registered runner is VERIFIER_UNAVAILABLE (no-runner)', async () => {
-    const { engine } = await createTestEngine({ library: 'sql-course-kb' });
-    const error = await engine.library
-      .validate({ runChecks: true })
-      .catch((caught: unknown) => caught);
-    expect(error).toMatchObject({
-      code: 'VERIFIER_UNAVAILABLE',
-      retryable: false,
-      details: { cause: 'no-runner' },
-    });
-    await expect(
-      engine.library.compile({ runChecks: true }),
-    ).rejects.toMatchObject({ code: 'VERIFIER_UNAVAILABLE' });
-  });
-
-  it('runChecks runs the reference solutions through the verifiers', async () => {
-    const verifier = stubVerifier(({ exercise }) =>
-      exercise.id === 'sql_kb::join::q1'
+  it('runChecks runs the reference solutions through the exercise types', async () => {
+    const verifier = stubExerciseTypes(({ exerciseId }) =>
+      exerciseId === 'sql_kb::join::q1'
         ? { outcome: 'failed', reason: 'mismatch', durationMs: 1 }
         : PASSED,
     );
     const { engine } = await createTestEngine({
       library: 'sql-course-kb',
-      verifiers: [verifier],
+      exerciseTypes: verifier,
     });
     const plain = await engine.library.validate();
     expect(plain.checksRun).toBe(false);

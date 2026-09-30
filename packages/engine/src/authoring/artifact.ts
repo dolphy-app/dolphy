@@ -19,8 +19,8 @@ import type { Index } from './checks.ts';
 import type { Src } from './model.ts';
 
 /** Меняется при любом несовместимом изменении формата, состава или порядка входов `revision`. */
-export const FORMAT_VERSION = 1;
-export const COMPILER_ID = 'engine-compiler/1';
+export const FORMAT_VERSION = 2;
+export const COMPILER_ID = 'engine-compiler/2';
 
 export interface ArtifactUnit<M> {
   m: M;

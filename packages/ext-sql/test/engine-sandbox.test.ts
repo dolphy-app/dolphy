@@ -8,24 +8,22 @@
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createNodeFsCourseSource } from '@lms/engine/node';
-import { silentLogger } from '@lms/testkit';
+import type { ExerciseTypes } from '@lms/engine/ports';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   FIXTURE_LIBRARIES,
   createTestEngine,
-} from '../../../engine/test/helpers/engine.ts';
-import { createSqlVerifier } from '../../src/verifier.ts';
-import type { SqlVerifier } from '../../src/verifier.ts';
-import { INFINITE_CTE } from '../helpers/verifier.ts';
-import { useTmpDir } from '../helpers/tmp.ts';
+} from '../../engine/test/helpers/engine.ts';
+import { INFINITE_CTE } from '../../engine-sql-runner/test/helpers/verifier.ts';
+import { useTmpDir } from '../../engine-sql-runner/test/helpers/tmp.ts';
+import { createSqlExerciseTypes } from './helpers/exercise-types.ts';
 
 const JOIN_Q1 = 'sql_json::join::q1';
 const LIBRARY = FIXTURE_LIBRARIES['sql-course'];
 const tmp = useTmpDir();
-const opened: SqlVerifier[] = [];
+const opened: ExerciseTypes[] = [];
 afterEach(async () => {
-  for (const verifier of opened.splice(0)) await verifier.close();
+  for (const types of opened.splice(0)) await types.close();
 });
 
 const referenceSolution = () =>
@@ -33,14 +31,11 @@ const referenceSolution = () =>
 
 describe('вредоносный SQL через фасад движка (T-19)', () => {
   it('атаки отклоняются без побочных эффектов, бесконечный цикл не вешает движок, следом проходит верное решение', async () => {
-    const verifier = createSqlVerifier({
-      source: createNodeFsCourseSource(LIBRARY),
-      logger: silentLogger,
-    });
-    opened.push(verifier);
+    const exerciseTypes = await createSqlExerciseTypes(LIBRARY);
+    opened.push(exerciseTypes);
     const { engine } = await createTestEngine({
       library: 'sql-course',
-      verifiers: [verifier],
+      exerciseTypes,
     });
     const { attemptId, verifiable } = await engine.practice.beginAttempt({
       exerciseId: JOIN_Q1,
@@ -49,7 +44,7 @@ describe('вредоносный SQL через фасад движка (T-19)',
     const submit = (sql: string) =>
       engine.practice.submitAnswer({
         attemptId,
-        submission: { kind: 'sql', sql },
+        answer: sql,
       });
 
     const escapePath = join(await tmp.make(), 'escaped.db');

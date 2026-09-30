@@ -4,7 +4,7 @@ export const en: typeof ru = {
   exercisePanel: {
     material: 'Lesson material · {course}',
     answer: {
-      sqlLabel: 'SQL query',
+      loadFailed: 'Could not load the answer input ({element}).',
       label: 'Answer',
       hint: 'Ctrl/⌘ + Enter to check',
       title: 'Answer',
@@ -36,10 +36,12 @@ export const en: typeof ru = {
         row_limit: 'The query returned too many rows.',
         byte_limit: 'The query result is too large.',
         sqlite_limit: 'The query exceeded an SQLite limit.',
+        invalid_answer: 'The answer does not fit the exercise.',
       },
       errorReason: {
         fixture_error: 'This exercise is misconfigured.',
         expected_error: 'This exercise is misconfigured.',
+        invalid_spec: 'This exercise is misconfigured.',
         internal: 'Internal checking error.',
         timeout: 'Checking took too long.',
         resource_kill: 'Checking was stopped: resource limits exceeded.',

@@ -36,13 +36,13 @@ export interface Limits {
   maxSqlChars: number;
 }
 
-export const DEFAULT_MAX_SQL_CHARS = 100_000;
+export const MAX_SQL_CHARS = 100_000;
 
 export const DEFAULT_LIMITS: Limits = {
   timeoutMs: 2000,
   maxRows: 10_000,
   maxBytes: 1_000_000,
-  maxSqlChars: DEFAULT_MAX_SQL_CHARS,
+  maxSqlChars: MAX_SQL_CHARS,
 };
 
 /** Ожидаемый результат; через IPC ходит только `csv` (JSON не несёт `bigint`). */
@@ -74,7 +74,7 @@ export const FULL_HARDENING: HardeningOptions = {
   authorizer: true,
   defensive: true,
   lengthLimit: 1_000_000,
-  sqlLengthLimit: DEFAULT_MAX_SQL_CHARS,
+  sqlLengthLimit: MAX_SQL_CHARS,
   readonlyHandle: true,
   prefilter: true,
 };

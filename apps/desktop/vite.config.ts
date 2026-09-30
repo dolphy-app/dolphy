@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,14 +12,47 @@ import electron from 'vite-plugin-electron/multi-env';
 // (Vite инлайнит мелкие подмножества шрифтов); в dev HMR требует websocket
 const CSP = {
   build:
-    "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'",
+    "default-src 'none'; script-src 'self' lms-ext:; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'",
   serve:
-    "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' ws://localhost:* http://localhost:*",
+    "default-src 'none'; script-src 'self' lms-ext:; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' ws://localhost:* http://localhost:*",
 } as const;
 
 const csp = (command: 'build' | 'serve'): Plugin => ({
   name: 'lms:csp',
   transformIndexHtml: (html) => html.replace('__CSP__', CSP[command]),
+});
+
+const REPO_ROOT = path.resolve(
+  fileURLToPath(new URL('.', import.meta.url)),
+  '../..',
+);
+
+// расширения по умолчанию (packages/ext-*) собираются в каталоги и кладутся
+// рядом с приложением: <outRoot>/extensions/<id>/ (в упаковке — extraResources)
+const extensions = (target: string): Plugin => ({
+  name: 'lms:extensions',
+  buildStart() {
+    const packages = path.join(REPO_ROOT, 'packages');
+    fs.rmSync(target, { recursive: true, force: true });
+    const dirs = fs
+      .readdirSync(packages)
+      .filter((name) => name.startsWith('ext-'));
+    for (const name of dirs) {
+      const dir = path.join(packages, name);
+      const pkg = JSON.parse(
+        fs.readFileSync(path.join(dir, 'package.json'), 'utf8'),
+      ) as { name: string };
+      execFileSync('pnpm', ['-F', pkg.name, 'build'], {
+        cwd: REPO_ROOT,
+        stdio: 'inherit',
+      });
+      const built = path.join(dir, 'dist-ext');
+      const manifest = JSON.parse(
+        fs.readFileSync(path.join(built, 'extension.json'), 'utf8'),
+      ) as { id: string };
+      fs.cpSync(built, path.join(target, manifest.id), { recursive: true });
+    }
+  },
 });
 
 // нативный модуль не бандлится: грузится из node_modules (asarUnpack)
@@ -53,6 +87,7 @@ export default defineConfig(({ command }) => {
       vue(),
       vuetify(),
       csp(command),
+      extensions(out('extensions')),
       electron([
         {
           name: 'main',
@@ -86,12 +121,12 @@ export default defineConfig(({ command }) => {
           },
         },
         {
-          // хост движка и вход дочернего процесса раннера SQL: бандл с
-          // workspace-пакетами и зависимостями, кроме нативного модуля
+          // хост движка и хост расширений: бандл с workspace-пакетами и
+          // зависимостями, кроме нативного модуля
           name: 'host',
           input: {
             index: 'electron/host/index.ts',
-            'sql-worker': 'electron/host/sql-worker.ts',
+            'ext-host': 'electron/ext-host/index.ts',
           },
           bundleDeps: { both: { include: true, exclude: NATIVE } },
           options: {

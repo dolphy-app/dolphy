@@ -3,3 +3,6 @@ dist-smoke
 
 # сборка для e2e (pnpm e2e): e2e/global-setup.ts
 dist-e2e
+
+# расширения по умолчанию, собранные плагином lms:extensions (vite.config.ts)
+/extensions

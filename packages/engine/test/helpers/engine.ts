@@ -11,6 +11,7 @@ import type {
 import {
   createCapturingLogger,
   createFakeClock,
+  createFakeExerciseTypes,
   createMemoryCourseSource,
   createSeededRng,
   createTestIds,
@@ -33,8 +34,8 @@ import type {
   CourseSource,
   EventStore,
   SettingsStore,
-  Verifier,
 } from '../../src/ports/index.ts';
+import type { ExerciseTypes } from '../../src/ports/exercise-types.ts';
 import { createTsFsrsMemoryModel } from '../../src/scoring/memory-model.ts';
 import { LIBRARIES_DIR } from './fixtures.ts';
 
@@ -55,7 +56,7 @@ export interface TestEngineOptions {
   eventStore?: EventStore;
   deviceId?: string;
   settings?: SettingsStore;
-  verifiers?: readonly Verifier[];
+  exerciseTypes?: ExerciseTypes;
   clock?: FakeClock;
   seed?: number;
   config?: Partial<EngineConfig>;
@@ -122,7 +123,7 @@ export const createTestContext = async (
     eventStore,
     settings,
     memoryModel: createTsFsrsMemoryModel(),
-    verifiers: options.verifiers ?? [],
+    exerciseTypes: options.exerciseTypes ?? createFakeExerciseTypes(),
     ...(options.folderSync !== undefined && { folderSync: options.folderSync }),
     ...(options.openTraneSource !== undefined && {
       openTraneSource: options.openTraneSource,

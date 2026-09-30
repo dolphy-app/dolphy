@@ -1,0 +1,215 @@
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { discoverExtensions } from '../src/discover.ts';
+import { createLogger } from './helpers.ts';
+
+let tmp: string;
+beforeEach(async () => {
+  tmp = await mkdtemp(path.join(tmpdir(), 'lms-discover-'));
+});
+afterEach(() => rm(tmp, { recursive: true, force: true }));
+
+interface Options {
+  version?: string;
+  type?: string;
+  element?: string;
+  manifestId?: string;
+  specSchema?: string;
+  withMain?: boolean;
+  schemaBody?: string;
+}
+
+/** Создаёт каталог `<root>/<dirName>` с манифестом расширения. */
+const makeExtension = async (
+  root: string,
+  dirName: string,
+  o: Options = {},
+): Promise<void> => {
+  const dir = path.join(root, dirName);
+  const id = o.manifestId ?? dirName;
+  await mkdir(path.join(dir, 'schema'), { recursive: true });
+  await writeFile(
+    path.join(dir, 'extension.json'),
+    JSON.stringify({
+      id,
+      version: o.version ?? '1.0.0',
+      apiVersion: 1,
+      main: './main.mjs',
+      contributes: {
+        exerciseTypes: [
+          {
+            id: o.type ?? id,
+            specSchema: o.specSchema ?? './schema/spec.json',
+            answerSchema: './schema/answer.json',
+            element: o.element ?? `${id.replaceAll('.', '-')}-answer`,
+            renderer: './view.mjs',
+          },
+        ],
+      },
+    }),
+  );
+  await writeFile(
+    path.join(dir, 'schema/spec.json'),
+    o.schemaBody ?? '{"type":"object"}',
+  );
+  await writeFile(path.join(dir, 'schema/answer.json'), '{"type":"string"}');
+  if (o.withMain !== false) {
+    await writeFile(path.join(dir, 'main.mjs'), 'export default {};');
+    await writeFile(path.join(dir, 'view.mjs'), '');
+  }
+};
+
+const rootDir = async (name: string): Promise<string> => {
+  const dir = path.join(tmp, name);
+  await mkdir(dir, { recursive: true });
+  return dir;
+};
+
+describe('discoverExtensions', () => {
+  it('user-корень переопределяет bundled с тем же id', async () => {
+    const bundled = await rootDir('bundled');
+    const user = await rootDir('user');
+    await makeExtension(bundled, 'lms.choice', { version: '1.0.0' });
+    await makeExtension(user, 'lms.choice', { version: '1.0.1' });
+    const logger = createLogger();
+    const { extensions, diagnostics } = await discoverExtensions({
+      roots: [
+        { dir: bundled, origin: 'bundled' },
+        { dir: user, origin: 'user' },
+      ],
+      logger,
+    });
+    expect(diagnostics).toEqual([]);
+    expect(extensions).toHaveLength(1);
+    expect(extensions[0]).toMatchObject({
+      id: 'lms.choice',
+      version: '1.0.1',
+      origin: 'user',
+    });
+    expect(logger.info).toHaveBeenCalledTimes(1);
+    expect(logger.info.mock.calls[0]![1]).toContain('1.0.0 → 1.0.1');
+  });
+
+  it('разбирает манифест: пути, схемы, URL renderer', async () => {
+    const root = await rootDir('r');
+    await makeExtension(root, 'acme.one');
+    const { extensions } = await discoverExtensions({
+      roots: [{ dir: root, origin: 'bundled' }],
+      logger: createLogger(),
+    });
+    const [extension] = extensions;
+    expect(path.isAbsolute(extension!.mainPath)).toBe(true);
+    expect(extension!.exerciseTypes[0]).toMatchObject({
+      id: 'acme.one',
+      specSchema: { type: 'object' },
+      rendererUrl: 'lms-ext://acme.one/view.mjs',
+    });
+  });
+
+  it('повторный id вида у разных расширений: первый выигрывает', async () => {
+    const root = await rootDir('r');
+    await makeExtension(root, 'acme.a', { type: 'acme.a' });
+    await makeExtension(root, 'acme.a.b', { type: 'acme.a' });
+    const logger = createLogger();
+    const { extensions, diagnostics } = await discoverExtensions({
+      roots: [{ dir: root, origin: 'bundled' }],
+      logger,
+    });
+    expect(extensions.map((e) => e.id)).toEqual(['acme.a']);
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]!.extensionId).toBe('acme.a.b');
+    expect(logger.warn).toHaveBeenCalled();
+  });
+
+  it('повторный element у разных расширений: первый выигрывает', async () => {
+    const root = await rootDir('r');
+    await makeExtension(root, 'acme.a', { element: 'acme-shared' });
+    await makeExtension(root, 'acme.b', { element: 'acme-shared' });
+    const { extensions, diagnostics } = await discoverExtensions({
+      roots: [{ dir: root, origin: 'bundled' }],
+      logger: createLogger(),
+    });
+    expect(extensions.map((e) => e.id)).toEqual(['acme.a']);
+    expect(diagnostics[0]).toMatchObject({ extensionId: 'acme.b' });
+  });
+
+  it('имя каталога не совпало с id — расширение пропущено', async () => {
+    const root = await rootDir('r');
+    await makeExtension(root, 'acme.dir', { manifestId: 'acme.other' });
+    await makeExtension(root, 'acme.ok');
+    const { extensions, diagnostics } = await discoverExtensions({
+      roots: [{ dir: root, origin: 'bundled' }],
+      logger: createLogger(),
+    });
+    expect(extensions.map((e) => e.id)).toEqual(['acme.ok']);
+    expect(diagnostics[0]!.message).toContain('does not match');
+  });
+
+  it('путь схемы за пределами каталога — расширение пропущено', async () => {
+    const root = await rootDir('r');
+    // '..' отсекается уже разбором манифеста — расширение всё равно не грузится
+    await makeExtension(root, 'acme.esc', { specSchema: './a/../../x.json' });
+    const { extensions, diagnostics } = await discoverExtensions({
+      roots: [{ dir: root, origin: 'bundled' }],
+      logger: createLogger(),
+    });
+    expect(extensions).toEqual([]);
+    expect(diagnostics).toHaveLength(1);
+  });
+
+  it('схема не JSON или не компилируется — расширение пропущено', async () => {
+    const root = await rootDir('r');
+    await makeExtension(root, 'acme.bad', { schemaBody: '{oops' });
+    await makeExtension(root, 'acme.worse', {
+      schemaBody: '{"type":"nonsense"}',
+    });
+    const { extensions, diagnostics } = await discoverExtensions({
+      roots: [{ dir: root, origin: 'bundled' }],
+      logger: createLogger(),
+    });
+    expect(extensions).toEqual([]);
+    expect(diagnostics.map((d) => d.extensionId).sort()).toEqual([
+      'acme.bad',
+      'acme.worse',
+    ]);
+  });
+
+  it('отсутствующий корень даёт пустой результат', async () => {
+    const result = await discoverExtensions({
+      roots: [{ dir: path.join(tmp, 'nope'), origin: 'user' }],
+      logger: createLogger(),
+    });
+    expect(result).toEqual({ extensions: [], diagnostics: [] });
+  });
+
+  it('подкаталог без extension.json пропускается молча', async () => {
+    const root = await rootDir('r');
+    await mkdir(path.join(root, 'stray'));
+    const logger = createLogger();
+    const result = await discoverExtensions({
+      roots: [{ dir: root, origin: 'user' }],
+      logger,
+    });
+    expect(result.extensions).toEqual([]);
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it('verifyFiles управляет проверкой main/renderer', async () => {
+    const root = await rootDir('r');
+    await makeExtension(root, 'acme.nomain', { withMain: false });
+    const strict = await discoverExtensions({
+      roots: [{ dir: root, origin: 'bundled' }],
+      logger: createLogger(),
+    });
+    expect(strict.extensions).toEqual([]);
+    expect(strict.diagnostics[0]!.message).toContain('main');
+    const lax = await discoverExtensions({
+      roots: [{ dir: root, origin: 'bundled' }],
+      logger: createLogger(),
+      verifyFiles: false,
+    });
+    expect(lax.extensions.map((e) => e.id)).toEqual(['acme.nomain']);
+  });
+});

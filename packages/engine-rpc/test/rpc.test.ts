@@ -227,7 +227,7 @@ describe('ordering and events', () => {
     const slow = client.engine.practice
       .submitAnswer({
         attemptId: 'a',
-        submission: { kind: 'sql', sql: 'select 1' },
+        answer: 'select 1',
       })
       .then((value) => {
         order.push('submit');

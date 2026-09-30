@@ -1,5 +1,32 @@
 import { ref, shallowRef } from 'vue';
-import type { ExtensionInfoDto, LearningEngine } from '@lms/engine-contract';
+import type {
+  ExtensionContributesDto,
+  ExtensionInfoDto,
+  LearningEngine,
+} from '@lms/engine-contract';
+
+export type ContributionPoint = keyof ExtensionContributesDto;
+
+export interface ContributionGroup {
+  point: ContributionPoint;
+  values: string[];
+}
+
+const POINT_ORDER: readonly ContributionPoint[] = [
+  'exerciseTypes',
+  'themes',
+  'markdownRenderers',
+  'gradePolicies',
+];
+
+/** Непустые группы вкладов расширения в порядке точек; значения как есть. */
+export const contributionGroups = (
+  contributes: ExtensionContributesDto,
+): ContributionGroup[] =>
+  POINT_ORDER.filter((point) => contributes[point].length > 0).map((point) => ({
+    point,
+    values: contributes[point],
+  }));
 
 export type ExtensionsState = 'loading' | 'loaded' | 'failed';
 

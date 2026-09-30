@@ -38,6 +38,7 @@ export const RPC_METHODS = {
   'placement.abort': { idempotent: false },
   'remediation.getPlan': { idempotent: true },
   'extensions.list': { idempotent: true },
+  'extensions.contributions': { idempotent: true },
   'curation.blacklist.list': { idempotent: true },
   'curation.blacklist.has': { idempotent: true },
   'curation.blacklist.add': { idempotent: false },
@@ -64,6 +65,8 @@ export const RPC_METHODS = {
   'settings.getScorer': { idempotent: true },
   'settings.getUi': { idempotent: true },
   'settings.setUi': { idempotent: true }, // патч задаёт значения, не приращения
+  'settings.getLearning': { idempotent: true },
+  'settings.setLearning': { idempotent: true }, // патч задаёт значения, не приращения
   'sync.getState': { idempotent: true },
   'sync.exportSince': { idempotent: true },
   'sync.import': { idempotent: true }, // по id записи

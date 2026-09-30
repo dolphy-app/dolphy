@@ -9,7 +9,8 @@
     "isolatedModules": true,
     "strict": true,
     "types": ["node"],
-    "lib": ["ESNext"],
+    // DOM: тесты и e2e импортируют код окна и передают функции в page.evaluate
+    "lib": ["ESNext", "DOM"],
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,

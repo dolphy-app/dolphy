@@ -8,6 +8,7 @@ import {
   createMemoryLibrary,
   createSchemaValidator,
   loadExerciseType,
+  loadGradePolicy,
 } from '../src/testing.ts';
 
 interface EchoSpec {
@@ -230,5 +231,36 @@ describe('createSchemaValidator', () => {
     const messages = many(Array.from({ length: 20 }, (_, i) => i));
     expect(messages).toHaveLength(6);
     expect(messages[0]).toBe('/0 must be string');
+  });
+});
+
+describe('loadGradePolicy', () => {
+  const policyModule = (result: unknown): ExtensionModule =>
+    defineExtension({
+      gradePolicies: {
+        'acme.policy': ({ gaveUp }) => (gaveUp ? 1 : (result as never)),
+      },
+    });
+
+  it('returns valid grades and null', async () => {
+    const input = { verdicts: [{ outcome: 'passed' as const }], gaveUp: false };
+    const five = await loadGradePolicy(policyModule(5), 'acme.policy');
+    expect(await five.evaluate(input)).toBe(5);
+    expect(await five.evaluate({ ...input, gaveUp: true })).toBe(1);
+    const none = await loadGradePolicy(policyModule(null), 'acme.policy');
+    expect(await none.evaluate(input)).toBeNull();
+  });
+
+  it.each([0, 6, 2.5, '5', undefined])('rejects %j', async (value) => {
+    const loaded = await loadGradePolicy(policyModule(value), 'acme.policy');
+    await expect(
+      loaded.evaluate({ verdicts: [], gaveUp: false }),
+    ).rejects.toThrow('invalid grade policy result');
+  });
+
+  it('fails for an unregistered policy', async () => {
+    await expect(
+      loadGradePolicy(policyModule(5), 'acme.other'),
+    ).rejects.toThrow("grade policy 'acme.other' was not registered");
   });
 });

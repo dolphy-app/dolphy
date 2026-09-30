@@ -36,7 +36,7 @@ describe('createMemorySettingsStore(initial)', () => {
 describe('createJsonSettingsStore: свои файлы движка', () => {
   it('битое поле интерфейса заменяется умолчанием поодиночке, битые опции — пустыми', async () => {
     const dir = await tmp.make('settings-');
-    await writeFile(`${dir}/ui.json`, '{"theme":"sepia","locale":"ru","x":1}');
+    await writeFile(`${dir}/ui.json`, '{"theme":"Sepia!","locale":"ru","x":1}');
     await writeFile(`${dir}/scheduler_overrides.json`, '"oops"');
     const store = createJsonSettingsStore({ dir });
     expect(await store.loadUi()).toEqual({ theme: 'system', locale: 'ru' });

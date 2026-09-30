@@ -1,0 +1,23 @@
+{
+  "id": "acme.mixed",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "contributes": {
+    "exerciseTypes": [
+      {
+        "id": "acme.mixed",
+        "specSchema": "./schema/spec.json",
+        "answerSchema": "./schema/answer.json"
+      }
+    ],
+    "themes": [
+      {
+        "id": "acme.mixed.paper",
+        "label": "Paper",
+        "dark": false,
+        "colors": { "background": "#fafafa" }
+      }
+    ],
+    "gradePolicies": [{ "id": "acme.mixed.strict", "label": "Strict" }]
+  }
+}

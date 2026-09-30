@@ -119,6 +119,28 @@ describe('buildExtension', () => {
   });
 });
 
+describe('расширения без кода', () => {
+  it('тема без каталога src: только манифест, validate проходит', async () => {
+    const root = await copyProject('theme-only');
+    const { dir, files } = await buildExtension({ root });
+    expect(files).toEqual(['extension.json']);
+    expect(await validateExtension(dir)).toEqual({ ok: true, problems: [] });
+  });
+
+  it('рендерер содержимого: только браузерный бандл markdown.mjs', async () => {
+    const root = await copyProject('markdown-only');
+    const { dir, files } = await buildExtension({ root });
+    expect(files).toEqual(['extension.json', 'markdown.mjs']);
+    expect(await validateExtension(dir)).toEqual({ ok: true, problems: [] });
+  });
+
+  it('нет src/markdown.ts — ошибка называет файл', async () => {
+    const root = await copyProject('markdown-only');
+    await rm(path.join(root, 'src'), { recursive: true });
+    await expect(buildExtension({ root })).rejects.toThrow(/src\/markdown\.ts/);
+  });
+});
+
 describe('validateExtension', () => {
   it('T-10 собранный каталог валиден', async () => {
     const root = await copyProject('hello');

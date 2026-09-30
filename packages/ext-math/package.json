@@ -1,0 +1,26 @@
+{
+  "name": "@lms/ext-math",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Расширение lms.math: формулы в Markdown (MathJax)",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
+    "test": "vitest run",
+    "build": "lms-ext build"
+  },
+  "dependencies": {
+    "@lms/extension-api": "workspace:*",
+    "@lms/extension-sdk": "workspace:*",
+    "mathjax-full": "^3"
+  },
+  "devDependencies": {
+    "@lms/extension-tools": "workspace:*",
+    "@types/node": "^22.20.4",
+    "happy-dom": "^20.14.5",
+    "typescript": "7.0.2"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}

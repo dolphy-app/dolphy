@@ -5,6 +5,10 @@ export const ru = {
     cancel: 'Отмена',
     retry: 'Повторить',
   },
+  markdown: {
+    renderFailed:
+      'Не удалось вывести блок «{language}»; показан исходный текст.',
+  },
   reason: {
     new: 'Новое',
     review: 'Повторение',

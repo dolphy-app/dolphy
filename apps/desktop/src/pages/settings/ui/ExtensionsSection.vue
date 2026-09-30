@@ -2,7 +2,7 @@
 import { useI18n } from 'vue-i18n';
 import type { ExtensionStateDto } from '@lms/engine-contract';
 import { useEngine } from '@/shared/api/engine';
-import { useExtensions } from '../model/extensions.ts';
+import { contributionGroups, useExtensions } from '../model/extensions.ts';
 import SectionHeader from './SectionHeader.vue';
 
 interface StateView {
@@ -117,16 +117,18 @@ const { items, state, error, busy, load } = useExtensions(useEngine());
             </p>
 
             <div
-              v-if="extension.exerciseTypes.length > 0"
+              v-for="group in contributionGroups(extension.contributes)"
+              :key="group.point"
               class="d-flex flex-wrap align-center ga-2 mt-3"
+              :data-point="group.point"
             >
               <span class="text-body-small text-medium-emphasis">
-                {{ t('settings.extensions.exerciseTypes') }}:
+                {{ t(`settings.extensions.points.${group.point}`) }}:
               </span>
               <ul class="types">
-                <li v-for="type in extension.exerciseTypes" :key="type">
+                <li v-for="value in group.values" :key="value">
                   <v-chip size="small" variant="tonal" class="id">
-                    {{ type }}
+                    {{ value }}
                   </v-chip>
                 </li>
               </ul>

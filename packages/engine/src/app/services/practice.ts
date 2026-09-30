@@ -18,7 +18,11 @@ import type {
 } from '@lms/engine-contract';
 import type { ExerciseManifest } from '../../domain/manifest.ts';
 import { SchedulerError } from '../../scheduler/types.ts';
-import { countGradedVerdicts } from '../../verify/grade-policy.ts';
+import {
+  GRADE_POLICIES,
+  countGradedVerdicts,
+  resolveGradePolicy,
+} from '../../verify/grade-policy.ts';
 import { resolveCourseScope } from '../course-scope.ts';
 import type { EngineContext } from '../context.ts';
 import { ExerciseTypeError } from '../../ports/exercise-types.ts';
@@ -340,7 +344,12 @@ export const createPracticeService = (ctx: EngineContext): PracticeService => {
     const gaveUp = outcome === 'gave-up';
     const derived =
       attempt.verifiable || gaveUp
-        ? ctx.gradePolicy({ verdicts: attempt.verdicts, gaveUp })
+        ? await resolveGradePolicy({
+            selectedId: ctx.learning.gradePolicy,
+            builtin: GRADE_POLICIES,
+            remote: ctx.gradePolicies,
+            logger: ctx.logger,
+          })({ verdicts: attempt.verdicts, gaveUp })
         : null;
     const finalGrade: Grade | null = derived ?? grade ?? null;
     if (finalGrade === null) {

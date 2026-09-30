@@ -7,6 +7,7 @@ import type { EngineConfig, LearningEngine } from '@lms/engine-contract';
 import {
   createFakeClock,
   createFakeExerciseTypes,
+  createFakeGradePolicies,
   createFakeExtensionRegistry,
   createSeededRng,
   createTestIds,
@@ -121,6 +122,7 @@ describe('a profile on disk: nodeDefaults over a copied library', () => {
         ids: createTestIds('e'),
         eventStore,
         exerciseTypes: createFakeExerciseTypes(),
+        gradePolicies: createFakeGradePolicies(),
         extensionRegistry: createFakeExtensionRegistry(),
       },
       config,

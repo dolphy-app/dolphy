@@ -28,10 +28,6 @@ import { createReplica } from '../sync/replica.ts';
 import { appendInTx } from '../sync/merge.ts';
 import { createCurrentScoringGraph } from '../state/current-graph.ts';
 import { createProjections } from '../state/projections.ts';
-import {
-  DEFAULT_GRADE_POLICY,
-  GRADE_POLICIES,
-} from '../verify/grade-policy.ts';
 import type {
   CommitInput,
   EngineContext,
@@ -287,7 +283,8 @@ export const createContext = async (
       ttlMs: OPEN_ATTEMPT_TTL_MS,
       clock,
     }),
-    gradePolicy: GRADE_POLICIES[DEFAULT_GRADE_POLICY],
+    gradePolicies: deps.gradePolicies,
+    learning: { ...(await settings.loadLearning()) },
     journal,
     bus,
     state,

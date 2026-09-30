@@ -3,9 +3,11 @@ import type {
   SavedFilterDto,
   SchedulerOptionsDto,
   StudySessionWire,
+  LearningSettingsDto,
   UiSettingsDto,
 } from '@lms/engine-contract';
 import type { UserPreferences } from '../domain/manifest.ts';
+import { DEFAULT_LEARNING_SETTINGS } from '../domain/learning-settings.ts';
 import { DEFAULT_UI_SETTINGS } from '../domain/ui-settings.ts';
 import type { SettingsStore } from '../ports/index.ts';
 import {
@@ -23,6 +25,7 @@ export interface MemorySettingsInit {
   sessions?: readonly StudySessionWire[];
   schedulerOverrides?: DeepPartial<SchedulerOptionsDto>;
   ui?: UiSettingsDto;
+  learning?: LearningSettingsDto;
 }
 
 const sortedById = <T extends { id: string }>(map: Map<string, T>): T[] =>
@@ -42,6 +45,7 @@ export const createMemorySettingsStore = (
   );
   let schedulerOverrides = structuredClone(initial.schedulerOverrides ?? {});
   let ui = structuredClone(initial.ui ?? DEFAULT_UI_SETTINGS);
+  let learning = { ...(initial.learning ?? DEFAULT_LEARNING_SETTINGS) };
   const filters = new Map<string, SavedFilterDto>();
   const sessions = new Map<string, StudySessionWire>();
   // `encode*` строит новые объекты целиком: вход не разделяет память с картой.
@@ -70,6 +74,10 @@ export const createMemorySettingsStore = (
     loadUi: async () => ({ ...ui }),
     saveUi: async (next) => {
       ui = { ...next };
+    },
+    loadLearning: async () => ({ ...learning }),
+    saveLearning: async (next) => {
+      learning = { ...next };
     },
   };
 };

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useEngine } from '@/shared/api/engine';
+import { useContributions, useEngine } from '@/shared/api/engine';
+import { useGradePolicySetting } from '../model/grade-policy.ts';
 import { useLearningSettings } from '../model/learning.ts';
 import type { LearningForm } from '../model/learning.ts';
 import SectionHeader from './SectionHeader.vue';
@@ -13,8 +14,19 @@ type NumericField = {
 
 const { form, busy, error, isDirty, save, revert, resetToDefaults } =
   useLearningSettings(useEngine());
+const gradePolicy = useGradePolicySetting(
+  useEngine(),
+  useContributions().gradePolicies,
+);
 const { t } = useI18n();
 const confirmReset = ref(false);
+const gradePolicyItems = computed(() =>
+  gradePolicy.options.map(({ id, label, extensionId }) => ({
+    value: id,
+    title: label ?? t('settings.learning.gradePolicy.passAtN.title'),
+    subtitle: extensionId ?? t('settings.learning.gradePolicy.builtin'),
+  })),
+);
 const revertDisabled = computed(() => !isDirty.value || busy.value);
 
 const setNumber = (field: NumericField, value: number | null) => {
@@ -36,6 +48,15 @@ const reset = async () => {
 
     <v-alert v-if="error" type="error" variant="tonal" class="mb-6">
       {{ error }}
+    </v-alert>
+
+    <v-alert
+      v-if="gradePolicy.error.value"
+      type="error"
+      variant="tonal"
+      class="mb-6"
+    >
+      {{ gradePolicy.error.value }}
     </v-alert>
 
     <v-progress-linear v-if="!form" indeterminate rounded />
@@ -197,6 +218,46 @@ const reset = async () => {
         </SettingsRow>
 
         <p class="overline-label mt-4">
+          {{ t('settings.learning.groups.grading') }}
+        </p>
+
+        <SettingsRow
+          :title="t('settings.learning.gradePolicy.title')"
+          :description="t('settings.learning.gradePolicy.description')"
+        >
+          <v-select
+            class="grade-policy-select"
+            :model-value="gradePolicy.effective.value"
+            :items="gradePolicyItems"
+            :disabled="gradePolicy.busy.value"
+            :aria-label="t('settings.learning.gradePolicy.title')"
+            variant="outlined"
+            density="comfortable"
+            hide-details
+            @update:model-value="gradePolicy.select"
+          />
+        </SettingsRow>
+        <p
+          v-if="gradePolicy.effective.value === 'passAtN'"
+          class="text-body-small text-medium-emphasis grade-policy-note"
+        >
+          {{ t('settings.learning.gradePolicy.passAtN.description') }}
+        </p>
+        <v-alert
+          v-if="gradePolicy.missing.value"
+          type="warning"
+          variant="tonal"
+          density="compact"
+          class="grade-policy-missing"
+        >
+          {{
+            t('settings.learning.gradePolicy.missing', {
+              id: gradePolicy.saved.value,
+            })
+          }}
+        </v-alert>
+
+        <p class="overline-label mt-4">
           {{ t('settings.learning.groups.experimental') }}
         </p>
 
@@ -271,6 +332,10 @@ const reset = async () => {
   min-width: 3rem;
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+.grade-policy-select {
+  width: 280px;
 }
 
 .actions {

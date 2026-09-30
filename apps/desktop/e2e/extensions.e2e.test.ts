@@ -48,6 +48,7 @@ describe('Настройки → Расширения', () => {
       expect(rows[0]).toContain('Поставка');
       expect(rows[0]).toContain('Загружено');
       expect(rows[0]).toContain(id);
+      expect(rows[0]).toContain('Виды заданий');
     }
   });
 

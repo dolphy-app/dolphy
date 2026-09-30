@@ -1,21 +1,24 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useTheme } from 'vuetify';
-import type { ThemeMode } from '@lms/engine-contract';
 
 const props = defineProps<{
-  mode: ThemeMode;
+  /** Значение, которое сохраняется в настройках. */
+  mode: string;
+  /** Имена тем Vuetify для образца: `system` — светлая и тёмная. */
+  themeNames: readonly string[];
   label: string;
+  /** Подпись под названием (например, id расширения); не переводится. */
+  caption?: string;
   selected: boolean;
 }>();
-defineEmits<{ select: [mode: ThemeMode] }>();
+defineEmits<{ select: [mode: string] }>();
 
 const themes = useTheme().themes;
 
 /** Образец берёт настоящие цвета тем: он не расходится с приложением. */
-const palettes = computed(() => {
-  const names = props.mode === 'system' ? ['light', 'dark'] : [props.mode];
-  return names.map((name) => {
+const palettes = computed(() =>
+  props.themeNames.map((name) => {
     const colors: Record<string, unknown> = themes.value[name]?.colors ?? {};
     const css = (key: string) => String(colors[key] ?? '');
     return {
@@ -24,8 +27,8 @@ const palettes = computed(() => {
       '--p-primary': css('primary'),
       '--p-text': css('on-surface'),
     };
-  });
-});
+  }),
+);
 </script>
 
 <template>
@@ -55,10 +58,16 @@ const palettes = computed(() => {
       </span>
     </span>
     <span class="caption">
-      <span class="text-title-medium">{{ label }}</span>
+      <span class="label">
+        <span class="text-title-medium">{{ label }}</span>
+        <span v-if="caption" class="text-body-small text-medium-emphasis">
+          {{ caption }}
+        </span>
+      </span>
       <v-icon
         v-if="selected"
         icon="mdi-check-circle"
+        aria-hidden="true"
         color="primary"
         size="20"
       />
@@ -173,6 +182,13 @@ const palettes = computed(() => {
   height: 0.5rem;
   border-radius: 3px;
   background: var(--p-primary);
+}
+
+.label {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .caption {

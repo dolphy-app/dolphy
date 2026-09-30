@@ -2,12 +2,26 @@ import type { ExtensionInfoDto } from '@lms/engine-contract';
 import type { ExtensionRegistry } from '@lms/engine/ports';
 import type { DiscoveryResult, ResolvedExtension } from './discover.ts';
 
+const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
+  exerciseTypes: [],
+  themes: [],
+  markdownRenderers: [],
+  gradePolicies: [],
+};
+
 const loaded = (extension: ResolvedExtension): ExtensionInfoDto => ({
   id: extension.id,
   version: extension.version,
   origin: extension.origin,
   state: 'loaded',
-  exerciseTypes: extension.exerciseTypes.map(({ id }) => id),
+  contributes: {
+    exerciseTypes: extension.exerciseTypes.map(({ id }) => id),
+    themes: extension.themes.map(({ id }) => id),
+    markdownRenderers: extension.markdownRenderers.map(
+      ({ language }) => language,
+    ),
+    gradePolicies: extension.gradePolicies.map(({ id }) => id),
+  },
   message: null,
 });
 
@@ -21,7 +35,7 @@ export const createExtensionRegistry = (
       version,
       origin,
       state: 'overridden',
-      exerciseTypes: [],
+      contributes: NO_CONTRIBUTES,
       message: `overridden by ${by.origin} ${by.version}`,
     }),
   );
@@ -31,7 +45,7 @@ export const createExtensionRegistry = (
       version: null,
       origin,
       state: 'invalid',
-      exerciseTypes: [],
+      contributes: NO_CONTRIBUTES,
       message,
     }),
   );
@@ -40,5 +54,26 @@ export const createExtensionRegistry = (
     ...overriddenItems,
     ...invalidItems,
   ];
-  return { list: () => items.map((item) => structuredClone(item)) };
+  const { extensions } = discovery;
+  return {
+    list: () => items.map((item) => structuredClone(item)),
+    contributions: () => ({
+      themes: extensions.flatMap(({ id, themes }) =>
+        themes.map((theme) => structuredClone({ ...theme, extensionId: id })),
+      ),
+      markdownRenderers: extensions.flatMap(({ id, markdownRenderers }) =>
+        markdownRenderers.map((renderer) => ({
+          ...renderer,
+          extensionId: id,
+        })),
+      ),
+      gradePolicies: extensions.flatMap(({ id, gradePolicies }) =>
+        gradePolicies.map((policy) => ({
+          id: policy.id,
+          extensionId: id,
+          label: policy.label,
+        })),
+      ),
+    }),
+  };
 };

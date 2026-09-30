@@ -20,7 +20,21 @@ export const en: typeof ru = {
         plan: 'Daily plan',
         sessions: 'Sessions',
         remediation: 'Reinforcing the basics',
+        grading: 'Grading',
         experimental: 'Experimental',
+      },
+      gradePolicy: {
+        title: 'Grade rule',
+        description:
+          'How the results of answer checks turn into a grade from 1 to 5.',
+        builtin: 'Built-in',
+        passAtN: {
+          title: "Pass{'@'}N",
+          description:
+            'Correct on the first try — 5, on the second — 4, on the third or later — 3, “Give up” — 1. Check failures are not counted.',
+        },
+        missing:
+          "The selected rule “{id}” is unavailable: its extension was not found. Pass{'@'}N applies for now.",
       },
       targetRetention: {
         title: 'Target retention',
@@ -136,8 +150,7 @@ export const en: typeof ru = {
     },
     extensions: {
       title: 'Extensions',
-      subtitle:
-        'Exercise types added by extensions: bundled, your own and in development.',
+      subtitle: 'What extensions add: bundled, your own and in development.',
       listLabel: 'Installed extensions',
       count: 'no extensions | {n} extension | {n} extensions',
       refresh: 'Refresh',
@@ -145,7 +158,12 @@ export const en: typeof ru = {
       loadFailed: 'Could not load the list of extensions',
       empty: 'No extensions.',
       version: 'Version {version}',
-      exerciseTypes: 'Exercise types',
+      points: {
+        exerciseTypes: 'Exercise types',
+        themes: 'Themes',
+        markdownRenderers: 'Content renderers',
+        gradePolicies: 'Grade policies',
+      },
       origin: {
         bundled: 'Bundled',
         user: 'User',

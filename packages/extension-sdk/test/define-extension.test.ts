@@ -35,6 +35,10 @@ const createContext = (log: string[], failOn: readonly string[] = []) => {
         },
       };
     },
+    registerGradePolicy: (id): Disposable => {
+      log.push(`register policy ${id}`);
+      return { dispose: () => void log.push(`dispose policy ${id}`) };
+    },
   };
   return context;
 };
@@ -156,6 +160,36 @@ describe('defineExtension', () => {
     expect((error as AggregateError).errors.map(String)).toEqual([
       'Error: activation failed',
       'Error: cannot dispose a.one',
+    ]);
+  });
+
+  it('registers grade policies after exercise types and disposes them first', async () => {
+    const log: string[] = [];
+    const module = defineExtension({
+      exerciseTypes: { 'a.one': handler() },
+      gradePolicies: { 'a.generous': () => 5 },
+    });
+    await module.activate(createContext(log));
+    expect(log).toEqual(['register a.one', 'register policy a.generous']);
+    log.length = 0;
+    await module.deactivate?.();
+    expect(log).toEqual(['dispose policy a.generous', 'dispose a.one']);
+  });
+
+  it('rolls back grade policies when activation fails', async () => {
+    const log: string[] = [];
+    const module = defineExtension({
+      gradePolicies: { 'a.generous': () => 5 },
+      activate: () => {
+        throw new Error('activation failed');
+      },
+    });
+    await expect(module.activate(createContext(log))).rejects.toThrow(
+      'activation failed',
+    );
+    expect(log).toEqual([
+      'register policy a.generous',
+      'dispose policy a.generous',
     ]);
   });
 });

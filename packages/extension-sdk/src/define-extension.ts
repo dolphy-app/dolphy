@@ -3,11 +3,13 @@ import type {
   ExerciseTypeHandler,
   ExtensionContext,
   ExtensionModule,
+  GradePolicyHandler,
 } from '@lms/extension-api';
 
 export interface ExtensionDefinition {
   exerciseTypes?: Readonly<Record<string, ExerciseTypeHandler>>;
-  /** Вызывается после регистрации `exerciseTypes`. */
+  gradePolicies?: Readonly<Record<string, GradePolicyHandler>>;
+  /** Вызывается после регистрации `exerciseTypes` и `gradePolicies`. */
   activate?(context: ExtensionContext): void | Promise<void>;
   deactivate?(): void | Promise<void>;
 }
@@ -40,6 +42,11 @@ export const defineExtension = (
     for (const [type, handler] of entries) {
       registrations.push(context.registerExerciseType(type, handler));
     }
+    for (const [id, handler] of Object.entries(
+      definition.gradePolicies ?? {},
+    )) {
+      registrations.push(context.registerGradePolicy(id, handler));
+    }
   };
 
   const activate = async (context: ExtensionContext) => {
@@ -66,7 +73,7 @@ export const defineExtension = (
     const disposalErrors = await disposeInReverse(registrations);
     if (disposalErrors.length > 0) {
       failures.push(
-        new AggregateError(disposalErrors, 'failed to dispose exercise types'),
+        new AggregateError(disposalErrors, 'failed to dispose contributions'),
       );
     }
     if (failures.length === 1) throw failures[0];

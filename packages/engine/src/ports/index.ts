@@ -6,6 +6,7 @@ import type {
   SchedulerOptionsDto,
   StateVector,
   StudySessionWire,
+  LearningSettingsDto,
   UiSettingsDto,
   VerdictDto,
 } from '@lms/engine-contract';
@@ -248,7 +249,11 @@ export interface SettingsStore {
   /** Настройки интерфейса; без сохранённых — тема и язык `system`. */
   loadUi(): Promise<UiSettingsDto>;
   saveUi(ui: UiSettingsDto): Promise<void>;
+  /** Настройки обучения; без сохранённых — правило оценки `passAtN`. */
+  loadLearning(): Promise<LearningSettingsDto>;
+  saveLearning(learning: LearningSettingsDto): Promise<void>;
 }
 
 export * from './exercise-types.ts';
+export * from './grade-policies.ts';
 export * from './extension-registry.ts';

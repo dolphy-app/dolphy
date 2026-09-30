@@ -1,0 +1,15 @@
+{
+  "id": "acme.night",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "contributes": {
+    "themes": [
+      {
+        "id": "acme.night",
+        "label": "Night",
+        "dark": true,
+        "colors": { "background": "#101018", "primary": "#8ab4f8" }
+      }
+    ]
+  }
+}

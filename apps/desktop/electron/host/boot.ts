@@ -7,7 +7,9 @@ import { openSqliteStorage, readTraneDirectory } from '@lms/engine-sqlite';
 import {
   createCatalog,
   createExtensionRegistry,
+  createHostChannel,
   createRemoteExerciseTypes,
+  createRemoteGradePolicies,
   discoverExtensions,
 } from '@lms/extension-host';
 import { extensionRoots } from '../extension-roots.ts';
@@ -41,10 +43,21 @@ export const boot = async (
     roots: extensionRoots(config),
     logger: defaults.logger,
   });
-  const exerciseTypes = createRemoteExerciseTypes({
-    catalog: createCatalog(discovery.extensions),
+  // один канал к хосту расширений: виды заданий и правила оценки делят порт, дедлайны и перезапуск
+  const channel = createHostChannel({
     logger: defaults.logger,
     restart: restartExtHost,
+  });
+  const catalog = createCatalog(discovery.extensions);
+  const exerciseTypes = createRemoteExerciseTypes({
+    channel,
+    catalog,
+    logger: defaults.logger,
+  });
+  const gradePolicies = createRemoteGradePolicies({
+    channel,
+    catalog,
+    logger: defaults.logger,
   });
   if (__LMS_SMOKE_BUILD__ && process.env.LMS_SMOKE === '1') {
     defaults.logger.info(
@@ -58,10 +71,11 @@ export const boot = async (
       settings,
       eventStore,
       exerciseTypes,
+      gradePolicies,
       extensionRegistry: createExtensionRegistry(discovery),
       openTraneSource: readTraneDirectory,
     },
     config,
   );
-  return { engine, logger: defaults.logger, exerciseTypes };
+  return { engine, logger: defaults.logger, channel };
 };

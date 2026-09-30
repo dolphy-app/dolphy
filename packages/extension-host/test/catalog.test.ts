@@ -21,6 +21,9 @@ const extension: ResolvedExtension = {
       rendererUrl: 'lms-ext://acme.t/view.mjs',
     },
   ],
+  themes: [],
+  markdownRenderers: [],
+  gradePolicies: [],
 };
 
 describe('createCatalog', () => {
@@ -64,5 +67,21 @@ describe('createCatalog', () => {
     expect(catalog.validateAnswer('nope', '')).toEqual([
       'unknown exercise type',
     ]);
+  });
+});
+
+describe('createCatalog: правила оценки', () => {
+  const withPolicies: ResolvedExtension = {
+    ...extension,
+    gradePolicies: [{ id: 'acme.t.generous', label: 'Generous' }],
+  };
+  const catalog = createCatalog([extension, withPolicies]);
+
+  it('описывает правила и владельца', () => {
+    expect(catalog.describePolicies()).toEqual([
+      { id: 'acme.t.generous', label: 'Generous', extensionId: 'acme.t' },
+    ]);
+    expect(catalog.ownerOfPolicy('acme.t.generous')?.id).toBe('acme.t');
+    expect(catalog.ownerOfPolicy('acme.t.other')).toBeUndefined();
   });
 });

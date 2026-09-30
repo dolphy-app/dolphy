@@ -31,6 +31,7 @@ import type {
   SettingsStore,
 } from '../ports/index.ts';
 import type { ExerciseTypes } from '../ports/exercise-types.ts';
+import type { GradePolicies } from '../ports/grade-policies.ts';
 import type { ExtensionRegistry } from '../ports/extension-registry.ts';
 import type { FsrsScorer } from '../scoring/fsrs-scorer.ts';
 import type {
@@ -47,7 +48,6 @@ import type { SessionState } from '../scheduler/session-state.ts';
 import type { FolderSync, FolderSyncOptions } from '../node/folder-sync.ts';
 import type { Replica } from '../sync/replica.ts';
 import type { TraneSource } from '../sync/trane-import.ts';
-import type { GradePolicy } from '../verify/grade-policy.ts';
 import type { EngineState, FacadeContext } from './context-types.ts';
 import type { EventBus } from './event-bus.ts';
 import type { ExpiringMap } from './expiring-map.ts';
@@ -84,6 +84,8 @@ export interface EngineDeps {
   memoryModel: MemoryModel;
   /** Виды заданий из расширений (`@lms/extension-host`). */
   exerciseTypes: ExerciseTypes;
+  /** Правила оценки из расширений (`@lms/extension-host`). */
+  gradePolicies: GradePolicies;
   /** Обзор расширений для `extensions.list`. */
   extensionRegistry: ExtensionRegistry;
   /** Нет порта — `sync.folder.*` отвечает `SYNC_FOLDER_NOT_CONFIGURED`. */
@@ -292,7 +294,9 @@ export interface EngineContext extends FacadeContext {
   /** Сохранённые фильтры в памяти (для планировщика: чтение синхронное). */
   readonly savedFilters: Map<string, SavedFilterDto>;
   readonly attempts: ExpiringMap<OpenAttempt>;
-  readonly gradePolicy: GradePolicy;
+  readonly gradePolicies: GradePolicies;
+  /** Настройки обучения в памяти (читаются при каждом закрытии попытки); пишет только `settings.setLearning`. */
+  readonly learning: { gradePolicy: string };
   readonly journal: JournalWriter;
   readonly bus: EventBus;
   readonly state: EngineState;

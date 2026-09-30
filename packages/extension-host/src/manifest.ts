@@ -1,52 +1,30 @@
-import {
-  DEFAULT_MAIN,
-  DEFAULT_RENDERER,
-  ELEMENT_NAME_PATTERN,
-  EXTENSION_API_VERSION,
-  EXTENSION_ID_PATTERN,
-  defaultElementName,
-} from '@lms/extension-api';
+import { DEFAULT_MAIN, EXTENSION_API_VERSION } from '@lms/extension-api';
 import type {
   ExtensionManifest,
   ExtensionManifestInput,
 } from '@lms/extension-api';
 import { z } from 'zod';
+import { CONTRIBUTION_POINTS } from './points/index.ts';
+import { extensionId, safePath } from './points/support.ts';
 
-/** Относительный путь внутри каталога расширения: без `..`, `\` и ведущего `/`. */
-const isSafeRelativePath = (value: string): boolean =>
-  value.length > 0 &&
-  !value.includes('\\') &&
-  !value.startsWith('/') &&
-  !value.split('/').includes('..');
+type Entries = Record<string, readonly unknown[] | undefined>;
 
-const safePath = (extensions: readonly string[]) =>
-  z
-    .string()
-    .refine(isSafeRelativePath, 'must be a safe relative path')
-    .refine(
-      (value) => extensions.some((ext) => value.endsWith(ext)),
-      `must end with ${extensions.join(' or ')}`,
-    );
+const contributesSchema = z.strictObject(
+  Object.fromEntries(
+    CONTRIBUTION_POINTS.map((point) => [
+      point.key,
+      z.array(point.schema).optional(),
+    ]),
+  ),
+);
 
-const extensionId = z
-  .string()
-  .max(64)
-  .regex(EXTENSION_ID_PATTERN, 'invalid extension id');
+const entriesOf = (contributes: unknown, key: string): readonly unknown[] =>
+  (contributes as Entries)[key] ?? [];
 
-const schemaField = z.union([
-  safePath(['.json']),
-  z
-    .record(z.string(), z.unknown())
-    .refine((value) => Object.keys(value).length > 0, 'must not be empty'),
-]);
-
-const exerciseTypeSchema = z.strictObject({
-  id: extensionId,
-  specSchema: schemaField,
-  answerSchema: schemaField,
-  element: z.string().optional(),
-  renderer: safePath(['.js', '.mjs']).optional(),
-});
+const isEmpty = (contributes: unknown): boolean =>
+  CONTRIBUTION_POINTS.every(
+    (point) => entriesOf(contributes, point.key).length === 0,
+  );
 
 export const manifestSchema = z
   .strictObject({
@@ -56,54 +34,52 @@ export const manifestSchema = z
       .regex(/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/, 'version must be semver'),
     apiVersion: z.literal(EXTENSION_API_VERSION),
     main: safePath(['.mjs']).optional(),
-    contributes: z.strictObject({
-      exerciseTypes: z.array(exerciseTypeSchema).min(1),
-    }),
+    contributes: contributesSchema,
   })
   .superRefine((manifest, ctx) => {
-    manifest.contributes.exerciseTypes.forEach((type, index) => {
-      if (type.id !== manifest.id && !type.id.startsWith(`${manifest.id}.`)) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['contributes', 'exerciseTypes', index, 'id'],
-          message: `exercise type id must be '${manifest.id}' or start with '${manifest.id}.'`,
-        });
-      }
-    });
+    if (isEmpty(manifest.contributes)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['contributes'],
+        message: 'at least one contribution is required',
+      });
+    }
   });
 
-/** Применяет умолчания: `main`, `renderer`, `element`. */
+/** Код нужен, если есть записи в точке, которая его требует. */
+const needsMain = (contributes: unknown): boolean =>
+  CONTRIBUTION_POINTS.some(
+    (point) => point.needsMain && entriesOf(contributes, point.key).length > 0,
+  );
+
+/** Применяет умолчания: `main`, `renderer`, `element`, пустые точки. */
 export const normalizeManifest = (
   input: ExtensionManifestInput,
-): ExtensionManifest => ({
-  id: input.id,
-  version: input.version,
-  apiVersion: input.apiVersion,
-  main: input.main ?? DEFAULT_MAIN,
-  contributes: {
-    exerciseTypes: input.contributes.exerciseTypes.map((type) => ({
-      id: type.id,
-      specSchema: type.specSchema,
-      answerSchema: type.answerSchema,
-      element: type.element ?? defaultElementName(type.id),
-      renderer: type.renderer ?? DEFAULT_RENDERER,
-    })),
-  },
-});
+): ExtensionManifest => {
+  const contributes = Object.fromEntries(
+    CONTRIBUTION_POINTS.map((point) => [
+      point.key,
+      point.normalize(entriesOf(input.contributes, point.key) as never),
+    ]),
+  );
+  return {
+    id: input.id,
+    version: input.version,
+    apiVersion: input.apiVersion,
+    main: input.main ?? (needsMain(input.contributes) ? DEFAULT_MAIN : null),
+    contributes: contributes as ExtensionManifest['contributes'],
+  };
+};
 
 const formatIssues = (error: z.ZodError): string =>
   error.issues
     .map((issue) => `${issue.path.join('.') || '/'}: ${issue.message}`)
     .join('; ');
 
-/** Сообщения о нарушениях в нормализованном манифесте (`element` после умолчаний). */
+/** Сообщения о нарушениях в нормализованном манифесте. */
 const normalizedIssues = (manifest: ExtensionManifest): string[] =>
-  manifest.contributes.exerciseTypes.flatMap((type, index) =>
-    ELEMENT_NAME_PATTERN.test(type.element)
-      ? []
-      : [
-          `contributes.exerciseTypes.${index}.element: invalid element name '${type.element}'`,
-        ],
+  CONTRIBUTION_POINTS.flatMap((point) =>
+    point.check(manifest.contributes[point.key] as never, manifest.id),
   );
 
 export const parseManifest = (

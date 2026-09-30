@@ -9,6 +9,7 @@ export const en: typeof ru = {
         learning: 'Learning',
         library: 'Library',
         appearance: 'Appearance',
+        extensions: 'Extensions',
         about: 'About the engine',
       },
     },
@@ -131,6 +132,29 @@ export const en: typeof ru = {
         system: 'System default',
         ru: 'Русский',
         en: 'English',
+      },
+    },
+    extensions: {
+      title: 'Extensions',
+      subtitle:
+        'Exercise types added by extensions: bundled, your own and in development.',
+      listLabel: 'Installed extensions',
+      count: 'no extensions | {n} extension | {n} extensions',
+      refresh: 'Refresh',
+      retry: 'Retry',
+      loadFailed: 'Could not load the list of extensions',
+      empty: 'No extensions.',
+      version: 'Version {version}',
+      exerciseTypes: 'Exercise types',
+      origin: {
+        bundled: 'Bundled',
+        user: 'User',
+        dev: 'Development',
+      },
+      state: {
+        loaded: 'Loaded',
+        overridden: 'Overridden',
+        invalid: 'Failed to load',
       },
     },
     about: {

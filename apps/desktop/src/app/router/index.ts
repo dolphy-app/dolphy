@@ -5,6 +5,7 @@ import { SessionPage } from '@/pages/session';
 import {
   SettingsAbout,
   SettingsAppearance,
+  SettingsExtensions,
   SettingsLearning,
   SettingsLibrary,
   SettingsPage,
@@ -88,6 +89,11 @@ export const router = createRouter({
               path: 'appearance',
               name: ROUTE.settingsAppearance,
               component: SettingsAppearance,
+            },
+            {
+              path: 'extensions',
+              name: ROUTE.settingsExtensions,
+              component: SettingsExtensions,
             },
             {
               path: 'about',

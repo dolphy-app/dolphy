@@ -26,6 +26,12 @@
       "path": "packages/engine-sql-runner/tsconfig.test.json"
     },
     {
+      "path": "packages/engine-git"
+    },
+    {
+      "path": "packages/engine-git/tsconfig.test.json"
+    },
+    {
       "path": "packages/engine-rpc"
     },
     {

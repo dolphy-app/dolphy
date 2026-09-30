@@ -371,6 +371,10 @@ describe('install: сбой оставляет прежнюю установку
         'utf8',
       ),
     ).toBe("export default '1.0.0';");
+    await env.restart().ready();
+    expect(await readText(env.dir, 'acme.echo', 'main.mjs')).toBe(
+      "export default '1.0.0';",
+    );
   });
 
   it('повторная попытка после сбоя проходит', async () => {

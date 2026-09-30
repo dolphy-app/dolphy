@@ -2,7 +2,9 @@
 
 Инструменты автора расширений: `spirula-ext build` собирает проект в каталог
 расширения, `spirula-ext validate` проверяет каталог тем же кодом, каким его
-загрузит приложение (`inspectExtensionDir` из `@spirula-app/extension-host`).
+загрузит приложение (`inspectExtensionDir` из `@spirula-app/extension-host`),
+`spirula-ext catalog check|build` проверяет и собирает расширения для каталога
+(`spirula-app/spirula-extensions`, см. «Каталог»).
 
 ## Раскладка проекта
 
@@ -46,16 +48,99 @@
 ```
 spirula-ext build [dir] [--out <dir>] [--watch]
 spirula-ext validate <dir>
+spirula-ext catalog check <extensionsDir> [--ids a,b]
+            [--published-index <path>] [--max-app-version <x.y.z>]
+            [--skip-github-check] [--list-rules]
+spirula-ext catalog build --src <extensionsDir> --ids a,b --out <siteDir>
+            [--previous-index <path>] [--revoked <path>]
+            [--source-base <url>] [--published-at <iso>]
+spirula-ext catalog build --reindex --out <siteDir>
+            [--previous-index <path>] [--revoked <path>] [--published-at <iso>]
 spirula-ext --help
 ```
 
-Коды выхода: 0 — успех, 1 — проблемы сборки/проверки, 2 — неверные аргументы.
-Проблемы печатаются в stderr как `error <id-или-каталог>: <сообщение>`, итог —
-в stdout (`built <id> -> <dir> (N files)` / `<dir>: ok`).
+Коды выхода: 0 — успех, 1 — проблемы сборки/проверки (у `catalog check` — хотя бы
+одно замечание `error`; `warning` код не меняет), 2 — неверные аргументы (у
+`catalog` ещё `nothing to reindex`: нет исходного индекса).
+Проблемы `build`/`validate`/`catalog build` печатаются в stderr как
+`error <id-или-каталог>: <сообщение>`, итог — в stdout (`built <id> -> <dir> (N files)` /
+`<dir>: ok` / `published <id>@<версия> (N files, M bytes)`). Замечания
+`catalog check` — в stdout, по строке `error|warning <id> <RULE-ID> <поле>: <сообщение>`;
+чистая проверка ничего не печатает.
 
 `--watch` пересобирает бандлы при изменении исходников. Манифест, схемы и
 `assets/` копируются один раз — после их правки перезапустите команду.
 Запуск из репозитория: `pnpm -F @spirula-app/extension-tools spirula-ext build <dir>`.
+
+## Каталог
+
+Подкоманды `catalog` обслуживают репозиторий каталога расширений
+(`spirula-app/spirula-extensions`, устройство и цепочка доверия — раздел
+«Установка и каталог» в `docs/design/extensions.md`). Формат индекса, выбор
+версии и отзыв разбирает `@spirula-app/extension-catalog` — тот же код, что в
+приложении.
+
+### `catalog check <extensionsDir>`
+
+Проверяет исходники `<extensionsDir>/<id>/` (проект `spirula-ext` без
+`node_modules`, `dist-ext` и `.git`) по правилам ниже. `--ids a,b` ограничивает
+проверку перечисленными расширениями (по умолчанию — все каталоги);
+`--published-index <path>` — `index.json` опубликованного каталога для правила
+`CHECK-012` (нет файла — ничего не опубликовано); `--max-app-version <x.y.z>` —
+версия выпущенного приложения для `CHECK-016`; `--skip-github-check` отключает
+запрос `api.github.com` для `CHECK-006` (токен API — переменная `GITHUB_TOKEN`);
+`--list-rules` печатает правила и выходит.
+
+| Правило     | Что проверяет                                                                    |
+| ----------- | -------------------------------------------------------------------------------- |
+| `CHECK-001` | `extension.json` читается и проходит разбор манифеста                            |
+| `CHECK-002` | имя каталога равно `id` из манифеста                                             |
+| `CHECK-003` | заданы `name`, `description` и `author`                                          |
+| `CHECK-004` | `README.md` существует и не пуст                                                 |
+| `CHECK-005` | `author` имеет форму GitHub-логина                                               |
+| `CHECK-006` | `author` — существующий пользователь GitHub (нет ответа — `warning`)             |
+| `CHECK-007` | `package.json` существует и разбирается                                          |
+| `CHECK-008` | есть lock-файл (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lock`)  |
+| `CHECK-009` | нет lifecycle-скриптов установки и публикации (`postinstall`, `prepare`…)        |
+| `CHECK-010` | зависимости только из реестра (без git, http, file, link, workspace)             |
+| `CHECK-011` | `name` в `package.json` не занимает чужой scope (`warning`)                      |
+| `CHECK-012` | версия строго больше опубликованной                                              |
+| `CHECK-013` | не более 200 файлов и 5 МБ исходников, файл не больше 1 МБ                       |
+| `CHECK-014` | нет символических ссылок                                                         |
+| `CHECK-015` | нет исполняемых файлов (`.exe`, `.dll`, `.so`, `.dylib`, `.node`, `.sh`, `.bat`) |
+| `CHECK-016` | `minAppVersion` не новее `--max-app-version`                                     |
+
+Правила — данные в коде (`src/catalog/rules.ts`, таблица `RULES`); смысловое
+ревью по `rules/rules.json` репозитория каталога — отдельный шаг, не CLI.
+
+### `catalog build`
+
+`--src <extensionsDir> --ids a,b --out <siteDir>`: для каждого id собирает
+проект тем же кодом, что `spirula-ext build`, добавляет `README.md` (обязателен),
+считает `size` и `sha256` файлов и кладёт версию в
+`<siteDir>/extensions/<id>/<version>/`, затем обновляет `<siteDir>/index.json`
+(у расширения не более 5 последних версий, от новой к старой). Манифест должен
+содержать `name`, `description`, `author`. Версия публикуется один раз: сборка
+того же номера с другим содержимым — ошибка. Файлы версии — только `json`, `js`,
+`mjs`, `md`, `txt` с безопасными именами, не более 50 файлов и 10 МБ. Любая
+ошибка оставляет `<siteDir>` нетронутым.
+
+- `--previous-index <path>` — исходный индекс (по умолчанию `<out>/index.json`);
+- `--revoked <path>` — JSON-массив `{ id, versions, reason }` (без флага берётся
+  список из исходного индекса);
+- `--source-base <url>` — основа поля `source` (по умолчанию дерево
+  `extensions` в `spirula-app/spirula-extensions`);
+- `--published-at <iso>` — `publishedAt` новых версий (по умолчанию сейчас).
+
+`catalog build --reindex --out <siteDir>` заменяет в существующем индексе только
+`revoked` и `generatedAt` (записи расширений не меняются; `--src` и `--ids` не
+нужны): так публикуется отзыв версии без новой сборки.
+
+Локальный каталог для приложения: `spirula-ext catalog build --src <src> --ids <id> --out <site>`,
+любой статический сервер над `<site>` и `SPIRULA_EXTENSION_CATALOG_URL=http://localhost:<порт>/index.json pnpm dev`.
+
+Опубликованный пакет `@spirula-app/extension-tools` содержит только CLI
+(`bin` `spirula-ext`), без библиотечного входа; `API` ниже — для репозитория.
 
 ## API
 

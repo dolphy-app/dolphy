@@ -43,7 +43,7 @@ describe('uninstall', () => {
     await installFake(env.dir, 'acme.echo', '1.0.0');
     await env.installer.uninstall('acme.echo');
     expect(await exists(env.dir, 'acme.echo')).toBe(false);
-    expect(await readdir(path.join(env.dir, '.trash'))).toEqual([]);
+    expect(await readdir(path.join(env.dir, '.trash', 'removed'))).toEqual([]);
   });
 
   it('удаляет и скопированное вручную расширение', async () => {
@@ -114,6 +114,102 @@ describe('ready: уборка', () => {
     expect(await exists(env.dir, '.trash')).toBe(false);
     expect(await exists(stale)).toBe(false);
     expect(await exists(fresh)).toBe(true);
+  });
+
+  describe('восстановление прерванной замены', () => {
+    const trashEntry = async (
+      name: string,
+      files: Record<string, string> = {
+        'extension.json': '{}',
+        'main.mjs': 'old',
+      },
+    ): Promise<string> => {
+      const dir = path.join(env.dir, '.trash', name);
+      await mkdir(dir, { recursive: true });
+      for (const [file, content] of Object.entries(files)) {
+        await writeFile(path.join(dir, file), content);
+      }
+      return dir;
+    };
+
+    it('процесс убит между rename: каталог возвращается из .trash', async () => {
+      await trashEntry('acme.echo-1000', {
+        'extension.json': '{}',
+        'main.mjs': 'previous',
+        '.spirula-install.json': JSON.stringify({
+          catalogUrl: CATALOG_URL,
+          version: '1.0.0',
+          installedAt: '2026-09-01T00:00:00.000Z',
+        }),
+      });
+      await env.installer.ready();
+      expect(await readText(env.dir, 'acme.echo', 'main.mjs')).toBe('previous');
+      expect(await exists(env.dir, '.trash')).toBe(false);
+      expect(env.logger.info).toHaveBeenCalledWith(
+        expect.objectContaining({ extensionId: 'acme.echo' }),
+        'restored interrupted install',
+      );
+    });
+
+    it('каталог расширения на месте: запись .trash удаляется', async () => {
+      await installFake(env.dir, 'acme.echo', '2.0.0');
+      await trashEntry('acme.echo-1000');
+      await env.installer.ready();
+      expect(await readText(env.dir, 'acme.echo', 'main.mjs')).toBe(
+        "export default '2.0.0';",
+      );
+      expect(await exists(env.dir, '.trash')).toBe(false);
+    });
+
+    it('удалённое через uninstall не воскресает', async () => {
+      await installFake(env.dir, 'acme.echo', '1.0.0');
+      await env.installer.uninstall('acme.echo');
+      await trashEntry('removed/acme.echo-1000-abcd');
+      await env.restart().ready();
+      expect(await exists(env.dir, 'acme.echo')).toBe(false);
+      expect(await exists(env.dir, '.trash')).toBe(false);
+    });
+
+    it('несколько записей одного id: возвращается самая новая, остальные удаляются', async () => {
+      await trashEntry('acme.echo-1000', {
+        'extension.json': '{}',
+        'main.mjs': 'older',
+      });
+      await trashEntry('acme.echo-2000', {
+        'extension.json': '{}',
+        'main.mjs': 'newer',
+      });
+      await env.installer.ready();
+      expect(await readText(env.dir, 'acme.echo', 'main.mjs')).toBe('newer');
+      expect(await exists(env.dir, '.trash')).toBe(false);
+    });
+
+    it('новейшая запись повреждена: возвращается следующая годная', async () => {
+      await trashEntry('acme.echo-1000');
+      await trashEntry('acme.echo-2000', { 'main.mjs': 'no manifest' });
+      await env.installer.ready();
+      expect(await readText(env.dir, 'acme.echo', 'main.mjs')).toBe('old');
+    });
+
+    it.each([
+      ['нет extension.json', { 'main.mjs': 'x' }],
+      [
+        'sidecar не разбирается',
+        { 'extension.json': '{}', '.spirula-install.json': '{broken' },
+      ],
+    ])('%s: ничего не возвращается, запись удаляется', async (_name, files) => {
+      await trashEntry('acme.echo-1000', files);
+      await env.installer.ready();
+      expect(await exists(env.dir, 'acme.echo')).toBe(false);
+      expect(await exists(env.dir, '.trash')).toBe(false);
+    });
+
+    it('запись с недопустимым id не возвращается', async () => {
+      await trashEntry('Bad_Name-1000');
+      await env.installer.ready();
+      expect(await exists(env.dir, 'Bad_Name')).toBe(false);
+      expect(await exists(env.dir, '.trash')).toBe(false);
+    });
   });
 
   it('ready идемпотентен и не падает в пустом каталоге', async () => {

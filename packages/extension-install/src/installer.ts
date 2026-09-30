@@ -41,6 +41,8 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 const MAX_INDEX_BYTES = 5_000_000;
 const STALE_STAGING_MS = 60 * 60_000;
 const MAX_ID_LENGTH = 64;
+const SWAP_TRASH = /^(.+)-(\d+)$/;
+const REMOVED_DIR = 'removed';
 const MAX_MESSAGE_LENGTH = 200;
 
 const shortMessage = (error: unknown): string =>
@@ -101,7 +103,58 @@ export const createExtensionInstaller = (
     }
   };
 
+  const isRestorable = async (dir: string): Promise<boolean> => {
+    if ((await fs.stat(path.join(dir, 'extension.json')))?.kind !== 'file') {
+      return false;
+    }
+    const hasMeta = (await fs.stat(path.join(dir, INSTALL_META_FILE))) !== null;
+    return !hasMeta || (await readInstallMeta(fs, logger, dir)) !== null;
+  };
+
+  /** Записи `.trash`, оставленные заменой каталога: `<id>-<метка времени>`; удаления лежат в `.trash/removed/`. */
+  const swapLeftovers = async (): Promise<Map<string, string[]>> => {
+    const byId = new Map<string, string[]>();
+    for (const name of await fs.list(trashRoot)) {
+      const match = SWAP_TRASH.exec(name);
+      const id = match?.[1];
+      if (id === undefined || !isValidId(id)) continue;
+      byId.set(id, [...(byId.get(id) ?? []), name]);
+    }
+    return byId;
+  };
+
+  /**
+   * Процесс убили между двумя `rename` замены: `<id>` нет, прежняя версия лежит
+   * в `.trash`. Возвращает на место самую новую запись, остальные не трогает.
+   */
+  const recoverInterruptedSwaps = async (): Promise<void> => {
+    for (const [id, names] of await swapLeftovers()) {
+      const target = path.join(extensionsDir, id);
+      if ((await fs.stat(target)) !== null) continue;
+      const newestFirst = [...names].sort(
+        (a, b) =>
+          Number(SWAP_TRASH.exec(b)?.[2]) - Number(SWAP_TRASH.exec(a)?.[2]),
+      );
+      for (const name of newestFirst) {
+        const source = path.join(trashRoot, name);
+        if (!(await isRestorable(source))) continue;
+        await fs.rename(source, target);
+        logger.info(
+          { extensionId: id, from: name },
+          'restored interrupted install',
+        );
+        break;
+      }
+    }
+  };
+
   const cleanLeftovers = async (): Promise<void> => {
+    try {
+      await recoverInterruptedSwaps();
+    } catch (error) {
+      logger.warn({ error }, 'interrupted installs were not recovered');
+      return;
+    }
     await removeQuietly(trashRoot);
     try {
       for (const name of await fs.list(stagingRoot)) {
@@ -332,7 +385,7 @@ export const createExtensionInstaller = (
       logger,
       staging,
       target: path.join(extensionsDir, id),
-      trash: path.join(trashRoot, `${id}-${now()}-${randomSuffix()}`),
+      trash: path.join(trashRoot, `${id}-${now()}`),
     });
     if (trash !== null) await removeQuietly(trash);
     return previous;
@@ -427,8 +480,9 @@ export const createExtensionInstaller = (
         `'${id}' is a symbolic link; remove it manually`,
       );
     }
-    const trash = path.join(trashRoot, `${id}-${now()}-${randomSuffix()}`);
-    await fs.mkdir(trashRoot);
+    const removedRoot = path.join(trashRoot, REMOVED_DIR);
+    const trash = path.join(removedRoot, `${id}-${now()}-${randomSuffix()}`);
+    await fs.mkdir(removedRoot);
     await fs.rename(target, trash);
     await removeQuietly(trash);
   };

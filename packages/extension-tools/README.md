@@ -73,3 +73,7 @@ const { ok, problems } = await validateExtension(dir);
 
 Ошибки сборки — `BuildError` (`message` совпадает с текстом, который печатает
 приложение для того же манифеста).
+
+Примеры из раздела «Точки вклада» `docs/design/extensions.md` собираются и
+проверяются тестом `test/docs-contributions.test.ts` (тема — проект из одного
+`extension.json`, рендерер содержимого и правило оценки — с `src/*.ts`).

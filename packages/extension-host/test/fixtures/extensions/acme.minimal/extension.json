@@ -1,0 +1,14 @@
+{
+  "id": "acme.minimal",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "contributes": {
+    "exerciseTypes": [
+      {
+        "id": "acme.minimal",
+        "specSchema": { "type": "object" },
+        "answerSchema": { "type": "string" }
+      }
+    ]
+  }
+}

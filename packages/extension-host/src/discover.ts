@@ -1,5 +1,6 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
+import { DEFAULT_MAIN, DEFAULT_RENDERER } from '@lms/extension-api';
 import type { ExtensionLogger, JsonSchema } from '@lms/extension-api';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import { parseManifest } from './manifest.ts';
@@ -63,32 +64,54 @@ const rendererUrlOf = (id: string, renderer: string): string =>
     .map(encodeURIComponent)
     .join('/')}`;
 
-const readSchema = async (
+const deepFreeze = <T>(value: T): T => {
+  if (typeof value === 'object' && value !== null) {
+    for (const child of Object.values(value)) deepFreeze(child);
+    Object.freeze(value);
+  }
+  return value;
+};
+
+const compileSchema = (ajv: Ajv2020, schema: JsonSchema, label: string) => {
+  try {
+    ajv.compile(schema);
+  } catch (error) {
+    throw new Error(
+      `schema ${label} does not compile: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+};
+
+/** Схема объектом (копия, заморожена) или файлом внутри каталога расширения. */
+const resolveSchema = async (
   ajv: Ajv2020,
   dir: string,
-  relative: string,
+  source: string | JsonSchema,
+  label: string,
 ): Promise<JsonSchema> => {
-  const file = inside(dir, relative);
+  if (typeof source !== 'string') {
+    const schema = deepFreeze(structuredClone(source));
+    compileSchema(ajv, schema, `${label} (inline)`);
+    return schema;
+  }
+  const file = inside(dir, source);
   let parsed: unknown;
   try {
     parsed = JSON.parse(await readFile(file, 'utf8'));
   } catch (error) {
     throw new Error(
-      `schema '${relative}' is unreadable: ${error instanceof Error ? error.message : String(error)}`,
+      `schema '${source}' is unreadable: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    throw new Error(`schema '${relative}' is not an object`);
+    throw new Error(`schema '${source}' is not an object`);
   }
-  try {
-    ajv.compile(parsed);
-  } catch (error) {
-    throw new Error(
-      `schema '${relative}' does not compile: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
+  compileSchema(ajv, parsed as JsonSchema, `'${source}'`);
   return parsed as JsonSchema;
 };
+
+const defaultNote = (value: string, fallback: string): string =>
+  value === fallback ? ' (default)' : '';
 
 /** Полностью разбирает каталог расширения; ошибка — сообщение для диагностики. */
 const loadOne = async (
@@ -124,18 +147,32 @@ const loadOne = async (
   try {
     const mainPath = inside(dir, manifest.main);
     if (verifyFiles && !(await isFile(mainPath))) {
-      throw new Error(`main '${manifest.main}' is not a file`);
+      throw new Error(
+        `main '${manifest.main}'${defaultNote(manifest.main, DEFAULT_MAIN)} is not a file`,
+      );
     }
     const exerciseTypes: ResolvedExerciseType[] = [];
     for (const contribution of manifest.contributes.exerciseTypes) {
       const renderer = inside(dir, contribution.renderer);
       if (verifyFiles && !(await isFile(renderer))) {
-        throw new Error(`renderer '${contribution.renderer}' is not a file`);
+        throw new Error(
+          `renderer '${contribution.renderer}'${defaultNote(contribution.renderer, DEFAULT_RENDERER)} is not a file`,
+        );
       }
       exerciseTypes.push({
         id: contribution.id,
-        specSchema: await readSchema(ajv, dir, contribution.specSchema),
-        answerSchema: await readSchema(ajv, dir, contribution.answerSchema),
+        specSchema: await resolveSchema(
+          ajv,
+          dir,
+          contribution.specSchema,
+          `specSchema of '${contribution.id}'`,
+        ),
+        answerSchema: await resolveSchema(
+          ajv,
+          dir,
+          contribution.answerSchema,
+          `answerSchema of '${contribution.id}'`,
+        ),
         element: contribution.element,
         rendererUrl: rendererUrlOf(manifest.id, contribution.renderer),
       });

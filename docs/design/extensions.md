@@ -4,38 +4,37 @@
 
 ## Что такое расширение
 
-Каталог с манифестом `extension.json`, кодом проверки (`main`, ES-модуль `.mjs`), элементом ввода ответа (`renderer`) и JSON Schema для `spec` и ответа:
+Каталог с манифестом `extension.json`, кодом проверки (`main`, ES-модуль `.mjs`) и элементом ввода ответа (`renderer`). JSON Schema для `spec` и ответа лежат в файлах или записаны прямо в манифесте:
 
 ```
 lms.choice/
   extension.json
   main.mjs            # export default { activate(ctx), deactivate? }
   view.mjs            # определяет custom element ввода ответа
-  schema/spec.json    # JSON Schema 2020-12 для engine.exercise.spec
-  schema/answer.json  # JSON Schema 2020-12 для ответа ученика
 ```
+
+Минимальный манифест:
 
 ```json
 {
   "id": "lms.choice",
   "version": "1.0.0",
   "apiVersion": 1,
-  "main": "./main.mjs",
   "contributes": {
     "exerciseTypes": [
       {
         "id": "lms.choice",
-        "specSchema": "./schema/spec.json",
-        "answerSchema": "./schema/answer.json",
-        "element": "lms-choice-answer",
-        "renderer": "./view.mjs"
+        "specSchema": { "type": "object", "required": ["options", "correct"] },
+        "answerSchema": "./schema/answer.json"
       }
     ]
   }
 }
 ```
 
-Правила манифеста проверяет `parseManifest` (`packages/extension-host/src/manifest.ts`): `id` — `[a-z][a-z0-9-]*(.[a-z][a-z0-9-]*)*`; `id` вида равен `id` расширения или начинается с `<id>.`; `main` — `.mjs`; все пути относительные и внутри каталога; `apiVersion` — `1`. Неизвестные ключи `contributes` отклоняются: расширение с более новой точкой вклада не загрузится в старом приложении. Имя каталога равно `id`.
+Умолчания (`normalizeManifest`): `main` — `./main.mjs`; `renderer` — `./view.mjs`; `element` — `id` вида с точками, заменёнными на дефисы, и суффиксом `-answer` (`lms.choice` → `lms-choice-answer`). Явные значения важнее умолчаний. `specSchema` и `answerSchema` — либо путь к `.json` внутри каталога, либо непустая схема объектом. Формат один: после разбора манифест всегда нормализован.
+
+Правила манифеста проверяет `parseManifest` (`packages/extension-host/src/manifest.ts`): `id` — `[a-z][a-z0-9-]*(.[a-z][a-z0-9-]*)*`; `id` вида равен `id` расширения или начинается с `<id>.`; `main` — `.mjs`, `renderer` — `.js` или `.mjs`; выведенный или явный `element` — допустимое имя тега (с дефисом); все пути относительные и внутри каталога; `apiVersion` — `1`. Неизвестные ключи `contributes` отклоняются: расширение с более новой точкой вклада не загрузится в старом приложении. Имя каталога равно `id`. Если файл по умолчанию (`main.mjs`, `view.mjs`) отсутствует, диагностика называет его и помечает как умолчание.
 
 Типы и константы API — пакет `@lms/extension-api`.
 

@@ -3,7 +3,12 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { discoverExtensions } from '../src/discover.ts';
+import { fileURLToPath } from 'node:url';
 import { createLogger } from './helpers.ts';
+
+const fixturesDir = fileURLToPath(
+  new URL('./fixtures/extensions', import.meta.url),
+);
 
 let tmp: string;
 beforeEach(async () => {
@@ -211,5 +216,67 @@ describe('discoverExtensions', () => {
       verifyFiles: false,
     });
     expect(lax.extensions.map((e) => e.id)).toEqual(['acme.nomain']);
+  });
+
+  it('минимальный манифест: умолчания и встроенные схемы', async () => {
+    const { extensions, diagnostics } = await discoverExtensions({
+      roots: [{ dir: fixturesDir, origin: 'bundled' }],
+      logger: createLogger(),
+    });
+    expect(diagnostics).toEqual([]);
+    const minimal = extensions.find((e) => e.id === 'acme.minimal');
+    expect(minimal?.mainPath).toBe(
+      path.join(fixturesDir, 'acme.minimal', 'main.mjs'),
+    );
+    expect(minimal?.exerciseTypes[0]).toMatchObject({
+      element: 'acme-minimal-answer',
+      rendererUrl: 'lms-ext://acme.minimal/view.mjs',
+      specSchema: { type: 'object' },
+      answerSchema: { type: 'string' },
+    });
+    expect(Object.isFrozen(minimal?.exerciseTypes[0]?.specSchema)).toBe(true);
+  });
+
+  it('встроенная схема, не компилирующаяся в Ajv, — расширение пропущено', async () => {
+    const root = await rootDir('r');
+    const dir = path.join(root, 'acme.bad');
+    await mkdir(dir);
+    await writeFile(path.join(dir, 'main.mjs'), '');
+    await writeFile(path.join(dir, 'view.mjs'), '');
+    await writeFile(
+      path.join(dir, 'extension.json'),
+      JSON.stringify({
+        id: 'acme.bad',
+        version: '1.0.0',
+        apiVersion: 1,
+        contributes: {
+          exerciseTypes: [
+            {
+              id: 'acme.bad',
+              specSchema: { type: 'nonsense' },
+              answerSchema: { type: 'string' },
+            },
+          ],
+        },
+      }),
+    );
+    const { extensions, diagnostics } = await discoverExtensions({
+      roots: [{ dir: root, origin: 'bundled' }],
+      logger: createLogger(),
+    });
+    expect(extensions).toEqual([]);
+    expect(diagnostics[0]!.message).toContain('does not compile');
+  });
+
+  it('нет main.mjs по умолчанию — сообщение называет файл и умолчание', async () => {
+    const root = await rootDir('r');
+    await makeExtension(root, 'acme.nomain', { withMain: false });
+    const { diagnostics } = await discoverExtensions({
+      roots: [{ dir: root, origin: 'bundled' }],
+      logger: createLogger(),
+    });
+    expect(diagnostics[0]!.message).toBe(
+      "main './main.mjs' (default) is not a file",
+    );
   });
 });

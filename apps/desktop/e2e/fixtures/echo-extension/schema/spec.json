@@ -1,6 +1,0 @@
-{
-  "type": "object",
-  "required": ["expected"],
-  "additionalProperties": false,
-  "properties": { "expected": { "type": "string", "minLength": 1 } }
-}

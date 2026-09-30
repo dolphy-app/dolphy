@@ -5,7 +5,7 @@
  * источников сканера, файлы заново не читаются.
  * Источник: spike/compiler/src/checks.ts, каталог кодов — report-compiler.md §3.1.
  */
-import type { Diagnostic, DiagnosticCode } from '@spirula/engine-contract';
+import type { Diagnostic, DiagnosticCode } from '@spirula-app/engine-contract';
 import type { ExerciseTypes } from '../ports/exercise-types.ts';
 import { findCycle } from '../domain/graph-algorithms.ts';
 import { buildClosure, hasAncestor, redundantEdges } from './closure.ts';

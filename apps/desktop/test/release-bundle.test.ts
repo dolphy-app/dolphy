@@ -15,7 +15,7 @@ import {
   createRestrictedRunner,
   discoverExtensions,
   inspectExtensionDir,
-} from '@spirula/extension-host';
+} from '@spirula-app/extension-host';
 
 const appDir = fileURLToPath(new URL('..', import.meta.url));
 const hostileDir = join(appDir, 'e2e/fixtures/hostile-extension');

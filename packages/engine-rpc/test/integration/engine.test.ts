@@ -1,23 +1,23 @@
 /**
- * Клиент `@spirula/engine-rpc` → диспетчер → настоящий `createEngine` через
+ * Клиент `@spirula-app/engine-rpc` → диспетчер → настоящий `createEngine` через
  * in-process пару (structuredClone на каждом сообщении, как в Electron).
  */
-import { RPC_METHODS } from '@spirula/engine-contract';
+import { RPC_METHODS } from '@spirula-app/engine-contract';
 import type {
   EngineEvent,
   ExtensionInfoDto,
   SavedFilterDto,
-} from '@spirula/engine-contract';
-import { createEngine } from '@spirula/engine/app';
+} from '@spirula-app/engine-contract';
+import { createEngine } from '@spirula-app/engine/app';
 import {
   createMemoryEventStore,
   createMemoryRepositoryStore,
   createMemorySettingsStore,
   createNodeSnapshotInstaller,
-} from '@spirula/engine/node';
-import { GitFetchError } from '@spirula/engine/ports';
-import type { GitSnapshotFetcher } from '@spirula/engine/ports';
-import { createTsFsrsMemoryModel } from '@spirula/engine';
+} from '@spirula-app/engine/node';
+import { GitFetchError } from '@spirula-app/engine/ports';
+import type { GitSnapshotFetcher } from '@spirula-app/engine/ports';
+import { createTsFsrsMemoryModel } from '@spirula-app/engine';
 import {
   buildAttempt,
   buildExercise,
@@ -32,7 +32,7 @@ import {
   createTestIds,
   silentLogger,
   T0_MS,
-} from '@spirula/testkit';
+} from '@spirula-app/testkit';
 import { describe, expect, it } from 'vitest';
 import { EngineCallError, createEngineClient } from '../../src/client/index.ts';
 import { createDispatcher, schemas } from '../../src/host/index.ts';

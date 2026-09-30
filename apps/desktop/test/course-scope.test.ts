@@ -6,7 +6,7 @@ import type {
   ProgressNodeDto,
   UiSettingsDto,
   UiSettingsPatch,
-} from '@spirula/engine-contract';
+} from '@spirula-app/engine-contract';
 import { loadCourses } from '@/entities/course';
 import { createCourseScope } from '@/features/course-scope/model/course-scope.ts';
 

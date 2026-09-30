@@ -7,7 +7,7 @@
  * дополнительно проверяется детерминированно подменой `random()`
  * (последовательность заданных значений).
  */
-import { createSeededRng } from '@spirula/testkit';
+import { createSeededRng } from '@spirula-app/testkit';
 import { describe, expect, it } from 'vitest';
 import type { Rng } from '../../src/ports/index.ts';
 import {

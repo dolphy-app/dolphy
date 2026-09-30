@@ -2,7 +2,7 @@ import type {
   LearningEngine,
   UnitId,
   UnitStatus,
-} from '@spirula/engine-contract';
+} from '@spirula-app/engine-contract';
 import { readAllPages } from '@/shared/lib/read-all-pages.ts';
 
 export interface CourseSummary {

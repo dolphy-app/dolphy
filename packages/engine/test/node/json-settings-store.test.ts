@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import type {
   SavedFilterDto,
   StudySessionWire,
-} from '@spirula/engine-contract';
+} from '@spirula-app/engine-contract';
 import { describe, expect, it } from 'vitest';
 import {
   canonicalFileName,

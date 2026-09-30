@@ -3,7 +3,7 @@ import type {
   ScorerInfoDto,
   SchedulerOptionsDto,
   UnitId,
-} from '@spirula/engine-contract';
+} from '@spirula-app/engine-contract';
 import type { ExerciseType } from '../domain/manifest.ts';
 import type { Clock } from '../ports/index.ts';
 import { ScoringError, UnknownUnitError } from './errors.ts';

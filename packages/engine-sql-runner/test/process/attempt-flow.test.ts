@@ -5,9 +5,9 @@
  * `completeAttempt`; `error`-вердикты не пишут событие и не считаются в
  * `attemptsUsed`; вердикт `failed` учитывается.
  */
-import type { VerdictDto } from '@spirula/engine-contract';
-import type { RawVerdict } from '@spirula/engine/ports';
-import { countGradedVerdicts, passAtN } from '@spirula/engine/verify';
+import type { VerdictDto } from '@spirula-app/engine-contract';
+import type { RawVerdict } from '@spirula-app/engine/ports';
+import { countGradedVerdicts, passAtN } from '@spirula-app/engine/verify';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { SqlVerifier } from '../../src/verifier.ts';
 import {

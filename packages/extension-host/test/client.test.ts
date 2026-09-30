@@ -1,4 +1,4 @@
-import type { MessageEndpoint } from '@spirula/engine-contract';
+import type { MessageEndpoint } from '@spirula-app/engine-contract';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createCatalog } from '../src/catalog.ts';
 import type { ResolvedExtension } from '../src/discover.ts';

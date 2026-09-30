@@ -13,7 +13,7 @@
 | Где живёт логика | В `utilityProcess` (хост движка), никогда в main и не в скрытом renderer (LogRocket: CPU-нагрузка в main замораживает приложение, в скрытом renderer деградирует) |
 | Транспорт | Один `MessagePort` на окно: создаёт main (`MessageChannelMain`), UI получает порт через preload. `ipcMain` — только два канала: `engine:connect` и `platform:pickDirectory`. Синхронный IPC (`sendSync`) запрещён |
 | Абстракция транспорта | Интерфейс `MessageEndpoint` (аналог `Delegate` из Lyricistant): клиент и диспетчер не знают про Electron. Адаптеры: `fromDomPort` (renderer), `fromNodePort` (хост), `createInProcessPair` (тесты и возможный веб) |
-| Пакеты | К четырём пакетам `engine-ts.md` §0 добавляется пятый — `@spirula/engine-rpc` (subpath `./client` без zod для renderer, `./host` с zod и диспетчером) |
+| Пакеты | К четырём пакетам `engine-ts.md` §0 добавляется пятый — `@spirula-app/engine-rpc` (subpath `./client` без zod для renderer, `./host` с zod и диспетчером) |
 | Стиль | Фабрики `createX(ctx)` и замыкания вместо классов (классы только `EngineError` и `EngineCallError`, наследники `Error`); стратегии — lookup-объекты и `Map`; Context вместо глобалов; GoF Proxy не используется, нативный `Proxy` запрещён (клиентский фасад строится из таблицы `RPC_METHODS`) |
 | Порядок команд | Одна FIFO-очередь на движок, внутри движка (не в транспорте); `practice.submitAnswer` вне очереди |
 | Ошибки | Домен бросает обычные `Error` (баги), операционные проблемы — `EngineError(code)`; на границе RPC → `EngineErrorDto` |
@@ -37,9 +37,9 @@ src/**  ── LearningEngine ──►  window.spirula.{engine,platform}  shell
 
 | Вид кода | Где | Зависимости |
 |---|---|---|
-| UI-код | renderer, `apps/desktop/src/**` | Знает только `LearningEngine` из `@spirula/engine-contract` (через `import type`) и `@spirula/engine-rpc/client`; `electron` не импортирует |
-| Платформенно-специфичный | main, preload, `electron/host/index.ts` (тонкая проводка) | `electron`, типы и константы `@spirula/engine-contract` |
-| Платформенно-независимый | `@spirula/engine`, `@spirula/engine-rpc`, `@spirula/engine-sqlite`, `@spirula/engine-sql-runner` | Без `electron`; работает в Node, в vitest и, теоретически, в вебе |
+| UI-код | renderer, `apps/desktop/src/**` | Знает только `LearningEngine` из `@spirula-app/engine-contract` (через `import type`) и `@spirula-app/engine-rpc/client`; `electron` не импортирует |
+| Платформенно-специфичный | main, preload, `electron/host/index.ts` (тонкая проводка) | `electron`, типы и константы `@spirula-app/engine-contract` |
+| Платформенно-независимый | `@spirula-app/engine`, `@spirula-app/engine-rpc`, `@spirula-app/engine-sqlite`, `@spirula-app/engine-sql-runner` | Без `electron`; работает в Node, в vitest и, теоретически, в вебе |
 
 ## 2. Раскладка пакетов и правила зависимостей
 
@@ -67,12 +67,12 @@ apps/desktop/src/engine/         connect.ts, use-*.ts
 | `domain`, `scoring`, `scheduler` | друг друга и `ports` (только типы) | `node:*`, `app`, адаптеры |
 | `app` | домен и `ports` | адаптеры, `node:*` |
 | `node/` и адаптеры (`engine-sqlite`, `engine-sql-runner`) | `ports` (типы) и Node | `app`, `electron` |
-| `engine-rpc/client` | `engine-contract` | zod, `@spirula/engine`, `electron` |
-| `engine-rpc/host` | `engine-contract`, `@spirula/engine` (для `EngineError`), zod | `electron` |
-| main (`electron/main`) | `engine-contract` (типы, константы), `electron` | `@spirula/engine` |
-| renderer (`src/**`) | `engine-contract` (типы), `engine-rpc/client`, Vue | `electron`, `@spirula/engine`, `@spirula/engine-sqlite`, `@spirula/engine-sql-runner` |
+| `engine-rpc/client` | `engine-contract` | zod, `@spirula-app/engine`, `electron` |
+| `engine-rpc/host` | `engine-contract`, `@spirula-app/engine` (для `EngineError`), zod | `electron` |
+| main (`electron/main`) | `engine-contract` (типы, константы), `electron` | `@spirula-app/engine` |
+| renderer (`src/**`) | `engine-contract` (типы), `engine-rpc/client`, Vue | `electron`, `@spirula-app/engine`, `@spirula-app/engine-sqlite`, `@spirula-app/engine-sql-runner` |
 
-Планируемое усиление линтера (не в этой задаче): правила `no-restricted-imports` для `electron` и для `@spirula/engine`, `@spirula/engine-sqlite`, `@spirula/engine-sql-runner` в `apps/desktop/src/**` и для `@spirula/engine` в `apps/desktop/electron/main/**`; сейчас границы держатся только ревью.
+Планируемое усиление линтера (не в этой задаче): правила `no-restricted-imports` для `electron` и для `@spirula-app/engine`, `@spirula-app/engine-sqlite`, `@spirula-app/engine-sql-runner` в `apps/desktop/src/**` и для `@spirula-app/engine` в `apps/desktop/electron/main/**`; сейчас границы держатся только ревью.
 
 ## 3. Стиль реализации (metarhia)
 
@@ -90,7 +90,7 @@ apps/desktop/src/engine/         connect.ts, use-*.ts
 Порты `packages/engine/src/ports/index.ts`. `MemoryModel` и `Rng` — как в `engine-ts.md` §6, здесь не повторяются; остальные сигнатуры в дизайне не были выписаны, введены здесь **[ВЫВОД]**.
 
 ```ts
-import type { EpochMs, SubmissionDto, VerdictDto } from '@spirula/engine-contract';
+import type { EpochMs, SubmissionDto, VerdictDto } from '@spirula-app/engine-contract';
 import type { LogEntry } from '../domain/journal.ts';
 
 export interface Clock {
@@ -267,7 +267,7 @@ export const createFacade = (ctx, services) => {
 `packages/engine/src/app/errors.ts`. Таблица `ERRORS` содержит все 22 кода `EngineErrorCode` (API §2) с `retryable` по API §8.
 
 ```ts
-import type { EngineErrorCode, EngineErrorDto } from '@spirula/engine-contract';
+import type { EngineErrorCode, EngineErrorDto } from '@spirula-app/engine-contract';
 
 const ERRORS: Record<EngineErrorCode, { message: string; retryable: boolean }> =
   {
@@ -666,7 +666,7 @@ export const createPracticeService = (ctx: EngineContext): PracticeService => {
 | `placement` | `createExpiringMap` для сессий, `journal` при `finish` с `source: 'placement'` | Нет | В очереди |
 | `remediation` | Проекция `RemediationTracker`; `getPlan` — чтение | `remediation-triggered` эмитит `practice` | В очереди |
 
-## 8. Транспорт (`@spirula/engine-rpc`)
+## 8. Транспорт (`@spirula-app/engine-rpc`)
 
 `packages/engine-contract/src/rpc.ts` — только типы и константы. Таблица `RPC_METHODS` содержит по одной строке на каждый метод `LearningEngine` и вложенных сервисов из API §3–§7, кроме `subscribe` и `close`: по RPC их нет (`subscribe` заменён служебными сообщениями `RPC_CONTROL`, `close` из renderer не вызывается никогда). `idempotent: true` — методы, перечисленные идемпотентными в API §1 (`recordAttempt`, `completeAttempt`, `placement.finish`, `resetProgress`, `sync.import`, `sync.folder.sync`) и все чтения без побочных эффектов (`get*`, `list*`, `matchPrefix`, `readAsset`, `has`, `plan.getDay`, `remediation.getPlan`, `library.validate`, `diagnostics`); остальные — `false` (API §1: `getBatch`, `startSession`, `beginAttempt`, `placement.start`/`answer`, `sync.resolveConflict` и прочие команды).
 
@@ -1031,7 +1031,7 @@ export const createInProcessPair = (): [MessageEndpoint, MessageEndpoint] => {
 
 ```ts
 it('recordAttempt через RPC идемпотентен', async () => {
-  const engine = await createTestEngine(); // @spirula/testkit
+  const engine = await createTestEngine(); // @spirula-app/testkit
   const dispatcher = createDispatcher({
     engine,
     schemas,
@@ -1108,7 +1108,7 @@ parentPort.on('message', async ({ data, ports }) => {
 });
 ```
 
-`spawnWorker` — внедряемая функция: `child_process.fork` внутри `utilityProcess` работает, если передать детям `ELECTRON_RUN_AS_NODE=1` (`process.execPath` там — бинарь `Electron Helper`, без флага он запустил бы приложение); раннер стартует как Node с полным профилем (`node:sqlite`, `setAuthorizer`, `db.limits`), пул убивается и переживает падение хоста без осиротевших процессов **[ИЗМЕРЕНО]** (2026-09-29, Electron 44.4.5 (Node 24.21.0, Chrome 152), macOS arm64, смоук `sql`, `apps/desktop/scripts/smoke.mjs`). Запасной вариант (main порождает раннеры и передаёт порты) не понадобился. `workerPath` — собранный `sql-worker.js` рядом с бандлом хоста (`electron/host/sql-worker.ts` импортирует `@spirula/engine-sql-runner/worker`); в упакованном приложении он читается из `app.asar`, `better-sqlite3` — из `app.asar.unpacked` **[ИЗМЕРЕНО]** (электрон запущен как Node на упакованном `.app`). В упакованном приложении фьюз `runAsNode` должен оставаться включённым (по умолчанию так) **[ВЫВОД]**. Ошибка `boot` (кроме ошибок библиотеки — они внутри движка как состояние `library-invalid`) приводит к падению процесса и перезапуску супервизором; при первом запуске `boot` создаёт `libraryRoot` и `dataDir` (без каталога `scandir` падал и хост уходил в цикл перезапусков до `onFatal`) **[ИЗМЕРЕНО]**; `STORE_CORRUPT` движок обрабатывает сам (режим чтения журнала).
+`spawnWorker` — внедряемая функция: `child_process.fork` внутри `utilityProcess` работает, если передать детям `ELECTRON_RUN_AS_NODE=1` (`process.execPath` там — бинарь `Electron Helper`, без флага он запустил бы приложение); раннер стартует как Node с полным профилем (`node:sqlite`, `setAuthorizer`, `db.limits`), пул убивается и переживает падение хоста без осиротевших процессов **[ИЗМЕРЕНО]** (2026-09-29, Electron 44.4.5 (Node 24.21.0, Chrome 152), macOS arm64, смоук `sql`, `apps/desktop/scripts/smoke.mjs`). Запасной вариант (main порождает раннеры и передаёт порты) не понадобился. `workerPath` — собранный `sql-worker.js` рядом с бандлом хоста (`electron/host/sql-worker.ts` импортирует `@spirula-app/engine-sql-runner/worker`); в упакованном приложении он читается из `app.asar`, `better-sqlite3` — из `app.asar.unpacked` **[ИЗМЕРЕНО]** (электрон запущен как Node на упакованном `.app`). В упакованном приложении фьюз `runAsNode` должен оставаться включённым (по умолчанию так) **[ВЫВОД]**. Ошибка `boot` (кроме ошибок библиотеки — они внутри движка как состояние `library-invalid`) приводит к падению процесса и перезапуску супервизором; при первом запуске `boot` создаёт `libraryRoot` и `dataDir` (без каталога `scandir` падал и хост уходил в цикл перезапусков до `onFatal`) **[ИЗМЕРЕНО]**; `STORE_CORRUPT` движок обрабатывает сам (режим чтения журнала).
 
 ## 10. Main: шеллы и супервизор
 
@@ -1382,7 +1382,7 @@ export const useDue = (engine: LearningEngine) => {
 
 | Идея | Источник | Применение |
 |---|---|---|
-| Общий модуль типов сообщений | LogRocket | `@spirula/engine-contract` и `RPC_METHODS` |
+| Общий модуль типов сообщений | LogRocket | `@spirula-app/engine-contract` и `RPC_METHODS` |
 | Бэкенд в отдельном Node-процессе, не в main и не в скрытом renderer | LogRocket | `utilityProcess`-хост |
 | Async request/response для коротких операций, события для долгих и для состояния UI | LogRocket | RPC и `subscribe` |
 | UI не знает про Electron | LogRocket, dev.to | Renderer видит `LearningEngine` |

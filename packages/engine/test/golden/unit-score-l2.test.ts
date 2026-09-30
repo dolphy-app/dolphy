@@ -21,8 +21,8 @@ import { cpSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createFakeClock } from '@spirula/testkit';
-import type { UnitId } from '@spirula/engine-contract';
+import { createFakeClock } from '@spirula-app/testkit';
+import type { UnitId } from '@spirula-app/engine-contract';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createNodeFsCourseSource } from '../../src/node/index.ts';
 import {

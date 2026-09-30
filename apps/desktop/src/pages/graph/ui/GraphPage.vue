@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
-import type { UnitId } from '@spirula/engine-contract';
+import type { UnitId } from '@spirula-app/engine-contract';
 import { useEngine } from '@/shared/api/engine';
 import { ROUTE } from '@/shared/config/routes.ts';
 import PageHeader from '@/shared/ui/PageHeader.vue';

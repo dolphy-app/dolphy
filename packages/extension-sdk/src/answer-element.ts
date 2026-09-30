@@ -3,7 +3,7 @@ import {
   ELEMENT_NAME_PATTERN,
   type AnswerChangeDetail,
   type AnswerElementProps,
-} from '@spirula/extension-api';
+} from '@spirula-app/extension-api';
 
 export interface AnswerElementApi {
   readonly root: ShadowRoot;

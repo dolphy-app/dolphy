@@ -7,7 +7,7 @@ import {
   useTemplateRef,
   watch,
 } from 'vue';
-import type { AnswerChangeDetail } from '@spirula/extension-api';
+import type { AnswerChangeDetail } from '@spirula-app/extension-api';
 import { createFrameHost } from '@/shared/lib/frame-bridge.ts';
 import type { FrameHost, FrameInit } from '@/shared/lib/frame-bridge.ts';
 

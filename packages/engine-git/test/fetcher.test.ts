@@ -10,12 +10,12 @@ import {
   SnapshotRejectedError,
   type SnapshotLimits,
   type SnapshotViolation,
-} from '@spirula/engine/ports';
+} from '@spirula-app/engine/ports';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { createIsomorphicGitFetcher } from '../src/index.ts';
-import { serveGitRepo } from '@spirula/testkit';
-import type { GitFiles, GitServer } from '@spirula/testkit';
+import { serveGitRepo } from '@spirula-app/testkit';
+import type { GitFiles, GitServer } from '@spirula-app/testkit';
 
 // Тесты требуют системный git с `http-backend`; без него падаем громко.
 beforeAll(() => {

@@ -1,4 +1,4 @@
-import type { ItemReason, UnitId } from '@spirula/engine-contract';
+import type { ItemReason, UnitId } from '@spirula-app/engine-contract';
 import type { Rng } from '../ports/index.ts';
 import type { CreditModel } from './credit-model.ts';
 import { interleave } from './interleave.ts';

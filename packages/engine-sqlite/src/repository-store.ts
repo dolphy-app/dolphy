@@ -1,5 +1,8 @@
-import type { RepositoryRecord, RepositoryStore } from '@spirula/engine/ports';
-import { EngineError } from '@spirula/engine/app';
+import type {
+  RepositoryRecord,
+  RepositoryStore,
+} from '@spirula-app/engine/ports';
+import { EngineError } from '@spirula-app/engine/app';
 import { guard } from './errors.ts';
 import type { SqlDatabase } from './sql-database.ts';
 

@@ -1,9 +1,12 @@
 import { fork } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { createSqlVerifier, isSafePath } from '@spirula/engine-sql-runner';
-import { defineExerciseType, defineExtension } from '@spirula/extension-sdk';
-import type { ExtensionContext } from '@spirula/extension-sdk';
+import { createSqlVerifier, isSafePath } from '@spirula-app/engine-sql-runner';
+import {
+  defineExerciseType,
+  defineExtension,
+} from '@spirula-app/extension-sdk';
+import type { ExtensionContext } from '@spirula-app/extension-sdk';
 
 interface SqlSpec {
   reference?: unknown;

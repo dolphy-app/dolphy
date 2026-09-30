@@ -1,4 +1,4 @@
-import type { EpochMs } from '@spirula/engine-contract';
+import type { EpochMs } from '@spirula-app/engine-contract';
 import type { ExerciseType } from '../domain/manifest.ts';
 import {
   type Constants,

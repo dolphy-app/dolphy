@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
-// Тип из git-сервера @spirula/testkit; сам сервер e2e берёт из файла, а не из
+// Тип из git-сервера @spirula-app/testkit; сам сервер e2e берёт из файла, а не из
 // индекса пакета: индекс тянет движок и fast-check (их нет среди зависимостей
 // приложения)
 import type { GitFiles } from '../../../../packages/testkit/src/git-server.ts';

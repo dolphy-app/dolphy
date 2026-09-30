@@ -12,8 +12,8 @@ import { statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { setTimeout } from 'node:timers/promises';
 import { join } from 'node:path';
-import type { CourseSource } from '@spirula/engine';
-import { createMemoryCourseSource, buildLibrary } from '@spirula/testkit';
+import type { CourseSource } from '@spirula-app/engine';
+import { createMemoryCourseSource, buildLibrary } from '@spirula-app/testkit';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createNodeFsCourseSource } from '../../src/node/index.ts';
 

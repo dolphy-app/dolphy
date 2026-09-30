@@ -1,4 +1,4 @@
-import type { ExtensionModule } from '@spirula/extension-api';
+import type { ExtensionModule } from '@spirula-app/extension-api';
 import { helper } from './helper.ts';
 
 const extension: ExtensionModule = {

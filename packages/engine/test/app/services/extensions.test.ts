@@ -1,11 +1,11 @@
 import type {
   ContributionsDto,
   ExtensionInfoDto,
-} from '@spirula/engine-contract';
+} from '@spirula-app/engine-contract';
 import {
   createFakeExtensionPolicy,
   createFakeExtensionRegistry,
-} from '@spirula/testkit';
+} from '@spirula-app/testkit';
 import { createMemorySettingsStore } from '../../../src/node/memory-settings-store.ts';
 import { describe, expect, it } from 'vitest';
 import { createTestEngine } from '../../helpers/engine.ts';

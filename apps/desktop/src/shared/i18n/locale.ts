@@ -1,4 +1,4 @@
-import type { LocaleMode } from '@spirula/engine-contract';
+import type { LocaleMode } from '@spirula-app/engine-contract';
 
 export const LOCALES = ['ru', 'en'] as const;
 export type AppLocale = (typeof LOCALES)[number];

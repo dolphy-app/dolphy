@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch, watchEffect } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { ExerciseTaskDto, VerdictDto } from '@spirula/engine-contract';
-import { ANSWER_EVENT } from '@spirula/extension-api';
-import type { AnswerChangeDetail } from '@spirula/extension-api';
+import type { ExerciseTaskDto, VerdictDto } from '@spirula-app/engine-contract';
+import { ANSWER_EVENT } from '@spirula-app/extension-api';
+import type { AnswerChangeDetail } from '@spirula-app/extension-api';
 import { frameUrlOf } from '@/shared/lib/frame-bridge.ts';
 import { ensureAnswerElement } from '@/shared/lib/answer-element.ts';
 import IsolatedFrame from '@/shared/ui/IsolatedFrame.vue';

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
-import { ANSWER_EVENT } from '@spirula/extension-api';
-import type { AnswerChangeDetail } from '@spirula/extension-api';
+import { ANSWER_EVENT } from '@spirula-app/extension-api';
+import type { AnswerChangeDetail } from '@spirula-app/extension-api';
 import { afterEach, describe, expect, it } from 'vitest';
 import '../src/view.ts';
 

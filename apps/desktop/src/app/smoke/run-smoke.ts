@@ -4,7 +4,7 @@
  * (`spirula.sql`, `spirula.choice`). Библиотеки — `sql-course` и `choice-course`
  * (`lib_kb`), см. `scripts/smoke.mjs`.
  */
-import type { EngineEvent, LearningEngine } from '@spirula/engine-contract';
+import type { EngineEvent, LearningEngine } from '@spirula-app/engine-contract';
 import type { SmokeBridge } from '../../../shared/smoke.ts';
 import { ensureAnswerElement } from '@/shared/lib/answer-element.ts';
 

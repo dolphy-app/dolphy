@@ -4,7 +4,7 @@ import type {
   PlanRequest,
   PlanService,
   UnitId,
-} from '@spirula/engine-contract';
+} from '@spirula-app/engine-contract';
 import type { Library } from '../../domain/library.ts';
 import { collectDue } from '../../planning/due-set.ts';
 import {

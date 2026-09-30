@@ -1,4 +1,4 @@
-import type { ExtensionPermission } from '@spirula/extension-api';
+import type { ExtensionPermission } from '@spirula-app/extension-api';
 
 /**
  * Разрешение → флаги режима разрешений Node для ограниченного процесса.

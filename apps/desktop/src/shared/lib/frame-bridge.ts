@@ -1,4 +1,4 @@
-import type { AnswerChangeDetail } from '@spirula/extension-api';
+import type { AnswerChangeDetail } from '@spirula-app/extension-api';
 import { createDomThemeSource } from './frame-theme.ts';
 import type { ThemeSource } from './frame-theme.ts';
 

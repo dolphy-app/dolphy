@@ -1,8 +1,8 @@
 import type {
   ContributionsDto,
   ExtensionInfoDto,
-} from '@spirula/engine-contract';
-import type { ExtensionRegistry } from '@spirula/engine/ports';
+} from '@spirula-app/engine-contract';
+import type { ExtensionRegistry } from '@spirula-app/engine/ports';
 
 /** Реестр расширений с фиксированным содержимым (по умолчанию пуст). */
 export const createFakeExtensionRegistry = (

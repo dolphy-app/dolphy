@@ -1,6 +1,6 @@
 import { effectScope } from 'vue';
 import { describe, expect, it, vi } from 'vitest';
-import type { LearningEngine } from '@spirula/engine-contract';
+import type { LearningEngine } from '@spirula-app/engine-contract';
 import { useAppearanceSettings } from '@/pages/settings/model/appearance.ts';
 
 const changes: string[] = [];

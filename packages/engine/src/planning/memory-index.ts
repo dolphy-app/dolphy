@@ -1,4 +1,4 @@
-import type { SchedulerOptionsDto, UnitId } from '@spirula/engine-contract';
+import type { SchedulerOptionsDto, UnitId } from '@spirula-app/engine-contract';
 import type {
   EffectiveAttempt,
   MemoryIndex as MemoryIndexPort,

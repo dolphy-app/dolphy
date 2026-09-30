@@ -1,5 +1,5 @@
 {
-  "name": "@spirula/ext-sql",
+  "name": "@spirula-app/ext-sql",
   "version": "0.0.0",
   "private": true,
   "description": "Расширение spirula.sql: SQL-задания с проверкой раннером",
@@ -10,18 +10,18 @@
     "build": "spirula-ext build"
   },
   "dependencies": {
-    "@spirula/engine-sql-runner": "workspace:*",
-    "@spirula/extension-api": "workspace:*",
-    "@spirula/extension-sdk": "workspace:*"
+    "@spirula-app/engine-sql-runner": "workspace:*",
+    "@spirula-app/extension-api": "workspace:*",
+    "@spirula-app/extension-sdk": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.20.4",
     "typescript": "7.0.2",
-    "@spirula/engine": "workspace:*",
-    "@spirula/engine-contract": "workspace:*",
-    "@spirula/extension-host": "workspace:*",
-    "@spirula/testkit": "workspace:*",
-    "@spirula/extension-tools": "workspace:*",
+    "@spirula-app/engine": "workspace:*",
+    "@spirula-app/engine-contract": "workspace:*",
+    "@spirula-app/extension-host": "workspace:*",
+    "@spirula-app/testkit": "workspace:*",
+    "@spirula-app/extension-tools": "workspace:*",
     "happy-dom": "^20.14.5"
   },
   "engines": {

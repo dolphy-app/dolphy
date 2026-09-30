@@ -1,4 +1,4 @@
-import type { MessageEndpoint } from '@spirula/engine-contract';
+import type { MessageEndpoint } from '@spirula-app/engine-contract';
 
 /** Структурный тип `MessagePortMain` (Electron) и `MessagePort` из `node:worker_threads` в Node-стиле. */
 export interface NodePortLike {

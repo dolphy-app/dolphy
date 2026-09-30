@@ -1,5 +1,5 @@
 /** Элемент ввода ответа `spirula-sql-answer`; побочный эффект загрузки — регистрация. */
-import { defineAnswerElement } from '@spirula/extension-sdk';
+import { defineAnswerElement } from '@spirula-app/extension-sdk';
 
 const STYLE = `
   :host { display: block; }

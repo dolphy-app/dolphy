@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { EXTENSION_ID_PATTERN } from '@spirula/extension-api';
+import { EXTENSION_ID_PATTERN } from '@spirula-app/extension-api';
 import type { MainLogger } from '../logger.ts';
 import frameRuntime from './frame-runtime.js?raw';
 import type { Shell } from './types.ts';

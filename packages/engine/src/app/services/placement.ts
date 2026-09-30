@@ -9,7 +9,7 @@ import type {
   PlacementStartResult,
   PlacementSummaryDto,
   UnitId,
-} from '@spirula/engine-contract';
+} from '@spirula-app/engine-contract';
 import {
   CLASS_KNOWN,
   CLASS_UNCERTAIN,

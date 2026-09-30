@@ -5,7 +5,7 @@
  */
 import fc from 'fast-check';
 import { describe, expect, test } from 'vitest';
-import type { UnitId } from '@spirula/engine-contract';
+import type { UnitId } from '@spirula-app/engine-contract';
 import { MS_PER_DAY } from '../../src/scoring/constants.ts';
 import { createCreditModel } from '../../src/planning/credit-model.ts';
 import { createMemoryIndex } from '../../src/planning/memory-index.ts';

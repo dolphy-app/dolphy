@@ -3,7 +3,7 @@ import type {
   EngineEvent,
   LearningEngine,
   LibraryInfo,
-} from '@spirula/engine-contract';
+} from '@spirula-app/engine-contract';
 
 const REFRESH_ON: Partial<Record<EngineEvent['type'], true>> = {
   'library-reloaded': true,

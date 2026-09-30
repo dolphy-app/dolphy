@@ -2,11 +2,11 @@ import {
   DEFAULT_MAIN,
   EXTENSION_API_VERSION,
   EXTENSION_PERMISSIONS,
-} from '@spirula/extension-api';
+} from '@spirula-app/extension-api';
 import type {
   ExtensionManifest,
   ExtensionManifestInput,
-} from '@spirula/extension-api';
+} from '@spirula-app/extension-api';
 import { z } from 'zod';
 import { CONTRIBUTION_POINTS } from './points/index.ts';
 import { extensionId, safePath } from './points/support.ts';

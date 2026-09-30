@@ -1,4 +1,4 @@
-import type { UnitId } from '@spirula/engine-contract';
+import type { UnitId } from '@spirula-app/engine-contract';
 
 export type UnitKind = 'course' | 'lesson' | 'exercise';
 

@@ -1,5 +1,5 @@
 {
-  "name": "@spirula/create-extension",
+  "name": "@spirula-app/create-extension",
   "version": "0.0.0",
   "private": true,
   "description": "Генератор проекта расширения: create-spirula-extension <каталог>",
@@ -16,12 +16,12 @@
     "create-extension": "node --disable-warning=ExperimentalWarning src/cli/main.ts"
   },
   "dependencies": {
-    "@spirula/extension-api": "workspace:*"
+    "@spirula-app/extension-api": "workspace:*"
   },
   "devDependencies": {
-    "@spirula/extension-host": "workspace:*",
-    "@spirula/extension-sdk": "workspace:*",
-    "@spirula/extension-tools": "workspace:*",
+    "@spirula-app/extension-host": "workspace:*",
+    "@spirula-app/extension-sdk": "workspace:*",
+    "@spirula-app/extension-tools": "workspace:*",
     "@types/node": "^22.20.4",
     "typescript": "7.0.2"
   },

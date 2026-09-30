@@ -1,4 +1,4 @@
-import { buildLibrary } from '@spirula/testkit';
+import { buildLibrary } from '@spirula-app/testkit';
 import { describe, expect, it } from 'vitest';
 import { assembleLibrary } from '../../src/domain/library.ts';
 import { buildPlacementTopics } from '../../src/placement/index.ts';

@@ -1,7 +1,7 @@
 import type {
   SavedFilterDto,
   StudySessionWire,
-} from '@spirula/engine-contract';
+} from '@spirula-app/engine-contract';
 import { describe, expect, it } from 'vitest';
 import type { SettingsStore } from '../../src/ports/index.ts';
 

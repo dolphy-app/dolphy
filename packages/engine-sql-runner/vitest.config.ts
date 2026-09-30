@@ -4,7 +4,7 @@ export default defineConfig({
   test: {
     name: 'engine-sql-runner',
     include: ['test/**/*.test.ts'],
-    // бенчи запускает только vitest.bench.config.ts (`pnpm -F @spirula/engine-sql-runner bench`)
+    // бенчи запускает только vitest.bench.config.ts (`pnpm -F @spirula-app/engine-sql-runner bench`)
     benchmark: { include: [] },
     // дочерние процессы раннера: порождение, kill и сборка мусора не любят перегрузки
     testTimeout: 60_000,

@@ -36,7 +36,7 @@ spirula.choice/
 
 Правила манифеста проверяет `parseManifest` (`packages/extension-host/src/manifest.ts`): `id` — `[a-z][a-z0-9-]*(.[a-z][a-z0-9-]*)*`; `id` вида равен `id` расширения или начинается с `<id>.`; `main` — `.mjs`, `renderer` — `.js` или `.mjs`; выведенный или явный `element` — допустимое имя тега (с дефисом); все пути относительные и внутри каталога; `apiVersion` — `1`. Неизвестные ключи `contributes` отклоняются: расширение с более новой точкой вклада не загрузится в старом приложении. Имя каталога равно `id`. Если файл по умолчанию (`main.mjs`, `view.mjs`) отсутствует, диагностика называет его и помечает как умолчание.
 
-Типы и константы API — пакет `@spirula/extension-api`.
+Типы и константы API — пакет `@spirula-app/extension-api`.
 
 ## Код расширения
 
@@ -195,7 +195,7 @@ engine:
 Файл `src/markdown.ts` (рендерер содержимого):
 
 ```ts
-import { defineMarkdownRenderer } from '@spirula/extension-sdk';
+import { defineMarkdownRenderer } from '@spirula-app/extension-sdk';
 
 export default defineMarkdownRenderer((source, container) => {
   const pre = container.ownerDocument.createElement('pre');
@@ -226,7 +226,7 @@ export default defineMarkdownRenderer((source, container) => {
 Файл `src/main.ts` (правило оценки):
 
 ```ts
-import { defineExtension } from '@spirula/extension-sdk';
+import { defineExtension } from '@spirula-app/extension-sdk';
 
 export default defineExtension({
   gradePolicies: {
@@ -244,11 +244,11 @@ export default defineExtension({
 - Результат — целое 1–5 или `null` («правило оценки не ставит, нужна самооценка»); можно вернуть промис.
 - `id` — не `passAtN` (занят встроенным правилом), `label` — 1–60 символов; правило в коде регистрируется под тем же `id` (`registerGradePolicy`, в SDK — ключ `gradePolicies` в `defineExtension`). Нужен `main`.
 - Любой сбой правила — хост недоступен, исключение, дедлайн 2 с (`POLICY_DEADLINE_MS` в `packages/extension-host/src/client.ts`), результат вне 1–5 и не `null`, расширение пропало — даёт предупреждение в лог и оценку по `passAtN` (`resolveGradePolicy`); закрытие попытки не зависит от чужого кода. Если выбранное правило пропало, экран настроек показывает, что действует Pass@N.
-- Проверить правило без приложения: `loadGradePolicy` из `@spirula/extension-sdk/testing`.
+- Проверить правило без приложения: `loadGradePolicy` из `@spirula-app/extension-sdk/testing`.
 
 ### Как добавить новую точку вклада
 
-Для разработчиков платформы: точка — один модуль в `packages/extension-host/src/points/` (`ContributionPoint`: zod-схема записи, `normalize`, `check`, `resolve` файлов, `claims` для конфликтов, `needsMain`), который добавляется в список `CONTRIBUTION_POINTS` (`points/index.ts`); типы записи и ключ манифеста — в `@spirula/extension-api`. Если данные нужны окну приложения, добавьте поле в `ContributionsDto` и отдавайте его через порт `ExtensionRegistry.contributions()`; если нужен вызов кода расширения — метод в протоколе `protocol.ts`, регистрация в `ExtensionContext` и порт в `@spirula/engine`, как у `GradePolicies`.
+Для разработчиков платформы: точка — один модуль в `packages/extension-host/src/points/` (`ContributionPoint`: zod-схема записи, `normalize`, `check`, `resolve` файлов, `claims` для конфликтов, `needsMain`), который добавляется в список `CONTRIBUTION_POINTS` (`points/index.ts`); типы записи и ключ манифеста — в `@spirula-app/extension-api`. Если данные нужны окну приложения, добавьте поле в `ContributionsDto` и отдавайте его через порт `ExtensionRegistry.contributions()`; если нужен вызов кода расширения — метод в протоколе `protocol.ts`, регистрация в `ExtensionContext` и порт в `@spirula-app/engine`, как у `GradePolicies`.
 
 ## Права и изоляция
 
@@ -262,7 +262,7 @@ export default defineExtension({
 
 ### Разрешения в манифесте
 
-Манифест объявляет `permissions` — список из `EXTENSION_PERMISSIONS` (`@spirula/extension-api`). Дубли и неизвестные имена отклоняет `parseManifest`, `spirula-ext validate` печатает ошибку вида `permissions.0: …`. Без объявления у кода расширения нет ни одного разрешения. Разрешения применяются автоматически по объявленному, без запроса у пользователя; он видит их в «Настройки → Расширения» заранее.
+Манифест объявляет `permissions` — список из `EXTENSION_PERMISSIONS` (`@spirula-app/extension-api`). Дубли и неизвестные имена отклоняет `parseManifest`, `spirula-ext validate` печатает ошибку вида `permissions.0: …`. Без объявления у кода расширения нет ни одного разрешения. Разрешения применяются автоматически по объявленному, без запроса у пользователя; он видит их в «Настройки → Расширения» заранее.
 
 Сопоставление «разрешение → возможность» — одна таблица, `packages/extension-host/src/permissions.ts`:
 
@@ -373,7 +373,7 @@ CSP страницы рамки (`FRAME_CSP`, `extension-assets.ts`): `default-s
 
 ## Как написать расширение
 
-Расширение — каталог с `extension.json`, кодом для процесса расширений (`main.mjs`) и, при необходимости, элементом ввода ответа (`view.mjs`). Писать его удобнее всего на TypeScript с [`@spirula/extension-sdk`](../../packages/extension-sdk/README.md), собирать — [`spirula-ext`](../../packages/extension-tools/README.md).
+Расширение — каталог с `extension.json`, кодом для процесса расширений (`main.mjs`) и, при необходимости, элементом ввода ответа (`view.mjs`). Писать его удобнее всего на TypeScript с [`@spirula-app/extension-sdk`](../../packages/extension-sdk/README.md), собирать — [`spirula-ext`](../../packages/extension-tools/README.md).
 
 ### Быстрый старт
 
@@ -387,7 +387,7 @@ pnpm test
 pnpm dev # spirula-ext build --watch
 ```
 
-`--local <корень>` подключает `@spirula/extension-sdk` и `@spirula/extension-tools` как `link:<корень>/packages/...` (пакеты не опубликованы; без флага в `package.json` попадёт условное `^0.0.0`, и генератор напечатает предупреждение). Id по умолчанию — kebab-case имени каталога, задаётся флагом `--id`. Во втором терминале запустите приложение с каталогом сборки:
+`--local <корень>` подключает `@spirula-app/extension-sdk` и `@spirula-app/extension-tools` как `link:<корень>/packages/...` (пакеты не опубликованы; без флага в `package.json` попадёт условное `^0.0.0`, и генератор напечатает предупреждение). Id по умолчанию — kebab-case имени каталога, задаётся флагом `--id`. Во втором терминале запустите приложение с каталогом сборки:
 
 ```sh
 SPIRULA_DEV_EXTENSIONS=~/projects/acme-hello/dist-ext pnpm dev
@@ -443,7 +443,7 @@ acme-hello/
 `src/main.ts`:
 
 ```ts
-import { defineExerciseType, defineExtension } from '@spirula/extension-sdk';
+import { defineExerciseType, defineExtension } from '@spirula-app/extension-sdk';
 
 interface Spec {
   expected: string;
@@ -479,7 +479,7 @@ export default defineExtension({
 - `defineExtension({ exerciseTypes, activate?, deactivate? })` — готовый модуль расширения (`export default` в `main.ts`): виды из `exerciseTypes` регистрируются сами, при `deactivate` освобождаются.
 - `defineExerciseType<Spec, Answer, View>({ project, grade, referenceAnswer? })` — типизированный обработчик. `project` отдаёт элементу публичный вид задания (без ключей ответа); `grade` возвращает `{ outcome: 'passed' }`, `{ outcome: 'failed', reason, detail? }` или `{ outcome: 'error', reason }`; `referenceAnswer` — эталон для проверки библиотеки компилятором. К моменту вызова `grade` `spec` и ответ уже проверены схемами из манифеста.
 - `defineAnswerElement(tag, mount)` — определяет custom element с shadow DOM. `mount(api, props)` получает `api.root`, `api.label` (`aria-label` от приложения), `api.setAnswer(value, complete)` и `api.submit()`, возвращает `{ update(props), destroy?() }`; `props` — `view`, `value`, `disabled`, `verdict`.
-- `@spirula/extension-sdk/testing`: `loadExerciseType(module, type)` запускает `project`/`grade`/`referenceAnswer` без приложения и проверяет форму результата; `createSchemaValidator(schema)` — проверка `spec` и ответа по своим схемам; `createMemoryLibrary(files)` — библиотека в памяти для видов, читающих файлы курса.
+- `@spirula-app/extension-sdk/testing`: `loadExerciseType(module, type)` запускает `project`/`grade`/`referenceAnswer` без приложения и проверяет форму результата; `createSchemaValidator(schema)` — проверка `spec` и ответа по своим схемам; `createMemoryLibrary(files)` — библиотека в памяти для видов, читающих файлы курса.
 
 ### Сборка и проверка
 
@@ -489,7 +489,7 @@ pnpm validate  # spirula-ext validate dist-ext/<id>
 pnpm test
 ```
 
-`spirula-ext validate` разбирает манифест тем же кодом, что приложение (`inspectExtensionDir`), и завершается кодом 1 при проблеме. Подробности, дополнительные входы и внешние пакеты — в README `@spirula/extension-tools`.
+`spirula-ext validate` разбирает манифест тем же кодом, что приложение (`inspectExtensionDir`), и завершается кодом 1 при проблеме. Подробности, дополнительные входы и внешние пакеты — в README `@spirula-app/extension-tools`.
 
 ### Режим разработчика
 
@@ -507,7 +507,7 @@ pnpm test
 
 ## Расширения по умолчанию
 
-`spirula.sql` (`packages/ext-sql`, раннер SQL из `@spirula/engine-sql-runner` в дочерних процессах, воркер `worker.mjs`) и `spirula.choice` (`packages/ext-choice`, один или несколько верных вариантов) — проекты `spirula-ext` (`extension.json`, `src/main.ts`, `src/view.ts`, `schema/`; у `ext-sql` ещё `spirula-ext.config.json` с воркером и внешним `better-sqlite3`): `pnpm -F <пакет> build` (`spirula-ext build`, `@spirula/extension-tools`) собирает тем же кодом, что и у сторонних авторов, каталог `dist-ext/<id>/`. Плагин Vite `spirula:extensions` (`apps/desktop/vite.config.ts`) собирает все `packages/ext-*` и копирует единственный каталог `dist-ext/<id>/` в `<outRoot>/extensions/<id>/` (имя каталога должно совпасть с `id` манифеста); упаковка кладёт его в `Resources/extensions` (`extraResources`).
+`spirula.sql` (`packages/ext-sql`, раннер SQL из `@spirula-app/engine-sql-runner` в дочерних процессах, воркер `worker.mjs`) и `spirula.choice` (`packages/ext-choice`, один или несколько верных вариантов) — проекты `spirula-ext` (`extension.json`, `src/main.ts`, `src/view.ts`, `schema/`; у `ext-sql` ещё `spirula-ext.config.json` с воркером и внешним `better-sqlite3`): `pnpm -F <пакет> build` (`spirula-ext build`, `@spirula-app/extension-tools`) собирает тем же кодом, что и у сторонних авторов, каталог `dist-ext/<id>/`. Плагин Vite `spirula:extensions` (`apps/desktop/vite.config.ts`) собирает все `packages/ext-*` и копирует единственный каталог `dist-ext/<id>/` в `<outRoot>/extensions/<id>/` (имя каталога должно совпасть с `id` манифеста); упаковка кладёт его в `Resources/extensions` (`extraResources`).
 
 `spirula.math` (`packages/ext-math`) — расширение без кода для процесса расширений: вклад `markdownRenderers` для языка `math` (блоки ` ```math `, формулы TeX рисует MathJax в SVG); собирается так же, как остальные.
 

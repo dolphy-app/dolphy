@@ -3,7 +3,7 @@ import type {
   DeepPartial,
   LearningEngine,
   SchedulerOptionsDto,
-} from '@spirula/engine-contract';
+} from '@spirula-app/engine-contract';
 
 const PERCENT = 100;
 

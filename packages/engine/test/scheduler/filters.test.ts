@@ -3,7 +3,7 @@ import type {
   SessionPartWire,
   StudySessionWire,
   UnitFilterWire,
-} from '@spirula/engine-contract';
+} from '@spirula-app/engine-contract';
 import { describe, expect, it } from 'vitest';
 import type { Metadata } from '../../src/domain/manifest.ts';
 import {

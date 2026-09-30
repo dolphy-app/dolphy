@@ -3,7 +3,7 @@ import type {
   EpochMs,
   Grade,
   UnitId,
-} from '@spirula/engine-contract';
+} from '@spirula-app/engine-contract';
 
 /** Журнал событий — единственный первичный факт (engine-ts.md §5.1). */
 interface EntryBase {

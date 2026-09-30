@@ -7,7 +7,10 @@ import {
   shortCommit,
 } from '@/entities/repository';
 import type { RepositoryProgress } from '@/entities/repository';
-import type { RepositoryDto, RepositoryStatus } from '@spirula/engine-contract';
+import type {
+  RepositoryDto,
+  RepositoryStatus,
+} from '@spirula-app/engine-contract';
 import { useEngine } from '@/shared/api/engine';
 import { useRepositories } from '../model/repositories.ts';
 

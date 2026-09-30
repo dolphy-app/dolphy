@@ -1,7 +1,7 @@
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { EXTENSION_ID_PATTERN } from '@spirula/extension-api';
-import type { JsonSchema } from '@spirula/extension-api';
+import { EXTENSION_ID_PATTERN } from '@spirula-app/extension-api';
+import type { JsonSchema } from '@spirula-app/extension-api';
 import type { Ajv2020 } from 'ajv/dist/2020.js';
 import { z } from 'zod';
 

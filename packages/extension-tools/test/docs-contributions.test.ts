@@ -16,7 +16,7 @@
  */
 import { mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { parseManifest } from '@spirula/extension-host';
+import { parseManifest } from '@spirula-app/extension-host';
 import { describe, expect, it } from 'vitest';
 import { buildExtension, validateExtension } from '../src/index.ts';
 import { makeTemp } from './helpers.ts';
@@ -98,7 +98,7 @@ const writeProject = async (
     await writeFile(target, content);
   }
   if (withCode) {
-    const modules = path.join(root, 'node_modules', '@spirula');
+    const modules = path.join(root, 'node_modules', '@spirula-app');
     await mkdir(modules, { recursive: true });
     for (const name of ['extension-sdk', 'extension-api']) {
       await symlink(

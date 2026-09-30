@@ -10,8 +10,8 @@ import type {
   UnitKind,
   ValidateRequest,
   ValidateResult,
-} from '@spirula/engine-contract';
-import { CONTRACT_VERSION } from '@spirula/engine-contract';
+} from '@spirula-app/engine-contract';
+import { CONTRACT_VERSION } from '@spirula-app/engine-contract';
 import { sortDiagnostics, summarize } from '../../authoring/diagnostics.ts';
 import { compile } from '../../authoring/compile.ts';
 import type { CompileOptions } from '../../authoring/compile.ts';

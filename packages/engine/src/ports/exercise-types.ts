@@ -1,7 +1,7 @@
 /**
  * Порт видов заданий: каталог видов из манифестов расширений и вызовы
  * `project`/`grade`/`referenceAnswer` в хосте расширений. Адаптеры живут в
- * `@spirula/extension-host`; ядро знает только этот интерфейс.
+ * `@spirula-app/extension-host`; ядро знает только этот интерфейс.
  */
 import type { RawVerdict } from './index.ts';
 

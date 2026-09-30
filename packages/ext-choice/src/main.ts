@@ -1,4 +1,7 @@
-import { defineExerciseType, defineExtension } from '@spirula/extension-sdk';
+import {
+  defineExerciseType,
+  defineExtension,
+} from '@spirula-app/extension-sdk';
 import { grade, project } from './grade.ts';
 import type { ChoiceSpec } from './grade.ts';
 

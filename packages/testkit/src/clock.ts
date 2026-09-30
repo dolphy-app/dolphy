@@ -1,5 +1,5 @@
-import type { EpochMs } from '@spirula/engine-contract';
-import type { Clock } from '@spirula/engine';
+import type { EpochMs } from '@spirula-app/engine-contract';
+import type { Clock } from '@spirula-app/engine';
 
 /** 2027-01-15T08:00:00Z: значение `T0` спайков; далеко от нуля и от `Date.now()`. */
 export const T0_MS: EpochMs = 1_800_000_000_000;

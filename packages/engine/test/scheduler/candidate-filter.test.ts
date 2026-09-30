@@ -11,8 +11,8 @@
 import type {
   MasteryWindowDto,
   SchedulerOptionsDto,
-} from '@spirula/engine-contract';
-import { createSeededRng } from '@spirula/testkit';
+} from '@spirula-app/engine-contract';
+import { createSeededRng } from '@spirula-app/testkit';
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_SCHEDULER_OPTIONS,

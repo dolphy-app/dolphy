@@ -4,7 +4,7 @@
  */
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import type { Diagnostic } from '@spirula/engine-contract';
+import type { Diagnostic } from '@spirula-app/engine-contract';
 import { compile } from '../../src/authoring/compile.ts';
 import { createNodeFsCourseSource } from '../../src/node/index.ts';
 import {

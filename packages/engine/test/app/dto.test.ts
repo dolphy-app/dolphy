@@ -1,11 +1,11 @@
-import type { GraphQuery } from '@spirula/engine-contract';
+import type { GraphQuery } from '@spirula-app/engine-contract';
 import {
   buildCourse,
   buildExercise,
   buildLesson,
   createFakeExerciseTypes,
   createFakeExtensionPolicy,
-} from '@spirula/testkit';
+} from '@spirula-app/testkit';
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_EXERCISE_TIMEOUT_MS,

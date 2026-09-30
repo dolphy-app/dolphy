@@ -2,7 +2,7 @@ import {
   BUILTIN_GRADE_POLICY,
   GRADE_POLICY_ID_PATTERN,
   type LearningSettingsDto,
-} from '@spirula/engine-contract';
+} from '@spirula-app/engine-contract';
 
 export const MAX_GRADE_POLICY_ID_LENGTH = 64;
 

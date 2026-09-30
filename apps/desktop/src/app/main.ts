@@ -1,5 +1,5 @@
 import { createApp } from 'vue';
-import { EngineCallError } from '@spirula/engine-rpc/client';
+import { EngineCallError } from '@spirula-app/engine-rpc/client';
 import App from './App.vue';
 import { createSpirulaI18n } from './providers/i18n.ts';
 import { createSpirulaVuetify } from './providers/vuetify.ts';

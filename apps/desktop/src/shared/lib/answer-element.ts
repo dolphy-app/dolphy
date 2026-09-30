@@ -1,4 +1,4 @@
-import type { ExerciseTaskDto } from '@spirula/engine-contract';
+import type { ExerciseTaskDto } from '@spirula-app/engine-contract';
 
 const LOAD_TIMEOUT_MS = 5_000;
 

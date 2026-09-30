@@ -2,7 +2,7 @@
  * `E_REFERENCE_FAILS` (F2, M5): компилятор прогоняет эталонное решение
  * (`referenceAnswer` вида задания) через внедрённый порт `ExerciseTypes`. Здесь —
  * поведение хука на подставном каталоге видов; настоящий SQL-раннер на
- * `sql-course` — в `@spirula/ext-sql` (test/reference.test.ts) и CLI-тесте
+ * `sql-course` — в `@spirula-app/ext-sql` (test/reference.test.ts) и CLI-тесте
  * `--run-checks`.
  */
 import { readFile } from 'node:fs/promises';
@@ -13,7 +13,7 @@ import { createNodeFsCourseSource } from '../../src/node/index.ts';
 import { ExerciseTypeError } from '../../src/ports/exercise-types.ts';
 import type { ExerciseTypes } from '../../src/ports/exercise-types.ts';
 import type { RawVerdict } from '../../src/ports/index.ts';
-import { createFakeExerciseTypes } from '@spirula/testkit';
+import { createFakeExerciseTypes } from '@spirula-app/testkit';
 import { LIBRARIES_DIR } from '../helpers/fixtures.ts';
 import { useTmpDirs, writeFiles } from '../helpers/tmp.ts';
 

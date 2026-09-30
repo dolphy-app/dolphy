@@ -1,5 +1,5 @@
 {
-  "name": "@spirula/engine-git",
+  "name": "@spirula-app/engine-git",
   "version": "0.0.0",
   "private": true,
   "description": "Загрузка снимков git-репозиториев с курсами (isomorphic-git)",
@@ -12,8 +12,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@spirula/engine": "workspace:*",
-    "@spirula/engine-contract": "workspace:*",
+    "@spirula-app/engine": "workspace:*",
+    "@spirula-app/engine-contract": "workspace:*",
     "isomorphic-git": "1.42.4"
   },
   "devDependencies": {

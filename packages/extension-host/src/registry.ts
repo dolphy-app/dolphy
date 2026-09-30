@@ -1,5 +1,8 @@
-import type { ExtensionInfoDto } from '@spirula/engine-contract';
-import type { ExtensionPolicy, ExtensionRegistry } from '@spirula/engine/ports';
+import type { ExtensionInfoDto } from '@spirula-app/engine-contract';
+import type {
+  ExtensionPolicy,
+  ExtensionRegistry,
+} from '@spirula-app/engine/ports';
 import type { DiscoveryResult, ResolvedExtension } from './discover.ts';
 
 const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {

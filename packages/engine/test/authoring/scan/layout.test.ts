@@ -1,4 +1,4 @@
-import { buildLibrary, createMemoryCourseSource } from '@spirula/testkit';
+import { buildLibrary, createMemoryCourseSource } from '@spirula-app/testkit';
 import { describe, expect, it } from 'vitest';
 import { assembleLibrary } from '../../../src/domain/library.ts';
 import { scan } from '../../../src/authoring/scan.ts';

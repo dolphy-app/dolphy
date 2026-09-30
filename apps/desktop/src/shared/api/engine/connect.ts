@@ -1,6 +1,9 @@
-import { createEngineClient, fromDomPort } from '@spirula/engine-rpc/client';
-import type { DomPortLike } from '@spirula/engine-rpc/client';
-import type { LearningEngine } from '@spirula/engine-contract';
+import {
+  createEngineClient,
+  fromDomPort,
+} from '@spirula-app/engine-rpc/client';
+import type { DomPortLike } from '@spirula-app/engine-rpc/client';
+import type { LearningEngine } from '@spirula-app/engine-contract';
 import { CHANNELS } from '../../../../shared/bridge.ts';
 
 /**

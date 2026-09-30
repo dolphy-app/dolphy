@@ -1,7 +1,7 @@
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { parseManifest } from '@spirula/extension-host';
-import type { ExtensionManifest } from '@spirula/extension-api';
+import { parseManifest } from '@spirula-app/extension-host';
+import type { ExtensionManifest } from '@spirula-app/extension-api';
 import { BuildError } from './errors.ts';
 
 export const MANIFEST_FILE = 'extension.json';

@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { EngineError } from '@spirula/engine/app';
-import type { TraneSource, TraneTrial } from '@spirula/engine/sync';
+import { EngineError } from '@spirula-app/engine/app';
+import type { TraneSource, TraneTrial } from '@spirula-app/engine/sync';
 import { openBetterSqliteDatabase } from './sql-database.ts';
 
 /** Файлы каталога `.trane` (`trane-pristine/src/lib.rs`). */

@@ -12,8 +12,8 @@ import {
 import { spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createFakeClock, createSeededRng } from '@spirula/testkit';
-import type { FakeClock } from '@spirula/testkit';
+import { createFakeClock, createSeededRng } from '@spirula-app/testkit';
+import type { FakeClock } from '@spirula-app/testkit';
 import fc from 'fast-check';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { LogEntry } from '../../src/domain/journal.ts';

@@ -5,7 +5,10 @@
  * JSON (report-compiler.md §5: загрузка ≈ 33 мс, gzip и v8 не нужны).
  */
 import { z } from 'zod';
-import type { Diagnostic, DiagnosticSummary } from '@spirula/engine-contract';
+import type {
+  Diagnostic,
+  DiagnosticSummary,
+} from '@spirula-app/engine-contract';
 import { buildIndexedGraph } from '../domain/graph-algorithms.ts';
 import { assembleLibrary } from '../domain/library.ts';
 import type { Library } from '../domain/library.ts';

@@ -7,7 +7,7 @@ import type {
   EngineConfig,
   EngineEvent,
   LearningEngine,
-} from '@spirula/engine-contract';
+} from '@spirula-app/engine-contract';
 import {
   createCapturingLogger,
   createFakeClock,
@@ -18,14 +18,14 @@ import {
   createMemoryCourseSource,
   createSeededRng,
   createTestIds,
-} from '@spirula/testkit';
+} from '@spirula-app/testkit';
 import type {
   CapturedLog,
   CourseLibrary,
   FakeClock,
   SeededRng,
   TestIds,
-} from '@spirula/testkit';
+} from '@spirula-app/testkit';
 import { createContext, createEngineFromContext } from '../../src/app/index.ts';
 import type { EngineContext, EngineDeps } from '../../src/app/index.ts';
 import {
@@ -62,7 +62,7 @@ export const FIXTURE_LIBRARIES = {
 export type FixtureLibraryName = keyof typeof FIXTURE_LIBRARIES;
 
 export interface TestEngineOptions {
-  /** Фикстура, синтетическая библиотека (`@spirula/testkit`) или готовый источник. По умолчанию `embedded`. */
+  /** Фикстура, синтетическая библиотека (`@spirula-app/testkit`) или готовый источник. По умолчанию `embedded`. */
   library?: FixtureLibraryName | CourseLibrary | CourseSource;
   /** По умолчанию `createMemoryEventStore({ deviceId })`. */
   eventStore?: EventStore;

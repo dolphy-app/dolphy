@@ -10,7 +10,7 @@ import type {
   SyncStateDto,
   TraneImportResult,
   UnitId,
-} from '@spirula/engine-contract';
+} from '@spirula-app/engine-contract';
 import type { LogEntry } from '../../domain/journal.ts';
 import type { FolderSync } from '../../node/folder-sync.ts';
 import { importFromTrane } from '../../sync/trane-import.ts';

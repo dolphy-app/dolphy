@@ -1,5 +1,5 @@
-import type { EngineEvent } from '@spirula/engine-contract';
-import { buildLibrary } from '@spirula/testkit';
+import type { EngineEvent } from '@spirula-app/engine-contract';
+import { buildLibrary } from '@spirula-app/testkit';
 import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SCHEDULER_OPTIONS } from '../../../src/scheduler/options.ts';
 import {

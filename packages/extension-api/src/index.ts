@@ -5,6 +5,15 @@
 
 export const EXTENSION_API_VERSION = 1 as const;
 export const EXTENSION_ID_PATTERN = /^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*$/;
+/** Возможности, которые расширение объявляет в манифесте; без объявления — ни одной. */
+export const EXTENSION_PERMISSIONS = [
+  'library.read',
+  'process.spawn',
+  'worker.threads',
+  'native.addons',
+  'network',
+] as const;
+export type ExtensionPermission = (typeof EXTENSION_PERMISSIONS)[number];
 export const ELEMENT_NAME_PATTERN = /^[a-z][a-z0-9]*(-[a-z0-9]+)+$/;
 
 /** Имена событий custom element'а ответа. */
@@ -85,6 +94,8 @@ export interface ExtensionManifest {
   apiVersion: typeof EXTENSION_API_VERSION;
   /** Путь к `.mjs` с кодом расширения; `null` — расширению код не нужен. */
   main: string | null;
+  /** Объявленные возможности кода расширения; по умолчанию пусто. */
+  permissions: ExtensionPermission[];
   contributes: {
     exerciseTypes: ExerciseTypeContribution[];
     themes: ThemeContribution[];
@@ -113,6 +124,7 @@ export interface ExtensionManifestInput {
   apiVersion: typeof EXTENSION_API_VERSION;
   /** По умолчанию `DEFAULT_MAIN`, если код нужен вкладам; иначе `null`. */
   main?: string;
+  permissions?: ExtensionPermission[];
   contributes: {
     exerciseTypes?: ExerciseTypeContributionInput[];
     themes?: ThemeContribution[];
@@ -253,6 +265,20 @@ export interface LibraryStat {
 export interface LibraryReader {
   readText(path: string): Promise<string>;
   stat(path: string): Promise<LibraryStat | null>;
+}
+
+/** Бросается, когда расширение вызывает возможность без объявленного разрешения. */
+export class PermissionError extends Error {
+  readonly permission: ExtensionPermission;
+  readonly code = 'EXT_PERMISSION';
+  constructor(permission: ExtensionPermission, message?: string) {
+    super(
+      message ??
+        `permission '${permission}' is not declared in the extension manifest`,
+    );
+    this.name = 'PermissionError';
+    this.permission = permission;
+  }
 }
 
 export interface Disposable {

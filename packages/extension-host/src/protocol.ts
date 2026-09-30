@@ -5,7 +5,12 @@ export type ExtRequest =
   | {
       id: string;
       method: 'project';
-      params: { type: string; exerciseId: string; spec: unknown };
+      params: {
+        type: string;
+        exerciseId: string;
+        spec: unknown;
+        isolated: boolean;
+      };
     }
   | {
       id: string;
@@ -17,12 +22,18 @@ export type ExtRequest =
         answer: unknown;
         timeoutMs: number;
         authorMode: boolean;
+        isolated: boolean;
       };
     }
   | {
       id: string;
       method: 'referenceAnswer';
-      params: { type: string; exerciseId: string; spec: unknown };
+      params: {
+        type: string;
+        exerciseId: string;
+        spec: unknown;
+        isolated: boolean;
+      };
     }
   | {
       id: string;
@@ -31,6 +42,7 @@ export type ExtRequest =
         policyId: string;
         verdicts: { outcome: 'passed' | 'failed' | 'error'; reason?: string }[];
         gaveUp: boolean;
+        isolated: boolean;
       };
     };
 
@@ -49,7 +61,12 @@ export type ExtResponse =
       };
     };
 
-const typed = { type: z.string(), exerciseId: z.string(), spec: z.unknown() };
+const typed = {
+  type: z.string(),
+  exerciseId: z.string(),
+  spec: z.unknown(),
+  isolated: z.boolean(),
+};
 
 export const extRequestSchema = z.discriminatedUnion('method', [
   z.strictObject({
@@ -84,6 +101,7 @@ export const extRequestSchema = z.discriminatedUnion('method', [
         }),
       ),
       gaveUp: z.boolean(),
+      isolated: z.boolean(),
     }),
   }),
 ]);

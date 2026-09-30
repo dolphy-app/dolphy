@@ -2,7 +2,13 @@
 import { useI18n } from 'vue-i18n';
 import type { ExtensionStateDto } from '@lms/engine-contract';
 import { useEngine } from '@/shared/api/engine';
-import { contributionGroups, useExtensions } from '../model/extensions.ts';
+import {
+  contributionGroups,
+  hasSwitches,
+  isEnabled,
+  isTrusted,
+  useExtensions,
+} from '../model/extensions.ts';
 import SectionHeader from './SectionHeader.vue';
 
 interface StateView {
@@ -14,10 +20,32 @@ const STATE_VIEW: Record<ExtensionStateDto, StateView> = {
   loaded: { icon: 'mdi-check-circle-outline', color: 'success' },
   overridden: { icon: 'mdi-layers-outline', color: 'secondary' },
   invalid: { icon: 'mdi-alert-circle-outline', color: 'error' },
+  disabled: { icon: 'mdi-pause-circle-outline', color: 'warning' },
 };
 
-const { t } = useI18n();
-const { items, state, error, busy, load } = useExtensions(useEngine());
+const { t, te } = useI18n();
+const {
+  items,
+  settings,
+  state,
+  error,
+  busy,
+  load,
+  switching,
+  switchError,
+  needsReload,
+  setEnabled,
+  setTrusted,
+} = useExtensions(useEngine());
+
+const permissionLabel = (name: string) => {
+  const key = `settings.extensions.permissions.${name}`;
+  return te(key) ? t(key) : name;
+};
+
+const reloadWindow = () => {
+  location.reload();
+};
 </script>
 
 <template>
@@ -50,6 +78,27 @@ const { items, state, error, busy, load } = useExtensions(useEngine());
       </div>
     </v-alert>
 
+    <v-alert
+      v-if="needsReload"
+      type="info"
+      variant="tonal"
+      class="mb-6"
+      data-testid="extensions-reload"
+    >
+      <div class="d-flex align-center ga-3">
+        <span class="flex-grow-1">{{
+          t('settings.extensions.reload.message')
+        }}</span>
+        <v-btn variant="text" prepend-icon="mdi-reload" @click="reloadWindow">
+          {{ t('settings.extensions.reload.action') }}
+        </v-btn>
+      </div>
+    </v-alert>
+
+    <v-alert v-if="switchError" type="error" variant="tonal" class="mb-6">
+      {{ t('settings.extensions.switchFailed') }}: {{ switchError }}
+    </v-alert>
+
     <template v-if="state === 'loaded'">
       <div class="d-flex align-center mb-4">
         <p class="text-body-medium text-medium-emphasis">
@@ -80,7 +129,11 @@ const { items, state, error, busy, load } = useExtensions(useEngine());
         <li
           v-for="extension in items"
           :key="`${extension.origin}:${extension.id}`"
-          :class="{ muted: extension.state === 'overridden' }"
+          :class="{
+            muted:
+              extension.state === 'overridden' ||
+              extension.state === 'disabled',
+          }"
         >
           <v-card class="pa-4">
             <div class="d-flex flex-wrap align-center ga-2">
@@ -96,6 +149,31 @@ const { items, state, error, busy, load } = useExtensions(useEngine());
               </v-chip>
               <v-chip size="small" label>
                 {{ t(`settings.extensions.origin.${extension.origin}`) }}
+              </v-chip>
+              <v-chip
+                v-if="extension.origin === 'bundled'"
+                size="small"
+                label
+                color="primary"
+                variant="tonal"
+                data-testid="built-in"
+              >
+                {{ t('settings.extensions.builtIn') }}
+              </v-chip>
+              <v-chip
+                v-if="
+                  extension.state === 'loaded' || extension.state === 'disabled'
+                "
+                size="small"
+                label
+                :variant="
+                  extension.isolation === 'isolated' ? 'tonal' : 'outlined'
+                "
+                :color="
+                  extension.isolation === 'isolated' ? 'success' : 'warning'
+                "
+              >
+                {{ t(`settings.extensions.isolation.${extension.isolation}`) }}
               </v-chip>
               <v-spacer />
               <span class="d-inline-flex align-center ga-1 text-body-medium">
@@ -117,6 +195,40 @@ const { items, state, error, busy, load } = useExtensions(useEngine());
             </p>
 
             <div
+              v-if="
+                extension.state === 'loaded' || extension.state === 'disabled'
+              "
+              class="d-flex flex-wrap align-center ga-2 mt-3"
+              data-point="permissions"
+            >
+              <span class="text-body-small text-medium-emphasis">
+                {{ t('settings.extensions.permissionsTitle') }}:
+              </span>
+              <span
+                v-if="extension.permissions.length === 0"
+                class="text-body-small"
+              >
+                {{ t('settings.extensions.permissionsNone') }}
+              </span>
+              <ul v-else class="types">
+                <li
+                  v-for="permission in extension.permissions"
+                  :key="permission"
+                >
+                  <v-chip size="small" variant="tonal">
+                    {{ permissionLabel(permission) }}
+                  </v-chip>
+                </li>
+              </ul>
+            </div>
+            <p
+              v-if="extension.permissions.includes('network')"
+              class="text-body-small text-medium-emphasis mt-1"
+            >
+              {{ t('settings.extensions.networkCaveat') }}
+            </p>
+
+            <div
               v-for="group in contributionGroups(extension.contributes)"
               :key="group.point"
               class="d-flex flex-wrap align-center ga-2 mt-3"
@@ -132,6 +244,34 @@ const { items, state, error, busy, load } = useExtensions(useEngine());
                   </v-chip>
                 </li>
               </ul>
+            </div>
+
+            <div v-if="hasSwitches(extension)" class="switches mt-3">
+              <v-switch
+                :model-value="isEnabled(settings, extension.id)"
+                :label="t('settings.extensions.enabledLabel')"
+                :disabled="switching.has(`enabled:${extension.id}`)"
+                color="primary"
+                density="compact"
+                hide-details
+                inset
+                :data-testid="`enabled-${extension.id}`"
+                @update:model-value="setEnabled(extension.id, $event === true)"
+              />
+              <v-switch
+                :model-value="isTrusted(settings, extension.id)"
+                :label="t('settings.extensions.trustLabel')"
+                :disabled="switching.has(`trusted:${extension.id}`)"
+                color="warning"
+                density="compact"
+                hide-details
+                inset
+                :data-testid="`trusted-${extension.id}`"
+                @update:model-value="setTrusted(extension.id, $event === true)"
+              />
+              <p class="text-body-small text-medium-emphasis">
+                {{ t('settings.extensions.trustHint') }}
+              </p>
             </div>
           </v-card>
         </li>
@@ -151,6 +291,12 @@ const { items, state, error, busy, load } = useExtensions(useEngine());
 
 .muted {
   opacity: 0.7;
+}
+
+.switches {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 .types {

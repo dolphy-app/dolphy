@@ -11,9 +11,14 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
-import { discoverExtensions } from '@lms/extension-host';
+import {
+  createRestrictedRunner,
+  discoverExtensions,
+  inspectExtensionDir,
+} from '@lms/extension-host';
 
 const appDir = fileURLToPath(new URL('..', import.meta.url));
+const hostileDir = join(appDir, 'e2e/fixtures/hostile-extension');
 const viteBin = join(
   dirname(createRequire(import.meta.url).resolve('vite/package.json')),
   'bin/vite.js',
@@ -127,6 +132,37 @@ describe('смоук и релизная сборка', () => {
       expect(existsSync(join(out, 'dist-electron/host/sql-worker.js'))).toBe(
         false,
       );
+      // собранный дочерний процесс запускается в режиме разрешений и
+      // отказывает расширению в запрещённом
+      const inspected = await inspectExtensionDir(hostileDir);
+      if (!inspected.ok) throw new Error(inspected.message);
+      const runner = createRestrictedRunner({
+        extension: { ...inspected.extension, origin: 'user' },
+        entryPath: join(out, 'restricted/ext-restricted.mjs'),
+        library: { readText: async () => '', stat: async () => null },
+        logger,
+      });
+      try {
+        const response = await runner.handle({
+          id: '1',
+          method: 'grade',
+          params: {
+            type: 'acme.hostile',
+            exerciseId: 'e',
+            spec: {},
+            answer: join(out, 'pwned.txt'),
+            timeoutMs: 15_000,
+            authorMode: false,
+            isolated: true,
+          },
+        });
+        expect(response.ok && response.result).toMatchObject({
+          feedback: expect.stringContaining('write=denied'),
+        });
+        expect(existsSync(join(out, 'pwned.txt'))).toBe(false);
+      } finally {
+        await runner.dispose();
+      }
       expect(existsSync(join(out, 'dist-electron/host/ext-host.js'))).toBe(
         true,
       );

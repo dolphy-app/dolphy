@@ -139,6 +139,50 @@ describe('минимальный манифест', () => {
   });
 });
 
+describe('permissions', () => {
+  const withPermissions = (permissions: unknown) => ({
+    ...valid(),
+    permissions,
+  });
+
+  it('по умолчанию пусто', () => {
+    const result = parseManifest(valid());
+    expect(result).toMatchObject({ ok: true, manifest: { permissions: [] } });
+  });
+
+  it('принимает все объявленные возможности', () => {
+    const all = [
+      'library.read',
+      'process.spawn',
+      'worker.threads',
+      'native.addons',
+      'network',
+    ];
+    expect(parseManifest(withPermissions(all))).toMatchObject({
+      ok: true,
+      manifest: { permissions: all },
+    });
+  });
+
+  it.each([
+    ['неизвестное имя', ['library.write']],
+    ['не массив', 'network'],
+    ['не строка', [1]],
+  ])('отклоняет: %s, сообщение — путь и причина', (_name, permissions) => {
+    const result = parseManifest(withPermissions(permissions));
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.message).toMatch(/^permissions(\.\d+)?: /);
+  });
+
+  it('отклоняет дубль, называя разрешение', () => {
+    const result = parseManifest(withPermissions(['network', 'network']));
+    expect(result).toEqual({
+      ok: false,
+      message: "permissions.1: duplicate permission 'network'",
+    });
+  });
+});
+
 describe('normalizeManifest', () => {
   it('не меняет вход', () => {
     const input = minimal() as Parameters<typeof normalizeManifest>[0];

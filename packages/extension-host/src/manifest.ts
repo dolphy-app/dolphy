@@ -1,4 +1,8 @@
-import { DEFAULT_MAIN, EXTENSION_API_VERSION } from '@lms/extension-api';
+import {
+  DEFAULT_MAIN,
+  EXTENSION_API_VERSION,
+  EXTENSION_PERMISSIONS,
+} from '@lms/extension-api';
 import type {
   ExtensionManifest,
   ExtensionManifestInput,
@@ -34,9 +38,20 @@ export const manifestSchema = z
       .regex(/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/, 'version must be semver'),
     apiVersion: z.literal(EXTENSION_API_VERSION),
     main: safePath(['.mjs']).optional(),
+    permissions: z.array(z.enum(EXTENSION_PERMISSIONS)).optional(),
     contributes: contributesSchema,
   })
   .superRefine((manifest, ctx) => {
+    const { permissions = [] } = manifest;
+    permissions.forEach((permission, index) => {
+      if (permissions.indexOf(permission) !== index) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['permissions', index],
+          message: `duplicate permission '${permission}'`,
+        });
+      }
+    });
     if (isEmpty(manifest.contributes)) {
       ctx.addIssue({
         code: 'custom',
@@ -67,6 +82,7 @@ export const normalizeManifest = (
     version: input.version,
     apiVersion: input.apiVersion,
     main: input.main ?? (needsMain(input.contributes) ? DEFAULT_MAIN : null),
+    permissions: [...(input.permissions ?? [])],
     contributes: contributes as ExtensionManifest['contributes'],
   };
 };

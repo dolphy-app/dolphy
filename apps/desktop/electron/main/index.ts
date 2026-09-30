@@ -55,6 +55,12 @@ const bundledExtensionsDir = app.isPackaged
   ? path.join(process.resourcesPath, 'extensions')
   : path.join(APP_ROOT, 'extensions');
 const userExtensionsDir = path.join(userData, 'extensions');
+// сборка дочернего процесса с ограничениями лежит вне asar: режим разрешений Node проверяет настоящие пути
+const restrictedEntry = path.join(
+  app.isPackaged ? process.resourcesPath : APP_ROOT,
+  'restricted',
+  'ext-restricted.mjs',
+);
 // режим разработчика: каталог с приоритетом выше пользовательского, под наблюдением
 const devExtensionsDir = process.env.LMS_DEV_EXTENSIONS
   ? path.resolve(process.env.LMS_DEV_EXTENSIONS)
@@ -69,6 +75,7 @@ const extSupervisor = createExtSupervisor({
     libraryRoot,
     bundledExtensionsDir,
     userExtensionsDir,
+    restrictedEntry,
     ...(devExtensionsDir ? { devExtensionsDir } : {}),
   },
   logger,

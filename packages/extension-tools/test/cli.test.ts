@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { runCli } from '../src/cli/run.ts';
@@ -51,6 +51,30 @@ describe('runCli', () => {
     const bad = createIo();
     expect(await runCli(['validate', root], bad.io)).toBe(1);
     expect(bad.stderr()).toContain(`error ${root}: `);
+  });
+
+  it('validate: неизвестное разрешение — ошибка с путём поля, известное проходит', async () => {
+    const root = await copyProject('hello');
+    const built = createIo();
+    await runCli(['build', root], built.io);
+    const dir = path.join(root, 'dist-ext', 'acme.hello');
+    const manifestPath = path.join(dir, 'extension.json');
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as object;
+
+    await writeFile(
+      manifestPath,
+      JSON.stringify({ ...manifest, permissions: ['network'] }),
+    );
+    const ok = createIo();
+    expect(await runCli(['validate', dir], ok.io)).toBe(0);
+
+    await writeFile(
+      manifestPath,
+      JSON.stringify({ ...manifest, permissions: ['disk.write'] }),
+    );
+    const bad = createIo();
+    expect(await runCli(['validate', dir], bad.io)).toBe(1);
+    expect(bad.stderr()).toMatch(/permissions\.0: /);
   });
 
   it.each([

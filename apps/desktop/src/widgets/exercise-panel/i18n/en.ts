@@ -4,6 +4,8 @@ export const en: typeof ru = {
   exercisePanel: {
     material: 'Lesson material · {course}',
     answer: {
+      frameTitle:
+        'Answer input from an extension in an isolated frame: {label}',
       loadFailed: 'Could not load the answer input ({element}).',
       label: 'Answer',
       hint: 'Ctrl/⌘ + Enter to check',

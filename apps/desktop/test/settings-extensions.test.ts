@@ -1,8 +1,13 @@
 import { effectScope } from 'vue';
 import { describe, expect, it } from 'vitest';
-import type { ExtensionInfoDto, LearningEngine } from '@lms/engine-contract';
+import type {
+  ExtensionInfoDto,
+  ExtensionSettingsDto,
+  LearningEngine,
+} from '@lms/engine-contract';
 import {
   contributionGroups,
+  hasSwitches,
   useExtensions,
 } from '@/pages/settings/model/extensions.ts';
 
@@ -23,6 +28,9 @@ const extension = (
   state: 'loaded',
   contributes: { ...NO_CONTRIBUTES, exerciseTypes: [id] },
   message: null,
+  permissions: [],
+  isolation: 'trusted',
+  toggleable: false,
   ...override,
 });
 
@@ -31,8 +39,10 @@ interface Deferred {
   reject(error: Error): void;
 }
 
+const NONE_SET: ExtensionSettingsDto = { disabled: [], trusted: [] };
+
 /** Каждый вызов `list()` ждёт, пока тест его не завершит. */
-const createFakeEngine = () => {
+const createFakeEngine = (stored: ExtensionSettingsDto = NONE_SET) => {
   const pending: Deferred[] = [];
   const engine = {
     extensions: {
@@ -40,6 +50,7 @@ const createFakeEngine = () => {
         new Promise<ExtensionInfoDto[]>((resolve, reject) => {
           pending.push({ resolve, reject });
         }),
+      getSettings: async () => stored,
     },
   } as unknown as LearningEngine;
   return { engine, pending };
@@ -166,5 +177,111 @@ describe('contributionGroups', () => {
 
   it('расширение без вкладов — без групп', () => {
     expect(contributionGroups(NO_CONTRIBUTES)).toEqual([]);
+  });
+});
+
+describe('hasSwitches', () => {
+  it.each([
+    [{ toggleable: true, state: 'loaded' }, true],
+    [{ toggleable: true, state: 'disabled' }, true],
+    [{ toggleable: false, state: 'loaded' }, false],
+    [{ toggleable: true, state: 'overridden' }, false],
+    [{ toggleable: true, state: 'invalid' }, false],
+  ] as const)('%j → %s', (override, expected) => {
+    expect(hasSwitches(extension('acme.x', override))).toBe(expected);
+  });
+});
+
+describe('переключатели', () => {
+  interface Call {
+    method: 'setEnabled' | 'setTrusted';
+    id: string;
+    value: boolean;
+    resolve(next: ExtensionSettingsDto): void;
+    reject(error: Error): void;
+  }
+
+  /** Список и настройки читаются сразу; записи ждут, пока тест их не завершит. */
+  const createSwitchEngine = (stored: ExtensionSettingsDto = NONE_SET) => {
+    const calls: Call[] = [];
+    let listCalls = 0;
+    const write = (method: Call['method']) => (id: string, value: boolean) =>
+      new Promise<ExtensionSettingsDto>((resolve, reject) => {
+        calls.push({ method, id, value, resolve, reject });
+      });
+    const engine = {
+      extensions: {
+        list: async () => {
+          listCalls += 1;
+          return [extension('acme.x', { origin: 'user', toggleable: true })];
+        },
+        getSettings: async () => stored,
+        setEnabled: write('setEnabled'),
+        setTrusted: write('setTrusted'),
+      },
+    } as unknown as LearningEngine;
+    return { engine, calls, listCalls: () => listCalls };
+  };
+
+  it('переключатель меняется сразу, успех сохраняет ответ движка и просит перезагрузку', async () => {
+    const { engine, calls, listCalls } = createSwitchEngine();
+    const model = mount(engine);
+    await flush();
+    expect(model.needsReload.value).toBe(false);
+
+    const pending = model.setTrusted('acme.x', true);
+    expect(model.settings.value.trusted).toEqual(['acme.x']);
+    expect(model.switching.value.has('trusted:acme.x')).toBe(true);
+    calls[0]?.resolve({ disabled: [], trusted: ['acme.x'] });
+    await pending;
+
+    expect(calls[0]).toMatchObject({ method: 'setTrusted', value: true });
+    expect(model.settings.value).toEqual({ disabled: [], trusted: ['acme.x'] });
+    expect(model.switching.value.size).toBe(0);
+    expect(model.needsReload.value).toBe(true);
+    expect(model.switchError.value).toBeNull();
+    await flush();
+    expect(listCalls()).toBe(2);
+  });
+
+  it('«Включено» хранится как отсутствие в списке отключённых', async () => {
+    const { engine, calls } = createSwitchEngine({
+      disabled: ['acme.x'],
+      trusted: [],
+    });
+    const model = mount(engine);
+    await flush();
+    const pending = model.setEnabled('acme.x', true);
+    expect(model.settings.value.disabled).toEqual([]);
+    calls[0]?.resolve({ disabled: [], trusted: [] });
+    await pending;
+    expect(calls[0]).toMatchObject({ method: 'setEnabled', value: true });
+  });
+
+  it('отказ движка откатывает переключатель и показывает ошибку без перезагрузки', async () => {
+    const { engine, calls } = createSwitchEngine();
+    const model = mount(engine);
+    await flush();
+
+    const pending = model.setEnabled('acme.x', false);
+    expect(model.settings.value.disabled).toEqual(['acme.x']);
+    calls[0]?.reject(new Error('cannot write'));
+    await pending;
+
+    expect(model.settings.value).toEqual(NONE_SET);
+    expect(model.switchError.value).toBe('cannot write');
+    expect(model.needsReload.value).toBe(false);
+    expect(model.switching.value.size).toBe(0);
+  });
+
+  it('повторное нажатие на занятый переключатель игнорируется', async () => {
+    const { engine, calls } = createSwitchEngine();
+    const model = mount(engine);
+    await flush();
+    const first = model.setTrusted('acme.x', true);
+    await model.setTrusted('acme.x', false);
+    expect(calls).toHaveLength(1);
+    calls[0]?.resolve({ disabled: [], trusted: ['acme.x'] });
+    await first;
   });
 });

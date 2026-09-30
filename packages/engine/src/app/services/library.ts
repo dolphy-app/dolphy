@@ -389,7 +389,11 @@ export const createLibraryService = (ctx: EngineContext): LibraryService => {
     }
     const page = paginate(library.getExerciseIds(lessonId) ?? [], req);
     return mapPage(page, (id) =>
-      toExerciseDto(library.exercises.get(id)!, ctx.exerciseTypes),
+      toExerciseDto(
+        library.exercises.get(id)!,
+        ctx.exerciseTypes,
+        ctx.extensionPolicy,
+      ),
     );
   };
 
@@ -419,7 +423,12 @@ export const createLibraryService = (ctx: EngineContext): LibraryService => {
     listLessons,
     listExercises,
     getUnit: async (id) =>
-      toUnitDto(ctx.library.require(), id, ctx.exerciseTypes),
+      toUnitDto(
+        ctx.library.require(),
+        id,
+        ctx.exerciseTypes,
+        ctx.extensionPolicy,
+      ),
     matchPrefix,
     getGraph: async (query) => toGraphDto(ctx.library.require(), query),
     readAsset: async (ref) =>

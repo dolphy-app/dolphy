@@ -1,6 +1,7 @@
 import { ExerciseTypeError, GradePolicyError } from '@lms/engine/ports';
 import type {
   ExerciseTypes,
+  ExtensionPolicy,
   GradePolicies,
   GradePolicyErrorCause,
   RawVerdict,
@@ -14,6 +15,8 @@ import type { ExtFailureCause, ExtResponse } from './protocol.ts';
 export interface RemoteExerciseTypesOptions {
   channel: HostChannel;
   catalog: ReturnType<typeof createCatalog>;
+  /** Режим исполнения (`isolated`) вычисляется на каждый вызов. */
+  policy: ExtensionPolicy;
   logger: ExtensionLogger;
   /** Дедлайн `grade` = `timeoutMs + graceMs`. */
   graceMs?: number;
@@ -23,6 +26,7 @@ export interface RemoteExerciseTypesOptions {
 export interface RemoteGradePoliciesOptions {
   channel: HostChannel;
   catalog: ReturnType<typeof createCatalog>;
+  policy: ExtensionPolicy;
   logger: ExtensionLogger;
   deadlineMs?: number;
 }
@@ -30,7 +34,11 @@ export interface RemoteGradePoliciesOptions {
 export const createRemoteExerciseTypes = (
   options: RemoteExerciseTypesOptions,
 ): ExerciseTypes => {
-  const { catalog, channel } = options;
+  const { catalog, channel, policy } = options;
+  const isolatedOwner = (type: string): boolean => {
+    const owner = catalog.ownerOf(type);
+    return owner === undefined ? true : policy.isIsolated(owner.id);
+  };
   const graceMs = options.graceMs ?? 2000;
   const projectTimeoutMs = options.projectTimeoutMs ?? 5000;
 
@@ -44,9 +52,13 @@ export const createRemoteExerciseTypes = (
 
   const request = async (
     method: 'project' | 'referenceAnswer',
-    params: ChannelParams<'project'>,
+    params: Omit<ChannelParams<'project'>, 'isolated'>,
   ): Promise<unknown> => {
-    const outcome = await channel.call(method, params, projectTimeoutMs);
+    const outcome = await channel.call(
+      method,
+      { ...params, isolated: isolatedOwner(params.type) },
+      projectTimeoutMs,
+    );
     if (outcome.kind !== 'response') throw failure(params.type, outcome);
     const { response } = outcome;
     if (!response.ok) {
@@ -111,7 +123,11 @@ export const createRemoteExerciseTypes = (
 
     async grade(req) {
       const started = performance.now();
-      const outcome = await channel.call('grade', req, req.timeoutMs + graceMs);
+      const outcome = await channel.call(
+        'grade',
+        { ...req, isolated: isolatedOwner(req.type) },
+        req.timeoutMs + graceMs,
+      );
       const durationMs = Math.round(performance.now() - started);
       switch (outcome.kind) {
         case 'response':
@@ -138,8 +154,12 @@ const policyCause = (cause: ExtFailureCause): GradePolicyErrorCause =>
 export const createRemoteGradePolicies = (
   options: RemoteGradePoliciesOptions,
 ): GradePolicies => {
-  const { catalog, channel, logger } = options;
+  const { catalog, channel, logger, policy } = options;
   const deadlineMs = options.deadlineMs ?? POLICY_DEADLINE_MS;
+  const isolatedPolicy = (id: string): boolean => {
+    const owner = catalog.ownerOfPolicy(id);
+    return owner === undefined ? true : policy.isIsolated(owner.id);
+  };
   return {
     list: catalog.describePolicies,
 
@@ -153,6 +173,7 @@ export const createRemoteGradePolicies = (
             ...(verdict.outcome !== 'passed' && { reason: verdict.reason }),
           })),
           gaveUp,
+          isolated: isolatedPolicy(id),
         },
         deadlineMs,
       );

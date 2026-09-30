@@ -157,6 +157,30 @@ describe('dispatcher validation', () => {
     }
   });
 
+  it('extensions.setEnabled / setTrusted require an extension id and a boolean', async () => {
+    const { dispatcher } = await connect();
+    const [hostSide, rawSide] = createInProcessPair();
+    dispatcher.attach(hostSide, 'raw-extensions');
+    const raw = createRawClient(rawSide);
+    for (const method of ['extensions.setEnabled', 'extensions.setTrusted']) {
+      expect(await raw.call(method, ['acme.ext', true])).toMatchObject({
+        ok: true,
+      });
+      for (const args of [
+        ['Acme', true],
+        ['', true],
+        [`a${'b'.repeat(70)}`, true],
+        ['acme.ext', 'yes'],
+        ['acme.ext'],
+      ]) {
+        expect(await raw.call(method, args)).toMatchObject({
+          ok: false,
+          error: { code: 'INVALID_ARGUMENT' },
+        });
+      }
+    }
+  });
+
   it('rejects unknown keys, extra arguments and non-array params', async () => {
     const { dispatcher } = await connect();
     const [hostSide, rawSide] = createInProcessPair();

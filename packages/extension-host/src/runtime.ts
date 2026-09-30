@@ -11,12 +11,14 @@ import type {
 } from '@lms/extension-api';
 import { createCatalog } from './catalog.ts';
 import type { ResolvedExtension } from './discover.ts';
+import { createAllTrustedPolicy } from './policy.ts';
 import {
   extRequestSchema,
   gradeResultSchema,
   gradeValueSchema,
 } from './protocol.ts';
 import type { ExtRequest, ExtResponse } from './protocol.ts';
+import type { RestrictedRunner, RunnerFactory } from './restricted-runner.ts';
 
 export interface ExtensionRuntimeOptions {
   extensions: readonly ResolvedExtension[];
@@ -24,6 +26,14 @@ export interface ExtensionRuntimeOptions {
   logger: ExtensionLogger;
   /** Шов для тестов: модуль расширения с этим id берётся отсюда вместо `import()`. */
   modules?: Readonly<Record<string, ExtensionModule>>;
+  /**
+   * Фабрика ограниченных раннеров. Без неё запросы с `isolated: true` для
+   * расширений не из поставки отклоняются: неверная настройка не должна молча
+   * исполнять код без ограничений.
+   */
+  runners?: RunnerFactory;
+  /** false — не маршрутизировать по `isolated`: сам процесс и есть ограничение (дочерний процесс раннера). */
+  enforceIsolation?: boolean;
 }
 
 export interface ExtensionRuntime {
@@ -60,10 +70,12 @@ export const createExtensionRuntime = (
   options: ExtensionRuntimeOptions,
 ): ExtensionRuntime => {
   const { logger } = options;
-  const catalog = createCatalog(options.extensions);
+  const catalog = createCatalog(options.extensions, createAllTrustedPolicy());
   // Активация запоминается вместе с отказом до конца жизни процесса.
   const activations = new Map<string, Promise<Activation>>();
-  const activated: Activation[] = [];
+  const activated = new Map<string, Activation>();
+  const runners = new Map<string, RestrictedRunner>();
+  const enforceIsolation = options.enforceIsolation ?? true;
   let current: MessageEndpoint | null = null;
 
   const loadModule = async (
@@ -104,7 +116,7 @@ export const createExtensionRuntime = (
       policies: new Map(),
       disposables: [],
     };
-    activated.push(activation);
+    activated.set(extension.id, activation);
     const context: ExtensionContext = {
       extensionId: extension.id,
       logger: options.logger,
@@ -273,7 +285,83 @@ export const createExtensionRuntime = (
     }
   };
 
+  const disposeActivation = async (extensionId: string): Promise<void> => {
+    const activation = activated.get(extensionId);
+    activations.delete(extensionId);
+    activated.delete(extensionId);
+    if (activation === undefined) return;
+    try {
+      await activation.module.deactivate?.();
+    } catch (error) {
+      logger.error({ error: messageOf(error) }, 'deactivate failed');
+    }
+    for (const disposable of activation.disposables) {
+      try {
+        await disposable.dispose();
+      } catch (error) {
+        logger.error({ error: messageOf(error) }, 'dispose failed');
+      }
+    }
+  };
+
+  const disposeRunner = async (extensionId: string): Promise<void> => {
+    const runner = runners.get(extensionId);
+    runners.delete(extensionId);
+    try {
+      await runner?.dispose();
+    } catch (error) {
+      logger.error({ error: messageOf(error) }, 'runner dispose failed');
+    }
+  };
+
+  const ownerOfRequest = (
+    request: ExtRequest,
+  ): ResolvedExtension | undefined =>
+    request.method === 'gradePolicy'
+      ? catalog.ownerOfPolicy(request.params.policyId)
+      : catalog.ownerOf(request.params.type);
+
+  const refused = (request: ExtRequest, message: string): ExtResponse => ({
+    id: request.id,
+    ok: false,
+    error: { cause: 'activation-failed', message },
+  });
+
+  // Расширение не из поставки с isolated === true исполняется в ограниченном
+  // процессе; смена режима освобождает активацию другого режима.
+  const runIsolated = async (
+    request: ExtRequest,
+    extension: ResolvedExtension,
+  ): Promise<ExtResponse> => {
+    if (options.runners === undefined) {
+      return refused(request, 'isolated execution is not configured');
+    }
+    await disposeActivation(extension.id);
+    let runner = runners.get(extension.id);
+    if (runner === undefined) {
+      runner = options.runners.create(extension);
+      runners.set(extension.id, runner);
+    }
+    const response = await runner.handle(request);
+    if (!response.ok) {
+      logger.warn(
+        { extensionId: extension.id, ...response.error },
+        'restricted extension call failed',
+      );
+    }
+    return response;
+  };
+
   const handle = async (request: ExtRequest): Promise<ExtResponse> => {
+    const extension = ownerOfRequest(request);
+    if (extension !== undefined) {
+      const isolated =
+        enforceIsolation &&
+        request.params.isolated &&
+        extension.origin !== 'bundled';
+      if (isolated) return runIsolated(request, extension);
+      await disposeRunner(extension.id);
+    }
     try {
       return { id: request.id, ok: true, result: await run(request) };
     } catch (error) {
@@ -312,21 +400,8 @@ export const createExtensionRuntime = (
     async dispose() {
       current?.close();
       current = null;
-      for (const activation of activated) {
-        try {
-          await activation.module.deactivate?.();
-        } catch (error) {
-          logger.error({ error: messageOf(error) }, 'deactivate failed');
-        }
-        for (const disposable of activation.disposables) {
-          try {
-            await disposable.dispose();
-          } catch (error) {
-            logger.error({ error: messageOf(error) }, 'dispose failed');
-          }
-        }
-      }
-      activated.length = 0;
+      for (const id of [...activated.keys()]) await disposeActivation(id);
+      for (const id of [...runners.keys()]) await disposeRunner(id);
     },
   };
 };

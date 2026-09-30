@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { ELEMENT_NAME_PATTERN, EXTENSION_ID_PATTERN } from '../src/index.ts';
+import {
+  ELEMENT_NAME_PATTERN,
+  EXTENSION_ID_PATTERN,
+  EXTENSION_PERMISSIONS,
+} from '../src/index.ts';
 
 describe('extension id and element name patterns', () => {
   it.each(['lms.sql', 'acme', 'acme.quiz-pack.choice', 'a1.b2'])(
@@ -35,4 +39,19 @@ describe('extension id and element name patterns', () => {
       expect(ELEMENT_NAME_PATTERN.test(name)).toBe(false);
     },
   );
+});
+
+describe('EXTENSION_PERMISSIONS', () => {
+  it('перечисляет возможности без повторов в виде id-имён', () => {
+    expect(EXTENSION_PERMISSIONS).toEqual([
+      'library.read',
+      'process.spawn',
+      'worker.threads',
+      'native.addons',
+      'network',
+    ]);
+    expect(new Set(EXTENSION_PERMISSIONS).size).toBe(
+      EXTENSION_PERMISSIONS.length,
+    );
+  });
 });

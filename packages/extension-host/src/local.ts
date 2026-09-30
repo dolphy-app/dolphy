@@ -1,4 +1,8 @@
-import type { ExerciseTypes, GradePolicies } from '@lms/engine/ports';
+import type {
+  ExerciseTypes,
+  ExtensionPolicy,
+  GradePolicies,
+} from '@lms/engine/ports';
 import type {
   ExtensionLogger,
   ExtensionModule,
@@ -12,12 +16,15 @@ import {
 } from './client.ts';
 import type { ResolvedExtension } from './discover.ts';
 import { createEndpointPair } from './loopback.ts';
+import { createAllTrustedPolicy } from './policy.ts';
 import { createExtensionRuntime } from './runtime.ts';
 
 export interface LocalExtensionHostOptions {
   extensions: readonly ResolvedExtension[];
   library: LibraryReader;
   logger: ExtensionLogger;
+  /** Кто изолирован и кто отключён; по умолчанию все доверенные и включённые. */
+  policy?: ExtensionPolicy;
   modules?: Record<string, ExtensionModule>;
 }
 
@@ -40,7 +47,8 @@ export const createLocalExtensionHost = (
     logger: options.logger,
     ...(options.modules !== undefined && { modules: options.modules }),
   });
-  const catalog = createCatalog(options.extensions);
+  const policy = options.policy ?? createAllTrustedPolicy();
+  const catalog = createCatalog(options.extensions, policy);
   const channel = createHostChannel({
     logger: options.logger,
     restart: () => {},
@@ -52,11 +60,13 @@ export const createLocalExtensionHost = (
     exerciseTypes: createRemoteExerciseTypes({
       channel,
       catalog,
+      policy,
       logger: options.logger,
     }),
     gradePolicies: createRemoteGradePolicies({
       channel,
       catalog,
+      policy,
       logger: options.logger,
     }),
     async close() {

@@ -1,5 +1,6 @@
 import type {
   ExerciseTypeInfo,
+  ExtensionPolicy,
   ExerciseTypes,
   GradePolicyInfo,
 } from '@lms/engine/ports';
@@ -30,8 +31,10 @@ const messages = (errors: ErrorObject[] | null | undefined): string[] =>
     .slice(0, MAX_ISSUES)
     .map((error) => `${error.instancePath || '/'} ${error.message}`);
 
+/** Отключённые пользователем расширения ведут себя так, будто их нет. */
 export const createCatalog = (
   extensions: readonly ResolvedExtension[],
+  policy: ExtensionPolicy,
 ): Catalog => {
   const ajv = new Ajv2020({ allErrors: true, strict: false });
   const entries = new Map<string, Entry>();
@@ -59,25 +62,40 @@ export const createCatalog = (
       policyInfos.push({ id, label, extensionId: owner.id });
     }
   }
-  const infos = [...entries.values()].map((entry) => entry.info);
+  const active = (type: string): Entry | undefined => {
+    const entry = entries.get(type);
+    return entry !== undefined && policy.isEnabled(entry.owner.id)
+      ? entry
+      : undefined;
+  };
+  const activePolicyOwner = (id: string): ResolvedExtension | undefined => {
+    const owner = policyOwners.get(id);
+    return owner !== undefined && policy.isEnabled(owner.id)
+      ? owner
+      : undefined;
+  };
   const validate = (
     type: string,
     pick: (entry: Entry) => ValidateFunction,
     value: unknown,
   ): readonly string[] => {
-    const entry = entries.get(type);
+    const entry = active(type);
     if (entry === undefined) return ['unknown exercise type'];
     const check = pick(entry);
     return check(value) ? [] : messages(check.errors);
   };
   return {
-    describe: (type) => entries.get(type)?.info,
-    list: () => infos,
+    describe: (type) => active(type)?.info,
+    list: () =>
+      [...entries.values()]
+        .filter(({ owner }) => policy.isEnabled(owner.id))
+        .map(({ info }) => info),
     validateSpec: (type, spec) => validate(type, (e) => e.validateSpec, spec),
     validateAnswer: (type, answer) =>
       validate(type, (e) => e.validateAnswer, answer),
-    ownerOf: (type) => entries.get(type)?.owner,
-    ownerOfPolicy: (id) => policyOwners.get(id),
-    describePolicies: () => policyInfos,
+    ownerOf: (type) => active(type)?.owner,
+    ownerOfPolicy: activePolicyOwner,
+    describePolicies: () =>
+      policyInfos.filter(({ extensionId }) => policy.isEnabled(extensionId)),
   };
 };

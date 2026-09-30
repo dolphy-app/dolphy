@@ -4,6 +4,7 @@ import {
   buildExercise,
   buildLesson,
   createFakeExerciseTypes,
+  createFakeExtensionPolicy,
 } from '@lms/testkit';
 import { describe, expect, it } from 'vitest';
 import {
@@ -22,8 +23,9 @@ import type {
 } from '../../src/domain/manifest.ts';
 
 const noTypes = createFakeExerciseTypes();
+const policy = createFakeExtensionPolicy();
 const toExerciseDto = (exercise: ExerciseManifest) =>
-  toExerciseDtoWith(exercise, noTypes);
+  toExerciseDtoWith(exercise, noTypes, policy);
 
 const exerciseWith = (exerciseAsset: ExerciseAsset, id = 'a::l0::e0') =>
   buildExercise({ id, exercise_asset: exerciseAsset });
@@ -259,13 +261,38 @@ describe('toExerciseDto', () => {
         },
       }),
       types,
+      policy,
     );
     expect(dto.task).toEqual({
       type: 'lms.sql',
       timeoutMs: 500,
       element: 'lms-sql-answer',
       rendererUrl: 'lms-ext://fake/lms.sql.mjs',
+      isolated: true,
     });
+  });
+
+  it('marks the task isolated unless the owner is bundled or trusted', () => {
+    const types = createFakeExerciseTypes({
+      types: { 'lms.sql': {} },
+    });
+    const exercise = buildExercise({
+      id: 'a::l0::e0',
+      engine: { exercise: { type: 'lms.sql' } },
+    });
+    const flag = (p: typeof policy) =>
+      toExerciseDtoWith(exercise, types, p).task?.isolated;
+    expect(flag(createFakeExtensionPolicy())).toBe(true);
+    expect(flag(createFakeExtensionPolicy({ bundled: ['lms.sql'] }))).toBe(
+      false,
+    );
+    expect(
+      flag(
+        createFakeExtensionPolicy({
+          settings: { disabled: [], trusted: ['lms.sql'] },
+        }),
+      ),
+    ).toBe(false);
   });
 
   it('defaults the task timeout to 2000 ms', () => {
@@ -276,6 +303,7 @@ describe('toExerciseDto', () => {
         engine: { exercise: { type: 'lms.sql' } },
       }),
       types,
+      policy,
     );
     expect(dto.task?.timeoutMs).toBe(DEFAULT_EXERCISE_TIMEOUT_MS);
     expect(DEFAULT_EXERCISE_TIMEOUT_MS).toBe(2000);
@@ -295,22 +323,23 @@ describe('toExerciseDto', () => {
 describe('toUnitDto', () => {
   it('resolves units of every kind with counts from the graph', () => {
     const library = sampleLibrary();
-    expect(toUnitDto(library, 'a', noTypes)).toMatchObject({
+    expect(toUnitDto(library, 'a', noTypes, policy)).toMatchObject({
       kind: 'course',
       lessonCount: 2,
     });
-    expect(toUnitDto(library, 'a::l0', noTypes)).toMatchObject({
+    expect(toUnitDto(library, 'a::l0', noTypes, policy)).toMatchObject({
       kind: 'lesson',
       exerciseCount: 2,
     });
-    expect(toUnitDto(library, 'a::l1::e0', noTypes)).toMatchObject({
+    expect(toUnitDto(library, 'a::l1::e0', noTypes, policy)).toMatchObject({
       kind: 'exercise',
     });
   });
 
   it('unknown id is NOT_FOUND', () => {
     expect(
-      catchError(() => toUnitDto(sampleLibrary(), 'nope', noTypes)).code,
+      catchError(() => toUnitDto(sampleLibrary(), 'nope', noTypes, policy))
+        .code,
     ).toBe('NOT_FOUND');
   });
 });

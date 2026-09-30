@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { createCatalog } from '../src/catalog.ts';
+import {
+  createAllTrustedPolicy,
+  createExtensionPolicy,
+} from '../src/policy.ts';
 import type { ResolvedExtension } from '../src/discover.ts';
 
 const extension: ResolvedExtension = {
@@ -8,6 +12,7 @@ const extension: ResolvedExtension = {
   origin: 'bundled',
   dir: '/x/acme.t',
   mainPath: '/x/acme.t/main.mjs',
+  permissions: [],
   exerciseTypes: [
     {
       id: 'acme.t',
@@ -27,7 +32,7 @@ const extension: ResolvedExtension = {
 };
 
 describe('createCatalog', () => {
-  const catalog = createCatalog([extension]);
+  const catalog = createCatalog([extension], createAllTrustedPolicy());
 
   it('описывает вид и владельца', () => {
     expect(catalog.describe('acme.t')).toEqual({
@@ -75,7 +80,10 @@ describe('createCatalog: правила оценки', () => {
     ...extension,
     gradePolicies: [{ id: 'acme.t.generous', label: 'Generous' }],
   };
-  const catalog = createCatalog([extension, withPolicies]);
+  const catalog = createCatalog(
+    [extension, withPolicies],
+    createAllTrustedPolicy(),
+  );
 
   it('описывает правила и владельца', () => {
     expect(catalog.describePolicies()).toEqual([
@@ -83,5 +91,34 @@ describe('createCatalog: правила оценки', () => {
     ]);
     expect(catalog.ownerOfPolicy('acme.t.generous')?.id).toBe('acme.t');
     expect(catalog.ownerOfPolicy('acme.t.other')).toBeUndefined();
+  });
+});
+
+describe('createCatalog: отключённые расширения', () => {
+  const withPolicy: ResolvedExtension = {
+    ...extension,
+    origin: 'user',
+    gradePolicies: [{ id: 'acme.t.generous', label: 'Generous' }],
+  };
+  const policy = createExtensionPolicy({ extensions: [withPolicy] });
+  const catalog = createCatalog([withPolicy], policy);
+
+  it('ведёт себя так, будто расширения нет, и сразу возвращается при включении', () => {
+    policy.update({ disabled: ['acme.t'], trusted: [] });
+    expect(catalog.describe('acme.t')).toBeUndefined();
+    expect(catalog.list()).toEqual([]);
+    expect(catalog.ownerOf('acme.t')).toBeUndefined();
+    expect(catalog.ownerOfPolicy('acme.t.generous')).toBeUndefined();
+    expect(catalog.describePolicies()).toEqual([]);
+    expect(catalog.validateSpec('acme.t', {})).toEqual([
+      'unknown exercise type',
+    ]);
+    expect(catalog.validateAnswer('acme.t', 'x')).toEqual([
+      'unknown exercise type',
+    ]);
+    policy.update({ disabled: [], trusted: [] });
+    expect(catalog.describe('acme.t')?.extensionId).toBe('acme.t');
+    expect(catalog.list()).toHaveLength(1);
+    expect(catalog.ownerOfPolicy('acme.t.generous')?.id).toBe('acme.t');
   });
 });

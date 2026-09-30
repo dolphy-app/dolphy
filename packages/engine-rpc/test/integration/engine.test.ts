@@ -20,6 +20,7 @@ import {
   buildLibrary,
   createFakeClock,
   createFakeExerciseTypes,
+  createFakeExtensionPolicy,
   createFakeExtensionRegistry,
   createFakeGradePolicies,
   createMemoryCourseSource,
@@ -66,6 +67,18 @@ const REGISTERED: ExtensionInfoDto = {
     gradePolicies: [],
   },
   message: null,
+  permissions: ['library.read'],
+  isolation: 'trusted',
+  toggleable: false,
+};
+const USER_EXTENSION: ExtensionInfoDto = {
+  ...REGISTERED,
+  id: 'acme.user',
+  origin: 'user',
+  contributes: { ...REGISTERED.contributes, exerciseTypes: [] },
+  permissions: [],
+  isolation: 'isolated',
+  toggleable: true,
 };
 
 /** Вид задания, всегда отвечающий `passed`: проверяет путь вердикта через RPC. */
@@ -91,7 +104,11 @@ const start = async () => {
       memoryModel: createTsFsrsMemoryModel(),
       exerciseTypes: passingTypes(),
       gradePolicies: createFakeGradePolicies(),
-      extensionRegistry: createFakeExtensionRegistry([REGISTERED]),
+      extensionRegistry: createFakeExtensionRegistry([
+        REGISTERED,
+        USER_EXTENSION,
+      ]),
+      extensionPolicy: createFakeExtensionPolicy(),
     },
     { libraryRoot: source.root, dataDir: '/tmp/rpc-integration' },
   );
@@ -434,7 +451,28 @@ describe('rpc → dispatcher → real engine', () => {
     );
     expect(
       await call('extensions.list', () => client.extensions.list()),
-    ).toEqual([REGISTERED]);
+    ).toEqual([USER_EXTENSION, REGISTERED]);
+    expect(
+      await call('extensions.getSettings', () =>
+        client.extensions.getSettings(),
+      ),
+    ).toEqual({ disabled: [], trusted: [] });
+    expect(
+      await call('extensions.setEnabled', () =>
+        client.extensions.setEnabled('acme.user', false),
+      ),
+    ).toEqual({ disabled: ['acme.user'], trusted: [] });
+    expect(
+      await call('extensions.setTrusted', () =>
+        client.extensions.setTrusted('acme.user', true),
+      ),
+    ).toEqual({ disabled: ['acme.user'], trusted: ['acme.user'] });
+    await expect(
+      client.extensions.setEnabled('lms.sql', false),
+    ).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+      details: { reason: 'bundled' },
+    });
     expect(
       await call('extensions.contributions', () =>
         client.extensions.contributions(),

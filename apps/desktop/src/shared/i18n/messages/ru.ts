@@ -6,6 +6,7 @@ export const ru = {
     retry: 'Повторить',
   },
   markdown: {
+    frameTitle: 'Блок «{language}» от расширения, изолированная рамка',
     renderFailed:
       'Не удалось вывести блок «{language}»; показан исходный текст.',
   },

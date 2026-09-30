@@ -8,6 +8,7 @@ import {
   createFakeClock,
   createFakeExerciseTypes,
   createFakeGradePolicies,
+  createFakeExtensionPolicy,
   createFakeExtensionRegistry,
   createSeededRng,
   createTestIds,
@@ -124,6 +125,7 @@ describe('a profile on disk: nodeDefaults over a copied library', () => {
         exerciseTypes: createFakeExerciseTypes(),
         gradePolicies: createFakeGradePolicies(),
         extensionRegistry: createFakeExtensionRegistry(),
+        extensionPolicy: createFakeExtensionPolicy(),
       },
       config,
     );

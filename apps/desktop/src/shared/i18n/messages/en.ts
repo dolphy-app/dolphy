@@ -7,6 +7,7 @@ export const en: typeof ru = {
     retry: 'Try again',
   },
   markdown: {
+    frameTitle: '“{language}” block from an extension, isolated frame',
     renderFailed:
       'Could not render the “{language}” block; showing the source.',
   },

@@ -9,6 +9,7 @@ const renderers: MarkdownRendererDto[] = [
     language: 'math',
     extensionId: 'lms.math',
     rendererUrl: 'lms-ext://m/a.mjs',
+    isolated: false,
   },
 ];
 const describeError = (language: string) => `failed:${language}`;

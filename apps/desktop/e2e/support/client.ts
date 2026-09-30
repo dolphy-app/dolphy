@@ -24,6 +24,9 @@ const RU = {
   settingsAppearance: 'Внешний вид',
   themeGroup: 'Тема оформления',
   extensionList: 'Установленные расширения',
+  extensionEnabled: 'Включено',
+  extensionTrust: 'Доверять (без изоляции)',
+  reloadWindow: 'Перезагрузить окно',
   verdictPassed: 'Верно',
   verdictFailed: 'Пока неверно',
   grades: {
@@ -44,6 +47,9 @@ const RU = {
 } as const;
 
 const TIMEOUT = 15_000;
+
+/** Рамка элемента ответа недоверенного расширения (`IsolatedFrame`, режим `answer`). */
+export const ANSWER_FRAME = 'iframe[sandbox][data-mode="answer"]';
 
 export type Grade = 1 | 2 | 3 | 4 | 5;
 
@@ -274,24 +280,37 @@ export class Client {
     };
   }
 
-  /** Вводит ответ в элемент расширения (custom element в shadow DOM). */
-  private async fillAnswer(reply: AnswerInput) {
+  /**
+   * Элемент ответа: в окне (расширение из поставки или доверенное) либо в
+   * изолированной рамке (остальные). Ждёт, пока появится любой из двух.
+   */
+  async answerElement(tag: string): Promise<Locator> {
+    const inPage = this.page.locator(tag);
+    const framed = this.page.frameLocator(ANSWER_FRAME).locator(tag);
+    await expect
+      .poll(async () => (await inPage.count()) + (await framed.count()), {
+        timeout: TIMEOUT,
+      })
+      .toBeGreaterThan(0);
+    return (await inPage.count()) > 0 ? inPage : framed;
+  }
+
+  /** Вводит ответ в элемент расширения (custom element в окне или в рамке). */
+  async fillAnswer(reply: AnswerInput) {
     if ('sql' in reply) {
-      await this.page.locator('lms-sql-answer textarea').fill(reply.sql);
+      const element = await this.answerElement('lms-sql-answer');
+      await element.locator('textarea').fill(reply.sql);
     } else if ('choose' in reply) {
+      const element = await this.answerElement('lms-choice-answer');
       // после неверной попытки флажки остаются отмеченными: начинаем с чистого выбора
-      const marked = this.page.locator(
-        'lms-choice-answer input[type=checkbox]:checked',
-      );
+      const marked = element.locator('input[type=checkbox]:checked');
       while ((await marked.count()) > 0) await marked.first().uncheck();
       for (const option of reply.choose) {
-        await this.page
-          .locator('lms-choice-answer')
-          .getByLabel(option, { exact: true })
-          .check();
+        await element.getByLabel(option, { exact: true }).check();
       }
     } else {
-      await this.page.locator('acme-echo-answer input').fill(reply.text);
+      const element = await this.answerElement('acme-echo-answer');
+      await element.locator('input').fill(reply.text);
     }
   }
 
@@ -348,6 +367,64 @@ export class Client {
       });
     await rows.first().waitFor({ timeout: TIMEOUT });
     return rows.allInnerTexts();
+  }
+
+  private extensionSwitch(id: string, which: 'enabled' | 'trusted'): Locator {
+    // переключатели есть только у строк не из поставки: id таких строк уникален
+    return this.extensionList()
+      .getByRole('listitem')
+      .filter({
+        has: this.page.getByRole('heading', { name: id, exact: true }),
+      })
+      .getByRole('checkbox', {
+        name: which === 'enabled' ? RU.extensionEnabled : RU.extensionTrust,
+        exact: true,
+      });
+  }
+
+  /** Число переключателей в строках расширения `id` (у строк из поставки — 0). */
+  async extensionSwitchCount(id: string): Promise<number> {
+    await this.readExtensions(id);
+    return this.extensionList()
+      .getByRole('listitem')
+      .filter({
+        has: this.page.getByRole('heading', { name: id, exact: true }),
+      })
+      .getByRole('checkbox')
+      .count();
+  }
+
+  async extensionSwitchChecked(
+    id: string,
+    which: 'enabled' | 'trusted',
+  ): Promise<boolean> {
+    return this.extensionSwitch(id, which).isChecked();
+  }
+
+  /** Переключает «Включено» / «Доверять» и ждёт, пока движок ответит (появится просьба перезагрузить). */
+  async setExtensionSwitch(
+    id: string,
+    which: 'enabled' | 'trusted',
+    value: boolean,
+  ) {
+    const control = this.extensionSwitch(id, which);
+    await control.waitFor({ state: 'attached', timeout: TIMEOUT });
+    await control.setChecked(value, { force: true });
+    await this.page
+      .getByRole('button', { name: RU.reloadWindow, exact: true })
+      .waitFor({ timeout: TIMEOUT });
+  }
+
+  /** «Перезагрузить окно» в просьбе после изменения; ждёт перезагруженный экран расширений. */
+  async reloadFromExtensions() {
+    const reload = this.page.getByRole('button', {
+      name: RU.reloadWindow,
+      exact: true,
+    });
+    const reloaded = this.page.waitForEvent('load', { timeout: 30_000 });
+    await reload.click({ noWaitAfter: true });
+    await reloaded;
+    await this.openSettingsExtensions();
   }
 
   /** «Настройки» → «Обучение»: ждёт выбор правила оценки. */

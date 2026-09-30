@@ -2,6 +2,7 @@ export const ru = {
   exercisePanel: {
     material: 'Материал урока · {course}',
     answer: {
+      frameTitle: 'Ввод ответа от расширения в изолированной рамке: {label}',
       loadFailed: 'Не удалось загрузить ввод ответа ({element}).',
       label: 'Ответ',
       hint: 'Ctrl/⌘ + Enter — проверить',

@@ -1,7 +1,7 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { DEFAULT_MAIN } from '@lms/extension-api';
-import type { ExtensionLogger } from '@lms/extension-api';
+import type { ExtensionLogger, ExtensionPermission } from '@lms/extension-api';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import { parseManifest } from './manifest.ts';
 import { CONTRIBUTION_POINTS } from './points/index.ts';
@@ -22,6 +22,8 @@ export interface ResolvedExtension extends ResolvedContributions {
   dir: string;
   /** `null` — расширению код не нужен. */
   mainPath: string | null;
+  /** Объявленные в манифесте возможности кода; по умолчанию пусто. */
+  permissions: ExtensionPermission[];
 }
 
 export interface DiscoveryDiagnostic {
@@ -139,6 +141,7 @@ export const inspectExtensionDir = async (
         version: manifest.version,
         dir,
         mainPath,
+        permissions: manifest.permissions,
         ...(resolved as unknown as ResolvedContributions),
       },
     };

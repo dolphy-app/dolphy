@@ -12,7 +12,10 @@
     "!**/node_modules/better-sqlite3/{deps,src}/**"
   ],
   "asarUnpack": ["**/node_modules/better-sqlite3/prebuilds/**"],
-  "extraResources": [{ "from": "extensions", "to": "extensions" }],
+  "extraResources": [
+    { "from": "extensions", "to": "extensions" },
+    { "from": "restricted", "to": "restricted" }
+  ],
   "npmRebuild": false,
   "mac": {
     "target": ["dmg"],

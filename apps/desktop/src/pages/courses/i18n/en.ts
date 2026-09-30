@@ -35,9 +35,24 @@ export const en: typeof ru = {
       openPlan: 'Course plan',
       check: 'Check what I already know',
     },
+    git: {
+      open: 'Add from Git',
+      title: 'Add courses from Git',
+      description:
+        'Courses from a public repository will appear in the catalog. The network is used only now and when you update the repository.',
+      url: 'Repository URL',
+      urlPlaceholder: 'https://github.com/author/course',
+      ref: 'Branch or tag',
+      refHint: 'Empty — the default branch',
+      submit: 'Add',
+      close: 'Close',
+      cancelling: 'Cancelling…',
+      moreMessages: 'and {n} more',
+      added: 'No courses added | {n} course added | {n} courses added',
+    },
     empty: {
       title: 'No courses yet',
-      text: 'Add courses to the library and reload it in Settings → Library.',
+      text: 'Add courses from Git, or put them in the library and reload it in Settings → Library.',
     },
     noMatches: {
       title: 'Nothing found',

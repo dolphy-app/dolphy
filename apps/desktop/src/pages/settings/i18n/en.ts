@@ -100,6 +100,29 @@ export const en: typeof ru = {
         missing: 'none',
         compiling: 'building',
       },
+      repositories: {
+        title: 'Repositories',
+        description:
+          'Courses from Git. Updating and removing happen only on your command; the app never uses the network on its own.',
+        empty: 'No repositories yet. Add one on the Courses screen.',
+        defaultBranch: 'default branch',
+        courses: 'no courses | {n} course | {n} courses',
+        update: 'Update',
+        updateLabel: 'Update repository {url}',
+        remove: 'Remove',
+        removeLabel: 'Remove repository {url}',
+        cancelling: 'Cancelling…',
+        notice: {
+          upToDate: 'Already up to date',
+          updated:
+            'Updated: no courses | Updated: {n} course | Updated: {n} courses',
+          removed: 'Repository removed',
+        },
+        confirm: {
+          title: 'Remove the repository?',
+          text: 'Its courses will disappear from the library. Your progress is kept and comes back if you add the repository again.',
+        },
+      },
       ignored: {
         title: 'Ignored folders',
         description:

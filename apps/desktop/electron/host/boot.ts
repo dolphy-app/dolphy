@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { createEngine } from '@lms/engine/app';
 import { nodeDefaults } from '@lms/engine/node';
 import type { EngineConfig } from '@lms/engine-contract';
+import { createIsomorphicGitFetcher } from '@lms/engine-git';
 import { createSqlVerifier } from '@lms/engine-sql-runner';
 import { openSqliteStorage, readTraneDirectory } from '@lms/engine-sqlite';
 import { SQL_WORKER_PATH, spawnSqlWorker } from './spawn-worker.ts';
@@ -11,9 +12,13 @@ export const boot = async (config: EngineConfig) => {
   // первый запуск: каталогов ещё нет, библиотека может быть пустой
   mkdirSync(config.libraryRoot, { recursive: true });
   mkdirSync(config.dataDir, { recursive: true });
-  const defaults = nodeDefaults(config); // clock, rng, ids, logger, courseSource, memoryModel
-  // журнал событий и настройки — одна БД, одно соединение
-  const { events: eventStore, settings } = openSqliteStorage({
+  const defaults = nodeDefaults(config); // clock, rng, ids, logger, courseSource, snapshotInstaller, memoryModel
+  // журнал событий, настройки и реестр репозиториев — одна БД, одно соединение
+  const {
+    events: eventStore,
+    settings,
+    repositories: repositoryStore,
+  } = openSqliteStorage({
     path: join(config.dataDir, 'engine.db'),
     durability: config.durability ?? 'full',
   });
@@ -38,6 +43,8 @@ export const boot = async (config: EngineConfig) => {
       ...defaults,
       settings,
       eventStore,
+      repositoryStore,
+      snapshotFetcher: createIsomorphicGitFetcher(),
       verifiers: [sqlVerifier],
       openTraneSource: readTraneDirectory,
     },

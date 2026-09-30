@@ -142,10 +142,10 @@ const startSession = () => {
             <div
               v-for="item in counts"
               :key="item.reason"
-              class="d-flex flex-column-reverse"
+              class="d-flex flex-column-reverse align-center"
             >
               <dt class="text-label-medium opacity-90">{{ item.label }}</dt>
-              <dd class="text-display-small font-weight-bold">
+              <dd class="text-display-small font-weight-bold ma-0">
                 {{ item.count }}
               </dd>
             </div>

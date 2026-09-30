@@ -104,13 +104,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish-packages:
-    name: Publish packages (GitHub Packages)
+    name: Publish packages (npm)
     needs: release
     if: ${{ !cancelled() && (needs.release.outputs.version != '' || inputs.version != '') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
     env:
       VERSION: ${{ needs.release.outputs.version || inputs.version }}
     steps:
@@ -128,7 +127,7 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
-          registry-url: https://npm.pkg.github.com
+          registry-url: https://registry.npmjs.org
           scope: '@dolphy-app'
 
       - name: Install dependencies
@@ -162,4 +161,4 @@ jobs:
           done
           exit "$failed"
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

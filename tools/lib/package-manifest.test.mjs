@@ -67,7 +67,8 @@ describe('createManifest', () => {
       assert.deepEqual(manifest.files, ['dist']);
       assert.deepEqual(manifest.engines, { node: '>=22.12' });
       assert.deepEqual(manifest.publishConfig, {
-        registry: 'https://npm.pkg.github.com',
+        access: 'public',
+        registry: 'https://registry.npmjs.org',
       });
       assert.deepEqual(manifest.repository, {
         type: 'git',

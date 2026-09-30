@@ -122,7 +122,7 @@ const assertEmpty = async (dir: string): Promise<void> => {
 
 /** Файлы проекта: относительный путь → содержимое. */
 export const renderProject = (input: TemplateInput): Map<string, string> => {
-  const { id, githubPackages = false } = input;
+  const { id } = input;
   return new Map<string, string>([
     ['package.json', template.packageJson(input)],
     ['tsconfig.json', template.tsconfigJson()],
@@ -131,11 +131,8 @@ export const renderProject = (input: TemplateInput): Map<string, string> => {
     ['src/view.ts', template.viewTs(id)],
     ['test/main.test.ts', template.mainTestTs(id)],
     ['test/view.test.ts', template.viewTestTs(id)],
-    ['README.md', template.readme(id, githubPackages)],
+    ['README.md', template.readme(id)],
     ['.gitignore', template.gitignore()],
-    ...(githubPackages
-      ? [['.npmrc', template.npmrc()] as [string, string]]
-      : []),
   ]);
 };
 
@@ -151,11 +148,7 @@ export const generateExtension = async (
   await assertEmpty(dir);
 
   const isLocal = options.localRoot !== undefined;
-  const project = renderProject({
-    id,
-    dependencies,
-    githubPackages: !isLocal,
-  });
+  const project = renderProject({ id, dependencies });
   for (const [file, content] of project) {
     const target = path.join(dir, ...file.split('/'));
     await mkdir(path.dirname(target), { recursive: true });

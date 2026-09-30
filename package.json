@@ -20,6 +20,7 @@
     "lint:format": "prettier --check .",
     "check:tests": "node --test tools/check-test-coverage.test.mjs && node tools/check-test-coverage.mjs",
     "fix": "eslint . --fix && prettier --write .",
+    "release:version": "sh scripts/next-version.sh",
     "prepare": "husky"
   },
   "devDependencies": {

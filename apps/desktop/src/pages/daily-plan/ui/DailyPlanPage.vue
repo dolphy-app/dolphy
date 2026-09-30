@@ -5,22 +5,31 @@ import type { ItemReason } from '@lms/engine-contract';
 import { useEngine } from '@/shared/api/engine';
 import { ITEM_REASON } from '@/shared/config/item-reason.ts';
 import { ROUTE } from '@/shared/config/routes.ts';
+import PageHeader from '@/shared/ui/PageHeader.vue';
+import { CourseScopeSwitcher, useCourseScope } from '@/features/course-scope';
 import { useDailyPlan } from '../model/daily-plan.ts';
 import { useI18n } from 'vue-i18n';
 
 const UPCOMING_SHOWN = 5;
 const COUNTED_REASONS: ItemReason[] = ['new', 'review', 'remediation'];
+/** Ниже этой доли (в %) упражнение подсвечиваем как «забывается». */
+const REMEMBERED_WARNING = 60;
 
 const { t, d } = useI18n();
 const engine = useEngine();
 const router = useRouter();
-const { plan, loading, error, refresh } = useDailyPlan(engine);
+const scope = useCourseScope();
+const { plan, loading, error, refresh } = useDailyPlan(engine, scope.activeId);
 
 const today = d(new Date(), 'fullDate');
 
 const hero = computed(() => plan.value?.entries[0] ?? null);
 const upcoming = computed(() => plan.value?.entries.slice(1) ?? []);
 const upcomingShown = computed(() => upcoming.value.slice(0, UPCOMING_SHOWN));
+const upcomingHidden = computed(
+  () => upcoming.value.length - upcomingShown.value.length,
+);
+const initialLoading = computed(() => loading.value && !plan.value);
 
 const counts = computed(() =>
   COUNTED_REASONS.map((reason) => ({
@@ -32,25 +41,45 @@ const counts = computed(() =>
   })).filter(({ reason, count }) => count > 0 || reason !== 'remediation'),
 );
 
+// повторения в остальных курсах: в план не попадают, но о них напоминаем
+const otherDue = computed(() =>
+  scope.activeId.value === null
+    ? []
+    : scope.courses.value.filter(
+        ({ id, due }) => id !== scope.activeId.value && due > 0,
+      ),
+);
+
+const emptyText = computed(() => {
+  const course = scope.active.value;
+  return course
+    ? t('dailyPlan.empty.scopedText', { course: course.name })
+    : t('dailyPlan.empty.text');
+});
+const rememberedColor = (remembered: number) =>
+  remembered < REMEMBERED_WARNING ? 'warning' : 'secondary';
+
 const startSession = () => {
   if (!plan.value) return;
+  const { seed, courseId } = plan.value;
   void router.push({
     name: ROUTE.session,
-    query: { seed: String(plan.value.seed) },
+    query:
+      courseId === null
+        ? { seed: String(seed) }
+        : { seed: String(seed), course: courseId },
   });
 };
 </script>
 
 <template>
   <v-container max-width="1000" class="pa-8">
-    <header class="mb-8">
-      <h1 class="text-display-small font-weight-bold">
-        {{ t('dailyPlan.title') }}
-      </h1>
-      <p class="text-body-large text-medium-emphasis first-upper">
+    <PageHeader :title="t('dailyPlan.title')">
+      <p class="text-body-large text-medium-emphasis first-upper mt-1">
         {{ today }}
       </p>
-    </header>
+      <CourseScopeSwitcher class="mt-4" />
+    </PageHeader>
 
     <v-alert
       v-if="error"
@@ -64,7 +93,7 @@ const startSession = () => {
       </template>
     </v-alert>
 
-    <v-progress-linear v-if="loading && !plan" indeterminate rounded />
+    <v-progress-linear v-if="initialLoading" indeterminate rounded />
 
     <template v-else-if="plan">
       <v-card
@@ -116,7 +145,7 @@ const startSession = () => {
         <v-empty-state
           icon="mdi-check-circle-outline"
           :title="t('dailyPlan.empty.title')"
-          :text="t('dailyPlan.empty.text')"
+          :text="emptyText"
         />
       </v-card>
 
@@ -158,12 +187,8 @@ const startSession = () => {
                 </template>
               </v-list-item>
               <v-list-item
-                v-if="upcoming.length > upcomingShown.length"
-                :title="
-                  t('dailyPlan.upcoming.more', {
-                    n: upcoming.length - upcomingShown.length,
-                  })
-                "
+                v-if="upcomingHidden > 0"
+                :title="t('dailyPlan.upcoming.more', { n: upcomingHidden })"
                 class="text-medium-emphasis"
                 rounded="lg"
               />
@@ -193,7 +218,7 @@ const startSession = () => {
                   <v-chip
                     size="small"
                     variant="tonal"
-                    :color="entry.remembered < 60 ? 'warning' : 'secondary'"
+                    :color="rememberedColor(entry.remembered)"
                   >
                     {{ entry.remembered }}%
                   </v-chip>
@@ -203,6 +228,23 @@ const startSession = () => {
             <p v-else class="text-body-medium text-medium-emphasis px-4 pb-4">
               {{ t('dailyPlan.due.empty') }}
             </p>
+            <div v-if="otherDue.length" class="px-4 pb-4">
+              <p class="text-label-medium text-medium-emphasis mb-2">
+                {{ t('courseScope.otherDue') }}
+              </p>
+              <v-chip-group column>
+                <v-chip
+                  v-for="course in otherDue"
+                  :key="course.id"
+                  size="small"
+                  variant="tonal"
+                  color="warning"
+                  @click="scope.select(course.id)"
+                >
+                  {{ course.name }} · {{ course.due }}
+                </v-chip>
+              </v-chip-group>
+            </div>
           </v-card>
         </v-col>
       </v-row>
@@ -212,11 +254,15 @@ const startSession = () => {
 
 <style scoped>
 .hero {
-  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  background: linear-gradient(
+    135deg,
+    rgb(var(--v-theme-hero-start)) 0%,
+    rgb(var(--v-theme-hero-end)) 100%
+  );
 }
 
 .hero .hero-cta.v-btn {
-  color: #4f46e5;
+  color: rgb(var(--v-theme-hero-start));
 }
 
 .hero-text {

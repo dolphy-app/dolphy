@@ -5,6 +5,7 @@ import { createLmsI18n } from './providers/i18n.ts';
 import { createLmsVuetify } from './providers/vuetify.ts';
 import { router } from './router';
 import StartupError from './startup-error/StartupError.vue';
+import { COURSE_SCOPE_KEY, createCourseScope } from '@/features/course-scope';
 import { connectEngine, ENGINE_KEY } from '@/shared/api/engine';
 import { resolveLocale } from '@/shared/i18n';
 
@@ -30,11 +31,13 @@ const bootstrap = async () => {
     const engine = await connectEngine(); // UI монтируется после рукопожатия
     const { theme, locale } = await engine.settings.getUi();
     const i18n = createLmsI18n(resolveLocale(locale, navigator.language));
+    const courseScope = await createCourseScope(engine);
     createApp(App)
       .use(i18n)
       .use(createLmsVuetify(theme, i18n))
       .use(router)
       .provide(ENGINE_KEY, engine)
+      .provide(COURSE_SCOPE_KEY, courseScope)
       .mount('#app');
     if (__LMS_SMOKE_BUILD__ && smoke) {
       const { runSmoke } = await import('./smoke/run-smoke.ts');

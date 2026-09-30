@@ -20,6 +20,7 @@ import type { ExerciseManifest } from '../../domain/manifest.ts';
 import type { RawVerdict } from '../../ports/index.ts';
 import { SchedulerError } from '../../scheduler/types.ts';
 import { countGradedVerdicts } from '../../verify/grade-policy.ts';
+import { resolveCourseScope } from '../course-scope.ts';
 import type { EngineContext } from '../context.ts';
 import { DEFAULT_VERIFICATION_TIMEOUT_MS, toExerciseDto } from '../dto.ts';
 import { EngineError } from '../errors.ts';
@@ -404,14 +405,21 @@ export const createPracticeService = (ctx: EngineContext): PracticeService => {
   };
 
   const getDue = async (req: DueRequest = {}) => {
-    const { minNeed } = req;
+    const { minNeed, courseIds } = req;
     if (
       minNeed !== undefined &&
       !(Number.isFinite(minNeed) && minNeed >= 0 && minNeed <= 1)
     ) {
       throw invalid({ minNeed });
     }
-    return paginate(ctx.getDue(minNeed), req);
+    const scope = resolveCourseScope(ctx.library.require(), courseIds);
+    const due = ctx.getDue(minNeed);
+    return paginate(
+      scope === null
+        ? due
+        : due.filter(({ lessonId }) => scope.hasLesson(lessonId)),
+      req,
+    );
   };
 
   const resetProgress = async ({

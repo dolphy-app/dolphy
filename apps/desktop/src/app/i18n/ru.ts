@@ -4,6 +4,7 @@ export const ru = {
     main: 'Основное меню',
     more: 'Дополнительно',
     dailyPlan: 'План на сегодня',
+    courses: 'Курсы',
     settings: 'Настройки',
   },
   startup: {

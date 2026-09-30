@@ -15,6 +15,9 @@ export const DEFAULT_UI_SETTINGS: Readonly<UiSettingsDto> = Object.freeze({
 export const isThemeMode = (value: unknown): value is ThemeMode =>
   THEME_MODES.includes(value as ThemeMode);
 
+export const isUnitId = (value: unknown): value is string =>
+  typeof value === 'string' && value !== '';
+
 export const isLocaleMode = (value: unknown): value is LocaleMode =>
   LOCALE_MODES.includes(value as LocaleMode);
 
@@ -30,8 +33,10 @@ const fieldOf = (raw: unknown, key: keyof UiSettingsDto): unknown =>
 export const decodeUiSettings = (raw: unknown): UiSettingsDto => {
   const theme = fieldOf(raw, 'theme');
   const locale = fieldOf(raw, 'locale');
+  const activeCourseId = fieldOf(raw, 'activeCourseId');
   return {
     theme: isThemeMode(theme) ? theme : DEFAULT_UI_SETTINGS.theme,
     locale: isLocaleMode(locale) ? locale : DEFAULT_UI_SETTINGS.locale,
+    ...(isUnitId(activeCourseId) && { activeCourseId }),
   };
 };

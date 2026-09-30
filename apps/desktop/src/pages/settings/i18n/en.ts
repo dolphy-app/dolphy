@@ -116,6 +116,8 @@ export const en: typeof ru = {
       subtitle: 'Theme and language apply immediately.',
       theme: {
         title: 'Theme',
+        description:
+          'Look of the interface. “System default” follows the OS setting.',
         label: 'Color theme',
         system: 'System default',
         light: 'Light',
@@ -123,6 +125,8 @@ export const en: typeof ru = {
       },
       language: {
         title: 'Language',
+        description:
+          'Language of menus and hints. Course and exercise titles are not translated.',
         label: 'Interface language',
         system: 'System default',
         ru: 'Русский',

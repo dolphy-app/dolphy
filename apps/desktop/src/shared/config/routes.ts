@@ -1,5 +1,6 @@
 export const ROUTE = {
   dailyPlan: 'daily-plan',
+  courses: 'courses',
   session: 'session',
   settings: 'settings',
   settingsLearning: 'settings-learning',

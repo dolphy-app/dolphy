@@ -18,8 +18,10 @@ const router = useRouter();
 const stopwatch = useStopwatch();
 
 const seed = Number(route.query.seed);
+const course = route.query.course;
 const session = createSession(useEngine(), {
   seed: Number.isInteger(seed) ? seed : undefined,
+  courseId: typeof course === 'string' && course !== '' ? course : undefined,
 });
 const {
   stage,
@@ -70,10 +72,28 @@ const verdictText = computed(() => {
   }
   return view.feedback ?? reason;
 });
+const alertText = computed(() => verdictText.value ?? undefined);
 const canSubmit = computed(() => draft.value.trim().length > 0);
 const canGrade = computed(() => revealed.value || !current.value?.answer);
 const isLast = computed(() => position.value >= total.value);
 const averageGrade = computed(() => summary.value.averageGrade.toFixed(1));
+const title = computed(() => current.value?.lessonName ?? t('session.title'));
+const answerLabel = computed(() =>
+  current.value?.submissionKind === 'sql'
+    ? t('session.answer.sqlLabel')
+    : t('session.answer.label'),
+);
+const answerLocked = computed(() => stage.value === 'reviewed' || busy.value);
+const nextLabel = computed(() =>
+  isLast.value ? t('session.actions.finish') : t('session.actions.next'),
+);
+const gaveUp = computed(
+  () => !!current.value?.verifiable && result.value?.grade === 1,
+);
+/** Ответ для самопроверки: у проверяемых упражнений его показывает вердикт. */
+const selfAnswer = computed(() =>
+  current.value?.verifiable ? null : (current.value?.answer ?? null),
+);
 
 const submitDraft = () => {
   if (canSubmit.value) void session.submit(draft.value);
@@ -84,7 +104,7 @@ const exit = () => void router.push({ name: ROUTE.dailyPlan });
 <template>
   <v-main class="session">
     <SessionTopBar
-      :title="current?.lessonName ?? t('session.title')"
+      :title="title"
       :subtitle="subtitle"
       :progress="progress"
       :elapsed="stopwatch.formatted.value"
@@ -185,15 +205,11 @@ const exit = () => void router.push({ name: ROUTE.dailyPlan });
               <v-textarea
                 v-model="draft"
                 class="answer mt-6"
-                :label="
-                  current.submissionKind === 'sql'
-                    ? t('session.answer.sqlLabel')
-                    : t('session.answer.label')
-                "
+                :label="answerLabel"
                 auto-grow
                 rows="4"
                 spellcheck="false"
-                :disabled="stage === 'reviewed' || busy"
+                :disabled="answerLocked"
                 :hint="t('session.answer.hint')"
                 persistent-hint
                 @keydown.ctrl.enter.prevent="submitDraft"
@@ -203,7 +219,7 @@ const exit = () => void router.push({ name: ROUTE.dailyPlan });
                 v-if="verdictView"
                 :type="verdictView.type"
                 :title="t(verdictView.titleKey)"
-                :text="verdictText ?? undefined"
+                :text="alertText"
                 variant="tonal"
                 class="mt-4"
               />
@@ -258,17 +274,14 @@ const exit = () => void router.push({ name: ROUTE.dailyPlan });
 
             <template v-if="stage === 'reviewed'">
               <v-alert
-                v-if="current.verifiable && result?.grade === 1"
+                v-if="gaveUp"
                 type="info"
                 variant="tonal"
                 class="mt-4"
                 :text="t('session.gaveUp')"
               />
-              <v-card
-                v-if="current.answer && !current.verifiable"
-                class="pa-6 mt-8"
-              >
-                <MarkdownView :source="current.answer" />
+              <v-card v-if="selfAnswer" class="pa-6 mt-8">
+                <MarkdownView :source="selfAnswer" />
               </v-card>
               <v-alert
                 v-if="remediation.length"
@@ -291,11 +304,7 @@ const exit = () => void router.push({ name: ROUTE.dailyPlan });
                   :loading="busy"
                   @click="session.next()"
                 >
-                  {{
-                    isLast
-                      ? t('session.actions.finish')
-                      : t('session.actions.next')
-                  }}
+                  {{ nextLabel }}
                 </v-btn>
                 <span
                   v-if="result"

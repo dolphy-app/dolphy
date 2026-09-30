@@ -17,13 +17,14 @@ defineProps<{ title: string; description: string }>();
 <style scoped>
 .row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 1.5rem;
 }
 
 .text {
-  flex: 1 1 0;
+  flex: 1 1 16rem;
   min-width: 0;
 }
 

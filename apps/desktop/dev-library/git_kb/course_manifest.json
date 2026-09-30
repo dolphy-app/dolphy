@@ -1,0 +1,12 @@
+{
+  "dependencies": [],
+  "description": "Коммиты, ветки, откат и переписывание истории",
+  "engine": {
+    "tags": ["git"]
+  },
+  "generator_config": {
+    "KnowledgeBase": {}
+  },
+  "id": "git_kb",
+  "name": "Git: основы"
+}

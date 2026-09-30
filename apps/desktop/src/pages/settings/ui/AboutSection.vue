@@ -14,6 +14,7 @@ interface Fact {
 const { t, locale } = useI18n();
 
 const { info, error } = useEngineInfo(useEngine());
+const initialLoading = computed(() => !info.value && !error.value);
 
 const engineFacts = computed<Fact[]>(() => {
   if (!info.value) return [];
@@ -82,7 +83,7 @@ const scorerFacts = computed<Fact[]>(() => {
       {{ error }}
     </v-alert>
 
-    <v-progress-linear v-if="!info && !error" indeterminate rounded />
+    <v-progress-linear v-if="initialLoading" indeterminate rounded />
 
     <template v-else-if="info">
       <v-card class="pa-5 mb-6">

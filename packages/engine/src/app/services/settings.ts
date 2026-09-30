@@ -4,9 +4,14 @@ import type {
   SchedulerOptionsDto,
   SettingsService,
   UiSettingsDto,
+  UiSettingsPatch,
 } from '@lms/engine-contract';
 import type { UserPreferences } from '../../domain/manifest.ts';
-import { isLocaleMode, isThemeMode } from '../../domain/ui-settings.ts';
+import {
+  isLocaleMode,
+  isThemeMode,
+  isUnitId,
+} from '../../domain/ui-settings.ts';
 import {
   InvalidSchedulerOptionsError,
   applySchedulerPatch,
@@ -134,7 +139,7 @@ export const createSettingsService = (ctx: EngineContext): SettingsService => {
     return publish(before, ctx.options.reset());
   };
 
-  const setUi = async (patch: Partial<UiSettingsDto>) => {
+  const setUi = async (patch: UiSettingsPatch) => {
     if (patch.theme !== undefined && !isThemeMode(patch.theme)) {
       throw new EngineError('INVALID_ARGUMENT', {
         message: `Invalid theme: ${String(patch.theme)}`,
@@ -147,10 +152,24 @@ export const createSettingsService = (ctx: EngineContext): SettingsService => {
         details: { field: 'locale' },
       });
     }
+    const { activeCourseId } = patch;
+    if (
+      activeCourseId !== undefined &&
+      activeCourseId !== null &&
+      !isUnitId(activeCourseId)
+    ) {
+      throw new EngineError('INVALID_ARGUMENT', {
+        message: 'activeCourseId must be a non-empty string or null',
+        details: { field: 'activeCourseId' },
+      });
+    }
     const current = await ctx.settings.loadUi();
+    const focus =
+      activeCourseId === undefined ? current.activeCourseId : activeCourseId;
     const next: UiSettingsDto = {
       theme: patch.theme ?? current.theme,
       locale: patch.locale ?? current.locale,
+      ...(focus !== undefined && focus !== null && { activeCourseId: focus }),
     };
     await ctx.settings.saveUi(next);
     ctx.emit({ type: 'settings-changed', scope: 'ui' });

@@ -5,6 +5,7 @@ export const en: typeof ru = {
     main: 'Main menu',
     more: 'More',
     dailyPlan: "Today's plan",
+    courses: 'Courses',
     settings: 'Settings',
   },
   startup: {

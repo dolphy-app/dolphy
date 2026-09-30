@@ -34,7 +34,7 @@ const bottomItems = computed(() =>
       <span class="text-title-large font-weight-bold">{{ APP_NAME }}</span>
     </div>
     <v-divider />
-    <v-list nav class="pa-3" :aria-label="t('nav.main')">
+    <v-list nav role="navigation" class="pa-3" :aria-label="t('nav.main')">
       <v-list-item
         v-for="item in topItems"
         :key="item.name"
@@ -47,7 +47,7 @@ const bottomItems = computed(() =>
       />
     </v-list>
     <template #append>
-      <v-list nav class="pa-3" :aria-label="t('nav.more')">
+      <v-list nav role="navigation" class="pa-3" :aria-label="t('nav.more')">
         <v-list-item
           v-for="item in bottomItems"
           :key="item.name"

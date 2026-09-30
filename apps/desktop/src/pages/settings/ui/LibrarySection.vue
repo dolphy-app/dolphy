@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useEngine } from '@/shared/api/engine';
 import { useLibrarySettings } from '../model/library.ts';
@@ -20,6 +20,21 @@ const {
 
 const { t } = useI18n();
 const newPath = ref('');
+
+const ready = computed(() => info.value?.state === 'ready');
+const stateColor = computed(() => (ready.value ? 'success' : 'error'));
+const stateLabel = computed(() =>
+  ready.value
+    ? t('settings.library.state.ready')
+    : t('settings.library.state.failed'),
+);
+const isClean = computed(
+  () =>
+    (info.value?.diagnostics.errors ?? 0) +
+      (info.value?.diagnostics.warnings ?? 0) ===
+    0,
+);
+const revertDisabled = computed(() => !isDirty.value || busy.value);
 
 const add = () => {
   if (addPath(newPath.value)) newPath.value = '';
@@ -45,16 +60,8 @@ const add = () => {
           <h3 class="text-title-large font-weight-bold">
             {{ t('settings.library.state.title') }}
           </h3>
-          <v-chip
-            size="small"
-            variant="tonal"
-            :color="info.state === 'ready' ? 'success' : 'error'"
-          >
-            {{
-              info.state === 'ready'
-                ? t('settings.library.state.ready')
-                : t('settings.library.state.failed')
-            }}
+          <v-chip size="small" variant="tonal" :color="stateColor">
+            {{ stateLabel }}
           </v-chip>
           <v-spacer />
           <v-btn
@@ -118,12 +125,7 @@ const add = () => {
               })
             }}
           </v-chip>
-          <v-chip
-            v-if="info.diagnostics.errors + info.diagnostics.warnings === 0"
-            color="success"
-            size="small"
-            variant="tonal"
-          >
+          <v-chip v-if="isClean" color="success" size="small" variant="tonal">
             {{ t('settings.library.diagnostics.clean') }}
           </v-chip>
           <span class="text-body-small text-medium-emphasis">
@@ -183,7 +185,7 @@ const add = () => {
           >
             {{ t('settings.library.ignored.apply') }}
           </v-btn>
-          <v-btn variant="text" :disabled="!isDirty || busy" @click="revert">
+          <v-btn variant="text" :disabled="revertDisabled" @click="revert">
             {{ t('settings.library.ignored.revert') }}
           </v-btn>
         </div>

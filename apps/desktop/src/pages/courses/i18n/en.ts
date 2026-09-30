@@ -1,0 +1,46 @@
+import type { ru } from './ru.ts';
+
+export const en: typeof ru = {
+  courses: {
+    title: 'Courses',
+    subtitle: 'Study one course at a time, or all of them together',
+    search: 'Search by title and description',
+    clearFocus: 'Show all courses',
+    filter: {
+      state: 'Status',
+      sort: 'Sort',
+    },
+    state: {
+      all: 'All statuses',
+      'not-started': 'Not started',
+      'in-progress': 'In progress',
+      completed: 'Completed',
+      locked: 'Locked by prerequisites',
+      hidden: 'Hidden',
+      superseded: 'Superseded',
+    },
+    sort: {
+      name: 'By title',
+      progress: 'By progress',
+      due: 'By due reviews',
+    },
+    card: {
+      lessons: 'no lessons | {n} lesson | {n} lessons',
+      attempts: 'no attempts | {n} attempt | {n} attempts',
+      lessonsDone: 'Lessons completed: {done} of {total}',
+      due: 'no reviews due | {n} review due | {n} reviews due',
+      focused: 'In focus',
+      recommended: 'Recommended',
+      study: 'Study',
+      openPlan: 'Course plan',
+    },
+    empty: {
+      title: 'No courses yet',
+      text: 'Add courses to the library and reload it in Settings → Library.',
+    },
+    noMatches: {
+      title: 'Nothing found',
+      text: 'Change the query or reset the status filter.',
+    },
+  },
+};

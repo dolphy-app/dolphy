@@ -45,7 +45,10 @@ describe('вердикты через порт Verifier (T-41)', () => {
     const verdict = await verifier.check(
       sqlRequest('SELECT count(*) AS n FROM emp'),
     );
-    expect(verdict).toMatchObject({ outcome: 'passed', rowCount: 1 });
+    expect(verdict).toMatchObject({
+      outcome: 'passed',
+      data: { rowCount: 1 },
+    });
   });
 
   it('failed/mismatch — вина ученика; ожидаемых значений в вердикте нет', async () => {

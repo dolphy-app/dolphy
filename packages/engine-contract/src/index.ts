@@ -410,36 +410,33 @@ export interface SubmitAnswerRequest {
   attemptId: string;
   submission: SubmissionDto;
 }
-export type FailedReason =
-  | 'mismatch'
-  | 'sql_error'
-  | 'forbidden'
-  | 'row_limit'
-  | 'byte_limit'
-  | 'sqlite_limit';
-export type ErrorReason =
-  | 'fixture_error'
-  | 'expected_error'
-  | 'timeout'
-  | 'resource_kill'
-  | 'worker_crash'
-  | 'internal';
-export type VerdictReason = FailedReason | ErrorReason;
+/**
+ * Причины `error`-вердикта, которые порождает хост, а не расширение
+ * (остальные причины открытые строки расширения).
+ */
+export const HOST_ERROR_REASONS = [
+  'timeout',
+  'resource_kill',
+  'worker_crash',
+  'internal',
+] as const;
+export type HostErrorReason = (typeof HOST_ERROR_REASONS)[number];
 
 interface VerdictBase {
   attemptId: string;
   /** Число вердиктов `passed`/`failed` по попытке; `error` не считается. */
   attemptsUsed: number;
   durationMs: number;
-  rowCount?: number;
   feedback?: string;
+  /** Данные расширения, непрозрачны для движка (например, `{ rowCount }` у SQL). */
+  data?: unknown;
 }
 export type VerdictDto =
   | (VerdictBase & { outcome: 'passed' })
   /** Вина ученика. `detail` (ожидаемые строки) — только при `EngineConfig.authorMode`. */
-  | (VerdictBase & { outcome: 'failed'; reason: FailedReason; detail?: string })
+  | (VerdictBase & { outcome: 'failed'; reason: string; detail?: string })
   /** Не вина ученика: журнал не затрагивается, повтор `submitAnswer` разрешён. */
-  | (VerdictBase & { outcome: 'error'; reason: ErrorReason });
+  | (VerdictBase & { outcome: 'error'; reason: string });
 export interface CompleteAttemptRequest {
   attemptId: string;
   grade?: Grade;

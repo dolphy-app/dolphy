@@ -7,7 +7,6 @@
  * `failed` — вина ученика (событие пишет `completeAttempt`); `error` — баг
  * курса или среды: журнал не затрагивается, повтор разрешён.
  */
-import type { ErrorReason, FailedReason } from '@lms/engine-contract';
 import { MAX_SQL_CHARS } from '@lms/engine-contract';
 import type {
   CourseSource,
@@ -52,19 +51,21 @@ const LEARNER_FEEDBACK: Record<string, string> = {
 /** Раннер → `RawVerdict`: тексты SQLite наружу только в режиме автора. */
 const toRawVerdict = (verdict: Verdict, authorMode: boolean): RawVerdict => {
   const { status, code, reason, durationMs, rowCount, detail } = verdict;
-  if (status === 'passed') return { outcome: 'passed', durationMs, rowCount };
+  if (status === 'passed') {
+    return { outcome: 'passed', durationMs, data: { rowCount } };
+  }
   const learnerFeedback = LEARNER_FEEDBACK[code] ?? reason;
   let feedback: string | undefined;
   if (status === 'failed') feedback = learnerFeedback;
   else if (authorMode) feedback = reason;
   const extra = {
-    ...(rowCount > 0 ? { rowCount } : {}),
+    ...(rowCount > 0 ? { data: { rowCount } } : {}),
     ...(feedback === undefined ? {} : { feedback }),
   };
   if (status === 'failed') {
     return {
       outcome: 'failed',
-      reason: code as FailedReason,
+      reason: code,
       durationMs,
       ...extra,
       ...(authorMode && detail !== undefined ? { detail } : {}),
@@ -72,14 +73,14 @@ const toRawVerdict = (verdict: Verdict, authorMode: boolean): RawVerdict => {
   }
   return {
     outcome: 'error',
-    reason: code as ErrorReason,
+    reason: code,
     durationMs,
     ...extra,
   };
 };
 
 const errorVerdict = (
-  reason: ErrorReason,
+  reason: string,
   feedback: string,
   authorMode: boolean,
   startedAt: number,

@@ -74,6 +74,15 @@ const { ok, problems } = await validateExtension(dir);
 Ошибки сборки — `BuildError` (`message` совпадает с текстом, который печатает
 приложение для того же манифеста).
 
-Примеры из раздела «Точки вклада» `docs/design/extensions.md` собираются и
+Примеры из разделов «Точки вклада» и «Права и изоляция» `docs/design/extensions.md` собираются и
 проверяются тестом `test/docs-contributions.test.ts` (тема — проект из одного
 `extension.json`, рендерер содержимого и правило оценки — с `src/*.ts`).
+
+## Разрешения
+
+`permissions` в `extension.json` разбирает тот же `parseManifest`, что и
+приложение: `lms-ext validate` (и проверка в конце `lms-ext build`) отклоняет
+неизвестное имя (`permissions.0: …`) и дубль (`duplicate permission '…'`).
+Допустимые имена — `EXTENSION_PERMISSIONS` из `@lms/extension-api`. Пример
+манифеста с разрешениями — `docs/design/extensions.md`, «Права и изоляция»; он
+проверяется `test/docs-contributions.test.ts` вместе с примерами «Точек вклада».

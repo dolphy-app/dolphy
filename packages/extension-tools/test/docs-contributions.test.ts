@@ -1,5 +1,5 @@
 /**
- * Примеры из раздела «Точки вклада» `docs/design/extensions.md` проверяются
+ * Примеры из разделов «Точки вклада» и «Права и изоляция» `docs/design/extensions.md` проверяются
  * машиной: документ не расходится с кодом.
  *
  * Соглашение о маркерах: пример — обычный блок кода, последняя непустая строка
@@ -28,11 +28,12 @@ const EXAMPLES: Readonly<Record<string, Mode>> = {
   тема: 'build-no-code',
   'рендерер содержимого': 'build-with-code',
   'правило оценки': 'build-with-code',
+  'вид задания с правами': 'manifest',
 };
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../../..');
 const DOC = path.join(REPO_ROOT, 'docs/design/extensions.md');
-const SECTION = '## Точки вклада';
+const SECTIONS = ['## Точки вклада', '## Права и изоляция'];
 const MARKER = /^Файл `([^`]+)` \(([^)]+)\):$/;
 
 interface ExampleFile {
@@ -41,10 +42,10 @@ interface ExampleFile {
   content: string;
 }
 
-const sectionOf = (doc: string): string[] => {
+const sectionOf = (doc: string, section: string): string[] => {
   const lines = doc.split('\n');
-  const start = lines.indexOf(SECTION);
-  if (start === -1) throw new Error(`no '${SECTION}' section`);
+  const start = lines.indexOf(section);
+  if (start === -1) throw new Error(`no '${section}' section`);
   const end = lines.findIndex(
     (line, index) => index > start && line.startsWith('## '),
   );
@@ -73,7 +74,10 @@ const collect = (lines: string[]): Map<string, ExampleFile[]> => {
   return examples;
 };
 
-const examples = collect(sectionOf(await readFile(DOC, 'utf8')));
+const doc = await readFile(DOC, 'utf8');
+const examples = collect(
+  SECTIONS.flatMap((section) => sectionOf(doc, section)),
+);
 
 const manifestOf = (files: ExampleFile[]): unknown => {
   const manifests = files.filter(({ file }) => file === 'extension.json');
@@ -107,7 +111,7 @@ const writeProject = async (
   return root;
 };
 
-describe('примеры раздела «Точки вклада»', () => {
+describe('примеры разделов «Точки вклада» и «Права и изоляция»', () => {
   it('метки примеров совпадают с таблицей проверок', () => {
     expect([...examples.keys()].sort()).toEqual(Object.keys(EXAMPLES).sort());
   });

@@ -73,3 +73,25 @@ await policy.evaluate({ verdicts: [{ outcome: 'passed' }], gaveUp: false }); // 
 
 Темам код не нужен: это данные в `extension.json`. Подробности по всем
 точкам вклада — `docs/design/extensions.md`, «Точки вклада».
+
+## Права и `ctx.library`
+
+Расширение не из поставки и не доверенное исполняется в ограниченном процессе
+(`docs/design/extensions.md`, «Права и изоляция»): что не объявлено в
+`permissions` манифеста, недоступно. Из SDK доступны `EXTENSION_PERMISSIONS`
+(`library.read`, `process.spawn`, `worker.threads`, `native.addons`, `network`)
+и класс `PermissionError` (`permission`, `code: 'EXT_PERMISSION'`).
+
+- `ctx.library` в ограниченном процессе — прокси: запросы `readText` и `stat`
+  выполняет родитель, и только если объявлено `library.read`. Без него оба
+  метода бросают `PermissionError` (проверка идёт до обращения к родителю;
+  родитель отказывает и сам). Непойманное исключение обработчика даёт ошибку
+  `handler-failed`, проверка — вердикт `error`.
+- Запуск процессов, потоки и нативные модули без `process.spawn`,
+  `worker.threads` и `native.addons` падают с `ERR_ACCESS_DENIED` от Node;
+  `network` — справочное разрешение, сеть кода им не ограничивается.
+- У доверенного расширения и у расширения из поставки ограничений нет.
+- `@lms/extension-sdk/testing` запускает обработчик в вашем процессе, без
+  ограничений и без проверки `permissions`: `PermissionError` и
+  `ERR_ACCESS_DENIED` там не воспроизводятся, проверяйте разрешения в
+  приложении (вид — от стороннего, не доверенного расширения).

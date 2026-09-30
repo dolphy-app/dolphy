@@ -1,6 +1,8 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
 import { CoursesPage } from '@/pages/courses';
 import { DailyPlanPage } from '@/pages/daily-plan';
+import { GraphPage } from '@/pages/graph';
+import { PlacementPage } from '@/pages/placement';
 import { SessionPage } from '@/pages/session';
 import {
   SettingsAbout,
@@ -59,6 +61,18 @@ export const router = createRouter({
           },
         },
         {
+          path: 'graph',
+          name: ROUTE.graph,
+          component: GraphPage,
+          meta: {
+            nav: {
+              titleKey: 'nav.graph',
+              icon: 'mdi-graph-outline',
+              order: 3,
+            },
+          },
+        },
+        {
           path: 'settings',
           component: SettingsPage,
           children: [
@@ -105,5 +119,6 @@ export const router = createRouter({
       ],
     },
     { path: '/session', name: ROUTE.session, component: SessionPage },
+    { path: '/placement', name: ROUTE.placement, component: PlacementPage },
   ],
 });

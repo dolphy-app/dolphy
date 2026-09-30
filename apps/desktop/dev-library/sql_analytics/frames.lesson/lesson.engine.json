@@ -1,0 +1,6 @@
+{
+  "keyPrerequisites": ["sql_analytics::window"],
+  "tags": ["window", "frame", "lag"],
+  "bloom": "analyze",
+  "dok": 4
+}

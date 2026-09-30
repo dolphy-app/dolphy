@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import type { MarkdownRendererDto } from '@lms/engine-contract';
 import { describe, expect, it, vi } from 'vitest';
-import { hydrateMarkdownBlocks } from '../src/pages/session/lib/markdown-blocks.ts';
-import { createMarkdownRenderer } from '../src/pages/session/lib/markdown.ts';
+import { hydrateMarkdownBlocks } from '../src/shared/lib/markdown-blocks.ts';
+import { createMarkdownRenderer } from '../src/shared/lib/markdown.ts';
 
 const renderers: MarkdownRendererDto[] = [
   {

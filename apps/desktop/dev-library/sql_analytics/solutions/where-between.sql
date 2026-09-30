@@ -1,0 +1,1 @@
+SELECT name, salary FROM emp WHERE salary BETWEEN 4000 AND 6000;

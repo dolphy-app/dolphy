@@ -26,6 +26,7 @@
     "e2e": "vitest run -c vitest.e2e.config.ts"
   },
   "devDependencies": {
+    "@dagrejs/dagre": "^3.1.1",
     "@fontsource/roboto": "^5.2.10",
     "@lms/engine": "workspace:*",
     "@lms/engine-contract": "workspace:*",
@@ -38,6 +39,7 @@
     "@types/markdown-it": "^14.2.0",
     "@types/node": "^22.20.4",
     "@vitejs/plugin-vue": "^6.0.7",
+    "@vue-flow/core": "^1.48.2",
     "electron": "44.4.5",
     "electron-builder": "^26.8.1",
     "happy-dom": "^20.14.5",

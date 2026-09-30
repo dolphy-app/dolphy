@@ -12,7 +12,7 @@ pnpm-workspace (`pnpm-workspace.yaml`): `apps/*`, `packages/*`.
 | `packages/`                             | пакеты `@lms/*` слоя бизнес-логики `engine-ts` и сложные UI-компоненты (`@lms/ui`: редактор, quiz; Vue 3, Vuetify 4 — peer), карта — `packages/README.md` |
 | `docs/`, `engine-ts/`, `spike/`         | документы системного дизайна; кода там нет, линтер и форматтер их не трогают                                                                              |
 | `specs/`                                | спеки фич: активные в `specs/<feature-name>/`, завершённые в `specs/archive/`; каталог появляется с первой спекой, линтер и форматтер его не трогают      |
-| `vendor/metaskills`, `.agents/skills/*` | скиллы для агентов (git submodule и симлинки, см. `README.md`)                                                                                            |
+| `vendor/metaskills`, `.agents/skills/*` | скиллы для агентов (git submodule и симлинки, см. `docs/repository.md`)                                                                                   |
 
 ## Команды
 

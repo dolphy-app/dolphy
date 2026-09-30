@@ -1,0 +1,6 @@
+{
+  "keyPrerequisites": ["sql_analytics::cte"],
+  "tags": ["window"],
+  "bloom": "analyze",
+  "dok": 3
+}

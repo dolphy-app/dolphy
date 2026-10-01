@@ -185,6 +185,8 @@ export const ru = {
         themes: 'Темы',
         markdownRenderers: 'Рендереры содержимого',
         gradePolicies: 'Правила оценки',
+        settings: 'Настройки',
+        events: 'События обучения',
       },
       origin: {
         bundled: 'Поставка',
@@ -210,6 +212,7 @@ export const ru = {
       permissionsNone: 'не запрашивает',
       permissions: {
         library: { read: 'Чтение библиотеки курсов' },
+        learning: { events: 'События обучения' },
         process: { spawn: 'Запуск процессов' },
         worker: { threads: 'Потоки' },
         native: { addons: 'Нативные модули' },

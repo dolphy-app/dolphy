@@ -186,6 +186,8 @@ export const en: typeof ru = {
         themes: 'Themes',
         markdownRenderers: 'Content renderers',
         gradePolicies: 'Grade policies',
+        settings: 'Settings',
+        events: 'Learning events',
       },
       origin: {
         bundled: 'Bundled',
@@ -210,6 +212,7 @@ export const en: typeof ru = {
       permissionsTitle: 'Permissions',
       permissionsNone: 'none requested',
       permissions: {
+        learning: { events: 'Learning events' },
         library: { read: 'Read the course library' },
         process: { spawn: 'Launch processes' },
         worker: { threads: 'Threads' },

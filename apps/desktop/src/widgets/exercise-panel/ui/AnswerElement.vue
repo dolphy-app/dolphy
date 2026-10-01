@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 import type { ExerciseTaskDto, VerdictDto } from '@dolphy-app/engine-contract';
 import { ANSWER_EVENT } from '@dolphy-app/extension-api';
 import type { AnswerChangeDetail } from '@dolphy-app/extension-api';
+import { useContributions } from '@/shared/api/engine/contributions.ts';
 import { frameUrlOf } from '@/shared/lib/frame-bridge.ts';
 import { ensureAnswerElement } from '@/shared/lib/answer-element.ts';
 import IsolatedFrame from '@/shared/ui/IsolatedFrame.vue';
@@ -21,30 +22,52 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+const contributions = useContributions();
 const host = ref<HTMLElement | null>(null);
 const element = ref<HTMLElement | null>(null);
 const loadError = ref(false);
 let token = 0;
 
+/**
+ * Вид задания, по которому рисуется ввод. Смонтированный элемент расширения
+ * не трогаем, что бы ни случилось с расширением (R3): берётся вид из задания.
+ * Исключение — происхождение `dev`: правка файлов даёт новую ревизию, элемент
+ * пересоздаётся по действующему виду из вкладов (R5).
+ */
+const liveTask = computed<ExerciseTaskDto>(() => {
+  if (props.task.origin !== 'dev') return props.task;
+  const current = contributions.value.exerciseTypes.find(
+    ({ type }) => type === props.task.type,
+  );
+  if (current === undefined) return props.task;
+  const { element, rendererUrl, isolated, revision } = current;
+  return { ...props.task, element, rendererUrl, isolated, revision };
+});
+const instanceKey = computed(
+  () =>
+    `${liveTask.value.type}:${liveTask.value.element}:${
+      liveTask.value.origin === 'dev' ? liveTask.value.revision : ''
+    }`,
+);
+
 const frameSrc = computed(() => {
-  if (!props.task.isolated) return null;
+  if (!liveTask.value.isolated) return null;
   try {
-    return frameUrlOf(props.task.rendererUrl);
+    return frameUrlOf(liveTask.value.rendererUrl);
   } catch {
     return null;
   }
 });
 const failed = computed(
-  () => loadError.value || (props.task.isolated && frameSrc.value === null),
+  () => loadError.value || (liveTask.value.isolated && frameSrc.value === null),
 );
-const frameKey = computed(() => `${props.task.type}:${props.task.element}`);
 const frameTitle = computed(() =>
   t('exercisePanel.answer.frameTitle', { label: props.label }),
 );
 
 const onFrameError = (message: string) => {
   console.error(
-    { message, element: props.task.element },
+    { message, element: liveTask.value.element },
     'answer frame failed',
   );
   loadError.value = true;
@@ -66,15 +89,15 @@ const mount = async () => {
   const current = ++token;
   detach();
   loadError.value = false;
-  if (props.task.isolated) return;
+  if (liveTask.value.isolated) return;
   try {
-    await ensureAnswerElement(props.task);
+    await ensureAnswerElement(liveTask.value);
   } catch {
     if (current === token) loadError.value = true;
     return;
   }
   if (current !== token || !host.value) return;
-  const created = document.createElement(props.task.element);
+  const created = document.createElement(liveTask.value.element);
   created.setAttribute('aria-label', props.label);
   created.addEventListener(ANSWER_EVENT.change, onChange);
   created.addEventListener(ANSWER_EVENT.submit, onSubmit);
@@ -82,7 +105,7 @@ const mount = async () => {
   element.value = created;
 };
 
-watch(() => [props.task.type, props.task.element, props.task.isolated], mount, {
+watch(() => [instanceKey.value, liveTask.value.isolated], mount, {
   immediate: true,
   flush: 'post',
 });
@@ -108,17 +131,19 @@ onBeforeUnmount(() => {
       v-if="failed"
       type="error"
       variant="tonal"
-      :text="t('exercisePanel.answer.loadFailed', { element: task.element })"
+      :text="
+        t('exercisePanel.answer.loadFailed', { element: liveTask.element })
+      "
     />
     <IsolatedFrame
-      v-if="task.isolated && frameSrc !== null && !loadError"
-      :key="frameKey"
+      v-if="liveTask.isolated && frameSrc !== null && !loadError"
+      :key="instanceKey"
       :src="frameSrc"
       :title="frameTitle"
       :init="{
         mode: 'answer',
-        rendererUrl: task.rendererUrl,
-        element: task.element,
+        rendererUrl: liveTask.rendererUrl,
+        element: liveTask.element,
         label,
       }"
       :disabled="disabled"
@@ -128,6 +153,6 @@ onBeforeUnmount(() => {
       @submit="emit('submit')"
       @error="onFrameError"
     />
-    <div v-else-if="!task.isolated" ref="host" />
+    <div v-else-if="!liveTask.isolated" ref="host" />
   </div>
 </template>

@@ -8,6 +8,7 @@ import {
 } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useContributions } from '@/shared/api/engine/contributions.ts';
+import { moduleUrlOf } from '@/shared/lib/extension-url.ts';
 import { hydrateMarkdownBlocks } from '@/shared/lib/markdown-blocks.ts';
 import { createMarkdownRenderer } from '@/shared/lib/markdown.ts';
 
@@ -16,12 +17,19 @@ const { t } = useI18n();
 const contributions = useContributions();
 const root = useTemplateRef<HTMLElement>('root');
 
+const renderers = computed(() => contributions.value.markdownRenderers);
 const render = computed(() =>
-  createMarkdownRenderer(
-    new Set(contributions.markdownRenderers.map((r) => r.language)),
-  ),
+  createMarkdownRenderer(new Set(renderers.value.map((r) => r.language))),
 );
 const html = computed(() => render.value(props.source));
+// Рендерер добавили, убрали, обновили, исправили (режим разработчика) или
+// переключили «Доверять»: блоки выводятся заново из исходного текста. Без
+// изменений набор вкладов (например, пришла только тема) документ не трогает.
+const rendererKey = computed(() =>
+  renderers.value
+    .map((r) => [r.language, moduleUrlOf(r), r.isolated].join('|'))
+    .join('\n'),
+);
 
 const controller: { current: AbortController | null } = { current: null };
 
@@ -33,7 +41,7 @@ const hydrate = () => {
   controller.current = next;
   void hydrateMarkdownBlocks({
     root: element,
-    renderers: contributions.markdownRenderers,
+    renderers: renderers.value,
     signal: next.signal,
     describeError: (language) => t('markdown.renderFailed', { language }),
     describeFrame: (language) => t('markdown.frameTitle', { language }),
@@ -41,13 +49,14 @@ const hydrate = () => {
 };
 
 onMounted(hydrate);
-watch(html, hydrate, { flush: 'post' });
+// `rendererKey` — ключ корня: Vue создаёт новый элемент с исходной разметкой
+watch([html, rendererKey], hydrate, { flush: 'post' });
 onBeforeUnmount(() => controller.current?.abort());
 </script>
 
 <template>
   <!-- eslint-disable-next-line vue/no-v-html -- markdown-it с html: false -->
-  <div ref="root" class="markdown" v-html="html" />
+  <div :key="rendererKey" ref="root" class="markdown" v-html="html" />
 </template>
 
 <style scoped>

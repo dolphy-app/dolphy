@@ -17,63 +17,36 @@ export interface InstallItem {
   failure: InstallFailure | null;
 }
 
-/** Что сделано за этот запуск и вступит в силу после перезагрузки окна. */
-export interface PendingChange {
-  kind: 'installed' | 'updated' | 'removed';
-  version: string | null;
-}
-
-export interface InstallOptions {
-  /** Перезагружает окно. */
-  apply(): Promise<void>;
-}
-
-const errorText = (caught: unknown) =>
-  caught instanceof Error ? caught.message : String(caught);
-
 const isRunnable = (item: InstallItem) =>
   item.status === 'pending' || item.status === 'failed';
 
 export interface ExtensionInstall {
   phase: Ref<InstallPhase>;
   items: ShallowRef<InstallItem[]>;
-  pending: ShallowRef<ReadonlyMap<string, PendingChange>>;
-  /** Есть изменения, которые вступят в силу после перезагрузки окна. */
-  needsApply: ComputedRef<boolean>;
   succeeded: ComputedRef<boolean>;
   failed: ComputedRef<InstallItem[]>;
   canRetry: ComputedRef<boolean>;
-  applying: Ref<boolean>;
-  applyError: Ref<string | null>;
   removing: Ref<string | null>;
   removeError: Ref<string | null>;
   review(targets: readonly InstallTarget[]): void;
   dismiss(): void;
   confirm(): Promise<void>;
   retry(): Promise<void>;
-  apply(): Promise<void>;
   remove(id: string): Promise<boolean>;
 }
 
 /**
  * Установка, обновление и удаление расширений. Расширения ставятся по одному
- * в порядке списка; сбой одного не останавливает остальные. Вклады читаются
- * при запуске, поэтому всё сделанное ждёт перезагрузки окна (`pending`,
- * `needsApply`): список движка до неё остаётся прежним.
+ * в порядке списка; сбой одного не останавливает остальные. Сделанное
+ * действует сразу: движок применяет его до ответа, окно перечитывает вклады
+ * по `contributions-changed`.
  */
-export const useInstall = (
-  engine: LearningEngine,
-  options: InstallOptions,
-): ExtensionInstall => {
+export const useInstall = (engine: LearningEngine): ExtensionInstall => {
   const phase = ref<InstallPhase>('idle');
   const items = shallowRef<InstallItem[]>([]);
-  const pending = shallowRef<ReadonlyMap<string, PendingChange>>(new Map());
-  const applying = ref(false);
-  const applyError = ref<string | null>(null);
   const removing = ref<string | null>(null);
   const removeError = ref<string | null>(null);
 
-  const needsApply = computed(() => pending.value.size > 0);
   const succeeded = computed(() =>
     items.value.some((item) => item.status === 'done'),
   );
@@ -83,10 +56,6 @@ export const useInstall = (
   const canRetry = computed(() =>
     failed.value.some((item) => item.failure?.retryable === true),
   );
-
-  const markPending = (id: string, change: PendingChange) => {
-    pending.value = new Map(pending.value).set(id, change);
-  };
 
   const patch = (index: number, changes: Partial<InstallItem>) => {
     items.value = items.value.map((item, at) =>
@@ -114,12 +83,8 @@ export const useInstall = (
   const installOne = async (index: number, target: InstallTarget) => {
     patch(index, { status: 'running', failure: null });
     try {
-      const result = await engine.extensions.install(target.id, target.version);
+      await engine.extensions.install(target.id, target.version);
       patch(index, { status: 'done' });
-      markPending(target.id, {
-        kind: target.installedVersion === null ? 'installed' : 'updated',
-        version: result.version,
-      });
     } catch (caught) {
       patch(index, {
         status: 'failed',
@@ -146,18 +111,6 @@ export const useInstall = (
     if (phase.value === 'finished' && failed.value.length > 0) await run();
   };
 
-  const apply = async () => {
-    if (applying.value) return;
-    applying.value = true;
-    applyError.value = null;
-    try {
-      await options.apply();
-    } catch (caught) {
-      applyError.value = errorText(caught);
-      applying.value = false;
-    }
-  };
-
   /** `true` — расширение удалено. */
   const remove = async (id: string): Promise<boolean> => {
     if (removing.value !== null) return false;
@@ -165,7 +118,6 @@ export const useInstall = (
     removeError.value = null;
     try {
       await engine.extensions.uninstall(id);
-      markPending(id, { kind: 'removed', version: null });
       return true;
     } catch (caught) {
       removeError.value = toEngineError(caught).message;
@@ -178,20 +130,15 @@ export const useInstall = (
   return {
     phase,
     items,
-    pending,
-    needsApply,
     succeeded,
     failed,
     canRetry,
-    applying,
-    applyError,
     removing,
     removeError,
     review,
     dismiss,
     confirm,
     retry,
-    apply,
     remove,
   };
 };

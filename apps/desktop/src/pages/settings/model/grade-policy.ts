@@ -1,4 +1,5 @@
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, toValue } from 'vue';
+import type { MaybeRefOrGetter } from 'vue';
 import { BUILTIN_GRADE_POLICY } from '@dolphy-app/engine-contract';
 import type {
   GradePolicyInfoDto,
@@ -28,19 +29,22 @@ export const toGradePolicyOptions = (
 /**
  * Правило оценки хранит движок. Сохранённый id, которого больше нет среди
  * вкладов (расширение убрали), не трогаем, но показываем как `passAtN` и
- * предупреждаем: именно его применит движок.
+ * предупреждаем: именно его применит движок. Вклады реактивны: правило
+ * появляется и пропадает вместе с расширением, без перезагрузки окна.
  */
 export const useGradePolicySetting = (
   engine: LearningEngine,
-  policies: readonly GradePolicyInfoDto[],
+  policies: MaybeRefOrGetter<readonly GradePolicyInfoDto[]>,
 ) => {
-  const options = toGradePolicyOptions(policies);
+  const options = computed(() => toGradePolicyOptions(toValue(policies)));
   const saved = ref<string | null>(null);
   const error = ref<string | null>(null);
   const busy = ref(false);
 
   const missing = computed(
-    () => saved.value !== null && !options.some(({ id }) => id === saved.value),
+    () =>
+      saved.value !== null &&
+      !options.value.some(({ id }) => id === saved.value),
   );
   const effective = computed(() =>
     saved.value === null || missing.value ? BUILTIN_GRADE_POLICY : saved.value,

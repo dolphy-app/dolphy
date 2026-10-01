@@ -14,14 +14,15 @@ type NumericField = {
 
 const { form, busy, error, isDirty, save, revert, resetToDefaults } =
   useLearningSettings(useEngine());
+const contributions = useContributions();
 const gradePolicy = useGradePolicySetting(
   useEngine(),
-  useContributions().gradePolicies,
+  () => contributions.value.gradePolicies,
 );
 const { t } = useI18n();
 const confirmReset = ref(false);
 const gradePolicyItems = computed(() =>
-  gradePolicy.options.map(({ id, label, extensionId }) => ({
+  gradePolicy.options.value.map(({ id, label, extensionId }) => ({
     value: id,
     title: label ?? t('settings.learning.gradePolicy.passAtN.title'),
     subtitle: extensionId ?? t('settings.learning.gradePolicy.builtin'),

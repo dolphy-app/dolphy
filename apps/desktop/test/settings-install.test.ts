@@ -32,18 +32,16 @@ const installFailed = (reason: string, retryable = false) =>
 interface Setup {
   install: ExtensionInstall;
   calls: { id: string; version: string | undefined }[];
-  applied: () => number;
   removed: string[];
 }
 
 /** `outcomes` — что делает `install(id)`: ошибка или успех (по умолчанию). */
 const setup = (
   outcomes: Record<string, Error> = {},
-  options: { applyError?: Error; uninstallError?: Error } = {},
+  options: { uninstallError?: Error } = {},
 ): Setup => {
   const calls: Setup['calls'] = [];
   const removed: string[] = [];
-  let applyCalls = 0;
   const engine = {
     extensions: {
       install: async (
@@ -65,15 +63,8 @@ const setup = (
       },
     },
   } as unknown as LearningEngine;
-  const install = effectScope().run(() =>
-    useInstall(engine, {
-      apply: async () => {
-        applyCalls += 1;
-        if (options.applyError) throw options.applyError;
-      },
-    }),
-  )!;
-  return { install, calls, applied: () => applyCalls, removed };
+  const install = effectScope().run(() => useInstall(engine))!;
+  return { install, calls, removed };
 };
 
 describe('установка одного расширения', () => {
@@ -92,18 +83,14 @@ describe('установка одного расширения', () => {
     expect(install.phase.value).toBe('finished');
     expect(install.items.value[0]?.status).toBe('done');
     expect(install.succeeded.value).toBe(true);
-    expect(install.pending.value.get('acme.sunrise')).toEqual({
-      kind: 'installed',
-      version: '1.1.0',
-    });
-    expect(install.needsApply.value).toBe(true);
   });
 
-  it('обновление помечается как updated', async () => {
-    const { install } = setup();
+  it('обновление ставит ту же версию, что выбрана в диалоге', async () => {
+    const { install, calls } = setup();
     install.review([target('acme.sunrise', '1.0.0')]);
     await install.confirm();
-    expect(install.pending.value.get('acme.sunrise')?.kind).toBe('updated');
+    expect(calls).toEqual([{ id: 'acme.sunrise', version: '1.1.0' }]);
+    expect(install.items.value[0]?.status).toBe('done');
   });
 
   it('отмена до подтверждения ничего не меняет; повторное подтверждение не ставит второй раз', async () => {
@@ -113,7 +100,6 @@ describe('установка одного расширения', () => {
     expect(install.phase.value).toBe('idle');
     await install.confirm();
     expect(calls).toEqual([]);
-    expect(install.needsApply.value).toBe(false);
 
     install.review([target('acme.sunrise')]);
     await Promise.all([install.confirm(), install.confirm()]);
@@ -140,25 +126,21 @@ describe('установка одного расширения', () => {
     ['limits', false],
     ['invalid', false],
     ['conflict', false],
-  ])(
-    'ошибка %s → причина, retryable=%s, ничего не ждёт перезагрузки',
-    async (reason, retryable) => {
-      const { install } = setup({
-        'acme.sunrise': installFailed(reason, retryable),
-      });
-      install.review([target('acme.sunrise')]);
-      await install.confirm();
+  ])('ошибка %s → причина и retryable=%s', async (reason, retryable) => {
+    const { install } = setup({
+      'acme.sunrise': installFailed(reason, retryable),
+    });
+    install.review([target('acme.sunrise')]);
+    await install.confirm();
 
-      expect(install.phase.value).toBe('finished');
-      expect(install.items.value[0]).toMatchObject({
-        status: 'failed',
-        failure: { reason, retryable },
-      });
-      expect(install.canRetry.value).toBe(retryable);
-      expect(install.succeeded.value).toBe(false);
-      expect(install.needsApply.value).toBe(false);
-    },
-  );
+    expect(install.phase.value).toBe('finished');
+    expect(install.items.value[0]).toMatchObject({
+      status: 'failed',
+      failure: { reason, retryable },
+    });
+    expect(install.canRetry.value).toBe(retryable);
+    expect(install.succeeded.value).toBe(false);
+  });
 
   it('неизвестная ошибка → общий текст', async () => {
     const { install } = setup({ 'acme.sunrise': new Error('kaboom') });
@@ -170,7 +152,7 @@ describe('установка одного расширения', () => {
     });
   });
 
-  it('повтор ставит только не удавшееся и после успеха ждёт перезагрузки', async () => {
+  it('повтор ставит только не удавшееся', async () => {
     const outcomes: Record<string, Error> = {
       'acme.sunrise': installFailed('network', true),
     };
@@ -184,7 +166,6 @@ describe('установка одного расширения', () => {
     expect(calls).toHaveLength(2);
     expect(install.items.value[0]?.status).toBe('done');
     expect(install.items.value[0]?.failure).toBeNull();
-    expect(install.needsApply.value).toBe(true);
   });
 });
 
@@ -211,7 +192,6 @@ describe('обновление нескольких расширений', () =>
     expect(install.failed.value.map((item) => item.target.id)).toEqual([
       'acme.b',
     ]);
-    expect([...install.pending.value.keys()]).toEqual(['acme.a', 'acme.c']);
   });
 
   it('повтор после частичного успеха не ставит готовое второй раз', async () => {
@@ -232,42 +212,22 @@ describe('обновление нескольких расширений', () =>
   });
 });
 
-describe('применение и «Позже»', () => {
-  it('«Позже» закрывает диалог, изменения остаются ждать перезагрузки', async () => {
+describe('закрытие диалога', () => {
+  it('после итога диалог закрывается; изменения уже действуют, ждать нечего', async () => {
     const { install } = setup();
     install.review([target('acme.sunrise')]);
     await install.confirm();
     install.dismiss();
     expect(install.phase.value).toBe('idle');
-    expect(install.needsApply.value).toBe(true);
-  });
-
-  it('apply вызывает мост один раз, пока идёт', async () => {
-    const { install, applied } = setup();
-    install.review([target('acme.sunrise')]);
-    await install.confirm();
-    await Promise.all([install.apply(), install.apply()]);
-    expect(applied()).toBe(1);
-    expect(install.applying.value).toBe(true);
-  });
-
-  it('сбой apply показывает ошибку и разблокирует кнопку', async () => {
-    const { install } = setup({}, { applyError: new Error('no window') });
-    await install.apply();
-    expect(install.applyError.value).toBe('no window');
-    expect(install.applying.value).toBe(false);
+    expect(install.items.value).toEqual([]);
   });
 });
 
 describe('удаление', () => {
-  it('успех помечает расширение как удалённое до перезагрузки', async () => {
+  it('успех удаляет расширение и освобождает кнопку', async () => {
     const { install, removed } = setup();
     expect(await install.remove('acme.sunrise')).toBe(true);
     expect(removed).toEqual(['acme.sunrise']);
-    expect(install.pending.value.get('acme.sunrise')).toEqual({
-      kind: 'removed',
-      version: null,
-    });
     expect(install.removing.value).toBeNull();
   });
 
@@ -283,7 +243,6 @@ describe('удаление', () => {
     );
     expect(await install.remove('dolphy.sql')).toBe(false);
     expect(install.removeError.value).toBe('extension is not removable');
-    expect(install.needsApply.value).toBe(false);
     expect(install.removing.value).toBeNull();
   });
 });

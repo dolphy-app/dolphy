@@ -9,10 +9,13 @@ import { COURSE_SCOPE_KEY, createCourseScope } from '@/features/course-scope';
 import {
   CONTRIBUTIONS_KEY,
   connectEngine,
+  createContributionsStore,
+  createThemeSelection,
   ENGINE_KEY,
-  loadContributions,
+  THEME_SELECTION_KEY,
 } from '@/shared/api/engine';
 import { resolveLocale } from '@/shared/i18n';
+import { bindExtensionThemes } from '@/shared/lib/theme-registry.ts';
 
 import './styles/global.css';
 
@@ -26,26 +29,36 @@ const showStartupError = (error: unknown) => {
     message: error instanceof Error ? error.message : String(error),
   })
     .use(i18n)
-    .use(createDolphyVuetify('system', i18n))
+    .use(createDolphyVuetify(i18n))
     .mount('#app');
 };
 
 const bootstrap = async () => {
   const smoke = __DOLPHY_SMOKE_BUILD__ ? window.dolphy.smoke : undefined;
   try {
-    const engine = await connectEngine(); // UI монтируется после рукопожатия
+    // UI монтируется после рукопожатия
+    const { engine, onReconnect } = await connectEngine();
     const [{ theme, locale }, contributions] = await Promise.all([
       engine.settings.getUi(),
-      loadContributions(engine),
+      createContributionsStore(engine),
     ]);
+    onReconnect(() => void contributions.reconnected());
     const i18n = createDolphyI18n(resolveLocale(locale, navigator.language));
     const courseScope = await createCourseScope(engine);
+    const vuetify = createDolphyVuetify(i18n);
+    const themeSelection = createThemeSelection(engine, theme);
+    bindExtensionThemes(
+      vuetify.theme,
+      themeSelection.saved,
+      () => contributions.contributions.value.themes,
+    );
     createApp(App)
       .use(i18n)
-      .use(createDolphyVuetify(theme, i18n, contributions.themes))
+      .use(vuetify)
       .use(router)
       .provide(ENGINE_KEY, engine)
-      .provide(CONTRIBUTIONS_KEY, contributions)
+      .provide(CONTRIBUTIONS_KEY, contributions.contributions)
+      .provide(THEME_SELECTION_KEY, themeSelection)
       .provide(COURSE_SCOPE_KEY, courseScope)
       .mount('#app');
     if (__DOLPHY_SMOKE_BUILD__ && smoke) {

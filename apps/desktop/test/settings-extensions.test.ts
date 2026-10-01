@@ -212,11 +212,10 @@ describe('переключатели', () => {
     return { engine, calls, listCalls: () => listCalls };
   };
 
-  it('переключатель меняется сразу, успех сохраняет ответ движка и просит перезагрузку', async () => {
+  it('переключатель меняется сразу, успех сохраняет ответ движка и перечитывает список', async () => {
     const { engine, calls, listCalls } = createSwitchEngine();
     const model = mount(engine);
     await flush();
-    expect(model.needsReload.value).toBe(false);
 
     const pending = model.setTrusted('acme.x', true);
     expect(model.settings.value.trusted).toEqual(['acme.x']);
@@ -235,7 +234,6 @@ describe('переключатели', () => {
       checkUpdates: true,
     });
     expect(model.switching.value.size).toBe(0);
-    expect(model.needsReload.value).toBe(true);
     expect(model.switchError.value).toBeNull();
     await flush();
     expect(listCalls()).toBe(2);
@@ -256,7 +254,7 @@ describe('переключатели', () => {
     expect(calls[0]).toMatchObject({ method: 'setEnabled', value: true });
   });
 
-  it('отказ движка откатывает переключатель и показывает ошибку без перезагрузки', async () => {
+  it('отказ движка откатывает переключатель и показывает ошибку', async () => {
     const { engine, calls } = createSwitchEngine();
     const model = mount(engine);
     await flush();
@@ -268,7 +266,6 @@ describe('переключатели', () => {
 
     expect(model.settings.value).toEqual(NONE_SET);
     expect(model.switchError.value).toBe('cannot write');
-    expect(model.needsReload.value).toBe(false);
     expect(model.switching.value.size).toBe(0);
   });
 
@@ -415,7 +412,6 @@ describe('обновления и установка из каталога', () 
     await rejected;
     expect(model.settings.value.checkUpdates).toBe(true);
     expect(model.switchError.value).toBe('disk is full');
-    expect(model.needsReload.value).toBe(false);
 
     fail = false;
     await model.setCheckUpdates(false);

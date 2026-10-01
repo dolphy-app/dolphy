@@ -114,6 +114,25 @@ describe('hydrateMarkdownBlocks', () => {
     expect(unknown.querySelector('[data-state=error] pre code')).not.toBeNull();
   });
 
+  it('модуль грузится по адресу с ревизией: обновлённый рендерер не берётся из кэша окна', async () => {
+    const withRevision: MarkdownRendererDto[] = [
+      { ...renderers[0]!, origin: 'user', revision: 'rev-2' },
+    ];
+    const loadModule = vi.fn(async () => ({
+      render: (_source: string, container: HTMLElement) => {
+        container.textContent = 'ok';
+      },
+    }));
+    await hydrateMarkdownBlocks({
+      root: mount('```math\nA\n```'),
+      renderers: withRevision,
+      signal: new AbortController().signal,
+      describeError,
+      loadModule,
+    });
+    expect(loadModule).toHaveBeenCalledWith('dolphy-ext://m/a.mjs?v=rev-2');
+  });
+
   it('повторный запуск не трогает готовые и ошибочные блоки', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const root = mount('```math\nA\n```\n\n```math\nB\n```');

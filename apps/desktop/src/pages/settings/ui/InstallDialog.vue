@@ -199,16 +199,6 @@ const closeOnBackdrop = (open: boolean) => {
               : t('settings.extensions.install.partial')
           }}
         </v-alert>
-        <v-alert
-          v-if="install.applyError.value"
-          type="error"
-          variant="tonal"
-          density="compact"
-          class="mt-3"
-        >
-          {{ t('settings.extensions.installed.applyFailed') }}:
-          {{ install.applyError.value }}
-        </v-alert>
       </v-card-text>
 
       <v-card-actions>
@@ -243,31 +233,12 @@ const closeOnBackdrop = (open: boolean) => {
             {{ t('settings.extensions.install.retry') }}
           </v-btn>
           <v-btn
-            v-if="!install.succeeded.value"
             variant="text"
+            data-testid="install-close"
             @click="install.dismiss"
           >
             {{ t('settings.extensions.install.close') }}
           </v-btn>
-          <template v-else>
-            <v-btn
-              variant="text"
-              data-testid="install-later"
-              @click="install.dismiss"
-            >
-              {{ t('settings.extensions.install.later') }}
-            </v-btn>
-            <v-btn
-              variant="flat"
-              color="primary"
-              prepend-icon="mdi-reload"
-              :loading="install.applying.value"
-              data-testid="install-apply"
-              @click="install.apply"
-            >
-              {{ t('settings.extensions.install.reloadNow') }}
-            </v-btn>
-          </template>
         </template>
       </v-card-actions>
     </v-card>

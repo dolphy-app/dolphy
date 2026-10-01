@@ -1,25 +1,29 @@
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref, toValue } from 'vue';
+import type { MaybeRefOrGetter } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useTheme } from 'vuetify';
 import type {
   LearningEngine,
   LocaleMode,
   ThemeContributionDto,
 } from '@dolphy-app/engine-contract';
+import type { ThemeSelection } from '@/shared/api/engine/theme-selection.ts';
 import { resolveLocale } from '@/shared/i18n';
-import {
-  effectiveThemeId,
-  resolveThemeName,
-} from '@/shared/lib/extension-themes.ts';
+import { effectiveThemeId } from '@/shared/lib/extension-themes.ts';
 
-/** Тема и язык хранятся в БД движка; применяются сразу. */
+/**
+ * Тема и язык хранятся в БД движка; применяются сразу. Тему применяет окно
+ * (`bindExtensionThemes`) по `selection.saved`: настройки показывают тот же
+ * выбор, а пропавшая тема расширения выглядит как «Как в системе».
+ */
 export const useAppearanceSettings = (
   engine: LearningEngine,
-  themes: readonly ThemeContributionDto[] = [],
+  selection: ThemeSelection,
+  themes: MaybeRefOrGetter<readonly ThemeContributionDto[]>,
 ) => {
-  const vuetifyTheme = useTheme();
   const { locale } = useI18n({ useScope: 'global' });
-  const mode = ref<string | null>(null);
+  const mode = computed(() =>
+    effectiveThemeId(selection.saved.value, toValue(themes)),
+  );
   const localeMode = ref<LocaleMode | null>(null);
   const error = ref<string | null>(null);
 
@@ -30,10 +34,7 @@ export const useAppearanceSettings = (
 
   onMounted(async () => {
     try {
-      const ui = await engine.settings.getUi();
-      // неизвестная тема показывается как «Системная», сохранённое не трогаем
-      mode.value = effectiveThemeId(ui.theme, themes);
-      localeMode.value = ui.locale;
+      localeMode.value = (await engine.settings.getUi()).locale;
     } catch (caught) {
       error.value = caught instanceof Error ? caught.message : String(caught);
     }
@@ -42,16 +43,11 @@ export const useAppearanceSettings = (
   /** `null` шлёт переключатель при снятии выбора; тема обязательна. */
   const select = async (next: string | null) => {
     if (next === null) return;
-    const previous = mode.value;
-    mode.value = next;
-    vuetifyTheme.change(resolveThemeName(next, themes));
     error.value = null;
     try {
-      await engine.settings.setUi({ theme: next });
+      await selection.select(next);
     } catch (caught) {
-      // не сохранилось — возвращаем прежний вид, чтобы экран не лгал
-      mode.value = previous;
-      if (previous) vuetifyTheme.change(resolveThemeName(previous, themes));
+      // не сохранилось — выбор уже возвращён, чтобы экран не лгал
       error.value = caught instanceof Error ? caught.message : String(caught);
     }
   };

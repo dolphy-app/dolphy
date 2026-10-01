@@ -58,8 +58,8 @@ const switchKey = (id: string, which: ExtensionSwitch) => `${which}:${id}`;
  * настройки включения и доверия. Повторная загрузка не сбрасывает уже
  * показанный список: `busy` — признак идущего запроса, `state` меняется на
  * `loading` только пока данных нет. Переключатель меняется сразу и
- * откатывается, если движок отказал; вклады расширений читаются при запуске,
- * поэтому после успешного изменения `needsReload` просит перезагрузить окно.
+ * откатывается, если движок отказал; изменение действует сразу (движок
+ * применяет его до ответа), перезагрузка окна не нужна.
  * `updates` — доступные обновления установленных из каталога расширений;
  * сбой их чтения не прячет список. `extensions-changed` перечитывает всё.
  */
@@ -71,7 +71,6 @@ export const useExtensions = (engine: LearningEngine) => {
   const error = ref<string | null>(null);
   const busy = ref(false);
   const switchError = ref<string | null>(null);
-  const needsReload = ref(false);
   const switching = ref<ReadonlySet<string>>(new Set());
   let lastRequest = 0;
 
@@ -136,7 +135,6 @@ export const useExtensions = (engine: LearningEngine) => {
         which === 'enabled'
           ? await engine.extensions.setEnabled(id, value)
           : await engine.extensions.setTrusted(id, value);
-      needsReload.value = true;
       // список показывает действующие состояние и изоляцию: перечитываем без мигания
       void load();
     } catch (caught) {
@@ -203,7 +201,6 @@ export const useExtensions = (engine: LearningEngine) => {
     load,
     switching,
     switchError,
-    needsReload,
     setCheckUpdates,
     updateTargets,
     setEnabled: (id: string, value: boolean) => change(id, 'enabled', value),

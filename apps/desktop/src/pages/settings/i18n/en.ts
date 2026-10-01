@@ -220,8 +220,7 @@ export const en: typeof ru = {
         'Network is declared only, not restricted: the extension can reach the network even when isolated.',
       switchFailed: 'Could not change the extension setting',
       reload: {
-        message:
-          'The change applies to new checks right away, while themes and renderers are read at startup: reload the window.',
+        message: 'The update will apply after the window is reloaded',
         action: 'Reload window',
       },
       tabs: {
@@ -251,14 +250,6 @@ export const en: typeof ru = {
         revokedReason: 'Reason: {reason}',
         revokedHint:
           'It is disabled and stays disabled until a fixed version is released.',
-        pending: {
-          installed: 'Installed: takes effect after a reload',
-          updated: 'Updated to v{version}: takes effect after a reload',
-          removed: 'Removed: disappears from the list after a reload',
-        },
-        applyMessage: 'Changes take effect after a reload',
-        applyAction: 'Reload now',
-        applyFailed: 'Could not reload the window',
       },
       remove: {
         title: 'Remove “{name}”?',
@@ -309,11 +300,8 @@ export const en: typeof ru = {
           done: 'Done',
           failed: 'Failed',
         },
-        done: 'Installed. Reload the window to make the extension work.',
-        partial:
-          'Some extensions were installed. Reload the window to make them work.',
-        reloadNow: 'Reload now',
-        later: 'Later',
+        done: 'Installed. The extension is already working.',
+        partial: 'Some extensions were installed and are already working.',
         close: 'Close',
         retry: 'Retry',
         errors: {

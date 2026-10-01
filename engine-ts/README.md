@@ -1,6 +1,6 @@
 # engine-ts: с чего продолжить разработку
 
-Слой бизнес-логики (TypeScript, без `electron`) — порт Trane v0.34.1 на ts-fsrs плюс слой F1–F7. Кода движка ещё нет: есть дизайн v1 и пять проверенных прототипов. Пометки: [ИЗМЕРЕНО] — прогон, [ВЫВОД] — умозаключение, [НЕ ПОДТВЕРЖДЕНО] — не проверено.
+Слой бизнес-логики (TypeScript, без `electron`) — порт Trane v0.34.1 на ts-fsrs плюс слой F1–F7. Код — в `packages/engine` и соседних пакетах `@dolphy-app/*`; здесь остался дизайн v1. Пометки: [ИЗМЕРЕНО] — прогон, [ВЫВОД] — умозаключение, [НЕ ПОДТВЕРЖДЕНО] — не проверено.
 
 ## Порядок чтения
 
@@ -9,14 +9,14 @@
 3. `design/engine-ts-testing.md` — стратегия vitest, обязательные тесты T-01…T-60, CI-матрица Node 22 + 24.
 4. `design/engine-ts-electron.md` — псевдокод сервисов, транспорта и процессов внутри Electron (`@dolphy-app/engine-rpc`, хост в `utilityProcess`, main, preload).
 5. `design/engine-ts-diagram.html` — схема (открывать через `python3 -m http.server`, не `file://`).
-6. `research/report-*.md` — числа и контрпримеры за каждым решением; `research/spec-*.md` — поведение модулей Trane с `file:line`.
+
+Спеки поведения Trane и отчёты спайков (`research/report-*.md`, `research/spec-*.md`, `research/facts-stack.md`) и `docs/research/fsrs-in-trane-*.md`, `docs/design/fsrs-in-trane.md` удалены из рабочего дерева; ссылки на них в документах ведут в историю git: `git show 75d8d08:<путь>`.
 
 ## Каталоги
 
 | Каталог | Что там |
 |---|---|
 | `design/` | пять документов выше (пункты 1–5) |
-| `research/` | 4 спеки Trane, 8 отчётов (FSRS, PowerLaw, загрузчик, F1–F7) и `facts-stack.md` (факты о стеке) |
 | `spike/` (вне репозитория) | прототипы с тестами: песочница `/Users/tinkerbells/projects/lms-platform/engine-ts/spike/`; `node_modules` и `target` удалены, ставятся `npm ci` |
 | `reference/trane-pristine/` (вне репозитория) | Rust-эталон v0.34.1 (тег `v0.34.1`, коммит `6f5f84a85667b4bf0402b1185ae5a889ff57e01d`, https://github.com/trane-project/trane) для golden-тестов |
 | `reference/sql-course/` (вне репозитория) | образцовый курс на 7 уроков (неполон: нет фикстур и эталонных CSV, ключ `check:` вместо `engine.verification`) |

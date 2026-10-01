@@ -5,7 +5,7 @@ import { createTsFsrsMemoryModel } from '../../src/scoring/memory-model.ts';
 
 const DAY_SEC = 86_400;
 // Измеренный максимум на 600 историях: 1.4e-7 (stability, относительная),
-// 7.4e-8 (difficulty), 7.2e-9 (R) — engine-ts/research/report-fsrs-check.md.
+// 7.4e-8 (difficulty), 7.2e-9 (R) — прогон `fsrs-check`.
 const STABILITY_RTOL = 1e-6;
 const DIFFICULTY_ATOL = 1e-6;
 const R_ATOL = 1e-7;

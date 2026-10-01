@@ -1,4 +1,4 @@
-/** Префильтр — удобство и сокращение поверхности, но не защита (report-sql-runner.md §2). */
+/** Префильтр — удобство и сокращение поверхности, но не защита. */
 import { describe, expect, it } from 'vitest';
 import { prefilter } from '../../src/prefilter.ts';
 import { MAX_SQL_CHARS } from '../../src/types.ts';

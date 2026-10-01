@@ -61,7 +61,9 @@ const switchKey = (id: string, which: ExtensionSwitch) => `${which}:${id}`;
  * откатывается, если движок отказал; изменение действует сразу (движок
  * применяет его до ответа), перезагрузка окна не нужна.
  * `updates` — доступные обновления установленных из каталога расширений;
- * сбой их чтения не прячет список. `extensions-changed` перечитывает всё.
+ * сбой их чтения не прячет список. `extensions-changed` и `contributions-changed`
+ * (в том числе правка в режиме разработчика, которой `extensions-changed` не
+ * сопровождает) перечитывают всё.
  */
 export const useExtensions = (engine: LearningEngine) => {
   const items = shallowRef<ExtensionInfoDto[]>([]);
@@ -165,7 +167,12 @@ export const useExtensions = (engine: LearningEngine) => {
 
   const unsubscribe = engine.subscribe((event) => {
     // слушатель не вызывает команды синхронно (API §7)
-    if (event.type === 'extensions-changed') queueMicrotask(() => void load());
+    if (
+      event.type === 'extensions-changed' ||
+      event.type === 'contributions-changed'
+    ) {
+      queueMicrotask(() => void load());
+    }
   });
   onScopeDispose(unsubscribe);
   /**

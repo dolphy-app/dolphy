@@ -376,7 +376,7 @@ describe('обновления и установка из каталога', () 
     expect(model.items.value).toHaveLength(1);
   });
 
-  it('extensions-changed перечитывает список и обновления', async () => {
+  it('extensions-changed и contributions-changed перечитывают список и обновления', async () => {
     const { engine, bus, listCalls, updateCalls } = createEngine();
     mount(engine);
     await flush();
@@ -386,6 +386,11 @@ describe('обновления и установка из каталога', () 
     await flush();
     expect([listCalls(), updateCalls()]).toEqual([2, 2]);
 
+    // правка в режиме разработчика сообщает только о вкладах
+    bus.emit({ type: 'contributions-changed', generation: 3 });
+    await flush();
+    expect([listCalls(), updateCalls()]).toEqual([3, 3]);
+
     bus.emit({
       type: 'library-reloaded',
       revision: 'r',
@@ -393,7 +398,7 @@ describe('обновления и установка из каталога', () 
       warnings: 0,
     });
     await flush();
-    expect(listCalls()).toBe(2);
+    expect(listCalls()).toBe(3);
   });
 
   it('«Проверять обновления при запуске»: меняется сразу, отказ откатывает и показывает ошибку', async () => {

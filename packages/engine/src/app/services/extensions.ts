@@ -129,9 +129,8 @@ const sortedContributions = (
       ...BUILTIN_POLICIES,
       ...copy.gradePolicies.sort(compareBy((policy) => policy.id)),
     ],
-    settings: copy.settings.sort(
-      compareBy((setting) => `${setting.extensionId}\n${setting.id}`),
-    ),
+    // между расширениями — по id, внутри расширения — порядок манифеста (так автор управляет формой)
+    settings: copy.settings.sort(compareBy((setting) => setting.extensionId)),
   };
 };
 

@@ -319,15 +319,15 @@ describe('extension setting values', () => {
     ).rejects.toMatchObject({ details: { reason: 'disabled' } });
   });
 
-  it('contributions() lists definitions of enabled extensions sorted by extension and id', async () => {
+  it('contributions() lists definitions of enabled extensions sorted by extension, in declared order inside one', async () => {
     const t = await open();
     const { settings } = await t.engine.extensions.contributions();
     expect(settings.map(({ id }) => id)).toEqual([
-      'acme.user.count',
       'acme.user.fancy',
-      'acme.user.mode',
       'acme.user.name',
+      'acme.user.count',
       'acme.user.ratio',
+      'acme.user.mode',
       'dolphy.bundled.flag',
     ]);
     settings.length = 0; // копия: реестр не меняется

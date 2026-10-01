@@ -33,15 +33,17 @@ interface Setup {
   install: ExtensionInstall;
   calls: { id: string; version: string | undefined }[];
   removed: string[];
+  uninstallOptions: Array<{ removeData?: boolean } | undefined>;
 }
 
 /** `outcomes` — что делает `install(id)`: ошибка или успех (по умолчанию). */
 const setup = (
   outcomes: Record<string, Error> = {},
-  options: { uninstallError?: Error } = {},
+  setupOptions: { uninstallError?: Error } = {},
 ): Setup => {
   const calls: Setup['calls'] = [];
   const removed: string[] = [];
+  const uninstallOptions: Array<{ removeData?: boolean } | undefined> = [];
   const engine = {
     extensions: {
       install: async (
@@ -57,14 +59,15 @@ const setup = (
           previousVersion: null,
         };
       },
-      uninstall: async (id: string) => {
-        if (options.uninstallError) throw options.uninstallError;
+      uninstall: async (id: string, options?: { removeData?: boolean }) => {
+        if (setupOptions.uninstallError) throw setupOptions.uninstallError;
         removed.push(id);
+        uninstallOptions.push(options);
       },
     },
   } as unknown as LearningEngine;
   const install = effectScope().run(() => useInstall(engine))!;
-  return { install, calls, removed };
+  return { install, calls, removed, uninstallOptions };
 };
 
 describe('установка одного расширения', () => {
@@ -229,6 +232,16 @@ describe('удаление', () => {
     expect(await install.remove('acme.sunrise')).toBe(true);
     expect(removed).toEqual(['acme.sunrise']);
     expect(install.removing.value).toBeNull();
+  });
+
+  it('данные расширения по умолчанию остаются; флажок удаляет их вместе с расширением', async () => {
+    const { install, uninstallOptions } = setup();
+    await install.remove('acme.sunrise');
+    await install.remove('acme.sunrise', true);
+    expect(uninstallOptions).toEqual([
+      { removeData: false },
+      { removeData: true },
+    ]);
   });
 
   it('отказ движка оставляет всё как было и показывает сообщение', async () => {

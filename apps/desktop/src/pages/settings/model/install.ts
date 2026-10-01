@@ -32,7 +32,7 @@ export interface ExtensionInstall {
   dismiss(): void;
   confirm(): Promise<void>;
   retry(): Promise<void>;
-  remove(id: string): Promise<boolean>;
+  remove(id: string, removeData?: boolean): Promise<boolean>;
 }
 
 /**
@@ -111,13 +111,13 @@ export const useInstall = (engine: LearningEngine): ExtensionInstall => {
     if (phase.value === 'finished' && failed.value.length > 0) await run();
   };
 
-  /** `true` — расширение удалено. */
-  const remove = async (id: string): Promise<boolean> => {
+  /** `true` — расширение удалено; `removeData` — вместе с его данными (по умолчанию данные остаются). */
+  const remove = async (id: string, removeData = false): Promise<boolean> => {
     if (removing.value !== null) return false;
     removing.value = id;
     removeError.value = null;
     try {
-      await engine.extensions.uninstall(id);
+      await engine.extensions.uninstall(id, { removeData });
       return true;
     } catch (caught) {
       removeError.value = toEngineError(caught).message;

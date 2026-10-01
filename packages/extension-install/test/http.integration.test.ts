@@ -178,7 +178,6 @@ describe('установщик с настоящим HTTP-сервером', () 
       id: 'acme.real',
       version: '1.0.0',
       previousVersion: null,
-      restartRequired: true,
     });
     for (const [name, content] of Object.entries(files('acme.real'))) {
       const onDisk = await readFile(

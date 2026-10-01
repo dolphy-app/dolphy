@@ -3,7 +3,8 @@ import type {
   ExtensionPolicy,
   ExtensionRegistry,
 } from '@dolphy-app/engine/ports';
-import type { DiscoveryResult, ResolvedExtension } from './discover.ts';
+import type { ResolvedExtension } from './discover.ts';
+import type { DiscoverySource } from './holder.ts';
 import { revocationReason } from './revocation.ts';
 import type { RevocationLookup } from './revocation.ts';
 
@@ -76,16 +77,16 @@ const loaded = (
 };
 
 /**
- * Адаптер: результат обнаружения + политика → порт `ExtensionRegistry`;
+ * Адаптер: снимок обнаружения + политика → порт `ExtensionRegistry`; снимок,
  * политика и отзыв (`revocationOf`, из установщика) читаются при каждом вызове.
  */
 export const createExtensionRegistry = (
-  discovery: DiscoveryResult,
+  discovery: DiscoverySource,
   policy: ExtensionPolicy,
   revocationOf?: RevocationLookup,
 ): ExtensionRegistry => {
-  const overriddenItems: ExtensionInfoDto[] = discovery.overridden.map(
-    ({ id, version, origin, by }) => ({
+  const overriddenItems = (): ExtensionInfoDto[] =>
+    discovery.get().overridden.map(({ id, version, origin, by }) => ({
       id,
       version,
       origin,
@@ -96,10 +97,9 @@ export const createExtensionRegistry = (
       isolation: origin === 'bundled' ? 'trusted' : 'isolated',
       toggleable: false,
       ...withoutMetadata(origin),
-    }),
-  );
-  const invalidItems: ExtensionInfoDto[] = discovery.diagnostics.map(
-    ({ extensionId, origin, message }) => ({
+    }));
+  const invalidItems = (): ExtensionInfoDto[] =>
+    discovery.get().diagnostics.map(({ extensionId, origin, message }) => ({
       id: extensionId,
       version: null,
       origin,
@@ -110,19 +110,19 @@ export const createExtensionRegistry = (
       isolation: origin === 'bundled' ? 'trusted' : 'isolated',
       toggleable: false,
       ...withoutMetadata(origin),
-    }),
-  );
-  const { extensions } = discovery;
+    }));
   const enabled = (): ResolvedExtension[] =>
-    extensions.filter(({ id }) => policy.isEnabled(id));
+    discovery.get().extensions.filter(({ id }) => policy.isEnabled(id));
   return {
     list: () =>
       [
-        ...extensions.map((extension) =>
-          loaded(extension, policy, revocationOf),
-        ),
-        ...overriddenItems,
-        ...invalidItems,
+        ...discovery
+          .get()
+          .extensions.map((extension) =>
+            loaded(extension, policy, revocationOf),
+          ),
+        ...overriddenItems(),
+        ...invalidItems(),
       ].map((item) => structuredClone(item)),
     contributions: () => ({
       themes: enabled().flatMap(({ id, themes }) =>

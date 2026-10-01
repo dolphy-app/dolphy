@@ -1,4 +1,5 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { createDiscoveryHolder } from '../src/holder.ts';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { INSTALL_META_FILE } from '@dolphy-app/extension-catalog';
@@ -107,9 +108,10 @@ describe('registry and policy: metadata and revocation', () => {
       { dir: bundled, origin: 'bundled' },
       { dir: user, origin: 'user' },
     ]);
+    const holder = createDiscoveryHolder(discovery);
     const revocationOf = (id: string) => revocations[id] ?? null;
-    const policy = createExtensionPolicy(discovery, revocationOf);
-    const registry = createExtensionRegistry(discovery, policy, revocationOf);
+    const policy = createExtensionPolicy(holder, revocationOf);
+    const registry = createExtensionRegistry(holder, policy, revocationOf);
     const info = (id: string) => registry.list().find((item) => item.id === id);
     return { policy, registry, info, revocations };
   };

@@ -13,7 +13,7 @@ import {
   createExtensionPolicy,
 } from '../src/policy.ts';
 import type { ExtRequest, ExtResponse } from '../src/protocol.ts';
-import { createLogger } from './helpers.ts';
+import { createLogger, holderOf } from './helpers.ts';
 
 afterEach(() => vi.useRealTimers());
 
@@ -22,6 +22,7 @@ const resolved: ResolvedExtension[] = [
     id: 'acme.t',
     version: '1.0.0',
     origin: 'user',
+    revision: '',
     dir: '/x',
     mainPath: '/x/main.mjs',
     permissions: [],
@@ -45,7 +46,7 @@ const resolved: ResolvedExtension[] = [
     gradePolicies: [{ id: 'acme.t.gen', label: 'Generous' }],
   },
 ];
-const catalog = createCatalog(resolved, createAllTrustedPolicy());
+const catalog = createCatalog(holderOf(resolved), createAllTrustedPolicy());
 
 const gradeRequest = {
   type: 'acme.t',
@@ -457,7 +458,7 @@ describe('isolated в запросах', () => {
     });
 
   it('каждый запрос несёт режим владельца, вычисленный при вызове', async () => {
-    const policy = createExtensionPolicy({ extensions: resolved });
+    const policy = createExtensionPolicy(holderOf(resolved));
     const { client, policies, channel, engineSide, hostSide, requests } = setup(
       { policy },
     );
@@ -477,7 +478,7 @@ describe('isolated в запросах', () => {
   });
 
   it('project и referenceAnswer тоже несут isolated; неизвестный вид — изолирован', async () => {
-    const policy = createExtensionPolicy({ extensions: resolved });
+    const policy = createExtensionPolicy(holderOf(resolved));
     const { client, channel, engineSide, hostSide, requests } = setup({
       policy,
     });

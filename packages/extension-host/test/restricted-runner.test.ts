@@ -96,6 +96,7 @@ const extensionOf = (
   id: 'acme.fake',
   version: '1.0.0',
   origin: 'user',
+  revision: '',
   dir: extensionDir,
   mainPath: path.join(extensionDir, 'main.mjs'),
   permissions,

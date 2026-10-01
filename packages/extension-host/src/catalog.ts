@@ -7,6 +7,7 @@ import type {
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import type { ErrorObject, ValidateFunction } from 'ajv/dist/2020.js';
 import type { ResolvedExtension } from './discover.ts';
+import type { DiscoverySource } from './holder.ts';
 
 const MAX_ISSUES = 6;
 
@@ -31,14 +32,20 @@ const messages = (errors: ErrorObject[] | null | undefined): string[] =>
     .slice(0, MAX_ISSUES)
     .map((error) => `${error.instancePath || '/'} ${error.message}`);
 
-/** Отключённые пользователем расширения ведут себя так, будто их нет. */
-export const createCatalog = (
-  extensions: readonly ResolvedExtension[],
-  policy: ExtensionPolicy,
-): Catalog => {
+interface View {
+  /** Массив снимка, из которого построен вид: пока он тот же, вид годится. */
+  source: readonly ResolvedExtension[];
+  entries: Map<string, Entry>;
+  policyOwners: Map<string, ResolvedExtension>;
+  policyInfos: GradePolicyInfo[];
+}
+
+const buildView = (source: readonly ResolvedExtension[]): View => {
   const ajv = new Ajv2020({ allErrors: true, strict: false });
   const entries = new Map<string, Entry>();
-  for (const owner of extensions) {
+  const policyOwners = new Map<string, ResolvedExtension>();
+  const policyInfos: GradePolicyInfo[] = [];
+  for (const owner of source) {
     for (const type of owner.exerciseTypes) {
       entries.set(type.id, {
         owner,
@@ -53,23 +60,39 @@ export const createCatalog = (
         validateAnswer: ajv.compile(type.answerSchema),
       });
     }
-  }
-  const policyOwners = new Map<string, ResolvedExtension>();
-  const policyInfos: GradePolicyInfo[] = [];
-  for (const owner of extensions) {
     for (const { id, label } of owner.gradePolicies) {
       policyOwners.set(id, owner);
       policyInfos.push({ id, label, extensionId: owner.id });
     }
   }
+  return { source, entries, policyOwners, policyInfos };
+};
+
+/**
+ * Отключённые пользователем расширения ведут себя так, будто их нет. Вид
+ * строится из снимка обнаружения и пересобирается, когда снимок заменён:
+ * схемы компилируются один раз на снимок, а не на вызов.
+ */
+export const createCatalog = (
+  discovery: DiscoverySource,
+  policy: ExtensionPolicy,
+): Catalog => {
+  let built: View | null = null;
+  const view = (): View => {
+    const { extensions } = discovery.get();
+    if (built === null || built.source !== extensions) {
+      built = buildView(extensions);
+    }
+    return built;
+  };
   const active = (type: string): Entry | undefined => {
-    const entry = entries.get(type);
+    const entry = view().entries.get(type);
     return entry !== undefined && policy.isEnabled(entry.owner.id)
       ? entry
       : undefined;
   };
   const activePolicyOwner = (id: string): ResolvedExtension | undefined => {
-    const owner = policyOwners.get(id);
+    const owner = view().policyOwners.get(id);
     return owner !== undefined && policy.isEnabled(owner.id)
       ? owner
       : undefined;
@@ -87,7 +110,7 @@ export const createCatalog = (
   return {
     describe: (type) => active(type)?.info,
     list: () =>
-      [...entries.values()]
+      [...view().entries.values()]
         .filter(({ owner }) => policy.isEnabled(owner.id))
         .map(({ info }) => info),
     validateSpec: (type, spec) => validate(type, (e) => e.validateSpec, spec),
@@ -96,6 +119,8 @@ export const createCatalog = (
     ownerOf: (type) => active(type)?.owner,
     ownerOfPolicy: activePolicyOwner,
     describePolicies: () =>
-      policyInfos.filter(({ extensionId }) => policy.isEnabled(extensionId)),
+      view().policyInfos.filter(({ extensionId }) =>
+        policy.isEnabled(extensionId),
+      ),
   };
 };

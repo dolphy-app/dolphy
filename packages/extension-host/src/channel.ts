@@ -1,6 +1,7 @@
 import type { MessageEndpoint } from '@dolphy-app/engine-contract';
 import type { ExtensionLogger } from '@dolphy-app/extension-api';
-import type { ExtRequest, ExtResponse } from './protocol.ts';
+import type { ResolvedExtension } from './discover.ts';
+import type { ExtMessage, ExtResponse } from './protocol.ts';
 
 export interface HostChannelOptions {
   logger: ExtensionLogger;
@@ -8,6 +9,13 @@ export interface HostChannelOptions {
   restart?: () => void;
   /** Сколько ждать первый `attach`. */
   connectTimeoutMs?: number;
+  /**
+   * Набор расширений, который канал отправляет хосту первым сообщением после
+   * каждого `attach`, до любых вызовов: перезапущенный хост расширений
+   * (и новый порт после перезапуска любой стороны) сразу получает текущий
+   * набор движка.
+   */
+  currentExtensions?: () => readonly ResolvedExtension[];
 }
 
 export type ChannelOutcome =
@@ -16,10 +24,10 @@ export type ChannelOutcome =
   | { kind: 'timeout' }
   | { kind: 'no-host' };
 
-export type ChannelMethod = ExtRequest['method'];
+export type ChannelMethod = ExtMessage['method'];
 
 export type ChannelParams<M extends ChannelMethod> = Extract<
-  ExtRequest,
+  ExtMessage,
   { method: M }
 >['params'];
 
@@ -31,6 +39,8 @@ export type ChannelParams<M extends ChannelMethod> = Extract<
 export interface HostChannel {
   /** Закрывает предыдущий endpoint; ожидающие запросы завершаются как при закрытии. */
   attach(endpoint: MessageEndpoint): void;
+  /** Хост подключён сейчас; `call` в противном случае ждёт подключения. */
+  connected(): boolean;
   call<M extends ChannelMethod>(
     method: M,
     params: ChannelParams<M>,
@@ -88,9 +98,19 @@ export const createHostChannel = (options: HostChannelOptions): HostChannel => {
   };
 
   return {
+    connected: () => endpoint !== null,
+
     attach(next) {
       closeEndpoint();
       endpoint = next;
+      if (options.currentExtensions !== undefined) {
+        // ответ не нужен: у приветствия нет ожидающего вызова, `onMessage` его пропустит
+        next.post({
+          id: `attach-${nextId++}`,
+          method: 'replaceExtensions',
+          params: { extensions: [...options.currentExtensions()] },
+        } satisfies ExtMessage);
+      }
       next.onMessage((message) => {
         if (endpoint !== next) return;
         if (!isResponse(message)) {
@@ -121,7 +141,7 @@ export const createHostChannel = (options: HostChannelOptions): HostChannel => {
           options.restart?.();
         }, deadlineMs);
         pending.set(id, { settle });
-        target.post({ id, method, params } as ExtRequest);
+        target.post({ id, method, params } as ExtMessage);
       });
     },
 

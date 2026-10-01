@@ -1,5 +1,6 @@
 import type { ExerciseTypeErrorCause } from '@dolphy-app/engine/ports';
 import { z } from 'zod';
+import type { ResolvedExtension } from './discover.ts';
 
 export type ExtRequest =
   | {
@@ -45,6 +46,20 @@ export type ExtRequest =
         isolated: boolean;
       };
     };
+
+/**
+ * Замена набора расширений: движок присылает полный набор (хост сам их не
+ * ищет). Ответ `ok: true` приходит, когда новый каталог уже действует;
+ * вытеснение прежних активаций идёт после ответа.
+ */
+export interface ReplaceExtensionsRequest {
+  id: string;
+  method: 'replaceExtensions';
+  params: { extensions: ResolvedExtension[] };
+}
+
+/** Всё, что движок отправляет хосту расширений. */
+export type ExtMessage = ExtRequest | ReplaceExtensionsRequest;
 
 /** Причины отказа, которые сообщает сам хост расширений (остальные порождает клиент). */
 export type ExtFailureCause =
@@ -104,6 +119,40 @@ export const extRequestSchema = z.discriminatedUnion('method', [
       isolated: z.boolean(),
     }),
   }),
+]);
+
+const isResolvedExtension = (value: unknown): value is ResolvedExtension => {
+  if (typeof value !== 'object' || value === null) return false;
+  const item = value as Record<string, unknown>;
+  return (
+    typeof item.id === 'string' &&
+    typeof item.version === 'string' &&
+    typeof item.dir === 'string' &&
+    typeof item.revision === 'string' &&
+    (item.origin === 'bundled' ||
+      item.origin === 'user' ||
+      item.origin === 'dev') &&
+    Array.isArray(item.permissions) &&
+    Array.isArray(item.exerciseTypes) &&
+    Array.isArray(item.themes) &&
+    Array.isArray(item.markdownRenderers) &&
+    Array.isArray(item.gradePolicies)
+  );
+};
+
+/** Набор приходит от движка того же приложения, поэтому проверяется форма, а не каждое поле. */
+const replaceExtensionsSchema = z.strictObject({
+  id: z.string(),
+  method: z.literal('replaceExtensions'),
+  params: z.strictObject({
+    extensions: z.array(z.custom<ResolvedExtension>(isResolvedExtension)),
+  }),
+});
+
+/** Всё, что хост расширений принимает по каналу. */
+export const extMessageSchema = z.union([
+  extRequestSchema,
+  replaceExtensionsSchema,
 ]);
 
 /** Результат правила оценки: целое 1–5 или `null`. */

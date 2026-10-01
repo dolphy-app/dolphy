@@ -421,7 +421,6 @@ export const createExtensionInstaller = (
         id,
         version: version.version,
         previousVersion: previous?.version ?? null,
-        restartRequired: true,
       };
     } finally {
       await removeQuietly(staging);

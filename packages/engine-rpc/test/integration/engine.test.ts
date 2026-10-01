@@ -7,12 +7,14 @@ import type {
   CatalogDto,
   EngineEvent,
   ExtensionInfoDto,
+  ExtensionSettingDefDto,
   ExtensionUpdateDto,
   SavedFilterDto,
 } from '@dolphy-app/engine-contract';
 import { createEngine } from '@dolphy-app/engine/app';
 import {
   createMemoryEventStore,
+  createMemoryExtensionDataStore,
   createMemoryRepositoryStore,
   createMemorySettingsStore,
   createNodeSnapshotInstaller,
@@ -73,6 +75,8 @@ const REGISTERED: ExtensionInfoDto = {
     themes: [],
     markdownRenderers: [],
     gradePolicies: [],
+    settings: ['dolphy.sql.rows'],
+    events: [],
   },
   message: null,
   permissions: ['library.read'],
@@ -89,11 +93,23 @@ const USER_EXTENSION: ExtensionInfoDto = {
   ...REGISTERED,
   id: 'acme.user',
   origin: 'user',
-  contributes: { ...REGISTERED.contributes, exerciseTypes: [] },
+  contributes: { ...REGISTERED.contributes, exerciseTypes: [], settings: [] },
   permissions: [],
   isolation: 'isolated',
   toggleable: true,
   removable: true,
+};
+
+const ROWS_SETTING: ExtensionSettingDefDto = {
+  id: 'dolphy.sql.rows',
+  extensionId: 'dolphy.sql',
+  type: 'number',
+  label: 'Rows',
+  description: null,
+  default: 10,
+  min: 1,
+  max: 100,
+  integer: true,
 };
 
 const CATALOG: CatalogDto = {
@@ -148,10 +164,16 @@ const start = async () => {
       memoryModel: createTsFsrsMemoryModel(),
       exerciseTypes: passingTypes(),
       gradePolicies: createFakeGradePolicies(),
-      extensionRegistry: createFakeExtensionRegistry([
-        REGISTERED,
-        USER_EXTENSION,
-      ]),
+      extensionRegistry: createFakeExtensionRegistry(
+        [REGISTERED, USER_EXTENSION],
+        {
+          exerciseTypes: [],
+          themes: [],
+          markdownRenderers: [],
+          gradePolicies: [],
+          settings: [ROWS_SETTING],
+        },
+      ),
       extensionPolicy: createFakeExtensionPolicy(),
       extensionInstaller: createFakeExtensionInstaller({
         catalog: CATALOG,
@@ -159,6 +181,7 @@ const start = async () => {
       }),
       extensionReloader: createFakeExtensionReloader(),
       repositoryStore: createMemoryRepositoryStore(),
+      extensionDataStore: createMemoryExtensionDataStore(),
       snapshotFetcher: offlineFetcher,
       snapshotInstaller: createNodeSnapshotInstaller({
         libraryRoot: source.root,
@@ -343,7 +366,14 @@ describe('rpc → dispatcher → real engine', () => {
       ),
     ).toBe(false);
 
-    await call('practice.startSession', () => client.practice.startSession());
+    const started = await call('practice.startSession', () =>
+      client.practice.startSession(),
+    );
+    expect(
+      await call('practice.finishSession', () =>
+        client.practice.finishSession({ sessionId: started.sessionId }),
+      ),
+    ).toEqual({ emitted: true });
     await call('practice.getBatch', () => client.practice.getBatch());
     const attempt = await call('practice.beginAttempt', () =>
       client.practice.beginAttempt({ exerciseId: E1 }),
@@ -542,6 +572,38 @@ describe('rpc → dispatcher → real engine', () => {
       ),
     ).toEqual({ disabled: [], trusted: [], checkUpdates: true });
     expect(
+      await call('extensions.getSettingValues', () =>
+        client.extensions.getSettingValues('dolphy.sql'),
+      ),
+    ).toEqual({ 'dolphy.sql.rows': 10 });
+    expect(
+      await call('extensions.setSettingValue', () =>
+        client.extensions.setSettingValue('dolphy.sql', 'dolphy.sql.rows', 25),
+      ),
+    ).toEqual({ 'dolphy.sql.rows': 25 });
+    await expect(
+      client.extensions.setSettingValue('dolphy.sql', 'dolphy.sql.rows', 1.5),
+    ).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+      details: { reason: 'integer' },
+    });
+    expect(
+      await call('extensions.dataUsage', () =>
+        client.extensions.dataUsage('dolphy.sql'),
+      ),
+    ).toEqual({
+      storage: { keys: 0, bytes: 0 },
+      settings: { keys: 1, bytes: 2 },
+    });
+    expect(
+      await call('extensions.resetSettingValues', () =>
+        client.extensions.resetSettingValues('dolphy.sql'),
+      ),
+    ).toEqual({ 'dolphy.sql.rows': 10 });
+    await call('extensions.clearData', () =>
+      client.extensions.clearData('dolphy.sql'),
+    );
+    expect(
       await call('extensions.setEnabled', () =>
         client.extensions.setEnabled('acme.user', false),
       ),
@@ -578,7 +640,7 @@ describe('rpc → dispatcher → real engine', () => {
       await call('extensions.updates', () => client.extensions.updates()),
     ).toEqual([UPDATE]);
     await call('extensions.uninstall', () =>
-      client.extensions.uninstall('acme.user'),
+      client.extensions.uninstall('acme.user', { removeData: true }),
     );
     await expect(
       client.extensions.setEnabled('dolphy.sql', false),
@@ -597,6 +659,7 @@ describe('rpc → dispatcher → real engine', () => {
       themes: [],
       markdownRenderers: [],
       gradePolicies: [{ id: 'passAtN', extensionId: null, label: null }],
+      settings: [ROWS_SETTING],
     });
     await call('diagnostics', () => client.diagnostics());
 

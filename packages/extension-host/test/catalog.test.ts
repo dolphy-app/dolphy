@@ -37,6 +37,8 @@ const extension: ResolvedExtension = {
   themes: [],
   markdownRenderers: [],
   gradePolicies: [],
+  settings: [],
+  events: [],
 };
 
 describe('createCatalog', () => {

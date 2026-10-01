@@ -44,6 +44,8 @@ const resolved: ResolvedExtension[] = [
     themes: [],
     markdownRenderers: [],
     gradePolicies: [{ id: 'acme.t.gen', label: 'Generous' }],
+    settings: [],
+    events: [],
   },
 ];
 const catalog = createCatalog(holderOf(resolved), createAllTrustedPolicy());

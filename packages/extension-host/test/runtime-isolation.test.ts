@@ -43,6 +43,7 @@ const setup = async (
   );
   const runner: RestrictedRunner = {
     handle: runnerHandle,
+    notify: vi.fn(),
     dispose: runnerDispose,
   };
   const create = vi.fn(() => runner);

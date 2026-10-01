@@ -3,7 +3,7 @@ status: active
 branch: feature/extension-live-apply
 created: 2026-10-01
 closed: null
-touches: [desktop, engine, engine-contract, engine-rpc, extension-host, testkit]
+touches: [create-extension, desktop, engine, engine-contract, engine-rpc, extension-host, testkit]
 depends-on: []
 supersedes: null
 superseded-by: null
@@ -54,10 +54,11 @@ superseded-by: null
 - [x] Хост расширений: сообщение замены набора, `ExtensionRuntime.replace`, ожидание вызовов в полёте
 - [x] Движок: `reload()`, вызовы из установки, удаления, включения, доверия; событие после применения
 - [x] main: режим разработчика без перезагрузки окна, удаление `apply` и `restartExtensionHosts`
-- [ ] Окно: реактивные вклады, темы, `MarkdownView`, элементы ввода, правила оценки
-- [ ] Окно: удаление баннеров и `needsApply`, баннер R7
-- [ ] Тесты: юнит — пакеты и `apps/desktop/test` для бэкенда готовы; e2e (`catalog`, `extension-settings`, `dev-extensions`, `isolation-*`) и тесты окна — этап 1б
-- [ ] Документация: `docs/design/extensions.md`, `apps/desktop/README.md`, README пакетов
+- [x] Контракт: `origin`, `revision` у `ExerciseTaskDto` и `MarkdownRendererDto`, `exerciseTypes` в `ContributionsDto` (остаётся контрактом 9, ветка не выпущена)
+- [x] Окно: реактивные вклады, темы, `MarkdownView`, элементы ввода, правила оценки
+- [x] Окно: удаление баннеров и `needsApply`, баннер R7
+- [x] Тесты: юнит окна и e2e (`catalog`, `extension-settings`, `dev-extensions`, `isolation-*`, новый `live-apply`)
+- [x] Документация: `docs/design/extensions.md` (раздел «Живое применение»), `apps/desktop/README.md`, шаблон `create-extension`
 
 ## Surprises & Discoveries
 
@@ -73,6 +74,16 @@ superseded-by: null
 - Минимальная правка окна ради компиляции: `ExtensionsSection.vue` передаёт в `useInstall` `apply`, перезагружающий окно (`window.location.reload()`), `NO_CONTRIBUTIONS.generation = 0`; баннеры и `needsApply` убирает этап 1б.
 - `Supervisor.restart()`/`ExtSupervisor.restart()` остались (их тесты прежние), но в приложении больше не вызываются; решение об удалении — за этапом 1б/закрытием.
 
+Этап 1б (окно):
+
+- ESM-загрузчик окна кэширует модуль по адресу; ревизии файлов в адресе в контракте 9 не было, окно не могло отличить обновлённый рендерер от прежнего. Добавлены `origin` и `revision` в `ExerciseTaskDto` и `MarkdownRendererDto`; окно грузит модуль доверенного расширения по `?v=<revision>` (`shared/lib/extension-url.ts`, протокол `dolphy-ext:` запрос игнорирует).
+- Одного DTO задания мало: баннер R7 нужен сразу после обновления, а не при следующем монтировании, и смонтированный элемент `dev` должен узнать о правке. Поэтому `ContributionsDto.exerciseTypes` (тег, адрес, `isolated`, `origin`, `revision` каждого вида).
+- `generation` внутри окна не может отличить устаревший ответ от ответа после перезапуска хоста движка: `connectEngine` возвращает `{ engine, onReconnect }`, хранилище сбрасывает «виденное» поколение и отбрасывает ответы прежнего порта (счётчик эпох).
+- Открытая сессия не переживает уход со страницы (нет `keep-alive`), поэтому «обновление при смонтированном элементе» проверяется во втором окне: `DolphyApp.openWindow` в e2e создаёт `BrowserWindow` с тем же preload, у каждого окна своё соединение с движком. `webContents.getLastWebPreferences()` не содержит `preload`, путь берётся из сборки.
+- Экран «Расширения» перечитывал список только по `extensions-changed`, а правка в режиме разработчика публикует лишь `contributions-changed`: список теперь перечитывается по обоим событиям (R8: причина сбоя видна без ручного обновления).
+- До установки вида задания упражнение показывает «Exercise type is unavailable» и «Повторить» (`EXERCISE_TYPE_UNAVAILABLE`); после установки «Повторить» открывает упражнение без перезагрузки окна.
+- Vuetify 4: `vuetify.theme.themes` — реактивный `Ref`, `change(name)` для незарегистрированной темы только предупреждает; поэтому привязка регистрирует темы, затем переключает, затем удаляет пропавшие (`bindExtensionThemes`).
+
 ## Decision Log
 
 - 2026-10-01. Новых RPC-методов нет, только событие и поле `generation`. Причина: применение всегда запускает сам движок; меньше поверхности контракта и тестов.
@@ -82,6 +93,12 @@ superseded-by: null
 - 2026-10-01. Набор уходит хосту расширений и первым сообщением после каждого подключения порта (`HostChannel.currentExtensions`), и после каждого `reload()`; хоста нет — `reload()` не ждёт его. Причина: перезапуск любой стороны и сбой хоста не должны оставлять хост с пустым или устаревшим набором.
 - 2026-10-01. Вытеснение ждёт вызовы в полёте не дольше `timeoutMs` (у остальных 5 с) + `drainGraceMs` (2 с); сборка, заменённая после начала вызова и ещё не активированная, отказывает `activation-failed` (вердикт `error`, не `worker_crash`). Причина: R6.
 - 2026-10-01. Правка в режиме разработчика доходит до хоста движка сообщением `reload-extensions` (`HostedEngine.reloadExtensions`); пока хост запускается, запрос повторяется после `ready`.
+- 2026-10-01. Хранилище вкладов в окне — `shallowRef` в `shared/api/engine/contributions.ts`, раздаётся через `CONTRIBUTIONS_KEY` как `Ref`; потребители читают `.value` реактивно. Причина: один источник и отсутствие второго пути чтения.
+- 2026-10-01. Сохранённый выбор темы — отдельный источник `createThemeSelection` (`saved`, `select`), его применяет `bindExtensionThemes` к реестру Vuetify. Причина: пропавшая тема откатывается на «Как в системе» без записи в настройки, и экран настроек показывает тот же результат (`effectiveThemeId`).
+- 2026-10-01. `MarkdownView` перевыводит документ целиком (ключ корня — набор рендереров, адреса с ревизией и `isolated`), а не отдельные блоки `dev`. Причина: проще и верно для R1, R4, R5; готовый блок не несёт состояния, а набор рендереров меняется редко. Тема или правило оценки документ не трогают.
+- 2026-10-01. `AnswerElement` ключуется ревизией только при `origin === 'dev'` и берёт действующий вид из `exerciseTypes`; у остальных вид и ключ остаются из задания (R3). Причина: «смонтированный элемент и ответ не трогаются», кроме `dev` (R5).
+- 2026-10-01. `ensureAnswerElement` запоминает ревизию файлов, определивших тег, и ждёт одну загрузку на тег. `staleAnswerElements` сравнивает её с действующим неизолированным видом: баннер R7 только при расхождении. Причина: `customElements.define` не повторить; изолированные виды получают свежую рамку на каждое монтирование.
+- 2026-10-01. Контракт остаётся 9: поля `origin`, `revision`, `exerciseTypes` добавлены в той же неопубликованной ветке (отдельные коммиты `feat(engine-contract)`). Причина: ничего из этого ещё не выпущено, а второй номер без потребителя не нужен.
 
 ## Outcomes
 

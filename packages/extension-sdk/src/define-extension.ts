@@ -4,12 +4,20 @@ import type {
   ExtensionContext,
   ExtensionModule,
   GradePolicyHandler,
+  LearningEventHandler,
+  LearningEventName,
 } from '@dolphy-app/extension-api';
+
+/** Обработчики событий обучения по именам; каждое событие должно быть объявлено в `contributes.events`, нужно разрешение `learning.events`. */
+export type EventHandlers = {
+  [N in LearningEventName]?: LearningEventHandler<N>;
+};
 
 export interface ExtensionDefinition {
   exerciseTypes?: Readonly<Record<string, ExerciseTypeHandler>>;
   gradePolicies?: Readonly<Record<string, GradePolicyHandler>>;
-  /** Вызывается после регистрации `exerciseTypes` и `gradePolicies`. */
+  events?: Readonly<EventHandlers>;
+  /** Вызывается после регистрации `exerciseTypes`, `gradePolicies` и `events`. */
   activate?(context: ExtensionContext): void | Promise<void>;
   deactivate?(): void | Promise<void>;
 }
@@ -46,6 +54,14 @@ export const defineExtension = (
       definition.gradePolicies ?? {},
     )) {
       registrations.push(context.registerGradePolicy(id, handler));
+    }
+    for (const [name, handler] of Object.entries(definition.events ?? {})) {
+      registrations.push(
+        context.events.on(
+          name as LearningEventName,
+          handler as LearningEventHandler<LearningEventName>,
+        ),
+      );
     }
   };
 

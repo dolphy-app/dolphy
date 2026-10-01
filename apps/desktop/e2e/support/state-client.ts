@@ -197,7 +197,7 @@ export class StateClient {
     await input.press('Tab');
   }
 
-  async settingText(name: 'greeting' | 'limit'): Promise<string> {
+  async settingText(name: 'greeting' | 'limit' | 'note'): Promise<string> {
     return this.field(name).locator('input').inputValue();
   }
 

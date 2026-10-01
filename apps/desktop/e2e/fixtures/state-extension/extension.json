@@ -2,13 +2,19 @@
   "id": "acme.state",
   "version": "1.0.0",
   "apiVersion": 1,
-  "permissions": ["learning.events"],
+  "permissions": [
+    "learning.events"
+  ],
   "contributes": {
     "exerciseTypes": [
       {
         "id": "acme.state",
-        "specSchema": { "type": "object" },
-        "answerSchema": { "type": "string" }
+        "specSchema": {
+          "type": "object"
+        },
+        "answerSchema": {
+          "type": "string"
+        }
       }
     ],
     "settings": [
@@ -41,15 +47,33 @@
         "label": "Режим",
         "default": "calm",
         "options": [
-          { "value": "calm", "label": "Спокойный" },
-          { "value": "brisk", "label": "Бодрый" }
+          {
+            "value": "calm",
+            "label": "Спокойный"
+          },
+          {
+            "value": "brisk",
+            "label": "Бодрый"
+          }
         ]
+      },
+      {
+        "id": "acme.state.note",
+        "type": "string",
+        "label": "Заметка",
+        "default": ""
       }
     ],
     "events": [
-      { "event": "session.started" },
-      { "event": "session.finished" },
-      { "event": "attempt.closed" }
+      {
+        "event": "session.started"
+      },
+      {
+        "event": "session.finished"
+      },
+      {
+        "event": "attempt.closed"
+      }
     ]
   }
 }

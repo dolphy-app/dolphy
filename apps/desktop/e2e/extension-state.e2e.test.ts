@@ -98,6 +98,8 @@ describe('настройки расширения', () => {
     const stillSameWindow = await client.markWindow();
     await state.openSettings();
     expect(await state.settingText('greeting')).toBe('привет');
+    // пустая строка по умолчанию остаётся пустой (а не приводится к «true»)
+    expect(await state.settingText('note')).toBe('');
     expect(await state.fieldMessage('greeting')).toContain(
       'Что расширение пишет в отчёте',
     );

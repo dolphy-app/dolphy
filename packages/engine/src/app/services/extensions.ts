@@ -116,6 +116,7 @@ const sortedContributions = (
   const copy = structuredClone(source);
   return {
     generation,
+    exerciseTypes: copy.exerciseTypes.sort(compareBy((type) => type.type)),
     themes: copy.themes.sort(compareBy((theme) => theme.id)),
     markdownRenderers: copy.markdownRenderers.sort(
       compareBy((renderer) => renderer.language),

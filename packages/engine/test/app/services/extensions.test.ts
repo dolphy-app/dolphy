@@ -90,12 +90,22 @@ describe('extensions.contributions', () => {
     origin: 'user' as const,
     revision: 'rev-1',
   });
+  const exerciseType = (type: string) => ({
+    type,
+    extensionId: 'a.ext',
+    element: `${type.replaceAll('.', '-')}-answer`,
+    rendererUrl: `dolphy-ext://a.ext/${type}.mjs`,
+    isolated: false,
+    origin: 'dev' as const,
+    revision: 'rev-1',
+  });
   const policy = (id: string) => ({
     id,
     extensionId: 'a.ext',
     label: id,
   });
   const contributions: RegistryContributions = {
+    exerciseTypes: [exerciseType('a.ext.z'), exerciseType('a.ext.b')],
     themes: [theme('a.ext.z'), theme('a.ext.b')],
     markdownRenderers: [renderer('math'), renderer('chart')],
     gradePolicies: [policy('a.ext.z'), policy('a.ext.b')],
@@ -105,10 +115,14 @@ describe('extensions.contributions', () => {
       extensionRegistry: createFakeExtensionRegistry([], source),
     });
 
-  it('sorts themes by id, renderers by language, extension policies by id', async () => {
+  it('sorts themes by id, exercise types by type, renderers by language, extension policies by id', async () => {
     const { engine } = await openWith(contributions);
     const result = await engine.extensions.contributions();
     expect(result.themes.map(({ id }) => id)).toEqual(['a.ext.b', 'a.ext.z']);
+    expect(result.exerciseTypes.map(({ type }) => type)).toEqual([
+      'a.ext.b',
+      'a.ext.z',
+    ]);
     expect(result.markdownRenderers.map(({ language }) => language)).toEqual([
       'chart',
       'math',

@@ -125,6 +125,17 @@ export const createExtensionRegistry = (
         ...invalidItems(),
       ].map((item) => structuredClone(item)),
     contributions: () => ({
+      exerciseTypes: enabled().flatMap((extension) =>
+        extension.exerciseTypes.map((type) => ({
+          type: type.id,
+          extensionId: extension.id,
+          element: type.element,
+          rendererUrl: type.rendererUrl,
+          isolated: policy.isIsolated(extension.id),
+          origin: extension.origin,
+          revision: extension.revision,
+        })),
+      ),
       themes: enabled().flatMap(({ id, themes }) =>
         themes.map((theme) => structuredClone({ ...theme, extensionId: id })),
       ),

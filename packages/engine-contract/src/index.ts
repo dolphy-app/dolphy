@@ -1135,6 +1135,21 @@ export interface MarkdownRendererDto {
   revision: string;
 }
 
+/** Вид задания расширения: окно по нему видит правку и обновление элемента ввода (R5, R7). */
+export interface ExerciseTypeContributionDto {
+  type: string;
+  extensionId: string;
+  /** Тег custom element'а, рисующего ввод ответа. */
+  element: string;
+  /** `dolphy-ext://<extensionId>/<путь>`. */
+  rendererUrl: string;
+  /** Расширение не из поставки и не доверенное: элемент ответа исполняется в изолированной рамке. */
+  isolated: boolean;
+  origin: ExtensionOriginDto;
+  /** Отпечаток файлов расширения; у расширений из поставки — пустая строка. */
+  revision: string;
+}
+
 export interface GradePolicyInfoDto {
   id: string;
   /** `null` у встроенного правила. */
@@ -1151,6 +1166,7 @@ export interface ContributionsDto {
    * при каждом запуске движка.
    */
   generation: number;
+  exerciseTypes: ExerciseTypeContributionDto[];
   themes: ThemeContributionDto[];
   markdownRenderers: MarkdownRendererDto[];
   gradePolicies: GradePolicyInfoDto[];

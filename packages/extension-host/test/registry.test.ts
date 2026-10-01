@@ -215,6 +215,36 @@ describe('createExtensionRegistry: политика', () => {
     ]);
   });
 
+  it('виды заданий несут origin, revision и isolated: окно видит правку и обновление элемента', () => {
+    const edited: ResolvedExtension = {
+      ...user,
+      origin: 'dev',
+      revision: 'rev-2',
+    };
+    const holder = createDiscoveryHolder({
+      extensions: [bundled, edited],
+      overridden: [],
+      diagnostics: [],
+    });
+    const policy = createExtensionPolicy(holder);
+    const registry = createExtensionRegistry(holder, policy);
+    const types = () =>
+      registry
+        .contributions()
+        .exerciseTypes.map(({ type, origin, revision, isolated }) => [
+          type,
+          origin,
+          revision,
+          isolated,
+        ]);
+    expect(types()).toEqual([
+      ['dolphy.math.a', 'bundled', '', false],
+      ['acme.u.a', 'dev', 'rev-2', true],
+    ]);
+    policy.update({ disabled: ['acme.u'], trusted: [], checkUpdates: true });
+    expect(types()).toEqual([['dolphy.math.a', 'bundled', '', false]]);
+  });
+
   it('isolation и isolated: поставка — доверена, доверенное пользователем — тоже', () => {
     const policy = createExtensionPolicy(bothHolder);
     const registry = createExtensionRegistry(bothHolder, policy);

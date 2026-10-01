@@ -8,6 +8,7 @@ import type {
 export const createFakeExtensionRegistry = (
   items: readonly ExtensionInfoDto[] = [],
   contributions: RegistryContributions = {
+    exerciseTypes: [],
     themes: [],
     markdownRenderers: [],
     gradePolicies: [],

@@ -326,7 +326,7 @@ describe('Настройки → Расширения → Каталог', () =>
     await catalog.openRemoveDialog(ID);
     await expectText(
       catalog.dialog,
-      'Данные расширения, ваши курсы и прогресс не затрагиваются',
+      'Ваши курсы и прогресс не затрагиваются',
     );
     await catalog.confirmRemove();
 

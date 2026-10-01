@@ -19,7 +19,9 @@ const course = computed(
 <template>
   <div v-if="course" class="course-frame">
     <header class="header" :style="{ height: `${FRAME_HEADER}px` }">
-      <h2 class="text-title-medium font-weight-bold">{{ course.name }}</h2>
+      <h2 class="text-title-medium font-weight-bold text-high-emphasis">
+        {{ course.name }}
+      </h2>
       <span class="text-label-large text-medium-emphasis">
         {{
           t('graph.frame.mastered', {

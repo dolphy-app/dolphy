@@ -104,18 +104,35 @@ const startLessonId = computed(() => {
 
 /**
  * Стартовый вид: весь граф, если подписи при этом читаются, иначе читаемый
- * масштаб у первого доступного урока (весь граф — кнопкой «вписать»).
+ * масштаб. Если рамка курса по высоте умещается в окно, она прижимается левым
+ * верхним углом (видны название и счётчик курса); иначе вид центруется на
+ * первом доступном уроке, чтобы он не оказался за краем (весь граф —
+ * кнопкой «вписать»).
  */
 const arrive = async () => {
   await fit();
   if (viewport.value.zoom >= READABLE_ZOOM) return;
-  const point =
-    startLessonId.value && layout.value.absolute.get(startLessonId.value);
+  const lessonId = startLessonId.value;
+  const point = lessonId && layout.value.absolute.get(lessonId);
   if (!point) return;
+  const frame = layout.value.frames.find(({ local }) => local.has(lessonId));
+  const halfWidth = dimensions.value.width / 2 - START_MARGIN;
+  const halfHeight = dimensions.value.height / 2 - START_MARGIN;
+  const frameFits =
+    frame !== undefined && frame.height * READABLE_ZOOM <= halfHeight * 2;
+  const options = { zoom: READABLE_ZOOM, duration: 0 };
+  if (frame && frameFits) {
+    await setCenter(
+      frame.x + halfWidth / READABLE_ZOOM,
+      frame.y + halfHeight / READABLE_ZOOM,
+      options,
+    );
+    return;
+  }
   await setCenter(
-    point.x + (dimensions.value.width / 2 - START_MARGIN) / READABLE_ZOOM,
+    point.x + halfWidth / READABLE_ZOOM,
     point.y + NODE_HEIGHT / 2,
-    { zoom: READABLE_ZOOM, duration: 0 },
+    options,
   );
 };
 
@@ -215,81 +232,95 @@ const controls = computed(() => [
     :aria-label="t('graph.canvas')"
     @focusin="onFocusIn"
   >
-    <VueFlow
-      :id="flowId"
-      :nodes="nodes"
-      :edges="edges"
-      :min-zoom="MIN_ZOOM"
-      :max-zoom="MAX_ZOOM"
-      :nodes-draggable="false"
-      :nodes-connectable="false"
-      :nodes-focusable="false"
-      :edges-focusable="false"
-      :elements-selectable="false"
-      :zoom-on-double-click="false"
-      :delete-key-code="null"
-      disable-keyboard-a11y
-      only-render-visible-elements
-    >
-      <template #node-lesson="nodeProps">
-        <LessonNode v-bind="nodeProps" />
-      </template>
-      <template #node-course="nodeProps">
-        <CourseFrame v-bind="nodeProps" />
-      </template>
-    </VueFlow>
+    <!-- легенда и масштаб — над полотном, а не поверх него: плавающие панели закрывали узлы и перехватывали мышь -->
+    <div class="toolbar">
+      <div class="legend" role="group" :aria-label="t('graph.legend.title')">
+        <span class="overline-label d-none d-md-inline" aria-hidden="true">
+          {{ t('graph.legend.title') }}
+        </span>
+        <ul class="legend-list">
+          <li
+            v-for="status in legend"
+            :key="status"
+            class="d-flex align-center ga-2"
+            :title="t(`graph.statusHint.${status}`)"
+          >
+            <v-icon
+              :icon="STATUS_VIEW[status].icon"
+              :color="STATUS_VIEW[status].color"
+              size="18"
+            />
+            <span class="text-label-large">
+              {{ t(`graph.status.${status}`) }}
+            </span>
+          </li>
+        </ul>
+      </div>
 
-    <div class="controls" role="group" :aria-label="t('graph.controls.label')">
-      <v-btn
-        v-for="control in controls"
-        :key="control.icon"
-        icon
-        size="small"
-        variant="tonal"
-        :aria-label="control.label"
-        :title="control.label"
-        @click="control.act"
+      <div
+        class="controls"
+        role="group"
+        :aria-label="t('graph.controls.label')"
       >
-        <v-icon :icon="control.icon" />
-      </v-btn>
+        <v-btn
+          v-for="control in controls"
+          :key="control.icon"
+          icon
+          size="small"
+          variant="tonal"
+          :aria-label="control.label"
+          :title="control.label"
+          @click="control.act"
+        >
+          <v-icon :icon="control.icon" />
+        </v-btn>
+      </div>
     </div>
 
-    <v-card
-      class="legend pa-3"
-      role="group"
-      :aria-label="t('graph.legend.title')"
-    >
-      <div class="overline-label mb-1">{{ t('graph.legend.title') }}</div>
-      <ul class="legend-list">
-        <li
-          v-for="status in legend"
-          :key="status"
-          class="d-flex align-center ga-2"
-          :title="t(`graph.statusHint.${status}`)"
-        >
-          <v-icon
-            :icon="STATUS_VIEW[status].icon"
-            :color="STATUS_VIEW[status].color"
-            size="18"
-          />
-          <span class="text-label-large">
-            {{ t(`graph.status.${status}`) }}
-          </span>
-        </li>
-      </ul>
-    </v-card>
+    <div class="flow">
+      <VueFlow
+        :id="flowId"
+        :nodes="nodes"
+        :edges="edges"
+        :min-zoom="MIN_ZOOM"
+        :max-zoom="MAX_ZOOM"
+        :nodes-draggable="false"
+        :nodes-connectable="false"
+        :nodes-focusable="false"
+        :edges-focusable="false"
+        :elements-selectable="false"
+        :zoom-on-double-click="false"
+        :delete-key-code="null"
+        disable-keyboard-a11y
+        only-render-visible-elements
+      >
+        <template #node-lesson="nodeProps">
+          <LessonNode v-bind="nodeProps" />
+        </template>
+        <template #node-course="nodeProps">
+          <CourseFrame v-bind="nodeProps" />
+        </template>
+      </VueFlow>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .graph-canvas {
-  position: relative;
+  display: flex;
+  flex-direction: column;
   width: 100%;
   height: 100%;
   overflow: hidden;
   background: rgb(var(--v-theme-background));
   border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
   border-radius: 16px;
+}
+
+.flow {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
 }
 
 /* тема Vue Flow — токены Vuetify; цвет стрелок (`currentColor`) идёт отсюда */
@@ -320,29 +351,36 @@ const controls = computed(() => [
   fill: rgb(var(--v-theme-surface));
 }
 
-.controls {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 10;
+.toolbar {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
 }
 
 .legend {
-  position: absolute;
-  bottom: 12px;
-  left: 12px;
-  z-index: 10;
-  max-width: calc(100% - 24px);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  align-items: center;
+  min-width: 0;
 }
 
 .legend-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 16px;
+  gap: 4px 16px;
   padding: 0;
   list-style: none;
+}
+
+.controls {
+  display: flex;
+  gap: 8px;
+  margin-inline-start: auto;
 }
 </style>

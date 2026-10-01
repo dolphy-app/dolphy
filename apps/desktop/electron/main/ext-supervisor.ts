@@ -25,12 +25,6 @@ export interface ExtSupervisor {
   stop(): Promise<void>;
   /** Убить хост (перезапуск сработает как при крэше). */
   kill(): boolean;
-  /**
-   * Перезапустить хост сразу, без backoff и не считая перезапуск падением
-   * (счётчики не меняются). Хоста нет — запустить (в том числе после отказа
-   * `gave up`); во время остановки игнорируется.
-   */
-  restart(): void;
 }
 
 export const isTypedMessage = (message: unknown, type: string): boolean =>
@@ -54,7 +48,6 @@ export const createExtSupervisor = (
   let stopping = false;
   let gaveUp = false;
   let restartTimer: NodeJS.Timeout | undefined;
-  let restarting: HostProcessLike | null = null;
   let crashTimes: number[] = [];
 
   const onExit = (self: HostProcessLike, code: number) => {
@@ -63,12 +56,6 @@ export const createExtSupervisor = (
     child = null;
     options.onHostExit();
     if (stopping) return;
-    if (restarting === self) {
-      restarting = null;
-      logger.info({ code }, 'extension host restarted on request');
-      start();
-      return;
-    }
     const now = Date.now();
     crashTimes = [...crashTimes.filter((at) => now - at < WINDOW_MS), now];
     logger.error({ code, crashes: crashTimes.length }, 'extension host exited');
@@ -130,17 +117,5 @@ export const createExtSupervisor = (
 
   const kill = () => child?.kill() ?? false;
 
-  const restart = () => {
-    if (stopping) return;
-    gaveUp = false; // явный перезапуск (правка разработчика) снимает отказ
-    if (child) {
-      restarting = child;
-      child.kill();
-      return;
-    }
-    clearTimeout(restartTimer);
-    start();
-  };
-
-  return { start, stop, kill, restart };
+  return { start, stop, kill };
 };

@@ -141,61 +141,6 @@ describe('ext supervisor', () => {
     expect(fork).toHaveBeenCalledTimes(2);
   });
 
-  it('restart: убивает хост и поднимает новый сразу, без учёта падения', () => {
-    const { supervisor, hosts, fork, events, boot } = setup();
-    supervisor.start();
-    boot(hosts[0] as FakeHost);
-    for (let round = 0; round < MAX_CRASHES + 3; round++) {
-      supervisor.restart();
-      expect(hosts[round]?.killed).toBe(1);
-      hosts[round]?.emit('exit', 0);
-    }
-    expect(fork).toHaveBeenCalledTimes(MAX_CRASHES + 4);
-    expect(errors).toEqual([]);
-    expect(events.filter((event) => event === 'exit')).toHaveLength(
-      MAX_CRASHES + 3,
-    );
-    // первое настоящее падение — базовая задержка
-    hosts[MAX_CRASHES + 3]?.emit('exit', 1);
-    vi.advanceTimersByTime(BACKOFF_BASE_MS);
-    expect(fork).toHaveBeenCalledTimes(MAX_CRASHES + 5);
-  });
-
-  it('restart без хоста запускает его сразу и отменяет отложенный запуск', () => {
-    const { supervisor, hosts, fork } = setup();
-    supervisor.start();
-    hosts[0]?.emit('exit', 1);
-    supervisor.restart();
-    expect(fork).toHaveBeenCalledTimes(2);
-    vi.advanceTimersByTime(10_000);
-    expect(fork).toHaveBeenCalledTimes(2);
-  });
-
-  it('restart после отказа «gave up» поднимает хост снова', () => {
-    const { supervisor, hosts, fork } = setup();
-    supervisor.start();
-    for (let crash = 0; crash <= MAX_CRASHES; crash++) {
-      hosts[crash]?.emit('exit', 1);
-      vi.advanceTimersByTime(10_000);
-    }
-    expect(fork).toHaveBeenCalledTimes(MAX_CRASHES + 1);
-    supervisor.restart();
-    expect(fork).toHaveBeenCalledTimes(MAX_CRASHES + 2);
-  });
-
-  it('restart во время остановки игнорируется', async () => {
-    const { supervisor, hosts, fork, boot } = setup();
-    supervisor.start();
-    boot(hosts[0] as FakeHost);
-    const stopped = supervisor.stop();
-    supervisor.restart();
-    expect(hosts[0]?.killed).toBe(0);
-    hosts[0]?.emit('exit', 0);
-    await stopped;
-    supervisor.restart();
-    expect(fork).toHaveBeenCalledTimes(1);
-  });
-
   it('stop шлёт shutdown, а по таймауту убивает хост', async () => {
     const { supervisor, hosts, boot } = setup();
     supervisor.start();

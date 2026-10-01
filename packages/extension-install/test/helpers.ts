@@ -197,7 +197,8 @@ export const inspectJson = async (
         id: raw.id,
         version: raw.version,
         permissions: raw.permissions,
-        contributes: raw.contributes,
+        // сводка индекса пока без `settings` и `events` (спека extension-state, 2b)
+        contributes: { ...raw.contributes, settings: [], events: [] },
       },
     };
   } catch (error) {

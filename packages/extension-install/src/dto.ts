@@ -53,6 +53,9 @@ export const describeEntry = (
       themes: [...entry.contributes.themes],
       markdownRenderers: [...entry.contributes.markdownRenderers],
       gradePolicies: [...entry.contributes.gradePolicies],
+      // ключи сводки каталога появятся в спеке extension-state (2b)
+      settings: [],
+      events: [],
     },
     installedVersion,
   };

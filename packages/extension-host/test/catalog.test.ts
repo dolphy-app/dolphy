@@ -50,6 +50,8 @@ describe('createCatalog', () => {
       type: 'acme.t',
       extensionId: 'acme.t',
       extensionVersion: '2.0.0',
+      extensionOrigin: extension.origin,
+      extensionRevision: extension.revision,
       element: 'acme-t-answer',
       rendererUrl: 'dolphy-ext://acme.t/view.mjs',
     });

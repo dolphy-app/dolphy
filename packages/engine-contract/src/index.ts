@@ -232,6 +232,10 @@ export interface ExerciseTaskDto {
   rendererUrl: string;
   /** Расширение не из поставки и не доверенное: элемент ответа исполняется в изолированной рамке. */
   isolated: boolean;
+  /** Откуда расширение: у `dev` окно пересоздаёт смонтированный элемент при правке (`revision` меняется). */
+  origin: ExtensionOriginDto;
+  /** Отпечаток файлов расширения (меняется при обновлении и правке); у расширений из поставки — пустая строка. */
+  revision: string;
 }
 export interface ExerciseDto {
   kind: 'exercise';
@@ -1125,6 +1129,10 @@ export interface MarkdownRendererDto {
   rendererUrl: string;
   /** Модуль исполняется в изолированной рамке (расширение не из поставки и не доверенное). */
   isolated: boolean;
+  /** Откуда расширение: у `dev` окно выводит блоки заново при правке. */
+  origin: ExtensionOriginDto;
+  /** Отпечаток файлов расширения; у расширений из поставки — пустая строка. */
+  revision: string;
 }
 
 export interface GradePolicyInfoDto {

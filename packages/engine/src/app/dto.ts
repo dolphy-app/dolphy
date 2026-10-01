@@ -174,6 +174,8 @@ const toTaskField = (
       element: info.element,
       rendererUrl: info.rendererUrl,
       isolated: policy.isIsolated(info.extensionId),
+      origin: info.extensionOrigin,
+      revision: info.extensionRevision,
     },
   };
 };

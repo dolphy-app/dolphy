@@ -53,6 +53,8 @@ const buildView = (source: readonly ResolvedExtension[]): View => {
           type: type.id,
           extensionId: owner.id,
           extensionVersion: owner.version,
+          extensionOrigin: owner.origin,
+          extensionRevision: owner.revision,
           element: type.element,
           rendererUrl: type.rendererUrl,
         },

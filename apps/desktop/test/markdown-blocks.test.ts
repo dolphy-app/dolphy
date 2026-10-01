@@ -10,6 +10,8 @@ const renderers: MarkdownRendererDto[] = [
     extensionId: 'dolphy.math',
     rendererUrl: 'dolphy-ext://m/a.mjs',
     isolated: false,
+    origin: 'bundled',
+    revision: '',
   },
 ];
 const describeError = (language: string) => `failed:${language}`;

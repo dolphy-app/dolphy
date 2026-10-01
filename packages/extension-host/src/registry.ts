@@ -133,6 +133,8 @@ export const createExtensionRegistry = (
           ...renderer,
           extensionId: extension.id,
           isolated: policy.isIsolated(extension.id),
+          origin: extension.origin,
+          revision: extension.revision,
         })),
       ),
       gradePolicies: enabled().flatMap(({ id, gradePolicies }) =>

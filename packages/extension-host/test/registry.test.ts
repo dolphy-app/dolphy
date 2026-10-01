@@ -186,6 +186,35 @@ describe('createExtensionRegistry: политика', () => {
     expect(markdownRenderers.map(({ language }) => language)).toEqual(['math']);
   });
 
+  it('рендерер несёт origin и revision расширения: окно перевыводит блоки при правке', () => {
+    const edited: ResolvedExtension = {
+      ...user,
+      origin: 'dev',
+      revision: 'rev-2',
+    };
+    const holder = createDiscoveryHolder({
+      extensions: [bundled, edited],
+      overridden: [],
+      diagnostics: [],
+    });
+    const registry = createExtensionRegistry(
+      holder,
+      createExtensionPolicy(holder),
+    );
+    expect(
+      registry
+        .contributions()
+        .markdownRenderers.map(({ language, origin, revision }) => [
+          language,
+          origin,
+          revision,
+        ]),
+    ).toEqual([
+      ['math', 'bundled', ''],
+      ['chart', 'dev', 'rev-2'],
+    ]);
+  });
+
   it('isolation и isolated: поставка — доверена, доверенное пользователем — тоже', () => {
     const policy = createExtensionPolicy(bothHolder);
     const registry = createExtensionRegistry(bothHolder, policy);

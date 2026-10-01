@@ -87,6 +87,8 @@ describe('extensions.contributions', () => {
     extensionId: 'a.ext',
     rendererUrl: `dolphy-ext://a.ext/${language}.mjs`,
     isolated: true,
+    origin: 'user' as const,
+    revision: 'rev-1',
   });
   const policy = (id: string) => ({
     id,

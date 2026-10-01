@@ -293,6 +293,8 @@ describe('createFakeExtensionRegistry', () => {
         themes: [],
         markdownRenderers: [],
         gradePolicies: [],
+        settings: [],
+        events: [],
       },
       message: 'broken',
       permissions: [],
@@ -314,6 +316,7 @@ describe('createFakeExtensionRegistry', () => {
       themes: [],
       markdownRenderers: [],
       gradePolicies: [],
+      settings: [],
     };
     expect(createFakeExtensionRegistry().contributions()).toEqual(empty);
     const given = {

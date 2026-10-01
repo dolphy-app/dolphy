@@ -1,6 +1,7 @@
 import type {
   CatalogDto,
   ContributionsDto,
+  ExtensionDataUsageDto,
   ExtensionInfoDto,
   ExtensionOriginDto,
   ExtensionSettingsDto,
@@ -20,6 +21,7 @@ import type { RegistryContributions } from '../../ports/extension-registry.ts';
 import { GRADE_POLICIES } from '../../verify/grade-policy.ts';
 import type { EngineContext } from '../context.ts';
 import { EngineError } from '../errors.ts';
+import { createExtensionValues } from '../extension-values.ts';
 
 /** Не чаще раза в сутки. */
 export const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -99,6 +101,8 @@ const copyInfo = (info: ExtensionInfoDto): ExtensionInfoDto => ({
     themes: [...info.contributes.themes],
     markdownRenderers: [...info.contributes.markdownRenderers],
     gradePolicies: [...info.contributes.gradePolicies],
+    settings: [...info.contributes.settings],
+    events: [...info.contributes.events],
   },
   permissions: [...info.permissions],
 });
@@ -125,6 +129,9 @@ const sortedContributions = (
       ...BUILTIN_POLICIES,
       ...copy.gradePolicies.sort(compareBy((policy) => policy.id)),
     ],
+    settings: copy.settings.sort(
+      compareBy((setting) => `${setting.extensionId}\n${setting.id}`),
+    ),
   };
 };
 
@@ -167,6 +174,23 @@ const invalidId = (id: unknown): EngineError =>
     message: `Invalid extension id: ${String(id)}`,
     details: { field: 'id' },
   });
+
+/** `removeData` из параметров `uninstall`: только булево значение; по умолчанию данные остаются. */
+const removeDataOf = (options: unknown): boolean => {
+  if (options === undefined) return false;
+  const removeData =
+    typeof options === 'object' && options !== null
+      ? Reflect.get(options, 'removeData')
+      : null;
+  if (removeData === undefined) return false;
+  if (typeof removeData !== 'boolean') {
+    throw new EngineError('INVALID_ARGUMENT', {
+      message: 'removeData must be a boolean',
+      details: { field: 'removeData' },
+    });
+  }
+  return removeData;
+};
 
 const withMember = (
   ids: readonly string[],
@@ -237,10 +261,13 @@ export const createExtensionsService = (
     | 'extensionInstaller'
     | 'extensionApply'
     | 'settings'
+    | 'extensionData'
+    | 'extensionSettingChanges'
     | 'emit'
     | 'bus'
   >,
 ): ExtensionsService => {
+  const values = createExtensionValues(ctx);
   /** `reload` — изменение действует на расширения (включение, доверие): набор применяется сразу. */
   const persist = async (
     apply: (settings: ExtensionSettingsDto) => ExtensionSettingsDto,
@@ -316,14 +343,36 @@ export const createExtensionsService = (
       ctx.bus.publish({ type: 'extensions-changed' });
       return result;
     },
-    uninstall: async (id): Promise<void> => {
+    uninstall: async (id, options): Promise<void> => {
       if (!isExtensionId(id)) throw invalidId(id);
+      const removeData = removeDataOf(options);
       assertRemovable(ctx.extensionRegistry.list(), id);
       await guarded(id, () => ctx.extensionInstaller.uninstall(id));
       await ctx.extensionApply.reload();
       ctx.emit({ type: 'extensions-changed' });
+      if (removeData) await values.wipe(id);
     },
     updates: (): Promise<ExtensionUpdateDto[]> =>
       guarded(null, () => ctx.extensionInstaller.updates()),
+    getSettingValues: async (id) => values.values(values.requireActive(id)),
+    setSettingValue: async (id, settingId, value) => {
+      const extensionId = values.requireActive(id);
+      if (typeof settingId !== 'string' || settingId === '') {
+        throw new EngineError('INVALID_ARGUMENT', {
+          message: 'settingId must be a non-empty string',
+          details: { field: 'settingId' },
+        });
+      }
+      return values.set(extensionId, settingId, value);
+    },
+    resetSettingValues: async (id) => values.reset(values.requireActive(id)),
+    dataUsage: async (id): Promise<ExtensionDataUsageDto> => {
+      const extensionId = values.requireId(id);
+      return {
+        storage: await ctx.extensionData.storage.usage(extensionId),
+        settings: await ctx.extensionData.settings.usage(extensionId),
+      };
+    },
+    clearData: async (id) => values.wipe(values.requireId(id)),
   };
 };

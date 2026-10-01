@@ -14,6 +14,8 @@ const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
   themes: [],
   markdownRenderers: [],
   gradePolicies: [],
+  settings: [],
+  events: [],
 };
 
 const info = (overrides: Partial<ExtensionInfoDto>): ExtensionInfoDto => ({
@@ -109,6 +111,7 @@ describe('extensions.contributions', () => {
     themes: [theme('a.ext.z'), theme('a.ext.b')],
     markdownRenderers: [renderer('math'), renderer('chart')],
     gradePolicies: [policy('a.ext.z'), policy('a.ext.b')],
+    settings: [],
   };
   const openWith = (source: RegistryContributions) =>
     createTestEngine({

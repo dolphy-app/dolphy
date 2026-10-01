@@ -19,6 +19,7 @@ import { describe, expect, it } from 'vitest';
 import { createEngine } from '../../src/app/index.ts';
 import {
   createMemoryEventStore,
+  createMemoryExtensionDataStore,
   createMemoryRepositoryStore,
   nodeDefaults,
 } from '../../src/node/index.ts';
@@ -129,6 +130,7 @@ describe('a profile on disk: nodeDefaults over a copied library', () => {
         rng: createSeededRng(1),
         ids: createTestIds('e'),
         eventStore,
+        extensionDataStore: createMemoryExtensionDataStore(),
         exerciseTypes: createFakeExerciseTypes(),
         gradePolicies: createFakeGradePolicies(),
         extensionRegistry: createFakeExtensionRegistry(),

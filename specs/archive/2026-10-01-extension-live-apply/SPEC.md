@@ -1,8 +1,8 @@
 ---
-status: active
+status: done
 branch: feature/extension-live-apply
 created: 2026-10-01
-closed: null
+closed: 2026-10-01
 touches: [create-extension, desktop, engine, engine-contract, engine-rpc, extension-host, testkit]
 depends-on: []
 supersedes: null
@@ -10,6 +10,8 @@ superseded-by: null
 ---
 
 # Живое применение расширений
+
+> Исторический документ. Не источник требований.
 
 Живой документ, пока `status` — `draft` или `active`: `Progress`, `Surprises & Discoveries`, `Decision Log` обновляются вместе с кодом. По завершении фичи переносится в `specs/archive/` и не меняется. Правила — скилл `spec-workflow`.
 
@@ -102,4 +104,8 @@ superseded-by: null
 
 ## Outcomes
 
-Заполняется при закрытии.
+Сделано: R1–R9 целиком. Контракт 9 (`generation`, `contributions-changed`, `origin`/`revision`/`exerciseTypes`), `DiscoveryHolder` и `reload()` в движке, замена набора в хосте расширений, реактивные вклады в окне, баннер R7, режим разработчика без перезагрузки, удалены `apply`, `restartExtensionHosts`, баннеры `needsApply`, `Supervisor.restart()` и `ExtSupervisor.restart()`. Документация: `docs/design/extensions.md`, `apps/desktop/README.md`, ADR 0006.
+
+Отличия от плана: в контракт 9 добавлены `origin`, `revision` у задания и рендерера и `exerciseTypes` (нужны для R5, R7); `InstallResultDto.restartRequired` удалено; удаление `restart()` супервизоров вошло в закрытие.
+
+Осталось: обновление ESM-зависимостей доверенного кода из нескольких файлов только после перезапуска хоста; память старых версий до перезапуска хоста (см. ADR 0006).

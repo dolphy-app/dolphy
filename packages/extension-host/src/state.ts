@@ -1,0 +1,178 @@
+import { StorageQuotaError } from '@dolphy-app/extension-api';
+import type {
+  ExtensionLogger,
+  ExtensionSettings,
+  ExtensionStorage,
+  JsonValue,
+  SettingChange,
+  SettingValue,
+  StorageQuotaKind,
+} from '@dolphy-app/extension-api';
+import { EngineRequestError } from './engine-link.ts';
+import type { EngineLink } from './engine-link.ts';
+import type { ResolvedSetting } from './points/types.ts';
+
+const QUOTA_KINDS: readonly StorageQuotaKind[] = [
+  'key-length',
+  'value-size',
+  'key-count',
+  'total-size',
+];
+
+/** Что видит код расширения: превышение потолка — `StorageQuotaError`, остальное — обычный `Error` с `code`. */
+const extensionErrorOf = (error: unknown): unknown => {
+  if (!(error instanceof EngineRequestError)) return error;
+  const { kind, limit } = error.details ?? {};
+  if (
+    error.code === 'EXTENSION_STORAGE_QUOTA' &&
+    QUOTA_KINDS.includes(kind as StorageQuotaKind) &&
+    typeof limit === 'number'
+  ) {
+    return new StorageQuotaError(
+      kind as StorageQuotaKind,
+      limit,
+      error.message,
+    );
+  }
+  return Object.assign(new Error(error.message), { code: error.code });
+};
+
+/** `ctx.storage` расширения: запросы к движку, который единственный владеет данными. */
+export const createExtensionStorage = (
+  link: EngineLink,
+  extensionId: string,
+): ExtensionStorage => {
+  const request = async (
+    method: 'storage.get' | 'storage.set' | 'storage.delete' | 'storage.keys',
+    params: { key?: string; value?: JsonValue },
+  ): Promise<unknown> => {
+    try {
+      return await link.request(method, { extensionId, ...params } as never);
+    } catch (error) {
+      throw extensionErrorOf(error);
+    }
+  };
+  return {
+    get: async <T extends JsonValue = JsonValue>(key: string) =>
+      (await request('storage.get', { key })) as T | undefined,
+    set: async (key, value) => {
+      await request('storage.set', { key, value });
+    },
+    delete: async (key) =>
+      (await request('storage.delete', { key })) as boolean,
+    keys: async () => (await request('storage.keys', {})) as string[],
+  };
+};
+
+/** Значение подходит определению по типу; границы проверил движок. */
+const fits = (definition: ResolvedSetting, value: unknown): boolean => {
+  switch (definition.type) {
+    case 'boolean':
+      return typeof value === 'boolean';
+    case 'number':
+      return typeof value === 'number';
+    case 'string':
+      return typeof value === 'string';
+    default:
+      return (
+        typeof value === 'string' &&
+        definition.options.some((option) => option.value === value)
+      );
+  }
+};
+
+export interface SettingsState {
+  readonly api: ExtensionSettings;
+  /**
+   * Подгружает действующие значения у движка. Сбой не мешает активации: до
+   * первого изменения расширение читает `default` (в лог — предупреждение).
+   * Изменения, пришедшие во время загрузки, применяются поверх неё.
+   */
+  load(fetch: () => Promise<unknown>): Promise<void>;
+  /** Новое значение от движка; неизвестный `id` и то же значение игнорируются. */
+  apply(change: SettingChange): void;
+  /** Отписывает обработчики `onDidChange`; значения остаются читаемыми. */
+  dispose(): void;
+}
+
+export const createSettingsState = (
+  extensionId: string,
+  definitions: readonly ResolvedSetting[],
+  logger: ExtensionLogger,
+): SettingsState => {
+  const byId = new Map(definitions.map((item) => [item.id, item]));
+  const values = new Map<string, SettingValue>(
+    definitions.map((item) => [item.id, item.default]),
+  );
+  const handlers = new Set<(change: SettingChange) => void>();
+  let loaded = false;
+  const early = new Map<string, SettingValue>();
+
+  const notify = (change: SettingChange): void => {
+    for (const handler of [...handlers]) {
+      const failed = (error: unknown): void =>
+        logger.error(
+          { extensionId, settingId: change.id, error },
+          'setting change handler failed',
+        );
+      try {
+        const result = handler(change) as unknown;
+        if (result instanceof Promise) result.catch(failed);
+      } catch (error) {
+        failed(error);
+      }
+    }
+  };
+
+  const set = (id: string, value: SettingValue): void => {
+    const definition = byId.get(id);
+    if (definition === undefined || !fits(definition, value)) return;
+    if (Object.is(values.get(id), value)) return;
+    values.set(id, value);
+    notify({ id, value });
+  };
+
+  return {
+    api: {
+      get: <T extends SettingValue = SettingValue>(id: string): T => {
+        const value = values.get(id);
+        if (value === undefined) {
+          throw new Error(
+            `setting '${id}' is not declared in the manifest of '${extensionId}'`,
+          );
+        }
+        return value as T;
+      },
+      onDidChange(handler) {
+        handlers.add(handler);
+        return { dispose: () => void handlers.delete(handler) };
+      },
+    },
+    async load(fetch) {
+      if (definitions.length > 0) {
+        try {
+          const all = (await fetch()) as Record<string, unknown>;
+          for (const definition of definitions) {
+            const value = all[definition.id];
+            if (fits(definition, value)) {
+              values.set(definition.id, value as SettingValue);
+            }
+          }
+        } catch (error) {
+          logger.warn(
+            { extensionId, error },
+            'extension settings were not loaded, defaults are used',
+          );
+        }
+      }
+      loaded = true;
+      for (const [id, value] of early) set(id, value);
+      early.clear();
+    },
+    apply(change) {
+      if (loaded) set(change.id, change.value);
+      else early.set(change.id, change.value);
+    },
+    dispose: () => handlers.clear(),
+  };
+};

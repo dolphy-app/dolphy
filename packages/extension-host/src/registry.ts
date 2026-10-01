@@ -42,7 +42,12 @@ const withoutMetadata = (
 export const contributesOf = (
   extension: Pick<
     ResolvedExtension,
-    'exerciseTypes' | 'themes' | 'markdownRenderers' | 'gradePolicies'
+    | 'exerciseTypes'
+    | 'themes'
+    | 'markdownRenderers'
+    | 'gradePolicies'
+    | 'settings'
+    | 'events'
   >,
 ): ExtensionInfoDto['contributes'] => ({
   exerciseTypes: extension.exerciseTypes.map(({ id }) => id),
@@ -51,9 +56,8 @@ export const contributesOf = (
     ({ language }) => language,
   ),
   gradePolicies: extension.gradePolicies.map(({ id }) => id),
-  // точки `settings` и `events` появятся с хостом расширений (спека extension-state, 2b)
-  settings: [],
-  events: [],
+  settings: extension.settings.map(({ id }) => id),
+  events: extension.events.map(({ event }) => event),
 });
 
 const loaded = (
@@ -160,7 +164,11 @@ export const createExtensionRegistry = (
           label: policyItem.label,
         })),
       ),
-      settings: [],
+      settings: enabled().flatMap(({ id, settings }) =>
+        settings.map((setting) =>
+          structuredClone({ ...setting, extensionId: id }),
+        ),
+      ),
     }),
   };
 };

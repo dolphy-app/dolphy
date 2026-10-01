@@ -6,8 +6,7 @@ import type {
   LibraryStat,
 } from '@dolphy-app/extension-api';
 import type { MessageEndpoint } from '@dolphy-app/engine-contract';
-import { extRequestSchema } from './protocol.ts';
-import type { ExtRequest } from './protocol.ts';
+import { childInboundSchema } from './protocol.ts';
 import { createExtensionRuntime } from './runtime.ts';
 import type { ExtensionRuntime } from './runtime.ts';
 import { isParentMessage } from './restricted-protocol.ts';
@@ -139,9 +138,9 @@ export const startRestrictedChild = (proc: NodeJS.Process = process): void => {
       runtime.attach(endpoint);
       send({ t: 'ready' });
     } else if (raw.t === 'rpc') {
-      const parsed = extRequestSchema.safeParse(raw.message);
+      const parsed = childInboundSchema.safeParse(raw.message);
       if (!parsed.success) return;
-      for (const listener of listeners) listener(parsed.data as ExtRequest);
+      for (const listener of listeners) listener(parsed.data);
     } else if (raw.t === 'library-result') {
       const waiter = waiters.get(raw.id);
       if (waiter === undefined) return;

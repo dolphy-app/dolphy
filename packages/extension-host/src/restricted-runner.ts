@@ -3,7 +3,16 @@ import { realpath } from 'node:fs/promises';
 import path from 'node:path';
 import type { ExtensionLogger, LibraryReader } from '@dolphy-app/extension-api';
 import type { ResolvedExtension } from './discover.ts';
-import type { ExtRequest, ExtResponse } from './protocol.ts';
+import { EngineRequestError, hostFailureOf } from './engine-link.ts';
+import type { EngineLink } from './engine-link.ts';
+import { hostRequestSchema } from './protocol.ts';
+import type {
+  ExtRequest,
+  ExtResponse,
+  HostRequest,
+  HostResponse,
+  SettingChangedNotice,
+} from './protocol.ts';
 import { RESTRICTED_ENV, restrictedArgs } from './permissions.ts';
 import { isChildMessage } from './restricted-protocol.ts';
 import type {
@@ -66,12 +75,14 @@ export const defaultSpawn: SpawnRestricted = ({ command, args, env }) => {
 
 export interface RestrictedRunner {
   handle(request: ExtRequest): Promise<ExtResponse>;
+  /** Сообщение без ответа работающему процессу; процесс не запущен — теряется (при запуске он читает состояние сам). */
+  notify(notice: SettingChangedNotice): void;
   dispose(): Promise<void>;
 }
 
-/** DI-шов рантайма: как получить раннер для расширения. */
+/** DI-шов рантайма: как получить раннер для расширения; `engine` — запросы процесса к данным расширения. */
 export interface RunnerFactory {
-  create(extension: ResolvedExtension): RestrictedRunner;
+  create(extension: ResolvedExtension, engine: EngineLink): RestrictedRunner;
 }
 
 export interface RestrictedRunnerOptions {
@@ -79,6 +90,8 @@ export interface RestrictedRunnerOptions {
   /** Собранный файл дочернего процесса (`restricted-child`). */
   entryPath: string;
   library: LibraryReader;
+  /** Хранилище и настройки расширения: процесс просит их у родителя, как `ctx.library`. */
+  engine: EngineLink;
   logger: ExtensionLogger;
   spawn?: SpawnRestricted;
   /** Запас сверх `timeoutMs` для `grade`. */
@@ -127,7 +140,7 @@ const failureOf = (error: unknown): LibraryFailure => ({
 export const createRestrictedRunner = (
   options: RestrictedRunnerOptions,
 ): RestrictedRunner => {
-  const { extension, entryPath, library, logger } = options;
+  const { extension, entryPath, library, engine, logger } = options;
   const spawn = options.spawn ?? defaultSpawn;
   const graceMs = options.graceMs ?? DEFAULT_GRACE_MS;
   const readyTimeoutMs = options.readyTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS;
@@ -175,6 +188,53 @@ export const createRestrictedRunner = (
     }
   };
 
+  /**
+   * Запрос процесса к данным расширения. Процесс не доверен: форма
+   * проверяется, а `extensionId` подменяется своим — чужие данные недоступны.
+   */
+  const serveEngine = async (
+    current: Live,
+    message: { id: string },
+  ): Promise<void> => {
+    const reply = (response: HostResponse): void => {
+      if (!current.isExited)
+        current.child.send({ t: 'rpc', message: response });
+    };
+    const parsed = hostRequestSchema.safeParse(message);
+    if (!parsed.success) {
+      reply({
+        id: message.id,
+        ok: false,
+        error: {
+          code: 'INVALID_ARGUMENT',
+          message: 'invalid extension host request',
+        },
+      });
+      return;
+    }
+    const request = parsed.data as HostRequest;
+    try {
+      const result = await engine.request(request.method, {
+        ...request.params,
+        extensionId: extension.id,
+      } as never);
+      reply({ id: request.id, ok: true, result });
+    } catch (error) {
+      reply({
+        id: request.id,
+        ok: false,
+        error:
+          error instanceof EngineRequestError
+            ? {
+                code: error.code,
+                message: error.message,
+                ...(error.details !== undefined && { details: error.details }),
+              }
+            : hostFailureOf(error),
+      });
+    }
+  };
+
   const onMessage = (current: Live, markReady: () => void, raw: unknown) => {
     if (!isChildMessage(raw)) {
       logger.warn({ extensionId: extension.id }, 'invalid message from child');
@@ -183,10 +243,14 @@ export const createRestrictedRunner = (
     if (raw.t === 'ready') markReady();
     else if (raw.t === 'rpc') {
       const { id } = raw.message;
+      if ('method' in raw.message) {
+        void serveEngine(current, raw.message as { id: string });
+        return;
+      }
       const settle = current.pending.get(id);
       if (settle === undefined) return;
       current.pending.delete(id);
-      settle(raw.message);
+      settle(raw.message as ExtResponse);
     } else if (raw.t === 'library') void serveLibrary(current, raw);
     else {
       const level = LOG_LEVELS.includes(raw.level) ? raw.level : 'info';
@@ -356,6 +420,11 @@ export const createRestrictedRunner = (
         return failure(request.id, 'activation-failed', messageOf(error));
       } finally {
         clearTimeout(timer);
+      }
+    },
+    notify(notice) {
+      if (live !== null && !live.isExited) {
+        live.child.send({ t: 'rpc', message: notice });
       }
     },
     async dispose() {

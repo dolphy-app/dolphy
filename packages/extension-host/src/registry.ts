@@ -13,6 +13,8 @@ const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
   themes: [],
   markdownRenderers: [],
   gradePolicies: [],
+  settings: [],
+  events: [],
 };
 
 const isolationOf = (
@@ -49,6 +51,9 @@ export const contributesOf = (
     ({ language }) => language,
   ),
   gradePolicies: extension.gradePolicies.map(({ id }) => id),
+  // точки `settings` и `events` появятся с хостом расширений (спека extension-state, 2b)
+  settings: [],
+  events: [],
 });
 
 const loaded = (
@@ -155,6 +160,7 @@ export const createExtensionRegistry = (
           label: policyItem.label,
         })),
       ),
+      settings: [],
     }),
   };
 };

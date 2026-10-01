@@ -369,6 +369,8 @@ describe('createExtensionRegistry: contributions', () => {
       themes: ['acme.themes.night'],
       markdownRenderers: [],
       gradePolicies: [],
+      settings: [],
+      events: [],
     });
   });
 

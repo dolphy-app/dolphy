@@ -37,6 +37,8 @@ const NONE = {
   themes: [],
   markdownRenderers: [],
   gradePolicies: [],
+  settings: [],
+  events: [],
 };
 
 const discovery: DiscoveryResult = {

@@ -47,9 +47,7 @@ describe('parseIndex', () => {
   it('settings и events неверного типа отвергаются', () => {
     const base = entry().contributes;
     const bad = (key: string, value: unknown) =>
-      issuesOf(
-        index([{ ...entry(), contributes: { ...base, [key]: value } }]),
-      );
+      issuesOf(index([{ ...entry(), contributes: { ...base, [key]: value } }]));
     expect(bad('settings', 'acme.quiz.mode')[0]).toContain(
       'extensions.0.contributes.settings',
     );

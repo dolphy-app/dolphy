@@ -38,11 +38,11 @@ describe('SQLite repository store', () => {
     expect(await open(path).repositories.list()).toEqual([sample]);
   });
 
-  it('БД прежней схемы получает таблицу, остальные строки целы', async () => {
+  it('БД схемы 2 получает таблицу, остальные строки целы', async () => {
     const path = nextPath();
     const legacy = openBetterSqliteDatabase({ path });
-    for (const sql of MIGRATIONS.slice(0, SCHEMA_VERSION - 1)) legacy.exec(sql);
-    legacy.exec(`PRAGMA user_version = ${SCHEMA_VERSION - 1}`);
+    for (const sql of MIGRATIONS.slice(0, 2)) legacy.exec(sql);
+    legacy.exec('PRAGMA user_version = 2');
     legacy
       .prepare("INSERT INTO meta (key, value) VALUES ('device_id', 'dev-1')")
       .run();

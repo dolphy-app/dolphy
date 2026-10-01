@@ -133,6 +133,8 @@ const contributesSchema = z.strictObject({
   themes: z.array(z.string()),
   markdownRenderers: z.array(z.string()),
   gradePolicies: z.array(z.string()),
+  settings: z.array(z.string()).optional(),
+  events: z.array(z.string()).optional(),
 });
 
 const descendingUnique = (

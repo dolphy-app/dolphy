@@ -41,6 +41,12 @@ const orderVersion = (version: CatalogVersion): CatalogVersion => ({
   files: [...version.files].sort(byPath).map(orderFile),
 });
 
+const optionalIds = (
+  key: 'settings' | 'events',
+  ids: readonly string[] | undefined,
+): Partial<Record<'settings' | 'events', string[]>> =>
+  ids === undefined || ids.length === 0 ? {} : { [key]: [...ids] };
+
 const orderEntry = (entry: CatalogEntry): CatalogEntry => ({
   id: entry.id,
   name: entry.name,
@@ -53,6 +59,8 @@ const orderEntry = (entry: CatalogEntry): CatalogEntry => ({
     themes: [...entry.contributes.themes],
     markdownRenderers: [...entry.contributes.markdownRenderers],
     gradePolicies: [...entry.contributes.gradePolicies],
+    ...optionalIds('settings', entry.contributes.settings),
+    ...optionalIds('events', entry.contributes.events),
   },
   versions: entry.versions.map(orderVersion),
 });

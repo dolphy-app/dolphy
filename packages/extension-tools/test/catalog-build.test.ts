@@ -156,6 +156,60 @@ describe('catalog build: публикация версии', () => {
   });
 });
 
+describe('catalog build: настройки и события', () => {
+  const STATE = {
+    permissions: ['learning.events'],
+    contributes: {
+      settings: [
+        {
+          id: 'acme.hello.mode',
+          type: 'boolean',
+          label: 'Mode',
+          default: true,
+        },
+      ],
+      events: [{ event: 'attempt.closed' }],
+    },
+  };
+
+  it('записывает settings, events и разрешение в запись индекса', async () => {
+    const repo = await createRepo([{ fixture: 'hello', manifest: STATE }]);
+    const out = await makeTemp();
+    await publish(repo, out, ['acme.hello']);
+    const index = await indexOf(out);
+    const [entry] = index.extensions;
+    expect(entry?.contributes.settings).toEqual(['acme.hello.mode']);
+    expect(entry?.contributes.events).toEqual(['attempt.closed']);
+    expect(entry?.versions[0]?.permissions).toEqual(['learning.events']);
+    const raw = (await readJson(path.join(out, 'index.json'))) as {
+      extensions: { contributes: Record<string, unknown> }[];
+    };
+    expect(Object.keys(raw.extensions[0]?.contributes ?? {})).toEqual([
+      'exerciseTypes',
+      'themes',
+      'markdownRenderers',
+      'gradePolicies',
+      'settings',
+      'events',
+    ]);
+  });
+
+  it('без настроек и событий ключей в записи нет', async () => {
+    const repo = await createRepo([{ fixture: 'hello' }]);
+    const out = await makeTemp();
+    await publish(repo, out, ['acme.hello']);
+    const raw = (await readJson(path.join(out, 'index.json'))) as {
+      extensions: { contributes: Record<string, unknown> }[];
+    };
+    expect(Object.keys(raw.extensions[0]?.contributes ?? {})).toEqual([
+      'exerciseTypes',
+      'themes',
+      'markdownRenderers',
+      'gradePolicies',
+    ]);
+  });
+});
+
 describe('catalog build: неизменность версий', () => {
   it('повторная сборка тех же исходников — no-op, publishedAt сохраняется', async () => {
     const repo = await createRepo([{ fixture: 'theme-only' }]);

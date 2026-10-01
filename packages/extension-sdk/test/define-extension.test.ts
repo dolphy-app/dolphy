@@ -6,6 +6,7 @@ import {
   type ExerciseTypeHandler,
   type ExtensionContext,
 } from '../src/index.ts';
+import { createMemorySettings, createMemoryStorage } from '../src/testing.ts';
 
 const handler = (): ExerciseTypeHandler =>
   defineExerciseType({
@@ -38,6 +39,14 @@ const createContext = (log: string[], failOn: readonly string[] = []) => {
     registerGradePolicy: (id): Disposable => {
       log.push(`register policy ${id}`);
       return { dispose: () => void log.push(`dispose policy ${id}`) };
+    },
+    storage: createMemoryStorage(),
+    settings: createMemorySettings([]),
+    events: {
+      on: (name): Disposable => {
+        log.push(`subscribe ${name}`);
+        return { dispose: () => void log.push(`unsubscribe ${name}`) };
+      },
     },
   };
   return context;
@@ -191,5 +200,40 @@ describe('defineExtension', () => {
       'register policy a.generous',
       'dispose policy a.generous',
     ]);
+  });
+  it('subscribes events after policies and rolls them back with the rest on failure', async () => {
+    const log: string[] = [];
+    const module = defineExtension({
+      gradePolicies: { 'a.generous': () => 5 },
+      events: {
+        'attempt.closed': () => undefined,
+        'session.started': () => undefined,
+      },
+      activate: () => {
+        throw new Error('activation failed');
+      },
+    });
+    await expect(module.activate(createContext(log))).rejects.toThrow(
+      'activation failed',
+    );
+    expect(log).toEqual([
+      'register policy a.generous',
+      'subscribe attempt.closed',
+      'subscribe session.started',
+      'unsubscribe session.started',
+      'unsubscribe attempt.closed',
+      'dispose policy a.generous',
+    ]);
+  });
+
+  it('unsubscribes events on deactivate', async () => {
+    const log: string[] = [];
+    const module = defineExtension({
+      events: { 'session.finished': () => undefined },
+    });
+    await module.activate(createContext(log));
+    log.length = 0;
+    await module.deactivate?.();
+    expect(log).toEqual(['unsubscribe session.finished']);
   });
 });

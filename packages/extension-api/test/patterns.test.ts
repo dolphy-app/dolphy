@@ -49,6 +49,7 @@ describe('EXTENSION_PERMISSIONS', () => {
       'worker.threads',
       'native.addons',
       'network',
+      'learning.events',
     ]);
     expect(new Set(EXTENSION_PERMISSIONS).size).toBe(
       EXTENSION_PERMISSIONS.length,

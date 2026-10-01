@@ -1,8 +1,8 @@
 ---
-status: active
+status: done
 branch: feature/extension-state
 created: 2026-10-01
-closed: null
+closed: 2026-10-01
 touches: [engine, engine-contract, engine-rpc, engine-sqlite, extension-api, extension-host, extension-sdk, extension-tools, extension-catalog, extension-install, testkit, desktop, create-extension]
 depends-on: [specs/archive/2026-10-01-extension-live-apply]
 supersedes: null
@@ -10,6 +10,8 @@ superseded-by: null
 ---
 
 # Состояние, настройки и события расширений
+
+> Исторический документ. Не источник требований.
 
 Живой документ, пока `status` — `draft` или `active`: `Progress`, `Surprises & Discoveries`, `Decision Log` обновляются вместе с кодом. По завершении фичи переносится в `specs/archive/` и не меняется. Правила — скилл `spec-workflow`.
 
@@ -55,9 +57,9 @@ superseded-by: null
 
 - [x] 2a. Контракт 10, миграция 4, порт `ExtensionDataStore` (memory, sqlite, контрактные тесты), сервисы движка, RPC, приёмник событий, `practice.finishSession`
 - [x] 2b. Хост: двусторонний канал, `ctx.storage/settings/events` в процессе и в ограниченном процессе, точки `settings` и `events`, разрешение `learning.events`, доставка, SDK, testing, tools, catalog. Заодно обновлены примеры `docs-contributions.test.ts`, счёт точек в документах и README SDK/tools; длинная глава `docs/design/extensions.md` — в пункте «Документация»
-- [ ] 2c. Окно: форма настроек, использование и очистка данных, флажок удаления, метки разрешения и точек, вызов `finishSession`, e2e
-- [ ] Документация: `docs/design/extensions.md`, README пакетов, примеры для `docs-contributions.test.ts`
-- [ ] Закрытие: ADR 0007, `Outcomes`, архив
+- [x] 2c. Окно: форма настроек, использование и очистка данных, флажок удаления, метки разрешения и точек, вызов `finishSession`, e2e, проверка дизайна
+- [x] Документация: `docs/design/extensions.md`, README пакетов, примеры для `docs-contributions.test.ts`
+- [x] Закрытие: ADR 0007, `Outcomes`, архив
 
 ## Surprises & Discoveries
 
@@ -78,6 +80,16 @@ superseded-by: null
 - `ctx.storage` отказы движка кроме квоты видит как обычный `Error` с полем `code`; `EXTENSION_STORAGE_QUOTA` — как `StorageQuotaError` (`kind`, `limit` из `details`).
 - В `lib` пакетов нет `Promise.withResolvers`: тесты пользуются помощником `deferred`.
 
+Этап 2c:
+
+- Порядок настроек внутри расширения — порядок манифеста, а не сортировка по `id`: автор управляет формой (раньше `contributions().settings` сортировались по `extensionId\nid`, и «Громко» шло перед «Приветствием»). Между расширениями по-прежнему сортировка по id.
+- Проверка дизайна в настоящем Electron: окно приложения при запуске развёрнуто, `setContentSize` его не сужает; узкую ширину (720 пикселей) даёт `Emulation.setDeviceMetricsOverride` через CDP.
+- Vuetify оставляет под полем зарезервированную строку деталей: поля с подсказкой прижимались к следующему полю, а поля без подсказки — нет. Решено `hide-details="auto"` и общим отступом.
+- Сообщения об ошибке под полем (`v-messages`) читалка не объявляет сама, когда фокус уже ушёл: рядом с полем добавлена невидимая область `role="status"`.
+- Esc в раскрытом списке `v-select` закрывает только список, диалог остаётся; второй Esc закрывает диалог (поведение Vuetify, оставлено).
+- После закрытия диалогов «Настройки», «Очистить данные» и «Удалить» (в том числе по Esc) фокус возвращается на открывшую кнопку.
+- Узлы `.v-list-item-subtitle` в списке установленных дают `color-contrast` 4,29 против 4,5 у axe в светлой теме (тема приложения, не 2c); в проверенных экранах 2c нарушений axe нет.
+
 ## Decision Log
 
 - 2026-10-01. Данные при удалении по умолчанию остаются, но в диалоге удаления добавлен флажок «Удалить данные». Причина: «очистить данные» в строке недоступна после удаления расширения, данные остались бы без интерфейса.
@@ -96,6 +108,14 @@ superseded-by: null
 - 2026-10-01. `extension-api` дублирует `LearningEventPayloads` (включая полный `AttemptSource`) и `EXTENSION_STORAGE_LIMITS` движка и не зависит от него; расхождение ловит `extension-host/test/engine-parity.test.ts`.
 - 2026-10-01. `RunnerFactory.create(extension, engine)` и `RestrictedRunner.notify`: раннер получает ссылку на движок от рантайма. Тестовые помощники SDK (`createMemoryEvents.emit`, `createMemorySettings.set`) в отличие от хоста не проглатывают сбой обработчика.
 
+- 2026-10-01. Порядок `contributions().settings` внутри расширения — порядок манифеста (этап 2c, см. Surprises).
+- 2026-10-01. Уточнение «Удалить данные»: флажок в диалоге удаления остаётся необязательным (по умолчанию данные сохраняются и возвращаются при повторной установке); подсказка под флажком говорит об этом прямо.
+- 2026-10-01. Решение закреплено ADR 0007; ADR 0002 и 0004 помечены частично замещёнными ADR 0003 и 0005 (статусная строка), исследование `docs/research/extension-systems.md` — историческое.
+
 ## Outcomes
 
-Заполняется при закрытии.
+Расширение помнит данные (`ctx.storage`, потолки вместо разрешения), имеет декларативные настройки, которые пользователь меняет в «Настройки → Расширения → Установленные» (изменение доходит до работающего расширения без перезагрузки), и получает события обучения (`session.started`, `session.finished`, `attempt.closed`) за разрешением `learning.events` — в изолированном и доверенном режимах. Данные принадлежат движку (миграция 4, контракт 10), в карточке видны занятое место и «Очистить данные», удаление может стереть данные флажком. Каталог и `dolphy-ext` понимают `settings`, `events` и разрешение. Решение — ADR 0007, описание — `docs/design/extensions.md`.
+
+Проверено: `pnpm lint`, `pnpm typecheck`, `pnpm test` (один раз `engine/test/golden/graph-l2.test.ts` не уложился по времени под нагрузкой и прошёл при отдельном запуске), весь `pnpm -F @dolphy/desktop e2e`, `pnpm smoke`; проверка дизайна — снимки настоящего приложения.
+
+Не сделано (вне целей): команды и панели расширений (`extension-ui-surfaces`), локализация подписей настроек, терпимый разбор записей индекса приложениями 0.2.x, контраст `v-list-item-subtitle` в светлой теме.

@@ -324,10 +324,7 @@ describe('Настройки → Расширения → Каталог', () =>
     await client.openSettingsExtensions();
     const stillSameWindow = await client.markWindow();
     await catalog.openRemoveDialog(ID);
-    await expectText(
-      catalog.dialog,
-      'Ваши курсы и прогресс не затрагиваются',
-    );
+    await expectText(catalog.dialog, 'Ваши курсы и прогресс не затрагиваются');
     await catalog.confirmRemove();
 
     expect(await exists(join(extensionsDir(userData), ID))).toBe(false);

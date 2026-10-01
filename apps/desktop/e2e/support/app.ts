@@ -64,6 +64,13 @@ export interface DolphyApp {
    * экран другого.
    */
   openWindow(): Promise<Page>;
+  /** `pid` живого хоста движка (`utilityProcess` `dolphy-engine`) или `null`, пока супервизор его перезапускает. */
+  engineHostPid(): Promise<number | null>;
+  /**
+   * Убивает хост движка `SIGKILL` по `pid`, как внезапный сбой: супервизор
+   * перезапускает его, окна получают новый порт. Возвращает убитый `pid`.
+   */
+  killEngineHost(): Promise<number>;
   /** Закрывает приложение и ждёт, пока хост движка отпустит `engine.db`. */
   close(): Promise<void>;
 }
@@ -97,8 +104,25 @@ export const launchApp = async (
   page.on('pageerror', (error) => {
     console.error(`[renderer pageerror] ${error.message}`);
   });
+  const engineHostPid = () =>
+    app.evaluate(
+      ({ app: electronApp }) =>
+        electronApp
+          .getAppMetrics()
+          .find(
+            (metric) =>
+              metric.type === 'Utility' && metric.name === 'dolphy-engine',
+          )?.pid ?? null,
+    );
   return {
     page,
+    engineHostPid,
+    killEngineHost: async () => {
+      const pid = await engineHostPid();
+      if (pid === null) throw new Error('engine host is not running');
+      process.kill(pid, 'SIGKILL');
+      return pid;
+    },
     openWindow: async () => {
       const opened = app.waitForEvent('window');
       await app.evaluate(

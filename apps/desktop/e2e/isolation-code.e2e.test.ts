@@ -174,8 +174,8 @@ describe('изоляция кода расширений', () => {
 
     await leaveSession(client);
     await client.openSettingsExtensions();
+    const stillSameWindow = await client.markWindow();
     await client.setExtensionSwitch('acme.hostile', 'trusted', true);
-    await client.reloadFromExtensions();
 
     await startProbe(client, HOSTILE, false);
     const trusted = await probe(client, 'hostile', marker);
@@ -191,8 +191,8 @@ describe('изоляция кода расширений', () => {
     await leaveSession(client);
     await client.openSettingsExtensions();
     await client.setExtensionSwitch('acme.hostile', 'trusted', false);
-    await client.reloadFromExtensions();
     await startProbe(client, HOSTILE, false);
     expect((await probe(client, 'hostile', marker)).write).toBe('denied');
+    await stillSameWindow();
   });
 });

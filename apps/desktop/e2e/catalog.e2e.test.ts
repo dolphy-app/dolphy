@@ -160,12 +160,15 @@ describe('Настройки → Расширения → Каталог', () =>
       .toBe(true);
   });
 
-  it('установка через диалог: разрешения видны, после перезагрузки тема на месте, метка «Из каталога»', async () => {
+  it('установка через диалог: разрешения видны, тема появляется без перезагрузки окна, метка «Из каталога»', async () => {
     const catalogServer = await serve(SUNRISE_1_0, SUNSET);
     const { userData } = workspace!;
     const { client, catalog } = await launch(userData, catalogServer.url);
+    await client.openSettingsAppearance();
+    expect(await client.themeTileExists(SUNRISE_THEME)).toBe(false);
     await client.openSettingsExtensions();
     await catalog.openCatalogTab();
+    const stillSameWindow = await client.markWindow();
 
     await catalog.installButton(ID).click();
     await expectText(catalog.dialog, 'Sunrise');
@@ -175,10 +178,13 @@ describe('Настройки → Расширения → Каталог', () =>
     await expectText(catalog.dialog, ID);
 
     await catalog.confirmInstall();
-    await expectText(
-      catalog.dialog,
-      'Установлено. Чтобы расширение заработало, перезагрузите окно',
+    await expectText(catalog.dialog, 'Установлено. Расширение уже работает.');
+    // диалог не предлагает перезагрузку, баннеров нет
+    await expectCount(
+      catalog.dialog.getByRole('button', { name: /Перезагрузить/ }),
+      0,
     );
+    await expectCount(catalog.page.getByTestId('extensions-reload'), 0);
     const installed = join(extensionsDir(userData), ID);
     expect(await readdir(installed)).toEqual(
       expect.arrayContaining(['extension.json', '.dolphy-install.json']),
@@ -191,39 +197,42 @@ describe('Настройки → Расширения → Каталог', () =>
       version: '1.0.0',
     });
 
-    await catalog.applyFromDialog();
+    await catalog.closeDialog();
     await client.openSettingsAppearance();
-    expect(await client.themeTileExists(SUNRISE_THEME)).toBe(true);
+    await expect.poll(() => client.themeTileExists(SUNRISE_THEME)).toBe(true);
 
     await client.openSettingsExtensions();
     const row = await catalog.installedText(ID);
     expect(row).toContain('Из каталога v1.0.0');
     expect(row).toContain('@acme');
     expect(row).toContain('Тёплая светлая тема');
+    expect(row).not.toContain('после перезагрузки');
     await catalog.openCatalogTab();
     await expectText(catalog.catalogCard(ID), 'Установлено v1.0.0');
+    await stillSameWindow();
   });
 
-  it('«Позже» оставляет сообщение на вкладке «Установленные» до перезагрузки', async () => {
-    const catalogServer = await serve(SUNRISE_1_0);
+  it('две установки подряд: обе действуют без перезагрузки, остальное окно не мигает', async () => {
+    const catalogServer = await serve(SUNRISE_1_0, SUNSET);
     const { client, catalog } = await launch(
       workspace!.userData,
       catalogServer.url,
     );
     await client.openSettingsExtensions();
     await catalog.openCatalogTab();
+    const stillSameWindow = await client.markWindow();
+
     await catalog.installButton(ID).click();
     await catalog.confirmInstall();
-    await catalog.postpone();
+    await catalog.closeDialog();
+    await catalog.installButton('acme.sunset').click();
+    await catalog.confirmInstall();
+    await catalog.closeDialog();
 
-    await catalog.openInstalledTab();
-    await expectText(
-      catalog.page.getByTestId('extensions-apply'),
-      'Изменения вступят в силу после перезагрузки',
-    );
-    await catalog.applyFromBanner();
     await client.openSettingsAppearance();
-    expect(await client.themeTileExists(SUNRISE_THEME)).toBe(true);
+    await expect.poll(() => client.themeTileExists(SUNRISE_THEME)).toBe(true);
+    await expect.poll(() => client.themeTileExists('Закат')).toBe(true);
+    await stillSameWindow();
   });
 
   it('обновление: запуск показывает «Доступно обновлений: 1», «Обновить» ставит новую версию', async () => {
@@ -242,18 +251,22 @@ describe('Настройки → Расширения → Каталог', () =>
     expect(await client.themeTileExists(SUNRISE_THEME)).toBe(true);
 
     await client.openSettingsExtensions();
+    const stillSameWindow = await client.markWindow();
     await expectText(catalog.updatesBanner(), 'Доступно обновлений: 1');
     await catalog.updateFromRow(ID);
     await expectText(catalog.dialog, 'v1.0.0 → v1.1.0');
     await catalog.confirmInstall();
-    await catalog.applyFromDialog();
+    await catalog.closeDialog();
 
     await client.openSettingsAppearance();
-    expect(await client.themeTileExists(SUNRISE_NEW_THEME)).toBe(true);
+    await expect
+      .poll(() => client.themeTileExists(SUNRISE_NEW_THEME))
+      .toBe(true);
     expect(await client.themeTileExists(SUNRISE_THEME)).toBe(false);
     await client.openSettingsExtensions();
     expect(await catalog.installedText(ID)).toContain('Из каталога v1.1.0');
     await expectCount(catalog.updatesBanner(), 0);
+    await stillSameWindow();
   });
 
   it('обновление каталога после перезапуска показывает новую версию на карточке и баннер', async () => {
@@ -264,7 +277,7 @@ describe('Настройки → Расширения → Каталог', () =>
     await ui.catalog.openCatalogTab();
     await ui.catalog.installButton(ID).click();
     await ui.catalog.confirmInstall();
-    await ui.catalog.applyFromDialog();
+    await ui.catalog.closeDialog();
 
     await catalogServer.publish(SUNRISE_1_1);
     ui = await relaunch(userData, catalogServer.url);
@@ -295,7 +308,7 @@ describe('Настройки → Расширения → Каталог', () =>
     await expectDisabled(catalog.installButton(ID), false);
   });
 
-  it('удаление: каталог расширения исчезает, строка и тема пропадают после перезагрузки', async () => {
+  it('удаление: каталог расширения исчезает, строка и тема пропадают без перезагрузки окна', async () => {
     const catalogServer = await serve(SUNRISE_1_0);
     const { userData } = workspace!;
     await seedCatalogInstall(userData, {
@@ -309,6 +322,7 @@ describe('Настройки → Расширения → Каталог', () =>
     expect(await client.themeTileExists(SUNRISE_THEME)).toBe(true);
 
     await client.openSettingsExtensions();
+    const stillSameWindow = await client.markWindow();
     await catalog.openRemoveDialog(ID);
     await expectText(
       catalog.dialog,
@@ -317,13 +331,11 @@ describe('Настройки → Расширения → Каталог', () =>
     await catalog.confirmRemove();
 
     expect(await exists(join(extensionsDir(userData), ID))).toBe(false);
-    await expectText(catalog.installedRow(ID), 'Удалено');
-    await catalog.applyFromBanner();
-
-    await client.openSettingsExtensions();
     await expectCount(catalog.installedRow(ID), 0);
+    await expectCount(catalog.page.getByTestId('extensions-reload'), 0);
     await client.openSettingsAppearance();
-    expect(await client.themeTileExists(SUNRISE_THEME)).toBe(false);
+    await expect.poll(() => client.themeTileExists(SUNRISE_THEME)).toBe(false);
+    await stillSameWindow();
   });
 
   it('расширения из поставки удалить нельзя', async () => {
@@ -461,6 +473,6 @@ describe('Отзыв и целостность', () => {
     await catalog.dialog.getByRole('button', { name: 'Закрыть' }).click();
     await catalog.openInstalledTab();
     await expectCount(catalog.installedRow('acme.echo'), 0);
-    await expectCount(catalog.page.getByTestId('extensions-apply'), 0);
+    await expectCount(catalog.page.getByTestId('extensions-reload'), 0);
   });
 });

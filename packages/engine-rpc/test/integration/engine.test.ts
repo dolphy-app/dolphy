@@ -593,6 +593,7 @@ describe('rpc → dispatcher → real engine', () => {
     ).toEqual({
       // поколение растёт на каждое применение: включение, доверие, установка, удаление выше
       generation: 4,
+      exerciseTypes: [],
       themes: [],
       markdownRenderers: [],
       gradePolicies: [{ id: 'passAtN', extensionId: null, label: null }],

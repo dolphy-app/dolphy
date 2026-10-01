@@ -58,6 +58,12 @@ export const createWorkspace = async (
 
 export interface DolphyApp {
   readonly page: Page;
+  /**
+   * Второе окно приложения (тот же `userData`, тот же движок): отдельное
+   * соединение с движком, чтобы менять расширения в одном окне, не трогая
+   * экран другого.
+   */
+  openWindow(): Promise<Page>;
   /** Закрывает приложение и ждёт, пока хост движка отпустит `engine.db`. */
   close(): Promise<void>;
 }
@@ -93,6 +99,37 @@ export const launchApp = async (
   });
   return {
     page,
+    openWindow: async () => {
+      const opened = app.waitForEvent('window');
+      await app.evaluate(
+        ({ BrowserWindow }, preload) => {
+          const [first] = BrowserWindow.getAllWindows();
+          if (first === undefined) throw new Error('no window to copy');
+          const next = new BrowserWindow({
+            width: 1100,
+            height: 800,
+            // как у окна приложения (`createWindowOptions`); `preload` из настроек окна не прочитать
+            webPreferences: {
+              preload,
+              sandbox: true,
+              contextIsolation: true,
+              nodeIntegration: false,
+            },
+          });
+          // маршрут первого окна (например, сессия) не копируем: второе окно начинает с плана
+          const url = new URL(first.webContents.getURL());
+          url.hash = '';
+          void next.loadURL(url.href);
+        },
+        join(APP_DIR, E2E_BUILD_DIR, 'dist-electron/preload/index.cjs'),
+      );
+      const second = await opened;
+      await second.waitForLoadState('domcontentloaded');
+      second.on('pageerror', (error) => {
+        console.error(`[renderer pageerror] ${error.message}`);
+      });
+      return second;
+    },
     close: async () => {
       await app.close();
     },

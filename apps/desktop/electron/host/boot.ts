@@ -14,6 +14,7 @@ import {
   createExtensionPolicy,
   createExtensionRegistry,
   createExtensionReloader,
+  connectEngine,
   createHostChannel,
   createRemoteExerciseTypes,
   createRemoteGradePolicies,
@@ -123,5 +124,14 @@ export const boot = async (
     },
     config,
   );
+  // хост расширений получает данные расширений, изменения настроек и события обучения;
+  // отключать не нужно: закрытие движка закрывает канал и снимает подписки
+  connectEngine({
+    channel,
+    engine,
+    discovery,
+    policy,
+    logger: defaults.logger,
+  });
   return { engine, logger: defaults.logger, channel };
 };

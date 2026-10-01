@@ -41,11 +41,12 @@ const handle = async (
       logger,
       // расширения не из поставки с `isolated` исполняются в ограниченном процессе
       runners: {
-        create: (extension) =>
+        create: (extension, engine) =>
           createRestrictedRunner({
             extension,
             entryPath: message.restrictedEntry,
             library,
+            engine,
             logger,
           }),
       },

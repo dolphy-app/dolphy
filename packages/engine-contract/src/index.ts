@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 8 as const;
+export const CONTRACT_VERSION = 9 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 
@@ -951,6 +951,12 @@ export type EngineEvent =
         | 'extensions';
     }
   | { type: 'extensions-changed' }
+  /**
+   * Набор вкладов расширений изменился: движок и хост расширений закончили
+   * применять установку, удаление, включение, доверие или правку в режиме
+   * разработчика. Окно перечитывает `extensions.contributions()`.
+   */
+  | { type: 'contributions-changed'; generation: number }
   | {
       type: 'repository-progress';
       id: string;
@@ -1130,6 +1136,13 @@ export interface GradePolicyInfoDto {
 }
 
 export interface ContributionsDto {
+  /**
+   * Поколение набора вкладов: растёт при каждом применении расширений и равно
+   * `generation` последнего события `contributions-changed`. Ответ с меньшим
+   * поколением, чем уже виденное в событии, устарел. Отсчёт начинается заново
+   * при каждом запуске движка.
+   */
+  generation: number;
   themes: ThemeContributionDto[];
   markdownRenderers: MarkdownRendererDto[];
   gradePolicies: GradePolicyInfoDto[];
@@ -1167,7 +1180,8 @@ export interface ExtensionsService {
    * версия, иначе новейшая совместимая. `NOT_FOUND` — нет в каталоге;
    * `EXTENSION_INSTALL_FAILED` с `details.reason`:
    * `incompatible` | `network` | `integrity` | `limits` | `invalid` | `conflict`.
-   * Установленное вступает в силу после перезапуска хостов и перезагрузки окна.
+   * Установленное действует сразу: перед ответом движок и хост расширений
+   * применили набор, окно получило событие `contributions-changed`.
    */
   install(id: string, version?: string): Promise<InstallResultDto>;
   /** Удаляет расширение с origin `user`. `NOT_FOUND`; `INVALID_ARGUMENT` `{reason:'not-removable'}`. */
@@ -1237,8 +1251,6 @@ export interface InstallResultDto {
   version: string;
   /** Прежняя версия из каталога; `null` — новая установка. */
   previousVersion: string | null;
-  /** Всегда `true`: изменения вступают в силу после перезапуска хостов и окна. */
-  restartRequired: true;
 }
 
 export interface LearningEngine {

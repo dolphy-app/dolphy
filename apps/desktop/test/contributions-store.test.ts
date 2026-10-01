@@ -22,6 +22,7 @@ const dto = (
   })),
   markdownRenderers: [],
   gradePolicies: [],
+  settings: [],
 });
 
 interface Call {

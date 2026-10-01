@@ -113,6 +113,7 @@ describe('staleAnswerElements (R7)', () => {
       themes: [],
       markdownRenderers: [],
       gradePolicies: [],
+      settings: [],
     });
     const required = useReloadRequired(contributions as ContributionsRef);
     expect(required.value).toBe(false);

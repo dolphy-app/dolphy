@@ -13,6 +13,7 @@ export const NO_CONTRIBUTIONS: ContributionsDto = {
   themes: [],
   markdownRenderers: [],
   gradePolicies: [],
+  settings: [],
 };
 
 export type ContributionsRef = Readonly<Ref<Readonly<ContributionsDto>>>;

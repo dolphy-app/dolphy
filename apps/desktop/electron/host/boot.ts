@@ -31,11 +31,12 @@ export const boot = async (
   mkdirSync(config.libraryRoot, { recursive: true });
   mkdirSync(config.dataDir, { recursive: true });
   const defaults = nodeDefaults(config); // clock, rng, ids, logger, courseSource, snapshotInstaller, memoryModel
-  // журнал событий, настройки и реестр репозиториев — одна БД, одно соединение
+  // журнал событий, настройки, реестр репозиториев и данные расширений — одна БД, одно соединение
   const {
     events: eventStore,
     settings,
     repositories: repositoryStore,
+    extensionData: extensionDataStore,
   } = openSqliteStorage({
     path: join(config.dataDir, 'engine.db'),
     durability: config.durability ?? 'full',
@@ -101,6 +102,7 @@ export const boot = async (
       settings,
       eventStore,
       repositoryStore,
+      extensionDataStore,
       snapshotFetcher: createIsomorphicGitFetcher(),
       exerciseTypes,
       gradePolicies,

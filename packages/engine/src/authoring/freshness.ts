@@ -1,7 +1,7 @@
 /**
  * Свежесть артефакта: быстрый путь — равенство `stat`-отпечатка, источник
  * истины — content-`revision`. Сравнение «mtime новее артефакта» не
- * используется: оно пропускает правки с восстановленным mtime (report-compiler.md §6.3).
+ * используется: оно пропускает правки с восстановленным mtime.
  */
 import type { ArtifactState } from '@dolphy-app/engine-contract';
 import type { CourseSource } from '../ports/index.ts';

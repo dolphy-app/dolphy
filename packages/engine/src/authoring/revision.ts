@@ -2,7 +2,7 @@
  * Отпечатки библиотеки: content-`revision` (sha256 по байтам всех входных
  * файлов — источник истины о свежести) и `statFingerprint` (быстрый путь без
  * чтения). Порядок путей, разделители и состав входов — часть `formatVersion`
- * артефакта (report-compiler.md §6).
+ * артефакта.
  */
 import type { CourseSource, SourceEntry } from '../ports/index.ts';
 

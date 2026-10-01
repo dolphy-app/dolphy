@@ -1,6 +1,6 @@
 /**
  * Порт модульных тестов `scheduler/review_knocker.rs` (mod tests, :228-483, 4
- * теста) и пробелов спеки `spec-scoring-filter.md` §4.7: ручной пример
+ * теста) и пробелов спеки поведения Trane (§4.7): ручной пример
  * цепочки L2→L1→L0, `createReviewKnocker.knockOutReviews` целиком.
  *
  * Отличия от Rust: граф — `Library.graph` из `buildWorldLibrary` (Rust:

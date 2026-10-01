@@ -23,7 +23,6 @@ module.exports = [
       'vendor/**',
       'docs/**',
       'engine-ts/**',
-      'spike/**',
       'specs/**',
     ],
   },

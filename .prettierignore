@@ -6,7 +6,6 @@ pnpm-lock.yaml
 vendor
 docs
 engine-ts
-spike
 .agents
 .claude
 apps/desktop/LICENSE

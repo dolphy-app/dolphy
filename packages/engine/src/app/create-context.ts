@@ -36,6 +36,7 @@ import type {
   OpenAttempt,
 } from './context.ts';
 import { createEventBus } from './event-bus.ts';
+import { createExtensionApply } from './extension-apply.ts';
 import { checkLibraryRoot, invalidStatus } from './library-root.ts';
 import { createExpiringMap } from './expiring-map.ts';
 import { createJournalWriter } from './journal-writer.ts';
@@ -271,6 +272,12 @@ export const createContext = async (
     extensionRegistry: deps.extensionRegistry,
     extensionPolicy: deps.extensionPolicy,
     extensionInstaller: deps.extensionInstaller,
+    extensionApply: createExtensionApply({
+      reloader: deps.extensionReloader,
+      bus,
+      logger,
+      state,
+    }),
     folderSync: deps.folderSync ?? null,
     openTraneSource: deps.openTraneSource,
     repositoryStore: deps.repositoryStore,

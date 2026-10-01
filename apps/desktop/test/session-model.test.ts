@@ -39,6 +39,8 @@ const exercise = (id: string, verifiable: boolean): ExerciseDto => ({
           element: 'dolphy-sql-answer',
           rendererUrl: 'dolphy-ext://dolphy.sql/view.mjs',
           isolated: false,
+          origin: 'bundled',
+          revision: '',
         },
       }
     : {}),

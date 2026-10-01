@@ -38,6 +38,7 @@ import type { GradePolicies } from '../ports/grade-policies.ts';
 import type { ExtensionInstaller } from '../ports/extension-installer.ts';
 import type { ExtensionPolicy } from '../ports/extension-policy.ts';
 import type { ExtensionRegistry } from '../ports/extension-registry.ts';
+import type { ExtensionReloader } from '../ports/extension-reloader.ts';
 import type { FsrsScorer } from '../scoring/fsrs-scorer.ts';
 import type {
   AttemptSource,
@@ -54,6 +55,7 @@ import type { FolderSync, FolderSyncOptions } from '../node/folder-sync.ts';
 import type { Replica } from '../sync/replica.ts';
 import type { TraneSource } from '../sync/trane-import.ts';
 import type { EngineState, FacadeContext } from './context-types.ts';
+import type { ExtensionApply } from './extension-apply.ts';
 import type { EventBus } from './event-bus.ts';
 import type { ExpiringMap } from './expiring-map.ts';
 import type { EntryFields, JournalWriter } from './journal-writer.ts';
@@ -97,6 +99,8 @@ export interface EngineDeps {
   extensionPolicy: ExtensionPolicy;
   /** Установка расширений из каталога (`@dolphy-app/extension-install`). */
   extensionInstaller: ExtensionInstaller;
+  /** Применение изменений расширений на диске (`@dolphy-app/extension-host`): тот же снимок, что у реестра, политики и клиентов хоста. */
+  extensionReloader: ExtensionReloader;
   /** Нет порта — `sync.folder.*` отвечает `SYNC_FOLDER_NOT_CONFIGURED`. */
   folderSync?: FolderSyncPort;
   /** Чтение каталога `.trane` (`readTraneDirectory` из `@dolphy-app/engine-sqlite`); нет — `importFromTrane` отказывает. */
@@ -296,6 +300,7 @@ export interface EngineContext extends FacadeContext {
   readonly extensionRegistry: ExtensionRegistry;
   readonly extensionPolicy: ExtensionPolicy;
   readonly extensionInstaller: ExtensionInstaller;
+  readonly extensionApply: ExtensionApply;
   readonly folderSync: FolderSyncPort | null;
   readonly openTraneSource: EngineDeps['openTraneSource'];
   readonly repositoryStore: RepositoryStore;

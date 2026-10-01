@@ -75,6 +75,9 @@ export {
 } from './repository-url.ts';
 export { createContext } from './create-context.ts';
 export { createEngine, createEngineFromContext } from './create-engine.ts';
+export type { HostedEngine } from './create-engine.ts';
+export { createExtensionApply } from './extension-apply.ts';
+export type { ExtensionApply } from './extension-apply.ts';
 export { ENGINE_VERSION, collectDiagnostics } from './diagnostics.ts';
 export { createPracticeService } from './services/practice.ts';
 export { createRemediationService } from './services/remediation.ts';

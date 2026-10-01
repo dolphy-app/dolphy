@@ -11,6 +11,7 @@ import {
   createFakeExtensionInstaller,
   createFakeExtensionPolicy,
   createFakeExtensionRegistry,
+  createFakeExtensionReloader,
   createSeededRng,
   createTestIds,
 } from '@dolphy-app/testkit';
@@ -136,6 +137,7 @@ describe('a profile on disk: nodeDefaults over a copied library', () => {
         extensionInstaller: createFakeExtensionInstaller({
           handlers: { ready: () => new Promise<void>(() => {}) },
         }),
+        extensionReloader: createFakeExtensionReloader(),
         repositoryStore: createMemoryRepositoryStore(),
         snapshotFetcher: {
           resolve: async () => {

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { provide, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useEngine } from '@/shared/api/engine';
+import { useContributions, useEngine } from '@/shared/api/engine';
 import { INSTALL_KEY, useInstall } from '../model/install.ts';
+import { useReloadRequired } from '../model/reload-required.ts';
 import CatalogExtensions from './CatalogExtensions.vue';
 import InstallDialog from './InstallDialog.vue';
 import InstalledExtensions from './InstalledExtensions.vue';
@@ -13,11 +14,12 @@ type ExtensionsTab = 'installed' | 'catalog';
 const { t } = useI18n();
 const tab = ref<ExtensionsTab>('installed');
 
-// «Перезагрузить сейчас»: главный процесс перезапускает хосты и окно
-provide(
-  INSTALL_KEY,
-  useInstall(useEngine(), { apply: () => window.dolphy.extensions.apply() }),
-);
+provide(INSTALL_KEY, useInstall(useEngine()));
+
+const reloadRequired = useReloadRequired(useContributions());
+const reloadWindow = () => {
+  location.reload();
+};
 </script>
 
 <template>
@@ -26,6 +28,23 @@ provide(
       :title="t('settings.extensions.title')"
       :subtitle="t('settings.extensions.subtitle')"
     />
+
+    <v-alert
+      v-if="reloadRequired"
+      type="info"
+      variant="tonal"
+      class="mb-6"
+      data-testid="extensions-reload"
+    >
+      <div class="d-flex align-center ga-3">
+        <span class="flex-grow-1">{{
+          t('settings.extensions.reload.message')
+        }}</span>
+        <v-btn variant="text" prepend-icon="mdi-reload" @click="reloadWindow">
+          {{ t('settings.extensions.reload.action') }}
+        </v-btn>
+      </div>
+    </v-alert>
 
     <v-tabs
       v-model="tab"

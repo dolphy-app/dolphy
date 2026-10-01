@@ -309,7 +309,12 @@ describe('createFakeExtensionRegistry', () => {
   });
 
   it('has empty contributions by default and returns the given ones', () => {
-    const empty = { themes: [], markdownRenderers: [], gradePolicies: [] };
+    const empty = {
+      exerciseTypes: [],
+      themes: [],
+      markdownRenderers: [],
+      gradePolicies: [],
+    };
     expect(createFakeExtensionRegistry().contributions()).toEqual(empty);
     const given = {
       ...empty,
@@ -365,7 +370,6 @@ describe('createFakeExtensionInstaller', () => {
             id,
             version: '2.0.0',
             previousVersion: '1.0.0',
-            restartRequired: true,
           };
         },
       },

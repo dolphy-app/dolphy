@@ -52,7 +52,7 @@ describe('Настройки → Расширения: разрешения, в�
     expect(sql).toContain('Нативные модули');
   });
 
-  it('отключение убирает тему после перезагрузки окна, строка помечена «Отключено»', async () => {
+  it('отключение и включение меняют темы сразу, без перезагрузки окна; строка помечена «Отключено»', async () => {
     workspace = await createWorkspace({
       extensions: { [ID]: PERMISSIONS_EXTENSION },
     });
@@ -61,20 +61,21 @@ describe('Настройки → Расширения: разрешения, в�
     expect(await client.themeTileExists(THEME)).toBe(true);
 
     await client.openSettingsExtensions();
+    const stillSameWindow = await client.markWindow();
     await client.setExtensionSwitch(ID, 'enabled', false);
-    await client.reloadFromExtensions();
-
-    const [row] = await client.readExtensions(ID);
-    expect(row).toContain('Отключено');
+    await expect
+      .poll(async () => (await client.readExtensions(ID))[0])
+      .toContain('Отключено');
     expect(await client.extensionSwitchChecked(ID, 'enabled')).toBe(false);
+    expect(await client.reloadBanner().count()).toBe(0);
     await client.openSettingsAppearance();
     expect(await client.themeTileExists(THEME)).toBe(false);
 
     await client.openSettingsExtensions();
     await client.setExtensionSwitch(ID, 'enabled', true);
-    await client.reloadFromExtensions();
     await client.openSettingsAppearance();
-    expect(await client.themeTileExists(THEME)).toBe(true);
+    await expect.poll(() => client.themeTileExists(THEME)).toBe(true);
+    await stillSameWindow();
   });
 
   it('доверие переживает перезапуск приложения и меняет «Изолировано» на «Доверено»', async () => {

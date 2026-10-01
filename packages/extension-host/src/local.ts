@@ -15,6 +15,7 @@ import {
   createRemoteGradePolicies,
 } from './client.ts';
 import type { ResolvedExtension } from './discover.ts';
+import { createDiscoveryHolder, discoveryOf } from './holder.ts';
 import { createEndpointPair } from './loopback.ts';
 import { createAllTrustedPolicy } from './policy.ts';
 import { createExtensionRuntime } from './runtime.ts';
@@ -48,7 +49,10 @@ export const createLocalExtensionHost = (
     ...(options.modules !== undefined && { modules: options.modules }),
   });
   const policy = options.policy ?? createAllTrustedPolicy();
-  const catalog = createCatalog(options.extensions, policy);
+  const catalog = createCatalog(
+    createDiscoveryHolder(discoveryOf(options.extensions)),
+    policy,
+  );
   const channel = createHostChannel({
     logger: options.logger,
     restart: () => {},

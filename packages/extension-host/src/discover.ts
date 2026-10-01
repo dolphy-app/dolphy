@@ -14,6 +14,7 @@ import {
 } from '@dolphy-app/extension-catalog';
 import type { InstallMeta } from '@dolphy-app/extension-catalog';
 import { Ajv2020 } from 'ajv/dist/2020.js';
+import { fingerprintDir } from './fingerprint.ts';
 import { parseManifest } from './manifest.ts';
 import { CONTRIBUTION_POINTS } from './points/index.ts';
 import { defaultNote, inside, isFile } from './points/support.ts';
@@ -43,6 +44,8 @@ export interface ResolvedExtension extends ResolvedContributions {
   minAppVersion: string | null;
   /** Метаданные установки из каталога (`.dolphy-install.json`); `null` — нет или не читаются; читаются только у origin `user`. */
   install: InstallMeta | null;
+  /** Отпечаток файлов каталога (`fingerprintDir`); `''` у расширений из поставки: они не меняются, пока работает приложение. */
+  revision: string;
 }
 
 export interface DiscoveryDiagnostic {
@@ -126,7 +129,10 @@ export interface InspectOptions {
 }
 
 export type InspectResult =
-  | { ok: true; extension: Omit<ResolvedExtension, 'origin' | 'install'> }
+  | {
+      ok: true;
+      extension: Omit<ResolvedExtension, 'origin' | 'install' | 'revision'>;
+    }
   | { ok: false; id: string; message: string };
 
 /** Полностью разбирает каталог одного расширения; ошибка — сообщение для диагностики. */
@@ -265,6 +271,7 @@ export const discoverExtensions = async (
       const extension: ResolvedExtension = {
         ...loaded.extension,
         origin: root.origin,
+        revision: root.origin === 'bundled' ? '' : await fingerprintDir(dir),
         install:
           root.origin === 'user'
             ? await readInstallMeta(dir, loaded.extension.id, logger)

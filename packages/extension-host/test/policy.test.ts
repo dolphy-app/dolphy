@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { holderOf } from './helpers.ts';
 import type { ExtensionOrigin, ResolvedExtension } from '../src/discover.ts';
 import { createExtensionPolicy } from '../src/policy.ts';
 
@@ -6,6 +7,7 @@ const extension = (id: string, origin: ExtensionOrigin): ResolvedExtension => ({
   id,
   version: '1.0.0',
   origin,
+  revision: '',
   dir: `/x/${id}`,
   mainPath: null,
   permissions: [],
@@ -22,7 +24,7 @@ const extension = (id: string, origin: ExtensionOrigin): ResolvedExtension => ({
 });
 
 const policyFor = (...items: ResolvedExtension[]) =>
-  createExtensionPolicy({ extensions: items });
+  createExtensionPolicy(holderOf(items));
 
 describe('createExtensionPolicy', () => {
   it('до update ничего не отключено; не из поставки — изолировано', () => {

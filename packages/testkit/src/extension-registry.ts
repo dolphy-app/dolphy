@@ -1,13 +1,14 @@
+import type { ExtensionInfoDto } from '@dolphy-app/engine-contract';
 import type {
-  ContributionsDto,
-  ExtensionInfoDto,
-} from '@dolphy-app/engine-contract';
-import type { ExtensionRegistry } from '@dolphy-app/engine/ports';
+  ExtensionRegistry,
+  RegistryContributions,
+} from '@dolphy-app/engine/ports';
 
 /** Реестр расширений с фиксированным содержимым (по умолчанию пуст). */
 export const createFakeExtensionRegistry = (
   items: readonly ExtensionInfoDto[] = [],
-  contributions: ContributionsDto = {
+  contributions: RegistryContributions = {
+    exerciseTypes: [],
     themes: [],
     markdownRenderers: [],
     gradePolicies: [],

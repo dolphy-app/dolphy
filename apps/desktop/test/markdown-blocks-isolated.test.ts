@@ -10,12 +10,16 @@ const renderers: MarkdownRendererDto[] = [
     extensionId: 'acme.wild',
     rendererUrl: 'dolphy-ext://acme.wild/markdown.mjs',
     isolated: true,
+    origin: 'user',
+    revision: 'rev-1',
   },
   {
     language: 'math',
     extensionId: 'dolphy.math',
     rendererUrl: 'dolphy-ext://dolphy.math/markdown.mjs',
     isolated: false,
+    origin: 'bundled',
+    revision: '',
   },
 ];
 

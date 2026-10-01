@@ -17,9 +17,6 @@ const setup = (options: { exists?: boolean } = {}) => {
       return { close: () => calls.push('close') };
     },
   );
-  const windows = [1, 2].map((id) => ({
-    reloadIgnoringCache: () => calls.push(`reload:${id}`),
-  }));
   createDevExtensionsShell({
     app: {
       on: (_event, listener) => {
@@ -29,8 +26,7 @@ const setup = (options: { exists?: boolean } = {}) => {
     dir: DIR,
     watch,
     timers: { setTimeout, clearTimeout },
-    restartHosts: () => calls.push('restart'),
-    windows: () => windows,
+    reloadExtensions: () => calls.push('reload'),
     exists: () => options.exists ?? true,
     logger: {
       debug: () => undefined,
@@ -56,7 +52,7 @@ describe('dev extensions shell', () => {
     vi.useRealTimers();
   });
 
-  it('серия изменений даёт один перезапуск хостов и одну перезагрузку окон', () => {
+  it('серия изменений даёт один запрос на применение', () => {
     const { calls, watch, change } = setup();
     expect(watch).toHaveBeenCalledWith(DIR, expect.any(Function));
     change('dolphy.x/main.mjs');
@@ -65,27 +61,25 @@ describe('dev extensions shell', () => {
     vi.advanceTimersByTime(DEFAULT_DEV_DEBOUNCE_MS - 1);
     expect(calls).toEqual([]);
     vi.advanceTimersByTime(1);
-    expect(calls).toEqual(['restart', 'reload:1', 'reload:2']);
+    expect(calls).toEqual(['reload']);
     vi.advanceTimersByTime(10_000);
-    expect(calls).toHaveLength(3);
+    expect(calls).toEqual(['reload']);
   });
 
-  it('хосты перезапускаются раньше перезагрузки окон', () => {
+  it('разделённые паузой серии дают два запроса', () => {
+    const { calls, change } = setup();
+    change('a/extension.json');
+    vi.advanceTimersByTime(DEFAULT_DEV_DEBOUNCE_MS);
+    change('a/extension.json');
+    vi.advanceTimersByTime(DEFAULT_DEV_DEBOUNCE_MS);
+    expect(calls).toEqual(['reload', 'reload']);
+  });
+
+  it('событие без имени файла тоже считается правкой', () => {
     const { calls, change } = setup();
     change(null);
     vi.advanceTimersByTime(DEFAULT_DEV_DEBOUNCE_MS);
-    expect(calls.indexOf('restart')).toBe(0);
-    expect(calls.indexOf('reload:1')).toBeGreaterThan(0);
-  });
-
-  it('разделённые паузой серии дают две перезагрузки', () => {
-    const { calls, change } = setup();
-    change('a/extension.json');
-    vi.advanceTimersByTime(DEFAULT_DEV_DEBOUNCE_MS);
-    change('a/extension.json');
-    vi.advanceTimersByTime(DEFAULT_DEV_DEBOUNCE_MS);
-    expect(calls.filter((call) => call === 'restart')).toHaveLength(2);
-    expect(calls.filter((call) => call === 'reload:1')).toHaveLength(2);
+    expect(calls).toEqual(['reload']);
   });
 
   it('нет каталога: предупреждение и никакого наблюдения', () => {
@@ -106,7 +100,7 @@ describe('dev extensions shell', () => {
     expect(calls).toEqual([]);
   });
 
-  it('выход из приложения закрывает наблюдатель и отменяет ожидающую перезагрузку', () => {
+  it('выход из приложения закрывает наблюдатель и отменяет ожидающий запрос', () => {
     const { calls, change, quit } = setup();
     change('a/main.mjs');
     quit();

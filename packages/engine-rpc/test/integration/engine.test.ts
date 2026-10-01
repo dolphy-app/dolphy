@@ -29,6 +29,7 @@ import {
   createFakeExtensionInstaller,
   createFakeExtensionPolicy,
   createFakeExtensionRegistry,
+  createFakeExtensionReloader,
   createFakeGradePolicies,
   createMemoryCourseSource,
   createSeededRng,
@@ -156,6 +157,7 @@ const start = async () => {
         catalog: CATALOG,
         updates: [UPDATE],
       }),
+      extensionReloader: createFakeExtensionReloader(),
       repositoryStore: createMemoryRepositoryStore(),
       snapshotFetcher: offlineFetcher,
       snapshotInstaller: createNodeSnapshotInstaller({
@@ -571,7 +573,6 @@ describe('rpc → dispatcher → real engine', () => {
       id: 'acme.new',
       version: '2.0.0',
       previousVersion: null,
-      restartRequired: true,
     });
     expect(
       await call('extensions.updates', () => client.extensions.updates()),
@@ -590,6 +591,9 @@ describe('rpc → dispatcher → real engine', () => {
         client.extensions.contributions(),
       ),
     ).toEqual({
+      // поколение растёт на каждое применение: включение, доверие, установка, удаление выше
+      generation: 4,
+      exerciseTypes: [],
       themes: [],
       markdownRenderers: [],
       gradePolicies: [{ id: 'passAtN', extensionId: null, label: null }],

@@ -52,7 +52,6 @@ describe('install', () => {
       id: 'acme.echo',
       version: '1.1.0',
       previousVersion: null,
-      restartRequired: true,
     });
     for (const file of filesOf(ECHO, '1.1.0')) {
       expect(await readText(env.dir, 'acme.echo', file.path)).toBe(

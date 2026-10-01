@@ -12,8 +12,7 @@ const RU = {
   kindsGroup: 'Фильтр по виду вклада',
   install: 'Установить',
   confirmUpdate: 'Обновить',
-  reloadNow: 'Перезагрузить сейчас',
-  later: 'Позже',
+  close: 'Закрыть',
   remove: 'Удалить',
   offline: 'Нет связи с каталогом',
   unavailable: 'Каталог недоступен',
@@ -21,7 +20,6 @@ const RU = {
 } as const;
 
 const TIMEOUT = 30_000;
-const RELOAD_TIMEOUT = 60_000;
 
 /** Оператор вкладок «Установленные» и «Каталог»: клики и чтение экрана. */
 export class CatalogClient {
@@ -112,29 +110,10 @@ export class CatalogClient {
       .waitFor({ timeout: TIMEOUT });
   }
 
-  /** «Перезагрузить сейчас» в диалоге: ждёт перезагрузку окна. */
-  async applyFromDialog() {
-    await this.reloadFrom(this.dialog);
-  }
-
-  /** «Перезагрузить сейчас» в сообщении на вкладке «Установленные». */
-  async applyFromBanner() {
-    await this.reloadFrom(this.page.getByTestId('extensions-apply'));
-  }
-
-  private async reloadFrom(scope: Locator) {
-    const reloaded = this.page.waitForEvent('load', {
-      timeout: RELOAD_TIMEOUT,
-    });
-    await scope
-      .getByRole('button', { name: RU.reloadNow, exact: true })
-      .click({ noWaitAfter: true });
-    await reloaded;
-  }
-
-  async postpone() {
+  /** «Закрыть» в итоге установки: диалог закрывается, окно остаётся как есть. */
+  async closeDialog() {
     await this.dialog
-      .getByRole('button', { name: RU.later, exact: true })
+      .getByRole('button', { name: RU.close, exact: true })
       .click();
     await this.dialog.waitFor({ state: 'hidden', timeout: TIMEOUT });
   }

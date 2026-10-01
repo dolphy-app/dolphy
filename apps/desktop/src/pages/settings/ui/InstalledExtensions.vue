@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type {
   ExtensionInfoDto,
@@ -43,7 +43,6 @@ const {
   load,
   switching,
   switchError,
-  needsReload,
   setEnabled,
   setTrusted,
   setCheckUpdates,
@@ -52,25 +51,14 @@ const {
 
 const removeTarget = ref<ExtensionInfoDto | null>(null);
 
-/** Обновления, которые ещё не установлены в этом запуске. */
-const openUpdates = computed(() =>
-  updates.value.filter(({ id }) => !install.pending.value.has(id)),
-);
-
 const updateOf = (id: string) =>
-  openUpdates.value.find((update) => update.id === id);
+  updates.value.find((update) => update.id === id);
 
 const isMuted = (extension: ExtensionInfoDto) =>
-  extension.state === 'overridden' ||
-  extension.state === 'disabled' ||
-  install.pending.value.has(extension.id);
+  extension.state === 'overridden' || extension.state === 'disabled';
 
 const isActive = (extension: ExtensionInfoDto) =>
   extension.state === 'loaded' || extension.state === 'disabled';
-
-const reloadWindow = () => {
-  location.reload();
-};
 
 const reviewUpdates = async (ids?: readonly string[]) => {
   install.review(await updateTargets(ids));
@@ -125,56 +113,13 @@ watch(
       </div>
     </v-alert>
 
-    <v-alert
-      v-if="needsReload"
-      type="info"
-      variant="tonal"
-      class="mb-6"
-      data-testid="extensions-reload"
-    >
-      <div class="d-flex align-center ga-3">
-        <span class="flex-grow-1">{{
-          t('settings.extensions.reload.message')
-        }}</span>
-        <v-btn variant="text" prepend-icon="mdi-reload" @click="reloadWindow">
-          {{ t('settings.extensions.reload.action') }}
-        </v-btn>
-      </div>
-    </v-alert>
-
-    <v-alert
-      v-if="install.needsApply.value && install.phase.value === 'idle'"
-      type="info"
-      variant="tonal"
-      class="mb-6"
-      data-testid="extensions-apply"
-    >
-      <div class="d-flex align-center ga-3">
-        <span class="flex-grow-1">{{
-          t('settings.extensions.installed.applyMessage')
-        }}</span>
-        <v-btn
-          variant="text"
-          prepend-icon="mdi-reload"
-          :loading="install.applying.value"
-          @click="install.apply"
-        >
-          {{ t('settings.extensions.installed.applyAction') }}
-        </v-btn>
-      </div>
-      <p v-if="install.applyError.value" class="text-body-small mt-2">
-        {{ t('settings.extensions.installed.applyFailed') }}:
-        {{ install.applyError.value }}
-      </p>
-    </v-alert>
-
     <v-alert v-if="switchError" type="error" variant="tonal" class="mb-6">
       {{ t('settings.extensions.switchFailed') }}: {{ switchError }}
     </v-alert>
 
     <template v-if="state === 'loaded'">
       <v-alert
-        v-if="openUpdates.length > 0"
+        v-if="updates.length > 0"
         type="info"
         variant="tonal"
         class="mb-6"
@@ -184,8 +129,8 @@ watch(
           <span class="flex-grow-1">{{
             t(
               'settings.extensions.installed.updatesBanner',
-              { n: openUpdates.length },
-              openUpdates.length,
+              { n: updates.length },
+              updates.length,
             )
           }}</span>
           <v-btn
@@ -193,7 +138,7 @@ watch(
             color="primary"
             prepend-icon="mdi-update"
             :disabled="install.phase.value === 'running'"
-            @click="reviewUpdates(openUpdates.map(({ id }) => id))"
+            @click="reviewUpdates(updates.map(({ id }) => id))"
           >
             {{ t('settings.extensions.installed.updateAll') }}
           </v-btn>
@@ -400,22 +345,7 @@ watch(
               </p>
             </div>
 
-            <p
-              v-if="install.pending.value.has(extension.id)"
-              class="d-flex align-center ga-1 text-body-medium mt-3"
-              data-testid="pending-change"
-            >
-              <v-icon icon="mdi-restart" size="small" aria-hidden="true" />
-              {{
-                t(
-                  `settings.extensions.installed.pending.${install.pending.value.get(extension.id)?.kind}`,
-                  {
-                    version: install.pending.value.get(extension.id)?.version,
-                  },
-                )
-              }}
-            </p>
-            <div v-else class="d-flex flex-wrap ga-2 mt-3">
+            <div class="d-flex flex-wrap ga-2 mt-3">
               <v-btn
                 v-if="updateOf(extension.id)"
                 variant="tonal"

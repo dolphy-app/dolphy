@@ -1,5 +1,6 @@
 import type { MarkdownRendererDto } from '@dolphy-app/engine-contract';
 import type { MarkdownRendererModule } from '@dolphy-app/extension-api';
+import { moduleUrlOf } from '@/shared/lib/extension-url.ts';
 import { createFrameHost, frameUrlOf } from '@/shared/lib/frame-bridge.ts';
 import type { FrameHost } from '@/shared/lib/frame-bridge.ts';
 import { MARKDOWN_BLOCK_CLASS } from './markdown.ts';
@@ -179,7 +180,7 @@ export const hydrateMarkdownBlocks = async (
     try {
       if (renderer === undefined)
         throw new Error(`no renderer for '${language}'`);
-      const module = await loadModule(renderer.rendererUrl);
+      const module = await loadModule(moduleUrlOf(renderer));
       if (signal.aborted) {
         release(block);
         break;

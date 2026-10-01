@@ -1,9 +1,10 @@
 import type { InjectionKey } from 'vue';
-import type {
-  ContributionsDto,
-  LearningEngine,
-} from '@dolphy-app/engine-contract';
+import type { LearningEngine } from '@dolphy-app/engine-contract';
+import type { ContributionsRef } from './contributions.ts';
+import type { ThemeSelection } from './theme-selection.ts';
 
 export const ENGINE_KEY: InjectionKey<LearningEngine> = Symbol('engine');
-export const CONTRIBUTIONS_KEY: InjectionKey<ContributionsDto> =
+export const CONTRIBUTIONS_KEY: InjectionKey<ContributionsRef> =
   Symbol('contributions');
+export const THEME_SELECTION_KEY: InjectionKey<ThemeSelection> =
+  Symbol('theme-selection');

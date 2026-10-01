@@ -223,6 +223,7 @@ describe('код расширения в настоящем ограниченн
     const runner = await createRunner({
       ...inspected.extension,
       origin: 'user',
+      revision: '',
       install: null,
     });
 

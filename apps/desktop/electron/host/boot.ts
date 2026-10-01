@@ -10,8 +10,10 @@ import {
 } from '@dolphy-app/engine-sqlite';
 import {
   createCatalog,
+  createDiscoveryHolder,
   createExtensionPolicy,
   createExtensionRegistry,
+  createExtensionReloader,
   createHostChannel,
   createRemoteExerciseTypes,
   createRemoteGradePolicies,
@@ -49,11 +51,14 @@ export const boot = async (
     defaults.logger.warn({ error }, 'legacy settings were not imported');
   }
   // расширения: манифесты читаем здесь (без запуска кода), код исполняется в хосте расширений
-  const discovery = await discoverExtensions({
-    roots: extensionRoots(config),
-    logger: defaults.logger,
-    ...(config.appVersion ? { appVersion: config.appVersion } : {}),
-  });
+  const discover = () =>
+    discoverExtensions({
+      roots: extensionRoots(config),
+      logger: defaults.logger,
+      ...(config.appVersion ? { appVersion: config.appVersion } : {}),
+    });
+  // один изменяемый снимок на политику, каталог, реестр и установщик: `reload` меняет его целиком
+  const discovery = createDiscoveryHolder(await discover());
   // установка из каталога: отзыв читается из кэша индекса, поэтому кэш загружается до движка
   const extensionInstaller = createDesktopInstaller({
     config,
@@ -62,14 +67,16 @@ export const boot = async (
   });
   await extensionInstaller.ready();
   const { revocationOf } = extensionInstaller;
-  // один канал к хосту расширений: виды заданий и правила оценки делят порт, дедлайны и перезапуск
+  // один канал к хосту расширений: виды заданий и правила оценки делят порт, дедлайны и перезапуск;
+  // хост расширений сам расширения не ищет: после каждого подключения ему уходит текущий набор
   const channel = createHostChannel({
     logger: defaults.logger,
     restart: restartExtHost,
+    currentExtensions: () => discovery.get().extensions,
   });
   // одна политика на каталог, клиентов хоста, реестр и движок: «Настройки → Расширения» действует сразу
   const policy = createExtensionPolicy(discovery, revocationOf);
-  const catalog = createCatalog(discovery.extensions, policy);
+  const catalog = createCatalog(discovery, policy);
   const exerciseTypes = createRemoteExerciseTypes({
     channel,
     catalog,
@@ -104,6 +111,12 @@ export const boot = async (
       ),
       extensionPolicy: policy,
       extensionInstaller,
+      extensionReloader: createExtensionReloader({
+        holder: discovery,
+        discover,
+        channel,
+        logger: defaults.logger,
+      }),
       openTraneSource: readTraneDirectory,
     },
     config,

@@ -4,8 +4,9 @@ import {
   schemas,
 } from '@dolphy-app/engine-rpc/host';
 import type { Dispatcher } from '@dolphy-app/engine-rpc/host';
+import type { HostedEngine } from '@dolphy-app/engine/app';
 import type { HostChannel } from '@dolphy-app/extension-host';
-import type { EngineConfig, LearningEngine } from '@dolphy-app/engine-contract';
+import type { EngineConfig } from '@dolphy-app/engine-contract';
 import { boot } from './boot.ts';
 
 /** Сообщения main → хост (`process.parentPort`). */
@@ -13,10 +14,11 @@ type HostMessage =
   | { type: 'init'; config: EngineConfig }
   | { type: 'connect'; clientId: string }
   | { type: 'ext-port' }
+  | { type: 'reload-extensions' }
   | { type: 'shutdown' };
 
 const { parentPort } = process;
-let engine: LearningEngine | null = null;
+let engine: HostedEngine | null = null;
 let dispatcher: Dispatcher | null = null;
 let channel: HostChannel | null = null;
 
@@ -62,6 +64,9 @@ const handle = async (
   } else if (message.type === 'ext-port') {
     const [port] = ports;
     if (channel && port) channel.attach(fromNodePort(port));
+  } else if (message.type === 'reload-extensions') {
+    // правка в режиме разработчика: применить без перезапуска; ошибки логирует сам движок
+    await engine?.reloadExtensions();
   } else {
     await shutdown();
   }

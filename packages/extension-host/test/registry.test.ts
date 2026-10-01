@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { createDiscoveryHolder } from '../src/holder.ts';
 import type { DiscoveryResult, ResolvedExtension } from '../src/discover.ts';
 import { createExtensionPolicy } from '../src/policy.ts';
 import { createExtensionRegistry } from '../src/registry.ts';
@@ -7,6 +8,7 @@ const extension = (id: string, version = '1.0.0'): ResolvedExtension => ({
   id,
   version,
   origin: 'user',
+  revision: '',
   dir: `/x/${id}`,
   mainPath: `/x/${id}/main.mjs`,
   permissions: ['library.read'],
@@ -51,11 +53,12 @@ const discovery: DiscoveryResult = {
     { extensionId: 'broken-dir', origin: 'user', message: 'bad manifest' },
   ],
 };
+const holder = createDiscoveryHolder(discovery);
 
 describe('createExtensionRegistry', () => {
   const items = createExtensionRegistry(
-    discovery,
-    createExtensionPolicy(discovery),
+    holder,
+    createExtensionPolicy(holder),
   ).list();
 
   it('maps loaded extensions with their exercise types', () => {
@@ -120,8 +123,8 @@ describe('createExtensionRegistry', () => {
 
   it('returns copies', () => {
     const registry = createExtensionRegistry(
-      discovery,
-      createExtensionPolicy(discovery),
+      holder,
+      createExtensionPolicy(holder),
     );
     registry.list()[0]?.contributes.exerciseTypes.push('evil');
     expect(registry.list()[0]?.contributes.exerciseTypes).toEqual([
@@ -165,10 +168,11 @@ describe('createExtensionRegistry: политика', () => {
     overridden: [],
     diagnostics: [],
   };
+  const bothHolder = createDiscoveryHolder(both);
 
   it('отключённое расширение в списке со state disabled, без вкладов', () => {
-    const policy = createExtensionPolicy(both);
-    const registry = createExtensionRegistry(both, policy);
+    const policy = createExtensionPolicy(bothHolder);
+    const registry = createExtensionRegistry(bothHolder, policy);
     policy.update({ disabled: ['acme.u'], trusted: [], checkUpdates: true });
     const item = registry.list().find(({ id }) => id === 'acme.u');
     expect(item).toMatchObject({
@@ -182,9 +186,68 @@ describe('createExtensionRegistry: политика', () => {
     expect(markdownRenderers.map(({ language }) => language)).toEqual(['math']);
   });
 
+  it('рендерер несёт origin и revision расширения: окно перевыводит блоки при правке', () => {
+    const edited: ResolvedExtension = {
+      ...user,
+      origin: 'dev',
+      revision: 'rev-2',
+    };
+    const holder = createDiscoveryHolder({
+      extensions: [bundled, edited],
+      overridden: [],
+      diagnostics: [],
+    });
+    const registry = createExtensionRegistry(
+      holder,
+      createExtensionPolicy(holder),
+    );
+    expect(
+      registry
+        .contributions()
+        .markdownRenderers.map(({ language, origin, revision }) => [
+          language,
+          origin,
+          revision,
+        ]),
+    ).toEqual([
+      ['math', 'bundled', ''],
+      ['chart', 'dev', 'rev-2'],
+    ]);
+  });
+
+  it('виды заданий несут origin, revision и isolated: окно видит правку и обновление элемента', () => {
+    const edited: ResolvedExtension = {
+      ...user,
+      origin: 'dev',
+      revision: 'rev-2',
+    };
+    const holder = createDiscoveryHolder({
+      extensions: [bundled, edited],
+      overridden: [],
+      diagnostics: [],
+    });
+    const policy = createExtensionPolicy(holder);
+    const registry = createExtensionRegistry(holder, policy);
+    const types = () =>
+      registry
+        .contributions()
+        .exerciseTypes.map(({ type, origin, revision, isolated }) => [
+          type,
+          origin,
+          revision,
+          isolated,
+        ]);
+    expect(types()).toEqual([
+      ['dolphy.math.a', 'bundled', '', false],
+      ['acme.u.a', 'dev', 'rev-2', true],
+    ]);
+    policy.update({ disabled: ['acme.u'], trusted: [], checkUpdates: true });
+    expect(types()).toEqual([['dolphy.math.a', 'bundled', '', false]]);
+  });
+
   it('isolation и isolated: поставка — доверена, доверенное пользователем — тоже', () => {
-    const policy = createExtensionPolicy(both);
-    const registry = createExtensionRegistry(both, policy);
+    const policy = createExtensionPolicy(bothHolder);
+    const registry = createExtensionRegistry(bothHolder, policy);
     const flags = () =>
       Object.fromEntries(
         registry

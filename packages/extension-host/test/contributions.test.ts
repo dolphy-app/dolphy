@@ -1,4 +1,5 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { createDiscoveryHolder } from '../src/holder.ts';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -332,14 +333,24 @@ describe('createExtensionRegistry: contributions', () => {
       path.join(fixturesDir, 'acme.mixed'),
     );
     if (!themes.ok || !mixed.ok) throw new Error('fixtures must load');
-    const discovery = {
+    const discovery = createDiscoveryHolder({
       extensions: [
-        { ...themes.extension, origin: 'user' as const, install: null },
-        { ...mixed.extension, origin: 'bundled' as const, install: null },
+        {
+          ...themes.extension,
+          origin: 'user' as const,
+          revision: '',
+          install: null,
+        },
+        {
+          ...mixed.extension,
+          origin: 'bundled' as const,
+          revision: '',
+          install: null,
+        },
       ],
       overridden: [],
       diagnostics: [],
-    };
+    });
     const registry = createExtensionRegistry(
       discovery,
       createExtensionPolicy(discovery),
@@ -366,13 +377,18 @@ describe('createExtensionRegistry: contributions', () => {
       path.join(fixturesDir, 'acme.themes'),
     );
     if (!themes.ok) throw new Error(themes.message);
-    const discovery = {
+    const discovery = createDiscoveryHolder({
       extensions: [
-        { ...themes.extension, origin: 'user' as const, install: null },
+        {
+          ...themes.extension,
+          origin: 'user' as const,
+          revision: '',
+          install: null,
+        },
       ],
       overridden: [],
       diagnostics: [],
-    };
+    });
     const registry = createExtensionRegistry(
       discovery,
       createExtensionPolicy(discovery),

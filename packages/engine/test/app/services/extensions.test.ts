@@ -1,12 +1,11 @@
-import type {
-  ContributionsDto,
-  ExtensionInfoDto,
-} from '@dolphy-app/engine-contract';
+import type { ExtensionInfoDto } from '@dolphy-app/engine-contract';
 import {
   createFakeExtensionPolicy,
   createFakeExtensionRegistry,
+  createFakeExtensionReloader,
 } from '@dolphy-app/testkit';
 import { createMemorySettingsStore } from '../../../src/node/memory-settings-store.ts';
+import type { RegistryContributions } from '../../../src/ports/extension-registry.ts';
 import { describe, expect, it } from 'vitest';
 import { createTestEngine } from '../../helpers/engine.ts';
 
@@ -88,26 +87,42 @@ describe('extensions.contributions', () => {
     extensionId: 'a.ext',
     rendererUrl: `dolphy-ext://a.ext/${language}.mjs`,
     isolated: true,
+    origin: 'user' as const,
+    revision: 'rev-1',
+  });
+  const exerciseType = (type: string) => ({
+    type,
+    extensionId: 'a.ext',
+    element: `${type.replaceAll('.', '-')}-answer`,
+    rendererUrl: `dolphy-ext://a.ext/${type}.mjs`,
+    isolated: false,
+    origin: 'dev' as const,
+    revision: 'rev-1',
   });
   const policy = (id: string) => ({
     id,
     extensionId: 'a.ext',
     label: id,
   });
-  const contributions: ContributionsDto = {
+  const contributions: RegistryContributions = {
+    exerciseTypes: [exerciseType('a.ext.z'), exerciseType('a.ext.b')],
     themes: [theme('a.ext.z'), theme('a.ext.b')],
     markdownRenderers: [renderer('math'), renderer('chart')],
     gradePolicies: [policy('a.ext.z'), policy('a.ext.b')],
   };
-  const openWith = (source: ContributionsDto) =>
+  const openWith = (source: RegistryContributions) =>
     createTestEngine({
       extensionRegistry: createFakeExtensionRegistry([], source),
     });
 
-  it('sorts themes by id, renderers by language, extension policies by id', async () => {
+  it('sorts themes by id, exercise types by type, renderers by language, extension policies by id', async () => {
     const { engine } = await openWith(contributions);
     const result = await engine.extensions.contributions();
     expect(result.themes.map(({ id }) => id)).toEqual(['a.ext.b', 'a.ext.z']);
+    expect(result.exerciseTypes.map(({ type }) => type)).toEqual([
+      'a.ext.b',
+      'a.ext.z',
+    ]);
     expect(result.markdownRenderers.map(({ language }) => language)).toEqual([
       'chart',
       'math',
@@ -286,5 +301,83 @@ describe('extensions settings', () => {
       engine.extensions.setEnabled('acme.user', false),
     ).rejects.toMatchObject({ code: 'INTERNAL' });
     expect(policy.isEnabled('acme.user')).toBe(true);
+  });
+});
+
+describe('extensions live apply', () => {
+  const USER = info({
+    id: 'acme.user',
+    origin: 'user',
+    isolation: 'isolated',
+    toggleable: true,
+  });
+  const openApplying = (settings = createMemorySettingsStore()) => {
+    const order: string[] = [];
+    const reloader = createFakeExtensionReloader(() => {
+      order.push('reload');
+    });
+    return createTestEngine({
+      extensionRegistry: createFakeExtensionRegistry([USER]),
+      extensionReloader: reloader,
+      settings,
+    }).then((t) => {
+      t.engine.subscribe((event) => {
+        order.push(event.type);
+      });
+      return { ...t, reloader, order };
+    });
+  };
+
+  it('setEnabled and setTrusted apply the set before announcing contributions-changed', async () => {
+    const { engine, order, events } = await openApplying();
+    await engine.extensions.setEnabled('acme.user', false);
+    await engine.extensions.setTrusted('acme.user', true);
+    expect(order.filter((type) => type !== 'settings-changed')).toEqual([
+      'reload',
+      'contributions-changed',
+      'reload',
+      'contributions-changed',
+    ]);
+    expect(
+      events.filter(({ type }) => type === 'contributions-changed'),
+    ).toEqual([
+      { type: 'contributions-changed', generation: 1 },
+      { type: 'contributions-changed', generation: 2 },
+    ]);
+  });
+
+  it('applies nothing when a write changes nothing or only the update check', async () => {
+    const { engine, reloader } = await openApplying();
+    await engine.extensions.setCheckUpdates(false);
+    await engine.extensions.setEnabled('acme.user', true);
+    expect(reloader.calls()).toBe(0);
+  });
+
+  it('contributions carry the generation of the last applied set', async () => {
+    const { engine } = await openApplying();
+    expect((await engine.extensions.contributions()).generation).toBe(0);
+    await engine.extensions.setEnabled('acme.user', false);
+    expect((await engine.extensions.contributions()).generation).toBe(1);
+  });
+
+  it('reloadExtensions applies without a command and announces once', async () => {
+    const { engine, reloader, events } = await openApplying();
+    await engine.reloadExtensions();
+    expect(reloader.calls()).toBe(1);
+    expect(events).toEqual([{ type: 'contributions-changed', generation: 1 }]);
+  });
+
+  it('does not apply when the settings write is refused', async () => {
+    const base = createMemorySettingsStore();
+    const { engine, reloader } = await openApplying({
+      ...base,
+      saveExtensions: async () => {
+        throw new Error('disk full');
+      },
+    });
+    await expect(
+      engine.extensions.setEnabled('acme.user', false),
+    ).rejects.toMatchObject({ code: 'INTERNAL' });
+    expect(reloader.calls()).toBe(0);
   });
 });

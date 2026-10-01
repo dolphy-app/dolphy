@@ -18,6 +18,7 @@ export type NodeDefaults = Omit<
   | 'extensionRegistry'
   | 'extensionPolicy'
   | 'extensionInstaller'
+  | 'extensionReloader'
   | 'openTraneSource'
   | 'repositoryStore'
   | 'snapshotFetcher'

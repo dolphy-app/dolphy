@@ -22,8 +22,21 @@ import {
 import { createSettingsService } from './services/settings.ts';
 import { createSyncService } from './services/sync.ts';
 
+/**
+ * Движок для процесса-хоста: контракт `LearningEngine` плюс то, чего в нём
+ * нет, потому что окно этого не вызывает.
+ */
+export interface HostedEngine extends LearningEngine {
+  /**
+   * Применяет изменения расширений на диске без команды окна (режим
+   * разработчика): перечитывает набор, публикует `contributions-changed`.
+   * Не бросает; после `close()` ничего не делает.
+   */
+  reloadExtensions(): Promise<void>;
+}
+
 /** Сервисы и фасад над готовым контекстом (тесты собирают контекст сами). */
-export const createEngineFromContext = (ctx: EngineContext): LearningEngine => {
+export const createEngineFromContext = (ctx: EngineContext): HostedEngine => {
   // одна очередь на фасад и на `repositories`: подмена снимка — обычная команда
   const queue = createCommandQueue();
   const closing = new AbortController();
@@ -54,6 +67,7 @@ export const createEngineFromContext = (ctx: EngineContext): LearningEngine => {
   );
   return {
     ...facade,
+    reloadExtensions: () => ctx.extensionApply.reload(),
     close: () => {
       const closed = facade.close();
       closing.abort(); // долгая загрузка не должна держать закрытие
@@ -73,7 +87,7 @@ export const createEngineFromContext = (ctx: EngineContext): LearningEngine => {
 export const createEngine = async (
   deps: EngineDeps,
   config: EngineConfig,
-): Promise<LearningEngine> => {
+): Promise<HostedEngine> => {
   // до первой загрузки библиотеки: сканер не должен видеть остатки прерванной операции
   await recoverRepositories(deps);
   return createEngineFromContext(await createContext(deps, config));

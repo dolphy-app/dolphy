@@ -78,7 +78,6 @@ export const createFakeExtensionInstaller = (
           id,
           version: version ?? '1.0.0',
           previousVersion: null,
-          restartRequired: true,
         }
       );
     },

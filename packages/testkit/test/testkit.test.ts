@@ -365,7 +365,6 @@ describe('createFakeExtensionInstaller', () => {
             id,
             version: '2.0.0',
             previousVersion: '1.0.0',
-            restartRequired: true,
           };
         },
       },

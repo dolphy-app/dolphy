@@ -3,11 +3,7 @@
  * настройки в памяти по умолчанию, библиотека — фикстура, синтетическая
  * библиотека или свой `CourseSource`.
  */
-import type {
-  EngineConfig,
-  EngineEvent,
-  LearningEngine,
-} from '@dolphy-app/engine-contract';
+import type { EngineConfig, EngineEvent } from '@dolphy-app/engine-contract';
 import {
   createCapturingLogger,
   createFakeClock,
@@ -15,6 +11,7 @@ import {
   createFakeExtensionInstaller,
   createFakeExtensionPolicy,
   createFakeExtensionRegistry,
+  createFakeExtensionReloader,
   createFakeGradePolicies,
   createMemoryCourseSource,
   createSeededRng,
@@ -28,6 +25,7 @@ import type {
   TestIds,
 } from '@dolphy-app/testkit';
 import { createContext, createEngineFromContext } from '../../src/app/index.ts';
+import type { HostedEngine } from '../../src/app/index.ts';
 import type { EngineContext, EngineDeps } from '../../src/app/index.ts';
 import {
   createMemoryEventStore,
@@ -49,6 +47,7 @@ import type { ExerciseTypes } from '../../src/ports/exercise-types.ts';
 import type { GradePolicies } from '../../src/ports/grade-policies.ts';
 import type { ExtensionInstaller } from '../../src/ports/extension-installer.ts';
 import type { ExtensionPolicy } from '../../src/ports/extension-policy.ts';
+import type { ExtensionReloader } from '../../src/ports/extension-reloader.ts';
 import type { ExtensionRegistry } from '../../src/ports/extension-registry.ts';
 import { createTsFsrsMemoryModel } from '../../src/scoring/memory-model.ts';
 import { LIBRARIES_DIR } from './fixtures.ts';
@@ -75,6 +74,7 @@ export interface TestEngineOptions {
   extensionRegistry?: ExtensionRegistry;
   extensionPolicy?: ExtensionPolicy;
   extensionInstaller?: ExtensionInstaller;
+  extensionReloader?: ExtensionReloader;
   clock?: FakeClock;
   seed?: number;
   config?: Partial<EngineConfig>;
@@ -170,6 +170,8 @@ export const createTestContext = async (
     extensionPolicy: options.extensionPolicy ?? createFakeExtensionPolicy(),
     extensionInstaller:
       options.extensionInstaller ?? createFakeExtensionInstaller(),
+    extensionReloader:
+      options.extensionReloader ?? createFakeExtensionReloader(),
     repositoryStore,
     snapshotFetcher: options.snapshotFetcher ?? offlineFetcher,
     snapshotInstaller:
@@ -188,7 +190,7 @@ export const createTestContext = async (
 };
 
 export interface TestEngine extends TestContext {
-  engine: LearningEngine;
+  engine: HostedEngine;
   /** События, доставленные подписчикам, по порядку. */
   events: EngineEvent[];
 }

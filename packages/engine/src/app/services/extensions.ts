@@ -16,6 +16,7 @@ import {
   ExtensionInstallError,
   type ExtensionInstallErrorCause,
 } from '../../ports/extension-installer.ts';
+import type { RegistryContributions } from '../../ports/extension-registry.ts';
 import { GRADE_POLICIES } from '../../verify/grade-policy.ts';
 import type { EngineContext } from '../context.ts';
 import { EngineError } from '../errors.ts';
@@ -108,9 +109,13 @@ const BUILTIN_POLICIES = Object.keys(GRADE_POLICIES).map((id) => ({
   label: null,
 }));
 
-const sortedContributions = (source: ContributionsDto): ContributionsDto => {
+const sortedContributions = (
+  generation: number,
+  source: RegistryContributions,
+): ContributionsDto => {
   const copy = structuredClone(source);
   return {
+    generation,
     themes: copy.themes.sort(compareBy((theme) => theme.id)),
     markdownRenderers: copy.markdownRenderers.sort(
       compareBy((renderer) => renderer.language),
@@ -229,13 +234,16 @@ export const createExtensionsService = (
     | 'extensionRegistry'
     | 'extensionPolicy'
     | 'extensionInstaller'
+    | 'extensionApply'
     | 'settings'
     | 'emit'
     | 'bus'
   >,
 ): ExtensionsService => {
+  /** `reload` — изменение действует на расширения (включение, доверие): набор применяется сразу. */
   const persist = async (
     apply: (settings: ExtensionSettingsDto) => ExtensionSettingsDto,
+    { reload }: { reload: boolean },
   ): Promise<ExtensionSettingsDto> => {
     const before = await ctx.settings.loadExtensions();
     const next = normalizeExtensionSettings(apply(before));
@@ -244,6 +252,7 @@ export const createExtensionsService = (
     await ctx.settings.saveExtensions(next);
     ctx.extensionPolicy.update(next);
     ctx.emit({ type: 'settings-changed', scope: 'extensions' });
+    if (reload) await ctx.extensionApply.reload();
     return next;
   };
   const change = async (
@@ -253,13 +262,16 @@ export const createExtensionsService = (
   ): Promise<ExtensionSettingsDto> => {
     if (!isExtensionId(id)) throw invalidId(id);
     findToggleable(ctx.extensionRegistry.list(), id, options);
-    return persist(apply);
+    return persist(apply, { reload: true });
   };
   return {
     list: async () =>
       ctx.extensionRegistry.list().map(copyInfo).sort(compareInfo),
     contributions: async () =>
-      sortedContributions(ctx.extensionRegistry.contributions()),
+      sortedContributions(
+        ctx.extensionApply.generation(),
+        ctx.extensionRegistry.contributions(),
+      ),
     getSettings: async () =>
       normalizeExtensionSettings(await ctx.settings.loadExtensions()),
     setEnabled: (id, enabled) =>
@@ -287,7 +299,9 @@ export const createExtensionsService = (
           details: { field: 'enabled' },
         });
       }
-      return persist((settings) => ({ ...settings, checkUpdates: enabled }));
+      return persist((settings) => ({ ...settings, checkUpdates: enabled }), {
+        reload: false,
+      });
     },
     catalog: (options): Promise<CatalogDto> =>
       guarded(null, () => ctx.extensionInstaller.catalog(options)),
@@ -296,6 +310,7 @@ export const createExtensionsService = (
       const result = await guarded(id, () =>
         ctx.extensionInstaller.install(id, version),
       );
+      await ctx.extensionApply.reload();
       // вне очереди команд: буфер `emit` дошёл бы до окна только с чужой командой
       ctx.bus.publish({ type: 'extensions-changed' });
       return result;
@@ -304,6 +319,7 @@ export const createExtensionsService = (
       if (!isExtensionId(id)) throw invalidId(id);
       assertRemovable(ctx.extensionRegistry.list(), id);
       await guarded(id, () => ctx.extensionInstaller.uninstall(id));
+      await ctx.extensionApply.reload();
       ctx.emit({ type: 'extensions-changed' });
     },
     updates: (): Promise<ExtensionUpdateDto[]> =>

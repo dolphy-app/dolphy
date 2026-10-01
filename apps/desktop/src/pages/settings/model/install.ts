@@ -24,7 +24,7 @@ export interface PendingChange {
 }
 
 export interface InstallOptions {
-  /** Перезапускает хосты и перезагружает окно (`window.dolphy.extensions.apply`). */
+  /** Перезагружает окно. */
   apply(): Promise<void>;
 }
 

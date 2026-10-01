@@ -13,10 +13,14 @@ type ExtensionsTab = 'installed' | 'catalog';
 const { t } = useI18n();
 const tab = ref<ExtensionsTab>('installed');
 
-// «Перезагрузить сейчас»: главный процесс перезапускает хосты и окно
+// «Перезагрузить сейчас»: окно перезагружается само (мост `extensions.apply` удалён, хосты не перезапускаются)
 provide(
   INSTALL_KEY,
-  useInstall(useEngine(), { apply: () => window.dolphy.extensions.apply() }),
+  useInstall(useEngine(), {
+    apply: async () => {
+      window.location.reload();
+    },
+  }),
 );
 </script>
 

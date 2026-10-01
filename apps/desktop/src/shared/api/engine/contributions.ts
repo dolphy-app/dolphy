@@ -6,6 +6,7 @@ import type {
 import { CONTRIBUTIONS_KEY } from './keys.ts';
 
 export const NO_CONTRIBUTIONS: ContributionsDto = {
+  generation: 0,
   themes: [],
   markdownRenderers: [],
   gradePolicies: [],

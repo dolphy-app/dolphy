@@ -57,7 +57,6 @@ const setup = (
           id,
           version: version ?? '1.1.0',
           previousVersion: null,
-          restartRequired: true,
         };
       },
       uninstall: async (id: string) => {

@@ -4,7 +4,10 @@ import type { EngineConfig } from '@dolphy-app/engine-contract';
 import { EXTENSION_API_VERSION } from '@dolphy-app/extension-api';
 import type { ExtensionLogger } from '@dolphy-app/extension-api';
 import { contributesOf, inspectExtensionDir } from '@dolphy-app/extension-host';
-import type { DiscoveryResult } from '@dolphy-app/extension-host';
+import type {
+  DiscoveryResult,
+  DiscoverySource,
+} from '@dolphy-app/extension-host';
 import { createExtensionInstaller } from '@dolphy-app/extension-install';
 import type { InstallerOptions } from '@dolphy-app/extension-install';
 
@@ -81,7 +84,8 @@ export interface DesktopInstallerDeps {
     EngineConfig,
     'userExtensionsDir' | 'extensionCatalogUrl' | 'appVersion'
   >;
-  discovery: DiscoveryResult;
+  /** Снимок читается при каждом обращении: применённые изменения видны установщику сразу. */
+  discovery: DiscoverySource;
   logger: ExtensionLogger;
   /** По умолчанию глобальный `fetch` процесса движка. */
   fetch?: typeof fetch;
@@ -99,7 +103,7 @@ export const createDesktopInstaller = ({
   return createExtensionInstaller({
     catalogUrl: resolveCatalogUrl(config.extensionCatalogUrl, logger),
     extensionsDir: userExtensionsDir,
-    bundledIds: () => fixedIds(discovery),
+    bundledIds: () => fixedIds(discovery.get()),
     appVersion,
     apiVersion: EXTENSION_API_VERSION,
     platform: process.platform,

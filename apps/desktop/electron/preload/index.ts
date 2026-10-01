@@ -22,9 +22,6 @@ const bridge: DolphyBridge = {
       return ipcRenderer.invoke(CHANNELS.pickDirectory, { title });
     },
   },
-  extensions: {
-    apply: () => ipcRenderer.invoke(CHANNELS.applyExtensions),
-  },
   ...(__DOLPHY_SMOKE_BUILD__ && process.argv.includes(SMOKE_ARGUMENT)
     ? {
         smoke: {

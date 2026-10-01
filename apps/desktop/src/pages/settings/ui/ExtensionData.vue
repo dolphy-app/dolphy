@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type {
   ExtensionDataUsageDto,
@@ -27,6 +27,12 @@ const totals = computed(() =>
     : null,
 );
 const confirming = ref(false);
+const clearButton = ref<{ $el: HTMLElement } | null>(null);
+
+// после закрытия диалога (в том числе по Esc) фокус возвращается на кнопку
+watch(confirming, (open) => {
+  if (!open) void nextTick(() => clearButton.value?.$el.focus());
+});
 
 const confirm = () => {
   confirming.value = false;
@@ -57,6 +63,7 @@ const confirm = () => {
       }}
     </span>
     <v-btn
+      ref="clearButton"
       variant="text"
       size="small"
       prepend-icon="mdi-database-remove-outline"
@@ -72,9 +79,13 @@ const confirm = () => {
       {{ t('settings.extensions.data.clear') }}
     </v-btn>
 
-    <v-dialog v-model="confirming" max-width="480">
+    <v-dialog
+      v-model="confirming"
+      max-width="480"
+      :aria-labelledby="`clear-title-${extension.id}`"
+    >
       <v-card class="pa-2">
-        <v-card-title class="text-wrap">
+        <v-card-title :id="`clear-title-${extension.id}`" class="text-wrap">
           {{
             t('settings.extensions.data.confirmTitle', {
               name: displayName(extension),

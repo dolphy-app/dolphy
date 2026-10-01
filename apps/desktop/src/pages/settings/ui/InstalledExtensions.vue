@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { nextTick, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type {
   ExtensionInfoDto,
@@ -74,7 +74,30 @@ const reviewUpdates = async (ids?: readonly string[]) => {
   install.review(await updateTargets(ids));
 };
 
-const askRemove = (extension: ExtensionInfoDto) => {
+// кнопка, открывшая диалог: после закрытия фокус возвращается на неё
+let opener: HTMLElement | null = null;
+
+const rememberOpener = (event: Event) => {
+  opener =
+    event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
+};
+
+const restoreFocus = () => {
+  void nextTick(() => opener?.focus());
+};
+
+const openSettings = (extension: ExtensionInfoDto, event: Event) => {
+  rememberOpener(event);
+  settingsTarget.value = extension;
+};
+
+const closeSettings = () => {
+  settingsTarget.value = null;
+  restoreFocus();
+};
+
+const askRemove = (extension: ExtensionInfoDto, event: Event) => {
+  rememberOpener(event);
   install.removeError.value = null;
   removeData.value = false;
   removeTarget.value = extension;
@@ -89,7 +112,9 @@ const confirmRemove = async () => {
 };
 
 const closeRemove = () => {
-  if (install.removing.value === null) removeTarget.value = null;
+  if (install.removing.value !== null) return;
+  removeTarget.value = null;
+  restoreFocus();
 };
 
 // обновления могли появиться, пока открыт «Каталог»: при возврате читаем заново
@@ -386,7 +411,7 @@ watch(
                   })
                 "
                 :data-testid="`settings-${extension.id}`"
-                @click="settingsTarget = extension"
+                @click="openSettings(extension, $event)"
               >
                 {{ t('settings.extensions.action.settings') }}
               </v-btn>
@@ -424,7 +449,7 @@ watch(
                   })
                 "
                 :data-testid="`remove-${extension.id}`"
-                @click="askRemove(extension)"
+                @click="askRemove(extension, $event)"
               >
                 {{ t('settings.extensions.action.remove') }}
               </v-btn>
@@ -498,7 +523,7 @@ watch(
       v-if="settingsTarget !== null"
       :key="settingsTarget.id"
       :extension="settingsTarget"
-      @close="settingsTarget = null"
+      @close="closeSettings"
     />
   </div>
 </template>

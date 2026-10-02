@@ -155,3 +155,60 @@ describe('createContributionsStore', () => {
     expect(bus.count()).toBe(0);
   });
 });
+
+describe('createContributionsStore: команды и панели', () => {
+  const command = (id: string, extensionId = 'acme.cmd') => ({
+    id,
+    extensionId,
+    title: id,
+    description: null,
+    category: null,
+    keybinding: null,
+    palette: true,
+  });
+  const panel = (id: string, revision: string) => ({
+    id,
+    extensionId: 'acme.cmd',
+    title: id,
+    rendererUrl: 'dolphy-ext://acme.cmd/panel.mjs',
+    isolated: true,
+    origin: 'user' as const,
+    revision,
+  });
+
+  it('before the first answer both lists are empty and typed', async () => {
+    const { store } = await setup(dto(0));
+    expect(store.contributions.value.commands).toEqual([]);
+    expect(store.contributions.value.panels).toEqual([]);
+  });
+
+  it('replaces commands and panels wholesale with each generation: removal and a new revision are visible', async () => {
+    const first = {
+      ...dto(0),
+      commands: [command('acme.cmd.one'), command('acme.cmd.two')],
+      panels: [panel('acme.cmd.main', 'r1')],
+    };
+    const { store, bus, calls } = await setup(first);
+    expect(store.contributions.value.commands).toHaveLength(2);
+
+    bus.emit({ type: 'contributions-changed', generation: 1 });
+    await flush();
+    calls[0]?.resolve({
+      ...dto(1),
+      commands: [command('acme.cmd.two')],
+      panels: [panel('acme.cmd.main', 'r2')],
+    });
+    await flush();
+    expect(store.contributions.value.commands.map(({ id }) => id)).toEqual([
+      'acme.cmd.two',
+    ]);
+    expect(store.contributions.value.panels[0]?.revision).toBe('r2');
+
+    bus.emit({ type: 'contributions-changed', generation: 2 });
+    await flush();
+    calls[1]?.resolve(dto(2));
+    await flush();
+    expect(store.contributions.value.commands).toEqual([]);
+    expect(store.contributions.value.panels).toEqual([]);
+  });
+});

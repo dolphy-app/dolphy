@@ -31,6 +31,8 @@ export interface Contributes {
   gradePolicies: string[];
   settings?: string[];
   events?: string[];
+  commands?: string[];
+  panels?: string[];
 }
 
 export const contributesOf = (exerciseTypes: string[]): Contributes => ({
@@ -203,6 +205,8 @@ export const inspectJson = async (
           ...raw.contributes,
           settings: raw.contributes.settings ?? [],
           events: raw.contributes.events ?? [],
+          commands: raw.contributes.commands ?? [],
+          panels: raw.contributes.panels ?? [],
         },
       },
     };

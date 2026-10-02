@@ -42,6 +42,8 @@ const manifestWith = (
     gradePolicies: [],
     settings: [],
     events: [],
+    commands: [],
+    panels: [],
     ...contributes,
   },
 });
@@ -85,5 +87,38 @@ describe('manifestMismatch: settings, events и разрешение', () => {
     const [entry, v] = entryWith({});
     const manifest = manifestWith({}, ['learning.events']);
     expect(manifestMismatch(manifest, entry, v)).toContain('permissions');
+  });
+});
+
+describe('manifestMismatch: commands и panels', () => {
+  it('команды и панели в манифесте, которых нет в записи, отвергаются', () => {
+    const [entry, v] = entryWith({});
+    expect(
+      manifestMismatch(manifestWith({ commands: ['acme.state.go'] }), entry, v),
+    ).toContain('(commands)');
+    expect(
+      manifestMismatch(manifestWith({ panels: ['acme.state.main'] }), entry, v),
+    ).toContain('(panels)');
+  });
+
+  it('записанные в индексе, но не объявленные команды и панели отвергаются', () => {
+    const [commands, v] = entryWith({ commands: ['acme.state.go'] });
+    expect(manifestMismatch(manifestWith(), commands, v)).toContain(
+      '(commands)',
+    );
+    const [panels, w] = entryWith({ panels: ['acme.state.main'] });
+    expect(manifestMismatch(manifestWith(), panels, w)).toContain('(panels)');
+  });
+
+  it('одинаковые наборы без учёта порядка проходят', () => {
+    const [entry, v] = entryWith({
+      commands: ['acme.state.a', 'acme.state.b'],
+      panels: ['acme.state.p', 'acme.state.q'],
+    });
+    const manifest = manifestWith({
+      commands: ['acme.state.b', 'acme.state.a'],
+      panels: ['acme.state.q', 'acme.state.p'],
+    });
+    expect(manifestMismatch(manifest, entry, v)).toBeNull();
   });
 });

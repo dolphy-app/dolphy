@@ -72,8 +72,7 @@ export const frameCsp = (id: string): string => {
 };
 
 /** SVG отдаётся как документ без скриптов, сети и ресурсов: только как картинка. */
-export const SVG_CSP =
-  "default-src 'none'; style-src 'unsafe-inline'; sandbox";
+export const SVG_CSP = "default-src 'none'; style-src 'unsafe-inline'; sandbox";
 
 const frameHtml = (id: string) =>
   `<!doctype html>
@@ -200,7 +199,8 @@ export const createExtensionAssetsShell = ({
         // renderer грузится с file:// (origin null), рамка — с непрозрачным origin:
         // модуль и шрифт идут в режиме CORS
         headers: {
-          'Content-Type': asset === null ? 'text/javascript' : ASSET_MIME[asset],
+          'Content-Type':
+            asset === null ? 'text/javascript' : ASSET_MIME[asset],
           'X-Content-Type-Options': 'nosniff',
           'Access-Control-Allow-Origin': '*',
           // после перезагрузки в режиме разработчика окно обязано увидеть свежий код

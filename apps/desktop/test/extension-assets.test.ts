@@ -219,9 +219,9 @@ describe('ресурсы расширения', () => {
   it('ресурс чужого id не отдаётся по своему', async () => {
     put(USER, 'acme.other', 'assets/a.png', PNG);
     const { request } = setup();
-    expect(
-      (await request('dolphy-ext://acme.echo/assets/a.png')).status,
-    ).toBe(404);
+    expect((await request('dolphy-ext://acme.echo/assets/a.png')).status).toBe(
+      404,
+    );
     expect(
       (await request('dolphy-ext://acme.echo/..%2Facme.other%2Fassets%2Fa.png'))
         .status,
@@ -280,10 +280,7 @@ describe('ресурсы расширения', () => {
 
     it('ссылка на каталог вне расширения — 404', async () => {
       put(base, 'outside', 'a.png', PNG);
-      link(
-        path.join(base, 'outside'),
-        path.join(USER, 'acme.echo', 'assets'),
-      );
+      link(path.join(base, 'outside'), path.join(USER, 'acme.echo', 'assets'));
       const { request } = setup();
       expect(
         (await request('dolphy-ext://acme.echo/assets/a.png')).status,
@@ -429,7 +426,7 @@ describe('страница и рантайм изолированной рамк
     expect(
       (
         await request(
-          "dolphy-ext://acme.echo%3B%20script-src%20*/__dolphy/frame.html",
+          'dolphy-ext://acme.echo%3B%20script-src%20*/__dolphy/frame.html',
         )
       ).status,
     ).toBe(404);

@@ -7,6 +7,12 @@ import { datetimeFormats, messages } from '../i18n/messages.ts';
 /** Экземпляр в том виде, который принимает адаптер локали Vuetify. */
 export type DolphyI18n = Parameters<typeof createVueI18nAdapter>[0]['i18n'];
 
+/** Переключает язык интерфейса без перезагрузки окна. */
+export const applyLocale = (i18n: DolphyI18n, locale: AppLocale): void => {
+  i18n.global.locale.value = locale;
+  document.documentElement.lang = locale;
+};
+
 /** Язык интерфейса выбирает вызывающий (из БД движка или из системы). */
 export const createDolphyI18n = (locale: AppLocale): DolphyI18n => {
   document.documentElement.lang = locale;

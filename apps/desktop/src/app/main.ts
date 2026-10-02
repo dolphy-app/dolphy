@@ -1,7 +1,7 @@
 import { createApp } from 'vue';
 import { EngineCallError } from '@dolphy-app/engine-rpc/client';
 import App from './App.vue';
-import { createDolphyI18n } from './providers/i18n.ts';
+import { applyLocale, createDolphyI18n } from './providers/i18n.ts';
 import { createDolphyVuetify } from './providers/vuetify.ts';
 import { router } from './router';
 import StartupError from './startup-error/StartupError.vue';
@@ -14,8 +14,10 @@ import {
   CONTRIBUTIONS_KEY,
   connectEngine,
   createContributionsStore,
+  createLocaleSelection,
   createThemeSelection,
   ENGINE_KEY,
+  LOCALE_SELECTION_KEY,
   THEME_SELECTION_KEY,
 } from '@/shared/api/engine';
 import { ROUTE } from '@/shared/config/routes.ts';
@@ -52,6 +54,10 @@ const bootstrap = async () => {
     const courseScope = await createCourseScope(engine);
     const vuetify = createDolphyVuetify(i18n);
     const themeSelection = createThemeSelection(engine, theme);
+    const localeSelection = createLocaleSelection(engine, locale, {
+      apply: (next) => applyLocale(i18n, next),
+      systemLanguage: () => navigator.language,
+    });
     bindExtensionThemes(
       vuetify.theme,
       themeSelection.saved,
@@ -73,6 +79,7 @@ const bootstrap = async () => {
       .provide(ENGINE_KEY, engine)
       .provide(CONTRIBUTIONS_KEY, contributions.contributions)
       .provide(THEME_SELECTION_KEY, themeSelection)
+      .provide(LOCALE_SELECTION_KEY, localeSelection)
       .provide(COURSE_SCOPE_KEY, courseScope)
       .provide(EXTENSION_COMMANDS_KEY, extensionCommands)
       .mount('#app');

@@ -1,20 +1,13 @@
 import { effectScope, shallowRef } from 'vue';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type {
   LearningEngine,
   ThemeContributionDto,
 } from '@dolphy-app/engine-contract';
 import { useAppearanceSettings } from '@/pages/settings/model/appearance.ts';
+import { createLocaleSelection } from '@/shared/api/engine/locale-selection.ts';
 import { createThemeSelection } from '@/shared/api/engine/theme-selection.ts';
 import { createEventBus } from './support/extensions-fakes.ts';
-
-vi.mock('vue-i18n', () => ({
-  useI18n: () => ({ locale: { value: 'ru' } }),
-}));
-vi.mock('vue', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('vue')>()),
-  onMounted: (hook: () => void) => void hook(),
-}));
 
 const MIDNIGHT = { id: 'acme.midnight' } as ThemeContributionDto;
 
@@ -31,12 +24,17 @@ const setup = (saved: string, failWith: Error | null = null) => {
       },
     },
   } as unknown as LearningEngine;
+  const applied: string[] = [];
+  const localeSelection = createLocaleSelection(engine, 'system', {
+    apply: (next) => applied.push(next),
+    systemLanguage: () => 'ru-RU',
+  });
   const themes = shallowRef<readonly ThemeContributionDto[]>([MIDNIGHT]);
   const selection = createThemeSelection(engine, saved);
   const model = effectScope().run(() =>
-    useAppearanceSettings(engine, selection, () => themes.value),
+    useAppearanceSettings(selection, localeSelection, () => themes.value),
   )!;
-  return { model, saves, selection, themes };
+  return { model, saves, selection, themes, applied };
 };
 
 const settle = () =>
@@ -80,6 +78,31 @@ describe('useAppearanceSettings theme', () => {
     expect(model.mode.value).toBe('system');
     themes.value = [MIDNIGHT];
     expect(model.mode.value).toBe('acme.midnight');
+    expect(saves).toEqual([]);
+  });
+});
+
+describe('useAppearanceSettings language', () => {
+  it('selectLocale applies the language at once and saves it', async () => {
+    const { model, saves, applied } = setup('light');
+    const saving = model.selectLocale('en');
+    expect(model.localeMode.value).toBe('en');
+    expect(applied).toEqual(['en']);
+    await saving;
+    expect(saves).toEqual([{ locale: 'en' }]);
+  });
+
+  it('rolls back the language and reports the error when saving fails', async () => {
+    const { model, applied } = setup('light', new Error('boom'));
+    await model.selectLocale('en');
+    expect(model.localeMode.value).toBe('system');
+    expect(applied).toEqual(['en', 'ru']);
+    expect(model.error.value).toBe('boom');
+  });
+
+  it('ignores null from the toggle when the selection is cleared', async () => {
+    const { model, saves } = setup('light');
+    await model.selectLocale(null);
     expect(saves).toEqual([]);
   });
 });

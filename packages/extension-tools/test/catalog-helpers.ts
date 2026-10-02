@@ -1,8 +1,9 @@
 import { cp, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { copyProject, makeTemp } from './helpers.ts';
+import { copyProject, linkSdk, makeTemp } from './helpers.ts';
 
-export type Fixture = 'theme-only' | 'markdown-only' | 'hello';
+export type Fixture =
+  'theme-only' | 'markdown-only' | 'hello' | 'commands-panel';
 
 export interface ExtensionSpec {
   fixture: Fixture;
@@ -73,6 +74,7 @@ export const addExtension = async (
   for (const [file, content] of Object.entries(files)) {
     await writeRelative(target, file, content);
   }
+  if (spec.fixture === 'commands-panel') await linkSdk(target);
   return target;
 };
 

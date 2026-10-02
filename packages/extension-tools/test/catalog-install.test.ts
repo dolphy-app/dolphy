@@ -58,6 +58,8 @@ const inspectDir = async (directory: string): Promise<InspectResult> => {
         gradePolicies: extension.gradePolicies.map((policy) => policy.id),
         settings: extension.settings.map((setting) => setting.id),
         events: extension.events.map((item) => item.event),
+        commands: extension.commands.map(({ id }) => id),
+        panels: extension.panels.map(({ id }) => id),
       },
     },
   };
@@ -68,6 +70,7 @@ describe('сайт каталога и настоящий установщик',
     ['acme.night', 'theme-only'],
     ['acme.hello', 'hello'],
     ['acme.chart', 'markdown-only'],
+    ['acme.commands-panel', 'commands-panel'],
   ] as const)(
     'расширение %s из собранного сайта устанавливается и проходит проверку каталога',
     async (id, fixture) => {

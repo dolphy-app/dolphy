@@ -33,6 +33,8 @@ const EXAMPLES: Readonly<Record<string, Mode>> = {
   'правило оценки': 'build-with-code',
   'настройки расширения': 'build-no-code',
   'подписка на события': 'build-with-code',
+  'команды расширения': 'build-with-code',
+  'панель расширения': 'build-with-code',
   'вид задания с правами': 'manifest',
   'расширение для каталога': 'build-no-code',
   'индекс каталога': 'index',

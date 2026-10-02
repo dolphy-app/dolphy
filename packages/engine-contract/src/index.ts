@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 9 as const;
+export const CONTRACT_VERSION = 12 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 
@@ -6,6 +6,10 @@ export type UnitId = string;
 export type EpochMs = number;
 export type Grade = 1 | 2 | 3 | 4 | 5;
 export type UnitKind = 'course' | 'lesson' | 'exercise';
+
+/** Любое значение JSON (хранилище и настройки расширений). */
+export type JsonValue =
+  null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
 export interface PageRequest {
   limit?: number;
@@ -42,6 +46,10 @@ export type EngineErrorCode =
   | 'GIT_FETCH_FAILED'
   | 'CATALOG_UNAVAILABLE'
   | 'EXTENSION_INSTALL_FAILED'
+  /** Запись в хранилище расширения превысила потолок; `details`: `extensionId`, `kind`, `limit`. */
+  | 'EXTENSION_STORAGE_QUOTA'
+  /** Команда расширения не выполнена; `details`: `extensionId`, `commandId`, `reason` (`ExtensionCommandFailureReason`). */
+  | 'EXTENSION_COMMAND_FAILED'
   | 'INTERNAL';
 
 export interface EngineErrorDto {
@@ -498,6 +506,13 @@ export interface DueItemDto {
 
 export interface PracticeService {
   startSession(): Promise<{ sessionId: string; startedAt: EpochMs }>;
+  /**
+   * Окно сообщает, что сессия обучения закончилась: расширения с событием
+   * `session.finished` получают его один раз на `sessionId`. Идемпотентна:
+   * повтор и неизвестный `sessionId` ничего не отправляют (`emitted: false`).
+   * После неё следующий `getBatch` начинает новую сессию.
+   */
+  finishSession(req: { sessionId: string }): Promise<{ emitted: boolean }>;
   getBatch(req?: BatchRequest): Promise<BatchDto>;
   beginAttempt(req: { exerciseId: UnitId }): Promise<AttemptDto>;
   submitAnswer(req: SubmitAnswerRequest): Promise<VerdictDto>;
@@ -952,7 +967,10 @@ export type EngineEvent =
         | 'reviewList'
         | 'ui'
         | 'learning'
-        | 'extensions';
+        | 'extensions'
+        /** Значения настроек или хранилище расширения; `extensionId` — чьи. */
+        | 'extensionValues';
+      extensionId?: string;
     }
   | { type: 'extensions-changed' }
   /**
@@ -1090,6 +1108,8 @@ export interface ExtensionInfoDto {
   description: string | null;
   /** GitHub-логин автора из манифеста. */
   author: string | null;
+  /** Значок из манифеста как `data:image/png|webp;base64,…`; `null` — значка нет или манифест не прочитан. */
+  icon: string | null;
   /** Установлено из каталога; `null` — скопировано вручную, из поставки или из режима разработчика. */
   installed: ExtensionInstallDto | null;
   /** `true` у расширений с origin `user`: их можно удалить. */
@@ -1111,7 +1131,62 @@ export interface ExtensionContributesDto {
   themes: string[];
   markdownRenderers: string[];
   gradePolicies: string[];
+  /** Id настроек (`contributes.settings`). */
+  settings: string[];
+  /** Имена событий обучения (`contributes.events`). */
+  events: string[];
+  /** Id команд (`contributes.commands`). */
+  commands: string[];
+  /** Id панелей (`contributes.panels`). */
+  panels: string[];
 }
+
+/** Команда расширения (`contributes.commands`). */
+export interface CommandContributionDto {
+  /** Id в пространстве расширения (как у тем). */
+  id: string;
+  extensionId: string;
+  /** Название в палитре; данные расширения, не переводится. */
+  title: string;
+  description: string | null;
+  category: string | null;
+  /** Подсказка вида `Mod+Shift+L`; приложение клавишу не назначает. */
+  keybinding: string | null;
+  /** `false` скрывает команду из палитры: её вызывает только панель. */
+  palette: boolean;
+}
+
+/** Панель расширения (`contributes.panels`): экран приложения в изолированной рамке. */
+export interface PanelContributionDto {
+  id: string;
+  extensionId: string;
+  /** Название пункта бокового меню и заголовка страницы; данные расширения. */
+  title: string;
+  /** `dolphy-ext://<extensionId>/<путь>`. */
+  rendererUrl: string;
+  /** Панель всегда исполняется в рамке; поле оставлено для единообразия с остальными видами с модулем. */
+  isolated: boolean;
+  origin: ExtensionOriginDto;
+  /** Отпечаток файлов расширения; у расширений из поставки — пустая строка. */
+  revision: string;
+}
+
+/** Что вернул обработчик команды; окно исполняет `notify` и `openPanel` само. */
+export type CommandResultDto =
+  | { kind: 'none' }
+  | { kind: 'notify'; text: string }
+  | { kind: 'openPanel'; panelId: string; props?: JsonValue }
+  | { kind: 'data'; value: JsonValue };
+
+/** Причина `EXTENSION_COMMAND_FAILED` (`details.reason`). */
+export type ExtensionCommandFailureReason =
+  | 'unknown-command'
+  | 'host-down'
+  | 'timeout'
+  | 'handler-failed'
+  | 'invalid-result'
+  | 'disabled'
+  | 'replaced';
 
 export interface ThemeContributionDto {
   id: string;
@@ -1170,6 +1245,106 @@ export interface ContributionsDto {
   themes: ThemeContributionDto[];
   markdownRenderers: MarkdownRendererDto[];
   gradePolicies: GradePolicyInfoDto[];
+  /** Определения настроек включённых расширений. */
+  settings: ExtensionSettingDefDto[];
+  /** Команды включённых расширений. */
+  commands: CommandContributionDto[];
+  /** Панели включённых расширений. */
+  panels: PanelContributionDto[];
+}
+
+interface ExtensionSettingBaseDto {
+  /** Равен id расширения или начинается с `<id расширения>.`. */
+  id: string;
+  extensionId: string;
+  /** Подпись поля в диалоге настроек; данные расширения, не переводится. */
+  label: string;
+  description: string | null;
+}
+
+export interface BooleanSettingDefDto extends ExtensionSettingBaseDto {
+  type: 'boolean';
+  default: boolean;
+}
+
+export interface StringSettingDefDto extends ExtensionSettingBaseDto {
+  type: 'string';
+  default: string;
+  /** Длина в кодовых единицах UTF-16; `null` — без ограничения. */
+  maxLength: number | null;
+}
+
+export interface NumberSettingDefDto extends ExtensionSettingBaseDto {
+  type: 'number';
+  default: number;
+  min: number | null;
+  max: number | null;
+  integer: boolean;
+}
+
+export interface EnumSettingOptionDto {
+  value: string;
+  label: string;
+}
+
+export interface EnumSettingDefDto extends ExtensionSettingBaseDto {
+  type: 'enum';
+  default: string;
+  options: EnumSettingOptionDto[];
+}
+
+/** Настройка расширения, которую пользователь меняет в «Настройки → Расширения». */
+export type ExtensionSettingDefDto =
+  | BooleanSettingDefDto
+  | StringSettingDefDto
+  | NumberSettingDefDto
+  | EnumSettingDefDto;
+
+/** Действующие значения настроек расширения: по `id` каждого определения; сохранённое или `default`. */
+export type ExtensionSettingValuesDto = Record<string, JsonValue>;
+
+/** Занятое место данных расширения (хранилище кода и значения настроек считаются отдельно). */
+export interface ExtensionDataUsageDto {
+  storage: { keys: number; bytes: number };
+  settings: { keys: number; bytes: number };
+}
+
+/** События обучения, которые движок отдаёт расширениям с разрешением `learning.events`. Не входят в `EngineEvent`: окно их не видит. */
+export const LEARNING_EVENT_NAMES = [
+  'session.started',
+  'session.finished',
+  'attempt.closed',
+] as const;
+
+export type LearningEventName = (typeof LEARNING_EVENT_NAMES)[number];
+
+/** Итог закрытой попытки: `self-assessed` — оценку поставил ученик. */
+export type AttemptOutcome = 'passed' | 'failed' | 'gave-up' | 'self-assessed';
+
+/** Поля событий: только идентификаторы, оценка и время — ответы, `spec`, обратная связь и текст упражнения в них не попадают. */
+export interface LearningEventPayloads {
+  'session.started': { sessionId: string; at: EpochMs };
+  'session.finished': { sessionId: string; at: EpochMs };
+  'attempt.closed': {
+    exerciseId: UnitId;
+    courseId: UnitId;
+    lessonId: UnitId;
+    grade: Grade;
+    outcome: AttemptOutcome;
+    source: AttemptSource;
+    at: EpochMs;
+  };
+}
+
+export type LearningEvent = {
+  [N in LearningEventName]: { name: N; payload: LearningEventPayloads[N] };
+}[LearningEventName];
+
+/** Значение настройки расширения изменилось (пользователь, сброс, очистка данных); `value` — действующее. */
+export interface ExtensionSettingChangeDto {
+  extensionId: string;
+  id: string;
+  value: JsonValue;
 }
 
 /** Допустимый вид id расширения (как в манифесте). */
@@ -1208,11 +1383,53 @@ export interface ExtensionsService {
    * применили набор, окно получило событие `contributions-changed`.
    */
   install(id: string, version?: string): Promise<InstallResultDto>;
-  /** Удаляет расширение с origin `user`. `NOT_FOUND`; `INVALID_ARGUMENT` `{reason:'not-removable'}`. */
-  uninstall(id: string): Promise<void>;
+  /**
+   * Удаляет расширение с origin `user`. `removeData` — удалить и данные
+   * расширения (по умолчанию остаются). `NOT_FOUND`; `INVALID_ARGUMENT`
+   * `{reason:'not-removable'}`.
+   */
+  uninstall(id: string, options?: { removeData?: boolean }): Promise<void>;
   /** Доступные обновления установленных из каталога расширений (по последнему известному индексу). */
   updates(): Promise<ExtensionUpdateDto[]>;
   setCheckUpdates(enabled: boolean): Promise<ExtensionSettingsDto>;
+  /**
+   * Действующие значения настроек расширения (определения — в
+   * `contributions().settings`). `NOT_FOUND` — расширения нет;
+   * `INVALID_ARGUMENT` `{reason:'disabled'}` — расширение отключено.
+   */
+  getSettingValues(id: string): Promise<ExtensionSettingValuesDto>;
+  /**
+   * Меняет одно значение; проверяет тип, границы и `options` по определению.
+   * Неизвестный `settingId` и неверное значение — `INVALID_ARGUMENT`
+   * (`details.reason`: `unknown-setting` | `type` | `range` | `integer` |
+   * `max-length` | `option`). Расширение и окно узнают об изменении без перезапуска.
+   */
+  setSettingValue(
+    id: string,
+    settingId: string,
+    value: JsonValue,
+  ): Promise<ExtensionSettingValuesDto>;
+  /** Возвращает значения по умолчанию (удаляет сохранённые). */
+  resetSettingValues(id: string): Promise<ExtensionSettingValuesDto>;
+  /** Сколько места занимают данные расширения; работает и для удалённого расширения, чьи данные остались. */
+  dataUsage(id: string): Promise<ExtensionDataUsageDto>;
+  /** Стирает хранилище и значения настроек; работающее расширение видит пустое хранилище и значения по умолчанию. */
+  clearData(id: string): Promise<void>;
+  /**
+   * Выполняет объявленную команду расширения (код расширения; первый вызов
+   * лениво его активирует). Вызов не занимает очередь команд движка.
+   * `INVALID_ARGUMENT` — неверный `extensionId`/`commandId` или аргументы длиннее
+   * `MAX_ANSWER_CHARS` (`details.reason`: `args-too-large`). Всё остальное —
+   * `EXTENSION_COMMAND_FAILED` с `details` `{ extensionId, commandId, reason }`
+   * (`ExtensionCommandFailureReason`): расширения или объявленной команды нет —
+   * `unknown-command`, расширение отключено — `disabled`, `timeout` и
+   * `host-down` допускают повтор.
+   */
+  invokeCommand(
+    extensionId: string,
+    commandId: string,
+    args?: JsonValue,
+  ): Promise<CommandResultDto>;
 }
 
 export type CatalogStatusDto =
@@ -1245,6 +1462,8 @@ export interface CatalogEntryDto {
   source: string;
   platforms: string[];
   contributes: ExtensionContributesDto;
+  /** Значок показанной версии как `data:image/png|webp;base64,…`; `null` — значка нет (или каталог старого формата). */
+  icon: string | null;
   status: CatalogStatusDto;
   /** Версия, установленная из каталога; `null` — не установлено (или скопировано вручную). */
   installedVersion: string | null;

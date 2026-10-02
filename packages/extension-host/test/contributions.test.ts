@@ -31,12 +31,16 @@ const withContributes = (contributes: Record<string, unknown>) => ({
 });
 
 describe('реестр точек вклада', () => {
-  it('содержит все четыре точки с уникальными ключами', () => {
+  it('содержит все восемь точек с уникальными ключами', () => {
     expect(CONTRIBUTION_POINTS.map(({ key }) => key)).toEqual([
       'exerciseTypes',
       'themes',
       'markdownRenderers',
       'gradePolicies',
+      'settings',
+      'events',
+      'commands',
+      'panels',
     ]);
   });
 
@@ -87,13 +91,17 @@ describe('main зависит от точек', () => {
     expect(result).toMatchObject({ ok: true, manifest: { main: './x.mjs' } });
   });
 
-  it('нормализованный манифест содержит все четыре массива', () => {
+  it('нормализованный манифест содержит массивы всех восьми точек', () => {
     const result = parseManifest(withContributes({ themes: [theme()] }));
     if (!result.ok) throw new Error(result.message);
     expect(result.manifest.contributes).toMatchObject({
       exerciseTypes: [],
       markdownRenderers: [],
       gradePolicies: [],
+      settings: [],
+      events: [],
+      commands: [],
+      panels: [],
     });
   });
 });
@@ -369,6 +377,10 @@ describe('createExtensionRegistry: contributions', () => {
       themes: ['acme.themes.night'],
       markdownRenderers: [],
       gradePolicies: [],
+      settings: [],
+      events: [],
+      commands: [],
+      panels: [],
     });
   });
 

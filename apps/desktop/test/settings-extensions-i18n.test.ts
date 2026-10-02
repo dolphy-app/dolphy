@@ -19,6 +19,7 @@ const PLURAL_KEYS = [
   'count',
   'catalog.found',
   'install.titleUpdateAll',
+  'data.keys',
 ] as const;
 
 const leaf = (locale: 'ru' | 'en', path: string): string =>

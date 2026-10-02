@@ -28,11 +28,16 @@ const extension = (
   author: null,
   platforms: [],
   minAppVersion: null,
+  icon: null,
   install: null,
   exerciseTypes: [],
   themes: [],
   markdownRenderers: [],
   gradePolicies: [],
+  settings: [],
+  events: [],
+  commands: [],
+  panels: [],
   ...overrides,
 });
 

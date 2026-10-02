@@ -7,6 +7,10 @@ import { router } from './router';
 import StartupError from './startup-error/StartupError.vue';
 import { COURSE_SCOPE_KEY, createCourseScope } from '@/features/course-scope';
 import {
+  createExtensionCommands,
+  EXTENSION_COMMANDS_KEY,
+} from '@/features/extension-commands';
+import {
   CONTRIBUTIONS_KEY,
   connectEngine,
   createContributionsStore,
@@ -14,6 +18,7 @@ import {
   ENGINE_KEY,
   THEME_SELECTION_KEY,
 } from '@/shared/api/engine';
+import { ROUTE } from '@/shared/config/routes.ts';
 import { resolveLocale } from '@/shared/i18n';
 import { bindExtensionThemes } from '@/shared/lib/theme-registry.ts';
 
@@ -52,6 +57,15 @@ const bootstrap = async () => {
       themeSelection.saved,
       () => contributions.contributions.value.themes,
     );
+    const extensionCommands = createExtensionCommands({
+      engine: engine.extensions,
+      contributions: () => contributions.contributions.value,
+      openPanel: ({ extensionId, panelId }) =>
+        void router.push({
+          name: ROUTE.extensionPanel,
+          params: { extensionId, panelId },
+        }),
+    });
     createApp(App)
       .use(i18n)
       .use(vuetify)
@@ -60,6 +74,7 @@ const bootstrap = async () => {
       .provide(CONTRIBUTIONS_KEY, contributions.contributions)
       .provide(THEME_SELECTION_KEY, themeSelection)
       .provide(COURSE_SCOPE_KEY, courseScope)
+      .provide(EXTENSION_COMMANDS_KEY, extensionCommands)
       .mount('#app');
     if (__DOLPHY_SMOKE_BUILD__ && smoke) {
       const { runSmoke } = await import('./smoke/run-smoke.ts');

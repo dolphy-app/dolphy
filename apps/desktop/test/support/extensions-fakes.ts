@@ -12,6 +12,10 @@ export const NO_CONTRIBUTES: ExtensionContributesDto = {
   themes: [],
   markdownRenderers: [],
   gradePolicies: [],
+  settings: [],
+  events: [],
+  commands: [],
+  panels: [],
 };
 
 export const extensionInfo = (
@@ -31,6 +35,7 @@ export const extensionInfo = (
   description: null,
   author: null,
   installed: null,
+  icon: null,
   removable: false,
   revoked: null,
   ...override,
@@ -59,6 +64,7 @@ export const catalogEntry = (
   source: `https://example.test/${id}`,
   platforms: [],
   contributes: { ...NO_CONTRIBUTES, themes: [id] },
+  icon: null,
   status: 'available',
   installedVersion: null,
   latest: catalogVersion('1.0.0'),

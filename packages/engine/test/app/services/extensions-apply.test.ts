@@ -22,6 +22,10 @@ const USER: ExtensionInfoDto = {
     themes: [],
     markdownRenderers: [],
     gradePolicies: [],
+    settings: [],
+    events: [],
+    commands: [],
+    panels: [],
   },
   message: null,
   permissions: [],
@@ -31,6 +35,7 @@ const USER: ExtensionInfoDto = {
   description: null,
   author: null,
   installed: null,
+  icon: null,
   removable: true,
   revoked: null,
 };

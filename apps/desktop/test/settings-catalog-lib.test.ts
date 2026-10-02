@@ -179,6 +179,31 @@ describe('цели установки', () => {
     });
   });
 
+  it('the install dialog gets the icon: from the catalog entry, else from the installed copy, else none', () => {
+    const icon = 'data:image/png;base64,AAAA';
+    const version = catalogVersion('1.0.0');
+    expect(targetFromEntry(catalogEntry('a.b', { icon }), version).icon).toBe(
+      icon,
+    );
+    expect(targetFromEntry(catalogEntry('a.b'), version).icon).toBeNull();
+    const update = {
+      id: 'a.b',
+      name: 'A B',
+      installed: '1.0.0',
+      available: catalogVersion('1.1.0'),
+    };
+    const installed = extensionInfo('a.b', {
+      icon: 'data:image/png;base64,BBBB',
+    });
+    expect(
+      targetFromUpdate(update, installed, catalogEntry('a.b', { icon })).icon,
+    ).toBe(icon);
+    expect(targetFromUpdate(update, installed, undefined).icon).toBe(
+      'data:image/png;base64,BBBB',
+    );
+    expect(targetFromUpdate(update, undefined, undefined).icon).toBeNull();
+  });
+
   it('targetFromUpdate: вклады и автор из каталога, иначе из установленного', () => {
     const update = {
       id: 'a.b',

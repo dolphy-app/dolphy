@@ -49,6 +49,7 @@ const inspectDir = async (directory: string): Promise<InspectResult> => {
       id: extension.id,
       version: extension.version,
       permissions: extension.permissions,
+      icon: extension.icon,
       contributes: {
         exerciseTypes: extension.exerciseTypes.map((type) => type.id),
         themes: extension.themes.map((theme) => theme.id),
@@ -56,18 +57,23 @@ const inspectDir = async (directory: string): Promise<InspectResult> => {
           (renderer) => renderer.language,
         ),
         gradePolicies: extension.gradePolicies.map((policy) => policy.id),
+        settings: extension.settings.map((setting) => setting.id),
+        events: extension.events.map((item) => item.event),
+        commands: extension.commands.map(({ id }) => id),
+        panels: extension.panels.map(({ id }) => id),
       },
     },
   };
 };
 
-describe('сайт каталога и настоящий установщик', () => {
+describe('catalog site and the real installer', () => {
   it.each([
     ['acme.night', 'theme-only'],
     ['acme.hello', 'hello'],
     ['acme.chart', 'markdown-only'],
+    ['acme.commands-panel', 'commands-panel'],
   ] as const)(
-    'расширение %s из собранного сайта устанавливается и проходит проверку каталога',
+    'extension %s from the built site installs and passes the catalog check',
     async (id, fixture) => {
       const repo = await createRepo([{ fixture }]);
       const site = await makeTemp();

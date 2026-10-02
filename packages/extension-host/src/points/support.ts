@@ -40,6 +40,18 @@ export const idPrefixIssues = (
         ],
   );
 
+/** Повторы значений в списке `path` (путь до массива, `field` — имя поля записи). */
+export const duplicateIssues = (
+  path: string,
+  field: string,
+  values: readonly string[],
+): string[] =>
+  values.flatMap((value, index) =>
+    values.indexOf(value) === index
+      ? []
+      : [`${path}.${index}.${field}: duplicate ${field} '${value}'`],
+  );
+
 export const isFile = async (file: string): Promise<boolean> =>
   (await stat(file).catch(() => null))?.isFile() === true;
 

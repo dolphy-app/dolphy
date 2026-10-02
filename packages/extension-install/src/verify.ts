@@ -9,6 +9,10 @@ const CONTRIBUTION_KEYS = [
   'themes',
   'markdownRenderers',
   'gradePolicies',
+  'settings',
+  'events',
+  'commands',
+  'panels',
 ] as const;
 
 const sameSet = (a: readonly string[], b: readonly string[]): boolean => {
@@ -32,8 +36,11 @@ export const manifestMismatch = (
   if (!sameSet(manifest.permissions, version.permissions)) {
     return 'manifest permissions differ from the catalog entry';
   }
+  if (manifest.icon !== (version.icon ?? null)) {
+    return 'manifest icon differs from the catalog entry';
+  }
   const changed = CONTRIBUTION_KEYS.find(
-    (key) => !sameSet(manifest.contributes[key], entry.contributes[key]),
+    (key) => !sameSet(manifest.contributes[key], entry.contributes[key] ?? []),
   );
   return changed === undefined
     ? null

@@ -1,6 +1,8 @@
 import type {
   EngineConfig,
   EngineEvent,
+  ExtensionSettingChangeDto,
+  LearningEvent,
   SavedFilterDto,
   UnitId,
 } from '@dolphy-app/engine-contract';
@@ -11,7 +13,7 @@ import {
 import type { LibraryStatus } from '../authoring/library-holder.ts';
 import type { LogEntry } from '../domain/journal.ts';
 import type { Library } from '../domain/library.ts';
-import type { StoreTx } from '../ports/index.ts';
+import type { Logger, StoreTx } from '../ports/index.ts';
 import { createDepthFirstScheduler } from '../scheduler/depth-first-scheduler.ts';
 import { getDue } from '../scheduler/due.ts';
 import { getFrontier } from '../scheduler/frontier.ts';
@@ -33,6 +35,7 @@ import type {
   EngineContext,
   EngineDeps,
   EngineMetrics,
+  ExtensionSettingChanges,
   OpenAttempt,
 } from './context.ts';
 import { createEventBus } from './event-bus.ts';
@@ -73,6 +76,30 @@ const createMetrics = (startedAt: number): EngineMetrics => {
         count: sorted.length,
         p50Ms: quantile(sorted, 0.5),
         p95Ms: quantile(sorted, 0.95),
+      };
+    },
+  };
+};
+
+const createSettingChanges = (logger: Logger): ExtensionSettingChanges => {
+  const listeners = new Set<(change: ExtensionSettingChangeDto) => void>();
+  return {
+    emit: (change) => {
+      for (const listener of [...listeners]) {
+        try {
+          listener(change);
+        } catch (error) {
+          logger.error(
+            { error, extensionId: change.extensionId, id: change.id },
+            'extension setting listener failed',
+          );
+        }
+      }
+    },
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
       };
     },
   };
@@ -186,6 +213,7 @@ export const createContext = async (
 
   const journal = createJournalWriter({ clock, ids, eventStore });
   const emit = (event: EngineEvent): void => bus.emit(event);
+  const emitLearning = (event: LearningEvent): void => bus.emitLearning(event);
   const markDirty = (): void => {
     state.dirty = true;
   };
@@ -281,6 +309,8 @@ export const createContext = async (
     folderSync: deps.folderSync ?? null,
     openTraneSource: deps.openTraneSource,
     repositoryStore: deps.repositoryStore,
+    extensionData: deps.extensionDataStore,
+    extensionSettingChanges: createSettingChanges(logger),
     snapshotFetcher: deps.snapshotFetcher,
     snapshotInstaller: deps.snapshotInstaller,
     library,
@@ -298,6 +328,7 @@ export const createContext = async (
       clock,
     }),
     gradePolicies: deps.gradePolicies,
+    extensionCommands: deps.extensionCommands,
     learning: { ...(await settings.loadLearning()) },
     journal,
     bus,
@@ -328,6 +359,7 @@ export const createContext = async (
       ),
     commit,
     emit,
+    emitLearning,
     applyEntries,
     rebuild: () => runRebuild(true),
     markDirty,

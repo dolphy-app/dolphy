@@ -24,6 +24,8 @@ export type WrapMethod = (name: string, method: AnyMethod) => AnyMethod;
  * операция ждёт очередь (взаимная блокировка). `extensions.catalog` и
  * `extensions.install` тоже ходят в сеть (индекс, файлы версии) и очередь не
  * держат; событие `extensions-changed` они публикуют сами.
+ * `extensions.invokeCommand` исполняет код расширения до 14 с: медленная
+ * команда не должна замораживать остальные вызовы движка.
  */
 export const UNQUEUED: ReadonlySet<string> = new Set([
   'practice.submitAnswer',
@@ -33,6 +35,7 @@ export const UNQUEUED: ReadonlySet<string> = new Set([
   'repositories.cancel',
   'extensions.catalog',
   'extensions.install',
+  'extensions.invokeCommand',
 ]);
 
 const isMethod = (value: unknown): value is AnyMethod =>

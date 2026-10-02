@@ -123,6 +123,10 @@ const indexOf = (revoked: { id: string; versions: string; reason: string }[]) =>
           themes: ['acme.theme.night'],
           markdownRenderers: [],
           gradePolicies: [],
+          settings: [],
+          events: [],
+          commands: [],
+          panels: [],
         },
         versions: [
           {

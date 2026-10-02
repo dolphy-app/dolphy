@@ -1,13 +1,17 @@
 import path from 'node:path';
-import { parseIndex } from '@dolphy-app/extension-catalog';
+import { parseIndexLenient } from '@dolphy-app/extension-catalog';
 import type { CatalogIndex } from '@dolphy-app/extension-catalog';
 import type { ExtensionLogger } from '@dolphy-app/extension-api';
 import { writeAtomic } from './atomic.ts';
 import { isMissing } from './fs.ts';
 import type { InstallerFs } from './fs.ts';
 
+/** Which file the cached index came from: `index.v2.json` (`full`) or `index.json` (`legacy`). */
+export type IndexKind = 'full' | 'legacy';
+
 export interface CachedIndex {
   index: CatalogIndex;
+  kind: IndexKind;
   etag: string | null;
   /** Миллисекунды эпохи. */
   fetchedAt: number;
@@ -17,6 +21,7 @@ interface Meta {
   etag: string | null;
   fetchedAt: string;
   url: string;
+  kind: IndexKind;
 }
 
 export interface CatalogCacheOptions {
@@ -31,19 +36,24 @@ const parseMeta = (raw: unknown): Meta => {
   if (typeof raw !== 'object' || record === null) {
     throw new Error('meta.json is not an object');
   }
-  const { etag, fetchedAt, url } = record;
+  const { etag, fetchedAt, url, kind = 'legacy' } = record;
   if (
     (etag !== null && typeof etag !== 'string') ||
     typeof fetchedAt !== 'string' ||
     Number.isNaN(Date.parse(fetchedAt)) ||
-    typeof url !== 'string'
+    typeof url !== 'string' ||
+    (kind !== 'full' && kind !== 'legacy')
   ) {
     throw new Error('meta.json has unexpected fields');
   }
-  return { etag, fetchedAt, url };
+  return { etag, fetchedAt, url, kind };
 };
 
-/** Кэш индекса на диске: `index.json` рядом с `meta.json` (ETag, время получения, адрес). */
+/**
+ * Кэш индекса на диске: `index.json` рядом с `meta.json` (ETag, время получения, адрес,
+ * вид индекса). Адрес — идентичность каталога (адрес `index.json`), вид говорит, какой
+ * файл лежит в кэше; кэш старого приложения без вида — `legacy`.
+ */
 export const createCatalogCache = (options: CatalogCacheOptions) => {
   const { fs, dir, catalogUrl, logger } = options;
   const indexFile = path.join(dir, 'index.json');
@@ -71,7 +81,8 @@ export const createCatalogCache = (options: CatalogCacheOptions) => {
         return null;
       }
       return {
-        index: parseIndex(JSON.parse(indexText)),
+        index: parseIndexLenient(JSON.parse(indexText)).index,
+        kind: meta.kind,
         etag: meta.etag,
         fetchedAt: Date.parse(meta.fetchedAt),
       };
@@ -82,11 +93,16 @@ export const createCatalogCache = (options: CatalogCacheOptions) => {
     }
   };
 
-  const writeMeta = (etag: string | null, fetchedAt: number): Promise<void> => {
+  const writeMeta = (
+    etag: string | null,
+    fetchedAt: number,
+    kind: IndexKind,
+  ): Promise<void> => {
     const meta: Meta = {
       etag,
       fetchedAt: new Date(fetchedAt).toISOString(),
       url: catalogUrl,
+      kind,
     };
     return writeAtomic(fs, metaFile, JSON.stringify(meta));
   };
@@ -104,14 +120,18 @@ export const createCatalogCache = (options: CatalogCacheOptions) => {
     raw: Uint8Array,
     etag: string | null,
     fetchedAt: number,
+    kind: IndexKind,
   ): Promise<void> =>
     persist(async () => {
       await writeAtomic(fs, indexFile, raw);
-      await writeMeta(etag, fetchedAt);
+      await writeMeta(etag, fetchedAt, kind);
     });
 
-  const touch = (etag: string | null, fetchedAt: number): Promise<void> =>
-    persist(() => writeMeta(etag, fetchedAt));
+  const touch = (
+    etag: string | null,
+    fetchedAt: number,
+    kind: IndexKind,
+  ): Promise<void> => persist(() => writeMeta(etag, fetchedAt, kind));
 
   return { load, save, touch };
 };

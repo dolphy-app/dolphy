@@ -293,6 +293,10 @@ describe('createFakeExtensionRegistry', () => {
         themes: [],
         markdownRenderers: [],
         gradePolicies: [],
+        settings: [],
+        events: [],
+        commands: [],
+        panels: [],
       },
       message: 'broken',
       permissions: [],
@@ -301,6 +305,7 @@ describe('createFakeExtensionRegistry', () => {
       name: null,
       description: null,
       author: null,
+      icon: null,
       installed: null,
       removable: true,
       revoked: null,
@@ -314,6 +319,9 @@ describe('createFakeExtensionRegistry', () => {
       themes: [],
       markdownRenderers: [],
       gradePolicies: [],
+      settings: [],
+      commands: [],
+      panels: [],
     };
     expect(createFakeExtensionRegistry().contributions()).toEqual(empty);
     const given = {

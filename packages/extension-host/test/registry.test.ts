@@ -17,6 +17,7 @@ const extension = (id: string, version = '1.0.0'): ResolvedExtension => ({
   author: null,
   platforms: [],
   minAppVersion: null,
+  icon: null,
   install: null,
   exerciseTypes: [
     {
@@ -30,6 +31,10 @@ const extension = (id: string, version = '1.0.0'): ResolvedExtension => ({
   themes: [],
   markdownRenderers: [],
   gradePolicies: [],
+  settings: [],
+  events: [],
+  commands: [],
+  panels: [],
 });
 
 const NONE = {
@@ -37,6 +42,10 @@ const NONE = {
   themes: [],
   markdownRenderers: [],
   gradePolicies: [],
+  settings: [],
+  events: [],
+  commands: [],
+  panels: [],
 };
 
 const discovery: DiscoveryResult = {
@@ -76,6 +85,7 @@ describe('createExtensionRegistry', () => {
       description: null,
       author: null,
       installed: null,
+      icon: null,
       removable: true,
       revoked: null,
     });
@@ -96,6 +106,7 @@ describe('createExtensionRegistry', () => {
       description: null,
       author: null,
       installed: null,
+      icon: null,
       removable: false,
       revoked: null,
     });
@@ -116,6 +127,7 @@ describe('createExtensionRegistry', () => {
       description: null,
       author: null,
       installed: null,
+      icon: null,
       removable: true,
       revoked: null,
     });

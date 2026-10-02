@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { nextTick, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type {
   ExtensionInfoDto,
@@ -13,9 +13,13 @@ import {
   isTrusted,
   useExtensions,
 } from '../model/extensions.ts';
+import { useExtensionData } from '../model/extension-data.ts';
 import { useInstallContext } from '../model/install.ts';
 import ExtensionContributions from './ExtensionContributions.vue';
+import ExtensionData from './ExtensionData.vue';
+import ExtensionHeading from './ExtensionHeading.vue';
 import ExtensionPermissions from './ExtensionPermissions.vue';
+import ExtensionSettingsDialog from './ExtensionSettingsDialog.vue';
 
 interface StateView {
   icon: string;
@@ -50,6 +54,13 @@ const {
 } = useExtensions(useEngine());
 
 const removeTarget = ref<ExtensionInfoDto | null>(null);
+const removeData = ref(false);
+const settingsTarget = ref<ExtensionInfoDto | null>(null);
+const data = useExtensionData(useEngine(), items);
+
+/** Настройки есть у загруженного (включённого) расширения, объявившего `settings`. */
+const hasSettings = (extension: ExtensionInfoDto) =>
+  extension.state === 'loaded' && extension.contributes.settings.length > 0;
 
 const updateOf = (id: string) =>
   updates.value.find((update) => update.id === id);
@@ -64,19 +75,47 @@ const reviewUpdates = async (ids?: readonly string[]) => {
   install.review(await updateTargets(ids));
 };
 
-const askRemove = (extension: ExtensionInfoDto) => {
+// кнопка, открывшая диалог: после закрытия фокус возвращается на неё
+let opener: HTMLElement | null = null;
+
+const rememberOpener = (event: Event) => {
+  opener =
+    event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
+};
+
+const restoreFocus = () => {
+  void nextTick(() => opener?.focus());
+};
+
+const openSettings = (extension: ExtensionInfoDto, event: Event) => {
+  rememberOpener(event);
+  settingsTarget.value = extension;
+};
+
+const closeSettings = () => {
+  settingsTarget.value = null;
+  restoreFocus();
+};
+
+const askRemove = (extension: ExtensionInfoDto, event: Event) => {
+  rememberOpener(event);
   install.removeError.value = null;
+  removeData.value = false;
   removeTarget.value = extension;
 };
 
 const confirmRemove = async () => {
   const target = removeTarget.value;
   if (target === null) return;
-  if (await install.remove(target.id)) removeTarget.value = null;
+  if (await install.remove(target.id, removeData.value)) {
+    removeTarget.value = null;
+  }
 };
 
 const closeRemove = () => {
-  if (install.removing.value === null) removeTarget.value = null;
+  if (install.removing.value !== null) return;
+  removeTarget.value = null;
+  restoreFocus();
 };
 
 // обновления могли появиться, пока открыт «Каталог»: при возврате читаем заново
@@ -115,6 +154,15 @@ watch(
 
     <v-alert v-if="switchError" type="error" variant="tonal" class="mb-6">
       {{ t('settings.extensions.switchFailed') }}: {{ switchError }}
+    </v-alert>
+
+    <v-alert
+      v-if="data.clearError.value"
+      type="error"
+      variant="tonal"
+      class="mb-6"
+    >
+      {{ t('settings.extensions.data.failed') }}: {{ data.clearError.value }}
     </v-alert>
 
     <template v-if="state === 'loaded'">
@@ -190,9 +238,11 @@ watch(
         >
           <v-card class="pa-4">
             <div class="d-flex flex-wrap align-center ga-2">
-              <h3 class="name text-title-medium font-weight-bold">
-                {{ displayName(extension) }}
-              </h3>
+              <ExtensionHeading :icon="extension.icon">
+                <h3 class="name text-title-medium font-weight-bold">
+                  {{ displayName(extension) }}
+                </h3>
+              </ExtensionHeading>
               <span
                 v-if="extension.name !== null"
                 class="id text-body-small text-medium-emphasis"
@@ -316,6 +366,13 @@ watch(
               :permissions="extension.permissions"
             />
             <ExtensionContributions :contributes="extension.contributes" />
+            <ExtensionData
+              v-if="isActive(extension)"
+              :extension="extension"
+              :usage="data.usage.value.get(extension.id)"
+              :clearing="data.clearing.value === extension.id"
+              @clear="data.clear(extension.id)"
+            />
 
             <div v-if="hasSwitches(extension)" class="switches mt-3">
               <v-switch
@@ -346,6 +403,21 @@ watch(
             </div>
 
             <div class="d-flex flex-wrap ga-2 mt-3">
+              <v-btn
+                v-if="hasSettings(extension)"
+                variant="tonal"
+                size="small"
+                prepend-icon="mdi-cog-outline"
+                :aria-label="
+                  t('settings.extensions.action.settingsLabel', {
+                    name: displayName(extension),
+                  })
+                "
+                :data-testid="`settings-${extension.id}`"
+                @click="openSettings(extension, $event)"
+              >
+                {{ t('settings.extensions.action.settings') }}
+              </v-btn>
               <v-btn
                 v-if="updateOf(extension.id)"
                 variant="tonal"
@@ -380,7 +452,7 @@ watch(
                   })
                 "
                 :data-testid="`remove-${extension.id}`"
-                @click="askRemove(extension)"
+                @click="askRemove(extension, $event)"
               >
                 {{ t('settings.extensions.action.remove') }}
               </v-btn>
@@ -407,6 +479,16 @@ watch(
         </v-card-title>
         <v-card-text>
           <p>{{ t('settings.extensions.remove.text') }}</p>
+          <v-checkbox
+            v-model="removeData"
+            :label="t('settings.extensions.remove.removeData')"
+            :hint="t('settings.extensions.remove.removeDataHint')"
+            persistent-hint
+            density="compact"
+            color="error"
+            :disabled="install.removing.value !== null"
+            data-testid="remove-data"
+          />
           <v-alert
             v-if="install.removeError.value"
             type="error"
@@ -439,6 +521,13 @@ watch(
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <ExtensionSettingsDialog
+      v-if="settingsTarget !== null"
+      :key="settingsTarget.id"
+      :extension="settingsTarget"
+      @close="closeSettings"
+    />
   </div>
 </template>
 

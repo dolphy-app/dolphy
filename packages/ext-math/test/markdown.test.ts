@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest';
-import renderer from '../src/markdown.ts';
+import { markdown } from '../src/index.ts';
 
 const signal = new AbortController().signal;
 const render = async (source: string) => {
   const container = document.createElement('div');
-  await renderer.render(source, container, { language: 'math', signal });
+  await markdown.math.render(source, container, { language: 'math', signal });
   return container;
 };
 

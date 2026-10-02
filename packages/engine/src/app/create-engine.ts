@@ -5,6 +5,9 @@ import type { EngineContext, EngineDeps } from './context.ts';
 import { collectDiagnostics } from './diagnostics.ts';
 import { createFacade } from './facade.ts';
 import type { EngineServices } from './facade.ts';
+import type { LearningEventListener } from './event-bus.ts';
+import { createExtensionHostServices } from './services/extension-host-services.ts';
+import type { ExtensionHostServices } from './services/extension-host-services.ts';
 import { createCurationService } from './services/curation.ts';
 import {
   createExtensionsService,
@@ -33,6 +36,18 @@ export interface HostedEngine extends LearningEngine {
    * Не бросает; после `close()` ничего не делает.
    */
   reloadExtensions(): Promise<void>;
+  /**
+   * Данные расширений для хоста расширений (хранилище, значения настроек,
+   * подписка на их изменение). Не часть контракта окна и не RPC.
+   */
+  readonly extensionHost: ExtensionHostServices;
+  /**
+   * Внутренний приёмник событий обучения (`session.started`, `session.finished`,
+   * `attempt.closed`): доставка после завершения команды, не раньше; отменённая
+   * или упавшая команда событий не даёт. Слушатель не ждётся, его сбой
+   * логируется и на команду не влияет. Возвращает отписку.
+   */
+  onLearningEvent(listener: LearningEventListener): () => void;
 }
 
 /** Сервисы и фасад над готовым контекстом (тесты собирают контекст сами). */
@@ -68,6 +83,8 @@ export const createEngineFromContext = (ctx: EngineContext): HostedEngine => {
   return {
     ...facade,
     reloadExtensions: () => ctx.extensionApply.reload(),
+    extensionHost: createExtensionHostServices(ctx),
+    onLearningEvent: ctx.bus.subscribeLearning,
     close: () => {
       const closed = facade.close();
       closing.abort(); // долгая загрузка не должна держать закрытие

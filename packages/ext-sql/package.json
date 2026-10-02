@@ -2,10 +2,10 @@
   "name": "@dolphy-app/ext-sql",
   "version": "0.0.0",
   "private": true,
-  "description": "Расширение dolphy.sql: SQL-задания с проверкой раннером",
+  "description": "The dolphy.sql extension: SQL exercises checked by a runner",
   "type": "module",
   "scripts": {
-    "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
+    "typecheck": "dolphy-ext types && tsc -b tsconfig.json tsconfig.test.json",
     "test": "vitest run",
     "build": "dolphy-ext build"
   },

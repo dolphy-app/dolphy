@@ -8,6 +8,7 @@ import {
   createFakeExtensionInstaller,
   createFakeExtensionPolicy,
   createFakeExtensionRegistry,
+  createFakeExtensionCommands,
   createFakeExtensionReloader,
   createFakeGradePolicies,
   createSeededRng,
@@ -23,6 +24,7 @@ import {
 } from '../../../src/app/index.ts';
 import {
   createMemoryEventStore,
+  createMemoryExtensionDataStore,
   createMemoryRepositoryStore,
   createNodeFsCourseSource,
   createNodeSnapshotInstaller,
@@ -823,8 +825,10 @@ describe('startup recovery (R9)', () => {
           rng: createSeededRng(1),
           ids: createTestIds('e'),
           eventStore: createMemoryEventStore(),
+          extensionDataStore: createMemoryExtensionDataStore(),
           exerciseTypes: createFakeExerciseTypes(),
           gradePolicies: createFakeGradePolicies(),
+          extensionCommands: createFakeExtensionCommands(),
           extensionRegistry: createFakeExtensionRegistry(),
           extensionPolicy: createFakeExtensionPolicy(),
           extensionInstaller: createFakeExtensionInstaller(),

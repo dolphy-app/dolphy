@@ -42,6 +42,10 @@ const QUIZ = catalogEntry('acme.quiz', {
     themes: [],
     markdownRenderers: [],
     gradePolicies: [],
+    settings: [],
+    events: [],
+    commands: [],
+    panels: [],
   },
 });
 

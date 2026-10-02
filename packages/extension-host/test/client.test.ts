@@ -31,6 +31,7 @@ const resolved: ResolvedExtension[] = [
     author: null,
     platforms: [],
     minAppVersion: null,
+    icon: null,
     install: null,
     exerciseTypes: [
       {
@@ -44,6 +45,10 @@ const resolved: ResolvedExtension[] = [
     themes: [],
     markdownRenderers: [],
     gradePolicies: [{ id: 'acme.t.gen', label: 'Generous' }],
+    settings: [],
+    events: [],
+    commands: [],
+    panels: [],
   },
 ];
 const catalog = createCatalog(holderOf(resolved), createAllTrustedPolicy());

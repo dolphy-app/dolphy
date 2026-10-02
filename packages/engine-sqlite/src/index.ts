@@ -10,6 +10,7 @@ export type {
   SqliteStorage,
   StoreInspection,
 } from './event-store.ts';
+export { createSqliteExtensionDataStore } from './extension-data-store.ts';
 export { createSqliteRepositoryStore } from './repository-store.ts';
 export { createSqliteSettingsStore } from './settings-store.ts';
 export type {

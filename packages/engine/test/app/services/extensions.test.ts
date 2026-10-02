@@ -14,6 +14,10 @@ const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
   themes: [],
   markdownRenderers: [],
   gradePolicies: [],
+  settings: [],
+  events: [],
+  commands: [],
+  panels: [],
 };
 
 const info = (overrides: Partial<ExtensionInfoDto>): ExtensionInfoDto => ({
@@ -30,6 +34,7 @@ const info = (overrides: Partial<ExtensionInfoDto>): ExtensionInfoDto => ({
   description: null,
   author: null,
   installed: null,
+  icon: null,
   removable: false,
   revoked: null,
   ...overrides,
@@ -109,6 +114,9 @@ describe('extensions.contributions', () => {
     themes: [theme('a.ext.z'), theme('a.ext.b')],
     markdownRenderers: [renderer('math'), renderer('chart')],
     gradePolicies: [policy('a.ext.z'), policy('a.ext.b')],
+    settings: [],
+    commands: [],
+    panels: [],
   };
   const openWith = (source: RegistryContributions) =>
     createTestEngine({

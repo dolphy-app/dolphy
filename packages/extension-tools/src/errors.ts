@@ -1,4 +1,4 @@
-/** Ошибка сборки/проверки расширения; `subject` — id расширения или каталог. */
+/** Extension build/check error; `subject` is the extension id or directory. */
 export class BuildError extends Error {
   readonly subject: string;
 
@@ -9,5 +9,5 @@ export class BuildError extends Error {
   }
 }
 
-/** Неверные входные данные команды (несуществующий каталог): код выхода 2. */
+/** Invalid command input (nonexistent directory): exit code 2. */
 export class CatalogUsageError extends BuildError {}

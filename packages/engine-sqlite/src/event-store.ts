@@ -19,7 +19,11 @@ import {
 import type { LogEntry } from '@dolphy-app/engine';
 import { guard, mapSqliteError } from './errors.ts';
 import { SCHEMA_VERSION, migrate, readSchemaVersion } from './migrations.ts';
-import type { RepositoryStore } from '@dolphy-app/engine/ports';
+import type {
+  ExtensionDataStore,
+  RepositoryStore,
+} from '@dolphy-app/engine/ports';
+import { createSqliteExtensionDataStore } from './extension-data-store.ts';
 import { createSqliteRepositoryStore } from './repository-store.ts';
 import { createSqliteSettingsStore } from './settings-store.ts';
 import type { SqliteSettingsStore } from './settings-store.ts';
@@ -534,6 +538,8 @@ export interface SqliteStorage {
   settings: SqliteSettingsStore;
   /** Реестр git-репозиториев в той же БД. */
   repositories: RepositoryStore;
+  /** Хранилище и значения настроек расширений в той же БД. */
+  extensionData: ExtensionDataStore;
 }
 
 /** `engine.db` целиком: журнал событий и настройки на одном соединении. */
@@ -546,5 +552,6 @@ export const openSqliteStorage = (
     events,
     settings: createSqliteSettingsStore(db),
     repositories: createSqliteRepositoryStore(db),
+    extensionData: createSqliteExtensionDataStore(db),
   };
 };

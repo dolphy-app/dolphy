@@ -1,0 +1,8 @@
+@font-face {
+  font-family: 'Acme Font';
+  src: url(font.woff2) format('woff2');
+}
+.probe {
+  color: #010203;
+  font-family: 'Acme Font', serif;
+}

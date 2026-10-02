@@ -14,8 +14,10 @@ import {
   createExtensionPolicy,
   createExtensionRegistry,
   createExtensionReloader,
+  connectEngine,
   createHostChannel,
   createRemoteExerciseTypes,
+  createRemoteExtensionCommands,
   createRemoteGradePolicies,
   discoverExtensions,
 } from '@dolphy-app/extension-host';
@@ -31,11 +33,12 @@ export const boot = async (
   mkdirSync(config.libraryRoot, { recursive: true });
   mkdirSync(config.dataDir, { recursive: true });
   const defaults = nodeDefaults(config); // clock, rng, ids, logger, courseSource, snapshotInstaller, memoryModel
-  // журнал событий, настройки и реестр репозиториев — одна БД, одно соединение
+  // журнал событий, настройки, реестр репозиториев и данные расширений — одна БД, одно соединение
   const {
     events: eventStore,
     settings,
     repositories: repositoryStore,
+    extensionData: extensionDataStore,
   } = openSqliteStorage({
     path: join(config.dataDir, 'engine.db'),
     durability: config.durability ?? 'full',
@@ -89,6 +92,12 @@ export const boot = async (
     policy,
     logger: defaults.logger,
   });
+  const extensionCommands = createRemoteExtensionCommands({
+    channel,
+    discovery,
+    policy,
+    logger: defaults.logger,
+  });
   if (__DOLPHY_SMOKE_BUILD__ && process.env.DOLPHY_SMOKE === '1') {
     defaults.logger.info(
       { types: exerciseTypes.list().map(({ type }) => type) },
@@ -101,9 +110,11 @@ export const boot = async (
       settings,
       eventStore,
       repositoryStore,
+      extensionDataStore,
       snapshotFetcher: createIsomorphicGitFetcher(),
       exerciseTypes,
       gradePolicies,
+      extensionCommands,
       extensionRegistry: createExtensionRegistry(
         discovery,
         policy,
@@ -121,5 +132,14 @@ export const boot = async (
     },
     config,
   );
+  // хост расширений получает данные расширений, изменения настроек и события обучения;
+  // отключать не нужно: закрытие движка закрывает канал и снимает подписки
+  connectEngine({
+    channel,
+    engine,
+    discovery,
+    policy,
+    logger: defaults.logger,
+  });
   return { engine, logger: defaults.logger, channel };
 };

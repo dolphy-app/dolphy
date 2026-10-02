@@ -16,11 +16,16 @@ const extension = (id: string, origin: ExtensionOrigin): ResolvedExtension => ({
   author: null,
   platforms: [],
   minAppVersion: null,
+  icon: null,
   install: null,
   exerciseTypes: [],
   themes: [],
   markdownRenderers: [],
   gradePolicies: [],
+  settings: [],
+  events: [],
+  commands: [],
+  panels: [],
 });
 
 const policyFor = (...items: ResolvedExtension[]) =>

@@ -5,11 +5,15 @@ import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-// пакет не в зависимостях приложения (установка зависимостей вне этой задачи): берём исходники напрямую
 import {
+  ASSET_MIME,
+  CATALOG_FILE_EXTENSIONS,
+  assetExtensionOf,
   compareSemver,
+  iconDataUri,
+  legacySubset,
   parseIndex,
-} from '../../../../packages/extension-catalog/src/index.ts';
+} from '@dolphy-app/extension-catalog';
 
 /** Версия приложения для e2e: `minAppVersion` проверяется только когда она задана. */
 export const E2E_APP_VERSION = '1.0.0';
@@ -43,6 +47,8 @@ interface PublishedFile {
 
 interface PublishedVersion {
   version: string;
+  /** `data:`-URI значка из манифеста. */
+  icon: string | null;
   apiVersion: number;
   minAppVersion: string | null;
   permissions: string[];
@@ -58,7 +64,8 @@ interface PublishedExtension {
   contributes: Record<
     'exerciseTypes' | 'themes' | 'markdownRenderers' | 'gradePolicies',
     string[]
-  >;
+  > &
+    Partial<Record<'settings' | 'events' | 'commands' | 'panels', string[]>>;
   versions: PublishedVersion[];
 }
 
@@ -66,6 +73,15 @@ interface Revocation {
   id: string;
   versions: string;
   reason: string;
+}
+
+export interface CatalogServerOptions {
+  /**
+   * `dual` — публикуются `index.v2.json` (полный) и `index.json` (подмножество для выпущенных
+   * приложений), как делает `catalog build`; `legacy` — старый статический сервер: только
+   * `index.json`, на `index.v2.json` ответ 404.
+   */
+  format?: 'dual' | 'legacy';
 }
 
 export interface CatalogServer {
@@ -84,7 +100,24 @@ export interface CatalogServer {
   close(): Promise<void>;
 }
 
-const ALLOWED_EXTENSIONS = new Set(['json', 'js', 'mjs', 'md', 'txt']);
+const ALLOWED_EXTENSIONS = new Set(CATALOG_FILE_EXTENSIONS);
+
+const TEXT_MIME: Record<string, string> = {
+  json: 'application/json',
+  js: 'text/javascript; charset=utf-8',
+  mjs: 'text/javascript; charset=utf-8',
+  md: 'text/markdown; charset=utf-8',
+  txt: 'text/plain; charset=utf-8',
+};
+
+/** `Content-Type` по расширению файла версии, как у настоящего статического сервера. */
+const mimeOf = (path: string): string => {
+  const asset = assetExtensionOf(path);
+  return asset === null
+    ? (TEXT_MIME[path.slice(path.lastIndexOf('.') + 1)] ??
+        'application/octet-stream')
+    : ASSET_MIME[asset];
+};
 const MIN_NOW_STEP_MS = 1000;
 
 const listFiles = async (root: string, dir = root): Promise<string[]> => {
@@ -118,6 +151,7 @@ interface RawManifest {
   id: string;
   version: string;
   apiVersion: number;
+  icon?: string;
   minAppVersion?: string;
   permissions?: string[];
   contributes?: {
@@ -125,35 +159,51 @@ interface RawManifest {
     themes?: { id: string }[];
     markdownRenderers?: { language: string }[];
     gradePolicies?: { id: string }[];
+    settings?: { id: string }[];
+    events?: { event: string }[];
+    commands?: { id: string }[];
+    panels?: { id: string }[];
   };
 }
 
 const contributesOf = (
   manifest: RawManifest,
-): PublishedExtension['contributes'] => ({
-  exerciseTypes: (manifest.contributes?.exerciseTypes ?? []).map(
-    ({ id }) => id,
-  ),
-  themes: (manifest.contributes?.themes ?? []).map(({ id }) => id),
-  markdownRenderers: (manifest.contributes?.markdownRenderers ?? []).map(
-    ({ language }) => language,
-  ),
-  gradePolicies: (manifest.contributes?.gradePolicies ?? []).map(
-    ({ id }) => id,
-  ),
-});
+): PublishedExtension['contributes'] => {
+  const settings = (manifest.contributes?.settings ?? []).map(({ id }) => id);
+  const events = (manifest.contributes?.events ?? []).map(({ event }) => event);
+  const commands = (manifest.contributes?.commands ?? []).map(({ id }) => id);
+  const panels = (manifest.contributes?.panels ?? []).map(({ id }) => id);
+  return {
+    exerciseTypes: (manifest.contributes?.exerciseTypes ?? []).map(
+      ({ id }) => id,
+    ),
+    themes: (manifest.contributes?.themes ?? []).map(({ id }) => id),
+    markdownRenderers: (manifest.contributes?.markdownRenderers ?? []).map(
+      ({ language }) => language,
+    ),
+    gradePolicies: (manifest.contributes?.gradePolicies ?? []).map(
+      ({ id }) => id,
+    ),
+    ...(settings.length > 0 ? { settings } : {}),
+    ...(events.length > 0 ? { events } : {}),
+    ...(commands.length > 0 ? { commands } : {}),
+    ...(panels.length > 0 ? { panels } : {}),
+  };
+};
 
 const etagOf = (body: string) =>
   `"${createHash('sha256').update(body).digest('hex').slice(0, 16)}"`;
 
 /**
- * Настоящий HTTP-каталог на 127.0.0.1 со случайным портом: собирает `index.json`
- * из каталогов расширений (sha256 и размер каждого файла), проверяет его
- * `parseIndex` и отдаёт файлы по `extensions/<id>/<version>/<path>`.
+ * Настоящий HTTP-каталог на 127.0.0.1 со случайным портом: собирает индексы
+ * из каталогов расширений (sha256 и размер каждого файла), проверяет их
+ * `parseIndex` и отдаёт файлы по `extensions/<id>/<version>/<path>` с `Content-Type` по расширению.
  */
 export const startCatalogServer = async (
   sources: readonly CatalogSource[] = [],
+  options: CatalogServerOptions = {},
 ): Promise<CatalogServer> => {
+  const format = options.format ?? 'dual';
   const extensions = new Map<string, PublishedExtension>();
   const revoked: Revocation[] = [];
   const tampered = new Set<string>();
@@ -167,6 +217,13 @@ export const startCatalogServer = async (
     ) as RawManifest;
     const version: PublishedVersion = {
       version: manifest.version,
+      icon:
+        manifest.icon === undefined
+          ? null
+          : iconDataUri(
+              manifest.icon,
+              await readFile(join(source.dir, manifest.icon)),
+            ),
       apiVersion: manifest.apiVersion,
       minAppVersion: manifest.minAppVersion ?? null,
       permissions: manifest.permissions ?? [],
@@ -188,11 +245,12 @@ export const startCatalogServer = async (
     });
   };
 
-  const buildIndex = (): string => {
+  /** Оба файла сразу и с одним `generatedAt`, как пишет их `catalog build`. */
+  const buildIndexes = (): { full: string; legacy: string } => {
     // индекс не должен «откатываться»: generatedAt только растёт
     generatedAt = Math.max(generatedAt + MIN_NOW_STEP_MS, Date.now());
     const index = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       generatedAt: new Date(generatedAt).toISOString(),
       extensions: [...extensions.values()].map((entry) => ({
         id: entry.id,
@@ -214,20 +272,22 @@ export const startCatalogServer = async (
             size: bytes.length,
             sha256,
           })),
+          ...(version.icon === null ? {} : { icon: version.icon }),
         })),
       })),
       revoked: [...revoked],
     };
-    parseIndex(index);
-    return JSON.stringify(index);
+    const legacy = legacySubset(parseIndex(index));
+    parseIndex(legacy);
+    return { full: JSON.stringify(index), legacy: JSON.stringify(legacy) };
   };
 
-  // тело индекса меняется только при изменении каталога: иначе ETag был бы всегда новым
-  let cachedBody: string | null = null;
+  // тела меняются только при изменении каталога: иначе ETag был бы всегда новым
+  let cached: { full: string; legacy: string } | null = null;
   const invalidate = () => {
-    cachedBody = null;
+    cached = null;
   };
-  const indexBody = () => (cachedBody ??= buildIndex());
+  const bodies = () => (cached ??= buildIndexes());
 
   const send = (
     response: ServerResponse,
@@ -258,8 +318,14 @@ export const startCatalogServer = async (
       send(response, 503, 'catalog is offline');
       return;
     }
-    if (path === '/index.json') {
-      const body = indexBody();
+    const isFull = path === '/index.v2.json';
+    if (isFull && format === 'legacy') {
+      requests.push(`GET ${path} 404`);
+      send(response, 404, 'not found');
+      return;
+    }
+    if (isFull || path === '/index.json') {
+      const body = isFull ? bodies().full : bodies().legacy;
       const etag = etagOf(body);
       if (request.headers['if-none-match'] === etag) {
         requests.push(`GET ${path} 304`);
@@ -276,8 +342,7 @@ export const startCatalogServer = async (
     const file = path.startsWith('/extensions/') ? fileFor(path) : null;
     requests.push(`GET ${path}`);
     if (file === null) send(response, 404, 'not found');
-    else
-      send(response, 200, file, { 'Content-Type': 'application/octet-stream' });
+    else send(response, 200, file, { 'Content-Type': mimeOf(path) });
   };
 
   for (const source of sources) await publish(source);

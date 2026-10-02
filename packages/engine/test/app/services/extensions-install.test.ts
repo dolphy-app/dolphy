@@ -23,6 +23,10 @@ const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
   themes: [],
   markdownRenderers: [],
   gradePolicies: [],
+  settings: [],
+  events: [],
+  commands: [],
+  panels: [],
 };
 
 const info = (overrides: Partial<ExtensionInfoDto>): ExtensionInfoDto => ({
@@ -39,6 +43,7 @@ const info = (overrides: Partial<ExtensionInfoDto>): ExtensionInfoDto => ({
   description: null,
   author: null,
   installed: null,
+  icon: null,
   removable: true,
   revoked: null,
   ...overrides,

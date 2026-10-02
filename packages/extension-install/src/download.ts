@@ -3,8 +3,10 @@ import path from 'node:path';
 import { ExtensionInstallError } from '@dolphy-app/engine/ports';
 import {
   CatalogFormatError,
-  MAX_FILES,
+  MAX_FILES_V2,
   MAX_TOTAL_BYTES,
+  isSafeCatalogPath,
+  sizeProblem,
   versionFileUrl,
 } from '@dolphy-app/extension-catalog';
 import type {
@@ -14,8 +16,6 @@ import type {
 import { totalSize } from './dto.ts';
 import type { InstallerFs } from './fs.ts';
 import type { HttpClient } from './http.ts';
-
-const MAX_PATH_LENGTH = 200;
 
 export interface DownloadOptions {
   http: HttpClient;
@@ -27,15 +27,6 @@ export interface DownloadOptions {
   directory: string;
 }
 
-const isSafePath = (value: string): boolean =>
-  value.length > 0 &&
-  value.length <= MAX_PATH_LENGTH &&
-  !value.includes('\\') &&
-  !value.includes('\0') &&
-  value
-    .split('/')
-    .every((segment) => segment !== '' && !segment.startsWith('.'));
-
 /** Проверки, которые `parseIndex` уже делает, повторены: индекс мог прийти не из разбора. */
 const assertPlan = (
   extensionId: string,
@@ -44,21 +35,25 @@ const assertPlan = (
 ): void => {
   const fail = (cause: 'limits' | 'invalid', message: string) =>
     new ExtensionInstallError(cause, extensionId, message);
-  if (files.length > MAX_FILES) {
-    throw fail('limits', `more than ${MAX_FILES} files`);
+  if (files.length > MAX_FILES_V2) {
+    throw fail('limits', `more than ${MAX_FILES_V2} files`);
   }
   if (totalSize(version) > MAX_TOTAL_BYTES) {
     throw fail('limits', `total size exceeds ${MAX_TOTAL_BYTES} bytes`);
   }
   const paths = new Set<string>();
   const directories = new Set<string>();
-  for (const { path: filePath } of files) {
-    if (!isSafePath(filePath))
+  for (const { path: filePath, size } of files) {
+    if (!isSafeCatalogPath(filePath)) {
       throw fail('invalid', `unsafe path '${filePath}'`);
-    if (paths.has(filePath))
-      throw fail('invalid', `duplicate path '${filePath}'`);
-    paths.add(filePath);
-    const segments = filePath.split('/');
+    }
+    const problem = sizeProblem(filePath, size);
+    if (problem !== null) throw fail('limits', problem);
+    // names collide without regard to case on macOS and Windows
+    const key = filePath.toLowerCase();
+    if (paths.has(key)) throw fail('invalid', `duplicate path '${filePath}'`);
+    paths.add(key);
+    const segments = key.split('/');
     for (let i = 1; i < segments.length; i++) {
       directories.add(segments.slice(0, i).join('/'));
     }

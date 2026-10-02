@@ -9,7 +9,9 @@ import type {
   EngineConfig,
   EngineEvent,
   EpochMs,
+  ExtensionSettingChangeDto,
   FrontierItemDto,
+  LearningEvent,
   RecordResultDto,
   RemediationDto,
   SavedFilterDto,
@@ -35,6 +37,8 @@ import type {
 } from '../ports/index.ts';
 import type { ExerciseTypes } from '../ports/exercise-types.ts';
 import type { GradePolicies } from '../ports/grade-policies.ts';
+import type { ExtensionCommands } from '../ports/extension-commands.ts';
+import type { ExtensionDataStore } from '../ports/extension-data.ts';
 import type { ExtensionInstaller } from '../ports/extension-installer.ts';
 import type { ExtensionPolicy } from '../ports/extension-policy.ts';
 import type { ExtensionRegistry } from '../ports/extension-registry.ts';
@@ -93,6 +97,8 @@ export interface EngineDeps {
   exerciseTypes: ExerciseTypes;
   /** Правила оценки из расширений (`@dolphy-app/extension-host`). */
   gradePolicies: GradePolicies;
+  /** Команды расширений: вызов в хосте расширений (`@dolphy-app/extension-host`). */
+  extensionCommands: ExtensionCommands;
   /** Обзор расширений для `extensions.list`. */
   extensionRegistry: ExtensionRegistry;
   /** Политика расширений (включено / изолировано); тот же экземпляр, что у реестра и клиентов хоста. */
@@ -107,10 +113,22 @@ export interface EngineDeps {
   openTraneSource?: (traneDir: string) => TraneSource | Promise<TraneSource>;
   /** Реестр git-репозиториев (`repositories.*`); SQLite или память. */
   repositoryStore: RepositoryStore;
+  /** Хранилище и значения настроек расширений; SQLite или память. */
+  extensionDataStore: ExtensionDataStore;
   /** Получение снимков по `http(s)`; `createIsomorphicGitFetcher` из `@dolphy-app/engine-git`. */
   snapshotFetcher: GitSnapshotFetcher;
   /** Подмена каталогов снимков; `createNodeSnapshotInstaller` из `@dolphy-app/engine/node`. */
   snapshotInstaller: SnapshotInstaller;
+}
+
+/**
+ * Изменения значений настроек расширений для хоста расширений (он пересылает
+ * их работающему расширению). Доставка сразу, без буфера команды: значение уже
+ * записано; сбой получателя только логируется.
+ */
+export interface ExtensionSettingChanges {
+  emit(change: ExtensionSettingChangeDto): void;
+  subscribe(listener: (change: ExtensionSettingChangeDto) => void): () => void;
 }
 
 /* -------------------------------- проекции -------------------------------- */
@@ -304,6 +322,8 @@ export interface EngineContext extends FacadeContext {
   readonly folderSync: FolderSyncPort | null;
   readonly openTraneSource: EngineDeps['openTraneSource'];
   readonly repositoryStore: RepositoryStore;
+  readonly extensionData: ExtensionDataStore;
+  readonly extensionSettingChanges: ExtensionSettingChanges;
   readonly snapshotFetcher: GitSnapshotFetcher;
   readonly snapshotInstaller: SnapshotInstaller;
   /** `current()` / `require()` / `swap()` — атомарная подмена. */
@@ -320,6 +340,7 @@ export interface EngineContext extends FacadeContext {
   readonly savedFilters: Map<string, SavedFilterDto>;
   readonly attempts: ExpiringMap<OpenAttempt>;
   readonly gradePolicies: GradePolicies;
+  readonly extensionCommands: ExtensionCommands;
   /** Настройки обучения в памяти (читаются при каждом закрытии попытки); пишет только `settings.setLearning`. */
   readonly learning: { gradePolicy: string };
   readonly journal: JournalWriter;
@@ -339,6 +360,8 @@ export interface EngineContext extends FacadeContext {
   commit(inputs: readonly CommitInput[]): Promise<CommitResult>;
   /** Сообщение подписчикам: уходит после завершения команды (`bus.flush`). */
   emit(event: EngineEvent): void;
+  /** Событие обучения для расширений: тот же цикл, что у `emit`; окну не видно. */
+  emitLearning(event: LearningEvent): void;
   /**
    * Применяет записи, уже лежащие в журнале (импорт, синхронизация), к
    * проекциям и сбрасывает кэши `UnitScorer`; возвращает затронутые юниты.

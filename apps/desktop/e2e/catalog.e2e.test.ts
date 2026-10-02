@@ -1,6 +1,7 @@
 import { access, readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { Locator } from 'playwright-core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createWorkspace, launchApp } from './support/app.ts';
 import type { DolphyApp, Workspace } from './support/app.ts';
@@ -52,6 +53,12 @@ const WINDOWS_ONLY: CatalogSource = {
   author: 'acme',
   platforms: ['win32'],
 };
+const PICTURED: CatalogSource = {
+  dir: fixture('pictured'),
+  name: 'Pictured',
+  description: 'Тема с ресурсами и значком',
+  author: 'acme',
+};
 const ECHO: CatalogSource = {
   dir: fileURLToPath(new URL('./fixtures/echo-extension', import.meta.url)),
   name: 'Echo',
@@ -87,6 +94,31 @@ const exists = (path: string) =>
 const serve = async (...sources: CatalogSource[]) => {
   server = await startCatalogServer(sources);
   return server;
+};
+
+/** Старый статический сервер: только `index.json`, на `index.v2.json` — 404. */
+const serveLegacy = async (...sources: CatalogSource[]) => {
+  server = await startCatalogServer(sources, { format: 'legacy' });
+  return server;
+};
+
+/** Значок показан и загружен: `<img>` с `data:`-адресом и ненулевой натуральной шириной. */
+const expectLoadedIcon = async (image: Locator) => {
+  await expect
+    .poll(() => image.first().getAttribute('src'), { timeout: 30_000 })
+    .toMatch(/^data:image\/png;base64,/);
+  await expect
+    .poll(
+      () =>
+        image
+          .first()
+          .evaluate((element: HTMLImageElement) =>
+            element.complete ? element.naturalWidth : 0,
+          ),
+      { timeout: 30_000 },
+    )
+    .toBeGreaterThan(0);
+  expect(await image.first().getAttribute('alt')).toBe('');
 };
 
 const extensionsDir = (userData: string) => join(userData, 'extensions');
@@ -156,7 +188,7 @@ describe('Настройки → Расширения → Каталог', () =>
     await catalog.openCatalogTab();
     await catalog.refreshCatalog();
     await expect
-      .poll(() => catalogServer.requests.includes('GET /index.json 304'))
+      .poll(() => catalogServer.requests.includes('GET /index.v2.json 304'))
       .toBe(true);
   });
 
@@ -324,10 +356,7 @@ describe('Настройки → Расширения → Каталог', () =>
     await client.openSettingsExtensions();
     const stillSameWindow = await client.markWindow();
     await catalog.openRemoveDialog(ID);
-    await expectText(
-      catalog.dialog,
-      'Данные расширения, ваши курсы и прогресс не затрагиваются',
-    );
+    await expectText(catalog.dialog, 'Ваши курсы и прогресс не затрагиваются');
     await catalog.confirmRemove();
 
     expect(await exists(join(extensionsDir(userData), ID))).toBe(false);
@@ -474,5 +503,68 @@ describe('Отзыв и целостность', () => {
     await catalog.openInstalledTab();
     await expectCount(catalog.installedRow('acme.echo'), 0);
     await expectCount(catalog.page.getByTestId('extensions-reload'), 0);
+  });
+
+  it('значок и ресурсы: значок виден на карточке, в диалоге и в списке установленных, файлы версии лежат байт в байт', async () => {
+    const catalogServer = await serve(PICTURED, SUNRISE_1_0);
+    const { userData } = workspace!;
+    const { client, catalog } = await launch(userData, catalogServer.url);
+    await client.openSettingsExtensions();
+    await catalog.openCatalogTab();
+
+    // каталог читается из полного индекса: index.json не запрашивался
+    expect(catalogServer.requests).toContain('GET /index.v2.json');
+    expect(catalogServer.requests).not.toContain('GET /index.json');
+    await expectLoadedIcon(
+      catalog.catalogCard('acme.pictured').getByTestId('extension-icon'),
+    );
+    await expectCount(catalog.catalogCard(ID).getByTestId('extension-icon'), 0);
+
+    await catalog.installButton('acme.pictured').click();
+    await expectLoadedIcon(catalog.dialog.getByTestId('extension-icon'));
+    await catalog.confirmInstall();
+    await expectText(catalog.dialog, 'Установлено. Расширение уже работает.');
+    await catalog.closeDialog();
+
+    await catalog.openInstalledTab();
+    await expectLoadedIcon(
+      catalog.installedRow('acme.pictured').getByTestId('extension-icon'),
+    );
+
+    const installed = join(extensionsDir(userData), 'acme.pictured');
+    for (const file of ['icon.png', 'logo.png', 'font.woff2', 'panel.css']) {
+      expect(await readFile(join(installed, 'assets', file))).toEqual(
+        await readFile(join(PICTURED.dir, 'assets', file)),
+      );
+    }
+    const meta = JSON.parse(
+      await readFile(join(installed, '.dolphy-install.json'), 'utf8'),
+    );
+    expect(meta.catalogUrl).toBe(catalogServer.url);
+  });
+
+  it('старый каталог без index.v2.json: приложение берёт index.json, версии с новыми типами файлов в нём нет', async () => {
+    const catalogServer = await serveLegacy(PICTURED, SUNRISE_1_0);
+    const { userData } = workspace!;
+    const { client, catalog } = await launch(userData, catalogServer.url);
+    await client.openSettingsExtensions();
+    await catalog.openCatalogTab();
+
+    expect(await catalog.catalogNames()).toEqual(['Sunrise']);
+    expect(catalogServer.requests).toContain('GET /index.v2.json 404');
+    expect(catalogServer.requests).toContain('GET /index.json');
+    await expectCount(catalog.page.getByTestId('extension-icon'), 0);
+
+    await catalog.installButton(ID).click();
+    await catalog.confirmInstall();
+    await expectText(catalog.dialog, 'Установлено. Расширение уже работает.');
+    await catalog.closeDialog();
+    const meta = JSON.parse(
+      await readFile(
+        join(extensionsDir(userData), ID, '.dolphy-install.json'),
+        'utf8',
+      ),
+    );
+    expect(meta.catalogUrl).toBe(catalogServer.url);
   });
 });

@@ -20,6 +20,7 @@ const extension: ResolvedExtension = {
   author: null,
   platforms: [],
   minAppVersion: null,
+  icon: null,
   install: null,
   exerciseTypes: [
     {
@@ -37,6 +38,10 @@ const extension: ResolvedExtension = {
   themes: [],
   markdownRenderers: [],
   gradePolicies: [],
+  settings: [],
+  events: [],
+  commands: [],
+  panels: [],
 };
 
 describe('createCatalog', () => {

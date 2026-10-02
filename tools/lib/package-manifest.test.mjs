@@ -34,6 +34,10 @@ describe('createManifest', () => {
     const manifest = manifestOf('extension-sdk');
     assert.deepEqual(manifest.exports, {
       '.': { types: './dist/index.d.ts', default: './dist/index.js' },
+      './runtime': {
+        types: './dist/runtime.d.ts',
+        default: './dist/runtime.js',
+      },
       './testing': {
         types: './dist/testing.d.ts',
         default: './dist/testing.js',
@@ -41,6 +45,17 @@ describe('createManifest', () => {
     });
     assert.equal(manifest.types, './dist/index.d.ts');
     assert.equal(manifest.bin, undefined);
+  });
+
+  it('sideEffects: false только у SDK, остальные пакеты поле не пишут', () => {
+    assert.equal(manifestOf('extension-sdk').sideEffects, false);
+    for (const dir of [
+      'extension-api',
+      'extension-tools',
+      'create-extension',
+    ]) {
+      assert.equal(manifestOf(dir).sideEffects, undefined);
+    }
   });
 
   it('CLI-пакет: только bin, без exports и types', () => {

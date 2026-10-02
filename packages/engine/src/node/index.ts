@@ -37,6 +37,7 @@ export type {
 export { createNodeFolderSyncPort } from './folder-sync-port.ts';
 export type { NodeFolderSyncPortDeps } from './folder-sync-port.ts';
 export { createMemoryRepositoryStore } from './memory-repository-store.ts';
+export { createMemoryExtensionDataStore } from './memory-extension-data-store.ts';
 export { createNodeSnapshotInstaller } from './snapshot-installer.ts';
 export type { NodeSnapshotInstallerDeps } from './snapshot-installer.ts';
 export { createDirectorySwap } from './directory-swap.ts';

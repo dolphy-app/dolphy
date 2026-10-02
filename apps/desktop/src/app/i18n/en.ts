@@ -8,6 +8,8 @@ export const en: typeof ru = {
     courses: 'Courses',
     graph: 'Knowledge graph',
     settings: 'Settings',
+    extensions: 'Extension panels',
+    commands: 'Commands',
   },
   startup: {
     updateTitle: 'Update the app',

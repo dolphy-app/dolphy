@@ -51,6 +51,7 @@ export const manifestSchema = z
       .string()
       .refine(isSemver, 'minAppVersion must be semver x.y.z')
       .optional(),
+    icon: safePath(['.png', '.webp']).optional(),
     contributes: contributesSchema,
   })
   .superRefine((manifest, ctx) => {
@@ -73,6 +74,16 @@ export const manifestSchema = z
         });
       }
     });
+    if (
+      entriesOf(manifest.contributes, 'events').length > 0 &&
+      !permissions.includes('learning.events')
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['permissions'],
+        message: "contributes.events requires the 'learning.events' permission",
+      });
+    }
     if (isEmpty(manifest.contributes)) {
       ctx.addIssue({
         code: 'custom',
@@ -109,6 +120,7 @@ export const normalizeManifest = (
     author: input.author ?? null,
     platforms: [...(input.platforms ?? [])],
     minAppVersion: input.minAppVersion ?? null,
+    icon: input.icon ?? null,
     contributes: contributes as ExtensionManifest['contributes'],
   };
 };

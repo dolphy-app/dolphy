@@ -2,7 +2,7 @@
   "name": "@dolphy-app/extension-host",
   "version": "0.0.0",
   "private": true,
-  "description": "Хост расширений: манифесты, обнаружение, рантайм и клиент видов заданий",
+  "description": "Extension host: manifests, discovery, runtime and the exercise view client",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",

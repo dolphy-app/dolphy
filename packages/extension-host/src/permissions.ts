@@ -6,6 +6,8 @@ import type { ExtensionPermission } from '@dolphy-app/extension-api';
  *
  * - `library.read` — не флаг Node, а возможность контекста: родитель отвечает
  *   на запросы прокси `ctx.library`, пока разрешение объявлено.
+ * - `learning.events` — тоже не флаг Node: события обучения доставляет
+ *   движок, пока разрешение объявлено и событие есть в `contributes.events`.
  * - `network` — только объявляется и показывается пользователю: режим
  *   разрешений Node не умеет ограничивать сеть.
  */
@@ -15,6 +17,7 @@ const GRANT_FLAGS: Readonly<Record<ExtensionPermission, readonly string[]>> = {
   'worker.threads': ['--allow-worker'],
   'native.addons': ['--allow-addons'],
   network: [],
+  'learning.events': [],
 };
 
 export const grantFlags = (

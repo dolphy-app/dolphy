@@ -3,11 +3,16 @@
  * настройки в памяти по умолчанию, библиотека — фикстура, синтетическая
  * библиотека или свой `CourseSource`.
  */
-import type { EngineConfig, EngineEvent } from '@dolphy-app/engine-contract';
+import type {
+  EngineConfig,
+  EngineEvent,
+  LearningEvent,
+} from '@dolphy-app/engine-contract';
 import {
   createCapturingLogger,
   createFakeClock,
   createFakeExerciseTypes,
+  createFakeExtensionCommands,
   createFakeExtensionInstaller,
   createFakeExtensionPolicy,
   createFakeExtensionRegistry,
@@ -29,6 +34,7 @@ import type { HostedEngine } from '../../src/app/index.ts';
 import type { EngineContext, EngineDeps } from '../../src/app/index.ts';
 import {
   createMemoryEventStore,
+  createMemoryExtensionDataStore,
   createMemoryRepositoryStore,
   createMemorySettingsStore,
   createNodeFsCourseSource,
@@ -38,6 +44,7 @@ import { GitFetchError } from '../../src/ports/index.ts';
 import type {
   CourseSource,
   EventStore,
+  ExtensionDataStore,
   GitSnapshotFetcher,
   RepositoryStore,
   SettingsStore,
@@ -45,6 +52,7 @@ import type {
 } from '../../src/ports/index.ts';
 import type { ExerciseTypes } from '../../src/ports/exercise-types.ts';
 import type { GradePolicies } from '../../src/ports/grade-policies.ts';
+import type { ExtensionCommands } from '../../src/ports/extension-commands.ts';
 import type { ExtensionInstaller } from '../../src/ports/extension-installer.ts';
 import type { ExtensionPolicy } from '../../src/ports/extension-policy.ts';
 import type { ExtensionReloader } from '../../src/ports/extension-reloader.ts';
@@ -71,6 +79,7 @@ export interface TestEngineOptions {
   settings?: SettingsStore;
   exerciseTypes?: ExerciseTypes;
   gradePolicies?: GradePolicies;
+  extensionCommands?: ExtensionCommands;
   extensionRegistry?: ExtensionRegistry;
   extensionPolicy?: ExtensionPolicy;
   extensionInstaller?: ExtensionInstaller;
@@ -81,6 +90,8 @@ export interface TestEngineOptions {
   folderSync?: EngineDeps['folderSync'];
   openTraneSource?: EngineDeps['openTraneSource'];
   repositoryStore?: RepositoryStore;
+  /** По умолчанию — `createMemoryExtensionDataStore()`. */
+  extensionDataStore?: ExtensionDataStore;
   /** По умолчанию — без сети (`GIT_FETCH_FAILED/network`). */
   snapshotFetcher?: GitSnapshotFetcher;
   /** По умолчанию — `createNodeSnapshotInstaller` над `libraryRoot` и `dataDir`. */
@@ -96,6 +107,7 @@ export interface TestContext {
   source: CourseSource;
   eventStore: EventStore;
   settings: SettingsStore;
+  extensionDataStore: ExtensionDataStore;
   logs: CapturedLog[];
 }
 
@@ -154,6 +166,8 @@ export const createTestContext = async (
   };
   const repositoryStore =
     options.repositoryStore ?? createMemoryRepositoryStore();
+  const extensionDataStore =
+    options.extensionDataStore ?? createMemoryExtensionDataStore();
   const deps: EngineDeps = {
     clock,
     rng,
@@ -165,6 +179,8 @@ export const createTestContext = async (
     memoryModel: createTsFsrsMemoryModel(),
     exerciseTypes: options.exerciseTypes ?? createFakeExerciseTypes(),
     gradePolicies: options.gradePolicies ?? createFakeGradePolicies(),
+    extensionCommands:
+      options.extensionCommands ?? createFakeExtensionCommands(),
     extensionRegistry:
       options.extensionRegistry ?? createFakeExtensionRegistry(),
     extensionPolicy: options.extensionPolicy ?? createFakeExtensionPolicy(),
@@ -173,6 +189,7 @@ export const createTestContext = async (
     extensionReloader:
       options.extensionReloader ?? createFakeExtensionReloader(),
     repositoryStore,
+    extensionDataStore,
     snapshotFetcher: options.snapshotFetcher ?? offlineFetcher,
     snapshotInstaller:
       options.snapshotInstaller ??
@@ -186,13 +203,26 @@ export const createTestContext = async (
     }),
   };
   const ctx = await createContext(deps, config);
-  return { ctx, deps, clock, rng, ids, source, eventStore, settings, logs };
+  return {
+    ctx,
+    deps,
+    clock,
+    rng,
+    ids,
+    source,
+    eventStore,
+    settings,
+    extensionDataStore,
+    logs,
+  };
 };
 
 export interface TestEngine extends TestContext {
   engine: HostedEngine;
   /** События, доставленные подписчикам, по порядку. */
   events: EngineEvent[];
+  /** События обучения, доставленные приёмнику, по порядку. */
+  learning: LearningEvent[];
 }
 
 export const createTestEngine = async (
@@ -202,5 +232,9 @@ export const createTestEngine = async (
   const engine = createEngineFromContext(context.ctx);
   const events: EngineEvent[] = [];
   engine.subscribe((event) => events.push(event));
-  return { ...context, engine, events };
+  const learning: LearningEvent[] = [];
+  engine.onLearningEvent((event) => {
+    learning.push(event);
+  });
+  return { ...context, engine, events, learning };
 };

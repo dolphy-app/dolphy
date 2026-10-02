@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: partially superseded by ADR-0005, ADR-0010
 date: 2026-10-01
 spec: specs/archive/2026-10-01-extension-install/SPEC.md
 ---

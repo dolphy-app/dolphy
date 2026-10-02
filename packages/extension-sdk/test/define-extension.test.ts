@@ -3,9 +3,11 @@ import {
   defineExerciseType,
   defineExtension,
   type Disposable,
+  inActivate,
   type ExerciseTypeHandler,
   type ExtensionContext,
 } from '../src/index.ts';
+import { createMemorySettings, createMemoryStorage } from '../src/testing.ts';
 
 const handler = (): ExerciseTypeHandler =>
   defineExerciseType({
@@ -38,6 +40,20 @@ const createContext = (log: string[], failOn: readonly string[] = []) => {
     registerGradePolicy: (id): Disposable => {
       log.push(`register policy ${id}`);
       return { dispose: () => void log.push(`dispose policy ${id}`) };
+    },
+    storage: createMemoryStorage(),
+    settings: createMemorySettings([]),
+    events: {
+      on: (name): Disposable => {
+        log.push(`subscribe ${name}`);
+        return { dispose: () => void log.push(`unsubscribe ${name}`) };
+      },
+    },
+    commands: {
+      register: (id): Disposable => {
+        log.push(`command ${id}`);
+        return { dispose: () => void log.push(`uncommand ${id}`) };
+      },
     },
   };
   return context;
@@ -190,6 +206,115 @@ describe('defineExtension', () => {
     expect(log).toEqual([
       'register policy a.generous',
       'dispose policy a.generous',
+    ]);
+  });
+  it('subscribes events after policies and rolls them back with the rest on failure', async () => {
+    const log: string[] = [];
+    const module = defineExtension({
+      gradePolicies: { 'a.generous': () => 5 },
+      events: {
+        'attempt.closed': () => undefined,
+        'session.started': () => undefined,
+      },
+      activate: () => {
+        throw new Error('activation failed');
+      },
+    });
+    await expect(module.activate(createContext(log))).rejects.toThrow(
+      'activation failed',
+    );
+    expect(log).toEqual([
+      'register policy a.generous',
+      'subscribe attempt.closed',
+      'subscribe session.started',
+      'unsubscribe session.started',
+      'unsubscribe attempt.closed',
+      'dispose policy a.generous',
+    ]);
+  });
+
+  it('unsubscribes events on deactivate', async () => {
+    const log: string[] = [];
+    const module = defineExtension({
+      events: { 'session.finished': () => undefined },
+    });
+    await module.activate(createContext(log));
+    log.length = 0;
+    await module.deactivate?.();
+    expect(log).toEqual(['unsubscribe session.finished']);
+  });
+
+  it('registers commands after events and rolls everything back in reverse when a later one throws', async () => {
+    const log: string[] = [];
+    const context = createContext(log);
+    context.commands.register = (id): Disposable => {
+      if (id === 'a.bad') throw new Error('duplicate');
+      log.push(`command ${id}`);
+      return { dispose: () => void log.push(`uncommand ${id}`) };
+    };
+    const module = defineExtension({
+      gradePolicies: { 'a.generous': () => 5 },
+      events: { 'attempt.closed': () => undefined },
+      commands: { 'a.one': () => undefined, 'a.bad': () => undefined },
+    });
+    await expect(module.activate(context)).rejects.toThrow('duplicate');
+    expect(log).toEqual([
+      'register policy a.generous',
+      'subscribe attempt.closed',
+      'command a.one',
+      'uncommand a.one',
+      'unsubscribe attempt.closed',
+      'dispose policy a.generous',
+    ]);
+  });
+
+  it('disposes commands first on deactivate and works without a commands key', async () => {
+    const log: string[] = [];
+    const module = defineExtension({
+      events: { 'session.finished': () => undefined },
+      commands: { 'a.one': () => undefined, 'a.two': () => undefined },
+    });
+    await module.activate(createContext(log));
+    log.length = 0;
+    await module.deactivate?.();
+    expect(log).toEqual([
+      'uncommand a.two',
+      'uncommand a.one',
+      'unsubscribe session.finished',
+    ]);
+
+    const plain: string[] = [];
+    const without = defineExtension({ exerciseTypes: { 'a.t': handler() } });
+    await without.activate(createContext(plain));
+    expect(plain).toEqual(['register a.t']);
+  });
+
+  it('skips the ids marked inActivate so activate can register them with the context', async () => {
+    const log: string[] = [];
+    const module = defineExtension({
+      exerciseTypes: { 'a.one': inActivate, 'a.two': handler() },
+      gradePolicies: { 'a.policy': inActivate },
+      events: {
+        'attempt.closed': inActivate,
+        'session.finished': () => undefined,
+      },
+      commands: { 'a.cmd': inActivate, 'a.other': () => undefined },
+      activate(ctx) {
+        ctx.registerExerciseType('a.one', handler());
+        ctx.registerGradePolicy('a.policy', () => 4);
+        ctx.events.on('attempt.closed', () => undefined);
+        ctx.commands.register('a.cmd', () => undefined);
+      },
+    });
+    await module.activate(createContext(log));
+    expect(log).toEqual([
+      'register a.two',
+      'subscribe session.finished',
+      'command a.other',
+      'register a.one',
+      'register policy a.policy',
+      'subscribe attempt.closed',
+      'command a.cmd',
     ]);
   });
 });

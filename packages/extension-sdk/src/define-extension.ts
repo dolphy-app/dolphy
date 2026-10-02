@@ -1,19 +1,85 @@
 import type {
+  CommandHandler,
   Disposable,
   ExerciseTypeHandler,
-  ExtensionContext,
+  ExtensionContext as ApiExtensionContext,
   ExtensionModule,
   GradePolicyHandler,
+  LearningEventHandler,
+  LearningEventName,
 } from '@dolphy-app/extension-api';
+import type { ExtensionContext, HasGeneratedIds, ResolvedIds } from './ids.ts';
 
-export interface ExtensionDefinition {
-  exerciseTypes?: Readonly<Record<string, ExerciseTypeHandler>>;
-  gradePolicies?: Readonly<Record<string, GradePolicyHandler>>;
-  /** Вызывается после регистрации `exerciseTypes` и `gradePolicies`. */
-  activate?(context: ExtensionContext): void | Promise<void>;
-  deactivate?(): void | Promise<void>;
+declare const inActivateBrand: unique symbol;
+
+/** Type of `inActivate`. */
+export interface InActivate {
+  readonly [inActivateBrand]: true;
 }
 
+/**
+ * A record value in `defineExtension` that says "this id is registered in
+ * `activate`" (`ctx.commands.register`, `ctx.events.on`,
+ * `ctx.registerExerciseType`, `ctx.registerGradePolicy`) rather than by a
+ * handler in the record. Needed because the records must name every declared
+ * id: a handler that needs `ctx` is written in `activate`, and its id gets this
+ * marker in the record.
+ */
+export const inActivate = /*#__PURE__*/ Object.freeze({}) as InActivate;
+
+/** Without generated declarations a record may name any subset: an index signature already does, a record keyed by the event names needs `Partial`. */
+type Lenient<Entries> = string extends keyof Entries
+  ? Entries
+  : Partial<Entries>;
+
+/**
+ * The definition record of one kind of id. With generated declarations the
+ * record is required (when the manifest declares any id of the kind) and holds
+ * exactly the declared ids: a missing and an extra key are compile errors.
+ * Without them every key is accepted and the record is optional.
+ */
+type Section<Name extends string, Id extends string, Entries> = [
+  HasGeneratedIds,
+] extends [false]
+  ? { readonly [N in Name]?: Lenient<Entries> }
+  : [Id] extends [never]
+    ? { readonly [N in Name]?: never }
+    : { readonly [N in Name]: Entries };
+
+type Ids = ResolvedIds;
+
+/** Learning-event handlers by event name; the events must be declared in `contributes.events`, the `learning.events` permission is needed. */
+export type EventHandlers = {
+  readonly [N in Ids['events']]: LearningEventHandler<N> | InActivate;
+};
+
+/**
+ * What `defineExtension` takes. `exerciseTypes`, `gradePolicies`, `events` and
+ * `commands` name every id `extension.json` declares for them, exactly: a
+ * handler, or `inActivate` for an id that `activate` registers.
+ */
+export type ExtensionDefinition = Section<
+  'exerciseTypes',
+  Ids['exerciseTypes'],
+  { readonly [K in Ids['exerciseTypes']]: ExerciseTypeHandler | InActivate }
+> &
+  Section<
+    'gradePolicies',
+    Ids['gradePolicies'],
+    { readonly [K in Ids['gradePolicies']]: GradePolicyHandler | InActivate }
+  > &
+  Section<'events', Ids['events'], EventHandlers> &
+  Section<
+    'commands',
+    Ids['commands'],
+    { readonly [K in Ids['commands']]: CommandHandler | InActivate }
+  > & {
+    /** Runs after the records are registered. */
+    activate?(context: ExtensionContext): void | Promise<void>;
+    deactivate?(): void | Promise<void>;
+  };
+
+/*#__NO_SIDE_EFFECTS__*/
 export const defineExerciseType = <Spec, Answer, View>(
   handler: ExerciseTypeHandler<Spec, Answer, View>,
 ): ExerciseTypeHandler<Spec, Answer, View> => handler;
@@ -32,24 +98,59 @@ const disposeInReverse = async (
   return errors;
 };
 
+/**
+ * The definition as the runtime sees it: the types above only narrow the keys
+ * to the declared ids, which the host checks again when it registers them.
+ */
+interface LooseDefinition {
+  exerciseTypes?: Readonly<Record<string, ExerciseTypeHandler | InActivate>>;
+  gradePolicies?: Readonly<Record<string, GradePolicyHandler | InActivate>>;
+  events?: Readonly<
+    Partial<Record<LearningEventName, LearningEventHandler<never> | InActivate>>
+  >;
+  commands?: Readonly<Record<string, CommandHandler | InActivate>>;
+  activate?(context: ApiExtensionContext): void | Promise<void>;
+  deactivate?(): void | Promise<void>;
+}
+
+/** The entries of a record that carry a handler (not `inActivate`). */
+const handlersOf = <T>(
+  record: Readonly<Record<string, T | InActivate>> | undefined,
+): [string, T][] =>
+  Object.entries(record ?? {}).filter(
+    (entry): entry is [string, T] => entry[1] !== inActivate,
+  );
+
+/*#__NO_SIDE_EFFECTS__*/
 export const defineExtension = (
-  definition: ExtensionDefinition,
+  declared: ExtensionDefinition,
 ): ExtensionModule => {
+  // the declared-ids types depend on the program that includes the generated
+  // declarations; the runtime needs only the loose shape
+  const definition = declared as unknown as LooseDefinition;
   const registrations: Disposable[] = [];
 
-  const register = (context: ExtensionContext) => {
-    const entries = Object.entries(definition.exerciseTypes ?? {});
-    for (const [type, handler] of entries) {
+  const register = (context: ApiExtensionContext) => {
+    for (const [type, handler] of handlersOf(definition.exerciseTypes)) {
       registrations.push(context.registerExerciseType(type, handler));
     }
-    for (const [id, handler] of Object.entries(
-      definition.gradePolicies ?? {},
-    )) {
+    for (const [id, handler] of handlersOf(definition.gradePolicies)) {
       registrations.push(context.registerGradePolicy(id, handler));
+    }
+    for (const [name, handler] of handlersOf(definition.events)) {
+      registrations.push(
+        context.events.on(
+          name as LearningEventName,
+          handler as LearningEventHandler<LearningEventName>,
+        ),
+      );
+    }
+    for (const [id, handler] of handlersOf(definition.commands)) {
+      registrations.push(context.commands.register(id, handler));
     }
   };
 
-  const activate = async (context: ExtensionContext) => {
+  const activate = async (context: ApiExtensionContext) => {
     try {
       register(context);
       await definition.activate?.(context);

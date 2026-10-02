@@ -25,6 +25,22 @@ export const contributionGroups = (
     }),
   );
 
+/** Сколько значений вклада показано, пока группа свёрнута: у расширения до 64 команд, карточка не должна расти без предела. */
+export const COLLAPSED_VALUES = 8;
+
+/**
+ * Значения группы для показа: свёрнутая группа — первые `limit`, остальное
+ * считается в `hidden`; группа не длиннее `limit` не сворачивается вовсе.
+ */
+export const visibleValues = (
+  values: readonly string[],
+  expanded: boolean,
+  limit = COLLAPSED_VALUES,
+): { shown: readonly string[]; hidden: number } =>
+  expanded || values.length <= limit
+    ? { shown: values, hidden: 0 }
+    : { shown: values.slice(0, limit), hidden: values.length - limit };
+
 export type ExtensionsState = 'loading' | 'loaded' | 'failed';
 
 export type ExtensionSwitch = 'enabled' | 'trusted';

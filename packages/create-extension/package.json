@@ -2,7 +2,7 @@
   "name": "@dolphy-app/create-extension",
   "version": "0.0.0",
   "private": true,
-  "description": "Генератор проекта расширения: create-dolphy-extension <каталог>",
+  "description": "Extension project generator: create-dolphy-extension <directory>",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"

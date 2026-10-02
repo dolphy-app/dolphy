@@ -13,6 +13,10 @@ const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
   themes: [],
   markdownRenderers: [],
   gradePolicies: [],
+  settings: [],
+  events: [],
+  commands: [],
+  panels: [],
 };
 
 const isolationOf = (
@@ -26,11 +30,18 @@ const withoutMetadata = (
   origin: ExtensionInfoDto['origin'],
 ): Pick<
   ExtensionInfoDto,
-  'name' | 'description' | 'author' | 'installed' | 'removable' | 'revoked'
+  | 'name'
+  | 'description'
+  | 'author'
+  | 'icon'
+  | 'installed'
+  | 'removable'
+  | 'revoked'
 > => ({
   name: null,
   description: null,
   author: null,
+  icon: null,
   installed: null,
   removable: origin === 'user',
   revoked: null,
@@ -40,7 +51,14 @@ const withoutMetadata = (
 export const contributesOf = (
   extension: Pick<
     ResolvedExtension,
-    'exerciseTypes' | 'themes' | 'markdownRenderers' | 'gradePolicies'
+    | 'exerciseTypes'
+    | 'themes'
+    | 'markdownRenderers'
+    | 'gradePolicies'
+    | 'settings'
+    | 'events'
+    | 'commands'
+    | 'panels'
   >,
 ): ExtensionInfoDto['contributes'] => ({
   exerciseTypes: extension.exerciseTypes.map(({ id }) => id),
@@ -49,6 +67,10 @@ export const contributesOf = (
     ({ language }) => language,
   ),
   gradePolicies: extension.gradePolicies.map(({ id }) => id),
+  settings: extension.settings.map(({ id }) => id),
+  events: extension.events.map(({ event }) => event),
+  commands: extension.commands.map(({ id }) => id),
+  panels: extension.panels.map(({ id }) => id),
 });
 
 const loaded = (
@@ -70,6 +92,7 @@ const loaded = (
     name: extension.name,
     description: extension.description,
     author: extension.author,
+    icon: extension.icon,
     installed: extension.install === null ? null : { ...extension.install },
     removable: extension.origin === 'user',
     revoked,
@@ -153,6 +176,24 @@ export const createExtensionRegistry = (
           id: policyItem.id,
           extensionId: id,
           label: policyItem.label,
+        })),
+      ),
+      settings: enabled().flatMap(({ id, settings }) =>
+        settings.map((setting) =>
+          structuredClone({ ...setting, extensionId: id }),
+        ),
+      ),
+      commands: enabled().flatMap(({ id, commands }) =>
+        commands.map((command) => ({ ...command, extensionId: id })),
+      ),
+      // панель всегда в рамке, даже у доверенного расширения (ADR 0008)
+      panels: enabled().flatMap((extension) =>
+        extension.panels.map((panel) => ({
+          ...panel,
+          extensionId: extension.id,
+          isolated: true,
+          origin: extension.origin,
+          revision: extension.revision,
         })),
       ),
     }),

@@ -76,10 +76,9 @@ const unwrap = (node: AstNode): AstNode => {
   return current;
 };
 
+/** Имя из идентификатора или строкового литерала (`{ a: 1 }`, `{ 'a-b': 1 }`, `export { x as 'y' }`). */
 const nameOf = (node: AstNode): string =>
-  node.type === 'Identifier'
-    ? (node.name as string)
-    : String((node as { value?: unknown }).value);
+  String(node.type === 'Identifier' ? node.name : node.value);
 
 const isFile = async (file: string): Promise<boolean> =>
   (await stat(file).catch(() => null))?.isFile() === true;

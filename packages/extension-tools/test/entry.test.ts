@@ -191,6 +191,23 @@ describe('обвязки: выходные файлы', () => {
     expect(view).not.toContain('VIEW_THREE_MARKER');
     expect(await read(dir, 'panel.mjs')).not.toContain('ALPHA_MARKER');
   });
+  it('урезание записей верно и при не-ASCII тексте перед ними', async () => {
+    const root = await copyProject('surfaces');
+    await edit(path.join(root, 'src', 'index.ts'), (text) =>
+      text.replace(
+        'export const views',
+        "export const note = 'Привет, мир — 😀';\nexport const views",
+      ),
+    );
+    const { dir } = await buildExtension({
+      root,
+      outDir: path.join(root, 'out'),
+    });
+    const view = await read(dir, 'view.mjs');
+    expect(view).toContain('VIEW_ONE_MARKER');
+    expect(view).not.toContain('VIEW_THREE_MARKER');
+    expect(await read(dir, 'view-three.mjs')).not.toContain('VIEW_ONE_MARKER');
+  });
 });
 
 describe('сверка с манифестом', () => {

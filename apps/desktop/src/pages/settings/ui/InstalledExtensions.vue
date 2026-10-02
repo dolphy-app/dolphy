@@ -17,6 +17,7 @@ import { useExtensionData } from '../model/extension-data.ts';
 import { useInstallContext } from '../model/install.ts';
 import ExtensionContributions from './ExtensionContributions.vue';
 import ExtensionData from './ExtensionData.vue';
+import ExtensionIcon from './ExtensionIcon.vue';
 import ExtensionPermissions from './ExtensionPermissions.vue';
 import ExtensionSettingsDialog from './ExtensionSettingsDialog.vue';
 
@@ -237,6 +238,7 @@ watch(
         >
           <v-card class="pa-4">
             <div class="d-flex flex-wrap align-center ga-2">
+              <ExtensionIcon :src="extension.icon" />
               <h3 class="name text-title-medium font-weight-bold">
                 {{ displayName(extension) }}
               </h3>

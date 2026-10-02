@@ -5,6 +5,7 @@ import { formatBytes } from '../lib/format.ts';
 import type { InstallItemStatus } from '../model/install.ts';
 import { useInstallContext } from '../model/install.ts';
 import ExtensionContributions from './ExtensionContributions.vue';
+import ExtensionIcon from './ExtensionIcon.vue';
 import ExtensionPermissions from './ExtensionPermissions.vue';
 
 interface StatusView {
@@ -87,6 +88,7 @@ const closeOnBackdrop = (open: boolean) => {
             :data-extension-id="item.target.id"
           >
             <div class="d-flex flex-wrap align-center ga-2">
+              <ExtensionIcon :src="item.target.icon" />
               <h3
                 v-if="install.items.value.length > 1 || isFinished"
                 class="name text-title-medium font-weight-bold"

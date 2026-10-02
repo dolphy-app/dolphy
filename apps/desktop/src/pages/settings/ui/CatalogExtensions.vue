@@ -15,6 +15,7 @@ import type { ContributionPoint } from '../lib/catalog.ts';
 import { useCatalog } from '../model/catalog.ts';
 import { useInstallContext } from '../model/install.ts';
 import ExtensionContributions from './ExtensionContributions.vue';
+import ExtensionIcon from './ExtensionIcon.vue';
 import ExtensionPermissions from './ExtensionPermissions.vue';
 
 const SKELETON_COUNT = 3;
@@ -216,6 +217,7 @@ onMounted(() => void open());
         >
           <v-card class="pa-4">
             <div class="d-flex flex-wrap align-center ga-2">
+              <ExtensionIcon :src="entry.icon" />
               <h3 class="name text-title-medium font-weight-bold">
                 {{ entry.name }}
               </h3>

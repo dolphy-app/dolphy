@@ -49,6 +49,7 @@ export const ru = {
     node: {
       score: 'Оценка {score} из 5',
       noScore: 'Нет оценки',
+      scoreShort: '{score} / 5',
       due: 'нет повторений | {n} повторение | {n} повторения | {n} повторений',
       aria: '{name}: {status}. {score}. {due}',
     },

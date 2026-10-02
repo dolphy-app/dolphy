@@ -39,6 +39,15 @@ const scoreText = computed(() => {
         score: n(score, { maximumFractionDigits: 1 }),
       });
 });
+/** Число рядом со шкалой: без него полоса «Освоен» на 79% читается как неполное освоение. */
+const scoreShort = computed(() => {
+  const score = lesson.value?.score ?? 0;
+  return score > 0
+    ? t('graph.node.scoreShort', {
+        score: n(score, { maximumFractionDigits: 1 }),
+      })
+    : null;
+});
 const dueText = computed(() =>
   t('graph.node.due', { n: lesson.value?.due ?? 0 }, lesson.value?.due ?? 0),
 );
@@ -112,9 +121,12 @@ const onKeydown = (event: KeyboardEvent) => {
     </div>
     <div class="meta text-label-medium text-medium-emphasis">
       <span class="status-text">{{ t(`graph.status.${status}`) }}</span>
-      <span v-if="lesson.due > 0" class="due">
-        <v-icon icon="mdi-refresh" size="14" />
-        {{ dueText }}
+      <span class="meta-end">
+        <span v-if="lesson.due > 0" class="due">
+          <v-icon icon="mdi-refresh" size="14" />
+          {{ dueText }}
+        </span>
+        <span v-if="scoreShort" class="score-value">{{ scoreShort }}</span>
       </span>
     </div>
     <v-progress-linear
@@ -184,6 +196,18 @@ const onKeydown = (event: KeyboardEvent) => {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta-end {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 8px;
+  align-items: center;
+}
+
+.score-value {
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 

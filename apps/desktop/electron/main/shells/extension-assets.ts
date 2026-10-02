@@ -55,7 +55,7 @@ export const RESERVED_PREFIX = '__dolphy';
  * стили, изображения и шрифты — только с `dolphy-ext://<id>` этого же
  * расширения (плюс `data:`/`blob:` и встроенные стили). Источник-хост на
  * непрозрачном origin работает: чужое расширение блокируется до запроса к
- * протоколу (эксперимент в Electron, `specs/extension-assets/SPEC.md`).
+ * протоколу (эксперимент в Electron, `docs/adr/0010-extension-static-assets.md`).
  */
 export const frameCsp = (id: string): string => {
   const own = `${EXTENSION_SCHEME}://${id}`;

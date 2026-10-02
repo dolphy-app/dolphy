@@ -8,6 +8,7 @@ interface Spec {
   title?: string;
   category?: string;
   enabled?: boolean;
+  listed?: boolean;
 }
 
 /** Ключ строки — `<extensionId>:<id>`, подпись — id расширения, как у команды расширения. */
@@ -23,6 +24,7 @@ const command = (id: string, override: Omit<Spec, 'id'> = {}): Command => {
     keybinding: undefined,
     checked: undefined,
     enabled: override.enabled ?? true,
+    listed: override.listed ?? true,
     run: () => undefined,
   };
 };
@@ -54,6 +56,17 @@ describe('filterCommands', () => {
     expect(
       filterCommands([command('hidden', { enabled: false })], 'hidden'),
     ).toEqual([]);
+  });
+
+  it('команды, скрытые из палитры, не показываются ни без запроса, ни по запросу', () => {
+    const commands = [
+      command('shown'),
+      command('hidden', { listed: false, title: 'shown too' }),
+    ];
+    expect(keys(filterCommands(commands, ''))).toEqual(['acme.streak:shown']);
+    expect(keys(filterCommands(commands, 'shown'))).toEqual([
+      'acme.streak:shown',
+    ]);
   });
 
   it('поиск без учёта регистра по названию, категории и подписи (id расширения)', () => {

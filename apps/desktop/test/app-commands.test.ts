@@ -58,10 +58,12 @@ const setup = () => {
     if (mode !== 'system') i18n.global.locale.value = mode;
   });
   const reportFailure = vi.fn();
+  const openPalette = vi.fn();
   const scope = effectScope();
   const stop = scope.run(() =>
     registerAppCommands({
       registry,
+      openPalette,
       router: { push },
       t: i18n.global.t as never,
       themeSelection: { saved, select: selectTheme },
@@ -85,6 +87,7 @@ const setup = () => {
     selectTheme,
     selectLocale,
     reportFailure,
+    openPalette,
     stop,
     find,
     titles,
@@ -136,12 +139,33 @@ describe('команды приложения: переходы', () => {
     expect(push).toHaveBeenCalledExactlyOnceWith({ name: route });
   });
 
-  it('у «Настроек» есть сочетание Mod+, — у остальных переходов нет', () => {
+  it('сочетания: Mod+K, Mod+, и Mod+1..3 — остальные команды без сочетаний', () => {
     const { registry } = setup();
-    const bound = registry.list.value
-      .filter(({ keybinding }) => keybinding !== undefined)
-      .map(({ key }) => key);
-    expect(bound).toEqual(['app:go:settings']);
+    const bound = Object.fromEntries(
+      registry.list.value
+        .filter(({ keybinding }) => keybinding !== undefined)
+        .map(({ key, keybinding }) => [key, keybinding]),
+    );
+    expect(bound).toEqual({
+      'app:palette.open': 'Mod+K',
+      'app:go:dailyPlan': 'Mod+1',
+      'app:go:courses': 'Mod+2',
+      'app:go:graph': 'Mod+3',
+      'app:go:settings': 'Mod+,',
+    });
+  });
+
+  it('«Открыть палитру команд» — команда приложения, скрытая из палитры; запускает открытие палитры', async () => {
+    const { find, openPalette } = setup();
+    const command = find('app:palette.open');
+    expect(command).toMatchObject({
+      source: 'app',
+      title: 'Открыть палитру команд',
+      category: 'Приложение',
+      listed: false,
+    });
+    await command?.run();
+    expect(openPalette).toHaveBeenCalledOnce();
   });
 
   it('сбой перехода уходит в уведомление, а не в исключение', async () => {

@@ -13,10 +13,13 @@ import type {
   CommandRegistry,
   SyncedCommand,
 } from '@/shared/lib/command-registry.ts';
+import { PALETTE_KEYBINDING } from '@/shared/lib/keybinding.ts';
 import { effectiveThemeId } from '@/shared/lib/extension-themes.ts';
 
 export interface AppCommandsDeps {
   registry: CommandRegistry;
+  /** Открывает палитру (команда «Открыть палитру команд» с Mod+K). */
+  openPalette(): void;
   router: { push(to: RouteLocationRaw): Promise<unknown> };
   /** Переводчик окна: названия читаются при каждом чтении списка, язык меняется на лету. */
   t: ComposerTranslation;
@@ -29,9 +32,9 @@ export interface AppCommandsDeps {
 }
 
 const DESTINATIONS = [
-  { id: 'dailyPlan', route: ROUTE.dailyPlan, keybinding: undefined },
-  { id: 'courses', route: ROUTE.courses, keybinding: undefined },
-  { id: 'graph', route: ROUTE.graph, keybinding: undefined },
+  { id: 'dailyPlan', route: ROUTE.dailyPlan, keybinding: 'Mod+1' },
+  { id: 'courses', route: ROUTE.courses, keybinding: 'Mod+2' },
+  { id: 'graph', route: ROUTE.graph, keybinding: 'Mod+3' },
   { id: 'settings', route: ROUTE.settings, keybinding: 'Mod+,' },
   {
     id: 'settingsLearning',
@@ -84,14 +87,28 @@ export const registerAppCommands = (deps: AppCommandsDeps): (() => void) => {
     descriptor: Omit<CommandDescriptor, 'key' | 'source'>,
   ): CommandDescriptor => ({ key: `app:${id}`, source: 'app', ...descriptor });
 
-  const disposers = DESTINATIONS.map(({ id, route, keybinding }) =>
+  const disposers = [
     registry.register(
-      app(`go:${id}`, {
-        title: () => t(`appCommands.go.${id}`),
-        category: () => t('appCommands.category.go'),
-        keybinding,
-        run: guarded(() => deps.router.push({ name: route })),
+      app('palette.open', {
+        title: () => t('appCommands.palette.open'),
+        category: () => t('appCommands.category.app'),
+        keybinding: PALETTE_KEYBINDING,
+        // уже в палитре: пункт «Открыть палитру» там бессмыслен
+        listed: false,
+        run: () => deps.openPalette(),
       }),
+    ),
+  ];
+  disposers.push(
+    ...DESTINATIONS.map(({ id, route, keybinding }) =>
+      registry.register(
+        app(`go:${id}`, {
+          title: () => t(`appCommands.go.${id}`),
+          category: () => t('appCommands.category.go'),
+          keybinding,
+          run: guarded(() => deps.router.push({ name: route })),
+        }),
+      ),
     ),
   );
 

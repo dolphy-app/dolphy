@@ -96,6 +96,16 @@ describe('createCommandRegistry', () => {
     scope.stop();
   });
 
+  it('listed defaults to true and follows the descriptor', () => {
+    const registry = createCommandRegistry();
+    registry.register(descriptor('app:a'));
+    registry.register(descriptor('app:b', { listed: false }));
+    expect(registry.list.value.map(({ listed }) => listed)).toEqual([
+      true,
+      false,
+    ]);
+  });
+
   it('runs the handler of the entry', async () => {
     const registry = createCommandRegistry();
     const run = vi.fn();

@@ -1,9 +1,13 @@
 export const ru = {
   appCommands: {
     category: {
+      app: 'Приложение',
       go: 'Переход',
       theme: 'Тема',
       language: 'Язык',
+    },
+    palette: {
+      open: 'Открыть палитру команд',
     },
     go: {
       dailyPlan: 'Перейти: План дня',

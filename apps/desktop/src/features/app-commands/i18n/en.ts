@@ -3,9 +3,13 @@ import type { ru } from './ru.ts';
 export const en: typeof ru = {
   appCommands: {
     category: {
+      app: 'App',
       go: 'Navigation',
       theme: 'Theme',
       language: 'Language',
+    },
+    palette: {
+      open: 'Open command palette',
     },
     go: {
       dailyPlan: 'Go to: Daily plan',

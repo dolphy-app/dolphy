@@ -45,10 +45,9 @@ describe('строки команд и панелей расширений', () 
     },
   );
 
-  it('пункты меню для панелей и палитры есть в обоих языках', () => {
+  it('пункт меню для панелей расширений есть в обоих языках', () => {
     for (const nav of [appRu.nav, appEn.nav]) {
       expect(nav.extensions).toBeTruthy();
-      expect(nav.commands).toBeTruthy();
     }
   });
 

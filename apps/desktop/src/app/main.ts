@@ -84,8 +84,10 @@ const bootstrap = async () => {
           params: { extensionId, panelId },
         }),
     });
+    const palette = createCommandPalette({ registry });
     registerAppCommands({
       registry,
+      openPalette: () => palette.open(),
       router,
       t: i18n.global.t,
       themeSelection,
@@ -97,7 +99,6 @@ const bootstrap = async () => {
           failure: describeCommandFailure(error),
         }),
     });
-    const palette = createCommandPalette({ registry });
     createApp(App)
       .use(i18n)
       .use(vuetify)

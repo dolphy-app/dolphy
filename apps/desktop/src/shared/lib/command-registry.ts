@@ -27,6 +27,8 @@ export interface CommandDescriptor {
   checked?: MaybeRefOrGetter<boolean>;
   /** Команда сейчас доступна; по умолчанию да. */
   enabled?: MaybeRefOrGetter<boolean>;
+  /** Показывать в палитре; `false` — только сочетание клавиш и раздел сочетаний (по умолчанию да). */
+  listed?: boolean;
   run(): void | Promise<void>;
 }
 
@@ -42,6 +44,7 @@ export interface Command {
   /** `undefined` — команда не из набора вариантов; иначе выбран ли вариант. */
   readonly checked: boolean | undefined;
   readonly enabled: boolean;
+  readonly listed: boolean;
   run(): void | Promise<void>;
 }
 
@@ -71,6 +74,7 @@ const resolve = (descriptor: CommandDescriptor): Command => ({
   keybinding: descriptor.keybinding,
   checked: toValue(descriptor.checked),
   enabled: toValue(descriptor.enabled) ?? true,
+  listed: descriptor.listed ?? true,
   run: descriptor.run,
 });
 

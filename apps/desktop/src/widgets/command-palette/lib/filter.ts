@@ -39,7 +39,7 @@ const scoreTerm = (command: Command, term: string) => {
 };
 
 /**
- * Строки палитры: доступные команды, которые содержат каждое слово запроса
+ * Строки палитры: доступные и не скрытые из палитры команды, которые содержат каждое слово запроса
  * (без учёта регистра) в названии, категории или подписи (у команд расширений —
  * id расширения). Без запроса — по категории и названию; с запросом — по
  * близости совпадения, при равенстве — в том же порядке.
@@ -51,7 +51,7 @@ export const filterCommands = (
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
   const scored: { command: Command; score: number }[] = [];
   for (const command of commands) {
-    if (!command.enabled) continue;
+    if (!command.enabled || !command.listed) continue;
     let score = 0;
     let matches = true;
     for (const term of terms) {

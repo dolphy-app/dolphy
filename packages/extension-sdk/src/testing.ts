@@ -1,13 +1,19 @@
 import {
+  EXTENSION_COMMAND_LIMITS,
   EXTENSION_STORAGE_LIMITS,
+  InvalidCommandResultError,
   PermissionError,
   StorageQuotaError,
+  normalizeCommandResult,
 } from '@dolphy-app/extension-api';
 import type {
+  CommandHandler,
+  CommandOutcome,
   Disposable,
   ExerciseTypeHandler,
   ExtensionContext,
   ExtensionEvents,
+  ExtensionCommands,
   ExtensionLogger,
   ExtensionModule,
   ExtensionSettings,
@@ -255,6 +261,73 @@ export const createMemoryEvents = (
   };
 };
 
+export interface MemoryCommands extends ExtensionCommands {
+  /**
+   * Выполняет зарегистрированную команду так, как её выполняет хост: те же
+   * границы аргументов и результата, то же приведение результата. Незарегистрированная
+   * команда и недопустимый результат отклоняют промис. 10 с на обработчик не отсчитываются.
+   */
+  run(id: string, args?: JsonValue): Promise<CommandOutcome>;
+  /** Зарегистрированные команды в порядке регистрации. */
+  ids(): string[];
+}
+
+export interface MemoryCommandsOptions {
+  /** Команды из `contributes.commands`: регистрация другой бросает, как в хосте. Не задано — можно любые. */
+  declaredCommands?: readonly string[];
+  /** Панели из `contributes.panels`: `openPanel` на другую недопустим, как в хосте. Не задано — любая. */
+  declaredPanels?: readonly string[];
+}
+
+/** Команды в памяти: те же правила регистрации и тот же разбор результата, что у хоста. */
+export const createMemoryCommands = (
+  options: MemoryCommandsOptions = {},
+): MemoryCommands => {
+  const handlers = new Map<string, CommandHandler>();
+  return {
+    register(id, handler) {
+      if (
+        options.declaredCommands !== undefined &&
+        !options.declaredCommands.includes(id)
+      ) {
+        throw new Error(`command '${id}' is not declared in the manifest`);
+      }
+      if (handlers.has(id)) {
+        throw new Error(`command '${id}' is already registered`);
+      }
+      handlers.set(id, handler);
+      return {
+        dispose: () => {
+          if (handlers.get(id) === handler) handlers.delete(id);
+        },
+      };
+    },
+    async run(id, args) {
+      const handler = handlers.get(id);
+      if (handler === undefined) {
+        throw new Error(`command '${id}' was not registered`);
+      }
+      if (
+        (JSON.stringify(args)?.length ?? 0) > EXTENSION_COMMAND_LIMITS.argsChars
+      ) {
+        throw new Error(
+          `args are longer than ${EXTENSION_COMMAND_LIMITS.argsChars} characters`,
+        );
+      }
+      const result = await handler(args);
+      try {
+        return normalizeCommandResult(result, options.declaredPanels);
+      } catch (error) {
+        if (error instanceof InvalidCommandResultError) {
+          throw new Error(`invalid command result: ${error.message}`);
+        }
+        throw error;
+      }
+    },
+    ids: () => [...handlers.keys()],
+  };
+};
+
 /** Что подменяет тест в контексте расширения; по умолчанию всё в памяти и без вывода. */
 export interface LoadOptions {
   library?: LibraryReader;
@@ -262,6 +335,7 @@ export interface LoadOptions {
   storage?: ExtensionStorage;
   settings?: ExtensionSettings;
   events?: ExtensionEvents;
+  commands?: ExtensionCommands;
 }
 
 const contextOf = (
@@ -277,6 +351,7 @@ const contextOf = (
   storage: options.storage ?? createMemoryStorage(),
   settings: options.settings ?? createMemorySettings([]),
   events: options.events ?? createMemoryEvents(),
+  commands: options.commands ?? createMemoryCommands(),
   ...registrars,
 });
 
@@ -505,6 +580,46 @@ export const loadEvents = async (
     emit: events.emit,
     storage,
     settings,
+    dispose: async () => {
+      await module.deactivate?.();
+    },
+  };
+};
+
+export interface LoadedCommands {
+  run: MemoryCommands['run'];
+  ids: MemoryCommands['ids'];
+  /** Деактивирует модуль расширения. */
+  dispose(): Promise<void>;
+}
+
+export interface LoadCommandsOptions
+  extends Omit<LoadOptions, 'commands'>, MemoryCommandsOptions {}
+
+/** Активирует модуль с командами в памяти и даёт тесту вызывать их как хост. */
+export const loadCommands = async (
+  module: ExtensionModule,
+  options: LoadCommandsOptions = {},
+): Promise<LoadedCommands> => {
+  const commands = createMemoryCommands(options);
+  const context = contextOf(
+    {
+      ...(options.library !== undefined && { library: options.library }),
+      ...(options.logger !== undefined && { logger: options.logger }),
+      ...(options.storage !== undefined && { storage: options.storage }),
+      ...(options.settings !== undefined && { settings: options.settings }),
+      ...(options.events !== undefined && { events: options.events }),
+      commands,
+    },
+    {
+      registerExerciseType: () => ({ dispose: () => undefined }),
+      registerGradePolicy: () => ({ dispose: () => undefined }),
+    },
+  );
+  await module.activate(context);
+  return {
+    run: commands.run,
+    ids: commands.ids,
     dispose: async () => {
       await module.deactivate?.();
     },

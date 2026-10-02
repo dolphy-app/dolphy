@@ -1,4 +1,5 @@
 export * from '@dolphy-app/extension-api';
+export { notify, openPanel } from './commands.ts';
 export {
   defineExerciseType,
   defineExtension,
@@ -12,3 +13,4 @@ export {
   type MountAnswerElement,
 } from './answer-element.ts';
 export { defineMarkdownRenderer } from './markdown-renderer.ts';
+export { defineExtensionPanel } from './panel.ts';

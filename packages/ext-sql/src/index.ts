@@ -7,7 +7,10 @@ import {
   defineExerciseType,
   defineExtension,
 } from '@dolphy-app/extension-sdk';
-import type { ExtensionContext } from '@dolphy-app/extension-sdk';
+import type {
+  ExtensionContext,
+  ExtensionViews,
+} from '@dolphy-app/extension-sdk';
 import { mountSqlEditor } from './sql-view.ts';
 
 interface SqlSpec {
@@ -86,4 +89,4 @@ export const host = defineExtension({
 
 export const views = {
   'dolphy.sql': defineAnswerView(mountSqlEditor),
-};
+} satisfies ExtensionViews;

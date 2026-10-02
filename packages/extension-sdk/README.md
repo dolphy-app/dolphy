@@ -301,6 +301,51 @@ panel.calls; // [{ commandId: 'acme.tools.ping', args: undefined }]
   result (the rules are `normalizeCommandResult` from
   `@dolphy-app/extension-api`).
 
+## Style sheets, images and fonts
+
+A panel, an answer element and a content renderer run in an isolated frame and
+can bring their own style sheets (`css`), images (`png`, `webp`, `jpg`, `jpeg`,
+`svg`) and fonts (`woff2`). `dolphy-ext build` carries them in two ways:
+
+```ts
+// src/index.ts — inlined: a string and a small data URI, no extra file
+import css from './panel.css?inline'; // style sheet as a string
+import mark from './mark.png?url'; // up to 4 KiB: a data: URI
+
+export const panels = {
+  'acme.tools.main': defineExtensionPanel({
+    mount(container) {
+      const style = document.createElement('style');
+      style.textContent = css;
+      container.append(style);
+
+      // a separate file: above 4 KiB the build writes assets/hero-<hash>.png
+      const hero = document.createElement('img');
+      hero.src = new URL('./hero.png', import.meta.url).href;
+      hero.alt = '';
+      // a file you put into assets/ yourself
+      const font = new FontFace(
+        'Acme',
+        `url(${new URL('assets/acme.woff2', import.meta.url).href})`,
+      );
+      container.append(hero);
+      void font.load();
+    },
+  }),
+};
+```
+
+Choose the inlined form for small things (one file, nothing to fetch) and a
+separate file for big images and fonts; the details, the limits and what the
+build refuses (unsafe SVG, `@import`, external `url()`, a forged image header) are
+in the README of `@dolphy-app/extension-tools`. A plain `import './panel.css'` is
+an error. Declare the suffixes for TypeScript once:
+`declare module '*?inline' { const text: string; export default text; }` and the
+same for `'*?url'`.
+
+The manifest `icon` (`"icon": "assets/icon.png"`, a square 64–512 px PNG or WebP up
+to 16 KiB) is what the app shows for the extension at 32 px.
+
 ## Permissions and `ctx.library`
 
 An extension that is not bundled and not trusted runs in a restricted process

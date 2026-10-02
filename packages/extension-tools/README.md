@@ -13,7 +13,7 @@ app uses to load it (`inspectExtensionDir` from `@dolphy-app/extension-host`),
   extension.json          # source manifest (required), same format as an installed one
   src/index.ts            # all extension code: host, views, panels, markdown
   dolphy-ext.config.json  # optional
-  schema/, assets/        # optional directories, copied as is
+  schema/, assets/        # optional directories, copied as is (assets/ is checked, see "Style sheets, images and fonts")
 ```
 
 `src/index.ts` has named exports; the build lays them out into the files the
@@ -116,6 +116,69 @@ keep `.dolphy` out of git; it is never part of `dist-ext` or of a catalog
 source check. What the SDK does with the ids is described in the README of
 `@dolphy-app/extension-sdk`, "Typed ids".
 
+## Style sheets, images and fonts
+
+An extension can ship style sheets (`css`), images (`png`, `webp`, `jpg`, `jpeg`,
+`svg`) and fonts (`woff2`). Two ways to carry a file, and when to choose which:
+
+- **Inlined into the code.** `import css from './panel.css?inline'` gives the
+  style sheet as a string; `import logo from './logo.png?url'` and
+  `new URL('./logo.png', import.meta.url)` give a `data:` URI for a file up to
+  4 KiB. Choose this for small things: one file to publish, nothing to address
+  at run time, and a style sheet string works in any frame. `url()` inside an
+  `?inline` style sheet is inlined too (a relative address means nothing in a
+  string).
+- **A separate file.** The same `?url` and `new URL(…)` forms write an image or
+  a font above 4 KiB to `assets/<name>-<hash>.<ext>` of the output and return an
+  address relative to the module (`new URL('assets/logo-3f2a9c1d.png',
+import.meta.url)`). The name follows the content, so rebuilding the same
+  sources writes the same file, and `catalog build` lists it with its `sha256`
+  like any other. Files you put into `assets/` yourself are copied as they are
+  and are reached the same way, with `new URL('assets/logo.png',
+import.meta.url)`. Choose this for big images and fonts and for files you
+  want to fetch lazily.
+
+A plain `import './panel.css'` fails the build: a bundle cannot carry a
+side-effect style sheet. Declare the import suffixes once for TypeScript, for
+example in `src/env.d.ts`:
+
+```ts
+declare module '*?inline' {
+  const text: string;
+  export default text;
+}
+declare module '*?url' {
+  const url: string;
+  export default url;
+}
+```
+
+Put `new URL(…)` inside the function that uses it: a module-level expression
+stays in the host bundle too, which then writes the same asset file.
+
+Limits (also those of `catalog check`): `css` up to 256 KiB, `svg` up to 64 KiB,
+raster images up to 512 KiB each and at most 4096×4096 pixels, `woff2` up to
+1 MiB, extensions in lower case. The build checks every such file in the output,
+for the extension, the signature (PNG, JPEG, WebP, WOFF2), the size, the pixels
+and the content, and fails with the file name and the reason:
+
+- an SVG is accepted only from an allow-list: a well-formed XML document with an
+  `svg` root and `xmlns`, known elements and attributes, without `script`,
+  `foreignObject`, animation, `on*` attributes, `DOCTYPE`, entities, `href` /
+  `xlink:href` other than `#id` and `data:image/png|jpeg|webp`, and `url()` other
+  than `#id` and `data:image/png|jpeg|webp`. Clean an exported file (for
+  example with SVGO) if the build names an element or an attribute;
+- a style sheet has no `@import`, `expression(`, `src()`, string URLs in
+  `image-set()`, and its `url()` points only to `data:image`, `data:font`, `#id` or a
+  relative path inside the extension.
+
+### Icon
+
+`"icon": "assets/icon.png"` in `extension.json` is a `.png` or `.webp` file inside
+the extension: square, 64 to 512 pixels, up to 16 KiB. It is copied into the
+build wherever it lies; the app shows it at 32 px in the installed list, the
+catalog and the install dialog. SVG icons are not accepted.
+
 ## Output
 
 `<project>/dist-ext/<id>/` (`--out <dir>` changes the root; the extension
@@ -175,7 +238,8 @@ Checks the sources in `<extensionsDir>/<id>/` (a `dolphy-ext` project without
 `node_modules`, `dist-ext`, `.dolphy` and `.git`) against the rules below. `--ids a,b`
 limits the check to the listed extensions (all directories by default);
 `--published-index <path>` is the `index.json` of the published catalog for
-`CHECK-012` (no file means nothing is published); `--max-app-version <x.y.z>` is
+`CHECK-012` (the full `index.v2.json` is the better choice; no file means nothing
+is published); `--max-app-version <x.y.z>` is
 the released app version for `CHECK-016`; `--skip-github-check` turns off the
 `api.github.com` request for `CHECK-006` (the API token is `GITHUB_TOKEN`);
 `--list-rules` prints the rules and exits.
@@ -198,6 +262,8 @@ the released app version for `CHECK-016`; `--skip-github-check` turns off the
 | `CHECK-014` | no symbolic links                                                                     |
 | `CHECK-015` | no executable files (`.exe`, `.dll`, `.so`, `.dylib`, `.node`, `.sh`, `.bat`)         |
 | `CHECK-016` | `minAppVersion` is not newer than `--max-app-version`                                 |
+| `CHECK-017` | files in `assets/` match their type: signature, size, pixels, safe SVG and CSS        |
+| `CHECK-018` | `icon` is a square 64–512 px PNG or WebP file up to 16 KiB                            |
 
 The rules are data in code (`src/catalog/rules.ts`, the `RULES` table); the
 semantic review against `rules/rules.json` of the catalog repository is a
@@ -208,14 +274,30 @@ separate step, not the CLI.
 `--src <extensionsDir> --ids a,b --out <siteDir>`: for each id it builds the
 project with the same code as `dolphy-ext build`, adds `README.md` (required),
 computes the `size` and `sha256` of the files and puts the version into
-`<siteDir>/extensions/<id>/<version>/`, then updates `<siteDir>/index.json` (an
-extension keeps at most its 5 latest versions, newest first). The manifest must
-contain `name`, `description` and `author`. A version is published once:
-building the same number with different content is an error. Version files are
-`json`, `js`, `mjs`, `md`, `txt` with safe names only, at most 50 files and
-10 MB. Any error leaves `<siteDir>` untouched.
+`<siteDir>/extensions/<id>/<version>/`, then updates two index files (an extension
+keeps at most its 5 latest versions, newest first). The manifest must contain
+`name`, `description` and `author`. A version is published once: building the
+same number with different content is an error. Version files are `json`, `js`,
+`mjs`, `md`, `txt`, `css`, `svg`, `png`, `webp`, `jpg`, `jpeg`, `woff2` with safe names
+only, at most 100 files and 10 MB; each asset passes the checks of "Style sheets,
+images and fonts" and the icon travels in the index as a `data:` URI. Any error
+leaves `<siteDir>` untouched.
 
-- `--previous-index <path>` — the source index (`<out>/index.json` by default);
+Two files are published, always together and with the same `generatedAt`:
+
+- `index.v2.json` (`schemaVersion: 2`) — the full index, which the current app
+  reads next to the catalog address;
+- `index.json` (`schemaVersion: 1`) — the subset that every released app
+  parses strictly (an unknown key, file type or permission makes a released app
+  reject the whole catalog). Versions with new file types, an `icon`, more than
+  50 files or a permission such as `learning.events`, and entries with
+  `settings`, `events`, `commands` or `panels` contributions are left out of it;
+  an extension left without versions is skipped. The summary line says
+  `only in index.v2.json` for such a version. The catalog identity of installed
+  extensions stays the address of `index.json`.
+
+- `--previous-index <path>` — the source index (`<out>/index.v2.json` if it
+  exists, else `<out>/index.json`, by default);
 - `--revoked <path>` — a JSON array of `{ id, versions, reason }` (without the
   flag the list from the source index is used);
 - `--source-base <url>` — the base of the `source` field (by default the
@@ -223,8 +305,8 @@ building the same number with different content is an error. Version files are
 - `--published-at <iso>` — `publishedAt` of the new versions (now by default).
 
 `catalog build --reindex --out <siteDir>` replaces only `revoked` and
-`generatedAt` in the existing index (extension entries do not change; `--src`
-and `--ids` are not needed): this is how a version revocation is published
+`generatedAt` in both indexes (extension entries do not change; `--src` and
+`--ids` are not needed): this is how a version revocation is published
 without a new build.
 
 A local catalog for the app:

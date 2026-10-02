@@ -37,8 +37,7 @@ const setup = () => {
   return {
     registry,
     language,
-    apple: useShortcutGroups(registry, 'apple'),
-    other: useShortcutGroups(registry, 'other'),
+    other: useShortcutGroups(registry),
   };
 };
 
@@ -49,21 +48,18 @@ describe('useShortcutGroups', () => {
       {
         category: 'Приложение',
         rows: [
-          { key: 'app:palette.open', title: 'Открыть палитру', keys: 'Ctrl+K' },
+          {
+            key: 'app:palette.open',
+            title: 'Открыть палитру',
+            keybinding: 'Mod+K',
+          },
         ],
       },
       {
         category: 'Переход',
-        rows: [{ key: 'app:go:courses', title: 'Курсы', keys: 'Ctrl+2' }],
+        rows: [{ key: 'app:go:courses', title: 'Курсы', keybinding: 'Mod+2' }],
       },
     ]);
-  });
-
-  it('formats keys by platform', () => {
-    const { apple } = setup();
-    expect(
-      apple.value.flatMap(({ rows }) => rows.map(({ keys }) => keys)),
-    ).toEqual(['⌘K', '⌘2']);
   });
 
   it('excludes extension keybinding hints', () => {
@@ -93,9 +89,9 @@ describe('useShortcutGroups', () => {
         keybinding: 'Mod+3',
       }),
     );
-    expect(other.value[1]?.rows.map(({ keys }) => keys)).toEqual([
-      'Ctrl+2',
-      'Ctrl+3',
+    expect(other.value[1]?.rows.map(({ keybinding }) => keybinding)).toEqual([
+      'Mod+2',
+      'Mod+3',
     ]);
     dispose();
     expect(other.value[1]?.rows).toHaveLength(1);

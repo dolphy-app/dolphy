@@ -1,14 +1,12 @@
 import { computed } from 'vue';
 import type { ComputedRef } from 'vue';
 import type { CommandRegistry } from '@/shared/lib/command-registry.ts';
-import { displayKeybinding } from '@/shared/lib/keybinding.ts';
-import type { Platform } from '@/shared/lib/keybinding.ts';
 
 export interface ShortcutRow {
   key: string;
   title: string;
-  /** Подпись клавиш с учётом платформы (`⌘K` или `Ctrl+K`). */
-  keys: string;
+  /** Сочетание как задано в реестре (`Mod+K`); подпись и озвучивание собирает компонент. */
+  keybinding: string;
 }
 
 export interface ShortcutGroup {
@@ -24,7 +22,6 @@ export interface ShortcutGroup {
  */
 export const useShortcutGroups = (
   registry: CommandRegistry,
-  platform: Platform,
 ): ComputedRef<ShortcutGroup[]> =>
   computed(() => {
     const groups: ShortcutGroup[] = [];
@@ -40,7 +37,7 @@ export const useShortcutGroups = (
       group.rows.push({
         key: command.key,
         title: command.title,
-        keys: displayKeybinding(command.keybinding, platform),
+        keybinding: command.keybinding,
       });
     }
     return groups.sort(

@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { displayKeybinding, detectPlatform } from '@/shared/lib/keybinding.ts';
+import {
+  detectPlatform,
+  displayKeybinding,
+  spokenKeybinding,
+} from '@/shared/lib/keybinding.ts';
+import type { SpokenId } from '@/shared/lib/keybinding.ts';
 import { useCommandPalette } from '../model/palette.ts';
 
 const LIST_ID = 'command-palette-list';
@@ -10,6 +15,11 @@ const optionId = (index: number) => `command-palette-option-${index}`;
 const { t } = useI18n();
 const palette = useCommandPalette();
 const platform = detectPlatform();
+// `⌘K` скринридер читает набором символов: рядом с клавишей лежит озвучивание словами
+const spoken = (keybinding: string) =>
+  spokenKeybinding(keybinding, platform, (id: SpokenId) =>
+    t(`keybinding.${id}`),
+  );
 const field = ref<{ focus(): void } | null>(null);
 // палитра, открытая из поля ввода, забирает фокус себе: `autofocus` срабатывает только при монтировании
 const focusField = () => field.value?.focus();
@@ -122,7 +132,8 @@ const vComboboxInput = {
         </span>
       </div>
       <v-divider />
-      <div class="v-command-palette__content list-wrap">
+      <!-- прокручиваемая область должна быть фокусируемой (axe scrollable-region-focusable); фокус остаётся в поле: см. mousedown у строк -->
+      <div class="v-command-palette__content list-wrap" tabindex="-1">
         <ul
           :id="LIST_ID"
           role="listbox"
@@ -149,6 +160,7 @@ const vComboboxInput = {
               :aria-selected="row.entry.key === palette.activeKey.value"
               :aria-checked="row.entry.checked"
               :aria-disabled="palette.isBusy(row.entry.key)"
+              @mousedown.prevent
               @mousemove="palette.activate(row.entry.key)"
               @click="palette.choose(row.entry.key)"
             >
@@ -191,9 +203,14 @@ const vComboboxInput = {
                     t('commandPalette.checked')
                   }}</span>
                 </template>
-                <kbd v-if="row.entry.keybinding" class="keybinding">{{
-                  displayKeybinding(row.entry.keybinding, platform)
-                }}</kbd>
+                <template v-if="row.entry.keybinding">
+                  <kbd class="keybinding" aria-hidden="true">{{
+                    displayKeybinding(row.entry.keybinding, platform)
+                  }}</kbd>
+                  <span class="visually-hidden">{{
+                    spoken(row.entry.keybinding)
+                  }}</span>
+                </template>
               </span>
             </li>
           </template>

@@ -181,6 +181,7 @@ export const en: typeof ru = {
           'The command palette searches the commands of the app and of extensions.',
         open: 'Open command palette',
       },
+      empty: 'There are no keyboard shortcuts yet.',
       noCategory: 'Other',
       columns: {
         command: 'Command',

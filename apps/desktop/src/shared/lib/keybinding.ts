@@ -92,6 +92,53 @@ export const displayKeybinding = (text: string, platform: Platform): string => {
   return binding ? formatKeybinding(binding, platform) : text;
 };
 
+/** Идентификаторы слов, которыми озвучивается сочетание (тексты — `keybinding.*` в общих сообщениях). */
+export type SpokenId =
+  | 'command'
+  | 'control'
+  | 'shift'
+  | 'option'
+  | 'alt'
+  | 'comma'
+  | 'enter'
+  | 'escape'
+  | 'tab'
+  | 'space'
+  | 'backspace'
+  | 'delete'
+  | 'arrowup'
+  | 'arrowdown'
+  | 'arrowleft'
+  | 'arrowright';
+
+const SYMBOL_IDS: Record<string, SpokenId> = { ',': 'comma' };
+
+/**
+ * Сочетание словами для скринридера: `⌘K` без этого читается как набор
+ * символов. На macOS — «Command K», «Shift Command L»; иначе — «Control K».
+ * Подсказка, которую нельзя разобрать, возвращается как есть.
+ */
+export const spokenKeybinding = (
+  text: string,
+  platform: Platform,
+  word: (id: SpokenId) => string,
+): string => {
+  const binding = tryParseKeybinding(text);
+  if (!binding) return text;
+  const apple = platform === 'apple';
+  const id = SYMBOL_IDS[binding.key] ?? binding.key;
+  return [
+    binding.mod ? word(apple ? 'command' : 'control') : null,
+    binding.alt ? word(apple ? 'option' : 'alt') : null,
+    binding.shift ? word('shift') : null,
+    Object.hasOwn(NAMED_KEYS, id) || id === 'comma'
+      ? word(id as SpokenId)
+      : binding.key.toUpperCase(),
+  ]
+    .filter((part) => part !== null)
+    .join(' ');
+};
+
 /** Платформа окна: подпись клавиши Mod зависит только от неё. */
 export const detectPlatform = (
   nav: Pick<Navigator, 'platform'> = navigator,

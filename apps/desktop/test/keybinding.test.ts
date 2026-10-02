@@ -4,6 +4,7 @@ import {
   formatKeybinding,
   matchesKeybinding,
   parseKeybinding,
+  spokenKeybinding,
   tryParseKeybinding,
 } from '@/shared/lib/keybinding.ts';
 
@@ -107,5 +108,26 @@ describe('matchesKeybinding', () => {
         parseKeybinding('Mod+,'),
       ),
     ).toBe(true);
+  });
+});
+
+describe('spokenKeybinding', () => {
+  const word = (id: string) => `<${id}>`;
+
+  it('names the keys in words for screen readers, by platform', () => {
+    expect(spokenKeybinding('Mod+K', 'apple', word)).toBe('<command> K');
+    expect(spokenKeybinding('Mod+K', 'other', word)).toBe('<control> K');
+    expect(spokenKeybinding('Mod+Shift+Alt+L', 'apple', word)).toBe(
+      '<command> <option> <shift> L',
+    );
+    expect(spokenKeybinding('Mod+Alt+Enter', 'other', word)).toBe(
+      '<control> <alt> <enter>',
+    );
+  });
+
+  it('speaks punctuation and digits, and leaves unparseable hints as they are', () => {
+    expect(spokenKeybinding('Mod+,', 'other', word)).toBe('<control> <comma>');
+    expect(spokenKeybinding('Mod+1', 'apple', word)).toBe('<command> 1');
+    expect(spokenKeybinding('Ctrl-S', 'other', word)).toBe('Ctrl-S');
   });
 });

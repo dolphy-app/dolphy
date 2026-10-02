@@ -5,7 +5,9 @@ import {
   detectPlatform,
   displayKeybinding,
   PALETTE_KEYBINDING,
+  spokenKeybinding,
 } from '@/shared/lib/keybinding.ts';
+import type { SpokenId } from '@/shared/lib/keybinding.ts';
 import { useCommandPalette } from '@/widgets/command-palette';
 import { useShortcutGroups } from '../model/shortcuts.ts';
 import SectionHeader from './SectionHeader.vue';
@@ -13,7 +15,13 @@ import SectionHeader from './SectionHeader.vue';
 const { t } = useI18n();
 const platform = detectPlatform();
 const palette = useCommandPalette();
-const groups = useShortcutGroups(useCommandRegistry(), platform);
+const groups = useShortcutGroups(useCommandRegistry());
+const keys = (keybinding: string) => displayKeybinding(keybinding, platform);
+// `⌘K` скринридер читает набором символов: рядом с клавишей лежит озвучивание словами
+const spoken = (keybinding: string) =>
+  spokenKeybinding(keybinding, platform, (id: SpokenId) =>
+    t(`keybinding.${id}`),
+  );
 const paletteKeys = displayKeybinding(PALETTE_KEYBINDING, platform);
 </script>
 
@@ -44,6 +52,10 @@ const paletteKeys = displayKeybinding(PALETTE_KEYBINDING, platform);
       </v-btn>
     </v-card>
 
+    <p v-if="groups.length === 0" class="text-body-medium text-medium-emphasis">
+      {{ t('settings.shortcuts.empty') }}
+    </p>
+
     <v-card
       v-for="(group, index) in groups"
       :key="group.category ?? ''"
@@ -63,7 +75,10 @@ const paletteKeys = displayKeybinding(PALETTE_KEYBINDING, platform);
           <tr v-for="row in group.rows" :key="row.key" data-testid="shortcut">
             <td>{{ row.title }}</td>
             <td>
-              <kbd class="keys">{{ row.keys }}</kbd>
+              <kbd class="keys" aria-hidden="true">{{
+                keys(row.keybinding)
+              }}</kbd>
+              <span class="visually-hidden">{{ spoken(row.keybinding) }}</span>
             </td>
           </tr>
         </tbody>
@@ -102,6 +117,15 @@ const paletteKeys = displayKeybinding(PALETTE_KEYBINDING, platform);
 
 .table tbody tr:last-child td {
   border-bottom: none;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 /* VHotkey: рамка и скругление клавиши */

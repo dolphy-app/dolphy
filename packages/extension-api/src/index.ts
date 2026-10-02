@@ -1,13 +1,13 @@
 /**
- * Публичный API расширений. Пакет не зависит от движка и DOM: его импортируют
- * и код расширения (`main.mjs`), и элемент ответа (`view.mjs`), и сам движок.
+ * Public extension API. The package depends on neither the engine nor the DOM: it is imported
+ * by extension code (`main.mjs`), by the answer element (`view.mjs`), and by the engine itself.
  */
 
 export const EXTENSION_API_VERSION = 1 as const;
 export const EXTENSION_ID_PATTERN = /^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*$/;
-/** GitHub-логин автора расширения (`author` в манифесте и каталоге). */
+/** GitHub login of the extension author (`author` in the manifest and catalog). */
 export const GITHUB_LOGIN_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
-/** Возможности, которые расширение объявляет в манифесте; без объявления — ни одной. */
+/** Capabilities an extension declares in its manifest; none without a declaration. */
 export const EXTENSION_PERMISSIONS = [
   'library.read',
   'process.spawn',
@@ -17,12 +17,12 @@ export const EXTENSION_PERMISSIONS = [
   'learning.events',
 ] as const;
 export type ExtensionPermission = (typeof EXTENSION_PERMISSIONS)[number];
-/** Платформы, на которых расширение может работать (`process.platform`). */
+/** Platforms the extension can run on (`process.platform`). */
 export const EXTENSION_PLATFORMS = ['darwin', 'linux', 'win32'] as const;
 export type ExtensionPlatform = (typeof EXTENSION_PLATFORMS)[number];
 export const ELEMENT_NAME_PATTERN = /^[a-z][a-z0-9]*(-[a-z0-9]+)+$/;
 
-/** Имена событий custom element'а ответа. */
+/** Event names of the answer custom element. */
 export const ANSWER_EVENT = {
   change: 'dolphy-answer-change',
   submit: 'dolphy-answer-submit',
@@ -30,15 +30,15 @@ export const ANSWER_EVENT = {
 
 export interface AnswerChangeDetail {
   value: unknown;
-  /** Ответ можно отправлять на проверку. */
+  /** The answer can be submitted for checking. */
   complete: boolean;
 }
 
-/** Свойства, которые приложение выставляет элементу ответа. */
+/** Properties the app sets on the answer element. */
 export interface AnswerElementProps {
-  /** Результат `project()`. */
+  /** Result of `project()`. */
   view: unknown;
-  /** Текущий ответ (для восстановления). */
+  /** Current answer (for restoring). */
   value: unknown;
   disabled: boolean;
   verdict: {
@@ -52,74 +52,74 @@ export interface AnswerElementProps {
 export type JsonSchema = Record<string, unknown>;
 
 export interface ExerciseTypeContribution {
-  /** Равен id расширения или начинается с `<id расширения>.`. */
+  /** Equal to the extension id or starts with `<extension id>.`. */
   id: string;
-  /** JSON Schema 2020-12 для `engine.exercise.spec`: путь внутри каталога расширения (`./schema/spec.json`) или схема объектом. */
+  /** JSON Schema 2020-12 for `engine.exercise.spec`: a path inside the extension directory (`./schema/spec.json`) or a schema object. */
   specSchema: string | JsonSchema;
-  /** JSON Schema 2020-12 для ответа ученика (`submitAnswer.answer`): путь или схема объектом. */
+  /** JSON Schema 2020-12 for the learner's answer (`submitAnswer.answer`): a path or a schema object. */
   answerSchema: string | JsonSchema;
-  /** Тег custom element'а (дефис обязателен), рисующего ввод ответа. */
+  /** Tag of the custom element (a hyphen is required) that renders the answer input. */
   element: string;
-  /** Путь к ES-модулю, определяющему элемент (`./view.mjs`). */
+  /** Path to the ES module that defines the element (`./view.mjs`). */
   renderer: string;
 }
 
-/** Тема оформления, добавляемая расширением: только данные, без кода. */
+/** A theme added by an extension: data only, no code. */
 export interface ThemeContribution {
-  /** Равен id расширения или начинается с `<id расширения>.`; не из `BUILTIN_THEME_IDS`. */
+  /** Equal to the extension id or starts with `<extension id>.`; not in `BUILTIN_THEME_IDS`. */
   id: string;
-  /** Название плитки в «Настройки → Внешний вид», до 60 символов. */
+  /** Tile title in "Settings → Appearance", up to 60 characters. */
   label: string;
   dark: boolean;
-  /** Ключи из `THEME_COLOR_KEYS`, значения — `#rrggbb` или `#rrggbbaa`. */
+  /** Keys from `THEME_COLOR_KEYS`; values are `#rrggbb` or `#rrggbbaa`. */
   colors: Record<string, string>;
-  /** Ключи из `THEME_VARIABLE_KEYS`: `border-color` — цвет, остальные — числа 0..1. */
+  /** Keys from `THEME_VARIABLE_KEYS`: `border-color` is a color, the rest are numbers 0..1. */
   variables?: Record<string, string | number>;
 }
 
-/** Рендерер содержимого: блоки ` ```<language> ` выводит модуль расширения. */
+/** Content renderer: ` ```<language> ` blocks are rendered by the extension module. */
 export interface MarkdownRendererContribution {
-  /** Язык блока кода: `[a-z][a-z0-9-]{0,31}`. */
+  /** Code block language: `[a-z][a-z0-9-]{0,31}`. */
   language: string;
-  /** Путь к ES-модулю; в нормализованном манифесте задан всегда. */
+  /** Path to the ES module; always set in the normalized manifest. */
   renderer?: string;
 }
 
-/** Команда расширения: действие в палитре команд, выполняемое кодом расширения (`ctx.commands.register`). */
+/** Extension command: a command-palette action executed by extension code (`ctx.commands.register`). */
 export interface CommandContribution {
-  /** Равен id расширения или начинается с `<id расширения>.`. */
+  /** Equal to the extension id or starts with `<extension id>.`. */
   id: string;
-  /** Название в палитре, 1–60 символов. */
+  /** Title in the palette, 1–60 characters. */
   title: string;
-  /** До 200 символов. */
+  /** Up to 200 characters. */
   description?: string;
-  /** Группа в палитре, до 40 символов. */
+  /** Palette group, up to 40 characters. */
   category?: string;
-  /** Подсказка вида `Mod+Shift+L` (`KEYBINDING_PATTERN`); приложение клавишу не назначает. */
+  /** Hint such as `Mod+Shift+L` (`KEYBINDING_PATTERN`); the app does not bind the key. */
   keybinding?: string;
-  /** `false` скрывает команду из палитры, оставляя её доступной панели; по умолчанию `true`. */
+  /** `false` hides the command from the palette while keeping it available to the panel; defaults to `true`. */
   palette?: boolean;
 }
 
-/** Панель расширения: экран приложения в изолированной рамке с пунктом бокового меню. */
+/** Extension panel: an app screen in an isolated frame with a sidebar menu entry. */
 export interface PanelContribution {
-  /** Равен id расширения или начинается с `<id расширения>.`. */
+  /** Equal to the extension id or starts with `<extension id>.`. */
   id: string;
-  /** Название пункта меню и заголовка страницы, 1–60 символов. */
+  /** Menu entry and page heading title, 1–60 characters. */
   title: string;
-  /** Путь к ES-модулю панели (`.js` или `.mjs`); по умолчанию `DEFAULT_PANEL`. */
+  /** Path to the panel's ES module (`.js` or `.mjs`); defaults to `DEFAULT_PANEL`. */
   module?: string;
 }
 
-/** Значение настройки расширения. */
+/** Value of an extension setting. */
 export type SettingValue = boolean | string | number;
 
 interface SettingContributionBase {
-  /** Равен id расширения или начинается с `<id расширения>.`. */
+  /** Equal to the extension id or starts with `<extension id>.`. */
   id: string;
-  /** Подпись поля в диалоге настроек, до 60 символов; данные расширения, не переводится. */
+  /** Field label in the settings dialog, up to 60 characters; extension data, not translated. */
   label: string;
-  /** Пояснение под полем, до 500 символов. */
+  /** Help text under the field, up to 500 characters. */
   description?: string;
 }
 
@@ -131,7 +131,7 @@ export interface BooleanSettingContribution extends SettingContributionBase {
 export interface StringSettingContribution extends SettingContributionBase {
   type: 'string';
   default: string;
-  /** Длина в кодовых единицах UTF-16, 1..10000; нет ключа — без ограничения (в пределах 10000). */
+  /** Length in UTF-16 code units, 1..10000; no key means unlimited (within 10000). */
   maxLength?: number;
 }
 
@@ -140,7 +140,7 @@ export interface NumberSettingContribution extends SettingContributionBase {
   default: number;
   min?: number;
   max?: number;
-  /** Только целые значения. */
+  /** Integer values only. */
   integer?: boolean;
 }
 
@@ -151,19 +151,19 @@ export interface EnumSettingOption {
 
 export interface EnumSettingContribution extends SettingContributionBase {
   type: 'enum';
-  /** Одно из `options[].value`. */
+  /** One of `options[].value`. */
   default: string;
   options: EnumSettingOption[];
 }
 
-/** Настройка, которую пользователь меняет в «Настройки → Расширения»; форму рисует приложение. */
+/** A setting the user changes in "Settings → Extensions"; the app renders the form. */
 export type SettingContribution =
   | BooleanSettingContribution
   | StringSettingContribution
   | NumberSettingContribution
   | EnumSettingContribution;
 
-/** События обучения, на которые расширение с разрешением `learning.events` может подписаться. */
+/** Learning events an extension with the `learning.events` permission can subscribe to. */
 export const LEARNING_EVENT_NAMES = [
   'session.started',
   'session.finished',
@@ -171,17 +171,17 @@ export const LEARNING_EVENT_NAMES = [
 ] as const;
 export type LearningEventName = (typeof LEARNING_EVENT_NAMES)[number];
 
-/** Итог закрытой попытки: `self-assessed` — оценку поставил ученик. */
+/** Outcome of a closed attempt: `self-assessed` means the learner set the grade. */
 export type AttemptOutcome = 'passed' | 'failed' | 'gave-up' | 'self-assessed';
 
-/** Откуда оценка попытки (тип движка целиком). */
+/** Where the attempt's grade came from (the engine's full type). */
 export type AttemptSource = 'self' | 'runner' | 'placement' | 'trane-import';
 
 /**
- * Поля событий обучения: только идентификаторы, оценка и время — ответы,
- * `spec`, обратная связь и текст упражнения в них не попадают. Совпадает с
- * `LearningEventPayloads` движка (пакет от движка не зависит; совпадение
- * проверяет тест `extension-host`).
+ * Learning event fields: only identifiers, grade, and time — answers,
+ * `spec`, feedback, and exercise text are not included. Matches
+ * the engine's `LearningEventPayloads` (the package does not depend on the engine; the match is
+ * checked by the `extension-host` test).
  */
 export interface LearningEventPayloads {
   'session.started': { sessionId: string; at: number };
@@ -192,43 +192,43 @@ export interface LearningEventPayloads {
     lessonId: string;
     grade: GradeValue;
     outcome: AttemptOutcome;
-    /** `self` — ученик закрыл попытку сам, `runner` — по вердикту раннера; другие значения событие не несёт. */
+    /** `self` — the learner closed the attempt themselves, `runner` — by the runner's verdict; the event carries no other values. */
     source: AttemptSource;
-    /** Миллисекунды Unix-эпохи. */
+    /** Unix epoch milliseconds. */
     at: number;
   };
 }
 
-/** Подписка расширения на событие обучения (`contributes.events`). */
+/** An extension's subscription to a learning event (`contributes.events`). */
 export interface EventContribution {
   event: LearningEventName;
 }
 
-/** Правило оценки: как вердикты превращаются в оценку 1–5. */
+/** Grading rule: how verdicts are turned into a 1–5 grade. */
 export interface GradePolicyContribution {
-  /** Равен id расширения или начинается с `<id расширения>.`; не `passAtN`. */
+  /** Equal to the extension id or starts with `<extension id>.`; not `passAtN`. */
   id: string;
   label: string;
 }
 
-/** Нормализованный манифест: все умолчания применены. */
+/** Normalized manifest: all defaults applied. */
 export interface ExtensionManifest {
   id: string;
   /** semver */
   version: string;
   apiVersion: typeof EXTENSION_API_VERSION;
-  /** Путь к `.mjs` с кодом расширения; `null` — расширению код не нужен. */
+  /** Path to the `.mjs` with the extension code; `null` means the extension needs no code. */
   main: string | null;
-  /** Объявленные возможности кода расширения; по умолчанию пусто. */
+  /** Declared capabilities of the extension code; empty by default. */
   permissions: ExtensionPermission[];
-  /** Человекочитаемое название; `null` — не задано. */
+  /** Human-readable name; `null` if not set. */
   name: string | null;
   description: string | null;
-  /** GitHub-логин автора; `null` — не задан. */
+  /** GitHub login of the author; `null` if not set. */
   author: string | null;
-  /** Пусто — любая платформа. */
+  /** Empty means any platform. */
   platforms: readonly ExtensionPlatform[];
-  /** Минимальная версия приложения (semver); `null` — любая. */
+  /** Minimum app version (semver); `null` means any. */
   minAppVersion: string | null;
   contributes: {
     exerciseTypes: ExerciseTypeContribution[];
@@ -244,29 +244,29 @@ export interface ExtensionManifest {
   };
 }
 
-/** Вид задания в `extension.json`, как его пишет автор. */
+/** Kind of exercise in `extension.json`, as the author writes it. */
 export interface ExerciseTypeContributionInput {
   id: string;
   specSchema: string | JsonSchema;
   answerSchema: string | JsonSchema;
-  /** По умолчанию `defaultElementName(id)`. */
+  /** Defaults to `defaultElementName(id)`. */
   element?: string;
-  /** По умолчанию `DEFAULT_RENDERER`. */
+  /** Defaults to `DEFAULT_RENDERER`. */
   renderer?: string;
 }
 
-/** `extension.json`, как его пишет автор. */
+/** `extension.json` as the author writes it. */
 export interface ExtensionManifestInput {
   id: string;
   version: string;
   apiVersion: typeof EXTENSION_API_VERSION;
-  /** По умолчанию `DEFAULT_MAIN`, если код нужен вкладам; иначе `null`. */
+  /** Defaults to `DEFAULT_MAIN` if contributions need code; otherwise `null`. */
   main?: string;
   permissions?: ExtensionPermission[];
   name?: string;
   description?: string;
   author?: string;
-  /** Нет ключа — любая платформа. */
+  /** No key means any platform. */
   platforms?: ExtensionPlatform[];
   minAppVersion?: string;
   contributes: {
@@ -281,10 +281,10 @@ export interface ExtensionManifestInput {
   };
 }
 
-/** Идентификаторы встроенных тем: расширения не могут их занять. */
+/** Identifiers of built-in themes: extensions cannot take them. */
 export const BUILTIN_THEME_IDS = ['system', 'light', 'dark'] as const;
 
-/** Допустимые ключи `ThemeContribution.colors`. */
+/** Allowed keys of `ThemeContribution.colors`. */
 export const THEME_COLOR_KEYS: readonly string[] = [
   'background',
   'surface',
@@ -311,7 +311,7 @@ export const THEME_COLOR_KEYS: readonly string[] = [
   'hero-contrast',
 ];
 
-/** Допустимые ключи `ThemeContribution.variables`. */
+/** Allowed keys of `ThemeContribution.variables`. */
 export const THEME_VARIABLE_KEYS: readonly string[] = [
   'border-color',
   'border-opacity',
@@ -324,36 +324,36 @@ export const DEFAULT_MARKDOWN_RENDERER = './markdown.mjs';
 export const DEFAULT_PANEL = './panel.mjs';
 
 /**
- * Подсказка клавиш команды: до трёх модификаторов (`Mod`, `Ctrl`, `Alt`,
- * `Shift`) и клавиша через `+`: буква или цифра, `F1`–`F12` либо имя
- * (`Enter`, `Space`, `Tab`, `Escape`, `Backspace`, `Delete`, стрелки,
+ * Command key hint: up to three modifiers (`Mod`, `Ctrl`, `Alt`,
+ * `Shift`) and a key joined with `+`: a letter or digit, `F1`–`F12`, or a name
+ * (`Enter`, `Space`, `Tab`, `Escape`, `Backspace`, `Delete`, arrows,
  * `Home`, `End`, `PageUp`, `PageDown`).
  */
 export const KEYBINDING_PATTERN =
   /^(?:(?:Mod|Ctrl|Alt|Shift)\+){0,3}(?:[A-Z0-9]|F(?:[1-9]|1[0-2])|Enter|Space|Tab|Escape|Backspace|Delete|Arrow(?:Up|Down|Left|Right)|Home|End|Page(?:Up|Down))$/;
 
-/** Потолки команд и панелей (R1, R3); совпадают с теми, что проверяют манифест, хост и движок. */
+/** Limits on commands and panels (R1, R3); they match those checked by the manifest, host, and engine. */
 export const EXTENSION_COMMAND_LIMITS = Object.freeze({
-  /** Команд на расширение. */
+  /** Commands per extension. */
   commands: 64,
-  /** Панелей на расширение. */
+  /** Panels per extension. */
   panels: 8,
   titleLength: 60,
   categoryLength: 40,
   descriptionLength: 200,
-  /** `JSON.stringify(args).length` на границе движка. */
+  /** `JSON.stringify(args).length` at the engine boundary. */
   argsChars: 200_000,
-  /** JSON-текст результата в байтах UTF-8. */
+  /** JSON text of the result in UTF-8 bytes. */
   resultBytes: 64 * 1024,
-  /** Длина `notify` в кодовых единицах UTF-16. */
+  /** Length of `notify` in UTF-16 code units. */
   notifyChars: 500,
-  /** Бюджет обработчика, мс. */
+  /** Handler budget, ms. */
   handlerMs: 10_000,
 });
 
 export type GradeValue = 1 | 2 | 3 | 4 | 5;
 
-/** Вход правила оценки: вердикты попытки и признак «сдался». */
+/** Grading rule input: the attempt's verdicts and a "gave up" flag. */
 export interface GradePolicyInput {
   verdicts: readonly {
     outcome: 'passed' | 'failed' | 'error';
@@ -362,12 +362,12 @@ export interface GradePolicyInput {
   gaveUp: boolean;
 }
 
-/** `null` — правило не выставляет оценку. */
+/** `null` means the rule does not set a grade. */
 export type GradePolicyHandler = (
   input: GradePolicyInput,
 ) => GradeValue | null | Promise<GradeValue | null>;
 
-/** Контекст вывода блока; структурный `AbortSignal` (в пакете нет DOM-типов). */
+/** Block rendering context; a structural `AbortSignal` (the package has no DOM types). */
 export interface MarkdownRenderContext {
   language: string;
   signal: {
@@ -376,7 +376,7 @@ export interface MarkdownRenderContext {
   };
 }
 
-/** `export default` модуля рендерера содержимого. */
+/** `export default` of a content renderer module. */
 export interface MarkdownRendererModule<Container = unknown> {
   render(
     source: string,
@@ -385,12 +385,12 @@ export interface MarkdownRendererModule<Container = unknown> {
   ): void | Promise<void>;
 }
 
-/** Что обработчик команды просит выполнить приложение: показать уведомление. */
+/** What a command handler asks the app to do: show a notification. */
 export interface NotifyEffect {
   notify: string;
 }
 
-/** Что обработчик команды просит выполнить приложение: открыть свою панель. */
+/** What a command handler asks the app to do: open its own panel. */
 export interface OpenPanelEffect {
   openPanel: string;
   props?: JsonValue;
@@ -399,25 +399,25 @@ export interface OpenPanelEffect {
 export type CommandEffect = NotifyEffect | OpenPanelEffect;
 
 /**
- * Результат обработчика команды: ничего (`undefined`), эффект для приложения
- * (`CommandEffect`; объект с `notify`/`openPanel` не может нести других
- * ключей) или любой JSON-ответ вызывающему.
+ * Result of a command handler: nothing (`undefined`), an effect for the app
+ * (`CommandEffect`; an object with `notify`/`openPanel` cannot carry other
+ * keys), or any JSON reply to the caller.
  */
 export type CommandResult = void | undefined | CommandEffect | JsonValue;
 
-/** `args` — JSON вызывающего; без аргументов — `undefined`. */
+/** `args` is the caller's JSON; `undefined` when there are no arguments. */
 export type CommandHandler = (
   args: JsonValue | undefined,
 ) => CommandResult | Promise<CommandResult>;
 
-/** Результат команды в том виде, в котором его получает вызывающий (`normalizeCommandResult`). */
+/** Command result as the caller receives it (`normalizeCommandResult`). */
 export type CommandOutcome =
   | { kind: 'none' }
   | { kind: 'notify'; text: string }
   | { kind: 'openPanel'; panelId: string; props?: JsonValue }
   | { kind: 'data'; value: JsonValue };
 
-/** Результат обработчика не годится: не JSON, длиннее потолка, смешанный эффект, чужая панель. */
+/** The handler's result is unusable: not JSON, over the limit, a mixed effect, or a foreign panel. */
 export class InvalidCommandResultError extends Error {
   constructor(message: string) {
     super(message);
@@ -428,7 +428,7 @@ export class InvalidCommandResultError extends Error {
 const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
-/** Длина строки в байтах UTF-8 (пакет без DOM-типов и `TextEncoder`); строка из `JSON.stringify` не содержит одиночных суррогатов. */
+/** String length in UTF-8 bytes (the package has no DOM types or `TextEncoder`); a `JSON.stringify` string contains no lone surrogates. */
 const utf8Length = (text: string): number => {
   let bytes = 0;
   for (let index = 0; index < text.length; index++) {
@@ -444,13 +444,13 @@ const utf8Length = (text: string): number => {
 };
 
 /**
- * Приводит то, что вернул обработчик команды, к `CommandOutcome`: правила хоста
- * и `loadCommands` из SDK одни. `undefined` и `null` — `none`; объект с
- * `notify` (строка 1–500 символов) или `openPanel` (id панели из `panels`;
- * `undefined` — любая строка, для тестов без манифеста) и
- * без других ключей (кроме `props` у `openPanel`) — эффект; остальной JSON —
- * `data`. Значение проходит через JSON (`undefined`-поля отбрасываются), его
- * текст не длиннее `EXTENSION_COMMAND_LIMITS.resultBytes`. Нарушение бросает
+ * Converts what a command handler returned into a `CommandOutcome`: the host's rules
+ * and the SDK's `loadCommands` are the same. `undefined` and `null` are `none`; an object with
+ * `notify` (a string of 1–500 characters) or `openPanel` (a panel id from `panels`;
+ * `undefined` means any string, for tests without a manifest) and
+ * no other keys (except `props` on `openPanel`) is an effect; any other JSON is
+ * `data`. The value goes through JSON (`undefined` fields are dropped); its
+ * text is at most `EXTENSION_COMMAND_LIMITS.resultBytes`. A violation throws
  * `InvalidCommandResultError`.
  */
 export const normalizeCommandResult = (
@@ -556,7 +556,7 @@ export interface PanelModule<
 export const DEFAULT_MAIN = './main.mjs';
 export const DEFAULT_RENDERER = './view.mjs';
 
-/** Тег элемента по умолчанию: `dolphy.sql` → `dolphy-sql-answer`. */
+/** Default element tag: `dolphy.sql` → `dolphy-sql-answer`. */
 export const defaultElementName = (id: string): string =>
   `${id.replaceAll('.', '-')}-answer`;
 
@@ -584,12 +584,12 @@ export interface ExerciseTypeHandler<
   Answer = unknown,
   View = unknown,
 > {
-  /** Публичный вид для элемента ответа; секреты (ключи ответов) сюда не попадают. Вызывается при `beginAttempt`. */
+  /** Public view for the answer element; secrets (answer keys) are excluded. Called on `beginAttempt`. */
   project(request: { exerciseId: string; spec: Spec }): View | Promise<View>;
   grade(
     request: GradeRequest<Spec, Answer>,
   ): GradeResult | Promise<GradeResult>;
-  /** Эталонный ответ для проверки компилятором (`E_REFERENCE_FAILS`); `undefined` — эталона нет. */
+  /** Reference answer for compiler checking (`E_REFERENCE_FAILS`); `undefined` means there is none. */
   referenceAnswer?(request: {
     exerciseId: string;
     spec: Spec;
@@ -606,13 +606,13 @@ export interface LibraryStat {
   realPath?: string;
 }
 
-/** Чтение библиотеки курсов (пути от корня библиотеки, разделитель `/`). */
+/** Course library read access (paths relative to the library root, separator `/`). */
 export interface LibraryReader {
   readText(path: string): Promise<string>;
   stat(path: string): Promise<LibraryStat | null>;
 }
 
-/** Бросается, когда расширение вызывает возможность без объявленного разрешения. */
+/** Thrown when an extension calls a capability without the declared permission. */
 export class PermissionError extends Error {
   readonly permission: ExtensionPermission;
   readonly code = 'EXT_PERMISSION';
@@ -626,26 +626,26 @@ export class PermissionError extends Error {
   }
 }
 
-/** Потолки хранилища расширения (R2); совпадают с потолками движка, который их и проверяет. */
+/** Extension storage limits (R2); they match the engine's limits, which enforces them. */
 export const EXTENSION_STORAGE_LIMITS = Object.freeze({
-  /** Длина ключа в кодовых единицах UTF-16. */
+  /** Key length in UTF-16 code units. */
   keyLength: 128,
-  /** JSON-текст одного значения в байтах UTF-8. */
+  /** JSON text of a single value in UTF-8 bytes. */
   valueBytes: 64 * 1024,
-  /** Число ключей. */
+  /** Number of keys. */
   keys: 256,
-  /** Сумма JSON-текстов всех значений в байтах UTF-8. */
+  /** Sum of JSON texts of all values in UTF-8 bytes. */
   totalBytes: 1024 * 1024,
 });
 
-/** Какой потолок хранилища превышен. */
+/** Which storage limit was exceeded. */
 export type StorageQuotaKind =
   'key-length' | 'value-size' | 'key-count' | 'total-size';
 
-/** Бросается `ctx.storage.set`, когда запись превысила потолок: запись не произошла, остальные данные не изменились. */
+/** Thrown by `ctx.storage.set` when a write exceeds a limit: the write did not happen, other data is unchanged. */
 export class StorageQuotaError extends Error {
   readonly kind: StorageQuotaKind;
-  /** Превышенный потолок: символы, байты или число ключей — по `kind`. */
+  /** Exceeded limit: characters, bytes, or key count — per `kind`. */
   readonly limit: number;
   readonly code = 'EXT_STORAGE_QUOTA';
   constructor(kind: StorageQuotaKind, limit: number, message?: string) {
@@ -660,15 +660,15 @@ export type JsonValue =
   null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
 /**
- * Хранилище данных расширения: JSON по строковым ключам. У каждого расширения
- * своё пространство; данные переживают перезапуск, обновление и отключение.
- * Разрешение не требуется; потолки — `EXTENSION_STORAGE_LIMITS`.
+ * Extension data storage: JSON under string keys. Each extension has
+ * its own space; data survives restart, update, and disabling.
+ * No permission is required; limits are `EXTENSION_STORAGE_LIMITS`.
  */
 export interface ExtensionStorage {
   get<T extends JsonValue = JsonValue>(key: string): Promise<T | undefined>;
-  /** Превышение потолка — `StorageQuotaError`, запись не происходит. */
+  /** Exceeding a limit throws `StorageQuotaError` and the write does not happen. */
   set(key: string, value: JsonValue): Promise<void>;
-  /** `false`, если ключа не было. */
+  /** `false` if the key did not exist. */
   delete(key: string): Promise<boolean>;
   keys(): Promise<string[]>;
 }
@@ -726,7 +726,7 @@ export interface Disposable {
   dispose(): void | Promise<void>;
 }
 
-/** Совпадает по методам и сигнатурам с портом `Logger` движка. */
+/** Matches the `Logger` port of the engine in methods and signatures. */
 export interface ExtensionLogger {
   debug(fields: object, message?: string): void;
   info(fields: object, message?: string): void;

@@ -5,11 +5,7 @@
   "name": "Meta",
   "description": "Расширение с метаданными",
   "author": "octo-cat",
-  "platforms": [
-    "darwin",
-    "linux",
-    "win32"
-  ],
+  "platforms": ["darwin", "linux", "win32"],
   "minAppVersion": "1.0.0",
   "contributes": {
     "themes": [

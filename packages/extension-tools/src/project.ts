@@ -8,22 +8,43 @@ export const MANIFEST_FILE = 'extension.json';
 export const CONFIG_FILE = 'dolphy-ext.config.json';
 export const DEFAULT_OUT_DIR = 'dist-ext';
 
-/** Одна точка входа сборки: исходник → файл относительно каталога расширения. */
+/** Отдельный node-вход из `dolphy-ext.config.json` (`nodeEntries`): воркер, собираемый как есть. */
 export interface Entry {
   source: string;
   output: string;
+}
+
+/** Файл процесса расширений: экспорт `host` из `src/index.ts`. */
+export interface HostOutput {
+  kind: 'host';
+  output: string;
+}
+
+/** Браузерный файл: записи `views`, `panels` и `markdown`, у которых манифест называет этот файл. */
+export interface BrowserOutput {
+  kind: 'browser';
+  output: string;
+  /** Виды заданий: id и тег элемента. */
+  views: { id: string; element: string }[];
+  panels: string[];
+  languages: string[];
 }
 
 export interface Project {
   root: string;
   manifest: ExtensionManifest;
   manifestBytes: Buffer;
-  nodeEntries: Entry[];
-  browserEntries: Entry[];
+  /** `src/index.ts`, если расширению нужен код; иначе `null`. */
+  indexSource: string | null;
+  host: HostOutput | null;
+  browserOutputs: BrowserOutput[];
+  workerEntries: Entry[];
   external: string[];
   /** Схемы-файлы из манифеста (относительные пути, без `./`). */
   schemaPaths: string[];
 }
+
+export const INDEX_SOURCE = 'src/index.ts';
 
 const stripDot = (file: string): string => file.replace(/^\.\//, '');
 
@@ -86,23 +107,58 @@ const schemaPathsOf = (manifest: ExtensionManifest): string[] => {
   return [...new Set(paths)];
 };
 
-/** Без кода (`main: null`) node-входов нет. */
-const nodeEntriesOf = (
+/** Воркеры собираются только вместе с кодом: без `main` их нет. */
+const workerEntriesOf = (
   manifest: ExtensionManifest,
   config: ToolConfig,
-): Entry[] => {
-  if (manifest.main === null) return [];
-  const main = stripDot(manifest.main);
-  return [
-    { source: entrySource(main), output: main },
-    ...Object.entries(config.nodeEntries).map(([output, source]) => ({
-      source,
-      output: stripDot(output),
-    })),
-  ];
+): Entry[] =>
+  manifest.main === null
+    ? []
+    : Object.entries(config.nodeEntries).map(([output, source]) => ({
+        source,
+        output: stripDot(output),
+      }));
+
+const browserOutputsOf = (manifest: ExtensionManifest): BrowserOutput[] => {
+  const outputs = new Map<string, BrowserOutput>();
+  const outputOf = (file: string): BrowserOutput => {
+    const output = stripDot(file);
+    const existing = outputs.get(output);
+    if (existing !== undefined) return existing;
+    const created: BrowserOutput = {
+      kind: 'browser',
+      output,
+      views: [],
+      panels: [],
+      languages: [],
+    };
+    outputs.set(output, created);
+    return created;
+  };
+  const { exerciseTypes, markdownRenderers, panels } = manifest.contributes;
+  for (const type of exerciseTypes) {
+    outputOf(type.renderer).views.push({ id: type.id, element: type.element });
+  }
+  for (const entry of markdownRenderers) {
+    outputOf(entry.renderer).languages.push(entry.language);
+  }
+  for (const panel of panels) outputOf(panel.module).panels.push(panel.id);
+  return [...outputs.values()];
 };
 
-/** Читает исходный манифест и конфиг проекта, вычисляет точки входа. */
+/**
+ * Пути, по которым код лежал до единого входа (`src/<имя файла>.ts`):
+ * по ним сборка узнаёт старую раскладку и подсказывает перенос.
+ */
+export const legacySources = (project: Project): string[] => {
+  const outputs = [
+    ...(project.host === null ? [] : [project.host.output]),
+    ...project.browserOutputs.map((entry) => entry.output),
+  ];
+  return [...new Set(outputs.map(entrySource))];
+};
+
+/** Читает исходный манифест и конфиг проекта, вычисляет выходные файлы. */
 export const loadProject = async (rootDir: string): Promise<Project> => {
   const root = path.resolve(rootDir);
   const manifestFile = path.join(root, MANIFEST_FILE);
@@ -121,22 +177,20 @@ export const loadProject = async (rootDir: string): Promise<Project> => {
   const { manifest } = parsed;
   const config = await readConfig(root);
 
-  const nodeEntries = nodeEntriesOf(manifest, config);
-  const renderers = new Set([
-    ...manifest.contributes.exerciseTypes.map((type) => type.renderer),
-    ...manifest.contributes.markdownRenderers.map((entry) => entry.renderer),
-    ...manifest.contributes.panels.map((panel) => panel.module),
-  ]);
-  const browserEntries = [...renderers].map(stripDot).map((output) => ({
-    source: entrySource(output),
-    output,
-  }));
+  const host: HostOutput | null =
+    manifest.main === null
+      ? null
+      : { kind: 'host', output: stripDot(manifest.main) };
+  const browserOutputs = browserOutputsOf(manifest);
   return {
     root,
     manifest,
     manifestBytes,
-    nodeEntries,
-    browserEntries,
+    indexSource:
+      host !== null || browserOutputs.length > 0 ? INDEX_SOURCE : null,
+    host,
+    browserOutputs,
+    workerEntries: workerEntriesOf(manifest, config),
     external: config.external,
     schemaPaths: schemaPathsOf(manifest),
   };

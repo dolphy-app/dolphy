@@ -1,10 +1,18 @@
+import { watch as fsWatch } from 'node:fs';
 import { cp, mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { inspectExtensionDir } from '@dolphy-app/extension-host';
-import { bundleAll, watchAll } from './bundle.ts';
+import { bundleAll } from './bundle.ts';
 import { BuildError } from './errors.ts';
-import { DEFAULT_OUT_DIR, MANIFEST_FILE, loadProject } from './project.ts';
-import type { Entry, Project } from './project.ts';
+import {
+  DEFAULT_OUT_DIR,
+  MANIFEST_FILE,
+  legacySources,
+  loadProject,
+} from './project.ts';
+import type { Project } from './project.ts';
+import { createReporter, watchAll } from './watch.ts';
+import type { BundleWatch, RebuildReport } from './watch.ts';
 
 export { BuildError } from './errors.ts';
 
@@ -35,6 +43,9 @@ export interface ValidationResult {
 
 const STATIC_DIRS = ['schema', 'assets'];
 
+/** Редакторы пишут файл несколькими событиями: перезагрузка манифеста ждёт тишины. */
+const MANIFEST_SETTLE_MS = 100;
+
 const isPresent = async (file: string): Promise<boolean> =>
   (await stat(file).catch(() => null)) !== null;
 
@@ -43,11 +54,60 @@ const targetDir = (project: Project, options: BuildOptions): string => {
   return path.join(path.resolve(base), project.manifest.id);
 };
 
+const legacyHint = (project: Project): string => {
+  const { contributes } = project.manifest;
+  const steps = [
+    'create src/index.ts',
+    ...(project.host === null
+      ? []
+      : [
+          `move the default export of the main file into it as export const host = defineExtension({ … })`,
+        ]),
+    ...(contributes.exerciseTypes.length === 0
+      ? []
+      : [
+          `replace defineAnswerElement(tag, mount) with an entry of export const views = { '<exercise type id>': defineAnswerView(mount) } (the tag now comes from extension.json)`,
+        ]),
+    ...(contributes.panels.length === 0
+      ? []
+      : [
+          `move the default export of the panel module into export const panels = { '<panel id>': defineExtensionPanel({ … }) }`,
+        ]),
+    ...(contributes.markdownRenderers.length === 0
+      ? []
+      : [
+          `move the default export of the renderer module into export const markdown = { '<language>': defineMarkdownRenderer(…) }`,
+        ]),
+    'delete the old src files and import from src/index.ts in tests',
+  ];
+  return steps.map((step, index) => `${index + 1}. ${step}`).join('; ');
+};
+
 const requireSources = async (project: Project): Promise<void> => {
-  const entries: Entry[] = [...project.nodeEntries, ...project.browserEntries];
-  for (const entry of entries) {
-    const file = path.join(project.root, entry.source);
-    if (!(await isPresent(file))) {
+  const { indexSource } = project;
+  if (
+    indexSource !== null &&
+    !(await isPresent(path.join(project.root, indexSource)))
+  ) {
+    const legacy = legacySources(project);
+    const found = (
+      await Promise.all(
+        legacy.map(async (source) =>
+          (await isPresent(path.join(project.root, source))) ? source : null,
+        ),
+      )
+    ).filter((source) => source !== null);
+    const reason =
+      found.length > 0
+        ? `found the old layout (${found.join(', ')}), which is no longer supported; migrate: ${legacyHint(project)}`
+        : `add it: ${legacyHint(project)}`;
+    throw new BuildError(
+      `'${indexSource}' is not found: an extension with code is built from one entry file; ${reason}`,
+      project.manifest.id,
+    );
+  }
+  for (const entry of project.workerEntries) {
+    if (!(await isPresent(path.join(project.root, entry.source)))) {
       throw new BuildError(
         `entry source '${entry.source}' for '${entry.output}' is not found`,
         project.manifest.id,
@@ -139,28 +199,104 @@ export interface WatchHandle {
   close(): Promise<void>;
 }
 
+const reportTo =
+  (id: string, logger: BuildLogger | undefined) =>
+  (report: RebuildReport): void => {
+    if (report.rebuilt.length > 0) {
+      logger?.info(`rebuilt ${report.rebuilt.join(', ')}`);
+    }
+    for (const failure of report.failures) {
+      logger?.error(
+        `error ${id}: failed to bundle ${failure.labels.join(', ')}: ${failure.detail}`,
+      );
+    }
+  };
+
 /**
- * Первая сборка + пересборка бандлов при правке исходников до `close()`.
- * Манифест, схемы и assets копируются один раз: их правка требует перезапуска.
+ * Первая сборка + пересборка затронутых файлов при правке `src/index.ts` и
+ * зависимостей до `close()`. Правка `extension.json` пересобирает всё заново:
+ * обвязки зависят от манифеста. Схемы и assets копируются при первой сборке и
+ * после правки манифеста.
  */
 export const watchExtension = async (
   options: BuildOptions,
 ): Promise<WatchHandle> => {
-  const { project, dir } = await prepare(options);
+  const { project: first, dir: firstDir } = await prepare(options);
   const { logger } = options;
-  const watch = await watchAll(project, dir, (entry, error) => {
-    if (error === null) logger?.info(`rebuilt ${entry.output}`);
-    else {
-      const message = error instanceof Error ? error.message : String(error);
-      logger?.error(`error ${project.manifest.id}: ${message}`);
-    }
-  });
+  let project = first;
+  let dir = firstDir;
+  const reporter = createReporter((report) =>
+    reportTo(project.manifest.id, logger)(report),
+  );
+  let current: BundleWatch | null = await watchAll(
+    project,
+    dir,
+    reporter,
+    true,
+  );
   try {
     await copyStatic(project, dir);
     await assertValid(project, dir);
   } catch (error) {
-    await watch.close();
+    await current.close();
+    reporter.close();
     throw error;
   }
-  return { result: await resultOf(project, dir), close: watch.close };
+  const result = await resultOf(project, dir);
+
+  const reload = async (): Promise<void> => {
+    const previous = project.manifestBytes;
+    let next: Project;
+    try {
+      next = await loadProject(options.root);
+    } catch (error) {
+      logger?.error(
+        `error ${project.manifest.id}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return;
+    }
+    if (next.manifestBytes.equals(previous)) return;
+    await current?.close();
+    current = null;
+    await rm(dir, { recursive: true, force: true });
+    try {
+      await requireSources(next);
+      project = next;
+      dir = targetDir(project, options);
+      await mkdir(dir, { recursive: true });
+      current = await watchAll(project, dir, reporter, false);
+      await copyStatic(project, dir);
+      // сломанные бандлы вотчер пересоберёт после правки: проверять пока нечего
+      if (current.isHealthy) {
+        await assertValid(project, dir);
+        logger?.info(
+          `rebuilt ${(await resultOf(project, dir)).files.join(', ')}`,
+        );
+      }
+    } catch (error) {
+      logger?.error(
+        `error ${project.manifest.id}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  };
+
+  let queue: Promise<void> = Promise.resolve();
+  let timer: NodeJS.Timeout | null = null;
+  const manifestWatcher = fsWatch(project.root, (_event, name) => {
+    if (name !== MANIFEST_FILE) return;
+    if (timer !== null) clearTimeout(timer);
+    timer = setTimeout(() => {
+      queue = queue.then(reload);
+    }, MANIFEST_SETTLE_MS);
+  });
+  return {
+    result,
+    close: async () => {
+      manifestWatcher.close();
+      if (timer !== null) clearTimeout(timer);
+      await queue;
+      reporter.close();
+      await current?.close();
+    },
+  };
 };

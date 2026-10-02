@@ -1,15 +1,11 @@
-import { readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { BuildError, buildExtension, validateExtension } from '../src/index.ts';
 import { loadProject } from '../src/project.ts';
-import { copyProject, linkSdk } from './helpers.ts';
+import { copyProject } from './helpers.ts';
 
-const projectWithSdk = async (): Promise<string> => {
-  const root = await copyProject('commands-panel');
-  await linkSdk(root);
-  return root;
-};
+const projectWithSdk = (): Promise<string> => copyProject('commands-panel');
 
 interface EditableManifest {
   contributes: { panels?: { module?: string }[] };
@@ -28,12 +24,16 @@ const editManifest = async (
 describe('панели и команды: проект', () => {
   it('модуль панели — браузерная точка входа, main — серверная', async () => {
     const project = await loadProject(await copyProject('commands-panel'));
-    expect(project.browserEntries).toEqual([
-      { source: 'src/panel.ts', output: 'panel.mjs' },
+    expect(project.browserOutputs).toEqual([
+      {
+        kind: 'browser',
+        output: 'panel.mjs',
+        views: [],
+        panels: ['acme.commands-panel.main'],
+        languages: [],
+      },
     ]);
-    expect(project.nodeEntries.map((entry) => entry.output)).toContain(
-      'main.mjs',
-    );
+    expect(project.host).toEqual({ kind: 'host', output: 'main.mjs' });
   });
 });
 
@@ -51,24 +51,20 @@ describe('панели и команды: сборка', () => {
     expect(await validateExtension(dir)).toEqual({ ok: true, problems: [] });
   });
 
-  it('нет src/panel.ts — ошибка называет файл', async () => {
+  it('нет src/index.ts — ошибка называет файл', async () => {
     const root = await projectWithSdk();
-    await rm(path.join(root, 'src', 'panel.ts'));
+    await rm(path.join(root, 'src', 'index.ts'));
     const error = await buildExtension({ root }).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(BuildError);
-    expect((error as BuildError).message).toContain('src/panel.ts');
+    expect((error as BuildError).message).toContain("'src/index.ts'");
   });
 
-  it('module ./ui/screen.js собирается в ui/screen.js из src/screen.ts', async () => {
+  it('module ./ui/screen.js собирается в ui/screen.js из экспорта panels', async () => {
     const root = await projectWithSdk();
     await editManifest(root, (manifest) => {
       const [first] = manifest.contributes.panels ?? [];
       if (first !== undefined) first.module = './ui/screen.js';
     });
-    await rename(
-      path.join(root, 'src', 'panel.ts'),
-      path.join(root, 'src', 'screen.ts'),
-    );
     const { dir, files } = await buildExtension({
       root,
       outDir: path.join(root, 'out'),
@@ -91,10 +87,27 @@ describe('панели и команды: сборка', () => {
     await editManifest(root, (manifest) => {
       delete manifest.contributes.panels;
     });
+    await writeFile(
+      path.join(root, 'src', 'index.ts'),
+      (await readFile(path.join(root, 'src', 'index.ts'), 'utf8')).replace(
+        /\nexport const panels[\s\S]*$/,
+        '',
+      ),
+    );
     const { files } = await buildExtension({
       root,
       outDir: path.join(root, 'out'),
     });
     expect(files).toEqual(['extension.json', 'main.mjs']);
+  });
+
+  it('панель убрана из манифеста, но осталась в панелях кода — ошибка называет запись', async () => {
+    const root = await projectWithSdk();
+    await editManifest(root, (manifest) => {
+      delete manifest.contributes.panels;
+    });
+    await expect(buildExtension({ root })).rejects.toThrow(
+      "'panels' has entry 'acme.commands-panel.main'",
+    );
   });
 });

@@ -173,7 +173,17 @@ describe('catalog build: настройки и события', () => {
   };
 
   it('записывает settings, events и разрешение в запись индекса', async () => {
-    const repo = await createRepo([{ fixture: 'hello', manifest: STATE }]);
+    const repo = await createRepo([
+      {
+        fixture: 'hello',
+        manifest: STATE,
+        // манифест подмены не объявляет видов: код хоста без `views`
+        files: {
+          'src/index.ts':
+            "import { defineExtension } from '@dolphy-app/extension-sdk';\nexport const host = defineExtension({});\n",
+        },
+      },
+    ]);
     const out = await makeTemp();
     await publish(repo, out, ['acme.hello']);
     const index = await indexOf(out);

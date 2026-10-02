@@ -89,11 +89,11 @@ describe('buildExtension', () => {
     expect((error as BuildError).message).toContain('invalid extension id');
   });
 
-  it('T-07 нет src/main.ts — ошибка называет файл', async () => {
-    const root = await copyProject('no-main-source');
+  it('T-07 нет src/index.ts — ошибка называет файл', async () => {
+    const root = await copyProject('no-entry');
     const error = await buildExtension({ root }).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(BuildError);
-    expect((error as BuildError).message).toContain("'src/main.ts'");
+    expect((error as BuildError).message).toContain("'src/index.ts'");
   });
 
   it('T-08 отсутствует манифест — понятная ошибка', async () => {
@@ -134,10 +134,10 @@ describe('расширения без кода', () => {
     expect(await validateExtension(dir)).toEqual({ ok: true, problems: [] });
   });
 
-  it('нет src/markdown.ts — ошибка называет файл', async () => {
+  it('нет src/index.ts — ошибка называет файл', async () => {
     const root = await copyProject('markdown-only');
     await rm(path.join(root, 'src'), { recursive: true });
-    await expect(buildExtension({ root })).rejects.toThrow(/src\/markdown\.ts/);
+    await expect(buildExtension({ root })).rejects.toThrow(/src\/index\.ts/);
   });
 });
 

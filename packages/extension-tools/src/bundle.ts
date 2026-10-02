@@ -1,28 +1,23 @@
 import { builtinModules } from 'node:module';
 import path from 'node:path';
-import { build } from 'vite';
+import { build, createLogger } from 'vite';
 import type { InlineConfig } from 'vite';
 import { BuildError } from './errors.ts';
 import type { Entry, Project } from './project.ts';
+import { exportsOf, shimEntry, shimPlugin } from './shim.ts';
+import type { JobState, Output } from './shim.ts';
 
-interface WatcherEvent {
-  code: string;
-  error?: unknown;
+/** Один бандл: один выходной файл, своя сборка, без общих чанков. */
+export interface Job {
+  /** Выходной файл относительно каталога расширения. */
+  output: string;
+  /** Как назвать файл в сообщении: выходной файл и экспорты, из которых он собран. */
+  label: string;
+  config: InlineConfig;
+  state: JobState;
 }
 
-/** Структурный вид rolldown-вотчера, который возвращает `build` с `watch`. */
-interface Watcher {
-  on(event: 'event', listener: (event: WatcherEvent) => void): unknown;
-  close(): Promise<void>;
-}
-
-const isWatcher = (value: unknown): value is Watcher =>
-  typeof value === 'object' &&
-  value !== null &&
-  'on' in value &&
-  'close' in value;
-
-const errorText = (error: unknown): string =>
+export const errorText = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
 const nodeExternal = (external: readonly string[]): (string | RegExp)[] => [
@@ -33,7 +28,8 @@ const nodeExternal = (external: readonly string[]): (string | RegExp)[] => [
 
 const bundleConfig = (
   project: Project,
-  entry: Entry,
+  entry: string,
+  output: string,
   outDir: string,
   isNode: boolean,
 ): InlineConfig => ({
@@ -41,6 +37,8 @@ const bundleConfig = (
   configFile: false,
   publicDir: false,
   logLevel: 'warn',
+  // ошибки сборки показывает `watchExtension` один раз на причину, а не Vite на каждый файл
+  customLogger: { ...createLogger('warn'), error: () => undefined },
   build: {
     target: isNode ? 'node22' : 'es2022',
     outDir,
@@ -48,9 +46,9 @@ const bundleConfig = (
     minify: false,
     copyPublicDir: false,
     lib: {
-      entry: path.resolve(project.root, entry.source),
+      entry,
       formats: ['es'],
-      fileName: () => entry.output,
+      fileName: () => output,
     },
     rolldownOptions: {
       external: isNode ? nodeExternal(project.external) : [],
@@ -58,107 +56,64 @@ const bundleConfig = (
   },
 });
 
-const configsOf = (project: Project, outDir: string): InlineConfig[] => [
-  ...project.nodeEntries.map((entry) =>
-    bundleConfig(project, entry, outDir, true),
-  ),
-  ...project.browserEntries.map((entry) =>
-    bundleConfig(project, entry, outDir, false),
-  ),
-];
-
-const sourcesOf = (project: Project): Entry[] => [
-  ...project.nodeEntries,
-  ...project.browserEntries,
-];
-
-const buildOne = async (
-  config: InlineConfig,
-  entry: Entry,
-  subject: string,
-): Promise<void> => {
-  try {
-    await build(config);
-  } catch (error) {
-    throw new BuildError(
-      `failed to bundle '${entry.source}': ${errorText(error)}`,
-      subject,
-    );
-  }
+const outputJob = (project: Project, output: Output, outDir: string): Job => {
+  const state: JobState = { problem: null };
+  const config = bundleConfig(
+    project,
+    shimEntry(project, output),
+    output.output,
+    outDir,
+    output.kind === 'host',
+  );
+  return {
+    output: output.output,
+    label: `${output.output} (${exportsOf(output).join(', ')} from ${project.indexSource})`,
+    config: {
+      ...config,
+      plugins: [shimPlugin({ project, output, state })],
+    },
+    state,
+  };
 };
+
+const workerJob = (project: Project, entry: Entry, outDir: string): Job => ({
+  output: entry.output,
+  label: `${entry.output} (${entry.source})`,
+  config: bundleConfig(
+    project,
+    path.resolve(project.root, entry.source),
+    entry.output,
+    outDir,
+    true,
+  ),
+  state: { problem: null },
+});
+
+/** Бандлы проекта: процесс расширений, браузерные файлы, воркеры. */
+export const jobsOf = (project: Project, outDir: string): Job[] => [
+  ...(project.host === null ? [] : [outputJob(project, project.host, outDir)]),
+  ...project.browserOutputs.map((output) => outputJob(project, output, outDir)),
+  ...project.workerEntries.map((entry) => workerJob(project, entry, outDir)),
+];
+
+/** Причина сбоя: ошибка сверки или защиты, названная плагином, либо текст бандлера. */
+export const failureDetail = (job: Job, error: unknown): string =>
+  job.state.problem ?? errorText(error);
 
 /** Собирает все бандлы (по одному, без общих чанков) в `outDir`. */
 export const bundleAll = async (
   project: Project,
   outDir: string,
 ): Promise<void> => {
-  const configs = configsOf(project, outDir);
-  const entries = sourcesOf(project);
-  for (const [index, config] of configs.entries()) {
-    await buildOne(config, entries[index] as Entry, project.manifest.id);
-  }
-};
-
-export interface BundleWatch {
-  close(): Promise<void>;
-}
-
-const whenFirstEnd = (
-  watcher: Watcher,
-  entry: Entry,
-  onRebuild: (entry: Entry, error: unknown) => void,
-): Promise<void> => {
-  let isFirst = true;
-  return new Promise((resolve, reject) => {
-    watcher.on('event', (event) => {
-      if (event.code === 'ERROR') {
-        if (isFirst) reject(event.error);
-        else onRebuild(entry, event.error);
-      }
-      if (event.code === 'END') {
-        if (isFirst) resolve();
-        else onRebuild(entry, null);
-        isFirst = false;
-      }
-    });
-  });
-};
-
-/**
- * Запускает вотчеры всех бандлов; резолвится после первой сборки каждого.
- * `onRebuild` вызывается после последующих пересборок (`error` — причина сбоя).
- */
-export const watchAll = async (
-  project: Project,
-  outDir: string,
-  onRebuild: (entry: Entry, error: unknown) => void,
-): Promise<BundleWatch> => {
-  const watchers: Watcher[] = [];
-  const close = async (): Promise<void> => {
-    await Promise.all(watchers.map((watcher) => watcher.close()));
-  };
-  const entries = sourcesOf(project);
-  try {
-    const firsts: Promise<void>[] = [];
-    for (const [index, config] of configsOf(project, outDir).entries()) {
-      const entry = entries[index] as Entry;
-      const started = await build({
-        ...config,
-        build: { ...config.build, watch: {} },
-      });
-      if (!isWatcher(started)) {
-        throw new Error(`watch mode is not available for '${entry.source}'`);
-      }
-      watchers.push(started);
-      firsts.push(whenFirstEnd(started, entry, onRebuild));
+  for (const job of jobsOf(project, outDir)) {
+    job.state.problem = null;
+    try {
+      await build(job.config);
+    } catch (error) {
+      throw new BuildError(
+        `failed to bundle ${job.label}: ${failureDetail(job, error)}`,
+        project.manifest.id,
+      );
     }
-    await Promise.all(firsts);
-  } catch (error) {
-    await close();
-    throw new BuildError(
-      `failed to bundle: ${errorText(error)}`,
-      project.manifest.id,
-    );
   }
-  return { close };
 };

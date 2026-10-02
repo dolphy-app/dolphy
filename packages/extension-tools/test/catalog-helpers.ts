@@ -60,7 +60,7 @@ export const addExtension = async (
   repo: Repo,
   spec: ExtensionSpec,
 ): Promise<string> => {
-  const source = await copyProject(spec.fixture);
+  const source = await copyProject(spec.fixture, { isLinked: false });
   const manifestFile = path.join(source, 'extension.json');
   const manifest = await readManifest(manifestFile);
   const dirName = spec.dirName ?? manifest.id;
@@ -74,7 +74,7 @@ export const addExtension = async (
   for (const [file, content] of Object.entries(files)) {
     await writeRelative(target, file, content);
   }
-  if (spec.fixture === 'commands-panel') await linkSdk(target);
+  if (spec.fixture !== 'theme-only') await linkSdk(target);
   return target;
 };
 

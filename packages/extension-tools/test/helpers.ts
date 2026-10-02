@@ -22,10 +22,28 @@ export const makeTemp = async (): Promise<string> => {
   return dir;
 };
 
-/** Копия фикстурного проекта во временном каталоге (сборка не пишет в репозиторий). */
-export const copyProject = async (name: string): Promise<string> => {
+/** Делает SDK разрешимым из проекта во временном каталоге (в реальном проекте он стоит в node_modules). */
+export const linkSdk = async (root: string): Promise<void> => {
+  const scope = path.join(root, 'node_modules', '@dolphy-app');
+  await mkdir(scope, { recursive: true });
+  await symlink(
+    fileURLToPath(new URL('../../extension-sdk', import.meta.url)),
+    path.join(scope, 'extension-sdk'),
+  );
+};
+
+/**
+ * Копия фикстурного проекта во временном каталоге (сборка не пишет в
+ * репозиторий); SDK разрешим, как в проекте автора. `isLinked: false` — копия
+ * без `node_modules`, например чтобы положить проект в репозиторий каталога.
+ */
+export const copyProject = async (
+  name: string,
+  { isLinked = true }: { isLinked?: boolean } = {},
+): Promise<string> => {
   const dir = path.join(await makeTemp(), name);
   await cp(path.join(projectsDir, name), dir, { recursive: true });
+  if (isLinked) await linkSdk(dir);
   return dir;
 };
 
@@ -40,14 +58,4 @@ export const waitFor = async (
       setTimeout(resolve, 50);
     });
   }
-};
-
-/** Делает SDK разрешимым из проекта во временном каталоге (в реальном проекте он стоит в node_modules). */
-export const linkSdk = async (root: string): Promise<void> => {
-  const scope = path.join(root, 'node_modules', '@dolphy-app');
-  await mkdir(scope, { recursive: true });
-  await symlink(
-    fileURLToPath(new URL('../../extension-sdk', import.meta.url)),
-    path.join(scope, 'extension-sdk'),
-  );
 };

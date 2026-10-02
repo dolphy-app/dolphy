@@ -1,0 +1,117 @@
+import type { FrameLocator, Locator, Page } from 'playwright-core';
+
+export const COMMANDS_ID = 'acme.commands';
+export const VICTIM_ID = 'acme.victim';
+export const PANEL_TITLE = 'Приветствия';
+
+/** Рамка панели расширения (`PanelFrame`, режим `panel`). */
+export const PANEL_FRAME = 'iframe[sandbox][data-mode="panel"]';
+
+/** Строки интерфейса (`ru`), по которым находятся элементы. */
+const RU = {
+  palette: 'Палитра команд',
+  find: 'Найти команду',
+  list: 'Команды',
+  nav: 'Панели расширений',
+  navPalette: 'Команды',
+  back: 'Назад',
+} as const;
+
+/** Оператор палитры команд, уведомлений и страницы панели: клики и чтение экрана. */
+export class CommandsClient {
+  readonly page: Page;
+
+  constructor(page: Page) {
+    this.page = page;
+  }
+
+  // --- палитра ---
+
+  get palette(): Locator {
+    return this.page.getByRole('dialog', { name: RU.palette, exact: true });
+  }
+
+  get combobox(): Locator {
+    return this.palette.getByRole('combobox', { name: RU.find, exact: true });
+  }
+
+  get options(): Locator {
+    return this.palette.getByRole('option');
+  }
+
+  option(title: string): Locator {
+    return this.options.filter({ hasText: title });
+  }
+
+  /** Ctrl+K на текущей странице; ждёт поле поиска в фокусе. */
+  async openPalette() {
+    await this.page.keyboard.press('Control+K');
+    await this.combobox.waitFor({ timeout: 15_000 });
+  }
+
+  async openPaletteFromMenu() {
+    await this.page
+      .getByRole('navigation', { name: 'Дополнительно' })
+      .getByText(RU.navPalette, { exact: true })
+      .click();
+    await this.combobox.waitFor({ timeout: 15_000 });
+  }
+
+  async search(text: string) {
+    await this.combobox.fill(text);
+  }
+
+  async optionTitles(): Promise<string[]> {
+    return (await this.options.locator('.title').allInnerTexts()).map((text) =>
+      text.trim(),
+    );
+  }
+
+  // --- уведомления ---
+
+  /** Уведомление приложения (`role="status"`). */
+  get notice(): Locator {
+    return this.page.locator('.v-snackbar[role="status"]');
+  }
+
+  // --- панель ---
+
+  navItem(title: string): Locator {
+    return this.page
+      .getByRole('navigation', { name: RU.nav, exact: true })
+      .getByRole('link', { name: title, exact: true });
+  }
+
+  get panelHeading(): Locator {
+    return this.page.getByRole('heading', { level: 1 });
+  }
+
+  get frameElement(): Locator {
+    return this.page.locator(PANEL_FRAME);
+  }
+
+  get frame(): FrameLocator {
+    return this.page.frameLocator(PANEL_FRAME);
+  }
+
+  panelButton(name: string): Locator {
+    return this.frame.getByRole('button', { name, exact: true });
+  }
+
+  panelRole(role: string): Locator {
+    return this.frame.locator(`[data-role="${role}"]`);
+  }
+
+  get backButton(): Locator {
+    return this.page.getByRole('button', { name: RU.back, exact: true });
+  }
+
+  get unavailable(): Locator {
+    return this.page.getByTestId('panel-unavailable');
+  }
+
+  /** Адрес маршрута (hash) текущей страницы. */
+  route(): string {
+    return new URL(this.page.url()).hash;
+  }
+}

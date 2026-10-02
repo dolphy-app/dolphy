@@ -2,7 +2,13 @@ import { builtinModules } from 'node:module';
 import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import type { Plugin } from 'vite';
-import { RECORDS, analyzeIndex, importsOf, pruneRecords } from './analyze.ts';
+import {
+  RECORDS,
+  analyzeIndex,
+  importsOf,
+  pruneRecords,
+  stripBareImports,
+} from './analyze.ts';
 import type { IndexAnalysis, RecordName, RecordSite } from './analyze.ts';
 import type { BrowserOutput, HostOutput, Project } from './project.ts';
 
@@ -206,7 +212,7 @@ export const shimPlugin = ({
         output.kind === 'browser' &&
         isNodeSpecifier(specifier, project.external)
       ) {
-        return { id: specifier, external: true, moduleSideEffects: false };
+        return { id: specifier, external: true };
       }
       return null;
     },
@@ -214,6 +220,10 @@ export const shimPlugin = ({
       if (output.kind !== 'browser') return;
       for (const chunk of Object.values(bundle)) {
         if (chunk.type !== 'chunk') continue;
+        // от отсечённого кода хоста бандлер оставляет `import "node:…"` без привязок
+        chunk.code = stripBareImports(chunk.code, (specifier) =>
+          isNodeSpecifier(specifier, project.external),
+        );
         // `chunk.imports` помнит и отсечённые импорты: смотрим на сам код
         const leaked = [...importsOf(chunk.code)].find((specifier) =>
           isNodeSpecifier(specifier, project.external),

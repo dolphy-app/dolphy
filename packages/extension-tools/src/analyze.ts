@@ -361,3 +361,28 @@ export const importsOf = (code: string): Set<string> => {
   collectImports(parseAst(code, { lang: 'js' }).body, found);
   return found;
 };
+
+/**
+ * Убирает из собранного кода импорты без привязок (`import "node:fs"`), которые
+ * выбирает `isDropped`. Бандлер оставляет такие импорты от отсечённого кода
+ * хоста; привязок у них нет, так что убирать их безопасно.
+ */
+export const stripBareImports = (
+  code: string,
+  isDropped: (specifier: string) => boolean,
+): string => {
+  const ranges: [number, number][] = [];
+  for (const statement of parseAst(code, { lang: 'js' })
+    .body as unknown as AstNode[]) {
+    if (statement.type !== 'ImportDeclaration') continue;
+    if (children(statement, 'specifiers').length > 0) continue;
+    if (isDropped(child(statement, 'source').value as string)) {
+      ranges.push([statement.start, statement.end]);
+    }
+  }
+  let result = code;
+  for (const [start, end] of ranges.reverse()) {
+    result = result.slice(0, start) + result.slice(end);
+  }
+  return result;
+};

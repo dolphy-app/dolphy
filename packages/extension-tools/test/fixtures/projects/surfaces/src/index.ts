@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import {
   defineAnswerView,
+  defineExerciseType,
   defineExtension,
   defineExtensionPanel,
   defineMarkdownRenderer,
@@ -9,13 +10,13 @@ import { shout } from './shout.ts';
 
 export const host = defineExtension({
   exerciseTypes: {
-    'acme.surfaces.one': {
+    'acme.surfaces.one': defineExerciseType({
       project: () => 'HOST_ONLY_MARKER',
       grade: () => {
         spawn('true');
         return { outcome: 'passed' };
       },
-    },
+    }),
   },
 });
 

@@ -2,6 +2,11 @@ import { builtinModules } from 'node:module';
 import path from 'node:path';
 import { build, createLogger } from 'vite';
 import type { InlineConfig } from 'vite';
+import {
+  ASSETS_INLINE_LIMIT,
+  ASSET_FILE_NAME,
+  assetsPlugin,
+} from './assets-plugin.ts';
 import { BuildError } from './errors.ts';
 import type { Entry, Project } from './project.ts';
 import { exportsOf, shimEntry, shimPlugin } from './shim.ts';
@@ -36,6 +41,8 @@ const bundleConfig = (
   root: project.root,
   configFile: false,
   publicDir: false,
+  // asset addresses relative to the bundle (`new URL('assets/x.png', import.meta.url)`), not to the site root
+  base: './',
   logLevel: 'warn',
   // `watchExtension` reports build errors once per cause, rather than Vite once per file
   customLogger: { ...createLogger('warn'), error: () => undefined },
@@ -45,6 +52,7 @@ const bundleConfig = (
     emptyOutDir: false,
     minify: false,
     copyPublicDir: false,
+    assetsInlineLimit: ASSETS_INLINE_LIMIT,
     lib: {
       entry,
       formats: ['es'],
@@ -52,6 +60,7 @@ const bundleConfig = (
     },
     rolldownOptions: {
       external: isNode ? nodeExternal(project.external) : [],
+      output: { assetFileNames: ASSET_FILE_NAME },
     },
   },
 });
@@ -70,24 +79,30 @@ const outputJob = (project: Project, output: Output, outDir: string): Job => {
     label: `${output.output} (${exportsOf(output).join(', ')} from ${project.indexSource})`,
     config: {
       ...config,
-      plugins: [shimPlugin({ project, output, state })],
+      plugins: [shimPlugin({ project, output, state }), assetsPlugin(state)],
     },
     state,
   };
 };
 
-const workerJob = (project: Project, entry: Entry, outDir: string): Job => ({
-  output: entry.output,
-  label: `${entry.output} (${entry.source})`,
-  config: bundleConfig(
-    project,
-    path.resolve(project.root, entry.source),
-    entry.output,
-    outDir,
-    true,
-  ),
-  state: { problem: null },
-});
+const workerJob = (project: Project, entry: Entry, outDir: string): Job => {
+  const state: JobState = { problem: null };
+  return {
+    output: entry.output,
+    label: `${entry.output} (${entry.source})`,
+    config: {
+      ...bundleConfig(
+        project,
+        path.resolve(project.root, entry.source),
+        entry.output,
+        outDir,
+        true,
+      ),
+      plugins: [assetsPlugin(state)],
+    },
+    state,
+  };
+};
 
 /** Project bundles: the extensions process, browser files, workers. */
 export const jobsOf = (project: Project, outDir: string): Job[] => [

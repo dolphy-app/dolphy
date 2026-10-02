@@ -5,8 +5,7 @@ import type { GraphEdgeDto, UnitId } from '@dolphy-app/engine-contract';
 export const NODE_WIDTH = 256;
 export const NODE_HEIGHT = 96;
 
-/** Шапка контейнера курса и отступы внутри него. */
-export const FRAME_HEADER = 56;
+/** Отступ внутри контейнера курса; название курса — в панели над полотном. */
 export const FRAME_PADDING = 24;
 const FRAME_GAP = 48;
 const MIN_FRAME_WIDTH = NODE_WIDTH + FRAME_PADDING * 2;
@@ -174,14 +173,11 @@ export const layoutCourses = (
     const inner = layoutGraph(lessonIds, edges);
     const local = new Map<UnitId, Point>();
     for (const [id, { x, y }] of inner.positions) {
-      const shifted = {
-        x: x + FRAME_PADDING,
-        y: y + FRAME_HEADER + FRAME_PADDING,
-      };
+      const shifted = { x: x + FRAME_PADDING, y: y + FRAME_PADDING };
       local.set(id, shifted);
       absolute.set(id, { x: shifted.x, y: top + shifted.y });
     }
-    const height = FRAME_HEADER + FRAME_PADDING * 2 + inner.height;
+    const height = FRAME_PADDING * 2 + inner.height;
     frames.push({
       courseId,
       x: 0,

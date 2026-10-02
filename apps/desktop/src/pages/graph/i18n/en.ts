@@ -51,6 +51,7 @@ export const en: typeof ru = {
     node: {
       score: 'Score {score} of 5',
       noScore: 'No score',
+      scoreShort: '{score} / 5',
       due: 'nothing to review | {n} to review | {n} to review',
       aria: '{name}: {status}. {score}. {due}',
     },

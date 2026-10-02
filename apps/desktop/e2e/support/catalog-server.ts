@@ -5,7 +5,6 @@ import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-// пакет не в зависимостях приложения (установка зависимостей вне этой задачи): берём исходники напрямую
 import {
   ASSET_MIME,
   CATALOG_FILE_EXTENSIONS,
@@ -14,7 +13,7 @@ import {
   iconDataUri,
   legacySubset,
   parseIndex,
-} from '../../../../packages/extension-catalog/src/index.ts';
+} from '@dolphy-app/extension-catalog';
 
 /** Версия приложения для e2e: `minAppVersion` проверяется только когда она задана. */
 export const E2E_APP_VERSION = '1.0.0';

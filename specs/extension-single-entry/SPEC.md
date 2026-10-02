@@ -51,7 +51,7 @@ superseded-by: null
 
 - [x] 4a. SDK (`defineAnswerView`, `sideEffects`, регистрация в обвязке), `extension-tools` (вход `src/index.ts`, обвязки, защита `node:*`, сверка с манифестом, watch), предупреждение хоста о незарегистрированном, `loadView`/`loadPanel`, миграция `ext-choice`, `ext-sql`, `ext-math`, шаблон и тесты
 - [x] 4b. Типы id: `dolphy-ext types`, объявления, типизированные `defineExtension`/`views`/`panels`/`markdown`/`ctx.*`, тесты типов
-- [ ] Документация: `docs/design/extensions.md`, README пакетов, примеры для `docs-contributions.test.ts`
+- [x] Документация: `docs/design/extensions.md`, README пакетов, примеры для `docs-contributions.test.ts` (для 4b; общая сверка перед закрытием остаётся)
 - [ ] Закрытие: ADR 0009, `Outcomes`, архив
 
 ## Surprises & Discoveries
@@ -66,6 +66,12 @@ superseded-by: null
 - Сбой первой сборки не оставляет вотчеру файлов для слежения: плагин сам добавляет `src/index.ts` и разобранные файлы в список слежения. Правка `extension.json` в `--watch` перезапускает все вотчеры, сохраняя выход.
 - Вотчеры по числу файлов шлют события одной правки порознь: отчёт собирается, пока какой-либо вотчер занят (`START`…`END`), и уходит после тишины в 150 мс; одинаковые ошибки сводятся в одну запись.
 - Тесты в happy-dom: `loadView` создаёт элемент с тестовым тегом, а не с тегом манифеста.
+
+4b (типы id):
+
+- Расширение интерфейса из `export *` и именованного реэкспорта работает и в TS 6, и в TS 7. `include` с каталогом `.dolphy` не берёт файлы скрытого каталога: в `tsconfig` нужен путь к файлу `.dolphy/ids.d.ts`. ESLint без игнора `**/.dolphy/**` линтит сгенерированный файл.
+- Если проект компилирует исходники SDK (ссылка `link:`), присваивание `ExtensionDefinition` внутренней форме падает при сужении; `defineExtension` приводит определение к свободной форме.
+- Проверка типов в `docs-contributions.test.ts` сразу нашла два примера (события и серия дней), где `activate` регистрирует объявленные id: им понадобился `inActivate`.
 
 ## Decision Log
 

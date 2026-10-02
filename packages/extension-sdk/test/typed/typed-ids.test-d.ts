@@ -72,9 +72,9 @@ describe('defineExtension with generated ids', () => {
   it('rejects an event the manifest does not declare', () => {
     defineExtension({
       ...complete,
-      // @ts-expect-error 'session.started' is not declared
       events: {
         'attempt.closed': () => undefined,
+        // @ts-expect-error 'session.started' is not declared
         'session.started': () => undefined,
       },
     });

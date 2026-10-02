@@ -16,6 +16,7 @@ const extension = (id: string, origin: ExtensionOrigin): ResolvedExtension => ({
   author: null,
   platforms: [],
   minAppVersion: null,
+  icon: null,
   install: null,
   exerciseTypes: [],
   themes: [],

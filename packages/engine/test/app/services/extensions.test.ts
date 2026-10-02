@@ -34,6 +34,7 @@ const info = (overrides: Partial<ExtensionInfoDto>): ExtensionInfoDto => ({
   description: null,
   author: null,
   installed: null,
+  icon: null,
   removable: false,
   revoked: null,
   ...overrides,

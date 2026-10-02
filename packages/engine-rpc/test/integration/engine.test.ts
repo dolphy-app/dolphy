@@ -91,6 +91,7 @@ const REGISTERED: ExtensionInfoDto = {
   description: null,
   author: null,
   installed: null,
+  icon: null,
   removable: false,
   revoked: null,
 };
@@ -108,6 +109,7 @@ const USER_EXTENSION: ExtensionInfoDto = {
   permissions: [],
   isolation: 'isolated',
   toggleable: true,
+  icon: null,
   removable: true,
 };
 

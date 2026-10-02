@@ -17,6 +17,7 @@ const extension = (id: string, version = '1.0.0'): ResolvedExtension => ({
   author: null,
   platforms: [],
   minAppVersion: null,
+  icon: null,
   install: null,
   exerciseTypes: [
     {
@@ -84,6 +85,7 @@ describe('createExtensionRegistry', () => {
       description: null,
       author: null,
       installed: null,
+      icon: null,
       removable: true,
       revoked: null,
     });
@@ -104,6 +106,7 @@ describe('createExtensionRegistry', () => {
       description: null,
       author: null,
       installed: null,
+      icon: null,
       removable: false,
       revoked: null,
     });
@@ -124,6 +127,7 @@ describe('createExtensionRegistry', () => {
       description: null,
       author: null,
       installed: null,
+      icon: null,
       removable: true,
       revoked: null,
     });

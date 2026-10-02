@@ -28,6 +28,7 @@ const extension = (
   author: null,
   platforms: [],
   minAppVersion: null,
+  icon: null,
   install: null,
   exerciseTypes: [],
   themes: [],

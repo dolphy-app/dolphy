@@ -30,11 +30,18 @@ const withoutMetadata = (
   origin: ExtensionInfoDto['origin'],
 ): Pick<
   ExtensionInfoDto,
-  'name' | 'description' | 'author' | 'installed' | 'removable' | 'revoked'
+  | 'name'
+  | 'description'
+  | 'author'
+  | 'icon'
+  | 'installed'
+  | 'removable'
+  | 'revoked'
 > => ({
   name: null,
   description: null,
   author: null,
+  icon: null,
   installed: null,
   removable: origin === 'user',
   revoked: null,
@@ -85,6 +92,7 @@ const loaded = (
     name: extension.name,
     description: extension.description,
     author: extension.author,
+    icon: extension.icon,
     installed: extension.install === null ? null : { ...extension.install },
     removable: extension.origin === 'user',
     revoked,

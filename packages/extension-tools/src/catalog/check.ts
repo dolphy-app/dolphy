@@ -101,6 +101,17 @@ const readTextOrNull = async (file: string): Promise<string | null> => {
   return info?.isFile() === true ? readFile(file, 'utf8') : null;
 };
 
+/** A file inside `dir`; a path that leaves it (`../x`) is no file. */
+const readBytesInside = async (
+  dir: string,
+  file: string,
+): Promise<Uint8Array | null> => {
+  const target = path.resolve(dir, file);
+  if (!target.startsWith(dir + path.sep)) return null;
+  const info = await stat(target).catch(() => null);
+  return info?.isFile() === true ? readFile(target) : null;
+};
+
 const inspectManifest = async (
   dir: string,
 ): Promise<{ manifest: CheckedManifest | null; problem: string | null }> => {
@@ -127,6 +138,7 @@ const readDeclared = async (dir: string): Promise<DeclaredMetadata | null> => {
       name: stringOrNull(fields.name),
       description: stringOrNull(fields.description),
       author: stringOrNull(fields.author),
+      icon: stringOrNull(fields.icon),
     };
   } catch {
     return null;
@@ -149,6 +161,7 @@ const contextFor = async (
     manifestProblem: problem,
     tree: await readTree(dir, SKIPPED_SOURCE_DIRS),
     readText: (file) => readTextOrNull(path.join(dir, file)),
+    readBytes: (file) => readBytesInside(dir, file),
     published: published?.extensions.find(
       (entry) => entry.id === (manifest?.id ?? dirName),
     ),

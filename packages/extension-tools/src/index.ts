@@ -2,6 +2,7 @@ import { watch as fsWatch } from 'node:fs';
 import { cp, mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { inspectExtensionDir } from '@dolphy-app/extension-host';
+import { assetFindings } from './catalog/assets.ts';
 import { bundleAll } from './bundle.ts';
 import { BuildError } from './errors.ts';
 import { writeIds } from './ids.ts';
@@ -128,6 +129,18 @@ const copyStatic = async (project: Project, dir: string): Promise<void> => {
       await cp(from, path.join(dir, name), { recursive: true });
     }
   }
+  const { icon } = project.manifest;
+  if (icon !== null) {
+    const from = path.join(project.root, icon);
+    if (!(await isPresent(from))) {
+      throw new BuildError(
+        `icon '${icon}' referenced by the manifest is not found`,
+        project.manifest.id,
+      );
+    }
+    await mkdir(path.dirname(path.join(dir, icon)), { recursive: true });
+    await cp(from, path.join(dir, icon));
+  }
   for (const schema of project.schemaPaths) {
     const from = path.join(project.root, schema);
     if (!(await isPresent(from))) {
@@ -157,13 +170,17 @@ const listFiles = async (dir: string, prefix = ''): Promise<string[]> => {
 export const validateExtension = async (
   dir: string,
 ): Promise<ValidationResult> => {
-  const result = await inspectExtensionDir(path.resolve(dir), {
+  const root = path.resolve(dir);
+  const result = await inspectExtensionDir(root, {
     verifyFiles: true,
     expectedId: null,
   });
-  return result.ok
-    ? { ok: true, problems: [] }
-    : { ok: false, problems: [result.message] };
+  if (!result.ok) return { ok: false, problems: [result.message] };
+  // the same checks as `catalog check`: type, signature, ceiling and content of style sheets, images, fonts
+  const problems = (await assetFindings(root, await listFiles(root))).map(
+    ({ path: file, message }) => `${file}: ${message}`,
+  );
+  return { ok: problems.length === 0, problems };
 };
 
 const assertValid = async (project: Project, dir: string): Promise<void> => {

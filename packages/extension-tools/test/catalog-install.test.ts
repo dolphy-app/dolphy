@@ -49,6 +49,7 @@ const inspectDir = async (directory: string): Promise<InspectResult> => {
       id: extension.id,
       version: extension.version,
       permissions: extension.permissions,
+      icon: extension.icon,
       contributes: {
         exerciseTypes: extension.exerciseTypes.map((type) => type.id),
         themes: extension.themes.map((theme) => theme.id),

@@ -1,7 +1,11 @@
 import { rename, writeFile } from 'node:fs/promises';
 import {
+  CATALOG_SCHEMA_VERSION,
+  FULL_INDEX_FILE,
+  INDEX_FILE,
   MAX_VERSIONS,
   compareSemver,
+  legacySubset,
   parseIndex,
 } from '@dolphy-app/extension-catalog';
 import type {
@@ -13,7 +17,7 @@ import type {
 import { BuildError } from '../errors.ts';
 import { compareText } from './tree.ts';
 
-export const INDEX_FILE = 'index.json';
+export { FULL_INDEX_FILE, INDEX_FILE };
 
 const orderFile = (file: CatalogFile): CatalogFile => ({
   path: file.path,
@@ -39,6 +43,7 @@ const orderVersion = (version: CatalogVersion): CatalogVersion => ({
   publishedAt: version.publishedAt,
   baseUrl: version.baseUrl,
   files: [...version.files].sort(byPath).map(orderFile),
+  ...(version.icon === undefined ? {} : { icon: version.icon }),
 });
 
 type OptionalKey = 'settings' | 'events' | 'commands' | 'panels';
@@ -83,10 +88,28 @@ export interface IndexParts {
   revoked: CatalogIndex['revoked'];
 }
 
-/** Builds the index with a stable key order; throws `BuildError` if it fails `parseIndex`. */
+/** Both published files: the full index and the subset every released app parses. */
+export interface AssembledIndexes {
+  full: CatalogIndex;
+  legacy: CatalogIndex;
+}
+
+const checked = (candidate: CatalogIndex, file: string): CatalogIndex => {
+  try {
+    parseIndex(candidate);
+    return candidate;
+  } catch (error) {
+    throw new BuildError(
+      `resulting index is invalid: ${error instanceof Error ? error.message : String(error)}`,
+      file,
+    );
+  }
+};
+
+/** Builds the full index with a stable key order; throws `BuildError` if it fails `parseIndex`. */
 export const assembleIndex = (parts: IndexParts): CatalogIndex => {
   const candidate: CatalogIndex = {
-    schemaVersion: 1,
+    schemaVersion: CATALOG_SCHEMA_VERSION,
     generatedAt: parts.generatedAt,
     extensions: [...parts.extensions].sort(byId).map(orderEntry),
     revoked: parts.revoked.map((item) => ({
@@ -95,15 +118,13 @@ export const assembleIndex = (parts: IndexParts): CatalogIndex => {
       reason: item.reason,
     })),
   };
-  try {
-    parseIndex(candidate);
-    return candidate;
-  } catch (error) {
-    throw new BuildError(
-      `resulting index is invalid: ${error instanceof Error ? error.message : String(error)}`,
-      INDEX_FILE,
-    );
-  }
+  return checked(candidate, FULL_INDEX_FILE);
+};
+
+/** `index.v2.json` and `index.json` of the same content and `generatedAt`. */
+export const assembleIndexes = (parts: IndexParts): AssembledIndexes => {
+  const full = assembleIndex(parts);
+  return { full, legacy: checked(legacySubset(full), INDEX_FILE) };
 };
 
 export const writeIndexAtomically = async (

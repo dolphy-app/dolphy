@@ -1,7 +1,8 @@
 import path from 'node:path';
 import { GITHUB_LOGIN_PATTERN } from '@dolphy-app/extension-api';
-import { compareSemver } from '@dolphy-app/extension-catalog';
+import { compareSemver, iconProblem } from '@dolphy-app/extension-catalog';
 import type { CatalogEntry } from '@dolphy-app/extension-catalog';
+import { assetFindings } from './assets.ts';
 import type { GithubUserChecker } from './github.ts';
 import type { Tree } from './tree.ts';
 
@@ -27,6 +28,8 @@ export interface DeclaredMetadata {
   name: string | null;
   description: string | null;
   author: string | null;
+  /** `icon` path as written in the manifest. */
+  icon: string | null;
 }
 
 export interface RuleContext {
@@ -41,6 +44,8 @@ export interface RuleContext {
   tree: Tree;
   /** `null` — no such file. */
   readText(file: string): Promise<string | null>;
+  /** `null` — no such file. */
+  readBytes(file: string): Promise<Uint8Array | null>;
   published: CatalogEntry | undefined;
   maxAppVersion: string | null;
   skipGithubCheck: boolean;
@@ -381,6 +386,36 @@ const appVersionBound: CheckRule = {
       : [],
 };
 
+const ASSETS_DIR = 'assets/';
+
+const assetFiles: CheckRule = {
+  id: 'CHECK-017',
+  title:
+    'files in assets/ match their type: signature, size limits, pixels, safe SVG and CSS',
+  run: async ({ dir, tree }) =>
+    (
+      await assetFindings(
+        dir,
+        tree.files
+          .map((file) => file.path)
+          .filter((file) => file.startsWith(ASSETS_DIR)),
+      )
+    ).map(({ path: file, message }) => error(file, message)),
+};
+
+const iconFile: CheckRule = {
+  id: 'CHECK-018',
+  title: 'icon is a square 64–512 px PNG or WebP file up to 16 KiB',
+  run: async ({ declared, readBytes }) => {
+    const icon = declared?.icon;
+    if (icon === null || icon === undefined) return [];
+    const bytes = await readBytes(icon);
+    if (bytes === null) return [error('icon', `icon '${icon}' is not a file`)];
+    const problem = iconProblem(icon, bytes);
+    return problem === null ? [] : [error('icon', problem)];
+  },
+};
+
 export const RULES: readonly CheckRule[] = [
   manifestValid,
   directoryName,
@@ -398,4 +433,6 @@ export const RULES: readonly CheckRule[] = [
   noSymlinks,
   noExecutables,
   appVersionBound,
+  assetFiles,
+  iconFile,
 ];

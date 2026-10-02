@@ -217,9 +217,10 @@ const vComboboxInput = {
 }
 
 .main {
-  display: flex;
+  flex: 1 1 0;
   flex-direction: column;
   min-width: 0;
+  display: flex;
 }
 
 /* названия и описания — данные расширения: длинное слово переносится, а не раздвигает строку */
@@ -243,7 +244,7 @@ const vComboboxInput = {
 .meta {
   display: flex;
   align-items: center;
-  flex: 0 1 auto;
+  flex: none;
   min-width: 0;
   max-width: 50%;
   gap: 0.5rem;

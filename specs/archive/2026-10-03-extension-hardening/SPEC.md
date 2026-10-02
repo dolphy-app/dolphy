@@ -1,8 +1,8 @@
 ---
-status: active
+status: done
 branch: feature/extension-hardening
 created: 2026-10-02
-closed: null
+closed: 2026-10-03
 touches: [desktop, extension-host]
 depends-on: [specs/archive/2026-10-02-extension-assets]
 supersedes: null
@@ -10,6 +10,8 @@ superseded-by: null
 ---
 
 # Укрепление ограниченного процесса и упаковки
+
+> Исторический документ. Не источник требований.
 
 Живой документ, пока `status` — `draft` или `active`: `Progress`, `Surprises & Discoveries`, `Decision Log` обновляются вместе с кодом. По завершении фичи переносится в `specs/archive/` и не меняется. Правила — скилл `spec-workflow`.
 
@@ -49,8 +51,8 @@ superseded-by: null
 - [ ] 6a. Пробники обходов на настоящем Electron — **не выполняется**, отложено по решению владельца (R3)
 - [x] 6b. Fuses в `electron-builder.json`, проверка схемы в `smoke:packaged` (CI-задание и `release.yml` вычеркнуты, R2)
 - [x] 6c. Сокращено владельцем до: обработчики разрешений сеанса, `Permissions-Policy`, охрана `webContents` (лимиты дочернего процесса и отклонение символических ссылок вычеркнуты, R4/R5)
-- [ ] 6d. Документация: ADR 0011, `docs/design/extensions.md`, README приложения
-- [ ] Закрытие: `Outcomes`, архив
+- [x] 6d. Документация: ADR 0011, `docs/design/extensions.md`, README приложения
+- [x] Закрытие: `Outcomes`, архив
 
 ## Surprises & Discoveries
 
@@ -69,4 +71,16 @@ superseded-by: null
 
 ## Outcomes
 
-Заполняется при закрытии.
+Сделано:
+- Fuses заданы в `electron-builder.json`, `smoke:packaged` проверяет схему готового бинарника (R1; `GrantFileProtocolExtraPrivileges` остался включённым по измеренной причине).
+- Охрана любого `webContents`, отказ во всех разрешениях сеанса, `Permissions-Policy` у страниц рамок (R6, в сокращённом владельцем объёме: юнит-тесты оболочек).
+- Документация: [ADR 0011](../../../docs/adr/0011-electron-fuses-and-runasnode.md), «Пределы» в `docs/design/extensions.md`, README приложения (R7).
+- Попутно: `zod` добавлен в `dependencies` `apps/desktop` — упакованное приложение на `develop` не запускалось.
+
+Отличается от плана:
+- `GrantFileProtocolExtraPrivileges` включён, а не выключен (R1 допускал это при записи причины).
+- R2, R4, R5 вычеркнуты владельцем (решение «как в Obsidian»: без песочницы и лимитов процесса, только fuses и чек-лист Electron).
+
+Не сделано и почему:
+- R3 / этап 6a (пробники побега, в том числе `process._debugProcess`): отложено владельцем; в «Пределах» и ADR 0011 записан как открытый непроверенный риск.
+- Задание `smoke:packaged` в CI: вычеркнуто владельцем; рекомендуемое продолжение, поскольку только смоук поймал пропажу `zod`.

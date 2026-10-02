@@ -44,7 +44,7 @@ const operate = (page: DolphyApp['page']): Windows => ({
 
 const waitForShell = (page: DolphyApp['page']) =>
   page
-    .getByRole('link', { name: 'План на сегодня', exact: true })
+    .getByRole('link', { name: /^(План на сегодня|Today's plan)$/ })
     .waitFor({ timeout: 30_000 });
 
 const launch = async (sources: CatalogSource[] = []): Promise<Windows> => {
@@ -287,9 +287,17 @@ describe('реестр команд: тема и язык (R2, R3, R8)', () => {
       1,
     );
 
-    await first.commands.page.keyboard.press('Control+K');
-    await first.commands.combobox.waitFor();
-    expect(await first.commands.optionTitles()).toEqual(
+    // палитра уже английская: ru-локаторы клиента не подходят, берём по testid
+    const palette = first.client.page.getByTestId('command-palette');
+    const combobox = palette.locator('input[role="combobox"]');
+    const options = palette.getByRole('option');
+    const titles = async () =>
+      (await options.locator('.title').allInnerTexts()).map((text) =>
+        text.trim(),
+      );
+    await first.client.page.keyboard.press('Control+K');
+    await combobox.waitFor({ timeout: 15_000 });
+    expect(await titles()).toEqual(
       expect.arrayContaining([
         'Go to: Courses',
         'Theme: Dark',
@@ -297,14 +305,12 @@ describe('реестр команд: тема и язык (R2, R3, R8)', () => {
         'Language: Русский',
       ]),
     );
-    await first.commands.search('Language');
-    await expectAttribute(
-      first.commands.option('Language: English'),
-      'aria-checked',
-      'true',
-    );
-    await expectText(first.commands.option('Language: English'), 'Selected');
-    await first.commands.combobox.press('Escape');
+    await combobox.fill('Language');
+    const english = options.filter({ hasText: 'Language: English' });
+    await expectAttribute(english, 'aria-checked', 'true');
+    await expectText(english, 'Selected');
+    await combobox.press('Escape');
+    await palette.waitFor({ state: 'hidden' });
     await stillSameWindow();
 
     // выбор сохранён: после перезапуска интерфейс английский
@@ -312,9 +318,12 @@ describe('реестр команд: тема и язык (R2, R3, R8)', () => {
     await second.client.page
       .getByRole('link', { name: "Today's plan", exact: true })
       .waitFor({ timeout: 30_000 });
-    await second.commands.page.keyboard.press('Control+K');
-    await second.commands.search('Language: Русский');
-    await second.commands.combobox.press('Enter');
+    const secondPalette = second.client.page.getByTestId('command-palette');
+    await second.client.page.keyboard.press('Control+K');
+    const secondInput = secondPalette.locator('input[role="combobox"]');
+    await secondInput.waitFor({ timeout: 15_000 });
+    await secondInput.fill('Language: Русский');
+    await secondInput.press('Enter');
     await second.client.page
       .getByRole('link', { name: 'План на сегодня', exact: true })
       .waitFor({ timeout: 15_000 });

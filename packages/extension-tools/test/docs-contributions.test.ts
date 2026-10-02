@@ -14,8 +14,8 @@
  * - `build-with-code` — a project of `extension.json` and one `src/index.ts` (the ```ts block
  *   with the marker) builds, passes `validateExtension` and `tsc` with the id types
  *   the build wrote to `.dolphy/ids.d.ts`;
- * - `index` — a single `index.json` file passes `parseIndex`
- *   (`@dolphy-app/extension-catalog`).
+ * - `index` — a single `index.json` or `index.v2.json` file (by the example label)
+ *   passes `parseIndex` (`@dolphy-app/extension-catalog`).
  *
  * The example “серия дней целиком” is also executed: the built `main.mjs`
  * goes through `loadEvents` and `loadCommands` from the SDK.
@@ -43,6 +43,8 @@ const EXAMPLES: Readonly<Record<string, Mode>> = {
   'вид задания с правами': 'manifest',
   'расширение для каталога': 'build-no-code',
   'индекс каталога': 'index',
+  'полный индекс каталога': 'index',
+  'панель со стилями и картинкой': 'build-with-code',
 };
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../../..');
@@ -155,11 +157,22 @@ describe('examples of the sections “Точки вклада”, “Права 
   for (const [label, mode] of Object.entries(EXAMPLES)) {
     describe(label, () => {
       if (mode === 'index') {
-        it('index.json passes parseIndex', () => {
+        it('the index passes parseIndex', () => {
           const files = examples.get(label) ?? [];
-          expect(files.map(({ file }) => file)).toEqual(['index.json']);
+          const full = label.startsWith('полный');
+          expect(files.map(({ file }) => file)).toEqual([
+            full ? 'index.v2.json' : 'index.json',
+          ]);
           const index = parseIndex(JSON.parse(files[0]?.content ?? ''));
           expect(index.extensions.length).toBeGreaterThan(0);
+          expect(index.schemaVersion).toBe(full ? 2 : 1);
+          if (full) {
+            expect(
+              index.extensions.every((entry) =>
+                entry.versions.some((version) => version.icon !== undefined),
+              ),
+            ).toBe(true);
+          }
         });
         return;
       }
@@ -176,7 +189,11 @@ describe('examples of the sections “Точки вклада”, “Права 
         const withCode = mode === 'build-with-code';
         if (withCode) {
           expect(
-            files.filter(({ lang }) => lang === 'ts').map(({ file }) => file),
+            files
+              .filter(
+                ({ file, lang }) => lang === 'ts' && !file.endsWith('.d.ts'),
+              )
+              .map(({ file }) => file),
           ).toEqual(['src/index.ts']);
         } else {
           expect(files.map(({ file }) => file)).toEqual(['extension.json']);
@@ -199,6 +216,30 @@ describe('examples of the sections “Точки вклада”, “Права 
       });
     });
   }
+});
+
+describe('the “панель со стилями и картинкой” example', () => {
+  it('the style sheet is inlined into the panel and the picture is shipped as a file', async () => {
+    const files = examples.get('панель со стилями и картинкой') ?? [];
+    const root = await writeProject(files, true);
+    const built = await buildExtension({ root });
+    expect(built.files).toEqual([
+      'assets/mark.svg',
+      'extension.json',
+      'panel.mjs',
+    ]);
+    const panel = await readFile(path.join(built.dir, 'panel.mjs'), 'utf8');
+    expect(panel).toContain('.badge');
+    expect(panel).toContain('assets/mark.svg');
+    // the shipped picture is the file of the example, byte for byte
+    expect(
+      await readFile(path.join(built.dir, 'assets/mark.svg'), 'utf8'),
+    ).toBe(files.find(({ file }) => file === 'assets/mark.svg')?.content);
+    await expect(validateExtension(built.dir)).resolves.toEqual({
+      ok: true,
+      problems: [],
+    });
+  });
 });
 
 interface Streak {

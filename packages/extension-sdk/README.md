@@ -329,11 +329,21 @@ export const panels = {
         `url(${new URL('assets/acme.woff2', import.meta.url).href})`,
       );
       container.append(hero);
-      void font.load();
+      void font.load().then(() => document.fonts.add(font));
     },
   }),
 };
 ```
+
+The frame loads scripts, style sheets, images and fonts only from its own
+extension (`dolphy-ext://<id>/…`, plus `data:` and `blob:`): a file of another
+extension is blocked, and so are `extension.json` and `README.md`. Build every
+URL from `import.meta.url` (the frame page has no `<base>`); inside a style sheet
+`url(font.woff2)` is relative to the sheet. A `<link rel="stylesheet">` works in
+a container, in `document.head` and in a shadow root, but `@font-face` registers a
+font only in a document-level sheet, so an element with a shadow root that needs
+its own font must link the sheet into `document.head` too. Use an SVG as an image
+(`<img>`, `url()`); it is never run as a document.
 
 Choose the inlined form for small things (one file, nothing to fetch) and a
 separate file for big images and fonts; the details, the limits and what the

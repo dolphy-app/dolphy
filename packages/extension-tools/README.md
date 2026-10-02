@@ -13,6 +13,7 @@
   extension.json        # исходный манифест (обязателен), тот же формат, что у установленного
   src/main.ts           # node-вход -> <out>/<id>/main.mjs
   src/view.ts           # браузерный вход -> <out>/<id>/view.mjs
+  src/panel.ts          # модуль панели (`contributes.panels`) -> <out>/<id>/panel.mjs
   dolphy-ext.config.json   # необязателен
   schema/, assets/      # необязательные каталоги, копируются как есть
 ```
@@ -28,6 +29,17 @@
   вовсе. Рендерер содержимого — `src/<имя файла без расширения>.ts`
   (по умолчанию `./markdown.mjs` → `src/markdown.ts`), браузерный бандл, как
   у `renderer` вида задания.
+- Панель (`contributes.panels`): на каждый различный `module` —
+  `src/<имя файла без расширения>.ts` (по умолчанию `./panel.mjs` →
+  `src/panel.ts`; `./ui/screen.js` → `src/screen.ts`, выход `ui/screen.js`);
+  браузерный бандл, как у рендерера; нет исходника — ошибка называет файл.
+  Модуль экспортирует `defineExtensionPanel({ mount(container, ctx) })` из
+  `@dolphy-app/extension-sdk`.
+- Команды (`contributes.commands`) исполняет код расширения, поэтому им нужен
+  `main` (`src/main.ts` с `defineExtension({ commands })`); без собранного
+  `main.mjs` `validate` падает. Образец — фикстура `commands-panel`: две команды
+  (одна с `palette: false`, `notify`/`openPanel` в `main.ts`) и панель
+  `panel.mjs`; в запись каталога попадают id команд и панелей.
 - Node-бандлы: ES-модуль, цель `node22`, без минификации; внешними остаются
   только встроенные модули Node и пакеты из `external`.
 - `dolphy-ext.config.json`:

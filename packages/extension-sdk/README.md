@@ -132,6 +132,50 @@ export default defineExtension({
   `loadExerciseType` и `loadGradePolicy` принимают готовые `storage`,
   `settings` и `events` (объекты из этих помощников).
 
+## Команды и панели
+
+Команда — вклад `contributes.commands` (нужен main), панель —
+`contributes.panels` (экран в изолированной рамке, модуль `./panel.mjs` по
+умолчанию, main не нужен).
+
+```ts
+// main.ts — обработчики по id; каждая команда объявлена в манифесте
+import { defineExtension, notify, openPanel } from '@dolphy-app/extension-sdk';
+export default defineExtension({
+  commands: {
+    'acme.tools.open': () => openPanel('acme.tools.main', { from: 'palette' }),
+    'acme.tools.ping': () => notify('pong'),
+  },
+});
+
+// panel.ts — export default модуля панели
+import { defineExtensionPanel } from '@dolphy-app/extension-sdk';
+export default defineExtensionPanel({
+  mount(container, ctx) {
+    container.textContent = `${ctx.panelId}: ${JSON.stringify(ctx.props)}`;
+    void ctx.call('acme.tools.ping'); // любая объявленная команда, в том числе palette: false
+  },
+});
+
+// main.test.ts — проверка без приложения
+import { loadCommands } from '@dolphy-app/extension-sdk/testing';
+const commands = await loadCommands(module, {
+  declaredCommands: ['acme.tools.open', 'acme.tools.ping'],
+  declaredPanels: ['acme.tools.main'],
+});
+await commands.run('acme.tools.ping'); // { kind: 'notify', text: 'pong' }
+```
+
+- `defineExtension({ commands })` — словарь `id → CommandHandler`; то же делает
+  `ctx.commands.register(id, handler)`. Результат — `notify(text)` (1–500
+  символов), `openPanel(id, props?)`, JSON-значение или ничего.
+- `defineExtensionPanel({ mount(container, ctx) })` — `ctx`: `panelId`, `props`,
+  `signal`, `call(commandId, args?)`, `onProps(listener)`.
+- `loadCommands(module, options?)` (`/testing`) отдаёт `run(id, args?)` →
+  `CommandOutcome`, `ids()`, `dispose()`; бросает на незарегистрированную
+  команду и недопустимый результат (правила — `normalizeCommandResult` из
+  `@dolphy-app/extension-api`).
+
 ## Права и `ctx.library`
 
 Расширение не из поставки и не доверенное исполняется в ограниченном процессе

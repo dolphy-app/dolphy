@@ -191,13 +191,6 @@ export interface FrameHost {
   dispose(): void;
 }
 
-/** Сообщение об ошибке вызова для рамки: текст, обрезанный до `MAX_ERROR_CHARS`. */
-const describeCallError = (error: unknown): string =>
-  (error instanceof Error ? error.message : String(error)).slice(
-    0,
-    MAX_ERROR_CHARS,
-  );
-
 type PanelCall = Extract<FrameEvent, { type: 'panel-call' }>;
 
 /**
@@ -257,7 +250,9 @@ const createPanelCalls = (
           });
         },
         (error: unknown) => {
-          if (!isDisposed()) fail(call.callId, describeCallError(error));
+          if (isDisposed()) return;
+          const text = error instanceof Error ? error.message : String(error);
+          fail(call.callId, text.slice(0, MAX_ERROR_CHARS));
         },
       )
       .finally(() => inFlight.delete(call.callId));

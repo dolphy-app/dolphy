@@ -12,9 +12,10 @@ import {
   CatalogFormatError,
   INSTALL_META_FILE,
   isRevoked,
+  fullIndexUrl,
   isSemver,
   latestUpdate,
-  parseIndex,
+  parseIndexLenient,
   resolveVersion,
 } from '@dolphy-app/extension-catalog';
 import type {
@@ -26,7 +27,7 @@ import type {
 } from '@dolphy-app/extension-catalog';
 import { randomSuffix } from './atomic.ts';
 import { createCatalogCache } from './cache.ts';
-import type { CachedIndex } from './cache.ts';
+import type { CachedIndex, IndexKind } from './cache.ts';
 import { describeEntry, toVersionDto } from './dto.ts';
 import { downloadVersion } from './download.ts';
 import { nodeFs } from './fs.ts';
@@ -38,7 +39,8 @@ import { manifestMismatch } from './verify.ts';
 
 const DEFAULT_CACHE_MAX_AGE_MS = 10 * 60_000;
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
-const MAX_INDEX_BYTES = 5_000_000;
+/** The full index carries an icon per version (up to ~22 KB each): the former 5 MB would hold a few hundred of them. */
+const MAX_INDEX_BYTES = 16_000_000;
 const STALE_STAGING_MS = 60 * 60_000;
 const MAX_ID_LENGTH = 64;
 const SWAP_TRASH = /^(.+)-(\d+)$/;
@@ -177,12 +179,18 @@ export const createExtensionInstaller = (
   let readyPromise: Promise<void> | null = null;
   const ready = (): Promise<void> => (readyPromise ??= initialize());
 
+  /** Tolerant: entries and versions it cannot read are skipped and logged; the rest of the catalog stays. */
   const parseIndexBytes = (
     bytes: Uint8Array,
     previous: CachedIndex | null,
   ): CatalogIndex => {
     try {
-      const index = parseIndex(JSON.parse(new TextDecoder().decode(bytes)));
+      const { index, warnings } = parseIndexLenient(
+        JSON.parse(new TextDecoder().decode(bytes)),
+      );
+      if (warnings.length > 0) {
+        logger.warn({ warnings }, 'some catalog entries were skipped');
+      }
       assertNotRolledBack(previous?.index ?? null, index);
       return index;
     } catch (error) {
@@ -204,29 +212,43 @@ export const createExtensionInstaller = (
     }
   };
 
+  /**
+   * `index.v2.json` next to the catalog address first; a 404 there (an old static server,
+   * a catalog published by an older tool) falls back to `index.json`. ETag and cache are per file.
+   * The catalog identity stays the address of `index.json`.
+   */
   const fetchIndex = async (): Promise<void> => {
     const previous = state.cached;
-    const etag = previous?.etag ?? null;
-    const response = await http.get({
-      url: catalogLocation,
-      headers: {
-        Accept: 'application/json',
-        ...(etag !== null && { 'If-None-Match': etag }),
-      },
-      maxBytes: MAX_INDEX_BYTES,
-      overflow: 'network',
-      allowNotModified: etag !== null,
-      extensionId: null,
-    });
-    const fetchedAt = now();
-    if (response.status === 304 && previous !== null) {
-      state.cached = { ...previous, fetchedAt };
-      await cache.touch(etag, fetchedAt);
+    const sources: readonly [IndexKind, URL][] = [
+      ['full', fullIndexUrl(catalogUrl)],
+      ['legacy', catalogLocation],
+    ];
+    for (const [kind, url] of sources) {
+      const etag = previous?.kind === kind ? previous.etag : null;
+      const response = await http.get({
+        url,
+        headers: {
+          Accept: 'application/json',
+          ...(etag !== null && { 'If-None-Match': etag }),
+        },
+        maxBytes: MAX_INDEX_BYTES,
+        overflow: 'network',
+        allowNotModified: etag !== null,
+        allowNotFound: kind === 'full',
+        extensionId: null,
+      });
+      if (response.status === 404) continue;
+      const fetchedAt = now();
+      if (response.status === 304 && previous !== null) {
+        state.cached = { ...previous, fetchedAt };
+        await cache.touch(etag, fetchedAt, kind);
+        return;
+      }
+      const index = parseIndexBytes(response.bytes, previous);
+      state.cached = { index, kind, etag: response.etag, fetchedAt };
+      await cache.save(response.bytes, response.etag, fetchedAt, kind);
       return;
     }
-    const index = parseIndexBytes(response.bytes, previous);
-    state.cached = { index, etag: response.etag, fetchedAt };
-    await cache.save(response.bytes, response.etag, fetchedAt);
   };
 
   let refreshing: Promise<void> | null = null;

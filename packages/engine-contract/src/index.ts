@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 11 as const;
+export const CONTRACT_VERSION = 12 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 
@@ -1108,6 +1108,8 @@ export interface ExtensionInfoDto {
   description: string | null;
   /** GitHub-логин автора из манифеста. */
   author: string | null;
+  /** Значок из манифеста как `data:image/png|webp;base64,…`; `null` — значка нет или манифест не прочитан. */
+  icon: string | null;
   /** Установлено из каталога; `null` — скопировано вручную, из поставки или из режима разработчика. */
   installed: ExtensionInstallDto | null;
   /** `true` у расширений с origin `user`: их можно удалить. */
@@ -1460,6 +1462,8 @@ export interface CatalogEntryDto {
   source: string;
   platforms: string[];
   contributes: ExtensionContributesDto;
+  /** Значок показанной версии как `data:image/png|webp;base64,…`; `null` — значка нет (или каталог старого формата). */
+  icon: string | null;
   status: CatalogStatusDto;
   /** Версия, установленная из каталога; `null` — не установлено (или скопировано вручную). */
   installedVersion: string | null;

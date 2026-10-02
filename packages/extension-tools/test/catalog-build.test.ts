@@ -28,7 +28,7 @@ const publish = async (
   });
 
 const indexOf = async (out: string) =>
-  parseIndex(await readJson(path.join(out, 'index.json')));
+  parseIndex(await readJson(path.join(out, 'index.v2.json')));
 
 const sha256 = async (file: string): Promise<string> =>
   createHash('sha256')
@@ -53,6 +53,7 @@ describe('catalog build: publishing a version', () => {
         status: 'published',
         files: 2,
         bytes: expect.any(Number),
+        inLegacyIndex: true,
       },
     ]);
     const versionDir = path.join(out, 'extensions', NIGHT, '1.0.0');
@@ -191,7 +192,7 @@ describe('catalog build: settings and events', () => {
     expect(entry?.contributes.settings).toEqual(['acme.hello.mode']);
     expect(entry?.contributes.events).toEqual(['attempt.closed']);
     expect(entry?.versions[0]?.permissions).toEqual(['learning.events']);
-    const raw = (await readJson(path.join(out, 'index.json'))) as {
+    const raw = (await readJson(path.join(out, 'index.v2.json'))) as {
       extensions: { contributes: Record<string, unknown> }[];
     };
     expect(Object.keys(raw.extensions[0]?.contributes ?? {})).toEqual([
@@ -208,7 +209,7 @@ describe('catalog build: settings and events', () => {
     const repo = await createRepo([{ fixture: 'hello' }]);
     const out = await makeTemp();
     await publish(repo, out, ['acme.hello']);
-    const raw = (await readJson(path.join(out, 'index.json'))) as {
+    const raw = (await readJson(path.join(out, 'index.v2.json'))) as {
       extensions: { contributes: Record<string, unknown> }[];
     };
     expect(Object.keys(raw.extensions[0]?.contributes ?? {})).toEqual([
@@ -240,7 +241,7 @@ describe('catalog build: commands and panels', () => {
     const repo = await createRepo([{ fixture: 'hello' }]);
     const out = await makeTemp();
     await publish(repo, out, ['acme.hello']);
-    const raw = (await readJson(path.join(out, 'index.json'))) as {
+    const raw = (await readJson(path.join(out, 'index.v2.json'))) as {
       extensions: { contributes: Record<string, unknown> }[];
     };
     const keys = Object.keys(raw.extensions[0]?.contributes ?? {});
@@ -447,13 +448,13 @@ describe('catalog build: failures write nothing', () => {
     );
   });
 
-  it('files outside the catalog schema (assets/logo.png), an empty README and name mismatch are rejected', async () => {
+  it('files outside the catalog schema (assets/logo.gif), an empty README and name mismatch are rejected', async () => {
     const out = await makeTemp();
     const png = await createRepo([
-      { fixture: 'theme-only', files: { 'assets/logo.png': 'x' } },
+      { fixture: 'theme-only', files: { 'assets/logo.gif': 'x' } },
     ]);
     await expect(publish(png, out, [NIGHT])).rejects.toThrow(
-      /assets\/logo\.png' is not allowed/,
+      /assets\/logo\.gif' is not allowed/,
     );
     const empty = await createRepo([
       { fixture: 'theme-only', files: { 'README.md': ' ' } },

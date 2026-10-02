@@ -230,6 +230,8 @@ export interface ExtensionManifest {
   platforms: readonly ExtensionPlatform[];
   /** Minimum app version (semver); `null` means any. */
   minAppVersion: string | null;
+  /** Path of the icon inside the extension (`.png` or `.webp`, square, 64–512 px, up to 16 KiB); `null` — no icon. */
+  icon: string | null;
   contributes: {
     exerciseTypes: ExerciseTypeContribution[];
     themes: ThemeContribution[];
@@ -269,6 +271,8 @@ export interface ExtensionManifestInput {
   /** No key means any platform. */
   platforms?: ExtensionPlatform[];
   minAppVersion?: string;
+  /** Path of the extension icon (`.png` or `.webp`, square, 64–512 px, up to 16 KiB); no key — no icon. */
+  icon?: string;
   contributes: {
     exerciseTypes?: ExerciseTypeContributionInput[];
     themes?: ThemeContribution[];

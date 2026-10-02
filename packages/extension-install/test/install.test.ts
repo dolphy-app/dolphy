@@ -168,7 +168,9 @@ describe('install: отказы до скачивания', () => {
     ).toMatchObject({
       cause: 'conflict',
     });
-    expect(bundled.fake.calls).toHaveLength(1);
+    expect(
+      bundled.fake.calls.filter((c) => c.url.includes('/extensions/')),
+    ).toEqual([]);
     await bundled.cleanup();
   });
 

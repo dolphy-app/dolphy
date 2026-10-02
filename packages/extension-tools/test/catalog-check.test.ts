@@ -6,6 +6,7 @@ import type { CheckOptions } from '../src/catalog/check.ts';
 import { createGithubChecker } from '../src/catalog/github.ts';
 import { RULES } from '../src/catalog/rules.ts';
 import { CatalogUsageError } from '../src/errors.ts';
+import { png } from '../../extension-catalog/test/samples.ts';
 import {
   createRepo,
   renameDir,
@@ -291,6 +292,67 @@ describe('catalog check: rules', () => {
     const repo = await single(spec);
     expect(await run(repo, { maxAppVersion: '1.3.0' })).toEqual([]);
     expect(await run(repo)).toEqual([]);
+  });
+});
+
+describe('catalog check: assets and icon', () => {
+  const svgOf = (body: string) =>
+    `<svg xmlns="http://www.w3.org/2000/svg">${body}</svg>`;
+
+  it('CHECK-017: an unsafe SVG, a forged PNG and a mismatching file name the file and the reason', async () => {
+    const repo = await single({
+      files: {
+        'assets/evil.svg': svgOf('<script>alert(1)</script>'),
+        'assets/forged.png': png(80_000, 80_000),
+        'assets/fake.webp': png(),
+        'assets/bad.css': '@import url(https://example.com/x.css);',
+        'assets/Upper.PNG': png(),
+        'assets/good.png': png(100),
+        'assets/good.css': '.a{background:url(good.png)}',
+      },
+    });
+    const lines = (await run(repo)).filter((line) =>
+      line.includes(' CHECK-017 '),
+    );
+    expect(lines).toHaveLength(5);
+    const hit = (file: string) =>
+      lines.find((line) => line.includes(` ${file}:`));
+    expect(hit('assets/evil.svg')).toContain('<script>');
+    expect(hit('assets/forged.png')).toContain('4096');
+    expect(hit('assets/fake.webp')).toContain('WebP');
+    expect(hit('assets/bad.css')).toContain('@import');
+    expect(hit('assets/Upper.PNG')).toContain('lowercase');
+  });
+
+  it('CHECK-017: files outside assets/ are not read as assets', async () => {
+    const repo = await single({ files: { 'src/draft.png': 'not an image' } });
+    expect(await run(repo)).toEqual([]);
+  });
+
+  it('CHECK-018: a good icon passes; a missing, non-square, tiny or SVG icon fails', async () => {
+    const good = await single({
+      manifest: { icon: 'assets/icon.png' },
+      files: { 'assets/icon.png': png(128) },
+    });
+    expect(await run(good)).toEqual([]);
+    const bad = async (icon: string, content: Uint8Array | null) => {
+      const repo = await single({
+        manifest: { icon },
+        files: { [icon]: content },
+      });
+      return (await run(repo)).filter((line) => line.includes(' CHECK-018 '));
+    };
+    expect((await bad('assets/icon.png', null))[0]).toContain('is not a file');
+    expect((await bad('assets/icon.png', png(64, 100)))[0]).toContain('square');
+    expect((await bad('assets/icon.png', png(32)))[0]).toContain('64 to 512');
+    expect((await bad('assets/icon.webp', png(64)))[0]).toContain('WebP');
+  });
+
+  it('CHECK-018: an icon outside the extension directory is rejected by the manifest', async () => {
+    const lines = await run(
+      await single({ manifest: { icon: '../icon.png' } }),
+    );
+    expect(lines.some((line) => line.includes(' CHECK-001 '))).toBe(true);
   });
 });
 

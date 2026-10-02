@@ -115,6 +115,8 @@ export interface InstallTarget {
   contributes: ExtensionContributesDto;
   platforms: string[];
   sizeBytes: number;
+  /** Значок как `data:`-URI; `null` — без значка. */
+  icon: string | null;
 }
 
 export const targetFromEntry = (
@@ -130,6 +132,7 @@ export const targetFromEntry = (
   contributes: entry.contributes,
   platforms: [...entry.platforms],
   sizeBytes: version.size,
+  icon: entry.icon,
 });
 
 const NO_CONTRIBUTES: ExtensionContributesDto = {
@@ -161,6 +164,7 @@ export const targetFromUpdate = (
   contributes: entry?.contributes ?? info?.contributes ?? NO_CONTRIBUTES,
   platforms: entry === undefined ? [] : [...entry.platforms],
   sizeBytes: update.available.size,
+  icon: entry?.icon ?? info?.icon ?? null,
 });
 
 /** Название для показа: из манифеста, иначе id. */

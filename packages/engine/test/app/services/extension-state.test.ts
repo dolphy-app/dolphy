@@ -38,6 +38,7 @@ const base = {
   description: null,
   author: null,
   installed: null,
+  icon: null,
   removable: true,
   revoked: null,
 };

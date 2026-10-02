@@ -107,7 +107,7 @@ describe('parseIndex', () => {
   });
 
   it('другая schemaVersion отвергается', () => {
-    expect(issuesOf({ ...(index() as object), schemaVersion: 2 })).not.toEqual(
+    expect(issuesOf({ ...(index() as object), schemaVersion: 3 })).not.toEqual(
       [],
     );
   });

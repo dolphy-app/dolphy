@@ -42,6 +42,7 @@ export const stateful = (
   author: null,
   platforms: [],
   minAppVersion: null,
+  icon: null,
   install: null,
   exerciseTypes: [],
   themes: [],

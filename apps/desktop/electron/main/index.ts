@@ -10,6 +10,7 @@ import {
   utilityProcess,
 } from 'electron';
 import { existsSync, watch } from 'node:fs';
+import { realpath, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { createExtSupervisor, isTypedMessage } from './ext-supervisor.ts';
@@ -163,7 +164,7 @@ const shells = [
       userExtensionsDir,
       bundledExtensionsDir,
     ],
-    exists: existsSync,
+    fs: { realpath, stat },
     logger,
   }),
   ...(devExtensionsDir

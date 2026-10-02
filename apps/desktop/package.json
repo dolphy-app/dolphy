@@ -34,6 +34,7 @@
     "@dolphy-app/engine-rpc": "workspace:*",
     "@dolphy-app/engine-sqlite": "workspace:*",
     "@dolphy-app/extension-api": "workspace:*",
+    "@dolphy-app/extension-catalog": "workspace:*",
     "@dolphy-app/extension-host": "workspace:*",
     "@dolphy-app/extension-install": "workspace:*",
     "@mdi/font": "^7.4.47",

@@ -35,6 +35,7 @@ const manifestWith = (
   id: 'acme.state',
   version: '1.0.0',
   permissions,
+  icon: null,
   contributes: {
     exerciseTypes: [],
     themes: [],

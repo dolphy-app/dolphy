@@ -51,6 +51,7 @@ export const manifestSchema = z
       .string()
       .refine(isSemver, 'minAppVersion must be semver x.y.z')
       .optional(),
+    icon: safePath(['.png', '.webp']).optional(),
     contributes: contributesSchema,
   })
   .superRefine((manifest, ctx) => {
@@ -119,6 +120,7 @@ export const normalizeManifest = (
     author: input.author ?? null,
     platforms: [...(input.platforms ?? [])],
     minAppVersion: input.minAppVersion ?? null,
+    icon: input.icon ?? null,
     contributes: contributes as ExtensionManifest['contributes'],
   };
 };

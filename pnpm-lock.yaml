@@ -99,6 +99,9 @@ importers:
       '@dolphy-app/extension-api':
         specifier: workspace:*
         version: link:../../packages/extension-api
+      '@dolphy-app/extension-catalog':
+        specifier: workspace:*
+        version: link:../../packages/extension-catalog
       '@dolphy-app/extension-host':
         specifier: workspace:*
         version: link:../../packages/extension-host

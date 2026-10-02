@@ -71,6 +71,8 @@ export interface DolphyApp {
    * перезапускает его, окна получают новый порт. Возвращает убитый `pid`.
    */
   killEngineHost(): Promise<number>;
+  /** Выполняет функцию в главном процессе (модуль `electron` — первый аргумент). */
+  evaluateMain: ElectronApplication['evaluate'];
   /** Закрывает приложение и ждёт, пока хост движка отпустит `engine.db`. */
   close(): Promise<void>;
 }
@@ -117,6 +119,7 @@ export const launchApp = async (
   return {
     page,
     engineHostPid,
+    evaluateMain: app.evaluate.bind(app),
     killEngineHost: async () => {
       const pid = await engineHostPid();
       if (pid === null) throw new Error('engine host is not running');

@@ -35,6 +35,7 @@ const USER: ExtensionInfoDto = {
   description: null,
   author: null,
   installed: null,
+  icon: null,
   removable: true,
   revoked: null,
 };

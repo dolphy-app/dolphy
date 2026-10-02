@@ -7,6 +7,8 @@ export interface InspectedManifest {
   id: string;
   version: string;
   permissions: readonly string[];
+  /** Значок как `data:`-URI (проверенный файл манифеста); `null` — значка нет. */
+  icon: string | null;
   /** Идентификаторы вкладов в том же виде, что в записи индекса. */
   contributes: ExtensionContributesDto;
 }

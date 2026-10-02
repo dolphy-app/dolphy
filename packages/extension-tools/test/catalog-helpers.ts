@@ -10,7 +10,7 @@ export interface ExtensionSpec {
   /** Fields merged into `extension.json` on top of the publication metadata. */
   manifest?: Record<string, unknown>;
   /** File contents on top of the project; `null` — delete the file. */
-  files?: Record<string, string | null>;
+  files?: Record<string, string | Uint8Array | null>;
   /** Directory name, if it must differ from the id. */
   dirName?: string;
 }
@@ -36,7 +36,7 @@ const DEFAULT_FILES: Record<string, string> = {
 const writeRelative = async (
   dir: string,
   file: string,
-  content: string | null,
+  content: string | Uint8Array | null,
 ): Promise<void> => {
   const target = path.join(dir, file);
   if (content === null) {

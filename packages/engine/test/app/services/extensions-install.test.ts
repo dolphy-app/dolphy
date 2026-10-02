@@ -25,6 +25,8 @@ const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
   gradePolicies: [],
   settings: [],
   events: [],
+  commands: [],
+  panels: [],
 };
 
 const info = (overrides: Partial<ExtensionInfoDto>): ExtensionInfoDto => ({

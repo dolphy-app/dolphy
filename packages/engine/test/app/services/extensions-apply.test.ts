@@ -24,6 +24,8 @@ const USER: ExtensionInfoDto = {
     gradePolicies: [],
     settings: [],
     events: [],
+    commands: [],
+    panels: [],
   },
   message: null,
   permissions: [],

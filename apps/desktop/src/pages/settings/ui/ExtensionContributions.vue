@@ -37,6 +37,7 @@ const expanded = reactive<Record<string, boolean>>({});
         v-if="visibleValues(group.values, false).hidden > 0"
         size="small"
         variant="text"
+        color="primary"
         :aria-expanded="expanded[group.point] === true"
         :data-testid="`values-toggle-${group.point}`"
         @click="expanded[group.point] = expanded[group.point] !== true"

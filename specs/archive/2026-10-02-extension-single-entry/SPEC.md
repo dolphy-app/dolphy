@@ -1,8 +1,8 @@
 ---
-status: active
+status: done
 branch: feature/extension-single-entry
 created: 2026-10-02
-closed: null
+closed: 2026-10-02
 touches: [extension-api, extension-sdk, extension-tools, extension-host, create-extension, ext-choice, ext-sql, ext-math]
 depends-on: [specs/archive/2026-10-02-extension-surfaces]
 supersedes: null
@@ -10,6 +10,8 @@ superseded-by: null
 ---
 
 # Единая точка входа расширения
+
+> Исторический документ. Не источник требований.
 
 Живой документ, пока `status` — `draft` или `active`: `Progress`, `Surprises & Discoveries`, `Decision Log` обновляются вместе с кодом. По завершении фичи переносится в `specs/archive/` и не меняется. Правила — скилл `spec-workflow`.
 
@@ -51,8 +53,8 @@ superseded-by: null
 
 - [x] 4a. SDK (`defineAnswerView`, `sideEffects`, регистрация в обвязке), `extension-tools` (вход `src/index.ts`, обвязки, защита `node:*`, сверка с манифестом, watch), предупреждение хоста о незарегистрированном, `loadView`/`loadPanel`, миграция `ext-choice`, `ext-sql`, `ext-math`, шаблон и тесты
 - [x] 4b. Типы id: `dolphy-ext types`, объявления, типизированные `defineExtension`/`views`/`panels`/`markdown`/`ctx.*`, тесты типов
-- [x] Документация: `docs/design/extensions.md`, README пакетов, примеры для `docs-contributions.test.ts` (для 4b; общая сверка перед закрытием остаётся)
-- [ ] Закрытие: ADR 0009, `Outcomes`, архив
+- [x] Документация: `docs/design/extensions.md` (раздел «Как сборка раскладывает `src/index.ts`»), README пакетов на английском, примеры для `docs-contributions.test.ts`
+- [x] Закрытие: ADR 0009, `Outcomes`, архив
 
 ## Surprises & Discoveries
 
@@ -84,4 +86,10 @@ superseded-by: null
 
 ## Outcomes
 
-Заполняется при закрытии.
+Сделано всё из `Требований` R1–R8: единый вход `src/index.ts` с экспортами `host`, `views`, `panels`, `markdown`; сборка по виртуальным обвязкам с диспетчеризацией общих файлов, отсечением кода по контекстам и защитой от `node:*` в браузерных файлах; сверка с манифестом при сборке и предупреждение хоста о незарегистрированном; `defineAnswerView` без побочных эффектов при импорте (регистрация в обвязке через `@dolphy-app/extension-sdk/runtime`); типы id из манифеста (`dolphy-ext types`, `.dolphy/ids.d.ts`, исчерпывающие записи с `inActivate`); `loadView` и `loadPanel`; `--watch` с одним отчётом на правку; миграция `ext-choice`, `ext-sql`, `ext-math`, шаблона `create-dolphy-extension` и примеров документации.
+
+Долговечное перенесено: `docs/design/extensions.md` (раздел «Как сборка раскладывает `src/index.ts`», «Типизированные id», «Как написать расширение»), README `extension-sdk`, `extension-tools`, карта `packages/README.md`. Решение — [ADR 0009](../../../docs/adr/0009-single-entry-extension-authoring.md).
+
+Отличия от плана: пометка чистоты — `/*#__NO_SIDE_EFFECTS__*/` на объявлениях SDK, а не `/*#__PURE__*/` на вызовах автора; литералы `views`/`panels`/`markdown` сборка урезает сама; записи `defineExtension` исчерпывающие (`inActivate`), а не частичные; `engine-sql-runner` получил `sideEffects`. При закрытии весь публичный текст пакетов `extension-api`, `extension-sdk`, `extension-tools`, `create-extension`, README корня, приложения и пакетов и поля `package.json` переведены на английский (правило `AGENTS.md`, «Язык документов»).
+
+Осталось (вне спеки): сообщения CLI `engine-cli` в `packages/engine` ещё на русском; публичные README ссылаются на русские заголовки внутренней документации.

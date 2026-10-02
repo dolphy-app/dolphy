@@ -61,8 +61,12 @@ const restoreFocus = () => {
   const target = previous;
   previous = null;
   const active = document.activeElement;
-  // фокус уже занят новым экраном (например, заголовком открытой панели) — не отбираем
-  const lost = active === null || active === document.body;
+  // фокус уже занят новым экраном (например, заголовком открытой панели) — не отбираем;
+  // а фокус, оставшийся в закрывающемся диалоге (after-leave приходит до скрытия), считается потерянным
+  const lost =
+    active === null ||
+    active === document.body ||
+    active.closest('.v-command-palette') !== null;
   if (lost && target?.isConnected) target.focus();
 };
 
@@ -132,8 +136,8 @@ const vComboboxInput = {
         </span>
       </div>
       <v-divider />
-      <!-- прокручиваемая область должна быть фокусируемой (axe scrollable-region-focusable); фокус остаётся в поле: см. mousedown у строк -->
-      <div class="v-command-palette__content list-wrap" tabindex="-1">
+      <!-- прокручиваемая область должна быть достижима с клавиатуры (axe scrollable-region-focusable: нужен tabindex ≥ 0); щелчок по строке фокус не забирает: см. mousedown у строк -->
+      <div class="v-command-palette__content list-wrap" tabindex="0">
         <ul
           :id="LIST_ID"
           role="listbox"

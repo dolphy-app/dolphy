@@ -27,10 +27,18 @@ export interface RebuildReport {
   failures: { labels: string[]; detail: string }[];
 }
 
-/** Правка исходника будят вотчеры файлов почти одновременно: события одного цикла собираются в один отчёт. */
+/**
+ * Правка исходника будит вотчеры всех файлов почти одновременно: события одного
+ * цикла собираются в один отчёт, который уходит после тишины и когда ни один
+ * вотчер не занят пересборкой.
+ */
 const SETTLE_MS = 150;
 
 export interface Reporter {
+  /** Вотчер начал пересборку (`START`). */
+  begin(): void;
+  /** Вотчер закончил пересборку (`END`), успешно или нет. */
+  end(): void;
   rebuilt(job: Job): void;
   failed(job: Job, detail: string): void;
   close(): void;
@@ -40,29 +48,40 @@ export const createReporter = (
   onReport: (report: RebuildReport) => void,
   settleMs = SETTLE_MS,
 ): Reporter => {
-  let rebuilt: string[] = [];
+  const rebuilt = new Set<string>();
   let failures: RebuildReport['failures'] = [];
+  let busy = 0;
   let timer: NodeJS.Timeout | null = null;
   const flush = () => {
     timer = null;
-    const report = { rebuilt, failures };
-    rebuilt = [];
+    if (busy > 0) return;
+    const report = { rebuilt: [...rebuilt], failures };
+    rebuilt.clear();
     failures = [];
-    onReport(report);
+    if (report.rebuilt.length > 0 || report.failures.length > 0) {
+      onReport(report);
+    }
   };
   const touch = () => {
     if (timer !== null) clearTimeout(timer);
     timer = setTimeout(flush, settleMs);
   };
   return {
+    begin() {
+      busy += 1;
+    },
+    end() {
+      busy = Math.max(0, busy - 1);
+      touch();
+    },
     rebuilt(job) {
-      rebuilt.push(job.output);
+      rebuilt.add(job.output);
       touch();
     },
     failed(job, detail) {
       const same = failures.find((failure) => failure.detail === detail);
       if (same === undefined) failures.push({ labels: [job.label], detail });
-      else same.labels.push(job.label);
+      else if (!same.labels.includes(job.label)) same.labels.push(job.label);
       touch();
     },
     close() {
@@ -96,6 +115,7 @@ const watchJob = async (
   const first = new Promise<void>((resolve, reject) => {
     started.on('event', (event) => {
       if (event.code === 'START') {
+        reporter.begin();
         hasFailed = false;
         job.state.problem = null;
       }
@@ -111,6 +131,7 @@ const watchJob = async (
         }
       }
       if (event.code === 'END') {
+        reporter.end();
         if (isFirst) resolve();
         else if (!hasFailed) reporter.rebuilt(job);
         isFirst = false;

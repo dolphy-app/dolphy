@@ -132,7 +132,9 @@ describe('обвязки: выходные файлы', () => {
     vi.stubGlobal(
       'HTMLElement',
       class {
-        attachShadow = () => ({});
+        attachShadow() {
+          return this;
+        }
       },
     );
     vi.stubGlobal('customElements', {

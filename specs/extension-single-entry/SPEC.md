@@ -50,7 +50,7 @@ superseded-by: null
 ## Progress
 
 - [x] 4a. SDK (`defineAnswerView`, `sideEffects`, регистрация в обвязке), `extension-tools` (вход `src/index.ts`, обвязки, защита `node:*`, сверка с манифестом, watch), предупреждение хоста о незарегистрированном, `loadView`/`loadPanel`, миграция `ext-choice`, `ext-sql`, `ext-math`, шаблон и тесты
-- [ ] 4b. Типы id: `dolphy-ext types`, объявления, типизированные `defineExtension`/`views`/`panels`/`markdown`/`ctx.*`, тесты типов
+- [x] 4b. Типы id: `dolphy-ext types`, объявления, типизированные `defineExtension`/`views`/`panels`/`markdown`/`ctx.*`, тесты типов
 - [ ] Документация: `docs/design/extensions.md`, README пакетов, примеры для `docs-contributions.test.ts`
 - [ ] Закрытие: ADR 0009, `Outcomes`, архив
 
@@ -73,6 +73,8 @@ superseded-by: null
 - 2026-10-02. Регистрация элемента — подпуть `@dolphy-app/extension-sdk/runtime` (`registerAnswerView`, `dispatchPanels`, `dispatchMarkdown`), который импортирует только сгенерированная обвязка; разрешается из проекта автора, чтобы описания и регистрация были из одной копии SDK. Причина: `index.ts` SDK обязан оставаться без DOM.
 - 2026-10-02. Типы описаний видов переименованы вместе с функцией: `AnswerView`, `AnswerViewApi`, `AnswerViewInstance`, `MountAnswerView`. Причина: чистый переход, без алиасов.
 - 2026-10-02. Чистый переход без автоопределения старой раскладки. Причина: пакеты авторов не опубликованы, правило репозитория — без совместимых прослоек.
+- 2026-10-02. Записи `defineExtension` (`exerciseTypes`, `gradePolicies`, `events`, `commands`) исчерпывающие: при сгенерированных типах запись обязательна, если манифест объявляет id этого вида, содержит ровно объявленные ключи и недопустима, если id нет. Id, который регистрируется в `activate` через `ctx.*.register`, получает в записи значение `inActivate` из SDK. Причина: компилятор не видит тело `activate`, а без явной пометки пропущенный ключ нельзя отличить от id, зарегистрированного вручную; `Partial` потерял бы проверку «пропущенный ключ». Предупреждение хоста о незарегистрированном id остаётся. Без `.dolphy/ids.d.ts` записи необязательны и открыты, все id — `string`.
+- 2026-10-02. `ExtensionIds` объявлен в SDK и расширяется через `declare module '@dolphy-app/extension-sdk'`; файл подключается в `tsconfig` по имени (`.dolphy/ids.d.ts`), потому что `include` пропускает скрытый каталог целиком. `views`, `panels`, `markdown` проверяются через `satisfies ExtensionViews|ExtensionPanels|ExtensionMarkdown`, а не обёрткой, чтобы сборка по-прежнему читала ключи статически. `ExtensionContext` и `PanelContext` SDK шадоуят обобщённые типы `extension-api` (у них умолчания — строки, движок и хост не меняются).
 
 ## Outcomes
 

@@ -247,7 +247,8 @@ const lifecycleScripts: CheckRule = {
 
 const registryDependencies: CheckRule = {
   id: 'CHECK-010',
-  title: 'dependencies come only from the registry (no git, http, file, link, workspace)',
+  title:
+    'dependencies come only from the registry (no git, http, file, link, workspace)',
   run: async (context) => {
     const manifest = await readPackageJson(context);
     if (manifest === null) return [];

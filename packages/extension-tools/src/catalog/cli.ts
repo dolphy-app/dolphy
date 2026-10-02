@@ -175,10 +175,13 @@ const REINDEX_FORBIDDEN = ['--src', '--ids', '--source-base'];
 const parseReindex = (flags: Flags): CatalogParsed => {
   const forbidden = REINDEX_FORBIDDEN.find((name) => name in flags);
   if (forbidden !== undefined) {
-    return { usageError: `catalog build --reindex: ${forbidden} is not needed` };
+    return {
+      usageError: `catalog build --reindex: ${forbidden} is not needed`,
+    };
   }
   const out = text(flags, '--out');
-  if (out === undefined) return { usageError: 'catalog build: --out is required' };
+  if (out === undefined)
+    return { usageError: 'catalog build: --out is required' };
   return {
     command: 'reindex',
     out,
@@ -199,8 +202,10 @@ const parseBuild = (args: readonly string[]): CatalogParsed => {
   const src = text(flags, '--src');
   const out = text(flags, '--out');
   const ids = idsOf(flags);
-  if (src === undefined) return { usageError: 'catalog build: --src is required' };
-  if (out === undefined) return { usageError: 'catalog build: --out is required' };
+  if (src === undefined)
+    return { usageError: 'catalog build: --src is required' };
+  if (out === undefined)
+    return { usageError: 'catalog build: --out is required' };
   if (ids === undefined || ids.length === 0) {
     return { usageError: 'catalog build: --ids is required' };
   }

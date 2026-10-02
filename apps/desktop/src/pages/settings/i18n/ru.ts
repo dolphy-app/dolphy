@@ -180,6 +180,8 @@ export const ru = {
       loadFailed: 'Не удалось получить список расширений',
       empty: 'Расширений нет.',
       version: 'Версия {version}',
+      moreValues: 'Ещё {n}',
+      fewerValues: 'Свернуть',
       points: {
         exerciseTypes: 'Виды заданий',
         themes: 'Темы',

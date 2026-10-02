@@ -181,6 +181,8 @@ export const en: typeof ru = {
       loadFailed: 'Could not load the list of extensions',
       empty: 'No extensions.',
       version: 'Version {version}',
+      moreValues: '{n} more',
+      fewerValues: 'Show less',
       points: {
         exerciseTypes: 'Exercise types',
         themes: 'Themes',

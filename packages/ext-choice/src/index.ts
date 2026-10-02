@@ -1,9 +1,14 @@
-import { defineExerciseType, defineExtension } from '@dolphy-app/extension-sdk';
+import {
+  defineAnswerView,
+  defineExerciseType,
+  defineExtension,
+} from '@dolphy-app/extension-sdk';
+import { mountChoice } from './choice-view.ts';
 import { grade, project } from './grade.ts';
 import type { ChoiceSpec } from './grade.ts';
 
 // схемы манифеста уже проверили `spec` и `answer` до вызова обработчиков
-export default defineExtension({
+export const host = defineExtension({
   exerciseTypes: {
     'dolphy.choice': defineExerciseType<ChoiceSpec, number[], unknown>({
       project: ({ spec }) => project(spec),
@@ -12,3 +17,7 @@ export default defineExtension({
     }),
   },
 });
+
+export const views = {
+  'dolphy.choice': defineAnswerView(mountChoice),
+};

@@ -4,6 +4,9 @@
   "private": true,
   "description": "Раннер проверок SQL в дочерних процессах (Verifier)",
   "type": "module",
+  "sideEffects": [
+    "./src/worker.ts"
+  ],
   "exports": {
     ".": "./src/index.ts",
     "./worker": "./src/worker.ts"

@@ -14,7 +14,10 @@ const logFailure = (tag: string, message: string, error: unknown) => {
   console.error({ error, tag }, message);
 };
 
-export const createAnswerElementClass = (tag: string, answerView: AnswerView) =>
+export const createAnswerElementClass = (
+  tag: string,
+  answerView: AnswerView,
+): CustomElementConstructor =>
   class AnswerElement extends HTMLElement {
     #root = this.attachShadow({ mode: 'open' });
     #props: AnswerElementProps = {

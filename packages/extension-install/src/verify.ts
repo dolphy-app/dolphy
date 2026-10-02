@@ -11,6 +11,8 @@ const CONTRIBUTION_KEYS = [
   'gradePolicies',
   'settings',
   'events',
+  'commands',
+  'panels',
 ] as const;
 
 const sameSet = (a: readonly string[], b: readonly string[]): boolean => {

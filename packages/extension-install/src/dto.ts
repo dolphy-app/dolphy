@@ -55,6 +55,8 @@ export const describeEntry = (
       gradePolicies: [...entry.contributes.gradePolicies],
       settings: [...(entry.contributes.settings ?? [])],
       events: [...(entry.contributes.events ?? [])],
+      commands: [...(entry.contributes.commands ?? [])],
+      panels: [...(entry.contributes.panels ?? [])],
     },
     installedVersion,
   };

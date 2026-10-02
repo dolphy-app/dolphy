@@ -1,4 +1,8 @@
-import type { ExtensionSettingDefDto } from '@dolphy-app/engine-contract';
+import type {
+  CommandContributionDto,
+  ExtensionSettingDefDto,
+  PanelContributionDto,
+} from '@dolphy-app/engine-contract';
 import type {
   EventContribution,
   ExtensionManifest,
@@ -39,6 +43,15 @@ export type ResolvedSetting = WithoutExtension<ExtensionSettingDefDto>;
 
 export type ResolvedEvent = EventContribution;
 
+/** Команда в виде, в котором её получает окно (DTO движка без `extensionId`). */
+export type ResolvedCommand = Omit<CommandContributionDto, 'extensionId'>;
+
+/** Панель: модуль в рамке; `isolated`, `origin` и `revision` добавляет реестр. */
+export type ResolvedPanel = Pick<
+  PanelContributionDto,
+  'id' | 'title' | 'rendererUrl'
+>;
+
 export interface ResolvedContributions {
   exerciseTypes: ResolvedExerciseType[];
   themes: ResolvedTheme[];
@@ -46,6 +59,8 @@ export interface ResolvedContributions {
   gradePolicies: ResolvedGradePolicy[];
   settings: ResolvedSetting[];
   events: ResolvedEvent[];
+  commands: ResolvedCommand[];
+  panels: ResolvedPanel[];
 }
 
 export type PointKey = keyof ResolvedContributions;

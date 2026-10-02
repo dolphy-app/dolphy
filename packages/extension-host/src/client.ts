@@ -1,6 +1,13 @@
-import { ExerciseTypeError, GradePolicyError } from '@dolphy-app/engine/ports';
+import {
+  ExerciseTypeError,
+  ExtensionCommandError,
+  GradePolicyError,
+} from '@dolphy-app/engine/ports';
 import type {
+  ExerciseTypeErrorCause,
   ExerciseTypes,
+  ExtensionCommandErrorCause,
+  ExtensionCommands,
   ExtensionPolicy,
   GradePolicies,
   GradePolicyErrorCause,
@@ -9,8 +16,22 @@ import type {
 import type { ExtensionLogger } from '@dolphy-app/extension-api';
 import type { createCatalog } from './catalog.ts';
 import type { ChannelOutcome, ChannelParams, HostChannel } from './channel.ts';
-import { gradeResultSchema, gradeValueSchema } from './protocol.ts';
+import type { DiscoverySource } from './holder.ts';
+import {
+  commandOutcomeSchema,
+  gradeResultSchema,
+  gradeValueSchema,
+} from './protocol.ts';
 import type { ExtFailureCause, ExtResponse } from './protocol.ts';
+
+/** Причины, которые вид задания не различает, сводятся к сбою обработчика. */
+const exerciseCause = (cause: ExtFailureCause): ExerciseTypeErrorCause =>
+  cause === 'unknown-policy' ||
+  cause === 'unknown-command' ||
+  cause === 'handler-timeout' ||
+  cause === 'replaced'
+    ? 'handler-failed'
+    : cause;
 
 export interface RemoteExerciseTypesOptions {
   channel: HostChannel;
@@ -64,7 +85,7 @@ export const createRemoteExerciseTypes = (
     if (!response.ok) {
       const { cause } = response.error;
       throw new ExerciseTypeError(
-        cause === 'unknown-policy' ? 'handler-failed' : cause,
+        exerciseCause(cause),
         params.type,
         response.error.message,
       );
@@ -198,6 +219,101 @@ export const createRemoteGradePolicies = (
         );
       }
       return parsed.data;
+    },
+  };
+};
+
+/**
+ * Срок вызова команды у движка: больше раннера ограниченного процесса (12 с) и
+ * обработчика (10 с), включает ленивую активацию и запуск процесса.
+ */
+export const COMMAND_CLIENT_DEADLINE_MS = 14_000;
+
+export interface RemoteExtensionCommandsOptions {
+  channel: HostChannel;
+  /** Набор расширений движка: панель, на которую указывает `openPanel`, обязана в нём быть. */
+  discovery: DiscoverySource;
+  /** Режим исполнения (`isolated`) вычисляется на каждый вызов. */
+  policy: ExtensionPolicy;
+  logger: ExtensionLogger;
+  deadlineMs?: number;
+}
+
+const commandCause = (cause: ExtFailureCause): ExtensionCommandErrorCause => {
+  switch (cause) {
+    case 'unknown-command':
+    case 'invalid-result':
+    case 'replaced':
+    case 'handler-failed':
+      return cause;
+    case 'handler-timeout':
+      return 'timeout';
+    default:
+      return 'handler-failed';
+  }
+};
+
+export const createRemoteExtensionCommands = (
+  options: RemoteExtensionCommandsOptions,
+): ExtensionCommands => {
+  const { channel, discovery, policy, logger } = options;
+  const deadlineMs = options.deadlineMs ?? COMMAND_CLIENT_DEADLINE_MS;
+  return {
+    async invoke(extensionId, commandId, args) {
+      const fail = (
+        cause: ExtensionCommandErrorCause,
+        message: string,
+      ): ExtensionCommandError =>
+        new ExtensionCommandError(cause, extensionId, commandId, message);
+      // таймаут команды хост не перезапускает: клик пользователя не должен убивать чужие вызовы
+      const outcome = await channel.call(
+        'invokeCommand',
+        {
+          extensionId,
+          commandId,
+          ...(args !== undefined && { args }),
+          isolated: policy.isIsolated(extensionId),
+        },
+        deadlineMs,
+        { restart: false },
+      );
+      if (outcome.kind === 'timeout') {
+        throw fail('timeout', 'extension command timed out');
+      }
+      if (outcome.kind !== 'response') {
+        throw fail('host-down', 'extension host is down');
+      }
+      const { response } = outcome;
+      if (!response.ok) {
+        const cause = commandCause(response.error.cause);
+        logger.debug(
+          { extensionId, commandId, cause },
+          'extension command failed',
+        );
+        throw fail(cause, response.error.message);
+      }
+      const parsed = commandOutcomeSchema.safeParse(response.result);
+      if (!parsed.success) {
+        throw fail(
+          'invalid-result',
+          'extension command returned an invalid result',
+        );
+      }
+      const { data } = parsed;
+      if (data.kind !== 'openPanel') return data;
+      const declared = discovery
+        .get()
+        .extensions.find(({ id }) => id === extensionId)
+        ?.panels.some(({ id }) => id === data.panelId);
+      if (declared !== true) {
+        throw fail(
+          'invalid-result',
+          `extension command opened an undeclared panel '${data.panelId}'`,
+        );
+      }
+      return data.props === undefined
+        ? { kind: 'openPanel', panelId: data.panelId }
+        : { kind: 'openPanel', panelId: data.panelId, props: data.props };
     },
   };
 };

@@ -1,5 +1,8 @@
 import type { ExerciseTypeErrorCause } from '@dolphy-app/engine/ports';
-import { LEARNING_EVENT_NAMES } from '@dolphy-app/extension-api';
+import {
+  EXTENSION_COMMAND_LIMITS,
+  LEARNING_EVENT_NAMES,
+} from '@dolphy-app/extension-api';
 import type {
   JsonValue,
   LearningEventName,
@@ -53,7 +56,8 @@ export type ExtRequest =
         isolated: boolean;
       };
     }
-  | DeliverEventRequest;
+  | DeliverEventRequest
+  | InvokeCommandRequest;
 
 /**
  * Событие обучения расширению. Ответ `{ delivered }`: `false` — обработчика нет
@@ -68,6 +72,23 @@ export interface DeliverEventRequest {
     extensionId: string;
     name: LearningEventName;
     payload: LearningEventPayloads[LearningEventName];
+    isolated: boolean;
+  };
+}
+
+/**
+ * Вызов команды расширения (`ctx.commands.register`). Лениво активирует
+ * расширение; `args` — JSON вызывающего (нет аргументов — ключа нет). Ответ —
+ * `CommandOutcome`; неизвестная команда — `unknown-command`, сбой обработчика —
+ * `handler-failed`, превышение 10 с — `handler-timeout`.
+ */
+export interface InvokeCommandRequest {
+  id: string;
+  method: 'invokeCommand';
+  params: {
+    extensionId: string;
+    commandId: string;
+    args?: JsonValue;
     isolated: boolean;
   };
 }
@@ -130,7 +151,11 @@ export type ExtMessage = ExtRequest | ReplaceExtensionsRequest;
 
 /** Причины отказа, которые сообщает сам хост расширений (остальные порождает клиент). */
 export type ExtFailureCause =
-  Exclude<ExerciseTypeErrorCause, 'host-down' | 'timeout'> | 'unknown-policy';
+  | Exclude<ExerciseTypeErrorCause, 'host-down' | 'timeout'>
+  | 'unknown-policy'
+  | 'unknown-command'
+  | 'handler-timeout'
+  | 'replaced';
 
 export type ExtResponse =
   | { id: string; ok: true; result: unknown }
@@ -147,6 +172,13 @@ const eventParams = z.strictObject({
   extensionId: z.string(),
   name: z.enum(LEARNING_EVENT_NAMES),
   payload: z.record(z.string(), z.unknown()),
+  isolated: z.boolean(),
+});
+
+const commandParams = z.strictObject({
+  extensionId: z.string(),
+  commandId: z.string(),
+  args: z.unknown().optional(),
   isolated: z.boolean(),
 });
 
@@ -197,6 +229,11 @@ export const extRequestSchema = z.discriminatedUnion('method', [
     id: z.string(),
     method: z.literal('deliverEvent'),
     params: eventParams,
+  }),
+  z.strictObject({
+    id: z.string(),
+    method: z.literal('invokeCommand'),
+    params: commandParams,
   }),
 ]);
 
@@ -282,7 +319,9 @@ const isResolvedExtension = (value: unknown): value is ResolvedExtension => {
     Array.isArray(item.markdownRenderers) &&
     Array.isArray(item.gradePolicies) &&
     Array.isArray(item.settings) &&
-    Array.isArray(item.events)
+    Array.isArray(item.events) &&
+    Array.isArray(item.commands) &&
+    Array.isArray(item.panels)
   );
 };
 
@@ -335,4 +374,42 @@ export const gradeResultSchema = z.discriminatedUnion('outcome', [
     feedback: text.optional(),
     data: z.unknown().optional(),
   }),
+]);
+
+const isJsonValue = (value: unknown, depth = 0): boolean => {
+  if (depth > 64) return false;
+  if (value === null || typeof value === 'string') return true;
+  if (typeof value === 'boolean') return true;
+  if (typeof value === 'number') return Number.isFinite(value);
+  if (Array.isArray(value)) {
+    return value.every((item) => isJsonValue(item, depth + 1));
+  }
+  if (typeof value !== 'object') return false;
+  return Object.values(value).every((item) => isJsonValue(item, depth + 1));
+};
+
+const fitsResult = (value: unknown): boolean =>
+  isJsonValue(value) &&
+  new TextEncoder().encode(JSON.stringify(value)).length <=
+    EXTENSION_COMMAND_LIMITS.resultBytes;
+
+const resultJson = z.custom<JsonValue>(fitsResult, 'must be JSON up to 64 KiB');
+
+/**
+ * Результат команды на границе хоста и движка. Ограниченный процесс не
+ * доверен, поэтому форму и потолки проверяет и получатель, а не только
+ * `normalizeCommandResult` в рантайме.
+ */
+export const commandOutcomeSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('none') }),
+  z.strictObject({
+    kind: z.literal('notify'),
+    text: z.string().min(1).max(EXTENSION_COMMAND_LIMITS.notifyChars),
+  }),
+  z.strictObject({
+    kind: z.literal('openPanel'),
+    panelId: z.string().min(1).max(128),
+    props: resultJson.optional(),
+  }),
+  z.strictObject({ kind: z.literal('data'), value: resultJson }),
 ]);

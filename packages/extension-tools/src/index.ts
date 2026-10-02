@@ -27,7 +27,7 @@ export interface BuildLogger {
 
 export interface BuildOptions {
   root: string;
-  /** Корень вывода; расширение кладётся в `<outDir>/<id>`. */
+  /** Output root; the extension is placed in `<outDir>/<id>`. */
   outDir?: string;
   watch?: boolean;
   logger?: BuildLogger;
@@ -36,7 +36,7 @@ export interface BuildOptions {
 export interface BuildResult {
   id: string;
   dir: string;
-  /** Пути относительно `dir`, отсортированы. */
+  /** Paths relative to `dir`, sorted. */
   files: string[];
 }
 
@@ -47,7 +47,7 @@ export interface ValidationResult {
 
 const STATIC_DIRS = ['schema', 'assets'];
 
-/** Редакторы пишут файл несколькими событиями: перезагрузка манифеста ждёт тишины. */
+/** Editors write a file in several events: manifest reload waits for quiet. */
 const MANIFEST_SETTLE_MS = 100;
 
 const isPresent = async (file: string): Promise<boolean> =>
@@ -223,10 +223,10 @@ const reportTo =
   };
 
 /**
- * Первая сборка + пересборка затронутых файлов при правке `src/index.ts` и
- * зависимостей до `close()`. Правка `extension.json` пересобирает всё заново:
- * обвязки зависят от манифеста. Схемы и assets копируются при первой сборке и
- * после правки манифеста.
+ * First build + rebuild of affected files when `src/index.ts` or its
+ * dependencies are edited, until `close()`. Editing `extension.json` rebuilds
+ * everything: the shims depend on the manifest. Schemas and assets are copied on
+ * the first build and after a manifest edit.
  */
 export const watchExtension = async (
   options: BuildOptions,
@@ -277,7 +277,7 @@ export const watchExtension = async (
       await mkdir(dir, { recursive: true });
       current = await watchAll(project, dir, reporter, false);
       await copyStatic(project, dir);
-      // сломанные бандлы вотчер пересоберёт после правки: проверять пока нечего
+      // broken bundles will be rebuilt by the watcher after an edit: nothing to check yet
       if (current.isHealthy) {
         await assertValid(project, dir);
         logger?.info(

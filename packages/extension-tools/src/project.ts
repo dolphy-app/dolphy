@@ -8,23 +8,23 @@ export const MANIFEST_FILE = 'extension.json';
 export const CONFIG_FILE = 'dolphy-ext.config.json';
 export const DEFAULT_OUT_DIR = 'dist-ext';
 
-/** Отдельный node-вход из `dolphy-ext.config.json` (`nodeEntries`): воркер, собираемый как есть. */
+/** A standalone node entry from `dolphy-ext.config.json` (`nodeEntries`): a worker built as is. */
 export interface Entry {
   source: string;
   output: string;
 }
 
-/** Файл процесса расширений: экспорт `host` из `src/index.ts`. */
+/** Extensions process file: the `host` export of `src/index.ts`. */
 export interface HostOutput {
   kind: 'host';
   output: string;
 }
 
-/** Браузерный файл: записи `views`, `panels` и `markdown`, у которых манифест называет этот файл. */
+/** Browser file: `views`, `panels` and `markdown` entries whose manifest names this file. */
 export interface BrowserOutput {
   kind: 'browser';
   output: string;
-  /** Виды заданий: id и тег элемента. */
+  /** Job kinds: id and element tag. */
   views: { id: string; element: string }[];
   panels: string[];
   languages: string[];
@@ -34,13 +34,13 @@ export interface Project {
   root: string;
   manifest: ExtensionManifest;
   manifestBytes: Buffer;
-  /** `src/index.ts`, если расширению нужен код; иначе `null`. */
+  /** `src/index.ts` if the extension needs code; otherwise `null`. */
   indexSource: string | null;
   host: HostOutput | null;
   browserOutputs: BrowserOutput[];
   workerEntries: Entry[];
   external: string[];
-  /** Схемы-файлы из манифеста (относительные пути, без `./`). */
+  /** Schema files from the manifest (relative paths, without `./`). */
   schemaPaths: string[];
 }
 
@@ -107,7 +107,7 @@ const schemaPathsOf = (manifest: ExtensionManifest): string[] => {
   return [...new Set(paths)];
 };
 
-/** Воркеры собираются только вместе с кодом: без `main` их нет. */
+/** Workers are built only together with code: without `main` there are none. */
 const workerEntriesOf = (
   manifest: ExtensionManifest,
   config: ToolConfig,
@@ -147,8 +147,8 @@ const browserOutputsOf = (manifest: ExtensionManifest): BrowserOutput[] => {
 };
 
 /**
- * Пути, по которым код лежал до единого входа (`src/<имя файла>.ts`):
- * по ним сборка узнаёт старую раскладку и подсказывает перенос.
+ * Paths where code lived before the single entry (`src/<file name>.ts`):
+ * the build uses them to recognize the old layout and suggest a migration.
  */
 export const legacySources = (project: Project): string[] => {
   const outputs = [
@@ -158,7 +158,7 @@ export const legacySources = (project: Project): string[] => {
   return [...new Set(outputs.map(entrySource))];
 };
 
-/** Читает исходный манифест и конфиг проекта, вычисляет выходные файлы. */
+/** Reads the source manifest and project config, computes the output files. */
 export const loadProject = async (rootDir: string): Promise<Project> => {
   const root = path.resolve(rootDir);
   const manifestFile = path.join(root, MANIFEST_FILE);

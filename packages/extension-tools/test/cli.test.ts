@@ -18,7 +18,7 @@ const createIo = () => {
 };
 
 describe('runCli', () => {
-  it('T-30 build: код 0 и сводка в stdout', async () => {
+  it('T-30 build: code 0 and a summary in stdout', async () => {
     const root = await copyProject('hello');
     const out = path.join(root, 'out');
     const cli = createIo();
@@ -30,7 +30,7 @@ describe('runCli', () => {
     expect(cli.stderr()).toBe('');
   });
 
-  it('T-31 build сломанного проекта: код 1, проблема в stderr', async () => {
+  it('T-31 build of a broken project: code 1, problem in stderr', async () => {
     const root = await copyProject('bad-manifest');
     const cli = createIo();
     expect(await runCli(['build', root], cli.io)).toBe(1);
@@ -38,7 +38,7 @@ describe('runCli', () => {
     expect(cli.stderr()).toMatch(/^error .+: .*invalid extension id/);
   });
 
-  it('T-32 validate: ok и проблемы', async () => {
+  it('T-32 validate: ok and problems', async () => {
     const root = await copyProject('hello');
     const built = createIo();
     await runCli(['build', root], built.io);
@@ -53,7 +53,7 @@ describe('runCli', () => {
     expect(bad.stderr()).toContain(`error ${root}: `);
   });
 
-  it('validate: неизвестное разрешение — ошибка с путём поля, известное проходит', async () => {
+  it('validate: an unknown permission — an error with the field path, a known one passes', async () => {
     const root = await copyProject('hello');
     const built = createIo();
     await runCli(['build', root], built.io);
@@ -77,7 +77,7 @@ describe('runCli', () => {
     expect(bad.stderr()).toMatch(/permissions\.0: /);
   });
 
-  it('метаданные и совместимость: build копирует манифест как есть, validate проверяет форму', async () => {
+  it('metadata and compatibility: build copies the manifest as is, validate checks the shape', async () => {
     const root = await copyProject('with-metadata');
     const built = createIo();
     expect(await runCli(['build', root], built.io)).toBe(0);
@@ -139,19 +139,19 @@ describe('runCli', () => {
     [['validate']],
     [['types', '--nope']],
     [['types', 'a', 'b']],
-  ])('T-33 неверные аргументы %j — код 2', async (argv) => {
+  ])('T-33 invalid arguments %j — code 2', async (argv) => {
     const cli = createIo();
     expect(await runCli(argv, cli.io)).toBe(2);
     expect(cli.stderr()).toContain('usage: dolphy-ext');
   });
 
-  it('T-34 --help: код 0, справка в stdout', async () => {
+  it('T-34 --help: code 0, help in stdout', async () => {
     const cli = createIo();
     expect(await runCli(['--help'], cli.io)).toBe(0);
     expect(cli.stdout()).toContain('usage: dolphy-ext');
   });
 
-  it('T-35 build --watch работает до сигнала выхода', async () => {
+  it('T-35 build --watch runs until the exit signal', async () => {
     const root = await copyProject('hello');
     const out = path.join(root, 'out');
     const cli = createIo();

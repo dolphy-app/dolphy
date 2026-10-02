@@ -7,11 +7,11 @@ export type Fixture =
 
 export interface ExtensionSpec {
   fixture: Fixture;
-  /** Поля, подмешиваемые в `extension.json` поверх метаданных публикации. */
+  /** Fields merged into `extension.json` on top of the publication metadata. */
   manifest?: Record<string, unknown>;
-  /** Содержимое файлов поверх проекта; `null` — удалить файл. */
+  /** File contents on top of the project; `null` — delete the file. */
   files?: Record<string, string | null>;
-  /** Имя каталога, если оно должно отличаться от id. */
+  /** Directory name, if it must differ from the id. */
   dirName?: string;
 }
 
@@ -55,7 +55,7 @@ export const readManifest = async (
 ): Promise<{ id: string } & Record<string, unknown>> =>
   (await readJson(file)) as { id: string } & Record<string, unknown>;
 
-/** Проект расширения каталога: фикстура + метаданные публикации, README, package.json, lock-файл. */
+/** Catalog extension project: fixture + publication metadata, README, package.json, lock file. */
 export const addExtension = async (
   repo: Repo,
   spec: ExtensionSpec,
@@ -110,7 +110,7 @@ export interface PublishedVersion {
   version: string;
 }
 
-/** Опубликованный индекс с одним расширением и перечисленными версиями (новые первыми). */
+/** Published index with one extension and the listed versions (newest first). */
 export const publishedIndex = (
   id: string,
   versions: readonly string[],

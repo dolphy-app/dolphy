@@ -24,7 +24,7 @@ export const SKIPPED_SOURCE_DIRS: ReadonlySet<string> = new Set([
 
 export interface CheckOptions {
   extensionsDir: string;
-  /** Только эти каталоги; не задано — все подкаталоги. */
+  /** Only these directories; unset — all subdirectories. */
   ids?: readonly string[];
   publishedIndex?: string;
   maxAppVersion?: string;

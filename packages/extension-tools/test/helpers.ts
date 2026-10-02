@@ -24,7 +24,7 @@ export const makeTemp = async (): Promise<string> => {
   return dir;
 };
 
-/** Делает SDK разрешимым из проекта во временном каталоге (в реальном проекте он стоит в node_modules). */
+/** Makes the SDK resolvable from a project in a temporary directory (in a real project it sits in node_modules). */
 export const linkSdk = async (root: string): Promise<void> => {
   const scope = path.join(root, 'node_modules', '@dolphy-app');
   await mkdir(scope, { recursive: true });
@@ -35,9 +35,9 @@ export const linkSdk = async (root: string): Promise<void> => {
 };
 
 /**
- * Копия фикстурного проекта во временном каталоге (сборка не пишет в
- * репозиторий); SDK разрешим, как в проекте автора. `isLinked: false` — копия
- * без `node_modules`, например чтобы положить проект в репозиторий каталога.
+ * Copy of a fixture project in a temporary directory (the build does not write to
+ * the repository); the SDK is resolvable as in an author's project. `isLinked: false` — a copy
+ * without `node_modules`, e.g. to put the project into a catalog repository.
  */
 export const copyProject = async (
   name: string,

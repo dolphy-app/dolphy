@@ -1,24 +1,24 @@
 /**
- * Примеры из разделов «Точки вклада», «Права и изоляция» и «Установка и каталог»
- * `docs/design/extensions.md` проверяются машиной: документ не расходится с кодом.
+ * Examples from the sections “Точки вклада”, “Права и изоляция” and “Установка и каталог”
+ * of `docs/design/extensions.md` (an internal Russian doc) are machine-checked: the document does not drift from the code.
  *
- * Соглашение о маркерах: пример — обычный блок кода, последняя непустая строка
- * перед открывающей оградой имеет вид ``Файл `<путь>` (<метка>):``. Блоки без такой
- * строки (фрагменты) не проверяются. Метка объединяет файлы одного примера;
- * каждая метка обязана быть в `EXAMPLES` с режимом проверки, а каждая запись
- * `EXAMPLES` — встретиться в документе.
+ * Marker convention: an example is a regular code block whose last non-empty line
+ * before the opening fence has the form ``Файл `<path>` (<label>):``. Blocks without such
+ * a line (fragments) are not checked. The label groups the files of one example;
+ * every label must be in `EXAMPLES` with a check mode, and every `EXAMPLES`
+ * entry must appear in the document.
  *
- * - `manifest` — `extension.json` проходит `parseManifest`;
- * - `build-no-code` — проект из одного `extension.json` собирается и проходит
+ * - `manifest` — `extension.json` passes `parseManifest`;
+ * - `build-no-code` — a project of a single `extension.json` builds and passes
  *   `validateExtension`;
- * - `build-with-code` — проект из `extension.json` и одного `src/index.ts` (блок ```ts
- *   с маркером) собирается, проходит `validateExtension` и `tsc` с типами id,
- *   которые сборка записала в `.dolphy/ids.d.ts`;
- * - `index` — единственный файл `index.json` проходит `parseIndex`
+ * - `build-with-code` — a project of `extension.json` and one `src/index.ts` (the ```ts block
+ *   with the marker) builds, passes `validateExtension` and `tsc` with the id types
+ *   the build wrote to `.dolphy/ids.d.ts`;
+ * - `index` — a single `index.json` file passes `parseIndex`
  *   (`@dolphy-app/extension-catalog`).
  *
- * Пример «серия дней целиком» к тому же исполняется: собранный `main.mjs`
- * проходит через `loadEvents` и `loadCommands` из SDK.
+ * The example “серия дней целиком” is also executed: the built `main.mjs`
+ * goes through `loadEvents` and `loadCommands` from the SDK.
  */
 import { mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -104,7 +104,7 @@ const manifestOf = (files: ExampleFile[]): unknown => {
   return JSON.parse(manifests[0]?.content ?? '');
 };
 
-/** Проект во временном каталоге; SDK и API — ссылки на пакеты репозитория. */
+/** Project in a temporary directory; the SDK and API are links to repository packages. */
 const writeProject = async (
   files: ExampleFile[],
   withCode: boolean,
@@ -147,15 +147,15 @@ const TSCONFIG = `${JSON.stringify({
   include: ['src', '.dolphy/ids.d.ts'],
 })}\n`;
 
-describe('примеры разделов «Точки вклада», «Права и изоляция», «Установка и каталог» и «Как написать расширение»', () => {
-  it('метки примеров совпадают с таблицей проверок', () => {
+describe('examples of the sections “Точки вклада”, “Права и изоляция”, “Установка и каталог” and “Как написать расширение”', () => {
+  it('example labels match the checks table', () => {
     expect([...examples.keys()].sort()).toEqual(Object.keys(EXAMPLES).sort());
   });
 
   for (const [label, mode] of Object.entries(EXAMPLES)) {
     describe(label, () => {
       if (mode === 'index') {
-        it('index.json проходит parseIndex', () => {
+        it('index.json passes parseIndex', () => {
           const files = examples.get(label) ?? [];
           expect(files.map(({ file }) => file)).toEqual(['index.json']);
           const index = parseIndex(JSON.parse(files[0]?.content ?? ''));
@@ -164,14 +164,14 @@ describe('примеры разделов «Точки вклада», «Пра�
         return;
       }
 
-      it('extension.json проходит parseManifest', () => {
+      it('extension.json passes parseManifest', () => {
         const result = parseManifest(manifestOf(examples.get(label) ?? []));
         expect(result).toMatchObject({ ok: true });
       });
 
       if (mode === 'manifest') return;
 
-      it('проект собирается и проходит validate', async () => {
+      it('the project builds and passes validate', async () => {
         const files = examples.get(label) ?? [];
         const withCode = mode === 'build-with-code';
         if (withCode) {
@@ -241,7 +241,7 @@ interface PanelModule {
   };
 }
 
-describe('пример «серия дней целиком» исполняется', () => {
+describe('the “серия дней целиком” example is executed', () => {
   const attempt = (at: string) => ({
     exerciseId: 'e',
     courseId: 'c',
@@ -252,7 +252,7 @@ describe('пример «серия дней целиком» исполняет
     at: Date.parse(`${at}T12:00:00Z`),
   });
 
-  it('событие считает серию, команды и панель читают те же данные', async () => {
+  it('the event counts the streak, commands and panel read the same data', async () => {
     const files = examples.get('серия дней целиком') ?? [];
     const manifest = manifestOf(files) as {
       contributes: {
@@ -289,7 +289,7 @@ describe('пример «серия дней целиком» исполняет
       declaredPanels,
     });
 
-    // нет данных: команда палитры уведомляет, команда данных отдаёт нули
+    // no data: the palette command notifies, the data command returns zeros
     expect(await commands.run('acme.streak.show')).toMatchObject({
       kind: 'notify',
     });
@@ -305,7 +305,7 @@ describe('пример «серия дней целиком» исполняет
       days: 2,
       last: '2026-10-02',
     });
-    // пропущенный день начинает серию заново; «сдался» серию не трогает
+    // a skipped day restarts the streak; “gave up” leaves the streak alone
     await events.emit('attempt.closed', {
       ...attempt('2026-10-03'),
       outcome: 'gave-up',
@@ -323,7 +323,7 @@ describe('пример «серия дней целиком» исполняет
       props: { days: 1 },
     });
 
-    // собранная панель выполняется в «рамке» и рисует ответ команды данных
+    // the built panel runs in a frame and renders the data command's response
     const panel = (await import(
       /* @vite-ignore */ path.join(built.dir, 'panel.mjs')
     )) as PanelModule;

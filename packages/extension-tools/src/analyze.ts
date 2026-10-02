@@ -2,22 +2,22 @@ import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { parseAst } from 'vite';
 
-/** Именованные записи `src/index.ts`, из которых собираются браузерные файлы. */
+/** Named entries of `src/index.ts` from which the browser files are built. */
 export const RECORDS = ['views', 'panels', 'markdown'] as const;
 export type RecordName = (typeof RECORDS)[number];
 
-/** Один ключ записи: имя и диапазон свойства в исходнике. */
+/** A single entry key: its name and the property range in the source. */
 export interface RecordKey {
   name: string;
   start: number;
   end: number;
 }
 
-/** Объектный литерал записи (`export const views = { … }`) там, где он написан. */
+/** The entry's object literal (`export const views = { … }`) where it is written. */
 export interface RecordSite {
   file: string;
   source: string;
-  /** Диапазон самого литерала `{ … }`. */
+  /** Range of the `{ … }` literal itself. */
   start: number;
   end: number;
   keys: RecordKey[];
@@ -25,12 +25,12 @@ export interface RecordSite {
 
 export type RecordResult =
   | { status: 'found'; site: RecordSite }
-  /** Экспорт есть, но ключей по исходнику не определить. */
+  /** The export exists, but its keys cannot be determined from the source. */
   | { status: 'opaque'; reason: string }
   | { status: 'missing' };
 
 export interface IndexAnalysis {
-  /** Файлы, которые разбор прочитал: их правка меняет результат. */
+  /** Files the analysis read: editing any of them changes the result. */
   files: string[];
   hasHost: boolean;
   records: Record<RecordName, RecordResult>;
@@ -76,14 +76,14 @@ const unwrap = (node: AstNode): AstNode => {
   return current;
 };
 
-/** Имя из идентификатора или строкового литерала (`{ a: 1 }`, `{ 'a-b': 1 }`, `export { x as 'y' }`). */
+/** Name from an identifier or string literal (`{ a: 1 }`, `{ 'a-b': 1 }`, `export { x as 'y' }`). */
 const nameOf = (node: AstNode): string =>
   String(node.type === 'Identifier' ? node.name : node.value);
 
 const isFile = async (file: string): Promise<boolean> =>
   (await stat(file).catch(() => null))?.isFile() === true;
 
-/** Относительный импорт → файл исходника; пакеты и `node:*` не разбираются. */
+/** Relative import → source file; packages and `node:*` are not analyzed. */
 const resolveRelative = async (
   from: string,
   specifier: string,
@@ -125,10 +125,10 @@ const propertyKeys = (
 };
 
 /**
- * Статический разбор `src/index.ts` без исполнения кода автора: есть ли экспорт
- * `host` и какие ключи у записей `views`, `panels`, `markdown`. Записи ищутся
- * через локальные константы и относительные реэкспорты; ключи должны быть
- * заданы объектным литералом.
+ * Static analysis of `src/index.ts` without executing author code: whether the
+ * `host` export exists and which keys the `views`, `panels` and `markdown`
+ * entries have. Entries are found through local constants and relative
+ * re-exports; keys must be given as an object literal.
  */
 export const analyzeIndex = async (
   indexFile: string,
@@ -147,7 +147,7 @@ export const analyzeIndex = async (
     return parsed;
   };
 
-  // две функции вызывают друг друга: связываем их через объект
+  // the two functions call each other: link them through an object
   const walk = {
     local: async (
       file: string,
@@ -310,8 +310,8 @@ export const analyzeIndex = async (
 };
 
 /**
- * Исходник `site.file` с литералом записи, урезанным до `keep`: код отброшенных
- * ключей не попадает в бандл, а значит и их зависимости.
+ * Source of `site.file` with the entry literal trimmed to `keep`: the code of the
+ * discarded keys does not reach the bundle, and neither do their dependencies.
  */
 export const pruneRecords = (
   source: string,
@@ -354,7 +354,7 @@ const collectImports = (node: unknown, found: Set<string>): void => {
   for (const value of Object.values(node)) collectImports(value, found);
 };
 
-/** Спецификаторы, которые собранный файл ещё импортирует (статически и через `import()`). */
+/** Specifiers the built file still imports (statically and via `import()`). */
 export const importsOf = (code: string): Set<string> => {
   const found = new Set<string>();
   collectImports(parseAst(code, { lang: 'js' }).body, found);
@@ -362,9 +362,9 @@ export const importsOf = (code: string): Set<string> => {
 };
 
 /**
- * Убирает из собранного кода импорты без привязок (`import "node:fs"`), которые
- * выбирает `isDropped`. Бандлер оставляет такие импорты от отсечённого кода
- * хоста; привязок у них нет, так что убирать их безопасно.
+ * Removes binding-less imports (`import "node:fs"`) from the built code that
+ * `isDropped` selects. The bundler leaves such imports from the pruned host
+ * code; they have no bindings, so removing them is safe.
  */
 export const stripBareImports = (
   code: string,

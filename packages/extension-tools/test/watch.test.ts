@@ -31,7 +31,7 @@ const read = (dir: string, file: string): Promise<string> =>
   readFile(path.join(dir, file), 'utf8');
 
 describe('watchExtension', () => {
-  it('T-20 правка src/index.ts пересобирает затронутые файлы и пишет в журнал одну строку', async () => {
+  it('T-20 editing src/index.ts rebuilds affected files and writes one line to the log', async () => {
     const root = await copyProject('hello');
     const log = recordLogger();
     const handle = await watchExtension({
@@ -72,7 +72,7 @@ describe('watchExtension', () => {
     }
   });
 
-  it('ошибка в src/index.ts называет файлы и пишется один раз; исправление пересобирает', async () => {
+  it('an error in src/index.ts names the files and is logged once; a fix rebuilds', async () => {
     const root = await copyProject('hello');
     const log = recordLogger();
     const handle = await watchExtension({
@@ -112,7 +112,7 @@ describe('watchExtension', () => {
     }
   });
 
-  it('правка extension.json пересобирает файлы по новому манифесту', async () => {
+  it('editing extension.json rebuilds files per the new manifest', async () => {
     const root = await copyProject('hello');
     const log = recordLogger();
     const handle = await watchExtension({
@@ -130,7 +130,7 @@ describe('watchExtension', () => {
         { id: 'acme.hello.panel', title: 'Hello' },
       ];
       await writeFile(manifestFile, JSON.stringify(manifest));
-      // код ещё не знает о панели: ошибка называет запись, вотчеры ждут правки
+      // the code does not know about the panel yet: the error names the entry, watchers wait for an edit
       await waitFor(async () =>
         log.error.some((message) => message.includes('acme.hello.panel')),
       );
@@ -157,7 +157,7 @@ describe('watchExtension', () => {
     }
   });
 
-  it('правка extension.json перегенерирует .dolphy/ids.d.ts; правка без смены id и правка кода его не трогают', async () => {
+  it('editing extension.json regenerates .dolphy/ids.d.ts; an edit without an id change and a code edit leave it alone', async () => {
     const root = await copyProject('hello');
     const log = recordLogger();
     const idsFile = path.join(root, '.dolphy', 'ids.d.ts');

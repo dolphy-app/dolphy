@@ -36,8 +36,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('обвязки: выходные файлы', () => {
-  it('набор файлов ровно из манифеста, без общих чанков', async () => {
+describe('shims: output files', () => {
+  it('the file set is exactly from the manifest, no shared chunks', async () => {
     const { files, dir } = await buildSurfaces();
     expect(files).toEqual([
       'extension.json',
@@ -50,7 +50,7 @@ describe('обвязки: выходные файлы', () => {
     expect(await validateExtension(dir)).toEqual({ ok: true, problems: [] });
   });
 
-  it('код хоста — только в main.mjs, код каждого вида, панели и рендерера — только в своём файле', async () => {
+  it('host code only in main.mjs, the code of each view, panel and renderer only in its own file', async () => {
     const { dir } = await buildSurfaces();
     const markers = [
       'HOST_ONLY_MARKER',
@@ -84,7 +84,7 @@ describe('обвязки: выходные файлы', () => {
     }
   });
 
-  it('main.mjs отдаёт host как default и не регистрирует элементов', async () => {
+  it('main.mjs exports host as default and registers no elements', async () => {
     const { dir } = await buildSurfaces();
     const module = (await importFile(dir, 'main.mjs')) as {
       default: { activate: unknown };
@@ -92,7 +92,7 @@ describe('обвязки: выходные файлы', () => {
     expect(typeof module.default.activate).toBe('function');
   });
 
-  it('панели одного файла диспетчеризуются по ctx.panelId', async () => {
+  it('panels of one file are dispatched by ctx.panelId', async () => {
     const { dir } = await buildSurfaces();
     const { default: panel } = (await importFile(dir, 'panel.mjs')) as {
       default: { mount(container: unknown, ctx: unknown): void };
@@ -108,7 +108,7 @@ describe('обвязки: выходные файлы', () => {
     expect(() => mountAs('acme.surfaces.third')).toThrow(/not exported/);
   });
 
-  it('рендереры одного файла диспетчеризуются по языку блока', async () => {
+  it('renderers of one file are dispatched by block language', async () => {
     const { dir } = await buildSurfaces();
     const { default: renderer } = (await importFile(dir, 'markdown.mjs')) as {
       default: {
@@ -126,7 +126,7 @@ describe('обвязки: выходные файлы', () => {
     expect(() => renderAs('gamma')).toThrow(/not exported/);
   });
 
-  it('файл вида регистрирует элемент на каждый вид с тегом из манифеста', async () => {
+  it('a view file registers an element per view with the tag from the manifest', async () => {
     const { dir } = await buildSurfaces();
     const defined = new Map<string, unknown>();
     vi.stubGlobal(
@@ -151,7 +151,7 @@ describe('обвязки: выходные файлы', () => {
     expect(defined.size).toBe(3);
   });
 
-  it('имена main, renderer и module из манифеста сохраняются', async () => {
+  it('main, renderer and module names from the manifest are preserved', async () => {
     const root = await copyProject('hello');
     const manifestFile = path.join(root, 'extension.json');
     const manifest = JSON.parse(await readFile(manifestFile, 'utf8'));
@@ -162,14 +162,14 @@ describe('обвязки: выходные файлы', () => {
     expect(files).toEqual(['core/host.mjs', 'extension.json', 'ui/answer.mjs']);
   });
 
-  it('main: null — node-сборки нет, host не нужен', async () => {
+  it('main: null — no node build, host not needed', async () => {
     const root = await copyProject('markdown-only');
     const { files, dir } = await buildExtension({ root });
     expect(files).toEqual(['extension.json', 'markdown.mjs']);
     expect(await validateExtension(dir)).toEqual({ ok: true, problems: [] });
   });
 
-  it('вид, панель и рендерер, описанные в других файлах, находятся через реэкспорт', async () => {
+  it('a view, panel and renderer defined in other files are found through re-exports', async () => {
     const root = await copyProject('surfaces');
     await writeFile(
       path.join(root, 'src', 'surfaces.ts'),
@@ -191,12 +191,12 @@ describe('обвязки: выходные файлы', () => {
     expect(view).not.toContain('VIEW_THREE_MARKER');
     expect(await read(dir, 'panel.mjs')).not.toContain('ALPHA_MARKER');
   });
-  it('урезание записей верно и при не-ASCII тексте перед ними', async () => {
+  it('entry trimming is correct even with non-ASCII text before them', async () => {
     const root = await copyProject('surfaces');
     await edit(path.join(root, 'src', 'index.ts'), (text) =>
       text.replace(
         'export const views',
-        "export const note = 'Привет, мир — 😀';\nexport const views",
+        "export const note = 'Hello, world — 😀';\nexport const views",
       ),
     );
     const { dir } = await buildExtension({
@@ -210,8 +210,8 @@ describe('обвязки: выходные файлы', () => {
   });
 });
 
-describe('сверка с манифестом', () => {
-  it('нет записи в views для объявленного вида', async () => {
+describe('reconciliation with the manifest', () => {
+  it('no views entry for a declared view', async () => {
     const root = await copyProject('surfaces');
     await edit(path.join(root, 'src', 'index.ts'), (text) =>
       text.replace(
@@ -225,7 +225,7 @@ describe('сверка с манифестом', () => {
     );
   });
 
-  it('лишний ключ в panels называет ключ и файл', async () => {
+  it('an extra key in panels names the key and file', async () => {
     const root = await copyProject('surfaces');
     await edit(path.join(root, 'src', 'index.ts'), (text) =>
       text.replace(
@@ -239,7 +239,7 @@ describe('сверка с манифестом', () => {
     );
   });
 
-  it('нет записи markdown для объявленного языка и лишний язык', async () => {
+  it('no markdown entry for a declared language, and an extra language', async () => {
     const root = await copyProject('surfaces');
     await edit(path.join(root, 'src', 'index.ts'), (text) =>
       text.replace(
@@ -252,7 +252,7 @@ describe('сверка с манифестом', () => {
     expect(message).toContain("'markdown' has entry 'gamma'");
   });
 
-  it('нет экспорта host при заданном main', async () => {
+  it('no host export when main is set', async () => {
     const root = await copyProject('surfaces');
     await edit(path.join(root, 'src', 'index.ts'), (text) =>
       text.replace('export const host', 'const host'),
@@ -262,7 +262,7 @@ describe('сверка с манифестом', () => {
     );
   });
 
-  it('нет экспорта views при объявленных видах', async () => {
+  it('no views export when views are declared', async () => {
     const root = await copyProject('hello');
     await edit(path.join(root, 'src', 'index.ts'), (text) =>
       text.replace('export const views', 'const views'),
@@ -272,7 +272,7 @@ describe('сверка с манифестом', () => {
     expect(message).toContain("'acme.hello'");
   });
 
-  it('ключи, которые нельзя прочитать из исходника, — ошибка с причиной', async () => {
+  it('keys that cannot be read from the source — an error with the cause', async () => {
     const root = await copyProject('hello');
     await edit(path.join(root, 'src', 'index.ts'), (text) =>
       text.replace(
@@ -283,7 +283,7 @@ describe('сверка с манифестом', () => {
     expect(await failure(root)).toContain("cannot read the keys of 'views'");
   });
 
-  it('ключи, заданные константой и as const, читаются', async () => {
+  it('keys given by a constant and as const are read', async () => {
     const root = await copyProject('hello');
     await edit(path.join(root, 'src', 'index.ts'), (text) =>
       text.replace(
@@ -295,7 +295,7 @@ describe('сверка с манифестом', () => {
     expect(files).toContain('view.mjs');
   });
 
-  it('ошибка в самом src/index.ts называет выходные файлы', async () => {
+  it('an error in src/index.ts itself names the output files', async () => {
     const root = await copyProject('hello');
     await edit(
       path.join(root, 'src', 'index.ts'),
@@ -308,8 +308,8 @@ describe('сверка с манифестом', () => {
   });
 });
 
-describe('защита браузерных файлов от модулей Node', () => {
-  it('используемый видом node:* — ошибка с файлом и модулем', async () => {
+describe('protecting browser files from Node modules', () => {
+  it('node:* used by a view — an error with the file and module', async () => {
     const root = await copyProject('hello');
     await edit(
       path.join(root, 'src', 'index.ts'),
@@ -321,7 +321,7 @@ describe('защита браузерных файлов от модулей Nod
     expect(message).toContain("'node:fs'");
   });
 
-  it('встроенный модуль без префикса тоже', async () => {
+  it('a built-in module without the prefix too', async () => {
     const root = await copyProject('hello');
     await edit(
       path.join(root, 'src', 'index.ts'),
@@ -331,7 +331,7 @@ describe('защита браузерных файлов от модулей Nod
     expect(await failure(root)).toContain("'path'");
   });
 
-  it('пакет из external конфига, нужный виду, — ошибка', async () => {
+  it('a package from the config’s external that a view needs — an error', async () => {
     const root = await copyProject('with-worker');
     await edit(
       path.join(root, 'src', 'index.ts'),
@@ -343,14 +343,14 @@ describe('защита браузерных файлов от модулей Nod
     expect(message).toContain("'dolphy-fixture-external'");
   });
 
-  it('node:* в коде хоста не мешает, пока вид его не использует', async () => {
+  it('node:* in host code is fine while no view uses it', async () => {
     const { files } = await buildSurfaces();
     expect(files).toContain('view.mjs');
   });
 });
 
-describe('старая раскладка', () => {
-  it('нет src/index.ts, лежат src/main.ts и src/view.ts — ошибка со шагами переноса', async () => {
+describe('old layout', () => {
+  it('no src/index.ts, but src/main.ts and src/view.ts exist — an error with migration steps', async () => {
     const root = await copyProject('legacy-layout');
     const message = await failure(root);
     expect(message).toContain("'src/index.ts' is not found");
@@ -362,7 +362,7 @@ describe('старая раскладка', () => {
     expect(message).not.toContain('export const markdown');
   });
 
-  it('нет и старых файлов — подсказка создать src/index.ts', async () => {
+  it('no old files either — a hint to create src/index.ts', async () => {
     const root = await copyProject('legacy-layout');
     await rm(path.join(root, 'src'), { recursive: true });
     await mkdir(path.join(root, 'src'));
@@ -371,7 +371,7 @@ describe('старая раскладка', () => {
     expect(message).not.toContain('old layout');
   });
 
-  it('src/main.ts не подхватывается сам, если рядом есть src/index.ts', async () => {
+  it('src/main.ts is not picked up on its own when src/index.ts exists', async () => {
     const root = await copyProject('hello');
     await rename(
       path.join(root, 'src', 'index.ts'),
@@ -382,8 +382,8 @@ describe('старая раскладка', () => {
   });
 });
 
-describe('импорт src/index.ts', () => {
-  it('в обычном Node без DOM ничего не регистрирует и отдаёт описания', async () => {
+describe('importing src/index.ts', () => {
+  it('in plain Node without DOM registers nothing and returns the descriptions', async () => {
     const root = await copyProject('surfaces');
     const script = `
       const module = await import(${JSON.stringify(pathToFileURL(path.join(root, 'src', 'index.ts')).href)});

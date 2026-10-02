@@ -7,11 +7,11 @@ import type { Entry, Project } from './project.ts';
 import { exportsOf, shimEntry, shimPlugin } from './shim.ts';
 import type { JobState, Output } from './shim.ts';
 
-/** Один бандл: один выходной файл, своя сборка, без общих чанков. */
+/** One bundle: one output file, its own build, no shared chunks. */
 export interface Job {
-  /** Выходной файл относительно каталога расширения. */
+  /** Output file relative to the extension directory. */
   output: string;
-  /** Как назвать файл в сообщении: выходной файл и экспорты, из которых он собран. */
+  /** How to name the file in a message: the output file and the exports it is built from. */
   label: string;
   config: InlineConfig;
   state: JobState;
@@ -37,7 +37,7 @@ const bundleConfig = (
   configFile: false,
   publicDir: false,
   logLevel: 'warn',
-  // ошибки сборки показывает `watchExtension` один раз на причину, а не Vite на каждый файл
+  // `watchExtension` reports build errors once per cause, rather than Vite once per file
   customLogger: { ...createLogger('warn'), error: () => undefined },
   build: {
     target: isNode ? 'node22' : 'es2022',
@@ -89,18 +89,18 @@ const workerJob = (project: Project, entry: Entry, outDir: string): Job => ({
   state: { problem: null },
 });
 
-/** Бандлы проекта: процесс расширений, браузерные файлы, воркеры. */
+/** Project bundles: the extensions process, browser files, workers. */
 export const jobsOf = (project: Project, outDir: string): Job[] => [
   ...(project.host === null ? [] : [outputJob(project, project.host, outDir)]),
   ...project.browserOutputs.map((output) => outputJob(project, output, outDir)),
   ...project.workerEntries.map((entry) => workerJob(project, entry, outDir)),
 ];
 
-/** Причина сбоя: ошибка сверки или защиты, названная плагином, либо текст бандлера. */
+/** Failure cause: a reconciliation or guard error named by the plugin, or the bundler's text. */
 export const failureDetail = (job: Job, error: unknown): string =>
   job.state.problem ?? errorText(error);
 
-/** Собирает все бандлы (по одному, без общих чанков) в `outDir`. */
+/** Builds all bundles (one at a time, no shared chunks) into `outDir`. */
 export const bundleAll = async (
   project: Project,
   outDir: string,

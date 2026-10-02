@@ -21,7 +21,7 @@ export interface CliIo {
 }
 
 export interface CliDeps extends CatalogDeps {
-  /** Резолвится, когда watch-режим нужно завершить (по умолчанию SIGINT/SIGTERM). */
+  /** Resolves when watch mode should end (by default SIGINT/SIGTERM). */
   waitForExit?: () => Promise<void>;
 }
 

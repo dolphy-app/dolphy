@@ -12,12 +12,12 @@ import {
 import type { IndexAnalysis, RecordName, RecordSite } from './analyze.ts';
 import type { BrowserOutput, HostOutput, Project } from './project.ts';
 
-/** Подпуть SDK с регистрацией элементов и диспетчеризацией; разрешается из проекта автора. */
+/** SDK subpath with element registration and dispatch; resolved from the author's project. */
 export const SDK_RUNTIME = '@dolphy-app/extension-sdk/runtime';
 
 export type Output = HostOutput | BrowserOutput;
 
-/** Путь виртуальной обвязки: `lib.entry` сборки и `resolveId` плагина; файла на диске нет. */
+/** Path of the virtual shim: the build's `lib.entry` and the plugin's `resolveId`; there is no file on disk. */
 export const shimEntry = (project: Project, output: Output): string =>
   path.join(
     project.root,
@@ -27,7 +27,7 @@ export const shimEntry = (project: Project, output: Output): string =>
 
 const quote = (text: string): string => JSON.stringify(text);
 
-/** Какие записи `src/index.ts` нужны выходному файлу: имя записи → ключи. */
+/** Which `src/index.ts` entries the output file needs: entry name → keys. */
 export const wantedRecords = (
   output: Output,
 ): Record<RecordName, readonly string[]> =>
@@ -39,17 +39,17 @@ export const wantedRecords = (
         markdown: output.languages,
       };
 
-/** Экспорты `src/index.ts`, из которых собран файл (для сообщений). */
+/** Exports of `src/index.ts` the file is built from (for messages). */
 export const exportsOf = (output: Output): string[] =>
   output.kind === 'host'
     ? ['host']
     : RECORDS.filter((name) => wantedRecords(output)[name].length > 0);
 
 /**
- * Исходник виртуальной обвязки выходного файла: импортирует из `src/index.ts`
- * только нужное и делает то, чего ждёт приложение от этого файла. Результат
- * `export default` — модуль, который грузит приложение (`ExtensionModule`,
- * модуль панели, модуль рендерера); файл вида выполняет регистрацию элементов.
+ * Source of the output file's virtual shim: imports from `src/index.ts` only
+ * what is needed and does what the app expects from this file. The
+ * `export default` result is the module the app loads (`ExtensionModule`,
+ * panel module, renderer module); a file of this kind registers elements.
  */
 export const shimSource = (output: Output, indexFile: string): string => {
   if (output.kind === 'host') {
@@ -89,7 +89,7 @@ export const shimSource = (output: Output, indexFile: string): string => {
   return `${lines.join('\n')}\n`;
 };
 
-/** Несовпадения `src/index.ts` с манифестом; пусто — всё сходится. */
+/** Mismatches between `src/index.ts` and the manifest; empty — everything agrees. */
 export const findMismatches = (
   project: Project,
   analysis: IndexAnalysis,
@@ -167,7 +167,7 @@ const isNodeSpecifier = (
     (name) => specifier === name || specifier.startsWith(`${name}/`),
   );
 
-/** Разделяет ошибку, которую нужно показать автору как есть, и сбой бандлера. */
+/** Separates an error to show the author as is from a bundler failure. */
 export interface JobState {
   problem: string | null;
 }
@@ -179,9 +179,9 @@ export interface ShimPluginOptions {
 }
 
 /**
- * Плагин сборки одного выходного файла: виртуальная обвязка, сверка
- * `src/index.ts` с манифестом на каждой (пере)сборке, отсечение записей, не
- * относящихся к файлу, и защита браузерных файлов от `node:*`.
+ * Build plugin for a single output file: the virtual shim, reconciliation of
+ * `src/index.ts` with the manifest on every (re)build, pruning of entries not
+ * belonging to the file, and protection of browser files from `node:*`.
  */
 export const shimPlugin = ({
   project,
@@ -189,7 +189,7 @@ export const shimPlugin = ({
   state,
 }: ShimPluginOptions): Plugin => {
   const indexSource = project.indexSource as string;
-  // модули приходят в хуки по реальным путям (на macOS `/tmp` — ссылка)
+  // modules reach the hooks by real paths (on macOS `/tmp` is a symlink)
   const root = realpathSync(project.root);
   const indexFile = path.join(root, indexSource);
   const shimId = shimEntry(project, output);
@@ -206,8 +206,8 @@ export const shimPlugin = ({
     enforce: 'pre',
     resolveId(specifier) {
       if (specifier === shimId) return shimId;
-      // импорт не ошибка, пока он остаётся в выходном файле после отсечения
-      // кода хоста: проверяет `generateBundle`
+      // an import is not an error while it stays in the output file after the
+      // host code is pruned: `generateBundle` checks that
       if (
         output.kind === 'browser' &&
         isNodeSpecifier(specifier, project.external)
@@ -220,11 +220,11 @@ export const shimPlugin = ({
       if (output.kind !== 'browser') return;
       for (const chunk of Object.values(bundle)) {
         if (chunk.type !== 'chunk') continue;
-        // от отсечённого кода хоста бандлер оставляет `import "node:…"` без привязок
+        // the bundler leaves binding-less `import "node:…"` from pruned host code
         chunk.code = stripBareImports(chunk.code, (specifier) =>
           isNodeSpecifier(specifier, project.external),
         );
-        // `chunk.imports` помнит и отсечённые импорты: смотрим на сам код
+        // `chunk.imports` also remembers pruned imports: look at the code itself
         const leaked = [...importsOf(chunk.code)].find((specifier) =>
           isNodeSpecifier(specifier, project.external),
         );
@@ -237,8 +237,8 @@ export const shimPlugin = ({
       }
     },
     async buildStart() {
-      // сборка, упавшая здесь, не загрузила ни одного модуля: без этого вотчер
-      // не узнает, что исходник поправили
+      // a build that failed here loaded no modules: without this the watcher
+      // would not learn that the source was fixed
       this.addWatchFile(indexFile);
       const analysis = await analyzeIndex(indexFile).catch((error: unknown) =>
         fail(this, `${indexSource} cannot be read: ${String(error)}`),

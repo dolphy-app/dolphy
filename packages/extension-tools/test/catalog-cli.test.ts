@@ -14,7 +14,7 @@ const exec = async (args: string[], deps: CliDeps = {}) => {
 };
 
 describe('dolphy-ext catalog check', () => {
-  it('без замечаний: код 0 и пустой вывод', async () => {
+  it('no findings: code 0 and empty output', async () => {
     const repo = await createRepo([{ fixture: 'theme-only' }]);
     const result = await exec([
       'catalog',
@@ -25,7 +25,7 @@ describe('dolphy-ext catalog check', () => {
     expect(result).toEqual({ code: 0, stdout: '', stderr: '' });
   });
 
-  it('ошибки: строки «severity id RULE поле: сообщение», код 1; предупреждения кода не меняют', async () => {
+  it('errors: lines “severity id RULE field: message”, code 1; warnings do not change the code', async () => {
     const repo = await createRepo([
       { fixture: 'theme-only', files: { 'README.md': null } },
       {
@@ -57,7 +57,7 @@ describe('dolphy-ext catalog check', () => {
     expect(onlyWarning.stdout).toContain('warning acme.chart CHECK-011');
   });
 
-  it('автор проверяется через GitHub API с токеном из окружения', async () => {
+  it('the author is checked via the GitHub API with a token from the environment', async () => {
     const repo = await createRepo([{ fixture: 'theme-only' }]);
     const fetcher = vi.fn(() =>
       Promise.resolve(new Response('', { status: 404 })),
@@ -77,7 +77,7 @@ describe('dolphy-ext catalog check', () => {
     expect(calls[0]?.[1].headers.authorization).toBe('Bearer t0ken');
   });
 
-  it('--published-index и --max-app-version работают через CLI', async () => {
+  it('--published-index и --max-app-version work through the CLI', async () => {
     const repo = await createRepo([
       { fixture: 'theme-only', manifest: { minAppVersion: '2.0.0' } },
     ]);
@@ -99,7 +99,7 @@ describe('dolphy-ext catalog check', () => {
     expect(result.stdout).toContain('CHECK-016 minAppVersion');
   });
 
-  it('--list-rules печатает все правила', async () => {
+  it('--list-rules prints all rules', async () => {
     const result = await exec(['catalog', 'check', '--list-rules']);
     expect(result.code).toBe(0);
     const lines = result.stdout.trimEnd().split('\n');
@@ -107,7 +107,7 @@ describe('dolphy-ext catalog check', () => {
     expect(lines[0]).toMatch(/^CHECK-001 \S/);
   });
 
-  it('ошибки использования дают код 2', async () => {
+  it('usage errors give code 2', async () => {
     const repo = await createRepo([{ fixture: 'theme-only' }]);
     for (const args of [
       ['catalog'],
@@ -126,7 +126,7 @@ describe('dolphy-ext catalog check', () => {
     }
   });
 
-  it('справка описывает подкоманды catalog', async () => {
+  it('help describes the catalog subcommands', async () => {
     const result = await exec(['--help']);
     expect(result.stdout).toContain('dolphy-ext catalog check');
     expect(result.stdout).toContain('dolphy-ext catalog build');
@@ -134,7 +134,7 @@ describe('dolphy-ext catalog check', () => {
 });
 
 describe('dolphy-ext catalog build', () => {
-  it('печатает строку на расширение: published, затем unchanged', async () => {
+  it('prints a line per extension: published, then unchanged', async () => {
     const repo = await createRepo([{ fixture: 'theme-only' }]);
     const out = await makeTemp();
     const args = [
@@ -159,7 +159,7 @@ describe('dolphy-ext catalog build', () => {
     expect(index.extensions).toHaveLength(1);
   });
 
-  it('ошибка сборки: код 1, сообщение в stderr, индекс не создан', async () => {
+  it('build error: code 1, message in stderr, index not created', async () => {
     const repo = await createRepo([
       { fixture: 'theme-only', files: { 'README.md': null } },
     ]);
@@ -181,7 +181,7 @@ describe('dolphy-ext catalog build', () => {
     await expect(readFile(path.join(out, 'index.json'))).rejects.toThrow();
   });
 
-  it('--previous-index, --revoked, --source-base и --published-at доходят до сборки', async () => {
+  it('--previous-index, --revoked, --source-base и --published-at reach the build', async () => {
     const repo = await createRepo([{ fixture: 'theme-only' }]);
     const out = await makeTemp();
     const revoked = path.join(out, 'revoked.json');
@@ -240,7 +240,7 @@ describe('dolphy-ext catalog build --reindex', () => {
   const readIndex = async (file: string) =>
     JSON.parse(await readFile(file, 'utf8'));
 
-  it('добавляет отзыв, сохраняя записи расширений, и обновляет generatedAt', async () => {
+  it('adds a revocation, keeping extension entries, and updates generatedAt', async () => {
     const { out, indexFile, revokedFile } = await setup();
     const before = await readIndex(indexFile);
     await writeFile(
@@ -267,7 +267,7 @@ describe('dolphy-ext catalog build --reindex', () => {
     expect(after.generatedAt).toBe(now.toISOString());
   });
 
-  it('без --revoked список сохраняется, пустой массив его очищает', async () => {
+  it('without --revoked the list is kept, an empty array clears it', async () => {
     const { out, indexFile, revokedFile } = await setup();
     await writeFile(
       revokedFile,
@@ -286,7 +286,7 @@ describe('dolphy-ext catalog build --reindex', () => {
     expect((await readIndex(indexFile)).revoked).toEqual([]);
   });
 
-  it('--previous-index берёт исходный индекс из другого файла', async () => {
+  it('--previous-index takes the source index from another file', async () => {
     const { indexFile } = await setup();
     const target = await makeTemp();
     const result = await exec([
@@ -304,7 +304,7 @@ describe('dolphy-ext catalog build --reindex', () => {
     ).toHaveLength(1);
   });
 
-  it('нет индекса — ошибка использования', async () => {
+  it('no index — a usage error', async () => {
     const result = await exec([
       'catalog',
       'build',
@@ -316,7 +316,7 @@ describe('dolphy-ext catalog build --reindex', () => {
     expect(result.stderr).toContain('nothing to reindex');
   });
 
-  it('неверный диапазон в --revoked: код 1, индекс не тронут', async () => {
+  it('invalid range in --revoked: code 1, index untouched', async () => {
     const { out, indexFile, revokedFile } = await setup();
     const before = await readFile(indexFile, 'utf8');
     await writeFile(
@@ -337,7 +337,7 @@ describe('dolphy-ext catalog build --reindex', () => {
     expect(await readFile(indexFile, 'utf8')).toBe(before);
   });
 
-  it('--src, --ids и --source-base вместе с --reindex, а также отсутствие --out — ошибки использования', async () => {
+  it('--src, --ids и --source-base together with --reindex, as well as a missing --out — usage errors', async () => {
     for (const extra of [
       ['--ids', 'a'],
       ['--src', 'x'],
@@ -356,7 +356,7 @@ describe('dolphy-ext catalog build --reindex', () => {
     expect((await exec(['catalog', 'build', '--reindex'])).code).toBe(2);
   });
 
-  it('тот же список отзыва — файл не переписывается', async () => {
+  it('the same revocation list — the file is not rewritten', async () => {
     const { out, indexFile, revokedFile } = await setup();
     await writeFile(
       revokedFile,
@@ -375,8 +375,8 @@ describe('dolphy-ext catalog build --reindex', () => {
   });
 });
 
-describe('catalog build: повторный запуск без изменений', () => {
-  it('все расширения unchanged и отзыв тот же — index.json остаётся прежним', async () => {
+describe('catalog build: rerun without changes', () => {
+  it('all extensions unchanged and the same revocation — index.json stays as it was', async () => {
     const repo = await createRepo([{ fixture: 'theme-only' }]);
     const out = await makeTemp();
     const args = [

@@ -21,8 +21,8 @@ const editManifest = async (
   await writeFile(file, JSON.stringify(manifest));
 };
 
-describe('панели и команды: проект', () => {
-  it('модуль панели — браузерная точка входа, main — серверная', async () => {
+describe('panels and commands: project', () => {
+  it('the panel module is the browser entry point, main is the server one', async () => {
     const project = await loadProject(await copyProject('commands-panel'));
     expect(project.browserOutputs).toEqual([
       {
@@ -37,8 +37,8 @@ describe('панели и команды: проект', () => {
   });
 });
 
-describe('панели и команды: сборка', () => {
-  it('собирает panel.mjs и main.mjs, validate проходит', async () => {
+describe('panels and commands: build', () => {
+  it('builds panel.mjs and main.mjs, validate passes', async () => {
     const root = await projectWithSdk();
     const { dir, files } = await buildExtension({
       root,
@@ -51,7 +51,7 @@ describe('панели и команды: сборка', () => {
     expect(await validateExtension(dir)).toEqual({ ok: true, problems: [] });
   });
 
-  it('нет src/index.ts — ошибка называет файл', async () => {
+  it('no src/index.ts — the error names the file', async () => {
     const root = await projectWithSdk();
     await rm(path.join(root, 'src', 'index.ts'));
     const error = await buildExtension({ root }).catch((e: unknown) => e);
@@ -59,7 +59,7 @@ describe('панели и команды: сборка', () => {
     expect((error as BuildError).message).toContain("'src/index.ts'");
   });
 
-  it('module ./ui/screen.js собирается в ui/screen.js из экспорта panels', async () => {
+  it('module ./ui/screen.js is built into ui/screen.js from the panels export', async () => {
     const root = await projectWithSdk();
     await editManifest(root, (manifest) => {
       const [first] = manifest.contributes.panels ?? [];
@@ -73,7 +73,7 @@ describe('панели и команды: сборка', () => {
     expect(await validateExtension(dir)).toEqual({ ok: true, problems: [] });
   });
 
-  it('команды требуют код: без main.mjs validate падает', async () => {
+  it('commands require code: without main.mjs validate fails', async () => {
     const root = await projectWithSdk();
     const { dir } = await buildExtension({ root });
     await rm(path.join(dir, 'main.mjs'));
@@ -82,7 +82,7 @@ describe('панели и команды: сборка', () => {
     expect(result.problems.join()).toContain('main.mjs');
   });
 
-  it('без панелей panel.mjs не собирается', async () => {
+  it('without panels panel.mjs is not built', async () => {
     const root = await projectWithSdk();
     await editManifest(root, (manifest) => {
       delete manifest.contributes.panels;
@@ -101,7 +101,7 @@ describe('панели и команды: сборка', () => {
     expect(files).toEqual(['extension.json', 'main.mjs']);
   });
 
-  it('панель убрана из манифеста, но осталась в панелях кода — ошибка называет запись', async () => {
+  it('a panel removed from the manifest but left in the code’s panels — the error names the entry', async () => {
     const root = await projectWithSdk();
     await editManifest(root, (manifest) => {
       delete manifest.contributes.panels;

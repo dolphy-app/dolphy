@@ -65,14 +65,14 @@ const inspectDir = async (directory: string): Promise<InspectResult> => {
   };
 };
 
-describe('сайт каталога и настоящий установщик', () => {
+describe('catalog site and the real installer', () => {
   it.each([
     ['acme.night', 'theme-only'],
     ['acme.hello', 'hello'],
     ['acme.chart', 'markdown-only'],
     ['acme.commands-panel', 'commands-panel'],
   ] as const)(
-    'расширение %s из собранного сайта устанавливается и проходит проверку каталога',
+    'extension %s from the built site installs and passes the catalog check',
     async (id, fixture) => {
       const repo = await createRepo([{ fixture }]);
       const site = await makeTemp();

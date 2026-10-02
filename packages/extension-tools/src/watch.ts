@@ -9,7 +9,7 @@ interface WatcherEvent {
   error?: unknown;
 }
 
-/** Структурный вид rolldown-вотчера, который возвращает `build` с `watch`. */
+/** Structural view of the rolldown watcher that `build` returns with `watch`. */
 interface Watcher {
   on(event: 'event', listener: (event: WatcherEvent) => void): unknown;
   close(): Promise<void>;
@@ -21,23 +21,23 @@ const isWatcher = (value: unknown): value is Watcher =>
   'on' in value &&
   'close' in value;
 
-/** Итог одного цикла пересборки: что собралось и что сломалось (одинаковые причины — одной записью). */
+/** Outcome of one rebuild cycle: what built and what broke (identical causes — one entry). */
 export interface RebuildReport {
   rebuilt: string[];
   failures: { labels: string[]; detail: string }[];
 }
 
 /**
- * Правка исходника будит вотчеры всех файлов почти одновременно: события одного
- * цикла собираются в один отчёт, который уходит после тишины и когда ни один
- * вотчер не занят пересборкой.
+ * Editing a source wakes the watchers of all files almost simultaneously: the
+ * events of one cycle are gathered into one report, sent after quiet and once no
+ * watcher is busy rebuilding.
  */
 const SETTLE_MS = 150;
 
 export interface Reporter {
-  /** Вотчер начал пересборку (`START`). */
+  /** A watcher started rebuilding (`START`). */
   begin(): void;
-  /** Вотчер закончил пересборку (`END`), успешно или нет. */
+  /** A watcher finished rebuilding (`END`), successfully or not. */
   end(): void;
   rebuilt(job: Job): void;
   failed(job: Job, detail: string): void;
@@ -92,7 +92,7 @@ export const createReporter = (
 };
 
 export interface BundleWatch {
-  /** Все бандлы собрались с первого раза. */
+  /** All bundles built on the first attempt. */
   isHealthy: boolean;
   close(): Promise<void>;
 }
@@ -142,8 +142,8 @@ const watchJob = async (
 };
 
 /**
- * Запускает вотчеры всех бандлов проекта; резолвится после первой сборки каждого. Первая сборка с ошибкой — отказ
- * (`isFailFast`), иначе ошибка уходит в отчёт, а вотчер ждёт правки.
+ * Starts the watchers of all project bundles; resolves after each one's first build. A first build with an error is a failure
+ * (`isFailFast`); otherwise the error goes into the report and the watcher waits for an edit.
  */
 export const watchAll = async (
   project: Project,

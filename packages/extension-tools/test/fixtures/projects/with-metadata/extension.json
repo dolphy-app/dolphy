@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "apiVersion": 1,
   "name": "Meta",
-  "description": "Расширение с метаданными",
+  "description": "Extension with metadata",
   "author": "octo-cat",
   "platforms": ["darwin", "linux", "win32"],
   "minAppVersion": "1.0.0",

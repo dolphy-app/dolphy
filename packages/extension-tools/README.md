@@ -41,7 +41,8 @@ export const panels = { 'acme.panel': defineExtensionPanel({ mount() {} }) };
 ```
 
 - Each output file is built from a virtual entry generated from the manifest;
-  nothing is written into the project. The entry imports only what the file
+  nothing is written into the project but `.dolphy/ids.d.ts` (see "Typed
+  ids"). The entry imports only what the file
   needs from `src/index.ts`, so host code never reaches browser files and view,
   panel and renderer code never reaches `main.mjs`. The SDK `define…` functions
   are side-effect free, which is what lets the bundler drop the rest; keep the
@@ -84,6 +85,37 @@ export const panels = { 'acme.panel': defineExtensionPanel({ mount() {} }) };
   (except those already under `schema/` or `assets/`). `extension.json` is
   copied byte for byte; the normalised form is not written.
 
+## Typed ids
+
+`dolphy-ext types [dir]` writes `<dir>/.dolphy/ids.d.ts` from `extension.json`
+alone: nothing of your code is run and no network is used. Every
+`dolphy-ext build` and every `--watch` rebuild after `extension.json` changes
+does the same. The file augments `ExtensionIds` of
+`@dolphy-app/extension-sdk`, so the SDK knows the ids the manifest declares:
+
+```ts
+declare module '@dolphy-app/extension-sdk' {
+  interface ExtensionIds {
+    exerciseTypes: 'acme.echo';
+    gradePolicies: never;
+    commands: 'acme.open' | 'acme.close';
+    events: 'attempt.closed';
+    panels: never;
+    markdownLanguages: never;
+    settings: { 'acme.goal': number; 'acme.mode': 'fast' | 'slow' };
+  }
+}
+```
+
+A setting is typed by its definition: `boolean`, `string`, `number`, or the
+union of the `enum` option values. The output is deterministic and the file is
+not rewritten when its content is unchanged, so a watcher on the project does
+not loop. Include it in `tsconfig.json` as `".dolphy/ids.d.ts"` (a bare
+`.dolphy` entry is skipped by TypeScript because it is a hidden directory) and
+keep `.dolphy` out of git; it is never part of `dist-ext` or of a catalog
+source check. What the SDK does with the ids is described in the README of
+`@dolphy-app/extension-sdk`, "Typed ids".
+
 ## Output
 
 `<project>/dist-ext/<id>/` (`--out <dir>` changes the root; the extension
@@ -95,6 +127,7 @@ discovery root and the value of `DOLPHY_DEV_EXTENSIONS`. After the build the res
 
 ```
 dolphy-ext build [dir] [--out <dir>] [--watch]
+dolphy-ext types [dir]
 dolphy-ext validate <dir>
 dolphy-ext catalog check <extensionsDir> [--ids a,b]
             [--published-index <path>] [--max-app-version <x.y.z>]
@@ -123,6 +156,8 @@ of changes is reported once per rebuild: `rebuilt main.mjs, view.mjs`; an error
 is printed once per distinct reason with the output files and exports it
 affects (`error <id>: failed to bundle main.mjs (host from src/index.ts), …`).
 Schemas and `assets/` are copied at the start and after a manifest change.
+`extension.json` changes also rewrite `.dolphy/ids.d.ts` (only when its content
+changes).
 Running from the repository:
 `pnpm -F @dolphy-app/extension-tools dolphy-ext build <dir>`.
 
@@ -137,7 +172,7 @@ the same code the app uses.
 ### `catalog check <extensionsDir>`
 
 Checks the sources in `<extensionsDir>/<id>/` (a `dolphy-ext` project without
-`node_modules`, `dist-ext` and `.git`) against the rules below. `--ids a,b`
+`node_modules`, `dist-ext`, `.dolphy` and `.git`) against the rules below. `--ids a,b`
 limits the check to the listed extensions (all directories by default);
 `--published-index <path>` is the `index.json` of the published catalog for
 `CHECK-012` (no file means nothing is published); `--max-app-version <x.y.z>` is
@@ -205,6 +240,7 @@ The published `@dolphy-app/extension-tools` package contains only the CLI
 ```ts
 import {
   buildExtension,
+  generateTypes,
   watchExtension,
   validateExtension,
 } from '@dolphy-app/extension-tools';
@@ -212,6 +248,7 @@ import {
 const { id, dir, files } = await buildExtension({ root, outDir });
 const handle = await watchExtension({ root, logger }); // handle.close()
 const { ok, problems } = await validateExtension(dir);
+const { file, changed } = await generateTypes({ root }); // .dolphy/ids.d.ts
 ```
 
 Build errors are `BuildError` (its `message` matches the text the app prints

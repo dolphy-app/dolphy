@@ -255,11 +255,12 @@ describe('catalog check: правила', () => {
     expect(sizeHit).toContain('exceed the limit of 5000000');
   });
 
-  it('CHECK-013: node_modules, dist-ext и .git не учитываются', async () => {
+  it('CHECK-013: node_modules, dist-ext, .dolphy и .git не учитываются', async () => {
     const big = 'x'.repeat(1_000_001);
     const files = {
       'node_modules/dep/index.js': big,
       'dist-ext/main.mjs': big,
+      '.dolphy/ids.d.ts': big,
       '.git/objects/blob': big,
     };
     expect(await run(await single({ files }))).toEqual([]);

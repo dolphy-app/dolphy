@@ -18,6 +18,7 @@ import { readTree } from './tree.ts';
 export const SKIPPED_SOURCE_DIRS: ReadonlySet<string> = new Set([
   'node_modules',
   'dist-ext',
+  '.dolphy',
   '.git',
 ]);
 

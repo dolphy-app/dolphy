@@ -1,4 +1,4 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, stat, utimes, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { watchExtension } from '../src/index.ts';
@@ -152,6 +152,42 @@ describe('watchExtension', () => {
         }
       });
       expect(await read(dir, 'extension.json')).toContain('acme.hello.panel');
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it('правка extension.json перегенерирует .dolphy/ids.d.ts; правка без смены id и правка кода его не трогают', async () => {
+    const root = await copyProject('hello');
+    const log = recordLogger();
+    const idsFile = path.join(root, '.dolphy', 'ids.d.ts');
+    const handle = await watchExtension({
+      root,
+      outDir: path.join(root, 'out'),
+      logger: log.logger,
+    });
+    try {
+      expect(await readFile(idsFile, 'utf8')).toContain('commands: never');
+      const manifestFile = path.join(root, 'extension.json');
+      const manifest = JSON.parse(await readFile(manifestFile, 'utf8')) as {
+        contributes: Record<string, unknown>;
+      };
+      manifest.contributes.commands = [{ id: 'acme.hello.run', title: 'Run' }];
+      await writeFile(manifestFile, JSON.stringify(manifest));
+      await waitFor(async () =>
+        (await readFile(idsFile, 'utf8')).includes(
+          "commands: 'acme.hello.run'",
+        ),
+      );
+
+      // the same ids in a differently formatted manifest, and a source edit:
+      // the file keeps its old mtime, so a watcher on the project sees nothing
+      const old = new Date('2020-01-01T00:00:00Z');
+      await utimes(idsFile, old, old);
+      await writeFile(manifestFile, JSON.stringify(manifest, null, 4));
+      await edit(path.join(root, 'src', 'index.ts'), (text) => `${text}\n`);
+      await settle(1200);
+      expect((await stat(idsFile)).mtime).toEqual(old);
     } finally {
       await handle.close();
     }

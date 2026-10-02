@@ -1,0 +1,38 @@
+{
+  "id": "acme.typed",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "permissions": ["learning.events"],
+  "contributes": {
+    "exerciseTypes": [
+      {
+        "id": "acme.typed.echo",
+        "specSchema": { "type": "object" },
+        "answerSchema": { "type": "string" }
+      }
+    ],
+    "gradePolicies": [{ "id": "acme.typed.strict", "label": "Strict" }],
+    "commands": [
+      { "id": "acme.typed.open", "title": "Open" },
+      { "id": "acme.typed.ping", "title": "Ping", "palette": false }
+    ],
+    "events": [{ "event": "attempt.closed" }],
+    "panels": [{ "id": "acme.typed.main", "title": "Typed" }],
+    "markdownRenderers": [{ "language": "typed-echo" }],
+    "settings": [
+      { "id": "acme.typed.on", "type": "boolean", "label": "On", "default": true },
+      { "id": "acme.typed.name", "type": "string", "label": "Name", "default": "x" },
+      { "id": "acme.typed.goal", "type": "number", "label": "Goal", "default": 3 },
+      {
+        "id": "acme.typed.mode",
+        "type": "enum",
+        "label": "Mode",
+        "default": "fast",
+        "options": [
+          { "value": "fast", "label": "Fast" },
+          { "value": "slow", "label": "Slow" }
+        ]
+      }
+    ]
+  }
+}

@@ -100,6 +100,36 @@ describe('runCli', () => {
     expect(bad.stderr()).toMatch(/platforms\.0/);
   });
 
+  it('types: writes .dolphy/ids.d.ts without building, then reports it is up to date', async () => {
+    const root = await copyProject('commands-panel');
+    const file = path.join(root, '.dolphy', 'ids.d.ts');
+
+    const first = createIo();
+    expect(await runCli(['types', root], first.io)).toBe(0);
+    expect(first.stdout()).toBe('wrote .dolphy/ids.d.ts\n');
+    const text = await readFile(file, 'utf8');
+    expect(text).toContain(
+      "commands: 'acme.commands-panel.open' | 'acme.commands-panel.ping'",
+    );
+    expect(text).toContain("panels: 'acme.commands-panel.main'");
+    await expect(readFile(path.join(root, 'dist-ext'))).rejects.toThrow();
+
+    const second = createIo();
+    expect(await runCli(['types', root], second.io)).toBe(0);
+    expect(second.stdout()).toBe('.dolphy/ids.d.ts is up to date\n');
+    expect(second.stderr()).toBe('');
+  });
+
+  it('types of a broken manifest: code 1 and the problem in stderr, no file', async () => {
+    const root = await copyProject('bad-manifest');
+    const cli = createIo();
+    expect(await runCli(['types', root], cli.io)).toBe(1);
+    expect(cli.stderr()).toMatch(/^error .+: .*invalid extension id/);
+    await expect(
+      readFile(path.join(root, '.dolphy', 'ids.d.ts')),
+    ).rejects.toThrow();
+  });
+
   it.each([
     [[]],
     [['publish']],
@@ -107,6 +137,8 @@ describe('runCli', () => {
     [['build', 'a', 'b']],
     [['build', '--out']],
     [['validate']],
+    [['types', '--nope']],
+    [['types', 'a', 'b']],
   ])('T-33 неверные аргументы %j — код 2', async (argv) => {
     const cli = createIo();
     expect(await runCli(argv, cli.io)).toBe(2);

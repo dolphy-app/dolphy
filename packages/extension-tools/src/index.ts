@@ -4,6 +4,8 @@ import path from 'node:path';
 import { inspectExtensionDir } from '@dolphy-app/extension-host';
 import { bundleAll } from './bundle.ts';
 import { BuildError } from './errors.ts';
+import { writeIds } from './ids.ts';
+import type { GeneratedIds } from './ids.ts';
 import {
   DEFAULT_OUT_DIR,
   MANIFEST_FILE,
@@ -15,6 +17,8 @@ import { createReporter, watchAll } from './watch.ts';
 import type { BundleWatch, RebuildReport } from './watch.ts';
 
 export { BuildError } from './errors.ts';
+export { IDS_FILE } from './ids.ts';
+export type { GeneratedIds } from './ids.ts';
 
 export interface BuildLogger {
   info(message: string): void;
@@ -167,10 +171,16 @@ const assertValid = async (project: Project, dir: string): Promise<void> => {
   if (!ok) throw new BuildError(problems.join('; '), project.manifest.id);
 };
 
+/** Writes `.dolphy/ids.d.ts` for the project in `options.root` from its `extension.json`; `changed` is false when the file was already current. */
+export const generateTypes = async (
+  options: Pick<BuildOptions, 'root'>,
+): Promise<GeneratedIds> => writeIds(await loadProject(options.root));
+
 const prepare = async (
   options: BuildOptions,
 ): Promise<{ project: Project; dir: string }> => {
   const project = await loadProject(options.root);
+  await writeIds(project);
   await requireSources(project);
   const dir = targetDir(project, options);
   await rm(dir, { recursive: true, force: true });
@@ -260,6 +270,7 @@ export const watchExtension = async (
     current = null;
     await rm(dir, { recursive: true, force: true });
     try {
+      await writeIds(next);
       await requireSources(next);
       project = next;
       dir = targetDir(project, options);

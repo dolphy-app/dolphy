@@ -37,7 +37,7 @@ export interface RuleContext {
   declared: DeclaredMetadata | null;
   /** Почему манифест не разобран; `null`, если разобран. */
   manifestProblem: string | null;
-  /** Исходники без `node_modules`, `dist-ext` и `.git`. */
+  /** Исходники без `node_modules`, `dist-ext`, `.dolphy` и `.git`. */
   tree: Tree;
   /** `null` — файла нет. */
   readText(file: string): Promise<string | null>;

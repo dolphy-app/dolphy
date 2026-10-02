@@ -25,6 +25,17 @@ describe('buildExtension', () => {
     expect(result.files).toEqual(['extension.json', 'main.mjs', 'view.mjs']);
   });
 
+  it('пишет .dolphy/ids.d.ts в проект, а не в собранный каталог', async () => {
+    const root = await copyProject('commands-panel');
+    const result = await buildExtension({ root });
+    expect(result.files).toEqual(['extension.json', 'main.mjs', 'panel.mjs']);
+    const ids = await readFile(path.join(root, '.dolphy', 'ids.d.ts'), 'utf8');
+    expect(ids).toContain("commands: 'acme.commands-panel.open'");
+    await expect(
+      readFile(path.join(result.dir, '.dolphy', 'ids.d.ts')),
+    ).rejects.toThrow();
+  });
+
   it('T-02 main.mjs импортируется и экспортирует activate; корень обнаруживается', async () => {
     const root = await copyProject('hello');
     const outDir = path.join(root, 'out');

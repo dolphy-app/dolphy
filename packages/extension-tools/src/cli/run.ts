@@ -2,6 +2,7 @@ import path from 'node:path';
 import {
   BuildError,
   buildExtension,
+  generateTypes,
   validateExtension,
   watchExtension,
 } from '../index.ts';
@@ -29,22 +30,27 @@ export const EXIT_PROBLEMS = 1;
 export const EXIT_USAGE = 2;
 
 const USAGE = `usage: dolphy-ext build [dir] [--out <dir>] [--watch]
+       dolphy-ext types [dir]
        dolphy-ext validate <dir>
 ${CATALOG_SYNOPSIS}
-  build [dir]      собрать расширение из проекта (по умолчанию — текущий каталог)
-                   в <dir>/dist-ext/<id>
-  validate <dir>   проверить каталог собранного расширения (extension.json,
-                   схемы, main и renderer)
+  build [dir]      build the extension from a project (default: the current
+                   directory) into <dir>/dist-ext/<id>; also writes
+                   <dir>/.dolphy/ids.d.ts
+  types [dir]      write <dir>/.dolphy/ids.d.ts: the ids declared in
+                   extension.json as types for the SDK (no code is run)
+  validate <dir>   check the directory of a built extension (extension.json,
+                   schemas, main and renderer)
 ${CATALOG_HELP}
-  --out <dir>      корень вывода (расширение кладётся в <dir>/<id>)
-  --watch          пересобирать бандлы при изменении исходников
-  --help           эта справка
+  --out <dir>      output root (the extension goes to <dir>/<id>)
+  --watch          rebuild the bundles when the sources change
+  --help           this help
 `;
 
 type Parsed =
   | { help: true }
   | { usageError: string }
   | { command: 'build'; dir: string; out: string | undefined; watch: boolean }
+  | { command: 'types'; dir: string }
   | { command: 'validate'; dir: string }
   | { command: 'catalog'; args: readonly string[] };
 
@@ -57,24 +63,33 @@ const parseBuild = (args: readonly string[]): Parsed => {
     if (arg === '--watch') watch = true;
     else if (arg === '--out') {
       out = args[++i];
-      if (out === undefined) return { usageError: '--out требует путь' };
+      if (out === undefined) return { usageError: '--out needs a path' };
     } else if (arg.startsWith('-')) {
-      return { usageError: `неизвестный флаг: ${arg}` };
+      return { usageError: `unknown flag: ${arg}` };
     } else positional.push(arg);
   }
   if (positional.length > 1) {
-    return { usageError: `лишние аргументы: ${positional.slice(1).join(' ')}` };
+    return { usageError: `extra arguments: ${positional.slice(1).join(' ')}` };
   }
   return { command: 'build', dir: positional[0] ?? '.', out, watch };
 };
 
+const parseTypes = (args: readonly string[]): Parsed => {
+  const flag = args.find((arg) => arg.startsWith('-'));
+  if (flag !== undefined) return { usageError: `unknown flag: ${flag}` };
+  if (args.length > 1) {
+    return { usageError: `extra arguments: ${args.slice(1).join(' ')}` };
+  }
+  return { command: 'types', dir: args[0] ?? '.' };
+};
+
 const parseValidate = (args: readonly string[]): Parsed => {
   const flag = args.find((arg) => arg.startsWith('-'));
-  if (flag !== undefined) return { usageError: `неизвестный флаг: ${flag}` };
+  if (flag !== undefined) return { usageError: `unknown flag: ${flag}` };
   const [dir, ...extra] = args;
-  if (dir === undefined) return { usageError: 'validate: не указан каталог' };
+  if (dir === undefined) return { usageError: 'validate: no directory given' };
   if (extra.length > 0) {
-    return { usageError: `лишние аргументы: ${extra.join(' ')}` };
+    return { usageError: `extra arguments: ${extra.join(' ')}` };
   }
   return { command: 'validate', dir };
 };
@@ -83,13 +98,14 @@ const parseArgs = (argv: readonly string[]): Parsed => {
   if (argv.includes('--help') || argv.includes('-h')) return { help: true };
   const [command, ...rest] = argv;
   if (command === 'build') return parseBuild(rest);
+  if (command === 'types') return parseTypes(rest);
   if (command === 'validate') return parseValidate(rest);
   if (command === 'catalog') return { command: 'catalog', args: rest };
   return {
     usageError:
       command === undefined
-        ? 'не указана команда'
-        : `неизвестная команда: ${command}`,
+        ? 'no command given'
+        : `unknown command: ${command}`,
   };
 };
 
@@ -151,7 +167,19 @@ const runValidate = async (dir: string, io: CliIo): Promise<number> => {
   return EXIT_PROBLEMS;
 };
 
-/** `dolphy-ext build|validate|catalog`; `argv` без `node` и имени скрипта. */
+const runTypes = async (dir: string, io: CliIo): Promise<number> => {
+  try {
+    const root = path.resolve(dir);
+    const { file, changed } = await generateTypes({ root });
+    const shown = path.relative(root, file);
+    io.stdout(changed ? `wrote ${shown}\n` : `${shown} is up to date\n`);
+    return EXIT_OK;
+  } catch (error) {
+    return reportBuildError(io, error);
+  }
+};
+
+/** `dolphy-ext build|types|validate|catalog`; `argv` is without `node` and the script name. */
 export const runCli = async (
   argv: readonly string[],
   io: CliIo,
@@ -175,5 +203,6 @@ export const runCli = async (
     return runCatalog(catalog, io, deps);
   }
   if (parsed.command === 'validate') return runValidate(parsed.dir, io);
+  if (parsed.command === 'types') return runTypes(parsed.dir, io);
   return runBuild(parsed, io, deps);
 };

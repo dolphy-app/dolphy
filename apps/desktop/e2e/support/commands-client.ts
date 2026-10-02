@@ -1,3 +1,4 @@
+import { expect } from 'vitest';
 import type { FrameLocator, Locator, Page } from 'playwright-core';
 
 export const COMMANDS_ID = 'acme.commands';
@@ -54,10 +55,28 @@ export class CommandsClient {
     return this.options.filter({ hasText: title });
   }
 
+  /** Поле поиска видно, в фокусе и переход диалога закончился (до этого Escape ещё не доходит до диалога). */
+  async waitForPalette() {
+    await this.combobox.waitFor({ timeout: 15_000 });
+    await expect
+      .poll(
+        () =>
+          this.page.evaluate(
+            () =>
+              document.activeElement?.getAttribute('role') === 'combobox' &&
+              document
+                .querySelector('.v-dialog .v-overlay__content')
+                ?.className.includes('transition') === false,
+          ),
+        { timeout: 15_000 },
+      )
+      .toBe(true);
+  }
+
   /** Ctrl+K на текущей странице; ждёт поле поиска в фокусе. */
   async openPalette() {
     await this.page.keyboard.press('Control+K');
-    await this.combobox.waitFor({ timeout: 15_000 });
+    await this.waitForPalette();
   }
 
   async search(text: string) {

@@ -22,6 +22,9 @@ const SUNRISE: CatalogSource = {
 /** Подпись Mod на платформе окна. */
 const MOD = process.platform === 'darwin' ? '⌘' : 'Ctrl+';
 
+/** Как клавиша Mod озвучивается скринридеру. */
+const MOD_WORD = process.platform === 'darwin' ? 'Command' : 'Control';
+
 const SUNRISE_BACKGROUND = 'rgb(255, 244, 229)';
 const DARK_BACKGROUND = 'rgb(14, 16, 32)';
 const BUILTIN_BACKGROUNDS = ['rgb(245, 246, 251)', DARK_BACKGROUND];
@@ -152,6 +155,17 @@ describe('реестр команд: команды приложения (R2, R5
       'Открыть палитру команд',
     );
     await expectText(commands.option('Перейти: Курсы'), MOD + '2');
+    // прокручиваемый список фокусируем (axe scrollable-region-focusable), символы клавиш скрыты от скринридера
+    expect(
+      await commands.palette.locator('.list-wrap').getAttribute('tabindex'),
+    ).toBe('-1');
+    await expectText(commands.option('Перейти: Курсы'), `${MOD_WORD} 2`);
+    expect(
+      await commands
+        .option('Перейти: Курсы')
+        .locator('kbd')
+        .getAttribute('aria-hidden'),
+    ).toBe('true');
     await expectText(commands.option('Перейти: Настройки'), MOD + ',');
   });
 });
@@ -170,12 +184,31 @@ describe('реестр команд: сочетания клавиш (R6, R7, R1
       text.replace(/\s+/g, ' ').trim(),
     );
     expect(texts).toEqual([
-      `Открыть палитру команд ${MOD}K`,
-      `Перейти: План дня ${MOD}1`,
-      `Перейти: Курсы ${MOD}2`,
-      `Перейти: Граф знаний ${MOD}3`,
-      `Перейти: Настройки ${MOD},`,
+      `Открыть палитру команд ${MOD}K ${MOD_WORD} K`,
+      `Перейти: План дня ${MOD}1 ${MOD_WORD} 1`,
+      `Перейти: Курсы ${MOD}2 ${MOD_WORD} 2`,
+      `Перейти: Граф знаний ${MOD}3 ${MOD_WORD} 3`,
+      `Перейти: Настройки ${MOD}, ${MOD_WORD} запятая`,
     ]);
+    // клавиши озвучиваются словами, а не символами: символы скрыты от скринридера
+    await expectCount(
+      client.page.getByRole('cell', { name: `${MOD_WORD} 2`, exact: true }),
+      1,
+    );
+    await expectCount(
+      client.page.getByRole('cell', {
+        name: `${MOD_WORD} comma`,
+        exact: false,
+      }),
+      0,
+    );
+    await expectCount(
+      client.page.getByRole('cell', {
+        name: `${MOD_WORD} запятая`,
+        exact: true,
+      }),
+      1,
+    );
     // таблицы с заголовками столбцов и подписью группы
     await expectCount(client.page.getByRole('table'), 2);
     await expectCount(
@@ -220,7 +253,7 @@ describe('реестр команд: сочетания клавиш (R6, R7, R1
     }
     expect(commands.route()).toBe('#/settings/extensions');
     await client.page.keyboard.press('Control+K');
-    await commands.combobox.waitFor();
+    await commands.waitForPalette();
     await commands.combobox.press('Escape');
     await commands.palette.waitFor({ state: 'hidden' });
 

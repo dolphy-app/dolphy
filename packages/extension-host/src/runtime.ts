@@ -269,6 +269,34 @@ export const createExtensionRuntime = (
     return module;
   };
 
+  /** Код мог забыть вклад, который манифест объявил: обращение к нему потом упадёт, а здесь причина видна сразу. */
+  const warnUnregistered = (
+    extension: ResolvedExtension,
+    activation: Activation,
+  ): void => {
+    const missing = {
+      exerciseTypes: extension.exerciseTypes
+        .map((type) => type.id)
+        .filter((id) => !activation.handlers.has(id)),
+      gradePolicies: extension.gradePolicies
+        .map((policy) => policy.id)
+        .filter((id) => !activation.policies.has(id)),
+      events: extension.events
+        .map(({ event }) => event)
+        .filter((event) => !activation.events.has(event)),
+      commands: extension.commands
+        .map(({ id }) => id)
+        .filter((id) => !activation.commands.has(id)),
+    };
+    for (const [kind, ids] of Object.entries(missing)) {
+      if (ids.length === 0) continue;
+      logger.warn(
+        { extensionId: extension.id, kind, ids },
+        'declared in the manifest but not registered by the extension code',
+      );
+    }
+  };
+
   const activate = async (
     extension: ResolvedExtension,
     created: (activation: Activation) => void,
@@ -389,34 +417,6 @@ export const createExtensionRuntime = (
     await module.activate(context);
     warnUnregistered(extension, activation);
     return activation;
-  };
-
-  /** Код мог забыть вклад, который манифест объявил: обращение к нему потом упадёт, а здесь причина видна сразу. */
-  const warnUnregistered = (
-    extension: ResolvedExtension,
-    activation: Activation,
-  ): void => {
-    const missing = {
-      exerciseTypes: extension.exerciseTypes
-        .map((type) => type.id)
-        .filter((id) => !activation.handlers.has(id)),
-      gradePolicies: extension.gradePolicies
-        .map((policy) => policy.id)
-        .filter((id) => !activation.policies.has(id)),
-      events: extension.events
-        .map(({ event }) => event)
-        .filter((event) => !activation.events.has(event)),
-      commands: extension.commands
-        .map(({ id }) => id)
-        .filter((id) => !activation.commands.has(id)),
-    };
-    for (const [kind, ids] of Object.entries(missing)) {
-      if (ids.length === 0) continue;
-      logger.warn(
-        { extensionId: extension.id, kind, ids },
-        'declared in the manifest but not registered by the extension code',
-      );
-    }
   };
 
   /** Сборка, заменённая после начала вызова, не оживает: её активация осталась бы без владельца. */

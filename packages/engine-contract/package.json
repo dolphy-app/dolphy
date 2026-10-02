@@ -2,7 +2,7 @@
   "name": "@dolphy-app/engine-contract",
   "version": "0.0.0",
   "private": true,
-  "description": "Типы и константы контракта UI ↔ движок (renderer-safe)",
+  "description": "Types and constants of the UI ↔ engine contract (renderer-safe)",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"

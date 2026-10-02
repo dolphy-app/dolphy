@@ -2,7 +2,7 @@
   "name": "@dolphy-app/ext-choice",
   "version": "0.0.0",
   "private": true,
-  "description": "Расширение dolphy.choice: задания с выбором вариантов",
+  "description": "The dolphy.choice extension: multiple-choice exercises",
   "type": "module",
   "scripts": {
     "typecheck": "dolphy-ext types && tsc -b tsconfig.json tsconfig.test.json",

@@ -2,7 +2,7 @@
   "name": "@dolphy-app/engine-sqlite",
   "version": "0.0.0",
   "private": true,
-  "description": "SQLite-хранилище журнала событий (better-sqlite3)",
+  "description": "SQLite storage for the event journal (better-sqlite3)",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"

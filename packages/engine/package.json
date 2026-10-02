@@ -2,7 +2,7 @@
   "name": "@dolphy-app/engine",
   "version": "0.0.0",
   "private": true,
-  "description": "Домен, приложение и fs/memory-адаптеры движка обучения",
+  "description": "Domain, application and fs/memory adapters of the learning engine",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",

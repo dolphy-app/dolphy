@@ -48,6 +48,12 @@ const createContext = (log: string[], failOn: readonly string[] = []) => {
         return { dispose: () => void log.push(`unsubscribe ${name}`) };
       },
     },
+    commands: {
+      register: (id): Disposable => {
+        log.push(`command ${id}`);
+        return { dispose: () => void log.push(`uncommand ${id}`) };
+      },
+    },
   };
   return context;
 };
@@ -235,5 +241,50 @@ describe('defineExtension', () => {
     log.length = 0;
     await module.deactivate?.();
     expect(log).toEqual(['unsubscribe session.finished']);
+  });
+
+  it('registers commands after events and rolls everything back in reverse when a later one throws', async () => {
+    const log: string[] = [];
+    const context = createContext(log);
+    context.commands.register = (id): Disposable => {
+      if (id === 'a.bad') throw new Error('duplicate');
+      log.push(`command ${id}`);
+      return { dispose: () => void log.push(`uncommand ${id}`) };
+    };
+    const module = defineExtension({
+      gradePolicies: { 'a.generous': () => 5 },
+      events: { 'attempt.closed': () => undefined },
+      commands: { 'a.one': () => undefined, 'a.bad': () => undefined },
+    });
+    await expect(module.activate(context)).rejects.toThrow('duplicate');
+    expect(log).toEqual([
+      'register policy a.generous',
+      'subscribe attempt.closed',
+      'command a.one',
+      'uncommand a.one',
+      'unsubscribe attempt.closed',
+      'dispose policy a.generous',
+    ]);
+  });
+
+  it('disposes commands first on deactivate and works without a commands key', async () => {
+    const log: string[] = [];
+    const module = defineExtension({
+      events: { 'session.finished': () => undefined },
+      commands: { 'a.one': () => undefined, 'a.two': () => undefined },
+    });
+    await module.activate(createContext(log));
+    log.length = 0;
+    await module.deactivate?.();
+    expect(log).toEqual([
+      'uncommand a.two',
+      'uncommand a.one',
+      'unsubscribe session.finished',
+    ]);
+
+    const plain: string[] = [];
+    const without = defineExtension({ exerciseTypes: { 'a.t': handler() } });
+    await without.activate(createContext(plain));
+    expect(plain).toEqual(['register a.t']);
   });
 });

@@ -40,9 +40,9 @@ describe('extension-api types', () => {
       on: () => ({ dispose: () => undefined }),
     };
     events.on('attempt.closed', ({ grade }) => void grade);
-    // @ts-expect-error у session.started нет оценки
+    // @ts-expect-error session.started has no grade
     events.on('session.started', ({ grade }) => void grade);
-    // @ts-expect-error неизвестное событие
+    // @ts-expect-error unknown event
     events.on('attempt.opened', () => undefined);
     expectTypeOf<LearningEventHandler<'session.finished'>>()
       .parameter(0)
@@ -72,7 +72,7 @@ describe('extension-api types', () => {
     commands.register('a.args', (args) => {
       expectTypeOf(args).toEqualTypeOf<JsonValue | undefined>();
     });
-    // @ts-expect-error функция — не JSON
+    // @ts-expect-error a function is not JSON
     commands.register('a.bad', () => () => 1);
   });
 

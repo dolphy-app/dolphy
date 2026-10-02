@@ -29,13 +29,13 @@ const quotaOf = async (
 };
 
 describe('createMemoryStorage', () => {
-  it('хранит JSON, отдаёт копии, ключи по порядку кодовых точек', async () => {
+  it('stores JSON, returns copies, keys in code point order', async () => {
     const storage = createMemoryStorage();
     const value = { list: [1, 2], nested: { ok: true } };
 
     await storage.set('b', value);
     await storage.set('a', null);
-    await storage.set('\u{1F600}', 1); // астральный символ больше U+FFFF
+    await storage.set('\u{1F600}', 1); // an astral character above U+FFFF
 
     const got = await storage.get<typeof value>('b');
     expect(got).toEqual(value);
@@ -46,7 +46,7 @@ describe('createMemoryStorage', () => {
     expect(await storage.delete('a')).toBe(false);
   });
 
-  it('не JSON и пустой ключ отклоняются', async () => {
+  it('non-JSON and an empty key are rejected', async () => {
     const storage = createMemoryStorage();
     await expect(storage.set('', 1)).rejects.toThrow(/non-empty/);
     await expect(storage.set('k', undefined as never)).rejects.toThrow(/JSON/);
@@ -57,7 +57,7 @@ describe('createMemoryStorage', () => {
     ['key-length', LIMITS.keyLength, 'x'.repeat(LIMITS.keyLength + 1), 1],
     ['value-size', LIMITS.valueBytes, 'k', 'x'.repeat(LIMITS.valueBytes)],
   ])(
-    '%s: StorageQuotaError с limit, запись не происходит',
+    '%s: StorageQuotaError with limit, no write happens',
     async (kind, limit, key, value) => {
       const storage = createMemoryStorage();
       await storage.set('kept', 1);
@@ -69,7 +69,7 @@ describe('createMemoryStorage', () => {
     },
   );
 
-  it('key-count: 257-й ключ отклоняется, перезапись существующего допустима', async () => {
+  it('key-count: the 257th key is rejected, overwriting an existing one is allowed', async () => {
     const storage = createMemoryStorage();
     for (let i = 0; i < LIMITS.keys; i++) await storage.set(`k${i}`, i);
 
@@ -81,14 +81,14 @@ describe('createMemoryStorage', () => {
     expect(await storage.keys()).toHaveLength(LIMITS.keys);
   });
 
-  it('total-size: общий объём считается без старого значения перезаписываемого ключа', async () => {
+  it('total-size: the total excludes the old value of the key being overwritten', async () => {
     const storage = createMemoryStorage();
-    const big = 'x'.repeat(LIMITS.valueBytes - 2); // JSON-текст: valueBytes байт с кавычками
-    const fits = LIMITS.totalBytes / LIMITS.valueBytes; // столько значений ровно заполняют хранилище
+    const big = 'x'.repeat(LIMITS.valueBytes - 2); // JSON text: valueBytes bytes including quotes
+    const fits = LIMITS.totalBytes / LIMITS.valueBytes; // this many values exactly fill the storage
     for (let i = 0; i < fits; i++) await storage.set(`big${i}`, big);
 
     const error = await quotaOf(storage.set('extra', 1));
-    await storage.set('big0', big); // та же длина вместо старого значения — допустимо
+    await storage.set('big0', big); // same length in place of the old value — allowed
 
     expect(error).toMatchObject({
       kind: 'total-size',
@@ -123,7 +123,7 @@ const definitions: SettingContribution[] = [
 ];
 
 describe('createMemorySettings', () => {
-  it('get отдаёт default или значение пользователя; неизвестный id бросает', () => {
+  it('get returns the default or the user value; an unknown id throws', () => {
     const settings = createMemorySettings(definitions, { 'a.size': 4 });
 
     expect(settings.get('a.on')).toBe(false);
@@ -131,7 +131,7 @@ describe('createMemorySettings', () => {
     expect(() => settings.get('a.nope')).toThrow(/not declared/);
   });
 
-  it('set проверяет значение по определению и зовёт onDidChange только при изменении', async () => {
+  it('set validates the value against the definition and calls onDidChange only on change', async () => {
     const settings = createMemorySettings(definitions);
     const changes: unknown[] = [];
     const subscription = settings.onDidChange((change) => changes.push(change));
@@ -153,7 +153,7 @@ describe('createMemorySettings', () => {
     ['a.size', 6, /greater than 5/],
     ['a.mode', 'medium', /options/],
     ['a.nope', 1, /not declared/],
-  ])('%s ← %j отклоняется', async (id, value, message) => {
+  ])('%s ← %j is rejected', async (id, value, message) => {
     const settings = createMemorySettings(definitions);
     await expect(settings.set(id, value as never)).rejects.toThrow(message);
     expect(() =>
@@ -161,7 +161,7 @@ describe('createMemorySettings', () => {
     ).toThrow(message);
   });
 
-  it('сбой обработчика отклоняет set, значение уже изменено', async () => {
+  it('a handler failure rejects set; the value is already changed', async () => {
     const settings = createMemorySettings(definitions);
     settings.onDidChange(() => {
       throw new Error('handler bug');
@@ -173,7 +173,7 @@ describe('createMemorySettings', () => {
 });
 
 describe('createMemoryEvents', () => {
-  it('emit доставляет подписчику и ждёт его; без подписки пропускает', async () => {
+  it('emit delivers to the subscriber and awaits it; without a subscription it skips', async () => {
     const events = createMemoryEvents();
     const order: string[] = [];
     events.on('attempt.closed', async ({ exerciseId }) => {
@@ -195,7 +195,7 @@ describe('createMemoryEvents', () => {
     expect(order).toEqual(['e1']);
   });
 
-  it('подписка проверяется как в хосте: разрешение, объявление, одна на событие', () => {
+  it('subscription is checked as in the host: permission, declaration, one per event', () => {
     expect(() =>
       createMemoryEvents({ permitted: false }).on('session.started', vi.fn()),
     ).toThrow(PermissionError);
@@ -207,7 +207,7 @@ describe('createMemoryEvents', () => {
     expect(() => events.on('session.started', vi.fn())).not.toThrow();
   });
 
-  it('сбой обработчика отклоняет emit', async () => {
+  it('a handler failure rejects emit', async () => {
     const events = createMemoryEvents();
     events.on('session.finished', () => {
       throw new Error('handler bug');
@@ -219,7 +219,7 @@ describe('createMemoryEvents', () => {
 });
 
 describe('loadEvents', () => {
-  it('расширение с defineExtension({ events }) получает событие и пишет в хранилище и настройки теста', async () => {
+  it('an extension with defineExtension({ events }) receives the event and writes to the test's storage and settings', async () => {
     let context: ExtensionContext | null = null;
     const module = defineExtension({
       activate: (ctx) => {
@@ -258,7 +258,7 @@ describe('loadEvents', () => {
     await loaded.dispose();
   });
 
-  it('другие загрузчики тоже дают памяти: расширение вида заданий видит ctx.storage', async () => {
+  it('other loaders provide memory too: an exercise-kind extension sees ctx.storage', async () => {
     const module = defineExtension({
       exerciseTypes: {
         'a.count': {

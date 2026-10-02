@@ -6,17 +6,17 @@ import {
   THEME_VARIABLE_KEYS,
 } from '../src/index.ts';
 
-describe('точки вклада: константы', () => {
-  it('ключи цветов и переменных уникальны и не пересекаются', () => {
+describe('contribution points: constants', () => {
+  it('color and variable keys are unique and do not overlap', () => {
     const all = [...THEME_COLOR_KEYS, ...THEME_VARIABLE_KEYS];
     expect(new Set(all).size).toBe(all.length);
   });
 
-  it('встроенные темы зарезервированы', () => {
+  it('built-in themes are reserved', () => {
     expect(BUILTIN_THEME_IDS).toEqual(['system', 'light', 'dark']);
   });
 
-  it('рендерер по умолчанию — markdown.mjs', () => {
+  it('the default renderer is markdown.mjs', () => {
     expect(DEFAULT_MARKDOWN_RENDERER).toBe('./markdown.mjs');
   });
 });

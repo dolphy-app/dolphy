@@ -42,7 +42,7 @@ describe('extension id and element name patterns', () => {
 });
 
 describe('EXTENSION_PERMISSIONS', () => {
-  it('перечисляет возможности без повторов в виде id-имён', () => {
+  it('lists capabilities without repeats as id names', () => {
     expect(EXTENSION_PERMISSIONS).toEqual([
       'library.read',
       'process.spawn',

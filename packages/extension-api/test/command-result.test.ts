@@ -13,14 +13,14 @@ const rejects = (raw: unknown, panels?: readonly string[]) => {
 };
 
 describe('normalizeCommandResult', () => {
-  it('undefined и null — ничего', () => {
+  it('undefined and null — nothing', () => {
     expect(normalizeCommandResult(undefined, undefined)).toEqual({
       kind: 'none',
     });
     expect(normalizeCommandResult(null, undefined)).toEqual({ kind: 'none' });
   });
 
-  it('notify: строка 1–500 символов', () => {
+  it('notify: a string of 1–500 characters', () => {
     expect(normalizeCommandResult({ notify: 'x' }, undefined)).toEqual({
       kind: 'notify',
       text: 'x',
@@ -32,7 +32,7 @@ describe('normalizeCommandResult', () => {
     });
   });
 
-  it('notify: пустая, длиннее 500, не строка или с чужим ключом — ошибка', () => {
+  it('notify: empty, longer than 500, not a string, or with a foreign key — error', () => {
     rejects({ notify: '' });
     rejects({ notify: 'x'.repeat(501) });
     rejects({ notify: 5 });
@@ -41,7 +41,7 @@ describe('normalizeCommandResult', () => {
     rejects({ notify: 'x', openPanel: 'p' });
   });
 
-  it('openPanel: без props ключа props нет, с props он сохраняется', () => {
+  it('openPanel: without props there is no props key; with props it is kept', () => {
     const bare = normalizeCommandResult({ openPanel: 'p' }, ['p']);
     expect(bare).toEqual({ kind: 'openPanel', panelId: 'p' });
     expect('props' in bare).toBe(false);
@@ -53,7 +53,7 @@ describe('normalizeCommandResult', () => {
     );
   });
 
-  it('openPanel: панель вне списка — ошибка, без списка годится любая строка', () => {
+  it('openPanel: a panel outside the list — error; without a list any string is fine', () => {
     rejects({ openPanel: 'other' }, ['p']);
     rejects({ openPanel: 'p' }, []);
     expect(normalizeCommandResult({ openPanel: 'any' }, undefined)).toEqual({
@@ -62,13 +62,13 @@ describe('normalizeCommandResult', () => {
     });
   });
 
-  it('openPanel: чужой ключ и не строка — ошибка', () => {
+  it('openPanel: a foreign key or a non-string — error', () => {
     rejects({ openPanel: 'p', extra: 1 }, ['p']);
     rejects({ openPanel: 7 });
     rejects({ openPanel: null });
   });
 
-  it('прочий JSON — data', () => {
+  it('other JSON — data', () => {
     for (const value of [[1, 2], 42, 'text', true, { a: 1, b: [null] }]) {
       expect(normalizeCommandResult(value, undefined)).toEqual({
         kind: 'data',
@@ -77,14 +77,14 @@ describe('normalizeCommandResult', () => {
     }
   });
 
-  it('объект, лишь содержащий ключ notifyMe, — data', () => {
+  it('an object that merely contains the key notifyMe — data', () => {
     expect(normalizeCommandResult({ notifyMe: 'x' }, undefined)).toEqual({
       kind: 'data',
       value: { notifyMe: 'x' },
     });
   });
 
-  it('не JSON — ошибка', () => {
+  it('not JSON — error', () => {
     rejects(() => 1);
     rejects(10n);
     rejects(Symbol('s'));
@@ -93,12 +93,12 @@ describe('normalizeCommandResult', () => {
     rejects(circular);
   });
 
-  it('поля undefined отбрасываются', () => {
+  it('undefined fields are dropped', () => {
     expect(normalizeCommandResult({ a: 1, b: undefined }, undefined)).toEqual({
       kind: 'data',
       value: { a: 1 },
     });
-    // props: undefined не делает из openPanel «эффект с props»
+    // props: undefined does not turn openPanel into an "effect with props"
     const outcome = normalizeCommandResult(
       { openPanel: 'p', props: undefined },
       ['p'],
@@ -107,9 +107,9 @@ describe('normalizeCommandResult', () => {
     expect('props' in outcome).toBe(false);
   });
 
-  it('потолок результата считается в байтах UTF-8, а не в символах', () => {
+  it('the result limit is counted in UTF-8 bytes, not characters', () => {
     const limit = EXTENSION_COMMAND_LIMITS.resultBytes;
-    // JSON-текст строки: две кавычки + содержимое
+    // JSON text of a string: two quotes + content
     const cyrillic = (bytes: number) => 'я'.repeat((bytes - 2) / 2);
     const exact = cyrillic(limit);
     expect(exact.length).toBeLessThan(limit);
@@ -119,13 +119,13 @@ describe('normalizeCommandResult', () => {
     });
     rejects(`${exact}я`);
 
-    // эмодзи — 4 байта и две кодовые единицы UTF-16
+    // an emoji is 4 bytes and two UTF-16 code units
     const emojis = '\u{1F600}'.repeat((limit - 4) / 4);
     expect(emojis.length).toBe((limit - 4) / 2);
     expect(normalizeCommandResult(`${emojis}ab`, undefined).kind).toBe('data');
     rejects(`${emojis}abc`);
 
-    // ASCII: ровно 65536 байт проходит, 65537 — нет
+    // ASCII: exactly 65536 bytes passes, 65537 does not
     expect(normalizeCommandResult('a'.repeat(limit - 2), undefined).kind).toBe(
       'data',
     );
@@ -144,7 +144,7 @@ describe('KEYBINDING_PATTERN', () => {
     'Mod+Space',
     'Mod+ArrowUp',
     'Shift+PageDown',
-  ])('принимает %s', (value) => {
+  ])('accepts %s', (value) => {
     expect(KEYBINDING_PATTERN.test(value)).toBe(true);
   });
 
@@ -159,7 +159,7 @@ describe('KEYBINDING_PATTERN', () => {
     'Mod+F0',
     'Mod+Shift+',
     'Meta+L',
-  ])('отвергает %j', (value) => {
+  ])('rejects %j', (value) => {
     expect(KEYBINDING_PATTERN.test(value)).toBe(false);
   });
 });

@@ -232,8 +232,22 @@ const controls = computed(() => [
     :aria-label="t('graph.canvas')"
     @focusin="onFocusIn"
   >
-    <!-- легенда и масштаб — над полотном, а не поверх него: плавающие панели закрывали узлы и перехватывали мышь -->
+    <!-- название курса, легенда и масштаб — над полотном, а не поверх него: плавающие панели закрывали узлы и перехватывали мышь, а шапка рамки уходила из кадра при панорамировании -->
     <div class="toolbar">
+      <div v-for="course in view.courses" :key="course.id" class="course">
+        <h2 class="text-title-medium font-weight-bold text-high-emphasis">
+          {{ course.name }}
+        </h2>
+        <span class="text-label-large text-medium-emphasis">
+          {{
+            t('graph.frame.mastered', {
+              done: course.mastered,
+              total: course.lessonIds.length,
+            })
+          }}
+        </span>
+      </div>
+
       <div class="legend" role="group" :aria-label="t('graph.legend.title')">
         <span class="overline-label d-none d-md-inline" aria-hidden="true">
           {{ t('graph.legend.title') }}
@@ -360,6 +374,15 @@ const controls = computed(() => [
   padding: 8px 12px;
   background: rgb(var(--v-theme-surface));
   border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+
+.course {
+  display: flex;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  gap: 0 16px;
+  align-items: baseline;
+  justify-content: space-between;
 }
 
 .legend {

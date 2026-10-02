@@ -235,7 +235,9 @@ describe('палитра команд (R4, R8)', () => {
     const last = commands.options.nth(3);
     const list = await commands.palette.locator('.list-wrap').boundingBox();
     const row = await last.boundingBox();
-    expect(row!.y + row!.height).toBeLessThanOrEqual(list!.y + list!.height + 1);
+    expect(row!.y + row!.height).toBeLessThanOrEqual(
+      list!.y + list!.height + 1,
+    );
     // фильтр меняет число строк, но не верх палитры
     await commands.search('сломаться');
     expect(await top()).toBe(before);

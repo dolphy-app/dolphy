@@ -104,8 +104,8 @@ const vComboboxInput = {
     <v-sheet class="palette" data-testid="command-palette">
       <div class="v-command-palette__input-container">
         <v-text-field
-          v-combobox-input
           v-model="palette.query.value"
+          v-combobox-input
           autofocus
           hide-details
           single-line
@@ -136,7 +136,12 @@ const vComboboxInput = {
           :aria-label="t('commandPalette.list')"
         >
           <template v-for="row in rows" :key="row.entry.key">
-            <li v-if="row.heading" class="subheader" role="presentation" aria-hidden="true">
+            <li
+              v-if="row.heading"
+              class="subheader"
+              role="presentation"
+              aria-hidden="true"
+            >
               {{ row.heading }}
             </li>
             <li
@@ -154,9 +159,11 @@ const vComboboxInput = {
             >
               <span class="main">
                 <span class="title">{{ row.entry.command.title }}</span>
-                <span v-if="row.entry.command.description" class="description">{{
-                  row.entry.command.description
-                }}</span>
+                <span
+                  v-if="row.entry.command.description"
+                  class="description"
+                  >{{ row.entry.command.description }}</span
+                >
                 <span class="caption">{{ row.entry.command.extensionId }}</span>
               </span>
               <span class="meta">
@@ -167,9 +174,11 @@ const vComboboxInput = {
                   width="2"
                   aria-hidden="true"
                 />
-                <span v-if="palette.isBusy(row.entry.key)" class="visually-hidden">{{
-                  t('commandPalette.busy')
-                }}</span>
+                <span
+                  v-if="palette.isBusy(row.entry.key)"
+                  class="visually-hidden"
+                  >{{ t('commandPalette.busy') }}</span
+                >
                 <span
                   v-if="row.entry.command.category"
                   class="category"
@@ -185,10 +194,18 @@ const vComboboxInput = {
         </ul>
         <div v-if="entries.length === 0" class="v-command-palette__no-data">
           <div class="no-data-title">
-            {{ isEmpty ? t('commandPalette.empty') : t('commandPalette.noMatches') }}
+            {{
+              isEmpty
+                ? t('commandPalette.empty')
+                : t('commandPalette.noMatches')
+            }}
           </div>
           <div>
-            {{ isEmpty ? t('commandPalette.emptyHint') : t('commandPalette.noMatchesHint') }}
+            {{
+              isEmpty
+                ? t('commandPalette.emptyHint')
+                : t('commandPalette.noMatchesHint')
+            }}
           </div>
         </div>
       </div>

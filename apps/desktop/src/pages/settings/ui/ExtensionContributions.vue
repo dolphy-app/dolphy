@@ -25,7 +25,10 @@ const expanded = reactive<Record<string, boolean>>({});
       </span>
       <ul class="types">
         <li
-          v-for="value in visibleValues(group.values, expanded[group.point] === true).shown"
+          v-for="value in visibleValues(
+            group.values,
+            expanded[group.point] === true,
+          ).shown"
           :key="value"
         >
           <v-chip size="small" variant="tonal" class="id">

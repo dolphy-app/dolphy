@@ -125,6 +125,8 @@ const indexOf = (revoked: { id: string; versions: string; reason: string }[]) =>
           gradePolicies: [],
           settings: [],
           events: [],
+          commands: [],
+          panels: [],
         },
         versions: [
           {

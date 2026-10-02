@@ -156,11 +156,15 @@ describe('contributionGroups', () => {
         gradePolicies: ['acme.strict'],
         settings: [],
         events: [],
+        commands: ['acme.run'],
+        panels: ['acme.view'],
       }),
     ).toEqual([
       { point: 'themes', values: ['acme.night', 'acme.day'] },
       { point: 'markdownRenderers', values: ['math'] },
       { point: 'gradePolicies', values: ['acme.strict'] },
+      { point: 'commands', values: ['acme.run'] },
+      { point: 'panels', values: ['acme.view'] },
     ]);
   });
 

@@ -14,6 +14,8 @@ export const NO_CONTRIBUTES: ExtensionContributesDto = {
   gradePolicies: [],
   settings: [],
   events: [],
+  commands: [],
+  panels: [],
 };
 
 export const extensionInfo = (

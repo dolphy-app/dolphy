@@ -23,6 +23,8 @@ const dto = (
   markdownRenderers: [],
   gradePolicies: [],
   settings: [],
+  commands: [],
+  panels: [],
 });
 
 interface Call {

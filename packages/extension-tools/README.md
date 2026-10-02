@@ -179,6 +179,12 @@ the extension: square, 64 to 512 pixels, up to 16 KiB. It is copied into the
 build wherever it lies; the app shows it at 32 px in the installed list, the
 catalog and the install dialog. SVG icons are not accepted.
 
+The app draws the icon on the surface of the current theme, without a backing
+of its own, and keeps the aspect ratio. Give it an opaque background (a
+rounded square is the usual shape): a transparent icon with a dark or a light
+glyph disappears on a theme of the opposite brightness. A 64 px file is sharp
+at the 2x scale of a typical high-density display; a bigger one is scaled down.
+
 ## Output
 
 `<project>/dist-ext/<id>/` (`--out <dir>` changes the root; the extension

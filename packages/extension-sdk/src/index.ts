@@ -7,10 +7,11 @@ export {
   type ExtensionDefinition,
 } from './define-extension.ts';
 export {
-  defineAnswerElement,
-  type AnswerElementApi,
-  type AnswerElementInstance,
-  type MountAnswerElement,
-} from './answer-element.ts';
+  defineAnswerView,
+  type AnswerView,
+  type AnswerViewApi,
+  type AnswerViewInstance,
+  type MountAnswerView,
+} from './answer-view.ts';
 export { defineMarkdownRenderer } from './markdown-renderer.ts';
 export { defineExtensionPanel } from './panel.ts';

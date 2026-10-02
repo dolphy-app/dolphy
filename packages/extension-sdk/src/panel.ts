@@ -1,6 +1,7 @@
 import type { PanelModule } from '@dolphy-app/extension-api';
 
-/** `export default defineExtensionPanel({ mount })` в модуле панели (`contributes.panels`). */
+/** Запись `panels[<id панели>]` в `src/index.ts` (`contributes.panels`). */
+/*#__NO_SIDE_EFFECTS__*/
 export const defineExtensionPanel = (
   module: PanelModule<HTMLElement>,
 ): PanelModule<HTMLElement> => module;

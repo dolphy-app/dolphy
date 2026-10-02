@@ -3,7 +3,8 @@ import type {
   MarkdownRendererModule,
 } from '@dolphy-app/extension-api';
 
-/** `export default defineMarkdownRenderer(...)` в модуле рендерера содержимого. */
+/** Запись `markdown[<язык>]` в `src/index.ts` (`contributes.markdownRenderers`). */
+/*#__NO_SIDE_EFFECTS__*/
 export const defineMarkdownRenderer = (
   render: (
     source: string,

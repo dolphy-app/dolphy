@@ -3,10 +3,13 @@ import {
   EXTENSION_STORAGE_LIMITS,
   InvalidCommandResultError,
   PermissionError,
+  ANSWER_EVENT,
   StorageQuotaError,
   normalizeCommandResult,
 } from '@dolphy-app/extension-api';
 import type {
+  AnswerChangeDetail,
+  AnswerElementProps,
   CommandHandler,
   CommandOutcome,
   Disposable,
@@ -28,11 +31,14 @@ import type {
   LearningEventName,
   LearningEventPayloads,
   LibraryReader,
+  PanelModule,
   SettingChange,
   SettingContribution,
   SettingValue,
 } from '@dolphy-app/extension-api';
 import { Ajv2020 } from 'ajv/dist/2020.js';
+import { createAnswerElementClass } from './answer-element.ts';
+import type { AnswerView } from './answer-view.ts';
 
 const MAX_MESSAGES = 6;
 const MAX_REASON_CHARS = 100;
@@ -622,6 +628,171 @@ export const loadCommands = async (
     ids: commands.ids,
     dispose: async () => {
       await module.deactivate?.();
+    },
+  };
+};
+
+const requireDocument = (helper: string): Document => {
+  if (typeof document === 'undefined') {
+    throw new Error(
+      `${helper} needs a DOM: run the test in a DOM environment (happy-dom or jsdom)`,
+    );
+  }
+  return document;
+};
+
+const microtask = (): Promise<void> => Promise.resolve();
+
+export interface LoadViewOptions extends Partial<AnswerElementProps> {
+  /** `aria-label` хост-элемента, как его выставляет приложение. */
+  label?: string;
+  /** Куда смонтировать; по умолчанию новый `div` в `document.body`. */
+  container?: HTMLElement;
+}
+
+export interface LoadedView {
+  /** Custom element вида, как его создаёт приложение. */
+  readonly element: HTMLElement;
+  /** Теневой корень элемента: здесь вид рисует свой интерфейс. */
+  readonly root: ShadowRoot;
+  /** События `dolphy-answer-change` по порядку. */
+  readonly changes: readonly AnswerChangeDetail[];
+  /** Сколько раз вид просил отправить ответ (`dolphy-answer-submit`). */
+  readonly submissions: number;
+  /** Выставляет свойства элемента и ждёт, пока вид применит обновление. */
+  update(props: Partial<AnswerElementProps>): Promise<void>;
+  query<E extends Element = Element>(selector: string): E | null;
+  queryAll<E extends Element = Element>(selector: string): E[];
+  /** Снимает элемент с документа; вид получает `destroy()`. */
+  dispose(): void;
+}
+
+let viewCounter = 0;
+
+/**
+ * Монтирует вид из `views[id]` в DOM-окружении тестов тем же элементом, что
+ * создаёт приложение (теги выдаются тестовые, `element` из манифеста не нужен).
+ */
+export const loadView = async (
+  views: Readonly<Record<string, AnswerView>>,
+  id: string,
+  options: LoadViewOptions = {},
+): Promise<LoadedView> => {
+  const doc = requireDocument('loadView');
+  const view = views[id];
+  if (view === undefined) throw new Error(`view '${id}' was not exported`);
+  const tag = `dolphy-test-view-${++viewCounter}`;
+  customElements.define(tag, createAnswerElementClass(tag, view));
+  const element = doc.createElement(tag) as HTMLElement &
+    Partial<AnswerElementProps>;
+  if (options.label !== undefined) {
+    element.setAttribute('aria-label', options.label);
+  }
+  for (const key of ['view', 'value', 'disabled', 'verdict'] as const) {
+    if (options[key] !== undefined)
+      Object.assign(element, { [key]: options[key] });
+  }
+  const changes: AnswerChangeDetail[] = [];
+  let submissions = 0;
+  element.addEventListener(ANSWER_EVENT.change, (event) => {
+    changes.push((event as CustomEvent<AnswerChangeDetail>).detail);
+  });
+  element.addEventListener(ANSWER_EVENT.submit, () => void (submissions += 1));
+  const container =
+    options.container ?? doc.body.appendChild(doc.createElement('div'));
+  container.append(element);
+  await microtask();
+  const root = element.shadowRoot as ShadowRoot;
+  return {
+    element,
+    root,
+    changes,
+    get submissions() {
+      return submissions;
+    },
+    update: async (props) => {
+      Object.assign(element, props);
+      await microtask();
+    },
+    query: (selector) => root.querySelector(selector),
+    queryAll: (selector) => [...root.querySelectorAll(selector)] as never,
+    dispose: () => {
+      element.remove();
+      if (options.container === undefined) container.remove();
+    },
+  };
+};
+
+export interface LoadPanelOptions {
+  /** Свойства, с которыми открыта панель (`openPanel(id, props)`). */
+  props?: JsonValue;
+  /** Ответ на `ctx.call`; по умолчанию вызов отклоняется. */
+  call?: (
+    commandId: string,
+    args: JsonValue | undefined,
+  ) => JsonValue | undefined | Promise<JsonValue | undefined>;
+  /** Куда смонтировать; по умолчанию новый `div` в `document.body`. */
+  container?: HTMLElement;
+}
+
+export interface LoadedPanel {
+  /** Контейнер, который панель получила в `mount`. */
+  readonly container: HTMLElement;
+  /** Вызовы `ctx.call` по порядку. */
+  readonly calls: readonly {
+    commandId: string;
+    args: JsonValue | undefined;
+  }[];
+  /** Прервался ли `ctx.signal` (после `dispose()`). */
+  readonly aborted: boolean;
+  /** Отправляет панели новые свойства (`ctx.onProps`). */
+  setProps(props: JsonValue | undefined): void;
+  /** Закрывает рамку: прерывает `ctx.signal` и убирает контейнер. */
+  dispose(): void;
+}
+
+/** Монтирует панель из `panels[id]` в DOM-окружении тестов с тем же контекстом, что даёт рамка. */
+export const loadPanel = async (
+  panels: Readonly<Record<string, PanelModule<HTMLElement>>>,
+  id: string,
+  options: LoadPanelOptions = {},
+): Promise<LoadedPanel> => {
+  const doc = requireDocument('loadPanel');
+  const panel = panels[id];
+  if (panel === undefined) throw new Error(`panel '${id}' was not exported`);
+  const calls: { commandId: string; args: JsonValue | undefined }[] = [];
+  const listeners = new Set<(props: JsonValue | undefined) => void>();
+  const controller = new AbortController();
+  const container =
+    options.container ?? doc.body.appendChild(doc.createElement('div'));
+  await panel.mount(container, {
+    panelId: id,
+    props: options.props,
+    signal: controller.signal,
+    call: async (commandId, args) => {
+      calls.push({ commandId, args });
+      if (options.call === undefined) {
+        throw new Error(`command '${commandId}' is not available in this test`);
+      }
+      return options.call(commandId, args);
+    },
+    onProps: (listener) => {
+      listeners.add(listener);
+      return () => void listeners.delete(listener);
+    },
+  });
+  return {
+    container,
+    calls,
+    get aborted() {
+      return controller.signal.aborted;
+    },
+    setProps: (props) => {
+      for (const listener of [...listeners]) listener(props);
+    },
+    dispose: () => {
+      controller.abort();
+      if (options.container === undefined) container.remove();
     },
   };
 };

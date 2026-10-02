@@ -2,10 +2,12 @@
   "name": "@dolphy-app/extension-sdk",
   "version": "0.0.0",
   "private": true,
-  "description": "SDK автора расширений: defineExtension, defineAnswerElement, помощники тестирования",
+  "description": "SDK автора расширений: defineExtension, defineAnswerView, помощники тестирования",
   "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
+    "./runtime": "./src/runtime.ts",
     "./testing": "./src/testing.ts"
   },
   "scripts": {

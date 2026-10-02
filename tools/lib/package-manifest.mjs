@@ -24,6 +24,7 @@ export const PACKAGES = [
     exports: { '.': 'index' },
     bin: null,
     dts: true,
+    sideEffects: true,
     siblings: [],
     usage: [
       'Типы и константы публичного API расширений: манифест, обработчики видов',
@@ -37,15 +38,22 @@ export const PACKAGES = [
   },
   {
     dir: 'extension-sdk',
-    entries: { index: 'src/index.ts', testing: 'src/testing.ts' },
-    exports: { '.': 'index', './testing': 'testing' },
+    entries: {
+      index: 'src/index.ts',
+      runtime: 'src/runtime.ts',
+      testing: 'src/testing.ts',
+    },
+    exports: { '.': 'index', './runtime': 'runtime', './testing': 'testing' },
     bin: null,
     dts: true,
+    sideEffects: false,
     siblings: ['extension-api'],
     usage: [
-      '`@dolphy-app/extension-sdk` — код расширения (`defineExtension`,',
-      '`defineExerciseType`), элемент ответа (`defineAnswerElement`) и помощники',
-      'тестов (`@dolphy-app/extension-sdk/testing`).',
+      '`@dolphy-app/extension-sdk` — extension code (`defineExtension`,',
+      '`defineExerciseType`), answer views (`defineAnswerView`), panels,',
+      'markdown renderers and test helpers (`@dolphy-app/extension-sdk/testing`).',
+      'The package has no side effects: an extension `src/index.ts` can be',
+      'imported in plain Node.',
       '',
       '```ts',
       "import { defineExtension } from '@dolphy-app/extension-sdk';",
@@ -59,6 +67,7 @@ export const PACKAGES = [
     exports: null,
     bin: { 'dolphy-ext': 'cli/main' },
     dts: false,
+    sideEffects: true,
     siblings: [],
     usage: [
       'Командная строка автора расширений `dolphy-ext`: сборка проекта в',
@@ -77,6 +86,7 @@ export const PACKAGES = [
     exports: null,
     bin: { 'create-dolphy-extension': 'cli/main' },
     dts: false,
+    sideEffects: true,
     siblings: [],
     usage: [
       'Генератор проекта расширения.',
@@ -219,6 +229,7 @@ export const createManifest = ({
       ? {}
       : { license: rootManifest.license }),
     type: 'module',
+    ...(spec.sideEffects ? {} : { sideEffects: false }),
     ...(spec.exports === null ? {} : { exports: exportsField(spec) }),
     ...(spec.exports === null
       ? {}

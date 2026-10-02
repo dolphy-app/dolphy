@@ -25,6 +25,7 @@ export interface ExtensionDefinition {
   deactivate?(): void | Promise<void>;
 }
 
+/*#__NO_SIDE_EFFECTS__*/
 export const defineExerciseType = <Spec, Answer, View>(
   handler: ExerciseTypeHandler<Spec, Answer, View>,
 ): ExerciseTypeHandler<Spec, Answer, View> => handler;
@@ -43,6 +44,7 @@ const disposeInReverse = async (
   return errors;
 };
 
+/*#__NO_SIDE_EFFECTS__*/
 export const defineExtension = (
   definition: ExtensionDefinition,
 ): ExtensionModule => {

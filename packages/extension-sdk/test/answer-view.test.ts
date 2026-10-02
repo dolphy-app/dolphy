@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   ANSWER_EVENT,
-  defineAnswerElement,
-  type AnswerElementApi,
-  type AnswerElementInstance,
+  defineAnswerView,
   type AnswerElementProps,
+  type AnswerViewApi,
+  type AnswerViewInstance,
 } from '../src/index.ts';
+import { registerAnswerView } from '../src/runtime.ts';
 
 interface TestElement extends HTMLElement {
   view: unknown;
@@ -20,24 +21,25 @@ const nextTag = () => `sdk-test-${++counter}`;
 const flush = () => Promise.resolve();
 
 const setup = (
-  overrides: (
-    api: AnswerElementApi,
-  ) => Partial<AnswerElementInstance> = () => ({}),
+  overrides: (api: AnswerViewApi) => Partial<AnswerViewInstance> = () => ({}),
 ) => {
   const tag = nextTag();
-  const apis: AnswerElementApi[] = [];
+  const apis: AnswerViewApi[] = [];
   const updates: AnswerElementProps[] = [];
   const mounts: AnswerElementProps[] = [];
   const destroy = vi.fn();
-  defineAnswerElement(tag, (api, props) => {
-    apis.push(api);
-    mounts.push(props);
-    return {
-      update: (next) => void updates.push(next),
-      destroy,
-      ...overrides(api),
-    };
-  });
+  registerAnswerView(
+    tag,
+    defineAnswerView((api, props) => {
+      apis.push(api);
+      mounts.push(props);
+      return {
+        update: (next) => void updates.push(next),
+        destroy,
+        ...overrides(api),
+      };
+    }),
+  );
   const element = document.createElement(tag) as TestElement;
   return { tag, element, apis, updates, mounts, destroy };
 };
@@ -47,22 +49,39 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('defineAnswerElement', () => {
+const view = (mount: Parameters<typeof defineAnswerView>[0]) =>
+  defineAnswerView(mount);
+
+describe('defineAnswerView', () => {
+  it('only describes the view: no element is defined until it is registered', () => {
+    const define = vi.spyOn(customElements, 'define');
+    const mount = vi.fn(() => ({ update() {} }));
+    const described = defineAnswerView(mount);
+    expect(described.mount).toBe(mount);
+    expect(define).not.toHaveBeenCalled();
+    expect(mount).not.toHaveBeenCalled();
+  });
+});
+
+describe('registerAnswerView', () => {
   it('rejects tags that are not valid element names', () => {
-    expect(() =>
-      defineAnswerElement('nodash', () => ({ update() {} })),
-    ).toThrow(TypeError);
-    expect(() =>
-      defineAnswerElement('Bad-Tag', () => ({ update() {} })),
-    ).toThrow(TypeError);
+    const noop = view(() => ({ update() {} }));
+    expect(() => registerAnswerView('nodash', noop)).toThrow(TypeError);
+    expect(() => registerAnswerView('Bad-Tag', noop)).toThrow(TypeError);
+  });
+
+  it('rejects values that are not answer views', () => {
+    expect(() => registerAnswerView(nextTag(), undefined as never)).toThrow(
+      /no mount/,
+    );
   });
 
   it('is idempotent: a second definition keeps the first implementation', () => {
     const tag = nextTag();
     const first = vi.fn(() => ({ update() {} }));
     const second = vi.fn(() => ({ update() {} }));
-    defineAnswerElement(tag, first);
-    defineAnswerElement(tag, second);
+    registerAnswerView(tag, view(first));
+    registerAnswerView(tag, view(second));
     document.body.append(document.createElement(tag));
     expect(first).toHaveBeenCalledTimes(1);
     expect(second).not.toHaveBeenCalled();
@@ -176,7 +195,7 @@ describe('defineAnswerElement', () => {
       throw error;
     });
     const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    defineAnswerElement(tag, mount);
+    registerAnswerView(tag, view(mount));
     const element = document.createElement(tag) as TestElement;
     document.body.append(element);
     element.value = 1;

@@ -1,6 +1,7 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
 import { CoursesPage } from '@/pages/courses';
 import { DailyPlanPage } from '@/pages/daily-plan';
+import { ExtensionPanelPage } from '@/pages/extension-panel';
 import { GraphPage } from '@/pages/graph';
 import { PlacementPage } from '@/pages/placement';
 import { SessionPage } from '@/pages/session';
@@ -71,6 +72,11 @@ export const router = createRouter({
               order: 3,
             },
           },
+        },
+        {
+          path: 'ext/:extensionId/:panelId',
+          name: ROUTE.extensionPanel,
+          component: ExtensionPanelPage,
         },
         {
           path: 'settings',

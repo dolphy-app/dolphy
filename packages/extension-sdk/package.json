@@ -2,7 +2,7 @@
   "name": "@dolphy-app/extension-sdk",
   "version": "0.0.0",
   "private": true,
-  "description": "SDK автора расширений: defineExtension, defineAnswerView, помощники тестирования",
+  "description": "SDK for extension authors: defineExtension, defineAnswerView, test helpers",
   "type": "module",
   "sideEffects": false,
   "exports": {

@@ -67,6 +67,12 @@ superseded-by: null
 - «Кэш по `revision`» для значка не нужен: `inspectExtensionDir` читает файл (≤ 16 КиБ) при обнаружении, а снимок обнаружения хранит `ResolvedExtension.icon` до следующего обнаружения.
 - Значок вне `assets/` копируется в сборку как схемы из манифеста (`copyStatic`); без этого он не попадал бы в версию.
 
+5b. Эксперимент R6 (Electron 44.4.5, Chromium 152.0.7977.130): **узкий источник `dolphy-ext://<id>` в CSP работает** на схеме `standard + secure + supportFetchAPI + corsEnabled`. Условия: `<iframe sandbox="allow-scripts" src="dolphy-ext://<id>/__dolphy/frame.html">` из окна `file://`, внутри рамки `window.origin === 'null'` и `localStorage` недоступен (непрозрачный origin), CSP — заголовок страницы рамки: `default-src 'none'; script-src dolphy-ext://<id>; style-src dolphy-ext://<id> 'unsafe-inline'; img-src dolphy-ext://<id> data: blob:; font-src dolphy-ext://<id> data:; connect-src 'none'; base-uri 'none'; form-action 'none'`. Разовый скрипт (не в репозитории: временный `main.cjs` с `protocol.handle`, журналом запросов к протоколу и рамкой, которая пробует загрузки и печатает итог) прогнан для `acme.a` и `acme.my-ext` (точки и дефис в id); «чужим» были `other-ext.b` и `acme.my-ext.evil` (расширение id-«потомок»). Итог, одинаковый для обоих id:
+  - свой id: `import()` модуля, `<link rel=stylesheet>`, `<img>` PNG и SVG, `@font-face` (шрифт `loaded`), CSS `@import` и `url()` — запросы дошли до протокола;
+  - чужой id: `import()` — `blocked`, `<link>` — `blocked`, `<img>` PNG и SVG — `blocked`, `@font-face` — `error`, CSS `@import url(чужой)` и `background-image:url(чужой)` — ни одного запроса к протоколу (журнал запросов содержит только хост своего id); браузер сообщил 7 нарушений `script-src-elem`, `style-src-elem` (дважды), `img-src` (трижды), `font-src`;
+  - контроль (только для `acme.a`): с CSP на уровне схемы (`script-src dolphy-ext:` и т. д.) те же пробы чужого id **проходят** — запросы к `other-ext.b/…` доходят до протокола (`x.mjs`, `a.css`, `a.png`, `a.svg`, `f.woff2`, `imp.css`, `url()`-картинка), то есть предел №5 реален, а узкий источник его снимает.
+  Вывод: R6 достигается, известный предел №5 (ADR 0003) снимается для скриптов, стилей, изображений и шрифтов; запасной вариант (CSP на уровне схемы) не понадобился.
+
 ## Decision Log
 
 - 2026-10-02. Двойной индекс (`index.json` для выпущенных приложений, `index.v2.json` полный) и терпимый разбор в новом приложении. Причина: выпущенные приложения отвергают индекс с любым новым элементом целиком, а смена адреса осиротит установленные расширения.

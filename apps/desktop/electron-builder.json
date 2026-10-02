@@ -17,6 +17,15 @@
     { "from": "restricted", "to": "restricted" }
   ],
   "npmRebuild": false,
+  "electronFuses": {
+    "runAsNode": true,
+    "enableNodeOptionsEnvironmentVariable": false,
+    "enableNodeCliInspectArguments": false,
+    "enableEmbeddedAsarIntegrityValidation": true,
+    "onlyLoadAppFromAsar": true,
+    "grantFileProtocolExtraPrivileges": true,
+    "resetAdHocDarwinSignature": true
+  },
   "mac": {
     "target": ["dmg"],
     "artifactName": "${productName}-Mac-${version}-Installer.${ext}"

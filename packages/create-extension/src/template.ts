@@ -19,6 +19,8 @@ export const packageJson = ({ id, dependencies }: TemplateInput): string =>
       scripts: {
         build: 'dolphy-ext build',
         dev: 'dolphy-ext build --watch',
+        types: 'dolphy-ext types',
+        typecheck: 'dolphy-ext types && tsc',
         validate: `dolphy-ext validate dist-ext/${id}`,
         test: 'vitest run',
       },
@@ -52,7 +54,7 @@ export const tsconfigJson = (): string =>
     '    "skipLibCheck": true,',
     '    "noEmit": true',
     '  },',
-    '  "include": ["src", "test"]',
+    '  "include": ["src", "test", ".dolphy/ids.d.ts"]',
     '}',
   ]);
 
@@ -75,6 +77,17 @@ export const manifestJson = (id: string): string => `{
         },
         "answerSchema": { "type": "string" }
       }
+    ],
+    "settings": [
+      {
+        "id": "${id}.trim",
+        "type": "boolean",
+        "label": "Ignore spaces around the answer",
+        "default": true
+      }
+    ],
+    "commands": [
+      { "id": "${id}.status", "title": "Show how answers are compared" }
     ]
   }
 }
@@ -84,22 +97,33 @@ export const indexTs = (id: string): string => `import {
   defineAnswerView,
   defineExerciseType,
   defineExtension,
+  inActivate,
+  notify,
 } from '@dolphy-app/extension-sdk';
+import type { ExtensionViews } from '@dolphy-app/extension-sdk';
 
 interface Spec {
   expected: string;
   ignoreCase?: boolean;
 }
 
+// filled from the setting in \`activate\`, read by the handlers below
+const options = { trim: true };
+
 const matches = (answer: string, spec: Spec): boolean => {
+  const given = options.trim ? answer.trim() : answer;
   if (spec.ignoreCase === true) {
-    return answer.toLowerCase() === spec.expected.toLowerCase();
+    return given.toLowerCase() === spec.expected.toLowerCase();
   }
-  return answer === spec.expected;
+  return given === spec.expected;
 };
 
-// код расширения: исполняется в процессе расширений приложения
-// схемы из extension.json уже проверили spec и ответ до вызова обработчиков
+// extension code: runs in the extension process of the app
+// the schemas from extension.json have already checked \`spec\` and the answer
+// before the handlers run
+// the ids come from extension.json: \`dolphy-ext types\` (and every build)
+// writes them to .dolphy/ids.d.ts, so a misspelt id, a declared id without a
+// handler or an undeclared setting fails \`pnpm typecheck\`
 export const host = defineExtension({
   exerciseTypes: {
     '${id}': defineExerciseType<Spec, string, Record<string, never>>({
@@ -111,10 +135,25 @@ export const host = defineExtension({
       referenceAnswer: ({ spec }) => spec.expected,
     }),
   },
+  // this command is registered in \`activate\`: the marker names the id there
+  commands: { '${id}.status': inActivate },
+  activate(ctx) {
+    options.trim = ctx.settings.get('${id}.trim');
+    ctx.settings.onDidChange((change) => {
+      if (change.id === '${id}.trim') options.trim = change.value;
+    });
+    ctx.commands.register('${id}.status', () =>
+      notify(
+        options.trim
+          ? 'Answers are compared without the spaces around them.'
+          : 'Answers are compared exactly as typed.',
+      ),
+    );
+  },
 });
 
-// вид ввода ответа: исполняется в окне приложения; custom element с тегом
-// из extension.json создаёт сборка
+// the answer input: runs in the app window; the build defines the custom
+// element with the tag from extension.json
 export const views = {
   '${id}': defineAnswerView((api, initial) => {
     const input = document.createElement('input');
@@ -140,7 +179,7 @@ export const views = {
     return {
       update: (props) => {
         input.disabled = props.disabled;
-        // value применяется, только когда приложение его действительно сменило
+        // apply the value only when the app really changed it
         if (props.value !== appliedValue) {
           appliedValue = props.value;
           applyValue(appliedValue);
@@ -148,14 +187,17 @@ export const views = {
       },
     };
   }),
-};
+} satisfies ExtensionViews;
 `;
 
 export const indexTestTs = (
   id: string,
 ): string => `// @vitest-environment happy-dom
+import type { SettingContribution } from '@dolphy-app/extension-sdk';
 import {
+  createMemorySettings,
   createSchemaValidator,
+  loadCommands,
   loadExerciseType,
   loadView,
 } from '@dolphy-app/extension-sdk/testing';
@@ -174,8 +216,11 @@ afterEach(async () => {
   await Promise.all(disposables.splice(0).map((item) => item.dispose()));
 });
 
-const load = async () => {
-  const type = await loadExerciseType(host, '${id}');
+const newSettings = () =>
+  createMemorySettings(manifest.contributes.settings as SettingContribution[]);
+
+const load = async (settings = newSettings()) => {
+  const type = await loadExerciseType(host, '${id}', { settings });
   disposables.push(type);
   return type;
 };
@@ -188,13 +233,13 @@ const mount = async (label?: string) => {
   return { view, input };
 };
 
-describe('${id}: обработчик', () => {
-  it('project не раскрывает эталон', async () => {
+describe('${id}: handler', () => {
+  it('project does not reveal the reference', async () => {
     const type = await load();
     expect(await type.project(spec)).toEqual({});
   });
 
-  it('grade: совпадение засчитывается, расхождение нет', async () => {
+  it('grade: a match passes, a mismatch does not', async () => {
     const type = await load();
     expect(await type.grade({ spec, answer: 'Hello' })).toEqual({
       outcome: 'passed',
@@ -205,7 +250,7 @@ describe('${id}: обработчик', () => {
     });
   });
 
-  it('grade: ignoreCase отключает различие регистров', async () => {
+  it('grade: ignoreCase turns case sensitivity off', async () => {
     const type = await load();
     const relaxed = { ...spec, ignoreCase: true };
     expect(await type.grade({ spec: relaxed, answer: 'hELLO' })).toEqual({
@@ -213,7 +258,7 @@ describe('${id}: обработчик', () => {
     });
   });
 
-  it('referenceAnswer сам проходит проверку', async () => {
+  it('referenceAnswer passes the check itself', async () => {
     const type = await load();
     const reference = await type.referenceAnswer(spec);
     expect(reference).toEqual({ found: true, answer: 'Hello' });
@@ -224,31 +269,64 @@ describe('${id}: обработчик', () => {
   });
 });
 
-describe('${id}: схемы', () => {
+describe('${id}: settings and commands', () => {
+  it('the trim setting decides whether the spaces around an answer count', async () => {
+    const settings = newSettings();
+    const type = await load(settings);
+    expect(await type.grade({ spec, answer: ' Hello ' })).toEqual({
+      outcome: 'passed',
+    });
+    await settings.set('${id}.trim', false);
+    expect(await type.grade({ spec, answer: ' Hello ' })).toEqual({
+      outcome: 'failed',
+      reason: 'mismatch',
+    });
+  });
+
+  it('the status command reports the current mode', async () => {
+    const settings = newSettings();
+    const commands = await loadCommands(host, {
+      declaredCommands: ['${id}.status'],
+      settings,
+    });
+    disposables.push(commands);
+    expect(await commands.run('${id}.status')).toEqual({
+      kind: 'notify',
+      text: 'Answers are compared without the spaces around them.',
+    });
+    await settings.set('${id}.trim', false);
+    expect(await commands.run('${id}.status')).toEqual({
+      kind: 'notify',
+      text: 'Answers are compared exactly as typed.',
+    });
+  });
+});
+
+describe('${id}: schemas', () => {
   it.each([[{ expected: 'a' }], [{ expected: 'a', ignoreCase: true }]])(
-    'spec %j допустим',
+    'spec %j is valid',
     (value) => {
       expect(validateSpec(value)).toEqual([]);
     },
   );
 
   it.each([
-    ['нет expected', {}],
-    ['пустой expected', { expected: '' }],
-    ['ignoreCase не boolean', { expected: 'a', ignoreCase: 'yes' }],
-    ['лишнее поле', { expected: 'a', extra: 1 }],
-  ])('spec: %s отклоняется', (_name, value) => {
+    ['no expected', {}],
+    ['empty expected', { expected: '' }],
+    ['ignoreCase is not a boolean', { expected: 'a', ignoreCase: 'yes' }],
+    ['an extra field', { expected: 'a', extra: 1 }],
+  ])('spec: %s is rejected', (_name, value) => {
     expect(validateSpec(value)).not.toEqual([]);
   });
 
-  it('answer: строка допустима, число нет', () => {
+  it('answer: a string is valid, a number is not', () => {
     expect(validateAnswer('text')).toEqual([]);
     expect(validateAnswer(42)).not.toEqual([]);
   });
 });
 
-describe('${id}: вид', () => {
-  it('ввод текста сообщает ответ; пустой ввод неполный', async () => {
+describe('${id}: view', () => {
+  it('typing reports the answer; an empty input is incomplete', async () => {
     const { view, input } = await mount();
     input.value = 'Hello';
     input.dispatchEvent(new Event('input'));
@@ -260,28 +338,28 @@ describe('${id}: вид', () => {
     ]);
   });
 
-  it('Enter отправляет ответ', async () => {
+  it('Enter submits the answer', async () => {
     const { view, input } = await mount();
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
     expect(view.submissions).toBe(1);
   });
 
-  it('disabled блокирует поле', async () => {
+  it('disabled blocks the input', async () => {
     const { view, input } = await mount();
     await view.update({ disabled: true });
     expect(input.disabled).toBe(true);
   });
 
-  it('value восстанавливает ответ без событий', async () => {
+  it('value restores the answer without events', async () => {
     const { view, input } = await mount();
     await view.update({ value: 'Hello' });
     expect(input.value).toBe('Hello');
     expect(view.changes).toEqual([]);
   });
 
-  it('aria-label хоста попадает на поле', async () => {
-    const { input } = await mount('Ваш ответ');
-    expect(input.getAttribute('aria-label')).toBe('Ваш ответ');
+  it('the aria-label of the host goes to the input', async () => {
+    const { input } = await mount('Your answer');
+    expect(input.getAttribute('aria-label')).toBe('Your answer');
   });
 });
 `;
@@ -290,47 +368,56 @@ export const readme = (id: string): string =>
   lines([
     `# ${id}`,
     '',
-    'Расширение Dolphy: вид задания «text match» (ученик вводит строку, она',
-    'сравнивается с `spec.expected`). Сгенерировано `create-dolphy-extension`.',
+    'A Dolphy extension: the "text match" exercise type (the learner types a',
+    'string, it is compared with `spec.expected`), a setting and a command.',
+    'Generated by `create-dolphy-extension`.',
     '',
-    '## Раскладка',
+    '## Layout',
     '',
-    '- `extension.json` — манифест (схемы `spec` и ответа записаны прямо в нём);',
-    '- `src/index.ts` — весь код расширения: `host` (`defineExtension` +',
-    '  `defineExerciseType`) и `views` (`defineAnswerView`); сборка раскладывает',
-    '  его по `main.mjs` и `view.mjs`;',
-    '- `test/index.test.ts` — тесты обработчика, схем и вида (`vitest`, `happy-dom`).',
+    '- `extension.json` — the manifest (the `spec` and answer schemas are written',
+    '  in it);',
+    '- `src/index.ts` — all the extension code: `host` (`defineExtension` +',
+    '  `defineExerciseType`) and `views` (`defineAnswerView`); the build splits',
+    '  it into `main.mjs` and `view.mjs`;',
+    '- `.dolphy/ids.d.ts` — generated from `extension.json` by',
+    '  `dolphy-ext types` (and by every build): the ids the manifest declares,',
+    '  as TypeScript types. Not committed. A misspelt id, a declared id without',
+    '  a handler or a view, or `ctx.settings.get` of an undeclared setting fails',
+    '  `pnpm typecheck`;',
+    '- `test/index.test.ts` — tests (`vitest`, `happy-dom`).',
     '',
-    '## Цикл разработки',
+    '## Development loop',
     '',
     '```sh',
     'pnpm install',
-    `pnpm dev # dolphy-ext build --watch: пересборка в dist-ext/${id}`,
+    `pnpm dev # dolphy-ext build --watch: rebuilds into dist-ext/${id}`,
     '```',
     '',
-    'Запустите приложение с корнем режима разработчика — каталогом `dist-ext`',
-    'этого проекта (абсолютный путь):',
+    'Start the app with the developer root pointing at the `dist-ext` directory',
+    'of this project (an absolute path):',
     '',
     '```sh',
-    'DOLPHY_DEV_EXTENSIONS=<путь к проекту>/dist-ext pnpm dev # из репозитория Dolphy',
+    'DOLPHY_DEV_EXTENSIONS=<path to the project>/dist-ext pnpm dev # from the Dolphy repository',
     '```',
     '',
-    'Правка файла в `dist-ext` применяется на лету: окно не перезагружается,',
-    'смонтированные элементы ввода пересоздаются.',
-    'Ошибки загрузки видны в «Настройки → Расширения».',
+    'A change to a file in `dist-ext` is applied live: the window does not',
+    'reload, mounted answer inputs are recreated. Load errors are shown in',
+    '"Settings → Extensions".',
     '',
-    '## Сборка, проверка, тесты',
+    '## Build, check, test',
     '',
     '```sh',
-    `pnpm build     # dist-ext/${id}`,
-    'pnpm validate  # тот же разбор манифеста, что делает приложение',
+    `pnpm build      # dist-ext/${id}`,
+    'pnpm validate   # the same manifest parsing the app does',
+    'pnpm typecheck  # writes .dolphy/ids.d.ts, then tsc',
     'pnpm test',
     '```',
     '',
-    '## Установка вручную',
+    '## Manual installation',
     '',
-    `Скопируйте каталог \`dist-ext/${id}\` в \`<userData>/extensions/\``,
-    'и перезапустите приложение. Установки из приложения пока нет.',
+    `Copy the \`dist-ext/${id}\` directory to \`<userData>/extensions/\``,
+    'and restart the app. There is no installation from the app yet.',
   ]);
 
-export const gitignore = (): string => lines(['node_modules', 'dist-ext']);
+export const gitignore = (): string =>
+  lines(['node_modules', 'dist-ext', '.dolphy']);

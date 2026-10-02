@@ -173,6 +173,8 @@ describe('generateExtension', () => {
     expect(pkg['scripts']).toEqual({
       build: 'dolphy-ext build',
       dev: 'dolphy-ext build --watch',
+      types: 'dolphy-ext types',
+      typecheck: 'dolphy-ext types && tsc',
       validate: 'dolphy-ext validate dist-ext/acme.hello',
       test: 'vitest run',
     });

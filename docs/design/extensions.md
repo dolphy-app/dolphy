@@ -352,9 +352,11 @@ export const host = defineExtension({
 Файл `src/index.ts` (подписка на события):
 
 ```ts
-import { defineExtension } from '@dolphy-app/extension-sdk';
+import { defineExtension, inActivate } from '@dolphy-app/extension-sdk';
 
 export const host = defineExtension({
+  // событие объявлено в extension.json, подписка — в activate
+  events: { 'attempt.closed': inActivate },
   activate(ctx) {
     ctx.settings.onDidChange(({ id, value }) => {
       ctx.logger.info({ id, value }, 'setting changed');
@@ -371,7 +373,7 @@ export const host = defineExtension({
 
 Контракт:
 
-- Код подписывается `ctx.events.on(name, handler)` (один обработчик на событие) или ключом `events` в `defineExtension` (`events: { 'attempt.closed': handler }`); обработчик получает поля события.
+- Код подписывается `ctx.events.on(name, handler)` (один обработчик на событие) или ключом `events` в `defineExtension` (`events: { 'attempt.closed': handler }`); обработчик получает поля события, тип которых следует имени события. Если подписка делается в `activate`, в записи `events` событию соответствует `inActivate` (раздел «Типизированные id»).
 - Доставка асинхронная, по порядку для одного расширения, не более одного раза; обработчик ограничен 2 с; очередь — 100 событий на расширение, при переполнении отбрасываются самые старые с предупреждением в лог.
 - Сбой, исключение или таймаут обработчика никогда не влияют на журнал, оценку и ответ команды. Отключённое расширение и расширение без объявленного события события не получает; первое событие лениво активирует расширение.
 - `attempt.closed` — по одному разу на записанную попытку ученика; не приходит при повторе запроса, синхронизации, импорте и выводе по диагностике (`placement`).
@@ -1011,6 +1013,7 @@ acme-hello/
                       # panels (defineExtensionPanel), markdown (defineMarkdownRenderer)
   test/               # vitest: обработчик без приложения и вид в happy-dom
   package.json  tsconfig.json  README.md  .gitignore
+  .dolphy/ids.d.ts   # типы id из extension.json (генерируется, в git не хранится)
   dist-ext/acme.hello/  # результат сборки (extension.json, main.mjs, view.mjs)
 ```
 
@@ -1032,10 +1035,11 @@ acme-hello/
 - В каждый выходной файл попадает только свой код: `main.mjs` — `host`, `view.mjs` — виды этого файла, `panel.mjs` — его панели, `markdown.mjs` — его рендереры. Если несколько видов, панелей или языков указывают на один файл, он диспетчеризует по id (`ctx.panelId`, язык блока, тег элемента). Файлы самодостаточны, общих чанков нет; воркеры из `nodeEntries` файла `dolphy-ext.config.json` остаются отдельными входами.
 - Импорт `node:*`, встроенного модуля или пакета из `external` файла `dolphy-ext.config.json`, который остался в браузерном файле, — ошибка сборки с именем файла и модуля. Верхний уровень `src/index.ts` и его модулей — только объявления: `defineAnswerView` и остальные `define…` ничего не регистрируют и не помечены побочными эффектами, так что `src/index.ts` можно импортировать в тестах в Node; custom element с тегом из манифеста определяет браузерный файл сборки.
 - Библиотеке, которую тянет код хоста, нужно `"sideEffects": false` в её `package.json` (иначе её верхний уровень считается кодом с эффектами и попадает в браузерные файлы).
+- Типы id из манифеста генерируются статически: `dolphy-ext types` (и каждая сборка, и перестройка `--watch` после правки `extension.json`) пишет `.dolphy/ids.d.ts` без исполнения кода автора (раздел «Типизированные id» ниже). Каталог `.dolphy/` не входит в `dist-ext` и в проверку исходников каталога.
 
 ### Минимальный манифест и код
 
-Так выглядит проект, который создаёт генератор для id `acme.hello` (вид «text match»: ответ сравнивается с `spec.expected`).
+Так выглядит проект, который создаёт генератор для id `acme.hello` (вид «text match»: ответ сравнивается с `spec.expected`; настройка `acme.hello.trim` и команда `acme.hello.status` показывают типизированные id).
 
 `extension.json`:
 
@@ -1059,34 +1063,56 @@ acme-hello/
         },
         "answerSchema": { "type": "string" }
       }
+    ],
+    "settings": [
+      {
+        "id": "acme.hello.trim",
+        "type": "boolean",
+        "label": "Ignore spaces around the answer",
+        "default": true
+      }
+    ],
+    "commands": [
+      { "id": "acme.hello.status", "title": "Show how answers are compared" }
     ]
   }
 }
 ```
 
-`src/index.ts` (весь код: обработчик вида в `host` и поле `<input>` внутри shadow DOM в `views`; тесты — `test/index.test.ts` с `loadExerciseType` и `loadView`):
+`src/index.ts` (весь код: обработчик вида, настройка и команда в `host`, поле `<input>` внутри shadow DOM в `views`; тесты — `test/index.test.ts` с `loadExerciseType`, `loadCommands` и `loadView`; id в коде проверяет компилятор по `.dolphy/ids.d.ts`, см. «Типизированные id» ниже):
 
 ```ts
 import {
   defineAnswerView,
   defineExerciseType,
   defineExtension,
+  inActivate,
+  notify,
 } from '@dolphy-app/extension-sdk';
+import type { ExtensionViews } from '@dolphy-app/extension-sdk';
 
 interface Spec {
   expected: string;
   ignoreCase?: boolean;
 }
 
+// filled from the setting in `activate`, read by the handlers below
+const options = { trim: true };
+
 const matches = (answer: string, spec: Spec): boolean => {
+  const given = options.trim ? answer.trim() : answer;
   if (spec.ignoreCase === true) {
-    return answer.toLowerCase() === spec.expected.toLowerCase();
+    return given.toLowerCase() === spec.expected.toLowerCase();
   }
-  return answer === spec.expected;
+  return given === spec.expected;
 };
 
-// код расширения: исполняется в процессе расширений приложения
-// схемы из extension.json уже проверили spec и ответ до вызова обработчиков
+// extension code: runs in the extension process of the app
+// the schemas from extension.json have already checked `spec` and the answer
+// before the handlers run
+// the ids come from extension.json: `dolphy-ext types` (and every build)
+// writes them to .dolphy/ids.d.ts, so a misspelt id, a declared id without a
+// handler or an undeclared setting fails `pnpm typecheck`
 export const host = defineExtension({
   exerciseTypes: {
     'acme.hello': defineExerciseType<Spec, string, Record<string, never>>({
@@ -1098,10 +1124,25 @@ export const host = defineExtension({
       referenceAnswer: ({ spec }) => spec.expected,
     }),
   },
+  // this command is registered in `activate`: the marker names the id there
+  commands: { 'acme.hello.status': inActivate },
+  activate(ctx) {
+    options.trim = ctx.settings.get('acme.hello.trim');
+    ctx.settings.onDidChange((change) => {
+      if (change.id === 'acme.hello.trim') options.trim = change.value;
+    });
+    ctx.commands.register('acme.hello.status', () =>
+      notify(
+        options.trim
+          ? 'Answers are compared without the spaces around them.'
+          : 'Answers are compared exactly as typed.',
+      ),
+    );
+  },
 });
 
-// вид ввода ответа: исполняется в окне приложения; custom element с тегом
-// из extension.json создаёт сборка
+// the answer input: runs in the app window; the build defines the custom
+// element with the tag from extension.json
 export const views = {
   'acme.hello': defineAnswerView((api, initial) => {
     const input = document.createElement('input');
@@ -1127,7 +1168,7 @@ export const views = {
     return {
       update: (props) => {
         input.disabled = props.disabled;
-        // value применяется, только когда приложение его действительно сменило
+        // apply the value only when the app really changed it
         if (props.value !== appliedValue) {
           appliedValue = props.value;
           applyValue(appliedValue);
@@ -1135,8 +1176,21 @@ export const views = {
       },
     };
   }),
-};
+} satisfies ExtensionViews;
 ```
+
+### Типизированные id
+
+`dolphy-ext types` (и каждая сборка, в том числе перестройка `--watch` после правки `extension.json`) читает `extension.json` и пишет `.dolphy/ids.d.ts`: расширение интерфейса `ExtensionIds` из `@dolphy-app/extension-sdk` (`declare module '@dolphy-app/extension-sdk' { interface ExtensionIds { … } }`). Генерация статическая: манифест разбирается тем же `parseManifest`, что и в `validate`, код автора не исполняется, сети нет. Вывод детерминирован и не перезаписывается, если содержимое не изменилось, поэтому вотчер проекта не зацикливается. `.dolphy/` не попадает ни в `dist-ext`, ни в проверку исходников каталога (`catalog check` её пропускает), а в проекте из шаблона лежит в `.gitignore`. В `tsconfig.json` файл подключается по имени (`"include": ["src", "test", ".dolphy/ids.d.ts"]`): каталог `.dolphy` целиком `include` пропустил бы как скрытый.
+
+Что объявляется: `exerciseTypes`, `gradePolicies`, `commands`, `events`, `panels`, `markdownLanguages` — объединения id (пустой вид — `never`), `settings` — карта «id настройки → тип значения» (`boolean`, `string`, `number`, у `enum` — объединение значений `options`). Что за это получает автор:
+
+- `ctx.settings.get(id)` принимает только объявленные id и возвращает тип значения; `ctx.settings.onDidChange` отдаёт `{ id, value }`, где `value` сужается по `id`.
+- `ctx.commands.register`, `ctx.events.on` (тип полезной нагрузки — по имени события), `ctx.registerExerciseType`, `ctx.registerGradePolicy`, а также `ctx.call` панели и `openPanel` принимают только объявленные id.
+- `defineExtension({ exerciseTypes, gradePolicies, events, commands })` требует записи ровно с объявленными ключами: лишний и пропущенный ключ — ошибка компиляции; запись обязательна, если вид объявлен, и недопустима, если в манифесте нет ни одного id этого вида.
+- `views`, `panels`, `markdown` записываются как `{ … } satisfies ExtensionViews` (`ExtensionPanels`, `ExtensionMarkdown`): те же ровно объявленные ключи; сборка проверяет их и сама (R3), но компилятор говорит об этом раньше и в редакторе.
+
+Правило записей и `activate`. Обработчик, которому нужен `ctx`, регистрируют в `activate` (`ctx.commands.register`, `ctx.events.on`, …). Чтобы запись всё равно называла все объявленные id, такой id получает в записи значение `inActivate` из SDK («регистрируется в `activate`»): `commands: { 'acme.open': () => …, 'acme.data': inActivate }`. Хост по-прежнему предупреждает в логе об объявленном, но не зарегистрированном id, так что `inActivate` без регистрации в `activate` не остаётся незамеченным. Без файла `.dolphy/ids.d.ts` (тесты самого SDK, проект без генерации) все id — обычные строки, `ctx.settings.get` возвращает `boolean | string | number`, записи необязательны и открыты: ничего не ломается.
 
 ### Расширение целиком: серия дней
 
@@ -1177,9 +1231,11 @@ export const views = {
 import {
   defineExtension,
   defineExtensionPanel,
+  inActivate,
   notify,
   openPanel,
 } from '@dolphy-app/extension-sdk';
+import type { ExtensionPanels } from '@dolphy-app/extension-sdk';
 
 // type, а не interface: у interface нет индексной сигнатуры, и он не JsonValue
 type Streak = {
@@ -1202,7 +1258,11 @@ const advance = (streak: Streak | undefined, at: number): Streak => {
   return { days: continues ? streak.days + 1 : 1, last: day };
 };
 
+// все объявленные в extension.json события и команды перечислены в записях;
+// inActivate значит «регистрируется в activate»: обработчикам нужен ctx
 export const host = defineExtension({
+  events: { 'attempt.closed': inActivate },
+  commands: { 'acme.streak.show': inActivate, 'acme.streak.data': inActivate },
   activate(ctx) {
     ctx.events.on('attempt.closed', async ({ at, outcome }) => {
       if (outcome === 'gave-up') return;
@@ -1243,7 +1303,7 @@ export const panels = {
       await render();
     },
   }),
-};
+} satisfies ExtensionPanels;
 ```
 
 Что здесь происходит. `attempt.closed` приходит обработчику асинхронно и ровно один раз на записанную попытку; он читает и обновляет `ctx.storage`. Команда `acme.streak.show` в палитре показывает уведомление или открывает панель со свойствами; `acme.streak.data` скрыта (`palette: false`), но панель вызывает её через `ctx.call`. Манифест объявляет `learning.events` (иначе события не приходят), команды и панели других разрешений не просят. Панель исполняется в рамке без сети и видит только то, что вернула её команда.
@@ -1254,18 +1314,20 @@ export const panels = {
 - `defineExerciseType<Spec, Answer, View>({ project, grade, referenceAnswer? })` — типизированный обработчик. `project` отдаёт элементу публичный вид задания (без ключей ответа); `grade` возвращает `{ outcome: 'passed' }`, `{ outcome: 'failed', reason, detail? }` или `{ outcome: 'error', reason }`; `referenceAnswer` — эталон для проверки библиотеки компилятором. К моменту вызова `grade` `spec` и ответ уже проверены схемами из манифеста.
 - `defineAnswerView(mount)` — запись `views[<id вида>]`: описание элемента ввода с shadow DOM, ничего не регистрирует (custom element с тегом `element` из манифеста определяет сборка в `view.mjs`). `mount(api, props)` получает `api.root`, `api.label` (`aria-label` от приложения), `api.setAnswer(value, complete)` и `api.submit()`, возвращает `{ update(props), destroy?() }`; `props` — `view`, `value`, `disabled`, `verdict`.
 - `defineExtensionPanel({ mount })` — запись `panels[<id панели>]`; `defineMarkdownRenderer(render)` — запись `markdown[<язык>]`.
+- `ExtensionIds` (интерфейс, который расширяет `.dolphy/ids.d.ts`), `ExtensionViews`, `ExtensionPanels`, `ExtensionMarkdown` и `inActivate` — типы и маркер для типизированных id: `export const views = { … } satisfies ExtensionViews`, `commands: { 'acme.data': inActivate }` (раздел «Типизированные id»). `ExtensionContext` и `PanelContext` из SDK уже сужены до объявленных id.
 - `@dolphy-app/extension-sdk/testing`: `loadView(views, id, options?)` и `loadPanel(panels, id, options?)` монтируют вид или панель в DOM-окружении тестов (happy-dom) и возвращают помощников (`changes`, `submissions`, `update(props)`, `query`/`queryAll` по shadow DOM, `calls`, `setProps`, `dispose()`); `loadExerciseType(host, type)` (как и остальные `load…`, принимает экспорт `host` как есть) запускает `project`/`grade`/`referenceAnswer` без приложения и проверяет форму результата; `createSchemaValidator(schema)` — проверка `spec` и ответа по своим схемам; `createMemoryLibrary(files)` — библиотека в памяти для видов, читающих файлы курса; `createMemoryStorage()`, `createMemorySettings(definitions, values?)`, `createMemoryEvents()` и `loadEvents(module, …)` — хранилище, настройки и события в памяти (те же потолки и `StorageQuotaError`; `emit(name, payload)` отправляет событие обработчику).
 - `loadCommands(module, { declaredCommands?, declaredPanels?, storage?, … })` из `@dolphy-app/extension-sdk/testing`: активирует модуль с командами в памяти; `run(id, args)` возвращает `{ kind: 'none' | 'notify' | 'openPanel' | 'data', … }` по тем же правилам, что хост (регистрация необъявленной команды и повторная бросают, `openPanel` на необъявленную панель недопустим, результат больше 64 КиБ отклоняется); `ids()` — зарегистрированные команды. Общее `storage` у `loadCommands` и `loadEvents` даёт тесту проверить обработчик события и команду, читающую то же хранилище.
 
 ### Сборка и проверка
 
 ```sh
-pnpm build     # dolphy-ext build → dist-ext/<id>
-pnpm validate  # dolphy-ext validate dist-ext/<id>
+pnpm build      # dolphy-ext build → dist-ext/<id> (и .dolphy/ids.d.ts)
+pnpm typecheck  # dolphy-ext types && tsc: id в коде против манифеста
+pnpm validate   # dolphy-ext validate dist-ext/<id>
 pnpm test
 ```
 
-`dolphy-ext validate` разбирает манифест тем же кодом, что приложение (`inspectExtensionDir`), и завершается кодом 1 при проблеме. Подробности, дополнительные входы и внешние пакеты — в README `@dolphy-app/extension-tools`.
+`dolphy-ext validate` разбирает манифест тем же кодом, что приложение (`inspectExtensionDir`), и завершается кодом 1 при проблеме. `dolphy-ext types [dir]` отдельно пишет только `.dolphy/ids.d.ts` (раздел «Типизированные id»). Подробности, дополнительные входы и внешние пакеты — в README `@dolphy-app/extension-tools`.
 
 ### Режим разработчика
 

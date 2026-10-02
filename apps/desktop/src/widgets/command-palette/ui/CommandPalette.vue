@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { displayKeybinding, detectPlatform } from '@/shared/lib/keybinding.ts';
 import { useCommandPalette } from '../model/palette.ts';
@@ -10,6 +10,9 @@ const optionId = (index: number) => `command-palette-option-${index}`;
 const { t } = useI18n();
 const palette = useCommandPalette();
 const platform = detectPlatform();
+const field = ref<{ focus(): void } | null>(null);
+// палитра, открытая из поля ввода, забирает фокус себе: `autofocus` срабатывает только при монтировании
+const focusField = () => field.value?.focus();
 
 const entries = palette.entries;
 const activeIndex = computed(() =>
@@ -88,11 +91,13 @@ const vComboboxInput = {
     @update:model-value="
       (open: boolean) => (open ? palette.open() : palette.close())
     "
+    @after-enter="focusField"
     @after-leave="restoreFocus"
   >
     <v-sheet class="palette" data-testid="command-palette">
       <div class="v-command-palette__input-container">
         <v-text-field
+          ref="field"
           v-model="palette.query.value"
           v-combobox-input
           autofocus

@@ -15,6 +15,8 @@ export const CONTRIBUTION_POINTS: readonly ContributionPoint[] = [
   'themes',
   'markdownRenderers',
   'gradePolicies',
+  'settings',
+  'events',
 ];
 
 export interface CatalogFilters {
@@ -133,6 +135,8 @@ const NO_CONTRIBUTES: ExtensionContributesDto = {
   themes: [],
   markdownRenderers: [],
   gradePolicies: [],
+  settings: [],
+  events: [],
 };
 
 /**

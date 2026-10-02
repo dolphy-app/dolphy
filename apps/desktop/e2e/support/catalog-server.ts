@@ -58,7 +58,8 @@ interface PublishedExtension {
   contributes: Record<
     'exerciseTypes' | 'themes' | 'markdownRenderers' | 'gradePolicies',
     string[]
-  >;
+  > &
+    Partial<Record<'settings' | 'events', string[]>>;
   versions: PublishedVersion[];
 }
 
@@ -125,23 +126,31 @@ interface RawManifest {
     themes?: { id: string }[];
     markdownRenderers?: { language: string }[];
     gradePolicies?: { id: string }[];
+    settings?: { id: string }[];
+    events?: { event: string }[];
   };
 }
 
 const contributesOf = (
   manifest: RawManifest,
-): PublishedExtension['contributes'] => ({
-  exerciseTypes: (manifest.contributes?.exerciseTypes ?? []).map(
-    ({ id }) => id,
-  ),
-  themes: (manifest.contributes?.themes ?? []).map(({ id }) => id),
-  markdownRenderers: (manifest.contributes?.markdownRenderers ?? []).map(
-    ({ language }) => language,
-  ),
-  gradePolicies: (manifest.contributes?.gradePolicies ?? []).map(
-    ({ id }) => id,
-  ),
-});
+): PublishedExtension['contributes'] => {
+  const settings = (manifest.contributes?.settings ?? []).map(({ id }) => id);
+  const events = (manifest.contributes?.events ?? []).map(({ event }) => event);
+  return {
+    exerciseTypes: (manifest.contributes?.exerciseTypes ?? []).map(
+      ({ id }) => id,
+    ),
+    themes: (manifest.contributes?.themes ?? []).map(({ id }) => id),
+    markdownRenderers: (manifest.contributes?.markdownRenderers ?? []).map(
+      ({ language }) => language,
+    ),
+    gradePolicies: (manifest.contributes?.gradePolicies ?? []).map(
+      ({ id }) => id,
+    ),
+    ...(settings.length > 0 ? { settings } : {}),
+    ...(events.length > 0 ? { events } : {}),
+  };
+};
 
 const etagOf = (body: string) =>
   `"${createHash('sha256').update(body).digest('hex').slice(0, 16)}"`;

@@ -21,6 +21,7 @@ export type NodeDefaults = Omit<
   | 'extensionReloader'
   | 'openTraneSource'
   | 'repositoryStore'
+  | 'extensionDataStore'
   | 'snapshotFetcher'
 >;
 

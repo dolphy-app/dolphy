@@ -1,14 +1,30 @@
+import {
+  EXTENSION_STORAGE_LIMITS,
+  PermissionError,
+  StorageQuotaError,
+} from '@dolphy-app/extension-api';
 import type {
+  Disposable,
   ExerciseTypeHandler,
   ExtensionContext,
+  ExtensionEvents,
   ExtensionLogger,
   ExtensionModule,
+  ExtensionSettings,
+  ExtensionStorage,
   GradePolicyHandler,
   GradePolicyInput,
   GradeResult,
   GradeValue,
   JsonSchema,
+  JsonValue,
+  LearningEventHandler,
+  LearningEventName,
+  LearningEventPayloads,
   LibraryReader,
+  SettingChange,
+  SettingContribution,
+  SettingValue,
 } from '@dolphy-app/extension-api';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 
@@ -42,6 +58,227 @@ export const createMemoryLibrary = (
     },
   };
 };
+
+/** UTF-8 порядок байтов совпадает с порядком кодовых точек — так движок сортирует ключи. */
+const compareKeys = (a: string, b: string): number =>
+  Buffer.compare(Buffer.from(a), Buffer.from(b));
+
+/**
+ * Хранилище в памяти с теми же потолками и теми же ошибками, что у движка
+ * (`EXTENSION_STORAGE_LIMITS`, `StorageQuotaError`): значения хранятся как
+ * JSON-текст и отдаются копиями, при отказе ничего не меняется.
+ */
+export const createMemoryStorage = (): ExtensionStorage => {
+  const limits = EXTENSION_STORAGE_LIMITS;
+  const entries = new Map<string, string>();
+  const totalBytes = (): number => {
+    let total = 0;
+    for (const text of entries.values()) total += Buffer.byteLength(text);
+    return total;
+  };
+  return {
+    get: async <T extends JsonValue = JsonValue>(key: string) => {
+      const text = entries.get(key);
+      return text === undefined ? undefined : (JSON.parse(text) as T);
+    },
+    set: async (key, value) => {
+      if (typeof key !== 'string' || key.length === 0) {
+        throw new Error('storage key must be a non-empty string');
+      }
+      const text = JSON.stringify(value) as string | undefined;
+      if (text === undefined) throw new Error('storage value must be JSON');
+      const bytes = Buffer.byteLength(text);
+      if (key.length > limits.keyLength) {
+        throw new StorageQuotaError('key-length', limits.keyLength);
+      }
+      if (bytes > limits.valueBytes) {
+        throw new StorageQuotaError('value-size', limits.valueBytes);
+      }
+      const existing = entries.get(key);
+      if (existing === undefined && entries.size >= limits.keys) {
+        throw new StorageQuotaError('key-count', limits.keys);
+      }
+      const total =
+        totalBytes() -
+        (existing === undefined ? 0 : Buffer.byteLength(existing)) +
+        bytes;
+      if (total > limits.totalBytes) {
+        throw new StorageQuotaError('total-size', limits.totalBytes);
+      }
+      entries.set(key, text);
+    },
+    delete: async (key) => entries.delete(key),
+    keys: async () => [...entries.keys()].sort(compareKeys),
+  };
+};
+
+/** Почему значение не подходит определению настройки; `null` — подходит. */
+const findSettingProblem = (
+  definition: SettingContribution,
+  value: unknown,
+): string | null => {
+  switch (definition.type) {
+    case 'boolean':
+      return typeof value === 'boolean' ? null : 'must be a boolean';
+    case 'string':
+      if (typeof value !== 'string') return 'must be a string';
+      return definition.maxLength !== undefined &&
+        value.length > definition.maxLength
+        ? `is longer than ${definition.maxLength} characters`
+        : null;
+    case 'number':
+      if (typeof value !== 'number' || !Number.isFinite(value)) {
+        return 'must be a finite number';
+      }
+      if (definition.integer === true && !Number.isInteger(value)) {
+        return 'must be an integer';
+      }
+      if (definition.min !== undefined && value < definition.min) {
+        return `is less than ${definition.min}`;
+      }
+      return definition.max !== undefined && value > definition.max
+        ? `is greater than ${definition.max}`
+        : null;
+    default:
+      return typeof value === 'string' &&
+        definition.options.some((option) => option.value === value)
+        ? null
+        : 'must be one of the options';
+  }
+};
+
+export interface MemorySettings extends ExtensionSettings {
+  /**
+   * Меняет значение, как это делает пользователь в окне: значение проверяется
+   * по определению, подписчики `onDidChange` вызываются, если оно изменилось.
+   * В отличие от хоста, сбой обработчика не проглатывается, а отклоняет промис.
+   */
+  set(id: string, value: SettingValue): Promise<void>;
+}
+
+/** Настройки в памяти по определениям из манифеста; `initial` — значения пользователя вместо `default`. */
+export const createMemorySettings = (
+  definitions: readonly SettingContribution[],
+  initial: Readonly<Record<string, SettingValue>> = {},
+): MemorySettings => {
+  const byId = new Map(
+    definitions.map((definition) => [definition.id, definition]),
+  );
+  const values = new Map<string, SettingValue>(
+    definitions.map((definition) => [definition.id, definition.default]),
+  );
+  const handlers = new Set<(change: SettingChange) => void>();
+  const known = (id: string): SettingContribution => {
+    const definition = byId.get(id);
+    if (definition === undefined) {
+      throw new Error(`setting '${id}' is not declared in the manifest`);
+    }
+    return definition;
+  };
+  const checked = (id: string, value: unknown): SettingValue => {
+    const problem = findSettingProblem(known(id), value);
+    if (problem !== null) throw new Error(`setting '${id}' ${problem}`);
+    return value as SettingValue;
+  };
+  for (const [id, value] of Object.entries(initial)) {
+    values.set(id, checked(id, value));
+  }
+  return {
+    get: <T extends SettingValue = SettingValue>(id: string): T => {
+      known(id);
+      return values.get(id) as T;
+    },
+    onDidChange(handler) {
+      handlers.add(handler);
+      return { dispose: () => void handlers.delete(handler) };
+    },
+    async set(id, value) {
+      const next = checked(id, value);
+      if (Object.is(values.get(id), next)) return;
+      values.set(id, next);
+      for (const handler of [...handlers]) await handler({ id, value: next });
+    },
+  };
+};
+
+export interface MemoryEvents extends ExtensionEvents {
+  /**
+   * Отправляет событие подписанному обработчику и ждёт его. Нет подписки —
+   * событие пропускается, как в хосте. В отличие от хоста, сбой обработчика
+   * не проглатывается, а отклоняет промис, и 2 с на обработчик не отсчитываются.
+   */
+  emit<N extends LearningEventName>(
+    name: N,
+    payload: LearningEventPayloads[N],
+  ): Promise<void>;
+}
+
+export interface MemoryEventsOptions {
+  /** События из `contributes.events`: подписка на другое бросает, как в хосте. Не задано — можно любые. */
+  declared?: readonly LearningEventName[];
+  /** false — подписка бросает `PermissionError`, как у расширения без `learning.events`. По умолчанию true. */
+  permitted?: boolean;
+}
+
+/** Подписки на события обучения в памяти: по одному обработчику на событие, как в хосте. */
+export const createMemoryEvents = (
+  options: MemoryEventsOptions = {},
+): MemoryEvents => {
+  const handlers = new Map<
+    LearningEventName,
+    (payload: never) => void | Promise<void>
+  >();
+  return {
+    on<N extends LearningEventName>(
+      name: N,
+      handler: LearningEventHandler<N>,
+    ): Disposable {
+      if (options.permitted === false) {
+        throw new PermissionError('learning.events');
+      }
+      if (options.declared !== undefined && !options.declared.includes(name)) {
+        throw new Error(`event '${name}' is not declared in the manifest`);
+      }
+      if (handlers.has(name)) {
+        throw new Error(`event '${name}' is already subscribed`);
+      }
+      handlers.set(name, handler);
+      return {
+        dispose: () => {
+          if (handlers.get(name) === handler) handlers.delete(name);
+        },
+      };
+    },
+    async emit(name, payload) {
+      await handlers.get(name)?.(payload as never);
+    },
+  };
+};
+
+/** Что подменяет тест в контексте расширения; по умолчанию всё в памяти и без вывода. */
+export interface LoadOptions {
+  library?: LibraryReader;
+  logger?: ExtensionLogger;
+  storage?: ExtensionStorage;
+  settings?: ExtensionSettings;
+  events?: ExtensionEvents;
+}
+
+const contextOf = (
+  options: LoadOptions,
+  registrars: Pick<
+    ExtensionContext,
+    'registerExerciseType' | 'registerGradePolicy'
+  >,
+): ExtensionContext => ({
+  extensionId: 'test',
+  logger: options.logger ?? silentLogger,
+  library: options.library ?? createMemoryLibrary({}),
+  storage: options.storage ?? createMemoryStorage(),
+  settings: options.settings ?? createMemorySettings([]),
+  events: options.events ?? createMemoryEvents(),
+  ...registrars,
+});
 
 export const createSchemaValidator = (schema: JsonSchema) => {
   const validate = new Ajv2020({ allErrors: true, strict: false }).compile(
@@ -121,19 +358,16 @@ export interface LoadedExerciseType {
 export const loadExerciseType = async (
   module: ExtensionModule,
   type: string,
-  options: { library?: LibraryReader; logger?: ExtensionLogger } = {},
+  options: LoadOptions = {},
 ): Promise<LoadedExerciseType> => {
   const handlers = new Map<string, ExerciseTypeHandler>();
-  const context: ExtensionContext = {
-    extensionId: 'test',
-    logger: options.logger ?? silentLogger,
-    library: options.library ?? createMemoryLibrary({}),
+  const context = contextOf(options, {
     registerExerciseType: (registeredType, handler) => {
       handlers.set(registeredType, handler);
       return { dispose: () => void handlers.delete(registeredType) };
     },
     registerGradePolicy: () => ({ dispose: () => undefined }),
-  };
+  });
   await module.activate(context);
   const handler = handlers.get(type);
   if (handler === undefined) {
@@ -188,19 +422,16 @@ const isGradeValue = (value: unknown): value is GradeValue =>
 export const loadGradePolicy = async (
   module: ExtensionModule,
   id: string,
-  options: { library?: LibraryReader; logger?: ExtensionLogger } = {},
+  options: LoadOptions = {},
 ): Promise<LoadedGradePolicy> => {
   const handlers = new Map<string, GradePolicyHandler>();
-  const context: ExtensionContext = {
-    extensionId: 'test',
-    logger: options.logger ?? silentLogger,
-    library: options.library ?? createMemoryLibrary({}),
+  const context = contextOf(options, {
     registerExerciseType: () => ({ dispose: () => undefined }),
     registerGradePolicy: (registeredId, handler) => {
       handlers.set(registeredId, handler);
       return { dispose: () => void handlers.delete(registeredId) };
     },
-  };
+  });
   await module.activate(context);
   const handler = handlers.get(id);
   if (handler === undefined) {
@@ -216,6 +447,64 @@ export const loadGradePolicy = async (
       }
       return result;
     },
+    dispose: async () => {
+      await module.deactivate?.();
+    },
+  };
+};
+
+export interface LoadedEvents {
+  /** События доставляются так же, как в хосте: подписанному обработчику, по одному. См. `MemoryEvents.emit`. */
+  emit: MemoryEvents['emit'];
+  storage: ExtensionStorage;
+  settings: MemorySettings;
+  /** Деактивирует модуль расширения. */
+  dispose(): Promise<void>;
+}
+
+export interface LoadEventsOptions
+  extends
+    Omit<LoadOptions, 'storage' | 'settings' | 'events'>,
+    MemoryEventsOptions {
+  storage?: ExtensionStorage;
+  /** Определения из `contributes.settings` манифеста; значения читаются и меняются через `settings`. */
+  settings?: readonly SettingContribution[];
+  /** Значения пользователя вместо `default`. */
+  settingValues?: Readonly<Record<string, SettingValue>>;
+}
+
+/**
+ * Активирует модуль с хранилищем, настройками и событиями в памяти и даёт тесту
+ * отправлять события и менять настройки.
+ */
+export const loadEvents = async (
+  module: ExtensionModule,
+  options: LoadEventsOptions = {},
+): Promise<LoadedEvents> => {
+  const events = createMemoryEvents(options);
+  const storage = options.storage ?? createMemoryStorage();
+  const settings = createMemorySettings(
+    options.settings ?? [],
+    options.settingValues,
+  );
+  const context = contextOf(
+    {
+      ...(options.library !== undefined && { library: options.library }),
+      ...(options.logger !== undefined && { logger: options.logger }),
+      storage,
+      settings,
+      events,
+    },
+    {
+      registerExerciseType: () => ({ dispose: () => undefined }),
+      registerGradePolicy: () => ({ dispose: () => undefined }),
+    },
+  );
+  await module.activate(context);
+  return {
+    emit: events.emit,
+    storage,
+    settings,
     dispose: async () => {
       await module.deactivate?.();
     },

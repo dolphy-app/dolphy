@@ -72,6 +72,32 @@ export const createSession = (
   const total = ref(0);
   const results = shallowRef<RecordResultDto[]>([]);
   let items: PlanItemDto[] = [];
+  /** Сессия движка (`startSession`): id нужен, чтобы сообщить о конце обучения. */
+  let engineSession: Promise<string | null> | null = null;
+
+  /**
+   * Сессия обучения в движке начинается вместе с первым упражнением плана.
+   * Сбой не мешает занятию: расширения просто не получат события сессии.
+   */
+  const openEngineSession = (): Promise<string | null> =>
+    Promise.resolve()
+      .then(() => engine.practice.startSession())
+      .then(({ sessionId }) => sessionId)
+      .catch(() => null);
+
+  /** Один раз на сессию, когда экран дошёл до итога; выход посреди занятия не вызывает. */
+  const finishEngineSession = () => {
+    const opened = engineSession;
+    engineSession = null;
+    if (opened === null) return;
+    void opened
+      .then((sessionId) =>
+        sessionId === null
+          ? undefined
+          : engine.practice.finishSession({ sessionId }),
+      )
+      .catch(() => undefined);
+  };
 
   const summary = computed<SessionSummary>(() => {
     const count = results.value.length;
@@ -121,6 +147,7 @@ export const createSession = (
   const advance = async () => {
     if (position.value >= total.value) {
       stage.value = 'finished';
+      finishEngineSession();
       return;
     }
     await openExercise(position.value);
@@ -177,6 +204,7 @@ export const createSession = (
         stage.value = 'empty';
         return;
       }
+      engineSession ??= openEngineSession();
       await openExercise(0);
     } catch (caught) {
       error.value = errorText(caught);

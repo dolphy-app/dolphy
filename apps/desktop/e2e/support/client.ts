@@ -79,7 +79,7 @@ export interface Exercise {
 
 /** Ввод ответа проверяемого упражнения: SQL, варианты выбора или текст поля расширения. */
 export type AnswerInput =
-  { sql: string } | { choose: string[] } | { text: string };
+  { sql: string } | { choose: string[] } | { text: string; element?: string };
 
 /** Ответ на упражнение сессии: оценка для самопроверки, `AnswerInput` — для проверяемых. */
 export type Answerer = (exercise: Exercise) => Grade | AnswerInput;
@@ -309,7 +309,9 @@ export class Client {
         await element.getByLabel(option, { exact: true }).check();
       }
     } else {
-      const element = await this.answerElement('acme-echo-answer');
+      const element = await this.answerElement(
+        reply.element ?? 'acme-echo-answer',
+      );
       await element.locator('input').fill(reply.text);
     }
   }

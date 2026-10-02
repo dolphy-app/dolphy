@@ -8,6 +8,10 @@ import type { SqlDatabase } from './sql-database.ts';
  * ради поиска сторон конфликта по `id`, `(device_id, seq)` и хэшу [ВЫВОД].
  * Миграция 2 — настройки ученика (`SettingsStore`): не входят в журнал и не
  * синхронизируются, у каждого устройства свои.
+ * Миграция 3 — реестр git-репозиториев (`RepositoryStore`).
+ * Миграция 4 — данные расширений (`ExtensionDataStore`): хранилище кода
+ * расширения и значения его настроек, по ключу `(extension_id, key)`; значение —
+ * JSON-текст. Не входят в журнал и не синхронизируются.
  */
 export const MIGRATIONS: readonly string[] = [
   `
@@ -52,6 +56,16 @@ CREATE TABLE study_session (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;
 `,
   `
 CREATE TABLE repository (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;
+`,
+  `
+CREATE TABLE extension_storage (
+  extension_id TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL,
+  PRIMARY KEY (extension_id, key)
+) STRICT, WITHOUT ROWID;
+CREATE TABLE extension_setting (
+  extension_id TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL,
+  PRIMARY KEY (extension_id, key)
+) STRICT, WITHOUT ROWID;
 `,
 ];
 

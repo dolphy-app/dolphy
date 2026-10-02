@@ -21,6 +21,8 @@ const extension = (id: string, origin: ExtensionOrigin): ResolvedExtension => ({
   themes: [],
   markdownRenderers: [],
   gradePolicies: [],
+  settings: [],
+  events: [],
 });
 
 const policyFor = (...items: ResolvedExtension[]) =>

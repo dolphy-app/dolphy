@@ -22,6 +22,8 @@ const USER: ExtensionInfoDto = {
     themes: [],
     markdownRenderers: [],
     gradePolicies: [],
+    settings: [],
+    events: [],
   },
   message: null,
   permissions: [],

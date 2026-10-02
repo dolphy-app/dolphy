@@ -33,6 +33,8 @@ const extension = (
   themes: [],
   markdownRenderers: [],
   gradePolicies: [],
+  settings: [],
+  events: [],
   ...overrides,
 });
 

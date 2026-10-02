@@ -78,6 +78,10 @@ export const ERRORS: Record<EngineErrorCode, ErrorSpec> = {
     message: 'Extension installation failed',
     retryable: false,
   },
+  EXTENSION_STORAGE_QUOTA: {
+    message: 'Extension storage quota exceeded',
+    retryable: false,
+  },
   INTERNAL: { message: 'Internal engine error', retryable: true },
 };
 

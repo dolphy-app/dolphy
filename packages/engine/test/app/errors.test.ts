@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { ERRORS, EngineError, createErrorMapper } from '../../src/app/index.ts';
 
 describe('EngineError', () => {
-  it('has all 26 codes (API §8 and repositories) with the documented default retryable', () => {
-    expect(Object.keys(ERRORS)).toHaveLength(26);
+  it('has all 27 codes (API §8, repositories and extensions) with the documented default retryable', () => {
+    expect(Object.keys(ERRORS)).toHaveLength(27);
     const retryable = Object.entries(ERRORS)
       .filter(([, spec]) => spec.retryable)
       .map(([code]) => code)

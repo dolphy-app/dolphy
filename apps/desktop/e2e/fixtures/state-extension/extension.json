@@ -1,0 +1,79 @@
+{
+  "id": "acme.state",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "permissions": [
+    "learning.events"
+  ],
+  "contributes": {
+    "exerciseTypes": [
+      {
+        "id": "acme.state",
+        "specSchema": {
+          "type": "object"
+        },
+        "answerSchema": {
+          "type": "string"
+        }
+      }
+    ],
+    "settings": [
+      {
+        "id": "acme.state.greeting",
+        "type": "string",
+        "label": "Приветствие",
+        "description": "Что расширение пишет в отчёте",
+        "default": "привет",
+        "maxLength": 12
+      },
+      {
+        "id": "acme.state.loud",
+        "type": "boolean",
+        "label": "Громко",
+        "default": false
+      },
+      {
+        "id": "acme.state.limit",
+        "type": "number",
+        "label": "Предел",
+        "default": 3,
+        "min": 1,
+        "max": 10,
+        "integer": true
+      },
+      {
+        "id": "acme.state.mode",
+        "type": "enum",
+        "label": "Режим",
+        "default": "calm",
+        "options": [
+          {
+            "value": "calm",
+            "label": "Спокойный"
+          },
+          {
+            "value": "brisk",
+            "label": "Бодрый"
+          }
+        ]
+      },
+      {
+        "id": "acme.state.note",
+        "type": "string",
+        "label": "Заметка",
+        "default": ""
+      }
+    ],
+    "events": [
+      {
+        "event": "session.started"
+      },
+      {
+        "event": "session.finished"
+      },
+      {
+        "event": "attempt.closed"
+      }
+    ]
+  }
+}

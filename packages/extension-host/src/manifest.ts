@@ -73,6 +73,16 @@ export const manifestSchema = z
         });
       }
     });
+    if (
+      entriesOf(manifest.contributes, 'events').length > 0 &&
+      !permissions.includes('learning.events')
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['permissions'],
+        message: "contributes.events requires the 'learning.events' permission",
+      });
+    }
     if (isEmpty(manifest.contributes)) {
       ctx.addIssue({
         code: 'custom',

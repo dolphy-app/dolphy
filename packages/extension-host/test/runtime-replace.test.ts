@@ -233,6 +233,7 @@ describe('ExtensionRuntime.replace', () => {
           ok: true,
           result: 'restricted',
         }),
+        notify: vi.fn(),
         dispose,
       };
       return { runner, dispose };
@@ -255,7 +256,7 @@ describe('ExtensionRuntime.replace', () => {
     expect(first.dispose).toHaveBeenCalledTimes(1);
     await runtime.handle(project('2', true));
     expect(create).toHaveBeenCalledTimes(2);
-    expect(create).toHaveBeenLastCalledWith(updated);
+    expect(create).toHaveBeenLastCalledWith(updated, expect.anything());
     expect(second.dispose).not.toHaveBeenCalled();
   });
 

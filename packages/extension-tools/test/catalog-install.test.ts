@@ -56,6 +56,8 @@ const inspectDir = async (directory: string): Promise<InspectResult> => {
           (renderer) => renderer.language,
         ),
         gradePolicies: extension.gradePolicies.map((policy) => policy.id),
+        settings: extension.settings.map((setting) => setting.id),
+        events: extension.events.map((item) => item.event),
       },
     },
   };

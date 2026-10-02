@@ -22,7 +22,8 @@
 - На каждый различный файл `renderer` — `src/<имя файла без расширения>.ts`
   (по умолчанию `./view.mjs` → `src/view.ts`); собирается для браузера
   (`es2022`, без внешних зависимостей, один файл).
-- Расширение без кода (только `themes` и/или `markdownRenderers`, `main: null`):
+- Расширение без кода (только `themes`, `markdownRenderers` и/или `settings`,
+  `main: null`):
   node-входов нет, `src/main.ts` не нужен; для темы каталог `src` не нужен
   вовсе. Рендерер содержимого — `src/<имя файла без расширения>.ts`
   (по умолчанию `./markdown.mjs` → `src/markdown.ts`), браузерный бандл, как
@@ -171,3 +172,11 @@ const { ok, problems } = await validateExtension(dir);
 Допустимые имена — `EXTENSION_PERMISSIONS` из `@dolphy-app/extension-api`. Пример
 манифеста с разрешениями — `docs/design/extensions.md`, «Права и изоляция»; он
 проверяется `test/docs-contributions.test.ts` вместе с примерами «Точек вклада».
+
+Точки `settings` (настройки, которые пользователь меняет в приложении) и
+`events` (подписка на события обучения) проверяются тем же `parseManifest`.
+Правило: расширение с `contributes.events` обязано объявить разрешение
+`learning.events`, иначе `validate` и `build` отклоняют манифест. Хранилище
+`ctx.storage` разрешения не требует. `dolphy-ext catalog build` пишет
+`contributes.settings` и `contributes.events` в запись индекса только когда они
+не пусты, а `learning.events` попадает в `permissions` версии.

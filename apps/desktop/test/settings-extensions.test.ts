@@ -154,6 +154,8 @@ describe('contributionGroups', () => {
         themes: ['acme.night', 'acme.day'],
         markdownRenderers: ['math'],
         gradePolicies: ['acme.strict'],
+        settings: [],
+        events: [],
       }),
     ).toEqual([
       { point: 'themes', values: ['acme.night', 'acme.day'] },

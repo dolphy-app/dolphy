@@ -29,6 +29,8 @@ export interface Contributes {
   themes: string[];
   markdownRenderers: string[];
   gradePolicies: string[];
+  settings?: string[];
+  events?: string[];
 }
 
 export const contributesOf = (exerciseTypes: string[]): Contributes => ({
@@ -197,7 +199,11 @@ export const inspectJson = async (
         id: raw.id,
         version: raw.version,
         permissions: raw.permissions,
-        contributes: raw.contributes,
+        contributes: {
+          ...raw.contributes,
+          settings: raw.contributes.settings ?? [],
+          events: raw.contributes.events ?? [],
+        },
       },
     };
   } catch (error) {

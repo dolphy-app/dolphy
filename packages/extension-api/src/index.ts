@@ -14,6 +14,7 @@ export const EXTENSION_PERMISSIONS = [
   'worker.threads',
   'native.addons',
   'network',
+  'learning.events',
 ] as const;
 export type ExtensionPermission = (typeof EXTENSION_PERMISSIONS)[number];
 /** Платформы, на которых расширение может работать (`process.platform`). */
@@ -84,6 +85,99 @@ export interface MarkdownRendererContribution {
   renderer?: string;
 }
 
+/** Значение настройки расширения. */
+export type SettingValue = boolean | string | number;
+
+interface SettingContributionBase {
+  /** Равен id расширения или начинается с `<id расширения>.`. */
+  id: string;
+  /** Подпись поля в диалоге настроек, до 60 символов; данные расширения, не переводится. */
+  label: string;
+  /** Пояснение под полем, до 500 символов. */
+  description?: string;
+}
+
+export interface BooleanSettingContribution extends SettingContributionBase {
+  type: 'boolean';
+  default: boolean;
+}
+
+export interface StringSettingContribution extends SettingContributionBase {
+  type: 'string';
+  default: string;
+  /** Длина в кодовых единицах UTF-16, 1..10000; нет ключа — без ограничения (в пределах 10000). */
+  maxLength?: number;
+}
+
+export interface NumberSettingContribution extends SettingContributionBase {
+  type: 'number';
+  default: number;
+  min?: number;
+  max?: number;
+  /** Только целые значения. */
+  integer?: boolean;
+}
+
+export interface EnumSettingOption {
+  value: string;
+  label: string;
+}
+
+export interface EnumSettingContribution extends SettingContributionBase {
+  type: 'enum';
+  /** Одно из `options[].value`. */
+  default: string;
+  options: EnumSettingOption[];
+}
+
+/** Настройка, которую пользователь меняет в «Настройки → Расширения»; форму рисует приложение. */
+export type SettingContribution =
+  | BooleanSettingContribution
+  | StringSettingContribution
+  | NumberSettingContribution
+  | EnumSettingContribution;
+
+/** События обучения, на которые расширение с разрешением `learning.events` может подписаться. */
+export const LEARNING_EVENT_NAMES = [
+  'session.started',
+  'session.finished',
+  'attempt.closed',
+] as const;
+export type LearningEventName = (typeof LEARNING_EVENT_NAMES)[number];
+
+/** Итог закрытой попытки: `self-assessed` — оценку поставил ученик. */
+export type AttemptOutcome = 'passed' | 'failed' | 'gave-up' | 'self-assessed';
+
+/** Откуда оценка попытки (тип движка целиком). */
+export type AttemptSource = 'self' | 'runner' | 'placement' | 'trane-import';
+
+/**
+ * Поля событий обучения: только идентификаторы, оценка и время — ответы,
+ * `spec`, обратная связь и текст упражнения в них не попадают. Совпадает с
+ * `LearningEventPayloads` движка (пакет от движка не зависит; совпадение
+ * проверяет тест `extension-host`).
+ */
+export interface LearningEventPayloads {
+  'session.started': { sessionId: string; at: number };
+  'session.finished': { sessionId: string; at: number };
+  'attempt.closed': {
+    exerciseId: string;
+    courseId: string;
+    lessonId: string;
+    grade: GradeValue;
+    outcome: AttemptOutcome;
+    /** `self` — ученик закрыл попытку сам, `runner` — по вердикту раннера; другие значения событие не несёт. */
+    source: AttemptSource;
+    /** Миллисекунды Unix-эпохи. */
+    at: number;
+  };
+}
+
+/** Подписка расширения на событие обучения (`contributes.events`). */
+export interface EventContribution {
+  event: LearningEventName;
+}
+
 /** Правило оценки: как вердикты превращаются в оценку 1–5. */
 export interface GradePolicyContribution {
   /** Равен id расширения или начинается с `<id расширения>.`; не `passAtN`. */
@@ -117,6 +211,8 @@ export interface ExtensionManifest {
       renderer: string;
     })[];
     gradePolicies: GradePolicyContribution[];
+    settings: SettingContribution[];
+    events: EventContribution[];
   };
 }
 
@@ -150,6 +246,8 @@ export interface ExtensionManifestInput {
     themes?: ThemeContribution[];
     markdownRenderers?: MarkdownRendererContribution[];
     gradePolicies?: GradePolicyContribution[];
+    settings?: SettingContribution[];
+    events?: EventContribution[];
   };
 }
 
@@ -301,6 +399,84 @@ export class PermissionError extends Error {
   }
 }
 
+/** Потолки хранилища расширения (R2); совпадают с потолками движка, который их и проверяет. */
+export const EXTENSION_STORAGE_LIMITS = Object.freeze({
+  /** Длина ключа в кодовых единицах UTF-16. */
+  keyLength: 128,
+  /** JSON-текст одного значения в байтах UTF-8. */
+  valueBytes: 64 * 1024,
+  /** Число ключей. */
+  keys: 256,
+  /** Сумма JSON-текстов всех значений в байтах UTF-8. */
+  totalBytes: 1024 * 1024,
+});
+
+/** Какой потолок хранилища превышен. */
+export type StorageQuotaKind =
+  'key-length' | 'value-size' | 'key-count' | 'total-size';
+
+/** Бросается `ctx.storage.set`, когда запись превысила потолок: запись не произошла, остальные данные не изменились. */
+export class StorageQuotaError extends Error {
+  readonly kind: StorageQuotaKind;
+  /** Превышенный потолок: символы, байты или число ключей — по `kind`. */
+  readonly limit: number;
+  readonly code = 'EXT_STORAGE_QUOTA';
+  constructor(kind: StorageQuotaKind, limit: number, message?: string) {
+    super(message ?? `extension storage quota exceeded: ${kind} (${limit})`);
+    this.name = 'StorageQuotaError';
+    this.kind = kind;
+    this.limit = limit;
+  }
+}
+
+export type JsonValue =
+  null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
+
+/**
+ * Хранилище данных расширения: JSON по строковым ключам. У каждого расширения
+ * своё пространство; данные переживают перезапуск, обновление и отключение.
+ * Разрешение не требуется; потолки — `EXTENSION_STORAGE_LIMITS`.
+ */
+export interface ExtensionStorage {
+  get<T extends JsonValue = JsonValue>(key: string): Promise<T | undefined>;
+  /** Превышение потолка — `StorageQuotaError`, запись не происходит. */
+  set(key: string, value: JsonValue): Promise<void>;
+  /** `false`, если ключа не было. */
+  delete(key: string): Promise<boolean>;
+  keys(): Promise<string[]>;
+}
+
+/** Изменение значения настройки: пользователь, «Сбросить» или «Очистить данные». */
+export interface SettingChange {
+  id: string;
+  /** Действующее значение. */
+  value: SettingValue;
+}
+
+/** Настройки расширения (`contributes.settings`). */
+export interface ExtensionSettings {
+  /** Текущее значение или `default`; `id`, не объявленный в манифесте, бросает. */
+  get<T extends SettingValue = SettingValue>(id: string): T;
+  /** Обработчик вызывается после изменения, без перезапуска расширения; сбой обработчика только логируется. */
+  onDidChange(handler: (change: SettingChange) => void): Disposable;
+}
+
+export type LearningEventHandler<N extends LearningEventName> = (
+  payload: LearningEventPayloads[N],
+) => void | Promise<void>;
+
+/** События обучения; нужны разрешение `learning.events` и объявление события в `contributes.events`. */
+export interface ExtensionEvents {
+  /**
+   * Один обработчик на событие. Доставка асинхронная, по порядку, не более
+   * одного раза; на обработчик — 2 с; сбой только логируется.
+   */
+  on<N extends LearningEventName>(
+    name: N,
+    handler: LearningEventHandler<N>,
+  ): Disposable;
+}
+
 export interface Disposable {
   dispose(): void | Promise<void>;
 }
@@ -317,6 +493,9 @@ export interface ExtensionContext {
   readonly extensionId: string;
   readonly logger: ExtensionLogger;
   readonly library: LibraryReader;
+  readonly storage: ExtensionStorage;
+  readonly settings: ExtensionSettings;
+  readonly events: ExtensionEvents;
   /** `type` обязан быть объявлен в манифесте этого расширения, иначе бросает. */
   registerExerciseType(type: string, handler: ExerciseTypeHandler): Disposable;
   /** `id` обязан быть объявлен в `gradePolicies` манифеста этого расширения, иначе бросает. */

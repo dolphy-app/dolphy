@@ -13,6 +13,8 @@ const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
   themes: [],
   markdownRenderers: [],
   gradePolicies: [],
+  settings: [],
+  events: [],
 };
 
 const isolationOf = (
@@ -40,7 +42,12 @@ const withoutMetadata = (
 export const contributesOf = (
   extension: Pick<
     ResolvedExtension,
-    'exerciseTypes' | 'themes' | 'markdownRenderers' | 'gradePolicies'
+    | 'exerciseTypes'
+    | 'themes'
+    | 'markdownRenderers'
+    | 'gradePolicies'
+    | 'settings'
+    | 'events'
   >,
 ): ExtensionInfoDto['contributes'] => ({
   exerciseTypes: extension.exerciseTypes.map(({ id }) => id),
@@ -49,6 +56,8 @@ export const contributesOf = (
     ({ language }) => language,
   ),
   gradePolicies: extension.gradePolicies.map(({ id }) => id),
+  settings: extension.settings.map(({ id }) => id),
+  events: extension.events.map(({ event }) => event),
 });
 
 const loaded = (
@@ -154,6 +163,11 @@ export const createExtensionRegistry = (
           extensionId: id,
           label: policyItem.label,
         })),
+      ),
+      settings: enabled().flatMap(({ id, settings }) =>
+        settings.map((setting) =>
+          structuredClone({ ...setting, extensionId: id }),
+        ),
       ),
     }),
   };

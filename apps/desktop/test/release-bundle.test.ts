@@ -145,6 +145,11 @@ describe('смоук и релизная сборка', () => {
         },
         entryPath: join(out, 'restricted/ext-restricted.mjs'),
         library: { readText: async () => '', stat: async () => null },
+        engine: {
+          request: async () => {
+            throw new Error('the hostile extension has no engine');
+          },
+        },
         logger,
       });
       try {

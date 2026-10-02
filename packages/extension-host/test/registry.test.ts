@@ -30,6 +30,8 @@ const extension = (id: string, version = '1.0.0'): ResolvedExtension => ({
   themes: [],
   markdownRenderers: [],
   gradePolicies: [],
+  settings: [],
+  events: [],
 });
 
 const NONE = {
@@ -37,6 +39,8 @@ const NONE = {
   themes: [],
   markdownRenderers: [],
   gradePolicies: [],
+  settings: [],
+  events: [],
 };
 
 const discovery: DiscoveryResult = {

@@ -232,6 +232,8 @@ const entryOf = (
   const others = (previous?.versions ?? []).filter(
     (version) => version.version !== record.version,
   );
+  const settings = manifest.contributes.settings.map((setting) => setting.id);
+  const events = manifest.contributes.events.map((item) => item.event);
   return {
     id: staged.id,
     name: manifest.name ?? '',
@@ -248,6 +250,8 @@ const entryOf = (
       gradePolicies: manifest.contributes.gradePolicies.map(
         (policy) => policy.id,
       ),
+      ...(settings.length > 0 ? { settings } : {}),
+      ...(events.length > 0 ? { events } : {}),
     },
     versions: newestFirst([record, ...others]),
   };

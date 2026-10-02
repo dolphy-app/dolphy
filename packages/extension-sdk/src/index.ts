@@ -2,6 +2,7 @@ export * from '@dolphy-app/extension-api';
 export {
   defineExerciseType,
   defineExtension,
+  type EventHandlers,
   type ExtensionDefinition,
 } from './define-extension.ts';
 export {

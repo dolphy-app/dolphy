@@ -187,6 +187,8 @@ export const ru = {
         gradePolicies: 'Правила оценки',
         settings: 'Настройки',
         events: 'События обучения',
+        commands: 'Команды',
+        panels: 'Панели',
       },
       origin: {
         bundled: 'Поставка',

@@ -188,6 +188,8 @@ export const en: typeof ru = {
         gradePolicies: 'Grade policies',
         settings: 'Settings',
         events: 'Learning events',
+        commands: 'Commands',
+        panels: 'Panels',
       },
       origin: {
         bundled: 'Bundled',

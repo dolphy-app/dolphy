@@ -59,7 +59,7 @@ interface PublishedExtension {
     'exerciseTypes' | 'themes' | 'markdownRenderers' | 'gradePolicies',
     string[]
   > &
-    Partial<Record<'settings' | 'events', string[]>>;
+    Partial<Record<'settings' | 'events' | 'commands' | 'panels', string[]>>;
   versions: PublishedVersion[];
 }
 
@@ -128,6 +128,8 @@ interface RawManifest {
     gradePolicies?: { id: string }[];
     settings?: { id: string }[];
     events?: { event: string }[];
+    commands?: { id: string }[];
+    panels?: { id: string }[];
   };
 }
 
@@ -136,6 +138,8 @@ const contributesOf = (
 ): PublishedExtension['contributes'] => {
   const settings = (manifest.contributes?.settings ?? []).map(({ id }) => id);
   const events = (manifest.contributes?.events ?? []).map(({ event }) => event);
+  const commands = (manifest.contributes?.commands ?? []).map(({ id }) => id);
+  const panels = (manifest.contributes?.panels ?? []).map(({ id }) => id);
   return {
     exerciseTypes: (manifest.contributes?.exerciseTypes ?? []).map(
       ({ id }) => id,
@@ -149,6 +153,8 @@ const contributesOf = (
     ),
     ...(settings.length > 0 ? { settings } : {}),
     ...(events.length > 0 ? { events } : {}),
+    ...(commands.length > 0 ? { commands } : {}),
+    ...(panels.length > 0 ? { panels } : {}),
   };
 };
 

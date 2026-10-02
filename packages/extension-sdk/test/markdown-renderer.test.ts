@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { defineMarkdownRenderer } from '../src/index.ts';
 
 describe('defineMarkdownRenderer', () => {
-  it('exposes the render function as the module's render and passes it the arguments', async () => {
+  it('exposes the render function as the module render and passes it the arguments', async () => {
     const signal = new AbortController().signal;
     const module = defineMarkdownRenderer(
       async (source, container, context) => {
@@ -14,7 +14,7 @@ describe('defineMarkdownRenderer', () => {
     expect(container.textContent).toBe('math:x');
   });
 
-  it('propagates the renderer's rejection', async () => {
+  it('propagates the renderer rejection', async () => {
     const module = defineMarkdownRenderer(() => {
       throw new Error('boom');
     });

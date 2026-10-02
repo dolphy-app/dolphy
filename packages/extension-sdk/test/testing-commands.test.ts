@@ -221,7 +221,7 @@ describe('loadCommands', () => {
     expect(logger.info).toHaveBeenCalledWith({ ok: true }, 'ran');
   });
 
-  it('dispose calls the module's deactivate; afterwards commands can be registered again', async () => {
+  it('dispose calls the module deactivate; afterwards commands can be registered again', async () => {
     const deactivate = vi.fn();
     const module = defineExtension({
       commands: { 'a.x': () => 1 },

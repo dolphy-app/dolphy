@@ -219,7 +219,7 @@ describe('createMemoryEvents', () => {
 });
 
 describe('loadEvents', () => {
-  it('an extension with defineExtension({ events }) receives the event and writes to the test's storage and settings', async () => {
+  it('an extension with defineExtension({ events }) receives the event and writes to the test storage and settings', async () => {
     let context: ExtensionContext | null = null;
     const module = defineExtension({
       activate: (ctx) => {

@@ -36,6 +36,9 @@ export const manifestMismatch = (
   if (!sameSet(manifest.permissions, version.permissions)) {
     return 'manifest permissions differ from the catalog entry';
   }
+  if (manifest.icon !== (version.icon ?? null)) {
+    return 'manifest icon differs from the catalog entry';
+  }
   const changed = CONTRIBUTION_KEYS.find(
     (key) => !sameSet(manifest.contributes[key], entry.contributes[key] ?? []),
   );

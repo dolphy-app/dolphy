@@ -87,8 +87,35 @@ describe('downloadVersion: защитные проверки плана', () => 
     expect(calls).toEqual([]);
   });
 
-  it('больше 50 файлов: limits', async () => {
-    const files = Array.from({ length: 51 }, (_, i) => file(`f${i}.json`));
+  it('per-type ceilings: an oversized style sheet is refused before the first request', async () => {
+    await expect(
+      run(versionWith([file('assets/a.css', 'x', 256 * 1024 + 1)])),
+    ).rejects.toMatchObject({ cause: 'limits' });
+    await expect(
+      run(versionWith([file('assets/a.png', 'x', 512 * 1024 + 1)])),
+    ).rejects.toMatchObject({ cause: 'limits' });
+    expect(calls).toEqual([]);
+  });
+
+  it('paths that differ only in case are duplicates; a file named as a directory in another case clashes', async () => {
+    await expect(
+      run(versionWith([file('Main.mjs'), file('main.mjs')])),
+    ).rejects.toMatchObject({ cause: 'invalid' });
+    await expect(
+      run(versionWith([file('assets'), file('Assets/a.css')])),
+    ).rejects.toMatchObject({ cause: 'invalid' });
+    expect(calls).toEqual([]);
+  });
+
+  it('a file type outside the catalog list is refused', async () => {
+    await expect(
+      run(versionWith([file('assets/a.gif'), file('assets/B.PNG')])),
+    ).rejects.toMatchObject({ cause: 'invalid' });
+    expect(calls).toEqual([]);
+  });
+
+  it('больше 100 файлов: limits', async () => {
+    const files = Array.from({ length: 101 }, (_, i) => file(`f${i}.json`));
     await expect(run(versionWith(files))).rejects.toMatchObject({
       cause: 'limits',
     });

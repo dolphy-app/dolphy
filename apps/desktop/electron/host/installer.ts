@@ -72,10 +72,16 @@ const inspectForInstall =
       ...(appVersion !== undefined && { appVersion }),
     });
     if (!result.ok) return { ok: false, message: result.message };
-    const { id, version, permissions, ...rest } = result.extension;
+    const { id, version, permissions, icon, ...rest } = result.extension;
     return {
       ok: true,
-      manifest: { id, version, permissions, contributes: contributesOf(rest) },
+      manifest: {
+        id,
+        version,
+        permissions,
+        icon,
+        contributes: contributesOf(rest),
+      },
     };
   };
 

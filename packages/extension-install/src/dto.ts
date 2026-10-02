@@ -58,6 +58,8 @@ export const describeEntry = (
       commands: [...(entry.contributes.commands ?? [])],
       panels: [...(entry.contributes.panels ?? [])],
     },
+    icon:
+      (resolution.ok ? resolution.version : entry.versions[0])?.icon ?? null,
     installedVersion,
   };
   if (!resolution.ok) {

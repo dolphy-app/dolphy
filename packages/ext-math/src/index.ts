@@ -1,4 +1,5 @@
 import { defineMarkdownRenderer } from '@dolphy-app/extension-sdk';
+import type { ExtensionMarkdown } from '@dolphy-app/extension-sdk';
 import { liteAdaptor } from 'mathjax-full/js/adaptors/liteAdaptor.js';
 import { RegisterHTMLHandler } from 'mathjax-full/js/handlers/html.js';
 import { TeX } from 'mathjax-full/js/input/tex.js';
@@ -38,4 +39,4 @@ export const markdown = {
     wrapper.innerHTML = holder.convert(source);
     container.replaceChildren(wrapper);
   }),
-};
+} satisfies ExtensionMarkdown;

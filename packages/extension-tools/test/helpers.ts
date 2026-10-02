@@ -1,4 +1,6 @@
+import { spawn } from 'node:child_process';
 import { cp, mkdir, mkdtemp, rm, symlink } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -59,3 +61,23 @@ export const waitFor = async (
     });
   }
 };
+
+const require = createRequire(import.meta.url);
+const tscBin = path.join(
+  path.dirname(require.resolve('typescript/package.json')),
+  'bin',
+  'tsc',
+);
+
+/** `tsc --noEmit` in the project: the exit code (1 — diagnostics) and what it printed. */
+export const runTsc = (project: string) =>
+  new Promise<{ code: number | null; output: string }>((resolve, reject) => {
+    const child = spawn(process.execPath, [tscBin, '--noEmit'], {
+      cwd: project,
+    });
+    let output = '';
+    child.stdout.on('data', (chunk: Buffer) => void (output += chunk));
+    child.stderr.on('data', (chunk: Buffer) => void (output += chunk));
+    child.on('error', reject);
+    child.on('close', (code) => resolve({ code, output }));
+  });

@@ -12,7 +12,8 @@
  * - `build-no-code` — проект из одного `extension.json` собирается и проходит
  *   `validateExtension`;
  * - `build-with-code` — проект из `extension.json` и одного `src/index.ts` (блок ```ts
- *   с маркером) собирается и проходит `validateExtension`;
+ *   с маркером) собирается, проходит `validateExtension` и `tsc` с типами id,
+ *   которые сборка записала в `.dolphy/ids.d.ts`;
  * - `index` — единственный файл `index.json` проходит `parseIndex`
  *   (`@dolphy-app/extension-catalog`).
  *
@@ -25,7 +26,7 @@ import { parseIndex } from '@dolphy-app/extension-catalog';
 import { parseManifest } from '@dolphy-app/extension-host';
 import { describe, expect, it } from 'vitest';
 import { buildExtension, validateExtension } from '../src/index.ts';
-import { makeTemp } from './helpers.ts';
+import { makeTemp, runTsc } from './helpers.ts';
 
 type Mode = 'manifest' | 'build-no-code' | 'build-with-code' | 'index';
 
@@ -129,6 +130,23 @@ const writeProject = async (
   return root;
 };
 
+const TSCONFIG = `${JSON.stringify({
+  compilerOptions: {
+    target: 'ES2023',
+    lib: ['ES2023', 'DOM'],
+    module: 'ESNext',
+    moduleResolution: 'bundler',
+    types: [],
+    strict: true,
+    allowImportingTsExtensions: true,
+    verbatimModuleSyntax: true,
+    isolatedModules: true,
+    skipLibCheck: true,
+    noEmit: true,
+  },
+  include: ['src', '.dolphy/ids.d.ts'],
+})}\n`;
+
 describe('примеры разделов «Точки вклада», «Права и изоляция», «Установка и каталог» и «Как написать расширение»', () => {
   it('метки примеров совпадают с таблицей проверок', () => {
     expect([...examples.keys()].sort()).toEqual(Object.keys(EXAMPLES).sort());
@@ -172,6 +190,12 @@ describe('примеры разделов «Точки вклада», «Пра�
           ok: true,
           problems: [],
         });
+        if (withCode) {
+          // the ids written by the build must accept the example as written
+          await writeFile(path.join(root, 'tsconfig.json'), TSCONFIG);
+          const { code, output } = await runTsc(root);
+          expect(code, output).toBe(0);
+        }
       });
     });
   }

@@ -1,30 +1,8 @@
-import { spawn } from 'node:child_process';
 import { writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { buildExtension } from '../src/index.ts';
-import { copyProject } from './helpers.ts';
-
-const require = createRequire(import.meta.url);
-const tscBin = path.join(
-  path.dirname(require.resolve('typescript/package.json')),
-  'bin',
-  'tsc',
-);
-
-/** `tsc --noEmit` in the project: exit code and the diagnostics per file. */
-const tsc = (project: string) =>
-  new Promise<{ code: number | null; output: string }>((resolve, reject) => {
-    const child = spawn(process.execPath, [tscBin, '--noEmit'], {
-      cwd: project,
-    });
-    let output = '';
-    child.stdout.on('data', (chunk: Buffer) => void (output += chunk));
-    child.stderr.on('data', (chunk: Buffer) => void (output += chunk));
-    child.on('error', reject);
-    child.on('close', (code) => resolve({ code, output }));
-  });
+import { copyProject, runTsc as tsc } from './helpers.ts';
 
 /** `<line> <TS code> <message>` of the diagnostics reported for `file`. */
 const diagnosticsOf = (output: string, file: string): string[] =>

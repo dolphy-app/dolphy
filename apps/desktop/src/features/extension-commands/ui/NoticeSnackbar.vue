@@ -51,7 +51,7 @@ const open = computed({
     role="status"
     data-testid="extension-notice"
   >
-    {{ text }}
+    <span class="notice-text">{{ text }}</span>
     <template #actions>
       <v-btn variant="text" @click="open = false">
         {{ t('extensionCommands.notice.close') }}
@@ -59,3 +59,11 @@ const open = computed({
     </template>
   </v-snackbar>
 </template>
+
+<style scoped>
+/* текст расширения — данные: длинное слово переносится и не выталкивает уведомление за окно */
+.notice-text {
+  display: block;
+  overflow-wrap: anywhere;
+}
+</style>

@@ -71,14 +71,14 @@ export const createMemoryLibrary = (
   };
 };
 
-/** UTF-8 порядок байтов совпадает с порядком кодовых точек — так движок сортирует ключи. */
+/** UTF-8 byte order matches code point order — this is how the engine sorts keys. */
 const compareKeys = (a: string, b: string): number =>
   Buffer.compare(Buffer.from(a), Buffer.from(b));
 
 /**
- * Хранилище в памяти с теми же потолками и теми же ошибками, что у движка
- * (`EXTENSION_STORAGE_LIMITS`, `StorageQuotaError`): значения хранятся как
- * JSON-текст и отдаются копиями, при отказе ничего не меняется.
+ * In-memory storage with the same limits and errors as the engine
+ * (`EXTENSION_STORAGE_LIMITS`, `StorageQuotaError`): values are stored as
+ * JSON text and returned as copies; on rejection nothing changes.
  */
 export const createMemoryStorage = (): ExtensionStorage => {
   const limits = EXTENSION_STORAGE_LIMITS;
@@ -124,7 +124,7 @@ export const createMemoryStorage = (): ExtensionStorage => {
   };
 };
 
-/** Почему значение не подходит определению настройки; `null` — подходит. */
+/** Why a value does not fit the setting definition; `null` if it fits. */
 const findSettingProblem = (
   definition: SettingContribution,
   value: unknown,
@@ -161,14 +161,14 @@ const findSettingProblem = (
 
 export interface MemorySettings extends ExtensionSettings {
   /**
-   * Меняет значение, как это делает пользователь в окне: значение проверяется
-   * по определению, подписчики `onDidChange` вызываются, если оно изменилось.
-   * В отличие от хоста, сбой обработчика не проглатывается, а отклоняет промис.
+   * Changes the value as the user does in the dialog: the value is validated
+   * against the definition, and `onDidChange` subscribers are called if it changed.
+   * Unlike the host, a handler failure is not swallowed but rejects the promise.
    */
   set(id: string, value: SettingValue): Promise<void>;
 }
 
-/** Настройки в памяти по определениям из манифеста; `initial` — значения пользователя вместо `default`. */
+/** In-memory settings from manifest definitions; `initial` provides user values in place of `default`. */
 export const createMemorySettings = (
   definitions: readonly SettingContribution[],
   initial: Readonly<Record<string, SettingValue>> = {},
@@ -215,9 +215,9 @@ export const createMemorySettings = (
 
 export interface MemoryEvents extends ExtensionEvents {
   /**
-   * Отправляет событие подписанному обработчику и ждёт его. Нет подписки —
-   * событие пропускается, как в хосте. В отличие от хоста, сбой обработчика
-   * не проглатывается, а отклоняет промис, и 2 с на обработчик не отсчитываются.
+   * Sends the event to the subscribed handler and awaits it. With no subscription,
+   * the event is skipped, as in the host. Unlike the host, a handler failure
+   * is not swallowed but rejects the promise, and the 2 s handler timeout is not applied.
    */
   emit<N extends LearningEventName>(
     name: N,
@@ -226,13 +226,13 @@ export interface MemoryEvents extends ExtensionEvents {
 }
 
 export interface MemoryEventsOptions {
-  /** События из `contributes.events`: подписка на другое бросает, как в хосте. Не задано — можно любые. */
+  /** Events from `contributes.events`: subscribing to another throws, as in the host. Unset — any are allowed. */
   declared?: readonly LearningEventName[];
-  /** false — подписка бросает `PermissionError`, как у расширения без `learning.events`. По умолчанию true. */
+  /** false — subscribing throws `PermissionError`, as for an extension without `learning.events`. Defaults to true. */
   permitted?: boolean;
 }
 
-/** Подписки на события обучения в памяти: по одному обработчику на событие, как в хосте. */
+/** In-memory learning event subscriptions: one handler per event, as in the host. */
 export const createMemoryEvents = (
   options: MemoryEventsOptions = {},
 ): MemoryEvents => {
@@ -269,23 +269,23 @@ export const createMemoryEvents = (
 
 export interface MemoryCommands extends ExtensionCommands {
   /**
-   * Выполняет зарегистрированную команду так, как её выполняет хост: те же
-   * границы аргументов и результата, то же приведение результата. Незарегистрированная
-   * команда и недопустимый результат отклоняют промис. 10 с на обработчик не отсчитываются.
+   * Runs a registered command the way the host does: the same
+   * argument and result bounds, the same result normalization. An unregistered
+   * command and an invalid result reject the promise. The 10 s handler timeout is not applied.
    */
   run(id: string, args?: JsonValue): Promise<CommandOutcome>;
-  /** Зарегистрированные команды в порядке регистрации. */
+  /** Registered commands in registration order. */
   ids(): string[];
 }
 
 export interface MemoryCommandsOptions {
-  /** Команды из `contributes.commands`: регистрация другой бросает, как в хосте. Не задано — можно любые. */
+  /** Commands from `contributes.commands`: registering another throws, as in the host. Unset — any are allowed. */
   declaredCommands?: readonly string[];
-  /** Панели из `contributes.panels`: `openPanel` на другую недопустим, как в хосте. Не задано — любая. */
+  /** Panels from `contributes.panels`: `openPanel` on another is invalid, as in the host. Unset — any. */
   declaredPanels?: readonly string[];
 }
 
-/** Команды в памяти: те же правила регистрации и тот же разбор результата, что у хоста. */
+/** In-memory commands: the same registration rules and result parsing as the host. */
 export const createMemoryCommands = (
   options: MemoryCommandsOptions = {},
 ): MemoryCommands => {
@@ -334,7 +334,7 @@ export const createMemoryCommands = (
   };
 };
 
-/** Что подменяет тест в контексте расширения; по умолчанию всё в памяти и без вывода. */
+/** What a test replaces in the extension context; by default everything is in memory and silent. */
 export interface LoadOptions {
   library?: LibraryReader;
   logger?: ExtensionLogger;
@@ -432,7 +432,7 @@ export interface LoadedExerciseType {
     spec: unknown,
     options?: { exerciseId?: string },
   ): Promise<{ found: true; answer: unknown } | { found: false }>;
-  /** Деактивирует модуль расширения. */
+  /** Deactivates the extension module. */
   dispose(): Promise<void>;
 }
 
@@ -493,7 +493,7 @@ export const loadExerciseType = async (
 
 export interface LoadedGradePolicy {
   evaluate(input: GradePolicyInput): Promise<GradeValue | null>;
-  /** Деактивирует модуль расширения. */
+  /** Deactivates the extension module. */
   dispose(): Promise<void>;
 }
 
@@ -535,11 +535,11 @@ export const loadGradePolicy = async (
 };
 
 export interface LoadedEvents {
-  /** События доставляются так же, как в хосте: подписанному обработчику, по одному. См. `MemoryEvents.emit`. */
+  /** Events are delivered as in the host: to the subscribed handler, one at a time. See `MemoryEvents.emit`. */
   emit: MemoryEvents['emit'];
   storage: ExtensionStorage;
   settings: MemorySettings;
-  /** Деактивирует модуль расширения. */
+  /** Deactivates the extension module. */
   dispose(): Promise<void>;
 }
 
@@ -548,15 +548,15 @@ export interface LoadEventsOptions
     Omit<LoadOptions, 'storage' | 'settings' | 'events'>,
     MemoryEventsOptions {
   storage?: ExtensionStorage;
-  /** Определения из `contributes.settings` манифеста; значения читаются и меняются через `settings`. */
+  /** Definitions from the manifest's `contributes.settings`; values are read and changed through `settings`. */
   settings?: readonly SettingContribution[];
-  /** Значения пользователя вместо `default`. */
+  /** User values in place of `default`. */
   settingValues?: Readonly<Record<string, SettingValue>>;
 }
 
 /**
- * Активирует модуль с хранилищем, настройками и событиями в памяти и даёт тесту
- * отправлять события и менять настройки.
+ * Activates the module with in-memory storage, settings, and events, and lets the test
+ * send events and change settings.
  */
 export const loadEvents = async (
   module: ExtensionModule,
@@ -595,14 +595,14 @@ export const loadEvents = async (
 export interface LoadedCommands {
   run: MemoryCommands['run'];
   ids: MemoryCommands['ids'];
-  /** Деактивирует модуль расширения. */
+  /** Deactivates the extension module. */
   dispose(): Promise<void>;
 }
 
 export interface LoadCommandsOptions
   extends Omit<LoadOptions, 'commands'>, MemoryCommandsOptions {}
 
-/** Активирует модуль с командами в памяти и даёт тесту вызывать их как хост. */
+/** Activates the module with in-memory commands and lets the test invoke them like the host. */
 export const loadCommands = async (
   module: ExtensionModule,
   options: LoadCommandsOptions = {},
@@ -644,34 +644,34 @@ const requireDocument = (helper: string): Document => {
 const microtask = (): Promise<void> => Promise.resolve();
 
 export interface LoadViewOptions extends Partial<AnswerElementProps> {
-  /** `aria-label` хост-элемента, как его выставляет приложение. */
+  /** `aria-label` of the host element, as the app sets it. */
   label?: string;
-  /** Куда смонтировать; по умолчанию новый `div` в `document.body`. */
+  /** Where to mount; defaults to a new `div` in `document.body`. */
   container?: HTMLElement;
 }
 
 export interface LoadedView {
-  /** Custom element вида, как его создаёт приложение. */
+  /** The kind's custom element, as the app creates it. */
   readonly element: HTMLElement;
-  /** Теневой корень элемента: здесь вид рисует свой интерфейс. */
+  /** The element's shadow root: the view renders its UI here. */
   readonly root: ShadowRoot;
-  /** События `dolphy-answer-change` по порядку. */
+  /** `dolphy-answer-change` events in order. */
   readonly changes: readonly AnswerChangeDetail[];
-  /** Сколько раз вид просил отправить ответ (`dolphy-answer-submit`). */
+  /** How many times the view asked to submit the answer (`dolphy-answer-submit`). */
   readonly submissions: number;
-  /** Выставляет свойства элемента и ждёт, пока вид применит обновление. */
+  /** Sets element properties and waits for the view to apply the update. */
   update(props: Partial<AnswerElementProps>): Promise<void>;
   query<E extends Element = Element>(selector: string): E | null;
   queryAll<E extends Element = Element>(selector: string): E[];
-  /** Снимает элемент с документа; вид получает `destroy()`. */
+  /** Removes the element from the document; the view receives `destroy()`. */
   dispose(): void;
 }
 
 let viewCounter = 0;
 
 /**
- * Монтирует вид из `views[id]` в DOM-окружении тестов тем же элементом, что
- * создаёт приложение (теги выдаются тестовые, `element` из манифеста не нужен).
+ * Mounts a view from `views[id]` in the test DOM environment with the same element
+ * the app creates (test tags are issued; the manifest `element` is not needed).
  */
 export const loadView = async (
   views: Readonly<Record<string, AnswerView>>,
@@ -724,34 +724,34 @@ export const loadView = async (
 };
 
 export interface LoadPanelOptions {
-  /** Свойства, с которыми открыта панель (`openPanel(id, props)`). */
+  /** Properties the panel was opened with (`openPanel(id, props)`). */
   props?: JsonValue;
-  /** Ответ на `ctx.call`; по умолчанию вызов отклоняется. */
+  /** Reply to `ctx.call`; by default the call is rejected. */
   call?: (
     commandId: string,
     args: JsonValue | undefined,
   ) => JsonValue | undefined | Promise<JsonValue | undefined>;
-  /** Куда смонтировать; по умолчанию новый `div` в `document.body`. */
+  /** Where to mount; defaults to a new `div` in `document.body`. */
   container?: HTMLElement;
 }
 
 export interface LoadedPanel {
-  /** Контейнер, который панель получила в `mount`. */
+  /** Container the panel received in `mount`. */
   readonly container: HTMLElement;
-  /** Вызовы `ctx.call` по порядку. */
+  /** `ctx.call` invocations in order. */
   readonly calls: readonly {
     commandId: string;
     args: JsonValue | undefined;
   }[];
-  /** Прервался ли `ctx.signal` (после `dispose()`). */
+  /** Whether `ctx.signal` was aborted (after `dispose()`). */
   readonly aborted: boolean;
-  /** Отправляет панели новые свойства (`ctx.onProps`). */
+  /** Sends new properties to the panel (`ctx.onProps`). */
   setProps(props: JsonValue | undefined): void;
-  /** Закрывает рамку: прерывает `ctx.signal` и убирает контейнер. */
+  /** Closes the frame: aborts `ctx.signal` and removes the container. */
   dispose(): void;
 }
 
-/** Монтирует панель из `panels[id]` в DOM-окружении тестов с тем же контекстом, что даёт рамка. */
+/** Mounts a panel from `panels[id]` in the test DOM environment with the same context the frame provides. */
 export const loadPanel = async (
   panels: Readonly<Record<string, PanelModule<HTMLElement>>>,
   id: string,

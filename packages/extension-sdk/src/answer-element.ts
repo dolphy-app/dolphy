@@ -118,7 +118,7 @@ export const createAnswerElementClass = (
     }
   };
 
-/** Определяет custom element вида; повторный вызов с тем же тегом ничего не меняет. */
+/** Defines the kind's custom element; calling again with the same tag changes nothing. */
 export const registerAnswerView = (tag: string, view: AnswerView): void => {
   if (!ELEMENT_NAME_PATTERN.test(tag)) {
     throw new TypeError(`invalid custom element name '${tag}'`);

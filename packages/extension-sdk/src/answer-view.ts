@@ -2,16 +2,16 @@ import type { AnswerElementProps } from '@dolphy-app/extension-api';
 
 export interface AnswerViewApi {
   readonly root: ShadowRoot;
-  /** `aria-label` хост-элемента, выставленный приложением; `null`, если нет. */
+  /** `aria-label` of the host element set by the app; `null` if none. */
   readonly label: string | null;
-  /** Сообщает приложению текущий ответ: событие `dolphy-answer-change`. */
+  /** Reports the current answer to the app: the `dolphy-answer-change` event. */
   setAnswer(value: unknown, complete: boolean): void;
-  /** Просит приложение отправить ответ: событие `dolphy-answer-submit`. */
+  /** Asks the app to submit the answer: the `dolphy-answer-submit` event. */
   submit(): void;
 }
 
 export interface AnswerViewInstance {
-  /** Вызывается при изменении `view`/`value`/`disabled`/`verdict`. */
+  /** Called when `view`/`value`/`disabled`/`verdict` change. */
   update(props: AnswerElementProps): void;
   destroy?(): void;
 }
@@ -21,14 +21,14 @@ export type MountAnswerView = (
   props: AnswerElementProps,
 ) => AnswerViewInstance;
 
-/** Описание вида ввода ответа: данные без побочных эффектов, элемент регистрирует сборка. */
+/** Description of an answer input view: side-effect-free data; the build registers the element. */
 export interface AnswerView {
   readonly mount: MountAnswerView;
 }
 
 /**
- * Запись `views[<id вида задания>]` в `src/index.ts`. Ничего не регистрирует:
- * custom element с тегом из манифеста определяет браузерный файл сборки.
+ * Entry `views[<exercise kind id>]` in `src/index.ts`. Registers nothing:
+ * the custom element with the manifest tag is defined by the build's browser file.
  */
 /*#__NO_SIDE_EFFECTS__*/
 export const defineAnswerView = (mount: MountAnswerView): AnswerView => ({

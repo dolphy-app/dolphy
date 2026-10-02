@@ -8,7 +8,7 @@ export { registerAnswerView } from './answer-element.ts';
 type PanelEntry = PanelModule<HTMLElement>;
 type MarkdownEntry = MarkdownRendererModule<HTMLElement>;
 
-/** Модуль панели, который выбирает запись `panels` по `ctx.panelId` (для файла, общего нескольким панелям). */
+/** Panel module that selects the `panels` entry by `ctx.panelId` (for a file shared by several panels). */
 export const dispatchPanels = (
   panels: Readonly<Record<string, PanelEntry>>,
 ): PanelEntry => ({
@@ -21,7 +21,7 @@ export const dispatchPanels = (
   },
 });
 
-/** Модуль рендерера, который выбирает запись `markdown` по языку блока. */
+/** Renderer module that selects the `markdown` entry by block language. */
 export const dispatchMarkdown = (
   renderers: Readonly<Record<string, MarkdownEntry>>,
 ): MarkdownEntry => ({

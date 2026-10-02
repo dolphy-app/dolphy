@@ -3,6 +3,7 @@ import {
   defineExerciseType,
   defineExtension,
   type Disposable,
+  inActivate,
   type ExerciseTypeHandler,
   type ExtensionContext,
 } from '../src/index.ts';
@@ -286,5 +287,34 @@ describe('defineExtension', () => {
     const without = defineExtension({ exerciseTypes: { 'a.t': handler() } });
     await without.activate(createContext(plain));
     expect(plain).toEqual(['register a.t']);
+  });
+
+  it('skips the ids marked inActivate so activate can register them with the context', async () => {
+    const log: string[] = [];
+    const module = defineExtension({
+      exerciseTypes: { 'a.one': inActivate, 'a.two': handler() },
+      gradePolicies: { 'a.policy': inActivate },
+      events: {
+        'attempt.closed': inActivate,
+        'session.finished': () => undefined,
+      },
+      commands: { 'a.cmd': inActivate, 'a.other': () => undefined },
+      activate(ctx) {
+        ctx.registerExerciseType('a.one', handler());
+        ctx.registerGradePolicy('a.policy', () => 4);
+        ctx.events.on('attempt.closed', () => undefined);
+        ctx.commands.register('a.cmd', () => undefined);
+      },
+    });
+    await module.activate(createContext(log));
+    expect(log).toEqual([
+      'register a.two',
+      'subscribe session.finished',
+      'command a.other',
+      'register a.one',
+      'register policy a.policy',
+      'subscribe attempt.closed',
+      'command a.cmd',
+    ]);
   });
 });

@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"],
+    "lib": ["ES2023", "DOM"],
+    "paths": {
+      "@dolphy-app/extension-sdk": ["./src/index.ts"]
+    }
+  },
+  "include": ["src", "test/typed"]
+}

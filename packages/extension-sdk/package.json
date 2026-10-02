@@ -11,7 +11,7 @@
     "./testing": "./src/testing.ts"
   },
   "scripts": {
-    "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
+    "typecheck": "tsc -b tsconfig.json tsconfig.test.json && tsc -p tsconfig.typed.json",
     "test": "vitest run"
   },
   "dependencies": {

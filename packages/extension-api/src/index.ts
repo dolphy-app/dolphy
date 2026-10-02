@@ -517,30 +517,40 @@ export const normalizeCommandResult = (
     : { kind: 'openPanel', panelId: openPanel, props };
 };
 
-/** Контекст модуля панели; исполняется в рамке без доступа к данным приложения. */
-export interface PanelContext {
+/**
+ * Context of a panel module; it runs in a frame without access to the app's
+ * data. `Commands` narrows the ids `call` accepts (the SDK passes the commands
+ * declared in `extension.json`).
+ */
+export interface PanelContext<Commands extends string = string> {
   panelId: string;
-  /** Свойства, с которыми панель открыта (`openPanel(id, props)`); `undefined` — без свойств. */
+  /** Properties the panel was opened with (`openPanel(id, props)`); `undefined` — none. */
   props: JsonValue | undefined;
-  /** Прерывается, когда рамка закрывается. */
+  /** Aborted when the frame closes. */
   signal: {
     readonly aborted: boolean;
     addEventListener(type: 'abort', listener: () => void): void;
   };
   /**
-   * Вызывает объявленную команду этого расширения (в том числе `palette: false`);
-   * не чаще 20 вызовов в секунду и не более 4 одновременных. Возвращает
-   * JSON-ответ обработчика (`undefined` — ответа нет); `notify` и `openPanel`
-   * выполняет приложение. Сбой — отклонённый промис с `Error`.
+   * Calls a command this extension declares (including `palette: false`
+   * ones); at most 20 calls per second and 4 at a time. Resolves to the JSON
+   * answer of the handler (`undefined` — no answer); the app runs `notify` and
+   * `openPanel` itself. A failure is a rejected promise with an `Error`.
    */
-  call(commandId: string, args?: JsonValue): Promise<JsonValue | undefined>;
-  /** Подписка на новые свойства открытой панели; возвращает отписку. */
+  call(commandId: Commands, args?: JsonValue): Promise<JsonValue | undefined>;
+  /** Subscribes to new properties of the open panel; returns the unsubscribe function. */
   onProps(listener: (props: JsonValue | undefined) => void): () => void;
 }
 
-/** `export default` модуля панели. */
-export interface PanelModule<Container = unknown> {
-  mount(container: Container, context: PanelContext): void | Promise<void>;
+/** `export default` of a panel module. */
+export interface PanelModule<
+  Container = unknown,
+  Commands extends string = string,
+> {
+  mount(
+    container: Container,
+    context: PanelContext<Commands>,
+  ): void | Promise<void>;
 }
 
 export const DEFAULT_MAIN = './main.mjs';
@@ -663,46 +673,53 @@ export interface ExtensionStorage {
   keys(): Promise<string[]>;
 }
 
-/** Изменение значения настройки: пользователь, «Сбросить» или «Очистить данные». */
-export interface SettingChange {
-  id: string;
-  /** Действующее значение. */
-  value: SettingValue;
-}
+/** Setting values of an extension by setting id. */
+export type SettingValues = Record<string, SettingValue>;
 
-/** Настройки расширения (`contributes.settings`). */
-export interface ExtensionSettings {
-  /** Текущее значение или `default`; `id`, не объявленный в манифесте, бросает. */
-  get<T extends SettingValue = SettingValue>(id: string): T;
-  /** Обработчик вызывается после изменения, без перезапуска расширения; сбой обработчика только логируется. */
-  onDidChange(handler: (change: SettingChange) => void): Disposable;
+/**
+ * A change of a setting value: by the user, "Reset" or "Clear data". With
+ * known `S` it is a union over the setting ids, so `id` narrows `value`.
+ */
+export type SettingChange<S extends SettingValues = SettingValues> = {
+  [K in keyof S & string]: {
+    id: K;
+    /** The effective value. */
+    value: S[K];
+  };
+}[keyof S & string];
+
+/** Settings of the extension (`contributes.settings`); `S` maps declared setting ids to value types. */
+export interface ExtensionSettings<S extends SettingValues = SettingValues> {
+  /** The current value or the `default`; an `id` the manifest does not declare throws. */
+  get<K extends keyof S & string>(id: K): S[K];
+  /** The handler runs after a change, without restarting the extension; a handler failure is only logged. */
+  onDidChange(handler: (change: SettingChange<S>) => void): Disposable;
 }
 
 export type LearningEventHandler<N extends LearningEventName> = (
   payload: LearningEventPayloads[N],
 ) => void | Promise<void>;
 
-/** События обучения; нужны разрешение `learning.events` и объявление события в `contributes.events`. */
-export interface ExtensionEvents {
+/** Learning events; need the `learning.events` permission and the event declared in `contributes.events`. `N` narrows the event names. */
+export interface ExtensionEvents<
+  N extends LearningEventName = LearningEventName,
+> {
   /**
-   * Один обработчик на событие. Доставка асинхронная, по порядку, не более
-   * одного раза; на обработчик — 2 с; сбой только логируется.
+   * One handler per event. Delivery is asynchronous, in order, at most once;
+   * 2 s per handler; a failure is only logged.
    */
-  on<N extends LearningEventName>(
-    name: N,
-    handler: LearningEventHandler<N>,
-  ): Disposable;
+  on<E extends N>(name: E, handler: LearningEventHandler<E>): Disposable;
 }
 
-/** Команды расширения (`contributes.commands`). */
-export interface ExtensionCommands {
+/** Commands of the extension (`contributes.commands`); `Id` narrows the command ids. */
+export interface ExtensionCommands<Id extends string = string> {
   /**
-   * `id` обязан быть объявлен в `commands` манифеста этого расширения, иначе
-   * бросает; повторная регистрация бросает. Обработчик выполняется не дольше
-   * `EXTENSION_COMMAND_LIMITS.handlerMs`; сбой и превышение бюджета уходят
-   * вызывающему ошибкой.
+   * `id` must be declared in the `commands` of this extension's manifest,
+   * otherwise it throws; registering twice throws. The handler runs for at
+   * most `EXTENSION_COMMAND_LIMITS.handlerMs`; a failure or an exceeded
+   * budget reaches the caller as an error.
    */
-  register(id: string, handler: CommandHandler): Disposable;
+  register(id: Id, handler: CommandHandler): Disposable;
 }
 
 export interface Disposable {
@@ -717,18 +734,42 @@ export interface ExtensionLogger {
   error(fields: object, message?: string): void;
 }
 
-export interface ExtensionContext {
+/**
+ * The ids an extension declares in `extension.json`, by kind. The defaults are
+ * plain strings; the SDK narrows them to the declared ids (see `ExtensionIds`
+ * in `@dolphy-app/extension-sdk`).
+ */
+export interface ExtensionIdSet {
+  exerciseTypes: string;
+  gradePolicies: string;
+  commands: string;
+  events: LearningEventName;
+  panels: string;
+  /** Languages of `contributes.markdownRenderers`. */
+  markdownLanguages: string;
+  /** Setting id → type of its value. */
+  settings: SettingValues;
+}
+
+/** `Ids` narrows what the context accepts to the ids the manifest declares. */
+export interface ExtensionContext<Ids extends ExtensionIdSet = ExtensionIdSet> {
   readonly extensionId: string;
   readonly logger: ExtensionLogger;
   readonly library: LibraryReader;
   readonly storage: ExtensionStorage;
-  readonly settings: ExtensionSettings;
-  readonly events: ExtensionEvents;
-  readonly commands: ExtensionCommands;
-  /** `type` обязан быть объявлен в манифесте этого расширения, иначе бросает. */
-  registerExerciseType(type: string, handler: ExerciseTypeHandler): Disposable;
-  /** `id` обязан быть объявлен в `gradePolicies` манифеста этого расширения, иначе бросает. */
-  registerGradePolicy(id: string, handler: GradePolicyHandler): Disposable;
+  readonly settings: ExtensionSettings<Ids['settings']>;
+  readonly events: ExtensionEvents<Ids['events']>;
+  readonly commands: ExtensionCommands<Ids['commands']>;
+  /** `type` must be declared in the manifest of this extension, otherwise it throws. */
+  registerExerciseType(
+    type: Ids['exerciseTypes'],
+    handler: ExerciseTypeHandler,
+  ): Disposable;
+  /** `id` must be declared in `gradePolicies` of this extension's manifest, otherwise it throws. */
+  registerGradePolicy(
+    id: Ids['gradePolicies'],
+    handler: GradePolicyHandler,
+  ): Disposable;
 }
 
 export interface ExtensionModule {

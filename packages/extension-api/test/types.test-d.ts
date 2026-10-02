@@ -5,9 +5,12 @@ import type {
   GradeResult,
   JsonValue,
   LearningEventHandler,
+  LearningEventName,
   LearningEventPayloads,
+  PanelContext,
   PanelModule,
   SettingContribution,
+  SettingValue,
 } from '../src/index.ts';
 
 describe('extension-api types', () => {
@@ -87,5 +90,76 @@ describe('extension-api types', () => {
       },
     };
     expectTypeOf(module.mount).toBeFunction();
+  });
+
+  describe('narrowed ids', () => {
+    interface Ids {
+      exerciseTypes: 'a.type';
+      gradePolicies: 'a.policy';
+      commands: 'a.run' | 'a.stop';
+      events: 'attempt.closed';
+      panels: 'a.panel';
+      markdownLanguages: 'a';
+      settings: { 'a.goal': number; 'a.mode': 'fast' | 'slow' };
+    }
+    type Narrow = ExtensionContext<Ids>;
+
+    it('a context without parameters accepts any id, as the engine and host use it', () => {
+      expectTypeOf<ExtensionContext['commands']['register']>()
+        .parameter(0)
+        .toEqualTypeOf<string>();
+      expectTypeOf<
+        ExtensionContext['settings']['get']
+      >().returns.toEqualTypeOf<SettingValue>();
+      expectTypeOf<ExtensionContext['registerExerciseType']>()
+        .parameter(0)
+        .toEqualTypeOf<string>();
+      expectTypeOf<ExtensionContext['events']['on']>()
+        .parameter(0)
+        .toEqualTypeOf<LearningEventName>();
+    });
+
+    it('settings.get returns the declared type of the setting', () => {
+      const settings: Narrow['settings'] = {
+        get: () => {
+          throw new Error('unused');
+        },
+        onDidChange: () => ({ dispose: () => undefined }),
+      };
+      expectTypeOf(settings.get('a.goal')).toEqualTypeOf<number>();
+      expectTypeOf(settings.get('a.mode')).toEqualTypeOf<'fast' | 'slow'>();
+      // @ts-expect-error not a declared setting
+      settings.get('a.other');
+    });
+
+    it('onDidChange hands over a change that narrows value by id', () => {
+      type Handler = Parameters<Narrow['settings']['onDidChange']>[0];
+      expectTypeOf<Parameters<Handler>[0]>().toEqualTypeOf<
+        | { id: 'a.goal'; value: number }
+        | { id: 'a.mode'; value: 'fast' | 'slow' }
+      >();
+    });
+
+    it('commands, events and registrations take the declared ids only', () => {
+      expectTypeOf<Narrow['commands']['register']>()
+        .parameter(0)
+        .toEqualTypeOf<'a.run' | 'a.stop'>();
+      expectTypeOf<Narrow['events']['on']>()
+        .parameter(0)
+        .toEqualTypeOf<'attempt.closed'>();
+      expectTypeOf<Narrow['registerExerciseType']>()
+        .parameter(0)
+        .toEqualTypeOf<'a.type'>();
+      expectTypeOf<Narrow['registerGradePolicy']>()
+        .parameter(0)
+        .toEqualTypeOf<'a.policy'>();
+    });
+
+    it('a panel context calls the declared commands only', () => {
+      expectTypeOf<PanelContext<'a.run'>['call']>()
+        .parameter(0)
+        .toEqualTypeOf<'a.run'>();
+      expectTypeOf<PanelContext['call']>().parameter(0).toEqualTypeOf<string>();
+    });
   });
 });

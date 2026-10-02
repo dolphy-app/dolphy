@@ -11,6 +11,7 @@ An extension's code is one file, `src/index.ts`, with named exports. The build
 ```ts
 // src/index.ts
 import { defineAnswerView, defineExtension } from '@dolphy-app/extension-sdk';
+import type { ExtensionViews } from '@dolphy-app/extension-sdk';
 
 // code of the extension host process (main.mjs)
 export const host = defineExtension({
@@ -33,7 +34,7 @@ export const views = {
     api.root.append(input);
     return { update: (next) => void (input.disabled = next.disabled) };
   }),
-};
+} satisfies ExtensionViews;
 ```
 
 ```ts
@@ -71,10 +72,60 @@ generates, not by your code.
   events").
 - The keys of `views`, `panels` and `markdown` must be exactly the exercise
   types, panels and languages the manifest declares; the build reports a
-  missing or extra key.
+  missing or extra key, and `satisfies ExtensionViews` (`ExtensionPanels`,
+  `ExtensionMarkdown`) makes the compiler report it first (see "Typed ids").
 
 Themes need no code: they are data in `extension.json`. Details on all
 contribution points are in `docs/design/extensions.md`, "Точки вклада".
+
+## Typed ids
+
+`dolphy-ext types` (and every `dolphy-ext build`, also each `--watch` rebuild
+after `extension.json` changes) reads `extension.json` and writes
+`.dolphy/ids.d.ts`. It augments `ExtensionIds` of this package, so the ids the
+manifest declares become types. No author code is run. Add the file to
+`tsconfig.json` (`"include": ["src", ".dolphy/ids.d.ts"]` — a bare `.dolphy`
+entry is skipped because it is a hidden directory) and keep `.dolphy` out of
+git; the project template does both.
+
+```ts
+// extension.json declares: exercise type acme.echo, commands acme.a and
+// acme.b, the event attempt.closed, setting acme.goal (number)
+import { defineExtension, inActivate } from '@dolphy-app/extension-sdk';
+
+export const host = defineExtension({
+  // each record names exactly the declared ids: a missing or an extra key does
+  // not compile
+  exerciseTypes: { 'acme.echo': echo },
+  events: { 'attempt.closed': ({ grade }) => void grade },
+  // `inActivate` — "this id is registered in activate, with ctx"
+  commands: { 'acme.a': () => 'a', 'acme.b': inActivate },
+  activate(ctx) {
+    ctx.settings.get('acme.goal'); // number
+    ctx.settings.get('acme.nope'); // error: not declared
+    ctx.commands.register('acme.b', () => ctx.settings.get('acme.goal'));
+  },
+});
+```
+
+- `defineExtension({ exerciseTypes, gradePolicies, events, commands })` — a
+  record is required when the manifest declares ids of its kind (and must be
+  left out when it declares none), and it names every declared id exactly once.
+  A handler that needs `ctx` is written in `activate`; its id gets the value
+  `inActivate` in the record. The host still warns after activation about a
+  declared id nobody registered.
+- `ctx.settings.get(id)` returns the type of the setting: `boolean`, `string`,
+  `number`, or the union of the option values of an `enum`.
+  `ctx.settings.onDidChange` hands over `{ id, value }` that narrows `value` by
+  `id`. `ctx.commands.register`, `ctx.events.on` (the handler payload follows
+  the event name), `ctx.registerExerciseType` and `ctx.registerGradePolicy`
+  accept the declared ids only; so do `ctx.call` in a panel and `openPanel`.
+- Write `export const views = { … } satisfies ExtensionViews` (likewise
+  `panels` with `ExtensionPanels` and `markdown` with `ExtensionMarkdown`):
+  the keys must be exactly the declared exercise types, panels and languages.
+- Without `.dolphy/ids.d.ts` (no generated file) every id is a plain `string`,
+  `ctx.settings.get` returns `boolean | string | number`, and the records are
+  optional and open.
 
 ## Testing helpers
 
@@ -151,7 +202,7 @@ export const host = defineExtension({
       const day = new Date(at).toISOString().slice(0, 10);
       const done = (await ctx.storage.get<number>(day)) ?? 0;
       await ctx.storage.set(day, done + 1);
-      if (done + 1 === ctx.settings.get<number>('acme.streak.goal')) {
+      if (done + 1 === ctx.settings.get('acme.streak.goal')) {
         ctx.logger.info({ day }, 'daily goal reached');
       }
     },
@@ -165,7 +216,7 @@ export const host = defineExtension({
   (`EXTENSION_STORAGE_LIMITS`): key — 128 characters, value — 64 KiB, 256 keys,
   1 MiB in total. Exceeding one throws `StorageQuotaError` (`kind`, `limit`),
   nothing is written. Works in the restricted process too.
-- `ctx.settings` — `get<T>(id)` (synchronous: the user's value or the
+- `ctx.settings` — `get(id)` (synchronous: the user's value or the
   `default`; an `id` outside the manifest throws) and `onDidChange(handler)`: a
   change in "Settings → Extensions" reaches the running extension without a
   restart.
@@ -202,6 +253,7 @@ import {
   defineExtensionPanel,
   notify,
   openPanel,
+  type ExtensionPanels,
 } from '@dolphy-app/extension-sdk';
 
 export const host = defineExtension({
@@ -218,7 +270,7 @@ export const panels = {
       void ctx.call('acme.tools.ping'); // any declared command, palette: false included
     },
   }),
-};
+} satisfies ExtensionPanels;
 ```
 
 ```ts

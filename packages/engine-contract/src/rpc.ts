@@ -58,6 +58,7 @@ export const RPC_METHODS = {
   'extensions.resetSettingValues': { idempotent: true },
   'extensions.dataUsage': { idempotent: true },
   'extensions.clearData': { idempotent: true },
+  'extensions.invokeCommand': { idempotent: false },
   'curation.blacklist.list': { idempotent: true },
   'curation.blacklist.has': { idempotent: true },
   'curation.blacklist.add': { idempotent: false },

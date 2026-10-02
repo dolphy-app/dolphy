@@ -11,7 +11,7 @@ export interface SqlStatement<Row = SqlRow> {
 }
 
 /**
- * Узкий синхронный порт SQL-драйвера (`facts-stack.md` §2): хранилище журнала
+ * Узкий синхронный порт SQL-драйвера: хранилище журнала
  * не знает про better-sqlite3, и замена на `node:sqlite` затрагивает только
  * адаптер. Строки — обычные объекты, epoch-ms и `seq` — `INTEGER` ≤ 2^53.
  */

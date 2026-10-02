@@ -8,7 +8,7 @@
 | ------------------------------- | --------------------------------------------------------------------------- |
 | `apps/desktop`                  | Electron + Vue 3 + Vite + Vuetify; движок работает в `utilityProcess`       |
 | `packages/`                     | пакеты `@dolphy-app/*` слоя бизнес-логики и сложные UI-компоненты (`@dolphy-app/ui`)      |
-| `docs/`, `engine-ts/`, `spike/` | документы системного дизайна, исследования и отчёты спайков; кода в них нет |
+| `docs/`, `engine-ts/`           | документы системного дизайна, исследования и отчёты спайков; кода в них нет |
 | `vendor/metaskills`, `.agents/` | скиллы для агентов (git submodule и каталоги), см. «Скиллы»                 |
 
 Документы написаны по-русски, идентификаторы и код — английские. Пометки в них: [ИЗМЕРЕНО] — получено прогоном, [ВЫВОД] — умозаключение, [ОЦЕНКА] — расчёт, [НЕ ПОДТВЕРЖДЕНО] — не проверено. С чего начать чтение дизайна: `engine-ts/README.md`.
@@ -18,14 +18,12 @@
 | Путь                                                                                                   | Что                                                                                                                                                                                                                                                 |
 | ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `docs/design/platform-synthesis.md`                                                                    | синтез исследований, требования платформы F1–F7 (§4), архитектура                                                                                                                                                                                   |
-| `docs/design/mvp-trane.md`, `mvp-trane-vs-knowledge-spaces.md`, `build-vs-port.md`, `fsrs-in-trane.md` | варианты построения ядра (Trane как движок MVP, сравнение с пространствами знаний, порт против своего ядра, FSRS в Trane)                                                                                                                           |
-| `docs/research/`                                                                                       | исследования: Trane (обзор, аудит исходников, спайк), Math Academy, Vanderbilt Knowledge Spaces, RemNote, Mochi, FSRS против PowerLaw, FSRS в Trane (скорер, усечение истории, интеграция), процессы спеков и ADR в индустрии (`spec-workflows.md`) |
+| `docs/design/mvp-trane.md`, `mvp-trane-vs-knowledge-spaces.md`, `build-vs-port.md` | варианты построения ядра (Trane как движок MVP, сравнение с пространствами знаний, порт против своего ядра) |
+| `docs/research/`                                                                                       | исследования: Trane (обзор, аудит исходников, спайк), Math Academy, Vanderbilt Knowledge Spaces, RemNote, Mochi, FSRS против PowerLaw, процессы спеков и ADR в индустрии (`spec-workflows.md`) |
 | `engine-ts/README.md`                                                                                  | порядок чтения, старт M0, открытые вопросы, ловушки                                                                                                                                                                                                 |
 | `engine-ts/design/`                                                                                    | главный дизайн v1 (`engine-ts.md`), API-контракт, стратегия тестов, схема (`.html`)                                                                                                                                                                 |
-| `engine-ts/research/`                                                                                  | 4 спеки поведения Trane, 8 отчётов спайков (FSRS, PowerLaw, загрузчик, F1–F7), `facts-stack.md`                                                                                                                                                     |
-| `spike/REPORT-audit.md`, `spike/REPORT-spike.md`                                                       | отчёты первого раунда спайков Trane; `REPORT-audit.md` отличается от `docs/research/trane-source-audit.md` (48 КБ против 39.8 КБ), `REPORT-spike.md` — копия `docs/research/trane-spike.md` с другой пометкой о статусе                             |
 
-Пути внутри документов записаны от корня исходного проекта и в репозитории сохранены как есть (`docs/…`, `engine-ts/design/…`, `engine-ts/research/…`, `spike/REPORT-*.md`).
+Пути внутри документов записаны от корня исходного проекта и в репозитории сохранены как есть (`docs/…`, `engine-ts/design/…`). Удалены и остались только в истории git (`git show 75d8d08:<путь>`): `engine-ts/research/` (4 спеки поведения Trane, 8 отчётов спайков, `facts-stack.md`), `docs/research/fsrs-in-trane-{scorer,truncation,integration}.md`, `docs/design/fsrs-in-trane.md`. Ссылки на них в документах и ADR сохранены как цитаты.
 
 ## Артефакты вне репозитория
 

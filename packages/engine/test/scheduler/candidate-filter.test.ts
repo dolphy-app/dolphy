@@ -1,6 +1,6 @@
 /**
  * Порт модульных тестов `scheduler/filter.rs` (mod test, :343-808, 18
- * тестов) и пробелов спеки `spec-scoring-filter.md` §5.9: `selectWeighted`
+ * тестов) и пробелов спеки поведения Trane (§5.9): `selectWeighted`
  * (без `Rng` при n ≥ len, статистика на примере §5.5), `createCandidateFilter`
  * целиком (порядок окон, highly → mastered, добор 3/4 с лимитами 5·base и
  * 3·base), NaN-скорость, квоты `f32`, значения `candidateCost` примера §5.5.

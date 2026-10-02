@@ -3,7 +3,7 @@
  * `(index, options) → Finding[]`. Находка называет юнит и (необязательно)
  * поле манифеста; `locateFinding` превращает её в `path:line` по карте
  * источников сканера, файлы заново не читаются.
- * Источник: spike/compiler/src/checks.ts, каталог кодов — report-compiler.md §3.1.
+ * Источник: spike/compiler/src/checks.ts.
  */
 import type { Diagnostic, DiagnosticCode } from '@dolphy-app/engine-contract';
 import type { ExerciseTypes } from '../ports/exercise-types.ts';

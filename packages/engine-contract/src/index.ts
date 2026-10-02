@@ -58,7 +58,7 @@ export interface EngineErrorDto {
 }
 
 export type Severity = 'error' | 'warning' | 'info';
-/** Каталог компилятора: 36 кодов `report-compiler.md` §3.1 + `W_GRANULARITY`, `E_REFERENCE_FAILS` (engine-ts.md §1.1, F2) + `W_ORPHAN_EVENTS` (его выдаёт движок при открытии, не компилятор). Префикс = серьёзность по умолчанию. */
+/** Каталог компилятора: 36 кодов + `W_GRANULARITY`, `E_REFERENCE_FAILS` (engine-ts.md §1.1, F2) + `W_ORPHAN_EVENTS` (его выдаёт движок при открытии, не компилятор). Префикс = серьёзность по умолчанию. */
 export type DiagnosticCode =
   // разбор и схема
   | 'E_IO'

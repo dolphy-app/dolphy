@@ -13,7 +13,7 @@ const CLASS_NAMES: readonly TopicClass[] = ['unknown', 'known', 'uncertain'];
 export const topicClassName = (topicClass: number): TopicClass =>
   CLASS_NAMES[topicClass] as TopicClass;
 
-/** Параметры диагностики (report-diagnostic.md §1; в продукции — только V3 с жёстким замыканием). */
+/** Параметры диагностики (в продукции — только V3 с жёстким замыканием). */
 export interface DiagnosticConfig {
   /** Максимум проб. */
   readonly budget: number;

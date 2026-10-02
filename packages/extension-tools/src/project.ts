@@ -125,6 +125,7 @@ export const loadProject = async (rootDir: string): Promise<Project> => {
   const renderers = new Set([
     ...manifest.contributes.exerciseTypes.map((type) => type.renderer),
     ...manifest.contributes.markdownRenderers.map((entry) => entry.renderer),
+    ...manifest.contributes.panels.map((panel) => panel.module),
   ]);
   const browserEntries = [...renderers].map(stripDot).map((output) => ({
     source: entrySource(output),

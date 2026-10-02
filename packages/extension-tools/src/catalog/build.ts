@@ -234,6 +234,8 @@ const entryOf = (
   );
   const settings = manifest.contributes.settings.map((setting) => setting.id);
   const events = manifest.contributes.events.map((item) => item.event);
+  const commands = manifest.contributes.commands.map(({ id }) => id);
+  const panels = manifest.contributes.panels.map(({ id }) => id);
   return {
     id: staged.id,
     name: manifest.name ?? '',
@@ -252,6 +254,8 @@ const entryOf = (
       ),
       ...(settings.length > 0 ? { settings } : {}),
       ...(events.length > 0 ? { events } : {}),
+      ...(commands.length > 0 ? { commands } : {}),
+      ...(panels.length > 0 ? { panels } : {}),
     },
     versions: newestFirst([record, ...others]),
   };

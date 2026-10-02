@@ -387,6 +387,11 @@ export const schemas = {
   'extensions.resetSettingValues': z.tuple([extensionId]),
   'extensions.dataUsage': z.tuple([extensionId]),
   'extensions.clearData': z.tuple([extensionId]),
+  'extensions.invokeCommand': z.tuple([
+    extensionId,
+    str.min(1).max(128),
+    optional(jsonValue),
+  ]),
   'curation.blacklist.list': z.tuple([optional(pageRequest)]),
   'curation.blacklist.has': z.tuple([unitId]),
   'curation.blacklist.add': z.tuple([unitId]),

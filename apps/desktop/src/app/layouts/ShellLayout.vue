@@ -95,6 +95,7 @@ const bottomItems = computed(() =>
       >
         <v-list-item
           tabindex="0"
+          role="button"
           prepend-icon="mdi-console-line"
           :title="t('nav.commands')"
           aria-keyshortcuts="Control+K Meta+K"

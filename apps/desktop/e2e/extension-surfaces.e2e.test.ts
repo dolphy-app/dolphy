@@ -118,6 +118,8 @@ describe('палитра команд (R4, R8)', () => {
     expect(await commands.palette.getByRole('listbox').getAttribute('id')).toBe(
       listId,
     );
+    // одна роль combobox — на поле ввода: вложенный combobox без aria-expanded нарушает ARIA
+    await expectCount(commands.palette.locator('[role="combobox"]'), 1);
     // команда с palette:false в палитре не показывается
     expect(await commands.optionTitles()).toEqual([
       'Открыть панель приветствий',
@@ -176,6 +178,13 @@ describe('палитра команд (R4, R8)', () => {
 
   it('кнопка «Команды» в боковом меню открывает ту же палитру; Ctrl+K работает и в учебной сессии', async () => {
     const { commands, client } = await prepare();
+    // пункт — кнопка, а не элемент списка вне списка
+    await expectCount(
+      client.page
+        .getByRole('navigation', { name: 'Дополнительно' })
+        .getByRole('button', { name: 'Команды', exact: true }),
+      1,
+    );
     await commands.openPaletteFromMenu();
     expect((await commands.optionTitles()).length).toBe(4);
     await commands.combobox.press('Escape');
@@ -198,6 +207,40 @@ describe('палитра команд (R4, R8)', () => {
     await client.page
       .getByRole('button', { name: 'Показать ответ', exact: true })
       .waitFor();
+  });
+
+  it('на низком окне прокручивается только список: поле поиска и верх палитры не сдвигаются', async () => {
+    const { commands, client } = await prepare();
+    const cdp = await client.page.context().newCDPSession(client.page);
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 900,
+      height: 340,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+    await commands.openPalette();
+    const top = async () => (await commands.combobox.boundingBox())?.y;
+    // переход диалога закончился: положение поля больше не меняется
+    await expect
+      .poll(async () => {
+        const first = await top();
+        await client.page.waitForTimeout(150);
+        return (await top()) === first;
+      })
+      .toBe(true);
+    const before = await top();
+    // список выше окна: он прокручивается, поле поиска остаётся на месте
+    for (let i = 0; i < 3; i++) await commands.combobox.press('ArrowDown');
+    expect(await top()).toBe(before);
+    const last = commands.options.nth(3);
+    const list = await commands.palette.locator('.list-wrap').boundingBox();
+    const row = await last.boundingBox();
+    expect(row!.y + row!.height).toBeLessThanOrEqual(list!.y + list!.height + 1);
+    // фильтр меняет число строк, но не верх палитры
+    await commands.search('сломаться');
+    expect(await top()).toBe(before);
+    await commands.search('нет такой команды');
+    expect(await top()).toBe(before);
   });
 
   it('ошибка команды — понятное сообщение с текстом расширения; пока команда выполняется, повторный запуск отключён; таймаут — отдельное сообщение', async () => {

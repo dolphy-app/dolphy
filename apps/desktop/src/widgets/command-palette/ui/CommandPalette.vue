@@ -66,6 +66,12 @@ watch(activeOption, async (id) => {
   if (id !== undefined)
     document.getElementById(id)?.scrollIntoView?.({ block: 'nearest' });
 });
+// `role` у v-text-field попадает и на .v-field, и на input: вложенный combobox без aria-expanded
+// нарушает ARIA, поэтому роль ставится только на input (остальные aria-* уже идут на него атрибутами)
+const vComboboxInput = {
+  mounted: (el: HTMLElement) =>
+    el.querySelector('input')?.setAttribute('role', 'combobox'),
+};
 </script>
 
 <template>
@@ -73,6 +79,7 @@ watch(activeOption, async (id) => {
     :model-value="palette.isOpen.value"
     max-width="640"
     scrollable
+    content-class="command-palette-content"
     :aria-label="t('commandPalette.title')"
     @update:model-value="
       (open: boolean) => (open ? palette.open() : palette.close())
@@ -80,8 +87,9 @@ watch(activeOption, async (id) => {
     @after-leave="restoreFocus"
   >
     <v-card class="palette" data-testid="command-palette">
-      <v-card-text class="pb-2">
+      <v-card-text class="search pb-2">
         <v-text-field
+          v-combobox-input
           v-model="palette.query.value"
           autofocus
           hide-details
@@ -91,7 +99,7 @@ watch(activeOption, async (id) => {
           prepend-inner-icon="mdi-magnify"
           :label="t('commandPalette.label')"
           :placeholder="t('commandPalette.placeholder')"
-          role="combobox"
+          aria-haspopup="listbox"
           aria-expanded="true"
           aria-autocomplete="list"
           :aria-controls="LIST_ID"
@@ -174,6 +182,11 @@ watch(activeOption, async (id) => {
   max-height: min(70vh, 32rem);
 }
 
+/* поле поиска не сжимается и не прокручивается: прокручивается только список */
+.search {
+  flex: none;
+}
+
 .list-wrap {
   overflow-y: auto;
 }
@@ -209,6 +222,13 @@ watch(activeOption, async (id) => {
   min-width: 0;
 }
 
+/* названия и описания — данные расширения: длинное слово переносится, а не раздвигает строку */
+.title,
+.description,
+.caption {
+  overflow-wrap: anywhere;
+}
+
 .title {
   font-weight: 500;
 }
@@ -219,16 +239,31 @@ watch(activeOption, async (id) => {
   color: rgb(var(--v-theme-on-surface-variant));
 }
 
+/* категория и подсказка клавиши не вытесняют название: не больше половины строки */
 .meta {
   display: flex;
   align-items: center;
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 50%;
   gap: 0.5rem;
 }
 
+.meta :deep(.v-chip) {
+  min-width: 0;
+}
+
+.meta :deep(.v-chip__content) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .keybinding {
+  flex: none;
   font-size: 0.75rem;
   color: rgb(var(--v-theme-on-surface-variant));
+  white-space: nowrap;
 }
 
 .visually-hidden {
@@ -238,5 +273,13 @@ watch(activeOption, async (id) => {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+</style>
+
+<!-- содержимое диалога вне компонента: верх палитры фиксирован, список растёт вниз, поле поиска не прыгает -->
+<style>
+.v-dialog > .v-overlay__content.command-palette-content {
+  align-self: flex-start;
+  margin-top: 12vh;
 }
 </style>

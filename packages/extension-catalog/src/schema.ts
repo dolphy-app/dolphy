@@ -135,6 +135,8 @@ const contributesSchema = z.strictObject({
   gradePolicies: z.array(z.string()),
   settings: z.array(z.string()).optional(),
   events: z.array(z.string()).optional(),
+  commands: z.array(z.string()).optional(),
+  panels: z.array(z.string()).optional(),
 });
 
 const descendingUnique = (

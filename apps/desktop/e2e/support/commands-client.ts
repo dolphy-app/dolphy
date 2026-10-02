@@ -13,7 +13,6 @@ const RU = {
   find: 'Найти команду',
   list: 'Команды',
   nav: 'Панели расширений',
-  navPalette: 'Команды',
   back: 'Назад',
 } as const;
 
@@ -39,6 +38,18 @@ export class CommandsClient {
     return this.palette.getByRole('option');
   }
 
+  /** Строки команд расширений: у них есть подпись с id расширения, у команд приложения — нет. */
+  get extensionOptions(): Locator {
+    return this.options.filter({ has: this.page.locator('.caption') });
+  }
+
+  /** Названия команд расширений (без команд приложения, которые есть всегда). */
+  async extensionTitles(): Promise<string[]> {
+    return (await this.extensionOptions.locator('.title').allInnerTexts()).map(
+      (text) => text.trim(),
+    );
+  }
+
   option(title: string): Locator {
     return this.options.filter({ hasText: title });
   }
@@ -46,14 +57,6 @@ export class CommandsClient {
   /** Ctrl+K на текущей странице; ждёт поле поиска в фокусе. */
   async openPalette() {
     await this.page.keyboard.press('Control+K');
-    await this.combobox.waitFor({ timeout: 15_000 });
-  }
-
-  async openPaletteFromMenu() {
-    await this.page
-      .getByRole('navigation', { name: 'Дополнительно' })
-      .getByText(RU.navPalette, { exact: true })
-      .click();
     await this.combobox.waitFor({ timeout: 15_000 });
   }
 

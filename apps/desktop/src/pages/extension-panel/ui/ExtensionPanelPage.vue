@@ -10,6 +10,7 @@ import {
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { panelKey, useExtensionCommands } from '@/features/extension-commands';
+import { useCommandPalette } from '@/widgets/command-palette';
 import { useContributions } from '@/shared/api/engine';
 import { ROUTE } from '@/shared/config/routes.ts';
 import { frameUrlOf } from '@/shared/lib/frame-bridge.ts';
@@ -21,7 +22,8 @@ const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const contributions = useContributions();
-const { runner, palette, panelProps } = useExtensionCommands();
+const { runner, panelProps } = useExtensionCommands();
+const palette = useCommandPalette();
 
 const extensionId = computed(() => String(route.params['extensionId']));
 const panelId = computed(() => String(route.params['panelId']));

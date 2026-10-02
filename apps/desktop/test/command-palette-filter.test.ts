@@ -1,44 +1,62 @@
 import { describe, expect, it } from 'vitest';
-import type { CommandContributionDto } from '@dolphy-app/engine-contract';
-import {
-  commandKey,
-  filterCommands,
-} from '@/features/extension-commands/lib/filter.ts';
+import type { Command } from '@/shared/lib/command-registry.ts';
+import { filterCommands } from '@/widgets/command-palette/lib/filter.ts';
 
-const command = (
-  id: string,
-  override: Partial<CommandContributionDto> = {},
-): CommandContributionDto => ({
-  id,
-  extensionId: 'acme.streak',
-  title: id,
-  description: null,
-  category: null,
-  keybinding: null,
-  palette: true,
-  ...override,
-});
+interface Spec {
+  id: string;
+  extensionId?: string;
+  title?: string;
+  category?: string;
+  enabled?: boolean;
+}
+
+/** Ключ строки — `<extensionId>:<id>`, подпись — id расширения, как у команды расширения. */
+const command = (id: string, override: Omit<Spec, 'id'> = {}): Command => {
+  const extensionId = override.extensionId ?? 'acme.streak';
+  return {
+    key: `${extensionId}:${id}`,
+    source: 'extension',
+    title: override.title ?? id,
+    category: override.category,
+    description: undefined,
+    caption: extensionId,
+    keybinding: undefined,
+    checked: undefined,
+    enabled: override.enabled ?? true,
+    run: () => undefined,
+  };
+};
 
 const keys = (list: ReturnType<typeof filterCommands>) =>
   list.map(({ key }) => key);
 
 describe('filterCommands', () => {
-  it('ключ строки — расширение и id команды', () => {
-    expect(commandKey(command('a.b', { extensionId: 'x.y' }))).toBe('x.y:a.b');
+  it('команды приложения без подписи находятся по названию и категории', () => {
+    const app: Command = {
+      ...command('go'),
+      key: 'app:go:courses',
+      source: 'app',
+      title: 'Перейти: Курсы',
+      category: 'Переход',
+      caption: undefined,
+    };
+    expect(keys(filterCommands([app], 'КУРС'))).toEqual(['app:go:courses']);
+    expect(keys(filterCommands([app], 'переход'))).toEqual(['app:go:courses']);
+    expect(filterCommands([app], 'acme')).toEqual([]);
   });
 
-  it('команды с palette:false в палитре не показываются, даже без запроса', () => {
+  it('недоступные команды в палитре не показываются, даже без запроса', () => {
     const list = filterCommands(
-      [command('shown'), command('hidden', { palette: false })],
+      [command('shown'), command('hidden', { enabled: false })],
       '',
     );
     expect(keys(list)).toEqual(['acme.streak:shown']);
     expect(
-      filterCommands([command('hidden', { palette: false })], 'hidden'),
+      filterCommands([command('hidden', { enabled: false })], 'hidden'),
     ).toEqual([]);
   });
 
-  it('поиск без учёта регистра по названию, категории и id расширения', () => {
+  it('поиск без учёта регистра по названию, категории и подписи (id расширения)', () => {
     const commands = [
       command('one', { title: 'Показать СЕРИЮ', category: 'Обучение' }),
       command('two', { title: 'Сбросить', extensionId: 'acme.Timer' }),
@@ -101,6 +119,9 @@ describe('filterCommands', () => {
   it('не меняет исходный массив', () => {
     const commands = [command('b'), command('a')];
     filterCommands(commands, '');
-    expect(commands.map(({ id }) => id)).toEqual(['b', 'a']);
+    expect(commands.map(({ key }) => key)).toEqual([
+      'acme.streak:b',
+      'acme.streak:a',
+    ]);
   });
 });

@@ -2,6 +2,7 @@ import { createI18n } from 'vue-i18n';
 import { describe, expect, it } from 'vitest';
 import { ru as appRu } from '@/app/i18n/ru.ts';
 import { en as appEn } from '@/app/i18n/en.ts';
+import { messages as appCommandsMessages } from '@/features/app-commands/i18n/index.ts';
 import { messages as commandsMessages } from '@/features/extension-commands/i18n/index.ts';
 import { messages as panelMessages } from '@/pages/extension-panel/i18n/index.ts';
 import { messages as paletteMessages } from '@/widgets/command-palette/i18n/index.ts';
@@ -17,6 +18,7 @@ const keysOf = (tree: Tree, prefix = ''): string[] =>
   );
 
 const SLICES: [string, { ru: Tree; en: Tree }][] = [
+  ['features/app-commands', appCommandsMessages as never],
   ['features/extension-commands', commandsMessages as never],
   ['pages/extension-panel', panelMessages as never],
   ['widgets/command-palette', paletteMessages as never],

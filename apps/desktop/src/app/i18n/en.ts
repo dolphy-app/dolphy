@@ -9,7 +9,7 @@ export const en: typeof ru = {
     graph: 'Knowledge graph',
     settings: 'Settings',
     extensions: 'Extension panels',
-    commands: 'Commands',
+    commands: 'Command palette',
   },
   startup: {
     updateTitle: 'Update the app',

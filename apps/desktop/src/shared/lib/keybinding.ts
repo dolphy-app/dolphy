@@ -86,6 +86,12 @@ export const formatKeybinding = (
     .join('+');
 };
 
+/** Подпись из записи: понятное сочетание форматируется по платформе, подсказка расширения — как есть. */
+export const displayKeybinding = (text: string, platform: Platform): string => {
+  const binding = tryParseKeybinding(text);
+  return binding ? formatKeybinding(binding, platform) : text;
+};
+
 /** Платформа окна: подпись клавиши Mod зависит только от неё. */
 export const detectPlatform = (
   nav: Pick<Navigator, 'platform'> = navigator,

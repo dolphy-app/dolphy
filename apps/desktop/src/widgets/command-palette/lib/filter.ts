@@ -1,16 +1,6 @@
-import type { CommandContributionDto } from '@dolphy-app/engine-contract';
+import type { Command } from '@/shared/lib/command-registry.ts';
 
-export interface PaletteEntry {
-  /** `${extensionId}:${id}`: идентичность строки между обновлениями вкладов. */
-  key: string;
-  command: CommandContributionDto;
-}
-
-export const commandKey = (
-  command: Pick<CommandContributionDto, 'extensionId' | 'id'>,
-): string => `${command.extensionId}:${command.id}`;
-
-const lower = (text: string | null): string => (text ?? '').toLowerCase();
+const lower = (text: string | undefined): string => (text ?? '').toLowerCase();
 
 const compare = (left: string, right: string): number => {
   if (left === right) return 0;
@@ -18,15 +8,15 @@ const compare = (left: string, right: string): number => {
 };
 
 /** Порядок без запроса: по категории (без категории — в конце), названию, ключу. */
-const byDefaultOrder = (left: PaletteEntry, right: PaletteEntry): number => {
-  const leftCategory = lower(left.command.category);
-  const rightCategory = lower(right.command.category);
+const byDefaultOrder = (left: Command, right: Command): number => {
+  const leftCategory = lower(left.category);
+  const rightCategory = lower(right.category);
   if ((leftCategory === '') !== (rightCategory === '')) {
     return leftCategory === '' ? 1 : -1;
   }
   return (
     compare(leftCategory, rightCategory) ||
-    compare(lower(left.command.title), lower(right.command.title)) ||
+    compare(lower(left.title), lower(right.title)) ||
     compare(left.key, right.key)
   );
 };
@@ -35,33 +25,33 @@ const TITLE_PREFIX = 0;
 const TITLE_WORD = 1;
 const TITLE_PART = 2;
 const CATEGORY_PART = 3;
-const EXTENSION_PART = 4;
+const CAPTION_PART = 4;
 
 /** Насколько хорошо слово запроса совпало с командой; `null` — не совпало. */
-const scoreTerm = (command: CommandContributionDto, term: string) => {
+const scoreTerm = (command: Command, term: string) => {
   const title = lower(command.title);
   if (title.startsWith(term)) return TITLE_PREFIX;
   if (title.includes(` ${term}`)) return TITLE_WORD;
   if (title.includes(term)) return TITLE_PART;
   if (lower(command.category).includes(term)) return CATEGORY_PART;
-  if (lower(command.extensionId).includes(term)) return EXTENSION_PART;
+  if (lower(command.caption).includes(term)) return CAPTION_PART;
   return null;
 };
 
 /**
- * Строки палитры: команды с `palette: true`, которые содержат каждое слово
- * запроса (без учёта регистра) в названии, категории или id расширения.
- * Без запроса — по категории и названию; с запросом — по близости совпадения,
- * при равенстве — в том же порядке.
+ * Строки палитры: доступные команды, которые содержат каждое слово запроса
+ * (без учёта регистра) в названии, категории или подписи (у команд расширений —
+ * id расширения). Без запроса — по категории и названию; с запросом — по
+ * близости совпадения, при равенстве — в том же порядке.
  */
 export const filterCommands = (
-  commands: readonly CommandContributionDto[],
+  commands: readonly Command[],
   query: string,
-): PaletteEntry[] => {
+): Command[] => {
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
-  const scored: { entry: PaletteEntry; score: number }[] = [];
+  const scored: { command: Command; score: number }[] = [];
   for (const command of commands) {
-    if (!command.palette) continue;
+    if (!command.enabled) continue;
     let score = 0;
     let matches = true;
     for (const term of terms) {
@@ -72,14 +62,12 @@ export const filterCommands = (
       }
       score += termScore;
     }
-    if (matches) {
-      scored.push({ entry: { key: commandKey(command), command }, score });
-    }
+    if (matches) scored.push({ command, score });
   }
   return scored
     .sort(
       (left, right) =>
-        left.score - right.score || byDefaultOrder(left.entry, right.entry),
+        left.score - right.score || byDefaultOrder(left.command, right.command),
     )
-    .map(({ entry }) => entry);
+    .map(({ command }) => command);
 };

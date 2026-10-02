@@ -1,16 +1,15 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, watch } from 'vue';
+import { computed, nextTick, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import {
-  isPaletteShortcut,
-  useExtensionCommands,
-} from '@/features/extension-commands';
+import { displayKeybinding, detectPlatform } from '@/shared/lib/keybinding.ts';
+import { useCommandPalette } from '../model/palette.ts';
 
 const LIST_ID = 'command-palette-list';
 const optionId = (index: number) => `command-palette-option-${index}`;
 
 const { t } = useI18n();
-const { palette } = useExtensionCommands();
+const palette = useCommandPalette();
+const platform = detectPlatform();
 
 const entries = palette.entries;
 const activeIndex = computed(() =>
@@ -22,16 +21,16 @@ const activeOption = computed(() =>
 const isEmpty = computed(() => palette.query.value.trim() === '');
 
 // группы по категориям, как subheader у VCommandPalette: без запроса список упорядочен по
-// категории, с запросом — по релевантности, и заголовки не нужны
+// категории (без категории — последней группой), с запросом — по релевантности, и заголовки не нужны
 const rows = computed(() =>
   entries.value.map((entry, index) => ({
     entry,
     index,
     heading:
       isEmpty.value &&
-      entry.command.category &&
-      entries.value[index - 1]?.command.category !== entry.command.category
-        ? entry.command.category
+      entry.category &&
+      entries.value[index - 1]?.category !== entry.category
+        ? entry.category
         : null,
   })),
 );
@@ -53,16 +52,6 @@ const restoreFocus = () => {
   const lost = active === null || active === document.body;
   if (lost && target?.isConnected) target.focus();
 };
-
-const onShortcut = (event: KeyboardEvent) => {
-  if (!isPaletteShortcut(event)) return;
-  event.preventDefault();
-  palette.open();
-};
-onMounted(() => document.addEventListener('keydown', onShortcut, true));
-onBeforeUnmount(() =>
-  document.removeEventListener('keydown', onShortcut, true),
-);
 
 const onInputKey = (event: KeyboardEvent) => {
   if (event.isComposing) return;
@@ -153,18 +142,19 @@ const vComboboxInput = {
                 busy: palette.isBusy(row.entry.key),
               }"
               :aria-selected="row.entry.key === palette.activeKey.value"
+              :aria-checked="row.entry.checked"
               :aria-disabled="palette.isBusy(row.entry.key)"
               @mousemove="palette.activate(row.entry.key)"
               @click="palette.choose(row.entry.key)"
             >
               <span class="main">
-                <span class="title">{{ row.entry.command.title }}</span>
-                <span
-                  v-if="row.entry.command.description"
-                  class="description"
-                  >{{ row.entry.command.description }}</span
-                >
-                <span class="caption">{{ row.entry.command.extensionId }}</span>
+                <span class="title">{{ row.entry.title }}</span>
+                <span v-if="row.entry.description" class="description">{{
+                  row.entry.description
+                }}</span>
+                <span v-if="row.entry.caption" class="caption">{{
+                  row.entry.caption
+                }}</span>
               </span>
               <span class="meta">
                 <v-progress-circular
@@ -180,13 +170,24 @@ const vComboboxInput = {
                   >{{ t('commandPalette.busy') }}</span
                 >
                 <span
-                  v-if="row.entry.command.category"
+                  v-if="row.entry.category"
                   class="category"
                   :class="{ 'visually-hidden': isEmpty }"
-                  >{{ row.entry.command.category }}</span
+                  >{{ row.entry.category }}</span
                 >
-                <kbd v-if="row.entry.command.keybinding" class="keybinding">{{
-                  row.entry.command.keybinding
+                <template v-if="row.entry.checked">
+                  <v-icon
+                    icon="mdi-check"
+                    size="small"
+                    class="checked-mark"
+                    aria-hidden="true"
+                  />
+                  <span class="visually-hidden">{{
+                    t('commandPalette.checked')
+                  }}</span>
+                </template>
+                <kbd v-if="row.entry.keybinding" class="keybinding">{{
+                  displayKeybinding(row.entry.keybinding, platform)
                 }}</kbd>
               </span>
             </li>
@@ -333,6 +334,10 @@ const vComboboxInput = {
   white-space: nowrap;
   font-size: 0.75rem;
   opacity: var(--v-medium-emphasis-opacity);
+}
+
+.checked-mark {
+  flex: none;
 }
 
 /* VHotkey: рамка и скругление клавиши */

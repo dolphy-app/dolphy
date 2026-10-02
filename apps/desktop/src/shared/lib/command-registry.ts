@@ -39,7 +39,8 @@ export interface Command {
   readonly description: string | undefined;
   readonly caption: string | undefined;
   readonly keybinding: string | undefined;
-  readonly checked: boolean;
+  /** `undefined` — команда не из набора вариантов; иначе выбран ли вариант. */
+  readonly checked: boolean | undefined;
   readonly enabled: boolean;
   run(): void | Promise<void>;
 }
@@ -68,7 +69,7 @@ const resolve = (descriptor: CommandDescriptor): Command => ({
   description: descriptor.description,
   caption: descriptor.caption,
   keybinding: descriptor.keybinding,
-  checked: toValue(descriptor.checked) ?? false,
+  checked: toValue(descriptor.checked),
   enabled: toValue(descriptor.enabled) ?? true,
   run: descriptor.run,
 });

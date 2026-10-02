@@ -5,9 +5,11 @@ import { applyLocale, createDolphyI18n } from './providers/i18n.ts';
 import { createDolphyVuetify } from './providers/vuetify.ts';
 import { router } from './router';
 import StartupError from './startup-error/StartupError.vue';
+import { registerAppCommands } from '@/features/app-commands';
 import { COURSE_SCOPE_KEY, createCourseScope } from '@/features/course-scope';
 import {
   createExtensionCommands,
+  describeCommandFailure,
   EXTENSION_COMMANDS_KEY,
 } from '@/features/extension-commands';
 import {
@@ -22,6 +24,14 @@ import {
 } from '@/shared/api/engine';
 import { ROUTE } from '@/shared/config/routes.ts';
 import { resolveLocale } from '@/shared/i18n';
+import {
+  COMMAND_REGISTRY_KEY,
+  createCommandRegistry,
+} from '@/shared/lib/command-registry.ts';
+import {
+  COMMAND_PALETTE_KEY,
+  createCommandPalette,
+} from '@/widgets/command-palette';
 import { bindExtensionThemes } from '@/shared/lib/theme-registry.ts';
 
 import './styles/global.css';
@@ -63,7 +73,9 @@ const bootstrap = async () => {
       themeSelection.saved,
       () => contributions.contributions.value.themes,
     );
+    const registry = createCommandRegistry();
     const extensionCommands = createExtensionCommands({
+      registry,
       engine: engine.extensions,
       contributions: () => contributions.contributions.value,
       openPanel: ({ extensionId, panelId }) =>
@@ -72,6 +84,20 @@ const bootstrap = async () => {
           params: { extensionId, panelId },
         }),
     });
+    registerAppCommands({
+      registry,
+      router,
+      t: i18n.global.t,
+      themeSelection,
+      localeSelection,
+      themes: () => contributions.contributions.value.themes,
+      reportFailure: (error) =>
+        extensionCommands.notices.push({
+          kind: 'failure',
+          failure: describeCommandFailure(error),
+        }),
+    });
+    const palette = createCommandPalette({ registry });
     createApp(App)
       .use(i18n)
       .use(vuetify)
@@ -81,6 +107,8 @@ const bootstrap = async () => {
       .provide(THEME_SELECTION_KEY, themeSelection)
       .provide(LOCALE_SELECTION_KEY, localeSelection)
       .provide(COURSE_SCOPE_KEY, courseScope)
+      .provide(COMMAND_REGISTRY_KEY, registry)
+      .provide(COMMAND_PALETTE_KEY, palette)
       .provide(EXTENSION_COMMANDS_KEY, extensionCommands)
       .mount('#app');
     if (__DOLPHY_SMOKE_BUILD__ && smoke) {

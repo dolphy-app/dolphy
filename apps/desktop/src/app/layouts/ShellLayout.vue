@@ -2,15 +2,21 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
-import { useExtensionCommands } from '@/features/extension-commands';
 import { useContributions } from '@/shared/api/engine';
 import { APP_NAME } from '@/shared/config/app.ts';
 import { ROUTE } from '@/shared/config/routes.ts';
+import {
+  detectPlatform,
+  displayKeybinding,
+  PALETTE_KEYBINDING,
+} from '@/shared/lib/keybinding.ts';
+import { useCommandPalette } from '@/widgets/command-palette';
 
 const { t } = useI18n();
 const router = useRouter();
 const contributions = useContributions();
-const { palette } = useExtensionCommands();
+const palette = useCommandPalette();
+const paletteHint = displayKeybinding(PALETTE_KEYBINDING, detectPlatform());
 
 const panels = computed(() => contributions.value.panels);
 
@@ -102,7 +108,13 @@ const bottomItems = computed(() =>
           rounded="lg"
           data-testid="open-palette"
           @click="palette.open()"
-        />
+        >
+          <template #append>
+            <kbd class="palette-hint" data-testid="open-palette-hint">{{
+              paletteHint
+            }}</kbd>
+          </template>
+        </v-list-item>
         <v-list-item
           v-for="item in bottomItems"
           :key="item.name"
@@ -124,5 +136,17 @@ const bottomItems = computed(() =>
 <style scoped>
 .v-list-item :deep(.v-list-item__spacer) {
   width: 12px;
+}
+
+/* VHotkey: рамка и скругление клавиши */
+.palette-hint {
+  padding: 0 6px;
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  white-space: nowrap;
+  opacity: var(--v-medium-emphasis-opacity);
 }
 </style>

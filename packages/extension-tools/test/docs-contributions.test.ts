@@ -15,6 +15,9 @@
  *   с маркером) собирается и проходит `validateExtension`;
  * - `index` — единственный файл `index.json` проходит `parseIndex`
  *   (`@dolphy-app/extension-catalog`).
+ *
+ * Пример «серия дней целиком» к тому же исполняется: собранный `main.mjs`
+ * проходит через `loadEvents` и `loadCommands` из SDK.
  */
 import { mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -35,6 +38,7 @@ const EXAMPLES: Readonly<Record<string, Mode>> = {
   'подписка на события': 'build-with-code',
   'команды расширения': 'build-with-code',
   'панель расширения': 'build-with-code',
+  'серия дней целиком': 'build-with-code',
   'вид задания с правами': 'manifest',
   'расширение для каталога': 'build-no-code',
   'индекс каталога': 'index',
@@ -46,6 +50,7 @@ const SECTIONS = [
   '## Точки вклада',
   '## Права и изоляция',
   '## Установка и каталог',
+  '## Как написать расширение',
 ];
 const MARKER = /^Файл `([^`]+)` \(([^)]+)\):$/;
 
@@ -124,7 +129,7 @@ const writeProject = async (
   return root;
 };
 
-describe('примеры разделов «Точки вклада», «Права и изоляция» и «Установка и каталог»', () => {
+describe('примеры разделов «Точки вклада», «Права и изоляция», «Установка и каталог» и «Как написать расширение»', () => {
   it('метки примеров совпадают с таблицей проверок', () => {
     expect([...examples.keys()].sort()).toEqual(Object.keys(EXAMPLES).sort());
   });
@@ -168,4 +173,147 @@ describe('примеры разделов «Точки вклада», «Пра�
       });
     });
   }
+});
+
+interface Streak {
+  days: number;
+  last: string;
+}
+
+interface SdkTesting {
+  createMemoryStorage(): {
+    get(key: string): Promise<unknown>;
+    set(key: string, value: unknown): Promise<void>;
+  };
+  loadEvents(
+    module: unknown,
+    options: { storage: unknown; declared: string[] },
+  ): Promise<{
+    emit(name: string, payload: Record<string, unknown>): Promise<void>;
+  }>;
+  loadCommands(
+    module: unknown,
+    options: {
+      storage: unknown;
+      declaredCommands: string[];
+      declaredPanels: string[];
+    },
+  ): Promise<{ run(id: string, args?: unknown): Promise<unknown> }>;
+}
+
+interface PanelModule {
+  default: {
+    mount(
+      container: unknown,
+      ctx: {
+        call(id: string): Promise<unknown>;
+        onProps(listener: () => void): () => void;
+        signal: { addEventListener(type: string, fn: () => void): void };
+      },
+    ): Promise<void>;
+  };
+}
+
+describe('пример «серия дней целиком» исполняется', () => {
+  const attempt = (at: string) => ({
+    exerciseId: 'e',
+    courseId: 'c',
+    lessonId: 'l',
+    grade: 4,
+    outcome: 'passed',
+    source: 'runner',
+    at: Date.parse(`${at}T12:00:00Z`),
+  });
+
+  it('событие считает серию, команды и панель читают те же данные', async () => {
+    const files = examples.get('серия дней целиком') ?? [];
+    const manifest = manifestOf(files) as {
+      contributes: {
+        commands: Array<{ id: string; palette?: boolean }>;
+        panels: Array<{ id: string }>;
+      };
+    };
+    const root = await writeProject(files, true);
+    const built = await buildExtension({ root });
+    await expect(validateExtension(built.dir)).resolves.toEqual({
+      ok: true,
+      problems: [],
+    });
+
+    const sdk = (await import(
+      /* @vite-ignore */ path.join(
+        REPO_ROOT,
+        'packages/extension-sdk/src/testing.ts',
+      )
+    )) as SdkTesting;
+    const module = (
+      await import(/* @vite-ignore */ path.join(built.dir, 'main.mjs'))
+    ).default as unknown;
+    const storage = sdk.createMemoryStorage();
+    const declaredCommands = manifest.contributes.commands.map(({ id }) => id);
+    const declaredPanels = manifest.contributes.panels.map(({ id }) => id);
+    const events = await sdk.loadEvents(module, {
+      storage,
+      declared: ['attempt.closed'],
+    });
+    const commands = await sdk.loadCommands(module, {
+      storage,
+      declaredCommands,
+      declaredPanels,
+    });
+
+    // нет данных: команда палитры уведомляет, команда данных отдаёт нули
+    expect(await commands.run('acme.streak.show')).toMatchObject({
+      kind: 'notify',
+    });
+    expect(await commands.run('acme.streak.data')).toEqual({
+      kind: 'data',
+      value: { days: 0, last: '' },
+    });
+
+    await events.emit('attempt.closed', attempt('2026-10-01'));
+    await events.emit('attempt.closed', attempt('2026-10-01'));
+    await events.emit('attempt.closed', attempt('2026-10-02'));
+    expect(await storage.get('streak')).toEqual({
+      days: 2,
+      last: '2026-10-02',
+    });
+    // пропущенный день начинает серию заново; «сдался» серию не трогает
+    await events.emit('attempt.closed', {
+      ...attempt('2026-10-03'),
+      outcome: 'gave-up',
+    });
+    expect((await storage.get('streak')) as Streak).toMatchObject({ days: 2 });
+    await events.emit('attempt.closed', attempt('2026-10-05'));
+    expect(await storage.get('streak')).toEqual({
+      days: 1,
+      last: '2026-10-05',
+    });
+
+    expect(await commands.run('acme.streak.show')).toEqual({
+      kind: 'openPanel',
+      panelId: 'acme.streak.view',
+      props: { days: 1 },
+    });
+
+    // собранная панель выполняется в «рамке» и рисует ответ команды данных
+    const panel = (await import(
+      /* @vite-ignore */ path.join(built.dir, 'panel.mjs')
+    )) as PanelModule;
+    const line = { textContent: '' };
+    const container = {
+      ownerDocument: { createElement: () => line },
+      append: () => undefined,
+    };
+    await panel.default.mount(container, {
+      call: async (id) => {
+        const outcome = (await commands.run(id)) as { value: unknown };
+        return outcome.value;
+      },
+      onProps: () => () => undefined,
+      signal: { addEventListener: () => undefined },
+    });
+    expect(line.textContent).toBe('Серия: 1 дн., последний день 2026-10-05');
+    expect(declaredCommands).toEqual(['acme.streak.show', 'acme.streak.data']);
+  });
 });

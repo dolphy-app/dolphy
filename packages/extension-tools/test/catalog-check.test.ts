@@ -44,8 +44,8 @@ const expectRule = async (
   return hit as string;
 };
 
-describe('catalog check: правила', () => {
-  it('корректный проект не даёт замечаний; все правила перечислены с заголовками', async () => {
+describe('catalog check: rules', () => {
+  it('a correct project yields no findings; all rules are listed with titles', async () => {
     expect(await run(await single())).toEqual([]);
     const ids = RULES.map((rule) => rule.id);
     expect(new Set(ids).size).toBe(ids.length);
@@ -53,12 +53,12 @@ describe('catalog check: правила', () => {
     expect(RULES.every((rule) => rule.title.length > 0)).toBe(true);
   });
 
-  it('CHECK-001: нечитаемый и неверный манифест', async () => {
+  it('CHECK-001: unreadable and invalid manifest', async () => {
     await expectRule({ files: { 'extension.json': '{}' } }, 'CHECK-001');
     await expectRule({ files: { 'extension.json': null } }, 'CHECK-001');
   });
 
-  it('CHECK-002: имя каталога не равно id', async () => {
+  it('CHECK-002: directory name is not equal to id', async () => {
     const repo = await single({ dirName: 'other' });
     expect(await run(repo)).toEqual([
       "error other CHECK-002 id: directory name 'other' does not match manifest id 'acme.night'",
@@ -67,7 +67,7 @@ describe('catalog check: правила', () => {
     expect(await run(repo)).toEqual([]);
   });
 
-  it('CHECK-003: name, description, author обязательны', async () => {
+  it('CHECK-003: name, description, author are required', async () => {
     for (const key of ['name', 'description', 'author']) {
       const hit = await expectRule(
         { manifest: { [key]: undefined } },
@@ -78,12 +78,12 @@ describe('catalog check: правила', () => {
     await expectRule({ manifest: { name: 'x'.repeat(81) } }, 'CHECK-003');
   });
 
-  it('CHECK-004: README.md обязателен и не пуст', async () => {
+  it('CHECK-004: README.md is required and non-empty', async () => {
     await expectRule({ files: { 'README.md': null } }, 'CHECK-004');
     await expectRule({ files: { 'README.md': '  \n' } }, 'CHECK-004');
   });
 
-  it('CHECK-005: author должен быть логином GitHub', async () => {
+  it('CHECK-005: author must be a GitHub login', async () => {
     const hit = await expectRule(
       { manifest: { author: '-bad_login' } },
       'CHECK-005',
@@ -91,7 +91,7 @@ describe('catalog check: правила', () => {
     expect(hit).toContain('author:');
   });
 
-  it('CHECK-006: автор существует на GitHub; сбой сети — предупреждение', async () => {
+  it('CHECK-006: author exists on GitHub; a network failure is a warning', async () => {
     const repo = await single();
     const check = (status: 'exists' | 'missing' | 'unknown') =>
       run(repo, {
@@ -107,20 +107,20 @@ describe('catalog check: правила', () => {
     ]);
   });
 
-  it('CHECK-006: --skip-github-check не обращается к GitHub', async () => {
+  it('CHECK-006: --skip-github-check does not contact GitHub', async () => {
     const checkGithubUser = vi.fn();
     await run(await single(), { checkGithubUser });
     expect(checkGithubUser).not.toHaveBeenCalled();
   });
 
-  it('CHECK-007: package.json обязателен и должен разбираться', async () => {
+  it('CHECK-007: package.json is required and must parse', async () => {
     await expectRule({ files: { 'package.json': null } }, 'CHECK-007');
     await expectRule({ files: { 'package.json': '{oops' } }, 'CHECK-007');
     await expectRule({ files: { 'package.json': '[]' } }, 'CHECK-007');
   });
 
   it.each(['package-lock.json', 'pnpm-lock.yaml', 'yarn.lock', 'bun.lock'])(
-    'CHECK-008: lock-файл %s принимается, без него — ошибка',
+    'CHECK-008: lock file %s is accepted, without one — an error',
     async (lockfile) => {
       const files = { 'package-lock.json': null, [lockfile]: '{}' };
       expect(await run(await single({ files }))).toEqual([]);
@@ -137,7 +137,7 @@ describe('catalog check: правила', () => {
     'prepublishOnly',
     'prepack',
     'postpack',
-  ])('CHECK-009: скрипт %s запрещён, build разрешён', async (script) => {
+  ])('CHECK-009: script %s is forbidden, build is allowed', async (script) => {
     const allowed = JSON.stringify({ scripts: { build: 'dolphy-ext build' } });
     expect(
       await run(await single({ files: { 'package.json': allowed } })),
@@ -160,7 +160,7 @@ describe('catalog check: правила', () => {
     'link:../x',
     'workspace:*',
     '../x',
-  ])('CHECK-010: зависимость %s не из реестра', async (specifier) => {
+  ])('CHECK-010: dependency %s is not from the registry', async (specifier) => {
     const manifest = JSON.stringify({ devDependencies: { dep: specifier } });
     const hit = await expectRule(
       { files: { 'package.json': manifest } },
@@ -169,7 +169,7 @@ describe('catalog check: правила', () => {
     expect(hit).toContain('devDependencies.dep:');
   });
 
-  it('CHECK-010: диапазоны реестра и npm-алиасы допустимы', async () => {
+  it('CHECK-010: registry ranges and npm aliases are allowed', async () => {
     const manifest = JSON.stringify({
       dependencies: {
         a: '^1.2.3',
@@ -185,7 +185,7 @@ describe('catalog check: правила', () => {
     ).toEqual([]);
   });
 
-  it('CHECK-011: чужой scope пакета — предупреждение, свой и без scope — нет', async () => {
+  it('CHECK-011: another’s package scope is a warning, own or no scope is not', async () => {
     await expectRule(
       { files: { 'package.json': '{"name":"@acme/x"}' } },
       'CHECK-011',
@@ -197,7 +197,7 @@ describe('catalog check: правила', () => {
     }
   });
 
-  it('CHECK-012: версия строго больше опубликованной', async () => {
+  it('CHECK-012: version strictly greater than the published one', async () => {
     const repo = await single({ manifest: { version: '1.2.0' } });
     const check = async (versions: string[]) =>
       run(repo, { publishedIndex: await writePublished(repo, ID, versions) });
@@ -210,7 +210,7 @@ describe('catalog check: правила', () => {
     ]);
   });
 
-  it('CHECK-012: версия из середины опубликованных — «уже опубликована»', async () => {
+  it('CHECK-012: a version from the middle of the published ones — “already published”', async () => {
     const repo = await single({ manifest: { version: '1.0.0' } });
     const file = await writePublished(repo, ID, ['2.0.0', '1.0.0']);
     const lines = await run(repo, { publishedIndex: file });
@@ -219,7 +219,7 @@ describe('catalog check: правила', () => {
     ]);
   });
 
-  it('CHECK-012: нет файла индекса — ничего не опубликовано; чужой id не мешает', async () => {
+  it('CHECK-012: no index file — nothing is published; another id does not interfere', async () => {
     const repo = await single();
     const missing = path.join(repo.root, 'none.json');
     expect(await run(repo, { publishedIndex: missing })).toEqual([]);
@@ -227,7 +227,7 @@ describe('catalog check: правила', () => {
     expect(await run(repo, { publishedIndex: other })).toEqual([]);
   });
 
-  it('CHECK-012: битый индекс — ошибка, а не молчаливый пропуск', async () => {
+  it('CHECK-012: a broken index is an error, not a silent skip', async () => {
     const repo = await single();
     const file = path.join(repo.root, 'broken.json');
     await writeFile(file, '{"schemaVersion":2}');
@@ -236,7 +236,7 @@ describe('catalog check: правила', () => {
     );
   });
 
-  it('CHECK-013: лимиты количества и размера исходников', async () => {
+  it('CHECK-013: limits on source count and size', async () => {
     const many = Object.fromEntries(
       Array.from({ length: 201 }, (_, i) => [`src/f${i}.txt`, 'x']),
     );
@@ -255,17 +255,18 @@ describe('catalog check: правила', () => {
     expect(sizeHit).toContain('exceed the limit of 5000000');
   });
 
-  it('CHECK-013: node_modules, dist-ext и .git не учитываются', async () => {
+  it('CHECK-013: node_modules, dist-ext, .dolphy and .git are not counted', async () => {
     const big = 'x'.repeat(1_000_001);
     const files = {
       'node_modules/dep/index.js': big,
       'dist-ext/main.mjs': big,
+      '.dolphy/ids.d.ts': big,
       '.git/objects/blob': big,
     };
     expect(await run(await single({ files }))).toEqual([]);
   });
 
-  it('CHECK-014: символические ссылки запрещены', async () => {
+  it('CHECK-014: symbolic links are forbidden', async () => {
     const repo = await single();
     await symlink('README.md', path.join(repo.dirOf(ID), 'link.md'));
     expect(await run(repo)).toEqual([
@@ -274,7 +275,7 @@ describe('catalog check: правила', () => {
   });
 
   it.each(['.exe', '.dll', '.so', '.dylib', '.node', '.sh', '.BAT'])(
-    'CHECK-015: файл %s запрещён',
+    'CHECK-015: file %s is forbidden',
     async (extension) => {
       const hit = await expectRule(
         { files: { [`bin/tool${extension}`]: 'x' } },
@@ -284,7 +285,7 @@ describe('catalog check: правила', () => {
     },
   );
 
-  it('CHECK-016: minAppVersion не новее --max-app-version', async () => {
+  it('CHECK-016: minAppVersion is not newer than --max-app-version', async () => {
     const spec = { manifest: { minAppVersion: '1.3.0' } };
     await expectRule(spec, 'CHECK-016', 'error', { maxAppVersion: '1.2.9' });
     const repo = await single(spec);
@@ -293,8 +294,8 @@ describe('catalog check: правила', () => {
   });
 });
 
-describe('catalog check: выбор каталогов', () => {
-  it('проверяет все подкаталоги, кроме скрытых и файлов; --ids сужает выбор', async () => {
+describe('catalog check: directory selection', () => {
+  it('checks all subdirectories except hidden ones and files; --ids narrows the selection', async () => {
     const repo = await createRepo([
       { fixture: 'theme-only' },
       { fixture: 'markdown-only', files: { 'README.md': null } },
@@ -307,7 +308,7 @@ describe('catalog check: выбор каталогов', () => {
     expect(await run(repo, { ids: [ID] })).toEqual([]);
   });
 
-  it('несуществующий id в --ids и отсутствующий каталог — ошибка использования', async () => {
+  it('a nonexistent id in --ids and a missing directory — a usage error', async () => {
     const repo = await single();
     await expect(run(repo, { ids: ['nope'] })).rejects.toBeInstanceOf(
       CatalogUsageError,
@@ -317,7 +318,7 @@ describe('catalog check: выбор каталогов', () => {
     ).rejects.toBeInstanceOf(CatalogUsageError);
   });
 
-  it('каталог без extension.json — CHECK-001 по имени каталога', async () => {
+  it('directory without extension.json — CHECK-001 by directory name', async () => {
     const repo = await createRepo();
     await mkdir(path.join(repo.extensionsDir, 'empty.dir'));
     const lines = await run(repo);
@@ -326,7 +327,7 @@ describe('catalog check: выбор каталогов', () => {
     ).toBe(true);
   });
 
-  it('после повышения версии замечание CHECK-012 исчезает', async () => {
+  it('after a version bump the CHECK-012 finding disappears', async () => {
     const repo = await single();
     const file = await writePublished(repo, ID, ['1.0.0']);
     expect(await run(repo, { publishedIndex: file })).toHaveLength(1);
@@ -335,11 +336,11 @@ describe('catalog check: выбор каталогов', () => {
   });
 });
 
-describe('GitHub-проверка автора', () => {
+describe('GitHub author check', () => {
   const respond = (status: number) =>
     vi.fn(() => Promise.resolve(new Response('{}', { status })));
 
-  it('200 — есть, 404 — нет, остальное и сбой сети — неизвестно', async () => {
+  it('200 — exists, 404 — does not, anything else and a network failure — unknown', async () => {
     const statuses = { exists: 200, missing: 404, unknown: 403 } as const;
     for (const [expected, status] of Object.entries(statuses)) {
       const check = createGithubChecker({ fetch: respond(status) });
@@ -351,7 +352,7 @@ describe('GitHub-проверка автора', () => {
     expect(await failing('octo-cat')).toBe('unknown');
   });
 
-  it('запрашивает users/<login> с токеном и кэширует ответ', async () => {
+  it('requests users/<login> with a token and caches the response', async () => {
     const fetcher = respond(200);
     const check = createGithubChecker({ fetch: fetcher, token: 'secret' });
     await check('octo-cat');

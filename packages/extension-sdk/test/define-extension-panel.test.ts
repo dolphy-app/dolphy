@@ -6,7 +6,7 @@ import {
 } from '../src/index.ts';
 
 describe('defineExtensionPanel', () => {
-  it('возвращает тот же объект модуля, mount получает контекст как есть', async () => {
+  it('returns the same module object; mount receives the context as is', async () => {
     const mount = vi.fn();
     const module = { mount };
     const defined = defineExtensionPanel(module);

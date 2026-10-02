@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { PermissionError } from '../src/index.ts';
 
 describe('PermissionError', () => {
-  it('несёт разрешение и стабильный код, сообщение по умолчанию называет разрешение', () => {
+  it('carries the permission and a stable code; the default message names the permission', () => {
     const error = new PermissionError('library.read');
     expect(error).toBeInstanceOf(Error);
     expect(error.permission).toBe('library.read');
@@ -11,7 +11,7 @@ describe('PermissionError', () => {
     expect(error.message).toContain('library.read');
   });
 
-  it('явное сообщение заменяет сообщение по умолчанию', () => {
+  it('an explicit message replaces the default message', () => {
     expect(new PermissionError('network', 'nope').message).toBe('nope');
   });
 });

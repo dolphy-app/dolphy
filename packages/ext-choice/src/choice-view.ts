@@ -1,6 +1,5 @@
-/** Элемент ввода ответа `dolphy-choice-answer`; побочный эффект загрузки — регистрация. */
-import { defineAnswerElement } from '@dolphy-app/extension-sdk';
-import type { AnswerElementApi } from '@dolphy-app/extension-sdk';
+/** Вид ввода ответа `dolphy.choice`: радиокнопки или чекбоксы в теневом корне элемента. */
+import type { AnswerViewApi } from '@dolphy-app/extension-sdk';
 import { normalizeValue, selectedIndices } from './choice-model.ts';
 import type { ChoiceView } from './grade.ts';
 
@@ -31,8 +30,8 @@ const createRow = (text: string, multiple: boolean) => {
   return { row, input };
 };
 
-const mount = (
-  api: AnswerElementApi,
+export const mountChoice = (
+  api: AnswerViewApi,
   initial: { view: unknown; value: unknown; disabled: boolean },
 ) => {
   const style = document.createElement('style');
@@ -98,5 +97,3 @@ const mount = (
   update(initial);
   return { update };
 };
-
-defineAnswerElement('dolphy-choice-answer', mount);

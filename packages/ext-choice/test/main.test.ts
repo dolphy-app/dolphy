@@ -6,7 +6,7 @@ import {
   loadExerciseType,
 } from '@dolphy-app/extension-sdk/testing';
 import { afterEach, describe, expect, it } from 'vitest';
-import module from '../src/main.ts';
+import { host } from '../src/index.ts';
 
 const readSchema = async (name: string): Promise<JsonSchema> =>
   JSON.parse(
@@ -24,7 +24,7 @@ afterEach(async () => {
 });
 
 const load = async () => {
-  const type = await loadExerciseType(module, 'dolphy.choice');
+  const type = await loadExerciseType(host, 'dolphy.choice');
   disposables.push(type);
   return type;
 };

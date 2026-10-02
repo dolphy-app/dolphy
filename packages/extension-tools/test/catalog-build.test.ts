@@ -41,8 +41,8 @@ const listFiles = async (dir: string): Promise<string[]> =>
     .map((entry) => path.relative(dir, path.join(entry.parentPath, entry.name)))
     .sort();
 
-describe('catalog build: публикация версии', () => {
-  it('кладёт файлы версии и README, индекс описывает их размерами и sha256', async () => {
+describe('catalog build: publishing a version', () => {
+  it('puts the version files and README, the index describes them with sizes and sha256', async () => {
     const repo = await createRepo([{ fixture: 'theme-only' }]);
     const out = await makeTemp();
     const results = await publish(repo, out, [NIGHT]);
@@ -97,7 +97,7 @@ describe('catalog build: публикация версии', () => {
     );
   });
 
-  it('файл index.json: два пробела, завершающий перевод строки, стабильный порядок ключей', async () => {
+  it('index.json file: two spaces, trailing newline, stable key order', async () => {
     const repo = await createRepo([{ fixture: 'theme-only' }]);
     const out = await makeTemp();
     await publish(repo, out, [NIGHT]);
@@ -122,7 +122,7 @@ describe('catalog build: публикация версии', () => {
     ]);
   });
 
-  it('собирает расширения с кодом и разметкой, уважает source-base и published-at', async () => {
+  it('builds extensions with code and markup, honors source-base and published-at', async () => {
     const repo = await createRepo([
       { fixture: 'theme-only' },
       { fixture: 'markdown-only' },
@@ -156,7 +156,7 @@ describe('catalog build: публикация версии', () => {
   });
 });
 
-describe('catalog build: настройки и события', () => {
+describe('catalog build: settings and events', () => {
   const STATE = {
     permissions: ['learning.events'],
     contributes: {
@@ -172,8 +172,18 @@ describe('catalog build: настройки и события', () => {
     },
   };
 
-  it('записывает settings, events и разрешение в запись индекса', async () => {
-    const repo = await createRepo([{ fixture: 'hello', manifest: STATE }]);
+  it('writes settings, events and permissions into the index entry', async () => {
+    const repo = await createRepo([
+      {
+        fixture: 'hello',
+        manifest: STATE,
+        // the override manifest declares no views: host code without `views`
+        files: {
+          'src/index.ts':
+            "import { defineExtension } from '@dolphy-app/extension-sdk';\nexport const host = defineExtension({});\n",
+        },
+      },
+    ]);
     const out = await makeTemp();
     await publish(repo, out, ['acme.hello']);
     const index = await indexOf(out);
@@ -194,7 +204,7 @@ describe('catalog build: настройки и события', () => {
     ]);
   });
 
-  it('без настроек и событий ключей в записи нет', async () => {
+  it('without settings and events the entry has no keys', async () => {
     const repo = await createRepo([{ fixture: 'hello' }]);
     const out = await makeTemp();
     await publish(repo, out, ['acme.hello']);
@@ -210,8 +220,8 @@ describe('catalog build: настройки и события', () => {
   });
 });
 
-describe('catalog build: команды и панели', () => {
-  it('записывает id команд и панелей в запись индекса', async () => {
+describe('catalog build: commands and panels', () => {
+  it('writes command and panel ids into the index entry', async () => {
     const repo = await createRepo([{ fixture: 'commands-panel' }]);
     const out = await makeTemp();
     await publish(repo, out, ['acme.commands-panel']);
@@ -226,7 +236,7 @@ describe('catalog build: команды и панели', () => {
     expect(paths).toContain('main.mjs');
   });
 
-  it('без команд и панелей ключей в записи нет', async () => {
+  it('without commands and panels the entry has no keys', async () => {
     const repo = await createRepo([{ fixture: 'hello' }]);
     const out = await makeTemp();
     await publish(repo, out, ['acme.hello']);
@@ -239,8 +249,8 @@ describe('catalog build: команды и панели', () => {
   });
 });
 
-describe('catalog build: неизменность версий', () => {
-  it('повторная сборка тех же исходников — no-op, publishedAt сохраняется', async () => {
+describe('catalog build: version immutability', () => {
+  it('rebuilding the same sources is a no-op, publishedAt is kept', async () => {
     const repo = await createRepo([{ fixture: 'theme-only' }]);
     const out = await makeTemp();
     await publish(repo, out, [NIGHT]);
@@ -254,7 +264,7 @@ describe('catalog build: неизменность версий', () => {
     expect(after.generatedAt).toBe(before.generatedAt);
   });
 
-  it('другое содержимое той же версии — ошибка, диск и индекс не тронуты', async () => {
+  it('different content for the same version — an error, disk and index untouched', async () => {
     const repo = await createRepo([{ fixture: 'theme-only' }]);
     const out = await makeTemp();
     await publish(repo, out, [NIGHT]);
@@ -278,7 +288,7 @@ describe('catalog build: неизменность версий', () => {
     ).toBe(manifestBefore);
   });
 
-  it('содержимое, расходящееся с записью индекса при отсутствующем каталоге, — тоже ошибка', async () => {
+  it('content differing from the index entry when the directory is missing is also an error', async () => {
     const repo = await createRepo([{ fixture: 'theme-only' }]);
     const first = await makeTemp();
     await publish(repo, first, [NIGHT]);
@@ -292,7 +302,7 @@ describe('catalog build: неизменность версий', () => {
     await expect(stat(path.join(second, 'index.json'))).rejects.toThrow();
   });
 
-  it('недостающий каталог версии восстанавливается при совпадении с записью индекса', async () => {
+  it('a missing version directory is restored when it matches the index entry', async () => {
     const repo = await createRepo([{ fixture: 'theme-only' }]);
     const first = await makeTemp();
     await publish(repo, first, [NIGHT]);
@@ -308,8 +318,8 @@ describe('catalog build: неизменность версий', () => {
   });
 });
 
-describe('catalog build: слияние индекса', () => {
-  it('сохраняет записи не пересобранных расширений и берёт индекс из <out>', async () => {
+describe('catalog build: index merge', () => {
+  it('keeps entries of non-rebuilt extensions and takes the index from <out>', async () => {
     const repo = await createRepo([
       { fixture: 'theme-only' },
       { fixture: 'markdown-only' },
@@ -324,7 +334,7 @@ describe('catalog build: слияние индекса', () => {
     ]);
   });
 
-  it('--previous-index начинает с чужого индекса', async () => {
+  it('--previous-index starts from another index', async () => {
     const repo = await createRepo([
       { fixture: 'theme-only' },
       { fixture: 'markdown-only' },
@@ -339,7 +349,7 @@ describe('catalog build: слияние индекса', () => {
     expect(ids).toEqual(['acme.chart', NIGHT]);
   });
 
-  it('хранит пять новых версий по убыванию; шестая уходит из индекса, но не с диска', async () => {
+  it('keeps five newest versions in descending order; the sixth leaves the index but not the disk', async () => {
     const repo = await createRepo([{ fixture: 'theme-only' }]);
     const out = await makeTemp();
     for (const version of [
@@ -372,7 +382,7 @@ describe('catalog build: слияние индекса', () => {
     ]);
   });
 
-  it('отзывы: переносятся из прежнего индекса и перекрываются --revoked', async () => {
+  it('revocations: carried over from the previous index and overridden by --revoked', async () => {
     const repo = await createRepo([{ fixture: 'theme-only' }]);
     const out = await makeTemp();
     const revokedFile = path.join(await makeTemp(), 'revoked.json');
@@ -393,8 +403,8 @@ describe('catalog build: слияние индекса', () => {
   });
 });
 
-describe('catalog build: отказы ничего не пишут', () => {
-  it('невалидный результат (publishedAt) оставляет прежний индекс и каталоги нетронутыми', async () => {
+describe('catalog build: failures write nothing', () => {
+  it('an invalid result (publishedAt) leaves the previous index and directories untouched', async () => {
     const repo = await createRepo([
       { fixture: 'theme-only' },
       { fixture: 'markdown-only' },
@@ -409,7 +419,7 @@ describe('catalog build: отказы ничего не пишут', () => {
     expect(await readdir(path.join(out, 'extensions'))).toEqual([NIGHT]);
   });
 
-  it('ошибка во втором расширении не оставляет следов первого', async () => {
+  it('an error in the second extension leaves no traces of the first', async () => {
     const repo = await createRepo([
       { fixture: 'theme-only' },
       { fixture: 'markdown-only', files: { 'README.md': null } },
@@ -421,7 +431,7 @@ describe('catalog build: отказы ничего не пишут', () => {
     expect(await readdir(out)).toEqual([]);
   });
 
-  it('битый прежний индекс и не-массив --revoked — ошибки', async () => {
+  it('a broken previous index and a non-array --revoked — errors', async () => {
     const repo = await createRepo([{ fixture: 'theme-only' }]);
     const out = await makeTemp();
     await mkdir(out, { recursive: true });
@@ -437,7 +447,7 @@ describe('catalog build: отказы ничего не пишут', () => {
     );
   });
 
-  it('файлы вне схемы каталога (assets/logo.png), пустой README и несовпадение имён отклоняются', async () => {
+  it('files outside the catalog schema (assets/logo.png), an empty README and name mismatch are rejected', async () => {
     const out = await makeTemp();
     const png = await createRepo([
       { fixture: 'theme-only', files: { 'assets/logo.png': 'x' } },
@@ -457,7 +467,7 @@ describe('catalog build: отказы ничего не пишут', () => {
     );
   });
 
-  it('без name/description/author сборка отказывает', async () => {
+  it('without name/description/author the build refuses', async () => {
     const repo = await createRepo([
       { fixture: 'theme-only', manifest: { author: undefined } },
     ]);

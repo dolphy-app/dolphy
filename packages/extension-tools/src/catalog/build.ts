@@ -41,10 +41,10 @@ export const DEFAULT_SOURCE_BASE =
   'https://github.com/dolphy-app/dolphy-extensions/tree/main/extensions';
 
 export interface BuildCatalogOptions {
-  /** Каталог с проектами `<src>/<id>`. */
+  /** Directory of projects `<src>/<id>`. */
   src: string;
   ids: readonly string[];
-  /** Корень сайта: `index.json` и `extensions/<id>/<version>/`. */
+  /** Site root: `index.json` and `extensions/<id>/<version>/`. */
   out: string;
   previousIndex?: string;
   revoked?: string;
@@ -304,7 +304,7 @@ export const formatPublishResult = (result: PublishResult): string =>
     ? `unchanged ${result.id}@${result.version}`
     : `published ${result.id}@${result.version} (${result.files} files, ${result.bytes} bytes)`;
 
-/** Собирает версии расширений и обновляет `index.json`; при ошибке на диск ничего не пишется. */
+/** Builds extension versions and updates `index.json`; on error nothing is written to disk. */
 export const buildCatalog = async (
   options: BuildCatalogOptions,
 ): Promise<PublishResult[]> => {
@@ -353,7 +353,7 @@ export interface ReindexOptions {
   out: string;
   previousIndex?: string;
   revoked?: string;
-  /** Значение `generatedAt`; по умолчанию сейчас. */
+  /** Value of `generatedAt`; defaults to now. */
   publishedAt?: string;
   now?: () => Date;
 }
@@ -367,7 +367,7 @@ export interface ReindexResult {
 export const formatReindexResult = (result: ReindexResult): string =>
   `reindexed (${result.extensions} extensions, ${result.revoked} revoked)${result.changed ? '' : ' — no changes'}`;
 
-/** Перезаписывает `revoked` и `generatedAt` существующего индекса; записи расширений не меняются. */
+/** Rewrites `revoked` and `generatedAt` of an existing index; extension entries are unchanged. */
 export const reindexCatalog = async (
   options: ReindexOptions,
 ): Promise<ReindexResult> => {

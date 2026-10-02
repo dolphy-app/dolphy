@@ -1,5 +1,5 @@
-/** Элемент ввода ответа `dolphy-sql-answer`; побочный эффект загрузки — регистрация. */
-import { defineAnswerElement } from '@dolphy-app/extension-sdk';
+/** Вид ввода ответа `dolphy.sql`: текстовое поле в теневом корне элемента. */
+import type { MountAnswerView } from '@dolphy-app/extension-sdk';
 
 const STYLE = `
   :host { display: block; }
@@ -17,7 +17,7 @@ const STYLE = `
 
 const toText = (value: unknown) => (typeof value === 'string' ? value : '');
 
-defineAnswerElement('dolphy-sql-answer', (api, initial) => {
+export const mountSqlEditor: MountAnswerView = (api, initial) => {
   const style = document.createElement('style');
   style.textContent = STYLE;
   const textarea = document.createElement('textarea');
@@ -50,4 +50,4 @@ defineAnswerElement('dolphy-sql-answer', (api, initial) => {
       textarea.disabled = props.disabled;
     },
   };
-});
+};

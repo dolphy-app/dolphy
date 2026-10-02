@@ -2,8 +2,16 @@ import { fork } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createSqlVerifier, isSafePath } from '@dolphy-app/engine-sql-runner';
-import { defineExerciseType, defineExtension } from '@dolphy-app/extension-sdk';
-import type { ExtensionContext } from '@dolphy-app/extension-sdk';
+import {
+  defineAnswerView,
+  defineExerciseType,
+  defineExtension,
+} from '@dolphy-app/extension-sdk';
+import type {
+  ExtensionContext,
+  ExtensionViews,
+} from '@dolphy-app/extension-sdk';
+import { mountSqlEditor } from './sql-view.ts';
 
 interface SqlSpec {
   reference?: unknown;
@@ -44,7 +52,7 @@ const readReference = async (reference: string) => {
   return (await library.readText(reference)).trim();
 };
 
-export default defineExtension({
+export const host = defineExtension({
   exerciseTypes: {
     'dolphy.sql': defineExerciseType<SqlSpec, string, Record<string, never>>({
       project: () => ({}),
@@ -78,3 +86,7 @@ export default defineExtension({
     await verifier?.close();
   },
 });
+
+export const views = {
+  'dolphy.sql': defineAnswerView(mountSqlEditor),
+} satisfies ExtensionViews;

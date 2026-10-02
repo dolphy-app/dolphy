@@ -2,7 +2,7 @@
   "name": "@dolphy-app/ui",
   "version": "0.0.0",
   "private": true,
-  "description": "Сложные Vue 3 компоненты (редактор, quiz и т. п.); Vuetify — peer, плагин и тема в приложении",
+  "description": "Complex Vue 3 components (editor, quiz, etc.); Vuetify is a peer, the plugin and theme live in the app",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"

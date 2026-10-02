@@ -15,7 +15,7 @@ const statusOf = (response: Response): GithubUserStatus => {
   return 'unknown';
 };
 
-/** Результат кэшируется на время жизни проверяющего: один автор — один запрос. */
+/** The result is cached for the checker's lifetime: one author — one request. */
 export const createGithubChecker = (
   options: GithubCheckerOptions = {},
 ): GithubUserChecker => {

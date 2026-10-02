@@ -16,6 +16,7 @@ module.exports = [
       '**/dist-smoke/**',
       '**/dist-ext/**',
       '**/dist-publish/**',
+      '**/.dolphy/**',
       'apps/desktop/extensions/**',
       'packages/*/test/fixtures/**',
       'apps/*/e2e/fixtures/**',

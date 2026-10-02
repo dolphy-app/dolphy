@@ -1,6 +1,8 @@
 import type { PanelModule } from '@dolphy-app/extension-api';
+import type { ResolvedIds } from './ids.ts';
 
-/** `export default defineExtensionPanel({ mount })` в модуле панели (`contributes.panels`). */
+/** An entry of `panels[<panel id>]` in `src/index.ts` (`contributes.panels`); `ctx.call` accepts the declared command ids. */
+/*#__NO_SIDE_EFFECTS__*/
 export const defineExtensionPanel = (
-  module: PanelModule<HTMLElement>,
-): PanelModule<HTMLElement> => module;
+  module: PanelModule<HTMLElement, ResolvedIds['commands']>,
+): PanelModule<HTMLElement, ResolvedIds['commands']> => module;

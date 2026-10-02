@@ -3,13 +3,14 @@ import type {
   NotifyEffect,
   OpenPanelEffect,
 } from '@dolphy-app/extension-api';
+import type { ResolvedIds } from './ids.ts';
 
-/** Результат команды: приложение покажет уведомление (текст 1–500 символов, как есть, без разметки). */
+/** A command result: the app shows a notification (1–500 characters, as is, no markup). */
 export const notify = (text: string): NotifyEffect => ({ notify: text });
 
-/** Результат команды: приложение откроет панель этого расширения; `props` попадут в `ctx.props` панели. */
+/** A command result: the app opens a panel of this extension (a declared panel id); `props` reach the panel as `ctx.props`. */
 export const openPanel = (
-  panelId: string,
+  panelId: ResolvedIds['panels'],
   props?: JsonValue,
 ): OpenPanelEffect =>
   props === undefined ? { openPanel: panelId } : { openPanel: panelId, props };

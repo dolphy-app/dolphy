@@ -83,7 +83,7 @@ export interface IndexParts {
   revoked: CatalogIndex['revoked'];
 }
 
-/** Собирает индекс в стабильном порядке ключей; бросает `BuildError`, если он не проходит `parseIndex`. */
+/** Builds the index with a stable key order; throws `BuildError` if it fails `parseIndex`. */
 export const assembleIndex = (parts: IndexParts): CatalogIndex => {
   const candidate: CatalogIndex = {
     schemaVersion: 1,
@@ -124,7 +124,7 @@ const contentOf = (index: CatalogIndex): string => {
   return JSON.stringify({ extensions, revoked });
 };
 
-/** Совпадают ли записи и список отзыва (без `generatedAt`). */
+/** Whether entries and the revocation list match (ignoring `generatedAt`). */
 export const hasSameContent = (
   current: CatalogIndex | null,
   next: CatalogIndex,

@@ -22,7 +22,7 @@ export interface CheckedManifest {
   minAppVersion: string | null;
 }
 
-/** Метаданные публикации из сырого `extension.json`; `null` — файл не читается как JSON. */
+/** Publication metadata from the raw `extension.json`; `null` — the file is not readable as JSON. */
 export interface DeclaredMetadata {
   name: string | null;
   description: string | null;
@@ -30,16 +30,16 @@ export interface DeclaredMetadata {
 }
 
 export interface RuleContext {
-  /** Имя каталога расширения. */
+  /** Extension directory name. */
   dirName: string;
   dir: string;
   manifest: CheckedManifest | null;
   declared: DeclaredMetadata | null;
-  /** Почему манифест не разобран; `null`, если разобран. */
+  /** Why the manifest was not parsed; `null` if it was parsed. */
   manifestProblem: string | null;
-  /** Исходники без `node_modules`, `dist-ext` и `.git`. */
+  /** Sources without `node_modules`, `dist-ext`, `.dolphy` and `.git`. */
   tree: Tree;
-  /** `null` — файла нет. */
+  /** `null` — no such file. */
   readText(file: string): Promise<string | null>;
   published: CatalogEntry | undefined;
   maxAppVersion: string | null;
@@ -124,14 +124,14 @@ const readPackageJson = async (
 
 const manifestValid: CheckRule = {
   id: 'CHECK-001',
-  title: 'extension.json читается и проходит разбор манифеста',
+  title: 'extension.json is readable and passes manifest parsing',
   run: ({ manifestProblem }) =>
     manifestProblem === null ? [] : [error('extension.json', manifestProblem)],
 };
 
 const directoryName: CheckRule = {
   id: 'CHECK-002',
-  title: 'имя каталога равно id из манифеста',
+  title: 'directory name equals the manifest id',
   run: ({ manifest, dirName }) =>
     manifest === null || manifest.id === dirName
       ? []
@@ -158,7 +158,7 @@ const textFinding = (
 
 const publicationMetadata: CheckRule = {
   id: 'CHECK-003',
-  title: 'заданы name, description и author',
+  title: 'name, description and author are set',
   run: ({ declared }) =>
     declared === null
       ? []
@@ -175,7 +175,7 @@ const publicationMetadata: CheckRule = {
 
 const readme: CheckRule = {
   id: 'CHECK-004',
-  title: 'README.md существует и не пуст',
+  title: 'README.md exists and is not empty',
   run: async (context) => {
     const text = await context.readText('README.md');
     return text === null || text.trim() === ''
@@ -188,7 +188,7 @@ const isLogin = (author: string): boolean => GITHUB_LOGIN_PATTERN.test(author);
 
 const authorLogin: CheckRule = {
   id: 'CHECK-005',
-  title: 'author имеет форму GitHub-логина',
+  title: 'author has the shape of a GitHub login',
   run: ({ declared }) =>
     declared?.author && !isLogin(declared.author)
       ? [error('author', `'${declared.author}' is not a GitHub login`)]
@@ -197,7 +197,7 @@ const authorLogin: CheckRule = {
 
 const authorExists: CheckRule = {
   id: 'CHECK-006',
-  title: 'author — существующий пользователь GitHub',
+  title: 'author is an existing GitHub user',
   run: async ({ declared, skipGithubCheck, checkGithubUser }) => {
     const author = declared?.author;
     if (skipGithubCheck || !author || !isLogin(author)) return [];
@@ -213,7 +213,7 @@ const authorExists: CheckRule = {
 
 const packageJson: CheckRule = {
   id: 'CHECK-007',
-  title: 'package.json существует и разбирается',
+  title: 'package.json exists and parses',
   run: async (context) => {
     const text = await context.readText('package.json');
     if (text === null)
@@ -226,7 +226,7 @@ const packageJson: CheckRule = {
 
 const lockfile: CheckRule = {
   id: 'CHECK-008',
-  title: 'есть lock-файл зависимостей',
+  title: 'a dependency lock file exists',
   run: ({ tree }) =>
     LOCKFILES.some((name) => tree.files.some((file) => file.path === name))
       ? []
@@ -235,7 +235,7 @@ const lockfile: CheckRule = {
 
 const lifecycleScripts: CheckRule = {
   id: 'CHECK-009',
-  title: 'нет lifecycle-скриптов установки и публикации',
+  title: 'no install or publish lifecycle scripts',
   run: async (context) => {
     const scripts = (await readPackageJson(context))?.scripts;
     if (!isRecord(scripts)) return [];
@@ -247,7 +247,8 @@ const lifecycleScripts: CheckRule = {
 
 const registryDependencies: CheckRule = {
   id: 'CHECK-010',
-  title: 'зависимости только из реестра (без git, http, file, link, workspace)',
+  title:
+    'dependencies come only from the registry (no git, http, file, link, workspace)',
   run: async (context) => {
     const manifest = await readPackageJson(context);
     if (manifest === null) return [];
@@ -272,7 +273,7 @@ const registryDependencies: CheckRule = {
 
 const packageScope: CheckRule = {
   id: 'CHECK-011',
-  title: 'name в package.json не занимает чужой scope',
+  title: "package.json name does not take another's scope",
   run: async (context) => {
     const name = (await readPackageJson(context))?.name;
     if (typeof name !== 'string' || !name.startsWith('@')) return [];
@@ -289,7 +290,7 @@ const packageScope: CheckRule = {
 
 const newerThanPublished: CheckRule = {
   id: 'CHECK-012',
-  title: 'версия строго больше опубликованной',
+  title: 'version is strictly greater than the published one',
   run: ({ manifest, published }) => {
     if (manifest === null || published === undefined) return [];
     const { version } = manifest;
@@ -310,7 +311,7 @@ const newerThanPublished: CheckRule = {
 
 const sourceLimits: CheckRule = {
   id: 'CHECK-013',
-  title: `не более ${MAX_SOURCE_FILES} файлов и 5 МБ исходников, файл не больше 1 МБ`,
+  title: `at most ${MAX_SOURCE_FILES} files and 5 MB of sources, no file over 1 MB`,
   run: ({ tree }) => {
     const findings: Finding[] = [];
     const total = tree.files.reduce((sum, file) => sum + file.size, 0);
@@ -346,14 +347,14 @@ const sourceLimits: CheckRule = {
 
 const noSymlinks: CheckRule = {
   id: 'CHECK-014',
-  title: 'нет символических ссылок',
+  title: 'no symbolic links',
   run: ({ tree }) =>
     tree.symlinks.map((link) => error(link, 'symbolic links are not allowed')),
 };
 
 const noExecutables: CheckRule = {
   id: 'CHECK-015',
-  title: `нет исполняемых файлов (${EXECUTABLE_EXTENSIONS.join(', ')})`,
+  title: `no executable files (${EXECUTABLE_EXTENSIONS.join(', ')})`,
   run: ({ tree }) =>
     tree.files
       .filter((file) =>
@@ -366,7 +367,7 @@ const noExecutables: CheckRule = {
 
 const appVersionBound: CheckRule = {
   id: 'CHECK-016',
-  title: 'minAppVersion не новее --max-app-version',
+  title: 'minAppVersion is not newer than --max-app-version',
   run: ({ manifest, maxAppVersion }) =>
     manifest?.minAppVersion &&
     maxAppVersion !== null &&

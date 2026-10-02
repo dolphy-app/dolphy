@@ -18,7 +18,7 @@ const moduleOf = (commands: Record<string, CommandHandler>) =>
   defineExtension({ commands });
 
 describe('notify / openPanel', () => {
-  it('возвращают ровно эффект, у openPanel без props ключа props нет', () => {
+  it('return exactly the effect; openPanel without props has no props key', () => {
     expect(notify('готово')).toEqual({ notify: 'готово' });
     expect(openPanel('p')).toStrictEqual({ openPanel: 'p' });
     expect(openPanel('p', { a: 1 })).toStrictEqual({
@@ -28,7 +28,7 @@ describe('notify / openPanel', () => {
     expect(openPanel('p', 0)).toStrictEqual({ openPanel: 'p', props: 0 });
   });
 
-  it('проходят через run как эффекты', async () => {
+  it('pass through run as effects', async () => {
     const loaded = await loadCommands(
       moduleOf({
         'a.notify': () => notify('hi'),
@@ -53,7 +53,7 @@ describe('notify / openPanel', () => {
 });
 
 describe('loadCommands', () => {
-  it('приводит каждый вид результата', async () => {
+  it('normalizes every kind of result', async () => {
     const loaded = await loadCommands(
       moduleOf({
         'a.none': () => undefined,
@@ -74,21 +74,21 @@ describe('loadCommands', () => {
     });
   });
 
-  it('ids() — в порядке регистрации', async () => {
+  it('ids() — in registration order', async () => {
     const loaded = await loadCommands(
       moduleOf({ 'a.z': () => 1, 'a.b': () => 2, 'a.m': () => 3 }),
     );
     expect(loaded.ids()).toEqual(['a.z', 'a.b', 'a.m']);
   });
 
-  it('незарегистрированная команда отклоняет run', async () => {
+  it('an unregistered command rejects run', async () => {
     const loaded = await loadCommands(moduleOf({ 'a.x': () => 1 }));
     await expect(loaded.run('a.missing')).rejects.toThrow(
       "command 'a.missing' was not registered",
     );
   });
 
-  it('declaredCommands: необъявленная регистрация падает при загрузке и называет команду', async () => {
+  it('declaredCommands: an undeclared registration fails on load and names the command', async () => {
     await expect(
       loadCommands(moduleOf({ 'a.ok': () => 1, 'a.rogue': () => 2 }), {
         declaredCommands: ['a.ok'],
@@ -96,7 +96,7 @@ describe('loadCommands', () => {
     ).rejects.toThrow(/a\.rogue/);
   });
 
-  it('повторная регистрация той же команды бросает', async () => {
+  it('registering the same command again throws', async () => {
     const module = defineExtension({
       commands: { 'a.x': () => 1 },
       activate: (context) => {
@@ -106,7 +106,7 @@ describe('loadCommands', () => {
     await expect(loadCommands(module)).rejects.toThrow(/a\.x.*already/);
   });
 
-  it('declaredPanels ограничивает openPanel; без него годится любая панель', async () => {
+  it('declaredPanels restricts openPanel; without it any panel is fine', async () => {
     const module = moduleOf({
       'a.known': () => openPanel('known'),
       'a.other': () => openPanel('other'),
@@ -128,7 +128,7 @@ describe('loadCommands', () => {
     });
   });
 
-  it('недопустимые результаты отклоняются как invalid command result', async () => {
+  it('invalid results are rejected as invalid command result', async () => {
     const loaded = await loadCommands(
       moduleOf({
         'a.big': () => 'x'.repeat(EXTENSION_COMMAND_LIMITS.resultBytes),
@@ -142,7 +142,7 @@ describe('loadCommands', () => {
     }
   });
 
-  it('границы args: ровно 200000 символов JSON проходит, больше — нет', async () => {
+  it('args bounds: exactly 200000 JSON characters passes, more does not', async () => {
     const received: unknown[] = [];
     const loaded = await loadCommands(
       moduleOf({
@@ -152,14 +152,14 @@ describe('loadCommands', () => {
       }),
     );
     const limit = EXTENSION_COMMAND_LIMITS.argsChars;
-    const exact = 'a'.repeat(limit - 2); // + две кавычки JSON
+    const exact = 'a'.repeat(limit - 2); // + two JSON quotes
     await loaded.run('a.echo', exact);
     expect(received).toEqual([exact]);
     await expect(loaded.run('a.echo', `${exact}a`)).rejects.toThrow(/args/);
     expect(received).toHaveLength(1);
   });
 
-  it('обработчик получает undefined без args и JSON с args', async () => {
+  it('the handler gets undefined without args and JSON with args', async () => {
     const received: unknown[] = [];
     const loaded = await loadCommands(
       moduleOf({ 'a.echo': (args) => void received.push(args) }),
@@ -170,7 +170,7 @@ describe('loadCommands', () => {
     expect(received).toEqual([undefined, { n: [1] }, null]);
   });
 
-  it('сбой обработчика доходит до вызывающего как есть', async () => {
+  it('a handler failure reaches the caller as is', async () => {
     const boom = new Error('boom');
     const loaded = await loadCommands(
       moduleOf({
@@ -182,7 +182,7 @@ describe('loadCommands', () => {
     await expect(loaded.run('a.fail')).rejects.toBe(boom);
   });
 
-  it('storage, settings, events, library и logger из опций видны в activate', async () => {
+  it('storage, settings, events, library and logger from the options are visible in activate', async () => {
     const storage = createMemoryStorage();
     const settings = createMemorySettings([
       { id: 'a.mode', type: 'string', label: 'Mode', default: 'fast' },
@@ -221,7 +221,7 @@ describe('loadCommands', () => {
     expect(logger.info).toHaveBeenCalledWith({ ok: true }, 'ran');
   });
 
-  it('dispose вызывает deactivate модуля; после него команды можно зарегистрировать заново', async () => {
+  it('dispose calls the module deactivate; afterwards commands can be registered again', async () => {
     const deactivate = vi.fn();
     const module = defineExtension({
       commands: { 'a.x': () => 1 },
@@ -235,7 +235,7 @@ describe('loadCommands', () => {
     expect(await second.run('a.x')).toEqual({ kind: 'data', value: 1 });
   });
 
-  it('dispose снимает регистрацию команд', async () => {
+  it('dispose unregisters commands', async () => {
     const loaded = await loadCommands(moduleOf({ 'a.x': () => 1 }));
     await loaded.dispose();
     expect(loaded.ids()).toEqual([]);

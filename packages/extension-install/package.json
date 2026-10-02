@@ -2,7 +2,7 @@
   "name": "@dolphy-app/extension-install",
   "version": "0.0.0",
   "private": true,
-  "description": "Установщик расширений из каталога: кэш индекса, скачивание с проверкой sha256, стейджинг и замена каталога с откатом (Node-адаптер порта ExtensionInstaller)",
+  "description": "Installer of extensions from the catalog: index cache, sha256-verified download, staging and directory swap with rollback (Node adapter of the ExtensionInstaller port)",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"

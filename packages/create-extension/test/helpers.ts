@@ -5,7 +5,7 @@ import { afterEach } from 'vitest';
 
 const temps: string[] = [];
 
-/** Временный каталог, удаляемый после каждого теста. */
+/** Temporary directory removed after each test. */
 export const makeTemp = async (): Promise<string> => {
   const dir = await mkdtemp(path.join(os.tmpdir(), 'create-ext-'));
   temps.push(dir);

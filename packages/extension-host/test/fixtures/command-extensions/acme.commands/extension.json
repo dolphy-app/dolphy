@@ -7,7 +7,11 @@
     "commands": [
       { "id": "acme.commands.echo", "title": "Echo" },
       { "id": "acme.commands.notify", "title": "Notify" },
-      { "id": "acme.commands.ghost-panel", "title": "Ghost panel", "palette": false },
+      {
+        "id": "acme.commands.ghost-panel",
+        "title": "Ghost panel",
+        "palette": false
+      },
       { "id": "acme.commands.fail", "title": "Fail" },
       { "id": "acme.commands.pid", "title": "Pid" },
       { "id": "acme.commands.spin", "title": "Spin" }

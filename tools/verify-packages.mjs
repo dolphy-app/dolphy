@@ -271,6 +271,20 @@ const assertGeneratedProject = ({ demo, version }) => {
   );
 };
 
+/** Из одного `src/index.ts` сборка кладёт код хоста только в `main.mjs`, код вида — только в `view.mjs`. */
+const assertSplitOutputs = (dir) => {
+  const main = readFileSync(path.join(dir, 'main.mjs'), 'utf8');
+  const view = readFileSync(path.join(dir, 'view.mjs'), 'utf8');
+  check(
+    main.includes('referenceAnswer') && !main.includes('customElements'),
+    'demo: main.mjs is not the host code alone',
+  );
+  check(
+    view.includes('customElements.define') && !view.includes('referenceAnswer'),
+    'demo: view.mjs is not the view code alone',
+  );
+};
+
 const formatKb = (bytes) => `${(bytes / 1024).toFixed(1)} KiB`;
 
 const main = () => {
@@ -337,6 +351,7 @@ const main = () => {
       cwd: demo,
       env,
     });
+    assertSplitOutputs(path.join(demo, 'dist-ext', 'demo'));
     run('npx', ['--no-install', 'tsc', '--noEmit'], { cwd: demo, env });
     const testOutput = run('npm', ['test'], { cwd: demo, env });
     check(

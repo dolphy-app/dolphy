@@ -1,5 +1,3 @@
-import { defaultElementName } from '@dolphy-app/extension-api';
-
 /** Версия расширения в шаблоне и его умолчание для `apiVersion`. */
 const INITIAL_VERSION = '0.1.0';
 
@@ -82,9 +80,11 @@ export const manifestJson = (id: string): string => `{
 }
 `;
 
-export const mainTs = (
-  id: string,
-): string => `import { defineExerciseType, defineExtension } from '@dolphy-app/extension-sdk';
+export const indexTs = (id: string): string => `import {
+  defineAnswerView,
+  defineExerciseType,
+  defineExtension,
+} from '@dolphy-app/extension-sdk';
 
 interface Spec {
   expected: string;
@@ -98,8 +98,9 @@ const matches = (answer: string, spec: Spec): boolean => {
   return answer === spec.expected;
 };
 
+// код расширения: исполняется в процессе расширений приложения
 // схемы из extension.json уже проверили spec и ответ до вызова обработчиков
-export default defineExtension({
+export const host = defineExtension({
   exerciseTypes: {
     '${id}': defineExerciseType<Spec, string, Record<string, never>>({
       project: () => ({}),
@@ -111,53 +112,56 @@ export default defineExtension({
     }),
   },
 });
+
+// вид ввода ответа: исполняется в окне приложения; custom element с тегом
+// из extension.json создаёт сборка
+export const views = {
+  '${id}': defineAnswerView((api, initial) => {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.spellcheck = false;
+    if (api.label !== null) input.setAttribute('aria-label', api.label);
+
+    const applyValue = (value: unknown) => {
+      input.value = typeof value === 'string' ? value : '';
+    };
+    let appliedValue = initial.value;
+    applyValue(appliedValue);
+    input.disabled = initial.disabled;
+
+    input.addEventListener('input', () => {
+      api.setAnswer(input.value, input.value.trim().length > 0);
+    });
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') api.submit();
+    });
+    api.root.append(input);
+
+    return {
+      update: (props) => {
+        input.disabled = props.disabled;
+        // value применяется, только когда приложение его действительно сменило
+        if (props.value !== appliedValue) {
+          appliedValue = props.value;
+          applyValue(appliedValue);
+        }
+      },
+    };
+  }),
+};
 `;
 
-export const viewTs = (
+export const indexTestTs = (
   id: string,
-): string => `import { defineAnswerElement } from '@dolphy-app/extension-sdk';
-
-defineAnswerElement('${defaultElementName(id)}', (api, initial) => {
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.spellcheck = false;
-  if (api.label !== null) input.setAttribute('aria-label', api.label);
-
-  const applyValue = (value: unknown) => {
-    input.value = typeof value === 'string' ? value : '';
-  };
-  let appliedValue = initial.value;
-  applyValue(appliedValue);
-  input.disabled = initial.disabled;
-
-  input.addEventListener('input', () => {
-    api.setAnswer(input.value, input.value.trim().length > 0);
-  });
-  input.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') api.submit();
-  });
-  api.root.append(input);
-
-  return {
-    update: (props) => {
-      input.disabled = props.disabled;
-      // value применяется, только когда приложение его действительно сменило
-      if (props.value !== appliedValue) {
-        appliedValue = props.value;
-        applyValue(appliedValue);
-      }
-    },
-  };
-});
-`;
-
-export const mainTestTs = (id: string): string => `import {
+): string => `// @vitest-environment happy-dom
+import {
   createSchemaValidator,
   loadExerciseType,
+  loadView,
 } from '@dolphy-app/extension-sdk/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import manifest from '../extension.json';
-import module from '../src/main.ts';
+import { host, views } from '../src/index.ts';
 
 const [contribution] = manifest.contributes.exerciseTypes;
 const validateSpec = createSchemaValidator(contribution.specSchema);
@@ -165,15 +169,23 @@ const validateAnswer = createSchemaValidator(contribution.answerSchema);
 
 const spec = { expected: 'Hello' };
 
-const disposables: { dispose(): Promise<void> }[] = [];
+const disposables: { dispose(): unknown }[] = [];
 afterEach(async () => {
   await Promise.all(disposables.splice(0).map((item) => item.dispose()));
 });
 
 const load = async () => {
-  const type = await loadExerciseType(module, '${id}');
+  const type = await loadExerciseType(host, '${id}');
   disposables.push(type);
   return type;
+};
+
+const mount = async (label?: string) => {
+  const view = await loadView(views, '${id}', label === undefined ? {} : { label });
+  disposables.push(view);
+  const input = view.query<HTMLInputElement>('input');
+  if (input === null) throw new Error('no input');
+  return { view, input };
 };
 
 describe('${id}: обработчик', () => {
@@ -234,85 +246,45 @@ describe('${id}: схемы', () => {
     expect(validateAnswer(42)).not.toEqual([]);
   });
 });
-`;
 
-export const viewTestTs = (id: string): string => {
-  const tag = defaultElementName(id);
-  return `// @vitest-environment happy-dom
-import { ANSWER_EVENT } from '@dolphy-app/extension-sdk';
-import type { AnswerChangeDetail } from '@dolphy-app/extension-sdk';
-import { afterEach, describe, expect, it } from 'vitest';
-import '../src/view.ts';
-
-interface AnswerElement extends HTMLElement {
-  view: unknown;
-  value: unknown;
-  disabled: boolean;
-}
-
-const flush = () => Promise.resolve();
-
-const mountElement = async (label: string | null = null) => {
-  const element = document.createElement('${tag}') as AnswerElement;
-  if (label !== null) element.setAttribute('aria-label', label);
-  document.body.append(element);
-  await flush();
-  const changes: AnswerChangeDetail[] = [];
-  element.addEventListener(ANSWER_EVENT.change, (event) => {
-    changes.push((event as CustomEvent<AnswerChangeDetail>).detail);
-  });
-  const input = element.shadowRoot?.querySelector('input');
-  if (input === null || input === undefined) throw new Error('no input');
-  return { element, input, changes };
-};
-
-afterEach(() => {
-  document.body.replaceChildren();
-});
-
-describe('${tag}', () => {
+describe('${id}: вид', () => {
   it('ввод текста сообщает ответ; пустой ввод неполный', async () => {
-    const { input, changes } = await mountElement();
+    const { view, input } = await mount();
     input.value = 'Hello';
     input.dispatchEvent(new Event('input'));
     input.value = '  ';
     input.dispatchEvent(new Event('input'));
-    expect(changes).toEqual([
+    expect(view.changes).toEqual([
       { value: 'Hello', complete: true },
       { value: '  ', complete: false },
     ]);
   });
 
   it('Enter отправляет ответ', async () => {
-    const { element, input } = await mountElement();
-    let submits = 0;
-    element.addEventListener(ANSWER_EVENT.submit, () => void (submits += 1));
+    const { view, input } = await mount();
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
-    expect(submits).toBe(1);
+    expect(view.submissions).toBe(1);
   });
 
   it('disabled блокирует поле', async () => {
-    const { element, input } = await mountElement();
-    element.disabled = true;
-    await flush();
+    const { view, input } = await mount();
+    await view.update({ disabled: true });
     expect(input.disabled).toBe(true);
   });
 
   it('value восстанавливает ответ без событий', async () => {
-    const { element, input, changes } = await mountElement();
-    element.value = 'Hello';
-    await flush();
+    const { view, input } = await mount();
+    await view.update({ value: 'Hello' });
     expect(input.value).toBe('Hello');
-    expect(changes).toEqual([]);
+    expect(view.changes).toEqual([]);
   });
 
   it('aria-label хоста попадает на поле', async () => {
-    const { input } = await mountElement('Ваш ответ');
+    const { input } = await mount('Ваш ответ');
     expect(input.getAttribute('aria-label')).toBe('Ваш ответ');
   });
 });
 `;
-};
 
 export const readme = (id: string): string =>
   lines([
@@ -324,9 +296,10 @@ export const readme = (id: string): string =>
     '## Раскладка',
     '',
     '- `extension.json` — манифест (схемы `spec` и ответа записаны прямо в нём);',
-    '- `src/main.ts` — код расширения: `defineExtension` + `defineExerciseType`;',
-    '- `src/view.ts` — элемент ввода ответа: `defineAnswerElement`;',
-    '- `test/` — тесты обработчика и элемента (`vitest`, `happy-dom`).',
+    '- `src/index.ts` — весь код расширения: `host` (`defineExtension` +',
+    '  `defineExerciseType`) и `views` (`defineAnswerView`); сборка раскладывает',
+    '  его по `main.mjs` и `view.mjs`;',
+    '- `test/index.test.ts` — тесты обработчика, схем и вида (`vitest`, `happy-dom`).',
     '',
     '## Цикл разработки',
     '',

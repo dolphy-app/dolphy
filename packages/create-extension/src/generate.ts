@@ -127,10 +127,8 @@ export const renderProject = (input: TemplateInput): Map<string, string> => {
     ['package.json', template.packageJson(input)],
     ['tsconfig.json', template.tsconfigJson()],
     ['extension.json', template.manifestJson(id)],
-    ['src/main.ts', template.mainTs(id)],
-    ['src/view.ts', template.viewTs(id)],
-    ['test/main.test.ts', template.mainTestTs(id)],
-    ['test/view.test.ts', template.viewTestTs(id)],
+    ['src/index.ts', template.indexTs(id)],
+    ['test/index.test.ts', template.indexTestTs(id)],
     ['README.md', template.readme(id)],
     ['.gitignore', template.gitignore()],
   ]);

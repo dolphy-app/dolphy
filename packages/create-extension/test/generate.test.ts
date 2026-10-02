@@ -37,10 +37,8 @@ describe('generateExtension', () => {
       'README.md',
       'extension.json',
       'package.json',
-      'src/main.ts',
-      'src/view.ts',
-      'test/main.test.ts',
-      'test/view.test.ts',
+      'src/index.ts',
+      'test/index.test.ts',
       'tsconfig.json',
     ]);
   });
@@ -185,7 +183,7 @@ describe('generateExtension', () => {
     });
   });
 
-  it('манифест проходит parseManifest; element совпадает с тегом view.ts', async () => {
+  it('манифест проходит parseManifest; код привязан к id вида из манифеста', async () => {
     const root = await makeTemp();
     const { dir, id } = await generateExtension({
       dir: path.join(root, 'x'),
@@ -198,9 +196,9 @@ describe('generateExtension', () => {
     const [type] = parsed.manifest.contributes.exerciseTypes;
     expect(type?.id).toBe(id);
     expect(type?.element).toBe(defaultElementName(id));
-    const view = await readFile(path.join(dir, 'src/view.ts'), 'utf8');
-    expect(view).toContain(`defineAnswerElement('${type?.element}'`);
-    const main = await readFile(path.join(dir, 'src/main.ts'), 'utf8');
-    expect(main).toContain(`'${id}': defineExerciseType`);
+    const index = await readFile(path.join(dir, 'src/index.ts'), 'utf8');
+    expect(index).toContain(`'${id}': defineExerciseType`);
+    expect(index).toContain(`'${id}': defineAnswerView`);
+    expect(index).not.toContain('defineAnswerElement');
   });
 });

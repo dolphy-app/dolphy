@@ -18,7 +18,7 @@ const sectionOf = (doc: string): string => {
 describe('docs/design/extensions.md', () => {
   it.each([
     ['extension.json', 'json'],
-    ['src/main.ts', 'ts'],
+    ['src/index.ts', 'ts'],
   ])(
     'раздел содержит %s байт в байт, как его генерирует шаблон',
     async (file, lang) => {

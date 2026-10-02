@@ -17,6 +17,7 @@ import {
   connectEngine,
   createHostChannel,
   createRemoteExerciseTypes,
+  createRemoteExtensionCommands,
   createRemoteGradePolicies,
   discoverExtensions,
 } from '@dolphy-app/extension-host';
@@ -91,6 +92,12 @@ export const boot = async (
     policy,
     logger: defaults.logger,
   });
+  const extensionCommands = createRemoteExtensionCommands({
+    channel,
+    discovery,
+    policy,
+    logger: defaults.logger,
+  });
   if (__DOLPHY_SMOKE_BUILD__ && process.env.DOLPHY_SMOKE === '1') {
     defaults.logger.info(
       { types: exerciseTypes.list().map(({ type }) => type) },
@@ -107,6 +114,7 @@ export const boot = async (
       snapshotFetcher: createIsomorphicGitFetcher(),
       exerciseTypes,
       gradePolicies,
+      extensionCommands,
       extensionRegistry: createExtensionRegistry(
         discovery,
         policy,

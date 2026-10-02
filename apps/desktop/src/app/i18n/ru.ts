@@ -7,6 +7,8 @@ export const ru = {
     courses: 'Курсы',
     graph: 'Граф знаний',
     settings: 'Настройки',
+    extensions: 'Панели расширений',
+    commands: 'Команды',
   },
   startup: {
     updateTitle: 'Обновите приложение',

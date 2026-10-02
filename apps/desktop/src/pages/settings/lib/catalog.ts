@@ -17,6 +17,8 @@ export const CONTRIBUTION_POINTS: readonly ContributionPoint[] = [
   'gradePolicies',
   'settings',
   'events',
+  'commands',
+  'panels',
 ];
 
 export interface CatalogFilters {
@@ -137,6 +139,8 @@ const NO_CONTRIBUTES: ExtensionContributesDto = {
   gradePolicies: [],
   settings: [],
   events: [],
+  commands: [],
+  panels: [],
 };
 
 /**

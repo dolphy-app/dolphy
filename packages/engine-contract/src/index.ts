@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 10 as const;
+export const CONTRACT_VERSION = 11 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 
@@ -48,6 +48,8 @@ export type EngineErrorCode =
   | 'EXTENSION_INSTALL_FAILED'
   /** Запись в хранилище расширения превысила потолок; `details`: `extensionId`, `kind`, `limit`. */
   | 'EXTENSION_STORAGE_QUOTA'
+  /** Команда расширения не выполнена; `details`: `extensionId`, `commandId`, `reason` (`ExtensionCommandFailureReason`). */
+  | 'EXTENSION_COMMAND_FAILED'
   | 'INTERNAL';
 
 export interface EngineErrorDto {
@@ -1131,7 +1133,58 @@ export interface ExtensionContributesDto {
   settings: string[];
   /** Имена событий обучения (`contributes.events`). */
   events: string[];
+  /** Id команд (`contributes.commands`). */
+  commands: string[];
+  /** Id панелей (`contributes.panels`). */
+  panels: string[];
 }
+
+/** Команда расширения (`contributes.commands`). */
+export interface CommandContributionDto {
+  /** Id в пространстве расширения (как у тем). */
+  id: string;
+  extensionId: string;
+  /** Название в палитре; данные расширения, не переводится. */
+  title: string;
+  description: string | null;
+  category: string | null;
+  /** Подсказка вида `Mod+Shift+L`; приложение клавишу не назначает. */
+  keybinding: string | null;
+  /** `false` скрывает команду из палитры: её вызывает только панель. */
+  palette: boolean;
+}
+
+/** Панель расширения (`contributes.panels`): экран приложения в изолированной рамке. */
+export interface PanelContributionDto {
+  id: string;
+  extensionId: string;
+  /** Название пункта бокового меню и заголовка страницы; данные расширения. */
+  title: string;
+  /** `dolphy-ext://<extensionId>/<путь>`. */
+  rendererUrl: string;
+  /** Панель всегда исполняется в рамке; поле оставлено для единообразия с остальными видами с модулем. */
+  isolated: boolean;
+  origin: ExtensionOriginDto;
+  /** Отпечаток файлов расширения; у расширений из поставки — пустая строка. */
+  revision: string;
+}
+
+/** Что вернул обработчик команды; окно исполняет `notify` и `openPanel` само. */
+export type CommandResultDto =
+  | { kind: 'none' }
+  | { kind: 'notify'; text: string }
+  | { kind: 'openPanel'; panelId: string; props?: JsonValue }
+  | { kind: 'data'; value: JsonValue };
+
+/** Причина `EXTENSION_COMMAND_FAILED` (`details.reason`). */
+export type ExtensionCommandFailureReason =
+  | 'unknown-command'
+  | 'host-down'
+  | 'timeout'
+  | 'handler-failed'
+  | 'invalid-result'
+  | 'disabled'
+  | 'replaced';
 
 export interface ThemeContributionDto {
   id: string;
@@ -1192,6 +1245,10 @@ export interface ContributionsDto {
   gradePolicies: GradePolicyInfoDto[];
   /** Определения настроек включённых расширений. */
   settings: ExtensionSettingDefDto[];
+  /** Команды включённых расширений. */
+  commands: CommandContributionDto[];
+  /** Панели включённых расширений. */
+  panels: PanelContributionDto[];
 }
 
 interface ExtensionSettingBaseDto {
@@ -1356,6 +1413,21 @@ export interface ExtensionsService {
   dataUsage(id: string): Promise<ExtensionDataUsageDto>;
   /** Стирает хранилище и значения настроек; работающее расширение видит пустое хранилище и значения по умолчанию. */
   clearData(id: string): Promise<void>;
+  /**
+   * Выполняет объявленную команду расширения (код расширения; первый вызов
+   * лениво его активирует). Вызов не занимает очередь команд движка.
+   * `INVALID_ARGUMENT` — неверный `extensionId`/`commandId` или аргументы длиннее
+   * `MAX_ANSWER_CHARS` (`details.reason`: `args-too-large`). Всё остальное —
+   * `EXTENSION_COMMAND_FAILED` с `details` `{ extensionId, commandId, reason }`
+   * (`ExtensionCommandFailureReason`): расширения или объявленной команды нет —
+   * `unknown-command`, расширение отключено — `disabled`, `timeout` и
+   * `host-down` допускают повтор.
+   */
+  invokeCommand(
+    extensionId: string,
+    commandId: string,
+    args?: JsonValue,
+  ): Promise<CommandResultDto>;
 }
 
 export type CatalogStatusDto =

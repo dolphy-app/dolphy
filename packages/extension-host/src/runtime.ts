@@ -1,8 +1,14 @@
 import { isDeepStrictEqual } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import type { MessageEndpoint } from '@dolphy-app/engine-contract';
-import { PermissionError } from '@dolphy-app/extension-api';
+import {
+  EXTENSION_COMMAND_LIMITS,
+  InvalidCommandResultError,
+  PermissionError,
+  normalizeCommandResult,
+} from '@dolphy-app/extension-api';
 import type {
+  CommandHandler,
   Disposable,
   ExerciseTypeHandler,
   ExtensionContext,
@@ -51,7 +57,7 @@ export interface ExtensionRuntimeOptions {
   /** false — не маршрутизировать по `isolated`: сам процесс и есть ограничение (дочерний процесс раннера). */
   enforceIsolation?: boolean;
   /**
-   * Запас сверх срока вызова (`timeoutMs` у `grade`, 5 с у остальных), сколько
+   * Запас сверх срока вызова (`timeoutMs` у `grade`, 10 с у команд, 5 с у остальных), сколько
    * `replace` ждёт вызов, идущий в момент замены, прежде чем вытеснить
    * расширение. Совпадает с запасом движка до дедлайна; по умолчанию 2000.
    */
@@ -97,14 +103,20 @@ const DEFAULT_CALL_MS = 5000;
 /** Срок обработчика события обучения (R6). */
 export const EVENT_HANDLER_MS = 2000;
 
+/** Срок обработчика команды расширения (R3); раннер ограниченного процесса и клиент движка ждут дольше. */
+export const COMMAND_HANDLER_MS = EXTENSION_COMMAND_LIMITS.handlerMs;
+
 const ignore = (): void => {};
+
+/** Обработчик не уложился в срок: `invoke` превращает её в `handler-timeout`. */
+class HandlerTimeout extends Error {}
 
 /** Ждёт `work`, но не дольше `ms`; опоздавший результат и отказ отбрасываются. */
 const within = async <T>(work: Promise<T>, ms: number): Promise<T> => {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const expired = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(
-      () => reject(new Error(`handler timed out after ${ms} ms`)),
+      () => reject(new HandlerTimeout(`handler timed out after ${ms} ms`)),
       ms,
     );
   });
@@ -136,6 +148,7 @@ interface Activation {
   handlers: Map<string, ExerciseTypeHandler>;
   policies: Map<string, GradePolicyHandler>;
   events: Map<LearningEventName, (payload: unknown) => void | Promise<void>>;
+  commands: Map<string, CommandHandler>;
   settings: SettingsState;
   disposables: Disposable[];
 }
@@ -266,6 +279,7 @@ export const createExtensionRuntime = (
       extension.gradePolicies.map((policy) => policy.id),
     );
     const declaredEvents = new Set(extension.events.map(({ event }) => event));
+    const declaredCommands = new Set(extension.commands.map(({ id }) => id));
     const settings = createSettingsState(
       extension.id,
       extension.settings,
@@ -276,6 +290,7 @@ export const createExtensionRuntime = (
       handlers: new Map(),
       policies: new Map(),
       events: new Map(),
+      commands: new Map(),
       settings,
       disposables: [{ dispose: settings.dispose }],
     };
@@ -309,6 +324,28 @@ export const createExtensionRuntime = (
             dispose: () => {
               if (activation.events.get(name) === stored) {
                 activation.events.delete(name);
+              }
+            },
+          };
+          activation.disposables.push(disposable);
+          return disposable;
+        },
+      },
+      commands: {
+        register(id, handler) {
+          if (!declaredCommands.has(id)) {
+            throw new Error(
+              `command '${id}' is not declared in the manifest of '${extension.id}'`,
+            );
+          }
+          if (activation.commands.has(id)) {
+            throw new Error(`command '${id}' is already registered`);
+          }
+          activation.commands.set(id, handler);
+          const disposable: Disposable = {
+            dispose: () => {
+              if (activation.commands.get(id) === handler) {
+                activation.commands.delete(id);
               }
             },
           };
@@ -436,7 +473,10 @@ export const createExtensionRuntime = (
     try {
       return await call();
     } catch (error) {
-      throw new RuntimeFailure('handler-failed', messageOf(error));
+      throw new RuntimeFailure(
+        error instanceof HandlerTimeout ? 'handler-timeout' : 'handler-failed',
+        messageOf(error),
+      );
     }
   };
 
@@ -483,6 +523,53 @@ export const createExtensionRuntime = (
     return { delivered: true };
   };
 
+  const invokeCommand = async (
+    extension: ResolvedExtension | undefined,
+    params: Extract<ExtRequest, { method: 'invokeCommand' }>['params'],
+  ): Promise<unknown> => {
+    const { commandId } = params;
+    if (!extension?.commands.some(({ id }) => id === commandId)) {
+      throw new RuntimeFailure(
+        'unknown-command',
+        `unknown command '${commandId}' of '${params.extensionId}'`,
+      );
+    }
+    let activation: Activation;
+    try {
+      activation = await activationOf(extension);
+    } catch (error) {
+      // сборку заменили, пока шла активация: вызывающему нужен повтор, а не сбой кода
+      if (known.get(extension.id) !== extension) {
+        throw new RuntimeFailure(
+          'replaced',
+          `extension '${extension.id}' was replaced`,
+        );
+      }
+      throw error;
+    }
+    const handler = activation.commands.get(commandId);
+    if (handler === undefined) {
+      throw new RuntimeFailure(
+        'unknown-command',
+        `extension '${extension.id}' did not register command '${commandId}'`,
+      );
+    }
+    const result = await invoke(() =>
+      within(Promise.resolve(handler(params.args)), COMMAND_HANDLER_MS),
+    );
+    try {
+      return normalizeCommandResult(
+        result,
+        extension.panels.map(({ id }) => id),
+      );
+    } catch (error) {
+      if (error instanceof InvalidCommandResultError) {
+        throw new RuntimeFailure('invalid-result', error.message);
+      }
+      throw error;
+    }
+  };
+
   const run = async (
     request: ExtRequest,
     extension: ResolvedExtension | undefined,
@@ -492,6 +579,9 @@ export const createExtensionRuntime = (
     }
     if (request.method === 'deliverEvent') {
       return deliverEvent(extension, request.params);
+    }
+    if (request.method === 'invokeCommand') {
+      return invokeCommand(extension, request.params);
     }
     const { params } = request;
     const handler = await handlerFor(extension, params.type);
@@ -589,13 +679,24 @@ export const createExtensionRuntime = (
     if (runner !== undefined) await background(disposeRunner(runner));
   };
 
+  /** Срок вызова, который стоит дождаться при замене набора; обработчики команды и `grade` задают его сами. */
+  const budgetOf = (request: ExtRequest): number => {
+    switch (request.method) {
+      case 'grade':
+        return request.params.timeoutMs;
+      case 'invokeCommand':
+        return COMMAND_HANDLER_MS;
+      default:
+        return DEFAULT_CALL_MS;
+    }
+  };
+
   const fly = <T>(
     extensionId: string,
     request: ExtRequest,
     work: Promise<T>,
   ): Promise<T> => {
-    const budgetMs =
-      request.method === 'grade' ? request.params.timeoutMs : DEFAULT_CALL_MS;
+    const budgetMs = budgetOf(request);
     const flight: Flight = {
       done: work.then(ignore, ignore),
       deadlineAt: Date.now() + budgetMs + drainGraceMs,
@@ -664,6 +765,7 @@ export const createExtensionRuntime = (
       case 'gradePolicy':
         return catalog.ownerOfPolicy(request.params.policyId);
       case 'deliverEvent':
+      case 'invokeCommand':
         return known.get(request.params.extensionId);
       default:
         return catalog.ownerOf(request.params.type);
@@ -680,10 +782,17 @@ export const createExtensionRuntime = (
       ?.notify({ method: 'settingChanged', params });
   };
 
-  const refused = (request: ExtRequest, message: string): ExtResponse => ({
+  const refused = (
+    request: ExtRequest,
+    message: string,
+    cause: Extract<
+      ExtResponse,
+      { ok: false }
+    >['error']['cause'] = 'activation-failed',
+  ): ExtResponse => ({
     id: request.id,
     ok: false,
-    error: { cause: 'activation-failed', message },
+    error: { cause, message },
   });
 
   // Расширение не из поставки с isolated === true исполняется в ограниченном
@@ -699,7 +808,11 @@ export const createExtensionRuntime = (
     let runner = runners.get(extension.id);
     if (runner === undefined) {
       if (known.get(extension.id) !== extension) {
-        return refused(request, `extension '${extension.id}' was replaced`);
+        return refused(
+          request,
+          `extension '${extension.id}' was replaced`,
+          request.method === 'invokeCommand' ? 'replaced' : 'activation-failed',
+        );
       }
       runner = options.runners.create(extension, engine);
       runners.set(extension.id, runner);

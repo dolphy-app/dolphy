@@ -32,6 +32,8 @@ const extension = (id: string, version = '1.0.0'): ResolvedExtension => ({
   gradePolicies: [],
   settings: [],
   events: [],
+  commands: [],
+  panels: [],
 });
 
 const NONE = {
@@ -41,6 +43,8 @@ const NONE = {
   gradePolicies: [],
   settings: [],
   events: [],
+  commands: [],
+  panels: [],
 };
 
 const discovery: DiscoveryResult = {

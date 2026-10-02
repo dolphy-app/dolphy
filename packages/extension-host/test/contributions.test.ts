@@ -31,7 +31,7 @@ const withContributes = (contributes: Record<string, unknown>) => ({
 });
 
 describe('реестр точек вклада', () => {
-  it('содержит все шесть точек с уникальными ключами', () => {
+  it('содержит все восемь точек с уникальными ключами', () => {
     expect(CONTRIBUTION_POINTS.map(({ key }) => key)).toEqual([
       'exerciseTypes',
       'themes',
@@ -39,6 +39,8 @@ describe('реестр точек вклада', () => {
       'gradePolicies',
       'settings',
       'events',
+      'commands',
+      'panels',
     ]);
   });
 
@@ -89,7 +91,7 @@ describe('main зависит от точек', () => {
     expect(result).toMatchObject({ ok: true, manifest: { main: './x.mjs' } });
   });
 
-  it('нормализованный манифест содержит массивы всех шести точек', () => {
+  it('нормализованный манифест содержит массивы всех восьми точек', () => {
     const result = parseManifest(withContributes({ themes: [theme()] }));
     if (!result.ok) throw new Error(result.message);
     expect(result.manifest.contributes).toMatchObject({
@@ -98,6 +100,8 @@ describe('main зависит от точек', () => {
       gradePolicies: [],
       settings: [],
       events: [],
+      commands: [],
+      panels: [],
     });
   });
 });
@@ -375,6 +379,8 @@ describe('createExtensionRegistry: contributions', () => {
       gradePolicies: [],
       settings: [],
       events: [],
+      commands: [],
+      panels: [],
     });
   });
 

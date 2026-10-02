@@ -8,6 +8,7 @@ import {
   createFakeClock,
   createFakeExerciseTypes,
   createFakeGradePolicies,
+  createFakeExtensionCommands,
   createFakeExtensionInstaller,
   createFakeExtensionPolicy,
   createFakeExtensionRegistry,
@@ -133,6 +134,7 @@ describe('a profile on disk: nodeDefaults over a copied library', () => {
         extensionDataStore: createMemoryExtensionDataStore(),
         exerciseTypes: createFakeExerciseTypes(),
         gradePolicies: createFakeGradePolicies(),
+        extensionCommands: createFakeExtensionCommands(),
         extensionRegistry: createFakeExtensionRegistry(),
         extensionPolicy: createFakeExtensionPolicy(),
         // фоновая проверка обновлений сюда не относится: профиль на диске удаляется после теста

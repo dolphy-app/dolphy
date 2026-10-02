@@ -15,6 +15,8 @@ const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
   gradePolicies: [],
   settings: [],
   events: [],
+  commands: [],
+  panels: [],
 };
 
 const isolationOf = (
@@ -48,6 +50,8 @@ export const contributesOf = (
     | 'gradePolicies'
     | 'settings'
     | 'events'
+    | 'commands'
+    | 'panels'
   >,
 ): ExtensionInfoDto['contributes'] => ({
   exerciseTypes: extension.exerciseTypes.map(({ id }) => id),
@@ -58,6 +62,8 @@ export const contributesOf = (
   gradePolicies: extension.gradePolicies.map(({ id }) => id),
   settings: extension.settings.map(({ id }) => id),
   events: extension.events.map(({ event }) => event),
+  commands: extension.commands.map(({ id }) => id),
+  panels: extension.panels.map(({ id }) => id),
 });
 
 const loaded = (
@@ -168,6 +174,19 @@ export const createExtensionRegistry = (
         settings.map((setting) =>
           structuredClone({ ...setting, extensionId: id }),
         ),
+      ),
+      commands: enabled().flatMap(({ id, commands }) =>
+        commands.map((command) => ({ ...command, extensionId: id })),
+      ),
+      // панель всегда в рамке, даже у доверенного расширения (ADR 0008)
+      panels: enabled().flatMap((extension) =>
+        extension.panels.map((panel) => ({
+          ...panel,
+          extensionId: extension.id,
+          isolated: true,
+          origin: extension.origin,
+          revision: extension.revision,
+        })),
       ),
     }),
   };

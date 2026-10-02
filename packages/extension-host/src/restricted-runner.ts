@@ -98,11 +98,17 @@ export interface RestrictedRunnerOptions {
   graceMs?: number;
   /** Сколько ждать `ready` от нового процесса. */
   readyTimeoutMs?: number;
+  /**
+   * Срок вызова команды, включая запуск процесса. Больше срока обработчика
+   * (10 с) и меньше срока клиента движка (14 с).
+   */
+  commandDeadlineMs?: number;
 }
 
 const DEFAULT_GRACE_MS = 1500;
 const DEFAULT_READY_TIMEOUT_MS = 10_000;
 const OTHER_DEADLINE_MS = 10_000;
+const COMMAND_DEADLINE_MS = 12_000;
 const DISPOSE_KILL_MS = 1000;
 const CRASH_WINDOW_MS = 60_000;
 const MAX_EXITS = 5;
@@ -120,7 +126,7 @@ interface Live {
 
 const failure = (
   id: string,
-  cause: 'handler-failed' | 'activation-failed',
+  cause: 'handler-failed' | 'handler-timeout' | 'activation-failed',
   message: string,
 ): ExtResponse => ({ id, ok: false, error: { cause, message } });
 
@@ -144,6 +150,7 @@ export const createRestrictedRunner = (
   const spawn = options.spawn ?? defaultSpawn;
   const graceMs = options.graceMs ?? DEFAULT_GRACE_MS;
   const readyTimeoutMs = options.readyTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS;
+  const commandDeadlineMs = options.commandDeadlineMs ?? COMMAND_DEADLINE_MS;
   const canReadLibrary = extension.permissions.includes('library.read');
   let live: Live | null = null;
   let starting: Promise<Live> | null = null;
@@ -383,8 +390,14 @@ export const createRestrictedRunner = (
   };
 
   const killCurrent = (): void => {
-    if (live !== null) live.child.kill();
-    else void starting?.then((started) => started.child.kill()).catch(() => {});
+    if (live === null) {
+      void starting?.then((started) => started.child.kill()).catch(() => {});
+      return;
+    }
+    // убитый процесс умирает не мгновенно: новые вызовы ему не достаются, следующий поднимет свежий
+    const doomed = live;
+    live = null;
+    doomed.child.kill();
   };
 
   return {
@@ -399,10 +412,12 @@ export const createRestrictedRunner = (
           'extension process keeps crashing',
         );
       }
-      const deadlineMs =
-        request.method === 'grade'
-          ? request.params.timeoutMs + graceMs
-          : OTHER_DEADLINE_MS;
+      let deadlineMs = OTHER_DEADLINE_MS;
+      if (request.method === 'grade') {
+        deadlineMs = request.params.timeoutMs + graceMs;
+      } else if (request.method === 'invokeCommand') {
+        deadlineMs = commandDeadlineMs;
+      }
       let timer: ReturnType<typeof setTimeout> | undefined;
       const deadline = new Promise<'deadline'>((resolve) => {
         timer = setTimeout(() => resolve('deadline'), deadlineMs);
@@ -413,7 +428,9 @@ export const createRestrictedRunner = (
         killCurrent();
         return failure(
           request.id,
-          'handler-failed',
+          request.method === 'invokeCommand'
+            ? 'handler-timeout'
+            : 'handler-failed',
           'extension process was killed: deadline exceeded',
         );
       } catch (error) {

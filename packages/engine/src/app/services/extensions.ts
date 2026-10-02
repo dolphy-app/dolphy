@@ -1,6 +1,8 @@
+import { MAX_ANSWER_CHARS } from '@dolphy-app/engine-contract';
 import type {
   CatalogDto,
   ContributionsDto,
+  ExtensionCommandFailureReason,
   ExtensionDataUsageDto,
   ExtensionInfoDto,
   ExtensionOriginDto,
@@ -8,6 +10,7 @@ import type {
   ExtensionUpdateDto,
   ExtensionsService,
   InstallResultDto,
+  JsonValue,
 } from '@dolphy-app/engine-contract';
 import {
   isExtensionId,
@@ -17,6 +20,7 @@ import {
   ExtensionInstallError,
   type ExtensionInstallErrorCause,
 } from '../../ports/extension-installer.ts';
+import { ExtensionCommandError } from '../../ports/extension-commands.ts';
 import type { RegistryContributions } from '../../ports/extension-registry.ts';
 import { GRADE_POLICIES } from '../../verify/grade-policy.ts';
 import type { EngineContext } from '../context.ts';
@@ -103,6 +107,8 @@ const copyInfo = (info: ExtensionInfoDto): ExtensionInfoDto => ({
     gradePolicies: [...info.contributes.gradePolicies],
     settings: [...info.contributes.settings],
     events: [...info.contributes.events],
+    commands: [...info.contributes.commands],
+    panels: [...info.contributes.panels],
   },
   permissions: [...info.permissions],
 });
@@ -131,6 +137,8 @@ const sortedContributions = (
     ],
     // между расширениями — по id, внутри расширения — порядок манифеста (так автор управляет формой)
     settings: copy.settings.sort(compareBy((setting) => setting.extensionId)),
+    commands: copy.commands.sort(compareBy((command) => command.extensionId)),
+    panels: copy.panels.sort(compareBy((panel) => panel.extensionId)),
   };
 };
 
@@ -166,6 +174,29 @@ const findToggleable = (
     });
   }
   return effective;
+};
+
+/** Аргументы команды — JSON до `MAX_ANSWER_CHARS` знаков; длиннее или не JSON — `INVALID_ARGUMENT` без обращения к расширению. */
+const assertArgsSize = (args: JsonValue | undefined): void => {
+  let text: string | undefined;
+  try {
+    text = JSON.stringify(args);
+  } catch {
+    throw new EngineError('INVALID_ARGUMENT', {
+      message: 'args must be JSON',
+      details: { field: 'args', reason: 'not-json' },
+    });
+  }
+  if ((text?.length ?? 0) > MAX_ANSWER_CHARS) {
+    throw new EngineError('INVALID_ARGUMENT', {
+      message: `args are longer than ${MAX_ANSWER_CHARS} characters`,
+      details: {
+        field: 'args',
+        reason: 'args-too-large',
+        limit: MAX_ANSWER_CHARS,
+      },
+    });
+  }
 };
 
 const invalidId = (id: unknown): EngineError =>
@@ -261,6 +292,7 @@ export const createExtensionsService = (
     | 'extensionApply'
     | 'settings'
     | 'extensionData'
+    | 'extensionCommands'
     | 'extensionSettingChanges'
     | 'emit'
     | 'bus'
@@ -373,5 +405,63 @@ export const createExtensionsService = (
       };
     },
     clearData: async (id) => values.wipe(values.requireId(id)),
+    invokeCommand: async (extensionId, commandId, args) => {
+      if (!isExtensionId(extensionId)) throw invalidId(extensionId);
+      if (typeof commandId !== 'string' || commandId === '') {
+        throw new EngineError('INVALID_ARGUMENT', {
+          message: 'commandId must be a non-empty string',
+          details: { field: 'commandId' },
+        });
+      }
+      assertArgsSize(args);
+      const failed = (
+        reason: ExtensionCommandFailureReason,
+        message: string,
+      ): EngineError =>
+        new EngineError('EXTENSION_COMMAND_FAILED', {
+          message,
+          details: { extensionId, commandId, reason },
+        });
+      const info = ctx.extensionRegistry
+        .list()
+        .find(
+          (item) =>
+            item.id === extensionId &&
+            (item.state === 'loaded' || item.state === 'disabled'),
+        );
+      if (info === undefined) {
+        throw failed('unknown-command', `Extension not found: ${extensionId}`);
+      }
+      if (
+        info.state === 'disabled' ||
+        !ctx.extensionPolicy.isEnabled(extensionId)
+      ) {
+        throw failed('disabled', `Extension '${extensionId}' is disabled`);
+      }
+      const declared = ctx.extensionRegistry
+        .contributions()
+        .commands.some(
+          (command) =>
+            command.extensionId === extensionId && command.id === commandId,
+        );
+      if (!declared) {
+        throw failed(
+          'unknown-command',
+          `Command '${commandId}' is not declared by '${extensionId}'`,
+        );
+      }
+      try {
+        return await ctx.extensionCommands.invoke(extensionId, commandId, args);
+      } catch (error) {
+        if (error instanceof ExtensionCommandError) {
+          throw new EngineError('EXTENSION_COMMAND_FAILED', {
+            message: error.message,
+            details: { extensionId, commandId, reason: error.cause },
+            cause: error,
+          });
+        }
+        throw error;
+      }
+    },
   };
 };

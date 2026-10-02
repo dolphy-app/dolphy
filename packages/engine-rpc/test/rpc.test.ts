@@ -182,6 +182,38 @@ describe('dispatcher validation', () => {
     }
   });
 
+  it('extensions.invokeCommand validates ids and passes JSON arguments through to the engine', async () => {
+    const { dispatcher } = await connect();
+    const [hostSide, rawSide] = createInProcessPair();
+    dispatcher.attach(hostSide, 'raw-command');
+    const raw = createRawClient(rawSide);
+    // схема пропустила: вызов дошёл до движка (в этом тесте он заглушка)
+    for (const args of [
+      ['acme.ext', 'acme.ext.run'],
+      ['acme.ext', 'acme.ext.run', { n: [1, null, 'x'] }],
+      ['acme.ext', 'x'.repeat(128)],
+    ]) {
+      expect(await raw.call('extensions.invokeCommand', args)).toMatchObject({
+        ok: true,
+      });
+    }
+    // отвергнуто схемой до движка
+    for (const args of [
+      [],
+      ['acme.ext'],
+      ['Acme', 'acme.ext.run'],
+      ['acme.ext', ''],
+      ['acme.ext', 'x'.repeat(129)],
+      ['acme.ext', 'acme.ext.run', [undefined]],
+      ['acme.ext', 'acme.ext.run', {}, 'extra'],
+    ]) {
+      expect(await raw.call('extensions.invokeCommand', args)).toMatchObject({
+        ok: false,
+        error: { code: 'INVALID_ARGUMENT' },
+      });
+    }
+  });
+
   it('extensions catalog/install/uninstall/updates/setCheckUpdates validate their arguments', async () => {
     const { dispatcher } = await connect();
     const [hostSide, rawSide] = createInProcessPair();

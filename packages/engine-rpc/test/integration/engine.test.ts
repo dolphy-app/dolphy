@@ -5,8 +5,10 @@
 import { RPC_METHODS } from '@dolphy-app/engine-contract';
 import type {
   CatalogDto,
+  CommandContributionDto,
   EngineEvent,
   ExtensionInfoDto,
+  PanelContributionDto,
   ExtensionSettingDefDto,
   ExtensionUpdateDto,
   SavedFilterDto,
@@ -27,6 +29,7 @@ import {
   buildExercise,
   buildLibrary,
   createFakeClock,
+  createFakeExtensionCommands,
   createFakeExerciseTypes,
   createFakeExtensionInstaller,
   createFakeExtensionPolicy,
@@ -77,6 +80,8 @@ const REGISTERED: ExtensionInfoDto = {
     gradePolicies: [],
     settings: ['dolphy.sql.rows'],
     events: [],
+    commands: ['dolphy.sql.stats'],
+    panels: ['dolphy.sql.panel'],
   },
   message: null,
   permissions: ['library.read'],
@@ -93,7 +98,13 @@ const USER_EXTENSION: ExtensionInfoDto = {
   ...REGISTERED,
   id: 'acme.user',
   origin: 'user',
-  contributes: { ...REGISTERED.contributes, exerciseTypes: [], settings: [] },
+  contributes: {
+    ...REGISTERED.contributes,
+    exerciseTypes: [],
+    settings: [],
+    commands: [],
+    panels: [],
+  },
   permissions: [],
   isolation: 'isolated',
   toggleable: true,
@@ -110,6 +121,25 @@ const ROWS_SETTING: ExtensionSettingDefDto = {
   min: 1,
   max: 100,
   integer: true,
+};
+
+const STATS_COMMAND: CommandContributionDto = {
+  id: 'dolphy.sql.stats',
+  extensionId: 'dolphy.sql',
+  title: 'Show stats',
+  description: null,
+  category: null,
+  keybinding: null,
+  palette: true,
+};
+const SQL_PANEL: PanelContributionDto = {
+  id: 'dolphy.sql.panel',
+  extensionId: 'dolphy.sql',
+  title: 'SQL',
+  rendererUrl: 'dolphy-ext://dolphy.sql/panel.mjs',
+  isolated: true,
+  origin: 'bundled',
+  revision: '',
 };
 
 const CATALOG: CatalogDto = {
@@ -164,6 +194,12 @@ const start = async () => {
       memoryModel: createTsFsrsMemoryModel(),
       exerciseTypes: passingTypes(),
       gradePolicies: createFakeGradePolicies(),
+      extensionCommands: createFakeExtensionCommands({
+        'dolphy.sql/dolphy.sql.stats': () => ({
+          kind: 'notify',
+          text: '42 rows',
+        }),
+      }),
       extensionRegistry: createFakeExtensionRegistry(
         [REGISTERED, USER_EXTENSION],
         {
@@ -172,6 +208,8 @@ const start = async () => {
           markdownRenderers: [],
           gradePolicies: [],
           settings: [ROWS_SETTING],
+          commands: [STATS_COMMAND],
+          panels: [SQL_PANEL],
         },
       ),
       extensionPolicy: createFakeExtensionPolicy(),
@@ -642,6 +680,19 @@ describe('rpc → dispatcher → real engine', () => {
     await call('extensions.uninstall', () =>
       client.extensions.uninstall('acme.user', { removeData: true }),
     );
+    expect(
+      await call('extensions.invokeCommand', () =>
+        client.extensions.invokeCommand('dolphy.sql', 'dolphy.sql.stats', {
+          limit: 3,
+        }),
+      ),
+    ).toEqual({ kind: 'notify', text: '42 rows' });
+    await expect(
+      client.extensions.invokeCommand('dolphy.sql', 'dolphy.sql.missing'),
+    ).rejects.toMatchObject({
+      code: 'EXTENSION_COMMAND_FAILED',
+      details: { reason: 'unknown-command' },
+    });
     await expect(
       client.extensions.setEnabled('dolphy.sql', false),
     ).rejects.toMatchObject({
@@ -660,6 +711,8 @@ describe('rpc → dispatcher → real engine', () => {
       markdownRenderers: [],
       gradePolicies: [{ id: 'passAtN', extensionId: null, label: null }],
       settings: [ROWS_SETTING],
+      commands: [STATS_COMMAND],
+      panels: [SQL_PANEL],
     });
     await call('diagnostics', () => client.diagnostics());
 

@@ -180,6 +180,8 @@ export const ru = {
       loadFailed: 'Не удалось получить список расширений',
       empty: 'Расширений нет.',
       version: 'Версия {version}',
+      moreValues: 'Ещё {n}',
+      fewerValues: 'Свернуть',
       points: {
         exerciseTypes: 'Виды заданий',
         themes: 'Темы',
@@ -187,6 +189,8 @@ export const ru = {
         gradePolicies: 'Правила оценки',
         settings: 'Настройки',
         events: 'События обучения',
+        commands: 'Команды',
+        panels: 'Панели',
       },
       origin: {
         bundled: 'Поставка',

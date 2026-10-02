@@ -328,6 +328,7 @@ export const createContext = async (
       clock,
     }),
     gradePolicies: deps.gradePolicies,
+    extensionCommands: deps.extensionCommands,
     learning: { ...(await settings.loadLearning()) },
     journal,
     bus,

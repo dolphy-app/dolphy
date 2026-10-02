@@ -177,6 +177,30 @@ describe('createFacade', () => {
     await expect(submit).resolves.toBe('verdict');
   });
 
+  it('extensions.invokeCommand runs outside the queue: a slow command does not block queued commands', async () => {
+    expect(UNQUEUED.has('extensions.invokeCommand')).toBe(true);
+    const h = createHarness();
+    const gate = deferred();
+    const services = {
+      ...createServices(h),
+      extensions: {
+        invokeCommand: async () => {
+          h.calls.push('command:start');
+          await gate.promise;
+          return { kind: 'none' };
+        },
+      },
+    } as unknown as EngineServices;
+    const engine = create(h, services);
+    const command = (engine.extensions as unknown as Practice)[
+      'invokeCommand'
+    ]!();
+    await expect(practiceOf(engine)['recordAttempt']!()).resolves.toBe(1);
+    expect(h.calls).toEqual(['command:start', 'record']);
+    gate.resolve();
+    await expect(command).resolves.toEqual({ kind: 'none' });
+  });
+
   it('flushes events after a successful command and discards them on failure', async () => {
     const h = createHarness();
     const engine = create(h);

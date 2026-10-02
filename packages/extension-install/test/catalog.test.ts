@@ -146,6 +146,33 @@ describe('catalog: статусы записей', () => {
   });
 });
 
+describe('catalog: сводка вклада в DTO', () => {
+  it('commands и panels копируются в contributes, по умолчанию []', async () => {
+    serveIndex(env.routes, [
+      {
+        id: 'acme.cmds',
+        version: '1.0.0',
+        contributes: {
+          ...contributesOf([]),
+          commands: ['acme.cmds.open'],
+          panels: ['acme.cmds.main'],
+        },
+      },
+      { id: 'acme.plain', version: '1.0.0' },
+    ]);
+    const { entries } = await env.installer.catalog();
+    const byId = Object.fromEntries(entries.map((e) => [e.id, e]));
+    expect(byId['acme.cmds']?.contributes).toMatchObject({
+      commands: ['acme.cmds.open'],
+      panels: ['acme.cmds.main'],
+    });
+    expect(byId['acme.plain']?.contributes).toMatchObject({
+      commands: [],
+      panels: [],
+    });
+  });
+});
+
 describe('catalog: кэш и сеть', () => {
   it('свежий кэш не ходит в сеть, refresh ходит', async () => {
     serveIndex(env.routes, [{ id: 'acme.echo', version: '1.0.0' }]);

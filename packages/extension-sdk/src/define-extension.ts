@@ -1,4 +1,5 @@
 import type {
+  CommandHandler,
   Disposable,
   ExerciseTypeHandler,
   ExtensionContext,
@@ -17,7 +18,9 @@ export interface ExtensionDefinition {
   exerciseTypes?: Readonly<Record<string, ExerciseTypeHandler>>;
   gradePolicies?: Readonly<Record<string, GradePolicyHandler>>;
   events?: Readonly<EventHandlers>;
-  /** Вызывается после регистрации `exerciseTypes`, `gradePolicies` и `events`. */
+  /** Обработчики команд по id; каждая команда должна быть объявлена в `contributes.commands`. */
+  commands?: Readonly<Record<string, CommandHandler>>;
+  /** Вызывается после регистрации `exerciseTypes`, `gradePolicies`, `events` и `commands`. */
   activate?(context: ExtensionContext): void | Promise<void>;
   deactivate?(): void | Promise<void>;
 }
@@ -62,6 +65,9 @@ export const defineExtension = (
           handler as LearningEventHandler<LearningEventName>,
         ),
       );
+    }
+    for (const [id, handler] of Object.entries(definition.commands ?? {})) {
+      registrations.push(context.commands.register(id, handler));
     }
   };
 

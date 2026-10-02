@@ -1,4 +1,4 @@
-import { cp, mkdtemp, rm } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -40,4 +40,14 @@ export const waitFor = async (
       setTimeout(resolve, 50);
     });
   }
+};
+
+/** Делает SDK разрешимым из проекта во временном каталоге (в реальном проекте он стоит в node_modules). */
+export const linkSdk = async (root: string): Promise<void> => {
+  const scope = path.join(root, 'node_modules', '@dolphy-app');
+  await mkdir(scope, { recursive: true });
+  await symlink(
+    fileURLToPath(new URL('../../extension-sdk', import.meta.url)),
+    path.join(scope, 'extension-sdk'),
+  );
 };

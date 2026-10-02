@@ -27,6 +27,8 @@ const base = {
     gradePolicies: [],
     settings: [],
     events: [],
+    commands: [],
+    panels: [],
   },
   message: null,
   permissions: [],
@@ -123,6 +125,8 @@ const open = (installer = createFakeExtensionInstaller()) =>
         markdownRenderers: [],
         gradePolicies: [],
         settings: DEFS,
+        commands: [],
+        panels: [],
       },
     ),
     extensionPolicy: createFakeExtensionPolicy({

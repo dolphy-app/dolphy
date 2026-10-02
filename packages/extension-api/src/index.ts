@@ -85,6 +85,32 @@ export interface MarkdownRendererContribution {
   renderer?: string;
 }
 
+/** Команда расширения: действие в палитре команд, выполняемое кодом расширения (`ctx.commands.register`). */
+export interface CommandContribution {
+  /** Равен id расширения или начинается с `<id расширения>.`. */
+  id: string;
+  /** Название в палитре, 1–60 символов. */
+  title: string;
+  /** До 200 символов. */
+  description?: string;
+  /** Группа в палитре, до 40 символов. */
+  category?: string;
+  /** Подсказка вида `Mod+Shift+L` (`KEYBINDING_PATTERN`); приложение клавишу не назначает. */
+  keybinding?: string;
+  /** `false` скрывает команду из палитры, оставляя её доступной панели; по умолчанию `true`. */
+  palette?: boolean;
+}
+
+/** Панель расширения: экран приложения в изолированной рамке с пунктом бокового меню. */
+export interface PanelContribution {
+  /** Равен id расширения или начинается с `<id расширения>.`. */
+  id: string;
+  /** Название пункта меню и заголовка страницы, 1–60 символов. */
+  title: string;
+  /** Путь к ES-модулю панели (`.js` или `.mjs`); по умолчанию `DEFAULT_PANEL`. */
+  module?: string;
+}
+
 /** Значение настройки расширения. */
 export type SettingValue = boolean | string | number;
 
@@ -213,6 +239,8 @@ export interface ExtensionManifest {
     gradePolicies: GradePolicyContribution[];
     settings: SettingContribution[];
     events: EventContribution[];
+    commands: (CommandContribution & { palette: boolean })[];
+    panels: (PanelContribution & { module: string })[];
   };
 }
 
@@ -248,6 +276,8 @@ export interface ExtensionManifestInput {
     gradePolicies?: GradePolicyContribution[];
     settings?: SettingContribution[];
     events?: EventContribution[];
+    commands?: CommandContribution[];
+    panels?: PanelContribution[];
   };
 }
 
@@ -291,6 +321,35 @@ export const THEME_VARIABLE_KEYS: readonly string[] = [
 ];
 
 export const DEFAULT_MARKDOWN_RENDERER = './markdown.mjs';
+export const DEFAULT_PANEL = './panel.mjs';
+
+/**
+ * Подсказка клавиш команды: до трёх модификаторов (`Mod`, `Ctrl`, `Alt`,
+ * `Shift`) и клавиша через `+`: буква или цифра, `F1`–`F12` либо имя
+ * (`Enter`, `Space`, `Tab`, `Escape`, `Backspace`, `Delete`, стрелки,
+ * `Home`, `End`, `PageUp`, `PageDown`).
+ */
+export const KEYBINDING_PATTERN =
+  /^(?:(?:Mod|Ctrl|Alt|Shift)\+){0,3}(?:[A-Z0-9]|F(?:[1-9]|1[0-2])|Enter|Space|Tab|Escape|Backspace|Delete|Arrow(?:Up|Down|Left|Right)|Home|End|Page(?:Up|Down))$/;
+
+/** Потолки команд и панелей (R1, R3); совпадают с теми, что проверяют манифест, хост и движок. */
+export const EXTENSION_COMMAND_LIMITS = Object.freeze({
+  /** Команд на расширение. */
+  commands: 64,
+  /** Панелей на расширение. */
+  panels: 8,
+  titleLength: 60,
+  categoryLength: 40,
+  descriptionLength: 200,
+  /** `JSON.stringify(args).length` на границе движка. */
+  argsChars: 200_000,
+  /** JSON-текст результата в байтах UTF-8. */
+  resultBytes: 64 * 1024,
+  /** Длина `notify` в кодовых единицах UTF-16. */
+  notifyChars: 500,
+  /** Бюджет обработчика, мс. */
+  handlerMs: 10_000,
+});
 
 export type GradeValue = 1 | 2 | 3 | 4 | 5;
 
@@ -324,6 +383,164 @@ export interface MarkdownRendererModule<Container = unknown> {
     container: Container,
     context: MarkdownRenderContext,
   ): void | Promise<void>;
+}
+
+/** Что обработчик команды просит выполнить приложение: показать уведомление. */
+export interface NotifyEffect {
+  notify: string;
+}
+
+/** Что обработчик команды просит выполнить приложение: открыть свою панель. */
+export interface OpenPanelEffect {
+  openPanel: string;
+  props?: JsonValue;
+}
+
+export type CommandEffect = NotifyEffect | OpenPanelEffect;
+
+/**
+ * Результат обработчика команды: ничего (`undefined`), эффект для приложения
+ * (`CommandEffect`; объект с `notify`/`openPanel` не может нести других
+ * ключей) или любой JSON-ответ вызывающему.
+ */
+export type CommandResult = void | undefined | CommandEffect | JsonValue;
+
+/** `args` — JSON вызывающего; без аргументов — `undefined`. */
+export type CommandHandler = (
+  args: JsonValue | undefined,
+) => CommandResult | Promise<CommandResult>;
+
+/** Результат команды в том виде, в котором его получает вызывающий (`normalizeCommandResult`). */
+export type CommandOutcome =
+  | { kind: 'none' }
+  | { kind: 'notify'; text: string }
+  | { kind: 'openPanel'; panelId: string; props?: JsonValue }
+  | { kind: 'data'; value: JsonValue };
+
+/** Результат обработчика не годится: не JSON, длиннее потолка, смешанный эффект, чужая панель. */
+export class InvalidCommandResultError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidCommandResultError';
+  }
+}
+
+const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/** Длина строки в байтах UTF-8 (пакет без DOM-типов и `TextEncoder`); строка из `JSON.stringify` не содержит одиночных суррогатов. */
+const utf8Length = (text: string): number => {
+  let bytes = 0;
+  for (let index = 0; index < text.length; index++) {
+    const code = text.charCodeAt(index);
+    if (code < 0x80) bytes += 1;
+    else if (code < 0x800) bytes += 2;
+    else if (code >= 0xd800 && code <= 0xdbff) {
+      bytes += 4;
+      index++;
+    } else bytes += 3;
+  }
+  return bytes;
+};
+
+/**
+ * Приводит то, что вернул обработчик команды, к `CommandOutcome`: правила хоста
+ * и `loadCommands` из SDK одни. `undefined` и `null` — `none`; объект с
+ * `notify` (строка 1–500 символов) или `openPanel` (id панели из `panels`;
+ * `undefined` — любая строка, для тестов без манифеста) и
+ * без других ключей (кроме `props` у `openPanel`) — эффект; остальной JSON —
+ * `data`. Значение проходит через JSON (`undefined`-поля отбрасываются), его
+ * текст не длиннее `EXTENSION_COMMAND_LIMITS.resultBytes`. Нарушение бросает
+ * `InvalidCommandResultError`.
+ */
+export const normalizeCommandResult = (
+  raw: unknown,
+  panels: readonly string[] | undefined,
+): CommandOutcome => {
+  if (raw === undefined || raw === null) return { kind: 'none' };
+  let text: string | undefined;
+  try {
+    text = JSON.stringify(raw);
+  } catch (error) {
+    throw new InvalidCommandResultError(
+      `result is not JSON: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  if (text === undefined) {
+    throw new InvalidCommandResultError('result is not JSON');
+  }
+  if (utf8Length(text) > EXTENSION_COMMAND_LIMITS.resultBytes) {
+    throw new InvalidCommandResultError(
+      `result is longer than ${EXTENSION_COMMAND_LIMITS.resultBytes} bytes`,
+    );
+  }
+  const value = JSON.parse(text) as JsonValue;
+  if (value === null) return { kind: 'none' };
+  if (!isPlainRecord(value) || !('notify' in value || 'openPanel' in value)) {
+    return { kind: 'data', value };
+  }
+  const keys = Object.keys(value);
+  if ('notify' in value) {
+    if (keys.length > 1) {
+      throw new InvalidCommandResultError(
+        "a result with 'notify' must not have other keys",
+      );
+    }
+    const { notify } = value;
+    if (
+      typeof notify !== 'string' ||
+      notify.length < 1 ||
+      notify.length > EXTENSION_COMMAND_LIMITS.notifyChars
+    ) {
+      throw new InvalidCommandResultError(
+        `notify must be a string of 1..${EXTENSION_COMMAND_LIMITS.notifyChars} characters`,
+      );
+    }
+    return { kind: 'notify', text: notify };
+  }
+  const { openPanel, props } = value;
+  if (keys.some((key) => key !== 'openPanel' && key !== 'props')) {
+    throw new InvalidCommandResultError(
+      "a result with 'openPanel' may only have 'props' besides it",
+    );
+  }
+  if (
+    typeof openPanel !== 'string' ||
+    (panels !== undefined && !panels.includes(openPanel))
+  ) {
+    throw new InvalidCommandResultError(
+      `openPanel must name a panel declared by this extension, got ${JSON.stringify(openPanel)}`,
+    );
+  }
+  return props === undefined
+    ? { kind: 'openPanel', panelId: openPanel }
+    : { kind: 'openPanel', panelId: openPanel, props };
+};
+
+/** Контекст модуля панели; исполняется в рамке без доступа к данным приложения. */
+export interface PanelContext {
+  panelId: string;
+  /** Свойства, с которыми панель открыта (`openPanel(id, props)`); `undefined` — без свойств. */
+  props: JsonValue | undefined;
+  /** Прерывается, когда рамка закрывается. */
+  signal: {
+    readonly aborted: boolean;
+    addEventListener(type: 'abort', listener: () => void): void;
+  };
+  /**
+   * Вызывает объявленную команду этого расширения (в том числе `palette: false`);
+   * не чаще 20 вызовов в секунду и не более 4 одновременных. Возвращает
+   * JSON-ответ обработчика (`undefined` — ответа нет); `notify` и `openPanel`
+   * выполняет приложение. Сбой — отклонённый промис с `Error`.
+   */
+  call(commandId: string, args?: JsonValue): Promise<JsonValue | undefined>;
+  /** Подписка на новые свойства открытой панели; возвращает отписку. */
+  onProps(listener: (props: JsonValue | undefined) => void): () => void;
+}
+
+/** `export default` модуля панели. */
+export interface PanelModule<Container = unknown> {
+  mount(container: Container, context: PanelContext): void | Promise<void>;
 }
 
 export const DEFAULT_MAIN = './main.mjs';
@@ -477,6 +694,17 @@ export interface ExtensionEvents {
   ): Disposable;
 }
 
+/** Команды расширения (`contributes.commands`). */
+export interface ExtensionCommands {
+  /**
+   * `id` обязан быть объявлен в `commands` манифеста этого расширения, иначе
+   * бросает; повторная регистрация бросает. Обработчик выполняется не дольше
+   * `EXTENSION_COMMAND_LIMITS.handlerMs`; сбой и превышение бюджета уходят
+   * вызывающему ошибкой.
+   */
+  register(id: string, handler: CommandHandler): Disposable;
+}
+
 export interface Disposable {
   dispose(): void | Promise<void>;
 }
@@ -496,6 +724,7 @@ export interface ExtensionContext {
   readonly storage: ExtensionStorage;
   readonly settings: ExtensionSettings;
   readonly events: ExtensionEvents;
+  readonly commands: ExtensionCommands;
   /** `type` обязан быть объявлен в манифесте этого расширения, иначе бросает. */
   registerExerciseType(type: string, handler: ExerciseTypeHandler): Disposable;
   /** `id` обязан быть объявлен в `gradePolicies` манифеста этого расширения, иначе бросает. */

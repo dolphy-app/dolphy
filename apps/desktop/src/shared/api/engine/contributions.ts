@@ -14,6 +14,8 @@ export const NO_CONTRIBUTIONS: ContributionsDto = {
   markdownRenderers: [],
   gradePolicies: [],
   settings: [],
+  commands: [],
+  panels: [],
 };
 
 export type ContributionsRef = Readonly<Ref<Readonly<ContributionsDto>>>;

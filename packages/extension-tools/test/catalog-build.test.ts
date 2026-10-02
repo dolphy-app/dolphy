@@ -210,6 +210,35 @@ describe('catalog build: настройки и события', () => {
   });
 });
 
+describe('catalog build: команды и панели', () => {
+  it('записывает id команд и панелей в запись индекса', async () => {
+    const repo = await createRepo([{ fixture: 'commands-panel' }]);
+    const out = await makeTemp();
+    await publish(repo, out, ['acme.commands-panel']);
+    const [entry] = (await indexOf(out)).extensions;
+    expect(entry?.contributes.commands).toEqual([
+      'acme.commands-panel.open',
+      'acme.commands-panel.ping',
+    ]);
+    expect(entry?.contributes.panels).toEqual(['acme.commands-panel.main']);
+    const paths = entry?.versions[0]?.files.map((file) => file.path);
+    expect(paths).toContain('panel.mjs');
+    expect(paths).toContain('main.mjs');
+  });
+
+  it('без команд и панелей ключей в записи нет', async () => {
+    const repo = await createRepo([{ fixture: 'hello' }]);
+    const out = await makeTemp();
+    await publish(repo, out, ['acme.hello']);
+    const raw = (await readJson(path.join(out, 'index.json'))) as {
+      extensions: { contributes: Record<string, unknown> }[];
+    };
+    const keys = Object.keys(raw.extensions[0]?.contributes ?? {});
+    expect(keys).not.toContain('commands');
+    expect(keys).not.toContain('panels');
+  });
+});
+
 describe('catalog build: неизменность версий', () => {
   it('повторная сборка тех же исходников — no-op, publishedAt сохраняется', async () => {
     const repo = await createRepo([{ fixture: 'theme-only' }]);

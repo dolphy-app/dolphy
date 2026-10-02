@@ -3,8 +3,10 @@ import type {
   ExerciseTypeHandler,
   ExtensionContext,
   GradeResult,
+  JsonValue,
   LearningEventHandler,
   LearningEventPayloads,
+  PanelModule,
   SettingContribution,
 } from '../src/index.ts';
 
@@ -53,5 +55,37 @@ describe('extension-api types', () => {
     expectTypeOf(narrow).returns.toEqualTypeOf<
       number | undefined | { value: string; label: string }[] | null
     >();
+  });
+
+  it('a command handler may return nothing, an effect, JSON or a promise of them', () => {
+    const commands: ExtensionContext['commands'] = {
+      register: () => ({ dispose: () => undefined }),
+    };
+    commands.register('a.none', () => undefined);
+    commands.register('a.notify', () => ({ notify: 'done' }));
+    commands.register('a.open', () => ({ openPanel: 'p', props: { n: 1 } }));
+    commands.register('a.json', () => ({ list: [1, null, 'x'] }));
+    commands.register('a.async', async () => ({ notify: 'later' }));
+    commands.register('a.args', (args) => {
+      expectTypeOf(args).toEqualTypeOf<JsonValue | undefined>();
+    });
+    // @ts-expect-error функция — не JSON
+    commands.register('a.bad', () => () => 1);
+  });
+
+  it('a panel module receives call, onProps, signal, panelId and props', () => {
+    const module: PanelModule<{ id: string }> = {
+      mount: (container, ctx) => {
+        expectTypeOf(container).toEqualTypeOf<{ id: string }>();
+        expectTypeOf(ctx.panelId).toEqualTypeOf<string>();
+        expectTypeOf(ctx.props).toEqualTypeOf<JsonValue | undefined>();
+        expectTypeOf(ctx.signal.aborted).toEqualTypeOf<boolean>();
+        expectTypeOf(ctx.call).returns.toEqualTypeOf<
+          Promise<JsonValue | undefined>
+        >();
+        expectTypeOf(ctx.onProps).returns.toEqualTypeOf<() => void>();
+      },
+    };
+    expectTypeOf(module.mount).toBeFunction();
   });
 });

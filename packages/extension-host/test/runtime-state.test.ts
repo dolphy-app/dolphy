@@ -253,6 +253,8 @@ describe('ctx.events', () => {
         stateful('acme.np', {
           permissions: [],
           events: [],
+          commands: [],
+          panels: [],
           exerciseTypes: [
             {
               id: 'acme.np',
@@ -460,7 +462,7 @@ describe('ctx.events', () => {
 
     expect(seen).toEqual(['next']);
     expect(h.logger.warn).toHaveBeenCalledWith(
-      expect.objectContaining({ cause: 'handler-failed' }),
+      expect.objectContaining({ cause: 'handler-timeout' }),
       'extension event handler failed',
     );
     expect(restart).not.toHaveBeenCalled();

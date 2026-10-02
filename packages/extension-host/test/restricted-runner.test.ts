@@ -116,6 +116,8 @@ const extensionOf = (
   gradePolicies: [],
   settings: [],
   events: [],
+  commands: [],
+  panels: [],
 });
 
 const gradeRequest = (id: string, timeoutMs = 2000): ExtRequest => ({

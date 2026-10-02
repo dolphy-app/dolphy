@@ -8,9 +8,11 @@ import type {
   LearningEngine,
 } from '@dolphy-app/engine-contract';
 import {
+  COLLAPSED_VALUES,
   contributionGroups,
   hasSwitches,
   useExtensions,
+  visibleValues,
 } from '@/pages/settings/model/extensions.ts';
 import {
   NO_CONTRIBUTES,
@@ -156,16 +158,44 @@ describe('contributionGroups', () => {
         gradePolicies: ['acme.strict'],
         settings: [],
         events: [],
+        commands: ['acme.run'],
+        panels: ['acme.view'],
       }),
     ).toEqual([
       { point: 'themes', values: ['acme.night', 'acme.day'] },
       { point: 'markdownRenderers', values: ['math'] },
       { point: 'gradePolicies', values: ['acme.strict'] },
+      { point: 'commands', values: ['acme.run'] },
+      { point: 'panels', values: ['acme.view'] },
     ]);
   });
 
   it('расширение без вкладов — без групп', () => {
     expect(contributionGroups(NO_CONTRIBUTES)).toEqual([]);
+  });
+});
+
+describe('visibleValues', () => {
+  const ids = (n: number) => Array.from({ length: n }, (_, i) => `acme.c${i}`);
+
+  it('короткая группа показана целиком и не сворачивается', () => {
+    expect(visibleValues(ids(COLLAPSED_VALUES), false)).toEqual({
+      shown: ids(COLLAPSED_VALUES),
+      hidden: 0,
+    });
+  });
+
+  it('длинная группа (до 64 команд) свёрнута до первых значений, остальное считается', () => {
+    const result = visibleValues(ids(64), false);
+    expect(result.shown).toEqual(ids(COLLAPSED_VALUES));
+    expect(result.hidden).toBe(64 - COLLAPSED_VALUES);
+  });
+
+  it('раскрытая группа показана целиком', () => {
+    expect(visibleValues(ids(64), true)).toEqual({
+      shown: ids(64),
+      hidden: 0,
+    });
   });
 });
 

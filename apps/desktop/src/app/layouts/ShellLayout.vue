@@ -2,10 +2,17 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
+import { useExtensionCommands } from '@/features/extension-commands';
+import { useContributions } from '@/shared/api/engine';
 import { APP_NAME } from '@/shared/config/app.ts';
+import { ROUTE } from '@/shared/config/routes.ts';
 
 const { t } = useI18n();
 const router = useRouter();
+const contributions = useContributions();
+const { palette } = useExtensionCommands();
+
+const panels = computed(() => contributions.value.panels);
 
 const items = computed(() =>
   router
@@ -54,6 +61,30 @@ const bottomItems = computed(() =>
         rounded="lg"
       />
     </v-list>
+    <!-- панели расширений: список из реактивных вкладов, названия — данные расширения -->
+    <v-list
+      v-if="panels.length > 0"
+      nav
+      role="navigation"
+      class="px-3 pb-3 pt-0"
+      tabindex="-1"
+      :aria-label="t('nav.extensions')"
+      data-testid="extension-nav"
+    >
+      <v-list-item
+        v-for="panel in panels"
+        :key="`${panel.extensionId}:${panel.id}`"
+        :to="{
+          name: ROUTE.extensionPanel,
+          params: { extensionId: panel.extensionId, panelId: panel.id },
+        }"
+        tabindex="0"
+        prepend-icon="mdi-puzzle-outline"
+        :title="panel.title"
+        color="primary"
+        rounded="lg"
+      />
+    </v-list>
     <template #append>
       <v-list
         nav
@@ -62,6 +93,16 @@ const bottomItems = computed(() =>
         tabindex="-1"
         :aria-label="t('nav.more')"
       >
+        <v-list-item
+          tabindex="0"
+          role="button"
+          prepend-icon="mdi-console-line"
+          :title="t('nav.commands')"
+          aria-keyshortcuts="Control+K Meta+K"
+          rounded="lg"
+          data-testid="open-palette"
+          @click="palette.open()"
+        />
         <v-list-item
           v-for="item in bottomItems"
           :key="item.name"

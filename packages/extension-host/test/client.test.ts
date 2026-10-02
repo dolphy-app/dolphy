@@ -46,6 +46,8 @@ const resolved: ResolvedExtension[] = [
     gradePolicies: [{ id: 'acme.t.gen', label: 'Generous' }],
     settings: [],
     events: [],
+    commands: [],
+    panels: [],
   },
 ];
 const catalog = createCatalog(holderOf(resolved), createAllTrustedPolicy());

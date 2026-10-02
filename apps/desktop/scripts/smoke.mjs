@@ -24,6 +24,20 @@ const SMOKE_DIR = 'dist-smoke';
 const SCENARIOS = ['basic', 'sql', 'choice', 'renderer', 'isolated', 'crash'];
 // путь, который «враждебное» расширение пробует записать (см. run-smoke.ts)
 const ISOLATED_MARKER = '/tmp/dolphy-smoke-pwned.txt';
+// Ожидаемые fuses упакованного приложения (electron-builder.json → electronFuses).
+// RunAsNode включён намеренно: ограниченный процесс расширений и раннер SQL
+// запускаются как process.execPath с ELECTRON_RUN_AS_NODE=1 (ADR 0011).
+// GrantFileProtocolExtraPrivileges включён намеренно: renderer грузится с
+// file://, с выключенным fuse окно не поднимается (смоук не получает результат).
+// Fuses вне списка (куки, снимок V8, wasm-ловушки) не проверяются.
+const EXPECTED_FUSES = {
+  RunAsNode: true,
+  EnableNodeOptionsEnvironmentVariable: false,
+  EnableNodeCliInspectArguments: false,
+  EnableEmbeddedAsarIntegrityValidation: true,
+  OnlyLoadAppFromAsar: true,
+  GrantFileProtocolExtraPrivileges: true,
+};
 
 const root = await mkdtemp(join(tmpdir(), 'dolphy-smoke-'));
 const appDir = fileURLToPath(new URL('..', import.meta.url));
@@ -50,6 +64,45 @@ const fail = (message) => {
   rmSync(root, { recursive: true, force: true });
   console.error(`smoke: ${message}`);
   process.exit(1);
+};
+
+const FUSE_STATE_NAMES = {
+  48: 'off',
+  49: 'on',
+  114: 'removed',
+  144: 'inherit',
+};
+
+/** Читает схему fuses из собранного бинарника, печатает её и падает при расхождении с EXPECTED_FUSES. */
+const checkFuses = async (executable) => {
+  const { FuseV1Options, getCurrentFuseWire } = await import('@electron/fuses');
+  const wire = await getCurrentFuseWire(executable);
+  const rows = Object.entries(FuseV1Options)
+    .filter(([name]) => Number.isNaN(Number(name)))
+    .map(([name, index]) => ({
+      name,
+      state: FUSE_STATE_NAMES[wire[index]] ?? `unknown(${wire[index]})`,
+    }));
+  console.log('fuse wire:');
+  for (const { name, state } of rows) console.log(`  ${name}: ${state}`);
+  const mismatches = Object.entries(EXPECTED_FUSES)
+    .map(([name, enabled]) => ({
+      name,
+      expected: enabled ? 'on' : 'off',
+      actual: rows.find((row) => row.name === name)?.state ?? 'missing',
+    }))
+    .filter(({ expected, actual }) => expected !== actual);
+  if (mismatches.length > 0) {
+    fail(
+      `fuse mismatch in ${executable}:\n${mismatches
+        .map(
+          ({ name, expected, actual }) =>
+            `  ${name}: expected ${expected}, built ${actual}`,
+        )
+        .join('\n')}`,
+    );
+  }
+  console.log(`fuses match the expected set (${rows.length} in the wire)`);
 };
 
 const run = (command, args, env) => {
@@ -169,6 +222,7 @@ if (packaged) {
     fail(`restricted/ext-restricted.mjs missing in ${resourcesDir}`);
   }
   console.log(`packaged app: ${command}`);
+  await checkFuses(command);
 }
 
 // 3. запуск: временный userData, копии библиотек sql-course и choice-course

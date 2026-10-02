@@ -71,6 +71,28 @@ export const frameCsp = (id: string): string => {
   ].join('; ');
 };
 
+/** Страница рамки не получает доступа к датчикам, медиа и устройствам (дополняет deny-all разрешений сеанса). */
+export const FRAME_PERMISSIONS_POLICY = [
+  'accelerometer',
+  'autoplay',
+  'bluetooth',
+  'camera',
+  'display-capture',
+  'geolocation',
+  'gyroscope',
+  'hid',
+  'magnetometer',
+  'microphone',
+  'midi',
+  'payment',
+  'screen-wake-lock',
+  'serial',
+  'usb',
+  'xr-spatial-tracking',
+]
+  .map((feature) => `${feature}=()`)
+  .join(', ');
+
 /** SVG отдаётся как документ без скриптов, сети и ресурсов: только как картинка. */
 export const SVG_CSP = "default-src 'none'; style-src 'unsafe-inline'; sandbox";
 
@@ -231,6 +253,7 @@ export const createExtensionAssetsShell = ({
         headers: {
           'Content-Type': 'text/html; charset=utf-8',
           'Content-Security-Policy': frameCsp(route.id),
+          'Permissions-Policy': FRAME_PERMISSIONS_POLICY,
           'X-Content-Type-Options': 'nosniff',
           'Cache-Control': 'no-cache',
         },

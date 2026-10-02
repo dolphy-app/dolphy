@@ -16,6 +16,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   createExtensionAssetsShell,
   frameCsp,
+  FRAME_PERMISSIONS_POLICY,
   SVG_CSP,
 } from '../electron/main/shells/extension-assets.ts';
 
@@ -361,6 +362,13 @@ describe('страница и рантайм изолированной рамк
     expect(response.headers.get('Content-Security-Policy')).toBe(
       frameCsp('acme.echo'),
     );
+    expect(response.headers.get('Permissions-Policy')).toBe(
+      FRAME_PERMISSIONS_POLICY,
+    );
+    // каждая возможность закрыта для всех, включая саму страницу
+    for (const feature of ['camera', 'microphone', 'geolocation', 'usb']) {
+      expect(FRAME_PERMISSIONS_POLICY).toContain(`${feature}=()`);
+    }
     expect(response.headers.get('Cache-Control')).toBe('no-cache');
     const html = await response.text();
     expect(html).toContain(

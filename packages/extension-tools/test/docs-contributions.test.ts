@@ -11,7 +11,7 @@
  * - `manifest` — `extension.json` проходит `parseManifest`;
  * - `build-no-code` — проект из одного `extension.json` собирается и проходит
  *   `validateExtension`;
- * - `build-with-code` — проект из `extension.json` и `src/*.ts` (блоки ```ts
+ * - `build-with-code` — проект из `extension.json` и одного `src/index.ts` (блок ```ts
  *   с маркером) собирается и проходит `validateExtension`;
  * - `index` — единственный файл `index.json` проходит `parseIndex`
  *   (`@dolphy-app/extension-catalog`).
@@ -157,7 +157,9 @@ describe('примеры разделов «Точки вклада», «Пра�
         const files = examples.get(label) ?? [];
         const withCode = mode === 'build-with-code';
         if (withCode) {
-          expect(files.some(({ lang }) => lang === 'ts')).toBe(true);
+          expect(
+            files.filter(({ lang }) => lang === 'ts').map(({ file }) => file),
+          ).toEqual(['src/index.ts']);
         } else {
           expect(files.map(({ file }) => file)).toEqual(['extension.json']);
         }
@@ -206,6 +208,7 @@ interface PanelModule {
     mount(
       container: unknown,
       ctx: {
+        panelId: string;
         call(id: string): Promise<unknown>;
         onProps(listener: () => void): () => void;
         signal: { addEventListener(type: string, fn: () => void): void };
@@ -306,6 +309,7 @@ describe('пример «серия дней целиком» исполняет
       append: () => undefined,
     };
     await panel.default.mount(container, {
+      panelId: 'acme.streak.view',
       call: async (id) => {
         const outcome = (await commands.run(id)) as { value: unknown };
         return outcome.value;

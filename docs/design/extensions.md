@@ -8,7 +8,7 @@
 
 ## Что такое расширение
 
-Каталог с манифестом `extension.json` и файлами вкладов. Расширение может вносить любую комбинацию из восьми точек (`contributes.exerciseTypes`, `themes`, `markdownRenderers`, `gradePolicies`, `settings`, `events`, `commands`, `panels`, раздел «Точки вклада»). Код для процесса расширений (`main`, ES-модуль `.mjs`) нужен только вкладам `exerciseTypes`, `gradePolicies`, `events` и `commands`; у расширения из одних тем, рендереров содержимого и настроек `main` — `null`, и `src/main.ts` писать не нужно. Ниже — расширение с видом задания: JSON Schema для `spec` и ответа лежат в файлах или записаны прямо в манифесте, элемент ввода ответа (`renderer`) определяет custom element:
+Каталог с манифестом `extension.json` и файлами вкладов. Расширение может вносить любую комбинацию из восьми точек (`contributes.exerciseTypes`, `themes`, `markdownRenderers`, `gradePolicies`, `settings`, `events`, `commands`, `panels`, раздел «Точки вклада»). Код для процесса расширений (`main`, ES-модуль `.mjs`) нужен только вкладам `exerciseTypes`, `gradePolicies`, `events` и `commands`; у расширения из одних тем, рендереров содержимого и настроек `main` — `null`, и `src/index.ts` писать не нужно. Ниже — расширение с видом задания: JSON Schema для `spec` и ответа лежат в файлах или записаны прямо в манифесте, элемент ввода ответа (`renderer`) определяет custom element:
 
 ```
 dolphy.choice/
@@ -50,7 +50,7 @@ dolphy.choice/
 
 ## Код расширения
 
-Ниже — низкоуровневый API `ExtensionModule`. Писать расширение проще через SDK: `defineExtension` и `defineAnswerElement` (раздел «Как написать расширение»).
+Ниже — низкоуровневый API `ExtensionModule`. Писать расширение проще через SDK: `defineExtension` и `defineAnswerView` (раздел «Как написать расширение»).
 
 ```ts
 export default {
@@ -203,18 +203,20 @@ engine:
 }
 ```
 
-`language` — `[a-z][a-z0-9-]{0,31}`, один язык — одно расширение. `renderer` — путь к `.js`/`.mjs`, по умолчанию `./markdown.mjs` (в проекте `dolphy-ext` — `src/markdown.ts`, браузерный бандл). Модуль — `export default` с методом `render(source, container, context)`; `defineMarkdownRenderer` задаёт эту форму:
+`language` — `[a-z][a-z0-9-]{0,31}`, один язык — одно расширение. `renderer` — путь к `.js`/`.mjs`, по умолчанию `./markdown.mjs` (браузерный бандл; в проекте `dolphy-ext` его собирает из записи `markdown[<язык>]` файла `src/index.ts` сама сборка). Модуль, который грузит приложение, — `export default` с методом `render(source, container, context)`; `defineMarkdownRenderer` задаёт форму записи, а выбор по языку блока делает сборка:
 
-Файл `src/markdown.ts` (рендерер содержимого):
+Файл `src/index.ts` (рендерер содержимого):
 
 ```ts
 import { defineMarkdownRenderer } from '@dolphy-app/extension-sdk';
 
-export default defineMarkdownRenderer((source, container) => {
-  const pre = container.ownerDocument.createElement('pre');
-  pre.textContent = source.toUpperCase();
-  container.replaceChildren(pre);
-});
+export const markdown = {
+  shout: defineMarkdownRenderer((source, container) => {
+    const pre = container.ownerDocument.createElement('pre');
+    pre.textContent = source.toUpperCase();
+    container.replaceChildren(pre);
+  }),
+};
 ```
 
 `context` — `{ language, signal }`: по `signal` (структурный `AbortSignal`) отменяется вывод при уходе со страницы. Модуль загружается по `dolphy-ext://`: у не доверенного расширения — в изолированной рамке (раздел «Права и изоляция»), у доверенного и из поставки — в окне приложения (общий JS-контекст, как у элементов ввода ответа). Если модуль не загрузился, не имеет `render()` или `render` бросил исключение, блок остаётся исходным текстом, под ним показывается заметка «Не удалось вывести блок…», страница работает дальше.
@@ -236,12 +238,12 @@ export default defineMarkdownRenderer((source, container) => {
 }
 ```
 
-Файл `src/main.ts` (правило оценки):
+Файл `src/index.ts` (правило оценки):
 
 ```ts
 import { defineExtension } from '@dolphy-app/extension-sdk';
 
-export default defineExtension({
+export const host = defineExtension({
   gradePolicies: {
     'acme.policy.generous': ({ verdicts, gaveUp }) => {
       if (gaveUp) return 1;
@@ -347,12 +349,12 @@ export default defineExtension({
 }
 ```
 
-Файл `src/main.ts` (подписка на события):
+Файл `src/index.ts` (подписка на события):
 
 ```ts
 import { defineExtension } from '@dolphy-app/extension-sdk';
 
-export default defineExtension({
+export const host = defineExtension({
   activate(ctx) {
     ctx.settings.onDidChange(({ id, value }) => {
       ctx.logger.info({ id, value }, 'setting changed');
@@ -405,16 +407,17 @@ export default defineExtension({
 }
 ```
 
-Файл `src/main.ts` (команды расширения):
+Файл `src/index.ts` (команды расширения):
 
 ```ts
 import {
   defineExtension,
+  defineExtensionPanel,
   notify,
   openPanel,
 } from '@dolphy-app/extension-sdk';
 
-export default defineExtension({
+export const host = defineExtension({
   commands: {
     'acme.tools.hello': (args) => {
       const name = typeof args === 'string' ? args : 'мир';
@@ -423,18 +426,14 @@ export default defineExtension({
     'acme.tools.stats': () => openPanel('acme.tools.view', { from: 'stats' }),
   },
 });
-```
 
-Файл `src/panel.ts` (команды расширения):
-
-```ts
-import { defineExtensionPanel } from '@dolphy-app/extension-sdk';
-
-export default defineExtensionPanel({
-  mount(container, ctx) {
-    container.textContent = `Панель ${ctx.panelId}`;
-  },
-});
+export const panels = {
+  'acme.tools.view': defineExtensionPanel({
+    mount(container, ctx) {
+      container.textContent = `Панель ${ctx.panelId}`;
+    },
+  }),
+};
 ```
 
 Контракт:
@@ -485,7 +484,7 @@ export default defineExtensionPanel({
 
 ### Панели (`panels`)
 
-Панель — страница расширения внутри приложения. Запись: `id`, `title` (до 60 символов), необязательный `module` (`.js` или `.mjs`, по умолчанию `./panel.mjs`; сборка берёт `src/panel.ts`). Не более 8 панелей на расширение. Сама по себе панель `main` не требует; открывают её командой с результатом `openPanel`.
+Панель — страница расширения внутри приложения. Запись: `id`, `title` (до 60 символов), необязательный `module` (`.js` или `.mjs`, по умолчанию `./panel.mjs`; код панели — запись `panels[<id>]` в `src/index.ts`). Не более 8 панелей на расширение. Сама по себе панель `main` не требует; открывают её командой с результатом `openPanel`.
 
 Файл `extension.json` (панель расширения):
 
@@ -505,44 +504,44 @@ export default defineExtensionPanel({
 }
 ```
 
-Файл `src/main.ts` (панель расширения):
+Файл `src/index.ts` (панель расширения):
 
 ```ts
-import { defineExtension, openPanel } from '@dolphy-app/extension-sdk';
+import {
+  defineExtension,
+  defineExtensionPanel,
+  openPanel,
+} from '@dolphy-app/extension-sdk';
 
-export default defineExtension({
+export const host = defineExtension({
   commands: {
     'acme.board.count': () => ({ total: 3 }),
     'acme.board.open': () => openPanel('acme.board.view', { tab: 'all' }),
   },
 });
-```
 
-Файл `src/panel.ts` (панель расширения):
-
-```ts
-import { defineExtensionPanel } from '@dolphy-app/extension-sdk';
-
-export default defineExtensionPanel({
-  async mount(container, ctx) {
-    const render = (props: unknown) => {
-      container.textContent = `Вкладка: ${JSON.stringify(props)}`;
-    };
-    render(ctx.props);
-    const off = ctx.onProps(render);
-    ctx.signal.addEventListener('abort', off);
-    const result = await ctx.call('acme.board.count');
-    container.append(` Всего: ${JSON.stringify(result)}`);
-  },
-});
+export const panels = {
+  'acme.board.view': defineExtensionPanel({
+    async mount(container, ctx) {
+      const render = (props: unknown) => {
+        container.textContent = `Вкладка: ${JSON.stringify(props)}`;
+      };
+      render(ctx.props);
+      const off = ctx.onProps(render);
+      ctx.signal.addEventListener('abort', off);
+      const result = await ctx.call('acme.board.count');
+      container.append(` Всего: ${JSON.stringify(result)}`);
+    },
+  }),
+};
 ```
 
 Контракт:
 
-- Модуль экспортирует по умолчанию `defineExtensionPanel({ mount })`; `mount(container, ctx)` получает DOM-контейнер (`HTMLElement` рамки) и `ctx = PanelContext = { panelId, props, signal, call(commandId, args), onProps(fn) }`. `props` — свойства из `openPanel` (`undefined` без них); `signal` прерывается при закрытии панели; `onProps` возвращает отписку; `call` возвращает JSON-ответ обработчика (`undefined`, если ответа нет), сбой — отклонённый промис с `Error`.
+- Запись `panels[<id>]` в `src/index.ts` — `defineExtensionPanel({ mount })`; `mount(container, ctx)` получает DOM-контейнер (`HTMLElement` рамки) и `ctx = PanelContext = { panelId, props, signal, call(commandId, args), onProps(fn) }`. `props` — свойства из `openPanel` (`undefined` без них); `signal` прерывается при закрытии панели; `onProps` возвращает отписку; `call` возвращает JSON-ответ обработчика (`undefined`, если ответа нет), сбой — отклонённый промис с `Error`.
 - `ctx.call` вызывает только команды этого же расширения (в том числе с `palette: false`), не чаще 20 вызовов в секунду и не более 4 одновременных; результаты `notify` и `openPanel` исполняет приложение, как и для палитры. Сбой вызова из панели возвращается панели и не показывается уведомлением: панель знает, что показать.
 - Панель исполняется в изолированной рамке всегда, и у доверенных расширений тоже (ADR 0008): без доступа к сети, `window.dolphy` и данным приложения. Единственный канал наружу — `ctx.call` и сообщения моста (раздел «Изоляция интерфейса»).
-- Сборка: `dolphy-ext build` собирает `src/panel.ts` в модуль для браузера (`panel.mjs`); `module` в манифесте — `.js` или `.mjs` внутри каталога расширения.
+- Сборка: `dolphy-ext build` собирает записи `panels` файла `src/index.ts` в модуль для браузера (`panel.mjs`; панели одного файла выбирает по `ctx.panelId` сама сборка); `module` в манифесте — `.js` или `.mjs` внутри каталога расширения.
 
 #### Пункт меню и страница панели
 
@@ -981,7 +980,7 @@ DOLPHY_EXTENSION_CATALOG_URL=http://localhost:8080/index.json pnpm dev
 
 ## Как написать расширение
 
-Расширение — каталог с `extension.json`, кодом для процесса расширений (`main.mjs`) и, при необходимости, элементом ввода ответа (`view.mjs`). Писать его удобнее всего на TypeScript с [`@dolphy-app/extension-sdk`](../../packages/extension-sdk/README.md), собирать — [`dolphy-ext`](../../packages/extension-tools/README.md).
+Расширение — каталог с `extension.json`, кодом для процесса расширений (`main.mjs`) и, при необходимости, элементом ввода ответа (`view.mjs`), панелью (`panel.mjs`) и рендерером содержимого (`markdown.mjs`). Весь код автора — один файл `src/index.ts`: сборка сама раскладывает его по этим файлам. Писать его удобнее всего на TypeScript с [`@dolphy-app/extension-sdk`](../../packages/extension-sdk/README.md), собирать — [`dolphy-ext`](../../packages/extension-tools/README.md).
 
 ### Быстрый старт
 
@@ -1008,15 +1007,31 @@ DOLPHY_DEV_EXTENSIONS=~/projects/acme-hello/dist-ext pnpm dev
 ```
 acme-hello/
   extension.json      # манифест
-  src/main.ts         # defineExtension: код вида задания (utilityProcess)
-  src/view.ts         # defineAnswerElement: элемент ввода ответа (окно)
-  src/panel.ts        # defineExtensionPanel: панель в рамке (по желанию)
-  test/               # vitest: обработчик без приложения и элемент в happy-dom
+  src/index.ts        # host (defineExtension), views (defineAnswerView),
+                      # panels (defineExtensionPanel), markdown (defineMarkdownRenderer)
+  test/               # vitest: обработчик без приложения и вид в happy-dom
   package.json  tsconfig.json  README.md  .gitignore
   dist-ext/acme.hello/  # результат сборки (extension.json, main.mjs, view.mjs)
 ```
 
 Схемы `spec` и ответа можно писать объектами прямо в манифесте или путями к файлам в `schema/`; `main`, `renderer` и `element` по умолчанию — `./main.mjs`, `./view.mjs` и `<id без точек>-answer`.
+
+Именованные экспорты `src/index.ts`:
+
+| Экспорт    | Что                                                    | Куда попадает                       |
+| ---------- | ------------------------------------------------------ | ----------------------------------- |
+| `host`     | `defineExtension({ … })`                               | `main.mjs` (`main`), нужен при `main` |
+| `views`    | `id вида задания → defineAnswerView(mount)`            | `renderer` вида (`view.mjs`)        |
+| `panels`   | `id панели → defineExtensionPanel({ mount })`          | `module` панели (`panel.mjs`)       |
+| `markdown` | `язык → defineMarkdownRenderer(render)`                | `renderer` рендерера (`markdown.mjs`) |
+
+Правила сборки (`dolphy-ext build`):
+
+- Манифест остаётся единственным объявлением: для каждого объявленного вида задания, панели и языка в записи должен быть ключ, лишний ключ — ошибка с его именем; нет `src/index.ts` у расширения с кодом — ошибка с шагами переноса со старой раскладки (`src/main.ts` + `src/view.ts` больше не собираются). Расширение без кода (темы, настройки, `main: null` без рендереров) собирается из одного манифеста.
+- Ключи записей `views`, `panels` и `markdown` читаются из исходника статически (объектный литерал, в том числе через локальную константу и реэкспорт из своих файлов), код автора при сборке не исполняется.
+- В каждый выходной файл попадает только свой код: `main.mjs` — `host`, `view.mjs` — виды этого файла, `panel.mjs` — его панели, `markdown.mjs` — его рендереры. Если несколько видов, панелей или языков указывают на один файл, он диспетчеризует по id (`ctx.panelId`, язык блока, тег элемента). Файлы самодостаточны, общих чанков нет; воркеры из `nodeEntries` файла `dolphy-ext.config.json` остаются отдельными входами.
+- Импорт `node:*`, встроенного модуля или пакета из `external` файла `dolphy-ext.config.json`, который остался в браузерном файле, — ошибка сборки с именем файла и модуля. Верхний уровень `src/index.ts` и его модулей — только объявления: `defineAnswerView` и остальные `define…` ничего не регистрируют и не помечены побочными эффектами, так что `src/index.ts` можно импортировать в тестах в Node; custom element с тегом из манифеста определяет браузерный файл сборки.
+- Библиотеке, которую тянет код хоста, нужно `"sideEffects": false` в её `package.json` (иначе её верхний уровень считается кодом с эффектами и попадает в браузерные файлы).
 
 ### Минимальный манифест и код
 
@@ -1049,10 +1064,14 @@ acme-hello/
 }
 ```
 
-`src/main.ts`:
+`src/index.ts` (весь код: обработчик вида в `host` и поле `<input>` внутри shadow DOM в `views`; тесты — `test/index.test.ts` с `loadExerciseType` и `loadView`):
 
 ```ts
-import { defineExerciseType, defineExtension } from '@dolphy-app/extension-sdk';
+import {
+  defineAnswerView,
+  defineExerciseType,
+  defineExtension,
+} from '@dolphy-app/extension-sdk';
 
 interface Spec {
   expected: string;
@@ -1066,8 +1085,9 @@ const matches = (answer: string, spec: Spec): boolean => {
   return answer === spec.expected;
 };
 
+// код расширения: исполняется в процессе расширений приложения
 // схемы из extension.json уже проверили spec и ответ до вызова обработчиков
-export default defineExtension({
+export const host = defineExtension({
   exerciseTypes: {
     'acme.hello': defineExerciseType<Spec, string, Record<string, never>>({
       project: () => ({}),
@@ -1079,9 +1099,44 @@ export default defineExtension({
     }),
   },
 });
-```
 
-Элемент ввода `src/view.ts` — обычное поле `<input>` внутри shadow DOM (`defineAnswerElement('acme-hello-answer', mount)`); полный текст — в сгенерированном проекте.
+// вид ввода ответа: исполняется в окне приложения; custom element с тегом
+// из extension.json создаёт сборка
+export const views = {
+  'acme.hello': defineAnswerView((api, initial) => {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.spellcheck = false;
+    if (api.label !== null) input.setAttribute('aria-label', api.label);
+
+    const applyValue = (value: unknown) => {
+      input.value = typeof value === 'string' ? value : '';
+    };
+    let appliedValue = initial.value;
+    applyValue(appliedValue);
+    input.disabled = initial.disabled;
+
+    input.addEventListener('input', () => {
+      api.setAnswer(input.value, input.value.trim().length > 0);
+    });
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') api.submit();
+    });
+    api.root.append(input);
+
+    return {
+      update: (props) => {
+        input.disabled = props.disabled;
+        // value применяется, только когда приложение его действительно сменило
+        if (props.value !== appliedValue) {
+          appliedValue = props.value;
+          applyValue(appliedValue);
+        }
+      },
+    };
+  }),
+};
+```
 
 ### Расширение целиком: серия дней
 
@@ -1116,10 +1171,15 @@ export default defineExtension({
 }
 ```
 
-Файл `src/main.ts` (серия дней целиком):
+Файл `src/index.ts` (серия дней целиком):
 
 ```ts
-import { defineExtension, notify, openPanel } from '@dolphy-app/extension-sdk';
+import {
+  defineExtension,
+  defineExtensionPanel,
+  notify,
+  openPanel,
+} from '@dolphy-app/extension-sdk';
 
 // type, а не interface: у interface нет индексной сигнатуры, и он не JsonValue
 type Streak = {
@@ -1142,7 +1202,7 @@ const advance = (streak: Streak | undefined, at: number): Streak => {
   return { days: continues ? streak.days + 1 : 1, last: day };
 };
 
-export default defineExtension({
+export const host = defineExtension({
   activate(ctx) {
     ctx.events.on('attempt.closed', async ({ at, outcome }) => {
       if (outcome === 'gave-up') return;
@@ -1165,44 +1225,36 @@ export default defineExtension({
     });
   },
 });
-```
 
-Файл `src/panel.ts` (серия дней целиком):
-
-```ts
-import { defineExtensionPanel } from '@dolphy-app/extension-sdk';
-
-type Streak = {
-  days: number;
-  last: string;
+export const panels = {
+  'acme.streak.view': defineExtensionPanel({
+    async mount(container, ctx) {
+      const line = container.ownerDocument.createElement('p');
+      container.append(line);
+      const render = async () => {
+        const streak = (await ctx.call('acme.streak.data')) as Streak;
+        line.textContent =
+          streak.days === 0
+            ? 'Серии пока нет.'
+            : `Серия: ${streak.days} дн., последний день ${streak.last}`;
+      };
+      // команда открывает панель снова с новыми свойствами: перерисовываем
+      ctx.signal.addEventListener('abort', ctx.onProps(() => void render()));
+      await render();
+    },
+  }),
 };
-
-export default defineExtensionPanel({
-  async mount(container, ctx) {
-    const line = container.ownerDocument.createElement('p');
-    container.append(line);
-    const render = async () => {
-      const streak = (await ctx.call('acme.streak.data')) as Streak;
-      line.textContent =
-        streak.days === 0
-          ? 'Серии пока нет.'
-          : `Серия: ${streak.days} дн., последний день ${streak.last}`;
-    };
-    // команда открывает панель снова с новыми свойствами: перерисовываем
-    ctx.signal.addEventListener('abort', ctx.onProps(() => void render()));
-    await render();
-  },
-});
 ```
 
 Что здесь происходит. `attempt.closed` приходит обработчику асинхронно и ровно один раз на записанную попытку; он читает и обновляет `ctx.storage`. Команда `acme.streak.show` в палитре показывает уведомление или открывает панель со свойствами; `acme.streak.data` скрыта (`palette: false`), но панель вызывает её через `ctx.call`. Манифест объявляет `learning.events` (иначе события не приходят), команды и панели других разрешений не просят. Панель исполняется в рамке без сети и видит только то, что вернула её команда.
 
 ### Шпаргалка по SDK
 
-- `defineExtension({ exerciseTypes?, gradePolicies?, events?, commands?, activate?, deactivate? })` — готовый модуль расширения (`export default` в `main.ts`): виды из `exerciseTypes` регистрируются сами, при `deactivate` освобождаются; `events` — словарь «имя события → обработчик» (нужны `learning.events` и `contributes.events`); `commands` — словарь «id команды → обработчик» (команда объявлена в `contributes.commands`, разрешение не нужно; обработчику, которому нужен `ctx`, регистрируйтесь в `activate` через `ctx.commands.register`). `ctx.storage`, `ctx.settings`, `ctx.events` и `ctx.commands` доступны в `activate` и обработчиках (разделы «Данные, настройки и события» и «Команды»). Помощники результата команды — `notify(text)` и `openPanel(id, props?)`; модуль панели — `defineExtensionPanel({ mount })` в `src/panel.ts`.
+- `defineExtension({ exerciseTypes?, gradePolicies?, events?, commands?, activate?, deactivate? })` — готовый модуль расширения (экспорт `host` файла `src/index.ts`): виды из `exerciseTypes` регистрируются сами, при `deactivate` освобождаются; `events` — словарь «имя события → обработчик» (нужны `learning.events` и `contributes.events`); `commands` — словарь «id команды → обработчик» (команда объявлена в `contributes.commands`, разрешение не нужно; обработчику, которому нужен `ctx`, регистрируйтесь в `activate` через `ctx.commands.register`). `ctx.storage`, `ctx.settings`, `ctx.events` и `ctx.commands` доступны в `activate` и обработчиках (разделы «Данные, настройки и события» и «Команды»). Помощники результата команды — `notify(text)` и `openPanel(id, props?)`; модуль панели — `defineExtensionPanel({ mount })` в `src/panel.ts`.
 - `defineExerciseType<Spec, Answer, View>({ project, grade, referenceAnswer? })` — типизированный обработчик. `project` отдаёт элементу публичный вид задания (без ключей ответа); `grade` возвращает `{ outcome: 'passed' }`, `{ outcome: 'failed', reason, detail? }` или `{ outcome: 'error', reason }`; `referenceAnswer` — эталон для проверки библиотеки компилятором. К моменту вызова `grade` `spec` и ответ уже проверены схемами из манифеста.
-- `defineAnswerElement(tag, mount)` — определяет custom element с shadow DOM. `mount(api, props)` получает `api.root`, `api.label` (`aria-label` от приложения), `api.setAnswer(value, complete)` и `api.submit()`, возвращает `{ update(props), destroy?() }`; `props` — `view`, `value`, `disabled`, `verdict`.
-- `@dolphy-app/extension-sdk/testing`: `loadExerciseType(module, type)` запускает `project`/`grade`/`referenceAnswer` без приложения и проверяет форму результата; `createSchemaValidator(schema)` — проверка `spec` и ответа по своим схемам; `createMemoryLibrary(files)` — библиотека в памяти для видов, читающих файлы курса; `createMemoryStorage()`, `createMemorySettings(definitions, values?)`, `createMemoryEvents()` и `loadEvents(module, …)` — хранилище, настройки и события в памяти (те же потолки и `StorageQuotaError`; `emit(name, payload)` отправляет событие обработчику).
+- `defineAnswerView(mount)` — запись `views[<id вида>]`: описание элемента ввода с shadow DOM, ничего не регистрирует (custom element с тегом `element` из манифеста определяет сборка в `view.mjs`). `mount(api, props)` получает `api.root`, `api.label` (`aria-label` от приложения), `api.setAnswer(value, complete)` и `api.submit()`, возвращает `{ update(props), destroy?() }`; `props` — `view`, `value`, `disabled`, `verdict`.
+- `defineExtensionPanel({ mount })` — запись `panels[<id панели>]`; `defineMarkdownRenderer(render)` — запись `markdown[<язык>]`.
+- `@dolphy-app/extension-sdk/testing`: `loadView(views, id, options?)` и `loadPanel(panels, id, options?)` монтируют вид или панель в DOM-окружении тестов (happy-dom) и возвращают помощников (`changes`, `submissions`, `update(props)`, `query`/`queryAll` по shadow DOM, `calls`, `setProps`, `dispose()`); `loadExerciseType(host, type)` (как и остальные `load…`, принимает экспорт `host` как есть) запускает `project`/`grade`/`referenceAnswer` без приложения и проверяет форму результата; `createSchemaValidator(schema)` — проверка `spec` и ответа по своим схемам; `createMemoryLibrary(files)` — библиотека в памяти для видов, читающих файлы курса; `createMemoryStorage()`, `createMemorySettings(definitions, values?)`, `createMemoryEvents()` и `loadEvents(module, …)` — хранилище, настройки и события в памяти (те же потолки и `StorageQuotaError`; `emit(name, payload)` отправляет событие обработчику).
 - `loadCommands(module, { declaredCommands?, declaredPanels?, storage?, … })` из `@dolphy-app/extension-sdk/testing`: активирует модуль с командами в памяти; `run(id, args)` возвращает `{ kind: 'none' | 'notify' | 'openPanel' | 'data', … }` по тем же правилам, что хост (регистрация необъявленной команды и повторная бросают, `openPanel` на необъявленную панель недопустим, результат больше 64 КиБ отклоняется); `ids()` — зарегистрированные команды. Общее `storage` у `loadCommands` и `loadEvents` даёт тесту проверить обработчик события и команду, читающую то же хранилище.
 
 ### Сборка и проверка
@@ -1242,9 +1294,9 @@ pnpm test
 
 ## Расширения по умолчанию
 
-`dolphy.sql` (`packages/ext-sql`, раннер SQL из `@dolphy-app/engine-sql-runner` в дочерних процессах, воркер `worker.mjs`) и `dolphy.choice` (`packages/ext-choice`, один или несколько верных вариантов) — проекты `dolphy-ext` (`extension.json`, `src/main.ts`, `src/view.ts`, `schema/`; у `ext-sql` ещё `dolphy-ext.config.json` с воркером и внешним `better-sqlite3`): `pnpm -F <пакет> build` (`dolphy-ext build`, `@dolphy-app/extension-tools`) собирает тем же кодом, что и у сторонних авторов, каталог `dist-ext/<id>/`. Плагин Vite `dolphy:extensions` (`apps/desktop/vite.config.ts`) собирает все `packages/ext-*` и копирует единственный каталог `dist-ext/<id>/` в `<outRoot>/extensions/<id>/` (имя каталога должно совпасть с `id` манифеста); упаковка кладёт его в `Resources/extensions` (`extraResources`).
+`dolphy.sql` (`packages/ext-sql`, раннер SQL из `@dolphy-app/engine-sql-runner` в дочерних процессах, воркер `worker.mjs`) и `dolphy.choice` (`packages/ext-choice`, один или несколько верных вариантов) — проекты `dolphy-ext` (`extension.json`, `src/index.ts` с `host` и `views`, `schema/`; у `ext-sql` ещё `dolphy-ext.config.json` с воркером и внешним `better-sqlite3`): `pnpm -F <пакет> build` (`dolphy-ext build`, `@dolphy-app/extension-tools`) собирает тем же кодом, что и у сторонних авторов, каталог `dist-ext/<id>/`. Плагин Vite `dolphy:extensions` (`apps/desktop/vite.config.ts`) собирает все `packages/ext-*` и копирует единственный каталог `dist-ext/<id>/` в `<outRoot>/extensions/<id>/` (имя каталога должно совпасть с `id` манифеста); упаковка кладёт его в `Resources/extensions` (`extraResources`).
 
-`dolphy.math` (`packages/ext-math`) — расширение без кода для процесса расширений: вклад `markdownRenderers` для языка `math` (блоки ` ```math `, формулы TeX рисует MathJax в SVG); собирается так же, как остальные.
+`dolphy.math` (`packages/ext-math`) — расширение без кода для процесса расширений (`main: null`, в `src/index.ts` только `markdown`): вклад `markdownRenderers` для языка `math` (блоки ` ```math `, формулы TeX рисует MathJax в SVG); собирается так же, как остальные.
 
 ## Границы
 

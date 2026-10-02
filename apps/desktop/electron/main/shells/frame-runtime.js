@@ -12,7 +12,10 @@
  * Приложение → рамка (`dolphy: 1`; принимаются только от `window.parent`):
  *   { dolphy: 1, type: 'init', mode: 'answer', rendererUrl, element, label }
  *   { dolphy: 1, type: 'init', mode: 'markdown', rendererUrl, language, source }
+ *   { dolphy: 1, type: 'init', mode: 'panel', rendererUrl, panelId, props }
  *   { dolphy: 1, type: 'props', view?, value?, disabled?, verdict? }   (answer)
+ *   { dolphy: 1, type: 'panel-props', props }                         (panel)
+ *   { dolphy: 1, type: 'panel-result', callId, ok, value | error: { message } }
  *   { dolphy: 1, type: 'theme', variables: { '--v-…': string }, dark: boolean }
  *   { dolphy: 1, type: 'dispose' }
  *
@@ -23,6 +26,13 @@
  *   { dolphyFrame: 1, type: 'size', height }           высота содержимого, px
  *   { dolphyFrame: 1, type: 'done' }                   markdown: блок выведен
  *   { dolphyFrame: 1, type: 'error', message }
+ *   { dolphyFrame: 1, type: 'panel-call', callId, command, args }      panel: вызов команды
+ *   { dolphyFrame: 1, type: 'shortcut', key: 'mod+k' }                  panel: только Ctrl/⌘+K
+ *
+ * Режим `panel` занимает всю рамку (высоту задаёт приложение), `size` не
+ * шлёт. Рамка не знает, чья она: расширение и допустимые команды приложение
+ * привязывает при создании рамки и не читает из сообщений. Родителю уходит
+ * только Ctrl/⌘+K, другие клавиши и события не пересылаются.
  *
  * Порядок: приложение ждёт `ready`, затем шлёт `init`, `theme`, `props`.
  * Модуль расширения грузится только с того же `dolphy-ext://<id>`, что и рамка.
@@ -36,6 +46,9 @@ const dolphyFrameRuntime = (win, loadModule) => {
   const ELEMENT_NAME = /^[a-z][a-z0-9]*(-[a-z0-9]+)+$/;
   const VARIABLE_NAME = /^--v-[a-z0-9-]+$/;
   const PROP_NAMES = ['view', 'value', 'disabled', 'verdict'];
+  // клиент движка ждёт команду до 14 с: рамка не отвечает раньше приложения
+  const CALL_TIMEOUT_MS = 15000;
+  const MAX_CALL_ARGS_CHARS = 200000;
 
   const state = {
     started: false,
@@ -46,6 +59,11 @@ const dolphyFrameRuntime = (win, loadModule) => {
     submitting: false,
     observer: null,
     controller: new AbortController(),
+    panel: false,
+    panelProps: undefined,
+    panelListeners: new Set(),
+    calls: new Map(),
+    callCount: 0,
   };
 
   const post = (message) => {
@@ -160,7 +178,71 @@ const dolphyFrameRuntime = (win, loadModule) => {
     post({ type: 'done' });
   };
 
-  const starters = { answer: startAnswer, markdown: startMarkdown };
+  const closedError = () => new Error('panel is closed');
+
+  const callCommand = (commandId, args) => {
+    if (state.controller.signal.aborted) return Promise.reject(closedError());
+    if (typeof commandId !== 'string' || commandId === '') {
+      return Promise.reject(new TypeError('command id must be a string'));
+    }
+    let text;
+    try {
+      text = args === undefined ? undefined : JSON.stringify(args);
+    } catch {
+      return Promise.reject(new TypeError('arguments are not JSON'));
+    }
+    if (text !== undefined && text.length > MAX_CALL_ARGS_CHARS) {
+      return Promise.reject(new RangeError('arguments are too large'));
+    }
+    state.callCount += 1;
+    const callId = `c${state.callCount}`;
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        state.calls.delete(callId);
+        reject(new Error('command timed out'));
+      }, CALL_TIMEOUT_MS);
+      state.calls.set(callId, { resolve, reject, timer });
+      post({
+        type: 'panel-call',
+        callId,
+        command: commandId,
+        args: text === undefined ? undefined : JSON.parse(text),
+      });
+    });
+  };
+
+  const startPanel = async ({ rendererUrl, panelId, props }) => {
+    if (typeof panelId !== 'string') throw new Error('invalid panel id');
+    state.panel = true;
+    state.panelProps = props;
+    const loaded = await importModule(rendererUrl);
+    const module = loaded.default;
+    if (typeof module?.mount !== 'function') {
+      throw new Error('module has no default export with mount()');
+    }
+    // панель заполняет рамку: высоту задаёт приложение, `size` не шлём
+    doc.documentElement.style.height = '100%';
+    doc.body.style.height = '100%';
+    const container = doc.createElement('div');
+    container.style.height = '100%';
+    doc.body.append(container);
+    await module.mount(container, {
+      panelId,
+      props: state.panelProps,
+      signal: state.controller.signal,
+      call: callCommand,
+      onProps: (listener) => {
+        state.panelListeners.add(listener);
+        return () => state.panelListeners.delete(listener);
+      },
+    });
+  };
+
+  const starters = {
+    answer: startAnswer,
+    markdown: startMarkdown,
+    panel: startPanel,
+  };
 
   const handlers = {
     init: (message) => {
@@ -176,6 +258,31 @@ const dolphyFrameRuntime = (win, loadModule) => {
         if (name in message) state.props[name] = message[name];
       }
       applyProps();
+    },
+    'panel-props': ({ props }) => {
+      state.panelProps = props;
+      for (const listener of [...state.panelListeners]) {
+        try {
+          listener(props);
+        } catch (error) {
+          fail(error);
+        }
+      }
+    },
+    'panel-result': ({ callId, ok, value, error }) => {
+      // ответ на неизвестный (устаревший или уже истёкший) вызов игнорируется
+      const entry = typeof callId === 'string' ? state.calls.get(callId) : null;
+      if (!entry) return;
+      state.calls.delete(callId);
+      clearTimeout(entry.timer);
+      if (ok === true) {
+        entry.resolve(value);
+        return;
+      }
+      const text = typeof error?.message === 'string' ? error.message : '';
+      entry.reject(
+        new Error(text.slice(0, MAX_MESSAGE_CHARS) || 'command failed'),
+      );
     },
     theme: ({ variables, dark }) => {
       const root = doc.documentElement;
@@ -197,6 +304,12 @@ const dolphyFrameRuntime = (win, loadModule) => {
     },
     dispose: () => {
       state.controller.abort();
+      for (const entry of state.calls.values()) {
+        clearTimeout(entry.timer);
+        entry.reject(closedError());
+      }
+      state.calls.clear();
+      state.panelListeners.clear();
       state.observer?.disconnect();
       state.element = null;
       doc.body.replaceChildren();
@@ -214,8 +327,19 @@ const dolphyFrameRuntime = (win, loadModule) => {
   doc.addEventListener(
     'keydown',
     (event) => {
-      const isSubmit =
-        (event.ctrlKey || event.metaKey) && event.key === 'Enter';
+      const mod = event.ctrlKey || event.metaKey;
+      // панель пересылает приложению только Ctrl/⌘+K (палитра команд)
+      const isPalette =
+        mod &&
+        !event.altKey &&
+        !event.shiftKey &&
+        (event.code === 'KeyK' || String(event.key).toLowerCase() === 'k');
+      if (isPalette && state.panel) {
+        event.preventDefault();
+        if (!event.repeat) post({ type: 'shortcut', key: 'mod+k' });
+        return;
+      }
+      const isSubmit = mod && event.key === 'Enter';
       if (!isSubmit || !state.element) return;
       event.preventDefault();
       submit();

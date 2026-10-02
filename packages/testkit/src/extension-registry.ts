@@ -13,6 +13,8 @@ export const createFakeExtensionRegistry = (
     markdownRenderers: [],
     gradePolicies: [],
     settings: [],
+    commands: [],
+    panels: [],
   },
 ): ExtensionRegistry => ({
   list: () => items,

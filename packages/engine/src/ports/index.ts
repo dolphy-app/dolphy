@@ -263,6 +263,7 @@ export interface SettingsStore {
 
 export * from './exercise-types.ts';
 export * from './grade-policies.ts';
+export * from './extension-commands.ts';
 export * from './extension-installer.ts';
 export * from './extension-policy.ts';
 export * from './extension-reloader.ts';

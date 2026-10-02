@@ -4,12 +4,12 @@ import { EXTENSION_ID_PATTERN } from '@dolphy-app/extension-api';
 import * as template from './template.ts';
 import type { TemplateInput } from './template.ts';
 
-/** Совпадает с ограничением манифеста (`parseManifest`). */
+/** Matches the manifest limit (`parseManifest`). */
 const MAX_ID_CHARS = 64;
-/** Без сборки (исходники, `--local`) версия пакетов условная. */
+/** Without a build (sources, `--local`) the package version is a placeholder. */
 export const UNPUBLISHED_VERSION = '^0.0.0';
 
-/** Подставляется сборкой `tools/build-packages.mjs`; в исходниках не определена. */
+/** Injected by the `tools/build-packages.mjs` build; undefined in sources. */
 declare const __DOLPHY_PACKAGE_VERSION__: string | undefined;
 
 const builtPackageVersion = (): string | null =>
@@ -32,22 +32,22 @@ export class GenerateError extends Error {
 
 export interface GenerateOptions {
   dir: string;
-  /** По умолчанию — kebab-case имени каталога. */
+  /** Defaults to kebab-case of the directory name. */
   id?: string;
-  /** Корень репозитория Dolphy: зависимости пишутся как `link:<корень>/packages/...`. */
+  /** Dolphy repository root: dependencies are written as `link:<root>/packages/...`. */
   localRoot?: string;
-  /** Версия опубликованных пакетов; по умолчанию — версия самого генератора из сборки. */
+  /** Version of the published packages; defaults to the generator's own version from the build. */
   packageVersion?: string;
 }
 
 export interface GenerateResult {
-  /** Абсолютный путь созданного проекта. */
+  /** Absolute path of the created project. */
   dir: string;
-  /** Относительные пути (разделитель `/`), по возрастанию. */
+  /** Relative paths (`/` separator), ascending. */
   files: string[];
   id: string;
   isLocal: boolean;
-  /** Зависимости указывают на опубликованную версию, а не на условную `^0.0.0`. */
+  /** Dependencies point to a published version, not the placeholder `^0.0.0`. */
   isPublished: boolean;
 }
 
@@ -78,7 +78,7 @@ const resolveId = (dir: string, id: string | undefined): string => {
 
 interface DependencySpecs {
   dependencies: TemplateInput['dependencies'];
-  /** Версия пакетов известна (сборка опубликованного пакета), а не условная. */
+  /** The package version is known (published build), not a placeholder. */
   isPublished: boolean;
 }
 
@@ -120,7 +120,7 @@ const assertEmpty = async (dir: string): Promise<void> => {
   }
 };
 
-/** Файлы проекта: относительный путь → содержимое. */
+/** Project files: relative path → content. */
 export const renderProject = (input: TemplateInput): Map<string, string> => {
   const { id } = input;
   return new Map<string, string>([

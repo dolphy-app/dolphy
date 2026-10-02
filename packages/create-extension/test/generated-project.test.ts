@@ -12,7 +12,7 @@ const require = createRequire(import.meta.url);
 const packageDir = (name: string): string =>
   path.dirname(require.resolve(`${name}/package.json`));
 
-/** node_modules проекта: ссылки на тулчейн репозитория (без сети и install). */
+/** Project node_modules: links to the repository toolchain (no network, no install). */
 const linkToolchain = async (project: string): Promise<void> => {
   const modules = path.join(project, 'node_modules');
   await mkdir(path.join(modules, '@dolphy-app'), { recursive: true });
@@ -44,7 +44,7 @@ const silentLogger = {
 
 const runNode = (args: string[], cwd: string) =>
   new Promise<{ code: number | null; output: string }>((resolve, reject) => {
-    // вложенный vitest не должен считать себя частью внешнего прогона
+    // a nested vitest must not consider itself part of the outer run
     const env = Object.fromEntries(
       Object.entries(process.env).filter(
         ([key]) => !key.startsWith('VITEST') && key !== 'NODE_OPTIONS',
@@ -71,8 +71,8 @@ const generate = async (name: string) => {
   return generated;
 };
 
-describe('сгенерированный проект', () => {
-  it('собирается, проходит validate, обнаруживается и проходит свои тесты', async () => {
+describe('generated project', () => {
+  it('builds, passes validate, is discovered and passes its own tests', async () => {
     const { dir, id } = await generate('acme-hello');
 
     const built = await buildExtension({ root: dir });
@@ -98,7 +98,7 @@ describe('сгенерированный проект', () => {
     expect(code, output).toBe(0);
   });
 
-  it('после сборки tsc принимает проект с типами id из extension.json', async () => {
+  it('after the build tsc accepts the project with id types from extension.json', async () => {
     const { dir } = await generate('acme-hello');
     await buildExtension({ root: dir });
     const ids = await readFile(path.join(dir, '.dolphy/ids.d.ts'), 'utf8');
@@ -107,7 +107,7 @@ describe('сгенерированный проект', () => {
     expect(code, output).toBe(0);
   });
 
-  it('tsc отвергает неверные id и записи, расходящиеся с манифестом', async () => {
+  it('tsc rejects wrong ids and entries that diverge from the manifest', async () => {
     const { dir } = await generate('acme-hello');
     await buildExtension({ root: dir });
     const lines = [

@@ -1,9 +1,9 @@
-/** Версия расширения в шаблоне и его умолчание для `apiVersion`. */
+/** Extension version in the template and its default for `apiVersion`. */
 const INITIAL_VERSION = '0.1.0';
 
 export interface TemplateInput {
   id: string;
-  /** Спецификаторы зависимостей на SDK и инструменты (см. `dependencySpecs`). */
+  /** Dependency specifiers for the SDK and tools (see `dependencySpecs`). */
   dependencies: { sdk: string; tools: string };
 }
 

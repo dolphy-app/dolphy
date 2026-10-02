@@ -23,6 +23,8 @@ const extension = (id: string, origin: ExtensionOrigin): ResolvedExtension => ({
   gradePolicies: [],
   settings: [],
   events: [],
+  commands: [],
+  panels: [],
 });
 
 const policyFor = (...items: ResolvedExtension[]) =>

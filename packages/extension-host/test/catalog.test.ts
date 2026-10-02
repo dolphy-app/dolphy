@@ -39,6 +39,8 @@ const extension: ResolvedExtension = {
   gradePolicies: [],
   settings: [],
   events: [],
+  commands: [],
+  panels: [],
 };
 
 describe('createCatalog', () => {

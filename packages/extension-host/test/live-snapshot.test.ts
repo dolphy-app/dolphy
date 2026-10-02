@@ -35,6 +35,8 @@ const extension = (
   gradePolicies: [],
   settings: [],
   events: [],
+  commands: [],
+  panels: [],
   ...overrides,
 });
 

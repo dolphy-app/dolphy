@@ -4,12 +4,16 @@ import type {
   LearningEvent,
   ExtensionSettingChangeDto,
 } from '@dolphy-app/engine-contract';
-import type { ExtensionPolicy } from '@dolphy-app/engine/ports';
+import type {
+  ExtensionCommands,
+  ExtensionPolicy,
+} from '@dolphy-app/engine/ports';
 import type { ExtensionModule } from '@dolphy-app/extension-api';
 import { connectEngine } from '../src/engine-bridge.ts';
 import type { HostableEngine } from '../src/engine-bridge.ts';
 import { createHostChannel } from '../src/channel.ts';
 import type { HostChannel } from '../src/channel.ts';
+import { createRemoteExtensionCommands } from '../src/client.ts';
 import type { ResolvedExtension } from '../src/discover.ts';
 import { createDiscoveryHolder, discoveryOf } from '../src/holder.ts';
 import type { DiscoveryHolder } from '../src/holder.ts';
@@ -64,6 +68,8 @@ export const stateful = (
     },
   ],
   events: [{ event: 'attempt.closed' }, { event: 'session.started' }],
+  commands: [],
+  panels: [],
   ...overrides,
 });
 
@@ -169,6 +175,8 @@ export interface Harness {
   channel: HostChannel;
   discovery: DiscoveryHolder;
   policy: ExtensionPolicy;
+  /** Клиент команд движка поверх того же канала. */
+  commands: ExtensionCommands;
   logger: TestLogger;
   /** Меняет набор расширений так же, как применение изменений: снимок движка и хост. */
   replace(extensions: readonly ResolvedExtension[]): Promise<void>;
@@ -210,6 +218,12 @@ export const createHarness = (options: HarnessOptions): Harness => {
     engine,
     runtime,
     channel,
+    commands: createRemoteExtensionCommands({
+      channel,
+      discovery,
+      policy,
+      logger,
+    }),
     discovery,
     policy,
     logger,

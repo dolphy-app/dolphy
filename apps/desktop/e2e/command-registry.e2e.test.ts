@@ -155,10 +155,10 @@ describe('реестр команд: команды приложения (R2, R5
       'Открыть палитру команд',
     );
     await expectText(commands.option('Перейти: Курсы'), MOD + '2');
-    // прокручиваемый список фокусируем (axe scrollable-region-focusable), символы клавиш скрыты от скринридера
+    // прокручиваемый список достижим с клавиатуры (axe scrollable-region-focusable), символы клавиш скрыты от скринридера
     expect(
       await commands.palette.locator('.list-wrap').getAttribute('tabindex'),
-    ).toBe('-1');
+    ).toBe('0');
     await expectText(commands.option('Перейти: Курсы'), `${MOD_WORD} 2`);
     expect(
       await commands
@@ -218,14 +218,27 @@ describe('реестр команд: сочетания клавиш (R6, R7, R1
     await expectCount(client.page.getByRole('columnheader'), 4);
   });
 
-  it('кнопка на странице открывает палитру', async () => {
+  it('кнопка на странице открывает палитру (с клавиатуры) и получает фокус обратно', async () => {
     const { client, commands } = await launch();
     await openShortcuts(client);
-    await client.page
-      .getByRole('button', { name: /Открыть палитру команд/ })
-      .click();
-    await commands.combobox.waitFor({ timeout: 15_000 });
+    const button = client.page.getByRole('button', {
+      name: /Открыть палитру команд/,
+    });
+    // с клавиатуры: фокус остаётся в закрывающемся диалоге, пока не придёт after-leave
+    await button.focus();
+    await client.page.keyboard.press('Enter');
+    await commands.waitForPalette();
     expect((await commands.optionTitles()).length).toBeGreaterThan(0);
+    // после Escape фокус возвращается на кнопку
+    await commands.combobox.press('Escape');
+    await commands.palette.waitFor({ state: 'hidden' });
+    await expect
+      .poll(() =>
+        client.page.evaluate(() =>
+          document.activeElement?.getAttribute('data-testid'),
+        ),
+      )
+      .toBe('open-palette');
   });
 
   it('Ctrl+1/2/3 и Ctrl+, переходят на страницы', async () => {

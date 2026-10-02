@@ -1,13 +1,15 @@
 ---
-status: active
+status: done
 branch: feature/extension-surfaces
 created: 2026-10-02
-closed: null
+closed: 2026-10-02
 touches: [engine, engine-contract, engine-rpc, extension-api, extension-host, extension-sdk, extension-tools, extension-catalog, extension-install, testkit, desktop, create-extension]
 depends-on: [specs/archive/2026-10-01-extension-live-apply, specs/archive/2026-10-01-extension-state]
 supersedes: null
 superseded-by: null
 ---
+
+> Исторический документ. Не источник требований.
 
 # Команды и панели расширений
 
@@ -58,9 +60,9 @@ superseded-by: null
 
 - [x] 3a. Контракт 11, порт и сервис `invokeCommand`, RPC, `UNQUEUED`, протокол хоста (`invokeCommand`, `isResolvedExtension`), точки `commands`/`panels`, `ctx.commands` в процессе и в ограниченном процессе, бюджеты, SDK и testing, `extension-tools` (сборка панели), каталог и установщик, фикстуры тестов
 - [x] 3b. Окно: режим `panel` в рамке (`frame-bridge.ts`, `frame-runtime.js`, `PanelFrame.vue`), палитра (`features/extension-commands`, `widgets/command-palette`), уведомления, страница панели (`pages/extension-panel`), пункт меню, пересылка `Mod+K`, живое применение, i18n, юнит-тесты, e2e `extension-surfaces.e2e.test.ts`
-- [ ] Дизайн-ревью окна (палитра, страница панели, пункты меню)
-- [ ] Документация: `docs/design/extensions.md`, README пакетов, примеры для `docs-contributions.test.ts`
-- [ ] Закрытие: ADR 0008, `Outcomes`, архив
+- [x] Дизайн-ревью окна (палитра, страница панели, пункты меню)
+- [x] Документация: `docs/design/extensions.md`, README пакетов и приложения, пример «серия дней целиком» в `docs-contributions.test.ts`
+- [x] Закрытие: ADR 0008, `Outcomes`, архив
 
 ## Surprises & Discoveries
 
@@ -86,4 +88,8 @@ superseded-by: null
 
 ## Outcomes
 
-Заполняется при закрытии.
+Сделано всё из «Требований» R1–R10: контракт 11 (`extensions.invokeCommand`, вне очереди), точки `commands` и `panels`, `ctx.commands`, палитра Ctrl/⌘+K, страница и рамка панели (режим `panel`), живое применение, каталог и установщик, SDK и `dolphy-ext`. Решение зафиксировано в [ADR 0008](../../../docs/adr/0008-extension-commands-and-panels.md).
+
+Отличия от плана. Палитра — свой компонент с видом `VCommandPalette` из Vuetify 4.2.2 (стили заимствованы, MIT): labs-компонент не даёт combobox-семантики поля, `aria-activedescendant` на поле и озвучивания числа результатов (см. Decision Log). Дизайн-ревью дало правки: единственная роль `combobox`, устойчивая вёрстка палитры (прокручивается только список, верх не прыгает, длинные названия и подсказки не ломают строку), кнопка «Команды» в меню, перенос длинного текста уведомления, сворачивание длинных списков вкладов в карточках. Пример «серия дней целиком» в документации собирается, проверяется `validate` и исполняется в `docs-contributions.test.ts`.
+
+Осталось (новые спеки или issue, не часть этой): назначение горячих клавиш расширений, `when`, нативное меню, терпимый разбор индекса каталога старыми приложениями; известные нерешённые замечания ревью — axe `scrollable-region-focusable` у списка палитры (фокус остаётся в поле, прокрутка управляется `aria-activedescendant`), нет подсказки полного названия у обрезанных пунктов меню панелей и видимого заголовка группы «Панели расширений», при высоте окна ниже ~700 px меню с восемью панелями прокручивается целиком, надёжность озвучивания уведомлений скринридерами не проверена на реальном скринридере.

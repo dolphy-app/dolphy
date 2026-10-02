@@ -2,7 +2,10 @@
 export default {
   async activate(ctx) {
     const greeting = () => ctx.settings.get('acme.stateful.greeting');
-    await ctx.storage.set('activations', ((await ctx.storage.get('activations')) ?? 0) + 1);
+    await ctx.storage.set(
+      'activations',
+      ((await ctx.storage.get('activations')) ?? 0) + 1,
+    );
     await ctx.storage.set('greeting-at-start', greeting());
     ctx.events.on('attempt.closed', async (payload) => {
       await ctx.storage.set(`attempt:${payload.exerciseId}`, {

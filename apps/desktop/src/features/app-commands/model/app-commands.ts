@@ -72,15 +72,15 @@ export const registerAppCommands = (deps: AppCommandsDeps): (() => void) => {
   const { registry, t } = deps;
 
   // выполнение: сбой уходит в уведомление, а не в необработанный промис
-  const guarded = (action: () => unknown): (() => Promise<void>) => {
-    return async () => {
+  const guarded =
+    (action: () => unknown): (() => Promise<void>) =>
+    async () => {
       try {
         await action();
       } catch (error) {
         deps.reportFailure(error);
       }
     };
-  };
 
   const app = (
     id: string,

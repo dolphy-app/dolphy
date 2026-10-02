@@ -154,7 +154,7 @@ describe('реестр команд: команды приложения (R2, R5
     expect(await commands.optionTitles()).not.toContain(
       'Открыть палитру команд',
     );
-    await expectText(commands.option('Перейти: Курсы'), MOD + '2');
+    await expectText(commands.option('Перейти: Курсы'), `${MOD}2`);
     // прокручиваемый список достижим с клавиатуры (axe scrollable-region-focusable), символы клавиш скрыты от скринридера
     expect(
       await commands.palette.locator('.list-wrap').getAttribute('tabindex'),
@@ -166,7 +166,7 @@ describe('реестр команд: команды приложения (R2, R5
         .locator('kbd')
         .getAttribute('aria-hidden'),
     ).toBe('true');
-    await expectText(commands.option('Перейти: Настройки'), MOD + ',');
+    await expectText(commands.option('Перейти: Настройки'), `${MOD},`);
   });
 });
 

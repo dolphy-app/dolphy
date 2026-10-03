@@ -111,6 +111,8 @@ const copyInfo = (info: ExtensionInfoDto): ExtensionInfoDto => ({
     panels: [...info.contributes.panels],
   },
   permissions: [...info.permissions],
+  titles: structuredClone(info.titles),
+  tags: [...info.tags],
 });
 
 const BUILTIN_POLICIES = Object.keys(GRADE_POLICIES).map((id) => ({

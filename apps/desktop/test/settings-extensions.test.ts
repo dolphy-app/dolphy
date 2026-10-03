@@ -11,6 +11,7 @@ import {
   COLLAPSED_VALUES,
   contributionGroups,
   hasSwitches,
+  hidesContributions,
   useExtensions,
   visibleValues,
 } from '@/pages/settings/model/extensions.ts';
@@ -149,7 +150,15 @@ describe('useExtensions', () => {
 });
 
 describe('contributionGroups', () => {
-  it('пропускает пустые точки и сохраняет порядок точек и значения', () => {
+  const item = (id: string, label = id, extra = {}) => ({
+    id,
+    label,
+    mono: false,
+    duplicate: false,
+    ...extra,
+  });
+
+  it('пропускает пустые точки и сохраняет порядок точек и значения; без названий текст — id', () => {
     expect(
       contributionGroups({
         exerciseTypes: [],
@@ -162,16 +171,125 @@ describe('contributionGroups', () => {
         panels: ['acme.view'],
       }),
     ).toEqual([
-      { point: 'themes', values: ['acme.night', 'acme.day'] },
-      { point: 'markdownRenderers', values: ['math'] },
-      { point: 'gradePolicies', values: ['acme.strict'] },
-      { point: 'commands', values: ['acme.run'] },
-      { point: 'panels', values: ['acme.view'] },
+      {
+        point: 'themes',
+        items: [item('acme.night'), item('acme.day')],
+      },
+      {
+        point: 'markdownRenderers',
+        items: [item('math', 'math', { mono: true })],
+      },
+      { point: 'gradePolicies', items: [item('acme.strict')] },
+      { point: 'commands', items: [item('acme.run')] },
+      { point: 'panels', items: [item('acme.view')] },
     ]);
   });
 
   it('расширение без вкладов — без групп', () => {
     expect(contributionGroups(NO_CONTRIBUTES)).toEqual([]);
+  });
+
+  it('название заменяет id, а id без названия остаётся запасным текстом', () => {
+    const [group] = contributionGroups(
+      { ...NO_CONTRIBUTES, themes: ['a.night', 'a.day'] },
+      { themes: { 'a.night': 'Полночь' } },
+    );
+    expect(group?.items.map((i) => i.label)).toEqual(['Полночь', 'a.day']);
+  });
+
+  it('виды заданий и языки — идентификаторы моноширинно; названия и события — нет', () => {
+    const groups = contributionGroups(
+      {
+        ...NO_CONTRIBUTES,
+        exerciseTypes: ['a.quiz'],
+        markdownRenderers: ['math'],
+        themes: ['a.t'],
+        events: ['session.started'],
+      },
+      { themes: { 'a.t': 'Тема' } },
+    );
+    expect(
+      Object.fromEntries(groups.map((g) => [g.point, g.items[0]?.mono])),
+    ).toEqual({
+      exerciseTypes: true,
+      themes: false,
+      markdownRenderers: true,
+      events: false,
+    });
+  });
+
+  it('события показываются через переданное название, неизвестные — как есть', () => {
+    const [group] = contributionGroups(
+      { ...NO_CONTRIBUTES, events: ['session.started', 'weird.event'] },
+      {},
+      (name) => (name === 'session.started' ? 'Начало занятия' : name),
+    );
+    expect(group?.items.map((i) => i.label)).toEqual([
+      'Начало занятия',
+      'weird.event',
+    ]);
+  });
+
+  it('одинаковые названия помечены, чтобы id был доступен скринридеру', () => {
+    const [group] = contributionGroups(
+      { ...NO_CONTRIBUTES, commands: ['a.one', 'a.two', 'a.three'] },
+      {
+        commands: {
+          'a.one': 'Запустить',
+          'a.two': 'Запустить',
+          'a.three': 'Стоп',
+        },
+      },
+    );
+    expect(group?.items.map((i) => i.duplicate)).toEqual([true, true, false]);
+  });
+
+  it('64 команды с названиями сворачиваются до первых значений', () => {
+    const commands = Array.from({ length: 64 }, (_, i) => `a.c${i}`);
+    const titles = {
+      commands: Object.fromEntries(commands.map((id) => [id, `Команда ${id}`])),
+    };
+    const [group] = contributionGroups({ ...NO_CONTRIBUTES, commands }, titles);
+    const collapsed = visibleValues(group?.items ?? [], false);
+    expect(collapsed.shown).toHaveLength(COLLAPSED_VALUES);
+    expect(collapsed.shown[0]?.label).toBe('Команда a.c0');
+    expect(collapsed.hidden).toBe(64 - COLLAPSED_VALUES);
+  });
+});
+
+describe('hidesContributions', () => {
+  const theme = { ...NO_CONTRIBUTES, themes: ['a.night'] };
+  const titles = { themes: { 'a.night': 'Полночь' } };
+
+  it('единственная тема с названием расширения не повторяется', () => {
+    expect(hidesContributions(theme, titles, 'Полночь')).toBe(true);
+  });
+
+  it.each([
+    ['название отличается', theme, titles, 'Night'],
+    ['названия нет', theme, {}, 'Полночь'],
+    ['у расширения нет названия', theme, titles, null],
+    [
+      'вкладов два',
+      { ...theme, commands: ['a.run'] },
+      { ...titles, commands: { 'a.run': 'Полночь' } },
+      'Полночь',
+    ],
+    [
+      'единственный вклад — не тема',
+      { ...NO_CONTRIBUTES, commands: ['a.run'] },
+      { commands: { 'a.run': 'Полночь' } },
+      'Полночь',
+    ],
+    ['две темы', { ...theme, themes: ['a.night', 'a.day'] }, titles, 'Полночь'],
+  ] as const)('показывается, если %s', (_why, contributes, t, name) => {
+    expect(
+      hidesContributions(
+        contributes as never,
+        t as never,
+        name as string | null,
+      ),
+    ).toBe(false);
   });
 });
 

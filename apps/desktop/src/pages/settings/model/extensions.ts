@@ -1,5 +1,6 @@
 import { onScopeDispose, ref, shallowRef } from 'vue';
 import type {
+  ContributionTitlesDto,
   ExtensionContributesDto,
   ExtensionInfoDto,
   ExtensionSettingsDto,
@@ -9,21 +10,77 @@ import type {
 import { CONTRIBUTION_POINTS, targetFromUpdate } from '../lib/catalog.ts';
 import type { ContributionPoint, InstallTarget } from '../lib/catalog.ts';
 
-export interface ContributionGroup {
-  point: ContributionPoint;
-  values: string[];
+export interface ContributionItem {
+  id: string;
+  /** Текст чипа: название вклада, локализованное событие или сам id. */
+  label: string;
+  /** Идентификатор по природе (вид задания, язык рендерера): моноширинный шрифт. */
+  mono: boolean;
+  /** Такой же текст у другого чипа точки: id нужен и скринридеру. */
+  duplicate: boolean;
 }
 
-/** Непустые группы вкладов расширения в порядке точек; значения как есть. */
+export interface ContributionGroup {
+  point: ContributionPoint;
+  items: ContributionItem[];
+}
+
+type TitlesByPoint = Partial<Record<ContributionPoint, Record<string, string>>>;
+
+const MONO_POINTS: ReadonlySet<ContributionPoint> = new Set([
+  'exerciseTypes',
+  'markdownRenderers',
+]);
+
+/**
+ * Непустые группы вкладов расширения в порядке точек. Текст чипа — название
+ * из `titles` (если есть), для событий — `eventLabel`, иначе сам id.
+ */
 export const contributionGroups = (
   contributes: ExtensionContributesDto,
+  titles: ContributionTitlesDto = {},
+  eventLabel: (name: string) => string = (name) => name,
 ): ContributionGroup[] =>
   CONTRIBUTION_POINTS.filter((point) => contributes[point].length > 0).map(
-    (point) => ({
-      point,
-      values: contributes[point],
-    }),
+    (point) => {
+      const titled: Record<string, string> =
+        (titles as TitlesByPoint)[point] ?? {};
+      const labels = contributes[point].map((id) =>
+        point === 'events' ? eventLabel(id) : (titled[id] ?? id),
+      );
+      const counts = new Map<string, number>();
+      for (const label of labels) {
+        counts.set(label, (counts.get(label) ?? 0) + 1);
+      }
+      return {
+        point,
+        items: contributes[point].map((id, index) => ({
+          id,
+          label: labels[index],
+          mono: MONO_POINTS.has(point),
+          duplicate: (counts.get(labels[index]) ?? 0) > 1,
+        })),
+      };
+    },
   );
+
+/**
+ * Строка вкладов лишняя, если у расширения единственный вклад — тема, а её
+ * название совпадает с названием расширения: карточка уже говорит то же самое.
+ */
+export const hidesContributions = (
+  contributes: ExtensionContributesDto,
+  titles: ContributionTitlesDto,
+  name: string | null,
+): boolean => {
+  if (name === null) return false;
+  const total = CONTRIBUTION_POINTS.reduce(
+    (sum, point) => sum + contributes[point].length,
+    0,
+  );
+  if (total !== 1 || contributes.themes.length !== 1) return false;
+  return titles.themes?.[contributes.themes[0]] === name;
+};
 
 /** Сколько значений вклада показано, пока группа свёрнута: у расширения до 64 команд, карточка не должна расти без предела. */
 export const COLLAPSED_VALUES = 8;
@@ -32,11 +89,11 @@ export const COLLAPSED_VALUES = 8;
  * Значения группы для показа: свёрнутая группа — первые `limit`, остальное
  * считается в `hidden`; группа не длиннее `limit` не сворачивается вовсе.
  */
-export const visibleValues = (
-  values: readonly string[],
+export const visibleValues = <T>(
+  values: readonly T[],
   expanded: boolean,
   limit = COLLAPSED_VALUES,
-): { shown: readonly string[]; hidden: number } =>
+): { shown: readonly T[]; hidden: number } =>
   expanded || values.length <= limit
     ? { shown: values, hidden: 0 }
     : { shown: values.slice(0, limit), hidden: values.length - limit };

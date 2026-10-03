@@ -179,6 +179,52 @@ describe('useCatalog', () => {
     expect(calls).toHaveLength(1);
   });
 
+  it('группы и теги: выбор, сброс и автораскрытие «Ещё фильтров»', async () => {
+    const { model, calls } = setup();
+    const opening = model.open();
+    calls[0]?.resolve(catalogDto([SUNRISE, QUIZ]));
+    await opening;
+
+    expect(model.moreActive.value).toBe(false);
+    model.setGroup('learning', true);
+    expect(model.visible.value.map((entry) => entry.id)).toEqual(['acme.quiz']);
+    // группа — быстрый фильтр: «Ещё фильтры» сами не раскрываются
+    expect(model.moreActive.value).toBe(false);
+    expect(model.isFiltered.value).toBe(true);
+
+    model.setTag('theme', true);
+    expect(model.visible.value).toEqual([]);
+    expect(model.moreActive.value).toBe(true);
+
+    model.resetFilters();
+    expect(model.groups.value.size).toBe(0);
+    expect(model.tags.value.size).toBe(0);
+    expect(model.moreActive.value).toBe(false);
+    expect(model.visible.value).toHaveLength(2);
+
+    model.setKind('themes', true);
+    expect(model.moreActive.value).toBe(true);
+  });
+
+  it('числа чипов не зависят от выбранных фильтров, но следуют за поиском', async () => {
+    const { model, calls } = setup();
+    const opening = model.open();
+    calls[0]?.resolve(catalogDto([SUNRISE, QUIZ]));
+    await opening;
+
+    expect(model.counts.value.groups).toMatchObject({
+      learning: 1,
+      appearance: 1,
+    });
+    model.setGroup('learning', true);
+    expect(model.counts.value.groups.appearance).toBe(1);
+    model.query.value = 'quiz';
+    expect(model.counts.value.groups).toMatchObject({
+      learning: 1,
+      appearance: 0,
+    });
+  });
+
   it('extensions-changed перечитывает каталог, но только открытый; после закрытия не слушает', async () => {
     const { model, calls, bus, scope } = setup();
     bus.emit({ type: 'extensions-changed' });

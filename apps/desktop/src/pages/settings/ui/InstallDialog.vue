@@ -5,6 +5,7 @@ import { formatBytes } from '../lib/format.ts';
 import type { InstallItemStatus } from '../model/install.ts';
 import { useInstallContext } from '../model/install.ts';
 import ExtensionContributions from './ExtensionContributions.vue';
+import ExtensionTags from './ExtensionTags.vue';
 import ExtensionHeading from './ExtensionHeading.vue';
 import ExtensionPermissions from './ExtensionPermissions.vue';
 
@@ -158,7 +159,12 @@ const closeOnBackdrop = (open: boolean) => {
             </v-alert>
 
             <template v-if="isDetailed">
-              <ExtensionContributions :contributes="item.target.contributes" />
+              <ExtensionTags :tags="item.target.tags" />
+              <ExtensionContributions
+                :contributes="item.target.contributes"
+                :titles="item.target.titles"
+                :name="item.target.name"
+              />
               <ExtensionPermissions :permissions="item.target.permissions" />
               <p
                 v-if="item.target.platforms.length > 0"

@@ -9,14 +9,19 @@ import { useEngine } from '@/shared/api/engine';
 import {
   CONTRIBUTION_POINTS,
   entryAction,
+  entryTags,
   targetFromEntry,
 } from '../lib/catalog.ts';
 import type { ContributionPoint } from '../lib/catalog.ts';
+import { GROUPS, TAGS } from '../lib/tags.ts';
+import type { ExtensionTag, TagGroup } from '../lib/tags.ts';
 import { useCatalog } from '../model/catalog.ts';
 import { useInstallContext } from '../model/install.ts';
 import ExtensionContributions from './ExtensionContributions.vue';
 import ExtensionHeading from './ExtensionHeading.vue';
 import ExtensionPermissions from './ExtensionPermissions.vue';
+import ExtensionTags from './ExtensionTags.vue';
+import FilterChip from './FilterChip.vue';
 
 const SKELETON_COUNT = 3;
 
@@ -27,7 +32,12 @@ const {
   entries,
   visible,
   query,
+  groups,
+  tags,
   kinds,
+  counts,
+  moreOpen,
+  moreActive,
   isFiltered,
   stale,
   notice,
@@ -36,6 +46,8 @@ const {
   failure,
   open,
   load,
+  setGroup,
+  setTag,
   setKind,
   resetFilters,
 } = useCatalog(useEngine());
@@ -56,9 +68,34 @@ const review = (entry: CatalogEntryDto, version: CatalogVersionDto) => {
   install.review([targetFromEntry(entry, version)]);
 };
 
+const toggleGroup = (group: TagGroup) => {
+  setGroup(group, !groups.value.has(group));
+};
+
+const toggleTag = (tag: ExtensionTag) => {
+  setTag(tag, !tags.value.has(tag));
+};
+
 const toggleKind = (point: ContributionPoint) => {
   setKind(point, !kinds.value.has(point));
 };
+
+// группа без расширений скрыта, если не выбрана (иначе её нечем снять)
+const shownGroups = computed(() =>
+  GROUPS.filter(
+    (group) => counts.value.groups[group] > 0 || groups.value.has(group),
+  ),
+);
+
+// теги, которых нет в загруженном каталоге, не показываются
+const shownTags = computed(() =>
+  TAGS.filter((tag) => counts.value.tags[tag] > 0 || tags.value.has(tag)),
+);
+
+const moreShown = computed(() => moreOpen.value || moreActive.value);
+
+const chipLabel = (label: string, n: number) =>
+  t('settings.extensions.catalog.chipCount', { label, n });
 
 onMounted(() => void open());
 </script>
@@ -95,26 +132,82 @@ onMounted(() => void open());
 
     <div
       role="group"
-      class="d-flex flex-wrap align-center ga-2 mt-3 mb-4"
-      :aria-label="t('settings.extensions.catalog.kindsLabel')"
+      class="d-flex flex-wrap align-center ga-2 mt-3"
+      :aria-label="t('settings.extensions.catalog.groupsLabel')"
+      data-testid="catalog-groups"
     >
-      <v-chip
-        v-for="point in CONTRIBUTION_POINTS"
-        :key="point"
-        role="button"
-        tabindex="0"
-        :aria-pressed="kinds.has(point)"
-        :variant="kinds.has(point) ? 'flat' : 'tonal'"
-        :color="kinds.has(point) ? 'primary' : undefined"
-        :prepend-icon="kinds.has(point) ? 'mdi-check' : undefined"
-        :data-testid="`kind-${point}`"
-        @click="toggleKind(point)"
-        @keydown.enter.prevent="toggleKind(point)"
-        @keydown.space.prevent="toggleKind(point)"
+      <FilterChip
+        v-for="group in shownGroups"
+        :key="group"
+        :selected="groups.has(group)"
+        :label="t(`settings.extensions.groups.${group}`)"
+        :count="counts.groups[group]"
+        :aria-label="
+          chipLabel(
+            t(`settings.extensions.groups.${group}`),
+            counts.groups[group],
+          )
+        "
+        :data-testid="`group-${group}`"
+        @toggle="toggleGroup(group)"
+      />
+      <v-btn
+        variant="text"
+        size="small"
+        color="primary"
+        :append-icon="moreShown ? 'mdi-chevron-up' : 'mdi-chevron-down'"
+        :disabled="moreActive"
+        :aria-expanded="moreShown"
+        aria-controls="catalog-more-filters"
+        data-testid="catalog-more-filters-toggle"
+        @click="moreOpen = !moreOpen"
       >
-        {{ t(`settings.extensions.points.${point}`) }}
-      </v-chip>
+        {{ t('settings.extensions.catalog.moreFilters') }}
+      </v-btn>
     </div>
+
+    <div
+      v-show="moreShown"
+      id="catalog-more-filters"
+      class="mt-2"
+      data-testid="catalog-more-filters"
+    >
+      <div
+        role="group"
+        class="d-flex flex-wrap align-center ga-2 mb-2"
+        :aria-label="t('settings.extensions.catalog.kindsLabel')"
+      >
+        <FilterChip
+          v-for="point in CONTRIBUTION_POINTS"
+          :key="point"
+          :selected="kinds.has(point)"
+          :label="t(`settings.extensions.points.${point}`)"
+          :data-testid="`kind-${point}`"
+          @toggle="toggleKind(point)"
+        />
+      </div>
+      <div
+        v-if="shownTags.length > 0"
+        role="group"
+        class="d-flex flex-wrap align-center ga-2"
+        :aria-label="t('settings.extensions.catalog.tagsLabel')"
+      >
+        <FilterChip
+          v-for="tag in shownTags"
+          :key="tag"
+          :selected="tags.has(tag)"
+          :label="t(`settings.extensions.tags.${tag}`)"
+          :count="counts.tags[tag]"
+          :aria-label="
+            chipLabel(t(`settings.extensions.tags.${tag}`), counts.tags[tag])
+          "
+          :data-testid="`tag-${tag}`"
+          @toggle="toggleTag(tag)"
+        />
+      </div>
+    </div>
+
+    <div class="mb-4" />
 
     <v-alert
       v-if="stale && state === 'loaded'"
@@ -241,12 +334,17 @@ onMounted(() => void open());
               <span class="id">@{{ entry.author }}</span>
             </p>
             <p class="text-body-medium mt-2">{{ entry.description }}</p>
+            <ExtensionTags :tags="entryTags(entry)" />
 
             <ExtensionPermissions
               v-if="entry.latest"
               :permissions="entry.latest.permissions"
             />
-            <ExtensionContributions :contributes="entry.contributes" />
+            <ExtensionContributions
+              :contributes="entry.contributes"
+              :titles="entry.titles"
+              :name="entry.name"
+            />
 
             <div
               class="d-flex flex-wrap align-center ga-3 mt-4"

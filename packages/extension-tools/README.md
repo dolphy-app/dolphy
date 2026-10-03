@@ -185,6 +185,17 @@ rounded square is the usual shape): a transparent icon with a dark or a light
 glyph disappears on a theme of the opposite brightness. A 64 px file is sharp
 at the 2x scale of a typical high-density display; a bigger one is scaled down.
 
+### Tags
+
+`"tags": ["theme", "interface"]` in `extension.json` groups the extension in the
+catalog filters: up to 5 unique values of `learning`, `language`, `content`,
+`theme`, `interface`, `productivity` and `developer`. An unknown, a repeated
+or a sixth tag is a manifest error (`tags.N: tag must be one of: …`) reported
+by `validate`, `build` and `catalog check` (`CHECK-001`). Without `tags` the app
+derives them from the contributions; an explicit list replaces the derived one.
+An app older than this field rejects an `extension.json` that contains `tags`,
+which is why a tagged version is left out of `index.json`.
+
 ## Output
 
 `<project>/dist-ext/<id>/` (`--out <dir>` changes the root; the extension
@@ -289,15 +300,25 @@ only, at most 100 files and 10 MB; each asset passes the checks of "Style sheets
 images and fonts" and the icon travels in the index as a `data:` URI. Any error
 leaves `<siteDir>` untouched.
 
+The build also writes what the catalog shows next to the identifiers. The entry
+gets `titles`: the `label` (themes, grade policies, settings) or `title`
+(commands, panels) of every contribution of the newest manifest, by contribution
+point; points without contributions are omitted, and so is the whole key when
+nothing has a title. The version record gets `tags` from the manifest of that
+version (omitted when empty). Rebuilding without a version bump refreshes the
+titles. A tagged version appears only in `index.v2.json`, but its older untagged
+versions keep the extension visible in `index.json`.
+
 Two files are published, always together and with the same `generatedAt`:
 
 - `index.v2.json` (`schemaVersion: 2`) — the full index, which the current app
   reads next to the catalog address;
 - `index.json` (`schemaVersion: 1`) — the subset that every released app
   parses strictly (an unknown key, file type or permission makes a released app
-  reject the whole catalog). Versions with new file types, an `icon`, more than
-  50 files or a permission such as `learning.events`, and entries with
+  reject the whole catalog). Versions with new file types, an `icon`, `tags`, more
+  than 50 files or a permission such as `learning.events`, and entries with
   `settings`, `events`, `commands` or `panels` contributions are left out of it;
+  the `titles` key of the remaining entries is dropped;
   an extension left without versions is skipped. The summary line says
   `only in index.v2.json` for such a version. The catalog identity of installed
   extensions stays the address of `index.json`.

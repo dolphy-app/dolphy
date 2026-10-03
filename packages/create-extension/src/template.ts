@@ -62,6 +62,7 @@ export const manifestJson = (id: string): string => `{
   "id": "${id}",
   "version": "${INITIAL_VERSION}",
   "apiVersion": 1,
+  "tags": ["learning"],
   "contributes": {
     "exerciseTypes": [
       {

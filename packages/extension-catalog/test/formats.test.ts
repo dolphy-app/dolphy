@@ -115,6 +115,73 @@ describe('full index (schemaVersion 2)', () => {
     ).toContain('files.1.path');
     expect(issuesOf(asLegacy(entry()))).toEqual([]);
   });
+
+  it('accepts titles and tags of the contributions that exist', () => {
+    const titled = entry({
+      contributes: { ...entry().contributes, commands: ['acme.quiz.open'] },
+      titles: { commands: { 'acme.quiz.open': 'Open quiz' } },
+      versions: [version({ tags: ['learning', 'productivity'] })],
+    });
+    const parsed = parseIndex(full([titled])).extensions[0];
+    expect(parsed?.titles).toEqual({
+      commands: { 'acme.quiz.open': 'Open quiz' },
+    });
+    expect(parsed?.versions[0]?.tags).toEqual(['learning', 'productivity']);
+  });
+
+  it('rejects titles for ids missing from contributes, bad points and long titles', () => {
+    const titled = (titles: unknown) =>
+      issuesOf(full([entry({ titles: titles as never })]));
+    expect(titled({ themes: { 'acme.ghost': 'Ghost' } })[0]).toContain(
+      'titles.themes.acme.ghost',
+    );
+    expect(titled({ exerciseTypes: { 'acme.quiz': 'Quiz' } })).not.toEqual([]);
+    expect(titled({ commands: { 'acme.x': 'x'.repeat(61) } })).not.toEqual([]);
+    expect(titled({ commands: { 'acme.x': '' } })).not.toEqual([]);
+    expect(titled({ themes: { 'Not Valid': 'x' } })).not.toEqual([]);
+  });
+
+  it('rejects unknown, duplicate and more than five tags', () => {
+    const tagged = (tags: unknown) =>
+      issuesOf(full([entry({ versions: [version({ tags: tags as never })] })]));
+    expect(tagged(['hologram'])[0]).toContain('tags.0');
+    expect(tagged(['theme', 'theme'])[0]).toContain('duplicate tag');
+    expect(
+      tagged([
+        'learning',
+        'language',
+        'content',
+        'theme',
+        'interface',
+        'developer',
+      ]),
+    ).not.toEqual([]);
+    expect(
+      tagged(['learning', 'language', 'content', 'theme', 'interface']),
+    ).toEqual([]);
+  });
+
+  it('does not know titles and tags in the first format', () => {
+    const asLegacy = (e: unknown) => ({
+      ...(full([e]) as object),
+      schemaVersion: 1,
+    });
+    expect(
+      issuesOf(
+        asLegacy(
+          entry({
+            contributes: { ...entry().contributes, themes: ['acme.t'] },
+            titles: { themes: { 'acme.t': 'T' } },
+          }),
+        ),
+      )[0],
+    ).toContain('titles');
+    expect(
+      issuesOf(
+        asLegacy(entry({ versions: [version({ tags: ['theme'] })] })),
+      )[0],
+    ).toContain('tags');
+  });
 });
 
 describe('legacySubset', () => {
@@ -171,6 +238,38 @@ describe('legacySubset', () => {
     expect(
       parseIndex(JSON.parse(JSON.stringify(legacySubset(source)))),
     ).toEqual(legacySubset(source));
+  });
+
+  it('strips titles but keeps the entry visible', () => {
+    const titled = entry({
+      id: 'acme.titled',
+      contributes: { ...entry().contributes, themes: ['acme.titled.dark'] },
+      titles: { themes: { 'acme.titled.dark': 'Dark' } },
+    });
+    const subset = legacySubset(parseIndex(full([titled])));
+    expect(subset.extensions.map((e) => e.id)).toEqual(['acme.titled']);
+    expect(subset.extensions[0]).not.toHaveProperty('titles');
+    expect(legacyIndexSchema.safeParse(subset).success).toBe(true);
+  });
+
+  it('leaves a tagged version out and keeps the older untagged ones', () => {
+    const tagged = entry({
+      id: 'acme.tagged',
+      versions: [
+        version({ version: '2.0.0', tags: ['theme', 'interface'] }),
+        version({ version: '1.0.0' }),
+      ],
+    });
+    const onlyTagged = entry({
+      id: 'acme.only-tagged',
+      versions: [version({ tags: ['learning'] })],
+    });
+    const subset = legacySubset(parseIndex(full([tagged, onlyTagged])));
+    expect(subset.extensions.map((e) => e.id)).toEqual(['acme.tagged']);
+    expect(subset.extensions[0]?.versions.map((v) => v.version)).toEqual([
+      '1.0.0',
+    ]);
+    expect(legacyIndexSchema.safeParse(subset).success).toBe(true);
   });
 
   it('drops a version with more than 50 files', () => {
@@ -272,6 +371,50 @@ describe('parseIndexLenient', () => {
       schemaVersion: 1,
     });
     expect(index.schemaVersion).toBe(1);
+  });
+
+  it('keeps the entry when its titles are unreadable and drops the titles', () => {
+    const { index, warnings } = lenient(
+      full([{ ...good, titles: { themes: 'midnight' } }]),
+    );
+    expect(warnings).toEqual([]);
+    expect(index.extensions).toHaveLength(1);
+    expect(index.extensions[0]?.titles).toBeUndefined();
+  });
+
+  it('reads titles and drops unknown points of the map', () => {
+    const { index } = lenient(
+      full([
+        {
+          ...good,
+          titles: { themes: { 'acme.dark': 'Dark' }, widgets: { x: 'y' } },
+        },
+      ]),
+    );
+    expect(index.extensions[0]?.titles).toEqual({
+      themes: { 'acme.dark': 'Dark' },
+    });
+  });
+
+  it('drops tags outside its vocabulary, not the version or the entry', () => {
+    const { index, warnings } = lenient(
+      full([
+        entry({
+          versions: [
+            version({
+              version: '2.0.0',
+              tags: ['theme', 'hologram', 'theme'] as never,
+            }),
+            version({ version: '1.0.0', tags: 'theme' as never }),
+          ],
+        }),
+      ]),
+    );
+    expect(warnings).toEqual([]);
+    expect(index.extensions[0]?.versions.map((v) => v.tags)).toEqual([
+      ['theme'],
+      [],
+    ]);
   });
 
   it('rejects the index as a whole when the head or the revocations are broken', () => {

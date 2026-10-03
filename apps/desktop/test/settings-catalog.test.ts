@@ -200,6 +200,8 @@ describe('useCatalog', () => {
     expect(model.groups.value.size).toBe(0);
     expect(model.tags.value.size).toBe(0);
     expect(model.moreActive.value).toBe(false);
+    // блок остался раскрытым: фокус с чипа не теряется
+    expect(model.moreOpen.value).toBe(true);
     expect(model.visible.value).toHaveLength(2);
 
     model.setKind('themes', true);

@@ -1,7 +1,9 @@
 <script setup lang="ts">
 /**
- * Чип-переключатель фильтра: кнопка с `aria-pressed`, Enter и пробелом. Число
- * показывается отдельным текстом; чип без выбора с нулём нельзя нажать.
+ * Чип-переключатель фильтра: кнопка с `aria-pressed`. Enter и пробел обрабатывает
+ * сам `v-chip` (он кликабелен из-за `@click`); своих `keydown` здесь нет:
+ * иначе клавиша сработает дважды и вернёт прежнее состояние. Число показывается
+ * отдельным текстом; чип без выбора с нулём нельзя нажать.
  */
 const props = defineProps<{
   selected: boolean;
@@ -29,8 +31,6 @@ const toggle = () => {
     :color="selected ? 'primary' : undefined"
     :prepend-icon="selected ? 'mdi-check' : undefined"
     @click="toggle"
-    @keydown.enter.prevent="toggle"
-    @keydown.space.prevent="toggle"
   >
     {{ label }}
     <span

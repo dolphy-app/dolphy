@@ -28,7 +28,7 @@ export interface CatalogModel {
   kinds: ShallowRef<ReadonlySet<ContributionPoint>>;
   /** Числа в чипах: под поиском, без учёта выбранных фильтров. */
   counts: ComputedRef<FacetCounts>;
-  /** Блок «Ещё фильтры» открыт пользователем. */
+  /** Блок «Ещё фильтры» раскрыт (кнопкой или выбором тега/вида) и остаётся так после снятия выбора. */
   moreOpen: Ref<boolean>;
   /** Выбран тег или вид вклада: блок «Ещё фильтры» раскрыт и не сворачивается. */
   moreActive: ComputedRef<boolean>;
@@ -134,10 +134,13 @@ export const useCatalog = (engine: LearningEngine): CatalogModel => {
   const setGroup = (group: TagGroup, on: boolean) => {
     groups.value = toggled(groups.value, group, on);
   };
+  // выбор тега или вида раскрывает блок насовсем: после снятия чип под курсором не исчезает
   const setTag = (tag: ExtensionTag, on: boolean) => {
+    if (on) moreOpen.value = true;
     tags.value = toggled(tags.value, tag, on);
   };
   const setKind = (point: ContributionPoint, on: boolean) => {
+    if (on) moreOpen.value = true;
     kinds.value = toggled(kinds.value, point, on);
   };
 

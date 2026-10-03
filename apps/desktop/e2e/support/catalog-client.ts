@@ -10,6 +10,9 @@ const RU = {
   refresh: 'Обновить каталог',
   retry: 'Повторить',
   kindsGroup: 'Фильтр по виду вклада',
+  groupsGroup: 'Быстрые фильтры',
+  tagsGroup: 'Фильтр по тегу',
+  moreFilters: 'Ещё фильтры',
   install: 'Установить',
   confirmUpdate: 'Обновить',
   close: 'Закрыть',
@@ -79,7 +82,53 @@ export class CatalogClient {
     await this.page.getByRole('searchbox', { name: RU.search }).fill(text);
   }
 
+  /** Чип группы или тега: имя «Название: N» — число входит в доступное имя. */
+  private countedChip(group: string, label: string): Locator {
+    return this.page
+      .getByRole('group', { name: group, exact: true })
+      .getByRole('button', { name: new RegExp(`^${label}: \\d+$`) });
+  }
+
+  groupChip(label: string): Locator {
+    return this.countedChip(RU.groupsGroup, label);
+  }
+
+  tagChip(label: string): Locator {
+    return this.countedChip(RU.tagsGroup, label);
+  }
+
+  async toggleGroup(label: string) {
+    await this.groupChip(label).click();
+  }
+
+  async toggleTag(label: string) {
+    await this.tagChip(label).click();
+  }
+
+  /** Кнопка «Ещё фильтры» (`aria-expanded`). */
+  moreFiltersButton(): Locator {
+    return this.page.getByRole('button', {
+      name: RU.moreFilters,
+      exact: true,
+    });
+  }
+
+  async openMoreFilters() {
+    const button = this.moreFiltersButton();
+    if ((await button.getAttribute('aria-expanded')) !== 'true') {
+      await button.click();
+    }
+  }
+
+  /** Объявление «Найдено: N …» (live-регион списка). */
+  foundStatus(): Locator {
+    return this.page
+      .getByRole('status')
+      .filter({ hasText: /^(Найдено|ничего не найдено)/ });
+  }
+
   async toggleKind(label: string) {
+    await this.openMoreFilters();
     await this.page
       .getByRole('group', { name: RU.kindsGroup })
       .getByRole('button', { name: label, exact: true })

@@ -9,6 +9,7 @@ export const en: typeof ru = {
         learning: 'Learning',
         library: 'Library',
         appearance: 'Appearance',
+        shortcuts: 'Keyboard shortcuts',
         extensions: 'Extensions',
         about: 'About the engine',
       },
@@ -170,6 +171,23 @@ export const en: typeof ru = {
         ru: 'Русский',
         en: 'English',
       },
+    },
+    shortcuts: {
+      title: 'Keyboard shortcuts',
+      subtitle: 'Keys that run app commands.',
+      palette: {
+        title: 'Command palette',
+        description:
+          'The command palette searches the commands of the app and of extensions.',
+        open: 'Open command palette',
+      },
+      empty: 'There are no keyboard shortcuts yet.',
+      noCategory: 'Other',
+      columns: {
+        command: 'Command',
+        keys: 'Shortcut',
+      },
+      note: 'Shortcuts are set by the app and cannot be changed yet.',
     },
     extensions: {
       title: 'Extensions',

@@ -1,30 +1,36 @@
 import { ref } from 'vue';
 import { describe, expect, it, vi } from 'vitest';
-import type { CommandContributionDto } from '@dolphy-app/engine-contract';
-import { createCommandPalette } from '@/features/extension-commands/model/palette.ts';
+import { createCommandRegistry } from '@/shared/lib/command-registry.ts';
+import type { CommandDescriptor } from '@/shared/lib/command-registry.ts';
+import { createCommandPalette } from '@/widgets/command-palette/model/palette.ts';
+
+const run = vi.fn<() => Promise<void>>(async () => undefined);
 
 const command = (
   id: string,
-  override: Partial<CommandContributionDto> = {},
-): CommandContributionDto => ({
-  id,
-  extensionId: 'acme.cmd',
+  override: Partial<CommandDescriptor> = {},
+): CommandDescriptor => ({
+  key: `acme.cmd:${id}`,
+  source: 'extension',
   title: id,
-  description: null,
-  category: null,
-  keybinding: null,
-  palette: true,
+  caption: 'acme.cmd',
+  run: () => run(),
   ...override,
 });
 
-const setup = (initial: CommandContributionDto[]) => {
-  const commands = ref(initial);
-  const run = vi.fn<(item: CommandContributionDto) => Promise<void>>(
-    async () => undefined,
-  );
-  const palette = createCommandPalette({ commands: () => commands.value, run });
-  const titles = () => palette.entries.value.map(({ command: c }) => c.id);
-  return { commands, run, palette, titles };
+const setup = (initial: CommandDescriptor[]) => {
+  run.mockReset();
+  run.mockResolvedValue(undefined);
+  const registry = createCommandRegistry();
+  const disposers = new Map<string, () => void>();
+  const add = (descriptor: CommandDescriptor) => {
+    disposers.set(descriptor.key, registry.register(descriptor));
+  };
+  const remove = (id: string) => disposers.get(`acme.cmd:${id}`)?.();
+  initial.forEach(add);
+  const palette = createCommandPalette({ registry });
+  const titles = () => palette.entries.value.map(({ title }) => title);
+  return { add, remove, palette, titles };
 };
 
 describe('палитра команд: список и выбор', () => {
@@ -69,52 +75,72 @@ describe('палитра команд: список и выбор', () => {
   });
 
   it('выбор держится за командой: новые строки выше не сдвигают его', () => {
-    const { palette, commands } = setup([command('b'), command('c')]);
+    const { palette, add } = setup([command('b'), command('c')]);
     palette.open();
     palette.move(1);
     expect(palette.activeKey.value).toBe('acme.cmd:c');
-    commands.value = [command('a'), ...commands.value];
+    add(command('a'));
     expect(palette.activeKey.value).toBe('acme.cmd:c');
   });
 
   it('выбранная команда пропала: выбор остаётся на том же месте, у края — на последней строке', () => {
-    const { palette, commands } = setup([
+    const { palette, add, remove } = setup([
       command('a'),
       command('b'),
       command('c'),
     ]);
     palette.open();
     palette.move(1);
-    commands.value = commands.value.filter(({ id }) => id !== 'b');
+    remove('b');
     expect(palette.activeKey.value).toBe('acme.cmd:c');
-    commands.value = commands.value.filter(({ id }) => id !== 'c');
+    remove('c');
     expect(palette.activeKey.value).toBe('acme.cmd:a');
-    commands.value = [];
+    remove('a');
     expect(palette.activeKey.value).toBeNull();
-    commands.value = [command('z')];
+    add(command('z'));
     expect(palette.activeKey.value).toBe('acme.cmd:z');
   });
 
-  it('команды отключённого расширения исчезают из списка при обновлении вкладов', () => {
-    const { palette, commands, titles } = setup([
-      command('a'),
-      command('b', { extensionId: 'acme.other' }),
-    ]);
+  it('снятая команда исчезает из списка при живом обновлении реестра', () => {
+    const { palette, remove, titles } = setup([command('a'), command('b')]);
     palette.open();
     expect(titles()).toEqual(['a', 'b']);
-    commands.value = commands.value.filter(
-      ({ extensionId }) => extensionId !== 'acme.other',
-    );
+    remove('b');
     expect(titles()).toEqual(['a']);
   });
 
-  it('palette:false не попадает в список', () => {
+  it('недоступная команда не показывается и появляется, когда становится доступной', () => {
+    const enabled = ref(false);
     const { palette, titles } = setup([
       command('shown'),
-      command('hidden', { palette: false }),
+      command('hidden', { enabled }),
     ]);
     palette.open();
     expect(titles()).toEqual(['shown']);
+    enabled.value = true;
+    expect(titles()).toEqual(['hidden', 'shown']);
+  });
+
+  it('названия следуют за языком: порядок и поиск пересчитываются', () => {
+    const language = ref<'ru' | 'en'>('ru');
+    const { palette, titles } = setup([
+      command('go', {
+        title: () => (language.value === 'ru' ? 'Курсы' : 'Courses'),
+      }),
+      command('theme', {
+        title: () => (language.value === 'ru' ? 'Тема' : 'Appearance'),
+      }),
+    ]);
+    palette.open();
+    expect(titles()).toEqual(['Курсы', 'Тема']);
+    palette.query.value = 'курс';
+    expect(titles()).toEqual(['Курсы']);
+    language.value = 'en';
+    expect(titles()).toEqual([]);
+    palette.query.value = 'cour';
+    expect(titles()).toEqual(['Courses']);
+    palette.query.value = '';
+    expect(titles()).toEqual(['Appearance', 'Courses']);
   });
 
   it('activate по ключу ставит выбор, неизвестный ключ игнорируется', () => {
@@ -129,28 +155,41 @@ describe('палитра команд: список и выбор', () => {
 
 describe('палитра команд: выполнение', () => {
   it('Enter: закрывает палитру и выполняет выбранную команду', async () => {
-    const { palette, run } = setup([command('a'), command('b')]);
+    const b = vi.fn();
+    const { palette } = setup([command('a'), command('b', { run: b })]);
     palette.open();
     palette.move(1);
     await palette.choose();
     expect(palette.isOpen.value).toBe(false);
-    expect(run).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ id: 'b' }),
-    );
+    expect(b).toHaveBeenCalledOnce();
+    expect(run).not.toHaveBeenCalled();
   });
 
   it('выбор строки по ключу (щелчок) выполняет именно её', async () => {
-    const { palette, run } = setup([command('a'), command('b')]);
+    const b = vi.fn();
+    const { palette } = setup([command('a'), command('b', { run: b })]);
     palette.open();
     await palette.choose('acme.cmd:b');
-    expect(run).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ id: 'b' }),
-    );
+    expect(b).toHaveBeenCalledOnce();
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('команда приложения и команда расширения выполняются одинаково', async () => {
+    const appRun = vi.fn();
+    const { palette } = setup([
+      command('ext'),
+      command('x', { key: 'app:go:x', source: 'app', run: appRun }),
+    ]);
+    palette.open();
+    await palette.choose('app:go:x');
+    await palette.choose('acme.cmd:ext');
+    expect(appRun).toHaveBeenCalledOnce();
+    expect(run).toHaveBeenCalledOnce();
   });
 
   it('пока команда выполняется, повторный запуск отключён; после — снова доступен', async () => {
     let finish: () => void = () => undefined;
-    const { palette, run } = setup([command('slow')]);
+    const { palette } = setup([command('slow')]);
     run.mockImplementationOnce(
       () =>
         new Promise<void>((resolve) => {
@@ -171,8 +210,26 @@ describe('палитра команд: выполнение', () => {
     expect(run).toHaveBeenCalledTimes(2);
   });
 
+  it('состояние «выполняется» держится за ключом при живом изменении списка', async () => {
+    let finish: () => void = () => undefined;
+    const { palette, add } = setup([command('slow')]);
+    run.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    palette.open();
+    const first = palette.choose();
+    add(command('new'));
+    expect(palette.isBusy('acme.cmd:slow')).toBe(true);
+    expect(palette.isBusy('acme.cmd:new')).toBe(false);
+    finish();
+    await first;
+  });
+
   it('сбой выполнения освобождает команду', async () => {
-    const { palette, run } = setup([command('a')]);
+    const { palette } = setup([command('a')]);
     run.mockRejectedValueOnce(new Error('boom'));
     palette.open();
     await expect(palette.choose()).rejects.toThrow('boom');
@@ -180,9 +237,9 @@ describe('палитра команд: выполнение', () => {
   });
 
   it('команда, пропавшая до выбора, не выполняется; пустой список — ничего', async () => {
-    const { palette, run, commands } = setup([command('a')]);
+    const { palette, remove } = setup([command('a')]);
     palette.open();
-    commands.value = [];
+    remove('a');
     await palette.choose();
     await palette.choose('acme.cmd:a');
     expect(run).not.toHaveBeenCalled();

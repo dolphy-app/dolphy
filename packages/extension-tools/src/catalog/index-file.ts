@@ -4,6 +4,7 @@ import {
   FULL_INDEX_FILE,
   INDEX_FILE,
   MAX_VERSIONS,
+  TITLED_POINTS,
   compareSemver,
   legacySubset,
   parseIndex,
@@ -13,6 +14,7 @@ import type {
   CatalogFile,
   CatalogIndex,
   CatalogVersion,
+  ContributionTitles,
 } from '@dolphy-app/extension-catalog';
 import { BuildError } from '../errors.ts';
 import { compareText } from './tree.ts';
@@ -44,6 +46,9 @@ const orderVersion = (version: CatalogVersion): CatalogVersion => ({
   baseUrl: version.baseUrl,
   files: [...version.files].sort(byPath).map(orderFile),
   ...(version.icon === undefined ? {} : { icon: version.icon }),
+  ...(version.tags === undefined || version.tags.length === 0
+    ? {}
+    : { tags: [...version.tags] }),
 });
 
 type OptionalKey = 'settings' | 'events' | 'commands' | 'panels';
@@ -53,6 +58,19 @@ const optionalIds = (
   ids: readonly string[] | undefined,
 ): Partial<Record<OptionalKey, string[]>> =>
   ids === undefined || ids.length === 0 ? {} : { [key]: [...ids] };
+
+const orderTitles = (
+  titles: ContributionTitles | undefined,
+): { titles?: ContributionTitles } => {
+  const ordered: ContributionTitles = {};
+  for (const point of TITLED_POINTS) {
+    const map = titles?.[point];
+    if (map !== undefined && Object.keys(map).length > 0) {
+      ordered[point] = { ...map };
+    }
+  }
+  return Object.keys(ordered).length > 0 ? { titles: ordered } : {};
+};
 
 const orderEntry = (entry: CatalogEntry): CatalogEntry => ({
   id: entry.id,
@@ -71,6 +89,7 @@ const orderEntry = (entry: CatalogEntry): CatalogEntry => ({
     ...optionalIds('commands', entry.contributes.commands),
     ...optionalIds('panels', entry.contributes.panels),
   },
+  ...orderTitles(entry.titles),
   versions: entry.versions.map(orderVersion),
 });
 

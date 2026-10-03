@@ -5,6 +5,7 @@
   "name": "Sunset",
   "description": "Тёмная тема «Закат»",
   "author": "dana-k",
+  "tags": ["theme", "interface"],
   "contributes": {
     "themes": [
       {

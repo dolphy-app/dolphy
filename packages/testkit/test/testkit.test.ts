@@ -306,6 +306,8 @@ describe('createFakeExtensionRegistry', () => {
       description: null,
       author: null,
       icon: null,
+      titles: {},
+      tags: [],
       installed: null,
       removable: true,
       revoked: null,

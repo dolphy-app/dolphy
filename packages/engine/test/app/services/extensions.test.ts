@@ -35,6 +35,8 @@ const info = (overrides: Partial<ExtensionInfoDto>): ExtensionInfoDto => ({
   author: null,
   installed: null,
   icon: null,
+  titles: {},
+  tags: [],
   removable: false,
   revoked: null,
   ...overrides,
@@ -75,6 +77,20 @@ describe('extensions.list', () => {
     first?.contributes.exerciseTypes.push('evil');
     if (first !== undefined) first.message = 'changed';
     expect(await engine.extensions.list()).toEqual([info({})]);
+  });
+
+  it('returns copies of titles and tags too', async () => {
+    const titled = info({
+      titles: { themes: { 'dolphy.sql.night': 'Night' } },
+      tags: ['theme'],
+    });
+    const { engine } = await open([titled]);
+    const [first] = await engine.extensions.list();
+    first?.tags.push('developer');
+    if (first?.titles.themes !== undefined) {
+      first.titles.themes['dolphy.sql.night'] = 'changed';
+    }
+    expect(await engine.extensions.list()).toEqual([titled]);
   });
 });
 

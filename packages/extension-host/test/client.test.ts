@@ -32,6 +32,7 @@ const resolved: ResolvedExtension[] = [
     platforms: [],
     minAppVersion: null,
     icon: null,
+    tags: [],
     install: null,
     exerciseTypes: [
       {

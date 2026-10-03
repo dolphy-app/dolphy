@@ -243,6 +243,13 @@ describe('метаданные и совместимость', () => {
     ['author', 'has space'],
     ['platforms', ['freebsd']],
     ['platforms', ['linux', 'linux']],
+    ['tags', ['hologram']],
+    ['tags', ['theme', 'theme']],
+    [
+      'tags',
+      ['learning', 'language', 'content', 'theme', 'interface', 'developer'],
+    ],
+    ['tags', 'theme'],
     ['minAppVersion', '1.2'],
     ['minAppVersion', '01.2.3'],
     ['minAppVersion', '1.2.3+build'],
@@ -264,5 +271,33 @@ describe('метаданные и совместимость', () => {
 
   it('неизвестный ключ по-прежнему отвергается', () => {
     expect(parseManifest(withMeta({ homepage: 'x' })).ok).toBe(false);
+  });
+});
+
+describe('tags', () => {
+  const withTags = (tags: unknown) => ({ ...valid(), tags });
+
+  it('accepts up to five unique tags and normalizes the absent key to []', () => {
+    const five = ['learning', 'language', 'content', 'theme', 'interface'];
+    const parsed = parseManifest(withTags(five));
+    expect(parsed.ok && parsed.manifest.tags).toEqual(five);
+    const absent = parseManifest(valid());
+    expect(absent.ok && absent.manifest.tags).toEqual([]);
+  });
+
+  it('names the field and the vocabulary for an unknown tag', () => {
+    const result = parseManifest(withTags(['hologram']));
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.message).toMatch(/^tags\.0: /);
+      expect(result.message).toContain('learning, language, content');
+    }
+  });
+
+  it('names the duplicate tag', () => {
+    expect(parseManifest(withTags(['theme', 'theme']))).toEqual({
+      ok: false,
+      message: "tags.1: duplicate tag 'theme'",
+    });
   });
 });

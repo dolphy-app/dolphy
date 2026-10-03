@@ -359,3 +359,75 @@ describe('icon and assets', () => {
     ).toEqual([]);
   });
 });
+
+describe('titles and tags', () => {
+  const THEMED: ExtensionSpec = {
+    id: 'acme.themed',
+    version: '1.0.0',
+    contributes: {
+      exerciseTypes: [],
+      themes: ['acme.themed.dark'],
+      markdownRenderers: [],
+      gradePolicies: [],
+    },
+    titles: { themes: { 'acme.themed.dark': 'Dark' } },
+    tags: { '1.0.0': ['theme', 'interface'] },
+  };
+
+  it('copies the titles of the entry and the tags of the displayed version', async () => {
+    serveIndex(env.routes, [THEMED, ECHO], { full: true });
+    const { entries } = await env.installer.catalog();
+    const byId = Object.fromEntries(entries.map((entry) => [entry.id, entry]));
+    expect(byId['acme.themed']).toMatchObject({
+      titles: { themes: { 'acme.themed.dark': 'Dark' } },
+      tags: ['theme', 'interface'],
+    });
+    expect(byId['acme.echo']).toMatchObject({ titles: {}, tags: [] });
+  });
+
+  it('shows the tags of the newest version, not of an older one', async () => {
+    const spec: ExtensionSpec = {
+      ...THEMED,
+      versions: ['2.0.0', '1.0.0'],
+      tags: { '2.0.0': ['developer'], '1.0.0': ['theme'] },
+    };
+    serveIndex(env.routes, [spec], { full: true });
+    const [entry] = (await env.installer.catalog()).entries;
+    expect(entry?.latest?.version).toBe('2.0.0');
+    expect(entry?.tags).toEqual(['developer']);
+  });
+
+  it('shows the tags of the newest version, not of the fallback, when the newest is incompatible', async () => {
+    const spec: ExtensionSpec = {
+      ...THEMED,
+      versions: ['2.0.0', '1.0.0'],
+      minAppByVersion: { '2.0.0': '9.0.0' },
+      tags: { '2.0.0': ['developer'], '1.0.0': ['theme'] },
+    };
+    serveIndex(env.routes, [spec], { full: true });
+    const [entry] = (await env.installer.catalog()).entries;
+    expect(entry?.incompatible?.fallback?.version).toBe('1.0.0');
+    expect(entry?.tags).toEqual(['developer']);
+  });
+
+  it('installs a version whose manifest tags match the record in any order', async () => {
+    const spec: ExtensionSpec = {
+      ...THEMED,
+      manifest: { tags: ['interface', 'theme'] },
+    };
+    serveIndex(env.routes, [spec], { full: true });
+    serve(env.routes, spec);
+    await expect(env.installer.install('acme.themed')).resolves.toMatchObject({
+      version: '1.0.0',
+    });
+  });
+
+  it('refuses a manifest whose tags differ from the index record', async () => {
+    const spec: ExtensionSpec = { ...THEMED, manifest: { tags: ['theme'] } };
+    serveIndex(env.routes, [spec], { full: true });
+    serve(env.routes, spec);
+    expect(await rejection(env.installer.install('acme.themed'))).toMatchObject(
+      { cause: 'invalid' },
+    );
+  });
+});

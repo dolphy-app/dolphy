@@ -18,6 +18,7 @@ const extension = (id: string, version = '1.0.0'): ResolvedExtension => ({
   platforms: [],
   minAppVersion: null,
   icon: null,
+  tags: [],
   install: null,
   exerciseTypes: [
     {
@@ -86,6 +87,8 @@ describe('createExtensionRegistry', () => {
       author: null,
       installed: null,
       icon: null,
+      titles: {},
+      tags: [],
       removable: true,
       revoked: null,
     });
@@ -107,6 +110,8 @@ describe('createExtensionRegistry', () => {
       author: null,
       installed: null,
       icon: null,
+      titles: {},
+      tags: [],
       removable: false,
       revoked: null,
     });
@@ -128,6 +133,8 @@ describe('createExtensionRegistry', () => {
       author: null,
       installed: null,
       icon: null,
+      titles: {},
+      tags: [],
       removable: true,
       revoked: null,
     });
@@ -288,5 +295,110 @@ describe('createExtensionRegistry: политика', () => {
       'trusted',
       'trusted',
     ]);
+  });
+});
+
+describe('createExtensionRegistry: titles and tags', () => {
+  const titled: ResolvedExtension = {
+    ...extension('acme.titled'),
+    tags: ['theme', 'interface'],
+    themes: [
+      {
+        id: 'acme.titled.night',
+        label: 'Night',
+        dark: true,
+        colors: { background: '#000000' },
+        variables: {},
+      },
+    ],
+    gradePolicies: [{ id: 'acme.titled.strict', label: 'Strict' }],
+    settings: [
+      {
+        type: 'boolean',
+        id: 'acme.titled.flag',
+        label: 'Flag',
+        default: false,
+      },
+    ],
+    commands: [
+      {
+        id: 'acme.titled.go',
+        title: 'Go',
+        description: null,
+        category: null,
+        keybinding: null,
+        palette: true,
+      },
+    ],
+    panels: [{ id: 'acme.titled.main', title: 'Main', module: 'panel.mjs' }],
+  } as unknown as ResolvedExtension;
+  const discovered = createDiscoveryHolder({
+    extensions: [titled, extension('acme.plain')],
+    overridden: [
+      {
+        id: 'acme.old',
+        version: '1.0.0',
+        origin: 'bundled',
+        by: { origin: 'user', version: '1.0.0' },
+      },
+    ],
+    diagnostics: [{ extensionId: 'broken', origin: 'user', message: 'bad' }],
+  });
+  const policy = createExtensionPolicy(discovered);
+  const registry = createExtensionRegistry(discovered, policy);
+  const rowOf = (id: string) => registry.list().find((item) => item.id === id);
+
+  it('names every titled contribution by id and keeps the explicit tags', () => {
+    expect(rowOf('acme.titled')).toMatchObject({
+      titles: {
+        themes: { 'acme.titled.night': 'Night' },
+        gradePolicies: { 'acme.titled.strict': 'Strict' },
+        settings: { 'acme.titled.flag': 'Flag' },
+        commands: { 'acme.titled.go': 'Go' },
+        panels: { 'acme.titled.main': 'Main' },
+      },
+      tags: ['theme', 'interface'],
+    });
+  });
+
+  it('leaves out points without titles, and exercise types are never titled', () => {
+    expect(rowOf('acme.plain')).toMatchObject({ titles: {}, tags: [] });
+  });
+
+  it('keeps the titles and tags of a disabled extension', () => {
+    policy.update({
+      disabled: ['acme.titled'],
+      trusted: [],
+      checkUpdates: true,
+    });
+    expect(rowOf('acme.titled')).toMatchObject({
+      state: 'disabled',
+      titles: { themes: { 'acme.titled.night': 'Night' } },
+      tags: ['theme', 'interface'],
+    });
+    policy.update({ disabled: [], trusted: [], checkUpdates: true });
+  });
+
+  it('is empty for overridden and invalid rows', () => {
+    expect(rowOf('acme.old')).toMatchObject({
+      state: 'overridden',
+      titles: {},
+      tags: [],
+    });
+    expect(rowOf('broken')).toMatchObject({
+      state: 'invalid',
+      titles: {},
+      tags: [],
+    });
+  });
+
+  it('returns copies of titles and tags', () => {
+    const row = rowOf('acme.titled');
+    row?.tags.push('developer');
+    delete row?.titles.themes;
+    expect(rowOf('acme.titled')).toMatchObject({
+      tags: ['theme', 'interface'],
+      titles: { themes: { 'acme.titled.night': 'Night' } },
+    });
   });
 });

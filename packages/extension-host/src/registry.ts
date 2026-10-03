@@ -34,6 +34,8 @@ const withoutMetadata = (
   | 'description'
   | 'author'
   | 'icon'
+  | 'titles'
+  | 'tags'
   | 'installed'
   | 'removable'
   | 'revoked'
@@ -42,6 +44,8 @@ const withoutMetadata = (
   description: null,
   author: null,
   icon: null,
+  titles: {},
+  tags: [],
   installed: null,
   removable: origin === 'user',
   revoked: null,
@@ -73,6 +77,36 @@ export const contributesOf = (
   panels: extension.panels.map(({ id }) => id),
 });
 
+/** Названия вкладов с `label`/`title` в том же виде, что `titles` записи каталога; пустые точки опущены. */
+export const titlesOf = (
+  extension: Pick<
+    ResolvedExtension,
+    'themes' | 'gradePolicies' | 'settings' | 'commands' | 'panels'
+  >,
+): ExtensionInfoDto['titles'] => {
+  const titles: ExtensionInfoDto['titles'] = {};
+  const add = (
+    point: keyof ExtensionInfoDto['titles'],
+    items: readonly { id: string }[],
+    title: (item: never) => string,
+  ): void => {
+    if (items.length === 0) return;
+    titles[point] = Object.fromEntries(
+      items.map((item) => [item.id, title(item as never)]),
+    );
+  };
+  add('themes', extension.themes, (item: { label: string }) => item.label);
+  add(
+    'gradePolicies',
+    extension.gradePolicies,
+    (item: { label: string }) => item.label,
+  );
+  add('settings', extension.settings, (item: { label: string }) => item.label);
+  add('commands', extension.commands, (item: { title: string }) => item.title);
+  add('panels', extension.panels, (item: { title: string }) => item.title);
+  return titles;
+};
+
 const loaded = (
   extension: ResolvedExtension,
   policy: ExtensionPolicy,
@@ -93,6 +127,8 @@ const loaded = (
     description: extension.description,
     author: extension.author,
     icon: extension.icon,
+    titles: titlesOf(extension),
+    tags: [...extension.tags],
     installed: extension.install === null ? null : { ...extension.install },
     removable: extension.origin === 'user',
     revoked,

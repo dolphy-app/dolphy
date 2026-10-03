@@ -7,6 +7,7 @@ import type {
 } from '@dolphy-app/engine-contract';
 import { useEngine } from '@/shared/api/engine';
 import { displayName } from '../lib/catalog.ts';
+import { effectiveTags } from '../lib/tags.ts';
 import {
   hasSwitches,
   isEnabled,
@@ -16,6 +17,7 @@ import {
 import { useExtensionData } from '../model/extension-data.ts';
 import { useInstallContext } from '../model/install.ts';
 import ExtensionContributions from './ExtensionContributions.vue';
+import ExtensionTags from './ExtensionTags.vue';
 import ExtensionData from './ExtensionData.vue';
 import ExtensionHeading from './ExtensionHeading.vue';
 import ExtensionPermissions from './ExtensionPermissions.vue';
@@ -329,6 +331,9 @@ watch(
             >
               {{ extension.description }}
             </p>
+            <ExtensionTags
+              :tags="effectiveTags(extension.tags, extension.contributes)"
+            />
 
             <v-alert
               v-if="extension.revoked !== null"
@@ -365,7 +370,11 @@ watch(
               v-if="isActive(extension)"
               :permissions="extension.permissions"
             />
-            <ExtensionContributions :contributes="extension.contributes" />
+            <ExtensionContributions
+              :contributes="extension.contributes"
+              :titles="extension.titles"
+              :name="extension.name"
+            />
             <ExtensionData
               v-if="isActive(extension)"
               :extension="extension"

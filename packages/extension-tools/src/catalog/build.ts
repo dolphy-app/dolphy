@@ -16,6 +16,7 @@ import {
   CATALOG_FILE_EXTENSIONS,
   MAX_FILES_V2,
   MAX_TOTAL_BYTES,
+  TITLED_POINTS,
   iconDataUri,
   iconProblem,
   isLegacyEntry,
@@ -28,6 +29,8 @@ import type {
   CatalogFile,
   CatalogIndex,
   CatalogVersion,
+  ContributionTitles,
+  TitledPoint,
 } from '@dolphy-app/extension-catalog';
 import { buildExtension } from '../index.ts';
 import { BuildError, CatalogUsageError } from '../errors.ts';
@@ -218,6 +221,30 @@ const immutabilityError = (staged: Staged): BuildError =>
     staged.id,
   );
 
+/** `label`/`title` of the manifest contributions by point; points without contributions are left out. */
+const titlesOf = (manifest: Staged['manifest']): ContributionTitles => {
+  const { contributes } = manifest;
+  const byPoint: Record<TitledPoint, { id: string; title: string }[]> = {
+    themes: contributes.themes.map(({ id, label }) => ({ id, title: label })),
+    gradePolicies: contributes.gradePolicies.map(({ id, label }) => ({
+      id,
+      title: label,
+    })),
+    settings: contributes.settings.map(({ id, label }) => ({
+      id,
+      title: label,
+    })),
+    commands: contributes.commands.map(({ id, title }) => ({ id, title })),
+    panels: contributes.panels.map(({ id, title }) => ({ id, title })),
+  };
+  return Object.fromEntries(
+    TITLED_POINTS.filter((point) => byPoint[point].length > 0).map((point) => [
+      point,
+      Object.fromEntries(byPoint[point].map(({ id, title }) => [id, title])),
+    ]),
+  );
+};
+
 const newRecord = (staged: Staged, publishedAt: string): CatalogVersion => ({
   version: staged.manifest.version,
   apiVersion: staged.manifest.apiVersion,
@@ -227,6 +254,9 @@ const newRecord = (staged: Staged, publishedAt: string): CatalogVersion => ({
   baseUrl: baseUrlOf(staged),
   files: staged.files,
   ...(staged.icon === null ? {} : { icon: staged.icon }),
+  ...(staged.manifest.tags.length === 0
+    ? {}
+    : { tags: [...staged.manifest.tags] }),
 });
 
 const plan = async (
@@ -268,6 +298,7 @@ const entryOf = (
   const events = manifest.contributes.events.map((item) => item.event);
   const commands = manifest.contributes.commands.map(({ id }) => id);
   const panels = manifest.contributes.panels.map(({ id }) => id);
+  const titles = titlesOf(manifest);
   return {
     id: staged.id,
     name: manifest.name ?? '',
@@ -289,6 +320,7 @@ const entryOf = (
       ...(commands.length > 0 ? { commands } : {}),
       ...(panels.length > 0 ? { panels } : {}),
     },
+    ...(Object.keys(titles).length > 0 ? { titles } : {}),
     versions: newestFirst([record, ...others]),
   };
 };

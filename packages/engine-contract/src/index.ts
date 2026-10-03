@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 12 as const;
+export const CONTRACT_VERSION = 13 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 
@@ -1110,6 +1110,10 @@ export interface ExtensionInfoDto {
   author: string | null;
   /** Значок из манифеста как `data:image/png|webp;base64,…`; `null` — значка нет или манифест не прочитан. */
   icon: string | null;
+  /** Названия вкладов (`label`/`title` манифеста); `{}` — нет или манифест не прочитан. */
+  titles: ContributionTitlesDto;
+  /** Явные теги из манифеста; `[]` — нет или манифест не прочитан. */
+  tags: string[];
   /** Установлено из каталога; `null` — скопировано вручную, из поставки или из режима разработчика. */
   installed: ExtensionInstallDto | null;
   /** `true` у расширений с origin `user`: их можно удалить. */
@@ -1140,6 +1144,14 @@ export interface ExtensionContributesDto {
   /** Id панелей (`contributes.panels`). */
   panels: string[];
 }
+
+/** Названия вкладов по точкам: `id` → `label`/`title`; точки без названий (виды заданий, языки, события) не входят. */
+export type ContributionTitlesDto = Partial<
+  Record<
+    'themes' | 'gradePolicies' | 'settings' | 'commands' | 'panels',
+    Record<string, string>
+  >
+>;
 
 /** Команда расширения (`contributes.commands`). */
 export interface CommandContributionDto {
@@ -1464,6 +1476,10 @@ export interface CatalogEntryDto {
   contributes: ExtensionContributesDto;
   /** Значок показанной версии как `data:image/png|webp;base64,…`; `null` — значка нет (или каталог старого формата). */
   icon: string | null;
+  /** Названия вкладов из записи индекса (`titles`); `{}` — нет (или каталог старого формата). */
+  titles: ContributionTitlesDto;
+  /** Теги показанной версии из записи индекса; `[]` — нет. */
+  tags: string[];
   status: CatalogStatusDto;
   /** Версия, установленная из каталога; `null` — не установлено (или скопировано вручную). */
   installedVersion: string | null;

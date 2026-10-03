@@ -199,6 +199,26 @@ export const ru = {
       version: 'Версия {version}',
       moreValues: 'Ещё {n}',
       fewerValues: 'Свернуть',
+      tagsLabel: 'Теги',
+      tags: {
+        learning: 'Обучение',
+        language: 'Языки',
+        content: 'Содержимое',
+        theme: 'Тема',
+        interface: 'Интерфейс',
+        productivity: 'Продуктивность',
+        developer: 'Разработчикам',
+      },
+      groups: {
+        learning: 'Обучение',
+        appearance: 'Оформление и интерфейс',
+        developers: 'Для разработчиков',
+      },
+      events: {
+        sessionStarted: 'Начало занятия',
+        sessionFinished: 'Конец занятия',
+        attemptClosed: 'Закрытие попытки',
+      },
       points: {
         exerciseTypes: 'Виды заданий',
         themes: 'Темы',
@@ -324,6 +344,11 @@ export const ru = {
         searchLabel: 'Поиск по каталогу',
         searchHint: 'Название, id, описание или автор',
         kindsLabel: 'Фильтр по виду вклада',
+        groupsLabel: 'Быстрые фильтры',
+        tagsLabel: 'Фильтр по тегу',
+        kindsCaption: 'Виды вклада',
+        moreFilters: 'Ещё фильтры',
+        chipCount: '{label}: {n}',
         refresh: 'Обновить каталог',
         resetFilters: 'Сбросить фильтры',
         found:

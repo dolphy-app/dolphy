@@ -110,6 +110,7 @@ const extensionOf = (
   platforms: [],
   minAppVersion: null,
   icon: null,
+  tags: [],
   install: null,
   exerciseTypes: [],
   themes: [],

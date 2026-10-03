@@ -20,6 +20,18 @@ export type ExtensionPermission = (typeof EXTENSION_PERMISSIONS)[number];
 /** Platforms the extension can run on (`process.platform`). */
 export const EXTENSION_PLATFORMS = ['darwin', 'linux', 'win32'] as const;
 export type ExtensionPlatform = (typeof EXTENSION_PLATFORMS)[number];
+
+/** Closed vocabulary of extension tags (`extension.json` → `tags`, up to 5 unique values). */
+export const EXTENSION_TAGS = [
+  'learning',
+  'language',
+  'content',
+  'theme',
+  'interface',
+  'productivity',
+  'developer',
+] as const;
+export type ExtensionTag = (typeof EXTENSION_TAGS)[number];
 export const ELEMENT_NAME_PATTERN = /^[a-z][a-z0-9]*(-[a-z0-9]+)+$/;
 
 /** Event names of the answer custom element. */
@@ -232,6 +244,8 @@ export interface ExtensionManifest {
   minAppVersion: string | null;
   /** Path of the icon inside the extension (`.png` or `.webp`, square, 64–512 px, up to 16 KiB); `null` — no icon. */
   icon: string | null;
+  /** Explicit catalog tags (from `EXTENSION_TAGS`); empty — the catalog derives tags from contributions. */
+  tags: ExtensionTag[];
   contributes: {
     exerciseTypes: ExerciseTypeContribution[];
     themes: ThemeContribution[];
@@ -273,6 +287,8 @@ export interface ExtensionManifestInput {
   minAppVersion?: string;
   /** Path of the extension icon (`.png` or `.webp`, square, 64–512 px, up to 16 KiB); no key — no icon. */
   icon?: string;
+  /** Up to 5 unique catalog tags from `EXTENSION_TAGS`; no key — no explicit tags. */
+  tags?: ExtensionTag[];
   contributes: {
     exerciseTypes?: ExerciseTypeContributionInput[];
     themes?: ThemeContribution[];

@@ -50,7 +50,7 @@ superseded-by: null
 
 ## Progress
 
-- [ ] 1. Данные: `extension-api` (теги), `extension-host` (манифест, реестр: названия и теги), `extension-catalog` (схема `titles`/`tags`, `legacySubset`, терпимый разбор), `extension-tools` (сборка, порядок, README), `extension-install` (DTO, `manifestMismatch`, установщик), движок (`copyInfo`), контракт 13, фикстуры
+- [x] 1. Данные: `extension-api` (теги), `extension-host` (манифест, реестр: названия и теги), `extension-catalog` (схема `titles`/`tags`, `legacySubset`, терпимый разбор), `extension-tools` (сборка, порядок, README), `extension-install` (DTO, `manifestMismatch`, установщик), движок (`copyInfo`), контракт 13, фикстуры
 - [ ] 2. Окно: таблица тегов и групп, фильтры и модель, чипы вкладов с названиями, чипы тегов, i18n, тесты, e2e
 - [ ] 3. Документация, шаблон `create-extension`, design review, ADR 0013, `Outcomes`, архив
 
@@ -58,10 +58,13 @@ superseded-by: null
 
 Разведка до начала работ: `ExtensionContributesDto` и запись индекса содержат только списки id, названия есть лишь в `ContributionsDto` включённых расширений; терпимый разбор по умолчанию пропускает запись целиком при ошибке в голове записи, поэтому для новых необязательных ключей нужен `catch`; `legacySubset` копирует запись целиком и утекла бы любая новая ключевая запись в `index.json`.
 
+Фаза 1: `Profile` схемы индекса получил флаги `titles` и `tags` (в `LEGACY_PROFILE` оба `false`: строгий разбор первого формата отвергает ключи). Терпимый разбор: `titles` — `.catch(undefined)` (непонятная карта отбрасывается, запись остаётся), `tags` — фильтр по словарю с дедупликацией и потолком 5 (`.catch([])`). `resolveVersion` всегда показывает новейшую версию (при несовместимости — она же, `fallback` только предлагается), поэтому `CatalogEntryDto.tags` берёт теги `entry.versions[0]`, как `icon`. Типы `ContributionTitles`, `TitledPoint` и список `TITLED_POINTS` живут в `@dolphy-app/extension-catalog` и используются сборщиком каталога и e2e-сервером.
+
 ## Decision Log
 
 - 2026-10-03. Названия — карта `titles` на уровне записи v2, не проверяются при установке. Причина: запасная версия может быть старше новейшего манифеста.
 - 2026-10-03. Теги на уровне версии и с заменой вычисленных. Причина: совместимость с выпущенными приложениями и намерение автора важнее эвристики.
+- 2026-10-03. `ExtensionContributesDto` остаётся списками строк, названия — отдельное поле `titles` в DTO. Причина: нет churn в фикстурах и фильтрах.
 
 ## Outcomes
 

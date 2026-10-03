@@ -100,13 +100,28 @@ const groups = computed(() =>
   padding: 0;
 }
 
-.id {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  overflow-wrap: anywhere;
+.types li {
+  max-width: 100%;
+  min-width: 0;
 }
 
+/* длинное название (до 60 знаков) переносится внутри чипа, а не уходит за край карточки */
+.id,
 .label {
+  height: auto;
+  max-width: 100%;
+  min-height: 1.5rem;
   overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.id :deep(.v-chip__content),
+.label :deep(.v-chip__content) {
+  padding-block: 0.25rem;
+}
+
+.id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 .visually-hidden {

@@ -348,6 +348,7 @@ export const en: typeof ru = {
         kindsLabel: 'Filter by contribution kind',
         groupsLabel: 'Quick filters',
         tagsLabel: 'Filter by tag',
+        kindsCaption: 'Contribution kinds',
         moreFilters: 'More filters',
         chipCount: '{label}: {n}',
         refresh: 'Refresh catalog',

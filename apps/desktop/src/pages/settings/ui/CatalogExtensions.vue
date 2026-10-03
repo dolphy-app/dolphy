@@ -177,6 +177,12 @@ onMounted(() => void open());
         class="d-flex flex-wrap align-center ga-2 mb-2"
         :aria-label="t('settings.extensions.catalog.kindsLabel')"
       >
+        <span
+          class="caption text-body-small text-medium-emphasis"
+          aria-hidden="true"
+        >
+          {{ t('settings.extensions.catalog.kindsCaption') }}
+        </span>
         <FilterChip
           v-for="point in CONTRIBUTION_POINTS"
           :key="point"
@@ -192,6 +198,12 @@ onMounted(() => void open());
         class="d-flex flex-wrap align-center ga-2"
         :aria-label="t('settings.extensions.catalog.tagsLabel')"
       >
+        <span
+          class="caption text-body-small text-medium-emphasis"
+          aria-hidden="true"
+        >
+          {{ t('settings.extensions.tagsLabel') }}
+        </span>
         <FilterChip
           v-for="tag in shownTags"
           :key="tag"
@@ -497,6 +509,10 @@ onMounted(() => void open());
 .id {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   overflow-wrap: anywhere;
+}
+
+.caption {
+  min-width: 6.5rem;
 }
 
 .reason {

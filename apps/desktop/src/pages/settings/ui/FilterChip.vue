@@ -35,7 +35,8 @@ const toggle = () => {
     {{ label }}
     <span
       v-if="count !== undefined"
-      class="count text-medium-emphasis"
+      class="count"
+      :class="{ 'text-medium-emphasis': !selected }"
       aria-hidden="true"
     >
       {{ count }}

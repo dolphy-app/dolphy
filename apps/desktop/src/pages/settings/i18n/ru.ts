@@ -346,6 +346,7 @@ export const ru = {
         kindsLabel: 'Фильтр по виду вклада',
         groupsLabel: 'Быстрые фильтры',
         tagsLabel: 'Фильтр по тегу',
+        kindsCaption: 'Виды вклада',
         moreFilters: 'Ещё фильтры',
         chipCount: '{label}: {n}',
         refresh: 'Обновить каталог',

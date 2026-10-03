@@ -6,6 +6,7 @@ import type {
   ExtensionManifest,
   ExtensionPermission,
   ExtensionPlatform,
+  ExtensionTag,
 } from '@dolphy-app/extension-api';
 import {
   INSTALL_META_FILE,
@@ -46,6 +47,8 @@ export interface ResolvedExtension extends ResolvedContributions {
   minAppVersion: string | null;
   /** Значок как `data:`-URI (`data:image/png|webp;base64,…`); `null` — значка нет. Проверен: формат, размер, геометрия. */
   icon: string | null;
+  /** Явные теги каталога из манифеста; пусто — теги не заданы. */
+  tags: ExtensionTag[];
   /** Метаданные установки из каталога (`.dolphy-install.json`); `null` — нет или не читаются; читаются только у origin `user`. */
   install: InstallMeta | null;
   /** Отпечаток файлов каталога (`fingerprintDir`); `''` у расширений из поставки: они не меняются, пока работает приложение. */
@@ -245,6 +248,7 @@ export const inspectExtensionDir = async (
         platforms: manifest.platforms,
         minAppVersion: manifest.minAppVersion,
         icon: await resolveIcon(dir, manifest.icon, verifyFiles),
+        tags: manifest.tags,
         ...(resolved as unknown as ResolvedContributions),
       },
     };

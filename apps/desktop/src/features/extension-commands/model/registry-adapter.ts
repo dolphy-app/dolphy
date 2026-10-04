@@ -1,3 +1,4 @@
+import type { BindingDefinition } from '@dolphy-app/keybindings';
 import type { ContributionsDto } from '@dolphy-app/engine-contract';
 import { syncCommands } from '@/shared/lib/command-registry.ts';
 import { textOfExtension } from '@/shared/lib/extension-text.ts';
@@ -9,6 +10,41 @@ export const extensionCommandKey = (
   extensionId: string,
   commandId: string,
 ): string => `extension:${extensionId}:${commandId}`;
+
+const compare = (left: string, right: string): number => {
+  if (left === right) return 0;
+  return left < right ? -1 : 1;
+};
+
+/**
+ * Привязки команд расширений для карты привязок: сначала запись-сокращение
+ * `keybinding`, затем `keybindings`; только `palette: true` (их и держит
+ * реестр). Порядок задаёт приоритет между расширениями: по `extensionId`, затем
+ * по порядку вклада. Привязки не входят в описание команды: их смена
+ * обновляет карту без перерегистрации команды.
+ */
+export const extensionBindings = (
+  contributions: Readonly<ContributionsDto>,
+): BindingDefinition[] =>
+  contributions.commands
+    .filter(({ palette }) => palette)
+    .map((command, index) => ({ command, index }))
+    .sort(
+      (left, right) =>
+        compare(left.command.extensionId, right.command.extensionId) ||
+        left.index - right.index,
+    )
+    .flatMap(({ command }) => {
+      const key = extensionCommandKey(command.extensionId, command.id);
+      const shorthand =
+        command.keybinding === null
+          ? []
+          : [{ command: key, key: command.keybinding }];
+      return [
+        ...shorthand,
+        ...command.keybindings.map((binding) => ({ ...binding, command: key })),
+      ];
+    });
 
 /**
  * Держит в реестре команды `palette: true` из вкладов расширений: новые
@@ -30,7 +66,6 @@ export const syncExtensionCommands = (
       .map((command) => {
         const { extensionId, id } = command;
         const { category, description } = command;
-        const keybinding = command.keybinding ?? undefined;
         // `%ключ%` подставляется при каждом чтении: язык и таблицы следуют за окном без повторной регистрации
         const text = (value: string) =>
           textOfExtension(value, extensionId, contributions(), locale());
@@ -43,17 +78,11 @@ export const syncExtensionCommands = (
             description: () =>
               description === null ? undefined : text(description),
             caption: extensionId,
-            keybinding,
             run: async () => {
               await runner.run(extensionId, id, undefined, 'palette');
             },
           },
-          revision: JSON.stringify([
-            command.title,
-            category,
-            description,
-            keybinding,
-          ]),
+          revision: JSON.stringify([command.title, category, description]),
         };
       }),
   );

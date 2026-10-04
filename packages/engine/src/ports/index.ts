@@ -7,6 +7,7 @@ import type {
   StateVector,
   StudySessionWire,
   ExtensionSettingsDto,
+  KeybindingsSettingsDto,
   LearningSettingsDto,
   UiSettingsDto,
   VerdictDto,
@@ -253,6 +254,9 @@ export interface SettingsStore {
   /** Настройки обучения; без сохранённых — правило оценки `passAtN`. */
   loadLearning(): Promise<LearningSettingsDto>;
   saveLearning(learning: LearningSettingsDto): Promise<void>;
+  /** Привязки пользователя; без сохранённых — `{ commands: {} }`. Нечитаемые записи отбрасываются при чтении. */
+  loadKeybindings(): Promise<KeybindingsSettingsDto>;
+  saveKeybindings(keybindings: KeybindingsSettingsDto): Promise<void>;
   /** Настройки расширений; без сохранённых — ничего не отключено и не доверено. */
   loadExtensions(): Promise<ExtensionSettingsDto>;
   saveExtensions(extensions: ExtensionSettingsDto): Promise<void>;

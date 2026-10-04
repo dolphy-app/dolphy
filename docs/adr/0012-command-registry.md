@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted (пункт «Сочетания клавиш» и вариант «пользовательские сочетания» заменены ADR 0016)
 date: 2026-10-03
 spec: specs/archive/2026-10-03-command-registry/SPEC.md
 ---

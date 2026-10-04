@@ -103,6 +103,20 @@ export interface MarkdownRendererContribution {
   renderer?: string;
 }
 
+/** Command key binding (`commands[].keybindings`). */
+export interface CommandKeybinding {
+  /** Key notation such as `Mod+Shift+L` or `Mod+K Mod+S`; valid on every platform. */
+  key: string;
+  /** Replaces `key` on macOS. */
+  mac?: string;
+  /** Replaces `key` on Windows. */
+  windows?: string;
+  /** Replaces `key` on Linux. */
+  linux?: string;
+  /** Condition such as `page == 'settings'`; a key that types text needs one inactive while `inputFocus`. */
+  when?: string;
+}
+
 /** Extension command: a command-palette action executed by extension code (`ctx.commands.register`). */
 export interface CommandContribution {
   /** Equal to the extension id or starts with `<extension id>.`. */
@@ -113,8 +127,10 @@ export interface CommandContribution {
   description?: string;
   /** Palette group, up to 40 characters. */
   category?: string;
-  /** Hint such as `Mod+Shift+L` (`KEYBINDING_PATTERN`); the app does not bind the key. */
+  /** Active binding without a condition, such as `Mod+Shift+L` (`KEYBINDING_PATTERN`); needs `palette: true`. */
   keybinding?: string;
+  /** Up to `EXTENSION_COMMAND_LIMITS.keybindingsPerCommand` bindings; needs `palette: true`. The user may replace them in settings. */
+  keybindings?: CommandKeybinding[];
   /** `false` hides the command from the palette while keeping it available to the panel; defaults to `true`. */
   palette?: boolean;
 }
@@ -410,17 +426,31 @@ export const THEME_VARIABLE_KEYS: readonly string[] = [
 export const DEFAULT_MARKDOWN_RENDERER = './markdown.mjs';
 export const DEFAULT_PANEL = './panel.mjs';
 
+const KEYBINDING_MODIFIER =
+  '(?:Mod|Ctrl|Control|Alt|Option|Shift|Cmd|Command|Meta|Win|Super)\\+';
+const KEYBINDING_KEY =
+  "(?:[A-Z0-9]|F(?:[1-9]|1[0-9]|2[0-4])|Enter|Return|Space|Tab|Escape|Esc|Backspace|Delete|Insert|Arrow(?:Up|Down|Left|Right)|Home|End|Page(?:Up|Down)|Plus|\\[[A-Za-z][A-Za-z0-9]*\\]|[`\\-=\\[\\]\\\\;',./+])";
+const KEYBINDING_STROKE = `(?:${KEYBINDING_MODIFIER}){0,3}${KEYBINDING_KEY}`;
+
 /**
- * Command key hint: up to three modifiers (`Mod`, `Ctrl`, `Alt`,
- * `Shift`) and a key joined with `+`: a letter or digit, `F1`–`F12`, or a name
- * (`Enter`, `Space`, `Tab`, `Escape`, `Backspace`, `Delete`, arrows,
- * `Home`, `End`, `PageUp`, `PageDown`).
+ * Key notation: one stroke or two strokes separated by a space
+ * (`Mod+K Mod+S`). A stroke is up to three modifiers (`Mod`, `Ctrl`, `Alt`,
+ * `Shift`, `Cmd`, `Meta`, `Win`, `Super`, `Option`, ...) and a key joined with
+ * `+`: a letter or digit, `F1`–`F24`, a punctuation mark, a physical key
+ * (`[KeyK]`) or a name (`Enter`, `Space`, `Tab`, `Escape`, `Insert`, arrows,
+ * `Home`, `End`, `PageUp`, `PageDown`). A superset for the JSON Schema; the
+ * host validates every string authoritatively with `@dolphy-app/keybindings`.
  */
-export const KEYBINDING_PATTERN =
-  /^(?:(?:Mod|Ctrl|Alt|Shift)\+){0,3}(?:[A-Z0-9]|F(?:[1-9]|1[0-2])|Enter|Space|Tab|Escape|Backspace|Delete|Arrow(?:Up|Down|Left|Right)|Home|End|Page(?:Up|Down))$/;
+export const KEYBINDING_PATTERN = new RegExp(
+  `^${KEYBINDING_STROKE}(?: ${KEYBINDING_STROKE})?$`,
+);
 
 /** Limits on commands and panels (R1, R3); they match those checked by the manifest, host, and engine. */
 export const EXTENSION_COMMAND_LIMITS = Object.freeze({
+  /** Keybinding entries (`keybindings`) per command. */
+  keybindingsPerCommand: 4,
+  /** Length of a `keybindings[].when` condition. */
+  whenLength: 200,
   /** Commands per extension. */
   commands: 64,
   /** Panels per extension. */

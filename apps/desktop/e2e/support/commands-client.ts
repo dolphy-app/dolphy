@@ -1,5 +1,6 @@
 import { expect } from 'vitest';
 import type { FrameLocator, Locator, Page } from 'playwright-core';
+import { MOD_KEY } from './keys.ts';
 
 export const COMMANDS_ID = 'acme.commands';
 export const VICTIM_ID = 'acme.victim';
@@ -75,7 +76,7 @@ export class CommandsClient {
 
   /** Ctrl+K на текущей странице; ждёт поле поиска в фокусе. */
   async openPalette() {
-    await this.page.keyboard.press('Control+K');
+    await this.page.keyboard.press(`${MOD_KEY}+K`);
     await this.waitForPalette();
   }
 

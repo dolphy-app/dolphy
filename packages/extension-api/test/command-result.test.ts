@@ -144,6 +144,14 @@ describe('KEYBINDING_PATTERN', () => {
     'Mod+Space',
     'Mod+ArrowUp',
     'Shift+PageDown',
+    'Mod+K Mod+S',
+    'Cmd+Option+Enter',
+    'Mod+F13',
+    'Mod+F24',
+    'Mod+,',
+    'Mod+[KeyK]',
+    'Insert',
+    'Meta+L',
   ])('accepts %s', (value) => {
     expect(KEYBINDING_PATTERN.test(value)).toBe(true);
   });
@@ -155,10 +163,11 @@ describe('KEYBINDING_PATTERN', () => {
     'Mod+Shift+Alt+Ctrl+L',
     'L+Mod',
     'Mod+ab',
-    'Mod+F13',
+    'Mod+F25',
     'Mod+F0',
     'Mod+Shift+',
-    'Meta+L',
+    'Mod+K Mod+S Mod+D',
+    'Mod+K  Mod+S',
   ])('rejects %j', (value) => {
     expect(KEYBINDING_PATTERN.test(value)).toBe(false);
   });

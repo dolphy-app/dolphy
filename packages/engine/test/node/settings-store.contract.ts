@@ -192,6 +192,44 @@ export const describeSettingsStoreContract = (
       expect(await store.loadLearning()).toEqual({ gradePolicy: 'passAtN' });
     });
 
+    it('привязки: по умолчанию пусто, save → load, замена целиком', async () => {
+      const store = await make();
+      expect(await store.loadKeybindings()).toEqual({ commands: {} });
+      await store.saveKeybindings({
+        commands: {
+          'app:a': [{ key: 'Mod+K', when: null }],
+          'extension:acme:run': [],
+        },
+      });
+      expect(await store.loadKeybindings()).toEqual({
+        commands: {
+          'app:a': [{ key: 'Mod+K', when: null }],
+          'extension:acme:run': [],
+        },
+      });
+      await store.saveKeybindings({
+        commands: { 'app:b': [{ key: 'Alt+J', when: '!inputFocus' }] },
+      });
+      expect(await store.loadKeybindings()).toEqual({
+        commands: { 'app:b': [{ key: 'Alt+J', when: '!inputFocus' }] },
+      });
+    });
+
+    it('привязки: хранилище не делит память с вызывающим и не меняет другие группы', async () => {
+      const store = await make();
+      const saved = { commands: { 'app:a': [{ key: 'Alt+1', when: null }] } };
+      await store.saveKeybindings(saved);
+      saved.commands['app:a'][0]!.key = 'Alt+2';
+      const loaded = await store.loadKeybindings();
+      expect(loaded.commands['app:a']?.[0]?.key).toBe('Alt+1');
+      loaded.commands['app:a']![0]!.key = 'Alt+3';
+      expect((await store.loadKeybindings()).commands['app:a']?.[0]?.key).toBe(
+        'Alt+1',
+      );
+      expect(await store.loadLearning()).toEqual({ gradePolicy: 'passAtN' });
+      expect((await store.loadUi()).theme).toBe('system');
+    });
+
     it('расширения: по умолчанию пусто, проверка обновлений включена', async () => {
       const store = await make();
       expect(await store.loadExtensions()).toEqual({

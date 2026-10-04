@@ -28,6 +28,7 @@ const withExtension = (
     description: null,
     category: null,
     keybinding: null,
+    keybindings: [],
     palette: id === 'acme.cmd.run',
   })),
   panels: panels.map((id) => ({

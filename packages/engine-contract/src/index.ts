@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 19 as const;
+export const CONTRACT_VERSION = 20 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 
@@ -795,7 +795,34 @@ export interface SettingsService {
   setLearning(
     patch: Partial<LearningSettingsDto>,
   ): Promise<LearningSettingsDto>;
+  getKeybindings(): Promise<KeybindingsSettingsDto>;
+  /**
+   * Применяет патч целиком или не применяет: набор команды заменяется,
+   * `null` возвращает умолчания. Отклоняет (`INVALID_ARGUMENT`,
+   * `details.field`/`reason`/`command`/`other`) неверные клавиши и условия,
+   * превышение лимитов, повторы и пересечения пользовательских привязок
+   * разных команд. Возвращает итоговые привязки.
+   */
+  setKeybindings(patch: KeybindingsPatch): Promise<KeybindingsSettingsDto>;
 }
+
+/** Привязка пользователя: запись клавиш (`Mod+Shift+L`, `Mod+K Mod+S`) и условие `when` (`null` — без условия). */
+export interface KeybindingEntryDto {
+  key: string;
+  when: string | null;
+}
+
+/** Пользовательские привязки по ключам команд (`app:<id>`, `extension:<extensionId>:<id>`); набор заменяет привязки команды из кода и расширений целиком, пустой — «снято». Хранятся в `engine.db`. */
+export interface KeybindingsSettingsDto {
+  commands: Record<string, KeybindingEntryDto[]>;
+}
+
+/** Ключ команды → новый набор или `null` (сбросить к умолчаниям). */
+export type KeybindingsPatch = Record<string, KeybindingEntryDto[] | null>;
+
+/** Причина отказа `setKeybindings` в `details.reason`. */
+export type KeybindingsRejectReason =
+  'syntax' | 'typing' | 'conflict' | 'limit' | 'duplicate';
 
 /** Вектор для дельта-экспорта: `{deviceId: contiguous}` — непрерывный префикс seq (1..contiguous без пропусков), не `maxSeq`. */
 export type StateVector = Record<string, number>;
@@ -980,6 +1007,7 @@ export type EngineEvent =
         | 'ui'
         | 'learning'
         | 'extensions'
+        | 'keybindings'
         /** Значения настроек или хранилище расширения; `extensionId` — чьи. */
         | 'extensionValues';
       extensionId?: string;
@@ -1231,6 +1259,18 @@ export type ContributionTitlesDto = Partial<
   >
 >;
 
+/**
+ * Привязка команды расширения (`commands[].keybindings`). `mac`/`windows`/`linux`
+ * заменяют `key` на своей платформе (`null` — `key`); `when` — условие
+ * (`null` — без условия).
+ */
+export interface ExtensionKeybindingDto {
+  key: string;
+  mac: string | null;
+  windows: string | null;
+  linux: string | null;
+  when: string | null;
+}
 /** Команда расширения (`contributes.commands`). */
 export interface CommandContributionDto {
   /** Id в пространстве расширения (как у тем). */
@@ -1240,8 +1280,10 @@ export interface CommandContributionDto {
   title: string;
   description: string | null;
   category: string | null;
-  /** Подсказка вида `Mod+Shift+L`; приложение клавишу не назначает. */
+  /** Привязка-сокращение вида `Mod+Shift+L` без условия: действующая, как запись `keybindings`; ключи те же, что у `KeybindingEntryDto.key`. */
   keybinding: string | null;
+  /** Дополнительные привязки команды (до 4); `[]` — нет. Привязывают только эту команду. */
+  keybindings: ExtensionKeybindingDto[];
   /** `false` скрывает команду из палитры: её вызывает только панель. */
   palette: boolean;
 }

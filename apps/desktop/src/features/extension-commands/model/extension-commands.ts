@@ -1,5 +1,6 @@
-import { inject } from 'vue';
-import type { InjectionKey } from 'vue';
+import { computed, inject } from 'vue';
+import type { ComputedRef, InjectionKey } from 'vue';
+import type { BindingDefinition } from '@dolphy-app/keybindings';
 import type {
   ContributionsDto,
   ExtensionsService,
@@ -9,7 +10,10 @@ import { createNotices } from './notices.ts';
 import type { Notices } from './notices.ts';
 import { createPanelProps } from './panel-props.ts';
 import type { PanelProps } from './panel-props.ts';
-import { syncExtensionCommands } from './registry-adapter.ts';
+import {
+  extensionBindings,
+  syncExtensionCommands,
+} from './registry-adapter.ts';
 import { createCommandRunner } from './runner.ts';
 import type { CommandRunner } from './runner.ts';
 
@@ -17,6 +21,8 @@ export interface ExtensionCommands {
   notices: Notices;
   panelProps: PanelProps;
   runner: CommandRunner;
+  /** Привязки команд расширений: вход карты привязок; меняются вместе с вкладами. */
+  bindings: ComputedRef<readonly BindingDefinition[]>;
   /** Снимает команды расширений из реестра. */
   dispose(): void;
 }
@@ -47,7 +53,8 @@ export const createExtensionCommands = (
     runner,
     deps.locale,
   );
-  return { notices, panelProps, runner, dispose };
+  const bindings = computed(() => extensionBindings(deps.contributions()));
+  return { notices, panelProps, runner, bindings, dispose };
 };
 
 export const useExtensionCommands = (): ExtensionCommands => {

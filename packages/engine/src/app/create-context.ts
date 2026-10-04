@@ -1,3 +1,4 @@
+import { platformFromNode } from '@dolphy-app/keybindings';
 import type {
   EngineConfig,
   EngineEvent,
@@ -315,6 +316,7 @@ export const createContext = async (
     }),
     folderSync: deps.folderSync ?? null,
     logReader: deps.logReader ?? null,
+    osPlatform: deps.osPlatform ?? platformFromNode(process.platform),
     openTraneSource: deps.openTraneSource,
     repositoryStore: deps.repositoryStore,
     extensionData: deps.extensionDataStore,

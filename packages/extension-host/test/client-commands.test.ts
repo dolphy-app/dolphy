@@ -24,6 +24,7 @@ const extension: ResolvedExtension = stateful(ID, {
       description: null,
       category: null,
       keybinding: null,
+      keybindings: [],
       palette: true,
     },
   ],

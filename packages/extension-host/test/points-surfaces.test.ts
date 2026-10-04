@@ -5,6 +5,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { discoverExtensions, inspectExtensionDir } from '../src/discover.ts';
 import { parseManifest } from '../src/manifest.ts';
+import { commands } from '../src/points/commands.ts';
 import { createExtensionPolicy } from '../src/policy.ts';
 import { extMessageSchema } from '../src/protocol.ts';
 import { contributesOf, createExtensionRegistry } from '../src/registry.ts';
@@ -45,7 +46,7 @@ describe('точка commands', () => {
             description: 'Do it',
             category: 'Streak',
             keybinding: 'Mod+Shift+L',
-            palette: false,
+            palette: true,
           }),
           command({ id: `${ID}.other` }),
         ],
@@ -61,7 +62,7 @@ describe('точка commands', () => {
         description: 'Do it',
         category: 'Streak',
         keybinding: 'Mod+Shift+L',
-        palette: false,
+        palette: true,
       },
       { id: `${ID}.other`, title: 'Run', palette: true },
     ]);
@@ -137,6 +138,140 @@ describe('точка commands', () => {
     expect(messageOf(manifest({ commands: many(65) }))).toContain(
       'at most 64 commands',
     );
+  });
+
+  describe('привязки клавиш', () => {
+    const accepted = (patch: Record<string, unknown>) => {
+      const parsed = parseManifest(manifest({ commands: [command(patch)] }));
+      if (!parsed.ok) throw new Error(formatDiagnostic(parsed.diagnostic));
+      return parsed.manifest.contributes.commands;
+    };
+
+    it('принимает сокращение и записи keybindings с ключами платформ и when', () => {
+      const list = accepted({
+        keybinding: 'Mod+K Mod+S',
+        keybindings: [
+          { key: 'Mod+Shift+O', mac: 'Mod+Alt+O' },
+          { key: 'Mod+Shift+P', windows: 'Ctrl+Alt+P', when: "page == 'x'" },
+          { key: 'Escape', when: '!inputFocus && paletteOpen' },
+        ],
+      });
+
+      expect(list?.[0]?.keybindings).toHaveLength(3);
+    });
+
+    it('resolve: пропущенные поля — null, отсутствие keybindings — []', async () => {
+      const resolved = await commands.resolve(
+        [
+          { id: `${ID}.a`, title: 'A', palette: true },
+          {
+            id: `${ID}.b`,
+            title: 'B',
+            palette: true,
+            keybindings: [{ key: 'Mod+Shift+O', mac: 'Mod+Alt+O' }],
+          },
+        ],
+        {} as never,
+      );
+
+      expect(resolved[0]).toMatchObject({ keybinding: null, keybindings: [] });
+      expect(resolved[1]?.keybindings).toEqual([
+        {
+          key: 'Mod+Shift+O',
+          mac: 'Mod+Alt+O',
+          windows: null,
+          linux: null,
+          when: null,
+        },
+      ]);
+    });
+
+    it.each([
+      [
+        'ключ неверен на одной платформе',
+        { keybindings: [{ key: 'Mod+Ctrl+K' }] },
+        'contributes.commands.0.keybindings.0.key: invalid key (repeated-modifier)',
+      ],
+      [
+        'ключ платформы неверен',
+        { keybindings: [{ key: 'Mod+K', mac: 'Mod+Cmd+K' }] },
+        'contributes.commands.0.keybindings.0.mac: invalid key',
+      ],
+      [
+        'сокращение неверно на одной платформе',
+        { keybinding: 'Mod+Ctrl+K' },
+        'contributes.commands.0.keybinding: invalid key',
+      ],
+      [
+        'печатающая клавиша без when',
+        { keybindings: [{ key: 'Shift+A' }] },
+        'contributes.commands.0.keybindings.0.when: a key that types text',
+      ],
+      [
+        'печатающая клавиша в сокращении',
+        { keybinding: 'A' },
+        'contributes.commands.0.keybinding: a key that types text',
+      ],
+      [
+        'печатающая клавиша при when, активном в поле ввода',
+        { keybindings: [{ key: 'A', when: 'inputFocus' }] },
+        'a key that types text',
+      ],
+      [
+        'неверный when',
+        { keybindings: [{ key: 'Mod+K', when: 'page ==' }] },
+        'contributes.commands.0.keybindings.0.when: invalid "when"',
+      ],
+      [
+        'больше 4 записей',
+        {
+          keybindings: ['1', '2', '3', '4', '5'].map((key) => ({
+            key: `Mod+${key}`,
+          })),
+        },
+        'keybindings',
+      ],
+      [
+        'привязка при palette: false',
+        { keybinding: 'Mod+K', palette: false },
+        'contributes.commands.0.palette: keybindings need palette: true',
+      ],
+      [
+        'повтор (key, when) в команде',
+        {
+          keybindings: [
+            { key: 'Mod+K', when: "page == 'x'" },
+            { key: 'Mod+K', when: "page == 'x'" },
+          ],
+        },
+        'contributes.commands.0.keybindings.1.key: duplicate binding',
+      ],
+      [
+        'сокращение повторяет запись',
+        { keybinding: 'Mod+K', keybindings: [{ key: 'Mod+K' }] },
+        'contributes.commands.0.keybindings.0.key: duplicate binding',
+      ],
+      [
+        'лишний ключ записи',
+        { keybindings: [{ key: 'Mod+K', command: 'x' }] },
+        'command',
+      ],
+    ])('отклоняет: %s', (_name, patch, fragment) => {
+      expect(messageOf(manifest({ commands: [command(patch)] }))).toContain(
+        fragment,
+      );
+    });
+
+    it('одинаковый ключ с разными when допустим', () => {
+      expect(
+        accepted({
+          keybindings: [
+            { key: 'Mod+K', when: "page == 'a'" },
+            { key: 'Mod+K', when: "page == 'b'" },
+          ],
+        }),
+      ).toHaveLength(1);
+    });
   });
 });
 
@@ -265,6 +400,7 @@ describe('обнаружение и реестр команд и панелей'
         description: null,
         category: null,
         keybinding: 'Mod+K',
+        keybindings: [],
         palette: true,
       },
     ]);
@@ -366,6 +502,7 @@ describe('обнаружение и реестр команд и панелей'
           description: null,
           category: null,
           keybinding: null,
+          keybindings: [],
           palette: true,
         },
       ],
@@ -409,6 +546,7 @@ describe('протокол замены набора расширений', () =
           description: null,
           category: null,
           keybinding: null,
+          keybindings: [],
           palette: true,
         },
       ],

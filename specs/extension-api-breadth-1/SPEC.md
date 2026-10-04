@@ -4,7 +4,7 @@ branch: feature/extension-api-breadth-1
 created: 2026-10-04
 closed: null
 touches: [extension-api, extension-host, extension-catalog, extension-install, extension-tools, extension-sdk, engine-contract, engine-rpc, engine, engine-sqlite, desktop]
-depends-on: [specs/extension-foundation]
+depends-on: [specs/archive/2026-10-05-extension-foundation]
 supersedes: null
 superseded-by: null
 ---

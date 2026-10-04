@@ -1,4 +1,5 @@
 import MarkdownIt from 'markdown-it';
+import { highlightCode } from './highlight.ts';
 
 export const MARKDOWN_BLOCK_CLASS = 'dolphy-md-block';
 
@@ -8,7 +9,13 @@ export const MARKDOWN_BLOCK_CLASS = 'dolphy-md-block';
  * html: false — сырой HTML из материалов курса не попадает в страницу.
  */
 export const createMarkdownRenderer = (languages: ReadonlySet<string>) => {
-  const markdown = new MarkdownIt({ html: false, linkify: false });
+  const markdown = new MarkdownIt({
+    html: false,
+    linkify: false,
+    // языки рендереров расширений сюда не доходят: их блок выводит `fence` ниже;
+    // '' — markdown-it сам экранирует код
+    highlight: (code, language) => highlightCode(code, language) ?? '',
+  });
 
   // прокручиваемый блок кода должен получать фокус, иначе с клавиатуры его
   // не прокрутить (axe `scrollable-region-focusable`)

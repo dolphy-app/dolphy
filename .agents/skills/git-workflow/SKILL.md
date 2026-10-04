@@ -112,7 +112,7 @@ BODY
 
 Список для тела: `gh pr list --base develop --state merged --search "merged:>=<дата прошлого релиза>" --json number,title`; дату — из `gh release list --limit 1`. Если перед релизом нужна правка, она идёт коммитом (Conventional Commits) прямо в `release-<version>`; версия при этом может измениться — тогда ветку пересоздать под новое имя.
 
-**3. Pipeline и слияние.** Те же проверки `mergeable` и pipeline (шаг 3). Помимо обычных jobs PR в `main` запускает `Release branch`: имя ветки должно быть `release-<version>`, а версия, которую считает semantic-release, — совпадать с ней. Зелёный pipeline и `MERGEABLE` → релиз вливается:
+**3. Pipeline и слияние.** Те же проверки `mergeable` и pipeline (шаг 3). Помимо обычных jobs PR в `main` запускает `Release branch` и `.github/workflows/desktop-checks.yml` (`Packaged smoke (macos-14)`, `Packaged smoke (ubuntu-latest)`, `Desktop e2e (Linux)`; e2e идёт около 10–15 минут): без зелёных смоука и e2e релиз-PR не вливать (`gh pr checks "$pr"`), красный e2e — разобрать причину отдельной веткой `feature/*`, не пропускать. `Release branch`: имя ветки должно быть `release-<version>`, а версия, которую считает semantic-release, — совпадать с ней. Зелёный pipeline и `MERGEABLE` → релиз вливается:
 
 ```sh
 gh pr merge "$pr" --merge --subject "Merge release-$version into main"

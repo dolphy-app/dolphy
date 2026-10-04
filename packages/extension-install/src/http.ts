@@ -12,8 +12,6 @@ export interface GetRequest {
   overflow: ExtensionInstallErrorCause;
   /** `true` — ответ 304 не ошибка. */
   allowNotModified?: boolean;
-  /** `true` — ответ 404 не ошибка: `status` равен 404, тело пусто. */
-  allowNotFound?: boolean;
   extensionId: string | null;
 }
 
@@ -99,17 +97,10 @@ export const createHttpClient = (options: HttpClientOptions) => {
       }
       const accepted =
         response.ok ||
-        (response.status === 304 && request.allowNotModified === true) ||
-        (response.status === 404 && request.allowNotFound === true);
+        (response.status === 304 && request.allowNotModified === true);
       if (!accepted) {
         await response.body?.cancel();
         throw fail(`GET ${url.href}: HTTP ${response.status}`);
-      }
-      if (response.status === 404) {
-        await response.body?.cancel();
-        return {
-          result: { status: 404, etag: null, bytes: new Uint8Array(0) },
-        };
       }
       return {
         result: {

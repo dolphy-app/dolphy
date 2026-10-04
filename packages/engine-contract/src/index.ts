@@ -1008,7 +1008,7 @@ export interface EngineConfig {
   userExtensionsDir?: string;
   /** Каталог разработчика расширений (`DOLPHY_DEV_EXTENSIONS`): корень с наивысшим приоритетом, побеждает пользовательский и поставляемый при совпадении id. */
   devExtensionsDir?: string;
-  /** Адрес `index.json` каталога расширений; не задан — используется официальный. */
+  /** Адрес каталога расширений (рядом лежит `index.v2.json`); не задан — используется официальный. */
   extensionCatalogUrl?: string;
   /**
    * Безопасный режим задан запуском приложения: флагом `--safe-mode` (`'flag'`)
@@ -1241,7 +1241,8 @@ export type ExtensionCommandFailureReason =
   | 'handler-failed'
   | 'invalid-result'
   | 'disabled'
-  | 'replaced';
+  | 'replaced'
+  | 'activation-timeout';
 
 export interface ThemeContributionDto {
   id: string;

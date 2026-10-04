@@ -169,18 +169,20 @@ export type ExtFailureCause =
   | 'unknown-policy'
   | 'unknown-command'
   | 'handler-timeout'
+  | 'activation-timeout'
   | 'replaced';
 
 /**
  * Причина отказа хоста считается сбоем расширения: отказ или превышение срока
- * обработчика, неверный результат, сбой активации. Остальные (`unknown-type`, `replaced`, ...) —
+ * обработчика, неверный результат, сбой или превышение срока активации. Остальные (`unknown-type`, `replaced`, ...) —
  * решение системы, расширение в них не виновато.
  */
 export const isFault = (cause: ExtFailureCause): boolean =>
   cause === 'handler-failed' ||
   cause === 'handler-timeout' ||
   cause === 'invalid-result' ||
-  cause === 'activation-failed';
+  cause === 'activation-failed' ||
+  cause === 'activation-timeout';
 
 export type ExtResponse =
   | { id: string; ok: true; result: unknown }

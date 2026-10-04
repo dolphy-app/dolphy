@@ -10,6 +10,7 @@ const { notices } = useExtensionCommands();
 const FAILURE_KEYS = {
   changed: 'extensionCommands.notice.changed',
   timeout: 'extensionCommands.notice.timeout',
+  activationTimeout: 'extensionCommands.notice.activationTimeout',
   hostDown: 'extensionCommands.notice.hostDown',
   invalidResult: 'extensionCommands.notice.invalidResult',
 } as const;

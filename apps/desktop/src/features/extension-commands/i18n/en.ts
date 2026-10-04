@@ -6,6 +6,7 @@ export const en: typeof ru = {
       close: 'Close',
       changed: 'The extension has changed, try again.',
       timeout: 'The command timed out. Try again.',
+      activationTimeout: 'The extension did not start within 10 s.',
       hostDown: 'Extensions are unavailable right now. Try again.',
       invalidResult: 'The extension returned an invalid response.',
       failed: 'The command failed.',

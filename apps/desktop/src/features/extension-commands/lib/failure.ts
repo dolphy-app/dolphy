@@ -3,7 +3,12 @@ import { EngineCallError } from '@dolphy-app/engine-rpc/client';
 
 /** Что показать вместо сырой ошибки: ключ текста и данные расширения. */
 export type CommandFailureKind =
-  'changed' | 'timeout' | 'hostDown' | 'invalidResult' | 'failed';
+  | 'changed'
+  | 'timeout'
+  | 'activationTimeout'
+  | 'hostDown'
+  | 'invalidResult'
+  | 'failed';
 
 export interface CommandFailure {
   kind: CommandFailureKind;
@@ -19,6 +24,7 @@ const KIND_BY_REASON: Record<
   disabled: 'changed',
   replaced: 'changed',
   timeout: 'timeout',
+  'activation-timeout': 'activationTimeout',
   'host-down': 'hostDown',
   'invalid-result': 'invalidResult',
   'handler-failed': 'failed',

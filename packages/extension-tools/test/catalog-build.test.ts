@@ -53,7 +53,6 @@ describe('catalog build: publishing a version', () => {
         status: 'published',
         files: 2,
         bytes: expect.any(Number),
-        inLegacyIndex: true,
       },
     ]);
     const versionDir = path.join(out, 'extensions', NIGHT, '1.0.0');
@@ -98,11 +97,11 @@ describe('catalog build: publishing a version', () => {
     );
   });
 
-  it('index.json file: two spaces, trailing newline, stable key order', async () => {
+  it('index.v2.json file: two spaces, trailing newline, stable key order', async () => {
     const repo = await createRepo([{ fixture: 'theme-only' }]);
     const out = await makeTemp();
     await publish(repo, out, [NIGHT]);
-    const text = await readFile(path.join(out, 'index.json'), 'utf8');
+    const text = await readFile(path.join(out, 'index.v2.json'), 'utf8');
     expect(text.endsWith('}\n')).toBe(true);
     const parsed = JSON.parse(text);
     expect(text).toBe(`${JSON.stringify(parsed, null, 2)}\n`);
@@ -269,7 +268,7 @@ describe('catalog build: version immutability', () => {
     const repo = await createRepo([{ fixture: 'theme-only' }]);
     const out = await makeTemp();
     await publish(repo, out, [NIGHT]);
-    const indexBefore = await readFile(path.join(out, 'index.json'), 'utf8');
+    const indexBefore = await readFile(path.join(out, 'index.v2.json'), 'utf8');
     const manifestBefore = await readFile(
       path.join(out, 'extensions', NIGHT, '1.0.0', 'extension.json'),
       'utf8',
@@ -278,7 +277,7 @@ describe('catalog build: version immutability', () => {
     await expect(publish(repo, out, [NIGHT])).rejects.toThrow(
       /already published with different content/,
     );
-    expect(await readFile(path.join(out, 'index.json'), 'utf8')).toBe(
+    expect(await readFile(path.join(out, 'index.v2.json'), 'utf8')).toBe(
       indexBefore,
     );
     expect(
@@ -297,10 +296,10 @@ describe('catalog build: version immutability', () => {
     const second = await makeTemp();
     await expect(
       publish(repo, second, [NIGHT], {
-        previousIndex: path.join(first, 'index.json'),
+        previousIndex: path.join(first, 'index.v2.json'),
       }),
     ).rejects.toBeInstanceOf(BuildError);
-    await expect(stat(path.join(second, 'index.json'))).rejects.toThrow();
+    await expect(stat(path.join(second, 'index.v2.json'))).rejects.toThrow();
   });
 
   it('a missing version directory is restored when it matches the index entry', async () => {
@@ -309,7 +308,7 @@ describe('catalog build: version immutability', () => {
     await publish(repo, first, [NIGHT]);
     const second = await makeTemp();
     const results = await publish(repo, second, [NIGHT], {
-      previousIndex: path.join(first, 'index.json'),
+      previousIndex: path.join(first, 'index.v2.json'),
     });
     expect(results[0]?.status).toBe('published');
     expect(await listFiles(path.join(second, 'extensions', NIGHT))).toEqual([
@@ -344,7 +343,7 @@ describe('catalog build: index merge', () => {
     await publish(repo, previous, [NIGHT]);
     const out = await makeTemp();
     await publish(repo, out, ['acme.chart'], {
-      previousIndex: path.join(previous, 'index.json'),
+      previousIndex: path.join(previous, 'index.v2.json'),
     });
     const ids = (await indexOf(out)).extensions.map((entry) => entry.id);
     expect(ids).toEqual(['acme.chart', NIGHT]);
@@ -412,11 +411,13 @@ describe('catalog build: failures write nothing', () => {
     ]);
     const out = await makeTemp();
     await publish(repo, out, [NIGHT]);
-    const before = await readFile(path.join(out, 'index.json'), 'utf8');
+    const before = await readFile(path.join(out, 'index.v2.json'), 'utf8');
     await expect(
       publish(repo, out, ['acme.chart'], { publishedAt: 'yesterday' }),
     ).rejects.toThrow(/resulting index is invalid/);
-    expect(await readFile(path.join(out, 'index.json'), 'utf8')).toBe(before);
+    expect(await readFile(path.join(out, 'index.v2.json'), 'utf8')).toBe(
+      before,
+    );
     expect(await readdir(path.join(out, 'extensions'))).toEqual([NIGHT]);
   });
 
@@ -436,7 +437,7 @@ describe('catalog build: failures write nothing', () => {
     const repo = await createRepo([{ fixture: 'theme-only' }]);
     const out = await makeTemp();
     await mkdir(out, { recursive: true });
-    await writeFile(path.join(out, 'index.json'), '{"schemaVersion":7}');
+    await writeFile(path.join(out, 'index.v2.json'), '{"schemaVersion":7}');
     await expect(publish(repo, out, [NIGHT])).rejects.toThrow(
       /not a valid catalog index/,
     );

@@ -1,10 +1,10 @@
 ---
-status: draft
+status: active
 branch: feature/extension-authoring
 created: 2026-10-04
 closed: null
 touches: [create-extension, extension-tools, extension-sdk, desktop]
-depends-on: [specs/extension-foundation, specs/extension-housekeeping]
+depends-on: [specs/extension-foundation, specs/archive/2026-10-04-extension-housekeeping]
 supersedes: null
 superseded-by: null
 ---
@@ -19,7 +19,7 @@ superseded-by: null
 
 ## Не цели
 
-- Сайт документации, typedoc-сайт, витрина каталога, `dolphy-ext analyze`, мастер «новое расширение» в приложении (отложено, список — `specs/extension-housekeeping`, Decision Log).
+- Сайт документации, typedoc-сайт, витрина каталога, `dolphy-ext analyze`, мастер «новое расширение» в приложении (отложено, список — `specs/archive/2026-10-04-extension-housekeeping`, Decision Log).
 - Новые ключи манифеста, точки вклада, разрешения и методы `ctx`; изменения контракта и RPC.
 - Подписанные публикации, проверка издателей, песочница ОС, запрет сети: правило «первый издатель владеет id» — проверка CI по логину автора, а не криптографическое владение.
 - Отладка Node-кода расширения в отладчике: хост расширений запускается без инспектора (ADR 0011); остаются журнал и `ctx.logger`.
@@ -63,11 +63,11 @@ superseded-by: null
 
 ## Progress
 
-- [ ] 3a. `lint` и правила каталога (один PR, `extension-tools`)
-  - [ ] `src/lint/` (манифест, бандл), команда `dolphy-ext lint`, справка CLI, README пакета
-  - [ ] `CHECK-019`…`CHECK-025`, флаг `--built`, `bundleDir` в `RuleContext`, тесты на каждое правило (R11, R12)
-- [ ] 3b. Шаблоны и инструкции проекта (один PR, `create-extension`)
-  - [ ] модули шаблонов, `--template`, `AGENTS.md`, `CLAUDE.md`, `ci.yml`, скрипт `lint`; тесты R1, R5-часть, R6, R13
+- [x] 3a. `lint` и правила каталога (один PR, `extension-tools`)
+  - [x] `src/lint/` (манифест, бандл), команда `dolphy-ext lint`, справка CLI, README пакета
+  - [x] `CHECK-019`…`CHECK-025`, флаг `--built`, `bundleDir` в `RuleContext`, тесты на каждое правило (R11, R12)
+- [x] 3b. Шаблоны и инструкции проекта (один PR, `create-extension`)
+  - [x] модули шаблонов, `--template`, `AGENTS.md`, `CLAUDE.md`, `ci.yml`, скрипт `lint`; тесты R1, R5-часть, R6, R13
 - [ ] 3c. Руководство (один PR, `extension-sdk`, `tools/`)
   - [ ] `docs/quick-start.md`, пять рецептов, `no-build.md`; `docs-blocks.ts` + `sdk-docs.test.ts` (R4, R5, R7); упаковка и `verify:packages` (R3)
 - [ ] 3d. Цикл разработки (один PR, `extension-tools`, `desktop`)
@@ -85,6 +85,10 @@ superseded-by: null
 - Единственный экземпляр приложения (`requestSingleInstanceLock`) делает «запуск с другой переменной окружения» молчаливым no-op.
 - `generate.test.ts` проверяет точный список файлов проекта, `docs.test.ts` — побайтное совпадение с документом: поэтому шаблон по умолчанию остаётся прежним.
 - У `ctx` уже есть `logger` (`ExtensionLogger` в `extension-api`), так что в рецептах журнал не требует нового API.
+- Манифест с пустым `name`/`author` не проходит `parseManifest`, и `lint` не смог бы собрать проект; поэтому замечания `lint` о метаданных возможны только при отсутствующих ключах (пустое значение — ошибка сборки, её печатает `lint` как `error <id>: …`, код 1).
+- Проект «без замечаний `lint`» (R6) требует `name`, `description` (от 20 символов) и `author` в манифесте шаблона; поэтому они добавлены во все пять манифестов, а блок `extension.json` в `docs/design/extensions.md` обновлён вместе с шаблоном `exercise` (`docs.test.ts`).
+- Сгенерированный проект не имеет lockfile, а `pnpm install` в CI по умолчанию замораживает его: в `ci.yml` стоит `pnpm install --no-frozen-lockfile`, и `cache: pnpm` в `setup-node` не используется (он требует lockfile).
+- Общий модуль попадает и в `main.mjs`, и в `view.mjs`: эвристики дают строку на каждый файл, где сработали.
 
 ## Decision Log
 
@@ -97,8 +101,16 @@ superseded-by: null
 - 2026-10-04. Шаблон по умолчанию остаётся `exercise`. Причина: `docs.test.ts` и привычный выход генератора.
 - 2026-10-04. Обратная совместимость не обеспечивается (владелец): приложение и расширения сырые, ломаем сразу. Причина: экономия усилий, нет внешних пользователей API.
 - 2026-10-04. Безопасность — как у Obsidian: ревью, безопасный режим, диагностика; независимый аудит, песочница ОС, подписанный индекс, принудительное ограничение сети вне всех волн. Эвристики `lint` — подсказки ревью, не защита.
-- 2026-10-04. Отложенное (сайт документации, typedoc, витрина, `analyze`, постраничный индекс, мастер в приложении, хуки планировщика, сервисы между расширениями, матрица совместимости, автообновление) — единый список в Decision Log `specs/extension-housekeeping`.
+- 2026-10-04. Отложенное (сайт документации, typedoc, витрина, `analyze`, постраничный индекс, мастер в приложении, хуки планировщика, сервисы между расширениями, матрица совместимости, автообновление) — единый список в Decision Log `specs/archive/2026-10-04-extension-housekeeping`.
 - 2026-10-04. Порядок волн: W0 `extension-housekeeping`, W1 `extension-foundation`, W2 `extension-api-breadth-1`, W3 `extension-authoring` (параллельно W2), W4, W5. Стадии 3a–3c от W1 не зависят; `debugging.md` (3d) ждёт журнал W1 (1b).
+- 2026-10-04 (3a). Замечание `lint` о `tags` — отдельный идентификатор `LINT-001` (в каталоге такого правила нет); остальные строки `lint` несут идентификаторы `CHECK-003/004/019/022…025`. Причина: одна строка формата `catalog check` на замечание, без новых правил каталога.
+- 2026-10-04 (3a). Отсутствующая сборка при `--built <siteDir>` — одно предупреждение `CHECK-022 --built`, а не молчание. Причина: опечатка в пути не должна выключать проверку незаметно. Без флага правила 022–025 молчат.
+- 2026-10-04 (3a). Эвристика URL (`CHECK-024`) пропускает XML-пространства имён `www.w3.org`. Причина: `createElementNS('http://www.w3.org/2000/svg')` — типичный код видов, это идентификатор, не сетевой адрес.
+- 2026-10-04 (3a). В `lint` встроенная карта исходников — `warning`, в `catalog check` (`CHECK-025`) — `error`. Причина: R11 «всё — warning, кроме README»; сборка `lint` карт не пишет, строка появляется только с `--built`.
+
+- 2026-10-04 (3b). `author` в шаблонах — `your-github-login` (AGENTS.md и документ просят заменить). Причина: автор неизвестен генератору, а пустое значение `parseManifest` отвергает.
+- 2026-10-04 (3b). Существование `docs/quick-start.md` в SDK (вторая половина проверки R1) проверяет стадия 3c: файл появляется в ней, `AGENTS.md` называет путь `node_modules/@dolphy-app/extension-sdk/docs/quick-start.md` уже сейчас.
+- 2026-10-04 (3b). Шаблон `events` — «серия дней» целиком (событие, хранилище, команды, панель); `command-panel` — отдельный проект без событий и разрешений.
 
 ## Outcomes
 

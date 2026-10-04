@@ -63,6 +63,12 @@ export interface ExtensionRuntimeOptions {
    * расширение. Совпадает с запасом движка до дедлайна; по умолчанию 2000.
    */
   drainGraceMs?: number;
+  /**
+   * Срок `activate()` (загрузка модуля, настройки, сам вызов): не завершился —
+   * сбой `activation-timeout`, он запоминается до замены сборки. По умолчанию
+   * `ACTIVATION_TIMEOUT_MS`; тот же срок у ограниченного процесса (`readyTimeoutMs`).
+   */
+  activationTimeoutMs?: number;
 }
 
 export interface ExtensionRuntime {
@@ -101,6 +107,9 @@ const messageOf = (error: unknown): string =>
 /** Срок вызова, кроме `grade`, у клиента хоста (`projectTimeoutMs`). */
 const DEFAULT_CALL_MS = 5000;
 
+/** Срок `activate()` расширения в процессе хоста; совпадает с `readyTimeoutMs` ограниченного процесса. */
+export const ACTIVATION_TIMEOUT_MS = 10_000;
+
 /** Срок обработчика события обучения (R6). */
 export const EVENT_HANDLER_MS = 2000;
 
@@ -108,6 +117,9 @@ export const EVENT_HANDLER_MS = 2000;
 export const COMMAND_HANDLER_MS = EXTENSION_COMMAND_LIMITS.handlerMs;
 
 const ignore = (): void => {};
+
+/** Регистрация после срока активации: ничего не делает, освобождать нечего. */
+const lateRegistration: Disposable = { dispose: ignore };
 
 /** Обработчик не уложился в срок: `invoke` превращает её в `handler-timeout`. */
 class HandlerTimeout extends Error {}
@@ -152,6 +164,8 @@ interface Activation {
   commands: Map<string, CommandHandler>;
   settings: SettingsState;
   disposables: Disposable[];
+  /** Срок активации вышел: регистрации, которые код делает позже, ничего не регистрируют. */
+  abandoned: boolean;
 }
 
 /** Запрос хоста к движку, ожидающий ответа. */
@@ -180,6 +194,8 @@ export const createExtensionRuntime = (
 ): ExtensionRuntime => {
   const { logger } = options;
   const drainGraceMs = options.drainGraceMs ?? 2000;
+  const activationTimeoutMs =
+    options.activationTimeoutMs ?? ACTIVATION_TIMEOUT_MS;
   // каталог читает снимок, `replace` подменяет его целиком
   const discovery = createDiscoveryHolder(discoveryOf(options.extensions));
   const catalog = createCatalog(discovery, createAllTrustedPolicy());
@@ -322,6 +338,7 @@ export const createExtensionRuntime = (
       commands: new Map(),
       settings,
       disposables: [{ dispose: settings.dispose }],
+      abandoned: false,
     };
     created(activation);
     // изменения, пришедшие во время загрузки, `settings` применяет поверх неё
@@ -344,6 +361,7 @@ export const createExtensionRuntime = (
               `event '${name}' is not declared in the manifest of '${extension.id}'`,
             );
           }
+          if (activation.abandoned) return lateRegistration;
           if (activation.events.has(name)) {
             throw new Error(`event '${name}' is already subscribed`);
           }
@@ -367,6 +385,7 @@ export const createExtensionRuntime = (
               `command '${id}' is not declared in the manifest of '${extension.id}'`,
             );
           }
+          if (activation.abandoned) return lateRegistration;
           if (activation.commands.has(id)) {
             throw new Error(`command '${id}' is already registered`);
           }
@@ -388,6 +407,7 @@ export const createExtensionRuntime = (
             `exercise type '${type}' is not declared in the manifest of '${extension.id}'`,
           );
         }
+        if (activation.abandoned) return lateRegistration;
         if (activation.handlers.has(type)) {
           throw new Error(`exercise type '${type}' is already registered`);
         }
@@ -404,6 +424,7 @@ export const createExtensionRuntime = (
             `grade policy '${id}' is not declared in the manifest of '${extension.id}'`,
           );
         }
+        if (activation.abandoned) return lateRegistration;
         if (activation.policies.has(id)) {
           throw new Error(`grade policy '${id}' is already registered`);
         }
@@ -416,7 +437,7 @@ export const createExtensionRuntime = (
       },
     };
     await module.activate(context);
-    warnUnregistered(extension, activation);
+    if (!activation.abandoned) warnUnregistered(extension, activation);
     return activation;
   };
 
@@ -438,8 +459,32 @@ export const createExtensionRuntime = (
   const openSlot = (extension: ResolvedExtension): Slot => {
     let created: Activation | null = null;
     const started = performance.now();
-    const ready = activate(extension, (activation) => {
+    let abandoned = false;
+    const work = activate(extension, (activation) => {
       created = activation;
+      activation.abandoned = abandoned;
+    });
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const expired = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => {
+        abandoned = true;
+        if (created !== null) created.abandoned = true;
+        logger.warn(
+          { extensionId: extension.id },
+          'extension activation timed out',
+        );
+        reject(
+          new RuntimeFailure(
+            'activation-timeout',
+            `activate() did not finish in ${activationTimeoutMs} ms`,
+          ),
+        );
+      }, activationTimeoutMs);
+    });
+    // опоздавший отказ активации не должен всплыть необработанным
+    work.catch(ignore);
+    const ready = Promise.race([work, expired]).finally(() => {
+      clearTimeout(timer);
     });
     // успешная активация записывает длительность (в ограниченном процессе — его рантайм через раннер)
     void ready.then(
@@ -471,6 +516,7 @@ export const createExtensionRuntime = (
     try {
       return await slot.ready;
     } catch (error) {
+      if (error instanceof RuntimeFailure) throw error;
       throw new RuntimeFailure('activation-failed', messageOf(error));
     }
   };

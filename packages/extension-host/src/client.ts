@@ -26,14 +26,23 @@ import {
 } from './protocol.ts';
 import type { ExtFailureCause, ExtResponse } from './protocol.ts';
 
-/** Причины, которые вид задания не различает, сводятся к сбою обработчика. */
-const exerciseCause = (cause: ExtFailureCause): ExerciseTypeErrorCause =>
-  cause === 'unknown-policy' ||
-  cause === 'unknown-command' ||
-  cause === 'handler-timeout' ||
-  cause === 'replaced'
-    ? 'handler-failed'
-    : cause;
+/**
+ * Причины, которые вид задания не различает, сводятся к сбою обработчика;
+ * `activation-timeout` — к `activation-failed` (срок активации — внутренняя причина хоста).
+ */
+const exerciseCause = (cause: ExtFailureCause): ExerciseTypeErrorCause => {
+  switch (cause) {
+    case 'activation-timeout':
+      return 'activation-failed';
+    case 'unknown-policy':
+    case 'unknown-command':
+    case 'handler-timeout':
+    case 'replaced':
+      return 'handler-failed';
+    default:
+      return cause;
+  }
+};
 
 export interface RemoteExerciseTypesOptions {
   channel: HostChannel;
@@ -276,6 +285,7 @@ const commandCause = (cause: ExtFailureCause): ExtensionCommandErrorCause => {
     case 'invalid-result':
     case 'replaced':
     case 'handler-failed':
+    case 'activation-timeout':
       return cause;
     case 'handler-timeout':
       return 'timeout';

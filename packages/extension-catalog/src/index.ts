@@ -2,7 +2,6 @@ export * from './assets.ts';
 export * from './compat.ts';
 export * from './errors.ts';
 export * from './freshness.ts';
-export * from './legacy.ts';
 export * from './install-meta.ts';
 export * from './resolve.ts';
 export * from './schema.ts';

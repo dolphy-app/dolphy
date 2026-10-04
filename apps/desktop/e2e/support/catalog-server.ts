@@ -12,7 +12,6 @@ import {
   assetExtensionOf,
   compareSemver,
   iconDataUri,
-  legacySubset,
   parseIndex,
 } from '@dolphy-app/extension-catalog';
 import type {
@@ -86,15 +85,14 @@ interface Revocation {
 
 export interface CatalogServerOptions {
   /**
-   * `dual` — публикуются `index.v2.json` (полный) и `index.json` (подмножество для выпущенных
-   * приложений), как делает `catalog build`; `legacy` — старый статический сервер: только
-   * `index.json`, на `index.v2.json` ответ 404.
+   * `false` — индекс не опубликован: на `index.v2.json` ответ 404 (как у каталога, который
+   * его не выкладывает); `index.json` сервер не отдаёт никогда.
    */
-  format?: 'dual' | 'legacy';
+  publishIndex?: boolean;
 }
 
 export interface CatalogServer {
-  /** Адрес `index.json` — значение `DOLPHY_EXTENSION_CATALOG_URL`. */
+  /** Адрес каталога (рядом лежит `index.v2.json`) — значение `DOLPHY_EXTENSION_CATALOG_URL`. */
   readonly url: string;
   /** Журнал запросов: `GET <путь> [304]`. */
   readonly requests: readonly string[];
@@ -243,7 +241,7 @@ export const startCatalogServer = async (
   sources: readonly CatalogSource[] = [],
   options: CatalogServerOptions = {},
 ): Promise<CatalogServer> => {
-  const format = options.format ?? 'dual';
+  const publishIndex = options.publishIndex ?? true;
   const extensions = new Map<string, PublishedExtension>();
   const revoked: Revocation[] = [];
   const tampered = new Set<string>();
@@ -287,8 +285,8 @@ export const startCatalogServer = async (
     });
   };
 
-  /** Оба файла сразу и с одним `generatedAt`, как пишет их `catalog build`. */
-  const buildIndexes = (): { full: string; legacy: string } => {
+  /** Тело `index.v2.json`; `generatedAt` только растёт. */
+  const buildIndex = (): string => {
     // индекс не должен «откатываться»: generatedAt только растёт
     generatedAt = Math.max(generatedAt + MIN_NOW_STEP_MS, Date.now());
     const index = {
@@ -323,17 +321,16 @@ export const startCatalogServer = async (
       })),
       revoked: [...revoked],
     };
-    const legacy = legacySubset(parseIndex(index));
-    parseIndex(legacy);
-    return { full: JSON.stringify(index), legacy: JSON.stringify(legacy) };
+    parseIndex(index);
+    return JSON.stringify(index);
   };
 
   // тела меняются только при изменении каталога: иначе ETag был бы всегда новым
-  let cached: { full: string; legacy: string } | null = null;
+  let cached: string | null = null;
   const invalidate = () => {
     cached = null;
   };
-  const bodies = () => (cached ??= buildIndexes());
+  const body = () => (cached ??= buildIndex());
 
   const send = (
     response: ServerResponse,
@@ -364,22 +361,21 @@ export const startCatalogServer = async (
       send(response, 503, 'catalog is offline');
       return;
     }
-    const isFull = path === '/index.v2.json';
-    if (isFull && format === 'legacy') {
+    if (path === '/index.v2.json' && !publishIndex) {
       requests.push(`GET ${path} 404`);
       send(response, 404, 'not found');
       return;
     }
-    if (isFull || path === '/index.json') {
-      const body = isFull ? bodies().full : bodies().legacy;
-      const etag = etagOf(body);
+    if (path === '/index.v2.json') {
+      const text = body();
+      const etag = etagOf(text);
       if (request.headers['if-none-match'] === etag) {
         requests.push(`GET ${path} 304`);
         send(response, 304, '', { ETag: etag });
         return;
       }
       requests.push(`GET ${path}`);
-      send(response, 200, body, {
+      send(response, 200, text, {
         'Content-Type': 'application/json',
         ETag: etag,
       });

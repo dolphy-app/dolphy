@@ -115,7 +115,7 @@ export const publishedIndex = (
   id: string,
   versions: readonly string[],
 ): unknown => ({
-  schemaVersion: 1,
+  schemaVersion: 2,
   generatedAt: '2026-10-01T00:00:00.000Z',
   extensions: [
     {

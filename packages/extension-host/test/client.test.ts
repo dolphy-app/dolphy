@@ -102,6 +102,28 @@ const flush = async (): Promise<void> => {
 };
 
 describe('createRemoteExerciseTypes', () => {
+  it('activation-timeout хоста для project сворачивается в activation-failed', async () => {
+    const { client, channel, engineSide, hostSide } = setup();
+    hostSide.onMessage((message) => {
+      hostSide.post({
+        id: (message as ExtRequest).id,
+        ok: false,
+        error: {
+          cause: 'activation-timeout',
+          message: 'activate() did not finish in 10000 ms',
+        },
+      } satisfies ExtResponse);
+    });
+    channel.attach(engineSide);
+    await expect(
+      client.project({ type: 'acme.t', exerciseId: 'e', spec: {} }),
+    ).rejects.toMatchObject({
+      name: 'ExerciseTypeError',
+      cause: 'activation-failed',
+      message: 'activate() did not finish in 10000 ms',
+    });
+  });
+
   it('ответ хоста превращается в RawVerdict, durationMs замеряет клиент', async () => {
     const { client, channel, engineSide, hostSide, requests } = setup();
     hostSide.onMessage((message) => {

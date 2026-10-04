@@ -143,6 +143,7 @@ const STATS_COMMAND: CommandContributionDto = {
   description: null,
   category: null,
   keybinding: null,
+  keybindings: [],
   palette: true,
 };
 const SQL_PANEL: PanelContributionDto = {
@@ -555,6 +556,14 @@ describe('rpc → dispatcher → real engine', () => {
     await call('settings.getLearning', () => client.settings.getLearning());
     await call('settings.setLearning', () =>
       client.settings.setLearning({ gradePolicy: 'acme.policy' }),
+    );
+    await call('settings.getKeybindings', () =>
+      client.settings.getKeybindings(),
+    );
+    await call('settings.setKeybindings', () =>
+      client.settings.setKeybindings({
+        'app:palette.open': [{ key: 'Mod+Shift+P', when: null }],
+      }),
     );
     await call('settings.setUi', () =>
       client.settings.setUi({ theme: 'dark', locale: 'en' }),

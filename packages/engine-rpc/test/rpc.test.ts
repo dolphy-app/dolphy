@@ -188,6 +188,46 @@ describe('dispatcher validation', () => {
     }
   });
 
+  it('settings.setKeybindings accepts sets and null, rejects malformed patches', async () => {
+    const { dispatcher } = await connect();
+    const [hostSide, rawSide] = createInProcessPair();
+    dispatcher.attach(hostSide, 'raw-keybindings');
+    const raw = createRawClient(rawSide);
+    const entry = { key: 'Alt+1', when: null };
+    for (const patch of [
+      {},
+      { 'app:a': [entry], 'app:b': null, 'app:c': [] },
+      { 'app:a': [{ key: 'Alt+1', when: '!inputFocus' }] },
+    ]) {
+      expect(await raw.call('settings.setKeybindings', [patch])).toMatchObject({
+        ok: true,
+      });
+    }
+    const tooMany = Object.fromEntries(
+      Array.from({ length: 513 }, (_, i) => [`app:c${i}`, null]),
+    );
+    for (const patch of [
+      null,
+      { 'app:a': 'Alt+1' },
+      { 'app:a': [{ key: 'Alt+1' }] },
+      { 'app:a': [{ key: 5, when: null }] },
+      { 'app:a': [{ key: 'Alt+1', when: null, extra: 1 }] },
+      { 'app:a': [{ key: 'x'.repeat(65), when: null }] },
+      { 'app:a': [{ key: 'Alt+1', when: 'k'.repeat(257) }] },
+      { ['a'.repeat(201)]: null },
+      tooMany,
+    ]) {
+      expect(await raw.call('settings.setKeybindings', [patch])).toMatchObject({
+        ok: false,
+        error: { code: 'INVALID_ARGUMENT' },
+      });
+    }
+    expect(await raw.call('settings.getKeybindings', [1])).toMatchObject({
+      ok: false,
+      error: { code: 'INVALID_ARGUMENT' },
+    });
+  });
+
   it('extensions.setEnabled / setTrusted require an extension id and a boolean', async () => {
     const { dispatcher } = await connect();
     const [hostSide, rawSide] = createInProcessPair();

@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "@dolphy-app/engine-contract": "workspace:*",
+    "@dolphy-app/keybindings": "workspace:*",
     "ts-fsrs": "5.4.2",
     "yaml": "2.9.1",
     "zod": "4.6.5"

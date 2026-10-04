@@ -175,6 +175,7 @@ describe('extensions.invokeCommand → здоровье', () => {
             description: null,
             category: null,
             keybinding: null,
+            keybindings: [],
             palette: true,
           },
         ],

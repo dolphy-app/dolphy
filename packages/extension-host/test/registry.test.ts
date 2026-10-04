@@ -417,6 +417,7 @@ describe('createExtensionRegistry: titles and tags', () => {
         description: null,
         category: null,
         keybinding: null,
+        keybindings: [],
         palette: true,
       },
     ],

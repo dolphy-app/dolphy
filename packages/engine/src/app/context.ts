@@ -18,6 +18,7 @@ import type {
   UnitId,
   VerdictDto,
 } from '@dolphy-app/engine-contract';
+import type { Platform } from '@dolphy-app/keybindings';
 import type { LibraryHolder } from '../authoring/library-holder.ts';
 import type { AttemptEntry, LogEntry } from '../domain/journal.ts';
 import type { Library } from '../domain/library.ts';
@@ -118,6 +119,8 @@ export interface EngineDeps {
   extensionReloader: ExtensionReloader;
   /** Чтение файлового журнала (`extensions.readLogs`); нет порта — журнала нет, ответ пустой. */
   logReader?: LogReader;
+  /** Платформа хоста; по умолчанию `platformFromNode(process.platform)`. */
+  platform?: Platform;
   /** Нет порта — `sync.folder.*` отвечает `SYNC_FOLDER_NOT_CONFIGURED`. */
   folderSync?: FolderSyncPort;
   /** Чтение каталога `.trane` (`readTraneDirectory` из `@dolphy-app/engine-sqlite`); нет — `importFromTrane` отказывает. */
@@ -334,6 +337,8 @@ export interface EngineContext extends FacadeContext {
   readonly extensionApply: ExtensionApply;
   readonly folderSync: FolderSyncPort | null;
   readonly logReader: LogReader | null;
+  /** Платформа хоста: по ней `Mod` в пользовательских привязках раскрывается в Ctrl или ⌘ (`settings.setKeybindings`). */
+  readonly platform: Platform;
   readonly openTraneSource: EngineDeps['openTraneSource'];
   readonly repositoryStore: RepositoryStore;
   readonly extensionData: ExtensionDataStore;

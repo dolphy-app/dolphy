@@ -56,6 +56,14 @@ export {
   isGradePolicyId,
 } from './learning-settings.ts';
 export {
+  COMMAND_KEY_PATTERN,
+  DEFAULT_KEYBINDINGS_SETTINGS,
+  KEYBINDING_LIMITS,
+  KEY_MAX_LENGTH,
+  WHEN_MAX_LENGTH,
+  decodeKeybindingsSettings,
+} from './keybindings-settings.ts';
+export {
   DEFAULT_UI_SETTINGS,
   LOCALE_MODES,
   decodeUiSettings,

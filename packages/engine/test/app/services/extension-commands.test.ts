@@ -57,6 +57,7 @@ const command = (id: string, extensionId = ID): CommandContributionDto => ({
   description: null,
   category: null,
   keybinding: null,
+  keybindings: [],
   palette: true,
 });
 

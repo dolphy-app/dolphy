@@ -101,6 +101,7 @@ export interface TestEngineOptions {
   clock?: FakeClock;
   seed?: number;
   config?: Partial<EngineConfig>;
+  platform?: EngineDeps['platform'];
   folderSync?: EngineDeps['folderSync'];
   openTraneSource?: EngineDeps['openTraneSource'];
   repositoryStore?: RepositoryStore;
@@ -216,6 +217,7 @@ export const createTestContext = async (
       }),
     ...(options.folderSync !== undefined && { folderSync: options.folderSync }),
     ...(options.logReader !== undefined && { logReader: options.logReader }),
+    ...(options.platform !== undefined && { platform: options.platform }),
     ...(options.openTraneSource !== undefined && {
       openTraneSource: options.openTraneSource,
     }),

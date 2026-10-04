@@ -25,7 +25,9 @@ describe('здоровье расширения: хост → движок', () 
         [ID]: {
           activate: async (ctx) => {
             ctx.events.on('attempt.closed', () => {});
-            await new Promise((resolve) => setTimeout(resolve, 30));
+            await new Promise<void>((resolve) => {
+              setTimeout(resolve, 30);
+            });
           },
         },
         'acme.idle': { activate: () => {} },

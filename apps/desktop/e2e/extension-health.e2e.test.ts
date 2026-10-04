@@ -35,6 +35,22 @@ const runCommand = async (commands: CommandsClient, search: string) => {
   await commands.combobox.press('Enter');
 };
 
+/** Ждёт живой хост расширений и убивает его; `awaitRestart` — ждёт, пока супервизор поднимет новый. */
+const killExtensionHost = async (target: DolphyApp, awaitRestart: boolean) => {
+  let pid: number | null = null;
+  await expect
+    .poll(async () => (pid = await target.extensionHostPid()), {
+      timeout: 30_000,
+    })
+    .not.toBeNull();
+  process.kill(pid!, 'SIGKILL');
+  if (awaitRestart) {
+    await expect
+      .poll(async () => target.extensionHostPid(), { timeout: 30_000 })
+      .not.toBe(pid);
+  }
+};
+
 afterEach(async () => {
   await app?.close();
   app = null;
@@ -74,18 +90,7 @@ describe('здоровье расширений', () => {
 
     // супервизор перезапускает хост с паузой; убиваем каждый новый, пока он не сдастся
     for (let kill = 0; kill < 6; kill += 1) {
-      let pid: number | null = null;
-      await expect
-        .poll(async () => (pid = await app!.extensionHostPid()), {
-          timeout: 30_000,
-        })
-        .not.toBeNull();
-      process.kill(pid!, 'SIGKILL');
-      if (kill < 5) {
-        await expect
-          .poll(async () => app!.extensionHostPid(), { timeout: 30_000 })
-          .not.toBe(pid);
-      }
+      await killExtensionHost(app!, kill < 5);
     }
 
     const banner = page.getByTestId('host-gave-up');

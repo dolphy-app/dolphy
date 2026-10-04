@@ -4,7 +4,7 @@ import type {
   ExtensionMessagesDto,
 } from '@dolphy-app/engine-contract';
 import { resolveText } from '@dolphy-app/extension-api';
-import { useContributions } from '@/shared/api/engine';
+import { useContributions } from '@/shared/api/engine/contributions.ts';
 
 /** Подпись вклада расширения `extensionId` по таблицам вкладов; для кода вне компонентов. */
 export const textOfExtension = (

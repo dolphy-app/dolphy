@@ -154,7 +154,7 @@ describe('dolphy-ext catalog build', () => {
     );
     expect((await exec(args)).stdout).toBe('unchanged acme.night@1.0.0\n');
     const index = JSON.parse(
-      await readFile(path.join(out, 'index.json'), 'utf8'),
+      await readFile(path.join(out, 'index.v2.json'), 'utf8'),
     );
     expect(index.extensions).toHaveLength(1);
   });
@@ -178,7 +178,7 @@ describe('dolphy-ext catalog build', () => {
     expect(result.stderr).toBe(
       'error acme.night: README.md is missing or empty\n',
     );
-    await expect(readFile(path.join(out, 'index.json'))).rejects.toThrow();
+    await expect(readFile(path.join(out, 'index.v2.json'))).rejects.toThrow();
   });
 
   it('--previous-index, --revoked, --source-base и --published-at reach the build', async () => {
@@ -209,7 +209,7 @@ describe('dolphy-ext catalog build', () => {
     ]);
     expect(result.code).toBe(0);
     const index = JSON.parse(
-      await readFile(path.join(out, 'index.json'), 'utf8'),
+      await readFile(path.join(out, 'index.v2.json'), 'utf8'),
     );
     expect(index.extensions[0].source).toBe('https://example.org/x/acme.night');
     expect(index.extensions[0].versions[0].publishedAt).toBe(
@@ -233,7 +233,7 @@ describe('dolphy-ext catalog build --reindex', () => {
       '--out',
       out,
     ]);
-    const indexFile = path.join(out, 'index.json');
+    const indexFile = path.join(out, 'index.v2.json');
     const revokedFile = path.join(out, 'revoked.json');
     return { out, indexFile, revokedFile };
   };
@@ -300,7 +300,7 @@ describe('dolphy-ext catalog build --reindex', () => {
     ]);
     expect(result.code).toBe(0);
     expect(
-      (await readIndex(path.join(target, 'index.json'))).extensions,
+      (await readIndex(path.join(target, 'index.v2.json'))).extensions,
     ).toHaveLength(1);
   });
 
@@ -376,7 +376,7 @@ describe('dolphy-ext catalog build --reindex', () => {
 });
 
 describe('catalog build: rerun without changes', () => {
-  it('all extensions unchanged and the same revocation — index.json stays as it was', async () => {
+  it('all extensions unchanged and the same revocation — index.v2.json stays as it was', async () => {
     const repo = await createRepo([{ fixture: 'theme-only' }]);
     const out = await makeTemp();
     const args = [
@@ -390,7 +390,7 @@ describe('catalog build: rerun without changes', () => {
       out,
     ];
     await exec(args);
-    const indexFile = path.join(out, 'index.json');
+    const indexFile = path.join(out, 'index.v2.json');
     const before = await readFile(indexFile, 'utf8');
     const again = await exec(args, {
       now: () => new Date('2040-01-01T00:00:00.000Z'),

@@ -29,6 +29,7 @@ const fixture = (name: string) =>
 const COMMANDS_DIR = fixture('commands-extension');
 const COMMANDS_1_1_DIR = fixture('commands-extension-1.1.0');
 const VICTIM_DIR = fixture('commands-victim-extension');
+const SLOW_START_DIR = fixture('slow-start-extension');
 
 const COMMANDS: CatalogSource = {
   dir: COMMANDS_DIR,
@@ -278,6 +279,32 @@ describe('палитра команд (R4, R8)', () => {
     await expect
       .poll(() => commands.options.first().getAttribute('aria-disabled'))
       .toBe('false');
+  });
+});
+
+describe('срок активации (R4, R5, R7)', () => {
+  it('расширение с вечным activate(): команда из палитры — «не запустилось за 10 с», повтор отвечает сразу тем же сообщением', async () => {
+    const { commands } = await prepare({ 'acme.slowstart': SLOW_START_DIR });
+    const run = async () => {
+      await commands.openPalette();
+      await commands.search('медленное расширение');
+      await commands.combobox.press('Enter');
+    };
+    const started = Date.now();
+    await run();
+    await expectText(
+      commands.notice,
+      'Расширение не запустилось за 10 с',
+      30_000,
+    );
+    expect(Date.now() - started).toBeGreaterThanOrEqual(9_000);
+
+    // сбой запомнен: новая активация не запускается, ответ приходит без ожидания срока
+    const again = Date.now();
+    await commands.notice.getByRole('button', { name: 'Закрыть' }).click();
+    await run();
+    await expectText(commands.notice, 'Расширение не запустилось за 10 с');
+    expect(Date.now() - again).toBeLessThan(5_000);
   });
 });
 

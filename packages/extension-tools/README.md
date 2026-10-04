@@ -193,8 +193,6 @@ catalog filters: up to 5 unique values of `learning`, `language`, `content`,
 or a sixth tag is a manifest error (`tags.N: tag must be one of: …`) reported
 by `validate`, `build` and `catalog check` (`CHECK-001`). Without `tags` the app
 derives them from the contributions; an explicit list replaces the derived one.
-An app older than this field rejects an `extension.json` that contains `tags`,
-which is why a tagged version is left out of `index.json`.
 
 ## Output
 
@@ -254,9 +252,8 @@ the same code the app uses.
 Checks the sources in `<extensionsDir>/<id>/` (a `dolphy-ext` project without
 `node_modules`, `dist-ext`, `.dolphy` and `.git`) against the rules below. `--ids a,b`
 limits the check to the listed extensions (all directories by default);
-`--published-index <path>` is the `index.json` of the published catalog for
-`CHECK-012` (the full `index.v2.json` is the better choice; no file means nothing
-is published); `--max-app-version <x.y.z>` is
+`--published-index <path>` is the `index.v2.json` of the published catalog for
+`CHECK-012` (no file means nothing is published); `--max-app-version <x.y.z>` is
 the released app version for `CHECK-016`; `--skip-github-check` turns off the
 `api.github.com` request for `CHECK-006` (the API token is `GITHUB_TOKEN`);
 `--list-rules` prints the rules and exits.
@@ -306,25 +303,15 @@ gets `titles`: the `label` (themes, grade policies, settings) or `title`
 point; points without contributions are omitted, and so is the whole key when
 nothing has a title. The version record gets `tags` from the manifest of that
 version (omitted when empty). Rebuilding without a version bump refreshes the
-titles. A tagged version appears only in `index.v2.json`, but its older untagged
-versions keep the extension visible in `index.json`.
+titles.
 
-Two files are published, always together and with the same `generatedAt`:
+One file is published: `index.v2.json` (`schemaVersion: 2`). Every version of
+an extension is in it, whatever file types, permissions, `icon`, `tags` and
+contribution points it uses. The app reads it next to the catalog address; the
+address (`catalogUrl`) stays the identity of installed extensions. No
+`index.json` is written.
 
-- `index.v2.json` (`schemaVersion: 2`) — the full index, which the current app
-  reads next to the catalog address;
-- `index.json` (`schemaVersion: 1`) — the subset that every released app
-  parses strictly (an unknown key, file type or permission makes a released app
-  reject the whole catalog). Versions with new file types, an `icon`, `tags`, more
-  than 50 files or a permission such as `learning.events`, and entries with
-  `settings`, `events`, `commands` or `panels` contributions are left out of it;
-  the `titles` key of the remaining entries is dropped;
-  an extension left without versions is skipped. The summary line says
-  `only in index.v2.json` for such a version. The catalog identity of installed
-  extensions stays the address of `index.json`.
-
-- `--previous-index <path>` — the source index (`<out>/index.v2.json` if it
-  exists, else `<out>/index.json`, by default);
+- `--previous-index <path>` — the source index (`<out>/index.v2.json` by default);
 - `--revoked <path>` — a JSON array of `{ id, versions, reason }` (without the
   flag the list from the source index is used);
 - `--source-base <url>` — the base of the `source` field (by default the
@@ -332,7 +319,7 @@ Two files are published, always together and with the same `generatedAt`:
 - `--published-at <iso>` — `publishedAt` of the new versions (now by default).
 
 `catalog build --reindex --out <siteDir>` replaces only `revoked` and
-`generatedAt` in both indexes (extension entries do not change; `--src` and
+`generatedAt` in the index (extension entries do not change; `--src` and
 `--ids` are not needed): this is how a version revocation is published
 without a new build.
 

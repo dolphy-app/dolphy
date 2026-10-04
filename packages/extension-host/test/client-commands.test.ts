@@ -145,6 +145,7 @@ describe('createRemoteExtensionCommands', () => {
     ['replaced', 'replaced'],
     ['handler-timeout', 'timeout'],
     ['activation-failed', 'handler-failed'],
+    ['activation-timeout', 'activation-timeout'],
     ['unknown-type', 'handler-failed'],
   ])('причина хоста %s -> %s', async (cause, expected) => {
     const { commands } = setup({

@@ -7,8 +7,8 @@ import {
   useLocaleSelection,
   useThemeSelection,
 } from '@/shared/api/engine';
-import { vuetifyThemeName } from '@/shared/lib/extension-themes.ts';
 import { useAppearanceSettings } from '../model/appearance.ts';
+import { buildThemeTiles } from '../model/theme-tiles.ts';
 import SectionHeader from './SectionHeader.vue';
 import SettingsRow from './SettingsRow.vue';
 import ThemeTile from './ThemeTile.vue';
@@ -23,20 +23,12 @@ const { mode, localeMode, error, select, selectLocale } = useAppearanceSettings(
   () => contributions.value.themes,
 );
 
-const themeTiles = computed(() => [
-  ...(['system', 'light', 'dark'] as const).map((id) => ({
-    id,
-    label: t(`settings.appearance.theme.${id}`),
-    caption: '',
-    names: id === 'system' ? ['light', 'dark'] : [id],
-  })),
-  ...contributions.value.themes.map((theme) => ({
-    id: theme.id,
-    label: theme.label,
-    caption: theme.extensionId,
-    names: [vuetifyThemeName(theme.id)],
-  })),
-]);
+const themeTiles = computed(() =>
+  buildThemeTiles(
+    (id) => t(`settings.appearance.theme.${id}`),
+    contributions.value.themes,
+  ),
+);
 
 const localeItems = computed(() =>
   LOCALE_MODES.map((value) => ({
@@ -75,7 +67,7 @@ const localeItems = computed(() =>
           :mode="tile.id"
           :theme-names="tile.names"
           :label="tile.label"
-          :caption="tile.caption"
+          :tooltip="tile.tooltip"
           :selected="mode === tile.id"
           @select="select"
         />

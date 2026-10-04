@@ -4,14 +4,8 @@
  * installer, the protocol and the author tools read the same constants.
  */
 
-/** File extensions the first catalog format accepts (the released apps parse only these). */
-export const LEGACY_FILE_EXTENSIONS = [
-  'json',
-  'js',
-  'mjs',
-  'md',
-  'txt',
-] as const;
+/** Extensions of a version's own files: manifest, code, schemas, documentation. */
+const SOURCE_FILE_EXTENSIONS = ['json', 'js', 'mjs', 'md', 'txt'] as const;
 
 /** Style sheets, images and fonts an extension may ship. */
 export const ASSET_EXTENSIONS = [
@@ -27,13 +21,13 @@ export const ASSET_EXTENSIONS = [
 export type AssetExtension = (typeof ASSET_EXTENSIONS)[number];
 export type BinaryAssetExtension = Exclude<AssetExtension, 'css' | 'svg'>;
 
-/** Every extension a file of a version may have in the full index. */
+/** Every extension a file of a version may have. */
 export const CATALOG_FILE_EXTENSIONS: readonly string[] = [
-  ...LEGACY_FILE_EXTENSIONS,
+  ...SOURCE_FILE_EXTENSIONS,
   ...ASSET_EXTENSIONS,
 ];
 
-/** Files in a version in the full index (`index.v2.json`); the first format stays at `MAX_FILES`. */
+/** Most files in a version of `index.v2.json`. */
 export const MAX_FILES_V2 = 100;
 
 const KIB = 1024;

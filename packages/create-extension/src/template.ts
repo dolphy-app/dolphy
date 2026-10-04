@@ -416,10 +416,16 @@ export const readme = (id: string): string =>
     'pnpm test',
     '```',
     '',
-    '## Manual installation',
+    '## Installation',
     '',
-    `Copy the \`dist-ext/${id}\` directory to \`<userData>/extensions/\``,
-    'and restart the app. There is no installation from the app yet.',
+    'From the catalog: Settings → Extensions → Catalog.',
+    '',
+    `By hand: copy the \`dist-ext/${id}\` directory to`,
+    '`<userData>/extensions/` and restart the app.',
+    '',
+    'To try the extension while developing, set `DOLPHY_DEV_EXTENSIONS` to the',
+    'project `dist-ext` directory when starting the app (read only by an',
+    'unpackaged app).',
   ]);
 
 export const gitignore = (): string =>

@@ -8,7 +8,6 @@ import type { BuildCatalogOptions } from '../src/catalog/build.ts';
 import { assembleIndex, hasSameContent } from '../src/catalog/index-file.ts';
 import { createRepo, readJson, setVersion } from './catalog-helpers.ts';
 import type { Repo } from './catalog-helpers.ts';
-import { parseIndex as parseReleasedIndex } from './fixtures/released-schema-v1.ts';
 import { makeTemp } from './helpers.ts';
 
 const NIGHT = 'acme.night';
@@ -31,10 +30,6 @@ const publish = (
 
 const fullOf = async (out: string) =>
   parseIndex(await readJson(path.join(out, 'index.v2.json')));
-
-/** The first-format index as the released app v0.2.0 reads it: strictly. */
-const releasedOf = async (out: string) =>
-  parseReleasedIndex(await readJson(path.join(out, 'index.json')));
 
 describe('catalog build: titles', () => {
   it('writes the titles of the newest manifest and omits points without any', async () => {
@@ -88,8 +83,8 @@ describe('catalog build: titles', () => {
   });
 });
 
-describe('catalog build: tags and the first format', () => {
-  it('keeps a tagged entry visible to released apps through its older untagged versions', async () => {
+describe('catalog build: tags', () => {
+  it('records tags per version: a tagged version next to an older untagged one', async () => {
     const repo = await createRepo([{ fixture: 'theme-only' }]);
     const out = await makeTemp();
     await publish(repo, out, [NIGHT]);
@@ -100,8 +95,7 @@ describe('catalog build: tags and the first format', () => {
       manifestFile,
       JSON.stringify({ ...manifest, tags: ['theme', 'interface'] }),
     );
-    const [published] = await publish(repo, out, [NIGHT]);
-    expect(published?.inLegacyIndex).toBe(false);
+    await publish(repo, out, [NIGHT]);
 
     const full = (await fullOf(out)).extensions[0];
     expect(full?.versions.map((v) => [v.version, v.tags])).toEqual([
@@ -110,26 +104,6 @@ describe('catalog build: tags and the first format', () => {
     ]);
     expect(full?.versions[1]).not.toHaveProperty('tags');
     expect(full?.titles).toEqual({ themes: { [NIGHT]: 'Night' } });
-
-    const released = await releasedOf(out);
-    expect(released.extensions).toHaveLength(1);
-    expect(released.extensions[0]?.versions.map((v) => v.version)).toEqual([
-      '1.0.0',
-    ]);
-    const raw = await readJson(path.join(out, 'index.json'));
-    expect(JSON.stringify(raw)).not.toMatch(/titles|tags/);
-  });
-
-  it('hides an extension whose only version is tagged from released apps, not from the full index', async () => {
-    const repo = await createRepo([
-      { fixture: 'theme-only', manifest: { tags: ['theme'] } },
-    ]);
-    const out = await makeTemp();
-    await publish(repo, out, [NIGHT]);
-    expect((await releasedOf(out)).extensions).toEqual([]);
-    expect((await fullOf(out)).extensions[0]?.versions[0]?.tags).toEqual([
-      'theme',
-    ]);
   });
 
   it('writes tags of the version only when the manifest has them', async () => {

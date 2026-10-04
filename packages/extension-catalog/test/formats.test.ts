@@ -3,8 +3,6 @@ import {
   ASSET_LIMITS,
   CatalogFormatError,
   fullIndexUrl,
-  legacyIndexSchema,
-  legacySubset,
   parseIndex,
   parseIndexLenient,
 } from '../src/index.ts';
@@ -54,18 +52,13 @@ describe('full index (schemaVersion 2)', () => {
     expect(parsed.extensions[0]?.versions[0]?.icon).toBe(ICON);
   });
 
-  it('allows up to 100 files, the first format only 50', () => {
+  it('allows up to 100 files', () => {
     const many = (count: number) => [
       manifestFile,
       ...Array.from({ length: count - 1 }, (_, i) => file(`a/f${i}.json`)),
     ];
     expect(issuesOf(full([withFiles(many(100))]))).toEqual([]);
     expect(issuesOf(full([withFiles(many(101))]))[0]).toContain('files');
-    const legacy = {
-      ...(full([withFiles(many(51))]) as object),
-      schemaVersion: 1,
-    };
-    expect(issuesOf(legacy)).not.toEqual([]);
   });
 
   it('rejects uppercase and unknown extensions', () => {
@@ -102,18 +95,9 @@ describe('full index (schemaVersion 2)', () => {
     );
   });
 
-  it('treats schemaVersion 1 as the first format: no icon, no asset files', () => {
-    const asLegacy = (e: unknown) => ({
-      ...(full([e]) as object),
-      schemaVersion: 1,
-    });
-    expect(
-      issuesOf(asLegacy(withFiles([manifestFile], { icon: ICON })))[0],
-    ).toContain('icon');
-    expect(
-      issuesOf(asLegacy(withFiles([manifestFile, file('a.css')])))[0],
-    ).toContain('files.1.path');
-    expect(issuesOf(asLegacy(entry()))).toEqual([]);
+  it('rejects the first format: schemaVersion 1 is not an index', () => {
+    const first = { ...(full([entry()]) as object), schemaVersion: 1 };
+    expect(issuesOf(first)[0]).toContain('schemaVersion');
   });
 
   it('accepts titles and tags of the contributions that exist', () => {
@@ -159,126 +143,6 @@ describe('full index (schemaVersion 2)', () => {
     expect(
       tagged(['learning', 'language', 'content', 'theme', 'interface']),
     ).toEqual([]);
-  });
-
-  it('does not know titles and tags in the first format', () => {
-    const asLegacy = (e: unknown) => ({
-      ...(full([e]) as object),
-      schemaVersion: 1,
-    });
-    expect(
-      issuesOf(
-        asLegacy(
-          entry({
-            contributes: { ...entry().contributes, themes: ['acme.t'] },
-            titles: { themes: { 'acme.t': 'T' } },
-          }),
-        ),
-      )[0],
-    ).toContain('titles');
-    expect(
-      issuesOf(
-        asLegacy(entry({ versions: [version({ tags: ['theme'] })] })),
-      )[0],
-    ).toContain('tags');
-  });
-});
-
-describe('legacySubset', () => {
-  const plain = entry();
-  const styled = entry({
-    id: 'acme.styled',
-    versions: [
-      version({
-        version: '2.0.0',
-        files: [manifestFile, file('a.css')],
-      }),
-      version({ version: '1.0.0' }),
-    ],
-  });
-  const onlyStyled = entry({
-    id: 'acme.only',
-    versions: [
-      version({ version: '1.0.0', files: [manifestFile, file('a.png')] }),
-    ],
-  });
-  const iconOnly = entry({
-    id: 'acme.icon',
-    versions: [version({ icon: ICON })],
-  });
-  const newPermission = entry({
-    id: 'acme.events',
-    versions: [version({ permissions: ['learning.events'] })],
-  });
-  const withPanels = entry({
-    id: 'acme.panels',
-    contributes: { ...entry().contributes, panels: ['acme.panels.main'] },
-  });
-  const source = parseIndex(
-    full([plain, styled, onlyStyled, iconOnly, newPermission, withPanels]),
-  );
-
-  it('keeps what a released app parses and drops the rest', () => {
-    const subset = legacySubset(source);
-    expect(subset.schemaVersion).toBe(1);
-    expect(subset.extensions.map((e) => e.id)).toEqual([
-      'acme.quiz',
-      'acme.styled',
-    ]);
-    expect(subset.extensions[1]?.versions.map((v) => v.version)).toEqual([
-      '1.0.0',
-    ]);
-    expect(subset.revoked).toEqual(source.revoked);
-  });
-
-  it('is valid in the first format', () => {
-    expect(legacyIndexSchema.safeParse(legacySubset(source)).success).toBe(
-      true,
-    );
-    expect(
-      parseIndex(JSON.parse(JSON.stringify(legacySubset(source)))),
-    ).toEqual(legacySubset(source));
-  });
-
-  it('strips titles but keeps the entry visible', () => {
-    const titled = entry({
-      id: 'acme.titled',
-      contributes: { ...entry().contributes, themes: ['acme.titled.dark'] },
-      titles: { themes: { 'acme.titled.dark': 'Dark' } },
-    });
-    const subset = legacySubset(parseIndex(full([titled])));
-    expect(subset.extensions.map((e) => e.id)).toEqual(['acme.titled']);
-    expect(subset.extensions[0]).not.toHaveProperty('titles');
-    expect(legacyIndexSchema.safeParse(subset).success).toBe(true);
-  });
-
-  it('leaves a tagged version out and keeps the older untagged ones', () => {
-    const tagged = entry({
-      id: 'acme.tagged',
-      versions: [
-        version({ version: '2.0.0', tags: ['theme', 'interface'] }),
-        version({ version: '1.0.0' }),
-      ],
-    });
-    const onlyTagged = entry({
-      id: 'acme.only-tagged',
-      versions: [version({ tags: ['learning'] })],
-    });
-    const subset = legacySubset(parseIndex(full([tagged, onlyTagged])));
-    expect(subset.extensions.map((e) => e.id)).toEqual(['acme.tagged']);
-    expect(subset.extensions[0]?.versions.map((v) => v.version)).toEqual([
-      '1.0.0',
-    ]);
-    expect(legacyIndexSchema.safeParse(subset).success).toBe(true);
-  });
-
-  it('drops a version with more than 50 files', () => {
-    const files = [
-      manifestFile,
-      ...Array.from({ length: 60 }, (_, i) => file(`a/f${i}.json`)),
-    ];
-    const wide = parseIndex(full([withFiles(files)]));
-    expect(legacySubset(wide).extensions).toEqual([]);
   });
 });
 
@@ -365,12 +229,10 @@ describe('parseIndexLenient', () => {
     ]);
   });
 
-  it('reads an index of the first format as well', () => {
-    const { index } = lenient({
-      ...(full([good]) as object),
-      schemaVersion: 1,
-    });
-    expect(index.schemaVersion).toBe(1);
+  it('rejects the first format as a whole', () => {
+    expect(() =>
+      lenient({ ...(full([good]) as object), schemaVersion: 1 }),
+    ).toThrow(CatalogFormatError);
   });
 
   it('keeps the entry when its titles are unreadable and drops the titles', () => {

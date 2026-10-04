@@ -35,14 +35,14 @@ export const CATALOG_HELP = `  catalog check    check the catalog's extension so
                    «error|warning <id> <RULE-ID> <field>: <message>»,
                    exit code 1 if any error
   catalog build    build versions into <siteDir>/extensions/<id>/<version>/ and
-                   update <siteDir>/index.json (published versions are
+                   update <siteDir>/index.v2.json (published versions are
                    immutable)
   catalog build --reindex
                    only replace revoked and generatedAt in the existing
-                   <siteDir>/index.json (--src and --ids are not needed)
+                   <siteDir>/index.v2.json (--src and --ids are not needed)
 
   --ids a,b              only these extensions (check: all by default)
-  --published-index <p>  index.json of the published catalog (no file —
+  --published-index <p>  index.v2.json of the published catalog (no file —
                          nothing is published)
   --max-app-version <v>  minAppVersion must not be newer
   --skip-github-check    do not verify the author via api.github.com
@@ -50,7 +50,7 @@ export const CATALOG_HELP = `  catalog check    check the catalog's extension so
   --list-rules           print the check rules
   --src <dir>            directory of projects <dir>/<id>
   --out <dir>            site root
-  --previous-index <p>   source index (default <out>/index.json)
+  --previous-index <p>   source index (default <out>/index.v2.json)
   --revoked <p>          JSON array {id, versions, reason}
   --source-base <url>    base for the index entry's source field
   --published-at <iso>   publishedAt of new versions (default now);

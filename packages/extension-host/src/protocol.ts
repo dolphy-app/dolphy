@@ -155,6 +155,7 @@ export type ExtFailureCause =
   | 'unknown-policy'
   | 'unknown-command'
   | 'handler-timeout'
+  | 'activation-timeout'
   | 'replaced';
 
 export type ExtResponse =

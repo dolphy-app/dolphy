@@ -4,7 +4,7 @@ branch: feature/extension-authoring
 created: 2026-10-04
 closed: null
 touches: [create-extension, extension-tools, extension-sdk, desktop]
-depends-on: [specs/extension-foundation, specs/extension-housekeeping]
+depends-on: [specs/extension-foundation, specs/archive/2026-10-04-extension-housekeeping]
 supersedes: null
 superseded-by: null
 ---
@@ -19,7 +19,7 @@ superseded-by: null
 
 ## Не цели
 
-- Сайт документации, typedoc-сайт, витрина каталога, `dolphy-ext analyze`, мастер «новое расширение» в приложении (отложено, список — `specs/extension-housekeeping`, Decision Log).
+- Сайт документации, typedoc-сайт, витрина каталога, `dolphy-ext analyze`, мастер «новое расширение» в приложении (отложено, список — `specs/archive/2026-10-04-extension-housekeeping`, Decision Log).
 - Новые ключи манифеста, точки вклада, разрешения и методы `ctx`; изменения контракта и RPC.
 - Подписанные публикации, проверка издателей, песочница ОС, запрет сети: правило «первый издатель владеет id» — проверка CI по логину автора, а не криптографическое владение.
 - Отладка Node-кода расширения в отладчике: хост расширений запускается без инспектора (ADR 0011); остаются журнал и `ctx.logger`.
@@ -97,7 +97,7 @@ superseded-by: null
 - 2026-10-04. Шаблон по умолчанию остаётся `exercise`. Причина: `docs.test.ts` и привычный выход генератора.
 - 2026-10-04. Обратная совместимость не обеспечивается (владелец): приложение и расширения сырые, ломаем сразу. Причина: экономия усилий, нет внешних пользователей API.
 - 2026-10-04. Безопасность — как у Obsidian: ревью, безопасный режим, диагностика; независимый аудит, песочница ОС, подписанный индекс, принудительное ограничение сети вне всех волн. Эвристики `lint` — подсказки ревью, не защита.
-- 2026-10-04. Отложенное (сайт документации, typedoc, витрина, `analyze`, постраничный индекс, мастер в приложении, хуки планировщика, сервисы между расширениями, матрица совместимости, автообновление) — единый список в Decision Log `specs/extension-housekeeping`.
+- 2026-10-04. Отложенное (сайт документации, typedoc, витрина, `analyze`, постраничный индекс, мастер в приложении, хуки планировщика, сервисы между расширениями, матрица совместимости, автообновление) — единый список в Decision Log `specs/archive/2026-10-04-extension-housekeeping`.
 - 2026-10-04. Порядок волн: W0 `extension-housekeeping`, W1 `extension-foundation`, W2 `extension-api-breadth-1`, W3 `extension-authoring` (параллельно W2), W4, W5. Стадии 3a–3c от W1 не зависят; `debugging.md` (3d) ждёт журнал W1 (1b).
 
 ## Outcomes

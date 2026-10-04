@@ -239,6 +239,11 @@ onBeforeUnmount(() => {
   overflow-x: visible;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
+
+  /* перенесённая часть строки сдвинута вправо: без отступа `new TypeError(…)`
+     в начале строки читается как новая инструкция */
+  padding-inline-start: calc(1rem + 4ch);
+  text-indent: -4ch each-line;
 }
 
 .reading :deep(code) {

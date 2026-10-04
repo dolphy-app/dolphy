@@ -20,6 +20,7 @@ const command = (name: string) => ({
   description: null,
   category: null,
   keybinding: null,
+  keybindings: [],
   palette: true,
 });
 

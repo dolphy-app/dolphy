@@ -1,0 +1,23 @@
+{
+  "id": "acme.hostile-readme",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "name": "Hostile readme",
+  "description": "Тема с враждебным README",
+  "author": "acme",
+  "contributes": {
+    "themes": [
+      {
+        "id": "acme.hostile-readme",
+        "label": "Враждебный",
+        "dark": false,
+        "colors": {
+          "background": "#FFF4E5",
+          "surface": "#FFFFFF",
+          "primary": "#C2410C",
+          "on-primary": "#FFFFFF"
+        }
+      }
+    ]
+  }
+}

@@ -11,6 +11,8 @@ import {
 export interface EntryStat {
   kind: 'directory' | 'file' | 'symlink' | 'other';
   mtimeMs: number;
+  /** Размер файла в байтах. */
+  size: number;
 }
 
 /** Файловые операции установщика; внедряются, чтобы тесты могли ломать отдельные шаги. */
@@ -18,6 +20,7 @@ export interface InstallerFs {
   /** Рекурсивно создаёт каталог. */
   mkdir(dir: string): Promise<void>;
   readText(file: string): Promise<string>;
+  readBytes(file: string): Promise<Uint8Array>;
   writeFile(file: string, data: string | Uint8Array): Promise<void>;
   rename(from: string, to: string): Promise<void>;
   /** Рекурсивно удаляет; отсутствие пути — не ошибка. Символические ссылки не разыменовываются. */
@@ -44,6 +47,7 @@ export const nodeFs: InstallerFs = {
     await mkdir(dir, { recursive: true });
   },
   readText: (file) => readFile(file, 'utf8'),
+  readBytes: (file) => readFile(file),
   writeFile: (file, data) => writeFile(file, data),
   rename,
   remove: (target) => rm(target, { recursive: true, force: true }),
@@ -58,7 +62,7 @@ export const nodeFs: InstallerFs = {
   stat: async (target) => {
     try {
       const stats = await lstat(target);
-      return { kind: kindOf(stats), mtimeMs: stats.mtimeMs };
+      return { kind: kindOf(stats), mtimeMs: stats.mtimeMs, size: stats.size };
     } catch (error) {
       if (isMissing(error)) return null;
       throw error;

@@ -83,6 +83,14 @@ interface Revocation {
   reason: string;
 }
 
+/** Пометка «устарело» записи индекса (`deprecated.json` каталога). */
+export interface Deprecation {
+  /** Диапазон версий; `null` — все. */
+  versions: string | null;
+  reason: string;
+  alternatives: string[];
+}
+
 export interface CatalogServerOptions {
   /**
    * `false` — индекс не опубликован: на `index.v2.json` ответ 404 (как у каталога, который
@@ -100,6 +108,10 @@ export interface CatalogServer {
   publish(source: CatalogSource): Promise<void>;
   /** Отзывает версии по диапазону (`<1.2.0`, `1.1.0`). */
   revoke(id: string, versions: string, reason: string): void;
+  /** Помечает расширение устаревшим (`versions: null` — все версии). */
+  deprecate(id: string, deprecation: Deprecation): void;
+  /** Снимает пометку «устарело». */
+  undeprecate(id: string): void;
   /** Сервер отдаёт неверные байты для одного файла версии (sha256 в индексе прежний). */
   tamper(id: string, version: string, path: string): void;
   /** `true` — все запросы получают 503. */
@@ -251,6 +263,7 @@ export const startCatalogServer = async (
   const publishIndex = options.publishIndex ?? true;
   const extensions = new Map<string, PublishedExtension>();
   const revoked: Revocation[] = [];
+  const deprecations = new Map<string, Deprecation>();
   const tampered = new Set<string>();
   const requests: string[] = [];
   let offline = false;
@@ -310,6 +323,9 @@ export const startCatalogServer = async (
         ...(Object.keys(entry.titles).length === 0
           ? {}
           : { titles: entry.titles }),
+        ...(deprecations.has(entry.id)
+          ? { deprecated: deprecations.get(entry.id) }
+          : {}),
         versions: entry.versions.map((version) => ({
           version: version.version,
           apiVersion: version.apiVersion,
@@ -411,6 +427,14 @@ export const startCatalogServer = async (
     },
     revoke: (id, versions, reason) => {
       revoked.push({ id, versions, reason });
+      invalidate();
+    },
+    deprecate: (id, deprecation) => {
+      deprecations.set(id, deprecation);
+      invalidate();
+    },
+    undeprecate: (id) => {
+      deprecations.delete(id);
       invalidate();
     },
     tamper: (id, version, path) => {

@@ -114,6 +114,9 @@ importers:
       '@dolphy-app/extension-install':
         specifier: workspace:*
         version: link:../../packages/extension-install
+      '@dolphy-app/keybindings':
+        specifier: workspace:*
+        version: link:../../packages/keybindings
       '@electron/fuses':
         specifier: 1.8.0
         version: 1.8.0
@@ -211,6 +214,9 @@ importers:
       '@dolphy-app/engine-contract':
         specifier: workspace:*
         version: link:../engine-contract
+      '@dolphy-app/keybindings':
+        specifier: workspace:*
+        version: link:../keybindings
       ts-fsrs:
         specifier: 5.4.2
         version: 5.4.2
@@ -476,6 +482,9 @@ importers:
       '@dolphy-app/extension-catalog':
         specifier: workspace:*
         version: link:../extension-catalog
+      '@dolphy-app/keybindings':
+        specifier: workspace:*
+        version: link:../keybindings
       ajv:
         specifier: ^8
         version: 8.20.0
@@ -561,6 +570,15 @@ importers:
       ajv:
         specifier: ^8
         version: 8.20.0
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  packages/keybindings:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.20.4
+        version: 22.20.4
       typescript:
         specifier: 7.0.2
         version: 7.0.2

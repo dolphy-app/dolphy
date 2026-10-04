@@ -49,6 +49,11 @@ const SEGMENT = /^[A-Za-z0-9_-][A-Za-z0-9._-]*$/;
 /** Имена устройств Windows: недоступны как файлы, с расширением или без. */
 const RESERVED_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
 
+const describeIssues = (error: z.ZodError, prefix = ''): string[] =>
+  error.issues.map(
+    (issue) => `${prefix}${issue.path.join('.') || '/'}: ${issue.message}`,
+  );
+
 const semver = z.string().refine(isSemver, 'must be semver');
 const timestamp = z.iso.datetime({ offset: true });
 const httpsUrl = z
@@ -127,6 +132,53 @@ const revokedSchema = z.strictObject({
   versions: rangeText,
   reason: z.string().min(1).max(300),
 });
+
+/** Deprecation of an entry: a warning, not a revocation. `versions: null` — every version. */
+export const MAX_DEPRECATION_REASON = 200;
+export const MAX_ALTERNATIVES = 3;
+const deprecatedShape = {
+  versions: rangeText.nullable(),
+  reason: z.string().min(1).max(MAX_DEPRECATION_REASON),
+  alternatives: z.array(extensionId).max(MAX_ALTERNATIVES),
+};
+const strictDeprecated = z.strictObject(deprecatedShape);
+/** The tolerant reader drops an unreadable `deprecated`; the entry stays. */
+const tolerantDeprecated = z
+  .object(deprecatedShape)
+  .optional()
+  .catch(undefined);
+
+/** One item of `deprecated.json` in the catalog repository: no `versions` — every version. */
+export const deprecatedItemSchema = z.strictObject({
+  id: extensionId,
+  versions: rangeText.optional(),
+  reason: deprecatedShape.reason,
+  alternatives: deprecatedShape.alternatives,
+});
+export type DeprecatedItem = z.infer<typeof deprecatedItemSchema>;
+
+const deprecatedListSchema = z
+  .array(deprecatedItemSchema)
+  .superRefine((items, ctx) => {
+    const seen = new Set<string>();
+    items.forEach((item, position) => {
+      if (seen.has(item.id)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [position, 'id'],
+          message: `duplicate id '${item.id}'`,
+        });
+      }
+      seen.add(item.id);
+    });
+  });
+
+/** Strict parse of `deprecated.json`; throws `CatalogFormatError` (also for a repeated `id`). */
+export const parseDeprecatedList = (raw: unknown): DeprecatedItem[] => {
+  const result = deprecatedListSchema.safeParse(raw);
+  if (result.success) return result.data;
+  throw new CatalogFormatError(describeIssues(result.error));
+};
 
 /** `strict: false` — the tolerant reader of the app: unknown keys are dropped instead of rejected. */
 interface Profile {
@@ -285,6 +337,7 @@ const entryHeadOf = (profile: Profile) => ({
   platforms: z.array(z.enum(EXTENSION_PLATFORMS)),
   contributes: contributesSchemaOf(profile),
   titles: titlesSchemaOf(profile),
+  deprecated: profile.strict ? strictDeprecated.optional() : tolerantDeprecated,
 });
 
 const entrySchemaOf = (profile: Profile) =>
@@ -332,11 +385,7 @@ export type CatalogEntry = CatalogIndex['extensions'][number];
 export type CatalogVersion = CatalogEntry['versions'][number];
 export type CatalogFile = CatalogVersion['files'][number];
 export type RevokedEntry = CatalogIndex['revoked'][number];
-
-const describeIssues = (error: z.ZodError, prefix = ''): string[] =>
-  error.issues.map(
-    (issue) => `${prefix}${issue.path.join('.') || '/'}: ${issue.message}`,
-  );
+export type Deprecation = NonNullable<CatalogEntry['deprecated']>;
 
 /**
  * Strict parse for the author tools: unknown keys, file types and limits fail.

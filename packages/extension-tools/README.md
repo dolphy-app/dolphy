@@ -239,13 +239,15 @@ dolphy-ext validate <dir>
 dolphy-ext lint [dir] [--built <dir>]
 dolphy-ext dev [dir] [--app <path>]
 dolphy-ext catalog check <extensionsDir> [--ids a,b]
-            [--published-index <path>] [--max-app-version <x.y.z>]
+            [--published-index <path>] [--deprecated <path>]
+            [--max-app-version <x.y.z>]
             [--built <siteDir>] [--skip-github-check] [--list-rules]
 dolphy-ext catalog build --src <extensionsDir> --ids a,b --out <siteDir>
             [--previous-index <path>] [--revoked <path>]
-            [--source-base <url>] [--published-at <iso>]
+            [--deprecated <path>] [--source-base <url>] [--published-at <iso>]
 dolphy-ext catalog build --reindex --out <siteDir>
-            [--previous-index <path>] [--revoked <path>] [--published-at <iso>]
+            [--previous-index <path>] [--revoked <path>]
+            [--deprecated <path>] [--published-at <iso>]
 dolphy-ext --help
 ```
 
@@ -327,7 +329,11 @@ the released app version for `CHECK-016`; `--skip-github-check` turns off the
 from `<siteDir>/extensions/<id>/<version>/` for `CHECK-022`…`CHECK-025`, which
 are silent without the flag (the source tree has no bundle, so run `check` a
 second time after `catalog build`); a missing built version is one `warning`.
-`CHECK-021` needs `--published-index`. `--list-rules` prints the rules and exits.
+`CHECK-021` needs `--published-index`. `--deprecated <path>` checks the form of
+`deprecated.json` (see `catalog build`) and, together with `--published-index`,
+that every alternative exists in the published index; its findings are printed
+as `error <id> deprecated <field>: <message>` (a file that cannot be read or
+parsed is one finding under the file name). `--list-rules` prints the rules and exits.
 
 The bundle rules are heuristics over the whole bundle, dependencies included
 (a validator library may legitimately use `new Function`), so they only
@@ -336,34 +342,35 @@ with an average line longer than 500 characters, or on 20 distinct identifiers
 of the form `_0x1a2b`. `CHECK-024` ignores `www.w3.org` XML namespaces. A source
 map is an `error`: the catalog builds without maps.
 
-| Rule        | What it checks                                                                                   |
-| ----------- | ------------------------------------------------------------------------------------------------ |
-| `CHECK-001` | `extension.json` is readable and passes manifest parsing                                         |
-| `CHECK-002` | the directory name equals the manifest `id`                                                      |
-| `CHECK-003` | `name`, `description` and `author` are set                                                       |
-| `CHECK-004` | `README.md` exists and is not empty                                                              |
-| `CHECK-005` | `author` looks like a GitHub login                                                               |
-| `CHECK-006` | `author` is an existing GitHub user (no answer — `warning`)                                      |
-| `CHECK-007` | `package.json` exists and parses                                                                 |
-| `CHECK-008` | there is a lock file (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lock`)            |
-| `CHECK-009` | no install or publish lifecycle scripts (`postinstall`, `prepare`…)                              |
-| `CHECK-010` | dependencies come from the registry only (no git, http, file, link, workspace)                   |
-| `CHECK-011` | `name` in `package.json` does not take someone else's scope (`warning`)                          |
-| `CHECK-012` | the version is strictly greater than the published one                                           |
-| `CHECK-013` | at most 200 files and 5 MB of sources, no file over 1 MB                                         |
-| `CHECK-014` | no symbolic links                                                                                |
-| `CHECK-015` | no executable files (`.exe`, `.dll`, `.so`, `.dylib`, `.node`, `.sh`, `.bat`)                    |
-| `CHECK-016` | `minAppVersion` is not newer than `--max-app-version`                                            |
-| `CHECK-017` | files in `assets/` match their type: signature, size, pixels, safe SVG and CSS                   |
-| `CHECK-018` | `icon` is a square 64–512 px PNG or WebP file up to 16 KiB                                       |
-| `CHECK-019` | `description` is at least 20 characters (`warning`)                                              |
-| `CHECK-020` | every `permissions` entry is mentioned in `README.md` (`warning`)                                |
-| `CHECK-021` | the id is not already published under another `author` (any case): first publisher owns the id   |
-| `CHECK-022` | built code has no `eval(` or `new Function(` (`warning`, needs `--built`)                        |
-| `CHECK-023` | built code does not look obfuscated (`warning`, needs `--built`)                                 |
-| `CHECK-024` | built code has no `http(s)://` URL without the `network` permission (`warning`, needs `--built`) |
-| `CHECK-025` | built code has no embedded source map (needs `--built`)                                          |
-| `CHECK-026` | `locales/*.json`: `en` is complete, texts fit their fields, files are valid (see "Translations") |
+| Rule        | What it checks                                                                                                                     |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `CHECK-001` | `extension.json` is readable and passes manifest parsing                                                                           |
+| `CHECK-002` | the directory name equals the manifest `id`                                                                                        |
+| `CHECK-003` | `name`, `description` and `author` are set                                                                                         |
+| `CHECK-004` | `README.md` exists and is not empty                                                                                                |
+| `CHECK-005` | `author` looks like a GitHub login                                                                                                 |
+| `CHECK-006` | `author` is an existing GitHub user (no answer — `warning`)                                                                        |
+| `CHECK-007` | `package.json` exists and parses                                                                                                   |
+| `CHECK-008` | there is a lock file (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lock`)                                              |
+| `CHECK-009` | no install or publish lifecycle scripts (`postinstall`, `prepare`…)                                                                |
+| `CHECK-010` | dependencies come from the registry only (no git, http, file, link, workspace)                                                     |
+| `CHECK-011` | `name` in `package.json` does not take someone else's scope (`warning`)                                                            |
+| `CHECK-012` | the version is strictly greater than the published one                                                                             |
+| `CHECK-013` | at most 200 files and 5 MB of sources, no file over 1 MB                                                                           |
+| `CHECK-014` | no symbolic links                                                                                                                  |
+| `CHECK-015` | no executable files (`.exe`, `.dll`, `.so`, `.dylib`, `.node`, `.sh`, `.bat`)                                                      |
+| `CHECK-016` | `minAppVersion` is not newer than `--max-app-version`                                                                              |
+| `CHECK-017` | files in `assets/` match their type: signature, size, pixels, safe SVG and CSS                                                     |
+| `CHECK-018` | `icon` is a square 64–512 px PNG or WebP file up to 16 KiB                                                                         |
+| `CHECK-019` | `description` is at least 20 characters (`warning`)                                                                                |
+| `CHECK-020` | every `permissions` entry is mentioned in `README.md` (`warning`)                                                                  |
+| `CHECK-021` | the id is not already published under another `author` (any case): first publisher owns the id                                     |
+| `CHECK-022` | built code has no `eval(` or `new Function(` (`warning`, needs `--built`)                                                          |
+| `CHECK-023` | built code does not look obfuscated (`warning`, needs `--built`)                                                                   |
+| `CHECK-024` | built code has no `http(s)://` URL without the `network` permission (`warning`, needs `--built`)                                   |
+| `CHECK-025` | built code has no embedded source map (needs `--built`)                                                                            |
+| `CHECK-026` | `locales/*.json`: `en` is complete, texts fit their fields, files are valid (see "Translations")                                   |
+| `CHECK-030` | `CHANGELOG.md` (optional) is at most 64 KiB of UTF-8 without NUL; no `## <version>` section for the current version is a `warning` |
 
 The rules are data in code (`src/catalog/rules.ts`, the `RULES` table); the
 semantic review against `rules/rules.json` of the catalog repository is a
@@ -392,6 +399,12 @@ nothing has a title. The version record gets `tags` from the manifest of that
 version (omitted when empty). Rebuilding without a version bump refreshes the
 titles.
 
+A `CHANGELOG.md` next to `README.md` is optional. When the project has one,
+the build copies it into the version (it is listed in `files` with its size and
+`sha256`), so the app shows "What's new" from it; write it as an ordinary
+changelog with `## 1.2.0`, `## [1.2.0] - 2026-10-01` or `## v1.2.0` headings
+(`CHECK-030`). A `CHANGELOG.md` over 64 KiB, not UTF-8 or with NUL fails the build.
+
 One file is published: `index.v2.json` (`schemaVersion: 2`). Every version of
 an extension is in it, whatever file types, permissions, `icon`, `tags` and
 contribution points it uses. The app reads it next to the catalog address; the
@@ -401,12 +414,22 @@ address (`catalogUrl`) stays the identity of installed extensions. No
 - `--previous-index <path>` — the source index (`<out>/index.v2.json` by default);
 - `--revoked <path>` — a JSON array of `{ id, versions, reason }` (without the
   flag the list from the source index is used);
+- `--deprecated <path>` — `deprecated.json`, a JSON array of
+  `{ id, versions?, reason, alternatives }` (`versions` is a range as in
+  `revoked.json`, no key means every version; `reason` is 1–200 characters;
+  up to 3 `alternatives`, ids). The file is authoritative: each listed entry
+  gets `deprecated: { versions | null, reason, alternatives }`, entries
+  that are no longer listed lose the key. Without the flag the deprecations of
+  the source index stay. A repeated `id`, an `id` that is not in the index, an
+  alternative that is not in the index, a bad range or an unreadable file fail
+  the build and nothing is written. Deprecation is a warning shown by the app,
+  not a revocation: the extension can still be installed;
 - `--source-base <url>` — the base of the `source` field (by default the
   `extensions` tree of `dolphy-app/dolphy-extensions`);
 - `--published-at <iso>` — `publishedAt` of the new versions (now by default).
 
-`catalog build --reindex --out <siteDir>` replaces only `revoked` and
-`generatedAt` in the index (extension entries do not change; `--src` and
+`catalog build --reindex --out <siteDir>` replaces only `revoked`, `deprecated`
+and `generatedAt` in the index (extension entries do not change; `--src` and
 `--ids` are not needed): this is how a version revocation is published
 without a new build.
 

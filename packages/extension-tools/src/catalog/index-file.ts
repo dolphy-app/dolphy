@@ -88,6 +88,15 @@ const orderEntry = (entry: CatalogEntry): CatalogEntry => ({
     ...optionalIds('panels', entry.contributes.panels),
   },
   ...orderTitles(entry.titles),
+  ...(entry.deprecated === undefined
+    ? {}
+    : {
+        deprecated: {
+          versions: entry.deprecated.versions,
+          reason: entry.deprecated.reason,
+          alternatives: [...entry.deprecated.alternatives],
+        },
+      }),
   versions: entry.versions.map(orderVersion),
 });
 

@@ -99,6 +99,7 @@ const REGISTERED: ExtensionInfoDto = {
   tags: [],
   removable: false,
   revoked: null,
+  deprecated: null,
 };
 const USER_EXTENSION: ExtensionInfoDto = {
   ...REGISTERED,
@@ -143,6 +144,7 @@ const STATS_COMMAND: CommandContributionDto = {
   description: null,
   category: null,
   keybinding: null,
+  keybindings: [],
   palette: true,
 };
 const SQL_PANEL: PanelContributionDto = {
@@ -241,6 +243,16 @@ const start = async () => {
       extensionInstaller: createFakeExtensionInstaller({
         catalog: CATALOG,
         updates: [UPDATE],
+        handlers: {
+          docs: (_id, version) => ({
+            version: version ?? '2.0.0',
+            readme: '# New',
+            changelog: null,
+            truncated: false,
+            source: 'catalog',
+          }),
+          docImage: () => 'data:image/png;base64,AA==',
+        },
       }),
       extensionReloader: createFakeExtensionReloader(),
       logReader: createFakeLogReader([LOG_ENTRY]),
@@ -556,6 +568,14 @@ describe('rpc → dispatcher → real engine', () => {
     await call('settings.setLearning', () =>
       client.settings.setLearning({ gradePolicy: 'acme.policy' }),
     );
+    await call('settings.getKeybindings', () =>
+      client.settings.getKeybindings(),
+    );
+    await call('settings.setKeybindings', () =>
+      client.settings.setKeybindings({
+        'app:palette.open': [{ key: 'Mod+Shift+P', when: null }],
+      }),
+    );
     await call('settings.setUi', () =>
       client.settings.setUi({ theme: 'dark', locale: 'en' }),
     );
@@ -748,6 +768,25 @@ describe('rpc → dispatcher → real engine', () => {
     expect(
       await call('extensions.updates', () => client.extensions.updates()),
     ).toEqual([UPDATE]);
+    expect(
+      await call('extensions.docs', () =>
+        client.extensions.docs('acme.new', { version: '2.0.0' }),
+      ),
+    ).toEqual({
+      version: '2.0.0',
+      readme: '# New',
+      changelog: null,
+      truncated: false,
+      source: 'catalog',
+    });
+    expect(
+      await call('extensions.docImage', () =>
+        client.extensions.docImage('acme.new', '2.0.0', 'docs/a.png'),
+      ),
+    ).toBe('data:image/png;base64,AA==');
+    await expect(
+      client.extensions.docImage('acme.new', '2.0.0', 'a.gif'),
+    ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
     await call('extensions.uninstall', () =>
       client.extensions.uninstall('acme.user', { removeData: true }),
     );

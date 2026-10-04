@@ -19,6 +19,7 @@ const command = (
   description: null,
   category: null,
   keybinding: null,
+  keybindings: [],
   palette: true,
   ...override,
 });
@@ -76,7 +77,6 @@ describe('адаптер команд расширений: реестр', () =>
           title: 'Запуск',
           description: 'Описание',
           category: 'Обучение',
-          keybinding: 'Ctrl+Shift+S',
         }),
         command('hidden', { palette: false }),
       ]),
@@ -88,7 +88,7 @@ describe('адаптер команд расширений: реестр', () =>
       description: 'Описание',
       category: 'Обучение',
       caption: 'acme.cmd',
-      keybinding: 'Ctrl+Shift+S',
+      defaultBindings: [],
       checked: undefined,
       enabled: true,
     });
@@ -309,5 +309,88 @@ describe('R9: расширения не вызывают команды прил
       'palette',
     );
     expect(route.openPanel).not.toHaveBeenCalled();
+  });
+});
+
+describe('адаптер команд расширений: привязки', () => {
+  const bound = (
+    id: string,
+    override: Partial<CommandContributionDto> = {},
+  ): CommandContributionDto =>
+    command(id, { keybinding: 'Mod+Shift+G', ...override });
+
+  it('собирает привязки: сначала keybinding, затем keybindings; только palette:true; в описание команды они не попадают', () => {
+    const { extensionCommands, registry } = setup(
+      contributionsOf([
+        bound('greet', {
+          keybindings: [
+            {
+              key: 'Mod+J',
+              mac: 'Ctrl+J',
+              windows: null,
+              linux: null,
+              when: 'page == courses',
+            },
+          ],
+        }),
+        bound('hidden', { palette: false }),
+        command('plain'),
+      ]),
+    );
+    expect(extensionCommands.bindings.value).toEqual([
+      { command: 'extension:acme.cmd:greet', key: 'Mod+Shift+G' },
+      {
+        command: 'extension:acme.cmd:greet',
+        key: 'Mod+J',
+        mac: 'Ctrl+J',
+        windows: null,
+        linux: null,
+        when: 'page == courses',
+      },
+    ]);
+    expect(
+      registry.list.value.every(
+        ({ defaultBindings }) => defaultBindings.length === 0,
+      ),
+    ).toBe(true);
+  });
+
+  it('порядок по extensionId, затем по порядку вклада', () => {
+    const { extensionCommands } = setup(
+      contributionsOf([
+        bound('b', { extensionId: 'zeta.ext' }),
+        bound('a', { extensionId: 'alpha.ext' }),
+        bound('c', { extensionId: 'alpha.ext' }),
+      ]),
+    );
+    expect(
+      extensionCommands.bindings.value.map(({ command: key }) => key),
+    ).toEqual([
+      'extension:alpha.ext:a',
+      'extension:alpha.ext:c',
+      'extension:zeta.ext:b',
+    ]);
+  });
+
+  it('смена одних привязок обновляет список и не перерегистрирует команду', () => {
+    const { extensionCommands, registry, contributions } = setup(
+      contributionsOf([bound('greet')]),
+    );
+    const before = registry.list.value.map(({ run }) => run);
+    contributions.value = contributionsOf([
+      bound('greet', { keybinding: 'Mod+Shift+H' }),
+    ]);
+    expect(extensionCommands.bindings.value).toEqual([
+      { command: 'extension:acme.cmd:greet', key: 'Mod+Shift+H' },
+    ]);
+    expect(registry.list.value.map(({ run }) => run)).toEqual(before);
+  });
+
+  it('привязки пропадают вместе с расширением', () => {
+    const { extensionCommands, contributions } = setup(
+      contributionsOf([bound('greet')]),
+    );
+    contributions.value = contributionsOf([]);
+    expect(extensionCommands.bindings.value).toEqual([]);
   });
 });

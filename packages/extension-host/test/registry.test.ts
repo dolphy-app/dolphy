@@ -102,6 +102,7 @@ describe('createExtensionRegistry', () => {
       tags: [],
       removable: true,
       revoked: null,
+      deprecated: null,
     });
   });
 
@@ -128,6 +129,7 @@ describe('createExtensionRegistry', () => {
       tags: [],
       removable: false,
       revoked: null,
+      deprecated: null,
     });
   });
 
@@ -154,6 +156,7 @@ describe('createExtensionRegistry', () => {
       tags: [],
       removable: true,
       revoked: null,
+      deprecated: null,
     });
   });
 
@@ -417,6 +420,7 @@ describe('createExtensionRegistry: titles and tags', () => {
         description: null,
         category: null,
         keybinding: null,
+        keybindings: [],
         palette: true,
       },
     ],

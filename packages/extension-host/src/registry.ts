@@ -40,6 +40,7 @@ const withoutMetadata = (
   | 'installed'
   | 'removable'
   | 'revoked'
+  | 'deprecated'
 > => ({
   name: null,
   description: null,
@@ -51,6 +52,7 @@ const withoutMetadata = (
   installed: null,
   removable: origin === 'user',
   revoked: null,
+  deprecated: null,
 });
 
 /** Идентификаторы вкладов расширения в том же виде, что в записи каталога. */
@@ -161,6 +163,8 @@ const loaded = (
     installed: extension.install === null ? null : { ...extension.install },
     removable: extension.origin === 'user',
     revoked,
+    // пометку «устарело» накладывает сервис `extensions.list`: реестр о каталоге знает только отзыв
+    deprecated: null,
   };
 };
 

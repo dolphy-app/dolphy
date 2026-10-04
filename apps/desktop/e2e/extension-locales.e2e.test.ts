@@ -6,6 +6,7 @@ import type { Locator, Page } from 'playwright-core';
 import { createWorkspace, launchApp } from './support/app.ts';
 import type { DolphyApp, Workspace } from './support/app.ts';
 import { Client } from './support/client.ts';
+import { MOD_KEY } from './support/keys.ts';
 
 const ID = 'acme.locale';
 const TIMEOUT = 15_000;
@@ -50,7 +51,7 @@ const paletteOf = (page: Page) => {
 /** Палитра на любом языке интерфейса: находит команду и запускает её клавишей Enter. */
 const openPalette = async (page: Page, query: string) => {
   const found = paletteOf(page);
-  await page.keyboard.press('Control+K');
+  await page.keyboard.press(`${MOD_KEY}+K`);
   await found.combobox.waitFor({ timeout: TIMEOUT });
   // Escape доходит до диалога, только когда переход закончился и поле поиска в фокусе
   await expect

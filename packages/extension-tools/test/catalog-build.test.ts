@@ -3,7 +3,7 @@ import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseIndex } from '@dolphy-app/extension-catalog';
 import { describe, expect, it } from 'vitest';
-import { buildCatalog } from '../src/catalog/build.ts';
+import { buildCatalog, reindexCatalog } from '../src/catalog/build.ts';
 import type { BuildCatalogOptions } from '../src/catalog/build.ts';
 import { BuildError } from '../src/errors.ts';
 import { createRepo, readJson, setVersion } from './catalog-helpers.ts';
@@ -432,6 +432,164 @@ describe('catalog build: index merge', () => {
     await setVersion(repo, NIGHT, '1.0.2');
     await publish(repo, out, [NIGHT], { revoked: revokedFile });
     expect((await indexOf(out)).revoked).toEqual(replacement);
+  });
+});
+
+describe('catalog build: CHANGELOG.md', () => {
+  it('is copied into the version and listed in files with size and sha256; optional', async () => {
+    const changelog = '# Changelog\n\n## 1.0.0\n\n- first\n';
+    const repo = await createRepo([
+      { fixture: 'theme-only', files: { 'CHANGELOG.md': changelog } },
+    ]);
+    const out = await makeTemp();
+    await publish(repo, out, [NIGHT]);
+    const file = path.join(out, 'extensions', NIGHT, '1.0.0', 'CHANGELOG.md');
+    expect(await readFile(file, 'utf8')).toBe(changelog);
+    const listed = (await indexOf(out)).extensions[0]?.versions[0]?.files.find(
+      (item) => item.path === 'CHANGELOG.md',
+    );
+    expect(listed).toEqual({
+      path: 'CHANGELOG.md',
+      size: Buffer.byteLength(changelog),
+      sha256: await sha256(file),
+    });
+    const plain = await createRepo([{ fixture: 'theme-only' }]);
+    const plainOut = await makeTemp();
+    await publish(plain, plainOut, [NIGHT]);
+    expect(
+      await listFiles(path.join(plainOut, 'extensions', NIGHT, '1.0.0')),
+    ).not.toContain('CHANGELOG.md');
+  });
+
+  it('a CHANGELOG.md over 64 KiB or with NUL is refused, nothing is written', async () => {
+    for (const content of ['x'.repeat(64 * 1024 + 1), 'a\u0000b']) {
+      const repo = await createRepo([
+        { fixture: 'theme-only', files: { 'CHANGELOG.md': content } },
+      ]);
+      const out = await makeTemp();
+      await expect(publish(repo, out, [NIGHT])).rejects.toThrow(/CHANGELOG.md/);
+      expect(await readdir(out)).toEqual([]);
+    }
+  });
+});
+
+describe('catalog build: deprecated', () => {
+  const writeList = async (value: unknown): Promise<string> => {
+    const file = path.join(await makeTemp(), 'deprecated.json');
+    await writeFile(file, JSON.stringify(value));
+    return file;
+  };
+
+  it('writes deprecated into the entry, keeps it on rebuild, removes it when the file drops the entry', async () => {
+    const repo = await createRepo([
+      { fixture: 'theme-only' },
+      { fixture: 'markdown-only' },
+    ]);
+    const out = await makeTemp();
+    const list = await writeList([
+      {
+        id: NIGHT,
+        versions: '<2.0.0',
+        reason: 'Replaced',
+        alternatives: ['acme.chart'],
+      },
+      { id: 'acme.chart', reason: 'Gone', alternatives: [] },
+    ]);
+    await publish(repo, out, [NIGHT, 'acme.chart'], { deprecated: list });
+    const entries = (await indexOf(out)).extensions;
+    expect(entries.find((e) => e.id === NIGHT)?.deprecated).toEqual({
+      versions: '<2.0.0',
+      reason: 'Replaced',
+      alternatives: ['acme.chart'],
+    });
+    expect(entries.find((e) => e.id === 'acme.chart')?.deprecated).toEqual({
+      versions: null,
+      reason: 'Gone',
+      alternatives: [],
+    });
+
+    // a new version without the flag keeps the deprecation
+    await setVersion(repo, NIGHT, '1.0.1');
+    await publish(repo, out, [NIGHT]);
+    expect(
+      (await indexOf(out)).extensions.find((e) => e.id === NIGHT)?.deprecated
+        ?.reason,
+    ).toBe('Replaced');
+
+    // --reindex applies the file without rebuilding; entries missing from it lose the key
+    const reduced = await writeList([
+      { id: NIGHT, reason: 'Still replaced', alternatives: [] },
+    ]);
+    const result = await reindexCatalog({
+      out,
+      deprecated: reduced,
+      now: () => NOW,
+    });
+    expect(result.changed).toBe(true);
+    const after = (await indexOf(out)).extensions;
+    expect(after.find((e) => e.id === NIGHT)?.deprecated?.reason).toBe(
+      'Still replaced',
+    );
+    expect(after.find((e) => e.id === 'acme.chart')).not.toHaveProperty(
+      'deprecated',
+    );
+
+    await reindexCatalog({
+      out,
+      deprecated: await writeList([]),
+      now: () => NOW,
+    });
+    expect(
+      (await indexOf(out)).extensions.every((e) => e.deprecated === undefined),
+    ).toBe(true);
+  });
+
+  it('every kind of error fails the build and writes nothing', async () => {
+    const repo = await createRepo([{ fixture: 'theme-only' }]);
+    const base = await createRepo([{ fixture: 'markdown-only' }]);
+    const out = await makeTemp();
+    await publish(base, out, ['acme.chart']);
+    const before = await readFile(path.join(out, 'index.v2.json'), 'utf8');
+    const cases: [unknown, RegExp][] = [
+      [
+        [
+          { id: NIGHT, reason: 'a', alternatives: [] },
+          { id: NIGHT, reason: 'b', alternatives: [] },
+        ],
+        /duplicate id/,
+      ],
+      [
+        [{ id: 'acme.nowhere', reason: 'a', alternatives: [] }],
+        /not in the index/,
+      ],
+      [
+        [{ id: NIGHT, reason: 'a', alternatives: ['acme.nowhere'] }],
+        /alternative 'acme.nowhere'/,
+      ],
+      [
+        [{ id: NIGHT, versions: 'garbage', reason: 'a', alternatives: [] }],
+        /invalid version range/,
+      ],
+      [
+        [{ id: NIGHT, reason: '', alternatives: [] }],
+        /deprecated list is invalid/,
+      ],
+      [{ id: NIGHT }, /deprecated list is invalid/],
+    ];
+    for (const [value, message] of cases) {
+      await expect(
+        publish(repo, out, [NIGHT], { deprecated: await writeList(value) }),
+      ).rejects.toThrow(message);
+      expect(await readFile(path.join(out, 'index.v2.json'), 'utf8')).toBe(
+        before,
+      );
+      expect(await readdir(path.join(out, 'extensions'))).toEqual([
+        'acme.chart',
+      ]);
+    }
+    await expect(
+      publish(repo, out, [NIGHT], { deprecated: path.join(out, 'nope.json') }),
+    ).rejects.toThrow(/unreadable/);
   });
 });
 

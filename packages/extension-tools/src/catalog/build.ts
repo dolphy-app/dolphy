@@ -35,6 +35,7 @@ import { buildExtension } from '../index.ts';
 import { BuildError, CatalogUsageError } from '../errors.ts';
 import { readEnglishTable } from '../locales.ts';
 import { loadIndexFile } from './check.ts';
+import { applyDeprecated, loadDeprecated } from './deprecated.ts';
 import {
   FULL_INDEX_FILE,
   assembleIndex,
@@ -43,6 +44,7 @@ import {
   sameFiles,
   writeIndexAtomically,
 } from './index-file.ts';
+import { changelogProblem } from './rules.ts';
 import { hashTree, readTree } from './tree.ts';
 
 export const DEFAULT_SOURCE_BASE =
@@ -57,6 +59,8 @@ export interface BuildCatalogOptions {
   /** Source index; default `<out>/index.v2.json`. */
   previousIndex?: string;
   revoked?: string;
+  /** `deprecated.json`; unset — the deprecations of the previous index stay. */
+  deprecated?: string;
   sourceBase?: string;
   publishedAt?: string;
   now?: () => Date;
@@ -85,6 +89,7 @@ const errorText = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
 const README = 'README.md';
+const CHANGELOG = 'CHANGELOG.md';
 
 const copyReadme = async (srcDir: string, dir: string, id: string) => {
   const text = await readFile(path.join(srcDir, README), 'utf8').catch(
@@ -93,6 +98,15 @@ const copyReadme = async (srcDir: string, dir: string, id: string) => {
   if (text.trim() === '')
     throw new BuildError(`${README} is missing or empty`, id);
   await writeFile(path.join(dir, README), text);
+};
+
+/** `CHANGELOG.md` is optional; its limits are checked by the file-size rules and `CHECK-030`. */
+const copyChangelog = async (srcDir: string, dir: string, id: string) => {
+  const bytes = await readFile(path.join(srcDir, CHANGELOG)).catch(() => null);
+  if (bytes === null) return;
+  const problem = changelogProblem(bytes);
+  if (problem !== null) throw new BuildError(`${CHANGELOG} ${problem}`, id);
+  await writeFile(path.join(dir, CHANGELOG), bytes);
 };
 
 const fileProblems = (files: readonly CatalogFile[]): string[] => {
@@ -152,6 +166,7 @@ const stage = async (
     );
   }
   await copyReadme(srcDir, built.dir, id);
+  await copyChangelog(srcDir, built.dir, id);
   const tree = await readTree(built.dir);
   const files = await hashTree(built.dir, tree.files);
   const problems = [
@@ -330,6 +345,9 @@ const entryOf = (
       ...(panels.length > 0 ? { panels } : {}),
     },
     ...(Object.keys(titles).length > 0 ? { titles } : {}),
+    ...(previous?.deprecated === undefined
+      ? {}
+      : { deprecated: previous.deprecated }),
     versions: newestFirst([record, ...others]),
   };
 };
@@ -353,6 +371,14 @@ const loadRevoked = async (
   }
   return raw as Revoked;
 };
+
+const withDeprecations = async (
+  entries: readonly CatalogEntry[],
+  file: string | undefined,
+): Promise<readonly CatalogEntry[]> =>
+  file === undefined
+    ? entries
+    : applyDeprecated(entries, await loadDeprecated(file), file);
 
 const writeVersion = async (item: Plan, out: string): Promise<void> => {
   const target = versionDir(out, item.staged);
@@ -429,7 +455,10 @@ export const buildCatalog = async (
     }
     const index = assembleIndex({
       generatedAt: now,
-      extensions: [...entries.values()],
+      extensions: await withDeprecations(
+        [...entries.values()],
+        options.deprecated,
+      ),
       revoked,
     });
     for (const item of plans) {
@@ -446,6 +475,8 @@ export interface ReindexOptions {
   out: string;
   previousIndex?: string;
   revoked?: string;
+  /** `deprecated.json`; unset — the deprecations of the previous index stay. */
+  deprecated?: string;
   /** Value of `generatedAt`; defaults to now. */
   publishedAt?: string;
   now?: () => Date;
@@ -477,7 +508,7 @@ export const reindexCatalog = async (
     generatedAt:
       options.publishedAt ??
       (options.now ?? (() => new Date()))().toISOString(),
-    extensions: previous.extensions,
+    extensions: await withDeprecations(previous.extensions, options.deprecated),
     revoked: await loadRevoked(options.revoked, previous),
   });
   const changed = await writeIndex(out, index);

@@ -104,7 +104,7 @@ describe('dolphy-ext catalog check', () => {
     expect(result.code).toBe(0);
     const lines = result.stdout.trimEnd().split('\n');
     expect(lines).toHaveLength(RULES.length);
-    expect(lines).toHaveLength(26);
+    expect(lines).toHaveLength(27);
     expect(lines[0]).toMatch(/^CHECK-001 \S/);
   });
 
@@ -291,6 +291,48 @@ describe('dolphy-ext catalog build --reindex', () => {
       { id: 'acme.night', versions: '<=1.0.0', reason: 'bad' },
     ]);
     expect(after.generatedAt).toBe(now.toISOString());
+  });
+
+  it('--deprecated reaches build --reindex and catalog check; a bad alternative exits 1 without touching the index', async () => {
+    const { out, indexFile } = await setup();
+    const file = path.join(out, 'deprecated.json');
+    await writeFile(
+      file,
+      JSON.stringify([{ id: 'acme.night', reason: 'Old', alternatives: [] }]),
+    );
+    const base = ['catalog', 'build', '--reindex', '--out', out];
+    expect((await exec([...base, '--deprecated', file])).code).toBe(0);
+    expect((await readIndex(indexFile)).extensions[0].deprecated).toEqual({
+      versions: null,
+      reason: 'Old',
+      alternatives: [],
+    });
+    const before = await readFile(indexFile, 'utf8');
+    await writeFile(
+      file,
+      JSON.stringify([
+        { id: 'acme.night', reason: 'Old', alternatives: ['acme.missing'] },
+      ]),
+    );
+    const built = await exec([...base, '--deprecated', file]);
+    expect(built.code).toBe(1);
+    expect(built.stderr).toContain("alternative 'acme.missing'");
+    expect(await readFile(indexFile, 'utf8')).toBe(before);
+    const repo = await createRepo([]);
+    const checked = await exec([
+      'catalog',
+      'check',
+      repo.extensionsDir,
+      '--skip-github-check',
+      '--deprecated',
+      file,
+      '--published-index',
+      indexFile,
+    ]);
+    expect(checked.code).toBe(1);
+    expect(checked.stdout).toBe(
+      "error acme.night deprecated alternatives: alternative 'acme.missing' is not in the index\n",
+    );
   });
 
   it('without --revoked the list is kept, an empty array clears it', async () => {

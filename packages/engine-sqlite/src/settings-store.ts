@@ -2,6 +2,7 @@ import type {
   DeepPartial,
   SavedFilterDto,
   ExtensionSettingsDto,
+  KeybindingsSettingsDto,
   LearningSettingsDto,
   SchedulerOptionsDto,
   StudySessionWire,
@@ -9,6 +10,7 @@ import type {
 } from '@dolphy-app/engine-contract';
 import {
   decodeExtensionSettings,
+  decodeKeybindingsSettings,
   decodeLearningSettings,
   decodeUiSettings,
   decodeUpdateCheckedAt,
@@ -37,6 +39,7 @@ const PREFERENCES_KEY = 'user_preferences';
 const SCHEDULER_OVERRIDES_KEY = 'scheduler_overrides';
 const UI_KEY = 'ui';
 const LEARNING_KEY = 'learning';
+const KEYBINDINGS_KEY = 'keybindings';
 const EXTENSIONS_KEY = 'extensions';
 const UPDATE_CHECK_KEY = 'extensions_update_checked_at';
 const LEGACY_IMPORT_KEY = 'legacy_settings_imported';
@@ -263,6 +266,10 @@ export const createSqliteSettingsStore = (
       decodeLearningSettings(getSetting(LEARNING_KEY)),
     saveLearning: async (learning) =>
       putSetting(LEARNING_KEY, JSON.stringify(learning)),
+    loadKeybindings: async (): Promise<KeybindingsSettingsDto> =>
+      decodeKeybindingsSettings(getSetting(KEYBINDINGS_KEY)),
+    saveKeybindings: async (keybindings) =>
+      putSetting(KEYBINDINGS_KEY, JSON.stringify(keybindings)),
     loadExtensions: async (): Promise<ExtensionSettingsDto> =>
       decodeExtensionSettings(getSetting(EXTENSIONS_KEY)),
     saveExtensions: async (extensions) =>

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { isRevoked, latestUpdate, resolveVersion } from '../src/index.ts';
+import {
+  deprecationFor,
+  isRevoked,
+  latestUpdate,
+  resolveVersion,
+} from '../src/index.ts';
 import type { ResolveContext } from '../src/index.ts';
 import { entry, version } from './fixtures.ts';
 
@@ -159,5 +164,22 @@ describe('resolveVersion и отзыв', () => {
     expect(latestUpdate('1.0.0', e, context({ revoked }))?.version).toBe(
       '1.1.0',
     );
+  });
+});
+
+describe('deprecationFor', () => {
+  const deprecated = (versions: string | null) =>
+    entry({
+      versions: [v('2.0.0'), v('1.0.0')],
+      deprecated: { versions, reason: 'Replaced', alternatives: ['acme.new'] },
+    });
+
+  it('без диапазона действует на все версии, с диапазоном — только на подходящие', () => {
+    expect(deprecationFor(deprecated(null), '2.0.0')?.reason).toBe('Replaced');
+    expect(deprecationFor(deprecated('<2.0.0'), '1.0.0')?.reason).toBe(
+      'Replaced',
+    );
+    expect(deprecationFor(deprecated('<2.0.0'), '2.0.0')).toBeNull();
+    expect(deprecationFor(entry(), '1.0.0')).toBeNull();
   });
 });

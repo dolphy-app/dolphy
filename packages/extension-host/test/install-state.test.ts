@@ -125,6 +125,7 @@ describe('registry and policy: metadata and revocation', () => {
       installed: META,
       removable: true,
       revoked: null,
+      deprecated: null,
       state: 'loaded',
     });
     expect(info('acme.manual')).toMatchObject({

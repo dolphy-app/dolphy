@@ -42,6 +42,7 @@ const info = (id: string): ExtensionInfoDto => ({
   tags: [],
   removable: true,
   revoked: null,
+  deprecated: null,
 });
 
 const ZERO = {
@@ -175,6 +176,7 @@ describe('extensions.invokeCommand → здоровье', () => {
             description: null,
             category: null,
             keybinding: null,
+            keybindings: [],
             palette: true,
           },
         ],

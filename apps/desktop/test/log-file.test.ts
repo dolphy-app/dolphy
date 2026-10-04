@@ -128,6 +128,24 @@ describe('файловый журнал', () => {
     ]);
   });
 
+  it('запись движка с полем message в данных: сообщением остаётся msg', () => {
+    const h = setup();
+    const log = h.open();
+    log.writeLine(
+      'engine',
+      JSON.stringify({
+        level: 'info',
+        time: 5,
+        msg: 'ready',
+        message: { type: 'ready' },
+      }),
+    );
+    expect(h.linesOf('dolphy-2026-10-04.log')[0]).toMatchObject({
+      message: 'ready',
+      at: 5,
+    });
+  });
+
   it('источник задаёт писатель, а не процесс; неизвестный уровень — info; Error сериализуется', () => {
     const h = setup();
     const log = h.open();

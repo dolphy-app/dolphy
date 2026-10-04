@@ -124,7 +124,8 @@ const recordOf = (
   value: Record<string, unknown>,
   now: number,
 ): Record<string, unknown> => {
-  const message = value.message ?? value.msg;
+  // логгеры движка и хоста пишут `msg`, поле `message` в них — данные записи
+  const message = typeof value.msg === 'string' ? value.msg : value.message;
   const extra = Object.fromEntries(
     Object.entries(value).filter(([key]) => !OWN_KEYS.has(key)),
   );

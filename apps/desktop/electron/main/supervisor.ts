@@ -165,7 +165,7 @@ export const createSupervisor = (options: SupervisorOptions): Supervisor => {
         return;
       }
       ready = true;
-      logger.info({ pid: self.pid, message }, 'engine host ready');
+      logger.info({ pid: self.pid, ready: message }, 'engine host ready');
       options.onHostReady?.(self);
       for (const webContents of windows) link(webContents);
     });

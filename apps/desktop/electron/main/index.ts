@@ -198,7 +198,8 @@ const shells = [
       BrowserWindow.fromWebContents(sender as Electron.WebContents),
     clipboard,
     appInfo: () => ({
-      appVersion: app.getVersion(),
+      // в несобранном приложении `getVersion()` возвращает версию Electron
+      appVersion: appVersion ?? 'unpackaged',
       electron: process.versions.electron,
       chrome: process.versions.chrome,
       node: process.versions.node,

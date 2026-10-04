@@ -53,6 +53,19 @@ describe('buildExtension', () => {
     expect(extensions.map((extension) => extension.id)).toEqual(['acme.hello']);
   });
 
+  it('R8 a normal build writes no source maps', async () => {
+    for (const name of ['hello', 'commands-panel', 'with-worker']) {
+      const root = await copyProject(name);
+      const { dir, files } = await buildExtension({ root });
+      const scripts = files.filter((file) => file.endsWith('.mjs'));
+      expect(scripts.length).toBeGreaterThan(0);
+      for (const file of scripts) {
+        const text = await readFile(path.join(dir, file), 'utf8');
+        expect(text).not.toContain('sourceMappingURL');
+      }
+    }
+  });
+
   it('T-03 writes to <root>/dist-ext/<id>', async () => {
     const root = await copyProject('hello');
     const { dir } = await buildExtension({ root });

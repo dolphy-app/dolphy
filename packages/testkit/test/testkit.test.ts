@@ -346,6 +346,7 @@ describe('createFakeExtensionPolicy', () => {
       disabled: ['acme.x', 'dolphy.sql'],
       trusted: ['acme.x'],
       checkUpdates: true,
+      safeMode: false,
     });
     expect(policy.isEnabled('acme.x')).toBe(false);
     expect(policy.isEnabled('dolphy.sql')).toBe(true);

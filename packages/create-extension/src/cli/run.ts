@@ -11,10 +11,12 @@ export const EXIT_OK = 0;
 export const EXIT_PROBLEMS = 1;
 export const EXIT_USAGE = 2;
 
-const USAGE = `usage: create-dolphy-extension <dir> [--id <id>] [--local <repoRoot>]
+const USAGE = `usage: create-dolphy-extension <dir> [--id <id>] [--template <name>] [--local <repoRoot>]
 
   <dir>              new project directory (must be empty or not exist)
   --id <id>          extension id (default: kebab-case of the directory name)
+  --template <name>  project kind: exercise (default), theme, command-panel,
+                     events or blank
   --local <repoRoot> Dolphy repository root: @dolphy-app/extension-sdk and
                      @dolphy-app/extension-tools are linked as link:<repoRoot>/packages/...
   --help             show this help
@@ -23,7 +25,12 @@ const USAGE = `usage: create-dolphy-extension <dir> [--id <id>] [--local <repoRo
 type Parsed =
   | { help: true }
   | { usageError: string }
-  | { dir: string; id: string | undefined; local: string | undefined };
+  | {
+      dir: string;
+      id: string | undefined;
+      local: string | undefined;
+      template: string | undefined;
+    };
 
 const parseArgs = (argv: readonly string[]): Parsed => {
   if (argv.includes('--help') || argv.includes('-h')) return { help: true };
@@ -31,7 +38,7 @@ const parseArgs = (argv: readonly string[]): Parsed => {
   const values = new Map<string, string>();
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i] as string;
-    if (arg === '--id' || arg === '--local') {
+    if (arg === '--id' || arg === '--local' || arg === '--template') {
       const value = argv[++i];
       if (value === undefined) return { usageError: `${arg} requires a value` };
       values.set(arg, value);
@@ -44,7 +51,12 @@ const parseArgs = (argv: readonly string[]): Parsed => {
   if (extra.length > 0) {
     return { usageError: `unexpected arguments: ${extra.join(' ')}` };
   }
-  return { dir, id: values.get('--id'), local: values.get('--local') };
+  return {
+    dir,
+    id: values.get('--id'),
+    local: values.get('--local'),
+    template: values.get('--template'),
+  };
 };
 
 const PLACEHOLDER_NOTE =
@@ -98,6 +110,7 @@ export const runCli = async (
     const result = await generateExtension({
       dir: path.resolve(cwd, parsed.dir),
       ...(parsed.id === undefined ? {} : { id: parsed.id }),
+      ...(parsed.template === undefined ? {} : { template: parsed.template }),
       ...(parsed.local === undefined
         ? {}
         : { localRoot: path.resolve(cwd, parsed.local) }),

@@ -7,6 +7,7 @@ import { hostRequestSchema } from './protocol.ts';
 import type {
   ExtMessage,
   ExtResponse,
+  HealthReport,
   HostRequest,
   HostResponse,
   SettingChangedNotice,
@@ -92,6 +93,24 @@ const isHostRequest = (
   typeof (value as { id?: unknown }).id === 'string' &&
   typeof (value as { method?: unknown }).method === 'string';
 
+/** Сообщение хоста о здоровье; ответ `null`: у `undefined` через IPC теряется ключ `result`. */
+const reportHealth = (
+  services: ExtensionHostServices,
+  report: HealthReport,
+): null => {
+  switch (report.kind) {
+    case 'activated':
+      services.health.activated(report.extensionId, report.durationMs);
+      break;
+    case 'suppressed':
+      services.health.suppressed(report.extensionId, report.until);
+      break;
+    default:
+      services.health.reset(report.extensionId);
+  }
+  return null;
+};
+
 const callService = (
   services: ExtensionHostServices,
   request: HostRequest,
@@ -110,6 +129,8 @@ const callService = (
       return services.storage.delete(extensionId, request.params.key);
     case 'storage.keys':
       return services.storage.keys(extensionId);
+    case 'health.report':
+      return Promise.resolve(reportHealth(services, request.params));
     default:
       return services.settings.all(extensionId);
   }

@@ -7,6 +7,8 @@ export interface FakeExtensionPolicyOptions {
   settings?: ExtensionSettingsDto;
   /** id → причина отзыва в каталоге: такое расширение отключено независимо от настроек. */
   revoked?: Readonly<Record<string, string>>;
+  /** Безопасный режим задан запуском приложения: настройкой `safeMode` не снимается. */
+  forceSafeMode?: boolean;
 }
 
 export type FakeExtensionPolicy = ExtensionPolicy & {
@@ -22,10 +24,17 @@ export const createFakeExtensionPolicy = (
 ): FakeExtensionPolicy => {
   const bundled = new Set(options.bundled ?? []);
   let settings: ExtensionSettingsDto = structuredClone(
-    options.settings ?? { disabled: [], trusted: [], checkUpdates: true },
+    options.settings ?? {
+      disabled: [],
+      trusted: [],
+      checkUpdates: true,
+      safeMode: false,
+    },
   );
   const updates: ExtensionSettingsDto[] = [];
   const revoked = new Set(Object.keys(options.revoked ?? {}));
+  const safeMode = (): boolean =>
+    options.forceSafeMode === true || settings.safeMode;
   return {
     updates,
     setRevoked: (id, reason) => {
@@ -33,8 +42,10 @@ export const createFakeExtensionPolicy = (
       else revoked.add(id);
     },
     isEnabled: (id) =>
-      bundled.has(id) || (!settings.disabled.includes(id) && !revoked.has(id)),
+      bundled.has(id) ||
+      (!safeMode() && !settings.disabled.includes(id) && !revoked.has(id)),
     isIsolated: (id) => !bundled.has(id) && !settings.trusted.includes(id),
+    safeMode,
     update(next) {
       settings = structuredClone(next);
       updates.push(structuredClone(next));

@@ -465,7 +465,12 @@ describe('обнаружение и реестр', () => {
     const discovery = createDiscoveryHolder(found);
     const policy = createExtensionPolicy(discovery);
     const registry = createExtensionRegistry(discovery, policy);
-    policy.update({ disabled: ['acme.b'], trusted: [], checkUpdates: true });
+    policy.update({
+      disabled: ['acme.b'],
+      trusted: [],
+      checkUpdates: true,
+      safeMode: false,
+    });
 
     expect(registry.contributions().settings).toEqual([
       {

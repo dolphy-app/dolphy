@@ -7,5 +7,6 @@ declare module 'vue-i18n' {
   interface DefineDateTimeFormat {
     fullDate: Intl.DateTimeFormatOptions;
     shortDateTime: Intl.DateTimeFormatOptions;
+    shortTime: Intl.DateTimeFormatOptions;
   }
 }

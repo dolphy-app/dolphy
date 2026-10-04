@@ -301,6 +301,32 @@ export const en: typeof ru = {
         'overridden-by': 'Overridden by: {origin}, version {version}',
         'safe-mode': 'Disabled in safe mode',
       },
+      safeMode: {
+        label: 'Safe mode',
+        hint: 'Extensions other than the built-in ones are turned off and do not run. Installing and removing still work.',
+        forced:
+          'The mode comes from how the app was launched (a flag or an environment variable) and this switch does not turn it off.',
+      },
+      host: {
+        gaveUpTitle: 'The extension host stopped after repeated failures',
+        gaveUpText:
+          'Extensions do not work until the host is started. The rest of the app works as usual.',
+        restart: 'Restart host',
+      },
+      health: {
+        failures:
+          'no failures | {n} failure since the app started | {n} failures since the app started',
+        last: 'Last failure at {time}: {reason}',
+        suppressed:
+          'Paused until {time}: the extension process crashed too often.',
+        reason: {
+          'handler-failed': 'handler error',
+          'handler-timeout': 'handler timed out',
+          timeout: 'timed out',
+          'invalid-result': 'invalid result',
+          'activation-failed': 'activation failed',
+        },
+      },
       installed: {
         fromCatalog: 'From the catalog v{version}',
         updatesBanner: 'Updates available: {n}',

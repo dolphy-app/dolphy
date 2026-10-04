@@ -140,7 +140,10 @@ const loaded = (
     origin: extension.origin,
     state: policy.isEnabled(extension.id) ? 'loaded' : 'disabled',
     contributes: contributesOf(extension),
-    diagnostics: [],
+    diagnostics:
+      policy.safeMode() && extension.origin !== 'bundled'
+        ? [{ code: 'safe-mode', data: {} }]
+        : [],
     permissions: [...extension.permissions],
     isolation: isolationOf(extension, policy),
     toggleable: extension.origin !== 'bundled' && revoked === null,

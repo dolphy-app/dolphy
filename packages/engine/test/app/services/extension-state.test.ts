@@ -167,7 +167,12 @@ const open = (installer = createFakeExtensionInstaller()) =>
     ),
     extensionPolicy: createFakeExtensionPolicy({
       bundled: ['dolphy.bundled'],
-      settings: { disabled: ['acme.off'], trusted: [], checkUpdates: true },
+      settings: {
+        disabled: ['acme.off'],
+        trusted: [],
+        checkUpdates: true,
+        safeMode: false,
+      },
     }),
     extensionInstaller: installer,
   });

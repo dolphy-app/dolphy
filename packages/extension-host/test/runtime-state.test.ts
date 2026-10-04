@@ -426,9 +426,19 @@ describe('ctx.events', () => {
     h.engine.emit(attemptClosed('on'));
     await vi.waitFor(() => expect(seen).toEqual(['on']));
 
-    h.policy.update({ disabled: [ID], trusted: [ID], checkUpdates: true });
+    h.policy.update({
+      disabled: [ID],
+      trusted: [ID],
+      checkUpdates: true,
+      safeMode: false,
+    });
     h.engine.emit(attemptClosed('off'));
-    h.policy.update({ disabled: [], trusted: [ID], checkUpdates: true });
+    h.policy.update({
+      disabled: [],
+      trusted: [ID],
+      checkUpdates: true,
+      safeMode: false,
+    });
     h.engine.emit(attemptClosed('on-again'));
 
     await vi.waitFor(() => expect(seen).toEqual(['on', 'on-again']));

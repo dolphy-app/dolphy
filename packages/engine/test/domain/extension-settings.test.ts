@@ -16,6 +16,7 @@ describe('decodeExtensionSettings', () => {
       disabled: [],
       trusted: [],
       checkUpdates: true,
+      safeMode: false,
     });
   });
 
@@ -29,6 +30,18 @@ describe('decodeExtensionSettings', () => {
     expect(decodeExtensionSettings(raw).checkUpdates).toBe(expected);
   });
 
+  it.each([
+    [{ disabled: [], trusted: [] }, false],
+    [{ disabled: [], trusted: [], safeMode: true }, true],
+    [{ disabled: [], trusted: [], safeMode: false }, false],
+    [{ disabled: [], trusted: [], safeMode: 'yes' }, false],
+    [{ disabled: [], trusted: [], safeMode: 1 }, false],
+    // безопасный режим не теряется из-за испорченных списков: запуск остаётся безопасным
+    [{ disabled: 1, trusted: [], safeMode: true }, true],
+  ])('safeMode в %j — %s: включает только явное true', (raw, expected) => {
+    expect(decodeExtensionSettings(raw).safeMode).toBe(expected);
+  });
+
   it('сортирует и убирает повторы', () => {
     expect(
       decodeExtensionSettings({
@@ -40,6 +53,7 @@ describe('decodeExtensionSettings', () => {
       disabled: ['a.y', 'b.x'],
       trusted: ['c.z'],
       checkUpdates: true,
+      safeMode: false,
     });
   });
 });

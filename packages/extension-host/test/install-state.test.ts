@@ -144,7 +144,12 @@ describe('registry and policy: metadata and revocation', () => {
     });
     expect(policy.isEnabled('acme.u')).toBe(false);
     // настройки пользователя отзыв не отменяют
-    policy.update({ disabled: [], trusted: [], checkUpdates: true });
+    policy.update({
+      disabled: [],
+      trusted: [],
+      checkUpdates: true,
+      safeMode: false,
+    });
     expect(policy.isEnabled('acme.u')).toBe(false);
     expect(registry.contributions().themes.map(({ id }) => id)).toEqual([
       'dolphy.b.night',

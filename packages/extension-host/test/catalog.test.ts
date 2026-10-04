@@ -124,7 +124,12 @@ describe('createCatalog: отключённые расширения', () => {
   const catalog = createCatalog(holderOf([withPolicy]), policy);
 
   it('ведёт себя так, будто расширения нет, и сразу возвращается при включении', () => {
-    policy.update({ disabled: ['acme.t'], trusted: [], checkUpdates: true });
+    policy.update({
+      disabled: ['acme.t'],
+      trusted: [],
+      checkUpdates: true,
+      safeMode: false,
+    });
     expect(catalog.describe('acme.t')).toBeUndefined();
     expect(catalog.list()).toEqual([]);
     expect(catalog.ownerOf('acme.t')).toBeUndefined();
@@ -136,7 +141,12 @@ describe('createCatalog: отключённые расширения', () => {
     expect(catalog.validateAnswer('acme.t', 'x')).toEqual([
       'unknown exercise type',
     ]);
-    policy.update({ disabled: [], trusted: [], checkUpdates: true });
+    policy.update({
+      disabled: [],
+      trusted: [],
+      checkUpdates: true,
+      safeMode: false,
+    });
     expect(catalog.describe('acme.t')?.extensionId).toBe('acme.t');
     expect(catalog.list()).toHaveLength(1);
     expect(catalog.ownerOfPolicy('acme.t.generous')?.id).toBe('acme.t');

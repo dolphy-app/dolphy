@@ -22,7 +22,7 @@ export interface CatalogDeps {
 
 export const CATALOG_SYNOPSIS = `       dolphy-ext catalog check <extensionsDir> [--ids a,b]
                    [--published-index <path>] [--max-app-version <x.y.z>]
-                   [--skip-github-check] [--list-rules]
+                   [--built <siteDir>] [--skip-github-check] [--list-rules]
        dolphy-ext catalog build --src <extensionsDir> --ids a,b --out <siteDir>
                    [--previous-index <path>] [--revoked <path>]
                    [--source-base <url>] [--published-at <iso>]
@@ -45,6 +45,9 @@ export const CATALOG_HELP = `  catalog check    check the catalog's extension so
   --published-index <p>  index.v2.json of the published catalog (no file —
                          nothing is published)
   --max-app-version <v>  minAppVersion must not be newer
+  --built <siteDir>      also check the built versions in
+                         <siteDir>/extensions/<id>/<version>/ (eval, obfuscation,
+                         URLs, source maps); without it these rules are silent
   --skip-github-check    do not verify the author via api.github.com
                          (token — the GITHUB_TOKEN variable)
   --list-rules           print the check rules
@@ -60,7 +63,7 @@ export const CATALOG_HELP = `  catalog check    check the catalog's extension so
 type Flags = Record<string, string | true>;
 
 const VALUE_FLAGS = {
-  check: ['--ids', '--published-index', '--max-app-version'],
+  check: ['--ids', '--published-index', '--max-app-version', '--built'],
   build: [
     '--src',
     '--ids',
@@ -84,6 +87,7 @@ export type CatalogParsed =
       ids: string[] | undefined;
       publishedIndex: string | undefined;
       maxAppVersion: string | undefined;
+      built: string | undefined;
       skipGithubCheck: boolean;
       listRules: boolean;
     }
@@ -165,6 +169,7 @@ const parseCheck = (args: readonly string[]): CatalogParsed => {
     ids: idsOf(flags),
     publishedIndex: text(flags, '--published-index'),
     maxAppVersion,
+    built: text(flags, '--built'),
     skipGithubCheck: flags['--skip-github-check'] === true,
     listRules: listRulesFlag,
   };
@@ -251,6 +256,9 @@ const runCheck = async (
     ...(parsed.maxAppVersion === undefined
       ? {}
       : { maxAppVersion: parsed.maxAppVersion }),
+    ...(parsed.built === undefined
+      ? {}
+      : { builtDir: path.resolve(parsed.built) }),
     skipGithubCheck: parsed.skipGithubCheck,
     githubToken: deps.env?.GITHUB_TOKEN,
     ...(deps.fetch === undefined ? {} : { fetch: deps.fetch }),

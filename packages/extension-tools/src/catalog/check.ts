@@ -30,6 +30,8 @@ export interface CheckOptions {
   /** Only these directories; unset — all subdirectories. */
   ids?: readonly string[];
   publishedIndex?: string;
+  /** Site root with built versions `extensions/<id>/<version>/`; unset — the bundle rules are silent. */
+  builtDir?: string;
   maxAppVersion?: string;
   skipGithubCheck?: boolean;
   checkGithubUser?: GithubUserChecker;
@@ -163,6 +165,15 @@ const contextFor = async (
     declared: await readDeclared(dir),
     manifestProblem: problem,
     tree: await readTree(dir, SKIPPED_SOURCE_DIRS),
+    bundleDir:
+      options.builtDir === undefined || manifest === null
+        ? null
+        : path.join(
+            path.resolve(options.builtDir),
+            'extensions',
+            manifest.id,
+            manifest.version,
+          ),
     readText: (file) => readTextOrNull(path.join(dir, file)),
     readBytes: (file) => readBytesInside(dir, file),
     published: published?.extensions.find(

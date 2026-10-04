@@ -1,4 +1,4 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { RULES } from '../src/catalog/rules.ts';
@@ -104,7 +104,33 @@ describe('dolphy-ext catalog check', () => {
     expect(result.code).toBe(0);
     const lines = result.stdout.trimEnd().split('\n');
     expect(lines).toHaveLength(RULES.length);
+    expect(lines).toHaveLength(25);
     expect(lines[0]).toMatch(/^CHECK-001 \S/);
+  });
+
+  it('--built enables the bundle rules; a source map fails the run', async () => {
+    const repo = await createRepo([{ fixture: 'theme-only' }]);
+    const built = path.join(repo.root, 'site/extensions/acme.night/1.0.0');
+    await mkdir(built, { recursive: true });
+    await writeFile(
+      path.join(built, 'main.mjs'),
+      'x();\n//# sourceMappingURL=data:application/json;base64,e30=',
+    );
+    const base = [
+      'catalog',
+      'check',
+      repo.extensionsDir,
+      '--skip-github-check',
+    ];
+    expect((await exec(base)).code).toBe(0);
+    const result = await exec([
+      ...base,
+      '--built',
+      path.join(repo.root, 'site'),
+    ]);
+    expect(result.code).toBe(1);
+    expect(result.stdout).toContain('error acme.night CHECK-025 main.mjs:');
+    expect((await exec([...base, '--built'])).code).toBe(2);
   });
 
   it('usage errors give code 2', async () => {

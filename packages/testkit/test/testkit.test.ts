@@ -296,6 +296,7 @@ describe('createFakeExtensionRegistry', () => {
         settings: [],
         events: [],
         commands: [],
+        widgets: [],
         panels: [],
       },
       diagnostics: [{ code: 'load-failed', data: { reason: 'broken' } }],
@@ -326,6 +327,7 @@ describe('createFakeExtensionRegistry', () => {
       settings: [],
       commands: [],
       panels: [],
+      widgets: [],
       messages: {},
     };
     expect(createFakeExtensionRegistry().contributions()).toEqual(empty);

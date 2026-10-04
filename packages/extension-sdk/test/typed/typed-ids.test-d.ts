@@ -4,6 +4,7 @@ import {
   defineExerciseType,
   defineExtension,
   defineExtensionPanel,
+  defineExtensionWidget,
   defineMarkdownRenderer,
   inActivate,
   notify,
@@ -12,6 +13,7 @@ import {
   type ExtensionMarkdown,
   type ExtensionPanels,
   type ExtensionViews,
+  type ExtensionWidgets,
 } from '@dolphy-app/extension-sdk';
 
 const echo = defineExerciseType({
@@ -149,15 +151,18 @@ describe('defineExtension with generated ids', () => {
   });
 });
 
-describe('views, panels and markdown with generated ids', () => {
+describe('views, panels, widgets and markdown with generated ids', () => {
   const view = defineAnswerView(() => ({ update: () => undefined }));
   const panel = defineExtensionPanel({ mount: () => undefined });
+  const widget = defineExtensionWidget({ mount: () => undefined });
   const renderer = defineMarkdownRenderer(() => undefined);
 
   it('accept exactly the declared keys', () => {
     const views = { 'acme.echo': view } satisfies ExtensionViews;
     const panels = { 'acme.panel': panel } satisfies ExtensionPanels;
+    const widgets = { 'acme.widget': widget } satisfies ExtensionWidgets;
     const markdown = { echo: renderer } satisfies ExtensionMarkdown;
+    expectTypeOf(widgets).toHaveProperty('acme.widget');
     expectTypeOf(views).toHaveProperty('acme.echo');
     expectTypeOf(panels).toHaveProperty('acme.panel');
     expectTypeOf(markdown).toHaveProperty('echo');
@@ -178,6 +183,13 @@ describe('views, panels and markdown with generated ids', () => {
       // @ts-expect-error 'acme.more' is not declared
       'acme.more': panel,
     } satisfies ExtensionPanels;
+    // @ts-expect-error 'acme.widget' is declared but not named
+    const noWidgets = {} satisfies ExtensionWidgets;
+    const extraWidget = {
+      'acme.widget': widget,
+      // @ts-expect-error 'acme.more' is not declared
+      'acme.more': widget,
+    } satisfies ExtensionWidgets;
     // @ts-expect-error 'echo' is declared but not named
     const noMarkdown = {} satisfies ExtensionMarkdown;
     const extraMarkdown = {
@@ -185,7 +197,27 @@ describe('views, panels and markdown with generated ids', () => {
       // @ts-expect-error 'other' is not declared
       other: renderer,
     } satisfies ExtensionMarkdown;
-    void [noViews, extraView, noPanels, extraPanel, noMarkdown, extraMarkdown];
+    void [
+      noViews,
+      extraView,
+      noPanels,
+      extraPanel,
+      noWidgets,
+      extraWidget,
+      noMarkdown,
+      extraMarkdown,
+    ];
+  });
+
+  it('narrow what a widget may call', () => {
+    defineExtensionWidget({
+      mount(_container, ctx) {
+        void ctx.call('acme.a');
+        // @ts-expect-error not a declared command
+        void ctx.call('acme.c');
+        expectTypeOf(ctx.context.courseId).toEqualTypeOf<string | null>();
+      },
+    });
   });
 
   it('narrow what a panel may call and open', () => {

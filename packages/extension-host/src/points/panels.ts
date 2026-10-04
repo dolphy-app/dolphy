@@ -1,6 +1,8 @@
 import {
+  DEFAULT_EXTENSION_ICON,
   DEFAULT_PANEL,
   EXTENSION_COMMAND_LIMITS,
+  EXTENSION_ICONS,
 } from '@dolphy-app/extension-api';
 import { z } from 'zod';
 import {
@@ -21,12 +23,14 @@ export const panels: ContributionPoint<'panels'> = {
     id: extensionId,
     title: z.string().min(1).max(EXTENSION_COMMAND_LIMITS.titleLength),
     module: safePath(['.js', '.mjs']).optional(),
+    icon: z.enum(EXTENSION_ICONS).optional(),
   }),
   normalize: (entries) =>
     entries.map((entry) => ({
       id: entry.id,
       title: entry.title,
       module: entry.module ?? DEFAULT_PANEL,
+      icon: entry.icon ?? DEFAULT_EXTENSION_ICON,
     })),
   check: (entries, owner) => {
     const ids = entries.map(({ id }) => id);
@@ -44,6 +48,7 @@ export const panels: ContributionPoint<'panels'> = {
       resolved.push({
         id: entry.id,
         title: entry.title,
+        icon: entry.icon,
         rendererUrl: await resolveModuleUrl(
           owner,
           dir,

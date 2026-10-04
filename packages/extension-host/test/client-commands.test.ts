@@ -25,11 +25,17 @@ const extension: ResolvedExtension = stateful(ID, {
       category: null,
       keybinding: null,
       keybindings: [],
+      icon: 'puzzle',
       palette: true,
     },
   ],
   panels: [
-    { id: PANEL, title: 'Panel', rendererUrl: `dolphy-ext://${ID}/panel.mjs` },
+    {
+      id: PANEL,
+      title: 'Panel',
+      icon: 'puzzle',
+      rendererUrl: `dolphy-ext://${ID}/panel.mjs`,
+    },
   ],
 });
 

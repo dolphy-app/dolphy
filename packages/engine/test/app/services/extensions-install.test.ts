@@ -26,6 +26,7 @@ const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
   settings: [],
   events: [],
   commands: [],
+  widgets: [],
   panels: [],
 };
 

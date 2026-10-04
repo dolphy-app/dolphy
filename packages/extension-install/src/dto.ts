@@ -105,6 +105,7 @@ export const describeEntry = (
       events: [...(entry.contributes.events ?? [])],
       commands: [...(entry.contributes.commands ?? [])],
       panels: [...(entry.contributes.panels ?? [])],
+      widgets: [...(entry.contributes.widgets ?? [])],
     },
     icon: shown?.icon ?? null,
     titles: structuredClone(entry.titles ?? {}),

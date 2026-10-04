@@ -46,6 +46,7 @@ const manifestWith = (
     events: [],
     commands: [],
     panels: [],
+    widgets: [],
     ...contributes,
   },
 });

@@ -25,6 +25,25 @@
       { "id": "acme.surfaces.first", "title": "First" },
       { "id": "acme.surfaces.second", "title": "Second" }
     ],
+    "widgets": [
+      {
+        "id": "acme.surfaces.card",
+        "title": "Card",
+        "slot": "dailyPlan",
+        "minHeight": 100
+      },
+      {
+        "id": "acme.surfaces.gauge",
+        "title": "Gauge",
+        "slot": "dailyPlan",
+        "module": "./ui/gauge.js"
+      },
+      {
+        "id": "acme.surfaces.badge",
+        "title": "Badge",
+        "slot": "dailyPlan"
+      }
+    ],
     "markdownRenderers": [{ "language": "alpha" }, { "language": "beta" }]
   }
 }

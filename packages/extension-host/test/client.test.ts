@@ -53,6 +53,7 @@ const resolved: ResolvedExtension[] = [
     settings: [],
     events: [],
     commands: [],
+    widgets: [],
     panels: [],
   },
 ];

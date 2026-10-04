@@ -30,6 +30,7 @@ describe('panels and commands: project', () => {
         output: 'panel.mjs',
         views: [],
         panels: ['acme.commands-panel.main'],
+        widgets: [],
         languages: [],
       },
     ]);

@@ -18,6 +18,9 @@
     ],
     "events": [{ "event": "attempt.closed" }],
     "panels": [{ "id": "acme.typed.main", "title": "Typed" }],
+    "widgets": [
+      { "id": "acme.typed.card", "title": "Card", "slot": "dailyPlan" }
+    ],
     "markdownRenderers": [{ "language": "typed-echo" }],
     "settings": [
       {

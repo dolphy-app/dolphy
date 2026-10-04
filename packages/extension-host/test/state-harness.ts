@@ -94,6 +94,7 @@ export const stateful = (
   events: [{ event: 'attempt.closed' }, { event: 'session.started' }],
   commands: [],
   panels: [],
+  widgets: [],
   ...overrides,
 });
 

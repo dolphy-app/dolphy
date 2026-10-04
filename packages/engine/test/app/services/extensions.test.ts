@@ -17,6 +17,7 @@ const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
   settings: [],
   events: [],
   commands: [],
+  widgets: [],
   panels: [],
 };
 
@@ -135,6 +136,7 @@ describe('extensions.contributions', () => {
     gradePolicies: [policy('a.ext.z'), policy('a.ext.b')],
     settings: [],
     commands: [],
+    widgets: [],
     panels: [],
     messages: {},
   };

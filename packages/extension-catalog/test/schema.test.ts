@@ -101,7 +101,7 @@ describe('parseIndex', () => {
   it('неизвестный ключ сводки по-прежнему отвергается', () => {
     const base = entry().contributes;
     const raw = index([
-      { ...entry(), contributes: { ...base, widgets: ['x'] } },
+      { ...entry(), contributes: { ...base, gadgets: ['x'] } },
     ]);
     expect(issuesOf(raw)[0]).toContain('extensions.0.contributes');
   });

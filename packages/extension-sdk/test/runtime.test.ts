@@ -1,6 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { MarkdownRenderContext, PanelContext } from '../src/index.ts';
-import { dispatchMarkdown, dispatchPanels } from '../src/runtime.ts';
+import type {
+  MarkdownRenderContext,
+  PanelContext,
+  WidgetContext,
+} from '../src/index.ts';
+import {
+  dispatchMarkdown,
+  dispatchPanels,
+  dispatchWidgets,
+} from '../src/runtime.ts';
 
 const signal = new AbortController().signal;
 
@@ -9,8 +17,10 @@ describe('dispatchPanels', () => {
     panelId,
     props: undefined,
     signal,
+    context: { courseId: null },
     call: async () => undefined,
     onProps: () => () => undefined,
+    onContextChange: () => () => undefined,
   });
 
   it('mounts the panel named by ctx.panelId and passes the arguments through', async () => {
@@ -29,6 +39,34 @@ describe('dispatchPanels', () => {
     expect(() =>
       module.mount(document.createElement('div'), panelContext('a.other')),
     ).toThrow("panel 'a.other' is not exported");
+  });
+});
+
+describe('dispatchWidgets', () => {
+  const widgetContext = (widgetId: string): WidgetContext => ({
+    widgetId,
+    signal,
+    context: { courseId: 'c1' },
+    call: async () => undefined,
+    onContextChange: () => () => undefined,
+  });
+
+  it('mounts the widget named by ctx.widgetId and passes the arguments through', async () => {
+    const first = { mount: vi.fn() };
+    const second = { mount: vi.fn(async () => undefined) };
+    const module = dispatchWidgets({ 'a.first': first, 'a.second': second });
+    const container = document.createElement('div');
+    const context = widgetContext('a.first');
+    await module.mount(container, context);
+    expect(first.mount).toHaveBeenCalledWith(container, context);
+    expect(second.mount).not.toHaveBeenCalled();
+  });
+
+  it('rejects a widget that the file does not export', () => {
+    const module = dispatchWidgets({ 'a.first': { mount() {} } });
+    expect(() =>
+      module.mount(document.createElement('div'), widgetContext('a.other')),
+    ).toThrow("widget 'a.other' is not exported");
   });
 });
 

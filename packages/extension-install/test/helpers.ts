@@ -253,6 +253,7 @@ export const inspectJson = async (
           settings: raw.contributes.settings ?? [],
           events: raw.contributes.events ?? [],
           commands: raw.contributes.commands ?? [],
+          widgets: [],
           panels: raw.contributes.panels ?? [],
         },
       },

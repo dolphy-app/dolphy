@@ -39,11 +39,13 @@ import type {
   LearningEventName,
   LearningEventPayloads,
   LibraryReader,
+  PanelContextInfo,
   PanelModule,
   SettingChange,
   SettingContribution,
   SettingValue,
   StreakStats,
+  WidgetModule,
 } from '@dolphy-app/extension-api';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import { createAnswerElementClass } from './answer-element.ts';
@@ -1001,12 +1003,23 @@ export interface LoadPanelOptions {
     commandId: string,
     args: JsonValue | undefined,
   ) => JsonValue | undefined | Promise<JsonValue | undefined>;
+  /** The surroundings the frame starts with (`ctx.context`); defaults to all courses (`courseId: null`). */
+  context?: PanelContextInfo;
   /** Where to mount; defaults to a new `div` in `document.body`. */
   container?: HTMLElement;
 }
 
-export interface LoadedPanel {
-  /** Container the panel received in `mount`. */
+export interface LoadWidgetOptions {
+  /** Reply to `ctx.call`; by default the call is rejected. */
+  call?: LoadPanelOptions['call'];
+  /** The surroundings the frame starts with (`ctx.context`); defaults to all courses (`courseId: null`). */
+  context?: PanelContextInfo;
+  /** Where to mount; defaults to a new `div` in `document.body`. */
+  container?: HTMLElement;
+}
+
+export interface LoadedFrame {
+  /** Container the module received in `mount`. */
   readonly container: HTMLElement;
   /** `ctx.call` invocations in order. */
   readonly calls: readonly {
@@ -1015,11 +1028,66 @@ export interface LoadedPanel {
   }[];
   /** Whether `ctx.signal` was aborted (after `dispose()`). */
   readonly aborted: boolean;
-  /** Sends new properties to the panel (`ctx.onProps`). */
-  setProps(props: JsonValue | undefined): void;
+  /** The app focused another course: updates `ctx.context` and notifies `ctx.onContextChange` subscribers. */
+  setContext(context: PanelContextInfo): void;
   /** Closes the frame: aborts `ctx.signal` and removes the container. */
   dispose(): void;
 }
+
+export interface LoadedPanel extends LoadedFrame {
+  /** Sends new properties to the panel (`ctx.onProps`). */
+  setProps(props: JsonValue | undefined): void;
+}
+
+export type LoadedWidget = LoadedFrame;
+
+/** The part of the context a panel and a widget share, with the controls a test needs. */
+const createFrameContext = (
+  options: LoadPanelOptions | LoadWidgetOptions,
+  doc: Document,
+) => {
+  const calls: { commandId: string; args: JsonValue | undefined }[] = [];
+  const listeners = new Set<(context: PanelContextInfo) => void>();
+  const controller = new AbortController();
+  const container =
+    options.container ?? doc.body.appendChild(doc.createElement('div'));
+  let current: PanelContextInfo = {
+    courseId: options.context?.courseId ?? null,
+  };
+  const context = {
+    get context() {
+      return current;
+    },
+    signal: controller.signal,
+    call: async (commandId: string, args?: JsonValue) => {
+      calls.push({ commandId, args });
+      if (options.call === undefined) {
+        throw new Error(`command '${commandId}' is not available in this test`);
+      }
+      return options.call(commandId, args);
+    },
+    onContextChange: (listener: (context: PanelContextInfo) => void) => {
+      listeners.add(listener);
+      return () => void listeners.delete(listener);
+    },
+  };
+  const frame: LoadedFrame = {
+    container,
+    calls,
+    get aborted() {
+      return controller.signal.aborted;
+    },
+    setContext: (next) => {
+      current = { courseId: next.courseId };
+      for (const listener of [...listeners]) listener(current);
+    },
+    dispose: () => {
+      controller.abort();
+      if (options.container === undefined) container.remove();
+    },
+  };
+  return { context, frame, container };
+};
 
 /** Mounts a panel from `panels[id]` in the test DOM environment with the same context the frame provides. */
 export const loadPanel = async (
@@ -1030,39 +1098,47 @@ export const loadPanel = async (
   const doc = requireDocument('loadPanel');
   const panel = panels[id];
   if (panel === undefined) throw new Error(`panel '${id}' was not exported`);
-  const calls: { commandId: string; args: JsonValue | undefined }[] = [];
+  const { context, frame, container } = createFrameContext(options, doc);
   const listeners = new Set<(props: JsonValue | undefined) => void>();
-  const controller = new AbortController();
-  const container =
-    options.container ?? doc.body.appendChild(doc.createElement('div'));
   await panel.mount(container, {
+    get context() {
+      return context.context;
+    },
+    signal: context.signal,
+    call: context.call,
+    onContextChange: context.onContextChange,
     panelId: id,
     props: options.props,
-    signal: controller.signal,
-    call: async (commandId, args) => {
-      calls.push({ commandId, args });
-      if (options.call === undefined) {
-        throw new Error(`command '${commandId}' is not available in this test`);
-      }
-      return options.call(commandId, args);
-    },
     onProps: (listener) => {
       listeners.add(listener);
       return () => void listeners.delete(listener);
     },
   });
-  return {
-    container,
-    calls,
-    get aborted() {
-      return controller.signal.aborted;
-    },
-    setProps: (props) => {
+  return Object.assign(frame, {
+    setProps: (props: JsonValue | undefined) => {
       for (const listener of [...listeners]) listener(props);
     },
-    dispose: () => {
-      controller.abort();
-      if (options.container === undefined) container.remove();
+  });
+};
+
+/** Mounts a widget from `widgets[id]` in the test DOM environment with the same context the frame provides. */
+export const loadWidget = async (
+  widgets: Readonly<Record<string, WidgetModule<HTMLElement>>>,
+  id: string,
+  options: LoadWidgetOptions = {},
+): Promise<LoadedWidget> => {
+  const doc = requireDocument('loadWidget');
+  const widget = widgets[id];
+  if (widget === undefined) throw new Error(`widget '${id}' was not exported`);
+  const { context, frame, container } = createFrameContext(options, doc);
+  await widget.mount(container, {
+    get context() {
+      return context.context;
     },
-  };
+    signal: context.signal,
+    call: context.call,
+    onContextChange: context.onContextChange,
+    widgetId: id,
+  });
+  return frame;
 };

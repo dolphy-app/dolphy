@@ -71,9 +71,9 @@ superseded-by: null
 - [x] 3c. Руководство (один PR, `extension-sdk`, `tools/`)
   - [x] `docs/quick-start.md`, пять рецептов, `no-build.md`; `docs-blocks.ts` + `sdk-docs.test.ts` (R4, R5, R7); упаковка и `verify:packages` (R3)
   - [x] `docs/debugging.md` в состоянии на 3c: тесты, проверки, цикл разработки, `ctx.logger`, ограниченный процесс; разделы про журнал W1 и R8–R10 добавляет 3d
-- [ ] 3d. Цикл разработки (один PR, `extension-tools`, `desktop`)
-  - [ ] встроенные карты в watch (R8); `dolphy-ext dev` (R10); `devtools-shortcut.ts`, README приложения (R9)
-  - [ ] `debugging.md` — после слияния журнала W1 (стадия 1b), с реальными подписями окна (R15)
+- [x] 3d. Цикл разработки (один PR, `extension-tools`, `desktop`)
+  - [x] встроенные карты в watch (R8); `dolphy-ext dev` (R10); `devtools-shortcut.ts`, README приложения (R9)
+  - [x] `debugging.md` — журнал W1, DevTools, `dolphy-ext dev`, с реальными подписями окна (R15)
 - [ ] 3e. `publish` и каталог (после релиза)
   - [ ] `dolphy-ext publish` (R14); PR C1–C4 в `dolphy-app/dolphy-extensions` (R2)
 
@@ -95,6 +95,11 @@ superseded-by: null
 - Каталог проверяет проект, а не голый каталог: `package.json` и lock-файл (`CHECK-007`, `CHECK-008`) обязательны, поэтому путь без сборки годится для себя, а не для публикации; `no-build.md` говорит это прямо.
 - `main` в манифесте без сборки не нужен: `parseManifest` подставляет `./main.mjs`, если вклады требуют кода.
 - Опубликованный README пакета собирается из шаблона `tools/templates/package-readme.md` и `usage` в `package-manifest.mjs`, а не из `packages/extension-sdk/README.md`: ссылки на руководство добавлены в оба места.
+
+- Карты в watch: плагин `dolphy-ext:entry` (`pruneRecords`) возвращал преобразованный код без карты, и бандлер печатал `SOURCEMAP_BROKEN` на каждую сборку с вырезанием записей. `pruneRecords` теперь строит карту (`magic-string`, новая зависимость `extension-tools`), тест сверяет позиции в бандлах `surfaces` с исходными строками `src/index.ts` по встроенной карте (`@jridgewell/trace-mapping`, devDependency).
+- `generateBundle` вырезает безымянные `import "node:…"`, не затрагивая переводы строк, поэтому карта браузерных бандлов остаётся верной построчно (проверено тем же тестом).
+- Встроенная карта кладёт `sourcesContent`: в «Sources» DevTools исходный TypeScript виден, даже когда относительные пути карты не ведут к файлам на диске.
+- В настоящем Electron (запуск под Playwright) ввод `page.keyboard.press` идёт через CDP и не вызывает `before-input-event`; событие приходит от `webContents.sendInputEvent`. Поэтому сочетания проверены через `sendInputEvent` (все три переключают DevTools, повторное нажатие закрывает, без переменной окна ничего не происходит), а e2e-тест не добавлялся (как и решено).
 
 ## Decision Log
 
@@ -120,6 +125,11 @@ superseded-by: null
 - 2026-10-04 (3c). `docs/debugging.md` написан в составе 3c, но только о том, что есть в приложении сейчас (тесты, `validate`/`lint`/`typecheck`, цикл `pnpm dev` с `DOLPHY_DEV_EXTENSIONS`, `ctx.logger`, ограниченный процесс, чтение трассы `main.mjs` без карт). Причина: R3 требует файл в tarball, а журнал W1 (1c) и R8–R10 ещё не слиты; описывать их было бы выдумкой. Стадия 3d дополняет файл (встроенные карты в watch меняют раздел 6, `dolphy-ext dev`, DevTools, окно журнала с реальными подписями) и закрывает R15.
 - 2026-10-04 (3c). Рецепт «настройки» — собственный проект из трёх файлов (шаблона нет): `blank` + настройки трёх типов; его проверяет тот же `sdk-docs.test.ts` режимом `build-with-code-and-tests`. Рецепт «тема» — режим `build-no-code-and-tests`: код не собирается, но тест контраста запускается.
 - 2026-10-04 (3c). Перечень `docs` описан в `PACKAGES` (`package-manifest.mjs`): `files` пакета SDK — `['dist', 'docs']`, `build-packages.mjs` копирует перечисленные файлы, `verify-packages.mjs` требует их все в tarball и не допускает лишних; тест `package-manifest.test.mjs` сверяет перечень с каталогом.
+- 2026-10-05 (3d). Быстрый выход приложения (меньше 5 с, код выхода числом) — подсказка и код выхода `dev` 1; завершение приложения сигналом (Ctrl+C достаёт всю группу процессов) — обычная остановка, код 0. Причина: «Dolphy уже запущен» завершается кодом 0 и молча, а Ctrl+C в первые секунды не должен печатать ложную подсказку.
+- 2026-10-05 (3d). `dev` запускает исполняемый файл `Dolphy.app/Contents/MacOS/Dolphy`, а не `open`. Причина: `open` не передаёт окружение и возвращается сразу, процесс приложения не привязан к `dev`.
+- 2026-10-05 (3d). Шаблонный скрипт `pnpm dev` остаётся `dolphy-ext build --watch`; `dolphy-ext dev` описан в руководстве как отдельная команда. Причина: правка шаблона ломает побайтное равенство с рецептами (R5) и выходит за стадию.
+- 2026-10-05 (3d). Сочетание DevTools сверяет `KeyboardEvent.code` (`F12`, `KeyI`), а не `key`: Option+I на macOS даёт другой символ. Cmd+Alt+I — только `darwin`, Ctrl+Shift+I — везде, автоповтор и `keyUp` игнорируются.
+- 2026-10-05 (3d). Подписи окна в `debugging.md` — таблицей «где / en / ru / ключ», её сверяет `apps/desktop/test/debugging-guide.test.ts` со словарями `settings` приложения. Причина: R15 требует подписи, сверенные с приложением; тест ловит расхождение при правке i18n.
 
 ## Outcomes
 

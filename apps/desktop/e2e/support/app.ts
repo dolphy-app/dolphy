@@ -1,14 +1,114 @@
+import { execFile } from 'node:child_process';
 import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 import { _electron as electron } from 'playwright-core';
 import type { ElectronApplication, Page } from 'playwright-core';
 
 const APP_DIR = fileURLToPath(new URL('../..', import.meta.url));
 /** Релизная сборка для e2e: `vite build` с `DOLPHY_BUILD_OUT=dist-e2e` (global-setup). */
 export const E2E_BUILD_DIR = 'dist-e2e';
+
+/**
+ * `DOLPHY_E2E_SHOW=1`: показывать окна (смотреть прогон глазами). Окна
+ * показываются без фокуса (`showInactive`), приложение остаётся без активации.
+ */
+export const E2E_SHOW = process.env.DOLPHY_E2E_SHOW === '1';
+
+/**
+ * Space yabai, на который уходят видимые окна прогона (`DOLPHY_E2E_SPACE`,
+ * по умолчанию 3). Нужен `yabai` в `PATH`; без него окна остаются где созданы.
+ */
+const E2E_SPACE = process.env.DOLPHY_E2E_SPACE ?? '3';
+
+const execFileAsync = promisify(execFile);
+
+interface YabaiWindow {
+  id: number;
+  pid: number;
+  space: number;
+  'is-floating': boolean;
+}
+
+const yabai = async (...args: string[]) =>
+  (await execFileAsync('yabai', ['-m', ...args])).stdout;
+
+/**
+ * Переносит окна процесса на `E2E_SPACE` и делает их плавающими (иначе yabai
+ * растянет окно по раскладке). yabai видит окно только после показа и с
+ * задержкой, поэтому ждём все `total` окон.
+ */
+const placeWindows = async (pid: number, total: number) => {
+  const { index: space } = JSON.parse(
+    await yabai('query', '--spaces', '--space', E2E_SPACE),
+  ) as { index: number };
+  const own = async () =>
+    (JSON.parse(await yabai('query', '--windows')) as YabaiWindow[]).filter(
+      (window) => window.pid === pid,
+    );
+  let windows = await own();
+  for (let attempt = 0; windows.length < total && attempt < 50; attempt++) {
+    await sleep(100);
+    windows = await own();
+  }
+  for (const window of windows.filter((item) => item.space !== space)) {
+    // float до переноса: на тайловом space yabai сначала растянет окно
+    if (!window['is-floating']) {
+      await yabai('window', String(window.id), '--toggle', 'float');
+    }
+    await yabai('window', String(window.id), '--space', String(space));
+  }
+};
+
+/**
+ * macOS: копия `Electron.app` с `LSUIElement` (global-setup). Без Dock и без активации
+ * при старте процесса: обычный Electron на мгновение становится активным приложением
+ * и перехватывает клавиатуру и фокус оконного менеджера, даже со скрытым окном.
+ */
+export const QUIET_ELECTRON_APP = join(APP_DIR, E2E_BUILD_DIR, 'Electron.app');
+
+const quietElectronPath = join(QUIET_ELECTRON_APP, 'Contents/MacOS/Electron');
+
+/**
+ * Показывает скрытые окна без фокуса: `showInactive` не делает окно
+ * ключевым. Нужен обычный Electron: у копии с `LSUIElement` у окна нет роли AX
+ * и yabai не может его перенести. На время переноса на `E2E_SPACE` окна
+ * прозрачны, чтобы не мелькать на текущем space; размер yabai успевает
+ * изменить, поэтому исходные границы возвращаются после переноса.
+ */
+const revealWindows = async (app: ElectronApplication) => {
+  const { total, bounds } = await app.evaluate(({ BrowserWindow }) => {
+    const windows = BrowserWindow.getAllWindows();
+    const shown: Record<number, Electron.Rectangle> = {};
+    for (const window of windows) {
+      if (window.isVisible()) continue;
+      shown[window.id] = window.getBounds();
+      window.setOpacity(0);
+      window.showInactive();
+    }
+    return { total: windows.length, bounds: shown };
+  });
+  const pid = app.process().pid;
+  try {
+    if (process.platform === 'darwin' && pid !== undefined) {
+      await placeWindows(pid, total);
+    }
+  } catch (error) {
+    console.warn(`[e2e] yabai placement skipped: ${String(error)}`);
+  } finally {
+    await app.evaluate(({ BrowserWindow }, original) => {
+      for (const window of BrowserWindow.getAllWindows()) {
+        const rect = original[window.id];
+        if (rect !== undefined) window.setBounds(rect);
+        window.setOpacity(1);
+      }
+    }, bounds);
+  }
+};
 
 const LIBRARY_SOURCES = [
   '../../../../packages/engine/test/fixtures/libraries/sql-course/lib_kb',
@@ -86,7 +186,10 @@ export const launchApp = async (
   userData: string,
   env?: Record<string, string>,
 ): Promise<DolphyApp> => {
-  const executablePath = createRequire(import.meta.url)('electron') as string;
+  const executablePath =
+    process.platform === 'darwin' && !E2E_SHOW
+      ? quietElectronPath
+      : (createRequire(import.meta.url)('electron') as string);
   const app: ElectronApplication = await electron.launch({
     executablePath,
     cwd: APP_DIR,
@@ -94,14 +197,27 @@ export const launchApp = async (
       join(E2E_BUILD_DIR, 'dist-electron/main/index.js'),
       `--user-data-dir=${userData}`,
       '--lang=ru',
+      // окно на другом space yabai считается перекрытым: без этого Chromium
+      // замедляет его и iframe панелей не успевают ответить
+      ...(E2E_SHOW
+        ? [
+            '--disable-backgrounding-occluded-windows',
+            '--disable-renderer-backgrounding',
+          ]
+        : []),
     ],
-    // `env` в Playwright заменяет окружение целиком: добавки накладываются на process.env
-    ...(env
-      ? { env: { ...(process.env as Record<string, string>), ...env } }
-      : {}),
+    // `env` в Playwright заменяет окружение целиком: добавки накладываются на process.env;
+    // окна создаются скрытыми, чтобы прогон не перехватывал фокус
+    // (`DOLPHY_E2E_SHOW=1` показывает их без фокуса, см. `revealWindows`)
+    env: {
+      ...(process.env as Record<string, string>),
+      DOLPHY_HIDDEN_WINDOW: '1',
+      ...env,
+    },
   });
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
+  if (E2E_SHOW) await revealWindows(app);
   // отладочные сообщения renderer мешают читать отчёт: показываем только ошибки
   page.on('pageerror', (error) => {
     console.error(`[renderer pageerror] ${error.message}`);
@@ -129,10 +245,11 @@ export const launchApp = async (
     openWindow: async () => {
       const opened = app.waitForEvent('window');
       await app.evaluate(
-        ({ BrowserWindow }, preload) => {
+        ({ BrowserWindow }, { preload }) => {
           const [first] = BrowserWindow.getAllWindows();
           if (first === undefined) throw new Error('no window to copy');
           const next = new BrowserWindow({
+            show: false,
             width: 1100,
             height: 800,
             // как у окна приложения (`createWindowOptions`); `preload` из настроек окна не прочитать
@@ -148,10 +265,17 @@ export const launchApp = async (
           url.hash = '';
           void next.loadURL(url.href);
         },
-        join(APP_DIR, E2E_BUILD_DIR, 'dist-electron/preload/index.cjs'),
+        {
+          preload: join(
+            APP_DIR,
+            E2E_BUILD_DIR,
+            'dist-electron/preload/index.cjs',
+          ),
+        },
       );
       const second = await opened;
       await second.waitForLoadState('domcontentloaded');
+      if (E2E_SHOW) await revealWindows(app);
       second.on('pageerror', (error) => {
         console.error(`[renderer pageerror] ${error.message}`);
       });

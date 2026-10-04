@@ -12,7 +12,7 @@ import type { ExtensionSpec } from './catalog-helpers.ts';
 import { makeTemp } from './helpers.ts';
 
 const ID = 'acme.night';
-const THEME = (label: string) => ({
+const theme = (label: string) => ({
   themes: [
     {
       id: ID,
@@ -34,7 +34,7 @@ const EN = {
 /** A localized theme extension: every localizable field is a `%key%`. */
 const localized = (
   files: Record<string, string | null> = {},
-  contributes: unknown = THEME('%theme%'),
+  contributes: unknown = theme('%theme%'),
 ): Partial<ExtensionSpec> => ({
   manifest: { name: '%name%', description: '%description%', contributes },
   files: {

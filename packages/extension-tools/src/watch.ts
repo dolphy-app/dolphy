@@ -97,6 +97,12 @@ export interface BundleWatch {
   close(): Promise<void>;
 }
 
+/**
+ * Watch output is for development: inline source maps let DevTools show the
+ * author's TypeScript for browser bundles. A normal build and a catalog build
+ * never write them (`bundleConfig` leaves `sourcemap` unset; `catalog check`
+ * rejects them in a submission, CHECK-025).
+ */
 const watchJob = async (
   job: Job,
   reporter: Reporter,
@@ -105,7 +111,7 @@ const watchJob = async (
 ): Promise<{ watcher: Watcher; first: Promise<void> }> => {
   const started = await build({
     ...job.config,
-    build: { ...job.config.build, watch: {} },
+    build: { ...job.config.build, watch: {}, sourcemap: 'inline' },
   });
   if (!isWatcher(started)) {
     throw new Error(`watch mode is not available for '${job.output}'`);

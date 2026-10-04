@@ -539,6 +539,9 @@ importers:
       '@dolphy-app/extension-host':
         specifier: workspace:*
         version: link:../extension-host
+      magic-string:
+        specifier: ^0.30.21
+        version: 0.30.21
       vite:
         specifier: ^8.0.16
         version: 8.3.1(@types/node@22.20.4)(jiti@2.7.0)(yaml@2.9.1)
@@ -546,6 +549,9 @@ importers:
       '@dolphy-app/extension-install':
         specifier: workspace:*
         version: link:../extension-install
+      '@jridgewell/trace-mapping':
+        specifier: 0.3.31
+        version: 0.3.31
       '@types/node':
         specifier: ^22.20.4
         version: 22.20.4

@@ -21,7 +21,7 @@ repository's tests:
 - [`docs/no-build.md`](docs/no-build.md) — an extension from two hand-written
   files, no TypeScript and no build;
 - [`docs/debugging.md`](docs/debugging.md) — tests, checks, the development loop
-  and the log.
+  (`dolphy-ext dev`), DevTools and the log.
 
 An extension's code is one file, `src/index.ts`, with named exports. The build
 (`dolphy-ext build`, `@dolphy-app/extension-tools`) lays it out into

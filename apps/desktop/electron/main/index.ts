@@ -27,6 +27,7 @@ import {
 } from './platform-services.ts';
 import { safeModeSource } from './safe-mode.ts';
 import { createDevExtensionsShell } from './shells/dev-extensions.ts';
+import { createDevToolsShortcutShell } from './shells/devtools-shortcut.ts';
 import { createEngineShell } from './shells/engine.ts';
 import { createExtensionAssetsShell } from './shells/extension-assets.ts';
 import { createLifecycleShell } from './shells/lifecycle.ts';
@@ -211,6 +212,11 @@ const shells = [
     ...(devServerUrl ? { devServerUrl } : {}),
     hidden: hiddenWindow,
     additionalArguments: smoke ? [SMOKE_ARGUMENT] : [],
+  }),
+  createDevToolsShortcutShell({
+    app,
+    ...(devExtensionsDir ? { devExtensionsDir } : {}),
+    platform: process.platform,
   }),
   createEngineShell({ ipcMain, supervisor }),
   createPlatformShell({

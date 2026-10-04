@@ -521,7 +521,14 @@ export class Client {
     const tile = radio.locator('xpath=ancestor::label');
     return {
       title: await tile.getAttribute('title'),
-      visibleText: await tile.innerText(),
+      // скрытый для глаз текст (`visually-hidden`) не видимая подпись
+      visibleText: await tile.evaluate((node) => {
+        const copy = node.cloneNode(true) as HTMLElement;
+        copy.querySelectorAll('.visually-hidden').forEach((hidden) => {
+          hidden.remove();
+        });
+        return copy.textContent ?? '';
+      }),
       described: await radio.evaluate((node) => {
         const id = node.getAttribute('aria-describedby');
         const target = id === null ? null : document.getElementById(id);

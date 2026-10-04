@@ -9,6 +9,7 @@ export const ROUTE = {
   settingsLearning: 'settings-learning',
   settingsLibrary: 'settings-library',
   settingsAppearance: 'settings-appearance',
+  settingsShortcuts: 'settings-shortcuts',
   settingsExtensions: 'settings-extensions',
   settingsAbout: 'settings-about',
 } as const;

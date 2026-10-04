@@ -7,6 +7,7 @@ import { placementMessages } from '@/pages/placement';
 import { sessionMessages } from '@/pages/session';
 import { settingsMessages } from '@/pages/settings';
 import { repositoryMessages } from '@/entities/repository';
+import { appCommandsMessages } from '@/features/app-commands';
 import { courseScopeMessages } from '@/features/course-scope';
 import { extensionCommandsMessages } from '@/features/extension-commands';
 import { sharedMessages } from '@/shared/i18n';
@@ -20,6 +21,7 @@ export const appMessages = {
   ru: {
     ...sharedMessages.ru,
     ...appRu,
+    ...appCommandsMessages.ru,
     ...courseScopeMessages.ru,
     ...extensionCommandsMessages.ru,
     ...repositoryMessages.ru,
@@ -36,6 +38,7 @@ export const appMessages = {
   en: {
     ...sharedMessages.en,
     ...appEn,
+    ...appCommandsMessages.en,
     ...courseScopeMessages.en,
     ...extensionCommandsMessages.en,
     ...repositoryMessages.en,

@@ -6,6 +6,7 @@ import {
   ipcMain,
   net,
   protocol,
+  session,
   shell,
   utilityProcess,
 } from 'electron';
@@ -22,6 +23,7 @@ import { createExtensionAssetsShell } from './shells/extension-assets.ts';
 import { createLifecycleShell } from './shells/lifecycle.ts';
 import { createPlatformShell } from './shells/platform.ts';
 import { createSmokeShell } from './shells/smoke.ts';
+import { createWebContentsGuardShell } from './shells/web-contents-guard.ts';
 import { createWindowShell } from './shells/window.ts';
 import { createSupervisor } from './supervisor.ts';
 import type { HostProcessLike } from './supervisor.ts';
@@ -141,6 +143,7 @@ const supervisor = createSupervisor({
 });
 
 const shells = [
+  createWebContentsGuardShell({ app, session }),
   createWindowShell({
     app,
     BrowserWindow,

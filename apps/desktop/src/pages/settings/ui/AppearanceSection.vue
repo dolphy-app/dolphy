@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n';
 import type { LocaleMode } from '@dolphy-app/engine-contract';
 import {
   useContributions,
-  useEngine,
+  useLocaleSelection,
   useThemeSelection,
 } from '@/shared/api/engine';
 import { vuetifyThemeName } from '@/shared/lib/extension-themes.ts';
@@ -18,8 +18,8 @@ const LOCALE_MODES: LocaleMode[] = ['system', 'ru', 'en'];
 const { t } = useI18n();
 const contributions = useContributions();
 const { mode, localeMode, error, select, selectLocale } = useAppearanceSettings(
-  useEngine(),
   useThemeSelection(),
+  useLocaleSelection(),
   () => contributions.value.themes,
 );
 

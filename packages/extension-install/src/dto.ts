@@ -41,6 +41,7 @@ export const describeEntry = (
   installedVersion: string | null,
 ): CatalogEntryDto => {
   const resolution = resolveVersion(entry, context);
+  const shown = resolution.ok ? resolution.version : entry.versions[0];
   const common = {
     id: entry.id,
     name: entry.name,
@@ -58,8 +59,9 @@ export const describeEntry = (
       commands: [...(entry.contributes.commands ?? [])],
       panels: [...(entry.contributes.panels ?? [])],
     },
-    icon:
-      (resolution.ok ? resolution.version : entry.versions[0])?.icon ?? null,
+    icon: shown?.icon ?? null,
+    titles: structuredClone(entry.titles ?? {}),
+    tags: [...(shown?.tags ?? [])],
     installedVersion,
   };
   if (!resolution.ok) {

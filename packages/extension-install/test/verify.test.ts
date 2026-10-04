@@ -36,6 +36,7 @@ const manifestWith = (
   version: '1.0.0',
   permissions,
   icon: null,
+  tags: [],
   contributes: {
     exerciseTypes: [],
     themes: [],
@@ -121,5 +122,42 @@ describe('manifestMismatch: commands и panels', () => {
       panels: ['acme.state.q', 'acme.state.p'],
     });
     expect(manifestMismatch(manifest, entry, v)).toBeNull();
+  });
+});
+
+describe('manifestMismatch: tags', () => {
+  const taggedVersion = (tags?: string[]): CatalogVersion =>
+    ({ ...version, ...(tags === undefined ? {} : { tags }) }) as CatalogVersion;
+  const [entry] = entryWith({});
+  const manifest = (tags: string[]): InspectedManifest => ({
+    ...manifestWith(),
+    tags,
+  });
+
+  it('passes when the sets are equal in any order, and when both are empty', () => {
+    expect(
+      manifestMismatch(
+        manifest(['theme', 'interface']),
+        entry!,
+        taggedVersion(['interface', 'theme']),
+      ),
+    ).toBeNull();
+    expect(manifestMismatch(manifest([]), entry!, taggedVersion())).toBeNull();
+  });
+
+  it('rejects tags the record lacks and tags the manifest lacks', () => {
+    expect(manifestMismatch(manifest(['theme']), entry!, taggedVersion())).toBe(
+      'manifest tags differ from the catalog entry',
+    );
+    expect(
+      manifestMismatch(manifest([]), entry!, taggedVersion(['theme'])),
+    ).toBe('manifest tags differ from the catalog entry');
+    expect(
+      manifestMismatch(
+        manifest(['theme']),
+        entry!,
+        taggedVersion(['theme', 'interface']),
+      ),
+    ).toBe('manifest tags differ from the catalog entry');
   });
 });

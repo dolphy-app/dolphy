@@ -22,6 +22,7 @@ import {
   MARKDOWN,
   markdownCourse,
 } from './support/courses.ts';
+import { expectVisible } from './support/locator.ts';
 import { PLAIN_LIBRARY } from './support/state-client.ts';
 
 const fixture = (name: string) =>
@@ -263,7 +264,7 @@ describe('враждебное расширение', () => {
     );
   });
 
-  it('SVG со скриптом, скопированный вручную: отдаётся с песочницей и не выполняется', async () => {
+  it('рамка не может сменить свой адрес на SVG со скриптом: навигация заблокирована, окно приложения цело', async () => {
     const { page, commands } = await launch(
       { [HOSTILE_ID]: HOSTILE_DIR },
       PLAIN_LIBRARY,
@@ -272,19 +273,16 @@ describe('враждебное расширение', () => {
     await commands.frame
       .getByRole('button', { name: 'Открыть SVG', exact: true })
       .click();
-    const opened = async () =>
-      page.frames().find((frame) => frame.url().endsWith('/assets/evil.svg'));
-    await expect.poll(opened, { timeout: 30_000 }).toBeDefined();
-    const frame = (await opened())!;
-    // документ SVG загружен (корень svg), но ни `<script>`, ни `onload` не сработали
-    await expect
-      .poll(() => frame.evaluate(() => document.documentElement.localName), {
-        timeout: 30_000,
-      })
-      .toBe('svg');
-    expect(
-      await frame.evaluate(() => Reflect.get(window, '__svgRan') ?? null),
-    ).toBeNull();
+    // блокировка — отсутствие события: даём навигации время состояться
+    await page.waitForTimeout(2000);
+    const urls = page.frames().map((frame) => frame.url());
+    expect(urls.some((url) => url.endsWith('/assets/evil.svg'))).toBe(false);
+    expect(urls).toContain(`dolphy-ext://${HOSTILE_ID}/__dolphy/frame.html`);
+    // рамка осталась прежней страницей, приложение не затронуто
+    await expectVisible(
+      commands.frame.getByRole('button', { name: 'Открыть SVG', exact: true }),
+    );
+    expect(await page.evaluate(() => 'dolphy' in window)).toBe(true);
   });
 });
 

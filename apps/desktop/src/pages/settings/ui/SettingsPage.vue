@@ -26,6 +26,11 @@ const SECTIONS: SectionLink[] = [
     icon: 'mdi-palette-outline',
   },
   {
+    name: ROUTE.settingsShortcuts,
+    title: 'settings.page.nav.shortcuts',
+    icon: 'mdi-keyboard-outline',
+  },
+  {
     name: ROUTE.settingsExtensions,
     title: 'settings.page.nav.extensions',
     icon: 'mdi-puzzle-outline',

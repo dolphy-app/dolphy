@@ -8,9 +8,10 @@ export const en: typeof ru = {
     list: 'Commands',
     count: 'No commands | {n} command found | {n} commands found',
     empty: 'No commands',
-    emptyHint: 'Commands appear when an extension with commands is enabled.',
+    emptyHint: 'Commands of the app and of enabled extensions appear here.',
     noMatches: 'No matching commands',
     noMatchesHint: 'Change the query.',
+    checked: 'Selected',
     busy: 'Running',
   },
 };

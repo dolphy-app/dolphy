@@ -39,6 +39,8 @@ const base = {
   author: null,
   installed: null,
   icon: null,
+  titles: {},
+  tags: [],
   removable: true,
   revoked: null,
 };

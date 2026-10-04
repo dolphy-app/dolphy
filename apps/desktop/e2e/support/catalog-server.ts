@@ -8,11 +8,16 @@ import { fileURLToPath } from 'node:url';
 import {
   ASSET_MIME,
   CATALOG_FILE_EXTENSIONS,
+  TITLED_POINTS,
   assetExtensionOf,
   compareSemver,
   iconDataUri,
   legacySubset,
   parseIndex,
+} from '@dolphy-app/extension-catalog';
+import type {
+  ContributionTitles,
+  TitledPoint,
 } from '@dolphy-app/extension-catalog';
 
 /** Версия приложения для e2e: `minAppVersion` проверяется только когда она задана. */
@@ -49,6 +54,8 @@ interface PublishedVersion {
   version: string;
   /** `data:`-URI значка из манифеста. */
   icon: string | null;
+  /** Теги манифеста этой версии. */
+  tags: string[];
   apiVersion: number;
   minAppVersion: string | null;
   permissions: string[];
@@ -66,6 +73,8 @@ interface PublishedExtension {
     string[]
   > &
     Partial<Record<'settings' | 'events' | 'commands' | 'panels', string[]>>;
+  /** Названия вкладов из манифеста (запись индекса `titles`). */
+  titles: ContributionTitles;
   versions: PublishedVersion[];
 }
 
@@ -152,17 +161,18 @@ interface RawManifest {
   version: string;
   apiVersion: number;
   icon?: string;
+  tags?: string[];
   minAppVersion?: string;
   permissions?: string[];
   contributes?: {
     exerciseTypes?: { id: string }[];
-    themes?: { id: string }[];
+    themes?: { id: string; label: string }[];
     markdownRenderers?: { language: string }[];
-    gradePolicies?: { id: string }[];
-    settings?: { id: string }[];
+    gradePolicies?: { id: string; label: string }[];
+    settings?: { id: string; label: string }[];
     events?: { event: string }[];
-    commands?: { id: string }[];
-    panels?: { id: string }[];
+    commands?: { id: string; title: string }[];
+    panels?: { id: string; title: string }[];
   };
 }
 
@@ -191,6 +201,36 @@ const contributesOf = (
   };
 };
 
+/** `label`/`title` вкладов по точкам, как пишет `catalog build`; пустые точки опущены. */
+const titlesOf = (manifest: RawManifest): ContributionTitles => {
+  const contributes = manifest.contributes ?? {};
+  const byPoint: Record<TitledPoint, { id: string; title: string }[]> = {
+    themes: (contributes.themes ?? []).map(({ id, label }) => ({
+      id,
+      title: label,
+    })),
+    gradePolicies: (contributes.gradePolicies ?? []).map(({ id, label }) => ({
+      id,
+      title: label,
+    })),
+    settings: (contributes.settings ?? []).map(({ id, label }) => ({
+      id,
+      title: label,
+    })),
+    commands: (contributes.commands ?? []).map(({ id, title }) => ({
+      id,
+      title,
+    })),
+    panels: (contributes.panels ?? []).map(({ id, title }) => ({ id, title })),
+  };
+  return Object.fromEntries(
+    TITLED_POINTS.filter((point) => byPoint[point].length > 0).map((point) => [
+      point,
+      Object.fromEntries(byPoint[point].map(({ id, title }) => [id, title])),
+    ]),
+  );
+};
+
 const etagOf = (body: string) =>
   `"${createHash('sha256').update(body).digest('hex').slice(0, 16)}"`;
 
@@ -217,6 +257,7 @@ export const startCatalogServer = async (
     ) as RawManifest;
     const version: PublishedVersion = {
       version: manifest.version,
+      tags: manifest.tags ?? [],
       icon:
         manifest.icon === undefined
           ? null
@@ -241,6 +282,7 @@ export const startCatalogServer = async (
       author: source.author,
       platforms: source.platforms ?? [],
       contributes: contributesOf(manifest),
+      titles: titlesOf(manifest),
       versions,
     });
   };
@@ -260,6 +302,9 @@ export const startCatalogServer = async (
         source: `https://example.test/extensions/${entry.id}`,
         platforms: entry.platforms,
         contributes: entry.contributes,
+        ...(Object.keys(entry.titles).length === 0
+          ? {}
+          : { titles: entry.titles }),
         versions: entry.versions.map((version) => ({
           version: version.version,
           apiVersion: version.apiVersion,
@@ -273,6 +318,7 @@ export const startCatalogServer = async (
             sha256,
           })),
           ...(version.icon === null ? {} : { icon: version.icon }),
+          ...(version.tags.length === 0 ? {} : { tags: version.tags }),
         })),
       })),
       revoked: [...revoked],

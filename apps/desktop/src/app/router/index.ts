@@ -12,6 +12,7 @@ import {
   SettingsLearning,
   SettingsLibrary,
   SettingsPage,
+  SettingsShortcuts,
 } from '@/pages/settings';
 import { ROUTE } from '@/shared/config/routes.ts';
 import ShellLayout from '../layouts/ShellLayout.vue';
@@ -109,6 +110,11 @@ export const router = createRouter({
               path: 'appearance',
               name: ROUTE.settingsAppearance,
               component: SettingsAppearance,
+            },
+            {
+              path: 'shortcuts',
+              name: ROUTE.settingsShortcuts,
+              component: SettingsShortcuts,
             },
             {
               path: 'extensions',

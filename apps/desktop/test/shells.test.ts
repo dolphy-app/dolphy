@@ -4,6 +4,7 @@ import type { EngineConnectEvent } from '../electron/main/shells/engine.ts';
 import { createLifecycleShell } from '../electron/main/shells/lifecycle.ts';
 import { createPlatformShell } from '../electron/main/shells/platform.ts';
 import type { PickDirectoryEvent } from '../electron/main/shells/platform.ts';
+import { createWebContentsGuardShell } from '../electron/main/shells/web-contents-guard.ts';
 import { createWindowShell } from '../electron/main/shells/window.ts';
 import type {
   BrowserWindowLike,
@@ -166,9 +167,6 @@ describe('window shell', () => {
   ) => {
     const created: { options: WindowOptions; window: BrowserWindowLike }[] = [];
     const listeners = new Map<string, () => void>();
-    const navigation: {
-      handler: (e: { preventDefault(): void; url: string }) => void;
-    }[] = [];
     const openHandlers: ((d: { url: string }) => { action: 'deny' })[] = [];
     const openExternal = vi.fn(async () => undefined);
     const loaded: string[] = [];
@@ -177,10 +175,6 @@ describe('window shell', () => {
         setWindowOpenHandler: (handler: (typeof openHandlers)[number]) => {
           openHandlers.push(handler);
         },
-        on: (_event: 'will-navigate', handler: never) => {
-          navigation.push({ handler });
-        },
-        getURL: () => 'file:///app/index.html',
         openDevTools: () => undefined,
       };
       declare isMinimized: () => boolean;
@@ -224,7 +218,6 @@ describe('window shell', () => {
     return {
       created,
       listeners,
-      navigation,
       openHandlers,
       openExternal,
       quit,
@@ -257,15 +250,9 @@ describe('window shell', () => {
     ]);
   });
 
-  it('навигация запрещена, новые окна отклоняются, https открывается снаружи', async () => {
-    const { navigation, openHandlers, openExternal } = setup();
-    await vi.waitFor(() => expect(navigation).toHaveLength(1));
-    const preventDefault = vi.fn();
-    navigation[0]?.handler({ preventDefault, url: 'https://example.org/' });
-    expect(preventDefault).toHaveBeenCalledTimes(1);
-    // перезагрузка текущей страницы не блокируется
-    navigation[0]?.handler({ preventDefault, url: 'file:///app/index.html' });
-    expect(preventDefault).toHaveBeenCalledTimes(1);
+  it('новые окна отклоняются, https открывается снаружи', async () => {
+    const { openHandlers, openExternal } = setup();
+    await vi.waitFor(() => expect(openHandlers).toHaveLength(1));
     expect(openHandlers[0]?.({ url: 'https://example.org/' })).toEqual({
       action: 'deny',
     });
@@ -282,5 +269,144 @@ describe('window shell', () => {
     await vi.waitFor(() => expect(loaded).toEqual(['http://localhost:5173']));
     listeners.get('window-all-closed')?.();
     expect(quit).toHaveBeenCalled();
+  });
+});
+
+describe('web-contents guard shell', () => {
+  interface FakeContents {
+    listeners: Map<string, (event: never) => void>;
+    openHandler: (() => { action: 'deny' }) | null;
+    url: string;
+    on: (event: string, listener: (event: never) => void) => void;
+    setWindowOpenHandler: (handler: () => { action: 'deny' }) => void;
+    getURL: () => string;
+  }
+  const createContents = (url: string): FakeContents => {
+    const contents: FakeContents = {
+      listeners: new Map(),
+      openHandler: null,
+      url,
+      on: (event, listener) => void contents.listeners.set(event, listener),
+      setWindowOpenHandler: (handler) => {
+        contents.openHandler = handler;
+      },
+      getURL: () => contents.url,
+    };
+    return contents;
+  };
+  const setup = () => {
+    let created: ((event: unknown, contents: FakeContents) => void) | null =
+      null;
+    const session = {
+      requestHandler: null as
+        | ((
+            c: unknown,
+            p: string,
+            callback: (granted: boolean) => void,
+          ) => void)
+        | null,
+      checkHandler: null as (() => boolean) | null,
+    };
+    createWebContentsGuardShell({
+      app: {
+        whenReady: () => Promise.resolve(),
+        on: (_event, listener) => {
+          created = listener as never;
+        },
+      },
+      session: {
+        defaultSession: {
+          setPermissionRequestHandler: (handler) => {
+            session.requestHandler = handler;
+          },
+          setPermissionCheckHandler: (handler) => {
+            session.checkHandler = handler;
+          },
+        },
+      },
+    }).register();
+    const guard = (url = 'file:///app/index.html') => {
+      const contents = createContents(url);
+      created?.({}, contents);
+      return contents;
+    };
+    const navigate = (
+      contents: FakeContents,
+      event: 'will-navigate' | 'will-frame-navigate',
+      details: {
+        url: string;
+        isMainFrame?: boolean;
+        frame?: { url: string } | null;
+      },
+    ): boolean => {
+      const preventDefault = vi.fn();
+      contents.listeners.get(event)?.({ preventDefault, ...details } as never);
+      return preventDefault.mock.calls.length > 0;
+    };
+    return { session, guard, navigate };
+  };
+
+  it('любой запрос и проверка разрешения сеанса отклоняются', async () => {
+    const { session } = setup();
+    await vi.waitFor(() => expect(session.requestHandler).not.toBeNull());
+    for (const permission of ['media', 'geolocation', 'notifications']) {
+      const callback = vi.fn();
+      session.requestHandler?.({}, permission, callback);
+      expect(callback).toHaveBeenCalledWith(false);
+    }
+    expect(session.checkHandler?.()).toBe(false);
+  });
+
+  it('навигация главного кадра запрещена, кроме перезагрузки текущего адреса', () => {
+    const { guard, navigate } = setup();
+    const contents = guard();
+    for (const event of ['will-navigate', 'will-frame-navigate'] as const) {
+      expect(
+        navigate(contents, event, {
+          url: 'https://example.org/',
+          isMainFrame: true,
+        }),
+      ).toBe(true);
+      expect(
+        navigate(contents, event, {
+          url: 'file:///app/index.html',
+          isMainFrame: true,
+        }),
+      ).toBe(false);
+    }
+  });
+
+  it('подкадр: первая загрузка страницы рамки расширения разрешена, смена адреса загруженной рамки и чужие адреса — нет', () => {
+    const { guard, navigate } = setup();
+    const contents = guard();
+    const frameNavigate = (url: string, loadedUrl: string) =>
+      navigate(contents, 'will-frame-navigate', {
+        url,
+        isMainFrame: false,
+        frame: { url: loadedUrl },
+      });
+    const page = 'dolphy-ext://acme.echo/__dolphy/frame.html';
+    expect(frameNavigate(page, '')).toBe(false);
+    // загруженная рамка не может сменить адрес, в том числе на свой же или на чужого расширения
+    expect(frameNavigate(page, page)).toBe(true);
+    expect(
+      frameNavigate('dolphy-ext://acme.other/__dolphy/frame.html', page),
+    ).toBe(true);
+    expect(frameNavigate('https://example.org/', page)).toBe(true);
+    // пустой подкадр не загружает что попало и не получает исключения перезагрузки главного кадра
+    expect(frameNavigate('https://example.org/', '')).toBe(true);
+    expect(frameNavigate('file:///app/index.html', '')).toBe(true);
+  });
+
+  it('открытие окон и <webview> запрещены у каждого webContents', () => {
+    const { guard } = setup();
+    for (const contents of [guard(), guard('dolphy-ext://acme.echo/')]) {
+      expect(contents.openHandler?.()).toEqual({ action: 'deny' });
+      const preventDefault = vi.fn();
+      contents.listeners.get('will-attach-webview')?.({
+        preventDefault,
+      } as never);
+      expect(preventDefault).toHaveBeenCalledTimes(1);
+    }
   });
 });

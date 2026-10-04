@@ -63,6 +63,10 @@ export interface ExtensionSpec {
   icon?: Uint8Array;
   /** Files besides `extension.json`, `main.mjs` and the icon. */
   extraFiles?: Record<string, string | Uint8Array>;
+  /** `tags` by version: they join the manifest and the version record of that version. */
+  tags?: Record<string, string[]>;
+  /** `titles` of the index entry. */
+  titles?: Record<string, Record<string, string>>;
 }
 
 export const ICON_PATH = 'assets/icon.png';
@@ -75,6 +79,9 @@ export const filesOf = (spec: ExtensionSpec, version: string): FakeFile[] => [
       version,
       permissions: spec.permissions ?? [],
       ...(spec.icon === undefined ? {} : { icon: ICON_PATH }),
+      ...(spec.tags?.[version] === undefined
+        ? {}
+        : { tags: spec.tags[version] }),
       contributes: spec.contributes ?? contributesOf([spec.id]),
       ...spec.manifest,
     }),
@@ -96,6 +103,7 @@ export const rawEntry = (spec: ExtensionSpec): Record<string, unknown> => ({
   source: 'https://github.com/dolphy-app/dolphy-extensions',
   platforms: spec.platforms ?? [],
   contributes: spec.contributes ?? contributesOf([spec.id]),
+  ...(spec.titles === undefined ? {} : { titles: spec.titles }),
   versions: (spec.versions ?? [spec.version]).map((version) => ({
     version,
     apiVersion: spec.apiVersion ?? 1,
@@ -112,6 +120,7 @@ export const rawEntry = (spec: ExtensionSpec): Record<string, unknown> => ({
     ...(spec.icon === undefined
       ? {}
       : { icon: iconDataUri(ICON_PATH, spec.icon) }),
+    ...(spec.tags?.[version] === undefined ? {} : { tags: spec.tags[version] }),
   })),
 });
 
@@ -220,6 +229,7 @@ export const inspectJson = async (
       version: string;
       permissions: string[];
       icon?: string;
+      tags?: string[];
       contributes: Contributes;
     };
     return {
@@ -235,6 +245,7 @@ export const inspectJson = async (
                 raw.icon,
                 await readFile(path.join(directory, raw.icon)),
               ),
+        tags: raw.tags ?? [],
         contributes: {
           ...raw.contributes,
           settings: raw.contributes.settings ?? [],

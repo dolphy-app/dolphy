@@ -1,20 +1,20 @@
-import { computed, ref, shallowReactive, watch } from 'vue';
-import type { ComputedRef, Ref } from 'vue';
-import type { CommandContributionDto } from '@dolphy-app/engine-contract';
+import { computed, inject, ref, shallowReactive, watch } from 'vue';
+import type { ComputedRef, InjectionKey, Ref } from 'vue';
+import type {
+  Command,
+  CommandRegistry,
+} from '@/shared/lib/command-registry.ts';
 import { filterCommands } from '../lib/filter.ts';
-import type { PaletteEntry } from '../lib/filter.ts';
 
 export interface CommandPaletteDeps {
-  /** Команды включённых расширений; читается реактивно (`contributions-changed`). */
-  commands: () => readonly CommandContributionDto[];
-  /** Выполняет команду (эффекты и сообщения об ошибках — на стороне вызова). */
-  run(command: CommandContributionDto): Promise<void>;
+  /** Единственный источник команд: приложение и расширения лежат в нём рядом. */
+  registry: CommandRegistry;
 }
 
 export interface CommandPalette {
   readonly isOpen: Readonly<Ref<boolean>>;
   readonly query: Ref<string>;
-  readonly entries: ComputedRef<PaletteEntry[]>;
+  readonly entries: ComputedRef<Command[]>;
   /** Выбранная строка: держится за ключом команды, а не за позицией. */
   readonly activeKey: Readonly<Ref<string | null>>;
   open(): void;
@@ -27,8 +27,17 @@ export interface CommandPalette {
   choose(key?: string): Promise<void>;
 }
 
+export const COMMAND_PALETTE_KEY: InjectionKey<CommandPalette> =
+  Symbol('command-palette');
+
+export const useCommandPalette = (): CommandPalette => {
+  const palette = inject(COMMAND_PALETTE_KEY);
+  if (!palette) throw new Error('command palette is not provided');
+  return palette;
+};
+
 /**
- * Состояние палитры команд. Выбор переживает обновление вкладов: пока
+ * Состояние палитры команд. Выбор переживает обновление реестра: пока
  * выбранная команда есть, выбор на ней; если пропала — на соседней строке на
  * том же месте. Команда, которая ещё выполняется, повторно не запускается.
  */
@@ -41,9 +50,11 @@ export const createCommandPalette = (
   const busy = shallowReactive(new Set<string>());
   let selectedIndex = 0;
 
-  const entries = computed(() => filterCommands(deps.commands(), query.value));
+  const entries = computed(() =>
+    filterCommands(deps.registry.list.value, query.value),
+  );
 
-  const reconcile = (list: readonly PaletteEntry[]) => {
+  const reconcile = (list: readonly Command[]) => {
     const found =
       selectedKey.value === null
         ? -1
@@ -74,7 +85,7 @@ export const createCommandPalette = (
     isOpen.value = false;
     busy.add(entry.key);
     try {
-      await deps.run(entry.command);
+      await entry.run();
     } finally {
       busy.delete(entry.key);
     }

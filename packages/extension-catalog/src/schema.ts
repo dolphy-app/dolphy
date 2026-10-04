@@ -2,8 +2,10 @@ import {
   EXTENSION_ID_PATTERN,
   EXTENSION_PERMISSIONS,
   EXTENSION_PLATFORMS,
+  EXTENSION_TAGS,
   GITHUB_LOGIN_PATTERN,
 } from '@dolphy-app/extension-api';
+import type { ExtensionTag } from '@dolphy-app/extension-api';
 import { z } from 'zod';
 import {
   CATALOG_FILE_EXTENSIONS,
@@ -25,6 +27,23 @@ export const CATALOG_SCHEMA_VERSION = 2 as const;
 export const MAX_VERSIONS = 5;
 export const MAX_FILES = 50;
 export const MAX_TOTAL_BYTES = 10_000_000;
+/** Longest contribution title in `titles` (the manifest limit of `label`/`title`). */
+const MAX_TITLE_LENGTH = 60;
+/** Most tags of a version. */
+export const MAX_TAGS = 5;
+/** Contribution points whose entries carry a human title in the manifest (`label` or `title`). */
+export const TITLED_POINTS = [
+  'themes',
+  'gradePolicies',
+  'settings',
+  'commands',
+  'panels',
+] as const;
+export type TitledPoint = (typeof TITLED_POINTS)[number];
+/** Contribution titles of an entry: point → id → title. */
+export type ContributionTitles = Partial<
+  Record<TitledPoint, Record<string, string>>
+>;
 const MAX_PATH_LENGTH = 200;
 const SHA256 = /^[0-9a-f]{64}$/;
 /** Допустимые символы сегмента пути: без `:` (потоки NTFS), пробелов и управляющих символов. */
@@ -129,6 +148,10 @@ interface Profile {
   extensions: readonly string[];
   /** The `icon` key of a version; the first format does not know it. */
   icon: boolean;
+  /** The `titles` key of an entry; the first format does not know it. */
+  titles: boolean;
+  /** The `tags` key of a version; the first format does not know it. */
+  tags: boolean;
   /** `false` — unknown keys are dropped instead of rejected. */
   strict: boolean;
 }
@@ -199,6 +222,40 @@ const filesSchemaOf = (profile: Profile) =>
       }
     });
 
+const strictTags = z
+  .array(z.enum(EXTENSION_TAGS))
+  .max(MAX_TAGS)
+  .superRefine((tags, ctx) => {
+    tags.forEach((tag, index) => {
+      if (tags.indexOf(tag) !== index) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [index],
+          message: `duplicate tag '${tag}'`,
+        });
+      }
+    });
+  });
+
+const knownTags: readonly string[] = EXTENSION_TAGS;
+
+const tolerantTags = z
+  .array(z.string())
+  .transform((tags) =>
+    [...new Set(tags.filter((tag) => knownTags.includes(tag)))].slice(
+      0,
+      MAX_TAGS,
+    ),
+  )
+  .catch([]);
+
+const tagsSchemaOf = (
+  profile: Profile,
+): z.ZodOptional<z.ZodType<ExtensionTag[]>> =>
+  (profile.strict ? strictTags : tolerantTags).optional() as z.ZodOptional<
+    z.ZodType<ExtensionTag[]>
+  >;
+
 const versionSchemaOf = (profile: Profile) =>
   object(profile, {
     version: semver,
@@ -214,7 +271,16 @@ const versionSchemaOf = (profile: Profile) =>
       .max(MAX_ICON_URI_LENGTH)
       .regex(ICON_URI_PATTERN)
       .optional(),
+    /** Explicit tags of the version (a closed vocabulary); the tolerant reader drops the ones it does not know. */
+    tags: tagsSchemaOf(profile),
   }).superRefine((version, ctx) => {
+    if (!profile.tags && version.tags !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['tags'],
+        message: 'tags is not part of this index format',
+      });
+    }
     if (!profile.icon && version.icon !== undefined) {
       ctx.addIssue({
         code: 'custom',
@@ -236,6 +302,23 @@ const contributesSchemaOf = (profile: Profile) =>
     panels: z.array(z.string()).optional(),
   });
 
+const titleMap = z.record(extensionId, z.string().min(1).max(MAX_TITLE_LENGTH));
+
+/** Titles of the contributions by point; an unreadable map is dropped by the tolerant reader, the entry stays. */
+const titlesSchemaOf = (
+  profile: Profile,
+): z.ZodOptional<z.ZodType<ContributionTitles>> => {
+  const schema = object(
+    profile,
+    Object.fromEntries(
+      TITLED_POINTS.map((point) => [point, titleMap.optional()]),
+    ),
+  ).optional();
+  return (
+    profile.strict ? schema : schema.catch(undefined).optional()
+  ) as z.ZodOptional<z.ZodType<ContributionTitles>>;
+};
+
 const entryHeadOf = (profile: Profile) => ({
   id: extensionId,
   name: z.string().min(1).max(80),
@@ -244,6 +327,7 @@ const entryHeadOf = (profile: Profile) => ({
   source: httpsUrl,
   platforms: z.array(z.enum(EXTENSION_PLATFORMS)),
   contributes: contributesSchemaOf(profile),
+  titles: titlesSchemaOf(profile),
 });
 
 const entrySchemaOf = (profile: Profile) =>
@@ -254,6 +338,29 @@ const entrySchemaOf = (profile: Profile) =>
       .min(1)
       .max(MAX_VERSIONS)
       .superRefine(descendingUnique),
+  }).superRefine((entry, ctx) => {
+    if (entry.titles === undefined) return;
+    if (!profile.titles) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['titles'],
+        message: 'titles is not part of this index format',
+      });
+      return;
+    }
+    if (!profile.strict) return;
+    for (const point of TITLED_POINTS) {
+      const known = new Set<string>(entry.contributes[point] ?? []);
+      for (const id of Object.keys(entry.titles[point] ?? {})) {
+        if (!known.has(id)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['titles', point, id],
+            message: `title for '${id}', which is not in contributes.${point}`,
+          });
+        }
+      }
+    }
   });
 
 const indexSchemaOf = (profile: Profile) =>
@@ -269,6 +376,8 @@ const LEGACY_PROFILE: Profile = {
   maxFiles: MAX_FILES,
   extensions: LEGACY_FILE_EXTENSIONS,
   icon: false,
+  titles: false,
+  tags: false,
   strict: true,
 };
 
@@ -277,6 +386,8 @@ const FULL_PROFILE: Profile = {
   maxFiles: MAX_FILES_V2,
   extensions: CATALOG_FILE_EXTENSIONS,
   icon: true,
+  titles: true,
+  tags: true,
   strict: true,
 };
 

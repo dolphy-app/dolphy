@@ -39,6 +39,9 @@ export const manifestMismatch = (
   if (manifest.icon !== (version.icon ?? null)) {
     return 'manifest icon differs from the catalog entry';
   }
+  if (!sameSet(manifest.tags, version.tags ?? [])) {
+    return 'manifest tags differ from the catalog entry';
+  }
   const changed = CONTRIBUTION_KEYS.find(
     (key) => !sameSet(manifest.contributes[key], entry.contributes[key] ?? []),
   );

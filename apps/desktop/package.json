@@ -27,7 +27,6 @@
   },
   "devDependencies": {
     "@dagrejs/dagre": "^3.1.1",
-    "@fontsource/roboto": "^5.2.10",
     "@dolphy-app/engine": "workspace:*",
     "@dolphy-app/engine-contract": "workspace:*",
     "@dolphy-app/engine-git": "workspace:*",
@@ -37,6 +36,8 @@
     "@dolphy-app/extension-catalog": "workspace:*",
     "@dolphy-app/extension-host": "workspace:*",
     "@dolphy-app/extension-install": "workspace:*",
+    "@electron/fuses": "1.8.0",
+    "@fontsource/roboto": "^5.2.10",
     "@mdi/font": "^7.4.47",
     "@types/better-sqlite3": "^7.6.13",
     "@types/markdown-it": "^14.2.0",
@@ -60,6 +61,7 @@
     "vuetify": "^4.0.1"
   },
   "dependencies": {
-    "better-sqlite3": "13.0.3"
+    "better-sqlite3": "13.0.3",
+    "zod": "4.6.5"
   }
 }

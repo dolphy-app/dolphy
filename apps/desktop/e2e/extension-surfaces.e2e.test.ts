@@ -121,13 +121,17 @@ describe('палитра команд (R4, R8)', () => {
     // одна роль combobox — на поле ввода: вложенный combobox без aria-expanded нарушает ARIA
     await expectCount(commands.palette.locator('[role="combobox"]'), 1);
     // команда с palette:false в палитре не показывается
-    expect(await commands.optionTitles()).toEqual([
+    expect(await commands.extensionTitles()).toEqual([
       'Открыть панель приветствий',
       'Поприветствовать',
       'Зависнуть',
       'Сломаться',
     ]);
-    await expectText(commands.option('Поприветствовать'), 'Mod+Shift+G');
+    // `Mod+Shift+G` показывается с учётом платформы: ⇧⌘G на macOS, Ctrl+Shift+G на остальных
+    await expectText(
+      commands.option('Поприветствовать'),
+      process.platform === 'darwin' ? '⇧⌘G' : 'Ctrl+Shift+G',
+    );
     await expectText(
       commands.option('Поприветствовать'),
       'Показывает уведомление',
@@ -150,7 +154,10 @@ describe('палитра команд (R4, R8)', () => {
 
     // поиск без учёта регистра по названию, категории и id расширения
     await commands.search('СБОИ');
-    expect(await commands.optionTitles()).toEqual(['Зависнуть', 'Сломаться']);
+    expect(await commands.extensionTitles()).toEqual([
+      'Зависнуть',
+      'Сломаться',
+    ]);
     await commands.search('ACME.COMMANDS');
     expect((await commands.optionTitles()).length).toBe(4);
     await commands.search('нет такой команды');
@@ -176,17 +183,14 @@ describe('палитра команд (R4, R8)', () => {
     await stillSameWindow();
   });
 
-  it('кнопка «Команды» в боковом меню открывает ту же палитру; Ctrl+K работает и в учебной сессии', async () => {
+  it('в боковом меню кнопки палитры нет; Ctrl+K работает и в учебной сессии', async () => {
     const { commands, client } = await prepare();
-    // пункт — кнопка, а не элемент списка вне списка
     await expectCount(
-      client.page
-        .getByRole('navigation', { name: 'Дополнительно' })
-        .getByRole('button', { name: 'Команды', exact: true }),
-      1,
+      client.page.getByRole('button', { name: /палитр|команд/i }),
+      0,
     );
-    await commands.openPaletteFromMenu();
-    expect((await commands.optionTitles()).length).toBe(4);
+    await commands.openPalette();
+    expect((await commands.extensionTitles()).length).toBe(4);
     await commands.combobox.press('Escape');
     await commands.palette.waitFor({ state: 'hidden' });
 
@@ -428,14 +432,12 @@ describe('живое применение (R4, R5, R6)', () => {
       client.page.getByRole('link', { name: 'К плану на сегодня' }),
     );
     await commands.openPalette();
-    await expectVisible(
-      commands.palette.getByText('Нет команд', { exact: true }),
-    );
+    await expectCount(commands.extensionOptions, 0);
 
     // расширение вернулось, пока палитра открыта: строки появляются без перезагрузки
     await second.client.setExtensionSwitch(COMMANDS_ID, 'enabled', true);
     await expect
-      .poll(async () => (await commands.optionTitles()).length, {
+      .poll(async () => (await commands.extensionTitles()).length, {
         timeout: 30_000,
       })
       .toBe(4);
@@ -445,14 +447,15 @@ describe('живое применение (R4, R5, R6)', () => {
     await stillSameWindow();
   });
 
-  it('список палитры обновляется по contributions-changed: выбранная строка держится за командой, пропавшие расширения исчезают, пустой список — «Нет команд»', async () => {
+  it('список палитры обновляется по contributions-changed: выбранная строка держится за командой, пропавшие расширения исчезают, у отключённых расширений строк не остаётся, команды приложения на месте', async () => {
     const { commands } = await prepare({
       [COMMANDS_ID]: COMMANDS_DIR,
       [VICTIM_ID]: VICTIM_DIR,
     });
     await commands.openPalette();
-    await expect.poll(() => commands.options.count()).toBe(5);
-    // из первой строки стрелка вверх уходит на последнюю: «Сломаться»
+    await expect.poll(() => commands.extensionOptions.count()).toBe(5);
+    // запрос оставляет только команды расширений; из первой строки стрелка вверх уходит на последнюю
+    await commands.search('acme');
     await commands.combobox.press('ArrowUp');
     const selected = commands.palette.locator(
       '[role="option"][aria-selected="true"]',
@@ -463,17 +466,17 @@ describe('живое применение (R4, R5, R6)', () => {
     await second.client.openSettingsExtensions();
     await second.client.setExtensionSwitch(VICTIM_ID, 'enabled', false);
     await expect
-      .poll(() => commands.options.count(), { timeout: 30_000 })
+      .poll(() => commands.extensionOptions.count(), { timeout: 30_000 })
       .toBe(4);
     // строка выше пропала, выбор остался на той же команде
     await expectText(selected, 'Сломаться');
     expect(await commands.optionTitles()).not.toContain('Отметить жертву');
 
     await second.client.setExtensionSwitch(COMMANDS_ID, 'enabled', false);
-    await expectCount(commands.options, 0, 30_000);
-    await expectVisible(
-      commands.palette.getByText('Нет команд', { exact: true }),
-    );
+    await expectCount(commands.extensionOptions, 0, 30_000);
+    // команды приложения остаются: без запроса палитра не пустеет
+    await commands.search('');
+    expect(await commands.options.count()).toBeGreaterThan(0);
   });
 
   it('удаление расширения убирает пункт меню и команды без перезагрузки окна', async () => {
@@ -498,9 +501,7 @@ describe('живое применение (R4, R5, R6)', () => {
 
     await expectCount(first.commands.navItem(PANEL_TITLE), 0);
     await first.commands.openPalette();
-    await expectVisible(
-      first.commands.palette.getByText('Нет команд', { exact: true }),
-    );
+    await expectCount(first.commands.extensionOptions, 0);
     await stillSameWindow();
   });
 
@@ -607,7 +608,7 @@ describe('каталог (R10)', () => {
 
     await expectVisible(commands.navItem(PANEL_TITLE));
     await commands.openPalette();
-    expect((await commands.optionTitles()).length).toBe(4);
+    expect((await commands.extensionTitles()).length).toBe(4);
     await stillSameWindow();
   });
 });

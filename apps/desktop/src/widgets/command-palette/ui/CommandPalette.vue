@@ -1,16 +1,28 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import {
-  isPaletteShortcut,
-  useExtensionCommands,
-} from '@/features/extension-commands';
+  detectPlatform,
+  displayKeybinding,
+  spokenKeybinding,
+} from '@/shared/lib/keybinding.ts';
+import type { SpokenId } from '@/shared/lib/keybinding.ts';
+import { useCommandPalette } from '../model/palette.ts';
 
 const LIST_ID = 'command-palette-list';
 const optionId = (index: number) => `command-palette-option-${index}`;
 
 const { t } = useI18n();
-const { palette } = useExtensionCommands();
+const palette = useCommandPalette();
+const platform = detectPlatform();
+// `⌘K` скринридер читает набором символов: рядом с клавишей лежит озвучивание словами
+const spoken = (keybinding: string) =>
+  spokenKeybinding(keybinding, platform, (id: SpokenId) =>
+    t(`keybinding.${id}`),
+  );
+const field = ref<{ focus(): void } | null>(null);
+// палитра, открытая из поля ввода, забирает фокус себе: `autofocus` срабатывает только при монтировании
+const focusField = () => field.value?.focus();
 
 const entries = palette.entries;
 const activeIndex = computed(() =>
@@ -22,16 +34,16 @@ const activeOption = computed(() =>
 const isEmpty = computed(() => palette.query.value.trim() === '');
 
 // группы по категориям, как subheader у VCommandPalette: без запроса список упорядочен по
-// категории, с запросом — по релевантности, и заголовки не нужны
+// категории (без категории — последней группой), с запросом — по релевантности, и заголовки не нужны
 const rows = computed(() =>
   entries.value.map((entry, index) => ({
     entry,
     index,
     heading:
       isEmpty.value &&
-      entry.command.category &&
-      entries.value[index - 1]?.command.category !== entry.command.category
-        ? entry.command.category
+      entry.category &&
+      entries.value[index - 1]?.category !== entry.category
+        ? entry.category
         : null,
   })),
 );
@@ -49,20 +61,14 @@ const restoreFocus = () => {
   const target = previous;
   previous = null;
   const active = document.activeElement;
-  // фокус уже занят новым экраном (например, заголовком открытой панели) — не отбираем
-  const lost = active === null || active === document.body;
+  // фокус уже занят новым экраном (например, заголовком открытой панели) — не отбираем;
+  // а фокус, оставшийся в закрывающемся диалоге (after-leave приходит до скрытия), считается потерянным
+  const lost =
+    active === null ||
+    active === document.body ||
+    active.closest('.v-command-palette') !== null;
   if (lost && target?.isConnected) target.focus();
 };
-
-const onShortcut = (event: KeyboardEvent) => {
-  if (!isPaletteShortcut(event)) return;
-  event.preventDefault();
-  palette.open();
-};
-onMounted(() => document.addEventListener('keydown', onShortcut, true));
-onBeforeUnmount(() =>
-  document.removeEventListener('keydown', onShortcut, true),
-);
 
 const onInputKey = (event: KeyboardEvent) => {
   if (event.isComposing) return;
@@ -99,11 +105,13 @@ const vComboboxInput = {
     @update:model-value="
       (open: boolean) => (open ? palette.open() : palette.close())
     "
+    @after-enter="focusField"
     @after-leave="restoreFocus"
   >
     <v-sheet class="palette" data-testid="command-palette">
       <div class="v-command-palette__input-container">
         <v-text-field
+          ref="field"
           v-model="palette.query.value"
           v-combobox-input
           autofocus
@@ -128,7 +136,8 @@ const vComboboxInput = {
         </span>
       </div>
       <v-divider />
-      <div class="v-command-palette__content list-wrap">
+      <!-- прокручиваемая область должна быть достижима с клавиатуры (axe scrollable-region-focusable: нужен tabindex ≥ 0); щелчок по строке фокус не забирает: см. mousedown у строк -->
+      <div class="v-command-palette__content list-wrap" tabindex="0">
         <ul
           :id="LIST_ID"
           role="listbox"
@@ -153,18 +162,20 @@ const vComboboxInput = {
                 busy: palette.isBusy(row.entry.key),
               }"
               :aria-selected="row.entry.key === palette.activeKey.value"
+              :aria-checked="row.entry.checked"
               :aria-disabled="palette.isBusy(row.entry.key)"
+              @mousedown.prevent
               @mousemove="palette.activate(row.entry.key)"
               @click="palette.choose(row.entry.key)"
             >
               <span class="main">
-                <span class="title">{{ row.entry.command.title }}</span>
-                <span
-                  v-if="row.entry.command.description"
-                  class="description"
-                  >{{ row.entry.command.description }}</span
-                >
-                <span class="caption">{{ row.entry.command.extensionId }}</span>
+                <span class="title">{{ row.entry.title }}</span>
+                <span v-if="row.entry.description" class="description">{{
+                  row.entry.description
+                }}</span>
+                <span v-if="row.entry.caption" class="caption">{{
+                  row.entry.caption
+                }}</span>
               </span>
               <span class="meta">
                 <v-progress-circular
@@ -180,14 +191,30 @@ const vComboboxInput = {
                   >{{ t('commandPalette.busy') }}</span
                 >
                 <span
-                  v-if="row.entry.command.category"
+                  v-if="row.entry.category"
                   class="category"
                   :class="{ 'visually-hidden': isEmpty }"
-                  >{{ row.entry.command.category }}</span
+                  >{{ row.entry.category }}</span
                 >
-                <kbd v-if="row.entry.command.keybinding" class="keybinding">{{
-                  row.entry.command.keybinding
-                }}</kbd>
+                <template v-if="row.entry.checked">
+                  <v-icon
+                    icon="mdi-check"
+                    size="small"
+                    class="checked-mark"
+                    aria-hidden="true"
+                  />
+                  <span class="visually-hidden">{{
+                    t('commandPalette.checked')
+                  }}</span>
+                </template>
+                <template v-if="row.entry.keybinding">
+                  <kbd class="keybinding" aria-hidden="true">{{
+                    displayKeybinding(row.entry.keybinding, platform)
+                  }}</kbd>
+                  <span class="visually-hidden">{{
+                    spoken(row.entry.keybinding)
+                  }}</span>
+                </template>
               </span>
             </li>
           </template>
@@ -333,6 +360,10 @@ const vComboboxInput = {
   white-space: nowrap;
   font-size: 0.75rem;
   opacity: var(--v-medium-emphasis-opacity);
+}
+
+.checked-mark {
+  flex: none;
 }
 
 /* VHotkey: рамка и скругление клавиши */

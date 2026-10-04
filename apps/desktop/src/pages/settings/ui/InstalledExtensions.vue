@@ -20,6 +20,7 @@ import { useInstallContext } from '../model/install.ts';
 import ExtensionContributions from './ExtensionContributions.vue';
 import ExtensionTags from './ExtensionTags.vue';
 import ExtensionData from './ExtensionData.vue';
+import ExtensionHealth from './ExtensionHealth.vue';
 import ExtensionHeading from './ExtensionHeading.vue';
 import ExtensionPermissions from './ExtensionPermissions.vue';
 import ExtensionSettingsDialog from './ExtensionSettingsDialog.vue';
@@ -50,9 +51,13 @@ const {
   load,
   switching,
   switchError,
+  diagnostics,
+  restartingHost,
   setEnabled,
   setTrusted,
   setCheckUpdates,
+  setSafeMode,
+  restartHost,
   updateTargets,
 } = useExtensions(useEngine());
 
@@ -77,6 +82,9 @@ const diagnosticText = (diagnostic: ExtensionDiagnosticDto): string =>
         }
       : diagnostic.data,
   );
+
+const healthOf = (id: string) =>
+  diagnostics.value?.extensions.find((health) => health.id === id);
 
 const hasSettings = (extension: ExtensionInfoDto) =>
   extension.state === 'loaded' && extension.contributes.settings.length > 0;
@@ -186,6 +194,31 @@ watch(
 
     <template v-if="state === 'loaded'">
       <v-alert
+        v-if="diagnostics?.host === 'gave-up'"
+        type="error"
+        variant="tonal"
+        class="mb-6"
+        :title="t('settings.extensions.host.gaveUpTitle')"
+        data-testid="host-gave-up"
+      >
+        <div class="d-flex align-center ga-3">
+          <span class="flex-grow-1">{{
+            t('settings.extensions.host.gaveUpText')
+          }}</span>
+          <v-btn
+            variant="flat"
+            color="error"
+            prepend-icon="mdi-restart"
+            :loading="restartingHost"
+            data-testid="host-restart"
+            @click="restartHost"
+          >
+            {{ t('settings.extensions.host.restart') }}
+          </v-btn>
+        </div>
+      </v-alert>
+
+      <v-alert
         v-if="updates.length > 0"
         type="info"
         variant="tonal"
@@ -220,6 +253,17 @@ watch(
         </p>
         <v-spacer />
         <v-switch
+          :model-value="settings.safeMode"
+          :label="t('settings.extensions.safeMode.label')"
+          :disabled="switching.has('safeMode')"
+          color="warning"
+          density="compact"
+          hide-details
+          inset
+          data-testid="safe-mode"
+          @update:model-value="setSafeMode($event === true)"
+        />
+        <v-switch
           :model-value="settings.checkUpdates"
           :label="t('settings.extensions.installed.checkUpdates')"
           :disabled="switching.has('checkUpdates')"
@@ -240,6 +284,17 @@ watch(
           {{ t('settings.extensions.refresh') }}
         </v-btn>
       </div>
+
+      <p class="text-body-small text-medium-emphasis mb-1">
+        {{ t('settings.extensions.safeMode.hint') }}
+      </p>
+      <p
+        v-if="diagnostics?.safeMode.forcedBy"
+        class="text-body-small text-medium-emphasis mb-4"
+        data-testid="safe-mode-forced"
+      >
+        {{ t('settings.extensions.safeMode.forced') }}
+      </p>
 
       <p
         v-if="items.length === 0"
@@ -390,6 +445,11 @@ watch(
                 </li>
               </ul>
             </div>
+
+            <ExtensionHealth
+              v-if="isActive(extension)"
+              :health="healthOf(extension.id)"
+            />
 
             <ExtensionPermissions
               v-if="isActive(extension)"

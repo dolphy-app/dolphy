@@ -14,9 +14,11 @@ import { existsSync, watch } from 'node:fs';
 import { realpath, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import type { ExtensionHostStatusDto } from '@dolphy-app/engine-contract';
 import { createExtSupervisor, isTypedMessage } from './ext-supervisor.ts';
 import { createHostLink } from './host-link.ts';
 import { createMainLogger } from './logger.ts';
+import { safeModeSource } from './safe-mode.ts';
 import { createDevExtensionsShell } from './shells/dev-extensions.ts';
 import { createEngineShell } from './shells/engine.ts';
 import { createExtensionAssetsShell } from './shells/extension-assets.ts';
@@ -89,6 +91,9 @@ const extensionCatalogUrl = app.isPackaged
   ? undefined
   : process.env.DOLPHY_EXTENSION_CATALOG_URL || undefined;
 
+// безопасный режим, заданный запуском (флаг или переменная): настройкой не снимается
+const forceSafeMode = safeModeSource(process.argv, process.env);
+
 const hostLink = createHostLink({ MessageChannelMain });
 // режим разработчика: хост движка сам перечитывает расширения и применяет их, окна и хосты не перезапускаются;
 // правка, пришедшая пока хост запускался, повторяется, когда он готов (первое обнаружение могло её не увидеть)
@@ -98,6 +103,11 @@ const reloadExtensions = () => {
   engineHost?.postMessage({ type: 'reload-extensions' });
   reloadPending = engineHost === null;
 };
+// состояние хоста расширений для окна «Настройки → Расширения»: движок узнаёт его от main
+let extHostStatus: ExtensionHostStatusDto = 'running';
+const publishExtHostStatus = () => {
+  engineHost?.postMessage({ type: 'ext-host-status', status: extHostStatus });
+};
 const extSupervisor = createExtSupervisor({
   utilityProcess,
   hostPath: path.join(__dirname, '../host/ext-host.js'),
@@ -105,6 +115,10 @@ const extSupervisor = createExtSupervisor({
   logger,
   onHostReady: (host) => hostLink.setExtHost(host),
   onHostExit: () => hostLink.setExtHost(null),
+  onStatus: (status) => {
+    extHostStatus = status;
+    publishExtHostStatus();
+  },
 });
 const supervisor = createSupervisor({
   utilityProcess,
@@ -118,6 +132,7 @@ const supervisor = createSupervisor({
     ...(appVersion ? { appVersion } : {}),
     ...(devExtensionsDir ? { devExtensionsDir } : {}),
     ...(extensionCatalogUrl ? { extensionCatalogUrl } : {}),
+    ...(forceSafeMode ? { forceSafeMode } : {}),
   },
   logger,
   onFatal: () => {
@@ -130,15 +145,18 @@ const supervisor = createSupervisor({
   onHostReady: (host) => {
     engineHost = host;
     hostLink.setEngine(host);
+    publishExtHostStatus();
     if (reloadPending) reloadExtensions();
   },
   onHostExit: () => {
     engineHost = null;
     hostLink.setEngine(null);
   },
-  // зависший синхронный код расширения не прервать: движок просит перезапустить хост
   onMessage: (message) => {
+    // зависший синхронный код расширения не прервать: движок просит перезапустить хост
     if (isTypedMessage(message, 'restart-ext-host')) extSupervisor.kill();
+    // пользователь просит запустить хост после `gave-up` («Настройки → Расширения»)
+    if (isTypedMessage(message, 'reset-ext-host')) extSupervisor.reset();
   },
 });
 

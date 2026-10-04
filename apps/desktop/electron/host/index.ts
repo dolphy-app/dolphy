@@ -12,6 +12,7 @@ import type {
 } from '@dolphy-app/engine-contract';
 import type { ExtensionHealth } from '@dolphy-app/engine/ports';
 import { boot } from './boot.ts';
+import { createHostPlatform } from './platform.ts';
 
 /** Сообщения main → хост (`process.parentPort`). */
 type HostMessage =
@@ -23,6 +24,10 @@ type HostMessage =
   | { type: 'shutdown' };
 
 const { parentPort } = process;
+// запросы к main за возможностями платформы (шифр секретов): ответы приходят в `handle`
+const platform = createHostPlatform({
+  post: (message) => parentPort.postMessage(message),
+});
 let engine: HostedEngine | null = null;
 let dispatcher: Dispatcher | null = null;
 let channel: HostChannel | null = null;
@@ -38,6 +43,7 @@ process.on('unhandledRejection', (reason) => {
 
 const shutdown = async () => {
   dispatcher?.closeAll(); // перестать принимать вызовы
+  platform.close(); // ожидающие запросы к main отклоняются
   await engine?.close(); // дождаться очереди, закрыть раннеры и SQLite
   process.exit(0);
 };
@@ -46,11 +52,13 @@ const handle = async (
   message: HostMessage,
   ports: Electron.MessagePortMain[],
 ) => {
+  if (platform.handleMessage(message)) return;
   if (message.type === 'init') {
     const booted = await boot(
       message.config,
       () => parentPort.postMessage({ type: 'restart-ext-host' }),
       () => parentPort.postMessage({ type: 'reset-ext-host' }),
+      platform.services,
     );
     engine = booted.engine;
     channel = booted.channel;

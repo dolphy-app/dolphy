@@ -47,7 +47,11 @@ describe('shims: output files', () => {
       'view-three.mjs',
       'view.mjs',
     ]);
-    expect(await validateExtension(dir)).toEqual({ ok: true, problems: [] });
+    expect(await validateExtension(dir)).toEqual({
+      ok: true,
+      problems: [],
+      warnings: [],
+    });
   });
 
   it('host code only in main.mjs, the code of each view, panel and renderer only in its own file', async () => {
@@ -166,7 +170,11 @@ describe('shims: output files', () => {
     const root = await copyProject('markdown-only');
     const { files, dir } = await buildExtension({ root });
     expect(files).toEqual(['extension.json', 'markdown.mjs']);
-    expect(await validateExtension(dir)).toEqual({ ok: true, problems: [] });
+    expect(await validateExtension(dir)).toEqual({
+      ok: true,
+      problems: [],
+      warnings: [],
+    });
   });
 
   it('a view, panel and renderer defined in other files are found through re-exports', async () => {

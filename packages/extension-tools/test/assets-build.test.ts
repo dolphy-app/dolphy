@@ -67,7 +67,11 @@ describe('dolphy-ext build: style sheets', () => {
     expect(panel).toContain(
       '.p{color:red;background:url(data:image/png;base64,',
     );
-    expect(await validateExtension(dir)).toEqual({ ok: true, problems: [] });
+    expect(await validateExtension(dir)).toEqual({
+      ok: true,
+      problems: [],
+      warnings: [],
+    });
   });
 
   it('a plain import of a style sheet is an error that names the way out', async () => {
@@ -126,6 +130,7 @@ describe('dolphy-ext build: images and fonts', () => {
     expect(await validateExtension(first.dir)).toEqual({
       ok: true,
       problems: [],
+      warnings: [],
     });
     // the same sources, the same file
     const second = await build(root);

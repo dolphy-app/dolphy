@@ -48,7 +48,11 @@ describe('panels and commands: build', () => {
     expect(await readFile(path.join(dir, 'panel.mjs'), 'utf8')).toContain(
       'mount',
     );
-    expect(await validateExtension(dir)).toEqual({ ok: true, problems: [] });
+    expect(await validateExtension(dir)).toEqual({
+      ok: true,
+      problems: [],
+      warnings: [],
+    });
   });
 
   it('no src/index.ts — the error names the file', async () => {
@@ -70,7 +74,11 @@ describe('panels and commands: build', () => {
       outDir: path.join(root, 'out'),
     });
     expect(files).toEqual(['extension.json', 'main.mjs', 'ui/screen.js']);
-    expect(await validateExtension(dir)).toEqual({ ok: true, problems: [] });
+    expect(await validateExtension(dir)).toEqual({
+      ok: true,
+      problems: [],
+      warnings: [],
+    });
   });
 
   it('commands require code: without main.mjs validate fails', async () => {

@@ -530,11 +530,11 @@ export const RULES: readonly CheckRule[] = [
   assetFiles,
   iconFile,
   shortDescriptionRule,
-  translations,
   permissionsExplained,
   firstPublisherOwnsId,
   bundleRule('CHECK-022', 'built code does not execute dynamic code', true),
   bundleRule('CHECK-023', 'built code is not obfuscated'),
   bundleRule('CHECK-024', 'URLs in built code need the network permission'),
   bundleRule('CHECK-025', 'built code has no embedded source map'),
+  translations,
 ];

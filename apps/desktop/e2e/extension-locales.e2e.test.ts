@@ -302,4 +302,37 @@ describe('локализация манифеста расширения', () =>
     expect(await row(client.page).innerText()).toContain('Загружено');
     await expectChrome(client.page, { ...EN });
   });
+
+  it('расширения из поставки переводят названия видов и рендереров вместе с языком', async () => {
+    workspace = await createWorkspace();
+    const client = await launch();
+    await client.openSettingsExtensions();
+    const bundled = (id: string, point: string) =>
+      client.page
+        .locator(`[data-extension-id="${id}"] [data-point="${point}"] .v-chip`)
+        .first();
+    const chipText = async (id: string, point: string) =>
+      (await bundled(id, point).innerText()).trim();
+    await bundled('dolphy.choice', 'exerciseTypes').waitFor({
+      timeout: TIMEOUT,
+    });
+    expect(await chipText('dolphy.choice', 'exerciseTypes')).toBe(
+      'Выбор из вариантов',
+    );
+    expect(await chipText('dolphy.sql', 'exerciseTypes')).toBe('SQL-запрос');
+    expect(await chipText('dolphy.math', 'markdownRenderers')).toBe(
+      'Математические формулы',
+    );
+
+    await switchLanguage(client.page, 'Язык: English');
+    await expect
+      .poll(() => chipText('dolphy.choice', 'exerciseTypes'), {
+        timeout: TIMEOUT,
+      })
+      .toBe('Multiple choice');
+    expect(await chipText('dolphy.sql', 'exerciseTypes')).toBe('SQL query');
+    expect(await chipText('dolphy.math', 'markdownRenderers')).toBe(
+      'Math formulas',
+    );
+  });
 });

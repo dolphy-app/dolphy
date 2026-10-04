@@ -52,24 +52,35 @@ describe('engine shell', () => {
   });
 });
 
+const INFO = {
+  appVersion: '1.2.3',
+  electron: '44.0.0',
+  chrome: '140.0.0',
+  node: '22.12.0',
+  platform: 'darwin',
+  arch: 'arm64',
+};
+
 describe('platform shell', () => {
   const setup = (dialogResult: { canceled: boolean; filePaths: string[] }) => {
-    let handler:
-      | ((e: PickDirectoryEvent, options: unknown) => Promise<string | null>)
-      | null = null;
+    const handlers = new Map<
+      string,
+      (e: PickDirectoryEvent, options: unknown) => Promise<unknown>
+    >();
     const showOpenDialog = vi.fn(async () => dialogResult);
     createPlatformShell({
       ipcMain: {
-        handle: (channel, listener) => {
-          expect(channel).toBe('platform:pickDirectory');
-          handler = listener;
-        },
+        handle: (channel, listener) => handlers.set(channel, listener),
       },
       dialog: { showOpenDialog },
       fromWebContents: (sender) => ({ window: sender }),
+      appInfo: () => INFO,
     }).register();
-    const invoke = (options: unknown) => handler?.({ sender: 'wc' }, options);
-    return { invoke, showOpenDialog };
+    const invoke = (options: unknown) =>
+      handlers.get('platform:pickDirectory')?.({ sender: 'wc' }, options);
+    const invokeInfo = () =>
+      handlers.get('platform:appInfo')?.({ sender: 'wc' }, undefined);
+    return { invoke, invokeInfo, showOpenDialog };
   };
 
   it('открывает диалог папки у окна отправителя и возвращает путь', async () => {
@@ -82,6 +93,11 @@ describe('platform shell', () => {
       { window: 'wc' },
       { title: 'Курс', properties: ['openDirectory', 'createDirectory'] },
     );
+  });
+
+  it('сведения о сборке отдаёт main, окно своих не подставляет', async () => {
+    const { invokeInfo } = setup({ canceled: true, filePaths: [] });
+    await expect(invokeInfo()).resolves.toEqual(INFO);
   });
 
   it('отмена диалога — null; нестроковый title отбрасывается', async () => {

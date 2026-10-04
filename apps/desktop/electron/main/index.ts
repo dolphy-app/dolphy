@@ -179,6 +179,14 @@ const shells = [
     dialog,
     fromWebContents: (sender) =>
       BrowserWindow.fromWebContents(sender as Electron.WebContents),
+    appInfo: () => ({
+      appVersion: app.getVersion(),
+      electron: process.versions.electron,
+      chrome: process.versions.chrome,
+      node: process.versions.node,
+      platform: process.platform,
+      arch: process.arch,
+    }),
   }),
   createLifecycleShell({ app, supervisors: [supervisor, extSupervisor] }),
   createExtensionAssetsShell({

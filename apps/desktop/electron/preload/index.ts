@@ -21,6 +21,7 @@ const bridge: DolphyBridge = {
         typeof options?.title === 'string' ? options.title : undefined;
       return ipcRenderer.invoke(CHANNELS.pickDirectory, { title });
     },
+    appInfo: () => ipcRenderer.invoke(CHANNELS.appInfo),
   },
   ...(__DOLPHY_SMOKE_BUILD__ && process.argv.includes(SMOKE_ARGUMENT)
     ? {

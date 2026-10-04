@@ -252,8 +252,19 @@ export class Client {
       await expect
         .poll(stage, { timeout: TIMEOUT })
         .toMatch(/^(finished|advance|next)$/);
-      const reached = await stage();
-      if (reached === 'advance') await advance.click();
+      // кнопка может исчезнуть между проверкой и кликом (экран уже сменился):
+      // клик с коротким сроком, состояние перечитывается
+      await expect
+        .poll(
+          async () => {
+            if ((await stage()) === 'advance') {
+              await advance.click({ timeout: 2_000 }).catch(() => {});
+            }
+            return stage();
+          },
+          { timeout: TIMEOUT },
+        )
+        .toMatch(/^(finished|next)$/);
       if ((await stage()) === 'finished') break;
     }
     await this.page

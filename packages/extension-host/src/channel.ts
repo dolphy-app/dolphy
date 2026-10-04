@@ -102,6 +102,9 @@ const reportHealth = (
     case 'activated':
       services.health.activated(report.extensionId, report.durationMs);
       break;
+    case 'failed':
+      services.health.failed(report.extensionId, report.reason, report.message);
+      break;
     case 'suppressed':
       services.health.suppressed(report.extensionId, report.until);
       break;

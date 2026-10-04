@@ -16,7 +16,10 @@ const props = defineProps<{
   /** Markdown материала урока. */
   material: string;
   courseName: string;
+  /** Выбранная ширина, px; `null` — умолчание из CSS. */
+  width: number | null;
 }>();
+const emit = defineEmits<{ collapse: [] }>();
 
 const { t } = useI18n();
 const source = computed(() => stripLeadingTitle(props.material));
@@ -97,6 +100,7 @@ onBeforeUnmount(() => {
   <aside
     ref="panel"
     class="material"
+    :style="width === null ? undefined : { flexBasis: `${width}px` }"
     aria-labelledby="material-label"
     @scroll.passive="schedule(measure)"
   >
@@ -129,6 +133,14 @@ onBeforeUnmount(() => {
             />
           </v-list>
         </v-menu>
+        <v-btn
+          size="small"
+          variant="text"
+          icon="mdi-chevron-double-left"
+          :aria-label="t('exercisePanel.panel.hide')"
+          :title="t('exercisePanel.panel.hide')"
+          @click="emit('collapse')"
+        />
       </div>
       <div class="bar" aria-hidden="true">
         <div class="bar-fill" :style="{ transform: `scaleX(${progress})` }" />
@@ -145,6 +157,7 @@ onBeforeUnmount(() => {
 .material {
   /* ~55 знаков в строке: 34% окна, но не уже 22 и не шире 30 rem */
   flex: 0 0 clamp(22rem, 34%, 30rem);
+  max-width: 60%;
   overflow-y: auto;
   overscroll-behavior: contain;
   border-right: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
@@ -161,7 +174,7 @@ onBeforeUnmount(() => {
 
 .head-row {
   min-height: 2.25rem;
-  padding: 0 1.25rem 0 1.75rem;
+  padding: 0 0.75rem 0 1.75rem;
 }
 
 .bar {

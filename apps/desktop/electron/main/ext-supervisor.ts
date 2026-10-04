@@ -1,13 +1,18 @@
 import type { ExtensionHostStatusDto } from '@dolphy-app/engine-contract';
 import type { MainLogger } from './logger.ts';
 import {
+  attachOutput,
   BACKOFF_BASE_MS,
   BACKOFF_CAP_MS,
   MAX_CRASHES,
   STOP_TIMEOUT_MS,
   WINDOW_MS,
 } from './supervisor.ts';
-import type { HostProcessLike, UtilityProcessLike } from './supervisor.ts';
+import type {
+  HostProcessLike,
+  ProcessOutputLike,
+  UtilityProcessLike,
+} from './supervisor.ts';
 
 export interface ExtSupervisorOptions {
   utilityProcess: UtilityProcessLike;
@@ -19,6 +24,8 @@ export interface ExtSupervisorOptions {
   onHostExit(): void;
   /** Состояние хоста изменилось: `restarting` — упал и ждёт перезапуска, `gave-up` — перезапуски прекращены до `reset()`. */
   onStatus?(status: ExtensionHostStatusDto): void;
+  /** Вывод процесса: новый приёмник на каждый запуск (журнал и вывод разработчика). */
+  createOutput?(): ProcessOutputLike;
   stopTimeoutMs?: number;
 }
 
@@ -94,7 +101,9 @@ export const createExtSupervisor = (
     if (stopping || gaveUp || child) return;
     const self = utilityProcess.fork(hostPath, [], {
       serviceName: 'dolphy-ext-host',
+      stdio: 'pipe',
     });
+    attachOutput(self, options.createOutput?.());
     child = self;
     self.once('spawn', () => {
       spawned = true;

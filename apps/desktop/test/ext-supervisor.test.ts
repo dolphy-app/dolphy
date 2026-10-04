@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createExtSupervisor } from '../electron/main/ext-supervisor.ts';
+import type { ExtSupervisorOptions } from '../electron/main/ext-supervisor.ts';
 import type { HostProcessLike } from '../electron/main/supervisor.ts';
 import {
   BACKOFF_BASE_MS,
@@ -9,11 +10,27 @@ import {
 
 type Listener = (...args: never[]) => void;
 
+const createStream = () => {
+  const listeners = new Map<string, ((chunk?: never) => void)[]>();
+  return {
+    on: (event: string, listener: (chunk?: never) => void) => {
+      listeners.set(event, [...(listeners.get(event) ?? []), listener]);
+    },
+    emit: (event: string, chunk?: unknown) => {
+      for (const listener of listeners.get(event) ?? []) {
+        (listener as (value?: unknown) => void)(chunk);
+      }
+    },
+  };
+};
+
 const createFakeHost = () => {
   const listeners = new Map<string, Listener[]>();
   const posted: unknown[] = [];
   const host = {
     pid: 200,
+    stdout: createStream(),
+    stderr: createStream(),
     killed: 0,
     posted,
     postMessage: (message: unknown) => {
@@ -56,7 +73,7 @@ const logger = {
   },
 };
 
-const setup = () => {
+const setup = (extra: Partial<ExtSupervisorOptions> = {}) => {
   const hosts: FakeHost[] = [];
   const fork = vi.fn((): HostProcessLike => {
     const host = createFakeHost();
@@ -74,6 +91,7 @@ const setup = () => {
     onHostReady: () => events.push('ready'),
     onHostExit: () => events.push('exit'),
     onStatus: (status) => statuses.push(status),
+    ...extra,
   });
   const boot = (host: FakeHost) => {
     host.emit('spawn');
@@ -92,11 +110,35 @@ describe('ext supervisor', () => {
     vi.useRealTimers();
   });
 
+  it('stderr хоста расширений уходит приёмнику вывода, у каждого запуска свой', () => {
+    const seen: string[][] = [];
+    const { supervisor, hosts, boot } = setup({
+      createOutput: () => {
+        const calls: string[] = [];
+        seen.push(calls);
+        return {
+          stdout: () => undefined,
+          stderr: (chunk) => calls.push(String(chunk)),
+          flush: () => calls.push('flush'),
+        };
+      },
+    });
+    supervisor.start();
+    boot(hosts[0] as FakeHost);
+    hosts[0]?.stderr.emit('data', 'line');
+    hosts[0]?.stderr.emit('end');
+    expect(seen).toEqual([['line', 'flush']]);
+    hosts[0]?.emit('exit', 1);
+    vi.advanceTimersByTime(BACKOFF_BASE_MS);
+    expect(seen).toHaveLength(2);
+  });
+
   it('передаёт init после spawn и сообщает ready', () => {
     const { supervisor, hosts, fork, init, events } = setup();
     supervisor.start();
     expect(fork).toHaveBeenCalledWith('/host/ext-host.js', [], {
       serviceName: 'dolphy-ext-host',
+      stdio: 'pipe',
     });
     const [host] = hosts;
     host?.emit('spawn');

@@ -65,6 +65,29 @@ describe('запросы хоста к движку по каналу', () => {
     });
   });
 
+  it('сообщение хоста о сбое вне вызова попадает в здоровье расширения; неверная форма отклоняется', async () => {
+    const engine = createStubEngine();
+    const { channel, request } = setup();
+    channel.serve(engine.extensionHost);
+
+    expect(
+      await request('health.report', {
+        extensionId: 'acme.a',
+        kind: 'failed',
+        reason: 'ipc-size',
+        message: 'too big',
+      }),
+    ).toMatchObject({ ok: true });
+    expect(engine.health.get('acme.a')).toMatchObject({
+      failures: 1,
+      lastFailure: { reason: 'ipc-size', message: 'too big' },
+    });
+    expect(
+      await request('health.report', { extensionId: 'acme.a', kind: 'failed' }),
+    ).toMatchObject({ ok: false, error: { code: 'INVALID_ARGUMENT' } });
+    expect(engine.health.get('acme.a').failures).toBe(1);
+  });
+
   it('превышение потолка и отказ отключённого расширения доходят с кодом и details', async () => {
     const engine = createStubEngine();
     const { channel, request } = setup();

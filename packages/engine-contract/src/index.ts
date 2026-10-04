@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 17 as const;
+export const CONTRACT_VERSION = 18 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 
@@ -749,10 +749,20 @@ export interface UiSettingsDto {
   locale: LocaleMode;
   /** Курс в фокусе: клиент передаёт его в `courseIds` плана и повторений. Нет поля — все курсы. Движок не проверяет, что курс есть в библиотеке: курс могли убрать, клиент сверяет сам. */
   activeCourseId?: UnitId;
+  /** Ширина панели теории в сессии и вход-тесте, px. Нет поля — умолчание клиента. */
+  materialWidth?: number;
+  /** Панель теории скрыта. Нет поля — показана. */
+  materialCollapsed?: true;
 }
-/** `activeCourseId: null` снимает фокус. */
-export type UiSettingsPatch = Partial<Omit<UiSettingsDto, 'activeCourseId'>> & {
+/** Допустимая ширина панели теории, px (`UiSettingsDto.materialWidth`). */
+export const MATERIAL_WIDTH_RANGE = { min: 280, max: 800 } as const;
+/** `activeCourseId: null` снимает фокус, `materialWidth: null` возвращает умолчание, `materialCollapsed: false` показывает панель. */
+export type UiSettingsPatch = Partial<
+  Omit<UiSettingsDto, 'activeCourseId' | 'materialWidth' | 'materialCollapsed'>
+> & {
   activeCourseId?: UnitId | null;
+  materialWidth?: number | null;
+  materialCollapsed?: boolean;
 };
 
 /** Id встроенного правила оценки (`pass@N`). */
@@ -1016,6 +1026,12 @@ export interface EngineConfig {
    * `safeMode` не снимается. Не задан — режим зависит только от настройки.
    */
   forceSafeMode?: SafeModeSource;
+  /**
+   * Каталог файлового журнала (`dolphy-ГГГГ-ММ-ДД[.N].log`, пишет оболочка
+   * приложения). Задан — `extensions.readLogs()` читает его; не задан — журнала
+   * нет, `readLogs()` возвращает пустой список.
+   */
+  logsDir?: string;
   /** Версия приложения; не задана — проверка `minAppVersion` расширений не выполняется. */
   appVersion?: string;
 }
@@ -1513,6 +1529,36 @@ export interface SafeModeStatusDto {
   forcedBy: SafeModeSource | null;
 }
 
+/** Уровни записи журнала от подробного к важному. */
+export const LOG_LEVELS = ['debug', 'info', 'warn', 'error'] as const;
+export type LogLevelDto = (typeof LOG_LEVELS)[number];
+
+/** Предел `limit` у `extensions.readLogs`. */
+export const MAX_LOG_ENTRIES = 500 as const;
+
+/** Запись файлового журнала. */
+export interface ExtensionLogEntryDto {
+  at: EpochMs;
+  level: LogLevelDto;
+  /** Кто написал: `main`, `engine` или `ext-host`. */
+  source: string;
+  message: string;
+  /** Расширение, к которому относится запись; `null` — запись самого приложения. */
+  extensionId: string | null;
+  /** Остальные поля записи одной JSON-строкой (обрезаются до 4096 знаков); `null` — полей нет. */
+  details: string | null;
+}
+
+/** Параметры `extensions.readLogs`. */
+export interface ReadLogsOptions {
+  /** Только записи этого расширения. */
+  extensionId?: string;
+  /** Записи не ниже этого уровня; по умолчанию все. */
+  minLevel?: LogLevelDto;
+  /** Сколько последних записей вернуть, 1…`MAX_LOG_ENTRIES`; по умолчанию `MAX_LOG_ENTRIES`. */
+  limit?: number;
+}
+
 export interface ExtensionsDiagnosticsDto {
   host: ExtensionHostStatusDto;
   safeMode: SafeModeStatusDto;
@@ -1564,6 +1610,12 @@ export interface ExtensionsService {
    * `gave-up` вернуть расширениям работу без перезапуска приложения).
    */
   restartHost(): Promise<void>;
+  /**
+   * Последние записи файлового журнала, самые новые последними. Читаются все
+   * файлы журнала от новых к старым; нечитаемые строки пропускаются. Неверные
+   * `limit`, `minLevel` или `extensionId` — `INVALID_ARGUMENT`.
+   */
+  readLogs(options?: ReadLogsOptions): Promise<ExtensionLogEntryDto[]>;
   /**
    * Действующие значения настроек расширения (определения — в
    * `contributions().settings`). `NOT_FOUND` — расширения нет;

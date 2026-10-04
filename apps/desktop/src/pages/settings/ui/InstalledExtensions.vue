@@ -15,6 +15,7 @@ import {
   isTrusted,
   useExtensions,
 } from '../model/extensions.ts';
+import { useDiagnosticsCopy } from '../model/diagnostics-copy.ts';
 import { useExtensionData } from '../model/extension-data.ts';
 import { useInstallContext } from '../model/install.ts';
 import ExtensionContributions from './ExtensionContributions.vue';
@@ -24,6 +25,7 @@ import ExtensionHealth from './ExtensionHealth.vue';
 import ExtensionHeading from './ExtensionHeading.vue';
 import ExtensionPermissions from './ExtensionPermissions.vue';
 import ExtensionSettingsDialog from './ExtensionSettingsDialog.vue';
+import ExtensionLogDialog from './ExtensionLogDialog.vue';
 
 interface StateView {
   icon: string;
@@ -65,6 +67,13 @@ const {
 const removeTarget = ref<ExtensionInfoDto | null>(null);
 const removeData = ref(false);
 const settingsTarget = ref<ExtensionInfoDto | null>(null);
+/** Диалог журнала: `''` — все записи, иначе предустановленный фильтр по id. */
+const logTarget = ref<string | null>(null);
+const diagnosticsCopy = useDiagnosticsCopy(useEngine(), {
+  appInfo: () => window.dolphy.platform.appInfo(),
+  // системный буфер пишет main: navigator.clipboard не работает без фокуса окна
+  writeText: (text) => window.dolphy.platform.copyText(text),
+});
 const data = useExtensionData(useEngine(), items);
 
 /** Настройки есть у загруженного (включённого) расширения, объявившего `settings`. */
@@ -130,6 +139,16 @@ const openSettings = (extension: ExtensionInfoDto, event: Event) => {
 
 const closeSettings = () => {
   settingsTarget.value = null;
+  restoreFocus();
+};
+
+const openLog = (extensionId: string, event: Event) => {
+  rememberOpener(event);
+  logTarget.value = extensionId;
+};
+
+const closeLog = () => {
+  logTarget.value = null;
   restoreFocus();
 };
 
@@ -303,6 +322,62 @@ watch(
         >
           {{ t('settings.extensions.safeMode.forced') }}
         </p>
+      </div>
+
+      <div class="mb-4" data-testid="diagnostics-section">
+        <h3 class="text-title-small">
+          {{ t('settings.extensions.support.title') }}
+        </h3>
+        <p class="text-body-small text-medium-emphasis mt-1">
+          {{ t('settings.extensions.support.hint') }}
+        </p>
+        <div class="d-flex flex-wrap align-center ga-2 mt-2">
+          <v-btn
+            variant="tonal"
+            color="primary"
+            prepend-icon="mdi-text-box-search-outline"
+            data-testid="extensions-log-open"
+            @click="openLog('', $event)"
+          >
+            {{ t('settings.extensions.support.openLog') }}
+          </v-btn>
+          <v-btn
+            variant="tonal"
+            :color="
+              diagnosticsCopy.state.value === 'failed' ? 'error' : 'primary'
+            "
+            :prepend-icon="
+              diagnosticsCopy.state.value === 'copied'
+                ? 'mdi-check'
+                : 'mdi-content-copy'
+            "
+            :loading="diagnosticsCopy.state.value === 'copying'"
+            data-testid="extensions-copy-diagnostics"
+            @click="diagnosticsCopy.copy"
+          >
+            {{
+              diagnosticsCopy.state.value === 'copied'
+                ? t('settings.extensions.support.copied')
+                : t('settings.extensions.support.copy')
+            }}
+          </v-btn>
+        </div>
+        <v-alert
+          v-if="diagnosticsCopy.state.value === 'failed'"
+          type="error"
+          variant="tonal"
+          density="compact"
+          class="mt-2"
+          data-testid="extensions-copy-failed"
+        >
+          {{ t('settings.extensions.support.copyFailed') }}:
+          {{ diagnosticsCopy.error.value }}
+        </v-alert>
+        <span class="visually-hidden" role="status">{{
+          diagnosticsCopy.state.value === 'copied'
+            ? t('settings.extensions.support.copied')
+            : ''
+        }}</span>
       </div>
 
       <p
@@ -544,6 +619,20 @@ watch(
                 {{ t('settings.extensions.action.settings') }}
               </v-btn>
               <v-btn
+                variant="tonal"
+                size="small"
+                prepend-icon="mdi-text-box-search-outline"
+                :aria-label="
+                  t('settings.extensions.log.rowActionLabel', {
+                    name: extensionText.nameOf(extension),
+                  })
+                "
+                :data-testid="`extension-log-open-${extension.id}`"
+                @click="openLog(extension.id, $event)"
+              >
+                {{ t('settings.extensions.log.rowAction') }}
+              </v-btn>
+              <v-btn
                 v-if="updateOf(extension.id)"
                 variant="tonal"
                 color="primary"
@@ -652,6 +741,13 @@ watch(
       :key="settingsTarget.id"
       :extension="settingsTarget"
       @close="closeSettings"
+    />
+
+    <ExtensionLogDialog
+      v-if="logTarget !== null"
+      :preset-extension-id="logTarget"
+      :extension-ids="items.map(({ id }) => id)"
+      @close="closeLog"
     />
   </div>
 </template>

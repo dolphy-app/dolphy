@@ -189,6 +189,21 @@ interface Flight {
   deadlineAt: number;
 }
 
+/**
+ * Логгер расширения: каждая запись несёт `extensionId`, по нему журнал
+ * фильтруется. Поле ставится после полей вызова, чтобы расширение не могло
+ * подписаться чужим id.
+ */
+const scopedLogger = (
+  base: ExtensionLogger,
+  extensionId: string,
+): ExtensionLogger => ({
+  debug: (fields, message) => base.debug({ ...fields, extensionId }, message),
+  info: (fields, message) => base.info({ ...fields, extensionId }, message),
+  warn: (fields, message) => base.warn({ ...fields, extensionId }, message),
+  error: (fields, message) => base.error({ ...fields, extensionId }, message),
+});
+
 export const createExtensionRuntime = (
   options: ExtensionRuntimeOptions,
 ): ExtensionRuntime => {
@@ -347,7 +362,7 @@ export const createExtensionRuntime = (
     );
     const context: ExtensionContext = {
       extensionId: extension.id,
-      logger: options.logger,
+      logger: scopedLogger(options.logger, extension.id),
       library: options.library,
       storage: createExtensionStorage(engine, extension.id),
       settings: settings.api,

@@ -1,6 +1,9 @@
 import { createI18n } from 'vue-i18n';
 import { describe, expect, it } from 'vitest';
-import { EXTENSION_DIAGNOSTIC_CODES } from '@dolphy-app/engine-contract';
+import {
+  EXTENSION_DIAGNOSTIC_CODES,
+  LOG_LEVELS,
+} from '@dolphy-app/engine-contract';
 import { EXTENSION_TAGS } from '@dolphy-app/extension-api';
 import { EVENT_MESSAGE_KEYS } from '@/pages/settings/lib/catalog.ts';
 import { GROUPS } from '@/pages/settings/lib/tags.ts';
@@ -25,6 +28,7 @@ const PLURAL_KEYS = [
   'install.titleUpdateAll',
   'data.keys',
   'health.failures',
+  'log.count',
 ] as const;
 
 const leaf = (locale: 'ru' | 'en', path: string): string =>
@@ -48,6 +52,17 @@ describe('строки «Расширения»', () => {
         expect(
           leaf(locale, `diagnostic.${code}`),
           `${locale} ${code}`,
+        ).not.toBe('');
+      }
+    }
+  });
+
+  it('каждый уровень журнала имеет подпись на обоих языках', () => {
+    for (const locale of ['ru', 'en'] as const) {
+      for (const level of LOG_LEVELS) {
+        expect(
+          leaf(locale, `log.level.${level}`),
+          `${locale} ${level}`,
         ).not.toBe('');
       }
     }

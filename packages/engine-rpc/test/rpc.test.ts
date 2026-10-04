@@ -141,6 +141,36 @@ describe('dispatcher validation', () => {
     }
   });
 
+  it('settings.setUi validates the material panel width and collapse', async () => {
+    const { dispatcher } = await connect();
+    const [hostSide, rawSide] = createInProcessPair();
+    dispatcher.attach(hostSide, 'raw-material');
+    const raw = createRawClient(rawSide);
+    for (const patch of [
+      { materialWidth: 280 },
+      { materialWidth: 800 },
+      { materialWidth: null },
+      { materialCollapsed: true },
+      { materialCollapsed: false },
+    ]) {
+      expect(await raw.call('settings.setUi', [patch])).toMatchObject({
+        ok: true,
+      });
+    }
+    for (const patch of [
+      { materialWidth: 279 },
+      { materialWidth: 801 },
+      { materialWidth: 400.5 },
+      { materialWidth: '400' },
+      { materialCollapsed: 'yes' },
+    ]) {
+      expect(await raw.call('settings.setUi', [patch])).toMatchObject({
+        ok: false,
+        error: { code: 'INVALID_ARGUMENT' },
+      });
+    }
+  });
+
   it('settings.setLearning accepts passAtN and extension policy ids, rejects malformed ones', async () => {
     const { dispatcher } = await connect();
     const [hostSide, rawSide] = createInProcessPair();

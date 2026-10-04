@@ -271,3 +271,4 @@ export * from './extension-registry.ts';
 export * from './repositories.ts';
 export * from './extension-data.ts';
 export * from './extension-health.ts';
+export * from './log-reader.ts';

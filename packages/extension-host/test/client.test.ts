@@ -35,6 +35,8 @@ const resolved: ResolvedExtension[] = [
     icon: null,
     tags: [],
     install: null,
+    messages: {},
+    warnings: [],
     exerciseTypes: [
       {
         id: 'acme.t',

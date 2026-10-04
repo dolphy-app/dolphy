@@ -41,6 +41,7 @@ const base = {
   installed: null,
   icon: null,
   titles: {},
+  messages: {},
   tags: [],
   removable: true,
   revoked: null,
@@ -163,6 +164,7 @@ const open = (installer = createFakeExtensionInstaller()) =>
         settings: DEFS,
         commands: [],
         panels: [],
+        messages: {},
       },
     ),
     extensionPolicy: createFakeExtensionPolicy({

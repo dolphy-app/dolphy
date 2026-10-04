@@ -94,6 +94,7 @@ const REGISTERED: ExtensionInfoDto = {
   installed: null,
   icon: null,
   titles: {},
+  messages: {},
   tags: [],
   removable: false,
   revoked: null,
@@ -114,6 +115,7 @@ const USER_EXTENSION: ExtensionInfoDto = {
   toggleable: true,
   icon: null,
   titles: {},
+  messages: {},
   tags: [],
   removable: true,
 };
@@ -220,6 +222,7 @@ const start = async () => {
           settings: [ROWS_SETTING],
           commands: [STATS_COMMAND],
           panels: [SQL_PANEL],
+          messages: {},
         },
       ),
       extensionPolicy: createFakeExtensionPolicy(),

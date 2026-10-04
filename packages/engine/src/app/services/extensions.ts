@@ -114,6 +114,7 @@ const copyInfo = (info: ExtensionInfoDto): ExtensionInfoDto => ({
   diagnostics: structuredClone(info.diagnostics),
   permissions: [...info.permissions],
   titles: structuredClone(info.titles),
+  messages: structuredClone(info.messages),
   tags: [...info.tags],
 });
 
@@ -154,6 +155,7 @@ const sortedContributions = (
     settings: copy.settings.sort(compareBy((setting) => setting.extensionId)),
     commands: copy.commands.sort(compareBy((command) => command.extensionId)),
     panels: copy.panels.sort(compareBy((panel) => panel.extensionId)),
+    messages: copy.messages,
   };
 };
 

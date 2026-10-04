@@ -19,6 +19,8 @@ const extension = (id: string, origin: ExtensionOrigin): ResolvedExtension => ({
   icon: null,
   tags: [],
   install: null,
+  messages: {},
+  warnings: [],
   exerciseTypes: [],
   themes: [],
   markdownRenderers: [],

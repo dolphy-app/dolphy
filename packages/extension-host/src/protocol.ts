@@ -363,6 +363,9 @@ const isResolvedExtension = (value: unknown): value is ResolvedExtension => {
       item.origin === 'user' ||
       item.origin === 'dev') &&
     Array.isArray(item.permissions) &&
+    typeof item.messages === 'object' &&
+    item.messages !== null &&
+    Array.isArray(item.warnings) &&
     Array.isArray(item.exerciseTypes) &&
     Array.isArray(item.themes) &&
     Array.isArray(item.markdownRenderers) &&

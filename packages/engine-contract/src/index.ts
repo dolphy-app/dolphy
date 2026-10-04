@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 16 as const;
+export const CONTRACT_VERSION = 17 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 
@@ -1109,6 +1109,8 @@ export const EXTENSION_DIAGNOSTIC_CODES = [
   'load-failed',
   'overridden-by',
   'safe-mode',
+  'locale.missing-key',
+  'locale.invalid-file',
 ] as const;
 
 export type ExtensionDiagnosticCode =
@@ -1122,7 +1124,9 @@ export type ExtensionDiagnosticValue = string | number | string[];
  * `manifest-unreadable` — `reason`; `manifest-invalid` — `issues` (`путь: сообщение`);
  * `id-mismatch` — `expected`, `actual`; `requires-app` — `minAppVersion`;
  * `unavailable-platform` — `platform`; `claim-clash` — `kind`, `name`, `by`;
- * `load-failed` — `reason`; `overridden-by` — `origin`, `version`; `safe-mode` — без данных.
+ * `load-failed` — `reason`; `overridden-by` — `origin`, `version`; `safe-mode` — без данных;
+ * `locale.missing-key` — `key` (ключ `%ключ%` манифеста, которого нет в `locales/en.json`; предупреждение
+ * у загруженного расширения); `locale.invalid-file` — `file`, `reason` (файл перевода проигнорирован).
  */
 export interface ExtensionDiagnosticDto {
   code: ExtensionDiagnosticCode;
@@ -1155,6 +1159,8 @@ export interface ExtensionInfoDto {
   icon: string | null;
   /** Названия вкладов (`label`/`title` манифеста); `{}` — нет или манифест не прочитан. */
   titles: ContributionTitlesDto;
+  /** Таблицы переводов `locales/<язык>.json`; подписи выше — как в манифесте (`%ключ%`), текст подставляет окно (`resolveText`). `{}` — нет файлов или манифест не прочитан. */
+  messages: ExtensionMessagesDto;
   /** Явные теги из манифеста; `[]` — нет или манифест не прочитан. */
   tags: string[];
   /** Установлено из каталога; `null` — скопировано вручную, из поставки или из режима разработчика. */
@@ -1187,6 +1193,11 @@ export interface ExtensionContributesDto {
   /** Id панелей (`contributes.panels`). */
   panels: string[];
 }
+
+/** Таблицы переводов расширения (`locales/<язык>.json`): язык → ключ → текст; нет файла — нет языка. */
+export type ExtensionMessagesDto = Partial<
+  Record<'ru' | 'en', Record<string, string>>
+>;
 
 /** Названия вкладов по точкам: `id` → `label`/`title` (у рендереров `id` — язык); точки без названий (события) не входят, у видов заданий и рендереров — только записи с `title`. */
 export type ContributionTitlesDto = Partial<
@@ -1313,6 +1324,8 @@ export interface ContributionsDto {
   commands: CommandContributionDto[];
   /** Панели включённых расширений. */
   panels: PanelContributionDto[];
+  /** Таблицы переводов включённых расширений по id; расширения без файлов перевода не перечислены. Подписи вкладов приходят как в манифесте (`%ключ%`). */
+  messages: Record<string, ExtensionMessagesDto>;
 }
 
 interface ExtensionSettingBaseDto {

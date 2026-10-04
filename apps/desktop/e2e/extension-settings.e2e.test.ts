@@ -69,7 +69,10 @@ describe('Настройки → Расширения: разрешения, в�
       manifest,
       JSON.stringify({ ...raw, minAppVersion: '99.0.0' }),
     );
-    const client = await launch(workspace.userData);
+    app = await launchApp(workspace.userData, {
+      DOLPHY_APP_VERSION: '1.0.0',
+    });
+    const client = new Client(app.page);
     await client.openSettingsExtensions();
 
     const [row] = await client.readExtensions(ID);

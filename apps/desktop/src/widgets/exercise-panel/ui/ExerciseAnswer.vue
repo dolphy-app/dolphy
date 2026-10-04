@@ -173,5 +173,9 @@ const submitAnswer = () => {
   overflow-x: visible;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
+
+  /* продолжение строки сдвинуто вправо, чтобы не читаться как новая инструкция */
+  padding-inline-start: calc(1em + 4ch);
+  text-indent: -4ch each-line;
 }
 </style>

@@ -75,7 +75,7 @@ superseded-by: null
 - [x] 1c LOGS AND LIMITS (PR 3): лимит вывода и IPC (`restricted-runner.ts`), `ctx.logger` с `extensionId` у доверенных расширений (`runtime.ts`)
 - [x] 1c `log-file.ts`, `stdio: 'pipe'`, `LogReader`, `readLogs` (контракт 17), `platform.appInfo`/`platform.copyText`
 - [x] 1c диалог журнала, «Скопировать диагностику», e2e `diagnostics.e2e.test.ts`, дизайн-ревью
-- [ ] 1d CI (PR 4): `desktop-checks.yml`, первый запуск на Linux и macOS, правка `scripts/smoke.mjs`/`global-setup.ts` по итогам, README, `AGENTS.md`, `git-workflow`
+- [x] 1d CI (PR 4): `desktop-checks.yml`, первый запуск на Linux и macOS, правка `scripts/smoke.mjs`/`global-setup.ts` по итогам, README, `AGENTS.md`, `git-workflow`
 - [ ] Закрытие: перенос долговечного в `docs/design`, `Outcomes`, архив
 
 ## Surprises & Discoveries
@@ -110,6 +110,9 @@ superseded-by: null
 - «Убийства и приостановка — состояние, а не сбой» реализовано в самом учёте: `recordFailure` игнорирует отказы, пока `suppressedUntil` в будущем (иначе каждый отказ приостановленному расширению рос бы как новый сбой). Потеря хоста (`host-down`), `replaced` и `unknown-command` сбоями не считаются; правила оценки сбоями не считаются вовсе (спека называет команды, события и виды заданий).
 - Безопасный режим не меняет `toggleable` строки: переключатель «Включено» остаётся, но пока режим действует, расширение отключено независимо от него (так же ведёт себя отзыв в каталоге).
 - Дизайн-ревью баннера (настоящий Electron, светлая и тёмная темы, 640/900/1280 px): белый текст на заливке `warning` давал контраст около 3,2:1 (P1), переключатель «Безопасный режим» в панели переносил «Обновить» на вторую строку (P2), текст баннера обрезался одной строкой (P2). Баннер теперь на `surface-variant` с рамкой и значком `warning` (контраст текста 5,18:1 и 6,39:1), текст в две строки, переключатель с пояснением — отдельным блоком над списком. Скриншоты не коммитятся.
+- (1d) Первый запуск e2e на Linux (xvfb) прошёл на 2 файла из 20 красным: клики и сообщения внутри iframe расширений (панели, ответы `dolphy.choice`) не срабатывали, прогон шёл 44 минуты вместо ~4. Причина — окна `show: false` (`DOLPHY_HIDDEN_WINDOW`): без оконного менеджера Chromium считает их невидимыми и душит iframe. Воспроизведено в Docker (ubuntu 24.04, xvfb, colima): после `revealWindows` на Linux `extension-surfaces` — 16/16 за 50 с вместо 6 красных за 5 минут, весь e2e — 118/118 за 4 минуты. Правка: `E2E_SHOW` на Linux всегда истинно (`e2e/support/app.ts`); `--disable-renderer-backgrounding` идёт вместе с ним.
+- (1d) `gh workflow run` ищет файл workflow на ветке по умолчанию (`main`): пока `desktop-checks.yml` не попал в `main`, он не запускается через `workflow_dispatch` (HTTP 404). Первый запуск на ветке (run 37234824312: `Packaged smoke (macos-14)` 44 с, `Packaged smoke (ubuntu-latest)` 49 с, `Desktop e2e (Linux)` 10 мин — все зелёные; после слияния `develop` с новыми e2e 1c — run 37237049354, все три зелёные) сделан временным триггером `push` на `feature/extension-foundation-1d` (в PR его нет); `workflow_dispatch` и `schedule` проверяются после слияния в `main`/`develop`, `gh workflow list` покажет workflow только после попадания в ветку по умолчанию.
+- (1d) Два нестабильных места в e2e на медленном Linux-раннере, исправлены в тестах: `Escape` сразу после выбора пункта списка в диалоге журнала не закрывал диалог (теперь повтор до закрытия), а `runSession` кликал по кнопке «Далее», исчезнувшей между проверкой и кликом (клик с коротким сроком и перечитывание состояния).
 
 Стадия 1c (реализация):
 

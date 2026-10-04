@@ -143,8 +143,16 @@ describe('журнал и диагностика', () => {
       .getByRole('option', { name: 'Отладка', exact: true })
       .click();
     await expectCount(diagnostics.empty, 0);
-    await app!.page.keyboard.press('Escape');
-    await diagnostics.dialog.waitFor({ state: 'detached', timeout: 15_000 });
+    // Escape сразу после выбора пункта может прийти, пока закрывается меню списка: повторяем
+    await expect
+      .poll(
+        async () => {
+          await app!.page.keyboard.press('Escape');
+          return diagnostics.dialog.count();
+        },
+        { timeout: 15_000 },
+      )
+      .toBe(0);
     await say(commands);
     await diagnostics.openForExtension(ID).click();
     await diagnostics.dialog.waitFor({ timeout: 15_000 });

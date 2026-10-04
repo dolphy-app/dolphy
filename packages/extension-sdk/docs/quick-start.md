@@ -130,18 +130,23 @@ template that is `dist-ext/acme.hello/extension.json` and `main.mjs`. Keep
 
 ## 4. Try it in the app
 
-Start the build in watch mode and leave it running:
+One command builds the project in watch mode and starts the installed Dolphy
+app on the result:
 
 ```sh
-pnpm dev     # dolphy-ext build --watch
+pnpm exec dolphy-ext dev
 ```
 
-Then start Dolphy with the variable `DOLPHY_DEV_EXTENSIONS` set to the absolute
-path of `dist-ext` of your project. It adds a developer root with the highest
-priority; the extension appears in Settings → Extensions with the origin
-"development", and the command appears in the command palette. Quit a running
-Dolphy first: the app has one instance, a second start does not pick up the
-variable.
+The extension appears in Settings → Extensions with the origin "development",
+and the command appears in the command palette. Press Ctrl+C to stop the build
+and the app. Quit a running Dolphy first: the app has one instance, a second
+start does not pick up the extension directory. Where the app is looked up and
+what to do when it is not found: [debugging](debugging.md), section 3.
+
+To run the two parts yourself, start the build in watch mode with `pnpm dev`
+(`dolphy-ext build --watch`) and start Dolphy with the variable
+`DOLPHY_DEV_EXTENSIONS` set to the absolute path of `dist-ext` of your project.
+It adds a developer root with the highest priority.
 
 ```sh
 # from a checkout of the Dolphy repository

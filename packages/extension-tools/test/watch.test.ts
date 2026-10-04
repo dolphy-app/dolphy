@@ -1,5 +1,6 @@
 import { readFile, stat, utimes, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 import { describe, expect, it } from 'vitest';
 import { watchExtension } from '../src/index.ts';
 import type { BuildLogger } from '../src/index.ts';
@@ -31,6 +32,90 @@ const read = (dir: string, file: string): Promise<string> =>
   readFile(path.join(dir, file), 'utf8');
 
 describe('watchExtension', () => {
+  it('R8 inline maps point back at the lines of src/index.ts after pruning and import stripping', async () => {
+    const root = await copyProject('surfaces');
+    const handle = await watchExtension({
+      root,
+      outDir: path.join(root, 'out'),
+    });
+    try {
+      const source = (
+        await readFile(path.join(root, 'src', 'index.ts'), 'utf8')
+      ).split('\n');
+      const markers = [
+        'HOST_ONLY_MARKER',
+        'VIEW_ONE_MARKER',
+        'VIEW_THREE_MARKER',
+        'PANEL_FIRST_MARKER',
+        'ALPHA_MARKER',
+      ];
+      const found = new Set<string>();
+      for (const file of handle.result.files.filter((name) =>
+        name.endsWith('.mjs'),
+      )) {
+        const code = await read(handle.result.dir, file);
+        const comment =
+          /\/\/# sourceMappingURL=data:application\/json;(?:charset=utf-8;)?base64,(\S+)/.exec(
+            code,
+          );
+        const trace = new TraceMap(
+          Buffer.from(comment?.[1] ?? '', 'base64').toString('utf8'),
+        );
+        const lines = code.split('\n');
+        for (const marker of markers) {
+          const index = lines.findIndex((line) => line.includes(marker));
+          if (index < 0) continue;
+          const original = originalPositionFor(trace, {
+            line: index + 1,
+            column: (lines[index] as string).indexOf(marker),
+          });
+          expect(original.source, `${file} ${marker}`).toMatch(
+            /src\/index\.ts$/,
+          );
+          expect(
+            source[(original.line ?? 0) - 1],
+            `${file} ${marker}`,
+          ).toContain(marker);
+          found.add(marker);
+        }
+      }
+      expect([...found].sort()).toEqual([...markers].sort());
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it('R8 every bundle of the watch output carries an inline source map to the sources', async () => {
+    const MAP =
+      /\/\/# sourceMappingURL=data:application\/json;(?:charset=utf-8;)?base64,(\S+)/;
+    for (const name of ['hello', 'commands-panel', 'with-worker']) {
+      const root = await copyProject(name);
+      const handle = await watchExtension({
+        root,
+        outDir: path.join(root, 'out'),
+      });
+      try {
+        const scripts = handle.result.files.filter((file) =>
+          file.endsWith('.mjs'),
+        );
+        expect(scripts.length).toBeGreaterThan(0);
+        for (const file of scripts) {
+          const match = MAP.exec(await read(handle.result.dir, file));
+          expect(match, `${name}/${file} has an inline map`).not.toBeNull();
+          const map = JSON.parse(
+            Buffer.from(match?.[1] ?? '', 'base64').toString('utf8'),
+          ) as { sources: string[]; mappings: string };
+          expect(map.mappings.length).toBeGreaterThan(0);
+          expect(map.sources.some((source) => source.endsWith('.ts'))).toBe(
+            true,
+          );
+        }
+      } finally {
+        await handle.close();
+      }
+    }
+  });
+
   it('T-20 editing src/index.ts rebuilds affected files and writes one line to the log', async () => {
     const root = await copyProject('hello');
     const log = recordLogger();

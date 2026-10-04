@@ -7,6 +7,7 @@ import {
   ipcMain,
   net,
   protocol,
+  safeStorage,
   session,
   shell,
   utilityProcess,
@@ -20,8 +21,13 @@ import { createExtSupervisor, isTypedMessage } from './ext-supervisor.ts';
 import { createHostLink } from './host-link.ts';
 import { createLogFile, createProcessOutput } from './log-file.ts';
 import { createMainLogger } from './logger.ts';
+import {
+  createPlatformServices,
+  fakeSafeStorageOf,
+} from './platform-services.ts';
 import { safeModeSource } from './safe-mode.ts';
 import { createDevExtensionsShell } from './shells/dev-extensions.ts';
+import { createDevToolsShortcutShell } from './shells/devtools-shortcut.ts';
 import { createEngineShell } from './shells/engine.ts';
 import { createExtensionAssetsShell } from './shells/extension-assets.ts';
 import { createLifecycleShell } from './shells/lifecycle.ts';
@@ -109,6 +115,16 @@ const extensionCatalogUrl = app.isPackaged
 const forceSafeMode = safeModeSource(process.argv, process.env);
 
 const hostLink = createHostLink({ MessageChannelMain });
+// шифр секретов расширений: `safeStorage` есть только в main, хост движка спрашивает по `parentPort`;
+// e2e и смоук подменяют хранилище ключей `DOLPHY_FAKE_SAFE_STORAGE` (только в несобранном приложении)
+const fakeSafeStorage = fakeSafeStorageOf(process.env, app.isPackaged);
+const platformServices = createPlatformServices({
+  safeStorage,
+  isReady: () => app.isReady(),
+  platform: process.platform,
+  logger,
+  ...(fakeSafeStorage !== undefined && { fake: fakeSafeStorage }),
+});
 // режим разработчика: хост движка сам перечитывает расширения и применяет их, окна и хосты не перезапускаются;
 // правка, пришедшая пока хост запускался, повторяется, когда он готов (первое обнаружение могло её не увидеть)
 let engineHost: HostProcessLike | null = null;
@@ -174,6 +190,13 @@ const supervisor = createSupervisor({
     if (isTypedMessage(message, 'restart-ext-host')) extSupervisor.kill();
     // пользователь просит запустить хост после `gave-up` («Настройки → Расширения»)
     if (isTypedMessage(message, 'reset-ext-host')) extSupervisor.reset();
+    // шифр секретов: ответ уходит тому же хосту движка, что спросил
+    if (isTypedMessage(message, 'platform-request')) {
+      const asker = engineHost;
+      void platformServices.handle(message).then((response) => {
+        if (response !== null) asker?.postMessage(response);
+      });
+    }
   },
 });
 
@@ -189,6 +212,11 @@ const shells = [
     ...(devServerUrl ? { devServerUrl } : {}),
     hidden: hiddenWindow,
     additionalArguments: smoke ? [SMOKE_ARGUMENT] : [],
+  }),
+  createDevToolsShortcutShell({
+    app,
+    ...(devExtensionsDir ? { devExtensionsDir } : {}),
+    platform: process.platform,
   }),
   createEngineShell({ ipcMain, supervisor }),
   createPlatformShell({

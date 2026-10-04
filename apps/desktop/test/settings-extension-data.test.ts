@@ -20,9 +20,11 @@ import {
 const usage = (
   storage: [number, number],
   settings: [number, number] = [0, 0],
+  secrets: [number, number] = [0, 0],
 ): ExtensionDataUsageDto => ({
   storage: { keys: storage[0], bytes: storage[1] },
   settings: { keys: settings[0], bytes: settings[1] },
+  secrets: { keys: secrets[0], bytes: secrets[1] },
 });
 
 const NO_DATA = usage([0, 0]);
@@ -59,11 +61,12 @@ const setup = (
 };
 
 describe('данные расширений: итоги', () => {
-  it('хранилище и настройки складываются; данные есть при любом занятом ключе', () => {
-    expect(dataTotals(usage([2, 100], [1, 20]))).toEqual({
-      keys: 3,
-      bytes: 120,
+  it('хранилище, настройки и секреты складываются; данные есть при любом занятом ключе', () => {
+    expect(dataTotals(usage([2, 100], [1, 20], [3, 500]))).toEqual({
+      keys: 6,
+      bytes: 620,
     });
+    expect(hasData(usage([0, 0], [0, 0], [1, 40]))).toBe(true);
     expect(hasData(usage([0, 0], [1, 5]))).toBe(true);
     expect(hasData(usage([1, 9]))).toBe(true);
     expect(hasData(NO_DATA)).toBe(false);

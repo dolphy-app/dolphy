@@ -1,0 +1,12 @@
+{
+  "id": "acme.secrets",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "contributes": {
+    "commands": [
+      { "id": "acme.secrets.save", "title": "Секрет: сохранить" },
+      { "id": "acme.secrets.read", "title": "Секрет: прочитать" },
+      { "id": "acme.secrets.drop", "title": "Секрет: удалить" }
+    ]
+  }
+}

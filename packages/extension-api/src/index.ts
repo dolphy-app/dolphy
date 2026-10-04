@@ -790,6 +790,44 @@ export interface ExtensionStorage {
   keys(): Promise<string[]>;
 }
 
+/** Secret limits; the engine enforces them (`StorageQuotaError`, kinds `key-length`, `value-size`, `key-count`). */
+export const EXTENSION_SECRET_LIMITS = Object.freeze({
+  /** Key length in UTF-16 code units. */
+  keyLength: 128,
+  /** Value size in UTF-8 bytes. */
+  valueBytes: 4 * 1024,
+  /** Number of keys. */
+  keys: 32,
+});
+
+/**
+ * Thrown by `ctx.secrets.set` and by `ctx.secrets.get` of an existing key when
+ * the operating system has no secure key store: no store, Linux `basic_text`
+ * backend, the app is not ready yet, or the stored value cannot be decrypted
+ * any more (the keychain changed; `delete` and write again).
+ */
+export class SecretsUnavailableError extends Error {
+  readonly code = 'SECRETS_UNAVAILABLE';
+  constructor(message?: string) {
+    super(message ?? 'the system secret store is unavailable');
+    this.name = 'SecretsUnavailable';
+  }
+}
+
+/**
+ * Secret strings (tokens, passwords) encrypted with the system key store.
+ * No permission is required; each extension has its own space, cleared with
+ * the extension data. Limits are `EXTENSION_SECRET_LIMITS`.
+ */
+export interface ExtensionSecrets {
+  /** `undefined` if the key does not exist (also when the key store is unavailable). */
+  get(key: string): Promise<string | undefined>;
+  /** Throws `SecretsUnavailableError` without a key store, `StorageQuotaError` over a limit; the write does not happen then. */
+  set(key: string, value: string): Promise<void>;
+  /** `false` if the key did not exist. Works without a key store. */
+  delete(key: string): Promise<boolean>;
+}
+
 /** Setting values of an extension by setting id. */
 export type SettingValues = Record<string, SettingValue>;
 
@@ -874,6 +912,7 @@ export interface ExtensionContext<Ids extends ExtensionIdSet = ExtensionIdSet> {
   readonly logger: ExtensionLogger;
   readonly library: LibraryReader;
   readonly storage: ExtensionStorage;
+  readonly secrets: ExtensionSecrets;
   readonly settings: ExtensionSettings<Ids['settings']>;
   readonly events: ExtensionEvents<Ids['events']>;
   readonly commands: ExtensionCommands<Ids['commands']>;

@@ -154,6 +154,38 @@ describe('catalog build: publishing a version', () => {
       'chart',
     ]);
   });
+
+  it('R8 version files carry no source maps', async () => {
+    const repo = await createRepo([
+      { fixture: 'hello' },
+      { fixture: 'commands-panel' },
+      { fixture: 'markdown-only' },
+    ]);
+    const out = await makeTemp();
+    const ids = ['acme.hello', 'acme.commands-panel', 'acme.chart'];
+    await publish(repo, out, ids);
+    const index = await indexOf(out);
+    const scripts: string[] = [];
+    for (const entry of index.extensions) {
+      const version = entry.versions[0];
+      for (const file of version?.files ?? []) {
+        if (!file.path.endsWith('.mjs')) continue;
+        scripts.push(file.path);
+        const text = await readFile(
+          path.join(
+            out,
+            'extensions',
+            entry.id,
+            version?.version ?? '',
+            file.path,
+          ),
+          'utf8',
+        );
+        expect(text).not.toContain('sourceMappingURL');
+      }
+    }
+    expect(scripts.length).toBeGreaterThanOrEqual(4);
+  });
 });
 
 describe('catalog build: settings and events', () => {

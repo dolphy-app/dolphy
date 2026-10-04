@@ -237,6 +237,7 @@ dolphy-ext build [dir] [--out <dir>] [--watch]
 dolphy-ext types [dir]
 dolphy-ext validate <dir>
 dolphy-ext lint [dir] [--built <dir>]
+dolphy-ext dev [dir] [--app <path>]
 dolphy-ext catalog check <extensionsDir> [--ids a,b]
             [--published-index <path>] [--max-app-version <x.y.z>]
             [--built <siteDir>] [--skip-github-check] [--list-rules]
@@ -266,8 +267,32 @@ affects (`error <id>: failed to bundle main.mjs (host from src/index.ts), …`).
 Schemas and `assets/` are copied at the start and after a manifest change.
 `extension.json` changes also rewrite `.dolphy/ids.d.ts` (only when its content
 changes).
+`--watch` bundles carry inline source maps (`//# sourceMappingURL=data:…`), so
+DevTools show your TypeScript in views, panels and renderers; the Node bundle
+`main.mjs` carries one too, but the app does not enable source maps for the
+extension process, so stack traces in the log point at `main.mjs`. A plain
+`build` and `catalog build` never write source maps (`catalog check` rejects
+them, `CHECK-025`).
 Running from the repository:
 `pnpm -F @dolphy-app/extension-tools dolphy-ext build <dir>`.
+
+### `dev [dir] [--app <path>]`
+
+Starts a `--watch` build of the project in `dir` (default: the current
+directory) and the installed Dolphy app with
+`DOLPHY_DEV_EXTENSIONS=<dir>/dist-ext`, so the app lists the extension (origin
+`dev`) and applies every rebuild without a restart. Ctrl+C stops the build and
+the app, exit code 0. The app is, in this order: `--app`, the `DOLPHY_APP`
+environment variable, the standard place of the platform (macOS
+`/Applications/Dolphy.app`, then `~/Applications/Dolphy.app`; Windows
+`%LOCALAPPDATA%\Programs\Dolphy\Dolphy.exe`; Linux the newest
+`~/Applications/Dolphy-Linux-*.AppImage`). `--app` takes a macOS `.app` bundle
+or an executable. No app found is exit code 2 with the places that were looked
+at; the path is printed when the app starts. The app has a single instance: if
+it quits within 5 seconds the command prints "Dolphy is probably already
+running: quit it and run again" and exits with code 1. In the app, `F12`,
+`Cmd+Alt+I` (macOS) and `Ctrl+Shift+I` toggle DevTools while
+`DOLPHY_DEV_EXTENSIONS` is set.
 
 ## Catalog
 

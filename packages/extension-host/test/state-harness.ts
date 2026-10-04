@@ -118,15 +118,24 @@ export const sessionStarted = (sessionId: string): LearningEvent => ({
 /** Движок-заглушка: настоящее хранилище с потолками (память), значения настроек и подписчики. */
 export interface StubEngine extends HostableEngine {
   readonly disabled: Set<string>;
+  /** Системное хранилище ключей заглушки: `false` — секреты недоступны, как на Linux с `basic_text`. */
+  keyStore: { available: boolean };
   /** Здоровье, в которое хост пишет сообщения `health.report`. */
   readonly health: ExtensionHealth;
   emit(event: LearningEvent): void;
   changeSetting(change: ExtensionSettingChangeDto): void;
   /** Значение хранилища расширения напрямую, минуя канал. */
   read(extensionId: string, key: string): Promise<JsonValue | undefined>;
+  /** Шифртекст секрета напрямую, минуя канал. */
+  readSecret(extensionId: string, key: string): Promise<JsonValue | undefined>;
   /** Сколько запросов хоста принято (все методы). */
   readonly requests: string[];
 }
+
+const unavailable = () =>
+  Object.assign(new Error('System secret store is unavailable'), {
+    code: 'SECRETS_UNAVAILABLE',
+  });
 
 export const createStubEngine = (): StubEngine => {
   const data = createMemoryExtensionDataStore();
@@ -135,6 +144,7 @@ export const createStubEngine = (): StubEngine => {
   const learning = new Set<(event: LearningEvent) => void>();
   const changes = new Set<(change: ExtensionSettingChangeDto) => void>();
   const requests: string[] = [];
+  const keyStore = { available: true };
   const health = createExtensionHealth({ now: () => Date.now() });
   const active = (method: string, extensionId: string): string => {
     requests.push(`${method}:${extensionId}`);
@@ -150,7 +160,29 @@ export const createStubEngine = (): StubEngine => {
     disabled,
     health,
     requests,
+    keyStore,
     extensionHost: {
+      // шифр заглушки — base64; настоящую службу с потолками проверяют тесты движка
+      secrets: {
+        get: async (id, key) => {
+          const stored = await data.secrets.get(active('secrets.get', id), key);
+          if (stored !== undefined && !keyStore.available) throw unavailable();
+          return stored === undefined
+            ? undefined
+            : Buffer.from(stored as string, 'base64').toString();
+        },
+        set: async (id, key, value) => {
+          active('secrets.set', id);
+          if (!keyStore.available) throw unavailable();
+          await data.secrets.set(
+            id,
+            key,
+            Buffer.from(value).toString('base64'),
+          );
+        },
+        delete: async (id, key) =>
+          data.secrets.delete(active('secrets.delete', id), key),
+      },
       storage: {
         get: async (id, key) => data.storage.get(active('get', id), key),
         set: async (id, key, value) =>
@@ -189,6 +221,7 @@ export const createStubEngine = (): StubEngine => {
       for (const listener of [...changes]) listener(change);
     },
     read: (extensionId, key) => data.storage.get(extensionId, key),
+    readSecret: (extensionId, key) => data.secrets.get(extensionId, key),
   };
 };
 

@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 19 as const;
+export const CONTRACT_VERSION = 20 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 
@@ -48,6 +48,8 @@ export type EngineErrorCode =
   | 'EXTENSION_INSTALL_FAILED'
   /** Запись в хранилище расширения превысила потолок; `details`: `extensionId`, `kind`, `limit`. */
   | 'EXTENSION_STORAGE_QUOTA'
+  /** Системного хранилища ключей нет (или оно не расшифровало значение): секрет расширения не записан и не прочитан. */
+  | 'SECRETS_UNAVAILABLE'
   /** Команда расширения не выполнена; `details`: `extensionId`, `commandId`, `reason` (`ExtensionCommandFailureReason`). */
   | 'EXTENSION_COMMAND_FAILED'
   | 'INTERNAL';
@@ -1475,10 +1477,11 @@ export type ExtensionSettingDefDto =
 /** Действующие значения настроек расширения: по `id` каждого определения; сохранённое или `default`. */
 export type ExtensionSettingValuesDto = Record<string, JsonValue>;
 
-/** Занятое место данных расширения (хранилище кода и значения настроек считаются отдельно). */
+/** Занятое место данных расширения (хранилище кода, значения настроек и секреты считаются отдельно; у секретов байты — шифртекст). */
 export interface ExtensionDataUsageDto {
   storage: { keys: number; bytes: number };
   settings: { keys: number; bytes: number };
+  secrets: { keys: number; bytes: number };
 }
 
 /** События обучения, которые движок отдаёт расширениям с разрешением `learning.events`. Не входят в `EngineEvent`: окно их не видит. */

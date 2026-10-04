@@ -1,4 +1,8 @@
-import { PermissionError, StorageQuotaError } from '@dolphy-app/extension-api';
+import {
+  PermissionError,
+  SecretsUnavailableError,
+  StorageQuotaError,
+} from '@dolphy-app/extension-api';
 import type { ExtensionContext } from '@dolphy-app/extension-api';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createEndpointPair } from '../src/loopback.ts';
@@ -82,6 +86,65 @@ describe('ctx.logger', () => {
       { n: 2, extensionId: 'acme.a' },
       undefined,
     );
+  });
+});
+
+describe('ctx.secrets', () => {
+  it('значения у каждого расширения свои; без хранилища ключей запись и чтение существующего ключа — SecretsUnavailableError, а чтение отсутствующего и удаление работают', async () => {
+    const seen: Record<string, unknown> = {};
+    const h = open({
+      extensions: [stateful('acme.a'), stateful('acme.b')],
+      trusted: ['acme.a', 'acme.b'],
+      modules: {
+        'acme.a': {
+          activate: async (ctx) => {
+            await ctx.secrets.set('token', 's3cret');
+            seen.got = await ctx.secrets.get('token');
+            seen.missing = await ctx.secrets.get('nope');
+            seen.deletedMissing = await ctx.secrets.delete('nope');
+            h.engine.keyStore.available = false;
+            const failure = async (run: () => Promise<unknown>) => {
+              try {
+                await run();
+              } catch (error) {
+                return error;
+              }
+              return null;
+            };
+            seen.setError = await failure(() => ctx.secrets.set('x', 'y'));
+            seen.getError = await failure(() => ctx.secrets.get('token'));
+            seen.missingWhileDown = await ctx.secrets.get('nope');
+            seen.deleted = await ctx.secrets.delete('token');
+          },
+        },
+        'acme.b': {
+          activate: async (ctx) => {
+            seen.foreign = await ctx.secrets.get('token');
+          },
+        },
+      },
+    });
+
+    h.engine.emit(sessionStarted('s1'));
+
+    await vi.waitFor(() => {
+      expect(seen.deleted).toBe(true);
+      expect(seen).toHaveProperty('foreign');
+    });
+    expect(seen).toMatchObject({
+      got: 's3cret',
+      missing: undefined,
+      deletedMissing: false,
+      missingWhileDown: undefined,
+    });
+    for (const error of [seen.setError, seen.getError]) {
+      expect(error).toBeInstanceOf(SecretsUnavailableError);
+      expect(error).toMatchObject({
+        name: 'SecretsUnavailable',
+        code: 'SECRETS_UNAVAILABLE',
+      });
+    }
+    expect(await h.engine.readSecret('acme.a', 'token')).toBeUndefined();
   });
 });
 

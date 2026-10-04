@@ -71,7 +71,7 @@ superseded-by: null
 
 ### Хранение и контракт
 
-- R14. Привязки пользователя хранятся в `engine.db` (`setting`, ключ `keybindings`) и переживают перезапуск; в контракте `@dolphy-app/engine-contract` версии 19: `KeybindingsSettingsDto`, `KeybindingEntryDto`, `KeybindingsPatch`, методы `settings.getKeybindings()` и `settings.setKeybindings(patch)` (патч: ключ команды → набор или `null` для сброса; применяется целиком или не применяется), событие `settings-changed` со `scope: 'keybindings'`. Адаптеры хранилища — SQLite, JSON-файл и память — проходят общий набор `describeSettingsStoreContract`. Проверка: тесты адаптеров, RPC (`engine-rpc` integration), перезапуск в e2e.
+- R14. Привязки пользователя хранятся в `engine.db` (`setting`, ключ `keybindings`) и переживают перезапуск; в контракте `@dolphy-app/engine-contract` версии 20: `KeybindingsSettingsDto`, `KeybindingEntryDto`, `KeybindingsPatch`, методы `settings.getKeybindings()` и `settings.setKeybindings(patch)` (патч: ключ команды → набор или `null` для сброса; применяется целиком или не применяется), событие `settings-changed` со `scope: 'keybindings'`. Адаптеры хранилища — SQLite, JSON-файл и память — проходят общий набор `describeSettingsStoreContract`. Проверка: тесты адаптеров, RPC (`engine-rpc` integration), перезапуск в e2e.
 - R15. Повреждённая запись в хранилище не ломает окно: при чтении отбрасываются записи неверной формы, остальные действуют; записи, которые не разбираются на платформе окна (например `Mod+Ctrl+K` на Windows), пропускает карта привязок и сообщает в `issues`. Проверка: тест декодера и адаптера.
 
 ### Расширения
@@ -90,7 +90,7 @@ superseded-by: null
 
 ### Документы
 
-- R24. Документация описывает формат записи, `when`, контекстные ключи, правила приоритета и замены, вклад расширения и ограничения: `apps/desktop/README.md` (раздел «Command registry»), `docs/design/extensions.md` («Команды»; примеры проходят `docs-contributions.test.ts`), `packages/README.md`, README пакета `@dolphy-app/keybindings`; решение зафиксировано ADR 0015. Проверка: `pnpm -F @dolphy-app/extension-tools test`, ревью.
+- R24. Документация описывает формат записи, `when`, контекстные ключи, правила приоритета и замены, вклад расширения и ограничения: `apps/desktop/README.md` (раздел «Command registry»), `docs/design/extensions.md` («Команды»; примеры проходят `docs-contributions.test.ts`), `packages/README.md`, README пакета `@dolphy-app/keybindings`; решение зафиксировано ADR 0016. Проверка: `pnpm -F @dolphy-app/extension-tools test`, ревью.
 
 ## Решения
 
@@ -108,7 +108,7 @@ superseded-by: null
 
 **Контекстные ключи в окне** — `shared/lib/context-keys.ts`: реактивные значения (`page`, `inSession`, `paletteOpen`) и вычисляемые в момент нажатия (`inputFocus`, `modalOpen`, `platform`). Прежние правила диспетчера «не в поле ввода, не при открытом диалоге» становятся обычным `when` умолчаний.
 
-**Контракт.** `KeybindingEntryDto { key: string; when: string | null }`, `KeybindingsSettingsDto { commands: Record<string, KeybindingEntryDto[]> }`, `KeybindingsPatch = Record<string, KeybindingEntryDto[] | null>`; в `CommandContributionDto` — `keybindings: ExtensionKeybindingDto[]` (`{ key, mac, windows, linux, when }`, поля `null` если не заданы), `keybinding` остаётся строкой-сокращением. `CONTRACT_VERSION` 18 → 19. Каталог расширений не меняется: новых ключей `contributes` нет, привязки лежат внутри `commands` (индексы остаются совместимыми; старое приложение отвергнет манифест с `keybindings` как с неизвестным ключом, как при прежних дополнениях, ADR 0013).
+**Контракт.** `KeybindingEntryDto { key: string; when: string | null }`, `KeybindingsSettingsDto { commands: Record<string, KeybindingEntryDto[]> }`, `KeybindingsPatch = Record<string, KeybindingEntryDto[] | null>`; в `CommandContributionDto` — `keybindings: ExtensionKeybindingDto[]` (`{ key, mac, windows, linux, when }`, поля `null` если не заданы), `keybinding` остаётся строкой-сокращением. `CONTRACT_VERSION` 19 → 20. Каталог расширений не меняется: новых ключей `contributes` нет, привязки лежат внутри `commands` (индексы остаются совместимыми; старое приложение отвергнет манифест с `keybindings` как с неизвестным ключом, как при прежних дополнениях, ADR 0013).
 
 **Окно.** `features/keybindings` — хранилище пользовательских привязок над `engine.settings` (по образцу `theme-selection`: событие `settings-changed` → перечитать, свои записи не перечитываются) и карта привязок, собранная из реестра команд (`CommandDescriptor.keybindings` — умолчания), вкладов расширений (через адаптер реестра) и пользователя. Описание команды получает `keybindings?: DefaultBinding[]` вместо одной строки; `Command` отдаёт умолчания, а действующую привязку читают у карты. `shared/lib/keybinding.ts` удаляется (чистая замена, вызовы переведены на пакет).
 
@@ -120,12 +120,12 @@ superseded-by: null
 - [x] 2026-10-05 спека
 - [x] 2026-10-05 пакет `@dolphy-app/keybindings`: запись, платформы, сопоставление, `when`, карта, пересечения, пользовательские записи (201 тест)
 - [x] 2026-10-05 пакет подключён к публикации в npmjs (`tools/lib/package-manifest.mjs`, `release.yml`, `packages.yml`); `npm publish --dry-run` проходит
-- [x] 2026-10-05 контракт 19, `settings.getKeybindings/setKeybindings`, схема RPC
+- [x] 2026-10-05 контракт 20, `settings.getKeybindings/setKeybindings`, схема RPC
 - [x] 2026-10-05 сервис `settings`: проверка, события; адаптеры memory/json/sqlite, общий набор тестов
 - [x] 2026-10-05 манифест расширения: `keybinding(s)`, `extension.schema.json`, DTO, фикстуры, `docs/design/extensions.md`
 - [x] 2026-10-05 окно: контекстные ключи, диспетчер, карта, хранилище, команды приложения, палитра
 - [x] 2026-10-05 окно: страница «Сочетания клавиш» с рекордером и пересечениями
-- [x] 2026-10-05 e2e `keybindings`, `command-registry`, документация, ADR 0015
+- [x] 2026-10-05 e2e `keybindings`, `command-registry`, документация, ADR 0016
 - [ ] фактическая публикация `@dolphy-app/keybindings` в npmjs: делает `release.yml` при релизе (токен `NPM_TOKEN` только в CI)
 - [ ] слияние в `develop`
 
@@ -147,7 +147,7 @@ superseded-by: null
 
 ## Outcomes
 
-Сделано всё по требованиям R1–R24: пакет `@dolphy-app/keybindings` (201 тест), контракт 19 с `settings.getKeybindings/setKeybindings`, проверка и хранение в `engine.db` (memory, json и sqlite проходят общий набор), привязки команд расширений (`keybinding`, `keybindings`) с проверкой на трёх платформах, окно с одним диспетчером, контекстными ключами, цепочками, страницей «Сочетания клавиш» (рекордер, `when`, пересечения, «Переназначить», сброс), палитра показывает действующую привязку. Проверено: `pnpm lint`, `pnpm typecheck`, `pnpm test` (6030 тестов; 4 теста симуляции, графа и `engine-git` падают по таймауту при общей нагрузке и проходят по отдельности), e2e `keybindings` и `command-registry` в настоящем Electron (22 теста).
+Сделано всё по требованиям R1–R24: пакет `@dolphy-app/keybindings` (201 тест), контракт 20 с `settings.getKeybindings/setKeybindings`, проверка и хранение в `engine.db` (memory, json и sqlite проходят общий набор), привязки команд расширений (`keybinding`, `keybindings`) с проверкой на трёх платформах, окно с одним диспетчером, контекстными ключами, цепочками, страницей «Сочетания клавиш» (рекордер, `when`, пересечения, «Переназначить», сброс), палитра показывает действующую привязку. Проверено: `pnpm lint`, `pnpm typecheck`, `pnpm test` (6030 тестов; 4 теста симуляции, графа и `engine-git` падают по таймауту при общей нагрузке и проходят по отдельности), e2e `keybindings` и `command-registry` в настоящем Electron (22 теста).
 
 Отличия от плана: проверка доступности в e2e структурная, без `axe-core` (его нет в репозитории); `platform` движка — поле `EngineDeps`, а не контракта; `ChordStatus.vue` лежит в `app/layouts`; Save блокируется, пока на ту же клавишу есть пользовательская привязка другой команды (движок бы отклонил), «Переназначить» остаётся доступным.
 

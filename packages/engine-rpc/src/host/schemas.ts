@@ -9,6 +9,7 @@ import type {
   AttemptEntryDto,
   DeepPartial,
   ExerciseFilterDto,
+  JsonValue,
   KeyValueFilterWire,
   LearningEngine,
   LogEntryDto,
@@ -58,6 +59,17 @@ const grade = z.union([
 const unitKind = z.enum(['course', 'lesson', 'exercise']);
 const severity = z.enum(['error', 'warning', 'info']);
 const attemptSource = z.enum(['self', 'runner', 'placement', 'trane-import']);
+
+const jsonValue: z.ZodType<JsonValue> = z.lazy(() =>
+  z.union([
+    z.null(),
+    z.boolean(),
+    z.number(),
+    z.string(),
+    z.array(jsonValue),
+    z.record(z.string(), jsonValue),
+  ]),
+);
 
 const pageRequest = z.strictObject({
   limit: optional(z.int().min(1).max(500)),
@@ -293,6 +305,9 @@ export const schemas = {
   'repositories.remove': z.tuple([repositoryId]),
   'repositories.cancel': z.tuple([repositoryId]),
   'practice.startSession': z.tuple([]),
+  'practice.finishSession': z.tuple([
+    z.strictObject({ sessionId: str.min(1) }),
+  ]),
   'practice.getBatch': z.tuple([
     optional(z.strictObject({ filter: optional(exerciseFilter) })),
   ]),
@@ -357,9 +372,26 @@ export const schemas = {
     optional(z.strictObject({ refresh: optional(bool) })),
   ]),
   'extensions.install': z.tuple([extensionId, optional(extensionVersion)]),
-  'extensions.uninstall': z.tuple([extensionId]),
+  'extensions.uninstall': z.tuple([
+    extensionId,
+    optional(z.strictObject({ removeData: optional(bool) })),
+  ]),
   'extensions.updates': z.tuple([]),
   'extensions.setCheckUpdates': z.tuple([bool]),
+  'extensions.getSettingValues': z.tuple([extensionId]),
+  'extensions.setSettingValue': z.tuple([
+    extensionId,
+    str.min(1).max(128),
+    jsonValue,
+  ]),
+  'extensions.resetSettingValues': z.tuple([extensionId]),
+  'extensions.dataUsage': z.tuple([extensionId]),
+  'extensions.clearData': z.tuple([extensionId]),
+  'extensions.invokeCommand': z.tuple([
+    extensionId,
+    str.min(1).max(128),
+    optional(jsonValue),
+  ]),
   'curation.blacklist.list': z.tuple([optional(pageRequest)]),
   'curation.blacklist.has': z.tuple([unitId]),
   'curation.blacklist.add': z.tuple([unitId]),

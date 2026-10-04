@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { ERRORS, EngineError, createErrorMapper } from '../../src/app/index.ts';
 
 describe('EngineError', () => {
-  it('has all 26 codes (API §8 and repositories) with the documented default retryable', () => {
-    expect(Object.keys(ERRORS)).toHaveLength(26);
+  it('has all 28 codes (API §8, repositories and extensions) with the documented default retryable', () => {
+    expect(Object.keys(ERRORS)).toHaveLength(28);
     const retryable = Object.entries(ERRORS)
       .filter(([, spec]) => spec.retryable)
       .map(([code]) => code)
@@ -42,6 +42,22 @@ describe('EngineError', () => {
       ['incompatible', 'integrity', 'limits', 'invalid', 'conflict'].map(
         retryable,
       ),
+    ).toEqual([false, false, false, false, false]);
+  });
+
+  it('EXTENSION_COMMAND_FAILED is retryable only after a timeout or a lost host', () => {
+    const retryable = (reason: string) =>
+      new EngineError('EXTENSION_COMMAND_FAILED', { details: { reason } })
+        .retryable;
+    expect(['timeout', 'host-down'].map(retryable)).toEqual([true, true]);
+    expect(
+      [
+        'unknown-command',
+        'handler-failed',
+        'invalid-result',
+        'disabled',
+        'replaced',
+      ].map(retryable),
     ).toEqual([false, false, false, false, false]);
   });
 

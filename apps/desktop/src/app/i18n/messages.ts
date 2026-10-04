@@ -1,13 +1,17 @@
 import { en as vuetifyEn, ru as vuetifyRu } from 'vuetify/locale';
 import { coursesMessages } from '@/pages/courses';
 import { dailyPlanMessages } from '@/pages/daily-plan';
+import { extensionPanelMessages } from '@/pages/extension-panel';
 import { graphMessages } from '@/pages/graph';
 import { placementMessages } from '@/pages/placement';
 import { sessionMessages } from '@/pages/session';
 import { settingsMessages } from '@/pages/settings';
 import { repositoryMessages } from '@/entities/repository';
+import { appCommandsMessages } from '@/features/app-commands';
 import { courseScopeMessages } from '@/features/course-scope';
+import { extensionCommandsMessages } from '@/features/extension-commands';
 import { sharedMessages } from '@/shared/i18n';
+import { commandPaletteMessages } from '@/widgets/command-palette';
 import { exercisePanelMessages } from '@/widgets/exercise-panel';
 import { en as appEn } from './en.ts';
 import { ru as appRu } from './ru.ts';
@@ -17,10 +21,14 @@ export const appMessages = {
   ru: {
     ...sharedMessages.ru,
     ...appRu,
+    ...appCommandsMessages.ru,
     ...courseScopeMessages.ru,
+    ...extensionCommandsMessages.ru,
     ...repositoryMessages.ru,
     ...coursesMessages.ru,
+    ...commandPaletteMessages.ru,
     ...dailyPlanMessages.ru,
+    ...extensionPanelMessages.ru,
     ...exercisePanelMessages.ru,
     ...graphMessages.ru,
     ...placementMessages.ru,
@@ -30,10 +38,14 @@ export const appMessages = {
   en: {
     ...sharedMessages.en,
     ...appEn,
+    ...appCommandsMessages.en,
     ...courseScopeMessages.en,
+    ...extensionCommandsMessages.en,
     ...repositoryMessages.en,
     ...coursesMessages.en,
+    ...commandPaletteMessages.en,
     ...dailyPlanMessages.en,
+    ...extensionPanelMessages.en,
     ...exercisePanelMessages.en,
     ...graphMessages.en,
     ...placementMessages.en,

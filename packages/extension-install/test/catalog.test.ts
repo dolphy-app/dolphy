@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ExtensionInstallError } from '@dolphy-app/engine/ports';
 import {
   CATALOG_URL,
+  FULL_INDEX_URL,
+  callsTo,
   contributesOf,
   createEnv,
   installFake,
@@ -146,14 +148,41 @@ describe('catalog: статусы записей', () => {
   });
 });
 
+describe('catalog: сводка вклада в DTO', () => {
+  it('commands и panels копируются в contributes, по умолчанию []', async () => {
+    serveIndex(env.routes, [
+      {
+        id: 'acme.cmds',
+        version: '1.0.0',
+        contributes: {
+          ...contributesOf([]),
+          commands: ['acme.cmds.open'],
+          panels: ['acme.cmds.main'],
+        },
+      },
+      { id: 'acme.plain', version: '1.0.0' },
+    ]);
+    const { entries } = await env.installer.catalog();
+    const byId = Object.fromEntries(entries.map((e) => [e.id, e]));
+    expect(byId['acme.cmds']?.contributes).toMatchObject({
+      commands: ['acme.cmds.open'],
+      panels: ['acme.cmds.main'],
+    });
+    expect(byId['acme.plain']?.contributes).toMatchObject({
+      commands: [],
+      panels: [],
+    });
+  });
+});
+
 describe('catalog: кэш и сеть', () => {
   it('свежий кэш не ходит в сеть, refresh ходит', async () => {
     serveIndex(env.routes, [{ id: 'acme.echo', version: '1.0.0' }]);
     await env.installer.catalog();
     await env.installer.catalog();
-    expect(env.fake.calls).toHaveLength(1);
+    expect(callsTo(env.fake.calls, CATALOG_URL)).toHaveLength(1);
     await env.installer.catalog({ refresh: true });
-    expect(env.fake.calls).toHaveLength(2);
+    expect(callsTo(env.fake.calls, CATALOG_URL)).toHaveLength(2);
   });
 
   it('запрос идёт с User-Agent версии приложения', async () => {
@@ -174,17 +203,20 @@ describe('catalog: кэш и сеть', () => {
     const first = await env.installer.catalog();
     env.clock.advance(11 * 60_000);
     const second = await env.installer.catalog();
-    expect(env.fake.calls[1]?.headers['If-None-Match']).toBe('"v1"');
+    expect(
+      callsTo(env.fake.calls, CATALOG_URL)[1]?.headers['If-None-Match'],
+    ).toBe('"v1"');
     expect(second.entries).toEqual(first.entries);
     expect(second).toMatchObject({ stale: false, error: null });
     expect(second.fetchedAt).toBe(new Date(env.clock.now()).toISOString());
     const meta = JSON.parse(
       await readFile(path.join(env.dir, '.catalog', 'meta.json'), 'utf8'),
-    ) as { etag: string; fetchedAt: string; url: string };
+    ) as { etag: string; fetchedAt: string; url: string; kind: string };
     expect(meta).toEqual({
       etag: '"v1"',
       fetchedAt: new Date(env.clock.now()).toISOString(),
       url: CATALOG_URL,
+      kind: 'legacy',
     });
   });
 
@@ -256,7 +288,7 @@ describe('catalog: кэш и сеть', () => {
       expect.stringContaining('catalog cache ignored'),
     );
     expect((await env.installer.catalog()).entries).toHaveLength(1);
-    expect(env.fake.calls).toHaveLength(1);
+    expect(callsTo(env.fake.calls, CATALOG_URL)).toHaveLength(1);
   });
 
   it('кэш другого адреса каталога не используется', async () => {
@@ -294,7 +326,11 @@ describe('catalog: кэш и сеть', () => {
     });
     const error = await errorOf(env.installer.catalog());
     expect(error).toMatchObject({ cause: 'catalog-unavailable' });
-    expect(env.fake.calls.map((c) => c.url)).toEqual([CATALOG_URL]);
+    // a server without index.v2.json answers 404, then index.json is requested
+    expect(env.fake.calls.map((c) => c.url)).toEqual([
+      FULL_INDEX_URL,
+      CATALOG_URL,
+    ]);
   });
 
   it('checkForUpdates не бросает при сбое сети и возвращает число обновлений', async () => {

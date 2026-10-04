@@ -7,6 +7,7 @@ import { useEngine } from '@/shared/api/engine';
 import { ROUTE } from '@/shared/config/routes.ts';
 import PageHeader from '@/shared/ui/PageHeader.vue';
 import { CourseScopeSwitcher, useCourseScope } from '@/features/course-scope';
+import { pickGraphCourse } from '../lib/course.ts';
 import { useGraph } from '../model/graph.ts';
 import { useLayout } from '../model/use-layout.ts';
 import GraphCanvas from './GraphCanvas.vue';
@@ -32,11 +33,12 @@ watch(
   { immediate: true },
 );
 
+const courseId = computed(() =>
+  pickGraphCourse(scope.courses.value, scope.activeId.value),
+);
 const courses = computed(() =>
   scope.courses.value
-    .filter(
-      ({ id }) => scope.activeId.value === null || id === scope.activeId.value,
-    )
+    .filter(({ id }) => id === courseId.value)
     .map(({ id, name }) => ({ id, name })),
 );
 // курсы приходят заново на каждое событие прогресса: граф грузим по составу
@@ -83,9 +85,13 @@ const study = () => {
 </script>
 
 <template>
-  <v-container fluid class="pa-8">
+  <v-container fluid class="page pa-8">
     <PageHeader :title="t('graph.title')" :subtitle="t('graph.subtitle')">
-      <CourseScopeSwitcher class="mt-4" />
+      <CourseScopeSwitcher
+        class="mt-4"
+        :allow-all="false"
+        :fallback-id="courseId"
+      />
       <template #actions>
         <v-switch
           v-model="showCovers"
@@ -165,11 +171,19 @@ const study = () => {
 </template>
 
 <style scoped>
+/* граф занимает остаток высоты окна под шапкой, какой бы высоты она ни была */
+.page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
 .workspace {
   display: grid;
+  flex: 1 1 20rem;
   grid-template-columns: minmax(0, 1fr);
   gap: 16px;
-  height: max(32rem, calc(100vh - 20rem));
+  min-height: 20rem;
 }
 
 .with-panel {

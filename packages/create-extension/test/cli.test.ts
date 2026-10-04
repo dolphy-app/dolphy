@@ -19,7 +19,7 @@ const run = async (argv: string[], cwd: string) => {
 };
 
 describe('runCli', () => {
-  it('успех: код 0, относительный каталог считается от cwd, шаги в stdout', async () => {
+  it('success: code 0, relative directory resolved against cwd, steps in stdout', async () => {
     const cwd = await makeTemp();
     const { code, stdout, stderr } = await run(
       ['acme-hello', '--local', REPO_ROOT],
@@ -31,20 +31,20 @@ describe('runCli', () => {
     expect(stdout).toContain(
       `DOLPHY_DEV_EXTENSIONS=${path.join(cwd, 'acme-hello', 'dist-ext')} pnpm dev`,
     );
-    expect(stdout).not.toContain('не опубликованы');
+    expect(stdout).not.toContain('are not published');
     await expect(
       readFile(path.join(cwd, 'acme-hello', 'extension.json'), 'utf8'),
     ).resolves.toContain('"id": "acme-hello"');
   });
 
-  it('без --local печатает замечание о неопубликованных пакетах', async () => {
+  it('without --local prints a note about unpublished packages', async () => {
     const cwd = await makeTemp();
     const { code, stdout } = await run(['acme-hello'], cwd);
     expect(code).toBe(0);
-    expect(stdout).toContain('не опубликованы');
+    expect(stdout).toContain('are not published');
   });
 
-  it('--local относительный путь считается от cwd', async () => {
+  it('--local relative path is resolved against cwd', async () => {
     const cwd = await makeTemp();
     const rel = path.relative(cwd, REPO_ROOT);
     const { code } = await run(['acme-hello', '--local', rel], cwd);
@@ -56,7 +56,7 @@ describe('runCli', () => {
     expect(pkg).toContain(`link:${REPO_ROOT}/packages/extension-sdk`);
   });
 
-  it('непустой каталог — код 1 и сообщение в stderr', async () => {
+  it('non-empty directory: code 1 and message in stderr', async () => {
     const cwd = await makeTemp();
     await mkdir(path.join(cwd, 'acme-hello'));
     await writeFile(path.join(cwd, 'acme-hello', 'a.txt'), '');
@@ -67,11 +67,11 @@ describe('runCli', () => {
   });
 
   it.each([
-    ['без аргументов', []],
-    ['неизвестный флаг', ['x', '--nope']],
-    ['--id без значения', ['x', '--id']],
-    ['лишний аргумент', ['a', 'b']],
-  ])('%s — код 2 и справка', async (_name, argv) => {
+    ['no arguments', []],
+    ['unknown flag', ['x', '--nope']],
+    ['--id without a value', ['x', '--id']],
+    ['extra argument', ['a', 'b']],
+  ])('%s — code 2 and usage', async (_name, argv) => {
     const cwd = await makeTemp();
     const { code, stdout, stderr } = await run(argv, cwd);
     expect(code).toBe(2);
@@ -79,20 +79,20 @@ describe('runCli', () => {
     expect(stderr).toContain('usage: create-dolphy-extension');
   });
 
-  it('id нельзя вывести из имени каталога — код 2 с просьбой указать --id', async () => {
+  it('id cannot be derived from the directory name: code 2 asking for --id', async () => {
     const cwd = await makeTemp();
     const { code, stderr } = await run(['2024'], cwd);
     expect(code).toBe(2);
     expect(stderr).toContain('--id');
   });
 
-  it('явный --id спасает такой каталог', async () => {
+  it('explicit --id rescues such a directory', async () => {
     const cwd = await makeTemp();
     const { code } = await run(['2024', '--id', 'acme.hello'], cwd);
     expect(code).toBe(0);
   });
 
-  it('--help — код 0, справка в stdout', async () => {
+  it('--help: code 0, usage in stdout', async () => {
     const cwd = await makeTemp();
     const { code, stdout } = await run(['--help'], cwd);
     expect(code).toBe(0);

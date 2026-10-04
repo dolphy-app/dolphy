@@ -18,7 +18,7 @@ describe('defaultElementName', () => {
 });
 
 describe('default paths', () => {
-  it('равны соглашению каталога расширения', () => {
+  it('match the extension directory convention', () => {
     expect(DEFAULT_MAIN).toBe('./main.mjs');
     expect(DEFAULT_RENDERER).toBe('./view.mjs');
   });

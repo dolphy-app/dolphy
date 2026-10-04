@@ -79,7 +79,7 @@ export interface Exercise {
 
 /** Ввод ответа проверяемого упражнения: SQL, варианты выбора или текст поля расширения. */
 export type AnswerInput =
-  { sql: string } | { choose: string[] } | { text: string };
+  { sql: string } | { choose: string[] } | { text: string; element?: string };
 
 /** Ответ на упражнение сессии: оценка для самопроверки, `AnswerInput` — для проверяемых. */
 export type Answerer = (exercise: Exercise) => Grade | AnswerInput;
@@ -309,7 +309,9 @@ export class Client {
         await element.getByLabel(option, { exact: true }).check();
       }
     } else {
-      const element = await this.answerElement('acme-echo-answer');
+      const element = await this.answerElement(
+        reply.element ?? 'acme-echo-answer',
+      );
       await element.locator('input').fill(reply.text);
     }
   }
@@ -401,7 +403,10 @@ export class Client {
     return this.extensionSwitch(id, which).isChecked();
   }
 
-  /** Переключает «Включено» / «Доверять» и ждёт, пока движок ответит (появится просьба перезагрузить). */
+  /**
+   * Переключает «Включено» / «Доверять» и ждёт, пока движок применит
+   * изменение: переключатель снова доступен. Окно не перезагружается.
+   */
   async setExtensionSwitch(
     id: string,
     which: 'enabled' | 'trusted',
@@ -410,21 +415,42 @@ export class Client {
     const control = this.extensionSwitch(id, which);
     await control.waitFor({ state: 'attached', timeout: TIMEOUT });
     await control.setChecked(value, { force: true });
-    await this.page
-      .getByRole('button', { name: RU.reloadWindow, exact: true })
-      .waitFor({ timeout: TIMEOUT });
+    await expect
+      .poll(() => control.isDisabled(), { timeout: TIMEOUT })
+      .toBe(false);
   }
 
-  /** «Перезагрузить окно» в просьбе после изменения; ждёт перезагруженный экран расширений. */
-  async reloadFromExtensions() {
-    const reload = this.page.getByRole('button', {
-      name: RU.reloadWindow,
-      exact: true,
-    });
+  /** Баннер «Обновление применится после перезагрузки окна» (случай R7) на экране расширений. */
+  reloadBanner(): Locator {
+    return this.page.getByTestId('extensions-reload');
+  }
+
+  /** «Перезагрузить окно» в баннере R7; ждёт перезагруженный экран расширений. */
+  async reloadFromBanner() {
     const reloaded = this.page.waitForEvent('load', { timeout: 30_000 });
-    await reload.click({ noWaitAfter: true });
+    await this.reloadBanner()
+      .getByRole('button', { name: RU.reloadWindow, exact: true })
+      .click({ noWaitAfter: true });
     await reloaded;
     await this.openSettingsExtensions();
+  }
+
+  /**
+   * Ставит на страницу маркер, который исчезает только вместе с перезагрузкой
+   * окна. Возвращает проверку: окно не перезагружалось с момента маркировки.
+   */
+  async markWindow(): Promise<() => Promise<void>> {
+    const token = `marker-${Date.now()}-${Math.random()}`;
+    await this.page.evaluate(
+      (value) => Reflect.set(globalThis, '__marker', value),
+      token,
+    );
+    return async () => {
+      expect(
+        await this.page.evaluate(() => Reflect.get(globalThis, '__marker')),
+        'окно перезагружалось: маркер пропал',
+      ).toBe(token);
+    };
   }
 
   /** «Настройки» → «Обучение»: ждёт выбор правила оценки. */

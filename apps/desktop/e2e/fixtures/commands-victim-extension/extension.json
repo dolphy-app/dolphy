@@ -1,0 +1,14 @@
+{
+  "id": "acme.victim",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "contributes": {
+    "commands": [
+      {
+        "id": "acme.victim.mark",
+        "title": "Отметить жертву",
+        "category": "Жертва"
+      }
+    ]
+  }
+}

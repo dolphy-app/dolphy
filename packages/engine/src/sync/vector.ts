@@ -20,7 +20,7 @@ export interface VectorTracker {
 
 /**
  * Вектор состояния = непрерывный префикс, а не `max(seq)`: при переставленных
- * файлах максимум пропускает дыры (`report-journal-sync.md` §2).
+ * файлах максимум пропускает дыры.
  */
 export const createVectorTracker = (): VectorTracker => {
   const prefixes = new Map<string, number>();

@@ -8,9 +8,11 @@ import {
   createFakeClock,
   createFakeExerciseTypes,
   createFakeGradePolicies,
+  createFakeExtensionCommands,
   createFakeExtensionInstaller,
   createFakeExtensionPolicy,
   createFakeExtensionRegistry,
+  createFakeExtensionReloader,
   createSeededRng,
   createTestIds,
 } from '@dolphy-app/testkit';
@@ -18,6 +20,7 @@ import { describe, expect, it } from 'vitest';
 import { createEngine } from '../../src/app/index.ts';
 import {
   createMemoryEventStore,
+  createMemoryExtensionDataStore,
   createMemoryRepositoryStore,
   nodeDefaults,
 } from '../../src/node/index.ts';
@@ -128,14 +131,17 @@ describe('a profile on disk: nodeDefaults over a copied library', () => {
         rng: createSeededRng(1),
         ids: createTestIds('e'),
         eventStore,
+        extensionDataStore: createMemoryExtensionDataStore(),
         exerciseTypes: createFakeExerciseTypes(),
         gradePolicies: createFakeGradePolicies(),
+        extensionCommands: createFakeExtensionCommands(),
         extensionRegistry: createFakeExtensionRegistry(),
         extensionPolicy: createFakeExtensionPolicy(),
         // фоновая проверка обновлений сюда не относится: профиль на диске удаляется после теста
         extensionInstaller: createFakeExtensionInstaller({
           handlers: { ready: () => new Promise<void>(() => {}) },
         }),
+        extensionReloader: createFakeExtensionReloader(),
         repositoryStore: createMemoryRepositoryStore(),
         snapshotFetcher: {
           resolve: async () => {

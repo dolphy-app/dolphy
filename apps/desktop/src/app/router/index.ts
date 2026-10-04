@@ -1,6 +1,7 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
 import { CoursesPage } from '@/pages/courses';
 import { DailyPlanPage } from '@/pages/daily-plan';
+import { ExtensionPanelPage } from '@/pages/extension-panel';
 import { GraphPage } from '@/pages/graph';
 import { PlacementPage } from '@/pages/placement';
 import { SessionPage } from '@/pages/session';
@@ -11,6 +12,7 @@ import {
   SettingsLearning,
   SettingsLibrary,
   SettingsPage,
+  SettingsShortcuts,
 } from '@/pages/settings';
 import { ROUTE } from '@/shared/config/routes.ts';
 import ShellLayout from '../layouts/ShellLayout.vue';
@@ -73,6 +75,11 @@ export const router = createRouter({
           },
         },
         {
+          path: 'ext/:extensionId/:panelId',
+          name: ROUTE.extensionPanel,
+          component: ExtensionPanelPage,
+        },
+        {
           path: 'settings',
           component: SettingsPage,
           children: [
@@ -103,6 +110,11 @@ export const router = createRouter({
               path: 'appearance',
               name: ROUTE.settingsAppearance,
               component: SettingsAppearance,
+            },
+            {
+              path: 'shortcuts',
+              name: ROUTE.settingsShortcuts,
+              component: SettingsShortcuts,
             },
             {
               path: 'extensions',

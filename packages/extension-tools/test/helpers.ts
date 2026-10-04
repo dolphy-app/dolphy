@@ -1,4 +1,6 @@
-import { cp, mkdtemp, rm } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
+import { cp, mkdir, mkdtemp, rm, symlink } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -22,10 +24,28 @@ export const makeTemp = async (): Promise<string> => {
   return dir;
 };
 
-/** Копия фикстурного проекта во временном каталоге (сборка не пишет в репозиторий). */
-export const copyProject = async (name: string): Promise<string> => {
+/** Makes the SDK resolvable from a project in a temporary directory (in a real project it sits in node_modules). */
+export const linkSdk = async (root: string): Promise<void> => {
+  const scope = path.join(root, 'node_modules', '@dolphy-app');
+  await mkdir(scope, { recursive: true });
+  await symlink(
+    fileURLToPath(new URL('../../extension-sdk', import.meta.url)),
+    path.join(scope, 'extension-sdk'),
+  );
+};
+
+/**
+ * Copy of a fixture project in a temporary directory (the build does not write to
+ * the repository); the SDK is resolvable as in an author's project. `isLinked: false` — a copy
+ * without `node_modules`, e.g. to put the project into a catalog repository.
+ */
+export const copyProject = async (
+  name: string,
+  { isLinked = true }: { isLinked?: boolean } = {},
+): Promise<string> => {
   const dir = path.join(await makeTemp(), name);
   await cp(path.join(projectsDir, name), dir, { recursive: true });
+  if (isLinked) await linkSdk(dir);
   return dir;
 };
 
@@ -41,3 +61,23 @@ export const waitFor = async (
     });
   }
 };
+
+const require = createRequire(import.meta.url);
+const tscBin = path.join(
+  path.dirname(require.resolve('typescript/package.json')),
+  'bin',
+  'tsc',
+);
+
+/** `tsc --noEmit` in the project: the exit code (1 — diagnostics) and what it printed. */
+export const runTsc = (project: string) =>
+  new Promise<{ code: number | null; output: string }>((resolve, reject) => {
+    const child = spawn(process.execPath, [tscBin, '--noEmit'], {
+      cwd: project,
+    });
+    let output = '';
+    child.stdout.on('data', (chunk: Buffer) => void (output += chunk));
+    child.stderr.on('data', (chunk: Buffer) => void (output += chunk));
+    child.on('error', reject);
+    child.on('close', (code) => resolve({ code, output }));
+  });

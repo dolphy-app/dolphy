@@ -77,6 +77,9 @@ importers:
       better-sqlite3:
         specifier: 13.0.3
         version: 13.0.3
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
     devDependencies:
       '@dagrejs/dagre':
         specifier: ^3.1.1
@@ -99,12 +102,18 @@ importers:
       '@dolphy-app/extension-api':
         specifier: workspace:*
         version: link:../../packages/extension-api
+      '@dolphy-app/extension-catalog':
+        specifier: workspace:*
+        version: link:../../packages/extension-catalog
       '@dolphy-app/extension-host':
         specifier: workspace:*
         version: link:../../packages/extension-host
       '@dolphy-app/extension-install':
         specifier: workspace:*
         version: link:../../packages/extension-install
+      '@electron/fuses':
+        specifier: 1.8.0
+        version: 1.8.0
       '@fontsource/roboto':
         specifier: ^5.2.10
         version: 5.3.0

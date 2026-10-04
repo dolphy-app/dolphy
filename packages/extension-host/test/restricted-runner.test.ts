@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ResolvedExtension } from '../src/discover.ts';
+import { EngineRequestError } from '../src/engine-link.ts';
+import type { EngineLink } from '../src/engine-link.ts';
 import type { ExtRequest, ExtResponse } from '../src/protocol.ts';
 import type {
   ChildMessage,
@@ -10,7 +12,7 @@ import type {
 } from '../src/restricted-protocol.ts';
 import { createRestrictedRunner } from '../src/restricted-runner.ts';
 import type { RestrictedChild, SpawnSpec } from '../src/restricted-runner.ts';
-import { createLogger } from './helpers.ts';
+import { createLogger, nullEngine } from './helpers.ts';
 
 interface FakeChild extends RestrictedChild {
   sent: ParentMessage[];
@@ -43,7 +45,9 @@ const createFakeChild = ({
         queueMicrotask(() => child.emit({ t: 'ready' }));
       }
       if (message.t === 'rpc') {
-        const response = reply?.(message.message);
+        const { message: sent } = message;
+        const response =
+          'method' in sent && 'id' in sent ? reply?.(sent) : undefined;
         if (response !== undefined) {
           queueMicrotask(() => child.emit({ t: 'rpc', message: response }));
         }
@@ -96,6 +100,7 @@ const extensionOf = (
   id: 'acme.fake',
   version: '1.0.0',
   origin: 'user',
+  revision: '',
   dir: extensionDir,
   mainPath: path.join(extensionDir, 'main.mjs'),
   permissions,
@@ -104,11 +109,17 @@ const extensionOf = (
   author: null,
   platforms: [],
   minAppVersion: null,
+  icon: null,
+  tags: [],
   install: null,
   exerciseTypes: [],
   themes: [],
   markdownRenderers: [],
   gradePolicies: [],
+  settings: [],
+  events: [],
+  commands: [],
+  panels: [],
 });
 
 const gradeRequest = (id: string, timeoutMs = 2000): ExtRequest => ({
@@ -140,6 +151,7 @@ const setup = (
       stat: () => Promise<null>;
     };
     graceMs?: number;
+    engine?: EngineLink;
   } = {},
 ) => {
   const children: FakeChild[] = [];
@@ -152,6 +164,7 @@ const setup = (
       readText: async () => '',
       stat: async () => null,
     },
+    engine: options.engine ?? nullEngine,
     logger,
     ...(options.graceMs !== undefined && { graceMs: options.graceMs }),
     spawn: (spec) => {
@@ -242,6 +255,7 @@ describe('ограниченный раннер', () => {
       extension: extensionOf(),
       entryPath,
       library: { readText: async () => '', stat: async () => null },
+      engine: nullEngine,
       logger: createLogger(),
       readyTimeoutMs: 30,
       spawn: () => {
@@ -398,5 +412,104 @@ describe('ограниченный раннер', () => {
       });
       await runner.dispose();
     });
+  });
+});
+
+describe('запросы ограниченного процесса к данным расширения', () => {
+  /** Поднимает процесс одним вызовом и возвращает его, чтобы тест писал от его имени. */
+  const started = async (options: { engine: EngineLink }) => {
+    const made = setup([{ reply: ok }], options);
+    await made.runner.handle(projectRequest('1'));
+    const child = made.children[0] as FakeChild;
+    const replies = () =>
+      child.sent
+        .filter(({ t }) => t === 'rpc')
+        .map((message) => (message as { message: unknown }).message);
+    return { ...made, child, replies };
+  };
+
+  it('запрос идёт к движку с id этого расширения; чужой id из процесса подменяется', async () => {
+    const request = vi.fn(async () => ['kept']);
+    const { child, replies } = await started({
+      engine: { request } as EngineLink,
+    });
+
+    child.emit({
+      t: 'rpc',
+      message: {
+        id: 'h0',
+        method: 'storage.keys',
+        params: { extensionId: 'acme.victim' },
+      },
+    });
+
+    await vi.waitFor(() =>
+      expect(replies()).toContainEqual({
+        id: 'h0',
+        ok: true,
+        result: ['kept'],
+      }),
+    );
+    expect(request).toHaveBeenCalledWith('storage.keys', {
+      extensionId: 'acme.fake',
+    });
+  });
+
+  it('отказ движка уходит процессу с кодом и details; неверная форма не доходит до движка', async () => {
+    const request = vi.fn(async () => {
+      throw new EngineRequestError({
+        code: 'EXTENSION_STORAGE_QUOTA',
+        message: 'too big',
+        details: { kind: 'value-size', limit: 65536 },
+      });
+    });
+    const { child, replies } = await started({
+      engine: { request } as EngineLink,
+    });
+
+    child.emit({
+      t: 'rpc',
+      message: {
+        id: 'h1',
+        method: 'storage.set',
+        params: { extensionId: 'x', key: 'k', value: 1 },
+      },
+    });
+    child.emit({
+      t: 'rpc',
+      message: { id: 'h2', method: 'storage.wipe', params: {} } as never,
+    });
+
+    await vi.waitFor(() => expect(replies()).toHaveLength(3));
+    expect(replies()).toContainEqual({
+      id: 'h1',
+      ok: false,
+      error: {
+        code: 'EXTENSION_STORAGE_QUOTA',
+        message: 'too big',
+        details: { kind: 'value-size', limit: 65536 },
+      },
+    });
+    expect(replies()).toContainEqual({
+      id: 'h2',
+      ok: false,
+      error: { code: 'INVALID_ARGUMENT', message: expect.any(String) },
+    });
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it('изменение настройки передаётся запущенному процессу и теряется, пока процесса нет', async () => {
+    const notice = {
+      method: 'settingChanged' as const,
+      params: { extensionId: 'acme.fake', id: 'acme.fake.x', value: 2 },
+    };
+    const idle = setup([{ reply: ok }]);
+    idle.runner.notify(notice);
+    expect(idle.children).toHaveLength(0);
+
+    const { runner, replies } = await started({ engine: nullEngine });
+    runner.notify(notice);
+
+    expect(replies()).toContainEqual(notice);
   });
 });

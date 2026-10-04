@@ -2,14 +2,16 @@
   "name": "@dolphy-app/extension-sdk",
   "version": "0.0.0",
   "private": true,
-  "description": "SDK автора расширений: defineExtension, defineAnswerElement, помощники тестирования",
+  "description": "SDK for extension authors: defineExtension, defineAnswerView, test helpers",
   "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
+    "./runtime": "./src/runtime.ts",
     "./testing": "./src/testing.ts"
   },
   "scripts": {
-    "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
+    "typecheck": "tsc -b tsconfig.json tsconfig.test.json && tsc -p tsconfig.typed.json",
     "test": "vitest run"
   },
   "dependencies": {

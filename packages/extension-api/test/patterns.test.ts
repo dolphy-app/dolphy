@@ -42,13 +42,14 @@ describe('extension id and element name patterns', () => {
 });
 
 describe('EXTENSION_PERMISSIONS', () => {
-  it('перечисляет возможности без повторов в виде id-имён', () => {
+  it('lists capabilities without repeats as id names', () => {
     expect(EXTENSION_PERMISSIONS).toEqual([
       'library.read',
       'process.spawn',
       'worker.threads',
       'native.addons',
       'network',
+      'learning.events',
     ]);
     expect(new Set(EXTENSION_PERMISSIONS).size).toBe(
       EXTENSION_PERMISSIONS.length,

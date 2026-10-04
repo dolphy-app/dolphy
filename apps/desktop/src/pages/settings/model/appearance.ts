@@ -1,75 +1,57 @@
-import { onMounted, ref } from 'vue';
-import { useI18n } from 'vue-i18n';
-import { useTheme } from 'vuetify';
+import { computed, ref, toValue } from 'vue';
+import type { MaybeRefOrGetter } from 'vue';
 import type {
-  LearningEngine,
   LocaleMode,
   ThemeContributionDto,
 } from '@dolphy-app/engine-contract';
-import { resolveLocale } from '@/shared/i18n';
-import {
-  effectiveThemeId,
-  resolveThemeName,
-} from '@/shared/lib/extension-themes.ts';
+import type { LocaleSelection } from '@/shared/api/engine/locale-selection.ts';
+import type { ThemeSelection } from '@/shared/api/engine/theme-selection.ts';
+import { effectiveThemeId } from '@/shared/lib/extension-themes.ts';
 
-/** Тема и язык хранятся в БД движка; применяются сразу. */
+/**
+ * Тема и язык хранятся в БД движка; применяются сразу. Тему применяет окно
+ * (`bindExtensionThemes`) по `selection.saved`, язык — `localeSelection`:
+ * настройки показывают тот же выбор, что и команды палитры, а пропавшая тема
+ * расширения выглядит как «Как в системе».
+ */
 export const useAppearanceSettings = (
-  engine: LearningEngine,
-  themes: readonly ThemeContributionDto[] = [],
+  selection: ThemeSelection,
+  localeSelection: LocaleSelection,
+  themes: MaybeRefOrGetter<readonly ThemeContributionDto[]>,
 ) => {
-  const vuetifyTheme = useTheme();
-  const { locale } = useI18n({ useScope: 'global' });
-  const mode = ref<string | null>(null);
-  const localeMode = ref<LocaleMode | null>(null);
+  const mode = computed(() =>
+    effectiveThemeId(selection.saved.value, toValue(themes)),
+  );
   const error = ref<string | null>(null);
-
-  const applyLocale = (next: LocaleMode) => {
-    locale.value = resolveLocale(next, navigator.language);
-    document.documentElement.lang = locale.value;
-  };
-
-  onMounted(async () => {
-    try {
-      const ui = await engine.settings.getUi();
-      // неизвестная тема показывается как «Системная», сохранённое не трогаем
-      mode.value = effectiveThemeId(ui.theme, themes);
-      localeMode.value = ui.locale;
-    } catch (caught) {
-      error.value = caught instanceof Error ? caught.message : String(caught);
-    }
-  });
 
   /** `null` шлёт переключатель при снятии выбора; тема обязательна. */
   const select = async (next: string | null) => {
     if (next === null) return;
-    const previous = mode.value;
-    mode.value = next;
-    vuetifyTheme.change(resolveThemeName(next, themes));
     error.value = null;
     try {
-      await engine.settings.setUi({ theme: next });
+      await selection.select(next);
     } catch (caught) {
-      // не сохранилось — возвращаем прежний вид, чтобы экран не лгал
-      mode.value = previous;
-      if (previous) vuetifyTheme.change(resolveThemeName(previous, themes));
+      // не сохранилось — выбор уже возвращён, чтобы экран не лгал
       error.value = caught instanceof Error ? caught.message : String(caught);
     }
   };
 
   const selectLocale = async (next: LocaleMode | null) => {
     if (next === null) return;
-    const previous = localeMode.value;
-    localeMode.value = next;
-    applyLocale(next);
     error.value = null;
     try {
-      await engine.settings.setUi({ locale: next });
+      await localeSelection.select(next);
     } catch (caught) {
-      localeMode.value = previous;
-      if (previous) applyLocale(previous);
+      // не сохранилось — выбор уже возвращён, чтобы экран не лгал
       error.value = caught instanceof Error ? caught.message : String(caught);
     }
   };
 
-  return { mode, localeMode, error, select, selectLocale };
+  return {
+    mode,
+    localeMode: localeSelection.saved,
+    error,
+    select,
+    selectLocale,
+  };
 };

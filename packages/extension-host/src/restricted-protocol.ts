@@ -1,6 +1,12 @@
 import type { ExtensionPermission } from '@dolphy-app/extension-api';
 import type { ResolvedExtension } from './discover.ts';
-import type { ExtRequest, ExtResponse } from './protocol.ts';
+import type {
+  ExtRequest,
+  ExtResponse,
+  HostRequest,
+  HostResponse,
+  SettingChangedNotice,
+} from './protocol.ts';
 
 /** Конверт сообщений между хостом расширений и ограниченным дочерним процессом (IPC). */
 
@@ -17,14 +23,22 @@ export type LibraryFailure = {
 
 export type ParentMessage =
   | { t: 'init'; extension: ResolvedExtension }
-  | { t: 'rpc'; message: ExtRequest }
+  | {
+      t: 'rpc';
+      /** Вызов хоста, ответ на запрос процесса к движку или сообщение без ответа. */
+      message: ExtRequest | HostResponse | SettingChangedNotice;
+    }
   | { t: 'library-result'; id: string; ok: true; value: unknown }
   | { t: 'library-result'; id: string; ok: false; error: LibraryFailure }
   | { t: 'shutdown' };
 
 export type ChildMessage =
   | { t: 'ready' }
-  | { t: 'rpc'; message: ExtResponse }
+  | {
+      t: 'rpc';
+      /** Ответ на вызов хоста или запрос процесса к данным расширения. */
+      message: ExtResponse | HostRequest;
+    }
   | ({ t: 'library'; id: string } & LibraryCall)
   | { t: 'log'; level: LogLevel; fields: object; message?: string };
 

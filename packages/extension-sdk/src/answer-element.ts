@@ -4,33 +4,20 @@ import {
   type AnswerChangeDetail,
   type AnswerElementProps,
 } from '@dolphy-app/extension-api';
-
-export interface AnswerElementApi {
-  readonly root: ShadowRoot;
-  /** `aria-label` хост-элемента, выставленный приложением; `null`, если нет. */
-  readonly label: string | null;
-  /** Сообщает приложению текущий ответ: событие `dolphy-answer-change`. */
-  setAnswer(value: unknown, complete: boolean): void;
-  /** Просит приложение отправить ответ: событие `dolphy-answer-submit`. */
-  submit(): void;
-}
-
-export interface AnswerElementInstance {
-  /** Вызывается при изменении `view`/`value`/`disabled`/`verdict`. */
-  update(props: AnswerElementProps): void;
-  destroy?(): void;
-}
-
-export type MountAnswerElement = (
-  api: AnswerElementApi,
-  props: AnswerElementProps,
-) => AnswerElementInstance;
+import type {
+  AnswerView,
+  AnswerViewApi,
+  AnswerViewInstance,
+} from './answer-view.ts';
 
 const logFailure = (tag: string, message: string, error: unknown) => {
   console.error({ error, tag }, message);
 };
 
-const createAnswerElementClass = (tag: string, mount: MountAnswerElement) =>
+export const createAnswerElementClass = (
+  tag: string,
+  answerView: AnswerView,
+): CustomElementConstructor =>
   class AnswerElement extends HTMLElement {
     #root = this.attachShadow({ mode: 'open' });
     #props: AnswerElementProps = {
@@ -39,7 +26,7 @@ const createAnswerElementClass = (tag: string, mount: MountAnswerElement) =>
       disabled: false,
       verdict: null,
     };
-    #instance: AnswerElementInstance | null = null;
+    #instance: AnswerViewInstance | null = null;
     #isFlushScheduled = false;
 
     get view(): AnswerElementProps['view'] {
@@ -73,7 +60,7 @@ const createAnswerElementClass = (tag: string, mount: MountAnswerElement) =>
     connectedCallback() {
       if (this.#instance !== null) return;
       const readLabel = () => this.getAttribute('aria-label');
-      const api: AnswerElementApi = {
+      const api: AnswerViewApi = {
         root: this.#root,
         get label() {
           return readLabel();
@@ -85,7 +72,10 @@ const createAnswerElementClass = (tag: string, mount: MountAnswerElement) =>
         submit: () => this.#emit(ANSWER_EVENT.submit, undefined),
       };
       try {
-        this.#instance = mount(api, Object.freeze({ ...this.#props }));
+        this.#instance = answerView.mount(
+          api,
+          Object.freeze({ ...this.#props }),
+        );
       } catch (error) {
         logFailure(tag, 'answer element failed to mount', error);
       }
@@ -128,13 +118,14 @@ const createAnswerElementClass = (tag: string, mount: MountAnswerElement) =>
     }
   };
 
-export const defineAnswerElement = (
-  tag: string,
-  mount: MountAnswerElement,
-): void => {
+/** Defines the kind's custom element; calling again with the same tag changes nothing. */
+export const registerAnswerView = (tag: string, view: AnswerView): void => {
   if (!ELEMENT_NAME_PATTERN.test(tag)) {
     throw new TypeError(`invalid custom element name '${tag}'`);
   }
+  if (typeof view?.mount !== 'function') {
+    throw new TypeError(`answer view for '${tag}' has no mount()`);
+  }
   if (customElements.get(tag) !== undefined) return;
-  customElements.define(tag, createAnswerElementClass(tag, mount));
+  customElements.define(tag, createAnswerElementClass(tag, view));
 };

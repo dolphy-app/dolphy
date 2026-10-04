@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { holderOf } from './helpers.ts';
 import { createCatalog } from '../src/catalog.ts';
 import {
   createAllTrustedPolicy,
@@ -10,6 +11,7 @@ const extension: ResolvedExtension = {
   id: 'acme.t',
   version: '2.0.0',
   origin: 'bundled',
+  revision: '',
   dir: '/x/acme.t',
   mainPath: '/x/acme.t/main.mjs',
   permissions: [],
@@ -18,6 +20,8 @@ const extension: ResolvedExtension = {
   author: null,
   platforms: [],
   minAppVersion: null,
+  icon: null,
+  tags: [],
   install: null,
   exerciseTypes: [
     {
@@ -35,16 +39,25 @@ const extension: ResolvedExtension = {
   themes: [],
   markdownRenderers: [],
   gradePolicies: [],
+  settings: [],
+  events: [],
+  commands: [],
+  panels: [],
 };
 
 describe('createCatalog', () => {
-  const catalog = createCatalog([extension], createAllTrustedPolicy());
+  const catalog = createCatalog(
+    holderOf([extension]),
+    createAllTrustedPolicy(),
+  );
 
   it('описывает вид и владельца', () => {
     expect(catalog.describe('acme.t')).toEqual({
       type: 'acme.t',
       extensionId: 'acme.t',
       extensionVersion: '2.0.0',
+      extensionOrigin: extension.origin,
+      extensionRevision: extension.revision,
       element: 'acme-t-answer',
       rendererUrl: 'dolphy-ext://acme.t/view.mjs',
     });
@@ -87,7 +100,7 @@ describe('createCatalog: правила оценки', () => {
     gradePolicies: [{ id: 'acme.t.generous', label: 'Generous' }],
   };
   const catalog = createCatalog(
-    [extension, withPolicies],
+    holderOf([extension, withPolicies]),
     createAllTrustedPolicy(),
   );
 
@@ -106,8 +119,8 @@ describe('createCatalog: отключённые расширения', () => {
     origin: 'user',
     gradePolicies: [{ id: 'acme.t.generous', label: 'Generous' }],
   };
-  const policy = createExtensionPolicy({ extensions: [withPolicy] });
-  const catalog = createCatalog([withPolicy], policy);
+  const policy = createExtensionPolicy(holderOf([withPolicy]));
+  const catalog = createCatalog(holderOf([withPolicy]), policy);
 
   it('ведёт себя так, будто расширения нет, и сразу возвращается при включении', () => {
     policy.update({ disabled: ['acme.t'], trusted: [], checkUpdates: true });

@@ -3,6 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
+  createDiscoveryHolder,
   createExtensionPolicy,
   createExtensionRegistry,
   discoverExtensions,
@@ -52,7 +53,11 @@ describe('установщик без пользовательского кат�
   it('каталог и установка недоступны, обновлений и отзывов нет', async () => {
     const installer = createDesktopInstaller({
       config: {},
-      discovery: { extensions: [], overridden: [], diagnostics: [] },
+      discovery: createDiscoveryHolder({
+        extensions: [],
+        overridden: [],
+        diagnostics: [],
+      }),
       logger: logger(),
     });
     await installer.ready();
@@ -118,6 +123,10 @@ const indexOf = (revoked: { id: string; versions: string; reason: string }[]) =>
           themes: ['acme.theme.night'],
           markdownRenderers: [],
           gradePolicies: [],
+          settings: [],
+          events: [],
+          commands: [],
+          panels: [],
         },
         versions: [
           {
@@ -157,7 +166,11 @@ describe('установка из каталога → обнаружение �
       return new Response('not found', { status: 404 });
     };
     const log = logger();
-    const discovery = { extensions: [], overridden: [], diagnostics: [] };
+    const discovery = createDiscoveryHolder({
+      extensions: [],
+      overridden: [],
+      diagnostics: [],
+    });
     const installer = createDesktopInstaller({
       config: { userExtensionsDir: dir, extensionCatalogUrl: CATALOG },
       discovery,
@@ -183,9 +196,12 @@ describe('установка из каталога → обнаружение �
       install: { catalogUrl: CATALOG, version: '1.0.0' },
     });
 
-    const policy = createExtensionPolicy(found, installer.revocationOf);
+    const policy = createExtensionPolicy(
+      createDiscoveryHolder(found),
+      installer.revocationOf,
+    );
     const registry = createExtensionRegistry(
-      found,
+      createDiscoveryHolder(found),
       policy,
       installer.revocationOf,
     );

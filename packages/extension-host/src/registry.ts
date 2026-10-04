@@ -3,7 +3,8 @@ import type {
   ExtensionPolicy,
   ExtensionRegistry,
 } from '@dolphy-app/engine/ports';
-import type { DiscoveryResult, ResolvedExtension } from './discover.ts';
+import type { ResolvedExtension } from './discover.ts';
+import type { DiscoverySource } from './holder.ts';
 import { revocationReason } from './revocation.ts';
 import type { RevocationLookup } from './revocation.ts';
 
@@ -12,6 +13,10 @@ const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
   themes: [],
   markdownRenderers: [],
   gradePolicies: [],
+  settings: [],
+  events: [],
+  commands: [],
+  panels: [],
 };
 
 const isolationOf = (
@@ -25,11 +30,22 @@ const withoutMetadata = (
   origin: ExtensionInfoDto['origin'],
 ): Pick<
   ExtensionInfoDto,
-  'name' | 'description' | 'author' | 'installed' | 'removable' | 'revoked'
+  | 'name'
+  | 'description'
+  | 'author'
+  | 'icon'
+  | 'titles'
+  | 'tags'
+  | 'installed'
+  | 'removable'
+  | 'revoked'
 > => ({
   name: null,
   description: null,
   author: null,
+  icon: null,
+  titles: {},
+  tags: [],
   installed: null,
   removable: origin === 'user',
   revoked: null,
@@ -39,7 +55,14 @@ const withoutMetadata = (
 export const contributesOf = (
   extension: Pick<
     ResolvedExtension,
-    'exerciseTypes' | 'themes' | 'markdownRenderers' | 'gradePolicies'
+    | 'exerciseTypes'
+    | 'themes'
+    | 'markdownRenderers'
+    | 'gradePolicies'
+    | 'settings'
+    | 'events'
+    | 'commands'
+    | 'panels'
   >,
 ): ExtensionInfoDto['contributes'] => ({
   exerciseTypes: extension.exerciseTypes.map(({ id }) => id),
@@ -48,7 +71,41 @@ export const contributesOf = (
     ({ language }) => language,
   ),
   gradePolicies: extension.gradePolicies.map(({ id }) => id),
+  settings: extension.settings.map(({ id }) => id),
+  events: extension.events.map(({ event }) => event),
+  commands: extension.commands.map(({ id }) => id),
+  panels: extension.panels.map(({ id }) => id),
 });
+
+/** Названия вкладов с `label`/`title` в том же виде, что `titles` записи каталога; пустые точки опущены. */
+export const titlesOf = (
+  extension: Pick<
+    ResolvedExtension,
+    'themes' | 'gradePolicies' | 'settings' | 'commands' | 'panels'
+  >,
+): ExtensionInfoDto['titles'] => {
+  const titles: ExtensionInfoDto['titles'] = {};
+  const add = (
+    point: keyof ExtensionInfoDto['titles'],
+    items: readonly { id: string }[],
+    title: (item: never) => string,
+  ): void => {
+    if (items.length === 0) return;
+    titles[point] = Object.fromEntries(
+      items.map((item) => [item.id, title(item as never)]),
+    );
+  };
+  add('themes', extension.themes, (item: { label: string }) => item.label);
+  add(
+    'gradePolicies',
+    extension.gradePolicies,
+    (item: { label: string }) => item.label,
+  );
+  add('settings', extension.settings, (item: { label: string }) => item.label);
+  add('commands', extension.commands, (item: { title: string }) => item.title);
+  add('panels', extension.panels, (item: { title: string }) => item.title);
+  return titles;
+};
 
 const loaded = (
   extension: ResolvedExtension,
@@ -69,6 +126,9 @@ const loaded = (
     name: extension.name,
     description: extension.description,
     author: extension.author,
+    icon: extension.icon,
+    titles: titlesOf(extension),
+    tags: [...extension.tags],
     installed: extension.install === null ? null : { ...extension.install },
     removable: extension.origin === 'user',
     revoked,
@@ -76,16 +136,16 @@ const loaded = (
 };
 
 /**
- * Адаптер: результат обнаружения + политика → порт `ExtensionRegistry`;
+ * Адаптер: снимок обнаружения + политика → порт `ExtensionRegistry`; снимок,
  * политика и отзыв (`revocationOf`, из установщика) читаются при каждом вызове.
  */
 export const createExtensionRegistry = (
-  discovery: DiscoveryResult,
+  discovery: DiscoverySource,
   policy: ExtensionPolicy,
   revocationOf?: RevocationLookup,
 ): ExtensionRegistry => {
-  const overriddenItems: ExtensionInfoDto[] = discovery.overridden.map(
-    ({ id, version, origin, by }) => ({
+  const overriddenItems = (): ExtensionInfoDto[] =>
+    discovery.get().overridden.map(({ id, version, origin, by }) => ({
       id,
       version,
       origin,
@@ -96,10 +156,9 @@ export const createExtensionRegistry = (
       isolation: origin === 'bundled' ? 'trusted' : 'isolated',
       toggleable: false,
       ...withoutMetadata(origin),
-    }),
-  );
-  const invalidItems: ExtensionInfoDto[] = discovery.diagnostics.map(
-    ({ extensionId, origin, message }) => ({
+    }));
+  const invalidItems = (): ExtensionInfoDto[] =>
+    discovery.get().diagnostics.map(({ extensionId, origin, message }) => ({
       id: extensionId,
       version: null,
       origin,
@@ -110,21 +169,32 @@ export const createExtensionRegistry = (
       isolation: origin === 'bundled' ? 'trusted' : 'isolated',
       toggleable: false,
       ...withoutMetadata(origin),
-    }),
-  );
-  const { extensions } = discovery;
+    }));
   const enabled = (): ResolvedExtension[] =>
-    extensions.filter(({ id }) => policy.isEnabled(id));
+    discovery.get().extensions.filter(({ id }) => policy.isEnabled(id));
   return {
     list: () =>
       [
-        ...extensions.map((extension) =>
-          loaded(extension, policy, revocationOf),
-        ),
-        ...overriddenItems,
-        ...invalidItems,
+        ...discovery
+          .get()
+          .extensions.map((extension) =>
+            loaded(extension, policy, revocationOf),
+          ),
+        ...overriddenItems(),
+        ...invalidItems(),
       ].map((item) => structuredClone(item)),
     contributions: () => ({
+      exerciseTypes: enabled().flatMap((extension) =>
+        extension.exerciseTypes.map((type) => ({
+          type: type.id,
+          extensionId: extension.id,
+          element: type.element,
+          rendererUrl: type.rendererUrl,
+          isolated: policy.isIsolated(extension.id),
+          origin: extension.origin,
+          revision: extension.revision,
+        })),
+      ),
       themes: enabled().flatMap(({ id, themes }) =>
         themes.map((theme) => structuredClone({ ...theme, extensionId: id })),
       ),
@@ -133,6 +203,8 @@ export const createExtensionRegistry = (
           ...renderer,
           extensionId: extension.id,
           isolated: policy.isIsolated(extension.id),
+          origin: extension.origin,
+          revision: extension.revision,
         })),
       ),
       gradePolicies: enabled().flatMap(({ id, gradePolicies }) =>
@@ -140,6 +212,24 @@ export const createExtensionRegistry = (
           id: policyItem.id,
           extensionId: id,
           label: policyItem.label,
+        })),
+      ),
+      settings: enabled().flatMap(({ id, settings }) =>
+        settings.map((setting) =>
+          structuredClone({ ...setting, extensionId: id }),
+        ),
+      ),
+      commands: enabled().flatMap(({ id, commands }) =>
+        commands.map((command) => ({ ...command, extensionId: id })),
+      ),
+      // панель всегда в рамке, даже у доверенного расширения (ADR 0008)
+      panels: enabled().flatMap((extension) =>
+        extension.panels.map((panel) => ({
+          ...panel,
+          extensionId: extension.id,
+          isolated: true,
+          origin: extension.origin,
+          revision: extension.revision,
         })),
       ),
     }),

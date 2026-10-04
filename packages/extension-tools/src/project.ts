@@ -8,22 +8,43 @@ export const MANIFEST_FILE = 'extension.json';
 export const CONFIG_FILE = 'dolphy-ext.config.json';
 export const DEFAULT_OUT_DIR = 'dist-ext';
 
-/** Одна точка входа сборки: исходник → файл относительно каталога расширения. */
+/** A standalone node entry from `dolphy-ext.config.json` (`nodeEntries`): a worker built as is. */
 export interface Entry {
   source: string;
   output: string;
+}
+
+/** Extensions process file: the `host` export of `src/index.ts`. */
+export interface HostOutput {
+  kind: 'host';
+  output: string;
+}
+
+/** Browser file: `views`, `panels` and `markdown` entries whose manifest names this file. */
+export interface BrowserOutput {
+  kind: 'browser';
+  output: string;
+  /** Job kinds: id and element tag. */
+  views: { id: string; element: string }[];
+  panels: string[];
+  languages: string[];
 }
 
 export interface Project {
   root: string;
   manifest: ExtensionManifest;
   manifestBytes: Buffer;
-  nodeEntries: Entry[];
-  browserEntries: Entry[];
+  /** `src/index.ts` if the extension needs code; otherwise `null`. */
+  indexSource: string | null;
+  host: HostOutput | null;
+  browserOutputs: BrowserOutput[];
+  workerEntries: Entry[];
   external: string[];
-  /** Схемы-файлы из манифеста (относительные пути, без `./`). */
+  /** Schema files from the manifest (relative paths, without `./`). */
   schemaPaths: string[];
 }
+
+export const INDEX_SOURCE = 'src/index.ts';
 
 const stripDot = (file: string): string => file.replace(/^\.\//, '');
 
@@ -86,23 +107,58 @@ const schemaPathsOf = (manifest: ExtensionManifest): string[] => {
   return [...new Set(paths)];
 };
 
-/** Без кода (`main: null`) node-входов нет. */
-const nodeEntriesOf = (
+/** Workers are built only together with code: without `main` there are none. */
+const workerEntriesOf = (
   manifest: ExtensionManifest,
   config: ToolConfig,
-): Entry[] => {
-  if (manifest.main === null) return [];
-  const main = stripDot(manifest.main);
-  return [
-    { source: entrySource(main), output: main },
-    ...Object.entries(config.nodeEntries).map(([output, source]) => ({
-      source,
-      output: stripDot(output),
-    })),
-  ];
+): Entry[] =>
+  manifest.main === null
+    ? []
+    : Object.entries(config.nodeEntries).map(([output, source]) => ({
+        source,
+        output: stripDot(output),
+      }));
+
+const browserOutputsOf = (manifest: ExtensionManifest): BrowserOutput[] => {
+  const outputs = new Map<string, BrowserOutput>();
+  const outputOf = (file: string): BrowserOutput => {
+    const output = stripDot(file);
+    const existing = outputs.get(output);
+    if (existing !== undefined) return existing;
+    const created: BrowserOutput = {
+      kind: 'browser',
+      output,
+      views: [],
+      panels: [],
+      languages: [],
+    };
+    outputs.set(output, created);
+    return created;
+  };
+  const { exerciseTypes, markdownRenderers, panels } = manifest.contributes;
+  for (const type of exerciseTypes) {
+    outputOf(type.renderer).views.push({ id: type.id, element: type.element });
+  }
+  for (const entry of markdownRenderers) {
+    outputOf(entry.renderer).languages.push(entry.language);
+  }
+  for (const panel of panels) outputOf(panel.module).panels.push(panel.id);
+  return [...outputs.values()];
 };
 
-/** Читает исходный манифест и конфиг проекта, вычисляет точки входа. */
+/**
+ * Paths where code lived before the single entry (`src/<file name>.ts`):
+ * the build uses them to recognize the old layout and suggest a migration.
+ */
+export const legacySources = (project: Project): string[] => {
+  const outputs = [
+    ...(project.host === null ? [] : [project.host.output]),
+    ...project.browserOutputs.map((entry) => entry.output),
+  ];
+  return [...new Set(outputs.map(entrySource))];
+};
+
+/** Reads the source manifest and project config, computes the output files. */
 export const loadProject = async (rootDir: string): Promise<Project> => {
   const root = path.resolve(rootDir);
   const manifestFile = path.join(root, MANIFEST_FILE);
@@ -121,21 +177,20 @@ export const loadProject = async (rootDir: string): Promise<Project> => {
   const { manifest } = parsed;
   const config = await readConfig(root);
 
-  const nodeEntries = nodeEntriesOf(manifest, config);
-  const renderers = new Set([
-    ...manifest.contributes.exerciseTypes.map((type) => type.renderer),
-    ...manifest.contributes.markdownRenderers.map((entry) => entry.renderer),
-  ]);
-  const browserEntries = [...renderers].map(stripDot).map((output) => ({
-    source: entrySource(output),
-    output,
-  }));
+  const host: HostOutput | null =
+    manifest.main === null
+      ? null
+      : { kind: 'host', output: stripDot(manifest.main) };
+  const browserOutputs = browserOutputsOf(manifest);
   return {
     root,
     manifest,
     manifestBytes,
-    nodeEntries,
-    browserEntries,
+    indexSource:
+      host !== null || browserOutputs.length > 0 ? INDEX_SOURCE : null,
+    host,
+    browserOutputs,
+    workerEntries: workerEntriesOf(manifest, config),
     external: config.external,
     schemaPaths: schemaPathsOf(manifest),
   };

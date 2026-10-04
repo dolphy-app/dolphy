@@ -1,4 +1,4 @@
-import { readdir, readFile, stat } from 'node:fs/promises';
+import { lstat, readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { DEFAULT_MAIN } from '@dolphy-app/extension-api';
 import type {
@@ -6,14 +6,18 @@ import type {
   ExtensionManifest,
   ExtensionPermission,
   ExtensionPlatform,
+  ExtensionTag,
 } from '@dolphy-app/extension-api';
 import {
   INSTALL_META_FILE,
   checkCompatibility,
+  iconDataUri,
+  iconProblem,
   parseInstallMeta,
 } from '@dolphy-app/extension-catalog';
 import type { InstallMeta } from '@dolphy-app/extension-catalog';
 import { Ajv2020 } from 'ajv/dist/2020.js';
+import { fingerprintDir } from './fingerprint.ts';
 import { parseManifest } from './manifest.ts';
 import { CONTRIBUTION_POINTS } from './points/index.ts';
 import { defaultNote, inside, isFile } from './points/support.ts';
@@ -41,8 +45,14 @@ export interface ResolvedExtension extends ResolvedContributions {
   /** Пусто — любая платформа. */
   platforms: readonly ExtensionPlatform[];
   minAppVersion: string | null;
+  /** Значок как `data:`-URI (`data:image/png|webp;base64,…`); `null` — значка нет. Проверен: формат, размер, геометрия. */
+  icon: string | null;
+  /** Явные теги каталога из манифеста; пусто — теги не заданы. */
+  tags: ExtensionTag[];
   /** Метаданные установки из каталога (`.dolphy-install.json`); `null` — нет или не читаются; читаются только у origin `user`. */
   install: InstallMeta | null;
+  /** Отпечаток файлов каталога (`fingerprintDir`); `''` у расширений из поставки: они не меняются, пока работает приложение. */
+  revision: string;
 }
 
 export interface DiscoveryDiagnostic {
@@ -98,6 +108,27 @@ const resolveMain = async (
   return mainPath;
 };
 
+/**
+ * Значок манифеста как `data:`-URI. Читается при обнаружении (≤16 КиБ), снимок
+ * обнаружения хранит результат до следующего обнаружения; `verifyFiles: false` файл не читает.
+ * Ссылка вместо файла не допускается.
+ */
+const resolveIcon = async (
+  dir: string,
+  icon: string | null,
+  verifyFiles: boolean,
+): Promise<string | null> => {
+  if (icon === null || !verifyFiles) return null;
+  const target = inside(dir, icon);
+  if (!(await lstat(target).catch(() => null))?.isFile()) {
+    throw new Error(`icon '${icon}' is not a file`);
+  }
+  const bytes = await readFile(target);
+  const problem = iconProblem(icon, bytes);
+  if (problem !== null) throw new Error(problem);
+  return iconDataUri(icon, bytes);
+};
+
 const claimsOf = (extension: ResolvedContributions): string[] =>
   CONTRIBUTION_POINTS.flatMap((point) =>
     point.claims(extension[point.key] as never),
@@ -126,7 +157,10 @@ export interface InspectOptions {
 }
 
 export type InspectResult =
-  | { ok: true; extension: Omit<ResolvedExtension, 'origin' | 'install'> }
+  | {
+      ok: true;
+      extension: Omit<ResolvedExtension, 'origin' | 'install' | 'revision'>;
+    }
   | { ok: false; id: string; message: string };
 
 /** Полностью разбирает каталог одного расширения; ошибка — сообщение для диагностики. */
@@ -213,6 +247,8 @@ export const inspectExtensionDir = async (
         author: manifest.author,
         platforms: manifest.platforms,
         minAppVersion: manifest.minAppVersion,
+        icon: await resolveIcon(dir, manifest.icon, verifyFiles),
+        tags: manifest.tags,
         ...(resolved as unknown as ResolvedContributions),
       },
     };
@@ -265,6 +301,7 @@ export const discoverExtensions = async (
       const extension: ResolvedExtension = {
         ...loaded.extension,
         origin: root.origin,
+        revision: root.origin === 'bundled' ? '' : await fingerprintDir(dir),
         install:
           root.origin === 'user'
             ? await readInstallMeta(dir, loaded.extension.id, logger)

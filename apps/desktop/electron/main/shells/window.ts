@@ -5,11 +5,6 @@ interface WindowWebContentsLike {
   setWindowOpenHandler(
     handler: (details: { url: string }) => { action: 'deny' },
   ): void;
-  on(
-    event: 'will-navigate',
-    listener: (event: { preventDefault(): void; url: string }) => void,
-  ): unknown;
-  getURL(): string;
   openDevTools(): void;
 }
 
@@ -97,11 +92,8 @@ export const createWindowShell = (deps: WindowShellDeps): Shell => ({
       );
       win = created;
       const { webContents } = created;
-      // страница остаётся той, что загрузили: навигация только через main;
-      // перезагрузка текущего адреса («Перезагрузить окно» в настройках) разрешена
-      webContents.on('will-navigate', (event) => {
-        if (event.url !== webContents.getURL()) event.preventDefault();
-      });
+      // навигацию и разрешения закрывает web-contents-guard; здесь https-ссылки
+      // уходят в браузер
       webContents.setWindowOpenHandler(({ url }) => {
         if (url.startsWith('https:')) {
           shell.openExternal(url).catch((error) => {

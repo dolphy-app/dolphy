@@ -23,6 +23,10 @@ const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
   themes: [],
   markdownRenderers: [],
   gradePolicies: [],
+  settings: [],
+  events: [],
+  commands: [],
+  panels: [],
 };
 
 const info = (overrides: Partial<ExtensionInfoDto>): ExtensionInfoDto => ({
@@ -39,6 +43,9 @@ const info = (overrides: Partial<ExtensionInfoDto>): ExtensionInfoDto => ({
   description: null,
   author: null,
   installed: null,
+  icon: null,
+  titles: {},
+  tags: [],
   removable: true,
   revoked: null,
   ...overrides,
@@ -123,7 +130,6 @@ describe('extensions.install', () => {
       id: 'acme.new',
       version: '2.0.0',
       previousVersion: null,
-      restartRequired: true,
     });
     expect(events.filter(({ type }) => type === 'extensions-changed')).toEqual([
       { type: 'extensions-changed' },
@@ -187,7 +193,6 @@ describe('extensions.install', () => {
             id,
             version: '1.0.0',
             previousVersion: null,
-            restartRequired: true,
           };
         },
       },

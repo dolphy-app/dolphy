@@ -17,7 +17,7 @@ import type {
   RestrictedRunner,
   SpawnRestricted,
 } from '../src/restricted-runner.ts';
-import { createLogger } from './helpers.ts';
+import { createLogger, nullEngine } from './helpers.ts';
 
 const fixtures = fileURLToPath(
   new URL('./fixtures/extensions', import.meta.url),
@@ -101,6 +101,7 @@ const createRunner = async (
     extension,
     entryPath,
     library: { readText, stat: async () => null },
+    engine: nullEngine,
     logger: createLogger(),
     spawn: spawnFromSources,
   });
@@ -172,6 +173,7 @@ describe('код расширения в настоящем ограниченн
             extension,
             entryPath,
             library: { readText: async () => 'text', stat: async () => null },
+            engine: nullEngine,
             logger: createLogger(),
             spawn: spawnFromSources,
           });
@@ -223,6 +225,7 @@ describe('код расширения в настоящем ограниченн
     const runner = await createRunner({
       ...inspected.extension,
       origin: 'user',
+      revision: '',
       install: null,
     });
 

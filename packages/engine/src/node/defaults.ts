@@ -15,11 +15,14 @@ export type NodeDefaults = Omit<
   | 'eventStore'
   | 'exerciseTypes'
   | 'gradePolicies'
+  | 'extensionCommands'
   | 'extensionRegistry'
   | 'extensionPolicy'
   | 'extensionInstaller'
+  | 'extensionReloader'
   | 'openTraneSource'
   | 'repositoryStore'
+  | 'extensionDataStore'
   | 'snapshotFetcher'
 >;
 

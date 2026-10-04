@@ -5,8 +5,7 @@
  *
  * `f32` — двойник `Math.fround`: совпадает с Rust до 1 ulp (неточен только
  * `powf`). `f64` — продукция: совпадает до шума накопления f32, кроме мест,
- * где f32-округление Rust лежит точно на пороге (engine-ts/research/
- * report-powerlaw-port.md §3, §6).
+ * где f32-округление Rust лежит точно на пороге.
  */
 import { describe, expect, it } from 'vitest';
 import {

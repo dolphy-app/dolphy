@@ -84,6 +84,18 @@ describe('placement service on sql-course (T-47)', () => {
     );
   });
 
+  test('finish writes inferred attempts but announces none of them to extensions', async () => {
+    const t = await createTestEngine({ library: 'sql-course' });
+    const { sessionId } = await start(t);
+    await runSession(t.engine, sessionId, TRUE_KNOWN);
+    const summary = await t.engine.placement.finish({
+      sessionId,
+      requestId: 'finish-quiet',
+    });
+    expect(summary.attemptsWritten).toBeGreaterThan(0);
+    expect(t.learning).toEqual([]);
+  });
+
   test('finish is idempotent by requestId: no new entries, duplicate flag', async () => {
     const t = await createTestEngine({ library: 'sql-course' });
     const { sessionId } = await start(t);

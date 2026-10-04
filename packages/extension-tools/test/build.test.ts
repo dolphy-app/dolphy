@@ -14,7 +14,7 @@ const silentLogger = {
 };
 
 describe('buildExtension', () => {
-  it('T-01 собирает ровно ожидаемый набор файлов', async () => {
+  it('T-01 builds exactly the expected set of files', async () => {
     const root = await copyProject('hello');
     const result = await buildExtension({
       root,
@@ -25,7 +25,18 @@ describe('buildExtension', () => {
     expect(result.files).toEqual(['extension.json', 'main.mjs', 'view.mjs']);
   });
 
-  it('T-02 main.mjs импортируется и экспортирует activate; корень обнаруживается', async () => {
+  it('writes .dolphy/ids.d.ts into the project, not the built directory', async () => {
+    const root = await copyProject('commands-panel');
+    const result = await buildExtension({ root });
+    expect(result.files).toEqual(['extension.json', 'main.mjs', 'panel.mjs']);
+    const ids = await readFile(path.join(root, '.dolphy', 'ids.d.ts'), 'utf8');
+    expect(ids).toContain("commands: 'acme.commands-panel.open'");
+    await expect(
+      readFile(path.join(result.dir, '.dolphy', 'ids.d.ts')),
+    ).rejects.toThrow();
+  });
+
+  it('T-02 main.mjs imports and exports activate; the root is detected', async () => {
     const root = await copyProject('hello');
     const outDir = path.join(root, 'out');
     const { dir } = await buildExtension({ root, outDir });
@@ -42,13 +53,13 @@ describe('buildExtension', () => {
     expect(extensions.map((extension) => extension.id)).toEqual(['acme.hello']);
   });
 
-  it('T-03 по умолчанию пишет в <root>/dist-ext/<id>', async () => {
+  it('T-03 writes to <root>/dist-ext/<id>', async () => {
     const root = await copyProject('hello');
     const { dir } = await buildExtension({ root });
     expect(dir).toBe(path.join(root, 'dist-ext', 'acme.hello'));
   });
 
-  it('T-04 копирует исходные байты манифеста', async () => {
+  it('T-04 copies the manifest’s source bytes', async () => {
     const root = await copyProject('hello');
     const { dir } = await buildExtension({
       root,
@@ -59,7 +70,7 @@ describe('buildExtension', () => {
     expect(built.equals(source)).toBe(true);
   });
 
-  it('T-05 второй бандл и внешние зависимости', async () => {
+  it('T-05 second bundle and external dependencies', async () => {
     const root = await copyProject('with-worker');
     const { dir, files } = await buildExtension({
       root,
@@ -81,7 +92,7 @@ describe('buildExtension', () => {
     expect(worker).not.toContain('dolphy-fixture-external');
   });
 
-  it('T-06 неверный манифест — BuildError с текстом приложения', async () => {
+  it('T-06 invalid manifest — BuildError with the app’s text', async () => {
     const root = await copyProject('bad-manifest');
     const error = await buildExtension({ root }).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(BuildError);
@@ -89,21 +100,21 @@ describe('buildExtension', () => {
     expect((error as BuildError).message).toContain('invalid extension id');
   });
 
-  it('T-07 нет src/main.ts — ошибка называет файл', async () => {
-    const root = await copyProject('no-main-source');
+  it('T-07 no src/index.ts — the error names the file', async () => {
+    const root = await copyProject('no-entry');
     const error = await buildExtension({ root }).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(BuildError);
-    expect((error as BuildError).message).toContain("'src/main.ts'");
+    expect((error as BuildError).message).toContain("'src/index.ts'");
   });
 
-  it('T-08 отсутствует манифест — понятная ошибка', async () => {
+  it('T-08 missing manifest — a clear error', async () => {
     const root = await makeTemp();
     const error = await buildExtension({ root }).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(BuildError);
     expect((error as BuildError).message).toContain('extension.json');
   });
 
-  it('T-09 схема-файл из манифеста вне schema/ копируется', async () => {
+  it('T-09 a schema file from the manifest outside schema/ is copied', async () => {
     const root = await copyProject('hello');
     const manifestFile = path.join(root, 'extension.json');
     const manifest = JSON.parse(await readFile(manifestFile, 'utf8'));
@@ -119,36 +130,36 @@ describe('buildExtension', () => {
   });
 });
 
-describe('расширения без кода', () => {
-  it('тема без каталога src: только манифест, validate проходит', async () => {
+describe('extensions without code', () => {
+  it('theme without a src directory: manifest only, validate passes', async () => {
     const root = await copyProject('theme-only');
     const { dir, files } = await buildExtension({ root });
     expect(files).toEqual(['extension.json']);
     expect(await validateExtension(dir)).toEqual({ ok: true, problems: [] });
   });
 
-  it('рендерер содержимого: только браузерный бандл markdown.mjs', async () => {
+  it('content renderer: only the markdown.mjs browser bundle', async () => {
     const root = await copyProject('markdown-only');
     const { dir, files } = await buildExtension({ root });
     expect(files).toEqual(['extension.json', 'markdown.mjs']);
     expect(await validateExtension(dir)).toEqual({ ok: true, problems: [] });
   });
 
-  it('нет src/markdown.ts — ошибка называет файл', async () => {
+  it('no src/index.ts — the error names the file', async () => {
     const root = await copyProject('markdown-only');
     await rm(path.join(root, 'src'), { recursive: true });
-    await expect(buildExtension({ root })).rejects.toThrow(/src\/markdown\.ts/);
+    await expect(buildExtension({ root })).rejects.toThrow(/src\/index\.ts/);
   });
 });
 
 describe('validateExtension', () => {
-  it('T-10 собранный каталог валиден', async () => {
+  it('T-10 the built directory is valid', async () => {
     const root = await copyProject('hello');
     const { dir } = await buildExtension({ root });
     expect(await validateExtension(dir)).toEqual({ ok: true, problems: [] });
   });
 
-  it('T-11 нет main.mjs — проблема называет файл', async () => {
+  it('T-11 no main.mjs — the problem names the file', async () => {
     const root = await copyProject('hello');
     const { dir } = await buildExtension({ root });
     await rm(path.join(dir, 'main.mjs'));
@@ -157,7 +168,7 @@ describe('validateExtension', () => {
     expect(result.problems[0]).toContain('main.mjs');
   });
 
-  it('T-12 каталог без манифеста', async () => {
+  it('T-12 directory without a manifest', async () => {
     const result = await validateExtension(await makeTemp());
     expect(result.ok).toBe(false);
     expect(result.problems[0]).toContain('extension.json');

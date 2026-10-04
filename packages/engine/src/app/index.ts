@@ -1,4 +1,5 @@
 export { ERRORS, EngineError, createErrorMapper } from './errors.ts';
+export { prepareStorageWrite } from './extension-storage.ts';
 export type {
   EngineErrorOptions,
   ErrorMapper,
@@ -8,7 +9,11 @@ export { createCommandQueue } from './command-queue.ts';
 export type { CommandQueue } from './command-queue.ts';
 export type { EngineState, FacadeContext } from './context-types.ts';
 export { createEventBus } from './event-bus.ts';
-export type { EngineEventListener, EventBus } from './event-bus.ts';
+export type {
+  EngineEventListener,
+  EventBus,
+  LearningEventListener,
+} from './event-bus.ts';
 export { createExpiringMap } from './expiring-map.ts';
 export type { ExpiringMap, ExpiringMapOptions } from './expiring-map.ts';
 export { FIVE_MIN_MS, createJournalWriter } from './journal-writer.ts';
@@ -49,6 +54,7 @@ export type {
   EngineDeps,
   EngineMetrics,
   EntryKey,
+  ExtensionSettingChanges,
   FlagState,
   FolderSyncPort,
   LibraryHolder,
@@ -62,6 +68,10 @@ export { createSyncService } from './services/sync.ts';
 export { createLibraryService } from './services/library.ts';
 export { createCurationService } from './services/curation.ts';
 export { createExtensionsService } from './services/extensions.ts';
+export { createExtensionHostServices } from './services/extension-host-services.ts';
+export type { ExtensionHostServices } from './services/extension-host-services.ts';
+export { createExtensionValues } from './extension-values.ts';
+export type { ExtensionValues } from './extension-values.ts';
 export { createSettingsService } from './services/settings.ts';
 export {
   createRepositoriesService,
@@ -75,6 +85,9 @@ export {
 } from './repository-url.ts';
 export { createContext } from './create-context.ts';
 export { createEngine, createEngineFromContext } from './create-engine.ts';
+export type { HostedEngine } from './create-engine.ts';
+export { createExtensionApply } from './extension-apply.ts';
+export type { ExtensionApply } from './extension-apply.ts';
 export { ENGINE_VERSION, collectDiagnostics } from './diagnostics.ts';
 export { createPracticeService } from './services/practice.ts';
 export { createRemediationService } from './services/remediation.ts';

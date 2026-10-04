@@ -26,7 +26,7 @@ describe('deriveExtensionId', () => {
 });
 
 describe('generateExtension', () => {
-  it('создаёт ровно заявленный набор файлов', async () => {
+  it('creates exactly the declared set of files', async () => {
     const root = await makeTemp();
     const result = await generateExtension({
       dir: path.join(root, 'acme-hello'),
@@ -37,15 +37,13 @@ describe('generateExtension', () => {
       'README.md',
       'extension.json',
       'package.json',
-      'src/main.ts',
-      'src/view.ts',
-      'test/main.test.ts',
-      'test/view.test.ts',
+      'src/index.ts',
+      'test/index.test.ts',
       'tsconfig.json',
     ]);
   });
 
-  it('id по умолчанию — kebab-case каталога, --id перекрывает', async () => {
+  it('default id is kebab-case of the directory, --id overrides', async () => {
     const root = await makeTemp();
     const derived = await generateExtension({
       dir: path.join(root, 'MyExt_One'),
@@ -59,7 +57,7 @@ describe('generateExtension', () => {
   });
 
   it.each([['123'], ['---'], ['Acme.Hello'], ['a'.repeat(65)]])(
-    'отклоняет недопустимый id %s',
+    'rejects invalid id %s',
     async (id) => {
       const root = await makeTemp();
       const dir = path.join(root, 'ok');
@@ -69,14 +67,14 @@ describe('generateExtension', () => {
     },
   );
 
-  it('отклоняет каталог, из имени которого id не выводится', async () => {
+  it('rejects a directory whose name yields no id', async () => {
     const root = await makeTemp();
     await expect(
       generateExtension({ dir: path.join(root, '2024') }),
     ).rejects.toBeInstanceOf(GenerateError);
   });
 
-  it('отказывает в непустом каталоге и ничего в нём не меняет', async () => {
+  it('refuses a non-empty directory and leaves it untouched', async () => {
     const root = await makeTemp();
     const dir = path.join(root, 'acme-hello');
     await mkdir(dir);
@@ -90,7 +88,7 @@ describe('generateExtension', () => {
     await expect(readFile(path.join(dir, 'package.json'))).rejects.toThrow();
   });
 
-  it('принимает существующий пустой каталог', async () => {
+  it('accepts an existing empty directory', async () => {
     const root = await makeTemp();
     const dir = path.join(root, 'acme-hello');
     await mkdir(dir);
@@ -98,7 +96,7 @@ describe('generateExtension', () => {
     expect(result.dir).toBe(dir);
   });
 
-  it('без --local зависимости условные', async () => {
+  it('without --local dependencies are placeholders', async () => {
     const root = await makeTemp();
     const { dir, isLocal } = await generateExtension({
       dir: path.join(root, 'acme-hello'),
@@ -111,7 +109,7 @@ describe('generateExtension', () => {
     });
   });
 
-  it('--local пишет link: на пакеты репозитория', async () => {
+  it('--local writes link: to the repository packages', async () => {
     const root = await makeTemp();
     const { dir, isLocal } = await generateExtension({
       dir: path.join(root, 'acme-hello'),
@@ -125,7 +123,7 @@ describe('generateExtension', () => {
     });
   });
 
-  it('с известной версией пакетов зависимости получают её caret-диапазон', async () => {
+  it('with a known package version dependencies get its caret range', async () => {
     const root = await makeTemp();
     const { dir, isPublished } = await generateExtension({
       dir: path.join(root, 'acme-hello'),
@@ -139,7 +137,7 @@ describe('generateExtension', () => {
     });
   });
 
-  it('проект не получает .npmrc и раздел про токен: пакеты лежат в npmjs', async () => {
+  it('project gets no .npmrc or token section: packages are on npmjs', async () => {
     const root = await makeTemp();
     for (const options of [
       { packageVersion: '1.2.3' },
@@ -151,12 +149,12 @@ describe('generateExtension', () => {
       });
       expect(files).not.toContain('.npmrc');
       const readme = await readFile(path.join(dir, 'README.md'), 'utf8');
-      expect(readme).not.toContain('Установка зависимостей');
+      expect(readme).not.toContain('Installing dependencies');
       expect(readme).not.toContain('_authToken');
     }
   });
 
-  it('--local не на корень репозитория — ошибка до записи файлов', async () => {
+  it('--local not at the repository root errors before writing files', async () => {
     const root = await makeTemp();
     const dir = path.join(root, 'acme-hello');
     await expect(
@@ -165,7 +163,7 @@ describe('generateExtension', () => {
     await expect(readFile(path.join(dir, 'package.json'))).rejects.toThrow();
   });
 
-  it('скрипты package.json ссылаются на id расширения', async () => {
+  it('package.json scripts reference the extension id', async () => {
     const root = await makeTemp();
     const { dir } = await generateExtension({
       dir: path.join(root, 'x'),
@@ -175,6 +173,8 @@ describe('generateExtension', () => {
     expect(pkg['scripts']).toEqual({
       build: 'dolphy-ext build',
       dev: 'dolphy-ext build --watch',
+      types: 'dolphy-ext types',
+      typecheck: 'dolphy-ext types && tsc',
       validate: 'dolphy-ext validate dist-ext/acme.hello',
       test: 'vitest run',
     });
@@ -185,7 +185,7 @@ describe('generateExtension', () => {
     });
   });
 
-  it('манифест проходит parseManifest; element совпадает с тегом view.ts', async () => {
+  it('manifest passes parseManifest; code is bound to the id type from the manifest', async () => {
     const root = await makeTemp();
     const { dir, id } = await generateExtension({
       dir: path.join(root, 'x'),
@@ -198,9 +198,9 @@ describe('generateExtension', () => {
     const [type] = parsed.manifest.contributes.exerciseTypes;
     expect(type?.id).toBe(id);
     expect(type?.element).toBe(defaultElementName(id));
-    const view = await readFile(path.join(dir, 'src/view.ts'), 'utf8');
-    expect(view).toContain(`defineAnswerElement('${type?.element}'`);
-    const main = await readFile(path.join(dir, 'src/main.ts'), 'utf8');
-    expect(main).toContain(`'${id}': defineExerciseType`);
+    const index = await readFile(path.join(dir, 'src/index.ts'), 'utf8');
+    expect(index).toContain(`'${id}': defineExerciseType`);
+    expect(index).toContain(`'${id}': defineAnswerView`);
+    expect(index).not.toContain('defineAnswerElement');
   });
 });

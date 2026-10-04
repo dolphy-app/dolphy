@@ -1,5 +1,6 @@
 import { MAX_ANSWER_CHARS } from '@dolphy-app/engine-contract';
 import type {
+  AttemptOutcome,
   AttemptRecordDto,
   BatchDto,
   BatchRequest,
@@ -17,6 +18,7 @@ import type {
   VerdictDto,
 } from '@dolphy-app/engine-contract';
 import type { ExerciseManifest } from '../../domain/manifest.ts';
+import type { OpenAttempt } from '../context.ts';
 import { SchedulerError } from '../../scheduler/types.ts';
 import {
   GRADE_POLICIES,
@@ -60,6 +62,24 @@ const mapSchedulerError = (error: unknown): unknown => {
   return new EngineError('NOT_FOUND', { details, cause: error });
 };
 
+/** Сколько открытых сессий помнит движок: окно заканчивает последние, старые безнадёжно потеряны. */
+const MAX_OPEN_SESSIONS = 16;
+
+/**
+ * Итог попытки для события `attempt.closed`: сдался — `gave-up`; проверка
+ * шла — `passed`, если хоть один вердикт прошёл, иначе `failed` (оценку после
+ * неудачи мог поставить сам ученик); проверки не было — `self-assessed`.
+ */
+const outcomeOf = (attempt: OpenAttempt, gaveUp: boolean): AttemptOutcome => {
+  if (gaveUp) return 'gave-up';
+  if (!attempt.verifiable || attempt.verdicts.length === 0) {
+    return 'self-assessed';
+  }
+  return attempt.verdicts.some(({ outcome }) => outcome === 'passed')
+    ? 'passed'
+    : 'failed';
+};
+
 interface BatchItem {
   manifest: ExerciseManifest;
   reason: ItemReason;
@@ -73,6 +93,8 @@ export const createPracticeService = (ctx: EngineContext): PracticeService => {
   const { clock, ids, library, projections, session, attempts } = ctx;
   const progress = createProgressReader(ctx);
   let sessionId: string | null = null;
+  /** Выданные и ещё не законченные `finishSession` сессии: событие `session.finished` — один раз на id. */
+  const openSessions = new Set<string>();
 
   /** Повтор `requestId`: прежний результат без ремедиации, оценки — по текущему состоянию. */
   const replayDuplicate = async (requestId: string) => {
@@ -96,8 +118,10 @@ export const createPracticeService = (ctx: EngineContext): PracticeService => {
     return result;
   };
 
-  const recordAttempt = async (
+  /** `outcome` — для события `attempt.closed`; в журнал и контракт запроса не попадает. */
+  const record = async (
     request: RecordAttemptRequest,
+    outcome: AttemptOutcome,
   ): Promise<RecordResultDto> => {
     const started = performance.now();
     const requestId = requireText('requestId', request.requestId);
@@ -130,6 +154,22 @@ export const createPracticeService = (ctx: EngineContext): PracticeService => {
     const remediation = projections.remediation.onAttempt(entry);
     // шаг 6: события уходят после команды (`bus.flush` фасада)
     ctx.emit({ type: 'progress', unitIds: affectedUnitIds, at: entry.at });
+    // дубликат вернулся выше, импорт и синхронизация сюда не заходят: событие — ровно на записанную попытку
+    const exercise = graph.getExercise(exerciseId);
+    if (exercise !== undefined) {
+      ctx.emitLearning({
+        name: 'attempt.closed',
+        payload: {
+          exerciseId,
+          courseId: exercise.course_id,
+          lessonId: exercise.lesson_id,
+          grade: entry.grade,
+          outcome,
+          source: entry.source,
+          at: entry.at,
+        },
+      });
+    }
     if (remediation !== null) {
       ctx.emit({
         type: 'remediation-triggered',
@@ -150,16 +190,46 @@ export const createPracticeService = (ctx: EngineContext): PracticeService => {
     };
   };
 
+  /** Новая сессия движка: `session.started` уходит вместе с ответом команды. */
+  const openSession = (): string => {
+    const id = ids.next();
+    sessionId = id;
+    openSessions.add(id);
+    if (openSessions.size > MAX_OPEN_SESSIONS) {
+      const [oldest] = openSessions;
+      if (oldest !== undefined) openSessions.delete(oldest);
+    }
+    ctx.emitLearning({
+      name: 'session.started',
+      payload: { sessionId: id, at: clock.now() },
+    });
+    return id;
+  };
+
   const startSession = async () => {
     session.reset();
-    sessionId = ids.next();
-    return { sessionId, startedAt: clock.now() };
+    const id = openSession();
+    return { sessionId: id, startedAt: clock.now() };
+  };
+
+  const finishSession = async ({
+    sessionId: finishing,
+  }: {
+    sessionId: string;
+  }) => {
+    requireText('sessionId', finishing);
+    if (!openSessions.delete(finishing)) return { emitted: false };
+    if (sessionId === finishing) sessionId = null; // следующий `getBatch` начнёт новую
+    ctx.emitLearning({
+      name: 'session.finished',
+      payload: { sessionId: finishing, at: clock.now() },
+    });
+    return { emitted: true };
   };
 
   const getBatch = async (req: BatchRequest = {}): Promise<BatchDto> => {
     const started = performance.now();
     const graph = library.require();
-    sessionId ??= ids.next();
     let manifests: ExerciseManifest[];
     try {
       manifests = ctx.scheduler.getExerciseBatch(req.filter);
@@ -200,13 +270,15 @@ export const createPracticeService = (ctx: EngineContext): PracticeService => {
       }
     }
     ctx.metrics.record('batch', performance.now() - started);
+    // идентификатор — после успешной сборки пачки: сбой команды сбросил бы событие, а id остался
+    const batchSession = sessionId ?? openSession();
     return {
       exercises: items.map(({ manifest }) =>
         toExerciseDto(manifest, ctx.exerciseTypes, ctx.extensionPolicy),
       ),
       reasons: items.map(({ reason }) => reason),
       generatedAt: clock.now(),
-      sessionId,
+      sessionId: batchSession,
     };
   };
 
@@ -355,12 +427,15 @@ export const createPracticeService = (ctx: EngineContext): PracticeService => {
     if (finalGrade === null) {
       throw invalid({ attemptId, need: 'grade' });
     }
-    const result = await recordAttempt({
-      requestId: attemptId, // идемпотентность по attemptId
-      exerciseId: attempt.exerciseId,
-      grade: finalGrade,
-      source: attempt.verifiable && derived !== null ? 'runner' : 'self',
-    });
+    const result = await record(
+      {
+        requestId: attemptId, // идемпотентность по attemptId
+        exerciseId: attempt.exerciseId,
+        grade: finalGrade,
+        source: attempt.verifiable && derived !== null ? 'runner' : 'self',
+      },
+      outcomeOf(attempt, gaveUp),
+    );
     attempt.result = result;
     return result;
   };
@@ -464,8 +539,13 @@ export const createPracticeService = (ctx: EngineContext): PracticeService => {
     return { eventId: entry.id, duplicate: false };
   };
 
+  /** Прямая запись оценки без открытой попытки: проверки не было, оценку поставил ученик. */
+  const recordAttempt = (request: RecordAttemptRequest) =>
+    record(request, 'self-assessed');
+
   return Object.freeze({
     startSession,
+    finishSession,
     getBatch,
     beginAttempt,
     submitAnswer,

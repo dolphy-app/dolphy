@@ -1,16 +1,17 @@
 import { cp, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { copyProject, makeTemp } from './helpers.ts';
+import { copyProject, linkSdk, makeTemp } from './helpers.ts';
 
-export type Fixture = 'theme-only' | 'markdown-only' | 'hello';
+export type Fixture =
+  'theme-only' | 'markdown-only' | 'hello' | 'commands-panel';
 
 export interface ExtensionSpec {
   fixture: Fixture;
-  /** Поля, подмешиваемые в `extension.json` поверх метаданных публикации. */
+  /** Fields merged into `extension.json` on top of the publication metadata. */
   manifest?: Record<string, unknown>;
-  /** Содержимое файлов поверх проекта; `null` — удалить файл. */
-  files?: Record<string, string | null>;
-  /** Имя каталога, если оно должно отличаться от id. */
+  /** File contents on top of the project; `null` — delete the file. */
+  files?: Record<string, string | Uint8Array | null>;
+  /** Directory name, if it must differ from the id. */
   dirName?: string;
 }
 
@@ -35,7 +36,7 @@ const DEFAULT_FILES: Record<string, string> = {
 const writeRelative = async (
   dir: string,
   file: string,
-  content: string | null,
+  content: string | Uint8Array | null,
 ): Promise<void> => {
   const target = path.join(dir, file);
   if (content === null) {
@@ -54,12 +55,12 @@ export const readManifest = async (
 ): Promise<{ id: string } & Record<string, unknown>> =>
   (await readJson(file)) as { id: string } & Record<string, unknown>;
 
-/** Проект расширения каталога: фикстура + метаданные публикации, README, package.json, lock-файл. */
+/** Catalog extension project: fixture + publication metadata, README, package.json, lock file. */
 export const addExtension = async (
   repo: Repo,
   spec: ExtensionSpec,
 ): Promise<string> => {
-  const source = await copyProject(spec.fixture);
+  const source = await copyProject(spec.fixture, { isLinked: false });
   const manifestFile = path.join(source, 'extension.json');
   const manifest = await readManifest(manifestFile);
   const dirName = spec.dirName ?? manifest.id;
@@ -73,6 +74,7 @@ export const addExtension = async (
   for (const [file, content] of Object.entries(files)) {
     await writeRelative(target, file, content);
   }
+  if (spec.fixture !== 'theme-only') await linkSdk(target);
   return target;
 };
 
@@ -108,7 +110,7 @@ export interface PublishedVersion {
   version: string;
 }
 
-/** Опубликованный индекс с одним расширением и перечисленными версиями (новые первыми). */
+/** Published index with one extension and the listed versions (newest first). */
 export const publishedIndex = (
   id: string,
   versions: readonly string[],

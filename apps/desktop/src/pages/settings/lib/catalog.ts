@@ -2,10 +2,13 @@ import type {
   CatalogEntryDto,
   CatalogIncompatibleDto,
   CatalogVersionDto,
+  ContributionTitlesDto,
   ExtensionContributesDto,
   ExtensionInfoDto,
   ExtensionUpdateDto,
 } from '@dolphy-app/engine-contract';
+import { GROUPS, TAGS, effectiveTags, groupsOf } from './tags.ts';
+import type { ExtensionTag, TagGroup } from './tags.ts';
 
 export type ContributionPoint = keyof ExtensionContributesDto;
 
@@ -15,12 +18,33 @@ export const CONTRIBUTION_POINTS: readonly ContributionPoint[] = [
   'themes',
   'markdownRenderers',
   'gradePolicies',
+  'settings',
+  'events',
+  'commands',
+  'panels',
 ];
 
+/** Имя события обучения → ключ сообщения `settings.extensions.events.*` (точка в ключе vue-i18n — путь). */
+export const EVENT_MESSAGE_KEYS: Readonly<Record<string, string>> = {
+  'session.started': 'sessionStarted',
+  'session.finished': 'sessionFinished',
+  'attempt.closed': 'attemptClosed',
+};
+
+/**
+ * Фильтры каталога. Внутри ряда (группы, теги, виды вклада) — «или», между
+ * рядами и с поиском — «и».
+ */
 export interface CatalogFilters {
   query: string;
+  groups: ReadonlySet<TagGroup>;
+  tags: ReadonlySet<ExtensionTag>;
   kinds: ReadonlySet<ContributionPoint>;
 }
+
+/** Эффективные теги записи каталога (явные теги показанной версии или вычисленные). */
+export const entryTags = (entry: CatalogEntryDto): ExtensionTag[] =>
+  effectiveTags(entry.tags, entry.contributes);
 
 const normalize = (text: string) => text.trim().toLowerCase();
 
@@ -49,6 +73,51 @@ export const matchesKinds = (
     (point) => kinds.has(point) && entry.contributes[point].length > 0,
   );
 
+/** Пустой набор — без фильтра; иначе запись входит в любую выбранную группу. */
+export const matchesGroups = (
+  entry: CatalogEntryDto,
+  groups: ReadonlySet<TagGroup>,
+): boolean =>
+  groups.size === 0 ||
+  groupsOf(entryTags(entry)).some((group) => groups.has(group));
+
+/** Пустой набор — без фильтра; иначе у записи есть любой выбранный тег. */
+export const matchesTags = (
+  entry: CatalogEntryDto,
+  tags: ReadonlySet<ExtensionTag>,
+): boolean => tags.size === 0 || entryTags(entry).some((tag) => tags.has(tag));
+
+export interface FacetCounts {
+  groups: Record<TagGroup, number>;
+  tags: Record<ExtensionTag, number>;
+}
+
+/**
+ * Сколько расширений в каждой группе и у каждого тега. Считается по
+ * показываемым записям под поиском, но без выбранных фильтров: числа не
+ * прыгают при выборе чипа.
+ */
+export const facetCounts = (
+  entries: readonly CatalogEntryDto[],
+  query: string,
+): FacetCounts => {
+  const groups = Object.fromEntries(GROUPS.map((g) => [g, 0])) as Record<
+    TagGroup,
+    number
+  >;
+  const tags = Object.fromEntries(TAGS.map((tag) => [tag, 0])) as Record<
+    ExtensionTag,
+    number
+  >;
+  for (const entry of entries) {
+    if (!isListed(entry) || !matchesQuery(entry, query)) continue;
+    const own = entryTags(entry);
+    for (const tag of own) tags[tag] += 1;
+    for (const group of groupsOf(own)) groups[group] += 1;
+  }
+  return { groups, tags };
+};
+
 export const filterEntries = (
   entries: readonly CatalogEntryDto[],
   filters: CatalogFilters,
@@ -56,12 +125,17 @@ export const filterEntries = (
   entries.filter(
     (entry) =>
       isListed(entry) &&
+      matchesGroups(entry, filters.groups) &&
+      matchesTags(entry, filters.tags) &&
       matchesQuery(entry, filters.query) &&
       matchesKinds(entry, filters.kinds),
   );
 
 export const hasActiveFilters = (filters: CatalogFilters): boolean =>
-  normalize(filters.query) !== '' || filters.kinds.size > 0;
+  normalize(filters.query) !== '' ||
+  filters.groups.size > 0 ||
+  filters.tags.size > 0 ||
+  filters.kinds.size > 0;
 
 export type EntryAction =
   | { kind: 'install'; version: CatalogVersionDto }
@@ -109,8 +183,14 @@ export interface InstallTarget {
   installedVersion: string | null;
   permissions: string[];
   contributes: ExtensionContributesDto;
+  /** Названия вкладов; `{}` — без названий. */
+  titles: ContributionTitlesDto;
+  /** Эффективные теги (явные или вычисленные по вкладам). */
+  tags: ExtensionTag[];
   platforms: string[];
   sizeBytes: number;
+  /** Значок как `data:`-URI; `null` — без значка. */
+  icon: string | null;
 }
 
 export const targetFromEntry = (
@@ -124,8 +204,11 @@ export const targetFromEntry = (
   installedVersion: entry.installedVersion,
   permissions: [...version.permissions],
   contributes: entry.contributes,
+  titles: entry.titles,
+  tags: entryTags(entry),
   platforms: [...entry.platforms],
   sizeBytes: version.size,
+  icon: entry.icon,
 });
 
 const NO_CONTRIBUTES: ExtensionContributesDto = {
@@ -133,6 +216,10 @@ const NO_CONTRIBUTES: ExtensionContributesDto = {
   themes: [],
   markdownRenderers: [],
   gradePolicies: [],
+  settings: [],
+  events: [],
+  commands: [],
+  panels: [],
 };
 
 /**
@@ -151,8 +238,14 @@ export const targetFromUpdate = (
   installedVersion: update.installed,
   permissions: [...update.available.permissions],
   contributes: entry?.contributes ?? info?.contributes ?? NO_CONTRIBUTES,
+  titles: entry?.titles ?? info?.titles ?? {},
+  tags: effectiveTags(
+    entry?.tags ?? info?.tags ?? [],
+    entry?.contributes ?? info?.contributes ?? NO_CONTRIBUTES,
+  ),
   platforms: entry === undefined ? [] : [...entry.platforms],
   sizeBytes: update.available.size,
+  icon: entry?.icon ?? info?.icon ?? null,
 });
 
 /** Название для показа: из манифеста, иначе id. */

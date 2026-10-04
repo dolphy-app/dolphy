@@ -2,10 +2,10 @@
   "name": "@dolphy-app/ext-math",
   "version": "0.0.0",
   "private": true,
-  "description": "Расширение dolphy.math: формулы в Markdown (MathJax)",
+  "description": "The dolphy.math extension: formulas in Markdown (MathJax)",
   "type": "module",
   "scripts": {
-    "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
+    "typecheck": "dolphy-ext types && tsc -b tsconfig.json tsconfig.test.json",
     "test": "vitest run",
     "build": "dolphy-ext build"
   },

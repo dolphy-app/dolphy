@@ -1,4 +1,5 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { createDiscoveryHolder } from '../src/holder.ts';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -392,9 +393,10 @@ describe('совместимость с приложением', () => {
     );
     expect(result.extensions).toEqual([]);
     expect(result.diagnostics[0]!.message).toBe('requires app >= 1.2.0');
+    const holder = createDiscoveryHolder(result);
     const registry = createExtensionRegistry(
-      result,
-      createExtensionPolicy(result),
+      holder,
+      createExtensionPolicy(holder),
     );
     expect(registry.list()).toMatchObject([{ id: 'acme.c', state: 'invalid' }]);
   });

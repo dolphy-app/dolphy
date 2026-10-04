@@ -62,3 +62,20 @@ export {
   isLocaleMode,
   isThemeId,
 } from './ui-settings.ts';
+export {
+  EXTENSION_STORAGE_LIMITS,
+  compareKeys,
+  encodeJson,
+  findStorageViolation,
+  utf8Length,
+} from './extension-data.ts';
+export type {
+  StorageQuotaKind,
+  StorageSnapshot,
+  StorageViolation,
+} from './extension-data.ts';
+export {
+  effectiveSettingValues,
+  findSettingValueProblem,
+} from './extension-setting-values.ts';
+export type { SettingValueProblem } from './extension-setting-values.ts';

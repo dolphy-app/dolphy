@@ -3,41 +3,23 @@ import '@mdi/font/css/materialdesignicons.css';
 import '@fontsource/roboto/400.css';
 import '@fontsource/roboto/500.css';
 import '@fontsource/roboto/700.css';
-import type { ThemeContributionDto } from '@dolphy-app/engine-contract';
 import { useI18n } from 'vue-i18n';
 import { createVuetify } from 'vuetify';
 import { createVueI18nAdapter } from 'vuetify/locale/adapters/vue-i18n';
 import { DARK_THEME, LIGHT_THEME } from '@/shared/lib/builtin-themes.ts';
-import {
-  baseThemeOf,
-  resolveThemeName,
-  toVuetifyTheme,
-  vuetifyThemeName,
-} from '@/shared/lib/extension-themes.ts';
 import type { DolphyI18n } from './i18n.ts';
 
 // components/directives не перечисляем: их подключает vite-plugin-vuetify
-// в vite.config (после @vitejs/plugin-vue); режим темы хранится в БД движка,
-// встроенные строки Vuetify берутся из каталога vue-i18n (`$vuetify`)
-export const createDolphyVuetify = (
-  theme: string,
-  i18n: DolphyI18n,
-  contributed: readonly ThemeContributionDto[] = [],
-) =>
+// в vite.config (после @vitejs/plugin-vue); режим темы хранится в БД движка
+// и применяется `bindExtensionThemes` (темы расширений живут в реестре
+// Vuetify и меняются на лету), встроенные строки Vuetify берутся из каталога
+// vue-i18n (`$vuetify`)
+export const createDolphyVuetify = (i18n: DolphyI18n) =>
   createVuetify({
     locale: { adapter: createVueI18nAdapter({ i18n, useI18n }) },
     theme: {
-      defaultTheme: resolveThemeName(theme, contributed),
-      themes: {
-        light: LIGHT_THEME,
-        dark: DARK_THEME,
-        ...Object.fromEntries(
-          contributed.map((item) => [
-            vuetifyThemeName(item.id),
-            toVuetifyTheme(item, baseThemeOf(item)),
-          ]),
-        ),
-      },
+      defaultTheme: 'system',
+      themes: { light: LIGHT_THEME, dark: DARK_THEME },
     },
     defaults: {
       VBtn: { class: 'text-none font-weight-medium', rounded: 'lg' },

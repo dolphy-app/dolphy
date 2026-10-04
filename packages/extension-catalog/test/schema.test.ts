@@ -27,13 +27,87 @@ describe('parseIndex', () => {
     expect(parsed.revoked).toHaveLength(1);
   });
 
+  it('сводка принимает необязательные settings и events', () => {
+    const base = entry().contributes;
+    const withKeys = entry({
+      contributes: { ...base, settings: ['acme.quiz.mode'], events: [] },
+    });
+    const parsed = parseIndex(index([withKeys]));
+    expect(parsed.extensions[0]?.contributes.settings).toEqual([
+      'acme.quiz.mode',
+    ]);
+  });
+
+  it('сводка без settings и events остаётся валидной', () => {
+    const parsed = parseIndex(index());
+    expect(parsed.extensions[0]?.contributes.settings).toBeUndefined();
+    expect(parsed.extensions[0]?.contributes.events).toBeUndefined();
+  });
+
+  it('settings и events неверного типа отвергаются', () => {
+    const base = entry().contributes;
+    const bad = (key: string, value: unknown) =>
+      issuesOf(index([{ ...entry(), contributes: { ...base, [key]: value } }]));
+    expect(bad('settings', 'acme.quiz.mode')[0]).toContain(
+      'extensions.0.contributes.settings',
+    );
+    expect(bad('events', [1])[0]).toContain('extensions.0.contributes.events');
+  });
+
+  it('сводка принимает commands и panels и сохраняет их', () => {
+    const base = entry().contributes;
+    const raw = index([
+      entry({
+        contributes: {
+          ...base,
+          commands: ['acme.quiz.open'],
+          panels: ['acme.quiz.main'],
+        },
+      }),
+    ]);
+    const parsed = parseIndex(raw);
+    expect(parsed.extensions[0]?.contributes.commands).toEqual([
+      'acme.quiz.open',
+    ]);
+    expect(parsed.extensions[0]?.contributes.panels).toEqual([
+      'acme.quiz.main',
+    ]);
+    expect(parseIndex(JSON.parse(JSON.stringify(parsed)))).toEqual(parsed);
+  });
+
+  it('старый индекс без commands и panels остаётся валидным', () => {
+    const parsed = parseIndex(index());
+    expect(parsed.extensions[0]?.contributes.commands).toBeUndefined();
+    expect(parsed.extensions[0]?.contributes.panels).toBeUndefined();
+  });
+
+  it('commands и panels неверного типа отвергаются', () => {
+    const base = entry().contributes;
+    const bad = (key: string, value: unknown) =>
+      issuesOf(index([{ ...entry(), contributes: { ...base, [key]: value } }]));
+    expect(bad('commands', [1])[0]).toContain(
+      'extensions.0.contributes.commands',
+    );
+    expect(bad('panels', 'acme.quiz.main')[0]).toContain(
+      'extensions.0.contributes.panels',
+    );
+  });
+
+  it('неизвестный ключ сводки по-прежнему отвергается', () => {
+    const base = entry().contributes;
+    const raw = index([
+      { ...entry(), contributes: { ...base, widgets: ['x'] } },
+    ]);
+    expect(issuesOf(raw)[0]).toContain('extensions.0.contributes');
+  });
+
   it('неизвестный ключ отвергается', () => {
     const raw = index([{ ...entry(), extra: 1 }]);
     expect(issuesOf(raw)[0]).toContain('extensions.0');
   });
 
   it('другая schemaVersion отвергается', () => {
-    expect(issuesOf({ ...(index() as object), schemaVersion: 2 })).not.toEqual(
+    expect(issuesOf({ ...(index() as object), schemaVersion: 3 })).not.toEqual(
       [],
     );
   });

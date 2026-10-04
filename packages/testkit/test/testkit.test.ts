@@ -293,6 +293,10 @@ describe('createFakeExtensionRegistry', () => {
         themes: [],
         markdownRenderers: [],
         gradePolicies: [],
+        settings: [],
+        events: [],
+        commands: [],
+        panels: [],
       },
       message: 'broken',
       permissions: [],
@@ -301,6 +305,9 @@ describe('createFakeExtensionRegistry', () => {
       name: null,
       description: null,
       author: null,
+      icon: null,
+      titles: {},
+      tags: [],
       installed: null,
       removable: true,
       revoked: null,
@@ -309,7 +316,15 @@ describe('createFakeExtensionRegistry', () => {
   });
 
   it('has empty contributions by default and returns the given ones', () => {
-    const empty = { themes: [], markdownRenderers: [], gradePolicies: [] };
+    const empty = {
+      exerciseTypes: [],
+      themes: [],
+      markdownRenderers: [],
+      gradePolicies: [],
+      settings: [],
+      commands: [],
+      panels: [],
+    };
     expect(createFakeExtensionRegistry().contributions()).toEqual(empty);
     const given = {
       ...empty,
@@ -365,7 +380,6 @@ describe('createFakeExtensionInstaller', () => {
             id,
             version: '2.0.0',
             previousVersion: '1.0.0',
-            restartRequired: true,
           };
         },
       },

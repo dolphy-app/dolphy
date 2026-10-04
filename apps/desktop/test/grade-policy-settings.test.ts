@@ -1,4 +1,4 @@
-import { effectScope } from 'vue';
+import { effectScope, shallowRef } from 'vue';
 import { createI18n } from 'vue-i18n';
 import { describe, expect, it, vi } from 'vitest';
 import type {
@@ -120,6 +120,33 @@ describe('useGradePolicySetting', () => {
     await setting.select('passAtN');
     expect(patches).toEqual([{ gradePolicy: 'passAtN' }]);
     expect(setting.missing.value).toBe(false);
+  });
+});
+
+describe('useGradePolicySetting: вклады меняются без перезагрузки окна', () => {
+  it('правило появляется и пропадает вместе с расширением; выбор в БД не трогается', async () => {
+    const policies = shallowRef<readonly GradePolicyInfoDto[]>([BUILTIN]);
+    const fake = createFakeEngine({ gradePolicy: 'acme.policy.generous' });
+    const setting = effectScope().run(() =>
+      useGradePolicySetting(fake.engine, policies),
+    )!;
+    await flush();
+    expect(setting.options.value.map(({ id }) => id)).toEqual(['passAtN']);
+    expect(setting.missing.value).toBe(true);
+    expect(setting.effective.value).toBe('passAtN');
+
+    policies.value = [BUILTIN, GENEROUS];
+    expect(setting.options.value.map(({ id }) => id)).toEqual([
+      'passAtN',
+      'acme.policy.generous',
+    ]);
+    expect(setting.missing.value).toBe(false);
+    expect(setting.effective.value).toBe('acme.policy.generous');
+
+    policies.value = [BUILTIN];
+    expect(setting.missing.value).toBe(true);
+    expect(setting.saved.value).toBe('acme.policy.generous');
+    expect(fake.patches).toEqual([]);
   });
 });
 

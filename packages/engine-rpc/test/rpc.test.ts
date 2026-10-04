@@ -182,6 +182,38 @@ describe('dispatcher validation', () => {
     }
   });
 
+  it('extensions.invokeCommand validates ids and passes JSON arguments through to the engine', async () => {
+    const { dispatcher } = await connect();
+    const [hostSide, rawSide] = createInProcessPair();
+    dispatcher.attach(hostSide, 'raw-command');
+    const raw = createRawClient(rawSide);
+    // схема пропустила: вызов дошёл до движка (в этом тесте он заглушка)
+    for (const args of [
+      ['acme.ext', 'acme.ext.run'],
+      ['acme.ext', 'acme.ext.run', { n: [1, null, 'x'] }],
+      ['acme.ext', 'x'.repeat(128)],
+    ]) {
+      expect(await raw.call('extensions.invokeCommand', args)).toMatchObject({
+        ok: true,
+      });
+    }
+    // отвергнуто схемой до движка
+    for (const args of [
+      [],
+      ['acme.ext'],
+      ['Acme', 'acme.ext.run'],
+      ['acme.ext', ''],
+      ['acme.ext', 'x'.repeat(129)],
+      ['acme.ext', 'acme.ext.run', [undefined]],
+      ['acme.ext', 'acme.ext.run', {}, 'extra'],
+    ]) {
+      expect(await raw.call('extensions.invokeCommand', args)).toMatchObject({
+        ok: false,
+        error: { code: 'INVALID_ARGUMENT' },
+      });
+    }
+  });
+
   it('extensions catalog/install/uninstall/updates/setCheckUpdates validate their arguments', async () => {
     const { dispatcher } = await connect();
     const [hostSide, rawSide] = createInProcessPair();
@@ -195,8 +227,15 @@ describe('dispatcher validation', () => {
       ['extensions.install', ['acme.ext', '1.2.3']],
       ['extensions.install', ['acme.ext', '1.2.3-beta.1']],
       ['extensions.uninstall', ['acme.ext']],
+      ['extensions.uninstall', ['acme.ext', {}]],
+      ['extensions.uninstall', ['acme.ext', { removeData: true }]],
       ['extensions.updates', []],
       ['extensions.setCheckUpdates', [false]],
+      [
+        'extensions.setSettingValue',
+        ['acme.ext', 'acme.ext.n', { a: [1, null] }],
+      ],
+      ['practice.finishSession', [{ sessionId: 's' }]],
     ];
     const rejected: [string, unknown[]][] = [
       ['extensions.catalog', [{ refresh: 'yes' }]],
@@ -208,6 +247,13 @@ describe('dispatcher validation', () => {
       ['extensions.install', ['acme.ext', '1.2.3', 'x']],
       ['extensions.uninstall', ['']],
       ['extensions.uninstall', []],
+      ['extensions.uninstall', ['acme.ext', { removeData: 'yes' }]],
+      ['extensions.uninstall', ['acme.ext', { keepData: true }]],
+      ['extensions.setSettingValue', ['acme.ext', '', 1]],
+      ['extensions.setSettingValue', ['acme.ext', 'acme.ext.n']],
+      ['extensions.setSettingValue', ['acme.ext', 'acme.ext.n', [undefined]]],
+      ['practice.finishSession', [{ sessionId: '' }]],
+      ['practice.finishSession', [{}]],
       ['extensions.updates', ['x']],
       ['extensions.setCheckUpdates', ['no']],
       ['extensions.setCheckUpdates', []],

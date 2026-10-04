@@ -3,6 +3,7 @@ import {
   EXTENSION_API_VERSION,
   EXTENSION_PERMISSIONS,
   EXTENSION_PLATFORMS,
+  EXTENSION_TAGS,
   GITHUB_LOGIN_PATTERN,
 } from '@dolphy-app/extension-api';
 import type {
@@ -51,6 +52,15 @@ export const manifestSchema = z
       .string()
       .refine(isSemver, 'minAppVersion must be semver x.y.z')
       .optional(),
+    icon: safePath(['.png', '.webp']).optional(),
+    tags: z
+      .array(
+        z.enum(EXTENSION_TAGS, {
+          error: `tag must be one of: ${EXTENSION_TAGS.join(', ')}`,
+        }),
+      )
+      .max(5, 'at most 5 tags')
+      .optional(),
     contributes: contributesSchema,
   })
   .superRefine((manifest, ctx) => {
@@ -73,6 +83,26 @@ export const manifestSchema = z
         });
       }
     });
+    const { tags = [] } = manifest;
+    tags.forEach((tag, index) => {
+      if (tags.indexOf(tag) !== index) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['tags', index],
+          message: `duplicate tag '${tag}'`,
+        });
+      }
+    });
+    if (
+      entriesOf(manifest.contributes, 'events').length > 0 &&
+      !permissions.includes('learning.events')
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['permissions'],
+        message: "contributes.events requires the 'learning.events' permission",
+      });
+    }
     if (isEmpty(manifest.contributes)) {
       ctx.addIssue({
         code: 'custom',
@@ -109,6 +139,8 @@ export const normalizeManifest = (
     author: input.author ?? null,
     platforms: [...(input.platforms ?? [])],
     minAppVersion: input.minAppVersion ?? null,
+    tags: [...(input.tags ?? [])],
+    icon: input.icon ?? null,
     contributes: contributes as ExtensionManifest['contributes'],
   };
 };

@@ -31,30 +31,30 @@ export const CATALOG_SYNOPSIS = `       dolphy-ext catalog check <extensionsDir>
                    [--published-at <iso>]
 `;
 
-export const CATALOG_HELP = `  catalog check    проверить исходники расширений каталога; строки
-                   «error|warning <id> <RULE-ID> <поле>: <сообщение>»,
-                   код 1 при наличии error
-  catalog build    собрать версии в <siteDir>/extensions/<id>/<version>/ и
-                   обновить <siteDir>/index.json (опубликованные версии
-                   неизменны)
+export const CATALOG_HELP = `  catalog check    check the catalog's extension sources; lines
+                   «error|warning <id> <RULE-ID> <field>: <message>»,
+                   exit code 1 if any error
+  catalog build    build versions into <siteDir>/extensions/<id>/<version>/ and
+                   update <siteDir>/index.json (published versions are
+                   immutable)
   catalog build --reindex
-                   только заменить revoked и generatedAt в существующем
-                   <siteDir>/index.json (--src и --ids не нужны)
+                   only replace revoked and generatedAt in the existing
+                   <siteDir>/index.json (--src and --ids are not needed)
 
-  --ids a,b              только эти расширения (check: по умолчанию все)
-  --published-index <p>  index.json опубликованного каталога (нет файла —
-                         ничего не опубликовано)
-  --max-app-version <v>  minAppVersion не должен быть новее
-  --skip-github-check    не проверять автора через api.github.com
-                         (токен — переменная GITHUB_TOKEN)
-  --list-rules           вывести правила check
-  --src <dir>            каталог с проектами <dir>/<id>
-  --out <dir>            корень сайта
-  --previous-index <p>   исходный индекс (по умолчанию <out>/index.json)
-  --revoked <p>          JSON-массив {id, versions, reason}
-  --source-base <url>    основа поля source записи индекса
-  --published-at <iso>   publishedAt новых версий (по умолчанию сейчас);
-                         с --reindex — generatedAt
+  --ids a,b              only these extensions (check: all by default)
+  --published-index <p>  index.json of the published catalog (no file —
+                         nothing is published)
+  --max-app-version <v>  minAppVersion must not be newer
+  --skip-github-check    do not verify the author via api.github.com
+                         (token — the GITHUB_TOKEN variable)
+  --list-rules           print the check rules
+  --src <dir>            directory of projects <dir>/<id>
+  --out <dir>            site root
+  --previous-index <p>   source index (default <out>/index.json)
+  --revoked <p>          JSON array {id, versions, reason}
+  --source-base <url>    base for the index entry's source field
+  --published-at <iso>   publishedAt of new versions (default now);
+                         with --reindex — generatedAt
 `;
 
 type Flags = Record<string, string | true>;
@@ -118,9 +118,9 @@ const readFlags = (
     if (switches.includes(arg)) flags[arg] = true;
     else if (valued.includes(arg)) {
       const value = args[++i];
-      if (value === undefined) return `${arg} требует значение`;
+      if (value === undefined) return `${arg} requires a value`;
       flags[arg] = value;
-    } else if (arg.startsWith('-')) return `неизвестный флаг: ${arg}`;
+    } else if (arg.startsWith('-')) return `unknown flag: ${arg}`;
     else positional.push(arg);
   }
   return { flags, positional };
@@ -150,14 +150,14 @@ const parseCheck = (args: readonly string[]): CatalogParsed => {
   const { flags, positional } = read;
   const maxAppVersion = text(flags, '--max-app-version');
   if (maxAppVersion !== undefined && !isSemver(maxAppVersion)) {
-    return { usageError: '--max-app-version: нужен semver x.y.z' };
+    return { usageError: '--max-app-version: expected semver x.y.z' };
   }
   const listRulesFlag = flags['--list-rules'] === true;
   if (positional.length > 1) {
-    return { usageError: `лишние аргументы: ${positional.slice(1).join(' ')}` };
+    return { usageError: `extra arguments: ${positional.slice(1).join(' ')}` };
   }
   if (positional[0] === undefined && !listRulesFlag) {
-    return { usageError: 'catalog check: не указан каталог расширений' };
+    return { usageError: 'catalog check: no extensions directory given' };
   }
   return {
     command: 'check',
@@ -175,10 +175,13 @@ const REINDEX_FORBIDDEN = ['--src', '--ids', '--source-base'];
 const parseReindex = (flags: Flags): CatalogParsed => {
   const forbidden = REINDEX_FORBIDDEN.find((name) => name in flags);
   if (forbidden !== undefined) {
-    return { usageError: `catalog build --reindex: ${forbidden} не нужен` };
+    return {
+      usageError: `catalog build --reindex: ${forbidden} is not needed`,
+    };
   }
   const out = text(flags, '--out');
-  if (out === undefined) return { usageError: 'catalog build: нужен --out' };
+  if (out === undefined)
+    return { usageError: 'catalog build: --out is required' };
   return {
     command: 'reindex',
     out,
@@ -193,16 +196,18 @@ const parseBuild = (args: readonly string[]): CatalogParsed => {
   if (typeof read === 'string') return { usageError: read };
   const { flags, positional } = read;
   if (positional.length > 0) {
-    return { usageError: `лишние аргументы: ${positional.join(' ')}` };
+    return { usageError: `extra arguments: ${positional.join(' ')}` };
   }
   if (flags['--reindex'] === true) return parseReindex(flags);
   const src = text(flags, '--src');
   const out = text(flags, '--out');
   const ids = idsOf(flags);
-  if (src === undefined) return { usageError: 'catalog build: нужен --src' };
-  if (out === undefined) return { usageError: 'catalog build: нужен --out' };
+  if (src === undefined)
+    return { usageError: 'catalog build: --src is required' };
+  if (out === undefined)
+    return { usageError: 'catalog build: --out is required' };
   if (ids === undefined || ids.length === 0) {
-    return { usageError: 'catalog build: нужен --ids' };
+    return { usageError: 'catalog build: --ids is required' };
   }
   return {
     command: 'build',
@@ -223,8 +228,8 @@ export const parseCatalogArgs = (args: readonly string[]): CatalogParsed => {
   return {
     usageError:
       sub === undefined
-        ? 'catalog: не указана подкоманда (check|build)'
-        : `catalog: неизвестная подкоманда: ${sub}`,
+        ? 'catalog: no subcommand given (check|build)'
+        : `catalog: unknown subcommand: ${sub}`,
   };
 };
 
@@ -299,7 +304,7 @@ const runBuild = async (
   return 0;
 };
 
-/** Код выхода: 0, 1 (проблемы), 2 (аргументы/окружение). */
+/** Exit code: 0, 1 (problems), 2 (arguments/environment). */
 export const runCatalog = async (
   parsed: Exclude<CatalogParsed, { usageError: string }>,
   io: CatalogIo,

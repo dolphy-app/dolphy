@@ -6,24 +6,27 @@ import {
   ipcMain,
   net,
   protocol,
+  session,
   shell,
   utilityProcess,
 } from 'electron';
 import { existsSync, watch } from 'node:fs';
+import { realpath, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { createExtSupervisor, isTypedMessage } from './ext-supervisor.ts';
 import { createHostLink } from './host-link.ts';
 import { createMainLogger } from './logger.ts';
 import { createDevExtensionsShell } from './shells/dev-extensions.ts';
-import { createExtensionsApplyShell } from './shells/extensions-apply.ts';
 import { createEngineShell } from './shells/engine.ts';
 import { createExtensionAssetsShell } from './shells/extension-assets.ts';
 import { createLifecycleShell } from './shells/lifecycle.ts';
 import { createPlatformShell } from './shells/platform.ts';
 import { createSmokeShell } from './shells/smoke.ts';
+import { createWebContentsGuardShell } from './shells/web-contents-guard.ts';
 import { createWindowShell } from './shells/window.ts';
 import { createSupervisor } from './supervisor.ts';
+import type { HostProcessLike } from './supervisor.ts';
 import { SMOKE_ARGUMENT } from '../../shared/smoke.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -82,18 +85,18 @@ const extensionCatalogUrl = app.isPackaged
   : process.env.DOLPHY_EXTENSION_CATALOG_URL || undefined;
 
 const hostLink = createHostLink({ MessageChannelMain });
+// режим разработчика: хост движка сам перечитывает расширения и применяет их, окна и хосты не перезапускаются;
+// правка, пришедшая пока хост запускался, повторяется, когда он готов (первое обнаружение могло её не увидеть)
+let engineHost: HostProcessLike | null = null;
+let reloadPending = false;
+const reloadExtensions = () => {
+  engineHost?.postMessage({ type: 'reload-extensions' });
+  reloadPending = engineHost === null;
+};
 const extSupervisor = createExtSupervisor({
   utilityProcess,
   hostPath: path.join(__dirname, '../host/ext-host.js'),
-  init: {
-    type: 'init',
-    libraryRoot,
-    bundledExtensionsDir,
-    userExtensionsDir,
-    restrictedEntry,
-    ...(appVersion ? { appVersion } : {}),
-    ...(devExtensionsDir ? { devExtensionsDir } : {}),
-  },
+  init: { type: 'init', libraryRoot, restrictedEntry },
   logger,
   onHostReady: (host) => hostLink.setExtHost(host),
   onHostExit: () => hostLink.setExtHost(null),
@@ -119,23 +122,23 @@ const supervisor = createSupervisor({
     );
     app.quit();
   },
-  onHostReady: (host) => hostLink.setEngine(host),
-  onHostExit: () => hostLink.setEngine(null),
+  onHostReady: (host) => {
+    engineHost = host;
+    hostLink.setEngine(host);
+    if (reloadPending) reloadExtensions();
+  },
+  onHostExit: () => {
+    engineHost = null;
+    hostLink.setEngine(null);
+  },
   // зависший синхронный код расширения не прервать: движок просит перезапустить хост
   onMessage: (message) => {
     if (isTypedMessage(message, 'restart-ext-host')) extSupervisor.kill();
   },
 });
 
-// один путь «применить изменения расширений» для режима разработчика и кнопки в настройках
-const restartHosts = () => {
-  extSupervisor.restart();
-  supervisor.restart();
-};
-const windows = () =>
-  BrowserWindow.getAllWindows().map((win) => win.webContents);
-
 const shells = [
+  createWebContentsGuardShell({ app, session }),
   createWindowShell({
     app,
     BrowserWindow,
@@ -154,13 +157,6 @@ const shells = [
     fromWebContents: (sender) =>
       BrowserWindow.fromWebContents(sender as Electron.WebContents),
   }),
-  createExtensionsApplyShell({
-    ipcMain,
-    restartHosts,
-    windows,
-    timers: { setTimeout },
-    logger,
-  }),
   createLifecycleShell({ app, supervisors: [supervisor, extSupervisor] }),
   createExtensionAssetsShell({
     app,
@@ -171,7 +167,7 @@ const shells = [
       userExtensionsDir,
       bundledExtensionsDir,
     ],
-    exists: existsSync,
+    fs: { realpath, stat },
     logger,
   }),
   ...(devExtensionsDir
@@ -189,8 +185,7 @@ const shells = [
             return watcher;
           },
           timers: { setTimeout, clearTimeout },
-          restartHosts,
-          windows,
+          reloadExtensions,
           exists: existsSync,
           logger,
         }),

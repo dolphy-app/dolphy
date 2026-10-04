@@ -6,8 +6,13 @@ import type {
   LearningEngine,
 } from '@dolphy-app/engine-contract';
 import { toEngineError } from '@/entities/repository';
-import { filterEntries, hasActiveFilters } from '../lib/catalog.ts';
-import type { ContributionPoint } from '../lib/catalog.ts';
+import {
+  facetCounts,
+  filterEntries,
+  hasActiveFilters,
+} from '../lib/catalog.ts';
+import type { ContributionPoint, FacetCounts } from '../lib/catalog.ts';
+import type { ExtensionTag, TagGroup } from '../lib/tags.ts';
 
 /** `idle` — вкладку ещё не открывали, индекс не запрашивался. */
 export type CatalogState = 'idle' | 'loading' | 'loaded' | 'failed';
@@ -18,7 +23,15 @@ export interface CatalogModel {
   /** Записи под поиском и фильтрами, в порядке движка. */
   visible: ComputedRef<CatalogEntryDto[]>;
   query: Ref<string>;
+  groups: ShallowRef<ReadonlySet<TagGroup>>;
+  tags: ShallowRef<ReadonlySet<ExtensionTag>>;
   kinds: ShallowRef<ReadonlySet<ContributionPoint>>;
+  /** Числа в чипах: под поиском, без учёта выбранных фильтров. */
+  counts: ComputedRef<FacetCounts>;
+  /** Блок «Ещё фильтры» раскрыт (кнопкой или выбором тега/вида) и остаётся так после снятия выбора. */
+  moreOpen: Ref<boolean>;
+  /** Выбран тег или вид вклада: блок «Ещё фильтры» раскрыт и не сворачивается. */
+  moreActive: ComputedRef<boolean>;
   isFiltered: ComputedRef<boolean>;
   /** Показан сохранённый индекс: свежий получить не удалось. */
   stale: Ref<boolean>;
@@ -33,6 +46,8 @@ export interface CatalogModel {
   /** Первая загрузка; повторные вызовы ничего не делают. */
   open(): Promise<void>;
   load(options?: { refresh?: boolean }): Promise<void>;
+  setGroup(group: TagGroup, on: boolean): void;
+  setTag(tag: ExtensionTag, on: boolean): void;
   setKind(point: ContributionPoint, on: boolean): void;
   resetFilters(): void;
 }
@@ -48,7 +63,10 @@ export const useCatalog = (engine: LearningEngine): CatalogModel => {
   const state = ref<CatalogState>('idle');
   const entries = shallowRef<CatalogEntryDto[]>([]);
   const query = ref('');
+  const groups = shallowRef<ReadonlySet<TagGroup>>(new Set());
+  const tags = shallowRef<ReadonlySet<ExtensionTag>>(new Set());
   const kinds = shallowRef<ReadonlySet<ContributionPoint>>(new Set());
+  const moreOpen = ref(false);
   const stale = ref(false);
   const notice = ref<string | null>(null);
   const fetchedAt = ref<string | null>(null);
@@ -56,11 +74,17 @@ export const useCatalog = (engine: LearningEngine): CatalogModel => {
   const failure = ref<string | null>(null);
   let lastRequest = 0;
 
-  const visible = computed(() =>
-    filterEntries(entries.value, { query: query.value, kinds: kinds.value }),
-  );
-  const isFiltered = computed(() =>
-    hasActiveFilters({ query: query.value, kinds: kinds.value }),
+  const filters = computed(() => ({
+    query: query.value,
+    groups: groups.value,
+    tags: tags.value,
+    kinds: kinds.value,
+  }));
+  const visible = computed(() => filterEntries(entries.value, filters.value));
+  const isFiltered = computed(() => hasActiveFilters(filters.value));
+  const counts = computed(() => facetCounts(entries.value, query.value));
+  const moreActive = computed(
+    () => tags.value.size > 0 || kinds.value.size > 0,
   );
 
   const accept = (catalog: CatalogDto) => {
@@ -101,15 +125,29 @@ export const useCatalog = (engine: LearningEngine): CatalogModel => {
     if (state.value === 'idle') await load();
   };
 
+  const toggled = <T>(set: ReadonlySet<T>, value: T, on: boolean) => {
+    const next = new Set(set);
+    if (on) next.add(value);
+    else next.delete(value);
+    return next;
+  };
+  const setGroup = (group: TagGroup, on: boolean) => {
+    groups.value = toggled(groups.value, group, on);
+  };
+  // выбор тега или вида раскрывает блок насовсем: после снятия чип под курсором не исчезает
+  const setTag = (tag: ExtensionTag, on: boolean) => {
+    if (on) moreOpen.value = true;
+    tags.value = toggled(tags.value, tag, on);
+  };
   const setKind = (point: ContributionPoint, on: boolean) => {
-    const next = new Set(kinds.value);
-    if (on) next.add(point);
-    else next.delete(point);
-    kinds.value = next;
+    if (on) moreOpen.value = true;
+    kinds.value = toggled(kinds.value, point, on);
   };
 
   const resetFilters = () => {
     query.value = '';
+    groups.value = new Set();
+    tags.value = new Set();
     kinds.value = new Set();
   };
 
@@ -126,7 +164,12 @@ export const useCatalog = (engine: LearningEngine): CatalogModel => {
     entries,
     visible,
     query,
+    groups,
+    tags,
     kinds,
+    counts,
+    moreOpen,
+    moreActive,
     isFiltered,
     stale,
     notice,
@@ -135,6 +178,8 @@ export const useCatalog = (engine: LearningEngine): CatalogModel => {
     failure,
     open,
     load,
+    setGroup,
+    setTag,
     setKind,
     resetFilters,
   };

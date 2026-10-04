@@ -2,7 +2,11 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { LocaleMode } from '@dolphy-app/engine-contract';
-import { useContributions, useEngine } from '@/shared/api/engine';
+import {
+  useContributions,
+  useLocaleSelection,
+  useThemeSelection,
+} from '@/shared/api/engine';
 import { vuetifyThemeName } from '@/shared/lib/extension-themes.ts';
 import { useAppearanceSettings } from '../model/appearance.ts';
 import SectionHeader from './SectionHeader.vue';
@@ -12,10 +16,11 @@ import ThemeTile from './ThemeTile.vue';
 const LOCALE_MODES: LocaleMode[] = ['system', 'ru', 'en'];
 
 const { t } = useI18n();
-const { themes } = useContributions();
+const contributions = useContributions();
 const { mode, localeMode, error, select, selectLocale } = useAppearanceSettings(
-  useEngine(),
-  themes,
+  useThemeSelection(),
+  useLocaleSelection(),
+  () => contributions.value.themes,
 );
 
 const themeTiles = computed(() => [
@@ -25,7 +30,7 @@ const themeTiles = computed(() => [
     caption: '',
     names: id === 'system' ? ['light', 'dark'] : [id],
   })),
-  ...themes.map((theme) => ({
+  ...contributions.value.themes.map((theme) => ({
     id: theme.id,
     label: theme.label,
     caption: theme.extensionId,

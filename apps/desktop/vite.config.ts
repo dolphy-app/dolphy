@@ -46,6 +46,8 @@ const extensions = (target: string): Plugin => ({
       execFileSync('pnpm', ['-F', pkg.name, 'build'], {
         cwd: REPO_ROOT,
         stdio: 'inherit',
+        // на Windows pnpm — pnpm.cmd, без оболочки spawn его не находит (ENOENT)
+        shell: process.platform === 'win32',
       });
       const built = path.join(dir, 'dist-ext');
       const ids = fs

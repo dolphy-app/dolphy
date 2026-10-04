@@ -5,6 +5,9 @@ import type { EngineContext, EngineDeps } from './context.ts';
 import { collectDiagnostics } from './diagnostics.ts';
 import { createFacade } from './facade.ts';
 import type { EngineServices } from './facade.ts';
+import type { LearningEventListener } from './event-bus.ts';
+import { createExtensionHostServices } from './services/extension-host-services.ts';
+import type { ExtensionHostServices } from './services/extension-host-services.ts';
 import { createCurationService } from './services/curation.ts';
 import {
   createExtensionsService,
@@ -22,8 +25,33 @@ import {
 import { createSettingsService } from './services/settings.ts';
 import { createSyncService } from './services/sync.ts';
 
+/**
+ * Движок для процесса-хоста: контракт `LearningEngine` плюс то, чего в нём
+ * нет, потому что окно этого не вызывает.
+ */
+export interface HostedEngine extends LearningEngine {
+  /**
+   * Применяет изменения расширений на диске без команды окна (режим
+   * разработчика): перечитывает набор, публикует `contributions-changed`.
+   * Не бросает; после `close()` ничего не делает.
+   */
+  reloadExtensions(): Promise<void>;
+  /**
+   * Данные расширений для хоста расширений (хранилище, значения настроек,
+   * подписка на их изменение). Не часть контракта окна и не RPC.
+   */
+  readonly extensionHost: ExtensionHostServices;
+  /**
+   * Внутренний приёмник событий обучения (`session.started`, `session.finished`,
+   * `attempt.closed`): доставка после завершения команды, не раньше; отменённая
+   * или упавшая команда событий не даёт. Слушатель не ждётся, его сбой
+   * логируется и на команду не влияет. Возвращает отписку.
+   */
+  onLearningEvent(listener: LearningEventListener): () => void;
+}
+
 /** Сервисы и фасад над готовым контекстом (тесты собирают контекст сами). */
-export const createEngineFromContext = (ctx: EngineContext): LearningEngine => {
+export const createEngineFromContext = (ctx: EngineContext): HostedEngine => {
   // одна очередь на фасад и на `repositories`: подмена снимка — обычная команда
   const queue = createCommandQueue();
   const closing = new AbortController();
@@ -54,6 +82,9 @@ export const createEngineFromContext = (ctx: EngineContext): LearningEngine => {
   );
   return {
     ...facade,
+    reloadExtensions: () => ctx.extensionApply.reload(),
+    extensionHost: createExtensionHostServices(ctx),
+    onLearningEvent: ctx.bus.subscribeLearning,
     close: () => {
       const closed = facade.close();
       closing.abort(); // долгая загрузка не должна держать закрытие
@@ -73,7 +104,7 @@ export const createEngineFromContext = (ctx: EngineContext): LearningEngine => {
 export const createEngine = async (
   deps: EngineDeps,
   config: EngineConfig,
-): Promise<LearningEngine> => {
+): Promise<HostedEngine> => {
   // до первой загрузки библиотеки: сканер не должен видеть остатки прерванной операции
   await recoverRepositories(deps);
   return createEngineFromContext(await createContext(deps, config));

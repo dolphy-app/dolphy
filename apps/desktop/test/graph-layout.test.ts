@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import type { GraphEdgeDto } from '@dolphy-app/engine-contract';
 import { neighborInDirection } from '@/pages/graph/lib/flow.ts';
 import {
-  FRAME_HEADER,
   FRAME_PADDING,
   NODE_HEIGHT,
   NODE_WIDTH,
@@ -165,7 +164,7 @@ describe('layoutCourses', () => {
     for (const frame of layout.frames) {
       for (const [id, point] of frame.local) {
         expect(point.x).toBeGreaterThanOrEqual(FRAME_PADDING);
-        expect(point.y).toBeGreaterThanOrEqual(FRAME_HEADER + FRAME_PADDING);
+        expect(point.y).toBeGreaterThanOrEqual(FRAME_PADDING);
         expect(layout.absolute.get(id)).toEqual({
           x: frame.x + point.x,
           y: frame.y + point.y,

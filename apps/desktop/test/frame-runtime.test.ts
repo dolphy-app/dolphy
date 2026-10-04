@@ -408,3 +408,301 @@ describe('рантайм рамки', () => {
     expect(FakeResizeObserver.instances[0]?.disconnected).toBe(true);
   });
 });
+
+describe('рантайм рамки: режим panel', () => {
+  interface Context {
+    panelId: string;
+    props: unknown;
+    signal: AbortSignal;
+    call(command: string, args?: unknown): Promise<unknown>;
+    onProps(listener: (props: unknown) => void): () => void;
+  }
+
+  const panelInit = (props: unknown = { from: 'open' }) => ({
+    dolphy: 1,
+    type: 'init',
+    mode: 'panel',
+    rendererUrl: `${URL_PREFIX}/panel.mjs`,
+    panelId: 'acme.echo.main',
+    props,
+  });
+
+  const mountPanel = async (
+    mount?: (container: HTMLElement, ctx: Context) => void,
+  ) => {
+    const contexts: Context[] = [];
+    const containers: HTMLElement[] = [];
+    const harness = setup(async (url) => {
+      expect(url).toBe(`${URL_PREFIX}/panel.mjs`);
+      return {
+        default: {
+          mount: (container: HTMLElement, ctx: Context) => {
+            containers.push(container);
+            contexts.push(ctx);
+            mount?.(container, ctx);
+          },
+        },
+      };
+    });
+    harness.send(panelInit());
+    await harness.flush();
+    return { ...harness, ctx: contexts[0] as Context, containers };
+  };
+
+  const callsOf = (posted: Record<string, unknown>[]) =>
+    posted.filter((message) => message['type'] === 'panel-call');
+
+  const press = (
+    harness: Awaited<ReturnType<typeof mountPanel>>,
+    init: Record<string, unknown>,
+  ) =>
+    harness.document.dispatchEvent(
+      new harness.happy.KeyboardEvent('keydown', {
+        bubbles: true,
+        cancelable: true,
+        ...init,
+      }) as never,
+    );
+
+  it('монтирует модуль в контейнер, на всю высоту, и не сообщает size', async () => {
+    const { ctx, containers, posted, document } = await mountPanel();
+    expect(containers).toHaveLength(1);
+    expect(document.body.contains(containers[0] as never)).toBe(true);
+    expect(containers[0]?.style.height).toBe('100%');
+    expect(ctx.panelId).toBe('acme.echo.main');
+    expect(ctx.props).toEqual({ from: 'open' });
+    expect(types(posted)).toEqual(['ready']);
+    expect(FakeResizeObserver.instances).toHaveLength(0);
+  });
+
+  it('call: вызов уходит родителю, ответ завершает промис значением', async () => {
+    const { ctx, send, posted, flush } = await mountPanel();
+    const pending = ctx.call('acme.echo.ping', { n: 1 });
+    const [call] = callsOf(posted);
+    expect(call).toMatchObject({
+      dolphyFrame: 1,
+      type: 'panel-call',
+      command: 'acme.echo.ping',
+      args: { n: 1 },
+    });
+    send({
+      dolphy: 1,
+      type: 'panel-result',
+      callId: call?.['callId'],
+      ok: true,
+      value: { pong: true },
+    });
+    await expect(pending).resolves.toEqual({ pong: true });
+    await flush();
+  });
+
+  it('call: отказ — отклонённый промис с Error и текстом приложения', async () => {
+    const { ctx, send, posted } = await mountPanel();
+    const pending = ctx.call('acme.echo.ping');
+    send({
+      dolphy: 1,
+      type: 'panel-result',
+      callId: callsOf(posted)[0]?.['callId'],
+      ok: false,
+      error: { message: 'unknown command: x' },
+    });
+    await expect(pending).rejects.toThrow('unknown command: x');
+  });
+
+  it('параллельные вызовы различаются по callId; чужой и повторный ответ игнорируются', async () => {
+    const { ctx, send, posted } = await mountPanel();
+    const first = ctx.call('a');
+    const second = ctx.call('b');
+    const [one, two] = callsOf(posted);
+    expect(one?.['callId']).not.toBe(two?.['callId']);
+    send({
+      dolphy: 1,
+      type: 'panel-result',
+      callId: 'nope',
+      ok: true,
+      value: 1,
+    });
+    send({
+      dolphy: 1,
+      type: 'panel-result',
+      callId: two?.['callId'],
+      ok: true,
+      value: 'B',
+    });
+    send({
+      dolphy: 1,
+      type: 'panel-result',
+      callId: two?.['callId'],
+      ok: true,
+      value: 'again',
+    });
+    send({
+      dolphy: 1,
+      type: 'panel-result',
+      callId: one?.['callId'],
+      ok: true,
+      value: 'A',
+    });
+    await expect(Promise.all([first, second])).resolves.toEqual(['A', 'B']);
+  });
+
+  it('ответ принимается только от родителя', async () => {
+    const { ctx, send, posted } = await mountPanel();
+    const pending = ctx.call('a');
+    const stranger = { postMessage: () => undefined };
+    send(
+      {
+        dolphy: 1,
+        type: 'panel-result',
+        callId: callsOf(posted)[0]?.['callId'],
+        ok: true,
+        value: 'forged',
+      },
+      stranger,
+    );
+    const settled = vi.fn();
+    void pending.then(settled, settled);
+    await Promise.resolve();
+    expect(settled).not.toHaveBeenCalled();
+  });
+
+  it('call: слишком большие аргументы и не-JSON отклоняются сразу, ничего не уходит', async () => {
+    const { ctx, posted } = await mountPanel();
+    await expect(ctx.call('a', 'x'.repeat(200_001))).rejects.toThrow(
+      'arguments are too large',
+    );
+    const loop: Record<string, unknown> = {};
+    loop['self'] = loop;
+    await expect(ctx.call('a', loop)).rejects.toThrow('arguments are not JSON');
+    await expect(ctx.call('')).rejects.toThrow('command id');
+    expect(callsOf(posted)).toHaveLength(0);
+  });
+
+  it('call: без ответа промис отклоняется по сроку (позже клиента движка)', async () => {
+    vi.useFakeTimers();
+    const { ctx } = await mountPanel();
+    const outcome = vi.fn();
+    void ctx.call('slow').catch(outcome);
+    await vi.advanceTimersByTimeAsync(14_000);
+    expect(outcome).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(outcome).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'command timed out' }),
+    );
+  });
+
+  it('onProps: новые свойства доходят до слушателей, отписка работает', async () => {
+    const { ctx, send } = await mountPanel();
+    const listener = vi.fn();
+    const off = ctx.onProps(listener);
+    send({ dolphy: 1, type: 'panel-props', props: { n: 2 } });
+    expect(listener).toHaveBeenCalledWith({ n: 2 });
+    off();
+    send({ dolphy: 1, type: 'panel-props', props: { n: 3 } });
+    expect(listener).toHaveBeenCalledOnce();
+  });
+
+  it('сбой слушателя свойств сообщается как error и не мешает остальным', async () => {
+    const { ctx, send, posted } = await mountPanel();
+    const healthy = vi.fn();
+    ctx.onProps(() => {
+      throw new Error('listener broke');
+    });
+    ctx.onProps(healthy);
+    send({ dolphy: 1, type: 'panel-props', props: 1 });
+    expect(healthy).toHaveBeenCalledWith(1);
+    expect(posted.at(-1)).toMatchObject({
+      type: 'error',
+      message: 'listener broke',
+    });
+  });
+
+  it('dispose: прерывает signal, отклоняет незавершённые вызовы и закрывает call', async () => {
+    const { ctx, send, posted, document } = await mountPanel();
+    const pending = ctx.call('a');
+    const aborted = vi.fn();
+    ctx.signal.addEventListener('abort', aborted);
+    send({ dolphy: 1, type: 'dispose' });
+    expect(ctx.signal.aborted).toBe(true);
+    expect(aborted).toHaveBeenCalledOnce();
+    await expect(pending).rejects.toThrow('panel is closed');
+    await expect(ctx.call('b')).rejects.toThrow('panel is closed');
+    expect(callsOf(posted)).toHaveLength(1);
+    expect(document.body.children).toHaveLength(0);
+  });
+
+  it('модуль без mount() и неверный panelId — error', async () => {
+    const empty = setup(async () => ({ default: {} }));
+    empty.send(panelInit());
+    await empty.flush();
+    expect(empty.posted.at(-1)).toMatchObject({
+      type: 'error',
+      message: 'module has no default export with mount()',
+    });
+    const outside = setup(async () => ({}));
+    outside.send({
+      ...panelInit(),
+      rendererUrl: 'dolphy-ext://evil.other/panel.mjs',
+    });
+    await outside.flush();
+    expect(outside.posted.at(-1)).toMatchObject({
+      type: 'error',
+      message: 'renderer is outside the extension',
+    });
+  });
+
+  it('пересылает родителю только Ctrl/⌘+K', async () => {
+    const harness = await mountPanel();
+    const sent = () =>
+      harness.posted.filter((message) => message['type'] === 'shortcut');
+    press(harness, { key: 'k', ctrlKey: true });
+    press(harness, { key: 'K', metaKey: true });
+    press(harness, { key: 'л', code: 'KeyK', ctrlKey: true });
+    expect(sent()).toHaveLength(3);
+    expect(sent()[0]).toEqual({
+      dolphyFrame: 1,
+      type: 'shortcut',
+      key: 'mod+k',
+    });
+
+    const before = harness.posted.length;
+    press(harness, { key: 'k' });
+    press(harness, { key: 'k', ctrlKey: true, shiftKey: true });
+    press(harness, { key: 'k', ctrlKey: true, altKey: true });
+    press(harness, { key: 'j', ctrlKey: true });
+    press(harness, { key: 'Escape' });
+    press(harness, { key: 'Enter', ctrlKey: true });
+    press(harness, { key: 'Tab' });
+    expect(harness.posted).toHaveLength(before);
+  });
+
+  it('Ctrl+K: действие по умолчанию отменяется, автоповтор не шлёт повторно', async () => {
+    const harness = await mountPanel();
+    const event = new harness.happy.KeyboardEvent('keydown', {
+      key: 'k',
+      ctrlKey: true,
+      cancelable: true,
+    });
+    harness.document.dispatchEvent(event as never);
+    expect(event.defaultPrevented).toBe(true);
+    press(harness, { key: 'k', ctrlKey: true, repeat: true });
+    expect(harness.posted.filter((m) => m['type'] === 'shortcut')).toHaveLength(
+      1,
+    );
+  });
+
+  it('вне режима panel Ctrl/⌘+K не пересылается', async () => {
+    const harness = setup();
+    harness.define('x-answer');
+    harness.send(answerInit());
+    await harness.flush();
+    harness.document.dispatchEvent(
+      new harness.happy.KeyboardEvent('keydown', {
+        key: 'k',
+        ctrlKey: true,
+        bubbles: true,
+      }) as never,
+    );
+    expect(types(harness.posted)).not.toContain('shortcut');
+  });
+});

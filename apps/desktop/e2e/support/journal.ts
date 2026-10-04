@@ -65,3 +65,32 @@ export const shiftJournalBack = (userData: string, days: number) => {
     db.close();
   }
 };
+
+export interface ExtensionData {
+  storage: Record<string, unknown>;
+  settings: Record<string, unknown>;
+}
+
+/** Данные расширения в `engine.db`: хранилище кода и сохранённые значения настроек (чтение). */
+export const readExtensionData = (
+  userData: string,
+  extensionId: string,
+): ExtensionData => {
+  const db = open(userData, true);
+  try {
+    const rows = (table: string) =>
+      Object.fromEntries(
+        (
+          db
+            .prepare(`select key, value from ${table} where extension_id = ?`)
+            .all(extensionId) as Array<{ key: string; value: string }>
+        ).map(({ key, value }) => [key, JSON.parse(value) as unknown]),
+      );
+    return {
+      storage: rows('extension_storage'),
+      settings: rows('extension_setting'),
+    };
+  } finally {
+    db.close();
+  }
+};

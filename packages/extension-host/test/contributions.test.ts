@@ -1,4 +1,5 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { createDiscoveryHolder } from '../src/holder.ts';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -30,12 +31,16 @@ const withContributes = (contributes: Record<string, unknown>) => ({
 });
 
 describe('реестр точек вклада', () => {
-  it('содержит все четыре точки с уникальными ключами', () => {
+  it('содержит все восемь точек с уникальными ключами', () => {
     expect(CONTRIBUTION_POINTS.map(({ key }) => key)).toEqual([
       'exerciseTypes',
       'themes',
       'markdownRenderers',
       'gradePolicies',
+      'settings',
+      'events',
+      'commands',
+      'panels',
     ]);
   });
 
@@ -86,13 +91,17 @@ describe('main зависит от точек', () => {
     expect(result).toMatchObject({ ok: true, manifest: { main: './x.mjs' } });
   });
 
-  it('нормализованный манифест содержит все четыре массива', () => {
+  it('нормализованный манифест содержит массивы всех восьми точек', () => {
     const result = parseManifest(withContributes({ themes: [theme()] }));
     if (!result.ok) throw new Error(result.message);
     expect(result.manifest.contributes).toMatchObject({
       exerciseTypes: [],
       markdownRenderers: [],
       gradePolicies: [],
+      settings: [],
+      events: [],
+      commands: [],
+      panels: [],
     });
   });
 });
@@ -332,14 +341,24 @@ describe('createExtensionRegistry: contributions', () => {
       path.join(fixturesDir, 'acme.mixed'),
     );
     if (!themes.ok || !mixed.ok) throw new Error('fixtures must load');
-    const discovery = {
+    const discovery = createDiscoveryHolder({
       extensions: [
-        { ...themes.extension, origin: 'user' as const, install: null },
-        { ...mixed.extension, origin: 'bundled' as const, install: null },
+        {
+          ...themes.extension,
+          origin: 'user' as const,
+          revision: '',
+          install: null,
+        },
+        {
+          ...mixed.extension,
+          origin: 'bundled' as const,
+          revision: '',
+          install: null,
+        },
       ],
       overridden: [],
       diagnostics: [],
-    };
+    });
     const registry = createExtensionRegistry(
       discovery,
       createExtensionPolicy(discovery),
@@ -358,6 +377,10 @@ describe('createExtensionRegistry: contributions', () => {
       themes: ['acme.themes.night'],
       markdownRenderers: [],
       gradePolicies: [],
+      settings: [],
+      events: [],
+      commands: [],
+      panels: [],
     });
   });
 
@@ -366,13 +389,18 @@ describe('createExtensionRegistry: contributions', () => {
       path.join(fixturesDir, 'acme.themes'),
     );
     if (!themes.ok) throw new Error(themes.message);
-    const discovery = {
+    const discovery = createDiscoveryHolder({
       extensions: [
-        { ...themes.extension, origin: 'user' as const, install: null },
+        {
+          ...themes.extension,
+          origin: 'user' as const,
+          revision: '',
+          install: null,
+        },
       ],
       overridden: [],
       diagnostics: [],
-    };
+    });
     const registry = createExtensionRegistry(
       discovery,
       createExtensionPolicy(discovery),

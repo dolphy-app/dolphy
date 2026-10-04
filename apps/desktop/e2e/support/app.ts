@@ -58,6 +58,21 @@ export const createWorkspace = async (
 
 export interface DolphyApp {
   readonly page: Page;
+  /**
+   * Второе окно приложения (тот же `userData`, тот же движок): отдельное
+   * соединение с движком, чтобы менять расширения в одном окне, не трогая
+   * экран другого.
+   */
+  openWindow(): Promise<Page>;
+  /** `pid` живого хоста движка (`utilityProcess` `dolphy-engine`) или `null`, пока супервизор его перезапускает. */
+  engineHostPid(): Promise<number | null>;
+  /**
+   * Убивает хост движка `SIGKILL` по `pid`, как внезапный сбой: супервизор
+   * перезапускает его, окна получают новый порт. Возвращает убитый `pid`.
+   */
+  killEngineHost(): Promise<number>;
+  /** Выполняет функцию в главном процессе (модуль `electron` — первый аргумент). */
+  evaluateMain: ElectronApplication['evaluate'];
   /** Закрывает приложение и ждёт, пока хост движка отпустит `engine.db`. */
   close(): Promise<void>;
 }
@@ -91,8 +106,57 @@ export const launchApp = async (
   page.on('pageerror', (error) => {
     console.error(`[renderer pageerror] ${error.message}`);
   });
+  const engineHostPid = () =>
+    app.evaluate(
+      ({ app: electronApp }) =>
+        electronApp
+          .getAppMetrics()
+          .find(
+            (metric) =>
+              metric.type === 'Utility' && metric.name === 'dolphy-engine',
+          )?.pid ?? null,
+    );
   return {
     page,
+    engineHostPid,
+    evaluateMain: app.evaluate.bind(app),
+    killEngineHost: async () => {
+      const pid = await engineHostPid();
+      if (pid === null) throw new Error('engine host is not running');
+      process.kill(pid, 'SIGKILL');
+      return pid;
+    },
+    openWindow: async () => {
+      const opened = app.waitForEvent('window');
+      await app.evaluate(
+        ({ BrowserWindow }, preload) => {
+          const [first] = BrowserWindow.getAllWindows();
+          if (first === undefined) throw new Error('no window to copy');
+          const next = new BrowserWindow({
+            width: 1100,
+            height: 800,
+            // как у окна приложения (`createWindowOptions`); `preload` из настроек окна не прочитать
+            webPreferences: {
+              preload,
+              sandbox: true,
+              contextIsolation: true,
+              nodeIntegration: false,
+            },
+          });
+          // маршрут первого окна (например, сессия) не копируем: второе окно начинает с плана
+          const url = new URL(first.webContents.getURL());
+          url.hash = '';
+          void next.loadURL(url.href);
+        },
+        join(APP_DIR, E2E_BUILD_DIR, 'dist-electron/preload/index.cjs'),
+      );
+      const second = await opened;
+      await second.waitForLoadState('domcontentloaded');
+      second.on('pageerror', (error) => {
+        console.error(`[renderer pageerror] ${error.message}`);
+      });
+      return second;
+    },
     close: async () => {
       await app.close();
     },

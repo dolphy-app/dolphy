@@ -10,10 +10,14 @@ import {
 } from '@dolphy-app/engine-sqlite';
 import {
   createCatalog,
+  createDiscoveryHolder,
   createExtensionPolicy,
   createExtensionRegistry,
+  createExtensionReloader,
+  connectEngine,
   createHostChannel,
   createRemoteExerciseTypes,
+  createRemoteExtensionCommands,
   createRemoteGradePolicies,
   discoverExtensions,
 } from '@dolphy-app/extension-host';
@@ -29,11 +33,12 @@ export const boot = async (
   mkdirSync(config.libraryRoot, { recursive: true });
   mkdirSync(config.dataDir, { recursive: true });
   const defaults = nodeDefaults(config); // clock, rng, ids, logger, courseSource, snapshotInstaller, memoryModel
-  // журнал событий, настройки и реестр репозиториев — одна БД, одно соединение
+  // журнал событий, настройки, реестр репозиториев и данные расширений — одна БД, одно соединение
   const {
     events: eventStore,
     settings,
     repositories: repositoryStore,
+    extensionData: extensionDataStore,
   } = openSqliteStorage({
     path: join(config.dataDir, 'engine.db'),
     durability: config.durability ?? 'full',
@@ -49,11 +54,14 @@ export const boot = async (
     defaults.logger.warn({ error }, 'legacy settings were not imported');
   }
   // расширения: манифесты читаем здесь (без запуска кода), код исполняется в хосте расширений
-  const discovery = await discoverExtensions({
-    roots: extensionRoots(config),
-    logger: defaults.logger,
-    ...(config.appVersion ? { appVersion: config.appVersion } : {}),
-  });
+  const discover = () =>
+    discoverExtensions({
+      roots: extensionRoots(config),
+      logger: defaults.logger,
+      ...(config.appVersion ? { appVersion: config.appVersion } : {}),
+    });
+  // один изменяемый снимок на политику, каталог, реестр и установщик: `reload` меняет его целиком
+  const discovery = createDiscoveryHolder(await discover());
   // установка из каталога: отзыв читается из кэша индекса, поэтому кэш загружается до движка
   const extensionInstaller = createDesktopInstaller({
     config,
@@ -62,14 +70,16 @@ export const boot = async (
   });
   await extensionInstaller.ready();
   const { revocationOf } = extensionInstaller;
-  // один канал к хосту расширений: виды заданий и правила оценки делят порт, дедлайны и перезапуск
+  // один канал к хосту расширений: виды заданий и правила оценки делят порт, дедлайны и перезапуск;
+  // хост расширений сам расширения не ищет: после каждого подключения ему уходит текущий набор
   const channel = createHostChannel({
     logger: defaults.logger,
     restart: restartExtHost,
+    currentExtensions: () => discovery.get().extensions,
   });
   // одна политика на каталог, клиентов хоста, реестр и движок: «Настройки → Расширения» действует сразу
   const policy = createExtensionPolicy(discovery, revocationOf);
-  const catalog = createCatalog(discovery.extensions, policy);
+  const catalog = createCatalog(discovery, policy);
   const exerciseTypes = createRemoteExerciseTypes({
     channel,
     catalog,
@@ -79,6 +89,12 @@ export const boot = async (
   const gradePolicies = createRemoteGradePolicies({
     channel,
     catalog,
+    policy,
+    logger: defaults.logger,
+  });
+  const extensionCommands = createRemoteExtensionCommands({
+    channel,
+    discovery,
     policy,
     logger: defaults.logger,
   });
@@ -94,9 +110,11 @@ export const boot = async (
       settings,
       eventStore,
       repositoryStore,
+      extensionDataStore,
       snapshotFetcher: createIsomorphicGitFetcher(),
       exerciseTypes,
       gradePolicies,
+      extensionCommands,
       extensionRegistry: createExtensionRegistry(
         discovery,
         policy,
@@ -104,9 +122,24 @@ export const boot = async (
       ),
       extensionPolicy: policy,
       extensionInstaller,
+      extensionReloader: createExtensionReloader({
+        holder: discovery,
+        discover,
+        channel,
+        logger: defaults.logger,
+      }),
       openTraneSource: readTraneDirectory,
     },
     config,
   );
+  // хост расширений получает данные расширений, изменения настроек и события обучения;
+  // отключать не нужно: закрытие движка закрывает канал и снимает подписки
+  connectEngine({
+    channel,
+    engine,
+    discovery,
+    policy,
+    logger: defaults.logger,
+  });
   return { engine, logger: defaults.logger, channel };
 };

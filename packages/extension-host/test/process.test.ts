@@ -8,7 +8,7 @@ import { createHostChannel } from '../src/channel.ts';
 import { createRemoteExerciseTypes } from '../src/client.ts';
 import { discoverExtensions } from '../src/discover.ts';
 import { createAllTrustedPolicy } from '../src/policy.ts';
-import { createLogger } from './helpers.ts';
+import { createLogger, holderOf } from './helpers.ts';
 
 const childPath = fileURLToPath(
   new URL('./fixtures/host-child.mjs', import.meta.url),
@@ -71,7 +71,7 @@ describe('extension host в отдельном процессе', () => {
     const channel = createHostChannel({ logger, connectTimeoutMs: 5000 });
     const client = createRemoteExerciseTypes({
       channel,
-      catalog: createCatalog(extensions, createAllTrustedPolicy()),
+      catalog: createCatalog(holderOf(extensions), createAllTrustedPolicy()),
       policy: createAllTrustedPolicy(),
       logger,
     });

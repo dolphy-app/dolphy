@@ -5,6 +5,8 @@ import { formatBytes } from '../lib/format.ts';
 import type { InstallItemStatus } from '../model/install.ts';
 import { useInstallContext } from '../model/install.ts';
 import ExtensionContributions from './ExtensionContributions.vue';
+import ExtensionTags from './ExtensionTags.vue';
+import ExtensionHeading from './ExtensionHeading.vue';
 import ExtensionPermissions from './ExtensionPermissions.vue';
 
 interface StatusView {
@@ -87,12 +89,14 @@ const closeOnBackdrop = (open: boolean) => {
             :data-extension-id="item.target.id"
           >
             <div class="d-flex flex-wrap align-center ga-2">
-              <h3
-                v-if="install.items.value.length > 1 || isFinished"
-                class="name text-title-medium font-weight-bold"
-              >
-                {{ item.target.name }}
-              </h3>
+              <ExtensionHeading :icon="item.target.icon">
+                <h3
+                  v-if="install.items.value.length > 1 || isFinished"
+                  class="name text-title-medium font-weight-bold"
+                >
+                  {{ item.target.name }}
+                </h3>
+              </ExtensionHeading>
               <span class="id text-body-small text-medium-emphasis">
                 {{ item.target.id }}
               </span>
@@ -155,7 +159,12 @@ const closeOnBackdrop = (open: boolean) => {
             </v-alert>
 
             <template v-if="isDetailed">
-              <ExtensionContributions :contributes="item.target.contributes" />
+              <ExtensionTags :tags="item.target.tags" />
+              <ExtensionContributions
+                :contributes="item.target.contributes"
+                :titles="item.target.titles"
+                :name="item.target.name"
+              />
               <ExtensionPermissions :permissions="item.target.permissions" />
               <p
                 v-if="item.target.platforms.length > 0"
@@ -199,16 +208,6 @@ const closeOnBackdrop = (open: boolean) => {
               : t('settings.extensions.install.partial')
           }}
         </v-alert>
-        <v-alert
-          v-if="install.applyError.value"
-          type="error"
-          variant="tonal"
-          density="compact"
-          class="mt-3"
-        >
-          {{ t('settings.extensions.installed.applyFailed') }}:
-          {{ install.applyError.value }}
-        </v-alert>
       </v-card-text>
 
       <v-card-actions>
@@ -243,31 +242,12 @@ const closeOnBackdrop = (open: boolean) => {
             {{ t('settings.extensions.install.retry') }}
           </v-btn>
           <v-btn
-            v-if="!install.succeeded.value"
             variant="text"
+            data-testid="install-close"
             @click="install.dismiss"
           >
             {{ t('settings.extensions.install.close') }}
           </v-btn>
-          <template v-else>
-            <v-btn
-              variant="text"
-              data-testid="install-later"
-              @click="install.dismiss"
-            >
-              {{ t('settings.extensions.install.later') }}
-            </v-btn>
-            <v-btn
-              variant="flat"
-              color="primary"
-              prepend-icon="mdi-reload"
-              :loading="install.applying.value"
-              data-testid="install-apply"
-              @click="install.apply"
-            >
-              {{ t('settings.extensions.install.reloadNow') }}
-            </v-btn>
-          </template>
         </template>
       </v-card-actions>
     </v-card>

@@ -48,6 +48,8 @@ export const createFakeExerciseTypes = (
           type,
           extensionId: type,
           extensionVersion: '0.0.0',
+          extensionOrigin: 'user',
+          extensionRevision: 'rev-0',
           element: fake.element ?? `fake-${type.replaceAll('.', '-')}`,
           rendererUrl: `dolphy-ext://fake/${type}.mjs`,
         };

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { nextTick, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type {
   ExtensionInfoDto,
@@ -7,15 +7,21 @@ import type {
 } from '@dolphy-app/engine-contract';
 import { useEngine } from '@/shared/api/engine';
 import { displayName } from '../lib/catalog.ts';
+import { effectiveTags } from '../lib/tags.ts';
 import {
   hasSwitches,
   isEnabled,
   isTrusted,
   useExtensions,
 } from '../model/extensions.ts';
+import { useExtensionData } from '../model/extension-data.ts';
 import { useInstallContext } from '../model/install.ts';
 import ExtensionContributions from './ExtensionContributions.vue';
+import ExtensionTags from './ExtensionTags.vue';
+import ExtensionData from './ExtensionData.vue';
+import ExtensionHeading from './ExtensionHeading.vue';
 import ExtensionPermissions from './ExtensionPermissions.vue';
+import ExtensionSettingsDialog from './ExtensionSettingsDialog.vue';
 
 interface StateView {
   icon: string;
@@ -43,7 +49,6 @@ const {
   load,
   switching,
   switchError,
-  needsReload,
   setEnabled,
   setTrusted,
   setCheckUpdates,
@@ -51,44 +56,68 @@ const {
 } = useExtensions(useEngine());
 
 const removeTarget = ref<ExtensionInfoDto | null>(null);
+const removeData = ref(false);
+const settingsTarget = ref<ExtensionInfoDto | null>(null);
+const data = useExtensionData(useEngine(), items);
 
-/** Обновления, которые ещё не установлены в этом запуске. */
-const openUpdates = computed(() =>
-  updates.value.filter(({ id }) => !install.pending.value.has(id)),
-);
+/** Настройки есть у загруженного (включённого) расширения, объявившего `settings`. */
+const hasSettings = (extension: ExtensionInfoDto) =>
+  extension.state === 'loaded' && extension.contributes.settings.length > 0;
 
 const updateOf = (id: string) =>
-  openUpdates.value.find((update) => update.id === id);
+  updates.value.find((update) => update.id === id);
 
 const isMuted = (extension: ExtensionInfoDto) =>
-  extension.state === 'overridden' ||
-  extension.state === 'disabled' ||
-  install.pending.value.has(extension.id);
+  extension.state === 'overridden' || extension.state === 'disabled';
 
 const isActive = (extension: ExtensionInfoDto) =>
   extension.state === 'loaded' || extension.state === 'disabled';
-
-const reloadWindow = () => {
-  location.reload();
-};
 
 const reviewUpdates = async (ids?: readonly string[]) => {
   install.review(await updateTargets(ids));
 };
 
-const askRemove = (extension: ExtensionInfoDto) => {
+// кнопка, открывшая диалог: после закрытия фокус возвращается на неё
+let opener: HTMLElement | null = null;
+
+const rememberOpener = (event: Event) => {
+  opener =
+    event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
+};
+
+const restoreFocus = () => {
+  void nextTick(() => opener?.focus());
+};
+
+const openSettings = (extension: ExtensionInfoDto, event: Event) => {
+  rememberOpener(event);
+  settingsTarget.value = extension;
+};
+
+const closeSettings = () => {
+  settingsTarget.value = null;
+  restoreFocus();
+};
+
+const askRemove = (extension: ExtensionInfoDto, event: Event) => {
+  rememberOpener(event);
   install.removeError.value = null;
+  removeData.value = false;
   removeTarget.value = extension;
 };
 
 const confirmRemove = async () => {
   const target = removeTarget.value;
   if (target === null) return;
-  if (await install.remove(target.id)) removeTarget.value = null;
+  if (await install.remove(target.id, removeData.value)) {
+    removeTarget.value = null;
+  }
 };
 
 const closeRemove = () => {
-  if (install.removing.value === null) removeTarget.value = null;
+  if (install.removing.value !== null) return;
+  removeTarget.value = null;
+  restoreFocus();
 };
 
 // обновления могли появиться, пока открыт «Каталог»: при возврате читаем заново
@@ -125,56 +154,22 @@ watch(
       </div>
     </v-alert>
 
-    <v-alert
-      v-if="needsReload"
-      type="info"
-      variant="tonal"
-      class="mb-6"
-      data-testid="extensions-reload"
-    >
-      <div class="d-flex align-center ga-3">
-        <span class="flex-grow-1">{{
-          t('settings.extensions.reload.message')
-        }}</span>
-        <v-btn variant="text" prepend-icon="mdi-reload" @click="reloadWindow">
-          {{ t('settings.extensions.reload.action') }}
-        </v-btn>
-      </div>
-    </v-alert>
-
-    <v-alert
-      v-if="install.needsApply.value && install.phase.value === 'idle'"
-      type="info"
-      variant="tonal"
-      class="mb-6"
-      data-testid="extensions-apply"
-    >
-      <div class="d-flex align-center ga-3">
-        <span class="flex-grow-1">{{
-          t('settings.extensions.installed.applyMessage')
-        }}</span>
-        <v-btn
-          variant="text"
-          prepend-icon="mdi-reload"
-          :loading="install.applying.value"
-          @click="install.apply"
-        >
-          {{ t('settings.extensions.installed.applyAction') }}
-        </v-btn>
-      </div>
-      <p v-if="install.applyError.value" class="text-body-small mt-2">
-        {{ t('settings.extensions.installed.applyFailed') }}:
-        {{ install.applyError.value }}
-      </p>
-    </v-alert>
-
     <v-alert v-if="switchError" type="error" variant="tonal" class="mb-6">
       {{ t('settings.extensions.switchFailed') }}: {{ switchError }}
     </v-alert>
 
+    <v-alert
+      v-if="data.clearError.value"
+      type="error"
+      variant="tonal"
+      class="mb-6"
+    >
+      {{ t('settings.extensions.data.failed') }}: {{ data.clearError.value }}
+    </v-alert>
+
     <template v-if="state === 'loaded'">
       <v-alert
-        v-if="openUpdates.length > 0"
+        v-if="updates.length > 0"
         type="info"
         variant="tonal"
         class="mb-6"
@@ -184,8 +179,8 @@ watch(
           <span class="flex-grow-1">{{
             t(
               'settings.extensions.installed.updatesBanner',
-              { n: openUpdates.length },
-              openUpdates.length,
+              { n: updates.length },
+              updates.length,
             )
           }}</span>
           <v-btn
@@ -193,7 +188,7 @@ watch(
             color="primary"
             prepend-icon="mdi-update"
             :disabled="install.phase.value === 'running'"
-            @click="reviewUpdates(openUpdates.map(({ id }) => id))"
+            @click="reviewUpdates(updates.map(({ id }) => id))"
           >
             {{ t('settings.extensions.installed.updateAll') }}
           </v-btn>
@@ -245,9 +240,11 @@ watch(
         >
           <v-card class="pa-4">
             <div class="d-flex flex-wrap align-center ga-2">
-              <h3 class="name text-title-medium font-weight-bold">
-                {{ displayName(extension) }}
-              </h3>
+              <ExtensionHeading :icon="extension.icon">
+                <h3 class="name text-title-medium font-weight-bold">
+                  {{ displayName(extension) }}
+                </h3>
+              </ExtensionHeading>
               <span
                 v-if="extension.name !== null"
                 class="id text-body-small text-medium-emphasis"
@@ -334,6 +331,9 @@ watch(
             >
               {{ extension.description }}
             </p>
+            <ExtensionTags
+              :tags="effectiveTags(extension.tags, extension.contributes)"
+            />
 
             <v-alert
               v-if="extension.revoked !== null"
@@ -370,7 +370,18 @@ watch(
               v-if="isActive(extension)"
               :permissions="extension.permissions"
             />
-            <ExtensionContributions :contributes="extension.contributes" />
+            <ExtensionContributions
+              :contributes="extension.contributes"
+              :titles="extension.titles"
+              :name="extension.name"
+            />
+            <ExtensionData
+              v-if="isActive(extension)"
+              :extension="extension"
+              :usage="data.usage.value.get(extension.id)"
+              :clearing="data.clearing.value === extension.id"
+              @clear="data.clear(extension.id)"
+            />
 
             <div v-if="hasSwitches(extension)" class="switches mt-3">
               <v-switch
@@ -400,22 +411,22 @@ watch(
               </p>
             </div>
 
-            <p
-              v-if="install.pending.value.has(extension.id)"
-              class="d-flex align-center ga-1 text-body-medium mt-3"
-              data-testid="pending-change"
-            >
-              <v-icon icon="mdi-restart" size="small" aria-hidden="true" />
-              {{
-                t(
-                  `settings.extensions.installed.pending.${install.pending.value.get(extension.id)?.kind}`,
-                  {
-                    version: install.pending.value.get(extension.id)?.version,
-                  },
-                )
-              }}
-            </p>
-            <div v-else class="d-flex flex-wrap ga-2 mt-3">
+            <div class="d-flex flex-wrap ga-2 mt-3">
+              <v-btn
+                v-if="hasSettings(extension)"
+                variant="tonal"
+                size="small"
+                prepend-icon="mdi-cog-outline"
+                :aria-label="
+                  t('settings.extensions.action.settingsLabel', {
+                    name: displayName(extension),
+                  })
+                "
+                :data-testid="`settings-${extension.id}`"
+                @click="openSettings(extension, $event)"
+              >
+                {{ t('settings.extensions.action.settings') }}
+              </v-btn>
               <v-btn
                 v-if="updateOf(extension.id)"
                 variant="tonal"
@@ -450,7 +461,7 @@ watch(
                   })
                 "
                 :data-testid="`remove-${extension.id}`"
-                @click="askRemove(extension)"
+                @click="askRemove(extension, $event)"
               >
                 {{ t('settings.extensions.action.remove') }}
               </v-btn>
@@ -477,6 +488,16 @@ watch(
         </v-card-title>
         <v-card-text>
           <p>{{ t('settings.extensions.remove.text') }}</p>
+          <v-checkbox
+            v-model="removeData"
+            :label="t('settings.extensions.remove.removeData')"
+            :hint="t('settings.extensions.remove.removeDataHint')"
+            persistent-hint
+            density="compact"
+            color="error"
+            :disabled="install.removing.value !== null"
+            data-testid="remove-data"
+          />
           <v-alert
             v-if="install.removeError.value"
             type="error"
@@ -509,6 +530,13 @@ watch(
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <ExtensionSettingsDialog
+      v-if="settingsTarget !== null"
+      :key="settingsTarget.id"
+      :extension="settingsTarget"
+      @close="closeSettings"
+    />
   </div>
 </template>
 

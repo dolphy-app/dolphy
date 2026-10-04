@@ -1,11 +1,11 @@
-import { cp, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createWorkspace, launchApp } from './support/app.ts';
 import type { DolphyApp, Workspace } from './support/app.ts';
-import { Client } from './support/client.ts';
+import { ANSWER_FRAME, Client } from './support/client.ts';
 import { readJournal } from './support/journal.ts';
 
 const ECHO = 'Echo (KnowledgeBase)';
@@ -65,13 +65,34 @@ afterEach(async () => {
   await rm(devRoot, { recursive: true, force: true });
 });
 
+const PASSED = 'Верно';
+
+/** Нажимает «Проверить», пока правка не вступит в силу: проходит первая же проверка после неё. */
+const checkUntilPassed = async (client: Client) => {
+  const check = client.page.getByRole('button', {
+    name: 'Проверить',
+    exact: true,
+  });
+  await expect
+    .poll(
+      async () => {
+        if (await client.page.getByText(PASSED, { exact: true }).isVisible()) {
+          return true;
+        }
+        if (await check.isEnabled()) await check.click();
+        return client.page.getByText(PASSED, { exact: true }).isVisible();
+      },
+      { timeout: 30_000, interval: 500 },
+    )
+    .toBe(true);
+};
+
 describe('режим разработчика (DOLPHY_DEV_EXTENSIONS)', () => {
-  it('правка main.mjs в каталоге разработчика меняет вердикт без перезапуска приложения', async () => {
+  it('правка main.mjs в каталоге разработчика меняет вердикт, окно не перезагружается', async () => {
     app = await launchApp(workspace.userData, {
       DOLPHY_DEV_EXTENSIONS: devRoot,
     });
-    const { page } = app;
-    const client = new Client(page);
+    const client = new Client(app.page);
     await client.openCourses();
     await client.focusCourse(ECHO);
     expect(await client.planTotal()).toBe(1);
@@ -79,23 +100,88 @@ describe('режим разработчика (DOLPHY_DEV_EXTENSIONS)', () => {
     await client.submitWrong({ text: '41' });
     expect(readJournal(workspace.userData)).toHaveLength(0);
 
-    // маркер исчезнет только с перезагрузкой страницы
-    await page.evaluate(() => Reflect.set(globalThis, 'devMarker', true));
-    const reloaded = page.waitForEvent('load', { timeout: 30_000 });
+    const stillSameWindow = await client.markWindow();
     await writeFile(join(devRoot, 'acme.echo', 'main.mjs'), ALWAYS_PASSES);
-    await reloaded;
-    await expect
-      .poll(() => page.evaluate(() => Reflect.get(globalThis, 'devMarker')), {
-        timeout: 15_000,
-      })
-      .toBeUndefined();
+    await checkUntilPassed(client);
+    await stillSameWindow();
 
-    // маршрут сессии переживает перезагрузку: то же упражнение появляется заново
-    expect((await client.currentExercise()).verifiable).toBe(true);
-    const summary = await client.runSession(() => ({ text: '41' }));
-    expect(summary.count).toBe(1);
+    // сессия осталась открытой: она завершается обычным путём
+    await client.page
+      .getByRole('button', { name: /^(Далее|Завершить)$/ })
+      .click();
+    await client.page
+      .getByText('Сессия завершена', { exact: true })
+      .waitFor({ timeout: 15_000 });
     expect(readJournal(workspace.userData)).toMatchObject([
       { unit_id: 'echo_kb::basic::q1', source: 'runner' },
     ]);
+    await stillSameWindow();
+  });
+
+  it('правка элемента ввода пересоздаёт смонтированный элемент расширения dev', async () => {
+    app = await launchApp(workspace.userData, {
+      DOLPHY_DEV_EXTENSIONS: devRoot,
+    });
+    const { page } = app;
+    const client = new Client(page);
+    await client.openCourses();
+    await client.focusCourse(ECHO);
+    await client.startSession();
+    const frame = page.locator(ANSWER_FRAME);
+    await frame.waitFor({ state: 'attached' });
+    await frame.evaluate((node) => Reflect.set(node, '__old', true));
+    const stillSameWindow = await client.markWindow();
+
+    const view = await readFile(join(devRoot, 'acme.echo', 'view.mjs'), 'utf8');
+    await writeFile(
+      join(devRoot, 'acme.echo', 'view.mjs'),
+      view.replace(
+        'connectedCallback() {',
+        "connectedCallback() {\n    this.setAttribute('data-edited', 'yes');",
+      ),
+    );
+    // новая рамка: старый узел заменён, внутри уже правленый элемент
+    await expect
+      .poll(
+        () => frame.evaluate((node) => Reflect.get(node, '__old') === true),
+        { timeout: 30_000 },
+      )
+      .toBe(false);
+    await page
+      .frameLocator(ANSWER_FRAME)
+      .locator('acme-echo-answer[data-edited=yes]')
+      .waitFor({ state: 'attached', timeout: 30_000 });
+    await stillSameWindow();
+  });
+
+  it('сбой одного расширения в каталоге разработчика не мешает остальным, причина видна в настройках', async () => {
+    app = await launchApp(workspace.userData, {
+      DOLPHY_DEV_EXTENSIONS: devRoot,
+    });
+    const client = new Client(app.page);
+    await client.openSettingsExtensions();
+    const stillSameWindow = await client.markWindow();
+
+    const broken = join(devRoot, 'acme.broken');
+    await mkdir(broken);
+    await writeFile(
+      join(broken, 'extension.json'),
+      JSON.stringify({ id: 'acme.broken' }),
+    );
+    // список обновляется сам: правка сообщает только о вкладах
+    await expect
+      .poll(async () => (await client.readExtensions('acme.broken'))[0], {
+        timeout: 30_000,
+      })
+      .toContain('Не загрузилось');
+    const [echo] = await client.readExtensions('acme.echo');
+    expect(echo).toContain('Загружено');
+    expect(echo).toContain('Разработка');
+
+    await client.openCourses();
+    await client.focusCourse(ECHO);
+    await client.startSession();
+    await client.submitWrong({ text: '41' });
+    await stillSameWindow();
   });
 });

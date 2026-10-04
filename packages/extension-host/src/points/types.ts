@@ -1,4 +1,10 @@
 import type {
+  CommandContributionDto,
+  ExtensionSettingDefDto,
+  PanelContributionDto,
+} from '@dolphy-app/engine-contract';
+import type {
+  EventContribution,
   ExtensionManifest,
   ExtensionManifestInput,
   GradePolicyContribution,
@@ -30,11 +36,31 @@ export interface ResolvedMarkdownRenderer {
 
 export type ResolvedGradePolicy = GradePolicyContribution;
 
+type WithoutExtension<T> = T extends unknown ? Omit<T, 'extensionId'> : never;
+
+/** Определение настройки в виде, в котором его получает окно (DTO движка без `extensionId`). */
+export type ResolvedSetting = WithoutExtension<ExtensionSettingDefDto>;
+
+export type ResolvedEvent = EventContribution;
+
+/** Команда в виде, в котором её получает окно (DTO движка без `extensionId`). */
+export type ResolvedCommand = Omit<CommandContributionDto, 'extensionId'>;
+
+/** Панель: модуль в рамке; `isolated`, `origin` и `revision` добавляет реестр. */
+export type ResolvedPanel = Pick<
+  PanelContributionDto,
+  'id' | 'title' | 'rendererUrl'
+>;
+
 export interface ResolvedContributions {
   exerciseTypes: ResolvedExerciseType[];
   themes: ResolvedTheme[];
   markdownRenderers: ResolvedMarkdownRenderer[];
   gradePolicies: ResolvedGradePolicy[];
+  settings: ResolvedSetting[];
+  events: ResolvedEvent[];
+  commands: ResolvedCommand[];
+  panels: ResolvedPanel[];
 }
 
 export type PointKey = keyof ResolvedContributions;

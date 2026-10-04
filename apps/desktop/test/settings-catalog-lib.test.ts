@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   entryAction,
+  facetCounts,
   filterEntries,
   hasActiveFilters,
   targetFromEntry,
   targetFromUpdate,
 } from '@/pages/settings/lib/catalog.ts';
 import type { ContributionPoint } from '@/pages/settings/lib/catalog.ts';
+import type { ExtensionTag, TagGroup } from '@/pages/settings/lib/tags.ts';
 import { describeInstallFailure } from '@/pages/settings/lib/install-error.ts';
 import {
   NO_CONTRIBUTES,
@@ -16,6 +18,14 @@ import {
 } from './support/extensions-fakes.ts';
 
 const NO_KINDS: ReadonlySet<ContributionPoint> = new Set();
+const NO_GROUPS: ReadonlySet<TagGroup> = new Set();
+const NO_TAGS: ReadonlySet<ExtensionTag> = new Set();
+const NO_FILTERS = {
+  query: '',
+  groups: NO_GROUPS,
+  tags: NO_TAGS,
+  kinds: NO_KINDS,
+};
 
 const ENTRIES = [
   catalogEntry('acme.sunrise', {
@@ -44,7 +54,10 @@ const ENTRIES = [
 const names = (
   query: string,
   kinds: ReadonlySet<ContributionPoint> = NO_KINDS,
-) => filterEntries(ENTRIES, { query, kinds }).map((entry) => entry.id);
+) =>
+  filterEntries(ENTRIES, { ...NO_FILTERS, query, kinds }).map(
+    (entry) => entry.id,
+  );
 
 describe('filterEntries', () => {
   it('ищет по названию, id, описанию и автору без учёта регистра, в том числе по-русски', () => {
@@ -70,10 +83,7 @@ describe('filterEntries', () => {
         fallback: null,
       },
     });
-    const result = filterEntries([...ENTRIES, incompatible], {
-      query: '',
-      kinds: NO_KINDS,
-    });
+    const result = filterEntries([...ENTRIES, incompatible], NO_FILTERS);
     expect(result.map((entry) => entry.id)).toContain('acme.new');
     expect(result.map((entry) => entry.id)).not.toContain('acme.win');
   });
@@ -98,14 +108,126 @@ describe('filterEntries', () => {
   });
 
   it('hasActiveFilters: пробелы в запросе фильтром не считаются', () => {
-    expect(hasActiveFilters({ query: '  ', kinds: NO_KINDS })).toBe(false);
-    expect(hasActiveFilters({ query: 'a', kinds: NO_KINDS })).toBe(true);
+    expect(hasActiveFilters({ ...NO_FILTERS, query: '  ' })).toBe(false);
+    expect(hasActiveFilters({ ...NO_FILTERS, query: 'a' })).toBe(true);
     expect(
       hasActiveFilters({
-        query: '',
+        ...NO_FILTERS,
         kinds: new Set<ContributionPoint>(['themes']),
       }),
     ).toBe(true);
+    expect(
+      hasActiveFilters({
+        ...NO_FILTERS,
+        groups: new Set<TagGroup>(['learning']),
+      }),
+    ).toBe(true);
+    expect(
+      hasActiveFilters({
+        ...NO_FILTERS,
+        tags: new Set<ExtensionTag>(['theme']),
+      }),
+    ).toBe(true);
+  });
+});
+
+describe('фильтры по группам и тегам', () => {
+  // theme+interface (явно), learning (по виду заданий), content (по рендереру),
+  // developer (явно), productivity (по команде) и расширение без вкладов
+  const TAGGED = [
+    catalogEntry('a.sunset', { tags: ['theme', 'interface'] }),
+    catalogEntry('a.quiz', {
+      contributes: { ...NO_CONTRIBUTES, exerciseTypes: ['a.quiz'] },
+    }),
+    catalogEntry('a.math', {
+      contributes: { ...NO_CONTRIBUTES, markdownRenderers: ['math'] },
+    }),
+    catalogEntry('a.sdk', {
+      tags: ['developer'],
+      contributes: { ...NO_CONTRIBUTES, commands: ['a.sdk.run'] },
+    }),
+    catalogEntry('a.cmd', {
+      contributes: { ...NO_CONTRIBUTES, commands: ['a.cmd.run'] },
+    }),
+    catalogEntry('a.bare', { contributes: NO_CONTRIBUTES }),
+  ];
+  const ids = (override: Partial<typeof NO_FILTERS>) =>
+    filterEntries(TAGGED, { ...NO_FILTERS, ...override }).map((e) => e.id);
+
+  it('группа — объединение её тегов; явные теги заменяют вычисленные', () => {
+    expect(ids({ groups: new Set<TagGroup>(['appearance']) })).toEqual([
+      'a.sunset',
+      'a.cmd',
+    ]);
+    expect(ids({ groups: new Set<TagGroup>(['learning']) })).toEqual([
+      'a.quiz',
+      'a.math',
+    ]);
+    // a.sdk имеет команды (productivity по вкладам), но явный тег только developer
+    expect(ids({ groups: new Set<TagGroup>(['developers']) })).toEqual([
+      'a.sdk',
+    ]);
+  });
+
+  it('внутри ряда «или»', () => {
+    expect(
+      ids({ groups: new Set<TagGroup>(['learning', 'developers']) }),
+    ).toEqual(['a.quiz', 'a.math', 'a.sdk']);
+    expect(ids({ tags: new Set<ExtensionTag>(['content', 'theme']) })).toEqual([
+      'a.sunset',
+      'a.math',
+    ]);
+  });
+
+  it('между рядами и с поиском «и»', () => {
+    expect(
+      ids({
+        groups: new Set<TagGroup>(['appearance']),
+        tags: new Set<ExtensionTag>(['productivity']),
+      }),
+    ).toEqual(['a.cmd']);
+    expect(
+      ids({
+        groups: new Set<TagGroup>(['appearance']),
+        kinds: new Set<ContributionPoint>(['commands']),
+      }),
+    ).toEqual(['a.cmd']);
+    expect(
+      ids({
+        groups: new Set<TagGroup>(['appearance']),
+        query: 'sunset',
+      }),
+    ).toEqual(['a.sunset']);
+    expect(
+      ids({ tags: new Set<ExtensionTag>(['theme']), query: 'quiz' }),
+    ).toEqual([]);
+  });
+
+  it('числа считаются по поиску и не зависят от выбранных фильтров', () => {
+    const all = facetCounts(TAGGED, '');
+    expect(all.groups).toEqual({ learning: 2, appearance: 2, developers: 1 });
+    expect(all.tags).toMatchObject({
+      theme: 1,
+      interface: 1,
+      learning: 1,
+      content: 1,
+      productivity: 1,
+      developer: 1,
+      language: 0,
+    });
+    expect(facetCounts(TAGGED, 'sunset').groups).toEqual({
+      learning: 0,
+      appearance: 1,
+      developers: 0,
+    });
+  });
+
+  it('недоступные на платформе записи в числа не входят', () => {
+    const hidden = catalogEntry('a.win', {
+      tags: ['theme'],
+      incompatible: { reason: 'platform', detail: 'x', fallback: null },
+    });
+    expect(facetCounts([hidden], '').tags.theme).toBe(0);
   });
 });
 
@@ -177,6 +299,62 @@ describe('цели установки', () => {
       sizeBytes: 50,
       installedVersion: null,
     });
+  });
+
+  it('названия вкладов и эффективные теги идут в диалог установки', () => {
+    const titles = { themes: { 'a.night': 'Полночь' } };
+    const entry = catalogEntry('a.night', { titles, tags: ['interface'] });
+    expect(targetFromEntry(entry, catalogVersion('1.0.0'))).toMatchObject({
+      titles,
+      tags: ['interface'],
+    });
+    const update = {
+      id: 'a.night',
+      name: 'Night',
+      installed: '1.0.0',
+      available: catalogVersion('1.1.0'),
+    };
+    const info = extensionInfo('a.night', {
+      titles: { themes: { old: 'Старая' } },
+      tags: ['developer'],
+    });
+    expect(targetFromUpdate(update, info, entry)).toMatchObject({
+      titles,
+      tags: ['interface'],
+    });
+    expect(targetFromUpdate(update, info, undefined)).toMatchObject({
+      titles: { themes: { old: 'Старая' } },
+      tags: ['developer'],
+    });
+    expect(targetFromUpdate(update, undefined, undefined)).toMatchObject({
+      titles: {},
+      tags: [],
+    });
+  });
+
+  it('the install dialog gets the icon: from the catalog entry, else from the installed copy, else none', () => {
+    const icon = 'data:image/png;base64,AAAA';
+    const version = catalogVersion('1.0.0');
+    expect(targetFromEntry(catalogEntry('a.b', { icon }), version).icon).toBe(
+      icon,
+    );
+    expect(targetFromEntry(catalogEntry('a.b'), version).icon).toBeNull();
+    const update = {
+      id: 'a.b',
+      name: 'A B',
+      installed: '1.0.0',
+      available: catalogVersion('1.1.0'),
+    };
+    const installed = extensionInfo('a.b', {
+      icon: 'data:image/png;base64,BBBB',
+    });
+    expect(
+      targetFromUpdate(update, installed, catalogEntry('a.b', { icon })).icon,
+    ).toBe(icon);
+    expect(targetFromUpdate(update, installed, undefined).icon).toBe(
+      'data:image/png;base64,BBBB',
+    );
+    expect(targetFromUpdate(update, undefined, undefined).icon).toBeNull();
   });
 
   it('targetFromUpdate: вклады и автор из каталога, иначе из установленного', () => {

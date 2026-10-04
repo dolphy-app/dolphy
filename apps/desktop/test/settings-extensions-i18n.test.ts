@@ -1,5 +1,8 @@
 import { createI18n } from 'vue-i18n';
 import { describe, expect, it } from 'vitest';
+import { EXTENSION_TAGS } from '@dolphy-app/extension-api';
+import { EVENT_MESSAGE_KEYS } from '@/pages/settings/lib/catalog.ts';
+import { GROUPS } from '@/pages/settings/lib/tags.ts';
 import { messages as settingsMessages } from '@/pages/settings/i18n/index.ts';
 import { russianPluralRule } from '@/shared/i18n';
 
@@ -19,6 +22,7 @@ const PLURAL_KEYS = [
   'count',
   'catalog.found',
   'install.titleUpdateAll',
+  'data.keys',
 ] as const;
 
 const leaf = (locale: 'ru' | 'en', path: string): string =>
@@ -34,6 +38,20 @@ describe('строки «Расширения»', () => {
     expect(keysOf(extensions('en')).sort()).toEqual(
       keysOf(extensions('ru')).sort(),
     );
+  });
+
+  it('теги, группы и события имеют название на обоих языках', () => {
+    for (const locale of ['ru', 'en'] as const) {
+      for (const tag of EXTENSION_TAGS) {
+        expect(leaf(locale, `tags.${tag}`), `${locale} ${tag}`).not.toBe('');
+      }
+      for (const group of GROUPS) {
+        expect(leaf(locale, `groups.${group}`), group).not.toBe('');
+      }
+      for (const key of Object.values(EVENT_MESSAGE_KEYS)) {
+        expect(leaf(locale, `events.${key}`), key).not.toBe('');
+      }
+    }
   });
 
   it('у числительных четыре формы по-русски и три по-английски', () => {

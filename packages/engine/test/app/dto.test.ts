@@ -269,6 +269,8 @@ describe('toExerciseDto', () => {
       element: 'dolphy-sql-answer',
       rendererUrl: 'dolphy-ext://fake/dolphy.sql.mjs',
       isolated: true,
+      origin: 'user',
+      revision: 'rev-0',
     });
   });
 

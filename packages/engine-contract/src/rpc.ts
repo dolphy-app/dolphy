@@ -24,6 +24,7 @@ export const RPC_METHODS = {
   'repositories.remove': { idempotent: true },
   'repositories.cancel': { idempotent: true },
   'practice.startSession': { idempotent: false },
+  'practice.finishSession': { idempotent: true }, // по sessionId
   'practice.getBatch': { idempotent: false }, // RNG и счётчик показов
   'practice.beginAttempt': { idempotent: false },
   'practice.submitAnswer': { idempotent: false },
@@ -52,6 +53,12 @@ export const RPC_METHODS = {
   'extensions.uninstall': { idempotent: false },
   'extensions.updates': { idempotent: true },
   'extensions.setCheckUpdates': { idempotent: false },
+  'extensions.getSettingValues': { idempotent: true },
+  'extensions.setSettingValue': { idempotent: true }, // задаёт значение, не приращение
+  'extensions.resetSettingValues': { idempotent: true },
+  'extensions.dataUsage': { idempotent: true },
+  'extensions.clearData': { idempotent: true },
+  'extensions.invokeCommand': { idempotent: false },
   'curation.blacklist.list': { idempotent: true },
   'curation.blacklist.has': { idempotent: true },
   'curation.blacklist.add': { idempotent: false },

@@ -1,12 +1,16 @@
+import { MAX_ANSWER_CHARS } from '@dolphy-app/engine-contract';
 import type {
   CatalogDto,
   ContributionsDto,
+  ExtensionCommandFailureReason,
+  ExtensionDataUsageDto,
   ExtensionInfoDto,
   ExtensionOriginDto,
   ExtensionSettingsDto,
   ExtensionUpdateDto,
   ExtensionsService,
   InstallResultDto,
+  JsonValue,
 } from '@dolphy-app/engine-contract';
 import {
   isExtensionId,
@@ -16,9 +20,12 @@ import {
   ExtensionInstallError,
   type ExtensionInstallErrorCause,
 } from '../../ports/extension-installer.ts';
+import { ExtensionCommandError } from '../../ports/extension-commands.ts';
+import type { RegistryContributions } from '../../ports/extension-registry.ts';
 import { GRADE_POLICIES } from '../../verify/grade-policy.ts';
 import type { EngineContext } from '../context.ts';
 import { EngineError } from '../errors.ts';
+import { createExtensionValues } from '../extension-values.ts';
 
 /** Не чаще раза в сутки. */
 export const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -98,8 +105,14 @@ const copyInfo = (info: ExtensionInfoDto): ExtensionInfoDto => ({
     themes: [...info.contributes.themes],
     markdownRenderers: [...info.contributes.markdownRenderers],
     gradePolicies: [...info.contributes.gradePolicies],
+    settings: [...info.contributes.settings],
+    events: [...info.contributes.events],
+    commands: [...info.contributes.commands],
+    panels: [...info.contributes.panels],
   },
   permissions: [...info.permissions],
+  titles: structuredClone(info.titles),
+  tags: [...info.tags],
 });
 
 const BUILTIN_POLICIES = Object.keys(GRADE_POLICIES).map((id) => ({
@@ -108,9 +121,14 @@ const BUILTIN_POLICIES = Object.keys(GRADE_POLICIES).map((id) => ({
   label: null,
 }));
 
-const sortedContributions = (source: ContributionsDto): ContributionsDto => {
+const sortedContributions = (
+  generation: number,
+  source: RegistryContributions,
+): ContributionsDto => {
   const copy = structuredClone(source);
   return {
+    generation,
+    exerciseTypes: copy.exerciseTypes.sort(compareBy((type) => type.type)),
     themes: copy.themes.sort(compareBy((theme) => theme.id)),
     markdownRenderers: copy.markdownRenderers.sort(
       compareBy((renderer) => renderer.language),
@@ -119,6 +137,10 @@ const sortedContributions = (source: ContributionsDto): ContributionsDto => {
       ...BUILTIN_POLICIES,
       ...copy.gradePolicies.sort(compareBy((policy) => policy.id)),
     ],
+    // между расширениями — по id, внутри расширения — порядок манифеста (так автор управляет формой)
+    settings: copy.settings.sort(compareBy((setting) => setting.extensionId)),
+    commands: copy.commands.sort(compareBy((command) => command.extensionId)),
+    panels: copy.panels.sort(compareBy((panel) => panel.extensionId)),
   };
 };
 
@@ -156,11 +178,51 @@ const findToggleable = (
   return effective;
 };
 
+/** Аргументы команды — JSON до `MAX_ANSWER_CHARS` знаков; длиннее или не JSON — `INVALID_ARGUMENT` без обращения к расширению. */
+const assertArgsSize = (args: JsonValue | undefined): void => {
+  let text: string | undefined;
+  try {
+    text = JSON.stringify(args);
+  } catch {
+    throw new EngineError('INVALID_ARGUMENT', {
+      message: 'args must be JSON',
+      details: { field: 'args', reason: 'not-json' },
+    });
+  }
+  if ((text?.length ?? 0) > MAX_ANSWER_CHARS) {
+    throw new EngineError('INVALID_ARGUMENT', {
+      message: `args are longer than ${MAX_ANSWER_CHARS} characters`,
+      details: {
+        field: 'args',
+        reason: 'args-too-large',
+        limit: MAX_ANSWER_CHARS,
+      },
+    });
+  }
+};
+
 const invalidId = (id: unknown): EngineError =>
   new EngineError('INVALID_ARGUMENT', {
     message: `Invalid extension id: ${String(id)}`,
     details: { field: 'id' },
   });
+
+/** `removeData` из параметров `uninstall`: только булево значение; по умолчанию данные остаются. */
+const removeDataOf = (options: unknown): boolean => {
+  if (options === undefined) return false;
+  const removeData =
+    typeof options === 'object' && options !== null
+      ? Reflect.get(options, 'removeData')
+      : null;
+  if (removeData === undefined) return false;
+  if (typeof removeData !== 'boolean') {
+    throw new EngineError('INVALID_ARGUMENT', {
+      message: 'removeData must be a boolean',
+      details: { field: 'removeData' },
+    });
+  }
+  return removeData;
+};
 
 const withMember = (
   ids: readonly string[],
@@ -229,13 +291,20 @@ export const createExtensionsService = (
     | 'extensionRegistry'
     | 'extensionPolicy'
     | 'extensionInstaller'
+    | 'extensionApply'
     | 'settings'
+    | 'extensionData'
+    | 'extensionCommands'
+    | 'extensionSettingChanges'
     | 'emit'
     | 'bus'
   >,
 ): ExtensionsService => {
+  const values = createExtensionValues(ctx);
+  /** `reload` — изменение действует на расширения (включение, доверие): набор применяется сразу. */
   const persist = async (
     apply: (settings: ExtensionSettingsDto) => ExtensionSettingsDto,
+    { reload }: { reload: boolean },
   ): Promise<ExtensionSettingsDto> => {
     const before = await ctx.settings.loadExtensions();
     const next = normalizeExtensionSettings(apply(before));
@@ -244,6 +313,7 @@ export const createExtensionsService = (
     await ctx.settings.saveExtensions(next);
     ctx.extensionPolicy.update(next);
     ctx.emit({ type: 'settings-changed', scope: 'extensions' });
+    if (reload) await ctx.extensionApply.reload();
     return next;
   };
   const change = async (
@@ -253,13 +323,16 @@ export const createExtensionsService = (
   ): Promise<ExtensionSettingsDto> => {
     if (!isExtensionId(id)) throw invalidId(id);
     findToggleable(ctx.extensionRegistry.list(), id, options);
-    return persist(apply);
+    return persist(apply, { reload: true });
   };
   return {
     list: async () =>
       ctx.extensionRegistry.list().map(copyInfo).sort(compareInfo),
     contributions: async () =>
-      sortedContributions(ctx.extensionRegistry.contributions()),
+      sortedContributions(
+        ctx.extensionApply.generation(),
+        ctx.extensionRegistry.contributions(),
+      ),
     getSettings: async () =>
       normalizeExtensionSettings(await ctx.settings.loadExtensions()),
     setEnabled: (id, enabled) =>
@@ -287,7 +360,9 @@ export const createExtensionsService = (
           details: { field: 'enabled' },
         });
       }
-      return persist((settings) => ({ ...settings, checkUpdates: enabled }));
+      return persist((settings) => ({ ...settings, checkUpdates: enabled }), {
+        reload: false,
+      });
     },
     catalog: (options): Promise<CatalogDto> =>
       guarded(null, () => ctx.extensionInstaller.catalog(options)),
@@ -296,17 +371,99 @@ export const createExtensionsService = (
       const result = await guarded(id, () =>
         ctx.extensionInstaller.install(id, version),
       );
+      await ctx.extensionApply.reload();
       // вне очереди команд: буфер `emit` дошёл бы до окна только с чужой командой
       ctx.bus.publish({ type: 'extensions-changed' });
       return result;
     },
-    uninstall: async (id): Promise<void> => {
+    uninstall: async (id, options): Promise<void> => {
       if (!isExtensionId(id)) throw invalidId(id);
+      const removeData = removeDataOf(options);
       assertRemovable(ctx.extensionRegistry.list(), id);
       await guarded(id, () => ctx.extensionInstaller.uninstall(id));
+      await ctx.extensionApply.reload();
       ctx.emit({ type: 'extensions-changed' });
+      if (removeData) await values.wipe(id);
     },
     updates: (): Promise<ExtensionUpdateDto[]> =>
       guarded(null, () => ctx.extensionInstaller.updates()),
+    getSettingValues: async (id) => values.values(values.requireActive(id)),
+    setSettingValue: async (id, settingId, value) => {
+      const extensionId = values.requireActive(id);
+      if (typeof settingId !== 'string' || settingId === '') {
+        throw new EngineError('INVALID_ARGUMENT', {
+          message: 'settingId must be a non-empty string',
+          details: { field: 'settingId' },
+        });
+      }
+      return values.set(extensionId, settingId, value);
+    },
+    resetSettingValues: async (id) => values.reset(values.requireActive(id)),
+    dataUsage: async (id): Promise<ExtensionDataUsageDto> => {
+      const extensionId = values.requireId(id);
+      return {
+        storage: await ctx.extensionData.storage.usage(extensionId),
+        settings: await ctx.extensionData.settings.usage(extensionId),
+      };
+    },
+    clearData: async (id) => values.wipe(values.requireId(id)),
+    invokeCommand: async (extensionId, commandId, args) => {
+      if (!isExtensionId(extensionId)) throw invalidId(extensionId);
+      if (typeof commandId !== 'string' || commandId === '') {
+        throw new EngineError('INVALID_ARGUMENT', {
+          message: 'commandId must be a non-empty string',
+          details: { field: 'commandId' },
+        });
+      }
+      assertArgsSize(args);
+      const failed = (
+        reason: ExtensionCommandFailureReason,
+        message: string,
+      ): EngineError =>
+        new EngineError('EXTENSION_COMMAND_FAILED', {
+          message,
+          details: { extensionId, commandId, reason },
+        });
+      const info = ctx.extensionRegistry
+        .list()
+        .find(
+          (item) =>
+            item.id === extensionId &&
+            (item.state === 'loaded' || item.state === 'disabled'),
+        );
+      if (info === undefined) {
+        throw failed('unknown-command', `Extension not found: ${extensionId}`);
+      }
+      if (
+        info.state === 'disabled' ||
+        !ctx.extensionPolicy.isEnabled(extensionId)
+      ) {
+        throw failed('disabled', `Extension '${extensionId}' is disabled`);
+      }
+      const declared = ctx.extensionRegistry
+        .contributions()
+        .commands.some(
+          (command) =>
+            command.extensionId === extensionId && command.id === commandId,
+        );
+      if (!declared) {
+        throw failed(
+          'unknown-command',
+          `Command '${commandId}' is not declared by '${extensionId}'`,
+        );
+      }
+      try {
+        return await ctx.extensionCommands.invoke(extensionId, commandId, args);
+      } catch (error) {
+        if (error instanceof ExtensionCommandError) {
+          throw new EngineError('EXTENSION_COMMAND_FAILED', {
+            message: error.message,
+            details: { extensionId, commandId, reason: error.cause },
+            cause: error,
+          });
+        }
+        throw error;
+      }
+    },
   };
 };

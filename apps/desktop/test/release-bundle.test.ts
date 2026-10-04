@@ -137,9 +137,19 @@ describe('смоук и релизная сборка', () => {
       const inspected = await inspectExtensionDir(hostileDir);
       if (!inspected.ok) throw new Error(inspected.message);
       const runner = createRestrictedRunner({
-        extension: { ...inspected.extension, origin: 'user', install: null },
+        extension: {
+          ...inspected.extension,
+          origin: 'user',
+          install: null,
+          revision: '',
+        },
         entryPath: join(out, 'restricted/ext-restricted.mjs'),
         library: { readText: async () => '', stat: async () => null },
+        engine: {
+          request: async () => {
+            throw new Error('the hostile extension has no engine');
+          },
+        },
         logger,
       });
       try {

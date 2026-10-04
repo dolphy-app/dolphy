@@ -8,9 +8,12 @@ import type {
   LearningEngine,
 } from '@dolphy-app/engine-contract';
 import {
+  COLLAPSED_VALUES,
   contributionGroups,
   hasSwitches,
+  hidesContributions,
   useExtensions,
+  visibleValues,
 } from '@/pages/settings/model/extensions.ts';
 import {
   NO_CONTRIBUTES,
@@ -147,23 +150,170 @@ describe('useExtensions', () => {
 });
 
 describe('contributionGroups', () => {
-  it('пропускает пустые точки и сохраняет порядок точек и значения', () => {
+  const item = (id: string, label = id, extra = {}) => ({
+    id,
+    label,
+    mono: false,
+    duplicate: false,
+    ...extra,
+  });
+
+  it('пропускает пустые точки и сохраняет порядок точек и значения; без названий текст — id', () => {
     expect(
       contributionGroups({
         exerciseTypes: [],
         themes: ['acme.night', 'acme.day'],
         markdownRenderers: ['math'],
         gradePolicies: ['acme.strict'],
+        settings: [],
+        events: [],
+        commands: ['acme.run'],
+        panels: ['acme.view'],
       }),
     ).toEqual([
-      { point: 'themes', values: ['acme.night', 'acme.day'] },
-      { point: 'markdownRenderers', values: ['math'] },
-      { point: 'gradePolicies', values: ['acme.strict'] },
+      {
+        point: 'themes',
+        items: [item('acme.night'), item('acme.day')],
+      },
+      {
+        point: 'markdownRenderers',
+        items: [item('math', 'math', { mono: true })],
+      },
+      { point: 'gradePolicies', items: [item('acme.strict')] },
+      { point: 'commands', items: [item('acme.run')] },
+      { point: 'panels', items: [item('acme.view')] },
     ]);
   });
 
   it('расширение без вкладов — без групп', () => {
     expect(contributionGroups(NO_CONTRIBUTES)).toEqual([]);
+  });
+
+  it('название заменяет id, а id без названия остаётся запасным текстом', () => {
+    const [group] = contributionGroups(
+      { ...NO_CONTRIBUTES, themes: ['a.night', 'a.day'] },
+      { themes: { 'a.night': 'Полночь' } },
+    );
+    expect(group?.items.map((i) => i.label)).toEqual(['Полночь', 'a.day']);
+  });
+
+  it('виды заданий и языки — идентификаторы моноширинно; названия и события — нет', () => {
+    const groups = contributionGroups(
+      {
+        ...NO_CONTRIBUTES,
+        exerciseTypes: ['a.quiz'],
+        markdownRenderers: ['math'],
+        themes: ['a.t'],
+        events: ['session.started'],
+      },
+      { themes: { 'a.t': 'Тема' } },
+    );
+    expect(
+      Object.fromEntries(groups.map((g) => [g.point, g.items[0]?.mono])),
+    ).toEqual({
+      exerciseTypes: true,
+      themes: false,
+      markdownRenderers: true,
+      events: false,
+    });
+  });
+
+  it('события показываются через переданное название, неизвестные — как есть', () => {
+    const [group] = contributionGroups(
+      { ...NO_CONTRIBUTES, events: ['session.started', 'weird.event'] },
+      {},
+      (name) => (name === 'session.started' ? 'Начало занятия' : name),
+    );
+    expect(group?.items.map((i) => i.label)).toEqual([
+      'Начало занятия',
+      'weird.event',
+    ]);
+  });
+
+  it('одинаковые названия помечены, чтобы id был доступен скринридеру', () => {
+    const [group] = contributionGroups(
+      { ...NO_CONTRIBUTES, commands: ['a.one', 'a.two', 'a.three'] },
+      {
+        commands: {
+          'a.one': 'Запустить',
+          'a.two': 'Запустить',
+          'a.three': 'Стоп',
+        },
+      },
+    );
+    expect(group?.items.map((i) => i.duplicate)).toEqual([true, true, false]);
+  });
+
+  it('64 команды с названиями сворачиваются до первых значений', () => {
+    const commands = Array.from({ length: 64 }, (_, i) => `a.c${i}`);
+    const titles = {
+      commands: Object.fromEntries(commands.map((id) => [id, `Команда ${id}`])),
+    };
+    const [group] = contributionGroups({ ...NO_CONTRIBUTES, commands }, titles);
+    const collapsed = visibleValues(group?.items ?? [], false);
+    expect(collapsed.shown).toHaveLength(COLLAPSED_VALUES);
+    expect(collapsed.shown[0]?.label).toBe('Команда a.c0');
+    expect(collapsed.hidden).toBe(64 - COLLAPSED_VALUES);
+  });
+});
+
+describe('hidesContributions', () => {
+  const theme = { ...NO_CONTRIBUTES, themes: ['a.night'] };
+  const titles = { themes: { 'a.night': 'Полночь' } };
+
+  it('единственная тема с названием расширения не повторяется', () => {
+    expect(hidesContributions(theme, titles, 'Полночь')).toBe(true);
+  });
+
+  it.each([
+    ['название отличается', theme, titles, 'Night'],
+    ['названия нет', theme, {}, 'Полночь'],
+    ['у расширения нет названия', theme, titles, null],
+    [
+      'вкладов два',
+      { ...theme, commands: ['a.run'] },
+      { ...titles, commands: { 'a.run': 'Полночь' } },
+      'Полночь',
+    ],
+    [
+      'единственный вклад — не тема',
+      { ...NO_CONTRIBUTES, commands: ['a.run'] },
+      { commands: { 'a.run': 'Полночь' } },
+      'Полночь',
+    ],
+    ['две темы', { ...theme, themes: ['a.night', 'a.day'] }, titles, 'Полночь'],
+  ] as const)('показывается, если %s', (_why, contributes, t, name) => {
+    expect(
+      hidesContributions(
+        contributes as never,
+        t as never,
+        name as string | null,
+      ),
+    ).toBe(false);
+  });
+});
+
+describe('visibleValues', () => {
+  const ids = (n: number) => Array.from({ length: n }, (_, i) => `acme.c${i}`);
+
+  it('короткая группа показана целиком и не сворачивается', () => {
+    expect(visibleValues(ids(COLLAPSED_VALUES), false)).toEqual({
+      shown: ids(COLLAPSED_VALUES),
+      hidden: 0,
+    });
+  });
+
+  it('длинная группа (до 64 команд) свёрнута до первых значений, остальное считается', () => {
+    const result = visibleValues(ids(64), false);
+    expect(result.shown).toEqual(ids(COLLAPSED_VALUES));
+    expect(result.hidden).toBe(64 - COLLAPSED_VALUES);
+  });
+
+  it('раскрытая группа показана целиком', () => {
+    expect(visibleValues(ids(64), true)).toEqual({
+      shown: ids(64),
+      hidden: 0,
+    });
   });
 });
 
@@ -212,11 +362,10 @@ describe('переключатели', () => {
     return { engine, calls, listCalls: () => listCalls };
   };
 
-  it('переключатель меняется сразу, успех сохраняет ответ движка и просит перезагрузку', async () => {
+  it('переключатель меняется сразу, успех сохраняет ответ движка и перечитывает список', async () => {
     const { engine, calls, listCalls } = createSwitchEngine();
     const model = mount(engine);
     await flush();
-    expect(model.needsReload.value).toBe(false);
 
     const pending = model.setTrusted('acme.x', true);
     expect(model.settings.value.trusted).toEqual(['acme.x']);
@@ -235,7 +384,6 @@ describe('переключатели', () => {
       checkUpdates: true,
     });
     expect(model.switching.value.size).toBe(0);
-    expect(model.needsReload.value).toBe(true);
     expect(model.switchError.value).toBeNull();
     await flush();
     expect(listCalls()).toBe(2);
@@ -256,7 +404,7 @@ describe('переключатели', () => {
     expect(calls[0]).toMatchObject({ method: 'setEnabled', value: true });
   });
 
-  it('отказ движка откатывает переключатель и показывает ошибку без перезагрузки', async () => {
+  it('отказ движка откатывает переключатель и показывает ошибку', async () => {
     const { engine, calls } = createSwitchEngine();
     const model = mount(engine);
     await flush();
@@ -268,7 +416,6 @@ describe('переключатели', () => {
 
     expect(model.settings.value).toEqual(NONE_SET);
     expect(model.switchError.value).toBe('cannot write');
-    expect(model.needsReload.value).toBe(false);
     expect(model.switching.value.size).toBe(0);
   });
 
@@ -379,7 +526,7 @@ describe('обновления и установка из каталога', () 
     expect(model.items.value).toHaveLength(1);
   });
 
-  it('extensions-changed перечитывает список и обновления', async () => {
+  it('extensions-changed и contributions-changed перечитывают список и обновления', async () => {
     const { engine, bus, listCalls, updateCalls } = createEngine();
     mount(engine);
     await flush();
@@ -389,6 +536,11 @@ describe('обновления и установка из каталога', () 
     await flush();
     expect([listCalls(), updateCalls()]).toEqual([2, 2]);
 
+    // правка в режиме разработчика сообщает только о вкладах
+    bus.emit({ type: 'contributions-changed', generation: 3 });
+    await flush();
+    expect([listCalls(), updateCalls()]).toEqual([3, 3]);
+
     bus.emit({
       type: 'library-reloaded',
       revision: 'r',
@@ -396,7 +548,7 @@ describe('обновления и установка из каталога', () 
       warnings: 0,
     });
     await flush();
-    expect(listCalls()).toBe(2);
+    expect(listCalls()).toBe(3);
   });
 
   it('«Проверять обновления при запуске»: меняется сразу, отказ откатывает и показывает ошибку', async () => {
@@ -415,7 +567,6 @@ describe('обновления и установка из каталога', () 
     await rejected;
     expect(model.settings.value.checkUpdates).toBe(true);
     expect(model.switchError.value).toBe('disk is full');
-    expect(model.needsReload.value).toBe(false);
 
     fail = false;
     await model.setCheckUpdates(false);

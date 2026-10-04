@@ -2,7 +2,7 @@
   "name": "@dolphy-app/extension-catalog",
   "version": "0.0.0",
   "private": true,
-  "description": "Каталог расширений: схема индекса, semver, выбор совместимой версии, отзыв (без Node-зависимостей)",
+  "description": "Extension catalog: index schema, semver, compatible version selection, revocation (no Node dependencies)",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"

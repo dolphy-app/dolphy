@@ -2,11 +2,13 @@ import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { iconDataUri } from '@dolphy-app/extension-catalog';
 import { vi } from 'vitest';
 import { createExtensionInstaller } from '../src/index.ts';
 import type { InspectResult, InstallerOptions } from '../src/index.ts';
 
 export const CATALOG_URL = 'https://catalog.test/index.json';
+export const FULL_INDEX_URL = 'https://catalog.test/index.v2.json';
 const INSTALL_META = '.dolphy-install.json';
 
 export const createLogger = () => ({
@@ -21,7 +23,7 @@ export const sha256 = (data: string | Uint8Array): string =>
 
 export interface FakeFile {
   path: string;
-  content: string;
+  content: string | Uint8Array;
 }
 
 export interface Contributes {
@@ -29,6 +31,10 @@ export interface Contributes {
   themes: string[];
   markdownRenderers: string[];
   gradePolicies: string[];
+  settings?: string[];
+  events?: string[];
+  commands?: string[];
+  panels?: string[];
 }
 
 export const contributesOf = (exerciseTypes: string[]): Contributes => ({
@@ -53,7 +59,17 @@ export interface ExtensionSpec {
   /** Содержимое `extension.json` расходится с записью индекса. */
   manifest?: Record<string, unknown>;
   main?: string;
+  /** PNG of the icon: `assets/icon.png` joins the files, `icon` joins the manifest and the version record. */
+  icon?: Uint8Array;
+  /** Files besides `extension.json`, `main.mjs` and the icon. */
+  extraFiles?: Record<string, string | Uint8Array>;
+  /** `tags` by version: they join the manifest and the version record of that version. */
+  tags?: Record<string, string[]>;
+  /** `titles` of the index entry. */
+  titles?: Record<string, Record<string, string>>;
 }
+
+export const ICON_PATH = 'assets/icon.png';
 
 export const filesOf = (spec: ExtensionSpec, version: string): FakeFile[] => [
   {
@@ -62,11 +78,20 @@ export const filesOf = (spec: ExtensionSpec, version: string): FakeFile[] => [
       id: spec.id,
       version,
       permissions: spec.permissions ?? [],
+      ...(spec.icon === undefined ? {} : { icon: ICON_PATH }),
+      ...(spec.tags?.[version] === undefined
+        ? {}
+        : { tags: spec.tags[version] }),
       contributes: spec.contributes ?? contributesOf([spec.id]),
       ...spec.manifest,
     }),
   },
   { path: 'main.mjs', content: spec.main ?? `export default '${version}';` },
+  ...(spec.icon === undefined ? [] : [{ path: ICON_PATH, content: spec.icon }]),
+  ...Object.entries(spec.extraFiles ?? {}).map(([file, content]) => ({
+    path: file,
+    content,
+  })),
 ];
 
 /** Запись индекса с настоящими sha256 файлов; версии — от новой к старой. */
@@ -78,6 +103,7 @@ export const rawEntry = (spec: ExtensionSpec): Record<string, unknown> => ({
   source: 'https://github.com/dolphy-app/dolphy-extensions',
   platforms: spec.platforms ?? [],
   contributes: spec.contributes ?? contributesOf([spec.id]),
+  ...(spec.titles === undefined ? {} : { titles: spec.titles }),
   versions: (spec.versions ?? [spec.version]).map((version) => ({
     version,
     apiVersion: spec.apiVersion ?? 1,
@@ -91,6 +117,10 @@ export const rawEntry = (spec: ExtensionSpec): Record<string, unknown> => ({
       size: Buffer.byteLength(file.content),
       sha256: sha256(file.content),
     })),
+    ...(spec.icon === undefined
+      ? {}
+      : { icon: iconDataUri(ICON_PATH, spec.icon) }),
+    ...(spec.tags?.[version] === undefined ? {} : { tags: spec.tags[version] }),
   })),
 });
 
@@ -99,10 +129,11 @@ export const rawIndex = (
   options: {
     generatedAt?: string;
     revoked?: { id: string; versions: string; reason: string }[];
+    schemaVersion?: 1 | 2;
   } = {},
 ): string =>
   JSON.stringify({
-    schemaVersion: 1,
+    schemaVersion: options.schemaVersion ?? 1,
     generatedAt: options.generatedAt ?? '2026-10-01T12:00:00Z',
     extensions: entries.map(rawEntry),
     revoked: options.revoked ?? [],
@@ -123,6 +154,9 @@ export interface FakeCall {
   headers: Record<string, string>;
   redirect: RequestInit['redirect'];
 }
+
+export const callsTo = (calls: readonly FakeCall[], url: string): FakeCall[] =>
+  calls.filter((call) => call.url === url);
 
 export const createFakeFetch = (routes: Map<string, Route>) => {
   const calls: FakeCall[] = [];
@@ -165,13 +199,18 @@ export const serve = (
   }
 };
 
+/** `index.json` of the catalog; `full` — `index.v2.json` (schemaVersion 2) instead. */
 export const serveIndex = (
   routes: Map<string, Route>,
   entries: ExtensionSpec[],
-  options: Parameters<typeof rawIndex>[1] & { etag?: string } = {},
+  options: Parameters<typeof rawIndex>[1] & {
+    etag?: string;
+    full?: boolean;
+  } = {},
 ): void => {
-  routes.set(CATALOG_URL, {
-    body: rawIndex(entries, options),
+  const { full = false, ...rest } = options;
+  routes.set(full ? FULL_INDEX_URL : CATALOG_URL, {
+    body: rawIndex(entries, { ...rest, schemaVersion: full ? 2 : 1 }),
     ...(options.etag !== undefined && {
       headers: { etag: options.etag, 'content-type': 'application/json' },
     }),
@@ -189,6 +228,8 @@ export const inspectJson = async (
       id: string;
       version: string;
       permissions: string[];
+      icon?: string;
+      tags?: string[];
       contributes: Contributes;
     };
     return {
@@ -197,7 +238,21 @@ export const inspectJson = async (
         id: raw.id,
         version: raw.version,
         permissions: raw.permissions,
-        contributes: raw.contributes,
+        icon:
+          raw.icon === undefined
+            ? null
+            : iconDataUri(
+                raw.icon,
+                await readFile(path.join(directory, raw.icon)),
+              ),
+        tags: raw.tags ?? [],
+        contributes: {
+          ...raw.contributes,
+          settings: raw.contributes.settings ?? [],
+          events: raw.contributes.events ?? [],
+          commands: raw.contributes.commands ?? [],
+          panels: raw.contributes.panels ?? [],
+        },
       },
     };
   } catch (error) {

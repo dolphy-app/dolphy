@@ -4,11 +4,17 @@ import type { FrameLocator, Locator } from 'playwright-core';
 import { createWorkspace, launchApp } from './support/app.ts';
 import type { DolphyApp, Workspace } from './support/app.ts';
 import { ANSWER_FRAME, Client } from './support/client.ts';
+import {
+  course,
+  ECHO,
+  ECHO_COURSE,
+  exerciseFront,
+  MARKDOWN,
+  markdownCourse,
+} from './support/courses.ts';
 import { readJournal } from './support/journal.ts';
 
 const HOSTILE_UI = 'Hostile UI (KnowledgeBase)';
-const ECHO = 'Echo (KnowledgeBase)';
-const MARKDOWN = 'Frames (KnowledgeBase)';
 const MARKDOWN_FRAME = 'iframe[sandbox][data-mode="markdown"]';
 const PROBES = [
   'parent.dolphy',
@@ -21,54 +27,11 @@ const PROBES = [
 const fixture = (name: string) =>
   fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url));
 
-/** Курс из одного упражнения: `front` — всё после frontmatter. */
-const course = (id: string, name: string, front: string) => ({
-  [`${id}/course_manifest.json`]: JSON.stringify({
-    dependencies: [],
-    description: name,
-    engine: { tags: [id] },
-    generator_config: { KnowledgeBase: {} },
-    id,
-    name,
-  }),
-  [`${id}/basic.lesson/lesson.name.json`]: JSON.stringify('Frames'),
-  [`${id}/basic.lesson/q1.front.md`]: front,
-  [`${id}/basic.lesson/q1.back.md`]: 'Answer\n',
-});
-
-const exerciseFront = (type: string, spec: string[], prompt: string) =>
-  [
-    '---',
-    'engine:',
-    '  exercise:',
-    `    type: ${type}`,
-    ...spec,
-    '---',
-    prompt,
-    '',
-  ].join('\n');
-
 const HOSTILE_COURSE = course(
   'hostile_ui_kb',
   HOSTILE_UI,
   exerciseFront('acme.hostile-ui', [], 'Probe the frame.'),
 );
-const ECHO_COURSE = course(
-  'echo_kb',
-  ECHO,
-  exerciseFront(
-    'acme.echo',
-    ['    spec:', '      expected: "42"'],
-    'What is the answer to everything?',
-  ),
-);
-const markdownCourse = (language: string) =>
-  course(
-    'frames_kb',
-    MARKDOWN,
-    ['Blocks', '', `\`\`\`${language}`, 'hello', '```', ''].join('\n'),
-  );
-
 let workspace: Workspace | null = null;
 let app: DolphyApp | null = null;
 
@@ -280,8 +243,8 @@ describe('изоляция интерфейса расширений', () => {
     });
     const client = await launch(workspace.userData);
     await client.openSettingsExtensions();
+    const stillSameWindow = await client.markWindow();
     await client.setExtensionSwitch('acme.hostile-ui', 'trusted', true);
-    await client.reloadFromExtensions();
     await client.openCourses();
     await startSession(client, HOSTILE_UI);
 
@@ -301,5 +264,6 @@ describe('изоляция интерфейса расширений', () => {
       unit_id: 'hostile_ui_kb::basic::q1',
       source: 'runner',
     });
+    await stillSameWindow();
   });
 });

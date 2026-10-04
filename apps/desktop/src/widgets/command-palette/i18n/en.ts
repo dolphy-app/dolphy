@@ -1,0 +1,17 @@
+import type { ru } from './ru.ts';
+
+export const en: typeof ru = {
+  commandPalette: {
+    title: 'Command palette',
+    label: 'Find a command',
+    placeholder: 'Title, category or extension',
+    list: 'Commands',
+    count: 'No commands | {n} command found | {n} commands found',
+    empty: 'No commands',
+    emptyHint: 'Commands of the app and of enabled extensions appear here.',
+    noMatches: 'No matching commands',
+    noMatchesHint: 'Change the query.',
+    checked: 'Selected',
+    busy: 'Running',
+  },
+};

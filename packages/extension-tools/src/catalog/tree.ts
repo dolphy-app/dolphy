@@ -3,7 +3,7 @@ import { lstat, readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 export interface TreeFile {
-  /** Путь от корня, разделитель `/`. */
+  /** Path from the root, separator `/`. */
   path: string;
   size: number;
 }

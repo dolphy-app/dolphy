@@ -1,5 +1,16 @@
 import type { ExerciseTypeErrorCause } from '@dolphy-app/engine/ports';
+import {
+  EXTENSION_COMMAND_LIMITS,
+  LEARNING_EVENT_NAMES,
+} from '@dolphy-app/extension-api';
+import type {
+  JsonValue,
+  LearningEventName,
+  LearningEventPayloads,
+  SettingValue,
+} from '@dolphy-app/extension-api';
 import { z } from 'zod';
+import type { ResolvedExtension } from './discover.ts';
 
 export type ExtRequest =
   | {
@@ -44,11 +55,107 @@ export type ExtRequest =
         gaveUp: boolean;
         isolated: boolean;
       };
-    };
+    }
+  | DeliverEventRequest
+  | InvokeCommandRequest;
+
+/**
+ * Событие обучения расширению. Ответ `{ delivered }`: `false` — обработчика нет
+ * (расширение не объявило событие или не подписалось). Лениво активирует
+ * расширение; сбой и таймаут обработчика (2 с) — `ok: false`, клиент их только
+ * логирует.
+ */
+export interface DeliverEventRequest {
+  id: string;
+  method: 'deliverEvent';
+  params: {
+    extensionId: string;
+    name: LearningEventName;
+    payload: LearningEventPayloads[LearningEventName];
+    isolated: boolean;
+  };
+}
+
+/**
+ * Вызов команды расширения (`ctx.commands.register`). Лениво активирует
+ * расширение; `args` — JSON вызывающего (нет аргументов — ключа нет). Ответ —
+ * `CommandOutcome`; неизвестная команда — `unknown-command`, сбой обработчика —
+ * `handler-failed`, превышение 10 с — `handler-timeout`.
+ */
+export interface InvokeCommandRequest {
+  id: string;
+  method: 'invokeCommand';
+  params: {
+    extensionId: string;
+    commandId: string;
+    args?: JsonValue;
+    isolated: boolean;
+  };
+}
+
+/** Значение настройки расширения изменилось: хост сообщает его работающему расширению. Без ответа. */
+export interface SettingChangedNotice {
+  method: 'settingChanged';
+  params: { extensionId: string; id: string; value: SettingValue };
+}
+
+/**
+ * Запросы хоста к движку: данные расширения. Собственное пространство
+ * идентификаторов (`h<N>`); ответ — `HostResponse`.
+ */
+export type HostRequest =
+  | {
+      id: string;
+      method: 'storage.get';
+      params: { extensionId: string; key: string };
+    }
+  | {
+      id: string;
+      method: 'storage.set';
+      params: { extensionId: string; key: string; value: JsonValue };
+    }
+  | {
+      id: string;
+      method: 'storage.delete';
+      params: { extensionId: string; key: string };
+    }
+  | { id: string; method: 'storage.keys'; params: { extensionId: string } }
+  | { id: string; method: 'settings.all'; params: { extensionId: string } };
+
+export type HostMethod = HostRequest['method'];
+
+/** Отказ движка на запрос хоста: `code` — код ошибки движка (`EXTENSION_STORAGE_QUOTA`, `INVALID_ARGUMENT`, …) или `UNAVAILABLE`. */
+export interface HostFailure {
+  code: string;
+  message: string;
+  details?: Record<string, unknown>;
+}
+
+export type HostResponse =
+  | { id: string; ok: true; result: unknown }
+  | { id: string; ok: false; error: HostFailure };
+
+/**
+ * Замена набора расширений: движок присылает полный набор (хост сам их не
+ * ищет). Ответ `ok: true` приходит, когда новый каталог уже действует;
+ * вытеснение прежних активаций идёт после ответа.
+ */
+export interface ReplaceExtensionsRequest {
+  id: string;
+  method: 'replaceExtensions';
+  params: { extensions: ResolvedExtension[] };
+}
+
+/** Всё, что движок отправляет хосту расширений. */
+export type ExtMessage = ExtRequest | ReplaceExtensionsRequest;
 
 /** Причины отказа, которые сообщает сам хост расширений (остальные порождает клиент). */
 export type ExtFailureCause =
-  Exclude<ExerciseTypeErrorCause, 'host-down' | 'timeout'> | 'unknown-policy';
+  | Exclude<ExerciseTypeErrorCause, 'host-down' | 'timeout'>
+  | 'unknown-policy'
+  | 'unknown-command'
+  | 'handler-timeout'
+  | 'replaced';
 
 export type ExtResponse =
   | { id: string; ok: true; result: unknown }
@@ -60,6 +167,20 @@ export type ExtResponse =
         message: string;
       };
     };
+
+const eventParams = z.strictObject({
+  extensionId: z.string(),
+  name: z.enum(LEARNING_EVENT_NAMES),
+  payload: z.record(z.string(), z.unknown()),
+  isolated: z.boolean(),
+});
+
+const commandParams = z.strictObject({
+  extensionId: z.string(),
+  commandId: z.string(),
+  args: z.unknown().optional(),
+  isolated: z.boolean(),
+});
 
 const typed = {
   type: z.string(),
@@ -104,6 +225,128 @@ export const extRequestSchema = z.discriminatedUnion('method', [
       isolated: z.boolean(),
     }),
   }),
+  z.strictObject({
+    id: z.string(),
+    method: z.literal('deliverEvent'),
+    params: eventParams,
+  }),
+  z.strictObject({
+    id: z.string(),
+    method: z.literal('invokeCommand'),
+    params: commandParams,
+  }),
+]);
+
+const settingValue = z.union([z.boolean(), z.string(), z.number()]);
+
+export const settingChangedSchema = z.strictObject({
+  method: z.literal('settingChanged'),
+  params: z.strictObject({
+    extensionId: z.string(),
+    id: z.string(),
+    value: settingValue,
+  }),
+});
+
+const hostKey = z.strictObject({ extensionId: z.string(), key: z.string() });
+const hostOwner = z.strictObject({ extensionId: z.string() });
+
+/** Запрос хоста к движку: форму проверяет получатель, значение хранилища — сервис движка. */
+export const hostRequestSchema = z.discriminatedUnion('method', [
+  z.strictObject({
+    id: z.string(),
+    method: z.literal('storage.get'),
+    params: hostKey,
+  }),
+  z.strictObject({
+    id: z.string(),
+    method: z.literal('storage.set'),
+    params: z.strictObject({
+      extensionId: z.string(),
+      key: z.string(),
+      value: z.unknown(),
+    }),
+  }),
+  z.strictObject({
+    id: z.string(),
+    method: z.literal('storage.delete'),
+    params: hostKey,
+  }),
+  z.strictObject({
+    id: z.string(),
+    method: z.literal('storage.keys'),
+    params: hostOwner,
+  }),
+  z.strictObject({
+    id: z.string(),
+    method: z.literal('settings.all'),
+    params: hostOwner,
+  }),
+]);
+
+export const hostResponseSchema = z.union([
+  // `undefined` (ключа нет, значение не записано) через JSON-IPC теряет ключ `result`
+  z.strictObject({
+    id: z.string(),
+    ok: z.literal(true),
+    result: z.unknown().optional(),
+  }),
+  z.strictObject({
+    id: z.string(),
+    ok: z.literal(false),
+    error: z.strictObject({
+      code: z.string(),
+      message: z.string(),
+      details: z.record(z.string(), z.unknown()).optional(),
+    }),
+  }),
+]);
+
+const isResolvedExtension = (value: unknown): value is ResolvedExtension => {
+  if (typeof value !== 'object' || value === null) return false;
+  const item = value as Record<string, unknown>;
+  return (
+    typeof item.id === 'string' &&
+    typeof item.version === 'string' &&
+    typeof item.dir === 'string' &&
+    typeof item.revision === 'string' &&
+    (item.origin === 'bundled' ||
+      item.origin === 'user' ||
+      item.origin === 'dev') &&
+    Array.isArray(item.permissions) &&
+    Array.isArray(item.exerciseTypes) &&
+    Array.isArray(item.themes) &&
+    Array.isArray(item.markdownRenderers) &&
+    Array.isArray(item.gradePolicies) &&
+    Array.isArray(item.settings) &&
+    Array.isArray(item.events) &&
+    Array.isArray(item.commands) &&
+    Array.isArray(item.panels)
+  );
+};
+
+/** Набор приходит от движка того же приложения, поэтому проверяется форма, а не каждое поле. */
+const replaceExtensionsSchema = z.strictObject({
+  id: z.string(),
+  method: z.literal('replaceExtensions'),
+  params: z.strictObject({
+    extensions: z.array(z.custom<ResolvedExtension>(isResolvedExtension)),
+  }),
+});
+
+/** Всё, что хост расширений принимает по каналу. */
+export const extMessageSchema = z.union([
+  extRequestSchema,
+  replaceExtensionsSchema,
+  settingChangedSchema,
+  hostResponseSchema,
+]);
+
+/** Всё, что ограниченный процесс принимает от хоста (набор расширений ему не шлют). */
+export const childInboundSchema = z.union([
+  extRequestSchema,
+  settingChangedSchema,
+  hostResponseSchema,
 ]);
 
 /** Результат правила оценки: целое 1–5 или `null`. */
@@ -131,4 +374,42 @@ export const gradeResultSchema = z.discriminatedUnion('outcome', [
     feedback: text.optional(),
     data: z.unknown().optional(),
   }),
+]);
+
+const isJsonValue = (value: unknown, depth = 0): boolean => {
+  if (depth > 64) return false;
+  if (value === null || typeof value === 'string') return true;
+  if (typeof value === 'boolean') return true;
+  if (typeof value === 'number') return Number.isFinite(value);
+  if (Array.isArray(value)) {
+    return value.every((item) => isJsonValue(item, depth + 1));
+  }
+  if (typeof value !== 'object') return false;
+  return Object.values(value).every((item) => isJsonValue(item, depth + 1));
+};
+
+const fitsResult = (value: unknown): boolean =>
+  isJsonValue(value) &&
+  new TextEncoder().encode(JSON.stringify(value)).length <=
+    EXTENSION_COMMAND_LIMITS.resultBytes;
+
+const resultJson = z.custom<JsonValue>(fitsResult, 'must be JSON up to 64 KiB');
+
+/**
+ * Результат команды на границе хоста и движка. Ограниченный процесс не
+ * доверен, поэтому форму и потолки проверяет и получатель, а не только
+ * `normalizeCommandResult` в рантайме.
+ */
+export const commandOutcomeSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('none') }),
+  z.strictObject({
+    kind: z.literal('notify'),
+    text: z.string().min(1).max(EXTENSION_COMMAND_LIMITS.notifyChars),
+  }),
+  z.strictObject({
+    kind: z.literal('openPanel'),
+    panelId: z.string().min(1).max(128),
+    props: resultJson.optional(),
+  }),
+  z.strictObject({ kind: z.literal('data'), value: resultJson }),
 ]);

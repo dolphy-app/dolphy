@@ -78,6 +78,15 @@ export const ERRORS: Record<EngineErrorCode, ErrorSpec> = {
     message: 'Extension installation failed',
     retryable: false,
   },
+  EXTENSION_STORAGE_QUOTA: {
+    message: 'Extension storage quota exceeded',
+    retryable: false,
+  },
+  // retryable зависит от details.reason: timeout, host-down → true
+  EXTENSION_COMMAND_FAILED: {
+    message: 'Extension command failed',
+    retryable: false,
+  },
   INTERNAL: { message: 'Internal engine error', retryable: true },
 };
 
@@ -97,6 +106,9 @@ const defaultRetryable = (
   }
   if (code === 'EXTENSION_INSTALL_FAILED') {
     return details?.reason === 'network';
+  }
+  if (code === 'EXTENSION_COMMAND_FAILED') {
+    return details?.reason === 'timeout' || details?.reason === 'host-down';
   }
   if (code === 'GIT_FETCH_FAILED') {
     const reason = details?.reason;

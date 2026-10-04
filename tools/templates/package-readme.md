@@ -2,16 +2,16 @@
 
 {{description}}
 
-Версия пакетов равна версии приложения Dolphy, из релиза которого они опубликованы ({{version}}).
+The package version equals the version of the Dolphy app release it was published from ({{version}}).
 
 {{usage}}
 
-## Установка
+## Installation
 
 ```sh
 npm install {{name}}
 ```
 
-## Документация
+## Documentation
 
-[Расширения Dolphy]({{docsUrl}}).
+[Dolphy extensions]({{docsUrl}}).

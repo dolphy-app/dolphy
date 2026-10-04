@@ -13,11 +13,11 @@ export const EXIT_USAGE = 2;
 
 const USAGE = `usage: create-dolphy-extension <dir> [--id <id>] [--local <repoRoot>]
 
-  <dir>              каталог нового проекта (должен быть пуст или отсутствовать)
-  --id <id>          id расширения (по умолчанию — kebab-case имени каталога)
-  --local <repoRoot> корень репозитория Dolphy: @dolphy-app/extension-sdk и
-                     @dolphy-app/extension-tools подключаются как link:<repoRoot>/packages/...
-  --help             эта справка
+  <dir>              new project directory (must be empty or not exist)
+  --id <id>          extension id (default: kebab-case of the directory name)
+  --local <repoRoot> Dolphy repository root: @dolphy-app/extension-sdk and
+                     @dolphy-app/extension-tools are linked as link:<repoRoot>/packages/...
+  --help             show this help
 `;
 
 type Parsed =
@@ -33,23 +33,23 @@ const parseArgs = (argv: readonly string[]): Parsed => {
     const arg = argv[i] as string;
     if (arg === '--id' || arg === '--local') {
       const value = argv[++i];
-      if (value === undefined) return { usageError: `${arg} требует значение` };
+      if (value === undefined) return { usageError: `${arg} requires a value` };
       values.set(arg, value);
     } else if (arg.startsWith('-')) {
-      return { usageError: `неизвестный флаг: ${arg}` };
+      return { usageError: `unknown flag: ${arg}` };
     } else positional.push(arg);
   }
   const [dir, ...extra] = positional;
-  if (dir === undefined) return { usageError: 'не указан каталог' };
+  if (dir === undefined) return { usageError: 'no directory given' };
   if (extra.length > 0) {
-    return { usageError: `лишние аргументы: ${extra.join(' ')}` };
+    return { usageError: `unexpected arguments: ${extra.join(' ')}` };
   }
   return { dir, id: values.get('--id'), local: values.get('--local') };
 };
 
 const PLACEHOLDER_NOTE =
-  '\nЗамечание: @dolphy-app/extension-sdk и @dolphy-app/extension-tools не опубликованы, ' +
-  'версия ^0.0.0 не установится.\nУкажите пути к репозиторию Dolphy: ' +
+  '\nNote: @dolphy-app/extension-sdk and @dolphy-app/extension-tools are not published, ' +
+  'version ^0.0.0 cannot be installed.\nPoint to the Dolphy repository: ' +
   'create-dolphy-extension <dir> --local <repoRoot>.\n';
 
 const installNote = ({
@@ -68,17 +68,17 @@ const nextSteps = (
     `  cd ${dir}`,
     '  pnpm install',
     '  pnpm test',
-    `  pnpm dev    # пересборка в dist-ext/${id}`,
+    `  pnpm dev    # rebuilds into dist-ext/${id}`,
     '',
-    'Запуск приложения с вашим расширением (из репозитория Dolphy):',
+    'Run the app with your extension (from the Dolphy repository):',
     `  DOLPHY_DEV_EXTENSIONS=${path.join(dir, 'dist-ext')} pnpm dev`,
   ];
-  return `\nДальше:\n${steps.join('\n')}\n${installNote(result)}`;
+  return `\nNext steps:\n${steps.join('\n')}\n${installNote(result)}`;
 };
 
 /**
- * `create-dolphy-extension`; `argv` без `node` и имени скрипта, относительные пути
- * считаются от `cwd`.
+ * `create-dolphy-extension`; `argv` without `node` and the script name; relative paths
+ * are resolved against `cwd`.
  */
 export const runCli = async (
   argv: readonly string[],

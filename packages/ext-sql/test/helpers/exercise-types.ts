@@ -8,7 +8,7 @@ import type { ExerciseTypes } from '@dolphy-app/engine/ports';
 import { discoverExtensions } from '@dolphy-app/extension-host';
 import { createLocalExerciseTypes } from '@dolphy-app/extension-host/local';
 import { silentLogger } from '@dolphy-app/testkit';
-import sqlModule from '../../src/main.ts';
+import { host } from '../../src/index.ts';
 
 const PACKAGE_DIR = fileURLToPath(new URL('../..', import.meta.url));
 
@@ -48,6 +48,6 @@ export const createSqlExerciseTypes = async (
     extensions,
     library: createNodeFsCourseSource(libraryDir),
     logger: silentLogger,
-    modules: { 'dolphy.sql': sqlModule },
+    modules: { 'dolphy.sql': host },
   });
 };

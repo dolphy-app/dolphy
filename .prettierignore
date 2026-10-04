@@ -6,7 +6,6 @@ pnpm-lock.yaml
 vendor
 docs
 engine-ts
-spike
 .agents
 .claude
 apps/desktop/LICENSE
@@ -20,3 +19,4 @@ apps/desktop/extensions
 CHANGELOG.md
 specs
 dist-publish
+.dolphy

@@ -6,22 +6,12 @@ import { fromNodePort } from '@dolphy-app/engine-rpc/host';
 import {
   createExtensionRuntime,
   createRestrictedRunner,
-  discoverExtensions,
 } from '@dolphy-app/extension-host';
 import type { ExtensionRuntime } from '@dolphy-app/extension-host';
-import { extensionRoots } from '../extension-roots.ts';
 
 /** Сообщения main → хост расширений (`process.parentPort`). */
 type ExtHostMessage =
-  | {
-      type: 'init';
-      libraryRoot: string;
-      restrictedEntry: string;
-      bundledExtensionsDir?: string;
-      userExtensionsDir?: string;
-      devExtensionsDir?: string;
-      appVersion?: string;
-    }
+  | { type: 'init'; libraryRoot: string; restrictedEntry: string }
   | { type: 'connect' }
   | { type: 'shutdown' };
 
@@ -42,23 +32,21 @@ const handle = async (
   ports: Electron.MessagePortMain[],
 ) => {
   if (message.type === 'init') {
-    const { extensions } = await discoverExtensions({
-      roots: extensionRoots(message),
-      logger,
-      ...(message.appVersion ? { appVersion: message.appVersion } : {}),
-    });
     const library = createNodeFsCourseSource(message.libraryRoot);
+    // расширения хост не ищет: набор приходит от движка сообщением `replaceExtensions`
+    // после каждого подключения порта
     runtime = createExtensionRuntime({
-      extensions,
+      extensions: [],
       library,
       logger,
       // расширения не из поставки с `isolated` исполняются в ограниченном процессе
       runners: {
-        create: (extension) =>
+        create: (extension, engine) =>
           createRestrictedRunner({
             extension,
             entryPath: message.restrictedEntry,
             library,
+            engine,
             logger,
           }),
       },

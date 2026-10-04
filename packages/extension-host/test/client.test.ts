@@ -38,6 +38,7 @@ const resolved: ResolvedExtension[] = [
     exerciseTypes: [
       {
         id: 'acme.t',
+        title: null,
         specSchema: {},
         answerSchema: {},
         element: 'acme-t-answer',

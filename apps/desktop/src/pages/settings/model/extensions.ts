@@ -16,7 +16,7 @@ export interface ContributionItem {
   id: string;
   /** Текст чипа: название вклада, локализованное событие или сам id. */
   label: string;
-  /** Идентификатор по природе (вид задания, язык рендерера): моноширинный шрифт. */
+  /** Идентификатор по природе (вид задания, язык рендерера) без названия: моноширинный шрифт. */
   mono: boolean;
   /** Такой же текст у другого чипа точки: id нужен и скринридеру. */
   duplicate: boolean;
@@ -59,7 +59,7 @@ export const contributionGroups = (
         items: contributes[point].map((id, index) => ({
           id,
           label: labels[index],
-          mono: MONO_POINTS.has(point),
+          mono: MONO_POINTS.has(point) && titled[id] === undefined,
           duplicate: (counts.get(labels[index]) ?? 0) > 1,
         })),
       };

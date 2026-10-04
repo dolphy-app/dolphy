@@ -133,8 +133,9 @@ export const host = defineExtension({
   A handler that needs `ctx` is written in `activate`; its id gets the value
   `inActivate` in the record. The host still warns after activation about a
   declared id nobody registered.
-- `ctx.settings.get(id)` returns the type of the setting: `boolean`, `string`,
-  `number`, or the union of the option values of an `enum`.
+- `ctx.settings.get(id)` returns the type of the setting: `boolean`, `string`
+  (also for `text` and `color`), `string[]` for a `list`, `number`, or the union
+  of the option values of an `enum`.
   `ctx.settings.onDidChange` hands over `{ id, value }` that narrows `value` by
   `id`. `ctx.commands.register`, `ctx.events.on` (the handler payload follows
   the event name), `ctx.registerExerciseType` and `ctx.registerGradePolicy`
@@ -143,7 +144,7 @@ export const host = defineExtension({
   `panels` with `ExtensionPanels` and `markdown` with `ExtensionMarkdown`):
   the keys must be exactly the declared exercise types, panels and languages.
 - Without `.dolphy/ids.d.ts` (no generated file) every id is a plain `string`,
-  `ctx.settings.get` returns `boolean | string | number`, and the records are
+  `ctx.settings.get` returns `boolean | string | number | string[]`, and the records are
   optional and open.
 
 ## Testing helpers

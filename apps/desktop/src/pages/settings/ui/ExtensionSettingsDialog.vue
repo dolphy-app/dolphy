@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { ExtensionInfoDto } from '@dolphy-app/engine-contract';
 import { useEngine } from '@/shared/api/engine';
 import { displayName } from '../lib/catalog.ts';
 import { useExtensionSettings } from '../model/extension-settings.ts';
+import { buildSettingsSections } from '../model/extension-settings-form.ts';
 import ExtensionSettingField from './ExtensionSettingField.vue';
 
 const props = defineProps<{ extension: ExtensionInfoDto }>();
@@ -13,6 +15,9 @@ const { t } = useI18n();
 const settings = useExtensionSettings(useEngine(), props.extension.id);
 const { definitions, values, state, loadError, errors, resetting, resetError } =
   settings;
+const sections = computed(() =>
+  buildSettingsSections(definitions.value, values.value),
+);
 </script>
 
 <template>
@@ -54,16 +59,32 @@ const { definitions, values, state, loadError, errors, resetting, resetError } =
           </div>
         </v-alert>
         <template v-if="state === 'loaded'">
-          <ExtensionSettingField
-            v-for="definition in definitions"
-            :key="definition.id"
-            :definition="definition"
-            :value="values[definition.id]"
-            :error="errors[definition.id] ?? null"
-            @commit="
-              (value, problem) => settings.set(definition.id, value, problem)
+          <section
+            v-for="(section, index) in sections"
+            :key="section.title ?? ''"
+            :aria-labelledby="
+              section.title === null ? undefined : `settings-group-${index}`
             "
-          />
+            data-testid="settings-section"
+          >
+            <h3
+              v-if="section.title !== null"
+              :id="`settings-group-${index}`"
+              class="group-title text-title-medium font-weight-bold"
+            >
+              {{ section.title }}
+            </h3>
+            <ExtensionSettingField
+              v-for="definition in section.fields"
+              :key="definition.id"
+              :definition="definition"
+              :value="values[definition.id]"
+              :error="errors[definition.id] ?? null"
+              @commit="
+                (value, problem) => settings.set(definition.id, value, problem)
+              "
+            />
+          </section>
         </template>
         <v-alert
           v-if="resetError"
@@ -99,3 +120,10 @@ const { definitions, values, state, loadError, errors, resetting, resetError } =
     </v-card>
   </v-dialog>
 </template>
+
+<style scoped>
+/* глобальный сброс полей у заголовков не слоёный и перебивает утилиты Vuetify */
+.group-title {
+  margin-block: 8px 16px;
+}
+</style>

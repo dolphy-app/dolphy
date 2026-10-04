@@ -37,9 +37,10 @@ describe('catalog build: titles', () => {
       { fixture: 'theme-only' },
       { fixture: 'commands-panel' },
       { fixture: 'markdown-only' },
+      { fixture: 'hello' },
     ]);
     const out = await makeTemp();
-    await publish(repo, out, [NIGHT, PANELS, 'acme.chart']);
+    await publish(repo, out, [NIGHT, PANELS, 'acme.chart', 'acme.hello']);
     const entries = Object.fromEntries(
       (await fullOf(out)).extensions.map((entry) => [entry.id, entry]),
     );
@@ -53,7 +54,13 @@ describe('catalog build: titles', () => {
       },
       panels: { 'acme.commands-panel.main': 'Acme panel' },
     });
-    expect(entries['acme.chart']).not.toHaveProperty('titles');
+    // exercise types are titled by id, renderers by language; only titled entries are written
+    expect(entries['acme.chart']?.titles).toEqual({
+      markdownRenderers: { chart: 'Charts' },
+    });
+    expect(entries['acme.hello']?.titles).toEqual({
+      exerciseTypes: { 'acme.hello': 'Hello exercise' },
+    });
   });
 
   it('refreshes the titles of an unchanged version and keeps them across reindex', async () => {

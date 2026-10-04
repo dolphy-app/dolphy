@@ -94,6 +94,11 @@
                 "maxLength": 64,
                 "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)*$"
               },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              },
               "specSchema": {
                 "anyOf": [
                   {
@@ -196,6 +201,11 @@
                 "type": "string",
                 "pattern": "^[a-z][a-z0-9-]{0,31}$"
               },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              },
               "renderer": {
                 "type": "string"
               }
@@ -251,6 +261,38 @@
                     "minLength": 1,
                     "maxLength": 500
                   },
+                  "group": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "order": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000
+                  },
+                  "visibleWhen": {
+                    "type": "object",
+                    "properties": {
+                      "setting": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)*$"
+                      },
+                      "equals": {
+                        "type": [
+                          "boolean",
+                          "string",
+                          "number"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "setting",
+                      "equals"
+                    ],
+                    "additionalProperties": false
+                  },
                   "type": {
                     "type": "string",
                     "const": "boolean"
@@ -284,6 +326,38 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 500
+                  },
+                  "group": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "order": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000
+                  },
+                  "visibleWhen": {
+                    "type": "object",
+                    "properties": {
+                      "setting": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)*$"
+                      },
+                      "equals": {
+                        "type": [
+                          "boolean",
+                          "string",
+                          "number"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "setting",
+                      "equals"
+                    ],
+                    "additionalProperties": false
                   },
                   "type": {
                     "type": "string",
@@ -323,6 +397,255 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 500
+                  },
+                  "group": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "order": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000
+                  },
+                  "visibleWhen": {
+                    "type": "object",
+                    "properties": {
+                      "setting": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)*$"
+                      },
+                      "equals": {
+                        "type": [
+                          "boolean",
+                          "string",
+                          "number"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "setting",
+                      "equals"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "text"
+                  },
+                  "default": {
+                    "type": "string"
+                  },
+                  "maxLength": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10000
+                  }
+                },
+                "required": [
+                  "id",
+                  "label",
+                  "type",
+                  "default"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)*$"
+                  },
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "description": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "group": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "order": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000
+                  },
+                  "visibleWhen": {
+                    "type": "object",
+                    "properties": {
+                      "setting": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)*$"
+                      },
+                      "equals": {
+                        "type": [
+                          "boolean",
+                          "string",
+                          "number"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "setting",
+                      "equals"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "color"
+                  },
+                  "default": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-fA-F]{6}$"
+                  }
+                },
+                "required": [
+                  "id",
+                  "label",
+                  "type",
+                  "default"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)*$"
+                  },
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "description": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "group": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "order": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000
+                  },
+                  "visibleWhen": {
+                    "type": "object",
+                    "properties": {
+                      "setting": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)*$"
+                      },
+                      "equals": {
+                        "type": [
+                          "boolean",
+                          "string",
+                          "number"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "setting",
+                      "equals"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "list"
+                  },
+                  "default": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "maxItems": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 50
+                  },
+                  "itemMaxLength": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 200
+                  }
+                },
+                "required": [
+                  "id",
+                  "label",
+                  "type",
+                  "default"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)*$"
+                  },
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "description": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "group": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "order": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000
+                  },
+                  "visibleWhen": {
+                    "type": "object",
+                    "properties": {
+                      "setting": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)*$"
+                      },
+                      "equals": {
+                        "type": [
+                          "boolean",
+                          "string",
+                          "number"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "setting",
+                      "equals"
+                    ],
+                    "additionalProperties": false
                   },
                   "type": {
                     "type": "string",
@@ -366,6 +689,38 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 500
+                  },
+                  "group": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "order": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000
+                  },
+                  "visibleWhen": {
+                    "type": "object",
+                    "properties": {
+                      "setting": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)*$"
+                      },
+                      "equals": {
+                        "type": [
+                          "boolean",
+                          "string",
+                          "number"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "setting",
+                      "equals"
+                    ],
+                    "additionalProperties": false
                   },
                   "type": {
                     "type": "string",

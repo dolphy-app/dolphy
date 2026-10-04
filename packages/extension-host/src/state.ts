@@ -72,7 +72,13 @@ const fits = (definition: ResolvedSetting, value: unknown): boolean => {
     case 'number':
       return typeof value === 'number';
     case 'string':
+    case 'text':
+    case 'color':
       return typeof value === 'string';
+    case 'list':
+      return (
+        Array.isArray(value) && value.every((item) => typeof item === 'string')
+      );
     default:
       return (
         typeof value === 'string' &&
@@ -80,6 +86,12 @@ const fits = (definition: ResolvedSetting, value: unknown): boolean => {
       );
   }
 };
+
+/** Скаляры сравниваются как есть, списки — поэлементно: `onDidChange` не срабатывает на то же значение. */
+const sameValue = (a: SettingValue | undefined, b: SettingValue): boolean =>
+  Array.isArray(a) && Array.isArray(b)
+    ? a.length === b.length && a.every((item, index) => item === b[index])
+    : Object.is(a, b);
 
 export interface SettingsState {
   readonly api: ExtensionSettings;
@@ -127,7 +139,7 @@ export const createSettingsState = (
   const set = (id: string, value: SettingValue): void => {
     const definition = byId.get(id);
     if (definition === undefined || !fits(definition, value)) return;
-    if (Object.is(values.get(id), value)) return;
+    if (sameValue(values.get(id), value)) return;
     values.set(id, value);
     notify({ id, value });
   };
@@ -141,7 +153,8 @@ export const createSettingsState = (
             `setting '${id}' is not declared in the manifest of '${extensionId}'`,
           );
         }
-        return value as T;
+        // список отдаётся копией: правка в коде не меняет состояние
+        return (Array.isArray(value) ? [...value] : value) as T;
       },
       onDidChange(handler) {
         handlers.add(handler);

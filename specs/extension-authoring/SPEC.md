@@ -1,5 +1,5 @@
 ---
-status: draft
+status: active
 branch: feature/extension-authoring
 created: 2026-10-04
 closed: null

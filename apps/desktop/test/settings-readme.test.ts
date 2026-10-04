@@ -83,8 +83,15 @@ describe('createReadmeRenderer: враждебный README', () => {
       MAX_README_IMAGES,
     );
     expect(root.textContent).toContain(`pic${MAX_README_IMAGES}`);
-    expect(root.querySelector(`img[data-src="img/${MAX_README_IMAGES}.png"]`))
-      .toBeNull();
+    expect(
+      root.querySelector(`img[data-src="img/${MAX_README_IMAGES}.png"]`),
+    ).toBeNull();
+  });
+
+  it('images: false — картинки заменены alt', () => {
+    const root = dom(render('![shot](docs/shot.png)', { images: false }));
+    expect(root.querySelector('img')).toBeNull();
+    expect(root.textContent).toContain('shot');
   });
 
   it('счётчик картинок не переходит между вызовами', () => {
@@ -117,7 +124,9 @@ describe('createReadmeRenderer: вёрстка', () => {
   });
 
   it('блок кода и таблица получают фокус для прокрутки с клавиатуры', () => {
-    const root = dom(render('```js\nconst a = 1;\n```\n\n| a | b |\n|---|---|\n| 1 | 2 |'));
+    const root = dom(
+      render('```js\nconst a = 1;\n```\n\n| a | b |\n|---|---|\n| 1 | 2 |'),
+    );
     expect(root.querySelector('pre')?.getAttribute('tabindex')).toBe('0');
     expect(root.querySelector('.readme-table')?.getAttribute('tabindex')).toBe(
       '0',

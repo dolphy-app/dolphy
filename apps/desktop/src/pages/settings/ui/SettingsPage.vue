@@ -67,20 +67,33 @@ const updatesBadge = computed(() =>
         :key="section.name"
         :to="{ name: section.name }"
         :prepend-icon="section.icon"
+        :aria-describedby="
+          section.name === ROUTE.settingsExtensions && updatesBadge
+            ? 'tab-updates-hint'
+            : undefined
+        "
       >
         {{ t(section.title) }}
-        <v-badge
+        <!-- число читает скринридер через описание вкладки, значок для него скрыт -->
+        <span
           v-if="section.name === ROUTE.settingsExtensions && updatesBadge"
-          inline
-          color="primary"
-          :content="updatesBadge"
-          :label="
-            t('common.extensionUpdates', { n: extensionUpdates.count.value })
-          "
+          aria-hidden="true"
+          class="ms-2"
           data-testid="updates-badge-tab"
-        />
+        >
+          <v-badge inline color="primary" :content="updatesBadge" />
+        </span>
       </v-tab>
     </v-tabs>
+    <span
+      v-if="updatesBadge"
+      id="tab-updates-hint"
+      class="visually-hidden"
+      data-testid="updates-hint-tab"
+      >{{
+        t('common.extensionUpdates', { n: extensionUpdates.count.value })
+      }}</span
+    >
     <router-view />
   </v-container>
 </template>
@@ -88,5 +101,14 @@ const updatesBadge = computed(() =>
 <style scoped>
 .tabs {
   border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 </style>

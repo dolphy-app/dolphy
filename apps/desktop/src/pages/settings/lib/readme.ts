@@ -17,6 +17,8 @@ export interface ReadmeRenderOptions {
    * README лежит под заголовками страницы или диалога.
    */
   headingOffset?: number;
+  /** `false` — картинки заменяются `alt` (журнал изменений: картинки только у README). По умолчанию `true`. */
+  images?: boolean;
 }
 
 /**
@@ -67,11 +69,13 @@ export const createReadmeRenderer = () => {
   markdown.core.ruler.push('readme_links', (state) => {
     for (const block of state.tokens) {
       if (block.type !== 'inline' || block.children === null) continue;
-      const open: Array<{ token: (typeof block.children)[number]; ok: boolean }> =
-        [];
+      const open: Array<{
+        token: (typeof block.children)[number];
+        ok: boolean;
+      }> = [];
       for (const token of block.children) {
         if (token.type === 'link_open') {
-          const ok = isOpenableLink(token.attrGet('href') ?? '');
+          const ok = isOpenableLink(String(token.attrGet('href') ?? ''));
           if (ok) {
             token.attrSet('target', '_blank');
             token.attrSet('rel', 'noopener noreferrer');
@@ -89,14 +93,18 @@ export const createReadmeRenderer = () => {
   markdown.renderer.rules['image'] = (tokens, index, options, env) => {
     const token = tokens[index];
     if (token === undefined) return '';
-    const state = env as { images: number };
+    const state = env as { images: number; allowImages: boolean };
     const alt = markdown.renderer.renderInlineAsText(
       token.children ?? [],
       options,
       env,
     );
-    const path = readmeImagePath(token.attrGet('src') ?? '');
-    if (path === null || state.images >= MAX_README_IMAGES) {
+    const path = readmeImagePath(String(token.attrGet('src') ?? ''));
+    if (
+      path === null ||
+      !state.allowImages ||
+      state.images >= MAX_README_IMAGES
+    ) {
       return escapeHtml(alt);
     }
     state.images += 1;
@@ -116,7 +124,7 @@ export const createReadmeRenderer = () => {
 
   return (source: string, options: ReadmeRenderOptions = {}): string => {
     const offset = options.headingOffset ?? 0;
-    const env = { images: 0 };
+    const env = { images: 0, allowImages: options.images !== false };
     const tokens = markdown.parse(source, env);
     if (offset > 0) {
       for (const token of tokens) {

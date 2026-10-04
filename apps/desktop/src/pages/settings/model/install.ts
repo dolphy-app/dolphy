@@ -100,7 +100,11 @@ export const useInstall = (engine: LearningEngine): ExtensionInstall => {
         sections:
           docs.changelog === null
             ? []
-            : changelogBetween(docs.changelog, installedVersion, target.version),
+            : changelogBetween(
+                docs.changelog,
+                installedVersion,
+                target.version,
+              ),
       };
     } catch (caught) {
       notes = { state: 'failed', message: toEngineError(caught).message };

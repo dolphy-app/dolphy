@@ -30,7 +30,11 @@ describe('changelogBetween', () => {
   ].join('\n');
 
   it('берёт версии новее установленной и не новее целевой, новые сверху', () => {
-    expect(versions(log, '1.0.0', '1.3.0')).toEqual(['1.3.0', '1.2.0', '1.1.0']);
+    expect(versions(log, '1.0.0', '1.3.0')).toEqual([
+      '1.3.0',
+      '1.2.0',
+      '1.1.0',
+    ]);
     expect(versions(log, '1.1.0', '1.2.0')).toEqual(['1.2.0']);
   });
 
@@ -100,14 +104,20 @@ describe('changelogBetween', () => {
   });
 
   it('предрелиз старше релиза; повтор версии берётся первый', () => {
-    const markdown = '## 1.2.0\n\nрелиз\n\n## 1.2.0-rc.1\n\nrc\n\n## 1.2.0\n\nповтор';
+    const markdown =
+      '## 1.2.0\n\nрелиз\n\n## 1.2.0-rc.1\n\nrc\n\n## 1.2.0\n\nповтор';
     const sections = changelogBetween(markdown, '1.1.0', '1.2.0');
-    expect(sections.map(({ version }) => version)).toEqual(['1.2.0', '1.2.0-rc.1']);
+    expect(sections.map(({ version }) => version)).toEqual([
+      '1.2.0',
+      '1.2.0-rc.1',
+    ]);
     expect(sections[0]?.body).toBe('релиз');
     expect(versions(markdown, '1.2.0-rc.1', '1.2.0')).toEqual(['1.2.0']);
   });
 
   it('переводы строк CRLF', () => {
-    expect(versions('## 1.1.0\r\n\r\n- x\r\n', '1.0.0', '1.1.0')).toEqual(['1.1.0']);
+    expect(versions('## 1.1.0\r\n\r\n- x\r\n', '1.0.0', '1.1.0')).toEqual([
+      '1.1.0',
+    ]);
   });
 });

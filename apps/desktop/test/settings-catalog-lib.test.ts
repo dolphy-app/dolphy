@@ -477,8 +477,12 @@ describe('устаревание: действие по диапазону', () 
       latest: catalogVersion('2.0.0'),
       deprecated: old,
     });
-    expect(targetFromEntry(entry, catalogVersion('1.0.0')).deprecated).toBe(old);
-    expect(targetFromEntry(entry, catalogVersion('2.0.0')).deprecated).toBeNull();
+    expect(targetFromEntry(entry, catalogVersion('1.0.0')).deprecated).toBe(
+      old,
+    );
+    expect(
+      targetFromEntry(entry, catalogVersion('2.0.0')).deprecated,
+    ).toBeNull();
     const deprecatedAll = catalogEntry('a.c', { deprecated: all });
     expect(
       targetFromEntry(deprecatedAll, catalogVersion('1.0.0')).deprecated,
@@ -495,8 +499,11 @@ describe('устаревание: действие по диапазону', () 
     const entry = catalogEntry('a.b', { deprecated: old });
     expect(targetFromUpdate(update, undefined, entry).deprecated).toBe(old);
     expect(
-      targetFromUpdate(update, extensionInfo('a.b', { deprecated: old }), undefined)
-        .deprecated,
+      targetFromUpdate(
+        update,
+        extensionInfo('a.b', { deprecated: old }),
+        undefined,
+      ).deprecated,
     ).toBeNull();
   });
 });

@@ -6,6 +6,7 @@ import type {
   CatalogVersionDto,
 } from '@dolphy-app/engine-contract';
 import { useEngine } from '@/shared/api/engine';
+import { ROUTE } from '@/shared/config/routes.ts';
 import {
   CONTRIBUTION_POINTS,
   entryAction,
@@ -17,7 +18,9 @@ import { GROUPS, TAGS } from '../lib/tags.ts';
 import type { ExtensionTag, TagGroup } from '../lib/tags.ts';
 import { useCatalog } from '../model/catalog.ts';
 import { useInstallContext } from '../model/install.ts';
+import DeprecatedChip from './DeprecatedChip.vue';
 import ExtensionContributions from './ExtensionContributions.vue';
+import ExtensionDeprecation from './ExtensionDeprecation.vue';
 import ExtensionHeading from './ExtensionHeading.vue';
 import ExtensionPermissions from './ExtensionPermissions.vue';
 import ExtensionTags from './ExtensionTags.vue';
@@ -324,7 +327,16 @@ onMounted(() => void open());
             <div class="d-flex flex-wrap align-center ga-2">
               <ExtensionHeading :icon="entry.icon">
                 <h3 class="name text-title-medium font-weight-bold">
-                  {{ entry.name }}
+                  <router-link
+                    class="details-link"
+                    :to="{
+                      name: ROUTE.settingsExtensionDetails,
+                      params: { id: entry.id },
+                    }"
+                    :data-testid="`details-${entry.id}`"
+                  >
+                    {{ entry.name }}
+                  </router-link>
                 </h3>
               </ExtensionHeading>
               <span class="id text-body-small text-medium-emphasis">
@@ -337,6 +349,7 @@ onMounted(() => void open());
                   })
                 }}
               </v-chip>
+              <DeprecatedChip v-if="entry.deprecated !== null" />
             </div>
 
             <p class="text-body-small text-medium-emphasis mt-1">
@@ -347,6 +360,11 @@ onMounted(() => void open());
             </p>
             <p class="text-body-medium mt-2">{{ entry.description }}</p>
             <ExtensionTags :tags="entryTags(entry)" />
+
+            <ExtensionDeprecation
+              v-if="entry.deprecated !== null"
+              :deprecation="entry.deprecated"
+            />
 
             <ExtensionPermissions
               v-if="entry.latest"
@@ -521,6 +539,16 @@ onMounted(() => void open());
 
 .name {
   overflow-wrap: anywhere;
+}
+
+.details-link {
+  color: rgb(var(--v-theme-primary));
+  text-decoration: none;
+}
+
+.details-link:hover,
+.details-link:focus-visible {
+  text-decoration: underline;
 }
 
 .visually-hidden {

@@ -70,7 +70,10 @@ describe('describeDetails: по записи каталога', () => {
       tags: ['theme'],
       action: { kind: 'install', version: { version: '1.1.0' } },
     });
-    expect(view?.versions.map((row) => row.version)).toEqual(['1.1.0', '1.0.0']);
+    expect(view?.versions.map((row) => row.version)).toEqual([
+      '1.1.0',
+      '1.0.0',
+    ]);
     expect(view?.versions[1]?.incompatible).toEqual({
       reason: 'app',
       detail: 'requires app >= 2.0.0',
@@ -84,12 +87,19 @@ describe('describeDetails: по записи каталога', () => {
       status: 'installed',
       installedVersion: '1.0.0',
     });
-    const view = describeDetails('acme.sunrise', null, installed, null, '1.1.0');
-    expect(view?.versions.map(({ installed, selected }) => [installed, selected]))
-      .toEqual([
-        [false, true],
-        [true, false],
-      ]);
+    const view = describeDetails(
+      'acme.sunrise',
+      null,
+      installed,
+      null,
+      '1.1.0',
+    );
+    expect(
+      view?.versions.map(({ installed, selected }) => [installed, selected]),
+    ).toEqual([
+      [false, true],
+      [true, false],
+    ]);
     expect(view?.action).toEqual({ kind: 'installed', version: '1.0.0' });
   });
 
@@ -177,7 +187,9 @@ describe('describeDetails: по установленному', () => {
       installedVersion: '1.0.0',
       latest: catalogVersion('1.1.0'),
     });
-    expect(describeDetails('acme.sunrise', info, entry, null, null)).toMatchObject({
+    expect(
+      describeDetails('acme.sunrise', info, entry, null, null),
+    ).toMatchObject({
       installedVersion: '1.0.0',
       action: { kind: 'update', installed: '1.0.0' },
     });
@@ -187,15 +199,17 @@ describe('describeDetails: по установленному', () => {
       installed: '1.0.0',
       available: catalogVersion('1.1.0'),
     };
-    expect(describeDetails('acme.sunrise', info, null, update, null)?.action)
-      .toMatchObject({ kind: 'update', installed: '1.0.0' });
+    expect(
+      describeDetails('acme.sunrise', info, null, update, null)?.action,
+    ).toMatchObject({ kind: 'update', installed: '1.0.0' });
   });
 
   it('расширение уже есть из другого источника: действия каталога нет', () => {
     const info = extensionInfo('acme.sunrise', { origin: 'user' });
     const entry = catalogEntry('acme.sunrise', { elsewhere: true });
-    expect(describeDetails('acme.sunrise', info, entry, null, null)?.action)
-      .toBeNull();
+    expect(
+      describeDetails('acme.sunrise', info, entry, null, null)?.action,
+    ).toBeNull();
   });
 
   it('предупреждение: установленной версии важнее; без него — записи каталога, кроме «из другого источника»', () => {
@@ -275,7 +289,10 @@ interface Fixture {
 }
 
 /** `docs()` ждёт, пока тест не завершит вызов; остальное отвечает сразу. */
-const setup = (fixture: Fixture, route = { id: 'acme.sunrise', version: null as string | null }) => {
+const setup = (
+  fixture: Fixture,
+  route = { id: 'acme.sunrise', version: null as string | null },
+) => {
   const bus = createEventBus();
   const docsCalls: DocsCall[] = [];
   let list = fixture.list ?? [];
@@ -286,7 +303,9 @@ const setup = (fixture: Fixture, route = { id: 'acme.sunrise', version: null as 
       list: () => Promise.resolve(list),
       updates: () => Promise.resolve(fixture.updates ?? []),
       catalog: () =>
-        catalog instanceof Error ? Promise.reject(catalog) : Promise.resolve(catalog),
+        catalog instanceof Error
+          ? Promise.reject(catalog)
+          : Promise.resolve(catalog),
       docs: (id: string, options?: { version?: string }) =>
         new Promise<ExtensionDocsDto>((resolve, reject) => {
           docsCalls.push({ id, options, resolve, reject });
@@ -361,7 +380,9 @@ describe('useExtensionDetails: описание версии', () => {
   });
 
   it('выбранная версия запрашивается явно и отмечается в списке', async () => {
-    const { model, docsCalls, version } = setup({ catalog: catalogDto([SUNRISE]) });
+    const { model, docsCalls, version } = setup({
+      catalog: catalogDto([SUNRISE]),
+    });
     await flush();
     docsCalls[0]?.resolve(docsDto('1.1.0'));
     await flush();
@@ -392,7 +413,9 @@ describe('useExtensionDetails: описание версии', () => {
   });
 
   it('ответ устаревшего запроса отбрасывается', async () => {
-    const { model, docsCalls, version } = setup({ catalog: catalogDto([SUNRISE]) });
+    const { model, docsCalls, version } = setup({
+      catalog: catalogDto([SUNRISE]),
+    });
     await flush();
     version.value = '1.0.0';
     await nextTick();
@@ -408,7 +431,9 @@ describe('useExtensionDetails: описание версии', () => {
 
   it('смена расширения сбрасывает страницу и читает всё заново', async () => {
     const other = catalogEntry('acme.other', { name: 'Other' });
-    const { model, docsCalls, id } = setup({ catalog: catalogDto([SUNRISE, other]) });
+    const { model, docsCalls, id } = setup({
+      catalog: catalogDto([SUNRISE, other]),
+    });
     await flush();
     docsCalls[0]?.resolve(docsDto('1.1.0'));
     await flush();
@@ -439,7 +464,9 @@ describe('useExtensionDetails: описание версии', () => {
     docsCalls[0]?.resolve(docsDto('1.1.0'));
     await flush();
 
-    setList([extensionInfo('acme.sunrise', { origin: 'user', removable: true })]);
+    setList([
+      extensionInfo('acme.sunrise', { origin: 'user', removable: true }),
+    ]);
     bus.emit({ type: 'extensions-changed' });
     await flush();
     expect(model.details.value?.info?.id).toBe('acme.sunrise');
@@ -462,7 +489,9 @@ describe('useExtensionDetails: описание версии', () => {
 describe('useExtensionDetails: без каталога', () => {
   it('каталог недоступен: показано только установленное, причина сохранена', async () => {
     const { model, docsCalls } = setup({
-      list: [extensionInfo('acme.sunrise', { origin: 'user', name: 'Sunrise' })],
+      list: [
+        extensionInfo('acme.sunrise', { origin: 'user', name: 'Sunrise' }),
+      ],
       catalog: new FakeEngineError('CATALOG_UNAVAILABLE', 'no network'),
     });
     await flush();
@@ -489,7 +518,11 @@ describe('useExtensionDetails: без каталога', () => {
   it('несколько записей с одним id: действующая важнее перекрытой', async () => {
     const { model } = setup({
       list: [
-        extensionInfo('acme.sunrise', { origin: 'user', state: 'overridden', name: 'Old' }),
+        extensionInfo('acme.sunrise', {
+          origin: 'user',
+          state: 'overridden',
+          name: 'Old',
+        }),
         extensionInfo('acme.sunrise', { origin: 'dev', name: 'Dev' }),
       ],
     });

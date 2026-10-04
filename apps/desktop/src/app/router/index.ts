@@ -8,6 +8,7 @@ import { SessionPage } from '@/pages/session';
 import {
   SettingsAbout,
   SettingsAppearance,
+  SettingsExtensionDetails,
   SettingsExtensions,
   SettingsLearning,
   SettingsLibrary,
@@ -117,9 +118,20 @@ export const router = createRouter({
               component: SettingsShortcuts,
             },
             {
+              // вкладка «Расширения» остаётся выбранной на странице расширения
               path: 'extensions',
-              name: ROUTE.settingsExtensions,
-              component: SettingsExtensions,
+              children: [
+                {
+                  path: '',
+                  name: ROUTE.settingsExtensions,
+                  component: SettingsExtensions,
+                },
+                {
+                  path: ':id',
+                  name: ROUTE.settingsExtensionDetails,
+                  component: SettingsExtensionDetails,
+                },
+              ],
             },
             {
               path: 'about',

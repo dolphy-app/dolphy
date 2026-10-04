@@ -112,19 +112,28 @@ const bottomItems = computed(() =>
           :title="t(item.titleKey)"
           color="primary"
           rounded="lg"
+          :aria-describedby="
+            item.name === ROUTE.settings && updatesBadge
+              ? 'nav-updates-hint'
+              : undefined
+          "
         >
           <template v-if="item.name === ROUTE.settings && updatesBadge" #append>
-            <v-badge
-              inline
-              color="primary"
-              :content="updatesBadge"
-              :label="
-                t('common.extensionUpdates', { n: extensionUpdates.count.value })
-              "
-              data-testid="updates-badge-nav"
-            />
+            <!-- число читает скринридер через описание пункта, значок для него скрыт -->
+            <span aria-hidden="true" data-testid="updates-badge-nav">
+              <v-badge inline color="primary" :content="updatesBadge" />
+            </span>
           </template>
         </v-list-item>
+        <span
+          v-if="updatesBadge"
+          id="nav-updates-hint"
+          class="visually-hidden"
+          data-testid="updates-hint-nav"
+          >{{
+            t('common.extensionUpdates', { n: extensionUpdates.count.value })
+          }}</span
+        >
       </v-list>
     </template>
   </v-navigation-drawer>
@@ -136,5 +145,14 @@ const bottomItems = computed(() =>
 <style scoped>
 .v-list-item :deep(.v-list-item__spacer) {
   width: 12px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 </style>

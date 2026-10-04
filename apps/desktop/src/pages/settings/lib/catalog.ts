@@ -286,5 +286,8 @@ export const targetFromUpdate = (
   sizeBytes: update.available.size,
   icon: entry?.icon ?? info?.icon ?? null,
   // обновляемся на версию каталога: предупреждение записи, а не установленной версии
-  deprecated: deprecationFor(entry?.deprecated ?? null, update.available.version),
+  deprecated: deprecationFor(
+    entry?.deprecated ?? null,
+    update.available.version,
+  ),
 });

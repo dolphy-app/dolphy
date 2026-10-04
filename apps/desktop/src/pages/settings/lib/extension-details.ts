@@ -83,12 +83,22 @@ const shownTags = (
   return entry === null ? [] : entryTags(entry);
 };
 
+/** Разрешения показанной версии: установленной (если она действует) или новейшей из каталога. */
+const shownPermissions = (
+  info: ExtensionInfoDto | null,
+  entry: CatalogEntryDto | null,
+): string[] | null => {
+  if (info === null) return entry?.latest?.permissions ?? null;
+  return isActive(info) ? info.permissions : null;
+};
+
 /** Предупреждение страницы: установленной версии, а без установленной — показанной версии каталога. */
 const deprecationOf = (
   info: ExtensionInfoDto | null,
   entry: CatalogEntryDto | null,
 ): DeprecationDto | null => {
-  const fromEntry = entry !== null && !entry.elsewhere ? entry.deprecated : null;
+  const fromEntry =
+    entry !== null && !entry.elsewhere ? entry.deprecated : null;
   if (info === null) return entry?.deprecated ?? null;
   return info.deprecated ?? fromEntry;
 };
@@ -99,7 +109,11 @@ const actionOf = (
 ): EntryAction | null => {
   if (entry !== null) return entry.elsewhere ? null : entryAction(entry);
   if (update === null) return null;
-  return { kind: 'update', installed: update.installed, version: update.available };
+  return {
+    kind: 'update',
+    installed: update.installed,
+    version: update.available,
+  };
 };
 
 /**
@@ -120,9 +134,7 @@ export const describeDetails = (
   const installedVersion =
     entry?.installedVersion ?? info?.installed?.version ?? null;
   const author = info?.author ?? entry?.author ?? null;
-  let permissions: string[] | null = null;
-  if (info !== null) permissions = isActive(info) ? info.permissions : null;
-  else permissions = entry?.latest?.permissions ?? null;
+  const permissions = shownPermissions(info, entry);
   return {
     id,
     info,

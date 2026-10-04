@@ -91,8 +91,10 @@ const parseName = (name: string): Named | null => {
   return { name, day: match[1] as string, index: Number(match[2] ?? 0) };
 };
 
-const byAge = (a: Named, b: Named): number =>
-  a.day === b.day ? a.index - b.index : a.day < b.day ? -1 : 1;
+const byAge = (a: Named, b: Named): number => {
+  if (a.day === b.day) return a.index - b.index;
+  return a.day < b.day ? -1 : 1;
+};
 
 const replacer = (_key: string, value: unknown): unknown => {
   if (value instanceof Error) {

@@ -121,7 +121,7 @@ describe('журнал и диагностика', () => {
     expect(all.at(-1)).toContain('acme.logs says hello 1');
 
     // фильтр по id расширения
-    await diagnostics.extensionFilter.locator('input').fill(ID);
+    await diagnostics.extensionFilter.locator('input[type=text]').fill(ID);
     await expect
       .poll(async () =>
         (await diagnostics.entryTexts()).every((text) => text.includes(ID)),
@@ -139,7 +139,9 @@ describe('журнал и диагностика', () => {
 
     // «Обновить» подтягивает новые записи
     await diagnostics.levelFilter.click();
-    await app!.page.getByRole('option', { name: 'Все', exact: true }).click();
+    await app!.page
+      .getByRole('option', { name: 'Отладка', exact: true })
+      .click();
     await expectCount(diagnostics.empty, 0);
     await app!.page.keyboard.press('Escape');
     await diagnostics.dialog.waitFor({ state: 'detached', timeout: 15_000 });

@@ -197,31 +197,6 @@ const findToggleable = (
   return effective;
 };
 
-/** Параметры `readLogs`: неверное значение — `INVALID_ARGUMENT`, ничего не читается. */
-const logQueryOf = (options: ReadLogsOptions | undefined): LogReadQuery => {
-  const { extensionId, minLevel, limit = MAX_LOG_ENTRIES } = options ?? {};
-  if (extensionId !== undefined && !isExtensionId(extensionId)) {
-    throw invalidId(extensionId);
-  }
-  if (minLevel !== undefined && !LOG_LEVELS.includes(minLevel)) {
-    throw new EngineError('INVALID_ARGUMENT', {
-      message: `Unknown log level: ${String(minLevel)}`,
-      details: { field: 'minLevel' },
-    });
-  }
-  if (!Number.isInteger(limit) || limit < 1 || limit > MAX_LOG_ENTRIES) {
-    throw new EngineError('INVALID_ARGUMENT', {
-      message: `limit must be an integer in 1..${MAX_LOG_ENTRIES}`,
-      details: { field: 'limit' },
-    });
-  }
-  return {
-    limit,
-    ...(extensionId !== undefined && { extensionId }),
-    ...(minLevel !== undefined && { minLevel }),
-  };
-};
-
 /** Аргументы команды — JSON до `MAX_ANSWER_CHARS` знаков; длиннее или не JSON — `INVALID_ARGUMENT` без обращения к расширению. */
 const assertArgsSize = (args: JsonValue | undefined): void => {
   let text: string | undefined;
@@ -266,6 +241,31 @@ const removeDataOf = (options: unknown): boolean => {
     });
   }
   return removeData;
+};
+
+/** Параметры `readLogs`: неверное значение — `INVALID_ARGUMENT`, ничего не читается. */
+const logQueryOf = (options: ReadLogsOptions | undefined): LogReadQuery => {
+  const { extensionId, minLevel, limit = MAX_LOG_ENTRIES } = options ?? {};
+  if (extensionId !== undefined && !isExtensionId(extensionId)) {
+    throw invalidId(extensionId);
+  }
+  if (minLevel !== undefined && !LOG_LEVELS.includes(minLevel)) {
+    throw new EngineError('INVALID_ARGUMENT', {
+      message: `Unknown log level: ${String(minLevel)}`,
+      details: { field: 'minLevel' },
+    });
+  }
+  if (!Number.isInteger(limit) || limit < 1 || limit > MAX_LOG_ENTRIES) {
+    throw new EngineError('INVALID_ARGUMENT', {
+      message: `limit must be an integer in 1..${MAX_LOG_ENTRIES}`,
+      details: { field: 'limit' },
+    });
+  }
+  return {
+    limit,
+    ...(extensionId !== undefined && { extensionId }),
+    ...(minLevel !== undefined && { minLevel }),
+  };
 };
 
 const withMember = (

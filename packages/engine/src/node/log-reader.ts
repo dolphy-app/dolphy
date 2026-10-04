@@ -82,9 +82,10 @@ const filesNewestFirst = async (dir: string): Promise<string[]> => {
         ? []
         : [{ name, day: match[1] as string, index: Number(match[2] ?? 0) }];
     })
-    .sort((a, b) =>
-      a.day === b.day ? b.index - a.index : a.day < b.day ? 1 : -1,
-    )
+    .sort((a, b) => {
+      if (a.day === b.day) return b.index - a.index;
+      return a.day < b.day ? 1 : -1;
+    })
     .map(({ name }) => name);
 };
 

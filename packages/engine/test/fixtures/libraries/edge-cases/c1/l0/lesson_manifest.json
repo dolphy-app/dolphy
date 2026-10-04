@@ -1,7 +1,9 @@
 {
   "id": "c1::l0",
   "course_id": "c1",
-  "superseded": ["c1::l1"],
+  "superseded": [
+    "c1::l1"
+  ],
   "lesson_material": {
     "InlinedAsset": {
       "content": "hi"

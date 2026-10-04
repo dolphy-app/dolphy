@@ -7,8 +7,14 @@
     "LiteracyAsset": {
       "lesson_type": "Dictation",
       "examples": [
-        ["a", "b"],
-        ["c", null]
+        [
+          "a",
+          "b"
+        ],
+        [
+          "c",
+          null
+        ]
       ]
     }
   }

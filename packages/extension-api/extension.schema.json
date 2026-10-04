@@ -52,7 +52,11 @@
       "type": "array",
       "items": {
         "type": "string",
-        "enum": ["darwin", "linux", "win32"]
+        "enum": [
+          "darwin",
+          "linux",
+          "win32"
+        ]
       }
     },
     "minAppVersion": {
@@ -130,7 +134,11 @@
                 "type": "string"
               }
             },
-            "required": ["id", "specSchema", "answerSchema"],
+            "required": [
+              "id",
+              "specSchema",
+              "answerSchema"
+            ],
             "additionalProperties": false
           }
         },
@@ -168,11 +176,19 @@
                   "type": "string"
                 },
                 "additionalProperties": {
-                  "type": ["string", "number"]
+                  "type": [
+                    "string",
+                    "number"
+                  ]
                 }
               }
             },
-            "required": ["id", "label", "dark", "colors"],
+            "required": [
+              "id",
+              "label",
+              "dark",
+              "colors"
+            ],
             "additionalProperties": false
           }
         },
@@ -194,7 +210,9 @@
                 "type": "string"
               }
             },
-            "required": ["language"],
+            "required": [
+              "language"
+            ],
             "additionalProperties": false
           }
         },
@@ -214,7 +232,10 @@
                 "maxLength": 60
               }
             },
-            "required": ["id", "label"],
+            "required": [
+              "id",
+              "label"
+            ],
             "additionalProperties": false
           }
         },
@@ -259,10 +280,17 @@
                         "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)*$"
                       },
                       "equals": {
-                        "type": ["boolean", "string", "number"]
+                        "type": [
+                          "boolean",
+                          "string",
+                          "number"
+                        ]
                       }
                     },
-                    "required": ["setting", "equals"],
+                    "required": [
+                      "setting",
+                      "equals"
+                    ],
                     "additionalProperties": false
                   },
                   "type": {
@@ -273,7 +301,12 @@
                     "type": "boolean"
                   }
                 },
-                "required": ["id", "label", "type", "default"],
+                "required": [
+                  "id",
+                  "label",
+                  "type",
+                  "default"
+                ],
                 "additionalProperties": false
               },
               {
@@ -313,10 +346,17 @@
                         "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)*$"
                       },
                       "equals": {
-                        "type": ["boolean", "string", "number"]
+                        "type": [
+                          "boolean",
+                          "string",
+                          "number"
+                        ]
                       }
                     },
-                    "required": ["setting", "equals"],
+                    "required": [
+                      "setting",
+                      "equals"
+                    ],
                     "additionalProperties": false
                   },
                   "type": {
@@ -332,7 +372,12 @@
                     "maximum": 10000
                   }
                 },
-                "required": ["id", "label", "type", "default"],
+                "required": [
+                  "id",
+                  "label",
+                  "type",
+                  "default"
+                ],
                 "additionalProperties": false
               },
               {
@@ -372,10 +417,17 @@
                         "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)*$"
                       },
                       "equals": {
-                        "type": ["boolean", "string", "number"]
+                        "type": [
+                          "boolean",
+                          "string",
+                          "number"
+                        ]
                       }
                     },
-                    "required": ["setting", "equals"],
+                    "required": [
+                      "setting",
+                      "equals"
+                    ],
                     "additionalProperties": false
                   },
                   "type": {
@@ -391,7 +443,12 @@
                     "maximum": 10000
                   }
                 },
-                "required": ["id", "label", "type", "default"],
+                "required": [
+                  "id",
+                  "label",
+                  "type",
+                  "default"
+                ],
                 "additionalProperties": false
               },
               {
@@ -431,10 +488,17 @@
                         "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)*$"
                       },
                       "equals": {
-                        "type": ["boolean", "string", "number"]
+                        "type": [
+                          "boolean",
+                          "string",
+                          "number"
+                        ]
                       }
                     },
-                    "required": ["setting", "equals"],
+                    "required": [
+                      "setting",
+                      "equals"
+                    ],
                     "additionalProperties": false
                   },
                   "type": {
@@ -446,7 +510,12 @@
                     "pattern": "^#[0-9a-fA-F]{6}$"
                   }
                 },
-                "required": ["id", "label", "type", "default"],
+                "required": [
+                  "id",
+                  "label",
+                  "type",
+                  "default"
+                ],
                 "additionalProperties": false
               },
               {
@@ -486,10 +555,17 @@
                         "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)*$"
                       },
                       "equals": {
-                        "type": ["boolean", "string", "number"]
+                        "type": [
+                          "boolean",
+                          "string",
+                          "number"
+                        ]
                       }
                     },
-                    "required": ["setting", "equals"],
+                    "required": [
+                      "setting",
+                      "equals"
+                    ],
                     "additionalProperties": false
                   },
                   "type": {
@@ -513,7 +589,12 @@
                     "maximum": 200
                   }
                 },
-                "required": ["id", "label", "type", "default"],
+                "required": [
+                  "id",
+                  "label",
+                  "type",
+                  "default"
+                ],
                 "additionalProperties": false
               },
               {
@@ -553,10 +634,17 @@
                         "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)*$"
                       },
                       "equals": {
-                        "type": ["boolean", "string", "number"]
+                        "type": [
+                          "boolean",
+                          "string",
+                          "number"
+                        ]
                       }
                     },
-                    "required": ["setting", "equals"],
+                    "required": [
+                      "setting",
+                      "equals"
+                    ],
                     "additionalProperties": false
                   },
                   "type": {
@@ -576,7 +664,12 @@
                     "type": "boolean"
                   }
                 },
-                "required": ["id", "label", "type", "default"],
+                "required": [
+                  "id",
+                  "label",
+                  "type",
+                  "default"
+                ],
                 "additionalProperties": false
               },
               {
@@ -616,10 +709,17 @@
                         "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)*$"
                       },
                       "equals": {
-                        "type": ["boolean", "string", "number"]
+                        "type": [
+                          "boolean",
+                          "string",
+                          "number"
+                        ]
                       }
                     },
-                    "required": ["setting", "equals"],
+                    "required": [
+                      "setting",
+                      "equals"
+                    ],
                     "additionalProperties": false
                   },
                   "type": {
@@ -647,12 +747,21 @@
                           "maxLength": 60
                         }
                       },
-                      "required": ["value", "label"],
+                      "required": [
+                        "value",
+                        "label"
+                      ],
                       "additionalProperties": false
                     }
                   }
                 },
-                "required": ["id", "label", "type", "default", "options"],
+                "required": [
+                  "id",
+                  "label",
+                  "type",
+                  "default",
+                  "options"
+                ],
                 "additionalProperties": false
               }
             ]
@@ -672,7 +781,9 @@
                 ]
               }
             },
-            "required": ["event"],
+            "required": [
+              "event"
+            ],
             "additionalProperties": false
           }
         },
@@ -709,7 +820,10 @@
                 "type": "boolean"
               }
             },
-            "required": ["id", "title"],
+            "required": [
+              "id",
+              "title"
+            ],
             "additionalProperties": false
           }
         },
@@ -732,7 +846,10 @@
                 "type": "string"
               }
             },
-            "required": ["id", "title"],
+            "required": [
+              "id",
+              "title"
+            ],
             "additionalProperties": false
           }
         }
@@ -740,7 +857,12 @@
       "additionalProperties": false
     }
   },
-  "required": ["id", "version", "apiVersion", "contributes"],
+  "required": [
+    "id",
+    "version",
+    "apiVersion",
+    "contributes"
+  ],
   "additionalProperties": false,
   "title": "Dolphy extension manifest",
   "description": "Editor aid for extension.json. It does not express cross-field rules (id prefix, at least one contribution, the learning.events permission for events, per-point checks); `dolphy-ext validate` and the app remain the source of truth."

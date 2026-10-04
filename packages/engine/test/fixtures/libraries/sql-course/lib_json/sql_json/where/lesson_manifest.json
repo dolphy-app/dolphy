@@ -1,6 +1,8 @@
 {
   "course_id": "sql_json",
-  "dependencies": ["sql_json::select"],
+  "dependencies": [
+    "sql_json::select"
+  ],
   "encompassed": [],
   "id": "sql_json::where",
   "name": "WHERE filters"

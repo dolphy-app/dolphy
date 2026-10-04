@@ -134,25 +134,25 @@ manifest declares but the code did not register.
 
 The labels the dialog shows, with the keys of the app's messages (ru and en):
 
-| Where                      | English                       | Русский                              | Message key                                   |
-| -------------------------- | ----------------------------- | ------------------------------------ | --------------------------------------------- |
-| Settings section           | Extensions                    | Расширения                           | `settings.extensions.title`                   |
-| Origin of a dev extension  | Development                   | Разработка                           | `settings.extensions.origin.dev`              |
-| Trust switch               | Trust (no isolation)          | Доверять (без изоляции)              | `settings.extensions.trustLabel`              |
-| Block with the log button  | Diagnostics                   | Диагностика                          | `settings.extensions.support.title`           |
-| Button of the block        | Log                           | Журнал                               | `settings.extensions.support.openLog`         |
-| Action in an extension row | Log                           | Журнал                               | `settings.extensions.log.rowAction`           |
-| Dialog title               | Log                           | Журнал                               | `settings.extensions.log.title`               |
-| Extension filter           | Extension                     | Расширение                           | `settings.extensions.log.filterExtension`     |
-| Extension filter, empty    | All extensions                | Все расширения                       | `settings.extensions.log.filterExtensionHint` |
-| Level filter               | Minimum level                 | Минимальный уровень                  | `settings.extensions.log.filterLevel`         |
-| Level                      | Debug                         | Отладка                              | `settings.extensions.log.level.debug`         |
-| Level                      | Info                          | Инфо                                 | `settings.extensions.log.level.info`          |
-| Level                      | Warning                       | Предупреждение                       | `settings.extensions.log.level.warn`          |
-| Level                      | Error                         | Ошибка                               | `settings.extensions.log.level.error`         |
-| Other fields of an entry   | Details                       | Подробности                          | `settings.extensions.log.details`             |
-| Reread the log             | Refresh                       | Обновить                             | `settings.extensions.log.refresh`             |
-| Filters match nothing      | No entries match the filters. | Нет записей, подходящих под условия. | `settings.extensions.log.empty`               |
+| Where                      | English                          | Русский                       | Message key                                |
+| -------------------------- | -------------------------------- | ----------------------------- | ------------------------------------------ |
+| Settings section           | Extensions                       | Расширения                    | `settings.extensions.title`                |
+| Origin of a dev extension  | Development                      | Разработка                    | `settings.extensions.origin.dev`           |
+| Trust switch               | Trust (no isolation)             | Доверять (без изоляции)       | `settings.extensions.trustLabel`           |
+| Block with the log button  | Diagnostics                      | Диагностика                   | `settings.extensions.support.title`        |
+| Button of the block        | Log                              | Журнал                        | `settings.extensions.support.openLog`      |
+| Action in an extension row | Log                              | Журнал                        | `settings.extensions.log.rowAction`        |
+| Dialog title               | Log                              | Журнал                        | `settings.extensions.log.title`            |
+| Extension filter           | Extension                        | Расширение                    | `settings.extensions.log.filterExtension`  |
+| Extension filter, empty    | All extensions                   | Все расширения                | `settings.extensions.log.filterExtensionHint` |
+| Level filter               | Minimum level                    | Минимальный уровень           | `settings.extensions.log.filterLevel`      |
+| Level                      | Debug                            | Отладка                       | `settings.extensions.log.level.debug`      |
+| Level                      | Info                             | Инфо                          | `settings.extensions.log.level.info`       |
+| Level                      | Warning                          | Предупреждение                | `settings.extensions.log.level.warn`       |
+| Level                      | Error                            | Ошибка                        | `settings.extensions.log.level.error`      |
+| Other fields of an entry   | Details                          | Подробности                   | `settings.extensions.log.details`          |
+| Reread the log             | Refresh                          | Обновить                      | `settings.extensions.log.refresh`          |
+| Filters match nothing      | No entries match the filters.    | Нет записей, подходящих под условия. | `settings.extensions.log.empty`     |
 
 ### Output of the restricted process
 
@@ -201,10 +201,10 @@ maps at all.
 
 ## Which limit did I hit?
 
-| Symptom                                       | Limit                                                   |
-| --------------------------------------------- | ------------------------------------------------------- |
-| activation fails with `activation-timeout`    | `activate` must finish in 10 seconds                    |
-| an event handler stops mid-way                | 2 seconds per event; the queue holds 100 events         |
-| `StorageQuotaError`                           | key 128 characters, value 64 KiB, 256 keys, 1 MiB total |
-| a command result is rejected                  | `notify` text 1–500 characters; a result up to 64 KiB   |
-| a panel cannot load an image or open a socket | the frame loads only from its own extension, no network |
+| Symptom                                         | Limit                                                    |
+| ----------------------------------------------- | -------------------------------------------------------- |
+| activation fails with `activation-timeout`      | `activate` must finish in 10 seconds                     |
+| an event handler stops mid-way                  | 2 seconds per event; the queue holds 100 events          |
+| `StorageQuotaError`                             | key 128 characters, value 64 KiB, 256 keys, 1 MiB total  |
+| a command result is rejected                    | `notify` text 1–500 characters; a result up to 64 KiB    |
+| a panel cannot load an image or open a socket   | the frame loads only from its own extension, no network  |

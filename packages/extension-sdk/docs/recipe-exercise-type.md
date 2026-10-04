@@ -222,11 +222,7 @@ const load = async (settings = newSettings()) => {
 };
 
 const mount = async (label?: string) => {
-  const view = await loadView(
-    views,
-    'acme.hello',
-    label === undefined ? {} : { label },
-  );
+  const view = await loadView(views, 'acme.hello', label === undefined ? {} : { label });
   disposables.push(view);
   const input = view.query<HTMLInputElement>('input');
   if (input === null) throw new Error('no input');

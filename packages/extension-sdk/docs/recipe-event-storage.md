@@ -25,11 +25,7 @@ File `extension.json` (events):
   "contributes": {
     "events": [{ "event": "attempt.closed" }],
     "commands": [
-      {
-        "id": "acme.hello.show",
-        "title": "Show the streak",
-        "category": "Streak"
-      },
+      { "id": "acme.hello.show", "title": "Show the streak", "category": "Streak" },
       { "id": "acme.hello.data", "title": "Streak data", "palette": false }
     ],
     "panels": [{ "id": "acme.hello.view", "title": "Streak" }]
@@ -167,10 +163,7 @@ afterEach(async () => {
 
 type Attempt = LearningEventPayloads['attempt.closed'];
 
-const attempt = (
-  day: string,
-  outcome: Attempt['outcome'] = 'passed',
-): Attempt => ({
+const attempt = (day: string, outcome: Attempt['outcome'] = 'passed'): Attempt => ({
   exerciseId: 'e',
   courseId: 'c',
   lessonId: 'l',
@@ -227,9 +220,7 @@ describe('acme.hello: events and storage', () => {
 describe('acme.hello: commands and panel', () => {
   it('without a streak the show command notifies, the data command returns zeros', async () => {
     const { commands } = await load();
-    expect(await commands.run('acme.hello.show')).toMatchObject({
-      kind: 'notify',
-    });
+    expect(await commands.run('acme.hello.show')).toMatchObject({ kind: 'notify' });
     expect(await commands.run('acme.hello.data')).toEqual({
       kind: 'data',
       value: { days: 0, last: '' },

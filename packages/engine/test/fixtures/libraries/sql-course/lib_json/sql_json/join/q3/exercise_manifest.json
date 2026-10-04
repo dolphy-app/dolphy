@@ -21,8 +21,12 @@
         "reference": "solutions/join-self-manager.sql"
       }
     },
-    "keyPrerequisites": ["sql_json::where"],
-    "tags": ["self-join"],
+    "keyPrerequisites": [
+      "sql_json::where"
+    ],
+    "tags": [
+      "self-join"
+    ],
     "bloom": "analyze",
     "dok": 3
   }

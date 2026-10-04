@@ -1,7 +1,14 @@
 {
   "course_id": "sql_json",
-  "dependencies": ["sql_json::join"],
-  "encompassed": [["sql_json::select", 0.7]],
+  "dependencies": [
+    "sql_json::join"
+  ],
+  "encompassed": [
+    [
+      "sql_json::select",
+      0.7
+    ]
+  ],
   "id": "sql_json::subquery",
   "name": "Subqueries"
 }

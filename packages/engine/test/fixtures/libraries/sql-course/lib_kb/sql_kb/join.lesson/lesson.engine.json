@@ -1,6 +1,10 @@
 {
-  "keyPrerequisites": ["sql_kb::where"],
-  "tags": ["join"],
+  "keyPrerequisites": [
+    "sql_kb::where"
+  ],
+  "tags": [
+    "join"
+  ],
   "bloom": "apply",
   "dok": 2
 }

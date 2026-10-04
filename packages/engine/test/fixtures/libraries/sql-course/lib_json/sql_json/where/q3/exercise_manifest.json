@@ -21,7 +21,10 @@
         "reference": "solutions/where-ne-null-trap.sql"
       }
     },
-    "tags": ["nulls", "trap"],
+    "tags": [
+      "nulls",
+      "trap"
+    ],
     "bloom": "analyze",
     "dok": 3
   }

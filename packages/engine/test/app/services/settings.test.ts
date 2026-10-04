@@ -591,7 +591,7 @@ describe('settings keybindings', () => {
   });
 
   it('rejects with field, reason and command for each kind of problem', async () => {
-    const { engine } = await open({ platform: 'linux' });
+    const { engine } = await open({ osPlatform: 'linux' });
     const nine = Array.from({ length: 9 }, (_, i) => key(`Ctrl+${i + 1}`));
     const cases: [
       string,
@@ -640,7 +640,7 @@ describe('settings keybindings', () => {
   });
 
   it('names both commands of a conflict and lists every issue', async () => {
-    const { engine } = await open({ platform: 'linux' });
+    const { engine } = await open({ osPlatform: 'linux' });
     const error: unknown = await engine.settings
       .setKeybindings({
         'app:a': [key('Ctrl+1')],
@@ -674,11 +674,11 @@ describe('settings keybindings', () => {
       'app:a': [key('Ctrl+K')],
       'app:b': [key('Mod+K')],
     };
-    const linux = await open({ platform: 'linux' });
+    const linux = await open({ osPlatform: 'linux' });
     await expect(
       linux.engine.settings.setKeybindings(patch),
     ).rejects.toMatchObject({ details: { reason: 'conflict' } });
-    const mac = await open({ platform: 'mac' });
+    const mac = await open({ osPlatform: 'mac' });
     await expect(mac.engine.settings.setKeybindings(patch)).resolves.toEqual({
       commands: patch,
     });
@@ -695,7 +695,7 @@ describe('settings keybindings', () => {
         },
       },
     });
-    const { engine } = await open({ settings, platform: 'linux' });
+    const { engine } = await open({ settings, osPlatform: 'linux' });
     // правка не касается сломанных команд — они не блокируют её
     await expect(
       engine.settings.setKeybindings({ 'app:ok': [key('Ctrl+8')] }),

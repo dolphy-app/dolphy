@@ -121,7 +121,7 @@ export interface EngineDeps {
   /** Чтение файлового журнала (`extensions.readLogs`); нет порта — журнала нет, ответ пустой. */
   logReader?: LogReader;
   /** Платформа хоста; по умолчанию `platformFromNode(process.platform)`. */
-  platform?: Platform;
+  osPlatform?: Platform;
   /** Нет порта — `sync.folder.*` отвечает `SYNC_FOLDER_NOT_CONFIGURED`. */
   folderSync?: FolderSyncPort;
   /** Чтение каталога `.trane` (`readTraneDirectory` из `@dolphy-app/engine-sqlite`); нет — `importFromTrane` отказывает. */
@@ -341,7 +341,7 @@ export interface EngineContext extends FacadeContext {
   readonly folderSync: FolderSyncPort | null;
   readonly logReader: LogReader | null;
   /** Платформа хоста: по ней `Mod` в пользовательских привязках раскрывается в Ctrl или ⌘ (`settings.setKeybindings`). */
-  readonly platform: Platform;
+  readonly osPlatform: Platform;
   readonly openTraneSource: EngineDeps['openTraneSource'];
   readonly repositoryStore: RepositoryStore;
   readonly extensionData: ExtensionDataStore;

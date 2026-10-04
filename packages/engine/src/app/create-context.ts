@@ -316,7 +316,7 @@ export const createContext = async (
     }),
     folderSync: deps.folderSync ?? null,
     logReader: deps.logReader ?? null,
-    platform: deps.platform ?? platformFromNode(process.platform),
+    osPlatform: deps.osPlatform ?? platformFromNode(process.platform),
     openTraneSource: deps.openTraneSource,
     repositoryStore: deps.repositoryStore,
     extensionData: deps.extensionDataStore,

@@ -102,7 +102,7 @@ export interface TestEngineOptions {
   clock?: FakeClock;
   seed?: number;
   config?: Partial<EngineConfig>;
-  platform?: EngineDeps['platform'];
+  osPlatform?: EngineDeps['osPlatform'];
   folderSync?: EngineDeps['folderSync'];
   openTraneSource?: EngineDeps['openTraneSource'];
   repositoryStore?: RepositoryStore;
@@ -211,7 +211,9 @@ export const createTestContext = async (
       options.extensionReloader ?? createFakeExtensionReloader(),
     repositoryStore,
     extensionDataStore,
-    ...(options.platform !== undefined && { platform: options.platform }),
+    ...(options.osPlatform !== undefined && {
+      osPlatform: options.osPlatform,
+    }),
     snapshotFetcher: options.snapshotFetcher ?? offlineFetcher,
     snapshotInstaller:
       options.snapshotInstaller ??

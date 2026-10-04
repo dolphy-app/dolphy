@@ -294,8 +294,8 @@ export const createSettingsService = (ctx: EngineContext): SettingsService => {
       ),
     };
     const issues = blockingIssues(
-      validateUserKeybindings(current.commands, ctx.platform),
-      validateUserKeybindings(next.commands, ctx.platform),
+      validateUserKeybindings(current.commands, ctx.osPlatform),
+      validateUserKeybindings(next.commands, ctx.osPlatform),
       new Set(Object.keys(patch)),
     );
     const [first] = issues;

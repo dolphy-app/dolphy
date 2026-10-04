@@ -68,8 +68,9 @@ superseded-by: null
   - [x] `CHECK-019`…`CHECK-025`, флаг `--built`, `bundleDir` в `RuleContext`, тесты на каждое правило (R11, R12)
 - [x] 3b. Шаблоны и инструкции проекта (один PR, `create-extension`)
   - [x] модули шаблонов, `--template`, `AGENTS.md`, `CLAUDE.md`, `ci.yml`, скрипт `lint`; тесты R1, R5-часть, R6, R13
-- [ ] 3c. Руководство (один PR, `extension-sdk`, `tools/`)
-  - [ ] `docs/quick-start.md`, пять рецептов, `no-build.md`; `docs-blocks.ts` + `sdk-docs.test.ts` (R4, R5, R7); упаковка и `verify:packages` (R3)
+- [x] 3c. Руководство (один PR, `extension-sdk`, `tools/`)
+  - [x] `docs/quick-start.md`, пять рецептов, `no-build.md`; `docs-blocks.ts` + `sdk-docs.test.ts` (R4, R5, R7); упаковка и `verify:packages` (R3)
+  - [x] `docs/debugging.md` в состоянии на 3c: тесты, проверки, цикл разработки, `ctx.logger`, ограниченный процесс; разделы про журнал W1 и R8–R10 добавляет 3d
 - [ ] 3d. Цикл разработки (один PR, `extension-tools`, `desktop`)
   - [ ] встроенные карты в watch (R8); `dolphy-ext dev` (R10); `devtools-shortcut.ts`, README приложения (R9)
   - [ ] `debugging.md` — после слияния журнала W1 (стадия 1b), с реальными подписями окна (R15)
@@ -89,6 +90,11 @@ superseded-by: null
 - Проект «без замечаний `lint`» (R6) требует `name`, `description` (от 20 символов) и `author` в манифесте шаблона; поэтому они добавлены во все пять манифестов, а блок `extension.json` в `docs/design/extensions.md` обновлён вместе с шаблоном `exercise` (`docs.test.ts`).
 - Сгенерированный проект не имеет lockfile, а `pnpm install` в CI по умолчанию замораживает его: в `ci.yml` стоит `pnpm install --no-frozen-lockfile`, и `cache: pnpm` в `setup-node` не используется (он требует lockfile).
 - Общий модуль попадает и в `main.mjs`, и в `view.mjs`: эвристики дают строку на каждый файл, где сработали.
+- Требование R3 говорит «семь файлов», но перечисляет восемь: `quick-start.md`, пять рецептов, `no-build.md`, `debugging.md`. Опубликован и проверяется весь перечень (восемь).
+- Результат команды без SDK — не `{ kind: 'notify', text }` (это форма `CommandOutcome`, её получает вызвавший), а `{ notify: text }`: объект с `kind` хост считает обычными данными. `no-build.md` показывает исходную форму, тест R7 проверяет исход `notify`.
+- Каталог проверяет проект, а не голый каталог: `package.json` и lock-файл (`CHECK-007`, `CHECK-008`) обязательны, поэтому путь без сборки годится для себя, а не для публикации; `no-build.md` говорит это прямо.
+- `main` в манифесте без сборки не нужен: `parseManifest` подставляет `./main.mjs`, если вклады требуют кода.
+- Опубликованный README пакета собирается из шаблона `tools/templates/package-readme.md` и `usage` в `package-manifest.mjs`, а не из `packages/extension-sdk/README.md`: ссылки на руководство добавлены в оба места.
 
 ## Decision Log
 
@@ -111,6 +117,9 @@ superseded-by: null
 - 2026-10-04 (3b). `author` в шаблонах — `your-github-login` (AGENTS.md и документ просят заменить). Причина: автор неизвестен генератору, а пустое значение `parseManifest` отвергает.
 - 2026-10-04 (3b). Существование `docs/quick-start.md` в SDK (вторая половина проверки R1) проверяет стадия 3c: файл появляется в ней, `AGENTS.md` называет путь `node_modules/@dolphy-app/extension-sdk/docs/quick-start.md` уже сейчас.
 - 2026-10-04 (3b). Шаблон `events` — «серия дней» целиком (событие, хранилище, команды, панель); `command-panel` — отдельный проект без событий и разрешений.
+- 2026-10-04 (3c). `docs/debugging.md` написан в составе 3c, но только о том, что есть в приложении сейчас (тесты, `validate`/`lint`/`typecheck`, цикл `pnpm dev` с `DOLPHY_DEV_EXTENSIONS`, `ctx.logger`, ограниченный процесс, чтение трассы `main.mjs` без карт). Причина: R3 требует файл в tarball, а журнал W1 (1c) и R8–R10 ещё не слиты; описывать их было бы выдумкой. Стадия 3d дополняет файл (встроенные карты в watch меняют раздел 6, `dolphy-ext dev`, DevTools, окно журнала с реальными подписями) и закрывает R15.
+- 2026-10-04 (3c). Рецепт «настройки» — собственный проект из трёх файлов (шаблона нет): `blank` + настройки трёх типов; его проверяет тот же `sdk-docs.test.ts` режимом `build-with-code-and-tests`. Рецепт «тема» — режим `build-no-code-and-tests`: код не собирается, но тест контраста запускается.
+- 2026-10-04 (3c). Перечень `docs` описан в `PACKAGES` (`package-manifest.mjs`): `files` пакета SDK — `['dist', 'docs']`, `build-packages.mjs` копирует перечисленные файлы, `verify-packages.mjs` требует их все в tarball и не допускает лишних; тест `package-manifest.test.mjs` сверяет перечень с каталогом.
 
 ## Outcomes
 

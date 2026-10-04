@@ -1,3 +1,4 @@
+import { formatDiagnostic } from '../src/diagnostics.ts';
 import { existsSync, realpathSync } from 'node:fs';
 import { cp, mkdir, mkdtemp, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -221,7 +222,7 @@ describe('код расширения в настоящем ограниченн
     const inspected = await inspectExtensionDir(
       path.join(link, 'acme.hostile'),
     );
-    if (!inspected.ok) throw new Error(inspected.message);
+    if (!inspected.ok) throw new Error(formatDiagnostic(inspected.diagnostic));
     const runner = await createRunner({
       ...inspected.extension,
       origin: 'user',

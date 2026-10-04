@@ -288,6 +288,19 @@ export const en: typeof ru = {
         settings: 'Settings',
         settingsLabel: 'Settings of extension “{name}”',
       },
+      diagnostic: {
+        'manifest-unreadable': 'Could not read extension.json: {reason}',
+        'manifest-invalid': 'The manifest is invalid:',
+        'id-mismatch':
+          'The directory name “{expected}” does not match the manifest id “{actual}”',
+        'requires-app': 'Requires app version {minAppVersion} or newer',
+        'unavailable-platform': 'Not available on {platform}',
+        'claim-clash':
+          'The contribution “{name}” ({kind}) is already provided by extension “{by}”',
+        'load-failed': 'Could not load the extension: {reason}',
+        'overridden-by': 'Overridden by: {origin}, version {version}',
+        'safe-mode': 'Disabled in safe mode',
+      },
       installed: {
         fromCatalog: 'From the catalog v{version}',
         updatesBanner: 'Updates available: {n}',

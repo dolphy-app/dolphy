@@ -298,7 +298,7 @@ describe('createFakeExtensionRegistry', () => {
         commands: [],
         panels: [],
       },
-      message: 'broken',
+      diagnostics: [{ code: 'load-failed', data: { reason: 'broken' } }],
       permissions: [],
       isolation: 'isolated',
       toggleable: false,

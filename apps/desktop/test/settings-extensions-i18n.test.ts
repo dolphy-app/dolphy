@@ -1,5 +1,6 @@
 import { createI18n } from 'vue-i18n';
 import { describe, expect, it } from 'vitest';
+import { EXTENSION_DIAGNOSTIC_CODES } from '@dolphy-app/engine-contract';
 import { EXTENSION_TAGS } from '@dolphy-app/extension-api';
 import { EVENT_MESSAGE_KEYS } from '@/pages/settings/lib/catalog.ts';
 import { GROUPS } from '@/pages/settings/lib/tags.ts';
@@ -38,6 +39,17 @@ describe('строки «Расширения»', () => {
     expect(keysOf(extensions('en')).sort()).toEqual(
       keysOf(extensions('ru')).sort(),
     );
+  });
+
+  it('каждый код диагностики имеет текст на обоих языках', () => {
+    for (const locale of ['ru', 'en'] as const) {
+      for (const code of EXTENSION_DIAGNOSTIC_CODES) {
+        expect(
+          leaf(locale, `diagnostic.${code}`),
+          `${locale} ${code}`,
+        ).not.toBe('');
+      }
+    }
   });
 
   it('теги, группы и события имеют название на обоих языках', () => {

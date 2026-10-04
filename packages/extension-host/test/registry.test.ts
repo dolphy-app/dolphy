@@ -60,7 +60,14 @@ const discovery: DiscoveryResult = {
     },
   ],
   diagnostics: [
-    { extensionId: 'broken-dir', origin: 'user', message: 'bad manifest' },
+    {
+      extensionId: 'broken-dir',
+      origin: 'user',
+      diagnostic: {
+        code: 'manifest-invalid',
+        data: { issues: ['bad manifest'] },
+      },
+    },
   ],
 };
 const holder = createDiscoveryHolder(discovery);
@@ -78,7 +85,7 @@ describe('createExtensionRegistry', () => {
       origin: 'user',
       state: 'loaded',
       contributes: { ...NONE, exerciseTypes: ['dolphy.sql.a'] },
-      message: null,
+      diagnostics: [],
       permissions: ['library.read'],
       isolation: 'isolated',
       toggleable: true,
@@ -101,7 +108,9 @@ describe('createExtensionRegistry', () => {
       origin: 'bundled',
       state: 'overridden',
       contributes: NONE,
-      message: 'overridden by user 1.0.1',
+      diagnostics: [
+        { code: 'overridden-by', data: { origin: 'user', version: '1.0.1' } },
+      ],
       permissions: [],
       isolation: 'trusted',
       toggleable: false,
@@ -124,7 +133,9 @@ describe('createExtensionRegistry', () => {
       origin: 'user',
       state: 'invalid',
       contributes: NONE,
-      message: 'bad manifest',
+      diagnostics: [
+        { code: 'manifest-invalid', data: { issues: ['bad manifest'] } },
+      ],
       permissions: [],
       isolation: 'isolated',
       toggleable: false,
@@ -196,7 +207,7 @@ describe('createExtensionRegistry: политика', () => {
     const item = registry.list().find(({ id }) => id === 'acme.u');
     expect(item).toMatchObject({
       state: 'disabled',
-      message: null,
+      diagnostics: [],
       toggleable: true,
       contributes: { themes: ['acme.u.night'], markdownRenderers: ['chart'] },
     });
@@ -342,7 +353,13 @@ describe('createExtensionRegistry: titles and tags', () => {
         by: { origin: 'user', version: '1.0.0' },
       },
     ],
-    diagnostics: [{ extensionId: 'broken', origin: 'user', message: 'bad' }],
+    diagnostics: [
+      {
+        extensionId: 'broken',
+        origin: 'user',
+        diagnostic: { code: 'manifest-invalid', data: { issues: ['bad'] } },
+      },
+    ],
   });
   const policy = createExtensionPolicy(discovered);
   const registry = createExtensionRegistry(discovered, policy);

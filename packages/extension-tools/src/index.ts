@@ -1,7 +1,10 @@
 import { watch as fsWatch } from 'node:fs';
 import { cp, mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { inspectExtensionDir } from '@dolphy-app/extension-host';
+import {
+  formatDiagnostic,
+  inspectExtensionDir,
+} from '@dolphy-app/extension-host';
 import { assetFindings } from './catalog/assets.ts';
 import { bundleAll } from './bundle.ts';
 import { BuildError } from './errors.ts';
@@ -175,7 +178,8 @@ export const validateExtension = async (
     verifyFiles: true,
     expectedId: null,
   });
-  if (!result.ok) return { ok: false, problems: [result.message] };
+  if (!result.ok)
+    return { ok: false, problems: [formatDiagnostic(result.diagnostic)] };
   // the same checks as `catalog check`: type, signature, ceiling and content of style sheets, images, fonts
   const problems = (await assetFindings(root, await listFiles(root))).map(
     ({ path: file, message }) => `${file}: ${message}`,

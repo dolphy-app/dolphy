@@ -1,6 +1,6 @@
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { parseManifest } from '@dolphy-app/extension-host';
+import { formatDiagnostic, parseManifest } from '@dolphy-app/extension-host';
 import type { ExtensionManifest } from '@dolphy-app/extension-api';
 import { BuildError } from './errors.ts';
 
@@ -173,7 +173,8 @@ export const loadProject = async (rootDir: string): Promise<Project> => {
   }
   const raw = await readJson(manifestFile, root);
   const parsed = parseManifest(raw);
-  if (!parsed.ok) throw new BuildError(parsed.message, root);
+  if (!parsed.ok)
+    throw new BuildError(formatDiagnostic(parsed.diagnostic), root);
   const { manifest } = parsed;
   const config = await readConfig(root);
 

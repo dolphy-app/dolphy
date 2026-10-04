@@ -35,7 +35,7 @@ const info = (overrides: Partial<ExtensionInfoDto>): ExtensionInfoDto => ({
   origin: 'user',
   state: 'loaded',
   contributes: NO_CONTRIBUTES,
-  message: null,
+  diagnostics: [],
   permissions: [],
   isolation: 'isolated',
   toggleable: true,
@@ -298,7 +298,6 @@ describe('revoked extensions', () => {
     state: 'disabled',
     toggleable: false,
     revoked: 'compromised build',
-    message: 'compromised build',
   });
 
   it('cannot be enabled or disabled; trust stays settable', async () => {

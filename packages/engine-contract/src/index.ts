@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 13 as const;
+export const CONTRACT_VERSION = 14 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 
@@ -1086,6 +1086,37 @@ export type ExtensionOriginDto = 'bundled' | 'user' | 'dev';
 export type ExtensionStateDto =
   'loaded' | 'overridden' | 'invalid' | 'disabled';
 
+/** Закрытый список кодов диагностик расширения; интерфейс строит текст по коду и данным. */
+export const EXTENSION_DIAGNOSTIC_CODES = [
+  'manifest-unreadable',
+  'manifest-invalid',
+  'id-mismatch',
+  'requires-app',
+  'unavailable-platform',
+  'claim-clash',
+  'load-failed',
+  'overridden-by',
+  'safe-mode',
+] as const;
+
+export type ExtensionDiagnosticCode =
+  (typeof EXTENSION_DIAGNOSTIC_CODES)[number];
+
+/** Значения `data` диагностики: строки, числа и списки строк. */
+export type ExtensionDiagnosticValue = string | number | string[];
+
+/**
+ * Причина состояния расширения. Данные по кодам:
+ * `manifest-unreadable` — `reason`; `manifest-invalid` — `issues` (`путь: сообщение`);
+ * `id-mismatch` — `expected`, `actual`; `requires-app` — `minAppVersion`;
+ * `unavailable-platform` — `platform`; `claim-clash` — `kind`, `name`, `by`;
+ * `load-failed` — `reason`; `overridden-by` — `origin`, `version`; `safe-mode` — без данных.
+ */
+export interface ExtensionDiagnosticDto {
+  code: ExtensionDiagnosticCode;
+  data: Record<string, ExtensionDiagnosticValue>;
+}
+
 export interface ExtensionInfoDto {
   /** Id манифеста; у некорректного расширения — имя каталога. */
   id: string;
@@ -1095,8 +1126,8 @@ export interface ExtensionInfoDto {
   state: ExtensionStateDto;
   /** Вклады по точкам (id/языки); пусто, если расширение не `loaded`/`overridden`. */
   contributes: ExtensionContributesDto;
-  /** Почему некорректно / кем перекрыто; `null` у загруженного и отключённого. */
-  message: string | null;
+  /** Почему некорректно, кем перекрыто; пусто у загруженного и отключённого пользователем. */
+  diagnostics: ExtensionDiagnosticDto[];
   /** Возможности, объявленные в манифесте; пусто, если манифест не прочитан. */
   permissions: string[];
   /** Действующий режим кода и интерфейса: расширения из поставки — всегда `trusted`. */

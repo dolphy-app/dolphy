@@ -2,6 +2,7 @@
 import { nextTick, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type {
+  ExtensionDiagnosticDto,
   ExtensionInfoDto,
   ExtensionStateDto,
 } from '@dolphy-app/engine-contract';
@@ -61,6 +62,22 @@ const settingsTarget = ref<ExtensionInfoDto | null>(null);
 const data = useExtensionData(useEngine(), items);
 
 /** Настройки есть у загруженного (включённого) расширения, объявившего `settings`. */
+const issuesOf = (diagnostic: ExtensionDiagnosticDto): string[] => {
+  const { issues } = diagnostic.data;
+  return Array.isArray(issues) ? issues : [];
+};
+
+const diagnosticText = (diagnostic: ExtensionDiagnosticDto): string =>
+  t(
+    `settings.extensions.diagnostic.${diagnostic.code}`,
+    diagnostic.code === 'overridden-by'
+      ? {
+          ...diagnostic.data,
+          origin: t(`settings.extensions.origin.${diagnostic.data.origin}`),
+        }
+      : diagnostic.data,
+  );
+
 const hasSettings = (extension: ExtensionInfoDto) =>
   extension.state === 'loaded' && extension.contributes.settings.length > 0;
 
@@ -356,15 +373,23 @@ watch(
               </p>
             </v-alert>
 
-            <p
-              v-if="
-                extension.message !== null &&
-                extension.message !== extension.revoked
-              "
-              class="message text-body-medium mt-2"
+            <div
+              v-for="diagnostic in extension.diagnostics"
+              :key="diagnostic.code"
+              class="text-body-medium mt-2"
+              data-testid="diagnostic"
+              :data-code="diagnostic.code"
             >
-              {{ extension.message }}
-            </p>
+              <p>{{ diagnosticText(diagnostic) }}</p>
+              <ul
+                v-if="diagnostic.code === 'manifest-invalid'"
+                class="message ps-4"
+              >
+                <li v-for="issue in issuesOf(diagnostic)" :key="issue">
+                  {{ issue }}
+                </li>
+              </ul>
+            </div>
 
             <ExtensionPermissions
               v-if="isActive(extension)"

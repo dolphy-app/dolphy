@@ -27,7 +27,7 @@ export const extensionInfo = (
   origin: 'bundled',
   state: 'loaded',
   contributes: { ...NO_CONTRIBUTES, exerciseTypes: [id] },
-  message: null,
+  diagnostics: [],
   permissions: [],
   isolation: 'trusted',
   toggleable: false,

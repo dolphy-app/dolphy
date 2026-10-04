@@ -110,6 +110,7 @@ const copyInfo = (info: ExtensionInfoDto): ExtensionInfoDto => ({
     commands: [...info.contributes.commands],
     panels: [...info.contributes.panels],
   },
+  diagnostics: structuredClone(info.diagnostics),
   permissions: [...info.permissions],
   titles: structuredClone(info.titles),
   tags: [...info.tags],

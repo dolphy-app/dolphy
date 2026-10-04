@@ -14,6 +14,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import {
   createRestrictedRunner,
   discoverExtensions,
+  formatDiagnostic,
   inspectExtensionDir,
 } from '@dolphy-app/extension-host';
 
@@ -135,7 +136,8 @@ describe('смоук и релизная сборка', () => {
       // собранный дочерний процесс запускается в режиме разрешений и
       // отказывает расширению в запрещённом
       const inspected = await inspectExtensionDir(hostileDir);
-      if (!inspected.ok) throw new Error(inspected.message);
+      if (!inspected.ok)
+        throw new Error(formatDiagnostic(inspected.diagnostic));
       const runner = createRestrictedRunner({
         extension: {
           ...inspected.extension,

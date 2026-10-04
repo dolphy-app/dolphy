@@ -94,10 +94,12 @@ describe('Настройки → Расширения', () => {
 
     const rows = await client.readExtensions('dolphy.choice');
     expect(rows).toHaveLength(2);
-    const user = rows.find((row) => row.includes('Пользовательское'));
+    // строка перекрытого расширения тоже называет источник перекрытия
     const bundled = rows.find((row) => row.includes('Поставка'));
+    const user = rows.find((row) => row !== bundled);
     expect(user).toContain('Загружено');
     expect(user).toContain('1.0.1');
     expect(bundled).toContain('Перекрыто');
+    expect(bundled).toContain('Перекрыто: Пользовательское, версия 1.0.1');
   });
 });

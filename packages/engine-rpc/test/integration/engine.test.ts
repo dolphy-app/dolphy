@@ -83,7 +83,7 @@ const REGISTERED: ExtensionInfoDto = {
     commands: ['dolphy.sql.stats'],
     panels: ['dolphy.sql.panel'],
   },
-  message: null,
+  diagnostics: [],
   permissions: ['library.read'],
   isolation: 'trusted',
   toggleable: false,

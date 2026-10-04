@@ -19,6 +19,10 @@ const linkToolchain = async (project: string): Promise<void> => {
   await mkdir(path.join(modules, '@types'), { recursive: true });
   const links: [string, string][] = [
     [
+      '@dolphy-app/extension-api',
+      path.join(REPO_ROOT, 'packages/extension-api'),
+    ],
+    [
       '@dolphy-app/extension-sdk',
       path.join(REPO_ROOT, 'packages/extension-sdk'),
     ],
@@ -78,6 +82,10 @@ describe('generated project', () => {
     const built = await buildExtension({ root: dir });
     expect(built.files).toEqual(['extension.json', 'main.mjs', 'view.mjs']);
     expect(built.dir).toBe(path.join(dir, 'dist-ext', id));
+    const builtManifest = JSON.parse(
+      await readFile(path.join(built.dir, 'extension.json'), 'utf8'),
+    ) as Record<string, unknown>;
+    expect(builtManifest['$schema']).toEqual(expect.any(String));
     await expect(validateExtension(built.dir)).resolves.toEqual({
       ok: true,
       problems: [],

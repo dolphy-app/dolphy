@@ -215,7 +215,6 @@ describe('установка из каталога → обнаружение �
     expect(registry.list()[0]).toMatchObject({
       state: 'disabled',
       revoked: 'malware',
-      message: 'malware',
       toggleable: false,
     });
     expect(policy.isEnabled('acme.theme')).toBe(false);

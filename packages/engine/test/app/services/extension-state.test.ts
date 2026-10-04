@@ -30,7 +30,7 @@ const base = {
     commands: [],
     panels: [],
   },
-  message: null,
+  diagnostics: [],
   permissions: [],
   isolation: 'isolated' as const,
   toggleable: true,

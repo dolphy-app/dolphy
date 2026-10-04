@@ -28,7 +28,7 @@ describe('docs/design/extensions.md', () => {
       );
       const project = renderProject({
         id: EXAMPLE_ID,
-        dependencies: { sdk: '^0.0.0', tools: '^0.0.0' },
+        dependencies: { api: '^0.0.0', sdk: '^0.0.0', tools: '^0.0.0' },
       });
       const content = project.get(file);
       expect(content).toBeDefined();

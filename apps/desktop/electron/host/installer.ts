@@ -3,7 +3,11 @@ import type { ExtensionInstaller } from '@dolphy-app/engine/ports';
 import type { EngineConfig } from '@dolphy-app/engine-contract';
 import { EXTENSION_API_VERSION } from '@dolphy-app/extension-api';
 import type { ExtensionLogger } from '@dolphy-app/extension-api';
-import { contributesOf, inspectExtensionDir } from '@dolphy-app/extension-host';
+import {
+  contributesOf,
+  formatDiagnostic,
+  inspectExtensionDir,
+} from '@dolphy-app/extension-host';
 import type {
   DiscoveryResult,
   DiscoverySource,
@@ -71,7 +75,8 @@ const inspectForInstall =
     const result = await inspectExtensionDir(directory, {
       ...(appVersion !== undefined && { appVersion }),
     });
-    if (!result.ok) return { ok: false, message: result.message };
+    if (!result.ok)
+      return { ok: false, message: formatDiagnostic(result.diagnostic) };
     const { id, version, permissions, icon, tags, ...rest } = result.extension;
     return {
       ok: true,

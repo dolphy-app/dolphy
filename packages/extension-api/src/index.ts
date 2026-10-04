@@ -273,6 +273,8 @@ export interface ExerciseTypeContributionInput {
 
 /** `extension.json` as the author writes it. */
 export interface ExtensionManifestInput {
+  /** Path or URL of `extension.schema.json` for editors; ignored by the app and the tools. */
+  $schema?: string;
   id: string;
   version: string;
   apiVersion: typeof EXTENSION_API_VERSION;

@@ -1,3 +1,4 @@
+import { formatDiagnostic } from '../src/diagnostics.ts';
 import { describe, expect, it } from 'vitest';
 import { normalizeManifest, parseManifest } from '../src/manifest.ts';
 
@@ -24,6 +25,21 @@ const withType = (patch: Record<string, unknown>) => {
   Object.assign(manifest.contributes.exerciseTypes[0]!, patch);
   return manifest;
 };
+
+describe('$schema', () => {
+  it('принимается и не попадает в нормализованный манифест', () => {
+    const result = parseManifest({
+      ...valid(),
+      $schema: './extension.schema.json',
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.manifest).not.toHaveProperty('$schema');
+  });
+
+  it('только строка', () => {
+    expect(parseManifest({ ...valid(), $schema: 1 }).ok).toBe(false);
+  });
+});
 
 describe('parseManifest', () => {
   it('принимает корректный манифест', () => {
@@ -59,7 +75,8 @@ describe('parseManifest', () => {
   it.each(rejected)('отклоняет: %s', (_name, manifest) => {
     const result = parseManifest(manifest);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.message.length).toBeGreaterThan(0);
+    if (!result.ok)
+      expect(formatDiagnostic(result.diagnostic).length).toBeGreaterThan(0);
   });
 });
 
@@ -96,7 +113,7 @@ describe('минимальный манифест', () => {
 
   it('сохраняет встроенную схему и путь к схеме как есть', () => {
     const result = parseManifest(minimal());
-    if (!result.ok) throw new Error(result.message);
+    if (!result.ok) throw new Error(formatDiagnostic(result.diagnostic));
     expect(result.manifest.contributes.exerciseTypes[0]).toMatchObject({
       specSchema: { type: 'object' },
       answerSchema: './schema/answer.json',
@@ -133,7 +150,7 @@ describe('минимальный манифест', () => {
     const result = parseManifest(bad);
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.message).toContain(
+      expect(formatDiagnostic(result.diagnostic)).toContain(
         "contributes.exerciseTypes.0.element: invalid element name 'acme--answer'",
       );
     }
@@ -172,14 +189,20 @@ describe('permissions', () => {
   ])('отклоняет: %s, сообщение — путь и причина', (_name, permissions) => {
     const result = parseManifest(withPermissions(permissions));
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.message).toMatch(/^permissions(\.\d+)?: /);
+    if (!result.ok)
+      expect(formatDiagnostic(result.diagnostic)).toMatch(
+        /^permissions(\.\d+)?: /,
+      );
   });
 
   it('отклоняет дубль, называя разрешение', () => {
     const result = parseManifest(withPermissions(['network', 'network']));
     expect(result).toEqual({
       ok: false,
-      message: "permissions.1: duplicate permission 'network'",
+      diagnostic: {
+        code: 'manifest-invalid',
+        data: { issues: ["permissions.1: duplicate permission 'network'"] },
+      },
     });
   });
 });
@@ -289,15 +312,20 @@ describe('tags', () => {
     const result = parseManifest(withTags(['hologram']));
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.message).toMatch(/^tags\.0: /);
-      expect(result.message).toContain('learning, language, content');
+      expect(formatDiagnostic(result.diagnostic)).toMatch(/^tags\.0: /);
+      expect(formatDiagnostic(result.diagnostic)).toContain(
+        'learning, language, content',
+      );
     }
   });
 
   it('names the duplicate tag', () => {
     expect(parseManifest(withTags(['theme', 'theme']))).toEqual({
       ok: false,
-      message: "tags.1: duplicate tag 'theme'",
+      diagnostic: {
+        code: 'manifest-invalid',
+        data: { issues: ["tags.1: duplicate tag 'theme'"] },
+      },
     });
   });
 });

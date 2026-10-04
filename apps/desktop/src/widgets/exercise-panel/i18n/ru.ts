@@ -1,6 +1,14 @@
 export const ru = {
   exercisePanel: {
     material: 'Материал урока · {course}',
+    splitter: {
+      label: 'Ширина панели теории',
+      hint: 'Потяните, чтобы изменить ширину; двойной щелчок — по умолчанию',
+    },
+    panel: {
+      hide: 'Скрыть теорию',
+      show: 'Показать теорию',
+    },
     sections: {
       button: 'Разделы',
       label: 'Разделы урока',

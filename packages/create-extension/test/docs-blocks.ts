@@ -128,8 +128,7 @@ const tscBin = path.join(packageDir('typescript'), 'bin', 'tsc');
 export const tsc = (project: string) => runNode([tscBin, '--noEmit'], project);
 
 const vitestBin = path.join(packageDir('vitest'), 'vitest.mjs');
-export const vitest = (project: string) =>
-  runNode([vitestBin, 'run'], project);
+export const vitest = (project: string) => runNode([vitestBin, 'run'], project);
 
 /**
  * A project in a temporary directory: the `package.json` and `tsconfig.json`

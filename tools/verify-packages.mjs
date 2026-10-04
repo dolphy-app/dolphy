@@ -147,7 +147,10 @@ const assertManifest = ({ manifest, spec }) => {
 const assertEntries = ({ name, spec, entries }) => {
   const docs = docFiles(spec).map((file) => `docs/${file}`);
   for (const doc of docs) {
-    check(entries.includes(doc), `${name}: guide file ${doc} is not in the tarball`);
+    check(
+      entries.includes(doc),
+      `${name}: guide file ${doc} is not in the tarball`,
+    );
   }
   for (const entry of entries) {
     const allowed =

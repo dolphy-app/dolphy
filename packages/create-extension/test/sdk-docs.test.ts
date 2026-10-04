@@ -4,7 +4,7 @@
  * or a marked fragment. The recipes for the generator's templates equal the
  * generator's output byte for byte.
  */
-import { readFile, readdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { discoverExtensions } from '@dolphy-app/extension-host';
@@ -38,9 +38,7 @@ const DOC_FILES = [
 ];
 
 type Mode =
-  | 'build-no-code-and-tests'
-  | 'build-with-code-and-tests'
-  | 'no-build';
+  'build-no-code-and-tests' | 'build-with-code-and-tests' | 'no-build';
 
 interface Example {
   mode: Mode;
@@ -156,9 +154,9 @@ describe('the code blocks of the guide', () => {
     expect(marked.examples.get('demo')).toEqual([
       { file: 'src/index.ts', lang: 'ts', content: 'export const x = 1;\n' },
     ]);
-    expect(
-      collectBlocks('Text:\n\n```sh\npnpm test\n```\n').unmarked,
-    ).toEqual([]);
+    expect(collectBlocks('Text:\n\n```sh\npnpm test\n```\n').unmarked).toEqual(
+      [],
+    );
   });
 });
 
@@ -213,6 +211,16 @@ describe.each(checkedExamples)(
   },
 );
 
+const writeExampleProjectFiles = async (
+  dir: string,
+  files: readonly ExampleFile[],
+): Promise<void> => {
+  await mkdir(dir, { recursive: true });
+  for (const { file, content } of files) {
+    await writeFile(path.join(dir, file), content);
+  }
+};
+
 describe('no-build.md', () => {
   const files =
     collectBlocks(docs.get('no-build.md') ?? '').examples.get('no build') ?? [];
@@ -254,14 +262,3 @@ describe('no-build.md', () => {
     await commands.dispose();
   });
 });
-
-const writeExampleProjectFiles = async (
-  dir: string,
-  files: readonly ExampleFile[],
-): Promise<void> => {
-  const { mkdir } = await import('node:fs/promises');
-  await mkdir(dir, { recursive: true });
-  for (const { file, content } of files) {
-    await writeFile(path.join(dir, file), content);
-  }
-};

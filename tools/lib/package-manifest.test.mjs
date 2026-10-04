@@ -33,7 +33,9 @@ const resolverWith = ({ own = {}, workspace = [] } = {}) =>
 describe('руководство пакета SDK', () => {
   it('docs в описании пакета — ровно файлы каталога docs', () => {
     const dir = new URL('../../packages/extension-sdk/docs/', import.meta.url);
-    assert.deepEqual(readdirSync(dir).sort(), [...specOf('extension-sdk').docs]);
+    assert.deepEqual(readdirSync(dir).sort(), [
+      ...specOf('extension-sdk').docs,
+    ]);
   });
 
   it('только SDK публикует docs', () => {

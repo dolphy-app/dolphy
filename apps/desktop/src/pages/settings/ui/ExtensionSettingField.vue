@@ -40,21 +40,6 @@ const emit = defineEmits<{
 
 const { t, n } = useI18n();
 
-const COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
-
-/** Значение для `<input type="color">`: он принимает только `#rrggbb`. */
-const pickerValue = computed(() =>
-  typeof props.value === 'string' && COLOR_PATTERN.test(props.value)
-    ? props.value.toLowerCase()
-    : '#000000',
-);
-
-const pick = (event: Event) => {
-  if (!(event.target instanceof HTMLInputElement)) return;
-  draft.value = event.target.value;
-  commitDraft();
-};
-
 // строка и число правятся черновиком и записываются по уходу из поля или Enter
 const draft = ref('');
 const editing = ref(false);
@@ -70,6 +55,8 @@ watch(
   { immediate: true },
 );
 
+const COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
+
 const commitDraft = () => {
   editing.value = false;
   if (props.definition.type === 'string' || props.definition.type === 'text') {
@@ -82,6 +69,19 @@ const commitDraft = () => {
     const parsed = parseNumberInput(draft.value);
     emit('commit', parsed ?? 0, parsed === null ? 'not-a-number' : null);
   }
+};
+
+/** Значение для `<input type="color">`: он принимает только `#rrggbb`. */
+const pickerValue = computed(() =>
+  typeof props.value === 'string' && COLOR_PATTERN.test(props.value)
+    ? props.value.toLowerCase()
+    : '#000000',
+);
+
+const pick = (event: Event) => {
+  if (!(event.target instanceof HTMLInputElement)) return;
+  draft.value = event.target.value;
+  commitDraft();
 };
 
 // Enter завершает ввод так же, как уход из поля: значение записывается один раз

@@ -203,8 +203,8 @@ const contributesOf = (
 const titlesOf = (manifest: RawManifest): ContributionTitles => {
   const contributes = manifest.contributes ?? {};
   const byPoint: Record<TitledPoint, { id: string; title: string }[]> = {
-    exerciseTypes: (contributes.exerciseTypes ?? []).flatMap(
-      ({ id, title }) => (title === undefined ? [] : [{ id, title }]),
+    exerciseTypes: (contributes.exerciseTypes ?? []).flatMap(({ id, title }) =>
+      title === undefined ? [] : [{ id, title }],
     ),
     markdownRenderers: (contributes.markdownRenderers ?? []).flatMap(
       ({ language, title }) =>

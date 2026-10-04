@@ -107,8 +107,9 @@ declare module '@dolphy-app/extension-sdk' {
 }
 ```
 
-A setting is typed by its definition: `boolean`, `string`, `number`, or the
-union of the `enum` option values. The output is deterministic and the file is
+A setting is typed by its definition: `boolean`, `string` (also for `text` and
+`color`), `string[]` for `list`, `number`, or the union of the `enum` option
+values. The output is deterministic and the file is
 not rewritten when its content is unchanged, so a watcher on the project does
 not loop. Include it in `tsconfig.json` as `".dolphy/ids.d.ts"` (a bare
 `.dolphy` entry is skipped by TypeScript because it is a hidden directory) and
@@ -299,7 +300,8 @@ leaves `<siteDir>` untouched.
 
 The build also writes what the catalog shows next to the identifiers. The entry
 gets `titles`: the `label` (themes, grade policies, settings) or `title`
-(commands, panels) of every contribution of the newest manifest, by contribution
+(exercise types and markdown renderers when they have one, commands, panels)
+of every contribution of the newest manifest, by contribution
 point; points without contributions are omitted, and so is the whole key when
 nothing has a title. The version record gets `tags` from the manifest of that
 version (omitted when empty). Rebuilding without a version bump refreshes the

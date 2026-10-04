@@ -130,12 +130,12 @@ export const createMemoryStorage = (): ExtensionStorage => {
 const storedForm = (
   definition: SettingContribution,
   value: SettingValue,
-): SettingValue =>
-  definition.type === 'color' && typeof value === 'string'
-    ? value.toLowerCase()
-    : Array.isArray(value)
-      ? [...value]
-      : value;
+): SettingValue => {
+  if (definition.type === 'color' && typeof value === 'string') {
+    return value.toLowerCase();
+  }
+  return Array.isArray(value) ? [...value] : value;
+};
 
 const sameSettingValue = (a: SettingValue | undefined, b: SettingValue) =>
   Array.isArray(a) && Array.isArray(b)
@@ -236,9 +236,8 @@ export const createMemorySettings = (
     values.set(id, checked(id, value));
   }
   return {
-    get: <T extends SettingValue = SettingValue>(id: string): T => {
-      return storedForm(known(id), values.get(id) as SettingValue) as T;
-    },
+    get: <T extends SettingValue = SettingValue>(id: string): T =>
+      storedForm(known(id), values.get(id) as SettingValue) as T,
     onDidChange(handler) {
       handlers.add(handler);
       return { dispose: () => void handlers.delete(handler) };

@@ -59,7 +59,9 @@ const move = async (index: number, delta: -1 | 1) => {
   apply(next);
   await nextTick();
   list.value
-    ?.querySelectorAll<HTMLInputElement>('input[data-item]')
+    ?.querySelectorAll<HTMLInputElement>(
+      '[data-testid="setting-list-item"] input',
+    )
     [target]?.focus();
 };
 
@@ -103,7 +105,7 @@ const onItemKey = (event: KeyboardEvent, index: number) => {
     :aria-label="label"
     :data-testid="testId"
   >
-    <div class="text-body-2 mb-1">{{ label }}</div>
+    <div class="text-body-1 mb-2">{{ label }}</div>
     <ul class="list-reset">
       <li
         v-for="(_, index) in draft"
@@ -120,7 +122,6 @@ const onItemKey = (event: KeyboardEvent, index: number) => {
           hide-details
           variant="outlined"
           density="compact"
-          data-item
           @focus="editing = true"
           @blur="commitItem(index)"
           @keydown.enter="blurTarget"

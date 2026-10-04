@@ -70,7 +70,7 @@ const sections = computed(() =>
             <h3
               v-if="section.title !== null"
               :id="`settings-group-${index}`"
-              class="text-subtitle-1 mb-3"
+              class="group-title text-title-medium font-weight-bold"
             >
               {{ section.title }}
             </h3>
@@ -120,3 +120,10 @@ const sections = computed(() =>
     </v-card>
   </v-dialog>
 </template>
+
+<style scoped>
+/* глобальный сброс полей у заголовков не слоёный и перебивает утилиты Vuetify */
+.group-title {
+  margin-block: 8px 16px;
+}
+</style>

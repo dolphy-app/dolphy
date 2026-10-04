@@ -129,7 +129,7 @@ describe('ctx.secrets', () => {
 
     await vi.waitFor(() => {
       expect(seen.deleted).toBe(true);
-      expect(seen).toHaveProperty("foreign");
+      expect(seen).toHaveProperty('foreign');
     });
     expect(seen).toMatchObject({
       got: 's3cret',

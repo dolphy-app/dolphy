@@ -94,7 +94,8 @@ export const createExtensionSecrets = (
     set: async (key, value) => {
       await request('secrets.set', { key, value });
     },
-    delete: async (key) => (await request('secrets.delete', { key })) as boolean,
+    delete: async (key) =>
+      (await request('secrets.delete', { key })) as boolean,
   };
 };
 

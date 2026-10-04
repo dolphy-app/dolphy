@@ -700,6 +700,22 @@ await ctx.storage.delete('streak'); // false, если ключа не было
 - Других отказов код расширения видит как обычный `Error` с полем `code` (например, расширение отключено).
 - Квота вместо разрешения — осознанно: состояние безобидно, защита — потолки.
 
+### Секреты (`ctx.secrets`)
+
+```ts
+await ctx.secrets.set('api-token', token);
+const saved = await ctx.secrets.get('api-token'); // string | undefined
+await ctx.secrets.delete('api-token'); // false, если ключа не было
+```
+
+- Значение — строка (токены, пароли); у каждого расширения своё пространство, чужие ключи недоступны и из ограниченного процесса (раннер подставляет свой `extensionId`). Разрешение не нужно (собственные данные безобидны, ADR 0007).
+- Потолки (`EXTENSION_SECRET_LIMITS`): ключ — до 128 символов, значение — до 4 КиБ (байты UTF-8), ключей — не более 32; превышение бросает `StorageQuotaError`, запись не происходит.
+- Шифрует системное хранилище ключей (Electron `safeStorage`, только в main). Цепочка: код расширения → запрос хоста `secrets.get|set|delete` (`hostRequestSchema`, `callService` в `channel.ts`) → служба `ExtensionHostServices.secrets` (включённость, потолки) → порт движка `PlatformServices.cipher` (`available`, `encrypt`, `decrypt`) → адаптер `electron/host/platform.ts` → сообщение `platform-request` по `parentPort` хоста движка → обработчик `electron/main/platform-services.ts` → ответ `platform-response` через `engineHost.postMessage` (срок 5 с; при завершении хоста ожидающие запросы отклоняются). Шифртекст (base64) лежит в `engine.db`, таблица `extension_secret` (миграция 5; третье пространство `ExtensionDataStore.secrets`): `clearData`, удаление с данными и `dataUsage` (`secrets`) работают как у хранилища кода. Main — шифровальная машина без состояния. Умолчание порта (CLI, тесты) — хранилища ключей нет.
+- Без хранилища ключей `set` и `get` существующего ключа бросают `SecretsUnavailableError` (`name: 'SecretsUnavailable'`, `code: 'SECRETS_UNAVAILABLE'`); `get` несуществующего ключа даёт `undefined`, `delete` работает. Хранилище недоступно, если `safeStorage.isEncryptionAvailable()` ложно, на Linux выбран бэкенд `basic_text` (фиксированный пароль — не защита), приложение ещё не готово, либо значение не расшифровалось (связка ключей сменилась: `delete` и запись заново чинят ключ).
+- Открытое значение и шифртекст в журналы и диагностику не попадают: main логирует только операцию и код отказа, сообщения ошибок платформы отбрасываются (тест `platform-services.test.ts` сканирует файловый журнал).
+- e2e и смоук не обращаются к настоящей связке ключей (на macOS это запрос пароля): в несобранном приложении `DOLPHY_FAKE_SAFE_STORAGE=1` подставляет обратимый шифр, `DOLPHY_FAKE_SAFE_STORAGE=unavailable` — отсутствие хранилища. В собранном приложении переменная не действует.
+- Помощник тестов — `createMemorySecrets({ available? })` из `@dolphy-app/extension-sdk/testing` (`setAvailable(false)` имитирует отсутствие хранилища ключей).
+
 ### События: что, когда и кому приходит
 
 | Событие            | Поля                                                                           | Когда                                                                                                                                         |

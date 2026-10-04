@@ -66,7 +66,8 @@ CREATE TABLE extension_setting (
   extension_id TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL,
   PRIMARY KEY (extension_id, key)
 ) STRICT, WITHOUT ROWID;
-`,`
+`,
+  `
 CREATE TABLE extension_secret (
   extension_id TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL,
   PRIMARY KEY (extension_id, key)

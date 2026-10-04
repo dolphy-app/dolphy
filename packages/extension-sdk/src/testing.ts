@@ -161,8 +161,7 @@ export const createMemorySecrets = (
     },
     get: async (key) => {
       const value = entries.get(key);
-      if (value === undefined) return undefined;
-      requireStore();
+      if (value !== undefined) requireStore();
       return value;
     },
     set: async (key, value) => {

@@ -150,7 +150,10 @@ describe('изолированное расширение в настоящем 
     // ключница пропала: запись и чтение существующего ключа отказывают, остальное работает
     h.engine.keyStore.available = false;
     h.engine.emit(finished());
-    const unavailable = { name: 'SecretsUnavailable', code: 'SECRETS_UNAVAILABLE' };
+    const unavailable = {
+      name: 'SecretsUnavailable',
+      code: 'SECRETS_UNAVAILABLE',
+    };
     await vi.waitFor(
       async () =>
         expect(await h.engine.read(ID, 'secrets:1')).toEqual({

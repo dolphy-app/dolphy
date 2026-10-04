@@ -1,6 +1,9 @@
 import { EngineError } from '@dolphy-app/engine/app';
 import type { PlatformServices } from '@dolphy-app/engine/ports';
-import { PLATFORM_REQUEST_MS, isPlatformResponse } from '../../shared/platform.ts';
+import {
+  PLATFORM_REQUEST_MS,
+  isPlatformResponse,
+} from '../../shared/platform.ts';
 import type {
   PlatformRequest,
   PlatformResponse,

@@ -19,7 +19,12 @@ export type PlatformOp = PlatformRequest['op'];
 export type PlatformFailureCode = 'UNAVAILABLE' | 'INVALID';
 
 export type PlatformResponse =
-  | { type: 'platform-response'; id: string; ok: true; result: boolean | string }
+  | {
+      type: 'platform-response';
+      id: string;
+      ok: true;
+      result: boolean | string;
+    }
   | {
       type: 'platform-response';
       id: string;

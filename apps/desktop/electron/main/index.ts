@@ -21,7 +21,10 @@ import { createExtSupervisor, isTypedMessage } from './ext-supervisor.ts';
 import { createHostLink } from './host-link.ts';
 import { createLogFile, createProcessOutput } from './log-file.ts';
 import { createMainLogger } from './logger.ts';
-import { createPlatformServices, fakeSafeStorageOf } from './platform-services.ts';
+import {
+  createPlatformServices,
+  fakeSafeStorageOf,
+} from './platform-services.ts';
 import { safeModeSource } from './safe-mode.ts';
 import { createDevExtensionsShell } from './shells/dev-extensions.ts';
 import { createEngineShell } from './shells/engine.ts';

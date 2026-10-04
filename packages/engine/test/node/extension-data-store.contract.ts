@@ -226,40 +226,49 @@ export const describeExtensionDataStoreContract = (
           await space.set(B, 'k', 1);
         });
 
-        it.skipIf(!totalReachable)('всего: ровно потолок допустимо, на байт больше — total-size, остальное не меняется', async () => {
-          const space = await open();
-          const full = jsonOfSize(valueBytes);
-          const slots = totalBytes / valueBytes;
-          for (let i = 0; i < slots; i++) await space.set(A, `k${i}`, full);
-          expect((await space.usage(A)).bytes).toBe(totalBytes);
-          await expect(space.set(A, 'more', 1)).rejects.toMatchObject(
-            quota('total-size', totalBytes),
-          );
-          // перезапись равным по размеру допустима, большим — нет
-          await space.set(A, 'k0', jsonOfSize(valueBytes, 'b'));
-          await expect(
-            space.set(A, 'k0', `${jsonOfSize(valueBytes, 'c')}c`),
-          ).rejects.toMatchObject(quota('value-size', valueBytes));
-          // уменьшение освобождает место
-          await space.set(A, 'k0', 1);
-          await space.set(A, 'more', jsonOfSize(valueBytes - 1));
-          expect((await space.usage(A)).bytes).toBeLessThanOrEqual(totalBytes);
-          expect(await space.get(A, 'k1')).toBe(full);
-        });
+        it.skipIf(!totalReachable)(
+          'всего: ровно потолок допустимо, на байт больше — total-size, остальное не меняется',
+          async () => {
+            const space = await open();
+            const full = jsonOfSize(valueBytes);
+            const slots = totalBytes / valueBytes;
+            for (let i = 0; i < slots; i++) await space.set(A, `k${i}`, full);
+            expect((await space.usage(A)).bytes).toBe(totalBytes);
+            await expect(space.set(A, 'more', 1)).rejects.toMatchObject(
+              quota('total-size', totalBytes),
+            );
+            // перезапись равным по размеру допустима, большим — нет
+            await space.set(A, 'k0', jsonOfSize(valueBytes, 'b'));
+            await expect(
+              space.set(A, 'k0', `${jsonOfSize(valueBytes, 'c')}c`),
+            ).rejects.toMatchObject(quota('value-size', valueBytes));
+            // уменьшение освобождает место
+            await space.set(A, 'k0', 1);
+            await space.set(A, 'more', jsonOfSize(valueBytes - 1));
+            expect((await space.usage(A)).bytes).toBeLessThanOrEqual(
+              totalBytes,
+            );
+            expect(await space.get(A, 'k1')).toBe(full);
+          },
+        );
 
-        it.skipIf(!totalReachable)('отказ при переполнении итога не меняет старое значение', async () => {
-          const space = await open();
-          const big = jsonOfSize(valueBytes);
-          const slots = totalBytes / valueBytes;
-          for (let i = 0; i < slots - 1; i++) await space.set(A, `k${i}`, big);
-          await space.set(A, 'pad', jsonOfSize(valueBytes - 10)); // остаток — 10 байт
-          await space.set(A, 'small', 'x'); // 3 байта: остаток 7
-          await expect(
-            space.set(A, 'small', jsonOfSize(30)),
-          ).rejects.toMatchObject(quota('total-size', totalBytes));
-          expect(await space.get(A, 'small')).toBe('x');
-          await space.set(A, 'small', jsonOfSize(10)); // ровно в остаток
-        });
+        it.skipIf(!totalReachable)(
+          'отказ при переполнении итога не меняет старое значение',
+          async () => {
+            const space = await open();
+            const big = jsonOfSize(valueBytes);
+            const slots = totalBytes / valueBytes;
+            for (let i = 0; i < slots - 1; i++)
+              await space.set(A, `k${i}`, big);
+            await space.set(A, 'pad', jsonOfSize(valueBytes - 10)); // остаток — 10 байт
+            await space.set(A, 'small', 'x'); // 3 байта: остаток 7
+            await expect(
+              space.set(A, 'small', jsonOfSize(30)),
+            ).rejects.toMatchObject(quota('total-size', totalBytes));
+            expect(await space.get(A, 'small')).toBe('x');
+            await space.set(A, 'small', jsonOfSize(10)); // ровно в остаток
+          },
+        );
       });
     });
 

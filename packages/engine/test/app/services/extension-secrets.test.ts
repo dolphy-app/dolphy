@@ -64,9 +64,9 @@ describe('секреты расширений: шифрование и изол�
     const stored = await t.extensionDataStore.secrets.get(A, 'token');
     expect(typeof stored).toBe('string');
     expect(stored).not.toContain(SECRET);
-    expect(JSON.stringify(await t.extensionDataStore.secrets.all(A))).not.toContain(
-      SECRET,
-    );
+    expect(
+      JSON.stringify(await t.extensionDataStore.secrets.all(A)),
+    ).not.toContain(SECRET);
   });
 
   it('у каждого расширения свои ключи; чужой ключ не виден, delete чужого — false', async () => {
@@ -106,9 +106,9 @@ describe('секреты расширений: шифрование и изол�
     await expect(secrets.set(A, '', 'v')).rejects.toMatchObject({
       code: 'INVALID_ARGUMENT',
     });
-    await expect(
-      secrets.get(A, 1 as unknown as string),
-    ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+    await expect(secrets.get(A, 1 as unknown as string)).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+    });
   });
 });
 
@@ -123,9 +123,9 @@ describe('секреты расширений: потолки', () => {
   it('ключ: 128 допустимо, 129 — key-length; значение считается в байтах: 4096 допустимо, 4097 — value-size', async () => {
     const { secrets, platform } = await open();
     await secrets.set(A, 'k'.repeat(keyLength), 'v');
-    await expect(secrets.set(A, 'k'.repeat(keyLength + 1), 'v')).rejects.toMatchObject(
-      quota('key-length', keyLength),
-    );
+    await expect(
+      secrets.set(A, 'k'.repeat(keyLength + 1), 'v'),
+    ).rejects.toMatchObject(quota('key-length', keyLength));
     await secrets.set(A, 'big', 'я'.repeat(valueBytes / 2)); // 4096 байт, 2048 символов
     expect(await secrets.get(A, 'big')).toBe('я'.repeat(valueBytes / 2));
     await expect(
@@ -149,7 +149,11 @@ describe('секреты расширений: потолки', () => {
 
   it('значение потолка по-прежнему умещается в шифртекст хранилища', async () => {
     const { t, secrets } = await open();
-    await secrets.set(A, 'max', 'я'.repeat(EXTENSION_SECRET_LIMITS.valueBytes / 2));
+    await secrets.set(
+      A,
+      'max',
+      'я'.repeat(EXTENSION_SECRET_LIMITS.valueBytes / 2),
+    );
     expect((await t.extensionDataStore.secrets.usage(A)).keys).toBe(1);
   });
 });
@@ -219,7 +223,9 @@ describe('секреты расширений: жизненный цикл да�
     await secrets.set(A, 'b', '2');
     await secrets.set(B, 'a', '3');
     expect((await t.engine.extensions.dataUsage(A)).secrets.keys).toBe(2);
-    expect((await t.engine.extensions.dataUsage(A)).secrets.bytes).toBeGreaterThan(0);
+    expect(
+      (await t.engine.extensions.dataUsage(A)).secrets.bytes,
+    ).toBeGreaterThan(0);
 
     await t.engine.extensions.clearData(A);
     expect(await t.engine.extensions.dataUsage(A)).toMatchObject({

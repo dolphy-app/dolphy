@@ -3,10 +3,7 @@ import type {
   ExtensionSettingValuesDto,
   JsonValue,
 } from '@dolphy-app/engine-contract';
-import {
-  EXTENSION_SECRET_LIMITS,
-  utf8Length,
-} from '../../domain/index.ts';
+import { EXTENSION_SECRET_LIMITS, utf8Length } from '../../domain/index.ts';
 import type { EngineContext } from '../context.ts';
 import { EngineError } from '../errors.ts';
 import { createExtensionValues } from '../extension-values.ts';
@@ -122,11 +119,12 @@ export const createExtensionHostServices = (
       get: async (extensionId, key) => {
         const id = active(extensionId);
         const stored = await secrets.get(id, keyOf(key));
-        if (stored === undefined) return undefined;
-        return viaCipher(async () => {
-          if (!(await cipher.available())) throw unavailable();
-          return cipher.decrypt(stored as string);
-        });
+        return stored === undefined
+          ? undefined
+          : viaCipher(async () => {
+              if (!(await cipher.available())) throw unavailable();
+              return cipher.decrypt(stored as string);
+            });
       },
       set: async (extensionId, key, value) => {
         const id = active(extensionId);

@@ -166,14 +166,19 @@ export const createStubEngine = (): StubEngine => {
       secrets: {
         get: async (id, key) => {
           const stored = await data.secrets.get(active('secrets.get', id), key);
-          if (stored === undefined) return undefined;
-          if (!keyStore.available) throw unavailable();
-          return Buffer.from(stored as string, 'base64').toString();
+          if (stored !== undefined && !keyStore.available) throw unavailable();
+          return stored === undefined
+            ? undefined
+            : Buffer.from(stored as string, 'base64').toString();
         },
         set: async (id, key, value) => {
           active('secrets.set', id);
           if (!keyStore.available) throw unavailable();
-          await data.secrets.set(id, key, Buffer.from(value).toString('base64'));
+          await data.secrets.set(
+            id,
+            key,
+            Buffer.from(value).toString('base64'),
+          );
         },
         delete: async (id, key) =>
           data.secrets.delete(active('secrets.delete', id), key),

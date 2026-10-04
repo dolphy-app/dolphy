@@ -11,10 +11,7 @@ import type {
   PlatformServicesDeps,
   SafeStorageLike,
 } from '../electron/main/platform-services.ts';
-import type {
-  PlatformRequest,
-  PlatformResponse,
-} from '../shared/platform.ts';
+import type { PlatformRequest, PlatformResponse } from '../shared/platform.ts';
 
 const SECRET = 'сек-ret-9f3a';
 
@@ -103,19 +100,34 @@ describe('main: обработчик запросов платформы', () =>
     ['хранилища ключей нет', { available: false }, 'darwin', true, false],
     ['приложение не готово', {}, 'darwin', false, false],
     ['Linux, basic_text', { backend: 'basic_text' }, 'linux', true, false],
-    ['Linux, менеджер секретов', { backend: 'gnome_libsecret' }, 'linux', true, true],
+    [
+      'Linux, менеджер секретов',
+      { backend: 'gnome_libsecret' },
+      'linux',
+      true,
+      true,
+    ],
     ['macOS', {}, 'darwin', true, true],
     ['Windows', {}, 'win32', true, true],
     // basic_text опасен только на Linux: на других системах бэкенд не спрашивают
-    ['macOS, basic_text в ответе', { backend: 'basic_text' }, 'darwin', true, true],
-  ] as const)('доступность: %s', async (_, state, platform, ready, expected) => {
-    const h = handler({
-      safeStorage: mockSafeStorage(state),
-      platform,
-      isReady: () => ready,
-    });
-    expect(result(await ask(h, { op: 'cipher.available' }))).toBe(expected);
-  });
+    [
+      'macOS, basic_text в ответе',
+      { backend: 'basic_text' },
+      'darwin',
+      true,
+      true,
+    ],
+  ] as const)(
+    'доступность: %s',
+    async (_, state, platform, ready, expected) => {
+      const h = handler({
+        safeStorage: mockSafeStorage(state),
+        platform,
+        isReady: () => ready,
+      });
+      expect(result(await ask(h, { op: 'cipher.available' }))).toBe(expected);
+    },
+  );
 
   it('при недоступном хранилище encrypt и decrypt отказывают UNAVAILABLE, а не шифруют слабым шифром', async () => {
     const h = handler({
@@ -245,7 +257,9 @@ describe('хост движка: адаптер порта PlatformServices', ()
   });
 
   it('отказ main — SECRETS_UNAVAILABLE без текста платформы', async () => {
-    const { host } = wired({ safeStorage: mockSafeStorage({ available: false }) });
+    const { host } = wired({
+      safeStorage: mockSafeStorage({ available: false }),
+    });
     expect(await host.services.cipher.available()).toBe(false);
     await expect(host.services.cipher.encrypt(SECRET)).rejects.toMatchObject({
       code: 'SECRETS_UNAVAILABLE',
@@ -359,9 +373,9 @@ describe('секрет не попадает в журналы', () => {
     expect(JSON.stringify(stderr.mock.calls)).not.toContain(SECRET);
     for (const error of errors) {
       expect(error).toMatchObject({ code: 'SECRETS_UNAVAILABLE' });
-      expect(JSON.stringify(error, Object.getOwnPropertyNames(error))).not.toContain(
-        SECRET,
-      );
+      expect(
+        JSON.stringify(error, Object.getOwnPropertyNames(error)),
+      ).not.toContain(SECRET);
     }
   });
 });

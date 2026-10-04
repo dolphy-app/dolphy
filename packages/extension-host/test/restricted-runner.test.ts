@@ -795,10 +795,7 @@ describe('запросы ограниченного процесса к данн
     await vi.waitFor(() => expect(replies()).toHaveLength(5));
     expect(request.mock.calls).toEqual([
       ['secrets.get', { extensionId: 'acme.fake', key: 'token' }],
-      [
-        'secrets.set',
-        { extensionId: 'acme.fake', key: 'token', value: 'v' },
-      ],
+      ['secrets.set', { extensionId: 'acme.fake', key: 'token', value: 'v' }],
       ['secrets.delete', { extensionId: 'acme.fake', key: 'token' }],
     ]);
     expect(replies()).toContainEqual({

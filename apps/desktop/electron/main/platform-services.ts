@@ -26,8 +26,7 @@ export const fakeSafeStorageOf = (
   env: Readonly<Record<string, string | undefined>>,
   packaged: boolean,
 ): FakeSafeStorage | undefined => {
-  if (packaged) return undefined;
-  const value = env.DOLPHY_FAKE_SAFE_STORAGE;
+  const value = packaged ? undefined : env.DOLPHY_FAKE_SAFE_STORAGE;
   if (value === '1') return 'cipher';
   return value === 'unavailable' ? 'unavailable' : undefined;
 };
@@ -125,7 +124,10 @@ export const createPlatformServices = ({
       : safeStorage.decryptString(Buffer.from(request.ciphertext, 'base64'));
   };
 
-  const failure = (id: string, code: PlatformFailureCode): PlatformResponse => ({
+  const failure = (
+    id: string,
+    code: PlatformFailureCode,
+  ): PlatformResponse => ({
     type: 'platform-response',
     id,
     ok: false,

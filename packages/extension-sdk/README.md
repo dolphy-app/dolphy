@@ -236,6 +236,15 @@ export const host = defineExtension({
   (`EXTENSION_STORAGE_LIMITS`): key — 128 characters, value — 64 KiB, 256 keys,
   1 MiB in total. Exceeding one throws `StorageQuotaError` (`kind`, `limit`),
   nothing is written. Works in the restricted process too.
+- `ctx.secrets` — `get(key)` (`string | undefined`), `set(key, value)`,
+  `delete(key)`: strings encrypted by the system key store (Electron
+  `safeStorage`), a private space per extension, cleared with the extension
+  data. No permission is needed; ceilings (`EXTENSION_SECRET_LIMITS`): key —
+  128 characters, value — 4 KiB, 32 keys (`StorageQuotaError`). Without a
+  secure key store (no store, Linux `basic_text`, the app is not ready) `set`
+  and `get` of an existing key throw `SecretsUnavailableError`
+  (`name: 'SecretsUnavailable'`, `code: 'SECRETS_UNAVAILABLE'`), `get` of a
+  missing key gives `undefined` and `delete` works. Never log a secret.
 - `ctx.settings` — `get(id)` (synchronous: the user's value or the
   `default`; an `id` outside the manifest throws) and `onDidChange(handler)`: a
   change in "Settings → Extensions" reaches the running extension without a
@@ -251,7 +260,8 @@ export const host = defineExtension({
   policies, events and commands the manifest declares but the code did not
   register.
 - Test helpers: `createMemoryStorage()` (same ceilings and
-  `StorageQuotaError`), `createMemorySettings(definitions, values?)` (values are
+  `StorageQuotaError`), `createMemorySecrets({ available? })` (same ceilings;
+  `setAvailable(false)` imitates a missing key store), `createMemorySettings(definitions, values?)` (values are
   checked against the definitions, `set(id, value)` calls `onDidChange`),
   `createMemoryEvents(options?)` (`emit(name, payload)` sends an event to the
   subscriber) and `loadEvents(host, { settings?, settingValues?, declared?, storage? })`,

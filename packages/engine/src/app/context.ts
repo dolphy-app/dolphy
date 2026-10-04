@@ -70,6 +70,7 @@ import type { ExtensionApply } from './extension-apply.ts';
 import type { EventBus } from './event-bus.ts';
 import type { ExpiringMap } from './expiring-map.ts';
 import type { EntryFields, JournalWriter } from './journal-writer.ts';
+import type { StatsIndex } from './stats-index.ts';
 
 export type { LibraryHolder } from '../authoring/library-holder.ts';
 
@@ -347,6 +348,8 @@ export interface EngineContext extends FacadeContext {
   readonly extensionData: ExtensionDataStore;
   readonly platform: PlatformServices;
   readonly extensionSettingChanges: ExtensionSettingChanges;
+  /** Статистика попыток для расширений (`learning.stats`); сбрасывается записями журнала. */
+  readonly statsIndex: StatsIndex;
   readonly snapshotFetcher: GitSnapshotFetcher;
   readonly snapshotInstaller: SnapshotInstaller;
   /** `current()` / `require()` / `swap()` — атомарная подмена. */

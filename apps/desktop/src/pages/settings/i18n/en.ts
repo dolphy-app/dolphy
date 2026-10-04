@@ -347,7 +347,10 @@ export const en: typeof ru = {
       permissionsTitle: 'Permissions',
       permissionsNone: 'none requested',
       permissions: {
-        learning: { events: 'Learning events' },
+        learning: {
+          events: 'Learning events',
+          stats: 'Learning statistics',
+        },
         library: { read: 'Read the course library' },
         process: { spawn: 'Launch processes' },
         worker: { threads: 'Threads' },

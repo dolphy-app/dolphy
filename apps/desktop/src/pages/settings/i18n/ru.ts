@@ -348,7 +348,10 @@ export const ru = {
       permissionsNone: 'не запрашивает',
       permissions: {
         library: { read: 'Чтение библиотеки курсов' },
-        learning: { events: 'События обучения' },
+        learning: {
+          events: 'События обучения',
+          stats: 'Статистика обучения',
+        },
         process: { spawn: 'Запуск процессов' },
         worker: { threads: 'Потоки' },
         native: { addons: 'Нативные модули' },

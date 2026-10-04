@@ -3,6 +3,11 @@ import type {
   ExtensionSettingValuesDto,
   JsonValue,
 } from '@dolphy-app/engine-contract';
+import {
+  STATS_DAILY_MAX_DAYS,
+  parseStatsDate,
+} from '../../domain/learning-stats.ts';
+import type { DailyResult, StreakResult } from '../../domain/learning-stats.ts';
 import { EXTENSION_SECRET_LIMITS, utf8Length } from '../../domain/index.ts';
 import type { EngineContext } from '../context.ts';
 import { EngineError } from '../errors.ts';
@@ -42,6 +47,23 @@ export interface ExtensionHostServices {
     all(extensionId: string): Promise<ExtensionSettingValuesDto>;
   };
   /**
+   * Агрегированная статистика обучения (`ctx.stats`): нужно разрешение
+   * `learning.stats`, иначе `INVALID_ARGUMENT` `{ reason: 'permission',
+   * permission: 'learning.stats' }`. Только числа: идентификаторов заданий и
+   * курсов в ответе нет. `courseId` не задан — все курсы; неизвестный курс —
+   * нули. `daily`: `from` и `to` — даты `YYYY-MM-DD`, `from ≤ to`, не более
+   * 366 дат (`INVALID_ARGUMENT` с `details.field`).
+   */
+  readonly stats: {
+    streak(extensionId: string, courseId?: string): Promise<StreakResult>;
+    daily(
+      extensionId: string,
+      from: string,
+      to: string,
+      courseId?: string,
+    ): Promise<DailyResult[]>;
+  };
+  /**
    * Сообщения хоста о здоровье расширения: длительность активации, сбой вне
    * вызова (процесс убит за предел IPC), приостановка за цикл падений, сброс при смене файлов расширения. В отличие
    * от данных расширения, принимаются и для отключённого: это учёт, а не доступ.
@@ -71,6 +93,7 @@ export const createExtensionHostServices = (
     | 'extensionData'
     | 'platform'
     | 'extensionSettingChanges'
+    | 'statsIndex'
     | 'emit'
     | 'state'
   >,
@@ -91,6 +114,43 @@ export const createExtensionHostServices = (
       });
     }
     return key;
+  };
+  /** Разрешение проверяет движок, а не процесс расширения: ограниченному процессу доверять нельзя. */
+  const statsOf = (extensionId: string): string => {
+    const id = active(extensionId);
+    const info = ctx.extensionRegistry
+      .list()
+      .find((item) => item.id === id && item.state === 'loaded');
+    if (info?.permissions.includes('learning.stats') !== true) {
+      throw new EngineError('INVALID_ARGUMENT', {
+        message: `Extension '${id}' does not declare the 'learning.stats' permission`,
+        details: {
+          reason: 'permission',
+          permission: 'learning.stats',
+          extensionId: id,
+        },
+      });
+    }
+    return id;
+  };
+  const courseIdOf = (courseId: unknown): string | undefined => {
+    if (courseId !== undefined && typeof courseId !== 'string') {
+      throw new EngineError('INVALID_ARGUMENT', {
+        message: 'courseId must be a string',
+        details: { field: 'courseId' },
+      });
+    }
+    return courseId;
+  };
+  const dateOf = (field: 'from' | 'to', value: unknown): number => {
+    const day = parseStatsDate(value);
+    if (day === null) {
+      throw new EngineError('INVALID_ARGUMENT', {
+        message: `'${field}' must be a date as YYYY-MM-DD`,
+        details: { field },
+      });
+    }
+    return day;
   };
   const { secrets } = ctx.extensionData;
   const { cipher } = ctx.platform;
@@ -162,6 +222,24 @@ export const createExtensionHostServices = (
     },
     settings: {
       all: async (extensionId) => values.values(active(extensionId)),
+    },
+    stats: {
+      streak: async (extensionId, courseId) => {
+        statsOf(extensionId);
+        return ctx.statsIndex.streak(courseIdOf(courseId));
+      },
+      daily: async (extensionId, from, to, courseId) => {
+        statsOf(extensionId);
+        const first = dateOf('from', from);
+        const last = dateOf('to', to);
+        if (last < first || last - first + 1 > STATS_DAILY_MAX_DAYS) {
+          throw new EngineError('INVALID_ARGUMENT', {
+            message: `The range must be ascending and cover at most ${STATS_DAILY_MAX_DAYS} dates`,
+            details: { field: 'to', maxDays: STATS_DAILY_MAX_DAYS },
+          });
+        }
+        return ctx.statsIndex.daily(first, last, courseIdOf(courseId));
+      },
     },
     health: {
       activated: (extensionId, durationMs) =>

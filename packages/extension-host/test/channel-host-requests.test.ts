@@ -65,6 +65,52 @@ describe('запросы хоста к движку по каналу', () => {
     });
   });
 
+  it('статистику обслуживает движок: параметры доходят как есть, форма проверяется строго', async () => {
+    const engine = createStubEngine();
+    const { channel, request } = setup();
+    channel.serve(engine.extensionHost);
+    const ext = 'acme.a';
+
+    expect(await request('stats.streak', { extensionId: ext }, 's1')).toEqual({
+      id: 's1',
+      ok: true,
+      result: { current: 3, longest: 7 },
+    });
+    expect(
+      await request(
+        'stats.daily',
+        {
+          extensionId: ext,
+          from: '2024-05-01',
+          to: '2024-05-02',
+          courseId: 'c',
+        },
+        's2',
+      ),
+    ).toMatchObject({ id: 's2', ok: true });
+    expect(engine.statsCalls).toEqual([
+      { extensionId: ext, method: 'streak', args: [] },
+      {
+        extensionId: ext,
+        method: 'daily',
+        args: ['2024-05-01', '2024-05-02', 'c'],
+      },
+    ]);
+
+    for (const params of [
+      { extensionId: ext, courseId: 7 },
+      { extensionId: ext, extra: true },
+      { extensionId: ext, from: '2024-05-01' },
+    ]) {
+      const method = 'from' in params ? 'stats.daily' : 'stats.streak';
+      expect(await request(method, params), method).toMatchObject({
+        ok: false,
+        error: { code: 'INVALID_ARGUMENT' },
+      });
+    }
+    expect(engine.statsCalls).toHaveLength(2);
+  });
+
   it('секреты: у отсутствующего ключа ответ без значения, сбой службы идёт с кодом SECRETS_UNAVAILABLE', async () => {
     const engine = createStubEngine();
     const { channel, request } = setup();

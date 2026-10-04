@@ -91,3 +91,12 @@ export {
   normalizeSettingValue,
 } from './extension-setting-values.ts';
 export type { SettingValueProblem } from './extension-setting-values.ts';
+export {
+  STATS_DAILY_MAX_DAYS,
+  dailyOf,
+  formatStatsDate,
+  localDayOf,
+  parseStatsDate,
+  streakOf,
+} from './learning-stats.ts';
+export type { DailyResult, DayCounts, StreakResult } from './learning-stats.ts';

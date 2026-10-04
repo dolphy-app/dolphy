@@ -10,6 +10,7 @@ import {
 import {
   createMemorySecrets,
   createMemorySettings,
+  createMemoryStats,
   createMemoryStorage,
 } from '../src/testing.ts';
 
@@ -46,6 +47,7 @@ const createContext = (log: string[], failOn: readonly string[] = []) => {
       return { dispose: () => void log.push(`dispose policy ${id}`) };
     },
     storage: createMemoryStorage(),
+    stats: createMemoryStats(),
     secrets: createMemorySecrets(),
     settings: createMemorySettings([]),
     events: {

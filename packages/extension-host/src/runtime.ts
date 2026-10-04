@@ -40,6 +40,7 @@ import type {
 } from './protocol.ts';
 import type { RestrictedRunner, RunnerFactory } from './restricted-runner.ts';
 import {
+  createExtensionStats,
   createExtensionSecrets,
   createExtensionStorage,
   createSettingsState,
@@ -369,6 +370,7 @@ export const createExtensionRuntime = (
       logger: scopedLogger(options.logger, extension.id),
       library: options.library,
       storage: createExtensionStorage(engine, extension.id),
+      stats: createExtensionStats(engine, extension.id, extension.permissions),
       secrets: createExtensionSecrets(engine, extension.id),
       settings: settings.api,
       events: {

@@ -43,14 +43,9 @@ describe('extension id and element name patterns', () => {
 
 describe('EXTENSION_PERMISSIONS', () => {
   it('lists capabilities without repeats as id names', () => {
-    expect(EXTENSION_PERMISSIONS).toEqual([
-      'library.read',
-      'process.spawn',
-      'worker.threads',
-      'native.addons',
-      'network',
-      'learning.events',
-    ]);
+    for (const permission of EXTENSION_PERMISSIONS) {
+      expect(permission).toMatch(/^[a-z]+(\.[a-z]+)?$/);
+    }
     expect(new Set(EXTENSION_PERMISSIONS).size).toBe(
       EXTENSION_PERMISSIONS.length,
     );

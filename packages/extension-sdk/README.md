@@ -171,7 +171,8 @@ export const host = defineExtension({
   values) and `dispose()` (aborts `ctx.signal`).
 - `createSchemaValidator(schema)`, `createMemoryLibrary(files)`,
   `createMemoryStorage()`, `createMemorySettings(definitions, values?)`,
-  `createMemoryEvents(options?)`, `createMemoryCommands(options?)`.
+  `createMemoryEvents(options?)`, `createMemoryCommands(options?)`,
+  `createMemoryStats(options?)`.
 
 ```ts
 // src/index.ts — a grade policy (needs main)
@@ -256,6 +257,17 @@ export const host = defineExtension({
   asynchronous, in order, at most once; a handler gets 2 s; the queue holds 100
   events per extension (the oldest are dropped with a warning in the log); a
   handler's failure, exception and timeout affect only the log.
+- `ctx.stats` — aggregated learning statistics; needs the `learning.stats`
+  permission, otherwise every call rejects with `PermissionError('learning.stats')`
+  (in the restricted process too: the engine decides, not the process).
+  `streak({ courseId? })` gives `{ current, longest }` in days, `daily({ from, to, courseId? })`
+  one `{ date, attempts, correct, accuracy }` per date from `from` to `to`
+  inclusive (`YYYY-MM-DD`, at most `EXTENSION_STATS_LIMITS.dailyDays` = 366;
+  `accuracy` is `correct / attempts`, `null` without attempts). Days are local
+  days of the user; an attempt is correct at grade 3 or higher; `current` is
+  not broken while today has no attempts yet (the streak up to yesterday
+  counts); a progress reset does not erase the history; an unknown course gives
+  zeros. The answer holds numbers and dates only: no exercise or course ids.
 - The host logs a warning after activation for the exercise types, grade
   policies, events and commands the manifest declares but the code did not
   register.
@@ -269,6 +281,12 @@ export const host = defineExtension({
   the host, the helpers do not swallow a handler failure and do not count 2 s.
   `loadExerciseType` and `loadGradePolicy` accept ready-made `storage`,
   `settings` and `events` (objects from these helpers).
+- `createMemoryStats({ attempts?, timeZone?, now?, permitted? })` is `ctx.stats`
+  over a list of attempts (`{ at, grade, courseId? }`; more through
+  `record(attempt)`) with the app's rules: local days in `timeZone`, correct at
+  grade 3 or higher, the same range limits. `permitted: false` makes every call
+  reject with `PermissionError('learning.stats')`. All `load*` helpers take
+  `stats`; by default the statistics are empty.
 
 ## Commands and panels
 
@@ -392,7 +410,8 @@ An extension that is not bundled and not trusted runs in a restricted process
 (`docs/design/extensions.md`, "Права и изоляция"): what `permissions` of the
 manifest does not declare is unavailable. The SDK exports
 `EXTENSION_PERMISSIONS` (`library.read`, `process.spawn`, `worker.threads`,
-`native.addons`, `network`, `learning.events`) and the `PermissionError` class
+`native.addons`, `network`, `learning.events`, `learning.stats`) and the
+`PermissionError` class
 (`permission`, `code: 'EXT_PERMISSION'`).
 
 - `ctx.library` in the restricted process is a proxy: `readText` and `stat`

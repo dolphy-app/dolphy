@@ -1,6 +1,8 @@
 import type {
   CommandContributionDto,
+  ExporterContributionDto,
   ExtensionSettingDefDto,
+  ImporterContributionDto,
   PanelContributionDto,
 } from '@dolphy-app/engine-contract';
 import type {
@@ -56,6 +58,12 @@ export type ResolvedPanel = Pick<
   'id' | 'title' | 'rendererUrl'
 >;
 
+/** Импортёр в виде, в котором его получает окно (DTO движка без `extensionId`). */
+export type ResolvedImporter = Omit<ImporterContributionDto, 'extensionId'>;
+
+/** Экспортёр в виде, в котором его получает окно (DTO движка без `extensionId`). */
+export type ResolvedExporter = Omit<ExporterContributionDto, 'extensionId'>;
+
 export interface ResolvedContributions {
   exerciseTypes: ResolvedExerciseType[];
   themes: ResolvedTheme[];
@@ -65,6 +73,8 @@ export interface ResolvedContributions {
   events: ResolvedEvent[];
   commands: ResolvedCommand[];
   panels: ResolvedPanel[];
+  importers: ResolvedImporter[];
+  exporters: ResolvedExporter[];
 }
 
 export type PointKey = keyof ResolvedContributions;

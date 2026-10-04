@@ -35,6 +35,8 @@ export interface Contributes {
   events?: string[];
   commands?: string[];
   panels?: string[];
+  importers?: string[];
+  exporters?: string[];
 }
 
 export const contributesOf = (exerciseTypes: string[]): Contributes => ({
@@ -254,6 +256,8 @@ export const inspectJson = async (
           events: raw.contributes.events ?? [],
           commands: raw.contributes.commands ?? [],
           panels: raw.contributes.panels ?? [],
+          importers: raw.contributes.importers ?? [],
+          exporters: raw.contributes.exporters ?? [],
         },
       },
     };

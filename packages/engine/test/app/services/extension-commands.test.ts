@@ -1,6 +1,8 @@
 import { MAX_ANSWER_CHARS } from '@dolphy-app/engine-contract';
 import type {
   CommandContributionDto,
+  ExporterContributionDto,
+  ImporterContributionDto,
   CommandResultDto,
   ExtensionInfoDto,
   PanelContributionDto,
@@ -32,6 +34,8 @@ const info = (overrides: Partial<ExtensionInfoDto> = {}): ExtensionInfoDto => ({
     events: [],
     commands: [`${ID}.run`],
     panels: [],
+    importers: [],
+    exporters: [],
   },
   diagnostics: [],
   permissions: [],
@@ -72,6 +76,21 @@ const panel = (id: string, extensionId = ID): PanelContributionDto => ({
   revision: 'r1',
 });
 
+const importer = (id: string, extensionId = ID): ImporterContributionDto => ({
+  id,
+  extensionId,
+  title: id,
+  accept: ['.csv'],
+  input: 'text',
+});
+
+const exporter = (id: string, extensionId = ID): ExporterContributionDto => ({
+  id,
+  extensionId,
+  title: id,
+  scope: 'course',
+});
+
 const NOTIFY: CommandResultDto = { kind: 'notify', text: 'done' };
 
 interface OpenOptions {
@@ -106,6 +125,8 @@ const open = (options: OpenOptions = {}) => {
       settings: [],
       commands: options.commands ?? [command(`${ID}.run`)],
       panels: [],
+      importers: [],
+      exporters: [],
       messages: {},
     }),
   }).then((opened) => ({ ...opened, extensionCommands }));
@@ -274,6 +295,15 @@ describe('extensions.contributions: команды и панели', () => {
           command('a.ext.a', 'a.ext'),
         ],
         panels: [panel('b.ext.p', 'b.ext'), panel('a.ext.q', 'a.ext')],
+        importers: [
+          importer('b.ext.csv', 'b.ext'),
+          importer('a.ext.y', 'a.ext'),
+          importer('a.ext.x', 'a.ext'),
+        ],
+        exporters: [
+          exporter('b.ext.out', 'b.ext'),
+          exporter('a.ext.out', 'a.ext'),
+        ],
         messages: {},
       }),
     });
@@ -286,6 +316,15 @@ describe('extensions.contributions: команды и панели', () => {
       'b.ext.z',
     ]);
     expect(result.panels.map(({ id }) => id)).toEqual(['a.ext.q', 'b.ext.p']);
+    expect(result.importers.map(({ id }) => id)).toEqual([
+      'a.ext.y',
+      'a.ext.x',
+      'b.ext.csv',
+    ]);
+    expect(result.exporters.map(({ id }) => id)).toEqual([
+      'a.ext.out',
+      'b.ext.out',
+    ]);
   });
 
   it('список расширений несёт id команд и панелей копиями', async () => {

@@ -29,6 +29,8 @@ const extension = (id: string, origin: ExtensionOrigin): ResolvedExtension => ({
   events: [],
   commands: [],
   panels: [],
+  importers: [],
+  exporters: [],
 });
 
 const policyFor = (...items: ResolvedExtension[]) =>

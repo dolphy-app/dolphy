@@ -1107,6 +1107,8 @@ DOLPHY_DEV_EXTENSIONS=~/projects/acme-hello/dist-ext pnpm dev
 
 Правка исходника пересобирает бандл, приложение подхватывает его без перезапуска хостов и без перезагрузки окна (см. «Режим разработчика» ниже).
 
+**Шаблоны.** `--template exercise|theme|command-panel|events|blank` выбирает вид проекта; без флага — `exercise` (вид задания с настройкой и командой). `theme` — тема без кода (тест проверяет контраст текста), `command-panel` — команды палитры и панель, `events` — подписка на `attempt.closed`, `ctx.storage`, команда и панель («серия дней»), `blank` — одна команда. Неизвестное имя — код 2 и список имён. Каждый проект проходит `build`, `validate`, `lint`, `typecheck` и свои тесты. В манифесте шаблона заполнены `name`, `description` и `author` (замените `your-github-login` своим логином на GitHub до публикации в каталоге): без них `dolphy-ext lint` предупреждает.
+
 ### Раскладка проекта
 
 ```
@@ -1117,6 +1119,9 @@ acme-hello/
   test/               # vitest: обработчик без приложения и вид в happy-dom
   assets/             # необязательно: таблицы стилей, изображения, шрифты, значок
   package.json  tsconfig.json  README.md  .gitignore
+  AGENTS.md           # инструкции для агента: раскладка, команды, правила
+  CLAUDE.md           # одна строка `@AGENTS.md`
+  .github/workflows/ci.yml  # push и pull request: build, validate, lint, typecheck, test
   .dolphy/ids.d.ts   # типы id из extension.json (генерируется, в git не хранится)
   dist-ext/acme.hello/  # результат сборки (extension.json, main.mjs, view.mjs)
 ```
@@ -1184,6 +1189,9 @@ acme-hello/
   "id": "acme.hello",
   "version": "0.1.0",
   "apiVersion": 1,
+  "name": "Text match",
+  "description": "Exercise type: the learner types a string that is compared with the expected text.",
+  "author": "your-github-login",
   "tags": ["learning"],
   "contributes": {
     "exerciseTypes": [

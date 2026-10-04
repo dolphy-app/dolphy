@@ -66,8 +66,8 @@ superseded-by: null
 - [x] 3a. `lint` и правила каталога (один PR, `extension-tools`)
   - [x] `src/lint/` (манифест, бандл), команда `dolphy-ext lint`, справка CLI, README пакета
   - [x] `CHECK-019`…`CHECK-025`, флаг `--built`, `bundleDir` в `RuleContext`, тесты на каждое правило (R11, R12)
-- [ ] 3b. Шаблоны и инструкции проекта (один PR, `create-extension`)
-  - [ ] модули шаблонов, `--template`, `AGENTS.md`, `CLAUDE.md`, `ci.yml`, скрипт `lint`; тесты R1, R5-часть, R6, R13
+- [x] 3b. Шаблоны и инструкции проекта (один PR, `create-extension`)
+  - [x] модули шаблонов, `--template`, `AGENTS.md`, `CLAUDE.md`, `ci.yml`, скрипт `lint`; тесты R1, R5-часть, R6, R13
 - [ ] 3c. Руководство (один PR, `extension-sdk`, `tools/`)
   - [ ] `docs/quick-start.md`, пять рецептов, `no-build.md`; `docs-blocks.ts` + `sdk-docs.test.ts` (R4, R5, R7); упаковка и `verify:packages` (R3)
 - [ ] 3d. Цикл разработки (один PR, `extension-tools`, `desktop`)
@@ -86,6 +86,8 @@ superseded-by: null
 - `generate.test.ts` проверяет точный список файлов проекта, `docs.test.ts` — побайтное совпадение с документом: поэтому шаблон по умолчанию остаётся прежним.
 - У `ctx` уже есть `logger` (`ExtensionLogger` в `extension-api`), так что в рецептах журнал не требует нового API.
 - Манифест с пустым `name`/`author` не проходит `parseManifest`, и `lint` не смог бы собрать проект; поэтому замечания `lint` о метаданных возможны только при отсутствующих ключах (пустое значение — ошибка сборки, её печатает `lint` как `error <id>: …`, код 1).
+- Проект «без замечаний `lint`» (R6) требует `name`, `description` (от 20 символов) и `author` в манифесте шаблона; поэтому они добавлены во все пять манифестов, а блок `extension.json` в `docs/design/extensions.md` обновлён вместе с шаблоном `exercise` (`docs.test.ts`).
+- Сгенерированный проект не имеет lockfile, а `pnpm install` в CI по умолчанию замораживает его: в `ci.yml` стоит `pnpm install --no-frozen-lockfile`, и `cache: pnpm` в `setup-node` не используется (он требует lockfile).
 - Общий модуль попадает и в `main.mjs`, и в `view.mjs`: эвристики дают строку на каждый файл, где сработали.
 
 ## Decision Log
@@ -105,6 +107,10 @@ superseded-by: null
 - 2026-10-04 (3a). Отсутствующая сборка при `--built <siteDir>` — одно предупреждение `CHECK-022 --built`, а не молчание. Причина: опечатка в пути не должна выключать проверку незаметно. Без флага правила 022–025 молчат.
 - 2026-10-04 (3a). Эвристика URL (`CHECK-024`) пропускает XML-пространства имён `www.w3.org`. Причина: `createElementNS('http://www.w3.org/2000/svg')` — типичный код видов, это идентификатор, не сетевой адрес.
 - 2026-10-04 (3a). В `lint` встроенная карта исходников — `warning`, в `catalog check` (`CHECK-025`) — `error`. Причина: R11 «всё — warning, кроме README»; сборка `lint` карт не пишет, строка появляется только с `--built`.
+
+- 2026-10-04 (3b). `author` в шаблонах — `your-github-login` (AGENTS.md и документ просят заменить). Причина: автор неизвестен генератору, а пустое значение `parseManifest` отвергает.
+- 2026-10-04 (3b). Существование `docs/quick-start.md` в SDK (вторая половина проверки R1) проверяет стадия 3c: файл появляется в ней, `AGENTS.md` называет путь `node_modules/@dolphy-app/extension-sdk/docs/quick-start.md` уже сейчас.
+- 2026-10-04 (3b). Шаблон `events` — «серия дней» целиком (событие, хранилище, команды, панель); `command-panel` — отдельный проект без событий и разрешений.
 
 ## Outcomes
 

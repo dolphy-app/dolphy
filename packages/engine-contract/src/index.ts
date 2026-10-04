@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 15 as const;
+export const CONTRACT_VERSION = 18 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 
@@ -749,10 +749,20 @@ export interface UiSettingsDto {
   locale: LocaleMode;
   /** Курс в фокусе: клиент передаёт его в `courseIds` плана и повторений. Нет поля — все курсы. Движок не проверяет, что курс есть в библиотеке: курс могли убрать, клиент сверяет сам. */
   activeCourseId?: UnitId;
+  /** Ширина панели теории в сессии и вход-тесте, px. Нет поля — умолчание клиента. */
+  materialWidth?: number;
+  /** Панель теории скрыта. Нет поля — показана. */
+  materialCollapsed?: true;
 }
-/** `activeCourseId: null` снимает фокус. */
-export type UiSettingsPatch = Partial<Omit<UiSettingsDto, 'activeCourseId'>> & {
+/** Допустимая ширина панели теории, px (`UiSettingsDto.materialWidth`). */
+export const MATERIAL_WIDTH_RANGE = { min: 280, max: 800 } as const;
+/** `activeCourseId: null` снимает фокус, `materialWidth: null` возвращает умолчание, `materialCollapsed: false` показывает панель. */
+export type UiSettingsPatch = Partial<
+  Omit<UiSettingsDto, 'activeCourseId' | 'materialWidth' | 'materialCollapsed'>
+> & {
   activeCourseId?: UnitId | null;
+  materialWidth?: number | null;
+  materialCollapsed?: boolean;
 };
 
 /** Id встроенного правила оценки (`pass@N`). */
@@ -1016,6 +1026,12 @@ export interface EngineConfig {
    * `safeMode` не снимается. Не задан — режим зависит только от настройки.
    */
   forceSafeMode?: SafeModeSource;
+  /**
+   * Каталог файлового журнала (`dolphy-ГГГГ-ММ-ДД[.N].log`, пишет оболочка
+   * приложения). Задан — `extensions.readLogs()` читает его; не задан — журнала
+   * нет, `readLogs()` возвращает пустой список.
+   */
+  logsDir?: string;
   /** Версия приложения; не задана — проверка `minAppVersion` расширений не выполняется. */
   appVersion?: string;
 }
@@ -1109,6 +1125,8 @@ export const EXTENSION_DIAGNOSTIC_CODES = [
   'load-failed',
   'overridden-by',
   'safe-mode',
+  'locale.missing-key',
+  'locale.invalid-file',
 ] as const;
 
 export type ExtensionDiagnosticCode =
@@ -1122,7 +1140,9 @@ export type ExtensionDiagnosticValue = string | number | string[];
  * `manifest-unreadable` — `reason`; `manifest-invalid` — `issues` (`путь: сообщение`);
  * `id-mismatch` — `expected`, `actual`; `requires-app` — `minAppVersion`;
  * `unavailable-platform` — `platform`; `claim-clash` — `kind`, `name`, `by`;
- * `load-failed` — `reason`; `overridden-by` — `origin`, `version`; `safe-mode` — без данных.
+ * `load-failed` — `reason`; `overridden-by` — `origin`, `version`; `safe-mode` — без данных;
+ * `locale.missing-key` — `key` (ключ `%ключ%` манифеста, которого нет в `locales/en.json`; предупреждение
+ * у загруженного расширения); `locale.invalid-file` — `file`, `reason` (файл перевода проигнорирован).
  */
 export interface ExtensionDiagnosticDto {
   code: ExtensionDiagnosticCode;
@@ -1155,6 +1175,8 @@ export interface ExtensionInfoDto {
   icon: string | null;
   /** Названия вкладов (`label`/`title` манифеста); `{}` — нет или манифест не прочитан. */
   titles: ContributionTitlesDto;
+  /** Таблицы переводов `locales/<язык>.json`; подписи выше — как в манифесте (`%ключ%`), текст подставляет окно (`resolveText`). `{}` — нет файлов или манифест не прочитан. */
+  messages: ExtensionMessagesDto;
   /** Явные теги из манифеста; `[]` — нет или манифест не прочитан. */
   tags: string[];
   /** Установлено из каталога; `null` — скопировано вручную, из поставки или из режима разработчика. */
@@ -1188,10 +1210,21 @@ export interface ExtensionContributesDto {
   panels: string[];
 }
 
-/** Названия вкладов по точкам: `id` → `label`/`title`; точки без названий (виды заданий, языки, события) не входят. */
+/** Таблицы переводов расширения (`locales/<язык>.json`): язык → ключ → текст; нет файла — нет языка. */
+export type ExtensionMessagesDto = Partial<
+  Record<'ru' | 'en', Record<string, string>>
+>;
+
+/** Названия вкладов по точкам: `id` → `label`/`title` (у рендереров `id` — язык); точки без названий (события) не входят, у видов заданий и рендереров — только записи с `title`. */
 export type ContributionTitlesDto = Partial<
   Record<
-    'themes' | 'gradePolicies' | 'settings' | 'commands' | 'panels',
+    | 'exerciseTypes'
+    | 'markdownRenderers'
+    | 'themes'
+    | 'gradePolicies'
+    | 'settings'
+    | 'commands'
+    | 'panels',
     Record<string, string>
   >
 >;
@@ -1307,6 +1340,8 @@ export interface ContributionsDto {
   commands: CommandContributionDto[];
   /** Панели включённых расширений. */
   panels: PanelContributionDto[];
+  /** Таблицы переводов включённых расширений по id; расширения без файлов перевода не перечислены. Подписи вкладов приходят как в манифесте (`%ключ%`). */
+  messages: Record<string, ExtensionMessagesDto>;
 }
 
 interface ExtensionSettingBaseDto {
@@ -1316,6 +1351,18 @@ interface ExtensionSettingBaseDto {
   /** Подпись поля в диалоге настроек; данные расширения, не переводится. */
   label: string;
   description: string | null;
+  /** Заголовок раздела формы; `null` — настройка в первом разделе без заголовка. */
+  group: string | null;
+  /** Ключ сортировки формы, целое 0–1000; при равных — порядок объявления. */
+  order: number;
+  /** Поле скрыто, пока значение настройки `setting` (того же расширения, не `list`) не равно `equals`; скрытое значение сохраняется. `null` — поле видно всегда. */
+  visibleWhen: SettingVisibleWhenDto | null;
+}
+
+/** Условие показа поля формы настроек. */
+export interface SettingVisibleWhenDto {
+  setting: string;
+  equals: boolean | string | number;
 }
 
 export interface BooleanSettingDefDto extends ExtensionSettingBaseDto {
@@ -1328,6 +1375,30 @@ export interface StringSettingDefDto extends ExtensionSettingBaseDto {
   default: string;
   /** Длина в кодовых единицах UTF-16; `null` — без ограничения. */
   maxLength: number | null;
+}
+
+/** Многострочная строка. */
+export interface TextSettingDefDto extends ExtensionSettingBaseDto {
+  type: 'text';
+  default: string;
+  /** Длина в кодовых единицах UTF-16; `null` — до 10 000. */
+  maxLength: number | null;
+}
+
+/** Цвет `#rrggbb`; значение хранится в нижнем регистре. */
+export interface ColorSettingDefDto extends ExtensionSettingBaseDto {
+  type: 'color';
+  default: string;
+}
+
+/** Список строк. */
+export interface ListSettingDefDto extends ExtensionSettingBaseDto {
+  type: 'list';
+  default: string[];
+  /** Наибольшее число элементов, 1–50. */
+  maxItems: number;
+  /** Наибольшая длина элемента в кодовых единицах UTF-16, 1–200. */
+  itemMaxLength: number;
 }
 
 export interface NumberSettingDefDto extends ExtensionSettingBaseDto {
@@ -1353,6 +1424,9 @@ export interface EnumSettingDefDto extends ExtensionSettingBaseDto {
 export type ExtensionSettingDefDto =
   | BooleanSettingDefDto
   | StringSettingDefDto
+  | TextSettingDefDto
+  | ColorSettingDefDto
+  | ListSettingDefDto
   | NumberSettingDefDto
   | EnumSettingDefDto;
 
@@ -1455,6 +1529,36 @@ export interface SafeModeStatusDto {
   forcedBy: SafeModeSource | null;
 }
 
+/** Уровни записи журнала от подробного к важному. */
+export const LOG_LEVELS = ['debug', 'info', 'warn', 'error'] as const;
+export type LogLevelDto = (typeof LOG_LEVELS)[number];
+
+/** Предел `limit` у `extensions.readLogs`. */
+export const MAX_LOG_ENTRIES = 500 as const;
+
+/** Запись файлового журнала. */
+export interface ExtensionLogEntryDto {
+  at: EpochMs;
+  level: LogLevelDto;
+  /** Кто написал: `main`, `engine` или `ext-host`. */
+  source: string;
+  message: string;
+  /** Расширение, к которому относится запись; `null` — запись самого приложения. */
+  extensionId: string | null;
+  /** Остальные поля записи одной JSON-строкой (обрезаются до 4096 знаков); `null` — полей нет. */
+  details: string | null;
+}
+
+/** Параметры `extensions.readLogs`. */
+export interface ReadLogsOptions {
+  /** Только записи этого расширения. */
+  extensionId?: string;
+  /** Записи не ниже этого уровня; по умолчанию все. */
+  minLevel?: LogLevelDto;
+  /** Сколько последних записей вернуть, 1…`MAX_LOG_ENTRIES`; по умолчанию `MAX_LOG_ENTRIES`. */
+  limit?: number;
+}
+
 export interface ExtensionsDiagnosticsDto {
   host: ExtensionHostStatusDto;
   safeMode: SafeModeStatusDto;
@@ -1507,16 +1611,22 @@ export interface ExtensionsService {
    */
   restartHost(): Promise<void>;
   /**
+   * Последние записи файлового журнала, самые новые последними. Читаются все
+   * файлы журнала от новых к старым; нечитаемые строки пропускаются. Неверные
+   * `limit`, `minLevel` или `extensionId` — `INVALID_ARGUMENT`.
+   */
+  readLogs(options?: ReadLogsOptions): Promise<ExtensionLogEntryDto[]>;
+  /**
    * Действующие значения настроек расширения (определения — в
    * `contributions().settings`). `NOT_FOUND` — расширения нет;
    * `INVALID_ARGUMENT` `{reason:'disabled'}` — расширение отключено.
    */
   getSettingValues(id: string): Promise<ExtensionSettingValuesDto>;
   /**
-   * Меняет одно значение; проверяет тип, границы и `options` по определению.
+   * Меняет одно значение; проверяет тип, границы, формат цвета, размер списка и `options` по определению; цвет сохраняется в нижнем регистре.
    * Неизвестный `settingId` и неверное значение — `INVALID_ARGUMENT`
    * (`details.reason`: `unknown-setting` | `type` | `range` | `integer` |
-   * `max-length` | `option`). Расширение и окно узнают об изменении без перезапуска.
+   * `max-length` | `option` | `format` | `max-items`). Расширение и окно узнают об изменении без перезапуска.
    */
   setSettingValue(
     id: string,

@@ -45,6 +45,7 @@ import type {
   ExtensionHostControl,
 } from '../ports/extension-health.ts';
 import type { ExtensionPolicy } from '../ports/extension-policy.ts';
+import type { LogReader } from '../ports/log-reader.ts';
 import type { ExtensionRegistry } from '../ports/extension-registry.ts';
 import type { ExtensionReloader } from '../ports/extension-reloader.ts';
 import type { FsrsScorer } from '../scoring/fsrs-scorer.ts';
@@ -115,6 +116,8 @@ export interface EngineDeps {
   extensionInstaller: ExtensionInstaller;
   /** Применение изменений расширений на диске (`@dolphy-app/extension-host`): тот же снимок, что у реестра, политики и клиентов хоста. */
   extensionReloader: ExtensionReloader;
+  /** Чтение файлового журнала (`extensions.readLogs`); нет порта — журнала нет, ответ пустой. */
+  logReader?: LogReader;
   /** Нет порта — `sync.folder.*` отвечает `SYNC_FOLDER_NOT_CONFIGURED`. */
   folderSync?: FolderSyncPort;
   /** Чтение каталога `.trane` (`readTraneDirectory` из `@dolphy-app/engine-sqlite`); нет — `importFromTrane` отказывает. */
@@ -330,6 +333,7 @@ export interface EngineContext extends FacadeContext {
   readonly extensionInstaller: ExtensionInstaller;
   readonly extensionApply: ExtensionApply;
   readonly folderSync: FolderSyncPort | null;
+  readonly logReader: LogReader | null;
   readonly openTraneSource: EngineDeps['openTraneSource'];
   readonly repositoryStore: RepositoryStore;
   readonly extensionData: ExtensionDataStore;

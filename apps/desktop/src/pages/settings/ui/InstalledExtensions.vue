@@ -7,7 +7,7 @@ import type {
   ExtensionStateDto,
 } from '@dolphy-app/engine-contract';
 import { useEngine } from '@/shared/api/engine';
-import { displayName } from '../lib/catalog.ts';
+import { useExtensionText } from '@/shared/lib/extension-text.ts';
 import { effectiveTags } from '../lib/tags.ts';
 import {
   hasSwitches,
@@ -15,6 +15,7 @@ import {
   isTrusted,
   useExtensions,
 } from '../model/extensions.ts';
+import { useDiagnosticsCopy } from '../model/diagnostics-copy.ts';
 import { useExtensionData } from '../model/extension-data.ts';
 import { useInstallContext } from '../model/install.ts';
 import ExtensionContributions from './ExtensionContributions.vue';
@@ -24,6 +25,7 @@ import ExtensionHealth from './ExtensionHealth.vue';
 import ExtensionHeading from './ExtensionHeading.vue';
 import ExtensionPermissions from './ExtensionPermissions.vue';
 import ExtensionSettingsDialog from './ExtensionSettingsDialog.vue';
+import ExtensionLogDialog from './ExtensionLogDialog.vue';
 
 interface StateView {
   icon: string;
@@ -40,6 +42,7 @@ const STATE_VIEW: Record<ExtensionStateDto, StateView> = {
 const props = defineProps<{ active: boolean }>();
 
 const { t } = useI18n();
+const extensionText = useExtensionText();
 const install = useInstallContext();
 const {
   items,
@@ -64,6 +67,13 @@ const {
 const removeTarget = ref<ExtensionInfoDto | null>(null);
 const removeData = ref(false);
 const settingsTarget = ref<ExtensionInfoDto | null>(null);
+/** Диалог журнала: `''` — все записи, иначе предустановленный фильтр по id. */
+const logTarget = ref<string | null>(null);
+const diagnosticsCopy = useDiagnosticsCopy(useEngine(), {
+  appInfo: () => window.dolphy.platform.appInfo(),
+  // системный буфер пишет main: navigator.clipboard не работает без фокуса окна
+  writeText: (text) => window.dolphy.platform.copyText(text),
+});
 const data = useExtensionData(useEngine(), items);
 
 /** Настройки есть у загруженного (включённого) расширения, объявившего `settings`. */
@@ -82,6 +92,14 @@ const diagnosticText = (diagnostic: ExtensionDiagnosticDto): string =>
         }
       : diagnostic.data,
   );
+
+// предупреждений о переводах может быть несколько с одним кодом: ключ отличает данные
+const diagnosticKey = (diagnostic: ExtensionDiagnosticDto): string =>
+  `${diagnostic.code}:${diagnostic.data.key ?? diagnostic.data.file ?? ''}`;
+
+/** Предупреждения о переводах: расширение работает, поэтому они выделены иначе, чем причины сбоя. */
+const isWarning = (diagnostic: ExtensionDiagnosticDto): boolean =>
+  diagnostic.code.startsWith('locale.');
 
 const healthOf = (id: string) =>
   diagnostics.value?.extensions.find((health) => health.id === id);
@@ -121,6 +139,16 @@ const openSettings = (extension: ExtensionInfoDto, event: Event) => {
 
 const closeSettings = () => {
   settingsTarget.value = null;
+  restoreFocus();
+};
+
+const openLog = (extensionId: string, event: Event) => {
+  rememberOpener(event);
+  logTarget.value = extensionId;
+};
+
+const closeLog = () => {
+  logTarget.value = null;
   restoreFocus();
 };
 
@@ -296,6 +324,62 @@ watch(
         </p>
       </div>
 
+      <div class="mb-4" data-testid="diagnostics-section">
+        <h3 class="text-title-small">
+          {{ t('settings.extensions.support.title') }}
+        </h3>
+        <p class="text-body-small text-medium-emphasis mt-1">
+          {{ t('settings.extensions.support.hint') }}
+        </p>
+        <div class="d-flex flex-wrap align-center ga-2 mt-2">
+          <v-btn
+            variant="tonal"
+            color="primary"
+            prepend-icon="mdi-text-box-search-outline"
+            data-testid="extensions-log-open"
+            @click="openLog('', $event)"
+          >
+            {{ t('settings.extensions.support.openLog') }}
+          </v-btn>
+          <v-btn
+            variant="tonal"
+            :color="
+              diagnosticsCopy.state.value === 'failed' ? 'error' : 'primary'
+            "
+            :prepend-icon="
+              diagnosticsCopy.state.value === 'copied'
+                ? 'mdi-check'
+                : 'mdi-content-copy'
+            "
+            :loading="diagnosticsCopy.state.value === 'copying'"
+            data-testid="extensions-copy-diagnostics"
+            @click="diagnosticsCopy.copy"
+          >
+            {{
+              diagnosticsCopy.state.value === 'copied'
+                ? t('settings.extensions.support.copied')
+                : t('settings.extensions.support.copy')
+            }}
+          </v-btn>
+        </div>
+        <v-alert
+          v-if="diagnosticsCopy.state.value === 'failed'"
+          type="error"
+          variant="tonal"
+          density="compact"
+          class="mt-2"
+          data-testid="extensions-copy-failed"
+        >
+          {{ t('settings.extensions.support.copyFailed') }}:
+          {{ diagnosticsCopy.error.value }}
+        </v-alert>
+        <span class="visually-hidden" role="status">{{
+          diagnosticsCopy.state.value === 'copied'
+            ? t('settings.extensions.support.copied')
+            : ''
+        }}</span>
+      </div>
+
       <p
         v-if="items.length === 0"
         class="text-body-medium text-medium-emphasis"
@@ -314,7 +398,7 @@ watch(
             <div class="d-flex flex-wrap align-center ga-2">
               <ExtensionHeading :icon="extension.icon">
                 <h3 class="name text-title-medium font-weight-bold">
-                  {{ displayName(extension) }}
+                  {{ extensionText.nameOf(extension) }}
                 </h3>
               </ExtensionHeading>
               <span
@@ -401,7 +485,12 @@ watch(
               v-if="extension.description !== null"
               class="text-body-medium mt-2"
             >
-              {{ extension.description }}
+              {{
+                extensionText.withTables(
+                  extension.description,
+                  extension.messages,
+                )
+              }}
             </p>
             <ExtensionTags
               :tags="effectiveTags(extension.tags, extension.contributes)"
@@ -428,23 +517,39 @@ watch(
               </p>
             </v-alert>
 
-            <div
+            <template
               v-for="diagnostic in extension.diagnostics"
-              :key="diagnostic.code"
-              class="text-body-medium mt-2"
-              data-testid="diagnostic"
-              :data-code="diagnostic.code"
+              :key="diagnosticKey(diagnostic)"
             >
-              <p>{{ diagnosticText(diagnostic) }}</p>
-              <ul
-                v-if="diagnostic.code === 'manifest-invalid'"
-                class="message ps-4"
+              <!-- предупреждение: расширение работает, поэтому не сообщение об ошибке -->
+              <v-alert
+                v-if="isWarning(diagnostic)"
+                type="warning"
+                variant="tonal"
+                density="compact"
+                class="mt-2"
+                data-testid="diagnostic"
+                :data-code="diagnostic.code"
               >
-                <li v-for="issue in issuesOf(diagnostic)" :key="issue">
-                  {{ issue }}
-                </li>
-              </ul>
-            </div>
+                {{ diagnosticText(diagnostic) }}
+              </v-alert>
+              <div
+                v-else
+                class="text-body-medium mt-2"
+                data-testid="diagnostic"
+                :data-code="diagnostic.code"
+              >
+                <p>{{ diagnosticText(diagnostic) }}</p>
+                <ul
+                  v-if="diagnostic.code === 'manifest-invalid'"
+                  class="message ps-4"
+                >
+                  <li v-for="issue in issuesOf(diagnostic)" :key="issue">
+                    {{ issue }}
+                  </li>
+                </ul>
+              </div>
+            </template>
 
             <ExtensionHealth
               v-if="isActive(extension)"
@@ -459,6 +564,7 @@ watch(
               :contributes="extension.contributes"
               :titles="extension.titles"
               :name="extension.name"
+              :messages="extension.messages"
             />
             <ExtensionData
               v-if="isActive(extension)"
@@ -504,13 +610,27 @@ watch(
                 prepend-icon="mdi-cog-outline"
                 :aria-label="
                   t('settings.extensions.action.settingsLabel', {
-                    name: displayName(extension),
+                    name: extensionText.nameOf(extension),
                   })
                 "
                 :data-testid="`settings-${extension.id}`"
                 @click="openSettings(extension, $event)"
               >
                 {{ t('settings.extensions.action.settings') }}
+              </v-btn>
+              <v-btn
+                variant="tonal"
+                size="small"
+                prepend-icon="mdi-text-box-search-outline"
+                :aria-label="
+                  t('settings.extensions.log.rowActionLabel', {
+                    name: extensionText.nameOf(extension),
+                  })
+                "
+                :data-testid="`extension-log-open-${extension.id}`"
+                @click="openLog(extension.id, $event)"
+              >
+                {{ t('settings.extensions.log.rowAction') }}
               </v-btn>
               <v-btn
                 v-if="updateOf(extension.id)"
@@ -521,7 +641,7 @@ watch(
                 :disabled="install.phase.value === 'running'"
                 :aria-label="
                   t('settings.extensions.action.updateLabel', {
-                    name: displayName(extension),
+                    name: extensionText.nameOf(extension),
                     version: updateOf(extension.id)?.available.version,
                   })
                 "
@@ -542,7 +662,7 @@ watch(
                 prepend-icon="mdi-delete-outline"
                 :aria-label="
                   t('settings.extensions.action.removeLabel', {
-                    name: displayName(extension),
+                    name: extensionText.nameOf(extension),
                   })
                 "
                 :data-testid="`remove-${extension.id}`"
@@ -567,7 +687,7 @@ watch(
         <v-card-title id="extension-remove-title" class="text-wrap">
           {{
             t('settings.extensions.remove.title', {
-              name: displayName(removeTarget),
+              name: extensionText.nameOf(removeTarget),
             })
           }}
         </v-card-title>
@@ -621,6 +741,13 @@ watch(
       :key="settingsTarget.id"
       :extension="settingsTarget"
       @close="closeSettings"
+    />
+
+    <ExtensionLogDialog
+      v-if="logTarget !== null"
+      :preset-extension-id="logTarget"
+      :extension-ids="items.map(({ id }) => id)"
+      @close="closeLog"
     />
   </div>
 </template>

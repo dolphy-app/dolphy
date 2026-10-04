@@ -16,6 +16,7 @@ export const NO_CONTRIBUTIONS: ContributionsDto = {
   settings: [],
   commands: [],
   panels: [],
+  messages: {},
 };
 
 export type ContributionsRef = Readonly<Ref<Readonly<ContributionsDto>>>;

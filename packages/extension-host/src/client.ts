@@ -37,6 +37,8 @@ const exerciseCause = (cause: ExtFailureCause): ExerciseTypeErrorCause => {
     case 'unknown-policy':
     case 'unknown-command':
     case 'handler-timeout':
+    case 'ipc-size':
+    case 'ipc-rate':
     case 'replaced':
       return 'handler-failed';
     default:

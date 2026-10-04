@@ -2,6 +2,9 @@ import {
   BUILTIN_GRADE_POLICY,
   EXTENSION_ID_PATTERN,
   GRADE_POLICY_ID_PATTERN,
+  LOG_LEVELS,
+  MATERIAL_WIDTH_RANGE,
+  MAX_LOG_ENTRIES,
   THEME_ID_PATTERN,
 } from '@dolphy-app/engine-contract';
 import * as z from 'zod';
@@ -381,6 +384,15 @@ export const schemas = {
   'extensions.setSafeMode': z.tuple([bool]),
   'extensions.diagnostics': z.tuple([]),
   'extensions.restartHost': z.tuple([]),
+  'extensions.readLogs': z.tuple([
+    optional(
+      z.strictObject({
+        extensionId: optional(extensionId),
+        minLevel: optional(z.enum(LOG_LEVELS)),
+        limit: optional(z.number().int().min(1).max(MAX_LOG_ENTRIES)),
+      }),
+    ),
+  ]),
   'extensions.getSettingValues': z.tuple([extensionId]),
   'extensions.setSettingValue': z.tuple([
     extensionId,
@@ -430,6 +442,14 @@ export const schemas = {
       theme: optional(z.string().max(64).regex(THEME_ID_PATTERN)),
       locale: optional(z.enum(['system', 'ru', 'en'])),
       activeCourseId: optional(unitId.nullable()),
+      materialWidth: optional(
+        z
+          .int()
+          .min(MATERIAL_WIDTH_RANGE.min)
+          .max(MATERIAL_WIDTH_RANGE.max)
+          .nullable(),
+      ),
+      materialCollapsed: optional(z.boolean()),
     }),
   ]),
   'settings.getLearning': z.tuple([]),

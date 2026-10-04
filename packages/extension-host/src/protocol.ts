@@ -125,13 +125,14 @@ export type HostRequest =
 
 /**
  * Здоровье расширения, о котором знает только хост: `activated` — активация
- * прошла за `durationMs`; `suppressed` — ограниченный процесс приостановлен за
+ * прошла за `durationMs`; `failed` — сбой вне вызова (процесс убит за предел
+ * IPC; сбои вызовов учитывает сторона движка по исходу вызова); `suppressed` — ограниченный процесс приостановлен за
  * цикл падений до `until` (epoch ms); `reset` — файлы расширения сменились или
- * оно убрано, сводка начинается заново. Сбои вызовов хост не сообщает: их
- * учитывает сторона движка по исходу вызова.
+ * оно убрано, сводка начинается заново.
  */
 export type HealthReport = { extensionId: string } & (
   | { kind: 'activated'; durationMs: number }
+  | { kind: 'failed'; reason: string; message: string }
   | { kind: 'suppressed'; until: number }
   | { kind: 'reset' }
 );
@@ -170,12 +171,17 @@ export type ExtFailureCause =
   | 'unknown-command'
   | 'handler-timeout'
   | 'activation-timeout'
+  | 'ipc-size'
+  | 'ipc-rate'
   | 'replaced';
 
 /**
  * Причина отказа хоста считается сбоем расширения: отказ или превышение срока
- * обработчика, неверный результат, сбой или превышение срока активации. Остальные (`unknown-type`, `replaced`, ...) —
- * решение системы, расширение в них не виновато.
+ * обработчика, неверный результат, сбой или превышение срока активации.
+ * Остальные (`unknown-type`, `replaced`, ...) — решение системы, расширение в
+ * них не виновато. Пределы IPC (`ipc-size`, `ipc-rate`) здесь не числятся: сбой
+ * учитывает сам раннер сообщением `health.report` (`failed`), иначе вызов в
+ * полёте посчитал бы его второй раз.
  */
 export const isFault = (cause: ExtFailureCause): boolean =>
   cause === 'handler-failed' ||
@@ -264,7 +270,12 @@ export const extRequestSchema = z.discriminatedUnion('method', [
   }),
 ]);
 
-const settingValue = z.union([z.boolean(), z.string(), z.number()]);
+const settingValue = z.union([
+  z.boolean(),
+  z.string(),
+  z.number(),
+  z.array(z.string()),
+]);
 
 export const settingChangedSchema = z.strictObject({
   method: z.literal('settingChanged'),
@@ -320,6 +331,12 @@ export const hostRequestSchema = z.discriminatedUnion('method', [
       }),
       z.strictObject({
         extensionId: z.string(),
+        kind: z.literal('failed'),
+        reason: z.string(),
+        message: z.string(),
+      }),
+      z.strictObject({
+        extensionId: z.string(),
         kind: z.literal('suppressed'),
         until: z.number().finite().nonnegative(),
       }),
@@ -358,6 +375,9 @@ const isResolvedExtension = (value: unknown): value is ResolvedExtension => {
       item.origin === 'user' ||
       item.origin === 'dev') &&
     Array.isArray(item.permissions) &&
+    typeof item.messages === 'object' &&
+    item.messages !== null &&
+    Array.isArray(item.warnings) &&
     Array.isArray(item.exerciseTypes) &&
     Array.isArray(item.themes) &&
     Array.isArray(item.markdownRenderers) &&

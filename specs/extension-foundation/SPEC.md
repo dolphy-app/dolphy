@@ -72,7 +72,9 @@ superseded-by: null
 - [x] 1a `extension.schema.json`, тест перегенерации, `package-manifest.mjs`/`verify-packages.mjs`, `$schema` в `manifestSchema` и шаблоне, `docs/design/extensions.md`
 - [x] 1b SAFE MODE + HEALTH (PR 2): `forceSafeMode`, политика, настройка `safeMode` (контракт, сервис, RPC, адаптеры), баннер, переключатель
 - [x] 1b `extension-health`, сообщение хоста `health`, `ext-supervisor.reset()`, `ext-host-status`, `restartHost`, баннер «gave-up», строка здоровья, e2e
-- [ ] 1c LOGS AND LIMITS (PR 3): лимит вывода и IPC (`restricted-runner.ts`), `ctx.logger` с `extensionId` у доверенных расширений (`runtime.ts`), `log-file.ts`, `stdio: 'pipe'`, `LogReader`, `readLogs`, диалог журнала, «Скопировать диагностику», e2e
+- [x] 1c LOGS AND LIMITS (PR 3): лимит вывода и IPC (`restricted-runner.ts`), `ctx.logger` с `extensionId` у доверенных расширений (`runtime.ts`)
+- [x] 1c `log-file.ts`, `stdio: 'pipe'`, `LogReader`, `readLogs` (контракт 17), `platform.appInfo`/`platform.copyText`
+- [x] 1c диалог журнала, «Скопировать диагностику», e2e `diagnostics.e2e.test.ts`, дизайн-ревью
 - [x] 1d CI (PR 4): `desktop-checks.yml`, первый запуск на Linux и macOS, правка `scripts/smoke.mjs`/`global-setup.ts` по итогам, README, `AGENTS.md`, `git-workflow`
 - [ ] Закрытие: перенос долговечного в `docs/design`, `Outcomes`, архив
 
@@ -111,6 +113,23 @@ superseded-by: null
 - (1d) Первый запуск e2e на Linux (xvfb) прошёл на 2 файла из 20 красным: клики и сообщения внутри iframe расширений (панели, ответы `dolphy.choice`) не срабатывали, прогон шёл 44 минуты вместо ~4. Причина — окна `show: false` (`DOLPHY_HIDDEN_WINDOW`): без оконного менеджера Chromium считает их невидимыми и душит iframe. Воспроизведено в Docker (ubuntu 24.04, xvfb, colima): после `revealWindows` на Linux `extension-surfaces` — 16/16 за 50 с вместо 6 красных за 5 минут, весь e2e — 118/118 за 4 минуты. Правка: `E2E_SHOW` на Linux всегда истинно (`e2e/support/app.ts`); `--disable-renderer-backgrounding` идёт вместе с ним.
 - (1d) `gh workflow run` ищет файл workflow на ветке по умолчанию (`main`): пока `desktop-checks.yml` не попал в `main`, он не запускается через `workflow_dispatch` (HTTP 404). Первый запуск на ветке (run 37234824312: `Packaged smoke (macos-14)` 44 с, `Packaged smoke (ubuntu-latest)` 49 с, `Desktop e2e (Linux)` 10 мин — все зелёные) сделан временным триггером `push` на `feature/extension-foundation-1d` (в PR его нет); `workflow_dispatch` и `schedule` проверяются после слияния в `main`/`develop`, `gh workflow list` покажет workflow только после попадания в ветку по умолчанию.
 
+Стадия 1c (реализация):
+
+- Сбой по пределу IPC происходит вне вызова (процесс может молча заваливать сообщениями), поэтому одного учёта «по исходу вызова» (1b) мало. Добавлен вид запроса хоста `health.report` `failed` `{reason, message}` (`protocol.ts`, `channel.ts`, `ExtensionHostServices.health.failed`). Вызов в полёте при этом получает отказ с причиной `ipc-size`/`ipc-rate` (новые значения `ExtFailureCause`, не входят в `isFault`, в `client.ts` сводятся к `handler-failed`), иначе сбой считался бы дважды и последней причиной остался бы `handler-failed`. Убийство идёт в цикл падений через общий `onExit`.
+- Превышение предела до `ready` (процесс завалил сообщениями во время `activate()`): отказ активации несёт причину предела (`IpcLimitError`), а не «процесс завершился».
+- Пределы IPC измеряются на уровне сообщения процесса до проверки формы: `JSON.stringify(raw).length` (как в спеке) — мера от лавины, один гигантский кадр Node уже принял.
+- `LogReader` и файловый адаптер лежат в `packages/engine` (`src/ports/log-reader.ts`, `src/node/log-reader.ts`), а не в `apps/desktop/electron/host/`: проверка из спеки названа `packages/engine/test/node/log-reader.test.ts`, а адаптер не зависит от Electron. `nodeDefaults` подключает его при заданном `logsDir`; без `logsDir` порта нет, `readLogs` возвращает пустой список.
+- `LogEntryDto` в контракте уже занят (запись журнала попыток), поэтому запись файлового журнала названа `ExtensionLogEntryDto`; прочие поля записи сворачиваются в `details` (одна JSON-строка, до 4096 знаков).
+- `extensions.readLogs` добавлен в `UNQUEUED`: журнал нужен как раз при зависшей команде.
+- Спека называла `navigator.clipboard`; он падает у окна без фокуса и под отказом во всех разрешениях сеанса, поэтому текст в буфер кладёт main (`platform.copyText`, потолок 1 МиБ). Версии Electron/Node/платформа окну даёт `platform.appInfo` (`app.getVersion()` и `process.versions` main).
+- Окно вывода (R11) считается на расширение и переживает перезапуск процесса; итог закрывается таймером, чтобы замолчавший процесс тоже оставил запись «output truncated».
+- Журнал делит файлы по местному календарному дню; возраст файла при уборке — по `mtime`, порядок — по имени (дата, номер).
+- Строка stderr не в JSON (падение процесса, предупреждение Node) пишется как `warn` с исходным текстом; `source` ставит писатель, а не процесс (процесс не подписывается чужим именем).
+
+- Дизайн-ревью диалога журнала (настоящий Electron, светлая и тёмная темы, 640/900/1280 px, записи всех уровней, длинные сообщения, `details`, пустое состояние, ошибка чтения): подсказка под фильтром расширения на 640 px перекрывала первую запись, высоты select и combobox различались (P2); моно-сообщение имело большой отступ под шапкой записи (P2); счётчик «нет записей» дублировал пустое состояние (P3). Исправлено отдельным коммитом; скриншоты не коммитятся.
+- `getVersion()` в несобранном приложении возвращает версию Electron: в сведениях о сборке окну отдаётся `appVersion` движка или `unpackaged`.
+- Известный нестабильный e2e: `extension-surfaces.e2e.test.ts` «доверенное расширение: панель всё равно в iframe…» («Счётчик: —» вместо «1») падает и на чистом `develop` (1 из 3 запусков), к 1c не относится.
+
 ## Decision Log
 
 - 2026-10-04. Обратная совместимость не обеспечивается (владелец): приложение и расширения сырые, ломаем сразу. Причина: экономия усилий, нет внешних пользователей API. Следствие: «храповик» (терпимый разбор, `@since`, гейтинг `minAppVersion`) отменён, `message` заменяется на `diagnostics` без переходного поля.
@@ -125,6 +144,7 @@ superseded-by: null
 - 2026-10-04 (1a). Контракт 14: поле `diagnostics` вместо `message`; номер — следующий свободный на момент слияния, при конфликте пересчитывается. Коды `safe-mode` включены в закрытый список сразу (по спеке), использовать их начнёт 1b.
 - 2026-10-04 (1a). `DiscoveryDiagnostic` и `InspectResult` несут поле `diagnostic` (одна диагностика), `ExtensionInfoDto` — `diagnostics` (список): у расширения в реестре пока ровно ноль или одна запись.
 - 2026-10-04 (1b). Контракт 15 (следующий свободный на момент ветки; при слиянии номер пересчитывается): `ExtensionSettingsDto.safeMode`, `EngineConfig.forceSafeMode`, `extensions.{setSafeMode,diagnostics,restartHost}`, событие `extension-health-changed`.
+- 2026-10-04 (1c). Контракт 17 (16 занят фичей js-course, влитой в `develop`; номер пересчитан при слиянии): `EngineConfig.logsDir`, `extensions.readLogs`, `ExtensionLogEntryDto`, `LOG_LEVELS`, `MAX_LOG_ENTRIES`.
 - 2026-10-04 (1b). Здоровье и состояние хоста — в памяти движка, главный процесс сообщает состояние хоста расширений сообщением `ext-host-status` и повторяет его, когда хост движка (пере)запускается.
 
 ## Outcomes

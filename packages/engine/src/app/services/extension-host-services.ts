@@ -28,12 +28,13 @@ export interface ExtensionHostServices {
     all(extensionId: string): Promise<ExtensionSettingValuesDto>;
   };
   /**
-   * Сообщения хоста о здоровье расширения: длительность активации,
-   * приостановка за цикл падений, сброс при смене файлов расширения. В отличие
+   * Сообщения хоста о здоровье расширения: длительность активации, сбой вне
+   * вызова (процесс убит за предел IPC), приостановка за цикл падений, сброс при смене файлов расширения. В отличие
    * от данных расширения, принимаются и для отключённого: это учёт, а не доступ.
    */
   readonly health: {
     activated(extensionId: string, durationMs: number): void;
+    failed(extensionId: string, reason: string, message: string): void;
     suppressed(extensionId: string, until: number): void;
     reset(extensionId: string): void;
   };
@@ -92,6 +93,8 @@ export const createExtensionHostServices = (
     health: {
       activated: (extensionId, durationMs) =>
         ctx.extensionHealth.recordActivation(extensionId, durationMs),
+      failed: (extensionId, reason, message) =>
+        ctx.extensionHealth.recordFailure(extensionId, reason, message),
       suppressed: (extensionId, until) =>
         ctx.extensionHealth.recordSuppression(extensionId, until),
       reset: (extensionId) => ctx.extensionHealth.forget(extensionId),

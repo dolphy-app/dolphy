@@ -112,11 +112,27 @@ const COMMAND_DEADLINE_MS = 12_000;
 const DISPOSE_KILL_MS = 1000;
 const CRASH_WINDOW_MS = 60_000;
 const MAX_EXITS = 5;
+/** Вывод процесса в журнал: не больше `OUTPUT_LIMIT_BYTES` за окно `OUTPUT_WINDOW_MS` на расширение. */
+export const OUTPUT_LIMIT_BYTES = 64 * 1024;
+export const OUTPUT_WINDOW_MS = 60_000;
+/** Сообщение процесса больше этого размера (в знаках после сериализации) или поток быстрее `IPC_MAX_PER_SECOND` завершает процесс. */
+export const IPC_MAX_MESSAGE_CHARS = 1024 * 1024;
+export const IPC_MAX_PER_SECOND = 200;
 
 const LOG_LEVELS = ['debug', 'info', 'warn', 'error'] as const;
 
 /** Процесс не сообщил о готовности за `readyTimeoutMs`: `activate()` не завершился. */
 class ActivationTimeoutError extends Error {}
+
+/** Процесс убит за превышение предела IPC до готовности: вызову достаётся причина предела. */
+class IpcLimitError extends Error {
+  readonly reason: 'ipc-size' | 'ipc-rate';
+
+  constructor(reason: 'ipc-size' | 'ipc-rate', message: string) {
+    super(message);
+    this.reason = reason;
+  }
+}
 
 interface Live {
   child: RestrictedChild;
@@ -126,6 +142,11 @@ interface Live {
   exited: Promise<void>;
   isExited: boolean;
   disposing: boolean;
+  /** Процесс нарушил предел IPC и убит: его сообщения больше не читаются. */
+  limit: IpcLimitError | null;
+  /** Начало текущей секунды и число сообщений в ней. */
+  rateStart: number;
+  rateCount: number;
 }
 
 const failure = (
@@ -134,7 +155,9 @@ const failure = (
     | 'handler-failed'
     | 'handler-timeout'
     | 'activation-failed'
-    | 'activation-timeout',
+    | 'activation-timeout'
+    | 'ipc-size'
+    | 'ipc-rate',
   message: string,
 ): ExtResponse => ({ id, ok: false, error: { cause, message } });
 
@@ -167,6 +190,51 @@ export const createRestrictedRunner = (
   let suppressedUntil = 0;
   // сбой по сроку запоминается до замены сборки (раннер заменяется вместе с ней)
   let activationTimeout: string | null = null;
+  // окно вывода процесса общее для всех его запусков: предел — на расширение
+  let outputStart: number | null = null;
+  let outputBytes = 0;
+  let outputDropped = 0;
+  let outputTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** Окно вывода закрыто: отброшенное сообщается одной строкой. */
+  const closeOutputWindow = (): void => {
+    if (outputTimer !== null) clearTimeout(outputTimer);
+    outputTimer = null;
+    if (outputDropped > 0) {
+      logger.warn(
+        { extensionId: extension.id, droppedBytes: outputDropped },
+        'output truncated',
+      );
+    }
+    outputBytes = 0;
+    outputDropped = 0;
+    outputStart = null;
+  };
+
+  /** Строки вывода процесса попадают в журнал, пока не исчерпан предел окна. */
+  const logOutput = (stream: 'stdout' | 'stderr', text: string): void => {
+    const now = Date.now();
+    if (outputStart !== null && now - outputStart >= OUTPUT_WINDOW_MS) {
+      closeOutputWindow();
+    }
+    outputStart ??= now;
+    for (const line of text.split('\n')) {
+      if (line.trim() === '') continue;
+      const size = Buffer.byteLength(line) + 1;
+      if (outputBytes + size <= OUTPUT_LIMIT_BYTES) {
+        outputBytes += size;
+        logger.warn({ extensionId: extension.id, stream }, line);
+        continue;
+      }
+      outputDropped += size;
+      // итог сообщается и тогда, когда процесс замолчал
+      outputTimer ??= setTimeout(
+        closeOutputWindow,
+        Math.max(0, outputStart + OUTPUT_WINDOW_MS - now),
+      );
+      outputTimer.unref();
+    }
+  };
 
   /** Приостановка видна в здоровье расширения; без ответа движка (он не нужен) ничего не теряется. */
   const reportSuppression = (until: number): void => {
@@ -177,6 +245,68 @@ export const createRestrictedRunner = (
         until,
       })
       .catch(() => {});
+  };
+
+  /** Сбой вне вызова (предел IPC): причина видна в здоровье расширения. */
+  const reportFailure = (reason: string, message: string): void => {
+    engine
+      .request('health.report', {
+        extensionId: extension.id,
+        kind: 'failed',
+        reason,
+        message,
+      })
+      .catch(() => {});
+  };
+
+  /**
+   * Процесс превысил предел IPC: он убивается, вызовы в полёте получают
+   * причину предела, следующий вызов поднимает новый процесс (и идёт в счёт
+   * цикла падений через `onExit`).
+   */
+  const enforceLimit = (
+    current: Live,
+    reason: 'ipc-size' | 'ipc-rate',
+    message: string,
+  ): void => {
+    current.limit = new IpcLimitError(reason, message);
+    if (live === current) live = null;
+    logger.error({ extensionId: extension.id, reason }, message);
+    reportFailure(reason, message);
+    for (const [id, settle] of current.pending) {
+      settle(failure(id, reason, message));
+    }
+    current.pending.clear();
+    current.child.kill();
+  };
+
+  /** Предел на каждое сообщение процесса; `false` — процесс убит, сообщение отброшено. */
+  const withinLimits = (current: Live, raw: unknown): boolean => {
+    if (current.limit !== null) return false;
+    const now = Date.now();
+    if (now - current.rateStart >= 1000) {
+      current.rateStart = now;
+      current.rateCount = 0;
+    }
+    current.rateCount += 1;
+    if (current.rateCount > IPC_MAX_PER_SECOND) {
+      enforceLimit(
+        current,
+        'ipc-rate',
+        `extension process killed: more than ${IPC_MAX_PER_SECOND} messages per second`,
+      );
+      return false;
+    }
+    const size = JSON.stringify(raw)?.length ?? 0;
+    if (size > IPC_MAX_MESSAGE_CHARS) {
+      enforceLimit(
+        current,
+        'ipc-size',
+        `extension process killed: message of ${size} characters exceeds ${IPC_MAX_MESSAGE_CHARS}`,
+      );
+      return false;
+    }
+    return true;
   };
 
   const serveLibrary = async (
@@ -264,6 +394,7 @@ export const createRestrictedRunner = (
   };
 
   const onMessage = (current: Live, markReady: () => void, raw: unknown) => {
+    if (!withinLimits(current, raw)) return;
     if (!isChildMessage(raw)) {
       logger.warn({ extensionId: extension.id }, 'invalid message from child');
       return;
@@ -350,6 +481,9 @@ export const createRestrictedRunner = (
       isExited: false,
       isReady: false,
       disposing: false,
+      limit: null,
+      rateStart: 0,
+      rateCount: 0,
       ready: new Promise<void>((resolve, reject) => {
         markReady = resolve;
         rejectReady = reject;
@@ -369,16 +503,12 @@ export const createRestrictedRunner = (
         raw,
       ),
     );
-    child.onOutput((stream, text) => {
-      for (const line of text.split('\n')) {
-        if (line.trim() === '') continue;
-        logger.warn({ extensionId: extension.id, stream }, line);
-      }
-    });
+    child.onOutput(logOutput);
     child.onExit((code, signal) => {
       onExit(current, code, signal);
       rejectReady(
-        new Error(`extension process exited (code ${code ?? signal})`),
+        current.limit ??
+          new Error(`extension process exited (code ${code ?? signal})`),
       );
       markExited();
     });
@@ -491,6 +621,9 @@ export const createRestrictedRunner = (
         if (error instanceof ActivationTimeoutError) {
           return timedOutActivation(request.id, error.message);
         }
+        if (error instanceof IpcLimitError) {
+          return failure(request.id, error.reason, error.message);
+        }
         return failure(request.id, 'activation-failed', messageOf(error));
       } finally {
         clearTimeout(timer);
@@ -503,6 +636,7 @@ export const createRestrictedRunner = (
     },
     async dispose() {
       disposed = true;
+      closeOutputWindow();
       const current = live;
       if (current === null || current.isExited) return;
       current.disposing = true;

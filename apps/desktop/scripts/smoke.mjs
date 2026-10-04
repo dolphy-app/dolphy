@@ -21,7 +21,15 @@ const RESULT_PREFIX = 'DOLPHY_SMOKE_RESULT ';
 const TIMEOUT_MS = 120_000;
 const ORPHAN_WAIT_MS = 5_000;
 const SMOKE_DIR = 'dist-smoke';
-const SCENARIOS = ['basic', 'sql', 'choice', 'renderer', 'isolated', 'crash'];
+const SCENARIOS = [
+  'basic',
+  'sql',
+  'choice',
+  'js',
+  'renderer',
+  'isolated',
+  'crash',
+];
 // путь, который «враждебное» расширение пробует записать (см. run-smoke.ts)
 const ISOLATED_MARKER = '/tmp/dolphy-smoke-pwned.txt';
 // Ожидаемые fuses упакованного приложения (electron-builder.json → electronFuses).
@@ -213,6 +221,10 @@ if (packaged) {
     'dolphy.choice/extension.json',
     'dolphy.choice/main.mjs',
     'dolphy.choice/view.mjs',
+    'dolphy.js/extension.json',
+    'dolphy.js/main.mjs',
+    'dolphy.js/worker.mjs',
+    'dolphy.js/view.mjs',
   ]) {
     if (!existsSync(join(resourcesDir, 'extensions', file))) {
       fail(`extension file ${file} missing in ${resourcesDir}/extensions`);
@@ -225,7 +237,7 @@ if (packaged) {
   await checkFuses(command);
 }
 
-// 3. запуск: временный userData, копии библиотек sql-course и choice-course
+// 3. запуск: временный userData, копии библиотек sql-course и choice-course, курс js_smoke
 await mkdir(userData, { recursive: true });
 await cp(libraryFixture, library, { recursive: true });
 await cp(choiceFixture, library, { recursive: true });
@@ -245,6 +257,20 @@ await writeFile(
 await writeFile(
   join(library, 'hostile_kb/basic.lesson/q1.front.md'),
   '---\nengine:\n  exercise:\n    type: acme.hostile\n---\nProbe the sandbox.\n',
+);
+// курс из одного упражнения `dolphy.js` (проверка кода в дочернем процессе)
+await mkdir(join(library, 'js_smoke/basic.lesson'), { recursive: true });
+await writeFile(
+  join(library, 'js_smoke/course_manifest.json'),
+  '{"dependencies":[],"description":"JS course","engine":{"tags":["js"]},"generator_config":{"KnowledgeBase":{}},"id":"js_smoke","name":"JS (KnowledgeBase)"}',
+);
+await writeFile(
+  join(library, 'js_smoke/basic.lesson/lesson.name.json'),
+  JSON.stringify('Functions'),
+);
+await writeFile(
+  join(library, 'js_smoke/basic.lesson/q1.front.md'),
+  '---\nengine:\n  exercise:\n    type: dolphy.js\n    spec:\n      starter: |\n        function double(n) {}\n      tests: |\n        test("double(2)", () => assert.equal(double(2), 4));\n        test("double(3)", () => assert.equal(double(3), 6));\n      reference: |\n        function double(n) { return n * 2; }\n---\nWrite double(n).\n',
 );
 rmSync(ISOLATED_MARKER, { force: true });
 const lines = { stdout: [], stderr: [] };

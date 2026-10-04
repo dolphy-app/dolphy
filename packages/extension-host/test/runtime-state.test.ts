@@ -46,6 +46,45 @@ const sentinel = (seen: string[]) => ({
   },
 });
 
+describe('ctx.logger', () => {
+  it('записи доверенного расширения несут его extensionId; чужой id в полях записи его не подменяет', async () => {
+    const h = open({
+      extensions: [stateful('acme.a')],
+      trusted: ['acme.a'],
+      modules: {
+        'acme.a': {
+          activate: (ctx) => {
+            ctx.logger.info({ n: 1 }, 'hello');
+            ctx.logger.warn({ extensionId: 'acme.other' }, 'spoof');
+            ctx.logger.error({}, 'plain');
+            ctx.logger.debug({ n: 2 });
+          },
+        },
+      },
+    });
+
+    h.engine.emit(sessionStarted('s1'));
+
+    await vi.waitFor(() => expect(h.logger.error).toHaveBeenCalled());
+    expect(h.logger.info).toHaveBeenCalledWith(
+      { n: 1, extensionId: 'acme.a' },
+      'hello',
+    );
+    expect(h.logger.warn).toHaveBeenCalledWith(
+      { extensionId: 'acme.a' },
+      'spoof',
+    );
+    expect(h.logger.error).toHaveBeenCalledWith(
+      { extensionId: 'acme.a' },
+      'plain',
+    );
+    expect(h.logger.debug).toHaveBeenCalledWith(
+      { n: 2, extensionId: 'acme.a' },
+      undefined,
+    );
+  });
+});
+
 describe('ctx.storage', () => {
   it('значения лежат у движка и у каждого расширения свои; превышение потолка — StorageQuotaError, запись не происходит', async () => {
     const seen: Record<string, unknown> = {};
@@ -164,6 +203,41 @@ describe('ctx.settings', () => {
     expect(ctx?.settings.get(`${ID}.limit`)).toBe(7);
   });
 
+  it('список: get отдаёт копию, равный список не событие, значение не того типа игнорируется', async () => {
+    const TAGS = `${ID}.tags`;
+    const calls: unknown[] = [];
+    let ctx: ExtensionContext | null = null;
+    const h = open({
+      extensions: [stateful(ID)],
+      trusted: [ID],
+      modules: {
+        [ID]: {
+          activate: (context) => {
+            ctx = context;
+            context.settings.onDidChange((change) => calls.push(change));
+          },
+        },
+      },
+    });
+    h.engine.emit(sessionStarted('s1'));
+    await vi.waitFor(() => expect(ctx).not.toBeNull());
+    const settings = (ctx as unknown as ExtensionContext).settings;
+
+    const first = settings.get(TAGS) as string[];
+    first.push('mutated');
+    expect(settings.get(TAGS)).toEqual(['a']);
+
+    h.engine.changeSetting({ extensionId: ID, id: TAGS, value: ['a'] });
+    h.engine.changeSetting({ extensionId: ID, id: TAGS, value: [1] as never });
+    h.engine.changeSetting({ extensionId: ID, id: TAGS, value: 'a' });
+    h.engine.changeSetting({ extensionId: ID, id: TAGS, value: ['b', 'a'] });
+
+    await vi.waitFor(() =>
+      expect(calls).toEqual([{ id: TAGS, value: ['b', 'a'] }]),
+    );
+    expect(settings.get(TAGS)).toEqual(['b', 'a']);
+  });
+
   it('значение, сохранённое до запуска, читается при активации', async () => {
     const reads: unknown[] = [];
     const h = open({
@@ -258,6 +332,7 @@ describe('ctx.events', () => {
           exerciseTypes: [
             {
               id: 'acme.np',
+              title: null,
               specSchema: {},
               answerSchema: {},
               element: 'acme-np-answer',

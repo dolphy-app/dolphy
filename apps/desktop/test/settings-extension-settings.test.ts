@@ -17,7 +17,13 @@ import {
 
 const ID = 'acme.state';
 
-const base = { extensionId: ID, description: null };
+const base = {
+  extensionId: ID,
+  description: null,
+  group: null,
+  order: 0,
+  visibleWhen: null,
+};
 const DEFINITIONS: ExtensionSettingDefDto[] = [
   {
     ...base,
@@ -56,8 +62,17 @@ const DEFINITIONS: ExtensionSettingDefDto[] = [
     ],
   },
   {
+    ...base,
+    id: 'acme.state.tags',
+    type: 'list',
+    label: 'Tags',
+    default: ['a'],
+    maxItems: 3,
+    itemMaxLength: 5,
+  },
+  {
+    ...base,
     extensionId: 'acme.other',
-    description: null,
     id: 'acme.other.flag',
     type: 'boolean',
     label: 'Other',
@@ -70,6 +85,7 @@ const DEFAULTS: Record<string, JsonValue> = {
   'acme.state.greeting': 'hello',
   'acme.state.limit': 3,
   'acme.state.mode': 'a',
+  'acme.state.tags': ['a'],
 };
 
 interface Gate {
@@ -170,6 +186,7 @@ describe('настройки расширения: загрузка', () => {
       'acme.state.greeting',
       'acme.state.limit',
       'acme.state.mode',
+      'acme.state.tags',
     ]);
     expect(model.values.value).toEqual(DEFAULTS);
   });
@@ -185,6 +202,18 @@ describe('настройки расширения: загрузка', () => {
     await model.load();
     expect(model.state.value).toBe('loaded');
     expect(model.loadError.value).toBeNull();
+  });
+});
+
+describe('настройки расширения: список', () => {
+  it('список записывается целиком; равный по содержимому список не пишется', async () => {
+    const { model, writes } = setup();
+    await flush();
+
+    expect(await model.set('acme.state.tags', ['b', 'a'])).toBe(true);
+    expect(model.values.value['acme.state.tags']).toEqual(['b', 'a']);
+    expect(await model.set('acme.state.tags', ['b', 'a'])).toBe(true);
+    expect(writes).toEqual([['acme.state.tags', ['b', 'a']]]);
   });
 });
 

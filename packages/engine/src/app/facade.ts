@@ -28,7 +28,8 @@ export type WrapMethod = (name: string, method: AnyMethod) => AnyMethod;
  * команда не должна замораживать остальные вызовы движка. По той же причине
  * `extensions.diagnostics` и `extensions.restartHost` (здоровье и перезапуск
  * хоста) не ждут очередь: окно должно видеть остановленный хост и мочь его
- * запустить, пока в очереди висит долгая команда.
+ * запустить, пока в очереди висит долгая команда. По той же причине
+ * `extensions.readLogs`: журнал нужен именно тогда, когда что-то зависло.
  */
 export const UNQUEUED: ReadonlySet<string> = new Set([
   'practice.submitAnswer',
@@ -41,6 +42,7 @@ export const UNQUEUED: ReadonlySet<string> = new Set([
   'extensions.invokeCommand',
   'extensions.diagnostics',
   'extensions.restartHost',
+  'extensions.readLogs',
 ]);
 
 const isMethod = (value: unknown): value is AnyMethod =>

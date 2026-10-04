@@ -10,7 +10,13 @@ import type {
   ChildMessage,
   ParentMessage,
 } from '../src/restricted-protocol.ts';
-import { createRestrictedRunner } from '../src/restricted-runner.ts';
+import {
+  IPC_MAX_MESSAGE_CHARS,
+  IPC_MAX_PER_SECOND,
+  OUTPUT_LIMIT_BYTES,
+  OUTPUT_WINDOW_MS,
+  createRestrictedRunner,
+} from '../src/restricted-runner.ts';
 import type { RestrictedChild, SpawnSpec } from '../src/restricted-runner.ts';
 import { createLogger, nullEngine } from './helpers.ts';
 
@@ -112,6 +118,8 @@ const extensionOf = (
   icon: null,
   tags: [],
   install: null,
+  messages: {},
+  warnings: [],
   exerciseTypes: [],
   themes: [],
   markdownRenderers: [],
@@ -432,6 +440,230 @@ describe('ограниченный раннер', () => {
       'hello',
     );
     await runner.dispose();
+  });
+
+  describe('предел вывода', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    const truncated = (logger: ReturnType<typeof setup>['logger']) =>
+      logger.warn.mock.calls.filter(
+        ([, message]) => message === 'output truncated',
+      );
+
+    it('лишнее сверх 64 КиБ в минуту отбрасывается, раз в минуту пишется одна строка с числом отброшенных байт', async () => {
+      const { runner, children, logger } = setup([{ reply: ok }]);
+      await runner.handle(projectRequest('1'));
+      const line = 'x'.repeat(1023); // 1024 байта с переводом строки
+      const lines = OUTPUT_LIMIT_BYTES / 1024;
+      for (let index = 0; index < lines + 10; index += 1) {
+        children[0]?.output('stderr', `${line}\n`);
+      }
+      const accepted = logger.warn.mock.calls.filter(
+        ([fields]) => (fields as { stream?: string }).stream === 'stderr',
+      );
+      expect(accepted).toHaveLength(lines);
+      expect(truncated(logger)).toHaveLength(0);
+
+      vi.advanceTimersByTime(OUTPUT_WINDOW_MS);
+      expect(truncated(logger)).toEqual([
+        [
+          { extensionId: 'acme.fake', droppedBytes: 10 * 1024 },
+          'output truncated',
+        ],
+      ]);
+
+      // следующее окно считается заново
+      children[0]?.output('stderr', 'fresh\n');
+      expect(
+        logger.warn.mock.calls.filter(([, message]) => message === 'fresh'),
+      ).toHaveLength(1);
+      await runner.dispose();
+    });
+
+    it('предел общий для stdout и stderr и для всех строк одного куска; тихий процесс итог не пишет', async () => {
+      const { runner, children, logger } = setup([{ reply: ok }]);
+      await runner.handle(projectRequest('1'));
+      children[0]?.output('stdout', 'a\nb\n');
+      vi.advanceTimersByTime(OUTPUT_WINDOW_MS * 3);
+      expect(truncated(logger)).toHaveLength(0);
+
+      const big = 'y'.repeat(OUTPUT_LIMIT_BYTES);
+      children[0]?.output('stdout', `${big}\nsmall\n`);
+      // строка размером с предел не помещается после уже принятых; мелкая — помещается
+      expect(
+        logger.warn.mock.calls.some(([, message]) => message === big),
+      ).toBe(false);
+      expect(
+        logger.warn.mock.calls.some(([, message]) => message === 'small'),
+      ).toBe(true);
+      vi.advanceTimersByTime(OUTPUT_WINDOW_MS);
+      expect(truncated(logger)).toEqual([
+        [
+          { extensionId: 'acme.fake', droppedBytes: OUTPUT_LIMIT_BYTES + 1 },
+          'output truncated',
+        ],
+      ]);
+      await runner.dispose();
+    });
+  });
+
+  describe('предел IPC', () => {
+    const healthReports = () => {
+      const reports: unknown[] = [];
+      const engine: EngineLink = {
+        request: async (method, params) => {
+          reports.push({ method, params });
+          return null;
+        },
+      };
+      return { reports, engine };
+    };
+
+    it('сообщение больше 1 МиБ убивает процесс: в журнале ошибка ipc-size, в здоровье — тот же сбой, вызов в полёте получает причину предела, следующий поднимает новый процесс', async () => {
+      const { reports, engine } = healthReports();
+      const { runner, children, logger } = setup([{}, { reply: ok }], {
+        engine,
+      });
+      const inFlight = runner.handle(gradeRequest('1'));
+      await vi.waitFor(() =>
+        expect(children[0]?.sent.some(({ t }) => t === 'rpc')).toBe(true),
+      );
+      children[0]?.emit({
+        t: 'log',
+        level: 'info',
+        fields: { blob: 'x'.repeat(IPC_MAX_MESSAGE_CHARS) },
+        message: 'big',
+      });
+      expect(children[0]?.killed).toBe(true);
+      expect(await inFlight).toMatchObject({
+        id: '1',
+        ok: false,
+        error: { cause: 'ipc-size' },
+      });
+      expect(logger.error).toHaveBeenCalledWith(
+        { extensionId: 'acme.fake', reason: 'ipc-size' },
+        expect.stringContaining('exceeds'),
+      );
+      expect(logger.info).not.toHaveBeenCalled();
+      expect(reports).toEqual([
+        {
+          method: 'health.report',
+          params: {
+            extensionId: 'acme.fake',
+            kind: 'failed',
+            reason: 'ipc-size',
+            message: expect.stringContaining('exceeds'),
+          },
+        },
+      ]);
+      expect(await runner.handle(projectRequest('2'))).toMatchObject({
+        ok: true,
+      });
+      expect(children).toHaveLength(2);
+      await runner.dispose();
+    });
+
+    it('сообщение ровно в предел проходит', async () => {
+      const { runner, children, logger } = setup([{ reply: ok }]);
+      await runner.handle(projectRequest('1'));
+      const fields = { blob: '' };
+      const overhead = JSON.stringify({
+        t: 'log',
+        level: 'info',
+        fields,
+        message: 'edge',
+      }).length;
+      fields.blob = 'x'.repeat(IPC_MAX_MESSAGE_CHARS - overhead);
+      children[0]?.emit({ t: 'log', level: 'info', fields, message: 'edge' });
+      expect(children[0]?.killed).toBe(false);
+      expect(logger.info).toHaveBeenCalledTimes(1);
+      await runner.dispose();
+    });
+
+    it('больше 200 сообщений в секунду убивает процесс (ipc-rate); в следующую секунду счёт начинается заново', async () => {
+      let now = 5_000_000;
+      vi.spyOn(Date, 'now').mockImplementation(() => now);
+      const { reports, engine } = healthReports();
+      const { runner, children, logger } = setup([{ reply: ok }, {}], {
+        engine,
+      });
+      await runner.handle(projectRequest('1'));
+      const log = () =>
+        children[0]?.emit({
+          t: 'log',
+          level: 'info',
+          fields: {},
+          message: 'm',
+        });
+      // запрос и готовность уже учтены в секунде; доводим до предела ровно
+      for (let index = 0; index < IPC_MAX_PER_SECOND - 2; index += 1) log();
+      expect(children[0]?.killed).toBe(false);
+      now += 1000;
+      for (let index = 0; index < IPC_MAX_PER_SECOND; index += 1) log();
+      expect(children[0]?.killed).toBe(false);
+      log();
+      expect(children[0]?.killed).toBe(true);
+      expect(logger.error).toHaveBeenCalledWith(
+        { extensionId: 'acme.fake', reason: 'ipc-rate' },
+        expect.stringContaining('per second'),
+      );
+      expect(reports).toMatchObject([
+        { params: { kind: 'failed', reason: 'ipc-rate' } },
+      ]);
+      // убитый процесс больше не читается
+      const infoCalls = logger.info.mock.calls.length;
+      log();
+      expect(logger.info).toHaveBeenCalledTimes(infoCalls);
+      await runner.dispose();
+    });
+
+    it('превышение до готовности: активация получает причину предела, а не обычный сбой активации', async () => {
+      const { reports, engine } = healthReports();
+      const { runner, children } = setup([{ autoReady: false }], { engine });
+      const pending = runner.handle(projectRequest('1'));
+      await vi.waitFor(() => expect(children).toHaveLength(1));
+      children[0]?.emit({
+        t: 'log',
+        level: 'info',
+        fields: { blob: 'x'.repeat(IPC_MAX_MESSAGE_CHARS) },
+        message: 'big',
+      });
+      expect(await pending).toMatchObject({
+        ok: false,
+        error: { cause: 'ipc-size' },
+      });
+      expect(reports).toHaveLength(1);
+    });
+
+    it('убийство за предел идёт в цикл падений', async () => {
+      const { runner, children } = setup(() => ({}));
+      for (let index = 0; index < 5; index += 1) {
+        const pending = runner.handle(projectRequest(String(index)));
+        await vi.waitFor(() => expect(children).toHaveLength(index + 1));
+        await vi.waitFor(() =>
+          expect(children[index]?.sent.some(({ t }) => t === 'rpc')).toBe(true),
+        );
+        children[index]?.emit({
+          t: 'log',
+          level: 'info',
+          fields: { blob: 'x'.repeat(IPC_MAX_MESSAGE_CHARS) },
+          message: 'big',
+        });
+        await pending;
+      }
+      expect(await runner.handle(projectRequest('x'))).toMatchObject({
+        error: {
+          cause: 'activation-failed',
+          message: 'extension process keeps crashing',
+        },
+      });
+      expect(children).toHaveLength(5);
+    });
   });
 
   describe('библиотека через родителя', () => {

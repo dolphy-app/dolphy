@@ -1,0 +1,19 @@
+{
+  "name": "Набор переводов",
+  "description": "Всё переводимое в одном расширении",
+  "kind.title": "Вид с переводом",
+  "renderer.title": "Блоки с переводом",
+  "theme.label": "Мох",
+  "policy.label": "Правило с переводом",
+  "group.title": "Поведение",
+  "mode.label": "Скорость",
+  "mode.description": "Как быстро идти",
+  "mode.fast": "Быстро",
+  "mode.slow": "Медленно",
+  "lonely.label": "Одинокий переключатель",
+  "lonely.missing": "Есть только в ru",
+  "go.title": "Перейти туда",
+  "go.description": "Запускает команду перевода",
+  "go.category": "Перевод",
+  "panel.title": "Панель перевода"
+}

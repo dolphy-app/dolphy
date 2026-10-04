@@ -15,6 +15,7 @@ app uses to load it (`inspectExtensionDir` from `@dolphy-app/extension-host`),
   src/index.ts            # all extension code: host, views, panels, markdown
   dolphy-ext.config.json  # optional
   schema/, assets/        # optional directories, copied as is (assets/ is checked, see "Style sheets, images and fonts")
+  locales/                # optional ru.json, en.json: texts for %key% labels (see "Translations")
 ```
 
 `src/index.ts` has named exports; the build lays them out into the files the
@@ -108,8 +109,9 @@ declare module '@dolphy-app/extension-sdk' {
 }
 ```
 
-A setting is typed by its definition: `boolean`, `string`, `number`, or the
-union of the `enum` option values. The output is deterministic and the file is
+A setting is typed by its definition: `boolean`, `string` (also for `text` and
+`color`), `string[]` for `list`, `number`, or the union of the `enum` option
+values. The output is deterministic and the file is
 not rewritten when its content is unchanged, so a watcher on the project does
 not loop. Include it in `tsconfig.json` as `".dolphy/ids.d.ts"` (a bare
 `.dolphy` entry is skipped by TypeScript because it is a hidden directory) and
@@ -194,6 +196,32 @@ catalog filters: up to 5 unique values of `learning`, `language`, `content`,
 or a sixth tag is a manifest error (`tags.N: tag must be one of: …`) reported
 by `validate`, `build` and `catalog check` (`CHECK-001`). Without `tags` the app
 derives them from the contributions; an explicit list replaces the derived one.
+
+## Translations
+
+A label of the manifest can be `%key%` (the whole string; the key is
+`[A-Za-z0-9_.-]{1,64}`): the app takes the text from `locales/<language>.json`
+(`ru`, `en`), a flat object of strings (a file is at most 64 KiB, 500 keys, a
+value at most 500 characters). The fields are `name`, `description`, and for
+contributions `label`/`title`/`description`/`category`, a setting's `group` and
+the labels of its `enum` options. The window picks the text of the interface
+language, then `en`, then shows the `%key%` as it is; the catalog always shows
+`en`. The `%key%` itself is still limited by the length of its field.
+
+`locales/` is copied into the built extension. `dolphy-ext validate` (and
+`build`, which runs it) and `catalog check` (`CHECK-026`):
+
+- require `locales/en.json` when the manifest has any `%key%`;
+- fail for a key that `en` lacks, for a text (in any language) that breaks the
+  limit of its field, and for a file that is not valid JSON or not a flat
+  object of strings within the limits;
+- warn about a key of a file that the manifest does not use and about a file in
+  `locales/` that is not `ru.json` or `en.json`.
+
+`name` and `description` are judged in English by the other checks (`CHECK-003`,
+`CHECK-019`, `lint`), and `catalog build` writes the English `name`,
+`description` and `titles` into the index. The published `extension.json` keeps
+the `%key%` strings.
 
 ## Output
 
@@ -310,6 +338,7 @@ map is an `error`: the catalog builds without maps.
 | `CHECK-023` | built code does not look obfuscated (`warning`, needs `--built`)                                 |
 | `CHECK-024` | built code has no `http(s)://` URL without the `network` permission (`warning`, needs `--built`) |
 | `CHECK-025` | built code has no embedded source map (needs `--built`)                                          |
+| `CHECK-026` | `locales/*.json`: `en` is complete, texts fit their fields, files are valid (see "Translations") |
 
 The rules are data in code (`src/catalog/rules.ts`, the `RULES` table); the
 semantic review against `rules/rules.json` of the catalog repository is a
@@ -331,7 +360,8 @@ leaves `<siteDir>` untouched.
 
 The build also writes what the catalog shows next to the identifiers. The entry
 gets `titles`: the `label` (themes, grade policies, settings) or `title`
-(commands, panels) of every contribution of the newest manifest, by contribution
+(exercise types and markdown renderers when they have one, commands, panels)
+of every contribution of the newest manifest, by contribution
 point; points without contributions are omitted, and so is the whole key when
 nothing has a title. The version record gets `tags` from the manifest of that
 version (omitted when empty). Rebuilding without a version bump refreshes the
@@ -375,7 +405,7 @@ import {
 
 const { id, dir, files } = await buildExtension({ root, outDir });
 const handle = await watchExtension({ root, logger }); // handle.close()
-const { ok, problems } = await validateExtension(dir);
+const { ok, problems, warnings } = await validateExtension(dir);
 const { file, changed } = await generateTypes({ root }); // .dolphy/ids.d.ts
 ```
 

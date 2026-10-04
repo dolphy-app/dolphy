@@ -32,6 +32,7 @@ import {
   createFakeExtensionCommands,
   createFakeExerciseTypes,
   createFakeExtensionHostControl,
+  createFakeLogReader,
   createFakeExtensionInstaller,
   createFakeExtensionPolicy,
   createFakeExtensionRegistry,
@@ -94,6 +95,7 @@ const REGISTERED: ExtensionInfoDto = {
   installed: null,
   icon: null,
   titles: {},
+  messages: {},
   tags: [],
   removable: false,
   revoked: null,
@@ -114,6 +116,7 @@ const USER_EXTENSION: ExtensionInfoDto = {
   toggleable: true,
   icon: null,
   titles: {},
+  messages: {},
   tags: [],
   removable: true,
 };
@@ -124,6 +127,9 @@ const ROWS_SETTING: ExtensionSettingDefDto = {
   type: 'number',
   label: 'Rows',
   description: null,
+  group: null,
+  order: 0,
+  visibleWhen: null,
   default: 10,
   min: 1,
   max: 100,
@@ -148,6 +154,15 @@ const SQL_PANEL: PanelContributionDto = {
   origin: 'bundled',
   revision: '',
 };
+
+const LOG_ENTRY = {
+  at: 1_700_000_000_000,
+  level: 'warn',
+  source: 'ext-host',
+  message: 'boom',
+  extensionId: 'acme.user',
+  details: null,
+} as const;
 
 const CATALOG: CatalogDto = {
   entries: [],
@@ -217,6 +232,7 @@ const start = async () => {
           settings: [ROWS_SETTING],
           commands: [STATS_COMMAND],
           panels: [SQL_PANEL],
+          messages: {},
         },
       ),
       extensionPolicy: createFakeExtensionPolicy(),
@@ -227,6 +243,7 @@ const start = async () => {
         updates: [UPDATE],
       }),
       extensionReloader: createFakeExtensionReloader(),
+      logReader: createFakeLogReader([LOG_ENTRY]),
       repositoryStore: createMemoryRepositoryStore(),
       extensionDataStore: createMemoryExtensionDataStore(),
       snapshotFetcher: offlineFetcher,
@@ -704,6 +721,14 @@ describe('rpc → dispatcher → real engine', () => {
       })),
     });
     await call('extensions.restartHost', () => client.extensions.restartHost());
+    expect(
+      await call('extensions.readLogs', () =>
+        client.extensions.readLogs({ extensionId: 'acme.user', limit: 5 }),
+      ),
+    ).toEqual([LOG_ENTRY]);
+    await expect(
+      client.extensions.readLogs({ limit: 501 }),
+    ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
     await client.extensions.setSafeMode(false);
     expect(
       await call('extensions.catalog', () =>
@@ -758,6 +783,7 @@ describe('rpc → dispatcher → real engine', () => {
       settings: [ROWS_SETTING],
       commands: [STATS_COMMAND],
       panels: [SQL_PANEL],
+      messages: {},
     });
     await call('diagnostics', () => client.diagnostics());
 

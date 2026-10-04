@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "emitDeclarationOnly": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    "types": ["node"],
+    "lib": ["ES2023", "DOM"],
+    "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
+  },
+  "include": ["src", ".dolphy/ids.d.ts"],
+  "references": [
+    {
+      "path": "../extension-api"
+    },
+    {
+      "path": "../extension-sdk"
+    }
+  ]
+}

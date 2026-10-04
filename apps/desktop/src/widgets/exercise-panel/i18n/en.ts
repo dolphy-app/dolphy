@@ -3,6 +3,18 @@ import type { ru } from './ru.ts';
 export const en: typeof ru = {
   exercisePanel: {
     material: 'Lesson material · {course}',
+    splitter: {
+      label: 'Theory panel width',
+      hint: 'Drag to resize; double-click to reset',
+    },
+    panel: {
+      hide: 'Hide theory',
+      show: 'Show theory',
+    },
+    sections: {
+      button: 'Sections',
+      label: 'Lesson sections',
+    },
     answer: {
       frameTitle:
         'Answer input from an extension in an isolated frame: {label}',

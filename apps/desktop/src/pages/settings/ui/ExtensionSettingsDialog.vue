@@ -1,18 +1,33 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { ExtensionInfoDto } from '@dolphy-app/engine-contract';
 import { useEngine } from '@/shared/api/engine';
-import { displayName } from '../lib/catalog.ts';
+import { useExtensionText } from '@/shared/lib/extension-text.ts';
 import { useExtensionSettings } from '../model/extension-settings.ts';
+import {
+  buildSettingsSections,
+  localizeSetting,
+} from '../model/extension-settings-form.ts';
 import ExtensionSettingField from './ExtensionSettingField.vue';
 
 const props = defineProps<{ extension: ExtensionInfoDto }>();
 const emit = defineEmits<{ close: [] }>();
 
 const { t } = useI18n();
+const extensionText = useExtensionText();
 const settings = useExtensionSettings(useEngine(), props.extension.id);
 const { definitions, values, state, loadError, errors, resetting, resetError } =
   settings;
+const translate = (value: string) =>
+  extensionText.withTables(value, props.extension.messages);
+// визуальная модель строится по исходным определениям (условия и группы — по ним), затем подписи переводятся
+const sections = computed(() =>
+  buildSettingsSections(definitions.value, values.value).map((section) => ({
+    ...section,
+    fields: section.fields.map((field) => localizeSetting(field, translate)),
+  })),
+);
 </script>
 
 <template>
@@ -27,7 +42,7 @@ const { definitions, values, state, loadError, errors, resetting, resetError } =
       <v-card-title id="extension-settings-title" class="text-wrap">
         {{
           t('settings.extensions.settingsDialog.title', {
-            name: displayName(extension),
+            name: extensionText.nameOf(extension),
           })
         }}
       </v-card-title>
@@ -38,7 +53,7 @@ const { definitions, values, state, loadError, errors, resetting, resetError } =
           rounded
           :aria-label="
             t('settings.extensions.settingsDialog.title', {
-              name: displayName(extension),
+              name: extensionText.nameOf(extension),
             })
           "
         />
@@ -54,16 +69,32 @@ const { definitions, values, state, loadError, errors, resetting, resetError } =
           </div>
         </v-alert>
         <template v-if="state === 'loaded'">
-          <ExtensionSettingField
-            v-for="definition in definitions"
-            :key="definition.id"
-            :definition="definition"
-            :value="values[definition.id]"
-            :error="errors[definition.id] ?? null"
-            @commit="
-              (value, problem) => settings.set(definition.id, value, problem)
+          <section
+            v-for="(section, index) in sections"
+            :key="section.title ?? ''"
+            :aria-labelledby="
+              section.title === null ? undefined : `settings-group-${index}`
             "
-          />
+            data-testid="settings-section"
+          >
+            <h3
+              v-if="section.title !== null"
+              :id="`settings-group-${index}`"
+              class="group-title text-title-medium font-weight-bold"
+            >
+              {{ translate(section.title) }}
+            </h3>
+            <ExtensionSettingField
+              v-for="definition in section.fields"
+              :key="definition.id"
+              :definition="definition"
+              :value="values[definition.id]"
+              :error="errors[definition.id] ?? null"
+              @commit="
+                (value, problem) => settings.set(definition.id, value, problem)
+              "
+            />
+          </section>
         </template>
         <v-alert
           v-if="resetError"
@@ -99,3 +130,10 @@ const { definitions, values, state, loadError, errors, resetting, resetError } =
     </v-card>
   </v-dialog>
 </template>
+
+<style scoped>
+/* глобальный сброс полей у заголовков не слоёный и перебивает утилиты Vuetify */
+.group-title {
+  margin-block: 8px 16px;
+}
+</style>

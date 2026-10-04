@@ -1,4 +1,7 @@
-import { DEFAULT_MARKDOWN_RENDERER } from '@dolphy-app/extension-api';
+import {
+  DEFAULT_MARKDOWN_RENDERER,
+  EXTENSION_COMMAND_LIMITS,
+} from '@dolphy-app/extension-api';
 import { z } from 'zod';
 import { resolveModuleUrl, safePath } from './support.ts';
 import type { ContributionPoint } from './types.ts';
@@ -8,11 +11,17 @@ export const markdownRenderers: ContributionPoint<'markdownRenderers'> = {
   needsMain: false,
   schema: z.strictObject({
     language: z.string().regex(/^[a-z][a-z0-9-]{0,31}$/, 'invalid language'),
+    title: z
+      .string()
+      .min(1)
+      .max(EXTENSION_COMMAND_LIMITS.titleLength)
+      .optional(),
     renderer: safePath(['.js', '.mjs']).optional(),
   }),
   normalize: (entries) =>
     entries.map((entry) => ({
       language: entry.language,
+      ...(entry.title === undefined ? {} : { title: entry.title }),
       renderer: entry.renderer ?? DEFAULT_MARKDOWN_RENDERER,
     })),
   check: () => [],
@@ -21,6 +30,7 @@ export const markdownRenderers: ContributionPoint<'markdownRenderers'> = {
     for (const entry of entries) {
       resolved.push({
         language: entry.language,
+        title: entry.title ?? null,
         rendererUrl: await resolveModuleUrl(
           extensionId,
           dir,

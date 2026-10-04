@@ -77,5 +77,6 @@ export type {
 export {
   effectiveSettingValues,
   findSettingValueProblem,
+  normalizeSettingValue,
 } from './extension-setting-values.ts';
 export type { SettingValueProblem } from './extension-setting-values.ts';

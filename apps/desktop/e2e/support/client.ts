@@ -195,9 +195,7 @@ export class Client {
     });
     const verifiable = await check.isVisible();
     if (!verifiable && !(await reveal.isVisible())) return null;
-    const prompt = this.page
-      .locator('.content-inner .text-title-large')
-      .first();
+    const prompt = this.page.locator('.content-inner .prompt-lead').first();
     const text = (await prompt.innerText()).split('\n')[0]?.trim() ?? '';
     return { prompt: text, verifiable };
   }

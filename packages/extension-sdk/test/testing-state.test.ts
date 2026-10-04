@@ -122,6 +122,56 @@ const definitions: SettingContribution[] = [
   },
 ];
 
+const rich: SettingContribution[] = [
+  { id: 'a.note', type: 'text', label: 'Note', default: 'x\ny', maxLength: 5 },
+  { id: 'a.tint', type: 'color', label: 'Tint', default: '#AA00bb' },
+  {
+    id: 'a.tags',
+    type: 'list',
+    label: 'Tags',
+    default: ['one'],
+    maxItems: 2,
+    itemMaxLength: 4,
+  },
+];
+
+describe('createMemorySettings: text, color and list', () => {
+  it('a color is stored in lower case, a list is handed out as a copy', () => {
+    const settings = createMemorySettings(rich);
+    expect(settings.get('a.tint')).toBe('#aa00bb');
+    (settings.get('a.tags') as string[]).push('mutated');
+    expect(settings.get('a.tags')).toEqual(['one']);
+  });
+
+  it('set changes a list, equal lists are not a change, a color change is case-insensitive', async () => {
+    const settings = createMemorySettings(rich);
+    const changes: unknown[] = [];
+    settings.onDidChange((change) => changes.push(change));
+    await settings.set('a.tags', ['one']);
+    await settings.set('a.tags', ['two', 'one']);
+    await settings.set('a.tint', '#AA00BB');
+    await settings.set('a.tint', '#00FF00');
+    expect(changes).toEqual([
+      { id: 'a.tags', value: ['two', 'one'] },
+      { id: 'a.tint', value: '#00ff00' },
+    ]);
+  });
+
+  it.each([
+    ['a.note', 'abcdef', /longer than 5/],
+    ['a.note', 3, /string/],
+    ['a.tint', '#abc', /color/],
+    ['a.tint', 'red', /color/],
+    ['a.tags', 'one', /array of strings/],
+    ['a.tags', ['one', 2], /array of strings/],
+    ['a.tags', ['a', 'b', 'c'], /more than 2 items/],
+    ['a.tags', ['abcde'], /longer than 4/],
+  ])('%s ← %j is rejected', async (id, value, message) => {
+    const settings = createMemorySettings(rich);
+    await expect(settings.set(id, value as never)).rejects.toThrow(message);
+  });
+});
+
 describe('createMemorySettings', () => {
   it('get returns the default or the user value; an unknown id throws', () => {
     const settings = createMemorySettings(definitions, { 'a.size': 4 });

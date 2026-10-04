@@ -227,6 +227,7 @@ describe('обнаружение вкладов без кода', () => {
     expect(result.extension.markdownRenderers).toEqual([
       {
         language: 'chart',
+        title: null,
         rendererUrl: 'dolphy-ext://acme.markdown/markdown.mjs',
       },
     ]);

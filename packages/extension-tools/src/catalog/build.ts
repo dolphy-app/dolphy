@@ -11,6 +11,7 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { formatDiagnostic, parseManifest } from '@dolphy-app/extension-host';
+import { FALLBACK_LOCALE, localizeManifest } from '@dolphy-app/extension-api';
 import type { ExtensionManifest } from '@dolphy-app/extension-api';
 import {
   CATALOG_FILE_EXTENSIONS,
@@ -32,6 +33,7 @@ import type {
 } from '@dolphy-app/extension-catalog';
 import { buildExtension } from '../index.ts';
 import { BuildError, CatalogUsageError } from '../errors.ts';
+import { readEnglishTable } from '../locales.ts';
 import { loadIndexFile } from './check.ts';
 import {
   FULL_INDEX_FILE,
@@ -157,7 +159,12 @@ const stage = async (
     ...fileProblems(files),
   ];
   if (problems.length > 0) throw new BuildError(problems.join('; '), id);
-  const manifest = await readBuiltManifest(built.dir);
+  // the index shows English: `%key%` is replaced by the text of locales/en.json (the build checked every key)
+  const manifest = localizeManifest(
+    await readBuiltManifest(built.dir),
+    { en: (await readEnglishTable(built.dir)) ?? {} },
+    FALLBACK_LOCALE,
+  );
   return {
     id,
     dir: built.dir,
@@ -220,6 +227,13 @@ const immutabilityError = (staged: Staged): BuildError =>
 const titlesOf = (manifest: Staged['manifest']): ContributionTitles => {
   const { contributes } = manifest;
   const byPoint: Record<TitledPoint, { id: string; title: string }[]> = {
+    exerciseTypes: contributes.exerciseTypes.flatMap(({ id, title }) =>
+      title === undefined ? [] : [{ id, title }],
+    ),
+    markdownRenderers: contributes.markdownRenderers.flatMap(
+      ({ language, title }) =>
+        title === undefined ? [] : [{ id: language, title }],
+    ),
     themes: contributes.themes.map(({ id, label }) => ({ id, title: label })),
     gradePolicies: contributes.gradePolicies.map(({ id, label }) => ({
       id,

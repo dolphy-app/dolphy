@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { buildExtension } from '../index.ts';
 import { CatalogUsageError } from '../errors.ts';
+import { englishText, readEnglishTable } from '../locales.ts';
 import { MANIFEST_FILE } from '../project.ts';
 import { bundleFindings, readBundleFiles } from './bundle.ts';
 import { manifestFindings } from './manifest.ts';
@@ -36,6 +37,15 @@ export const lintHasErrors = (findings: readonly LintFinding[]): boolean =>
 
 const stringOrNull = (value: unknown): string | null =>
   typeof value === 'string' ? value : null;
+
+/** A manifest string as the catalog shows it: a `%key%` becomes the text of `locales/en.json`. */
+const inEnglish = (
+  value: unknown,
+  table: Awaited<ReturnType<typeof readEnglishTable>>,
+): string | null => {
+  const text = stringOrNull(value);
+  return text === null ? null : englishText(text, table);
+};
 
 const stringsOf = (value: unknown): string[] =>
   Array.isArray(value)
@@ -93,9 +103,10 @@ export const lintProject = async (
   }
   const manifest = await readManifest(root);
   const extensionId = stringOrNull(manifest.id) ?? path.basename(root);
+  const english = await readEnglishTable(root);
   const findings: RuleFinding[] = manifestFindings({
-    name: stringOrNull(manifest.name),
-    description: stringOrNull(manifest.description),
+    name: inEnglish(manifest.name, english),
+    description: inEnglish(manifest.description, english),
     author: stringOrNull(manifest.author),
     tags: Array.isArray(manifest.tags) ? manifest.tags : null,
   });

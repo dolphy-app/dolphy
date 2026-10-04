@@ -190,11 +190,14 @@ describe('ресурсы расширения', () => {
     expect(png.headers.get('Content-Security-Policy')).toBeNull();
   });
 
-  it('манифест, README, json/md/txt, прочие типы, пути с точки и расширение в верхнем регистре — 404', async () => {
+  it('манифест, README, locales/*.json, json/md/txt, прочие типы, пути с точки и расширение в верхнем регистре — 404', async () => {
     const paths = [
       'extension.json',
       'README.md',
       'data/table.json',
+      // таблицы переводов читает движок при обнаружении; окну и рамкам они не отдаются
+      'locales/en.json',
+      'locales/ru.json',
       'notes.txt',
       'docs/guide.md',
       'assets/icon.gif',

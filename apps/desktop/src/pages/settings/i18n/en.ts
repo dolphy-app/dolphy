@@ -300,6 +300,11 @@ export const en: typeof ru = {
         'load-failed': 'Could not load the extension: {reason}',
         'overridden-by': 'Overridden by: {origin}, version {version}',
         'safe-mode': 'Disabled in safe mode',
+        locale: {
+          'missing-key':
+            'No translation for "{key}" in locales/en.json: the label is shown as is',
+          'invalid-file': 'Translation file {file} is ignored: {reason}',
+        },
       },
       safeMode: {
         label: 'Safe mode',
@@ -312,6 +317,39 @@ export const en: typeof ru = {
         gaveUpText:
           'Extensions do not work until the host is started. The rest of the app works as usual.',
         restart: 'Restart host',
+      },
+      support: {
+        title: 'Diagnostics',
+        hint: 'The app and extension log, and a report for a support request. The report has no home-directory paths, library content, learning data or setting values.',
+        openLog: 'Log',
+        copy: 'Copy diagnostics',
+        copying: 'Copying…',
+        copied: 'Copied',
+        copyFailed: 'Could not copy diagnostics',
+      },
+      log: {
+        title: 'Log',
+        rowAction: 'Log',
+        rowActionLabel: 'Log of the extension “{name}”',
+        filterExtension: 'Extension',
+        filterExtensionHint: 'All extensions',
+        filterLevel: 'Minimum level',
+        level: {
+          debug: 'Debug',
+          info: 'Info',
+          warn: 'Warning',
+          error: 'Error',
+        },
+        sourceLabel: 'Source',
+        extensionLabel: 'Extension',
+        details: 'Details',
+        listLabel: 'Log entries',
+        refresh: 'Refresh',
+        close: 'Close',
+        empty: 'No entries match the filters.',
+        loadFailed: 'Could not read the log',
+        retry: 'Retry',
+        count: 'no entries | {n} entry | {n} entries',
       },
       health: {
         failures:
@@ -370,11 +408,25 @@ export const en: typeof ru = {
         hintRange: 'From {min} to {max}',
         hintMin: 'At least {min}',
         hintMax: 'At most {max}',
+        color: {
+          picker: 'Pick a color: {label}',
+        },
+        list: {
+          item: 'Item {n}',
+          moveUp: 'Move item {n} up',
+          moveDown: 'Move item {n} down',
+          remove: 'Remove item {n}',
+          newItem: 'New item',
+          add: 'Add',
+          count: '{n} of {max}',
+        },
         problems: {
           type: 'This value does not fit the setting.',
           integer: 'A whole number is required.',
           range: 'The number is out of range.',
           'max-length': 'The value is too long.',
+          format: 'Enter a color like #rrggbb.',
+          'max-items': 'The list has too many items.',
           option: 'This option is not in the list.',
           'unknown-setting': 'The extension no longer declares this setting.',
           'not-a-number': 'Enter a number.',

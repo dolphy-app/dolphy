@@ -35,6 +35,7 @@ const withoutMetadata = (
   | 'author'
   | 'icon'
   | 'titles'
+  | 'messages'
   | 'tags'
   | 'installed'
   | 'removable'
@@ -45,6 +46,7 @@ const withoutMetadata = (
   author: null,
   icon: null,
   titles: {},
+  messages: {},
   tags: [],
   installed: null,
   removable: origin === 'user',
@@ -81,7 +83,13 @@ export const contributesOf = (
 export const titlesOf = (
   extension: Pick<
     ResolvedExtension,
-    'themes' | 'gradePolicies' | 'settings' | 'commands' | 'panels'
+    | 'exerciseTypes'
+    | 'markdownRenderers'
+    | 'themes'
+    | 'gradePolicies'
+    | 'settings'
+    | 'commands'
+    | 'panels'
   >,
 ): ExtensionInfoDto['titles'] => {
   const titles: ExtensionInfoDto['titles'] = {};
@@ -95,6 +103,21 @@ export const titlesOf = (
       items.map((item) => [item.id, title(item as never)]),
     );
   };
+  const titled = <T extends { title: string | null }>(items: readonly T[]) =>
+    items.filter(({ title }) => title !== null);
+  add(
+    'exerciseTypes',
+    titled(extension.exerciseTypes),
+    (item: { title: string }) => item.title,
+  );
+  add(
+    'markdownRenderers',
+    titled(extension.markdownRenderers).map((item) => ({
+      ...item,
+      id: item.language,
+    })),
+    (item: { title: string }) => item.title,
+  );
   add('themes', extension.themes, (item: { label: string }) => item.label);
   add(
     'gradePolicies',
@@ -119,10 +142,12 @@ const loaded = (
     origin: extension.origin,
     state: policy.isEnabled(extension.id) ? 'loaded' : 'disabled',
     contributes: contributesOf(extension),
-    diagnostics:
-      policy.safeMode() && extension.origin !== 'bundled'
-        ? [{ code: 'safe-mode', data: {} }]
-        : [],
+    diagnostics: [
+      ...(policy.safeMode() && extension.origin !== 'bundled'
+        ? [{ code: 'safe-mode' as const, data: {} }]
+        : []),
+      ...extension.warnings,
+    ],
     permissions: [...extension.permissions],
     isolation: isolationOf(extension, policy),
     toggleable: extension.origin !== 'bundled' && revoked === null,
@@ -131,6 +156,7 @@ const loaded = (
     author: extension.author,
     icon: extension.icon,
     titles: titlesOf(extension),
+    messages: extension.messages,
     tags: [...extension.tags],
     installed: extension.install === null ? null : { ...extension.install },
     removable: extension.origin === 'user',
@@ -208,7 +234,8 @@ export const createExtensionRegistry = (
       ),
       markdownRenderers: enabled().flatMap((extension) =>
         extension.markdownRenderers.map((renderer) => ({
-          ...renderer,
+          language: renderer.language,
+          rendererUrl: renderer.rendererUrl,
           extensionId: extension.id,
           isolated: policy.isIsolated(extension.id),
           origin: extension.origin,
@@ -239,6 +266,11 @@ export const createExtensionRegistry = (
           origin: extension.origin,
           revision: extension.revision,
         })),
+      ),
+      messages: Object.fromEntries(
+        enabled()
+          .filter(({ messages }) => Object.keys(messages).length > 0)
+          .map(({ id, messages }) => [id, messages]),
       ),
     }),
   };

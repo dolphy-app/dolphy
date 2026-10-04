@@ -23,9 +23,12 @@ const extension: ResolvedExtension = {
   icon: null,
   tags: [],
   install: null,
+  messages: {},
+  warnings: [],
   exerciseTypes: [
     {
       id: 'acme.t',
+      title: null,
       specSchema: {
         type: 'object',
         required: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'],

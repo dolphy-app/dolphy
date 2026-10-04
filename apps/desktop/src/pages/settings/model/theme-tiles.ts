@@ -13,12 +13,13 @@ export interface ThemeTileModel {
 }
 
 /**
- * Плитки выбора темы: встроенные и темы расширений. Идентификатор
- * расширения — подсказка, а не видимая подпись.
+ * Плитки выбора темы: встроенные и темы расширений (`themeLabel` подставляет
+ * перевод подписи). Идентификатор расширения — подсказка, а не видимая подпись.
  */
 export const buildThemeTiles = (
   builtinLabel: (id: (typeof BUILTIN_THEMES)[number]) => string,
   themes: readonly ThemeContributionDto[],
+  themeLabel: (theme: ThemeContributionDto) => string,
 ): ThemeTileModel[] => [
   ...BUILTIN_THEMES.map((id) => ({
     id,
@@ -27,7 +28,7 @@ export const buildThemeTiles = (
   })),
   ...themes.map((theme) => ({
     id: theme.id,
-    label: theme.label,
+    label: themeLabel(theme),
     tooltip: theme.extensionId,
     names: [vuetifyThemeName(theme.id)],
   })),

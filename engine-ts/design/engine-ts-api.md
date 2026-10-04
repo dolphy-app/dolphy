@@ -599,17 +599,25 @@ export interface UiSettingsDto {
   locale: LocaleMode;
   /** Курс в фокусе: клиент передаёт его в `courseIds` плана и повторений (§4.1). Нет поля — все курсы. Движок не проверяет, что курс есть в библиотеке: курс могли убрать, клиент сверяет сам. */
   activeCourseId?: UnitId;
+  /** Ширина панели теории в сессии и вход-тесте, px (`MATERIAL_WIDTH_RANGE`: 280…800). Нет поля — умолчание клиента. */
+  materialWidth?: number;
+  /** Панель теории скрыта. Нет поля — показана. */
+  materialCollapsed?: true;
 }
-/** `activeCourseId: null` снимает фокус. */
-export type UiSettingsPatch = Partial<Omit<UiSettingsDto, 'activeCourseId'>> & {
+/** `activeCourseId: null` снимает фокус, `materialWidth: null` возвращает умолчание, `materialCollapsed: false` показывает панель. */
+export type UiSettingsPatch = Partial<
+  Omit<UiSettingsDto, 'activeCourseId' | 'materialWidth' | 'materialCollapsed'>
+> & {
   activeCourseId?: UnitId | null;
+  materialWidth?: number | null;
+  materialCollapsed?: boolean;
 };
 ```
 
 Семантика:
 - Изменения blacklist и review list — записи журнала (LWW), сбрасывают кэши оценок затронутых юнитов до ответа (порядок «запись → инвалидация», а не наоборот, как в Rust).
 - `setScheduler` в Trane не вызывал `verify()` и не доходил до `UnitScorer`, `CandidateFilter`, `ReviewKnocker`, `RelearnPile` (у них клоны опций); в порте один holder, поведение покрыто тестом. Поля `numDeltas` в DTO нет: в Rust оно не читается.
-- `setUi` меняет только переданные поля (`activeCourseId` — `null` снимает); пустой `activeCourseId` — `INVALID_ARGUMENT`; запись сопровождается событием `settings-changed` (`scope: 'ui'`). Настройки интерфейса не синхронизируются между устройствами.
+- `setUi` меняет только переданные поля (`activeCourseId` — `null` снимает); пустой `activeCourseId`, `materialWidth` не целое или вне 280…800, `materialCollapsed` не логическое — `INVALID_ARGUMENT` (`details.field`); запись сопровождается событием `settings-changed` (`scope: 'ui'`). Настройки интерфейса не синхронизируются между устройствами.
 - `ignoredPaths` применяется при следующем `library.reload()`; `setPreferences` возвращает `restartRequired`, если изменились пути данных.
 - Настройки фильтров и сессий пишутся атомарно (tmp + rename) в `settings/`; читаются только `*.json`.
 - `implicitCredit.*` меняет `MemoryIndex`: `setScheduler` пересобирает проекцию (событие `state-rebuilt`); rebuild 500k событий — 0.4 с без кредита, 1.1 с при разреженных явных `encompassed`, 17.6 с при «зависимость = охват @1.0» [ИЗМЕРЕНО в спайке], поэтому кредит идёт только по явно объявленным `encompassed`. Валидация (`verify`) как при открытии: диапазоны выше, `failThreshold`, `maxItems`, `maxSameCourseRun` — целые ≥ 1, `minTagDistance` — целое ≥ 0, `targetRetention` и `minNewFraction` в (0, 1) и [0, 1] [диапазоны — ВЫВОД].

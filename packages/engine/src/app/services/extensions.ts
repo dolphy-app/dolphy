@@ -1,4 +1,8 @@
-import { MAX_ANSWER_CHARS } from '@dolphy-app/engine-contract';
+import {
+  LOG_LEVELS,
+  MAX_ANSWER_CHARS,
+  MAX_LOG_ENTRIES,
+} from '@dolphy-app/engine-contract';
 import type {
   CatalogDto,
   ContributionsDto,
@@ -12,6 +16,7 @@ import type {
   ExtensionsService,
   InstallResultDto,
   JsonValue,
+  ReadLogsOptions,
 } from '@dolphy-app/engine-contract';
 import {
   isExtensionId,
@@ -23,6 +28,7 @@ import {
 } from '../../ports/extension-installer.ts';
 import { ExtensionCommandError } from '../../ports/extension-commands.ts';
 import type { RegistryContributions } from '../../ports/extension-registry.ts';
+import type { LogReadQuery } from '../../ports/log-reader.ts';
 import { GRADE_POLICIES } from '../../verify/grade-policy.ts';
 import type { EngineContext } from '../context.ts';
 import { EngineError } from '../errors.ts';
@@ -114,6 +120,7 @@ const copyInfo = (info: ExtensionInfoDto): ExtensionInfoDto => ({
   diagnostics: structuredClone(info.diagnostics),
   permissions: [...info.permissions],
   titles: structuredClone(info.titles),
+  messages: structuredClone(info.messages),
   tags: [...info.tags],
 });
 
@@ -154,6 +161,7 @@ const sortedContributions = (
     settings: copy.settings.sort(compareBy((setting) => setting.extensionId)),
     commands: copy.commands.sort(compareBy((command) => command.extensionId)),
     panels: copy.panels.sort(compareBy((panel) => panel.extensionId)),
+    messages: copy.messages,
   };
 };
 
@@ -237,6 +245,31 @@ const removeDataOf = (options: unknown): boolean => {
   return removeData;
 };
 
+/** Параметры `readLogs`: неверное значение — `INVALID_ARGUMENT`, ничего не читается. */
+const logQueryOf = (options: ReadLogsOptions | undefined): LogReadQuery => {
+  const { extensionId, minLevel, limit = MAX_LOG_ENTRIES } = options ?? {};
+  if (extensionId !== undefined && !isExtensionId(extensionId)) {
+    throw invalidId(extensionId);
+  }
+  if (minLevel !== undefined && !LOG_LEVELS.includes(minLevel)) {
+    throw new EngineError('INVALID_ARGUMENT', {
+      message: `Unknown log level: ${String(minLevel)}`,
+      details: { field: 'minLevel' },
+    });
+  }
+  if (!Number.isInteger(limit) || limit < 1 || limit > MAX_LOG_ENTRIES) {
+    throw new EngineError('INVALID_ARGUMENT', {
+      message: `limit must be an integer in 1..${MAX_LOG_ENTRIES}`,
+      details: { field: 'limit' },
+    });
+  }
+  return {
+    limit,
+    ...(extensionId !== undefined && { extensionId }),
+    ...(minLevel !== undefined && { minLevel }),
+  };
+};
+
 const withMember = (
   ids: readonly string[],
   id: string,
@@ -305,6 +338,7 @@ export const createExtensionsService = (
     | 'extensionPolicy'
     | 'extensionHealth'
     | 'extensionHostControl'
+    | 'logReader'
     | 'extensionInstaller'
     | 'extensionApply'
     | 'settings'
@@ -408,6 +442,10 @@ export const createExtensionsService = (
       };
     },
     restartHost: async () => ctx.extensionHostControl.restart(),
+    readLogs: async (options) => {
+      const query = logQueryOf(options);
+      return ctx.logReader === null ? [] : ctx.logReader.read(query);
+    },
     catalog: (options): Promise<CatalogDto> =>
       guarded(null, () => ctx.extensionInstaller.catalog(options)),
     install: async (id, version): Promise<InstallResultDto> => {

@@ -32,6 +32,7 @@ import {
   COMMAND_PALETTE_KEY,
   createCommandPalette,
 } from '@/widgets/command-palette';
+import { textOfExtension } from '@/shared/lib/extension-text.ts';
 import { bindExtensionThemes } from '@/shared/lib/theme-registry.ts';
 
 import './styles/global.css';
@@ -78,6 +79,7 @@ const bootstrap = async () => {
       registry,
       engine: engine.extensions,
       contributions: () => contributions.contributions.value,
+      locale: () => i18n.global.locale.value,
       openPanel: ({ extensionId, panelId }) =>
         void router.push({
           name: ROUTE.extensionPanel,
@@ -93,6 +95,13 @@ const bootstrap = async () => {
       themeSelection,
       localeSelection,
       themes: () => contributions.contributions.value.themes,
+      extensionText: (value, extensionId) =>
+        textOfExtension(
+          value,
+          extensionId,
+          contributions.contributions.value,
+          i18n.global.locale.value,
+        ),
       reportFailure: (error) =>
         extensionCommands.notices.push({
           kind: 'failure',

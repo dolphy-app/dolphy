@@ -45,6 +45,7 @@ const setup = (
   result: CommandResultDto = { kind: 'none' },
 ) => {
   const contributions = shallowRef(initial);
+  const locale = shallowRef('en');
   const registry = createCommandRegistry();
   const invokeCommand = vi.fn(async () => result);
   const openPanel = vi.fn();
@@ -52,11 +53,13 @@ const setup = (
     registry,
     engine: { invokeCommand },
     contributions: () => contributions.value,
+    locale: () => locale.value,
     openPanel,
   });
   const keys = () => registry.list.value.map(({ key }) => key);
   return {
     contributions,
+    locale,
     registry,
     invokeCommand,
     openPanel,
@@ -88,6 +91,59 @@ describe('адаптер команд расширений: реестр', () =>
       keybinding: 'Ctrl+Shift+S',
       checked: undefined,
       enabled: true,
+    });
+  });
+
+  it('подставляет %ключ% в название, описание и категорию; смена языка меняет подписи без перерегистрации', () => {
+    const { locale, registry, contributions } = setup({
+      ...contributionsOf([
+        command('run', {
+          title: '%run.title%',
+          description: '%run.description%',
+          category: '%run.category%',
+        }),
+        command('plain', { title: 'Plain title' }),
+      ]),
+      messages: {
+        'acme.cmd': {
+          en: {
+            'run.title': 'Run',
+            'run.description': 'Starts a run',
+            'run.category': 'Learning',
+          },
+          ru: { 'run.title': 'Запуск', 'run.category': 'Обучение' },
+        },
+      },
+    });
+    const view = () =>
+      registry.list.value.map(({ title, description, category }) => ({
+        title,
+        description,
+        category,
+      }));
+    expect(view()).toEqual([
+      { title: 'Run', description: 'Starts a run', category: 'Learning' },
+      { title: 'Plain title', description: undefined, category: undefined },
+    ]);
+    const before = registry.list.value.map(({ run }) => run);
+    locale.value = 'ru';
+    expect(view()[0]).toEqual({
+      title: 'Запуск',
+      // нет в ru — берётся en
+      description: 'Starts a run',
+      category: 'Обучение',
+    });
+    // та же регистрация: язык не перерегистрирует команды
+    expect(registry.list.value.map(({ run }) => run)).toEqual(before);
+    // таблицы обновились (расширение обновлено): подпись следует за ними
+    contributions.value = {
+      ...contributions.value,
+      messages: { 'acme.cmd': { en: { 'run.title': 'Go' } } },
+    };
+    expect(view()[0]).toEqual({
+      title: 'Go',
+      description: '%run.description%',
+      category: '%run.category%',
     });
   });
 

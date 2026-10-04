@@ -2,6 +2,7 @@ import {
   BrowserWindow,
   MessageChannelMain,
   app,
+  clipboard,
   dialog,
   ipcMain,
   net,
@@ -17,6 +18,7 @@ import path from 'node:path';
 import type { ExtensionHostStatusDto } from '@dolphy-app/engine-contract';
 import { createExtSupervisor, isTypedMessage } from './ext-supervisor.ts';
 import { createHostLink } from './host-link.ts';
+import { createLogFile, createProcessOutput } from './log-file.ts';
 import { createMainLogger } from './logger.ts';
 import { safeModeSource } from './safe-mode.ts';
 import { createDevExtensionsShell } from './shells/dev-extensions.ts';
@@ -38,8 +40,6 @@ const APP_ROOT = path.join(__dirname, '../..');
 const RENDERER_DIST = path.join(APP_ROOT, 'dist');
 const devServerUrl = process.env.VITE_DEV_SERVER_URL;
 
-const logger = createMainLogger();
-
 // смоук существует только в смоук-сборке (DOLPHY_SMOKE_BUILD=1 при vite build):
 // в релизном бандле флаг — false, весь код за ним вырезан
 const smoke = __DOLPHY_SMOKE_BUILD__ && process.env.DOLPHY_SMOKE === '1';
@@ -59,6 +59,20 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 const userData = app.getPath('userData');
+// файловый журнал: main пишет сам и принимает stderr процессов движка и хоста расширений
+const logsDir = path.join(userData, 'logs');
+const logFile = createLogFile({
+  dir: logsDir,
+  clock: { now: () => Date.now() },
+  onError: (error) => console.error({ error }, 'log file write failed'),
+});
+const logger = createMainLogger(logFile);
+const outputOf = (source: 'engine' | 'ext-host') => () =>
+  createProcessOutput({
+    source,
+    file: logFile,
+    mirror: { stdout: process.stdout, stderr: process.stderr },
+  });
 const libraryRoot =
   (smoke && process.env.DOLPHY_SMOKE_LIBRARY) || path.join(userData, 'library');
 // расширения из поставки (read-only) и пользовательские; пользовательское с тем же id побеждает
@@ -119,6 +133,7 @@ const extSupervisor = createExtSupervisor({
     extHostStatus = status;
     publishExtHostStatus();
   },
+  createOutput: outputOf('ext-host'),
 });
 const supervisor = createSupervisor({
   utilityProcess,
@@ -133,8 +148,10 @@ const supervisor = createSupervisor({
     ...(devExtensionsDir ? { devExtensionsDir } : {}),
     ...(extensionCatalogUrl ? { extensionCatalogUrl } : {}),
     ...(forceSafeMode ? { forceSafeMode } : {}),
+    logsDir,
   },
   logger,
+  createOutput: outputOf('engine'),
   onFatal: () => {
     dialog.showErrorBox(
       'Dolphy',
@@ -179,6 +196,16 @@ const shells = [
     dialog,
     fromWebContents: (sender) =>
       BrowserWindow.fromWebContents(sender as Electron.WebContents),
+    clipboard,
+    appInfo: () => ({
+      // в несобранном приложении `getVersion()` возвращает версию Electron
+      appVersion: appVersion ?? 'unpackaged',
+      electron: process.versions.electron,
+      chrome: process.versions.chrome,
+      node: process.versions.node,
+      platform: process.platform,
+      arch: process.arch,
+    }),
   }),
   createLifecycleShell({ app, supervisors: [supervisor, extSupervisor] }),
   createExtensionAssetsShell({

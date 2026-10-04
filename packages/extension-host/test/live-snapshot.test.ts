@@ -31,6 +31,8 @@ const extension = (
   icon: null,
   tags: [],
   install: null,
+  messages: {},
+  warnings: [],
   exerciseTypes: [],
   themes: [],
   markdownRenderers: [],
@@ -47,6 +49,7 @@ const withType = (id: string, type: string): ResolvedExtension =>
     exerciseTypes: [
       {
         id: type,
+        title: null,
         specSchema: {},
         answerSchema: {},
         element: `${type.replaceAll('.', '-')}-answer`,

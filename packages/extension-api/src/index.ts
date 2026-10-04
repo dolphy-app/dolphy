@@ -3,6 +3,8 @@
  * by extension code (`main.mjs`), by the answer element (`view.mjs`), and by the engine itself.
  */
 
+export * from './locale.ts';
+
 export const EXTENSION_API_VERSION = 1 as const;
 export const EXTENSION_ID_PATTERN = /^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*$/;
 /** GitHub login of the extension author (`author` in the manifest and catalog). */
@@ -66,6 +68,8 @@ export type JsonSchema = Record<string, unknown>;
 export interface ExerciseTypeContribution {
   /** Equal to the extension id or starts with `<extension id>.`. */
   id: string;
+  /** Name shown on the contribution chip, 1–60 characters; without it the id is shown. */
+  title?: string;
   /** JSON Schema 2020-12 for `engine.exercise.spec`: a path inside the extension directory (`./schema/spec.json`) or a schema object. */
   specSchema: string | JsonSchema;
   /** JSON Schema 2020-12 for the learner's answer (`submitAnswer.answer`): a path or a schema object. */
@@ -93,6 +97,8 @@ export interface ThemeContribution {
 export interface MarkdownRendererContribution {
   /** Code block language: `[a-z][a-z0-9-]{0,31}`. */
   language: string;
+  /** Name shown on the contribution chip, 1–60 characters; without it the language is shown. */
+  title?: string;
   /** Path to the ES module; always set in the normalized manifest. */
   renderer?: string;
 }
@@ -124,7 +130,15 @@ export interface PanelContribution {
 }
 
 /** Value of an extension setting. */
-export type SettingValue = boolean | string | number;
+export type SettingValue = boolean | string | number | string[];
+
+/** Shows a setting only while another setting of the same extension has the value `equals`. */
+export interface SettingVisibleWhen {
+  /** Id of a setting of the same extension: not itself, not a `list`, and one without its own `visibleWhen` (no chains). */
+  setting: string;
+  /** Value of the target setting; its type must match the target (`boolean`, `number`, or a string). */
+  equals: boolean | string | number;
+}
 
 interface SettingContributionBase {
   /** Equal to the extension id or starts with `<extension id>.`. */
@@ -133,6 +147,12 @@ interface SettingContributionBase {
   label: string;
   /** Help text under the field, up to 500 characters. */
   description?: string;
+  /** Section title in the settings dialog, 1–60 characters; settings without it come first, with no title. */
+  group?: string;
+  /** Sort key in the form, an integer 0–1000; default 0, ties keep the declaration order. */
+  order?: number;
+  /** The field is hidden while the condition is false; the hidden value is kept and still reaches the code. */
+  visibleWhen?: SettingVisibleWhen;
 }
 
 export interface BooleanSettingContribution extends SettingContributionBase {
@@ -145,6 +165,31 @@ export interface StringSettingContribution extends SettingContributionBase {
   default: string;
   /** Length in UTF-16 code units, 1..10000; no key means unlimited (within 10000). */
   maxLength?: number;
+}
+
+/** A multi-line string. */
+export interface TextSettingContribution extends SettingContributionBase {
+  type: 'text';
+  default: string;
+  /** Length in UTF-16 code units, 1..10000; no key means unlimited (within 10000). */
+  maxLength?: number;
+}
+
+/** A color `#rrggbb`; the stored value is lower-case. */
+export interface ColorSettingContribution extends SettingContributionBase {
+  type: 'color';
+  /** `#rrggbb`. */
+  default: string;
+}
+
+/** A list of strings; the code receives `string[]`. */
+export interface ListSettingContribution extends SettingContributionBase {
+  type: 'list';
+  default: string[];
+  /** Most items, 1..50; default 50. */
+  maxItems?: number;
+  /** Longest item in UTF-16 code units, 1..200; default 200. */
+  itemMaxLength?: number;
 }
 
 export interface NumberSettingContribution extends SettingContributionBase {
@@ -172,8 +217,26 @@ export interface EnumSettingContribution extends SettingContributionBase {
 export type SettingContribution =
   | BooleanSettingContribution
   | StringSettingContribution
+  | TextSettingContribution
+  | ColorSettingContribution
+  | ListSettingContribution
   | NumberSettingContribution
   | EnumSettingContribution;
+
+/** Limits of the settings types (`text`, `color`, `list`, `group`, `order`); they match those checked by the manifest and the engine. */
+export const SETTING_LIMITS = Object.freeze({
+  /** `maxLength` of `string` and `text`. */
+  stringLength: 10_000,
+  /** `maxItems` of `list`. */
+  listItems: 50,
+  /** `itemMaxLength` of `list`. */
+  listItemLength: 200,
+  groupLength: 60,
+  orderMax: 1000,
+});
+
+/** `#rrggbb` (any case in the manifest; the stored value is lower-case). */
+export const COLOR_SETTING_PATTERN = /^#[0-9a-fA-F]{6}$/;
 
 /** Learning events an extension with the `learning.events` permission can subscribe to. */
 export const LEARNING_EVENT_NAMES = [
@@ -263,6 +326,8 @@ export interface ExtensionManifest {
 /** Kind of exercise in `extension.json`, as the author writes it. */
 export interface ExerciseTypeContributionInput {
   id: string;
+  /** Name shown on the contribution chip, 1–60 characters. */
+  title?: string;
   specSchema: string | JsonSchema;
   answerSchema: string | JsonSchema;
   /** Defaults to `defaultElementName(id)`. */

@@ -1,3 +1,4 @@
+import { MATERIAL_WIDTH_RANGE } from '@dolphy-app/engine-contract';
 import type {
   DeepPartial,
   LearningSettingsDto,
@@ -9,7 +10,12 @@ import type {
 } from '@dolphy-app/engine-contract';
 import type { UserPreferences } from '../../domain/manifest.ts';
 import { isGradePolicyId } from '../../domain/learning-settings.ts';
-import { isLocaleMode, isThemeId, isUnitId } from '../../domain/ui-settings.ts';
+import {
+  isLocaleMode,
+  isMaterialWidth,
+  isThemeId,
+  isUnitId,
+} from '../../domain/ui-settings.ts';
 import {
   InvalidSchedulerOptionsError,
   applySchedulerPatch,
@@ -186,13 +192,41 @@ export const createSettingsService = (ctx: EngineContext): SettingsService => {
         details: { field: 'activeCourseId' },
       });
     }
+    const { materialWidth, materialCollapsed } = patch;
+    if (
+      materialWidth !== undefined &&
+      materialWidth !== null &&
+      !isMaterialWidth(materialWidth)
+    ) {
+      throw new EngineError('INVALID_ARGUMENT', {
+        message: `materialWidth must be an integer from ${MATERIAL_WIDTH_RANGE.min} to ${MATERIAL_WIDTH_RANGE.max} or null`,
+        details: { field: 'materialWidth' },
+      });
+    }
+    if (
+      materialCollapsed !== undefined &&
+      typeof materialCollapsed !== 'boolean'
+    ) {
+      throw new EngineError('INVALID_ARGUMENT', {
+        message: 'materialCollapsed must be a boolean',
+        details: { field: 'materialCollapsed' },
+      });
+    }
     const current = await ctx.settings.loadUi();
     const focus =
       activeCourseId === undefined ? current.activeCourseId : activeCourseId;
+    const width =
+      materialWidth === undefined ? current.materialWidth : materialWidth;
+    const collapsed =
+      materialCollapsed === undefined
+        ? current.materialCollapsed === true
+        : materialCollapsed;
     const next: UiSettingsDto = {
       theme: patch.theme ?? current.theme,
       locale: patch.locale ?? current.locale,
       ...(focus !== undefined && focus !== null && { activeCourseId: focus }),
+      ...(width !== undefined && width !== null && { materialWidth: width }),
+      ...(collapsed && { materialCollapsed: true as const }),
     };
     await ctx.settings.saveUi(next);
     ctx.emit({ type: 'settings-changed', scope: 'ui' });

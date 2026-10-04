@@ -1,7 +1,7 @@
 /**
  * Сквозная проверка в настоящем Electron (смоук-сборка, `DOLPHY_SMOKE=1`):
  * renderer → preload → main → utilityProcess → движок → хост расширений
- * (`dolphy.sql`, `dolphy.choice`). Библиотеки — `sql-course` и `choice-course`
+ * (`dolphy.sql`, `dolphy.choice`, `dolphy.js`). Библиотеки — `sql-course` и `choice-course`
  * (`lib_kb`), см. `scripts/smoke.mjs`.
  */
 import type { EngineEvent, LearningEngine } from '@dolphy-app/engine-contract';
@@ -10,10 +10,13 @@ import { ensureAnswerElement } from '@/shared/lib/answer-element.ts';
 
 const EXERCISE_ID = 'sql_kb::where::q2';
 const CHOICE_EXERCISE_ID = 'choice_kb::basic::q1';
+const JS_EXERCISE_ID = 'js_smoke::basic::q1';
 const ISOLATED_EXERCISE_ID = 'hostile_kb::basic::q1';
 /** Путь, который «враждебное» расширение пробует записать; smoke.mjs проверяет, что файла нет. */
 const ISOLATED_MARKER = '/tmp/dolphy-smoke-pwned.txt';
 const RIGHT_SQL = 'SELECT name FROM emp WHERE salary IS NULL;';
+const RIGHT_JS = 'function double(n) { return n * 2; }';
+const WRONG_JS = 'function double(n) { return n + 2; }';
 const WRONG_SQL = 'SELECT name FROM emp WHERE salary IS NOT NULL;';
 const EVENT_TIMEOUT_MS = 5_000;
 const RECONNECT_TIMEOUT_MS = 30_000;
@@ -156,10 +159,42 @@ const choice = async (engine: LearningEngine): Promise<Scenario> => {
   };
 };
 
+const js = async (engine: LearningEngine): Promise<Scenario> => {
+  const attempt = await engine.practice.beginAttempt({
+    exerciseId: JS_EXERCISE_ID,
+  });
+  const view = attempt.view as { starter?: unknown } | null;
+  const wrong = await engine.practice.submitAnswer({
+    attemptId: attempt.attemptId,
+    answer: WRONG_JS,
+  });
+  const right = await engine.practice.submitAnswer({
+    attemptId: attempt.attemptId,
+    answer: RIGHT_JS,
+  });
+  const result = await engine.practice.completeAttempt({
+    attemptId: attempt.attemptId,
+  });
+  return {
+    ok:
+      attempt.verifiable &&
+      typeof view?.starter === 'string' &&
+      !JSON.stringify(view).includes('assert') &&
+      wrong.outcome === 'failed' &&
+      right.outcome === 'passed' &&
+      !result.duplicate,
+    verifiable: attempt.verifiable,
+    starter: view?.starter ?? null,
+    wrong,
+    right,
+    grade: result.grade,
+  };
+};
+
 /** Скрипты элементов ввода грузятся по `dolphy-ext://` (CSP, CORS с file://) и определяют свои теги. */
 const renderer = async (engine: LearningEngine): Promise<Scenario> => {
   const loaded: Record<string, boolean> = {};
-  for (const exerciseId of [EXERCISE_ID, CHOICE_EXERCISE_ID]) {
+  for (const exerciseId of [EXERCISE_ID, CHOICE_EXERCISE_ID, JS_EXERCISE_ID]) {
     const { exercise } = await engine.practice.beginAttempt({ exerciseId });
     if (exercise.task === undefined) {
       loaded[exerciseId] = false;
@@ -261,6 +296,7 @@ export const runSmoke = async (engine: LearningEngine, smoke: SmokeBridge) => {
     basic: await attempt(() => basic(engine, events)),
     sql: await attempt(() => sql(engine)),
     choice: await attempt(() => choice(engine)),
+    js: await attempt(() => js(engine)),
     renderer: await attempt(() => renderer(engine)),
     isolated: await attempt(() => isolated(engine)),
     crash: await attempt(() => crash(engine, events, smoke)),

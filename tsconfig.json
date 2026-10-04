@@ -77,6 +77,12 @@
       "path": "packages/ext-sql/tsconfig.test.json"
     },
     {
+      "path": "packages/ext-js"
+    },
+    {
+      "path": "packages/ext-js/tsconfig.test.json"
+    },
+    {
       "path": "packages/ext-choice"
     },
     {

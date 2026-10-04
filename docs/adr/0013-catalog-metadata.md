@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: partially superseded by ADR-0014
 date: 2026-10-03
 spec: specs/archive/2026-10-03-catalog-metadata/SPEC.md
 ---

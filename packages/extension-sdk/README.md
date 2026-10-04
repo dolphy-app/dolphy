@@ -4,6 +4,25 @@ SDK for extension authors ("exercise types"). The whole public API of
 `@dolphy-app/extension-api` is re-exported from here; you do not install it
 separately.
 
+## Guide
+
+The package ships a guide in `docs/` (in `node_modules/@dolphy-app/extension-sdk/docs/`
+after the install); every code example in it is built, checked and run by the
+repository's tests:
+
+- [`docs/quick-start.md`](docs/quick-start.md) — from an empty directory to a
+  command in the palette;
+- recipes, each equal to a `create-dolphy-extension --template` project:
+  [`docs/recipe-exercise-type.md`](docs/recipe-exercise-type.md),
+  [`docs/recipe-theme.md`](docs/recipe-theme.md),
+  [`docs/recipe-command-panel.md`](docs/recipe-command-panel.md),
+  [`docs/recipe-event-storage.md`](docs/recipe-event-storage.md) and
+  [`docs/recipe-settings.md`](docs/recipe-settings.md);
+- [`docs/no-build.md`](docs/no-build.md) — an extension from two hand-written
+  files, no TypeScript and no build;
+- [`docs/debugging.md`](docs/debugging.md) — tests, checks, the development loop
+  and the log.
+
 An extension's code is one file, `src/index.ts`, with named exports. The build
 (`dolphy-ext build`, `@dolphy-app/extension-tools`) lays it out into
 `main.mjs`, `view.mjs`, `panel.mjs` and `markdown.mjs`:

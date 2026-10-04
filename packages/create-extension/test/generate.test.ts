@@ -344,6 +344,24 @@ describe.each(TEMPLATE_NAMES)('project instructions and CI: %s', (template) => {
     );
   });
 
+  it('the guide path named in AGENTS.md exists in the SDK package', async () => {
+    const { dir } = await make();
+    const agents = await readFile(path.join(dir, 'AGENTS.md'), 'utf8');
+    const named = [
+      ...agents.matchAll(
+        /node_modules\/@dolphy-app\/extension-sdk\/(docs\/[\w.-]+\.md)/g,
+      ),
+    ].map(([, relative]) => relative as string);
+    expect(named).toContain('docs/quick-start.md');
+    for (const relative of named) {
+      const guide = await readFile(
+        path.join(REPO_ROOT, 'packages/extension-sdk', relative),
+        'utf8',
+      );
+      expect(guide.length, relative).toBeGreaterThan(0);
+    }
+  });
+
   it('ci.yml runs on push and pull request and runs the check scripts in order', async () => {
     const { dir, scripts } = await make();
     const ci = await readFile(

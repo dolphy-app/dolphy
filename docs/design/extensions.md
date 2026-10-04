@@ -369,7 +369,7 @@ export const host = defineExtension({
 - `id` равен id расширения или начинается с `<id>.`, уникален; `default` обязан удовлетворять ограничениям (иначе манифест отклоняется).
 - Код читает `ctx.settings.get(id)` синхронно (текущее значение или `default`) и подписывается `ctx.settings.onDidChange(handler)`; изменение пользователя доходит до работающего расширения без перезапуска.
 - Значение, переставшее подходить определению после обновления расширения, при чтении заменяется `default`.
-- Контракт `@dolphy-app/engine-contract` 15 добавил варианты `text`, `color` и `list` и поля `group`, `order`, `visibleWhen` в `ExtensionSettingDefDto`, ключи `exerciseTypes` и `markdownRenderers` в `ContributionTitlesDto`; `SettingValue` стал `boolean | string | number | string[]`.
+- Контракт `@dolphy-app/engine-contract` 16 добавил варианты `text`, `color` и `list` и поля `group`, `order`, `visibleWhen` в `ExtensionSettingDefDto`, ключи `exerciseTypes` и `markdownRenderers` в `ContributionTitlesDto`; `SettingValue` стал `boolean | string | number | string[]`.
 - Данные, которые расширение копит само, лежат в `ctx.storage` (`get`, `set`, `delete`, `keys`; любой JSON; разрешение не нужно). Потолки: ключ — до 128 символов, значение — до 64 КиБ в JSON, ключей — не более 256, всего — не более 1 МиБ; превышение бросает `StorageQuotaError` (`limit`, `kind`), запись не происходит. Данные переживают перезапуск, обновление и отключение.
 
 ### События обучения (`events`)

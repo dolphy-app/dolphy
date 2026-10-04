@@ -783,6 +783,7 @@ describe('rpc → dispatcher → real engine', () => {
       settings: [ROWS_SETTING],
       commands: [STATS_COMMAND],
       panels: [SQL_PANEL],
+      messages: {},
     });
     await call('diagnostics', () => client.diagnostics());
 

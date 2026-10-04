@@ -28,6 +28,8 @@ import {
   REGISTRY,
   SCOPE,
   assetFiles,
+  docFiles,
+  publishedFiles,
   binFiles,
   isBareSpecifier,
   packageName,
@@ -125,8 +127,8 @@ const assertManifest = ({ manifest, spec }) => {
     `${name}: repository.directory is wrong`,
   );
   check(
-    JSON.stringify(manifest.files) === '["dist"]',
-    `${name}: files is not ["dist"]`,
+    JSON.stringify(manifest.files) === JSON.stringify(publishedFiles(spec)),
+    `${name}: files is not ${JSON.stringify(publishedFiles(spec))}`,
   );
   const ranges = [
     ...Object.values(manifest.dependencies ?? {}),
@@ -142,12 +144,17 @@ const assertManifest = ({ manifest, spec }) => {
   );
 };
 
-const assertEntries = ({ name, entries }) => {
+const assertEntries = ({ name, spec, entries }) => {
+  const docs = docFiles(spec).map((file) => `docs/${file}`);
+  for (const doc of docs) {
+    check(entries.includes(doc), `${name}: guide file ${doc} is not in the tarball`);
+  }
   for (const entry of entries) {
     const allowed =
       entry === 'package.json' ||
       entry === 'README.md' ||
-      entry.startsWith('dist/');
+      entry.startsWith('dist/') ||
+      docs.includes(entry);
     check(allowed, `${name}: unexpected file in tarball: ${entry}`);
     check(!entry.startsWith('src/'), `${name}: sources in tarball: ${entry}`);
     check(
@@ -224,7 +231,7 @@ const inspectTarball = ({ spec, tarball, work }) => {
   });
   const name = packageName(spec);
   const manifest = readJson(path.join(dir, 'package.json'));
-  assertEntries({ name, entries: tarball.entries });
+  assertEntries({ name, spec, entries: tarball.entries });
   check(
     listFiles(dir).length === tarball.entries.length,
     `${name}: tarball content differs from the pack listing`,

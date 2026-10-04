@@ -6,6 +6,7 @@
     "exerciseTypes": [
       {
         "id": "acme.hello",
+        "title": "Hello exercise",
         "specSchema": {
           "type": "object",
           "required": ["expected"],

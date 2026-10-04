@@ -223,6 +223,30 @@ describe('contributionGroups', () => {
     });
   });
 
+  it('вид задания и рендерер с названием — обычным шрифтом, без названия — id моноширинно', () => {
+    const groups = contributionGroups(
+      {
+        ...NO_CONTRIBUTES,
+        exerciseTypes: ['a.quiz', 'a.plain'],
+        markdownRenderers: ['math', 'chart'],
+      },
+      {
+        exerciseTypes: { 'a.quiz': 'Викторина' },
+        markdownRenderers: { math: 'Формулы' },
+      },
+    );
+    expect(groups.map((g) => g.items.map((i) => [i.label, i.mono]))).toEqual([
+      [
+        ['Викторина', false],
+        ['a.plain', true],
+      ],
+      [
+        ['Формулы', false],
+        ['chart', true],
+      ],
+    ]);
+  });
+
   it('события показываются через переданное название, неизвестные — как есть', () => {
     const [group] = contributionGroups(
       { ...NO_CONTRIBUTES, events: ['session.started', 'weird.event'] },

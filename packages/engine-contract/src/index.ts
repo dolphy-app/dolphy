@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 14 as const;
+export const CONTRACT_VERSION = 15 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 
@@ -1176,10 +1176,16 @@ export interface ExtensionContributesDto {
   panels: string[];
 }
 
-/** Названия вкладов по точкам: `id` → `label`/`title`; точки без названий (виды заданий, языки, события) не входят. */
+/** Названия вкладов по точкам: `id` → `label`/`title` (у рендереров `id` — язык); точки без названий (события) не входят, у видов заданий и рендереров — только записи с `title`. */
 export type ContributionTitlesDto = Partial<
   Record<
-    'themes' | 'gradePolicies' | 'settings' | 'commands' | 'panels',
+    | 'exerciseTypes'
+    | 'markdownRenderers'
+    | 'themes'
+    | 'gradePolicies'
+    | 'settings'
+    | 'commands'
+    | 'panels',
     Record<string, string>
   >
 >;
@@ -1304,6 +1310,18 @@ interface ExtensionSettingBaseDto {
   /** Подпись поля в диалоге настроек; данные расширения, не переводится. */
   label: string;
   description: string | null;
+  /** Заголовок раздела формы; `null` — настройка в первом разделе без заголовка. */
+  group: string | null;
+  /** Ключ сортировки формы, целое 0–1000; при равных — порядок объявления. */
+  order: number;
+  /** Поле скрыто, пока значение настройки `setting` (того же расширения, не `list`) не равно `equals`; скрытое значение сохраняется. `null` — поле видно всегда. */
+  visibleWhen: SettingVisibleWhenDto | null;
+}
+
+/** Условие показа поля формы настроек. */
+export interface SettingVisibleWhenDto {
+  setting: string;
+  equals: boolean | string | number;
 }
 
 export interface BooleanSettingDefDto extends ExtensionSettingBaseDto {
@@ -1316,6 +1334,30 @@ export interface StringSettingDefDto extends ExtensionSettingBaseDto {
   default: string;
   /** Длина в кодовых единицах UTF-16; `null` — без ограничения. */
   maxLength: number | null;
+}
+
+/** Многострочная строка. */
+export interface TextSettingDefDto extends ExtensionSettingBaseDto {
+  type: 'text';
+  default: string;
+  /** Длина в кодовых единицах UTF-16; `null` — до 10 000. */
+  maxLength: number | null;
+}
+
+/** Цвет `#rrggbb`; значение хранится в нижнем регистре. */
+export interface ColorSettingDefDto extends ExtensionSettingBaseDto {
+  type: 'color';
+  default: string;
+}
+
+/** Список строк. */
+export interface ListSettingDefDto extends ExtensionSettingBaseDto {
+  type: 'list';
+  default: string[];
+  /** Наибольшее число элементов, 1–50. */
+  maxItems: number;
+  /** Наибольшая длина элемента в кодовых единицах UTF-16, 1–200. */
+  itemMaxLength: number;
 }
 
 export interface NumberSettingDefDto extends ExtensionSettingBaseDto {
@@ -1341,6 +1383,9 @@ export interface EnumSettingDefDto extends ExtensionSettingBaseDto {
 export type ExtensionSettingDefDto =
   | BooleanSettingDefDto
   | StringSettingDefDto
+  | TextSettingDefDto
+  | ColorSettingDefDto
+  | ListSettingDefDto
   | NumberSettingDefDto
   | EnumSettingDefDto;
 
@@ -1443,10 +1488,10 @@ export interface ExtensionsService {
    */
   getSettingValues(id: string): Promise<ExtensionSettingValuesDto>;
   /**
-   * Меняет одно значение; проверяет тип, границы и `options` по определению.
+   * Меняет одно значение; проверяет тип, границы, формат цвета, размер списка и `options` по определению; цвет сохраняется в нижнем регистре.
    * Неизвестный `settingId` и неверное значение — `INVALID_ARGUMENT`
    * (`details.reason`: `unknown-setting` | `type` | `range` | `integer` |
-   * `max-length` | `option`). Расширение и окно узнают об изменении без перезапуска.
+   * `max-length` | `option` | `format` | `max-items`). Расширение и окно узнают об изменении без перезапуска.
    */
   setSettingValue(
     id: string,

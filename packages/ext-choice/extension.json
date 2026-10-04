@@ -7,6 +7,7 @@
     "exerciseTypes": [
       {
         "id": "dolphy.choice",
+        "title": "Multiple choice",
         "specSchema": "./schema/spec.json",
         "answerSchema": "./schema/answer.json",
         "element": "dolphy-choice-answer",

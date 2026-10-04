@@ -16,6 +16,8 @@ export const SETTING_PROBLEMS = [
   'range',
   'max-length',
   'option',
+  'format',
+  'max-items',
   'unknown-setting',
   'not-a-number',
 ] as const;

@@ -26,6 +26,7 @@ const extension: ResolvedExtension = {
   exerciseTypes: [
     {
       id: 'acme.t',
+      title: null,
       specSchema: {
         type: 'object',
         required: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'],

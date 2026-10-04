@@ -238,7 +238,12 @@ export const extRequestSchema = z.discriminatedUnion('method', [
   }),
 ]);
 
-const settingValue = z.union([z.boolean(), z.string(), z.number()]);
+const settingValue = z.union([
+  z.boolean(),
+  z.string(),
+  z.number(),
+  z.array(z.string()),
+]);
 
 export const settingChangedSchema = z.strictObject({
   method: z.literal('settingChanged'),

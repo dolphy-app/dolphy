@@ -23,6 +23,7 @@ const extension = (id: string, version = '1.0.0'): ResolvedExtension => ({
   exerciseTypes: [
     {
       id: `${id}.a`,
+      title: null,
       specSchema: {},
       answerSchema: {},
       element: 'x-a',
@@ -171,6 +172,7 @@ describe('createExtensionRegistry: политика', () => {
     markdownRenderers: [
       {
         language: 'math',
+        title: null,
         rendererUrl: 'dolphy-ext://dolphy.math/view.mjs',
       },
     ],
@@ -180,6 +182,7 @@ describe('createExtensionRegistry: политика', () => {
     markdownRenderers: [
       {
         language: 'chart',
+        title: null,
         rendererUrl: 'dolphy-ext://acme.u/view.mjs',
       },
     ],
@@ -322,6 +325,22 @@ describe('createExtensionRegistry: titles and tags', () => {
         variables: {},
       },
     ],
+    exerciseTypes: [
+      {
+        id: 'acme.titled',
+        title: 'Titled quiz',
+        element: 'acme-titled-answer',
+      },
+      {
+        id: 'acme.titled.bare',
+        title: null,
+        element: 'acme-bare-answer',
+      },
+    ],
+    markdownRenderers: [
+      { language: 'chart', title: 'Charts', rendererUrl: 'x' },
+      { language: 'plain', title: null, rendererUrl: 'x' },
+    ],
     gradePolicies: [{ id: 'acme.titled.strict', label: 'Strict' }],
     settings: [
       {
@@ -365,9 +384,11 @@ describe('createExtensionRegistry: titles and tags', () => {
   const registry = createExtensionRegistry(discovered, policy);
   const rowOf = (id: string) => registry.list().find((item) => item.id === id);
 
-  it('names every titled contribution by id and keeps the explicit tags', () => {
+  it('names every titled contribution by id (renderers by language, only those with a title) and keeps the explicit tags', () => {
     expect(rowOf('acme.titled')).toMatchObject({
       titles: {
+        exerciseTypes: { 'acme.titled': 'Titled quiz' },
+        markdownRenderers: { chart: 'Charts' },
         themes: { 'acme.titled.night': 'Night' },
         gradePolicies: { 'acme.titled.strict': 'Strict' },
         settings: { 'acme.titled.flag': 'Flag' },
@@ -378,7 +399,7 @@ describe('createExtensionRegistry: titles and tags', () => {
     });
   });
 
-  it('leaves out points without titles, and exercise types are never titled', () => {
+  it('leaves out points without titles', () => {
     expect(rowOf('acme.plain')).toMatchObject({ titles: {}, tags: [] });
   });
 

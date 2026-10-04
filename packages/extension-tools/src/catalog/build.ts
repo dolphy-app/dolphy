@@ -220,6 +220,13 @@ const immutabilityError = (staged: Staged): BuildError =>
 const titlesOf = (manifest: Staged['manifest']): ContributionTitles => {
   const { contributes } = manifest;
   const byPoint: Record<TitledPoint, { id: string; title: string }[]> = {
+    exerciseTypes: contributes.exerciseTypes.flatMap(({ id, title }) =>
+      title === undefined ? [] : [{ id, title }],
+    ),
+    markdownRenderers: contributes.markdownRenderers.flatMap(
+      ({ language, title }) =>
+        title === undefined ? [] : [{ id: language, title }],
+    ),
     themes: contributes.themes.map(({ id, label }) => ({ id, title: label })),
     gradePolicies: contributes.gradePolicies.map(({ id, label }) => ({
       id,

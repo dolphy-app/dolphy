@@ -47,6 +47,7 @@ const withType = (id: string, type: string): ResolvedExtension =>
     exerciseTypes: [
       {
         id: type,
+        title: null,
         specSchema: {},
         answerSchema: {},
         element: `${type.replaceAll('.', '-')}-answer`,

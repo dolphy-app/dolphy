@@ -102,13 +102,23 @@ describe('full index (schemaVersion 2)', () => {
 
   it('accepts titles and tags of the contributions that exist', () => {
     const titled = entry({
-      contributes: { ...entry().contributes, commands: ['acme.quiz.open'] },
-      titles: { commands: { 'acme.quiz.open': 'Open quiz' } },
+      contributes: {
+        ...entry().contributes,
+        commands: ['acme.quiz.open'],
+        markdownRenderers: ['chart'],
+      },
+      titles: {
+        commands: { 'acme.quiz.open': 'Open quiz' },
+        exerciseTypes: { 'acme.quiz': 'Quiz' },
+        markdownRenderers: { chart: 'Charts' },
+      },
       versions: [version({ tags: ['learning', 'productivity'] })],
     });
     const parsed = parseIndex(full([titled])).extensions[0];
     expect(parsed?.titles).toEqual({
       commands: { 'acme.quiz.open': 'Open quiz' },
+      exerciseTypes: { 'acme.quiz': 'Quiz' },
+      markdownRenderers: { chart: 'Charts' },
     });
     expect(parsed?.versions[0]?.tags).toEqual(['learning', 'productivity']);
   });
@@ -119,7 +129,10 @@ describe('full index (schemaVersion 2)', () => {
     expect(titled({ themes: { 'acme.ghost': 'Ghost' } })[0]).toContain(
       'titles.themes.acme.ghost',
     );
-    expect(titled({ exerciseTypes: { 'acme.quiz': 'Quiz' } })).not.toEqual([]);
+    expect(titled({ exerciseTypes: { 'acme.ghost': 'Quiz' } })[0]).toContain(
+      'titles.exerciseTypes.acme.ghost',
+    );
+    expect(titled({ events: { 'session.started': 'x' } })).not.toEqual([]);
     expect(titled({ commands: { 'acme.x': 'x'.repeat(61) } })).not.toEqual([]);
     expect(titled({ commands: { 'acme.x': '' } })).not.toEqual([]);
     expect(titled({ themes: { 'Not Valid': 'x' } })).not.toEqual([]);

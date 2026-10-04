@@ -1,6 +1,7 @@
 import {
   DEFAULT_RENDERER,
   ELEMENT_NAME_PATTERN,
+  EXTENSION_COMMAND_LIMITS,
   defaultElementName,
 } from '@dolphy-app/extension-api';
 import { z } from 'zod';
@@ -25,6 +26,11 @@ export const exerciseTypes: ContributionPoint<'exerciseTypes'> = {
   needsMain: true,
   schema: z.strictObject({
     id: extensionId,
+    title: z
+      .string()
+      .min(1)
+      .max(EXTENSION_COMMAND_LIMITS.titleLength)
+      .optional(),
     specSchema: schemaField,
     answerSchema: schemaField,
     element: z.string().optional(),
@@ -33,6 +39,7 @@ export const exerciseTypes: ContributionPoint<'exerciseTypes'> = {
   normalize: (entries) =>
     entries.map((type) => ({
       id: type.id,
+      ...(type.title === undefined ? {} : { title: type.title }),
       specSchema: type.specSchema,
       answerSchema: type.answerSchema,
       element: type.element ?? defaultElementName(type.id),
@@ -65,6 +72,7 @@ export const exerciseTypes: ContributionPoint<'exerciseTypes'> = {
       );
       resolved.push({
         id: contribution.id,
+        title: contribution.title ?? null,
         specSchema: await resolveSchema(
           ajv,
           dir,

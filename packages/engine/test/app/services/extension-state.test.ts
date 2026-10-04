@@ -51,7 +51,12 @@ const ext = (id: string, patch: Partial<ExtensionInfoDto> = {}) => ({
   ...patch,
 });
 
-const meta = { description: null } as const;
+const meta = {
+  description: null,
+  group: null,
+  order: 0,
+  visibleWhen: null,
+} as const;
 const DEFS: ExtensionSettingDefDto[] = [
   {
     ...meta,
@@ -106,6 +111,33 @@ const DEFS: ExtensionSettingDefDto[] = [
   },
   {
     ...meta,
+    id: 'acme.user.note',
+    extensionId: 'acme.user',
+    type: 'text',
+    label: 'Note',
+    default: 'first\nsecond',
+    maxLength: 12,
+  },
+  {
+    ...meta,
+    id: 'acme.user.tint',
+    extensionId: 'acme.user',
+    type: 'color',
+    label: 'Tint',
+    default: '#336699',
+  },
+  {
+    ...meta,
+    id: 'acme.user.tags',
+    extensionId: 'acme.user',
+    type: 'list',
+    label: 'Tags',
+    default: ['a'],
+    maxItems: 3,
+    itemMaxLength: 4,
+  },
+  {
+    ...meta,
     id: 'dolphy.bundled.flag',
     extensionId: 'dolphy.bundled',
     type: 'boolean',
@@ -152,6 +184,9 @@ const DEFAULTS = {
   'acme.user.count': 3,
   'acme.user.ratio': 0.5,
   'acme.user.mode': 'a',
+  'acme.user.note': 'first\nsecond',
+  'acme.user.tint': '#336699',
+  'acme.user.tags': ['a'],
 };
 
 describe('extension setting values', () => {
@@ -237,6 +272,17 @@ describe('extension setting values', () => {
     ['enum outside options', 'acme.user.mode', 'c', 'option'],
     ['enum given a number', 'acme.user.mode', 1, 'type'],
     ['null for any type', COUNT, null, 'type'],
+    ['text over maxLength', 'acme.user.note', 'x'.repeat(13), 'max-length'],
+    ['text given a list', 'acme.user.note', ['x'], 'type'],
+    ['color without #', 'acme.user.tint', '336699', 'format'],
+    ['short color', 'acme.user.tint', '#369', 'format'],
+    ['color with alpha', 'acme.user.tint', '#33669900', 'format'],
+    ['color with a non-hex digit', 'acme.user.tint', '#33669g', 'format'],
+    ['color given a number', 'acme.user.tint', 0x336699, 'type'],
+    ['list given a string', 'acme.user.tags', 'a', 'type'],
+    ['list with a non-string item', 'acme.user.tags', ['a', 1], 'type'],
+    ['list over maxItems', 'acme.user.tags', ['a', 'b', 'c', 'd'], 'max-items'],
+    ['list item over itemMaxLength', 'acme.user.tags', ['abcde'], 'max-length'],
   ] as const)(
     'rejects %s with INVALID_ARGUMENT/%s and stores nothing',
     async (_name, settingId, value, reason) => {
@@ -252,6 +298,53 @@ describe('extension setting values', () => {
       expect(changes).toEqual([]);
     },
   );
+
+  it('stores a color in lower case and a list as given; the host sees both', async () => {
+    const t = await open();
+    const changes = watch(t);
+    const saved = await t.engine.extensions.setSettingValue(
+      'acme.user',
+      'acme.user.tint',
+      '#AABB0C',
+    );
+    expect(saved['acme.user.tint']).toBe('#aabb0c');
+    await t.engine.extensions.setSettingValue('acme.user', 'acme.user.tags', [
+      'b',
+      'a',
+      'b',
+    ]);
+    expect(await t.extensionDataStore.settings.all('acme.user')).toEqual({
+      'acme.user.tint': '#aabb0c',
+      'acme.user.tags': ['b', 'a', 'b'],
+    });
+    expect(changes).toEqual([
+      { extensionId: 'acme.user', id: 'acme.user.tint', value: '#aabb0c' },
+      {
+        extensionId: 'acme.user',
+        id: 'acme.user.tags',
+        value: ['b', 'a', 'b'],
+      },
+    ]);
+  });
+
+  it('same color in another case and an equal list are not changes', async () => {
+    const t = await open();
+    await t.engine.extensions.setSettingValue(
+      'acme.user',
+      'acme.user.tint',
+      '#aabb0c',
+    );
+    const changes = watch(t);
+    await t.engine.extensions.setSettingValue(
+      'acme.user',
+      'acme.user.tint',
+      '#AABB0C',
+    );
+    await t.engine.extensions.setSettingValue('acme.user', 'acme.user.tags', [
+      'a',
+    ]);
+    expect(changes).toEqual([]);
+  });
 
   it('accepts the boundaries: min, max, maxLength, a fractional value, every enum option', async () => {
     const t = await open();
@@ -335,11 +428,14 @@ describe('extension setting values', () => {
       'acme.user.count',
       'acme.user.ratio',
       'acme.user.mode',
+      'acme.user.note',
+      'acme.user.tint',
+      'acme.user.tags',
       'dolphy.bundled.flag',
     ]);
     settings.length = 0; // копия: реестр не меняется
     expect((await t.engine.extensions.contributions()).settings).toHaveLength(
-      6,
+      9,
     );
   });
 });

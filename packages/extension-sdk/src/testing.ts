@@ -1,6 +1,8 @@
 import {
   EXTENSION_COMMAND_LIMITS,
+  COLOR_SETTING_PATTERN,
   EXTENSION_STORAGE_LIMITS,
+  SETTING_LIMITS,
   InvalidCommandResultError,
   PermissionError,
   ANSWER_EVENT,
@@ -124,6 +126,22 @@ export const createMemoryStorage = (): ExtensionStorage => {
   };
 };
 
+/** The value as the host stores it: a color in lower case, a list copied. */
+const storedForm = (
+  definition: SettingContribution,
+  value: SettingValue,
+): SettingValue =>
+  definition.type === 'color' && typeof value === 'string'
+    ? value.toLowerCase()
+    : Array.isArray(value)
+      ? [...value]
+      : value;
+
+const sameSettingValue = (a: SettingValue | undefined, b: SettingValue) =>
+  Array.isArray(a) && Array.isArray(b)
+    ? a.length === b.length && a.every((item, index) => item === b[index])
+    : Object.is(a, b);
+
 /** Why a value does not fit the setting definition; `null` if it fits. */
 const findSettingProblem = (
   definition: SettingContribution,
@@ -132,6 +150,25 @@ const findSettingProblem = (
   switch (definition.type) {
     case 'boolean':
       return typeof value === 'boolean' ? null : 'must be a boolean';
+    case 'color':
+      return typeof value === 'string' && COLOR_SETTING_PATTERN.test(value)
+        ? null
+        : 'must be a color #rrggbb';
+    case 'list': {
+      if (
+        !Array.isArray(value) ||
+        !value.every((item) => typeof item === 'string')
+      ) {
+        return 'must be an array of strings';
+      }
+      const maxItems = definition.maxItems ?? SETTING_LIMITS.listItems;
+      if (value.length > maxItems) return `has more than ${maxItems} items`;
+      const itemMax = definition.itemMaxLength ?? SETTING_LIMITS.listItemLength;
+      return value.some((item: string) => item.length > itemMax)
+        ? `has an item longer than ${itemMax} characters`
+        : null;
+    }
+    case 'text':
     case 'string':
       if (typeof value !== 'string') return 'must be a string';
       return definition.maxLength !== undefined &&
@@ -177,7 +214,10 @@ export const createMemorySettings = (
     definitions.map((definition) => [definition.id, definition]),
   );
   const values = new Map<string, SettingValue>(
-    definitions.map((definition) => [definition.id, definition.default]),
+    definitions.map((definition) => [
+      definition.id,
+      storedForm(definition, definition.default),
+    ]),
   );
   const handlers = new Set<(change: SettingChange) => void>();
   const known = (id: string): SettingContribution => {
@@ -190,15 +230,14 @@ export const createMemorySettings = (
   const checked = (id: string, value: unknown): SettingValue => {
     const problem = findSettingProblem(known(id), value);
     if (problem !== null) throw new Error(`setting '${id}' ${problem}`);
-    return value as SettingValue;
+    return storedForm(known(id), value as SettingValue);
   };
   for (const [id, value] of Object.entries(initial)) {
     values.set(id, checked(id, value));
   }
   return {
     get: <T extends SettingValue = SettingValue>(id: string): T => {
-      known(id);
-      return values.get(id) as T;
+      return storedForm(known(id), values.get(id) as SettingValue) as T;
     },
     onDidChange(handler) {
       handlers.add(handler);
@@ -206,7 +245,7 @@ export const createMemorySettings = (
     },
     async set(id, value) {
       const next = checked(id, value);
-      if (Object.is(values.get(id), next)) return;
+      if (sameSettingValue(values.get(id), next)) return;
       values.set(id, next);
       for (const handler of [...handlers]) await handler({ id, value: next });
     },

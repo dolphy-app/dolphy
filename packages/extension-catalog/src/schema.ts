@@ -27,8 +27,10 @@ export const MAX_TOTAL_BYTES = 10_000_000;
 const MAX_TITLE_LENGTH = 60;
 /** Most tags of a version. */
 export const MAX_TAGS = 5;
-/** Contribution points whose entries carry a human title in the manifest (`label` or `title`). */
+/** Contribution points whose entries carry a human title in the manifest (`label` or `title`); for exercise types and renderers the title is optional and the renderer is keyed by its language. */
 export const TITLED_POINTS = [
+  'exerciseTypes',
+  'markdownRenderers',
   'themes',
   'gradePolicies',
   'settings',

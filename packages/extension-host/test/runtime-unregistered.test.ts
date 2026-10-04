@@ -25,6 +25,7 @@ const command = (name: string) => ({
 
 const exerciseType = (id: string) => ({
   id,
+  title: null,
   specSchema: { type: 'object' },
   answerSchema: { type: 'string' },
   element: 'acme-warn-answer',

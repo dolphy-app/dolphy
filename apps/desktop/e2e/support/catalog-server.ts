@@ -163,9 +163,9 @@ interface RawManifest {
   minAppVersion?: string;
   permissions?: string[];
   contributes?: {
-    exerciseTypes?: { id: string }[];
+    exerciseTypes?: { id: string; title?: string }[];
     themes?: { id: string; label: string }[];
-    markdownRenderers?: { language: string }[];
+    markdownRenderers?: { language: string; title?: string }[];
     gradePolicies?: { id: string; label: string }[];
     settings?: { id: string; label: string }[];
     events?: { event: string }[];
@@ -203,6 +203,13 @@ const contributesOf = (
 const titlesOf = (manifest: RawManifest): ContributionTitles => {
   const contributes = manifest.contributes ?? {};
   const byPoint: Record<TitledPoint, { id: string; title: string }[]> = {
+    exerciseTypes: (contributes.exerciseTypes ?? []).flatMap(
+      ({ id, title }) => (title === undefined ? [] : [{ id, title }]),
+    ),
+    markdownRenderers: (contributes.markdownRenderers ?? []).flatMap(
+      ({ language, title }) =>
+        title === undefined ? [] : [{ id: language, title }],
+    ),
     themes: (contributes.themes ?? []).map(({ id, label }) => ({
       id,
       title: label,

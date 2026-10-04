@@ -81,7 +81,13 @@ export const contributesOf = (
 export const titlesOf = (
   extension: Pick<
     ResolvedExtension,
-    'themes' | 'gradePolicies' | 'settings' | 'commands' | 'panels'
+    | 'exerciseTypes'
+    | 'markdownRenderers'
+    | 'themes'
+    | 'gradePolicies'
+    | 'settings'
+    | 'commands'
+    | 'panels'
   >,
 ): ExtensionInfoDto['titles'] => {
   const titles: ExtensionInfoDto['titles'] = {};
@@ -95,6 +101,21 @@ export const titlesOf = (
       items.map((item) => [item.id, title(item as never)]),
     );
   };
+  const titled = <T extends { title: string | null }>(items: readonly T[]) =>
+    items.filter(({ title }) => title !== null);
+  add(
+    'exerciseTypes',
+    titled(extension.exerciseTypes),
+    (item: { title: string }) => item.title,
+  );
+  add(
+    'markdownRenderers',
+    titled(extension.markdownRenderers).map((item) => ({
+      ...item,
+      id: item.language,
+    })),
+    (item: { title: string }) => item.title,
+  );
   add('themes', extension.themes, (item: { label: string }) => item.label);
   add(
     'gradePolicies',
@@ -205,7 +226,8 @@ export const createExtensionRegistry = (
       ),
       markdownRenderers: enabled().flatMap((extension) =>
         extension.markdownRenderers.map((renderer) => ({
-          ...renderer,
+          language: renderer.language,
+          rendererUrl: renderer.rendererUrl,
           extensionId: extension.id,
           isolated: policy.isIsolated(extension.id),
           origin: extension.origin,

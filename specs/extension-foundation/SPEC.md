@@ -70,8 +70,8 @@ superseded-by: null
 
 - [x] 1a DIAGNOSTICS + SCHEMA (PR 1): `ExtensionDiagnosticDto` и коды, `message` → `diagnostics` в контракте, реестре, окне (ru/en), `testkit`, тестах; `formatDiagnostic` для CLI
 - [x] 1a `extension.schema.json`, тест перегенерации, `package-manifest.mjs`/`verify-packages.mjs`, `$schema` в `manifestSchema` и шаблоне, `docs/design/extensions.md`
-- [ ] 1b SAFE MODE + HEALTH (PR 2): `forceSafeMode`, политика, настройка `safeMode` (контракт, сервис, RPC, адаптеры), баннер, переключатель
-- [ ] 1b `extension-health`, сообщение хоста `health`, `ext-supervisor.reset()`, `ext-host-status`, `restartHost`, баннер «gave-up», строка здоровья, e2e
+- [x] 1b SAFE MODE + HEALTH (PR 2): `forceSafeMode`, политика, настройка `safeMode` (контракт, сервис, RPC, адаптеры), баннер, переключатель
+- [x] 1b `extension-health`, сообщение хоста `health`, `ext-supervisor.reset()`, `ext-host-status`, `restartHost`, баннер «gave-up», строка здоровья, e2e
 - [ ] 1c LOGS AND LIMITS (PR 3): лимит вывода и IPC (`restricted-runner.ts`), `ctx.logger` с `extensionId` у доверенных расширений (`runtime.ts`), `log-file.ts`, `stdio: 'pipe'`, `LogReader`, `readLogs`, диалог журнала, «Скопировать диагностику», e2e
 - [ ] 1d CI (PR 4): `desktop-checks.yml`, первый запуск на Linux и macOS, правка `scripts/smoke.mjs`/`global-setup.ts` по итогам, README, `AGENTS.md`, `git-workflow`
 - [ ] Закрытие: перенос долговечного в `docs/design`, `Outcomes`, архив
@@ -98,6 +98,17 @@ superseded-by: null
 - `extension.schema.json` занесён в `.prettierignore` (генерируется и сверяется побайтно, форматтер ломал бы сверку).
 - `ajv` добавлен devDependency `extension-tools` ради проверки примеров `docs-contributions` по схеме.
 
+Стадия 1b (реализация):
+
+- Сообщение хоста `health` сделано запросом хоста `health.report` (`protocol.ts`, `kind`: `activated` | `suppressed` | `reset`), а не отдельным видом сообщения: он идёт готовым путём ограниченный процесс → раннер → рантайм хоста → канал → `ExtensionHostServices.health` и раннер сам подменяет `extensionId` своим, как у `storage.*`. Отдельный тип сообщения потребовал бы второго пути для процесса.
+- `ExtensionHealth` (порт `packages/engine/src/ports/extension-health.ts`, реализация `app/extension-health.ts`) создаётся до движка (`boot.ts`): клиенты хоста и диспетчер событий строятся раньше `createEngine` и пишут сбои в тот же экземпляр, который движок отдаёт как `extensionHealth` в `EngineDeps`. Вместе с ним в `EngineDeps` добавлен `extensionHostControl` (порт `restart()`; в `boot.ts` — сообщение `reset-ext-host` в main).
+- Спека не называла событие, но окну нужно знать об изменении здоровья и состояния хоста без опроса: добавлено `{ type: 'extension-health-changed' }` (контракт 15, `exhaustive.test-d.ts`). Публикуется `bus.publish` вне очереди команд, потому что сбой приходит не из команды.
+- `extensions.diagnostics` и `extensions.restartHost` добавлены в `UNQUEUED`: окно обязано видеть остановленный хост и мочь его запустить, пока в очереди висит долгая команда.
+- Порог приостановки в `restricted-runner.ts` был «более 5 выходов» (шестой); R9 требует пятое падение за 60 с, порог стал `>= MAX_EXITS`. Тест цикла падений переписан под пятый выход и проверяет сообщение движку.
+- «Убийства и приостановка — состояние, а не сбой» реализовано в самом учёте: `recordFailure` игнорирует отказы, пока `suppressedUntil` в будущем (иначе каждый отказ приостановленному расширению рос бы как новый сбой). Потеря хоста (`host-down`), `replaced` и `unknown-command` сбоями не считаются; правила оценки сбоями не считаются вовсе (спека называет команды, события и виды заданий).
+- Безопасный режим не меняет `toggleable` строки: переключатель «Включено» остаётся, но пока режим действует, расширение отключено независимо от него (так же ведёт себя отзыв в каталоге).
+- Дизайн-ревью баннера (настоящий Electron, светлая и тёмная темы, 640/900/1280 px): белый текст на заливке `warning` давал контраст около 3,2:1 (P1), переключатель «Безопасный режим» в панели переносил «Обновить» на вторую строку (P2), текст баннера обрезался одной строкой (P2). Баннер теперь на `surface-variant` с рамкой и значком `warning` (контраст текста 5,18:1 и 6,39:1), текст в две строки, переключатель с пояснением — отдельным блоком над списком. Скриншоты не коммитятся.
+
 ## Decision Log
 
 - 2026-10-04. Обратная совместимость не обеспечивается (владелец): приложение и расширения сырые, ломаем сразу. Причина: экономия усилий, нет внешних пользователей API. Следствие: «храповик» (терпимый разбор, `@since`, гейтинг `minAppVersion`) отменён, `message` заменяется на `diagnostics` без переходного поля.
@@ -111,6 +122,8 @@ superseded-by: null
 - 2026-10-04. CI-проверки вынесены в `desktop-checks.yml`, а не в `ci.yml`. Причина: они на PR только в `main`, `ci.yml` остаётся быстрым для PR в `develop`.
 - 2026-10-04 (1a). Контракт 14: поле `diagnostics` вместо `message`; номер — следующий свободный на момент слияния, при конфликте пересчитывается. Коды `safe-mode` включены в закрытый список сразу (по спеке), использовать их начнёт 1b.
 - 2026-10-04 (1a). `DiscoveryDiagnostic` и `InspectResult` несут поле `diagnostic` (одна диагностика), `ExtensionInfoDto` — `diagnostics` (список): у расширения в реестре пока ровно ноль или одна запись.
+- 2026-10-04 (1b). Контракт 15 (следующий свободный на момент ветки; при слиянии номер пересчитывается): `ExtensionSettingsDto.safeMode`, `EngineConfig.forceSafeMode`, `extensions.{setSafeMode,diagnostics,restartHost}`, событие `extension-health-changed`.
+- 2026-10-04 (1b). Здоровье и состояние хоста — в памяти движка, главный процесс сообщает состояние хоста расширений сообщением `ext-host-status` и повторяет его, когда хост движка (пере)запускается.
 
 ## Outcomes
 

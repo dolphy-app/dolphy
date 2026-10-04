@@ -1,6 +1,10 @@
 export const ru = {
   exercisePanel: {
     material: 'Материал урока · {course}',
+    sections: {
+      button: 'Разделы',
+      label: 'Разделы урока',
+    },
     answer: {
       frameTitle: 'Ввод ответа от расширения в изолированной рамке: {label}',
       loadFailed: 'Не удалось загрузить ввод ответа ({element}).',

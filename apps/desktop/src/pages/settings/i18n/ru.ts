@@ -325,7 +325,7 @@ export const ru = {
         rowAction: 'Журнал',
         rowActionLabel: 'Журнал расширения «{name}»',
         filterExtension: 'Расширение',
-        filterExtensionHint: 'Идентификатор расширения; пусто — все записи',
+        filterExtensionHint: 'Все расширения',
         filterLevel: 'Минимальный уровень',
         level: {
           debug: 'Отладка',

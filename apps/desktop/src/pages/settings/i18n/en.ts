@@ -327,7 +327,7 @@ export const en: typeof ru = {
         rowAction: 'Log',
         rowActionLabel: 'Log of the extension “{name}”',
         filterExtension: 'Extension',
-        filterExtensionHint: 'Extension id; empty shows all entries',
+        filterExtensionHint: 'All extensions',
         filterLevel: 'Minimum level',
         level: {
           debug: 'Debug',

@@ -73,8 +73,9 @@ const timeOf = (at: number) =>
           :model-value="extensionId"
           :items="extensionIds"
           :label="t('settings.extensions.log.filterExtension')"
-          :hint="t('settings.extensions.log.filterExtensionHint')"
-          persistent-hint
+          :placeholder="t('settings.extensions.log.filterExtensionHint')"
+          persistent-placeholder
+          hide-details
           clearable
           density="compact"
           variant="outlined"
@@ -92,6 +93,7 @@ const timeOf = (at: number) =>
             }))
           "
           :label="t('settings.extensions.log.filterLevel')"
+          hide-details
           density="compact"
           variant="outlined"
           class="filter-level"
@@ -99,6 +101,8 @@ const timeOf = (at: number) =>
           @update:model-value="log.setMinLevel($event)"
         />
       </div>
+
+      <v-divider class="mt-4" />
 
       <v-card-text ref="scroller" class="pt-2">
         <v-progress-linear
@@ -180,7 +184,7 @@ const timeOf = (at: number) =>
                 {{ entry.extensionId }}
               </v-chip>
             </div>
-            <p class="mono message text-body-medium">{{ entry.message }}</p>
+            <p class="mono message text-body-small">{{ entry.message }}</p>
             <details v-if="entry.details !== null" class="details">
               <summary class="text-body-small text-medium-emphasis">
                 {{ t('settings.extensions.log.details') }}
@@ -195,7 +199,7 @@ const timeOf = (at: number) =>
 
       <v-card-actions>
         <span
-          v-if="state === 'loaded'"
+          v-if="state === 'loaded' && entries.length > 0"
           class="text-body-small text-medium-emphasis ps-2"
           aria-live="polite"
         >
@@ -267,6 +271,7 @@ const timeOf = (at: number) =>
 }
 
 .message {
+  margin: 0.25rem 0 0;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }

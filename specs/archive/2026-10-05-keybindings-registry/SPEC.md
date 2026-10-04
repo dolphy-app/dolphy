@@ -1,8 +1,8 @@
 ---
-status: active
+status: done
 branch: feature/keybindings-registry
 created: 2026-10-05
-closed: null
+closed: 2026-10-05
 touches:
   - packages/keybindings
   - packages/engine-contract
@@ -18,6 +18,8 @@ superseded-by: null
 ---
 
 # Реестр сочетаний клавиш
+
+> Исторический документ. Не источник требований.
 
 Живой документ, пока `status` — `draft` или `active`: `Progress`, `Surprises & Discoveries`, `Decision Log` обновляются вместе с кодом. По завершении фичи переносится в `specs/archive/` и не меняется. Правила — скилл `spec-workflow`.
 
@@ -145,4 +147,8 @@ superseded-by: null
 
 ## Outcomes
 
-<Заполняется при закрытии.>
+Сделано всё по требованиям R1–R24: пакет `@dolphy-app/keybindings` (201 тест), контракт 19 с `settings.getKeybindings/setKeybindings`, проверка и хранение в `engine.db` (memory, json и sqlite проходят общий набор), привязки команд расширений (`keybinding`, `keybindings`) с проверкой на трёх платформах, окно с одним диспетчером, контекстными ключами, цепочками, страницей «Сочетания клавиш» (рекордер, `when`, пересечения, «Переназначить», сброс), палитра показывает действующую привязку. Проверено: `pnpm lint`, `pnpm typecheck`, `pnpm test` (6030 тестов; 4 теста симуляции, графа и `engine-git` падают по таймауту при общей нагрузке и проходят по отдельности), e2e `keybindings` и `command-registry` в настоящем Electron (22 теста).
+
+Отличия от плана: проверка доступности в e2e структурная, без `axe-core` (его нет в репозитории); `platform` движка — поле `EngineDeps`, а не контракта; `ChordStatus.vue` лежит в `app/layouts`; Save блокируется, пока на ту же клавишу есть пользовательская привязка другой команды (движок бы отклонил), «Переназначить» остаётся доступным.
+
+Осталось: фактическая публикация `@dolphy-app/keybindings` в npmjs — её делает `release.yml` при релизе (токен `NPM_TOKEN` есть только в CI; на рабочей машине `npm whoami` без авторизации); `axe-core` в e2e — отдельная задача.

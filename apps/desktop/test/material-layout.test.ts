@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type {
   LearningEngine,
   UiSettingsDto,
-  UiSettingsPatch,
 } from '@dolphy-app/engine-contract';
 import {
   clampWidth,
@@ -51,7 +50,7 @@ describe('widthFromKey', () => {
 });
 
 const fakeEngine = (ui: UiSettingsDto, options: { failSet?: boolean } = {}) => {
-  const setUi = vi.fn(async (_patch: UiSettingsPatch) => {
+  const setUi = vi.fn(async () => {
     if (options.failSet) throw new Error('disk is full');
     return ui;
   });

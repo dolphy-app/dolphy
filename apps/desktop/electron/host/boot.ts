@@ -2,6 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { createEngine, createExtensionHealth } from '@dolphy-app/engine/app';
 import { nodeDefaults } from '@dolphy-app/engine/node';
+import type { PlatformServices } from '@dolphy-app/engine/ports';
 import type { EngineConfig } from '@dolphy-app/engine-contract';
 import { createIsomorphicGitFetcher } from '@dolphy-app/engine-git';
 import {
@@ -30,6 +31,8 @@ export const boot = async (
   restartExtHost: () => void,
   /** Пользователь просит запустить хост расширений после `gave-up`: main сбрасывает счётчик падений. */
   resetExtHost: () => void,
+  /** Возможности main (шифр секретов): запросы уходят по `parentPort`. */
+  platform: PlatformServices,
 ) => {
   // первый запуск: каталогов ещё нет, библиотека может быть пустой
   mkdirSync(config.libraryRoot, { recursive: true });
@@ -121,6 +124,7 @@ export const boot = async (
       eventStore,
       repositoryStore,
       extensionDataStore,
+      platform,
       snapshotFetcher: createIsomorphicGitFetcher(),
       exerciseTypes,
       gradePolicies,

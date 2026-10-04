@@ -3,7 +3,7 @@ import {
   findStorageViolation,
   utf8Length,
 } from '../domain/index.ts';
-import type { StorageSnapshot } from '../domain/index.ts';
+import type { StorageLimits, StorageSnapshot } from '../domain/index.ts';
 import { EngineError } from './errors.ts';
 
 /**
@@ -16,6 +16,7 @@ export const prepareStorageWrite = (
   key: unknown,
   value: unknown,
   snapshot: () => StorageSnapshot,
+  limits?: StorageLimits,
 ): { encoded: string; bytes: number } => {
   if (typeof key !== 'string' || key === '') {
     throw new EngineError('INVALID_ARGUMENT', {
@@ -31,7 +32,7 @@ export const prepareStorageWrite = (
     });
   }
   const bytes = utf8Length(encoded);
-  const violation = findStorageViolation(key, bytes, snapshot());
+  const violation = findStorageViolation(key, bytes, snapshot(), limits);
   if (violation !== null) {
     throw new EngineError('EXTENSION_STORAGE_QUOTA', {
       message: `Extension storage quota exceeded (${violation.kind}: limit ${violation.limit})`,

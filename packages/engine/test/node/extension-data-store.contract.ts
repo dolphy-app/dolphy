@@ -1,6 +1,10 @@
 import type { JsonValue } from '@dolphy-app/engine-contract';
 import { describe, expect, it } from 'vitest';
-import { EXTENSION_STORAGE_LIMITS } from '../../src/domain/index.ts';
+import {
+  EXTENSION_STORAGE_LIMITS,
+  SECRET_STORE_LIMITS,
+} from '../../src/domain/index.ts';
+import type { StorageLimits } from '../../src/domain/index.ts';
 import type {
   ExtensionDataSpace,
   ExtensionDataStore,
@@ -8,7 +12,6 @@ import type {
 
 const A = 'acme.alpha';
 const B = 'acme.beta';
-const { valueBytes, keys: maxKeys, totalBytes } = EXTENSION_STORAGE_LIMITS;
 
 /** Строка, чей JSON-текст занимает ровно `bytes` байт UTF-8 (`"` + буквы + `"`). */
 const jsonOfSize = (bytes: number, letter = 'a'): string =>
@@ -24,9 +27,12 @@ const quota = (kind: string, limit: number) =>
 const spaces: readonly (readonly [
   string,
   (s: ExtensionDataStore) => ExtensionDataSpace,
+  StorageLimits,
 ])[] = [
-  ['storage', (store) => store.storage],
-  ['settings', (store) => store.settings],
+  ['storage', (store) => store.storage, EXTENSION_STORAGE_LIMITS],
+  ['settings', (store) => store.settings, EXTENSION_STORAGE_LIMITS],
+  // секреты: в хранилище лежит шифртекст, у него свои потолки
+  ['secrets', (store) => store.secrets, SECRET_STORE_LIMITS],
 ];
 
 /** Общий набор проверок адаптеров `ExtensionDataStore` (память, SQLite). */
@@ -35,7 +41,10 @@ export const describeExtensionDataStoreContract = (
   make: () => Promise<ExtensionDataStore>,
 ) =>
   describe(`ExtensionDataStore (${name})`, () => {
-    describe.each(spaces)('%s', (_, pick) => {
+    describe.each(spaces)('%s', (_, pick, limits) => {
+      const { valueBytes, keys: maxKeys, totalBytes } = limits;
+      // у секретов ключей меньше, чем слотов под общий размер: потолок размера недостижим
+      const totalReachable = totalBytes / valueBytes < maxKeys;
       const open = async () => pick(await make());
 
       it('отсутствующий ключ — undefined, пустые keys/all/usage', async () => {
@@ -183,7 +192,7 @@ export const describeExtensionDataStoreContract = (
           expect(await space.keys(A)).toEqual(['k'.repeat(128)]);
         });
 
-        it('значение: ровно 64 КиБ допустимо, на байт больше — value-size', async () => {
+        it('значение: ровно потолок допустимо, на байт больше — value-size', async () => {
           const space = await open();
           const exact = jsonOfSize(valueBytes);
           await space.set(A, 'k', exact);
@@ -196,7 +205,7 @@ export const describeExtensionDataStoreContract = (
 
         it('значение считается в байтах, а не в символах', async () => {
           const space = await open();
-          const wide = jsonOfSize(valueBytes, 'я'); // 32 767 символов
+          const wide = jsonOfSize(valueBytes, 'я'); // вдвое меньше символов, чем байт
           expect(wide.length).toBeLessThan(valueBytes / 2);
           await space.set(A, 'k', wide);
           await expect(space.set(A, 'k2', `${wide}я`)).rejects.toMatchObject(
@@ -204,7 +213,7 @@ export const describeExtensionDataStoreContract = (
           );
         });
 
-        it('ключей: 256 допустимо, 257-й — key-count; перезапись существующего допустима', async () => {
+        it('ключей: ровно потолок допустимо, следующий — key-count; перезапись существующего допустима', async () => {
           const space = await open();
           for (let i = 0; i < maxKeys; i++) await space.set(A, `k${i}`, i);
           await expect(space.set(A, 'extra', 1)).rejects.toMatchObject(
@@ -217,45 +226,56 @@ export const describeExtensionDataStoreContract = (
           await space.set(B, 'k', 1);
         });
 
-        it('всего: ровно 1 МиБ допустимо, на байт больше — total-size, остальное не меняется', async () => {
-          const space = await open();
-          const full = jsonOfSize(valueBytes);
-          const slots = totalBytes / valueBytes;
-          for (let i = 0; i < slots; i++) await space.set(A, `k${i}`, full);
-          expect((await space.usage(A)).bytes).toBe(totalBytes);
-          await expect(space.set(A, 'more', 1)).rejects.toMatchObject(
-            quota('total-size', totalBytes),
-          );
-          // перезапись равным по размеру допустима, большим — нет
-          await space.set(A, 'k0', jsonOfSize(valueBytes, 'b'));
-          await expect(
-            space.set(A, 'k0', `${jsonOfSize(valueBytes, 'c')}c`),
-          ).rejects.toMatchObject(quota('value-size', valueBytes));
-          // уменьшение освобождает место
-          await space.set(A, 'k0', 1);
-          await space.set(A, 'more', jsonOfSize(valueBytes - 1));
-          expect((await space.usage(A)).bytes).toBeLessThanOrEqual(totalBytes);
-          expect(await space.get(A, 'k1')).toBe(full);
-        });
+        it.skipIf(!totalReachable)(
+          'всего: ровно потолок допустимо, на байт больше — total-size, остальное не меняется',
+          async () => {
+            const space = await open();
+            const full = jsonOfSize(valueBytes);
+            const slots = totalBytes / valueBytes;
+            for (let i = 0; i < slots; i++) await space.set(A, `k${i}`, full);
+            expect((await space.usage(A)).bytes).toBe(totalBytes);
+            await expect(space.set(A, 'more', 1)).rejects.toMatchObject(
+              quota('total-size', totalBytes),
+            );
+            // перезапись равным по размеру допустима, большим — нет
+            await space.set(A, 'k0', jsonOfSize(valueBytes, 'b'));
+            await expect(
+              space.set(A, 'k0', `${jsonOfSize(valueBytes, 'c')}c`),
+            ).rejects.toMatchObject(quota('value-size', valueBytes));
+            // уменьшение освобождает место
+            await space.set(A, 'k0', 1);
+            await space.set(A, 'more', jsonOfSize(valueBytes - 1));
+            expect((await space.usage(A)).bytes).toBeLessThanOrEqual(
+              totalBytes,
+            );
+            expect(await space.get(A, 'k1')).toBe(full);
+          },
+        );
 
-        it('отказ при переполнении итога не меняет старое значение', async () => {
-          const space = await open();
-          const big = jsonOfSize(valueBytes);
-          const slots = totalBytes / valueBytes;
-          for (let i = 0; i < slots - 1; i++) await space.set(A, `k${i}`, big);
-          await space.set(A, 'pad', jsonOfSize(valueBytes - 10)); // остаток — 10 байт
-          await space.set(A, 'small', 'x'); // 3 байта: остаток 7
-          await expect(
-            space.set(A, 'small', jsonOfSize(30)),
-          ).rejects.toMatchObject(quota('total-size', totalBytes));
-          expect(await space.get(A, 'small')).toBe('x');
-          await space.set(A, 'small', jsonOfSize(10)); // ровно в остаток
-        });
+        it.skipIf(!totalReachable)(
+          'отказ при переполнении итога не меняет старое значение',
+          async () => {
+            const space = await open();
+            const big = jsonOfSize(valueBytes);
+            const slots = totalBytes / valueBytes;
+            for (let i = 0; i < slots - 1; i++)
+              await space.set(A, `k${i}`, big);
+            await space.set(A, 'pad', jsonOfSize(valueBytes - 10)); // остаток — 10 байт
+            await space.set(A, 'small', 'x'); // 3 байта: остаток 7
+            await expect(
+              space.set(A, 'small', jsonOfSize(30)),
+            ).rejects.toMatchObject(quota('total-size', totalBytes));
+            expect(await space.get(A, 'small')).toBe('x');
+            await space.set(A, 'small', jsonOfSize(10)); // ровно в остаток
+          },
+        );
       });
     });
 
-    it('хранилище кода и значения настроек не пересекаются и не делят потолки', async () => {
+    it('хранилище кода, значения настроек и секреты не пересекаются и не делят потолки', async () => {
+      const { valueBytes, totalBytes } = EXTENSION_STORAGE_LIMITS;
       const store = await make();
+      await store.secrets.set(A, 'k', 'cipher');
       await store.storage.set(A, 'k', 'code');
       await store.settings.set(A, 'k', 'setting');
       expect(await store.storage.get(A, 'k')).toBe('code');
@@ -270,17 +290,23 @@ export const describeExtensionDataStoreContract = (
       );
       await store.settings.set(A, 'fresh', 1);
       expect(await store.settings.usage(A)).toEqual({ keys: 2, bytes: 9 + 1 });
+      expect(await store.secrets.get(A, 'k')).toBe('cipher');
+      expect(await store.secrets.keys(A)).toEqual(['k']);
     });
 
-    it('deleteAllData стирает оба пространства только своего расширения', async () => {
+    it('deleteAllData стирает все три пространства только своего расширения', async () => {
       const store = await make();
       await store.storage.set(A, 'k', 1);
       await store.settings.set(A, 'k', 2);
+      await store.secrets.set(A, 'k', 'a');
       await store.storage.set(B, 'k', 3);
       await store.settings.set(B, 'k', 4);
+      await store.secrets.set(B, 'k', 'b');
       await store.deleteAllData(A);
       expect(await store.storage.keys(A)).toEqual([]);
       expect(await store.settings.keys(A)).toEqual([]);
+      expect(await store.secrets.keys(A)).toEqual([]);
+      expect(await store.secrets.get(B, 'k')).toBe('b');
       expect(await store.storage.get(B, 'k')).toBe(3);
       expect(await store.settings.get(B, 'k')).toBe(4);
     });

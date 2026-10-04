@@ -82,6 +82,10 @@ export const ERRORS: Record<EngineErrorCode, ErrorSpec> = {
     message: 'Extension storage quota exceeded',
     retryable: false,
   },
+  SECRETS_UNAVAILABLE: {
+    message: 'System secret store is unavailable',
+    retryable: false,
+  },
   // retryable зависит от details.reason: timeout, host-down → true
   EXTENSION_COMMAND_FAILED: {
     message: 'Extension command failed',

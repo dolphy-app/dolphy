@@ -6,15 +6,15 @@ import type {
   LearningEngine,
 } from '@dolphy-app/engine-contract';
 
-/** Данные расширения: ключи и байты хранилища кода и значений настроек вместе. */
+/** Данные расширения: ключи и байты хранилища кода, значений настроек и секретов вместе. */
 export interface DataTotals {
   keys: number;
   bytes: number;
 }
 
 export const dataTotals = (usage: ExtensionDataUsageDto): DataTotals => ({
-  keys: usage.storage.keys + usage.settings.keys,
-  bytes: usage.storage.bytes + usage.settings.bytes,
+  keys: usage.storage.keys + usage.settings.keys + usage.secrets.keys,
+  bytes: usage.storage.bytes + usage.settings.bytes + usage.secrets.bytes,
 });
 
 /** Данные есть, если занят хотя бы один ключ: строка «Данные» без них не показывается. */

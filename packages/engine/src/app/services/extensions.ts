@@ -486,6 +486,7 @@ export const createExtensionsService = (
       return {
         storage: await ctx.extensionData.storage.usage(extensionId),
         settings: await ctx.extensionData.settings.usage(extensionId),
+        secrets: await ctx.extensionData.secrets.usage(extensionId),
       };
     },
     clearData: async (id) => values.wipe(values.requireId(id)),

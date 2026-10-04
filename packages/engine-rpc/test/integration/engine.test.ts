@@ -663,6 +663,7 @@ describe('rpc → dispatcher → real engine', () => {
     ).toEqual({
       storage: { keys: 0, bytes: 0 },
       settings: { keys: 1, bytes: 2 },
+      secrets: { keys: 0, bytes: 0 },
     });
     expect(
       await call('extensions.resetSettingValues', () =>

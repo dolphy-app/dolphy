@@ -319,7 +319,7 @@ describe('жизненный цикл данных', () => {
 
     await state.clearData();
     await expect.poll(() => state.dataLine()).toBeNull();
-    expect(data()).toEqual({ storage: {}, settings: {} });
+    expect(data()).toEqual({ storage: {}, settings: {}, secrets: {} });
 
     await client.openPlan();
     await client.startSession();
@@ -422,7 +422,9 @@ describe('установка из каталога и удаление', () => {
     await state.openRemove();
     await state.tickRemoveData(true);
     await state.confirmRemove();
-    await expect.poll(() => data()).toEqual({ storage: {}, settings: {} });
+    await expect
+      .poll(() => data())
+      .toEqual({ storage: {}, settings: {}, secrets: {} });
 
     await catalog.openCatalogTab();
     await catalog.installButton(STATE_ID).click();

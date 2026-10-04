@@ -119,6 +119,9 @@ const createIo = () => {
   };
 };
 
+/** An exit signal that never comes. */
+const never = new Promise<void>(() => {});
+
 /** A fake app: records how it was launched and ends when the test says so. */
 const fakeApp = (options: { clock?: () => number } = {}) => {
   const launches: {
@@ -197,7 +200,6 @@ describe('dolphy-ext dev', () => {
     const root = await copyProject('hello');
     let now = 1000;
     const quick = fakeApp({ clock: () => now });
-    const never = new Promise<void>(() => undefined);
     const first = createIo();
     const running = runCli(['dev', root], first.io, {
       dev: quick.deps(root),
@@ -231,7 +233,7 @@ describe('dolphy-ext dev', () => {
     const cli = createIo();
     const running = runCli(['dev', root], cli.io, {
       dev: app.deps(root),
-      waitForExit: () => new Promise<void>(() => undefined),
+      waitForExit: () => never,
     });
     await waitFor(async () => app.launches.length > 0);
     app.quit({ code: null, signal: 'SIGINT' });

@@ -114,12 +114,8 @@ export const findApp = (
   const p = flavor(where.platform);
   const given = explicit ?? where.env.DOLPHY_APP;
   const chosen = given === undefined || given === '' ? null : given;
-  const found =
-    chosen !== null
-      ? where.exists(chosen)
-        ? chosen
-        : null
-      : (standardPlaces(where).find((place) => where.exists(place)) ?? null);
+  const candidates = chosen === null ? standardPlaces(where) : [chosen];
+  const found = candidates.find((place) => where.exists(place)) ?? null;
   if (found === null) {
     throw missing(
       where,
@@ -197,13 +193,12 @@ export const runDev = async (
   const command = findApp(options.app, deps);
   const build = await startBuild();
   io.stdout(`${build.summary}\n`);
-  let app: AppProcess | null = null;
   try {
     io.stdout(
       `launching ${command} with DOLPHY_DEV_EXTENSIONS=${build.outDir}\n`,
     );
     const startedAt = deps.now();
-    app = deps.launch(command, {
+    const app = deps.launch(command, {
       ...deps.env,
       DOLPHY_DEV_EXTENSIONS: build.outDir,
     });

@@ -38,6 +38,7 @@ const base: Omit<ExtensionInfoDto, 'id' | 'permissions' | 'state'> = {
   tags: [],
   removable: true,
   revoked: null,
+  deprecated: null,
 };
 const ext = (
   id: string,

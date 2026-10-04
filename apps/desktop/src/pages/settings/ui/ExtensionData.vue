@@ -5,7 +5,7 @@ import type {
   ExtensionDataUsageDto,
   ExtensionInfoDto,
 } from '@dolphy-app/engine-contract';
-import { displayName } from '../lib/catalog.ts';
+import { useExtensionText } from '@/shared/lib/extension-text.ts';
 import { formatBytes } from '../lib/format.ts';
 import { dataTotals, hasData } from '../model/extension-data.ts';
 
@@ -19,6 +19,7 @@ const props = defineProps<{
 const emit = defineEmits<{ clear: [] }>();
 
 const { t, locale } = useI18n();
+const extensionText = useExtensionText();
 
 // строка «Данные» показывается, только если у расширения есть данные
 const totals = computed(() =>
@@ -70,7 +71,7 @@ const confirm = () => {
       :loading="clearing"
       :aria-label="
         t('settings.extensions.data.clearLabel', {
-          name: displayName(extension),
+          name: extensionText.nameOf(extension),
         })
       "
       :data-testid="`clear-${extension.id}`"
@@ -88,7 +89,7 @@ const confirm = () => {
         <v-card-title :id="`clear-title-${extension.id}`" class="text-wrap">
           {{
             t('settings.extensions.data.confirmTitle', {
-              name: displayName(extension),
+              name: extensionText.nameOf(extension),
             })
           }}
         </v-card-title>

@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useContributions, useEngine } from '@/shared/api/engine';
+import { useExtensionText } from '@/shared/lib/extension-text.ts';
 import { useGradePolicySetting } from '../model/grade-policy.ts';
 import { useLearningSettings } from '../model/learning.ts';
 import type { LearningForm } from '../model/learning.ts';
@@ -20,11 +21,15 @@ const gradePolicy = useGradePolicySetting(
   () => contributions.value.gradePolicies,
 );
 const { t } = useI18n();
+const extensionText = useExtensionText();
 const confirmReset = ref(false);
 const gradePolicyItems = computed(() =>
   gradePolicy.options.value.map(({ id, label, extensionId }) => ({
     value: id,
-    title: label ?? t('settings.learning.gradePolicy.passAtN.title'),
+    title:
+      label === null
+        ? t('settings.learning.gradePolicy.passAtN.title')
+        : extensionText.of(label, extensionId ?? ''),
     subtitle: extensionId ?? t('settings.learning.gradePolicy.builtin'),
   })),
 );

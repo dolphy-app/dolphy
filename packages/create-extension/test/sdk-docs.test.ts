@@ -198,6 +198,7 @@ describe.each(checkedExamples)(
       await expect(validateExtension(built.dir)).resolves.toEqual({
         ok: true,
         problems: [],
+        warnings: [],
       });
 
       // the ids written by the build must accept the example as written
@@ -237,6 +238,7 @@ describe('no-build.md', () => {
     await expect(validateExtension(dir)).resolves.toEqual({
       ok: true,
       problems: [],
+      warnings: [],
     });
 
     const { extensions, diagnostics } = await discoverExtensions({

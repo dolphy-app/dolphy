@@ -13,6 +13,7 @@ import { panelKey, useExtensionCommands } from '@/features/extension-commands';
 import { useCommandPalette } from '@/widgets/command-palette';
 import { useContributions } from '@/shared/api/engine';
 import { ROUTE } from '@/shared/config/routes.ts';
+import { useExtensionText } from '@/shared/lib/extension-text.ts';
 import { frameUrlOf } from '@/shared/lib/frame-bridge.ts';
 import type { PanelBinding } from '@/shared/lib/frame-bridge.ts';
 import PanelFrame from '@/shared/ui/PanelFrame.vue';
@@ -22,6 +23,7 @@ const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const contributions = useContributions();
+const extensionText = useExtensionText();
 const { runner, panelProps } = useExtensionCommands();
 const palette = useCommandPalette();
 
@@ -30,6 +32,15 @@ const panelId = computed(() => String(route.params['panelId']));
 const key = computed(() => panelKey(extensionId.value, panelId.value));
 const resolved = computed(() =>
   resolvePanel(contributions.value, extensionId.value, panelId.value),
+);
+
+const panelTitle = computed(() =>
+  resolved.value === null
+    ? ''
+    : extensionText.of(
+        resolved.value.panel.title,
+        resolved.value.panel.extensionId,
+      ),
 );
 
 const binding = computed<PanelBinding | null>(() =>
@@ -81,11 +92,7 @@ const back = () => {
       </v-btn>
       <div class="titles">
         <h1 ref="heading" tabindex="-1" class="text-title-large">
-          {{
-            resolved
-              ? resolved.panel.title
-              : t('extensionPanel.unavailable.title')
-          }}
+          {{ resolved ? panelTitle : t('extensionPanel.unavailable.title') }}
         </h1>
         <span v-if="resolved" class="caption">{{ extensionId }}</span>
       </div>
@@ -109,7 +116,7 @@ const back = () => {
         :src="frameUrlOf(resolved.panel.rendererUrl)"
         :title="
           t('extensionPanel.frameTitle', {
-            title: resolved.panel.title,
+            title: panelTitle,
             extension: resolved.panel.extensionId,
           })
         "

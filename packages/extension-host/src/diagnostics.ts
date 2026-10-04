@@ -27,6 +27,10 @@ const FORMATTERS: Record<ExtensionDiagnosticCode, (data: Data) => string> = {
   'overridden-by': (data) =>
     `overridden by ${text(data, 'origin')} ${text(data, 'version')}`,
   'safe-mode': () => 'disabled in safe mode',
+  'locale.missing-key': (data) =>
+    `key '${text(data, 'key')}' is missing in locales/en.json`,
+  'locale.invalid-file': (data) =>
+    `${text(data, 'file')} is ignored: ${text(data, 'reason')}`,
 };
 
 /**

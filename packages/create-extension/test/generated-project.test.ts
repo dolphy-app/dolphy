@@ -51,6 +51,7 @@ describe.each(TEMPLATE_NAMES)('generated project: %s', (template) => {
     await expect(validateExtension(built.dir)).resolves.toEqual({
       ok: true,
       problems: [],
+      warnings: [],
     });
 
     const { extensions, diagnostics } = await discoverExtensions({

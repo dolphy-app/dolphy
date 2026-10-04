@@ -135,14 +135,22 @@ describe('extensions without code', () => {
     const root = await copyProject('theme-only');
     const { dir, files } = await buildExtension({ root });
     expect(files).toEqual(['extension.json']);
-    expect(await validateExtension(dir)).toEqual({ ok: true, problems: [] });
+    expect(await validateExtension(dir)).toEqual({
+      ok: true,
+      problems: [],
+      warnings: [],
+    });
   });
 
   it('content renderer: only the markdown.mjs browser bundle', async () => {
     const root = await copyProject('markdown-only');
     const { dir, files } = await buildExtension({ root });
     expect(files).toEqual(['extension.json', 'markdown.mjs']);
-    expect(await validateExtension(dir)).toEqual({ ok: true, problems: [] });
+    expect(await validateExtension(dir)).toEqual({
+      ok: true,
+      problems: [],
+      warnings: [],
+    });
   });
 
   it('no src/index.ts — the error names the file', async () => {
@@ -156,7 +164,11 @@ describe('validateExtension', () => {
   it('T-10 the built directory is valid', async () => {
     const root = await copyProject('hello');
     const { dir } = await buildExtension({ root });
-    expect(await validateExtension(dir)).toEqual({ ok: true, problems: [] });
+    expect(await validateExtension(dir)).toEqual({
+      ok: true,
+      problems: [],
+      warnings: [],
+    });
   });
 
   it('T-11 no main.mjs — the problem names the file', async () => {

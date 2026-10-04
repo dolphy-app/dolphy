@@ -46,7 +46,7 @@ ${CATALOG_SYNOPSIS}
   types [dir]      write <dir>/.dolphy/ids.d.ts: the ids declared in
                    extension.json as types for the SDK (no code is run)
   validate <dir>   check the directory of a built extension (extension.json,
-                   schemas, main and renderer)
+                   schemas, main and renderer, locales/*.json)
   lint [dir]       check the project before a pull request to the catalog:
                    manifest metadata, README.md and the built code (eval,
                    obfuscation, URLs without the network permission, source
@@ -192,7 +192,8 @@ const runBuild = async (
 
 const runValidate = async (dir: string, io: CliIo): Promise<number> => {
   const root = path.resolve(dir);
-  const { ok, problems } = await validateExtension(root);
+  const { ok, problems, warnings } = await validateExtension(root);
+  for (const warning of warnings) io.stdout(`warning ${root}: ${warning}\n`);
   if (ok) {
     io.stdout(`${root}: ok\n`);
     return EXIT_OK;

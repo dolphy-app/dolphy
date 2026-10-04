@@ -36,6 +36,7 @@ const info = (overrides: Partial<ExtensionInfoDto>): ExtensionInfoDto => ({
   installed: null,
   icon: null,
   titles: {},
+  messages: {},
   tags: [],
   removable: false,
   revoked: null,
@@ -134,6 +135,7 @@ describe('extensions.contributions', () => {
     settings: [],
     commands: [],
     panels: [],
+    messages: {},
   };
   const openWith = (source: RegistryContributions) =>
     createTestEngine({
@@ -174,6 +176,22 @@ describe('extensions.contributions', () => {
     const second = await engine.extensions.contributions();
     expect(second.themes).toHaveLength(2);
     expect(second.themes[0]?.colors['background']).toBe('#ffffff');
+  });
+
+  it('passes the translation tables by extension id and returns copies of them', async () => {
+    const { engine } = await openWith({
+      ...contributions,
+      messages: { 'a.ext': { en: { greeting: 'Hello' }, ru: {} } },
+    });
+    const first = await engine.extensions.contributions();
+    expect(first.messages).toEqual({
+      'a.ext': { en: { greeting: 'Hello' }, ru: {} },
+    });
+    const table = first.messages['a.ext']?.en;
+    if (table !== undefined) table['greeting'] = 'changed';
+    expect(
+      (await engine.extensions.contributions()).messages['a.ext']?.en,
+    ).toEqual({ greeting: 'Hello' });
   });
 });
 

@@ -26,6 +26,8 @@ export interface ExtensionCommandsDeps {
   registry: CommandRegistry;
   engine: Pick<ExtensionsService, 'invokeCommand'>;
   contributions: () => Readonly<ContributionsDto>;
+  /** Язык окна (`ru`/`en`); читается реактивно. */
+  locale: () => string;
   openPanel(target: { extensionId: string; panelId: string }): void;
 }
 
@@ -43,6 +45,7 @@ export const createExtensionCommands = (
     deps.registry,
     deps.contributions,
     runner,
+    deps.locale,
   );
   return { notices, panelProps, runner, dispose };
 };

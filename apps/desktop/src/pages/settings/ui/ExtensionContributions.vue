@@ -4,7 +4,9 @@ import { useI18n } from 'vue-i18n';
 import type {
   ContributionTitlesDto,
   ExtensionContributesDto,
+  ExtensionMessagesDto,
 } from '@dolphy-app/engine-contract';
+import { useExtensionText } from '@/shared/lib/extension-text.ts';
 import { EVENT_MESSAGE_KEYS } from '../lib/catalog.ts';
 import {
   contributionGroups,
@@ -17,9 +19,31 @@ const props = defineProps<{
   titles: ContributionTitlesDto;
   /** Название расширения: единственная тема с таким же названием не повторяется. */
   name: string | null;
+  /** Таблицы переводов установленного расширения: названия с `%ключ%` подставляются на языке окна. Каталог отдаёт уже английский текст. */
+  messages?: ExtensionMessagesDto;
 }>();
 
 const { t, te } = useI18n();
+const extensionText = useExtensionText();
+
+const localizedTitles = computed<ContributionTitlesDto>(() =>
+  Object.fromEntries(
+    Object.entries(props.titles).map(([point, titles]) => [
+      point,
+      Object.fromEntries(
+        Object.entries(titles).map(([id, title]) => [
+          id,
+          extensionText.withTables(title, props.messages),
+        ]),
+      ),
+    ]),
+  ),
+);
+const localizedName = computed(() =>
+  props.name === null
+    ? null
+    : extensionText.withTables(props.name, props.messages),
+);
 
 // длинная группа (до 64 команд) свёрнута до первых значений; раскрытие — по точке вклада
 const expanded = reactive<Record<string, boolean>>({});
@@ -31,10 +55,14 @@ const eventLabel = (name: string) => {
 };
 
 const hidden = computed(() =>
-  hidesContributions(props.contributes, props.titles, props.name),
+  hidesContributions(
+    props.contributes,
+    localizedTitles.value,
+    localizedName.value,
+  ),
 );
 const groups = computed(() =>
-  contributionGroups(props.contributes, props.titles, eventLabel),
+  contributionGroups(props.contributes, localizedTitles.value, eventLabel),
 );
 </script>
 

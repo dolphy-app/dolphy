@@ -38,6 +38,7 @@ const info = (id: string): ExtensionInfoDto => ({
   installed: null,
   icon: null,
   titles: {},
+  messages: {},
   tags: [],
   removable: true,
   revoked: null,
@@ -178,6 +179,7 @@ describe('extensions.invokeCommand → здоровье', () => {
           },
         ],
         panels: [],
+        messages: {},
       }),
     });
   };

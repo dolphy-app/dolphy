@@ -25,6 +25,7 @@ const dto = (
   settings: [],
   commands: [],
   panels: [],
+  messages: {},
 });
 
 interface Call {

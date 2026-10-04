@@ -15,7 +15,7 @@ export interface CommandDescriptor {
   source: CommandSource;
   title: MaybeRefOrGetter<string>;
   category?: MaybeRefOrGetter<string | undefined>;
-  description?: string;
+  description?: MaybeRefOrGetter<string | undefined>;
   /** Подпись рядом с названием (у команд расширений — id расширения). */
   caption?: string;
   /**
@@ -69,7 +69,7 @@ const resolve = (descriptor: CommandDescriptor): Command => ({
   source: descriptor.source,
   title: toValue(descriptor.title),
   category: toValue(descriptor.category),
-  description: descriptor.description,
+  description: toValue(descriptor.description),
   caption: descriptor.caption,
   keybinding: descriptor.keybinding,
   checked: toValue(descriptor.checked),

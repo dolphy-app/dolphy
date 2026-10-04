@@ -37,6 +37,7 @@ const EXAMPLES: Readonly<Record<string, Mode>> = {
   'рендерер содержимого': 'build-with-code',
   'правило оценки': 'build-with-code',
   'настройки расширения': 'build-no-code',
+  'переводимые подписи': 'build-no-code',
   'подписка на события': 'build-with-code',
   'команды расширения': 'build-with-code',
   'панель расширения': 'build-with-code',
@@ -199,7 +200,12 @@ describe('examples of the sections “Точки вклада”, “Права 
               .map(({ file }) => file),
           ).toEqual(['src/index.ts']);
         } else {
-          expect(files.map(({ file }) => file)).toEqual(['extension.json']);
+          expect(files.map(({ file }) => file)).toEqual([
+            'extension.json',
+            ...files
+              .map(({ file }) => file)
+              .filter((file) => file.startsWith('locales/')),
+          ]);
         }
         const root = await writeProject(files, withCode);
         const built = await buildExtension({ root });
@@ -209,6 +215,7 @@ describe('examples of the sections “Точки вклада”, “Права 
         await expect(validateExtension(built.dir)).resolves.toEqual({
           ok: true,
           problems: [],
+          warnings: [],
         });
         if (withCode) {
           // the ids written by the build must accept the example as written
@@ -241,6 +248,7 @@ describe('the “панель со стилями и картинкой” examp
     await expect(validateExtension(built.dir)).resolves.toEqual({
       ok: true,
       problems: [],
+      warnings: [],
     });
   });
 });
@@ -309,6 +317,7 @@ describe('the “серия дней целиком” example is executed', () 
     await expect(validateExtension(built.dir)).resolves.toEqual({
       ok: true,
       problems: [],
+      warnings: [],
     });
 
     const sdk = (await import(

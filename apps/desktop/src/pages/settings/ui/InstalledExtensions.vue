@@ -7,7 +7,7 @@ import type {
   ExtensionStateDto,
 } from '@dolphy-app/engine-contract';
 import { useEngine } from '@/shared/api/engine';
-import { displayName } from '../lib/catalog.ts';
+import { useExtensionText } from '@/shared/lib/extension-text.ts';
 import { effectiveTags } from '../lib/tags.ts';
 import {
   hasSwitches,
@@ -42,6 +42,7 @@ const STATE_VIEW: Record<ExtensionStateDto, StateView> = {
 const props = defineProps<{ active: boolean }>();
 
 const { t } = useI18n();
+const extensionText = useExtensionText();
 const install = useInstallContext();
 const {
   items,
@@ -91,6 +92,14 @@ const diagnosticText = (diagnostic: ExtensionDiagnosticDto): string =>
         }
       : diagnostic.data,
   );
+
+// предупреждений о переводах может быть несколько с одним кодом: ключ отличает данные
+const diagnosticKey = (diagnostic: ExtensionDiagnosticDto): string =>
+  `${diagnostic.code}:${diagnostic.data.key ?? diagnostic.data.file ?? ''}`;
+
+/** Предупреждения о переводах: расширение работает, поэтому они выделены иначе, чем причины сбоя. */
+const isWarning = (diagnostic: ExtensionDiagnosticDto): boolean =>
+  diagnostic.code.startsWith('locale.');
 
 const healthOf = (id: string) =>
   diagnostics.value?.extensions.find((health) => health.id === id);
@@ -389,7 +398,7 @@ watch(
             <div class="d-flex flex-wrap align-center ga-2">
               <ExtensionHeading :icon="extension.icon">
                 <h3 class="name text-title-medium font-weight-bold">
-                  {{ displayName(extension) }}
+                  {{ extensionText.nameOf(extension) }}
                 </h3>
               </ExtensionHeading>
               <span
@@ -476,7 +485,12 @@ watch(
               v-if="extension.description !== null"
               class="text-body-medium mt-2"
             >
-              {{ extension.description }}
+              {{
+                extensionText.withTables(
+                  extension.description,
+                  extension.messages,
+                )
+              }}
             </p>
             <ExtensionTags
               :tags="effectiveTags(extension.tags, extension.contributes)"
@@ -503,23 +517,39 @@ watch(
               </p>
             </v-alert>
 
-            <div
+            <template
               v-for="diagnostic in extension.diagnostics"
-              :key="diagnostic.code"
-              class="text-body-medium mt-2"
-              data-testid="diagnostic"
-              :data-code="diagnostic.code"
+              :key="diagnosticKey(diagnostic)"
             >
-              <p>{{ diagnosticText(diagnostic) }}</p>
-              <ul
-                v-if="diagnostic.code === 'manifest-invalid'"
-                class="message ps-4"
+              <!-- предупреждение: расширение работает, поэтому не сообщение об ошибке -->
+              <v-alert
+                v-if="isWarning(diagnostic)"
+                type="warning"
+                variant="tonal"
+                density="compact"
+                class="mt-2"
+                data-testid="diagnostic"
+                :data-code="diagnostic.code"
               >
-                <li v-for="issue in issuesOf(diagnostic)" :key="issue">
-                  {{ issue }}
-                </li>
-              </ul>
-            </div>
+                {{ diagnosticText(diagnostic) }}
+              </v-alert>
+              <div
+                v-else
+                class="text-body-medium mt-2"
+                data-testid="diagnostic"
+                :data-code="diagnostic.code"
+              >
+                <p>{{ diagnosticText(diagnostic) }}</p>
+                <ul
+                  v-if="diagnostic.code === 'manifest-invalid'"
+                  class="message ps-4"
+                >
+                  <li v-for="issue in issuesOf(diagnostic)" :key="issue">
+                    {{ issue }}
+                  </li>
+                </ul>
+              </div>
+            </template>
 
             <ExtensionHealth
               v-if="isActive(extension)"
@@ -534,6 +564,7 @@ watch(
               :contributes="extension.contributes"
               :titles="extension.titles"
               :name="extension.name"
+              :messages="extension.messages"
             />
             <ExtensionData
               v-if="isActive(extension)"
@@ -579,7 +610,7 @@ watch(
                 prepend-icon="mdi-cog-outline"
                 :aria-label="
                   t('settings.extensions.action.settingsLabel', {
-                    name: displayName(extension),
+                    name: extensionText.nameOf(extension),
                   })
                 "
                 :data-testid="`settings-${extension.id}`"
@@ -593,7 +624,7 @@ watch(
                 prepend-icon="mdi-text-box-search-outline"
                 :aria-label="
                   t('settings.extensions.log.rowActionLabel', {
-                    name: displayName(extension),
+                    name: extensionText.nameOf(extension),
                   })
                 "
                 :data-testid="`extension-log-open-${extension.id}`"
@@ -610,7 +641,7 @@ watch(
                 :disabled="install.phase.value === 'running'"
                 :aria-label="
                   t('settings.extensions.action.updateLabel', {
-                    name: displayName(extension),
+                    name: extensionText.nameOf(extension),
                     version: updateOf(extension.id)?.available.version,
                   })
                 "
@@ -631,7 +662,7 @@ watch(
                 prepend-icon="mdi-delete-outline"
                 :aria-label="
                   t('settings.extensions.action.removeLabel', {
-                    name: displayName(extension),
+                    name: extensionText.nameOf(extension),
                   })
                 "
                 :data-testid="`remove-${extension.id}`"
@@ -656,7 +687,7 @@ watch(
         <v-card-title id="extension-remove-title" class="text-wrap">
           {{
             t('settings.extensions.remove.title', {
-              name: displayName(removeTarget),
+              name: extensionText.nameOf(removeTarget),
             })
           }}
         </v-card-title>

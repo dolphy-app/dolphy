@@ -8,6 +8,7 @@ import type {
   ExtensionPermission,
   ExtensionPlatform,
   ExtensionTag,
+  LocaleTables,
 } from '@dolphy-app/extension-api';
 import {
   INSTALL_META_FILE,
@@ -19,6 +20,7 @@ import {
 import type { InstallMeta } from '@dolphy-app/extension-catalog';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import { formatDiagnostic } from './diagnostics.ts';
+import { loadLocales } from './locales.ts';
 import { fingerprintDir } from './fingerprint.ts';
 import { parseManifest } from './manifest.ts';
 import { CONTRIBUTION_POINTS } from './points/index.ts';
@@ -49,6 +51,10 @@ export interface ResolvedExtension extends ResolvedContributions {
   minAppVersion: string | null;
   /** Значок как `data:`-URI (`data:image/png|webp;base64,…`); `null` — значка нет. Проверен: формат, размер, геометрия. */
   icon: string | null;
+  /** Таблицы `locales/<язык>.json` (≤64 КиБ, ≤500 ключей); подписи в манифесте — `%ключ%`, текст подставляет окно. Читаются при обнаружении; `verifyFiles: false` файлы не читает. */
+  messages: LocaleTables;
+  /** Предупреждения о переводах (`locale.missing-key`, `locale.invalid-file`): расширение работает. */
+  warnings: ExtensionDiagnosticDto[];
   /** Явные теги каталога из манифеста; пусто — теги не заданы. */
   tags: ExtensionTag[];
   /** Метаданные установки из каталога (`.dolphy-install.json`); `null` — нет или не читаются; читаются только у origin `user`. */
@@ -260,6 +266,9 @@ export const inspectExtensionDir = async (
         context,
       );
     }
+    const locales = verifyFiles
+      ? await loadLocales(dir, manifest)
+      : { messages: {}, warnings: [] };
     return {
       ok: true,
       extension: {
@@ -274,6 +283,8 @@ export const inspectExtensionDir = async (
         platforms: manifest.platforms,
         minAppVersion: manifest.minAppVersion,
         icon: await resolveIcon(dir, manifest.icon, verifyFiles),
+        messages: locales.messages,
+        warnings: locales.warnings,
         tags: manifest.tags,
         ...(resolved as unknown as ResolvedContributions),
       },
@@ -331,6 +342,12 @@ export const discoverExtensions = async (
       if (!loaded.ok) {
         skip(loaded.id, root.origin, loaded.diagnostic);
         continue;
+      }
+      for (const warning of loaded.extension.warnings) {
+        logger.warn(
+          { extensionId: loaded.extension.id },
+          `extension locale: ${formatDiagnostic(warning)}`,
+        );
       }
       const extension: ResolvedExtension = {
         ...loaded.extension,

@@ -20,6 +20,8 @@ const extension = (id: string, version = '1.0.0'): ResolvedExtension => ({
   icon: null,
   tags: [],
   install: null,
+  messages: {},
+  warnings: [],
   exerciseTypes: [
     {
       id: `${id}.a`,
@@ -96,6 +98,7 @@ describe('createExtensionRegistry', () => {
       installed: null,
       icon: null,
       titles: {},
+      messages: {},
       tags: [],
       removable: true,
       revoked: null,
@@ -121,6 +124,7 @@ describe('createExtensionRegistry', () => {
       installed: null,
       icon: null,
       titles: {},
+      messages: {},
       tags: [],
       removable: false,
       revoked: null,
@@ -146,6 +150,7 @@ describe('createExtensionRegistry', () => {
       installed: null,
       icon: null,
       titles: {},
+      messages: {},
       tags: [],
       removable: true,
       revoked: null,
@@ -482,11 +487,13 @@ describe('createExtensionRegistry: titles and tags', () => {
     expect(rowOf('acme.old')).toMatchObject({
       state: 'overridden',
       titles: {},
+      messages: {},
       tags: [],
     });
     expect(rowOf('broken')).toMatchObject({
       state: 'invalid',
       titles: {},
+      messages: {},
       tags: [],
     });
   });

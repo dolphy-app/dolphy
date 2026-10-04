@@ -6,6 +6,7 @@ import {
   inspectExtensionDir,
 } from '@dolphy-app/extension-host';
 import { assetFindings } from './catalog/assets.ts';
+import { localeFindings, readFileOrNull } from './locales.ts';
 import { bundleAll } from './bundle.ts';
 import { BuildError } from './errors.ts';
 import { writeIds } from './ids.ts';
@@ -47,9 +48,11 @@ export interface BuildResult {
 export interface ValidationResult {
   ok: boolean;
   problems: string[];
+  /** Do not fail the check: a key in `locales/*.json` the manifest does not use, an unsupported language file. */
+  warnings: string[];
 }
 
-const STATIC_DIRS = ['schema', 'assets'];
+const STATIC_DIRS = ['schema', 'assets', 'locales'];
 
 /** Editors write a file in several events: manifest reload waits for quiet. */
 const MANIFEST_SETTLE_MS = 100;
@@ -178,17 +181,48 @@ export const validateExtension = async (
     verifyFiles: true,
     expectedId: null,
   });
-  if (!result.ok)
-    return { ok: false, problems: [formatDiagnostic(result.diagnostic)] };
+  if (!result.ok) {
+    return {
+      ok: false,
+      problems: [formatDiagnostic(result.diagnostic)],
+      warnings: [],
+    };
+  }
+  const files = await listFiles(root);
   // the same checks as `catalog check`: type, signature, ceiling and content of style sheets, images, fonts
-  const problems = (await assetFindings(root, await listFiles(root))).map(
+  const problems = (await assetFindings(root, files)).map(
     ({ path: file, message }) => `${file}: ${message}`,
   );
-  return { ok: problems.length === 0, problems };
+  const locales = await localeFindings({
+    manifest: JSON.parse(
+      (await readFileOrNull(root, MANIFEST_FILE)) ?? 'null',
+    ) as unknown,
+    files,
+    read: (file) => readFileOrNull(root, file),
+  });
+  const describe = ({ field, message }: { field: string; message: string }) =>
+    `${field}: ${message}`;
+  problems.push(
+    ...locales.filter(({ severity }) => severity === 'error').map(describe),
+  );
+  return {
+    ok: problems.length === 0,
+    problems,
+    warnings: locales
+      .filter(({ severity }) => severity === 'warning')
+      .map(describe),
+  };
 };
 
-const assertValid = async (project: Project, dir: string): Promise<void> => {
-  const { ok, problems } = await validateExtension(dir);
+const assertValid = async (
+  project: Project,
+  dir: string,
+  logger: BuildLogger | undefined,
+): Promise<void> => {
+  const { ok, problems, warnings } = await validateExtension(dir);
+  for (const warning of warnings) {
+    logger?.info(`warning ${project.manifest.id}: ${warning}`);
+  }
   if (!ok) throw new BuildError(problems.join('; '), project.manifest.id);
 };
 
@@ -221,7 +255,7 @@ export const buildExtension = async (
   const { project, dir } = await prepare(options);
   await bundleAll(project, dir);
   await copyStatic(project, dir);
-  await assertValid(project, dir);
+  await assertValid(project, dir, options.logger);
   return resultOf(project, dir);
 };
 
@@ -267,7 +301,7 @@ export const watchExtension = async (
   );
   try {
     await copyStatic(project, dir);
-    await assertValid(project, dir);
+    await assertValid(project, dir, options.logger);
   } catch (error) {
     await current.close();
     reporter.close();
@@ -300,7 +334,7 @@ export const watchExtension = async (
       await copyStatic(project, dir);
       // broken bundles will be rebuilt by the watcher after an edit: nothing to check yet
       if (current.isHealthy) {
-        await assertValid(project, dir);
+        await assertValid(project, dir, options.logger);
         logger?.info(
           `rebuilt ${(await resultOf(project, dir)).files.join(', ')}`,
         );

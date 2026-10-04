@@ -3,6 +3,6 @@
   "version": "1.0.0",
   "apiVersion": 1,
   "contributes": {
-    "markdownRenderers": [{ "language": "math", "title": "Math formulas" }]
+    "markdownRenderers": [{ "language": "math", "title": "%renderer.title%" }]
   }
 }

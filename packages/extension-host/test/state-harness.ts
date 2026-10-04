@@ -47,6 +47,8 @@ export const stateful = (
   icon: null,
   tags: [],
   install: null,
+  messages: {},
+  warnings: [],
   exerciseTypes: [],
   themes: [],
   markdownRenderers: [],

@@ -72,6 +72,23 @@ const inspectDir = async (directory: string): Promise<InspectResult> => {
   };
 };
 
+const installerFor = (origin: string, extensionsDir: string) =>
+  createExtensionInstaller({
+    catalogUrl: `${origin}/index.json`,
+    extensionsDir,
+    bundledIds: () => new Set(),
+    appVersion: '1.0.0',
+    apiVersion: 1,
+    platform: process.platform,
+    inspectDir,
+    logger: {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    },
+  });
+
 describe('catalog site and the real installer', () => {
   it.each([
     ['acme.night', 'theme-only'],
@@ -87,21 +104,7 @@ describe('catalog site and the real installer', () => {
       const origin = await serve(site);
       const extensionsDir = path.join(await makeTemp(), 'extensions');
       await mkdir(extensionsDir);
-      const installer = createExtensionInstaller({
-        catalogUrl: `${origin}/index.json`,
-        extensionsDir,
-        bundledIds: () => new Set(),
-        appVersion: '1.0.0',
-        apiVersion: 1,
-        platform: process.platform,
-        inspectDir,
-        logger: {
-          debug: vi.fn(),
-          info: vi.fn(),
-          warn: vi.fn(),
-          error: vi.fn(),
-        },
-      });
+      const installer = installerFor(origin, extensionsDir);
 
       const listing = await installer.catalog();
       expect(listing.entries.map((entry) => [entry.id, entry.status])).toEqual([
@@ -124,4 +127,70 @@ describe('catalog site and the real installer', () => {
       ).toBe('installed');
     },
   );
+
+  it('installs locales/*.json as ordinary version files and discovery reads them', async () => {
+    const json = (value: unknown) => JSON.stringify(value);
+    const repo = await createRepo([
+      {
+        fixture: 'theme-only',
+        manifest: {
+          name: '%name%',
+          description: '%description%',
+          contributes: {
+            themes: [
+              {
+                id: 'acme.night',
+                label: '%theme%',
+                dark: true,
+                colors: { background: '#101018', primary: '#8ab4f8' },
+              },
+            ],
+          },
+        },
+        files: {
+          'locales/en.json': json({
+            name: 'Night',
+            description: 'A dark theme with a deep blue background',
+            theme: 'Night',
+          }),
+          'locales/ru.json': json({ name: 'Ночь', theme: 'Ночь' }),
+        },
+      },
+    ]);
+    const site = await makeTemp();
+    await buildCatalog({
+      src: repo.extensionsDir,
+      ids: ['acme.night'],
+      out: site,
+    });
+    const extensionsDir = path.join(await makeTemp(), 'extensions');
+    await mkdir(extensionsDir);
+    const installer = installerFor(await serve(site), extensionsDir);
+    await installer.catalog();
+    await installer.install('acme.night');
+
+    for (const name of ['locales/en.json', 'locales/ru.json']) {
+      expect(
+        await readFile(path.join(extensionsDir, 'acme.night', name)),
+      ).toEqual(
+        await readFile(
+          path.join(site, 'extensions', 'acme.night', '1.0.0', name),
+        ),
+      );
+    }
+    const result = await inspectExtensionDir(
+      path.join(extensionsDir, 'acme.night'),
+      { expectedId: 'acme.night' },
+    );
+    expect(result.ok && result.extension.messages).toEqual({
+      en: {
+        name: 'Night',
+        description: 'A dark theme with a deep blue background',
+        theme: 'Night',
+      },
+      ru: { name: 'Ночь', theme: 'Ночь' },
+    });
+    // ru lacks 'description', but only en is required to be complete
+    expect(result.ok && result.extension.warnings).toEqual([]);
+  });
 });

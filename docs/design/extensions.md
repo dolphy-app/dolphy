@@ -50,7 +50,7 @@ dolphy.choice/
 
 Совместимость проверяют `discoverExtensions` и `inspectExtensionDir` по `appVersion` и `platform` (по умолчанию `process.platform`). Расширение не загружается и получает состояние `invalid` с диагностикой `requires-app` (данные `minAppVersion`) или `unavailable-platform` (данные `platform`); английский текст для CLI и логов даёт `formatDiagnostic` (`requires app >= X.Y.Z`, `not available on <platform>`), проверку совместимости — `checkCompatibility` из `@dolphy-app/extension-catalog`, её же используют выбор версии каталога и установщик. Версия приложения приходит из `EngineConfig.appVersion`; в несобранном приложении (режим разработки) она не задана, и `minAppVersion` не проверяется, пока не задан `DOLPHY_APP_VERSION=x.y.z`. `dolphy-ext validate` версии приложения не знает и сообщает только об ошибках формы этих полей.
 
-**Диагностики.** Причина состояния расширения — не строка, а `diagnostics: [{code, data}]` (`ExtensionInfoDto`, контракт 14). Коды закрытого списка `EXTENSION_DIAGNOSTIC_CODES`: `manifest-unreadable` (`reason`), `manifest-invalid` (`issues` — `путь: сообщение`), `id-mismatch` (`expected`, `actual`), `requires-app` (`minAppVersion`), `unavailable-platform` (`platform`), `claim-clash` (`kind`, `name`, `by`), `load-failed` (`reason`), `overridden-by` (`origin`, `version`), `safe-mode`. У загруженного и отключённого пользователем расширения список пуст; причина отзыва остаётся отдельным полем `revoked`. Окно строит текст по коду и данным на русском и английском (`settings.extensions.diagnostic.<код>`); `formatDiagnostic` из `@dolphy-app/extension-host` — единственное место, строящее английский текст для `dolphy-ext`, логов и установщика.
+**Диагностики.** Причина состояния расширения — не строка, а `diagnostics: [{code, data}]` (`ExtensionInfoDto`, контракт 14). Коды закрытого списка `EXTENSION_DIAGNOSTIC_CODES`: `manifest-unreadable` (`reason`), `manifest-invalid` (`issues` — `путь: сообщение`), `id-mismatch` (`expected`, `actual`), `requires-app` (`minAppVersion`), `unavailable-platform` (`platform`), `claim-clash` (`kind`, `name`, `by`), `load-failed` (`reason`), `overridden-by` (`origin`, `version`), `safe-mode`; предупреждения о переводах `locale.missing-key` (`key`) и `locale.invalid-file` (`file`, `reason`) — раздел «Локализация манифеста». У загруженного и отключённого пользователем расширения список пуст, если нет безопасного режима или предупреждений о переводах; причина отзыва остаётся отдельным полем `revoked`. Окно строит текст по коду и данным на русском и английском (`settings.extensions.diagnostic.<код>`); `formatDiagnostic` из `@dolphy-app/extension-host` — единственное место, строящее английский текст для `dolphy-ext`, логов и установщика.
 
 **Ключ `$schema` и JSON Schema.** В манифесте допустим необязательный строковый ключ `$schema`: приложение и инструменты его игнорируют, `dolphy-ext build` копирует манифест как есть, ключ остаётся в `extension.json` сборки. `@dolphy-app/extension-api` содержит `extension.schema.json` (JSON Schema 2020-12 из zod-манифеста: `z.toJSONSchema(manifestSchema, { io: 'input', unrepresentable: 'any' })`, `additionalProperties: false` у объектов); файл лежит в `packages/extension-api/`, коммитится, сверяется тестом `manifest-schema.test.ts` (обновление — `UPDATE_EXTENSION_SCHEMA=1`) и публикуется как `dist/extension.schema.json` с подпутём экспорта `./extension.schema.json`. Генератор проекта пишет в манифест `$schema`, указывающий на этот файл установленного пакета. Схема помогает редактору (подсказки, ошибки), но не выражает перекрёстные правила — префикс `id`, «хотя бы один вклад», разрешение `learning.events` для событий, проверки точек вклада: источником истины остаются `parseManifest` и `dolphy-ext validate`.
 
@@ -617,6 +617,63 @@ export const panels = {
 - Пункт ведёт на статический маршрут `/ext/<extensionId>/<panelId>`. Страница показывает кнопку «Назад», заголовок (`h1`, он же получает фокус при входе: фокус в рамку молча не уходит) с id расширения под ним и рамку `iframe sandbox="allow-scripts"` на всю оставшуюся высоту: высоту задаёт приложение, а не содержимое (режим рамки `panel`, раздел «Изоляция интерфейса»).
 - Панель удалённого или отключённого расширения, как и неизвестный адрес, показывает пустое состояние со ссылкой на план дня и возвращается к жизни, когда расширение снова появится. Если модуль панели не загрузился, над рамкой показывается ошибка с текстом причины.
 - Свойства `openPanel` приложение хранит в памяти окна по ключу панели и убирает, когда страница панели закрывается.
+
+### Локализация манифеста (`locales/`)
+
+Что даёт пользователю: подписи расширения (название, описание, названия вкладов, разделы и варианты настроек) показываются на языке приложения и меняются при его смене без перезагрузки окна. Что не переводится: строки, которые код возвращает во время работы (`notify`, тексты ошибок), и данные курсов.
+
+Файлы `locales/ru.json` и `locales/en.json` — плоские объекты «ключ → текст». Строка манифеста вида `%ключ%` (целиком, без интерполяции; ключ `[A-Za-z0-9_.-]{1,64}`) заменяется текстом из файла:
+
+Файл `extension.json` (переводимые подписи):
+
+```json
+{
+  "id": "acme.dusk",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "name": "%name%",
+  "description": "%description%",
+  "contributes": {
+    "themes": [
+      {
+        "id": "acme.dusk",
+        "label": "%theme.label%",
+        "dark": true,
+        "colors": { "background": "#1b1b2f", "primary": "#f7a8b8" }
+      }
+    ]
+  }
+}
+```
+
+Файл `locales/en.json` (переводимые подписи):
+
+```json
+{
+  "name": "Dusk",
+  "description": "A dark theme with a soft pink accent",
+  "theme.label": "Dusk"
+}
+```
+
+Файл `locales/ru.json` (переводимые подписи):
+
+```json
+{
+  "name": "Сумерки",
+  "description": "Тёмная тема с мягким розовым акцентом",
+  "theme.label": "Сумерки"
+}
+```
+
+- Поля: `name`, `description` расширения; `label`/`title`/`description`/`category` вкладов (`exerciseTypes`, `markdownRenderers`, `themes`, `gradePolicies`, `settings`, `commands`, `panels`), `group` настройки и `label` вариантов `enum`. Идентификаторы, значения и пути не переводятся. Сам `%ключ%` подчиняется предельной длине поля.
+- Цепочка в окне: текущий язык приложения → `en` → исходная строка `%ключ%`. Каталог и `catalog build` показывают `en`; `manifestMismatch` `name` и `description` не сверяет, поэтому расхождения установленного манифеста с индексом нет.
+- Лимиты файла: ≤ 64 КиБ, ≤ 500 ключей, значение ≤ 500 символов (`LOCALE_LIMITS`). Движок читает файлы при обнаружении (`ResolvedExtension.messages`, только при `verifyFiles`) и отдаёт окну как есть: `ExtensionInfoDto.messages` и `ContributionsDto.messages` (по id расширения, без расширений без файлов). Подписи в DTO остаются как в манифесте (`%ключ%`); окно подставляет текст чистой функцией `resolveText(value, tables, locale)` из `@dolphy-app/extension-api` в реактивных вычислениях (`useExtensionText`), поэтому смена языка и обновление расширения не требуют запросов. Это палитра команд (название, описание, категория), боковое меню, страница панели, плитки и команды тем, правила оценки, список установленных (название, описание, чипы вкладов) и диалог настроек (подписи, описания, разделы, варианты).
+- Диагностики. Ключ, которого нет в `locales/en.json`, даёт предупреждение `locale.missing-key` (`{ key }`) в строке расширения, подпись показана как `%ключ%`. Битый файл (не JSON, не плоский объект строк, больше лимитов, ссылка вместо файла) игнорируется с предупреждением `locale.invalid-file` (`{ file, reason }`); расширение работает. Предупреждения лежат в `ExtensionInfoDto.diagnostics` загруженного расширения, английский текст для журнала — `formatDiagnostic`.
+- Инструменты (`dolphy-ext validate`, `build`, `catalog check`, правило `CHECK-026`): `locales/en.json` обязателен, если в манифесте есть `%ключ%`; ошибка — ключ, которого нет в `en`, текст (на любом языке) длиннее предела своего поля, недопустимая форма файла; предупреждение — ключ файла, которого нет в манифесте, и файл в `locales/`, кроме `ru.json` и `en.json`. `name` и `description` другие проверки (`CHECK-003`, `CHECK-019`, `lint`) судят по английскому тексту.
+- Файлы `locales/*.json` — обычные файлы версии каталога (`json`); установщик кладёт их рядом с манифестом, а протокол `dolphy-ext://` `.json` не отдаёт (404): переводы читает только движок.
+- Как проверить. Unit: `packages/extension-api/test/locale.test.ts` (`resolveText`, разбор таблиц, подстановка в манифесте), `packages/extension-host/test/locales.test.ts` (чтение, предупреждения, реестр), `packages/extension-tools/test/locales.test.ts` и `catalog-install.test.ts` (проверки, `catalog build` на `en`, установка), `apps/desktop/test/extension-commands-registry.test.ts`, `settings-extension-form.test.ts`, `settings-catalog-lib.test.ts`, `extension-assets.test.ts` (404). e2e: `extension-locales.e2e.test.ts` (фикстура `locale-extension` на всех точках, смена языка без перезагрузки, сырой ключ, битый файл).
+- Контракт 18 добавил `ExtensionInfoDto.messages`, `ContributionsDto.messages`, `ExtensionMessagesDto` и коды диагностик `locale.missing-key`, `locale.invalid-file`.
 
 ### Как добавить новую точку вклада
 
@@ -1661,7 +1718,7 @@ pnpm validate   # dolphy-ext validate dist-ext/<id>
 pnpm test
 ```
 
-`dolphy-ext validate` разбирает манифест тем же кодом, что приложение (`inspectExtensionDir`), и завершается кодом 1 при проблеме. `dolphy-ext types [dir]` отдельно пишет только `.dolphy/ids.d.ts` (раздел «Типизированные id»). Подробности, дополнительные входы и внешние пакеты — в README `@dolphy-app/extension-tools`.
+`dolphy-ext validate` разбирает манифест тем же кодом, что приложение (`inspectExtensionDir`), проверяет файлы и переводы `locales/` (раздел «Локализация манифеста») и завершается кодом 1 при проблеме; предупреждения печатает строками `warning`. `dolphy-ext types [dir]` отдельно пишет только `.dolphy/ids.d.ts` (раздел «Типизированные id»). Подробности, дополнительные входы и внешние пакеты — в README `@dolphy-app/extension-tools`.
 
 ### Режим разработчика
 

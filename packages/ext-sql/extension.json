@@ -8,7 +8,7 @@
     "exerciseTypes": [
       {
         "id": "dolphy.sql",
-        "title": "SQL query",
+        "title": "%kind.title%",
         "specSchema": "./schema/spec.json",
         "answerSchema": "./schema/answer.json",
         "element": "dolphy-sql-answer",

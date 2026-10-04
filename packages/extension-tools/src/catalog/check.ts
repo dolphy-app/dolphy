@@ -7,6 +7,7 @@ import {
 import { parseIndex } from '@dolphy-app/extension-catalog';
 import type { CatalogIndex } from '@dolphy-app/extension-catalog';
 import { BuildError, CatalogUsageError } from '../errors.ts';
+import { englishText, readEnglishTable } from '../locales.ts';
 import { createGithubChecker } from './github.ts';
 import type { GithubUserChecker } from './github.ts';
 import { RULES } from './rules.ts';
@@ -132,22 +133,32 @@ const inspectManifest = async (
 const stringOrNull = (value: unknown): string | null =>
   typeof value === 'string' ? value : null;
 
-const readDeclared = async (dir: string): Promise<DeclaredMetadata | null> => {
+/** The extension manifest as written, with name and description in English (`%key%` → `locales/en.json`). */
+const readDeclared = async (
+  dir: string,
+): Promise<{ raw: unknown; declared: DeclaredMetadata | null }> => {
+  let raw: unknown;
   try {
-    const raw: unknown = JSON.parse(
-      await readFile(path.join(dir, 'extension.json'), 'utf8'),
-    );
-    if (typeof raw !== 'object' || raw === null) return null;
-    const fields = raw as Record<string, unknown>;
-    return {
-      name: stringOrNull(fields.name),
-      description: stringOrNull(fields.description),
+    raw = JSON.parse(await readFile(path.join(dir, 'extension.json'), 'utf8'));
+  } catch {
+    return { raw: null, declared: null };
+  }
+  if (typeof raw !== 'object' || raw === null) return { raw, declared: null };
+  const fields = raw as Record<string, unknown>;
+  const english = await readEnglishTable(dir);
+  const text = (value: unknown): string | null => {
+    const plain = stringOrNull(value);
+    return plain === null ? null : englishText(plain, english);
+  };
+  return {
+    raw,
+    declared: {
+      name: text(fields.name),
+      description: text(fields.description),
       author: stringOrNull(fields.author),
       icon: stringOrNull(fields.icon),
-    };
-  } catch {
-    return null;
-  }
+    },
+  };
 };
 
 const contextFor = async (
@@ -158,11 +169,13 @@ const contextFor = async (
 ): Promise<RuleContext> => {
   const dir = path.resolve(options.extensionsDir, dirName);
   const { manifest, problem } = await inspectManifest(dir);
+  const { raw, declared } = await readDeclared(dir);
   return {
     dirName,
     dir,
     manifest,
-    declared: await readDeclared(dir),
+    declared,
+    rawManifest: raw,
     manifestProblem: problem,
     tree: await readTree(dir, SKIPPED_SOURCE_DIRS),
     bundleDir:

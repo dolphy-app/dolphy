@@ -7,6 +7,7 @@ import type {
   ExtensionInfoDto,
   ExtensionUpdateDto,
 } from '@dolphy-app/engine-contract';
+import { resolveText } from '@dolphy-app/extension-api';
 import { GROUPS, TAGS, effectiveTags, groupsOf } from './tags.ts';
 import type { ExtensionTag, TagGroup } from './tags.ts';
 
@@ -222,6 +223,20 @@ const NO_CONTRIBUTES: ExtensionContributesDto = {
   panels: [],
 };
 
+/** Названия вкладов установленного расширения на английском: так их показывает каталог. */
+const englishTitles = (info: ExtensionInfoDto): ContributionTitlesDto =>
+  Object.fromEntries(
+    Object.entries(info.titles).map(([point, titles]) => [
+      point,
+      Object.fromEntries(
+        Object.entries(titles).map(([id, title]) => [
+          id,
+          resolveText(title, info.messages, 'en'),
+        ]),
+      ),
+    ]),
+  );
+
 /**
  * Обновление установленного расширения. Вклады и платформы берутся из записи
  * каталога, если она есть; иначе — из установленной версии.
@@ -238,7 +253,7 @@ export const targetFromUpdate = (
   installedVersion: update.installed,
   permissions: [...update.available.permissions],
   contributes: entry?.contributes ?? info?.contributes ?? NO_CONTRIBUTES,
-  titles: entry?.titles ?? info?.titles ?? {},
+  titles: entry?.titles ?? (info === undefined ? {} : englishTitles(info)),
   tags: effectiveTags(
     entry?.tags ?? info?.tags ?? [],
     entry?.contributes ?? info?.contributes ?? NO_CONTRIBUTES,
@@ -247,9 +262,3 @@ export const targetFromUpdate = (
   sizeBytes: update.available.size,
   icon: entry?.icon ?? info?.icon ?? null,
 });
-
-/** Название для показа: из манифеста, иначе id. */
-export const displayName = (info: {
-  id: string;
-  name: string | null;
-}): string => info.name ?? info.id;

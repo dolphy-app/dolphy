@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { ExtensionSettingDefDto } from '@dolphy-app/engine-contract';
+import { resolveText } from '@dolphy-app/extension-api';
 import {
   buildSettingsSections,
   isSettingVisible,
+  localizeSetting,
 } from '@/pages/settings/model/extension-settings-form.ts';
 
 const def = (
@@ -130,5 +132,57 @@ describe('isSettingVisible', () => {
   it('цель, которой больше нет среди определений, поле скрывает', () => {
     const x = gated('a', 'acme.gone');
     expect(isSettingVisible(x, [x], {})).toBe(false);
+  });
+});
+
+describe('localizeSetting', () => {
+  const tables = {
+    en: { label: 'Mode', hint: 'Pick one', fast: 'Fast', slow: 'Slow' },
+    ru: { label: 'Режим', fast: 'Быстро' },
+  };
+  const resolve = (locale: string) => (value: string) =>
+    resolveText(value, tables, locale);
+  const mode = def('mode', {
+    type: 'enum',
+    label: '%label%',
+    description: '%hint%',
+    default: 'fast',
+    options: [
+      { value: 'fast', label: '%fast%' },
+      { value: 'slow', label: '%slow%' },
+      { value: 'off', label: 'Off' },
+    ],
+  } as Partial<ExtensionSettingDefDto>);
+
+  it('translates label, description and option labels, never values', () => {
+    expect(localizeSetting(mode, resolve('ru'))).toMatchObject({
+      id: 'acme.mode',
+      label: 'Режим',
+      // нет в ru — берётся en
+      description: 'Pick one',
+      options: [
+        { value: 'fast', label: 'Быстро' },
+        { value: 'slow', label: 'Slow' },
+        { value: 'off', label: 'Off' },
+      ],
+    });
+  });
+
+  it('keeps an absent description and non-enum settings intact', () => {
+    const plain = def('plain', { label: '%label%' });
+    expect(localizeSetting(plain, resolve('en'))).toMatchObject({
+      label: 'Mode',
+      description: null,
+    });
+    expect(localizeSetting(plain, resolve('en'))).not.toHaveProperty('options');
+  });
+
+  it('leaves the source definition untouched and an unknown key as written', () => {
+    const before = structuredClone(mode);
+    localizeSetting(mode, resolve('ru'));
+    expect(mode).toEqual(before);
+    expect(
+      localizeSetting(def('x', { label: '%nowhere%' }), resolve('ru')).label,
+    ).toBe('%nowhere%');
   });
 });

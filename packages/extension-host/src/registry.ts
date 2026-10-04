@@ -35,6 +35,7 @@ const withoutMetadata = (
   | 'author'
   | 'icon'
   | 'titles'
+  | 'messages'
   | 'tags'
   | 'installed'
   | 'removable'
@@ -45,6 +46,7 @@ const withoutMetadata = (
   author: null,
   icon: null,
   titles: {},
+  messages: {},
   tags: [],
   installed: null,
   removable: origin === 'user',
@@ -140,10 +142,12 @@ const loaded = (
     origin: extension.origin,
     state: policy.isEnabled(extension.id) ? 'loaded' : 'disabled',
     contributes: contributesOf(extension),
-    diagnostics:
-      policy.safeMode() && extension.origin !== 'bundled'
-        ? [{ code: 'safe-mode', data: {} }]
-        : [],
+    diagnostics: [
+      ...(policy.safeMode() && extension.origin !== 'bundled'
+        ? [{ code: 'safe-mode' as const, data: {} }]
+        : []),
+      ...extension.warnings,
+    ],
     permissions: [...extension.permissions],
     isolation: isolationOf(extension, policy),
     toggleable: extension.origin !== 'bundled' && revoked === null,
@@ -152,6 +156,7 @@ const loaded = (
     author: extension.author,
     icon: extension.icon,
     titles: titlesOf(extension),
+    messages: extension.messages,
     tags: [...extension.tags],
     installed: extension.install === null ? null : { ...extension.install },
     removable: extension.origin === 'user',
@@ -261,6 +266,11 @@ export const createExtensionRegistry = (
           origin: extension.origin,
           revision: extension.revision,
         })),
+      ),
+      messages: Object.fromEntries(
+        enabled()
+          .filter(({ messages }) => Object.keys(messages).length > 0)
+          .map(({ id, messages }) => [id, messages]),
       ),
     }),
   };

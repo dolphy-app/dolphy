@@ -3,6 +3,8 @@
  * by extension code (`main.mjs`), by the answer element (`view.mjs`), and by the engine itself.
  */
 
+export * from './locale.ts';
+
 export const EXTENSION_API_VERSION = 1 as const;
 export const EXTENSION_ID_PATTERN = /^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*$/;
 /** GitHub login of the extension author (`author` in the manifest and catalog). */

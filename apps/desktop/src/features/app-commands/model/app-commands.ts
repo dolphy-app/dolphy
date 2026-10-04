@@ -27,6 +27,8 @@ export interface AppCommandsDeps {
   localeSelection: Pick<LocaleSelection, 'saved' | 'select'>;
   /** Темы расширений; читается реактивно (`contributions-changed`). */
   themes: () => readonly ThemeContributionDto[];
+  /** Подпись вклада расширения на текущем языке (`%ключ%` → текст); читается при каждом чтении списка. */
+  extensionText(value: string, extensionId: string): string;
   /** Сбой выполнения команды (например, настройка не сохранилась): приложение показывает уведомление. */
   reportFailure(error: unknown): void;
 }
@@ -126,8 +128,10 @@ export const registerAppCommands = (deps: AppCommandsDeps): (() => void) => {
       descriptor: themeCommand(id, () => t(`settings.appearance.theme.${id}`)),
       revision: id,
     })),
-    ...deps.themes().map(({ id, label }) => ({
-      descriptor: themeCommand(id, () => label),
+    ...deps.themes().map(({ id, label, extensionId }) => ({
+      descriptor: themeCommand(id, () =>
+        deps.extensionText(label, extensionId),
+      ),
       revision: label,
     })),
   ];

@@ -1,0 +1,67 @@
+{
+  "id": "acme.locale",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "main": "./main.mjs",
+  "name": "%name%",
+  "description": "%description%",
+  "contributes": {
+    "exerciseTypes": [
+      {
+        "id": "acme.locale",
+        "title": "%kind.title%",
+        "specSchema": { "type": "object" },
+        "answerSchema": { "type": "string" },
+        "renderer": "./view.mjs"
+      }
+    ],
+    "markdownRenderers": [
+      { "language": "locale", "title": "%renderer.title%", "renderer": "./markdown.mjs" }
+    ],
+    "themes": [
+      {
+        "id": "acme.locale.moss",
+        "label": "%theme.label%",
+        "dark": true,
+        "colors": {
+          "background": "#202418",
+          "surface": "#2A3020",
+          "primary": "#C8E06A",
+          "on-primary": "#202418"
+        }
+      }
+    ],
+    "gradePolicies": [{ "id": "acme.locale.policy", "label": "%policy.label%" }],
+    "settings": [
+      {
+        "id": "acme.locale.mode",
+        "type": "enum",
+        "label": "%mode.label%",
+        "description": "%mode.description%",
+        "group": "%group.title%",
+        "default": "fast",
+        "options": [
+          { "value": "fast", "label": "%mode.fast%" },
+          { "value": "slow", "label": "%mode.slow%" }
+        ]
+      },
+      {
+        "id": "acme.locale.lonely",
+        "type": "boolean",
+        "label": "%lonely.label%",
+        "description": "%lonely.missing%",
+        "group": "%group.title%",
+        "default": false
+      }
+    ],
+    "commands": [
+      {
+        "id": "acme.locale.go",
+        "title": "%go.title%",
+        "description": "%go.description%",
+        "category": "%go.category%"
+      }
+    ],
+    "panels": [{ "id": "acme.locale.panel", "title": "%panel.title%" }]
+  }
+}

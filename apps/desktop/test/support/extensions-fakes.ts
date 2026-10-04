@@ -48,6 +48,7 @@ export const extensionInfo = (
   installed: null,
   icon: null,
   titles: {},
+  messages: {},
   tags: [],
   removable: false,
   revoked: null,

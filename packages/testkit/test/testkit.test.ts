@@ -307,6 +307,7 @@ describe('createFakeExtensionRegistry', () => {
       author: null,
       icon: null,
       titles: {},
+      messages: {},
       tags: [],
       installed: null,
       removable: true,
@@ -324,6 +325,7 @@ describe('createFakeExtensionRegistry', () => {
       settings: [],
       commands: [],
       panels: [],
+      messages: {},
     };
     expect(createFakeExtensionRegistry().contributions()).toEqual(empty);
     const given = {

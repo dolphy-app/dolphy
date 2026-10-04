@@ -6,7 +6,11 @@ import {
 import type { Dispatcher } from '@dolphy-app/engine-rpc/host';
 import type { HostedEngine } from '@dolphy-app/engine/app';
 import type { HostChannel } from '@dolphy-app/extension-host';
-import type { EngineConfig } from '@dolphy-app/engine-contract';
+import type {
+  EngineConfig,
+  ExtensionHostStatusDto,
+} from '@dolphy-app/engine-contract';
+import type { ExtensionHealth } from '@dolphy-app/engine/ports';
 import { boot } from './boot.ts';
 
 /** Сообщения main → хост (`process.parentPort`). */
@@ -15,12 +19,14 @@ type HostMessage =
   | { type: 'connect'; clientId: string }
   | { type: 'ext-port' }
   | { type: 'reload-extensions' }
+  | { type: 'ext-host-status'; status: ExtensionHostStatusDto }
   | { type: 'shutdown' };
 
 const { parentPort } = process;
 let engine: HostedEngine | null = null;
 let dispatcher: Dispatcher | null = null;
 let channel: HostChannel | null = null;
+let health: ExtensionHealth | null = null;
 
 process.on('uncaughtException', (error) => {
   console.error({ error }, 'uncaught'); // состояние могло испортиться
@@ -41,11 +47,14 @@ const handle = async (
   ports: Electron.MessagePortMain[],
 ) => {
   if (message.type === 'init') {
-    const booted = await boot(message.config, () =>
-      parentPort.postMessage({ type: 'restart-ext-host' }),
+    const booted = await boot(
+      message.config,
+      () => parentPort.postMessage({ type: 'restart-ext-host' }),
+      () => parentPort.postMessage({ type: 'reset-ext-host' }),
     );
     engine = booted.engine;
     channel = booted.channel;
+    health = booted.health;
     dispatcher = createDispatcher({
       engine: booted.engine,
       schemas,
@@ -67,6 +76,9 @@ const handle = async (
   } else if (message.type === 'reload-extensions') {
     // правка в режиме разработчика: применить без перезапуска; ошибки логирует сам движок
     await engine?.reloadExtensions();
+  } else if (message.type === 'ext-host-status') {
+    // main следит за процессом хоста расширений и сообщает его состояние
+    health?.setHostStatus(message.status);
   } else {
     await shutdown();
   }

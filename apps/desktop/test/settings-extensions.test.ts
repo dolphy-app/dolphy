@@ -5,6 +5,7 @@ import type {
   ExtensionInfoDto,
   ExtensionSettingsDto,
   ExtensionUpdateDto,
+  ExtensionsDiagnosticsDto,
   LearningEngine,
 } from '@dolphy-app/engine-contract';
 import {
@@ -20,6 +21,7 @@ import {
   catalogDto,
   catalogEntry,
   createEventBus,
+  diagnosticsDto,
   extensionInfo as extension,
   flush,
 } from './support/extensions-fakes.ts';
@@ -33,6 +35,7 @@ const NONE_SET: ExtensionSettingsDto = {
   disabled: [],
   trusted: [],
   checkUpdates: true,
+  safeMode: false,
 };
 
 /** Каждый вызов `list()` ждёт, пока тест его не завершит. */
@@ -42,6 +45,7 @@ const createFakeEngine = (stored: ExtensionSettingsDto = NONE_SET) => {
     subscribe: createEventBus().subscribe,
     extensions: {
       updates: async () => [],
+      diagnostics: async () => diagnosticsDto(),
       list: () =>
         new Promise<ExtensionInfoDto[]>((resolve, reject) => {
           pending.push({ resolve, reject });
@@ -355,6 +359,7 @@ describe('переключатели', () => {
       subscribe: createEventBus().subscribe,
       extensions: {
         updates: async () => [],
+        diagnostics: async () => diagnosticsDto(),
         list: async () => {
           listCalls += 1;
           return [extension('acme.x', { origin: 'user', toggleable: true })];
@@ -379,6 +384,7 @@ describe('переключатели', () => {
       disabled: [],
       trusted: ['acme.x'],
       checkUpdates: true,
+      safeMode: false,
     });
     await pending;
 
@@ -387,6 +393,7 @@ describe('переключатели', () => {
       disabled: [],
       trusted: ['acme.x'],
       checkUpdates: true,
+      safeMode: false,
     });
     expect(model.switching.value.size).toBe(0);
     expect(model.switchError.value).toBeNull();
@@ -399,12 +406,18 @@ describe('переключатели', () => {
       disabled: ['acme.x'],
       trusted: [],
       checkUpdates: true,
+      safeMode: false,
     });
     const model = mount(engine);
     await flush();
     const pending = model.setEnabled('acme.x', true);
     expect(model.settings.value.disabled).toEqual([]);
-    calls[0]?.resolve({ disabled: [], trusted: [], checkUpdates: true });
+    calls[0]?.resolve({
+      disabled: [],
+      trusted: [],
+      checkUpdates: true,
+      safeMode: false,
+    });
     await pending;
     expect(calls[0]).toMatchObject({ method: 'setEnabled', value: true });
   });
@@ -435,6 +448,7 @@ describe('переключатели', () => {
       disabled: [],
       trusted: ['acme.x'],
       checkUpdates: true,
+      safeMode: false,
     });
     await first;
   });
@@ -473,15 +487,32 @@ describe('обновления и установка из каталога', () 
     settings?: ExtensionSettingsDto;
     setCheckUpdates?: (value: boolean) => Promise<ExtensionSettingsDto>;
     catalog?: () => Promise<CatalogDto>;
+    diagnostics?: () => Promise<ExtensionsDiagnosticsDto>;
+    setSafeMode?: (value: boolean) => Promise<ExtensionSettingsDto>;
+    restartHost?: () => Promise<void>;
   }
 
   const createEngine = (options: Options = {}) => {
     const bus = createEventBus();
     let listCalls = 0;
     let updateCalls = 0;
+    let diagnosticsCalls = 0;
+    let stored = options.settings ?? NONE_SET;
     const engine = {
       subscribe: bus.subscribe,
       extensions: {
+        diagnostics: async () => {
+          diagnosticsCalls += 1;
+          return (options.diagnostics ?? (async () => diagnosticsDto()))();
+        },
+        setSafeMode: async (value: boolean) => {
+          const next = await (options.setSafeMode ?? (async () => NONE_SET))(
+            value,
+          );
+          stored = next;
+          return next;
+        },
+        restartHost: options.restartHost ?? (async () => {}),
         list: async () => {
           listCalls += 1;
           return [
@@ -493,7 +524,7 @@ describe('обновления и установка из каталога', () 
             }),
           ];
         },
-        getSettings: async () => options.settings ?? NONE_SET,
+        getSettings: async () => stored,
         updates: async () => {
           updateCalls += 1;
           if (options.updates instanceof Error) throw options.updates;
@@ -512,6 +543,7 @@ describe('обновления и установка из каталога', () 
       bus,
       listCalls: () => listCalls,
       updateCalls: () => updateCalls,
+      diagnosticsCalls: () => diagnosticsCalls,
     };
   };
 
@@ -577,6 +609,103 @@ describe('обновления и установка из каталога', () 
     await model.setCheckUpdates(false);
     expect(model.settings.value.checkUpdates).toBe(false);
     expect(model.switchError.value).toBeNull();
+  });
+
+  it('здоровье и состояние хоста читаются вместе со списком; сбой их чтения не прячет список', async () => {
+    const health = {
+      id: 'acme.x',
+      failures: 2,
+      lastFailure: { at: 1, reason: 'timeout', message: 'slow' },
+      lastActivationMs: 12,
+      suppressedUntil: null,
+    };
+    const ok = createEngine({
+      diagnostics: async () =>
+        diagnosticsDto({ host: 'gave-up', extensions: [health] }),
+    });
+    const model = mount(ok.engine);
+    await flush();
+    expect(model.diagnostics.value?.host).toBe('gave-up');
+    expect(model.diagnostics.value?.extensions).toEqual([health]);
+
+    const broken = createEngine({
+      diagnostics: async () => {
+        throw new Error('no health');
+      },
+    });
+    const other = mount(broken.engine);
+    await flush();
+    expect(other.state.value).toBe('loaded');
+    expect(other.items.value).toHaveLength(1);
+    expect(other.diagnostics.value).toBeNull();
+  });
+
+  it('extension-health-changed перечитывает только здоровье, список остаётся', async () => {
+    const { engine, bus, listCalls, diagnosticsCalls } = createEngine();
+    mount(engine);
+    await flush();
+    expect([listCalls(), diagnosticsCalls()]).toEqual([1, 1]);
+
+    bus.emit({ type: 'extension-health-changed' });
+    await flush();
+
+    expect([listCalls(), diagnosticsCalls()]).toEqual([1, 2]);
+  });
+
+  it('«Безопасный режим»: меняется сразу, ответ движка сохраняется и список перечитывается; отказ откатывает', async () => {
+    let fail = true;
+    const { engine, listCalls } = createEngine({
+      setSafeMode: async (value) => {
+        if (fail) throw new Error('disk is full');
+        return { ...NONE_SET, safeMode: value };
+      },
+    });
+    const model = mount(engine);
+    await flush();
+
+    const rejected = model.setSafeMode(true);
+    expect(model.settings.value.safeMode).toBe(true);
+    await rejected;
+    expect(model.settings.value.safeMode).toBe(false);
+    expect(model.switchError.value).toBe('disk is full');
+
+    fail = false;
+    await model.setSafeMode(true);
+    await flush();
+    expect(model.settings.value.safeMode).toBe(true);
+    expect(model.switchError.value).toBeNull();
+    expect(listCalls()).toBe(2);
+  });
+
+  it('restartHost просит движок, перечитывает здоровье и не допускает второго нажатия; отказ показывается', async () => {
+    let release: () => void = () => {};
+    const calls: string[] = [];
+    let fail = false;
+    const { engine, diagnosticsCalls } = createEngine({
+      restartHost: () =>
+        new Promise<void>((resolve, reject) => {
+          calls.push('restart');
+          release = () => (fail ? reject(new Error('refused')) : resolve());
+        }),
+    });
+    const model = mount(engine);
+    await flush();
+
+    const first = model.restartHost();
+    void model.restartHost();
+    expect(model.restartingHost.value).toBe(true);
+    release();
+    await first;
+    expect(calls).toEqual(['restart']);
+    expect(model.restartingHost.value).toBe(false);
+    expect(diagnosticsCalls()).toBe(2);
+
+    fail = true;
+    const failed = model.restartHost();
+    release();
+    await failed;
+    expect(model.switchError.value).toBe('refused');
+    expect(model.restartingHost.value).toBe(false);
   });
 
   it('updateTargets берёт вклады и платформы из каталога, а без него — из установленного', async () => {

@@ -247,7 +247,12 @@ describe('обнаружение и реестр команд и панелей'
     const found = await discover();
     const holder = holderOf(found.extensions);
     const policy = createExtensionPolicy(holder);
-    policy.update({ disabled: [], trusted: [ID], checkUpdates: true });
+    policy.update({
+      disabled: [],
+      trusted: [ID],
+      checkUpdates: true,
+      safeMode: false,
+    });
 
     const registry = createExtensionRegistry(holder, policy);
     const contributions = registry.contributions();
@@ -284,7 +289,12 @@ describe('обнаружение и реестр команд и панелей'
     await write(ID, { commands: [command()], panels: [panel()] });
     const holder = holderOf((await discover()).extensions);
     const policy = createExtensionPolicy(holder);
-    policy.update({ disabled: [ID], trusted: [], checkUpdates: true });
+    policy.update({
+      disabled: [ID],
+      trusted: [],
+      checkUpdates: true,
+      safeMode: false,
+    });
 
     const contributions = createExtensionRegistry(
       holder,

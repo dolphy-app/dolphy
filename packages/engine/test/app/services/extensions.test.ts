@@ -209,13 +209,19 @@ describe('extensions settings', () => {
 
   it('starts empty, loads stored settings into the policy at startup', async () => {
     const settings = createMemorySettingsStore({
-      extensions: { disabled: ['acme.user'], trusted: [], checkUpdates: true },
+      extensions: {
+        disabled: ['acme.user'],
+        trusted: [],
+        checkUpdates: true,
+        safeMode: false,
+      },
     });
     const { engine, policy } = await openSettings([USER], settings);
     expect(await engine.extensions.getSettings()).toEqual({
       disabled: ['acme.user'],
       trusted: [],
       checkUpdates: true,
+      safeMode: false,
     });
     expect(policy.isEnabled('acme.user')).toBe(false);
   });
@@ -226,16 +232,19 @@ describe('extensions settings', () => {
       disabled: ['acme.user'],
       trusted: [],
       checkUpdates: true,
+      safeMode: false,
     });
     expect(await engine.extensions.setTrusted('acme.user', true)).toEqual({
       disabled: ['acme.user'],
       trusted: ['acme.user'],
       checkUpdates: true,
+      safeMode: false,
     });
     expect(await settings.loadExtensions()).toEqual({
       disabled: ['acme.user'],
       trusted: ['acme.user'],
       checkUpdates: true,
+      safeMode: false,
     });
     expect(policy.isEnabled('acme.user')).toBe(false);
     expect(policy.isIsolated('acme.user')).toBe(false);
@@ -244,6 +253,7 @@ describe('extensions settings', () => {
       disabled: [],
       trusted: ['acme.user'],
       checkUpdates: true,
+      safeMode: false,
     });
     expect(policy.isEnabled('acme.user')).toBe(true);
   });
@@ -256,6 +266,7 @@ describe('extensions settings', () => {
       disabled: [],
       trusted: ['acme.user'],
       checkUpdates: true,
+      safeMode: false,
     });
     expect(await engine.extensions.setEnabled('acme.user', true)).toEqual(
       again,
@@ -275,6 +286,7 @@ describe('extensions settings', () => {
       disabled: [],
       trusted: [],
       checkUpdates: true,
+      safeMode: false,
     });
   });
 
@@ -298,6 +310,7 @@ describe('extensions settings', () => {
       disabled: ['acme.user'],
       trusted: [],
       checkUpdates: true,
+      safeMode: false,
     });
   });
 
@@ -403,6 +416,134 @@ describe('extensions live apply', () => {
     await expect(
       engine.extensions.setEnabled('acme.user', false),
     ).rejects.toMatchObject({ code: 'INTERNAL' });
+    expect(reloader.calls()).toBe(0);
+  });
+});
+
+describe('extensions safe mode', () => {
+  const USER = info({
+    id: 'acme.user',
+    origin: 'user',
+    isolation: 'isolated',
+    toggleable: true,
+  });
+  const open = (
+    config: { forceSafeMode?: 'flag' | 'env' } = {},
+    settings = createMemorySettingsStore(),
+  ) => {
+    const reloader = createFakeExtensionReloader();
+    const policy = createFakeExtensionPolicy({
+      ...(config.forceSafeMode !== undefined && { forceSafeMode: true }),
+    });
+    return createTestEngine({
+      extensionRegistry: createFakeExtensionRegistry([USER]),
+      extensionPolicy: policy,
+      extensionReloader: reloader,
+      config,
+      settings,
+    }).then((t) => ({ ...t, reloader, policy }));
+  };
+
+  it('defaults to off, stores the flag, applies the set at once and announces once', async () => {
+    const { engine, settings, policy, reloader, events } = await open();
+    expect((await engine.extensions.getSettings()).safeMode).toBe(false);
+
+    const next = await engine.extensions.setSafeMode(true);
+
+    expect(next.safeMode).toBe(true);
+    expect((await settings.loadExtensions()).safeMode).toBe(true);
+    expect(policy.safeMode()).toBe(true);
+    expect(reloader.calls()).toBe(1);
+    expect(events).toContainEqual({
+      type: 'contributions-changed',
+      generation: 1,
+    });
+
+    await engine.extensions.setSafeMode(true);
+    expect(reloader.calls()).toBe(1);
+
+    expect((await engine.extensions.setSafeMode(false)).safeMode).toBe(false);
+    expect(policy.safeMode()).toBe(false);
+    expect(reloader.calls()).toBe(2);
+  });
+
+  it('keeps the disabled and trusted lists and the update check', async () => {
+    const { engine } = await open();
+    await engine.extensions.setEnabled('acme.user', false);
+    await engine.extensions.setCheckUpdates(false);
+    expect(await engine.extensions.setSafeMode(true)).toEqual({
+      disabled: ['acme.user'],
+      trusted: [],
+      checkUpdates: false,
+      safeMode: true,
+    });
+  });
+
+  it.each([['yes'], [1], [null], [undefined]])(
+    'rejects %j: INVALID_ARGUMENT, nothing stored or applied',
+    async (value) => {
+      const { engine, settings, reloader } = await open();
+      await expect(
+        engine.extensions.setSafeMode(value as never),
+      ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+      expect((await settings.loadExtensions()).safeMode).toBe(false);
+      expect(reloader.calls()).toBe(0);
+    },
+  );
+
+  it('a stored setting is effective right after startup', async () => {
+    const settings = createMemorySettingsStore({
+      extensions: {
+        disabled: [],
+        trusted: [],
+        checkUpdates: true,
+        safeMode: true,
+      },
+    });
+    const { engine, policy } = await open({}, settings);
+    expect(policy.safeMode()).toBe(true);
+    expect((await engine.extensions.diagnostics()).safeMode).toEqual({
+      active: true,
+      persisted: true,
+      forcedBy: null,
+    });
+  });
+
+  it.each(['flag', 'env'] as const)(
+    'a launch %s is active without the setting and survives turning the setting off',
+    async (forceSafeMode) => {
+      const { engine, policy } = await open({ forceSafeMode });
+      expect((await engine.extensions.diagnostics()).safeMode).toEqual({
+        active: true,
+        persisted: false,
+        forcedBy: forceSafeMode,
+      });
+      await engine.extensions.setSafeMode(true);
+      await engine.extensions.setSafeMode(false);
+      expect((await engine.extensions.diagnostics()).safeMode).toEqual({
+        active: true,
+        persisted: false,
+        forcedBy: forceSafeMode,
+      });
+      expect(policy.isEnabled('acme.user')).toBe(false);
+    },
+  );
+
+  it('does not apply when the settings write is refused', async () => {
+    const base = createMemorySettingsStore();
+    const { engine, policy, reloader } = await open(
+      {},
+      {
+        ...base,
+        saveExtensions: async () => {
+          throw new Error('disk full');
+        },
+      },
+    );
+    await expect(engine.extensions.setSafeMode(true)).rejects.toMatchObject({
+      code: 'INTERNAL',
+    });
+    expect(policy.safeMode()).toBe(false);
     expect(reloader.calls()).toBe(0);
   });
 });

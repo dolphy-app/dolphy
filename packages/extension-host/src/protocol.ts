@@ -120,7 +120,21 @@ export type HostRequest =
       params: { extensionId: string; key: string };
     }
   | { id: string; method: 'storage.keys'; params: { extensionId: string } }
-  | { id: string; method: 'settings.all'; params: { extensionId: string } };
+  | { id: string; method: 'settings.all'; params: { extensionId: string } }
+  | { id: string; method: 'health.report'; params: HealthReport };
+
+/**
+ * Здоровье расширения, о котором знает только хост: `activated` — активация
+ * прошла за `durationMs`; `suppressed` — ограниченный процесс приостановлен за
+ * цикл падений до `until` (epoch ms); `reset` — файлы расширения сменились или
+ * оно убрано, сводка начинается заново. Сбои вызовов хост не сообщает: их
+ * учитывает сторона движка по исходу вызова.
+ */
+export type HealthReport = { extensionId: string } & (
+  | { kind: 'activated'; durationMs: number }
+  | { kind: 'suppressed'; until: number }
+  | { kind: 'reset' }
+);
 
 export type HostMethod = HostRequest['method'];
 
@@ -157,6 +171,18 @@ export type ExtFailureCause =
   | 'handler-timeout'
   | 'activation-timeout'
   | 'replaced';
+
+/**
+ * Причина отказа хоста считается сбоем расширения: отказ или превышение срока
+ * обработчика, неверный результат, сбой или превышение срока активации. Остальные (`unknown-type`, `replaced`, ...) —
+ * решение системы, расширение в них не виновато.
+ */
+export const isFault = (cause: ExtFailureCause): boolean =>
+  cause === 'handler-failed' ||
+  cause === 'handler-timeout' ||
+  cause === 'invalid-result' ||
+  cause === 'activation-failed' ||
+  cause === 'activation-timeout';
 
 export type ExtResponse =
   | { id: string; ok: true; result: unknown }
@@ -282,6 +308,23 @@ export const hostRequestSchema = z.discriminatedUnion('method', [
     id: z.string(),
     method: z.literal('settings.all'),
     params: hostOwner,
+  }),
+  z.strictObject({
+    id: z.string(),
+    method: z.literal('health.report'),
+    params: z.discriminatedUnion('kind', [
+      z.strictObject({
+        extensionId: z.string(),
+        kind: z.literal('activated'),
+        durationMs: z.number().finite().nonnegative(),
+      }),
+      z.strictObject({
+        extensionId: z.string(),
+        kind: z.literal('suppressed'),
+        until: z.number().finite().nonnegative(),
+      }),
+      z.strictObject({ extensionId: z.string(), kind: z.literal('reset') }),
+    ]),
   }),
 ]);
 

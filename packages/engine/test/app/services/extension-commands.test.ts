@@ -88,6 +88,7 @@ const open = (options: OpenOptions = {}) => {
       disabled: options.disabled ?? [],
       trusted: [],
       checkUpdates: true,
+      safeMode: false,
     },
   });
   return createTestEngine({

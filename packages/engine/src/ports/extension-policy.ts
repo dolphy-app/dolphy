@@ -9,5 +9,7 @@ export interface ExtensionPolicy {
   isEnabled(id: string): boolean;
   /** Не из поставки и не доверено; неизвестный id — изолирован. */
   isIsolated(id: string): boolean;
+  /** Безопасный режим действует (флаг запуска или настройка): расширения не из поставки отключены. */
+  safeMode(): boolean;
   update(settings: ExtensionSettingsDto): void;
 }

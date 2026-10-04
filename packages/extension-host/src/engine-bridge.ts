@@ -1,6 +1,9 @@
 import type { LearningEvent } from '@dolphy-app/engine-contract';
 import type { ExtensionHostServices } from '@dolphy-app/engine/app';
-import type { ExtensionPolicy } from '@dolphy-app/engine/ports';
+import type {
+  ExtensionHealth,
+  ExtensionPolicy,
+} from '@dolphy-app/engine/ports';
 import type { ExtensionLogger } from '@dolphy-app/extension-api';
 import type { HostChannel } from './channel.ts';
 import { createEventDispatcher } from './event-dispatcher.ts';
@@ -18,6 +21,8 @@ export interface EngineBridgeOptions {
   discovery: DiscoverySource;
   policy: ExtensionPolicy;
   logger: ExtensionLogger;
+  /** Сюда идут сбои обработчиков событий (`createEventDispatcher`). */
+  health?: Pick<ExtensionHealth, 'recordFailure'>;
 }
 
 /**

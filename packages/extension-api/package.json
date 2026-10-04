@@ -5,7 +5,8 @@
   "description": "Public API of Dolphy extensions: manifest, exercise type handlers, answer element contract",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./extension.schema.json": "./extension.schema.json"
   },
   "scripts": {
     "typecheck": "tsc -b tsconfig.json tsconfig.test.json",

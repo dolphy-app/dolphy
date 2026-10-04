@@ -23,7 +23,8 @@
 import { mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseIndex } from '@dolphy-app/extension-catalog';
-import { parseManifest } from '@dolphy-app/extension-host';
+import { manifestJsonSchema, parseManifest } from '@dolphy-app/extension-host';
+import { Ajv2020 } from 'ajv/dist/2020.js';
 import { describe, expect, it } from 'vitest';
 import { buildExtension, validateExtension } from '../src/index.ts';
 import { makeTemp, runTsc } from './helpers.ts';
@@ -180,6 +181,14 @@ describe('examples of the sections “Точки вклада”, “Права 
       it('extension.json passes parseManifest', () => {
         const result = parseManifest(manifestOf(examples.get(label) ?? []));
         expect(result).toMatchObject({ ok: true });
+      });
+
+      it('extension.json passes extension.schema.json', () => {
+        const validate = new Ajv2020({ strict: false }).compile(
+          manifestJsonSchema(),
+        );
+        const manifest = manifestOf(examples.get(label) ?? []);
+        expect(validate(manifest), JSON.stringify(validate.errors)).toBe(true);
       });
 
       if (mode === 'manifest') return;

@@ -24,6 +24,7 @@
   "devDependencies": {
     "@dolphy-app/extension-install": "workspace:*",
     "@types/node": "^22.20.4",
+    "ajv": "^8",
     "typescript": "7.0.2"
   },
   "engines": {

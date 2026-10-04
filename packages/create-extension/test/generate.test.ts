@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { defaultElementName } from '@dolphy-app/extension-api';
-import { parseManifest } from '@dolphy-app/extension-host';
+import { formatDiagnostic, parseManifest } from '@dolphy-app/extension-host';
 import { describe, expect, it } from 'vitest';
 import {
   GenerateError,
@@ -104,6 +104,7 @@ describe('generateExtension', () => {
     const pkg = await readJson(path.join(dir, 'package.json'));
     expect(isLocal).toBe(false);
     expect(pkg['devDependencies']).toMatchObject({
+      '@dolphy-app/extension-api': '^0.0.0',
       '@dolphy-app/extension-sdk': '^0.0.0',
       '@dolphy-app/extension-tools': '^0.0.0',
     });
@@ -118,6 +119,7 @@ describe('generateExtension', () => {
     const pkg = await readJson(path.join(dir, 'package.json'));
     expect(isLocal).toBe(true);
     expect(pkg['devDependencies']).toMatchObject({
+      '@dolphy-app/extension-api': `link:${REPO_ROOT}/packages/extension-api`,
       '@dolphy-app/extension-sdk': `link:${REPO_ROOT}/packages/extension-sdk`,
       '@dolphy-app/extension-tools': `link:${REPO_ROOT}/packages/extension-tools`,
     });
@@ -132,6 +134,7 @@ describe('generateExtension', () => {
     const pkg = await readJson(path.join(dir, 'package.json'));
     expect(isPublished).toBe(true);
     expect(pkg['devDependencies']).toMatchObject({
+      '@dolphy-app/extension-api': '^1.2.3',
       '@dolphy-app/extension-sdk': '^1.2.3',
       '@dolphy-app/extension-tools': '^1.2.3',
     });
@@ -185,6 +188,17 @@ describe('generateExtension', () => {
     });
   });
 
+  it('manifest declares $schema pointing at the installed extension-api package, which is a devDependency', async () => {
+    const root = await makeTemp();
+    const { dir } = await generateExtension({ dir: path.join(root, 'x') });
+    const manifest = await readJson(path.join(dir, 'extension.json'));
+    const pkg = await readJson(path.join(dir, 'package.json'));
+    expect(manifest['$schema']).toBe(
+      './node_modules/@dolphy-app/extension-api/dist/extension.schema.json',
+    );
+    expect(pkg['devDependencies']).toHaveProperty('@dolphy-app/extension-api');
+  });
+
   it('manifest passes parseManifest; code is bound to the id type from the manifest', async () => {
     const root = await makeTemp();
     const { dir, id } = await generateExtension({
@@ -194,7 +208,7 @@ describe('generateExtension', () => {
     const parsed = parseManifest(
       await readJson(path.join(dir, 'extension.json')),
     );
-    if (!parsed.ok) throw new Error(parsed.message);
+    if (!parsed.ok) throw new Error(formatDiagnostic(parsed.diagnostic));
     const [type] = parsed.manifest.contributes.exerciseTypes;
     expect(type?.id).toBe(id);
     expect(type?.element).toBe(defaultElementName(id));

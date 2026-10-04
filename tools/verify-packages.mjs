@@ -27,6 +27,7 @@ import {
   PACKAGES,
   REGISTRY,
   SCOPE,
+  assetFiles,
   binFiles,
   isBareSpecifier,
   packageName,
@@ -171,9 +172,18 @@ const assertBins = ({ spec, dir }) => {
   }
 };
 
+const assertAssets = ({ spec, dir }) => {
+  for (const file of assetFiles(spec)) {
+    check(
+      existsSync(path.join(dir, 'dist', file)),
+      `${packageName(spec)}: asset dist/${file} is missing`,
+    );
+  }
+};
+
 const assertExports = ({ manifest, dir }) => {
   const targets = Object.values(manifest.exports ?? {}).flatMap((entry) =>
-    Object.values(entry),
+    typeof entry === 'string' ? [entry] : Object.values(entry),
   );
   for (const target of targets) {
     check(
@@ -222,6 +232,7 @@ const inspectTarball = ({ spec, tarball, work }) => {
   assertManifest({ manifest, spec });
   assertBins({ spec, dir });
   assertExports({ manifest, dir });
+  assertAssets({ spec, dir });
   assertSelfContained({ manifest, dir });
   return manifest;
 };

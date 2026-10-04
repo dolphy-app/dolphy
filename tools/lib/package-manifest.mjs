@@ -14,7 +14,8 @@ const VERSION_PATTERN = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
 
 /**
  * `entries` — точки входа бандла (имя файла в `dist` → исходник); `exports` — подпуть
- * пакета → имя точки входа (только пакеты с типами); `bin` — команда → точка входа;
+ * пакета → имя точки входа (только пакеты с типами); `assets` — файлы из каталога
+ * пакета, копируемые в `dist` и открытые подпутём `./<имя файла>`; `bin` — команда → точка входа;
  * `siblings` — публикуемые пакеты, остающиеся зависимостями (их типы видны в `.d.ts`).
  */
 export const PACKAGES = [
@@ -22,6 +23,7 @@ export const PACKAGES = [
     dir: 'extension-api',
     entries: { index: 'src/index.ts' },
     exports: { '.': 'index' },
+    assets: ['extension.schema.json'],
     bin: null,
     dts: true,
     sideEffects: true,
@@ -35,6 +37,9 @@ export const PACKAGES = [
       '```ts',
       "import { EXTENSION_API_VERSION } from '@dolphy-app/extension-api';",
       '```',
+      '',
+      'The package also ships `extension.schema.json`, a JSON Schema of',
+      '`extension.json` for editors (`@dolphy-app/extension-api/extension.schema.json`).',
     ],
   },
   {
@@ -192,15 +197,26 @@ export const deriveDependencies = ({
 
 const distPath = (entry, extension) => `./dist/${entry}${extension}`;
 
+/** Файлы пакета, копируемые в `dist` как есть. */
+export const assetFiles = (spec) => spec.assets ?? [];
+
 const exportsField = (spec) =>
   spec.exports === null
     ? undefined
-    : Object.fromEntries(
-        Object.entries(spec.exports).map(([subpath, entry]) => [
-          subpath,
-          { types: distPath(entry, '.d.ts'), default: distPath(entry, '.js') },
-        ]),
-      );
+    : {
+        ...Object.fromEntries(
+          Object.entries(spec.exports).map(([subpath, entry]) => [
+            subpath,
+            {
+              types: distPath(entry, '.d.ts'),
+              default: distPath(entry, '.js'),
+            },
+          ]),
+        ),
+        ...Object.fromEntries(
+          assetFiles(spec).map((file) => [`./${file}`, distPath(file, '')]),
+        ),
+      };
 
 const binField = (spec) =>
   spec.bin === null

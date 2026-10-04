@@ -1,24 +1,20 @@
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n';
-import MarkdownView from '@/shared/ui/MarkdownView.vue';
+import MaterialPanel from './MaterialPanel.vue';
 
 defineProps<{
   /** Markdown материала урока; `null` — панели материала нет. */
   material: string | null;
   courseName: string;
 }>();
-
-const { t } = useI18n();
 </script>
 
 <template>
   <div class="workspace">
-    <aside v-if="material" class="material pa-6">
-      <p class="overline-label mb-4">
-        {{ t('exercisePanel.material', { course: courseName }) }}
-      </p>
-      <MarkdownView :source="material" class="text-body-medium" />
-    </aside>
+    <MaterialPanel
+      v-if="material"
+      :material="material"
+      :course-name="courseName"
+    />
 
     <div class="content">
       <div class="content-inner">
@@ -33,12 +29,6 @@ const { t } = useI18n();
   display: flex;
   flex: 1;
   min-height: 0;
-}
-
-.material {
-  flex: 0 0 22rem;
-  overflow-y: auto;
-  border-right: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
 }
 
 .content {

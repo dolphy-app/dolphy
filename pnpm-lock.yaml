@@ -338,6 +338,40 @@ importers:
         specifier: 7.0.2
         version: 7.0.2
 
+  packages/ext-js:
+    dependencies:
+      '@dolphy-app/extension-api':
+        specifier: workspace:*
+        version: link:../extension-api
+      '@dolphy-app/extension-sdk':
+        specifier: workspace:*
+        version: link:../extension-sdk
+    devDependencies:
+      '@dolphy-app/engine':
+        specifier: workspace:*
+        version: link:../engine
+      '@dolphy-app/engine-contract':
+        specifier: workspace:*
+        version: link:../engine-contract
+      '@dolphy-app/extension-host':
+        specifier: workspace:*
+        version: link:../extension-host
+      '@dolphy-app/extension-tools':
+        specifier: workspace:*
+        version: link:../extension-tools
+      '@dolphy-app/testkit':
+        specifier: workspace:*
+        version: link:../testkit
+      '@types/node':
+        specifier: ^22.20.4
+        version: 22.20.4
+      happy-dom:
+        specifier: ^20.14.5
+        version: 20.14.5
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
   packages/ext-math:
     dependencies:
       '@dolphy-app/extension-api':

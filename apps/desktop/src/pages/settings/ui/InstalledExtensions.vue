@@ -88,6 +88,10 @@ const diagnosticText = (diagnostic: ExtensionDiagnosticDto): string =>
 const diagnosticKey = (diagnostic: ExtensionDiagnosticDto): string =>
   `${diagnostic.code}:${diagnostic.data.key ?? diagnostic.data.file ?? ''}`;
 
+/** Предупреждения о переводах: расширение работает, поэтому они выделены иначе, чем причины сбоя. */
+const isWarning = (diagnostic: ExtensionDiagnosticDto): boolean =>
+  diagnostic.code.startsWith('locale.');
+
 const healthOf = (id: string) =>
   diagnostics.value?.extensions.find((health) => health.id === id);
 
@@ -438,23 +442,39 @@ watch(
               </p>
             </v-alert>
 
-            <div
+            <template
               v-for="diagnostic in extension.diagnostics"
               :key="diagnosticKey(diagnostic)"
-              class="text-body-medium mt-2"
-              data-testid="diagnostic"
-              :data-code="diagnostic.code"
             >
-              <p>{{ diagnosticText(diagnostic) }}</p>
-              <ul
-                v-if="diagnostic.code === 'manifest-invalid'"
-                class="message ps-4"
+              <!-- предупреждение: расширение работает, поэтому не сообщение об ошибке -->
+              <v-alert
+                v-if="isWarning(diagnostic)"
+                type="warning"
+                variant="tonal"
+                density="compact"
+                class="mt-2"
+                data-testid="diagnostic"
+                :data-code="diagnostic.code"
               >
-                <li v-for="issue in issuesOf(diagnostic)" :key="issue">
-                  {{ issue }}
-                </li>
-              </ul>
-            </div>
+                {{ diagnosticText(diagnostic) }}
+              </v-alert>
+              <div
+                v-else
+                class="text-body-medium mt-2"
+                data-testid="diagnostic"
+                :data-code="diagnostic.code"
+              >
+                <p>{{ diagnosticText(diagnostic) }}</p>
+                <ul
+                  v-if="diagnostic.code === 'manifest-invalid'"
+                  class="message ps-4"
+                >
+                  <li v-for="issue in issuesOf(diagnostic)" :key="issue">
+                    {{ issue }}
+                  </li>
+                </ul>
+              </div>
+            </template>
 
             <ExtensionHealth
               v-if="isActive(extension)"

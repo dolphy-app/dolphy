@@ -298,6 +298,11 @@ export const ru = {
         'load-failed': 'Не удалось загрузить расширение: {reason}',
         'overridden-by': 'Перекрыто: {origin}, версия {version}',
         'safe-mode': 'Отключено в безопасном режиме',
+        locale: {
+          'missing-key':
+            'Нет перевода для «{key}» в locales/en.json: подпись показана как есть',
+          'invalid-file': 'Файл перевода {file} проигнорирован: {reason}',
+        },
       },
       safeMode: {
         label: 'Безопасный режим',

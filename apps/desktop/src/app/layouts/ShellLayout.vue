@@ -5,10 +5,12 @@ import { useRouter } from 'vue-router';
 import { useContributions } from '@/shared/api/engine';
 import { APP_NAME } from '@/shared/config/app.ts';
 import { ROUTE } from '@/shared/config/routes.ts';
+import { useExtensionText } from '@/shared/lib/extension-text.ts';
 
 const { t } = useI18n();
 const router = useRouter();
 const contributions = useContributions();
+const extensionText = useExtensionText();
 
 const panels = computed(() => contributions.value.panels);
 
@@ -59,7 +61,7 @@ const bottomItems = computed(() =>
         rounded="lg"
       />
     </v-list>
-    <!-- панели расширений: список из реактивных вкладов, названия — данные расширения -->
+    <!-- панели расширений: список из реактивных вкладов, названия подставляются из переводов расширения -->
     <v-list
       v-if="panels.length > 0"
       nav
@@ -78,7 +80,7 @@ const bottomItems = computed(() =>
         }"
         tabindex="0"
         prepend-icon="mdi-puzzle-outline"
-        :title="panel.title"
+        :title="extensionText.of(panel.title, panel.extensionId)"
         color="primary"
         rounded="lg"
       />

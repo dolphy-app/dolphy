@@ -69,6 +69,7 @@ const setup = () => {
       themeSelection: { saved, select: selectTheme },
       localeSelection: { saved: localeSaved, select: selectLocale },
       themes: () => themes.value,
+      extensionText: (value) => value,
       reportFailure,
     }),
   )!;

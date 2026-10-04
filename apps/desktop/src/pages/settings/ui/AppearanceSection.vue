@@ -7,6 +7,7 @@ import {
   useLocaleSelection,
   useThemeSelection,
 } from '@/shared/api/engine';
+import { useExtensionText } from '@/shared/lib/extension-text.ts';
 import { useAppearanceSettings } from '../model/appearance.ts';
 import { buildThemeTiles } from '../model/theme-tiles.ts';
 import SectionHeader from './SectionHeader.vue';
@@ -17,6 +18,7 @@ const LOCALE_MODES: LocaleMode[] = ['system', 'ru', 'en'];
 
 const { t } = useI18n();
 const contributions = useContributions();
+const extensionText = useExtensionText();
 const { mode, localeMode, error, select, selectLocale } = useAppearanceSettings(
   useThemeSelection(),
   useLocaleSelection(),
@@ -27,6 +29,7 @@ const themeTiles = computed(() =>
   buildThemeTiles(
     (id) => t(`settings.appearance.theme.${id}`),
     contributions.value.themes,
+    (theme) => extensionText.of(theme.label, theme.extensionId),
   ),
 );
 

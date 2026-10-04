@@ -7,7 +7,7 @@ import type {
   ExtensionStateDto,
 } from '@dolphy-app/engine-contract';
 import { useEngine } from '@/shared/api/engine';
-import { displayName } from '../lib/catalog.ts';
+import { useExtensionText } from '@/shared/lib/extension-text.ts';
 import { effectiveTags } from '../lib/tags.ts';
 import {
   hasSwitches,
@@ -40,6 +40,7 @@ const STATE_VIEW: Record<ExtensionStateDto, StateView> = {
 const props = defineProps<{ active: boolean }>();
 
 const { t } = useI18n();
+const extensionText = useExtensionText();
 const install = useInstallContext();
 const {
   items,
@@ -82,6 +83,10 @@ const diagnosticText = (diagnostic: ExtensionDiagnosticDto): string =>
         }
       : diagnostic.data,
   );
+
+// предупреждений о переводах может быть несколько с одним кодом: ключ отличает данные
+const diagnosticKey = (diagnostic: ExtensionDiagnosticDto): string =>
+  `${diagnostic.code}:${diagnostic.data.key ?? diagnostic.data.file ?? ''}`;
 
 const healthOf = (id: string) =>
   diagnostics.value?.extensions.find((health) => health.id === id);
@@ -314,7 +319,7 @@ watch(
             <div class="d-flex flex-wrap align-center ga-2">
               <ExtensionHeading :icon="extension.icon">
                 <h3 class="name text-title-medium font-weight-bold">
-                  {{ displayName(extension) }}
+                  {{ extensionText.nameOf(extension) }}
                 </h3>
               </ExtensionHeading>
               <span
@@ -401,7 +406,12 @@ watch(
               v-if="extension.description !== null"
               class="text-body-medium mt-2"
             >
-              {{ extension.description }}
+              {{
+                extensionText.withTables(
+                  extension.description,
+                  extension.messages,
+                )
+              }}
             </p>
             <ExtensionTags
               :tags="effectiveTags(extension.tags, extension.contributes)"
@@ -430,7 +440,7 @@ watch(
 
             <div
               v-for="diagnostic in extension.diagnostics"
-              :key="diagnostic.code"
+              :key="diagnosticKey(diagnostic)"
               class="text-body-medium mt-2"
               data-testid="diagnostic"
               :data-code="diagnostic.code"
@@ -459,6 +469,7 @@ watch(
               :contributes="extension.contributes"
               :titles="extension.titles"
               :name="extension.name"
+              :messages="extension.messages"
             />
             <ExtensionData
               v-if="isActive(extension)"
@@ -504,7 +515,7 @@ watch(
                 prepend-icon="mdi-cog-outline"
                 :aria-label="
                   t('settings.extensions.action.settingsLabel', {
-                    name: displayName(extension),
+                    name: extensionText.nameOf(extension),
                   })
                 "
                 :data-testid="`settings-${extension.id}`"
@@ -521,7 +532,7 @@ watch(
                 :disabled="install.phase.value === 'running'"
                 :aria-label="
                   t('settings.extensions.action.updateLabel', {
-                    name: displayName(extension),
+                    name: extensionText.nameOf(extension),
                     version: updateOf(extension.id)?.available.version,
                   })
                 "
@@ -542,7 +553,7 @@ watch(
                 prepend-icon="mdi-delete-outline"
                 :aria-label="
                   t('settings.extensions.action.removeLabel', {
-                    name: displayName(extension),
+                    name: extensionText.nameOf(extension),
                   })
                 "
                 :data-testid="`remove-${extension.id}`"
@@ -567,7 +578,7 @@ watch(
         <v-card-title id="extension-remove-title" class="text-wrap">
           {{
             t('settings.extensions.remove.title', {
-              name: displayName(removeTarget),
+              name: extensionText.nameOf(removeTarget),
             })
           }}
         </v-card-title>

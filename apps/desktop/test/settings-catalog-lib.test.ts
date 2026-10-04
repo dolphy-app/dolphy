@@ -332,6 +332,29 @@ describe('цели установки', () => {
     });
   });
 
+  it('обновление без записи каталога показывает названия установленной копии на английском', () => {
+    const update = {
+      id: 'a.night',
+      name: 'Night',
+      installed: '1.0.0',
+      available: catalogVersion('1.1.0'),
+    };
+    const info = extensionInfo('a.night', {
+      titles: {
+        themes: { 'a.night': '%theme%' },
+        commands: { 'a.night.go': 'Plain' },
+      },
+      messages: {
+        en: { theme: 'Night' },
+        ru: { theme: 'Ночь' },
+      },
+    });
+    expect(targetFromUpdate(update, info, undefined).titles).toEqual({
+      themes: { 'a.night': 'Night' },
+      commands: { 'a.night.go': 'Plain' },
+    });
+  });
+
   it('the install dialog gets the icon: from the catalog entry, else from the installed copy, else none', () => {
     const icon = 'data:image/png;base64,AAAA';
     const version = catalogVersion('1.0.0');

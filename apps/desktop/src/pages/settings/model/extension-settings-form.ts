@@ -59,3 +59,29 @@ export const buildSettingsSections = (
     ...[...sections].map(([title, fields]) => ({ title, fields })),
   ];
 };
+
+/**
+ * Определение настройки с подставленными переводами: `label`, `description` и
+ * подписи вариантов `enum` проходят через `resolve`; `group` подставляется
+ * отдельно (разделы группируются по исходной строке, до перевода).
+ */
+export const localizeSetting = (
+  definition: ExtensionSettingDefDto,
+  resolve: (value: string) => string,
+): ExtensionSettingDefDto => {
+  const localized = {
+    ...definition,
+    label: resolve(definition.label),
+    description:
+      definition.description === null ? null : resolve(definition.description),
+  };
+  return localized.type === 'enum'
+    ? {
+        ...localized,
+        options: localized.options.map((option) => ({
+          ...option,
+          label: resolve(option.label),
+        })),
+      }
+    : localized;
+};

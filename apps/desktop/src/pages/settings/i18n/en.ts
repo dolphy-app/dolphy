@@ -300,6 +300,11 @@ export const en: typeof ru = {
         'load-failed': 'Could not load the extension: {reason}',
         'overridden-by': 'Overridden by: {origin}, version {version}',
         'safe-mode': 'Disabled in safe mode',
+        locale: {
+          'missing-key':
+            'No translation for "{key}" in locales/en.json: the label is shown as is',
+          'invalid-file': 'Translation file {file} is ignored: {reason}',
+        },
       },
       safeMode: {
         label: 'Safe mode',

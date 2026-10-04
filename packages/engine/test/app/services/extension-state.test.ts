@@ -6,6 +6,7 @@ import type {
   ExtensionInfoDto,
   ExtensionSettingChangeDto,
   ExtensionSettingDefDto,
+  JsonValue,
 } from '@dolphy-app/engine-contract';
 import {
   createFakeExtensionInstaller,
@@ -289,7 +290,11 @@ describe('extension setting values', () => {
       const t = await open();
       const changes = watch(t);
       await expect(
-        t.engine.extensions.setSettingValue('acme.user', settingId, value),
+        t.engine.extensions.setSettingValue(
+          'acme.user',
+          settingId,
+          value as JsonValue,
+        ),
       ).rejects.toMatchObject({
         code: 'INVALID_ARGUMENT',
         details: { reason, extensionId: 'acme.user' },

@@ -6,7 +6,12 @@ import {
 export const MAX_EXTENSION_ID_LENGTH = 64;
 
 export const DEFAULT_EXTENSION_SETTINGS: Readonly<ExtensionSettingsDto> =
-  Object.freeze({ disabled: [], trusted: [], checkUpdates: true });
+  Object.freeze({
+    disabled: [],
+    trusted: [],
+    checkUpdates: true,
+    safeMode: false,
+  });
 
 export const isExtensionId = (value: unknown): value is string =>
   typeof value === 'string' &&
@@ -29,10 +34,14 @@ export const normalizeExtensionSettings = (
   disabled: normalizeIds(settings.disabled),
   trusted: normalizeIds(settings.trusted),
   checkUpdates: settings.checkUpdates,
+  safeMode: settings.safeMode,
 });
 
 /** Только явное `false` выключает проверку: всё остальное — умолчание. */
 const decodeCheckUpdates = (raw: unknown): boolean => raw !== false;
+
+/** Только явное `true` включает безопасный режим: всё остальное — умолчание. */
+const decodeSafeMode = (raw: unknown): boolean => raw === true;
 
 const decodeIds = (raw: unknown): string[] | null =>
   Array.isArray(raw) && raw.every(isExtensionId) ? normalizeIds(raw) : null;
@@ -48,13 +57,15 @@ export const decodeExtensionSettings = (raw: unknown): ExtensionSettingsDto => {
   const disabled = decodeIds(Reflect.get(raw, 'disabled'));
   const trusted = decodeIds(Reflect.get(raw, 'trusted'));
   const checkUpdates = decodeCheckUpdates(Reflect.get(raw, 'checkUpdates'));
+  const safeMode = decodeSafeMode(Reflect.get(raw, 'safeMode'));
   if (disabled === null || trusted === null) {
     return normalizeExtensionSettings({
       ...DEFAULT_EXTENSION_SETTINGS,
       checkUpdates,
+      safeMode,
     });
   }
-  return { disabled, trusted, checkUpdates };
+  return { disabled, trusted, checkUpdates, safeMode };
 };
 
 /** Метка последней проверки обновлений (epoch ms): неверное значение — «не проверяли». */

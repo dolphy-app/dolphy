@@ -203,7 +203,12 @@ describe('createExtensionRegistry: политика', () => {
   it('отключённое расширение в списке со state disabled, без вкладов', () => {
     const policy = createExtensionPolicy(bothHolder);
     const registry = createExtensionRegistry(bothHolder, policy);
-    policy.update({ disabled: ['acme.u'], trusted: [], checkUpdates: true });
+    policy.update({
+      disabled: ['acme.u'],
+      trusted: [],
+      checkUpdates: true,
+      safeMode: false,
+    });
     const item = registry.list().find(({ id }) => id === 'acme.u');
     expect(item).toMatchObject({
       state: 'disabled',
@@ -214,6 +219,50 @@ describe('createExtensionRegistry: политика', () => {
     const { themes, markdownRenderers } = registry.contributions();
     expect(themes).toEqual([]);
     expect(markdownRenderers.map(({ language }) => language)).toEqual(['math']);
+  });
+
+  it('безопасный режим: расширение не из поставки disabled с диагностикой safe-mode и без вкладов, поставка загружена', () => {
+    const policy = createExtensionPolicy(bothHolder);
+    const registry = createExtensionRegistry(bothHolder, policy);
+    policy.update({
+      disabled: [],
+      trusted: [],
+      checkUpdates: true,
+      safeMode: true,
+    });
+    const items = registry.list();
+    expect(items.find(({ id }) => id === 'acme.u')).toMatchObject({
+      state: 'disabled',
+      diagnostics: [{ code: 'safe-mode', data: {} }],
+    });
+    expect(items.find(({ id }) => id === 'dolphy.math')).toMatchObject({
+      state: 'loaded',
+      diagnostics: [],
+    });
+    const { themes, markdownRenderers } = registry.contributions();
+    expect(themes).toEqual([]);
+    expect(markdownRenderers.map(({ language }) => language)).toEqual(['math']);
+  });
+
+  it('безопасный режим: расширение, отключённое пользователем, всё равно несёт safe-mode; после выхода из режима диагностика исчезает', () => {
+    const policy = createExtensionPolicy(bothHolder);
+    const registry = createExtensionRegistry(bothHolder, policy);
+    const settings = (safeMode: boolean) => ({
+      disabled: ['acme.u'],
+      trusted: [],
+      checkUpdates: true,
+      safeMode,
+    });
+    policy.update(settings(true));
+    expect(registry.list().find(({ id }) => id === 'acme.u')).toMatchObject({
+      state: 'disabled',
+      diagnostics: [{ code: 'safe-mode', data: {} }],
+    });
+    policy.update(settings(false));
+    expect(registry.list().find(({ id }) => id === 'acme.u')).toMatchObject({
+      state: 'disabled',
+      diagnostics: [],
+    });
   });
 
   it('рендерер несёт origin и revision расширения: окно перевыводит блоки при правке', () => {
@@ -271,7 +320,12 @@ describe('createExtensionRegistry: политика', () => {
       ['dolphy.math.a', 'bundled', '', false],
       ['acme.u.a', 'dev', 'rev-2', true],
     ]);
-    policy.update({ disabled: ['acme.u'], trusted: [], checkUpdates: true });
+    policy.update({
+      disabled: ['acme.u'],
+      trusted: [],
+      checkUpdates: true,
+      safeMode: false,
+    });
     expect(types()).toEqual([['dolphy.math.a', 'bundled', '', false]]);
   });
 
@@ -300,6 +354,7 @@ describe('createExtensionRegistry: политика', () => {
       disabled: [],
       trusted: ['acme.u', 'dolphy.math'],
       checkUpdates: true,
+      safeMode: false,
     });
     expect(flags()).toEqual({ math: false, chart: false });
     expect(registry.list().map(({ isolation }) => isolation)).toEqual([
@@ -387,13 +442,19 @@ describe('createExtensionRegistry: titles and tags', () => {
       disabled: ['acme.titled'],
       trusted: [],
       checkUpdates: true,
+      safeMode: false,
     });
     expect(rowOf('acme.titled')).toMatchObject({
       state: 'disabled',
       titles: { themes: { 'acme.titled.night': 'Night' } },
       tags: ['theme', 'interface'],
     });
-    policy.update({ disabled: [], trusted: [], checkUpdates: true });
+    policy.update({
+      disabled: [],
+      trusted: [],
+      checkUpdates: true,
+      safeMode: false,
+    });
   });
 
   it('is empty for overridden and invalid rows', () => {

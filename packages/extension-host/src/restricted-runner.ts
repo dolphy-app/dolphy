@@ -158,6 +158,17 @@ export const createRestrictedRunner = (
   let exits: number[] = [];
   let suppressedUntil = 0;
 
+  /** Приостановка видна в здоровье расширения; без ответа движка (он не нужен) ничего не теряется. */
+  const reportSuppression = (until: number): void => {
+    engine
+      .request('health.report', {
+        extensionId: extension.id,
+        kind: 'suppressed',
+        until,
+      })
+      .catch(() => {});
+  };
+
   const serveLibrary = async (
     current: Live,
     message: Extract<ChildMessage, { t: 'library' }>,
@@ -275,13 +286,14 @@ export const createRestrictedRunner = (
     if (!current.disposing) {
       const now = Date.now();
       exits = [...exits.filter((at) => at > now - CRASH_WINDOW_MS), now];
-      if (exits.length > MAX_EXITS) {
+      if (exits.length >= MAX_EXITS) {
         suppressedUntil = now + CRASH_WINDOW_MS;
         exits = [];
         logger.error(
           { extensionId: extension.id },
           'extension process keeps crashing',
         );
+        reportSuppression(suppressedUntil);
       }
     }
     const reason = `extension process exited (code ${code ?? signal})`;

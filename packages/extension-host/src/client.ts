@@ -8,6 +8,7 @@ import type {
   ExerciseTypes,
   ExtensionCommandErrorCause,
   ExtensionCommands,
+  ExtensionHealth,
   ExtensionPolicy,
   GradePolicies,
   GradePolicyErrorCause,
@@ -21,6 +22,7 @@ import {
   commandOutcomeSchema,
   gradeResultSchema,
   gradeValueSchema,
+  isFault,
 } from './protocol.ts';
 import type { ExtFailureCause, ExtResponse } from './protocol.ts';
 
@@ -42,6 +44,8 @@ export interface RemoteExerciseTypesOptions {
   /** Дедлайн `grade` = `timeoutMs + graceMs`. */
   graceMs?: number;
   projectTimeoutMs?: number;
+  /** Сюда идут сбои видов заданий (отказ обработчика, неверный результат, срок); без него не учитываются. */
+  health?: Pick<ExtensionHealth, 'recordFailure'>;
 }
 
 export interface RemoteGradePoliciesOptions {
@@ -55,7 +59,7 @@ export interface RemoteGradePoliciesOptions {
 export const createRemoteExerciseTypes = (
   options: RemoteExerciseTypesOptions,
 ): ExerciseTypes => {
-  const { catalog, channel, policy } = options;
+  const { catalog, channel, policy, health } = options;
   const isolatedOwner = (type: string): boolean => {
     const owner = catalog.ownerOf(type);
     return owner === undefined ? true : policy.isIsolated(owner.id);
@@ -63,13 +67,22 @@ export const createRemoteExerciseTypes = (
   const graceMs = options.graceMs ?? 2000;
   const projectTimeoutMs = options.projectTimeoutMs ?? 5000;
 
+  /** Сбой вида задания записывается на расширение-владельца. */
+  const recordFault = (type: string, reason: string, message: string): void => {
+    const owner = catalog.ownerOf(type);
+    if (owner !== undefined) health?.recordFailure(owner.id, reason, message);
+  };
+
   const failure = (
     type: string,
     outcome: Exclude<ChannelOutcome, { kind: 'response' }>,
-  ): ExerciseTypeError =>
-    outcome.kind === 'timeout'
-      ? new ExerciseTypeError('timeout', type, 'extension call timed out')
-      : new ExerciseTypeError('host-down', type, 'extension host is down');
+  ): ExerciseTypeError => {
+    if (outcome.kind === 'timeout') {
+      recordFault(type, 'timeout', 'extension call timed out');
+      return new ExerciseTypeError('timeout', type, 'extension call timed out');
+    }
+    return new ExerciseTypeError('host-down', type, 'extension host is down');
+  };
 
   const request = async (
     method: 'project' | 'referenceAnswer',
@@ -84,6 +97,9 @@ export const createRemoteExerciseTypes = (
     const { response } = outcome;
     if (!response.ok) {
       const { cause } = response.error;
+      if (isFault(cause)) {
+        recordFault(params.type, cause, response.error.message);
+      }
       throw new ExerciseTypeError(
         exerciseCause(cause),
         params.type,
@@ -94,11 +110,15 @@ export const createRemoteExerciseTypes = (
   };
 
   const toVerdict = (
+    type: string,
     response: ExtResponse,
     durationMs: number,
     authorMode: boolean,
   ): RawVerdict => {
     if (!response.ok) {
+      if (isFault(response.error.cause)) {
+        recordFault(type, response.error.cause, response.error.message);
+      }
       return {
         outcome: 'error',
         reason: 'internal',
@@ -108,6 +128,11 @@ export const createRemoteExerciseTypes = (
     }
     const parsed = gradeResultSchema.safeParse(response.result);
     if (!parsed.success) {
+      recordFault(
+        type,
+        'invalid-result',
+        'extension returned an invalid grade result',
+      );
       return { outcome: 'error', reason: 'internal', durationMs };
     }
     const result = parsed.data;
@@ -152,8 +177,14 @@ export const createRemoteExerciseTypes = (
       const durationMs = Math.round(performance.now() - started);
       switch (outcome.kind) {
         case 'response':
-          return toVerdict(outcome.response, durationMs, req.authorMode);
+          return toVerdict(
+            req.type,
+            outcome.response,
+            durationMs,
+            req.authorMode,
+          );
         case 'timeout':
+          recordFault(req.type, 'timeout', 'extension grade timed out');
           return { outcome: 'error', reason: 'timeout', durationMs };
         default:
           return { outcome: 'error', reason: 'worker_crash', durationMs };

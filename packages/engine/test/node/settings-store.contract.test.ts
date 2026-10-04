@@ -54,6 +54,7 @@ describe('createJsonSettingsStore: свои файлы движка', () => {
       disabled: ['acme.a'],
       trusted: [],
       checkUpdates: true,
+      safeMode: false,
     });
   });
 });

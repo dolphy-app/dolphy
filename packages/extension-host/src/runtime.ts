@@ -33,6 +33,7 @@ import type {
   ExtMessage,
   ExtRequest,
   ExtResponse,
+  HealthReport,
   HostFailure,
   HostResponse,
   SettingChangedNotice,
@@ -429,11 +430,27 @@ export const createExtensionRuntime = (
     }
   };
 
+  /** Сообщение о здоровье движку: учёт не должен ломать вызов, поэтому отказ канала молча теряется. */
+  const reportHealth = (report: HealthReport): void => {
+    engine.request('health.report', report).catch(ignore);
+  };
+
   const openSlot = (extension: ResolvedExtension): Slot => {
     let created: Activation | null = null;
+    const started = performance.now();
     const ready = activate(extension, (activation) => {
       created = activation;
     });
+    // успешная активация записывает длительность (в ограниченном процессе — его рантайм через раннер)
+    void ready.then(
+      () =>
+        reportHealth({
+          extensionId: extension.id,
+          kind: 'activated',
+          durationMs: Math.round(performance.now() - started),
+        }),
+      ignore,
+    );
     return {
       get activation() {
         return created;
@@ -784,6 +801,8 @@ export const createExtensionRuntime = (
     for (const id of previous.keys()) if (!next.has(id)) stale.push(id);
     known = next;
     discovery.replace(discoveryOf([...next.values()]));
+    // новые файлы — новая сводка здоровья
+    for (const id of stale) reportHealth({ extensionId: id, kind: 'reset' });
     return Promise.all(stale.map(evict)).then(ignore);
   };
 

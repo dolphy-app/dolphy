@@ -272,10 +272,17 @@ describe('ограниченный раннер', () => {
     expect(children[0]?.killed).toBe(true);
   });
 
-  it('цикл падений: после более чем 5 выходов за минуту минуту не запускаем процесс', async () => {
+  it('цикл падений: пятый выход за минуту приостанавливает расширение и сообщает об этом движку', async () => {
     let now = 1_000_000;
     vi.spyOn(Date, 'now').mockImplementation(() => now);
-    const { runner, children } = setup(() => ({}));
+    const reports: unknown[] = [];
+    const engine: EngineLink = {
+      request: async (method, params) => {
+        reports.push({ method, params });
+        return null;
+      },
+    };
+    const { runner, children } = setup(() => ({}), { engine });
     const crash = async (index: number) => {
       const pending = runner.handle(projectRequest(String(index)));
       await vi.waitFor(() => expect(children).toHaveLength(index + 1));
@@ -285,11 +292,24 @@ describe('ограниченный раннер', () => {
       children[index]?.exit(1);
       await pending;
     };
-    for (let index = 0; index < 6; index += 1) {
+    for (let index = 0; index < 4; index += 1) {
       await crash(index);
       now += 1000;
     }
-    expect(children).toHaveLength(6);
+    expect(reports).toEqual([]);
+    await crash(4);
+    const suppressedUntil = now + 60_000;
+    expect(reports).toEqual([
+      {
+        method: 'health.report',
+        params: {
+          extensionId: 'acme.fake',
+          kind: 'suppressed',
+          until: suppressedUntil,
+        },
+      },
+    ]);
+    expect(children).toHaveLength(5);
     expect(await runner.handle(projectRequest('x'))).toEqual({
       id: 'x',
       ok: false,
@@ -298,11 +318,11 @@ describe('ограниченный раннер', () => {
         message: 'extension process keeps crashing',
       },
     });
-    expect(children).toHaveLength(6);
-    now += 61_000;
+    expect(children).toHaveLength(5);
+    now = suppressedUntil + 1000;
     const after = runner.handle(projectRequest('y'));
-    await vi.waitFor(() => expect(children).toHaveLength(7));
-    children[6]?.exit(1);
+    await vi.waitFor(() => expect(children).toHaveLength(6));
+    children[5]?.exit(1);
     await after;
   });
 
@@ -453,6 +473,32 @@ describe('запросы ограниченного процесса к данн
     expect(request).toHaveBeenCalledWith('storage.keys', {
       extensionId: 'acme.fake',
     });
+  });
+
+  it('сообщение процесса о здоровье идёт движку от имени этого расширения; чужой id подменяется', async () => {
+    const request = vi.fn(async () => null);
+    const { child } = await started({ engine: { request } as EngineLink });
+
+    child.emit({
+      t: 'rpc',
+      message: {
+        id: 'h2',
+        method: 'health.report',
+        params: {
+          extensionId: 'acme.victim',
+          kind: 'activated',
+          durationMs: 7,
+        },
+      },
+    });
+
+    await vi.waitFor(() =>
+      expect(request).toHaveBeenCalledWith('health.report', {
+        extensionId: 'acme.fake',
+        kind: 'activated',
+        durationMs: 7,
+      }),
+    );
   });
 
   it('отказ движка уходит процессу с кодом и details; неверная форма не доходит до движка', async () => {

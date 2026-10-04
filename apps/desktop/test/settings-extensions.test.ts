@@ -33,6 +33,7 @@ const NONE_SET: ExtensionSettingsDto = {
   disabled: [],
   trusted: [],
   checkUpdates: true,
+  safeMode: false,
 };
 
 /** Каждый вызов `list()` ждёт, пока тест его не завершит. */
@@ -379,6 +380,7 @@ describe('переключатели', () => {
       disabled: [],
       trusted: ['acme.x'],
       checkUpdates: true,
+      safeMode: false,
     });
     await pending;
 
@@ -387,6 +389,7 @@ describe('переключатели', () => {
       disabled: [],
       trusted: ['acme.x'],
       checkUpdates: true,
+      safeMode: false,
     });
     expect(model.switching.value.size).toBe(0);
     expect(model.switchError.value).toBeNull();
@@ -399,12 +402,18 @@ describe('переключатели', () => {
       disabled: ['acme.x'],
       trusted: [],
       checkUpdates: true,
+      safeMode: false,
     });
     const model = mount(engine);
     await flush();
     const pending = model.setEnabled('acme.x', true);
     expect(model.settings.value.disabled).toEqual([]);
-    calls[0]?.resolve({ disabled: [], trusted: [], checkUpdates: true });
+    calls[0]?.resolve({
+      disabled: [],
+      trusted: [],
+      checkUpdates: true,
+      safeMode: false,
+    });
     await pending;
     expect(calls[0]).toMatchObject({ method: 'setEnabled', value: true });
   });
@@ -435,6 +444,7 @@ describe('переключатели', () => {
       disabled: [],
       trusted: ['acme.x'],
       checkUpdates: true,
+      safeMode: false,
     });
     await first;
   });

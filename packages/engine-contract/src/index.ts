@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 14 as const;
+export const CONTRACT_VERSION = 15 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 
@@ -974,6 +974,12 @@ export type EngineEvent =
     }
   | { type: 'extensions-changed' }
   /**
+   * Здоровье расширений или состояние хоста расширений изменилось (сбой,
+   * активация, приостановка, перезапуск хоста): окно перечитывает
+   * `extensions.diagnostics()`.
+   */
+  | { type: 'extension-health-changed' }
+  /**
    * Набор вкладов расширений изменился: движок и хост расширений закончили
    * применять установку, удаление, включение, доверие или правку в режиме
    * разработчика. Окно перечитывает `extensions.contributions()`.
@@ -1004,6 +1010,12 @@ export interface EngineConfig {
   devExtensionsDir?: string;
   /** Адрес `index.json` каталога расширений; не задан — используется официальный. */
   extensionCatalogUrl?: string;
+  /**
+   * Безопасный режим задан запуском приложения: флагом `--safe-mode` (`'flag'`)
+   * или переменной `DOLPHY_SAFE_MODE=1` (`'env'`; флаг сильнее). Настройкой
+   * `safeMode` не снимается. Не задан — режим зависит только от настройки.
+   */
+  forceSafeMode?: SafeModeSource;
   /** Версия приложения; не задана — проверка `minAppVersion` расширений не выполняется. */
   appVersion?: string;
 }
@@ -1393,6 +1405,9 @@ export interface ExtensionSettingChangeDto {
 /** Допустимый вид id расширения (как в манифесте). */
 export const EXTENSION_ID_PATTERN = /^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*$/;
 
+/** Чем безопасный режим задан при запуске: флагом `--safe-mode` или переменной `DOLPHY_SAFE_MODE`. */
+export type SafeModeSource = 'flag' | 'env';
+
 /** Настройки расширений; хранятся вместе с остальными настройками в `engine.db`. */
 export interface ExtensionSettingsDto {
   /** Отключённые расширения (по id), отсортированы, без повторов. */
@@ -1401,6 +1416,49 @@ export interface ExtensionSettingsDto {
   trusted: string[];
   /** Проверять обновления расширений из каталога при запуске. По умолчанию включено. */
   checkUpdates: boolean;
+  /**
+   * Безопасный режим: расширения не из поставки отключены (диагностика
+   * `safe-mode`), их код не запускается. Расширения из поставки работают.
+   * По умолчанию выключено. Флаг запуска включает режим независимо от настройки.
+   */
+  safeMode: boolean;
+}
+
+/** Состояние процесса хоста расширений: `gave-up` — после повторных сбоев перезапуск прекращён до `restartHost()`. */
+export type ExtensionHostStatusDto = 'running' | 'restarting' | 'gave-up';
+
+/** Сбой расширения; `reason` — причина (`handler-failed`, `timeout`, `invalid-result`, `activation-failed`), `message` — текст сбоя. */
+export interface ExtensionFailureDto {
+  at: EpochMs;
+  reason: string;
+  message: string;
+}
+
+/** Здоровье одного расширения с запуска приложения (в памяти, не сохраняется; сбрасывается при смене файлов расширения). */
+export interface ExtensionHealthDto {
+  id: string;
+  /** Сбоев команд, событий и видов заданий. Убийства процесса и приостановка — состояние, а не сбой. */
+  failures: number;
+  lastFailure: ExtensionFailureDto | null;
+  /** Длительность последней успешной активации; `null` — расширение не активировалось. */
+  lastActivationMs: number | null;
+  /** Ограниченный процесс приостановлен за цикл падений до этого времени; `null` — не приостановлен. */
+  suppressedUntil: EpochMs | null;
+}
+
+/** Безопасный режим: `active` = `persisted` или `forcedBy !== null`. */
+export interface SafeModeStatusDto {
+  active: boolean;
+  /** Значение настройки `safeMode`. */
+  persisted: boolean;
+  forcedBy: SafeModeSource | null;
+}
+
+export interface ExtensionsDiagnosticsDto {
+  host: ExtensionHostStatusDto;
+  safeMode: SafeModeStatusDto;
+  /** Запись для каждого расширения из `list()` (у не сбоивших — нули). */
+  extensions: ExtensionHealthDto[];
 }
 
 export interface ExtensionsService {
@@ -1435,6 +1493,18 @@ export interface ExtensionsService {
   /** Доступные обновления установленных из каталога расширений (по последнему известному индексу). */
   updates(): Promise<ExtensionUpdateDto[]>;
   setCheckUpdates(enabled: boolean): Promise<ExtensionSettingsDto>;
+  /**
+   * Включает и выключает безопасный режим (настройка `safeMode`); действует
+   * сразу, без перезапуска. Не булево значение — `INVALID_ARGUMENT`.
+   */
+  setSafeMode(enabled: boolean): Promise<ExtensionSettingsDto>;
+  /** Здоровье расширений, состояние хоста расширений и безопасного режима. */
+  diagnostics(): Promise<ExtensionsDiagnosticsDto>;
+  /**
+   * Запускает хост расширений заново, сбрасывает счётчик его падений (после
+   * `gave-up` вернуть расширениям работу без перезапуска приложения).
+   */
+  restartHost(): Promise<void>;
   /**
    * Действующие значения настроек расширения (определения — в
    * `contributions().settings`). `NOT_FOUND` — расширения нет;

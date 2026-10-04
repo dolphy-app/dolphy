@@ -1,3 +1,4 @@
+import { createExtensionHealth } from '@dolphy-app/engine/app';
 import { createMemoryExtensionDataStore } from '@dolphy-app/engine/node';
 import type {
   JsonValue,
@@ -6,6 +7,7 @@ import type {
 } from '@dolphy-app/engine-contract';
 import type {
   ExtensionCommands,
+  ExtensionHealth,
   ExtensionPolicy,
 } from '@dolphy-app/engine/ports';
 import type { ExtensionModule } from '@dolphy-app/extension-api';
@@ -96,6 +98,8 @@ export const sessionStarted = (sessionId: string): LearningEvent => ({
 /** Движок-заглушка: настоящее хранилище с потолками (память), значения настроек и подписчики. */
 export interface StubEngine extends HostableEngine {
   readonly disabled: Set<string>;
+  /** Здоровье, в которое хост пишет сообщения `health.report`. */
+  readonly health: ExtensionHealth;
   emit(event: LearningEvent): void;
   changeSetting(change: ExtensionSettingChangeDto): void;
   /** Значение хранилища расширения напрямую, минуя канал. */
@@ -111,6 +115,7 @@ export const createStubEngine = (): StubEngine => {
   const learning = new Set<(event: LearningEvent) => void>();
   const changes = new Set<(change: ExtensionSettingChangeDto) => void>();
   const requests: string[] = [];
+  const health = createExtensionHealth({ now: () => Date.now() });
   const active = (method: string, extensionId: string): string => {
     requests.push(`${method}:${extensionId}`);
     if (disabled.has(extensionId)) {
@@ -123,6 +128,7 @@ export const createStubEngine = (): StubEngine => {
   };
   return {
     disabled,
+    health,
     requests,
     extensionHost: {
       storage: {
@@ -135,6 +141,11 @@ export const createStubEngine = (): StubEngine => {
       },
       settings: {
         all: async (id) => ({ ...overrides.get(active('settings', id)) }),
+      },
+      health: {
+        activated: (id, durationMs) => health.recordActivation(id, durationMs),
+        suppressed: (id, until) => health.recordSuppression(id, until),
+        reset: (id) => health.forget(id),
       },
       onSettingChanged(listener) {
         changes.add(listener);
@@ -192,7 +203,7 @@ export const createHarness = (options: HarnessOptions): Harness => {
   const discovery = createDiscoveryHolder(discoveryOf(options.extensions));
   const policy = createExtensionPolicy(discovery);
   const trusted = [...(options.trusted ?? [])];
-  policy.update({ disabled: [], trusted, checkUpdates: true });
+  policy.update({ disabled: [], trusted, checkUpdates: true, safeMode: false });
   const runtime = createExtensionRuntime({
     extensions: options.extensions,
     library: { readText: async () => '', stat: async () => null },
@@ -213,6 +224,7 @@ export const createHarness = (options: HarnessOptions): Harness => {
     discovery,
     policy,
     logger,
+    health: engine.health,
     ...(options.queueLimit !== undefined && { queueLimit: options.queueLimit }),
     ...(options.deliveryMs !== undefined && { deliveryMs: options.deliveryMs }),
   });

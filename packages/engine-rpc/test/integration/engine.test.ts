@@ -13,7 +13,7 @@ import type {
   ExtensionUpdateDto,
   SavedFilterDto,
 } from '@dolphy-app/engine-contract';
-import { createEngine } from '@dolphy-app/engine/app';
+import { createEngine, createExtensionHealth } from '@dolphy-app/engine/app';
 import {
   createMemoryEventStore,
   createMemoryExtensionDataStore,
@@ -31,6 +31,7 @@ import {
   createFakeClock,
   createFakeExtensionCommands,
   createFakeExerciseTypes,
+  createFakeExtensionHostControl,
   createFakeExtensionInstaller,
   createFakeExtensionPolicy,
   createFakeExtensionRegistry,
@@ -219,6 +220,8 @@ const start = async () => {
         },
       ),
       extensionPolicy: createFakeExtensionPolicy(),
+      extensionHealth: createExtensionHealth(clock),
+      extensionHostControl: createFakeExtensionHostControl(),
       extensionInstaller: createFakeExtensionInstaller({
         catalog: CATALOG,
         updates: [UPDATE],
@@ -614,7 +617,12 @@ describe('rpc → dispatcher → real engine', () => {
       await call('extensions.getSettings', () =>
         client.extensions.getSettings(),
       ),
-    ).toEqual({ disabled: [], trusted: [], checkUpdates: true });
+    ).toEqual({
+      disabled: [],
+      trusted: [],
+      checkUpdates: true,
+      safeMode: false,
+    });
     expect(
       await call('extensions.getSettingValues', () =>
         client.extensions.getSettingValues('dolphy.sql'),
@@ -651,7 +659,12 @@ describe('rpc → dispatcher → real engine', () => {
       await call('extensions.setEnabled', () =>
         client.extensions.setEnabled('acme.user', false),
       ),
-    ).toEqual({ disabled: ['acme.user'], trusted: [], checkUpdates: true });
+    ).toEqual({
+      disabled: ['acme.user'],
+      trusted: [],
+      checkUpdates: true,
+      safeMode: false,
+    });
     expect(
       await call('extensions.setTrusted', () =>
         client.extensions.setTrusted('acme.user', true),
@@ -660,12 +673,38 @@ describe('rpc → dispatcher → real engine', () => {
       disabled: ['acme.user'],
       trusted: ['acme.user'],
       checkUpdates: true,
+      safeMode: false,
     });
     expect(
       await call('extensions.setCheckUpdates', () =>
         client.extensions.setCheckUpdates(false),
       ),
-    ).toMatchObject({ checkUpdates: false });
+    ).toMatchObject({ checkUpdates: false, safeMode: false });
+    expect(
+      await call('extensions.setSafeMode', () =>
+        client.extensions.setSafeMode(true),
+      ),
+    ).toMatchObject({ safeMode: true });
+    await expect(
+      client.extensions.setSafeMode('yes' as never),
+    ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+    expect(
+      await call('extensions.diagnostics', () =>
+        client.extensions.diagnostics(),
+      ),
+    ).toEqual({
+      host: 'running',
+      safeMode: { active: true, persisted: true, forcedBy: null },
+      extensions: ['acme.user', 'dolphy.sql'].map((id) => ({
+        id,
+        failures: 0,
+        lastFailure: null,
+        lastActivationMs: null,
+        suppressedUntil: null,
+      })),
+    });
+    await call('extensions.restartHost', () => client.extensions.restartHost());
+    await client.extensions.setSafeMode(false);
     expect(
       await call('extensions.catalog', () =>
         client.extensions.catalog({ refresh: true }),
@@ -710,8 +749,8 @@ describe('rpc → dispatcher → real engine', () => {
         client.extensions.contributions(),
       ),
     ).toEqual({
-      // поколение растёт на каждое применение: включение, доверие, установка, удаление выше
-      generation: 4,
+      // поколение растёт на каждое применение: включение, доверие, безопасный режим (два раза), установка, удаление выше
+      generation: 6,
       exerciseTypes: [],
       themes: [],
       markdownRenderers: [],

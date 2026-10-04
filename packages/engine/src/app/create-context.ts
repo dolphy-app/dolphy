@@ -285,6 +285,10 @@ export const createContext = async (
   };
 
   deps.extensionPolicy.update(await settings.loadExtensions());
+  // окно перечитывает здоровье по событию: публикуем вне очереди команд (сбой приходит не из команды)
+  deps.extensionHealth.subscribe(() => {
+    if (!state.closed) bus.publish({ type: 'extension-health-changed' });
+  });
 
   const ctx: EngineContext = {
     config,
@@ -299,6 +303,8 @@ export const createContext = async (
     exerciseTypes: deps.exerciseTypes,
     extensionRegistry: deps.extensionRegistry,
     extensionPolicy: deps.extensionPolicy,
+    extensionHealth: deps.extensionHealth,
+    extensionHostControl: deps.extensionHostControl,
     extensionInstaller: deps.extensionInstaller,
     extensionApply: createExtensionApply({
       reloader: deps.extensionReloader,

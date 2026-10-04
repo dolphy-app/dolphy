@@ -180,6 +180,7 @@ export const describeSettingsStoreContract = (
         disabled: [],
         trusted: [],
         checkUpdates: true,
+        safeMode: false,
       });
     });
 
@@ -189,22 +190,50 @@ export const describeSettingsStoreContract = (
         disabled: ['acme.b', 'acme.a', 'acme.b'],
         trusted: ['acme.z'],
         checkUpdates: false,
+        safeMode: false,
       });
       expect(await store.loadExtensions()).toEqual({
         disabled: ['acme.a', 'acme.b'],
         trusted: ['acme.z'],
         checkUpdates: false,
+        safeMode: false,
       });
       await store.saveExtensions({
         disabled: [],
         trusted: [],
         checkUpdates: true,
+        safeMode: false,
       });
       expect(await store.loadExtensions()).toEqual({
         disabled: [],
         trusted: [],
         checkUpdates: true,
+        safeMode: false,
       });
+    });
+
+    it('расширения: безопасный режим по умолчанию выключен и переживает круг сохранения вместе со списками', async () => {
+      const store = await make();
+      expect((await store.loadExtensions()).safeMode).toBe(false);
+      await store.saveExtensions({
+        disabled: ['acme.a'],
+        trusted: ['acme.t'],
+        checkUpdates: false,
+        safeMode: true,
+      });
+      expect(await store.loadExtensions()).toEqual({
+        disabled: ['acme.a'],
+        trusted: ['acme.t'],
+        checkUpdates: false,
+        safeMode: true,
+      });
+      await store.saveExtensions({
+        disabled: ['acme.a'],
+        trusted: ['acme.t'],
+        checkUpdates: false,
+        safeMode: false,
+      });
+      expect((await store.loadExtensions()).safeMode).toBe(false);
     });
 
     it('метка проверки обновлений: по умолчанию null, save → load', async () => {
@@ -223,6 +252,7 @@ export const describeSettingsStoreContract = (
         disabled: ['acme.x'],
         trusted: [],
         checkUpdates: true,
+        safeMode: false,
       });
       await store.savePreferences({
         scheduler: null,
@@ -238,6 +268,7 @@ export const describeSettingsStoreContract = (
         disabled: ['acme.x'],
         trusted: [],
         checkUpdates: true,
+        safeMode: false,
       });
       expect((await store.loadPreferences()).ignored_paths).toEqual(['x']);
     });

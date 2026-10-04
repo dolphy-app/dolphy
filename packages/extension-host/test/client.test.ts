@@ -1,3 +1,4 @@
+import { createExtensionHealth } from '@dolphy-app/engine/app';
 import type { MessageEndpoint } from '@dolphy-app/engine-contract';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createCatalog } from '../src/catalog.ts';
@@ -479,7 +480,12 @@ describe('isolated в запросах', () => {
       );
     };
     expect(await call()).toEqual([true, true]);
-    policy.update({ disabled: [], trusted: ['acme.t'], checkUpdates: true });
+    policy.update({
+      disabled: [],
+      trusted: ['acme.t'],
+      checkUpdates: true,
+      safeMode: false,
+    });
     expect(await call()).toEqual([false, false]);
   });
 
@@ -503,5 +509,91 @@ describe('isolated в запросах', () => {
       ['referenceAnswer', true],
       ['project', true],
     ]);
+  });
+});
+
+describe('createRemoteExerciseTypes: здоровье расширения', () => {
+  const open = () => {
+    const health = createExtensionHealth({ now: () => Date.now() });
+    const logger = createLogger();
+    const channel = createHostChannel({ logger, connectTimeoutMs: 500 });
+    const client = createRemoteExerciseTypes({
+      channel,
+      catalog,
+      policy: createAllTrustedPolicy(),
+      logger,
+      graceMs: 50,
+      projectTimeoutMs: 100,
+      health,
+    });
+    const [engineSide, hostSide] = createEndpointPair();
+    channel.attach(engineSide);
+    return { health, client, hostSide, engineSide };
+  };
+  const answer = (
+    hostSide: MessageEndpoint,
+    reply: (request: ExtRequest) => Omit<ExtResponse, 'id'>,
+  ) =>
+    hostSide.onMessage((message) => {
+      const request = message as ExtRequest;
+      hostSide.post({ id: request.id, ...reply(request) } as ExtResponse);
+    });
+
+  it('отказ обработчика при grade и project записывается на владельца вида с причиной и сообщением', async () => {
+    const { health, client, hostSide } = open();
+    answer(hostSide, () => ({
+      ok: false,
+      error: { cause: 'handler-failed', message: 'kaboom' },
+    }));
+
+    await client.grade(gradeRequest);
+    await expect(
+      client.project({ type: 'acme.t', exerciseId: 'e', spec: {} }),
+    ).rejects.toMatchObject({ cause: 'handler-failed' });
+
+    expect(health.get('acme.t')).toMatchObject({
+      failures: 2,
+      lastFailure: { reason: 'handler-failed', message: 'kaboom' },
+    });
+  });
+
+  it('неверный результат оценки и просрочка — сбои', async () => {
+    vi.useFakeTimers();
+    const { health, client, hostSide, engineSide } = open();
+    answer(hostSide, () => ({ ok: true, result: { outcome: 'nonsense' } }));
+    await client.grade(gradeRequest);
+    expect(health.get('acme.t').lastFailure?.reason).toBe('invalid-result');
+
+    engineSide.close();
+    const [silentEngine] = createEndpointPair();
+    const channel = createHostChannel({ logger: createLogger() });
+    const slow = createRemoteExerciseTypes({
+      channel,
+      catalog,
+      policy: createAllTrustedPolicy(),
+      logger: createLogger(),
+      graceMs: 50,
+      health,
+    });
+    channel.attach(silentEngine);
+    const pending = slow.grade(gradeRequest);
+    await vi.advanceTimersByTimeAsync(200);
+    await pending;
+    expect(health.get('acme.t')).toMatchObject({
+      failures: 2,
+      lastFailure: { reason: 'timeout' },
+    });
+  });
+
+  it('потеря хоста и отказ по неизвестному виду — не сбой расширения', async () => {
+    const { health, client, hostSide, engineSide } = open();
+    answer(hostSide, () => ({
+      ok: false,
+      error: { cause: 'unknown-type', message: 'no such type' },
+    }));
+    await client.grade(gradeRequest);
+    engineSide.close();
+    await client.grade(gradeRequest);
+    expect(health.get('acme.t').failures).toBe(0);
   });
 });

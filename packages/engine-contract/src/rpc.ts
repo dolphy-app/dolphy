@@ -53,6 +53,9 @@ export const RPC_METHODS = {
   'extensions.uninstall': { idempotent: false },
   'extensions.updates': { idempotent: true },
   'extensions.setCheckUpdates': { idempotent: false },
+  'extensions.setSafeMode': { idempotent: true }, // задаёт значение, не приращение
+  'extensions.diagnostics': { idempotent: true },
+  'extensions.restartHost': { idempotent: true }, // перезапуск уже работающего хоста ничего не ломает
   'extensions.getSettingValues': { idempotent: true },
   'extensions.setSettingValue': { idempotent: true }, // задаёт значение, не приращение
   'extensions.resetSettingValues': { idempotent: true },

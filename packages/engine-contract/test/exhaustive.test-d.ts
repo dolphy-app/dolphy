@@ -26,6 +26,7 @@ const describeEvent = (event: EngineEvent): string => {
     case 'repository-progress':
       return `repository ${event.id} ${event.phase}`;
     case 'extensions-changed':
+    case 'extension-health-changed':
       return event.type;
     case 'contributions-changed':
       expectTypeOf(event.generation).toEqualTypeOf<number>();
@@ -67,6 +68,7 @@ test('T-20 EngineEvent: набор типов события зафиксиро�
     | 'settings-changed'
     | 'repository-progress'
     | 'extensions-changed'
+    | 'extension-health-changed'
     | 'contributions-changed'
   >();
   expectTypeOf(describeEvent).returns.toEqualTypeOf<string>();

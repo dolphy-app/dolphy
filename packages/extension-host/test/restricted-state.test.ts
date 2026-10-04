@@ -128,7 +128,12 @@ describe('изолированное расширение в настоящем 
 
   it('доверенное расширение получает те же события в процессе хоста', async () => {
     const h = await start();
-    h.policy.update({ disabled: [], trusted: [ID], checkUpdates: true });
+    h.policy.update({
+      disabled: [],
+      trusted: [ID],
+      checkUpdates: true,
+      safeMode: false,
+    });
     // в процессе хоста модуль берётся настоящим import() из каталога расширения
     h.engine.emit(attemptClosed('e2'));
 

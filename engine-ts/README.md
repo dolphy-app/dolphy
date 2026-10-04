@@ -41,7 +41,7 @@
 
 ## Старт M0 (800 строк)
 
-1. `pnpm` 9.15.9 workspace, Node 22.22 (dev) и 24.x (Electron 44), TypeScript 7.0.2 (`tsc -b`, нет JS API), vitest 5.0.2 (`test.projects`, `pool: 'forks'`), ESLint + Prettier, CI на обеих Node.
+1. `pnpm` 12.9.1 workspace, Node 22.22 (dev) и 24.x (Electron 44), TypeScript 7.0.2 (`tsc -b`, нет JS API), vitest 5.0.2 (`test.projects`, `pool: 'forks'`), ESLint + Prettier, CI на обеих Node.
 2. Пакеты: `@dolphy-app/engine-contract`, `@dolphy-app/engine`, `@dolphy-app/engine-sqlite`, `@dolphy-app/engine-sql-runner`, dev-пакет `@dolphy-app/testkit` (FakeClock, SeededRng, TestId, билдеры курсов и журнала).
 3. Приёмка M0: `pnpm test` и typecheck зелёные на Node 22 и 24; эталон py-fsrs проходит контрактный тест `MemoryModel`.
 4. Дальше по порядку M1 → M7 (§11 главного документа); у каждой вехи автоматическая приёмка.

@@ -83,7 +83,7 @@ Dolphy стоит на [**Trane**](https://github.com/trane-project/trane) — �
 
 ## Попробовать из исходников
 
-Нужны Node ≥ 22.12 и pnpm 9.15.9.
+Нужны Node ≥ 22.12 и pnpm 12.9.1.
 
 ```sh
 pnpm install

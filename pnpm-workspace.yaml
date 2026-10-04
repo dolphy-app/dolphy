@@ -1,3 +1,12 @@
 packages:
   - apps/*
   - packages/*
+
+# For electron-builder
+# https://github.com/electron-userland/electron-builder/issues/6289#issuecomment-1042620422
+shamefullyHoist: true
+
+# pnpm ≥ 10 fails on dependency build scripts that are not decided explicitly.
+allowBuilds:
+  electron-winstaller: false
+  vue-demi: false

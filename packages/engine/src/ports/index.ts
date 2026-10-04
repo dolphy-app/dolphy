@@ -272,3 +272,4 @@ export * from './repositories.ts';
 export * from './extension-data.ts';
 export * from './extension-health.ts';
 export * from './log-reader.ts';
+export * from './platform.ts';

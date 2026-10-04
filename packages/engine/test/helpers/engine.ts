@@ -51,6 +51,7 @@ import type {
   EventStore,
   ExtensionDataStore,
   GitSnapshotFetcher,
+  PlatformServices,
   RepositoryStore,
   SettingsStore,
   SnapshotInstaller,
@@ -106,6 +107,8 @@ export interface TestEngineOptions {
   repositoryStore?: RepositoryStore;
   /** По умолчанию — `createMemoryExtensionDataStore()`. */
   extensionDataStore?: ExtensionDataStore;
+  /** По умолчанию — платформа без хранилища ключей (`createUnavailablePlatform()`). */
+  platform?: PlatformServices;
   /** По умолчанию — без сети (`GIT_FETCH_FAILED/network`). */
   snapshotFetcher?: GitSnapshotFetcher;
   /** По умолчанию — `createNodeSnapshotInstaller` над `libraryRoot` и `dataDir`. */
@@ -207,6 +210,7 @@ export const createTestContext = async (
       options.extensionReloader ?? createFakeExtensionReloader(),
     repositoryStore,
     extensionDataStore,
+    ...(options.platform !== undefined && { platform: options.platform }),
     snapshotFetcher: options.snapshotFetcher ?? offlineFetcher,
     snapshotInstaller:
       options.snapshotInstaller ??

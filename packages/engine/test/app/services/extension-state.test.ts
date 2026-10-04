@@ -571,10 +571,12 @@ describe('extension data lifecycle', () => {
     expect(await t.engine.extensions.dataUsage('acme.user')).toEqual({
       storage: { keys: 1, bytes: 4 },
       settings: { keys: 1, bytes: 1 },
+      secrets: { keys: 0, bytes: 0 },
     });
     expect(await t.engine.extensions.dataUsage('acme.never')).toEqual({
       storage: { keys: 0, bytes: 0 },
       settings: { keys: 0, bytes: 0 },
+      secrets: { keys: 0, bytes: 0 },
     });
     await expect(t.engine.extensions.dataUsage('Bad Id')).rejects.toMatchObject(
       {

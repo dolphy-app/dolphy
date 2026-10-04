@@ -7,7 +7,9 @@ import {
 
 describe('splitPrompt', () => {
   it('a short first paragraph is the headline, code stays in the rest', () => {
-    expect(splitPrompt('Что выведет код?\n\n```js\nconsole.log(1);\n```')).toEqual({
+    expect(
+      splitPrompt('Что выведет код?\n\n```js\nconsole.log(1);\n```'),
+    ).toEqual({
       lead: 'Что выведет код?',
       rest: '```js\nconsole.log(1);\n```',
       headline: true,

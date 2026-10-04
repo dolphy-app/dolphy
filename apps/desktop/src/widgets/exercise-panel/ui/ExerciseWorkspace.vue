@@ -10,7 +10,11 @@ defineProps<{
 
 <template>
   <div class="workspace">
-    <MaterialPanel v-if="material" :material="material" :course-name="courseName" />
+    <MaterialPanel
+      v-if="material"
+      :material="material"
+      :course-name="courseName"
+    />
 
     <div class="content">
       <div class="content-inner">

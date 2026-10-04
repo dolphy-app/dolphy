@@ -372,6 +372,53 @@ describe('settings ui', () => {
     });
   });
 
+  it('keeps the material panel width and collapse until they are reset', async () => {
+    const { engine, settings } = await open();
+    expect(await engine.settings.setUi({ materialWidth: 420 })).toEqual({
+      theme: 'system',
+      locale: 'system',
+      materialWidth: 420,
+    });
+    // другие поля не трогают ширину; скрытие не трогает ширину
+    expect(await engine.settings.setUi({ materialCollapsed: true })).toEqual({
+      theme: 'system',
+      locale: 'system',
+      materialWidth: 420,
+      materialCollapsed: true,
+    });
+    expect(await settings.loadUi()).toMatchObject({
+      materialWidth: 420,
+      materialCollapsed: true,
+    });
+    expect(await engine.settings.setUi({ materialWidth: null })).toEqual({
+      theme: 'system',
+      locale: 'system',
+      materialCollapsed: true,
+    });
+    // `false` не хранится: поле просто пропадает
+    expect(await engine.settings.setUi({ materialCollapsed: false })).toEqual({
+      theme: 'system',
+      locale: 'system',
+    });
+  });
+
+  it.each([
+    [{ materialWidth: 279 }, 'materialWidth'],
+    [{ materialWidth: 801 }, 'materialWidth'],
+    [{ materialWidth: 400.5 }, 'materialWidth'],
+    [{ materialCollapsed: 'yes' as unknown as boolean }, 'materialCollapsed'],
+  ])('rejects %j and saves nothing', async (patch, field) => {
+    const { engine, settings } = await open();
+    await expect(engine.settings.setUi(patch)).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+      details: { field },
+    });
+    expect(await settings.loadUi()).toEqual({
+      theme: 'system',
+      locale: 'system',
+    });
+  });
+
   it('rejects an empty active course id and saves nothing', async () => {
     const { engine, settings } = await open();
     await expect(

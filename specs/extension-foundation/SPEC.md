@@ -73,7 +73,7 @@ superseded-by: null
 - [x] 1b SAFE MODE + HEALTH (PR 2): `forceSafeMode`, политика, настройка `safeMode` (контракт, сервис, RPC, адаптеры), баннер, переключатель
 - [x] 1b `extension-health`, сообщение хоста `health`, `ext-supervisor.reset()`, `ext-host-status`, `restartHost`, баннер «gave-up», строка здоровья, e2e
 - [x] 1c LOGS AND LIMITS (PR 3): лимит вывода и IPC (`restricted-runner.ts`), `ctx.logger` с `extensionId` у доверенных расширений (`runtime.ts`)
-- [x] 1c `log-file.ts`, `stdio: 'pipe'`, `LogReader`, `readLogs` (контракт 16), `platform.appInfo`/`platform.copyText`
+- [x] 1c `log-file.ts`, `stdio: 'pipe'`, `LogReader`, `readLogs` (контракт 17), `platform.appInfo`/`platform.copyText`
 - [ ] 1c диалог журнала, «Скопировать диагностику», e2e `diagnostics.e2e.test.ts`, дизайн-ревью
 - [ ] 1d CI (PR 4): `desktop-checks.yml`, первый запуск на Linux и macOS, правка `scripts/smoke.mjs`/`global-setup.ts` по итогам, README, `AGENTS.md`, `git-workflow`
 - [ ] Закрытие: перенос долговечного в `docs/design`, `Outcomes`, архив
@@ -138,7 +138,7 @@ superseded-by: null
 - 2026-10-04 (1a). Контракт 14: поле `diagnostics` вместо `message`; номер — следующий свободный на момент слияния, при конфликте пересчитывается. Коды `safe-mode` включены в закрытый список сразу (по спеке), использовать их начнёт 1b.
 - 2026-10-04 (1a). `DiscoveryDiagnostic` и `InspectResult` несут поле `diagnostic` (одна диагностика), `ExtensionInfoDto` — `diagnostics` (список): у расширения в реестре пока ровно ноль или одна запись.
 - 2026-10-04 (1b). Контракт 15 (следующий свободный на момент ветки; при слиянии номер пересчитывается): `ExtensionSettingsDto.safeMode`, `EngineConfig.forceSafeMode`, `extensions.{setSafeMode,diagnostics,restartHost}`, событие `extension-health-changed`.
-- 2026-10-04 (1c). Контракт 16 (следующий свободный на момент ветки; при слиянии номер пересчитывается): `EngineConfig.logsDir`, `extensions.readLogs`, `ExtensionLogEntryDto`, `LOG_LEVELS`, `MAX_LOG_ENTRIES`.
+- 2026-10-04 (1c). Контракт 17 (16 занят фичей js-course, влитой в `develop`; номер пересчитан при слиянии): `EngineConfig.logsDir`, `extensions.readLogs`, `ExtensionLogEntryDto`, `LOG_LEVELS`, `MAX_LOG_ENTRIES`.
 - 2026-10-04 (1b). Здоровье и состояние хоста — в памяти движка, главный процесс сообщает состояние хоста расширений сообщением `ext-host-status` и повторяет его, когда хост движка (пере)запускается.
 
 ## Outcomes

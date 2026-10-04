@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import MarkdownView from '@/shared/ui/MarkdownView.vue';
+import { clampWidth } from '../lib/material-layout.ts';
+import { useMaterialLayout } from '../model/use-material-layout.ts';
+import MaterialPanel from './MaterialPanel.vue';
+import MaterialSplitter from './MaterialSplitter.vue';
 
 defineProps<{
   /** Markdown материала урока; `null` — панели материала нет. */
@@ -9,16 +12,42 @@ defineProps<{
 }>();
 
 const { t } = useI18n();
+const layout = useMaterialLayout();
+const { state } = layout;
+
+const resize = (width: number) =>
+  layout.preview(clampWidth(width, window.innerWidth));
 </script>
 
 <template>
   <div class="workspace">
-    <aside v-if="material" class="material pa-6">
-      <p class="overline-label mb-4">
-        {{ t('exercisePanel.material', { course: courseName }) }}
-      </p>
-      <MarkdownView :source="material" class="text-body-medium" />
-    </aside>
+    <template v-if="material">
+      <MaterialPanel
+        v-if="!state.collapsed"
+        :material="material"
+        :course-name="courseName"
+        :width="state.width"
+        @collapse="layout.setCollapsed(true)"
+      />
+      <MaterialSplitter
+        v-if="!state.collapsed"
+        @resize="resize"
+        @commit="layout.commit()"
+        @commit-soon="layout.commitSoon()"
+        @reset="layout.reset()"
+      />
+      <div v-else class="rail">
+        <v-btn
+          size="small"
+          variant="text"
+          icon="mdi-book-open-variant-outline"
+          :aria-label="t('exercisePanel.panel.show')"
+          :title="t('exercisePanel.panel.show')"
+          aria-expanded="false"
+          @click="layout.setCollapsed(false)"
+        />
+      </div>
+    </template>
 
     <div class="content">
       <div class="content-inner">
@@ -35,14 +64,18 @@ const { t } = useI18n();
   min-height: 0;
 }
 
-.material {
-  flex: 0 0 22rem;
-  overflow-y: auto;
+/* скрытая панель: узкая рейка, чтобы вернуть теорию в один щелчок */
+.rail {
+  display: flex;
+  flex: 0 0 3rem;
+  justify-content: center;
+  padding-top: 1rem;
   border-right: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
 }
 
 .content {
   flex: 1;
+  min-width: 0;
   overflow-y: auto;
 }
 

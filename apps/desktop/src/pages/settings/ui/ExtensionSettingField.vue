@@ -6,6 +6,7 @@ import type {
   ExtensionSettingDefDto,
   JsonValue,
 } from '@dolphy-app/engine-contract';
+import SettingListEditor from './SettingListEditor.vue';
 import { parseNumberInput } from '../model/extension-settings.ts';
 import type {
   SettingError,
@@ -48,19 +49,39 @@ watch(
   ([value, error]) => {
     // пока человек печатает или значение отклонено, его ввод не затирается
     if (editing.value || error !== null) return;
-    draft.value = value === undefined ? '' : String(value);
+    draft.value =
+      value === undefined || Array.isArray(value) ? '' : String(value);
   },
   { immediate: true },
 );
 
+const COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
+
 const commitDraft = () => {
   editing.value = false;
-  if (props.definition.type === 'string') {
+  if (props.definition.type === 'string' || props.definition.type === 'text') {
     emit('commit', draft.value, null);
+  } else if (props.definition.type === 'color') {
+    const text = draft.value.trim();
+    const valid = COLOR_PATTERN.test(text);
+    emit('commit', valid ? text.toLowerCase() : text, valid ? null : 'format');
   } else if (props.definition.type === 'number') {
     const parsed = parseNumberInput(draft.value);
     emit('commit', parsed ?? 0, parsed === null ? 'not-a-number' : null);
   }
+};
+
+/** Значение для `<input type="color">`: он принимает только `#rrggbb`. */
+const pickerValue = computed(() =>
+  typeof props.value === 'string' && COLOR_PATTERN.test(props.value)
+    ? props.value.toLowerCase()
+    : '#000000',
+);
+
+const pick = (event: Event) => {
+  if (!(event.target instanceof HTMLInputElement)) return;
+  draft.value = event.target.value;
+  commitDraft();
 };
 
 // Enter завершает ввод так же, как уход из поля: значение записывается один раз
@@ -140,6 +161,66 @@ const errorMessages = computed(() => {
       @blur="commitDraft"
       @keydown.enter="blurTarget"
     />
+    <v-textarea
+      v-else-if="definition.type === 'text'"
+      v-model="draft"
+      :label="definition.label"
+      :hint="hint"
+      :persistent-hint="hint !== ''"
+      :error-messages="errorMessages"
+      hide-details="auto"
+      :counter="definition.maxLength ?? undefined"
+      rows="3"
+      auto-grow
+      variant="outlined"
+      density="comfortable"
+      :data-testid="`setting-${definition.id}`"
+      @focus="editing = true"
+      @blur="commitDraft"
+    />
+    <div
+      v-else-if="definition.type === 'color'"
+      class="d-flex ga-3 align-start"
+    >
+      <input
+        type="color"
+        class="color-picker"
+        :value="pickerValue"
+        :aria-label="
+          t('settings.extensions.settingsDialog.color.picker', {
+            label: definition.label,
+          })
+        "
+        :data-testid="`setting-${definition.id}-picker`"
+        @change="pick"
+      />
+      <v-text-field
+        v-model="draft"
+        :label="definition.label"
+        :hint="hint"
+        :persistent-hint="hint !== ''"
+        :error-messages="errorMessages"
+        hide-details="auto"
+        maxlength="7"
+        variant="outlined"
+        density="comfortable"
+        :data-testid="`setting-${definition.id}`"
+        @focus="editing = true"
+        @blur="commitDraft"
+        @keydown.enter="blurTarget"
+      />
+    </div>
+    <SettingListEditor
+      v-else-if="definition.type === 'list'"
+      :label="definition.label"
+      :items="Array.isArray(value) ? (value as string[]) : []"
+      :max-items="definition.maxItems"
+      :item-max-length="definition.itemMaxLength"
+      :hint="hint"
+      :messages="errorMessages"
+      :test-id="`setting-${definition.id}`"
+      @change="emit('commit', $event, null)"
+    />
     <v-text-field
       v-else-if="definition.type === 'number'"
       v-model="draft"
@@ -183,6 +264,15 @@ const errorMessages = computed(() => {
 </template>
 
 <style scoped>
+.color-picker {
+  inline-size: 48px;
+  block-size: 48px;
+  padding: 0;
+  border: 1px solid rgb(var(--v-theme-on-surface), var(--v-border-opacity));
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+}
 .visually-hidden {
   position: absolute;
   width: 1px;

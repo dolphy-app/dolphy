@@ -163,6 +163,24 @@ export const describeSettingsStoreContract = (
       });
     });
 
+    it('интерфейс: ширина и скрытие панели теории переживают save → load', async () => {
+      const store = await make();
+      await store.saveUi({
+        theme: 'dark',
+        locale: 'ru',
+        materialWidth: 420,
+        materialCollapsed: true,
+      });
+      expect(await store.loadUi()).toEqual({
+        theme: 'dark',
+        locale: 'ru',
+        materialWidth: 420,
+        materialCollapsed: true,
+      });
+      await store.saveUi({ theme: 'dark', locale: 'ru' });
+      expect(await store.loadUi()).toEqual({ theme: 'dark', locale: 'ru' });
+    });
+
     it('обучение: по умолчанию passAtN, save → load', async () => {
       const store = await make();
       expect(await store.loadLearning()).toEqual({ gradePolicy: 'passAtN' });

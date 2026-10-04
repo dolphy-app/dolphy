@@ -3,6 +3,7 @@ import {
   EXTENSION_ID_PATTERN,
   GRADE_POLICY_ID_PATTERN,
   LOG_LEVELS,
+  MATERIAL_WIDTH_RANGE,
   MAX_LOG_ENTRIES,
   THEME_ID_PATTERN,
 } from '@dolphy-app/engine-contract';
@@ -441,6 +442,14 @@ export const schemas = {
       theme: optional(z.string().max(64).regex(THEME_ID_PATTERN)),
       locale: optional(z.enum(['system', 'ru', 'en'])),
       activeCourseId: optional(unitId.nullable()),
+      materialWidth: optional(
+        z
+          .int()
+          .min(MATERIAL_WIDTH_RANGE.min)
+          .max(MATERIAL_WIDTH_RANGE.max)
+          .nullable(),
+      ),
+      materialCollapsed: optional(z.boolean()),
     }),
   ]),
   'settings.getLearning': z.tuple([]),

@@ -15,6 +15,8 @@ import type { z } from 'zod';
 
 export interface ResolvedExerciseType {
   id: string;
+  /** Название для чипа вклада; `null` — показывается id. */
+  title: string | null;
   specSchema: JsonSchema;
   answerSchema: JsonSchema;
   element: string;
@@ -31,6 +33,8 @@ export interface ResolvedTheme {
 
 export interface ResolvedMarkdownRenderer {
   language: string;
+  /** Название для чипа вклада; `null` — показывается язык. */
+  title: string | null;
   rendererUrl: string;
 }
 

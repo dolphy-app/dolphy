@@ -79,6 +79,37 @@ onBeforeUnmount(() => controller.current?.abort());
   padding-left: 1.5em;
 }
 
+.markdown :deep(li + li) {
+  margin-top: 0.35em;
+}
+
+/* заголовки: глобальный сброс отступов оставляет их вплотную к тексту */
+.markdown :deep(h1),
+.markdown :deep(h2),
+.markdown :deep(h3),
+.markdown :deep(h4) {
+  text-wrap: balance;
+}
+
+.markdown :deep(h1) {
+  margin: 0 0 0.6em;
+}
+
+.markdown :deep(h2) {
+  margin: 1.9em 0 0.55em;
+}
+
+.markdown :deep(h3),
+.markdown :deep(h4) {
+  margin: 1.5em 0 0.45em;
+}
+
+.markdown :deep(code),
+.markdown :deep(pre) {
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+}
+
 .markdown :deep(code) {
   padding: 0.1em 0.35em;
   border-radius: 6px;
@@ -99,7 +130,12 @@ onBeforeUnmount(() => controller.current?.abort());
   background: none;
 }
 
+/* широкая таблица прокручивается сама, а не раздвигает колонку */
 .markdown :deep(table) {
+  display: block;
+  max-width: 100%;
+  margin: 1em 0;
+  overflow-x: auto;
   border-collapse: collapse;
 }
 
@@ -108,6 +144,24 @@ onBeforeUnmount(() => controller.current?.abort());
   padding: 0.35em 0.75em;
   border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
 }
+
+.markdown :deep(th) {
+  text-align: left;
+}
+
+.markdown :deep(hr) {
+  margin: 1.75em 0;
+  border: 0;
+  border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+
+.markdown :deep(blockquote) {
+  margin: 1em 0;
+  padding: 0.1em 0 0.1em 1em;
+  border-left: 3px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  color: rgba(var(--v-theme-on-surface), var(--v-medium-emphasis-opacity));
+}
+
 .markdown :deep(.dolphy-md-block) {
   margin: 1em 0;
   overflow-x: auto;

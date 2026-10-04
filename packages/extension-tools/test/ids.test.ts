@@ -80,6 +80,14 @@ export {};
           { id: 'acme.ids.on', type: 'boolean', label: 'On', default: true },
           { id: 'acme.ids.name', type: 'string', label: 'Name', default: '' },
           { id: 'acme.ids.goal', type: 'number', label: 'Goal', default: 3 },
+          { id: 'acme.ids.note', type: 'text', label: 'Note', default: '' },
+          {
+            id: 'acme.ids.tint',
+            type: 'color',
+            label: 'Tint',
+            default: '#000000',
+          },
+          { id: 'acme.ids.tags', type: 'list', label: 'Tags', default: [] },
           {
             id: 'acme.ids.mode',
             type: 'enum',
@@ -97,6 +105,9 @@ export {};
       'acme.ids.on': boolean;
       'acme.ids.name': string;
       'acme.ids.goal': number;
+      'acme.ids.note': string;
+      'acme.ids.tint': string;
+      'acme.ids.tags': string[];
       'acme.ids.mode': 'fast' | 'slow';
     }`);
   });

@@ -103,6 +103,14 @@ describe('смоук и релизная сборка', () => {
           'schema/spec.json',
           'schema/answer.json',
         ],
+        'dolphy.js': [
+          'extension.json',
+          'main.mjs',
+          'worker.mjs',
+          'view.mjs',
+          'schema/spec.json',
+          'schema/answer.json',
+        ],
         'dolphy.math': ['extension.json', 'markdown.mjs'],
       };
       for (const [id, names] of Object.entries(expected)) {
@@ -125,6 +133,7 @@ describe('смоук и релизная сборка', () => {
       });
       expect(extensions.map(({ id }) => id).sort()).toEqual([
         'dolphy.choice',
+        'dolphy.js',
         'dolphy.math',
         'dolphy.sql',
       ]);

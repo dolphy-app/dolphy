@@ -27,6 +27,7 @@ import {
   createManifest,
   createRangeResolver,
   deriveDependencies,
+  docFiles,
   isBareSpecifier,
   isValidVersion,
   packageName,
@@ -142,6 +143,17 @@ const buildPackage = async ({ spec, version, rootManifest, workspace }) => {
   await bundle({ spec, sourceDir, distDir, version });
   for (const file of assetFiles(spec)) {
     await copyFile(path.join(sourceDir, file), path.join(distDir, file));
+  }
+  const docs = docFiles(spec);
+  if (docs.length > 0) {
+    const docsDir = path.join(packageDir, 'docs');
+    await mkdir(docsDir, { recursive: true });
+    for (const file of docs) {
+      await copyFile(
+        path.join(sourceDir, 'docs', file),
+        path.join(docsDir, file),
+      );
+    }
   }
 
   const dependencies = deriveDependencies({

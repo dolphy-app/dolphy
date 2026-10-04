@@ -9,13 +9,16 @@ export const REPOSITORY_URL = 'git+https://github.com/dolphy-app/dolphy.git';
 export const NODE_RANGE = '>=22.12';
 export const DOCS_URL =
   'https://github.com/dolphy-app/dolphy/blob/main/docs/design/extensions.md';
+const GUIDE_URL =
+  'https://github.com/dolphy-app/dolphy/blob/main/packages/extension-sdk/docs';
 
 const VERSION_PATTERN = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
 
 /**
  * `entries` — точки входа бандла (имя файла в `dist` → исходник); `exports` — подпуть
  * пакета → имя точки входа (только пакеты с типами); `assets` — файлы из каталога
- * пакета, копируемые в `dist` и открытые подпутём `./<имя файла>`; `bin` — команда → точка входа;
+ * пакета, копируемые в `dist` и открытые подпутём `./<имя файла>`; `docs` — файлы каталога
+ * `docs/` пакета, публикуются как `docs/<имя файла>` рядом с `dist`; `bin` — команда → точка входа;
  * `siblings` — публикуемые пакеты, остающиеся зависимостями (их типы видны в `.d.ts`).
  */
 export const PACKAGES = [
@@ -50,6 +53,16 @@ export const PACKAGES = [
       testing: 'src/testing.ts',
     },
     exports: { '.': 'index', './runtime': 'runtime', './testing': 'testing' },
+    docs: [
+      'debugging.md',
+      'no-build.md',
+      'quick-start.md',
+      'recipe-command-panel.md',
+      'recipe-event-storage.md',
+      'recipe-exercise-type.md',
+      'recipe-settings.md',
+      'recipe-theme.md',
+    ],
     bin: null,
     dts: true,
     sideEffects: false,
@@ -66,6 +79,17 @@ export const PACKAGES = [
       "import { defineExtension } from '@dolphy-app/extension-sdk';",
       "import { loadExerciseType } from '@dolphy-app/extension-sdk/testing';",
       '```',
+      '',
+      'The package ships a guide in `docs/` (`node_modules/@dolphy-app/extension-sdk/docs/`',
+      'after the install): a',
+      `[quick start](${GUIDE_URL}/quick-start.md), recipes for`,
+      `[an exercise type](${GUIDE_URL}/recipe-exercise-type.md),`,
+      `[a theme](${GUIDE_URL}/recipe-theme.md),`,
+      `[a command and a panel](${GUIDE_URL}/recipe-command-panel.md),`,
+      `[events and storage](${GUIDE_URL}/recipe-event-storage.md) and`,
+      `[settings](${GUIDE_URL}/recipe-settings.md), a path`,
+      `[without a build](${GUIDE_URL}/no-build.md) and notes on`,
+      `[debugging](${GUIDE_URL}/debugging.md).`,
     ],
   },
   {
@@ -200,6 +224,13 @@ const distPath = (entry, extension) => `./dist/${entry}${extension}`;
 /** Файлы пакета, копируемые в `dist` как есть. */
 export const assetFiles = (spec) => spec.assets ?? [];
 
+/** Файлы руководства пакета: `docs/<имя>` в tarball. */
+export const docFiles = (spec) => spec.docs ?? [];
+
+/** Поле `files` опубликованного пакета. */
+export const publishedFiles = (spec) =>
+  docFiles(spec).length === 0 ? ['dist'] : ['dist', 'docs'];
+
 const exportsField = (spec) =>
   spec.exports === null
     ? undefined
@@ -257,7 +288,7 @@ export const createManifest = ({
       ? {}
       : { types: distPath(spec.exports['.'], '.d.ts') }),
     ...(spec.bin === null ? {} : { bin: binField(spec) }),
-    files: ['dist'],
+    files: publishedFiles(spec),
     dependencies,
     engines: { node: NODE_RANGE },
     repository: {

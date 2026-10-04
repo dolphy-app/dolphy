@@ -37,11 +37,13 @@ export const connectEngine = (options: EngineBridgeOptions): (() => void) => {
   const unsubscribeEvents = engine.onLearningEvent(dispatcher.dispatch);
   const unsubscribeSettings = engine.extensionHost.onSettingChanged(
     ({ extensionId, id, value }) => {
-      // значения настроек — boolean, string или number; движок проверил их по определению
+      // значения настроек — boolean, string, number или список строк; движок проверил их по определению
       if (
         typeof value === 'boolean' ||
         typeof value === 'string' ||
-        typeof value === 'number'
+        typeof value === 'number' ||
+        (Array.isArray(value) &&
+          value.every((item) => typeof item === 'string'))
       ) {
         channel.notify({
           method: 'settingChanged',

@@ -2,11 +2,9 @@ import { rename, writeFile } from 'node:fs/promises';
 import {
   CATALOG_SCHEMA_VERSION,
   FULL_INDEX_FILE,
-  INDEX_FILE,
   MAX_VERSIONS,
   TITLED_POINTS,
   compareSemver,
-  legacySubset,
   parseIndex,
 } from '@dolphy-app/extension-catalog';
 import type {
@@ -19,7 +17,7 @@ import type {
 import { BuildError } from '../errors.ts';
 import { compareText } from './tree.ts';
 
-export { FULL_INDEX_FILE, INDEX_FILE };
+export { FULL_INDEX_FILE };
 
 const orderFile = (file: CatalogFile): CatalogFile => ({
   path: file.path,
@@ -107,25 +105,19 @@ export interface IndexParts {
   revoked: CatalogIndex['revoked'];
 }
 
-/** Both published files: the full index and the subset every released app parses. */
-export interface AssembledIndexes {
-  full: CatalogIndex;
-  legacy: CatalogIndex;
-}
-
-const checked = (candidate: CatalogIndex, file: string): CatalogIndex => {
+const checked = (candidate: CatalogIndex): CatalogIndex => {
   try {
     parseIndex(candidate);
     return candidate;
   } catch (error) {
     throw new BuildError(
       `resulting index is invalid: ${error instanceof Error ? error.message : String(error)}`,
-      file,
+      FULL_INDEX_FILE,
     );
   }
 };
 
-/** Builds the full index with a stable key order; throws `BuildError` if it fails `parseIndex`. */
+/** Builds the index with a stable key order; throws `BuildError` if it fails `parseIndex`. */
 export const assembleIndex = (parts: IndexParts): CatalogIndex => {
   const candidate: CatalogIndex = {
     schemaVersion: CATALOG_SCHEMA_VERSION,
@@ -137,13 +129,7 @@ export const assembleIndex = (parts: IndexParts): CatalogIndex => {
       reason: item.reason,
     })),
   };
-  return checked(candidate, FULL_INDEX_FILE);
-};
-
-/** `index.v2.json` and `index.json` of the same content and `generatedAt`. */
-export const assembleIndexes = (parts: IndexParts): AssembledIndexes => {
-  const full = assembleIndex(parts);
-  return { full, legacy: checked(legacySubset(full), INDEX_FILE) };
+  return checked(candidate);
 };
 
 export const writeIndexAtomically = async (

@@ -1,3 +1,4 @@
+import { formatDiagnostic } from '../src/diagnostics.ts';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -32,7 +33,7 @@ const panel = (patch: Record<string, unknown> = {}) => ({
 const messageOf = (raw: unknown): string => {
   const parsed = parseManifest(raw);
   if (parsed.ok) throw new Error('manifest was accepted');
-  return parsed.message;
+  return formatDiagnostic(parsed.diagnostic);
 };
 
 describe('точка commands', () => {
@@ -51,7 +52,7 @@ describe('точка commands', () => {
       }),
     );
 
-    if (!parsed.ok) throw new Error(parsed.message);
+    if (!parsed.ok) throw new Error(formatDiagnostic(parsed.diagnostic));
     expect(parsed.manifest.main).toBe('./main.mjs');
     expect(parsed.manifest.contributes.commands).toEqual([
       {
@@ -147,7 +148,7 @@ describe('точка panels', () => {
       }),
     );
 
-    if (!parsed.ok) throw new Error(parsed.message);
+    if (!parsed.ok) throw new Error(formatDiagnostic(parsed.diagnostic));
     expect(parsed.manifest.main).toBeNull();
     expect(parsed.manifest.contributes.panels).toEqual([
       { id: `${ID}.screen`, title: 'Screen', module: './panel.mjs' },
@@ -246,7 +247,12 @@ describe('обнаружение и реестр команд и панелей'
     const found = await discover();
     const holder = holderOf(found.extensions);
     const policy = createExtensionPolicy(holder);
-    policy.update({ disabled: [], trusted: [ID], checkUpdates: true });
+    policy.update({
+      disabled: [],
+      trusted: [ID],
+      checkUpdates: true,
+      safeMode: false,
+    });
 
     const registry = createExtensionRegistry(holder, policy);
     const contributions = registry.contributions();
@@ -283,7 +289,12 @@ describe('обнаружение и реестр команд и панелей'
     await write(ID, { commands: [command()], panels: [panel()] });
     const holder = holderOf((await discover()).extensions);
     const policy = createExtensionPolicy(holder);
-    policy.update({ disabled: [ID], trusted: [], checkUpdates: true });
+    policy.update({
+      disabled: [ID],
+      trusted: [],
+      checkUpdates: true,
+      safeMode: false,
+    });
 
     const contributions = createExtensionRegistry(
       holder,
@@ -304,7 +315,12 @@ describe('обнаружение и реестр команд и панелей'
       {
         extensionId: ID,
         origin: 'user',
-        message: "panel module './panel.mjs' (default) is not a file",
+        diagnostic: {
+          code: 'load-failed',
+          data: {
+            reason: "panel module './panel.mjs' (default) is not a file",
+          },
+        },
       },
     ]);
   });
@@ -314,7 +330,9 @@ describe('обнаружение и реестр команд и панелей'
 
     const found = await discover();
 
-    expect(found.diagnostics[0]?.message).toContain("main './main.mjs'");
+    expect(formatDiagnostic(found.diagnostics[0]!.diagnostic)).toContain(
+      "main './main.mjs'",
+    );
   });
 
   it('id команды и панели занимает одно расширение: другое, чьё пространство пересекается, пропускается', async () => {
@@ -329,7 +347,11 @@ describe('обнаружение и реестр команд и панелей'
     const found = await discover();
 
     expect(found.extensions.map(({ id }) => id)).toEqual(['acme']);
-    expect(found.diagnostics.map(({ message }) => message).sort()).toEqual([
+    expect(
+      found.diagnostics
+        .map(({ diagnostic }) => formatDiagnostic(diagnostic))
+        .sort(),
+    ).toEqual([
       "command 'acme.b.run' is already provided by 'acme'",
       "panel 'acme.c.screen' is already provided by 'acme'",
     ]);
@@ -361,7 +383,7 @@ describe('обнаружение и реестр команд и панелей'
 
     const result = await inspectExtensionDir(path.join(root, ID));
 
-    if (!result.ok) throw new Error(result.message);
+    if (!result.ok) throw new Error(formatDiagnostic(result.diagnostic));
     expect(result.extension.commands.map(({ id }) => id)).toEqual([
       `${ID}.run`,
     ]);

@@ -19,7 +19,7 @@ export type InspectResult =
   { ok: true; manifest: InspectedManifest } | { ok: false; message: string };
 
 export interface InstallerOptions {
-  /** Адрес `index.json`; origin этого адреса — единственный разрешённый для запросов. */
+  /** Адрес каталога (рядом лежит `index.v2.json`); origin этого адреса — единственный разрешённый для запросов. */
   catalogUrl: string;
   /** Пользовательский корень расширений (`<userData>/extensions`). */
   extensionsDir: string;

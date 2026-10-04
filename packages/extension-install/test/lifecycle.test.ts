@@ -11,6 +11,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   CATALOG_URL,
+  FULL_INDEX_URL,
   createEnv,
   installFake,
   readText,
@@ -316,7 +317,7 @@ describe('updates и отзыв', () => {
       revoked: [{ id: 'acme.bad', versions: '<1.2.0', reason: 'security fix' }],
     });
     await env.installer.catalog();
-    env.routes.set(CATALOG_URL, { fail: true });
+    env.routes.set(FULL_INDEX_URL, { fail: true });
     const restarted = env.restart();
     await restarted.ready();
     expect(restarted.revocationOf('acme.bad', '1.0.0')).toBe('security fix');

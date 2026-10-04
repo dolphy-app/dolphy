@@ -8,6 +8,7 @@ import type {
   ExtensionOriginDto,
   ExtensionSettingsDto,
   ExtensionUpdateDto,
+  ExtensionsDiagnosticsDto,
   ExtensionsService,
   InstallResultDto,
   JsonValue,
@@ -110,10 +111,22 @@ const copyInfo = (info: ExtensionInfoDto): ExtensionInfoDto => ({
     commands: [...info.contributes.commands],
     panels: [...info.contributes.panels],
   },
+  diagnostics: structuredClone(info.diagnostics),
   permissions: [...info.permissions],
   titles: structuredClone(info.titles),
   tags: [...info.tags],
 });
+
+/**
+ * Причины отказа команды, которые считаются сбоем расширения. Остальные —
+ * решение системы или состояние хоста (`unknown-command`, `replaced`,
+ * `host-down`): расширение в них не виновато.
+ */
+const COMMAND_FAULTS: ReadonlySet<string> = new Set([
+  'handler-failed',
+  'timeout',
+  'invalid-result',
+]);
 
 const BUILTIN_POLICIES = Object.keys(GRADE_POLICIES).map((id) => ({
   id,
@@ -290,12 +303,15 @@ export const createExtensionsService = (
     EngineContext,
     | 'extensionRegistry'
     | 'extensionPolicy'
+    | 'extensionHealth'
+    | 'extensionHostControl'
     | 'extensionInstaller'
     | 'extensionApply'
     | 'settings'
     | 'extensionData'
     | 'extensionCommands'
     | 'extensionSettingChanges'
+    | 'config'
     | 'emit'
     | 'bus'
   >,
@@ -364,6 +380,34 @@ export const createExtensionsService = (
         reload: false,
       });
     },
+    setSafeMode: (enabled) => {
+      if (typeof enabled !== 'boolean') {
+        throw new EngineError('INVALID_ARGUMENT', {
+          message: 'safeMode must be a boolean',
+          details: { field: 'enabled' },
+        });
+      }
+      return persist((settings) => ({ ...settings, safeMode: enabled }), {
+        reload: true,
+      });
+    },
+    diagnostics: async (): Promise<ExtensionsDiagnosticsDto> => {
+      const persisted = (await ctx.settings.loadExtensions()).safeMode;
+      const forcedBy = ctx.config.forceSafeMode ?? null;
+      const ids = [
+        ...new Set(ctx.extensionRegistry.list().map(({ id }) => id)),
+      ];
+      return {
+        host: ctx.extensionHealth.hostStatus(),
+        safeMode: {
+          active: persisted || forcedBy !== null,
+          persisted,
+          forcedBy,
+        },
+        extensions: ids.sort().map((id) => ctx.extensionHealth.get(id)),
+      };
+    },
+    restartHost: async () => ctx.extensionHostControl.restart(),
     catalog: (options): Promise<CatalogDto> =>
       guarded(null, () => ctx.extensionInstaller.catalog(options)),
     install: async (id, version): Promise<InstallResultDto> => {
@@ -456,6 +500,13 @@ export const createExtensionsService = (
         return await ctx.extensionCommands.invoke(extensionId, commandId, args);
       } catch (error) {
         if (error instanceof ExtensionCommandError) {
+          if (COMMAND_FAULTS.has(error.cause)) {
+            ctx.extensionHealth.recordFailure(
+              extensionId,
+              error.cause,
+              error.message,
+            );
+          }
           throw new EngineError('EXTENSION_COMMAND_FAILED', {
             message: error.message,
             details: { extensionId, commandId, reason: error.cause },

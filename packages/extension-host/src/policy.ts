@@ -8,6 +8,7 @@ import type { RevocationLookup } from './revocation.ts';
 export const createAllTrustedPolicy = (): ExtensionPolicy => ({
   isEnabled: () => true,
   isIsolated: () => false,
+  safeMode: () => false,
   update: () => {},
 });
 
@@ -16,13 +17,16 @@ export const createAllTrustedPolicy = (): ExtensionPolicy => ({
  * пользователя → `ExtensionPolicy`. Расширения из поставки не отключаются и
  * не изолируются, даже если id попал в настройки (например, после того как
  * пользователь убрал свою копию с тем же id). Отозванное в каталоге
- * расширение отключено независимо от настроек. Снимок и отзыв читаются при
- * каждом вызове, так что применённые изменения расширений и обновлённый
- * индекс действуют сразу.
+ * расширение отключено независимо от настроек. В безопасном режиме (запуск
+ * с `forceSafeMode` или настройка `safeMode`) отключено всё, что не из
+ * поставки. Снимок и отзыв читаются при каждом вызове, так что применённые
+ * изменения расширений и обновлённый индекс действуют сразу.
  */
 export const createExtensionPolicy = (
   discovery: DiscoverySource,
   revocationOf?: RevocationLookup,
+  /** Безопасный режим задан запуском приложения: настройкой не снимается. */
+  forceSafeMode = false,
 ): ExtensionPolicy => {
   const found = (id: string) =>
     discovery.get().extensions.find((item) => item.id === id);
@@ -36,12 +40,17 @@ export const createExtensionPolicy = (
   };
   let disabled = new Set<string>();
   let trusted = new Set<string>();
+  let persistedSafeMode = false;
+  const safeMode = (): boolean => forceSafeMode || persistedSafeMode;
   return {
-    isEnabled: (id) => bundled(id) || (!disabled.has(id) && !revoked(id)),
+    isEnabled: (id) =>
+      bundled(id) || (!safeMode() && !disabled.has(id) && !revoked(id)),
     isIsolated: (id) => !bundled(id) && !trusted.has(id),
+    safeMode,
     update(settings: ExtensionSettingsDto) {
       disabled = new Set(settings.disabled);
       trusted = new Set(settings.trusted);
+      persistedSafeMode = settings.safeMode;
     },
   };
 };

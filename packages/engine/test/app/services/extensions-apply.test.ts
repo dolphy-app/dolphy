@@ -27,7 +27,7 @@ const USER: ExtensionInfoDto = {
     commands: [],
     panels: [],
   },
-  message: null,
+  diagnostics: [],
   permissions: [],
   isolation: 'isolated',
   toggleable: true,

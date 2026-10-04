@@ -5,6 +5,7 @@ import type {
   EngineEvent,
   ExtensionContributesDto,
   ExtensionInfoDto,
+  ExtensionsDiagnosticsDto,
 } from '@dolphy-app/engine-contract';
 
 export const NO_CONTRIBUTES: ExtensionContributesDto = {
@@ -18,6 +19,16 @@ export const NO_CONTRIBUTES: ExtensionContributesDto = {
   panels: [],
 };
 
+/** Движок без сбоев: хост работает, безопасный режим выключен, здоровья по расширениям нет. */
+export const diagnosticsDto = (
+  override: Partial<ExtensionsDiagnosticsDto> = {},
+): ExtensionsDiagnosticsDto => ({
+  host: 'running',
+  safeMode: { active: false, persisted: false, forcedBy: null },
+  extensions: [],
+  ...override,
+});
+
 export const extensionInfo = (
   id: string,
   override: Partial<ExtensionInfoDto> = {},
@@ -27,7 +38,7 @@ export const extensionInfo = (
   origin: 'bundled',
   state: 'loaded',
   contributes: { ...NO_CONTRIBUTES, exerciseTypes: [id] },
-  message: null,
+  diagnostics: [],
   permissions: [],
   isolation: 'trusted',
   toggleable: false,

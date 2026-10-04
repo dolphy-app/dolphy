@@ -171,6 +171,10 @@ export interface DolphyApp {
    * перезапускает его, окна получают новый порт. Возвращает убитый `pid`.
    */
   killEngineHost(): Promise<number>;
+  /** `pid` живого хоста расширений (`utilityProcess` `dolphy-ext-host`) или `null`, пока супервизор его перезапускает. */
+  extensionHostPid(): Promise<number | null>;
+  /** Убивает хост расширений `SIGKILL`, как внезапный сбой; возвращает убитый `pid`. */
+  killExtensionHost(): Promise<number>;
   /** Выполняет функцию в главном процессе (модуль `electron` — первый аргумент). */
   evaluateMain: ElectronApplication['evaluate'];
   /** Закрывает приложение и ждёт, пока хост движка отпустит `engine.db`. */
@@ -185,6 +189,8 @@ export interface DolphyApp {
 export const launchApp = async (
   userData: string,
   env?: Record<string, string>,
+  /** Дополнительные аргументы командной строки приложения (`--safe-mode`). */
+  extraArgs: readonly string[] = [],
 ): Promise<DolphyApp> => {
   const executablePath =
     process.platform === 'darwin' && !E2E_SHOW
@@ -197,6 +203,7 @@ export const launchApp = async (
       join(E2E_BUILD_DIR, 'dist-electron/main/index.js'),
       `--user-data-dir=${userData}`,
       '--lang=ru',
+      ...extraArgs,
       // окно на другом space yabai считается перекрытым: без этого Chromium
       // замедляет его и iframe панелей не успевают ответить
       ...(E2E_SHOW
@@ -222,16 +229,19 @@ export const launchApp = async (
   page.on('pageerror', (error) => {
     console.error(`[renderer pageerror] ${error.message}`);
   });
-  const engineHostPid = () =>
+  const utilityPid = (name: string) =>
     app.evaluate(
-      ({ app: electronApp }) =>
+      ({ app: electronApp }, serviceName) =>
         electronApp
           .getAppMetrics()
           .find(
             (metric) =>
-              metric.type === 'Utility' && metric.name === 'dolphy-engine',
+              metric.type === 'Utility' && metric.name === serviceName,
           )?.pid ?? null,
+      name,
     );
+  const engineHostPid = () => utilityPid('dolphy-engine');
+  const extensionHostPid = () => utilityPid('dolphy-ext-host');
   return {
     page,
     engineHostPid,
@@ -239,6 +249,13 @@ export const launchApp = async (
     killEngineHost: async () => {
       const pid = await engineHostPid();
       if (pid === null) throw new Error('engine host is not running');
+      process.kill(pid, 'SIGKILL');
+      return pid;
+    },
+    extensionHostPid,
+    killExtensionHost: async () => {
+      const pid = await extensionHostPid();
+      if (pid === null) throw new Error('extension host is not running');
       process.kill(pid, 'SIGKILL');
       return pid;
     },

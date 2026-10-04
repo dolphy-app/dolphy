@@ -1,3 +1,5 @@
+import { readFile, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createWorkspace, launchApp } from './support/app.ts';
@@ -50,6 +52,33 @@ describe('Настройки → Расширения: разрешения, в�
     const [sql] = await client.readExtensions('dolphy.sql');
     expect(sql).toContain('Запуск процессов');
     expect(sql).toContain('Нативные модули');
+  });
+
+  it('расширение с minAppVersion выше версии приложения показывает причину по коду на языке окна', async () => {
+    workspace = await createWorkspace({
+      extensions: { [ID]: PERMISSIONS_EXTENSION },
+    });
+    const manifest = join(
+      workspace.userData,
+      'extensions',
+      ID,
+      'extension.json',
+    );
+    const raw = JSON.parse(await readFile(manifest, 'utf8')) as object;
+    await writeFile(
+      manifest,
+      JSON.stringify({ ...raw, minAppVersion: '99.0.0' }),
+    );
+    app = await launchApp(workspace.userData, {
+      DOLPHY_APP_VERSION: '1.0.0',
+    });
+    const client = new Client(app.page);
+    await client.openSettingsExtensions();
+
+    const [row] = await client.readExtensions(ID);
+    expect(row).toContain('Не загрузилось');
+    expect(row).toContain('Требуется приложение версии 99.0.0 или новее');
+    expect(row).not.toContain('requires app');
   });
 
   it('отключение и включение меняют темы сразу, без перезагрузки окна; строка помечена «Отключено»', async () => {

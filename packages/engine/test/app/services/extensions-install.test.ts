@@ -35,7 +35,7 @@ const info = (overrides: Partial<ExtensionInfoDto>): ExtensionInfoDto => ({
   origin: 'user',
   state: 'loaded',
   contributes: NO_CONTRIBUTES,
-  message: null,
+  diagnostics: [],
   permissions: [],
   isolation: 'isolated',
   toggleable: true,
@@ -267,6 +267,7 @@ describe('extensions.setCheckUpdates', () => {
       disabled: [],
       trusted: [],
       checkUpdates: false,
+      safeMode: false,
     });
     await engine.extensions.setCheckUpdates(false);
     expect((await settings.loadExtensions()).checkUpdates).toBe(false);
@@ -289,6 +290,7 @@ describe('extensions.setCheckUpdates', () => {
       disabled: ['acme.user'],
       trusted: [],
       checkUpdates: false,
+      safeMode: false,
     });
   });
 });
@@ -298,7 +300,6 @@ describe('revoked extensions', () => {
     state: 'disabled',
     toggleable: false,
     revoked: 'compromised build',
-    message: 'compromised build',
   });
 
   it('cannot be enabled or disabled; trust stays settable', async () => {
@@ -360,7 +361,12 @@ describe('startup update check', () => {
 
   it('does nothing when the setting is off', async () => {
     const settings = createMemorySettingsStore({
-      extensions: { disabled: [], trusted: [], checkUpdates: false },
+      extensions: {
+        disabled: [],
+        trusted: [],
+        checkUpdates: false,
+        safeMode: false,
+      },
     });
     const { ctx, installer } = await setup({ updates: [UPDATE] }, settings);
     await runStartupUpdateCheck(ctx);

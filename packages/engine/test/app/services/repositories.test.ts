@@ -5,6 +5,7 @@ import {
   buildLibrary,
   createFakeClock,
   createFakeExerciseTypes,
+  createFakeExtensionHostControl,
   createFakeExtensionInstaller,
   createFakeExtensionPolicy,
   createFakeExtensionRegistry,
@@ -20,6 +21,7 @@ import { describe, expect, it } from 'vitest';
 import {
   EngineError,
   createEngine,
+  createExtensionHealth,
   recoverRepositories,
 } from '../../../src/app/index.ts';
 import {
@@ -831,6 +833,8 @@ describe('startup recovery (R9)', () => {
           extensionCommands: createFakeExtensionCommands(),
           extensionRegistry: createFakeExtensionRegistry(),
           extensionPolicy: createFakeExtensionPolicy(),
+          extensionHealth: createExtensionHealth(createFakeClock()),
+          extensionHostControl: createFakeExtensionHostControl(),
           extensionInstaller: createFakeExtensionInstaller(),
           extensionReloader: createFakeExtensionReloader(),
           repositoryStore,

@@ -14,7 +14,7 @@
  * - `build-with-code` — a project of `extension.json` and one `src/index.ts` (the ```ts block
  *   with the marker) builds, passes `validateExtension` and `tsc` with the id types
  *   the build wrote to `.dolphy/ids.d.ts`;
- * - `index` — a single `index.json` or `index.v2.json` file (by the example label)
+ * - `index` — a single `index.v2.json` file
  *   passes `parseIndex` (`@dolphy-app/extension-catalog`).
  *
  * The example “серия дней целиком” is also executed: the built `main.mjs`
@@ -23,7 +23,8 @@
 import { mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseIndex } from '@dolphy-app/extension-catalog';
-import { parseManifest } from '@dolphy-app/extension-host';
+import { manifestJsonSchema, parseManifest } from '@dolphy-app/extension-host';
+import { Ajv2020 } from 'ajv/dist/2020.js';
 import { describe, expect, it } from 'vitest';
 import { buildExtension, validateExtension } from '../src/index.ts';
 import { makeTemp, runTsc } from './helpers.ts';
@@ -43,7 +44,6 @@ const EXAMPLES: Readonly<Record<string, Mode>> = {
   'вид задания с правами': 'manifest',
   'расширение для каталога': 'build-no-code',
   'индекс каталога': 'index',
-  'полный индекс каталога': 'index',
   'панель со стилями и картинкой': 'build-with-code',
 };
 
@@ -159,20 +159,15 @@ describe('examples of the sections “Точки вклада”, “Права 
       if (mode === 'index') {
         it('the index passes parseIndex', () => {
           const files = examples.get(label) ?? [];
-          const full = label.startsWith('полный');
-          expect(files.map(({ file }) => file)).toEqual([
-            full ? 'index.v2.json' : 'index.json',
-          ]);
+          expect(files.map(({ file }) => file)).toEqual(['index.v2.json']);
           const index = parseIndex(JSON.parse(files[0]?.content ?? ''));
           expect(index.extensions.length).toBeGreaterThan(0);
-          expect(index.schemaVersion).toBe(full ? 2 : 1);
-          if (full) {
-            expect(
-              index.extensions.every((entry) =>
-                entry.versions.some((version) => version.icon !== undefined),
-              ),
-            ).toBe(true);
-          }
+          expect(index.schemaVersion).toBe(2);
+          expect(
+            index.extensions.every((entry) =>
+              entry.versions.some((version) => version.icon !== undefined),
+            ),
+          ).toBe(true);
         });
         return;
       }
@@ -180,6 +175,14 @@ describe('examples of the sections “Точки вклада”, “Права 
       it('extension.json passes parseManifest', () => {
         const result = parseManifest(manifestOf(examples.get(label) ?? []));
         expect(result).toMatchObject({ ok: true });
+      });
+
+      it('extension.json passes extension.schema.json', () => {
+        const validate = new Ajv2020({ strict: false }).compile(
+          manifestJsonSchema(),
+        );
+        const manifest = manifestOf(examples.get(label) ?? []);
+        expect(validate(manifest), JSON.stringify(validate.errors)).toBe(true);
       });
 
       if (mode === 'manifest') return;

@@ -138,13 +138,18 @@ describe('registry and policy: metadata and revocation', () => {
     const { info, policy, registry } = await setup({ 'acme.u': 'leaks data' });
     expect(info('acme.u')).toMatchObject({
       state: 'disabled',
-      message: 'leaks data',
+      diagnostics: [],
       toggleable: false,
       revoked: 'leaks data',
     });
     expect(policy.isEnabled('acme.u')).toBe(false);
     // настройки пользователя отзыв не отменяют
-    policy.update({ disabled: [], trusted: [], checkUpdates: true });
+    policy.update({
+      disabled: [],
+      trusted: [],
+      checkUpdates: true,
+      safeMode: false,
+    });
     expect(policy.isEnabled('acme.u')).toBe(false);
     expect(registry.contributions().themes.map(({ id }) => id)).toEqual([
       'dolphy.b.night',

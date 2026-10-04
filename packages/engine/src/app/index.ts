@@ -86,6 +86,7 @@ export {
 export { createContext } from './create-context.ts';
 export { createEngine, createEngineFromContext } from './create-engine.ts';
 export type { HostedEngine } from './create-engine.ts';
+export { createExtensionHealth } from './extension-health.ts';
 export { createExtensionApply } from './extension-apply.ts';
 export type { ExtensionApply } from './extension-apply.ts';
 export { ENGINE_VERSION, collectDiagnostics } from './diagnostics.ts';

@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { createEngine } from '@dolphy-app/engine/app';
+import { createEngine, createExtensionHealth } from '@dolphy-app/engine/app';
 import { nodeDefaults } from '@dolphy-app/engine/node';
 import type { EngineConfig } from '@dolphy-app/engine-contract';
 import { createIsomorphicGitFetcher } from '@dolphy-app/engine-git';
@@ -28,6 +28,8 @@ export const boot = async (
   config: EngineConfig,
   /** Синхронный цикл в расширении не прервать: просим main перезапустить хост расширений. */
   restartExtHost: () => void,
+  /** Пользователь просит запустить хост расширений после `gave-up`: main сбрасывает счётчик падений. */
+  resetExtHost: () => void,
 ) => {
   // первый запуск: каталогов ещё нет, библиотека может быть пустой
   mkdirSync(config.libraryRoot, { recursive: true });
@@ -78,13 +80,21 @@ export const boot = async (
     currentExtensions: () => discovery.get().extensions,
   });
   // одна политика на каталог, клиентов хоста, реестр и движок: «Настройки → Расширения» действует сразу
-  const policy = createExtensionPolicy(discovery, revocationOf);
+  // безопасный режим, заданный запуском, действует поверх настройки
+  const policy = createExtensionPolicy(
+    discovery,
+    revocationOf,
+    config.forceSafeMode !== undefined,
+  );
+  // здоровье расширений копится в памяти движка; клиенты хоста пишут сбои сюда же
+  const health = createExtensionHealth(defaults.clock);
   const catalog = createCatalog(discovery, policy);
   const exerciseTypes = createRemoteExerciseTypes({
     channel,
     catalog,
     policy,
     logger: defaults.logger,
+    health,
   });
   const gradePolicies = createRemoteGradePolicies({
     channel,
@@ -121,6 +131,8 @@ export const boot = async (
         revocationOf,
       ),
       extensionPolicy: policy,
+      extensionHealth: health,
+      extensionHostControl: { restart: resetExtHost },
       extensionInstaller,
       extensionReloader: createExtensionReloader({
         holder: discovery,
@@ -140,6 +152,7 @@ export const boot = async (
     discovery,
     policy,
     logger: defaults.logger,
+    health,
   });
-  return { engine, logger: defaults.logger, channel };
+  return { engine, logger: defaults.logger, channel, health };
 };

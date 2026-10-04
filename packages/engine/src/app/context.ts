@@ -40,6 +40,10 @@ import type { GradePolicies } from '../ports/grade-policies.ts';
 import type { ExtensionCommands } from '../ports/extension-commands.ts';
 import type { ExtensionDataStore } from '../ports/extension-data.ts';
 import type { ExtensionInstaller } from '../ports/extension-installer.ts';
+import type {
+  ExtensionHealth,
+  ExtensionHostControl,
+} from '../ports/extension-health.ts';
 import type { ExtensionPolicy } from '../ports/extension-policy.ts';
 import type { ExtensionRegistry } from '../ports/extension-registry.ts';
 import type { ExtensionReloader } from '../ports/extension-reloader.ts';
@@ -103,6 +107,10 @@ export interface EngineDeps {
   extensionRegistry: ExtensionRegistry;
   /** Политика расширений (включено / изолировано); тот же экземпляр, что у реестра и клиентов хоста. */
   extensionPolicy: ExtensionPolicy;
+  /** Здоровье расширений в памяти; тот же экземпляр, что у клиентов хоста (`createExtensionHealth`). */
+  extensionHealth: ExtensionHealth;
+  /** Перезапуск хоста расширений: им владеет оболочка приложения. */
+  extensionHostControl: ExtensionHostControl;
   /** Установка расширений из каталога (`@dolphy-app/extension-install`). */
   extensionInstaller: ExtensionInstaller;
   /** Применение изменений расширений на диске (`@dolphy-app/extension-host`): тот же снимок, что у реестра, политики и клиентов хоста. */
@@ -317,6 +325,8 @@ export interface EngineContext extends FacadeContext {
   readonly exerciseTypes: ExerciseTypes;
   readonly extensionRegistry: ExtensionRegistry;
   readonly extensionPolicy: ExtensionPolicy;
+  readonly extensionHealth: ExtensionHealth;
+  readonly extensionHostControl: ExtensionHostControl;
   readonly extensionInstaller: ExtensionInstaller;
   readonly extensionApply: ExtensionApply;
   readonly folderSync: FolderSyncPort | null;

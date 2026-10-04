@@ -108,7 +108,7 @@ const manifest = JSON.stringify({
 
 const indexOf = (revoked: { id: string; versions: string; reason: string }[]) =>
   JSON.stringify({
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt: '2026-10-01T12:00:00Z',
     extensions: [
       {
@@ -161,7 +161,9 @@ describe('установка из каталога → обнаружение �
     let revoked: { id: string; versions: string; reason: string }[] = [];
     const fetchFake: typeof fetch = async (input) => {
       const url = String(input);
-      if (url === CATALOG) return new Response(indexOf(revoked));
+      if (url === 'https://catalog.test/index.v2.json') {
+        return new Response(indexOf(revoked));
+      }
       if (url.endsWith('/extension.json')) return new Response(manifest);
       return new Response('not found', { status: 404 });
     };
@@ -215,7 +217,6 @@ describe('установка из каталога → обнаружение �
     expect(registry.list()[0]).toMatchObject({
       state: 'disabled',
       revoked: 'malware',
-      message: 'malware',
       toggleable: false,
     });
     expect(policy.isEnabled('acme.theme')).toBe(false);

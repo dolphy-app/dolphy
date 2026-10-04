@@ -129,11 +129,10 @@ export const rawIndex = (
   options: {
     generatedAt?: string;
     revoked?: { id: string; versions: string; reason: string }[];
-    schemaVersion?: 1 | 2;
   } = {},
 ): string =>
   JSON.stringify({
-    schemaVersion: options.schemaVersion ?? 1,
+    schemaVersion: 2,
     generatedAt: options.generatedAt ?? '2026-10-01T12:00:00Z',
     extensions: entries.map(rawEntry),
     revoked: options.revoked ?? [],
@@ -199,18 +198,14 @@ export const serve = (
   }
 };
 
-/** `index.json` of the catalog; `full` — `index.v2.json` (schemaVersion 2) instead. */
+/** `index.v2.json` of the catalog. */
 export const serveIndex = (
   routes: Map<string, Route>,
   entries: ExtensionSpec[],
-  options: Parameters<typeof rawIndex>[1] & {
-    etag?: string;
-    full?: boolean;
-  } = {},
+  options: Parameters<typeof rawIndex>[1] & { etag?: string } = {},
 ): void => {
-  const { full = false, ...rest } = options;
-  routes.set(full ? FULL_INDEX_URL : CATALOG_URL, {
-    body: rawIndex(entries, { ...rest, schemaVersion: full ? 2 : 1 }),
+  routes.set(FULL_INDEX_URL, {
+    body: rawIndex(entries, options),
     ...(options.etag !== undefined && {
       headers: { etag: options.etag, 'content-type': 'application/json' },
     }),

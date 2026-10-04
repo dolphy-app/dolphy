@@ -1,9 +1,13 @@
 import type { LearningEvent } from '@dolphy-app/engine-contract';
-import type { ExtensionPolicy } from '@dolphy-app/engine/ports';
+import type {
+  ExtensionHealth,
+  ExtensionPolicy,
+} from '@dolphy-app/engine/ports';
 import type { ExtensionLogger } from '@dolphy-app/extension-api';
 import type { HostChannel } from './channel.ts';
 import type { ResolvedExtension } from './discover.ts';
 import type { DiscoverySource } from './holder.ts';
+import { isFault } from './protocol.ts';
 
 /** Сколько событий ждёт доставки одного расширения; при переполнении отбрасываются самые старые. */
 export const EVENT_QUEUE_LIMIT = 100;
@@ -24,6 +28,8 @@ export interface EventDispatcherOptions {
   logger: ExtensionLogger;
   queueLimit?: number;
   deliveryMs?: number;
+  /** Сюда идут сбои обработчиков и просроченная доставка; без него не учитываются. */
+  health?: Pick<ExtensionHealth, 'recordFailure'>;
 }
 
 export interface EventDispatcher {
@@ -48,7 +54,7 @@ interface Queue {
 export const createEventDispatcher = (
   options: EventDispatcherOptions,
 ): EventDispatcher => {
-  const { channel, discovery, policy, logger } = options;
+  const { channel, discovery, policy, logger, health } = options;
   const queueLimit = options.queueLimit ?? EVENT_QUEUE_LIMIT;
   const deliveryMs = options.deliveryMs ?? EVENT_DELIVERY_MS;
   const queues = new Map<string, Queue>();
@@ -99,6 +105,13 @@ export const createEventDispatcher = (
           { restart: false },
         );
         if (outcome.kind === 'response' && !outcome.response.ok) {
+          if (isFault(outcome.response.error.cause)) {
+            health?.recordFailure(
+              extensionId,
+              outcome.response.error.cause,
+              outcome.response.error.message,
+            );
+          }
           logger.warn(
             {
               extensionId,
@@ -109,6 +122,11 @@ export const createEventDispatcher = (
             'extension event handler failed',
           );
         } else if (outcome.kind === 'timeout') {
+          health?.recordFailure(
+            extensionId,
+            'timeout',
+            'extension event delivery timed out',
+          );
           logger.warn(
             { extensionId, event: event.name },
             'extension event delivery timed out',

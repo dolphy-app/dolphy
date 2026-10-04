@@ -78,7 +78,12 @@ const shortDateTime: Intl.DateTimeFormatOptions = {
   minute: '2-digit',
 };
 
+const shortTime: Intl.DateTimeFormatOptions = {
+  hour: '2-digit',
+  minute: '2-digit',
+};
+
 export const datetimeFormats = {
-  ru: { fullDate, shortDateTime },
-  en: { fullDate, shortDateTime },
+  ru: { fullDate, shortDateTime, shortTime },
+  en: { fullDate, shortDateTime, shortTime },
 };

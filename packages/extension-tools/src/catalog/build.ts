@@ -10,7 +10,7 @@ import {
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { parseManifest } from '@dolphy-app/extension-host';
+import { formatDiagnostic, parseManifest } from '@dolphy-app/extension-host';
 import type { ExtensionManifest } from '@dolphy-app/extension-api';
 import {
   CATALOG_FILE_EXTENSIONS,
@@ -19,8 +19,6 @@ import {
   TITLED_POINTS,
   iconDataUri,
   iconProblem,
-  isLegacyEntry,
-  isLegacyVersion,
   isSafeCatalogPath,
   sizeProblem,
 } from '@dolphy-app/extension-catalog';
@@ -35,11 +33,9 @@ import type {
 import { buildExtension } from '../index.ts';
 import { BuildError, CatalogUsageError } from '../errors.ts';
 import { loadIndexFile } from './check.ts';
-import type { AssembledIndexes } from './index-file.ts';
 import {
   FULL_INDEX_FILE,
-  INDEX_FILE,
-  assembleIndexes,
+  assembleIndex,
   hasSameContent,
   newestFirst,
   sameFiles,
@@ -54,9 +50,9 @@ export interface BuildCatalogOptions {
   /** Directory of projects `<src>/<id>`. */
   src: string;
   ids: readonly string[];
-  /** Site root: `index.json`, `index.v2.json` and `extensions/<id>/<version>/`. */
+  /** Site root: `index.v2.json` and `extensions/<id>/<version>/`. */
   out: string;
-  /** Source index; default `<out>/index.v2.json`, else `<out>/index.json`. */
+  /** Source index; default `<out>/index.v2.json`. */
   previousIndex?: string;
   revoked?: string;
   sourceBase?: string;
@@ -70,8 +66,6 @@ export interface PublishResult {
   status: 'published' | 'unchanged';
   files: number;
   bytes: number;
-  /** `false` — the version is only in `index.v2.json`: released apps cannot read it. */
-  inLegacyIndex: boolean;
 }
 
 interface Staged {
@@ -124,7 +118,8 @@ const readBuiltManifest = async (dir: string): Promise<ExtensionManifest> => {
   const parsed = parseManifest(
     JSON.parse(await readFile(path.join(dir, 'extension.json'), 'utf8')),
   );
-  if (!parsed.ok) throw new BuildError(parsed.message, dir);
+  if (!parsed.ok)
+    throw new BuildError(formatDiagnostic(parsed.diagnostic), dir);
   return parsed.manifest;
 };
 
@@ -355,57 +350,41 @@ const writeVersion = async (item: Plan, out: string): Promise<void> => {
   await rename(temporary, target);
 };
 
-const resultOf = (item: Plan, entry: CatalogEntry): PublishResult => ({
+const resultOf = (item: Plan): PublishResult => ({
   id: item.staged.id,
   version: item.staged.manifest.version,
   status: item.status,
   files: item.staged.files.length,
   bytes: item.staged.files.reduce((sum, file) => sum + file.size, 0),
-  inLegacyIndex: isLegacyEntry(entry) && isLegacyVersion(item.record),
 });
 
-export const formatPublishResult = (result: PublishResult): string => {
-  const legacy = result.inLegacyIndex
-    ? ''
-    : ` — only in ${FULL_INDEX_FILE}: released apps cannot read it`;
-  return result.status === 'unchanged'
-    ? `unchanged ${result.id}@${result.version}${legacy}`
-    : `published ${result.id}@${result.version} (${result.files} files, ${result.bytes} bytes)${legacy}`;
-};
+export const formatPublishResult = (result: PublishResult): string =>
+  result.status === 'unchanged'
+    ? `unchanged ${result.id}@${result.version}`
+    : `published ${result.id}@${result.version} (${result.files} files, ${result.bytes} bytes)`;
 
-/** The index to start from: the explicit file, else the full index of the site, else its `index.json`. */
+/** The index to start from: the explicit file, else the index of the site. */
 const previousIndexFile = async (
   out: string,
   explicit: string | undefined,
-): Promise<string> => {
-  if (explicit !== undefined) return path.resolve(explicit);
-  const full = path.join(out, FULL_INDEX_FILE);
-  return (await stat(full).catch(() => null)) === null
-    ? path.join(out, INDEX_FILE)
-    : full;
-};
+): Promise<string> =>
+  explicit === undefined
+    ? path.join(out, FULL_INDEX_FILE)
+    : path.resolve(explicit);
 
-/**
- * Writes `index.v2.json` and `index.json` when either differs from the disk (ignoring
- * `generatedAt`); both get the same `generatedAt`, so the app can compare them with each other.
- */
-const writeIndexes = async (
+/** Writes `index.v2.json` when it differs from the disk (ignoring `generatedAt`). */
+const writeIndex = async (
   out: string,
-  { full, legacy }: AssembledIndexes,
+  index: CatalogIndex,
 ): Promise<boolean> => {
-  const fullFile = path.join(out, FULL_INDEX_FILE);
-  const legacyFile = path.join(out, INDEX_FILE);
-  const unchanged =
-    hasSameContent(await loadIndexFile(fullFile), full) &&
-    hasSameContent(await loadIndexFile(legacyFile), legacy);
-  if (unchanged) return false;
+  const file = path.join(out, FULL_INDEX_FILE);
+  if (hasSameContent(await loadIndexFile(file), index)) return false;
   await mkdir(out, { recursive: true });
-  await writeIndexAtomically(fullFile, full);
-  await writeIndexAtomically(legacyFile, legacy);
+  await writeIndexAtomically(file, index);
   return true;
 };
 
-/** Builds extension versions and updates `index.v2.json` and `index.json`; on error nothing is written to disk. */
+/** Builds extension versions and updates `index.v2.json`; on error nothing is written to disk. */
 export const buildCatalog = async (
   options: BuildCatalogOptions,
 ): Promise<PublishResult[]> => {
@@ -432,9 +411,9 @@ export const buildCatalog = async (
       plans.push(item);
       const entry = entryOf(item, before, sourceBase);
       entries.set(id, entry);
-      results.push(resultOf(item, entry));
+      results.push(resultOf(item));
     }
-    const indexes = assembleIndexes({
+    const index = assembleIndex({
       generatedAt: now,
       extensions: [...entries.values()],
       revoked,
@@ -442,7 +421,7 @@ export const buildCatalog = async (
     for (const item of plans) {
       if (item.shouldWrite) await writeVersion(item, out);
     }
-    await writeIndexes(out, indexes);
+    await writeIndex(out, index);
     return results;
   } finally {
     await rm(scratch, { recursive: true, force: true });
@@ -467,7 +446,7 @@ export interface ReindexResult {
 export const formatReindexResult = (result: ReindexResult): string =>
   `reindexed (${result.extensions} extensions, ${result.revoked} revoked)${result.changed ? '' : ' — no changes'}`;
 
-/** Rewrites `revoked` and `generatedAt` of both indexes; extension entries are unchanged. */
+/** Rewrites `revoked` and `generatedAt` of the index; extension entries are unchanged. */
 export const reindexCatalog = async (
   options: ReindexOptions,
 ): Promise<ReindexResult> => {
@@ -480,17 +459,17 @@ export const reindexCatalog = async (
       source,
     );
   }
-  const indexes = assembleIndexes({
+  const index = assembleIndex({
     generatedAt:
       options.publishedAt ??
       (options.now ?? (() => new Date()))().toISOString(),
     extensions: previous.extensions,
     revoked: await loadRevoked(options.revoked, previous),
   });
-  const changed = await writeIndexes(out, indexes);
+  const changed = await writeIndex(out, index);
   return {
-    extensions: indexes.full.extensions.length,
-    revoked: indexes.full.revoked.length,
+    extensions: index.extensions.length,
+    revoked: index.revoked.length,
     changed,
   };
 };

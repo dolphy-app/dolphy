@@ -33,7 +33,7 @@ const info = (overrides: Partial<ExtensionInfoDto> = {}): ExtensionInfoDto => ({
     commands: [`${ID}.run`],
     panels: [],
   },
-  message: null,
+  diagnostics: [],
   permissions: [],
   isolation: 'isolated',
   toggleable: true,
@@ -88,6 +88,7 @@ const open = (options: OpenOptions = {}) => {
       disabled: options.disabled ?? [],
       trusted: [],
       checkUpdates: true,
+      safeMode: false,
     },
   });
   return createTestEngine({

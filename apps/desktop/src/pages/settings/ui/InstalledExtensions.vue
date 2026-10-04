@@ -2,6 +2,7 @@
 import { nextTick, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type {
+  ExtensionDiagnosticDto,
   ExtensionInfoDto,
   ExtensionStateDto,
 } from '@dolphy-app/engine-contract';
@@ -19,6 +20,7 @@ import { useInstallContext } from '../model/install.ts';
 import ExtensionContributions from './ExtensionContributions.vue';
 import ExtensionTags from './ExtensionTags.vue';
 import ExtensionData from './ExtensionData.vue';
+import ExtensionHealth from './ExtensionHealth.vue';
 import ExtensionHeading from './ExtensionHeading.vue';
 import ExtensionPermissions from './ExtensionPermissions.vue';
 import ExtensionSettingsDialog from './ExtensionSettingsDialog.vue';
@@ -49,9 +51,13 @@ const {
   load,
   switching,
   switchError,
+  diagnostics,
+  restartingHost,
   setEnabled,
   setTrusted,
   setCheckUpdates,
+  setSafeMode,
+  restartHost,
   updateTargets,
 } = useExtensions(useEngine());
 
@@ -61,6 +67,25 @@ const settingsTarget = ref<ExtensionInfoDto | null>(null);
 const data = useExtensionData(useEngine(), items);
 
 /** Настройки есть у загруженного (включённого) расширения, объявившего `settings`. */
+const issuesOf = (diagnostic: ExtensionDiagnosticDto): string[] => {
+  const { issues } = diagnostic.data;
+  return Array.isArray(issues) ? issues : [];
+};
+
+const diagnosticText = (diagnostic: ExtensionDiagnosticDto): string =>
+  t(
+    `settings.extensions.diagnostic.${diagnostic.code}`,
+    diagnostic.code === 'overridden-by'
+      ? {
+          ...diagnostic.data,
+          origin: t(`settings.extensions.origin.${diagnostic.data.origin}`),
+        }
+      : diagnostic.data,
+  );
+
+const healthOf = (id: string) =>
+  diagnostics.value?.extensions.find((health) => health.id === id);
+
 const hasSettings = (extension: ExtensionInfoDto) =>
   extension.state === 'loaded' && extension.contributes.settings.length > 0;
 
@@ -169,6 +194,31 @@ watch(
 
     <template v-if="state === 'loaded'">
       <v-alert
+        v-if="diagnostics?.host === 'gave-up'"
+        type="error"
+        variant="tonal"
+        class="mb-6"
+        :title="t('settings.extensions.host.gaveUpTitle')"
+        data-testid="host-gave-up"
+      >
+        <div class="d-flex align-center ga-3">
+          <span class="flex-grow-1">{{
+            t('settings.extensions.host.gaveUpText')
+          }}</span>
+          <v-btn
+            variant="flat"
+            color="error"
+            prepend-icon="mdi-restart"
+            :loading="restartingHost"
+            data-testid="host-restart"
+            @click="restartHost"
+          >
+            {{ t('settings.extensions.host.restart') }}
+          </v-btn>
+        </div>
+      </v-alert>
+
+      <v-alert
         v-if="updates.length > 0"
         type="info"
         variant="tonal"
@@ -222,6 +272,28 @@ watch(
         >
           {{ t('settings.extensions.refresh') }}
         </v-btn>
+      </div>
+
+      <div class="mb-4" data-testid="safe-mode-section">
+        <v-switch
+          :model-value="settings.safeMode"
+          :label="t('settings.extensions.safeMode.label')"
+          :hint="t('settings.extensions.safeMode.hint')"
+          :disabled="switching.has('safeMode')"
+          color="warning"
+          density="compact"
+          persistent-hint
+          inset
+          data-testid="safe-mode"
+          @update:model-value="setSafeMode($event === true)"
+        />
+        <p
+          v-if="diagnostics?.safeMode.forcedBy"
+          class="text-body-small text-medium-emphasis mt-1"
+          data-testid="safe-mode-forced"
+        >
+          {{ t('settings.extensions.safeMode.forced') }}
+        </p>
       </div>
 
       <p
@@ -356,15 +428,28 @@ watch(
               </p>
             </v-alert>
 
-            <p
-              v-if="
-                extension.message !== null &&
-                extension.message !== extension.revoked
-              "
-              class="message text-body-medium mt-2"
+            <div
+              v-for="diagnostic in extension.diagnostics"
+              :key="diagnostic.code"
+              class="text-body-medium mt-2"
+              data-testid="diagnostic"
+              :data-code="diagnostic.code"
             >
-              {{ extension.message }}
-            </p>
+              <p>{{ diagnosticText(diagnostic) }}</p>
+              <ul
+                v-if="diagnostic.code === 'manifest-invalid'"
+                class="message ps-4"
+              >
+                <li v-for="issue in issuesOf(diagnostic)" :key="issue">
+                  {{ issue }}
+                </li>
+              </ul>
+            </div>
+
+            <ExtensionHealth
+              v-if="isActive(extension)"
+              :health="healthOf(extension.id)"
+            />
 
             <ExtensionPermissions
               v-if="isActive(extension)"

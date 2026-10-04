@@ -1,3 +1,4 @@
+import { formatDiagnostic } from '../src/diagnostics.ts';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -37,7 +38,7 @@ const setting = (patch: Record<string, unknown> = {}) => ({
 const messageOf = (raw: unknown): string => {
   const parsed = parseManifest(raw);
   if (parsed.ok) throw new Error('manifest was accepted');
-  return parsed.message;
+  return formatDiagnostic(parsed.diagnostic);
 };
 
 describe('точка settings', () => {
@@ -257,7 +258,10 @@ describe('обнаружение и реестр', () => {
       {
         extensionId: 'acme.b',
         origin: 'user',
-        message: "setting 'acme.b.volume' is already provided by 'acme'",
+        diagnostic: {
+          code: 'claim-clash',
+          data: { kind: 'setting', name: 'acme.b.volume', by: 'acme' },
+        },
       },
     ]);
   });
@@ -277,7 +281,12 @@ describe('обнаружение и реестр', () => {
     const discovery = createDiscoveryHolder(found);
     const policy = createExtensionPolicy(discovery);
     const registry = createExtensionRegistry(discovery, policy);
-    policy.update({ disabled: ['acme.b'], trusted: [], checkUpdates: true });
+    policy.update({
+      disabled: ['acme.b'],
+      trusted: [],
+      checkUpdates: true,
+      safeMode: false,
+    });
 
     expect(registry.contributions().settings).toEqual([
       {

@@ -549,6 +549,9 @@ importers:
       '@types/node':
         specifier: ^22.20.4
         version: 22.20.4
+      ajv:
+        specifier: ^8
+        version: 8.20.0
       typescript:
         specifier: 7.0.2
         version: 7.0.2

@@ -119,7 +119,10 @@ const loaded = (
     origin: extension.origin,
     state: policy.isEnabled(extension.id) ? 'loaded' : 'disabled',
     contributes: contributesOf(extension),
-    message: revoked,
+    diagnostics:
+      policy.safeMode() && extension.origin !== 'bundled'
+        ? [{ code: 'safe-mode', data: {} }]
+        : [],
     permissions: [...extension.permissions],
     isolation: isolationOf(extension, policy),
     toggleable: extension.origin !== 'bundled' && revoked === null,
@@ -151,20 +154,25 @@ export const createExtensionRegistry = (
       origin,
       state: 'overridden',
       contributes: NO_CONTRIBUTES,
-      message: `overridden by ${by.origin} ${by.version}`,
+      diagnostics: [
+        {
+          code: 'overridden-by',
+          data: { origin: by.origin, version: by.version },
+        },
+      ],
       permissions: [],
       isolation: origin === 'bundled' ? 'trusted' : 'isolated',
       toggleable: false,
       ...withoutMetadata(origin),
     }));
   const invalidItems = (): ExtensionInfoDto[] =>
-    discovery.get().diagnostics.map(({ extensionId, origin, message }) => ({
+    discovery.get().diagnostics.map(({ extensionId, origin, diagnostic }) => ({
       id: extensionId,
       version: null,
       origin,
       state: 'invalid',
       contributes: NO_CONTRIBUTES,
-      message,
+      diagnostics: [diagnostic],
       permissions: [],
       isolation: origin === 'bundled' ? 'trusted' : 'isolated',
       toggleable: false,

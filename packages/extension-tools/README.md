@@ -3,6 +3,7 @@
 Tools for extension authors: `dolphy-ext build` builds a project into an
 extension directory, `dolphy-ext validate` checks a directory with the code the
 app uses to load it (`inspectExtensionDir` from `@dolphy-app/extension-host`),
+`dolphy-ext lint` checks a project before a pull request,
 `dolphy-ext catalog check|build` checks and builds extensions for the catalog
 (`dolphy-app/dolphy-extensions`, see "Catalog").
 
@@ -193,8 +194,6 @@ catalog filters: up to 5 unique values of `learning`, `language`, `content`,
 or a sixth tag is a manifest error (`tags.N: tag must be one of: …`) reported
 by `validate`, `build` and `catalog check` (`CHECK-001`). Without `tags` the app
 derives them from the contributions; an explicit list replaces the derived one.
-An app older than this field rejects an `extension.json` that contains `tags`,
-which is why a tagged version is left out of `index.json`.
 
 ## Output
 
@@ -209,9 +208,10 @@ discovery root and the value of `DOLPHY_DEV_EXTENSIONS`. After the build the res
 dolphy-ext build [dir] [--out <dir>] [--watch]
 dolphy-ext types [dir]
 dolphy-ext validate <dir>
+dolphy-ext lint [dir] [--built <dir>]
 dolphy-ext catalog check <extensionsDir> [--ids a,b]
             [--published-index <path>] [--max-app-version <x.y.z>]
-            [--skip-github-check] [--list-rules]
+            [--built <siteDir>] [--skip-github-check] [--list-rules]
 dolphy-ext catalog build --src <extensionsDir> --ids a,b --out <siteDir>
             [--previous-index <path>] [--revoked <path>]
             [--source-base <url>] [--published-at <iso>]
@@ -249,38 +249,67 @@ The `catalog` subcommands serve the extension catalog repository
 version selection and revocation are handled by `@dolphy-app/extension-catalog`,
 the same code the app uses.
 
+### `lint [dir]`
+
+Checks the project in `dir` (default: the current directory) the way the catalog
+will, before you open a pull request: `name`, `description` (at least 20
+characters), `author` and `tags` of `extension.json` (warnings), `README.md`
+(missing or empty is an `error`, exit code 1) and the built code
+(`CHECK-022`…`CHECK-025`, always warnings). The project is built into a
+temporary directory; `--built <dir>` checks an existing built extension
+directory instead. Output lines are those of `catalog check`
+(`warning <id> <RULE-ID> <field>: <message>`); `LINT-001` is `tags` not set.
+No output and code 0 means no findings.
+
 ### `catalog check <extensionsDir>`
 
 Checks the sources in `<extensionsDir>/<id>/` (a `dolphy-ext` project without
 `node_modules`, `dist-ext`, `.dolphy` and `.git`) against the rules below. `--ids a,b`
 limits the check to the listed extensions (all directories by default);
-`--published-index <path>` is the `index.json` of the published catalog for
-`CHECK-012` (the full `index.v2.json` is the better choice; no file means nothing
-is published); `--max-app-version <x.y.z>` is
+`--published-index <path>` is the `index.v2.json` of the published catalog for
+`CHECK-012` (no file means nothing is published); `--max-app-version <x.y.z>` is
 the released app version for `CHECK-016`; `--skip-github-check` turns off the
 `api.github.com` request for `CHECK-006` (the API token is `GITHUB_TOKEN`);
-`--list-rules` prints the rules and exits.
+`--built <siteDir>` is the output of `catalog build`: the built version is read
+from `<siteDir>/extensions/<id>/<version>/` for `CHECK-022`…`CHECK-025`, which
+are silent without the flag (the source tree has no bundle, so run `check` a
+second time after `catalog build`); a missing built version is one `warning`.
+`CHECK-021` needs `--published-index`. `--list-rules` prints the rules and exits.
 
-| Rule        | What it checks                                                                        |
-| ----------- | ------------------------------------------------------------------------------------- |
-| `CHECK-001` | `extension.json` is readable and passes manifest parsing                              |
-| `CHECK-002` | the directory name equals the manifest `id`                                           |
-| `CHECK-003` | `name`, `description` and `author` are set                                            |
-| `CHECK-004` | `README.md` exists and is not empty                                                   |
-| `CHECK-005` | `author` looks like a GitHub login                                                    |
-| `CHECK-006` | `author` is an existing GitHub user (no answer — `warning`)                           |
-| `CHECK-007` | `package.json` exists and parses                                                      |
-| `CHECK-008` | there is a lock file (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lock`) |
-| `CHECK-009` | no install or publish lifecycle scripts (`postinstall`, `prepare`…)                   |
-| `CHECK-010` | dependencies come from the registry only (no git, http, file, link, workspace)        |
-| `CHECK-011` | `name` in `package.json` does not take someone else's scope (`warning`)               |
-| `CHECK-012` | the version is strictly greater than the published one                                |
-| `CHECK-013` | at most 200 files and 5 MB of sources, no file over 1 MB                              |
-| `CHECK-014` | no symbolic links                                                                     |
-| `CHECK-015` | no executable files (`.exe`, `.dll`, `.so`, `.dylib`, `.node`, `.sh`, `.bat`)         |
-| `CHECK-016` | `minAppVersion` is not newer than `--max-app-version`                                 |
-| `CHECK-017` | files in `assets/` match their type: signature, size, pixels, safe SVG and CSS        |
-| `CHECK-018` | `icon` is a square 64–512 px PNG or WebP file up to 16 KiB                            |
+The bundle rules are heuristics over the whole bundle, dependencies included
+(a validator library may legitimately use `new Function`), so they only
+warn and the reviewer decides. `CHECK-023` fires on a file of 20 KiB or more
+with an average line longer than 500 characters, or on 20 distinct identifiers
+of the form `_0x1a2b`. `CHECK-024` ignores `www.w3.org` XML namespaces. A source
+map is an `error`: the catalog builds without maps.
+
+| Rule        | What it checks                                                                                   |
+| ----------- | ------------------------------------------------------------------------------------------------ |
+| `CHECK-001` | `extension.json` is readable and passes manifest parsing                                         |
+| `CHECK-002` | the directory name equals the manifest `id`                                                      |
+| `CHECK-003` | `name`, `description` and `author` are set                                                       |
+| `CHECK-004` | `README.md` exists and is not empty                                                              |
+| `CHECK-005` | `author` looks like a GitHub login                                                               |
+| `CHECK-006` | `author` is an existing GitHub user (no answer — `warning`)                                      |
+| `CHECK-007` | `package.json` exists and parses                                                                 |
+| `CHECK-008` | there is a lock file (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lock`)            |
+| `CHECK-009` | no install or publish lifecycle scripts (`postinstall`, `prepare`…)                              |
+| `CHECK-010` | dependencies come from the registry only (no git, http, file, link, workspace)                   |
+| `CHECK-011` | `name` in `package.json` does not take someone else's scope (`warning`)                          |
+| `CHECK-012` | the version is strictly greater than the published one                                           |
+| `CHECK-013` | at most 200 files and 5 MB of sources, no file over 1 MB                                         |
+| `CHECK-014` | no symbolic links                                                                                |
+| `CHECK-015` | no executable files (`.exe`, `.dll`, `.so`, `.dylib`, `.node`, `.sh`, `.bat`)                    |
+| `CHECK-016` | `minAppVersion` is not newer than `--max-app-version`                                            |
+| `CHECK-017` | files in `assets/` match their type: signature, size, pixels, safe SVG and CSS                   |
+| `CHECK-018` | `icon` is a square 64–512 px PNG or WebP file up to 16 KiB                                       |
+| `CHECK-019` | `description` is at least 20 characters (`warning`)                                              |
+| `CHECK-020` | every `permissions` entry is mentioned in `README.md` (`warning`)                                |
+| `CHECK-021` | the id is not already published under another `author` (any case): first publisher owns the id   |
+| `CHECK-022` | built code has no `eval(` or `new Function(` (`warning`, needs `--built`)                        |
+| `CHECK-023` | built code does not look obfuscated (`warning`, needs `--built`)                                 |
+| `CHECK-024` | built code has no `http(s)://` URL without the `network` permission (`warning`, needs `--built`) |
+| `CHECK-025` | built code has no embedded source map (needs `--built`)                                          |
 
 The rules are data in code (`src/catalog/rules.ts`, the `RULES` table); the
 semantic review against `rules/rules.json` of the catalog repository is a
@@ -306,25 +335,15 @@ gets `titles`: the `label` (themes, grade policies, settings) or `title`
 point; points without contributions are omitted, and so is the whole key when
 nothing has a title. The version record gets `tags` from the manifest of that
 version (omitted when empty). Rebuilding without a version bump refreshes the
-titles. A tagged version appears only in `index.v2.json`, but its older untagged
-versions keep the extension visible in `index.json`.
+titles.
 
-Two files are published, always together and with the same `generatedAt`:
+One file is published: `index.v2.json` (`schemaVersion: 2`). Every version of
+an extension is in it, whatever file types, permissions, `icon`, `tags` and
+contribution points it uses. The app reads it next to the catalog address; the
+address (`catalogUrl`) stays the identity of installed extensions. No
+`index.json` is written.
 
-- `index.v2.json` (`schemaVersion: 2`) — the full index, which the current app
-  reads next to the catalog address;
-- `index.json` (`schemaVersion: 1`) — the subset that every released app
-  parses strictly (an unknown key, file type or permission makes a released app
-  reject the whole catalog). Versions with new file types, an `icon`, `tags`, more
-  than 50 files or a permission such as `learning.events`, and entries with
-  `settings`, `events`, `commands` or `panels` contributions are left out of it;
-  the `titles` key of the remaining entries is dropped;
-  an extension left without versions is skipped. The summary line says
-  `only in index.v2.json` for such a version. The catalog identity of installed
-  extensions stays the address of `index.json`.
-
-- `--previous-index <path>` — the source index (`<out>/index.v2.json` if it
-  exists, else `<out>/index.json`, by default);
+- `--previous-index <path>` — the source index (`<out>/index.v2.json` by default);
 - `--revoked <path>` — a JSON array of `{ id, versions, reason }` (without the
   flag the list from the source index is used);
 - `--source-base <url>` — the base of the `source` field (by default the
@@ -332,7 +351,7 @@ Two files are published, always together and with the same `generatedAt`:
 - `--published-at <iso>` — `publishedAt` of the new versions (now by default).
 
 `catalog build --reindex --out <siteDir>` replaces only `revoked` and
-`generatedAt` in both indexes (extension entries do not change; `--src` and
+`generatedAt` in the index (extension entries do not change; `--src` and
 `--ids` are not needed): this is how a version revocation is published
 without a new build.
 

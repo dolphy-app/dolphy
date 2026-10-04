@@ -42,6 +42,11 @@ describe('темы расширений', () => {
     let client = await launch(userData);
     await client.openSettingsAppearance();
     expect(await client.themeTileExists('Полночь')).toBe(true);
+    const tile = await client.themeTileIdentifier('Полночь');
+    expect(tile.title).toBe('acme.midnight');
+    expect(tile.described).toBe('acme.midnight');
+    expect(tile.visibleText).not.toContain('acme.midnight');
+    expect((await client.themeTileIdentifier('Тёмная')).title).toBeNull();
     await client.selectTheme('Полночь');
     await expect.poll(() => client.appBackground()).toBe(MIDNIGHT);
 

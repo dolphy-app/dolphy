@@ -378,6 +378,9 @@ export const schemas = {
   ]),
   'extensions.updates': z.tuple([]),
   'extensions.setCheckUpdates': z.tuple([bool]),
+  'extensions.setSafeMode': z.tuple([bool]),
+  'extensions.diagnostics': z.tuple([]),
+  'extensions.restartHost': z.tuple([]),
   'extensions.getSettingValues': z.tuple([extensionId]),
   'extensions.setSettingValue': z.tuple([
     extensionId,

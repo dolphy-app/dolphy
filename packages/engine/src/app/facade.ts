@@ -25,7 +25,10 @@ export type WrapMethod = (name: string, method: AnyMethod) => AnyMethod;
  * `extensions.install` тоже ходят в сеть (индекс, файлы версии) и очередь не
  * держат; событие `extensions-changed` они публикуют сами.
  * `extensions.invokeCommand` исполняет код расширения до 14 с: медленная
- * команда не должна замораживать остальные вызовы движка.
+ * команда не должна замораживать остальные вызовы движка. По той же причине
+ * `extensions.diagnostics` и `extensions.restartHost` (здоровье и перезапуск
+ * хоста) не ждут очередь: окно должно видеть остановленный хост и мочь его
+ * запустить, пока в очереди висит долгая команда.
  */
 export const UNQUEUED: ReadonlySet<string> = new Set([
   'practice.submitAnswer',
@@ -36,6 +39,8 @@ export const UNQUEUED: ReadonlySet<string> = new Set([
   'extensions.catalog',
   'extensions.install',
   'extensions.invokeCommand',
+  'extensions.diagnostics',
+  'extensions.restartHost',
 ]);
 
 const isMethod = (value: unknown): value is AnyMethod =>

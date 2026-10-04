@@ -298,7 +298,7 @@ describe('createFakeExtensionRegistry', () => {
         commands: [],
         panels: [],
       },
-      message: 'broken',
+      diagnostics: [{ code: 'load-failed', data: { reason: 'broken' } }],
       permissions: [],
       isolation: 'isolated',
       toggleable: false,
@@ -346,6 +346,7 @@ describe('createFakeExtensionPolicy', () => {
       disabled: ['acme.x', 'dolphy.sql'],
       trusted: ['acme.x'],
       checkUpdates: true,
+      safeMode: false,
     });
     expect(policy.isEnabled('acme.x')).toBe(false);
     expect(policy.isEnabled('dolphy.sql')).toBe(true);

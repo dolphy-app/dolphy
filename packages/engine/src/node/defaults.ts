@@ -18,6 +18,8 @@ export type NodeDefaults = Omit<
   | 'extensionCommands'
   | 'extensionRegistry'
   | 'extensionPolicy'
+  | 'extensionHealth'
+  | 'extensionHostControl'
   | 'extensionInstaller'
   | 'extensionReloader'
   | 'openTraneSource'

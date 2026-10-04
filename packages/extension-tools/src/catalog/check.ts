@@ -1,6 +1,9 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { inspectExtensionDir } from '@dolphy-app/extension-host';
+import {
+  formatDiagnostic,
+  inspectExtensionDir,
+} from '@dolphy-app/extension-host';
 import { parseIndex } from '@dolphy-app/extension-catalog';
 import type { CatalogIndex } from '@dolphy-app/extension-catalog';
 import { BuildError, CatalogUsageError } from '../errors.ts';
@@ -27,6 +30,8 @@ export interface CheckOptions {
   /** Only these directories; unset — all subdirectories. */
   ids?: readonly string[];
   publishedIndex?: string;
+  /** Site root with built versions `extensions/<id>/<version>/`; unset — the bundle rules are silent. */
+  builtDir?: string;
   maxAppVersion?: string;
   skipGithubCheck?: boolean;
   checkGithubUser?: GithubUserChecker;
@@ -121,7 +126,7 @@ const inspectManifest = async (
   });
   return result.ok
     ? { manifest: result.extension, problem: null }
-    : { manifest: null, problem: result.message };
+    : { manifest: null, problem: formatDiagnostic(result.diagnostic) };
 };
 
 const stringOrNull = (value: unknown): string | null =>
@@ -160,6 +165,15 @@ const contextFor = async (
     declared: await readDeclared(dir),
     manifestProblem: problem,
     tree: await readTree(dir, SKIPPED_SOURCE_DIRS),
+    bundleDir:
+      options.builtDir === undefined || manifest === null
+        ? null
+        : path.join(
+            path.resolve(options.builtDir),
+            'extensions',
+            manifest.id,
+            manifest.version,
+          ),
     readText: (file) => readTextOrNull(path.join(dir, file)),
     readBytes: (file) => readBytesInside(dir, file),
     published: published?.extensions.find(

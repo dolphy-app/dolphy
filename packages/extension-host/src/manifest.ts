@@ -10,6 +10,7 @@ import type {
   ExtensionManifest,
   ExtensionManifestInput,
 } from '@dolphy-app/extension-api';
+import type { ExtensionDiagnosticDto } from '@dolphy-app/engine-contract';
 import { isSemver } from '@dolphy-app/extension-catalog';
 import { z } from 'zod';
 import { CONTRIBUTION_POINTS } from './points/index.ts';
@@ -36,6 +37,8 @@ const isEmpty = (contributes: unknown): boolean =>
 
 export const manifestSchema = z
   .strictObject({
+    /** Ссылка на JSON Schema для редактора; приложением и инструментами игнорируется. */
+    $schema: z.string().optional(),
     id: extensionId,
     version: z.string().refine(isSemver, 'version must be semver'),
     apiVersion: z.literal(EXTENSION_API_VERSION),
@@ -145,10 +148,10 @@ export const normalizeManifest = (
   };
 };
 
-const formatIssues = (error: z.ZodError): string =>
-  error.issues
-    .map((issue) => `${issue.path.join('.') || '/'}: ${issue.message}`)
-    .join('; ');
+const zodIssues = (error: z.ZodError): string[] =>
+  error.issues.map(
+    (issue) => `${issue.path.join('.') || '/'}: ${issue.message}`,
+  );
 
 /** Сообщения о нарушениях в нормализованном манифесте. */
 const normalizedIssues = (manifest: ExtensionManifest): string[] =>
@@ -156,17 +159,36 @@ const normalizedIssues = (manifest: ExtensionManifest): string[] =>
     point.check(manifest.contributes[point.key] as never, manifest.id),
   );
 
+const invalid = (
+  issues: string[],
+): { ok: false; diagnostic: ExtensionDiagnosticDto } => ({
+  ok: false,
+  diagnostic: { code: 'manifest-invalid', data: { issues } },
+});
+
+/** Разбор манифеста; ошибка — диагностика `manifest-invalid` (текст — `formatDiagnostic`). */
 export const parseManifest = (
   raw: unknown,
 ):
   | { ok: true; manifest: ExtensionManifest }
-  | { ok: false; message: string } => {
+  | { ok: false; diagnostic: ExtensionDiagnosticDto } => {
   const parsed = manifestSchema.safeParse(raw);
-  if (!parsed.success) {
-    return { ok: false, message: formatIssues(parsed.error) };
-  }
+  if (!parsed.success) return invalid(zodIssues(parsed.error));
   const manifest = normalizeManifest(parsed.data as ExtensionManifestInput);
   const issues = normalizedIssues(manifest);
-  if (issues.length > 0) return { ok: false, message: issues.join('; ') };
+  if (issues.length > 0) return invalid(issues);
   return { ok: true, manifest };
 };
+
+/**
+ * JSON Schema (2020-12) of `extension.json` for editors. It cannot express the
+ * cross-field rules (`id` prefix, at least one contribution, the
+ * `learning.events` permission for events, per-point checks): `parseManifest`
+ * and `dolphy-ext validate` stay the source of truth.
+ */
+export const manifestJsonSchema = (): Record<string, unknown> => ({
+  ...z.toJSONSchema(manifestSchema, { io: 'input', unrepresentable: 'any' }),
+  title: 'Dolphy extension manifest',
+  description:
+    'Editor aid for extension.json. It does not express cross-field rules (id prefix, at least one contribution, the learning.events permission for events, per-point checks); `dolphy-ext validate` and the app remain the source of truth.',
+});

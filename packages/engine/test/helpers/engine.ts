@@ -13,6 +13,7 @@ import {
   createFakeClock,
   createFakeExerciseTypes,
   createFakeExtensionCommands,
+  createFakeExtensionHostControl,
   createFakeExtensionInstaller,
   createFakeExtensionPolicy,
   createFakeExtensionRegistry,
@@ -29,7 +30,11 @@ import type {
   SeededRng,
   TestIds,
 } from '@dolphy-app/testkit';
-import { createContext, createEngineFromContext } from '../../src/app/index.ts';
+import {
+  createContext,
+  createEngineFromContext,
+  createExtensionHealth,
+} from '../../src/app/index.ts';
 import type { HostedEngine } from '../../src/app/index.ts';
 import type { EngineContext, EngineDeps } from '../../src/app/index.ts';
 import {
@@ -53,6 +58,10 @@ import type {
 import type { ExerciseTypes } from '../../src/ports/exercise-types.ts';
 import type { GradePolicies } from '../../src/ports/grade-policies.ts';
 import type { ExtensionCommands } from '../../src/ports/extension-commands.ts';
+import type {
+  ExtensionHealth,
+  ExtensionHostControl,
+} from '../../src/ports/extension-health.ts';
 import type { ExtensionInstaller } from '../../src/ports/extension-installer.ts';
 import type { ExtensionPolicy } from '../../src/ports/extension-policy.ts';
 import type { ExtensionReloader } from '../../src/ports/extension-reloader.ts';
@@ -82,6 +91,9 @@ export interface TestEngineOptions {
   extensionCommands?: ExtensionCommands;
   extensionRegistry?: ExtensionRegistry;
   extensionPolicy?: ExtensionPolicy;
+  /** По умолчанию — `createExtensionHealth(clock)`. */
+  extensionHealth?: ExtensionHealth;
+  extensionHostControl?: ExtensionHostControl;
   extensionInstaller?: ExtensionInstaller;
   extensionReloader?: ExtensionReloader;
   clock?: FakeClock;
@@ -184,6 +196,9 @@ export const createTestContext = async (
     extensionRegistry:
       options.extensionRegistry ?? createFakeExtensionRegistry(),
     extensionPolicy: options.extensionPolicy ?? createFakeExtensionPolicy(),
+    extensionHealth: options.extensionHealth ?? createExtensionHealth(clock),
+    extensionHostControl:
+      options.extensionHostControl ?? createFakeExtensionHostControl(),
     extensionInstaller:
       options.extensionInstaller ?? createFakeExtensionInstaller(),
     extensionReloader:

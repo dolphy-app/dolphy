@@ -142,6 +142,16 @@ const projectRequest = (id: string): ExtRequest => ({
   params: { type: 'acme.fake', exerciseId: 'e', spec: {}, isolated: true },
 });
 
+const commandRequest = (id: string): ExtRequest => ({
+  id,
+  method: 'invokeCommand',
+  params: {
+    extensionId: 'acme.fake',
+    commandId: 'acme.fake.go',
+    isolated: true,
+  },
+});
+
 const setup = (
   behaviors: Behavior[] | (() => Behavior),
   options: {
@@ -267,15 +277,75 @@ describe('ограниченный раннер', () => {
     const response = await runner.handle(projectRequest('1'));
     expect(response).toMatchObject({
       ok: false,
-      error: { cause: 'activation-failed' },
+      error: { cause: 'activation-timeout' },
+    });
+    expect(children[0]?.killed).toBe(true);
+    // сбой по сроку запоминается: процесс заново не поднимается
+    const again = await runner.handle(projectRequest('2'));
+    expect(again).toMatchObject({
+      ok: false,
+      error: { cause: 'activation-timeout' },
+    });
+    expect(children).toHaveLength(1);
+  });
+
+  it('срок вызова вышел раньше срока готовности: вызвавший получает activation-timeout, а не чужой дедлайн', async () => {
+    const children: FakeChild[] = [];
+    const runner = createRestrictedRunner({
+      extension: extensionOf(),
+      entryPath,
+      library: { readText: async () => '', stat: async () => null },
+      engine: nullEngine,
+      logger: createLogger(),
+      readyTimeoutMs: 500,
+      commandDeadlineMs: 30,
+      spawn: () => {
+        const child = createFakeChild({ autoReady: false });
+        children.push(child);
+        return child;
+      },
+    });
+    const response = await runner.handle(commandRequest('1'));
+    expect(response).toMatchObject({
+      ok: false,
+      error: { cause: 'activation-timeout' },
     });
     expect(children[0]?.killed).toBe(true);
   });
 
-  it('цикл падений: после более чем 5 выходов за минуту минуту не запускаем процесс', async () => {
+  it('вызов, не уложившийся в срок после готовности, остаётся сбоем вызова', async () => {
+    const children: FakeChild[] = [];
+    const runner = createRestrictedRunner({
+      extension: extensionOf(),
+      entryPath,
+      library: { readText: async () => '', stat: async () => null },
+      engine: nullEngine,
+      logger: createLogger(),
+      commandDeadlineMs: 30,
+      spawn: () => {
+        const child = createFakeChild({ reply: () => undefined });
+        children.push(child);
+        return child;
+      },
+    });
+    const response = await runner.handle(commandRequest('1'));
+    expect(response).toMatchObject({
+      ok: false,
+      error: { cause: 'handler-timeout' },
+    });
+  });
+
+  it('цикл падений: пятый выход за минуту приостанавливает расширение и сообщает об этом движку', async () => {
     let now = 1_000_000;
     vi.spyOn(Date, 'now').mockImplementation(() => now);
-    const { runner, children } = setup(() => ({}));
+    const reports: unknown[] = [];
+    const engine: EngineLink = {
+      request: async (method, params) => {
+        reports.push({ method, params });
+        return null;
+      },
+    };
+    const { runner, children } = setup(() => ({}), { engine });
     const crash = async (index: number) => {
       const pending = runner.handle(projectRequest(String(index)));
       await vi.waitFor(() => expect(children).toHaveLength(index + 1));
@@ -285,11 +355,24 @@ describe('ограниченный раннер', () => {
       children[index]?.exit(1);
       await pending;
     };
-    for (let index = 0; index < 6; index += 1) {
+    for (let index = 0; index < 4; index += 1) {
       await crash(index);
       now += 1000;
     }
-    expect(children).toHaveLength(6);
+    expect(reports).toEqual([]);
+    await crash(4);
+    const suppressedUntil = now + 60_000;
+    expect(reports).toEqual([
+      {
+        method: 'health.report',
+        params: {
+          extensionId: 'acme.fake',
+          kind: 'suppressed',
+          until: suppressedUntil,
+        },
+      },
+    ]);
+    expect(children).toHaveLength(5);
     expect(await runner.handle(projectRequest('x'))).toEqual({
       id: 'x',
       ok: false,
@@ -298,11 +381,11 @@ describe('ограниченный раннер', () => {
         message: 'extension process keeps crashing',
       },
     });
-    expect(children).toHaveLength(6);
-    now += 61_000;
+    expect(children).toHaveLength(5);
+    now = suppressedUntil + 1000;
     const after = runner.handle(projectRequest('y'));
-    await vi.waitFor(() => expect(children).toHaveLength(7));
-    children[6]?.exit(1);
+    await vi.waitFor(() => expect(children).toHaveLength(6));
+    children[5]?.exit(1);
     await after;
   });
 
@@ -453,6 +536,32 @@ describe('запросы ограниченного процесса к данн
     expect(request).toHaveBeenCalledWith('storage.keys', {
       extensionId: 'acme.fake',
     });
+  });
+
+  it('сообщение процесса о здоровье идёт движку от имени этого расширения; чужой id подменяется', async () => {
+    const request = vi.fn(async () => null);
+    const { child } = await started({ engine: { request } as EngineLink });
+
+    child.emit({
+      t: 'rpc',
+      message: {
+        id: 'h2',
+        method: 'health.report',
+        params: {
+          extensionId: 'acme.victim',
+          kind: 'activated',
+          durationMs: 7,
+        },
+      },
+    });
+
+    await vi.waitFor(() =>
+      expect(request).toHaveBeenCalledWith('health.report', {
+        extensionId: 'acme.fake',
+        kind: 'activated',
+        durationMs: 7,
+      }),
+    );
   });
 
   it('отказ движка уходит процессу с кодом и details; неверная форма не доходит до движка', async () => {

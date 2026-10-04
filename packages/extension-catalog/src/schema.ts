@@ -10,7 +10,6 @@ import { z } from 'zod';
 import {
   CATALOG_FILE_EXTENSIONS,
   ICON_URI_PATTERN,
-  LEGACY_FILE_EXTENSIONS,
   MAX_FILES_V2,
   MAX_ICON_URI_LENGTH,
   extensionOf,
@@ -19,13 +18,10 @@ import {
 import { CatalogFormatError } from './errors.ts';
 import { compareSemver, isSemver, parseRange } from './semver.ts';
 
-/** Format of `index.json`: parsed by every released app, strictly. */
-export const LEGACY_SCHEMA_VERSION = 1 as const;
-/** Format of `index.v2.json`: asset file types, icons, up to `MAX_FILES_V2` files. */
+/** Format of `index.v2.json`, the only index: asset file types, icons, up to `MAX_FILES_V2` files. */
 export const CATALOG_SCHEMA_VERSION = 2 as const;
 
 export const MAX_VERSIONS = 5;
-export const MAX_FILES = 50;
 export const MAX_TOTAL_BYTES = 10_000_000;
 /** Longest contribution title in `titles` (the manifest limit of `label`/`title`). */
 const MAX_TITLE_LENGTH = 60;
@@ -62,28 +58,17 @@ const isSafeSegment = (segment: string): boolean =>
   !segment.endsWith('.') &&
   !RESERVED_NAME.test(segment);
 
-/** Путь файла версии: безопасные сегменты и расширение из `extensions`. */
-const isSafePathWith = (
-  value: string,
-  extensions: readonly string[],
-): boolean => {
+/** Path of a version file: safe segments, an allowed extension. */
+export const isSafeCatalogPath = (value: string): boolean => {
   if (value.length > MAX_PATH_LENGTH) return false;
   const segments = value.split('/');
   if (!segments.every(isSafeSegment)) return false;
   const extension = extensionOf(value);
-  return extension !== null && extensions.includes(extension);
+  return extension !== null && CATALOG_FILE_EXTENSIONS.includes(extension);
 };
 
-/** Path of a version file in the full index: safe segments, an allowed extension. */
-export const isSafeCatalogPath = (value: string): boolean =>
-  isSafePathWith(value, CATALOG_FILE_EXTENSIONS);
-
-/** Path of a version file in the first format (`index.json`). */
-export const isLegacyCatalogPath = (value: string): boolean =>
-  isSafePathWith(value, LEGACY_FILE_EXTENSIONS);
-
 /**
- * Каталог файлов версии относительно адреса `index.json` (`extensions/<id>/<version>/`).
+ * Каталог файлов версии относительно адреса индекса (`extensions/<id>/<version>/`).
  * Абсолютный адрес не допускается: файлы версии по построению лежат на origin индекса,
  * а локальный каталог разработчика и e2e не требуют https.
  */
@@ -141,18 +126,8 @@ const revokedSchema = z.strictObject({
   reason: z.string().min(1).max(300),
 });
 
-/** What differs between the two formats and the tolerant reader. */
+/** `strict: false` — the tolerant reader of the app: unknown keys are dropped instead of rejected. */
 interface Profile {
-  schemaVersion: 1 | 2;
-  maxFiles: number;
-  extensions: readonly string[];
-  /** The `icon` key of a version; the first format does not know it. */
-  icon: boolean;
-  /** The `titles` key of an entry; the first format does not know it. */
-  titles: boolean;
-  /** The `tags` key of a version; the first format does not know it. */
-  tags: boolean;
-  /** `false` — unknown keys are dropped instead of rejected. */
   strict: boolean;
 }
 
@@ -166,12 +141,7 @@ const object = <T extends z.ZodRawShape>(
 
 const fileSchemaOf = (profile: Profile) =>
   object(profile, {
-    path: z
-      .string()
-      .refine(
-        (value) => isSafePathWith(value, profile.extensions),
-        'must be a safe relative path',
-      ),
+    path: z.string().refine(isSafeCatalogPath, 'must be a safe relative path'),
     size: z.number().int().min(0).max(MAX_TOTAL_BYTES),
     sha256: z.string().regex(SHA256, 'must be lowercase hex sha256'),
   }).superRefine((file, ctx) => {
@@ -182,7 +152,7 @@ const fileSchemaOf = (profile: Profile) =>
 const filesSchemaOf = (profile: Profile) =>
   z
     .array(fileSchemaOf(profile))
-    .max(profile.maxFiles)
+    .max(MAX_FILES_V2)
     .superRefine((files, ctx) => {
       // Имена сравниваются без учёта регистра: на macOS и Windows `Main.mjs` и `main.mjs` — один файл.
       const seen = new Set<string>();
@@ -273,21 +243,6 @@ const versionSchemaOf = (profile: Profile) =>
       .optional(),
     /** Explicit tags of the version (a closed vocabulary); the tolerant reader drops the ones it does not know. */
     tags: tagsSchemaOf(profile),
-  }).superRefine((version, ctx) => {
-    if (!profile.tags && version.tags !== undefined) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['tags'],
-        message: 'tags is not part of this index format',
-      });
-    }
-    if (!profile.icon && version.icon !== undefined) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['icon'],
-        message: 'icon is not part of this index format',
-      });
-    }
   });
 
 const contributesSchemaOf = (profile: Profile) =>
@@ -339,16 +294,7 @@ const entrySchemaOf = (profile: Profile) =>
       .max(MAX_VERSIONS)
       .superRefine(descendingUnique),
   }).superRefine((entry, ctx) => {
-    if (entry.titles === undefined) return;
-    if (!profile.titles) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['titles'],
-        message: 'titles is not part of this index format',
-      });
-      return;
-    }
-    if (!profile.strict) return;
+    if (entry.titles === undefined || !profile.strict) return;
     for (const point of TITLED_POINTS) {
       const known = new Set<string>(entry.contributes[point] ?? []);
       for (const id of Object.keys(entry.titles[point] ?? {})) {
@@ -365,38 +311,18 @@ const entrySchemaOf = (profile: Profile) =>
 
 const indexSchemaOf = (profile: Profile) =>
   object(profile, {
-    schemaVersion: z.literal(profile.schemaVersion),
+    schemaVersion: z.literal(CATALOG_SCHEMA_VERSION),
     generatedAt: timestamp,
     extensions: z.array(entrySchemaOf(profile)),
     revoked: z.array(revokedSchema),
   });
 
-const LEGACY_PROFILE: Profile = {
-  schemaVersion: LEGACY_SCHEMA_VERSION,
-  maxFiles: MAX_FILES,
-  extensions: LEGACY_FILE_EXTENSIONS,
-  icon: false,
-  titles: false,
-  tags: false,
-  strict: true,
-};
-
-const FULL_PROFILE: Profile = {
-  schemaVersion: CATALOG_SCHEMA_VERSION,
-  maxFiles: MAX_FILES_V2,
-  extensions: CATALOG_FILE_EXTENSIONS,
-  icon: true,
-  titles: true,
-  tags: true,
-  strict: true,
-};
+const FULL_PROFILE: Profile = { strict: true };
 
 /** Reader of the app: the limits of the full format, unknown keys dropped. */
-const TOLERANT_PROFILE: Profile = { ...FULL_PROFILE, strict: false };
+const TOLERANT_PROFILE: Profile = { strict: false };
 
-/** `index.json`: the first format. */
-export const legacyIndexSchema = indexSchemaOf(LEGACY_PROFILE);
-/** `index.v2.json`: the full format. */
+/** `index.v2.json`: the only index format. */
 export const indexSchema = indexSchemaOf(FULL_PROFILE);
 
 export type CatalogIndex = z.infer<typeof indexSchema>;
@@ -410,20 +336,12 @@ const describeIssues = (error: z.ZodError, prefix = ''): string[] =>
     (issue) => `${prefix}${issue.path.join('.') || '/'}: ${issue.message}`,
   );
 
-const isLegacyIndex = (raw: unknown): boolean =>
-  typeof raw === 'object' &&
-  raw !== null &&
-  'schemaVersion' in raw &&
-  raw.schemaVersion === LEGACY_SCHEMA_VERSION;
-
 /**
  * Strict parse for the author tools: unknown keys, file types and limits fail.
- * Both formats are accepted; `schemaVersion` chooses the rules.
  * Throws `CatalogFormatError`.
  */
 export const parseIndex = (raw: unknown): CatalogIndex => {
-  const schema = isLegacyIndex(raw) ? legacyIndexSchema : indexSchema;
-  const parsed = schema.safeParse(raw);
+  const parsed = indexSchema.safeParse(raw);
   if (parsed.success) return parsed.data;
   throw new CatalogFormatError(describeIssues(parsed.error));
 };
@@ -435,10 +353,7 @@ export interface LenientIndex {
 }
 
 const tolerantHead = object(TOLERANT_PROFILE, {
-  schemaVersion: z.union([
-    z.literal(LEGACY_SCHEMA_VERSION),
-    z.literal(CATALOG_SCHEMA_VERSION),
-  ]),
+  schemaVersion: z.literal(CATALOG_SCHEMA_VERSION),
   generatedAt: timestamp,
   extensions: z.array(z.unknown()),
   revoked: z.array(revokedSchema),

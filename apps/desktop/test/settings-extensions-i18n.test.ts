@@ -4,7 +4,10 @@ import {
   EXTENSION_DIAGNOSTIC_CODES,
   LOG_LEVELS,
 } from '@dolphy-app/engine-contract';
-import { EXTENSION_TAGS } from '@dolphy-app/extension-api';
+import {
+  EXTENSION_PERMISSIONS,
+  EXTENSION_TAGS,
+} from '@dolphy-app/extension-api';
 import { EVENT_MESSAGE_KEYS } from '@/pages/settings/lib/catalog.ts';
 import { GROUPS } from '@/pages/settings/lib/tags.ts';
 import { messages as settingsMessages } from '@/pages/settings/i18n/index.ts';
@@ -79,6 +82,19 @@ describe('строки «Расширения»', () => {
       for (const key of Object.values(EVENT_MESSAGE_KEYS)) {
         expect(leaf(locale, `events.${key}`), key).not.toBe('');
       }
+    }
+  });
+
+  it('каждое разрешение имеет подпись на обоих языках: диалог установки, каталог и список не показывают сырой id', () => {
+    const labels = { ru: 'Статистика обучения', en: 'Learning statistics' };
+    for (const locale of ['ru', 'en'] as const) {
+      for (const permission of EXTENSION_PERMISSIONS) {
+        expect(
+          leaf(locale, `permissions.${permission}`),
+          `${locale} ${permission}`,
+        ).not.toBe('');
+      }
+      expect(leaf(locale, 'permissions.learning.stats')).toBe(labels[locale]);
     }
   });
 

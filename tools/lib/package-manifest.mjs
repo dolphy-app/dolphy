@@ -46,6 +46,25 @@ export const PACKAGES = [
     ],
   },
   {
+    dir: 'keybindings',
+    entries: { index: 'src/index.ts' },
+    exports: { '.': 'index' },
+    bin: null,
+    dts: true,
+    sideEffects: false,
+    siblings: [],
+    usage: [
+      'Framework-free keybinding registry core: key notation with a',
+      'platform-aware `Mod`, layout-aware matching of keyboard events,',
+      '`when` clauses with overlap analysis, a keymap with source precedence',
+      'and conflict detection. No DOM and no dependencies.',
+      '',
+      '```ts',
+      "import { buildKeymap, parseChord } from '@dolphy-app/keybindings';",
+      '```',
+    ],
+  },
+  {
     dir: 'extension-sdk',
     entries: {
       index: 'src/index.ts',

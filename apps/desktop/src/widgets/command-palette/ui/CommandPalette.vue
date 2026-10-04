@@ -169,6 +169,13 @@ const vComboboxInput = {
               @mousemove="palette.activate(row.entry.key)"
               @click="palette.choose(row.entry.key)"
             >
+              <v-icon
+                v-if="row.entry.icon"
+                :icon="row.entry.icon"
+                size="small"
+                class="glyph"
+                aria-hidden="true"
+              />
               <span class="main">
                 <span class="title">{{ row.entry.title }}</span>
                 <span v-if="row.entry.description" class="description">{{
@@ -315,6 +322,11 @@ const vComboboxInput = {
 .option.busy {
   cursor: progress;
   opacity: 0.6;
+}
+
+.glyph {
+  flex: none;
+  opacity: var(--v-medium-emphasis-opacity);
 }
 
 .main {

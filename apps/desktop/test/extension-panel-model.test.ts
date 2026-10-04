@@ -21,12 +21,14 @@ const contributions = (revision = 'r1'): ContributionsDto => ({
     keybinding: null,
     keybindings: [],
     palette: palette === true,
+    icon: 'puzzle',
   })),
   panels: [
     {
       id: 'acme.panel.main',
       extensionId: 'acme.panel',
       title: 'Панель',
+      icon: 'puzzle',
       rendererUrl: 'dolphy-ext://acme.panel/panel.mjs',
       isolated: true,
       origin: 'user',

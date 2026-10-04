@@ -1,6 +1,12 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue';
-import type { JsonValue } from '@dolphy-app/extension-api';
+import {
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  useTemplateRef,
+  watch,
+} from 'vue';
 import { createFrameHost } from '@/shared/lib/frame-bridge.ts';
 import type {
   FrameContext,
@@ -13,12 +19,13 @@ const props = defineProps<{
   src: string;
   title: string;
   rendererUrl: string;
-  panelId: string;
+  widgetId: string;
   /** Привязка к расширению: задаёт приложение, из сообщений рамки не читается. */
   binding: PanelBinding;
-  /** Свойства, с которыми панель открыта (`openPanel(id, props)`). */
-  panelProps?: JsonValue;
-  /** Окружение панели (`ctx.context`): курс в фокусе; смена доходит до рамки без перезагрузки. */
+  /** Границы высоты рамки, px (из манифеста). */
+  minHeight: number;
+  maxHeight: number;
+  /** Окружение виджета (`ctx.context`): курс в фокусе; смена доходит до рамки без перезагрузки. */
   context: FrameContext;
 }>();
 const emit = defineEmits<{
@@ -28,31 +35,32 @@ const emit = defineEmits<{
 
 const frame = useTemplateRef<HTMLIFrameElement>('frame');
 const holder: { host: FrameHost | null } = { host: null };
+// высота содержимого по `size`; рамка зажимает её в диапазон манифеста, выше — прокрутка внутри
+const contentHeight = ref(0);
+const height = computed(() =>
+  Math.min(Math.max(contentHeight.value, props.minHeight), props.maxHeight),
+);
 
 onMounted(() => {
   if (frame.value === null) return;
   holder.host = createFrameHost({
     frame: frame.value,
     init: {
-      mode: 'panel',
+      mode: 'widget',
       rendererUrl: props.rendererUrl,
-      panelId: props.panelId,
-      ...(props.panelProps === undefined ? {} : { props: props.panelProps }),
+      widgetId: props.widgetId,
     },
     panel: props.binding,
     context: props.context,
     handlers: {
+      onSize: (next) => {
+        contentHeight.value = next;
+      },
       onShortcut: () => emit('shortcut'),
       onError: (message) => emit('error', message),
     },
   });
 });
-
-watch(
-  () => props.panelProps,
-  (next) => holder.host?.updatePanelProps(next),
-  { deep: true },
-);
 
 watch(
   () => props.context.courseId,
@@ -65,20 +73,19 @@ onBeforeUnmount(() => holder.host?.dispose());
 <template>
   <iframe
     ref="frame"
-    class="panel-frame"
+    class="widget-frame"
     sandbox="allow-scripts"
     :src="src"
     :title="title"
-    data-mode="panel"
+    :style="{ height: `${height}px` }"
+    data-mode="widget"
   />
 </template>
 
 <style scoped>
-/* панель заполняет контейнер: высоту задаёт страница, рамка `size` не сообщает */
-.panel-frame {
+.widget-frame {
   display: block;
   width: 100%;
-  height: 100%;
   border: 0;
   background: transparent;
 }

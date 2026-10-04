@@ -6,6 +6,7 @@ import { useEngine } from '@/shared/api/engine';
 import { ITEM_REASON } from '@/shared/config/item-reason.ts';
 import { ROUTE } from '@/shared/config/routes.ts';
 import PageHeader from '@/shared/ui/PageHeader.vue';
+import { ExtensionWidgets } from '@/widgets/extension-widgets';
 import { CourseScopeSwitcher, useCourseScope } from '@/features/course-scope';
 import { useDailyPlan } from '../model/daily-plan.ts';
 import OtherDue from './OtherDue.vue';
@@ -236,6 +237,8 @@ const startSession = () => {
         <OtherDue :courses="otherDue" @select="scope.select" />
       </v-card>
     </template>
+
+    <ExtensionWidgets area="dailyPlan" />
   </v-container>
 </template>
 

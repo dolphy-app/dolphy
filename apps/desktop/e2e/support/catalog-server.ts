@@ -71,7 +71,9 @@ interface PublishedExtension {
     'exerciseTypes' | 'themes' | 'markdownRenderers' | 'gradePolicies',
     string[]
   > &
-    Partial<Record<'settings' | 'events' | 'commands' | 'panels', string[]>>;
+    Partial<
+      Record<'settings' | 'events' | 'commands' | 'panels' | 'widgets', string[]>
+    >;
   /** Названия вкладов из манифеста (запись индекса `titles`). */
   titles: ContributionTitles;
   versions: PublishedVersion[];
@@ -183,6 +185,7 @@ interface RawManifest {
     events?: { event: string }[];
     commands?: { id: string; title: string }[];
     panels?: { id: string; title: string }[];
+    widgets?: { id: string; title: string }[];
   };
 }
 
@@ -193,6 +196,7 @@ const contributesOf = (
   const events = (manifest.contributes?.events ?? []).map(({ event }) => event);
   const commands = (manifest.contributes?.commands ?? []).map(({ id }) => id);
   const panels = (manifest.contributes?.panels ?? []).map(({ id }) => id);
+  const widgets = (manifest.contributes?.widgets ?? []).map(({ id }) => id);
   return {
     exerciseTypes: (manifest.contributes?.exerciseTypes ?? []).map(
       ({ id }) => id,
@@ -208,6 +212,7 @@ const contributesOf = (
     ...(events.length > 0 ? { events } : {}),
     ...(commands.length > 0 ? { commands } : {}),
     ...(panels.length > 0 ? { panels } : {}),
+    ...(widgets.length > 0 ? { widgets } : {}),
   };
 };
 
@@ -235,6 +240,10 @@ const titlesOf = (manifest: RawManifest): ContributionTitles => {
       title: label,
     })),
     commands: (contributes.commands ?? []).map(({ id, title }) => ({
+      id,
+      title,
+    })),
+    widgets: (contributes.widgets ?? []).map(({ id, title }) => ({
       id,
       title,
     })),

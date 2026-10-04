@@ -323,6 +323,7 @@ export const en: typeof ru = {
         events: 'Learning events',
         commands: 'Commands',
         panels: 'Panels',
+        widgets: 'Widgets',
       },
       origin: {
         bundled: 'Bundled',

@@ -107,6 +107,7 @@ const setup = (
     invoke?: PanelBinding['invoke'];
     init?: FrameInit;
     withBinding?: boolean;
+    context?: { courseId: string | null };
   } = {},
 ) => {
   const posted: { message: Record<string, unknown>; origin: string }[] = [];
@@ -125,9 +126,11 @@ const setup = (
   );
   const onShortcut = vi.fn();
   const onError = vi.fn();
+  const onSize = vi.fn();
   const host = createFrameHost({
     frame,
     init: options.init ?? PANEL,
+    ...(options.context === undefined ? {} : { context: options.context }),
     ...(options.withBinding === false
       ? {}
       : {
@@ -139,7 +142,7 @@ const setup = (
             invoke,
           },
         }),
-    handlers: { onShortcut, onError },
+    handlers: { onShortcut, onError, onSize },
     target,
     theme: {
       read: () => ({ variables: {}, dark: false }),
@@ -163,6 +166,7 @@ const setup = (
     invoke,
     onShortcut,
     onError,
+    onSize,
     results,
     flush,
     contentWindow,
@@ -184,6 +188,7 @@ describe('createFrameHost: режим panel', () => {
       rendererUrl: 'dolphy-ext://acme.panel/panel.mjs',
       panelId: 'acme.panel.main',
       props: { from: 'open' },
+      context: { courseId: null },
     });
   });
 
@@ -388,5 +393,131 @@ describe('createFrameHost: режим panel', () => {
     await flush();
     expect(invoke).not.toHaveBeenCalled();
     expect(onShortcut).not.toHaveBeenCalled();
+  });
+});
+
+const WIDGET: FrameInit = {
+  mode: 'widget',
+  rendererUrl: 'dolphy-ext://acme.panel/widget.mjs',
+  widgetId: 'acme.panel.card',
+};
+
+const contextMessages = (posted: { message: Record<string, unknown> }[]) =>
+  posted
+    .map(({ message }) => message)
+    .filter((message) => message['type'] === 'context');
+
+describe('createFrameHost: режим widget', () => {
+  it('на ready отправляет init с окружением и тему, без свойств; размер идёт обработчику', () => {
+    const { receive, posted, onSize } = setup({
+      init: WIDGET,
+      context: { courseId: 'c1' },
+    });
+    receive(frameMessage({ type: 'ready' }));
+    expect(posted.map(({ message }) => message['type'])).toEqual([
+      'init',
+      'theme',
+    ]);
+    expect(posted[0]?.message).toEqual({
+      dolphy: 1,
+      type: 'init',
+      mode: 'widget',
+      rendererUrl: 'dolphy-ext://acme.panel/widget.mjs',
+      widgetId: 'acme.panel.card',
+      context: { courseId: 'c1' },
+    });
+    receive(frameMessage({ type: 'size', height: 123.4 }));
+    expect(onSize).toHaveBeenCalledExactlyOnceWith(123);
+  });
+
+  it('вызов команды идёт от расширения, привязанного приложением; чужая команда отклоняется', async () => {
+    const { receive, invoke, results, flush } = setup({ init: WIDGET });
+    receive(frameMessage({ type: 'ready' }));
+    receive(call({ extensionId: 'evil.other' }));
+    receive(call({ callId: 'c2', command: 'evil.other.steal' }));
+    await flush();
+    expect(invoke).toHaveBeenCalledExactlyOnceWith(
+      'acme.panel',
+      'acme.panel.ping',
+      { n: 1 },
+    );
+    expect(results()).toEqual([
+      expect.objectContaining({ callId: 'c2', ok: false }),
+      expect.objectContaining({ callId: 'c1', ok: true, value: 'pong' }),
+    ]);
+  });
+
+  it('без привязки вызовы и сочетание игнорируются', async () => {
+    const { receive, invoke, results, onShortcut, flush } = setup({
+      init: WIDGET,
+      withBinding: false,
+    });
+    receive(frameMessage({ type: 'ready' }));
+    receive(call());
+    receive(frameMessage({ type: 'shortcut', key: 'mod+k' }));
+    await flush();
+    expect(invoke).not.toHaveBeenCalled();
+    expect(results()).toEqual([]);
+    expect(onShortcut).not.toHaveBeenCalled();
+  });
+
+  it('Ctrl/⌘+K из рамки виджета доходит до приложения', () => {
+    const { receive, onShortcut } = setup({ init: WIDGET });
+    receive(frameMessage({ type: 'ready' }));
+    receive(frameMessage({ type: 'shortcut', key: 'mod+k' }));
+    expect(onShortcut).toHaveBeenCalledOnce();
+  });
+
+  it('сообщения чужого окна не принимаются', async () => {
+    const { receive, invoke, onSize, flush } = setup({ init: WIDGET });
+    receive(frameMessage({ type: 'ready' }));
+    receive(call(), {});
+    receive(frameMessage({ type: 'size', height: 99 }), {});
+    await flush();
+    expect(invoke).not.toHaveBeenCalled();
+    expect(onSize).not.toHaveBeenCalled();
+  });
+});
+
+describe('createFrameHost: окружение панели и виджета', () => {
+  it.each([
+    ['panel', undefined],
+    ['widget', WIDGET],
+  ] as const)(
+    '%s: updateContext до ready копится в init, после ready уходит сообщением context; повтор значения не шлётся',
+    (_mode, init) => {
+      const { host, receive, posted } = setup(init ? { init } : {});
+      host.updateContext({ courseId: 'c1' });
+      receive(frameMessage({ type: 'ready' }));
+      expect(posted[0]?.message).toMatchObject({ context: { courseId: 'c1' } });
+      expect(contextMessages(posted)).toEqual([]);
+
+      host.updateContext({ courseId: 'c1' });
+      expect(contextMessages(posted)).toEqual([]);
+      host.updateContext({ courseId: null });
+      expect(contextMessages(posted)).toEqual([
+        { dolphy: 1, type: 'context', context: { courseId: null } },
+      ]);
+    },
+  );
+
+  it('рамка не получает окружение, пока не готова', () => {
+    const { host, posted } = setup({ init: WIDGET });
+    host.updateContext({ courseId: 'c1' });
+    expect(posted).toEqual([]);
+  });
+
+  it('режим без окружения (элемент ответа) его не получает', () => {
+    const { host, receive, posted } = setup({
+      init: {
+        mode: 'answer',
+        rendererUrl: 'dolphy-ext://acme.panel/view.mjs',
+        element: 'x-answer',
+        label: 'a',
+      },
+    });
+    receive(frameMessage({ type: 'ready' }));
+    host.updateContext({ courseId: 'c1' });
+    expect(contextMessages(posted)).toEqual([]);
   });
 });

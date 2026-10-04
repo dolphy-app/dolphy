@@ -9,6 +9,7 @@ import {
 } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
+import { useCourseScope } from '@/features/course-scope';
 import { panelKey, useExtensionCommands } from '@/features/extension-commands';
 import { useCommandPalette } from '@/widgets/command-palette';
 import { useContributions } from '@/shared/api/engine';
@@ -26,6 +27,9 @@ const contributions = useContributions();
 const extensionText = useExtensionText();
 const { runner, panelProps } = useExtensionCommands();
 const palette = useCommandPalette();
+const scope = useCourseScope();
+// курс в фокусе доходит до рамки без её пересоздания
+const context = computed(() => ({ courseId: scope.activeId.value }));
 
 const extensionId = computed(() => String(route.params['extensionId']));
 const panelId = computed(() => String(route.params['panelId']));
@@ -124,6 +128,7 @@ const back = () => {
         :panel-id="resolved.panel.id"
         :binding="binding"
         :panel-props="panelProps.get(key)"
+        :context="context"
         @shortcut="palette.open()"
         @error="frameError = $event"
       />

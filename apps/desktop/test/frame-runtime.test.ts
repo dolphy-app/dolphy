@@ -625,8 +625,8 @@ describe('рантайм рамки: режим panel', () => {
     send({ dolphy: 1, type: 'dispose' });
     expect(ctx.signal.aborted).toBe(true);
     expect(aborted).toHaveBeenCalledOnce();
-    await expect(pending).rejects.toThrow('panel is closed');
-    await expect(ctx.call('b')).rejects.toThrow('panel is closed');
+    await expect(pending).rejects.toThrow('frame is closed');
+    await expect(ctx.call('b')).rejects.toThrow('frame is closed');
     expect(callsOf(posted)).toHaveLength(1);
     expect(document.body.children).toHaveLength(0);
   });
@@ -704,5 +704,251 @@ describe('рантайм рамки: режим panel', () => {
       }) as never,
     );
     expect(types(harness.posted)).not.toContain('shortcut');
+  });
+});
+
+describe('рантайм рамки: окружение панели и виджета', () => {
+  interface Context {
+    context: { courseId: string | null };
+    signal: AbortSignal;
+    call(command: string, args?: unknown): Promise<unknown>;
+    onContextChange(
+      listener: (context: { courseId: string | null }) => void,
+    ): () => void;
+  }
+
+  const init = (mode: 'panel' | 'widget', context?: unknown) => ({
+    dolphy: 1,
+    type: 'init',
+    mode,
+    rendererUrl: `${URL_PREFIX}/${mode}.mjs`,
+    ...(mode === 'panel'
+      ? { panelId: 'acme.echo.main', props: undefined }
+      : { widgetId: 'acme.echo.card' }),
+    ...(context === undefined ? {} : { context }),
+  });
+
+  const mount = async (mode: 'panel' | 'widget', context?: unknown) => {
+    const seen: Context[] = [];
+    const containers: HTMLElement[] = [];
+    const harness = setup(async () => ({
+      default: {
+        mount: (container: HTMLElement, ctx: Context) => {
+          containers.push(container);
+          seen.push(ctx);
+        },
+      },
+    }));
+    harness.send(init(mode, context));
+    await harness.flush();
+    return { ...harness, ctx: seen[0] as Context, containers };
+  };
+
+  it.each(['panel', 'widget'] as const)(
+    '%s: ctx.context — курс из init, замороженный объект; без окружения — все курсы',
+    async (mode) => {
+      const given = await mount(mode, { courseId: 'c1' });
+      expect(given.ctx.context).toEqual({ courseId: 'c1' });
+      expect(Object.isFrozen(given.ctx.context)).toBe(true);
+      const none = await mount(mode);
+      expect(none.ctx.context).toEqual({ courseId: null });
+    },
+  );
+
+  it.each([
+    ['число', { courseId: 5 }],
+    ['пустая строка', { courseId: '' }],
+    ['слишком длинный', { courseId: 'c'.repeat(201) }],
+    ['не объект', 'c1'],
+    ['лишние поля игнорируются', { courseId: null, admin: true }],
+  ])(
+    'init с недопустимым окружением (%s) даёт «все курсы»',
+    async (_n, raw) => {
+      const { ctx } = await mount('widget', raw);
+      expect(ctx.context).toEqual({ courseId: null });
+      expect(ctx.context).not.toHaveProperty('admin');
+    },
+  );
+
+  it.each(['panel', 'widget'] as const)(
+    '%s: сообщение context меняет ctx.context и зовёт слушателей без пересоздания рамки; повтор значения не зовёт, отписка работает',
+    async (mode) => {
+      const { ctx, send } = await mount(mode, { courseId: 'c1' });
+      const held = ctx.context;
+      const listener = vi.fn();
+      const off = ctx.onContextChange(listener);
+
+      send({ dolphy: 1, type: 'context', context: { courseId: 'c2' } });
+      expect(ctx.context).toEqual({ courseId: 'c2' });
+      expect(held).toEqual({ courseId: 'c1' });
+      expect(listener).toHaveBeenCalledExactlyOnceWith({ courseId: 'c2' });
+
+      send({ dolphy: 1, type: 'context', context: { courseId: 'c2' } });
+      expect(listener).toHaveBeenCalledOnce();
+
+      send({ dolphy: 1, type: 'context', context: { courseId: null } });
+      expect(ctx.context).toEqual({ courseId: null });
+      expect(listener).toHaveBeenCalledTimes(2);
+
+      off();
+      send({ dolphy: 1, type: 'context', context: { courseId: 'c3' } });
+      expect(listener).toHaveBeenCalledTimes(2);
+      expect(ctx.context).toEqual({ courseId: 'c3' });
+    },
+  );
+
+  it('сбой слушателя окружения сообщается как error и не мешает остальным', async () => {
+    const { ctx, send, posted } = await mount('widget', { courseId: null });
+    const healthy = vi.fn();
+    ctx.onContextChange(() => {
+      throw new Error('listener broke');
+    });
+    ctx.onContextChange(healthy);
+    send({ dolphy: 1, type: 'context', context: { courseId: 'c1' } });
+    expect(healthy).toHaveBeenCalledWith({ courseId: 'c1' });
+    expect(posted.at(-1)).toMatchObject({
+      type: 'error',
+      message: 'listener broke',
+    });
+  });
+
+  it('вне панели и виджета сообщение context игнорируется', async () => {
+    const harness = setup();
+    harness.define('x-answer');
+    harness.send({
+      dolphy: 1,
+      type: 'init',
+      mode: 'answer',
+      rendererUrl: `${URL_PREFIX}/view.mjs`,
+      element: 'x-answer',
+      label: 'a',
+    });
+    await harness.flush();
+    const before = harness.posted.length;
+    harness.send({ dolphy: 1, type: 'context', context: { courseId: 'c1' } });
+    expect(harness.posted).toHaveLength(before);
+  });
+});
+
+describe('рантайм рамки: режим widget', () => {
+  interface WidgetCtx {
+    widgetId: string;
+    call(command: string, args?: unknown): Promise<unknown>;
+  }
+
+  const widgetInit = {
+    dolphy: 1,
+    type: 'init',
+    mode: 'widget',
+    rendererUrl: `${URL_PREFIX}/widget.mjs`,
+    widgetId: 'acme.echo.card',
+    context: { courseId: null },
+  };
+
+  const mountWidget = async (
+    height = 150,
+    onMount?: (height: { value: number }) => void,
+  ) => {
+    const contexts: WidgetCtx[] = [];
+    const containers: HTMLElement[] = [];
+    const harness = setup(async (url) => {
+      expect(url).toBe(`${URL_PREFIX}/widget.mjs`);
+      return {
+        default: {
+          mount: (container: HTMLElement, ctx: WidgetCtx) => {
+            containers.push(container);
+            contexts.push(ctx);
+            onMount?.(harness.height);
+          },
+        },
+      };
+    });
+    harness.height.value = height;
+    harness.send(widgetInit);
+    await harness.flush();
+    return { ...harness, ctx: contexts[0] as WidgetCtx, containers };
+  };
+
+  it('монтирует модуль с widgetId и сообщает высоту содержимого, а не заполняет рамку', async () => {
+    const { ctx, containers, posted, document, height } = await mountWidget();
+    expect(ctx.widgetId).toBe('acme.echo.card');
+    expect(ctx).not.toHaveProperty('props');
+    expect(document.body.contains(containers[0] as never)).toBe(true);
+    expect(containers[0]?.style.height).toBe('');
+    expect(document.body.style.height).toBe('');
+    expect(posted).toContainEqual({
+      dolphyFrame: 1,
+      type: 'size',
+      height: 150,
+    });
+    height.value = 400;
+    FakeResizeObserver.instances[0]?.fire();
+    expect(posted.at(-1)).toEqual({
+      dolphyFrame: 1,
+      type: 'size',
+      height: 400,
+    });
+  });
+
+  it('высота после монтирования читается сразу, не дожидаясь ResizeObserver (он молчит в нерисуемой рамке)', async () => {
+    const { posted } = await mountWidget(0, (height) => {
+      // содержимое, которое модуль добавил в mount()
+      height.value = 300;
+    });
+    // наблюдатель не срабатывал ни разу
+    expect(posted.filter((m) => m['type'] === 'size').at(-1)).toEqual({
+      dolphyFrame: 1,
+      type: 'size',
+      height: 300,
+    });
+  });
+
+  it('call и Ctrl/⌘+K работают как у панели', async () => {
+    const harness = await mountWidget();
+    void harness.ctx.call('acme.echo.ping', { n: 1 });
+    expect(harness.posted).toContainEqual(
+      expect.objectContaining({
+        type: 'panel-call',
+        command: 'acme.echo.ping',
+        args: { n: 1 },
+      }),
+    );
+    harness.document.dispatchEvent(
+      new harness.happy.KeyboardEvent('keydown', {
+        key: 'k',
+        ctrlKey: true,
+        cancelable: true,
+      }) as never,
+    );
+    expect(harness.posted.filter((m) => m['type'] === 'shortcut')).toHaveLength(
+      1,
+    );
+  });
+
+  it('dispose отключает наблюдатель размера и закрывает call', async () => {
+    const { ctx, send, document } = await mountWidget();
+    send({ dolphy: 1, type: 'dispose' });
+    expect(FakeResizeObserver.instances[0]?.disconnected).toBe(true);
+    await expect(ctx.call('a')).rejects.toThrow('closed');
+    expect(document.body.children).toHaveLength(0);
+  });
+
+  it('неверный widgetId и модуль без mount() — error', async () => {
+    const wrongId = setup(async () => ({
+      default: { mount: () => undefined },
+    }));
+    wrongId.send({ ...widgetInit, widgetId: 5 });
+    await wrongId.flush();
+    expect(wrongId.posted.at(-1)).toMatchObject({
+      type: 'error',
+      message: 'invalid widget id',
+    });
+    const empty = setup(async () => ({ default: {} }));
+    empty.send(widgetInit);
+    await empty.flush();
+    expect(empty.posted.at(-1)).toMatchObject({
+      type: 'error',
+      message: 'module has no default export with mount()',
+    });
   });
 });

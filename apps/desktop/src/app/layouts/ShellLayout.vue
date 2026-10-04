@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { useContributions } from '@/shared/api/engine';
 import { APP_NAME } from '@/shared/config/app.ts';
+import { extensionIconOf } from '@/shared/config/extension-icons.ts';
 import { ROUTE } from '@/shared/config/routes.ts';
 import { useExtensionText } from '@/shared/lib/extension-text.ts';
 
@@ -79,7 +80,7 @@ const bottomItems = computed(() =>
           params: { extensionId: panel.extensionId, panelId: panel.id },
         }"
         tabindex="0"
-        prepend-icon="mdi-puzzle-outline"
+        :prepend-icon="extensionIconOf(panel.icon)"
         :title="extensionText.of(panel.title, panel.extensionId)"
         color="primary"
         rounded="lg"

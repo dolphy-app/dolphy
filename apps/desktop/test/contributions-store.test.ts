@@ -24,6 +24,7 @@ const dto = (
   gradePolicies: [],
   settings: [],
   commands: [],
+  widgets: [],
   panels: [],
   messages: {},
 });
@@ -167,11 +168,13 @@ describe('createContributionsStore: команды и панели', () => {
     keybinding: null,
     keybindings: [],
     palette: true,
+    icon: 'puzzle',
   });
   const panel = (id: string, revision: string) => ({
     id,
     extensionId: 'acme.cmd',
     title: id,
+    icon: 'puzzle',
     rendererUrl: 'dolphy-ext://acme.cmd/panel.mjs',
     isolated: true,
     origin: 'user' as const,

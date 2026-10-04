@@ -178,6 +178,7 @@ describe('contributionGroups', () => {
         events: [],
         commands: ['acme.run'],
         panels: ['acme.view'],
+        widgets: ['acme.card'],
       }),
     ).toEqual([
       {
@@ -191,6 +192,7 @@ describe('contributionGroups', () => {
       { point: 'gradePolicies', items: [item('acme.strict')] },
       { point: 'commands', items: [item('acme.run')] },
       { point: 'panels', items: [item('acme.view')] },
+      { point: 'widgets', items: [item('acme.card')] },
     ]);
   });
 

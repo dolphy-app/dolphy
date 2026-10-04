@@ -23,6 +23,7 @@ export const CONTRIBUTION_POINTS: readonly ContributionPoint[] = [
   'events',
   'commands',
   'panels',
+  'widgets',
 ];
 
 /** Имя события обучения → ключ сообщения `settings.extensions.events.*` (точка в ключе vue-i18n — путь). */
@@ -220,6 +221,7 @@ const NO_CONTRIBUTES: ExtensionContributesDto = {
   settings: [],
   events: [],
   commands: [],
+  widgets: [],
   panels: [],
 };
 

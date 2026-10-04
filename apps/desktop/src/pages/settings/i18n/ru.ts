@@ -323,6 +323,7 @@ export const ru = {
         events: 'События обучения',
         commands: 'Команды',
         panels: 'Панели',
+        widgets: 'Виджеты',
       },
       origin: {
         bundled: 'Поставка',

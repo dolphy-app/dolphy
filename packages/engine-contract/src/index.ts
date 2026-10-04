@@ -749,10 +749,20 @@ export interface UiSettingsDto {
   locale: LocaleMode;
   /** Курс в фокусе: клиент передаёт его в `courseIds` плана и повторений. Нет поля — все курсы. Движок не проверяет, что курс есть в библиотеке: курс могли убрать, клиент сверяет сам. */
   activeCourseId?: UnitId;
+  /** Ширина панели теории в сессии и вход-тесте, px. Нет поля — умолчание клиента. */
+  materialWidth?: number;
+  /** Панель теории скрыта. Нет поля — показана. */
+  materialCollapsed?: true;
 }
-/** `activeCourseId: null` снимает фокус. */
-export type UiSettingsPatch = Partial<Omit<UiSettingsDto, 'activeCourseId'>> & {
+/** Допустимая ширина панели теории, px (`UiSettingsDto.materialWidth`). */
+export const MATERIAL_WIDTH_RANGE = { min: 280, max: 800 } as const;
+/** `activeCourseId: null` снимает фокус, `materialWidth: null` возвращает умолчание, `materialCollapsed: false` показывает панель. */
+export type UiSettingsPatch = Partial<
+  Omit<UiSettingsDto, 'activeCourseId' | 'materialWidth' | 'materialCollapsed'>
+> & {
   activeCourseId?: UnitId | null;
+  materialWidth?: number | null;
+  materialCollapsed?: boolean;
 };
 
 /** Id встроенного правила оценки (`pass@N`). */

@@ -34,12 +34,13 @@ const createFake = (state: FakeState) => {
   const listeners = new Set<(event: EngineEvent) => void>();
   const setUi = vi.fn(async (patch: UiSettingsPatch) => {
     if (state.failSetUi) throw new Error('disk is full');
-    const { activeCourseId, ...rest } = patch;
+    const { activeCourseId, theme, locale } = patch;
     const { activeCourseId: current, ...ui } = state.ui;
     const next = activeCourseId === undefined ? current : activeCourseId;
     state.ui = {
       ...ui,
-      ...rest,
+      ...(theme !== undefined && { theme }),
+      ...(locale !== undefined && { locale }),
       ...(next !== undefined && next !== null && { activeCourseId: next }),
     };
     return state.ui;

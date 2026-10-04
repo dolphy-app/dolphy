@@ -2,6 +2,7 @@ import {
   BUILTIN_GRADE_POLICY,
   EXTENSION_ID_PATTERN,
   GRADE_POLICY_ID_PATTERN,
+  MATERIAL_WIDTH_RANGE,
   THEME_ID_PATTERN,
 } from '@dolphy-app/engine-contract';
 import * as z from 'zod';
@@ -430,6 +431,14 @@ export const schemas = {
       theme: optional(z.string().max(64).regex(THEME_ID_PATTERN)),
       locale: optional(z.enum(['system', 'ru', 'en'])),
       activeCourseId: optional(unitId.nullable()),
+      materialWidth: optional(
+        z
+          .int()
+          .min(MATERIAL_WIDTH_RANGE.min)
+          .max(MATERIAL_WIDTH_RANGE.max)
+          .nullable(),
+      ),
+      materialCollapsed: optional(z.boolean()),
     }),
   ]),
   'settings.getLearning': z.tuple([]),

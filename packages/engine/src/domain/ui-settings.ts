@@ -1,5 +1,6 @@
 import {
   BUILTIN_THEMES,
+  MATERIAL_WIDTH_RANGE,
   THEME_ID_PATTERN,
   type LocaleMode,
   type UiSettingsDto,
@@ -22,6 +23,11 @@ export const isThemeId = (value: unknown): value is string =>
 export const isUnitId = (value: unknown): value is string =>
   typeof value === 'string' && value !== '';
 
+export const isMaterialWidth = (value: unknown): value is number =>
+  Number.isInteger(value) &&
+  (value as number) >= MATERIAL_WIDTH_RANGE.min &&
+  (value as number) <= MATERIAL_WIDTH_RANGE.max;
+
 export const isLocaleMode = (value: unknown): value is LocaleMode =>
   LOCALE_MODES.includes(value as LocaleMode);
 
@@ -38,9 +44,13 @@ export const decodeUiSettings = (raw: unknown): UiSettingsDto => {
   const theme = fieldOf(raw, 'theme');
   const locale = fieldOf(raw, 'locale');
   const activeCourseId = fieldOf(raw, 'activeCourseId');
+  const materialWidth = fieldOf(raw, 'materialWidth');
+  const materialCollapsed = fieldOf(raw, 'materialCollapsed');
   return {
     theme: isThemeId(theme) ? theme : DEFAULT_UI_SETTINGS.theme,
     locale: isLocaleMode(locale) ? locale : DEFAULT_UI_SETTINGS.locale,
     ...(isUnitId(activeCourseId) && { activeCourseId }),
+    ...(isMaterialWidth(materialWidth) && { materialWidth }),
+    ...(materialCollapsed === true && { materialCollapsed }),
   };
 };

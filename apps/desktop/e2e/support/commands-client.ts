@@ -117,8 +117,31 @@ export class CommandsClient {
     return this.page.frameLocator(PANEL_FRAME);
   }
 
-  panelButton(name: string): Locator {
+  private panelButton(name: string): Locator {
     return this.frame.getByRole('button', { name, exact: true });
+  }
+
+  /**
+   * Нажимает кнопку панели. Рамка панели — отдельный процесс (непрозрачный
+   * origin): пока браузер не получил её поверхность для маршрутизации ввода
+   * (десятки миллисекунд после появления DOM панели, дольше под нагрузкой),
+   * мышь попадает в родительский `<iframe>`, а не в рамку. Playwright такой
+   * клик не замечает (проверка попадания идёт внутри рамки), и он теряется.
+   * Поэтому нажатию предшествует наведение, подтверждённое состоянием `:hover`
+   * кнопки: оно появляется, только когда рамка получает события мыши.
+   */
+  async pressPanelButton(name: string) {
+    const button = this.panelButton(name);
+    await expect
+      .poll(
+        async () => {
+          await button.hover();
+          return button.evaluate((node) => node.matches(':hover'));
+        },
+        { timeout: 15_000 },
+      )
+      .toBe(true);
+    await button.click();
   }
 
   panelRole(role: string): Locator {

@@ -27,7 +27,7 @@ import type {
 } from '@dolphy-app/extension-catalog';
 import { randomSuffix } from './atomic.ts';
 import { createCatalogCache } from './cache.ts';
-import type { CachedIndex, IndexKind } from './cache.ts';
+import type { CachedIndex } from './cache.ts';
 import { describeEntry, toVersionDto } from './dto.ts';
 import { downloadVersion } from './download.ts';
 import { nodeFs } from './fs.ts';
@@ -70,7 +70,6 @@ export const createExtensionInstaller = (
   const fs = options.fs ?? nodeFs;
   const now = options.now ?? Date.now;
   const cacheMaxAgeMs = options.cacheMaxAgeMs ?? DEFAULT_CACHE_MAX_AGE_MS;
-  const catalogLocation = new URL(catalogUrl);
   /** Отозванные версии индекса никогда не выбираются. */
   const contextFor = (index: CatalogIndex): ResolveContext => ({
     apiVersion: options.apiVersion,
@@ -80,7 +79,7 @@ export const createExtensionInstaller = (
   });
   const http = createHttpClient({
     fetch: options.fetch ?? fetch,
-    origin: catalogLocation.origin,
+    origin: new URL(catalogUrl).origin,
     userAgent: options.userAgent ?? `dolphy/${options.appVersion ?? 'dev'}`,
     timeoutMs: options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
   });
@@ -213,42 +212,32 @@ export const createExtensionInstaller = (
   };
 
   /**
-   * `index.v2.json` next to the catalog address first; a 404 there (an old static server,
-   * a catalog published by an older tool) falls back to `index.json`. ETag and cache are per file.
-   * The catalog identity stays the address of `index.json`.
+   * `index.v2.json` next to the catalog address; a 404 is an error like any other bad answer
+   * (the catalog is unavailable). ETag and cache belong to that one file.
    */
   const fetchIndex = async (): Promise<void> => {
     const previous = state.cached;
-    const sources: readonly [IndexKind, URL][] = [
-      ['full', fullIndexUrl(catalogUrl)],
-      ['legacy', catalogLocation],
-    ];
-    for (const [kind, url] of sources) {
-      const etag = previous?.kind === kind ? previous.etag : null;
-      const response = await http.get({
-        url,
-        headers: {
-          Accept: 'application/json',
-          ...(etag !== null && { 'If-None-Match': etag }),
-        },
-        maxBytes: MAX_INDEX_BYTES,
-        overflow: 'network',
-        allowNotModified: etag !== null,
-        allowNotFound: kind === 'full',
-        extensionId: null,
-      });
-      if (response.status === 404) continue;
-      const fetchedAt = now();
-      if (response.status === 304 && previous !== null) {
-        state.cached = { ...previous, fetchedAt };
-        await cache.touch(etag, fetchedAt, kind);
-        return;
-      }
-      const index = parseIndexBytes(response.bytes, previous);
-      state.cached = { index, kind, etag: response.etag, fetchedAt };
-      await cache.save(response.bytes, response.etag, fetchedAt, kind);
+    const etag = previous?.etag ?? null;
+    const response = await http.get({
+      url: fullIndexUrl(catalogUrl),
+      headers: {
+        Accept: 'application/json',
+        ...(etag !== null && { 'If-None-Match': etag }),
+      },
+      maxBytes: MAX_INDEX_BYTES,
+      overflow: 'network',
+      allowNotModified: etag !== null,
+      extensionId: null,
+    });
+    const fetchedAt = now();
+    if (response.status === 304 && previous !== null) {
+      state.cached = { ...previous, fetchedAt };
+      await cache.touch(etag, fetchedAt);
       return;
     }
+    const index = parseIndexBytes(response.bytes, previous);
+    state.cached = { index, etag: response.etag, fetchedAt };
+    await cache.save(response.bytes, response.etag, fetchedAt);
   };
 
   let refreshing: Promise<void> | null = null;

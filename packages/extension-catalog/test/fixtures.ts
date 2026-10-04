@@ -36,7 +36,7 @@ export const entry = (overrides: Partial<CatalogEntry> = {}): CatalogEntry => ({
 });
 
 export const index = (extensions: unknown[] = [entry()]): unknown => ({
-  schemaVersion: 1,
+  schemaVersion: 2,
   generatedAt: '2026-10-01T12:00:00Z',
   extensions,
   revoked: [{ id: 'acme.bad', versions: '<1.2.0', reason: 'security' }],

@@ -105,7 +105,6 @@ describe('реестр команд: команды приложения (R2, R5
       expect.arrayContaining([
         'Перейти: План дня',
         'Перейти: Курсы',
-        'Перейти: Граф знаний',
         'Перейти: Настройки',
         'Перейти: Настройки — Внешний вид',
         'Тема: Как в системе',
@@ -116,7 +115,7 @@ describe('реестр команд: команды приложения (R2, R5
         'Язык: Как в системе',
       ]),
     );
-    expect(titles).toHaveLength(9 + 3 + 3);
+    expect(titles).toHaveLength(8 + 3 + 3);
     expect(titles).not.toContain('Открыть палитру команд');
     // у команд приложения идентификатора расширения нет
     await expectCount(commands.extensionOptions, 0);
@@ -179,7 +178,7 @@ describe('реестр команд: сочетания клавиш (R6, R7, R1
     );
     await openShortcuts(client);
     const rows = client.page.getByTestId('shortcut');
-    await expectCount(rows, 5);
+    await expectCount(rows, 4);
     const texts = (await rows.allInnerTexts()).map((text) =>
       text.replace(/\s+/g, ' ').trim(),
     );
@@ -187,7 +186,6 @@ describe('реестр команд: сочетания клавиш (R6, R7, R1
       `Открыть палитру команд ${MOD}K ${MOD_WORD} K`,
       `Перейти: План дня ${MOD}1 ${MOD_WORD} 1`,
       `Перейти: Курсы ${MOD}2 ${MOD_WORD} 2`,
-      `Перейти: Граф знаний ${MOD}3 ${MOD_WORD} 3`,
       `Перейти: Настройки ${MOD}, ${MOD_WORD} запятая`,
     ]);
     // клавиши озвучиваются словами, а не символами: символы скрыты от скринридера
@@ -241,12 +239,10 @@ describe('реестр команд: сочетания клавиш (R6, R7, R1
       .toBe('open-palette');
   });
 
-  it('Ctrl+1/2/3 и Ctrl+, переходят на страницы', async () => {
+  it('Ctrl+1/2 и Ctrl+, переходят на страницы', async () => {
     const { client, commands } = await launch();
     await client.page.keyboard.press('Control+2');
     await expect.poll(() => commands.route()).toBe('#/courses');
-    await client.page.keyboard.press('Control+3');
-    await expect.poll(() => commands.route()).toBe('#/graph');
     await client.page.keyboard.press('Control+1');
     await expect.poll(() => commands.route()).toBe('#/');
     await client.page.keyboard.press('Control+,');
@@ -261,7 +257,7 @@ describe('реестр команд: сочетания клавиш (R6, R7, R1
       name: 'Поиск по каталогу',
     });
     await search.focus();
-    for (const combo of ['Control+,', 'Control+1', 'Control+2', 'Control+3']) {
+    for (const combo of ['Control+,', 'Control+1', 'Control+2']) {
       await client.page.keyboard.press(combo);
     }
     expect(commands.route()).toBe('#/settings/extensions');

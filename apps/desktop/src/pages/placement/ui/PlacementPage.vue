@@ -68,8 +68,8 @@ const toCourses = () => router.push({ name: ROUTE.courses });
 const toPlan = () => router.push({ name: ROUTE.dailyPlan });
 const openGraph = () =>
   router.push({
-    name: ROUTE.graph,
-    ...(courseId !== undefined && { query: { course: courseId } }),
+    name: ROUTE.courses,
+    ...(courseId !== undefined && { query: { graph: courseId } }),
   });
 
 /** Посреди теста выходим только с подтверждением: ответы не сохранятся. */

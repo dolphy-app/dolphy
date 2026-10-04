@@ -4,21 +4,26 @@ import { useI18n } from 'vue-i18n';
 import { STATUS_VIEW, legendStatuses } from '../lib/view.ts';
 import type { GraphView } from '../lib/view.ts';
 
-const props = defineProps<{ view: GraphView }>();
+const props = defineProps<{
+  /** Название курса: видно, пока граф ещё грузится. */
+  title: string;
+  view: GraphView | null;
+}>();
 
 const { t } = useI18n();
-const legend = computed(() => legendStatuses(props.view));
+const course = computed(() => props.view?.courses[0] ?? null);
+const legend = computed(() => (props.view ? legendStatuses(props.view) : []));
 </script>
 
 <template>
   <div class="toolbar">
     <slot name="prepend" />
 
-    <div v-for="course in view.courses" :key="course.id" class="course">
+    <div class="course">
       <h2 class="text-title-medium font-weight-bold text-high-emphasis">
-        {{ course.name }}
+        {{ title }}
       </h2>
-      <span class="text-label-large text-medium-emphasis">
+      <span v-if="course" class="text-label-large text-medium-emphasis">
         {{
           t('graph.frame.mastered', {
             done: course.mastered,
@@ -28,7 +33,12 @@ const legend = computed(() => legendStatuses(props.view));
       </span>
     </div>
 
-    <div class="legend" role="group" :aria-label="t('graph.legend.title')">
+    <div
+      v-if="view"
+      class="legend"
+      role="group"
+      :aria-label="t('graph.legend.title')"
+    >
       <ul class="legend-list">
         <li
           v-for="status in legend"

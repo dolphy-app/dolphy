@@ -2,7 +2,6 @@ import { createRouter, createWebHashHistory } from 'vue-router';
 import { CoursesPage } from '@/pages/courses';
 import { DailyPlanPage } from '@/pages/daily-plan';
 import { ExtensionPanelPage } from '@/pages/extension-panel';
-import { GraphPage } from '@/pages/graph';
 import { PlacementPage } from '@/pages/placement';
 import { SessionPage } from '@/pages/session';
 import {
@@ -59,18 +58,6 @@ export const router = createRouter({
               titleKey: 'nav.courses',
               icon: 'mdi-bookshelf',
               order: 2,
-            },
-          },
-        },
-        {
-          path: 'graph',
-          name: ROUTE.graph,
-          component: GraphPage,
-          meta: {
-            nav: {
-              titleKey: 'nav.graph',
-              icon: 'mdi-graph-outline',
-              order: 3,
             },
           },
         },

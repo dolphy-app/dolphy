@@ -36,7 +36,6 @@ export interface AppCommandsDeps {
 const DESTINATIONS = [
   { id: 'dailyPlan', route: ROUTE.dailyPlan, keybinding: 'Mod+1' },
   { id: 'courses', route: ROUTE.courses, keybinding: 'Mod+2' },
-  { id: 'graph', route: ROUTE.graph, keybinding: 'Mod+3' },
   { id: 'settings', route: ROUTE.settings, keybinding: 'Mod+,' },
   {
     id: 'settingsLearning',

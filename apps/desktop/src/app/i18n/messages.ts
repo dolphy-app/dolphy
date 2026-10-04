@@ -2,7 +2,7 @@ import { en as vuetifyEn, ru as vuetifyRu } from 'vuetify/locale';
 import { coursesMessages } from '@/pages/courses';
 import { dailyPlanMessages } from '@/pages/daily-plan';
 import { extensionPanelMessages } from '@/pages/extension-panel';
-import { graphMessages } from '@/pages/graph';
+import { courseGraphMessages } from '@/widgets/course-graph';
 import { placementMessages } from '@/pages/placement';
 import { sessionMessages } from '@/pages/session';
 import { settingsMessages } from '@/pages/settings';
@@ -30,7 +30,7 @@ export const appMessages = {
     ...dailyPlanMessages.ru,
     ...extensionPanelMessages.ru,
     ...exercisePanelMessages.ru,
-    ...graphMessages.ru,
+    ...courseGraphMessages.ru,
     ...placementMessages.ru,
     ...sessionMessages.ru,
     ...settingsMessages.ru,
@@ -47,7 +47,7 @@ export const appMessages = {
     ...dailyPlanMessages.en,
     ...extensionPanelMessages.en,
     ...exercisePanelMessages.en,
-    ...graphMessages.en,
+    ...courseGraphMessages.en,
     ...placementMessages.en,
     ...sessionMessages.en,
     ...settingsMessages.en,

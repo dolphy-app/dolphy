@@ -100,7 +100,6 @@ describe('команды приложения: переходы', () => {
   it.each([
     ['app:go:dailyPlan', ROUTE.dailyPlan, 'Перейти: План дня'],
     ['app:go:courses', ROUTE.courses, 'Перейти: Курсы'],
-    ['app:go:graph', ROUTE.graph, 'Перейти: Граф знаний'],
     ['app:go:settings', ROUTE.settings, 'Перейти: Настройки'],
     [
       'app:go:settingsLearning',
@@ -151,7 +150,6 @@ describe('команды приложения: переходы', () => {
       'app:palette.open': 'Mod+K',
       'app:go:dailyPlan': 'Mod+1',
       'app:go:courses': 'Mod+2',
-      'app:go:graph': 'Mod+3',
       'app:go:settings': 'Mod+,',
     });
   });

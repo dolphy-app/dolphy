@@ -24,7 +24,11 @@ File `extension.json` (command-panel):
   "contributes": {
     "commands": [
       { "id": "acme.hello.hello", "title": "Say hello", "category": "Hello" },
-      { "id": "acme.hello.open", "title": "Open the hello panel", "category": "Hello" },
+      {
+        "id": "acme.hello.open",
+        "title": "Open the hello panel",
+        "category": "Hello"
+      },
       { "id": "acme.hello.data", "title": "Hello panel data", "palette": false }
     ],
     "panels": [{ "id": "acme.hello.view", "title": "Hello" }]
@@ -116,10 +120,7 @@ File `test/index.test.ts` (command-panel):
 
 ```ts
 // @vitest-environment happy-dom
-import {
-  loadCommands,
-  loadPanel,
-} from '@dolphy-app/extension-sdk/testing';
+import { loadCommands, loadPanel } from '@dolphy-app/extension-sdk/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import { host, panels } from '../src/index.ts';
 
@@ -130,7 +131,11 @@ afterEach(async () => {
 
 const load = async () => {
   const commands = await loadCommands(host, {
-    declaredCommands: ['acme.hello.hello', 'acme.hello.open', 'acme.hello.data'],
+    declaredCommands: [
+      'acme.hello.hello',
+      'acme.hello.open',
+      'acme.hello.data',
+    ],
     declaredPanels: ['acme.hello.view'],
   });
   disposables.push(commands);
@@ -175,11 +180,15 @@ describe('acme.hello: panel', () => {
       call: () => ({ message: 'Hello from the test' }),
     });
     disposables.push(panel);
-    expect(panel.container.querySelector('h2')?.textContent).toBe('Hello, Ada!');
+    expect(panel.container.querySelector('h2')?.textContent).toBe(
+      'Hello, Ada!',
+    );
     expect(panel.container.querySelector('p')?.textContent).toBe(
       'Hello from the test',
     );
-    expect(panel.calls).toEqual([{ commandId: 'acme.hello.data', args: undefined }]);
+    expect(panel.calls).toEqual([
+      { commandId: 'acme.hello.data', args: undefined },
+    ]);
 
     panel.setProps({ name: 'Grace' });
     expect(panel.container.querySelector('h2')?.textContent).toBe(

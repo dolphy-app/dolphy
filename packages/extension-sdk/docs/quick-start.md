@@ -32,13 +32,13 @@ id the extension declares (commands, panels, settings…) starts with it, so pic
 one that is yours (a publisher prefix, then a name). Without `--id` the id is the
 directory name in kebab-case. The `--template` values:
 
-| Template        | What you get                                                                   |
-| --------------- | ------------------------------------------------------------------------------ |
-| `exercise`      | a task type with an answer input and a setting (the default)                   |
-| `theme`         | a color theme, no code                                                         |
-| `command-panel` | palette commands and a panel                                                   |
-| `events`        | a learning event handler, storage, commands and a panel                        |
-| `blank`         | one palette command                                                            |
+| Template        | What you get                                                 |
+| --------------- | ------------------------------------------------------------ |
+| `exercise`      | a task type with an answer input and a setting (the default) |
+| `theme`         | a color theme, no code                                       |
+| `command-panel` | palette commands and a panel                                 |
+| `events`        | a learning event handler, storage, commands and a panel      |
+| `blank`         | one palette command                                          |
 
 An unknown name exits with code 2 and lists the available ones.
 

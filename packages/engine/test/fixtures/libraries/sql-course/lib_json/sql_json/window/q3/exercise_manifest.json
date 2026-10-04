@@ -21,9 +21,7 @@
         "reference": "solutions/window-partition-rownum.sql"
       }
     },
-    "tags": [
-      "partition"
-    ],
+    "tags": ["partition"],
     "bloom": "apply",
     "dok": 3
   }

@@ -65,10 +65,7 @@
       "prefs": false,
       "params": {
         "lessons": 300,
-        "exercises": [
-          3,
-          5
-        ],
+        "exercises": [3, 5],
         "deps": 3,
         "courses": 1,
         "topology": "banded",
@@ -92,10 +89,7 @@
       "prefs": false,
       "params": {
         "lessons": 600,
-        "exercises": [
-          3,
-          5
-        ],
+        "exercises": [3, 5],
         "deps": 3,
         "courses": 12,
         "topology": "window",
@@ -115,9 +109,7 @@
       "bytes": 2264,
       "libraryTreeSha256": "f0af90a5b230e7c37234a8077a452b8df3c188c8001ce8d5bde211bbe0f86c70",
       "scope": "full",
-      "ignoredPaths": [
-        "ign"
-      ],
+      "ignoredPaths": ["ign"],
       "prefs": true,
       "params": null,
       "counts": {

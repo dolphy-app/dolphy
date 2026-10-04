@@ -1,1 +1,278 @@
-{"assets":{"sql_kb":[null,null],"sql_kb::aggregate":[null,null],"sql_kb::aggregate::q1":{"FlashcardAsset":{"back_path":null,"front_path":"sql_kb/aggregate.lesson/q1.front.md"}},"sql_kb::aggregate::q2":{"FlashcardAsset":{"back_path":null,"front_path":"sql_kb/aggregate.lesson/q2.front.md"}},"sql_kb::aggregate::q3":{"FlashcardAsset":{"back_path":null,"front_path":"sql_kb/aggregate.lesson/q3.front.md"}},"sql_kb::ddl":[null,null],"sql_kb::ddl::q1":{"FlashcardAsset":{"back_path":null,"front_path":"sql_kb/ddl.lesson/q1.front.md"}},"sql_kb::ddl::q2":{"FlashcardAsset":{"back_path":null,"front_path":"sql_kb/ddl.lesson/q2.front.md"}},"sql_kb::ddl::q3":{"FlashcardAsset":{"back_path":null,"front_path":"sql_kb/ddl.lesson/q3.front.md"}},"sql_kb::join":[null,null],"sql_kb::join::q1":{"FlashcardAsset":{"back_path":null,"front_path":"sql_kb/join.lesson/q1.front.md"}},"sql_kb::join::q2":{"FlashcardAsset":{"back_path":null,"front_path":"sql_kb/join.lesson/q2.front.md"}},"sql_kb::join::q3":{"FlashcardAsset":{"back_path":null,"front_path":"sql_kb/join.lesson/q3.front.md"}},"sql_kb::select":[null,null],"sql_kb::select::q1":{"FlashcardAsset":{"back_path":null,"front_path":"sql_kb/select.lesson/q1.front.md"}},"sql_kb::select::q2":{"FlashcardAsset":{"back_path":null,"front_path":"sql_kb/select.lesson/q2.front.md"}},"sql_kb::select::q3":{"FlashcardAsset":{"back_path":null,"front_path":"sql_kb/select.lesson/q3.front.md"}},"sql_kb::subquery":[null,null],"sql_kb::subquery::q1":{"FlashcardAsset":{"back_path":null,"front_path":"sql_kb/subquery.lesson/q1.front.md"}},"sql_kb::subquery::q2":{"FlashcardAsset":{"back_path":null,"front_path":"sql_kb/subquery.lesson/q2.front.md"}},"sql_kb::subquery::q3":{"FlashcardAsset":{"back_path":null,"front_path":"sql_kb/subquery.lesson/q3.front.md"}},"sql_kb::where":[null,null],"sql_kb::where::q1":{"FlashcardAsset":{"back_path":null,"front_path":"sql_kb/where.lesson/q1.front.md"}},"sql_kb::where::q2":{"FlashcardAsset":{"back_path":null,"front_path":"sql_kb/where.lesson/q2.front.md"}},"sql_kb::where::q3":{"FlashcardAsset":{"back_path":null,"front_path":"sql_kb/where.lesson/q3.front.md"}},"sql_kb::window":[null,null],"sql_kb::window::q1":{"FlashcardAsset":{"back_path":null,"front_path":"sql_kb/window.lesson/q1.front.md"}},"sql_kb::window::q2":{"FlashcardAsset":{"back_path":null,"front_path":"sql_kb/window.lesson/q2.front.md"}},"sql_kb::window::q3":{"FlashcardAsset":{"back_path":null,"front_path":"sql_kb/window.lesson/q3.front.md"}}},"counts":{"courses":1,"exercises":21,"lessons":7},"course_lessons":{"sql_kb":["sql_kb::aggregate","sql_kb::ddl","sql_kb::join","sql_kb::select","sql_kb::subquery","sql_kb::where","sql_kb::window"]},"dependencies":{"sql_kb::aggregate":["sql_kb::select"],"sql_kb::join":["sql_kb::aggregate","sql_kb::where"],"sql_kb::select":["sql_kb::ddl"],"sql_kb::subquery":["sql_kb::join"],"sql_kb::where":["sql_kb::select"],"sql_kb::window":["sql_kb::subquery"]},"dependency_sinks":["sql_kb"],"dependents":{"sql_kb::aggregate":["sql_kb::join"],"sql_kb::ddl":["sql_kb::select"],"sql_kb::join":["sql_kb::subquery"],"sql_kb::select":["sql_kb::aggregate","sql_kb::where"],"sql_kb::subquery":["sql_kb::window"],"sql_kb::where":["sql_kb::join"]},"encompassed_by":{"sql_kb::aggregate":[["sql_kb::join",1],["sql_kb::window",0.5]],"sql_kb::ddl":[["sql_kb::select",1]],"sql_kb::join":[["sql_kb::subquery",1]],"sql_kb::select":[["sql_kb::aggregate",1],["sql_kb::subquery",0.699999988079071],["sql_kb::where",1]],"sql_kb::subquery":[["sql_kb::window",1]],"sql_kb::where":[["sql_kb::join",0.5]]},"encompasses":{"sql_kb::aggregate":[["sql_kb::select",1]],"sql_kb::join":[["sql_kb::aggregate",1],["sql_kb::where",0.5]],"sql_kb::select":[["sql_kb::ddl",1]],"sql_kb::subquery":[["sql_kb::join",1],["sql_kb::select",0.699999988079071]],"sql_kb::where":[["sql_kb::select",1]],"sql_kb::window":[["sql_kb::aggregate",0.5],["sql_kb::subquery",1]]},"encompassing_equals_dependency":false,"lesson_course":{"sql_kb::aggregate":"sql_kb","sql_kb::ddl":"sql_kb","sql_kb::join":"sql_kb","sql_kb::select":"sql_kb","sql_kb::subquery":"sql_kb","sql_kb::where":"sql_kb","sql_kb::window":"sql_kb"},"lesson_exercises":{"sql_kb::aggregate":["sql_kb::aggregate::q1","sql_kb::aggregate::q2","sql_kb::aggregate::q3"],"sql_kb::ddl":["sql_kb::ddl::q1","sql_kb::ddl::q2","sql_kb::ddl::q3"],"sql_kb::join":["sql_kb::join::q1","sql_kb::join::q2","sql_kb::join::q3"],"sql_kb::select":["sql_kb::select::q1","sql_kb::select::q2","sql_kb::select::q3"],"sql_kb::subquery":["sql_kb::subquery::q1","sql_kb::subquery::q2","sql_kb::subquery::q3"],"sql_kb::where":["sql_kb::where::q1","sql_kb::where::q2","sql_kb::where::q3"],"sql_kb::window":["sql_kb::window::q1","sql_kb::window::q2","sql_kb::window::q3"]},"missing_units":[],"starting_lessons":{"sql_kb":["sql_kb::ddl"]},"superseded_by":{},"supersedes":{},"type_mismatch":0,"units":{"sql_kb":"Course","sql_kb::aggregate":"Lesson","sql_kb::aggregate::q1":"Exercise","sql_kb::aggregate::q2":"Exercise","sql_kb::aggregate::q3":"Exercise","sql_kb::ddl":"Lesson","sql_kb::ddl::q1":"Exercise","sql_kb::ddl::q2":"Exercise","sql_kb::ddl::q3":"Exercise","sql_kb::join":"Lesson","sql_kb::join::q1":"Exercise","sql_kb::join::q2":"Exercise","sql_kb::join::q3":"Exercise","sql_kb::select":"Lesson","sql_kb::select::q1":"Exercise","sql_kb::select::q2":"Exercise","sql_kb::select::q3":"Exercise","sql_kb::subquery":"Lesson","sql_kb::subquery::q1":"Exercise","sql_kb::subquery::q2":"Exercise","sql_kb::subquery::q3":"Exercise","sql_kb::where":"Lesson","sql_kb::where::q1":"Exercise","sql_kb::where::q2":"Exercise","sql_kb::where::q3":"Exercise","sql_kb::window":"Lesson","sql_kb::window::q1":"Exercise","sql_kb::window::q2":"Exercise","sql_kb::window::q3":"Exercise"}}
+{
+  "assets": {
+    "sql_kb": [null, null],
+    "sql_kb::aggregate": [null, null],
+    "sql_kb::aggregate::q1": {
+      "FlashcardAsset": {
+        "back_path": null,
+        "front_path": "sql_kb/aggregate.lesson/q1.front.md"
+      }
+    },
+    "sql_kb::aggregate::q2": {
+      "FlashcardAsset": {
+        "back_path": null,
+        "front_path": "sql_kb/aggregate.lesson/q2.front.md"
+      }
+    },
+    "sql_kb::aggregate::q3": {
+      "FlashcardAsset": {
+        "back_path": null,
+        "front_path": "sql_kb/aggregate.lesson/q3.front.md"
+      }
+    },
+    "sql_kb::ddl": [null, null],
+    "sql_kb::ddl::q1": {
+      "FlashcardAsset": {
+        "back_path": null,
+        "front_path": "sql_kb/ddl.lesson/q1.front.md"
+      }
+    },
+    "sql_kb::ddl::q2": {
+      "FlashcardAsset": {
+        "back_path": null,
+        "front_path": "sql_kb/ddl.lesson/q2.front.md"
+      }
+    },
+    "sql_kb::ddl::q3": {
+      "FlashcardAsset": {
+        "back_path": null,
+        "front_path": "sql_kb/ddl.lesson/q3.front.md"
+      }
+    },
+    "sql_kb::join": [null, null],
+    "sql_kb::join::q1": {
+      "FlashcardAsset": {
+        "back_path": null,
+        "front_path": "sql_kb/join.lesson/q1.front.md"
+      }
+    },
+    "sql_kb::join::q2": {
+      "FlashcardAsset": {
+        "back_path": null,
+        "front_path": "sql_kb/join.lesson/q2.front.md"
+      }
+    },
+    "sql_kb::join::q3": {
+      "FlashcardAsset": {
+        "back_path": null,
+        "front_path": "sql_kb/join.lesson/q3.front.md"
+      }
+    },
+    "sql_kb::select": [null, null],
+    "sql_kb::select::q1": {
+      "FlashcardAsset": {
+        "back_path": null,
+        "front_path": "sql_kb/select.lesson/q1.front.md"
+      }
+    },
+    "sql_kb::select::q2": {
+      "FlashcardAsset": {
+        "back_path": null,
+        "front_path": "sql_kb/select.lesson/q2.front.md"
+      }
+    },
+    "sql_kb::select::q3": {
+      "FlashcardAsset": {
+        "back_path": null,
+        "front_path": "sql_kb/select.lesson/q3.front.md"
+      }
+    },
+    "sql_kb::subquery": [null, null],
+    "sql_kb::subquery::q1": {
+      "FlashcardAsset": {
+        "back_path": null,
+        "front_path": "sql_kb/subquery.lesson/q1.front.md"
+      }
+    },
+    "sql_kb::subquery::q2": {
+      "FlashcardAsset": {
+        "back_path": null,
+        "front_path": "sql_kb/subquery.lesson/q2.front.md"
+      }
+    },
+    "sql_kb::subquery::q3": {
+      "FlashcardAsset": {
+        "back_path": null,
+        "front_path": "sql_kb/subquery.lesson/q3.front.md"
+      }
+    },
+    "sql_kb::where": [null, null],
+    "sql_kb::where::q1": {
+      "FlashcardAsset": {
+        "back_path": null,
+        "front_path": "sql_kb/where.lesson/q1.front.md"
+      }
+    },
+    "sql_kb::where::q2": {
+      "FlashcardAsset": {
+        "back_path": null,
+        "front_path": "sql_kb/where.lesson/q2.front.md"
+      }
+    },
+    "sql_kb::where::q3": {
+      "FlashcardAsset": {
+        "back_path": null,
+        "front_path": "sql_kb/where.lesson/q3.front.md"
+      }
+    },
+    "sql_kb::window": [null, null],
+    "sql_kb::window::q1": {
+      "FlashcardAsset": {
+        "back_path": null,
+        "front_path": "sql_kb/window.lesson/q1.front.md"
+      }
+    },
+    "sql_kb::window::q2": {
+      "FlashcardAsset": {
+        "back_path": null,
+        "front_path": "sql_kb/window.lesson/q2.front.md"
+      }
+    },
+    "sql_kb::window::q3": {
+      "FlashcardAsset": {
+        "back_path": null,
+        "front_path": "sql_kb/window.lesson/q3.front.md"
+      }
+    }
+  },
+  "counts": { "courses": 1, "exercises": 21, "lessons": 7 },
+  "course_lessons": {
+    "sql_kb": [
+      "sql_kb::aggregate",
+      "sql_kb::ddl",
+      "sql_kb::join",
+      "sql_kb::select",
+      "sql_kb::subquery",
+      "sql_kb::where",
+      "sql_kb::window"
+    ]
+  },
+  "dependencies": {
+    "sql_kb::aggregate": ["sql_kb::select"],
+    "sql_kb::join": ["sql_kb::aggregate", "sql_kb::where"],
+    "sql_kb::select": ["sql_kb::ddl"],
+    "sql_kb::subquery": ["sql_kb::join"],
+    "sql_kb::where": ["sql_kb::select"],
+    "sql_kb::window": ["sql_kb::subquery"]
+  },
+  "dependency_sinks": ["sql_kb"],
+  "dependents": {
+    "sql_kb::aggregate": ["sql_kb::join"],
+    "sql_kb::ddl": ["sql_kb::select"],
+    "sql_kb::join": ["sql_kb::subquery"],
+    "sql_kb::select": ["sql_kb::aggregate", "sql_kb::where"],
+    "sql_kb::subquery": ["sql_kb::window"],
+    "sql_kb::where": ["sql_kb::join"]
+  },
+  "encompassed_by": {
+    "sql_kb::aggregate": [
+      ["sql_kb::join", 1],
+      ["sql_kb::window", 0.5]
+    ],
+    "sql_kb::ddl": [["sql_kb::select", 1]],
+    "sql_kb::join": [["sql_kb::subquery", 1]],
+    "sql_kb::select": [
+      ["sql_kb::aggregate", 1],
+      ["sql_kb::subquery", 0.699999988079071],
+      ["sql_kb::where", 1]
+    ],
+    "sql_kb::subquery": [["sql_kb::window", 1]],
+    "sql_kb::where": [["sql_kb::join", 0.5]]
+  },
+  "encompasses": {
+    "sql_kb::aggregate": [["sql_kb::select", 1]],
+    "sql_kb::join": [
+      ["sql_kb::aggregate", 1],
+      ["sql_kb::where", 0.5]
+    ],
+    "sql_kb::select": [["sql_kb::ddl", 1]],
+    "sql_kb::subquery": [
+      ["sql_kb::join", 1],
+      ["sql_kb::select", 0.699999988079071]
+    ],
+    "sql_kb::where": [["sql_kb::select", 1]],
+    "sql_kb::window": [
+      ["sql_kb::aggregate", 0.5],
+      ["sql_kb::subquery", 1]
+    ]
+  },
+  "encompassing_equals_dependency": false,
+  "lesson_course": {
+    "sql_kb::aggregate": "sql_kb",
+    "sql_kb::ddl": "sql_kb",
+    "sql_kb::join": "sql_kb",
+    "sql_kb::select": "sql_kb",
+    "sql_kb::subquery": "sql_kb",
+    "sql_kb::where": "sql_kb",
+    "sql_kb::window": "sql_kb"
+  },
+  "lesson_exercises": {
+    "sql_kb::aggregate": [
+      "sql_kb::aggregate::q1",
+      "sql_kb::aggregate::q2",
+      "sql_kb::aggregate::q3"
+    ],
+    "sql_kb::ddl": ["sql_kb::ddl::q1", "sql_kb::ddl::q2", "sql_kb::ddl::q3"],
+    "sql_kb::join": [
+      "sql_kb::join::q1",
+      "sql_kb::join::q2",
+      "sql_kb::join::q3"
+    ],
+    "sql_kb::select": [
+      "sql_kb::select::q1",
+      "sql_kb::select::q2",
+      "sql_kb::select::q3"
+    ],
+    "sql_kb::subquery": [
+      "sql_kb::subquery::q1",
+      "sql_kb::subquery::q2",
+      "sql_kb::subquery::q3"
+    ],
+    "sql_kb::where": [
+      "sql_kb::where::q1",
+      "sql_kb::where::q2",
+      "sql_kb::where::q3"
+    ],
+    "sql_kb::window": [
+      "sql_kb::window::q1",
+      "sql_kb::window::q2",
+      "sql_kb::window::q3"
+    ]
+  },
+  "missing_units": [],
+  "starting_lessons": { "sql_kb": ["sql_kb::ddl"] },
+  "superseded_by": {},
+  "supersedes": {},
+  "type_mismatch": 0,
+  "units": {
+    "sql_kb": "Course",
+    "sql_kb::aggregate": "Lesson",
+    "sql_kb::aggregate::q1": "Exercise",
+    "sql_kb::aggregate::q2": "Exercise",
+    "sql_kb::aggregate::q3": "Exercise",
+    "sql_kb::ddl": "Lesson",
+    "sql_kb::ddl::q1": "Exercise",
+    "sql_kb::ddl::q2": "Exercise",
+    "sql_kb::ddl::q3": "Exercise",
+    "sql_kb::join": "Lesson",
+    "sql_kb::join::q1": "Exercise",
+    "sql_kb::join::q2": "Exercise",
+    "sql_kb::join::q3": "Exercise",
+    "sql_kb::select": "Lesson",
+    "sql_kb::select::q1": "Exercise",
+    "sql_kb::select::q2": "Exercise",
+    "sql_kb::select::q3": "Exercise",
+    "sql_kb::subquery": "Lesson",
+    "sql_kb::subquery::q1": "Exercise",
+    "sql_kb::subquery::q2": "Exercise",
+    "sql_kb::subquery::q3": "Exercise",
+    "sql_kb::where": "Lesson",
+    "sql_kb::where::q1": "Exercise",
+    "sql_kb::where::q2": "Exercise",
+    "sql_kb::where::q3": "Exercise",
+    "sql_kb::window": "Lesson",
+    "sql_kb::window::q1": "Exercise",
+    "sql_kb::window::q2": "Exercise",
+    "sql_kb::window::q3": "Exercise"
+  }
+}

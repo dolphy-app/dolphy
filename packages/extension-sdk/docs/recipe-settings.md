@@ -66,11 +66,7 @@ File `extension.json` (settings):
 File `src/index.ts` (settings):
 
 ```ts
-import {
-  defineExtension,
-  inActivate,
-  notify,
-} from '@dolphy-app/extension-sdk';
+import { defineExtension, inActivate, notify } from '@dolphy-app/extension-sdk';
 
 export const host = defineExtension({
   commands: { 'acme.hello.greet': inActivate },
@@ -86,7 +82,10 @@ export const host = defineExtension({
 
     // a change in Settings → Extensions reaches the running extension
     ctx.settings.onDidChange((change) => {
-      ctx.logger.info({ id: change.id, value: change.value }, 'setting changed');
+      ctx.logger.info(
+        { id: change.id, value: change.value },
+        'setting changed',
+      );
     });
   },
 });

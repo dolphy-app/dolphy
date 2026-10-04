@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 18 as const;
+export const CONTRACT_VERSION = 19 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 
@@ -1185,6 +1185,29 @@ export interface ExtensionInfoDto {
   removable: boolean;
   /** Причина отзыва установленной версии в каталоге; `null` — не отозвана. Отозванное расширение в состоянии `disabled`, включить его нельзя. */
   revoked: string | null;
+  /**
+   * Предупреждение об устаревании, действующее для установленной версии (по последнему известному
+   * индексу); `null` — расширение не устарело, скопировано вручную или индекса нет. Накладывает сервис
+   * `extensions.list`; это предупреждение, а не отзыв: состояние и политика не меняются.
+   */
+  deprecated: DeprecationDto | null;
+}
+
+/** Альтернатива устаревшему расширению; `name` берётся из индекса каталога. */
+export interface DeprecationAlternativeDto {
+  id: string;
+  /** Название записи каталога; `null` — такой записи в индексе нет. */
+  name: string | null;
+}
+
+/** Расширение помечено устаревшим в каталоге (`deprecated.json`). */
+export interface DeprecationDto {
+  /** Диапазон версий, на которые распространяется пометка; `null` — на все. */
+  versions: string | null;
+  /** Причина, 1–200 символов, на английском. */
+  reason: string;
+  /** До 3 альтернатив. */
+  alternatives: DeprecationAlternativeDto[];
 }
 
 /** Метаданные установки из каталога (файл `.dolphy-install.json` в каталоге расширения). */
@@ -1597,6 +1620,20 @@ export interface ExtensionsService {
   uninstall(id: string, options?: { removeData?: boolean }): Promise<void>;
   /** Доступные обновления установленных из каталога расширений (по последнему известному индексу). */
   updates(): Promise<ExtensionUpdateDto[]>;
+  /**
+   * README и журнал изменений. Без `version` — установленной версии (из каталога расширения, без сети),
+   * у не установленного — новейшей показанной версии каталога; с `version` — этой версии (установленной
+   * или из каталога; файлы каталога проверяются по размеру и `sha256` и кэшируются на диске).
+   * `NOT_FOUND` — нет такого расширения или версии; `EXTENSION_INSTALL_FAILED`
+   * (`details.reason` `network` | `integrity` | `limits`) — файл недоступен; `CATALOG_UNAVAILABLE` — индекса нет.
+   */
+  docs(id: string, options?: { version?: string }): Promise<ExtensionDocsDto>;
+  /**
+   * Картинка README как `data:image/png|webp|jpeg;base64,…`: файл `png`/`webp`/`jpg`/`jpeg` до 256 КиБ из
+   * файлов этой версии. `NOT_FOUND` — расширения, версии или файла нет; `INVALID_ARGUMENT` — путь,
+   * тип или размер недопустимы.
+   */
+  docImage(id: string, version: string, path: string): Promise<string>;
   setCheckUpdates(enabled: boolean): Promise<ExtensionSettingsDto>;
   /**
    * Включает и выключает безопасный режим (настройка `safeMode`); действует
@@ -1669,6 +1706,19 @@ export interface CatalogVersionDto {
   minAppVersion: string | null;
 }
 
+/** Версия в списке версий записи каталога (не больше 5, новейшие первыми). */
+export interface CatalogListedVersionDto extends CatalogVersionDto {
+  /** `true` — версию можно установить на этом приложении и платформе. */
+  compatible: boolean;
+  /** Почему нельзя установить; `null` у совместимой. */
+  incompatible: {
+    reason: CatalogIncompatibleDto['reason'];
+    detail: string;
+  } | null;
+  /** В версии есть `CHANGELOG.md`. */
+  hasChangelog: boolean;
+}
+
 export interface CatalogIncompatibleDto {
   reason: 'platform' | 'api' | 'app' | 'revoked';
   /** Человекочитаемая причина на английском (`requires app >= 1.2.0`). */
@@ -1698,6 +1748,15 @@ export interface CatalogEntryDto {
   /** Версия, которая будет установлена (новейшая совместимая); `null` у несовместимых. */
   latest: CatalogVersionDto | null;
   incompatible: CatalogIncompatibleDto | null;
+  /** Версии записи индекса (до 5, новейшие первыми). */
+  versions: CatalogListedVersionDto[];
+  /** Пометка «устарело», действующая для показанной версии (`latest`, у несовместимых — новейшая); `null` — нет. */
+  deprecated: DeprecationDto | null;
+  /**
+   * `true` — расширение с этим id уже есть, но установлено не из этого каталога (скопировано вручную,
+   * из режима разработчика, из поставки или из другого каталога): установка невозможна без удаления прежнего.
+   */
+  elsewhere: boolean;
 }
 
 export interface CatalogDto {
@@ -1715,6 +1774,23 @@ export interface ExtensionUpdateDto {
   name: string;
   installed: string;
   available: CatalogVersionDto;
+}
+
+/** Описание расширения: README и журнал изменений одной версии. */
+export interface ExtensionDocsDto {
+  /** Версия, к которой относятся тексты. */
+  version: string;
+  /** Содержимое `README.md` (первые 64 КиБ); `null` — файла нет. */
+  readme: string | null;
+  /** Содержимое `CHANGELOG.md` версии; `null` — файла нет. */
+  changelog: string | null;
+  /** Любой из текстов обрезан до 64 КиБ. */
+  truncated: boolean;
+  /**
+   * Откуда тексты: `installed` — каталог установленного расширения; `catalog` — каталог (скачаны или
+   * уже лежали в дисковом кэше); `cache` — дисковый кэш, потому что до каталога не дозвониться (индекс устарел).
+   */
+  source: 'installed' | 'catalog' | 'cache';
 }
 
 export interface InstallResultDto {

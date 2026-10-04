@@ -21,9 +21,7 @@
         "reference": "solutions/select-column-alias-case.sql"
       }
     },
-    "tags": [
-      "alias"
-    ],
+    "tags": ["alias"],
     "bloom": "remember",
     "dok": 1
   }

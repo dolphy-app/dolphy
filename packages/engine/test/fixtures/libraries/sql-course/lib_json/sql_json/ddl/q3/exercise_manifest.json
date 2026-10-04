@@ -21,9 +21,7 @@
         "reference": "solutions/ddl-count-emp-rows.sql"
       }
     },
-    "tags": [
-      "insert"
-    ],
+    "tags": ["insert"],
     "bloom": "understand",
     "dok": 1
   }

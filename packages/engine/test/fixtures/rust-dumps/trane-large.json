@@ -1,1 +1,118 @@
-{"courseIds":["trane::music::improvise_for_real::jam_tracks::1::a","trane::music::improvise_for_real::jam_tracks::1::a_flat","trane::music::improvise_for_real::jam_tracks::1::b","trane::music::improvise_for_real::jam_tracks::1::b_flat","trane::music::improvise_for_real::jam_tracks::1::c","trane::music::improvise_for_real::jam_tracks::1::d","trane::music::improvise_for_real::jam_tracks::1::d_flat","trane::music::improvise_for_real::jam_tracks::1::e","trane::music::improvise_for_real::jam_tracks::1::e_flat","trane::music::improvise_for_real::jam_tracks::1::f","trane::music::improvise_for_real::jam_tracks::1::g","trane::music::improvise_for_real::jam_tracks::1::g_flat","trane::music::improvise_for_real::jam_tracks::2::a","trane::music::improvise_for_real::jam_tracks::2::a_flat","trane::music::improvise_for_real::jam_tracks::2::b","trane::music::improvise_for_real::jam_tracks::2::b_flat","trane::music::improvise_for_real::jam_tracks::2::c","trane::music::improvise_for_real::jam_tracks::2::d","trane::music::improvise_for_real::jam_tracks::2::d_flat","trane::music::improvise_for_real::jam_tracks::2::e","trane::music::improvise_for_real::jam_tracks::2::e_flat","trane::music::improvise_for_real::jam_tracks::2::f","trane::music::improvise_for_real::jam_tracks::2::g","trane::music::improvise_for_real::jam_tracks::2::g_flat","trane::music::improvise_for_real::jam_tracks::3::a","trane::music::improvise_for_real::jam_tracks::3::a_flat","trane::music::improvise_for_real::jam_tracks::3::b","trane::music::improvise_for_real::jam_tracks::3::b_flat","trane::music::improvise_for_real::jam_tracks::3::c","trane::music::improvise_for_real::jam_tracks::3::d","trane::music::improvise_for_real::jam_tracks::3::d_flat","trane::music::improvise_for_real::jam_tracks::3::e","trane::music::improvise_for_real::jam_tracks::3::e_flat","trane::music::improvise_for_real::jam_tracks::3::f","trane::music::improvise_for_real::jam_tracks::3::g","trane::music::improvise_for_real::jam_tracks::3::g_flat","trane::music::improvise_for_real::jam_tracks::4::a","trane::music::improvise_for_real::jam_tracks::4::a_flat","trane::music::improvise_for_real::jam_tracks::4::b","trane::music::improvise_for_real::jam_tracks::4::b_flat","trane::music::improvise_for_real::jam_tracks::4::c","trane::music::improvise_for_real::jam_tracks::4::d","trane::music::improvise_for_real::jam_tracks::4::d_flat","trane::music::improvise_for_real::jam_tracks::4::e","trane::music::improvise_for_real::jam_tracks::4::e_flat","trane::music::improvise_for_real::jam_tracks::4::f","trane::music::improvise_for_real::jam_tracks::4::g","trane::music::improvise_for_real::jam_tracks::4::g_flat","trane::music::improvise_for_real::sing_the_numbers::1","trane::music::improvise_for_real::sing_the_numbers::2","trane::music::improvise_for_real::sing_the_numbers::3"],"dependencies":{"trane::music::improvise_for_real::jam_tracks::1::c":["trane::music::improvise_for_real::sing_the_numbers::1"],"trane::music::improvise_for_real::jam_tracks::2::c":["trane::music::improvise_for_real::sing_the_numbers::2"],"trane::music::improvise_for_real::jam_tracks::3::c":["trane::music::improvise_for_real::sing_the_numbers::3"],"trane::music::improvise_for_real::sing_the_numbers::2":["trane::music::improvise_for_real::sing_the_numbers::1"],"trane::music::improvise_for_real::sing_the_numbers::3":["trane::music::improvise_for_real::sing_the_numbers::2"]},"dependents":{"trane::music::improvise_for_real::sing_the_numbers::1":["trane::music::improvise_for_real::jam_tracks::1::c","trane::music::improvise_for_real::sing_the_numbers::2"],"trane::music::improvise_for_real::sing_the_numbers::2":["trane::music::improvise_for_real::jam_tracks::2::c","trane::music::improvise_for_real::sing_the_numbers::3"],"trane::music::improvise_for_real::sing_the_numbers::3":["trane::music::improvise_for_real::jam_tracks::3::c"]},"encompasses":{"trane::music::improvise_for_real::jam_tracks::1::c":[["trane::music::improvise_for_real::sing_the_numbers::1",1]],"trane::music::improvise_for_real::jam_tracks::2::c":[["trane::music::improvise_for_real::sing_the_numbers::2",1]],"trane::music::improvise_for_real::jam_tracks::3::c":[["trane::music::improvise_for_real::sing_the_numbers::3",1]],"trane::music::improvise_for_real::sing_the_numbers::2":[["trane::music::improvise_for_real::sing_the_numbers::1",1]],"trane::music::improvise_for_real::sing_the_numbers::3":[["trane::music::improvise_for_real::sing_the_numbers::2",1]]},"encompassed_by":{"trane::music::improvise_for_real::sing_the_numbers::1":[["trane::music::improvise_for_real::jam_tracks::1::c",1],["trane::music::improvise_for_real::sing_the_numbers::2",1]],"trane::music::improvise_for_real::sing_the_numbers::2":[["trane::music::improvise_for_real::jam_tracks::2::c",1],["trane::music::improvise_for_real::sing_the_numbers::3",1]],"trane::music::improvise_for_real::sing_the_numbers::3":[["trane::music::improvise_for_real::jam_tracks::3::c",1]]},"supersedes":{},"superseded_by":{},"counts":{"courses":51,"exercises":1710,"lessons":270}}
+{
+  "courseIds": [
+    "trane::music::improvise_for_real::jam_tracks::1::a",
+    "trane::music::improvise_for_real::jam_tracks::1::a_flat",
+    "trane::music::improvise_for_real::jam_tracks::1::b",
+    "trane::music::improvise_for_real::jam_tracks::1::b_flat",
+    "trane::music::improvise_for_real::jam_tracks::1::c",
+    "trane::music::improvise_for_real::jam_tracks::1::d",
+    "trane::music::improvise_for_real::jam_tracks::1::d_flat",
+    "trane::music::improvise_for_real::jam_tracks::1::e",
+    "trane::music::improvise_for_real::jam_tracks::1::e_flat",
+    "trane::music::improvise_for_real::jam_tracks::1::f",
+    "trane::music::improvise_for_real::jam_tracks::1::g",
+    "trane::music::improvise_for_real::jam_tracks::1::g_flat",
+    "trane::music::improvise_for_real::jam_tracks::2::a",
+    "trane::music::improvise_for_real::jam_tracks::2::a_flat",
+    "trane::music::improvise_for_real::jam_tracks::2::b",
+    "trane::music::improvise_for_real::jam_tracks::2::b_flat",
+    "trane::music::improvise_for_real::jam_tracks::2::c",
+    "trane::music::improvise_for_real::jam_tracks::2::d",
+    "trane::music::improvise_for_real::jam_tracks::2::d_flat",
+    "trane::music::improvise_for_real::jam_tracks::2::e",
+    "trane::music::improvise_for_real::jam_tracks::2::e_flat",
+    "trane::music::improvise_for_real::jam_tracks::2::f",
+    "trane::music::improvise_for_real::jam_tracks::2::g",
+    "trane::music::improvise_for_real::jam_tracks::2::g_flat",
+    "trane::music::improvise_for_real::jam_tracks::3::a",
+    "trane::music::improvise_for_real::jam_tracks::3::a_flat",
+    "trane::music::improvise_for_real::jam_tracks::3::b",
+    "trane::music::improvise_for_real::jam_tracks::3::b_flat",
+    "trane::music::improvise_for_real::jam_tracks::3::c",
+    "trane::music::improvise_for_real::jam_tracks::3::d",
+    "trane::music::improvise_for_real::jam_tracks::3::d_flat",
+    "trane::music::improvise_for_real::jam_tracks::3::e",
+    "trane::music::improvise_for_real::jam_tracks::3::e_flat",
+    "trane::music::improvise_for_real::jam_tracks::3::f",
+    "trane::music::improvise_for_real::jam_tracks::3::g",
+    "trane::music::improvise_for_real::jam_tracks::3::g_flat",
+    "trane::music::improvise_for_real::jam_tracks::4::a",
+    "trane::music::improvise_for_real::jam_tracks::4::a_flat",
+    "trane::music::improvise_for_real::jam_tracks::4::b",
+    "trane::music::improvise_for_real::jam_tracks::4::b_flat",
+    "trane::music::improvise_for_real::jam_tracks::4::c",
+    "trane::music::improvise_for_real::jam_tracks::4::d",
+    "trane::music::improvise_for_real::jam_tracks::4::d_flat",
+    "trane::music::improvise_for_real::jam_tracks::4::e",
+    "trane::music::improvise_for_real::jam_tracks::4::e_flat",
+    "trane::music::improvise_for_real::jam_tracks::4::f",
+    "trane::music::improvise_for_real::jam_tracks::4::g",
+    "trane::music::improvise_for_real::jam_tracks::4::g_flat",
+    "trane::music::improvise_for_real::sing_the_numbers::1",
+    "trane::music::improvise_for_real::sing_the_numbers::2",
+    "trane::music::improvise_for_real::sing_the_numbers::3"
+  ],
+  "dependencies": {
+    "trane::music::improvise_for_real::jam_tracks::1::c": [
+      "trane::music::improvise_for_real::sing_the_numbers::1"
+    ],
+    "trane::music::improvise_for_real::jam_tracks::2::c": [
+      "trane::music::improvise_for_real::sing_the_numbers::2"
+    ],
+    "trane::music::improvise_for_real::jam_tracks::3::c": [
+      "trane::music::improvise_for_real::sing_the_numbers::3"
+    ],
+    "trane::music::improvise_for_real::sing_the_numbers::2": [
+      "trane::music::improvise_for_real::sing_the_numbers::1"
+    ],
+    "trane::music::improvise_for_real::sing_the_numbers::3": [
+      "trane::music::improvise_for_real::sing_the_numbers::2"
+    ]
+  },
+  "dependents": {
+    "trane::music::improvise_for_real::sing_the_numbers::1": [
+      "trane::music::improvise_for_real::jam_tracks::1::c",
+      "trane::music::improvise_for_real::sing_the_numbers::2"
+    ],
+    "trane::music::improvise_for_real::sing_the_numbers::2": [
+      "trane::music::improvise_for_real::jam_tracks::2::c",
+      "trane::music::improvise_for_real::sing_the_numbers::3"
+    ],
+    "trane::music::improvise_for_real::sing_the_numbers::3": [
+      "trane::music::improvise_for_real::jam_tracks::3::c"
+    ]
+  },
+  "encompasses": {
+    "trane::music::improvise_for_real::jam_tracks::1::c": [
+      ["trane::music::improvise_for_real::sing_the_numbers::1", 1]
+    ],
+    "trane::music::improvise_for_real::jam_tracks::2::c": [
+      ["trane::music::improvise_for_real::sing_the_numbers::2", 1]
+    ],
+    "trane::music::improvise_for_real::jam_tracks::3::c": [
+      ["trane::music::improvise_for_real::sing_the_numbers::3", 1]
+    ],
+    "trane::music::improvise_for_real::sing_the_numbers::2": [
+      ["trane::music::improvise_for_real::sing_the_numbers::1", 1]
+    ],
+    "trane::music::improvise_for_real::sing_the_numbers::3": [
+      ["trane::music::improvise_for_real::sing_the_numbers::2", 1]
+    ]
+  },
+  "encompassed_by": {
+    "trane::music::improvise_for_real::sing_the_numbers::1": [
+      ["trane::music::improvise_for_real::jam_tracks::1::c", 1],
+      ["trane::music::improvise_for_real::sing_the_numbers::2", 1]
+    ],
+    "trane::music::improvise_for_real::sing_the_numbers::2": [
+      ["trane::music::improvise_for_real::jam_tracks::2::c", 1],
+      ["trane::music::improvise_for_real::sing_the_numbers::3", 1]
+    ],
+    "trane::music::improvise_for_real::sing_the_numbers::3": [
+      ["trane::music::improvise_for_real::jam_tracks::3::c", 1]
+    ]
+  },
+  "supersedes": {},
+  "superseded_by": {},
+  "counts": { "courses": 51, "exercises": 1710, "lessons": 270 }
+}

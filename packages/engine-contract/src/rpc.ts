@@ -52,6 +52,8 @@ export const RPC_METHODS = {
   'extensions.install': { idempotent: false },
   'extensions.uninstall': { idempotent: false },
   'extensions.updates': { idempotent: true },
+  'extensions.docs': { idempotent: true },
+  'extensions.docImage': { idempotent: true },
   'extensions.setCheckUpdates': { idempotent: false },
   'extensions.setSafeMode': { idempotent: true }, // задаёт значение, не приращение
   'extensions.diagnostics': { idempotent: true },

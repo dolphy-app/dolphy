@@ -21,9 +21,10 @@ export type WrapMethod = (name: string, method: AnyMethod) => AnyMethod;
  * `timeoutMs`+запас; `repositories.add`/`update`/`remove`/`cancel` ходят в
  * сеть и ждут свою цепочку операций, а очередь берут сами (`exclusive`) только
  * на подмену снимка и `reload`: из очереди ждать цепочку нельзя — её
- * операция ждёт очередь (взаимная блокировка). `extensions.catalog` и
- * `extensions.install` тоже ходят в сеть (индекс, файлы версии) и очередь не
- * держат; событие `extensions-changed` они публикуют сами.
+ * операция ждёт очередь (взаимная блокировка). `extensions.catalog`,
+ * `extensions.install`, `extensions.docs` и `extensions.docImage` тоже ходят в
+ * сеть (индекс, файлы версии) и очередь не держат; событие
+ * `extensions-changed` публикует сама установка.
  * `extensions.invokeCommand` исполняет код расширения до 14 с: медленная
  * команда не должна замораживать остальные вызовы движка. По той же причине
  * `extensions.diagnostics` и `extensions.restartHost` (здоровье и перезапуск
@@ -39,6 +40,8 @@ export const UNQUEUED: ReadonlySet<string> = new Set([
   'repositories.cancel',
   'extensions.catalog',
   'extensions.install',
+  'extensions.docs',
+  'extensions.docImage',
   'extensions.invokeCommand',
   'extensions.diagnostics',
   'extensions.restartHost',

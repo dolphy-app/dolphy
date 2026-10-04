@@ -66,7 +66,9 @@ const colors: Record<string, string> = theme.colors;
 const luminance = (hex: string): number => {
   const [r, g, b] = [1, 3, 5].map((start) => {
     const channel = Number.parseInt(hex.slice(start, start + 2), 16) / 255;
-    return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+    return channel <= 0.03928
+      ? channel / 12.92
+      : ((channel + 0.055) / 1.055) ** 2.4;
   }) as [number, number, number];
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 };
@@ -84,8 +86,9 @@ describe('acme.hello: theme', () => {
     ['on-background', 'background'],
     ['on-primary', 'primary'],
   ])('%s on %s has a contrast of at least 4.5:1', (foreground, background) => {
-    expect(contrast(colors[foreground] as string, colors[background] as string))
-      .toBeGreaterThanOrEqual(4.5);
+    expect(
+      contrast(colors[foreground] as string, colors[background] as string),
+    ).toBeGreaterThanOrEqual(4.5);
   });
 
   it('a dark theme has a dark background and a light text', () => {

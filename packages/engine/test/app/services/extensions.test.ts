@@ -40,6 +40,7 @@ const info = (overrides: Partial<ExtensionInfoDto>): ExtensionInfoDto => ({
   tags: [],
   removable: false,
   revoked: null,
+  deprecated: null,
   ...overrides,
 });
 

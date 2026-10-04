@@ -1,16 +1,6 @@
 {
   "id": "c2",
-  "dependencies": [
-    "c1",
-    "ext::course"
-  ],
-  "encompassed": [
-    [
-      "c1",
-      0.5
-    ]
-  ],
-  "superseded": [
-    "c1"
-  ]
+  "dependencies": ["c1", "ext::course"],
+  "encompassed": [["c1", 0.5]],
+  "superseded": ["c1"]
 }

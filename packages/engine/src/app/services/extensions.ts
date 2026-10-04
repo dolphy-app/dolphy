@@ -6,6 +6,7 @@ import {
 import type {
   CatalogDto,
   ContributionsDto,
+  ExtensionDocsDto,
   ExtensionCommandFailureReason,
   ExtensionDataUsageDto,
   ExtensionInfoDto,
@@ -84,6 +85,24 @@ const guarded = async <T>(
   } catch (error) {
     throw translateInstallError(error, extensionId);
   }
+};
+
+/**
+ * Накладывает пометку «устарело» на установленное из каталога расширение (по установленной версии);
+ * реестр расширений о ней не знает, и состояние записи она не меняет.
+ */
+const withDeprecation = (
+  installer: EngineContext['extensionInstaller'],
+  info: ExtensionInfoDto,
+): ExtensionInfoDto => {
+  const version = info.version ?? info.installed?.version ?? null;
+  return {
+    ...info,
+    deprecated:
+      info.installed === null || version === null
+        ? null
+        : installer.deprecationOf(info.id, version),
+  };
 };
 
 const ORIGIN_RANK: Readonly<Record<ExtensionOriginDto, number>> = {
@@ -221,6 +240,18 @@ const assertArgsSize = (args: JsonValue | undefined): void => {
     });
   }
 };
+
+const VERSION_TEXT = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
+const isVersionText = (value: unknown): value is string =>
+  typeof value === 'string' && value.length <= 64 && VERSION_TEXT.test(value);
+
+/** Путь картинки README: безопасные сегменты без `..`, расширение `png`/`webp`/`jpg`/`jpeg`, до 200 символов. */
+const DOC_IMAGE_PATH =
+  /^(?:[A-Za-z0-9_-][A-Za-z0-9._-]*\/)*[A-Za-z0-9_-][A-Za-z0-9._-]*\.(?:png|webp|jpe?g)$/i;
+const isDocImagePath = (value: unknown): value is string =>
+  typeof value === 'string' &&
+  value.length <= 200 &&
+  DOC_IMAGE_PATH.test(value);
 
 const invalidId = (id: unknown): EngineError =>
   new EngineError('INVALID_ARGUMENT', {
@@ -377,7 +408,11 @@ export const createExtensionsService = (
   };
   return {
     list: async () =>
-      ctx.extensionRegistry.list().map(copyInfo).sort(compareInfo),
+      ctx.extensionRegistry
+        .list()
+        .map(copyInfo)
+        .sort(compareInfo)
+        .map((info) => withDeprecation(ctx.extensionInstaller, info)),
     contributions: async () =>
       sortedContributions(
         ctx.extensionApply.generation(),
@@ -469,6 +504,35 @@ export const createExtensionsService = (
     },
     updates: (): Promise<ExtensionUpdateDto[]> =>
       guarded(null, () => ctx.extensionInstaller.updates()),
+    docs: async (id, options): Promise<ExtensionDocsDto> => {
+      if (!isExtensionId(id)) throw invalidId(id);
+      const version = options?.version;
+      if (version !== undefined && !isVersionText(version)) {
+        throw new EngineError('INVALID_ARGUMENT', {
+          message: 'version must be a semver string',
+          details: { field: 'version' },
+        });
+      }
+      return guarded(id, () => ctx.extensionInstaller.docs(id, version));
+    },
+    docImage: async (id, version, path): Promise<string> => {
+      if (!isExtensionId(id)) throw invalidId(id);
+      if (!isVersionText(version)) {
+        throw new EngineError('INVALID_ARGUMENT', {
+          message: 'version must be a semver string',
+          details: { field: 'version' },
+        });
+      }
+      if (!isDocImagePath(path)) {
+        throw new EngineError('INVALID_ARGUMENT', {
+          message: 'path must be a png, webp, jpg or jpeg file of the version',
+          details: { field: 'path' },
+        });
+      }
+      return guarded(id, () =>
+        ctx.extensionInstaller.docImage(id, version, path),
+      );
+    },
     getSettingValues: async (id) => values.values(values.requireActive(id)),
     setSettingValue: async (id, settingId, value) => {
       const extensionId = values.requireActive(id);

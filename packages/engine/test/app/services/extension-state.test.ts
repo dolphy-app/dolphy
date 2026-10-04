@@ -45,6 +45,7 @@ const base = {
   tags: [],
   removable: true,
   revoked: null,
+  deprecated: null,
 };
 const ext = (id: string, patch: Partial<ExtensionInfoDto> = {}) => ({
   ...base,

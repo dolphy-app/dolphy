@@ -1,10 +1,6 @@
 {
-  "keyPrerequisites": [
-    "sql_kb::subquery"
-  ],
-  "tags": [
-    "window"
-  ],
+  "keyPrerequisites": ["sql_kb::subquery"],
+  "tags": ["window"],
   "bloom": "apply",
   "dok": 2
 }

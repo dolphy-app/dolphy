@@ -21,9 +21,7 @@
         "reference": "solutions/agg-having.sql"
       }
     },
-    "tags": [
-      "having"
-    ],
+    "tags": ["having"],
     "bloom": "apply",
     "dok": 2
   }

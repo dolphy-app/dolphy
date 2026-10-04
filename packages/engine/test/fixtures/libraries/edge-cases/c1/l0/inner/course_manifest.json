@@ -1,6 +1,4 @@
 {
   "id": "c3-nested",
-  "dependencies": [
-    "c2"
-  ]
+  "dependencies": ["c2"]
 }

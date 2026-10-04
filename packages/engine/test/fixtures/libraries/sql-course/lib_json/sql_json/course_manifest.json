@@ -3,9 +3,7 @@
   "description": "SQL course with verifiable exercises (JSON manifests)",
   "engine": {
     "requiresChecks": true,
-    "tags": [
-      "sql"
-    ]
+    "tags": ["sql"]
   },
   "id": "sql_json",
   "name": "SQL (JSON manifests)"

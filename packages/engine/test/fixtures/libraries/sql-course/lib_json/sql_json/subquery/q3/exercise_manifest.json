@@ -21,12 +21,8 @@
         "reference": "solutions/subq-not-exists.sql"
       }
     },
-    "keyPrerequisites": [
-      "sql_json::join"
-    ],
-    "tags": [
-      "exists"
-    ],
+    "keyPrerequisites": ["sql_json::join"],
+    "tags": ["exists"],
     "bloom": "apply",
     "dok": 2
   }

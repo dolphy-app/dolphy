@@ -49,6 +49,11 @@ const SEGMENT = /^[A-Za-z0-9_-][A-Za-z0-9._-]*$/;
 /** Имена устройств Windows: недоступны как файлы, с расширением или без. */
 const RESERVED_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
 
+const describeIssues = (error: z.ZodError, prefix = ''): string[] =>
+  error.issues.map(
+    (issue) => `${prefix}${issue.path.join('.') || '/'}: ${issue.message}`,
+  );
+
 const semver = z.string().refine(isSemver, 'must be semver');
 const timestamp = z.iso.datetime({ offset: true });
 const httpsUrl = z
@@ -381,11 +386,6 @@ export type CatalogVersion = CatalogEntry['versions'][number];
 export type CatalogFile = CatalogVersion['files'][number];
 export type RevokedEntry = CatalogIndex['revoked'][number];
 export type Deprecation = NonNullable<CatalogEntry['deprecated']>;
-
-const describeIssues = (error: z.ZodError, prefix = ''): string[] =>
-  error.issues.map(
-    (issue) => `${prefix}${issue.path.join('.') || '/'}: ${issue.message}`,
-  );
 
 /**
  * Strict parse for the author tools: unknown keys, file types and limits fail.

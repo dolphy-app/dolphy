@@ -342,34 +342,34 @@ with an average line longer than 500 characters, or on 20 distinct identifiers
 of the form `_0x1a2b`. `CHECK-024` ignores `www.w3.org` XML namespaces. A source
 map is an `error`: the catalog builds without maps.
 
-| Rule        | What it checks                                                                                   |
-| ----------- | ------------------------------------------------------------------------------------------------ |
-| `CHECK-001` | `extension.json` is readable and passes manifest parsing                                         |
-| `CHECK-002` | the directory name equals the manifest `id`                                                      |
-| `CHECK-003` | `name`, `description` and `author` are set                                                       |
-| `CHECK-004` | `README.md` exists and is not empty                                                              |
-| `CHECK-005` | `author` looks like a GitHub login                                                               |
-| `CHECK-006` | `author` is an existing GitHub user (no answer — `warning`)                                      |
-| `CHECK-007` | `package.json` exists and parses                                                                 |
-| `CHECK-008` | there is a lock file (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lock`)            |
-| `CHECK-009` | no install or publish lifecycle scripts (`postinstall`, `prepare`…)                              |
-| `CHECK-010` | dependencies come from the registry only (no git, http, file, link, workspace)                   |
-| `CHECK-011` | `name` in `package.json` does not take someone else's scope (`warning`)                          |
-| `CHECK-012` | the version is strictly greater than the published one                                           |
-| `CHECK-013` | at most 200 files and 5 MB of sources, no file over 1 MB                                         |
-| `CHECK-014` | no symbolic links                                                                                |
-| `CHECK-015` | no executable files (`.exe`, `.dll`, `.so`, `.dylib`, `.node`, `.sh`, `.bat`)                    |
-| `CHECK-016` | `minAppVersion` is not newer than `--max-app-version`                                            |
-| `CHECK-017` | files in `assets/` match their type: signature, size, pixels, safe SVG and CSS                   |
-| `CHECK-018` | `icon` is a square 64–512 px PNG or WebP file up to 16 KiB                                       |
-| `CHECK-019` | `description` is at least 20 characters (`warning`)                                              |
-| `CHECK-020` | every `permissions` entry is mentioned in `README.md` (`warning`)                                |
-| `CHECK-021` | the id is not already published under another `author` (any case): first publisher owns the id   |
-| `CHECK-022` | built code has no `eval(` or `new Function(` (`warning`, needs `--built`)                        |
-| `CHECK-023` | built code does not look obfuscated (`warning`, needs `--built`)                                 |
-| `CHECK-024` | built code has no `http(s)://` URL without the `network` permission (`warning`, needs `--built`) |
-| `CHECK-025` | built code has no embedded source map (needs `--built`)                                          |
-| `CHECK-026` | `locales/*.json`: `en` is complete, texts fit their fields, files are valid (see "Translations") |
+| Rule        | What it checks                                                                                                                     |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `CHECK-001` | `extension.json` is readable and passes manifest parsing                                                                           |
+| `CHECK-002` | the directory name equals the manifest `id`                                                                                        |
+| `CHECK-003` | `name`, `description` and `author` are set                                                                                         |
+| `CHECK-004` | `README.md` exists and is not empty                                                                                                |
+| `CHECK-005` | `author` looks like a GitHub login                                                                                                 |
+| `CHECK-006` | `author` is an existing GitHub user (no answer — `warning`)                                                                        |
+| `CHECK-007` | `package.json` exists and parses                                                                                                   |
+| `CHECK-008` | there is a lock file (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lock`)                                              |
+| `CHECK-009` | no install or publish lifecycle scripts (`postinstall`, `prepare`…)                                                                |
+| `CHECK-010` | dependencies come from the registry only (no git, http, file, link, workspace)                                                     |
+| `CHECK-011` | `name` in `package.json` does not take someone else's scope (`warning`)                                                            |
+| `CHECK-012` | the version is strictly greater than the published one                                                                             |
+| `CHECK-013` | at most 200 files and 5 MB of sources, no file over 1 MB                                                                           |
+| `CHECK-014` | no symbolic links                                                                                                                  |
+| `CHECK-015` | no executable files (`.exe`, `.dll`, `.so`, `.dylib`, `.node`, `.sh`, `.bat`)                                                      |
+| `CHECK-016` | `minAppVersion` is not newer than `--max-app-version`                                                                              |
+| `CHECK-017` | files in `assets/` match their type: signature, size, pixels, safe SVG and CSS                                                     |
+| `CHECK-018` | `icon` is a square 64–512 px PNG or WebP file up to 16 KiB                                                                         |
+| `CHECK-019` | `description` is at least 20 characters (`warning`)                                                                                |
+| `CHECK-020` | every `permissions` entry is mentioned in `README.md` (`warning`)                                                                  |
+| `CHECK-021` | the id is not already published under another `author` (any case): first publisher owns the id                                     |
+| `CHECK-022` | built code has no `eval(` or `new Function(` (`warning`, needs `--built`)                                                          |
+| `CHECK-023` | built code does not look obfuscated (`warning`, needs `--built`)                                                                   |
+| `CHECK-024` | built code has no `http(s)://` URL without the `network` permission (`warning`, needs `--built`)                                   |
+| `CHECK-025` | built code has no embedded source map (needs `--built`)                                                                            |
+| `CHECK-026` | `locales/*.json`: `en` is complete, texts fit their fields, files are valid (see "Translations")                                   |
 | `CHECK-030` | `CHANGELOG.md` (optional) is at most 64 KiB of UTF-8 without NUL; no `## <version>` section for the current version is a `warning` |
 
 The rules are data in code (`src/catalog/rules.ts`, the `RULES` table); the

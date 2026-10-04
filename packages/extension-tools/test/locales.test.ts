@@ -297,10 +297,7 @@ describe('lint', () => {
         }),
       },
     ]);
-    const findings = await lintProject({
-      root: repo.dirOf(ID),
-      built: undefined,
-    });
+    const findings = await lintProject({ root: repo.dirOf(ID) });
     expect(findings.map(({ ruleId }) => ruleId)).toContain('CHECK-019');
     expect(findings.map(({ ruleId }) => ruleId)).not.toContain('CHECK-003');
   });

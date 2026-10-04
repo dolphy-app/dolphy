@@ -42,6 +42,7 @@ const info = (id: string): ExtensionInfoDto => ({
   tags: [],
   removable: true,
   revoked: null,
+  deprecated: null,
 });
 
 const ZERO = {

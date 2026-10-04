@@ -3,7 +3,12 @@ import {
   platformFailure,
   type CompatibilityContext,
 } from './compat.ts';
-import type { CatalogEntry, CatalogVersion, RevokedEntry } from './schema.ts';
+import type {
+  CatalogEntry,
+  CatalogVersion,
+  Deprecation,
+  RevokedEntry,
+} from './schema.ts';
 import { compareSemver, satisfiesRange } from './semver.ts';
 
 export interface ResolveContext extends CompatibilityContext {
@@ -36,6 +41,19 @@ export const isRevoked = (
   revoked.find(
     (entry) => entry.id === id && satisfiesRange(version, entry.versions),
   ) ?? null;
+
+/** The deprecation of `entry` when it covers `version` (no range — every version); a warning, never a revocation. */
+export const deprecationFor = (
+  entry: CatalogEntry,
+  version: string,
+): Deprecation | null => {
+  const { deprecated } = entry;
+  if (deprecated === undefined) return null;
+  return deprecated.versions === null ||
+    satisfiesRange(version, deprecated.versions)
+    ? deprecated
+    : null;
+};
 
 const versionFailure = (
   entry: CatalogEntry,

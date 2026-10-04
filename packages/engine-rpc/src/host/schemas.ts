@@ -402,6 +402,15 @@ export const schemas = {
     optional(z.strictObject({ removeData: optional(bool) })),
   ]),
   'extensions.updates': z.tuple([]),
+  'extensions.docs': z.tuple([
+    extensionId,
+    optional(z.strictObject({ version: optional(extensionVersion) })),
+  ]),
+  'extensions.docImage': z.tuple([
+    extensionId,
+    extensionVersion,
+    z.string().min(1).max(200),
+  ]),
   'extensions.setCheckUpdates': z.tuple([bool]),
   'extensions.setSafeMode': z.tuple([bool]),
   'extensions.diagnostics': z.tuple([]),

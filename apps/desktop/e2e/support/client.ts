@@ -515,6 +515,21 @@ export class Client {
     return (await this.themeTile(label).count()) > 0;
   }
 
+  /** Видимая подпись плитки, `title` и текст, на который указывает `aria-describedby`. */
+  async themeTileIdentifier(label: string) {
+    const radio = this.themeTile(label).first();
+    const tile = radio.locator('xpath=ancestor::label');
+    return {
+      title: await tile.getAttribute('title'),
+      visibleText: await tile.innerText(),
+      described: await radio.evaluate((node) => {
+        const id = node.getAttribute('aria-describedby');
+        const target = id === null ? null : document.getElementById(id);
+        return target?.textContent?.trim() ?? null;
+      }),
+    };
+  }
+
   async selectTheme(label: string) {
     await this.themeTile(label).first().check({ force: true });
   }

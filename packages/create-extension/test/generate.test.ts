@@ -154,6 +154,19 @@ describe('generateExtension', () => {
     }
   });
 
+  it('README describes installation from the catalog, by hand and in development', async () => {
+    const root = await makeTemp();
+    const { dir } = await generateExtension({
+      dir: path.join(root, 'acme-hello'),
+      packageVersion: '1.2.3',
+    });
+    const readme = await readFile(path.join(dir, 'README.md'), 'utf8');
+    expect(readme).not.toContain('There is no installation from the app yet');
+    expect(readme).toContain('Settings → Extensions → Catalog');
+    expect(readme).toContain('<userData>/extensions/');
+    expect(readme).toContain('DOLPHY_DEV_EXTENSIONS');
+  });
+
   it('--local not at the repository root errors before writing files', async () => {
     const root = await makeTemp();
     const dir = path.join(root, 'acme-hello');

@@ -1,4 +1,4 @@
-import { computed, ref, shallowRef } from 'vue';
+import { computed, ref, shallowRef, toRaw } from 'vue';
 import type {
   ExerciseDto,
   ExerciseTaskDto,
@@ -289,7 +289,8 @@ export const createPlacement = (
       if (!probe?.verifiable || probe.attemptId === null) return;
       verdict.value = await engine.practice.submitAnswer({
         attemptId: probe.attemptId,
-        answer,
+        // реактивный Proxy не клонируется при отправке по MessagePort
+        answer: toRaw(answer),
       });
     });
 

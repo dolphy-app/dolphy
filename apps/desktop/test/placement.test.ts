@@ -1,3 +1,4 @@
+import { reactive } from 'vue';
 import { describe, expect, it } from 'vitest';
 import type {
   ExerciseDto,
@@ -333,6 +334,22 @@ describe('placement model', () => {
       attemptsWritten: 4,
       duplicate: false,
     });
+  });
+
+  it('sends a cloneable answer even when the input is a reactive proxy', async () => {
+    const { engine, calls } = createFakeEngine({
+      probes: [probe(1)],
+      verifiable: ['e1'],
+      verdicts: [failed],
+    });
+    const placement = newPlacement(engine);
+    await placement.init();
+    await placement.begin();
+
+    // ответ элемента выбора, прошедший через реактивное состояние, — Proxy
+    await placement.submit(reactive([0, 2]));
+    expect(() => structuredClone(calls.submitted[0]?.answer)).not.toThrow();
+    expect(calls.submitted[0]?.answer).toEqual([0, 2]);
   });
 
   it('counts a failed check but not a checker error', async () => {

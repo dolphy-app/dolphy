@@ -3,6 +3,8 @@ name: Desktop checks
 # Packaged smoke and desktop e2e. Kept out of ci.yml so ordinary PRs into develop stay fast.
 # No `paths` filter on purpose: a release PR into main must always get both checks.
 on:
+  push:
+    branches: [feature/extension-foundation-1d] # TEMP first run
   pull_request:
     branches: [main]
   schedule:

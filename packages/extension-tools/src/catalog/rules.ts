@@ -4,6 +4,7 @@ import { compareSemver, iconProblem } from '@dolphy-app/extension-catalog';
 import type { CatalogEntry } from '@dolphy-app/extension-catalog';
 import { bundleFindings, readBundleFiles } from '../lint/bundle.ts';
 import { shortDescription } from '../lint/manifest.ts';
+import { localeFindings } from '../locales.ts';
 import { assetFindings } from './assets.ts';
 import type { GithubUserChecker } from './github.ts';
 import type { Tree } from './tree.ts';
@@ -26,7 +27,10 @@ export interface CheckedManifest {
   permissions: readonly string[];
 }
 
-/** Publication metadata from the raw `extension.json`; `null` — the file is not readable as JSON. */
+/**
+ * Publication metadata from the raw `extension.json`; `null` — the file is not readable as JSON.
+ * `name` and `description` are in English: a `%key%` is replaced by the text of `locales/en.json`.
+ */
 export interface DeclaredMetadata {
   name: string | null;
   description: string | null;
@@ -41,6 +45,8 @@ export interface RuleContext {
   dir: string;
   manifest: CheckedManifest | null;
   declared: DeclaredMetadata | null;
+  /** `extension.json` as written, parsed; `null` — not readable as JSON. */
+  rawManifest: unknown;
   /** Why the manifest was not parsed; `null` if it was parsed. */
   manifestProblem: string | null;
   /** Sources without `node_modules`, `dist-ext`, `.dolphy` and `.git`. */
@@ -430,6 +436,20 @@ const shortDescriptionRule: CheckRule = {
     ),
 };
 
+const translations: CheckRule = {
+  id: 'CHECK-026',
+  title:
+    'locales/*.json: en is complete, texts fit their fields, files are valid',
+  run: ({ rawManifest, tree, readText }) =>
+    rawManifest === null
+      ? []
+      : localeFindings({
+          manifest: rawManifest,
+          files: tree.files.map((file) => file.path),
+          read: readText,
+        }),
+};
+
 const permissionsExplained: CheckRule = {
   id: 'CHECK-020',
   title: 'every permission is mentioned in README.md',
@@ -510,6 +530,7 @@ export const RULES: readonly CheckRule[] = [
   assetFiles,
   iconFile,
   shortDescriptionRule,
+  translations,
   permissionsExplained,
   firstPublisherOwnsId,
   bundleRule('CHECK-022', 'built code does not execute dynamic code', true),

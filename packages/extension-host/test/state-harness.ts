@@ -126,6 +126,12 @@ export interface StubEngine extends HostableEngine {
   read(extensionId: string, key: string): Promise<JsonValue | undefined>;
   /** Сколько запросов хоста принято (все методы). */
   readonly requests: string[];
+  /** Запросы статистики, как их получила служба движка: расширение, метод, аргументы. */
+  readonly statsCalls: {
+    extensionId: string;
+    method: string;
+    args: unknown[];
+  }[];
 }
 
 export const createStubEngine = (): StubEngine => {
@@ -135,6 +141,7 @@ export const createStubEngine = (): StubEngine => {
   const learning = new Set<(event: LearningEvent) => void>();
   const changes = new Set<(change: ExtensionSettingChangeDto) => void>();
   const requests: string[] = [];
+  const statsCalls: StubEngine['statsCalls'] = [];
   const health = createExtensionHealth({ now: () => Date.now() });
   const active = (method: string, extensionId: string): string => {
     requests.push(`${method}:${extensionId}`);
@@ -150,6 +157,7 @@ export const createStubEngine = (): StubEngine => {
     disabled,
     health,
     requests,
+    statsCalls,
     extensionHost: {
       storage: {
         get: async (id, key) => data.storage.get(active('get', id), key),
@@ -161,6 +169,24 @@ export const createStubEngine = (): StubEngine => {
       },
       settings: {
         all: async (id) => ({ ...overrides.get(active('settings', id)) }),
+      },
+      stats: {
+        streak: async (id, ...args) => {
+          statsCalls.push({
+            extensionId: active('stats.streak', id),
+            method: 'streak',
+            args: args.filter((arg) => arg !== undefined),
+          });
+          return { current: 3, longest: 7 };
+        },
+        daily: async (id, from, to, ...rest) => {
+          statsCalls.push({
+            extensionId: active('stats.daily', id),
+            method: 'daily',
+            args: [from, to, ...rest.filter((arg) => arg !== undefined)],
+          });
+          return [{ date: from, attempts: 2, correct: 1, accuracy: 0.5 }];
+        },
       },
       health: {
         activated: (id, durationMs) => health.recordActivation(id, durationMs),

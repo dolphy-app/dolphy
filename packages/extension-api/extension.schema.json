@@ -30,7 +30,8 @@
           "worker.threads",
           "native.addons",
           "network",
-          "learning.events"
+          "learning.events",
+          "learning.stats"
         ]
       }
     },

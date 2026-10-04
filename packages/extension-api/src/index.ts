@@ -17,6 +17,7 @@ export const EXTENSION_PERMISSIONS = [
   'native.addons',
   'network',
   'learning.events',
+  'learning.stats',
 ] as const;
 export type ExtensionPermission = (typeof EXTENSION_PERMISSIONS)[number];
 /** Platforms the extension can run on (`process.platform`). */
@@ -783,6 +784,53 @@ export interface ExtensionSettings<S extends SettingValues = SettingValues> {
   onDidChange(handler: (change: SettingChange<S>) => void): Disposable;
 }
 
+/** Limits of `ctx.stats`; the engine enforces them. */
+export const EXTENSION_STATS_LIMITS = Object.freeze({
+  /** Most dates in one `daily` range (both ends included). */
+  dailyDays: 366,
+});
+
+/** Study streak in days; see `ExtensionStats.streak`. */
+export interface StreakStats {
+  /** Consecutive days with attempts ending today, or yesterday while today has none yet. */
+  readonly current: number;
+  /** Longest run of consecutive days with attempts in the history. */
+  readonly longest: number;
+}
+
+/** One local calendar day of study; see `ExtensionStats.daily`. */
+export interface DailyStat {
+  /** Local date `YYYY-MM-DD`. */
+  readonly date: string;
+  readonly attempts: number;
+  /** Attempts graded 3 or higher. */
+  readonly correct: number;
+  /** `correct / attempts`; `null` without attempts. */
+  readonly accuracy: number | null;
+}
+
+/**
+ * Aggregated learning statistics; need the `learning.stats` permission, otherwise
+ * every call rejects with `PermissionError('learning.stats')`. Numbers only: no
+ * exercise or course identifiers, answers or content. Days are local days in
+ * the user's time zone; an attempt is correct at grade 3 or higher; the
+ * history counts attempts even after a progress reset. An unknown `courseId`
+ * gives zeros.
+ */
+export interface ExtensionStats {
+  streak(options?: { courseId?: string }): Promise<StreakStats>;
+  /**
+   * One entry for every date from `from` to `to` inclusive (`YYYY-MM-DD`, up to
+   * `EXTENSION_STATS_LIMITS.dailyDays` dates); a malformed or reversed range
+   * rejects.
+   */
+  daily(options: {
+    from: string;
+    to: string;
+    courseId?: string;
+  }): Promise<DailyStat[]>;
+}
+
 export type LearningEventHandler<N extends LearningEventName> = (
   payload: LearningEventPayloads[N],
 ) => void | Promise<void>;
@@ -846,6 +894,8 @@ export interface ExtensionContext<Ids extends ExtensionIdSet = ExtensionIdSet> {
   readonly storage: ExtensionStorage;
   readonly settings: ExtensionSettings<Ids['settings']>;
   readonly events: ExtensionEvents<Ids['events']>;
+  /** Learning statistics; needs the `learning.stats` permission. */
+  readonly stats: ExtensionStats;
   readonly commands: ExtensionCommands<Ids['commands']>;
   /** `type` must be declared in the manifest of this extension, otherwise it throws. */
   registerExerciseType(

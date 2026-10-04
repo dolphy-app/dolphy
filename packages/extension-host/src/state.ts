@@ -1,12 +1,16 @@
-import { StorageQuotaError } from '@dolphy-app/extension-api';
+import { PermissionError, StorageQuotaError } from '@dolphy-app/extension-api';
 import type {
+  DailyStat,
   ExtensionLogger,
+  ExtensionPermission,
   ExtensionSettings,
+  ExtensionStats,
   ExtensionStorage,
   JsonValue,
   SettingChange,
   SettingValue,
   StorageQuotaKind,
+  StreakStats,
 } from '@dolphy-app/extension-api';
 import { EngineRequestError } from './engine-link.ts';
 import type { EngineLink } from './engine-link.ts';
@@ -23,6 +27,13 @@ const QUOTA_KINDS: readonly StorageQuotaKind[] = [
 const extensionErrorOf = (error: unknown): unknown => {
   if (!(error instanceof EngineRequestError)) return error;
   const { kind, limit } = error.details ?? {};
+  if (
+    error.code === 'INVALID_ARGUMENT' &&
+    error.details?.reason === 'permission' &&
+    error.details.permission === 'learning.stats'
+  ) {
+    return new PermissionError('learning.stats', error.message);
+  }
   if (
     error.code === 'EXTENSION_STORAGE_QUOTA' &&
     QUOTA_KINDS.includes(kind as StorageQuotaKind) &&
@@ -61,6 +72,44 @@ export const createExtensionStorage = (
     delete: async (key) =>
       (await request('storage.delete', { key })) as boolean,
     keys: async () => (await request('storage.keys', {})) as string[],
+  };
+};
+
+/**
+ * `ctx.stats`: проверка разрешения здесь — для понятной ошибки без запроса;
+ * решение принимает движок (`ExtensionHostServices.stats`), потому что
+ * ограниченный процесс не доверен.
+ */
+export const createExtensionStats = (
+  link: EngineLink,
+  extensionId: string,
+  permissions: readonly ExtensionPermission[],
+): ExtensionStats => {
+  const request = async (
+    method: 'stats.streak' | 'stats.daily',
+    params: object,
+  ): Promise<unknown> => {
+    if (!permissions.includes('learning.stats')) {
+      throw new PermissionError('learning.stats');
+    }
+    try {
+      return await link.request(method, { extensionId, ...params } as never);
+    } catch (error) {
+      throw extensionErrorOf(error);
+    }
+  };
+  // `courseId: undefined` не попадает в запрос: ключ без значения теряется в IPC, а схема его не принимает
+  const scope = (courseId: string | undefined) =>
+    courseId === undefined ? {} : { courseId };
+  return {
+    streak: async (options) =>
+      (await request('stats.streak', scope(options?.courseId))) as StreakStats,
+    daily: async ({ from, to, courseId }) =>
+      (await request('stats.daily', {
+        from,
+        to,
+        ...scope(courseId),
+      })) as DailyStat[],
   };
 };
 

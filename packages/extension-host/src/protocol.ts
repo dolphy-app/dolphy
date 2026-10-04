@@ -121,6 +121,21 @@ export type HostRequest =
     }
   | { id: string; method: 'storage.keys'; params: { extensionId: string } }
   | { id: string; method: 'settings.all'; params: { extensionId: string } }
+  | {
+      id: string;
+      method: 'stats.streak';
+      params: { extensionId: string; courseId?: string };
+    }
+  | {
+      id: string;
+      method: 'stats.daily';
+      params: {
+        extensionId: string;
+        from: string;
+        to: string;
+        courseId?: string;
+      };
+    }
   | { id: string; method: 'health.report'; params: HealthReport };
 
 /**
@@ -319,6 +334,24 @@ export const hostRequestSchema = z.discriminatedUnion('method', [
     id: z.string(),
     method: z.literal('settings.all'),
     params: hostOwner,
+  }),
+  z.strictObject({
+    id: z.string(),
+    method: z.literal('stats.streak'),
+    params: z.strictObject({
+      extensionId: z.string(),
+      courseId: z.string().optional(),
+    }),
+  }),
+  z.strictObject({
+    id: z.string(),
+    method: z.literal('stats.daily'),
+    params: z.strictObject({
+      extensionId: z.string(),
+      from: z.string(),
+      to: z.string(),
+      courseId: z.string().optional(),
+    }),
   }),
   z.strictObject({
     id: z.string(),

@@ -39,7 +39,11 @@ import type {
   SettingChangedNotice,
 } from './protocol.ts';
 import type { RestrictedRunner, RunnerFactory } from './restricted-runner.ts';
-import { createExtensionStorage, createSettingsState } from './state.ts';
+import {
+  createExtensionStats,
+  createExtensionStorage,
+  createSettingsState,
+} from './state.ts';
 import type { SettingsState } from './state.ts';
 
 export interface ExtensionRuntimeOptions {
@@ -365,6 +369,7 @@ export const createExtensionRuntime = (
       logger: scopedLogger(options.logger, extension.id),
       library: options.library,
       storage: createExtensionStorage(engine, extension.id),
+      stats: createExtensionStats(engine, extension.id, extension.permissions),
       settings: settings.api,
       events: {
         on(name, handler) {

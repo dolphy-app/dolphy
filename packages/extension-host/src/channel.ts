@@ -132,6 +132,15 @@ const callService = (
       return services.storage.delete(extensionId, request.params.key);
     case 'storage.keys':
       return services.storage.keys(extensionId);
+    case 'stats.streak':
+      return services.stats.streak(extensionId, request.params.courseId);
+    case 'stats.daily':
+      return services.stats.daily(
+        extensionId,
+        request.params.from,
+        request.params.to,
+        request.params.courseId,
+      );
     case 'health.report':
       return Promise.resolve(reportHealth(services, request.params));
     default:

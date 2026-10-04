@@ -39,6 +39,7 @@ import type { ExerciseTypes } from '../ports/exercise-types.ts';
 import type { GradePolicies } from '../ports/grade-policies.ts';
 import type { ExtensionCommands } from '../ports/extension-commands.ts';
 import type { ExtensionDataStore } from '../ports/extension-data.ts';
+import type { PlatformServices } from '../ports/platform.ts';
 import type { ExtensionInstaller } from '../ports/extension-installer.ts';
 import type {
   ExtensionHealth,
@@ -127,6 +128,8 @@ export interface EngineDeps {
   repositoryStore: RepositoryStore;
   /** Хранилище и значения настроек расширений; SQLite или память. */
   extensionDataStore: ExtensionDataStore;
+  /** Возможности main (шифр секретов); нет порта — `createUnavailablePlatform()`: хранилища ключей нет. */
+  platform?: PlatformServices;
   /** Получение снимков по `http(s)`; `createIsomorphicGitFetcher` из `@dolphy-app/engine-git`. */
   snapshotFetcher: GitSnapshotFetcher;
   /** Подмена каталогов снимков; `createNodeSnapshotInstaller` из `@dolphy-app/engine/node`. */
@@ -338,6 +341,7 @@ export interface EngineContext extends FacadeContext {
   readonly openTraneSource: EngineDeps['openTraneSource'];
   readonly repositoryStore: RepositoryStore;
   readonly extensionData: ExtensionDataStore;
+  readonly platform: PlatformServices;
   readonly extensionSettingChanges: ExtensionSettingChanges;
   /** Статистика попыток для расширений (`learning.stats`); сбрасывается записями журнала. */
   readonly statsIndex: StatsIndex;

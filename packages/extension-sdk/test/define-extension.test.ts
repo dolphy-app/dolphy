@@ -8,6 +8,7 @@ import {
   type ExtensionContext,
 } from '../src/index.ts';
 import {
+  createMemorySecrets,
   createMemorySettings,
   createMemoryStats,
   createMemoryStorage,
@@ -47,6 +48,7 @@ const createContext = (log: string[], failOn: readonly string[] = []) => {
     },
     storage: createMemoryStorage(),
     stats: createMemoryStats(),
+    secrets: createMemorySecrets(),
     settings: createMemorySettings([]),
     events: {
       on: (name): Disposable => {

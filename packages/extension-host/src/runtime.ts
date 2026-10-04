@@ -41,6 +41,7 @@ import type {
 import type { RestrictedRunner, RunnerFactory } from './restricted-runner.ts';
 import {
   createExtensionStats,
+  createExtensionSecrets,
   createExtensionStorage,
   createSettingsState,
 } from './state.ts';
@@ -370,6 +371,7 @@ export const createExtensionRuntime = (
       library: options.library,
       storage: createExtensionStorage(engine, extension.id),
       stats: createExtensionStats(engine, extension.id, extension.permissions),
+      secrets: createExtensionSecrets(engine, extension.id),
       settings: settings.api,
       events: {
         on(name, handler) {

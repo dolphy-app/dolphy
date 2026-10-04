@@ -141,6 +141,16 @@ const callService = (
         request.params.to,
         request.params.courseId,
       );
+    case 'secrets.get':
+      return services.secrets.get(extensionId, request.params.key);
+    case 'secrets.set':
+      return services.secrets.set(
+        extensionId,
+        request.params.key,
+        request.params.value,
+      );
+    case 'secrets.delete':
+      return services.secrets.delete(extensionId, request.params.key);
     case 'health.report':
       return Promise.resolve(reportHealth(services, request.params));
     default:

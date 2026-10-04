@@ -28,13 +28,19 @@ export interface ExtensionDataSpace {
 }
 
 /**
- * Данные расширений на устройстве: хранилище кода (`storage`) и значения
- * настроек (`settings`) — две независимые таблицы со своими потолками. В
- * журнал и синхронизацию не входят. Адаптеры: SQLite (`engine.db`) и память.
+ * Данные расширений на устройстве: хранилище кода (`storage`), значения
+ * настроек (`settings`) и секреты (`secrets`) — независимые таблицы со своими
+ * потолками. В журнал и синхронизацию не входят. Адаптеры: SQLite
+ * (`engine.db`) и память.
+ *
+ * `secrets` хранит только шифртекст (base64-строку от `SecretCipher`) под
+ * потолками `SECRET_STORE_LIMITS`; шифрует и расшифровывает служба хоста
+ * расширений, адаптер значений не видит.
  */
 export interface ExtensionDataStore {
   readonly storage: ExtensionDataSpace;
   readonly settings: ExtensionDataSpace;
-  /** Стирает оба пространства расширения одной операцией. */
+  readonly secrets: ExtensionDataSpace;
+  /** Стирает все три пространства расширения одной операцией. */
   deleteAllData(extensionId: string): Promise<void>;
 }

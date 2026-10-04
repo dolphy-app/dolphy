@@ -1,8 +1,13 @@
-import { PermissionError, StorageQuotaError } from '@dolphy-app/extension-api';
+import {
+  PermissionError,
+  SecretsUnavailableError,
+  StorageQuotaError,
+} from '@dolphy-app/extension-api';
 import type {
   DailyStat,
   ExtensionLogger,
   ExtensionPermission,
+  ExtensionSecrets,
   ExtensionSettings,
   ExtensionStats,
   ExtensionStorage,
@@ -44,6 +49,9 @@ const extensionErrorOf = (error: unknown): unknown => {
       limit,
       error.message,
     );
+  }
+  if (error.code === 'SECRETS_UNAVAILABLE') {
+    return new SecretsUnavailableError(error.message);
   }
   return Object.assign(new Error(error.message), { code: error.code });
 };
@@ -110,6 +118,34 @@ export const createExtensionStats = (
         to,
         ...scope(courseId),
       })) as DailyStat[],
+  };
+};
+
+/** `ctx.secrets` расширения: шифрует движок через платформу, значение живёт в процессе расширения только в ответе. */
+export const createExtensionSecrets = (
+  link: EngineLink,
+  extensionId: string,
+): ExtensionSecrets => {
+  const request = async (
+    method: 'secrets.get' | 'secrets.set' | 'secrets.delete',
+    params: { key: string; value?: string },
+  ): Promise<unknown> => {
+    try {
+      return await link.request(method, { extensionId, ...params } as never);
+    } catch (error) {
+      throw extensionErrorOf(error);
+    }
+  };
+  return {
+    get: async (key) => {
+      const value = await request('secrets.get', { key });
+      return typeof value === 'string' ? value : undefined;
+    },
+    set: async (key, value) => {
+      await request('secrets.set', { key, value });
+    },
+    delete: async (key) =>
+      (await request('secrets.delete', { key })) as boolean,
   };
 };
 

@@ -2,10 +2,12 @@ import {
   EXTENSION_COMMAND_LIMITS,
   COLOR_SETTING_PATTERN,
   EXTENSION_STATS_LIMITS,
+  EXTENSION_SECRET_LIMITS,
   EXTENSION_STORAGE_LIMITS,
   SETTING_LIMITS,
   InvalidCommandResultError,
   PermissionError,
+  SecretsUnavailableError,
   ANSWER_EVENT,
   StorageQuotaError,
   normalizeCommandResult,
@@ -23,6 +25,7 @@ import type {
   ExtensionCommands,
   ExtensionLogger,
   ExtensionModule,
+  ExtensionSecrets,
   ExtensionSettings,
   ExtensionStats,
   ExtensionStorage,
@@ -127,6 +130,64 @@ export const createMemoryStorage = (): ExtensionStorage => {
     },
     delete: async (key) => entries.delete(key),
     keys: async () => [...entries.keys()].sort(compareKeys),
+  };
+};
+
+/** In-memory secrets for tests: `ExtensionSecrets` plus a switch that imitates a missing system key store. */
+export interface MemorySecrets extends ExtensionSecrets {
+  /** Imitates the system key store becoming (un)available; stored values are kept. */
+  setAvailable(available: boolean): void;
+}
+
+export interface MemorySecretsOptions {
+  /** Default `true`; `false` imitates Linux `basic_text`, no key store, or an app that is not ready. */
+  available?: boolean;
+}
+
+/**
+ * In-memory secrets with the engine's limits and errors
+ * (`EXTENSION_SECRET_LIMITS`, `StorageQuotaError`, `SecretsUnavailableError`):
+ * without a key store `set` and `get` of an existing key throw, `get` of a
+ * missing key gives `undefined` and `delete` works.
+ */
+export const createMemorySecrets = (
+  options: MemorySecretsOptions = {},
+): MemorySecrets => {
+  const limits = EXTENSION_SECRET_LIMITS;
+  const entries = new Map<string, string>();
+  let available = options.available ?? true;
+  const requireStore = (): void => {
+    if (!available) throw new SecretsUnavailableError();
+  };
+  return {
+    setAvailable: (value) => {
+      available = value;
+    },
+    get: async (key) => {
+      const value = entries.get(key);
+      if (value !== undefined) requireStore();
+      return value;
+    },
+    set: async (key, value) => {
+      if (typeof key !== 'string' || key.length === 0) {
+        throw new Error('secret key must be a non-empty string');
+      }
+      if (typeof value !== 'string') {
+        throw new Error('secret value must be a string');
+      }
+      if (key.length > limits.keyLength) {
+        throw new StorageQuotaError('key-length', limits.keyLength);
+      }
+      if (Buffer.byteLength(value) > limits.valueBytes) {
+        throw new StorageQuotaError('value-size', limits.valueBytes);
+      }
+      requireStore();
+      if (!entries.has(key) && entries.size >= limits.keys) {
+        throw new StorageQuotaError('key-count', limits.keys);
+      }
+      entries.set(key, value);
+    },
+    delete: async (key) => entries.delete(key),
   };
 };
 
@@ -536,6 +597,7 @@ export interface LoadOptions {
   library?: LibraryReader;
   logger?: ExtensionLogger;
   storage?: ExtensionStorage;
+  secrets?: ExtensionSecrets;
   settings?: ExtensionSettings;
   events?: ExtensionEvents;
   commands?: ExtensionCommands;
@@ -553,6 +615,7 @@ const contextOf = (
   logger: options.logger ?? silentLogger,
   library: options.library ?? createMemoryLibrary({}),
   storage: options.storage ?? createMemoryStorage(),
+  secrets: options.secrets ?? createMemorySecrets(),
   settings: options.settings ?? createMemorySettings([]),
   events: options.events ?? createMemoryEvents(),
   stats: options.stats ?? createMemoryStats(),
@@ -737,6 +800,7 @@ export interface LoadedEvents {
   /** Events are delivered as in the host: to the subscribed handler, one at a time. See `MemoryEvents.emit`. */
   emit: MemoryEvents['emit'];
   storage: ExtensionStorage;
+  secrets: ExtensionSecrets;
   settings: MemorySettings;
   /** Deactivates the extension module. */
   dispose(): Promise<void>;
@@ -744,9 +808,10 @@ export interface LoadedEvents {
 
 export interface LoadEventsOptions
   extends
-    Omit<LoadOptions, 'storage' | 'settings' | 'events'>,
+    Omit<LoadOptions, 'storage' | 'secrets' | 'settings' | 'events'>,
     MemoryEventsOptions {
   storage?: ExtensionStorage;
+  secrets?: ExtensionSecrets;
   /** Definitions from the manifest's `contributes.settings`; values are read and changed through `settings`. */
   settings?: readonly SettingContribution[];
   /** User values in place of `default`. */
@@ -763,6 +828,7 @@ export const loadEvents = async (
 ): Promise<LoadedEvents> => {
   const events = createMemoryEvents(options);
   const storage = options.storage ?? createMemoryStorage();
+  const secrets = options.secrets ?? createMemorySecrets();
   const settings = createMemorySettings(
     options.settings ?? [],
     options.settingValues,
@@ -773,6 +839,7 @@ export const loadEvents = async (
       ...(options.logger !== undefined && { logger: options.logger }),
       ...(options.stats !== undefined && { stats: options.stats }),
       storage,
+      secrets,
       settings,
       events,
     },
@@ -785,6 +852,7 @@ export const loadEvents = async (
   return {
     emit: events.emit,
     storage,
+    secrets,
     settings,
     dispose: async () => {
       await module.deactivate?.();
@@ -813,6 +881,7 @@ export const loadCommands = async (
       ...(options.library !== undefined && { library: options.library }),
       ...(options.logger !== undefined && { logger: options.logger }),
       ...(options.storage !== undefined && { storage: options.storage }),
+      ...(options.secrets !== undefined && { secrets: options.secrets }),
       ...(options.settings !== undefined && { settings: options.settings }),
       ...(options.events !== undefined && { events: options.events }),
       ...(options.stats !== undefined && { stats: options.stats }),

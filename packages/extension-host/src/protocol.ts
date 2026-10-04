@@ -120,6 +120,21 @@ export type HostRequest =
       params: { extensionId: string; key: string };
     }
   | { id: string; method: 'storage.keys'; params: { extensionId: string } }
+  | {
+      id: string;
+      method: 'secrets.get';
+      params: { extensionId: string; key: string };
+    }
+  | {
+      id: string;
+      method: 'secrets.set';
+      params: { extensionId: string; key: string; value: string };
+    }
+  | {
+      id: string;
+      method: 'secrets.delete';
+      params: { extensionId: string; key: string };
+    }
   | { id: string; method: 'settings.all'; params: { extensionId: string } }
   | {
       id: string;
@@ -329,6 +344,26 @@ export const hostRequestSchema = z.discriminatedUnion('method', [
     id: z.string(),
     method: z.literal('storage.keys'),
     params: hostOwner,
+  }),
+  z.strictObject({
+    id: z.string(),
+    method: z.literal('secrets.get'),
+    params: hostKey,
+  }),
+  z.strictObject({
+    id: z.string(),
+    method: z.literal('secrets.set'),
+    // тип значения проверяет служба движка: ошибка приходит как `INVALID_ARGUMENT`
+    params: z.strictObject({
+      extensionId: z.string(),
+      key: z.string(),
+      value: z.unknown(),
+    }),
+  }),
+  z.strictObject({
+    id: z.string(),
+    method: z.literal('secrets.delete'),
+    params: hostKey,
   }),
   z.strictObject({
     id: z.string(),

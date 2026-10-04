@@ -1,12 +1,17 @@
 import { prepareStorageWrite } from '../app/extension-storage.ts';
-import { compareKeys, utf8Length } from '../domain/index.ts';
+import {
+  SECRET_STORE_LIMITS,
+  compareKeys,
+  utf8Length,
+} from '../domain/index.ts';
+import type { StorageLimits } from '../domain/index.ts';
 import type {
   ExtensionDataSpace,
   ExtensionDataStore,
 } from '../ports/extension-data.ts';
 
 /** Одно пространство в памяти: JSON-текст на ключ, копии отдаются через `JSON.parse`. */
-const createMemorySpace = (): ExtensionDataSpace => {
+const createMemorySpace = (limits?: StorageLimits): ExtensionDataSpace => {
   const spaces = new Map<string, Map<string, string>>();
   const entries = (extensionId: string): [string, string][] =>
     [...(spaces.get(extensionId) ?? [])].sort(([a], [b]) => compareKeys(a, b));
@@ -17,16 +22,22 @@ const createMemorySpace = (): ExtensionDataSpace => {
     },
     set: async (extensionId, key, value) => {
       const space = spaces.get(extensionId) ?? new Map<string, string>();
-      const { encoded } = prepareStorageWrite(extensionId, key, value, () => {
-        const existing = space.get(key);
-        let totalBytes = 0;
-        for (const text of space.values()) totalBytes += utf8Length(text);
-        return {
-          existingBytes: existing === undefined ? null : utf8Length(existing),
-          keys: space.size,
-          totalBytes,
-        };
-      });
+      const { encoded } = prepareStorageWrite(
+        extensionId,
+        key,
+        value,
+        () => {
+          const existing = space.get(key);
+          let totalBytes = 0;
+          for (const text of space.values()) totalBytes += utf8Length(text);
+          return {
+            existingBytes: existing === undefined ? null : utf8Length(existing),
+            keys: space.size,
+            totalBytes,
+          };
+        },
+        limits,
+      );
       space.set(key, encoded);
       spaces.set(extensionId, space);
     },
@@ -58,12 +69,15 @@ const createMemorySpace = (): ExtensionDataSpace => {
 export const createMemoryExtensionDataStore = (): ExtensionDataStore => {
   const storage = createMemorySpace();
   const settings = createMemorySpace();
+  const secrets = createMemorySpace(SECRET_STORE_LIMITS);
   return {
     storage,
     settings,
+    secrets,
     deleteAllData: async (extensionId) => {
       await storage.deleteAll(extensionId);
       await settings.deleteAll(extensionId);
+      await secrets.deleteAll(extensionId);
     },
   };
 };

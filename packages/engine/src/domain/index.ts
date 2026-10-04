@@ -63,13 +63,16 @@ export {
   isThemeId,
 } from './ui-settings.ts';
 export {
+  EXTENSION_SECRET_LIMITS,
   EXTENSION_STORAGE_LIMITS,
+  SECRET_STORE_LIMITS,
   compareKeys,
   encodeJson,
   findStorageViolation,
   utf8Length,
 } from './extension-data.ts';
 export type {
+  StorageLimits,
   StorageQuotaKind,
   StorageSnapshot,
   StorageViolation,

@@ -44,6 +44,7 @@ import { checkLibraryRoot, invalidStatus } from './library-root.ts';
 import { createExpiringMap } from './expiring-map.ts';
 import { createJournalWriter } from './journal-writer.ts';
 import { createStatsIndex } from './stats-index.ts';
+import { createUnavailablePlatform } from './unavailable-platform.ts';
 
 /** Открытые попытки: не более 100, TTL 24 ч (engine-ts-api.md §10). */
 export const MAX_OPEN_ATTEMPTS = 100;
@@ -328,6 +329,7 @@ export const createContext = async (
     openTraneSource: deps.openTraneSource,
     repositoryStore: deps.repositoryStore,
     extensionData: deps.extensionDataStore,
+    platform: deps.platform ?? createUnavailablePlatform(),
     extensionSettingChanges: createSettingChanges(logger),
     statsIndex,
     snapshotFetcher: deps.snapshotFetcher,

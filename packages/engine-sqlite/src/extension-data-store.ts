@@ -1,5 +1,10 @@
 import type { JsonValue } from '@dolphy-app/engine-contract';
-import { EngineError, prepareStorageWrite } from '@dolphy-app/engine/app';
+import {
+  EngineError,
+  SECRET_STORE_LIMITS,
+  prepareStorageWrite,
+} from '@dolphy-app/engine/app';
+import type { StorageLimits } from '@dolphy-app/engine/app';
 import type {
   ExtensionDataSpace,
   ExtensionDataStore,
@@ -29,7 +34,11 @@ const parse = (
  * ввод): значение — JSON-текст, порядок ключей — `ORDER BY key` (BINARY, то
  * есть по байтам UTF-8 и кодовым точкам).
  */
-const createSpace = (db: SqlDatabase, table: string): ExtensionDataSpace => {
+const createSpace = (
+  db: SqlDatabase,
+  table: string,
+  limits?: StorageLimits,
+): ExtensionDataSpace => {
   const selectOne = db.prepare<{ value: string }>(
     `SELECT value FROM ${table} WHERE extension_id = ? AND key = ?`,
   );
@@ -83,6 +92,7 @@ const createSpace = (db: SqlDatabase, table: string): ExtensionDataSpace => {
                 totalBytes: bytes,
               };
             },
+            limits,
           );
           upsert.run(extensionId, key, encoded);
         }),
@@ -109,8 +119,8 @@ const createSpace = (db: SqlDatabase, table: string): ExtensionDataSpace => {
 };
 
 /**
- * Данные расширений в `engine.db`: две таблицы с одинаковой формой и
- * независимыми потолками. Использует соединение хранилища журнала и не
+ * Данные расширений в `engine.db`: три таблицы с одинаковой формой и
+ * независимыми потолками (в `extension_secret` — только шифртекст). Использует соединение хранилища журнала и не
  * закрывает его.
  */
 export const createSqliteExtensionDataStore = (
@@ -118,6 +128,10 @@ export const createSqliteExtensionDataStore = (
 ): ExtensionDataStore => {
   const storage = createSpace(db, 'extension_storage');
   const settings = createSpace(db, 'extension_setting');
+  const secrets = createSpace(db, 'extension_secret', SECRET_STORE_LIMITS);
+  const deleteSecrets = db.prepare(
+    'DELETE FROM extension_secret WHERE extension_id = ?',
+  );
   const deleteStorage = db.prepare(
     'DELETE FROM extension_storage WHERE extension_id = ?',
   );
@@ -127,11 +141,13 @@ export const createSqliteExtensionDataStore = (
   return {
     storage,
     settings,
+    secrets,
     deleteAllData: async (extensionId) =>
       guard(() =>
         db.transaction(() => {
           deleteStorage.run(extensionId);
           deleteSettings.run(extensionId);
+          deleteSecrets.run(extensionId);
         }),
       ),
   };

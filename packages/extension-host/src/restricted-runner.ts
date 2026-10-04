@@ -96,7 +96,7 @@ export interface RestrictedRunnerOptions {
   spawn?: SpawnRestricted;
   /** Запас сверх `timeoutMs` для `grade`. */
   graceMs?: number;
-  /** Сколько ждать `ready` от нового процесса. */
+  /** Сколько ждать `ready` от нового процесса (срок `activate()`); по умолчанию 10 с. */
   readyTimeoutMs?: number;
   /**
    * Срок вызова команды, включая запуск процесса. Больше срока обработчика
@@ -115,10 +115,14 @@ const MAX_EXITS = 5;
 
 const LOG_LEVELS = ['debug', 'info', 'warn', 'error'] as const;
 
+/** Процесс не сообщил о готовности за `readyTimeoutMs`: `activate()` не завершился. */
+class ActivationTimeoutError extends Error {}
+
 interface Live {
   child: RestrictedChild;
   pending: Map<string, (response: ExtResponse) => void>;
   ready: Promise<void>;
+  isReady: boolean;
   exited: Promise<void>;
   isExited: boolean;
   disposing: boolean;
@@ -126,7 +130,11 @@ interface Live {
 
 const failure = (
   id: string,
-  cause: 'handler-failed' | 'handler-timeout' | 'activation-failed',
+  cause:
+    | 'handler-failed'
+    | 'handler-timeout'
+    | 'activation-failed'
+    | 'activation-timeout',
   message: string,
 ): ExtResponse => ({ id, ok: false, error: { cause, message } });
 
@@ -157,6 +165,8 @@ export const createRestrictedRunner = (
   let disposed = false;
   let exits: number[] = [];
   let suppressedUntil = 0;
+  // сбой по сроку запоминается до замены сборки (раннер заменяется вместе с ней)
+  let activationTimeout: string | null = null;
 
   const serveLibrary = async (
     current: Live,
@@ -326,6 +336,7 @@ export const createRestrictedRunner = (
       child,
       pending: new Map(),
       isExited: false,
+      isReady: false,
       disposing: false,
       ready: new Promise<void>((resolve, reject) => {
         markReady = resolve;
@@ -336,7 +347,16 @@ export const createRestrictedRunner = (
       }),
     };
     current.ready.catch(() => {});
-    child.onMessage((raw) => onMessage(current, markReady, raw));
+    child.onMessage((raw) =>
+      onMessage(
+        current,
+        () => {
+          current.isReady = true;
+          markReady();
+        },
+        raw,
+      ),
+    );
     child.onOutput((stream, text) => {
       for (const line of text.split('\n')) {
         if (line.trim() === '') continue;
@@ -353,7 +373,11 @@ export const createRestrictedRunner = (
     live = current;
     child.send({ t: 'init', extension: real });
     const timer = setTimeout(() => {
-      rejectReady(new Error('extension process did not become ready'));
+      rejectReady(
+        new ActivationTimeoutError(
+          `activate() did not finish in ${readyTimeoutMs} ms`,
+        ),
+      );
       child.kill();
     }, readyTimeoutMs);
     try {
@@ -389,6 +413,18 @@ export const createRestrictedRunner = (
     });
   };
 
+  const timedOutActivation = (
+    id: string,
+    message = `activate() did not finish in ${readyTimeoutMs} ms`,
+  ): ExtResponse => {
+    activationTimeout = message;
+    logger.warn(
+      { extensionId: extension.id },
+      'extension activation timed out; the process was killed',
+    );
+    return failure(id, 'activation-timeout', message);
+  };
+
   const killCurrent = (): void => {
     if (live === null) {
       void starting?.then((started) => started.child.kill()).catch(() => {});
@@ -404,6 +440,9 @@ export const createRestrictedRunner = (
     async handle(request) {
       if (disposed) {
         return failure(request.id, 'activation-failed', 'runner is disposed');
+      }
+      if (activationTimeout !== null) {
+        return failure(request.id, 'activation-timeout', activationTimeout);
       }
       if (Date.now() < suppressedUntil) {
         return failure(
@@ -425,7 +464,10 @@ export const createRestrictedRunner = (
       try {
         const outcome = await Promise.race([call(request), deadline]);
         if (outcome !== 'deadline') return outcome;
+        // срок вызова вышел, пока процесс ещё активировался: причина — активация, а не вызов
+        const activating = live === null ? starting !== null : !live.isReady;
         killCurrent();
+        if (activating) return timedOutActivation(request.id);
         return failure(
           request.id,
           request.method === 'invokeCommand'
@@ -434,6 +476,9 @@ export const createRestrictedRunner = (
           'extension process was killed: deadline exceeded',
         );
       } catch (error) {
+        if (error instanceof ActivationTimeoutError) {
+          return timedOutActivation(request.id, error.message);
+        }
         return failure(request.id, 'activation-failed', messageOf(error));
       } finally {
         clearTimeout(timer);

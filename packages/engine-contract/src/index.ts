@@ -1198,7 +1198,8 @@ export type ExtensionCommandFailureReason =
   | 'handler-failed'
   | 'invalid-result'
   | 'disabled'
-  | 'replaced';
+  | 'replaced'
+  | 'activation-timeout';
 
 export interface ThemeContributionDto {
   id: string;

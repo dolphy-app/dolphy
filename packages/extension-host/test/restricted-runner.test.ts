@@ -142,6 +142,16 @@ const projectRequest = (id: string): ExtRequest => ({
   params: { type: 'acme.fake', exerciseId: 'e', spec: {}, isolated: true },
 });
 
+const commandRequest = (id: string): ExtRequest => ({
+  id,
+  method: 'invokeCommand',
+  params: {
+    extensionId: 'acme.fake',
+    commandId: 'acme.fake.go',
+    isolated: true,
+  },
+});
+
 const setup = (
   behaviors: Behavior[] | (() => Behavior),
   options: {
@@ -267,9 +277,62 @@ describe('ограниченный раннер', () => {
     const response = await runner.handle(projectRequest('1'));
     expect(response).toMatchObject({
       ok: false,
-      error: { cause: 'activation-failed' },
+      error: { cause: 'activation-timeout' },
     });
     expect(children[0]?.killed).toBe(true);
+    // сбой по сроку запоминается: процесс заново не поднимается
+    const again = await runner.handle(projectRequest('2'));
+    expect(again).toMatchObject({
+      ok: false,
+      error: { cause: 'activation-timeout' },
+    });
+    expect(children).toHaveLength(1);
+  });
+
+  it('срок вызова вышел раньше срока готовности: вызвавший получает activation-timeout, а не чужой дедлайн', async () => {
+    const children: FakeChild[] = [];
+    const runner = createRestrictedRunner({
+      extension: extensionOf(),
+      entryPath,
+      library: { readText: async () => '', stat: async () => null },
+      engine: nullEngine,
+      logger: createLogger(),
+      readyTimeoutMs: 500,
+      commandDeadlineMs: 30,
+      spawn: () => {
+        const child = createFakeChild({ autoReady: false });
+        children.push(child);
+        return child;
+      },
+    });
+    const response = await runner.handle(commandRequest('1'));
+    expect(response).toMatchObject({
+      ok: false,
+      error: { cause: 'activation-timeout' },
+    });
+    expect(children[0]?.killed).toBe(true);
+  });
+
+  it('вызов, не уложившийся в срок после готовности, остаётся сбоем вызова', async () => {
+    const children: FakeChild[] = [];
+    const runner = createRestrictedRunner({
+      extension: extensionOf(),
+      entryPath,
+      library: { readText: async () => '', stat: async () => null },
+      engine: nullEngine,
+      logger: createLogger(),
+      commandDeadlineMs: 30,
+      spawn: () => {
+        const child = createFakeChild({ reply: () => undefined });
+        children.push(child);
+        return child;
+      },
+    });
+    const response = await runner.handle(commandRequest('1'));
+    expect(response).toMatchObject({
+      ok: false,
+      error: { cause: 'handler-timeout' },
+    });
   });
 
   it('цикл падений: после более чем 5 выходов за минуту минуту не запускаем процесс', async () => {

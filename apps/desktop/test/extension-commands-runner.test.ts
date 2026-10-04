@@ -80,6 +80,7 @@ describe('describeCommandFailure', () => {
     ['disabled', 'changed'],
     ['replaced', 'changed'],
     ['timeout', 'timeout'],
+    ['activation-timeout', 'activationTimeout'],
     ['host-down', 'hostDown'],
     ['invalid-result', 'invalidResult'],
     ['handler-failed', 'failed'],

@@ -3,7 +3,10 @@ import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { inspectExtensionDir } from '@dolphy-app/extension-host';
+import {
+  formatDiagnostic,
+  inspectExtensionDir,
+} from '@dolphy-app/extension-host';
 import { createExtensionInstaller } from '@dolphy-app/extension-install';
 import type { InspectResult } from '@dolphy-app/extension-install';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -41,7 +44,9 @@ const serve = async (root: string): Promise<string> => {
 
 const inspectDir = async (directory: string): Promise<InspectResult> => {
   const result = await inspectExtensionDir(directory, { expectedId: null });
-  if (!result.ok) return result;
+  if (!result.ok) {
+    return { ok: false, message: formatDiagnostic(result.diagnostic) };
+  }
   const { extension } = result;
   return {
     ok: true,

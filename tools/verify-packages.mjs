@@ -254,18 +254,25 @@ const pointAtTarballs = ({ project, tarballs }) => {
   const api = `${SCOPE}/extension-api`;
   check(
     manifest.devDependencies?.[sdk] !== undefined &&
-      manifest.devDependencies?.[tools] !== undefined,
-    'generated project does not depend on extension-sdk and extension-tools',
+      manifest.devDependencies?.[tools] !== undefined &&
+      manifest.devDependencies?.[api] !== undefined,
+    'generated project does not depend on extension-sdk, extension-tools and extension-api',
   );
   manifest.devDependencies[sdk] = toFileSpec(tarballs[sdk].file);
   manifest.devDependencies[tools] = toFileSpec(tarballs[tools].file);
-  manifest.overrides = { [api]: toFileSpec(tarballs[api].file) };
+  manifest.devDependencies[api] = toFileSpec(tarballs[api].file);
+  // транзитивный `extension-api` из SDK тоже берётся из локального tarball'а
+  manifest.overrides = { [api]: `$${api}` };
   writeFileSync(file, `${JSON.stringify(manifest, null, 2)}\n`);
 };
 
 const assertGeneratedProject = ({ demo, version }) => {
   const manifest = readJson(path.join(demo, 'package.json'));
-  for (const name of [`${SCOPE}/extension-sdk`, `${SCOPE}/extension-tools`]) {
+  for (const name of [
+    `${SCOPE}/extension-api`,
+    `${SCOPE}/extension-sdk`,
+    `${SCOPE}/extension-tools`,
+  ]) {
     check(
       manifest.devDependencies[name] === `^${version}`,
       `demo: ${name} is ${manifest.devDependencies[name]}, expected ^${version}`,
@@ -279,6 +286,16 @@ const assertGeneratedProject = ({ demo, version }) => {
   check(
     !readme.includes('_authToken') && !readme.includes('read:packages'),
     'demo: README still has a token section',
+  );
+};
+
+/** `$schema` манифеста указывает на файл, который лежит в установленном пакете. */
+const assertSchemaResolves = (demo) => {
+  const { $schema } = readJson(path.join(demo, 'extension.json'));
+  check(typeof $schema === 'string', 'demo: extension.json has no $schema');
+  check(
+    existsSync(path.resolve(demo, $schema)),
+    `demo: $schema ${$schema} does not exist after install`,
   );
 };
 
@@ -357,6 +374,7 @@ const main = () => {
     run('npm', ['install'], { cwd: demo, env });
 
     step('dolphy-ext build / validate, tsc, npm test');
+    assertSchemaResolves(demo);
     run('npx', ['--no-install', 'dolphy-ext', 'build'], { cwd: demo, env });
     run('npx', ['--no-install', 'dolphy-ext', 'validate', 'dist-ext/demo'], {
       cwd: demo,

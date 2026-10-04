@@ -50,12 +50,18 @@ describe('useSafeMode', () => {
   /** Состояние движка меняется `setSafeMode`, как настоящий. */
   const createEngine = (initial: SafeModeStatusDto, fail = false) => {
     const bus = createEventBus();
-    const state = { current: initial, reads: 0, writes: [] as boolean[] };
+    const state = {
+      current: initial,
+      reads: 0,
+      writes: [] as boolean[],
+      readFails: false,
+    };
     const engine = {
       subscribe: bus.subscribe,
       extensions: {
         diagnostics: async () => {
           state.reads += 1;
+          if (state.readFails) throw new Error('engine is down');
           return diagnosticsDto({ safeMode: state.current });
         },
         setSafeMode: async (enabled: boolean) => {
@@ -132,13 +138,10 @@ describe('useSafeMode', () => {
   });
 
   it('сбой чтения не включает баннер и не затирает прежнее состояние', async () => {
-    const { engine, bus } = createEngine(status({ persisted: true }));
+    const { engine, bus, state } = createEngine(status({ persisted: true }));
     const model = mount(engine);
     await flush();
-    (engine.extensions as { diagnostics: () => Promise<never> }).diagnostics =
-      async () => {
-        throw new Error('engine is down');
-      };
+    state.readFails = true;
     bus.emit({ type: 'contributions-changed', generation: 2 });
     await flush();
     expect(model.banner.value).toEqual({ kind: 'persisted', canDisable: true });

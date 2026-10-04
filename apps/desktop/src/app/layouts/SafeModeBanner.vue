@@ -11,20 +11,23 @@ const { banner, disabling, failed, disable } = useSafeMode(useEngine());
   <v-system-bar
     v-if="banner !== null"
     app
-    color="warning"
-    :height="44"
+    color="surface-variant"
+    :height="48"
     class="safe-mode-banner ga-3 px-4"
     role="status"
     data-testid="safe-mode-banner"
   >
-    <v-icon icon="mdi-shield-alert-outline" size="small" aria-hidden="true" />
-    <span class="text-body-medium message">
+    <v-icon
+      icon="mdi-shield-alert-outline"
+      color="warning"
+      aria-hidden="true"
+    />
+    <span class="text-body-medium text-start flex-grow-1 message">
       {{ t(`safeMode.banner.${banner.kind}`) }}
       <span v-if="failed" class="font-weight-bold" role="alert">
         {{ t('safeMode.banner.failed') }}
       </span>
     </span>
-    <v-spacer />
     <v-btn
       v-if="banner.canDisable"
       size="small"
@@ -44,10 +47,17 @@ const { banner, disabling, failed, disable } = useSafeMode(useEngine());
   flex-wrap: nowrap;
 }
 
+/* предупреждение несут рамка и значок цвета warning: текст остаётся читаемым в обеих темах */
+.safe-mode-banner {
+  border-bottom: 3px solid rgb(var(--v-theme-warning));
+}
+
 .message {
+  display: -webkit-box;
   min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 </style>

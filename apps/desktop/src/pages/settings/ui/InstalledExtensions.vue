@@ -253,17 +253,6 @@ watch(
         </p>
         <v-spacer />
         <v-switch
-          :model-value="settings.safeMode"
-          :label="t('settings.extensions.safeMode.label')"
-          :disabled="switching.has('safeMode')"
-          color="warning"
-          density="compact"
-          hide-details
-          inset
-          data-testid="safe-mode"
-          @update:model-value="setSafeMode($event === true)"
-        />
-        <v-switch
           :model-value="settings.checkUpdates"
           :label="t('settings.extensions.installed.checkUpdates')"
           :disabled="switching.has('checkUpdates')"
@@ -285,16 +274,27 @@ watch(
         </v-btn>
       </div>
 
-      <p class="text-body-small text-medium-emphasis mb-1">
-        {{ t('settings.extensions.safeMode.hint') }}
-      </p>
-      <p
-        v-if="diagnostics?.safeMode.forcedBy"
-        class="text-body-small text-medium-emphasis mb-4"
-        data-testid="safe-mode-forced"
-      >
-        {{ t('settings.extensions.safeMode.forced') }}
-      </p>
+      <div class="mb-4" data-testid="safe-mode-section">
+        <v-switch
+          :model-value="settings.safeMode"
+          :label="t('settings.extensions.safeMode.label')"
+          :hint="t('settings.extensions.safeMode.hint')"
+          :disabled="switching.has('safeMode')"
+          color="warning"
+          density="compact"
+          persistent-hint
+          inset
+          data-testid="safe-mode"
+          @update:model-value="setSafeMode($event === true)"
+        />
+        <p
+          v-if="diagnostics?.safeMode.forcedBy"
+          class="text-body-small text-medium-emphasis mt-1"
+          data-testid="safe-mode-forced"
+        >
+          {{ t('settings.extensions.safeMode.forced') }}
+        </p>
+      </div>
 
       <p
         v-if="items.length === 0"

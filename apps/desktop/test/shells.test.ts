@@ -68,6 +68,7 @@ describe('platform shell', () => {
       (e: PickDirectoryEvent, options: unknown) => Promise<unknown>
     >();
     const showOpenDialog = vi.fn(async () => dialogResult);
+    const copied: string[] = [];
     createPlatformShell({
       ipcMain: {
         handle: (channel, listener) => handlers.set(channel, listener),
@@ -75,12 +76,15 @@ describe('platform shell', () => {
       dialog: { showOpenDialog },
       fromWebContents: (sender) => ({ window: sender }),
       appInfo: () => INFO,
+      clipboard: { writeText: (text) => void copied.push(text) },
     }).register();
     const invoke = (options: unknown) =>
       handlers.get('platform:pickDirectory')?.({ sender: 'wc' }, options);
     const invokeInfo = () =>
       handlers.get('platform:appInfo')?.({ sender: 'wc' }, undefined);
-    return { invoke, invokeInfo, showOpenDialog };
+    const invokeCopy = (text: unknown) =>
+      handlers.get('platform:copyText')?.({ sender: 'wc' }, text);
+    return { invoke, invokeInfo, invokeCopy, copied, showOpenDialog };
   };
 
   it('открывает диалог папки у окна отправителя и возвращает путь', async () => {
@@ -98,6 +102,17 @@ describe('platform shell', () => {
   it('сведения о сборке отдаёт main, окно своих не подставляет', async () => {
     const { invokeInfo } = setup({ canceled: true, filePaths: [] });
     await expect(invokeInfo()).resolves.toEqual(INFO);
+  });
+
+  it('copyText кладёт строку в буфер обмена main; не строка и слишком длинный текст отклоняются', async () => {
+    const { invokeCopy, copied } = setup({ canceled: true, filePaths: [] });
+    await invokeCopy('диагностика');
+    expect(copied).toEqual(['диагностика']);
+    await expect(invokeCopy(42)).rejects.toThrow(TypeError);
+    await expect(invokeCopy('x'.repeat(1024 * 1024 + 1))).rejects.toThrow(
+      TypeError,
+    );
+    expect(copied).toHaveLength(1);
   });
 
   it('отмена диалога — null; нестроковый title отбрасывается', async () => {

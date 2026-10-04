@@ -29,7 +29,11 @@ export interface PlatformShellDeps {
   };
   fromWebContents(sender: unknown): unknown;
   appInfo(): AppInfo;
+  clipboard: { writeText(text: string): void };
 }
+
+/** Потолок текста, который окно кладёт в буфер обмена. */
+export const MAX_COPY_CHARS = 1024 * 1024;
 
 const titleOf = (options: unknown): string | undefined => {
   const title = (options as { title?: unknown } | null)?.title;
@@ -42,6 +46,7 @@ export const createPlatformShell = ({
   dialog,
   fromWebContents,
   appInfo,
+  clipboard,
 }: PlatformShellDeps): Shell => ({
   register: () => {
     ipcMain.handle(CHANNELS.pickDirectory, async (event, options) => {
@@ -56,5 +61,11 @@ export const createPlatformShell = ({
       return canceled ? null : (filePaths[0] ?? null);
     });
     ipcMain.handle(CHANNELS.appInfo, async () => appInfo());
+    ipcMain.handle(CHANNELS.copyText, async (_event, text) => {
+      if (typeof text !== 'string' || text.length > MAX_COPY_CHARS) {
+        throw new TypeError('copyText expects a string of at most 1 MiB');
+      }
+      clipboard.writeText(text);
+    });
   },
 });

@@ -22,6 +22,7 @@ const bridge: DolphyBridge = {
       return ipcRenderer.invoke(CHANNELS.pickDirectory, { title });
     },
     appInfo: () => ipcRenderer.invoke(CHANNELS.appInfo),
+    copyText: (text) => ipcRenderer.invoke(CHANNELS.copyText, text),
   },
   ...(__DOLPHY_SMOKE_BUILD__ && process.argv.includes(SMOKE_ARGUMENT)
     ? {

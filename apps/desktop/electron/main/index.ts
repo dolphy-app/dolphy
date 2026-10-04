@@ -2,6 +2,7 @@ import {
   BrowserWindow,
   MessageChannelMain,
   app,
+  clipboard,
   dialog,
   ipcMain,
   net,
@@ -195,6 +196,7 @@ const shells = [
     dialog,
     fromWebContents: (sender) =>
       BrowserWindow.fromWebContents(sender as Electron.WebContents),
+    clipboard,
     appInfo: () => ({
       appVersion: app.getVersion(),
       electron: process.versions.electron,

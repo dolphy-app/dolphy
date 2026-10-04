@@ -14,6 +14,8 @@ export interface AppInfo {
 export interface Platform {
   pickDirectory(options?: { title?: string }): Promise<string | null>;
   appInfo(): Promise<AppInfo>;
+  /** Кладёт текст в системный буфер обмена (по действию пользователя). Работает и без фокуса окна, в отличие от `navigator.clipboard`. */
+  copyText(text: string): Promise<void>;
 }
 
 /** Узкий мост `window.dolphy`: ни `ipcRenderer`, ни произвольных каналов. */
@@ -29,4 +31,5 @@ export const CHANNELS = {
   enginePort: 'engine:port',
   pickDirectory: 'platform:pickDirectory',
   appInfo: 'platform:appInfo',
+  copyText: 'platform:copyText',
 } as const;

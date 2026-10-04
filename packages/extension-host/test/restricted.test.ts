@@ -207,6 +207,55 @@ describe('код расширения в настоящем ограниченн
     expect(existsSync(marker)).toBe(false);
   });
 
+  it('процесс, отправивший 2 МиБ, завершается: ошибка ipc-size с именем расширения, следующий вызов работает в новом процессе', async () => {
+    const flood = (await extensions()).get('acme.flood');
+    if (flood === undefined) throw new Error('fixture missing');
+    const logger = createLogger();
+    const reports: unknown[] = [];
+    const runner = createRestrictedRunner({
+      extension: flood,
+      entryPath,
+      library: { readText: async () => '', stat: async () => null },
+      engine: {
+        request: async (method, params) => {
+          reports.push({ method, params });
+          return null;
+        },
+      },
+      logger,
+      spawn: spawnFromSources,
+    });
+    disposables.push(() => runner.dispose());
+
+    expect(await runner.handle(grade('1', 'big', 'acme.flood'))).toMatchObject({
+      ok: false,
+      error: { cause: 'ipc-size' },
+    });
+    expect(logger.error).toHaveBeenCalledWith(
+      { extensionId: 'acme.flood', reason: 'ipc-size' },
+      expect.stringContaining('exceeds'),
+    );
+    expect(
+      reports.filter(
+        (report) =>
+          (report as { params: { kind: string } }).params.kind === 'failed',
+      ),
+    ).toMatchObject([
+      {
+        params: {
+          extensionId: 'acme.flood',
+          kind: 'failed',
+          reason: 'ipc-size',
+        },
+      },
+    ]);
+    expect(
+      await runner.handle(grade('2', 'small', 'acme.flood')),
+    ).toMatchObject({
+      ok: true,
+    });
+  });
+
   it('расширение в каталоге за символической ссылкой (/var → /private/var) загружается', async () => {
     const real = path.join(tmp, 'real');
     await mkdir(real);

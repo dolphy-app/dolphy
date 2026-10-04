@@ -313,6 +313,7 @@ export const createContext = async (
       state,
     }),
     folderSync: deps.folderSync ?? null,
+    logReader: deps.logReader ?? null,
     openTraneSource: deps.openTraneSource,
     repositoryStore: deps.repositoryStore,
     extensionData: deps.extensionDataStore,

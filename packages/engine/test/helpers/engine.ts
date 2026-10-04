@@ -65,6 +65,7 @@ import type {
 import type { ExtensionInstaller } from '../../src/ports/extension-installer.ts';
 import type { ExtensionPolicy } from '../../src/ports/extension-policy.ts';
 import type { ExtensionReloader } from '../../src/ports/extension-reloader.ts';
+import type { LogReader } from '../../src/ports/log-reader.ts';
 import type { ExtensionRegistry } from '../../src/ports/extension-registry.ts';
 import { createTsFsrsMemoryModel } from '../../src/scoring/memory-model.ts';
 import { LIBRARIES_DIR } from './fixtures.ts';
@@ -96,6 +97,7 @@ export interface TestEngineOptions {
   extensionHostControl?: ExtensionHostControl;
   extensionInstaller?: ExtensionInstaller;
   extensionReloader?: ExtensionReloader;
+  logReader?: LogReader;
   clock?: FakeClock;
   seed?: number;
   config?: Partial<EngineConfig>;
@@ -213,6 +215,7 @@ export const createTestContext = async (
         dataDir: config.dataDir,
       }),
     ...(options.folderSync !== undefined && { folderSync: options.folderSync }),
+    ...(options.logReader !== undefined && { logReader: options.logReader }),
     ...(options.openTraneSource !== undefined && {
       openTraneSource: options.openTraneSource,
     }),

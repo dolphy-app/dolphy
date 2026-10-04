@@ -162,6 +162,8 @@ export const createStubEngine = (): StubEngine => {
       },
       health: {
         activated: (id, durationMs) => health.recordActivation(id, durationMs),
+        failed: (id, reason, message) =>
+          health.recordFailure(id, reason, message),
         suppressed: (id, until) => health.recordSuppression(id, until),
         reset: (id) => health.forget(id),
       },

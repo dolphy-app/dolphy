@@ -2,7 +2,9 @@ import {
   BUILTIN_GRADE_POLICY,
   EXTENSION_ID_PATTERN,
   GRADE_POLICY_ID_PATTERN,
+  LOG_LEVELS,
   MATERIAL_WIDTH_RANGE,
+  MAX_LOG_ENTRIES,
   THEME_ID_PATTERN,
 } from '@dolphy-app/engine-contract';
 import * as z from 'zod';
@@ -382,6 +384,15 @@ export const schemas = {
   'extensions.setSafeMode': z.tuple([bool]),
   'extensions.diagnostics': z.tuple([]),
   'extensions.restartHost': z.tuple([]),
+  'extensions.readLogs': z.tuple([
+    optional(
+      z.strictObject({
+        extensionId: optional(extensionId),
+        minLevel: optional(z.enum(LOG_LEVELS)),
+        limit: optional(z.number().int().min(1).max(MAX_LOG_ENTRIES)),
+      }),
+    ),
+  ]),
   'extensions.getSettingValues': z.tuple([extensionId]),
   'extensions.setSettingValue': z.tuple([
     extensionId,

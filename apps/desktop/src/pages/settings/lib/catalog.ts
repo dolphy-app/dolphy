@@ -3,10 +3,12 @@ import type {
   CatalogIncompatibleDto,
   CatalogVersionDto,
   ContributionTitlesDto,
+  DeprecationDto,
   ExtensionContributesDto,
   ExtensionInfoDto,
   ExtensionUpdateDto,
 } from '@dolphy-app/engine-contract';
+import { satisfiesRange } from '@dolphy-app/extension-catalog';
 import { resolveText } from '@dolphy-app/extension-api';
 import { GROUPS, TAGS, effectiveTags, groupsOf } from './tags.ts';
 import type { ExtensionTag, TagGroup } from './tags.ts';
@@ -173,6 +175,25 @@ export const entryAction = (entry: CatalogEntryDto): EntryAction => {
   return { kind: 'install', version: latest };
 };
 
+/**
+ * Пометка «устарело», действующая для `version`: диапазон `versions` проверяется
+ * по номеру, `null` в диапазоне — все версии. Запись каталога несёт пометку,
+ * действующую для показанной версии, а ставить можно и другую (совместимую
+ * более старую), поэтому диалог проверяет ту, что будет установлена.
+ */
+export const deprecationFor = (
+  deprecation: DeprecationDto | null,
+  version: string,
+): DeprecationDto | null => {
+  if (deprecation === null || deprecation.versions === null) return deprecation;
+  try {
+    return satisfiesRange(version, deprecation.versions) ? deprecation : null;
+  } catch {
+    // нечитаемый диапазон или версия: предупреждение лучше умолчания
+    return deprecation;
+  }
+};
+
 /** Что показывает диалог перед установкой или обновлением. */
 export interface InstallTarget {
   id: string;
@@ -192,6 +213,8 @@ export interface InstallTarget {
   sizeBytes: number;
   /** Значок как `data:`-URI; `null` — без значка. */
   icon: string | null;
+  /** Предупреждение об устаревании, действующее для устанавливаемой версии; `null` — нет. */
+  deprecated: DeprecationDto | null;
 }
 
 export const targetFromEntry = (
@@ -210,6 +233,7 @@ export const targetFromEntry = (
   platforms: [...entry.platforms],
   sizeBytes: version.size,
   icon: entry.icon,
+  deprecated: deprecationFor(entry.deprecated, version.version),
 });
 
 const NO_CONTRIBUTES: ExtensionContributesDto = {
@@ -261,4 +285,6 @@ export const targetFromUpdate = (
   platforms: entry === undefined ? [] : [...entry.platforms],
   sizeBytes: update.available.size,
   icon: entry?.icon ?? info?.icon ?? null,
+  // обновляемся на версию каталога: предупреждение записи, а не установленной версии
+  deprecated: deprecationFor(entry?.deprecated ?? null, update.available.version),
 });

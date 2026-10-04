@@ -2,7 +2,11 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
-import { useContributions } from '@/shared/api/engine';
+import {
+  updatesBadgeText,
+  useContributions,
+  useExtensionUpdates,
+} from '@/shared/api/engine';
 import { APP_NAME } from '@/shared/config/app.ts';
 import { ROUTE } from '@/shared/config/routes.ts';
 import { useExtensionText } from '@/shared/lib/extension-text.ts';
@@ -11,6 +15,12 @@ const { t } = useI18n();
 const router = useRouter();
 const contributions = useContributions();
 const extensionText = useExtensionText();
+const extensionUpdates = useExtensionUpdates();
+
+/** Значок на «Настройках»: сколько расширений можно обновить; без обновлений его нет. */
+const updatesBadge = computed(() =>
+  updatesBadgeText(extensionUpdates.count.value),
+);
 
 const panels = computed(() => contributions.value.panels);
 
@@ -102,7 +112,19 @@ const bottomItems = computed(() =>
           :title="t(item.titleKey)"
           color="primary"
           rounded="lg"
-        />
+        >
+          <template v-if="item.name === ROUTE.settings && updatesBadge" #append>
+            <v-badge
+              inline
+              color="primary"
+              :content="updatesBadge"
+              :label="
+                t('common.extensionUpdates', { n: extensionUpdates.count.value })
+              "
+              data-testid="updates-badge-nav"
+            />
+          </template>
+        </v-list-item>
       </v-list>
     </template>
   </v-navigation-drawer>

@@ -22,9 +22,11 @@ import {
   CONTRIBUTIONS_KEY,
   connectEngine,
   createContributionsStore,
+  createExtensionUpdatesStore,
   createLocaleSelection,
   createThemeSelection,
   ENGINE_KEY,
+  EXTENSION_UPDATES_KEY,
   LOCALE_SELECTION_KEY,
   THEME_SELECTION_KEY,
 } from '@/shared/api/engine';
@@ -72,12 +74,14 @@ const bootstrap = async () => {
         engine.settings.getKeybindings(),
         createContributionsStore(engine),
       ]);
+    const extensionUpdates = createExtensionUpdatesStore(engine);
     const userKeybindings = createUserKeybindings(
       engine,
       keybindingsSettings.commands,
     );
     onReconnect(() => {
       void contributions.reconnected();
+      void extensionUpdates.reconnected();
       void userKeybindings.reconnected();
     });
     const i18n = createDolphyI18n(resolveLocale(locale, navigator.language));
@@ -141,6 +145,7 @@ const bootstrap = async () => {
       .use(router)
       .provide(ENGINE_KEY, engine)
       .provide(CONTRIBUTIONS_KEY, contributions.contributions)
+      .provide(EXTENSION_UPDATES_KEY, extensionUpdates)
       .provide(THEME_SELECTION_KEY, themeSelection)
       .provide(LOCALE_SELECTION_KEY, localeSelection)
       .provide(COURSE_SCOPE_KEY, courseScope)

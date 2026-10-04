@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { updatesBadgeText, useExtensionUpdates } from '@/shared/api/engine';
 import { ROUTE } from '@/shared/config/routes.ts';
 import PageHeader from '@/shared/ui/PageHeader.vue';
 
@@ -43,6 +45,12 @@ const SECTIONS: SectionLink[] = [
 ];
 
 const { t } = useI18n();
+const extensionUpdates = useExtensionUpdates();
+
+/** Значок на вкладке «Расширения»: сколько расширений можно обновить. */
+const updatesBadge = computed(() =>
+  updatesBadgeText(extensionUpdates.count.value),
+);
 </script>
 
 <template>
@@ -59,8 +67,19 @@ const { t } = useI18n();
         :key="section.name"
         :to="{ name: section.name }"
         :prepend-icon="section.icon"
-        :text="t(section.title)"
-      />
+      >
+        {{ t(section.title) }}
+        <v-badge
+          v-if="section.name === ROUTE.settingsExtensions && updatesBadge"
+          inline
+          color="primary"
+          :content="updatesBadge"
+          :label="
+            t('common.extensionUpdates', { n: extensionUpdates.count.value })
+          "
+          data-testid="updates-badge-tab"
+        />
+      </v-tab>
     </v-tabs>
     <router-view />
   </v-container>

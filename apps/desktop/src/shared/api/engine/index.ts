@@ -7,8 +7,18 @@ export {
 } from './contributions.ts';
 export type { ContributionsRef, ContributionsStore } from './contributions.ts';
 export {
+  createExtensionUpdatesStore,
+  updatesBadgeText,
+  useExtensionUpdates,
+} from './extension-updates.ts';
+export type {
+  ExtensionUpdates,
+  ExtensionUpdatesStore,
+} from './extension-updates.ts';
+export {
   CONTRIBUTIONS_KEY,
   ENGINE_KEY,
+  EXTENSION_UPDATES_KEY,
   LOCALE_SELECTION_KEY,
   THEME_SELECTION_KEY,
 } from './keys.ts';

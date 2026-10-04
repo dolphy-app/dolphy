@@ -1,8 +1,8 @@
 ---
-status: active
+status: done
 branch: feature/extension-housekeeping
 created: 2026-10-04
-closed: null
+closed: 2026-10-04
 touches: [extension-host, extension-catalog, extension-install, extension-tools, create-extension, desktop]
 depends-on: [specs/archive/2026-10-03-catalog-metadata]
 supersedes: null
@@ -97,18 +97,20 @@ ADR 0001: «`apiVersion` не меняется, пока манифест тол
 
 ## Progress
 
-- [ ] 0a. Документы и мелкий UI (один PR)
-  - [ ] ADR 0014; `status` ADR 0001, 0002, 0004 (+ADR-0006), 0013; ссылки в `docs/design/extensions.md`
-  - [ ] README шаблона `create-extension`, тест в `generate.test.ts`
-  - [ ] Плитки тем: `tooltip`, `title`, `aria-describedby`; юнит-тест, `themes.e2e.test.ts`
-- [ ] 0b. Один индекс каталога (один PR)
-  - [ ] Удаление слоя совместимости в `extension-catalog`, `extension-install`, `extension-tools`, e2e-сервере (R2, R3)
-  - [ ] `docs/design/extensions.md` («Установка и каталог»), `packages/README.md`
-  - [ ] Отдельный PR в `dolphy-app/dolphy-extensions` (деплой без `index.json`) — после релиза tools
-- [ ] 0c. Срок активации (один PR)
-  - [ ] `activation-timeout` в `protocol.ts`, `runtime.ts`, `restricted-runner.ts`, `client.ts`; тесты R4–R6
-  - [ ] Сообщение ru/en, e2e с вечным `activate()` (R7)
-  - [ ] «Сроки» и «Пределы» п. 8 (R10)
+- [x] 0a. Документы и мелкий UI (один PR)
+  - [x] ADR 0014; `status` ADR 0001, 0002, 0004 (+ADR-0006), 0013; ссылки в `docs/design/extensions.md`
+  - [x] README шаблона `create-extension`, тест в `generate.test.ts`
+  - [x] Плитки тем: `tooltip`, `title`, `aria-describedby`; юнит-тест, `themes.e2e.test.ts`
+- [x] 0b. Один индекс каталога (один PR)
+  - [x] Удаление слоя совместимости в `extension-catalog`, `extension-install`, `extension-tools`, e2e-сервере (R2, R3)
+  - [x] `docs/design/extensions.md` («Установка и каталог»), `packages/README.md`
+  - [ ] Отдельный PR в `dolphy-app/dolphy-extensions` (деплой без `index.json`) — вне этого PR, после релиза tools: список правок в Decision Log и в Outcomes, делает координатор
+- [x] 0c. Срок активации (один PR)
+  - [x] `activation-timeout` в `protocol.ts`, `runtime.ts`, `restricted-runner.ts`, `client.ts`; тесты R4–R6
+  - [x] Сообщение ru/en, e2e с вечным `activate()` (R7)
+  - [x] «Сроки» и «Пределы» п. 8 (R10)
+
+Все три этапа выполнены одним PR (`feature/extension-housekeeping`).
 
 ## Surprises & Discoveries
 
@@ -117,6 +119,10 @@ ADR 0001: «`apiVersion` не меняется, пока манифест тол
 - Слой совместимости каталога широкий: `legacy.ts`, профиль в `schema.ts`, запасной источник в `installer.ts`, замороженный `released-schema-v1.ts`, режим `legacy` в e2e-сервере.
 - Фраза «There is no installation from the app yet» (`template.ts` ~L420) тестом не закреплена: `generate.test.ts` проверяет лишь отсутствие `Installing dependencies`.
 - `caption` темы — единственное место, где `extensionId` виден в плитке (`AppearanceSection.vue` L36).
+
+Реализация: поле `abandoned` в `Activation` нужно и при срыве срока до создания активации (модуль ещё грузится) — `openSlot` помнит срыв и ставит флаг сразу после создания. `deadline` вызова ограниченного процесса (`OTHER_DEADLINE_MS` и `commandDeadlineMs`) стартует раньше `readyTimeoutMs`, поэтому без поправки зависшая активация давала бы `handler-failed`/`handler-timeout` («чужой дедлайн»): раннер определяет, что процесс ещё не `ready` в момент дедлайна, и отвечает `activation-timeout`. Сбой ограниченного процесса запоминается самим раннером (раннер заменяется вместе со сборкой). Закрытый список причин команды — `ExtensionCommandFailureReason` в `engine-contract` (тип `details.reason`): в него добавлено `activation-timeout` (расширение типа без новых методов и полей, `CONTRACT_VERSION` не менялась). `innerText` скрытого `visually-hidden` текста плитки видим тестам: e2e измеряет видимую подпись без таких узлов. В `desktop-installer.test.ts` индекс первой схемы был единственным: тест переведён на `index.v2.json`.
+
+Design review плиток тем и сообщения о сроке (`/tmp/dolphy-design-review-extension-housekeeping`, не в репозитории; настоящее приложение в Electron через Playwright): P0–P2 не найдено. Измерено: у всех четырёх плиток высота 158 px (подпись-идентификатор не добавляет строку), у плитки темы расширения `title` и `aria-describedby` указывают на `acme.midnight`, у встроенных плиток их нет, фокус-кольцо видно на плитке «Полночь» (`tiles-focus.png`), в тёмной теме и на ширине 700 px плитки перестраиваются в две колонки без обрезки (`appearance-dark-700.png`); сообщение «Расширение не запустилось за 10 с.» читаемо в светлой теме (`notice-timeout.png`). Не проверено: английский текст сообщения визуально (покрыт тестом `en: typeof ru`), тёмная тема для сообщения, axe-core (не установлен; контраст подписи плитки посчитан вручную без учёта альфа-канала 0,87).
 
 ## Decision Log
 
@@ -130,7 +136,24 @@ ADR 0001: «`apiVersion` не меняется, пока манифест тол
 - 2026-10-04. Уровень безопасности — как у Obsidian: ревью, безопасный режим, диагностика. Вне всех волн: независимый аудит, песочница ОС, подписанный индекс и проверка издателей, принудительное ограничение сети, лимит кучи V8, запрет симлинков, процессные тесты на всех ОС. Лимиты вывода и IPC — стабильность, W1.
 - 2026-10-04. **Парковка отложенного (единственный список).** Не делаем сейчас: сайт документации; typedoc-сайт; витрина каталога; `dolphy-ext analyze`; постраничный индекс; мастер «новое расширение» в приложении; хуки планировщика и модели памяти (вернуться после статистики и импортёров); сервисы между расширениями; инструмент матрицы совместимости; автообновление (только ручное, ADR 0004).
 - 2026-10-04. Порядок волн: W0 `extension-housekeeping`, W1 `extension-foundation`, W2 `extension-api-breadth-1`, W3 `extension-authoring`, W4 `extension-api-breadth-2`, W5 `extension-distribution-ux`.
+- 2026-10-04. Правки репозитория каталога `dolphy-app/dolphy-extensions` (делает координатор после релиза приложения и tools, не в этом PR): (1) `package.json` — обновить `@dolphy-app/extension-tools`; (2) `.github/workflows/pr-check.yml` — `INDEX_URL` на `.../index.v2.json`, шаги «Fetch published index» и «Reindex (dry)» кладут файл как `site/index.v2.json`; (3) `.github/workflows/deploy.yml` — в «Build site» добавить `rm -f site/index.json`, публикуется только `index.v2.json`; (4) `README.md` — таблица «Published files and index» и абзацы об индексе называют `index.v2.json`, адрес каталога остаётся `.../index.json`. Причина: приложение и tools перестали читать и писать `index.json`; сначала релиз, затем PR каталога.
 
 ## Outcomes
 
-Заполняется при закрытии.
+Реализовано целиком. Политика эволюции API — [ADR 0014](../../../docs/adr/0014-extension-api-evolution.md) (до заморозки совместимость не гарантируется, `apiVersion` остаётся 1; у ADR 0001, 0002, 0013 `status` ссылается на него, у ADR 0004 — на ADR-0005, ADR-0006, ADR-0010). Каталог — один `index.v2.json`: удалены `legacy.ts`, `legacySubset`, профиль первой схемы, запасное обращение к `index.json` и замороженная схема выпущенного приложения; 404 индекса — «каталог недоступен»; любая версия попадает в индекс целиком. `activate()` ограничен 10 с в обоих режимах: причина `activation-timeout` запоминается до замены сборки, поздние регистрации отбрасываются, окно показывает «Расширение не запустилось за 10 с». README шаблона описывает установку из каталога, вручную и `DOLPHY_DEV_EXTENSIONS`; у плитки темы расширения идентификатор — `title` и `aria-describedby`. Долговечное описание — `docs/design/extensions.md` («Сроки», «Пределы» п. 8, «Установка и каталог», «Границы» с единым списком отложенного). Контракт `@dolphy-app/engine-contract`: `CONTRACT_VERSION` не менялась (тип `ExtensionCommandFailureReason` получил значение `activation-timeout`).
+
+| Требование | Проверка |
+| ---------- | -------- |
+| R1 | ревью `docs/adr/0014-extension-api-evolution.md` и строк `status` ADR 0001, 0002, 0004, 0013; `pnpm lint` |
+| R2 | `packages/extension-tools/test/catalog-assets.test.ts` («writes exactly one index file»), `catalog-cli.test.ts`, `catalog-build.test.ts`; `packages/extension-install/test/full-index.test.ts` («a 404 of index.v2.json makes the catalog unavailable and does not fall back to index.json»); `grep -r legacySubset packages apps` пуст; e2e `catalog.e2e.test.ts` («каталог без index.v2.json недоступен») |
+| R3 | `catalog-assets.test.ts` («publishes a version with every permission, file type and entry key», «a version of 51 files is in the index», «keeps an extension whose only version is new and tagged»), `catalog-metadata.test.ts` |
+| R4 | `packages/extension-host/test/runtime-activation.test.ts` (фальшивые часы, вечный `activate`: команда, событие, `project`, `grade`; параметр `activationTimeoutMs`), `restricted-runner.test.ts` («процесс, который не сообщил ready…», «срок вызова вышел раньше срока готовности…»), `client.test.ts`, `client-commands.test.ts` |
+| R5 | `runtime-activation.test.ts` («сбой запоминается…», «после замены сборки…»), `restricted-runner.test.ts` (процесс заново не поднимается) |
+| R6 | `runtime-activation.test.ts` («команда, зарегистрированная после срока…», «поздняя регистрация события и вида задания…») |
+| R7 | `apps/desktop/test/extension-commands-runner.test.ts` (`activation-timeout` → `activationTimeout`); e2e `extension-surfaces.e2e.test.ts` («расширение с вечным activate()…», фикстура `slow-start-extension`) |
+| R8 | `packages/create-extension/test/generate.test.ts` («README describes installation…») |
+| R9 | `apps/desktop/test/theme-tiles.test.ts`; e2e `themes.e2e.test.ts` (`title`, `aria-describedby`, нет видимой подписи, встроенные плитки без подсказки) |
+| R10 | `packages/create-extension/test/docs.test.ts` и `packages/extension-tools/test/docs-contributions.test.ts` проходят; ревью разделов «Сроки», «Пределы» п. 8, «Установка и каталог» |
+| R11 | единый список отложенного — в Decision Log (запись «Парковка отложенного») и в `docs/design/extensions.md` («Границы»); W1–W5 ссылаются на этот путь |
+
+**Не сделано здесь (по решению владельца — после релиза, делает координатор): PR в `dolphy-app/dolphy-extensions`.** Нужно изменить: (1) `package.json` — обновить `@dolphy-app/extension-tools` на версию с одним индексом; (2) `.github/workflows/pr-check.yml` — `INDEX_URL` указывает на `.../index.v2.json`, шаг «Fetch published index» и «Reindex (dry)» кладут файл как `site/index.v2.json` (`catalog build --reindex` читает `<out>/index.v2.json`), `--published-index` получает `index.v2.json`; (3) `.github/workflows/deploy.yml` — `catalog build` пишет только `index.v2.json`: в шаг «Build site» добавить `rm -f site/index.json`, чтобы старый файл ушёл из ветки `gh-pages`, следить, чтобы коммит публикации не добавлял `index.json`; (4) `README.md` — таблица «Published files and index» и абзацы про индекс называют `index.v2.json`, адрес каталога остаётся `https://dolphy-app.github.io/dolphy-extensions/index.json` (приложение берёт индекс рядом с ним); (5) порядок: сначала релиз приложения и tools, затем PR каталога; до слияния каталог продолжает отдавать старый `index.json` — приложению он не нужен.

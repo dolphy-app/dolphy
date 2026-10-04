@@ -66,7 +66,7 @@ describe('catalog build: assets and icon', () => {
     const repo = await createRepo([{ fixture: 'theme-only' }]);
     await addAssets(repo, '1.0.0');
     const out = await makeTemp();
-    const [result] = await publish(repo, out, [NIGHT]);
+    await publish(repo, out, [NIGHT]);
     const [entry] = (await fullOf(out)).extensions;
     const [version] = entry?.versions ?? [];
     expect(version?.files.map((file) => file.path)).toEqual(

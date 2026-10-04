@@ -44,8 +44,8 @@ const event = (id = '1'): ExtRequest => ({
   method: 'deliverEvent',
   params: {
     extensionId: ID,
-    name: 'attempt.closed',
-    payload: {},
+    name: 'session.started',
+    payload: { sessionId: 's', at: 1 },
     isolated: false,
   },
 });
@@ -77,6 +77,11 @@ const echoExtensions = async (): Promise<ResolvedExtension[]> =>
       logger: createLogger(),
     })
   ).extensions;
+
+const sleep = (ms: number): Promise<void> =>
+  new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
 
 /** `activate()`, который не завершается никогда. */
 const hanging = (): ExtensionModule => ({
@@ -195,7 +200,7 @@ describe('срок активации в процессе хоста', () => {
     const host = open([commandsExtension()], {
       [ID]: {
         activate: async (ctx) => {
-          await new Promise((resolve) => setTimeout(resolve, 9_000));
+          await sleep(9_000);
           ctx.commands.register(COMMAND, () => 'ok');
         },
       },
@@ -212,7 +217,7 @@ describe('срок активации в процессе хоста', () => {
     const host = open([commandsExtension()], {
       [ID]: {
         activate: async (ctx) => {
-          await new Promise((resolve) => setTimeout(resolve, 15_000));
+          await sleep(15_000);
           ctx.commands.register(COMMAND, late);
         },
       },
@@ -234,7 +239,7 @@ describe('срок активации в процессе хоста', () => {
     const host = open([...echo], {
       'acme.echo': {
         activate: async (ctx) => {
-          await new Promise((resolve) => setTimeout(resolve, 15_000));
+          await sleep(15_000);
           try {
             ctx.registerExerciseType('acme.echo', {
               project: () => 1,

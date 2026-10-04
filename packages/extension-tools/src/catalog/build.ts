@@ -349,7 +349,7 @@ const writeVersion = async (item: Plan, out: string): Promise<void> => {
   await rename(temporary, target);
 };
 
-const resultOf = (item: Plan, entry: CatalogEntry): PublishResult => ({
+const resultOf = (item: Plan): PublishResult => ({
   id: item.staged.id,
   version: item.staged.manifest.version,
   status: item.status,
@@ -366,11 +366,10 @@ export const formatPublishResult = (result: PublishResult): string =>
 const previousIndexFile = async (
   out: string,
   explicit: string | undefined,
-): Promise<string> => {
-  return explicit === undefined
+): Promise<string> =>
+  explicit === undefined
     ? path.join(out, FULL_INDEX_FILE)
     : path.resolve(explicit);
-};
 
 /** Writes `index.v2.json` when it differs from the disk (ignoring `generatedAt`). */
 const writeIndex = async (
@@ -411,7 +410,7 @@ export const buildCatalog = async (
       plans.push(item);
       const entry = entryOf(item, before, sourceBase);
       entries.set(id, entry);
-      results.push(resultOf(item, entry));
+      results.push(resultOf(item));
     }
     const index = assembleIndex({
       generatedAt: now,

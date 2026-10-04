@@ -1,5 +1,7 @@
 export { ERRORS, EngineError, createErrorMapper } from './errors.ts';
 export { prepareStorageWrite } from './extension-storage.ts';
+export { SECRET_STORE_LIMITS } from '../domain/extension-data.ts';
+export type { StorageLimits } from '../domain/extension-data.ts';
 export type {
   EngineErrorOptions,
   ErrorMapper,
@@ -86,6 +88,7 @@ export {
 export { createContext } from './create-context.ts';
 export { createEngine, createEngineFromContext } from './create-engine.ts';
 export type { HostedEngine } from './create-engine.ts';
+export { createUnavailablePlatform } from './unavailable-platform.ts';
 export { createExtensionHealth } from './extension-health.ts';
 export { createExtensionApply } from './extension-apply.ts';
 export type { ExtensionApply } from './extension-apply.ts';

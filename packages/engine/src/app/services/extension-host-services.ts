@@ -3,6 +3,7 @@ import type {
   ExtensionSettingValuesDto,
   JsonValue,
 } from '@dolphy-app/engine-contract';
+import { EXTENSION_SECRET_LIMITS, utf8Length } from '../../domain/index.ts';
 import type { EngineContext } from '../context.ts';
 import { EngineError } from '../errors.ts';
 import { createExtensionValues } from '../extension-values.ts';
@@ -22,6 +23,19 @@ export interface ExtensionHostServices {
     /** `false`, если ключа не было. */
     delete(extensionId: string, key: string): Promise<boolean>;
     keys(extensionId: string): Promise<string[]>;
+  };
+  /**
+   * Секреты расширения: открытое значение уходит шифру платформы, в
+   * хранилище остаётся шифртекст. Без системного хранилища ключей `set` и
+   * `get` существующего ключа — `SECRETS_UNAVAILABLE`; `get` отсутствующего
+   * ключа — `undefined`, `delete` работает всегда. Потолки —
+   * `EXTENSION_SECRET_LIMITS` (`EXTENSION_STORAGE_QUOTA`).
+   */
+  readonly secrets: {
+    get(extensionId: string, key: string): Promise<string | undefined>;
+    set(extensionId: string, key: string, value: string): Promise<void>;
+    /** `false`, если ключа не было. */
+    delete(extensionId: string, key: string): Promise<boolean>;
   };
   readonly settings: {
     /** Действующие значения по `id` определений: сохранённое пользователем или `default`. */
@@ -55,6 +69,7 @@ export const createExtensionHostServices = (
     | 'extensionPolicy'
     | 'extensionHealth'
     | 'extensionData'
+    | 'platform'
     | 'extensionSettingChanges'
     | 'emit'
     | 'state'
@@ -77,7 +92,65 @@ export const createExtensionHostServices = (
     }
     return key;
   };
+  const { secrets } = ctx.extensionData;
+  const { cipher } = ctx.platform;
+  /** Шифр не отвечает или отказал: ни запись, ни чтение невозможны. */
+  const unavailable = (cause?: unknown): EngineError =>
+    new EngineError('SECRETS_UNAVAILABLE', {
+      message: 'System secret store is unavailable',
+      ...(cause !== undefined && { cause }),
+    });
+  const viaCipher = async <T>(run: () => Promise<T>): Promise<T> => {
+    try {
+      return await run();
+    } catch (error) {
+      throw error instanceof EngineError && error.code === 'SECRETS_UNAVAILABLE'
+        ? error
+        : unavailable(error);
+    }
+  };
+  const quota = (extensionId: string, kind: string, limit: number) =>
+    new EngineError('EXTENSION_STORAGE_QUOTA', {
+      message: `Extension secret quota exceeded (${kind}: limit ${limit})`,
+      details: { extensionId, kind, limit },
+    });
   return {
+    secrets: {
+      get: async (extensionId, key) => {
+        const id = active(extensionId);
+        const stored = await secrets.get(id, keyOf(key));
+        return stored === undefined
+          ? undefined
+          : viaCipher(async () => {
+              if (!(await cipher.available())) throw unavailable();
+              return cipher.decrypt(stored as string);
+            });
+      },
+      set: async (extensionId, key, value) => {
+        const id = active(extensionId);
+        const name = keyOf(key);
+        if (typeof value !== 'string') {
+          throw new EngineError('INVALID_ARGUMENT', {
+            message: 'Secret value must be a string',
+            details: { field: 'value' },
+          });
+        }
+        const limits = EXTENSION_SECRET_LIMITS;
+        if (name.length > limits.keyLength) {
+          throw quota(id, 'key-length', limits.keyLength);
+        }
+        if (utf8Length(value) > limits.valueBytes) {
+          throw quota(id, 'value-size', limits.valueBytes);
+        }
+        const encrypted = await viaCipher(async () => {
+          if (!(await cipher.available())) throw unavailable();
+          return cipher.encrypt(value);
+        });
+        await secrets.set(id, name, encrypted);
+      },
+      delete: async (extensionId, key) =>
+        secrets.delete(active(extensionId), keyOf(key)),
+    },
     storage: {
       get: async (extensionId, key) =>
         storage.get(active(extensionId), keyOf(key)),

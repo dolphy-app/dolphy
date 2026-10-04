@@ -24,6 +24,28 @@ export default {
         });
       }
     });
+    // секреты: исход каждой операции записывается в хранилище кода, откуда его читает тест
+    let rounds = 0;
+    ctx.events.on('session.finished', async () => {
+      const attempt = async (run) => {
+        try {
+          return { value: (await run()) ?? null };
+        } catch (error) {
+          return { name: error.name, code: error.code };
+        }
+      };
+      const report = {
+        set: await attempt(() => ctx.secrets.set('token', 'сек-ret')),
+        got: await attempt(() => ctx.secrets.get('token')),
+        missing: await attempt(() => ctx.secrets.get('nope')),
+        deleteMissing: await attempt(() => ctx.secrets.delete('gone')),
+      };
+      if (rounds > 0) {
+        report.deleteExisting = await attempt(() => ctx.secrets.delete('token'));
+      }
+      await ctx.storage.set(`secrets:${rounds}`, report);
+      rounds += 1;
+    });
     ctx.settings.onDidChange(async ({ id, value }) => {
       await ctx.storage.set('changed', { id, value });
     });

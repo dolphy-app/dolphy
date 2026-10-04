@@ -43,6 +43,15 @@ Node ≥ 22.12 (`.nvmrc`), pnpm 9.15.9 (поле `packageManager`). Устана
 
 Новый пакет: `apps/<name>` или `packages/<name>`, имя в `package.json` — `@dolphy-app/<name>`.
 
+### e2e без перехвата фокуса
+
+e2e не должен отбирать фокус и переключать space: агенты запускают его в фоне, пользователь работает параллельно. Окна по умолчанию скрыты (`DOLPHY_HIDDEN_WINDOW`), на macOS запускается копия `Electron.app` с `LSUIElement` (`dist-e2e/Electron.app`, готовит `e2e/global-setup.ts`).
+
+- Обычный прогон — `pnpm -F @dolphy/desktop e2e [файл]`; `DOLPHY_E2E_SKIP_BUILD=1` переиспользует сборку `dist-e2e`.
+- Посмотреть глазами — `DOLPHY_E2E_SHOW=1`. Окна показываются через `showInactive()` без фокуса; при `yabai` в `PATH` харнесс сам делает их плавающими и переносит на space `DOLPHY_E2E_SPACE` (по умолчанию `3`). Конфиг yabai менять не нужно.
+- Новый код запуска Electron в тестах: не вызывать `focus()`/`show()`, окна показывать только через `revealWindows` в `e2e/support/app.ts`. Окно копии с `LSUIElement` yabai перенести не может, поэтому в режиме показа нужен обычный Electron.
+- Подробности — `apps/desktop/README.md` (раздел E2E).
+
 ## Стиль кода
 
 Скилл `js-conventions` (Metarhia): ESLint (`eslint-config-metarhia` + `typescript-eslint` + `eslint-plugin-vue`) и Prettier (`.prettierrc.json`: одинарные кавычки, точки с запятой, запятые в конце, 80 колонок). Конфиг — корневой `eslint.config.js`. Перед коммитом `pnpm fix`, затем `pnpm lint`; CI запускает то же самое.

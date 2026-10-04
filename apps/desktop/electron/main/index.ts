@@ -46,6 +46,11 @@ const smokeUserData = __DOLPHY_SMOKE_BUILD__
   : undefined;
 if (smoke && smokeUserData) app.setPath('userData', smokeUserData);
 
+// e2e: окно не показывается и не забирает фокус у приложения пользователя
+// (редактор, оконный менеджер); только в неупакованном приложении
+const hiddenWindow =
+  smoke || (!app.isPackaged && process.env.DOLPHY_HIDDEN_WINDOW === '1');
+
 if (!app.requestSingleInstanceLock()) {
   app.quit();
   process.exit(0);
@@ -147,7 +152,7 @@ const shells = [
     preloadPath: path.join(__dirname, '../preload/index.cjs'),
     indexHtml: path.join(RENDERER_DIST, 'index.html'),
     ...(devServerUrl ? { devServerUrl } : {}),
-    hidden: smoke,
+    hidden: hiddenWindow,
     additionalArguments: smoke ? [SMOKE_ARGUMENT] : [],
   }),
   createEngineShell({ ipcMain, supervisor }),

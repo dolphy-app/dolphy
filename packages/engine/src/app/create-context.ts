@@ -43,6 +43,7 @@ import { createExtensionApply } from './extension-apply.ts';
 import { checkLibraryRoot, invalidStatus } from './library-root.ts';
 import { createExpiringMap } from './expiring-map.ts';
 import { createJournalWriter } from './journal-writer.ts';
+import { createStatsIndex } from './stats-index.ts';
 
 /** Открытые попытки: не более 100, TTL 24 ч (engine-ts-api.md §10). */
 export const MAX_OPEN_ATTEMPTS = 100;
@@ -223,7 +224,16 @@ export const createContext = async (
     scorer.invalidateWithPrefix('');
   };
 
+  const statsIndex = createStatsIndex({
+    eventStore,
+    clock,
+    timeZone: () => new Intl.DateTimeFormat().resolvedOptions().timeZone,
+  });
+
   const applyEntries = (entries: readonly LogEntry[]): UnitId[] => {
+    if (entries.some((entry) => entry.kind === 'attempt')) {
+      statsIndex.invalidate();
+    }
     const affected = new Set<UnitId>();
     for (const entry of entries) {
       for (const unitId of projections.apply(entry)) affected.add(unitId);
@@ -272,6 +282,7 @@ export const createContext = async (
   const runRebuild = async (announce: boolean): Promise<void> => {
     const started = performance.now();
     try {
+      statsIndex.invalidate();
       const entries = await projections.rebuildFrom(eventStore.readAll());
       scorer.invalidateWithPrefix('');
       const ms = performance.now() - started;
@@ -318,6 +329,7 @@ export const createContext = async (
     repositoryStore: deps.repositoryStore,
     extensionData: deps.extensionDataStore,
     extensionSettingChanges: createSettingChanges(logger),
+    statsIndex,
     snapshotFetcher: deps.snapshotFetcher,
     snapshotInstaller: deps.snapshotInstaller,
     library,

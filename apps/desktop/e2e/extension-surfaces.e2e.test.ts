@@ -21,6 +21,7 @@ import {
 } from './support/commands-client.ts';
 import { readExtensionData } from './support/journal.ts';
 import { expectCount, expectText, expectVisible } from './support/locator.ts';
+import { MOD_KEY } from './support/keys.ts';
 import { PLAIN_COURSE, PLAIN_LIBRARY } from './support/state-client.ts';
 
 const fixture = (name: string) =>
@@ -388,7 +389,7 @@ describe('панель (R5, R7, R8)', () => {
     const input = commands.frame.getByLabel('Поле панели');
     await input.click();
     await input.fill('текст');
-    await client.page.keyboard.press('Control+K');
+    await client.page.keyboard.press(`${MOD_KEY}+K`);
     await commands.combobox.waitFor({ timeout: 15_000 });
     // сочетание не попало в поле панели
     expect(await input.inputValue()).toBe('текст');

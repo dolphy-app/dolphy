@@ -2,6 +2,7 @@ import { effectScope, nextTick, ref, watchEffect } from 'vue';
 import { describe, expect, it, vi } from 'vitest';
 import {
   createCommandRegistry,
+  defaultBindingsOf,
   syncCommands,
 } from '@/shared/lib/command-registry.ts';
 import type { CommandDescriptor } from '@/shared/lib/command-registry.ts';
@@ -48,18 +49,50 @@ describe('createCommandRegistry', () => {
     expect(registry.list.value.map(({ title }) => title)).toEqual(['new']);
   });
 
-  it('validates the keybinding of app commands only', () => {
+  it('validates default bindings of app commands on every platform and throws on a mistake', () => {
     const registry = createCommandRegistry();
+    // `Mod+Ctrl+K` — повтор Ctrl там, где Mod это Ctrl
     expect(() =>
-      registry.register(descriptor('app:a', { keybinding: 'Ctrl+K' })),
+      registry.register(
+        descriptor('app:a', { keybindings: [{ key: 'Mod+Ctrl+K' }] }),
+      ),
     ).toThrow(/invalid keybinding/);
+    // платформенная запись тоже проверяется
+    expect(() =>
+      registry.register(
+        descriptor('app:a', { keybindings: [{ key: 'Mod+K', mac: 'Cmd+' }] }),
+      ),
+    ).toThrow(/mac/);
+    // печатающая клавиша без `when` ломала бы набор текста
+    expect(() =>
+      registry.register(descriptor('app:a', { keybindings: [{ key: 'K' }] })),
+    ).toThrow(/typing/);
+    expect(registry.list.value).toEqual([]);
+  });
+
+  it('exposes default bindings of app commands; extension descriptors are not validated here', () => {
+    const registry = createCommandRegistry();
+    registry.register(
+      descriptor('app:a', {
+        keybindings: [{ key: 'Mod+K' }, { key: 'K', when: '!inputFocus' }],
+      }),
+    );
     registry.register(
       descriptor('extension:x:a', {
         source: 'extension',
-        keybinding: 'any hint',
+        keybindings: [{ key: 'not a key' }],
       }),
     );
-    expect(registry.list.value[0]?.keybinding).toBe('any hint');
+    expect(
+      registry.list.value.map(({ defaultBindings }) => defaultBindings),
+    ).toEqual([
+      [{ key: 'Mod+K' }, { key: 'K', when: '!inputFocus' }],
+      [{ key: 'not a key' }],
+    ]);
+    expect(defaultBindingsOf(registry.list.value)).toEqual([
+      { command: 'app:a', key: 'Mod+K' },
+      { command: 'app:a', key: 'K', when: '!inputFocus' },
+    ]);
   });
 
   it('list is reactive to registration and to resolved values', async () => {

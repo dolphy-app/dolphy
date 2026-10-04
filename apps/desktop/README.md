@@ -75,7 +75,7 @@ The build (`vite build`) produces `dist/` (renderer) and `dist-electron/{main,pr
 
 ## Command registry
 
-One reactive registry (`shared/lib/command-registry.ts`, ADR 0012) holds the commands of the app and of extensions. The palette, the shortcut dispatcher and "Settings → Keyboard shortcuts" read only the registry. Keys are `app:<id>` and `extension:<extensionId>:<id>`; a duplicate key throws. Extensions cannot call app commands: a command result is `none`, `notify`, `openPanel` or `data`, and none of them reaches the registry.
+One reactive registry (`shared/lib/command-registry.ts`, ADR 0012) holds the commands of the app and of extensions. The palette, the key dispatcher and "Settings → Keyboard shortcuts" read only the registry. Keys are `app:<id>` and `extension:<extensionId>:<id>`; a duplicate key throws. Extensions cannot call app commands: a command result is `none`, `notify`, `openPanel` or `data`, and none of them reaches the registry.
 
 Add an app command in `features/app-commands/model/app-commands.ts` (titles and categories are getters, so they follow the language):
 
@@ -85,14 +85,27 @@ registry.register({
   source: 'app',
   title: () => t('appCommands.go.graph'),
   category: () => t('appCommands.category.go'),
-  keybinding: 'Mod+3', // optional; app commands only
+  // optional default bindings; app commands only, validated on registration
+  keybindings: [{ key: 'Mod+3', when: NOT_TYPING_WHEN }],
   run: () => router.push({ name: ROUTE.graph }),
 });
 ```
 
-Dynamic sets use `syncCommands(registry, () => [{ descriptor, revision }])` (themes of extensions). Add `ru` and `en` messages for the title and category.
+Dynamic sets use `syncCommands(registry, () => [{ descriptor, revision }])` (themes of extensions). Add `ru` and `en` messages for the title and category. A mistake in a default binding (unknown key, a typing key without `when`) throws on registration on every platform (`validateBinding` of `@dolphy-app/keybindings`); bindings of extension commands are not validated here, the extension host validates the manifest.
 
-Shortcut rules (`shared/lib/shortcut-dispatcher.ts`, one `keydown` listener on `document` mounted in `App.vue`): Ctrl/⌘+K opens the palette everywhere, including text fields and, via the frame's `shortcut` message, extension panels. Other shortcuts (always with `Mod`) run only when the focus is not in an input, textarea, select or editable element, no dialog or menu is open, the key is not repeating, and the event did not come from an extension frame (a frame forwards only Ctrl/⌘+K). `preventDefault` is called only for a handled shortcut. Shortcuts are set in code and are not user-configurable yet.
+### Keybindings (spec `keybindings-registry`, ADR 0015)
+
+Shortcuts are data: every command has a set of bindings `keys + when`. The format, matching, the `when` language and conflicts live in the pure package `@dolphy-app/keybindings` (see its README); the window only provides the context and the UI.
+
+- **Format.** `Mod+Shift+L`, a chord of two presses `Mod+K Mod+S`, a physical key `[KeyK]`. `Mod` is ⌘ on macOS and Ctrl elsewhere, strictly: on macOS Ctrl+K does not match `Mod+K`. Labels: `⇧⌘L` on macOS, `Ctrl+Shift+L` on Windows and Linux (`Win`/`Super` for `Meta`); screen readers get words (`keybinding.*` messages). A key that types text (`K`, `,`) needs a `when` that is false while an input is focused.
+- **`when`.** `key`, `!key`, `key == value`, `key != value`, `&&`, `||`, parentheses. Context keys (`shared/lib/context-keys.ts`): `platform` (`mac`, `windows`, `linux`), `isMac`, `isWindows`, `isLinux`, `page` (`dailyPlan`, `courses`, `graph`, `settings`, `session`, `extension`; from the route name via `pageOfRoute`), `inSession`, `paletteOpen`, and the two read from the DOM at key-press time: `inputFocus` (the event target is an input, textarea, select or editable element) and `modalOpen` (a dialog or menu is open). An unknown key is false.
+- **Sources and precedence.** `default` (the `keybindings` of an app command), `extension` (`keybinding` and `keybindings` of an extension command from its manifest, built by `extensionBindings` in `features/extension-commands`, only `palette: true` commands), `user` (stored in `engine.db`, `settings.getKeybindings/setKeybindings`). On equal keys with overlapping conditions `user` beats `default` beats `extension`; inside a source the later entry wins; one command runs. A command whose binding has a higher-priority single press makes a chord with the same first press unreachable, and the table reports it as a conflict.
+- **Replacement.** The user set of a command **replaces** all its `default` and `extension` bindings: an empty set means no bindings, "Reset" removes the set and the defaults and extension bindings apply again. A set stored for a command that is not registered now (the extension was removed) is kept and does nothing.
+- **Chords.** After the first press the window waits 1.5 s for the second one; `Escape` (consumed only while waiting), the timeout, or a key that does not continue the chord reset the wait and run nothing. The wait is announced to screen readers (`aria-live`, `app/layouts/ChordStatus.vue`) and shown in the window.
+- **Dispatcher** (`features/keybindings/model/dispatcher.ts`): one `keydown` listener on `document` in the capture phase, mounted in `App.vue`. It ignores key repeat, IME composition, events already handled and presses inside the recorder dialog (`data-keybinding-capture`); it resolves the press with `Keymap.resolve`, skips commands that are not `enabled`, and runs the command through the registry (the extension command runner is the same as for the palette). `preventDefault` is called only for a handled press and while waiting for the second key. There is no special case for the palette: `app:palette.open` is an ordinary command with the default `Mod+K` and no `when`, so it fires in text fields too.
+- **Frames.** Events from extension frames never reach the dispatcher: a frame forwards only Ctrl/⌘+K (`shortcut` in `frame-bridge`) and the parent opens the palette. Rebinding the palette key therefore does not change what works inside a frame: Ctrl/⌘+K still opens it there.
+- **Window state.** `features/keybindings`: `createUserKeybindings` (store over `engine.settings`, re-reads on `settings-changed` with scope `keybindings`, ignores events during its own save, reloads after reconnect), `createKeybindingsService` (`keymap`, `bindingsFor`, `primary`, `isCustomized`, `conflicts`, `candidateConflicts`, `buildPatch`, `save`, `reset`, `resetAll`), provided as `useKeybindings()`. The palette shows `primary(commandKey)` (the effective binding of the highest priority), not the descriptor.
+- **UI.** "Settings → Keyboard shortcuts" (`pages/settings/ui/ShortcutsSection.vue`, models `model/shortcuts.ts` and `model/shortcut-editor.ts`): a table of all commands grouped by category (command, bindings with spoken text, `when`, source, conflicts naming the other command and the winner), search, "Changed" and "Conflicts only" filters, "Reset all" with a confirmation. Row actions: edit, remove a binding, add a binding, reset the command. The dialog records presses (`Escape` with nothing recorded closes it, `Backspace`/`Delete` clears, a second press makes a chord, at most two), validates `when` live, lists conflicts before saving, and offers "Reassign": the patch also rewrites the other commands' user sets without the colliding bindings, atomically in one `setKeybindings`. The engine rejects a set where two user bindings of different commands overlap (`details.reason`), the dialog shows it.
 
 ## UI
 

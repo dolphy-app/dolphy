@@ -349,6 +349,9 @@ importers:
       '@dolphy-app/extension-sdk':
         specifier: workspace:*
         version: link:../extension-sdk
+      sugar-high:
+        specifier: 2.5.1
+        version: 2.5.1
     devDependencies:
       '@dolphy-app/engine':
         specifier: workspace:*

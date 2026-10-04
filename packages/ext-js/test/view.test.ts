@@ -5,6 +5,7 @@ import type {
   LoadViewOptions,
 } from '@dolphy-app/extension-sdk/testing';
 import { afterEach, describe, expect, it } from 'vitest';
+import { MAX_HIGHLIGHT_CHARS } from '../src/highlight.ts';
 import { views } from '../src/index.ts';
 
 const loaded: LoadedView[] = [];
@@ -200,5 +201,89 @@ describe('вид dolphy.js', () => {
     });
     await view.update({ verdict: { outcome: 'passed' } });
     expect(textarea.hasAttribute('aria-invalid')).toBe(false);
+  });
+});
+
+describe('вид dolphy.js: подсветка', () => {
+  const mirrorOf = (view: LoadedView) => {
+    const code = view.query<HTMLElement>('.mirror code');
+    if (!code) throw new Error('highlight layer is not rendered');
+    return code;
+  };
+
+  it('раскрашивает заготовку в слое, а текст поля не трогает', async () => {
+    const starter = 'const total = 42; // сумма';
+    const { view, textarea } = await mountView({ view: { starter } });
+    const code = mirrorOf(view);
+    expect(code.querySelector('.sh__token--keyword')?.textContent).toBe(
+      'const',
+    );
+    expect(code.querySelector('.sh__token--class')?.textContent).toBe('42');
+    expect(code.querySelector('.sh__token--comment')?.textContent).toBe(
+      '// сумма',
+    );
+    // слой и поле показывают один и тот же текст: иначе каретка уедет от букв
+    expect(code.textContent?.trimEnd()).toBe(starter);
+    expect(textarea.value).toBe(starter);
+  });
+
+  it('прячет слой от скринридера и не даёт ему ловить указатель', async () => {
+    const { view } = await mountView();
+    const layer = view.query<HTMLElement>('.mirror');
+    expect(layer?.getAttribute('aria-hidden')).toBe('true');
+    const css = (
+      view.query('textarea')?.getRootNode() as ShadowRoot
+    ).querySelector('style')?.textContent;
+    expect(css).toMatch(/\.mirror \{[^}]*pointer-events: none/);
+  });
+
+  it('перерисовывает слой при вводе', async () => {
+    const { view, textarea } = await mountView();
+    type(textarea, 'return await fetch("/x");');
+    const code = mirrorOf(view);
+    expect(code.querySelectorAll('.sh__token--keyword')).toHaveLength(2);
+    expect(code.querySelector('.sh__token--string')).not.toBeNull();
+  });
+
+  it('перерисовывает слой, когда приложение подменяет ответ', async () => {
+    const { view } = await mountView({ value: 'let a = 1;' });
+    expect(mirrorOf(view).textContent).toContain('let a = 1;');
+    await view.update({ value: 'class A {}' });
+    expect(
+      mirrorOf(view).querySelector('.sh__token--keyword')?.textContent,
+    ).toBe('class');
+  });
+
+  it('экранирует разметку из ответа, а не вставляет её в слой', async () => {
+    const { view, textarea } = await mountView();
+    type(textarea, 'const s = "<img src=x onerror=alert(1)>";');
+    const code = mirrorOf(view);
+    expect(code.querySelector('img')).toBeNull();
+    expect(code.textContent).toContain('<img src=x onerror=alert(1)>');
+  });
+
+  it('держит слой на том же смещении прокрутки, что и поле', async () => {
+    const { view, textarea } = await mountView({ value: 'x;\n'.repeat(60) });
+    textarea.scrollTop = 120;
+    textarea.scrollLeft = 30;
+    textarea.dispatchEvent(new Event('scroll'));
+    const layer = view.query<HTMLElement>('.mirror');
+    expect(layer?.scrollTop).toBe(120);
+    expect(layer?.scrollLeft).toBe(30);
+  });
+
+  it('очень длинный ответ показывается без цвета, а не пропадает', async () => {
+    const long = `${'a;'.repeat(MAX_HIGHLIGHT_CHARS)}`;
+    const { view } = await mountView({ value: long });
+    const code = mirrorOf(view);
+    expect(code.querySelector('span')).toBeNull();
+    expect(code.textContent?.trimEnd()).toBe(long);
+  });
+
+  it('отключённое поле помечает слой для приглушения', async () => {
+    const { view } = await mountView({ disabled: true });
+    expect(view.query('.editor')?.hasAttribute('data-disabled')).toBe(true);
+    await view.update({ disabled: false });
+    expect(view.query('.editor')?.hasAttribute('data-disabled')).toBe(false);
   });
 });

@@ -1,5 +1,5 @@
 ---
-status: draft
+status: active
 branch: feature/extension-foundation
 created: 2026-10-04
 closed: null
@@ -68,8 +68,8 @@ superseded-by: null
 
 ## Progress
 
-- [ ] 1a DIAGNOSTICS + SCHEMA (PR 1): `ExtensionDiagnosticDto` и коды, `message` → `diagnostics` в контракте, реестре, окне (ru/en), `testkit`, тестах; `formatDiagnostic` для CLI
-- [ ] 1a `extension.schema.json`, тест перегенерации, `package-manifest.mjs`/`verify-packages.mjs`, `$schema` в `manifestSchema` и шаблоне, `docs/design/extensions.md`
+- [x] 1a DIAGNOSTICS + SCHEMA (PR 1): `ExtensionDiagnosticDto` и коды, `message` → `diagnostics` в контракте, реестре, окне (ru/en), `testkit`, тестах; `formatDiagnostic` для CLI
+- [x] 1a `extension.schema.json`, тест перегенерации, `package-manifest.mjs`/`verify-packages.mjs`, `$schema` в `manifestSchema` и шаблоне, `docs/design/extensions.md`
 - [ ] 1b SAFE MODE + HEALTH (PR 2): `forceSafeMode`, политика, настройка `safeMode` (контракт, сервис, RPC, адаптеры), баннер, переключатель
 - [ ] 1b `extension-health`, сообщение хоста `health`, `ext-supervisor.reset()`, `ext-host-status`, `restartHost`, баннер «gave-up», строка здоровья, e2e
 - [ ] 1c LOGS AND LIMITS (PR 3): лимит вывода и IPC (`restricted-runner.ts`), `ctx.logger` с `extensionId` у доверенных расширений (`runtime.ts`), `log-file.ts`, `stdio: 'pipe'`, `LogReader`, `readLogs`, диалог журнала, «Скопировать диагностику», e2e
@@ -89,6 +89,15 @@ superseded-by: null
 - Логгеры main/engine/host пишут только JSON в stderr (`electron/main/logger.ts`), файла и просмотрщика нет.
 - CI не запускает e2e, `pnpm smoke`, `pnpm smoke:packaged`; Linux-пути упакованного смоука не проверялись; недавние дефекты (нет `zod` в упакованном приложении, сон macOS в e2e) CI не поймал. На Linux-раннере Ubuntu 24.04 непривилегированные user namespaces могут быть ограничены AppArmor [INFERENCE]: SUID `chrome-sandbox` обходит это.
 
+Стадия 1a (реализация):
+
+- `parseManifest` теперь возвращает `{ok: false, diagnostic}` (код `manifest-invalid`, `data.issues`), а не `message`: текст строит `formatDiagnostic`. Затронуты `project.ts`, `catalog/build.ts` и тесты, читавшие `.message`.
+- `copyInfo` в `services/extensions.ts` копировал `contributes`, но не `diagnostics`: массив делился бы с реестром. Добавлено `structuredClone(info.diagnostics)`; тест «returns copies» ловит это.
+- `verify-packages.mjs` падал на сгенерированном проекте: `extension-api` стал прямой devDependency, а переопределение `overrides` конфликтовало с ним (`EOVERRIDE`). Прямая зависимость указывает на локальный tarball, `overrides` ссылается на неё через `$@dolphy-app/extension-api`; добавлена проверка, что `$schema` демо-проекта указывает на существующий файл после установки.
+- Режим `--local` генератора связывает `extension-api` ссылкой `link:` на каталог пакета, где схема лежит в корне, а не в `dist/`: путь `$schema` в таком проекте не разрешается (в опубликованном пакете и в `verify-packages` — разрешается). Остаётся допущением режима разработки репозитория.
+- `extension.schema.json` занесён в `.prettierignore` (генерируется и сверяется побайтно, форматтер ломал бы сверку).
+- `ajv` добавлен devDependency `extension-tools` ради проверки примеров `docs-contributions` по схеме.
+
 ## Decision Log
 
 - 2026-10-04. Обратная совместимость не обеспечивается (владелец): приложение и расширения сырые, ломаем сразу. Причина: экономия усилий, нет внешних пользователей API. Следствие: «храповик» (терпимый разбор, `@since`, гейтинг `minAppVersion`) отменён, `message` заменяется на `diagnostics` без переходного поля.
@@ -100,6 +109,8 @@ superseded-by: null
 - 2026-10-04. Журнал пишет main (перехват stderr процессов через `stdio: 'pipe'`), а не каждый процесс сам. Причина: один писатель — одна ротация, нет гонок за файл.
 - 2026-10-04. JSON Schema коммитится и сверяется тестом, а не генерируется при сборке. Причина: схема нужна редактору в репозитории и в пакете без шага сборки.
 - 2026-10-04. CI-проверки вынесены в `desktop-checks.yml`, а не в `ci.yml`. Причина: они на PR только в `main`, `ci.yml` остаётся быстрым для PR в `develop`.
+- 2026-10-04 (1a). Контракт 14: поле `diagnostics` вместо `message`; номер — следующий свободный на момент слияния, при конфликте пересчитывается. Коды `safe-mode` включены в закрытый список сразу (по спеке), использовать их начнёт 1b.
+- 2026-10-04 (1a). `DiscoveryDiagnostic` и `InspectResult` несут поле `diagnostic` (одна диагностика), `ExtensionInfoDto` — `diagnostics` (список): у расширения в реестре пока ровно ноль или одна запись.
 
 ## Outcomes
 

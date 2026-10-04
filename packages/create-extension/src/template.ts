@@ -4,7 +4,7 @@ const INITIAL_VERSION = '0.1.0';
 export interface TemplateInput {
   id: string;
   /** Dependency specifiers for the SDK and tools (see `dependencySpecs`). */
-  dependencies: { sdk: string; tools: string };
+  dependencies: { api: string; sdk: string; tools: string };
 }
 
 const lines = (parts: readonly string[]): string => `${parts.join('\n')}\n`;
@@ -25,6 +25,7 @@ export const packageJson = ({ id, dependencies }: TemplateInput): string =>
         test: 'vitest run',
       },
       devDependencies: {
+        '@dolphy-app/extension-api': dependencies.api,
         '@dolphy-app/extension-sdk': dependencies.sdk,
         '@dolphy-app/extension-tools': dependencies.tools,
         '@types/node': '^22.20.4',
@@ -59,6 +60,7 @@ export const tsconfigJson = (): string =>
   ]);
 
 export const manifestJson = (id: string): string => `{
+  "$schema": "./node_modules/@dolphy-app/extension-api/dist/extension.schema.json",
   "id": "${id}",
   "version": "${INITIAL_VERSION}",
   "apiVersion": 1,

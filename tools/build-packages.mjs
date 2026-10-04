@@ -7,7 +7,14 @@
  *
  * Запуск: `pnpm build:packages [--version X.Y.Z]` (по умолчанию — версия корня).
  */
-import { chmod, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import {
+  chmod,
+  copyFile,
+  mkdir,
+  readFile,
+  readdir,
+  writeFile,
+} from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { build } from 'tsdown';
@@ -15,6 +22,7 @@ import { collectImports } from './lib/imports.mjs';
 import {
   PACKAGES,
   SCOPE,
+  assetFiles,
   binFiles,
   createManifest,
   createRangeResolver,
@@ -132,6 +140,9 @@ const buildPackage = async ({ spec, version, rootManifest, workspace }) => {
   const source = await readJson(path.join(sourceDir, 'package.json'));
 
   await bundle({ spec, sourceDir, distDir, version });
+  for (const file of assetFiles(spec)) {
+    await copyFile(path.join(sourceDir, file), path.join(distDir, file));
+  }
 
   const dependencies = deriveDependencies({
     spec,

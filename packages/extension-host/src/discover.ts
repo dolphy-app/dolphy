@@ -1,5 +1,6 @@
 import { lstat, readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
+import type { ExtensionDiagnosticDto } from '@dolphy-app/engine-contract';
 import { DEFAULT_MAIN } from '@dolphy-app/extension-api';
 import type {
   ExtensionLogger,
@@ -17,6 +18,7 @@ import {
 } from '@dolphy-app/extension-catalog';
 import type { InstallMeta } from '@dolphy-app/extension-catalog';
 import { Ajv2020 } from 'ajv/dist/2020.js';
+import { formatDiagnostic } from './diagnostics.ts';
 import { fingerprintDir } from './fingerprint.ts';
 import { parseManifest } from './manifest.ts';
 import { CONTRIBUTION_POINTS } from './points/index.ts';
@@ -58,7 +60,7 @@ export interface ResolvedExtension extends ResolvedContributions {
 export interface DiscoveryDiagnostic {
   extensionId: string;
   origin: ExtensionOrigin;
-  message: string;
+  diagnostic: ExtensionDiagnosticDto;
 }
 
 export interface OverriddenExtension {
@@ -90,8 +92,16 @@ const compatibilityIssue = (
   manifest: ExtensionManifest,
   appVersion: string | undefined,
   platform: string,
-): string | null =>
-  checkCompatibility(manifest, { appVersion, platform })?.detail ?? null;
+): ExtensionDiagnosticDto | null => {
+  const failure = checkCompatibility(manifest, { appVersion, platform });
+  if (failure === null) return null;
+  return failure.reason === 'app'
+    ? {
+        code: 'requires-app',
+        data: { minAppVersion: manifest.minAppVersion ?? '' },
+      }
+    : { code: 'unavailable-platform', data: { platform } };
+};
 
 const resolveMain = async (
   dir: string,
@@ -134,12 +144,19 @@ const claimsOf = (extension: ResolvedContributions): string[] =>
     point.claims(extension[point.key] as never),
   );
 
-const clashMessage = (
+const clashDiagnostic = (
   claim: string,
   claimed: ReadonlyMap<string, string>,
-): string => {
+): ExtensionDiagnosticDto => {
   const separator = claim.indexOf(':');
-  return `${claim.slice(0, separator)} '${claim.slice(separator + 1)}' is already provided by '${claimed.get(claim)}'`;
+  return {
+    code: 'claim-clash',
+    data: {
+      kind: claim.slice(0, separator),
+      name: claim.slice(separator + 1),
+      by: claimed.get(claim) ?? '',
+    },
+  };
 };
 
 const isDirectory = async (dir: string): Promise<boolean> =>
@@ -161,9 +178,9 @@ export type InspectResult =
       ok: true;
       extension: Omit<ResolvedExtension, 'origin' | 'install' | 'revision'>;
     }
-  | { ok: false; id: string; message: string };
+  | { ok: false; id: string; diagnostic: ExtensionDiagnosticDto };
 
-/** Полностью разбирает каталог одного расширения; ошибка — сообщение для диагностики. */
+/** Полностью разбирает каталог одного расширения; ошибка — диагностика (английский текст — `formatDiagnostic`). */
 /** Нет файла — `null` (расширение скопировано вручную); битый файл — `null` и предупреждение: сведения об установке не ломают обнаружение. */
 const readInstallMeta = async (
   dir: string,
@@ -207,22 +224,31 @@ export const inspectExtensionDir = async (
     return {
       ok: false,
       id: dirName,
-      message: `extension.json is unreadable: ${error instanceof Error ? error.message : String(error)}`,
+      diagnostic: {
+        code: 'manifest-unreadable',
+        data: {
+          reason: error instanceof Error ? error.message : String(error),
+        },
+      },
     };
   }
   const parsed = parseManifest(raw);
-  if (!parsed.ok) return { ok: false, id: dirName, message: parsed.message };
+  if (!parsed.ok)
+    return { ok: false, id: dirName, diagnostic: parsed.diagnostic };
   const { manifest } = parsed;
   if (expectedId !== null && manifest.id !== expectedId) {
     return {
       ok: false,
       id: dirName,
-      message: `directory name '${expectedId}' does not match manifest id '${manifest.id}'`,
+      diagnostic: {
+        code: 'id-mismatch',
+        data: { expected: expectedId, actual: manifest.id },
+      },
     };
   }
   const incompatible = compatibilityIssue(manifest, appVersion, platform);
   if (incompatible !== null) {
-    return { ok: false, id: manifest.id, message: incompatible };
+    return { ok: false, id: manifest.id, diagnostic: incompatible };
   }
   try {
     const mainPath = await resolveMain(dir, manifest.main, verifyFiles);
@@ -256,7 +282,12 @@ export const inspectExtensionDir = async (
     return {
       ok: false,
       id: manifest.id,
-      message: error instanceof Error ? error.message : String(error),
+      diagnostic: {
+        code: 'load-failed',
+        data: {
+          reason: error instanceof Error ? error.message : String(error),
+        },
+      },
     };
   }
 };
@@ -270,10 +301,13 @@ export const discoverExtensions = async (
   const skip = (
     extensionId: string,
     origin: ExtensionOrigin,
-    message: string,
+    diagnostic: ExtensionDiagnosticDto,
   ): void => {
-    diagnostics.push({ extensionId, origin, message });
-    logger.warn({ extensionId }, `extension skipped: ${message}`);
+    diagnostics.push({ extensionId, origin, diagnostic });
+    logger.warn(
+      { extensionId },
+      `extension skipped: ${formatDiagnostic(diagnostic)}`,
+    );
   };
 
   // id расширения → выигравшее; порядок вставки = порядок первого появления
@@ -295,7 +329,7 @@ export const discoverExtensions = async (
         ...(platform !== undefined && { platform }),
       });
       if (!loaded.ok) {
-        skip(loaded.id, root.origin, loaded.message);
+        skip(loaded.id, root.origin, loaded.diagnostic);
         continue;
       }
       const extension: ResolvedExtension = {
@@ -330,7 +364,7 @@ export const discoverExtensions = async (
     const claims = claimsOf(extension);
     const clash = claims.find((claim) => claimed.has(claim));
     if (clash !== undefined) {
-      skip(extension.id, extension.origin, clashMessage(clash, claimed));
+      skip(extension.id, extension.origin, clashDiagnostic(clash, claimed));
       continue;
     }
     for (const claim of claims) claimed.set(claim, extension.id);

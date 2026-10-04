@@ -10,7 +10,7 @@ import {
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { parseManifest } from '@dolphy-app/extension-host';
+import { formatDiagnostic, parseManifest } from '@dolphy-app/extension-host';
 import type { ExtensionManifest } from '@dolphy-app/extension-api';
 import {
   CATALOG_FILE_EXTENSIONS,
@@ -118,7 +118,8 @@ const readBuiltManifest = async (dir: string): Promise<ExtensionManifest> => {
   const parsed = parseManifest(
     JSON.parse(await readFile(path.join(dir, 'extension.json'), 'utf8')),
   );
-  if (!parsed.ok) throw new BuildError(parsed.message, dir);
+  if (!parsed.ok)
+    throw new BuildError(formatDiagnostic(parsed.diagnostic), dir);
   return parsed.manifest;
 };
 

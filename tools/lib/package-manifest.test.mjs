@@ -47,6 +47,13 @@ describe('createManifest', () => {
     assert.equal(manifest.bin, undefined);
   });
 
+  it('extension-api открывает схему манифеста подпутём на dist/extension.schema.json', () => {
+    assert.deepEqual(manifestOf('extension-api').exports, {
+      '.': { types: './dist/index.d.ts', default: './dist/index.js' },
+      './extension.schema.json': './dist/extension.schema.json',
+    });
+  });
+
   it('sideEffects: false только у SDK, остальные пакеты поле не пишут', () => {
     assert.equal(manifestOf('extension-sdk').sideEffects, false);
     for (const dir of [

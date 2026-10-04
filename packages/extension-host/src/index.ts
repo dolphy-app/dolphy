@@ -1,6 +1,7 @@
 export * from './catalog.ts';
 export * from './channel.ts';
 export * from './client.ts';
+export * from './diagnostics.ts';
 export * from './discover.ts';
 export * from './engine-bridge.ts';
 export * from './engine-link.ts';

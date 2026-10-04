@@ -125,12 +125,20 @@ describe('политика, каталог и реестр читают сним
     holder.replace({
       extensions: [],
       diagnostics: [
-        { extensionId: 'acme.broken', origin: 'user', message: 'bad manifest' },
+        {
+          extensionId: 'acme.broken',
+          origin: 'user',
+          diagnostic: { code: 'manifest-invalid', data: { issues: ['bad'] } },
+        },
       ],
       overridden: [],
     });
     expect(registry.list()).toMatchObject([
-      { id: 'acme.broken', state: 'invalid', message: 'bad manifest' },
+      {
+        id: 'acme.broken',
+        state: 'invalid',
+        diagnostics: [{ code: 'manifest-invalid', data: { issues: ['bad'] } }],
+      },
     ]);
   });
 });

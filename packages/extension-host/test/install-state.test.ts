@@ -138,7 +138,7 @@ describe('registry and policy: metadata and revocation', () => {
     const { info, policy, registry } = await setup({ 'acme.u': 'leaks data' });
     expect(info('acme.u')).toMatchObject({
       state: 'disabled',
-      message: 'leaks data',
+      diagnostics: [],
       toggleable: false,
       revoked: 'leaks data',
     });

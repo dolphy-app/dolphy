@@ -1,6 +1,9 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { inspectExtensionDir } from '@dolphy-app/extension-host';
+import {
+  formatDiagnostic,
+  inspectExtensionDir,
+} from '@dolphy-app/extension-host';
 import { parseIndex } from '@dolphy-app/extension-catalog';
 import type { CatalogIndex } from '@dolphy-app/extension-catalog';
 import { BuildError, CatalogUsageError } from '../errors.ts';
@@ -121,7 +124,7 @@ const inspectManifest = async (
   });
   return result.ok
     ? { manifest: result.extension, problem: null }
-    : { manifest: null, problem: result.message };
+    : { manifest: null, problem: formatDiagnostic(result.diagnostic) };
 };
 
 const stringOrNull = (value: unknown): string | null =>

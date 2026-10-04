@@ -286,6 +286,19 @@ export const ru = {
         settings: 'Настройки',
         settingsLabel: 'Настройки расширения «{name}»',
       },
+      diagnostic: {
+        'manifest-unreadable': 'Не удалось прочитать extension.json: {reason}',
+        'manifest-invalid': 'Манифест некорректен:',
+        'id-mismatch':
+          'Имя каталога «{expected}» не совпадает с id в манифесте «{actual}»',
+        'requires-app': 'Требуется приложение версии {minAppVersion} или новее',
+        'unavailable-platform': 'Недоступно на платформе {platform}',
+        'claim-clash':
+          'Вклад «{name}» ({kind}) уже предоставляет расширение «{by}»',
+        'load-failed': 'Не удалось загрузить расширение: {reason}',
+        'overridden-by': 'Перекрыто: {origin}, версия {version}',
+        'safe-mode': 'Отключено в безопасном режиме',
+      },
       installed: {
         fromCatalog: 'Из каталога v{version}',
         updatesBanner: 'Доступно обновлений: {n}',

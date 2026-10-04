@@ -26,7 +26,7 @@ const info = (overrides: Partial<ExtensionInfoDto>): ExtensionInfoDto => ({
   origin: 'bundled',
   state: 'loaded',
   contributes: { ...NO_CONTRIBUTES, exerciseTypes: ['dolphy.sql'] },
-  message: null,
+  diagnostics: [],
   permissions: [],
   isolation: 'trusted',
   toggleable: false,
@@ -75,7 +75,8 @@ describe('extensions.list', () => {
     const { engine } = await open([info({})]);
     const [first] = await engine.extensions.list();
     first?.contributes.exerciseTypes.push('evil');
-    if (first !== undefined) first.message = 'changed';
+    if (first !== undefined)
+      first.diagnostics.push({ code: 'safe-mode', data: {} });
     expect(await engine.extensions.list()).toEqual([info({})]);
   });
 

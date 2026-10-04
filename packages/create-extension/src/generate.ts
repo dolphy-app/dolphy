@@ -90,14 +90,15 @@ const dependencySpecs = async (
     const range =
       packageVersion === null ? UNPUBLISHED_VERSION : `^${packageVersion}`;
     return {
-      dependencies: { sdk: range, tools: range },
+      dependencies: { api: range, sdk: range, tools: range },
       isPublished: packageVersion !== null,
     };
   }
   const root = path.resolve(localRoot);
+  const api = path.join(root, 'packages', 'extension-api');
   const sdk = path.join(root, 'packages', 'extension-sdk');
   const tools = path.join(root, 'packages', 'extension-tools');
-  for (const dir of [sdk, tools]) {
+  for (const dir of [api, sdk, tools]) {
     if (!(await isDirectory(dir))) {
       throw new GenerateError(
         'invalid-local',
@@ -106,7 +107,11 @@ const dependencySpecs = async (
     }
   }
   return {
-    dependencies: { sdk: `link:${sdk}`, tools: `link:${tools}` },
+    dependencies: {
+      api: `link:${api}`,
+      sdk: `link:${sdk}`,
+      tools: `link:${tools}`,
+    },
     isPublished: false,
   };
 };

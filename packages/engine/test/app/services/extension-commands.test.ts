@@ -33,7 +33,7 @@ const info = (overrides: Partial<ExtensionInfoDto> = {}): ExtensionInfoDto => ({
     commands: [`${ID}.run`],
     panels: [],
   },
-  message: null,
+  diagnostics: [],
   permissions: [],
   isolation: 'isolated',
   toggleable: true,

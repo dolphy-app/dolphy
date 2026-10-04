@@ -66,7 +66,12 @@ describe('useExtensions', () => {
       extension('dolphy.sql'),
       extension('dolphy.choice', {
         state: 'overridden',
-        message: 'overridden by user 1.0.1',
+        diagnostics: [
+          {
+            code: 'overridden-by',
+            data: { origin: 'user', version: '1.0.1' },
+          },
+        ],
       }),
     ];
     pending[0]?.resolve(list);

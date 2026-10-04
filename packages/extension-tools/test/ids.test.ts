@@ -1,7 +1,7 @@
 import { mkdir, readFile, stat, utimes, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { ExtensionManifest } from '@dolphy-app/extension-api';
-import { parseManifest } from '@dolphy-app/extension-host';
+import { formatDiagnostic, parseManifest } from '@dolphy-app/extension-host';
 import { describe, expect, it } from 'vitest';
 import { IDS_FILE, renderIds, writeIds } from '../src/ids.ts';
 import { loadProject } from '../src/project.ts';
@@ -19,7 +19,7 @@ const manifestOf = (
     ...extra,
     contributes,
   });
-  if (!parsed.ok) throw new Error(parsed.message);
+  if (!parsed.ok) throw new Error(formatDiagnostic(parsed.diagnostic));
   return parsed.manifest;
 };
 

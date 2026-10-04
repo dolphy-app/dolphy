@@ -7,9 +7,17 @@ export const BACKOFF_BASE_MS = 500;
 export const BACKOFF_CAP_MS = 5_000;
 export const STOP_TIMEOUT_MS = 5_000;
 
+/** Поток вывода дочернего процесса (`stdio: 'pipe'`). */
+export interface OutputStreamLike {
+  on(event: 'data', listener: (chunk: Uint8Array | string) => void): unknown;
+  on(event: 'end', listener: () => void): unknown;
+}
+
 /** То, что супервизор берёт у `UtilityProcess` (структурно совместимо с Electron). */
 export interface HostProcessLike {
   readonly pid: number | undefined;
+  readonly stdout?: OutputStreamLike | null | undefined;
+  readonly stderr?: OutputStreamLike | null | undefined;
   postMessage(message: unknown, transfer?: unknown[]): void;
   kill(): boolean;
   on(event: 'exit', listener: (code: number) => void): unknown;
@@ -22,7 +30,7 @@ export interface UtilityProcessLike {
   fork(
     modulePath: string,
     args: string[],
-    options: { serviceName: string },
+    options: { serviceName: string; stdio: 'pipe' },
   ): HostProcessLike;
 }
 
@@ -53,6 +61,8 @@ export interface SupervisorOptions {
   onHostExit?(): void;
   /** Любое сообщение хоста, кроме `ready`. */
   onMessage?(message: unknown): void;
+  /** Вывод процесса: новый приёмник на каждый запуск (журнал и вывод разработчика). */
+  createOutput?(): ProcessOutputLike;
   stopTimeoutMs?: number;
 }
 
@@ -65,6 +75,27 @@ export interface Supervisor {
   /** Убить хост без остановки супервизора (перезапуск сработает как при крэше). */
   kill(): boolean;
 }
+
+/** Приёмник вывода одного запуска дочернего процесса (`createProcessOutput`). */
+export interface ProcessOutputLike {
+  stdout(chunk: Uint8Array | string): void;
+  stderr(chunk: Uint8Array | string): void;
+  flush(): void;
+}
+
+/**
+ * С `stdio: 'pipe'` вывод процесса уже не уходит в терминал сам: потоки надо
+ * читать (иначе буфер заполнится и процесс встанет) и повторять вручную.
+ */
+export const attachOutput = (
+  child: HostProcessLike,
+  output: ProcessOutputLike | undefined,
+): void => {
+  if (output === undefined) return;
+  child.stdout?.on('data', (chunk) => output.stdout(chunk));
+  child.stderr?.on('data', (chunk) => output.stderr(chunk));
+  child.stderr?.on('end', () => output.flush());
+};
 
 const isReadyMessage = (message: unknown): boolean =>
   typeof message === 'object' &&
@@ -119,7 +150,9 @@ export const createSupervisor = (options: SupervisorOptions): Supervisor => {
     if (stopping || child) return;
     const self = utilityProcess.fork(hostPath, [], {
       serviceName: 'dolphy-engine',
+      stdio: 'pipe',
     });
+    attachOutput(self, options.createOutput?.());
     child = self;
     self.once('spawn', () => {
       spawned = true;

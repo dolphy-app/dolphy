@@ -1,0 +1,17 @@
+{
+  "id": "acme.stats",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "name": "Habit tracker",
+  "description": "Записывает серию дней и разбивку по дням",
+  "author": "acme",
+  "permissions": ["learning.stats"],
+  "contributes": {
+    "commands": [
+      {
+        "id": "acme.stats.report",
+        "title": "Статистика: записать"
+      }
+    ]
+  }
+}

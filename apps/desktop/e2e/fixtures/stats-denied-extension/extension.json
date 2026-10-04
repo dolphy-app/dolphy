@@ -1,0 +1,16 @@
+{
+  "id": "acme.nostats",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "name": "Habit tracker without permission",
+  "description": "Просит статистику, не объявив разрешение",
+  "author": "acme",
+  "contributes": {
+    "commands": [
+      {
+        "id": "acme.nostats.report",
+        "title": "Статистика без разрешения: записать"
+      }
+    ]
+  }
+}

@@ -4,6 +4,8 @@ import type {
   MarkdownRendererModule,
   PanelContext as ApiPanelContext,
   PanelModule,
+  WidgetContext as ApiWidgetContext,
+  WidgetModule,
 } from '@dolphy-app/extension-api';
 import type { AnswerView } from './answer-view.ts';
 
@@ -52,6 +54,9 @@ export type ExtensionContext = ApiExtensionContext<ResolvedIds>;
 /** Context of a panel module; `call` accepts the declared command ids only. */
 export type PanelContext = ApiPanelContext<ResolvedIds['commands']>;
 
+/** Context of a widget module; `call` accepts the declared command ids only. */
+export type WidgetContext = ApiWidgetContext<ResolvedIds['commands']>;
+
 /**
  * A record that holds exactly the declared ids: a missing and an extra key are
  * both compile errors. With no generated declarations any keys are accepted;
@@ -70,6 +75,12 @@ export type ExtensionViews = Exact<ResolvedIds['exerciseTypes'], AnswerView>;
 export type ExtensionPanels = Exact<
   ResolvedIds['panels'],
   PanelModule<HTMLElement, ResolvedIds['commands']>
+>;
+
+/** `export const widgets = { … } satisfies ExtensionWidgets`: one `defineExtensionWidget` per declared widget. */
+export type ExtensionWidgets = Exact<
+  ResolvedIds['widgets'],
+  WidgetModule<HTMLElement, ResolvedIds['commands']>
 >;
 
 /** `export const markdown = { … } satisfies ExtensionMarkdown`: one `defineMarkdownRenderer` per declared language. */

@@ -45,6 +45,7 @@ const extension: ResolvedExtension = {
   settings: [],
   events: [],
   commands: [],
+  widgets: [],
   panels: [],
   importers: [],
   exporters: [],

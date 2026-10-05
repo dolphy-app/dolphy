@@ -118,6 +118,40 @@ export interface CommandKeybinding {
   when?: string;
 }
 
+/**
+ * Closed list of icon names an extension picks from (`icon` of a command or panel); the
+ * app draws its own glyph for each name, so nothing from the extension is rendered as an image.
+ */
+export const EXTENSION_ICONS = [
+  'puzzle',
+  'book',
+  'brain',
+  'calendar',
+  'chart',
+  'check',
+  'clock',
+  'cog',
+  'fire',
+  'flag',
+  'heart',
+  'help',
+  'home',
+  'idea',
+  'list',
+  'message',
+  'pencil',
+  'play',
+  'star',
+  'target',
+  'trophy',
+  'bell',
+  'bookmark',
+  'tag',
+] as const;
+export type ExtensionIconName = (typeof EXTENSION_ICONS)[number];
+/** Icon of a command or panel without `icon`. */
+export const DEFAULT_EXTENSION_ICON: ExtensionIconName = 'puzzle';
+
 /** Extension command: a command-palette action executed by extension code (`ctx.commands.register`). */
 export interface CommandContribution {
   /** Equal to the extension id or starts with `<extension id>.`. */
@@ -134,6 +168,8 @@ export interface CommandContribution {
   keybindings?: CommandKeybinding[];
   /** `false` hides the command from the palette while keeping it available to the panel; defaults to `true`. */
   palette?: boolean;
+  /** Glyph in the palette, from `EXTENSION_ICONS`; defaults to `DEFAULT_EXTENSION_ICON`. Decorative. */
+  icon?: ExtensionIconName;
 }
 
 /** Extension panel: an app screen in an isolated frame with a sidebar menu entry. */
@@ -143,6 +179,37 @@ export interface PanelContribution {
   /** Menu entry and page heading title, 1–60 characters. */
   title: string;
   /** Path to the panel's ES module (`.js` or `.mjs`); defaults to `DEFAULT_PANEL`. */
+  module?: string;
+  /** Glyph of the sidebar entry, from `EXTENSION_ICONS`; defaults to `DEFAULT_EXTENSION_ICON`. Decorative. */
+  icon?: ExtensionIconName;
+}
+
+/** Where on the screen a widget is shown; `dailyPlan` is the "Daily plan" page. */
+export const EXTENSION_WIDGET_SLOTS = ['dailyPlan'] as const;
+export type ExtensionWidgetSlot = (typeof EXTENSION_WIDGET_SLOTS)[number];
+
+/** Limits on widgets; the manifest and the app enforce them. */
+export const EXTENSION_WIDGET_LIMITS = Object.freeze({
+  /** Widgets per extension. */
+  widgets: 3,
+  /** Smallest allowed `minHeight`, px. */
+  minHeight: 80,
+  /** Largest allowed `maxHeight`, px. */
+  maxHeight: 320,
+});
+
+/** Extension widget: a card of an isolated frame on a screen of the app (`slot`). */
+export interface WidgetContribution {
+  /** Equal to the extension id or starts with `<extension id>.`. */
+  id: string;
+  /** Card title (accessible name of the frame), 1–60 characters. */
+  title: string;
+  slot: ExtensionWidgetSlot;
+  /** Smallest frame height in px, 80–320; defaults to 80. */
+  minHeight?: number;
+  /** Largest frame height in px, 80–320, not below `minHeight`; defaults to 320. Taller content scrolls inside. */
+  maxHeight?: number;
+  /** Path to the widget's ES module (`.js` or `.mjs`); defaults to `DEFAULT_WIDGET`. */
   module?: string;
 }
 
@@ -363,8 +430,19 @@ export interface ExtensionManifest {
     gradePolicies: GradePolicyContribution[];
     settings: SettingContribution[];
     events: EventContribution[];
-    commands: (CommandContribution & { palette: boolean })[];
-    panels: (PanelContribution & { module: string })[];
+    commands: (CommandContribution & {
+      palette: boolean;
+      icon: ExtensionIconName;
+    })[];
+    panels: (PanelContribution & {
+      module: string;
+      icon: ExtensionIconName;
+    })[];
+    widgets: (WidgetContribution & {
+      minHeight: number;
+      maxHeight: number;
+      module: string;
+    })[];
     importers: (ImporterContribution & { input: ImporterInputKind })[];
     exporters: ExporterContribution[];
   };
@@ -412,6 +490,7 @@ export interface ExtensionManifestInput {
     events?: EventContribution[];
     commands?: CommandContribution[];
     panels?: PanelContribution[];
+    widgets?: WidgetContribution[];
     importers?: ImporterContribution[];
     exporters?: ExporterContribution[];
   };
@@ -458,6 +537,7 @@ export const THEME_VARIABLE_KEYS: readonly string[] = [
 
 export const DEFAULT_MARKDOWN_RENDERER = './markdown.mjs';
 export const DEFAULT_PANEL = './panel.mjs';
+export const DEFAULT_WIDGET = './widget.mjs';
 
 const KEYBINDING_MODIFIER =
   '(?:Mod|Ctrl|Control|Alt|Option|Shift|Cmd|Command|Meta|Win|Super)\\+';
@@ -938,15 +1018,16 @@ export const normalizeExportResult = (raw: unknown): ExportResult => {
   return { filename, bytes };
 };
 
-/**
- * Context of a panel module; it runs in a frame without access to the app's
- * data. `Commands` narrows the ids `call` accepts (the SDK passes the commands
- * declared in `extension.json`).
- */
-export interface PanelContext<Commands extends string = string> {
-  panelId: string;
-  /** Properties the panel was opened with (`openPanel(id, props)`); `undefined` — none. */
-  props: JsonValue | undefined;
+/** What the app tells a panel or widget about its surroundings; read only. */
+export interface PanelContextInfo {
+  /** The course the app is focused on; `null` — all courses. */
+  readonly courseId: string | null;
+}
+
+/** What the frame of a panel and of a widget have in common. */
+interface FrameContext<Commands extends string = string> {
+  /** The current surroundings; changes arrive through `onContextChange` without reloading the frame. */
+  readonly context: PanelContextInfo;
   /** Aborted when the frame closes. */
   signal: {
     readonly aborted: boolean;
@@ -959,6 +1040,21 @@ export interface PanelContext<Commands extends string = string> {
    * `openPanel` itself. A failure is a rejected promise with an `Error`.
    */
   call(commandId: Commands, args?: JsonValue): Promise<JsonValue | undefined>;
+  /** Subscribes to changes of `context` (the app focused another course); returns the unsubscribe function. */
+  onContextChange(listener: (context: PanelContextInfo) => void): () => void;
+}
+
+/**
+ * Context of a panel module; it runs in a frame without access to the app's
+ * data. `Commands` narrows the ids `call` accepts (the SDK passes the commands
+ * declared in `extension.json`).
+ */
+export interface PanelContext<
+  Commands extends string = string,
+> extends FrameContext<Commands> {
+  panelId: string;
+  /** Properties the panel was opened with (`openPanel(id, props)`); `undefined` — none. */
+  props: JsonValue | undefined;
   /** Subscribes to new properties of the open panel; returns the unsubscribe function. */
   onProps(listener: (props: JsonValue | undefined) => void): () => void;
 }
@@ -971,6 +1067,27 @@ export interface PanelModule<
   mount(
     container: Container,
     context: PanelContext<Commands>,
+  ): void | Promise<void>;
+}
+
+/**
+ * Context of a widget module: a panel's frame without properties (a widget is
+ * not opened by a command). Same isolation: no network, no app data.
+ */
+export interface WidgetContext<
+  Commands extends string = string,
+> extends FrameContext<Commands> {
+  widgetId: string;
+}
+
+/** `export default` of a widget module. */
+export interface WidgetModule<
+  Container = unknown,
+  Commands extends string = string,
+> {
+  mount(
+    container: Container,
+    context: WidgetContext<Commands>,
   ): void | Promise<void>;
 }
 
@@ -1273,6 +1390,7 @@ export interface ExtensionIdSet {
   commands: string;
   events: LearningEventName;
   panels: string;
+  widgets: string;
   importers: string;
   exporters: string;
   /** Languages of `contributes.markdownRenderers`. */

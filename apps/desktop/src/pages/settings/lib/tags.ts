@@ -20,6 +20,7 @@ const POINT_TAGS: Readonly<
   markdownRenderers: ['content'],
   commands: ['productivity'],
   panels: ['interface'],
+  widgets: ['interface'],
 };
 
 const isTag = (value: string): value is ExtensionTag => KNOWN.has(value);

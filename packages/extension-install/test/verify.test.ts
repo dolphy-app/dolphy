@@ -46,6 +46,7 @@ const manifestWith = (
     events: [],
     commands: [],
     panels: [],
+    widgets: [],
     importers: [],
     exporters: [],
     ...contributes,
@@ -124,6 +125,36 @@ describe('manifestMismatch: commands и panels', () => {
       panels: ['acme.state.q', 'acme.state.p'],
     });
     expect(manifestMismatch(manifest, entry, v)).toBeNull();
+  });
+});
+
+describe('manifestMismatch: widgets', () => {
+  it('виджет в манифесте, которого нет в записи, и запись без виджета в манифесте отвергаются', () => {
+    const [entry, v] = entryWith({});
+    expect(
+      manifestMismatch(
+        manifestWith({ widgets: ['acme.state.card'] }),
+        entry,
+        v,
+      ),
+    ).toContain('(widgets)');
+    const [recorded, w] = entryWith({ widgets: ['acme.state.card'] });
+    expect(manifestMismatch(manifestWith(), recorded, w)).toContain(
+      '(widgets)',
+    );
+  });
+
+  it('одинаковые наборы без учёта порядка проходят', () => {
+    const [entry, v] = entryWith({
+      widgets: ['acme.state.a', 'acme.state.b'],
+    });
+    expect(
+      manifestMismatch(
+        manifestWith({ widgets: ['acme.state.b', 'acme.state.a'] }),
+        entry,
+        v,
+      ),
+    ).toBeNull();
   });
 });
 

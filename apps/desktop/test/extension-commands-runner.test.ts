@@ -30,11 +30,13 @@ const withExtension = (
     keybinding: null,
     keybindings: [],
     palette: id === 'acme.cmd.run',
+    icon: 'puzzle',
   })),
   panels: panels.map((id) => ({
     id,
     extensionId: 'acme.cmd',
     title: id,
+    icon: 'puzzle',
     rendererUrl: 'dolphy-ext://acme.cmd/panel.mjs',
     isolated: true,
     origin: 'user',

@@ -16,6 +16,7 @@ export const NO_CONTRIBUTES: ExtensionContributesDto = {
   settings: [],
   events: [],
   commands: [],
+  widgets: [],
   panels: [],
   importers: [],
   exporters: [],

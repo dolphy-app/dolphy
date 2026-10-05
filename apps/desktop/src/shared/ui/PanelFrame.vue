@@ -2,7 +2,11 @@
 import { onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue';
 import type { JsonValue } from '@dolphy-app/extension-api';
 import { createFrameHost } from '@/shared/lib/frame-bridge.ts';
-import type { FrameHost, PanelBinding } from '@/shared/lib/frame-bridge.ts';
+import type {
+  FrameContext,
+  FrameHost,
+  PanelBinding,
+} from '@/shared/lib/frame-bridge.ts';
 
 const props = defineProps<{
   /** Страница рамки: `dolphy-ext://<id>/__dolphy/frame.html`. */
@@ -14,6 +18,8 @@ const props = defineProps<{
   binding: PanelBinding;
   /** Свойства, с которыми панель открыта (`openPanel(id, props)`). */
   panelProps?: JsonValue;
+  /** Окружение панели (`ctx.context`): курс в фокусе; смена доходит до рамки без перезагрузки. */
+  context: FrameContext;
 }>();
 const emit = defineEmits<{
   shortcut: [];
@@ -34,6 +40,7 @@ onMounted(() => {
       ...(props.panelProps === undefined ? {} : { props: props.panelProps }),
     },
     panel: props.binding,
+    context: props.context,
     handlers: {
       onShortcut: () => emit('shortcut'),
       onError: (message) => emit('error', message),
@@ -45,6 +52,11 @@ watch(
   () => props.panelProps,
   (next) => holder.host?.updatePanelProps(next),
   { deep: true },
+);
+
+watch(
+  () => props.context.courseId,
+  (courseId) => holder.host?.updateContext({ courseId }),
 );
 
 onBeforeUnmount(() => holder.host?.dispose());

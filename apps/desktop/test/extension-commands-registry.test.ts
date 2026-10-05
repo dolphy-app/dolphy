@@ -21,6 +21,7 @@ const command = (
   keybinding: null,
   keybindings: [],
   palette: true,
+  icon: 'puzzle',
   ...override,
 });
 
@@ -34,6 +35,7 @@ const contributionsOf = (
     id,
     extensionId,
     title: id,
+    icon: 'puzzle',
     rendererUrl: `dolphy-ext://${extensionId}/panel.mjs`,
     isolated: true,
     origin: 'user',
@@ -92,6 +94,31 @@ describe('адаптер команд расширений: реестр', () =>
       checked: undefined,
       enabled: true,
     });
+  });
+
+  it('значок команды — символ окна по имени из вклада; неизвестное имя — символ по умолчанию; смена значка перерегистрирует запись', () => {
+    const { registry, contributions } = setup(
+      contributionsOf([
+        command('run', { icon: 'fire' }),
+        command('plain', { icon: 'puzzle' }),
+        command('future', { icon: 'rocket-from-a-newer-app' }),
+      ]),
+    );
+    const icons = () =>
+      Object.fromEntries(
+        registry.list.value.map(({ key, icon }) => [key, icon]),
+      );
+    expect(icons()).toEqual({
+      'extension:acme.cmd:run': 'mdi-fire',
+      'extension:acme.cmd:plain': 'mdi-puzzle-outline',
+      'extension:acme.cmd:future': 'mdi-puzzle-outline',
+    });
+    contributions.value = contributionsOf([
+      command('run', { icon: 'trophy' }),
+      command('plain', { icon: 'puzzle' }),
+      command('future', { icon: 'rocket-from-a-newer-app' }),
+    ]);
+    expect(icons()['extension:acme.cmd:run']).toBe('mdi-trophy-outline');
   });
 
   it('подставляет %ключ% в название, описание и категорию; смена языка меняет подписи без перерегистрации', () => {

@@ -135,6 +135,7 @@ const copyInfo = (info: ExtensionInfoDto): ExtensionInfoDto => ({
     events: [...info.contributes.events],
     commands: [...info.contributes.commands],
     panels: [...info.contributes.panels],
+    widgets: [...info.contributes.widgets],
     importers: [...info.contributes.importers],
     exporters: [...info.contributes.exporters],
   },
@@ -182,6 +183,7 @@ const sortedContributions = (
     settings: copy.settings.sort(compareBy((setting) => setting.extensionId)),
     commands: copy.commands.sort(compareBy((command) => command.extensionId)),
     panels: copy.panels.sort(compareBy((panel) => panel.extensionId)),
+    widgets: copy.widgets.sort(compareBy((widget) => widget.extensionId)),
     importers: copy.importers.sort(
       compareBy((importer) => importer.extensionId),
     ),

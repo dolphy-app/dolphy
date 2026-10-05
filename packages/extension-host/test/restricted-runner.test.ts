@@ -134,6 +134,7 @@ const extensionOf = (
   settings: [],
   events: [],
   commands: [],
+  widgets: [],
   panels: [],
   importers: [],
   exporters: [],

@@ -32,10 +32,11 @@ export const wantedRecords = (
   output: Output,
 ): Record<RecordName, readonly string[]> =>
   output.kind === 'host'
-    ? { views: [], panels: [], markdown: [] }
+    ? { views: [], panels: [], widgets: [], markdown: [] }
     : {
         views: output.views.map((view) => view.id),
         panels: output.panels,
+        widgets: output.widgets,
         markdown: output.languages,
       };
 
@@ -72,6 +73,10 @@ export const shimSource = (output: Output, indexFile: string): string => {
     runtime.push('dispatchPanels');
     modules.push(`...dispatchPanels(${table('panels', output.panels)})`);
   }
+  if (output.widgets.length > 0) {
+    runtime.push('dispatchWidgets');
+    modules.push(`...dispatchWidgets(${table('widgets', output.widgets)})`);
+  }
   if (output.languages.length > 0) {
     runtime.push('dispatchMarkdown');
     modules.push(`...dispatchMarkdown(${table('markdown', output.languages)})`);
@@ -105,6 +110,7 @@ export const findMismatches = (
   const declared: Record<RecordName, string[]> = {
     views: project.manifest.contributes.exerciseTypes.map((type) => type.id),
     panels: project.manifest.contributes.panels.map((panel) => panel.id),
+    widgets: project.manifest.contributes.widgets.map((widget) => widget.id),
     markdown: project.manifest.contributes.markdownRenderers.map(
       (entry) => entry.language,
     ),
@@ -112,11 +118,13 @@ export const findMismatches = (
   const what: Record<RecordName, string> = {
     views: 'exercise type',
     panels: 'panel',
+    widgets: 'widget',
     markdown: 'markdown renderer',
   };
   const fix: Record<RecordName, string> = {
     views: 'defineAnswerView(…)',
     panels: 'defineExtensionPanel(…)',
+    widgets: 'defineExtensionWidget(…)',
     markdown: 'defineMarkdownRenderer(…)',
   };
   for (const name of RECORDS) {
@@ -231,7 +239,7 @@ export const shimPlugin = ({
         if (leaked !== undefined) {
           fail(
             this,
-            `${output.output} imports '${leaked}': Node.js modules and the 'external' packages of dolphy-ext.config.json are for the extension host, keep them out of code that views, panels and markdown renderers use`,
+            `${output.output} imports '${leaked}': Node.js modules and the 'external' packages of dolphy-ext.config.json are for the extension host, keep them out of code that views, panels, widgets and markdown renderers use`,
           );
         }
       }

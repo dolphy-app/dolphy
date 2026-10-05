@@ -4,6 +4,7 @@ import type {
   ExtensionSettingDefDto,
   ImporterContributionDto,
   PanelContributionDto,
+  WidgetContributionDto,
 } from '@dolphy-app/engine-contract';
 import type {
   EventContribution,
@@ -55,7 +56,13 @@ export type ResolvedCommand = Omit<CommandContributionDto, 'extensionId'>;
 /** Панель: модуль в рамке; `isolated`, `origin` и `revision` добавляет реестр. */
 export type ResolvedPanel = Pick<
   PanelContributionDto,
-  'id' | 'title' | 'rendererUrl'
+  'id' | 'title' | 'icon' | 'rendererUrl'
+>;
+
+/** Виджет: модуль в рамке; `isolated`, `origin` и `revision` добавляет реестр. */
+export type ResolvedWidget = Pick<
+  WidgetContributionDto,
+  'id' | 'title' | 'slot' | 'minHeight' | 'maxHeight' | 'rendererUrl'
 >;
 
 /** Импортёр в виде, в котором его получает окно (DTO движка без `extensionId`). */
@@ -73,6 +80,7 @@ export interface ResolvedContributions {
   events: ResolvedEvent[];
   commands: ResolvedCommand[];
   panels: ResolvedPanel[];
+  widgets: ResolvedWidget[];
   importers: ResolvedImporter[];
   exporters: ResolvedExporter[];
 }

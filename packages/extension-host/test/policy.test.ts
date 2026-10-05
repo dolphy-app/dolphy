@@ -28,6 +28,7 @@ const extension = (id: string, origin: ExtensionOrigin): ResolvedExtension => ({
   settings: [],
   events: [],
   commands: [],
+  widgets: [],
   panels: [],
   importers: [],
   exporters: [],

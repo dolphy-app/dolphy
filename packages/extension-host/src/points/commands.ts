@@ -1,5 +1,7 @@
 import {
+  DEFAULT_EXTENSION_ICON,
   EXTENSION_COMMAND_LIMITS,
+  EXTENSION_ICONS,
   KEYBINDING_PATTERN,
 } from '@dolphy-app/extension-api';
 import { validateBinding } from '@dolphy-app/keybindings';
@@ -118,9 +120,14 @@ export const commands: ContributionPoint<'commands'> = {
       .max(MAX_KEYBINDINGS)
       .optional(),
     palette: z.boolean().optional(),
+    icon: z.enum(EXTENSION_ICONS).optional(),
   }),
   normalize: (entries) =>
-    entries.map((entry) => ({ ...entry, palette: entry.palette ?? true })),
+    entries.map((entry) => ({
+      ...entry,
+      palette: entry.palette ?? true,
+      icon: entry.icon ?? DEFAULT_EXTENSION_ICON,
+    })),
   check: (entries, owner) => {
     const ids = entries.map(({ id }) => id);
     return [
@@ -147,6 +154,7 @@ export const commands: ContributionPoint<'commands'> = {
         when: binding.when ?? null,
       })),
       palette: entry.palette,
+      icon: entry.icon,
     })),
   claims: (resolved) => resolved.map((command) => `command:${command.id}`),
 };

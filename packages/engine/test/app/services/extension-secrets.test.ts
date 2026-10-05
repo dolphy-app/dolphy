@@ -29,6 +29,7 @@ const info = (id: string): ExtensionInfoDto => ({
     settings: [],
     events: [],
     commands: [],
+    widgets: [],
     panels: [],
     importers: [],
     exporters: [],

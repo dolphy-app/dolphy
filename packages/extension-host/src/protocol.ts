@@ -535,6 +535,7 @@ const isResolvedExtension = (value: unknown): value is ResolvedExtension => {
     Array.isArray(item.events) &&
     Array.isArray(item.commands) &&
     Array.isArray(item.panels) &&
+    Array.isArray(item.widgets) &&
     Array.isArray(item.importers) &&
     Array.isArray(item.exporters)
   );

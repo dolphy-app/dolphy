@@ -77,6 +77,7 @@ interface PublishedExtension {
         | 'events'
         | 'commands'
         | 'panels'
+        | 'widgets'
         | 'importers'
         | 'exporters',
         string[]
@@ -193,6 +194,7 @@ interface RawManifest {
     events?: { event: string }[];
     commands?: { id: string; title: string }[];
     panels?: { id: string; title: string }[];
+    widgets?: { id: string; title: string }[];
     importers?: { id: string; title: string }[];
     exporters?: { id: string; title: string }[];
   };
@@ -205,6 +207,7 @@ const contributesOf = (
   const events = (manifest.contributes?.events ?? []).map(({ event }) => event);
   const commands = (manifest.contributes?.commands ?? []).map(({ id }) => id);
   const panels = (manifest.contributes?.panels ?? []).map(({ id }) => id);
+  const widgets = (manifest.contributes?.widgets ?? []).map(({ id }) => id);
   const importers = (manifest.contributes?.importers ?? []).map(({ id }) => id);
   const exporters = (manifest.contributes?.exporters ?? []).map(({ id }) => id);
   return {
@@ -222,6 +225,7 @@ const contributesOf = (
     ...(events.length > 0 ? { events } : {}),
     ...(commands.length > 0 ? { commands } : {}),
     ...(panels.length > 0 ? { panels } : {}),
+    ...(widgets.length > 0 ? { widgets } : {}),
     ...(importers.length > 0 ? { importers } : {}),
     ...(exporters.length > 0 ? { exporters } : {}),
   };
@@ -251,6 +255,10 @@ const titlesOf = (manifest: RawManifest): ContributionTitles => {
       title: label,
     })),
     commands: (contributes.commands ?? []).map(({ id, title }) => ({
+      id,
+      title,
+    })),
+    widgets: (contributes.widgets ?? []).map(({ id, title }) => ({
       id,
       title,
     })),

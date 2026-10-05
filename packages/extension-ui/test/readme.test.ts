@@ -1,9 +1,10 @@
 // @vitest-environment happy-dom
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import * as ui from '../src/index.ts';
 
-const README = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
+const README = readFileSync(join(import.meta.dirname, '../README.md'), 'utf8');
 
 interface Panel {
   mount(container: HTMLElement): void;

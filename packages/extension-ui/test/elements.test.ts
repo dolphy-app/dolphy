@@ -15,6 +15,8 @@ const mount = <T extends HTMLElement>(node: T): T => {
   return node;
 };
 
+type Three = [HTMLElement, HTMLElement, HTMLElement];
+
 const key = (target: Element, name: string) =>
   target.dispatchEvent(
     new KeyboardEvent('keydown', {
@@ -201,11 +203,7 @@ describe('list', () => {
 
   it('moves with arrows, Home and End, skipping disabled items', () => {
     const node = mount(list({ label: 'L', items, emptyText: 'none' }));
-    const [alpha, , gamma] = rows(node) as [
-      HTMLElement,
-      HTMLElement,
-      HTMLElement,
-    ];
+    const [alpha, , gamma] = rows(node) as unknown as Three;
     alpha.focus();
     key(alpha, 'ArrowDown');
     expect(document.activeElement).toBe(gamma);
@@ -226,11 +224,7 @@ describe('list', () => {
     const node = mount(
       list({ label: 'L', items, onSelect, emptyText: 'none' }),
     );
-    const [alpha, beta, gamma] = rows(node) as [
-      HTMLElement,
-      HTMLElement,
-      HTMLElement,
-    ];
+    const [alpha, beta, gamma] = rows(node) as unknown as Three;
     key(alpha, 'Enter');
     expect(alpha.getAttribute('aria-selected')).toBe('true');
     key(gamma, ' ');

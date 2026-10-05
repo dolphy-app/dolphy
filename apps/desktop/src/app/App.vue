@@ -7,6 +7,7 @@ import {
 } from '@/features/keybindings';
 import { CourseUpdatesNotice } from '@/features/course-updates';
 import { NoticeSnackbar } from '@/features/extension-commands';
+import { TransferDialogs } from '@/features/extension-transfers';
 import { ROUTE } from '@/shared/config/routes.ts';
 import { useCommandRegistry } from '@/shared/lib/command-registry.ts';
 import { pageOfRoute, useContextKeys } from '@/shared/lib/context-keys.ts';
@@ -58,6 +59,8 @@ onBeforeUnmount(() => stopShortcuts?.());
     <!-- палитра и уведомления живут здесь, чтобы работать и на /session, и на /placement -->
     <CommandPalette />
     <NoticeSnackbar />
+    <!-- импорт и экспорт запускает и палитра, и «Библиотека»: диалоги живут здесь -->
+    <TransferDialogs />
     <!-- ожидание второй клавиши цепочки: видно и озвучивается скринридеру -->
     <ChordStatus :pending="dispatcher.pending.value" />
   </v-app>

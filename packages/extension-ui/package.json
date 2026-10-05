@@ -2,17 +2,27 @@
   "name": "@dolphy-app/extension-ui",
   "version": "0.0.0",
   "private": true,
-  "description": "Accessible DOM building blocks for extension panels and views: list, button, text field, select, toggle, card, empty state; themed through the frame CSS variables",
+  "description": "Vuetify components for extension panels, widgets and answer views: Vue and Vuetify are bundled into the extension, themed through the frame CSS variables",
   "type": "module",
   "sideEffects": false,
   "exports": {
-    ".": "./src/index.ts"
+    "./vuetify": "./src/vuetify/index.ts",
+    "./vuetify/choice": "./src/vuetify/choice.ts",
+    "./vuetify/feedback": "./src/vuetify/feedback.ts",
+    "./vuetify/fields": "./src/vuetify/fields.ts",
+    "./vuetify/navigation": "./src/vuetify/navigation.ts",
+    "./vuetify/table": "./src/vuetify/table.ts"
   },
   "scripts": {
     "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
     "test": "vitest run"
   },
+  "dependencies": {
+    "vue": "^3.5.35",
+    "vuetify": "^4.0.1"
+  },
   "devDependencies": {
+    "@dolphy-app/extension-tools": "workspace:*",
     "@types/node": "^22.20.4",
     "happy-dom": "^20.14.5",
     "typescript": "7.0.2"

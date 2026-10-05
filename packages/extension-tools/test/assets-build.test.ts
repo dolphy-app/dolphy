@@ -88,6 +88,31 @@ describe('dolphy-ext build: style sheets', () => {
       "import css from './side.css?inline'",
     );
   });
+
+  it('a style sheet imported by a dependency in node_modules goes into the registry, in import order, without a file', async () => {
+    const root = await project({
+      'src/index.ts': indexSource(
+        'container.textContent = widget();',
+        "import { widget } from 'ui-lib';",
+      ),
+      'node_modules/ui-lib/package.json': JSON.stringify({
+        name: 'ui-lib',
+        version: '1.0.0',
+        type: 'module',
+        exports: './index.js',
+      }),
+      'node_modules/ui-lib/index.js':
+        "import './base.css';\nimport './widget.css';\nexport const widget = () => 'ok';\n",
+      'node_modules/ui-lib/base.css': '.base{color:red}',
+      'node_modules/ui-lib/widget.css': '.widget{color:blue}',
+    });
+    const { dir, files } = await build(root);
+    expect(files).toEqual(['extension.json', 'panel.mjs']);
+    const panel = await readFile(path.join(dir, 'panel.mjs'), 'utf8');
+    expect(panel).toContain('Symbol.for("dolphy.styles")');
+    expect(panel.indexOf('.base{')).toBeGreaterThan(-1);
+    expect(panel.indexOf('.widget{')).toBeGreaterThan(panel.indexOf('.base{'));
+  });
 });
 
 describe('dolphy-ext build: images and fonts', () => {

@@ -530,10 +530,17 @@ other. See [`docs/recipe-when-dependencies.md`](docs/recipe-when-dependencies.md
 
 ## UI kit
 
-`@dolphy-app/extension-ui` has accessible DOM elements for a panel (`list`,
-`button`, `textField`, `select`, `toggle`, `card`, `emptyState`) themed by the
-frame; see [`docs/recipe-ui-kit.md`](docs/recipe-ui-kit.md) and the package
-README.
+`@dolphy-app/extension-ui` has the Vuetify components of the app for a panel,
+a widget or an answer view: radio and checkbox groups, alerts, chips, progress,
+text areas, sliders, switches, a date field, tabs, dialogs, menus, tooltips and
+tables. There is no root import: take one subpath per group
+(`@dolphy-app/extension-ui/vuetify/choice`, `…/feedback`, `…/fields`,
+`…/navigation`, `…/table`), call `mountRadioGroup(container, props)` and the
+like, and keep the returned `{ update(patch), destroy() }`. Vue and Vuetify are
+bundled into your extension by `dolphy-ext build` (the frame is isolated, so
+every extension carries its own copy), and the frame theme and language apply
+with no code of yours. See [`docs/recipe-ui-kit.md`](docs/recipe-ui-kit.md) and
+the package README.
 
 ## Style sheets, images and fonts
 

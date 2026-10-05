@@ -12,7 +12,8 @@
   "dependencies": {
     "@dolphy-app/engine-sql-runner": "workspace:*",
     "@dolphy-app/extension-api": "workspace:*",
-    "@dolphy-app/extension-sdk": "workspace:*"
+    "@dolphy-app/extension-sdk": "workspace:*",
+    "@dolphy-app/extension-ui": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.20.4",

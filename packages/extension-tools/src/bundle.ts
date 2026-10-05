@@ -31,6 +31,16 @@ const nodeExternal = (external: readonly string[]): (string | RegExp)[] => [
   ...external,
 ];
 
+/** Production Vue without devtools and the Options API: what a bundle with Vue in it needs to run in a frame. */
+const BROWSER_DEFINE: Record<string, string> = {
+  'process.env.NODE_ENV': '"production"',
+  // `@vuetify/v0` (the date and table components of Vuetify) reads it when the module is evaluated
+  'process.env.VITE_LOGGER_ENABLED': 'undefined',
+  __VUE_OPTIONS_API__: 'false',
+  __VUE_PROD_DEVTOOLS__: 'false',
+  __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: 'false',
+};
+
 const bundleConfig = (
   project: Project,
   entry: string,
@@ -43,6 +53,8 @@ const bundleConfig = (
   publicDir: false,
   // asset addresses relative to the bundle (`new URL('assets/x.png', import.meta.url)`), not to the site root
   base: './',
+  // a library build leaves `process.env.NODE_ENV` and the feature flags of Vue as they are, and a frame has no `process`
+  define: isNode ? {} : BROWSER_DEFINE,
   logLevel: 'warn',
   // `watchExtension` reports build errors once per cause, rather than Vite once per file
   customLogger: { ...createLogger('warn'), error: () => undefined },
@@ -51,6 +63,8 @@ const bundleConfig = (
     outDir,
     emptyOutDir: false,
     minify: false,
+    // style sheets of dependencies (Vuetify) are tens of KiB of text in the bundle
+    cssMinify: true,
     copyPublicDir: false,
     assetsInlineLimit: ASSETS_INLINE_LIMIT,
     lib: {

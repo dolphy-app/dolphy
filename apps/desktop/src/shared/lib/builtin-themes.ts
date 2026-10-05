@@ -18,8 +18,11 @@ export const LIGHT_THEME: ThemeDefinition = {
     warning: '#D97706',
     // белый на янтарном давал ~3.2:1 (бейдж «Есть обновление»): тёмный текст ≥ 4.5:1
     'on-warning': '#1F1300',
+    // белый на зелёном давал 3.30:1, на голубом 4.10:1 (заливка алерта набора расширений): тёмный текст ≥ 4.5:1
     success: '#16A34A',
+    'on-success': '#04140A',
     info: '#0284C7',
+    'on-info': '#00111C',
     // градиент акцентной карточки «плана дня»: белый текст ≥ 4.5:1
     'hero-start': '#4F46E5',
     'hero-end': '#7C3AED',
@@ -45,11 +48,15 @@ export const DARK_THEME: ThemeDefinition = {
     'on-primary': '#0E1020',
     secondary: '#2DD4BF',
     'on-secondary': '#0E1020',
+    // светлые заливки: белый по умолчанию давал 2.77:1 на красном (заливка алерта набора расширений), тёмный текст ≥ 4.5:1
     error: '#F87171',
+    'on-error': '#0E1020',
     warning: '#FBBF24',
     'on-warning': '#1F1300',
     success: '#4ADE80',
+    'on-success': '#0E1020',
     info: '#38BDF8',
+    'on-info': '#0E1020',
     'hero-start': '#4338CA',
     'hero-end': '#6D28D9',
     'hero-contrast': '#FFFFFF',

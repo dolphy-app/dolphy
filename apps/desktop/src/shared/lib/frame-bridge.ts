@@ -20,6 +20,8 @@ const FRAME_PAGE = '/__dolphy/frame.html';
 
 export const MAX_FRAME_HEIGHT = 4000;
 export const MAX_ERROR_CHARS = 10_000;
+/** Предел запрошенной оверлеем высоты рамки (до зажима потолком окна). */
+export const MAX_OVERLAY_HEIGHT = 100_000;
 /** Предел JSON-аргументов `panel-call` (как у `engine.extensions.invokeCommand`). */
 export const MAX_PANEL_ARGS_CHARS = 200_000;
 const MAX_CALL_ID_CHARS = 64;
@@ -55,6 +57,7 @@ export type FrameEvent =
   | { type: 'answer-change'; detail: AnswerChangeDetail }
   | { type: 'answer-submit' }
   | { type: 'size'; height: number }
+  | { type: 'overlay'; height: number | null }
   | { type: 'done' }
   | { type: 'error'; message: string }
   | {
@@ -115,6 +118,16 @@ export const parseFrameMessage = (raw: unknown): FrameEvent | null => {
         height: Math.round(Math.min(Math.max(height, 0), MAX_FRAME_HEIGHT)),
       };
     }
+    case 'overlay': {
+      const { height } = data;
+      if (height === null) return { type: 'overlay', height: null };
+      if (typeof height !== 'number' || !Number.isFinite(height)) return null;
+      if (height < 0) return null;
+      return {
+        type: 'overlay',
+        height: Math.min(Math.ceil(height), MAX_OVERLAY_HEIGHT),
+      };
+    }
     case 'error':
       if (typeof data.message !== 'string') return null;
       return {
@@ -141,6 +154,18 @@ export const parseFrameMessage = (raw: unknown): FrameEvent | null => {
   }
 };
 
+/**
+ * Высота рамки: высота содержимого, а пока открыт оверлей — не меньше
+ * запрошенной, но не выше `ceiling` (высота окна приложения). `content`
+ * уже учитывает свои границы; запрос рамки потолок не превысит.
+ */
+export const overlayFrameHeight = (
+  content: number,
+  overlay: number | null,
+  ceiling: number,
+): number =>
+  overlay === null ? content : Math.max(content, Math.min(overlay, ceiling));
+
 /** Адрес страницы рамки расширения по адресу его модуля (`dolphy-ext://<id>/…`). */
 export const frameUrlOf = (rendererUrl: string): string => {
   const url = new URL(rendererUrl);
@@ -158,6 +183,8 @@ export interface FrameHandlers {
   onChange?(detail: AnswerChangeDetail): void;
   onSubmit?(): void;
   onSize?(height: number): void;
+  /** Оверлею расширения нужна высота рамки (px); `null` — оверлей закрыт. */
+  onOverlay?(height: number | null): void;
   onDone?(): void;
   onError?(message: string): void;
   /** Рамка панели или виджета переслала Ctrl/⌘+K (единственное сочетание, которое она передаёт). */
@@ -358,6 +385,9 @@ export const createFrameHost = (options: FrameHostOptions): FrameHost => {
         break;
       case 'size':
         handlers.onSize?.(message.height);
+        break;
+      case 'overlay':
+        handlers.onOverlay?.(message.height);
         break;
       case 'done':
         handlers.onDone?.();

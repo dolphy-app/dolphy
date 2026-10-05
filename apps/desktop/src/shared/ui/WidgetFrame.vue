@@ -7,7 +7,10 @@ import {
   useTemplateRef,
   watch,
 } from 'vue';
-import { createFrameHost } from '@/shared/lib/frame-bridge.ts';
+import {
+  createFrameHost,
+  overlayFrameHeight,
+} from '@/shared/lib/frame-bridge.ts';
 import type {
   FrameContext,
   FrameHost,
@@ -37,11 +40,22 @@ const frame = useTemplateRef<HTMLIFrameElement>('frame');
 const holder: { host: FrameHost | null } = { host: null };
 // высота содержимого по `size`; рамка зажимает её в диапазон манифеста, выше — прокрутка внутри
 const contentHeight = ref(0);
+// высота, запрошенная оверлеем: на его время диапазон манифеста не действует, потолок — окно приложения
+const overlay = ref<number | null>(null);
+const ceiling = ref(window.innerHeight);
+const readCeiling = () => {
+  ceiling.value = window.innerHeight;
+};
 const height = computed(() =>
-  Math.min(Math.max(contentHeight.value, props.minHeight), props.maxHeight),
+  overlayFrameHeight(
+    Math.min(Math.max(contentHeight.value, props.minHeight), props.maxHeight),
+    overlay.value,
+    ceiling.value,
+  ),
 );
 
 onMounted(() => {
+  window.addEventListener('resize', readCeiling);
   if (frame.value === null) return;
   holder.host = createFrameHost({
     frame: frame.value,
@@ -56,6 +70,10 @@ onMounted(() => {
       onSize: (next) => {
         contentHeight.value = next;
       },
+      onOverlay: (next) => {
+        readCeiling();
+        overlay.value = next;
+      },
       onShortcut: () => emit('shortcut'),
       onError: (message) => emit('error', message),
     },
@@ -67,7 +85,10 @@ watch(
   (courseId) => holder.host?.updateContext({ courseId }),
 );
 
-onBeforeUnmount(() => holder.host?.dispose());
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', readCeiling);
+  holder.host?.dispose();
+});
 </script>
 
 <template>

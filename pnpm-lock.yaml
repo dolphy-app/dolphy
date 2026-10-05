@@ -537,6 +537,9 @@ importers:
       '@dolphy-app/extension-sdk':
         specifier: workspace:*
         version: link:../extension-sdk
+      '@dolphy-app/extension-ui':
+        specifier: workspace:*
+        version: link:../extension-ui
     devDependencies:
       '@dolphy-app/extension-tools':
         specifier: workspace:*
@@ -562,12 +565,6 @@ importers:
       vite:
         specifier: ^8.0.16
         version: 8.3.1(@types/node@22.20.4)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
-      vue:
-        specifier: ^3.5.35
-        version: 3.5.43(typescript@7.0.2)
-      vuetify:
-        specifier: ^4.0.1
-        version: 4.2.2(typescript@7.0.2)(vite-plugin-vuetify@2.1.3)(vue-i18n@11.4.12(vue@3.5.43(typescript@7.0.2)))(vue@3.5.43(typescript@7.0.2))
 
   packages/ext-js:
     dependencies:
@@ -642,6 +639,9 @@ importers:
       '@dolphy-app/extension-sdk':
         specifier: workspace:*
         version: link:../extension-sdk
+      '@dolphy-app/extension-ui':
+        specifier: workspace:*
+        version: link:../extension-ui
     devDependencies:
       '@dolphy-app/engine':
         specifier: workspace:*
@@ -803,7 +803,17 @@ importers:
         version: 7.0.2
 
   packages/extension-ui:
+    dependencies:
+      vue:
+        specifier: ^3.5.35
+        version: 3.5.43(typescript@7.0.2)
+      vuetify:
+        specifier: ^4.0.1
+        version: 4.2.2(typescript@7.0.2)(vite-plugin-vuetify@2.1.3)(vue-i18n@11.4.12(vue@3.5.43(typescript@7.0.2)))(vue@3.5.43(typescript@7.0.2))
     devDependencies:
+      '@dolphy-app/extension-tools':
+        specifier: workspace:*
+        version: link:../extension-tools
       '@types/node':
         specifier: ^22.20.4
         version: 22.20.4

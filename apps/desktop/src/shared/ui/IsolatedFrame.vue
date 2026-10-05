@@ -8,7 +8,10 @@ import {
   watch,
 } from 'vue';
 import type { AnswerChangeDetail } from '@dolphy-app/extension-api';
-import { createFrameHost } from '@/shared/lib/frame-bridge.ts';
+import {
+  createFrameHost,
+  overlayFrameHeight,
+} from '@/shared/lib/frame-bridge.ts';
 import type { FrameHost, FrameInit } from '@/shared/lib/frame-bridge.ts';
 
 const MIN_HEIGHT_PX = 40;
@@ -32,11 +35,24 @@ const emit = defineEmits<{
 
 const frame = useTemplateRef<HTMLIFrameElement>('frame');
 const reported = ref(0);
+// высота, запрошенная оверлеем расширения; потолок — высота окна приложения
+const overlay = ref<number | null>(null);
+const ceiling = ref(window.innerHeight);
+const readCeiling = () => {
+  ceiling.value = window.innerHeight;
+};
 // пока рамка не сообщила высоту, держим минимум: разметка не прыгает
-const height = computed(() => Math.max(reported.value, MIN_HEIGHT_PX));
+const height = computed(() =>
+  overlayFrameHeight(
+    Math.max(reported.value, MIN_HEIGHT_PX),
+    overlay.value,
+    ceiling.value,
+  ),
+);
 const holder: { host: FrameHost | null } = { host: null };
 
 onMounted(() => {
+  window.addEventListener('resize', readCeiling);
   if (frame.value === null) return;
   holder.host = createFrameHost({
     frame: frame.value,
@@ -52,6 +68,10 @@ onMounted(() => {
       onSubmit: () => emit('submit'),
       onSize: (next) => {
         reported.value = next;
+      },
+      onOverlay: (next) => {
+        readCeiling();
+        overlay.value = next;
       },
       onDone: () => emit('done'),
       onError: (message) => emit('error', message),
@@ -70,7 +90,10 @@ watch(
   { deep: true },
 );
 
-onBeforeUnmount(() => holder.host?.dispose());
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', readCeiling);
+  holder.host?.dispose();
+});
 </script>
 
 <template>

@@ -971,3 +971,78 @@ describe('рантайм рамки: режим widget', () => {
     });
   });
 });
+
+describe('рантайм рамки: событие dolphy-overlay', () => {
+  const overlays = (posted: Record<string, unknown>[]) =>
+    posted.filter((m) => m['type'] === 'overlay').map((m) => m['height']);
+
+  const mountAnswer = async () => {
+    const harness = setup();
+    harness.define('x-answer');
+    harness.send(answerInit());
+    await harness.flush();
+    const element = harness.document.querySelector(
+      'x-answer',
+    ) as unknown as HTMLElement;
+    const raise = (height: unknown) =>
+      element.dispatchEvent(
+        new harness.happy.CustomEvent('dolphy-overlay', {
+          detail: { height },
+          bubbles: true,
+          composed: true,
+        }) as never,
+      );
+    return { ...harness, raise };
+  };
+
+  it('шлёт overlay с высотой (округление вверх) и null при закрытии', async () => {
+    const { raise, posted } = await mountAnswer();
+    raise(300.2);
+    raise(null);
+    expect(posted.filter((m) => m['type'] === 'overlay')).toEqual([
+      { dolphyFrame: 1, type: 'overlay', height: 301 },
+      { dolphyFrame: 1, type: 'overlay', height: null },
+    ]);
+  });
+
+  it('неверные значения игнорируются, высота ограничена 100000', async () => {
+    const { raise, posted } = await mountAnswer();
+    for (const bad of ['10', Number.NaN, Infinity, -1, undefined, {}]) {
+      raise(bad);
+    }
+    expect(overlays(posted)).toEqual([]);
+    raise(1e9);
+    expect(overlays(posted)).toEqual([100_000]);
+  });
+
+  it('повтор того же значения не шлётся', async () => {
+    const { raise, posted } = await mountAnswer();
+    raise(200);
+    raise(200);
+    raise(null);
+    raise(null);
+    raise(200);
+    expect(overlays(posted)).toEqual([200, null, 200]);
+  });
+
+  it('в режиме panel событие игнорируется', async () => {
+    const harness = setup(async () => ({
+      default: { mount: () => undefined },
+    }));
+    harness.send({
+      dolphy: 1,
+      type: 'init',
+      mode: 'panel',
+      rendererUrl: `${URL_PREFIX}/panel.mjs`,
+      panelId: 'acme.echo.main',
+    });
+    await harness.flush();
+    harness.document.body.dispatchEvent(
+      new harness.happy.CustomEvent('dolphy-overlay', {
+        detail: { height: 300 },
+        bubbles: true,
+      }) as never,
+    );
+    expect(overlays(harness.posted)).toEqual([]);
+  });
+});

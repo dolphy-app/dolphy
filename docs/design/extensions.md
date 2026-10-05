@@ -2065,7 +2065,15 @@ export const panels = {
 
 ### UI-кит (`@dolphy-app/extension-ui`)
 
-Панель собирается из готовых доступных элементов: пакет `@dolphy-app/extension-ui` (ванильный TypeScript без зависимостей, не больше 10 КиБ в gzip) даёт функции `list`, `button`, `textField`, `select`, `toggle`, `card` и `emptyState`, которые возвращают DOM-элементы. У каждого элемента есть роль, видимое имя и управление с клавиатуры; цвета и отступы берутся из CSS-переменных темы рамки (`--v-theme-*`), поэтому светлая и тёмная темы работают без кода автора. Тексты ставятся как `textContent`, разметка не разбирается. Таблица стилей — один `<style id="dolphy-ui-kit">` на документ рамки, он же красит `body` фоном темы. Элементы статичны: список меняют пересборкой и `replaceWith`, пустой `list` показывает `emptyText`. Кит не даёт панели новых прав: она остаётся в рамке без доступа к сети и `window.dolphy`. Справочник — README пакета; e2e-панель `apps/desktop/e2e/fixtures/ui-kit-extension` проверяется axe (serious и critical) в обеих темах. Vue и Vuetify в бандлах расширений — отдельная фича `extension-ui-vuetify` (`specs/extension-ui-vuetify`), корневой экспорт пакета она не меняет.
+Панель, виджет и вид ответа собираются из настоящих компонентов Vuetify 4: пакет `@dolphy-app/extension-ui` (решение — [ADR 0021](../adr/0021-vue-and-vuetify-in-extension-bundles.md), спека `extension-ui-vuetify`) даёт группы radio и checkbox, alert, chip, progress, skeleton, textarea, slider, switch, поле даты, tabs, dialog, menu, tooltip, table и data-table. Корневого экспорта нет: прежний ванильный набор (`button`, `textField`, `list`, `card` и другие, до 10 КиБ gzip) удалён без обратной совместимости по решению владельца. Подключается один подпуть на группу: `@dolphy-app/extension-ui/vuetify` (ядро: `mountComponent`, `vuetifyOf`, `requestOverlayHeight`), `…/vuetify/choice`, `…/feedback`, `…/fields`, `…/navigation`, `…/table`. Каждая функция `mount…(container, props)` создаёт маленькое приложение Vue в элементе автора и возвращает `{ update(patch), destroy() }`; компоненты управляемые: пользователь выбрал, компонент вызвал `onChange`, а новое значение автор возвращает через `update`.
+
+Vue и Vuetify собираются внутрь файла расширения (`view.mjs`, `panel.mjs`, `widget.mjs`) командой `dolphy-ext build`, а не берутся из приложения: рамка изолирована (`sandbox="allow-scripts"`, непрозрачный origin, CSP `script-src` только своего расширения), общих модулей у неё нет. Цена — размер: каждое расширение несёт свою копию (вид ответа с radio и checkbox измерен в 549 КБ, 118 КБ gzip до минификации; потолки размера подпутей фиксирует стадия 5 спеки). Сборщик отличает CSS зависимостей от CSS автора: стили Vuetify (`import './VBtn.css'` из `node_modules`) собираются в реестр и подключаются в рамку или в теневой корень вида ответа, собственный `import './x.css'` по-прежнему ошибка с подсказкой `?inline`. Права кит не добавляет: код остаётся в рамке без сети и `window.dolphy`.
+
+Тема и язык берутся из рамки. Тема Vuetify строится из `--v-theme-*` на `<html>` рамки и пересобирается при их смене (светлая и тёмная без кода автора); язык (`en` или `ru`) — из `<html lang>`, встроенные строки Vuetify (таблица данных, поле даты) переключаются вместе с ним. В теневом корне вида ответа таблицу темы Vuetify (`.v-theme--*`, `.bg-*`) копируют внутрь корня, потому что `<head>` документа тень не видит.
+
+Оверлеи (dialog, menu, tooltip) рисуются внутри элемента автора, а не в `<body>`, и обрезались бы границей рамки: высота рамок `answer`, `markdown` и `widget` равна высоте содержимого. Поэтому открытый оверлей посылает DOM-событие `dolphy-overlay` с нужной высотой (`null` при закрытии); рамка пересылает его сообщением `overlay`, приложение ограничивает высоту высотой окна и держит её, пока оверлей открыт (протокол — комментарий в начале `apps/desktop/electron/main/shells/frame-runtime.js`). Рамка режима `panel` заполняет слот и событие игнорирует.
+
+Расширения репозитория: `ext-choice` (radio и checkbox) и `ext-sql` (textarea) переведены на кит; `ext-js` оставляет собственный редактор кода (прозрачная textarea поверх слоя подсветки — такого компонента в Vuetify нет); `ext-math` интерфейса не имеет. Справочник — README пакета; рецепт — `packages/extension-sdk/docs/recipe-ui-kit.md` (панель и вид ответа); e2e-панель `apps/desktop/e2e/fixtures/ui-kit-extension` проверяется axe (serious и critical) в обеих темах.
 
 Файл `extension.json` (панель на UI-ките):
 
@@ -2084,68 +2092,47 @@ export const panels = {
 
 ```ts
 import { defineExtensionPanel } from '@dolphy-app/extension-sdk';
-import {
-  button,
-  card,
-  emptyState,
-  list,
-  textField,
-} from '@dolphy-app/extension-ui';
+import { mountCheckboxGroup } from '@dolphy-app/extension-ui/vuetify/choice';
+import { mountAlert } from '@dolphy-app/extension-ui/vuetify/feedback';
+import { mountDataTable } from '@dolphy-app/extension-ui/vuetify/table';
+
+const topics = [
+  { value: 'sql', label: 'SQL' },
+  { value: 'js', label: 'JavaScript' },
+];
 
 export const panels = {
   'acme.notes.view': defineExtensionPanel({
-    mount(container) {
-      const notes: string[] = [];
-      const status = document.createElement('p');
-      status.setAttribute('role', 'status');
-      let draft = '';
-      const body = document.createElement('div');
-      const render = () => {
-        body.replaceChildren(
-          notes.length === 0
-            ? emptyState({
-                title: 'Заметок пока нет',
-                description: 'Введите текст и нажмите «Добавить».',
-              })
-            : list({
-                label: 'Заметки',
-                emptyText: 'Заметок нет',
-                items: notes.map((note, index) => ({
-                  id: String(index),
-                  label: note,
-                })),
-                onSelect: (id) => {
-                  status.textContent = `Выбрана заметка ${Number(id) + 1}`;
-                },
-              }),
-        );
-      };
-      render();
-      container.append(
-        card({
-          title: 'Заметки',
-          children: [
-            textField({
-              label: 'Текст заметки',
-              onInput: (value) => {
-                draft = value;
-              },
-            }),
-            button({
-              label: 'Добавить',
-              variant: 'primary',
-              onClick: () => {
-                if (draft.trim() === '') return;
-                notes.push(draft.trim());
-                status.textContent = `Заметок: ${notes.length}`;
-                render();
-              },
-            }),
-            body,
-          ],
-        }),
-        status,
-      );
+    mount(container, ctx) {
+      const slot = () => container.appendChild(document.createElement('div'));
+      const alert = mountAlert(slot(), {
+        type: 'info',
+        text: 'Выберите темы заметок.',
+      });
+      const group = mountCheckboxGroup<string>(slot(), {
+        label: 'Темы',
+        items: topics,
+        value: [],
+        onChange: (value) => {
+          // компонент показывает то, что ему дали: выбор возвращаем через update
+          group.update({ value });
+          alert.update({ type: 'success', text: `Выбрано тем: ${value.length}` });
+        },
+      });
+      const table = mountDataTable(slot(), {
+        caption: 'Заметки',
+        columns: [
+          { key: 'title', title: 'Заголовок' },
+          { key: 'topic', title: 'Тема' },
+        ],
+        rows: [{ title: 'Соединения таблиц', topic: 'SQL' }],
+      });
+      // рамка закрыта: убрать компоненты и их стили
+      ctx.signal.addEventListener('abort', () => {
+        alert.destroy();
+        group.destroy();
+        table.destroy();
+      });
     },
   }),
 };
@@ -2359,7 +2346,7 @@ pnpm test
 - Волна API 1 (настройки `text`/`color`/`list` с `group`/`order`/`visibleWhen`, локализация манифеста, секреты, `learning.stats`, виджеты и значки, уведомления, расписания) реализована (разделы «Настройки», «Локализация манифеста», «Секреты», «Статистика обучения», «Виджеты», «Расписания», «Системные уведомления», «Мост платформенных сервисов»; [ADR 0018](../adr/0018-platform-services-bridge.md); контракт `@dolphy-app/engine-contract` до 29). Вне границ: локализация строк, которые код возвращает во время работы, и данных курсов; сырые идентификаторы и ответы в статистике; работа при закрытом приложении (трей, автозапуск, воспроизведение пропущенных срабатываний расписаний); ограничение сети через посредника движка (`network` остаётся информационным разрешением).
 - Импорт и экспорт реализованы (раздел «Импортёры и экспортёры», [ADR 0019](../adr/0019-extension-import-export.md), контракт `@dolphy-app/engine-contract` 31: `extensions.runImporter|commitImport|discardImport|runExporter`, код `EXTENSION_TRANSFER_FAILED`, `importers` и `exporters` в `ContributionsDto` и `ExtensionContributesDto`). Вне границ: бинарные ассеты в импортированном курсе (только текстовые файлы), импорт из сети и из каталога, пакетный импорт нескольких файлов, новое разрешение для импорта (согласие — выбор файла), выбор расширением места записи или чтение им файловой системы.
 - Зависимости реализованы (раздел «Зависимости (`dependencies`)», контракт 31: состояние `dependencies-unmet`, диагностики `dependency-*`, `dependencies` в `ExtensionInfoDto` и записи версии каталога). Вне границ: сервисы и вызовы между расширениями, автоустановка зависимостей, диапазоны версий приложения, диапазоны вида `^`/`~`.
-- UI-кит реализован (раздел «UI-кит», пакет `@dolphy-app/extension-ui`, README пакета). Вне границ: состояние в элементах (они статичны), декларативное дерево UI; Vue и Vuetify в бандлах — фича `extension-ui-vuetify`.
+- UI-кит реализован (раздел «UI-кит», пакет `@dolphy-app/extension-ui`: компоненты Vuetify в подпутях `…/vuetify/*`, Vue и Vuetify в бандле расширения, README пакета и рецепт `recipe-ui-kit.md`; [ADR 0021](../adr/0021-vue-and-vuetify-in-extension-bundles.md), спека `extension-ui-vuetify`). Вне границ: корневой экспорт и ванильные элементы (удалены без совместимости), общие с приложением модули Vue и Vuetify (рамка изолирована), публичный API компонентов и композиблов Vuetify (кит даёт только `mount…`), оверлеи за пределами окна приложения (рамка растёт не выше окна), перевод `ext-js` (собственный редактор кода).
 - Сочетания клавиш пользователя и привязки расширений закрыты [ADR 0016](../adr/0016-keybindings-registry.md) (раздел «Команды», «Сочетания клавиш»). Вне границ: вызов команд приложения из расширений (ADR 0012), клавиши, пересылаемые из рамки расширения (рамка отдаёт родителю только Ctrl/⌘+K).
 
 **Отложенное (единый список; волны W1–W5 ссылаются на него).** Не делаем сейчас: сайт документации; typedoc-сайт; витрина каталога; `dolphy-ext analyze`; постраничный индекс; мастер «новое расширение» в приложении; хуки планировщика и модели памяти (вернуться после статистики и импортёров); сервисы между расширениями; инструмент матрицы совместимости; автообновление (только ручное, ADR 0004). Вне всех волн (уровень безопасности — как у Obsidian: ревью, безопасный режим, диагностика): независимый аудит, песочница ОС, подписанный индекс и проверка издателей, принудительное ограничение сети, лимит кучи V8, запрет симлинков, процессные тесты на всех ОС. Источник — Decision Log спеки `specs/archive/2026-10-04-extension-housekeeping`.

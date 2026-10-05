@@ -13,7 +13,8 @@
   },
   "dependencies": {
     "@dolphy-app/extension-api": "workspace:*",
-    "@dolphy-app/extension-sdk": "workspace:*"
+    "@dolphy-app/extension-sdk": "workspace:*",
+    "@dolphy-app/extension-ui": "workspace:*"
   },
   "devDependencies": {
     "@dolphy-app/extension-tools": "workspace:*",
@@ -23,9 +24,7 @@
     "happy-dom": "^20.14.5",
     "storybook": "^10.6.1",
     "typescript": "7.0.2",
-    "vite": "^8.0.16",
-    "vue": "^3.5.35",
-    "vuetify": "^4.0.1"
+    "vite": "^8.0.16"
   },
   "engines": {
     "node": ">=22.12"

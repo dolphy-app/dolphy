@@ -7,7 +7,13 @@ import type {
   RepositoryDto,
   RepositoryPreviewDto,
 } from '@dolphy-app/engine-contract';
+import {
+  PREVIEW_STALE_MS,
+  bindRepositoryPreviews,
+} from '@/entities/repository';
 import { useAddRepository } from '@/pages/courses/model/add-repository.ts';
+import type { QueryCache } from '@pinia/colada';
+import { createTestQueryCache } from './support/query-cache.ts';
 
 const repo = (courseIds: string[]): RepositoryDto => ({
   id: 'acme',
@@ -89,8 +95,10 @@ const createFake = (
   return { engine, emit, cancel, addCalls, previewCalls };
 };
 
-const mount = (engine: LearningEngine) =>
-  effectScope().run(() => useAddRepository(engine))!;
+const mount = (
+  engine: LearningEngine,
+  queryCache: QueryCache = createTestQueryCache(),
+) => effectScope().run(() => useAddRepository(engine, queryCache))!;
 
 const previewing = (courses: RepositoryCourseDto[]) => ({
   preview: ({ resolve }: Deferred<RepositoryPreviewDto>) =>
@@ -307,5 +315,105 @@ describe('useAddRepository', () => {
     expect(await model.submit()).toEqual({ status: 'failed' });
     expect(model.error.value?.key).toBe('repository.error.fetch.not-found');
     expect(model.running.value).toBe(false);
+  });
+});
+
+describe('кэш предпросмотра', () => {
+  const several = [course('a'), course('b')];
+
+  it('«Назад → Далее» и повторное открытие диалога не вызывают preview повторно', async () => {
+    const fake = createFake(previewing(several));
+    const cache = createTestQueryCache();
+    const first = mount(fake.engine, cache);
+    first.url.value = 'https://x.test/acme';
+    await first.submit();
+    first.back();
+    await first.submit();
+    expect(fake.previewCalls).toHaveLength(1);
+
+    // новое открытие диалога: другая модель, тот же кэш окна
+    const reopened = mount(fake.engine, cache);
+    reopened.url.value = 'https://x.test/acme';
+    expect(await reopened.submit()).toEqual({ status: 'choose' });
+    expect(fake.previewCalls).toHaveLength(1);
+  });
+
+  it('другой адрес или ветка — отдельная запись', async () => {
+    const fake = createFake(previewing(several));
+    const cache = createTestQueryCache();
+    const model = mount(fake.engine, cache);
+    model.url.value = 'https://x.test/acme';
+    await model.submit();
+    model.back();
+    model.branch.value = 'v2';
+    await model.submit();
+    model.back();
+    model.branch.value = '';
+    model.url.value = 'https://x.test/other';
+    await model.submit();
+    expect(fake.previewCalls).toEqual([
+      { url: 'https://x.test/acme' },
+      { url: 'https://x.test/acme', ref: 'v2' },
+      { url: 'https://x.test/other' },
+    ]);
+  });
+
+  it('ошибка и отмена в кэше не остаются', async () => {
+    let calls = 0;
+    const fake = createFake({
+      preview: ({ resolve, reject }) => {
+        calls += 1;
+        if (calls === 1) {
+          reject(rpcError('GIT_FETCH_FAILED', { reason: 'network' }));
+        } else if (calls === 2) {
+          reject(rpcError('GIT_FETCH_FAILED', { reason: 'cancelled' }));
+        } else resolve(listing(several));
+      },
+    });
+    const model = mount(fake.engine);
+    model.url.value = 'https://x.test/acme';
+    expect(await model.submit()).toEqual({ status: 'failed' });
+    expect(await model.submit()).toEqual({ status: 'cancelled' });
+    expect(await model.submit()).toEqual({ status: 'choose' });
+    expect(fake.previewCalls).toHaveLength(3);
+  });
+
+  it('library-reloaded сбрасывает кэш: следующий предпросмотр идёт в движок', async () => {
+    const fake = createFake(previewing(several));
+    const cache = createTestQueryCache();
+    bindRepositoryPreviews(fake.engine, cache);
+    const model = mount(fake.engine, cache);
+    model.url.value = 'https://x.test/acme';
+    await model.submit();
+    model.back();
+    fake.emit({
+      type: 'library-reloaded',
+      revision: 'r2',
+      errors: 0,
+      warnings: 0,
+    });
+    await model.submit();
+    expect(fake.previewCalls).toHaveLength(2);
+  });
+
+  it('свежесть ограничена: после PREVIEW_STALE_MS предпросмотр загружается заново', async () => {
+    vi.useFakeTimers();
+    try {
+      const fake = createFake(previewing(several));
+      const cache = createTestQueryCache();
+      const model = mount(fake.engine, cache);
+      model.url.value = 'https://x.test/acme';
+      await model.submit();
+      model.back();
+      vi.advanceTimersByTime(PREVIEW_STALE_MS - 1);
+      await model.submit();
+      expect(fake.previewCalls).toHaveLength(1);
+      model.back();
+      vi.advanceTimersByTime(2);
+      await model.submit();
+      expect(fake.previewCalls).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

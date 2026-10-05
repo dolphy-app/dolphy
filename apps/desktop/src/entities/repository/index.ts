@@ -1,3 +1,9 @@
+export {
+  PREVIEW_STALE_MS,
+  bindRepositoryPreviews,
+  invalidateRepositoryPreviews,
+  loadRepositoryPreview,
+} from './api/preview-query.ts';
 export { describeRepositoryError, toEngineError } from './lib/errors.ts';
 export type { RepositoryErrorKey, RepositoryErrorView } from './lib/errors.ts';
 export {

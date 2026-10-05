@@ -1,3 +1,5 @@
+import { useQueryCache } from '@pinia/colada';
+import type { QueryCache } from '@pinia/colada';
 import { computed, onScopeDispose, shallowRef } from 'vue';
 import type {
   LearningEngine,
@@ -8,6 +10,7 @@ import {
   describeRepositoryError,
   installedIds,
   isProgressEvent,
+  loadRepositoryPreview,
   selectableIds,
   toEngineError,
   toggleCourse,
@@ -27,7 +30,10 @@ const sameSet = (a: ReadonlySet<string>, b: ReadonlySet<string>): boolean =>
  * в модели списка репозиториев. Прогресс предпросмотра приходит событиями с
  * `id` репозитория, отмена — `repositories.cancel(id)`.
  */
-export const useRepositoryCourses = (engine: LearningEngine) => {
+export const useRepositoryCourses = (
+  engine: LearningEngine,
+  queryCache: QueryCache = useQueryCache(),
+) => {
   const target = shallowRef<RepositoryDto | null>(null);
   const preview = shallowRef<RepositoryPreviewDto | null>(null);
   const selected = shallowRef<ReadonlySet<string>>(new Set());
@@ -63,7 +69,7 @@ export const useRepositoryCourses = (engine: LearningEngine) => {
     cancelling.value = false;
     loading.value = true;
     try {
-      const result = await engine.repositories.preview({
+      const result = await loadRepositoryPreview(queryCache, engine, {
         url: repository.url,
         ...(repository.ref !== null && { ref: repository.ref }),
       });

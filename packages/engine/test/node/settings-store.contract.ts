@@ -181,6 +181,20 @@ export const describeSettingsStoreContract = (
       expect(await store.loadUi()).toEqual({ theme: 'dark', locale: 'ru' });
     });
 
+    it('интерфейс: исходы туров переживают save → load', async () => {
+      const store = await make();
+      await store.saveUi({
+        theme: 'system',
+        locale: 'system',
+        tours: { welcome: 'completed', session: 'skipped' },
+      });
+      expect(await store.loadUi()).toEqual({
+        theme: 'system',
+        locale: 'system',
+        tours: { welcome: 'completed', session: 'skipped' },
+      });
+    });
+
     it('обучение: по умолчанию passAtN, save → load', async () => {
       const store = await make();
       expect(await store.loadLearning()).toEqual({ gradePolicy: 'passAtN' });

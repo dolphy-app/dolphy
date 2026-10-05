@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { _electron as electron } from 'playwright-core';
 import type { ElectronApplication, Page } from 'playwright-core';
+import { openSqliteStorage } from '@dolphy-app/engine-sqlite';
+import type { TourStatus } from '@dolphy-app/engine-contract';
 
 const APP_DIR = fileURLToPath(new URL('../..', import.meta.url));
 /** Релизная сборка для e2e: `vite build` с `DOLPHY_BUILD_OUT=dist-e2e` (global-setup). */
@@ -124,6 +126,12 @@ const LIBRARY_SOURCES = [
 export const SEEDED_LIBRARY_SOURCES = LIBRARY_SOURCES;
 
 export interface WorkspaceOptions {
+  /**
+   * Исходы обучающих туров, записанные в `engine.db` до запуска. По умолчанию
+   * `welcome` пропущен: диалог первого запуска закрывал бы экран любого теста.
+   * `{}` — чистая база (первый запуск).
+   */
+  tours?: Record<string, TourStatus>;
   /** Каталоги расширений: имя подкаталога → источник; копируются в `<userData>/extensions`. */
   extensions?: Record<string, string>;
   /** Дополнительные файлы библиотеки: путь от корня библиотеки → содержимое. */
@@ -154,10 +162,57 @@ export const createWorkspace = async (
   for (const [name, source] of Object.entries(options.extensions ?? {})) {
     await cp(source, join(userData, 'extensions', name), { recursive: true });
   }
+  const tours = options.tours ?? { welcome: 'skipped' };
+  if (Object.keys(tours).length > 0) {
+    // настоящая схема движка: БД создаёт тот же код, что и при первом запуске
+    await mkdir(join(userData, 'data'), { recursive: true });
+    const storage = openSqliteStorage({
+      path: join(userData, 'data', 'engine.db'),
+    });
+    await storage.settings.saveUi({ theme: 'system', locale: 'system', tours });
+    storage.events.close();
+  }
   return {
     userData,
     dispose: () => rm(root, { recursive: true, force: true }),
   };
+};
+
+/** Тот же Electron, что запускает `launchApp`: копия с `LSUIElement` на macOS, пока окна не показываются. */
+const executablePathOf = (): string =>
+  process.platform === 'darwin' && !E2E_SHOW
+    ? quietElectronPath
+    : (createRequire(import.meta.url)('electron') as string);
+
+/**
+ * Второй запуск приложения с теми же `userData` и аргументами ссылки, как это
+ * делает ОС на Windows и Linux при открытии `dolphy://…`: процесс видит замок
+ * единственного экземпляра, передаёт аргументы первому и завершается. Ждёт
+ * завершения второго процесса.
+ */
+export const launchSecondInstance = async (
+  userData: string,
+  args: readonly string[],
+  env?: Record<string, string>,
+): Promise<void> => {
+  await execFileAsync(
+    executablePathOf(),
+    [
+      join(E2E_BUILD_DIR, 'dist-electron/main/index.js'),
+      `--user-data-dir=${userData}`,
+      '--lang=ru',
+      ...args,
+    ],
+    {
+      cwd: APP_DIR,
+      env: {
+        ...(process.env as Record<string, string>),
+        DOLPHY_HIDDEN_WINDOW: '1',
+        ...env,
+      },
+      timeout: 30_000,
+    },
+  );
 };
 
 export interface DolphyApp {
@@ -196,10 +251,7 @@ export const launchApp = async (
   /** Дополнительные аргументы командной строки приложения (`--safe-mode`). */
   extraArgs: readonly string[] = [],
 ): Promise<DolphyApp> => {
-  const executablePath =
-    process.platform === 'darwin' && !E2E_SHOW
-      ? quietElectronPath
-      : (createRequire(import.meta.url)('electron') as string);
+  const executablePath = executablePathOf();
   const app: ElectronApplication = await electron.launch({
     executablePath,
     cwd: APP_DIR,

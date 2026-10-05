@@ -34,6 +34,20 @@ const bridge: DolphyBridge = {
     appInfo: () => ipcRenderer.invoke(CHANNELS.appInfo),
     copyText: (text) => ipcRenderer.invoke(CHANNELS.copyText, text),
   },
+  deepLink: {
+    onInstall: (listener) => {
+      const handle = (_event: unknown, payload: unknown) => {
+        const id = (payload as { id?: unknown } | null)?.id;
+        if (typeof id === 'string') listener({ id });
+      };
+      ipcRenderer.on(CHANNELS.deepLinkInstall, handle);
+      // после подписки main отдаёт ссылки, принятые до загрузки окна
+      ipcRenderer.send(CHANNELS.deepLinkReady);
+      return () => {
+        ipcRenderer.removeListener(CHANNELS.deepLinkInstall, handle);
+      };
+    },
+  },
   ...(__DOLPHY_SMOKE_BUILD__ && process.argv.includes(SMOKE_ARGUMENT)
     ? {
         smoke: {

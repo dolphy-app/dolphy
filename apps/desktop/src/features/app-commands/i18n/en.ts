@@ -26,6 +26,9 @@ export const en: typeof ru = {
       undo: 'Undo the last answer',
       redo: 'Redo the undone answer',
     },
+    tour: {
+      start: 'Show the guided tour',
+    },
     theme: 'Theme: {name}',
     language: 'Language: {name}',
   },

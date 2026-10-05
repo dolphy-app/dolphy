@@ -30,6 +30,10 @@ export interface AppCommandsDeps {
   themes: () => readonly ThemeContributionDto[];
   /** Подпись вклада расширения на текущем языке (`%ключ%` → текст); читается при каждом чтении списка. */
   extensionText(value: string, extensionId: string): string;
+  /** Запускает обучающий тур (команда «Показать обучающий тур»). */
+  startTour(): Promise<void>;
+  /** С текущей страницы тур запускать нельзя (сессия, вход-тест): команда недоступна. */
+  canStartTour(): boolean;
   /** Сбой выполнения команды (например, настройка не сохранилась): приложение показывает уведомление. */
   reportFailure(error: unknown): void;
 }
@@ -193,6 +197,19 @@ export const registerAppCommands = (deps: AppCommandsDeps): (() => void) => {
       ),
     );
   }
+
+  // последней: группа «Приложение» в палитре идёт после переходов, тем и языков
+  disposers.push(
+    registry.register(
+      app('tour.start', {
+        title: () => t('appCommands.tour.start'),
+        category: () => t('appCommands.category.app'),
+        icon: 'mdi-map-marker-path',
+        enabled: () => deps.canStartTour(),
+        run: guarded(() => deps.startTour()),
+      }),
+    ),
+  );
 
   return () => {
     stopThemes();

@@ -32,3 +32,14 @@ export const expectAttribute = (
   expect
     .poll(() => locator.first().getAttribute(name), { timeout })
     .toBe(value);
+
+/** Элемент в фокусе (`document.activeElement`); повторяется до таймаута. */
+export const expectFocused = (locator: Locator, timeout = TIMEOUT) =>
+  expect
+    .poll(
+      () => locator.first().evaluate((el) => el === document.activeElement),
+      {
+        timeout,
+      },
+    )
+    .toBe(true);

@@ -44,9 +44,8 @@ export const en: typeof ru = {
     remediation: 'Foundations refresh',
   },
   reasonHint: {
-    new: 'An exercise you have not done yet.',
-    review: 'Material you have already studied: reviewing keeps it in memory.',
-    remediation:
-      'An exercise on foundations you got wrong: they are needed to move on.',
+    new: 'New: you have not done this exercise yet',
+    review: 'Review: you have already done this exercise',
+    remediation: 'Foundations refresh: added after mistakes',
   },
 };

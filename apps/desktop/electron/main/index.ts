@@ -34,6 +34,7 @@ import {
 import { safeModeSource } from './safe-mode.ts';
 import { scheduleClockOf } from './schedule-clock.ts';
 import { createDevExtensionsShell } from './shells/dev-extensions.ts';
+import { createDeepLinkShell } from './shells/deep-link.ts';
 import { createDevToolsShortcutShell } from './shells/devtools-shortcut.ts';
 import { createEngineShell } from './shells/engine.ts';
 import { createExtensionAssetsShell } from './shells/extension-assets.ts';
@@ -242,6 +243,16 @@ const shells = [
     ...(devServerUrl ? { devServerUrl } : {}),
     hidden: hiddenWindow,
     additionalArguments: smoke ? [SMOKE_ARGUMENT] : [],
+  }),
+  // ссылки `dolphy://extensions/install/<id>`: схему регистрирует только собранное приложение;
+  // скрытое окно e2e на передний план не выводится; смоук-сборка схему не перехватывает
+  createDeepLinkShell({
+    app,
+    ipcMain,
+    registerScheme: app.isPackaged && !smoke,
+    argv: process.argv,
+    logger,
+    reveal: hiddenWindow ? () => undefined : showMainWindow,
   }),
   createDevToolsShortcutShell({
     app,

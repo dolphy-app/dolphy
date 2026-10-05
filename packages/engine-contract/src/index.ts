@@ -796,16 +796,32 @@ export interface UiSettingsDto {
   materialWidth?: number;
   /** Панель теории скрыта. Нет поля — показана. */
   materialCollapsed?: true;
+  /** Исход обучающих туров по их id; нет записи — тур ещё не предлагали. */
+  tours?: Record<string, TourStatus>;
 }
+/** Как закончился тур: дошёл до конца или пропущен. */
+export type TourStatus = 'completed' | 'skipped';
+/** Допустимый вид id тура (`UiSettingsDto.tours`). */
+export const TOUR_ID_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;
+/** Сколько туров запоминается, не больше. */
+export const MAX_TOURS = 32;
 /** Допустимая ширина панели теории, px (`UiSettingsDto.materialWidth`). */
 export const MATERIAL_WIDTH_RANGE = { min: 280, max: 800 } as const;
-/** `activeCourseId: null` снимает фокус, `materialWidth: null` возвращает умолчание, `materialCollapsed: false` показывает панель. */
+/**
+ * `activeCourseId: null` снимает фокус, `materialWidth: null` возвращает умолчание,
+ * `materialCollapsed: false` показывает панель; `tours` меняет только перечисленные
+ * ключи, `null` удаляет запись о туре.
+ */
 export type UiSettingsPatch = Partial<
-  Omit<UiSettingsDto, 'activeCourseId' | 'materialWidth' | 'materialCollapsed'>
+  Omit<
+    UiSettingsDto,
+    'activeCourseId' | 'materialWidth' | 'materialCollapsed' | 'tours'
+  >
 > & {
   activeCourseId?: UnitId | null;
   materialWidth?: number | null;
   materialCollapsed?: boolean;
+  tours?: Record<string, TourStatus | null>;
 };
 
 /** Id встроенного правила оценки (`pass@N`). */

@@ -1,4 +1,5 @@
-import type { EngineEvent } from '@dolphy-app/engine-contract';
+import { MAX_TOURS } from '@dolphy-app/engine-contract';
+import type { EngineEvent, UiSettingsPatch } from '@dolphy-app/engine-contract';
 import { buildLibrary } from '@dolphy-app/testkit';
 import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SCHEDULER_OPTIONS } from '../../../src/scheduler/options.ts';
@@ -417,6 +418,78 @@ describe('settings ui', () => {
       theme: 'system',
       locale: 'system',
     });
+  });
+
+  it('merges tour outcomes by key and removes them with null', async () => {
+    const { engine, settings } = await open();
+    expect(
+      await engine.settings.setUi({ tours: { welcome: 'skipped' } }),
+    ).toEqual({
+      theme: 'system',
+      locale: 'system',
+      tours: { welcome: 'skipped' },
+    });
+    // другой тур и другие поля не трогают запись, перезапись меняет исход
+    expect(
+      await engine.settings.setUi({
+        theme: 'dark',
+        tours: { welcome: 'completed', session: 'skipped' },
+      }),
+    ).toMatchObject({
+      theme: 'dark',
+      tours: { welcome: 'completed', session: 'skipped' },
+    });
+    expect(await engine.settings.setUi({ materialWidth: 420 })).toMatchObject({
+      tours: { welcome: 'completed', session: 'skipped' },
+    });
+    expect(await settings.loadUi()).toMatchObject({
+      tours: { welcome: 'completed', session: 'skipped' },
+    });
+    expect(
+      await engine.settings.setUi({ tours: { welcome: null } }),
+    ).toMatchObject({ tours: { session: 'skipped' } });
+    // последняя запись удалена — поля нет совсем
+    const cleared = await engine.settings.setUi({ tours: { session: null } });
+    expect(cleared).not.toHaveProperty('tours');
+  });
+
+  it.each([
+    [{ tours: { 'Bad Id': 'completed' } }],
+    [{ tours: { '1welcome': 'completed' } }],
+    [{ tours: { ['a'.repeat(65)]: 'completed' } }],
+    [{ tours: { welcome: 'done' } }],
+    [{ tours: { welcome: true } }],
+    [{ tours: ['welcome'] }],
+    [{ tours: 'welcome' }],
+  ])('rejects the tours patch %j and saves nothing', async (patch) => {
+    const { engine, settings } = await open();
+    await expect(
+      engine.settings.setUi(patch as unknown as UiSettingsPatch),
+    ).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+      details: { field: 'tours' },
+    });
+    expect(await settings.loadUi()).toEqual({
+      theme: 'system',
+      locale: 'system',
+    });
+  });
+
+  it('refuses a 33rd stored tour', async () => {
+    const { engine, settings } = await open();
+    const full = Object.fromEntries(
+      Array.from({ length: MAX_TOURS }, (_, i) => [`t${i}`, 'skipped']),
+    ) as Record<string, 'skipped'>;
+    await engine.settings.setUi({ tours: full });
+    await expect(
+      engine.settings.setUi({ tours: { extra: 'completed' } }),
+    ).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+      details: { field: 'tours' },
+    });
+    // существующий ключ можно переписать и удалить
+    await engine.settings.setUi({ tours: { t0: 'completed', t1: null } });
+    expect((await settings.loadUi()).tours).toMatchObject({ t0: 'completed' });
   });
 
   it('rejects an empty active course id and saves nothing', async () => {

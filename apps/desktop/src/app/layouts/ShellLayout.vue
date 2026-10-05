@@ -69,6 +69,7 @@ const bottomItems = computed(() =>
         v-for="item in topItems"
         :key="item.name"
         :to="{ name: item.name }"
+        :data-tour="`nav-${String(item.name)}`"
         tabindex="0"
         exact
         :prepend-icon="item.icon"

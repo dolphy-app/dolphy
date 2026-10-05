@@ -16,6 +16,7 @@
     { "from": "extensions", "to": "extensions" },
     { "from": "restricted", "to": "restricted" }
   ],
+  "protocols": [{ "name": "Dolphy", "schemes": ["dolphy"] }],
   "npmRebuild": false,
   "electronFuses": {
     "runAsNode": true,
@@ -48,6 +49,7 @@
   "linux": {
     "target": ["AppImage"],
     "artifactName": "${productName}-Linux-${version}.${ext}",
-    "executableName": "dolphy"
+    "executableName": "dolphy",
+    "mimeTypes": ["x-scheme-handler/dolphy"]
   }
 }

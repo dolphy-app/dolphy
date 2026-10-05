@@ -27,3 +27,35 @@ describe('decodeUiSettings: material panel', () => {
     });
   });
 });
+
+describe('decodeUiSettings: tours', () => {
+  it('keeps valid outcomes', () => {
+    expect(
+      decodeUiSettings({ tours: { welcome: 'completed', session: 'skipped' } }),
+    ).toEqual({
+      theme: 'system',
+      locale: 'system',
+      tours: { welcome: 'completed', session: 'skipped' },
+    });
+  });
+
+  it('drops a bad key or value without touching the rest', () => {
+    expect(
+      decodeUiSettings({
+        tours: { welcome: 'completed', 'Bad Id': 'skipped', other: 'done' },
+      }),
+    ).toMatchObject({ tours: { welcome: 'completed' } });
+  });
+
+  it.each([
+    { tours: {} },
+    { tours: [] },
+    { tours: 'welcome' },
+    { tours: null },
+  ])('reads %j as "no field"', (raw) => {
+    expect(decodeUiSettings(raw)).toEqual({
+      theme: 'system',
+      locale: 'system',
+    });
+  });
+});

@@ -755,6 +755,15 @@ export const en: typeof ru = {
           unknown: 'Could not install the extension.',
         },
       },
+      link: {
+        busy: 'Wait for the installation to finish',
+        notFound: 'Extension “{id}” was not found in the catalog',
+        upToDate: 'Extension “{name}” is already installed: v{version}',
+        elsewhere:
+          'Extension “{name}” is already installed from another source. Remove the installed one first to install it from the catalog.',
+        incompatible: 'Extension “{name}” is incompatible: {detail}',
+        failed: 'Could not open the extension from the link: {message}',
+      },
     },
     about: {
       title: 'About the engine',

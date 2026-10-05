@@ -107,13 +107,36 @@ export const hasHealthIssue = (health: ExtensionHealthDto | undefined) =>
   health !== undefined &&
   (health.failures > 0 || health.suppressedUntil !== null);
 
-export type ExtensionSwitch = 'enabled' | 'trusted';
+export type ExtensionSwitch = 'enabled' | 'trusted' | 'notifications';
+
+/** Список настроек, в котором переключатель хранит расширение, и что означает членство (`true` — выключено или доверено). */
+const SWITCH_LISTS = {
+  enabled: { field: 'disabled', listedWhenOn: false },
+  trusted: { field: 'trusted', listedWhenOn: true },
+  notifications: { field: 'notificationsOff', listedWhenOn: false },
+} as const;
 
 const NO_SETTINGS: ExtensionSettingsDto = {
   disabled: [],
   trusted: [],
   checkUpdates: true,
   safeMode: false,
+  notificationsOff: [],
+};
+
+/** Метод движка, который записывает переключатель. */
+const WRITERS: Record<
+  ExtensionSwitch,
+  (
+    engine: LearningEngine,
+    id: string,
+    value: boolean,
+  ) => Promise<ExtensionSettingsDto>
+> = {
+  enabled: (engine, id, value) => engine.extensions.setEnabled(id, value),
+  trusted: (engine, id, value) => engine.extensions.setTrusted(id, value),
+  notifications: (engine, id, value) =>
+    engine.extensions.setNotificationsEnabled(id, value),
 };
 
 const errorText = (caught: unknown) =>
@@ -124,6 +147,15 @@ export const isEnabled = (settings: ExtensionSettingsDto, id: string) =>
 
 export const isTrusted = (settings: ExtensionSettingsDto, id: string) =>
   settings.trusted.includes(id);
+
+export const areNotificationsOn = (
+  settings: ExtensionSettingsDto,
+  id: string,
+) => !settings.notificationsOff.includes(id);
+
+/** Переключатель «Уведомления» нужен расширению, которое просит разрешение `notifications`. */
+export const hasNotifications = (extension: ExtensionInfoDto): boolean =>
+  extension.permissions.includes('notifications');
 
 /** Строка с переключателями: не из поставки, действующая (загружена или отключена) и не отозванная. */
 export const hasSwitches = (extension: ExtensionInfoDto): boolean =>
@@ -202,9 +234,9 @@ export const useExtensions = (engine: LearningEngine) => {
     value: boolean,
   ): ExtensionSettingsDto => {
     const current = settings.value;
-    const field = which === 'enabled' ? 'disabled' : 'trusted';
-    // у `enabled` список хранит отключённые: включить = убрать из списка
-    const member = which === 'enabled' ? !value : value;
+    const { field, listedWhenOn } = SWITCH_LISTS[which];
+    // `enabled` и `notifications` хранят выключенные: включить = убрать из списка
+    const member = listedWhenOn ? value : !value;
     const rest = current[field].filter((item) => item !== id);
     return {
       ...current,
@@ -220,10 +252,7 @@ export const useExtensions = (engine: LearningEngine) => {
     switchError.value = null;
     setSwitching(key, true);
     try {
-      settings.value =
-        which === 'enabled'
-          ? await engine.extensions.setEnabled(id, value)
-          : await engine.extensions.setTrusted(id, value);
+      settings.value = await WRITERS[which](engine, id, value);
       // список показывает действующие состояние и изоляцию: перечитываем без мигания
       void load();
     } catch (caught) {
@@ -348,5 +377,7 @@ export const useExtensions = (engine: LearningEngine) => {
     updateTargets,
     setEnabled: (id: string, value: boolean) => change(id, 'enabled', value),
     setTrusted: (id: string, value: boolean) => change(id, 'trusted', value),
+    setNotifications: (id: string, value: boolean) =>
+      change(id, 'notifications', value),
   };
 };

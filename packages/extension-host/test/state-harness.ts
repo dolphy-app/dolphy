@@ -137,6 +137,10 @@ export interface StubEngine extends HostableEngine {
   readSecret(extensionId: string, key: string): Promise<JsonValue | undefined>;
   /** Сколько запросов хоста принято (все методы). */
   readonly requests: string[];
+  /** Уведомления, как их получила служба движка: расширение, название, текст. */
+  readonly notified: { extensionId: string; title: string; body: string }[];
+  /** Ответ `notifications.show` заглушки: `false` — переключатель выключен или ОС не поддерживает. */
+  notifier: { shown: boolean };
   /** Запросы статистики, как их получила служба движка: расширение, метод, аргументы. */
   readonly statsCalls: {
     extensionId: string;
@@ -158,6 +162,8 @@ export const createStubEngine = (): StubEngine => {
   const changes = new Set<(change: ExtensionSettingChangeDto) => void>();
   const requests: string[] = [];
   const statsCalls: StubEngine['statsCalls'] = [];
+  const notified: StubEngine['notified'] = [];
+  const notifier = { shown: true };
   const keyStore = { available: true };
   const health = createExtensionHealth({ now: () => Date.now() });
   const active = (method: string, extensionId: string): string => {
@@ -175,6 +181,8 @@ export const createStubEngine = (): StubEngine => {
     health,
     requests,
     statsCalls,
+    notified,
+    notifier,
     keyStore,
     extensionHost: {
       // шифр заглушки — base64; настоящую службу с потолками проверяют тесты движка
@@ -208,6 +216,16 @@ export const createStubEngine = (): StubEngine => {
       },
       settings: {
         all: async (id) => ({ ...overrides.get(active('settings', id)) }),
+      },
+      notifications: {
+        show: async (id, title, body) => {
+          notified.push({
+            extensionId: active('notifications.show', id),
+            title,
+            body,
+          });
+          return notifier.shown;
+        },
       },
       stats: {
         streak: async (id, ...args) => {
@@ -293,7 +311,13 @@ export const createHarness = (options: HarnessOptions): Harness => {
   const discovery = createDiscoveryHolder(discoveryOf(options.extensions));
   const policy = createExtensionPolicy(discovery);
   const trusted = [...(options.trusted ?? [])];
-  policy.update({ disabled: [], trusted, checkUpdates: true, safeMode: false });
+  policy.update({
+    disabled: [],
+    trusted,
+    checkUpdates: true,
+    safeMode: false,
+    notificationsOff: [],
+  });
   const runtime = createExtensionRuntime({
     extensions: options.extensions,
     library: { readText: async () => '', stat: async () => null },

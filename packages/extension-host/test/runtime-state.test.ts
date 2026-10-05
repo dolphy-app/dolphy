@@ -1,4 +1,5 @@
 import {
+  NotificationRateLimitError,
   PermissionError,
   SecretsUnavailableError,
   StorageQuotaError,
@@ -11,7 +12,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createEndpointPair } from '../src/loopback.ts';
 import { ENGINE_REQUEST_MS, EngineRequestError } from '../src/engine-link.ts';
 import type { HostFailure as EngineRequestFailure } from '../src/protocol.ts';
-import { createExtensionStats } from '../src/state.ts';
+import {
+  createExtensionNotifications,
+  createExtensionStats,
+} from '../src/state.ts';
 import { createExtensionRuntime } from '../src/runtime.ts';
 import { createLogger, deferred, nullLibrary } from './helpers.ts';
 import {
@@ -360,6 +364,111 @@ describe('ctx.stats', () => {
   });
 });
 
+describe('ctx.notifications', () => {
+  const notifying = (id: string, permissions: ExtensionPermission[]) =>
+    stateful(id, { permissions });
+
+  it('с разрешением show идёт движку от имени расширения и возвращает его ответ', async () => {
+    const seen: unknown[] = [];
+    const h = open({
+      extensions: [notifying(ID, ['learning.events', 'notifications'])],
+      trusted: [ID],
+      modules: {
+        [ID]: {
+          activate: async (ctx) => {
+            seen.push(await ctx.notifications.show({ title: 'T', body: 'B' }));
+            h.engine.notifier.shown = false;
+            seen.push(await ctx.notifications.show({ title: 'T2', body: '' }));
+          },
+        },
+      },
+    });
+
+    h.engine.emit(sessionStarted('s1'));
+
+    await vi.waitFor(() => expect(seen).toHaveLength(2));
+    expect(seen).toEqual([true, false]);
+    expect(h.engine.notified).toEqual([
+      { extensionId: ID, title: 'T', body: 'B' },
+      { extensionId: ID, title: 'T2', body: '' },
+    ]);
+  });
+
+  it('без разрешения show бросает PermissionError(notifications), и до движка запрос не доходит', async () => {
+    let seen: unknown;
+    const h = open({
+      extensions: [notifying(ID, ['learning.events'])],
+      trusted: [ID],
+      modules: {
+        [ID]: {
+          activate: async (ctx) => {
+            try {
+              await ctx.notifications.show({ title: 'T', body: 'B' });
+            } catch (error) {
+              seen = error;
+            }
+          },
+        },
+      },
+    });
+
+    h.engine.emit(sessionStarted('s1'));
+
+    await vi.waitFor(() => expect(seen).toBeDefined());
+    expect(seen).toBeInstanceOf(PermissionError);
+    expect(seen).toMatchObject({ permission: 'notifications' });
+    expect(h.engine.notified).toEqual([]);
+  });
+
+  it('отказы движка: разрешение — PermissionError, предел частоты — NotificationRateLimitError, остальное — Error с кодом', async () => {
+    const reject = (failure: EngineRequestFailure) =>
+      createExtensionNotifications(
+        {
+          request: async () => {
+            throw new EngineRequestError(failure);
+          },
+        },
+        ID,
+        ['notifications'],
+      );
+    const note = { title: 'T', body: 'B' };
+
+    const denied = await reject({
+      code: 'INVALID_ARGUMENT',
+      message: 'no permission',
+      details: { reason: 'permission', permission: 'notifications' },
+    })
+      .show(note)
+      .catch((reason: unknown) => reason);
+    expect(denied).toBeInstanceOf(PermissionError);
+    expect(denied).toMatchObject({ permission: 'notifications' });
+
+    const limited = await reject({
+      code: 'INVALID_ARGUMENT',
+      message: 'too many',
+      details: { reason: 'rate-limit', window: 'hour', limit: 30 },
+    })
+      .show(note)
+      .catch((reason: unknown) => reason);
+    expect(limited).toBeInstanceOf(NotificationRateLimitError);
+    expect(limited).toMatchObject({ window: 'hour', limit: 30 });
+
+    const invalid = await reject({
+      code: 'INVALID_ARGUMENT',
+      message: 'title is too long',
+      details: { field: 'title', max: 80 },
+    })
+      .show(note)
+      .catch((reason: unknown) => reason);
+    expect(invalid).not.toBeInstanceOf(PermissionError);
+    expect(invalid).not.toBeInstanceOf(NotificationRateLimitError);
+    expect(invalid).toMatchObject({
+      message: 'title is too long',
+      code: 'INVALID_ARGUMENT',
+    });
+  });
+});
+
 describe('ctx.settings', () => {
   it('get отдаёт default, затем значение пользователя; onDidChange получает изменения без перезапуска', async () => {
     const reads: unknown[] = [];
@@ -665,6 +774,7 @@ describe('ctx.events', () => {
       trusted: [ID],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
     h.engine.emit(attemptClosed('off'));
     h.policy.update({
@@ -672,6 +782,7 @@ describe('ctx.events', () => {
       trusted: [ID],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
     h.engine.emit(attemptClosed('on-again'));
 

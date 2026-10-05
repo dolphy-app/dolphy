@@ -31,7 +31,8 @@
           "native.addons",
           "network",
           "learning.events",
-          "learning.stats"
+          "learning.stats",
+          "notifications"
         ]
       }
     },

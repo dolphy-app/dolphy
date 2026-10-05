@@ -99,4 +99,14 @@ export {
   parseStatsDate,
   streakOf,
 } from './learning-stats.ts';
+export {
+  EXTENSION_NOTIFICATION_LIMITS,
+  createNotificationRateLimiter,
+  sanitizeNotificationText,
+  textLength,
+} from './extension-notifications.ts';
+export type {
+  NotificationRateLimiter,
+  NotificationWindow,
+} from './extension-notifications.ts';
 export type { DailyResult, DayCounts, StreakResult } from './learning-stats.ts';

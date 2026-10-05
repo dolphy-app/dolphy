@@ -150,6 +150,7 @@ describe('registry and policy: metadata and revocation', () => {
       trusted: [],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
     expect(policy.isEnabled('acme.u')).toBe(false);
     expect(registry.contributions().themes.map(({ id }) => id)).toEqual([

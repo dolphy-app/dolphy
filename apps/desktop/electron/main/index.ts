@@ -1,6 +1,7 @@
 import {
   BrowserWindow,
   MessageChannelMain,
+  Notification,
   app,
   clipboard,
   dialog,
@@ -12,7 +13,7 @@ import {
   shell,
   utilityProcess,
 } from 'electron';
-import { existsSync, watch } from 'node:fs';
+import { appendFileSync, existsSync, watch } from 'node:fs';
 import { realpath, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -24,6 +25,7 @@ import { createMainLogger } from './logger.ts';
 import {
   createPlatformServices,
   fakeSafeStorageOf,
+  notificationLogOf,
 } from './platform-services.ts';
 import { safeModeSource } from './safe-mode.ts';
 import { createDevExtensionsShell } from './shells/dev-extensions.ts';
@@ -118,8 +120,26 @@ const hostLink = createHostLink({ MessageChannelMain });
 // шифр секретов расширений: `safeStorage` есть только в main, хост движка спрашивает по `parentPort`;
 // e2e и смоук подменяют хранилище ключей `DOLPHY_FAKE_SAFE_STORAGE` (только в несобранном приложении)
 const fakeSafeStorage = fakeSafeStorageOf(process.env, app.isPackaged);
+// системные уведомления (`Notification` тоже только в main); e2e пишет их в файл `DOLPHY_NOTIFICATION_LOG` вместо вызова ОС
+const notificationLogPath = notificationLogOf(process.env, app.isPackaged);
+const showMainWindow = () => {
+  const [window] = BrowserWindow.getAllWindows();
+  if (window === undefined) return;
+  if (window.isMinimized()) window.restore();
+  window.show();
+  window.focus();
+};
 const platformServices = createPlatformServices({
   safeStorage,
+  notifications: {
+    isSupported: () => Notification.isSupported(),
+    create: (options) => new Notification(options),
+  },
+  showWindow: showMainWindow,
+  ...(notificationLogPath !== undefined && {
+    notificationLog: (entry) =>
+      appendFileSync(notificationLogPath, `${JSON.stringify(entry)}\n`),
+  }),
   isReady: () => app.isReady(),
   platform: process.platform,
   logger,

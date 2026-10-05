@@ -10,6 +10,7 @@ import {
 import {
   createMemorySecrets,
   createMemorySettings,
+  createMemoryNotifications,
   createMemoryStats,
   createMemoryStorage,
 } from '../src/testing.ts';
@@ -48,6 +49,7 @@ const createContext = (log: string[], failOn: readonly string[] = []) => {
     },
     storage: createMemoryStorage(),
     stats: createMemoryStats(),
+    notifications: createMemoryNotifications(),
     secrets: createMemorySecrets(),
     settings: createMemorySettings([]),
     events: {

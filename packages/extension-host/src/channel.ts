@@ -151,6 +151,12 @@ const callService = (
       );
     case 'secrets.delete':
       return services.secrets.delete(extensionId, request.params.key);
+    case 'notifications.show':
+      return services.notifications.show(
+        extensionId,
+        request.params.title,
+        request.params.body,
+      );
     case 'health.report':
       return Promise.resolve(reportHealth(services, request.params));
     default:

@@ -118,6 +118,7 @@ describe('политика, каталог и реестр читают сним
       trusted: [],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
     expect(catalog.list()).toEqual([]);
     holder.replace(discoveryOf([withType('acme.a', 'acme.a')]));
@@ -127,6 +128,7 @@ describe('политика, каталог и реестр читают сним
       trusted: [],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
     expect(catalog.list().map(({ type }) => type)).toEqual(['acme.a']);
   });

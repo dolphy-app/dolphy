@@ -824,6 +824,26 @@ await ctx.secrets.delete('api-token'); // false, если ключа не был
 - e2e и смоук не обращаются к настоящей связке ключей (на macOS это запрос пароля): в несобранном приложении `DOLPHY_FAKE_SAFE_STORAGE=1` подставляет обратимый шифр, `DOLPHY_FAKE_SAFE_STORAGE=unavailable` — отсутствие хранилища. В собранном приложении переменная не действует.
 - Помощник тестов — `createMemorySecrets({ available? })` из `@dolphy-app/extension-sdk/testing` (`setAvailable(false)` имитирует отсутствие хранилища ключей).
 
+### Системные уведомления (`ctx.notifications`)
+
+```ts
+const shown = await ctx.notifications.show({
+  title: 'Серия продолжается',
+  body: 'Ещё один день подряд',
+});
+// true — передано системе; false — ОС их не поддерживает или пользователь выключил их расширению
+```
+
+- Разрешение `notifications` («Системные уведомления»). Без него `show` бросает `PermissionError('notifications')`, в ограниченном процессе тоже: понятную ошибку даёт контекст процесса, решает служба `notifications` движка по `permissions` манифеста (подделанный запрос получает `INVALID_ARGUMENT` с `details.reason: 'permission'`, который код расширения видит как тот же `PermissionError`).
+- Название — 1–80 символов, текст — до 300 (кодовые точки, `EXTENSION_NOTIFICATION_LIMITS`), чистый текст. Движок убирает управляющие символы и символы направления письма, в названии заменяет переводы строки пробелом, обрезает края; пустое название и превышение длины — `INVALID_ARGUMENT` с `details.field` (`title`/`body`).
+- Не более 3 уведомлений в скользящую минуту и 30 в скользящий час на расширение; сверх лимита — `NotificationRateLimitError` (`window`, `limit`, `code: 'EXT_NOTIFICATION_RATE_LIMIT'`; на проводе — `INVALID_ARGUMENT` с `details.reason: 'rate-limit'`). Счётчики живут в памяти движка. Вызовы, отклонённые по тексту, и вызовы выключенного расширения лимит не расходуют.
+- Строка расширения в «Настройки → Расширения → Установленные» имеет переключатель «Уведомления» (только у расширений с разрешением `notifications`). Выключен — `show` даёт `false`, уведомление не показывается. Значение — `ExtensionSettingsDto.notificationsOff` (отсортированные id без повторов, `engine.db`), метод `extensions.setNotificationsEnabled(id, enabled)`; расширение не перезапускается, значение переживает перезапуск приложения и обновление расширения.
+- Уведомление называет расширение: на macOS его название (или id, если названия нет; `%ключ%` — по таблице `en`) стоит подзаголовком, на остальных системах — последней строкой текста. Звука нет (`silent: true`). Клик показывает окно приложения. Работает, только пока приложение запущено.
+- Цепочка: код расширения → запрос хоста `notifications.show` (`hostRequestSchema`, `callService`; ограниченный процесс идёт через раннер, который подставляет свой `extensionId`) → служба `ExtensionHostServices.notifications` (включённость, разрешение, очистка, лимиты, переключатель) → порт движка `PlatformServices.notifier` → адаптер `electron/host/platform.ts` → `platform-request` с `op: 'notify'` → обработчик `electron/main/platform-services.ts` создаёт Electron `Notification` и возвращает `true`; `false` — `Notification.isSupported()` ложно. Отказ, срок и закрытый хост main для расширения — тоже `false`: уведомление необязательно.
+- Уведомления не зависят от хранилища ключей. Текст уведомлений в журнал main не пишется (он принадлежит расширению).
+- e2e (несобранное приложение): `DOLPHY_NOTIFICATION_LOG=<файл>` заменяет вызов ОС строкой JSON `{ source, title, body }` на уведомление; в собранном приложении переменная не действует. Настоящий `Notification` покрыт юнитом с подменой и ручной проверкой на macOS.
+- Помощник тестов — `createMemoryNotifications({ permitted?, supported?, enabled?, now? })` из `@dolphy-app/extension-sdk/testing`: те же очистка текста, длины и окна частоты; `shown` — журнал показанного, `setEnabled`/`setSupported` — переключатель пользователя и поддержка ОС.
+
 ### События: что, когда и кому приходит
 
 | Событие            | Поля                                                                           | Когда                                                                                                                                         |
@@ -878,6 +898,7 @@ await ctx.secrets.delete('api-token'); // false, если ключа не был
 
 ### Как проверить
 
+- Уведомления (`ctx.notifications`): `packages/engine/test/app/services/extension-notifications.test.ts` (разрешение, очистка, длины, лимиты, переключатель), `packages/extension-host/test/runtime-state.test.ts`, `channel-host-requests.test.ts` и `restricted-runner.test.ts`, `packages/extension-sdk/test/testing-notifications.test.ts`, `apps/desktop/test/platform-notifications.test.ts` (main с подменой `Notification`, адаптер хоста), e2e `apps/desktop/e2e/extension-notifications.e2e.test.ts` (фикстуры `notify-extension`, `notify-denied-extension`).
 - Статистика (`ctx.stats`): `packages/engine/test/app/stats-index.test.ts` (границы суток, летнее время, серия, фильтр курса, сброс индекса), `packages/engine/test/app/services/extension-stats.test.ts` (разрешение, приватность, диапазоны), `packages/extension-host/test/runtime-state.test.ts` и `restricted-runner.test.ts`, `packages/extension-sdk/test/testing-stats.test.ts`, e2e `apps/desktop/e2e/extension-stats.e2e.test.ts` (фикстуры `stats-extension`, `stats-denied-extension`).
 - Unit: `packages/engine` (сервисы, приёмник событий), контрактные тесты `ExtensionDataStore` для memory и sqlite, `packages/extension-host/test` (канал, `ctx.*` в процессе и в ограниченном процессе, доставка, `engine-parity.test.ts`), `packages/extension-sdk/test`; окно — `apps/desktop/test/settings-extension-settings.test.ts`, `settings-extension-data.test.ts`, `settings-install.test.ts`, `session-model.test.ts`.
 - e2e: `apps/desktop/e2e/extension-state.e2e.test.ts` (фикстура `fixtures/state-extension`: настройки без перезагрузки, события ровно один раз в изолированном и доверенном режимах, переживание перезапуска, отключение, очистка, квота, установка из каталога и удаление с флажком и без).
@@ -894,7 +915,7 @@ await ctx.secrets.delete('api-token'); // false, если ключа не был
 
 ### Разрешения в манифесте
 
-Разрешение `learning.events` обязательно для `contributes.events`, `learning.stats` открывает `ctx.stats`; оба показываются в диалоге установки, карточке каталога и списке установленных. Манифест объявляет `permissions` — список из `EXTENSION_PERMISSIONS` (`@dolphy-app/extension-api`). Дубли и неизвестные имена отклоняет `parseManifest`, `dolphy-ext validate` печатает ошибку вида `permissions.0: …`. Без объявления у кода расширения нет ни одного разрешения. Разрешения применяются автоматически по объявленному, без запроса у пользователя; он видит их в «Настройки → Расширения» заранее. Хранилище `ctx.storage` и настройки разрешения не требуют.
+Разрешение `learning.events` обязательно для `contributes.events`, `learning.stats` открывает `ctx.stats`, `notifications` — `ctx.notifications`; все показываются в диалоге установки, карточке каталога и списке установленных. Манифест объявляет `permissions` — список из `EXTENSION_PERMISSIONS` (`@dolphy-app/extension-api`). Дубли и неизвестные имена отклоняет `parseManifest`, `dolphy-ext validate` печатает ошибку вида `permissions.0: …`. Без объявления у кода расширения нет ни одного разрешения. Разрешения применяются автоматически по объявленному, без запроса у пользователя; он видит их в «Настройки → Расширения» заранее. Хранилище `ctx.storage` и настройки разрешения не требуют.
 
 Команды и панели нового разрешения не требуют: команда исполняет тот же код с теми же охранами контекста (`ctx.library` требует `library.read`, `ctx.events` — `learning.events`), панель исполняется в рамке без сети и без доступа к данным приложения и вызывает только команды своего расширения. Панели доверенных расширений тоже в рамке: «Доверять» даёт коду расширения свободу процесса хоста, но не окно приложения для его панели (иначе панель получила бы `window.dolphy` и вызовы любых расширений; ADR 0008).
 
@@ -908,6 +929,7 @@ await ctx.secrets.delete('api-token'); // false, если ключа не был
 | `native.addons`   | `--allow-addons`: можно загружать нативные модули                                                                                                      |
 | `learning.events` | Флага Node нет: хост доставляет расширению события обучения (`contributes.events`); без разрешения манифест с `events` отклоняется                     |
 | `learning.stats`  | Флага Node нет: `ctx.stats` отвечает движок, пока разрешение объявлено (решение принимает движок, а не процесс); без разрешения вызовы бросают `PermissionError` |
+| `notifications`   | Флага Node нет: уведомление показывает main по запросу движка, пока разрешение объявлено (решает служба движка: разрешение, лимиты, переключатель «Уведомления»); без разрешения `show` бросает `PermissionError` |
 | `network`         | Только объявляется и показывается пользователю; ничего не включает и не ограничивает: режим разрешений Node не умеет ограничивать сеть (см. «Пределы») |
 
 Всегда, независимо от объявленного: `--permission` (до Node 22.13 — `--experimental-permission`), `--allow-fs-read=<каталог расширения>` и `--allow-fs-read=<каталог сборки дочернего процесса>` (оба — реальные пути, без символических ссылок), окружение из одной переменной `ELECTRON_RUN_AS_NODE=1` (переменных окружения приложения в процессе нет). Запись в файловую систему, чтение вне этих каталогов и всё, что не объявлено, даёт `ERR_ACCESS_DENIED` (или `PermissionError` у `ctx.library`) внутри расширения: вызов получает ошибку `handler-failed`, а проверка — вердикт `error`; движок, хост расширений и другие расширения продолжают работать.

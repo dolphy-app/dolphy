@@ -48,6 +48,7 @@ export const RPC_METHODS = {
   'extensions.getSettings': { idempotent: true },
   'extensions.setEnabled': { idempotent: false },
   'extensions.setTrusted': { idempotent: false },
+  'extensions.setNotificationsEnabled': { idempotent: true }, // задаёт значение, не приращение
   'extensions.catalog': { idempotent: true },
   'extensions.install': { idempotent: false },
   'extensions.uninstall': { idempotent: false },

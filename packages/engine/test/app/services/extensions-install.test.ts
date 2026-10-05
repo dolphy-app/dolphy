@@ -273,6 +273,7 @@ describe('extensions.setCheckUpdates', () => {
       trusted: [],
       checkUpdates: false,
       safeMode: false,
+      notificationsOff: [],
     });
     await engine.extensions.setCheckUpdates(false);
     expect((await settings.loadExtensions()).checkUpdates).toBe(false);
@@ -296,6 +297,7 @@ describe('extensions.setCheckUpdates', () => {
       trusted: [],
       checkUpdates: false,
       safeMode: false,
+      notificationsOff: [],
     });
   });
 });
@@ -371,6 +373,7 @@ describe('startup update check', () => {
         trusted: [],
         checkUpdates: false,
         safeMode: false,
+        notificationsOff: [],
       },
     });
     const { ctx, installer } = await setup({ updates: [UPDATE] }, settings);

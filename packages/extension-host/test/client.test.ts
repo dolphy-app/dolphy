@@ -513,6 +513,7 @@ describe('isolated в запросах', () => {
       trusted: ['acme.t'],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
     expect(await call()).toEqual([false, false]);
   });

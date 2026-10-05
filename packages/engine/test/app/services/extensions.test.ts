@@ -239,6 +239,7 @@ describe('extensions settings', () => {
         trusted: [],
         checkUpdates: true,
         safeMode: false,
+        notificationsOff: [],
       },
     });
     const { engine, policy } = await openSettings([USER], settings);
@@ -247,6 +248,7 @@ describe('extensions settings', () => {
       trusted: [],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
     expect(policy.isEnabled('acme.user')).toBe(false);
   });
@@ -258,18 +260,21 @@ describe('extensions settings', () => {
       trusted: [],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
     expect(await engine.extensions.setTrusted('acme.user', true)).toEqual({
       disabled: ['acme.user'],
       trusted: ['acme.user'],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
     expect(await settings.loadExtensions()).toEqual({
       disabled: ['acme.user'],
       trusted: ['acme.user'],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
     expect(policy.isEnabled('acme.user')).toBe(false);
     expect(policy.isIsolated('acme.user')).toBe(false);
@@ -279,6 +284,7 @@ describe('extensions settings', () => {
       trusted: ['acme.user'],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
     expect(policy.isEnabled('acme.user')).toBe(true);
   });
@@ -292,6 +298,7 @@ describe('extensions settings', () => {
       trusted: ['acme.user'],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
     expect(await engine.extensions.setEnabled('acme.user', true)).toEqual(
       again,
@@ -312,6 +319,7 @@ describe('extensions settings', () => {
       trusted: [],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
   });
 
@@ -336,6 +344,7 @@ describe('extensions settings', () => {
       trusted: [],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
   });
 
@@ -501,6 +510,7 @@ describe('extensions safe mode', () => {
       trusted: [],
       checkUpdates: false,
       safeMode: true,
+      notificationsOff: [],
     });
   });
 
@@ -523,6 +533,7 @@ describe('extensions safe mode', () => {
         trusted: [],
         checkUpdates: true,
         safeMode: true,
+        notificationsOff: [],
       },
     });
     const { engine, policy } = await open({}, settings);

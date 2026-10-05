@@ -175,6 +175,7 @@ describe('изолированное расширение в настоящем 
       trusted: [ID],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
     // в процессе хоста модуль берётся настоящим import() из каталога расширения
     h.engine.emit(attemptClosed('e2'));

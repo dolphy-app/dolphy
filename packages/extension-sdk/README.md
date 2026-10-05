@@ -181,7 +181,7 @@ export const host = defineExtension({
 - `createSchemaValidator(schema)`, `createMemoryLibrary(files)`,
   `createMemoryStorage()`, `createMemorySettings(definitions, values?)`,
   `createMemoryEvents(options?)`, `createMemoryCommands(options?)`,
-  `createMemoryStats(options?)`.
+  `createMemoryStats(options?)`, `createMemoryNotifications(options?)`.
 
 ```ts
 // src/index.ts — a grade policy (needs main)
@@ -277,6 +277,17 @@ export const host = defineExtension({
   not broken while today has no attempts yet (the streak up to yesterday
   counts); a progress reset does not erase the history; an unknown course gives
   zeros. The answer holds numbers and dates only: no exercise or course ids.
+- `ctx.notifications` — system notifications; needs the `notifications`
+  permission, otherwise `show` rejects with `PermissionError('notifications')`
+  (in the restricted process too: the engine decides). `show({ title, body })`
+  takes a title of 1–80 and a body of up to 300 characters (plain text; control
+  characters are removed), shows an operating-system notification that names
+  the extension (a click shows the app window) and resolves `true`; `false`
+  means the system does not support notifications or the user switched them
+  off for this extension in "Settings → Extensions". At most 3 per minute and
+  30 per hour per extension: over the limit `show` rejects with
+  `NotificationRateLimitError` (`window`, `limit`). It works only while the app
+  runs.
 - The host logs a warning after activation for the exercise types, grade
   policies, events and commands the manifest declares but the code did not
   register.
@@ -290,6 +301,14 @@ export const host = defineExtension({
   the host, the helpers do not swallow a handler failure and do not count 2 s.
   `loadExerciseType` and `loadGradePolicy` accept ready-made `storage`,
   `settings` and `events` (objects from these helpers).
+- `createMemoryNotifications({ permitted?, supported?, enabled?, now? })` is
+  `ctx.notifications` with the engine's rules (sanitized text, length limits,
+  the minute and hour windows, `NotificationRateLimitError`): `shown` lists what
+  the app would show, `setEnabled(false)` imitates the user's "Notifications"
+  switch and `setSupported(false)` an operating system without notifications
+  (both make `show` resolve `false` without using the rate limit);
+  `permitted: false` makes every call reject with
+  `PermissionError('notifications')`. All `load*` helpers take `notifications`.
 - `createMemoryStats({ attempts?, timeZone?, now?, permitted? })` is `ctx.stats`
   over a list of attempts (`{ at, grade, courseId? }`; more through
   `record(attempt)`) with the app's rules: local days in `timeZone`, correct at
@@ -509,7 +528,8 @@ An extension that is not bundled and not trusted runs in a restricted process
 (`docs/design/extensions.md`, "Права и изоляция"): what `permissions` of the
 manifest does not declare is unavailable. The SDK exports
 `EXTENSION_PERMISSIONS` (`library.read`, `process.spawn`, `worker.threads`,
-`native.addons`, `network`, `learning.events`, `learning.stats`) and the
+`native.addons`, `network`, `learning.events`, `learning.stats`,
+`notifications`) and the
 `PermissionError` class
 (`permission`, `code: 'EXT_PERMISSION'`).
 

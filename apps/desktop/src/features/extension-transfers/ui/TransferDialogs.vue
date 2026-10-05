@@ -102,11 +102,16 @@ const summary = computed(() => {
   if (current === null) return null;
   return current.failure?.summary ?? current.preview.summary;
 });
-const hiddenCount = computed(() => {
-  const total = (summary.value?.errors ?? 0) + (summary.value?.warnings ?? 0);
-  return Math.max(0, total - shownDiagnostics.value.length);
-});
-const hasErrors = computed(() => (summary.value?.errors ?? 0) > 0);
+const totalDiagnostics = computed(
+  () => (summary.value?.errors ?? 0) + (summary.value?.warnings ?? 0),
+);
+const hiddenCount = computed(() =>
+  Math.max(0, totalDiagnostics.value - shownDiagnostics.value.length),
+);
+// «в курсе есть ошибки» — про сводку до записи; после отказа перезагрузки говорит сбой
+const hasErrors = computed(
+  () => preview.value?.failure === null && (summary.value?.errors ?? 0) > 0,
+);
 const noCourses = computed(
   () =>
     preview.value !== null &&
@@ -252,7 +257,10 @@ const exportCourse = () => {
           data-testid="import-replaces"
           :text="t('transfers.import.replaces', { path: preview.preview.path })"
         />
-        <p v-else class="path text-body-small text-medium-emphasis mb-4">
+        <p
+          v-else-if="preview.failure === null"
+          class="path text-body-small text-medium-emphasis mb-4"
+        >
           {{ t('transfers.import.target', { path: preview.preview.path }) }}
         </p>
 
@@ -327,9 +335,8 @@ const exportCourse = () => {
           >
             {{
               t('transfers.import.moreHidden', {
-                n: shownDiagnostics.length,
-                errors: summary?.errors,
-                warnings: summary?.warnings,
+                shown: shownDiagnostics.length,
+                total: totalDiagnostics,
               })
             }}
           </p>

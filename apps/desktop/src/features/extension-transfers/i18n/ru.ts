@@ -33,8 +33,7 @@ export const ru = {
       noCourses:
         'В файле не нашлось ни одного курса. На диске ничего не осталось.',
       diagnostics: 'Проблемы курса',
-      moreHidden:
-        'Показаны первые {n}; остальные — в сводке: {errors} ошибок, {warnings} предупреждений.',
+      moreHidden: 'Показаны первые {shown} из {total}.',
       errors: 'Ошибок: {n}',
       warnings: 'Предупреждений: {n}',
       severity: { error: 'Ошибка', warning: 'Предупреждение' },

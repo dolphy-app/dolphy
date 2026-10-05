@@ -35,8 +35,7 @@ export const en: typeof ru = {
         'The course has errors and cannot be imported. Nothing was left on disk.',
       noCourses: 'The file contains no courses. Nothing was left on disk.',
       diagnostics: 'Course problems',
-      moreHidden:
-        'Showing the first {n}; the rest are in the totals: {errors} errors, {warnings} warnings.',
+      moreHidden: 'Showing the first {shown} of {total}.',
       errors: 'Errors: {n}',
       warnings: 'Warnings: {n}',
       severity: { error: 'Error', warning: 'Warning' },

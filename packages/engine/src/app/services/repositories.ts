@@ -4,6 +4,7 @@ import type {
   LibraryInfo,
   LibraryService,
   PreviewRepositoryRequest,
+  RemoveRepositoryOptions,
   RepositoriesService,
   RepositoryDto,
   RepositoryPhase,
@@ -28,6 +29,7 @@ import type {
 } from '../../ports/index.ts';
 import type { EngineContext } from '../context.ts';
 import { EngineError } from '../errors.ts';
+import { commitProgressResets } from '../progress-reset.ts';
 import {
   normalizeCourseSelection,
   normalizeRepositoryRef,
@@ -98,6 +100,23 @@ interface FlowResult {
   changed: boolean;
   record: RepositoryRecord;
 }
+
+/** `removeProgress` из параметров `remove`: только булево значение; по умолчанию прогресс остаётся. */
+const removeProgressOf = (options: unknown): boolean => {
+  if (options === undefined) return false;
+  const value =
+    typeof options === 'object' && options !== null
+      ? Reflect.get(options, 'removeProgress')
+      : null;
+  if (value === undefined) return false;
+  if (typeof value !== 'boolean') {
+    throw new EngineError('INVALID_ARGUMENT', {
+      message: 'removeProgress must be a boolean',
+      details: { field: 'removeProgress' },
+    });
+  }
+  return value;
+};
 
 const isCancellable = (op: Operation): boolean => op.kind !== 'remove';
 
@@ -761,17 +780,30 @@ export const createRepositoriesService = (
     });
   };
 
-  const remove = async (id: string): Promise<void> => {
+  const remove = async (
+    id: string,
+    options?: RemoveRepositoryOptions,
+  ): Promise<void> => {
+    const removeProgress = removeProgressOf(options);
     // идущие операции над репозиторием прерываются сразу, не дожидаясь очереди
     for (const running of operationsOf(id)) abort(running);
     const op = newOperation('remove', id);
     return serial(op, async () => {
-      if ((await find(id)) === undefined) throw notFound(id);
+      const record = await find(id);
+      if (record === undefined) throw notFound(id);
       await exclusive(async () => {
         if (ctx.state.closed) throw new EngineError('ENGINE_CLOSED');
         try {
           if (ctx.state.dirty) await ctx.rebuild();
           await installer.remove(ROOT, id);
+          // сброс идёт до `reload`: границы сброса считаются по графу, в котором курсы ещё есть;
+          // после `installer.remove`: при сбое диска прогресс живого курса не теряется
+          if (removeProgress) {
+            await commitProgressResets(
+              ctx,
+              record.courseIds.map((unitId) => ({ unitId })),
+            );
+          }
           await store.delete(id);
           checks.delete(id);
           await library.reload();

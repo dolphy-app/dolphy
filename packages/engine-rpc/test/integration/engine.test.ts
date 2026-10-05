@@ -491,9 +491,11 @@ describe('rpc → dispatcher → real engine', () => {
       }),
     );
     await call('repositories.remove', () =>
-      client.repositories.remove('nope').catch((error) => {
-        expect(error).toMatchObject({ code: 'NOT_FOUND' });
-      }),
+      client.repositories
+        .remove('nope', { removeProgress: true })
+        .catch((error) => {
+          expect(error).toMatchObject({ code: 'NOT_FOUND' });
+        }),
     );
     expect(
       await call('repositories.cancel', () =>

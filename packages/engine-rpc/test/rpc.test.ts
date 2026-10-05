@@ -436,6 +436,38 @@ describe('dispatcher validation', () => {
     }
   });
 
+  it('repositories.remove accepts only a boolean removeProgress', async () => {
+    const { dispatcher } = await connect();
+    const [hostSide, rawSide] = createInProcessPair();
+    dispatcher.attach(hostSide, 'raw-repositories');
+    const raw = createRawClient(rawSide);
+    for (const args of [
+      ['id1'],
+      ['id1', {}],
+      ['id1', { removeProgress: false }],
+      ['id1', { removeProgress: true }],
+    ]) {
+      expect(
+        await raw.call('repositories.remove', args),
+        String(args),
+      ).toMatchObject({ ok: true });
+    }
+    for (const args of [
+      [],
+      ['id1', { removeProgress: 'yes' }],
+      ['id1', { removeData: true }],
+      ['id1', { removeProgress: true }, 'x'],
+    ]) {
+      expect(
+        await raw.call('repositories.remove', args),
+        String(args),
+      ).toMatchObject({
+        ok: false,
+        error: { code: 'INVALID_ARGUMENT' },
+      });
+    }
+  });
+
   it('rejects unknown keys, extra arguments and non-array params', async () => {
     const { dispatcher } = await connect();
     const [hostSide, rawSide] = createInProcessPair();
@@ -674,7 +706,7 @@ describe('ordering and events', () => {
         courseIds: ['a'],
         previewId: 'p1',
       });
-      await client.engine.repositories.remove('id2');
+      await client.engine.repositories.remove('id2', { removeProgress: true });
       await client.engine.repositories.cancel('id3');
       await client.engine.repositories.list();
       await client.engine.repositories.checkUpdates();

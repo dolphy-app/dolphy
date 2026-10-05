@@ -192,6 +192,7 @@ describe('createFrameHost', () => {
       type: 'theme',
       variables: { '--v-theme-primary': '1,2,3' },
       dark: false,
+      lang: '',
     });
     expect(posted[2]?.message).toMatchObject({
       type: 'props',
@@ -269,12 +270,14 @@ describe('createFrameHost', () => {
       variables: { '--v-theme-primary': '9,9,9' },
       dark: true,
     };
+    document.documentElement.lang = 'en';
     notify();
     expect(posted.at(-1)?.message).toEqual({
       dolphy: 1,
       type: 'theme',
       variables: { '--v-theme-primary': '9,9,9' },
       dark: true,
+      lang: 'en',
     });
   });
 

@@ -1,0 +1,24 @@
+{
+  "id": "acme.overlay",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "contributes": {
+    "exerciseTypes": [
+      {
+        "id": "acme.overlay",
+        "specSchema": { "type": "object" },
+        "answerSchema": { "type": "string" }
+      }
+    ],
+    "widgets": [
+      {
+        "id": "acme.overlay.widget",
+        "title": "Оверлей",
+        "slot": "dailyPlan",
+        "minHeight": 100,
+        "maxHeight": 200
+      }
+    ],
+    "markdownRenderers": [{ "language": "overlay" }]
+  }
+}

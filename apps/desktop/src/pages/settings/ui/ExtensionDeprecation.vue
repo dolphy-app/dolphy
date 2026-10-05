@@ -20,10 +20,12 @@ const { t } = useI18n();
     variant="tonal"
     density="compact"
     class="mt-3"
-    :title="t('settings.extensions.deprecated.title')"
     data-testid="deprecation"
   >
-    <p class="reason">
+    <p class="text-title-small font-weight-bold">
+      {{ t('settings.extensions.deprecated.title') }}
+    </p>
+    <p class="reason text-body-medium mt-1">
       {{
         t('settings.extensions.deprecated.reason', {
           reason: deprecation.reason,

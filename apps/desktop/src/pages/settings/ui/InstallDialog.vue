@@ -200,7 +200,7 @@ const closeOnBackdrop = (open: boolean) => {
                     :markdown="`## ${section.title}\n\n${section.body}`"
                     :extension-id="item.target.id"
                     :version="item.target.version"
-                    :heading-offset="2"
+                    :heading-offset="3"
                     :images="false"
                     data-testid="whats-new-section"
                     :data-version="section.version"

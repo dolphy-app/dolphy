@@ -97,7 +97,15 @@ watch(
 }
 
 .readme :deep(h4) {
-  font-size: 1.25rem;
+  font-size: 1.125rem;
+}
+
+.readme :deep(h5) {
+  font-size: 1rem;
+}
+
+.readme :deep(h6) {
+  font-size: 0.875rem;
 }
 
 .readme :deep(p),

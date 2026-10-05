@@ -562,17 +562,21 @@ const publishedDate = (value: string) => d(new Date(value), 'shortDate');
               {{ t('settings.extensions.details.versions.installed') }}
             </v-chip>
             <v-spacer />
-            <span
+            <v-chip
               v-if="row.selected"
-              class="text-body-small text-medium-emphasis"
+              size="small"
+              label
+              variant="outlined"
+              prepend-icon="mdi-text-box-outline"
               data-testid="version-shown"
             >
               {{ t('settings.extensions.details.versions.shown') }}
-            </span>
+            </v-chip>
             <v-btn
               v-else
               variant="text"
               size="small"
+              class="text-body-small font-weight-medium"
               :aria-label="
                 t('settings.extensions.details.versions.showLabel', {
                   version: row.version,
@@ -637,16 +641,23 @@ const publishedDate = (value: string) => d(new Date(value), 'shortDate');
           type="warning"
           variant="tonal"
           density="compact"
-          :title="t('settings.extensions.details.readme.unavailable')"
+          class="mt-3"
           data-testid="readme-unavailable"
           :data-reason="docs.reason ?? undefined"
         >
           <div class="d-flex align-center ga-3">
-            <span class="reason flex-grow-1">{{
-              t('settings.extensions.details.readme.reason', {
-                reason: docs.message,
-              })
-            }}</span>
+            <div class="flex-grow-1">
+              <p class="text-title-small font-weight-bold">
+                {{ t('settings.extensions.details.readme.unavailable') }}
+              </p>
+              <p class="reason text-body-medium mt-1">
+                {{
+                  t('settings.extensions.details.readme.reason', {
+                    reason: docs.message,
+                  })
+                }}
+              </p>
+            </div>
             <v-btn
               variant="text"
               prepend-icon="mdi-refresh"

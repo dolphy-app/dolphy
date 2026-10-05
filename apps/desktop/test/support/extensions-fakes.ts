@@ -49,6 +49,7 @@ export const extensionInfo = (
   name: null,
   description: null,
   author: null,
+  dependencies: [],
   installed: null,
   icon: null,
   titles: {},
@@ -66,6 +67,7 @@ export const catalogVersion = (
 ): CatalogVersionDto => ({
   version,
   permissions: [],
+  dependencies: [],
   publishedAt: '2026-01-01T00:00:00.000Z',
   size: 1200,
   minAppVersion: null,

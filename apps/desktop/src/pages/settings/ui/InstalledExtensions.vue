@@ -1,5 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { isEffectiveExtensionState } from '@dolphy-app/engine-contract';
+import {
+  dependencyMessageParams,
+  rowsOfInstalled,
+} from '../lib/dependencies.ts';
 import { useI18n } from 'vue-i18n';
 import type {
   ExtensionDiagnosticDto,
@@ -34,6 +39,7 @@ import ExtensionTags from './ExtensionTags.vue';
 import ExtensionData from './ExtensionData.vue';
 import ExtensionHealth from './ExtensionHealth.vue';
 import ExtensionHeading from './ExtensionHeading.vue';
+import ExtensionDependencies from './ExtensionDependencies.vue';
 import ExtensionPermissions from './ExtensionPermissions.vue';
 import ExtensionRemoveDialog from './ExtensionRemoveDialog.vue';
 import ExtensionSettingsDialog from './ExtensionSettingsDialog.vue';
@@ -49,6 +55,7 @@ const STATE_VIEW: Record<ExtensionStateDto, StateView> = {
   overridden: { icon: 'mdi-layers-outline', color: 'secondary' },
   invalid: { icon: 'mdi-alert-circle-outline', color: 'error' },
   disabled: { icon: 'mdi-pause-circle-outline', color: 'warning' },
+  'dependencies-unmet': { icon: 'mdi-link-variant-off', color: 'warning' },
 };
 
 const props = defineProps<{ active: boolean }>();
@@ -112,20 +119,27 @@ const issuesOf = (diagnostic: ExtensionDiagnosticDto): string[] => {
   return Array.isArray(issues) ? issues : [];
 };
 
+const diagnosticParams = (diagnostic: ExtensionDiagnosticDto) => {
+  if (diagnostic.code === 'overridden-by') {
+    return {
+      ...diagnostic.data,
+      origin: t(`settings.extensions.origin.${diagnostic.data.origin}`),
+    };
+  }
+  return diagnostic.code.startsWith('dependency-')
+    ? dependencyMessageParams(diagnostic)
+    : diagnostic.data;
+};
+
 const diagnosticText = (diagnostic: ExtensionDiagnosticDto): string =>
   t(
     `settings.extensions.diagnostic.${diagnostic.code}`,
-    diagnostic.code === 'overridden-by'
-      ? {
-          ...diagnostic.data,
-          origin: t(`settings.extensions.origin.${diagnostic.data.origin}`),
-        }
-      : diagnostic.data,
+    diagnosticParams(diagnostic),
   );
 
 // предупреждений о переводах может быть несколько с одним кодом: ключ отличает данные
 const diagnosticKey = (diagnostic: ExtensionDiagnosticDto): string =>
-  `${diagnostic.code}:${diagnostic.data.key ?? diagnostic.data.file ?? ''}`;
+  `${diagnostic.code}:${diagnostic.data.key ?? diagnostic.data.file ?? diagnostic.data.id ?? ''}`;
 
 /** Предупреждения о переводах: расширение работает, поэтому они выделены иначе, чем причины сбоя. */
 const isWarning = (diagnostic: ExtensionDiagnosticDto): boolean =>
@@ -141,10 +155,12 @@ const updateOf = (id: string) =>
   updates.value.find((update) => update.id === id);
 
 const isMuted = (extension: ExtensionInfoDto) =>
-  extension.state === 'overridden' || extension.state === 'disabled';
+  extension.state === 'overridden' ||
+  extension.state === 'disabled' ||
+  extension.state === 'dependencies-unmet';
 
 const isActive = (extension: ExtensionInfoDto) =>
-  extension.state === 'loaded' || extension.state === 'disabled';
+  isEffectiveExtensionState(extension.state);
 
 const reviewUpdates = async (ids?: readonly string[]) => {
   install.review(await updateTargets(ids));
@@ -622,6 +638,7 @@ watch(
               v-if="isActive(extension)"
               :permissions="extension.permissions"
             />
+            <ExtensionDependencies :rows="rowsOfInstalled(extension)" />
             <ExtensionContributions
               :contributes="extension.contributes"
               :titles="extension.titles"

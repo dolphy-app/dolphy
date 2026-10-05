@@ -648,6 +648,7 @@ describe('обновления и установка из каталога', () 
     available: {
       version: '1.1.0',
       permissions: ['network'],
+      dependencies: [],
       publishedAt: '2026-01-01T00:00:00.000Z',
       size: 100,
       minAppVersion: null,

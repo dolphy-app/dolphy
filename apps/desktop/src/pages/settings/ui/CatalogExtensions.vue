@@ -18,11 +18,14 @@ import { GROUPS, TAGS } from '../lib/tags.ts';
 import type { ExtensionTag, TagGroup } from '../lib/tags.ts';
 import { useCatalog } from '../model/catalog.ts';
 import { useInstallContext } from '../model/install.ts';
+import { useInstalledExtensions } from '../model/installed.ts';
+import { rowsOfCatalog } from '../lib/dependencies.ts';
 import CatalogAdvanced from './CatalogAdvanced.vue';
 import DeprecatedChip from './DeprecatedChip.vue';
 import ExtensionContributions from './ExtensionContributions.vue';
 import ExtensionDeprecation from './ExtensionDeprecation.vue';
 import ExtensionHeading from './ExtensionHeading.vue';
+import ExtensionDependencies from './ExtensionDependencies.vue';
 import ExtensionPermissions from './ExtensionPermissions.vue';
 import ExtensionTags from './ExtensionTags.vue';
 import FilterChip from './FilterChip.vue';
@@ -31,6 +34,7 @@ const SKELETON_COUNT = 3;
 
 const { t, d } = useI18n();
 const install = useInstallContext();
+const installed = useInstalledExtensions(useEngine());
 const {
   state,
   entries,
@@ -370,6 +374,10 @@ onMounted(() => void open());
             <ExtensionPermissions
               v-if="entry.latest"
               :permissions="entry.latest.permissions"
+            />
+            <ExtensionDependencies
+              v-if="entry.latest"
+              :rows="rowsOfCatalog(entry.latest.dependencies, installed)"
             />
             <ExtensionContributions
               :contributes="entry.contributes"

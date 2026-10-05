@@ -5,10 +5,14 @@ import { ROUTE } from '@/shared/config/routes.ts';
 import { formatBytes } from '../lib/format.ts';
 import type { InstallItemStatus } from '../model/install.ts';
 import { useInstallContext } from '../model/install.ts';
+import { useInstalledExtensions } from '../model/installed.ts';
+import { rowsOfCatalog } from '../lib/dependencies.ts';
+import { useEngine } from '@/shared/api/engine';
 import ExtensionContributions from './ExtensionContributions.vue';
 import ExtensionDeprecation from './ExtensionDeprecation.vue';
 import ExtensionTags from './ExtensionTags.vue';
 import ExtensionHeading from './ExtensionHeading.vue';
+import ExtensionDependencies from './ExtensionDependencies.vue';
 import ExtensionPermissions from './ExtensionPermissions.vue';
 import ReadmeView from './ReadmeView.vue';
 
@@ -26,6 +30,7 @@ const STATUS_VIEW: Record<InstallItemStatus, StatusView> = {
 
 const { t, locale } = useI18n();
 const install = useInstallContext();
+const installed = useInstalledExtensions(useEngine());
 
 const isOpen = computed(() => install.phase.value !== 'idle');
 const isRunning = computed(() => install.phase.value === 'running');
@@ -244,6 +249,9 @@ const closeOnBackdrop = (open: boolean) => {
                 :name="item.target.name"
               />
               <ExtensionPermissions :permissions="item.target.permissions" />
+              <ExtensionDependencies
+                :rows="rowsOfCatalog(item.target.dependencies, installed)"
+              />
               <p
                 v-if="item.target.platforms.length > 0"
                 class="text-body-small mt-3"

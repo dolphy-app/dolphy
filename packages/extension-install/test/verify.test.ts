@@ -257,3 +257,61 @@ describe('manifestMismatch: tags', () => {
     ).toBe('manifest tags differ from the catalog entry');
   });
 });
+
+describe('manifestMismatch: dependencies', () => {
+  const withDependencies = (
+    dependencies?: { id: string; range?: string }[],
+  ): CatalogVersion =>
+    ({
+      ...version,
+      ...(dependencies === undefined ? {} : { dependencies }),
+    }) as CatalogVersion;
+  const [entry] = entryWith({});
+  const manifest = (
+    dependencies: { id: string; range: string | null }[],
+  ): InspectedManifest => ({ ...manifestWith(), dependencies });
+  const MESSAGE = 'manifest dependencies differ from the catalog entry';
+
+  it('passes when equal in any order, with and without ranges, and when both are empty', () => {
+    expect(
+      manifestMismatch(
+        manifest([
+          { id: 'acme.b', range: null },
+          { id: 'acme.a', range: '>=1.0.0' },
+        ]),
+        entry!,
+        withDependencies([
+          { id: 'acme.a', range: '>=1.0.0' },
+          { id: 'acme.b' },
+        ]),
+      ),
+    ).toBeNull();
+    expect(
+      manifestMismatch(manifest([]), entry!, withDependencies()),
+    ).toBeNull();
+  });
+
+  it('rejects a missing, an extra and a different-range dependency', () => {
+    expect(
+      manifestMismatch(
+        manifest([{ id: 'acme.a', range: null }]),
+        entry!,
+        withDependencies(),
+      ),
+    ).toBe(MESSAGE);
+    expect(
+      manifestMismatch(
+        manifest([]),
+        entry!,
+        withDependencies([{ id: 'acme.a' }]),
+      ),
+    ).toBe(MESSAGE);
+    expect(
+      manifestMismatch(
+        manifest([{ id: 'acme.a', range: '>=2.0.0' }]),
+        entry!,
+        withDependencies([{ id: 'acme.a', range: '>=1.0.0' }]),
+      ),
+    ).toBe(MESSAGE);
+  });
+});

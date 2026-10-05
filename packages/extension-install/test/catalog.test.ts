@@ -355,3 +355,25 @@ describe('catalog: кэш и сеть', () => {
     await cold.cleanup();
   });
 });
+
+describe('catalog: dependencies of the shown version', () => {
+  it('latest and every listed version carry their dependencies, none by default', async () => {
+    serveIndex(env.routes, [
+      {
+        id: 'acme.needy',
+        version: '1.1.0',
+        versions: ['1.1.0', '1.0.0'],
+        dependencies: [{ id: 'acme.base', range: '>=1.0.0' }, { id: 'acme.x' }],
+      },
+      { id: 'acme.plain', version: '1.0.0' },
+    ]);
+    const { entries } = await env.installer.catalog();
+    const byId = Object.fromEntries(entries.map((e) => [e.id, e]));
+    expect(byId['acme.needy']?.latest?.dependencies).toEqual([
+      { id: 'acme.base', range: '>=1.0.0' },
+      { id: 'acme.x', range: null },
+    ]);
+    expect(byId['acme.needy']?.versions[1]?.dependencies).toHaveLength(2);
+    expect(byId['acme.plain']?.latest?.dependencies).toEqual([]);
+  });
+});

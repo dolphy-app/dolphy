@@ -54,6 +54,8 @@ export interface ExtensionSpec {
   version: string;
   versions?: string[];
   permissions?: string[];
+  /** `dependencies` of the manifest and of every version record. */
+  dependencies?: { id: string; range?: string }[];
   contributes?: Contributes;
   platforms?: string[];
   apiVersion?: number;
@@ -88,6 +90,9 @@ export const filesOf = (spec: ExtensionSpec, version: string): FakeFile[] => [
       id: spec.id,
       version,
       permissions: spec.permissions ?? [],
+      ...(spec.dependencies === undefined
+        ? {}
+        : { dependencies: spec.dependencies }),
       ...(spec.icon === undefined ? {} : { icon: ICON_PATH }),
       ...(spec.tags?.[version] === undefined
         ? {}
@@ -121,6 +126,9 @@ export const rawEntry = (spec: ExtensionSpec): Record<string, unknown> => ({
     minAppVersion:
       spec.minAppByVersion?.[version] ?? spec.minAppVersion ?? null,
     permissions: spec.permissions ?? [],
+    ...(spec.dependencies === undefined
+      ? {}
+      : { dependencies: spec.dependencies }),
     publishedAt: '2026-10-01T00:00:00Z',
     baseUrl: `extensions/${spec.id}/${version}/`,
     files: filesOf(spec, version).map((file) => ({

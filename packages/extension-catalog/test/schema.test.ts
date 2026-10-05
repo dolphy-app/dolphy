@@ -167,6 +167,47 @@ describe('parseIndex', () => {
     );
   });
 
+  describe('dependencies of a version', () => {
+    const deps = (value: unknown) => withVersion({ dependencies: value });
+
+    it('are optional and kept with and without a range', () => {
+      const parsed = parseIndex(
+        deps([{ id: 'acme.base' }, { id: 'acme.lib', range: '>=1.0.0 <2.0.0' }]),
+      );
+      expect(parsed.extensions[0]?.versions[0]?.dependencies).toEqual([
+        { id: 'acme.base' },
+        { id: 'acme.lib', range: '>=1.0.0 <2.0.0' },
+      ]);
+      expect(
+        parseIndex(index()).extensions[0]?.versions[0]?.dependencies,
+      ).toBeUndefined();
+    });
+
+    it.each([
+      ['a repeated id', [{ id: 'acme.a' }, { id: 'acme.a' }]],
+      ['an unreadable range', [{ id: 'acme.a', range: 'newer' }]],
+      ['a bad id', [{ id: 'Bad Id' }]],
+      ['an unknown key', [{ id: 'acme.a', optional: true }]],
+      [
+        'more than 16',
+        Array.from({ length: 17 }, (_, i) => ({ id: `acme.d${i}` })),
+      ],
+      ['a non-array', 'acme.a'],
+    ])('are rejected by the strict reader with %s', (_name, value) => {
+      expect(issuesOf(deps(value))[0]).toContain(
+        'extensions.0.versions.0.dependencies',
+      );
+    });
+
+    it('are dropped by the tolerant reader when unreadable, the version stays', () => {
+      const { index: parsed } = parseIndexLenient(
+        deps([{ id: 'acme.a', range: 'newer' }]),
+      );
+      expect(parsed.extensions[0]?.versions).toHaveLength(1);
+      expect(parsed.extensions[0]?.versions[0]?.dependencies).toEqual([]);
+    });
+  });
+
   it('неизвестный ключ сводки по-прежнему отвергается', () => {
     const base = entry().contributes;
     const raw = index([

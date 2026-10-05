@@ -690,3 +690,53 @@ describe('extensions safe mode', () => {
     expect(reloader.calls()).toBe(0);
   });
 });
+
+describe('extensions with unmet dependencies', () => {
+  const UNMET = info({
+    id: 'acme.app',
+    origin: 'user',
+    state: 'dependencies-unmet',
+    toggleable: true,
+    isolation: 'isolated',
+    dependencies: [{ id: 'acme.lib', range: '>=1.0.0' }],
+    diagnostics: [
+      {
+        code: 'dependency-missing',
+        data: { id: 'acme.lib', range: '>=1.0.0' },
+      },
+    ],
+  });
+  const openUnmet = () => {
+    const policy = createFakeExtensionPolicy();
+    policy.setDependencyIssues('acme.app', UNMET.diagnostics);
+    return createTestEngine({
+      extensionRegistry: createFakeExtensionRegistry([UNMET]),
+      extensionPolicy: policy,
+    });
+  };
+
+  it('stay in the list with their dependencies and reasons, as copies', async () => {
+    const { engine } = await openUnmet();
+    const [first] = await engine.extensions.list();
+    expect(first).toEqual(UNMET);
+    first?.dependencies.push({ id: 'evil', range: null });
+    expect((await engine.extensions.list())[0]?.dependencies).toHaveLength(1);
+  });
+
+  it('can still be switched off by the user', async () => {
+    const { engine } = await openUnmet();
+    expect(
+      (await engine.extensions.setEnabled('acme.app', false)).disabled,
+    ).toEqual(['acme.app']);
+  });
+
+  it('refuse commands as disabled, not as unknown', async () => {
+    const { engine } = await openUnmet();
+    await expect(
+      engine.extensions.invokeCommand('acme.app', 'acme.app.run'),
+    ).rejects.toMatchObject({
+      code: 'EXTENSION_COMMAND_FAILED',
+      details: { reason: 'disabled' },
+    });
+  });
+});

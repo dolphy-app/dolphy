@@ -15,7 +15,7 @@ describe('decodeUiSettings: material panel', () => {
 
   it.each([
     { materialWidth: 279 },
-    { materialWidth: 801 },
+    { materialWidth: 8193 },
     { materialWidth: 400.5 },
     { materialWidth: '400' },
     { materialCollapsed: false },

@@ -806,7 +806,7 @@ export const TOUR_ID_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;
 /** Сколько туров запоминается, не больше. */
 export const MAX_TOURS = 32;
 /** Допустимая ширина панели теории, px (`UiSettingsDto.materialWidth`). */
-export const MATERIAL_WIDTH_RANGE = { min: 280, max: 800 } as const;
+export const MATERIAL_WIDTH_RANGE = { min: 280, max: 8192 } as const;
 /**
  * `activeCourseId: null` снимает фокус, `materialWidth: null` возвращает умолчание,
  * `materialCollapsed: false` показывает панель; `tours` меняет только перечисленные

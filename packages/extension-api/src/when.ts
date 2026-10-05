@@ -199,13 +199,13 @@ const describe = (token: Token): string => {
   return `'${token.text}'`;
 };
 
-const fail = (token: Token, expected: string): never => {
+function fail(token: Token, expected: string): never {
   throw new WhenError(
     token.kind === 'end' ? 'unexpected-end' : 'unexpected-token',
     token.at,
     `expected ${expected}, found ${describe(token)}`,
   );
-};
+}
 
 class Parser {
   private index = 0;

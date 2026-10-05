@@ -47,6 +47,8 @@ const manifestWith = (
     commands: [],
     panels: [],
     widgets: [],
+    importers: [],
+    exporters: [],
     ...contributes,
   },
 });
@@ -151,6 +153,37 @@ describe('manifestMismatch: widgets', () => {
         manifestWith({ widgets: ['acme.state.b', 'acme.state.a'] }),
         entry,
         v,
+      ),
+    ).toBeNull();
+  });
+});
+
+describe('manifestMismatch: importers и exporters', () => {
+  it('импортёры и экспортёры манифеста и записи индекса должны совпадать', () => {
+    const [bare, v] = entryWith({});
+    expect(
+      manifestMismatch(
+        manifestWith({ importers: ['acme.state.csv'] }),
+        bare,
+        v,
+      ),
+    ).toContain('(importers)');
+    expect(
+      manifestMismatch(
+        manifestWith({ exporters: ['acme.state.out'] }),
+        bare,
+        v,
+      ),
+    ).toContain('(exporters)');
+    const [listed, w] = entryWith({ importers: ['acme.state.csv'] });
+    expect(manifestMismatch(manifestWith(), listed, w)).toContain(
+      '(importers)',
+    );
+    expect(
+      manifestMismatch(
+        manifestWith({ importers: ['acme.state.csv'] }),
+        listed,
+        w,
       ),
     ).toBeNull();
   });

@@ -16,6 +16,8 @@ export const createFakeExtensionRegistry = (
     commands: [],
     panels: [],
     widgets: [],
+    importers: [],
+    exporters: [],
     messages: {},
   },
 ): ExtensionRegistry => ({

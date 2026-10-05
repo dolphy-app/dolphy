@@ -14,6 +14,8 @@ const CONTRIBUTION_KEYS = [
   'commands',
   'panels',
   'widgets',
+  'importers',
+  'exporters',
 ] as const;
 
 const sameSet = (a: readonly string[], b: readonly string[]): boolean => {

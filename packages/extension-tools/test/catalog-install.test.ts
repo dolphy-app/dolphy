@@ -68,6 +68,8 @@ const inspectDir = async (directory: string): Promise<InspectResult> => {
         commands: extension.commands.map(({ id }) => id),
         widgets: [],
         panels: extension.panels.map(({ id }) => id),
+        importers: extension.importers.map(({ id }) => id),
+        exporters: extension.exporters.map(({ id }) => id),
       },
     },
   };

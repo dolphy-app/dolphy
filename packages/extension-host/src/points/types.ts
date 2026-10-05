@@ -1,6 +1,8 @@
 import type {
   CommandContributionDto,
+  ExporterContributionDto,
   ExtensionSettingDefDto,
+  ImporterContributionDto,
   PanelContributionDto,
   WidgetContributionDto,
 } from '@dolphy-app/engine-contract';
@@ -63,6 +65,12 @@ export type ResolvedWidget = Pick<
   'id' | 'title' | 'slot' | 'minHeight' | 'maxHeight' | 'rendererUrl'
 >;
 
+/** Импортёр в виде, в котором его получает окно (DTO движка без `extensionId`). */
+export type ResolvedImporter = Omit<ImporterContributionDto, 'extensionId'>;
+
+/** Экспортёр в виде, в котором его получает окно (DTO движка без `extensionId`). */
+export type ResolvedExporter = Omit<ExporterContributionDto, 'extensionId'>;
+
 export interface ResolvedContributions {
   exerciseTypes: ResolvedExerciseType[];
   themes: ResolvedTheme[];
@@ -73,6 +81,8 @@ export interface ResolvedContributions {
   commands: ResolvedCommand[];
   panels: ResolvedPanel[];
   widgets: ResolvedWidget[];
+  importers: ResolvedImporter[];
+  exporters: ResolvedExporter[];
 }
 
 export type PointKey = keyof ResolvedContributions;

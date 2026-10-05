@@ -298,6 +298,8 @@ describe('createFakeExtensionRegistry', () => {
         commands: [],
         widgets: [],
         panels: [],
+        importers: [],
+        exporters: [],
       },
       diagnostics: [{ code: 'load-failed', data: { reason: 'broken' } }],
       permissions: [],
@@ -328,6 +330,8 @@ describe('createFakeExtensionRegistry', () => {
       commands: [],
       panels: [],
       widgets: [],
+      importers: [],
+      exporters: [],
       messages: {},
     };
     expect(createFakeExtensionRegistry().contributions()).toEqual(empty);

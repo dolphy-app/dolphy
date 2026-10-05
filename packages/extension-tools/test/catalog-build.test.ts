@@ -302,6 +302,56 @@ describe('catalog build: commands and panels', () => {
   });
 });
 
+describe('catalog build: importers and exporters', () => {
+  const contributes = {
+    commands: [{ id: 'acme.commands-panel.open', title: 'Open panel' }],
+    panels: [{ id: 'acme.commands-panel.main', title: 'Acme panel' }],
+    importers: [
+      {
+        id: 'acme.commands-panel.csv',
+        title: 'CSV course',
+        accept: ['.csv'],
+      },
+    ],
+    exporters: [
+      {
+        id: 'acme.commands-panel.out',
+        title: 'Course as CSV',
+        scope: 'course',
+      },
+    ],
+  };
+
+  it('writes importer and exporter ids and titles into the index entry', async () => {
+    const repo = await createRepo([
+      { fixture: 'commands-panel', manifest: { contributes } },
+    ]);
+    const out = await makeTemp();
+    await publish(repo, out, ['acme.commands-panel']);
+    const [entry] = (await indexOf(out)).extensions;
+    expect(entry?.contributes.importers).toEqual(['acme.commands-panel.csv']);
+    expect(entry?.contributes.exporters).toEqual(['acme.commands-panel.out']);
+    expect(entry?.titles?.importers).toEqual({
+      'acme.commands-panel.csv': 'CSV course',
+    });
+    expect(entry?.titles?.exporters).toEqual({
+      'acme.commands-panel.out': 'Course as CSV',
+    });
+  });
+
+  it('without them the entry has no keys', async () => {
+    const repo = await createRepo([{ fixture: 'commands-panel' }]);
+    const out = await makeTemp();
+    await publish(repo, out, ['acme.commands-panel']);
+    const raw = (await readJson(path.join(out, 'index.v2.json'))) as {
+      extensions: { contributes: Record<string, unknown> }[];
+    };
+    const keys = Object.keys(raw.extensions[0]?.contributes ?? {});
+    expect(keys).not.toContain('importers');
+    expect(keys).not.toContain('exporters');
+  });
+});
+
 describe('catalog build: version immutability', () => {
   it('rebuilding the same sources is a no-op, publishedAt is kept', async () => {
     const repo = await createRepo([{ fixture: 'theme-only' }]);

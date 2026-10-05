@@ -97,6 +97,36 @@ describe('parseIndex', () => {
     ).toContain('extensions.0.contributes.widgets');
   });
 
+  it('сводка принимает importers и exporters и сохраняет их; неверный тип отвергается', () => {
+    const base = entry().contributes;
+    const parsed = parseIndex(
+      index([
+        entry({
+          contributes: {
+            ...base,
+            importers: ['acme.quiz.csv'],
+            exporters: ['acme.quiz.out'],
+          },
+        }),
+      ]),
+    );
+    expect(parsed.extensions[0]?.contributes.importers).toEqual([
+      'acme.quiz.csv',
+    ]);
+    expect(parsed.extensions[0]?.contributes.exporters).toEqual([
+      'acme.quiz.out',
+    ]);
+    expect(parseIndex(JSON.parse(JSON.stringify(parsed)))).toEqual(parsed);
+    expect(
+      issuesOf(
+        index([{ ...entry(), contributes: { ...base, importers: 'x' } }]),
+      )[0],
+    ).toContain('extensions.0.contributes.importers');
+    expect(parseIndex(index()).extensions[0]?.contributes.importers).toBe(
+      undefined,
+    );
+  });
+
   it('старый индекс без commands и panels остаётся валидным', () => {
     const parsed = parseIndex(index());
     expect(parsed.extensions[0]?.contributes.commands).toBeUndefined();

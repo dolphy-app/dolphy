@@ -47,6 +47,8 @@ const extension: ResolvedExtension = {
   commands: [],
   widgets: [],
   panels: [],
+  importers: [],
+  exporters: [],
 };
 
 describe('createCatalog', () => {

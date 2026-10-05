@@ -988,6 +988,77 @@
             ],
             "additionalProperties": false
           }
+        },
+        "importers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 64,
+                "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)*$"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              },
+              "accept": {
+                "minItems": 1,
+                "maxItems": 8,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^\\.[a-z0-9]{1,16}$"
+                }
+              },
+              "input": {
+                "type": "string",
+                "enum": [
+                  "text",
+                  "bytes"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "accept"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "exporters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 64,
+                "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)*$"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              },
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "course",
+                  "progress"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "scope"
+            ],
+            "additionalProperties": false
+          }
         }
       },
       "additionalProperties": false

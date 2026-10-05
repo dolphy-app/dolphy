@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { ERRORS, EngineError, createErrorMapper } from '../../src/app/index.ts';
 
 describe('EngineError', () => {
-  it('has all 29 codes (API §8, repositories and extensions) with the documented default retryable', () => {
-    expect(Object.keys(ERRORS)).toHaveLength(29);
+  it('has all 30 codes (API §8, repositories and extensions) with the documented default retryable', () => {
+    expect(Object.keys(ERRORS)).toHaveLength(30);
     const retryable = Object.entries(ERRORS)
       .filter(([, spec]) => spec.retryable)
       .map(([code]) => code)
@@ -43,6 +43,23 @@ describe('EngineError', () => {
         retryable,
       ),
     ).toEqual([false, false, false, false, false]);
+  });
+
+  it('EXTENSION_TRANSFER_FAILED is retryable only after a timeout or a lost host', () => {
+    const retryable = (reason: string) =>
+      new EngineError('EXTENSION_TRANSFER_FAILED', { details: { reason } })
+        .retryable;
+    expect(['timeout', 'host-down'].map(retryable)).toEqual([true, true]);
+    expect(
+      [
+        'unknown-importer',
+        'unknown-exporter',
+        'handler-failed',
+        'invalid-result',
+        'disabled',
+        'replaced',
+      ].map(retryable),
+    ).toEqual([false, false, false, false, false, false]);
   });
 
   it('EXTENSION_COMMAND_FAILED is retryable only after a timeout or a lost host', () => {

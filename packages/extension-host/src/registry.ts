@@ -18,6 +18,8 @@ const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
   commands: [],
   panels: [],
   widgets: [],
+  importers: [],
+  exporters: [],
 };
 
 const isolationOf = (
@@ -69,6 +71,8 @@ export const contributesOf = (
     | 'commands'
     | 'panels'
     | 'widgets'
+    | 'importers'
+    | 'exporters'
   >,
 ): ExtensionInfoDto['contributes'] => ({
   exerciseTypes: extension.exerciseTypes.map(({ id }) => id),
@@ -82,6 +86,8 @@ export const contributesOf = (
   commands: extension.commands.map(({ id }) => id),
   panels: extension.panels.map(({ id }) => id),
   widgets: extension.widgets.map(({ id }) => id),
+  importers: extension.importers.map(({ id }) => id),
+  exporters: extension.exporters.map(({ id }) => id),
 });
 
 /** Названия вкладов с `label`/`title` в том же виде, что `titles` записи каталога; пустые точки опущены. */
@@ -96,6 +102,8 @@ export const titlesOf = (
     | 'commands'
     | 'panels'
     | 'widgets'
+    | 'importers'
+    | 'exporters'
   >,
 ): ExtensionInfoDto['titles'] => {
   const titles: ExtensionInfoDto['titles'] = {};
@@ -134,6 +142,16 @@ export const titlesOf = (
   add('commands', extension.commands, (item: { title: string }) => item.title);
   add('panels', extension.panels, (item: { title: string }) => item.title);
   add('widgets', extension.widgets, (item: { title: string }) => item.title);
+  add(
+    'importers',
+    extension.importers,
+    (item: { title: string }) => item.title,
+  );
+  add(
+    'exporters',
+    extension.exporters,
+    (item: { title: string }) => item.title,
+  );
   return titles;
 };
 
@@ -285,6 +303,16 @@ export const createExtensionRegistry = (
           origin: extension.origin,
           revision: extension.revision,
         })),
+      ),
+      importers: enabled().flatMap(({ id, importers }) =>
+        importers.map((importer) => ({
+          ...importer,
+          accept: [...importer.accept],
+          extensionId: id,
+        })),
+      ),
+      exporters: enabled().flatMap(({ id, exporters }) =>
+        exporters.map((exporter) => ({ ...exporter, extensionId: id })),
       ),
       messages: Object.fromEntries(
         enabled()

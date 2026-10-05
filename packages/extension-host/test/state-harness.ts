@@ -95,6 +95,8 @@ export const stateful = (
   commands: [],
   panels: [],
   widgets: [],
+  importers: [],
+  exporters: [],
   ...overrides,
 });
 

@@ -179,6 +179,8 @@ describe('contributionGroups', () => {
         commands: ['acme.run'],
         panels: ['acme.view'],
         widgets: ['acme.card'],
+        importers: [],
+        exporters: [],
       }),
     ).toEqual([
       {

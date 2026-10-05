@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 21 as const;
+export const CONTRACT_VERSION = 22 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 
@@ -52,6 +52,8 @@ export type EngineErrorCode =
   | 'SECRETS_UNAVAILABLE'
   /** Команда расширения не выполнена; `details`: `extensionId`, `commandId`, `reason` (`ExtensionCommandFailureReason`). */
   | 'EXTENSION_COMMAND_FAILED'
+  /** Импорт или экспорт расширения не выполнен; `details`: `extensionId`, `id`, `kind` (`import` | `export`), `reason` (`ExtensionTransferFailureReason`). */
+  | 'EXTENSION_TRANSFER_FAILED'
   | 'INTERNAL';
 
 export interface EngineErrorDto {
@@ -1263,6 +1265,10 @@ export interface ExtensionContributesDto {
   panels: string[];
   /** Id виджетов (`contributes.widgets`). */
   widgets: string[];
+  /** Id импортёров (`contributes.importers`). */
+  importers: string[];
+  /** Id экспортёров (`contributes.exporters`). */
+  exporters: string[];
 }
 
 /** Таблицы переводов расширения (`locales/<язык>.json`): язык → ключ → текст; нет файла — нет языка. */
@@ -1280,7 +1286,9 @@ export type ContributionTitlesDto = Partial<
     | 'settings'
     | 'commands'
     | 'panels'
-    | 'widgets',
+    | 'widgets'
+    | 'importers'
+    | 'exporters',
     Record<string, string>
   >
 >;
@@ -1354,6 +1362,28 @@ export interface WidgetContributionDto {
   revision: string;
 }
 
+/** Импортёр расширения (`contributes.importers`): файл пользователя → каталог курса. */
+export interface ImporterContributionDto {
+  id: string;
+  extensionId: string;
+  /** Название в палитре и карточке «Библиотеки»; данные расширения. */
+  title: string;
+  /** Допустимые расширения файла в нижнем регистре (`.csv`), от 1 до 8; фильтр системного диалога. */
+  accept: string[];
+  /** `text` — обработчик получает файл строкой UTF-8, `bytes` — байтами. */
+  input: 'text' | 'bytes';
+}
+
+/** Экспортёр расширения (`contributes.exporters`): курс или прогресс → файл пользователя. */
+export interface ExporterContributionDto {
+  id: string;
+  extensionId: string;
+  /** Название в палитре и карточке «Библиотеки»; данные расширения. */
+  title: string;
+  /** `course` — снимок выбранного курса; `progress` — статистика через `ctx.stats` (нужно разрешение `learning.stats`). */
+  scope: 'course' | 'progress';
+}
+
 /** Что вернул обработчик команды; окно исполняет `notify` и `openPanel` само. */
 export type CommandResultDto =
   | { kind: 'none' }
@@ -1371,6 +1401,17 @@ export type ExtensionCommandFailureReason =
   | 'disabled'
   | 'replaced'
   | 'activation-timeout';
+
+/** Причина `EXTENSION_TRANSFER_FAILED` (`details.reason`). */
+export type ExtensionTransferFailureReason =
+  | 'unknown-importer'
+  | 'unknown-exporter'
+  | 'host-down'
+  | 'timeout'
+  | 'handler-failed'
+  | 'invalid-result'
+  | 'disabled'
+  | 'replaced';
 
 export interface ThemeContributionDto {
   id: string;
@@ -1437,6 +1478,10 @@ export interface ContributionsDto {
   panels: PanelContributionDto[];
   /** Виджеты включённых расширений. */
   widgets: WidgetContributionDto[];
+  /** Импортёры включённых расширений. */
+  importers: ImporterContributionDto[];
+  /** Экспортёры включённых расширений. */
+  exporters: ExporterContributionDto[];
   /** Таблицы переводов включённых расширений по id; расширения без файлов перевода не перечислены. Подписи вкладов приходят как в манифесте (`%ключ%`). */
   messages: Record<string, ExtensionMessagesDto>;
 }

@@ -117,6 +117,8 @@ describe('staleAnswerElements (R7)', () => {
       commands: [],
       panels: [],
       widgets: [],
+      importers: [],
+      exporters: [],
       messages: {},
     });
     const required = useReloadRequired(contributions as ContributionsRef);

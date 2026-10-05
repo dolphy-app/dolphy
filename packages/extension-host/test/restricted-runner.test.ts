@@ -129,6 +129,8 @@ const extensionOf = (
   commands: [],
   widgets: [],
   panels: [],
+  importers: [],
+  exporters: [],
 });
 
 const gradeRequest = (id: string, timeoutMs = 2000): ExtRequest => ({

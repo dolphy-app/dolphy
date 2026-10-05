@@ -19,6 +19,8 @@ const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
   commands: [],
   widgets: [],
   panels: [],
+  importers: [],
+  exporters: [],
 };
 
 const info = (overrides: Partial<ExtensionInfoDto>): ExtensionInfoDto => ({
@@ -138,6 +140,8 @@ describe('extensions.contributions', () => {
     commands: [],
     widgets: [],
     panels: [],
+    importers: [],
+    exporters: [],
     messages: {},
   };
   const openWith = (source: RegistryContributions) =>

@@ -55,6 +55,8 @@ const resolved: ResolvedExtension[] = [
     commands: [],
     widgets: [],
     panels: [],
+    importers: [],
+    exporters: [],
   },
 ];
 const catalog = createCatalog(holderOf(resolved), createAllTrustedPolicy());

@@ -137,6 +137,8 @@ const indexOf = (revoked: { id: string; versions: string; reason: string }[]) =>
           events: [],
           commands: [],
           panels: [],
+          importers: [],
+          exporters: [],
         },
         versions: [
           {

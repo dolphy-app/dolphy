@@ -26,6 +26,8 @@ const dto = (
   commands: [],
   widgets: [],
   panels: [],
+  importers: [],
+  exporters: [],
   messages: {},
 });
 

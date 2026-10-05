@@ -25,6 +25,8 @@ const base: Omit<ExtensionInfoDto, 'id' | 'permissions' | 'state'> = {
     commands: [],
     widgets: [],
     panels: [],
+    importers: [],
+    exporters: [],
   },
   diagnostics: [],
   isolation: 'isolated',

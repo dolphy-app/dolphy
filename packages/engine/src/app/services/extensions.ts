@@ -136,6 +136,8 @@ const copyInfo = (info: ExtensionInfoDto): ExtensionInfoDto => ({
     commands: [...info.contributes.commands],
     panels: [...info.contributes.panels],
     widgets: [...info.contributes.widgets],
+    importers: [...info.contributes.importers],
+    exporters: [...info.contributes.exporters],
   },
   diagnostics: structuredClone(info.diagnostics),
   permissions: [...info.permissions],
@@ -182,6 +184,12 @@ const sortedContributions = (
     commands: copy.commands.sort(compareBy((command) => command.extensionId)),
     panels: copy.panels.sort(compareBy((panel) => panel.extensionId)),
     widgets: copy.widgets.sort(compareBy((widget) => widget.extensionId)),
+    importers: copy.importers.sort(
+      compareBy((importer) => importer.extensionId),
+    ),
+    exporters: copy.exporters.sort(
+      compareBy((exporter) => exporter.extensionId),
+    ),
     messages: copy.messages,
   };
 };

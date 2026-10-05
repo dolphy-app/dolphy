@@ -55,6 +55,8 @@ describe('effectiveTags', () => {
       commands: ['a'],
       panels: ['a'],
       widgets: ['a'],
+      importers: [],
+      exporters: [],
     });
     expect(all).not.toContain('language');
     expect(all).not.toContain('developer');

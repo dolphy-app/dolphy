@@ -30,6 +30,8 @@ const extension = (id: string, origin: ExtensionOrigin): ResolvedExtension => ({
   commands: [],
   widgets: [],
   panels: [],
+  importers: [],
+  exporters: [],
 });
 
 const policyFor = (...items: ResolvedExtension[]) =>

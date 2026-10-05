@@ -783,6 +783,9 @@ importers:
         specifier: ^8.0.16
         version: 8.3.1(@types/node@22.20.4)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
     devDependencies:
+      '@dolphy-app/engine':
+        specifier: workspace:*
+        version: link:../engine
       '@dolphy-app/extension-install':
         specifier: workspace:*
         version: link:../extension-install

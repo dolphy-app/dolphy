@@ -33,8 +33,11 @@ const DOC_FILES = [
   'recipe-command-panel.md',
   'recipe-event-storage.md',
   'recipe-exercise-type.md',
+  'recipe-import-export.md',
   'recipe-settings.md',
   'recipe-theme.md',
+  'recipe-ui-kit.md',
+  'recipe-when-dependencies.md',
 ];
 
 type Mode =
@@ -66,8 +69,17 @@ const EXAMPLES: Readonly<Record<string, Record<string, Example>>> = {
   'recipe-event-storage.md': {
     events: { mode: 'build-with-code-and-tests', template: 'events' },
   },
+  'recipe-import-export.md': {
+    'import-export': { mode: 'build-with-code-and-tests' },
+  },
   'recipe-settings.md': {
     settings: { mode: 'build-with-code-and-tests' },
+  },
+  'recipe-ui-kit.md': {
+    'ui-kit': { mode: 'build-with-code-and-tests' },
+  },
+  'recipe-when-dependencies.md': {
+    'when-dependencies': { mode: 'build-with-code-and-tests' },
   },
   'no-build.md': { 'no build': { mode: 'no-build' } },
   'debugging.md': {},

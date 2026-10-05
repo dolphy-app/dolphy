@@ -1,13 +1,15 @@
 ---
-status: active
+status: done
 branch: feature/extension-api-breadth-2
 created: 2026-10-04
-closed: null
+closed: 2026-10-05
 touches: [engine-contract, engine, engine-rpc, engine-sqlite, extension-api, extension-host, extension-sdk, extension-tools, extension-catalog, extension-ui, desktop]
 depends-on: [specs/archive/2026-10-05-extension-foundation, specs/archive/2026-10-05-extension-api-breadth-1]
 supersedes: null
 superseded-by: null
 ---
+
+> Исторический документ. Не источник требований.
 
 # Расширения: импорт и экспорт, `when` и сочетания клавиш, UI-кит и зависимости
 
@@ -77,7 +79,7 @@ superseded-by: null
 
 ## Progress
 
-- [ ] 4a.1 `extension-api` (типы, лимиты, `EXTENSION_TRANSFER_LIMITS`), точки `importers`/`exporters` в `extension-host` (схема, `check`, `resolve`, `claims`), `extension-catalog` (сводка), контракт: DTO, RPC-схемы, код ошибки
+- [x] 4a.1 `extension-api` (типы, лимиты, `EXTENSION_TRANSFER_LIMITS`), точки `importers`/`exporters` в `extension-host` (схема, `check`, `resolve`, `claims`), `extension-catalog` (сводка), контракт: DTO, RPC-схемы, код ошибки
 - [x] 4a.2 Хост: запросы `runImporter`/`runExporter` в обоих раннерах, передача частями в ограниченный процесс, сроки; SDK (`defineExtension`, `ctx.importers/exporters`, `testing`), `dolphy-ext types`
 - [x] 4a.3 Движок: staging и проверка компилятором, ожидающие импорты, `commitImport` с откатом, обобщение `SnapshotInstaller`, снимок курса для экспорта
 - [x] 4a.4 Окно: `pickFile`/`saveFile` в `platform` и preload, диалог импорта со сводкой, выбор курса для экспорта, карточка в «Библиотеке», команды палитры, i18n ru/en, e2e (импорт, замена, откат, зависший обработчик, экспорт)
@@ -85,7 +87,8 @@ superseded-by: null
 - [x] 4b.2 Сочетания: сверка с ADR 0016 (спека), `dolphy-ext validate` на `keybinding`/`keybindings` (тест CLI), e2e с враждебной рамкой
 - [x] 4c.1 `packages/extension-ui`, e2e-панель с axe в двух темах, публикация и `verify:packages`
 - [x] 4c.2 `dependencies`: схема, топологический порядок, состояние и диагностика, живой пересчёт, строка в «Расширениях», диалог установки и карточка каталога
-- [ ] 4c.3 Документация и примеры `docs-contributions.test.ts`, README, ADR, PR в репозиторий каталога (поднять `extension-tools`), `Outcomes`, архив
+- [x] 4c.3 (PR) Закрытие: примеры и тест `docs-contributions.test.ts` (импортёр CSV с компиляцией курса, экспортёр курса, `when`, зависимости, панель на UI-ките), `docs/design/extensions.md`, README `extension-ui`, `extension-sdk`, `extension-tools` и `packages/README.md`, руководство SDK (рецепты импорта и экспорта, `when` и зависимостей, UI-кита), [ADR 0019](../../../docs/adr/0019-extension-import-export.md), `Outcomes`, архив
+- [ ] PR в `dolphy-app/dolphy-extensions` (поднять `@dolphy-app/extension-tools`, чтобы заявки с `importers`, `exporters`, `when`, `dependencies` проходили `catalog check`) — заблокирован до следующего релиза пакетов; см. `Outcomes`
 
 ## Surprises & Discoveries
 
@@ -157,5 +160,19 @@ superseded-by: null
 
 ## Outcomes
 
-Заполняется при закрытии.
+**Сделано.** Все 20 требований (R1–R20) реализованы стадиями 4a.1…4c.2 и проверены юнитами пакетов, контрактными тестами адаптеров и e2e (`extension-transfers`, `extension-when`, `keybindings`, `ui-kit`, `extension-dependencies`, `extension-dependencies-catalog`): импортёры и экспортёры (канал передачи вне команд, диалоги файла только в main, staging, проверка компилятором, атомарная запись в `imported/` с откатом), `when` видимости (`parseWhen`/`evaluateWhen`), сочетания пользователя на реестре ADR 0016, `@dolphy-app/extension-ui` и `dependencies` (состояние `dependencies-unmet`, порядок, живой пересчёт, каталог). Контракт — 31. Стадия 4c.3 перенесла долговечное в `docs/design/extensions.md` (разделы «Импортёры и экспортёры», «Зависимости (`dependencies`)», «UI-кит», «Границы»), в README пакетов и в руководство SDK (`recipe-import-export.md`, `recipe-when-dependencies.md`, `recipe-ui-kit.md`; код всех блоков собирают и запускают `docs-contributions.test.ts` и `sdk-docs.test.ts`), а решение об импорте и экспорте — в [ADR 0019](../../../docs/adr/0019-extension-import-export.md).
+
+**Отличия от плана.**
+- `when` видимости — отдельный язык в `extension-api`, а не расширение языка привязок `@dolphy-app/keybindings`: ADR 0016 принят раньше и оставил язык привязок открытым и нетипизированным (запись Decision Log от 2026-10-05).
+- Сочетания клавиш (R12–R15) в основном закрыл ADR 0016; стадия 4b.2 свелась к сверке спеки, e2e враждебной рамки и тесту `dolphy-ext validate`. Решения о «Заменить», отключении обоих при совпадении и «Предложено автором» отменены ADR.
+- Тело импорта и экспорта идёт в ограниченный процесс байтовым потоком частями, а не JSON-сообщением; к `EXTENSION_TRANSFER_LIMITS` добавлен `pathBytes`, к причинам сбоя — `too-large` и `reload-rejected`; импорт с ошибками отдаёт `importId: null` и сразу чистит `.staging`.
+- Диапазон `range` зависимости — сравнения через пробел (`>=1.0.0 <2.0.0`, как в индексе каталога), а не полный semver (`^`, `~`, `||`); сверх трёх кодов спеки добавлены `dependency-unmet` и `dependency-cycle`; цикл виден при обнаружении, а не в манифесте.
+- Порт `ExtensionTransfers` сделан в 4a.2, а не в 4a.3; `SnapshotInstaller` получил корень назначения.
+- Руководство SDK получило три рецепта (импорт и экспорт, `when` и зависимости, UI-кит) сверх «примеров в `docs/design/extensions.md`» из R19; рецепт UI-кита потребовал ссылку `@dolphy-app/extension-ui` в `linkToolchain` тестов руководства, а `docs-contributions.test.ts` — зависимость `@dolphy-app/engine` (компиляция импортированного курса).
+- Номера контракта не фиксировались заранее и пересчитывались при слиянии (30 для 4b.1, 31 после 4c.2).
+
+**Осталось.**
+- PR в `dolphy-app/dolphy-extensions` (поднять `@dolphy-app/extension-tools`, чтобы `catalog check` принимал `importers`, `exporters`, `when` и `dependencies`) — заблокирован: нужны опубликованные пакеты следующего релиза; выполнить после него.
+- Бинарные ассеты в импортированном курсе, импорт из сети и пакетный импорт, сервисы между расширениями и автоустановка зависимостей — не цели этой фичи, отложены (запись `specs/archive/2026-10-04-extension-housekeeping`).
+- Vue и Vuetify в бандлах расширений — отдельная фича `extension-ui-vuetify` (`specs/extension-ui-vuetify`).
 

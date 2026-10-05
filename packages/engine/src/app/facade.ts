@@ -26,7 +26,11 @@ export type WrapMethod = (name: string, method: AnyMethod) => AnyMethod;
  * сеть (индекс, файлы версии) и очередь не держат; событие
  * `extensions-changed` публикует сама установка.
  * `extensions.invokeCommand` исполняет код расширения до 14 с: медленная
- * команда не должна замораживать остальные вызовы движка. По той же причине
+ * команда не должна замораживать остальные вызовы движка. Так же
+ * `extensions.runImporter` и `extensions.runExporter` (обработчик до 30 с, файл
+ * до 20 МиБ) и `extensions.discardImport` (удаляет только временный каталог);
+ * `extensions.commitImport` подменяет каталог библиотеки и перезагружает её,
+ * поэтому идёт в очереди. По той же причине
  * `extensions.diagnostics` и `extensions.restartHost` (здоровье и перезапуск
  * хоста) не ждут очередь: окно должно видеть остановленный хост и мочь его
  * запустить, пока в очереди висит долгая команда. По той же причине
@@ -43,6 +47,9 @@ export const UNQUEUED: ReadonlySet<string> = new Set([
   'extensions.docs',
   'extensions.docImage',
   'extensions.invokeCommand',
+  'extensions.runImporter',
+  'extensions.discardImport',
+  'extensions.runExporter',
   'extensions.diagnostics',
   'extensions.restartHost',
   'extensions.readLogs',

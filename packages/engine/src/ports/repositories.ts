@@ -139,41 +139,60 @@ export interface OperationDirs {
 }
 
 /**
- * Файловые операции над снимками в `<libraryRoot>/repositories/<id>`.
- * Промежуточные каталоги (`.staging`, `.trash` в корне библиотеки,
- * `git-tmp` в `dataDir`) лежат на тех же файловых системах, что их цели, а
- * сканер пропускает каталоги с точкой.
+ * Корень назначения в библиотеке: `repositories/<id>` — снимки git-репозиториев,
+ * `imported/<имя>` — курсы, присланные импортёрами расширений. Сканер обходит
+ * оба как обычные каталоги библиотеки.
+ */
+export type SnapshotRoot = 'repositories' | 'imported';
+
+/**
+ * Файловые операции над каталогами в `<libraryRoot>/repositories/<id>` и
+ * `<libraryRoot>/imported/<id>`. Промежуточные каталоги (`.staging`,
+ * `.trash` в корне библиотеки, `git-tmp` в `dataDir`) лежат на тех же файловых
+ * системах, что их цели, а сканер пропускает каталоги с точкой. Операция
+ * (`opId`) работает с одним корнем; `.staging/<opId>` общий для обоих.
  */
 export interface SnapshotInstaller {
-  /** Относительный путь снимка в библиотеке: `repositories/<id>`. */
-  snapshotPath(id: string): string;
+  /** Относительный путь каталога в библиотеке: `<root>/<id>`. */
+  snapshotPath(root: SnapshotRoot, id: string): string;
   /**
    * Создаёт пустые каталоги операции; `stagingDir` — `.staging/<opId>/<id>`.
-   * Снимок лежит в `<id>` внутри `.staging/<opId>`, чтобы сканер видел его
-   * дочерним каталогом корня библиотеки, как в `repositories/<id>` (корневой
-   * `course_manifest.json` репозитория — курс).
+   * Каталог лежит в `<id>` внутри `.staging/<opId>`, чтобы сканер видел его
+   * дочерним каталогом корня библиотеки, как после установки (корневой
+   * `course_manifest.json` — курс).
    */
-  begin(id: string, opId: string): Promise<OperationDirs>;
+  begin(root: SnapshotRoot, id: string, opId: string): Promise<OperationDirs>;
   /**
-   * Источник курсов над `.staging/<opId>` (для проверки до подмены): снимок
-   * виден каталогом `<id>`, пути диагностик начинаются с `<id>/`.
+   * Записывает файлы (`путь → текст UTF-8`) в `.staging/<opId>/<id>`, созданный
+   * `begin`. Пути проверяются заново: относительные, с `/`, без `..`, пустых и
+   * начинающихся с точки сегментов; иначе ошибка без записи остальных.
+   */
+  writeStaging(
+    id: string,
+    opId: string,
+    files: Readonly<Record<string, string>>,
+  ): Promise<void>;
+  /**
+   * Источник курсов над `.staging/<opId>` (для проверки до подмены): каталог
+   * виден как `<id>`, пути диагностик начинаются с `<id>/`.
    */
   stagingSource(opId: string): CourseSource;
-  /** Есть ли каталог снимка. */
-  exists(id: string): Promise<boolean>;
-  /** `repositories/<id>` (если есть) → `.trash/<opId>`, `.staging/<opId>/<id>` → `repositories/<id>`. */
-  install(id: string, opId: string): Promise<void>;
-  /** Обратно после `install`: новый снимок удаляется, старый из `.trash` возвращается. */
-  rollback(id: string, opId: string): Promise<void>;
+  /** Есть ли каталог `<root>/<id>`. */
+  exists(root: SnapshotRoot, id: string): Promise<boolean>;
+  /** `<root>/<id>` (если есть) → `.trash/<root>/<opId>`, `.staging/<opId>/<id>` → `<root>/<id>`. */
+  install(root: SnapshotRoot, id: string, opId: string): Promise<void>;
+  /** Обратно после `install`: новый каталог удаляется, старый из `.trash` возвращается. */
+  rollback(root: SnapshotRoot, id: string, opId: string): Promise<void>;
   /** Удаляет каталоги операции (`.trash`, `.staging`, `git-tmp`). */
   finish(opId: string): Promise<void>;
-  /** Удаляет снимок `repositories/<id>`. */
-  remove(id: string): Promise<void>;
+  /** Удаляет каталог `<root>/<id>`. */
+  remove(root: SnapshotRoot, id: string): Promise<void>;
   /**
-   * Старт: удаляет `.staging`, `.trash`, `git-tmp`; возвращает `id` каталогов
-   * в `repositories/`, чтобы вызывающий сверил их с реестром.
+   * Старт: достраивает прерванные подмены в обоих корнях, удаляет `.staging`,
+   * `.trash`, `git-tmp`; возвращает `id` каталогов каждого корня, чтобы
+   * вызывающий сверил их с реестром.
    */
-  recover(): Promise<string[]>;
+  recover(): Promise<Record<SnapshotRoot, string[]>>;
 }
 
 /** Лимиты по умолчанию (спека `course-git-source`, Решения). */

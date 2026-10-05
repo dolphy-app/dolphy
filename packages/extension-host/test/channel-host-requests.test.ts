@@ -137,6 +137,36 @@ describe('запросы хоста к движку по каналу', () => {
     ).toEqual({ id: 'h3', ok: true, result: true });
   });
 
+  it('уведомления обслуживает движок: параметры доходят как есть, форма проверяется строго', async () => {
+    const engine = createStubEngine();
+    const { channel, request } = setup();
+    channel.serve(engine.extensionHost);
+    const ext = 'acme.a';
+
+    expect(
+      await request(
+        'notifications.show',
+        { extensionId: ext, title: 'T', body: 'B' },
+        'n1',
+      ),
+    ).toEqual({ id: 'n1', ok: true, result: true });
+    expect(engine.notified).toEqual([
+      { extensionId: ext, title: 'T', body: 'B' },
+    ]);
+
+    for (const params of [
+      { extensionId: ext, title: 'T' },
+      { extensionId: ext, title: 1, body: 'B' },
+      { extensionId: ext, title: 'T', body: 'B', silent: true },
+    ]) {
+      expect(await request('notifications.show', params)).toMatchObject({
+        ok: false,
+        error: { code: 'INVALID_ARGUMENT' },
+      });
+    }
+    expect(engine.notified).toHaveLength(1);
+  });
+
   it('сообщение хоста о сбое вне вызова попадает в здоровье расширения; неверная форма отклоняется', async () => {
     const engine = createStubEngine();
     const { channel, request } = setup();

@@ -86,6 +86,7 @@ describe('createJsonSettingsStore: свои файлы движка', () => {
       trusted: [],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
   });
 });

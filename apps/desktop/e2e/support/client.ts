@@ -26,6 +26,7 @@ const RU = {
   extensionList: 'Установленные расширения',
   extensionEnabled: 'Включено',
   extensionTrust: 'Доверять (без изоляции)',
+  extensionNotifications: 'Уведомления',
   reloadWindow: 'Перезагрузить окно',
   verdictPassed: 'Верно',
   verdictFailed: 'Пока неверно',
@@ -47,6 +48,14 @@ const RU = {
 } as const;
 
 const TIMEOUT = 15_000;
+
+export type ExtensionSwitchName = 'enabled' | 'trusted' | 'notifications';
+
+const SWITCH_LABELS: Record<ExtensionSwitchName, string> = {
+  enabled: RU.extensionEnabled,
+  trusted: RU.extensionTrust,
+  notifications: RU.extensionNotifications,
+};
 
 /** Рамка элемента ответа недоверенного расширения (`IsolatedFrame`, режим `answer`). */
 export const ANSWER_FRAME = 'iframe[sandbox][data-mode="answer"]';
@@ -380,7 +389,7 @@ export class Client {
     return rows.allInnerTexts();
   }
 
-  private extensionSwitch(id: string, which: 'enabled' | 'trusted'): Locator {
+  private extensionSwitch(id: string, which: ExtensionSwitchName): Locator {
     // переключатели есть только у строк не из поставки: id таких строк уникален
     return this.extensionList()
       .getByRole('listitem')
@@ -388,7 +397,7 @@ export class Client {
         has: this.page.getByRole('heading', { name: id, exact: true }),
       })
       .getByRole('checkbox', {
-        name: which === 'enabled' ? RU.extensionEnabled : RU.extensionTrust,
+        name: SWITCH_LABELS[which],
         exact: true,
       });
   }
@@ -407,18 +416,18 @@ export class Client {
 
   async extensionSwitchChecked(
     id: string,
-    which: 'enabled' | 'trusted',
+    which: ExtensionSwitchName,
   ): Promise<boolean> {
     return this.extensionSwitch(id, which).isChecked();
   }
 
   /**
-   * Переключает «Включено» / «Доверять» и ждёт, пока движок применит
+   * Переключает «Включено» / «Доверять» / «Уведомления» и ждёт, пока движок применит
    * изменение: переключатель снова доступен. Окно не перезагружается.
    */
   async setExtensionSwitch(
     id: string,
-    which: 'enabled' | 'trusted',
+    which: ExtensionSwitchName,
     value: boolean,
   ) {
     const control = this.extensionSwitch(id, which);

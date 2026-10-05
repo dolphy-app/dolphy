@@ -83,6 +83,7 @@ const open = () =>
         trusted: [],
         checkUpdates: true,
         safeMode: false,
+        notificationsOff: [],
       },
     }),
   });

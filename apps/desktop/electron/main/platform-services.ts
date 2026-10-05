@@ -31,6 +31,38 @@ export const fakeSafeStorageOf = (
   return value === 'unavailable' ? 'unavailable' : undefined;
 };
 
+/** Часть Electron `Notification`, которой пользуется обработчик. */
+export interface NotificationLike {
+  on(event: 'click' | 'close', listener: () => void): unknown;
+  show(): void;
+}
+
+export interface NotificationOptionsLike {
+  title: string;
+  body: string;
+  /** Только macOS: строка под названием. */
+  subtitle?: string;
+  silent: true;
+}
+
+export interface NotificationApiLike {
+  isSupported(): boolean;
+  create(options: NotificationOptionsLike): NotificationLike;
+}
+
+/**
+ * `DOLPHY_NOTIFICATION_LOG=<файл>`: вместо вызова ОС в файл пишется строка
+ * JSON `{ source, title, body }` на уведомление (e2e); в собранном
+ * приложении не действует.
+ */
+export const notificationLogOf = (
+  env: Readonly<Record<string, string | undefined>>,
+  packaged: boolean,
+): string | undefined => {
+  const path = packaged ? undefined : env.DOLPHY_NOTIFICATION_LOG;
+  return path === '' ? undefined : path;
+};
+
 export interface PlatformServicesDeps {
   safeStorage: SafeStorageLike;
   /** `app.isReady()`: до готовности приложения хранилище ключей недоступно. */
@@ -39,6 +71,16 @@ export interface PlatformServicesDeps {
   platform: NodeJS.Platform;
   fake?: FakeSafeStorage;
   logger: MainLogger;
+  /** Электрон `Notification`; без него (и без `notificationLog`) уведомления не поддерживаются. */
+  notifications?: NotificationApiLike;
+  /** Клик по уведомлению: показать окно приложения. */
+  showWindow?: () => void;
+  /** Подмена показа для e2e: принимает уже собранную запись, ОС не вызывается. */
+  notificationLog?: (entry: {
+    source: string;
+    title: string;
+    body: string;
+  }) => void;
 }
 
 export interface PlatformServicesHandler {
@@ -71,10 +113,13 @@ const isRequest = (message: unknown): message is { id: string } =>
 
 /** Форма запроса по операции; значения проверяются только на тип. */
 const shapeOf = (message: { id: string }): PlatformRequest | null => {
-  const { op, plaintext, ciphertext } = message as {
+  const { op, plaintext, ciphertext, source, title, body } = message as {
     op?: unknown;
     plaintext?: unknown;
     ciphertext?: unknown;
+    source?: unknown;
+    title?: unknown;
+    body?: unknown;
   };
   const base = { type: 'platform-request', id: message.id } as const;
   if (op === 'cipher.available') return { ...base, op };
@@ -84,14 +129,24 @@ const shapeOf = (message: { id: string }): PlatformRequest | null => {
   if (op === 'cipher.decrypt' && typeof ciphertext === 'string') {
     return { ...base, op, ciphertext };
   }
+  if (
+    op === 'notify' &&
+    typeof source === 'string' &&
+    typeof title === 'string' &&
+    typeof body === 'string'
+  ) {
+    return { ...base, op, source, title, body };
+  }
   return null;
 };
 
 /**
- * Обработчик запросов платформы в main: шифровальная машина без состояния.
+ * Обработчик запросов платформы в main: шифровальная машина без состояния и
+ * показ системных уведомлений.
  * Зависимости внедряются (как у остальных оболочек), поэтому тестируется с
  * подменой `safeStorage`. В журнал попадают только операция и код отказа:
- * ни открытый текст, ни шифртекст, ни сообщения платформы туда не идут.
+ * ни открытый текст, ни шифртекст, ни сообщения платформы туда не идут; текст
+ * уведомлений в журнал тоже не пишется (он принадлежит расширению).
  */
 export const createPlatformServices = ({
   safeStorage,
@@ -99,6 +154,9 @@ export const createPlatformServices = ({
   platform,
   fake,
   logger,
+  notifications,
+  showWindow,
+  notificationLog,
 }: PlatformServicesDeps): PlatformServicesHandler => {
   const available = (): boolean => {
     if (!isReady()) return false;
@@ -111,7 +169,37 @@ export const createPlatformServices = ({
     );
   };
 
+  // ссылка на показанное уведомление живёт до клика или закрытия: иначе сборщик мусора может убрать его раньше клика
+  const live = new Set<NotificationLike>();
+  const notify = (
+    request: Extract<PlatformRequest, { op: 'notify' }>,
+  ): boolean => {
+    const { source, title, body } = request;
+    if (notificationLog !== undefined) {
+      notificationLog({ source, title, body });
+      return true;
+    }
+    if (notifications === undefined || !notifications.isSupported()) {
+      return false;
+    }
+    // имя расширения: подзаголовок на macOS, на остальных системах — последней строкой
+    const shown =
+      platform === 'darwin'
+        ? { title, body, subtitle: source }
+        : { title, body: body === '' ? source : `${body}\n${source}` };
+    const notification = notifications.create({ ...shown, silent: true });
+    live.add(notification);
+    notification.on('click', () => {
+      live.delete(notification);
+      showWindow?.();
+    });
+    notification.on('close', () => void live.delete(notification));
+    notification.show();
+    return true;
+  };
+
   const run = (request: PlatformRequest): boolean | string => {
+    if (request.op === 'notify') return notify(request);
     if (request.op === 'cipher.available') return available();
     if (!available()) throw new Error('unavailable');
     if (request.op === 'cipher.encrypt') {

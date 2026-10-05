@@ -15,11 +15,33 @@ export interface SecretCipher {
   decrypt(ciphertext: string): Promise<string>;
 }
 
+/** Системное уведомление, уже проверенное движком: чистый текст в пределах длин. */
+export interface PlatformNotification {
+  /** Название расширения: уведомление называет, кто его показал. */
+  readonly source: string;
+  readonly title: string;
+  readonly body: string;
+}
+
+/**
+ * Системные уведомления оболочки (Electron `Notification` в main). Лимиты,
+ * длины и переключатель проверяет движок, оболочка только показывает.
+ */
+export interface Notifier {
+  /**
+   * `true` — уведомление передано системе; `false` — система уведомления не
+   * поддерживает или оболочка не ответила (не бросает: уведомление
+   * необязательно).
+   */
+  show(notification: PlatformNotification): Promise<boolean>;
+}
+
 /**
  * Возможности платформы, которых у движка нет: они живут в main Electron.
  * По умолчанию (CLI, тесты) — `createUnavailablePlatform()`: хранилища ключей
- * нет.
+ * нет, уведомления не поддерживаются.
  */
 export interface PlatformServices {
   readonly cipher: SecretCipher;
+  readonly notifier: Notifier;
 }

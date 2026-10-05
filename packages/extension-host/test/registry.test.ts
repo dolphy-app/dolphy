@@ -225,6 +225,7 @@ describe('createExtensionRegistry: политика', () => {
       trusted: [],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
     const item = registry.list().find(({ id }) => id === 'acme.u');
     expect(item).toMatchObject({
@@ -246,6 +247,7 @@ describe('createExtensionRegistry: политика', () => {
       trusted: [],
       checkUpdates: true,
       safeMode: true,
+      notificationsOff: [],
     });
     const items = registry.list();
     expect(items.find(({ id }) => id === 'acme.u')).toMatchObject({
@@ -269,6 +271,7 @@ describe('createExtensionRegistry: политика', () => {
       trusted: [],
       checkUpdates: true,
       safeMode,
+      notificationsOff: [],
     });
     policy.update(settings(true));
     expect(registry.list().find(({ id }) => id === 'acme.u')).toMatchObject({
@@ -342,6 +345,7 @@ describe('createExtensionRegistry: политика', () => {
       trusted: [],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
     expect(types()).toEqual([['dolphy.math.a', 'bundled', '', false]]);
   });
@@ -372,6 +376,7 @@ describe('createExtensionRegistry: политика', () => {
       trusted: ['acme.u', 'dolphy.math'],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
     expect(flags()).toEqual({ math: false, chart: false });
     expect(registry.list().map(({ isolation }) => isolation)).toEqual([
@@ -479,6 +484,7 @@ describe('createExtensionRegistry: titles and tags', () => {
       trusted: [],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
     expect(rowOf('acme.titled')).toMatchObject({
       state: 'disabled',
@@ -490,6 +496,7 @@ describe('createExtensionRegistry: titles and tags', () => {
       trusted: [],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
   });
 

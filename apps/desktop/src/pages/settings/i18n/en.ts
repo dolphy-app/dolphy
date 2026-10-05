@@ -342,6 +342,7 @@ export const en: typeof ru = {
         trusted: 'Trusted',
       },
       enabledLabel: 'Enabled',
+      notificationsLabel: 'Notifications',
       trustLabel: 'Trust (no isolation)',
       trustHint:
         'A trusted extension runs without isolation: its code runs with the app’s rights and its elements live in the app window and can see its data. Trust only extensions you believe in.',
@@ -357,6 +358,7 @@ export const en: typeof ru = {
         worker: { threads: 'Threads' },
         native: { addons: 'Native modules' },
         network: 'Network',
+        notifications: 'System notifications',
       },
       networkCaveat:
         'Network is declared only, not restricted: the extension can reach the network even when isolated.',

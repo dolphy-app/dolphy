@@ -8,11 +8,12 @@ const unavailable = (): never => {
   });
 };
 
-/** Платформа без возможностей (CLI, тесты): хранилища ключей нет. */
+/** Платформа без возможностей (CLI, тесты): хранилища ключей и уведомлений нет. */
 export const createUnavailablePlatform = (): PlatformServices => ({
   cipher: {
     available: async () => false,
     encrypt: async () => unavailable(),
     decrypt: async () => unavailable(),
   },
+  notifier: { show: async () => false },
 });

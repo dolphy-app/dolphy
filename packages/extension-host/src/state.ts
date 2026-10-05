@@ -1,4 +1,5 @@
 import {
+  NotificationRateLimitError,
   PermissionError,
   SecretsUnavailableError,
   StorageQuotaError,
@@ -6,6 +7,7 @@ import {
 import type {
   DailyStat,
   ExtensionLogger,
+  ExtensionNotifications,
   ExtensionPermission,
   ExtensionSecrets,
   ExtensionSettings,
@@ -35,9 +37,22 @@ const extensionErrorOf = (error: unknown): unknown => {
   if (
     error.code === 'INVALID_ARGUMENT' &&
     error.details?.reason === 'permission' &&
-    error.details.permission === 'learning.stats'
+    (error.details.permission === 'learning.stats' ||
+      error.details.permission === 'notifications')
   ) {
-    return new PermissionError('learning.stats', error.message);
+    return new PermissionError(error.details.permission, error.message);
+  }
+  if (
+    error.code === 'INVALID_ARGUMENT' &&
+    error.details?.reason === 'rate-limit' &&
+    (error.details.window === 'minute' || error.details.window === 'hour') &&
+    typeof limit === 'number'
+  ) {
+    return new NotificationRateLimitError(
+      error.details.window,
+      limit,
+      error.message,
+    );
   }
   if (
     error.code === 'EXTENSION_STORAGE_QUOTA' &&
@@ -148,6 +163,32 @@ export const createExtensionSecrets = (
       (await request('secrets.delete', { key })) as boolean,
   };
 };
+
+/**
+ * `ctx.notifications`: проверка разрешения здесь — для понятной ошибки без
+ * запроса; решение, очистку текста, лимиты и переключатель держит движок
+ * (`ExtensionHostServices.notifications`): ограниченный процесс не доверен.
+ */
+export const createExtensionNotifications = (
+  link: EngineLink,
+  extensionId: string,
+  permissions: readonly ExtensionPermission[],
+): ExtensionNotifications => ({
+  show: async (notification) => {
+    if (!permissions.includes('notifications')) {
+      throw new PermissionError('notifications');
+    }
+    try {
+      return (await link.request('notifications.show', {
+        extensionId,
+        title: notification?.title,
+        body: notification?.body,
+      } as never)) as boolean;
+    } catch (error) {
+      throw extensionErrorOf(error);
+    }
+  },
+});
 
 /** Значение подходит определению по типу; границы проверил движок. */
 const fits = (definition: ResolvedSetting, value: unknown): boolean => {

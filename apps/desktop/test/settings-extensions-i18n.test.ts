@@ -87,6 +87,10 @@ describe('строки «Расширения»', () => {
 
   it('каждое разрешение имеет подпись на обоих языках: диалог установки, каталог и список не показывают сырой id', () => {
     const labels = { ru: 'Статистика обучения', en: 'Learning statistics' };
+    const notificationLabels = {
+      ru: 'Системные уведомления',
+      en: 'System notifications',
+    };
     for (const locale of ['ru', 'en'] as const) {
       for (const permission of EXTENSION_PERMISSIONS) {
         expect(
@@ -95,6 +99,9 @@ describe('строки «Расширения»', () => {
         ).not.toBe('');
       }
       expect(leaf(locale, 'permissions.learning.stats')).toBe(labels[locale]);
+      expect(leaf(locale, 'permissions.notifications')).toBe(
+        notificationLabels[locale],
+      );
     }
   });
 

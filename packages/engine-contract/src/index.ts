@@ -1687,6 +1687,12 @@ export interface ExtensionSettingsDto {
    * По умолчанию выключено. Флаг запуска включает режим независимо от настройки.
    */
   safeMode: boolean;
+  /**
+   * Расширения с выключенными системными уведомлениями (по id), отсортированы,
+   * без повторов: `ctx.notifications.show` у них даёт `false`. По умолчанию
+   * пусто (уведомления включены).
+   */
+  notificationsOff: string[];
 }
 
 /** Состояние процесса хоста расширений: `gave-up` — после повторных сбоев перезапуск прекращён до `restartHost()`. */
@@ -1762,6 +1768,16 @@ export interface ExtensionsService {
   /** `NOT_FOUND` — нет такого расширения; `INVALID_ARGUMENT` `{reason:'bundled'}` — расширение из поставки. */
   setEnabled(id: string, enabled: boolean): Promise<ExtensionSettingsDto>;
   setTrusted(id: string, trusted: boolean): Promise<ExtensionSettingsDto>;
+  /**
+   * Включает и выключает системные уведомления расширения (`notificationsOff`);
+   * не перезапускает расширение. `NOT_FOUND` — нет такого расширения;
+   * `INVALID_ARGUMENT` `{reason:'bundled'}` — расширение из поставки не
+   * настраивается; не булево значение — `INVALID_ARGUMENT`.
+   */
+  setNotificationsEnabled(
+    id: string,
+    enabled: boolean,
+  ): Promise<ExtensionSettingsDto>;
   /** Вклады загруженных расширений для окна (только чтение). */
   contributions(): Promise<ContributionsDto>;
   /**

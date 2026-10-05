@@ -17,6 +17,7 @@ describe('decodeExtensionSettings', () => {
       trusted: [],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
   });
 
@@ -42,6 +43,32 @@ describe('decodeExtensionSettings', () => {
     expect(decodeExtensionSettings(raw).safeMode).toBe(expected);
   });
 
+  it('notificationsOff: нет значения — пусто (запись до появления поля), список сохраняется даже рядом с испорченным списком', () => {
+    expect(
+      decodeExtensionSettings({ disabled: [], trusted: [] }).notificationsOff,
+    ).toEqual([]);
+    expect(
+      decodeExtensionSettings({
+        disabled: [],
+        trusted: [],
+        notificationsOff: ['b.x', 'a.y', 'b.x'],
+      }).notificationsOff,
+    ).toEqual(['a.y', 'b.x']);
+    expect(
+      decodeExtensionSettings({
+        disabled: [],
+        trusted: [],
+        notificationsOff: ['Not An Id'],
+      }),
+    ).toEqual({
+      disabled: [],
+      trusted: [],
+      checkUpdates: true,
+      safeMode: false,
+      notificationsOff: [],
+    });
+  });
+
   it('сортирует и убирает повторы', () => {
     expect(
       decodeExtensionSettings({
@@ -54,6 +81,7 @@ describe('decodeExtensionSettings', () => {
       trusted: ['c.z'],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
   });
 });

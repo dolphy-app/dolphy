@@ -17,7 +17,7 @@ export interface HostPlatformOptions {
 }
 
 export interface HostPlatform {
-  /** Порт движка: шифр секретов за каналом к main. */
+  /** Порт движка: шифр секретов и уведомления за каналом к main. */
   readonly services: PlatformServices;
   /** Сообщение от main; `true` — это ответ платформы и он обработан. */
   handleMessage(message: unknown): boolean;
@@ -87,6 +87,18 @@ export const createHostPlatform = ({
 
   return {
     services: {
+      // уведомление необязательно: отказ main, срок и закрытый хост — просто «не показано»
+      notifier: {
+        show: async ({ source, title, body }) => {
+          try {
+            return (
+              (await request({ op: 'notify', source, title, body })) === true
+            );
+          } catch {
+            return false;
+          }
+        },
+      },
       cipher: {
         available: async () =>
           (await request({ op: 'cipher.available' })) === true,

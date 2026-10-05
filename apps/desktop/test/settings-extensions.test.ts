@@ -36,6 +36,7 @@ const NONE_SET: ExtensionSettingsDto = {
   trusted: [],
   checkUpdates: true,
   safeMode: false,
+  notificationsOff: [],
 };
 
 /** Каждый вызов `list()` ждёт, пока тест его не завершит. */
@@ -368,7 +369,7 @@ describe('hasSwitches', () => {
 
 describe('переключатели', () => {
   interface Call {
-    method: 'setEnabled' | 'setTrusted';
+    method: 'setEnabled' | 'setTrusted' | 'setNotificationsEnabled';
     id: string;
     value: boolean;
     resolve(next: ExtensionSettingsDto): void;
@@ -395,6 +396,7 @@ describe('переключатели', () => {
         getSettings: async () => stored,
         setEnabled: write('setEnabled'),
         setTrusted: write('setTrusted'),
+        setNotificationsEnabled: write('setNotificationsEnabled'),
       },
     } as unknown as LearningEngine;
     return { engine, calls, listCalls: () => listCalls };
@@ -413,6 +415,7 @@ describe('переключатели', () => {
       trusted: ['acme.x'],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
     await pending;
 
@@ -422,6 +425,7 @@ describe('переключатели', () => {
       trusted: ['acme.x'],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
     expect(model.switching.value.size).toBe(0);
     expect(model.switchError.value).toBeNull();
@@ -435,6 +439,7 @@ describe('переключатели', () => {
       trusted: [],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
     const model = mount(engine);
     await flush();
@@ -445,9 +450,47 @@ describe('переключатели', () => {
       trusted: [],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
     await pending;
     expect(calls[0]).toMatchObject({ method: 'setEnabled', value: true });
+  });
+
+  it('«Уведомления» хранятся как наличие в списке выключенных: выключение добавляет id и зовёт движок', async () => {
+    const { engine, calls } = createSwitchEngine();
+    const model = mount(engine);
+    await flush();
+
+    const pending = model.setNotifications('acme.x', false);
+    expect(model.settings.value.notificationsOff).toEqual(['acme.x']);
+    expect(model.switching.value.has('notifications:acme.x')).toBe(true);
+    calls[0]?.resolve({ ...NONE_SET, notificationsOff: ['acme.x'] });
+    await pending;
+
+    expect(calls[0]).toMatchObject({
+      method: 'setNotificationsEnabled',
+      id: 'acme.x',
+      value: false,
+    });
+    expect(model.settings.value.notificationsOff).toEqual(['acme.x']);
+    expect(model.switching.value.size).toBe(0);
+  });
+
+  it('включение «Уведомлений» убирает id из списка, отказ движка возвращает его и показывает ошибку', async () => {
+    const { engine, calls } = createSwitchEngine({
+      ...NONE_SET,
+      notificationsOff: ['acme.x'],
+    });
+    const model = mount(engine);
+    await flush();
+
+    const pending = model.setNotifications('acme.x', true);
+    expect(model.settings.value.notificationsOff).toEqual([]);
+    calls[0]?.reject(new Error('cannot write'));
+    await pending;
+
+    expect(model.settings.value.notificationsOff).toEqual(['acme.x']);
+    expect(model.switchError.value).toBe('cannot write');
   });
 
   it('отказ движка откатывает переключатель и показывает ошибку', async () => {
@@ -477,6 +520,7 @@ describe('переключатели', () => {
       trusted: ['acme.x'],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
     await first;
   });

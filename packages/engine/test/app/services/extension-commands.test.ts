@@ -68,6 +68,7 @@ const command = (id: string, extensionId = ID): CommandContributionDto => ({
   keybindings: [],
   icon: 'puzzle',
   palette: true,
+  when: null,
 });
 
 const panel = (id: string, extensionId = ID): PanelContributionDto => ({
@@ -75,6 +76,7 @@ const panel = (id: string, extensionId = ID): PanelContributionDto => ({
   extensionId,
   title: id,
   icon: 'puzzle',
+  when: null,
   rendererUrl: `dolphy-ext://${extensionId}/panel.mjs`,
   isolated: true,
   origin: 'user',

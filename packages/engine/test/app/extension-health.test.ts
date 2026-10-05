@@ -184,6 +184,7 @@ describe('extensions.invokeCommand → здоровье', () => {
             keybindings: [],
             icon: 'puzzle',
             palette: true,
+            when: null,
           },
         ],
         panels: [],

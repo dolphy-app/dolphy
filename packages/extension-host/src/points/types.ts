@@ -57,13 +57,13 @@ export type ResolvedCommand = Omit<CommandContributionDto, 'extensionId'>;
 /** Панель: модуль в рамке; `isolated`, `origin` и `revision` добавляет реестр. */
 export type ResolvedPanel = Pick<
   PanelContributionDto,
-  'id' | 'title' | 'icon' | 'rendererUrl'
+  'id' | 'title' | 'icon' | 'when' | 'rendererUrl'
 >;
 
 /** Виджет: модуль в рамке; `isolated`, `origin` и `revision` добавляет реестр. */
 export type ResolvedWidget = Pick<
   WidgetContributionDto,
-  'id' | 'title' | 'slot' | 'minHeight' | 'maxHeight' | 'rendererUrl'
+  'id' | 'title' | 'slot' | 'minHeight' | 'maxHeight' | 'when' | 'rendererUrl'
 >;
 
 /** Расписание в виде, в котором его получает окно (DTO движка без `extensionId`). */

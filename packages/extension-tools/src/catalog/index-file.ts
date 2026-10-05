@@ -49,12 +49,7 @@ const orderVersion = (version: CatalogVersion): CatalogVersion => ({
     : { tags: [...version.tags] }),
 });
 
-type OptionalKey =
-  | 'settings'
-  | 'events'
-  | 'commands'
-  | 'panels'
-  | 'widgets';
+type OptionalKey = 'settings' | 'events' | 'commands' | 'panels' | 'widgets';
 
 const optionalIds = (
   key: OptionalKey,

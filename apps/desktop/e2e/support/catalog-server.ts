@@ -72,7 +72,10 @@ interface PublishedExtension {
     string[]
   > &
     Partial<
-      Record<'settings' | 'events' | 'commands' | 'panels' | 'widgets', string[]>
+      Record<
+        'settings' | 'events' | 'commands' | 'panels' | 'widgets',
+        string[]
+      >
     >;
   /** Названия вкладов из манифеста (запись индекса `titles`). */
   titles: ContributionTitles;

@@ -104,8 +104,8 @@ describe('extension-api types', () => {
         expectTypeOf(ctx.widgetId).toEqualTypeOf<string>();
         expectTypeOf(ctx.context.courseId).toEqualTypeOf<string | null>();
         expectTypeOf(ctx.call).parameter(0).toEqualTypeOf<'a.run'>();
-        // @ts-expect-error a widget is not opened with properties
-        ctx.props;
+        // a widget is not opened with properties
+        expectTypeOf(ctx).not.toHaveProperty('props');
       },
     };
     expectTypeOf(module.mount).toBeFunction();

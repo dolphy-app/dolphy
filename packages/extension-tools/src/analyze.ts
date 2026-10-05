@@ -298,7 +298,9 @@ export const analyzeIndex = async (
     };
   };
 
-  const [views, panels, widgets, markdown] = await Promise.all(RECORDS.map(recordOf));
+  const [views, panels, widgets, markdown] = await Promise.all(
+    RECORDS.map(recordOf),
+  );
   const hasHost = (await walk.export(indexFile, 'host', 0)) !== null;
   return {
     files: [...cache.keys()],

@@ -1,12 +1,10 @@
 <script setup lang="ts">
-import { computed, provide } from 'vue';
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
-import { useContributions, useEngine } from '@/shared/api/engine';
-import { INSTALL_KEY, useInstall } from '../model/install.ts';
+import { useContributions } from '@/shared/api/engine';
 import { useReloadRequired } from '../model/reload-required.ts';
 import CatalogExtensions from './CatalogExtensions.vue';
-import InstallDialog from './InstallDialog.vue';
 import InstalledExtensions from './InstalledExtensions.vue';
 import SectionHeader from './SectionHeader.vue';
 
@@ -23,8 +21,6 @@ const tab = computed<ExtensionsTab>({
     void router.replace({ query: next === 'catalog' ? { tab: next } : {} });
   },
 });
-
-provide(INSTALL_KEY, useInstall(useEngine()));
 
 const reloadRequired = useReloadRequired(useContributions());
 const reloadWindow = () => {
@@ -90,8 +86,6 @@ const reloadWindow = () => {
         <CatalogExtensions />
       </v-tabs-window-item>
     </v-tabs-window>
-
-    <InstallDialog />
   </section>
 </template>
 

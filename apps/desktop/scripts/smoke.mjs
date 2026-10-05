@@ -113,6 +113,29 @@ const checkFuses = async (executable) => {
   console.log(`fuses match the expected set (${rows.length} in the wire)`);
 };
 
+/**
+ * macOS: `Info.plist` собранного `.app` объявляет схему `dolphy:` (R12:
+ * `electron-builder.json` → `protocols`). Ссылку ОС открывает вручную, но без
+ * записи в plist она не дойдёт до приложения. `plutil` — штатная утилита macOS.
+ */
+const checkUrlScheme = (appBundle) => {
+  const plist = join(appBundle, 'Contents/Info.plist');
+  const result = spawnSync('plutil', ['-convert', 'json', '-o', '-', plist], {
+    encoding: 'utf8',
+  });
+  if (result.status !== 0) {
+    fail(`cannot read ${plist}: ${result.stderr || result.error}`);
+  }
+  const types = JSON.parse(result.stdout).CFBundleURLTypes ?? [];
+  const schemes = types.flatMap((type) => type.CFBundleURLSchemes ?? []);
+  if (!schemes.includes('dolphy')) {
+    fail(
+      `Info.plist declares no dolphy: URL scheme (CFBundleURLSchemes: ${JSON.stringify(schemes)})`,
+    );
+  }
+  console.log(`Info.plist declares URL schemes: ${schemes.join(', ')}`);
+};
+
 const run = (command, args, env) => {
   const result = spawnSync(command, args, {
     cwd: appDir,
@@ -192,6 +215,7 @@ if (packaged) {
   if (process.platform === 'darwin') {
     command = join(unpacked, 'Dolphy.app/Contents/MacOS/Dolphy');
     resourcesDir = join(unpacked, 'Dolphy.app/Contents/Resources');
+    checkUrlScheme(join(unpacked, 'Dolphy.app'));
   } else {
     const names =
       process.platform === 'win32'

@@ -7,7 +7,7 @@ import type {
 } from '@dolphy-app/engine-contract';
 import { targetFromEntry } from '@/pages/settings/lib/catalog.ts';
 import type { InstallTarget } from '@/pages/settings/lib/catalog.ts';
-import { useInstall } from '@/pages/settings/model/install.ts';
+import { createInstall } from '@/pages/settings/model/install.ts';
 import type { ExtensionInstall } from '@/pages/settings/model/install.ts';
 import {
   FakeEngineError,
@@ -87,7 +87,7 @@ const setup = (
       },
     },
   } as unknown as LearningEngine;
-  const install = effectScope().run(() => useInstall(engine))!;
+  const install = effectScope().run(() => createInstall(engine))!;
   return { install, docsCalls, calls, removed, uninstallOptions };
 };
 

@@ -40,6 +40,11 @@ import {
   LOCALE_SELECTION_KEY,
   THEME_SELECTION_KEY,
 } from '@/shared/api/engine';
+import {
+  createInstall,
+  createInstallLinks,
+  INSTALL_KEY,
+} from '@/pages/settings';
 import { ROUTE } from '@/shared/config/routes.ts';
 import { resolveLocale } from '@/shared/i18n';
 import {
@@ -143,6 +148,23 @@ const bootstrap = async () => {
     });
     const translate = (key: string, params?: Record<string, unknown>) =>
       i18n.global.t(key as never, (params ?? {}) as never) as string;
+    // установка и обновление расширений: одно состояние на окно, диалог в App.vue;
+    // ссылка `dolphy://extensions/install/<id>` только открывает диалог, ставит «Установить»
+    const install = createInstall(engine);
+    const installLinks = createInstallLinks({
+      engine,
+      install,
+      notify: ({ key, params }) =>
+        extensionCommands.notices.push({
+          kind: 'notify',
+          text: translate(`settings.extensions.link.${key}`, params),
+        }),
+      openPage: (id) =>
+        void router.push({
+          name: ROUTE.settingsExtensionDetails,
+          params: { id },
+        }),
+    });
     const extensionTransfers = createExtensionTransfers({
       engine: engine.extensions,
       platform: window.dolphy.platform,
@@ -205,9 +227,12 @@ const bootstrap = async () => {
       .provide(EXTENSION_COMMANDS_KEY, extensionCommands)
       .provide(EXTENSION_WHEN_KEY, extensionWhen)
       .provide(EXTENSION_TRANSFERS_KEY, extensionTransfers)
+      .provide(INSTALL_KEY, install)
       .provide(CONTEXT_KEYS_KEY, contextKeys)
       .provide(KEYBINDINGS_KEY, keybindings)
       .mount('#app');
+    // подписка после монтирования: ссылка, принятая до загрузки окна, приходит сразу
+    window.dolphy.deepLink.onInstall(({ id }) => void installLinks.handle(id));
     if (__DOLPHY_SMOKE_BUILD__ && smoke) {
       const { runSmoke } = await import('./smoke/run-smoke.ts');
       smoke.report(await runSmoke(engine, smoke));

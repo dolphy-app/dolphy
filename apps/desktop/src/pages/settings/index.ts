@@ -7,3 +7,7 @@ export { default as SettingsExtensions } from './ui/ExtensionsSection.vue';
 export { default as SettingsExtensionDetails } from './ui/ExtensionDetailsPage.vue';
 export { default as SettingsAbout } from './ui/AboutSection.vue';
 export { messages as settingsMessages } from './i18n';
+export { default as InstallDialog } from './ui/InstallDialog.vue';
+export { createInstall, INSTALL_KEY } from './model/install.ts';
+export { createInstallLinks } from './model/install-link.ts';
+export type { InstallLinkMessage } from './model/install-link.ts';

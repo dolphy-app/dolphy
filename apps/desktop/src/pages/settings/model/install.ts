@@ -56,9 +56,11 @@ export interface ExtensionInstall {
  * Установка, обновление и удаление расширений. Расширения ставятся по одному
  * в порядке списка; сбой одного не останавливает остальные. Сделанное
  * действует сразу: движок применяет его до ответа, окно перечитывает вклады
- * по `contributions-changed`.
+ * по `contributions-changed`. Состояние одно на окно (создаётся при запуске,
+ * `INSTALL_KEY`), диалог живёт в `App.vue`: установку открывают страницы
+ * настроек и ссылка `dolphy://` на любой странице.
  */
-export const useInstall = (engine: LearningEngine): ExtensionInstall => {
+export const createInstall = (engine: LearningEngine): ExtensionInstall => {
   const phase = ref<InstallPhase>('idle');
   const items = shallowRef<InstallItem[]>([]);
   const removing = ref<string | null>(null);

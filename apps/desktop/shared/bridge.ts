@@ -47,10 +47,29 @@ export interface Platform {
   copyText(text: string): Promise<void>;
 }
 
+/**
+ * Принятая ссылка установки `dolphy://extensions/install/<id>` (main уже
+ * разобрал её строго). Ссылка только открывает диалог установки: ставит
+ * расширение нажатие «Установить».
+ */
+export interface InstallLink {
+  id: string;
+}
+
+/** Ссылки приложения (`dolphy:`), которые main принял от операционной системы. */
+export interface DeepLink {
+  /**
+   * Подписывает окно на ссылки установки и сразу получает принятые до
+   * подписки (холодный запуск, окно ещё не загрузилось). Возвращает отписку.
+   */
+  onInstall(listener: (link: InstallLink) => void): () => void;
+}
+
 /** Узкий мост `window.dolphy`: ни `ipcRenderer`, ни произвольных каналов. */
 export interface DolphyBridge {
   engine: { connect(): void };
   platform: Platform;
+  deepLink: DeepLink;
   /** Только в смоук-сборке (`shared/smoke.ts`). */
   smoke?: SmokeBridge;
 }
@@ -63,4 +82,8 @@ export const CHANNELS = {
   saveFile: 'platform:saveFile',
   appInfo: 'platform:appInfo',
   copyText: 'platform:copyText',
+  /** Окно → main: подписано на ссылки, можно отдавать накопленные. */
+  deepLinkReady: 'deeplink:ready',
+  /** Main → окно: принятая ссылка установки. */
+  deepLinkInstall: 'deeplink:install',
 } as const;

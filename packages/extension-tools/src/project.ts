@@ -132,7 +132,6 @@ const browserOutputsOf = (manifest: ExtensionManifest): BrowserOutput[] => {
       views: [],
       panels: [],
       widgets: [],
-      schedules: [],
       languages: [],
     };
     outputs.set(output, created);

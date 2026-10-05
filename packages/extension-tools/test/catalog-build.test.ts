@@ -373,7 +373,7 @@ describe('catalog build: schedules', () => {
       'acme.commands-panel.morning',
       'acme.commands-panel.tick',
     ]);
-    expect(entry?.titles?.schedules).toBeUndefined();
+    expect(entry?.titles ?? {}).not.toHaveProperty('schedules');
   });
 
   it('without them the entry has no key', async () => {

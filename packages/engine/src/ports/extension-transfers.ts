@@ -9,10 +9,13 @@
  */
 import type { ExtensionTransferFailureReason } from '@dolphy-app/engine-contract';
 
-/** Причины, которые знает порт: `disabled` — решение сервиса, до порта не доходит. */
+/**
+ * Причины, которые знает порт: `disabled`, `too-large` и `reload-rejected` —
+ * решения сервиса `extensions`, до порта (или после него) они не доходят.
+ */
 export type ExtensionTransferErrorCause = Exclude<
   ExtensionTransferFailureReason,
-  'disabled'
+  'disabled' | 'too-large' | 'reload-rejected'
 >;
 
 export class ExtensionTransferError extends Error {

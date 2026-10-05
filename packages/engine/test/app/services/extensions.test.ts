@@ -388,6 +388,7 @@ describe('extensions settings', () => {
       disabled: [],
       trusted: [],
       notificationsOff: [],
+      schedulesOff: [],
     });
   });
 

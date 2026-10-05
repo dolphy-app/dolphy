@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router';
 import type { CourseSummary } from '@/entities/course';
 import { useCourseScope } from '@/features/course-scope';
 import {
+  CheckOutcomeAlert,
   CheckUpdatesButton,
   CourseUpdatesBanner,
   useCourseUpdates,
@@ -151,6 +152,7 @@ const noticeOpen = computed({
       </template>
     </v-alert>
 
+    <CheckOutcomeAlert />
     <CourseUpdatesBanner />
 
     <div class="toolbar mb-6">

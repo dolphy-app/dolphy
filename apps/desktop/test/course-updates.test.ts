@@ -295,6 +295,24 @@ describe('createCourseUpdates.check', () => {
     expect(store.updates.value).toHaveLength(1);
   });
 
+  it('keeps the outcome for the screen until it is cleared; a failed call is shown as unreachable', async () => {
+    const fake = createFake([repo('a', { checkedAt: 1 })]);
+    const store = mount(fake.engine);
+    await flush();
+    expect(store.outcome.value).toBeNull();
+
+    fake.state.checkUpdates = () =>
+      Promise.resolve([repo('a', { checkedAt: 2 })]);
+    await store.check();
+    expect(store.outcome.value).toEqual({ kind: 'upToDate' });
+    store.clearOutcome();
+    expect(store.outcome.value).toBeNull();
+
+    fake.state.checkUpdates = () => Promise.reject(new Error('closed'));
+    await store.check();
+    expect(store.outcome.value).toEqual({ kind: 'unreachable' });
+  });
+
   it('reports unreachable when the call itself fails and allows another check', async () => {
     const fake = createFake([repo('a')]);
     const store = mount(fake.engine);

@@ -46,6 +46,17 @@ const act = () => (props.focused ? emit('openPlan') : emit('study'));
     :border="border"
     :aria-current="ariaCurrent"
   >
+    <!-- бейдж на верхней кромке: не занимает места в карточке и не сдвигает название -->
+    <v-chip
+      v-if="updateAvailable"
+      class="update-badge"
+      size="small"
+      color="warning"
+      variant="flat"
+      prepend-icon="mdi-update"
+    >
+      {{ t('repository.updateAvailable') }}
+    </v-chip>
     <div class="d-flex align-start ga-4">
       <v-avatar :color="tone" variant="tonal" size="48" rounded="lg">
         <span class="text-title-large font-weight-bold" aria-hidden="true">
@@ -57,41 +68,23 @@ const act = () => (props.focused ? emit('openPlan') : emit('study'));
           <h2 class="title text-title-large font-weight-bold">
             {{ course.name }}
           </h2>
-          <div class="d-flex flex-column align-end ga-1 flex-shrink-0">
-            <v-chip
-              v-if="focused"
-              size="small"
-              color="primary"
-              variant="flat"
-              prepend-icon="mdi-target"
-            >
-              {{ t('courses.card.focused') }}
-            </v-chip>
-            <v-chip
-              v-else-if="recommended"
-              size="small"
-              color="primary"
-              variant="tonal"
-            >
-              {{ t('courses.card.recommended') }}
-            </v-chip>
-            <!-- в узкой карточке остаётся значок: подпись отдана названию курса -->
-            <v-chip
-              v-if="updateAvailable"
-              class="update-chip"
-              size="small"
-              color="info"
-              variant="tonal"
-              prepend-icon="mdi-update"
-              role="img"
-              :aria-label="t('repository.updateAvailable')"
-              :title="t('repository.updateAvailable')"
-            >
-              <span class="update-label">{{
-                t('repository.updateAvailable')
-              }}</span>
-            </v-chip>
-          </div>
+          <v-chip
+            v-if="focused"
+            size="small"
+            color="primary"
+            variant="flat"
+            prepend-icon="mdi-target"
+          >
+            {{ t('courses.card.focused') }}
+          </v-chip>
+          <v-chip
+            v-else-if="recommended"
+            size="small"
+            color="primary"
+            variant="tonal"
+          >
+            {{ t('courses.card.recommended') }}
+          </v-chip>
         </div>
         <p class="text-body-medium text-medium-emphasis mt-1">
           {{
@@ -192,18 +185,16 @@ const act = () => (props.focused ? emit('openPlan') : emit('study'));
 
 <style scoped>
 .course-card {
-  container-type: inline-size;
+  /* бейдж обновления сидит на верхней кромке и выходит за неё */
+  overflow: visible;
 }
 
-/* в узкой карточке (три колонки на широком окне) подпись чипа не отнимает ширину у названия */
-@container (max-width: 24rem) {
-  .update-label {
-    display: none;
-  }
-
-  .update-chip :deep(.v-chip__prepend) {
-    margin-inline: 0;
-  }
+.update-badge {
+  position: absolute;
+  top: 0;
+  right: 1.25rem;
+  z-index: 1;
+  transform: translateY(-50%);
 }
 
 .min-width-0 {

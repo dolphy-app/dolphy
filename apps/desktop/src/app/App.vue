@@ -5,7 +5,7 @@ import {
   createKeybindingDispatcher,
   useKeybindings,
 } from '@/features/keybindings';
-import { CourseUpdatesSnackbar } from '@/features/course-updates';
+import { CourseUpdatesNotice } from '@/features/course-updates';
 import { NoticeSnackbar } from '@/features/extension-commands';
 import { ROUTE } from '@/shared/config/routes.ts';
 import { useCommandRegistry } from '@/shared/lib/command-registry.ts';
@@ -52,11 +52,12 @@ onBeforeUnmount(() => stopShortcuts?.());
   <v-app>
     <!-- безопасный режим виден в каждом окне, на любой странице -->
     <SafeModeBanner />
+    <!-- обновления курсов: полоса под безопасным режимом, пока их не прочитали; на занятии и на «Курсах» её нет -->
+    <CourseUpdatesNotice />
     <router-view />
     <!-- палитра и уведомления живут здесь, чтобы работать и на /session, и на /placement -->
     <CommandPalette />
     <NoticeSnackbar />
-    <CourseUpdatesSnackbar />
     <!-- ожидание второй клавиши цепочки: видно и озвучивается скринридеру -->
     <ChordStatus :pending="dispatcher.pending.value" />
   </v-app>

@@ -18,24 +18,44 @@ export type WrapMethod = (name: string, method: AnyMethod) => AnyMethod;
 
 /**
  * Команды, которые не встают в очередь: вердикт ждёт раннер до
- * `timeoutMs`+запас; `repositories.add`/`update`/`remove`/`cancel` ходят в
+ * `timeoutMs`+запас; `repositories.preview`/`add`/`update`/`remove`/`cancel` ходят в
  * сеть и ждут свою цепочку операций, а очередь берут сами (`exclusive`) только
  * на подмену снимка и `reload`: из очереди ждать цепочку нельзя — её
- * операция ждёт очередь (взаимная блокировка). `extensions.catalog` и
- * `extensions.install` тоже ходят в сеть (индекс, файлы версии) и очередь не
- * держат; событие `extensions-changed` они публикуют сами.
+ * операция ждёт очередь (взаимная блокировка). `extensions.catalog`,
+ * `extensions.install`, `extensions.docs` и `extensions.docImage` тоже ходят в
+ * сеть (индекс, файлы версии) и очередь не держат; событие
+ * `extensions-changed` публикует сама установка. `repositories.checkUpdates`
+ * только читает ссылки сервера и никого не ждёт.
  * `extensions.invokeCommand` исполняет код расширения до 14 с: медленная
- * команда не должна замораживать остальные вызовы движка.
+ * команда не должна замораживать остальные вызовы движка. Так же
+ * `extensions.runImporter` и `extensions.runExporter` (обработчик до 30 с, файл
+ * до 20 МиБ) и `extensions.discardImport` (удаляет только временный каталог);
+ * `extensions.commitImport` подменяет каталог библиотеки и перезагружает её,
+ * поэтому идёт в очереди. По той же причине
+ * `extensions.diagnostics` и `extensions.restartHost` (здоровье и перезапуск
+ * хоста) не ждут очередь: окно должно видеть остановленный хост и мочь его
+ * запустить, пока в очереди висит долгая команда. По той же причине
+ * `extensions.readLogs`: журнал нужен именно тогда, когда что-то зависло.
  */
 export const UNQUEUED: ReadonlySet<string> = new Set([
   'practice.submitAnswer',
+  'repositories.preview',
   'repositories.add',
   'repositories.update',
   'repositories.remove',
   'repositories.cancel',
+  'repositories.checkUpdates',
   'extensions.catalog',
   'extensions.install',
+  'extensions.docs',
+  'extensions.docImage',
   'extensions.invokeCommand',
+  'extensions.runImporter',
+  'extensions.discardImport',
+  'extensions.runExporter',
+  'extensions.diagnostics',
+  'extensions.restartHost',
+  'extensions.readLogs',
 ]);
 
 const isMethod = (value: unknown): value is AnyMethod =>

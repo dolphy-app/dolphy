@@ -1,7 +1,6 @@
 export const ROUTE = {
   dailyPlan: 'daily-plan',
   courses: 'courses',
-  graph: 'graph',
   extensionPanel: 'extension-panel',
   placement: 'placement',
   session: 'session',
@@ -11,5 +10,6 @@ export const ROUTE = {
   settingsAppearance: 'settings-appearance',
   settingsShortcuts: 'settings-shortcuts',
   settingsExtensions: 'settings-extensions',
+  settingsExtensionDetails: 'settings-extension-details',
   settingsAbout: 'settings-about',
 } as const;

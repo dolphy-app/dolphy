@@ -125,6 +125,7 @@ describe('registry and policy: metadata and revocation', () => {
       installed: META,
       removable: true,
       revoked: null,
+      deprecated: null,
       state: 'loaded',
     });
     expect(info('acme.manual')).toMatchObject({
@@ -138,13 +139,21 @@ describe('registry and policy: metadata and revocation', () => {
     const { info, policy, registry } = await setup({ 'acme.u': 'leaks data' });
     expect(info('acme.u')).toMatchObject({
       state: 'disabled',
-      message: 'leaks data',
+      diagnostics: [],
       toggleable: false,
       revoked: 'leaks data',
     });
     expect(policy.isEnabled('acme.u')).toBe(false);
     // настройки пользователя отзыв не отменяют
-    policy.update({ disabled: [], trusted: [], checkUpdates: true });
+    policy.update({
+      disabled: [],
+      trusted: [],
+      checkUpdates: true,
+      safeMode: false,
+      notificationsOff: [],
+      catalogUrl: null,
+      schedulesOff: [],
+    });
     expect(policy.isEnabled('acme.u')).toBe(false);
     expect(registry.contributions().themes.map(({ id }) => id)).toEqual([
       'dolphy.b.night',
@@ -158,6 +167,38 @@ describe('registry and policy: metadata and revocation', () => {
     delete revocations['acme.u'];
     expect(policy.isEnabled('acme.u')).toBe(true);
     expect(info('acme.u')).toMatchObject({ state: 'loaded', revoked: null });
+  });
+
+  it('hands the catalog the extension was installed from to the lookup, so another catalog does not revoke it', async () => {
+    const user = path.join(tmp, 'user');
+    await writeExtension(user, 'acme.here', JSON.stringify(META));
+    await writeExtension(
+      user,
+      'acme.there',
+      JSON.stringify({ ...META, catalogUrl: 'https://former.test/index.json' }),
+    );
+    const holder = createDiscoveryHolder(
+      await discover([{ dir: user, origin: 'user' }]),
+    );
+    // the current catalog revokes both ids; it speaks only for its own installs
+    const asked: string[] = [];
+    const revocationOf = (id: string, _version: string, catalogUrl: string) => {
+      asked.push(`${id}@${catalogUrl}`);
+      return catalogUrl === META.catalogUrl ? 'revoked here' : null;
+    };
+    const policy = createExtensionPolicy(holder, revocationOf);
+    const registry = createExtensionRegistry(holder, policy, revocationOf);
+    const info = (id: string) => registry.list().find((item) => item.id === id);
+    expect(info('acme.here')).toMatchObject({
+      state: 'disabled',
+      revoked: 'revoked here',
+    });
+    expect(info('acme.there')).toMatchObject({
+      state: 'loaded',
+      revoked: null,
+    });
+    expect(policy.isEnabled('acme.there')).toBe(true);
+    expect(asked).toContain('acme.there@https://former.test/index.json');
   });
 
   it('does not touch extensions copied by hand or shipped with the app', async () => {

@@ -1,6 +1,7 @@
 import {
   ExerciseTypeError,
   ExtensionCommandError,
+  ExtensionTransferError,
   GradePolicyError,
 } from '@dolphy-app/engine/ports';
 import type {
@@ -8,11 +9,19 @@ import type {
   ExerciseTypes,
   ExtensionCommandErrorCause,
   ExtensionCommands,
+  ExtensionHealth,
   ExtensionPolicy,
+  ExtensionTransferErrorCause,
+  ExtensionTransfers,
   GradePolicies,
   GradePolicyErrorCause,
   RawVerdict,
 } from '@dolphy-app/engine/ports';
+import {
+  InvalidTransferResultError,
+  normalizeExportResult,
+  normalizeImportResult,
+} from '@dolphy-app/extension-api';
 import type { ExtensionLogger } from '@dolphy-app/extension-api';
 import type { createCatalog } from './catalog.ts';
 import type { ChannelOutcome, ChannelParams, HostChannel } from './channel.ts';
@@ -21,17 +30,31 @@ import {
   commandOutcomeSchema,
   gradeResultSchema,
   gradeValueSchema,
+  isFault,
 } from './protocol.ts';
 import type { ExtFailureCause, ExtResponse } from './protocol.ts';
 
-/** Причины, которые вид задания не различает, сводятся к сбою обработчика. */
-const exerciseCause = (cause: ExtFailureCause): ExerciseTypeErrorCause =>
-  cause === 'unknown-policy' ||
-  cause === 'unknown-command' ||
-  cause === 'handler-timeout' ||
-  cause === 'replaced'
-    ? 'handler-failed'
-    : cause;
+/**
+ * Причины, которые вид задания не различает, сводятся к сбою обработчика;
+ * `activation-timeout` — к `activation-failed` (срок активации — внутренняя причина хоста).
+ */
+const exerciseCause = (cause: ExtFailureCause): ExerciseTypeErrorCause => {
+  switch (cause) {
+    case 'activation-timeout':
+      return 'activation-failed';
+    case 'unknown-policy':
+    case 'unknown-command':
+    case 'unknown-importer':
+    case 'unknown-exporter':
+    case 'handler-timeout':
+    case 'ipc-size':
+    case 'ipc-rate':
+    case 'replaced':
+      return 'handler-failed';
+    default:
+      return cause;
+  }
+};
 
 export interface RemoteExerciseTypesOptions {
   channel: HostChannel;
@@ -42,6 +65,8 @@ export interface RemoteExerciseTypesOptions {
   /** Дедлайн `grade` = `timeoutMs + graceMs`. */
   graceMs?: number;
   projectTimeoutMs?: number;
+  /** Сюда идут сбои видов заданий (отказ обработчика, неверный результат, срок); без него не учитываются. */
+  health?: Pick<ExtensionHealth, 'recordFailure'>;
 }
 
 export interface RemoteGradePoliciesOptions {
@@ -55,7 +80,7 @@ export interface RemoteGradePoliciesOptions {
 export const createRemoteExerciseTypes = (
   options: RemoteExerciseTypesOptions,
 ): ExerciseTypes => {
-  const { catalog, channel, policy } = options;
+  const { catalog, channel, policy, health } = options;
   const isolatedOwner = (type: string): boolean => {
     const owner = catalog.ownerOf(type);
     return owner === undefined ? true : policy.isIsolated(owner.id);
@@ -63,13 +88,22 @@ export const createRemoteExerciseTypes = (
   const graceMs = options.graceMs ?? 2000;
   const projectTimeoutMs = options.projectTimeoutMs ?? 5000;
 
+  /** Сбой вида задания записывается на расширение-владельца. */
+  const recordFault = (type: string, reason: string, message: string): void => {
+    const owner = catalog.ownerOf(type);
+    if (owner !== undefined) health?.recordFailure(owner.id, reason, message);
+  };
+
   const failure = (
     type: string,
     outcome: Exclude<ChannelOutcome, { kind: 'response' }>,
-  ): ExerciseTypeError =>
-    outcome.kind === 'timeout'
-      ? new ExerciseTypeError('timeout', type, 'extension call timed out')
-      : new ExerciseTypeError('host-down', type, 'extension host is down');
+  ): ExerciseTypeError => {
+    if (outcome.kind === 'timeout') {
+      recordFault(type, 'timeout', 'extension call timed out');
+      return new ExerciseTypeError('timeout', type, 'extension call timed out');
+    }
+    return new ExerciseTypeError('host-down', type, 'extension host is down');
+  };
 
   const request = async (
     method: 'project' | 'referenceAnswer',
@@ -84,6 +118,9 @@ export const createRemoteExerciseTypes = (
     const { response } = outcome;
     if (!response.ok) {
       const { cause } = response.error;
+      if (isFault(cause)) {
+        recordFault(params.type, cause, response.error.message);
+      }
       throw new ExerciseTypeError(
         exerciseCause(cause),
         params.type,
@@ -94,11 +131,15 @@ export const createRemoteExerciseTypes = (
   };
 
   const toVerdict = (
+    type: string,
     response: ExtResponse,
     durationMs: number,
     authorMode: boolean,
   ): RawVerdict => {
     if (!response.ok) {
+      if (isFault(response.error.cause)) {
+        recordFault(type, response.error.cause, response.error.message);
+      }
       return {
         outcome: 'error',
         reason: 'internal',
@@ -108,6 +149,11 @@ export const createRemoteExerciseTypes = (
     }
     const parsed = gradeResultSchema.safeParse(response.result);
     if (!parsed.success) {
+      recordFault(
+        type,
+        'invalid-result',
+        'extension returned an invalid grade result',
+      );
       return { outcome: 'error', reason: 'internal', durationMs };
     }
     const result = parsed.data;
@@ -152,8 +198,14 @@ export const createRemoteExerciseTypes = (
       const durationMs = Math.round(performance.now() - started);
       switch (outcome.kind) {
         case 'response':
-          return toVerdict(outcome.response, durationMs, req.authorMode);
+          return toVerdict(
+            req.type,
+            outcome.response,
+            durationMs,
+            req.authorMode,
+          );
         case 'timeout':
+          recordFault(req.type, 'timeout', 'extension grade timed out');
           return { outcome: 'error', reason: 'timeout', durationMs };
         default:
           return { outcome: 'error', reason: 'worker_crash', durationMs };
@@ -245,6 +297,7 @@ const commandCause = (cause: ExtFailureCause): ExtensionCommandErrorCause => {
     case 'invalid-result':
     case 'replaced':
     case 'handler-failed':
+    case 'activation-timeout':
       return cause;
     case 'handler-timeout':
       return 'timeout';
@@ -315,5 +368,121 @@ export const createRemoteExtensionCommands = (
         ? { kind: 'openPanel', panelId: data.panelId }
         : { kind: 'openPanel', panelId: data.panelId, props: data.props };
     },
+  };
+};
+
+/**
+ * Срок импорта или экспорта у движка: больше раннера ограниченного процесса
+ * (32 с) и обработчика (30 с), включает ленивую активацию, запуск процесса и
+ * передачу файла.
+ */
+export const TRANSFER_CLIENT_DEADLINE_MS = 34_000;
+
+export interface RemoteExtensionTransfersOptions {
+  channel: HostChannel;
+  /** Режим исполнения (`isolated`) вычисляется на каждый вызов. */
+  policy: ExtensionPolicy;
+  logger: ExtensionLogger;
+  deadlineMs?: number;
+}
+
+const transferCause = (cause: ExtFailureCause): ExtensionTransferErrorCause => {
+  switch (cause) {
+    case 'unknown-importer':
+    case 'unknown-exporter':
+    case 'invalid-result':
+    case 'replaced':
+    case 'handler-failed':
+      return cause;
+    case 'handler-timeout':
+      return 'timeout';
+    default:
+      return 'handler-failed';
+  }
+};
+
+export const createRemoteExtensionTransfers = (
+  options: RemoteExtensionTransfersOptions,
+): ExtensionTransfers => {
+  const { channel, policy, logger } = options;
+  const deadlineMs = options.deadlineMs ?? TRANSFER_CLIENT_DEADLINE_MS;
+
+  /** Общий путь: вызов хоста, свод причин, проверка результата теми же правилами, что в рантайме. */
+  const run = async <T>(
+    kind: 'import' | 'export',
+    extensionId: string,
+    id: string,
+    call: () => Promise<ChannelOutcome>,
+    check: (result: unknown) => T,
+  ): Promise<T> => {
+    const fail = (
+      cause: ExtensionTransferErrorCause,
+      message: string,
+    ): ExtensionTransferError =>
+      new ExtensionTransferError(cause, extensionId, id, kind, message);
+    const outcome = await call();
+    if (outcome.kind === 'timeout') {
+      throw fail('timeout', `extension ${kind} timed out`);
+    }
+    if (outcome.kind !== 'response') {
+      throw fail('host-down', 'extension host is down');
+    }
+    const { response } = outcome;
+    if (!response.ok) {
+      const cause = transferCause(response.error.cause);
+      logger.debug(
+        { extensionId, id, kind, cause },
+        'extension transfer failed',
+      );
+      throw fail(cause, response.error.message);
+    }
+    try {
+      return check(response.result);
+    } catch (error) {
+      if (!(error instanceof InvalidTransferResultError)) throw error;
+      throw fail('invalid-result', error.message);
+    }
+  };
+
+  // таймаут хост не перезапускает: выбор файла пользователем не должен убивать чужие вызовы
+  return {
+    runImporter: (extensionId, importerId, input) =>
+      run(
+        'import',
+        extensionId,
+        importerId,
+        () =>
+          channel.call(
+            'runImporter',
+            {
+              extensionId,
+              importerId,
+              isolated: policy.isIsolated(extensionId),
+              ...input,
+            },
+            deadlineMs,
+            { restart: false },
+          ),
+        normalizeImportResult,
+      ),
+    runExporter: (extensionId, exporterId, input) =>
+      run(
+        'export',
+        extensionId,
+        exporterId,
+        () =>
+          channel.call(
+            'runExporter',
+            {
+              extensionId,
+              exporterId,
+              input,
+              isolated: policy.isIsolated(extensionId),
+            },
+            deadlineMs,
+            { restart: false },
+          ),
+        normalizeExportResult,
+      ),
   };
 };

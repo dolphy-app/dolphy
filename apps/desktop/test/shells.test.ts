@@ -52,24 +52,65 @@ describe('engine shell', () => {
   });
 });
 
+const INFO = {
+  appVersion: '1.2.3',
+  electron: '44.0.0',
+  chrome: '140.0.0',
+  node: '22.12.0',
+  platform: 'darwin',
+  arch: 'arm64',
+};
+
 describe('platform shell', () => {
   const setup = (dialogResult: { canceled: boolean; filePaths: string[] }) => {
-    let handler:
-      | ((e: PickDirectoryEvent, options: unknown) => Promise<string | null>)
-      | null = null;
+    const handlers = new Map<
+      string,
+      (e: PickDirectoryEvent, options: unknown) => Promise<unknown>
+    >();
     const showOpenDialog = vi.fn(async () => dialogResult);
+    const showSaveDialog = vi.fn(
+      async (): Promise<{ canceled: boolean; filePath?: string }> => ({
+        canceled: false,
+        filePath: '/out/chosen.csv',
+      }),
+    );
+    const stored = new Map<string, Uint8Array>();
+    const copied: string[] = [];
     createPlatformShell({
       ipcMain: {
-        handle: (channel, listener) => {
-          expect(channel).toBe('platform:pickDirectory');
-          handler = listener;
-        },
+        handle: (channel, listener) => handlers.set(channel, listener),
       },
-      dialog: { showOpenDialog },
+      dialog: { showOpenDialog, showSaveDialog },
+      files: {
+        size: async (file) => stored.get(file)?.byteLength ?? 0,
+        read: async (file) => stored.get(file) ?? new Uint8Array(),
+        write: async (file, bytes) => void stored.set(file, bytes),
+      },
       fromWebContents: (sender) => ({ window: sender }),
+      appInfo: () => INFO,
+      clipboard: { writeText: (text) => void copied.push(text) },
     }).register();
-    const invoke = (options: unknown) => handler?.({ sender: 'wc' }, options);
-    return { invoke, showOpenDialog };
+    const invoke = (options: unknown) =>
+      handlers.get('platform:pickDirectory')?.({ sender: 'wc' }, options);
+    const invokeInfo = () =>
+      handlers.get('platform:appInfo')?.({ sender: 'wc' }, undefined);
+    const invokeCopy = (text: unknown) =>
+      handlers.get('platform:copyText')?.({ sender: 'wc' }, text);
+    const invokePickFile = (options: unknown) =>
+      handlers.get('platform:pickFile')?.({ sender: 'wc' }, options);
+    const invokeSaveFile = (options: unknown) =>
+      handlers.get('platform:saveFile')?.({ sender: 'wc' }, options);
+    return {
+      invoke,
+      invokeInfo,
+      invokeCopy,
+      invokePickFile,
+      invokeSaveFile,
+      copied,
+      showOpenDialog,
+      showSaveDialog,
+      stored,
+    };
   };
 
   it('открывает диалог папки у окна отправителя и возвращает путь', async () => {
@@ -82,6 +123,148 @@ describe('platform shell', () => {
       { window: 'wc' },
       { title: 'Курс', properties: ['openDirectory', 'createDirectory'] },
     );
+  });
+
+  it('сведения о сборке отдаёт main, окно своих не подставляет', async () => {
+    const { invokeInfo } = setup({ canceled: true, filePaths: [] });
+    await expect(invokeInfo()).resolves.toEqual(INFO);
+  });
+
+  it('copyText кладёт строку в буфер обмена main; не строка и слишком длинный текст отклоняются', async () => {
+    const { invokeCopy, copied } = setup({ canceled: true, filePaths: [] });
+    await invokeCopy('диагностика');
+    expect(copied).toEqual(['диагностика']);
+    await expect(invokeCopy(42)).rejects.toThrow(TypeError);
+    await expect(invokeCopy('x'.repeat(1024 * 1024 + 1))).rejects.toThrow(
+      TypeError,
+    );
+    expect(copied).toHaveLength(1);
+  });
+
+  describe('pickFile', () => {
+    const OPTIONS = { accept: ['.csv', '.tsv'], title: 'Импорт' };
+
+    it('фильтр по accept; возвращает имя и байты, а не путь', async () => {
+      const { invokePickFile, showOpenDialog, stored } = setup({
+        canceled: false,
+        filePaths: ['/home/u/Данные.CSV'],
+      });
+      stored.set('/home/u/Данные.CSV', new Uint8Array([1, 2, 3]));
+      const picked = (await invokePickFile(OPTIONS)) as {
+        status: string;
+        name: string;
+        bytes: Uint8Array;
+      };
+      expect(picked).toEqual({
+        status: 'picked',
+        name: 'Данные.CSV',
+        bytes: new Uint8Array([1, 2, 3]),
+      });
+      expect(JSON.stringify(Object.keys(picked))).not.toContain('path');
+      expect(showOpenDialog).toHaveBeenCalledWith(
+        { window: 'wc' },
+        {
+          title: 'Импорт',
+          properties: ['openFile'],
+          filters: [{ name: '.csv, .tsv', extensions: ['csv', 'tsv'] }],
+        },
+      );
+    });
+
+    it('отмена диалога — null, файл не читается', async () => {
+      const { invokePickFile } = setup({ canceled: true, filePaths: [] });
+      await expect(invokePickFile(OPTIONS)).resolves.toBeNull();
+    });
+
+    it('файл больше 20 МиБ не читается, а возвращается как слишком большой', async () => {
+      const { invokePickFile, stored } = setup({
+        canceled: false,
+        filePaths: ['/big.csv'],
+      });
+      // размер подменяется, чтобы не выделять 20 МиБ
+      const big = new Uint8Array(0);
+      Object.defineProperty(big, 'byteLength', { value: 20 * 1024 * 1024 + 1 });
+      stored.set('/big.csv', big);
+      await expect(invokePickFile(OPTIONS)).resolves.toEqual({
+        status: 'too-large',
+        name: 'big.csv',
+      });
+    });
+
+    it('файл с другим расширением (диалог «все файлы») отвергается без чтения', async () => {
+      const { invokePickFile } = setup({
+        canceled: false,
+        filePaths: ['/x/notes.txt'],
+      });
+      await expect(invokePickFile(OPTIONS)).resolves.toEqual({
+        status: 'unsupported',
+        name: 'notes.txt',
+      });
+    });
+
+    it.each([
+      ['нет accept', {}],
+      ['пустой accept', { accept: [] }],
+      ['без точки', { accept: ['csv'] }],
+      ['заглавные', { accept: ['.CSV'] }],
+      [
+        '9 расширений',
+        { accept: Array.from({ length: 9 }, (_, i) => `.e${i}`) },
+      ],
+      ['не строка', { accept: [1] }],
+    ])('параметры отвергаются: %s', async (_name, options) => {
+      const { invokePickFile, showOpenDialog } = setup({
+        canceled: true,
+        filePaths: [],
+      });
+      await expect(invokePickFile(options)).rejects.toThrow(TypeError);
+      expect(showOpenDialog).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('saveFile', () => {
+    it('пишет байты туда, куда указал диалог; предложенное имя — только basename', async () => {
+      const { invokeSaveFile, showSaveDialog, stored } = setup({
+        canceled: true,
+        filePaths: [],
+      });
+      await expect(
+        invokeSaveFile({
+          suggestedName: '../../etc/evil\\данные.csv',
+          bytes: new Uint8Array([7]),
+        }),
+      ).resolves.toBe('saved');
+      expect(showSaveDialog).toHaveBeenCalledWith(
+        { window: 'wc' },
+        { defaultPath: 'данные.csv' },
+      );
+      expect(stored.get('/out/chosen.csv')).toEqual(new Uint8Array([7]));
+    });
+
+    it('отмена диалога ничего не пишет', async () => {
+      const { invokeSaveFile, showSaveDialog, stored } = setup({
+        canceled: true,
+        filePaths: [],
+      });
+      showSaveDialog.mockResolvedValueOnce({ canceled: true });
+      await expect(
+        invokeSaveFile({ suggestedName: 'a.csv', bytes: new Uint8Array(1) }),
+      ).resolves.toBe('canceled');
+      expect(stored.size).toBe(0);
+    });
+
+    it.each([
+      ['не строка', { suggestedName: 1, bytes: new Uint8Array(1) }],
+      ['не байты', { suggestedName: 'a.csv', bytes: 'text' }],
+      ['пустое имя', { suggestedName: 'dir/', bytes: new Uint8Array(1) }],
+    ])('параметры отвергаются: %s', async (_name, options) => {
+      const { invokeSaveFile, showSaveDialog } = setup({
+        canceled: true,
+        filePaths: [],
+      });
+      await expect(invokeSaveFile(options)).rejects.toThrow(TypeError);
+      expect(showSaveDialog).not.toHaveBeenCalled();
+    });
   });
 
   it('отмена диалога — null; нестроковый title отбрасывается', async () => {

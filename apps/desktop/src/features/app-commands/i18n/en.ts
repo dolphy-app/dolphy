@@ -7,6 +7,7 @@ export const en: typeof ru = {
       go: 'Navigation',
       theme: 'Theme',
       language: 'Language',
+      session: 'Session',
     },
     palette: {
       open: 'Open command palette',
@@ -14,13 +15,19 @@ export const en: typeof ru = {
     go: {
       dailyPlan: 'Go to: Daily plan',
       courses: 'Go to: Courses',
-      graph: 'Go to: Knowledge graph',
       settings: 'Go to: Settings',
       settingsLearning: 'Go to: Settings — Learning',
       settingsLibrary: 'Go to: Settings — Library',
       settingsAppearance: 'Go to: Settings — Appearance',
       settingsExtensions: 'Go to: Settings — Extensions',
       settingsAbout: 'Go to: Settings — About the engine',
+    },
+    session: {
+      undo: 'Undo the last answer',
+      redo: 'Redo the undone answer',
+    },
+    tour: {
+      start: 'Show the guided tour',
     },
     theme: 'Theme: {name}',
     language: 'Language: {name}',

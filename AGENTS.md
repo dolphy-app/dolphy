@@ -24,24 +24,33 @@ pnpm-workspace (`pnpm-workspace.yaml`): `apps/*`, `packages/*`.
 
 ## Команды
 
-Node ≥ 22.12 (`.nvmrc`), pnpm 9.15.9 (поле `packageManager`). Устанавливать зависимости только через `pnpm`, `pnpm-lock.yaml` коммитить.
+Node ≥ 22.12 (`.nvmrc`), pnpm 12.9.1 (поле `packageManager`). Устанавливать зависимости только через `pnpm`, `pnpm-lock.yaml` коммитить.
 
-| Команда                       | Что делает                                                                                                |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `pnpm install`                | зависимости всего workspace                                                                               |
-| `pnpm dev`                    | `apps/desktop` в режиме разработки                                                                        |
-| `pnpm build`                  | сборка `apps/desktop` (vue-tsc, vite, electron-builder)                                                   |
-| `pnpm smoke`                  | сквозной смоук `apps/desktop` в настоящем Electron                                                        |
-| `pnpm smoke:packaged`         | то же в упакованном неподписанном `.app` (смоук-сборка)                                                   |
-| `pnpm -F @dolphy/desktop e2e` | e2e через клиент в настоящем Electron: прохождение курсов, журнал в `engine.db` (в `pnpm test` не входит) |
-| `pnpm typecheck`              | `tsc -b` (TS 7) по пакетам `packages/*`                                                                   |
-| `pnpm test`                   | `vitest run` по проектам `packages/*` и `apps/*`                                                          |
-| `pnpm lint`                   | `eslint .` и `prettier --check .`                                                                         |
-| `pnpm fix`                    | `eslint . --fix` и `prettier --write .`                                                                   |
-| `pnpm <cmd> -r`               | команда во всех пакетах workspace                                                                         |
-| `pnpm -F <name>`              | команда в одном пакете, например `-F @dolphy/desktop`                                                     |
+| Команда                       | Что делает                                                                                                                                      |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm install`                | зависимости всего workspace                                                                                                                     |
+| `pnpm dev`                    | `apps/desktop` в режиме разработки                                                                                                              |
+| `pnpm build`                  | сборка `apps/desktop` (vue-tsc, vite, electron-builder)                                                                                         |
+| `pnpm smoke`                  | сквозной смоук `apps/desktop` в настоящем Electron                                                                                              |
+| `pnpm smoke:packaged`         | то же в упакованном неподписанном `.app` (смоук-сборка)                                                                                         |
+| `pnpm -F @dolphy/desktop e2e` | e2e через клиент в настоящем Electron: прохождение курсов, журнал в `engine.db` (в `pnpm test` не входит)                                       |
+| `pnpm typecheck`              | `tsc -b` (TS 7) по пакетам `packages/*`                                                                                                         |
+| `pnpm test`                   | `vitest run` по проектам `packages/*` и `apps/*`; локально не больше 6 воркеров (`VITEST_MAX_WORKERS=<n>` меняет, в CI — значение по умолчанию) |
+| `pnpm lint`                   | `eslint .` и `prettier --check .`                                                                                                               |
+| `pnpm fix`                    | `eslint . --fix` и `prettier --write .`                                                                                                         |
+| `pnpm <cmd> -r`               | команда во всех пакетах workspace                                                                                                               |
+| `pnpm -F <name>`              | команда в одном пакете, например `-F @dolphy/desktop`                                                                                           |
 
 Новый пакет: `apps/<name>` или `packages/<name>`, имя в `package.json` — `@dolphy-app/<name>`.
+
+### e2e без перехвата фокуса
+
+e2e не должен отбирать фокус и переключать space: агенты запускают его в фоне, пользователь работает параллельно. Окна по умолчанию скрыты (`DOLPHY_HIDDEN_WINDOW`), на macOS запускается копия `Electron.app` с `LSUIElement` (`dist-e2e/Electron.app`, готовит `e2e/global-setup.ts`).
+
+- Обычный прогон — `pnpm -F @dolphy/desktop e2e [файл]`; `DOLPHY_E2E_SKIP_BUILD=1` переиспользует сборку `dist-e2e`.
+- Посмотреть глазами — `DOLPHY_E2E_SHOW=1`. Окна показываются через `showInactive()` без фокуса; при `yabai` в `PATH` харнесс сам делает их плавающими и переносит на space `DOLPHY_E2E_SPACE` (по умолчанию `3`). Конфиг yabai менять не нужно.
+- Новый код запуска Electron в тестах: не вызывать `focus()`/`show()`, окна показывать только через `revealWindows` в `e2e/support/app.ts`. Окно копии с `LSUIElement` yabai перенести не может, поэтому в режиме показа нужен обычный Electron.
+- Подробности — `apps/desktop/README.md` (раздел E2E).
 
 ## Стиль кода
 
@@ -87,4 +96,4 @@ Node ≥ 22.12 (`.nvmrc`), pnpm 9.15.9 (поле `packageManager`). Устана
 
 ## CI/CD
 
-GitHub Actions. `.github/workflows/ci.yml` запускается на push и pull request в `develop` и `main`. Jobs (каждый начинается с `pnpm install --frozen-lockfile`): `lint` — `pnpm lint:eslint`, `pnpm lint:format`; `typecheck` — `pnpm typecheck` и `test` — `pnpm test`, оба на Node 22 и 24; `build` — `pnpm build --publish never` на Linux (типы, `vite build`, `electron-builder`; без подписи); `commitlint` — сообщения коммитов PR в `develop` (`commitlint --from <base> --to <head>`); `release-branch` — PR в `main`: ветка называется `release-<version>` и версия совпадает с расчётом semantic-release. `.github/workflows/release.yml` — релиз из `main` (см. «Релизы»). Деплоя нет.
+GitHub Actions. `.github/workflows/ci.yml` запускается на push и pull request в `develop` и `main`. Jobs (каждый начинается с `pnpm install --frozen-lockfile`): `lint` — `pnpm lint:eslint`, `pnpm lint:format`; `typecheck` — `pnpm typecheck` и `test` — `pnpm test`, оба на Node 22 и 24; `build` — `pnpm build --publish never` на Linux (типы, `vite build`, `electron-builder`; без подписи); `commitlint` — сообщения коммитов PR в `develop` (`commitlint --from <base> --to <head>`); `release-branch` — PR в `main`: ветка называется `release-<version>` и версия совпадает с расчётом semantic-release. `.github/workflows/release.yml` — релиз из `main` (см. «Релизы»). `.github/workflows/desktop-checks.yml` — упакованный смоук (`pnpm smoke:packaged`: `macos-14` и `ubuntu-latest` под `xvfb-run`) и e2e десктопа (`pnpm -F @dolphy/desktop e2e`, Linux под `xvfb-run`) на PR в `main`, по `workflow_dispatch`, e2e ещё и ночью (cron); без `paths`, чтобы релиз-PR всегда получал обе проверки. Релиз-PR в `main` вливается только при зелёных `Packaged smoke (…)` и `Desktop e2e (Linux)` (защиты веток нет: правило держит скилл `git-workflow`). Деплоя нет.

@@ -21,6 +21,7 @@ import {
 } from './support/commands-client.ts';
 import { readExtensionData } from './support/journal.ts';
 import { expectCount, expectText, expectVisible } from './support/locator.ts';
+import { MOD_KEY } from './support/keys.ts';
 import { PLAIN_COURSE, PLAIN_LIBRARY } from './support/state-client.ts';
 
 const fixture = (name: string) =>
@@ -29,6 +30,7 @@ const fixture = (name: string) =>
 const COMMANDS_DIR = fixture('commands-extension');
 const COMMANDS_1_1_DIR = fixture('commands-extension-1.1.0');
 const VICTIM_DIR = fixture('commands-victim-extension');
+const SLOW_START_DIR = fixture('slow-start-extension');
 
 const COMMANDS: CatalogSource = {
   dir: COMMANDS_DIR,
@@ -281,6 +283,32 @@ describe('палитра команд (R4, R8)', () => {
   });
 });
 
+describe('срок активации (R4, R5, R7)', () => {
+  it('расширение с вечным activate(): команда из палитры — «не запустилось за 10 с», повтор отвечает сразу тем же сообщением', async () => {
+    const { commands } = await prepare({ 'acme.slowstart': SLOW_START_DIR });
+    const run = async () => {
+      await commands.openPalette();
+      await commands.search('медленное расширение');
+      await commands.combobox.press('Enter');
+    };
+    const started = Date.now();
+    await run();
+    await expectText(
+      commands.notice,
+      'Расширение не запустилось за 10 с',
+      30_000,
+    );
+    expect(Date.now() - started).toBeGreaterThanOrEqual(9_000);
+
+    // сбой запомнен: новая активация не запускается, ответ приходит без ожидания срока
+    const again = Date.now();
+    await commands.notice.getByRole('button', { name: 'Закрыть' }).click();
+    await run();
+    await expectText(commands.notice, 'Расширение не запустилось за 10 с');
+    expect(Date.now() - again).toBeLessThan(5_000);
+  });
+});
+
 describe('панель (R5, R7, R8)', () => {
   it('команда палитры открывает панель со свойствами; страница в iframe sandbox="allow-scripts"; пункт меню; заголовок получает фокус; «Назад»', async () => {
     const { commands, client } = await prepare();
@@ -315,9 +343,9 @@ describe('панель (R5, R7, R8)', () => {
     await expectText(commands.panelRole('props'), 'Свойства: null');
     const stillSameWindow = await client.markWindow();
 
-    await commands.panelButton('Прибавить').click();
+    await commands.pressPanelButton('Прибавить');
     await expectText(commands.panelRole('count'), 'Счётчик: 1');
-    await commands.panelButton('Прибавить').click();
+    await commands.pressPanelButton('Прибавить');
     await expectText(commands.panelRole('count'), 'Счётчик: 2');
     expect(readExtensionData(workspace!.userData, COMMANDS_ID).storage).toEqual(
       {
@@ -326,19 +354,19 @@ describe('панель (R5, R7, R8)', () => {
     );
 
     // notify из панели показывает приложение
-    await commands.panelButton('Уведомить').click();
+    await commands.pressPanelButton('Уведомить');
     await expectText(commands.notice, GREETING);
 
     // openPanel из панели обновляет свойства, рамка остаётся прежней
     await commands.frameElement.evaluate((node) =>
       Reflect.set(node, '__same', true),
     );
-    await commands.panelButton('Открыть снова').click();
+    await commands.pressPanelButton('Открыть снова');
     await expectText(
       commands.panelRole('props'),
       'Свойства: {"from":"command","opened":1}',
     );
-    await commands.panelButton('Открыть снова').click();
+    await commands.pressPanelButton('Открыть снова');
     await expectText(
       commands.panelRole('props'),
       'Свойства: {"from":"command","opened":2}',
@@ -350,7 +378,7 @@ describe('панель (R5, R7, R8)', () => {
     ).toBe(true);
 
     // ошибка обработчика приходит панели отклонённым промисом
-    await commands.panelButton('Сломать').click();
+    await commands.pressPanelButton('Сломать');
     await expectText(commands.panelRole('result'), 'Ошибка: кубик сломан');
     await stillSameWindow();
   });
@@ -361,7 +389,7 @@ describe('панель (R5, R7, R8)', () => {
     const input = commands.frame.getByLabel('Поле панели');
     await input.click();
     await input.fill('текст');
-    await client.page.keyboard.press('Control+K');
+    await client.page.keyboard.press(`${MOD_KEY}+K`);
     await commands.combobox.waitFor({ timeout: 15_000 });
     // сочетание не попало в поле панели
     expect(await input.inputValue()).toBe('текст');
@@ -378,15 +406,15 @@ describe('панель (R5, R7, R8)', () => {
       [VICTIM_ID]: VICTIM_DIR,
     });
     await commands.navItem(PANEL_TITLE).click();
-    await commands.panelButton('Чужая команда').click();
+    await commands.pressPanelButton('Чужая команда');
     await expectText(
       commands.panelRole('result'),
       'Ошибка: unknown command: acme.victim.mark',
     );
 
-    await commands.panelButton('Подделка').click();
+    await commands.pressPanelButton('Подделка');
     // следующий настоящий вызов проходит после подделки: она уже обработана
-    await commands.panelButton('Прибавить').click();
+    await commands.pressPanelButton('Прибавить');
     await expectText(commands.panelRole('count'), 'Счётчик: 1');
     await expectCount(commands.notice.filter({ hasText: 'жертва' }), 0);
     expect(victimData().storage).toEqual({});
@@ -406,7 +434,7 @@ describe('панель (R5, R7, R8)', () => {
       'allow-scripts',
     );
     expect(await client.page.locator('.v-main iframe').count()).toBe(1);
-    await commands.panelButton('Прибавить').click();
+    await commands.pressPanelButton('Прибавить');
     await expectText(commands.panelRole('count'), 'Счётчик: 1');
   });
 });

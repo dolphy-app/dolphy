@@ -1,14 +1,120 @@
+import { execFile } from 'node:child_process';
 import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 import { _electron as electron } from 'playwright-core';
 import type { ElectronApplication, Page } from 'playwright-core';
+import { openSqliteStorage } from '@dolphy-app/engine-sqlite';
+import type { TourStatus } from '@dolphy-app/engine-contract';
 
 const APP_DIR = fileURLToPath(new URL('../..', import.meta.url));
 /** Релизная сборка для e2e: `vite build` с `DOLPHY_BUILD_OUT=dist-e2e` (global-setup). */
 export const E2E_BUILD_DIR = 'dist-e2e';
+
+/**
+ * `DOLPHY_E2E_SHOW=1`: показывать окна (смотреть прогон глазами). Окна
+ * показываются без фокуса (`showInactive`), приложение остаётся без активации.
+ * На Linux окна показываются всегда: скрытое (`show: false`) окно Chromium
+ * считает невидимым, и клики и сообщения в iframe расширений (ответы, панели) не
+ * срабатывают; фокус на Linux (xvfb, CI) пользовательскую работу не прерывает.
+ */
+export const E2E_SHOW =
+  process.env.DOLPHY_E2E_SHOW === '1' || process.platform === 'linux';
+
+/**
+ * Space yabai, на который уходят видимые окна прогона (`DOLPHY_E2E_SPACE`,
+ * по умолчанию 3). Нужен `yabai` в `PATH`; без него окна остаются где созданы.
+ */
+const E2E_SPACE = process.env.DOLPHY_E2E_SPACE ?? '3';
+
+const execFileAsync = promisify(execFile);
+
+interface YabaiWindow {
+  id: number;
+  pid: number;
+  space: number;
+  'is-floating': boolean;
+}
+
+const yabai = async (...args: string[]) =>
+  (await execFileAsync('yabai', ['-m', ...args])).stdout;
+
+/**
+ * Переносит окна процесса на `E2E_SPACE` и делает их плавающими (иначе yabai
+ * растянет окно по раскладке). yabai видит окно только после показа и с
+ * задержкой, поэтому ждём все `total` окон.
+ */
+const placeWindows = async (pid: number, total: number) => {
+  const { index: space } = JSON.parse(
+    await yabai('query', '--spaces', '--space', E2E_SPACE),
+  ) as { index: number };
+  const own = async () =>
+    (JSON.parse(await yabai('query', '--windows')) as YabaiWindow[]).filter(
+      (window) => window.pid === pid,
+    );
+  let windows = await own();
+  for (let attempt = 0; windows.length < total && attempt < 50; attempt++) {
+    await sleep(100);
+    windows = await own();
+  }
+  for (const window of windows.filter((item) => item.space !== space)) {
+    // float до переноса: на тайловом space yabai сначала растянет окно
+    if (!window['is-floating']) {
+      await yabai('window', String(window.id), '--toggle', 'float');
+    }
+    await yabai('window', String(window.id), '--space', String(space));
+  }
+};
+
+/**
+ * macOS: копия `Electron.app` с `LSUIElement` (global-setup). Без Dock и без активации
+ * при старте процесса: обычный Electron на мгновение становится активным приложением
+ * и перехватывает клавиатуру и фокус оконного менеджера, даже со скрытым окном.
+ */
+export const QUIET_ELECTRON_APP = join(APP_DIR, E2E_BUILD_DIR, 'Electron.app');
+
+const quietElectronPath = join(QUIET_ELECTRON_APP, 'Contents/MacOS/Electron');
+
+/**
+ * Показывает скрытые окна без фокуса: `showInactive` не делает окно
+ * ключевым. Нужен обычный Electron: у копии с `LSUIElement` у окна нет роли AX
+ * и yabai не может его перенести. На время переноса на `E2E_SPACE` окна
+ * прозрачны, чтобы не мелькать на текущем space; размер yabai успевает
+ * изменить, поэтому исходные границы возвращаются после переноса.
+ */
+const revealWindows = async (app: ElectronApplication) => {
+  const { total, bounds } = await app.evaluate(({ BrowserWindow }) => {
+    const windows = BrowserWindow.getAllWindows();
+    const shown: Record<number, Electron.Rectangle> = {};
+    for (const window of windows) {
+      if (window.isVisible()) continue;
+      shown[window.id] = window.getBounds();
+      window.setOpacity(0);
+      window.showInactive();
+    }
+    return { total: windows.length, bounds: shown };
+  });
+  const pid = app.process().pid;
+  try {
+    if (process.platform === 'darwin' && pid !== undefined) {
+      await placeWindows(pid, total);
+    }
+  } catch (error) {
+    console.warn(`[e2e] yabai placement skipped: ${String(error)}`);
+  } finally {
+    await app.evaluate(({ BrowserWindow }, original) => {
+      for (const window of BrowserWindow.getAllWindows()) {
+        const rect = original[window.id];
+        if (rect !== undefined) window.setBounds(rect);
+        window.setOpacity(1);
+      }
+    }, bounds);
+  }
+};
 
 const LIBRARY_SOURCES = [
   '../../../../packages/engine/test/fixtures/libraries/sql-course/lib_kb',
@@ -20,6 +126,12 @@ const LIBRARY_SOURCES = [
 export const SEEDED_LIBRARY_SOURCES = LIBRARY_SOURCES;
 
 export interface WorkspaceOptions {
+  /**
+   * Исходы обучающих туров, записанные в `engine.db` до запуска. По умолчанию
+   * `welcome` пропущен: диалог первого запуска закрывал бы экран любого теста.
+   * `{}` — чистая база (первый запуск).
+   */
+  tours?: Record<string, TourStatus>;
   /** Каталоги расширений: имя подкаталога → источник; копируются в `<userData>/extensions`. */
   extensions?: Record<string, string>;
   /** Дополнительные файлы библиотеки: путь от корня библиотеки → содержимое. */
@@ -50,10 +162,57 @@ export const createWorkspace = async (
   for (const [name, source] of Object.entries(options.extensions ?? {})) {
     await cp(source, join(userData, 'extensions', name), { recursive: true });
   }
+  const tours = options.tours ?? { welcome: 'skipped' };
+  if (Object.keys(tours).length > 0) {
+    // настоящая схема движка: БД создаёт тот же код, что и при первом запуске
+    await mkdir(join(userData, 'data'), { recursive: true });
+    const storage = openSqliteStorage({
+      path: join(userData, 'data', 'engine.db'),
+    });
+    await storage.settings.saveUi({ theme: 'system', locale: 'system', tours });
+    storage.events.close();
+  }
   return {
     userData,
     dispose: () => rm(root, { recursive: true, force: true }),
   };
+};
+
+/** Тот же Electron, что запускает `launchApp`: копия с `LSUIElement` на macOS, пока окна не показываются. */
+const executablePathOf = (): string =>
+  process.platform === 'darwin' && !E2E_SHOW
+    ? quietElectronPath
+    : (createRequire(import.meta.url)('electron') as string);
+
+/**
+ * Второй запуск приложения с теми же `userData` и аргументами ссылки, как это
+ * делает ОС на Windows и Linux при открытии `dolphy://…`: процесс видит замок
+ * единственного экземпляра, передаёт аргументы первому и завершается. Ждёт
+ * завершения второго процесса.
+ */
+export const launchSecondInstance = async (
+  userData: string,
+  args: readonly string[],
+  env?: Record<string, string>,
+): Promise<void> => {
+  await execFileAsync(
+    executablePathOf(),
+    [
+      join(E2E_BUILD_DIR, 'dist-electron/main/index.js'),
+      `--user-data-dir=${userData}`,
+      '--lang=ru',
+      ...args,
+    ],
+    {
+      cwd: APP_DIR,
+      env: {
+        ...(process.env as Record<string, string>),
+        DOLPHY_HIDDEN_WINDOW: '1',
+        ...env,
+      },
+      timeout: 30_000,
+    },
+  );
 };
 
 export interface DolphyApp {
@@ -71,6 +230,10 @@ export interface DolphyApp {
    * перезапускает его, окна получают новый порт. Возвращает убитый `pid`.
    */
   killEngineHost(): Promise<number>;
+  /** `pid` живого хоста расширений (`utilityProcess` `dolphy-ext-host`) или `null`, пока супервизор его перезапускает. */
+  extensionHostPid(): Promise<number | null>;
+  /** Убивает хост расширений `SIGKILL`, как внезапный сбой; возвращает убитый `pid`. */
+  killExtensionHost(): Promise<number>;
   /** Выполняет функцию в главном процессе (модуль `electron` — первый аргумент). */
   evaluateMain: ElectronApplication['evaluate'];
   /** Закрывает приложение и ждёт, пока хост движка отпустит `engine.db`. */
@@ -85,8 +248,10 @@ export interface DolphyApp {
 export const launchApp = async (
   userData: string,
   env?: Record<string, string>,
+  /** Дополнительные аргументы командной строки приложения (`--safe-mode`). */
+  extraArgs: readonly string[] = [],
 ): Promise<DolphyApp> => {
-  const executablePath = createRequire(import.meta.url)('electron') as string;
+  const executablePath = executablePathOf();
   const app: ElectronApplication = await electron.launch({
     executablePath,
     cwd: APP_DIR,
@@ -94,28 +259,45 @@ export const launchApp = async (
       join(E2E_BUILD_DIR, 'dist-electron/main/index.js'),
       `--user-data-dir=${userData}`,
       '--lang=ru',
+      ...extraArgs,
+      // окно на другом space yabai считается перекрытым: без этого Chromium
+      // замедляет его и iframe панелей не успевают ответить
+      ...(E2E_SHOW
+        ? [
+            '--disable-backgrounding-occluded-windows',
+            '--disable-renderer-backgrounding',
+          ]
+        : []),
     ],
-    // `env` в Playwright заменяет окружение целиком: добавки накладываются на process.env
-    ...(env
-      ? { env: { ...(process.env as Record<string, string>), ...env } }
-      : {}),
+    // `env` в Playwright заменяет окружение целиком: добавки накладываются на process.env;
+    // окна создаются скрытыми, чтобы прогон не перехватывал фокус
+    // (`DOLPHY_E2E_SHOW=1` показывает их без фокуса, см. `revealWindows`)
+    env: {
+      ...(process.env as Record<string, string>),
+      DOLPHY_HIDDEN_WINDOW: '1',
+      ...env,
+    },
   });
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
+  if (E2E_SHOW) await revealWindows(app);
   // отладочные сообщения renderer мешают читать отчёт: показываем только ошибки
   page.on('pageerror', (error) => {
     console.error(`[renderer pageerror] ${error.message}`);
   });
-  const engineHostPid = () =>
+  const utilityPid = (name: string) =>
     app.evaluate(
-      ({ app: electronApp }) =>
+      ({ app: electronApp }, serviceName) =>
         electronApp
           .getAppMetrics()
           .find(
             (metric) =>
-              metric.type === 'Utility' && metric.name === 'dolphy-engine',
+              metric.type === 'Utility' && metric.name === serviceName,
           )?.pid ?? null,
+      name,
     );
+  const engineHostPid = () => utilityPid('dolphy-engine');
+  const extensionHostPid = () => utilityPid('dolphy-ext-host');
   return {
     page,
     engineHostPid,
@@ -126,13 +308,21 @@ export const launchApp = async (
       process.kill(pid, 'SIGKILL');
       return pid;
     },
+    extensionHostPid,
+    killExtensionHost: async () => {
+      const pid = await extensionHostPid();
+      if (pid === null) throw new Error('extension host is not running');
+      process.kill(pid, 'SIGKILL');
+      return pid;
+    },
     openWindow: async () => {
       const opened = app.waitForEvent('window');
       await app.evaluate(
-        ({ BrowserWindow }, preload) => {
+        ({ BrowserWindow }, { preload }) => {
           const [first] = BrowserWindow.getAllWindows();
           if (first === undefined) throw new Error('no window to copy');
           const next = new BrowserWindow({
+            show: false,
             width: 1100,
             height: 800,
             // как у окна приложения (`createWindowOptions`); `preload` из настроек окна не прочитать
@@ -148,10 +338,17 @@ export const launchApp = async (
           url.hash = '';
           void next.loadURL(url.href);
         },
-        join(APP_DIR, E2E_BUILD_DIR, 'dist-electron/preload/index.cjs'),
+        {
+          preload: join(
+            APP_DIR,
+            E2E_BUILD_DIR,
+            'dist-electron/preload/index.cjs',
+          ),
+        },
       );
       const second = await opened;
       await second.waitForLoadState('domcontentloaded');
+      if (E2E_SHOW) await revealWindows(app);
       second.on('pageerror', (error) => {
         console.error(`[renderer pageerror] ${error.message}`);
       });

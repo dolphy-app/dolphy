@@ -6,6 +6,7 @@ import type { CheckOptions } from '../src/catalog/check.ts';
 import { createGithubChecker } from '../src/catalog/github.ts';
 import { RULES } from '../src/catalog/rules.ts';
 import { CatalogUsageError } from '../src/errors.ts';
+import { makeTemp } from './helpers.ts';
 import { png } from '../../extension-catalog/test/samples.ts';
 import {
   createRepo,
@@ -292,6 +293,197 @@ describe('catalog check: rules', () => {
     const repo = await single(spec);
     expect(await run(repo, { maxAppVersion: '1.3.0' })).toEqual([]);
     expect(await run(repo)).toEqual([]);
+  });
+});
+
+describe('catalog check: authoring rules', () => {
+  const builtSite = async (
+    files: Record<string, string>,
+    version = '1.0.0',
+  ): Promise<string> => {
+    const site = await makeTemp();
+    const dir = path.join(site, 'extensions', ID, version);
+    await mkdir(dir, { recursive: true });
+    for (const [file, text] of Object.entries(files)) {
+      await writeFile(path.join(dir, file), text);
+    }
+    return site;
+  };
+
+  it('CHECK-019: a description under 20 characters is a warning', async () => {
+    const hit = await expectRule(
+      { manifest: { description: 'Too short' } },
+      'CHECK-019',
+      'warning',
+    );
+    expect(hit).toContain(' description: ');
+    const repo = await single({ manifest: { description: 'x'.repeat(20) } });
+    expect(await run(repo)).toEqual([]);
+  });
+
+  it('CHECK-020: a permission missing from README.md is a warning; a mention silences it', async () => {
+    const spec = { manifest: { permissions: ['network'] } };
+    const hit = await expectRule(spec, 'CHECK-020', 'warning');
+    expect(hit).toContain("permission 'network'");
+    const repo = await single({
+      ...spec,
+      files: { 'README.md': '# Sample\n\nUses `network` to fetch hints.\n' },
+    });
+    expect(await run(repo)).toEqual([]);
+  });
+
+  it('CHECK-030: CHANGELOG.md limits; a missing section of the current version is a warning', async () => {
+    const good = '# Changelog\n\n## [1.0.0] - 2026-10-01\n\n- first\n';
+    expect(
+      await run(await single({ files: { 'CHANGELOG.md': good } })),
+    ).toEqual([]);
+    expect(
+      await run(
+        await single({ files: { 'CHANGELOG.md': '## v1.0.0\n\n- first\n' } }),
+      ),
+    ).toEqual([]);
+    const missing = await expectRule(
+      { files: { 'CHANGELOG.md': '## 0.9.0\n\n- old\n' } },
+      'CHECK-030',
+      'warning',
+    );
+    expect(missing).toContain("'## 1.0.0'");
+    // `1.0.0` must not match the section of `11.0.0` or `1.0.01`
+    await expectRule(
+      { files: { 'CHANGELOG.md': '## 11.0.0\n\n- x\n' } },
+      'CHECK-030',
+      'warning',
+    );
+    const big = await expectRule(
+      { files: { 'CHANGELOG.md': `## 1.0.0\n${'x'.repeat(64 * 1024)}` } },
+      'CHECK-030',
+    );
+    expect(big).toContain('exceed the limit');
+    await expectRule(
+      { files: { 'CHANGELOG.md': Uint8Array.from([0x23, 0xff, 0xfe]) } },
+      'CHECK-030',
+    );
+    await expectRule(
+      { files: { 'CHANGELOG.md': '## 1.0.0\n\u0000\n' } },
+      'CHECK-030',
+    );
+  });
+
+  it('--deprecated: the form is checked, alternatives against the published index', async () => {
+    const repo = await single();
+    const published = await writePublished(repo, ID, ['0.9.0']);
+    const list = path.join(repo.root, 'deprecated.json');
+    const check = async (value: unknown, withIndex = true) => {
+      await writeFile(list, JSON.stringify(value));
+      return run(repo, {
+        deprecated: list,
+        ...(withIndex ? { publishedIndex: published } : {}),
+      });
+    };
+    expect(await check([])).toEqual([]);
+    expect(
+      await check([
+        { id: ID, versions: '<1.0.0', reason: 'old', alternatives: [ID] },
+      ]),
+    ).toEqual([]);
+    const missing = await check([
+      { id: ID, reason: 'old', alternatives: ['acme.gone'] },
+    ]);
+    expect(missing).toEqual([
+      `error ${ID} deprecated alternatives: alternative 'acme.gone' is not in the index`,
+    ]);
+    // without an index the existence of alternatives is not checked
+    expect(
+      await check(
+        [{ id: ID, reason: 'old', alternatives: ['acme.gone'] }],
+        false,
+      ),
+    ).toEqual([]);
+    for (const bad of [
+      { id: ID, reason: '', alternatives: [] },
+      { id: ID, reason: 'x'.repeat(201), alternatives: [] },
+      { id: ID, reason: 'x', alternatives: ['a.b', 'a.c', 'a.d', 'a.e'] },
+      { id: ID, versions: 'not a range', reason: 'x', alternatives: [] },
+      { id: ID, reason: 'x', alternatives: [], extra: 1 },
+    ]) {
+      const lines = await check([bad]);
+      expect(lines, JSON.stringify(bad)).toHaveLength(1);
+      expect(lines[0]).toMatch(
+        /^error deprecated\.json deprecated \/: deprecated list is invalid/,
+      );
+    }
+    const duplicate = {
+      id: ID,
+      reason: 'x',
+      alternatives: [],
+    };
+    expect((await check([duplicate, duplicate]))[0]).toContain('duplicate id');
+  });
+
+  it('CHECK-021: the id published under another author fails, the same author (any case) does not', async () => {
+    const repo = await single();
+    const published = await writePublished(repo, ID, ['0.9.0']);
+    expect(await run(repo, { publishedIndex: published })).toEqual([]);
+    const other = await single({ manifest: { author: 'someone-else' } });
+    const otherLines = await run(other, {
+      publishedIndex: await writePublished(other, ID, ['0.9.0']),
+    });
+    expect(otherLines).toEqual([
+      `error ${ID} CHECK-021 author: id '${ID}' is published by 'octo-cat': the first publisher owns the id`,
+    ]);
+    const cased = await single({ manifest: { author: 'Octo-Cat' } });
+    expect(
+      await run(cased, {
+        publishedIndex: await writePublished(cased, ID, ['0.9.0']),
+      }),
+    ).toEqual([]);
+    expect(await run(other)).toEqual([]);
+  });
+
+  it('CHECK-022: eval or new Function in the built version', async () => {
+    const builtDir = await builtSite({
+      'main.mjs': 'new Function("return 1")',
+    });
+    const hit = await expectRule({}, 'CHECK-022', 'warning', { builtDir });
+    expect(hit).toContain(' main.mjs: ');
+  });
+
+  it('CHECK-023: obfuscated built code', async () => {
+    const builtDir = await builtSite({ 'view.mjs': `${'a'.repeat(21_000)}\n` });
+    await expectRule({}, 'CHECK-023', 'warning', { builtDir });
+  });
+
+  it('CHECK-024: a URL without the network permission, none with it', async () => {
+    const builtDir = await builtSite({
+      'main.mjs': 'fetch("https://example.com/x")',
+    });
+    await expectRule({}, 'CHECK-024', 'warning', { builtDir });
+    const repo = await single({
+      manifest: { permissions: ['network'] },
+      files: { 'README.md': '# Sample\n\nneeds network\n' },
+    });
+    expect(await run(repo, { builtDir })).toEqual([]);
+  });
+
+  it('CHECK-025: an embedded source map is an error', async () => {
+    const builtDir = await builtSite({
+      'main.mjs':
+        'x();\n//# sourceMappingURL=data:application/json;base64,e30=',
+    });
+    await expectRule({}, 'CHECK-025', 'error', { builtDir });
+  });
+
+  it('bundle rules are silent without --built; a missing built version is one warning; only the checked version is read', async () => {
+    const repo = await single();
+    expect(await run(repo)).toEqual([]);
+    const elsewhere = await builtSite({ 'main.mjs': 'eval("1")' }, '2.0.0');
+    expect(await run(repo, { builtDir: elsewhere })).toEqual([
+      expect.stringMatching(
+        new RegExp(
+          `^warning ${ID} CHECK-022 --built: built version is not found`,
+        ),
+      ),
+    ]);
   });
 });
 

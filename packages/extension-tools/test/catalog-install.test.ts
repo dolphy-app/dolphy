@@ -3,7 +3,10 @@ import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { inspectExtensionDir } from '@dolphy-app/extension-host';
+import {
+  formatDiagnostic,
+  inspectExtensionDir,
+} from '@dolphy-app/extension-host';
 import { createExtensionInstaller } from '@dolphy-app/extension-install';
 import type { InspectResult } from '@dolphy-app/extension-install';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -41,7 +44,9 @@ const serve = async (root: string): Promise<string> => {
 
 const inspectDir = async (directory: string): Promise<InspectResult> => {
   const result = await inspectExtensionDir(directory, { expectedId: null });
-  if (!result.ok) return result;
+  if (!result.ok) {
+    return { ok: false, message: formatDiagnostic(result.diagnostic) };
+  }
   const { extension } = result;
   return {
     ok: true,
@@ -50,6 +55,7 @@ const inspectDir = async (directory: string): Promise<InspectResult> => {
       version: extension.version,
       permissions: extension.permissions,
       tags: extension.tags,
+      dependencies: extension.dependencies,
       icon: extension.icon,
       contributes: {
         exerciseTypes: extension.exerciseTypes.map((type) => type.id),
@@ -61,11 +67,32 @@ const inspectDir = async (directory: string): Promise<InspectResult> => {
         settings: extension.settings.map((setting) => setting.id),
         events: extension.events.map((item) => item.event),
         commands: extension.commands.map(({ id }) => id),
+        widgets: [],
+        schedules: [],
         panels: extension.panels.map(({ id }) => id),
+        importers: extension.importers.map(({ id }) => id),
+        exporters: extension.exporters.map(({ id }) => id),
       },
     },
   };
 };
+
+const installerFor = (origin: string, extensionsDir: string) =>
+  createExtensionInstaller({
+    catalogUrl: `${origin}/index.json`,
+    extensionsDir,
+    bundledIds: () => new Set(),
+    appVersion: '1.0.0',
+    apiVersion: 1,
+    platform: process.platform,
+    inspectDir,
+    logger: {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    },
+  });
 
 describe('catalog site and the real installer', () => {
   it.each([
@@ -82,21 +109,7 @@ describe('catalog site and the real installer', () => {
       const origin = await serve(site);
       const extensionsDir = path.join(await makeTemp(), 'extensions');
       await mkdir(extensionsDir);
-      const installer = createExtensionInstaller({
-        catalogUrl: `${origin}/index.json`,
-        extensionsDir,
-        bundledIds: () => new Set(),
-        appVersion: '1.0.0',
-        apiVersion: 1,
-        platform: process.platform,
-        inspectDir,
-        logger: {
-          debug: vi.fn(),
-          info: vi.fn(),
-          warn: vi.fn(),
-          error: vi.fn(),
-        },
-      });
+      const installer = installerFor(origin, extensionsDir);
 
       const listing = await installer.catalog();
       expect(listing.entries.map((entry) => [entry.id, entry.status])).toEqual([
@@ -119,4 +132,70 @@ describe('catalog site and the real installer', () => {
       ).toBe('installed');
     },
   );
+
+  it('installs locales/*.json as ordinary version files and discovery reads them', async () => {
+    const json = (value: unknown) => JSON.stringify(value);
+    const repo = await createRepo([
+      {
+        fixture: 'theme-only',
+        manifest: {
+          name: '%name%',
+          description: '%description%',
+          contributes: {
+            themes: [
+              {
+                id: 'acme.night',
+                label: '%theme%',
+                dark: true,
+                colors: { background: '#101018', primary: '#8ab4f8' },
+              },
+            ],
+          },
+        },
+        files: {
+          'locales/en.json': json({
+            name: 'Night',
+            description: 'A dark theme with a deep blue background',
+            theme: 'Night',
+          }),
+          'locales/ru.json': json({ name: 'Ночь', theme: 'Ночь' }),
+        },
+      },
+    ]);
+    const site = await makeTemp();
+    await buildCatalog({
+      src: repo.extensionsDir,
+      ids: ['acme.night'],
+      out: site,
+    });
+    const extensionsDir = path.join(await makeTemp(), 'extensions');
+    await mkdir(extensionsDir);
+    const installer = installerFor(await serve(site), extensionsDir);
+    await installer.catalog();
+    await installer.install('acme.night');
+
+    for (const name of ['locales/en.json', 'locales/ru.json']) {
+      expect(
+        await readFile(path.join(extensionsDir, 'acme.night', name)),
+      ).toEqual(
+        await readFile(
+          path.join(site, 'extensions', 'acme.night', '1.0.0', name),
+        ),
+      );
+    }
+    const result = await inspectExtensionDir(
+      path.join(extensionsDir, 'acme.night'),
+      { expectedId: 'acme.night' },
+    );
+    expect(result.ok && result.extension.messages).toEqual({
+      en: {
+        name: 'Night',
+        description: 'A dark theme with a deep blue background',
+        theme: 'Night',
+      },
+      ru: { name: 'Ночь', theme: 'Ночь' },
+    });
+    // ru lacks 'description', but only en is required to be complete
+    expect(result.ok && result.extension.warnings).toEqual([]);
+  });
 });

@@ -1,3 +1,4 @@
+import { isEffectiveExtensionState } from '@dolphy-app/engine-contract';
 import { onScopeDispose, ref, shallowRef, watch } from 'vue';
 import type { Ref } from 'vue';
 import type {
@@ -6,15 +7,15 @@ import type {
   LearningEngine,
 } from '@dolphy-app/engine-contract';
 
-/** Данные расширения: ключи и байты хранилища кода и значений настроек вместе. */
+/** Данные расширения: ключи и байты хранилища кода, значений настроек и секретов вместе. */
 export interface DataTotals {
   keys: number;
   bytes: number;
 }
 
 export const dataTotals = (usage: ExtensionDataUsageDto): DataTotals => ({
-  keys: usage.storage.keys + usage.settings.keys,
-  bytes: usage.storage.bytes + usage.settings.bytes,
+  keys: usage.storage.keys + usage.settings.keys + usage.secrets.keys,
+  bytes: usage.storage.bytes + usage.settings.bytes + usage.secrets.bytes,
 });
 
 /** Данные есть, если занят хотя бы один ключ: строка «Данные» без них не показывается. */
@@ -23,7 +24,7 @@ export const hasData = (usage: ExtensionDataUsageDto | undefined): boolean =>
 
 /** Данные есть у действующих расширений (загруженных и отключённых); у перекрытых и некорректных строка их не показывает. */
 const carriesData = (extension: ExtensionInfoDto) =>
-  extension.state === 'loaded' || extension.state === 'disabled';
+  isEffectiveExtensionState(extension.state);
 
 const errorText = (caught: unknown) =>
   caught instanceof Error ? caught.message : String(caught);

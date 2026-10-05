@@ -1,86 +1,57 @@
-import { spawn } from 'node:child_process';
-import { mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
+import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { discoverExtensions } from '@dolphy-app/extension-host';
 import { buildExtension, validateExtension } from '@dolphy-app/extension-tools';
 import { describe, expect, it } from 'vitest';
-import { generateExtension } from '../src/index.ts';
+import { TEMPLATE_NAMES, generateExtension } from '../src/index.ts';
+import {
+  linkToolchain,
+  runNode,
+  silentLogger,
+  tsc,
+  vitest,
+} from './docs-blocks.ts';
 import { REPO_ROOT, makeTemp } from './helpers.ts';
 
-const require = createRequire(import.meta.url);
-const packageDir = (name: string): string =>
-  path.dirname(require.resolve(`${name}/package.json`));
-
-/** Project node_modules: links to the repository toolchain (no network, no install). */
-const linkToolchain = async (project: string): Promise<void> => {
-  const modules = path.join(project, 'node_modules');
-  await mkdir(path.join(modules, '@dolphy-app'), { recursive: true });
-  await mkdir(path.join(modules, '@types'), { recursive: true });
-  const links: [string, string][] = [
-    [
-      '@dolphy-app/extension-sdk',
-      path.join(REPO_ROOT, 'packages/extension-sdk'),
-    ],
-    [
-      '@dolphy-app/extension-tools',
-      path.join(REPO_ROOT, 'packages/extension-tools'),
-    ],
-    ['@types/node', packageDir('@types/node')],
-    ['vitest', packageDir('vitest')],
-    ['happy-dom', packageDir('happy-dom')],
-  ];
-  for (const [name, target] of links) {
-    await symlink(target, path.join(modules, name), 'dir');
-  }
-};
-
-const silentLogger = {
-  debug: () => undefined,
-  info: () => undefined,
-  warn: () => undefined,
-  error: () => undefined,
-};
-
-const runNode = (args: string[], cwd: string) =>
-  new Promise<{ code: number | null; output: string }>((resolve, reject) => {
-    // a nested vitest must not consider itself part of the outer run
-    const env = Object.fromEntries(
-      Object.entries(process.env).filter(
-        ([key]) => !key.startsWith('VITEST') && key !== 'NODE_OPTIONS',
-      ),
-    );
-    const child = spawn(process.execPath, args, { cwd, env });
-    let output = '';
-    child.stdout.on('data', (chunk: Buffer) => void (output += chunk));
-    child.stderr.on('data', (chunk: Buffer) => void (output += chunk));
-    child.on('error', reject);
-    child.on('close', (code) => resolve({ code, output }));
-  });
-
-const tscBin = path.join(packageDir('typescript'), 'bin', 'tsc');
-const tsc = (project: string) => runNode([tscBin, '--noEmit'], project);
-
-const generate = async (name: string) => {
+const generate = async (name: string, template?: string) => {
   const root = await makeTemp();
   const generated = await generateExtension({
     dir: path.join(root, name),
     localRoot: REPO_ROOT,
+    ...(template === undefined ? {} : { template }),
   });
   await linkToolchain(generated.dir);
   return generated;
 };
 
-describe('generated project', () => {
-  it('builds, passes validate, is discovered and passes its own tests', async () => {
-    const { dir, id } = await generate('acme-hello');
+const toolsCli = path.join(
+  REPO_ROOT,
+  'packages/extension-tools/src/cli/main.ts',
+);
+
+const BUILT_FILES: Record<string, string[]> = {
+  exercise: ['extension.json', 'main.mjs', 'view.mjs'],
+  theme: ['extension.json'],
+  'command-panel': ['extension.json', 'main.mjs', 'panel.mjs'],
+  events: ['extension.json', 'main.mjs', 'panel.mjs'],
+  blank: ['extension.json', 'main.mjs'],
+};
+
+describe.each(TEMPLATE_NAMES)('generated project: %s', (template) => {
+  it('builds, passes validate and lint, is discovered, type-checks and passes its own tests', async () => {
+    const { dir, id } = await generate('acme-hello', template);
 
     const built = await buildExtension({ root: dir });
-    expect(built.files).toEqual(['extension.json', 'main.mjs', 'view.mjs']);
+    expect(built.files).toEqual(BUILT_FILES[template]);
     expect(built.dir).toBe(path.join(dir, 'dist-ext', id));
+    const builtManifest = JSON.parse(
+      await readFile(path.join(built.dir, 'extension.json'), 'utf8'),
+    ) as Record<string, unknown>;
+    expect(builtManifest['$schema']).toEqual(expect.any(String));
     await expect(validateExtension(built.dir)).resolves.toEqual({
       ok: true,
       problems: [],
+      warnings: [],
     });
 
     const { extensions, diagnostics } = await discoverExtensions({
@@ -89,15 +60,29 @@ describe('generated project', () => {
     });
     expect(diagnostics).toEqual([]);
     expect(extensions.map((extension) => extension.id)).toEqual([id]);
-    const view = await readFile(path.join(built.dir, 'view.mjs'), 'utf8');
-    expect(view).toContain(extensions[0]?.exerciseTypes[0]?.element);
+    if (template === 'exercise') {
+      const view = await readFile(path.join(built.dir, 'view.mjs'), 'utf8');
+      expect(view).toContain(extensions[0]?.exerciseTypes[0]?.element);
+    }
 
-    const vitest = path.join(packageDir('vitest'), 'vitest.mjs');
-    const { code, output } = await runNode([vitest, 'run'], dir);
+    // no findings at all: a fresh project is clean for the catalog review
+    const linted = await runNode(
+      ['--disable-warning=ExperimentalWarning', toolsCli, 'lint', dir],
+      dir,
+    );
+    expect(linted.output).toBe('');
+    expect(linted.code).toBe(0);
+
+    const typechecked = await tsc(dir);
+    expect(typechecked.code, typechecked.output).toBe(0);
+
+    const { code, output } = await vitest(dir);
     expect(output).toContain('Tests');
     expect(code, output).toBe(0);
   });
+});
 
+describe('generated project (exercise): type errors', () => {
   it('after the build tsc accepts the project with id types from extension.json', async () => {
     const { dir } = await generate('acme-hello');
     await buildExtension({ root: dir });

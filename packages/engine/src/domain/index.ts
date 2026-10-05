@@ -56,6 +56,14 @@ export {
   isGradePolicyId,
 } from './learning-settings.ts';
 export {
+  COMMAND_KEY_PATTERN,
+  DEFAULT_KEYBINDINGS_SETTINGS,
+  KEYBINDING_LIMITS,
+  KEY_MAX_LENGTH,
+  WHEN_MAX_LENGTH,
+  decodeKeybindingsSettings,
+} from './keybindings-settings.ts';
+export {
   DEFAULT_UI_SETTINGS,
   LOCALE_MODES,
   decodeUiSettings,
@@ -63,13 +71,16 @@ export {
   isThemeId,
 } from './ui-settings.ts';
 export {
+  EXTENSION_SECRET_LIMITS,
   EXTENSION_STORAGE_LIMITS,
+  SECRET_STORE_LIMITS,
   compareKeys,
   encodeJson,
   findStorageViolation,
   utf8Length,
 } from './extension-data.ts';
 export type {
+  StorageLimits,
   StorageQuotaKind,
   StorageSnapshot,
   StorageViolation,
@@ -77,5 +88,25 @@ export type {
 export {
   effectiveSettingValues,
   findSettingValueProblem,
+  normalizeSettingValue,
 } from './extension-setting-values.ts';
 export type { SettingValueProblem } from './extension-setting-values.ts';
+export {
+  STATS_DAILY_MAX_DAYS,
+  dailyOf,
+  formatStatsDate,
+  localDayOf,
+  parseStatsDate,
+  streakOf,
+} from './learning-stats.ts';
+export {
+  EXTENSION_NOTIFICATION_LIMITS,
+  createNotificationRateLimiter,
+  sanitizeNotificationText,
+  textLength,
+} from './extension-notifications.ts';
+export type {
+  NotificationRateLimiter,
+  NotificationWindow,
+} from './extension-notifications.ts';
+export type { DailyResult, DayCounts, StreakResult } from './learning-stats.ts';

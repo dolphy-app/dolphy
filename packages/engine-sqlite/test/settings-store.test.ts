@@ -41,6 +41,9 @@ describe('SQLite settings store', () => {
     });
     await first.settings.saveSchedulerOverrides({ batchSize: 7 });
     await first.settings.saveUi({ theme: 'dark', locale: 'en' });
+    await first.settings.saveKeybindings({
+      commands: { 'app:a': [{ key: 'Mod+K', when: '!inputFocus' }] },
+    });
     await first.events.close();
 
     const { settings } = open(path);
@@ -51,6 +54,32 @@ describe('SQLite settings store', () => {
     expect((await settings.listFilters()).map(({ id }) => id)).toEqual(['f']);
     expect(await settings.loadSchedulerOverrides()).toEqual({ batchSize: 7 });
     expect(await settings.loadUi()).toEqual({ theme: 'dark', locale: 'en' });
+    expect(await settings.loadKeybindings()).toEqual({
+      commands: { 'app:a': [{ key: 'Mod+K', when: '!inputFocus' }] },
+    });
+  });
+
+  it('привязки: нечитаемые записи отбрасываются при чтении, остальные действуют', async () => {
+    const path = nextPath();
+    const { events } = open(path);
+    await events.close();
+    const raw = openBetterSqliteDatabase({ path });
+    raw
+      .prepare("INSERT INTO setting (key, value) VALUES ('keybindings', ?)")
+      .run(
+        JSON.stringify({
+          commands: {
+            'app:a': [{ key: 'Alt+1', when: null }, { key: 7 }],
+            'not a key': [{ key: 'Alt+2', when: null }],
+            'app:b': 'oops',
+          },
+        }),
+      );
+    raw.close();
+
+    expect(await open(path).settings.loadKeybindings()).toEqual({
+      commands: { 'app:a': [{ key: 'Alt+1', when: null }] },
+    });
   });
 
   it('БД старой схемы получает таблицы настроек, журнал цел', async () => {
@@ -84,6 +113,10 @@ describe('SQLite settings store', () => {
       disabled: ['acme.a'],
       trusted: ['acme.b'],
       checkUpdates: true,
+      safeMode: false,
+      notificationsOff: [],
+      catalogUrl: null,
+      schedulesOff: [],
     });
   });
 
@@ -151,6 +184,10 @@ describe('настройки расширений', () => {
       disabled: [],
       trusted: [],
       checkUpdates: true,
+      safeMode: false,
+      notificationsOff: [],
+      catalogUrl: null,
+      schedulesOff: [],
     });
   });
 });

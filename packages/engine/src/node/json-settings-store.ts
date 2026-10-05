@@ -2,7 +2,8 @@
  * Настройки ученика на диске (`dataDir/settings`): `user_preferences.json`,
  * `filters/*.json`, `study_sessions/*.json` — wire Trane, JSON с двумя
  * пробелами и `\n` в конце, запись атомарная (engine-ts.md §5.3); свои
- * файлы движка — `scheduler_overrides.json`, `ui.json`, `learning.json` и `extensions.json`.
+ * файлы движка — `scheduler_overrides.json`, `ui.json`, `learning.json`,
+ * `keybindings.json` и `extensions.json`.
  *
  * Отличия от `LocalFilterManager`/`LocalStudySessionManager` Trane, где
  * читается каждая запись каталога (`.DS_Store` ломает открытие): здесь
@@ -19,6 +20,7 @@ import type {
   SchedulerOptionsDto,
   StudySessionWire,
   ExtensionSettingsDto,
+  KeybindingsSettingsDto,
   LearningSettingsDto,
   UiSettingsDto,
 } from '@dolphy-app/engine-contract';
@@ -33,6 +35,7 @@ import {
   decodeUpdateCheckedAt,
 } from '../domain/extension-settings.ts';
 import { decodeLearningSettings } from '../domain/learning-settings.ts';
+import { decodeKeybindingsSettings } from '../domain/keybindings-settings.ts';
 import { decodeUiSettings } from '../domain/ui-settings.ts';
 import type { UserPreferences } from '../domain/manifest.ts';
 import type { Logger, SettingsStore } from '../ports/index.ts';
@@ -53,6 +56,7 @@ const PREFERENCES_FILE = 'user_preferences.json';
 const SCHEDULER_OVERRIDES_FILE = 'scheduler_overrides.json';
 const UI_FILE = 'ui.json';
 const LEARNING_FILE = 'learning.json';
+const KEYBINDINGS_FILE = 'keybindings.json';
 const EXTENSIONS_FILE = 'extensions.json';
 const UPDATE_CHECK_FILE = 'extensions_update_check.json';
 const FILTERS_DIR = 'filters';
@@ -273,6 +277,7 @@ export const createJsonSettingsStore = ({
   const overridesPath = join(dir, SCHEDULER_OVERRIDES_FILE);
   const uiPath = join(dir, UI_FILE);
   const learningPath = join(dir, LEARNING_FILE);
+  const keybindingsPath = join(dir, KEYBINDINGS_FILE);
   const extensionsPath = join(dir, EXTENSIONS_FILE);
   const updateCheckPath = join(dir, UPDATE_CHECK_FILE);
 
@@ -333,6 +338,9 @@ export const createJsonSettingsStore = ({
     loadLearning: async (): Promise<LearningSettingsDto> =>
       decodeLearningSettings(await readOptionalJson(learningPath)),
     saveLearning: (learning) => writeJson(learningPath, learning),
+    loadKeybindings: async (): Promise<KeybindingsSettingsDto> =>
+      decodeKeybindingsSettings(await readOptionalJson(keybindingsPath)),
+    saveKeybindings: (keybindings) => writeJson(keybindingsPath, keybindings),
     loadExtensions: async (): Promise<ExtensionSettingsDto> =>
       decodeExtensionSettings(await readOptionalJson(extensionsPath)),
     saveExtensions: (extensions) => writeJson(extensionsPath, extensions),

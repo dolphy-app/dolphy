@@ -14,11 +14,14 @@ const extension = (id: string, origin: ExtensionOrigin): ResolvedExtension => ({
   name: null,
   description: null,
   author: null,
+  dependencies: [],
   platforms: [],
   minAppVersion: null,
   icon: null,
   tags: [],
   install: null,
+  messages: {},
+  warnings: [],
   exerciseTypes: [],
   themes: [],
   markdownRenderers: [],
@@ -26,7 +29,11 @@ const extension = (id: string, origin: ExtensionOrigin): ResolvedExtension => ({
   settings: [],
   events: [],
   commands: [],
+  widgets: [],
+  schedules: [],
   panels: [],
+  importers: [],
+  exporters: [],
 });
 
 const policyFor = (...items: ResolvedExtension[]) =>
@@ -57,10 +64,22 @@ describe('createExtensionPolicy', () => {
       disabled: ['acme.u'],
       trusted: ['acme.u'],
       checkUpdates: true,
+      safeMode: false,
+      notificationsOff: [],
+      catalogUrl: null,
+      schedulesOff: [],
     });
     expect(policy.isEnabled('acme.u')).toBe(false);
     expect(policy.isIsolated('acme.u')).toBe(false);
-    policy.update({ disabled: [], trusted: [], checkUpdates: true });
+    policy.update({
+      disabled: [],
+      trusted: [],
+      checkUpdates: true,
+      safeMode: false,
+      notificationsOff: [],
+      catalogUrl: null,
+      schedulesOff: [],
+    });
     expect(policy.isEnabled('acme.u')).toBe(true);
     expect(policy.isIsolated('acme.u')).toBe(true);
   });
@@ -71,6 +90,10 @@ describe('createExtensionPolicy', () => {
       disabled: ['dolphy.sql'],
       trusted: ['dolphy.sql'],
       checkUpdates: true,
+      safeMode: false,
+      notificationsOff: [],
+      catalogUrl: null,
+      schedulesOff: [],
     });
     expect(policy.isIsolated('dolphy.sql')).toBe(false);
     expect(policy.isEnabled('dolphy.sql')).toBe(true);
@@ -84,7 +107,59 @@ describe('createExtensionPolicy', () => {
       disabled: ['dolphy.sql'],
       trusted: [],
       checkUpdates: true,
+      safeMode: false,
+      notificationsOff: [],
+      catalogUrl: null,
+      schedulesOff: [],
     });
     expect(policy.isEnabled('dolphy.sql')).toBe(false);
+  });
+
+  describe('безопасный режим', () => {
+    const settings = (safeMode: boolean) => ({
+      disabled: [],
+      trusted: ['acme.d'],
+      checkUpdates: true,
+      safeMode,
+      notificationsOff: [],
+      catalogUrl: null,
+      schedulesOff: [],
+    });
+    const items = [
+      extension('dolphy.sql', 'bundled'),
+      extension('acme.u', 'user'),
+      extension('acme.d', 'dev'),
+    ];
+
+    it('по умолчанию выключен', () => {
+      expect(policyFor(...items).safeMode()).toBe(false);
+    });
+
+    it('настройка отключает всё не из поставки (пользовательские и dev), поставка работает', () => {
+      const policy = policyFor(...items);
+      policy.update(settings(true));
+      expect(policy.safeMode()).toBe(true);
+      expect(policy.isEnabled('acme.u')).toBe(false);
+      expect(policy.isEnabled('acme.d')).toBe(false);
+      expect(policy.isEnabled('dolphy.sql')).toBe(true);
+      expect(policy.isIsolated('dolphy.sql')).toBe(false);
+    });
+
+    it('снятие настройки возвращает расширения сразу, доверие сохраняется', () => {
+      const policy = policyFor(...items);
+      policy.update(settings(true));
+      policy.update(settings(false));
+      expect(policy.safeMode()).toBe(false);
+      expect(policy.isEnabled('acme.u')).toBe(true);
+      expect(policy.isIsolated('acme.d')).toBe(false);
+    });
+
+    it('запуск с флагом не снимается настройкой', () => {
+      const policy = createExtensionPolicy(holderOf(items), undefined, true);
+      policy.update(settings(false));
+      expect(policy.safeMode()).toBe(true);
+      expect(policy.isEnabled('acme.u')).toBe(false);
+      expect(policy.isEnabled('dolphy.sql')).toBe(true);
+    });
   });
 });

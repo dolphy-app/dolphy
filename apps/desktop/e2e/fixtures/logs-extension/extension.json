@@ -1,0 +1,13 @@
+{
+  "id": "acme.logs",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "contributes": {
+    "commands": [
+      {
+        "id": "acme.logs.say",
+        "title": "Записать в журнал"
+      }
+    ]
+  }
+}

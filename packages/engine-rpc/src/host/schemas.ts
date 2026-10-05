@@ -2,8 +2,18 @@ import {
   BUILTIN_GRADE_POLICY,
   EXTENSION_ID_PATTERN,
   GRADE_POLICY_ID_PATTERN,
+  LOG_LEVELS,
+  MATERIAL_WIDTH_RANGE,
+  MAX_TOURS,
+  MAX_LOG_ENTRIES,
   THEME_ID_PATTERN,
+  TOUR_ID_PATTERN,
 } from '@dolphy-app/engine-contract';
+import {
+  KEYBINDING_LIMITS,
+  KEY_MAX_LENGTH,
+  WHEN_MAX_LENGTH,
+} from '@dolphy-app/engine';
 import * as z from 'zod';
 import type {
   AttemptEntryDto,
@@ -49,6 +59,11 @@ const bool = z.boolean();
 const epochMs = z.number().int().nonnegative();
 const requestId = z.string().min(1);
 const repositoryId = z.string().min(1).max(200);
+/** Токен предпросмотра репозитория: непрозрачная строка движка. */
+const previewToken = z.string().min(1).max(200);
+/** Потолок выбора курсов репозитория: ограничивает размер вызова, смысл проверяет движок. */
+const MAX_SELECTED_COURSES = 1000;
+const courseSelection = z.array(unitId).max(MAX_SELECTED_COURSES);
 const grade = z.union([
   z.literal(1),
   z.literal(2),
@@ -243,6 +258,23 @@ const schedulerPatch: z.ZodType<DeepPartial<SchedulerOptionsDto>> =
     ),
   });
 
+/** Размеры строк — как в движке; число записей сверх лимита доходит до сервиса, чтобы тот ответил `reason: 'limit'`. */
+const keybindingEntry = z.strictObject({
+  key: z.string().max(KEY_MAX_LENGTH),
+  when: z.string().max(WHEN_MAX_LENGTH).nullable(),
+});
+const keybindingsPatch = z
+  .record(
+    z.string().max(KEYBINDING_LIMITS.commandLength),
+    z
+      .array(keybindingEntry)
+      .max(KEYBINDING_LIMITS.entriesPerCommand * 8)
+      .nullable(),
+  )
+  .refine((patch) => Object.keys(patch).length <= KEYBINDING_LIMITS.commands, {
+    message: `at most ${KEYBINDING_LIMITS.commands} commands in one patch`,
+  });
+
 const stateVector = z.record(str, z.int().nonnegative());
 const logEntryBase = {
   id: str.min(1),
@@ -272,6 +304,12 @@ const logEntry: z.ZodType<LogEntryDto> = z.discriminatedUnion('kind', [
     unitId,
     libraryRevision: optional(str),
   }),
+  z.strictObject({
+    ...logEntryBase,
+    kind: z.literal('retract'),
+    targetId: str.min(1),
+    op: z.enum(['set', 'unset']),
+  }),
 ]);
 
 /** По схеме на КАЖДЫЙ ключ `RPC_METHODS`; несовпадение с контрактом — ошибка типов. */
@@ -295,15 +333,35 @@ export const schemas = {
   'library.getGraph': z.tuple([optional(graphQuery)]),
   'library.readAsset': z.tuple([assetRef]),
   'repositories.list': z.tuple([]),
-  'repositories.add': z.tuple([
+  'repositories.preview': z.tuple([
     z.strictObject({
       url: str.min(1).max(2048),
       ref: optional(str.min(1).max(255)),
     }),
   ]),
-  'repositories.update': z.tuple([repositoryId]),
-  'repositories.remove': z.tuple([repositoryId]),
+  'repositories.add': z.tuple([
+    z.strictObject({
+      url: str.min(1).max(2048),
+      ref: optional(str.min(1).max(255)),
+      courseIds: optional(courseSelection),
+      previewId: optional(previewToken),
+    }),
+  ]),
+  'repositories.update': z.tuple([
+    repositoryId,
+    optional(
+      z.strictObject({
+        courseIds: optional(courseSelection),
+        previewId: optional(previewToken),
+      }),
+    ),
+  ]),
+  'repositories.remove': z.tuple([
+    repositoryId,
+    optional(z.strictObject({ removeProgress: optional(bool) })),
+  ]),
   'repositories.cancel': z.tuple([repositoryId]),
+  'repositories.checkUpdates': z.tuple([]),
   'practice.startSession': z.tuple([]),
   'practice.finishSession': z.tuple([
     z.strictObject({ sessionId: str.min(1) }),
@@ -340,6 +398,12 @@ export const schemas = {
   'practice.getFrontier': z.tuple([optional(frontierRequest)]),
   'practice.getDue': z.tuple([optional(dueRequest)]),
   'practice.resetProgress': z.tuple([z.strictObject({ unitId, requestId })]),
+  'practice.undo': z.tuple([
+    z.strictObject({ targetId: str.min(1), requestId }),
+  ]),
+  'practice.redo': z.tuple([
+    z.strictObject({ targetId: str.min(1), requestId }),
+  ]),
   'plan.getDay': z.tuple([
     z.strictObject({
       maxItems: z.int().min(1),
@@ -358,6 +422,8 @@ export const schemas = {
   'placement.answer': z.tuple([
     z.strictObject({ probeId: str.min(1), result: placementResult }),
   ]),
+  'placement.undo': z.tuple([str.min(1)]),
+  'placement.redo': z.tuple([str.min(1)]),
   'placement.finish': z.tuple([
     z.strictObject({ sessionId: str.min(1), requestId }),
   ]),
@@ -368,6 +434,8 @@ export const schemas = {
   'extensions.getSettings': z.tuple([]),
   'extensions.setEnabled': z.tuple([extensionId, z.boolean()]),
   'extensions.setTrusted': z.tuple([extensionId, z.boolean()]),
+  'extensions.setNotificationsEnabled': z.tuple([extensionId, z.boolean()]),
+  'extensions.setSchedulesEnabled': z.tuple([extensionId, z.boolean()]),
   'extensions.catalog': z.tuple([
     optional(z.strictObject({ refresh: optional(bool) })),
   ]),
@@ -377,7 +445,30 @@ export const schemas = {
     optional(z.strictObject({ removeData: optional(bool) })),
   ]),
   'extensions.updates': z.tuple([]),
+  'extensions.docs': z.tuple([
+    extensionId,
+    optional(z.strictObject({ version: optional(extensionVersion) })),
+  ]),
+  'extensions.docImage': z.tuple([
+    extensionId,
+    extensionVersion,
+    z.string().min(1).max(200),
+  ]),
   'extensions.setCheckUpdates': z.tuple([bool]),
+  'extensions.setCatalogUrl': z.tuple([z.string().max(100_000).nullable()]),
+  'extensions.catalogSource': z.tuple([]),
+  'extensions.setSafeMode': z.tuple([bool]),
+  'extensions.diagnostics': z.tuple([]),
+  'extensions.restartHost': z.tuple([]),
+  'extensions.readLogs': z.tuple([
+    optional(
+      z.strictObject({
+        extensionId: optional(extensionId),
+        minLevel: optional(z.enum(LOG_LEVELS)),
+        limit: optional(z.number().int().min(1).max(MAX_LOG_ENTRIES)),
+      }),
+    ),
+  ]),
   'extensions.getSettingValues': z.tuple([extensionId]),
   'extensions.setSettingValue': z.tuple([
     extensionId,
@@ -391,6 +482,28 @@ export const schemas = {
     extensionId,
     str.min(1).max(128),
     optional(jsonValue),
+  ]),
+  'extensions.runImporter': z.tuple([
+    extensionId,
+    str.min(1).max(128),
+    // размер проверяет сервис: слишком большой файл — `too-large`, а не отказ схемы
+    z.union([
+      z.strictObject({ name: str.min(1).max(255), text: str }),
+      z.strictObject({
+        name: str.min(1).max(255),
+        bytes: z.instanceof(Uint8Array),
+      }),
+    ]),
+  ]),
+  'extensions.commitImport': z.tuple([str.min(1).max(128)]),
+  'extensions.discardImport': z.tuple([str.min(1).max(128)]),
+  'extensions.runExporter': z.tuple([
+    extensionId,
+    str.min(1).max(128),
+    z.union([
+      z.strictObject({ scope: z.literal('course'), courseId: unitId }),
+      z.strictObject({ scope: z.literal('progress') }),
+    ]),
   ]),
   'curation.blacklist.list': z.tuple([optional(pageRequest)]),
   'curation.blacklist.has': z.tuple([unitId]),
@@ -427,6 +540,22 @@ export const schemas = {
       theme: optional(z.string().max(64).regex(THEME_ID_PATTERN)),
       locale: optional(z.enum(['system', 'ru', 'en'])),
       activeCourseId: optional(unitId.nullable()),
+      materialWidth: optional(
+        z
+          .int()
+          .min(MATERIAL_WIDTH_RANGE.min)
+          .max(MATERIAL_WIDTH_RANGE.max)
+          .nullable(),
+      ),
+      materialCollapsed: optional(z.boolean()),
+      tours: optional(
+        z
+          .record(
+            z.string().regex(TOUR_ID_PATTERN),
+            z.enum(['completed', 'skipped']).nullable(),
+          )
+          .refine((tours) => Object.keys(tours).length <= MAX_TOURS),
+      ),
     }),
   ]),
   'settings.getLearning': z.tuple([]),
@@ -440,6 +569,8 @@ export const schemas = {
       ),
     }),
   ]),
+  'settings.getKeybindings': z.tuple([]),
+  'settings.setKeybindings': z.tuple([keybindingsPatch]),
   'sync.getState': z.tuple([]),
   'sync.exportSince': z.tuple([
     optional(

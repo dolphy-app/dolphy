@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createExtSupervisor } from '../electron/main/ext-supervisor.ts';
+import type { ExtSupervisorOptions } from '../electron/main/ext-supervisor.ts';
 import type { HostProcessLike } from '../electron/main/supervisor.ts';
 import {
   BACKOFF_BASE_MS,
@@ -9,11 +10,27 @@ import {
 
 type Listener = (...args: never[]) => void;
 
+const createStream = () => {
+  const listeners = new Map<string, ((chunk?: never) => void)[]>();
+  return {
+    on: (event: string, listener: (chunk?: never) => void) => {
+      listeners.set(event, [...(listeners.get(event) ?? []), listener]);
+    },
+    emit: (event: string, chunk?: unknown) => {
+      for (const listener of listeners.get(event) ?? []) {
+        (listener as (value?: unknown) => void)(chunk);
+      }
+    },
+  };
+};
+
 const createFakeHost = () => {
   const listeners = new Map<string, Listener[]>();
   const posted: unknown[] = [];
   const host = {
     pid: 200,
+    stdout: createStream(),
+    stderr: createStream(),
     killed: 0,
     posted,
     postMessage: (message: unknown) => {
@@ -56,7 +73,7 @@ const logger = {
   },
 };
 
-const setup = () => {
+const setup = (extra: Partial<ExtSupervisorOptions> = {}) => {
   const hosts: FakeHost[] = [];
   const fork = vi.fn((): HostProcessLike => {
     const host = createFakeHost();
@@ -64,6 +81,7 @@ const setup = () => {
     return host as unknown as HostProcessLike;
   });
   const events: string[] = [];
+  const statuses: string[] = [];
   const init = { type: 'init', libraryRoot: '/lib' };
   const supervisor = createExtSupervisor({
     utilityProcess: { fork },
@@ -72,12 +90,14 @@ const setup = () => {
     logger,
     onHostReady: () => events.push('ready'),
     onHostExit: () => events.push('exit'),
+    onStatus: (status) => statuses.push(status),
+    ...extra,
   });
   const boot = (host: FakeHost) => {
     host.emit('spawn');
     host.emit('message', { type: 'ready' });
   };
-  return { supervisor, hosts, fork, events, init, boot };
+  return { supervisor, hosts, fork, events, statuses, init, boot };
 };
 
 describe('ext supervisor', () => {
@@ -90,11 +110,35 @@ describe('ext supervisor', () => {
     vi.useRealTimers();
   });
 
+  it('stderr хоста расширений уходит приёмнику вывода, у каждого запуска свой', () => {
+    const seen: string[][] = [];
+    const { supervisor, hosts, boot } = setup({
+      createOutput: () => {
+        const calls: string[] = [];
+        seen.push(calls);
+        return {
+          stdout: () => undefined,
+          stderr: (chunk) => calls.push(String(chunk)),
+          flush: () => calls.push('flush'),
+        };
+      },
+    });
+    supervisor.start();
+    boot(hosts[0] as FakeHost);
+    hosts[0]?.stderr.emit('data', 'line');
+    hosts[0]?.stderr.emit('end');
+    expect(seen).toEqual([['line', 'flush']]);
+    hosts[0]?.emit('exit', 1);
+    vi.advanceTimersByTime(BACKOFF_BASE_MS);
+    expect(seen).toHaveLength(2);
+  });
+
   it('передаёт init после spawn и сообщает ready', () => {
     const { supervisor, hosts, fork, init, events } = setup();
     supervisor.start();
     expect(fork).toHaveBeenCalledWith('/host/ext-host.js', [], {
       serviceName: 'dolphy-ext-host',
+      stdio: 'pipe',
     });
     const [host] = hosts;
     host?.emit('spawn');
@@ -153,5 +197,101 @@ describe('ext supervisor', () => {
     await stopped;
     vi.advanceTimersByTime(10_000);
     expect(hosts).toHaveLength(1);
+  });
+
+  /** Падения подряд до `gave-up`: хост поднимается и падает, пока супервизор не сдастся. */
+  const crashUntilGaveUp = (
+    supervisor: ReturnType<typeof setup>['supervisor'],
+    hosts: FakeHost[],
+  ) => {
+    supervisor.start();
+    for (let crash = 0; crash <= MAX_CRASHES; crash++) {
+      hosts[crash]?.emit('exit', 1);
+      vi.advanceTimersByTime(10_000);
+    }
+  };
+
+  it('состояние: упал — restarting, поднялся — running, сдался — gave-up; повтор того же состояния не шлётся', () => {
+    const { supervisor, hosts, boot, statuses } = setup();
+    supervisor.start();
+    boot(hosts[0] as FakeHost);
+    expect(statuses).toEqual([]);
+    hosts[0]?.emit('exit', 1);
+    expect(statuses).toEqual(['restarting']);
+    vi.advanceTimersByTime(BACKOFF_BASE_MS);
+    boot(hosts[1] as FakeHost);
+    expect(statuses).toEqual(['restarting', 'running']);
+
+    for (let crash = 2; crash <= MAX_CRASHES; crash++) {
+      hosts[crash - 1]?.emit('exit', 1);
+      vi.advanceTimersByTime(10_000);
+    }
+    hosts[MAX_CRASHES]?.emit('exit', 1);
+    expect(statuses.at(-1)).toBe('gave-up');
+    expect(statuses.filter((status) => status === 'gave-up')).toHaveLength(1);
+  });
+
+  it('reset после gave-up запускает дочерний процесс сразу и обнуляет окно падений', () => {
+    const { supervisor, hosts, fork, boot, statuses, init } = setup();
+    crashUntilGaveUp(supervisor, hosts);
+    expect(fork).toHaveBeenCalledTimes(MAX_CRASHES + 1);
+    vi.advanceTimersByTime(60_000);
+    expect(fork).toHaveBeenCalledTimes(MAX_CRASHES + 1);
+    expect(statuses.at(-1)).toBe('gave-up');
+
+    supervisor.reset();
+
+    expect(fork).toHaveBeenCalledTimes(MAX_CRASHES + 2);
+    expect(statuses.at(-1)).toBe('restarting');
+    const revived = hosts.at(-1) as FakeHost;
+    revived.emit('spawn');
+    expect(revived.posted).toEqual([init]);
+    boot(revived);
+    expect(statuses.at(-1)).toBe('running');
+
+    // окно падений пусто: до новой капитуляции снова нужно больше MAX_CRASHES подряд
+    for (let crash = 0; crash < MAX_CRASHES; crash++) {
+      (hosts.at(-1) as FakeHost).emit('exit', 1);
+      vi.advanceTimersByTime(10_000);
+    }
+    expect(statuses.at(-1)).toBe('restarting');
+    expect(fork).toHaveBeenCalledTimes(MAX_CRASHES + 2 + MAX_CRASHES);
+  });
+
+  it('reset во время ожидания перезапуска не ждёт паузы и не плодит второй процесс', () => {
+    const { supervisor, hosts, fork, boot } = setup();
+    supervisor.start();
+    boot(hosts[0] as FakeHost);
+    hosts[0]?.emit('exit', 1);
+
+    supervisor.reset();
+    expect(fork).toHaveBeenCalledTimes(2);
+    vi.advanceTimersByTime(10_000);
+    expect(fork).toHaveBeenCalledTimes(2);
+  });
+
+  it('reset при живом хосте его не трогает', () => {
+    const { supervisor, hosts, fork, boot, statuses } = setup();
+    supervisor.start();
+    boot(hosts[0] as FakeHost);
+
+    supervisor.reset();
+
+    expect(fork).toHaveBeenCalledTimes(1);
+    expect(hosts[0]?.killed).toBe(0);
+    expect(statuses).toEqual([]);
+  });
+
+  it('после stop reset хост не поднимает', async () => {
+    const { supervisor, hosts, fork, boot } = setup();
+    supervisor.start();
+    boot(hosts[0] as FakeHost);
+    const stopped = supervisor.stop();
+    hosts[0]?.emit('exit', 0);
+    await stopped;
+
+    supervisor.reset();
+
+    expect(fork).toHaveBeenCalledTimes(1);
   });
 });

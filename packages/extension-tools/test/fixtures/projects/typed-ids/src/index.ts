@@ -3,6 +3,7 @@ import {
   defineExerciseType,
   defineExtension,
   defineExtensionPanel,
+  defineExtensionWidget,
   defineMarkdownRenderer,
   inActivate,
   notify,
@@ -12,6 +13,7 @@ import type {
   ExtensionMarkdown,
   ExtensionPanels,
   ExtensionViews,
+  ExtensionWidgets,
 } from '@dolphy-app/extension-sdk';
 
 export const host = defineExtension({
@@ -55,6 +57,16 @@ export const panels = {
     },
   }),
 } satisfies ExtensionPanels;
+
+export const widgets = {
+  'acme.typed.card': defineExtensionWidget({
+    mount(container, ctx) {
+      container.textContent = `${ctx.widgetId} ${ctx.context.courseId ?? ''}`;
+      ctx.onContextChange(({ courseId }) => void courseId);
+      void ctx.call('acme.typed.ping');
+    },
+  }),
+} satisfies ExtensionWidgets;
 
 export const markdown = {
   'typed-echo': defineMarkdownRenderer((source, container) => {

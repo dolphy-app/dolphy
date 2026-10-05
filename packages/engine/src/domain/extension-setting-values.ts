@@ -3,9 +3,18 @@ import type {
   JsonValue,
 } from '@dolphy-app/engine-contract';
 
+/** Цвет `#rrggbb` (регистр любой; хранится в нижнем). */
+const COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
+
 /** Почему значение не подходит определению (`details.reason` ошибки `INVALID_ARGUMENT`). */
 export type SettingValueProblem =
-  'type' | 'integer' | 'range' | 'max-length' | 'option';
+  | 'type'
+  | 'integer'
+  | 'range'
+  | 'max-length'
+  | 'option'
+  | 'format'
+  | 'max-items';
 
 /** Подходит ли значение определению настройки; `null` — подходит. */
 export const findSettingValueProblem = (
@@ -16,8 +25,23 @@ export const findSettingValueProblem = (
     case 'boolean':
       return typeof value === 'boolean' ? null : 'type';
     case 'string':
+    case 'text':
       if (typeof value !== 'string') return 'type';
       return def.maxLength !== null && value.length > def.maxLength
+        ? 'max-length'
+        : null;
+    case 'color':
+      if (typeof value !== 'string') return 'type';
+      return COLOR_PATTERN.test(value) ? null : 'format';
+    case 'list':
+      if (
+        !Array.isArray(value) ||
+        !value.every((item) => typeof item === 'string')
+      ) {
+        return 'type';
+      }
+      if (value.length > def.maxItems) return 'max-items';
+      return value.some((item: string) => item.length > def.itemMaxLength)
         ? 'max-length'
         : null;
     case 'number':
@@ -33,6 +57,15 @@ export const findSettingValueProblem = (
         : 'option';
   }
 };
+
+/** Значение в виде, в котором оно хранится: цвет — в нижнем регистре. Значение уже прошло `findSettingValueProblem`. */
+export const normalizeSettingValue = (
+  def: ExtensionSettingDefDto,
+  value: unknown,
+): unknown =>
+  def.type === 'color' && typeof value === 'string'
+    ? value.toLowerCase()
+    : value;
 
 /**
  * Действующие значения: по одному на определение — сохранённое, если оно всё

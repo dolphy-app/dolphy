@@ -41,10 +41,9 @@ const ICONIC: ExtensionSpec = {
   },
 };
 
-describe('the full index', () => {
-  it('is read from index.v2.json next to the catalog address, index.json is not requested', async () => {
-    serveIndex(env.routes, [ECHO, ICONIC], { full: true });
-    serveIndex(env.routes, [{ id: 'acme.old', version: '1.0.0' }]);
+describe('the index', () => {
+  it('is read from index.v2.json next to the catalog address, nothing else is requested', async () => {
+    serveIndex(env.routes, [ECHO, ICONIC]);
     const catalog = await env.installer.catalog();
     expect(catalog.entries.map((entry) => entry.id)).toEqual([
       'acme.echo',
@@ -53,27 +52,29 @@ describe('the full index', () => {
     expect(env.fake.calls.map((call) => call.url)).toEqual([FULL_INDEX_URL]);
   });
 
-  it('falls back to index.json when index.v2.json answers 404', async () => {
-    serveIndex(env.routes, [ECHO]);
-    const catalog = await env.installer.catalog();
-    expect(catalog.entries.map((entry) => entry.id)).toEqual(['acme.echo']);
-    expect(env.fake.calls.map((call) => call.url)).toEqual([
-      FULL_INDEX_URL,
-      CATALOG_URL,
-    ]);
-  });
-
-  it('does not fall back on other failures of index.v2.json', async () => {
-    serveIndex(env.routes, [ECHO]);
-    env.routes.set(FULL_INDEX_URL, { fail: true });
+  it('a 404 of index.v2.json makes the catalog unavailable and does not fall back to index.json', async () => {
+    env.routes.set(CATALOG_URL, {
+      body: JSON.stringify({ schemaVersion: 1 }),
+    });
     expect(await rejection(env.installer.catalog())).toMatchObject({
       cause: 'catalog-unavailable',
     });
-    expect(callsTo(env.fake.calls, CATALOG_URL)).toEqual([]);
+    expect(env.fake.calls.map((call) => call.url)).toEqual([FULL_INDEX_URL]);
   });
 
-  it('keeps the catalog identity: the install record names index.json and updates follow it', async () => {
-    serveIndex(env.routes, [ECHO], { full: true });
+  it('serves the cache with the reason when index.v2.json disappears', async () => {
+    serveIndex(env.routes, [ECHO]);
+    await env.installer.catalog();
+    env.routes.delete(FULL_INDEX_URL);
+    env.clock.advance(11 * 60_000);
+    const stale = await env.installer.catalog();
+    expect(stale.stale).toBe(true);
+    expect(stale.error).toContain('404');
+    expect(stale.entries.map((entry) => entry.id)).toEqual(['acme.echo']);
+  });
+
+  it('keeps the catalog identity: the install record names the catalog address and updates follow it', async () => {
+    serveIndex(env.routes, [ECHO]);
     serve(env.routes, ECHO);
     await env.installer.install('acme.echo');
     const meta = JSON.parse(
@@ -89,7 +90,6 @@ describe('the full index', () => {
       versions: ['1.1.0', '1.0.0'],
     };
     serveIndex(env.routes, [next], {
-      full: true,
       generatedAt: '2026-10-02T00:00:00Z',
     });
     env.clock.advance(11 * 60_000);
@@ -102,13 +102,13 @@ describe('the full index', () => {
     });
   });
 
-  it('keeps ETag and cache per file: the kind is stored in meta, a restart reuses it', async () => {
-    serveIndex(env.routes, [ECHO], { full: true, etag: '"full-1"' });
+  it('keeps the ETag and the cache across a restart', async () => {
+    serveIndex(env.routes, [ECHO], { etag: '"full-1"' });
     await env.installer.catalog();
     const meta = JSON.parse(
       await readFile(path.join(env.dir, '.catalog', 'meta.json'), 'utf8'),
-    ) as { kind: string; url: string };
-    expect(meta).toMatchObject({ kind: 'full', url: CATALOG_URL });
+    ) as { url: string };
+    expect(meta).toMatchObject({ url: CATALOG_URL });
     env.clock.advance(11 * 60_000);
     await env.installer.catalog();
     expect(
@@ -123,56 +123,14 @@ describe('the full index', () => {
     ).toBe('"full-1"');
   });
 
-  it('does not send the ETag of one file to the other', async () => {
-    serveIndex(env.routes, [ECHO], { etag: '"legacy-1"' });
+  it('guards against a rollback', async () => {
+    serveIndex(env.routes, [ECHO], { generatedAt: '2026-10-05T00:00:00Z' });
     await env.installer.catalog();
-    serveIndex(env.routes, [ECHO], { full: true, etag: '"full-1"' });
-    env.clock.advance(11 * 60_000);
-    await env.installer.catalog();
-    expect(
-      callsTo(env.fake.calls, FULL_INDEX_URL).at(-1)?.headers,
-    ).not.toHaveProperty('If-None-Match');
-    env.routes.delete(FULL_INDEX_URL);
-    env.clock.advance(11 * 60_000);
-    await env.installer.catalog();
-    expect(
-      callsTo(env.fake.calls, CATALOG_URL).at(-1)?.headers['If-None-Match'],
-    ).toBe(undefined);
-  });
-
-  it('guards against a rollback across both files', async () => {
-    serveIndex(env.routes, [ECHO], {
-      full: true,
-      generatedAt: '2026-10-05T00:00:00Z',
-    });
-    await env.installer.catalog();
-    serveIndex(env.routes, [ECHO], {
-      full: true,
-      generatedAt: '2026-10-04T00:00:00Z',
-    });
+    serveIndex(env.routes, [ECHO], { generatedAt: '2026-10-04T00:00:00Z' });
     env.clock.advance(11 * 60_000);
     const stale = await env.installer.catalog();
     expect(stale.stale).toBe(true);
     expect(stale.error).toMatch(/older than the cached/);
-    // index.v2.json disappears and an old index.json is served instead
-    env.routes.delete(FULL_INDEX_URL);
-    serveIndex(env.routes, [ECHO], { generatedAt: '2026-10-01T00:00:00Z' });
-    env.clock.advance(11 * 60_000);
-    const downgraded = await env.installer.catalog();
-    expect(downgraded.stale).toBe(true);
-    expect(downgraded.error).toMatch(/older than the cached/);
-  });
-
-  it('accepts the dual-written pair: index.json with the same generatedAt after index.v2.json', async () => {
-    serveIndex(env.routes, [ECHO], {
-      full: true,
-      generatedAt: '2026-10-05T00:00:00Z',
-    });
-    await env.installer.catalog();
-    env.routes.delete(FULL_INDEX_URL);
-    serveIndex(env.routes, [ECHO], { generatedAt: '2026-10-05T00:00:00Z' });
-    env.clock.advance(11 * 60_000);
-    expect((await env.installer.catalog()).stale).toBe(false);
   });
 });
 
@@ -238,24 +196,26 @@ describe('tolerant reading', () => {
     });
   });
 
-  it('reads an index.json the new strict schema would not (unknown contribution keys)', async () => {
+  it('reads an index the strict schema would not (unknown contribution keys)', async () => {
     const entry = rawEntry(ECHO) as { contributes: Record<string, unknown> };
     entry.contributes.widgets = ['x'];
-    env.routes.set(CATALOG_URL, {
-      body: JSON.stringify({
-        schemaVersion: 1,
-        generatedAt: '2026-10-01T12:00:00Z',
-        extensions: [entry],
-        revoked: [],
-      }),
-    });
+    env.routes.set(FULL_INDEX_URL, { body: rawFull([entry]) });
     expect((await env.installer.catalog()).entries).toHaveLength(1);
+  });
+
+  it('rejects an index of the first format (schemaVersion 1)', async () => {
+    env.routes.set(FULL_INDEX_URL, {
+      body: rawFull([rawEntry(ECHO)], { schemaVersion: 1 }),
+    });
+    expect(await rejection(env.installer.catalog())).toMatchObject({
+      cause: 'catalog-unavailable',
+    });
   });
 });
 
 describe('icon and assets', () => {
   it('shows the icon of the displayed version in the catalog entry', async () => {
-    serveIndex(env.routes, [ICONIC, ECHO], { full: true });
+    serveIndex(env.routes, [ICONIC, ECHO]);
     const catalog = await env.installer.catalog();
     const byId = Object.fromEntries(
       catalog.entries.map((entry) => [entry.id, entry]),
@@ -265,7 +225,7 @@ describe('icon and assets', () => {
   });
 
   it('installs a version with an icon, a style sheet and an image, byte for byte', async () => {
-    serveIndex(env.routes, [ICONIC], { full: true });
+    serveIndex(env.routes, [ICONIC]);
     serve(env.routes, ICONIC);
     await env.installer.install('acme.iconic');
     const read = (file: string) =>
@@ -278,7 +238,7 @@ describe('icon and assets', () => {
   });
 
   it('refuses a version whose manifest icon differs from the index record', async () => {
-    serveIndex(env.routes, [ICONIC], { full: true });
+    serveIndex(env.routes, [ICONIC]);
     const other = png(80);
     // the files on the server are consistent with their own sha256, but the icon is another one
     for (const file of filesOf({ ...ICONIC, icon: other }, '1.0.0')) {
@@ -375,7 +335,7 @@ describe('titles and tags', () => {
   };
 
   it('copies the titles of the entry and the tags of the displayed version', async () => {
-    serveIndex(env.routes, [THEMED, ECHO], { full: true });
+    serveIndex(env.routes, [THEMED, ECHO]);
     const { entries } = await env.installer.catalog();
     const byId = Object.fromEntries(entries.map((entry) => [entry.id, entry]));
     expect(byId['acme.themed']).toMatchObject({
@@ -391,7 +351,7 @@ describe('titles and tags', () => {
       versions: ['2.0.0', '1.0.0'],
       tags: { '2.0.0': ['developer'], '1.0.0': ['theme'] },
     };
-    serveIndex(env.routes, [spec], { full: true });
+    serveIndex(env.routes, [spec]);
     const [entry] = (await env.installer.catalog()).entries;
     expect(entry?.latest?.version).toBe('2.0.0');
     expect(entry?.tags).toEqual(['developer']);
@@ -404,7 +364,7 @@ describe('titles and tags', () => {
       minAppByVersion: { '2.0.0': '9.0.0' },
       tags: { '2.0.0': ['developer'], '1.0.0': ['theme'] },
     };
-    serveIndex(env.routes, [spec], { full: true });
+    serveIndex(env.routes, [spec]);
     const [entry] = (await env.installer.catalog()).entries;
     expect(entry?.incompatible?.fallback?.version).toBe('1.0.0');
     expect(entry?.tags).toEqual(['developer']);
@@ -415,7 +375,7 @@ describe('titles and tags', () => {
       ...THEMED,
       manifest: { tags: ['interface', 'theme'] },
     };
-    serveIndex(env.routes, [spec], { full: true });
+    serveIndex(env.routes, [spec]);
     serve(env.routes, spec);
     await expect(env.installer.install('acme.themed')).resolves.toMatchObject({
       version: '1.0.0',
@@ -424,7 +384,7 @@ describe('titles and tags', () => {
 
   it('refuses a manifest whose tags differ from the index record', async () => {
     const spec: ExtensionSpec = { ...THEMED, manifest: { tags: ['theme'] } };
-    serveIndex(env.routes, [spec], { full: true });
+    serveIndex(env.routes, [spec]);
     serve(env.routes, spec);
     expect(await rejection(env.installer.install('acme.themed'))).toMatchObject(
       { cause: 'invalid' },

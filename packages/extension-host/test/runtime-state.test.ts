@@ -1,8 +1,21 @@
-import { PermissionError, StorageQuotaError } from '@dolphy-app/extension-api';
-import type { ExtensionContext } from '@dolphy-app/extension-api';
+import {
+  NotificationRateLimitError,
+  PermissionError,
+  SecretsUnavailableError,
+  StorageQuotaError,
+} from '@dolphy-app/extension-api';
+import type {
+  ExtensionContext,
+  ExtensionPermission,
+} from '@dolphy-app/extension-api';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createEndpointPair } from '../src/loopback.ts';
-import { ENGINE_REQUEST_MS } from '../src/engine-link.ts';
+import { ENGINE_REQUEST_MS, EngineRequestError } from '../src/engine-link.ts';
+import type { HostFailure as EngineRequestFailure } from '../src/protocol.ts';
+import {
+  createExtensionNotifications,
+  createExtensionStats,
+} from '../src/state.ts';
 import { createExtensionRuntime } from '../src/runtime.ts';
 import { createLogger, deferred, nullLibrary } from './helpers.ts';
 import {
@@ -44,6 +57,104 @@ const sentinel = (seen: string[]) => ({
       });
     },
   },
+});
+
+describe('ctx.logger', () => {
+  it('записи доверенного расширения несут его extensionId; чужой id в полях записи его не подменяет', async () => {
+    const h = open({
+      extensions: [stateful('acme.a')],
+      trusted: ['acme.a'],
+      modules: {
+        'acme.a': {
+          activate: (ctx) => {
+            ctx.logger.info({ n: 1 }, 'hello');
+            ctx.logger.warn({ extensionId: 'acme.other' }, 'spoof');
+            ctx.logger.error({}, 'plain');
+            ctx.logger.debug({ n: 2 });
+          },
+        },
+      },
+    });
+
+    h.engine.emit(sessionStarted('s1'));
+
+    await vi.waitFor(() => expect(h.logger.error).toHaveBeenCalled());
+    expect(h.logger.info).toHaveBeenCalledWith(
+      { n: 1, extensionId: 'acme.a' },
+      'hello',
+    );
+    expect(h.logger.warn).toHaveBeenCalledWith(
+      { extensionId: 'acme.a' },
+      'spoof',
+    );
+    expect(h.logger.error).toHaveBeenCalledWith(
+      { extensionId: 'acme.a' },
+      'plain',
+    );
+    expect(h.logger.debug).toHaveBeenCalledWith(
+      { n: 2, extensionId: 'acme.a' },
+      undefined,
+    );
+  });
+});
+
+describe('ctx.secrets', () => {
+  it('значения у каждого расширения свои; без хранилища ключей запись и чтение существующего ключа — SecretsUnavailableError, а чтение отсутствующего и удаление работают', async () => {
+    const seen: Record<string, unknown> = {};
+    const h = open({
+      extensions: [stateful('acme.a'), stateful('acme.b')],
+      trusted: ['acme.a', 'acme.b'],
+      modules: {
+        'acme.a': {
+          activate: async (ctx) => {
+            await ctx.secrets.set('token', 's3cret');
+            seen.got = await ctx.secrets.get('token');
+            seen.missing = await ctx.secrets.get('nope');
+            seen.deletedMissing = await ctx.secrets.delete('nope');
+            h.engine.keyStore.available = false;
+            const failure = async (run: () => Promise<unknown>) => {
+              try {
+                await run();
+              } catch (error) {
+                return error;
+              }
+              return null;
+            };
+            seen.setError = await failure(() => ctx.secrets.set('x', 'y'));
+            seen.getError = await failure(() => ctx.secrets.get('token'));
+            seen.missingWhileDown = await ctx.secrets.get('nope');
+            seen.deleted = await ctx.secrets.delete('token');
+          },
+        },
+        'acme.b': {
+          activate: async (ctx) => {
+            seen.foreign = await ctx.secrets.get('token');
+          },
+        },
+      },
+    });
+
+    h.engine.emit(sessionStarted('s1'));
+
+    await vi.waitFor(() => {
+      expect(seen.deleted).toBe(true);
+      expect(seen).toHaveProperty('foreign');
+    });
+    expect(seen).toMatchObject({
+      got: 's3cret',
+      missing: undefined,
+      deletedMissing: false,
+      missingWhileDown: undefined,
+    });
+    for (const error of [seen.setError, seen.getError]) {
+      expect(error).toBeInstanceOf(SecretsUnavailableError);
+      expect(error).toMatchObject({
+        name: 'SecretsUnavailable',
+        code: 'SECRETS_UNAVAILABLE',
+      });
+    }
+    expect(await h.engine.readSecret('acme.a', 'token')).toBeUndefined();
+  });
 });
 
 describe('ctx.storage', () => {
@@ -128,6 +239,236 @@ describe('ctx.storage', () => {
   });
 });
 
+describe('ctx.stats', () => {
+  const statsExtension = (id: string, permissions: ExtensionPermission[]) =>
+    stateful(id, { permissions });
+
+  it('с разрешением запросы идут движку от имени расширения; courseId, которого нет, в запрос не попадает', async () => {
+    const seen: Record<string, unknown> = {};
+    const h = open({
+      extensions: [statsExtension(ID, ['learning.events', 'learning.stats'])],
+      trusted: [ID],
+      modules: {
+        [ID]: {
+          activate: async (ctx) => {
+            seen.streak = await ctx.stats.streak();
+            seen.course = await ctx.stats.streak({ courseId: 'alpha' });
+            seen.daily = await ctx.stats.daily({
+              from: '2024-05-01',
+              to: '2024-05-02',
+              courseId: 'alpha',
+            });
+            seen.all = await ctx.stats.daily({
+              from: '2024-05-01',
+              to: '2024-05-02',
+            });
+          },
+        },
+      },
+    });
+
+    h.engine.emit(sessionStarted('s1'));
+
+    await vi.waitFor(() => expect(seen.all).toBeDefined());
+    expect(seen.streak).toEqual({ current: 3, longest: 7 });
+    expect(seen.daily).toEqual([
+      { date: '2024-05-01', attempts: 2, correct: 1, accuracy: 0.5 },
+    ]);
+    expect(h.engine.statsCalls).toEqual([
+      { extensionId: ID, method: 'streak', args: [] },
+      { extensionId: ID, method: 'streak', args: ['alpha'] },
+      {
+        extensionId: ID,
+        method: 'daily',
+        args: ['2024-05-01', '2024-05-02', 'alpha'],
+      },
+      { extensionId: ID, method: 'daily', args: ['2024-05-01', '2024-05-02'] },
+    ]);
+  });
+
+  it('без разрешения оба вызова бросают PermissionError(learning.stats), и до движка запрос не доходит', async () => {
+    const seen: Record<string, unknown> = {};
+    const h = open({
+      extensions: [statsExtension(ID, ['learning.events'])],
+      trusted: [ID],
+      modules: {
+        [ID]: {
+          activate: async (ctx) => {
+            for (const [name, call] of [
+              ['streak', () => ctx.stats.streak()],
+              [
+                'daily',
+                () => ctx.stats.daily({ from: '2024-05-01', to: '2024-05-02' }),
+              ],
+            ] as const) {
+              try {
+                await call();
+              } catch (error) {
+                seen[name] = error;
+              }
+            }
+          },
+        },
+      },
+    });
+
+    h.engine.emit(sessionStarted('s1'));
+
+    await vi.waitFor(() => expect(seen.daily).toBeDefined());
+    for (const error of [seen.streak, seen.daily]) {
+      expect(error).toBeInstanceOf(PermissionError);
+      expect(error).toMatchObject({ permission: 'learning.stats' });
+    }
+    expect(h.engine.statsCalls).toEqual([]);
+  });
+
+  it('отказ движка по разрешению (процесс не доверен) тоже становится PermissionError; остальные отказы — Error с кодом', async () => {
+    const reject = (failure: EngineRequestFailure) => ({
+      request: async () => {
+        throw new EngineRequestError(failure);
+      },
+    });
+    const denied = createExtensionStats(
+      reject({
+        code: 'INVALID_ARGUMENT',
+        message: 'no permission',
+        details: { reason: 'permission', permission: 'learning.stats' },
+      }),
+      ID,
+      ['learning.stats'],
+    );
+    const error = await denied.streak().catch((reason: unknown) => reason);
+    expect(error).toBeInstanceOf(PermissionError);
+    expect(error).toMatchObject({
+      permission: 'learning.stats',
+      message: 'no permission',
+    });
+
+    const invalid = createExtensionStats(
+      reject({
+        code: 'INVALID_ARGUMENT',
+        message: 'bad range',
+        details: { field: 'to' },
+      }),
+      ID,
+      ['learning.stats'],
+    );
+    const failure = await invalid
+      .daily({ from: '2024-05-02', to: '2024-05-01' })
+      .catch((reason: unknown) => reason);
+    expect(failure).not.toBeInstanceOf(PermissionError);
+    expect(failure).toMatchObject({
+      message: 'bad range',
+      code: 'INVALID_ARGUMENT',
+    });
+  });
+});
+
+describe('ctx.notifications', () => {
+  const notifying = (id: string, permissions: ExtensionPermission[]) =>
+    stateful(id, { permissions });
+
+  it('с разрешением show идёт движку от имени расширения и возвращает его ответ', async () => {
+    const seen: unknown[] = [];
+    const h = open({
+      extensions: [notifying(ID, ['learning.events', 'notifications'])],
+      trusted: [ID],
+      modules: {
+        [ID]: {
+          activate: async (ctx) => {
+            seen.push(await ctx.notifications.show({ title: 'T', body: 'B' }));
+            h.engine.notifier.shown = false;
+            seen.push(await ctx.notifications.show({ title: 'T2', body: '' }));
+          },
+        },
+      },
+    });
+
+    h.engine.emit(sessionStarted('s1'));
+
+    await vi.waitFor(() => expect(seen).toHaveLength(2));
+    expect(seen).toEqual([true, false]);
+    expect(h.engine.notified).toEqual([
+      { extensionId: ID, title: 'T', body: 'B' },
+      { extensionId: ID, title: 'T2', body: '' },
+    ]);
+  });
+
+  it('без разрешения show бросает PermissionError(notifications), и до движка запрос не доходит', async () => {
+    let seen: unknown;
+    const h = open({
+      extensions: [notifying(ID, ['learning.events'])],
+      trusted: [ID],
+      modules: {
+        [ID]: {
+          activate: async (ctx) => {
+            try {
+              await ctx.notifications.show({ title: 'T', body: 'B' });
+            } catch (error) {
+              seen = error;
+            }
+          },
+        },
+      },
+    });
+
+    h.engine.emit(sessionStarted('s1'));
+
+    await vi.waitFor(() => expect(seen).toBeDefined());
+    expect(seen).toBeInstanceOf(PermissionError);
+    expect(seen).toMatchObject({ permission: 'notifications' });
+    expect(h.engine.notified).toEqual([]);
+  });
+
+  it('отказы движка: разрешение — PermissionError, предел частоты — NotificationRateLimitError, остальное — Error с кодом', async () => {
+    const reject = (failure: EngineRequestFailure) =>
+      createExtensionNotifications(
+        {
+          request: async () => {
+            throw new EngineRequestError(failure);
+          },
+        },
+        ID,
+        ['notifications'],
+      );
+    const note = { title: 'T', body: 'B' };
+
+    const denied = await reject({
+      code: 'INVALID_ARGUMENT',
+      message: 'no permission',
+      details: { reason: 'permission', permission: 'notifications' },
+    })
+      .show(note)
+      .catch((reason: unknown) => reason);
+    expect(denied).toBeInstanceOf(PermissionError);
+    expect(denied).toMatchObject({ permission: 'notifications' });
+
+    const limited = await reject({
+      code: 'INVALID_ARGUMENT',
+      message: 'too many',
+      details: { reason: 'rate-limit', window: 'hour', limit: 30 },
+    })
+      .show(note)
+      .catch((reason: unknown) => reason);
+    expect(limited).toBeInstanceOf(NotificationRateLimitError);
+    expect(limited).toMatchObject({ window: 'hour', limit: 30 });
+
+    const invalid = await reject({
+      code: 'INVALID_ARGUMENT',
+      message: 'title is too long',
+      details: { field: 'title', max: 80 },
+    })
+      .show(note)
+      .catch((reason: unknown) => reason);
+    expect(invalid).not.toBeInstanceOf(PermissionError);
+    expect(invalid).not.toBeInstanceOf(NotificationRateLimitError);
+    expect(invalid).toMatchObject({
+      message: 'title is too long',
+      code: 'INVALID_ARGUMENT',
+    });
+  });
+});
+
 describe('ctx.settings', () => {
   it('get отдаёт default, затем значение пользователя; onDidChange получает изменения без перезапуска', async () => {
     const reads: unknown[] = [];
@@ -162,6 +503,41 @@ describe('ctx.settings', () => {
     const ctx = context as ExtensionContext | null;
     expect(ctx?.settings.get(GREETING)).toBe('hi');
     expect(ctx?.settings.get(`${ID}.limit`)).toBe(7);
+  });
+
+  it('список: get отдаёт копию, равный список не событие, значение не того типа игнорируется', async () => {
+    const TAGS = `${ID}.tags`;
+    const calls: unknown[] = [];
+    let ctx: ExtensionContext | null = null;
+    const h = open({
+      extensions: [stateful(ID)],
+      trusted: [ID],
+      modules: {
+        [ID]: {
+          activate: (context) => {
+            ctx = context;
+            context.settings.onDidChange((change) => calls.push(change));
+          },
+        },
+      },
+    });
+    h.engine.emit(sessionStarted('s1'));
+    await vi.waitFor(() => expect(ctx).not.toBeNull());
+    const settings = (ctx as unknown as ExtensionContext).settings;
+
+    const first = settings.get(TAGS) as string[];
+    first.push('mutated');
+    expect(settings.get(TAGS)).toEqual(['a']);
+
+    h.engine.changeSetting({ extensionId: ID, id: TAGS, value: ['a'] });
+    h.engine.changeSetting({ extensionId: ID, id: TAGS, value: [1] as never });
+    h.engine.changeSetting({ extensionId: ID, id: TAGS, value: 'a' });
+    h.engine.changeSetting({ extensionId: ID, id: TAGS, value: ['b', 'a'] });
+
+    await vi.waitFor(() =>
+      expect(calls).toEqual([{ id: TAGS, value: ['b', 'a'] }]),
+    );
+    expect(settings.get(TAGS)).toEqual(['b', 'a']);
   });
 
   it('значение, сохранённое до запуска, читается при активации', async () => {
@@ -255,9 +631,12 @@ describe('ctx.events', () => {
           events: [],
           commands: [],
           panels: [],
+          importers: [],
+          exporters: [],
           exerciseTypes: [
             {
               id: 'acme.np',
+              title: null,
               specSchema: {},
               answerSchema: {},
               element: 'acme-np-answer',
@@ -390,9 +769,25 @@ describe('ctx.events', () => {
     h.engine.emit(attemptClosed('on'));
     await vi.waitFor(() => expect(seen).toEqual(['on']));
 
-    h.policy.update({ disabled: [ID], trusted: [ID], checkUpdates: true });
+    h.policy.update({
+      disabled: [ID],
+      trusted: [ID],
+      checkUpdates: true,
+      safeMode: false,
+      notificationsOff: [],
+      catalogUrl: null,
+      schedulesOff: [],
+    });
     h.engine.emit(attemptClosed('off'));
-    h.policy.update({ disabled: [], trusted: [ID], checkUpdates: true });
+    h.policy.update({
+      disabled: [],
+      trusted: [ID],
+      checkUpdates: true,
+      safeMode: false,
+      notificationsOff: [],
+      catalogUrl: null,
+      schedulesOff: [],
+    });
     h.engine.emit(attemptClosed('on-again'));
 
     await vi.waitFor(() => expect(seen).toEqual(['on', 'on-again']));

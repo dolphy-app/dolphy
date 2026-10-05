@@ -18,14 +18,18 @@ const extension: ResolvedExtension = {
   name: null,
   description: null,
   author: null,
+  dependencies: [],
   platforms: [],
   minAppVersion: null,
   icon: null,
   tags: [],
   install: null,
+  messages: {},
+  warnings: [],
   exerciseTypes: [
     {
       id: 'acme.t',
+      title: null,
       specSchema: {
         type: 'object',
         required: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'],
@@ -42,7 +46,11 @@ const extension: ResolvedExtension = {
   settings: [],
   events: [],
   commands: [],
+  widgets: [],
+  schedules: [],
   panels: [],
+  importers: [],
+  exporters: [],
 };
 
 describe('createCatalog', () => {
@@ -123,7 +131,15 @@ describe('createCatalog: отключённые расширения', () => {
   const catalog = createCatalog(holderOf([withPolicy]), policy);
 
   it('ведёт себя так, будто расширения нет, и сразу возвращается при включении', () => {
-    policy.update({ disabled: ['acme.t'], trusted: [], checkUpdates: true });
+    policy.update({
+      disabled: ['acme.t'],
+      trusted: [],
+      checkUpdates: true,
+      safeMode: false,
+      notificationsOff: [],
+      catalogUrl: null,
+      schedulesOff: [],
+    });
     expect(catalog.describe('acme.t')).toBeUndefined();
     expect(catalog.list()).toEqual([]);
     expect(catalog.ownerOf('acme.t')).toBeUndefined();
@@ -135,7 +151,15 @@ describe('createCatalog: отключённые расширения', () => {
     expect(catalog.validateAnswer('acme.t', 'x')).toEqual([
       'unknown exercise type',
     ]);
-    policy.update({ disabled: [], trusted: [], checkUpdates: true });
+    policy.update({
+      disabled: [],
+      trusted: [],
+      checkUpdates: true,
+      safeMode: false,
+      notificationsOff: [],
+      catalogUrl: null,
+      schedulesOff: [],
+    });
     expect(catalog.describe('acme.t')?.extensionId).toBe('acme.t');
     expect(catalog.list()).toHaveLength(1);
     expect(catalog.ownerOfPolicy('acme.t.generous')?.id).toBe('acme.t');

@@ -22,10 +22,19 @@ const literal = (text: string): string =>
 const union = (values: readonly string[]): string =>
   values.length === 0 ? 'never' : values.map(literal).join(' | ');
 
-const settingType = (setting: SettingContribution): string =>
-  setting.type === 'enum'
-    ? union(setting.options.map((option) => option.value))
-    : setting.type;
+const settingType = (setting: SettingContribution): string => {
+  switch (setting.type) {
+    case 'enum':
+      return union(setting.options.map((option) => option.value));
+    case 'text':
+    case 'color':
+      return 'string';
+    case 'list':
+      return 'string[]';
+    default:
+      return setting.type;
+  }
+};
 
 const settingsType = (settings: readonly SettingContribution[]): string =>
   settings.length === 0
@@ -48,6 +57,10 @@ export const renderIds = ({ contributes }: ExtensionManifest): string => {
     ['commands', union(contributes.commands.map(({ id }) => id))],
     ['events', union(contributes.events.map(({ event }) => event))],
     ['panels', union(contributes.panels.map(({ id }) => id))],
+    ['widgets', union(contributes.widgets.map(({ id }) => id))],
+    ['schedules', union(contributes.schedules.map(({ id }) => id))],
+    ['importers', union(contributes.importers.map(({ id }) => id))],
+    ['exporters', union(contributes.exporters.map(({ id }) => id))],
     [
       'markdownLanguages',
       union(contributes.markdownRenderers.map(({ language }) => language)),

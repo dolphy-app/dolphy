@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useContributions, useEngine } from '@/shared/api/engine';
+import { useExtensionText } from '@/shared/lib/extension-text.ts';
 import { useGradePolicySetting } from '../model/grade-policy.ts';
 import { useLearningSettings } from '../model/learning.ts';
 import type { LearningForm } from '../model/learning.ts';
@@ -20,11 +21,15 @@ const gradePolicy = useGradePolicySetting(
   () => contributions.value.gradePolicies,
 );
 const { t } = useI18n();
+const extensionText = useExtensionText();
 const confirmReset = ref(false);
 const gradePolicyItems = computed(() =>
   gradePolicy.options.value.map(({ id, label, extensionId }) => ({
     value: id,
-    title: label ?? t('settings.learning.gradePolicy.passAtN.title'),
+    title:
+      label === null
+        ? t('settings.learning.gradePolicy.passAtN.title')
+        : extensionText.of(label, extensionId ?? ''),
     subtitle: extensionId ?? t('settings.learning.gradePolicy.builtin'),
   })),
 );
@@ -71,6 +76,8 @@ const reset = async () => {
         <SettingsRow
           :title="t('settings.learning.targetRetention.title')"
           :description="t('settings.learning.targetRetention.description')"
+          :hint="t('settings.learning.targetRetention.hint')"
+          data-tour="learning-retention"
         >
           <v-slider
             :model-value="form.targetRetentionPercent"
@@ -128,6 +135,7 @@ const reset = async () => {
         <SettingsRow
           :title="t('settings.learning.tagDistance.title')"
           :description="t('settings.learning.tagDistance.description')"
+          :hint="t('settings.learning.tagDistance.hint')"
         >
           <v-number-input
             :model-value="form.minTagDistance"
@@ -149,6 +157,7 @@ const reset = async () => {
         <SettingsRow
           :title="t('settings.learning.batchSize.title')"
           :description="t('settings.learning.batchSize.description')"
+          :hint="t('settings.learning.batchSize.hint')"
         >
           <v-number-input
             :model-value="form.batchSize"
@@ -166,6 +175,7 @@ const reset = async () => {
         <SettingsRow
           :title="t('settings.learning.lessonsInProgress.title')"
           :description="t('settings.learning.lessonsInProgress.description')"
+          :hint="t('settings.learning.lessonsInProgress.hint')"
         >
           <v-number-input
             :model-value="form.maxLessonsInProgress"
@@ -187,6 +197,8 @@ const reset = async () => {
         <SettingsRow
           :title="t('settings.learning.failThreshold.title')"
           :description="t('settings.learning.failThreshold.description')"
+          :hint="t('settings.learning.failThreshold.hint')"
+          data-tour="learning-remediation"
         >
           <v-number-input
             :model-value="form.failThreshold"
@@ -204,6 +216,7 @@ const reset = async () => {
         <SettingsRow
           :title="t('settings.learning.remediationItems.title')"
           :description="t('settings.learning.remediationItems.description')"
+          :hint="t('settings.learning.remediationItems.hint')"
         >
           <v-number-input
             :model-value="form.remediationMaxItems"
@@ -225,6 +238,8 @@ const reset = async () => {
         <SettingsRow
           :title="t('settings.learning.gradePolicy.title')"
           :description="t('settings.learning.gradePolicy.description')"
+          :hint="t('settings.learning.gradePolicy.hint')"
+          data-tour="learning-grade"
         >
           <v-select
             class="grade-policy-select"
@@ -265,6 +280,7 @@ const reset = async () => {
         <SettingsRow
           :title="t('settings.learning.implicitCredit.title')"
           :description="t('settings.learning.implicitCredit.description')"
+          :hint="t('settings.learning.implicitCredit.hint')"
         >
           <v-switch
             v-model="form.implicitCreditEnabled"

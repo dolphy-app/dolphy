@@ -5,6 +5,7 @@ export const ru = {
       go: 'Переход',
       theme: 'Тема',
       language: 'Язык',
+      session: 'Сессия',
     },
     palette: {
       open: 'Открыть палитру команд',
@@ -12,13 +13,19 @@ export const ru = {
     go: {
       dailyPlan: 'Перейти: План дня',
       courses: 'Перейти: Курсы',
-      graph: 'Перейти: Граф знаний',
       settings: 'Перейти: Настройки',
       settingsLearning: 'Перейти: Настройки — Обучение',
       settingsLibrary: 'Перейти: Настройки — Библиотека',
       settingsAppearance: 'Перейти: Настройки — Внешний вид',
       settingsExtensions: 'Перейти: Настройки — Расширения',
       settingsAbout: 'Перейти: Настройки — О движке',
+    },
+    session: {
+      undo: 'Отменить последний ответ',
+      redo: 'Вернуть отменённый ответ',
+    },
+    tour: {
+      start: 'Показать обучающий тур',
     },
     theme: 'Тема: {name}',
     language: 'Язык: {name}',

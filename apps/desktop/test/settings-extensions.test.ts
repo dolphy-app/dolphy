@@ -5,13 +5,17 @@ import type {
   ExtensionInfoDto,
   ExtensionSettingsDto,
   ExtensionUpdateDto,
+  ExtensionsDiagnosticsDto,
   LearningEngine,
 } from '@dolphy-app/engine-contract';
 import {
   COLLAPSED_VALUES,
+  areSchedulesOn,
   contributionGroups,
+  hasSchedules,
   hasSwitches,
   hidesContributions,
+  scheduleSummaryOf,
   useExtensions,
   visibleValues,
 } from '@/pages/settings/model/extensions.ts';
@@ -20,6 +24,7 @@ import {
   catalogDto,
   catalogEntry,
   createEventBus,
+  diagnosticsDto,
   extensionInfo as extension,
   flush,
 } from './support/extensions-fakes.ts';
@@ -33,6 +38,10 @@ const NONE_SET: ExtensionSettingsDto = {
   disabled: [],
   trusted: [],
   checkUpdates: true,
+  safeMode: false,
+  notificationsOff: [],
+  catalogUrl: null,
+  schedulesOff: [],
 };
 
 /** Каждый вызов `list()` ждёт, пока тест его не завершит. */
@@ -42,6 +51,7 @@ const createFakeEngine = (stored: ExtensionSettingsDto = NONE_SET) => {
     subscribe: createEventBus().subscribe,
     extensions: {
       updates: async () => [],
+      diagnostics: async () => diagnosticsDto(),
       list: () =>
         new Promise<ExtensionInfoDto[]>((resolve, reject) => {
           pending.push({ resolve, reject });
@@ -66,7 +76,12 @@ describe('useExtensions', () => {
       extension('dolphy.sql'),
       extension('dolphy.choice', {
         state: 'overridden',
-        message: 'overridden by user 1.0.1',
+        diagnostics: [
+          {
+            code: 'overridden-by',
+            data: { origin: 'user', version: '1.0.1' },
+          },
+        ],
       }),
     ];
     pending[0]?.resolve(list);
@@ -169,6 +184,10 @@ describe('contributionGroups', () => {
         events: [],
         commands: ['acme.run'],
         panels: ['acme.view'],
+        widgets: ['acme.card'],
+        schedules: [],
+        importers: [],
+        exporters: [],
       }),
     ).toEqual([
       {
@@ -182,6 +201,7 @@ describe('contributionGroups', () => {
       { point: 'gradePolicies', items: [item('acme.strict')] },
       { point: 'commands', items: [item('acme.run')] },
       { point: 'panels', items: [item('acme.view')] },
+      { point: 'widgets', items: [item('acme.card')] },
     ]);
   });
 
@@ -216,6 +236,30 @@ describe('contributionGroups', () => {
       markdownRenderers: true,
       events: false,
     });
+  });
+
+  it('вид задания и рендерер с названием — обычным шрифтом, без названия — id моноширинно', () => {
+    const groups = contributionGroups(
+      {
+        ...NO_CONTRIBUTES,
+        exerciseTypes: ['a.quiz', 'a.plain'],
+        markdownRenderers: ['math', 'chart'],
+      },
+      {
+        exerciseTypes: { 'a.quiz': 'Викторина' },
+        markdownRenderers: { math: 'Формулы' },
+      },
+    );
+    expect(groups.map((g) => g.items.map((i) => [i.label, i.mono]))).toEqual([
+      [
+        ['Викторина', false],
+        ['a.plain', true],
+      ],
+      [
+        ['Формулы', false],
+        ['chart', true],
+      ],
+    ]);
   });
 
   it('события показываются через переданное название, неизвестные — как есть', () => {
@@ -329,9 +373,45 @@ describe('hasSwitches', () => {
   });
 });
 
+describe('расписания в строке', () => {
+  it('переключатель нужен загруженному расширению, объявившему schedules', () => {
+    const declared = (state: ExtensionInfoDto['state'], schedules: string[]) =>
+      extension('acme.x', {
+        state,
+        contributes: { ...NO_CONTRIBUTES, schedules },
+      });
+    expect(hasSchedules(declared('loaded', ['acme.x.morning']))).toBe(true);
+    expect(hasSchedules(declared('loaded', []))).toBe(false);
+    // у отключённого манифест всё ещё объявляет расписания, но вкладов нет: ни переключателя, ни текста
+    expect(hasSchedules(declared('disabled', ['acme.x.morning']))).toBe(false);
+  });
+
+  it('включено, пока id нет в schedulesOff', () => {
+    const off = { ...NONE_SET, schedulesOff: ['acme.x'] };
+    expect(areSchedulesOn(NONE_SET, 'acme.x')).toBe(true);
+    expect(areSchedulesOn(off, 'acme.x')).toBe(false);
+    expect(areSchedulesOn(off, 'acme.y')).toBe(true);
+  });
+
+  it('текст: daily называет время, hourly — нет', () => {
+    expect(scheduleSummaryOf({ every: 'daily', at: '08:30' })).toEqual({
+      key: 'daily',
+      at: '08:30',
+    });
+    expect(scheduleSummaryOf({ every: 'hourly', at: null })).toEqual({
+      key: 'hourly',
+      at: '',
+    });
+  });
+});
+
 describe('переключатели', () => {
   interface Call {
-    method: 'setEnabled' | 'setTrusted';
+    method:
+      | 'setEnabled'
+      | 'setTrusted'
+      | 'setNotificationsEnabled'
+      | 'setSchedulesEnabled';
     id: string;
     value: boolean;
     resolve(next: ExtensionSettingsDto): void;
@@ -350,6 +430,7 @@ describe('переключатели', () => {
       subscribe: createEventBus().subscribe,
       extensions: {
         updates: async () => [],
+        diagnostics: async () => diagnosticsDto(),
         list: async () => {
           listCalls += 1;
           return [extension('acme.x', { origin: 'user', toggleable: true })];
@@ -357,6 +438,8 @@ describe('переключатели', () => {
         getSettings: async () => stored,
         setEnabled: write('setEnabled'),
         setTrusted: write('setTrusted'),
+        setNotificationsEnabled: write('setNotificationsEnabled'),
+        setSchedulesEnabled: write('setSchedulesEnabled'),
       },
     } as unknown as LearningEngine;
     return { engine, calls, listCalls: () => listCalls };
@@ -374,6 +457,10 @@ describe('переключатели', () => {
       disabled: [],
       trusted: ['acme.x'],
       checkUpdates: true,
+      safeMode: false,
+      notificationsOff: [],
+      catalogUrl: null,
+      schedulesOff: [],
     });
     await pending;
 
@@ -382,6 +469,10 @@ describe('переключатели', () => {
       disabled: [],
       trusted: ['acme.x'],
       checkUpdates: true,
+      safeMode: false,
+      notificationsOff: [],
+      catalogUrl: null,
+      schedulesOff: [],
     });
     expect(model.switching.value.size).toBe(0);
     expect(model.switchError.value).toBeNull();
@@ -394,14 +485,110 @@ describe('переключатели', () => {
       disabled: ['acme.x'],
       trusted: [],
       checkUpdates: true,
+      safeMode: false,
+      notificationsOff: [],
+      catalogUrl: null,
+      schedulesOff: [],
     });
     const model = mount(engine);
     await flush();
     const pending = model.setEnabled('acme.x', true);
     expect(model.settings.value.disabled).toEqual([]);
-    calls[0]?.resolve({ disabled: [], trusted: [], checkUpdates: true });
+    calls[0]?.resolve({
+      disabled: [],
+      trusted: [],
+      checkUpdates: true,
+      safeMode: false,
+      notificationsOff: [],
+      catalogUrl: null,
+      schedulesOff: [],
+    });
     await pending;
     expect(calls[0]).toMatchObject({ method: 'setEnabled', value: true });
+  });
+
+  it('«Уведомления» хранятся как наличие в списке выключенных: выключение добавляет id и зовёт движок', async () => {
+    const { engine, calls } = createSwitchEngine();
+    const model = mount(engine);
+    await flush();
+
+    const pending = model.setNotifications('acme.x', false);
+    expect(model.settings.value.notificationsOff).toEqual(['acme.x']);
+    expect(model.switching.value.has('notifications:acme.x')).toBe(true);
+    calls[0]?.resolve({ ...NONE_SET, notificationsOff: ['acme.x'] });
+    await pending;
+
+    expect(calls[0]).toMatchObject({
+      method: 'setNotificationsEnabled',
+      id: 'acme.x',
+      value: false,
+    });
+    expect(model.settings.value.notificationsOff).toEqual(['acme.x']);
+    expect(model.switching.value.size).toBe(0);
+  });
+
+  it('включение «Уведомлений» убирает id из списка, отказ движка возвращает его и показывает ошибку', async () => {
+    const { engine, calls } = createSwitchEngine({
+      ...NONE_SET,
+      notificationsOff: ['acme.x'],
+      catalogUrl: null,
+    });
+    const model = mount(engine);
+    await flush();
+
+    const pending = model.setNotifications('acme.x', true);
+    expect(model.settings.value.notificationsOff).toEqual([]);
+    calls[0]?.reject(new Error('cannot write'));
+    await pending;
+
+    expect(model.settings.value.notificationsOff).toEqual(['acme.x']);
+    expect(model.switchError.value).toBe('cannot write');
+  });
+
+  it('«Расписание» хранится как наличие в списке выключенных и пишется своим методом, не трогая «Уведомления»', async () => {
+    const { engine, calls } = createSwitchEngine({
+      ...NONE_SET,
+      notificationsOff: ['acme.x'],
+    });
+    const model = mount(engine);
+    await flush();
+
+    const pending = model.setSchedules('acme.x', false);
+    expect(model.settings.value.schedulesOff).toEqual(['acme.x']);
+    expect(model.settings.value.notificationsOff).toEqual(['acme.x']);
+    expect(model.switching.value.has('schedules:acme.x')).toBe(true);
+    calls[0]?.resolve({
+      ...NONE_SET,
+      notificationsOff: ['acme.x'],
+      schedulesOff: ['acme.x'],
+    });
+    await pending;
+    expect(calls[0]).toMatchObject({
+      method: 'setSchedulesEnabled',
+      id: 'acme.x',
+      value: false,
+    });
+  });
+
+  it('включение «Расписания» убирает id из списка, отказ движка возвращает его и показывает ошибку', async () => {
+    const { engine, calls } = createSwitchEngine({
+      ...NONE_SET,
+      schedulesOff: ['acme.x'],
+    });
+    const model = mount(engine);
+    await flush();
+
+    const pending = model.setSchedules('acme.x', true);
+    expect(model.settings.value.schedulesOff).toEqual([]);
+    calls[0]?.reject(new Error('cannot write'));
+    await pending;
+
+    expect(calls[0]).toMatchObject({
+      method: 'setSchedulesEnabled',
+      value: true,
+    });
+    expect(model.settings.value.schedulesOff).toEqual(['acme.x']);
+    expect(model.switchError.value).toBe('cannot write');
   });
 
   it('отказ движка откатывает переключатель и показывает ошибку', async () => {
@@ -430,6 +617,10 @@ describe('переключатели', () => {
       disabled: [],
       trusted: ['acme.x'],
       checkUpdates: true,
+      safeMode: false,
+      notificationsOff: [],
+      catalogUrl: null,
+      schedulesOff: [],
     });
     await first;
   });
@@ -457,6 +648,7 @@ describe('обновления и установка из каталога', () 
     available: {
       version: '1.1.0',
       permissions: ['network'],
+      dependencies: [],
       publishedAt: '2026-01-01T00:00:00.000Z',
       size: 100,
       minAppVersion: null,
@@ -468,15 +660,32 @@ describe('обновления и установка из каталога', () 
     settings?: ExtensionSettingsDto;
     setCheckUpdates?: (value: boolean) => Promise<ExtensionSettingsDto>;
     catalog?: () => Promise<CatalogDto>;
+    diagnostics?: () => Promise<ExtensionsDiagnosticsDto>;
+    setSafeMode?: (value: boolean) => Promise<ExtensionSettingsDto>;
+    restartHost?: () => Promise<void>;
   }
 
   const createEngine = (options: Options = {}) => {
     const bus = createEventBus();
     let listCalls = 0;
     let updateCalls = 0;
+    let diagnosticsCalls = 0;
+    let stored = options.settings ?? NONE_SET;
     const engine = {
       subscribe: bus.subscribe,
       extensions: {
+        diagnostics: async () => {
+          diagnosticsCalls += 1;
+          return (options.diagnostics ?? (async () => diagnosticsDto()))();
+        },
+        setSafeMode: async (value: boolean) => {
+          const next = await (options.setSafeMode ?? (async () => NONE_SET))(
+            value,
+          );
+          stored = next;
+          return next;
+        },
+        restartHost: options.restartHost ?? (async () => {}),
         list: async () => {
           listCalls += 1;
           return [
@@ -488,7 +697,7 @@ describe('обновления и установка из каталога', () 
             }),
           ];
         },
-        getSettings: async () => options.settings ?? NONE_SET,
+        getSettings: async () => stored,
         updates: async () => {
           updateCalls += 1;
           if (options.updates instanceof Error) throw options.updates;
@@ -507,6 +716,7 @@ describe('обновления и установка из каталога', () 
       bus,
       listCalls: () => listCalls,
       updateCalls: () => updateCalls,
+      diagnosticsCalls: () => diagnosticsCalls,
     };
   };
 
@@ -572,6 +782,103 @@ describe('обновления и установка из каталога', () 
     await model.setCheckUpdates(false);
     expect(model.settings.value.checkUpdates).toBe(false);
     expect(model.switchError.value).toBeNull();
+  });
+
+  it('здоровье и состояние хоста читаются вместе со списком; сбой их чтения не прячет список', async () => {
+    const health = {
+      id: 'acme.x',
+      failures: 2,
+      lastFailure: { at: 1, reason: 'timeout', message: 'slow' },
+      lastActivationMs: 12,
+      suppressedUntil: null,
+    };
+    const ok = createEngine({
+      diagnostics: async () =>
+        diagnosticsDto({ host: 'gave-up', extensions: [health] }),
+    });
+    const model = mount(ok.engine);
+    await flush();
+    expect(model.diagnostics.value?.host).toBe('gave-up');
+    expect(model.diagnostics.value?.extensions).toEqual([health]);
+
+    const broken = createEngine({
+      diagnostics: async () => {
+        throw new Error('no health');
+      },
+    });
+    const other = mount(broken.engine);
+    await flush();
+    expect(other.state.value).toBe('loaded');
+    expect(other.items.value).toHaveLength(1);
+    expect(other.diagnostics.value).toBeNull();
+  });
+
+  it('extension-health-changed перечитывает только здоровье, список остаётся', async () => {
+    const { engine, bus, listCalls, diagnosticsCalls } = createEngine();
+    mount(engine);
+    await flush();
+    expect([listCalls(), diagnosticsCalls()]).toEqual([1, 1]);
+
+    bus.emit({ type: 'extension-health-changed' });
+    await flush();
+
+    expect([listCalls(), diagnosticsCalls()]).toEqual([1, 2]);
+  });
+
+  it('«Безопасный режим»: меняется сразу, ответ движка сохраняется и список перечитывается; отказ откатывает', async () => {
+    let fail = true;
+    const { engine, listCalls } = createEngine({
+      setSafeMode: async (value) => {
+        if (fail) throw new Error('disk is full');
+        return { ...NONE_SET, safeMode: value };
+      },
+    });
+    const model = mount(engine);
+    await flush();
+
+    const rejected = model.setSafeMode(true);
+    expect(model.settings.value.safeMode).toBe(true);
+    await rejected;
+    expect(model.settings.value.safeMode).toBe(false);
+    expect(model.switchError.value).toBe('disk is full');
+
+    fail = false;
+    await model.setSafeMode(true);
+    await flush();
+    expect(model.settings.value.safeMode).toBe(true);
+    expect(model.switchError.value).toBeNull();
+    expect(listCalls()).toBe(2);
+  });
+
+  it('restartHost просит движок, перечитывает здоровье и не допускает второго нажатия; отказ показывается', async () => {
+    let release: () => void = () => {};
+    const calls: string[] = [];
+    let fail = false;
+    const { engine, diagnosticsCalls } = createEngine({
+      restartHost: () =>
+        new Promise<void>((resolve, reject) => {
+          calls.push('restart');
+          release = () => (fail ? reject(new Error('refused')) : resolve());
+        }),
+    });
+    const model = mount(engine);
+    await flush();
+
+    const first = model.restartHost();
+    void model.restartHost();
+    expect(model.restartingHost.value).toBe(true);
+    release();
+    await first;
+    expect(calls).toEqual(['restart']);
+    expect(model.restartingHost.value).toBe(false);
+    expect(diagnosticsCalls()).toBe(2);
+
+    fail = true;
+    const failed = model.restartHost();
+    release();
+    await failed;
+    expect(model.switchError.value).toBe('refused');
+    expect(model.restartingHost.value).toBe(false);
   });
 
   it('updateTargets берёт вклады и платформы из каталога, а без него — из установленного', async () => {

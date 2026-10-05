@@ -26,11 +26,14 @@ const extension = (
   name: null,
   description: null,
   author: null,
+  dependencies: [],
   platforms: [],
   minAppVersion: null,
   icon: null,
   tags: [],
   install: null,
+  messages: {},
+  warnings: [],
   exerciseTypes: [],
   themes: [],
   markdownRenderers: [],
@@ -39,6 +42,10 @@ const extension = (
   events: [],
   commands: [],
   panels: [],
+  widgets: [],
+  schedules: [],
+  importers: [],
+  exporters: [],
   ...overrides,
 });
 
@@ -47,6 +54,7 @@ const withType = (id: string, type: string): ResolvedExtension =>
     exerciseTypes: [
       {
         id: type,
+        title: null,
         specSchema: {},
         answerSchema: {},
         element: `${type.replaceAll('.', '-')}-answer`,
@@ -107,11 +115,27 @@ describe('политика, каталог и реестр читают сним
     );
     const policy = createExtensionPolicy(holder);
     const catalog = createCatalog(holder, policy);
-    policy.update({ disabled: ['acme.a'], trusted: [], checkUpdates: true });
+    policy.update({
+      disabled: ['acme.a'],
+      trusted: [],
+      checkUpdates: true,
+      safeMode: false,
+      notificationsOff: [],
+      catalogUrl: null,
+      schedulesOff: [],
+    });
     expect(catalog.list()).toEqual([]);
     holder.replace(discoveryOf([withType('acme.a', 'acme.a')]));
     expect(catalog.list()).toEqual([]); // всё ещё отключено
-    policy.update({ disabled: [], trusted: [], checkUpdates: true });
+    policy.update({
+      disabled: [],
+      trusted: [],
+      checkUpdates: true,
+      safeMode: false,
+      notificationsOff: [],
+      catalogUrl: null,
+      schedulesOff: [],
+    });
     expect(catalog.list().map(({ type }) => type)).toEqual(['acme.a']);
   });
 
@@ -125,12 +149,20 @@ describe('политика, каталог и реестр читают сним
     holder.replace({
       extensions: [],
       diagnostics: [
-        { extensionId: 'acme.broken', origin: 'user', message: 'bad manifest' },
+        {
+          extensionId: 'acme.broken',
+          origin: 'user',
+          diagnostic: { code: 'manifest-invalid', data: { issues: ['bad'] } },
+        },
       ],
       overridden: [],
     });
     expect(registry.list()).toMatchObject([
-      { id: 'acme.broken', state: 'invalid', message: 'bad manifest' },
+      {
+        id: 'acme.broken',
+        state: 'invalid',
+        diagnostics: [{ code: 'manifest-invalid', data: { issues: ['bad'] } }],
+      },
     ]);
   });
 });

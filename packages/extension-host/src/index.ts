@@ -1,6 +1,7 @@
 export * from './catalog.ts';
 export * from './channel.ts';
 export * from './client.ts';
+export * from './diagnostics.ts';
 export * from './discover.ts';
 export * from './engine-bridge.ts';
 export * from './engine-link.ts';
@@ -20,4 +21,5 @@ export * from './restricted-child.ts';
 export * from './restricted-protocol.ts';
 export * from './restricted-runner.ts';
 export * from './runtime.ts';
+export * from './scheduler.ts';
 export * from './state.ts';

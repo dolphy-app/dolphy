@@ -3,7 +3,7 @@ import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseIndex } from '@dolphy-app/extension-catalog';
 import { describe, expect, it } from 'vitest';
-import { buildCatalog } from '../src/catalog/build.ts';
+import { buildCatalog, reindexCatalog } from '../src/catalog/build.ts';
 import type { BuildCatalogOptions } from '../src/catalog/build.ts';
 import { BuildError } from '../src/errors.ts';
 import { createRepo, readJson, setVersion } from './catalog-helpers.ts';
@@ -53,7 +53,6 @@ describe('catalog build: publishing a version', () => {
         status: 'published',
         files: 2,
         bytes: expect.any(Number),
-        inLegacyIndex: true,
       },
     ]);
     const versionDir = path.join(out, 'extensions', NIGHT, '1.0.0');
@@ -98,11 +97,11 @@ describe('catalog build: publishing a version', () => {
     );
   });
 
-  it('index.json file: two spaces, trailing newline, stable key order', async () => {
+  it('index.v2.json file: two spaces, trailing newline, stable key order', async () => {
     const repo = await createRepo([{ fixture: 'theme-only' }]);
     const out = await makeTemp();
     await publish(repo, out, [NIGHT]);
-    const text = await readFile(path.join(out, 'index.json'), 'utf8');
+    const text = await readFile(path.join(out, 'index.v2.json'), 'utf8');
     expect(text.endsWith('}\n')).toBe(true);
     const parsed = JSON.parse(text);
     expect(text).toBe(`${JSON.stringify(parsed, null, 2)}\n`);
@@ -154,6 +153,38 @@ describe('catalog build: publishing a version', () => {
     expect(index.extensions[0]?.contributes.markdownRenderers).toEqual([
       'chart',
     ]);
+  });
+
+  it('R8 version files carry no source maps', async () => {
+    const repo = await createRepo([
+      { fixture: 'hello' },
+      { fixture: 'commands-panel' },
+      { fixture: 'markdown-only' },
+    ]);
+    const out = await makeTemp();
+    const ids = ['acme.hello', 'acme.commands-panel', 'acme.chart'];
+    await publish(repo, out, ids);
+    const index = await indexOf(out);
+    const scripts: string[] = [];
+    for (const entry of index.extensions) {
+      const version = entry.versions[0];
+      for (const file of version?.files ?? []) {
+        if (!file.path.endsWith('.mjs')) continue;
+        scripts.push(file.path);
+        const text = await readFile(
+          path.join(
+            out,
+            'extensions',
+            entry.id,
+            version?.version ?? '',
+            file.path,
+          ),
+          'utf8',
+        );
+        expect(text).not.toContain('sourceMappingURL');
+      }
+    }
+    expect(scripts.length).toBeGreaterThanOrEqual(4);
   });
 });
 
@@ -237,6 +268,26 @@ describe('catalog build: commands and panels', () => {
     expect(paths).toContain('main.mjs');
   });
 
+  it('writes widget ids and titles into the index entry', async () => {
+    const repo = await createRepo([{ fixture: 'surfaces' }]);
+    const out = await makeTemp();
+    await publish(repo, out, ['acme.surfaces']);
+    const [entry] = (await indexOf(out)).extensions;
+    expect(entry?.contributes.widgets).toEqual([
+      'acme.surfaces.card',
+      'acme.surfaces.gauge',
+      'acme.surfaces.badge',
+    ]);
+    expect(entry?.titles?.widgets).toEqual({
+      'acme.surfaces.card': 'Card',
+      'acme.surfaces.gauge': 'Gauge',
+      'acme.surfaces.badge': 'Badge',
+    });
+    const paths = entry?.versions[0]?.files.map((file) => file.path);
+    expect(paths).toContain('widget.mjs');
+    expect(paths).toContain('ui/gauge.js');
+  });
+
   it('without commands and panels the entry has no keys', async () => {
     const repo = await createRepo([{ fixture: 'hello' }]);
     const out = await makeTemp();
@@ -247,6 +298,94 @@ describe('catalog build: commands and panels', () => {
     const keys = Object.keys(raw.extensions[0]?.contributes ?? {});
     expect(keys).not.toContain('commands');
     expect(keys).not.toContain('panels');
+    expect(keys).not.toContain('widgets');
+  });
+});
+
+describe('catalog build: importers and exporters', () => {
+  const contributes = {
+    commands: [{ id: 'acme.commands-panel.open', title: 'Open panel' }],
+    panels: [{ id: 'acme.commands-panel.main', title: 'Acme panel' }],
+    importers: [
+      {
+        id: 'acme.commands-panel.csv',
+        title: 'CSV course',
+        accept: ['.csv'],
+      },
+    ],
+    exporters: [
+      {
+        id: 'acme.commands-panel.out',
+        title: 'Course as CSV',
+        scope: 'course',
+      },
+    ],
+  };
+
+  it('writes importer and exporter ids and titles into the index entry', async () => {
+    const repo = await createRepo([
+      { fixture: 'commands-panel', manifest: { contributes } },
+    ]);
+    const out = await makeTemp();
+    await publish(repo, out, ['acme.commands-panel']);
+    const [entry] = (await indexOf(out)).extensions;
+    expect(entry?.contributes.importers).toEqual(['acme.commands-panel.csv']);
+    expect(entry?.contributes.exporters).toEqual(['acme.commands-panel.out']);
+    expect(entry?.titles?.importers).toEqual({
+      'acme.commands-panel.csv': 'CSV course',
+    });
+    expect(entry?.titles?.exporters).toEqual({
+      'acme.commands-panel.out': 'Course as CSV',
+    });
+  });
+
+  it('without them the entry has no keys', async () => {
+    const repo = await createRepo([{ fixture: 'commands-panel' }]);
+    const out = await makeTemp();
+    await publish(repo, out, ['acme.commands-panel']);
+    const raw = (await readJson(path.join(out, 'index.v2.json'))) as {
+      extensions: { contributes: Record<string, unknown> }[];
+    };
+    const keys = Object.keys(raw.extensions[0]?.contributes ?? {});
+    expect(keys).not.toContain('importers');
+    expect(keys).not.toContain('exporters');
+  });
+});
+
+describe('catalog build: schedules', () => {
+  const contributes = {
+    commands: [{ id: 'acme.commands-panel.open', title: 'Open panel' }],
+    panels: [{ id: 'acme.commands-panel.main', title: 'Acme panel' }],
+    schedules: [
+      { id: 'acme.commands-panel.morning', every: 'daily', at: '08:30' },
+      { id: 'acme.commands-panel.tick', every: 'hourly' },
+    ],
+  };
+
+  it('writes schedule ids (no titles) into the index entry', async () => {
+    const repo = await createRepo([
+      { fixture: 'commands-panel', manifest: { contributes } },
+    ]);
+    const out = await makeTemp();
+    await publish(repo, out, ['acme.commands-panel']);
+    const [entry] = (await indexOf(out)).extensions;
+    expect(entry?.contributes.schedules).toEqual([
+      'acme.commands-panel.morning',
+      'acme.commands-panel.tick',
+    ]);
+    expect(entry?.titles ?? {}).not.toHaveProperty('schedules');
+  });
+
+  it('without them the entry has no key', async () => {
+    const repo = await createRepo([{ fixture: 'commands-panel' }]);
+    const out = await makeTemp();
+    await publish(repo, out, ['acme.commands-panel']);
+    const raw = (await readJson(path.join(out, 'index.v2.json'))) as {
+      extensions: { contributes: Record<string, unknown> }[];
+    };
+    expect(Object.keys(raw.extensions[0]?.contributes ?? {})).not.toContain(
+      'schedules',
+    );
   });
 });
 
@@ -269,7 +408,7 @@ describe('catalog build: version immutability', () => {
     const repo = await createRepo([{ fixture: 'theme-only' }]);
     const out = await makeTemp();
     await publish(repo, out, [NIGHT]);
-    const indexBefore = await readFile(path.join(out, 'index.json'), 'utf8');
+    const indexBefore = await readFile(path.join(out, 'index.v2.json'), 'utf8');
     const manifestBefore = await readFile(
       path.join(out, 'extensions', NIGHT, '1.0.0', 'extension.json'),
       'utf8',
@@ -278,7 +417,7 @@ describe('catalog build: version immutability', () => {
     await expect(publish(repo, out, [NIGHT])).rejects.toThrow(
       /already published with different content/,
     );
-    expect(await readFile(path.join(out, 'index.json'), 'utf8')).toBe(
+    expect(await readFile(path.join(out, 'index.v2.json'), 'utf8')).toBe(
       indexBefore,
     );
     expect(
@@ -297,10 +436,10 @@ describe('catalog build: version immutability', () => {
     const second = await makeTemp();
     await expect(
       publish(repo, second, [NIGHT], {
-        previousIndex: path.join(first, 'index.json'),
+        previousIndex: path.join(first, 'index.v2.json'),
       }),
     ).rejects.toBeInstanceOf(BuildError);
-    await expect(stat(path.join(second, 'index.json'))).rejects.toThrow();
+    await expect(stat(path.join(second, 'index.v2.json'))).rejects.toThrow();
   });
 
   it('a missing version directory is restored when it matches the index entry', async () => {
@@ -309,7 +448,7 @@ describe('catalog build: version immutability', () => {
     await publish(repo, first, [NIGHT]);
     const second = await makeTemp();
     const results = await publish(repo, second, [NIGHT], {
-      previousIndex: path.join(first, 'index.json'),
+      previousIndex: path.join(first, 'index.v2.json'),
     });
     expect(results[0]?.status).toBe('published');
     expect(await listFiles(path.join(second, 'extensions', NIGHT))).toEqual([
@@ -344,7 +483,7 @@ describe('catalog build: index merge', () => {
     await publish(repo, previous, [NIGHT]);
     const out = await makeTemp();
     await publish(repo, out, ['acme.chart'], {
-      previousIndex: path.join(previous, 'index.json'),
+      previousIndex: path.join(previous, 'index.v2.json'),
     });
     const ids = (await indexOf(out)).extensions.map((entry) => entry.id);
     expect(ids).toEqual(['acme.chart', NIGHT]);
@@ -404,6 +543,164 @@ describe('catalog build: index merge', () => {
   });
 });
 
+describe('catalog build: CHANGELOG.md', () => {
+  it('is copied into the version and listed in files with size and sha256; optional', async () => {
+    const changelog = '# Changelog\n\n## 1.0.0\n\n- first\n';
+    const repo = await createRepo([
+      { fixture: 'theme-only', files: { 'CHANGELOG.md': changelog } },
+    ]);
+    const out = await makeTemp();
+    await publish(repo, out, [NIGHT]);
+    const file = path.join(out, 'extensions', NIGHT, '1.0.0', 'CHANGELOG.md');
+    expect(await readFile(file, 'utf8')).toBe(changelog);
+    const listed = (await indexOf(out)).extensions[0]?.versions[0]?.files.find(
+      (item) => item.path === 'CHANGELOG.md',
+    );
+    expect(listed).toEqual({
+      path: 'CHANGELOG.md',
+      size: Buffer.byteLength(changelog),
+      sha256: await sha256(file),
+    });
+    const plain = await createRepo([{ fixture: 'theme-only' }]);
+    const plainOut = await makeTemp();
+    await publish(plain, plainOut, [NIGHT]);
+    expect(
+      await listFiles(path.join(plainOut, 'extensions', NIGHT, '1.0.0')),
+    ).not.toContain('CHANGELOG.md');
+  });
+
+  it('a CHANGELOG.md over 64 KiB or with NUL is refused, nothing is written', async () => {
+    for (const content of ['x'.repeat(64 * 1024 + 1), 'a\u0000b']) {
+      const repo = await createRepo([
+        { fixture: 'theme-only', files: { 'CHANGELOG.md': content } },
+      ]);
+      const out = await makeTemp();
+      await expect(publish(repo, out, [NIGHT])).rejects.toThrow(/CHANGELOG.md/);
+      expect(await readdir(out)).toEqual([]);
+    }
+  });
+});
+
+describe('catalog build: deprecated', () => {
+  const writeList = async (value: unknown): Promise<string> => {
+    const file = path.join(await makeTemp(), 'deprecated.json');
+    await writeFile(file, JSON.stringify(value));
+    return file;
+  };
+
+  it('writes deprecated into the entry, keeps it on rebuild, removes it when the file drops the entry', async () => {
+    const repo = await createRepo([
+      { fixture: 'theme-only' },
+      { fixture: 'markdown-only' },
+    ]);
+    const out = await makeTemp();
+    const list = await writeList([
+      {
+        id: NIGHT,
+        versions: '<2.0.0',
+        reason: 'Replaced',
+        alternatives: ['acme.chart'],
+      },
+      { id: 'acme.chart', reason: 'Gone', alternatives: [] },
+    ]);
+    await publish(repo, out, [NIGHT, 'acme.chart'], { deprecated: list });
+    const entries = (await indexOf(out)).extensions;
+    expect(entries.find((e) => e.id === NIGHT)?.deprecated).toEqual({
+      versions: '<2.0.0',
+      reason: 'Replaced',
+      alternatives: ['acme.chart'],
+    });
+    expect(entries.find((e) => e.id === 'acme.chart')?.deprecated).toEqual({
+      versions: null,
+      reason: 'Gone',
+      alternatives: [],
+    });
+
+    // a new version without the flag keeps the deprecation
+    await setVersion(repo, NIGHT, '1.0.1');
+    await publish(repo, out, [NIGHT]);
+    expect(
+      (await indexOf(out)).extensions.find((e) => e.id === NIGHT)?.deprecated
+        ?.reason,
+    ).toBe('Replaced');
+
+    // --reindex applies the file without rebuilding; entries missing from it lose the key
+    const reduced = await writeList([
+      { id: NIGHT, reason: 'Still replaced', alternatives: [] },
+    ]);
+    const result = await reindexCatalog({
+      out,
+      deprecated: reduced,
+      now: () => NOW,
+    });
+    expect(result.changed).toBe(true);
+    const after = (await indexOf(out)).extensions;
+    expect(after.find((e) => e.id === NIGHT)?.deprecated?.reason).toBe(
+      'Still replaced',
+    );
+    expect(after.find((e) => e.id === 'acme.chart')).not.toHaveProperty(
+      'deprecated',
+    );
+
+    await reindexCatalog({
+      out,
+      deprecated: await writeList([]),
+      now: () => NOW,
+    });
+    expect(
+      (await indexOf(out)).extensions.every((e) => e.deprecated === undefined),
+    ).toBe(true);
+  });
+
+  it('every kind of error fails the build and writes nothing', async () => {
+    const repo = await createRepo([{ fixture: 'theme-only' }]);
+    const base = await createRepo([{ fixture: 'markdown-only' }]);
+    const out = await makeTemp();
+    await publish(base, out, ['acme.chart']);
+    const before = await readFile(path.join(out, 'index.v2.json'), 'utf8');
+    const cases: [unknown, RegExp][] = [
+      [
+        [
+          { id: NIGHT, reason: 'a', alternatives: [] },
+          { id: NIGHT, reason: 'b', alternatives: [] },
+        ],
+        /duplicate id/,
+      ],
+      [
+        [{ id: 'acme.nowhere', reason: 'a', alternatives: [] }],
+        /not in the index/,
+      ],
+      [
+        [{ id: NIGHT, reason: 'a', alternatives: ['acme.nowhere'] }],
+        /alternative 'acme.nowhere'/,
+      ],
+      [
+        [{ id: NIGHT, versions: 'garbage', reason: 'a', alternatives: [] }],
+        /invalid version range/,
+      ],
+      [
+        [{ id: NIGHT, reason: '', alternatives: [] }],
+        /deprecated list is invalid/,
+      ],
+      [{ id: NIGHT }, /deprecated list is invalid/],
+    ];
+    for (const [value, message] of cases) {
+      await expect(
+        publish(repo, out, [NIGHT], { deprecated: await writeList(value) }),
+      ).rejects.toThrow(message);
+      expect(await readFile(path.join(out, 'index.v2.json'), 'utf8')).toBe(
+        before,
+      );
+      expect(await readdir(path.join(out, 'extensions'))).toEqual([
+        'acme.chart',
+      ]);
+    }
+    await expect(
+      publish(repo, out, [NIGHT], { deprecated: path.join(out, 'nope.json') }),
+    ).rejects.toThrow(/unreadable/);
+  });
+});
+
 describe('catalog build: failures write nothing', () => {
   it('an invalid result (publishedAt) leaves the previous index and directories untouched', async () => {
     const repo = await createRepo([
@@ -412,11 +709,13 @@ describe('catalog build: failures write nothing', () => {
     ]);
     const out = await makeTemp();
     await publish(repo, out, [NIGHT]);
-    const before = await readFile(path.join(out, 'index.json'), 'utf8');
+    const before = await readFile(path.join(out, 'index.v2.json'), 'utf8');
     await expect(
       publish(repo, out, ['acme.chart'], { publishedAt: 'yesterday' }),
     ).rejects.toThrow(/resulting index is invalid/);
-    expect(await readFile(path.join(out, 'index.json'), 'utf8')).toBe(before);
+    expect(await readFile(path.join(out, 'index.v2.json'), 'utf8')).toBe(
+      before,
+    );
     expect(await readdir(path.join(out, 'extensions'))).toEqual([NIGHT]);
   });
 
@@ -436,7 +735,7 @@ describe('catalog build: failures write nothing', () => {
     const repo = await createRepo([{ fixture: 'theme-only' }]);
     const out = await makeTemp();
     await mkdir(out, { recursive: true });
-    await writeFile(path.join(out, 'index.json'), '{"schemaVersion":7}');
+    await writeFile(path.join(out, 'index.v2.json'), '{"schemaVersion":7}');
     await expect(publish(repo, out, [NIGHT])).rejects.toThrow(
       /not a valid catalog index/,
     );
@@ -474,6 +773,35 @@ describe('catalog build: failures write nothing', () => {
     ]);
     await expect(publish(repo, await makeTemp(), [NIGHT])).rejects.toThrow(
       /lacks publication metadata: author/,
+    );
+  });
+});
+
+describe('catalog build: dependencies', () => {
+  const dependencies = [
+    { id: 'acme.base', range: '>=1.0.0 <2.0.0' },
+    { id: 'acme.helper' },
+  ];
+
+  it('writes the manifest dependencies into the version record, ranges only where given', async () => {
+    const repo = await createRepo([
+      { fixture: 'commands-panel', manifest: { dependencies } },
+    ]);
+    const out = await makeTemp();
+    await publish(repo, out, ['acme.commands-panel']);
+    const [entry] = (await indexOf(out)).extensions;
+    expect(entry?.versions[0]?.dependencies).toEqual(dependencies);
+  });
+
+  it('a version without dependencies has no key', async () => {
+    const repo = await createRepo([{ fixture: 'commands-panel' }]);
+    const out = await makeTemp();
+    await publish(repo, out, ['acme.commands-panel']);
+    const raw = (await readJson(path.join(out, 'index.v2.json'))) as {
+      extensions: { versions: Record<string, unknown>[] }[];
+    };
+    expect(Object.keys(raw.extensions[0]?.versions[0] ?? {})).not.toContain(
+      'dependencies',
     );
   });
 });

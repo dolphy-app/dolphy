@@ -19,11 +19,15 @@
     "@dolphy-app/extension-api": "workspace:*",
     "@dolphy-app/extension-catalog": "workspace:*",
     "@dolphy-app/extension-host": "workspace:*",
+    "magic-string": "^0.30.21",
     "vite": "^8.0.16"
   },
   "devDependencies": {
+    "@dolphy-app/engine": "workspace:*",
     "@dolphy-app/extension-install": "workspace:*",
+    "@jridgewell/trace-mapping": "0.3.31",
     "@types/node": "^22.20.4",
+    "ajv": "^8",
     "typescript": "7.0.2"
   },
   "engines": {

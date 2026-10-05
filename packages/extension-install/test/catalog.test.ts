@@ -149,7 +149,7 @@ describe('catalog: статусы записей', () => {
 });
 
 describe('catalog: сводка вклада в DTO', () => {
-  it('commands и panels копируются в contributes, по умолчанию []', async () => {
+  it('commands, panels, widgets и schedules копируются в contributes, по умолчанию []', async () => {
     serveIndex(env.routes, [
       {
         id: 'acme.cmds',
@@ -158,6 +158,10 @@ describe('catalog: сводка вклада в DTO', () => {
           ...contributesOf([]),
           commands: ['acme.cmds.open'],
           panels: ['acme.cmds.main'],
+          widgets: ['acme.cmds.card'],
+          schedules: ['acme.cmds.daily'],
+          importers: ['acme.cmds.csv'],
+          exporters: ['acme.cmds.out'],
         },
       },
       { id: 'acme.plain', version: '1.0.0' },
@@ -167,10 +171,18 @@ describe('catalog: сводка вклада в DTO', () => {
     expect(byId['acme.cmds']?.contributes).toMatchObject({
       commands: ['acme.cmds.open'],
       panels: ['acme.cmds.main'],
+      widgets: ['acme.cmds.card'],
+      schedules: ['acme.cmds.daily'],
+      importers: ['acme.cmds.csv'],
+      exporters: ['acme.cmds.out'],
     });
     expect(byId['acme.plain']?.contributes).toMatchObject({
       commands: [],
       panels: [],
+      widgets: [],
+      schedules: [],
+      importers: [],
+      exporters: [],
     });
   });
 });
@@ -180,9 +192,9 @@ describe('catalog: кэш и сеть', () => {
     serveIndex(env.routes, [{ id: 'acme.echo', version: '1.0.0' }]);
     await env.installer.catalog();
     await env.installer.catalog();
-    expect(callsTo(env.fake.calls, CATALOG_URL)).toHaveLength(1);
+    expect(callsTo(env.fake.calls, FULL_INDEX_URL)).toHaveLength(1);
     await env.installer.catalog({ refresh: true });
-    expect(callsTo(env.fake.calls, CATALOG_URL)).toHaveLength(2);
+    expect(callsTo(env.fake.calls, FULL_INDEX_URL)).toHaveLength(2);
   });
 
   it('запрос идёт с User-Agent версии приложения', async () => {
@@ -204,26 +216,25 @@ describe('catalog: кэш и сеть', () => {
     env.clock.advance(11 * 60_000);
     const second = await env.installer.catalog();
     expect(
-      callsTo(env.fake.calls, CATALOG_URL)[1]?.headers['If-None-Match'],
+      callsTo(env.fake.calls, FULL_INDEX_URL)[1]?.headers['If-None-Match'],
     ).toBe('"v1"');
     expect(second.entries).toEqual(first.entries);
     expect(second).toMatchObject({ stale: false, error: null });
     expect(second.fetchedAt).toBe(new Date(env.clock.now()).toISOString());
     const meta = JSON.parse(
       await readFile(path.join(env.dir, '.catalog', 'meta.json'), 'utf8'),
-    ) as { etag: string; fetchedAt: string; url: string; kind: string };
+    ) as { etag: string; fetchedAt: string; url: string };
     expect(meta).toEqual({
       etag: '"v1"',
       fetchedAt: new Date(env.clock.now()).toISOString(),
       url: CATALOG_URL,
-      kind: 'legacy',
     });
   });
 
   it('нет сети: последний кэш со stale и причиной', async () => {
     serveIndex(env.routes, [{ id: 'acme.echo', version: '1.0.0' }]);
     await env.installer.catalog();
-    env.routes.set(CATALOG_URL, { fail: true });
+    env.routes.set(FULL_INDEX_URL, { fail: true });
     const catalog = await env.installer.catalog({ refresh: true });
     expect(catalog.entries).toHaveLength(1);
     expect(catalog.stale).toBe(true);
@@ -234,7 +245,7 @@ describe('catalog: кэш и сеть', () => {
   it('после перезапуска кэш читается с диска и работает офлайн', async () => {
     serveIndex(env.routes, [{ id: 'acme.echo', version: '1.0.0' }]);
     await env.installer.catalog();
-    env.routes.set(CATALOG_URL, { fail: true });
+    env.routes.set(FULL_INDEX_URL, { fail: true });
     env.clock.advance(60 * 60_000);
     const restarted = env.restart();
     await restarted.ready();
@@ -247,11 +258,11 @@ describe('catalog: кэш и сеть', () => {
   it.each([
     ['HTTP 500', { status: 500, body: 'oops' }, 'HTTP 500'],
     ['не JSON', { body: '<html>' }, 'not valid JSON'],
-    ['индекс не по схеме', { body: '{"schemaVersion":2}' }, 'invalid catalog'],
+    ['индекс не по схеме', { body: '{"schemaVersion":3}' }, 'invalid catalog'],
   ])('%s: кэш остаётся, причина в error', async (_name, route, fragment) => {
     serveIndex(env.routes, [{ id: 'acme.echo', version: '1.0.0' }]);
     await env.installer.catalog();
-    env.routes.set(CATALOG_URL, route);
+    env.routes.set(FULL_INDEX_URL, route);
     const catalog = await env.installer.catalog({ refresh: true });
     expect(catalog.stale).toBe(true);
     expect(catalog.error).toContain(fragment);
@@ -272,7 +283,7 @@ describe('catalog: кэш и сеть', () => {
 
   it('повреждённый кэш игнорируется с предупреждением', async () => {
     await mkdir(path.join(env.dir, '.catalog'), { recursive: true });
-    await writeFile(path.join(env.dir, '.catalog', 'index.json'), '{broken');
+    await writeFile(path.join(env.dir, '.catalog', 'index.v2.json'), '{broken');
     await writeFile(
       path.join(env.dir, '.catalog', 'meta.json'),
       JSON.stringify({
@@ -288,13 +299,13 @@ describe('catalog: кэш и сеть', () => {
       expect.stringContaining('catalog cache ignored'),
     );
     expect((await env.installer.catalog()).entries).toHaveLength(1);
-    expect(callsTo(env.fake.calls, CATALOG_URL)).toHaveLength(1);
+    expect(callsTo(env.fake.calls, FULL_INDEX_URL)).toHaveLength(1);
   });
 
   it('кэш другого адреса каталога не используется', async () => {
     serveIndex(env.routes, [{ id: 'acme.echo', version: '1.0.0' }]);
     await env.installer.catalog();
-    env.routes.set(CATALOG_URL, { fail: true });
+    env.routes.set(FULL_INDEX_URL, { fail: true });
     const other = env.restart({ catalogUrl: 'https://other.test/index.json' });
     const error = await errorOf(other.catalog());
     expect(error).toBeInstanceOf(ExtensionInstallError);
@@ -302,7 +313,7 @@ describe('catalog: кэш и сеть', () => {
   });
 
   it('нет кэша и нет сети: catalog-unavailable', async () => {
-    env.routes.set(CATALOG_URL, { fail: true });
+    env.routes.set(FULL_INDEX_URL, { fail: true });
     const error = await errorOf(env.installer.catalog());
     expect(error).toMatchObject({
       name: 'ExtensionInstallError',
@@ -312,25 +323,21 @@ describe('catalog: кэш и сеть', () => {
   });
 
   it('индекс не по схеме без кэша: catalog-unavailable', async () => {
-    env.routes.set(CATALOG_URL, {
-      body: rawIndex([]).replace('"schemaVersion":1', '"schemaVersion":7'),
+    env.routes.set(FULL_INDEX_URL, {
+      body: rawIndex([]).replace('"schemaVersion":2', '"schemaVersion":7'),
     });
     const error = await errorOf(env.installer.catalog());
     expect(error).toMatchObject({ cause: 'catalog-unavailable' });
   });
 
   it('запросы только на origin каталога: редирект на чужой origin отклонён', async () => {
-    env.routes.set(CATALOG_URL, {
+    env.routes.set(FULL_INDEX_URL, {
       status: 302,
       headers: { location: 'https://evil.test/index.json' },
     });
     const error = await errorOf(env.installer.catalog());
     expect(error).toMatchObject({ cause: 'catalog-unavailable' });
-    // a server without index.v2.json answers 404, then index.json is requested
-    expect(env.fake.calls.map((c) => c.url)).toEqual([
-      FULL_INDEX_URL,
-      CATALOG_URL,
-    ]);
+    expect(env.fake.calls.map((c) => c.url)).toEqual([FULL_INDEX_URL]);
   });
 
   it('checkForUpdates не бросает при сбое сети и возвращает число обновлений', async () => {
@@ -339,12 +346,34 @@ describe('catalog: кэш и сеть', () => {
     ]);
     await installFake(env.dir, 'acme.echo', '1.0.0');
     expect(await env.installer.checkForUpdates()).toBe(1);
-    env.routes.set(CATALOG_URL, { fail: true });
+    env.routes.set(FULL_INDEX_URL, { fail: true });
     expect(await env.installer.checkForUpdates()).toBe(1);
     const cold = await createEnv();
-    cold.routes.set(CATALOG_URL, { fail: true });
+    cold.routes.set(FULL_INDEX_URL, { fail: true });
     expect(await cold.installer.checkForUpdates()).toBe(0);
     expect(cold.logger.warn).toHaveBeenCalled();
     await cold.cleanup();
+  });
+});
+
+describe('catalog: dependencies of the shown version', () => {
+  it('latest and every listed version carry their dependencies, none by default', async () => {
+    serveIndex(env.routes, [
+      {
+        id: 'acme.needy',
+        version: '1.1.0',
+        versions: ['1.1.0', '1.0.0'],
+        dependencies: [{ id: 'acme.base', range: '>=1.0.0' }, { id: 'acme.x' }],
+      },
+      { id: 'acme.plain', version: '1.0.0' },
+    ]);
+    const { entries } = await env.installer.catalog();
+    const byId = Object.fromEntries(entries.map((e) => [e.id, e]));
+    expect(byId['acme.needy']?.latest?.dependencies).toEqual([
+      { id: 'acme.base', range: '>=1.0.0' },
+      { id: 'acme.x', range: null },
+    ]);
+    expect(byId['acme.needy']?.versions[1]?.dependencies).toHaveLength(2);
+    expect(byId['acme.plain']?.latest?.dependencies).toEqual([]);
   });
 });

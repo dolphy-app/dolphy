@@ -24,7 +24,12 @@ const dto = (
   gradePolicies: [],
   settings: [],
   commands: [],
+  widgets: [],
+  schedules: [],
   panels: [],
+  importers: [],
+  exporters: [],
+  messages: {},
 });
 
 interface Call {
@@ -164,12 +169,17 @@ describe('createContributionsStore: команды и панели', () => {
     description: null,
     category: null,
     keybinding: null,
+    keybindings: [],
+    when: null,
     palette: true,
+    icon: 'puzzle',
   });
   const panel = (id: string, revision: string) => ({
     id,
     extensionId: 'acme.cmd',
     title: id,
+    icon: 'puzzle',
+    when: null,
     rendererUrl: 'dolphy-ext://acme.cmd/panel.mjs',
     isolated: true,
     origin: 'user' as const,

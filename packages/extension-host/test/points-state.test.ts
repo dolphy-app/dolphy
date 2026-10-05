@@ -1,3 +1,4 @@
+import { formatDiagnostic } from '../src/diagnostics.ts';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -37,7 +38,7 @@ const setting = (patch: Record<string, unknown> = {}) => ({
 const messageOf = (raw: unknown): string => {
   const parsed = parseManifest(raw);
   if (parsed.ok) throw new Error('manifest was accepted');
-  return parsed.message;
+  return formatDiagnostic(parsed.diagnostic);
 };
 
 describe('точка settings', () => {
@@ -144,9 +145,79 @@ describe('точка settings', () => {
     ['неизвестный ключ', setting({ step: 1 }), 'step'],
     [
       'неизвестный тип',
-      { id: `${ID}.x`, type: 'color', label: 'X', default: '#fff' },
+      { id: `${ID}.x`, type: 'date', label: 'X', default: '' },
       'type',
     ],
+    [
+      'default text длиннее maxLength',
+      {
+        id: `${ID}.t`,
+        type: 'text',
+        label: 'T',
+        default: 'abcdef',
+        maxLength: 5,
+      },
+      'default is longer than 5 characters',
+    ],
+    [
+      'maxLength text сверх потолка',
+      {
+        id: `${ID}.t`,
+        type: 'text',
+        label: 'T',
+        default: '',
+        maxLength: 10_001,
+      },
+      'maxLength',
+    ],
+    [
+      'цвет не #rrggbb',
+      { id: `${ID}.c`, type: 'color', label: 'C', default: '#fff' },
+      'must be #rrggbb',
+    ],
+    [
+      'default списка длиннее maxItems',
+      {
+        id: `${ID}.l`,
+        type: 'list',
+        label: 'L',
+        default: ['a', 'b', 'c'],
+        maxItems: 2,
+      },
+      'default has more than 2 items',
+    ],
+    [
+      'элемент default списка длиннее itemMaxLength',
+      {
+        id: `${ID}.l`,
+        type: 'list',
+        label: 'L',
+        default: ['abcdef'],
+        itemMaxLength: 5,
+      },
+      'default has an item longer than 5 characters',
+    ],
+    [
+      'maxItems списка сверх потолка',
+      { id: `${ID}.l`, type: 'list', label: 'L', default: [], maxItems: 51 },
+      'maxItems',
+    ],
+    [
+      'itemMaxLength списка сверх потолка',
+      {
+        id: `${ID}.l`,
+        type: 'list',
+        label: 'L',
+        default: [],
+        itemMaxLength: 201,
+      },
+      'itemMaxLength',
+    ],
+    ['пустой group', setting({ group: '' }), 'group'],
+    ['group длиннее 60', setting({ group: 'g'.repeat(61) }), 'group'],
+    ['order ниже 0', setting({ order: -1 }), 'order'],
+    ['order выше 1000', setting({ order: 1001 }), 'order'],
+    ['нецелый order', setting({ order: 1.5 }), 'order'],
     [
       'maxLength сверх потолка',
       {
@@ -160,6 +231,120 @@ describe('точка settings', () => {
     ],
   ])('отклоняет: %s', (_name, entry, fragment) => {
     expect(messageOf(manifest({ settings: [entry] }))).toContain(fragment);
+  });
+
+  describe('visibleWhen', () => {
+    const flag = {
+      id: `${ID}.flag`,
+      type: 'boolean',
+      label: 'F',
+      default: false,
+    };
+    const gated = (visibleWhen: unknown, extra: Record<string, unknown> = {}) =>
+      setting({ visibleWhen, ...extra });
+
+    it('принимает ссылку на boolean, enum, string и number того же расширения', () => {
+      const parsed = parseManifest(
+        manifest({
+          settings: [
+            flag,
+            { id: `${ID}.n`, type: 'number', label: 'N', default: 1 },
+            { id: `${ID}.s`, type: 'string', label: 'S', default: '' },
+            {
+              id: `${ID}.e`,
+              type: 'enum',
+              label: 'E',
+              default: 'a',
+              options: [{ value: 'a', label: 'A' }],
+            },
+            gated({ setting: `${ID}.flag`, equals: true }),
+            setting({
+              id: `${ID}.v2`,
+              visibleWhen: { setting: `${ID}.n`, equals: 3 },
+            }),
+            setting({
+              id: `${ID}.v3`,
+              visibleWhen: { setting: `${ID}.s`, equals: 'x' },
+            }),
+            setting({
+              id: `${ID}.v4`,
+              visibleWhen: { setting: `${ID}.e`, equals: 'a' },
+            }),
+          ],
+        }),
+      );
+      expect(parsed.ok).toBe(true);
+    });
+
+    it.each([
+      [
+        'несуществующая настройка',
+        [gated({ setting: `${ID}.ghost`, equals: true })],
+        "unknown setting 'acme.pt.ghost'",
+      ],
+      [
+        'сама на себя',
+        [gated({ setting: `${ID}.volume`, equals: 5 })],
+        'cannot depend on itself',
+      ],
+      [
+        'цикл',
+        [
+          setting({
+            id: `${ID}.a`,
+            visibleWhen: { setting: `${ID}.b`, equals: 5 },
+          }),
+          setting({
+            id: `${ID}.b`,
+            visibleWhen: { setting: `${ID}.a`, equals: 5 },
+          }),
+        ],
+        'chains and cycles are not allowed',
+      ],
+      [
+        'цепочка',
+        [
+          flag,
+          setting({
+            id: `${ID}.a`,
+            visibleWhen: { setting: `${ID}.flag`, equals: true },
+          }),
+          setting({
+            id: `${ID}.b`,
+            visibleWhen: { setting: `${ID}.a`, equals: 5 },
+          }),
+        ],
+        'chains and cycles are not allowed',
+      ],
+      [
+        'список как условие',
+        [
+          { id: `${ID}.l`, type: 'list', label: 'L', default: [] },
+          gated({ setting: `${ID}.l`, equals: 'x' }),
+        ],
+        'is a list',
+      ],
+      [
+        'equals другого типа',
+        [flag, gated({ setting: `${ID}.flag`, equals: 'yes' })],
+        'must be a boolean',
+      ],
+      [
+        'число против строки',
+        [
+          setting(),
+          gated({ setting: `${ID}.volume`, equals: '5' }, { id: `${ID}.v` }),
+        ],
+        'must be a number',
+      ],
+      [
+        'чужая настройка',
+        [gated({ setting: 'other.flag', equals: true })],
+        "unknown setting 'other.flag'",
+      ],
+    ])('отклоняет: %s', (_name, settings, fragment) => {
+      expect(messageOf(manifest({ settings }))).toContain(fragment);
+    });
   });
 
   it('отклоняет повтор id внутри манифеста', () => {
@@ -257,7 +442,10 @@ describe('обнаружение и реестр', () => {
       {
         extensionId: 'acme.b',
         origin: 'user',
-        message: "setting 'acme.b.volume' is already provided by 'acme'",
+        diagnostic: {
+          code: 'claim-clash',
+          data: { kind: 'setting', name: 'acme.b.volume', by: 'acme' },
+        },
       },
     ]);
   });
@@ -277,7 +465,15 @@ describe('обнаружение и реестр', () => {
     const discovery = createDiscoveryHolder(found);
     const policy = createExtensionPolicy(discovery);
     const registry = createExtensionRegistry(discovery, policy);
-    policy.update({ disabled: ['acme.b'], trusted: [], checkUpdates: true });
+    policy.update({
+      disabled: ['acme.b'],
+      trusted: [],
+      checkUpdates: true,
+      safeMode: false,
+      notificationsOff: [],
+      catalogUrl: null,
+      schedulesOff: [],
+    });
 
     expect(registry.contributions().settings).toEqual([
       {
@@ -286,6 +482,9 @@ describe('обнаружение и реестр', () => {
         type: 'number',
         label: 'Volume',
         description: 'How loud',
+        group: null,
+        order: 0,
+        visibleWhen: null,
         default: 5,
         min: 0,
         max: 10,
@@ -297,6 +496,9 @@ describe('обнаружение и реестр', () => {
         type: 'boolean',
         label: 'On',
         description: null,
+        group: null,
+        order: 0,
+        visibleWhen: null,
         default: false,
       },
     ]);
@@ -308,9 +510,104 @@ describe('обнаружение и реестр', () => {
     ]);
   });
 
+  it('принимает text, color и list; цвет в разрешённом виде — нижнего регистра', async () => {
+    await write('acme.rich', {
+      settings: [
+        {
+          id: 'acme.rich.note',
+          type: 'text',
+          label: 'Note',
+          default: 'a\nb',
+          maxLength: 10,
+        },
+        {
+          id: 'acme.rich.tint',
+          type: 'color',
+          label: 'Tint',
+          default: '#AaBb0C',
+        },
+        { id: 'acme.rich.tags', type: 'list', label: 'Tags', default: ['x'] },
+        {
+          id: 'acme.rich.few',
+          type: 'list',
+          label: 'Few',
+          default: [],
+          maxItems: 2,
+          itemMaxLength: 7,
+        },
+      ],
+    });
+    const found = await discoverExtensions({
+      roots: [{ dir: root, origin: 'user' }],
+      logger: createLogger(),
+    });
+    const registry = createExtensionRegistry(
+      createDiscoveryHolder(found),
+      createExtensionPolicy(createDiscoveryHolder(found)),
+    );
+    expect(
+      registry
+        .contributions()
+        .settings.map(({ id, type, default: d, ...rest }) => [
+          id,
+          type,
+          d,
+          rest,
+        ]),
+    ).toMatchObject([
+      ['acme.rich.note', 'text', 'a\nb', { maxLength: 10 }],
+      ['acme.rich.tint', 'color', '#aabb0c', {}],
+      ['acme.rich.tags', 'list', ['x'], { maxItems: 50, itemMaxLength: 200 }],
+      ['acme.rich.few', 'list', [], { maxItems: 2, itemMaxLength: 7 }],
+    ]);
+  });
+
+  it('group, order и visibleWhen доходят до окна; без них — null, 0, null', async () => {
+    await write('acme.form', {
+      settings: [
+        { id: 'acme.form.on', type: 'boolean', label: 'On', default: false },
+        {
+          id: 'acme.form.mode',
+          type: 'enum',
+          label: 'Mode',
+          default: 'a',
+          options: [{ value: 'a', label: 'A' }],
+          group: 'Advanced',
+          order: 7,
+          visibleWhen: { setting: 'acme.form.on', equals: true },
+        },
+      ],
+    });
+    const found = await discoverExtensions({
+      roots: [{ dir: root, origin: 'user' }],
+      logger: createLogger(),
+    });
+    const holder = createDiscoveryHolder(found);
+    const registry = createExtensionRegistry(
+      holder,
+      createExtensionPolicy(holder),
+    );
+    expect(
+      registry
+        .contributions()
+        .settings.map(({ group, order, visibleWhen }) => ({
+          group,
+          order,
+          visibleWhen,
+        })),
+    ).toEqual([
+      { group: null, order: 0, visibleWhen: null },
+      {
+        group: 'Advanced',
+        order: 7,
+        visibleWhen: { setting: 'acme.form.on', equals: true },
+      },
+    ]);
+  });
+
   it('contributesOf перечисляет id настроек и имена событий', () => {
     expect(contributesOf(stateful('acme.s'))).toMatchObject({
-      settings: ['acme.s.greeting', 'acme.s.limit'],
+      settings: ['acme.s.greeting', 'acme.s.limit', 'acme.s.tags'],
       events: ['attempt.closed', 'session.started'],
     });
   });

@@ -116,6 +116,11 @@ describe('staleAnswerElements (R7)', () => {
       settings: [],
       commands: [],
       panels: [],
+      widgets: [],
+      schedules: [],
+      importers: [],
+      exporters: [],
+      messages: {},
     });
     const required = useReloadRequired(contributions as ContributionsRef);
     expect(required.value).toBe(false);

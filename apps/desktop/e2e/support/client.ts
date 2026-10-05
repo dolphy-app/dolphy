@@ -1,5 +1,6 @@
 import { expect } from 'vitest';
 import type { Locator, Page } from 'playwright-core';
+import { MOD_KEY } from './keys.ts';
 
 /** Строки интерфейса (`ru`), по которым находятся элементы (i18n слайсов). */
 const RU = {
@@ -12,6 +13,8 @@ const RU = {
   giveUp: 'Сдаться',
   next: 'Далее',
   finish: 'Завершить',
+  undoAnswer: 'Отменить последний ответ',
+  redoAnswer: 'Вернуть отменённый ответ',
   toPlan: 'К плану дня',
   sessionFinished: 'Сессия завершена',
   sessionEmpty: 'Сегодня нечего проходить',
@@ -26,6 +29,8 @@ const RU = {
   extensionList: 'Установленные расширения',
   extensionEnabled: 'Включено',
   extensionTrust: 'Доверять (без изоляции)',
+  extensionNotifications: 'Уведомления',
+  extensionSchedules: 'Расписание',
   reloadWindow: 'Перезагрузить окно',
   verdictPassed: 'Верно',
   verdictFailed: 'Пока неверно',
@@ -47,6 +52,16 @@ const RU = {
 } as const;
 
 const TIMEOUT = 15_000;
+
+export type ExtensionSwitchName =
+  'enabled' | 'trusted' | 'notifications' | 'schedules';
+
+const SWITCH_LABELS: Record<ExtensionSwitchName, string> = {
+  enabled: RU.extensionEnabled,
+  trusted: RU.extensionTrust,
+  notifications: RU.extensionNotifications,
+  schedules: RU.extensionSchedules,
+};
 
 /** Рамка элемента ответа недоверенного расширения (`IsolatedFrame`, режим `answer`). */
 export const ANSWER_FRAME = 'iframe[sandbox][data-mode="answer"]';
@@ -195,9 +210,7 @@ export class Client {
     });
     const verifiable = await check.isVisible();
     if (!verifiable && !(await reveal.isVisible())) return null;
-    const prompt = this.page
-      .locator('.content-inner .text-title-large')
-      .first();
+    const prompt = this.page.locator('.content-inner .prompt-lead').first();
     const text = (await prompt.innerText()).split('\n')[0]?.trim() ?? '';
     return { prompt: text, verifiable };
   }
@@ -254,14 +267,78 @@ export class Client {
       await expect
         .poll(stage, { timeout: TIMEOUT })
         .toMatch(/^(finished|advance|next)$/);
-      const reached = await stage();
-      if (reached === 'advance') await advance.click();
+      // кнопка может исчезнуть между проверкой и кликом (экран уже сменился):
+      // клик с коротким сроком, состояние перечитывается
+      await expect
+        .poll(
+          async () => {
+            if ((await stage()) === 'advance') {
+              await advance.click({ timeout: 2_000 }).catch(() => {});
+            }
+            return stage();
+          },
+          { timeout: TIMEOUT },
+        )
+        .toMatch(/^(finished|next)$/);
       if ((await stage()) === 'finished') break;
     }
     await this.page
       .getByText(RU.sessionFinished, { exact: true })
       .waitFor({ timeout: TIMEOUT });
     return this.readSummary();
+  }
+
+  /**
+   * Записывает ответ на текущее упражнение, не дожидаясь следующего: оценка
+   * самопроверкой или, у проверяемого упражнения, «Сдаться» (оценка 1).
+   */
+  async gradeCurrent(grade: Grade) {
+    const reveal = this.page.getByRole('button', {
+      name: RU.reveal,
+      exact: true,
+    });
+    if (!(await reveal.isVisible())) {
+      await this.giveUp();
+      return;
+    }
+    await reveal.click();
+    await this.page
+      .getByRole('button', {
+        name: new RegExp(`^${grade}\\s*${RU.grades[grade]}$`),
+      })
+      .click();
+  }
+
+  /** «Отменить последний ответ»: кнопкой или сочетанием `Mod+Z`. */
+  async undoAnswer(how: 'button' | 'keyboard') {
+    if (how === 'button') {
+      await this.page
+        .getByRole('button', { name: RU.undoAnswer, exact: true })
+        .click();
+      return;
+    }
+    await this.page.keyboard.press(`${MOD_KEY}+KeyZ`);
+  }
+
+  /** «Вернуть отменённый ответ»: кнопкой или сочетанием `Mod+Shift+Z`. */
+  async redoAnswer(how: 'button' | 'keyboard') {
+    if (how === 'button') {
+      await this.page
+        .getByRole('button', { name: RU.redoAnswer, exact: true })
+        .click();
+      return;
+    }
+    await this.page.keyboard.press(`${MOD_KEY}+Shift+KeyZ`);
+  }
+
+  /** Кнопки отмены и возврата в шапке сессии доступны (не `disabled`). */
+  async answerHistory(): Promise<{ canUndo: boolean; canRedo: boolean }> {
+    const enabled = (name: string) =>
+      this.page.getByRole('button', { name, exact: true }).isEnabled();
+    return {
+      canUndo: await enabled(RU.undoAnswer),
+      canRedo: await enabled(RU.redoAnswer),
+    };
   }
 
   private async stat(label: string): Promise<string> {
@@ -371,7 +448,7 @@ export class Client {
     return rows.allInnerTexts();
   }
 
-  private extensionSwitch(id: string, which: 'enabled' | 'trusted'): Locator {
+  private extensionSwitch(id: string, which: ExtensionSwitchName): Locator {
     // переключатели есть только у строк не из поставки: id таких строк уникален
     return this.extensionList()
       .getByRole('listitem')
@@ -379,7 +456,7 @@ export class Client {
         has: this.page.getByRole('heading', { name: id, exact: true }),
       })
       .getByRole('checkbox', {
-        name: which === 'enabled' ? RU.extensionEnabled : RU.extensionTrust,
+        name: SWITCH_LABELS[which],
         exact: true,
       });
   }
@@ -398,18 +475,18 @@ export class Client {
 
   async extensionSwitchChecked(
     id: string,
-    which: 'enabled' | 'trusted',
+    which: ExtensionSwitchName,
   ): Promise<boolean> {
     return this.extensionSwitch(id, which).isChecked();
   }
 
   /**
-   * Переключает «Включено» / «Доверять» и ждёт, пока движок применит
+   * Переключает «Включено» / «Доверять» / «Уведомления» / «Расписание» и ждёт, пока движок применит
    * изменение: переключатель снова доступен. Окно не перезагружается.
    */
   async setExtensionSwitch(
     id: string,
-    which: 'enabled' | 'trusted',
+    which: ExtensionSwitchName,
     value: boolean,
   ) {
     const control = this.extensionSwitch(id, which);
@@ -513,6 +590,28 @@ export class Client {
 
   async themeTileExists(label: string): Promise<boolean> {
     return (await this.themeTile(label).count()) > 0;
+  }
+
+  /** Видимая подпись плитки, `title` и текст, на который указывает `aria-describedby`. */
+  async themeTileIdentifier(label: string) {
+    const radio = this.themeTile(label).first();
+    const tile = radio.locator('xpath=ancestor::label');
+    return {
+      title: await tile.getAttribute('title'),
+      // скрытый для глаз текст (`visually-hidden`) не видимая подпись
+      visibleText: await tile.evaluate((node) => {
+        const copy = node.cloneNode(true) as HTMLElement;
+        copy.querySelectorAll('.visually-hidden').forEach((hidden) => {
+          hidden.remove();
+        });
+        return copy.textContent ?? '';
+      }),
+      described: await radio.evaluate((node) => {
+        const id = node.getAttribute('aria-describedby');
+        const target = id === null ? null : document.getElementById(id);
+        return target?.textContent?.trim() ?? null;
+      }),
+    };
   }
 
   async selectTheme(label: string) {

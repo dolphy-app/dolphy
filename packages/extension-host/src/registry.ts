@@ -17,6 +17,10 @@ const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
   events: [],
   commands: [],
   panels: [],
+  widgets: [],
+  schedules: [],
+  importers: [],
+  exporters: [],
 };
 
 const isolationOf = (
@@ -33,22 +37,28 @@ const withoutMetadata = (
   | 'name'
   | 'description'
   | 'author'
+  | 'dependencies'
   | 'icon'
   | 'titles'
+  | 'messages'
   | 'tags'
   | 'installed'
   | 'removable'
   | 'revoked'
+  | 'deprecated'
 > => ({
   name: null,
   description: null,
   author: null,
+  dependencies: [],
   icon: null,
   titles: {},
+  messages: {},
   tags: [],
   installed: null,
   removable: origin === 'user',
   revoked: null,
+  deprecated: null,
 });
 
 /** Идентификаторы вкладов расширения в том же виде, что в записи каталога. */
@@ -63,6 +73,10 @@ export const contributesOf = (
     | 'events'
     | 'commands'
     | 'panels'
+    | 'widgets'
+    | 'schedules'
+    | 'importers'
+    | 'exporters'
   >,
 ): ExtensionInfoDto['contributes'] => ({
   exerciseTypes: extension.exerciseTypes.map(({ id }) => id),
@@ -75,13 +89,26 @@ export const contributesOf = (
   events: extension.events.map(({ event }) => event),
   commands: extension.commands.map(({ id }) => id),
   panels: extension.panels.map(({ id }) => id),
+  widgets: extension.widgets.map(({ id }) => id),
+  schedules: extension.schedules.map(({ id }) => id),
+  importers: extension.importers.map(({ id }) => id),
+  exporters: extension.exporters.map(({ id }) => id),
 });
 
 /** Названия вкладов с `label`/`title` в том же виде, что `titles` записи каталога; пустые точки опущены. */
 export const titlesOf = (
   extension: Pick<
     ResolvedExtension,
-    'themes' | 'gradePolicies' | 'settings' | 'commands' | 'panels'
+    | 'exerciseTypes'
+    | 'markdownRenderers'
+    | 'themes'
+    | 'gradePolicies'
+    | 'settings'
+    | 'commands'
+    | 'panels'
+    | 'widgets'
+    | 'importers'
+    | 'exporters'
   >,
 ): ExtensionInfoDto['titles'] => {
   const titles: ExtensionInfoDto['titles'] = {};
@@ -95,6 +122,21 @@ export const titlesOf = (
       items.map((item) => [item.id, title(item as never)]),
     );
   };
+  const titled = <T extends { title: string | null }>(items: readonly T[]) =>
+    items.filter(({ title }) => title !== null);
+  add(
+    'exerciseTypes',
+    titled(extension.exerciseTypes),
+    (item: { title: string }) => item.title,
+  );
+  add(
+    'markdownRenderers',
+    titled(extension.markdownRenderers).map((item) => ({
+      ...item,
+      id: item.language,
+    })),
+    (item: { title: string }) => item.title,
+  );
   add('themes', extension.themes, (item: { label: string }) => item.label);
   add(
     'gradePolicies',
@@ -104,6 +146,17 @@ export const titlesOf = (
   add('settings', extension.settings, (item: { label: string }) => item.label);
   add('commands', extension.commands, (item: { title: string }) => item.title);
   add('panels', extension.panels, (item: { title: string }) => item.title);
+  add('widgets', extension.widgets, (item: { title: string }) => item.title);
+  add(
+    'importers',
+    extension.importers,
+    (item: { title: string }) => item.title,
+  );
+  add(
+    'exporters',
+    extension.exporters,
+    (item: { title: string }) => item.title,
+  );
   return titles;
 };
 
@@ -113,25 +166,42 @@ const loaded = (
   revocationOf: RevocationLookup | undefined,
 ): ExtensionInfoDto => {
   const revoked = revocationReason(extension, revocationOf);
+  const issues = policy.dependencyIssues(extension.id);
+  let state: ExtensionInfoDto['state'] = 'disabled';
+  if (issues.length > 0) state = 'dependencies-unmet';
+  else if (policy.isEnabled(extension.id)) state = 'loaded';
   return {
     id: extension.id,
     version: extension.version,
     origin: extension.origin,
-    state: policy.isEnabled(extension.id) ? 'loaded' : 'disabled',
+    state,
     contributes: contributesOf(extension),
-    message: revoked,
+    diagnostics: [
+      ...(policy.safeMode() && extension.origin !== 'bundled'
+        ? [{ code: 'safe-mode' as const, data: {} }]
+        : []),
+      ...issues,
+      ...extension.warnings,
+    ],
     permissions: [...extension.permissions],
     isolation: isolationOf(extension, policy),
     toggleable: extension.origin !== 'bundled' && revoked === null,
     name: extension.name,
     description: extension.description,
     author: extension.author,
+    dependencies: extension.dependencies.map(({ id, range }) => ({
+      id,
+      range,
+    })),
     icon: extension.icon,
     titles: titlesOf(extension),
+    messages: extension.messages,
     tags: [...extension.tags],
     installed: extension.install === null ? null : { ...extension.install },
     removable: extension.origin === 'user',
     revoked,
+    // пометку «устарело» накладывает сервис `extensions.list`: реестр о каталоге знает только отзыв
+    deprecated: null,
   };
 };
 
@@ -151,20 +221,25 @@ export const createExtensionRegistry = (
       origin,
       state: 'overridden',
       contributes: NO_CONTRIBUTES,
-      message: `overridden by ${by.origin} ${by.version}`,
+      diagnostics: [
+        {
+          code: 'overridden-by',
+          data: { origin: by.origin, version: by.version },
+        },
+      ],
       permissions: [],
       isolation: origin === 'bundled' ? 'trusted' : 'isolated',
       toggleable: false,
       ...withoutMetadata(origin),
     }));
   const invalidItems = (): ExtensionInfoDto[] =>
-    discovery.get().diagnostics.map(({ extensionId, origin, message }) => ({
+    discovery.get().diagnostics.map(({ extensionId, origin, diagnostic }) => ({
       id: extensionId,
       version: null,
       origin,
       state: 'invalid',
       contributes: NO_CONTRIBUTES,
-      message,
+      diagnostics: [diagnostic],
       permissions: [],
       isolation: origin === 'bundled' ? 'trusted' : 'isolated',
       toggleable: false,
@@ -200,7 +275,8 @@ export const createExtensionRegistry = (
       ),
       markdownRenderers: enabled().flatMap((extension) =>
         extension.markdownRenderers.map((renderer) => ({
-          ...renderer,
+          language: renderer.language,
+          rendererUrl: renderer.rendererUrl,
           extensionId: extension.id,
           isolated: policy.isIsolated(extension.id),
           origin: extension.origin,
@@ -231,6 +307,34 @@ export const createExtensionRegistry = (
           origin: extension.origin,
           revision: extension.revision,
         })),
+      ),
+      // виджет, как и панель, всегда в рамке, даже у доверенного расширения
+      widgets: enabled().flatMap((extension) =>
+        extension.widgets.map((widget) => ({
+          ...widget,
+          extensionId: extension.id,
+          isolated: true,
+          origin: extension.origin,
+          revision: extension.revision,
+        })),
+      ),
+      schedules: enabled().flatMap(({ id, schedules }) =>
+        schedules.map((schedule) => ({ ...schedule, extensionId: id })),
+      ),
+      importers: enabled().flatMap(({ id, importers }) =>
+        importers.map((importer) => ({
+          ...importer,
+          accept: [...importer.accept],
+          extensionId: id,
+        })),
+      ),
+      exporters: enabled().flatMap(({ id, exporters }) =>
+        exporters.map((exporter) => ({ ...exporter, extensionId: id })),
+      ),
+      messages: Object.fromEntries(
+        enabled()
+          .filter(({ messages }) => Object.keys(messages).length > 0)
+          .map(({ id, messages }) => [id, messages]),
       ),
     }),
   };

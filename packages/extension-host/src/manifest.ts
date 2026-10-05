@@ -5,12 +5,14 @@ import {
   EXTENSION_PLATFORMS,
   EXTENSION_TAGS,
   GITHUB_LOGIN_PATTERN,
+  MAX_EXTENSION_DEPENDENCIES,
 } from '@dolphy-app/extension-api';
 import type {
   ExtensionManifest,
   ExtensionManifestInput,
 } from '@dolphy-app/extension-api';
-import { isSemver } from '@dolphy-app/extension-catalog';
+import type { ExtensionDiagnosticDto } from '@dolphy-app/engine-contract';
+import { isSemver, parseRange } from '@dolphy-app/extension-catalog';
 import { z } from 'zod';
 import { CONTRIBUTION_POINTS } from './points/index.ts';
 import { extensionId, safePath } from './points/support.ts';
@@ -34,8 +36,23 @@ const isEmpty = (contributes: unknown): boolean =>
     (point) => entriesOf(contributes, point.key).length === 0,
   );
 
+/** Диапазон версий в том же виде, что `versions` отзыва и устаревания в каталоге. */
+const versionRange = z.string().superRefine((value, ctx) => {
+  try {
+    parseRange(value);
+  } catch {
+    ctx.addIssue({
+      code: 'custom',
+      message:
+        "range must be space-separated comparators such as '>=1.2.0 <2.0.0'",
+    });
+  }
+});
+
 export const manifestSchema = z
   .strictObject({
+    /** Ссылка на JSON Schema для редактора; приложением и инструментами игнорируется. */
+    $schema: z.string().optional(),
     id: extensionId,
     version: z.string().refine(isSemver, 'version must be semver'),
     apiVersion: z.literal(EXTENSION_API_VERSION),
@@ -60,6 +77,15 @@ export const manifestSchema = z
         }),
       )
       .max(5, 'at most 5 tags')
+      .optional(),
+    dependencies: z
+      .array(
+        z.strictObject({ id: extensionId, range: versionRange.optional() }),
+      )
+      .max(
+        MAX_EXTENSION_DEPENDENCIES,
+        `at most ${MAX_EXTENSION_DEPENDENCIES} dependencies`,
+      )
       .optional(),
     contributes: contributesSchema,
   })
@@ -93,6 +119,22 @@ export const manifestSchema = z
         });
       }
     });
+    const { dependencies = [] } = manifest;
+    dependencies.forEach(({ id }, index) => {
+      if (id === manifest.id) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['dependencies', index, 'id'],
+          message: 'an extension cannot depend on itself',
+        });
+      } else if (dependencies.findIndex((item) => item.id === id) !== index) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['dependencies', index, 'id'],
+          message: `duplicate dependency '${id}'`,
+        });
+      }
+    });
     if (
       entriesOf(manifest.contributes, 'events').length > 0 &&
       !permissions.includes('learning.events')
@@ -103,6 +145,18 @@ export const manifestSchema = z
         message: "contributes.events requires the 'learning.events' permission",
       });
     }
+    entriesOf(manifest.contributes, 'exporters').forEach((entry, index) => {
+      if (
+        (entry as { scope?: unknown }).scope === 'progress' &&
+        !permissions.includes('learning.stats')
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['contributes', 'exporters', index, 'scope'],
+          message: "scope 'progress' requires the 'learning.stats' permission",
+        });
+      }
+    });
     if (isEmpty(manifest.contributes)) {
       ctx.addIssue({
         code: 'custom',
@@ -140,15 +194,19 @@ export const normalizeManifest = (
     platforms: [...(input.platforms ?? [])],
     minAppVersion: input.minAppVersion ?? null,
     tags: [...(input.tags ?? [])],
+    dependencies: (input.dependencies ?? []).map(({ id, range }) => ({
+      id,
+      range: range ?? null,
+    })),
     icon: input.icon ?? null,
     contributes: contributes as ExtensionManifest['contributes'],
   };
 };
 
-const formatIssues = (error: z.ZodError): string =>
-  error.issues
-    .map((issue) => `${issue.path.join('.') || '/'}: ${issue.message}`)
-    .join('; ');
+const zodIssues = (error: z.ZodError): string[] =>
+  error.issues.map(
+    (issue) => `${issue.path.join('.') || '/'}: ${issue.message}`,
+  );
 
 /** Сообщения о нарушениях в нормализованном манифесте. */
 const normalizedIssues = (manifest: ExtensionManifest): string[] =>
@@ -156,17 +214,36 @@ const normalizedIssues = (manifest: ExtensionManifest): string[] =>
     point.check(manifest.contributes[point.key] as never, manifest.id),
   );
 
+const invalid = (
+  issues: string[],
+): { ok: false; diagnostic: ExtensionDiagnosticDto } => ({
+  ok: false,
+  diagnostic: { code: 'manifest-invalid', data: { issues } },
+});
+
+/** Разбор манифеста; ошибка — диагностика `manifest-invalid` (текст — `formatDiagnostic`). */
 export const parseManifest = (
   raw: unknown,
 ):
   | { ok: true; manifest: ExtensionManifest }
-  | { ok: false; message: string } => {
+  | { ok: false; diagnostic: ExtensionDiagnosticDto } => {
   const parsed = manifestSchema.safeParse(raw);
-  if (!parsed.success) {
-    return { ok: false, message: formatIssues(parsed.error) };
-  }
+  if (!parsed.success) return invalid(zodIssues(parsed.error));
   const manifest = normalizeManifest(parsed.data as ExtensionManifestInput);
   const issues = normalizedIssues(manifest);
-  if (issues.length > 0) return { ok: false, message: issues.join('; ') };
+  if (issues.length > 0) return invalid(issues);
   return { ok: true, manifest };
 };
+
+/**
+ * JSON Schema (2020-12) of `extension.json` for editors. It cannot express the
+ * cross-field rules (`id` prefix, at least one contribution, the
+ * `learning.events` permission for events, per-point checks): `parseManifest`
+ * and `dolphy-ext validate` stay the source of truth.
+ */
+export const manifestJsonSchema = (): Record<string, unknown> => ({
+  ...z.toJSONSchema(manifestSchema, { io: 'input', unrepresentable: 'any' }),
+  title: 'Dolphy extension manifest',
+  description:
+    'Editor aid for extension.json. It does not express cross-field rules (id prefix, at least one contribution, the learning.events permission for events, per-point checks); `dolphy-ext validate` and the app remain the source of truth.',
+});

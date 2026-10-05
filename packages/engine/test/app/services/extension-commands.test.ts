@@ -1,6 +1,8 @@
 import { MAX_ANSWER_CHARS } from '@dolphy-app/engine-contract';
 import type {
   CommandContributionDto,
+  ExporterContributionDto,
+  ImporterContributionDto,
   CommandResultDto,
   ExtensionInfoDto,
   PanelContributionDto,
@@ -31,21 +33,28 @@ const info = (overrides: Partial<ExtensionInfoDto> = {}): ExtensionInfoDto => ({
     settings: [],
     events: [],
     commands: [`${ID}.run`],
+    widgets: [],
+    schedules: [],
     panels: [],
+    importers: [],
+    exporters: [],
   },
-  message: null,
+  diagnostics: [],
   permissions: [],
   isolation: 'isolated',
   toggleable: true,
   name: null,
   description: null,
   author: null,
+  dependencies: [],
   installed: null,
   icon: null,
   titles: {},
+  messages: {},
   tags: [],
   removable: true,
   revoked: null,
+  deprecated: null,
   ...overrides,
 });
 
@@ -56,17 +65,37 @@ const command = (id: string, extensionId = ID): CommandContributionDto => ({
   description: null,
   category: null,
   keybinding: null,
+  keybindings: [],
+  icon: 'puzzle',
   palette: true,
+  when: null,
 });
 
 const panel = (id: string, extensionId = ID): PanelContributionDto => ({
   id,
   extensionId,
   title: id,
+  icon: 'puzzle',
+  when: null,
   rendererUrl: `dolphy-ext://${extensionId}/panel.mjs`,
   isolated: true,
   origin: 'user',
   revision: 'r1',
+});
+
+const importer = (id: string, extensionId = ID): ImporterContributionDto => ({
+  id,
+  extensionId,
+  title: id,
+  accept: ['.csv'],
+  input: 'text',
+});
+
+const exporter = (id: string, extensionId = ID): ExporterContributionDto => ({
+  id,
+  extensionId,
+  title: id,
+  scope: 'course',
 });
 
 const NOTIFY: CommandResultDto = { kind: 'notify', text: 'done' };
@@ -88,6 +117,10 @@ const open = (options: OpenOptions = {}) => {
       disabled: options.disabled ?? [],
       trusted: [],
       checkUpdates: true,
+      safeMode: false,
+      notificationsOff: [],
+      catalogUrl: null,
+      schedulesOff: [],
     },
   });
   return createTestEngine({
@@ -101,7 +134,12 @@ const open = (options: OpenOptions = {}) => {
       gradePolicies: [],
       settings: [],
       commands: options.commands ?? [command(`${ID}.run`)],
+      widgets: [],
+      schedules: [],
       panels: [],
+      importers: [],
+      exporters: [],
+      messages: {},
     }),
   }).then((opened) => ({ ...opened, extensionCommands }));
 };
@@ -268,7 +306,19 @@ describe('extensions.contributions: команды и панели', () => {
           command('a.ext.z', 'a.ext'),
           command('a.ext.a', 'a.ext'),
         ],
+        widgets: [],
+        schedules: [],
         panels: [panel('b.ext.p', 'b.ext'), panel('a.ext.q', 'a.ext')],
+        importers: [
+          importer('b.ext.csv', 'b.ext'),
+          importer('a.ext.y', 'a.ext'),
+          importer('a.ext.x', 'a.ext'),
+        ],
+        exporters: [
+          exporter('b.ext.out', 'b.ext'),
+          exporter('a.ext.out', 'a.ext'),
+        ],
+        messages: {},
       }),
     });
 
@@ -280,6 +330,15 @@ describe('extensions.contributions: команды и панели', () => {
       'b.ext.z',
     ]);
     expect(result.panels.map(({ id }) => id)).toEqual(['a.ext.q', 'b.ext.p']);
+    expect(result.importers.map(({ id }) => id)).toEqual([
+      'a.ext.y',
+      'a.ext.x',
+      'b.ext.csv',
+    ]);
+    expect(result.exporters.map(({ id }) => id)).toEqual([
+      'a.ext.out',
+      'b.ext.out',
+    ]);
   });
 
   it('список расширений несёт id команд и панелей копиями', async () => {

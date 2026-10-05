@@ -64,7 +64,7 @@ const assertPlan = (
   }
 };
 
-const fileLocation = (options: DownloadOptions, file: CatalogFile): URL => {
+const fileLocation = (options: FetchOptions, file: CatalogFile): URL => {
   try {
     return versionFileUrl(options.catalogUrl, options.version, file.path);
   } catch (error) {
@@ -77,10 +77,18 @@ const fileLocation = (options: DownloadOptions, file: CatalogFile): URL => {
   }
 };
 
-const downloadFile = async (
-  options: DownloadOptions,
+export interface FetchOptions {
+  http: HttpClient;
+  catalogUrl: string;
+  extensionId: string;
+  version: CatalogVersion;
+}
+
+/** Файл версии по сети: размер и sha256 сверяются с индексом, иначе `integrity`. */
+export const fetchVerified = async (
+  options: FetchOptions,
   file: CatalogFile,
-): Promise<void> => {
+): Promise<Uint8Array> => {
   const { extensionId } = options;
   const url = fileLocation(options, file);
   const response = await options.http.get({
@@ -104,9 +112,17 @@ const downloadFile = async (
       `${file.path}: sha256 mismatch`,
     );
   }
+  return response.bytes;
+};
+
+const downloadFile = async (
+  options: DownloadOptions,
+  file: CatalogFile,
+): Promise<void> => {
+  const bytes = await fetchVerified(options, file);
   const target = path.join(options.directory, ...file.path.split('/'));
   await options.fs.mkdir(path.dirname(target));
-  await options.fs.writeFile(target, response.bytes);
+  await options.fs.writeFile(target, bytes);
 };
 
 /** Скачивает файлы версии в стейджинг, проверяя размер и sha256 каждого; origin проверяет `http`. */

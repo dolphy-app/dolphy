@@ -13,7 +13,7 @@ import {
   DEFAULT_EXTENSION_CATALOG_URL,
   createDesktopInstaller,
   createUnavailableInstaller,
-  resolveCatalogUrl,
+  envCatalogUrl,
 } from '../electron/host/installer.ts';
 
 const logger = () => ({
@@ -23,36 +23,80 @@ const logger = () => ({
   error: vi.fn(),
 });
 
-describe('resolveCatalogUrl', () => {
-  it('без настройки — официальный каталог', () => {
+const CATALOG = 'https://catalog.test/index.json';
+
+describe('envCatalogUrl', () => {
+  it('без настройки окружения — ничего', () => {
     const log = logger();
-    expect(resolveCatalogUrl(undefined, log)).toBe(
-      DEFAULT_EXTENSION_CATALOG_URL,
-    );
+    expect(envCatalogUrl(undefined, log)).toBeUndefined();
     expect(log.warn).not.toHaveBeenCalled();
   });
 
   it('принимает http(s)-адрес, в том числе локальный сервер e2e', () => {
-    const log = logger();
-    expect(resolveCatalogUrl('http://127.0.0.1:4010/index.json', log)).toBe(
+    expect(envCatalogUrl('http://127.0.0.1:4010/index.json', logger())).toBe(
       'http://127.0.0.1:4010/index.json',
     );
   });
 
   it.each(['not a url', 'file:///etc/passwd', 'ftp://host/index.json'])(
-    'адрес %s отвергается с предупреждением',
+    'адрес %s игнорируется с предупреждением',
     (bad) => {
       const log = logger();
-      expect(resolveCatalogUrl(bad, log)).toBe(DEFAULT_EXTENSION_CATALOG_URL);
+      expect(envCatalogUrl(bad, log)).toBeUndefined();
       expect(log.warn).toHaveBeenCalledOnce();
     },
   );
+});
+
+describe('адрес каталога установщика', () => {
+  const holder = () =>
+    createDiscoveryHolder({ extensions: [], overridden: [], diagnostics: [] });
+  const open = (
+    config: { extensionCatalogUrl?: string },
+    settingUrl: string | null,
+  ) =>
+    createDesktopInstaller({
+      config: { userExtensionsDir: '/nonexistent', ...config },
+      settingUrl,
+      discovery: holder(),
+      logger: logger(),
+    });
+
+  it('окружение важнее настройки, настройка важнее умолчания', () => {
+    expect(open({}, null).catalogSource()).toEqual({
+      url: DEFAULT_EXTENSION_CATALOG_URL,
+      default: DEFAULT_EXTENSION_CATALOG_URL,
+      origin: 'default',
+    });
+    expect(
+      open({}, 'https://own.test/index.json').catalogSource(),
+    ).toMatchObject({ url: 'https://own.test/index.json', origin: 'setting' });
+    expect(
+      open(
+        { extensionCatalogUrl: 'http://127.0.0.1:4010/index.json' },
+        'https://own.test/index.json',
+      ).catalogSource(),
+    ).toMatchObject({
+      url: 'http://127.0.0.1:4010/index.json',
+      origin: 'env',
+    });
+  });
+
+  it('испорченное окружение не мешает настройке', () => {
+    expect(
+      open(
+        { extensionCatalogUrl: 'nope' },
+        'https://own.test/index.json',
+      ).catalogSource(),
+    ).toMatchObject({ url: 'https://own.test/index.json', origin: 'setting' });
+  });
 });
 
 describe('установщик без пользовательского каталога', () => {
   it('каталог и установка недоступны, обновлений и отзывов нет', async () => {
     const installer = createDesktopInstaller({
       config: {},
+      settingUrl: null,
       discovery: createDiscoveryHolder({
         extensions: [],
         overridden: [],
@@ -72,7 +116,17 @@ describe('установщик без пользовательского кат�
     });
     expect(await installer.updates()).toEqual([]);
     expect(await installer.checkForUpdates()).toBe(0);
-    expect(installer.revocationOf('acme.x', '1.0.0')).toBeNull();
+    expect(installer.revocationOf('acme.x', '1.0.0', CATALOG)).toBeNull();
+    expect(installer.deprecationOf('acme.x', '1.0.0', CATALOG)).toBeNull();
+    for (const call of [
+      () => installer.docs('acme.x'),
+      () => installer.docImage('acme.x', '1.0.0', 'a.png'),
+      () => installer.versionFile('acme.x', '1.0.0', 'README.md'),
+    ]) {
+      await expect(call()).rejects.toMatchObject({
+        cause: 'catalog-unavailable',
+      });
+    }
   });
 
   it('createUnavailableInstaller — тот же набор поведения', async () => {
@@ -81,8 +135,6 @@ describe('установщик без пользовательского кат�
     });
   });
 });
-
-const CATALOG = 'https://catalog.test/index.json';
 
 const sha256 = (text: string) =>
   createHash('sha256').update(text).digest('hex');
@@ -108,7 +160,7 @@ const manifest = JSON.stringify({
 
 const indexOf = (revoked: { id: string; versions: string; reason: string }[]) =>
   JSON.stringify({
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt: '2026-10-01T12:00:00Z',
     extensions: [
       {
@@ -127,6 +179,8 @@ const indexOf = (revoked: { id: string; versions: string; reason: string }[]) =>
           events: [],
           commands: [],
           panels: [],
+          importers: [],
+          exporters: [],
         },
         versions: [
           {
@@ -161,7 +215,9 @@ describe('установка из каталога → обнаружение �
     let revoked: { id: string; versions: string; reason: string }[] = [];
     const fetchFake: typeof fetch = async (input) => {
       const url = String(input);
-      if (url === CATALOG) return new Response(indexOf(revoked));
+      if (url === 'https://catalog.test/index.v2.json') {
+        return new Response(indexOf(revoked));
+      }
       if (url.endsWith('/extension.json')) return new Response(manifest);
       return new Response('not found', { status: 404 });
     };
@@ -173,6 +229,7 @@ describe('установка из каталога → обнаружение �
     });
     const installer = createDesktopInstaller({
       config: { userExtensionsDir: dir, extensionCatalogUrl: CATALOG },
+      settingUrl: null,
       discovery,
       logger: log,
       fetch: fetchFake,
@@ -208,6 +265,7 @@ describe('установка из каталога → обнаружение �
     expect(registry.list()[0]).toMatchObject({
       state: 'loaded',
       revoked: null,
+      deprecated: null,
     });
 
     revoked = [{ id: 'acme.theme', versions: '<2.0.0', reason: 'malware' }];
@@ -215,10 +273,78 @@ describe('установка из каталога → обнаружение �
     expect(registry.list()[0]).toMatchObject({
       state: 'disabled',
       revoked: 'malware',
-      message: 'malware',
       toggleable: false,
     });
     expect(policy.isEnabled('acme.theme')).toBe(false);
     expect(registry.contributions().themes).toEqual([]);
+  });
+
+  it('после смены адреса отзыв нового каталога не отключает установленное из прежнего, а возврат адреса возвращает отзыв', async () => {
+    const OTHER = 'https://other.test/index.json';
+    let formerRevokes = false;
+    const revoke = [
+      { id: 'acme.theme', versions: '<2.0.0', reason: 'malware' },
+    ];
+    const fetchFake: typeof fetch = async (input) => {
+      const url = String(input);
+      if (url === 'https://catalog.test/index.v2.json') {
+        return new Response(indexOf(formerRevokes ? revoke : []));
+      }
+      if (url === 'https://other.test/index.v2.json') {
+        return new Response(indexOf(revoke));
+      }
+      if (
+        url ===
+        'https://catalog.test/extensions/acme.theme/1.0.0/extension.json'
+      ) {
+        return new Response(manifest);
+      }
+      return new Response('not found', { status: 404 });
+    };
+    const log = logger();
+    const discovery = createDiscoveryHolder({
+      extensions: [],
+      overridden: [],
+      diagnostics: [],
+    });
+    const installer = createDesktopInstaller({
+      config: { userExtensionsDir: dir },
+      settingUrl: CATALOG,
+      discovery,
+      logger: log,
+      fetch: fetchFake,
+    });
+    await installer.ready();
+    await installer.install('acme.theme');
+    const found = await discoverExtensions({
+      roots: [{ dir, origin: 'user' }],
+      logger: log,
+    });
+    const holder = createDiscoveryHolder(found);
+    const policy = createExtensionPolicy(holder, installer.revocationOf);
+    const registry = createExtensionRegistry(
+      holder,
+      policy,
+      installer.revocationOf,
+    );
+
+    // the other catalog revokes the same id: that is not about an install from the former one
+    await installer.useCatalog(OTHER);
+    await installer.catalog({ refresh: true });
+    expect(registry.list()[0]).toMatchObject({
+      state: 'loaded',
+      revoked: null,
+    });
+    expect(policy.isEnabled('acme.theme')).toBe(true);
+
+    // back to the former address: its revocation applies again
+    formerRevokes = true;
+    await installer.useCatalog(CATALOG);
+    await installer.catalog({ refresh: true });
+    expect(registry.list()[0]).toMatchObject({
+      state: 'disabled',
+      revoked: 'malware',
+    });
+    expect(policy.isEnabled('acme.theme')).toBe(false);
   });
 });

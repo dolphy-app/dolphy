@@ -1,6 +1,6 @@
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { parseManifest } from '@dolphy-app/extension-host';
+import { formatDiagnostic, parseManifest } from '@dolphy-app/extension-host';
 import type { ExtensionManifest } from '@dolphy-app/extension-api';
 import { BuildError } from './errors.ts';
 
@@ -20,13 +20,14 @@ export interface HostOutput {
   output: string;
 }
 
-/** Browser file: `views`, `panels` and `markdown` entries whose manifest names this file. */
+/** Browser file: `views`, `panels`, `widgets` and `markdown` entries whose manifest names this file. */
 export interface BrowserOutput {
   kind: 'browser';
   output: string;
   /** Job kinds: id and element tag. */
   views: { id: string; element: string }[];
   panels: string[];
+  widgets: string[];
   languages: string[];
 }
 
@@ -130,12 +131,14 @@ const browserOutputsOf = (manifest: ExtensionManifest): BrowserOutput[] => {
       output,
       views: [],
       panels: [],
+      widgets: [],
       languages: [],
     };
     outputs.set(output, created);
     return created;
   };
-  const { exerciseTypes, markdownRenderers, panels } = manifest.contributes;
+  const { exerciseTypes, markdownRenderers, panels, widgets } =
+    manifest.contributes;
   for (const type of exerciseTypes) {
     outputOf(type.renderer).views.push({ id: type.id, element: type.element });
   }
@@ -143,6 +146,9 @@ const browserOutputsOf = (manifest: ExtensionManifest): BrowserOutput[] => {
     outputOf(entry.renderer).languages.push(entry.language);
   }
   for (const panel of panels) outputOf(panel.module).panels.push(panel.id);
+  for (const widget of widgets) {
+    outputOf(widget.module).widgets.push(widget.id);
+  }
   return [...outputs.values()];
 };
 
@@ -173,7 +179,8 @@ export const loadProject = async (rootDir: string): Promise<Project> => {
   }
   const raw = await readJson(manifestFile, root);
   const parsed = parseManifest(raw);
-  if (!parsed.ok) throw new BuildError(parsed.message, root);
+  if (!parsed.ok)
+    throw new BuildError(formatDiagnostic(parsed.diagnostic), root);
   const { manifest } = parsed;
   const config = await readConfig(root);
 

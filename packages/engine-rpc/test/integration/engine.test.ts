@@ -7,13 +7,17 @@ import type {
   CatalogDto,
   CommandContributionDto,
   EngineEvent,
+  ExporterContributionDto,
   ExtensionInfoDto,
+  ImporterContributionDto,
   PanelContributionDto,
+  ScheduleContributionDto,
+  WidgetContributionDto,
   ExtensionSettingDefDto,
   ExtensionUpdateDto,
   SavedFilterDto,
 } from '@dolphy-app/engine-contract';
-import { createEngine } from '@dolphy-app/engine/app';
+import { createEngine, createExtensionHealth } from '@dolphy-app/engine/app';
 import {
   createMemoryEventStore,
   createMemoryExtensionDataStore,
@@ -30,7 +34,10 @@ import {
   buildLibrary,
   createFakeClock,
   createFakeExtensionCommands,
+  createFakeExtensionTransfers,
   createFakeExerciseTypes,
+  createFakeExtensionHostControl,
+  createFakeLogReader,
   createFakeExtensionInstaller,
   createFakeExtensionPolicy,
   createFakeExtensionRegistry,
@@ -81,21 +88,28 @@ const REGISTERED: ExtensionInfoDto = {
     settings: ['dolphy.sql.rows'],
     events: [],
     commands: ['dolphy.sql.stats'],
+    widgets: ['dolphy.sql.card'],
+    schedules: ['dolphy.sql.nightly'],
     panels: ['dolphy.sql.panel'],
+    importers: [],
+    exporters: [],
   },
-  message: null,
+  diagnostics: [],
   permissions: ['library.read'],
   isolation: 'trusted',
   toggleable: false,
   name: null,
   description: null,
   author: null,
+  dependencies: [],
   installed: null,
   icon: null,
   titles: {},
+  messages: {},
   tags: [],
   removable: false,
   revoked: null,
+  deprecated: null,
 };
 const USER_EXTENSION: ExtensionInfoDto = {
   ...REGISTERED,
@@ -106,13 +120,18 @@ const USER_EXTENSION: ExtensionInfoDto = {
     exerciseTypes: [],
     settings: [],
     commands: [],
+    widgets: [],
+    schedules: [],
     panels: [],
+    importers: [],
+    exporters: [],
   },
   permissions: [],
   isolation: 'isolated',
   toggleable: true,
   icon: null,
   titles: {},
+  messages: {},
   tags: [],
   removable: true,
 };
@@ -123,6 +142,9 @@ const ROWS_SETTING: ExtensionSettingDefDto = {
   type: 'number',
   label: 'Rows',
   description: null,
+  group: null,
+  order: 0,
+  visibleWhen: null,
   default: 10,
   min: 1,
   max: 100,
@@ -136,17 +158,50 @@ const STATS_COMMAND: CommandContributionDto = {
   description: null,
   category: null,
   keybinding: null,
+  keybindings: [],
+  icon: 'puzzle',
   palette: true,
+  when: "route == 'courses'",
 };
 const SQL_PANEL: PanelContributionDto = {
   id: 'dolphy.sql.panel',
   extensionId: 'dolphy.sql',
   title: 'SQL',
+  icon: 'puzzle',
+  when: null,
   rendererUrl: 'dolphy-ext://dolphy.sql/panel.mjs',
   isolated: true,
   origin: 'bundled',
   revision: '',
 };
+const SQL_SCHEDULE: ScheduleContributionDto = {
+  id: 'dolphy.sql.nightly',
+  extensionId: 'dolphy.sql',
+  every: 'daily',
+  at: '09:00',
+};
+const SQL_WIDGET: WidgetContributionDto = {
+  id: 'dolphy.sql.card',
+  extensionId: 'dolphy.sql',
+  title: 'SQL',
+  slot: 'dailyPlan',
+  minHeight: 80,
+  maxHeight: 320,
+  when: null,
+  rendererUrl: 'dolphy-ext://dolphy.sql/widget.mjs',
+  isolated: true,
+  origin: 'bundled',
+  revision: '',
+};
+
+const LOG_ENTRY = {
+  at: 1_700_000_000_000,
+  level: 'warn',
+  source: 'ext-host',
+  message: 'boom',
+  extensionId: 'acme.user',
+  details: null,
+} as const;
 
 const CATALOG: CatalogDto = {
   entries: [],
@@ -161,10 +216,25 @@ const UPDATE: ExtensionUpdateDto = {
   available: {
     version: '1.1.0',
     permissions: [],
+    dependencies: [],
     publishedAt: '2026-10-01T00:00:00.000Z',
     size: 10,
     minAppVersion: null,
   },
+};
+
+const IMPORT_BYTES: ImporterContributionDto = {
+  id: 'dolphy.sql.import',
+  extensionId: 'dolphy.sql',
+  title: 'Import',
+  accept: ['.bin'],
+  input: 'bytes',
+};
+const EXPORT_PROGRESS: ExporterContributionDto = {
+  id: 'dolphy.sql.export',
+  extensionId: 'dolphy.sql',
+  title: 'Export',
+  scope: 'progress',
 };
 
 /** Вид задания, всегда отвечающий `passed`: проверяет путь вердикта через RPC. */
@@ -206,6 +276,14 @@ const start = async () => {
           text: '42 rows',
         }),
       }),
+      extensionTransfers: createFakeExtensionTransfers({
+        exporters: {
+          'dolphy.sql/dolphy.sql.export': () => ({
+            filename: 'progress.bin',
+            bytes: new Uint8Array([1, 2, 3]),
+          }),
+        },
+      }),
       extensionRegistry: createFakeExtensionRegistry(
         [REGISTERED, USER_EXTENSION],
         {
@@ -215,15 +293,33 @@ const start = async () => {
           gradePolicies: [],
           settings: [ROWS_SETTING],
           commands: [STATS_COMMAND],
+          widgets: [SQL_WIDGET],
+          schedules: [SQL_SCHEDULE],
           panels: [SQL_PANEL],
+          importers: [IMPORT_BYTES],
+          exporters: [EXPORT_PROGRESS],
+          messages: {},
         },
       ),
       extensionPolicy: createFakeExtensionPolicy(),
+      extensionHealth: createExtensionHealth(clock),
+      extensionHostControl: createFakeExtensionHostControl(),
       extensionInstaller: createFakeExtensionInstaller({
         catalog: CATALOG,
         updates: [UPDATE],
+        handlers: {
+          docs: (_id, version) => ({
+            version: version ?? '2.0.0',
+            readme: '# New',
+            changelog: null,
+            truncated: false,
+            source: 'catalog',
+          }),
+          docImage: () => 'data:image/png;base64,AA==',
+        },
       }),
       extensionReloader: createFakeExtensionReloader(),
+      logReader: createFakeLogReader([LOG_ENTRY]),
       repositoryStore: createMemoryRepositoryStore(),
       extensionDataStore: createMemoryExtensionDataStore(),
       snapshotFetcher: offlineFetcher,
@@ -384,6 +480,16 @@ describe('rpc → dispatcher → real engine', () => {
     expect(
       await call('repositories.list', () => client.repositories.list()),
     ).toEqual([]);
+    await call('repositories.preview', () =>
+      client.repositories
+        .preview({ url: 'https://example.com/a.git' })
+        .catch((error) => {
+          expect(error).toMatchObject({
+            code: 'GIT_FETCH_FAILED',
+            details: { reason: 'network' },
+          });
+        }),
+    );
     await call('repositories.add', () =>
       client.repositories
         .add({ url: 'https://example.com/a.git' })
@@ -400,15 +506,23 @@ describe('rpc → dispatcher → real engine', () => {
       }),
     );
     await call('repositories.remove', () =>
-      client.repositories.remove('nope').catch((error) => {
-        expect(error).toMatchObject({ code: 'NOT_FOUND' });
-      }),
+      client.repositories
+        .remove('nope', { removeProgress: true })
+        .catch((error) => {
+          expect(error).toMatchObject({ code: 'NOT_FOUND' });
+        }),
     );
     expect(
       await call('repositories.cancel', () =>
         client.repositories.cancel('nope'),
       ),
     ).toBe(false);
+    // реестр пуст: проверять нечего, вызов не падает и событий не даёт
+    expect(
+      await call('repositories.checkUpdates', () =>
+        client.repositories.checkUpdates(),
+      ),
+    ).toEqual([]);
 
     const started = await call('practice.startSession', () =>
       client.practice.startSession(),
@@ -461,6 +575,16 @@ describe('rpc → dispatcher → real engine', () => {
     await call('practice.resetProgress', () =>
       client.practice.resetProgress({ unitId: 'c::l4', requestId: 'reset' }),
     );
+    expect(
+      await call('practice.undo', () =>
+        client.practice.undo({ targetId: 'r2', requestId: 'undo-r2' }),
+      ),
+    ).toEqual({ eventId: 'undo-r2', duplicate: false, changed: true });
+    expect(
+      await call('practice.redo', () =>
+        client.practice.redo({ targetId: 'r2', requestId: 'redo-r2' }),
+      ),
+    ).toEqual({ eventId: 'redo-r2', duplicate: false, changed: true });
 
     await call('curation.blacklist.list', () =>
       client.curation.blacklist.list(),
@@ -536,6 +660,14 @@ describe('rpc → dispatcher → real engine', () => {
     await call('settings.setLearning', () =>
       client.settings.setLearning({ gradePolicy: 'acme.policy' }),
     );
+    await call('settings.getKeybindings', () =>
+      client.settings.getKeybindings(),
+    );
+    await call('settings.setKeybindings', () =>
+      client.settings.setKeybindings({
+        'app:palette.open': [{ key: 'Mod+Shift+P', when: null }],
+      }),
+    );
     await call('settings.setUi', () =>
       client.settings.setUi({ theme: 'dark', locale: 'en' }),
     );
@@ -562,6 +694,16 @@ describe('rpc → dispatcher → real engine', () => {
     } else {
       called.add('placement.answer');
     }
+    expect(
+      await call('placement.undo', () =>
+        client.placement.undo(placement.sessionId),
+      ),
+    ).toMatchObject({ changed: probe !== null });
+    expect(
+      await call('placement.redo', () =>
+        client.placement.redo(placement.sessionId),
+      ),
+    ).toMatchObject({ changed: probe !== null });
     await call('placement.finish', () =>
       client.placement.finish({
         sessionId: placement.sessionId,
@@ -614,7 +756,15 @@ describe('rpc → dispatcher → real engine', () => {
       await call('extensions.getSettings', () =>
         client.extensions.getSettings(),
       ),
-    ).toEqual({ disabled: [], trusted: [], checkUpdates: true });
+    ).toEqual({
+      disabled: [],
+      trusted: [],
+      checkUpdates: true,
+      safeMode: false,
+      notificationsOff: [],
+      catalogUrl: null,
+      schedulesOff: [],
+    });
     expect(
       await call('extensions.getSettingValues', () =>
         client.extensions.getSettingValues('dolphy.sql'),
@@ -638,6 +788,7 @@ describe('rpc → dispatcher → real engine', () => {
     ).toEqual({
       storage: { keys: 0, bytes: 0 },
       settings: { keys: 1, bytes: 2 },
+      secrets: { keys: 0, bytes: 0 },
     });
     expect(
       await call('extensions.resetSettingValues', () =>
@@ -651,7 +802,15 @@ describe('rpc → dispatcher → real engine', () => {
       await call('extensions.setEnabled', () =>
         client.extensions.setEnabled('acme.user', false),
       ),
-    ).toEqual({ disabled: ['acme.user'], trusted: [], checkUpdates: true });
+    ).toEqual({
+      disabled: ['acme.user'],
+      trusted: [],
+      checkUpdates: true,
+      safeMode: false,
+      notificationsOff: [],
+      catalogUrl: null,
+      schedulesOff: [],
+    });
     expect(
       await call('extensions.setTrusted', () =>
         client.extensions.setTrusted('acme.user', true),
@@ -660,12 +819,88 @@ describe('rpc → dispatcher → real engine', () => {
       disabled: ['acme.user'],
       trusted: ['acme.user'],
       checkUpdates: true,
+      safeMode: false,
+      notificationsOff: [],
+      catalogUrl: null,
+      schedulesOff: [],
+    });
+    expect(
+      await call('extensions.setNotificationsEnabled', () =>
+        client.extensions.setNotificationsEnabled('acme.user', false),
+      ),
+    ).toEqual({
+      disabled: ['acme.user'],
+      trusted: ['acme.user'],
+      checkUpdates: true,
+      safeMode: false,
+      notificationsOff: ['acme.user'],
+      catalogUrl: null,
+      schedulesOff: [],
+    });
+    expect(
+      await call('extensions.setSchedulesEnabled', () =>
+        client.extensions.setSchedulesEnabled('acme.user', false),
+      ),
+    ).toEqual({
+      disabled: ['acme.user'],
+      trusted: ['acme.user'],
+      checkUpdates: true,
+      safeMode: false,
+      notificationsOff: ['acme.user'],
+      catalogUrl: null,
+      schedulesOff: ['acme.user'],
     });
     expect(
       await call('extensions.setCheckUpdates', () =>
         client.extensions.setCheckUpdates(false),
       ),
-    ).toMatchObject({ checkUpdates: false });
+    ).toMatchObject({ checkUpdates: false, safeMode: false });
+    expect(
+      await call('extensions.setCatalogUrl', () =>
+        client.extensions.setCatalogUrl('https://example.test/index.json'),
+      ),
+    ).toMatchObject({ catalogUrl: 'https://example.test/index.json' });
+    expect(
+      await call('extensions.catalogSource', () =>
+        client.extensions.catalogSource(),
+      ),
+    ).toMatchObject({
+      url: 'https://example.test/index.json',
+      origin: 'setting',
+    });
+    expect(
+      await call('extensions.setSafeMode', () =>
+        client.extensions.setSafeMode(true),
+      ),
+    ).toMatchObject({ safeMode: true });
+    await expect(
+      client.extensions.setSafeMode('yes' as never),
+    ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+    expect(
+      await call('extensions.diagnostics', () =>
+        client.extensions.diagnostics(),
+      ),
+    ).toEqual({
+      host: 'running',
+      safeMode: { active: true, persisted: true, forcedBy: null },
+      extensions: ['acme.user', 'dolphy.sql'].map((id) => ({
+        id,
+        failures: 0,
+        lastFailure: null,
+        lastActivationMs: null,
+        suppressedUntil: null,
+      })),
+    });
+    await call('extensions.restartHost', () => client.extensions.restartHost());
+    expect(
+      await call('extensions.readLogs', () =>
+        client.extensions.readLogs({ extensionId: 'acme.user', limit: 5 }),
+      ),
+    ).toEqual([LOG_ENTRY]);
+    await expect(
+      client.extensions.readLogs({ limit: 501 }),
+    ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+    await client.extensions.setSafeMode(false);
     expect(
       await call('extensions.catalog', () =>
         client.extensions.catalog({ refresh: true }),
@@ -683,6 +918,25 @@ describe('rpc → dispatcher → real engine', () => {
     expect(
       await call('extensions.updates', () => client.extensions.updates()),
     ).toEqual([UPDATE]);
+    expect(
+      await call('extensions.docs', () =>
+        client.extensions.docs('acme.new', { version: '2.0.0' }),
+      ),
+    ).toEqual({
+      version: '2.0.0',
+      readme: '# New',
+      changelog: null,
+      truncated: false,
+      source: 'catalog',
+    });
+    expect(
+      await call('extensions.docImage', () =>
+        client.extensions.docImage('acme.new', '2.0.0', 'docs/a.png'),
+      ),
+    ).toBe('data:image/png;base64,AA==');
+    await expect(
+      client.extensions.docImage('acme.new', '2.0.0', 'a.gif'),
+    ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
     await call('extensions.uninstall', () =>
       client.extensions.uninstall('acme.user', { removeData: true }),
     );
@@ -699,6 +953,50 @@ describe('rpc → dispatcher → real engine', () => {
       code: 'EXTENSION_COMMAND_FAILED',
       details: { reason: 'unknown-command' },
     });
+    // байты проходят структурное копирование туда и обратно
+    expect(
+      await call('extensions.runExporter', () =>
+        client.extensions.runExporter('dolphy.sql', 'dolphy.sql.export', {
+          scope: 'progress',
+        }),
+      ),
+    ).toEqual({ filename: 'progress.bin', bytes: new Uint8Array([1, 2, 3]) });
+    await expect(
+      client.extensions.runExporter('dolphy.sql', 'dolphy.sql.export', {
+        scope: 'course',
+        courseId: 'x',
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+    await expect(
+      client.extensions.runImporter('dolphy.sql', 'dolphy.sql.import', {
+        name: 'a.bin',
+        text: 'not bytes',
+      }),
+    ).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+      details: { reason: 'input-kind' },
+    });
+    await call('extensions.runImporter', () =>
+      expect(
+        client.extensions.runImporter('dolphy.sql', 'dolphy.sql.nope', {
+          name: 'a.bin',
+          bytes: new Uint8Array(2),
+        }),
+      ).rejects.toMatchObject({
+        code: 'EXTENSION_TRANSFER_FAILED',
+        details: { kind: 'import', reason: 'unknown-importer' },
+      }),
+    );
+    await call('extensions.commitImport', () =>
+      expect(client.extensions.commitImport('missing')).rejects.toMatchObject({
+        code: 'NOT_FOUND',
+      }),
+    );
+    expect(
+      await call('extensions.discardImport', () =>
+        client.extensions.discardImport('missing'),
+      ),
+    ).toBe(false);
     await expect(
       client.extensions.setEnabled('dolphy.sql', false),
     ).rejects.toMatchObject({
@@ -710,8 +1008,8 @@ describe('rpc → dispatcher → real engine', () => {
         client.extensions.contributions(),
       ),
     ).toEqual({
-      // поколение растёт на каждое применение: включение, доверие, установка, удаление выше
-      generation: 4,
+      // поколение растёт на каждое применение: включение, доверие, безопасный режим (два раза), смена адреса каталога, установка, удаление выше
+      generation: 7,
       exerciseTypes: [],
       themes: [],
       markdownRenderers: [],
@@ -719,6 +1017,11 @@ describe('rpc → dispatcher → real engine', () => {
       settings: [ROWS_SETTING],
       commands: [STATS_COMMAND],
       panels: [SQL_PANEL],
+      widgets: [SQL_WIDGET],
+      schedules: [SQL_SCHEDULE],
+      importers: [IMPORT_BYTES],
+      exporters: [EXPORT_PROGRESS],
+      messages: {},
     });
     await call('diagnostics', () => client.diagnostics());
 

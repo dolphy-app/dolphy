@@ -1,12 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import {
-  detectPlatform,
-  displayKeybinding,
-  spokenKeybinding,
-} from '@/shared/lib/keybinding.ts';
-import type { SpokenId } from '@/shared/lib/keybinding.ts';
+import type { SpokenId } from '@dolphy-app/keybindings';
+import { describeChord, useKeybindings } from '@/features/keybindings';
 import { useCommandPalette } from '../model/palette.ts';
 
 const LIST_ID = 'command-palette-list';
@@ -14,12 +10,16 @@ const optionId = (index: number) => `command-palette-option-${index}`;
 
 const { t } = useI18n();
 const palette = useCommandPalette();
-const platform = detectPlatform();
+const keybindings = useKeybindings();
+// действующая привязка наивысшего приоритета (с учётом платформы и настроек пользователя);
 // `⌘K` скринридер читает набором символов: рядом с клавишей лежит озвучивание словами
-const spoken = (keybinding: string) =>
-  spokenKeybinding(keybinding, platform, (id: SpokenId) =>
+const shortcutOf = (key: string) => {
+  const binding = keybindings.primary(key);
+  if (binding === undefined) return null;
+  return describeChord(binding.chord, keybindings.platform, (id: SpokenId) =>
     t(`keybinding.${id}`),
   );
+};
 const field = ref<{ focus(): void } | null>(null);
 // палитра, открытая из поля ввода, забирает фокус себе: `autofocus` срабатывает только при монтировании
 const focusField = () => field.value?.focus();
@@ -32,6 +32,8 @@ const activeOption = computed(() =>
   activeIndex.value < 0 ? undefined : optionId(activeIndex.value),
 );
 const isEmpty = computed(() => palette.query.value.trim() === '');
+// значки есть у команд расширений: если хоть у одной видимой строки он есть, остальные держат место
+const hasGlyphs = computed(() => entries.value.some(({ icon }) => icon));
 
 // группы по категориям, как subheader у VCommandPalette: без запроса список упорядочен по
 // категории (без категории — последней группой), с запросом — по релевантности, и заголовки не нужны
@@ -39,6 +41,7 @@ const rows = computed(() =>
   entries.value.map((entry, index) => ({
     entry,
     index,
+    shortcut: shortcutOf(entry.key),
     heading:
       isEmpty.value &&
       entry.category &&
@@ -168,6 +171,19 @@ const vComboboxInput = {
               @mousemove="palette.activate(row.entry.key)"
               @click="palette.choose(row.entry.key)"
             >
+              <v-icon
+                v-if="row.entry.icon"
+                :icon="row.entry.icon"
+                size="small"
+                class="glyph"
+                aria-hidden="true"
+              />
+              <!-- без значка строка сохраняет поле под него: названия в списке стоят в один столбец -->
+              <span
+                v-else-if="hasGlyphs"
+                class="glyph glyph-spacer"
+                aria-hidden="true"
+              />
               <span class="main">
                 <span class="title">{{ row.entry.title }}</span>
                 <span v-if="row.entry.description" class="description">{{
@@ -207,13 +223,11 @@ const vComboboxInput = {
                     t('commandPalette.checked')
                   }}</span>
                 </template>
-                <template v-if="row.entry.keybinding">
+                <template v-if="row.shortcut">
                   <kbd class="keybinding" aria-hidden="true">{{
-                    displayKeybinding(row.entry.keybinding, platform)
+                    row.shortcut.keys
                   }}</kbd>
-                  <span class="visually-hidden">{{
-                    spoken(row.entry.keybinding)
-                  }}</span>
+                  <span class="visually-hidden">{{ row.shortcut.spoken }}</span>
                 </template>
               </span>
             </li>
@@ -316,6 +330,16 @@ const vComboboxInput = {
 .option.busy {
   cursor: progress;
   opacity: 0.6;
+}
+
+.glyph {
+  flex: none;
+  opacity: var(--v-medium-emphasis-opacity);
+}
+
+/* ширина `v-icon size="small"` */
+.glyph-spacer {
+  width: 1.25rem;
 }
 
 .main {

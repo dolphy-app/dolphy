@@ -2,6 +2,8 @@ import { computed, inject, ref, shallowRef } from 'vue';
 import type { ComputedRef, InjectionKey, Ref, ShallowRef } from 'vue';
 import type { LearningEngine } from '@dolphy-app/engine-contract';
 import { toEngineError } from '@/entities/repository';
+import { changelogBetween } from '../lib/changelog.ts';
+import type { ChangelogSection } from '../lib/changelog.ts';
 import type { InstallTarget } from '../lib/catalog.ts';
 import { describeInstallFailure } from '../lib/install-error.ts';
 import type { InstallFailure } from '../lib/install-error.ts';
@@ -11,11 +13,26 @@ export type InstallPhase = 'idle' | 'confirm' | 'running' | 'finished';
 
 export type InstallItemStatus = 'pending' | 'running' | 'done' | 'failed';
 
+/**
+ * «Что нового» обновления: разделы `CHANGELOG.md` целевой версии между
+ * установленной и целевой. `none` — это не обновление; `ready` с пустым
+ * списком — подходящих разделов в журнале нет; `failed` — журнал не получен.
+ */
+export type ReleaseNotes =
+  | { state: 'none' }
+  | { state: 'loading' }
+  | { state: 'ready'; sections: ChangelogSection[] }
+  | { state: 'failed'; message: string };
+
 export interface InstallItem {
   target: InstallTarget;
   status: InstallItemStatus;
   failure: InstallFailure | null;
+  notes: ReleaseNotes;
 }
+
+const NO_NOTES: ReleaseNotes = { state: 'none' };
+const LOADING_NOTES: ReleaseNotes = { state: 'loading' };
 
 const isRunnable = (item: InstallItem) =>
   item.status === 'pending' || item.status === 'failed';
@@ -39,13 +56,17 @@ export interface ExtensionInstall {
  * Установка, обновление и удаление расширений. Расширения ставятся по одному
  * в порядке списка; сбой одного не останавливает остальные. Сделанное
  * действует сразу: движок применяет его до ответа, окно перечитывает вклады
- * по `contributions-changed`.
+ * по `contributions-changed`. Состояние одно на окно (создаётся при запуске,
+ * `INSTALL_KEY`), диалог живёт в `App.vue`: установку открывают страницы
+ * настроек и ссылка `dolphy://` на любой странице.
  */
-export const useInstall = (engine: LearningEngine): ExtensionInstall => {
+export const createInstall = (engine: LearningEngine): ExtensionInstall => {
   const phase = ref<InstallPhase>('idle');
   const items = shallowRef<InstallItem[]>([]);
   const removing = ref<string | null>(null);
   const removeError = ref<string | null>(null);
+  /** Номер показа диалога: ответ о журнале прежнего показа отбрасывается. */
+  let showing = 0;
 
   const succeeded = computed(() =>
     items.value.some((item) => item.status === 'done'),
@@ -63,19 +84,54 @@ export const useInstall = (engine: LearningEngine): ExtensionInstall => {
     );
   };
 
+  /** Журнал изменений целевой версии: один запрос на расширение, сбой не мешает установке. */
+  const loadNotes = async (
+    shown: number,
+    index: number,
+    target: InstallTarget,
+  ) => {
+    const { installedVersion } = target;
+    if (installedVersion === null) return;
+    let notes: ReleaseNotes;
+    try {
+      const docs = await engine.extensions.docs(target.id, {
+        version: target.version,
+      });
+      notes = {
+        state: 'ready',
+        sections:
+          docs.changelog === null
+            ? []
+            : changelogBetween(
+                docs.changelog,
+                installedVersion,
+                target.version,
+              ),
+      };
+    } catch (caught) {
+      notes = { state: 'failed', message: toEngineError(caught).message };
+    }
+    if (shown === showing) patch(index, { notes });
+  };
+
   const review = (targets: readonly InstallTarget[]) => {
     if (phase.value === 'running' || targets.length === 0) return;
+    showing += 1;
+    const shown = showing;
     items.value = targets.map((target) => ({
       target,
       status: 'pending',
       failure: null,
+      notes: target.installedVersion === null ? NO_NOTES : LOADING_NOTES,
     }));
     phase.value = 'confirm';
+    targets.forEach((target, index) => void loadNotes(shown, index, target));
   };
 
   /** Закрывает диалог; пока идёт установка, закрыть нельзя. */
   const dismiss = () => {
     if (phase.value === 'running') return;
+    showing += 1;
     phase.value = 'idle';
     items.value = [];
   };

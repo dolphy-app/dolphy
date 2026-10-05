@@ -6,6 +6,7 @@ import { useEngine } from '@/shared/api/engine';
 import { ITEM_REASON } from '@/shared/config/item-reason.ts';
 import { ROUTE } from '@/shared/config/routes.ts';
 import PageHeader from '@/shared/ui/PageHeader.vue';
+import { ExtensionWidgets } from '@/widgets/extension-widgets';
 import { CourseScopeSwitcher, useCourseScope } from '@/features/course-scope';
 import { useDailyPlan } from '../model/daily-plan.ts';
 import OtherDue from './OtherDue.vue';
@@ -198,10 +199,12 @@ const startSession = () => {
                 variant="tonal"
                 rounded="lg"
                 role="img"
-                :aria-label="t(`reason.${entry.reason}`)"
-                :title="t(`reason.${entry.reason}`)"
+                :aria-label="t(`reasonHint.${entry.reason}`)"
               >
                 <v-icon :icon="ITEM_REASON[entry.reason].icon" />
+                <v-tooltip activator="parent" location="bottom" max-width="280">
+                  {{ t(`reasonHint.${entry.reason}`) }}
+                </v-tooltip>
               </v-avatar>
             </template>
             <template #title>
@@ -212,7 +215,6 @@ const startSession = () => {
                 class="d-inline-flex align-center ga-1 text-label-large text-medium-emphasis"
                 role="img"
                 :aria-label="t('dailyPlan.remembered', { n: entry.remembered })"
-                :title="t('dailyPlan.remembered', { n: entry.remembered })"
               >
                 <v-icon
                   :icon="rememberedView(entry.remembered).icon"
@@ -220,6 +222,9 @@ const startSession = () => {
                   size="16"
                 />
                 {{ entry.remembered }}%
+                <v-tooltip activator="parent" location="bottom" max-width="280">
+                  {{ t('dailyPlan.rememberedHint') }}
+                </v-tooltip>
               </span>
             </template>
           </v-list-item>
@@ -236,6 +241,8 @@ const startSession = () => {
         <OtherDue :courses="otherDue" @select="scope.select" />
       </v-card>
     </template>
+
+    <ExtensionWidgets area="dailyPlan" />
   </v-container>
 </template>
 

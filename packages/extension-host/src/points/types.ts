@@ -1,7 +1,11 @@
 import type {
   CommandContributionDto,
+  ExporterContributionDto,
   ExtensionSettingDefDto,
+  ImporterContributionDto,
   PanelContributionDto,
+  ScheduleContributionDto,
+  WidgetContributionDto,
 } from '@dolphy-app/engine-contract';
 import type {
   EventContribution,
@@ -15,6 +19,8 @@ import type { z } from 'zod';
 
 export interface ResolvedExerciseType {
   id: string;
+  /** Название для чипа вклада; `null` — показывается id. */
+  title: string | null;
   specSchema: JsonSchema;
   answerSchema: JsonSchema;
   element: string;
@@ -31,6 +37,8 @@ export interface ResolvedTheme {
 
 export interface ResolvedMarkdownRenderer {
   language: string;
+  /** Название для чипа вклада; `null` — показывается язык. */
+  title: string | null;
   rendererUrl: string;
 }
 
@@ -49,8 +57,23 @@ export type ResolvedCommand = Omit<CommandContributionDto, 'extensionId'>;
 /** Панель: модуль в рамке; `isolated`, `origin` и `revision` добавляет реестр. */
 export type ResolvedPanel = Pick<
   PanelContributionDto,
-  'id' | 'title' | 'rendererUrl'
+  'id' | 'title' | 'icon' | 'when' | 'rendererUrl'
 >;
+
+/** Виджет: модуль в рамке; `isolated`, `origin` и `revision` добавляет реестр. */
+export type ResolvedWidget = Pick<
+  WidgetContributionDto,
+  'id' | 'title' | 'slot' | 'minHeight' | 'maxHeight' | 'when' | 'rendererUrl'
+>;
+
+/** Расписание в виде, в котором его получает окно (DTO движка без `extensionId`). */
+export type ResolvedSchedule = Omit<ScheduleContributionDto, 'extensionId'>;
+
+/** Импортёр в виде, в котором его получает окно (DTO движка без `extensionId`). */
+export type ResolvedImporter = Omit<ImporterContributionDto, 'extensionId'>;
+
+/** Экспортёр в виде, в котором его получает окно (DTO движка без `extensionId`). */
+export type ResolvedExporter = Omit<ExporterContributionDto, 'extensionId'>;
 
 export interface ResolvedContributions {
   exerciseTypes: ResolvedExerciseType[];
@@ -61,6 +84,10 @@ export interface ResolvedContributions {
   events: ResolvedEvent[];
   commands: ResolvedCommand[];
   panels: ResolvedPanel[];
+  widgets: ResolvedWidget[];
+  schedules: ResolvedSchedule[];
+  importers: ResolvedImporter[];
+  exporters: ResolvedExporter[];
 }
 
 export type PointKey = keyof ResolvedContributions;

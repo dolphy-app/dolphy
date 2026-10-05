@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: partially superseded by ADR-0014
 date: 2026-09-30
 spec: specs/archive/2026-09-30-extension-host/SPEC.md
 ---

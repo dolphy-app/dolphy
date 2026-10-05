@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readdirSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import { collectImports } from './imports.mjs';
 import {
@@ -29,6 +30,21 @@ const manifestOf = (dir, overrides = {}) =>
 const resolverWith = ({ own = {}, workspace = [] } = {}) =>
   createRangeResolver({ own, workspace });
 
+describe('руководство пакета SDK', () => {
+  it('docs в описании пакета — ровно файлы каталога docs', () => {
+    const dir = new URL('../../packages/extension-sdk/docs/', import.meta.url);
+    assert.deepEqual(readdirSync(dir).sort(), [
+      ...specOf('extension-sdk').docs,
+    ]);
+  });
+
+  it('только SDK публикует docs', () => {
+    for (const spec of PACKAGES) {
+      assert.equal(spec.docs !== undefined, spec.dir === 'extension-sdk');
+    }
+  });
+});
+
 describe('createManifest', () => {
   it('пакет с типами: exports с types/default и верхний types', () => {
     const manifest = manifestOf('extension-sdk');
@@ -45,6 +61,13 @@ describe('createManifest', () => {
     });
     assert.equal(manifest.types, './dist/index.d.ts');
     assert.equal(manifest.bin, undefined);
+  });
+
+  it('extension-api открывает схему манифеста подпутём на dist/extension.schema.json', () => {
+    assert.deepEqual(manifestOf('extension-api').exports, {
+      '.': { types: './dist/index.d.ts', default: './dist/index.js' },
+      './extension.schema.json': './dist/extension.schema.json',
+    });
   });
 
   it('sideEffects: false только у SDK, остальные пакеты поле не пишут', () => {
@@ -79,7 +102,10 @@ describe('createManifest', () => {
       assert.equal(manifest.version, '1.2.3');
       assert.equal(manifest.type, 'module');
       assert.equal(manifest.private, undefined);
-      assert.deepEqual(manifest.files, ['dist']);
+      assert.deepEqual(
+        manifest.files,
+        spec.dir === 'extension-sdk' ? ['dist', 'docs'] : ['dist'],
+      );
       assert.deepEqual(manifest.engines, { node: '>=22.12' });
       assert.deepEqual(manifest.publishConfig, {
         access: 'public',

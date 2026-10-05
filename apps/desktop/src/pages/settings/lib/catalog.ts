@@ -1,12 +1,16 @@
+import type { ExtensionDependencyDto } from '@dolphy-app/engine-contract';
 import type {
   CatalogEntryDto,
   CatalogIncompatibleDto,
   CatalogVersionDto,
   ContributionTitlesDto,
+  DeprecationDto,
   ExtensionContributesDto,
   ExtensionInfoDto,
   ExtensionUpdateDto,
 } from '@dolphy-app/engine-contract';
+import { satisfiesRange } from '@dolphy-app/extension-catalog/semver';
+import { resolveText } from '@dolphy-app/extension-api';
 import { GROUPS, TAGS, effectiveTags, groupsOf } from './tags.ts';
 import type { ExtensionTag, TagGroup } from './tags.ts';
 
@@ -22,6 +26,7 @@ export const CONTRIBUTION_POINTS: readonly ContributionPoint[] = [
   'events',
   'commands',
   'panels',
+  'widgets',
 ];
 
 /** Имя события обучения → ключ сообщения `settings.extensions.events.*` (точка в ключе vue-i18n — путь). */
@@ -139,6 +144,8 @@ export const hasActiveFilters = (filters: CatalogFilters): boolean =>
 
 export type EntryAction =
   | { kind: 'install'; version: CatalogVersionDto }
+  /** С этим id уже есть расширение не из этого каталога: кнопка неактивна. */
+  | { kind: 'elsewhere' }
   | { kind: 'installed'; version: string }
   | { kind: 'update'; installed: string; version: CatalogVersionDto }
   | {
@@ -151,6 +158,7 @@ export type EntryAction =
 /** Состояние карточки → действие: что показать на кнопке и какую версию ставить. */
 export const entryAction = (entry: CatalogEntryDto): EntryAction => {
   const { status, latest, incompatible, installedVersion } = entry;
+  if (entry.elsewhere) return { kind: 'elsewhere' };
   if (status === 'installed') {
     return { kind: 'installed', version: installedVersion ?? '' };
   }
@@ -172,6 +180,25 @@ export const entryAction = (entry: CatalogEntryDto): EntryAction => {
   return { kind: 'install', version: latest };
 };
 
+/**
+ * Пометка «устарело», действующая для `version`: диапазон `versions` проверяется
+ * по номеру, `null` в диапазоне — все версии. Запись каталога несёт пометку,
+ * действующую для показанной версии, а ставить можно и другую (совместимую
+ * более старую), поэтому диалог проверяет ту, что будет установлена.
+ */
+export const deprecationFor = (
+  deprecation: DeprecationDto | null,
+  version: string,
+): DeprecationDto | null => {
+  if (deprecation === null || deprecation.versions === null) return deprecation;
+  try {
+    return satisfiesRange(version, deprecation.versions) ? deprecation : null;
+  } catch {
+    // нечитаемый диапазон или версия: предупреждение лучше умолчания
+    return deprecation;
+  }
+};
+
 /** Что показывает диалог перед установкой или обновлением. */
 export interface InstallTarget {
   id: string;
@@ -182,6 +209,8 @@ export interface InstallTarget {
   /** Версия, установленная из каталога сейчас; `null` — новая установка. */
   installedVersion: string | null;
   permissions: string[];
+  /** Зависимости устанавливаемой версии; установка их не ставит и не блокируется. */
+  dependencies: ExtensionDependencyDto[];
   contributes: ExtensionContributesDto;
   /** Названия вкладов; `{}` — без названий. */
   titles: ContributionTitlesDto;
@@ -191,6 +220,8 @@ export interface InstallTarget {
   sizeBytes: number;
   /** Значок как `data:`-URI; `null` — без значка. */
   icon: string | null;
+  /** Предупреждение об устаревании, действующее для устанавливаемой версии; `null` — нет. */
+  deprecated: DeprecationDto | null;
 }
 
 export const targetFromEntry = (
@@ -203,12 +234,14 @@ export const targetFromEntry = (
   version: version.version,
   installedVersion: entry.installedVersion,
   permissions: [...version.permissions],
+  dependencies: version.dependencies.map((dependency) => ({ ...dependency })),
   contributes: entry.contributes,
   titles: entry.titles,
   tags: entryTags(entry),
   platforms: [...entry.platforms],
   sizeBytes: version.size,
   icon: entry.icon,
+  deprecated: deprecationFor(entry.deprecated, version.version),
 });
 
 const NO_CONTRIBUTES: ExtensionContributesDto = {
@@ -219,8 +252,26 @@ const NO_CONTRIBUTES: ExtensionContributesDto = {
   settings: [],
   events: [],
   commands: [],
+  widgets: [],
+  schedules: [],
   panels: [],
+  importers: [],
+  exporters: [],
 };
+
+/** Названия вкладов установленного расширения на английском: так их показывает каталог. */
+const englishTitles = (info: ExtensionInfoDto): ContributionTitlesDto =>
+  Object.fromEntries(
+    Object.entries(info.titles).map(([point, titles]) => [
+      point,
+      Object.fromEntries(
+        Object.entries(titles).map(([id, title]) => [
+          id,
+          resolveText(title, info.messages, 'en'),
+        ]),
+      ),
+    ]),
+  );
 
 /**
  * Обновление установленного расширения. Вклады и платформы берутся из записи
@@ -237,8 +288,11 @@ export const targetFromUpdate = (
   version: update.available.version,
   installedVersion: update.installed,
   permissions: [...update.available.permissions],
+  dependencies: update.available.dependencies.map((dependency) => ({
+    ...dependency,
+  })),
   contributes: entry?.contributes ?? info?.contributes ?? NO_CONTRIBUTES,
-  titles: entry?.titles ?? info?.titles ?? {},
+  titles: entry?.titles ?? (info === undefined ? {} : englishTitles(info)),
   tags: effectiveTags(
     entry?.tags ?? info?.tags ?? [],
     entry?.contributes ?? info?.contributes ?? NO_CONTRIBUTES,
@@ -246,10 +300,9 @@ export const targetFromUpdate = (
   platforms: entry === undefined ? [] : [...entry.platforms],
   sizeBytes: update.available.size,
   icon: entry?.icon ?? info?.icon ?? null,
+  // обновляемся на версию каталога: предупреждение записи, а не установленной версии
+  deprecated: deprecationFor(
+    entry?.deprecated ?? null,
+    update.available.version,
+  ),
 });
-
-/** Название для показа: из манифеста, иначе id. */
-export const displayName = (info: {
-  id: string;
-  name: string | null;
-}): string => info.name ?? info.id;

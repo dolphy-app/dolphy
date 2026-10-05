@@ -4,6 +4,7 @@ import {
   LEARNING_EVENT_NAMES,
 } from '@dolphy-app/extension-api';
 import type {
+  ExportInput,
   JsonValue,
   LearningEventName,
   LearningEventPayloads,
@@ -57,7 +58,10 @@ export type ExtRequest =
       };
     }
   | DeliverEventRequest
-  | InvokeCommandRequest;
+  | FireScheduleRequest
+  | InvokeCommandRequest
+  | RunImporterRequest
+  | RunExporterRequest;
 
 /**
  * Событие обучения расширению. Ответ `{ delivered }`: `false` — обработчика нет
@@ -77,6 +81,22 @@ export interface DeliverEventRequest {
 }
 
 /**
+ * Срабатывание расписания (`ctx.schedule.on`). Лениво активирует расширение;
+ * ответ `{ delivered }`: `false` — расписание не объявлено или обработчик не
+ * подписан. Сбой обработчика — `handler-failed`, превышение 10 с —
+ * `handler-timeout`; клиент их только учитывает и логирует.
+ */
+export interface FireScheduleRequest {
+  id: string;
+  method: 'fireSchedule';
+  params: {
+    extensionId: string;
+    scheduleId: string;
+    isolated: boolean;
+  };
+}
+
+/**
  * Вызов команды расширения (`ctx.commands.register`). Лениво активирует
  * расширение; `args` — JSON вызывающего (нет аргументов — ключа нет). Ответ —
  * `CommandOutcome`; неизвестная команда — `unknown-command`, сбой обработчика —
@@ -89,6 +109,42 @@ export interface InvokeCommandRequest {
     extensionId: string;
     commandId: string;
     args?: JsonValue;
+    isolated: boolean;
+  };
+}
+
+/**
+ * Запуск импортёра (`ctx.importers.register`): файл, который выбрал
+ * пользователь, целиком в `text` (UTF-8) либо в `bytes` — по `input`
+ * импортёра. Лениво активирует расширение. Ответ — `ImportResult`, уже
+ * проверенный `normalizeImportResult`; неизвестный или незарегистрированный
+ * импортёр — `unknown-importer`, сбой обработчика — `handler-failed`, срок
+ * `EXTENSION_TRANSFER_LIMITS.handlerMs` — `handler-timeout`, неверный
+ * результат — `invalid-result`.
+ */
+export interface RunImporterRequest {
+  id: string;
+  method: 'runImporter';
+  params: {
+    extensionId: string;
+    importerId: string;
+    name: string;
+    isolated: boolean;
+  } & ({ text: string } | { bytes: Uint8Array });
+}
+
+/**
+ * Запуск экспортёра (`ctx.exporters.register`): снимок курса либо запрос
+ * прогресса — по `scope` экспортёра. Ответ — `ExportResult`, проверенный
+ * `normalizeExportResult`; причины как у `runImporter` (`unknown-exporter`).
+ */
+export interface RunExporterRequest {
+  id: string;
+  method: 'runExporter';
+  params: {
+    extensionId: string;
+    exporterId: string;
+    input: ExportInput;
     isolated: boolean;
   };
 }
@@ -120,7 +176,57 @@ export type HostRequest =
       params: { extensionId: string; key: string };
     }
   | { id: string; method: 'storage.keys'; params: { extensionId: string } }
-  | { id: string; method: 'settings.all'; params: { extensionId: string } };
+  | {
+      id: string;
+      method: 'secrets.get';
+      params: { extensionId: string; key: string };
+    }
+  | {
+      id: string;
+      method: 'secrets.set';
+      params: { extensionId: string; key: string; value: string };
+    }
+  | {
+      id: string;
+      method: 'secrets.delete';
+      params: { extensionId: string; key: string };
+    }
+  | { id: string; method: 'settings.all'; params: { extensionId: string } }
+  | {
+      id: string;
+      method: 'stats.streak';
+      params: { extensionId: string; courseId?: string };
+    }
+  | {
+      id: string;
+      method: 'stats.daily';
+      params: {
+        extensionId: string;
+        from: string;
+        to: string;
+        courseId?: string;
+      };
+    }
+  | {
+      id: string;
+      method: 'notifications.show';
+      params: { extensionId: string; title: string; body: string };
+    }
+  | { id: string; method: 'health.report'; params: HealthReport };
+
+/**
+ * Здоровье расширения, о котором знает только хост: `activated` — активация
+ * прошла за `durationMs`; `failed` — сбой вне вызова (процесс убит за предел
+ * IPC; сбои вызовов учитывает сторона движка по исходу вызова); `suppressed` — ограниченный процесс приостановлен за
+ * цикл падений до `until` (epoch ms); `reset` — файлы расширения сменились или
+ * оно убрано, сводка начинается заново.
+ */
+export type HealthReport = { extensionId: string } & (
+  | { kind: 'activated'; durationMs: number }
+  | { kind: 'failed'; reason: string; message: string }
+  | { kind: 'suppressed'; until: number }
+  | { kind: 'reset' }
+);
 
 export type HostMethod = HostRequest['method'];
 
@@ -154,8 +260,28 @@ export type ExtFailureCause =
   | Exclude<ExerciseTypeErrorCause, 'host-down' | 'timeout'>
   | 'unknown-policy'
   | 'unknown-command'
+  | 'unknown-importer'
+  | 'unknown-exporter'
   | 'handler-timeout'
+  | 'activation-timeout'
+  | 'ipc-size'
+  | 'ipc-rate'
   | 'replaced';
+
+/**
+ * Причина отказа хоста считается сбоем расширения: отказ или превышение срока
+ * обработчика, неверный результат, сбой или превышение срока активации.
+ * Остальные (`unknown-type`, `replaced`, ...) — решение системы, расширение в
+ * них не виновато. Пределы IPC (`ipc-size`, `ipc-rate`) здесь не числятся: сбой
+ * учитывает сам раннер сообщением `health.report` (`failed`), иначе вызов в
+ * полёте посчитал бы его второй раз.
+ */
+export const isFault = (cause: ExtFailureCause): boolean =>
+  cause === 'handler-failed' ||
+  cause === 'handler-timeout' ||
+  cause === 'invalid-result' ||
+  cause === 'activation-failed' ||
+  cause === 'activation-timeout';
 
 export type ExtResponse =
   | { id: string; ok: true; result: unknown }
@@ -175,12 +301,40 @@ const eventParams = z.strictObject({
   isolated: z.boolean(),
 });
 
+const scheduleParams = z.strictObject({
+  extensionId: z.string(),
+  scheduleId: z.string(),
+  isolated: z.boolean(),
+});
+
 const commandParams = z.strictObject({
   extensionId: z.string(),
   commandId: z.string(),
   args: z.unknown().optional(),
   isolated: z.boolean(),
 });
+
+const bytesField = z.custom<Uint8Array>(
+  (value) => value instanceof Uint8Array,
+  'must be a Uint8Array',
+);
+
+const importParams = {
+  extensionId: z.string(),
+  importerId: z.string(),
+  name: z.string(),
+  isolated: z.boolean(),
+};
+
+const exportInput = z.discriminatedUnion('scope', [
+  z.strictObject({
+    scope: z.literal('course'),
+    courseId: z.string(),
+    title: z.string(),
+    files: z.record(z.string(), z.string()),
+  }),
+  z.strictObject({ scope: z.literal('progress') }),
+]);
 
 const typed = {
   type: z.string(),
@@ -232,12 +386,40 @@ export const extRequestSchema = z.discriminatedUnion('method', [
   }),
   z.strictObject({
     id: z.string(),
+    method: z.literal('fireSchedule'),
+    params: scheduleParams,
+  }),
+  z.strictObject({
+    id: z.string(),
     method: z.literal('invokeCommand'),
     params: commandParams,
   }),
+  z.strictObject({
+    id: z.string(),
+    method: z.literal('runImporter'),
+    params: z.union([
+      z.strictObject({ ...importParams, text: z.string() }),
+      z.strictObject({ ...importParams, bytes: bytesField }),
+    ]),
+  }),
+  z.strictObject({
+    id: z.string(),
+    method: z.literal('runExporter'),
+    params: z.strictObject({
+      extensionId: z.string(),
+      exporterId: z.string(),
+      input: exportInput,
+      isolated: z.boolean(),
+    }),
+  }),
 ]);
 
-const settingValue = z.union([z.boolean(), z.string(), z.number()]);
+const settingValue = z.union([
+  z.boolean(),
+  z.string(),
+  z.number(),
+  z.array(z.string()),
+]);
 
 export const settingChangedSchema = z.strictObject({
   method: z.literal('settingChanged'),
@@ -279,8 +461,78 @@ export const hostRequestSchema = z.discriminatedUnion('method', [
   }),
   z.strictObject({
     id: z.string(),
+    method: z.literal('secrets.get'),
+    params: hostKey,
+  }),
+  z.strictObject({
+    id: z.string(),
+    method: z.literal('secrets.set'),
+    // тип значения проверяет служба движка: ошибка приходит как `INVALID_ARGUMENT`
+    params: z.strictObject({
+      extensionId: z.string(),
+      key: z.string(),
+      value: z.unknown(),
+    }),
+  }),
+  z.strictObject({
+    id: z.string(),
+    method: z.literal('secrets.delete'),
+    params: hostKey,
+  }),
+  z.strictObject({
+    id: z.string(),
     method: z.literal('settings.all'),
     params: hostOwner,
+  }),
+  z.strictObject({
+    id: z.string(),
+    method: z.literal('stats.streak'),
+    params: z.strictObject({
+      extensionId: z.string(),
+      courseId: z.string().optional(),
+    }),
+  }),
+  z.strictObject({
+    id: z.string(),
+    method: z.literal('stats.daily'),
+    params: z.strictObject({
+      extensionId: z.string(),
+      from: z.string(),
+      to: z.string(),
+      courseId: z.string().optional(),
+    }),
+  }),
+  z.strictObject({
+    id: z.string(),
+    method: z.literal('notifications.show'),
+    params: z.strictObject({
+      extensionId: z.string(),
+      title: z.string(),
+      body: z.string(),
+    }),
+  }),
+  z.strictObject({
+    id: z.string(),
+    method: z.literal('health.report'),
+    params: z.discriminatedUnion('kind', [
+      z.strictObject({
+        extensionId: z.string(),
+        kind: z.literal('activated'),
+        durationMs: z.number().finite().nonnegative(),
+      }),
+      z.strictObject({
+        extensionId: z.string(),
+        kind: z.literal('failed'),
+        reason: z.string(),
+        message: z.string(),
+      }),
+      z.strictObject({
+        extensionId: z.string(),
+        kind: z.literal('suppressed'),
+        until: z.number().finite().nonnegative(),
+      }),
+      z.strictObject({ extensionId: z.string(), kind: z.literal('reset') }),
+    ]),
   }),
 ]);
 
@@ -314,6 +566,10 @@ const isResolvedExtension = (value: unknown): value is ResolvedExtension => {
       item.origin === 'user' ||
       item.origin === 'dev') &&
     Array.isArray(item.permissions) &&
+    Array.isArray(item.dependencies) &&
+    typeof item.messages === 'object' &&
+    item.messages !== null &&
+    Array.isArray(item.warnings) &&
     Array.isArray(item.exerciseTypes) &&
     Array.isArray(item.themes) &&
     Array.isArray(item.markdownRenderers) &&
@@ -321,7 +577,11 @@ const isResolvedExtension = (value: unknown): value is ResolvedExtension => {
     Array.isArray(item.settings) &&
     Array.isArray(item.events) &&
     Array.isArray(item.commands) &&
-    Array.isArray(item.panels)
+    Array.isArray(item.panels) &&
+    Array.isArray(item.widgets) &&
+    Array.isArray(item.schedules) &&
+    Array.isArray(item.importers) &&
+    Array.isArray(item.exporters)
   );
 };
 

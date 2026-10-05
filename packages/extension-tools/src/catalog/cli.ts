@@ -21,37 +21,46 @@ export interface CatalogDeps {
 }
 
 export const CATALOG_SYNOPSIS = `       dolphy-ext catalog check <extensionsDir> [--ids a,b]
-                   [--published-index <path>] [--max-app-version <x.y.z>]
-                   [--skip-github-check] [--list-rules]
+                   [--published-index <path>] [--deprecated <path>]
+                   [--max-app-version <x.y.z>]
+                   [--built <siteDir>] [--skip-github-check] [--list-rules]
        dolphy-ext catalog build --src <extensionsDir> --ids a,b --out <siteDir>
                    [--previous-index <path>] [--revoked <path>]
-                   [--source-base <url>] [--published-at <iso>]
+                   [--deprecated <path>] [--source-base <url>]
+                   [--published-at <iso>]
        dolphy-ext catalog build --reindex --out <siteDir>
                    [--previous-index <path>] [--revoked <path>]
-                   [--published-at <iso>]
+                   [--deprecated <path>] [--published-at <iso>]
 `;
 
 export const CATALOG_HELP = `  catalog check    check the catalog's extension sources; lines
                    «error|warning <id> <RULE-ID> <field>: <message>»,
                    exit code 1 if any error
   catalog build    build versions into <siteDir>/extensions/<id>/<version>/ and
-                   update <siteDir>/index.json (published versions are
+                   update <siteDir>/index.v2.json (published versions are
                    immutable)
   catalog build --reindex
-                   only replace revoked and generatedAt in the existing
-                   <siteDir>/index.json (--src and --ids are not needed)
+                   only replace revoked, deprecated and generatedAt in the
+                   existing <siteDir>/index.v2.json (--src and --ids are not needed)
 
   --ids a,b              only these extensions (check: all by default)
-  --published-index <p>  index.json of the published catalog (no file —
+  --published-index <p>  index.v2.json of the published catalog (no file —
                          nothing is published)
   --max-app-version <v>  minAppVersion must not be newer
+  --built <siteDir>      also check the built versions in
+                         <siteDir>/extensions/<id>/<version>/ (eval, obfuscation,
+                         URLs, source maps); without it these rules are silent
   --skip-github-check    do not verify the author via api.github.com
                          (token — the GITHUB_TOKEN variable)
   --list-rules           print the check rules
   --src <dir>            directory of projects <dir>/<id>
   --out <dir>            site root
-  --previous-index <p>   source index (default <out>/index.json)
+  --previous-index <p>   source index (default <out>/index.v2.json)
   --revoked <p>          JSON array {id, versions, reason}
+  --deprecated <p>       JSON array {id, versions?, reason, alternatives}
+                         (check: validate the form and, with
+                         --published-index, the alternatives; build: write
+                         "deprecated" to entries, unset — keep the index's)
   --source-base <url>    base for the index entry's source field
   --published-at <iso>   publishedAt of new versions (default now);
                          with --reindex — generatedAt
@@ -60,13 +69,20 @@ export const CATALOG_HELP = `  catalog check    check the catalog's extension so
 type Flags = Record<string, string | true>;
 
 const VALUE_FLAGS = {
-  check: ['--ids', '--published-index', '--max-app-version'],
+  check: [
+    '--ids',
+    '--published-index',
+    '--deprecated',
+    '--max-app-version',
+    '--built',
+  ],
   build: [
     '--src',
     '--ids',
     '--out',
     '--previous-index',
     '--revoked',
+    '--deprecated',
     '--source-base',
     '--published-at',
   ],
@@ -83,7 +99,9 @@ export type CatalogParsed =
       dir: string | null;
       ids: string[] | undefined;
       publishedIndex: string | undefined;
+      deprecated: string | undefined;
       maxAppVersion: string | undefined;
+      built: string | undefined;
       skipGithubCheck: boolean;
       listRules: boolean;
     }
@@ -94,6 +112,7 @@ export type CatalogParsed =
       out: string;
       previousIndex: string | undefined;
       revoked: string | undefined;
+      deprecated: string | undefined;
       sourceBase: string | undefined;
       publishedAt: string | undefined;
     }
@@ -102,6 +121,7 @@ export type CatalogParsed =
       out: string;
       previousIndex: string | undefined;
       revoked: string | undefined;
+      deprecated: string | undefined;
       publishedAt: string | undefined;
     };
 
@@ -164,7 +184,9 @@ const parseCheck = (args: readonly string[]): CatalogParsed => {
     dir: positional[0] ?? null,
     ids: idsOf(flags),
     publishedIndex: text(flags, '--published-index'),
+    deprecated: text(flags, '--deprecated'),
     maxAppVersion,
+    built: text(flags, '--built'),
     skipGithubCheck: flags['--skip-github-check'] === true,
     listRules: listRulesFlag,
   };
@@ -187,6 +209,7 @@ const parseReindex = (flags: Flags): CatalogParsed => {
     out,
     previousIndex: text(flags, '--previous-index'),
     revoked: text(flags, '--revoked'),
+    deprecated: text(flags, '--deprecated'),
     publishedAt: text(flags, '--published-at'),
   };
 };
@@ -216,6 +239,7 @@ const parseBuild = (args: readonly string[]): CatalogParsed => {
     out,
     previousIndex: text(flags, '--previous-index'),
     revoked: text(flags, '--revoked'),
+    deprecated: text(flags, '--deprecated'),
     sourceBase: text(flags, '--source-base'),
     publishedAt: text(flags, '--published-at'),
   };
@@ -248,9 +272,15 @@ const runCheck = async (
     ...(parsed.publishedIndex === undefined
       ? {}
       : { publishedIndex: path.resolve(parsed.publishedIndex) }),
+    ...(parsed.deprecated === undefined
+      ? {}
+      : { deprecated: path.resolve(parsed.deprecated) }),
     ...(parsed.maxAppVersion === undefined
       ? {}
       : { maxAppVersion: parsed.maxAppVersion }),
+    ...(parsed.built === undefined
+      ? {}
+      : { builtDir: path.resolve(parsed.built) }),
     skipGithubCheck: parsed.skipGithubCheck,
     githubToken: deps.env?.GITHUB_TOKEN,
     ...(deps.fetch === undefined ? {} : { fetch: deps.fetch }),
@@ -270,6 +300,9 @@ const runReindex = async (
       ? {}
       : { previousIndex: parsed.previousIndex }),
     ...(parsed.revoked === undefined ? {} : { revoked: parsed.revoked }),
+    ...(parsed.deprecated === undefined
+      ? {}
+      : { deprecated: parsed.deprecated }),
     ...(parsed.publishedAt === undefined
       ? {}
       : { publishedAt: parsed.publishedAt }),
@@ -292,6 +325,9 @@ const runBuild = async (
       ? {}
       : { previousIndex: parsed.previousIndex }),
     ...(parsed.revoked === undefined ? {} : { revoked: parsed.revoked }),
+    ...(parsed.deprecated === undefined
+      ? {}
+      : { deprecated: parsed.deprecated }),
     ...(parsed.sourceBase === undefined
       ? {}
       : { sourceBase: parsed.sourceBase }),

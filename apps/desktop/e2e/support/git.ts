@@ -30,6 +30,8 @@ const walk = (root: string, dir = ''): string[] =>
 export interface CourseTreeOptions {
   /** `id` из `course_manifest.json`; по умолчанию `REMOTE_COURSE.id`. */
   id?: string;
+  /** Название курса; по умолчанию `REMOTE_COURSE.name`. */
+  name?: string;
   /** Название первого урока. */
   lessonName?: string;
   /** Курс прямо в корне репозитория, а не в каталоге `<id>/`. */
@@ -52,7 +54,7 @@ export const courseTree = (options: CourseTreeOptions = {}): GitFiles => {
     if (relative === 'course_manifest.json') {
       const manifest = JSON.parse(content) as Record<string, unknown>;
       files[path] = `${JSON.stringify(
-        { ...manifest, id, name: REMOTE_COURSE.name },
+        { ...manifest, id, name: options.name ?? REMOTE_COURSE.name },
         null,
         2,
       )}\n`;
@@ -72,6 +74,8 @@ export interface RepositoryRow {
   commit: string;
   fetchedAt: number;
   courseIds: string[];
+  selected?: string[];
+  skippedCourseIds?: string[];
   lastError?: unknown;
 }
 

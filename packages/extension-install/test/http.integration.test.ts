@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createExtensionInstaller } from '../src/index.ts';
-import type { ExtensionInstaller } from '@dolphy-app/engine/ports';
+import type { CatalogInstaller } from '@dolphy-app/engine/ports';
 import {
   contributesOf,
   createClock,
@@ -52,7 +52,7 @@ const mainSource = (id: string): string =>
 let work: string;
 let catalog: Running;
 let foreign: Running;
-let installer: ExtensionInstaller;
+let installer: CatalogInstaller;
 let extensionsDir: string;
 const requests: string[] = [];
 const foreignRequests: string[] = [];
@@ -89,7 +89,7 @@ const entry = (id: string) => ({
 });
 
 const INDEX = JSON.stringify({
-  schemaVersion: 1,
+  schemaVersion: 2,
   generatedAt: '2026-10-01T12:00:00Z',
   extensions: ['acme.real', 'acme.bounce', 'acme.moved'].map(entry),
   revoked: [],
@@ -99,7 +99,7 @@ const INDEX_ETAG = `"${sha256(INDEX).slice(0, 12)}"`;
 const catalogHandler = (req: IncomingMessage, res: ServerResponse): void => {
   const url = req.url ?? '/';
   requests.push(`${req.method} ${url} ua=${req.headers['user-agent']}`);
-  if (url === '/index.json') {
+  if (url === '/index.v2.json') {
     if (req.headers['if-none-match'] === INDEX_ETAG) {
       notModified++;
       res.writeHead(304, { etag: INDEX_ETAG }).end();
@@ -200,7 +200,7 @@ describe('установщик с настоящим HTTP-сервером', () 
     expect(again.stale).toBe(false);
     expect(notModified).toBe(1);
     expect(
-      requests.filter((r) => r.startsWith('GET /index.json')),
+      requests.filter((r) => r.startsWith('GET /index.v2.json')),
     ).toHaveLength(2);
   });
 

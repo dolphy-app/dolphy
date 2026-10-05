@@ -1,4 +1,4 @@
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import { createJsonSettingsStore } from '../../src/node/json-settings-store.ts';
 import { createMemorySettingsStore } from '../../src/node/memory-settings-store.ts';
@@ -34,6 +34,37 @@ describe('createMemorySettingsStore(initial)', () => {
 });
 
 describe('createJsonSettingsStore: свои файлы движка', () => {
+  it('привязки лежат в keybindings.json; нечитаемые записи отброшены, остальные действуют', async () => {
+    const dir = await tmp.make('settings-');
+    const store = createJsonSettingsStore({ dir });
+    await store.saveKeybindings({
+      commands: { 'app:a': [{ key: 'Alt+1', when: null }] },
+    });
+    expect(
+      JSON.parse(await readFile(`${dir}/keybindings.json`, 'utf8')),
+    ).toEqual({ commands: { 'app:a': [{ key: 'Alt+1', when: null }] } });
+    await writeFile(
+      `${dir}/keybindings.json`,
+      JSON.stringify({
+        commands: {
+          'app:a': [
+            { key: 'Alt+1' },
+            { key: 5 },
+            'x',
+            { key: 'Alt+2', when: 3 },
+          ],
+          'bad key': [{ key: 'Alt+3', when: null }],
+          'app:b': 'oops',
+        },
+      }),
+    );
+    expect(await store.loadKeybindings()).toEqual({
+      commands: { 'app:a': [{ key: 'Alt+1', when: null }] },
+    });
+    await writeFile(`${dir}/keybindings.json`, '[]');
+    expect(await store.loadKeybindings()).toEqual({ commands: {} });
+  });
+
   it('битое поле интерфейса заменяется умолчанием поодиночке, битые опции — пустыми', async () => {
     const dir = await tmp.make('settings-');
     await writeFile(`${dir}/ui.json`, '{"theme":"Sepia!","locale":"ru","x":1}');
@@ -54,6 +85,10 @@ describe('createJsonSettingsStore: свои файлы движка', () => {
       disabled: ['acme.a'],
       trusted: [],
       checkUpdates: true,
+      safeMode: false,
+      notificationsOff: [],
+      catalogUrl: null,
+      schedulesOff: [],
     });
   });
 });

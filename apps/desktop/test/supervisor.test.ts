@@ -19,11 +19,27 @@ interface Posted {
   transfer?: unknown[] | undefined;
 }
 
+const createStream = () => {
+  const listeners = new Map<string, ((chunk?: never) => void)[]>();
+  return {
+    on: (event: string, listener: (chunk?: never) => void) => {
+      listeners.set(event, [...(listeners.get(event) ?? []), listener]);
+    },
+    emit: (event: string, chunk?: unknown) => {
+      for (const listener of listeners.get(event) ?? []) {
+        (listener as (value?: unknown) => void)(chunk);
+      }
+    },
+  };
+};
+
 const createFakeHost = () => {
   const listeners = new Map<string, Listener[]>();
   const posted: Posted[] = [];
   const host = {
     pid: 100,
+    stdout: createStream(),
+    stderr: createStream(),
     killed: 0,
     posted,
     postMessage: (message: unknown, transfer?: unknown[]) => {
@@ -120,12 +136,39 @@ describe('supervisor', () => {
     vi.useRealTimers();
   });
 
+  it('вывод хоста читается: у каждого запуска свой приёмник, stderr дочитывается по концу потока', () => {
+    const outputs: { calls: string[] }[] = [];
+    const { supervisor, hosts, boot } = setup({
+      createOutput: () => {
+        const output = { calls: [] as string[] };
+        outputs.push(output);
+        return {
+          stdout: (chunk) => output.calls.push(`out:${String(chunk)}`),
+          stderr: (chunk) => output.calls.push(`err:${String(chunk)}`),
+          flush: () => output.calls.push('flush'),
+        };
+      },
+    });
+    supervisor.start();
+    boot(hosts[0] as FakeHost);
+    hosts[0]?.stdout.emit('data', 'hello');
+    hosts[0]?.stderr.emit('data', 'warn');
+    hosts[0]?.stderr.emit('end');
+    expect(outputs[0]?.calls).toEqual(['out:hello', 'err:warn', 'flush']);
+
+    hosts[0]?.emit('exit', 1);
+    vi.advanceTimersByTime(BACKOFF_CAP_MS);
+    expect(outputs).toHaveLength(2);
+    expect(outputs[1]?.calls).toEqual([]);
+  });
+
   it('передаёт хосту конфиг после spawn и порт окну только после ready', () => {
     const { supervisor, hosts, fork, config } = setup();
     const win = createFakeWindow(7);
     supervisor.start();
     expect(fork).toHaveBeenCalledWith('/host/index.js', [], {
       serviceName: 'dolphy-engine',
+      stdio: 'pipe',
     });
     const [host] = hosts;
     supervisor.connect(win.webContents);

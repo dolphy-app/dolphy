@@ -4,6 +4,7 @@ import {
   defineExerciseType,
   defineExtension,
   defineExtensionPanel,
+  defineExtensionWidget,
   defineMarkdownRenderer,
 } from '@dolphy-app/extension-sdk';
 import { shout } from './shout.ts';
@@ -41,6 +42,24 @@ export const panels = {
   'acme.surfaces.second': defineExtensionPanel({
     mount(container) {
       container.textContent = 'PANEL_SECOND_MARKER';
+    },
+  }),
+};
+
+export const widgets = {
+  'acme.surfaces.card': defineExtensionWidget({
+    mount(container) {
+      container.textContent = 'WIDGET_CARD_MARKER';
+    },
+  }),
+  'acme.surfaces.gauge': defineExtensionWidget({
+    mount(container) {
+      container.textContent = 'WIDGET_GAUGE_MARKER';
+    },
+  }),
+  'acme.surfaces.badge': defineExtensionWidget({
+    mount(container) {
+      container.textContent = 'WIDGET_BADGE_MARKER';
     },
   }),
 };

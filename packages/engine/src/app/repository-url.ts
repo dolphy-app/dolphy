@@ -12,7 +12,10 @@ const MAX_REF_LENGTH = 255;
 // eslint-disable-next-line no-control-regex
 const FORBIDDEN_REF_CHARS = /[\s\u0000-\u001f\u007f~^:?*[\\]/;
 
-const invalid = (field: 'url' | 'ref', message: string): EngineError =>
+const invalid = (
+  field: 'url' | 'ref' | 'courseIds',
+  message: string,
+): EngineError =>
   new EngineError('INVALID_ARGUMENT', { message, details: { field } });
 
 /**
@@ -96,6 +99,31 @@ export const repositorySlug = (normalizedUrl: string): string => {
     .slice(0, MAX_SLUG_LENGTH)
     .replace(/[-.]+$/, '');
   return slug === '' ? 'repository' : slug;
+};
+
+/**
+ * Выбор курсов из входа `add`/`update`: `undefined` и `null` — «все курсы»
+ * (`null` в ответе), иначе непустой список непустых строк без повторов.
+ */
+export const normalizeCourseSelection = (input: unknown): string[] | null => {
+  if (input === undefined || input === null) return null;
+  if (!Array.isArray(input)) {
+    throw invalid('courseIds', 'courseIds must be an array of course ids');
+  }
+  if (input.length === 0) {
+    throw invalid('courseIds', 'courseIds must not be empty');
+  }
+  const seen = new Set<string>();
+  for (const item of input) {
+    if (typeof item !== 'string' || item === '') {
+      throw invalid('courseIds', 'courseIds must contain non-empty strings');
+    }
+    if (seen.has(item)) {
+      throw invalid('courseIds', `courseIds contains a duplicate: ${item}`);
+    }
+    seen.add(item);
+  }
+  return [...seen];
 };
 
 /** Первые 8 hex SHA-1 URL: суффикс `id` при совпадении slug у разных URL. */

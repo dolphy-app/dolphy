@@ -1,7 +1,7 @@
 import { mkdir, readFile, stat, utimes, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { ExtensionManifest } from '@dolphy-app/extension-api';
-import { parseManifest } from '@dolphy-app/extension-host';
+import { formatDiagnostic, parseManifest } from '@dolphy-app/extension-host';
 import { describe, expect, it } from 'vitest';
 import { IDS_FILE, renderIds, writeIds } from '../src/ids.ts';
 import { loadProject } from '../src/project.ts';
@@ -19,7 +19,7 @@ const manifestOf = (
     ...extra,
     contributes,
   });
-  if (!parsed.ok) throw new Error(parsed.message);
+  if (!parsed.ok) throw new Error(formatDiagnostic(parsed.diagnostic));
   return parsed.manifest;
 };
 
@@ -52,6 +52,23 @@ describe('renderIds', () => {
         ],
         events: [{ event: 'attempt.closed' }, { event: 'session.started' }],
         panels: [{ id: 'acme.ids.main', title: 'Main' }],
+        widgets: [{ id: 'acme.ids.card', title: 'Card', slot: 'dailyPlan' }],
+        schedules: [
+          { id: 'acme.ids.morning', every: 'daily' },
+          { id: 'acme.ids.tick', every: 'hourly' },
+        ],
+        importers: [
+          { id: 'acme.ids.csv', title: 'CSV', accept: ['.csv'] },
+          {
+            id: 'acme.ids.bin',
+            title: 'Bin',
+            accept: ['.bin'],
+            input: 'bytes',
+          },
+        ],
+        exporters: [
+          { id: 'acme.ids.report', title: 'Report', scope: 'course' },
+        ],
         markdownRenderers: [{ language: 'echo' }, { language: 'plot-2d' }],
       }),
     );
@@ -64,6 +81,10 @@ declare module '@dolphy-app/extension-sdk' {
     commands: 'acme.ids.open' | 'acme.ids.close';
     events: 'attempt.closed' | 'session.started';
     panels: 'acme.ids.main';
+    widgets: 'acme.ids.card';
+    schedules: 'acme.ids.morning' | 'acme.ids.tick';
+    importers: 'acme.ids.csv' | 'acme.ids.bin';
+    exporters: 'acme.ids.report';
     markdownLanguages: 'echo' | 'plot-2d';
     settings: {};
   }
@@ -80,6 +101,14 @@ export {};
           { id: 'acme.ids.on', type: 'boolean', label: 'On', default: true },
           { id: 'acme.ids.name', type: 'string', label: 'Name', default: '' },
           { id: 'acme.ids.goal', type: 'number', label: 'Goal', default: 3 },
+          { id: 'acme.ids.note', type: 'text', label: 'Note', default: '' },
+          {
+            id: 'acme.ids.tint',
+            type: 'color',
+            label: 'Tint',
+            default: '#000000',
+          },
+          { id: 'acme.ids.tags', type: 'list', label: 'Tags', default: [] },
           {
             id: 'acme.ids.mode',
             type: 'enum',
@@ -97,6 +126,9 @@ export {};
       'acme.ids.on': boolean;
       'acme.ids.name': string;
       'acme.ids.goal': number;
+      'acme.ids.note': string;
+      'acme.ids.tint': string;
+      'acme.ids.tags': string[];
       'acme.ids.mode': 'fast' | 'slow';
     }`);
   });
@@ -128,7 +160,7 @@ export {};
     ).toEqual([value, 'plain']);
   });
 
-  it('a manifest without commands, events and panels gives never for them', () => {
+  it('a manifest without commands, events, panels, widgets, schedules, importers and exporters gives never for them', () => {
     const text = renderIds(
       manifestOf({ exerciseTypes: [{ id: 'acme.ids.one', ...schemas }] }),
     );
@@ -138,6 +170,10 @@ export {};
       'commands',
       'events',
       'panels',
+      'widgets',
+      'schedules',
+      'importers',
+      'exporters',
       'markdownLanguages',
     ]) {
       expect(member(text, name)).toBe('never');
@@ -163,6 +199,10 @@ export {};
       'commands',
       'events',
       'panels',
+      'widgets',
+      'schedules',
+      'importers',
+      'exporters',
       'markdownLanguages',
     ]) {
       expect(member(text, name)).toBe('never');

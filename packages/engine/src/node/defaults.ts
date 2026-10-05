@@ -7,6 +7,7 @@ import type { Clock, IdGenerator, Logger, Rng } from '../ports/index.ts';
 import { createTsFsrsMemoryModel } from '../scoring/memory-model.ts';
 import { createNodeFsCourseSource } from './fs-course-source.ts';
 import { createNodeFolderSyncPort } from './folder-sync-port.ts';
+import { createFileLogReader } from './log-reader.ts';
 import { createJsonSettingsStore } from './json-settings-store.ts';
 import { createNodeSnapshotInstaller } from './snapshot-installer.ts';
 
@@ -16,8 +17,11 @@ export type NodeDefaults = Omit<
   | 'exerciseTypes'
   | 'gradePolicies'
   | 'extensionCommands'
+  | 'extensionTransfers'
   | 'extensionRegistry'
   | 'extensionPolicy'
+  | 'extensionHealth'
+  | 'extensionHostControl'
   | 'extensionInstaller'
   | 'extensionReloader'
   | 'openTraneSource'
@@ -163,6 +167,9 @@ export const nodeDefaults = (config: EngineConfig): NodeDefaults => {
       logger,
     }),
     memoryModel: createTsFsrsMemoryModel(),
+    ...(config.logsDir !== undefined && {
+      logReader: createFileLogReader(config.logsDir),
+    }),
     folderSync: createNodeFolderSyncPort(config, { logger }),
     snapshotInstaller: createNodeSnapshotInstaller({
       libraryRoot: config.libraryRoot,

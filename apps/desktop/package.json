@@ -23,7 +23,9 @@
     "smoke": "node scripts/smoke.mjs",
     "smoke:packaged": "node scripts/smoke.mjs --packaged",
     "preview": "vite preview",
-    "e2e": "vitest run -c vitest.e2e.config.ts"
+    "e2e": "vitest run -c vitest.e2e.config.ts",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
   },
   "devDependencies": {
     "@dagrejs/dagre": "^3.1.1",
@@ -36,19 +38,27 @@
     "@dolphy-app/extension-catalog": "workspace:*",
     "@dolphy-app/extension-host": "workspace:*",
     "@dolphy-app/extension-install": "workspace:*",
+    "@dolphy-app/extension-ui": "workspace:*",
+    "@dolphy-app/keybindings": "workspace:*",
     "@electron/fuses": "1.8.0",
     "@fontsource/roboto": "^5.2.10",
     "@mdi/font": "^7.4.47",
+    "@pinia/colada": "^1.4.7",
+    "@storybook/addon-docs": "^10.6.1",
+    "@storybook/vue3-vite": "^10.6.1",
     "@types/better-sqlite3": "^7.6.13",
     "@types/markdown-it": "^14.2.0",
     "@types/node": "^22.20.4",
     "@vitejs/plugin-vue": "^6.0.7",
     "@vue-flow/core": "^1.48.2",
+    "axe-core": "^4.13.0",
     "electron": "44.4.5",
     "electron-builder": "^26.8.1",
     "happy-dom": "^20.14.5",
     "markdown-it": "^15.0.2",
+    "pinia": "^4.0.3",
     "playwright-core": "^1.63.0",
+    "storybook": "^10.6.1",
     "typescript": "^6.0.3",
     "vite": "^8.0.16",
     "vite-plugin-electron": "^1.0.1",
@@ -62,6 +72,7 @@
   },
   "dependencies": {
     "better-sqlite3": "13.0.3",
+    "sugar-high": "2.5.1",
     "zod": "4.6.5"
   }
 }

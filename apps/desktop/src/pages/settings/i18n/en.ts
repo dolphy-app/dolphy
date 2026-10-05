@@ -36,11 +36,13 @@ export const en: typeof ru = {
         },
         missing:
           "The selected rule “{id}” is unavailable: its extension was not found. Pass{'@'}N applies for now.",
+        hint: "A grade from 1 to 5 decides when an exercise comes back for review. Pass{'@'}N reads “passed on attempt N”: the earlier the answer is right, the higher the grade. Extensions add other rules.",
       },
       targetRetention: {
         title: 'Target retention',
         description:
           'How confidently you should remember the material by the time it is reviewed. Higher means more reviews.',
+        hint: 'Retention is an estimate of the chance you will recall an exercise. When it drops below this threshold the exercise enters the plan as a review: 90% is relaxed, 99% means many reviews.',
       },
       newFraction: {
         title: 'Share of new material',
@@ -55,30 +57,36 @@ export const en: typeof ru = {
       tagDistance: {
         title: 'Gap between similar topics',
         description: 'How many exercises must separate tasks that share tags.',
+        hint: 'Tags are exercise topics set by the course author (for example “JOIN” or “commits”). The distance keeps similar tasks from coming back to back.',
       },
       batchSize: {
         title: 'Batch size',
         description: 'How many exercises the scheduler picks per request.',
+        hint: 'A batch is the set of exercises the scheduler picks at once for a session. You rarely need to change it.',
       },
       lessonsInProgress: {
         title: 'Lessons in progress',
         description:
           'How many lessons you can study at once before new ones unlock.',
+        hint: 'A lesson is “in progress” until its exercises are mastered. The limit stops you from opening ten lessons and finishing none.',
       },
       failThreshold: {
         title: 'Failure threshold',
         description:
           'How many failures on an exercise trigger reinforcement of the basics.',
+        hint: 'After this many failures on an exercise the scheduler adds exercises for its prerequisites, the topics it is hard to learn without.',
       },
       remediationItems: {
         title: 'Reinforcement exercises',
         description:
           'At most this many prerequisite exercises are added to the plan.',
+        hint: 'Prerequisites are the lessons and exercises the current one depends on; the course author defines the links.',
       },
       implicitCredit: {
         title: 'Implicit reviews',
         description:
           'Reviewing a hard topic also counts for the simpler ones inside it. The effect has only been measured on the model.',
+        hint: 'A hard exercise contains simple topics, so a right answer partly counts as a review of them (the FIRe method). Off by default: checked on a model only.',
       },
       actions: {
         revert: 'Discard',
@@ -133,11 +141,42 @@ export const en: typeof ru = {
           updated:
             'Updated: no courses | Updated: {n} course | Updated: {n} courses',
           removed: 'Repository removed',
+          removedWithProgress: 'Repository and progress removed',
         },
         confirm: {
           title: 'Remove the repository?',
-          text: 'Its courses will disappear from the library. Your progress is kept and comes back if you add the repository again.',
+          text: 'Its courses will disappear from the library.',
+          removeProgress: 'Also delete the progress of its courses',
+          keepHint:
+            'Your progress is kept and comes back if you add the repository again.',
+          resetHint:
+            'Attempts and scores of these courses will be reset, including on your other devices after sync.',
         },
+        notInstalled:
+          'none not installed | {n} course not installed | {n} courses not installed',
+        choose: 'Courses…',
+        chooseLabel: 'Choose courses of repository {url}',
+        chooser: {
+          title: 'Courses of the repository',
+          hint: 'Checked courses are in the library. Applying downloads the repository again; your progress is kept for courses you remove.',
+          apply: 'Apply',
+          close: 'Close',
+        },
+      },
+      transfers: {
+        title: 'Import and export',
+        description:
+          'Extensions turn a file into a course and export a course or progress into a file. You choose the file and where to save it in the system dialog; extensions never see paths.',
+        empty:
+          'No extensions with import or export. They appear here once installed and enabled.',
+        importers: 'Import',
+        exporters: 'Export',
+        import: 'Import…',
+        export: 'Export…',
+        importLabel: 'Import: {title}',
+        exportLabel: 'Export: {title}',
+        scope: { course: 'course', progress: 'progress' },
+        accept: 'Files: {accept}',
       },
       ignored: {
         title: 'Ignored folders',
@@ -174,20 +213,113 @@ export const en: typeof ru = {
     },
     shortcuts: {
       title: 'Keyboard shortcuts',
-      subtitle: 'Keys that run app commands.',
+      subtitle:
+        'Keys of app and extension commands: change, add, remove or reset a shortcut.',
       palette: {
         title: 'Command palette',
-        description:
-          'The command palette searches the commands of the app and of extensions.',
+        description: 'The command palette searches app and extension commands.',
         open: 'Open command palette',
       },
-      empty: 'There are no keyboard shortcuts yet.',
+      toolbar: {
+        label: 'Search and filters',
+        search: 'Search commands',
+        searchHint: 'Title, category, keys or command key',
+        changed: 'Changed',
+        conflicts: 'Conflicts only',
+        resetAll: 'Reset all',
+      },
+      empty: 'No commands yet.',
+      noMatches: 'Nothing found.',
       noCategory: 'Other',
       columns: {
         command: 'Command',
-        keys: 'Shortcut',
+        keys: 'Shortcuts',
+        when: 'Condition',
+        source: 'Source',
+        actions: 'Actions',
       },
-      note: 'Shortcuts are set by the app and cannot be changed yet.',
+      none: 'No shortcuts',
+      always: 'always',
+      source: {
+        default: 'App',
+        extension: 'Extension',
+        user: 'Yours',
+      },
+      conflict: {
+        badge: 'Conflict',
+        same: {
+          wins: 'Overlaps with “{other}” ({keys}): this command wins.',
+          loses: 'Overlaps with “{other}” ({keys}): “{other}” wins.',
+        },
+        prefix: {
+          wins: 'Chord start matches “{other}” ({keys}): this command wins.',
+          loses: 'Chord start matches “{other}” ({keys}): “{other}” wins.',
+        },
+      },
+      actions: {
+        edit: 'Edit shortcut {keys}: {title}',
+        remove: 'Remove shortcut {keys}: {title}',
+        add: 'Add shortcut: {title}',
+        reset: 'Reset shortcuts: {title}',
+      },
+      resetAll: {
+        title: 'Reset all shortcuts?',
+        text: 'Your changes will be discarded: commands get the shortcuts of the app and extensions back.',
+        confirm: 'Reset',
+        cancel: 'Cancel',
+      },
+      dialog: {
+        titleEdit: 'Edit shortcut: {title}',
+        titleAdd: 'Add shortcut: {title}',
+        capture: 'Shortcut',
+        captureHelp:
+          'Press the keys. A second combination continues the chord (two at most). Backspace or Delete clears the recording, Escape with nothing recorded closes the dialog.',
+        captureEmpty: 'Press keys…',
+        recorded: 'Recorded: {keys}',
+        clear: 'Clear recording',
+        when: 'Condition (when)',
+        whenHint:
+          'Empty means always. Keys: {keys}. Operators: {operators}, parentheses.',
+        conflictsTitle: 'Conflicts',
+        noConflicts: 'No conflicts.',
+        overrides: 'Your shortcut will win.',
+        blocking:
+          'This is your own shortcut of another command: “Reassign” removes it there.',
+        save: 'Save',
+        reassign: 'Reassign',
+        cancel: 'Cancel',
+      },
+      problems: {
+        key: 'Invalid key text: {reason}.',
+        when: 'Condition error at position {position}: {reason}.',
+        typing:
+          'A shortcut without Ctrl or ⌘ types a character: set a condition that is false while typing, for example !inputFocus.',
+        duplicate: 'The command already has this shortcut with this condition.',
+        reason: {
+          empty: 'empty',
+          'empty-part': 'empty part',
+          'too-long': 'text is too long',
+          'too-long-text': 'text is too long',
+          'too-deep': 'nesting is too deep',
+          'modifier-only': 'a modifier without a key',
+          'unknown-modifier': 'unknown modifier',
+          'repeated-modifier': 'repeated modifier',
+          'unknown-key': 'unknown key',
+          'invalid-code': 'invalid physical key code',
+          'unexpected-token': 'unexpected character',
+          'unexpected-end': 'unexpected end',
+          'unterminated-string': 'unclosed quote',
+        },
+      },
+      failed: {
+        syntax: 'The engine rejected the entry ({field}): {message}',
+        typing: 'The engine rejected the entry ({field}): {message}',
+        conflict:
+          'The shortcut overlaps another command of your set: “{command}” and “{other}”. Use “Reassign”.',
+        limit: 'Limit exceeded: {message}',
+        duplicate: 'Repeated shortcut and condition ({field}).',
+        unknown: 'Shortcuts were not saved: {message}',
+      },
     },
     extensions: {
       title: 'Extensions',
@@ -230,6 +362,7 @@ export const en: typeof ru = {
         events: 'Learning events',
         commands: 'Commands',
         panels: 'Panels',
+        widgets: 'Widgets',
       },
       origin: {
         bundled: 'Bundled',
@@ -241,6 +374,7 @@ export const en: typeof ru = {
         overridden: 'Overridden',
         invalid: 'Failed to load',
         disabled: 'Disabled',
+        'dependencies-unmet': 'Dependencies not met',
       },
       builtIn: 'Built in',
       isolation: {
@@ -248,18 +382,40 @@ export const en: typeof ru = {
         trusted: 'Trusted',
       },
       enabledLabel: 'Enabled',
+      notificationsLabel: 'Notifications',
+      schedulesLabel: 'Schedule',
+      schedule: {
+        daily: 'Every day at {at}',
+        hourly: 'Every hour',
+      },
       trustLabel: 'Trust (no isolation)',
       trustHint:
         'A trusted extension runs without isolation: its code runs with the app’s rights and its elements live in the app window and can see its data. Trust only extensions you believe in.',
+      dependencies: {
+        title: 'Dependencies',
+        status: {
+          ok: 'loaded',
+          installed: 'installed',
+          missing: 'not installed',
+          disabled: 'disabled',
+          version: 'version does not fit',
+          unmet: 'not loaded',
+        },
+        hint: 'Dependencies are not installed automatically: install them yourself. Installing this extension is not blocked — it starts working once its dependencies are met.',
+      },
       permissionsTitle: 'Permissions',
       permissionsNone: 'none requested',
       permissions: {
-        learning: { events: 'Learning events' },
+        learning: {
+          events: 'Learning events',
+          stats: 'Learning statistics',
+        },
         library: { read: 'Read the course library' },
         process: { spawn: 'Launch processes' },
         worker: { threads: 'Threads' },
         native: { addons: 'Native modules' },
         network: 'Network',
+        notifications: 'System notifications',
       },
       networkCaveat:
         'Network is declared only, not restricted: the extension can reach the network even when isolated.',
@@ -283,13 +439,108 @@ export const en: typeof ru = {
         installFallback: 'Install v{version} (compatible)',
         installFallbackLabel:
           'Install v{version} (compatible): extension “{name}”',
+        elsewhere: 'Already installed from another source',
+        elsewhereLabel:
+          'Install extension “{name}”: already installed from another source',
+        elsewhereHint:
+          'To install it from this catalog, remove the installed extension first.',
         remove: 'Remove',
         removeLabel: 'Remove extension “{name}”',
         settings: 'Settings',
         settingsLabel: 'Settings of extension “{name}”',
       },
+      diagnostic: {
+        'manifest-unreadable': 'Could not read extension.json: {reason}',
+        'manifest-invalid': 'The manifest is invalid:',
+        'id-mismatch':
+          'The directory name “{expected}” does not match the manifest id “{actual}”',
+        'requires-app': 'Requires app version {minAppVersion} or newer',
+        'unavailable-platform': 'Not available on {platform}',
+        'claim-clash':
+          'The contribution “{name}” ({kind}) is already provided by extension “{by}”',
+        'load-failed': 'Could not load the extension: {reason}',
+        'overridden-by': 'Overridden by: {origin}, version {version}',
+        'safe-mode': 'Disabled in safe mode',
+        'dependency-missing':
+          'Requires the extension “{id}”{range}, which is not installed',
+        'dependency-disabled':
+          'Requires the extension “{id}”{range}, which is disabled',
+        'dependency-version':
+          'Requires the extension “{id}”{range}, found version {found}',
+        'dependency-unmet':
+          'Requires the extension “{id}”{range}, which is not loaded: its dependencies are not met',
+        'dependency-cycle': 'Extensions depend on each other: {cycle}',
+        locale: {
+          'missing-key':
+            'No translation for "{key}" in locales/en.json: the label is shown as is',
+          'invalid-file': 'Translation file {file} is ignored: {reason}',
+        },
+      },
+      safeMode: {
+        label: 'Safe mode',
+        hint: 'Extensions other than the built-in ones are turned off and do not run. Installing and removing still work.',
+        forced:
+          'The mode comes from how the app was launched (a flag or an environment variable) and this switch does not turn it off.',
+      },
+      host: {
+        gaveUpTitle: 'The extension host stopped after repeated failures',
+        gaveUpText:
+          'Extensions do not work until the host is started. The rest of the app works as usual.',
+        restart: 'Restart host',
+      },
+      support: {
+        title: 'Diagnostics',
+        hint: 'The app and extension log, and a report for a support request. The report has no home-directory paths, library content, learning data or setting values.',
+        openLog: 'Log',
+        copy: 'Copy diagnostics',
+        copying: 'Copying…',
+        copied: 'Copied',
+        copyFailed: 'Could not copy diagnostics',
+      },
+      log: {
+        title: 'Log',
+        rowAction: 'Log',
+        rowActionLabel: 'Log of the extension “{name}”',
+        filterExtension: 'Extension',
+        filterExtensionHint: 'All extensions',
+        filterLevel: 'Minimum level',
+        level: {
+          debug: 'Debug',
+          info: 'Info',
+          warn: 'Warning',
+          error: 'Error',
+        },
+        sourceLabel: 'Source',
+        extensionLabel: 'Extension',
+        details: 'Details',
+        listLabel: 'Log entries',
+        refresh: 'Refresh',
+        close: 'Close',
+        empty: 'No entries match the filters.',
+        loadFailed: 'Could not read the log',
+        retry: 'Retry',
+        count: 'no entries | {n} entry | {n} entries',
+      },
+      health: {
+        failures:
+          'no failures | {n} failure since the app started | {n} failures since the app started',
+        last: 'Last failure at {time}: {reason}',
+        suppressed:
+          'Paused until {time}: the extension process crashed too often.',
+        reason: {
+          'handler-failed': 'handler error',
+          'handler-timeout': 'handler timed out',
+          timeout: 'timed out',
+          'invalid-result': 'invalid result',
+          'activation-failed': 'activation failed',
+        },
+      },
       installed: {
         fromCatalog: 'From the catalog v{version}',
+        fromOtherCatalogShort: 'From another catalog',
+        fromOtherCatalog: 'From another catalog v{version}',
+        otherCatalogHint:
+          'Installed from a catalog that is not in use now: the extension works, but updates, revocation and deprecation notes come only from the active catalog.',
         updatesBanner: 'Updates available: {n}',
         updateAll: 'Update all',
         checkUpdates: 'Check for updates at startup',
@@ -331,14 +582,78 @@ export const en: typeof ru = {
         hintRange: 'From {min} to {max}',
         hintMin: 'At least {min}',
         hintMax: 'At most {max}',
+        color: {
+          picker: 'Pick a color: {label}',
+        },
+        list: {
+          item: 'Item {n}',
+          moveUp: 'Move item {n} up',
+          moveDown: 'Move item {n} down',
+          remove: 'Remove item {n}',
+          newItem: 'New item',
+          add: 'Add',
+          count: '{n} of {max}',
+        },
         problems: {
           type: 'This value does not fit the setting.',
           integer: 'A whole number is required.',
           range: 'The number is out of range.',
           'max-length': 'The value is too long.',
+          format: 'Enter a color like #rrggbb.',
+          'max-items': 'The list has too many items.',
           option: 'This option is not in the list.',
           'unknown-setting': 'The extension no longer declares this setting.',
           'not-a-number': 'Enter a number.',
+        },
+      },
+      deprecated: {
+        badge: 'Deprecated',
+        title: 'This extension is deprecated',
+        reason: 'Reason: {reason}',
+        versions: 'Applies to versions: {range}',
+        alternatives: 'Alternatives',
+        alternativeLabel: 'Open the page of the extension “{name}”',
+        hint: 'This is a warning: the extension can still be installed and updated.',
+      },
+      details: {
+        back: 'Back',
+        backLabel: 'Back to the extension list',
+        loading: 'Loading the extension page',
+        loadFailed: 'Could not load the extension',
+        notFoundTitle: 'Extension not found',
+        notFound:
+          'The extension “{id}” is neither installed nor in the catalog.',
+        authorProfile: '{author} on GitHub',
+        source: 'Source',
+        sourceLabel: 'Source of the extension “{name}” (opens in the browser)',
+        installedStatus: 'Installed v{version}',
+        catalogUnavailable:
+          'The catalog is unavailable: only the installed extension is shown.',
+        catalogOffline: 'No connection to the catalog: showing saved data',
+        versions: {
+          title: 'Versions',
+          listLabel: 'Extension versions',
+          published: 'Published {date}',
+          compatible: 'Compatible',
+          incompatible: 'Incompatible: {detail}',
+          installed: 'Installed',
+          shown: 'Description shown',
+          show: 'Show description',
+          showLabel: 'Show the description of version {version}',
+          changelog: 'has a changelog',
+        },
+        readme: {
+          title: 'README',
+          version: 'Description of version {version}',
+          loading: 'Loading the README',
+          none: 'This version has no README.',
+          unavailable: 'README unavailable',
+          reason: 'Reason: {reason}',
+          offline: 'No connection to the catalog: showing saved data',
+          truncated: 'The text is truncated: showing the first 64 KiB.',
+        },
+        changelog: {
+          title: 'What’s new',
         },
       },
       catalog: {
@@ -364,6 +679,38 @@ export const en: typeof ru = {
         incompatible: 'Incompatible: {detail}',
         installedStatus: 'Installed v{version}',
         installedFrom: 'Now v{version}',
+        advanced: {
+          title: 'Advanced',
+          addressLabel: 'Catalog address',
+          addressHint:
+            'Address of a .json file: https, or http on this computer (localhost)',
+          apply: 'Apply',
+          reset: 'Reset',
+          current: 'Active address',
+          origin: {
+            default: 'default',
+            setting: 'from settings',
+            env: 'from an environment variable',
+          },
+          envNote:
+            'The address is set by the DOLPHY_EXTENSION_CATALOG_URL environment variable: the setting has no effect while it is set.',
+          formerNote:
+            'Extensions installed from the former catalog stay in the list and keep working, but get no updates from the new catalog.',
+          applied: 'Catalog address changed',
+          failed: 'Could not change the address: {message}',
+          errors: {
+            'not-url': 'This is not an address: check what you typed.',
+            scheme:
+              'An https address is required (http only for localhost and 127.0.0.1).',
+            credentials:
+              'The address must not contain a user name or password.',
+            fragment:
+              'The address must not contain a fragment (the part after #).',
+            'not-json': 'The address must point to a .json file.',
+            'too-long': 'The address is longer than 2048 characters.',
+            env: 'The address is set by an environment variable and cannot be changed.',
+          },
+        },
       },
       install: {
         titleInstall: 'Install “{name}”?',
@@ -382,6 +729,14 @@ export const en: typeof ru = {
         confirmUpdate: 'Update',
         cancel: 'Cancel',
         progress: 'Installing',
+        whatsNew: {
+          title: 'What’s new',
+          loading: 'Loading the changelog',
+          notFound: 'No changelog found',
+          failed: 'Could not load the changelog',
+          openPage: 'Open the extension page',
+          openPageLabel: 'Open the page of the extension “{name}”',
+        },
         itemStatus: {
           pending: 'Waiting',
           running: 'Installing',
@@ -408,6 +763,15 @@ export const en: typeof ru = {
           unknown: 'Could not install the extension.',
         },
       },
+      link: {
+        busy: 'Wait for the installation to finish',
+        notFound: 'Extension “{id}” was not found in the catalog',
+        upToDate: 'Extension “{name}” is already installed: v{version}',
+        elsewhere:
+          'Extension “{name}” is already installed from another source. Remove the installed one first to install it from the catalog.',
+        incompatible: 'Extension “{name}” is incompatible: {detail}',
+        failed: 'Could not open the extension from the link: {message}',
+      },
     },
     about: {
       title: 'About the engine',
@@ -423,6 +787,7 @@ export const en: typeof ru = {
       },
       scorer: {
         title: 'Memory model',
+        hint: 'The memory model estimates how well you remember each exercise and schedules reviews. FSRS is a spaced-repetition algorithm; “power-law” is a simpler power-law forgetting curve.',
         memoryModel: 'Memory model',
         kind: 'Scoring type',
         ratingMap: 'Attempt ratings',

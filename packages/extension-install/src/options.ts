@@ -1,4 +1,7 @@
-import type { ExtensionContributesDto } from '@dolphy-app/engine-contract';
+import type {
+  ExtensionContributesDto,
+  ExtensionDependencyDto,
+} from '@dolphy-app/engine-contract';
 import type { ExtensionLogger } from '@dolphy-app/extension-api';
 import type { InstallerFs } from './fs.ts';
 
@@ -11,6 +14,8 @@ export interface InspectedManifest {
   icon: string | null;
   /** Теги манифеста; порядок не важен при сверке. */
   tags: readonly string[];
+  /** Зависимости манифеста; порядок не важен при сверке. */
+  dependencies: readonly ExtensionDependencyDto[];
   /** Идентификаторы вкладов в том же виде, что в записи индекса. */
   contributes: ExtensionContributesDto;
 }
@@ -19,7 +24,7 @@ export type InspectResult =
   { ok: true; manifest: InspectedManifest } | { ok: false; message: string };
 
 export interface InstallerOptions {
-  /** Адрес `index.json`; origin этого адреса — единственный разрешённый для запросов. */
+  /** Адрес каталога (рядом лежит `index.v2.json`); origin этого адреса — единственный разрешённый для запросов. */
   catalogUrl: string;
   /** Пользовательский корень расширений (`<userData>/extensions`). */
   extensionsDir: string;

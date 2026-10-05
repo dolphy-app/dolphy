@@ -8,6 +8,7 @@ import type {
 import { createExtensionCommands } from '@/features/extension-commands/model/extension-commands.ts';
 import { NO_CONTRIBUTIONS } from '@/shared/api/engine/contributions.ts';
 import { createCommandRegistry } from '@/shared/lib/command-registry.ts';
+import { createExtensionWhen } from '@/shared/lib/extension-when.ts';
 
 const command = (
   id: string,
@@ -19,7 +20,10 @@ const command = (
   description: null,
   category: null,
   keybinding: null,
+  keybindings: [],
+  when: null,
   palette: true,
+  icon: 'puzzle',
   ...override,
 });
 
@@ -33,6 +37,8 @@ const contributionsOf = (
     id,
     extensionId,
     title: id,
+    icon: 'puzzle',
+    when: null,
     rendererUrl: `dolphy-ext://${extensionId}/panel.mjs`,
     isolated: true,
     origin: 'user',
@@ -45,6 +51,10 @@ const setup = (
   result: CommandResultDto = { kind: 'none' },
 ) => {
   const contributions = shallowRef(initial);
+  const locale = shallowRef('en');
+  const route = shallowRef<string>('daily-plan');
+  const courseActive = shallowRef(false);
+  const dark = shallowRef(false);
   const registry = createCommandRegistry();
   const invokeCommand = vi.fn(async () => result);
   const openPanel = vi.fn();
@@ -52,11 +62,22 @@ const setup = (
     registry,
     engine: { invokeCommand },
     contributions: () => contributions.value,
+    locale: () => locale.value,
+    when: createExtensionWhen({
+      route: () => route.value,
+      courseActive: () => courseActive.value,
+      locale: () => locale.value,
+      dark: () => dark.value,
+    }),
     openPanel,
   });
   const keys = () => registry.list.value.map(({ key }) => key);
   return {
     contributions,
+    locale,
+    route,
+    courseActive,
+    dark,
     registry,
     invokeCommand,
     openPanel,
@@ -73,7 +94,6 @@ describe('адаптер команд расширений: реестр', () =>
           title: 'Запуск',
           description: 'Описание',
           category: 'Обучение',
-          keybinding: 'Ctrl+Shift+S',
         }),
         command('hidden', { palette: false }),
       ]),
@@ -85,9 +105,87 @@ describe('адаптер команд расширений: реестр', () =>
       description: 'Описание',
       category: 'Обучение',
       caption: 'acme.cmd',
-      keybinding: 'Ctrl+Shift+S',
+      defaultBindings: [],
       checked: undefined,
       enabled: true,
+    });
+  });
+
+  it('значок команды — символ окна по имени из вклада; неизвестное имя — символ по умолчанию; смена значка перерегистрирует запись', () => {
+    const { registry, contributions } = setup(
+      contributionsOf([
+        command('run', { icon: 'fire' }),
+        command('plain', { icon: 'puzzle' }),
+        command('future', { icon: 'rocket-from-a-newer-app' }),
+      ]),
+    );
+    const icons = () =>
+      Object.fromEntries(
+        registry.list.value.map(({ key, icon }) => [key, icon]),
+      );
+    expect(icons()).toEqual({
+      'extension:acme.cmd:run': 'mdi-fire',
+      'extension:acme.cmd:plain': 'mdi-puzzle-outline',
+      'extension:acme.cmd:future': 'mdi-puzzle-outline',
+    });
+    contributions.value = contributionsOf([
+      command('run', { icon: 'trophy' }),
+      command('plain', { icon: 'puzzle' }),
+      command('future', { icon: 'rocket-from-a-newer-app' }),
+    ]);
+    expect(icons()['extension:acme.cmd:run']).toBe('mdi-trophy-outline');
+  });
+
+  it('подставляет %ключ% в название, описание и категорию; смена языка меняет подписи без перерегистрации', () => {
+    const { locale, registry, contributions } = setup({
+      ...contributionsOf([
+        command('run', {
+          title: '%run.title%',
+          description: '%run.description%',
+          category: '%run.category%',
+        }),
+        command('plain', { title: 'Plain title' }),
+      ]),
+      messages: {
+        'acme.cmd': {
+          en: {
+            'run.title': 'Run',
+            'run.description': 'Starts a run',
+            'run.category': 'Learning',
+          },
+          ru: { 'run.title': 'Запуск', 'run.category': 'Обучение' },
+        },
+      },
+    });
+    const view = () =>
+      registry.list.value.map(({ title, description, category }) => ({
+        title,
+        description,
+        category,
+      }));
+    expect(view()).toEqual([
+      { title: 'Run', description: 'Starts a run', category: 'Learning' },
+      { title: 'Plain title', description: undefined, category: undefined },
+    ]);
+    const before = registry.list.value.map(({ run }) => run);
+    locale.value = 'ru';
+    expect(view()[0]).toEqual({
+      title: 'Запуск',
+      // нет в ru — берётся en
+      description: 'Starts a run',
+      category: 'Обучение',
+    });
+    // та же регистрация: язык не перерегистрирует команды
+    expect(registry.list.value.map(({ run }) => run)).toEqual(before);
+    // таблицы обновились (расширение обновлено): подпись следует за ними
+    contributions.value = {
+      ...contributions.value,
+      messages: { 'acme.cmd': { en: { 'run.title': 'Go' } } },
+    };
+    expect(view()[0]).toEqual({
+      title: 'Go',
+      description: '%run.description%',
+      category: '%run.category%',
     });
   });
 
@@ -109,6 +207,69 @@ describe('адаптер команд расширений: реестр', () =>
       command('b', { extensionId: 'acme.other', palette: false }),
     ]);
     expect(keys()).toEqual([]);
+  });
+
+  it('when: пока условие ложно, команда недоступна; смена маршрута, курса, языка и темы пересчитывает без перерегистрации', () => {
+    const { registry, route, courseActive, locale, dark } = setup(
+      contributionsOf([
+        command('plain'),
+        command('here', { when: "route == 'courses'" }),
+        command('focused', { when: 'course.active' }),
+        command('russian', { when: "locale == 'ru'" }),
+        command('night', { when: 'theme.dark && !session.active' }),
+      ]),
+    );
+    const enabled = () =>
+      Object.fromEntries(
+        registry.list.value.map(({ key, enabled }) => [
+          key.split(':')[2],
+          enabled,
+        ]),
+      );
+    const before = registry.list.value.map(({ run }) => run);
+    expect(enabled()).toEqual({
+      plain: true,
+      here: false,
+      focused: false,
+      russian: false,
+      night: false,
+    });
+
+    route.value = 'courses';
+    courseActive.value = true;
+    locale.value = 'ru';
+    dark.value = true;
+    expect(enabled()).toEqual({
+      plain: true,
+      here: true,
+      focused: true,
+      russian: true,
+      night: true,
+    });
+
+    route.value = 'session';
+    expect(enabled()).toMatchObject({ here: false, night: false });
+    expect(registry.list.value.map(({ run }) => run)).toEqual(before);
+  });
+
+  it('when: смена условия во вкладе заменяет запись; убранное условие делает команду доступной', () => {
+    const { registry, contributions } = setup(
+      contributionsOf([command('a', { when: "route == 'courses'" })]),
+    );
+    expect(registry.list.value[0]?.enabled).toBe(false);
+    contributions.value = contributionsOf([
+      command('a', { when: "route == 'daily-plan'" }),
+    ]);
+    expect(registry.list.value[0]?.enabled).toBe(true);
+    contributions.value = contributionsOf([command('a', { when: null })]);
+    expect(registry.list.value[0]?.enabled).toBe(true);
+  });
+
+  it('when: условие, которого окно не разбирает, скрывает команду', () => {
+    const { registry } = setup(
+      contributionsOf([command('a', { when: "route == 'no-such-screen'" })]),
+    );
+    expect(registry.list.value[0]?.enabled).toBe(false);
   });
 
   it('dispose снимает все команды расширений', () => {
@@ -253,5 +414,88 @@ describe('R9: расширения не вызывают команды прил
       'palette',
     );
     expect(route.openPanel).not.toHaveBeenCalled();
+  });
+});
+
+describe('адаптер команд расширений: привязки', () => {
+  const bound = (
+    id: string,
+    override: Partial<CommandContributionDto> = {},
+  ): CommandContributionDto =>
+    command(id, { keybinding: 'Mod+Shift+G', ...override });
+
+  it('собирает привязки: сначала keybinding, затем keybindings; только palette:true; в описание команды они не попадают', () => {
+    const { extensionCommands, registry } = setup(
+      contributionsOf([
+        bound('greet', {
+          keybindings: [
+            {
+              key: 'Mod+J',
+              mac: 'Ctrl+J',
+              windows: null,
+              linux: null,
+              when: 'page == courses',
+            },
+          ],
+        }),
+        bound('hidden', { palette: false }),
+        command('plain'),
+      ]),
+    );
+    expect(extensionCommands.bindings.value).toEqual([
+      { command: 'extension:acme.cmd:greet', key: 'Mod+Shift+G' },
+      {
+        command: 'extension:acme.cmd:greet',
+        key: 'Mod+J',
+        mac: 'Ctrl+J',
+        windows: null,
+        linux: null,
+        when: 'page == courses',
+      },
+    ]);
+    expect(
+      registry.list.value.every(
+        ({ defaultBindings }) => defaultBindings.length === 0,
+      ),
+    ).toBe(true);
+  });
+
+  it('порядок по extensionId, затем по порядку вклада', () => {
+    const { extensionCommands } = setup(
+      contributionsOf([
+        bound('b', { extensionId: 'zeta.ext' }),
+        bound('a', { extensionId: 'alpha.ext' }),
+        bound('c', { extensionId: 'alpha.ext' }),
+      ]),
+    );
+    expect(
+      extensionCommands.bindings.value.map(({ command: key }) => key),
+    ).toEqual([
+      'extension:alpha.ext:a',
+      'extension:alpha.ext:c',
+      'extension:zeta.ext:b',
+    ]);
+  });
+
+  it('смена одних привязок обновляет список и не перерегистрирует команду', () => {
+    const { extensionCommands, registry, contributions } = setup(
+      contributionsOf([bound('greet')]),
+    );
+    const before = registry.list.value.map(({ run }) => run);
+    contributions.value = contributionsOf([
+      bound('greet', { keybinding: 'Mod+Shift+H' }),
+    ]);
+    expect(extensionCommands.bindings.value).toEqual([
+      { command: 'extension:acme.cmd:greet', key: 'Mod+Shift+H' },
+    ]);
+    expect(registry.list.value.map(({ run }) => run)).toEqual(before);
+  });
+
+  it('привязки пропадают вместе с расширением', () => {
+    const { extensionCommands, contributions } = setup(
+      contributionsOf([bound('greet')]),
+    );
+    contributions.value = contributionsOf([]);
+    expect(extensionCommands.bindings.value).toEqual([]);
   });
 });

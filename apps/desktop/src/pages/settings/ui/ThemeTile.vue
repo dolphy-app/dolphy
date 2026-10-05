@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, useId } from 'vue';
 import { useTheme } from 'vuetify';
 
 const props = defineProps<{
@@ -8,13 +8,14 @@ const props = defineProps<{
   /** Имена тем Vuetify для образца: `system` — светлая и тёмная. */
   themeNames: readonly string[];
   label: string;
-  /** Подпись под названием (например, id расширения); не переводится. */
-  caption?: string;
+  /** Подсказка (например, id расширения): `title` и описание радио; не переводится. */
+  tooltip?: string;
   selected: boolean;
 }>();
 defineEmits<{ select: [mode: string] }>();
 
 const themes = useTheme().themes;
+const tooltipId = useId();
 
 /** Образец берёт настоящие цвета тем: он не расходится с приложением. */
 const palettes = computed(() =>
@@ -32,13 +33,14 @@ const palettes = computed(() =>
 </script>
 
 <template>
-  <label class="tile" :class="{ selected }">
+  <label class="tile" :class="{ selected }" :title="tooltip">
     <input
       class="visually-hidden"
       type="radio"
       name="theme-mode"
       :value="mode"
       :checked="selected"
+      :aria-describedby="tooltip ? tooltipId : undefined"
       @change="$emit('select', mode)"
     />
     <span class="preview" aria-hidden="true">
@@ -60,8 +62,13 @@ const palettes = computed(() =>
     <span class="caption">
       <span class="label">
         <span class="text-title-medium">{{ label }}</span>
-        <span v-if="caption" class="text-body-small text-medium-emphasis">
-          {{ caption }}
+        <span
+          v-if="tooltip"
+          :id="tooltipId"
+          class="visually-hidden"
+          aria-hidden="true"
+        >
+          {{ tooltip }}
         </span>
       </span>
       <v-icon

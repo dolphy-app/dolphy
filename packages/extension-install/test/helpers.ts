@@ -35,6 +35,10 @@ export interface Contributes {
   events?: string[];
   commands?: string[];
   panels?: string[];
+  widgets?: string[];
+  schedules?: string[];
+  importers?: string[];
+  exporters?: string[];
 }
 
 export const contributesOf = (exerciseTypes: string[]): Contributes => ({
@@ -50,6 +54,8 @@ export interface ExtensionSpec {
   version: string;
   versions?: string[];
   permissions?: string[];
+  /** `dependencies` of the manifest and of every version record. */
+  dependencies?: { id: string; range?: string }[];
   contributes?: Contributes;
   platforms?: string[];
   apiVersion?: number;
@@ -67,6 +73,12 @@ export interface ExtensionSpec {
   tags?: Record<string, string[]>;
   /** `titles` of the index entry. */
   titles?: Record<string, Record<string, string>>;
+  /** `deprecated` of the index entry. */
+  deprecated?: {
+    versions: string | null;
+    reason: string;
+    alternatives: string[];
+  };
 }
 
 export const ICON_PATH = 'assets/icon.png';
@@ -78,6 +90,9 @@ export const filesOf = (spec: ExtensionSpec, version: string): FakeFile[] => [
       id: spec.id,
       version,
       permissions: spec.permissions ?? [],
+      ...(spec.dependencies === undefined
+        ? {}
+        : { dependencies: spec.dependencies }),
       ...(spec.icon === undefined ? {} : { icon: ICON_PATH }),
       ...(spec.tags?.[version] === undefined
         ? {}
@@ -104,12 +119,16 @@ export const rawEntry = (spec: ExtensionSpec): Record<string, unknown> => ({
   platforms: spec.platforms ?? [],
   contributes: spec.contributes ?? contributesOf([spec.id]),
   ...(spec.titles === undefined ? {} : { titles: spec.titles }),
+  ...(spec.deprecated === undefined ? {} : { deprecated: spec.deprecated }),
   versions: (spec.versions ?? [spec.version]).map((version) => ({
     version,
     apiVersion: spec.apiVersion ?? 1,
     minAppVersion:
       spec.minAppByVersion?.[version] ?? spec.minAppVersion ?? null,
     permissions: spec.permissions ?? [],
+    ...(spec.dependencies === undefined
+      ? {}
+      : { dependencies: spec.dependencies }),
     publishedAt: '2026-10-01T00:00:00Z',
     baseUrl: `extensions/${spec.id}/${version}/`,
     files: filesOf(spec, version).map((file) => ({
@@ -129,11 +148,10 @@ export const rawIndex = (
   options: {
     generatedAt?: string;
     revoked?: { id: string; versions: string; reason: string }[];
-    schemaVersion?: 1 | 2;
   } = {},
 ): string =>
   JSON.stringify({
-    schemaVersion: options.schemaVersion ?? 1,
+    schemaVersion: 2,
     generatedAt: options.generatedAt ?? '2026-10-01T12:00:00Z',
     extensions: entries.map(rawEntry),
     revoked: options.revoked ?? [],
@@ -199,18 +217,14 @@ export const serve = (
   }
 };
 
-/** `index.json` of the catalog; `full` — `index.v2.json` (schemaVersion 2) instead. */
+/** `index.v2.json` of the catalog. */
 export const serveIndex = (
   routes: Map<string, Route>,
   entries: ExtensionSpec[],
-  options: Parameters<typeof rawIndex>[1] & {
-    etag?: string;
-    full?: boolean;
-  } = {},
+  options: Parameters<typeof rawIndex>[1] & { etag?: string } = {},
 ): void => {
-  const { full = false, ...rest } = options;
-  routes.set(full ? FULL_INDEX_URL : CATALOG_URL, {
-    body: rawIndex(entries, { ...rest, schemaVersion: full ? 2 : 1 }),
+  routes.set(FULL_INDEX_URL, {
+    body: rawIndex(entries, options),
     ...(options.etag !== undefined && {
       headers: { etag: options.etag, 'content-type': 'application/json' },
     }),
@@ -230,6 +244,7 @@ export const inspectJson = async (
       permissions: string[];
       icon?: string;
       tags?: string[];
+      dependencies?: { id: string; range?: string }[];
       contributes: Contributes;
     };
     return {
@@ -246,12 +261,20 @@ export const inspectJson = async (
                 await readFile(path.join(directory, raw.icon)),
               ),
         tags: raw.tags ?? [],
+        dependencies: (raw.dependencies ?? []).map(({ id, range }) => ({
+          id,
+          range: range ?? null,
+        })),
         contributes: {
           ...raw.contributes,
           settings: raw.contributes.settings ?? [],
           events: raw.contributes.events ?? [],
           commands: raw.contributes.commands ?? [],
+          widgets: raw.contributes.widgets ?? [],
+          schedules: raw.contributes.schedules ?? [],
           panels: raw.contributes.panels ?? [],
+          importers: raw.contributes.importers ?? [],
+          exporters: raw.contributes.exporters ?? [],
         },
       },
     };

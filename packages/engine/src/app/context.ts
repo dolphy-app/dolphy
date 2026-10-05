@@ -18,6 +18,7 @@ import type {
   UnitId,
   VerdictDto,
 } from '@dolphy-app/engine-contract';
+import type { Platform } from '@dolphy-app/keybindings';
 import type { LibraryHolder } from '../authoring/library-holder.ts';
 import type { AttemptEntry, LogEntry } from '../domain/journal.ts';
 import type { Library } from '../domain/library.ts';
@@ -38,9 +39,16 @@ import type {
 import type { ExerciseTypes } from '../ports/exercise-types.ts';
 import type { GradePolicies } from '../ports/grade-policies.ts';
 import type { ExtensionCommands } from '../ports/extension-commands.ts';
+import type { ExtensionTransfers } from '../ports/extension-transfers.ts';
 import type { ExtensionDataStore } from '../ports/extension-data.ts';
+import type { PlatformServices } from '../ports/platform.ts';
 import type { ExtensionInstaller } from '../ports/extension-installer.ts';
+import type {
+  ExtensionHealth,
+  ExtensionHostControl,
+} from '../ports/extension-health.ts';
 import type { ExtensionPolicy } from '../ports/extension-policy.ts';
+import type { LogReader } from '../ports/log-reader.ts';
 import type { ExtensionRegistry } from '../ports/extension-registry.ts';
 import type { ExtensionReloader } from '../ports/extension-reloader.ts';
 import type { FsrsScorer } from '../scoring/fsrs-scorer.ts';
@@ -63,6 +71,7 @@ import type { ExtensionApply } from './extension-apply.ts';
 import type { EventBus } from './event-bus.ts';
 import type { ExpiringMap } from './expiring-map.ts';
 import type { EntryFields, JournalWriter } from './journal-writer.ts';
+import type { StatsIndex } from './stats-index.ts';
 
 export type { LibraryHolder } from '../authoring/library-holder.ts';
 
@@ -99,14 +108,24 @@ export interface EngineDeps {
   gradePolicies: GradePolicies;
   /** Команды расширений: вызов в хосте расширений (`@dolphy-app/extension-host`). */
   extensionCommands: ExtensionCommands;
+  /** Импорт и экспорт расширений: запуск в хосте расширений (`@dolphy-app/extension-host`). */
+  extensionTransfers: ExtensionTransfers;
   /** Обзор расширений для `extensions.list`. */
   extensionRegistry: ExtensionRegistry;
   /** Политика расширений (включено / изолировано); тот же экземпляр, что у реестра и клиентов хоста. */
   extensionPolicy: ExtensionPolicy;
+  /** Здоровье расширений в памяти; тот же экземпляр, что у клиентов хоста (`createExtensionHealth`). */
+  extensionHealth: ExtensionHealth;
+  /** Перезапуск хоста расширений: им владеет оболочка приложения. */
+  extensionHostControl: ExtensionHostControl;
   /** Установка расширений из каталога (`@dolphy-app/extension-install`). */
   extensionInstaller: ExtensionInstaller;
   /** Применение изменений расширений на диске (`@dolphy-app/extension-host`): тот же снимок, что у реестра, политики и клиентов хоста. */
   extensionReloader: ExtensionReloader;
+  /** Чтение файлового журнала (`extensions.readLogs`); нет порта — журнала нет, ответ пустой. */
+  logReader?: LogReader;
+  /** Платформа хоста; по умолчанию `platformFromNode(process.platform)`. */
+  osPlatform?: Platform;
   /** Нет порта — `sync.folder.*` отвечает `SYNC_FOLDER_NOT_CONFIGURED`. */
   folderSync?: FolderSyncPort;
   /** Чтение каталога `.trane` (`readTraneDirectory` из `@dolphy-app/engine-sqlite`); нет — `importFromTrane` отказывает. */
@@ -115,6 +134,8 @@ export interface EngineDeps {
   repositoryStore: RepositoryStore;
   /** Хранилище и значения настроек расширений; SQLite или память. */
   extensionDataStore: ExtensionDataStore;
+  /** Возможности main (шифр секретов); нет порта — `createUnavailablePlatform()`: хранилища ключей нет. */
+  platform?: PlatformServices;
   /** Получение снимков по `http(s)`; `createIsomorphicGitFetcher` из `@dolphy-app/engine-git`. */
   snapshotFetcher: GitSnapshotFetcher;
   /** Подмена каталогов снимков; `createNodeSnapshotInstaller` из `@dolphy-app/engine/node`. */
@@ -155,6 +176,14 @@ export interface AttemptIndex extends AttemptCatalog {
   applyAttempt(entry: AttemptEntry): boolean;
   /** Сброс прогресса; `false` — запись с таким `id` уже применена. */
   applyReset(unitId: UnitId, key: EntryKey): boolean;
+  /** Отмена или возврат цели (LWW по ключу); `false` — устаревшая или уже применённая запись. */
+  applyRetraction(entry: Extract<LogEntry, { kind: 'retract' }>): boolean;
+  /** Упражнения, у которых есть попытка с `id === targetId` или `<targetId>#<i>`; пусто — такой цели нет. */
+  exercisesOf(targetId: string): UnitId[];
+  /** Цель сейчас отменена (решение именно по ней). */
+  isTargetRetracted(targetId: string): boolean;
+  /** Попытка с этим `id` отменена: своим `id` или целью-пачкой `<targetId>#<i>`. */
+  isRetractedId(id: string): boolean;
   /** Не более `limit` новейших неотменённых попыток, от новых к старым. */
   getTrials: AttemptSource['getTrials'];
   /** Неотменённые попытки, от новых к старым. */
@@ -317,13 +346,21 @@ export interface EngineContext extends FacadeContext {
   readonly exerciseTypes: ExerciseTypes;
   readonly extensionRegistry: ExtensionRegistry;
   readonly extensionPolicy: ExtensionPolicy;
+  readonly extensionHealth: ExtensionHealth;
+  readonly extensionHostControl: ExtensionHostControl;
   readonly extensionInstaller: ExtensionInstaller;
   readonly extensionApply: ExtensionApply;
   readonly folderSync: FolderSyncPort | null;
+  readonly logReader: LogReader | null;
+  /** Платформа хоста: по ней `Mod` в пользовательских привязках раскрывается в Ctrl или ⌘ (`settings.setKeybindings`). */
+  readonly osPlatform: Platform;
   readonly openTraneSource: EngineDeps['openTraneSource'];
   readonly repositoryStore: RepositoryStore;
   readonly extensionData: ExtensionDataStore;
+  readonly platform: PlatformServices;
   readonly extensionSettingChanges: ExtensionSettingChanges;
+  /** Статистика попыток для расширений (`learning.stats`); сбрасывается записями журнала. */
+  readonly statsIndex: StatsIndex;
   readonly snapshotFetcher: GitSnapshotFetcher;
   readonly snapshotInstaller: SnapshotInstaller;
   /** `current()` / `require()` / `swap()` — атомарная подмена. */
@@ -341,6 +378,7 @@ export interface EngineContext extends FacadeContext {
   readonly attempts: ExpiringMap<OpenAttempt>;
   readonly gradePolicies: GradePolicies;
   readonly extensionCommands: ExtensionCommands;
+  readonly extensionTransfers: ExtensionTransfers;
   /** Настройки обучения в памяти (читаются при каждом закрытии попытки); пишет только `settings.setLearning`. */
   readonly learning: { gradePolicy: string };
   readonly journal: JournalWriter;

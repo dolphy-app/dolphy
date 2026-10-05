@@ -1,4 +1,5 @@
-import type { EngineEvent } from '@dolphy-app/engine-contract';
+import { MAX_TOURS } from '@dolphy-app/engine-contract';
+import type { EngineEvent, UiSettingsPatch } from '@dolphy-app/engine-contract';
 import { buildLibrary } from '@dolphy-app/testkit';
 import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SCHEDULER_OPTIONS } from '../../../src/scheduler/options.ts';
@@ -372,6 +373,125 @@ describe('settings ui', () => {
     });
   });
 
+  it('keeps the material panel width and collapse until they are reset', async () => {
+    const { engine, settings } = await open();
+    expect(await engine.settings.setUi({ materialWidth: 420 })).toEqual({
+      theme: 'system',
+      locale: 'system',
+      materialWidth: 420,
+    });
+    // другие поля не трогают ширину; скрытие не трогает ширину
+    expect(await engine.settings.setUi({ materialCollapsed: true })).toEqual({
+      theme: 'system',
+      locale: 'system',
+      materialWidth: 420,
+      materialCollapsed: true,
+    });
+    expect(await settings.loadUi()).toMatchObject({
+      materialWidth: 420,
+      materialCollapsed: true,
+    });
+    expect(await engine.settings.setUi({ materialWidth: null })).toEqual({
+      theme: 'system',
+      locale: 'system',
+      materialCollapsed: true,
+    });
+    // `false` не хранится: поле просто пропадает
+    expect(await engine.settings.setUi({ materialCollapsed: false })).toEqual({
+      theme: 'system',
+      locale: 'system',
+    });
+  });
+
+  it.each([
+    [{ materialWidth: 279 }, 'materialWidth'],
+    [{ materialWidth: 801 }, 'materialWidth'],
+    [{ materialWidth: 400.5 }, 'materialWidth'],
+    [{ materialCollapsed: 'yes' as unknown as boolean }, 'materialCollapsed'],
+  ])('rejects %j and saves nothing', async (patch, field) => {
+    const { engine, settings } = await open();
+    await expect(engine.settings.setUi(patch)).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+      details: { field },
+    });
+    expect(await settings.loadUi()).toEqual({
+      theme: 'system',
+      locale: 'system',
+    });
+  });
+
+  it('merges tour outcomes by key and removes them with null', async () => {
+    const { engine, settings } = await open();
+    expect(
+      await engine.settings.setUi({ tours: { welcome: 'skipped' } }),
+    ).toEqual({
+      theme: 'system',
+      locale: 'system',
+      tours: { welcome: 'skipped' },
+    });
+    // другой тур и другие поля не трогают запись, перезапись меняет исход
+    expect(
+      await engine.settings.setUi({
+        theme: 'dark',
+        tours: { welcome: 'completed', session: 'skipped' },
+      }),
+    ).toMatchObject({
+      theme: 'dark',
+      tours: { welcome: 'completed', session: 'skipped' },
+    });
+    expect(await engine.settings.setUi({ materialWidth: 420 })).toMatchObject({
+      tours: { welcome: 'completed', session: 'skipped' },
+    });
+    expect(await settings.loadUi()).toMatchObject({
+      tours: { welcome: 'completed', session: 'skipped' },
+    });
+    expect(
+      await engine.settings.setUi({ tours: { welcome: null } }),
+    ).toMatchObject({ tours: { session: 'skipped' } });
+    // последняя запись удалена — поля нет совсем
+    const cleared = await engine.settings.setUi({ tours: { session: null } });
+    expect(cleared).not.toHaveProperty('tours');
+  });
+
+  it.each([
+    [{ tours: { 'Bad Id': 'completed' } }],
+    [{ tours: { '1welcome': 'completed' } }],
+    [{ tours: { ['a'.repeat(65)]: 'completed' } }],
+    [{ tours: { welcome: 'done' } }],
+    [{ tours: { welcome: true } }],
+    [{ tours: ['welcome'] }],
+    [{ tours: 'welcome' }],
+  ])('rejects the tours patch %j and saves nothing', async (patch) => {
+    const { engine, settings } = await open();
+    await expect(
+      engine.settings.setUi(patch as unknown as UiSettingsPatch),
+    ).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+      details: { field: 'tours' },
+    });
+    expect(await settings.loadUi()).toEqual({
+      theme: 'system',
+      locale: 'system',
+    });
+  });
+
+  it('refuses a 33rd stored tour', async () => {
+    const { engine, settings } = await open();
+    const full = Object.fromEntries(
+      Array.from({ length: MAX_TOURS }, (_, i) => [`t${i}`, 'skipped']),
+    ) as Record<string, 'skipped'>;
+    await engine.settings.setUi({ tours: full });
+    await expect(
+      engine.settings.setUi({ tours: { extra: 'completed' } }),
+    ).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+      details: { field: 'tours' },
+    });
+    // существующий ключ можно переписать и удалить
+    await engine.settings.setUi({ tours: { t0: 'completed', t1: null } });
+    expect((await settings.loadUi()).tours).toMatchObject({ t0: 'completed' });
+  });
+
   it('rejects an empty active course id and saves nothing', async () => {
     const { engine, settings } = await open();
     await expect(
@@ -473,5 +593,222 @@ describe('settings learning', () => {
     expect(await engine.settings.getLearning()).toEqual({
       gradePolicy: 'passAtN',
     });
+  });
+});
+
+describe('settings keybindings', () => {
+  const key = (text: string, when: string | null = null) => ({
+    key: text,
+    when,
+  });
+
+  it('starts empty; a patch is stored, returned, announced and replaces the set', async () => {
+    const { engine, events, settings } = await open();
+    expect(await engine.settings.getKeybindings()).toEqual({ commands: {} });
+    const saved = await engine.settings.setKeybindings({
+      'app:palette.open': [key('Ctrl+Shift+P'), key('Alt+K', '!inputFocus')],
+      'extension:acme:run': [],
+    });
+    expect(saved).toEqual({
+      commands: {
+        'app:palette.open': [key('Ctrl+Shift+P'), key('Alt+K', '!inputFocus')],
+        'extension:acme:run': [],
+      },
+    });
+    expect(await engine.settings.getKeybindings()).toEqual(saved);
+    expect(await settings.loadKeybindings()).toEqual(saved);
+    expect(changed(events, 'keybindings')).toHaveLength(1);
+    const replaced = await engine.settings.setKeybindings({
+      'app:palette.open': [key('Ctrl+Alt+P')],
+    });
+    expect(replaced.commands['app:palette.open']).toEqual([key('Ctrl+Alt+P')]);
+    expect(replaced.commands['extension:acme:run']).toEqual([]);
+  });
+
+  it('null resets a command and leaves the others', async () => {
+    const { engine } = await open();
+    await engine.settings.setKeybindings({
+      'app:a': [key('Ctrl+1')],
+      'app:b': [key('Ctrl+2')],
+    });
+    expect(await engine.settings.setKeybindings({ 'app:a': null })).toEqual({
+      commands: { 'app:b': [key('Ctrl+2')] },
+    });
+    expect(await engine.settings.setKeybindings({ 'app:zzz': null })).toEqual({
+      commands: { 'app:b': [key('Ctrl+2')] },
+    });
+  });
+
+  it('reads the store on every call', async () => {
+    const { engine, settings } = await open();
+    await settings.saveKeybindings({ commands: { 'app:a': [key('Ctrl+1')] } });
+    expect(await engine.settings.getKeybindings()).toEqual({
+      commands: { 'app:a': [key('Ctrl+1')] },
+    });
+  });
+
+  it('is atomic: one bad command leaves everything unchanged and silent', async () => {
+    const { engine, settings, events } = await open();
+    await engine.settings.setKeybindings({ 'app:a': [key('Ctrl+1')] });
+    const before = await settings.loadKeybindings();
+    events.length = 0;
+    await expect(
+      engine.settings.setKeybindings({
+        'app:a': null,
+        'app:b': [key('Ctrl+2')],
+        'app:c': [key('Ctrl+Nope')],
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+    expect(await settings.loadKeybindings()).toEqual(before);
+    expect(changed(events, 'keybindings')).toEqual([]);
+  });
+
+  it('rejects with field, reason and command for each kind of problem', async () => {
+    const { engine } = await open({ osPlatform: 'linux' });
+    const nine = Array.from({ length: 9 }, (_, i) => key(`Ctrl+${i + 1}`));
+    const cases: [
+      string,
+      Parameters<typeof engine.settings.setKeybindings>[0],
+      object,
+    ][] = [
+      [
+        'syntax',
+        { 'app:a': [key('Ctrl+Nope')] },
+        { field: 'commands.app:a[0].key', reason: 'syntax', command: 'app:a' },
+      ],
+      [
+        'syntax when',
+        { 'app:a': [key('Ctrl+1', 'a &&')] },
+        { field: 'commands.app:a[0].when', reason: 'syntax', command: 'app:a' },
+      ],
+      [
+        'command key',
+        { 'bad key': [key('Ctrl+1')] },
+        { reason: 'syntax', command: 'bad key' },
+      ],
+      [
+        'typing',
+        { 'app:a': [key('K')] },
+        { field: 'commands.app:a[0].when', reason: 'typing', command: 'app:a' },
+      ],
+      ['limit', { 'app:a': nine }, { reason: 'limit', command: 'app:a' }],
+      [
+        'duplicate',
+        { 'app:a': [key('Ctrl+1'), key('ctrl+1')] },
+        { field: 'commands.app:a[1]', reason: 'duplicate', command: 'app:a' },
+      ],
+      [
+        'conflict',
+        { 'app:a': [key('Ctrl+1')], 'app:b': [key('Ctrl+1')] },
+        { reason: 'conflict', other: expect.any(String) },
+      ],
+    ];
+    for (const [name, patch, details] of cases) {
+      await expect(
+        engine.settings.setKeybindings(patch),
+        name,
+      ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT', details });
+    }
+    expect(await engine.settings.getKeybindings()).toEqual({ commands: {} });
+  });
+
+  it('names both commands of a conflict and lists every issue', async () => {
+    const { engine } = await open({ osPlatform: 'linux' });
+    const error: unknown = await engine.settings
+      .setKeybindings({
+        'app:a': [key('Ctrl+1')],
+        'app:b': [key('Ctrl+1')],
+        'app:c': [key('Ctrl+Nope')],
+      })
+      .catch((caught: unknown) => caught);
+    expect(error).toMatchObject({
+      code: 'INVALID_ARGUMENT',
+      details: {
+        issues: expect.arrayContaining([
+          expect.objectContaining({ reason: 'conflict' }),
+          expect.objectContaining({ reason: 'syntax', command: 'app:c' }),
+        ]),
+      },
+    });
+    const { details } = error as {
+      details: {
+        issues: { reason: string; command: string; other?: string }[];
+      };
+    };
+    const conflict = details.issues.find(({ reason }) => reason === 'conflict');
+    expect([conflict?.command, conflict?.other].sort()).toEqual([
+      'app:a',
+      'app:b',
+    ]);
+  });
+
+  it('expands Mod by the host platform', async () => {
+    const patch = {
+      'app:a': [key('Ctrl+K')],
+      'app:b': [key('Mod+K')],
+    };
+    const linux = await open({ osPlatform: 'linux' });
+    await expect(
+      linux.engine.settings.setKeybindings(patch),
+    ).rejects.toMatchObject({ details: { reason: 'conflict' } });
+    const mac = await open({ osPlatform: 'mac' });
+    await expect(mac.engine.settings.setKeybindings(patch)).resolves.toEqual({
+      commands: patch,
+    });
+  });
+
+  it('lets a patch repair an already broken stored set', async () => {
+    const settings = createMemorySettingsStore({
+      keybindings: {
+        commands: {
+          'app:broken': [key('Ctrl+Nope')],
+          'app:x': [key('Ctrl+1')],
+          'app:y': [key('Ctrl+1')],
+          'app:ok': [key('Ctrl+9')],
+        },
+      },
+    });
+    const { engine } = await open({ settings, osPlatform: 'linux' });
+    // правка не касается сломанных команд — они не блокируют её
+    await expect(
+      engine.settings.setKeybindings({ 'app:ok': [key('Ctrl+8')] }),
+    ).resolves.toMatchObject({
+      commands: { 'app:ok': [key('Ctrl+8')], 'app:broken': [key('Ctrl+Nope')] },
+    });
+    // новая проблема по-прежнему блокирует
+    await expect(
+      engine.settings.setKeybindings({ 'app:ok': [key('Ctrl+1')] }),
+    ).rejects.toMatchObject({ details: { reason: 'conflict' } });
+    // ремонт: сброс и замена сломанных команд
+    const repaired = await engine.settings.setKeybindings({
+      'app:broken': null,
+      'app:y': [key('Ctrl+2')],
+    });
+    expect(Object.keys(repaired.commands).sort()).toEqual([
+      'app:ok',
+      'app:x',
+      'app:y',
+    ]);
+    // трогать сломанную команду, оставляя её сломанной, нельзя
+    await expect(
+      engine.settings.setKeybindings({ 'app:x': [key('Ctrl+Nope')] }),
+    ).rejects.toMatchObject({ details: { reason: 'syntax' } });
+  });
+
+  it('a failed write changes nothing and stays silent', async () => {
+    const settings = createMemorySettingsStore();
+    const { engine, events } = await open({
+      settings: {
+        ...settings,
+        saveKeybindings: async () => {
+          throw new SettingsStoreError('cannot write', 'x');
+        },
+      },
+    });
+    await expect(
+      engine.settings.setKeybindings({ 'app:a': [key('Ctrl+1')] }),
+    ).rejects.toThrow();
+    expect(await engine.settings.getKeybindings()).toEqual({ commands: {} });
+    expect(changed(events, 'keybindings')).toEqual([]);
   });
 });

@@ -1,4 +1,4 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { RULES } from '../src/catalog/rules.ts';
@@ -104,7 +104,33 @@ describe('dolphy-ext catalog check', () => {
     expect(result.code).toBe(0);
     const lines = result.stdout.trimEnd().split('\n');
     expect(lines).toHaveLength(RULES.length);
+    expect(lines).toHaveLength(27);
     expect(lines[0]).toMatch(/^CHECK-001 \S/);
+  });
+
+  it('--built enables the bundle rules; a source map fails the run', async () => {
+    const repo = await createRepo([{ fixture: 'theme-only' }]);
+    const built = path.join(repo.root, 'site/extensions/acme.night/1.0.0');
+    await mkdir(built, { recursive: true });
+    await writeFile(
+      path.join(built, 'main.mjs'),
+      'x();\n//# sourceMappingURL=data:application/json;base64,e30=',
+    );
+    const base = [
+      'catalog',
+      'check',
+      repo.extensionsDir,
+      '--skip-github-check',
+    ];
+    expect((await exec(base)).code).toBe(0);
+    const result = await exec([
+      ...base,
+      '--built',
+      path.join(repo.root, 'site'),
+    ]);
+    expect(result.code).toBe(1);
+    expect(result.stdout).toContain('error acme.night CHECK-025 main.mjs:');
+    expect((await exec([...base, '--built'])).code).toBe(2);
   });
 
   it('usage errors give code 2', async () => {
@@ -154,7 +180,7 @@ describe('dolphy-ext catalog build', () => {
     );
     expect((await exec(args)).stdout).toBe('unchanged acme.night@1.0.0\n');
     const index = JSON.parse(
-      await readFile(path.join(out, 'index.json'), 'utf8'),
+      await readFile(path.join(out, 'index.v2.json'), 'utf8'),
     );
     expect(index.extensions).toHaveLength(1);
   });
@@ -178,7 +204,7 @@ describe('dolphy-ext catalog build', () => {
     expect(result.stderr).toBe(
       'error acme.night: README.md is missing or empty\n',
     );
-    await expect(readFile(path.join(out, 'index.json'))).rejects.toThrow();
+    await expect(readFile(path.join(out, 'index.v2.json'))).rejects.toThrow();
   });
 
   it('--previous-index, --revoked, --source-base и --published-at reach the build', async () => {
@@ -209,7 +235,7 @@ describe('dolphy-ext catalog build', () => {
     ]);
     expect(result.code).toBe(0);
     const index = JSON.parse(
-      await readFile(path.join(out, 'index.json'), 'utf8'),
+      await readFile(path.join(out, 'index.v2.json'), 'utf8'),
     );
     expect(index.extensions[0].source).toBe('https://example.org/x/acme.night');
     expect(index.extensions[0].versions[0].publishedAt).toBe(
@@ -233,7 +259,7 @@ describe('dolphy-ext catalog build --reindex', () => {
       '--out',
       out,
     ]);
-    const indexFile = path.join(out, 'index.json');
+    const indexFile = path.join(out, 'index.v2.json');
     const revokedFile = path.join(out, 'revoked.json');
     return { out, indexFile, revokedFile };
   };
@@ -265,6 +291,48 @@ describe('dolphy-ext catalog build --reindex', () => {
       { id: 'acme.night', versions: '<=1.0.0', reason: 'bad' },
     ]);
     expect(after.generatedAt).toBe(now.toISOString());
+  });
+
+  it('--deprecated reaches build --reindex and catalog check; a bad alternative exits 1 without touching the index', async () => {
+    const { out, indexFile } = await setup();
+    const file = path.join(out, 'deprecated.json');
+    await writeFile(
+      file,
+      JSON.stringify([{ id: 'acme.night', reason: 'Old', alternatives: [] }]),
+    );
+    const base = ['catalog', 'build', '--reindex', '--out', out];
+    expect((await exec([...base, '--deprecated', file])).code).toBe(0);
+    expect((await readIndex(indexFile)).extensions[0].deprecated).toEqual({
+      versions: null,
+      reason: 'Old',
+      alternatives: [],
+    });
+    const before = await readFile(indexFile, 'utf8');
+    await writeFile(
+      file,
+      JSON.stringify([
+        { id: 'acme.night', reason: 'Old', alternatives: ['acme.missing'] },
+      ]),
+    );
+    const built = await exec([...base, '--deprecated', file]);
+    expect(built.code).toBe(1);
+    expect(built.stderr).toContain("alternative 'acme.missing'");
+    expect(await readFile(indexFile, 'utf8')).toBe(before);
+    const repo = await createRepo([]);
+    const checked = await exec([
+      'catalog',
+      'check',
+      repo.extensionsDir,
+      '--skip-github-check',
+      '--deprecated',
+      file,
+      '--published-index',
+      indexFile,
+    ]);
+    expect(checked.code).toBe(1);
+    expect(checked.stdout).toBe(
+      "error acme.night deprecated alternatives: alternative 'acme.missing' is not in the index\n",
+    );
   });
 
   it('without --revoked the list is kept, an empty array clears it', async () => {
@@ -300,7 +368,7 @@ describe('dolphy-ext catalog build --reindex', () => {
     ]);
     expect(result.code).toBe(0);
     expect(
-      (await readIndex(path.join(target, 'index.json'))).extensions,
+      (await readIndex(path.join(target, 'index.v2.json'))).extensions,
     ).toHaveLength(1);
   });
 
@@ -376,7 +444,7 @@ describe('dolphy-ext catalog build --reindex', () => {
 });
 
 describe('catalog build: rerun without changes', () => {
-  it('all extensions unchanged and the same revocation — index.json stays as it was', async () => {
+  it('all extensions unchanged and the same revocation — index.v2.json stays as it was', async () => {
     const repo = await createRepo([{ fixture: 'theme-only' }]);
     const out = await makeTemp();
     const args = [
@@ -390,7 +458,7 @@ describe('catalog build: rerun without changes', () => {
       out,
     ];
     await exec(args);
-    const indexFile = path.join(out, 'index.json');
+    const indexFile = path.join(out, 'index.v2.json');
     const before = await readFile(indexFile, 'utf8');
     const again = await exec(args, {
       now: () => new Date('2040-01-01T00:00:00.000Z'),

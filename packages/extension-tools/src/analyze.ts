@@ -1,9 +1,11 @@
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
+import MagicString from 'magic-string';
+import type { SourceMap } from 'magic-string';
 import { parseAst } from 'vite';
 
 /** Named entries of `src/index.ts` from which the browser files are built. */
-export const RECORDS = ['views', 'panels', 'markdown'] as const;
+export const RECORDS = ['views', 'panels', 'widgets', 'markdown'] as const;
 export type RecordName = (typeof RECORDS)[number];
 
 /** A single entry key: its name and the property range in the source. */
@@ -126,7 +128,7 @@ const propertyKeys = (
 
 /**
  * Static analysis of `src/index.ts` without executing author code: whether the
- * `host` export exists and which keys the `views`, `panels` and `markdown`
+ * `host` export exists and which keys the `views`, `panels`, `widgets` and `markdown`
  * entries have. Entries are found through local constants and relative
  * re-exports; keys must be given as an object literal.
  */
@@ -296,7 +298,9 @@ export const analyzeIndex = async (
     };
   };
 
-  const [views, panels, markdown] = await Promise.all(RECORDS.map(recordOf));
+  const [views, panels, widgets, markdown] = await Promise.all(
+    RECORDS.map(recordOf),
+  );
   const hasHost = (await walk.export(indexFile, 'host', 0)) !== null;
   return {
     files: [...cache.keys()],
@@ -304,6 +308,7 @@ export const analyzeIndex = async (
     records: {
       views: views as RecordResult,
       panels: panels as RecordResult,
+      widgets: widgets as RecordResult,
       markdown: markdown as RecordResult,
     },
   };
@@ -312,23 +317,32 @@ export const analyzeIndex = async (
 /**
  * Source of `site.file` with the entry literal trimmed to `keep`: the code of the
  * discarded keys does not reach the bundle, and neither do their dependencies.
+ * The source map describes the edit, so inline maps of watch builds point at the
+ * author's lines.
  */
 export const pruneRecords = (
   source: string,
   sites: readonly { site: RecordSite; keep: ReadonlySet<string> }[],
-): string => {
-  let result = source;
-  const ordered = [...sites].sort((a, b) => b.site.start - a.site.start);
-  for (const { site, keep } of ordered) {
-    const kept = site.keys
-      .filter((key) => keep.has(key.name))
-      .map((key) => source.slice(key.start, key.end));
-    result = `${result.slice(
-      0,
-      site.start,
-    )}{ ${kept.join(', ')} }${result.slice(site.end)}`;
+): { code: string; map: SourceMap } => {
+  const edit = new MagicString(source);
+  for (const { site, keep } of sites) {
+    // the interior of `{ … }` keeps the kept keys (their text stays as written), the gaps shrink to separators
+    let cursor = site.start + 1;
+    let isFirst = true;
+    for (const key of site.keys) {
+      if (!keep.has(key.name)) continue;
+      if (cursor < key.start) {
+        edit.overwrite(cursor, key.start, isFirst ? ' ' : ', ');
+      }
+      cursor = key.end;
+      isFirst = false;
+    }
+    if (cursor < site.end - 1) edit.overwrite(cursor, site.end - 1, ' ');
   }
-  return result;
+  return {
+    code: edit.toString(),
+    map: edit.generateMap({ hires: 'boundary' }),
+  };
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

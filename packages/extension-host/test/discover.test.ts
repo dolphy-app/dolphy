@@ -1,3 +1,4 @@
+import { formatDiagnostic } from '../src/diagnostics.ts';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createDiscoveryHolder } from '../src/holder.ts';
 import { tmpdir } from 'node:os';
@@ -167,7 +168,9 @@ describe('discoverExtensions', () => {
       extensionId: 'acme.dir',
       origin: 'bundled',
     });
-    expect(diagnostics[0]!.message).toContain('does not match');
+    expect(formatDiagnostic(diagnostics[0]!.diagnostic)).toContain(
+      'does not match',
+    );
   });
 
   it('путь схемы за пределами каталога — расширение пропущено', async () => {
@@ -247,7 +250,9 @@ describe('discoverExtensions', () => {
       logger: createLogger(),
     });
     expect(strict.extensions).toEqual([]);
-    expect(strict.diagnostics[0]!.message).toContain('main');
+    expect(formatDiagnostic(strict.diagnostics[0]!.diagnostic)).toContain(
+      'main',
+    );
     const lax = await discoverExtensions({
       roots: [{ dir: root, origin: 'bundled' }],
       logger: createLogger(),
@@ -303,7 +308,9 @@ describe('discoverExtensions', () => {
       logger: createLogger(),
     });
     expect(extensions).toEqual([]);
-    expect(diagnostics[0]!.message).toContain('does not compile');
+    expect(formatDiagnostic(diagnostics[0]!.diagnostic)).toContain(
+      'does not compile',
+    );
   });
 
   it('нет main.mjs по умолчанию — сообщение называет файл и умолчание', async () => {
@@ -313,9 +320,94 @@ describe('discoverExtensions', () => {
       roots: [{ dir: root, origin: 'bundled' }],
       logger: createLogger(),
     });
-    expect(diagnostics[0]!.message).toBe(
+    expect(formatDiagnostic(diagnostics[0]!.diagnostic)).toBe(
       "main './main.mjs' (default) is not a file",
     );
+  });
+});
+
+describe('диагностики по кодам', () => {
+  const codes = async (setup: (root: string) => Promise<void>) => {
+    const root = await rootDir('codes');
+    await setup(root);
+    const { diagnostics } = await discoverExtensions({
+      roots: [{ dir: root, origin: 'user' }],
+      logger: createLogger(),
+      appVersion: '1.0.0',
+      platform: 'linux',
+    });
+    return diagnostics.map(({ diagnostic }) => diagnostic);
+  };
+
+  it('manifest-unreadable: данные — причина', async () => {
+    const [diagnostic] = await codes(async (root) => {
+      await mkdir(path.join(root, 'acme.broken'));
+      await writeFile(path.join(root, 'acme.broken/extension.json'), '{');
+    });
+    expect(diagnostic?.code).toBe('manifest-unreadable');
+    expect(typeof diagnostic?.data.reason).toBe('string');
+  });
+
+  it('manifest-invalid: issues — путь и сообщение', async () => {
+    const [diagnostic] = await codes(async (root) => {
+      await makeExtension(root, 'acme.bad', { extra: { version: 'x' } });
+    });
+    expect(diagnostic).toEqual({
+      code: 'manifest-invalid',
+      data: { issues: ['version: version must be semver'] },
+    });
+  });
+
+  it('id-mismatch: имя каталога и id манифеста', async () => {
+    const found = await codes(async (root) => {
+      await makeExtension(root, 'acme.dir', { manifestId: 'acme.other' });
+    });
+    expect(found).toEqual([
+      {
+        code: 'id-mismatch',
+        data: { expected: 'acme.dir', actual: 'acme.other' },
+      },
+    ]);
+  });
+
+  it('requires-app и unavailable-platform', async () => {
+    const found = await codes(async (root) => {
+      await makeExtension(root, 'acme.new', {
+        extra: { minAppVersion: '2.0.0' },
+      });
+      await makeExtension(root, 'acme.win', {
+        extra: { platforms: ['win32'] },
+      });
+    });
+    expect(found).toEqual([
+      { code: 'requires-app', data: { minAppVersion: '2.0.0' } },
+      { code: 'unavailable-platform', data: { platform: 'linux' } },
+    ]);
+  });
+
+  it('claim-clash: вид, имя и владелец', async () => {
+    const found = await codes(async (root) => {
+      await makeExtension(root, 'acme.a', { element: 'acme-shared' });
+      await makeExtension(root, 'acme.b', { element: 'acme-shared' });
+    });
+    expect(found).toEqual([
+      {
+        code: 'claim-clash',
+        data: { kind: 'element', name: 'acme-shared', by: 'acme.a' },
+      },
+    ]);
+  });
+
+  it('load-failed: причина — сообщение загрузки', async () => {
+    const found = await codes(async (root) => {
+      await makeExtension(root, 'acme.nomain', { withMain: false });
+    });
+    expect(found).toEqual([
+      {
+        code: 'load-failed',
+        data: { reason: "main './main.mjs' (default) is not a file" },
+      },
+    ]);
   });
 });
 
@@ -344,7 +436,7 @@ describe('inspectExtensionDir', () => {
     const result = await inspectExtensionDir(path.join(root, 'acme.bad'));
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.message).toContain('id');
+    expect(formatDiagnostic(result.diagnostic)).toContain('id');
   });
 
   it('нет main.mjs по умолчанию — сообщение называет файл', async () => {
@@ -355,7 +447,10 @@ describe('inspectExtensionDir', () => {
     expect(strict).toEqual({
       ok: false,
       id: 'acme.nomain',
-      message: "main './main.mjs' (default) is not a file",
+      diagnostic: {
+        code: 'load-failed',
+        data: { reason: "main './main.mjs' (default) is not a file" },
+      },
     });
     expect((await inspectExtensionDir(dir, { verifyFiles: false })).ok).toBe(
       true,
@@ -392,7 +487,9 @@ describe('совместимость с приложением', () => {
       { appVersion: '1.1.9' },
     );
     expect(result.extensions).toEqual([]);
-    expect(result.diagnostics[0]!.message).toBe('requires app >= 1.2.0');
+    expect(formatDiagnostic(result.diagnostics[0]!.diagnostic)).toBe(
+      'requires app >= 1.2.0',
+    );
     const holder = createDiscoveryHolder(result);
     const registry = createExtensionRegistry(
       holder,
@@ -422,7 +519,9 @@ describe('совместимость с приложением', () => {
       { platform: 'win32' },
     );
     expect(result.extensions).toEqual([]);
-    expect(result.diagnostics[0]!.message).toBe('not available on win32');
+    expect(formatDiagnostic(result.diagnostics[0]!.diagnostic)).toBe(
+      'not available on win32',
+    );
   });
 
   it('платформа входит в platforms или platforms пусто — принимается', async () => {
@@ -447,7 +546,7 @@ describe('совместимость с приложением', () => {
     expect(await inspectExtensionDir(dir, { appVersion: '1.0.0' })).toEqual({
       ok: false,
       id: 'acme.i',
-      message: 'requires app >= 2.0.0',
+      diagnostic: { code: 'requires-app', data: { minAppVersion: '2.0.0' } },
     });
     expect((await inspectExtensionDir(dir)).ok).toBe(true);
   });

@@ -10,8 +10,21 @@ import type {
   ChildMessage,
   ParentMessage,
 } from '../src/restricted-protocol.ts';
-import { createRestrictedRunner } from '../src/restricted-runner.ts';
+import {
+  IPC_MAX_MESSAGE_CHARS,
+  IPC_MAX_PER_SECOND,
+  OUTPUT_LIMIT_BYTES,
+  OUTPUT_WINDOW_MS,
+  TRANSFER_DEADLINE_MS,
+  createRestrictedRunner,
+} from '../src/restricted-runner.ts';
 import type { RestrictedChild, SpawnSpec } from '../src/restricted-runner.ts';
+import {
+  chunksOf,
+  createBodyReceiver,
+  splitResult,
+} from '../src/transfer-wire.ts';
+import type { StreamedResult } from '../src/restricted-protocol.ts';
 import { createLogger, nullEngine } from './helpers.ts';
 
 interface FakeChild extends RestrictedChild {
@@ -107,11 +120,14 @@ const extensionOf = (
   name: null,
   description: null,
   author: null,
+  dependencies: [],
   platforms: [],
   minAppVersion: null,
   icon: null,
   tags: [],
   install: null,
+  messages: {},
+  warnings: [],
   exerciseTypes: [],
   themes: [],
   markdownRenderers: [],
@@ -119,7 +135,11 @@ const extensionOf = (
   settings: [],
   events: [],
   commands: [],
+  widgets: [],
+  schedules: [],
   panels: [],
+  importers: [],
+  exporters: [],
 });
 
 const gradeRequest = (id: string, timeoutMs = 2000): ExtRequest => ({
@@ -142,6 +162,16 @@ const projectRequest = (id: string): ExtRequest => ({
   params: { type: 'acme.fake', exerciseId: 'e', spec: {}, isolated: true },
 });
 
+const commandRequest = (id: string): ExtRequest => ({
+  id,
+  method: 'invokeCommand',
+  params: {
+    extensionId: 'acme.fake',
+    commandId: 'acme.fake.go',
+    isolated: true,
+  },
+});
+
 const setup = (
   behaviors: Behavior[] | (() => Behavior),
   options: {
@@ -151,6 +181,7 @@ const setup = (
       stat: () => Promise<null>;
     };
     graceMs?: number;
+    transferDeadlineMs?: number;
     engine?: EngineLink;
   } = {},
 ) => {
@@ -167,6 +198,9 @@ const setup = (
     engine: options.engine ?? nullEngine,
     logger,
     ...(options.graceMs !== undefined && { graceMs: options.graceMs }),
+    ...(options.transferDeadlineMs !== undefined && {
+      transferDeadlineMs: options.transferDeadlineMs,
+    }),
     spawn: (spec) => {
       specs.push(spec);
       const behavior =
@@ -267,15 +301,75 @@ describe('ограниченный раннер', () => {
     const response = await runner.handle(projectRequest('1'));
     expect(response).toMatchObject({
       ok: false,
-      error: { cause: 'activation-failed' },
+      error: { cause: 'activation-timeout' },
+    });
+    expect(children[0]?.killed).toBe(true);
+    // сбой по сроку запоминается: процесс заново не поднимается
+    const again = await runner.handle(projectRequest('2'));
+    expect(again).toMatchObject({
+      ok: false,
+      error: { cause: 'activation-timeout' },
+    });
+    expect(children).toHaveLength(1);
+  });
+
+  it('срок вызова вышел раньше срока готовности: вызвавший получает activation-timeout, а не чужой дедлайн', async () => {
+    const children: FakeChild[] = [];
+    const runner = createRestrictedRunner({
+      extension: extensionOf(),
+      entryPath,
+      library: { readText: async () => '', stat: async () => null },
+      engine: nullEngine,
+      logger: createLogger(),
+      readyTimeoutMs: 500,
+      commandDeadlineMs: 30,
+      spawn: () => {
+        const child = createFakeChild({ autoReady: false });
+        children.push(child);
+        return child;
+      },
+    });
+    const response = await runner.handle(commandRequest('1'));
+    expect(response).toMatchObject({
+      ok: false,
+      error: { cause: 'activation-timeout' },
     });
     expect(children[0]?.killed).toBe(true);
   });
 
-  it('цикл падений: после более чем 5 выходов за минуту минуту не запускаем процесс', async () => {
+  it('вызов, не уложившийся в срок после готовности, остаётся сбоем вызова', async () => {
+    const children: FakeChild[] = [];
+    const runner = createRestrictedRunner({
+      extension: extensionOf(),
+      entryPath,
+      library: { readText: async () => '', stat: async () => null },
+      engine: nullEngine,
+      logger: createLogger(),
+      commandDeadlineMs: 30,
+      spawn: () => {
+        const child = createFakeChild({ reply: () => undefined });
+        children.push(child);
+        return child;
+      },
+    });
+    const response = await runner.handle(commandRequest('1'));
+    expect(response).toMatchObject({
+      ok: false,
+      error: { cause: 'handler-timeout' },
+    });
+  });
+
+  it('цикл падений: пятый выход за минуту приостанавливает расширение и сообщает об этом движку', async () => {
     let now = 1_000_000;
     vi.spyOn(Date, 'now').mockImplementation(() => now);
-    const { runner, children } = setup(() => ({}));
+    const reports: unknown[] = [];
+    const engine: EngineLink = {
+      request: async (method, params) => {
+        reports.push({ method, params });
+        return null;
+      },
+    };
+    const { runner, children } = setup(() => ({}), { engine });
     const crash = async (index: number) => {
       const pending = runner.handle(projectRequest(String(index)));
       await vi.waitFor(() => expect(children).toHaveLength(index + 1));
@@ -285,11 +379,24 @@ describe('ограниченный раннер', () => {
       children[index]?.exit(1);
       await pending;
     };
-    for (let index = 0; index < 6; index += 1) {
+    for (let index = 0; index < 4; index += 1) {
       await crash(index);
       now += 1000;
     }
-    expect(children).toHaveLength(6);
+    expect(reports).toEqual([]);
+    await crash(4);
+    const suppressedUntil = now + 60_000;
+    expect(reports).toEqual([
+      {
+        method: 'health.report',
+        params: {
+          extensionId: 'acme.fake',
+          kind: 'suppressed',
+          until: suppressedUntil,
+        },
+      },
+    ]);
+    expect(children).toHaveLength(5);
     expect(await runner.handle(projectRequest('x'))).toEqual({
       id: 'x',
       ok: false,
@@ -298,11 +405,11 @@ describe('ограниченный раннер', () => {
         message: 'extension process keeps crashing',
       },
     });
-    expect(children).toHaveLength(6);
-    now += 61_000;
+    expect(children).toHaveLength(5);
+    now = suppressedUntil + 1000;
     const after = runner.handle(projectRequest('y'));
-    await vi.waitFor(() => expect(children).toHaveLength(7));
-    children[6]?.exit(1);
+    await vi.waitFor(() => expect(children).toHaveLength(6));
+    children[5]?.exit(1);
     await after;
   });
 
@@ -349,6 +456,230 @@ describe('ограниченный раннер', () => {
       'hello',
     );
     await runner.dispose();
+  });
+
+  describe('предел вывода', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    const truncated = (logger: ReturnType<typeof setup>['logger']) =>
+      logger.warn.mock.calls.filter(
+        ([, message]) => message === 'output truncated',
+      );
+
+    it('лишнее сверх 64 КиБ в минуту отбрасывается, раз в минуту пишется одна строка с числом отброшенных байт', async () => {
+      const { runner, children, logger } = setup([{ reply: ok }]);
+      await runner.handle(projectRequest('1'));
+      const line = 'x'.repeat(1023); // 1024 байта с переводом строки
+      const lines = OUTPUT_LIMIT_BYTES / 1024;
+      for (let index = 0; index < lines + 10; index += 1) {
+        children[0]?.output('stderr', `${line}\n`);
+      }
+      const accepted = logger.warn.mock.calls.filter(
+        ([fields]) => (fields as { stream?: string }).stream === 'stderr',
+      );
+      expect(accepted).toHaveLength(lines);
+      expect(truncated(logger)).toHaveLength(0);
+
+      vi.advanceTimersByTime(OUTPUT_WINDOW_MS);
+      expect(truncated(logger)).toEqual([
+        [
+          { extensionId: 'acme.fake', droppedBytes: 10 * 1024 },
+          'output truncated',
+        ],
+      ]);
+
+      // следующее окно считается заново
+      children[0]?.output('stderr', 'fresh\n');
+      expect(
+        logger.warn.mock.calls.filter(([, message]) => message === 'fresh'),
+      ).toHaveLength(1);
+      await runner.dispose();
+    });
+
+    it('предел общий для stdout и stderr и для всех строк одного куска; тихий процесс итог не пишет', async () => {
+      const { runner, children, logger } = setup([{ reply: ok }]);
+      await runner.handle(projectRequest('1'));
+      children[0]?.output('stdout', 'a\nb\n');
+      vi.advanceTimersByTime(OUTPUT_WINDOW_MS * 3);
+      expect(truncated(logger)).toHaveLength(0);
+
+      const big = 'y'.repeat(OUTPUT_LIMIT_BYTES);
+      children[0]?.output('stdout', `${big}\nsmall\n`);
+      // строка размером с предел не помещается после уже принятых; мелкая — помещается
+      expect(
+        logger.warn.mock.calls.some(([, message]) => message === big),
+      ).toBe(false);
+      expect(
+        logger.warn.mock.calls.some(([, message]) => message === 'small'),
+      ).toBe(true);
+      vi.advanceTimersByTime(OUTPUT_WINDOW_MS);
+      expect(truncated(logger)).toEqual([
+        [
+          { extensionId: 'acme.fake', droppedBytes: OUTPUT_LIMIT_BYTES + 1 },
+          'output truncated',
+        ],
+      ]);
+      await runner.dispose();
+    });
+  });
+
+  describe('предел IPC', () => {
+    const healthReports = () => {
+      const reports: unknown[] = [];
+      const engine: EngineLink = {
+        request: async (method, params) => {
+          reports.push({ method, params });
+          return null;
+        },
+      };
+      return { reports, engine };
+    };
+
+    it('сообщение больше 1 МиБ убивает процесс: в журнале ошибка ipc-size, в здоровье — тот же сбой, вызов в полёте получает причину предела, следующий поднимает новый процесс', async () => {
+      const { reports, engine } = healthReports();
+      const { runner, children, logger } = setup([{}, { reply: ok }], {
+        engine,
+      });
+      const inFlight = runner.handle(gradeRequest('1'));
+      await vi.waitFor(() =>
+        expect(children[0]?.sent.some(({ t }) => t === 'rpc')).toBe(true),
+      );
+      children[0]?.emit({
+        t: 'log',
+        level: 'info',
+        fields: { blob: 'x'.repeat(IPC_MAX_MESSAGE_CHARS) },
+        message: 'big',
+      });
+      expect(children[0]?.killed).toBe(true);
+      expect(await inFlight).toMatchObject({
+        id: '1',
+        ok: false,
+        error: { cause: 'ipc-size' },
+      });
+      expect(logger.error).toHaveBeenCalledWith(
+        { extensionId: 'acme.fake', reason: 'ipc-size' },
+        expect.stringContaining('exceeds'),
+      );
+      expect(logger.info).not.toHaveBeenCalled();
+      expect(reports).toEqual([
+        {
+          method: 'health.report',
+          params: {
+            extensionId: 'acme.fake',
+            kind: 'failed',
+            reason: 'ipc-size',
+            message: expect.stringContaining('exceeds'),
+          },
+        },
+      ]);
+      expect(await runner.handle(projectRequest('2'))).toMatchObject({
+        ok: true,
+      });
+      expect(children).toHaveLength(2);
+      await runner.dispose();
+    });
+
+    it('сообщение ровно в предел проходит', async () => {
+      const { runner, children, logger } = setup([{ reply: ok }]);
+      await runner.handle(projectRequest('1'));
+      const fields = { blob: '' };
+      const overhead = JSON.stringify({
+        t: 'log',
+        level: 'info',
+        fields,
+        message: 'edge',
+      }).length;
+      fields.blob = 'x'.repeat(IPC_MAX_MESSAGE_CHARS - overhead);
+      children[0]?.emit({ t: 'log', level: 'info', fields, message: 'edge' });
+      expect(children[0]?.killed).toBe(false);
+      expect(logger.info).toHaveBeenCalledTimes(1);
+      await runner.dispose();
+    });
+
+    it('больше 200 сообщений в секунду убивает процесс (ipc-rate); в следующую секунду счёт начинается заново', async () => {
+      let now = 5_000_000;
+      vi.spyOn(Date, 'now').mockImplementation(() => now);
+      const { reports, engine } = healthReports();
+      const { runner, children, logger } = setup([{ reply: ok }, {}], {
+        engine,
+      });
+      await runner.handle(projectRequest('1'));
+      const log = () =>
+        children[0]?.emit({
+          t: 'log',
+          level: 'info',
+          fields: {},
+          message: 'm',
+        });
+      // запрос и готовность уже учтены в секунде; доводим до предела ровно
+      for (let index = 0; index < IPC_MAX_PER_SECOND - 2; index += 1) log();
+      expect(children[0]?.killed).toBe(false);
+      now += 1000;
+      for (let index = 0; index < IPC_MAX_PER_SECOND; index += 1) log();
+      expect(children[0]?.killed).toBe(false);
+      log();
+      expect(children[0]?.killed).toBe(true);
+      expect(logger.error).toHaveBeenCalledWith(
+        { extensionId: 'acme.fake', reason: 'ipc-rate' },
+        expect.stringContaining('per second'),
+      );
+      expect(reports).toMatchObject([
+        { params: { kind: 'failed', reason: 'ipc-rate' } },
+      ]);
+      // убитый процесс больше не читается
+      const infoCalls = logger.info.mock.calls.length;
+      log();
+      expect(logger.info).toHaveBeenCalledTimes(infoCalls);
+      await runner.dispose();
+    });
+
+    it('превышение до готовности: активация получает причину предела, а не обычный сбой активации', async () => {
+      const { reports, engine } = healthReports();
+      const { runner, children } = setup([{ autoReady: false }], { engine });
+      const pending = runner.handle(projectRequest('1'));
+      await vi.waitFor(() => expect(children).toHaveLength(1));
+      children[0]?.emit({
+        t: 'log',
+        level: 'info',
+        fields: { blob: 'x'.repeat(IPC_MAX_MESSAGE_CHARS) },
+        message: 'big',
+      });
+      expect(await pending).toMatchObject({
+        ok: false,
+        error: { cause: 'ipc-size' },
+      });
+      expect(reports).toHaveLength(1);
+    });
+
+    it('убийство за предел идёт в цикл падений', async () => {
+      const { runner, children } = setup(() => ({}));
+      for (let index = 0; index < 5; index += 1) {
+        const pending = runner.handle(projectRequest(String(index)));
+        await vi.waitFor(() => expect(children).toHaveLength(index + 1));
+        await vi.waitFor(() =>
+          expect(children[index]?.sent.some(({ t }) => t === 'rpc')).toBe(true),
+        );
+        children[index]?.emit({
+          t: 'log',
+          level: 'info',
+          fields: { blob: 'x'.repeat(IPC_MAX_MESSAGE_CHARS) },
+          message: 'big',
+        });
+        await pending;
+      }
+      expect(await runner.handle(projectRequest('x'))).toMatchObject({
+        error: {
+          cause: 'activation-failed',
+          message: 'extension process keeps crashing',
+        },
+      });
+      expect(children).toHaveLength(5);
+    });
   });
 
   describe('библиотека через родителя', () => {
@@ -455,6 +786,148 @@ describe('запросы ограниченного процесса к данн
     });
   });
 
+  it('запрос статистики идёт движку от имени этого расширения: чужой id подменяется, форма проверяется', async () => {
+    const request = vi.fn(async () => ({ current: 1, longest: 2 }));
+    const { child, replies } = await started({
+      engine: { request } as EngineLink,
+    });
+
+    child.emit({
+      t: 'rpc',
+      message: {
+        id: 'h3',
+        method: 'stats.streak',
+        params: { extensionId: 'acme.victim', courseId: 'alpha' },
+      },
+    });
+    child.emit({
+      t: 'rpc',
+      message: {
+        id: 'h4',
+        method: 'stats.daily',
+        params: { extensionId: 'acme.victim', from: 5, to: '2024-05-02' },
+      } as never,
+    });
+
+    await vi.waitFor(() =>
+      expect(replies()).toContainEqual({
+        id: 'h3',
+        ok: true,
+        result: { current: 1, longest: 2 },
+      }),
+    );
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledWith('stats.streak', {
+      extensionId: 'acme.fake',
+      courseId: 'alpha',
+    });
+    expect(replies()).toContainEqual({
+      id: 'h4',
+      ok: false,
+      error: { code: 'INVALID_ARGUMENT', message: expect.any(String) },
+    });
+  });
+
+  it('секреты: запрос идёт к движку с id этого расширения; чужой id из процесса подменяется, неверная форма не доходит', async () => {
+    const request = vi.fn(async () => 'v');
+    const { child, replies } = await started({
+      engine: { request } as EngineLink,
+    });
+
+    for (const [id, method, params] of [
+      ['h1', 'secrets.get', { extensionId: 'acme.victim', key: 'token' }],
+      [
+        'h2',
+        'secrets.set',
+        { extensionId: 'acme.victim', key: 'token', value: 'v' },
+      ],
+      ['h3', 'secrets.delete', { extensionId: 'acme.victim', key: 'token' }],
+    ] as const) {
+      child.emit({ t: 'rpc', message: { id, method, params } as never });
+    }
+    child.emit({
+      t: 'rpc',
+      message: { id: 'h4', method: 'secrets.list', params: {} } as never,
+    });
+
+    await vi.waitFor(() => expect(replies()).toHaveLength(5));
+    expect(request.mock.calls).toEqual([
+      ['secrets.get', { extensionId: 'acme.fake', key: 'token' }],
+      ['secrets.set', { extensionId: 'acme.fake', key: 'token', value: 'v' }],
+      ['secrets.delete', { extensionId: 'acme.fake', key: 'token' }],
+    ]);
+    expect(replies()).toContainEqual({
+      id: 'h4',
+      ok: false,
+      error: { code: 'INVALID_ARGUMENT', message: expect.any(String) },
+    });
+  });
+
+  it('запрос уведомления идёт движку от имени этого расширения: чужой id подменяется, форма проверяется', async () => {
+    const request = vi.fn(async () => true);
+    const { child, replies } = await started({
+      engine: { request } as EngineLink,
+    });
+
+    child.emit({
+      t: 'rpc',
+      message: {
+        id: 'n1',
+        method: 'notifications.show',
+        params: { extensionId: 'acme.victim', title: 'T', body: 'B' },
+      },
+    });
+    child.emit({
+      t: 'rpc',
+      message: {
+        id: 'n2',
+        method: 'notifications.show',
+        params: { extensionId: 'acme.victim', title: 5, body: 'B' },
+      } as never,
+    });
+
+    await vi.waitFor(() =>
+      expect(replies()).toContainEqual({ id: 'n1', ok: true, result: true }),
+    );
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledWith('notifications.show', {
+      extensionId: 'acme.fake',
+      title: 'T',
+      body: 'B',
+    });
+    expect(replies()).toContainEqual({
+      id: 'n2',
+      ok: false,
+      error: { code: 'INVALID_ARGUMENT', message: expect.any(String) },
+    });
+  });
+
+  it('сообщение процесса о здоровье идёт движку от имени этого расширения; чужой id подменяется', async () => {
+    const request = vi.fn(async () => null);
+    const { child } = await started({ engine: { request } as EngineLink });
+
+    child.emit({
+      t: 'rpc',
+      message: {
+        id: 'h2',
+        method: 'health.report',
+        params: {
+          extensionId: 'acme.victim',
+          kind: 'activated',
+          durationMs: 7,
+        },
+      },
+    });
+
+    await vi.waitFor(() =>
+      expect(request).toHaveBeenCalledWith('health.report', {
+        extensionId: 'acme.fake',
+        kind: 'activated',
+        durationMs: 7,
+      }),
+    );
+  });
+
   it('отказ движка уходит процессу с кодом и details; неверная форма не доходит до движка', async () => {
     const request = vi.fn(async () => {
       throw new EngineRequestError({
@@ -511,5 +984,370 @@ describe('запросы ограниченного процесса к данн
     runner.notify(notice);
 
     expect(replies()).toContainEqual(notice);
+  });
+});
+
+describe('импорт и экспорт через ограниченный процесс', () => {
+  const importRequest = (
+    id: string,
+    body: { text: string } | { bytes: Uint8Array },
+  ): ExtRequest => ({
+    id,
+    method: 'runImporter',
+    params: {
+      extensionId: 'acme.fake',
+      importerId: 'acme.fake.in',
+      name: 'a.csv',
+      isolated: true,
+      ...body,
+    },
+  });
+
+  const exporterRequest = (
+    id: string,
+    input: Extract<ExtRequest, { method: 'runExporter' }>['params']['input'],
+  ): ExtRequest => ({
+    id,
+    method: 'runExporter',
+    params: {
+      extensionId: 'acme.fake',
+      exporterId: 'acme.fake.out',
+      input,
+      isolated: true,
+    },
+  });
+
+  /** Ответ процесса потоком: голова и части. */
+  const streamBack = (
+    child: FakeChild,
+    id: string,
+    head: StreamedResult,
+    body: Uint8Array,
+    size = body.length,
+  ) => {
+    child.emit({ t: 'result-stream', id, size, result: head });
+    let seq = 0;
+    for (const data of chunksOf(body)) {
+      child.emit({ t: 'chunk', id, seq, data });
+      seq += 1;
+    }
+  };
+
+  const filesBack = (
+    child: FakeChild,
+    id: string,
+    files: Record<string, string>,
+  ) => {
+    const { head, body } = splitResult('runImporter', { files });
+    streamBack(child, id, head, body);
+  };
+
+  const sentStream = async (children: FakeChild[]) => {
+    await vi.waitFor(() =>
+      expect(children[0]?.sent.some(({ t }) => t === 'stream')).toBe(true),
+    );
+    return children[0]?.sent ?? [];
+  };
+
+  it('файл уходит процессу головой и частями без тела в rpc; ответ потоком становится результатом', async () => {
+    const { runner, children } = setup(() => ({}));
+    const text = 'я'.repeat(300_000);
+    const pending = runner.handle(importRequest('1', { text }));
+
+    const sent = await sentStream(children);
+
+    expect(sent.some(({ t }) => t === 'rpc')).toBe(false);
+    const head = sent.find(({ t }) => t === 'stream');
+    expect(head).toMatchObject({
+      t: 'stream',
+      size: 600_000,
+      request: {
+        id: '1',
+        method: 'runImporter',
+        params: { importerId: 'acme.fake.in', name: 'a.csv', input: 'text' },
+      },
+    });
+    expect(JSON.stringify(head)).not.toContain('яяя');
+    const receiver = createBodyReceiver(600_000);
+    for (const message of sent) {
+      if (message.t === 'chunk') {
+        expect(message.data.length).toBeLessThanOrEqual(256 * 1024);
+        expect(receiver.accept(message.seq, message.data)).toBe(true);
+      }
+    }
+    expect(new TextDecoder().decode(receiver.body())).toBe(text);
+
+    filesBack(children[0] as FakeChild, '1', { 'course.yaml': 'id: c' });
+
+    expect(await pending).toEqual({
+      id: '1',
+      ok: true,
+      result: { files: { 'course.yaml': 'id: c' } },
+    });
+    await runner.dispose();
+  });
+
+  it('экспорт прогресса не имеет тела и идёт обычным rpc; ответ — файл потоком', async () => {
+    const { runner, children } = setup(() => ({}));
+    const pending = runner.handle(exporterRequest('1', { scope: 'progress' }));
+
+    await vi.waitFor(() =>
+      expect(children[0]?.sent.some(({ t }) => t === 'rpc')).toBe(true),
+    );
+    const { head, body } = splitResult('runExporter', {
+      filename: 'p.csv',
+      text: 'a,b',
+    });
+    streamBack(children[0] as FakeChild, '1', head, body);
+
+    expect(await pending).toEqual({
+      id: '1',
+      ok: true,
+      result: { filename: 'p.csv', text: 'a,b' },
+    });
+    await runner.dispose();
+  });
+
+  it('экспорт курса: файлы уходят потоком, в голове — id, название и число файлов', async () => {
+    const { runner, children } = setup(() => ({}));
+    const pending = runner.handle(
+      exporterRequest('1', {
+        scope: 'course',
+        courseId: 'c1',
+        title: 'T',
+        files: { 'a.md': 'x', 'b.md': 'y' },
+      }),
+    );
+
+    const sent = await sentStream(children);
+
+    expect(sent.find(({ t }) => t === 'stream')).toMatchObject({
+      request: {
+        method: 'runExporter',
+        params: { input: { courseId: 'c1', title: 'T', count: 2 } },
+      },
+    });
+    children[0]?.exit(1);
+    await pending;
+  });
+
+  it('успешный ответ импорта в обход потока — invalid-result, процесс не убивается', async () => {
+    const { runner, children } = setup(() => ({}));
+    const pending = runner.handle(importRequest('1', { text: 'x' }));
+    await sentStream(children);
+
+    children[0]?.emit({
+      t: 'rpc',
+      message: { id: '1', ok: true, result: { files: { '../x': 'y' } } },
+    });
+
+    expect(await pending).toMatchObject({
+      ok: false,
+      error: { cause: 'invalid-result' },
+    });
+    expect(children[0]?.killed).toBe(false);
+    await runner.dispose();
+  });
+
+  it('отказ обработчика в процессе проходит как есть', async () => {
+    const { runner, children } = setup(() => ({}));
+    const pending = runner.handle(importRequest('1', { text: 'x' }));
+    await sentStream(children);
+
+    children[0]?.emit({
+      t: 'rpc',
+      message: {
+        id: '1',
+        ok: false,
+        error: { cause: 'handler-failed', message: 'boom' },
+      },
+    });
+
+    expect(await pending).toEqual({
+      id: '1',
+      ok: false,
+      error: { cause: 'handler-failed', message: 'boom' },
+    });
+    await runner.dispose();
+  });
+
+  it.each([
+    [
+      'путь вне правил в каталоге',
+      (child: FakeChild) => filesBack(child, '1', { '../x': 'y' }),
+    ],
+    [
+      'два пути, различающихся регистром',
+      (child: FakeChild) => filesBack(child, '1', { 'A.md': '1', 'a.md': '2' }),
+    ],
+    [
+      'голова экспорта на вызов импорта',
+      (child: FakeChild) => {
+        const { head, body } = splitResult('runExporter', {
+          filename: 'a',
+          text: 'b',
+        });
+        streamBack(child, '1', head, body);
+      },
+    ],
+    [
+      'размер больше потолка',
+      (child: FakeChild) =>
+        streamBack(
+          child,
+          '1',
+          { kind: 'files', count: 0 },
+          new Uint8Array(),
+          1e9,
+        ),
+    ],
+    [
+      'отрицательный размер',
+      (child: FakeChild) =>
+        streamBack(
+          child,
+          '1',
+          { kind: 'files', count: 0 },
+          new Uint8Array(),
+          -1,
+        ),
+    ],
+    [
+      'часть не по порядку',
+      (child: FakeChild) => {
+        child.emit({
+          t: 'result-stream',
+          id: '1',
+          size: 4,
+          result: { kind: 'files', count: 0 },
+        });
+        child.emit({ t: 'chunk', id: '1', seq: 1, data: 'AAAA' });
+      },
+    ],
+    [
+      'часть не base64',
+      (child: FakeChild) => {
+        child.emit({
+          t: 'result-stream',
+          id: '1',
+          size: 4,
+          result: { kind: 'files', count: 0 },
+        });
+        child.emit({ t: 'chunk', id: '1', seq: 0, data: '**' });
+      },
+    ],
+    [
+      'обещано файлов больше, чем в потоке',
+      (child: FakeChild) =>
+        streamBack(child, '1', { kind: 'files', count: 3 }, new Uint8Array()),
+    ],
+  ])(
+    'ответ процесса, нарушающий правила (%s), — invalid-result',
+    async (_name, answer) => {
+      const { runner, children } = setup(() => ({}));
+      const pending = runner.handle(importRequest('1', { text: 'x' }));
+      await sentStream(children);
+
+      answer(children[0] as FakeChild);
+
+      expect(await pending).toMatchObject({
+        ok: false,
+        error: { cause: 'invalid-result' },
+      });
+      await runner.dispose();
+    },
+  );
+
+  it('результат экспорта: имя с разделителем и байты вместо текста проверяются так же, как в рантайме', async () => {
+    const { runner, children } = setup(() => ({}));
+    const bad = runner.handle(exporterRequest('1', { scope: 'progress' }));
+    await vi.waitFor(() =>
+      expect(children[0]?.sent.some(({ t }) => t === 'rpc')).toBe(true),
+    );
+    streamBack(
+      children[0] as FakeChild,
+      '1',
+      { kind: 'text', filename: '../etc/passwd' },
+      new TextEncoder().encode('x'),
+    );
+    expect(await bad).toMatchObject({
+      ok: false,
+      error: { cause: 'invalid-result' },
+    });
+
+    const good = runner.handle(exporterRequest('2', { scope: 'progress' }));
+    await vi.waitFor(() =>
+      expect(
+        children[0]?.sent.filter(({ t }) => t === 'rpc').length,
+      ).toBeGreaterThan(1),
+    );
+    streamBack(
+      children[0] as FakeChild,
+      '2',
+      { kind: 'bytes', filename: 'a.bin' },
+      Uint8Array.of(0, 255),
+    );
+    expect(await good).toEqual({
+      id: '2',
+      ok: true,
+      result: { filename: 'a.bin', bytes: Uint8Array.of(0, 255) },
+    });
+    await runner.dispose();
+  });
+
+  it('вызов без ответа по сроку раннера (32 с по умолчанию) — handler-timeout, процесс убит', async () => {
+    const { runner, children } = setup(() => ({}), {
+      transferDeadlineMs: 40,
+    });
+    const started = Date.now();
+
+    const response = await runner.handle(importRequest('1', { text: 'x' }));
+
+    expect(response).toMatchObject({
+      ok: false,
+      error: { cause: 'handler-timeout' },
+    });
+    expect(Date.now() - started).toBeGreaterThanOrEqual(35);
+    expect(children[0]?.killed).toBe(true);
+  });
+
+  it('срок раннера длиннее срока обработчика (30 с) и короче срока клиента движка (34 с)', () => {
+    expect(TRANSFER_DEADLINE_MS).toBe(32_000);
+  });
+
+  it('процесс упал посреди ответа потоком — handler-failed', async () => {
+    const { runner, children } = setup(() => ({}));
+    const pending = runner.handle(importRequest('1', { text: 'x' }));
+    await sentStream(children);
+
+    children[0]?.emit({
+      t: 'result-stream',
+      id: '1',
+      size: 10,
+      result: { kind: 'files', count: 1 },
+    });
+    children[0]?.exit(9);
+
+    expect(await pending).toMatchObject({
+      ok: false,
+      error: {
+        cause: 'handler-failed',
+        message: 'extension process exited (code 9)',
+      },
+    });
+  });
+
+  it('файл больше 20 МиБ не доходит до процесса', async () => {
+    const { runner, specs } = setup(() => ({}));
+
+    const response = await runner.handle(
+      importRequest('1', { bytes: new Uint8Array(20 * 1024 * 1024 + 1) }),
+    );
+
+    expect(response).toMatchObject({
+      ok: false,
+      error: { cause: 'handler-failed' },
+    });
+    expect(specs).toHaveLength(0);
   });
 });

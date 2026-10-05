@@ -14,6 +14,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import {
   createRestrictedRunner,
   discoverExtensions,
+  formatDiagnostic,
   inspectExtensionDir,
 } from '@dolphy-app/extension-host';
 
@@ -102,6 +103,14 @@ describe('смоук и релизная сборка', () => {
           'schema/spec.json',
           'schema/answer.json',
         ],
+        'dolphy.js': [
+          'extension.json',
+          'main.mjs',
+          'worker.mjs',
+          'view.mjs',
+          'schema/spec.json',
+          'schema/answer.json',
+        ],
         'dolphy.math': ['extension.json', 'markdown.mjs'],
       };
       for (const [id, names] of Object.entries(expected)) {
@@ -124,6 +133,7 @@ describe('смоук и релизная сборка', () => {
       });
       expect(extensions.map(({ id }) => id).sort()).toEqual([
         'dolphy.choice',
+        'dolphy.js',
         'dolphy.math',
         'dolphy.sql',
       ]);
@@ -135,7 +145,8 @@ describe('смоук и релизная сборка', () => {
       // собранный дочерний процесс запускается в режиме разрешений и
       // отказывает расширению в запрещённом
       const inspected = await inspectExtensionDir(hostileDir);
-      if (!inspected.ok) throw new Error(inspected.message);
+      if (!inspected.ok)
+        throw new Error(formatDiagnostic(inspected.diagnostic));
       const runner = createRestrictedRunner({
         extension: {
           ...inspected.extension,

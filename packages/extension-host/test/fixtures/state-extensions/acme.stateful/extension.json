@@ -14,6 +14,6 @@
         "maxLength": 20
       }
     ],
-    "events": [{ "event": "attempt.closed" }, { "event": "session.started" }]
+    "events": [{ "event": "attempt.closed" }, { "event": "session.started" }, { "event": "session.finished" }]
   }
 }

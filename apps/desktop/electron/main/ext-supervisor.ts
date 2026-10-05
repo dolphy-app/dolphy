@@ -1,12 +1,18 @@
+import type { ExtensionHostStatusDto } from '@dolphy-app/engine-contract';
 import type { MainLogger } from './logger.ts';
 import {
+  attachOutput,
   BACKOFF_BASE_MS,
   BACKOFF_CAP_MS,
   MAX_CRASHES,
   STOP_TIMEOUT_MS,
   WINDOW_MS,
 } from './supervisor.ts';
-import type { HostProcessLike, UtilityProcessLike } from './supervisor.ts';
+import type {
+  HostProcessLike,
+  ProcessOutputLike,
+  UtilityProcessLike,
+} from './supervisor.ts';
 
 export interface ExtSupervisorOptions {
   utilityProcess: UtilityProcessLike;
@@ -16,6 +22,10 @@ export interface ExtSupervisorOptions {
   logger: MainLogger;
   onHostReady(host: HostProcessLike): void;
   onHostExit(): void;
+  /** Состояние хоста изменилось: `restarting` — упал и ждёт перезапуска, `gave-up` — перезапуски прекращены до `reset()`. */
+  onStatus?(status: ExtensionHostStatusDto): void;
+  /** Вывод процесса: новый приёмник на каждый запуск (журнал и вывод разработчика). */
+  createOutput?(): ProcessOutputLike;
   stopTimeoutMs?: number;
 }
 
@@ -25,6 +35,12 @@ export interface ExtSupervisor {
   stop(): Promise<void>;
   /** Убить хост (перезапуск сработает как при крэше). */
   kill(): boolean;
+  /**
+   * Забыть падения и запустить хост сразу, без паузы: после `gave-up`
+   * возвращает расширениям работу без перезапуска приложения. Не мешает
+   * остановке приложения.
+   */
+  reset(): void;
 }
 
 export const isTypedMessage = (message: unknown, type: string): boolean =>
@@ -49,6 +65,13 @@ export const createExtSupervisor = (
   let gaveUp = false;
   let restartTimer: NodeJS.Timeout | undefined;
   let crashTimes: number[] = [];
+  let status: ExtensionHostStatusDto = 'running';
+
+  const setStatus = (next: ExtensionHostStatusDto) => {
+    if (status === next) return;
+    status = next;
+    options.onStatus?.(next);
+  };
 
   const onExit = (self: HostProcessLike, code: number) => {
     if (child !== self) return;
@@ -61,9 +84,11 @@ export const createExtSupervisor = (
     logger.error({ code, crashes: crashTimes.length }, 'extension host exited');
     if (crashTimes.length > MAX_CRASHES) {
       gaveUp = true;
+      setStatus('gave-up');
       logger.error({ crashes: crashTimes.length }, 'extension host gave up');
       return;
     }
+    setStatus('restarting');
     const delayMs = Math.min(
       BACKOFF_BASE_MS * 2 ** (crashTimes.length - 1),
       BACKOFF_CAP_MS,
@@ -76,7 +101,9 @@ export const createExtSupervisor = (
     if (stopping || gaveUp || child) return;
     const self = utilityProcess.fork(hostPath, [], {
       serviceName: 'dolphy-ext-host',
+      stdio: 'pipe',
     });
+    attachOutput(self, options.createOutput?.());
     child = self;
     self.once('spawn', () => {
       spawned = true;
@@ -85,6 +112,7 @@ export const createExtSupervisor = (
     self.on('message', (message) => {
       if (child !== self || !isTypedMessage(message, 'ready')) return;
       logger.info({ pid: self.pid }, 'extension host ready');
+      setStatus('running');
       options.onHostReady(self);
     });
     self.on('exit', (code) => onExit(self, code));
@@ -117,5 +145,17 @@ export const createExtSupervisor = (
 
   const kill = () => child?.kill() ?? false;
 
-  return { start, stop, kill };
+  const reset = () => {
+    if (stopping) return;
+    logger.info({ gaveUp }, 'extension host reset');
+    gaveUp = false;
+    crashTimes = [];
+    clearTimeout(restartTimer);
+    restartTimer = undefined;
+    // живой хост остаётся как есть: `ready` вернёт `running`, если он ещё не готов
+    if (!child) setStatus('restarting');
+    start();
+  };
+
+  return { start, stop, kill, reset };
 };

@@ -7,6 +7,7 @@ import type {
   StateVector,
   StudySessionWire,
   ExtensionSettingsDto,
+  KeybindingsSettingsDto,
   LearningSettingsDto,
   UiSettingsDto,
   VerdictDto,
@@ -253,20 +254,28 @@ export interface SettingsStore {
   /** Настройки обучения; без сохранённых — правило оценки `passAtN`. */
   loadLearning(): Promise<LearningSettingsDto>;
   saveLearning(learning: LearningSettingsDto): Promise<void>;
+  /** Привязки пользователя; без сохранённых — `{ commands: {} }`. Нечитаемые записи отбрасываются при чтении. */
+  loadKeybindings(): Promise<KeybindingsSettingsDto>;
+  saveKeybindings(keybindings: KeybindingsSettingsDto): Promise<void>;
   /** Настройки расширений; без сохранённых — ничего не отключено и не доверено. */
   loadExtensions(): Promise<ExtensionSettingsDto>;
   saveExtensions(extensions: ExtensionSettingsDto): Promise<void>;
   /** Время последней фоновой проверки обновлений расширений (epoch ms); `null` — не проверяли. */
   loadUpdateCheckedAt(): Promise<number | null>;
-  saveUpdateCheckedAt(at: number): Promise<void>;
+  /** `null` — сбросить метку («не проверяли»). */
+  saveUpdateCheckedAt(at: number | null): Promise<void>;
 }
 
 export * from './exercise-types.ts';
 export * from './grade-policies.ts';
 export * from './extension-commands.ts';
+export * from './extension-transfers.ts';
 export * from './extension-installer.ts';
 export * from './extension-policy.ts';
 export * from './extension-reloader.ts';
 export * from './extension-registry.ts';
 export * from './repositories.ts';
 export * from './extension-data.ts';
+export * from './extension-health.ts';
+export * from './log-reader.ts';
+export * from './platform.ts';

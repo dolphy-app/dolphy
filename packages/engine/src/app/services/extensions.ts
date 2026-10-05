@@ -1,16 +1,25 @@
-import { MAX_ANSWER_CHARS } from '@dolphy-app/engine-contract';
+import {
+  LOG_LEVELS,
+  MAX_ANSWER_CHARS,
+  MAX_LOG_ENTRIES,
+  isEffectiveExtensionState,
+} from '@dolphy-app/engine-contract';
 import type {
   CatalogDto,
+  CatalogUrlRejection,
   ContributionsDto,
+  ExtensionDocsDto,
   ExtensionCommandFailureReason,
   ExtensionDataUsageDto,
   ExtensionInfoDto,
   ExtensionOriginDto,
   ExtensionSettingsDto,
   ExtensionUpdateDto,
+  ExtensionsDiagnosticsDto,
   ExtensionsService,
   InstallResultDto,
   JsonValue,
+  ReadLogsOptions,
 } from '@dolphy-app/engine-contract';
 import {
   isExtensionId,
@@ -22,6 +31,7 @@ import {
 } from '../../ports/extension-installer.ts';
 import { ExtensionCommandError } from '../../ports/extension-commands.ts';
 import type { RegistryContributions } from '../../ports/extension-registry.ts';
+import type { LogReadQuery } from '../../ports/log-reader.ts';
 import { GRADE_POLICIES } from '../../verify/grade-policy.ts';
 import type { EngineContext } from '../context.ts';
 import { EngineError } from '../errors.ts';
@@ -79,6 +89,24 @@ const guarded = async <T>(
   }
 };
 
+/**
+ * Накладывает пометку «устарело» на установленное из каталога расширение (по установленной версии);
+ * реестр расширений о ней не знает, и состояние записи она не меняет.
+ */
+const withDeprecation = (
+  installer: EngineContext['extensionInstaller'],
+  info: ExtensionInfoDto,
+): ExtensionInfoDto => {
+  const version = info.version ?? info.installed?.version ?? null;
+  return {
+    ...info,
+    deprecated:
+      info.installed === null || version === null
+        ? null
+        : installer.deprecationOf(info.id, version, info.installed.catalogUrl),
+  };
+};
+
 const ORIGIN_RANK: Readonly<Record<ExtensionOriginDto, number>> = {
   bundled: 0,
   user: 1,
@@ -109,11 +137,29 @@ const copyInfo = (info: ExtensionInfoDto): ExtensionInfoDto => ({
     events: [...info.contributes.events],
     commands: [...info.contributes.commands],
     panels: [...info.contributes.panels],
+    widgets: [...info.contributes.widgets],
+    schedules: [...info.contributes.schedules],
+    importers: [...info.contributes.importers],
+    exporters: [...info.contributes.exporters],
   },
+  diagnostics: structuredClone(info.diagnostics),
   permissions: [...info.permissions],
+  dependencies: info.dependencies.map((dependency) => ({ ...dependency })),
   titles: structuredClone(info.titles),
+  messages: structuredClone(info.messages),
   tags: [...info.tags],
 });
+
+/**
+ * Причины отказа команды, которые считаются сбоем расширения. Остальные —
+ * решение системы или состояние хоста (`unknown-command`, `replaced`,
+ * `host-down`): расширение в них не виновато.
+ */
+const COMMAND_FAULTS: ReadonlySet<string> = new Set([
+  'handler-failed',
+  'timeout',
+  'invalid-result',
+]);
 
 const BUILTIN_POLICIES = Object.keys(GRADE_POLICIES).map((id) => ({
   id,
@@ -141,6 +187,18 @@ const sortedContributions = (
     settings: copy.settings.sort(compareBy((setting) => setting.extensionId)),
     commands: copy.commands.sort(compareBy((command) => command.extensionId)),
     panels: copy.panels.sort(compareBy((panel) => panel.extensionId)),
+    widgets: copy.widgets.sort(compareBy((widget) => widget.extensionId)),
+    // между расширениями — по id, внутри расширения — порядок манифеста
+    schedules: copy.schedules.sort(
+      compareBy((schedule) => schedule.extensionId),
+    ),
+    importers: copy.importers.sort(
+      compareBy((importer) => importer.extensionId),
+    ),
+    exporters: copy.exporters.sort(
+      compareBy((exporter) => exporter.extensionId),
+    ),
+    messages: copy.messages,
   };
 };
 
@@ -157,9 +215,7 @@ const findToggleable = (
       details: { extensionId: id },
     });
   }
-  const effective = known.find(
-    ({ state }) => state === 'loaded' || state === 'disabled',
-  );
+  const effective = known.find(({ state }) => isEffectiveExtensionState(state));
   if (effective === undefined || effective.origin === 'bundled') {
     throw new EngineError('INVALID_ARGUMENT', {
       message: `Extension '${id}' cannot be configured`,
@@ -201,6 +257,88 @@ const assertArgsSize = (args: JsonValue | undefined): void => {
   }
 };
 
+const VERSION_TEXT = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
+const isVersionText = (value: unknown): value is string =>
+  typeof value === 'string' && value.length <= 64 && VERSION_TEXT.test(value);
+
+/** Путь картинки README: безопасные сегменты без `..`, расширение `png`/`webp`/`jpg`/`jpeg`, до 200 символов. */
+const DOC_IMAGE_PATH =
+  /^(?:[A-Za-z0-9_-][A-Za-z0-9._-]*\/)*[A-Za-z0-9_-][A-Za-z0-9._-]*\.(?:png|webp|jpe?g)$/i;
+const isDocImagePath = (value: unknown): value is string =>
+  typeof value === 'string' &&
+  value.length <= 200 &&
+  DOC_IMAGE_PATH.test(value);
+
+const MAX_CATALOG_URL_LENGTH = 2048;
+
+const isLoopbackHost = (hostname: string): boolean =>
+  hostname === 'localhost' ||
+  hostname === '[::1]' ||
+  /^127(?:\.\d{1,3}){3}$/.test(hostname);
+
+const rejectCatalogUrl = (
+  reason: CatalogUrlRejection,
+  message: string,
+): EngineError =>
+  new EngineError('INVALID_ARGUMENT', {
+    message,
+    details: { field: 'url', reason },
+  });
+
+/**
+ * Адрес каталога из настройки → `URL.href` или отказ с причиной. `https:` либо
+ * `http:` на loopback (локальный каталог и e2e), до 2048 знаков, без логина и
+ * фрагмента, путь оканчивается на `.json`.
+ */
+export const parseCatalogUrl = (value: string): string => {
+  if (value.length > MAX_CATALOG_URL_LENGTH) {
+    throw rejectCatalogUrl(
+      'too-long',
+      `catalog address is longer than ${MAX_CATALOG_URL_LENGTH} characters`,
+    );
+  }
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw rejectCatalogUrl('not-url', 'catalog address is not a URL');
+  }
+  if (
+    url.protocol !== 'https:' &&
+    !(url.protocol === 'http:' && isLoopbackHost(url.hostname))
+  ) {
+    throw rejectCatalogUrl(
+      'scheme',
+      'catalog address must use https (http only on loopback)',
+    );
+  }
+  if (url.username !== '' || url.password !== '') {
+    throw rejectCatalogUrl(
+      'credentials',
+      'catalog address must not contain credentials',
+    );
+  }
+  if (url.href.includes('#')) {
+    throw rejectCatalogUrl(
+      'fragment',
+      'catalog address must not contain a fragment',
+    );
+  }
+  if (!url.pathname.toLowerCase().endsWith('.json')) {
+    throw rejectCatalogUrl(
+      'not-json',
+      'catalog address must point to a .json file',
+    );
+  }
+  if (url.href.length > MAX_CATALOG_URL_LENGTH) {
+    throw rejectCatalogUrl(
+      'too-long',
+      `catalog address is longer than ${MAX_CATALOG_URL_LENGTH} characters`,
+    );
+  }
+  return url.href;
+};
+
 const invalidId = (id: unknown): EngineError =>
   new EngineError('INVALID_ARGUMENT', {
     message: `Invalid extension id: ${String(id)}`,
@@ -222,6 +360,31 @@ const removeDataOf = (options: unknown): boolean => {
     });
   }
   return removeData;
+};
+
+/** Параметры `readLogs`: неверное значение — `INVALID_ARGUMENT`, ничего не читается. */
+const logQueryOf = (options: ReadLogsOptions | undefined): LogReadQuery => {
+  const { extensionId, minLevel, limit = MAX_LOG_ENTRIES } = options ?? {};
+  if (extensionId !== undefined && !isExtensionId(extensionId)) {
+    throw invalidId(extensionId);
+  }
+  if (minLevel !== undefined && !LOG_LEVELS.includes(minLevel)) {
+    throw new EngineError('INVALID_ARGUMENT', {
+      message: `Unknown log level: ${String(minLevel)}`,
+      details: { field: 'minLevel' },
+    });
+  }
+  if (!Number.isInteger(limit) || limit < 1 || limit > MAX_LOG_ENTRIES) {
+    throw new EngineError('INVALID_ARGUMENT', {
+      message: `limit must be an integer in 1..${MAX_LOG_ENTRIES}`,
+      details: { field: 'limit' },
+    });
+  }
+  return {
+    limit,
+    ...(extensionId !== undefined && { extensionId }),
+    ...(minLevel !== undefined && { minLevel }),
+  };
 };
 
 const withMember = (
@@ -284,20 +447,35 @@ export const runStartupUpdateCheck = async (
   }
 };
 
-/** `extensions.*`: снимки реестра, копии записей, настройки включения, доверия и проверки обновлений, установка из каталога. */
+/**
+ * `extensions.*`: снимки реестра, копии записей, настройки включения, доверия и
+ * проверки обновлений, установка из каталога. Импорт и экспорт (`transfers`)
+ * живут в `extension-transfers.ts` и подмешиваются как есть.
+ */
 export const createExtensionsService = (
   ctx: Pick<
     EngineContext,
     | 'extensionRegistry'
     | 'extensionPolicy'
+    | 'extensionHealth'
+    | 'extensionHostControl'
+    | 'logReader'
     | 'extensionInstaller'
     | 'extensionApply'
     | 'settings'
     | 'extensionData'
     | 'extensionCommands'
     | 'extensionSettingChanges'
+    | 'config'
     | 'emit'
     | 'bus'
+    | 'clock'
+    | 'logger'
+    | 'state'
+  >,
+  transfers: Pick<
+    ExtensionsService,
+    'runImporter' | 'commitImport' | 'discardImport' | 'runExporter'
   >,
 ): ExtensionsService => {
   const values = createExtensionValues(ctx);
@@ -325,9 +503,30 @@ export const createExtensionsService = (
     findToggleable(ctx.extensionRegistry.list(), id, options);
     return persist(apply, { reload: true });
   };
+  /** Переключатель, который не меняет расширение (уведомления, расписания): набор не перезагружается. */
+  const setSwitch = async (
+    id: string,
+    enabled: unknown,
+    apply: (settings: ExtensionSettingsDto) => ExtensionSettingsDto,
+  ): Promise<ExtensionSettingsDto> => {
+    if (!isExtensionId(id)) throw invalidId(id);
+    if (typeof enabled !== 'boolean') {
+      throw new EngineError('INVALID_ARGUMENT', {
+        message: 'enabled must be a boolean',
+        details: { field: 'enabled' },
+      });
+    }
+    findToggleable(ctx.extensionRegistry.list(), id, { allowRevoked: true });
+    return persist(apply, { reload: false });
+  };
   return {
+    ...transfers,
     list: async () =>
-      ctx.extensionRegistry.list().map(copyInfo).sort(compareInfo),
+      ctx.extensionRegistry
+        .list()
+        .map(copyInfo)
+        .sort(compareInfo)
+        .map((info) => withDeprecation(ctx.extensionInstaller, info)),
     contributions: async () =>
       sortedContributions(
         ctx.extensionApply.generation(),
@@ -353,6 +552,16 @@ export const createExtensionsService = (
         }),
         { allowRevoked: true },
       ),
+    setNotificationsEnabled: (id, enabled) =>
+      setSwitch(id, enabled, (settings) => ({
+        ...settings,
+        notificationsOff: withMember(settings.notificationsOff, id, !enabled),
+      })),
+    setSchedulesEnabled: (id, enabled) =>
+      setSwitch(id, enabled, (settings) => ({
+        ...settings,
+        schedulesOff: withMember(settings.schedulesOff, id, !enabled),
+      })),
     setCheckUpdates: (enabled) => {
       if (typeof enabled !== 'boolean') {
         throw new EngineError('INVALID_ARGUMENT', {
@@ -363,6 +572,72 @@ export const createExtensionsService = (
       return persist((settings) => ({ ...settings, checkUpdates: enabled }), {
         reload: false,
       });
+    },
+    setCatalogUrl: async (url) => {
+      const { origin, default: defaultUrl } =
+        ctx.extensionInstaller.catalogSource();
+      if (origin === 'env') {
+        throw rejectCatalogUrl(
+          'env',
+          'the catalog address is set by DOLPHY_EXTENSION_CATALOG_URL',
+        );
+      }
+      if (url !== null && typeof url !== 'string') {
+        throw new EngineError('INVALID_ARGUMENT', {
+          message: 'url must be a string or null',
+          details: { field: 'url' },
+        });
+      }
+      // равный умолчанию хранится как «не задан»: иначе `catalogUrl` в
+      // `.dolphy-install.json` расходился бы с адресом по умолчанию
+      const parsed = url === null ? null : parseCatalogUrl(url);
+      const next = parsed === new URL(defaultUrl).href ? null : parsed;
+      const before = await ctx.settings.loadExtensions();
+      if (before.catalogUrl === next) return normalizeExtensionSettings(before);
+      const saved = await persist(
+        (settings) => ({ ...settings, catalogUrl: next }),
+        { reload: false },
+      );
+      await guarded(null, () => ctx.extensionInstaller.useCatalog(next));
+      await ctx.settings.saveUpdateCheckedAt(null);
+      // отзыв и устаревание берутся из нового каталога: набор применяется заново
+      await ctx.extensionApply.reload();
+      ctx.emit({ type: 'extensions-changed' });
+      void runStartupUpdateCheck(ctx);
+      return saved;
+    },
+    catalogSource: async () => ctx.extensionInstaller.catalogSource(),
+    setSafeMode: (enabled) => {
+      if (typeof enabled !== 'boolean') {
+        throw new EngineError('INVALID_ARGUMENT', {
+          message: 'safeMode must be a boolean',
+          details: { field: 'enabled' },
+        });
+      }
+      return persist((settings) => ({ ...settings, safeMode: enabled }), {
+        reload: true,
+      });
+    },
+    diagnostics: async (): Promise<ExtensionsDiagnosticsDto> => {
+      const persisted = (await ctx.settings.loadExtensions()).safeMode;
+      const forcedBy = ctx.config.forceSafeMode ?? null;
+      const ids = [
+        ...new Set(ctx.extensionRegistry.list().map(({ id }) => id)),
+      ];
+      return {
+        host: ctx.extensionHealth.hostStatus(),
+        safeMode: {
+          active: persisted || forcedBy !== null,
+          persisted,
+          forcedBy,
+        },
+        extensions: ids.sort().map((id) => ctx.extensionHealth.get(id)),
+      };
+    },
+    restartHost: async () => ctx.extensionHostControl.restart(),
+    readLogs: async (options) => {
+      const query = logQueryOf(options);
+      return ctx.logReader === null ? [] : ctx.logReader.read(query);
     },
     catalog: (options): Promise<CatalogDto> =>
       guarded(null, () => ctx.extensionInstaller.catalog(options)),
@@ -387,6 +662,35 @@ export const createExtensionsService = (
     },
     updates: (): Promise<ExtensionUpdateDto[]> =>
       guarded(null, () => ctx.extensionInstaller.updates()),
+    docs: async (id, options): Promise<ExtensionDocsDto> => {
+      if (!isExtensionId(id)) throw invalidId(id);
+      const version = options?.version;
+      if (version !== undefined && !isVersionText(version)) {
+        throw new EngineError('INVALID_ARGUMENT', {
+          message: 'version must be a semver string',
+          details: { field: 'version' },
+        });
+      }
+      return guarded(id, () => ctx.extensionInstaller.docs(id, version));
+    },
+    docImage: async (id, version, path): Promise<string> => {
+      if (!isExtensionId(id)) throw invalidId(id);
+      if (!isVersionText(version)) {
+        throw new EngineError('INVALID_ARGUMENT', {
+          message: 'version must be a semver string',
+          details: { field: 'version' },
+        });
+      }
+      if (!isDocImagePath(path)) {
+        throw new EngineError('INVALID_ARGUMENT', {
+          message: 'path must be a png, webp, jpg or jpeg file of the version',
+          details: { field: 'path' },
+        });
+      }
+      return guarded(id, () =>
+        ctx.extensionInstaller.docImage(id, version, path),
+      );
+    },
     getSettingValues: async (id) => values.values(values.requireActive(id)),
     setSettingValue: async (id, settingId, value) => {
       const extensionId = values.requireActive(id);
@@ -404,6 +708,7 @@ export const createExtensionsService = (
       return {
         storage: await ctx.extensionData.storage.usage(extensionId),
         settings: await ctx.extensionData.settings.usage(extensionId),
+        secrets: await ctx.extensionData.secrets.usage(extensionId),
       };
     },
     clearData: async (id) => values.wipe(values.requireId(id)),
@@ -428,8 +733,7 @@ export const createExtensionsService = (
         .list()
         .find(
           (item) =>
-            item.id === extensionId &&
-            (item.state === 'loaded' || item.state === 'disabled'),
+            item.id === extensionId && isEffectiveExtensionState(item.state),
         );
       if (info === undefined) {
         throw failed('unknown-command', `Extension not found: ${extensionId}`);
@@ -456,6 +760,13 @@ export const createExtensionsService = (
         return await ctx.extensionCommands.invoke(extensionId, commandId, args);
       } catch (error) {
         if (error instanceof ExtensionCommandError) {
+          if (COMMAND_FAULTS.has(error.cause)) {
+            ctx.extensionHealth.recordFailure(
+              extensionId,
+              error.cause,
+              error.message,
+            );
+          }
           throw new EngineError('EXTENSION_COMMAND_FAILED', {
             message: error.message,
             details: { extensionId, commandId, reason: error.cause },

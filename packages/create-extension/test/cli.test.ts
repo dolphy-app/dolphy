@@ -92,6 +92,35 @@ describe('runCli', () => {
     expect(code).toBe(0);
   });
 
+  it('--template picks the project kind', async () => {
+    const cwd = await makeTemp();
+    const { code, stderr } = await run(['x', '--template', 'theme'], cwd);
+    expect(code, stderr).toBe(0);
+    const manifest = await readFile(path.join(cwd, 'x/extension.json'), 'utf8');
+    expect(manifest).toContain('"themes"');
+    await expect(readFile(path.join(cwd, 'x/src/index.ts'))).rejects.toThrow();
+  });
+
+  it('an unknown --template: code 2 and the list of names', async () => {
+    const cwd = await makeTemp();
+    const { code, stdout, stderr } = await run(
+      ['x', '--template', 'fancy'],
+      cwd,
+    );
+    expect(code).toBe(2);
+    expect(stdout).toBe('');
+    expect(stderr).toContain("unknown template 'fancy'");
+    expect(stderr).toContain('exercise, theme, command-panel, events, blank');
+    await expect(readFile(path.join(cwd, 'x/package.json'))).rejects.toThrow();
+  });
+
+  it('--template without a value: code 2', async () => {
+    const cwd = await makeTemp();
+    const { code, stderr } = await run(['x', '--template'], cwd);
+    expect(code).toBe(2);
+    expect(stderr).toContain('--template requires a value');
+  });
+
   it('--help: code 0, usage in stdout', async () => {
     const cwd = await makeTemp();
     const { code, stdout } = await run(['--help'], cwd);

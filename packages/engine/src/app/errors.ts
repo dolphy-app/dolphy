@@ -82,9 +82,18 @@ export const ERRORS: Record<EngineErrorCode, ErrorSpec> = {
     message: 'Extension storage quota exceeded',
     retryable: false,
   },
+  SECRETS_UNAVAILABLE: {
+    message: 'System secret store is unavailable',
+    retryable: false,
+  },
   // retryable зависит от details.reason: timeout, host-down → true
   EXTENSION_COMMAND_FAILED: {
     message: 'Extension command failed',
+    retryable: false,
+  },
+  // retryable зависит от details.reason: timeout, host-down → true
+  EXTENSION_TRANSFER_FAILED: {
+    message: 'Extension import or export failed',
     retryable: false,
   },
   INTERNAL: { message: 'Internal engine error', retryable: true },
@@ -108,6 +117,9 @@ const defaultRetryable = (
     return details?.reason === 'network';
   }
   if (code === 'EXTENSION_COMMAND_FAILED') {
+    return details?.reason === 'timeout' || details?.reason === 'host-down';
+  }
+  if (code === 'EXTENSION_TRANSFER_FAILED') {
     return details?.reason === 'timeout' || details?.reason === 'host-down';
   }
   if (code === 'GIT_FETCH_FAILED') {

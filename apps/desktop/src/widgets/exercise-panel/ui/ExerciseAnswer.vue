@@ -8,6 +8,7 @@ import type {
 } from '@dolphy-app/engine-contract';
 import type { AnswerChangeDetail } from '@dolphy-app/extension-api';
 import MarkdownView from '@/shared/ui/MarkdownView.vue';
+import { splitPrompt } from '../lib/prompt.ts';
 import { describeVerdict } from '../lib/verdict.ts';
 import AnswerElement from './AnswerElement.vue';
 import SelfGrade from './SelfGrade.vue';
@@ -51,6 +52,7 @@ const answerState = ref<AnswerChangeDetail>({
   complete: false,
 });
 
+const parts = computed(() => splitPrompt(props.prompt));
 const verdictView = computed(() =>
   props.verdict ? describeVerdict(props.verdict) : null,
 );
@@ -74,8 +76,20 @@ const submitAnswer = () => {
 <template>
   <div>
     <MarkdownView
-      :source="prompt"
-      class="text-title-large font-weight-medium"
+      v-if="parts.lead !== ''"
+      :source="parts.lead"
+      class="prompt prompt-lead"
+      :class="
+        parts.headline
+          ? 'text-title-large font-weight-medium'
+          : 'text-body-large'
+      "
+    />
+    <MarkdownView
+      v-if="parts.rest !== ''"
+      :source="parts.rest"
+      class="prompt text-body-large"
+      :class="parts.lead !== '' ? 'mt-4' : ''"
     />
 
     <template v-if="verifiable">
@@ -152,3 +166,16 @@ const submitAnswer = () => {
     </template>
   </div>
 </template>
+
+<style scoped>
+/* длинная строка кода переносится: обрезанный хвост `// результат` важнее выравнивания */
+.prompt :deep(pre) {
+  overflow-x: visible;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+
+  /* продолжение строки сдвинуто вправо, чтобы не читаться как новая инструкция */
+  padding-inline-start: calc(1em + 4ch);
+  text-indent: -4ch each-line;
+}
+</style>

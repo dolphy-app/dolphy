@@ -83,7 +83,9 @@ export const createProjections = (deps: ProjectionsDeps): Projections => {
   const applyAttempt = (
     entry: Extract<LogEntry, { kind: 'attempt' }>,
   ): UnitId[] => {
-    const inOrder = maxKey === null || compareEntryKeys(entry, maxKey) > 0;
+    const inOrder =
+      (maxKey === null || compareEntryKeys(entry, maxKey) > 0) &&
+      !attempts.isRetractedId(entry.id);
     if (!attempts.applyAttempt(entry)) return [];
     noteKey(entry);
     remediation.noteAttempt(entry.exerciseId);
@@ -113,6 +115,14 @@ export const createProjections = (deps: ProjectionsDeps): Projections => {
       if (!flags.apply(entry)) return [];
       remediation.invalidate();
       return [entry.unitId];
+    }
+    if (entry.kind === 'retract') {
+      if (!attempts.applyRetraction(entry)) return [];
+      noteKey(entry);
+      rewards.markStale();
+      memoryStale = true;
+      remediation.invalidate();
+      return unique(attempts.exercisesOf(entry.targetId).flatMap(containersOf));
     }
     if (!attempts.applyReset(entry.unitId, entry)) return [];
     noteKey(entry);

@@ -1,8 +1,16 @@
 import { computed, inject, shallowReactive, toValue, watch } from 'vue';
 import type { ComputedRef, InjectionKey, MaybeRefOrGetter } from 'vue';
-import { parseKeybinding } from './keybinding.ts';
+import { PLATFORMS, validateBinding } from '@dolphy-app/keybindings';
+import type { BindingDefinition } from '@dolphy-app/keybindings';
 
 export type CommandSource = 'app' | 'extension';
+
+/**
+ * Привязка команды по умолчанию: `key` — запись (`Mod+Shift+L`, цепочка
+ * `Mod+K Mod+S`), `mac`/`windows`/`linux` заменяют её на своей платформе,
+ * `when` — условие (контекстные ключи окна). Формат — пакет `@dolphy-app/keybindings`.
+ */
+export type DefaultBinding = Omit<BindingDefinition, 'command'>;
 
 /**
  * Описание команды при регистрации. Поля со значением `MaybeRefOrGetter`
@@ -15,14 +23,17 @@ export interface CommandDescriptor {
   source: CommandSource;
   title: MaybeRefOrGetter<string>;
   category?: MaybeRefOrGetter<string | undefined>;
-  description?: string;
+  description?: MaybeRefOrGetter<string | undefined>;
   /** Подпись рядом с названием (у команд расширений — id расширения). */
   caption?: string;
+  /** Символ перед названием (`mdi-…`); декоративный, название несёт смысл. У команд расширений — их `icon`. */
+  icon?: string;
   /**
-   * Сочетание клавиш (`Mod+Shift+L`). У команд приложения — действующее и
-   * проверяется при регистрации; у команд расширений — подсказка как есть.
+   * Привязки по умолчанию. Только у команд приложения: проверяются при
+   * регистрации на всех платформах (ошибка — ошибка программиста). Привязки
+   * команд расширений идут из их вкладов отдельным списком.
    */
-  keybinding?: string;
+  keybindings?: DefaultBinding[];
   /** Вариант выбран (текущая тема, язык). */
   checked?: MaybeRefOrGetter<boolean>;
   /** Команда сейчас доступна; по умолчанию да. */
@@ -40,7 +51,9 @@ export interface Command {
   readonly category: string | undefined;
   readonly description: string | undefined;
   readonly caption: string | undefined;
-  readonly keybinding: string | undefined;
+  readonly icon: string | undefined;
+  /** Привязки по умолчанию; действующие читают у карты привязок (`features/keybindings`). */
+  readonly defaultBindings: readonly DefaultBinding[];
   /** `undefined` — команда не из набора вариантов; иначе выбран ли вариант. */
   readonly checked: boolean | undefined;
   readonly enabled: boolean;
@@ -69,14 +82,42 @@ const resolve = (descriptor: CommandDescriptor): Command => ({
   source: descriptor.source,
   title: toValue(descriptor.title),
   category: toValue(descriptor.category),
-  description: descriptor.description,
+  description: toValue(descriptor.description),
   caption: descriptor.caption,
-  keybinding: descriptor.keybinding,
+  icon: descriptor.icon,
+  defaultBindings: descriptor.keybindings ?? [],
   checked: toValue(descriptor.checked),
   enabled: toValue(descriptor.enabled) ?? true,
   listed: descriptor.listed ?? true,
   run: descriptor.run,
 });
+
+/** Привязка по умолчанию неверна на какой-то платформе: опечатка в коде не должна молча остаться без сочетания. */
+const assertBindings = (descriptor: CommandDescriptor): void => {
+  for (const binding of descriptor.keybindings ?? []) {
+    for (const platform of PLATFORMS) {
+      const problem = validateBinding(
+        { key: binding[platform] ?? binding.key, when: binding.when ?? null },
+        [platform],
+      );
+      if (problem !== null) {
+        throw new Error(
+          `invalid keybinding of "${descriptor.key}" (${platform}): ${problem.field} ${problem.detail}`,
+        );
+      }
+    }
+  }
+};
+
+/** Привязки по умолчанию команд приложения: вход карты привязок (`defaults`). */
+export const defaultBindingsOf = (
+  commands: readonly Command[],
+): BindingDefinition[] =>
+  commands
+    .filter(({ source }) => source === 'app')
+    .flatMap(({ key, defaultBindings }) =>
+      defaultBindings.map((binding) => ({ ...binding, command: key })),
+    );
 
 export const createCommandRegistry = (): CommandRegistry => {
   const descriptors = shallowReactive(new Map<string, CommandDescriptor>());
@@ -86,9 +127,7 @@ export const createCommandRegistry = (): CommandRegistry => {
     if (descriptors.has(descriptor.key)) {
       throw new Error(`command "${descriptor.key}" is already registered`);
     }
-    if (descriptor.source === 'app' && descriptor.keybinding !== undefined) {
-      parseKeybinding(descriptor.keybinding);
-    }
+    if (descriptor.source === 'app') assertBindings(descriptor);
     descriptors.set(descriptor.key, descriptor);
     return () => {
       // отмена устаревшей записи не снимает новую с тем же ключом

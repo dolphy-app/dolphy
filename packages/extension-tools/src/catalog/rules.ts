@@ -2,6 +2,9 @@ import path from 'node:path';
 import { GITHUB_LOGIN_PATTERN } from '@dolphy-app/extension-api';
 import { compareSemver, iconProblem } from '@dolphy-app/extension-catalog';
 import type { CatalogEntry } from '@dolphy-app/extension-catalog';
+import { bundleFindings, readBundleFiles } from '../lint/bundle.ts';
+import { shortDescription } from '../lint/manifest.ts';
+import { localeFindings } from '../locales.ts';
 import { assetFindings } from './assets.ts';
 import type { GithubUserChecker } from './github.ts';
 import type { Tree } from './tree.ts';
@@ -21,9 +24,13 @@ export interface CheckedManifest {
   description: string | null;
   author: string | null;
   minAppVersion: string | null;
+  permissions: readonly string[];
 }
 
-/** Publication metadata from the raw `extension.json`; `null` — the file is not readable as JSON. */
+/**
+ * Publication metadata from the raw `extension.json`; `null` — the file is not readable as JSON.
+ * `name` and `description` are in English: a `%key%` is replaced by the text of `locales/en.json`.
+ */
 export interface DeclaredMetadata {
   name: string | null;
   description: string | null;
@@ -38,10 +45,14 @@ export interface RuleContext {
   dir: string;
   manifest: CheckedManifest | null;
   declared: DeclaredMetadata | null;
+  /** `extension.json` as written, parsed; `null` — not readable as JSON. */
+  rawManifest: unknown;
   /** Why the manifest was not parsed; `null` if it was parsed. */
   manifestProblem: string | null;
   /** Sources without `node_modules`, `dist-ext`, `.dolphy` and `.git`. */
   tree: Tree;
+  /** The built version `<siteDir>/extensions/<id>/<version>/` (`--built`); `null` — no `--built` or no parsed manifest. */
+  bundleDir: string | null;
   /** `null` — no such file. */
   readText(file: string): Promise<string | null>;
   /** `null` — no such file. */
@@ -416,6 +427,134 @@ const iconFile: CheckRule = {
   },
 };
 
+const shortDescriptionRule: CheckRule = {
+  id: 'CHECK-019',
+  title: 'description is at least 20 characters',
+  run: ({ declared }) =>
+    shortDescription(declared?.description ?? null).map((finding) =>
+      warning(finding.field, finding.message),
+    ),
+};
+
+export const MAX_CHANGELOG_BYTES = 64 * 1024;
+
+const escapeRegExp = (text: string): string =>
+  text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** Why the bytes are no acceptable `CHANGELOG.md` (over 64 KiB, not UTF-8, NUL); `null` — fine. */
+export const changelogProblem = (bytes: Uint8Array): string | null => {
+  if (bytes.length > MAX_CHANGELOG_BYTES) {
+    return `${bytes.length} bytes exceed the limit of ${MAX_CHANGELOG_BYTES}`;
+  }
+  try {
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    return text.includes('\0') ? 'contains NUL characters' : null;
+  } catch {
+    return 'is not valid UTF-8';
+  }
+};
+
+/** CHANGELOG.md: up to 64 KiB, UTF-8 without NUL; a missing section of the manifest version is a warning. */
+const changelog: CheckRule = {
+  id: 'CHECK-030',
+  title:
+    'CHANGELOG.md is up to 64 KiB of UTF-8 text and has a section of the current version',
+  run: async ({ readBytes, manifest }) => {
+    const bytes = await readBytes('CHANGELOG.md');
+    if (bytes === null) return [];
+    const problem = changelogProblem(bytes);
+    if (problem !== null) return [error('CHANGELOG.md', problem)];
+    const text = new TextDecoder().decode(bytes);
+    if (manifest === null) return [];
+    const heading = new RegExp(
+      `^##[ \\t]+\\[?v?${escapeRegExp(manifest.version)}\\]?(?:[ \\t]|$)`,
+      'm',
+    );
+    return heading.test(text)
+      ? []
+      : [
+          warning(
+            'CHANGELOG.md',
+            `has no '## ${manifest.version}' section for the current version`,
+          ),
+        ];
+  },
+};
+
+const translations: CheckRule = {
+  id: 'CHECK-026',
+  title:
+    'locales/*.json: en is complete, texts fit their fields, files are valid',
+  run: ({ rawManifest, tree, readText }) =>
+    rawManifest === null
+      ? []
+      : localeFindings({
+          manifest: rawManifest,
+          files: tree.files.map((file) => file.path),
+          read: readText,
+        }),
+};
+
+const permissionsExplained: CheckRule = {
+  id: 'CHECK-020',
+  title: 'every permission is mentioned in README.md',
+  run: async (context) => {
+    const { manifest } = context;
+    if (manifest === null || manifest.permissions.length === 0) return [];
+    const readmeText = (await context.readText('README.md')) ?? '';
+    return manifest.permissions
+      .filter((permission) => !readmeText.includes(permission))
+      .map((permission) =>
+        warning(
+          'permissions',
+          `permission '${permission}' is not mentioned in README.md: explain why the extension needs it`,
+        ),
+      );
+  },
+};
+
+const firstPublisherOwnsId: CheckRule = {
+  id: 'CHECK-021',
+  title: 'the id is not published under another author',
+  run: ({ declared, published }) => {
+    const author = declared?.author;
+    if (!author || published === undefined) return [];
+    return published.author.toLowerCase() === author.toLowerCase()
+      ? []
+      : [
+          error(
+            'author',
+            `id '${published.id}' is published by '${published.author}': the first publisher owns the id`,
+          ),
+        ];
+  },
+};
+
+const NO_BUNDLE =
+  'built version is not found: the bundle heuristics are skipped';
+
+/** `CHECK-022`…`CHECK-025`: heuristics over the built version; silent without `--built`. */
+const bundleRule = (
+  id: string,
+  title: string,
+  missingBundle = false,
+): CheckRule => ({
+  id,
+  title,
+  run: async ({ bundleDir, manifest }) => {
+    if (bundleDir === null || manifest === null) return [];
+    const files = await readBundleFiles(bundleDir).catch(() => null);
+    if (files === null) {
+      return missingBundle
+        ? [warning('--built', `${NO_BUNDLE} (${bundleDir})`)]
+        : [];
+    }
+    return bundleFindings(files, manifest.permissions)
+      .filter((finding) => finding.ruleId === id)
+      .map(({ severity, field, message }) => ({ severity, field, message }));
+  },
+});
+
 export const RULES: readonly CheckRule[] = [
   manifestValid,
   directoryName,
@@ -435,4 +574,13 @@ export const RULES: readonly CheckRule[] = [
   appVersionBound,
   assetFiles,
   iconFile,
+  shortDescriptionRule,
+  permissionsExplained,
+  firstPublisherOwnsId,
+  bundleRule('CHECK-022', 'built code does not execute dynamic code', true),
+  bundleRule('CHECK-023', 'built code is not obfuscated'),
+  bundleRule('CHECK-024', 'URLs in built code need the network permission'),
+  bundleRule('CHECK-025', 'built code has no embedded source map'),
+  translations,
+  changelog,
 ];

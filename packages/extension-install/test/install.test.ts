@@ -390,3 +390,35 @@ describe('install: сбой оставляет прежнюю установку
     );
   });
 });
+
+describe('install: dependencies', () => {
+  const NEEDY: ExtensionSpec = {
+    ...ECHO,
+    dependencies: [{ id: 'acme.base', range: '>=1.0.0' }, { id: 'acme.other' }],
+  };
+
+  it('installs although no dependency is installed: the installer neither installs them nor refuses', async () => {
+    publish(NEEDY);
+    expect(await env.installer.install('acme.echo')).toMatchObject({
+      id: 'acme.echo',
+      version: '1.1.0',
+    });
+    expect(await entriesOf(env.dir)).toContain('acme.echo');
+    expect(await entriesOf(env.dir)).not.toContain('acme.base');
+    expect(env.fake.calls.some((call) => call.url.includes('acme.base'))).toBe(
+      false,
+    );
+  });
+
+  it('refuses a download whose manifest dependencies differ from the index', async () => {
+    const lying: ExtensionSpec = { ...NEEDY, manifest: { dependencies: [] } };
+    serveIndex(env.routes, [lying]);
+    serve(env.routes, lying, '1.1.0');
+    await env.installer.catalog({ refresh: true });
+    expect(await rejection(env.installer.install('acme.echo'))).toMatchObject({
+      cause: 'invalid',
+      message: expect.stringContaining('dependencies'),
+    });
+    expect(await entriesOf(env.dir)).not.toContain('acme.echo');
+  });
+});

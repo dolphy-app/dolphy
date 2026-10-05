@@ -1,3 +1,4 @@
+import { isEffectiveExtensionState } from '@dolphy-app/engine-contract';
 import type {
   ExtensionSettingDefDto,
   ExtensionSettingValuesDto,
@@ -7,6 +8,7 @@ import {
   effectiveSettingValues,
   findSettingValueProblem,
   isExtensionId,
+  normalizeSettingValue,
 } from '../domain/index.ts';
 import type { EngineContext } from './context.ts';
 import { EngineError } from './errors.ts';
@@ -62,11 +64,7 @@ export const createExtensionValues = (ctx: ValuesContext): ExtensionValues => {
     const id = requireId(extensionId);
     const effective = ctx.extensionRegistry
       .list()
-      .find(
-        (item) =>
-          item.id === id &&
-          (item.state === 'loaded' || item.state === 'disabled'),
-      );
+      .find((item) => item.id === id && isEffectiveExtensionState(item.state));
     if (effective === undefined) {
       throw new EngineError('NOT_FOUND', {
         message: `Extension not found: ${id}`,
@@ -136,16 +134,13 @@ export const createExtensionValues = (ctx: ValuesContext): ExtensionValues => {
         details: { reason: problem, extensionId, settingId },
       });
     }
+    const normalized = normalizeSettingValue(def, value) as JsonValue;
     const stored = await ctx.extensionData.settings.all(extensionId);
     const before = effectiveSettingValues(defs, stored);
-    await ctx.extensionData.settings.set(
-      extensionId,
-      settingId,
-      value as JsonValue,
-    );
+    await ctx.extensionData.settings.set(extensionId, settingId, normalized);
     const after = effectiveSettingValues(defs, {
       ...stored,
-      [settingId]: value as JsonValue,
+      [settingId]: normalized,
     });
     if (JSON.stringify(before) !== JSON.stringify(after)) {
       announce(extensionId, before, after);

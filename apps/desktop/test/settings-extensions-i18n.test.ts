@@ -1,6 +1,13 @@
 import { createI18n } from 'vue-i18n';
 import { describe, expect, it } from 'vitest';
-import { EXTENSION_TAGS } from '@dolphy-app/extension-api';
+import {
+  EXTENSION_DIAGNOSTIC_CODES,
+  LOG_LEVELS,
+} from '@dolphy-app/engine-contract';
+import {
+  EXTENSION_PERMISSIONS,
+  EXTENSION_TAGS,
+} from '@dolphy-app/extension-api';
 import { EVENT_MESSAGE_KEYS } from '@/pages/settings/lib/catalog.ts';
 import { GROUPS } from '@/pages/settings/lib/tags.ts';
 import { messages as settingsMessages } from '@/pages/settings/i18n/index.ts';
@@ -23,6 +30,8 @@ const PLURAL_KEYS = [
   'catalog.found',
   'install.titleUpdateAll',
   'data.keys',
+  'health.failures',
+  'log.count',
 ] as const;
 
 const leaf = (locale: 'ru' | 'en', path: string): string =>
@@ -40,6 +49,28 @@ describe('строки «Расширения»', () => {
     );
   });
 
+  it('каждый код диагностики имеет текст на обоих языках', () => {
+    for (const locale of ['ru', 'en'] as const) {
+      for (const code of EXTENSION_DIAGNOSTIC_CODES) {
+        expect(
+          leaf(locale, `diagnostic.${code}`),
+          `${locale} ${code}`,
+        ).not.toBe('');
+      }
+    }
+  });
+
+  it('каждый уровень журнала имеет подпись на обоих языках', () => {
+    for (const locale of ['ru', 'en'] as const) {
+      for (const level of LOG_LEVELS) {
+        expect(
+          leaf(locale, `log.level.${level}`),
+          `${locale} ${level}`,
+        ).not.toBe('');
+      }
+    }
+  });
+
   it('теги, группы и события имеют название на обоих языках', () => {
     for (const locale of ['ru', 'en'] as const) {
       for (const tag of EXTENSION_TAGS) {
@@ -51,6 +82,46 @@ describe('строки «Расширения»', () => {
       for (const key of Object.values(EVENT_MESSAGE_KEYS)) {
         expect(leaf(locale, `events.${key}`), key).not.toBe('');
       }
+    }
+  });
+
+  it('каждое разрешение имеет подпись на обоих языках: диалог установки, каталог и список не показывают сырой id', () => {
+    const labels = { ru: 'Статистика обучения', en: 'Learning statistics' };
+    const notificationLabels = {
+      ru: 'Системные уведомления',
+      en: 'System notifications',
+    };
+    for (const locale of ['ru', 'en'] as const) {
+      for (const permission of EXTENSION_PERMISSIONS) {
+        expect(
+          leaf(locale, `permissions.${permission}`),
+          `${locale} ${permission}`,
+        ).not.toBe('');
+      }
+      expect(leaf(locale, 'permissions.learning.stats')).toBe(labels[locale]);
+      expect(leaf(locale, 'permissions.notifications')).toBe(
+        notificationLabels[locale],
+      );
+    }
+  });
+
+  it('переключатель «Расписание» и тексты расписаний есть на обоих языках, время подставляется', () => {
+    const expected = {
+      ru: {
+        label: 'Расписание',
+        daily: 'Каждый день в {at}',
+        hourly: 'Каждый час',
+      },
+      en: {
+        label: 'Schedule',
+        daily: 'Every day at {at}',
+        hourly: 'Every hour',
+      },
+    };
+    for (const locale of ['ru', 'en'] as const) {
+      expect(leaf(locale, 'schedulesLabel')).toBe(expected[locale].label);
+      expect(leaf(locale, 'schedule.daily')).toBe(expected[locale].daily);
+      expect(leaf(locale, 'schedule.hourly')).toBe(expected[locale].hourly);
     }
   });
 

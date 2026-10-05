@@ -1,11 +1,15 @@
+import { isEffectiveExtensionState } from '@dolphy-app/engine-contract';
 import { onScopeDispose, ref, shallowRef } from 'vue';
 import type {
   ContributionTitlesDto,
   ExtensionContributesDto,
+  ExtensionHealthDto,
   ExtensionInfoDto,
   ExtensionSettingsDto,
   ExtensionUpdateDto,
+  ExtensionsDiagnosticsDto,
   LearningEngine,
+  ScheduleContributionDto,
 } from '@dolphy-app/engine-contract';
 import { CONTRIBUTION_POINTS, targetFromUpdate } from '../lib/catalog.ts';
 import type { ContributionPoint, InstallTarget } from '../lib/catalog.ts';
@@ -14,7 +18,7 @@ export interface ContributionItem {
   id: string;
   /** Текст чипа: название вклада, локализованное событие или сам id. */
   label: string;
-  /** Идентификатор по природе (вид задания, язык рендерера): моноширинный шрифт. */
+  /** Идентификатор по природе (вид задания, язык рендерера) без названия: моноширинный шрифт. */
   mono: boolean;
   /** Такой же текст у другого чипа точки: id нужен и скринридеру. */
   duplicate: boolean;
@@ -57,7 +61,7 @@ export const contributionGroups = (
         items: contributes[point].map((id, index) => ({
           id,
           label: labels[index],
-          mono: MONO_POINTS.has(point),
+          mono: MONO_POINTS.has(point) && titled[id] === undefined,
           duplicate: (counts.get(labels[index]) ?? 0) > 1,
         })),
       };
@@ -100,12 +104,47 @@ export const visibleValues = <T>(
 
 export type ExtensionsState = 'loading' | 'loaded' | 'failed';
 
-export type ExtensionSwitch = 'enabled' | 'trusted';
+/** Строка здоровья показывается, если расширение сбоило или приостановлено. */
+export const hasHealthIssue = (health: ExtensionHealthDto | undefined) =>
+  health !== undefined &&
+  (health.failures > 0 || health.suppressedUntil !== null);
+
+export type ExtensionSwitch =
+  'enabled' | 'trusted' | 'notifications' | 'schedules';
+
+/** Список настроек, в котором переключатель хранит расширение, и что означает членство (`true` — выключено или доверено). */
+const SWITCH_LISTS = {
+  enabled: { field: 'disabled', listedWhenOn: false },
+  trusted: { field: 'trusted', listedWhenOn: true },
+  notifications: { field: 'notificationsOff', listedWhenOn: false },
+  schedules: { field: 'schedulesOff', listedWhenOn: false },
+} as const;
 
 const NO_SETTINGS: ExtensionSettingsDto = {
   disabled: [],
   trusted: [],
   checkUpdates: true,
+  safeMode: false,
+  notificationsOff: [],
+  catalogUrl: null,
+  schedulesOff: [],
+};
+
+/** Метод движка, который записывает переключатель. */
+const WRITERS: Record<
+  ExtensionSwitch,
+  (
+    engine: LearningEngine,
+    id: string,
+    value: boolean,
+  ) => Promise<ExtensionSettingsDto>
+> = {
+  enabled: (engine, id, value) => engine.extensions.setEnabled(id, value),
+  trusted: (engine, id, value) => engine.extensions.setTrusted(id, value),
+  notifications: (engine, id, value) =>
+    engine.extensions.setNotificationsEnabled(id, value),
+  schedules: (engine, id, value) =>
+    engine.extensions.setSchedulesEnabled(id, value),
 };
 
 const errorText = (caught: unknown) =>
@@ -117,11 +156,39 @@ export const isEnabled = (settings: ExtensionSettingsDto, id: string) =>
 export const isTrusted = (settings: ExtensionSettingsDto, id: string) =>
   settings.trusted.includes(id);
 
+export const areNotificationsOn = (
+  settings: ExtensionSettingsDto,
+  id: string,
+) => !settings.notificationsOff.includes(id);
+
+export const areSchedulesOn = (settings: ExtensionSettingsDto, id: string) =>
+  !settings.schedulesOff.includes(id);
+
+/**
+ * Переключатель «Расписание» нужен загруженному расширению, которое объявило
+ * `schedules`. У отключённого манифест всё ещё объявляет расписания, но
+ * движок вкладов не отдаёт: текста под переключателем не было бы.
+ */
+export const hasSchedules = (extension: ExtensionInfoDto): boolean =>
+  extension.state === 'loaded' && extension.contributes.schedules.length > 0;
+
+/** Как показать расписание человеческим текстом: ключ сообщения и подстановка. */
+export const scheduleSummaryOf = (
+  schedule: Pick<ScheduleContributionDto, 'every' | 'at'>,
+): { key: 'daily' | 'hourly'; at: string } => ({
+  key: schedule.every,
+  at: schedule.at ?? '',
+});
+
+/** Переключатель «Уведомления» нужен расширению, которое просит разрешение `notifications`. */
+export const hasNotifications = (extension: ExtensionInfoDto): boolean =>
+  extension.permissions.includes('notifications');
+
 /** Строка с переключателями: не из поставки, действующая (загружена или отключена) и не отозванная. */
 export const hasSwitches = (extension: ExtensionInfoDto): boolean =>
   extension.toggleable &&
   extension.revoked === null &&
-  (extension.state === 'loaded' || extension.state === 'disabled');
+  isEffectiveExtensionState(extension.state);
 
 /** Ключ переключателя в списке занятых запросом. */
 const switchKey = (id: string, which: ExtensionSwitch) => `${which}:${id}`;
@@ -134,7 +201,9 @@ const switchKey = (id: string, which: ExtensionSwitch) => `${which}:${id}`;
  * откатывается, если движок отказал; изменение действует сразу (движок
  * применяет его до ответа), перезагрузка окна не нужна.
  * `updates` — доступные обновления установленных из каталога расширений;
- * сбой их чтения не прячет список. `extensions-changed` и `contributions-changed`
+ * сбой их чтения не прячет список. `diagnostics` — здоровье расширений и
+ * состояние хоста расширений; перечитывается по `extension-health-changed`,
+ * его сбой тоже не прячет список. `extensions-changed` и `contributions-changed`
  * (в том числе правка в режиме разработчика, которой `extensions-changed` не
  * сопровождает) перечитывают всё.
  */
@@ -142,6 +211,8 @@ export const useExtensions = (engine: LearningEngine) => {
   const items = shallowRef<ExtensionInfoDto[]>([]);
   const updates = shallowRef<ExtensionUpdateDto[]>([]);
   const settings = shallowRef<ExtensionSettingsDto>(NO_SETTINGS);
+  const diagnostics = shallowRef<ExtensionsDiagnosticsDto | null>(null);
+  const restartingHost = ref(false);
   const state = ref<ExtensionsState>('loading');
   const error = ref<string | null>(null);
   const busy = ref(false);
@@ -155,15 +226,17 @@ export const useExtensions = (engine: LearningEngine) => {
     busy.value = true;
     if (state.value === 'failed') state.value = 'loading';
     try {
-      const [list, stored, available] = await Promise.all([
+      const [list, stored, available, health] = await Promise.all([
         engine.extensions.list(),
         engine.extensions.getSettings(),
         engine.extensions.updates().catch(() => []),
+        engine.extensions.diagnostics().catch(() => null),
       ]);
       if (request !== lastRequest) return;
       items.value = list;
       settings.value = stored;
       updates.value = available;
+      if (health !== null) diagnostics.value = health;
       error.value = null;
       state.value = 'loaded';
     } catch (caught) {
@@ -188,9 +261,9 @@ export const useExtensions = (engine: LearningEngine) => {
     value: boolean,
   ): ExtensionSettingsDto => {
     const current = settings.value;
-    const field = which === 'enabled' ? 'disabled' : 'trusted';
-    // у `enabled` список хранит отключённые: включить = убрать из списка
-    const member = which === 'enabled' ? !value : value;
+    const { field, listedWhenOn } = SWITCH_LISTS[which];
+    // `enabled`, `notifications` и `schedules` хранят выключенные: включить = убрать из списка
+    const member = listedWhenOn ? value : !value;
     const rest = current[field].filter((item) => item !== id);
     return {
       ...current,
@@ -206,10 +279,7 @@ export const useExtensions = (engine: LearningEngine) => {
     switchError.value = null;
     setSwitching(key, true);
     try {
-      settings.value =
-        which === 'enabled'
-          ? await engine.extensions.setEnabled(id, value)
-          : await engine.extensions.setTrusted(id, value);
+      settings.value = await WRITERS[which](engine, id, value);
       // список показывает действующие состояние и изоляцию: перечитываем без мигания
       void load();
     } catch (caught) {
@@ -238,6 +308,49 @@ export const useExtensions = (engine: LearningEngine) => {
     }
   };
 
+  /** «Безопасный режим»: действует сразу (движок применяет набор до ответа); при отказе откатывается. */
+  const setSafeMode = async (value: boolean) => {
+    const key = 'safeMode';
+    if (switching.value.has(key)) return;
+    const previous = settings.value;
+    settings.value = { ...previous, safeMode: value };
+    switchError.value = null;
+    setSwitching(key, true);
+    try {
+      settings.value = await engine.extensions.setSafeMode(value);
+      void load();
+    } catch (caught) {
+      settings.value = previous;
+      switchError.value = errorText(caught);
+    } finally {
+      setSwitching(key, false);
+    }
+  };
+
+  /** Здоровье без перечитывания списка: сбой приходит часто и не меняет состав расширений. */
+  const loadHealth = async () => {
+    try {
+      diagnostics.value = await engine.extensions.diagnostics();
+    } catch {
+      // прежние данные остаются; следующее событие или «Обновить» прочтёт заново
+    }
+  };
+
+  /** «Перезапустить хост»: хост запускается заново, счётчик его падений обнуляется. */
+  const restartHost = async () => {
+    if (restartingHost.value) return;
+    restartingHost.value = true;
+    switchError.value = null;
+    try {
+      await engine.extensions.restartHost();
+      await loadHealth();
+    } catch (caught) {
+      switchError.value = errorText(caught);
+    } finally {
+      restartingHost.value = false;
+    }
+  };
+
   const unsubscribe = engine.subscribe((event) => {
     // слушатель не вызывает команды синхронно (API §7)
     if (
@@ -245,6 +358,8 @@ export const useExtensions = (engine: LearningEngine) => {
       event.type === 'contributions-changed'
     ) {
       queueMicrotask(() => void load());
+    } else if (event.type === 'extension-health-changed') {
+      queueMicrotask(() => void loadHealth());
     }
   });
   onScopeDispose(unsubscribe);
@@ -281,9 +396,17 @@ export const useExtensions = (engine: LearningEngine) => {
     load,
     switching,
     switchError,
+    diagnostics,
+    restartingHost,
     setCheckUpdates,
+    setSafeMode,
+    restartHost,
     updateTargets,
     setEnabled: (id: string, value: boolean) => change(id, 'enabled', value),
     setTrusted: (id: string, value: boolean) => change(id, 'trusted', value),
+    setNotifications: (id: string, value: boolean) =>
+      change(id, 'notifications', value),
+    setSchedules: (id: string, value: boolean) =>
+      change(id, 'schedules', value),
   };
 };

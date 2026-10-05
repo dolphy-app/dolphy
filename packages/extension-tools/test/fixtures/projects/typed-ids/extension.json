@@ -18,11 +18,29 @@
     ],
     "events": [{ "event": "attempt.closed" }],
     "panels": [{ "id": "acme.typed.main", "title": "Typed" }],
+    "widgets": [
+      { "id": "acme.typed.card", "title": "Card", "slot": "dailyPlan" }
+    ],
     "markdownRenderers": [{ "language": "typed-echo" }],
     "settings": [
-      { "id": "acme.typed.on", "type": "boolean", "label": "On", "default": true },
-      { "id": "acme.typed.name", "type": "string", "label": "Name", "default": "x" },
-      { "id": "acme.typed.goal", "type": "number", "label": "Goal", "default": 3 },
+      {
+        "id": "acme.typed.on",
+        "type": "boolean",
+        "label": "On",
+        "default": true
+      },
+      {
+        "id": "acme.typed.name",
+        "type": "string",
+        "label": "Name",
+        "default": "x"
+      },
+      {
+        "id": "acme.typed.goal",
+        "type": "number",
+        "label": "Goal",
+        "default": 3
+      },
       {
         "id": "acme.typed.mode",
         "type": "enum",

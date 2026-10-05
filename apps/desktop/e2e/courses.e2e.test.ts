@@ -122,7 +122,7 @@ describe('каталог курсов', () => {
     await start();
     await client.openCourses();
     expect(await client.courseNames()).toEqual(
-      expect.arrayContaining([GIT, 'HTTP', 'JavaScript: основы', SQL]),
+      expect.arrayContaining([GIT, 'HTTP', SQL]),
     );
     const git = await client.readCard(GIT);
     expect(git).toMatchObject({

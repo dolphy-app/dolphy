@@ -1,4 +1,7 @@
-import type { ExtensionSettingsDto } from '@dolphy-app/engine-contract';
+import type {
+  ExtensionDiagnosticDto,
+  ExtensionSettingsDto,
+} from '@dolphy-app/engine-contract';
 import type { ExtensionPolicy } from '@dolphy-app/engine/ports';
 
 export interface FakeExtensionPolicyOptions {
@@ -7,6 +10,8 @@ export interface FakeExtensionPolicyOptions {
   settings?: ExtensionSettingsDto;
   /** id → причина отзыва в каталоге: такое расширение отключено независимо от настроек. */
   revoked?: Readonly<Record<string, string>>;
+  /** Безопасный режим задан запуском приложения: настройкой `safeMode` не снимается. */
+  forceSafeMode?: boolean;
 }
 
 export type FakeExtensionPolicy = ExtensionPolicy & {
@@ -14,6 +19,11 @@ export type FakeExtensionPolicy = ExtensionPolicy & {
   readonly updates: ExtensionSettingsDto[];
   /** Отозвать (причина) или вернуть (`null`) расширение. */
   setRevoked(id: string, reason: string | null): void;
+  /** Задать невыполненные зависимости расширения (пусто — выполнены): сам пересчёт зависимостей — дело адаптера хоста. */
+  setDependencyIssues(
+    id: string,
+    issues: readonly ExtensionDiagnosticDto[],
+  ): void;
 };
 
 /** Политика в памяти с той же семантикой, что у адаптера хоста расширений. */
@@ -22,19 +32,41 @@ export const createFakeExtensionPolicy = (
 ): FakeExtensionPolicy => {
   const bundled = new Set(options.bundled ?? []);
   let settings: ExtensionSettingsDto = structuredClone(
-    options.settings ?? { disabled: [], trusted: [], checkUpdates: true },
+    options.settings ?? {
+      disabled: [],
+      trusted: [],
+      checkUpdates: true,
+      safeMode: false,
+      notificationsOff: [],
+      catalogUrl: null,
+      schedulesOff: [],
+    },
   );
   const updates: ExtensionSettingsDto[] = [];
   const revoked = new Set(Object.keys(options.revoked ?? {}));
+  const unmet = new Map<string, ExtensionDiagnosticDto[]>();
+  const safeMode = (): boolean =>
+    options.forceSafeMode === true || settings.safeMode;
+  const isOn = (id: string): boolean =>
+    bundled.has(id) ||
+    (!safeMode() && !settings.disabled.includes(id) && !revoked.has(id));
   return {
     updates,
     setRevoked: (id, reason) => {
       if (reason === null) revoked.delete(id);
       else revoked.add(id);
     },
-    isEnabled: (id) =>
-      bundled.has(id) || (!settings.disabled.includes(id) && !revoked.has(id)),
+    setDependencyIssues: (id, issues) => {
+      if (issues.length === 0) unmet.delete(id);
+      else unmet.set(id, structuredClone([...issues]));
+    },
+    isEnabled: (id) => isOn(id) && !unmet.has(id),
+    dependencyIssues: (id) =>
+      isOn(id) ? structuredClone(unmet.get(id) ?? []) : [],
     isIsolated: (id) => !bundled.has(id) && !settings.trusted.includes(id),
+    areSchedulesOn: (id) =>
+      bundled.has(id) || !settings.schedulesOff.includes(id),
+    safeMode,
     update(next) {
       settings = structuredClone(next);
       updates.push(structuredClone(next));

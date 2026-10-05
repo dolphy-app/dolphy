@@ -1,0 +1,30 @@
+{
+  "name": "@dolphy-app/ext-js",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The dolphy.js extension: JavaScript exercises checked by running the code",
+  "type": "module",
+  "scripts": {
+    "typecheck": "dolphy-ext types && tsc -b tsconfig.json tsconfig.test.json",
+    "test": "vitest run",
+    "build": "dolphy-ext build"
+  },
+  "dependencies": {
+    "@dolphy-app/extension-api": "workspace:*",
+    "@dolphy-app/extension-sdk": "workspace:*",
+    "sugar-high": "2.5.1"
+  },
+  "devDependencies": {
+    "@dolphy-app/engine": "workspace:*",
+    "@dolphy-app/engine-contract": "workspace:*",
+    "@dolphy-app/extension-host": "workspace:*",
+    "@dolphy-app/extension-tools": "workspace:*",
+    "@dolphy-app/testkit": "workspace:*",
+    "@types/node": "^22.20.4",
+    "happy-dom": "^20.14.5",
+    "typescript": "7.0.2"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}

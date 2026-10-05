@@ -1,6 +1,7 @@
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { LearningEvent } from '@dolphy-app/engine-contract';
 import { discoverExtensions } from '../src/discover.ts';
 import type { ResolvedExtension } from '../src/discover.ts';
 import {
@@ -126,9 +127,58 @@ describe('изолированное расширение в настоящем 
     expect(await h.engine.read(ID, 'activations')).toBe(1);
   });
 
+  it('ctx.secrets в процессе: значение идёт через движок шифртекстом, чужое расширение его не видит, без хранилища ключей — SecretsUnavailable, а delete работает', async () => {
+    const h = await start();
+    const finished = (): LearningEvent => ({
+      name: 'session.finished',
+      payload: { sessionId: 's1', at: 1 } as never,
+    });
+    h.engine.emit(finished());
+    await vi.waitFor(
+      async () =>
+        expect(await h.engine.read(ID, 'secrets:0')).toEqual({
+          set: { value: null },
+          got: { value: 'сек-ret' },
+          missing: { value: null },
+          deleteMissing: { value: false },
+        }),
+      SLOW,
+    );
+    expect(await h.engine.readSecret(ID, 'token')).not.toBe('сек-ret');
+    expect(await h.engine.readSecret('acme.other', 'token')).toBeUndefined();
+
+    // ключница пропала: запись и чтение существующего ключа отказывают, остальное работает
+    h.engine.keyStore.available = false;
+    h.engine.emit(finished());
+    const unavailable = {
+      name: 'SecretsUnavailable',
+      code: 'SECRETS_UNAVAILABLE',
+    };
+    await vi.waitFor(
+      async () =>
+        expect(await h.engine.read(ID, 'secrets:1')).toEqual({
+          set: unavailable,
+          got: unavailable,
+          missing: { value: null },
+          deleteMissing: { value: false },
+          deleteExisting: { value: true },
+        }),
+      SLOW,
+    );
+    expect(await h.engine.readSecret(ID, 'token')).toBeUndefined();
+  });
+
   it('доверенное расширение получает те же события в процессе хоста', async () => {
     const h = await start();
-    h.policy.update({ disabled: [], trusted: [ID], checkUpdates: true });
+    h.policy.update({
+      disabled: [],
+      trusted: [ID],
+      checkUpdates: true,
+      safeMode: false,
+      notificationsOff: [],
+      catalogUrl: null,
+      schedulesOff: [],
+    });
     // в процессе хоста модуль берётся настоящим import() из каталога расширения
     h.engine.emit(attemptClosed('e2'));
 

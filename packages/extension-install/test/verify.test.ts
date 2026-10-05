@@ -37,6 +37,7 @@ const manifestWith = (
   permissions,
   icon: null,
   tags: [],
+  dependencies: [],
   contributes: {
     exerciseTypes: [],
     themes: [],
@@ -46,6 +47,10 @@ const manifestWith = (
     events: [],
     commands: [],
     panels: [],
+    widgets: [],
+    schedules: [],
+    importers: [],
+    exporters: [],
     ...contributes,
   },
 });
@@ -125,6 +130,97 @@ describe('manifestMismatch: commands и panels', () => {
   });
 });
 
+describe('manifestMismatch: widgets', () => {
+  it('виджет в манифесте, которого нет в записи, и запись без виджета в манифесте отвергаются', () => {
+    const [entry, v] = entryWith({});
+    expect(
+      manifestMismatch(
+        manifestWith({ widgets: ['acme.state.card'] }),
+        entry,
+        v,
+      ),
+    ).toContain('(widgets)');
+    const [recorded, w] = entryWith({ widgets: ['acme.state.card'] });
+    expect(manifestMismatch(manifestWith(), recorded, w)).toContain(
+      '(widgets)',
+    );
+  });
+
+  it('одинаковые наборы без учёта порядка проходят', () => {
+    const [entry, v] = entryWith({
+      widgets: ['acme.state.a', 'acme.state.b'],
+    });
+    expect(
+      manifestMismatch(
+        manifestWith({ widgets: ['acme.state.b', 'acme.state.a'] }),
+        entry,
+        v,
+      ),
+    ).toBeNull();
+  });
+});
+
+describe('manifestMismatch: schedules', () => {
+  it('расписание в манифесте, которого нет в записи, и запись без расписания в манифесте отвергаются', () => {
+    const [entry, v] = entryWith({});
+    expect(
+      manifestMismatch(
+        manifestWith({ schedules: ['acme.state.daily'] }),
+        entry,
+        v,
+      ),
+    ).toContain('(schedules)');
+    const [recorded, w] = entryWith({ schedules: ['acme.state.daily'] });
+    expect(manifestMismatch(manifestWith(), recorded, w)).toContain(
+      '(schedules)',
+    );
+  });
+
+  it('одинаковые наборы без учёта порядка проходят', () => {
+    const [entry, v] = entryWith({
+      schedules: ['acme.state.a', 'acme.state.b'],
+    });
+    expect(
+      manifestMismatch(
+        manifestWith({ schedules: ['acme.state.b', 'acme.state.a'] }),
+        entry,
+        v,
+      ),
+    ).toBeNull();
+  });
+});
+
+describe('manifestMismatch: importers и exporters', () => {
+  it('импортёры и экспортёры манифеста и записи индекса должны совпадать', () => {
+    const [bare, v] = entryWith({});
+    expect(
+      manifestMismatch(
+        manifestWith({ importers: ['acme.state.csv'] }),
+        bare,
+        v,
+      ),
+    ).toContain('(importers)');
+    expect(
+      manifestMismatch(
+        manifestWith({ exporters: ['acme.state.out'] }),
+        bare,
+        v,
+      ),
+    ).toContain('(exporters)');
+    const [listed, w] = entryWith({ importers: ['acme.state.csv'] });
+    expect(manifestMismatch(manifestWith(), listed, w)).toContain(
+      '(importers)',
+    );
+    expect(
+      manifestMismatch(
+        manifestWith({ importers: ['acme.state.csv'] }),
+        listed,
+        w,
+      ),
+    ).toBeNull();
+  });
+});
+
 describe('manifestMismatch: tags', () => {
   const taggedVersion = (tags?: string[]): CatalogVersion =>
     ({ ...version, ...(tags === undefined ? {} : { tags }) }) as CatalogVersion;
@@ -159,5 +255,63 @@ describe('manifestMismatch: tags', () => {
         taggedVersion(['theme', 'interface']),
       ),
     ).toBe('manifest tags differ from the catalog entry');
+  });
+});
+
+describe('manifestMismatch: dependencies', () => {
+  const withDependencies = (
+    dependencies?: { id: string; range?: string }[],
+  ): CatalogVersion =>
+    ({
+      ...version,
+      ...(dependencies === undefined ? {} : { dependencies }),
+    }) as CatalogVersion;
+  const [entry] = entryWith({});
+  const manifest = (
+    dependencies: { id: string; range: string | null }[],
+  ): InspectedManifest => ({ ...manifestWith(), dependencies });
+  const MESSAGE = 'manifest dependencies differ from the catalog entry';
+
+  it('passes when equal in any order, with and without ranges, and when both are empty', () => {
+    expect(
+      manifestMismatch(
+        manifest([
+          { id: 'acme.b', range: null },
+          { id: 'acme.a', range: '>=1.0.0' },
+        ]),
+        entry!,
+        withDependencies([
+          { id: 'acme.a', range: '>=1.0.0' },
+          { id: 'acme.b' },
+        ]),
+      ),
+    ).toBeNull();
+    expect(
+      manifestMismatch(manifest([]), entry!, withDependencies()),
+    ).toBeNull();
+  });
+
+  it('rejects a missing, an extra and a different-range dependency', () => {
+    expect(
+      manifestMismatch(
+        manifest([{ id: 'acme.a', range: null }]),
+        entry!,
+        withDependencies(),
+      ),
+    ).toBe(MESSAGE);
+    expect(
+      manifestMismatch(
+        manifest([]),
+        entry!,
+        withDependencies([{ id: 'acme.a' }]),
+      ),
+    ).toBe(MESSAGE);
+    expect(
+      manifestMismatch(
+        manifest([{ id: 'acme.a', range: '>=2.0.0' }]),
+        entry!,
+        withDependencies([{ id: 'acme.a', range: '>=1.0.0' }]),
+      ),
+    ).toBe(MESSAGE);
   });
 });

@@ -163,6 +163,38 @@ export const describeSettingsStoreContract = (
       });
     });
 
+    it('интерфейс: ширина и скрытие панели теории переживают save → load', async () => {
+      const store = await make();
+      await store.saveUi({
+        theme: 'dark',
+        locale: 'ru',
+        materialWidth: 420,
+        materialCollapsed: true,
+      });
+      expect(await store.loadUi()).toEqual({
+        theme: 'dark',
+        locale: 'ru',
+        materialWidth: 420,
+        materialCollapsed: true,
+      });
+      await store.saveUi({ theme: 'dark', locale: 'ru' });
+      expect(await store.loadUi()).toEqual({ theme: 'dark', locale: 'ru' });
+    });
+
+    it('интерфейс: исходы туров переживают save → load', async () => {
+      const store = await make();
+      await store.saveUi({
+        theme: 'system',
+        locale: 'system',
+        tours: { welcome: 'completed', session: 'skipped' },
+      });
+      expect(await store.loadUi()).toEqual({
+        theme: 'system',
+        locale: 'system',
+        tours: { welcome: 'completed', session: 'skipped' },
+      });
+    });
+
     it('обучение: по умолчанию passAtN, save → load', async () => {
       const store = await make();
       expect(await store.loadLearning()).toEqual({ gradePolicy: 'passAtN' });
@@ -174,12 +206,54 @@ export const describeSettingsStoreContract = (
       expect(await store.loadLearning()).toEqual({ gradePolicy: 'passAtN' });
     });
 
+    it('привязки: по умолчанию пусто, save → load, замена целиком', async () => {
+      const store = await make();
+      expect(await store.loadKeybindings()).toEqual({ commands: {} });
+      await store.saveKeybindings({
+        commands: {
+          'app:a': [{ key: 'Mod+K', when: null }],
+          'extension:acme:run': [],
+        },
+      });
+      expect(await store.loadKeybindings()).toEqual({
+        commands: {
+          'app:a': [{ key: 'Mod+K', when: null }],
+          'extension:acme:run': [],
+        },
+      });
+      await store.saveKeybindings({
+        commands: { 'app:b': [{ key: 'Alt+J', when: '!inputFocus' }] },
+      });
+      expect(await store.loadKeybindings()).toEqual({
+        commands: { 'app:b': [{ key: 'Alt+J', when: '!inputFocus' }] },
+      });
+    });
+
+    it('привязки: хранилище не делит память с вызывающим и не меняет другие группы', async () => {
+      const store = await make();
+      const saved = { commands: { 'app:a': [{ key: 'Alt+1', when: null }] } };
+      await store.saveKeybindings(saved);
+      saved.commands['app:a'][0]!.key = 'Alt+2';
+      const loaded = await store.loadKeybindings();
+      expect(loaded.commands['app:a']?.[0]?.key).toBe('Alt+1');
+      loaded.commands['app:a']![0]!.key = 'Alt+3';
+      expect((await store.loadKeybindings()).commands['app:a']?.[0]?.key).toBe(
+        'Alt+1',
+      );
+      expect(await store.loadLearning()).toEqual({ gradePolicy: 'passAtN' });
+      expect((await store.loadUi()).theme).toBe('system');
+    });
+
     it('расширения: по умолчанию пусто, проверка обновлений включена', async () => {
       const store = await make();
       expect(await store.loadExtensions()).toEqual({
         disabled: [],
         trusted: [],
         checkUpdates: true,
+        safeMode: false,
+        notificationsOff: [],
+        catalogUrl: null,
+        schedulesOff: [],
       });
     });
 
@@ -189,21 +263,92 @@ export const describeSettingsStoreContract = (
         disabled: ['acme.b', 'acme.a', 'acme.b'],
         trusted: ['acme.z'],
         checkUpdates: false,
+        safeMode: false,
+        notificationsOff: [],
+        catalogUrl: null,
+        schedulesOff: [],
       });
       expect(await store.loadExtensions()).toEqual({
         disabled: ['acme.a', 'acme.b'],
         trusted: ['acme.z'],
         checkUpdates: false,
+        safeMode: false,
+        notificationsOff: [],
+        catalogUrl: null,
+        schedulesOff: [],
       });
       await store.saveExtensions({
         disabled: [],
         trusted: [],
         checkUpdates: true,
+        safeMode: false,
+        notificationsOff: [],
+        catalogUrl: null,
+        schedulesOff: [],
       });
       expect(await store.loadExtensions()).toEqual({
         disabled: [],
         trusted: [],
         checkUpdates: true,
+        safeMode: false,
+        notificationsOff: [],
+        catalogUrl: null,
+        schedulesOff: [],
+      });
+    });
+
+    it('расширения: безопасный режим по умолчанию выключен и переживает круг сохранения вместе со списками', async () => {
+      const store = await make();
+      expect((await store.loadExtensions()).safeMode).toBe(false);
+      await store.saveExtensions({
+        disabled: ['acme.a'],
+        trusted: ['acme.t'],
+        checkUpdates: false,
+        safeMode: true,
+        notificationsOff: [],
+        catalogUrl: null,
+        schedulesOff: [],
+      });
+      expect(await store.loadExtensions()).toEqual({
+        disabled: ['acme.a'],
+        trusted: ['acme.t'],
+        checkUpdates: false,
+        safeMode: true,
+        notificationsOff: [],
+        catalogUrl: null,
+        schedulesOff: [],
+      });
+      await store.saveExtensions({
+        disabled: ['acme.a'],
+        trusted: ['acme.t'],
+        checkUpdates: false,
+        safeMode: false,
+        notificationsOff: [],
+        catalogUrl: null,
+        schedulesOff: [],
+      });
+      expect((await store.loadExtensions()).safeMode).toBe(false);
+    });
+
+    it('расширения: notificationsOff и schedulesOff переживают круг сохранения, каноничны и независимы друг от друга и от остальных полей', async () => {
+      const store = await make();
+      await store.saveExtensions({
+        disabled: ['acme.d'],
+        trusted: [],
+        checkUpdates: true,
+        safeMode: false,
+        notificationsOff: ['acme.z', 'acme.a', 'acme.z'],
+        catalogUrl: null,
+        schedulesOff: ['acme.s', 'acme.r', 'acme.s'],
+      });
+      expect(await store.loadExtensions()).toEqual({
+        disabled: ['acme.d'],
+        trusted: [],
+        checkUpdates: true,
+        safeMode: false,
+        notificationsOff: ['acme.a', 'acme.z'],
+        catalogUrl: null,
+        schedulesOff: ['acme.r', 'acme.s'],
       });
     });
 
@@ -212,6 +357,40 @@ export const describeSettingsStoreContract = (
       expect(await store.loadUpdateCheckedAt()).toBeNull();
       await store.saveUpdateCheckedAt(1_700_000_000_000);
       expect(await store.loadUpdateCheckedAt()).toBe(1_700_000_000_000);
+    });
+
+    it('метка проверки обновлений: null сбрасывает сохранённое значение', async () => {
+      const store = await make();
+      await store.saveUpdateCheckedAt(1_700_000_000_000);
+      await store.saveUpdateCheckedAt(null);
+      expect(await store.loadUpdateCheckedAt()).toBeNull();
+    });
+
+    it('расширения: адрес каталога переживает круг сохранения и сбрасывается в null', async () => {
+      const store = await make();
+      expect((await store.loadExtensions()).catalogUrl).toBeNull();
+      await store.saveExtensions({
+        disabled: [],
+        trusted: [],
+        checkUpdates: true,
+        safeMode: false,
+        notificationsOff: [],
+        catalogUrl: 'https://example.test/catalog/index.json',
+        schedulesOff: [],
+      });
+      expect((await store.loadExtensions()).catalogUrl).toBe(
+        'https://example.test/catalog/index.json',
+      );
+      await store.saveExtensions({
+        disabled: [],
+        trusted: [],
+        checkUpdates: true,
+        safeMode: false,
+        notificationsOff: [],
+        catalogUrl: null,
+        schedulesOff: [],
+      });
+      expect((await store.loadExtensions()).catalogUrl).toBeNull();
     });
 
     it('значения разных видов не мешают друг другу', async () => {
@@ -223,6 +402,10 @@ export const describeSettingsStoreContract = (
         disabled: ['acme.x'],
         trusted: [],
         checkUpdates: true,
+        safeMode: false,
+        notificationsOff: [],
+        catalogUrl: null,
+        schedulesOff: [],
       });
       await store.savePreferences({
         scheduler: null,
@@ -238,6 +421,10 @@ export const describeSettingsStoreContract = (
         disabled: ['acme.x'],
         trusted: [],
         checkUpdates: true,
+        safeMode: false,
+        notificationsOff: [],
+        catalogUrl: null,
+        schedulesOff: [],
       });
       expect((await store.loadPreferences()).ignored_paths).toEqual(['x']);
     });

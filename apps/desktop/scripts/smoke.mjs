@@ -21,7 +21,15 @@ const RESULT_PREFIX = 'DOLPHY_SMOKE_RESULT ';
 const TIMEOUT_MS = 120_000;
 const ORPHAN_WAIT_MS = 5_000;
 const SMOKE_DIR = 'dist-smoke';
-const SCENARIOS = ['basic', 'sql', 'choice', 'renderer', 'isolated', 'crash'];
+const SCENARIOS = [
+  'basic',
+  'sql',
+  'choice',
+  'js',
+  'renderer',
+  'isolated',
+  'crash',
+];
 // путь, который «враждебное» расширение пробует записать (см. run-smoke.ts)
 const ISOLATED_MARKER = '/tmp/dolphy-smoke-pwned.txt';
 // Ожидаемые fuses упакованного приложения (electron-builder.json → electronFuses).
@@ -105,6 +113,29 @@ const checkFuses = async (executable) => {
   console.log(`fuses match the expected set (${rows.length} in the wire)`);
 };
 
+/**
+ * macOS: `Info.plist` собранного `.app` объявляет схему `dolphy:` (R12:
+ * `electron-builder.json` → `protocols`). Ссылку ОС открывает вручную, но без
+ * записи в plist она не дойдёт до приложения. `plutil` — штатная утилита macOS.
+ */
+const checkUrlScheme = (appBundle) => {
+  const plist = join(appBundle, 'Contents/Info.plist');
+  const result = spawnSync('plutil', ['-convert', 'json', '-o', '-', plist], {
+    encoding: 'utf8',
+  });
+  if (result.status !== 0) {
+    fail(`cannot read ${plist}: ${result.stderr || result.error}`);
+  }
+  const types = JSON.parse(result.stdout).CFBundleURLTypes ?? [];
+  const schemes = types.flatMap((type) => type.CFBundleURLSchemes ?? []);
+  if (!schemes.includes('dolphy')) {
+    fail(
+      `Info.plist declares no dolphy: URL scheme (CFBundleURLSchemes: ${JSON.stringify(schemes)})`,
+    );
+  }
+  console.log(`Info.plist declares URL schemes: ${schemes.join(', ')}`);
+};
+
 const run = (command, args, env) => {
   const result = spawnSync(command, args, {
     cwd: appDir,
@@ -184,6 +215,7 @@ if (packaged) {
   if (process.platform === 'darwin') {
     command = join(unpacked, 'Dolphy.app/Contents/MacOS/Dolphy');
     resourcesDir = join(unpacked, 'Dolphy.app/Contents/Resources');
+    checkUrlScheme(join(unpacked, 'Dolphy.app'));
   } else {
     const names =
       process.platform === 'win32'
@@ -213,6 +245,10 @@ if (packaged) {
     'dolphy.choice/extension.json',
     'dolphy.choice/main.mjs',
     'dolphy.choice/view.mjs',
+    'dolphy.js/extension.json',
+    'dolphy.js/main.mjs',
+    'dolphy.js/worker.mjs',
+    'dolphy.js/view.mjs',
   ]) {
     if (!existsSync(join(resourcesDir, 'extensions', file))) {
       fail(`extension file ${file} missing in ${resourcesDir}/extensions`);
@@ -225,7 +261,7 @@ if (packaged) {
   await checkFuses(command);
 }
 
-// 3. запуск: временный userData, копии библиотек sql-course и choice-course
+// 3. запуск: временный userData, копии библиотек sql-course и choice-course, курс js_smoke
 await mkdir(userData, { recursive: true });
 await cp(libraryFixture, library, { recursive: true });
 await cp(choiceFixture, library, { recursive: true });
@@ -245,6 +281,20 @@ await writeFile(
 await writeFile(
   join(library, 'hostile_kb/basic.lesson/q1.front.md'),
   '---\nengine:\n  exercise:\n    type: acme.hostile\n---\nProbe the sandbox.\n',
+);
+// курс из одного упражнения `dolphy.js` (проверка кода в дочернем процессе)
+await mkdir(join(library, 'js_smoke/basic.lesson'), { recursive: true });
+await writeFile(
+  join(library, 'js_smoke/course_manifest.json'),
+  '{"dependencies":[],"description":"JS course","engine":{"tags":["js"]},"generator_config":{"KnowledgeBase":{}},"id":"js_smoke","name":"JS (KnowledgeBase)"}',
+);
+await writeFile(
+  join(library, 'js_smoke/basic.lesson/lesson.name.json'),
+  JSON.stringify('Functions'),
+);
+await writeFile(
+  join(library, 'js_smoke/basic.lesson/q1.front.md'),
+  '---\nengine:\n  exercise:\n    type: dolphy.js\n    spec:\n      starter: |\n        function double(n) {}\n      tests: |\n        test("double(2)", () => assert.equal(double(2), 4));\n        test("double(3)", () => assert.equal(double(3), 6));\n      reference: |\n        function double(n) { return n * 2; }\n---\nWrite double(n).\n',
 );
 rmSync(ISOLATED_MARKER, { force: true });
 const lines = { stdout: [], stderr: [] };

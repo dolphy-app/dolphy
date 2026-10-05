@@ -2,15 +2,33 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
-import { useContributions } from '@/shared/api/engine';
+import {
+  updatesBadgeText,
+  useContributions,
+  useExtensionUpdates,
+} from '@/shared/api/engine';
 import { APP_NAME } from '@/shared/config/app.ts';
+import { extensionIconOf } from '@/shared/config/extension-icons.ts';
 import { ROUTE } from '@/shared/config/routes.ts';
+import { useExtensionText } from '@/shared/lib/extension-text.ts';
+import { useExtensionWhen } from '@/shared/lib/extension-when.ts';
 
 const { t } = useI18n();
 const router = useRouter();
 const contributions = useContributions();
+const extensionText = useExtensionText();
+const extensionWhen = useExtensionWhen();
+const extensionUpdates = useExtensionUpdates();
 
-const panels = computed(() => contributions.value.panels);
+/** Значок на «Настройках»: сколько расширений можно обновить; без обновлений его нет. */
+const updatesBadge = computed(() =>
+  updatesBadgeText(extensionUpdates.count.value),
+);
+
+// пункт панели с ложным `when` скрыт; сама панель открывается из расширения (`openPanel`)
+const panels = computed(() =>
+  contributions.value.panels.filter(({ when }) => extensionWhen.matches(when)),
+);
 
 const items = computed(() =>
   router
@@ -59,7 +77,7 @@ const bottomItems = computed(() =>
         rounded="lg"
       />
     </v-list>
-    <!-- панели расширений: список из реактивных вкладов, названия — данные расширения -->
+    <!-- панели расширений: список из реактивных вкладов, названия подставляются из переводов расширения -->
     <v-list
       v-if="panels.length > 0"
       nav
@@ -77,8 +95,8 @@ const bottomItems = computed(() =>
           params: { extensionId: panel.extensionId, panelId: panel.id },
         }"
         tabindex="0"
-        prepend-icon="mdi-puzzle-outline"
-        :title="panel.title"
+        :prepend-icon="extensionIconOf(panel.icon)"
+        :title="extensionText.of(panel.title, panel.extensionId)"
         color="primary"
         rounded="lg"
       />
@@ -100,7 +118,28 @@ const bottomItems = computed(() =>
           :title="t(item.titleKey)"
           color="primary"
           rounded="lg"
-        />
+          :aria-describedby="
+            item.name === ROUTE.settings && updatesBadge
+              ? 'nav-updates-hint'
+              : undefined
+          "
+        >
+          <template v-if="item.name === ROUTE.settings && updatesBadge" #append>
+            <!-- число читает скринридер через описание пункта, значок для него скрыт -->
+            <span aria-hidden="true" data-testid="updates-badge-nav">
+              <v-badge inline color="primary" :content="updatesBadge" />
+            </span>
+          </template>
+        </v-list-item>
+        <span
+          v-if="updatesBadge"
+          id="nav-updates-hint"
+          class="visually-hidden"
+          data-testid="updates-hint-nav"
+          >{{
+            t('common.extensionUpdates', { n: extensionUpdates.count.value })
+          }}</span
+        >
       </v-list>
     </template>
   </v-navigation-drawer>
@@ -112,5 +151,14 @@ const bottomItems = computed(() =>
 <style scoped>
 .v-list-item :deep(.v-list-item__spacer) {
   width: 12px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 </style>

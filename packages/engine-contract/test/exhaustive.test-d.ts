@@ -25,7 +25,10 @@ const describeEvent = (event: EngineEvent): string => {
       return event.scope;
     case 'repository-progress':
       return `repository ${event.id} ${event.phase}`;
+    case 'repository-updates-checked':
+      return `repository updates ${event.available.length}`;
     case 'extensions-changed':
+    case 'extension-health-changed':
       return event.type;
     case 'contributions-changed':
       expectTypeOf(event.generation).toEqualTypeOf<number>();
@@ -49,6 +52,9 @@ const describeEntry = (entry: LogEntryDto): string => {
     case 'progress_reset':
       expectTypeOf(entry.libraryRevision).toEqualTypeOf<string | undefined>();
       return entry.unitId;
+    case 'retract':
+      expectTypeOf(entry.op).toEqualTypeOf<'set' | 'unset'>();
+      return `${entry.targetId} ${entry.op}`;
     default: {
       const unhandled: never = entry;
       return unhandled;
@@ -66,7 +72,9 @@ test('T-20 EngineEvent: набор типов события зафиксиро�
     | 'remediation-triggered'
     | 'settings-changed'
     | 'repository-progress'
+    | 'repository-updates-checked'
     | 'extensions-changed'
+    | 'extension-health-changed'
     | 'contributions-changed'
   >();
   expectTypeOf(describeEvent).returns.toEqualTypeOf<string>();
@@ -74,7 +82,7 @@ test('T-20 EngineEvent: набор типов события зафиксиро�
 
 test('T-20 LogEntryDto: набор kind зафиксирован, обработка исчерпывающая', () => {
   expectTypeOf<LogEntryDto['kind']>().toEqualTypeOf<
-    'attempt' | 'unit_flag' | 'progress_reset'
+    'attempt' | 'unit_flag' | 'progress_reset' | 'retract'
   >();
   expectTypeOf(describeEntry).returns.toEqualTypeOf<string>();
 });

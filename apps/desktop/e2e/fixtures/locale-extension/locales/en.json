@@ -1,0 +1,18 @@
+{
+  "name": "Locale pack",
+  "description": "Everything translatable in one extension",
+  "kind.title": "Locale kind",
+  "renderer.title": "Locale blocks",
+  "theme.label": "Moss",
+  "policy.label": "Locale policy",
+  "group.title": "Behavior",
+  "mode.label": "Speed",
+  "mode.description": "How fast to go",
+  "mode.fast": "Fast",
+  "mode.slow": "Slow",
+  "lonely.label": "Lonely switch",
+  "go.title": "Go there",
+  "go.description": "Runs the locale command",
+  "go.category": "Locale",
+  "panel.title": "Locale panel"
+}

@@ -4,13 +4,13 @@ import {
   EXTENSION_PLATFORMS,
   EXTENSION_TAGS,
   GITHUB_LOGIN_PATTERN,
+  MAX_EXTENSION_DEPENDENCIES,
 } from '@dolphy-app/extension-api';
 import type { ExtensionTag } from '@dolphy-app/extension-api';
 import { z } from 'zod';
 import {
   CATALOG_FILE_EXTENSIONS,
   ICON_URI_PATTERN,
-  LEGACY_FILE_EXTENSIONS,
   MAX_FILES_V2,
   MAX_ICON_URI_LENGTH,
   extensionOf,
@@ -19,25 +19,27 @@ import {
 import { CatalogFormatError } from './errors.ts';
 import { compareSemver, isSemver, parseRange } from './semver.ts';
 
-/** Format of `index.json`: parsed by every released app, strictly. */
-export const LEGACY_SCHEMA_VERSION = 1 as const;
-/** Format of `index.v2.json`: asset file types, icons, up to `MAX_FILES_V2` files. */
+/** Format of `index.v2.json`, the only index: asset file types, icons, up to `MAX_FILES_V2` files. */
 export const CATALOG_SCHEMA_VERSION = 2 as const;
 
 export const MAX_VERSIONS = 5;
-export const MAX_FILES = 50;
 export const MAX_TOTAL_BYTES = 10_000_000;
 /** Longest contribution title in `titles` (the manifest limit of `label`/`title`). */
 const MAX_TITLE_LENGTH = 60;
 /** Most tags of a version. */
 export const MAX_TAGS = 5;
-/** Contribution points whose entries carry a human title in the manifest (`label` or `title`). */
+/** Contribution points whose entries carry a human title in the manifest (`label` or `title`); for exercise types and renderers the title is optional and the renderer is keyed by its language. */
 export const TITLED_POINTS = [
+  'exerciseTypes',
+  'markdownRenderers',
   'themes',
   'gradePolicies',
   'settings',
   'commands',
   'panels',
+  'widgets',
+  'importers',
+  'exporters',
 ] as const;
 export type TitledPoint = (typeof TITLED_POINTS)[number];
 /** Contribution titles of an entry: point → id → title. */
@@ -51,6 +53,11 @@ const SEGMENT = /^[A-Za-z0-9_-][A-Za-z0-9._-]*$/;
 /** Имена устройств Windows: недоступны как файлы, с расширением или без. */
 const RESERVED_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
 
+const describeIssues = (error: z.ZodError, prefix = ''): string[] =>
+  error.issues.map(
+    (issue) => `${prefix}${issue.path.join('.') || '/'}: ${issue.message}`,
+  );
+
 const semver = z.string().refine(isSemver, 'must be semver');
 const timestamp = z.iso.datetime({ offset: true });
 const httpsUrl = z
@@ -62,28 +69,17 @@ const isSafeSegment = (segment: string): boolean =>
   !segment.endsWith('.') &&
   !RESERVED_NAME.test(segment);
 
-/** Путь файла версии: безопасные сегменты и расширение из `extensions`. */
-const isSafePathWith = (
-  value: string,
-  extensions: readonly string[],
-): boolean => {
+/** Path of a version file: safe segments, an allowed extension. */
+export const isSafeCatalogPath = (value: string): boolean => {
   if (value.length > MAX_PATH_LENGTH) return false;
   const segments = value.split('/');
   if (!segments.every(isSafeSegment)) return false;
   const extension = extensionOf(value);
-  return extension !== null && extensions.includes(extension);
+  return extension !== null && CATALOG_FILE_EXTENSIONS.includes(extension);
 };
 
-/** Path of a version file in the full index: safe segments, an allowed extension. */
-export const isSafeCatalogPath = (value: string): boolean =>
-  isSafePathWith(value, CATALOG_FILE_EXTENSIONS);
-
-/** Path of a version file in the first format (`index.json`). */
-export const isLegacyCatalogPath = (value: string): boolean =>
-  isSafePathWith(value, LEGACY_FILE_EXTENSIONS);
-
 /**
- * Каталог файлов версии относительно адреса `index.json` (`extensions/<id>/<version>/`).
+ * Каталог файлов версии относительно адреса индекса (`extensions/<id>/<version>/`).
  * Абсолютный адрес не допускается: файлы версии по построению лежат на origin индекса,
  * а локальный каталог разработчика и e2e не требуют https.
  */
@@ -141,18 +137,55 @@ const revokedSchema = z.strictObject({
   reason: z.string().min(1).max(300),
 });
 
-/** What differs between the two formats and the tolerant reader. */
+/** Deprecation of an entry: a warning, not a revocation. `versions: null` — every version. */
+export const MAX_DEPRECATION_REASON = 200;
+export const MAX_ALTERNATIVES = 3;
+const deprecatedShape = {
+  versions: rangeText.nullable(),
+  reason: z.string().min(1).max(MAX_DEPRECATION_REASON),
+  alternatives: z.array(extensionId).max(MAX_ALTERNATIVES),
+};
+const strictDeprecated = z.strictObject(deprecatedShape);
+/** The tolerant reader drops an unreadable `deprecated`; the entry stays. */
+const tolerantDeprecated = z
+  .object(deprecatedShape)
+  .optional()
+  .catch(undefined);
+
+/** One item of `deprecated.json` in the catalog repository: no `versions` — every version. */
+export const deprecatedItemSchema = z.strictObject({
+  id: extensionId,
+  versions: rangeText.optional(),
+  reason: deprecatedShape.reason,
+  alternatives: deprecatedShape.alternatives,
+});
+export type DeprecatedItem = z.infer<typeof deprecatedItemSchema>;
+
+const deprecatedListSchema = z
+  .array(deprecatedItemSchema)
+  .superRefine((items, ctx) => {
+    const seen = new Set<string>();
+    items.forEach((item, position) => {
+      if (seen.has(item.id)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [position, 'id'],
+          message: `duplicate id '${item.id}'`,
+        });
+      }
+      seen.add(item.id);
+    });
+  });
+
+/** Strict parse of `deprecated.json`; throws `CatalogFormatError` (also for a repeated `id`). */
+export const parseDeprecatedList = (raw: unknown): DeprecatedItem[] => {
+  const result = deprecatedListSchema.safeParse(raw);
+  if (result.success) return result.data;
+  throw new CatalogFormatError(describeIssues(result.error));
+};
+
+/** `strict: false` — the tolerant reader of the app: unknown keys are dropped instead of rejected. */
 interface Profile {
-  schemaVersion: 1 | 2;
-  maxFiles: number;
-  extensions: readonly string[];
-  /** The `icon` key of a version; the first format does not know it. */
-  icon: boolean;
-  /** The `titles` key of an entry; the first format does not know it. */
-  titles: boolean;
-  /** The `tags` key of a version; the first format does not know it. */
-  tags: boolean;
-  /** `false` — unknown keys are dropped instead of rejected. */
   strict: boolean;
 }
 
@@ -166,12 +199,7 @@ const object = <T extends z.ZodRawShape>(
 
 const fileSchemaOf = (profile: Profile) =>
   object(profile, {
-    path: z
-      .string()
-      .refine(
-        (value) => isSafePathWith(value, profile.extensions),
-        'must be a safe relative path',
-      ),
+    path: z.string().refine(isSafeCatalogPath, 'must be a safe relative path'),
     size: z.number().int().min(0).max(MAX_TOTAL_BYTES),
     sha256: z.string().regex(SHA256, 'must be lowercase hex sha256'),
   }).superRefine((file, ctx) => {
@@ -182,7 +210,7 @@ const fileSchemaOf = (profile: Profile) =>
 const filesSchemaOf = (profile: Profile) =>
   z
     .array(fileSchemaOf(profile))
-    .max(profile.maxFiles)
+    .max(MAX_FILES_V2)
     .superRefine((files, ctx) => {
       // Имена сравниваются без учёта регистра: на macOS и Windows `Main.mjs` и `main.mjs` — один файл.
       const seen = new Set<string>();
@@ -256,6 +284,40 @@ const tagsSchemaOf = (
     z.ZodType<ExtensionTag[]>
   >;
 
+const strictDependencies = z
+  .array(
+    z.strictObject({
+      id: extensionId,
+      range: rangeText.optional(),
+    }),
+  )
+  .max(MAX_EXTENSION_DEPENDENCIES)
+  .superRefine((items, ctx) => {
+    items.forEach(({ id }, index) => {
+      if (items.findIndex((item) => item.id === id) !== index) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [index, 'id'],
+          message: `duplicate dependency '${id}'`,
+        });
+      }
+    });
+  });
+
+/** The tolerant reader drops an unreadable `dependencies`; the version stays. */
+const tolerantDependencies = z
+  .array(
+    z.object({
+      id: extensionId,
+      range: rangeText.optional(),
+    }),
+  )
+  .max(MAX_EXTENSION_DEPENDENCIES)
+  .catch([]);
+
+const dependenciesSchemaOf = (profile: Profile) =>
+  (profile.strict ? strictDependencies : tolerantDependencies).optional();
+
 const versionSchemaOf = (profile: Profile) =>
   object(profile, {
     version: semver,
@@ -273,21 +335,8 @@ const versionSchemaOf = (profile: Profile) =>
       .optional(),
     /** Explicit tags of the version (a closed vocabulary); the tolerant reader drops the ones it does not know. */
     tags: tagsSchemaOf(profile),
-  }).superRefine((version, ctx) => {
-    if (!profile.tags && version.tags !== undefined) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['tags'],
-        message: 'tags is not part of this index format',
-      });
-    }
-    if (!profile.icon && version.icon !== undefined) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['icon'],
-        message: 'icon is not part of this index format',
-      });
-    }
+    /** Extensions the version needs (`dependencies` of the manifest); no key — none. */
+    dependencies: dependenciesSchemaOf(profile),
   });
 
 const contributesSchemaOf = (profile: Profile) =>
@@ -300,6 +349,10 @@ const contributesSchemaOf = (profile: Profile) =>
     events: z.array(z.string()).optional(),
     commands: z.array(z.string()).optional(),
     panels: z.array(z.string()).optional(),
+    widgets: z.array(z.string()).optional(),
+    schedules: z.array(z.string()).optional(),
+    importers: z.array(z.string()).optional(),
+    exporters: z.array(z.string()).optional(),
   });
 
 const titleMap = z.record(extensionId, z.string().min(1).max(MAX_TITLE_LENGTH));
@@ -328,6 +381,7 @@ const entryHeadOf = (profile: Profile) => ({
   platforms: z.array(z.enum(EXTENSION_PLATFORMS)),
   contributes: contributesSchemaOf(profile),
   titles: titlesSchemaOf(profile),
+  deprecated: profile.strict ? strictDeprecated.optional() : tolerantDeprecated,
 });
 
 const entrySchemaOf = (profile: Profile) =>
@@ -339,16 +393,7 @@ const entrySchemaOf = (profile: Profile) =>
       .max(MAX_VERSIONS)
       .superRefine(descendingUnique),
   }).superRefine((entry, ctx) => {
-    if (entry.titles === undefined) return;
-    if (!profile.titles) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['titles'],
-        message: 'titles is not part of this index format',
-      });
-      return;
-    }
-    if (!profile.strict) return;
+    if (entry.titles === undefined || !profile.strict) return;
     for (const point of TITLED_POINTS) {
       const known = new Set<string>(entry.contributes[point] ?? []);
       for (const id of Object.keys(entry.titles[point] ?? {})) {
@@ -365,38 +410,18 @@ const entrySchemaOf = (profile: Profile) =>
 
 const indexSchemaOf = (profile: Profile) =>
   object(profile, {
-    schemaVersion: z.literal(profile.schemaVersion),
+    schemaVersion: z.literal(CATALOG_SCHEMA_VERSION),
     generatedAt: timestamp,
     extensions: z.array(entrySchemaOf(profile)),
     revoked: z.array(revokedSchema),
   });
 
-const LEGACY_PROFILE: Profile = {
-  schemaVersion: LEGACY_SCHEMA_VERSION,
-  maxFiles: MAX_FILES,
-  extensions: LEGACY_FILE_EXTENSIONS,
-  icon: false,
-  titles: false,
-  tags: false,
-  strict: true,
-};
-
-const FULL_PROFILE: Profile = {
-  schemaVersion: CATALOG_SCHEMA_VERSION,
-  maxFiles: MAX_FILES_V2,
-  extensions: CATALOG_FILE_EXTENSIONS,
-  icon: true,
-  titles: true,
-  tags: true,
-  strict: true,
-};
+const FULL_PROFILE: Profile = { strict: true };
 
 /** Reader of the app: the limits of the full format, unknown keys dropped. */
-const TOLERANT_PROFILE: Profile = { ...FULL_PROFILE, strict: false };
+const TOLERANT_PROFILE: Profile = { strict: false };
 
-/** `index.json`: the first format. */
-export const legacyIndexSchema = indexSchemaOf(LEGACY_PROFILE);
-/** `index.v2.json`: the full format. */
+/** `index.v2.json`: the only index format. */
 export const indexSchema = indexSchemaOf(FULL_PROFILE);
 
 export type CatalogIndex = z.infer<typeof indexSchema>;
@@ -404,26 +429,14 @@ export type CatalogEntry = CatalogIndex['extensions'][number];
 export type CatalogVersion = CatalogEntry['versions'][number];
 export type CatalogFile = CatalogVersion['files'][number];
 export type RevokedEntry = CatalogIndex['revoked'][number];
-
-const describeIssues = (error: z.ZodError, prefix = ''): string[] =>
-  error.issues.map(
-    (issue) => `${prefix}${issue.path.join('.') || '/'}: ${issue.message}`,
-  );
-
-const isLegacyIndex = (raw: unknown): boolean =>
-  typeof raw === 'object' &&
-  raw !== null &&
-  'schemaVersion' in raw &&
-  raw.schemaVersion === LEGACY_SCHEMA_VERSION;
+export type Deprecation = NonNullable<CatalogEntry['deprecated']>;
 
 /**
  * Strict parse for the author tools: unknown keys, file types and limits fail.
- * Both formats are accepted; `schemaVersion` chooses the rules.
  * Throws `CatalogFormatError`.
  */
 export const parseIndex = (raw: unknown): CatalogIndex => {
-  const schema = isLegacyIndex(raw) ? legacyIndexSchema : indexSchema;
-  const parsed = schema.safeParse(raw);
+  const parsed = indexSchema.safeParse(raw);
   if (parsed.success) return parsed.data;
   throw new CatalogFormatError(describeIssues(parsed.error));
 };
@@ -435,10 +448,7 @@ export interface LenientIndex {
 }
 
 const tolerantHead = object(TOLERANT_PROFILE, {
-  schemaVersion: z.union([
-    z.literal(LEGACY_SCHEMA_VERSION),
-    z.literal(CATALOG_SCHEMA_VERSION),
-  ]),
+  schemaVersion: z.literal(CATALOG_SCHEMA_VERSION),
   generatedAt: timestamp,
   extensions: z.array(z.unknown()),
   revoked: z.array(revokedSchema),

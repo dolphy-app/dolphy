@@ -3,6 +3,7 @@
 Tools for extension authors: `dolphy-ext build` builds a project into an
 extension directory, `dolphy-ext validate` checks a directory with the code the
 app uses to load it (`inspectExtensionDir` from `@dolphy-app/extension-host`),
+`dolphy-ext lint` checks a project before a pull request,
 `dolphy-ext catalog check|build` checks and builds extensions for the catalog
 (`dolphy-app/dolphy-extensions`, see "Catalog").
 
@@ -11,20 +12,22 @@ app uses to load it (`inspectExtensionDir` from `@dolphy-app/extension-host`),
 ```
 <project>/
   extension.json          # source manifest (required), same format as an installed one
-  src/index.ts            # all extension code: host, views, panels, markdown
+  src/index.ts            # all extension code: host, views, panels, widgets, markdown
   dolphy-ext.config.json  # optional
   schema/, assets/        # optional directories, copied as is (assets/ is checked, see "Style sheets, images and fonts")
+  locales/                # optional ru.json, en.json: texts for %key% labels (see "Translations")
 ```
 
 `src/index.ts` has named exports; the build lays them out into the files the
 manifest names (`main`, `renderer`, `module`):
 
-| Export     | Value                                        | Output file                                |
-| ---------- | -------------------------------------------- | ------------------------------------------ |
-| `host`     | `defineExtension({ … })`                     | `main` (`main.mjs`, Node bundle)           |
-| `views`    | exercise type id → `defineAnswerView(mount)` | the type's `renderer` (`view.mjs`)         |
-| `panels`   | panel id → `defineExtensionPanel({ mount })` | the panel's `module` (`panel.mjs`)         |
-| `markdown` | language → `defineMarkdownRenderer(render)`  | the renderer's `renderer` (`markdown.mjs`) |
+| Export     | Value                                          | Output file                                |
+| ---------- | ---------------------------------------------- | ------------------------------------------ |
+| `host`     | `defineExtension({ … })`                       | `main` (`main.mjs`, Node bundle)           |
+| `views`    | exercise type id → `defineAnswerView(mount)`   | the type's `renderer` (`view.mjs`)         |
+| `panels`   | panel id → `defineExtensionPanel({ mount })`   | the panel's `module` (`panel.mjs`)         |
+| `widgets`  | widget id → `defineExtensionWidget({ mount })` | the widget's `module` (`widget.mjs`)       |
+| `markdown` | language → `defineMarkdownRenderer(render)`    | the renderer's `renderer` (`markdown.mjs`) |
 
 ```ts
 import {
@@ -101,20 +104,55 @@ declare module '@dolphy-app/extension-sdk' {
     commands: 'acme.open' | 'acme.close';
     events: 'attempt.closed';
     panels: never;
+    widgets: never;
+    importers: 'acme.csv';
+    exporters: never;
     markdownLanguages: never;
     settings: { 'acme.goal': number; 'acme.mode': 'fast' | 'slow' };
   }
 }
 ```
 
-A setting is typed by its definition: `boolean`, `string`, `number`, or the
-union of the `enum` option values. The output is deterministic and the file is
+A setting is typed by its definition: `boolean`, `string` (also for `text` and
+`color`), `string[]` for `list`, `number`, or the union of the `enum` option
+values. The output is deterministic and the file is
 not rewritten when its content is unchanged, so a watcher on the project does
 not loop. Include it in `tsconfig.json` as `".dolphy/ids.d.ts"` (a bare
 `.dolphy` entry is skipped by TypeScript because it is a hidden directory) and
 keep `.dolphy` out of git; it is never part of `dist-ext` or of a catalog
 source check. What the SDK does with the ids is described in the README of
 `@dolphy-app/extension-sdk`, "Typed ids".
+
+## Importers, exporters, `when`, key bindings and dependencies
+
+`dolphy-ext validate` (and `build`, which runs it) parses these manifest fields
+with the same code as the app and reports each problem with its path:
+
+- `contributes.importers` (`id`, `title`, `accept` of 1–8 lower-case file
+  extensions such as `.csv`, optional `input` `text` or `bytes`) and
+  `contributes.exporters` (`id`, `title`, `scope` `course` or `progress`): at
+  most 8 of each kind. A `progress` exporter without the `learning.stats`
+  permission is an error at `contributes.exporters.<i>.scope`. `dolphy-ext
+types` writes their ids, so a handler record of `defineExtension` that misses
+  a declared id fails `tsc`.
+- `when` of a command, a panel and a widget: at most 200 characters over the
+  keys `route`, `course.active`, `session.active`, `locale` and `theme.dark`. An
+  unknown key, an unknown value of `route` or `locale`, a type mismatch or a
+  syntax error is reported with the position in the text.
+- `keybinding` and `keybindings[]` of a command must parse on macOS, Windows and
+  Linux: `Ctrl+X` is fine, `Mod+Ctrl+K` (a repeated modifier on Windows and
+  Linux) and a bare printable key without a `when` are errors, with the path
+  such as `contributes.commands.0.keybindings.1.key`.
+- `dependencies` (up to 16 entries `{ id, range? }`, `range` being comparators
+  such as `>=1.0.0 <2.0.0`): a repeat, a dependency on the extension itself and
+  a bad range are errors. Whether a dependency is installed is a runtime
+  question for the app; `validate` does not know it.
+
+`catalog build` carries the ids of `importers` and `exporters` into the entry's
+`contributes` and the `dependencies` of the manifest into the version record;
+`catalog check` rejects a manifest whose fields the parser above refuses. The
+catalog repository pins a released version of this package, so a submission
+that uses these fields passes the check only after that pin is raised.
 
 ## Style sheets, images and fonts
 
@@ -193,8 +231,32 @@ catalog filters: up to 5 unique values of `learning`, `language`, `content`,
 or a sixth tag is a manifest error (`tags.N: tag must be one of: …`) reported
 by `validate`, `build` and `catalog check` (`CHECK-001`). Without `tags` the app
 derives them from the contributions; an explicit list replaces the derived one.
-An app older than this field rejects an `extension.json` that contains `tags`,
-which is why a tagged version is left out of `index.json`.
+
+## Translations
+
+A label of the manifest can be `%key%` (the whole string; the key is
+`[A-Za-z0-9_.-]{1,64}`): the app takes the text from `locales/<language>.json`
+(`ru`, `en`), a flat object of strings (a file is at most 64 KiB, 500 keys, a
+value at most 500 characters). The fields are `name`, `description`, and for
+contributions `label`/`title`/`description`/`category`, a setting's `group` and
+the labels of its `enum` options. The window picks the text of the interface
+language, then `en`, then shows the `%key%` as it is; the catalog always shows
+`en`. The `%key%` itself is still limited by the length of its field.
+
+`locales/` is copied into the built extension. `dolphy-ext validate` (and
+`build`, which runs it) and `catalog check` (`CHECK-026`):
+
+- require `locales/en.json` when the manifest has any `%key%`;
+- fail for a key that `en` lacks, for a text (in any language) that breaks the
+  limit of its field, and for a file that is not valid JSON or not a flat
+  object of strings within the limits;
+- warn about a key of a file that the manifest does not use and about a file in
+  `locales/` that is not `ru.json` or `en.json`.
+
+`name` and `description` are judged in English by the other checks (`CHECK-003`,
+`CHECK-019`, `lint`), and `catalog build` writes the English `name`,
+`description` and `titles` into the index. The published `extension.json` keeps
+the `%key%` strings.
 
 ## Output
 
@@ -209,14 +271,18 @@ discovery root and the value of `DOLPHY_DEV_EXTENSIONS`. After the build the res
 dolphy-ext build [dir] [--out <dir>] [--watch]
 dolphy-ext types [dir]
 dolphy-ext validate <dir>
+dolphy-ext lint [dir] [--built <dir>]
+dolphy-ext dev [dir] [--app <path>]
 dolphy-ext catalog check <extensionsDir> [--ids a,b]
-            [--published-index <path>] [--max-app-version <x.y.z>]
-            [--skip-github-check] [--list-rules]
+            [--published-index <path>] [--deprecated <path>]
+            [--max-app-version <x.y.z>]
+            [--built <siteDir>] [--skip-github-check] [--list-rules]
 dolphy-ext catalog build --src <extensionsDir> --ids a,b --out <siteDir>
             [--previous-index <path>] [--revoked <path>]
-            [--source-base <url>] [--published-at <iso>]
+            [--deprecated <path>] [--source-base <url>] [--published-at <iso>]
 dolphy-ext catalog build --reindex --out <siteDir>
-            [--previous-index <path>] [--revoked <path>] [--published-at <iso>]
+            [--previous-index <path>] [--revoked <path>]
+            [--deprecated <path>] [--published-at <iso>]
 dolphy-ext --help
 ```
 
@@ -238,8 +304,32 @@ affects (`error <id>: failed to bundle main.mjs (host from src/index.ts), …`).
 Schemas and `assets/` are copied at the start and after a manifest change.
 `extension.json` changes also rewrite `.dolphy/ids.d.ts` (only when its content
 changes).
+`--watch` bundles carry inline source maps (`//# sourceMappingURL=data:…`), so
+DevTools show your TypeScript in views, panels and renderers; the Node bundle
+`main.mjs` carries one too, but the app does not enable source maps for the
+extension process, so stack traces in the log point at `main.mjs`. A plain
+`build` and `catalog build` never write source maps (`catalog check` rejects
+them, `CHECK-025`).
 Running from the repository:
 `pnpm -F @dolphy-app/extension-tools dolphy-ext build <dir>`.
+
+### `dev [dir] [--app <path>]`
+
+Starts a `--watch` build of the project in `dir` (default: the current
+directory) and the installed Dolphy app with
+`DOLPHY_DEV_EXTENSIONS=<dir>/dist-ext`, so the app lists the extension (origin
+`dev`) and applies every rebuild without a restart. Ctrl+C stops the build and
+the app, exit code 0. The app is, in this order: `--app`, the `DOLPHY_APP`
+environment variable, the standard place of the platform (macOS
+`/Applications/Dolphy.app`, then `~/Applications/Dolphy.app`; Windows
+`%LOCALAPPDATA%\Programs\Dolphy\Dolphy.exe`; Linux the newest
+`~/Applications/Dolphy-Linux-*.AppImage`). `--app` takes a macOS `.app` bundle
+or an executable. No app found is exit code 2 with the places that were looked
+at; the path is printed when the app starts. The app has a single instance: if
+it quits within 5 seconds the command prints "Dolphy is probably already
+running: quit it and run again" and exits with code 1. In the app, `F12`,
+`Cmd+Alt+I` (macOS) and `Ctrl+Shift+I` toggle DevTools while
+`DOLPHY_DEV_EXTENSIONS` is set.
 
 ## Catalog
 
@@ -249,38 +339,73 @@ The `catalog` subcommands serve the extension catalog repository
 version selection and revocation are handled by `@dolphy-app/extension-catalog`,
 the same code the app uses.
 
+### `lint [dir]`
+
+Checks the project in `dir` (default: the current directory) the way the catalog
+will, before you open a pull request: `name`, `description` (at least 20
+characters), `author` and `tags` of `extension.json` (warnings), `README.md`
+(missing or empty is an `error`, exit code 1) and the built code
+(`CHECK-022`…`CHECK-025`, always warnings). The project is built into a
+temporary directory; `--built <dir>` checks an existing built extension
+directory instead. Output lines are those of `catalog check`
+(`warning <id> <RULE-ID> <field>: <message>`); `LINT-001` is `tags` not set.
+No output and code 0 means no findings.
+
 ### `catalog check <extensionsDir>`
 
 Checks the sources in `<extensionsDir>/<id>/` (a `dolphy-ext` project without
 `node_modules`, `dist-ext`, `.dolphy` and `.git`) against the rules below. `--ids a,b`
 limits the check to the listed extensions (all directories by default);
-`--published-index <path>` is the `index.json` of the published catalog for
-`CHECK-012` (the full `index.v2.json` is the better choice; no file means nothing
-is published); `--max-app-version <x.y.z>` is
+`--published-index <path>` is the `index.v2.json` of the published catalog for
+`CHECK-012` (no file means nothing is published); `--max-app-version <x.y.z>` is
 the released app version for `CHECK-016`; `--skip-github-check` turns off the
 `api.github.com` request for `CHECK-006` (the API token is `GITHUB_TOKEN`);
-`--list-rules` prints the rules and exits.
+`--built <siteDir>` is the output of `catalog build`: the built version is read
+from `<siteDir>/extensions/<id>/<version>/` for `CHECK-022`…`CHECK-025`, which
+are silent without the flag (the source tree has no bundle, so run `check` a
+second time after `catalog build`); a missing built version is one `warning`.
+`CHECK-021` needs `--published-index`. `--deprecated <path>` checks the form of
+`deprecated.json` (see `catalog build`) and, together with `--published-index`,
+that every alternative exists in the published index; its findings are printed
+as `error <id> deprecated <field>: <message>` (a file that cannot be read or
+parsed is one finding under the file name). `--list-rules` prints the rules and exits.
 
-| Rule        | What it checks                                                                        |
-| ----------- | ------------------------------------------------------------------------------------- |
-| `CHECK-001` | `extension.json` is readable and passes manifest parsing                              |
-| `CHECK-002` | the directory name equals the manifest `id`                                           |
-| `CHECK-003` | `name`, `description` and `author` are set                                            |
-| `CHECK-004` | `README.md` exists and is not empty                                                   |
-| `CHECK-005` | `author` looks like a GitHub login                                                    |
-| `CHECK-006` | `author` is an existing GitHub user (no answer — `warning`)                           |
-| `CHECK-007` | `package.json` exists and parses                                                      |
-| `CHECK-008` | there is a lock file (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lock`) |
-| `CHECK-009` | no install or publish lifecycle scripts (`postinstall`, `prepare`…)                   |
-| `CHECK-010` | dependencies come from the registry only (no git, http, file, link, workspace)        |
-| `CHECK-011` | `name` in `package.json` does not take someone else's scope (`warning`)               |
-| `CHECK-012` | the version is strictly greater than the published one                                |
-| `CHECK-013` | at most 200 files and 5 MB of sources, no file over 1 MB                              |
-| `CHECK-014` | no symbolic links                                                                     |
-| `CHECK-015` | no executable files (`.exe`, `.dll`, `.so`, `.dylib`, `.node`, `.sh`, `.bat`)         |
-| `CHECK-016` | `minAppVersion` is not newer than `--max-app-version`                                 |
-| `CHECK-017` | files in `assets/` match their type: signature, size, pixels, safe SVG and CSS        |
-| `CHECK-018` | `icon` is a square 64–512 px PNG or WebP file up to 16 KiB                            |
+The bundle rules are heuristics over the whole bundle, dependencies included
+(a validator library may legitimately use `new Function`), so they only
+warn and the reviewer decides. `CHECK-023` fires on a file of 20 KiB or more
+with an average line longer than 500 characters, or on 20 distinct identifiers
+of the form `_0x1a2b`. `CHECK-024` ignores `www.w3.org` XML namespaces. A source
+map is an `error`: the catalog builds without maps.
+
+| Rule        | What it checks                                                                                                                     |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `CHECK-001` | `extension.json` is readable and passes manifest parsing                                                                           |
+| `CHECK-002` | the directory name equals the manifest `id`                                                                                        |
+| `CHECK-003` | `name`, `description` and `author` are set                                                                                         |
+| `CHECK-004` | `README.md` exists and is not empty                                                                                                |
+| `CHECK-005` | `author` looks like a GitHub login                                                                                                 |
+| `CHECK-006` | `author` is an existing GitHub user (no answer — `warning`)                                                                        |
+| `CHECK-007` | `package.json` exists and parses                                                                                                   |
+| `CHECK-008` | there is a lock file (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lock`)                                              |
+| `CHECK-009` | no install or publish lifecycle scripts (`postinstall`, `prepare`…)                                                                |
+| `CHECK-010` | dependencies come from the registry only (no git, http, file, link, workspace)                                                     |
+| `CHECK-011` | `name` in `package.json` does not take someone else's scope (`warning`)                                                            |
+| `CHECK-012` | the version is strictly greater than the published one                                                                             |
+| `CHECK-013` | at most 200 files and 5 MB of sources, no file over 1 MB                                                                           |
+| `CHECK-014` | no symbolic links                                                                                                                  |
+| `CHECK-015` | no executable files (`.exe`, `.dll`, `.so`, `.dylib`, `.node`, `.sh`, `.bat`)                                                      |
+| `CHECK-016` | `minAppVersion` is not newer than `--max-app-version`                                                                              |
+| `CHECK-017` | files in `assets/` match their type: signature, size, pixels, safe SVG and CSS                                                     |
+| `CHECK-018` | `icon` is a square 64–512 px PNG or WebP file up to 16 KiB                                                                         |
+| `CHECK-019` | `description` is at least 20 characters (`warning`)                                                                                |
+| `CHECK-020` | every `permissions` entry is mentioned in `README.md` (`warning`)                                                                  |
+| `CHECK-021` | the id is not already published under another `author` (any case): first publisher owns the id                                     |
+| `CHECK-022` | built code has no `eval(` or `new Function(` (`warning`, needs `--built`)                                                          |
+| `CHECK-023` | built code does not look obfuscated (`warning`, needs `--built`)                                                                   |
+| `CHECK-024` | built code has no `http(s)://` URL without the `network` permission (`warning`, needs `--built`)                                   |
+| `CHECK-025` | built code has no embedded source map (needs `--built`)                                                                            |
+| `CHECK-026` | `locales/*.json`: `en` is complete, texts fit their fields, files are valid (see "Translations")                                   |
+| `CHECK-030` | `CHANGELOG.md` (optional) is at most 64 KiB of UTF-8 without NUL; no `## <version>` section for the current version is a `warning` |
 
 The rules are data in code (`src/catalog/rules.ts`, the `RULES` table); the
 semantic review against `rules/rules.json` of the catalog repository is a
@@ -302,37 +427,44 @@ leaves `<siteDir>` untouched.
 
 The build also writes what the catalog shows next to the identifiers. The entry
 gets `titles`: the `label` (themes, grade policies, settings) or `title`
-(commands, panels) of every contribution of the newest manifest, by contribution
+(exercise types and markdown renderers when they have one, commands, panels)
+of every contribution of the newest manifest, by contribution
 point; points without contributions are omitted, and so is the whole key when
 nothing has a title. The version record gets `tags` from the manifest of that
 version (omitted when empty). Rebuilding without a version bump refreshes the
-titles. A tagged version appears only in `index.v2.json`, but its older untagged
-versions keep the extension visible in `index.json`.
+titles.
 
-Two files are published, always together and with the same `generatedAt`:
+A `CHANGELOG.md` next to `README.md` is optional. When the project has one,
+the build copies it into the version (it is listed in `files` with its size and
+`sha256`), so the app shows "What's new" from it; write it as an ordinary
+changelog with `## 1.2.0`, `## [1.2.0] - 2026-10-01` or `## v1.2.0` headings
+(`CHECK-030`). A `CHANGELOG.md` over 64 KiB, not UTF-8 or with NUL fails the build.
 
-- `index.v2.json` (`schemaVersion: 2`) — the full index, which the current app
-  reads next to the catalog address;
-- `index.json` (`schemaVersion: 1`) — the subset that every released app
-  parses strictly (an unknown key, file type or permission makes a released app
-  reject the whole catalog). Versions with new file types, an `icon`, `tags`, more
-  than 50 files or a permission such as `learning.events`, and entries with
-  `settings`, `events`, `commands` or `panels` contributions are left out of it;
-  the `titles` key of the remaining entries is dropped;
-  an extension left without versions is skipped. The summary line says
-  `only in index.v2.json` for such a version. The catalog identity of installed
-  extensions stays the address of `index.json`.
+One file is published: `index.v2.json` (`schemaVersion: 2`). Every version of
+an extension is in it, whatever file types, permissions, `icon`, `tags` and
+contribution points it uses. The app reads it next to the catalog address; the
+address (`catalogUrl`) stays the identity of installed extensions. No
+`index.json` is written.
 
-- `--previous-index <path>` — the source index (`<out>/index.v2.json` if it
-  exists, else `<out>/index.json`, by default);
+- `--previous-index <path>` — the source index (`<out>/index.v2.json` by default);
 - `--revoked <path>` — a JSON array of `{ id, versions, reason }` (without the
   flag the list from the source index is used);
+- `--deprecated <path>` — `deprecated.json`, a JSON array of
+  `{ id, versions?, reason, alternatives }` (`versions` is a range as in
+  `revoked.json`, no key means every version; `reason` is 1–200 characters;
+  up to 3 `alternatives`, ids). The file is authoritative: each listed entry
+  gets `deprecated: { versions | null, reason, alternatives }`, entries
+  that are no longer listed lose the key. Without the flag the deprecations of
+  the source index stay. A repeated `id`, an `id` that is not in the index, an
+  alternative that is not in the index, a bad range or an unreadable file fail
+  the build and nothing is written. Deprecation is a warning shown by the app,
+  not a revocation: the extension can still be installed;
 - `--source-base <url>` — the base of the `source` field (by default the
   `extensions` tree of `dolphy-app/dolphy-extensions`);
 - `--published-at <iso>` — `publishedAt` of the new versions (now by default).
 
-`catalog build --reindex --out <siteDir>` replaces only `revoked` and
-`generatedAt` in both indexes (extension entries do not change; `--src` and
+`catalog build --reindex --out <siteDir>` replaces only `revoked`, `deprecated`
+and `generatedAt` in the index (extension entries do not change; `--src` and
 `--ids` are not needed): this is how a version revocation is published
 without a new build.
 
@@ -356,7 +488,7 @@ import {
 
 const { id, dir, files } = await buildExtension({ root, outDir });
 const handle = await watchExtension({ root, logger }); // handle.close()
-const { ok, problems } = await validateExtension(dir);
+const { ok, problems, warnings } = await validateExtension(dir);
 const { file, changed } = await generateTypes({ root }); // .dolphy/ids.d.ts
 ```
 

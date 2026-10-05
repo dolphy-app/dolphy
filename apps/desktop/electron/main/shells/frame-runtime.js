@@ -12,27 +12,34 @@
  * Приложение → рамка (`dolphy: 1`; принимаются только от `window.parent`):
  *   { dolphy: 1, type: 'init', mode: 'answer', rendererUrl, element, label }
  *   { dolphy: 1, type: 'init', mode: 'markdown', rendererUrl, language, source }
- *   { dolphy: 1, type: 'init', mode: 'panel', rendererUrl, panelId, props }
+ *   { dolphy: 1, type: 'init', mode: 'panel', rendererUrl, panelId, props, context }
+ *   { dolphy: 1, type: 'init', mode: 'widget', rendererUrl, widgetId, context }
  *   { dolphy: 1, type: 'props', view?, value?, disabled?, verdict? }   (answer)
  *   { dolphy: 1, type: 'panel-props', props }                         (panel)
+ *   { dolphy: 1, type: 'context', context: { courseId } }             (panel, widget)
  *   { dolphy: 1, type: 'panel-result', callId, ok, value | error: { message } }
- *   { dolphy: 1, type: 'theme', variables: { '--v-…': string }, dark: boolean }
+ *   { dolphy: 1, type: 'theme', variables: { '--v-…': string }, dark: boolean, lang }
  *   { dolphy: 1, type: 'dispose' }
  *
  * Рамка → приложение (`dolphyFrame: 1`):
  *   { dolphyFrame: 1, type: 'ready' }                  рантайм слушает сообщения
  *   { dolphyFrame: 1, type: 'answer-change', detail }  { value, complete }
  *   { dolphyFrame: 1, type: 'answer-submit' }          в том числе Ctrl/⌘+Enter
- *   { dolphyFrame: 1, type: 'size', height }           высота содержимого, px
+ *   { dolphyFrame: 1, type: 'size', height }           высота содержимого, px (answer, markdown, widget)
  *   { dolphyFrame: 1, type: 'done' }                   markdown: блок выведен
  *   { dolphyFrame: 1, type: 'error', message }
- *   { dolphyFrame: 1, type: 'panel-call', callId, command, args }      panel: вызов команды
- *   { dolphyFrame: 1, type: 'shortcut', key: 'mod+k' }                  panel: только Ctrl/⌘+K
+ *   { dolphyFrame: 1, type: 'panel-call', callId, command, args }      panel, widget: вызов команды
+ *   { dolphyFrame: 1, type: 'shortcut', key: 'mod+k' }                  panel, widget: только Ctrl/⌘+K
  *
  * Режим `panel` занимает всю рамку (высоту задаёт приложение), `size` не
- * шлёт. Рамка не знает, чья она: расширение и допустимые команды приложение
- * привязывает при создании рамки и не читает из сообщений. Родителю уходит
- * только Ctrl/⌘+K, другие клавиши и события не пересылаются.
+ * шлёт. Режим `widget` — карточка: высоту рамки приложение выбирает по `size`
+ * и зажимает в диапазон манифеста, содержимое выше диапазона прокручивается
+ * внутри рамки. Рамка не знает, чья она: расширение и допустимые команды
+ * приложение привязывает при создании рамки и не читает из сообщений.
+ * Родителю уходит только Ctrl/⌘+K, другие клавиши и события не пересылаются.
+ * `context` — окружение, которое приложение сообщает панели и виджету
+ * (`{ courseId: string | null }`); рантайм отдаёт его замороженным и
+ * принимает только такую форму.
  *
  * Порядок: приложение ждёт `ready`, затем шлёт `init`, `theme`, `props`.
  * Модуль расширения грузится только с того же `dolphy-ext://<id>`, что и рамка.
@@ -43,8 +50,10 @@ const dolphyFrameRuntime = (win, loadModule) => {
   const LOAD_TIMEOUT_MS = 5000;
   const MAX_MESSAGE_CHARS = 10000;
   const MAX_VARIABLE_CHARS = 200;
+  const MAX_COURSE_ID_CHARS = 200;
   const ELEMENT_NAME = /^[a-z][a-z0-9]*(-[a-z0-9]+)+$/;
   const VARIABLE_NAME = /^--v-[a-z0-9-]+$/;
+  const LANGUAGE_TAG = /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8}){0,4}$/;
   const PROP_NAMES = ['view', 'value', 'disabled', 'verdict'];
   // клиент движка ждёт команду до 14 с: рамка не отвечает раньше приложения
   const CALL_TIMEOUT_MS = 15000;
@@ -59,7 +68,9 @@ const dolphyFrameRuntime = (win, loadModule) => {
     submitting: false,
     observer: null,
     controller: new AbortController(),
-    panel: false,
+    interactive: false,
+    context: Object.freeze({ courseId: null }),
+    contextListeners: new Set(),
     panelProps: undefined,
     panelListeners: new Set(),
     calls: new Map(),
@@ -178,7 +189,17 @@ const dolphyFrameRuntime = (win, loadModule) => {
     post({ type: 'done' });
   };
 
-  const closedError = () => new Error('panel is closed');
+  const closedError = () => new Error('frame is closed');
+
+  // окружение приложения: только `{ courseId: string | null }`, всё остальное — «все курсы»
+  const contextOf = (raw) => {
+    const courseId = raw?.courseId;
+    const valid =
+      typeof courseId === 'string' &&
+      courseId.length > 0 &&
+      courseId.length <= MAX_COURSE_ID_CHARS;
+    return Object.freeze({ courseId: valid ? courseId : null });
+  };
 
   const callCommand = (commandId, args) => {
     if (state.controller.signal.aborted) return Promise.reject(closedError());
@@ -211,26 +232,50 @@ const dolphyFrameRuntime = (win, loadModule) => {
     });
   };
 
-  const startPanel = async ({ rendererUrl, panelId, props }) => {
-    if (typeof panelId !== 'string') throw new Error('invalid panel id');
-    state.panel = true;
-    state.panelProps = props;
+  // то, что у панели и виджета общее: вызов команд, окружение, сигнал закрытия
+  const frameContext = () => ({
+    get context() {
+      return state.context;
+    },
+    signal: state.controller.signal,
+    call: callCommand,
+    onContextChange: (listener) => {
+      state.contextListeners.add(listener);
+      return () => state.contextListeners.delete(listener);
+    },
+  });
+
+  const loadMountable = async (rendererUrl) => {
     const loaded = await importModule(rendererUrl);
     const module = loaded.default;
     if (typeof module?.mount !== 'function') {
       throw new Error('module has no default export with mount()');
     }
+    return module;
+  };
+
+  const startPanel = async ({ rendererUrl, panelId, props, context }) => {
+    if (typeof panelId !== 'string') throw new Error('invalid panel id');
+    state.interactive = true;
+    state.context = contextOf(context);
+    state.panelProps = props;
+    const module = await loadMountable(rendererUrl);
     // панель заполняет рамку: высоту задаёт приложение, `size` не шлём
     doc.documentElement.style.height = '100%';
     doc.body.style.height = '100%';
     const container = doc.createElement('div');
     container.style.height = '100%';
     doc.body.append(container);
+    const base = frameContext();
     await module.mount(container, {
+      get context() {
+        return base.context;
+      },
+      signal: base.signal,
+      call: base.call,
+      onContextChange: base.onContextChange,
       panelId,
       props: state.panelProps,
-      signal: state.controller.signal,
-      call: callCommand,
       onProps: (listener) => {
         state.panelListeners.add(listener);
         return () => state.panelListeners.delete(listener);
@@ -238,10 +283,35 @@ const dolphyFrameRuntime = (win, loadModule) => {
     });
   };
 
+  const startWidget = async ({ rendererUrl, widgetId, context }) => {
+    if (typeof widgetId !== 'string') throw new Error('invalid widget id');
+    state.interactive = true;
+    state.context = contextOf(context);
+    const module = await loadMountable(rendererUrl);
+    // виджет — карточка: приложение выбирает высоту рамки по `size`; выше диапазона — прокрутка внутри
+    const container = doc.createElement('div');
+    doc.body.append(container);
+    observeSize();
+    const base = frameContext();
+    await module.mount(container, {
+      get context() {
+        return base.context;
+      },
+      signal: base.signal,
+      call: base.call,
+      onContextChange: base.onContextChange,
+      widgetId,
+    });
+    // ResizeObserver молчит, пока браузер не рисует рамку (кросс-доменная рамка вне окна просмотра):
+    // размер после монтирования читаем сами, раскладка принудительная и от рисования не зависит
+    reportSize();
+  };
+
   const starters = {
     answer: startAnswer,
     markdown: startMarkdown,
     panel: startPanel,
+    widget: startWidget,
   };
 
   const handlers = {
@@ -269,6 +339,19 @@ const dolphyFrameRuntime = (win, loadModule) => {
         }
       }
     },
+    context: ({ context }) => {
+      if (!state.interactive) return;
+      const next = contextOf(context);
+      if (next.courseId === state.context.courseId) return;
+      state.context = next;
+      for (const listener of [...state.contextListeners]) {
+        try {
+          listener(next);
+        } catch (error) {
+          fail(error);
+        }
+      }
+    },
     'panel-result': ({ callId, ok, value, error }) => {
       // ответ на неизвестный (устаревший или уже истёкший) вызов игнорируется
       const entry = typeof callId === 'string' ? state.calls.get(callId) : null;
@@ -284,8 +367,12 @@ const dolphyFrameRuntime = (win, loadModule) => {
         new Error(text.slice(0, MAX_MESSAGE_CHARS) || 'command failed'),
       );
     },
-    theme: ({ variables, dark }) => {
+    theme: ({ variables, dark, lang }) => {
       const root = doc.documentElement;
+      // язык интерфейса приложения: `<html lang>` нужен скринридеру и axe (`html-has-lang`)
+      if (typeof lang === 'string' && LANGUAGE_TAG.test(lang)) {
+        root.lang = lang;
+      }
       const applied = new Set();
       for (const [name, value] of Object.entries(variables ?? {})) {
         const valid =
@@ -310,6 +397,7 @@ const dolphyFrameRuntime = (win, loadModule) => {
       }
       state.calls.clear();
       state.panelListeners.clear();
+      state.contextListeners.clear();
       state.observer?.disconnect();
       state.element = null;
       doc.body.replaceChildren();
@@ -334,7 +422,7 @@ const dolphyFrameRuntime = (win, loadModule) => {
         !event.altKey &&
         !event.shiftKey &&
         (event.code === 'KeyK' || String(event.key).toLowerCase() === 'k');
-      if (isPalette && state.panel) {
+      if (isPalette && state.interactive) {
         event.preventDefault();
         if (!event.repeat) post({ type: 'shortcut', key: 'mod+k' });
         return;

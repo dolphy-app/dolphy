@@ -1,5 +1,8 @@
+import { MATERIAL_WIDTH_RANGE, MAX_TOURS } from '@dolphy-app/engine-contract';
 import type {
   DeepPartial,
+  KeybindingsPatch,
+  KeybindingsSettingsDto,
   LearningSettingsDto,
   PreferencesDto,
   SchedulerOptionsDto,
@@ -7,9 +10,18 @@ import type {
   UiSettingsDto,
   UiSettingsPatch,
 } from '@dolphy-app/engine-contract';
+import { validateUserKeybindings } from '@dolphy-app/keybindings';
+import type { UserIssue } from '@dolphy-app/keybindings';
 import type { UserPreferences } from '../../domain/manifest.ts';
 import { isGradePolicyId } from '../../domain/learning-settings.ts';
-import { isLocaleMode, isThemeId, isUnitId } from '../../domain/ui-settings.ts';
+import {
+  isLocaleMode,
+  isMaterialWidth,
+  isTourId,
+  isTourStatus,
+  isThemeId,
+  isUnitId,
+} from '../../domain/ui-settings.ts';
 import {
   InvalidSchedulerOptionsError,
   applySchedulerPatch,
@@ -79,6 +91,44 @@ const validatePreferences = ({
     }
     throw error;
   }
+};
+
+const issueSignature = ({ reason, field, command, other }: UserIssue) =>
+  `${reason}|${field}|${command}|${other ?? ''}`;
+
+/**
+ * Какие проблемы набора мешают сохранению патча. Проверяется весь итоговый
+ * набор, но уже сломанный (правка БД руками, версия с другими правилами)
+ * сохранённый набор не должен запирать пользователя: проблема, которая была
+ * до патча и не затрагивает команды из патча (ни `command`, ни `other`), не
+ * блокирует его. Так патч, который чинит или сбрасывает сломанные команды,
+ * проходит, а новые проблемы и проблемы вокруг изменённых команд — нет.
+ */
+const blockingIssues = (
+  before: readonly UserIssue[],
+  after: readonly UserIssue[],
+  touched: ReadonlySet<string>,
+): UserIssue[] => {
+  const existing = new Set(before.map(issueSignature));
+  return after.filter(
+    (issue) =>
+      touched.has(issue.command) ||
+      (issue.other !== undefined && touched.has(issue.other)) ||
+      !existing.has(issueSignature(issue)),
+  );
+};
+
+const rejectKeybindings = (first: UserIssue, issues: readonly UserIssue[]) => {
+  const detail = ({ field, reason, command, other }: UserIssue) => ({
+    field,
+    reason,
+    command,
+    ...(other !== undefined && { other }),
+  });
+  return new EngineError('INVALID_ARGUMENT', {
+    message: `Invalid keybindings: ${first.message}`,
+    details: { ...detail(first), issues: issues.map(detail) },
+  });
 };
 
 /**
@@ -186,16 +236,104 @@ export const createSettingsService = (ctx: EngineContext): SettingsService => {
         details: { field: 'activeCourseId' },
       });
     }
+    const { materialWidth, materialCollapsed } = patch;
+    if (
+      materialWidth !== undefined &&
+      materialWidth !== null &&
+      !isMaterialWidth(materialWidth)
+    ) {
+      throw new EngineError('INVALID_ARGUMENT', {
+        message: `materialWidth must be an integer from ${MATERIAL_WIDTH_RANGE.min} to ${MATERIAL_WIDTH_RANGE.max} or null`,
+        details: { field: 'materialWidth' },
+      });
+    }
+    if (
+      materialCollapsed !== undefined &&
+      typeof materialCollapsed !== 'boolean'
+    ) {
+      throw new EngineError('INVALID_ARGUMENT', {
+        message: 'materialCollapsed must be a boolean',
+        details: { field: 'materialCollapsed' },
+      });
+    }
+    const { tours } = patch;
+    if (tours !== undefined) {
+      const valid =
+        typeof tours === 'object' &&
+        tours !== null &&
+        !Array.isArray(tours) &&
+        Object.entries(tours).every(
+          ([id, status]) =>
+            isTourId(id) && (status === null || isTourStatus(status)),
+        );
+      if (!valid) {
+        throw new EngineError('INVALID_ARGUMENT', {
+          message:
+            'tours must map tour ids (a-z, 0-9, "-", up to 64 chars) to "completed", "skipped" or null',
+          details: { field: 'tours' },
+        });
+      }
+    }
     const current = await ctx.settings.loadUi();
+    const mergedTours = new Map(Object.entries(current.tours ?? {}));
+    for (const [id, status] of Object.entries(tours ?? {})) {
+      if (status === null) mergedTours.delete(id);
+      else mergedTours.set(id, status);
+    }
+    if (mergedTours.size > MAX_TOURS) {
+      throw new EngineError('INVALID_ARGUMENT', {
+        message: `at most ${MAX_TOURS} tours can be stored`,
+        details: { field: 'tours' },
+      });
+    }
     const focus =
       activeCourseId === undefined ? current.activeCourseId : activeCourseId;
+    const width =
+      materialWidth === undefined ? current.materialWidth : materialWidth;
+    const collapsed =
+      materialCollapsed === undefined
+        ? current.materialCollapsed === true
+        : materialCollapsed;
     const next: UiSettingsDto = {
       theme: patch.theme ?? current.theme,
       locale: patch.locale ?? current.locale,
       ...(focus !== undefined && focus !== null && { activeCourseId: focus }),
+      ...(width !== undefined && width !== null && { materialWidth: width }),
+      ...(collapsed && { materialCollapsed: true as const }),
+      ...(mergedTours.size > 0 && { tours: Object.fromEntries(mergedTours) }),
     };
     await ctx.settings.saveUi(next);
     ctx.emit({ type: 'settings-changed', scope: 'ui' });
+    return next;
+  };
+
+  const setKeybindings = async (
+    patch: KeybindingsPatch,
+  ): Promise<KeybindingsSettingsDto> => {
+    const current = await ctx.settings.loadKeybindings();
+    // `fromEntries` определяет собственные свойства: ключ `__proto__` не меняет прототип
+    const merged = new Map(Object.entries(current.commands));
+    for (const [command, entries] of Object.entries(patch)) {
+      if (entries === null) merged.delete(command);
+      else merged.set(command, entries);
+    }
+    const next: KeybindingsSettingsDto = {
+      commands: Object.fromEntries(
+        [...merged].map(([command, entries]) => [
+          command,
+          entries.map(({ key, when }) => ({ key, when })),
+        ]),
+      ),
+    };
+    const issues = blockingIssues(
+      validateUserKeybindings(current.commands, ctx.osPlatform),
+      validateUserKeybindings(next.commands, ctx.osPlatform),
+      new Set(Object.keys(patch)),
+    );
+    const [first] = issues;
+    if (first !== undefined) throw rejectKeybindings(first, issues);
+    await ctx.settings.saveKeybindings(next);
+    ctx.emit({ type: 'settings-changed', scope: 'keybindings' });
     return next;
   };
 
@@ -229,5 +367,7 @@ export const createSettingsService = (ctx: EngineContext): SettingsService => {
     setUi,
     getLearning: async () => ({ ...ctx.learning }),
     setLearning,
+    getKeybindings: () => ctx.settings.loadKeybindings(),
+    setKeybindings,
   };
 };

@@ -20,11 +20,15 @@ const command = (name: string) => ({
   description: null,
   category: null,
   keybinding: null,
+  keybindings: [],
+  when: null,
+  icon: 'puzzle',
   palette: true,
 });
 
 const exerciseType = (id: string) => ({
   id,
+  title: null,
   specSchema: { type: 'object' },
   answerSchema: { type: 'string' },
   element: 'acme-warn-answer',

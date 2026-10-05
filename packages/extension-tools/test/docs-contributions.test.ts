@@ -14,16 +14,20 @@
  * - `build-with-code` — a project of `extension.json` and one `src/index.ts` (the ```ts block
  *   with the marker) builds, passes `validateExtension` and `tsc` with the id types
  *   the build wrote to `.dolphy/ids.d.ts`;
- * - `index` — a single `index.json` or `index.v2.json` file (by the example label)
+ * - `index` — a single `index.v2.json` file
  *   passes `parseIndex` (`@dolphy-app/extension-catalog`).
  *
- * The example “серия дней целиком” is also executed: the built `main.mjs`
- * goes through `loadEvents` and `loadCommands` from the SDK.
+ * The examples “серия дней целиком”, “импортёр CSV” and “экспортёр курса” are also
+ * executed: the built `main.mjs` goes through the SDK's `loadEvents`, `loadCommands`,
+ * `loadImporters` and `loadExporters`; the imported course goes through the course compiler.
  */
+import { compile } from '@dolphy-app/engine/authoring';
+import { createNodeFsCourseSource } from '@dolphy-app/engine/node';
 import { mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseIndex } from '@dolphy-app/extension-catalog';
-import { parseManifest } from '@dolphy-app/extension-host';
+import { manifestJsonSchema, parseManifest } from '@dolphy-app/extension-host';
+import { Ajv2020 } from 'ajv/dist/2020.js';
 import { describe, expect, it } from 'vitest';
 import { buildExtension, validateExtension } from '../src/index.ts';
 import { makeTemp, runTsc } from './helpers.ts';
@@ -36,15 +40,22 @@ const EXAMPLES: Readonly<Record<string, Mode>> = {
   'рендерер содержимого': 'build-with-code',
   'правило оценки': 'build-with-code',
   'настройки расширения': 'build-no-code',
+  'переводимые подписи': 'build-no-code',
   'подписка на события': 'build-with-code',
   'команды расширения': 'build-with-code',
   'панель расширения': 'build-with-code',
+  'виджет расширения': 'build-with-code',
+  'условие видимости': 'manifest',
+  'расписания расширения': 'build-with-code',
   'серия дней целиком': 'build-with-code',
   'вид задания с правами': 'manifest',
   'расширение для каталога': 'build-no-code',
   'индекс каталога': 'index',
-  'полный индекс каталога': 'index',
   'панель со стилями и картинкой': 'build-with-code',
+  'импортёр CSV': 'build-with-code',
+  'экспортёр курса': 'build-with-code',
+  зависимости: 'manifest',
+  'панель на UI-ките': 'build-with-code',
 };
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../../..');
@@ -121,7 +132,7 @@ const writeProject = async (
   if (withCode) {
     const modules = path.join(root, 'node_modules', '@dolphy-app');
     await mkdir(modules, { recursive: true });
-    for (const name of ['extension-sdk', 'extension-api']) {
+    for (const name of ['extension-sdk', 'extension-api', 'extension-ui']) {
       await symlink(
         path.join(REPO_ROOT, 'packages', name),
         path.join(modules, name),
@@ -159,20 +170,15 @@ describe('examples of the sections “Точки вклада”, “Права 
       if (mode === 'index') {
         it('the index passes parseIndex', () => {
           const files = examples.get(label) ?? [];
-          const full = label.startsWith('полный');
-          expect(files.map(({ file }) => file)).toEqual([
-            full ? 'index.v2.json' : 'index.json',
-          ]);
+          expect(files.map(({ file }) => file)).toEqual(['index.v2.json']);
           const index = parseIndex(JSON.parse(files[0]?.content ?? ''));
           expect(index.extensions.length).toBeGreaterThan(0);
-          expect(index.schemaVersion).toBe(full ? 2 : 1);
-          if (full) {
-            expect(
-              index.extensions.every((entry) =>
-                entry.versions.some((version) => version.icon !== undefined),
-              ),
-            ).toBe(true);
-          }
+          expect(index.schemaVersion).toBe(2);
+          expect(
+            index.extensions.every((entry) =>
+              entry.versions.some((version) => version.icon !== undefined),
+            ),
+          ).toBe(true);
         });
         return;
       }
@@ -180,6 +186,14 @@ describe('examples of the sections “Точки вклада”, “Права 
       it('extension.json passes parseManifest', () => {
         const result = parseManifest(manifestOf(examples.get(label) ?? []));
         expect(result).toMatchObject({ ok: true });
+      });
+
+      it('extension.json passes extension.schema.json', () => {
+        const validate = new Ajv2020({ strict: false }).compile(
+          manifestJsonSchema(),
+        );
+        const manifest = manifestOf(examples.get(label) ?? []);
+        expect(validate(manifest), JSON.stringify(validate.errors)).toBe(true);
       });
 
       if (mode === 'manifest') return;
@@ -196,7 +210,12 @@ describe('examples of the sections “Точки вклада”, “Права 
               .map(({ file }) => file),
           ).toEqual(['src/index.ts']);
         } else {
-          expect(files.map(({ file }) => file)).toEqual(['extension.json']);
+          expect(files.map(({ file }) => file)).toEqual([
+            'extension.json',
+            ...files
+              .map(({ file }) => file)
+              .filter((file) => file.startsWith('locales/')),
+          ]);
         }
         const root = await writeProject(files, withCode);
         const built = await buildExtension({ root });
@@ -206,6 +225,7 @@ describe('examples of the sections “Точки вклада”, “Права 
         await expect(validateExtension(built.dir)).resolves.toEqual({
           ok: true,
           problems: [],
+          warnings: [],
         });
         if (withCode) {
           // the ids written by the build must accept the example as written
@@ -238,6 +258,7 @@ describe('the “панель со стилями и картинкой” examp
     await expect(validateExtension(built.dir)).resolves.toEqual({
       ok: true,
       problems: [],
+      warnings: [],
     });
   });
 });
@@ -306,6 +327,7 @@ describe('the “серия дней целиком” example is executed', () 
     await expect(validateExtension(built.dir)).resolves.toEqual({
       ok: true,
       problems: [],
+      warnings: [],
     });
 
     const sdk = (await import(
@@ -384,5 +406,149 @@ describe('the “серия дней целиком” example is executed', () 
     });
     expect(line.textContent).toBe('Серия: 1 дн., последний день 2026-10-05');
     expect(declaredCommands).toEqual(['acme.streak.show', 'acme.streak.data']);
+  });
+});
+
+interface Importers {
+  run(
+    id: string,
+    input: { name: string; text: string },
+  ): Promise<{ files: Record<string, string> }>;
+  dispose(): Promise<void>;
+}
+
+interface Exporters {
+  run(
+    id: string,
+    input: {
+      scope: 'course';
+      courseId: string;
+      title: string;
+      files: Record<string, string>;
+    },
+  ): Promise<{ filename: string; text?: string }>;
+  dispose(): Promise<void>;
+}
+
+interface TransferTesting {
+  loadImporters(
+    module: unknown,
+    options: { declaredImporters: Array<{ id: string; input?: string }> },
+  ): Promise<Importers>;
+  loadExporters(
+    module: unknown,
+    options: { declaredExporters: Array<{ id: string; scope: string }> },
+  ): Promise<Exporters>;
+}
+
+const loadTransferTesting = async (): Promise<TransferTesting> =>
+  (await import(
+    /* @vite-ignore */ path.join(
+      REPO_ROOT,
+      'packages/extension-sdk/src/testing.ts',
+    )
+  )) as TransferTesting;
+
+const buildExample = async (label: string) => {
+  const files = examples.get(label) ?? [];
+  const root = await writeProject(files, true);
+  const built = await buildExtension({ root });
+  await expect(validateExtension(built.dir)).resolves.toEqual({
+    ok: true,
+    problems: [],
+    warnings: [],
+  });
+  const module = (
+    await import(/* @vite-ignore */ path.join(built.dir, 'main.mjs'))
+  ).default as unknown;
+  return { manifest: manifestOf(files) as ManifestWithTransfers, module };
+};
+
+interface ManifestWithTransfers {
+  contributes: {
+    importers?: Array<{ id: string; accept: string[]; input?: string }>;
+    exporters?: Array<{ id: string; scope: string }>;
+  };
+}
+
+const CSV = 'hola,hello\nadiós,goodbye\n¿cómo estás?,how are you?\n';
+
+/** Compiles a course tree the way the engine does before it writes an import. */
+const compileTree = async (files: Record<string, string>) => {
+  const dir = path.join(await makeTemp(), 'imported');
+  for (const [file, content] of Object.entries(files)) {
+    const target = path.join(dir, file);
+    await mkdir(path.dirname(target), { recursive: true });
+    await writeFile(target, content);
+  }
+  return compile(createNodeFsCourseSource(dir), {
+    scan: { ignoredPaths: [] },
+    emit: 'always',
+  });
+};
+
+describe('the “импортёр CSV” and “экспортёр курса” examples are executed', () => {
+  it('the importer turns a CSV into a course the compiler accepts', async () => {
+    const { manifest, module } = await buildExample('импортёр CSV');
+    const testing = await loadTransferTesting();
+    const importers = await testing.loadImporters(module, {
+      declaredImporters: (manifest.contributes.importers ?? []).map(
+        ({ id, input }) => ({ id, ...(input && { input }) }),
+      ),
+    });
+    const { files } = await importers.run('acme.cards.csv', {
+      name: 'Spanish basics.csv',
+      text: CSV,
+    });
+    expect(Object.keys(files)).toContain('spanish-basics/course_manifest.json');
+    const result = await compileTree(files);
+    expect(result.summary.errors).toBe(0);
+    expect({
+      courses: result.artifact?.courses.length,
+      lessons: result.artifact?.lessons.length,
+      exercises: result.artifact?.exercises.length,
+    }).toEqual({ courses: 1, lessons: 1, exercises: 3 });
+
+    // a row without an answer is the handler's error, nothing is returned
+    await expect(
+      importers.run('acme.cards.csv', {
+        name: 'bad.csv',
+        text: 'hola,hello\nadiós\n',
+      }),
+    ).rejects.toThrow(/Строка 2/);
+    await importers.dispose();
+  });
+
+  it('the exporter returns the imported cards as the same CSV', async () => {
+    const importer = await buildExample('импортёр CSV');
+    const exporter = await buildExample('экспортёр курса');
+    const testing = await loadTransferTesting();
+    const importers = await testing.loadImporters(importer.module, {
+      declaredImporters: [{ id: 'acme.cards.csv' }],
+    });
+    const exporters = await testing.loadExporters(exporter.module, {
+      declaredExporters: (exporter.manifest.contributes.exporters ?? []).map(
+        ({ id, scope }) => ({ id, scope }),
+      ),
+    });
+    const { files } = await importers.run('acme.cards.csv', {
+      name: 'deck.csv',
+      text: CSV,
+    });
+    // the snapshot has paths relative to the course directory
+    const snapshot = Object.fromEntries(
+      Object.entries(files)
+        .filter(([file]) => file.startsWith('deck/'))
+        .map(([file, content]) => [file.slice('deck/'.length), content]),
+    );
+    const result = await exporters.run('acme.cardsout.csv', {
+      scope: 'course',
+      courseId: 'deck',
+      title: 'Deck / Spanish',
+      files: snapshot,
+    });
+    expect(result).toEqual({ filename: 'Deck - Spanish.csv', text: CSV });
+    await importers.dispose();
+    await exporters.dispose();
   });
 });

@@ -3,6 +3,11 @@
  * by extension code (`main.mjs`), by the answer element (`view.mjs`), and by the engine itself.
  */
 
+import { WHEN_MAX_LENGTH } from './when.ts';
+
+export * from './locale.ts';
+export * from './when.ts';
+
 export const EXTENSION_API_VERSION = 1 as const;
 export const EXTENSION_ID_PATTERN = /^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*$/;
 /** GitHub login of the extension author (`author` in the manifest and catalog). */
@@ -15,6 +20,8 @@ export const EXTENSION_PERMISSIONS = [
   'native.addons',
   'network',
   'learning.events',
+  'learning.stats',
+  'notifications',
 ] as const;
 export type ExtensionPermission = (typeof EXTENSION_PERMISSIONS)[number];
 /** Platforms the extension can run on (`process.platform`). */
@@ -66,6 +73,8 @@ export type JsonSchema = Record<string, unknown>;
 export interface ExerciseTypeContribution {
   /** Equal to the extension id or starts with `<extension id>.`. */
   id: string;
+  /** Name shown on the contribution chip, 1–60 characters; without it the id is shown. */
+  title?: string;
   /** JSON Schema 2020-12 for `engine.exercise.spec`: a path inside the extension directory (`./schema/spec.json`) or a schema object. */
   specSchema: string | JsonSchema;
   /** JSON Schema 2020-12 for the learner's answer (`submitAnswer.answer`): a path or a schema object. */
@@ -93,9 +102,59 @@ export interface ThemeContribution {
 export interface MarkdownRendererContribution {
   /** Code block language: `[a-z][a-z0-9-]{0,31}`. */
   language: string;
+  /** Name shown on the contribution chip, 1–60 characters; without it the language is shown. */
+  title?: string;
   /** Path to the ES module; always set in the normalized manifest. */
   renderer?: string;
 }
+
+/** Command key binding (`commands[].keybindings`). */
+export interface CommandKeybinding {
+  /** Key notation such as `Mod+Shift+L` or `Mod+K Mod+S`; valid on every platform. */
+  key: string;
+  /** Replaces `key` on macOS. */
+  mac?: string;
+  /** Replaces `key` on Windows. */
+  windows?: string;
+  /** Replaces `key` on Linux. */
+  linux?: string;
+  /** Condition such as `page == 'settings'`; a key that types text needs one inactive while `inputFocus`. */
+  when?: string;
+}
+
+/**
+ * Closed list of icon names an extension picks from (`icon` of a command or panel); the
+ * app draws its own glyph for each name, so nothing from the extension is rendered as an image.
+ */
+export const EXTENSION_ICONS = [
+  'puzzle',
+  'book',
+  'brain',
+  'calendar',
+  'chart',
+  'check',
+  'clock',
+  'cog',
+  'fire',
+  'flag',
+  'heart',
+  'help',
+  'home',
+  'idea',
+  'list',
+  'message',
+  'pencil',
+  'play',
+  'star',
+  'target',
+  'trophy',
+  'bell',
+  'bookmark',
+  'tag',
+] as const;
+export type ExtensionIconName = (typeof EXTENSION_ICONS)[number];
+/** Icon of a command or panel without `icon`. */
+export const DEFAULT_EXTENSION_ICON: ExtensionIconName = 'puzzle';
 
 /** Extension command: a command-palette action executed by extension code (`ctx.commands.register`). */
 export interface CommandContribution {
@@ -107,10 +166,20 @@ export interface CommandContribution {
   description?: string;
   /** Palette group, up to 40 characters. */
   category?: string;
-  /** Hint such as `Mod+Shift+L` (`KEYBINDING_PATTERN`); the app does not bind the key. */
+  /** Active binding without a condition, such as `Mod+Shift+L` (`KEYBINDING_PATTERN`); needs `palette: true`. */
   keybinding?: string;
+  /** Up to `EXTENSION_COMMAND_LIMITS.keybindingsPerCommand` bindings; needs `palette: true`. The user may replace them in settings. */
+  keybindings?: CommandKeybinding[];
   /** `false` hides the command from the palette while keeping it available to the panel; defaults to `true`. */
   palette?: boolean;
+  /**
+   * Visibility condition (see `parseWhen`), such as `route == 'courses'`. While it is false the
+   * command is not shown in the palette and does not run from a key binding; the extension's
+   * panels and widgets still call it with `ctx.call`.
+   */
+  when?: string;
+  /** Glyph in the palette, from `EXTENSION_ICONS`; defaults to `DEFAULT_EXTENSION_ICON`. Decorative. */
+  icon?: ExtensionIconName;
 }
 
 /** Extension panel: an app screen in an isolated frame with a sidebar menu entry. */
@@ -121,10 +190,121 @@ export interface PanelContribution {
   title: string;
   /** Path to the panel's ES module (`.js` or `.mjs`); defaults to `DEFAULT_PANEL`. */
   module?: string;
+  /** Glyph of the sidebar entry, from `EXTENSION_ICONS`; defaults to `DEFAULT_EXTENSION_ICON`. Decorative. */
+  icon?: ExtensionIconName;
+  /** Visibility condition (see `parseWhen`): while it is false the sidebar entry is hidden; the panel still opens with `openPanel`. */
+  when?: string;
+}
+
+/** Where on the screen a widget is shown; `dailyPlan` is the "Daily plan" page. */
+export const EXTENSION_WIDGET_SLOTS = ['dailyPlan'] as const;
+export type ExtensionWidgetSlot = (typeof EXTENSION_WIDGET_SLOTS)[number];
+
+/** Limits on widgets; the manifest and the app enforce them. */
+export const EXTENSION_WIDGET_LIMITS = Object.freeze({
+  /** Widgets per extension. */
+  widgets: 3,
+  /** Smallest allowed `minHeight`, px. */
+  minHeight: 80,
+  /** Largest allowed `maxHeight`, px. */
+  maxHeight: 320,
+});
+
+/** Extension widget: a card of an isolated frame on a screen of the app (`slot`). */
+export interface WidgetContribution {
+  /** Equal to the extension id or starts with `<extension id>.`. */
+  id: string;
+  /** Card title (accessible name of the frame), 1–60 characters. */
+  title: string;
+  slot: ExtensionWidgetSlot;
+  /** Smallest frame height in px, 80–320; defaults to 80. */
+  minHeight?: number;
+  /** Largest frame height in px, 80–320, not below `minHeight`; defaults to 320. Taller content scrolls inside. */
+  maxHeight?: number;
+  /** Path to the widget's ES module (`.js` or `.mjs`); defaults to `DEFAULT_WIDGET`. */
+  module?: string;
+  /** Visibility condition (see `parseWhen`): while it is false the card is not drawn and its frame is not loaded. */
+  when?: string;
+}
+
+/** How often a schedule fires. */
+export const EXTENSION_SCHEDULE_EVERY = ['daily', 'hourly'] as const;
+export type ExtensionScheduleEvery = (typeof EXTENSION_SCHEDULE_EVERY)[number];
+
+/** `at` of a `daily` schedule: `HH:MM`, 24-hour clock, local time. */
+export const SCHEDULE_AT_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+/** `at` of a `daily` schedule without one. */
+export const DEFAULT_SCHEDULE_AT = '09:00';
+
+/** Limits on schedules; the manifest, the scheduler, and the runtime enforce them. */
+export const EXTENSION_SCHEDULE_LIMITS = Object.freeze({
+  /** Schedules per extension. */
+  schedules: 4,
+  /** Handler budget, ms. */
+  handlerMs: 10_000,
+  /** A firing found later than this after its moment (the app was closed or asleep) is skipped, ms. */
+  lateMs: 120_000,
+  /** How often the app looks for due firings, ms. */
+  tickMs: 30_000,
+});
+
+/**
+ * Extension schedule: a handler the app runs at fixed local times
+ * (`ctx.schedule.on`) while it is running. `daily` fires at `at`; `hourly` at
+ * the start of every hour and takes no `at`.
+ */
+export type ScheduleContribution =
+  | {
+      /** Equal to the extension id or starts with `<extension id>.`. */
+      id: string;
+      every: 'daily';
+      /** `HH:MM` local time (`SCHEDULE_AT_PATTERN`); defaults to `DEFAULT_SCHEDULE_AT`. */
+      at?: string;
+    }
+  | {
+      /** Equal to the extension id or starts with `<extension id>.`. */
+      id: string;
+      every: 'hourly';
+    };
+
+/** What an importer accepts: `text` hands the handler the file as a UTF-8 string, `bytes` as a `Uint8Array`. */
+export type ImporterInputKind = 'text' | 'bytes';
+
+/** Extension importer: turns a file the user picked into a course directory (`ctx.importers.register`). */
+export interface ImporterContribution {
+  /** Equal to the extension id or starts with `<extension id>.`. */
+  id: string;
+  /** Name in the command palette and the library card, 1–60 characters. */
+  title: string;
+  /** 1–`EXTENSION_TRANSFER_LIMITS.acceptExtensions` unique file extensions in lower case, such as `.csv` (`TRANSFER_ACCEPT_PATTERN`). */
+  accept: string[];
+  /** Defaults to `text`. */
+  input?: ImporterInputKind;
+}
+
+/** What an exporter hands the extension: a course snapshot or aggregated progress. */
+export type ExporterScope = 'course' | 'progress';
+
+/** Extension exporter: turns a course or the learning progress into a file the user saves (`ctx.exporters.register`). */
+export interface ExporterContribution {
+  /** Equal to the extension id or starts with `<extension id>.`. */
+  id: string;
+  /** Name in the command palette and the library card, 1–60 characters. */
+  title: string;
+  /** `progress` needs the `learning.stats` permission. */
+  scope: ExporterScope;
 }
 
 /** Value of an extension setting. */
-export type SettingValue = boolean | string | number;
+export type SettingValue = boolean | string | number | string[];
+
+/** Shows a setting only while another setting of the same extension has the value `equals`. */
+export interface SettingVisibleWhen {
+  /** Id of a setting of the same extension: not itself, not a `list`, and one without its own `visibleWhen` (no chains). */
+  setting: string;
+  /** Value of the target setting; its type must match the target (`boolean`, `number`, or a string). */
+  equals: boolean | string | number;
+}
 
 interface SettingContributionBase {
   /** Equal to the extension id or starts with `<extension id>.`. */
@@ -133,6 +313,12 @@ interface SettingContributionBase {
   label: string;
   /** Help text under the field, up to 500 characters. */
   description?: string;
+  /** Section title in the settings dialog, 1–60 characters; settings without it come first, with no title. */
+  group?: string;
+  /** Sort key in the form, an integer 0–1000; default 0, ties keep the declaration order. */
+  order?: number;
+  /** The field is hidden while the condition is false; the hidden value is kept and still reaches the code. */
+  visibleWhen?: SettingVisibleWhen;
 }
 
 export interface BooleanSettingContribution extends SettingContributionBase {
@@ -145,6 +331,31 @@ export interface StringSettingContribution extends SettingContributionBase {
   default: string;
   /** Length in UTF-16 code units, 1..10000; no key means unlimited (within 10000). */
   maxLength?: number;
+}
+
+/** A multi-line string. */
+export interface TextSettingContribution extends SettingContributionBase {
+  type: 'text';
+  default: string;
+  /** Length in UTF-16 code units, 1..10000; no key means unlimited (within 10000). */
+  maxLength?: number;
+}
+
+/** A color `#rrggbb`; the stored value is lower-case. */
+export interface ColorSettingContribution extends SettingContributionBase {
+  type: 'color';
+  /** `#rrggbb`. */
+  default: string;
+}
+
+/** A list of strings; the code receives `string[]`. */
+export interface ListSettingContribution extends SettingContributionBase {
+  type: 'list';
+  default: string[];
+  /** Most items, 1..50; default 50. */
+  maxItems?: number;
+  /** Longest item in UTF-16 code units, 1..200; default 200. */
+  itemMaxLength?: number;
 }
 
 export interface NumberSettingContribution extends SettingContributionBase {
@@ -172,8 +383,26 @@ export interface EnumSettingContribution extends SettingContributionBase {
 export type SettingContribution =
   | BooleanSettingContribution
   | StringSettingContribution
+  | TextSettingContribution
+  | ColorSettingContribution
+  | ListSettingContribution
   | NumberSettingContribution
   | EnumSettingContribution;
+
+/** Limits of the settings types (`text`, `color`, `list`, `group`, `order`); they match those checked by the manifest and the engine. */
+export const SETTING_LIMITS = Object.freeze({
+  /** `maxLength` of `string` and `text`. */
+  stringLength: 10_000,
+  /** `maxItems` of `list`. */
+  listItems: 50,
+  /** `itemMaxLength` of `list`. */
+  listItemLength: 200,
+  groupLength: 60,
+  orderMax: 1000,
+});
+
+/** `#rrggbb` (any case in the manifest; the stored value is lower-case). */
+export const COLOR_SETTING_PATTERN = /^#[0-9a-fA-F]{6}$/;
 
 /** Learning events an extension with the `learning.events` permission can subscribe to. */
 export const LEARNING_EVENT_NAMES = [
@@ -223,6 +452,21 @@ export interface GradePolicyContribution {
   label: string;
 }
 
+/** Most entries in `dependencies`. */
+export const MAX_EXTENSION_DEPENDENCIES = 16;
+
+/**
+ * Another extension this one needs (`dependencies`). The extension loads only
+ * while the dependency is installed, enabled, loaded and its version fits
+ * `range`; the app never installs a dependency on its own.
+ */
+export interface ExtensionDependency {
+  /** Id of the required extension; not the extension's own id, unique in the list. */
+  id: string;
+  /** Version range: space-separated comparators that must all hold (`>=1.2.0 <2.0.0`; operators `<`, `<=`, `>=`, `>`, `=`; bare `1.2.0` means `=1.2.0`); `null` — any version. */
+  range: string | null;
+}
+
 /** Normalized manifest: all defaults applied. */
 export interface ExtensionManifest {
   id: string;
@@ -246,6 +490,8 @@ export interface ExtensionManifest {
   icon: string | null;
   /** Explicit catalog tags (from `EXTENSION_TAGS`); empty — the catalog derives tags from contributions. */
   tags: ExtensionTag[];
+  /** Extensions this one needs; empty — none. */
+  dependencies: ExtensionDependency[];
   contributes: {
     exerciseTypes: ExerciseTypeContribution[];
     themes: ThemeContribution[];
@@ -255,14 +501,33 @@ export interface ExtensionManifest {
     gradePolicies: GradePolicyContribution[];
     settings: SettingContribution[];
     events: EventContribution[];
-    commands: (CommandContribution & { palette: boolean })[];
-    panels: (PanelContribution & { module: string })[];
+    commands: (CommandContribution & {
+      palette: boolean;
+      icon: ExtensionIconName;
+    })[];
+    panels: (PanelContribution & {
+      module: string;
+      icon: ExtensionIconName;
+    })[];
+    widgets: (WidgetContribution & {
+      minHeight: number;
+      maxHeight: number;
+      module: string;
+    })[];
+    schedules: (
+      | { id: string; every: 'daily'; at: string }
+      | { id: string; every: 'hourly' }
+    )[];
+    importers: (ImporterContribution & { input: ImporterInputKind })[];
+    exporters: ExporterContribution[];
   };
 }
 
 /** Kind of exercise in `extension.json`, as the author writes it. */
 export interface ExerciseTypeContributionInput {
   id: string;
+  /** Name shown on the contribution chip, 1–60 characters. */
+  title?: string;
   specSchema: string | JsonSchema;
   answerSchema: string | JsonSchema;
   /** Defaults to `defaultElementName(id)`. */
@@ -273,6 +538,8 @@ export interface ExerciseTypeContributionInput {
 
 /** `extension.json` as the author writes it. */
 export interface ExtensionManifestInput {
+  /** Path or URL of `extension.schema.json` for editors; ignored by the app and the tools. */
+  $schema?: string;
   id: string;
   version: string;
   apiVersion: typeof EXTENSION_API_VERSION;
@@ -289,6 +556,8 @@ export interface ExtensionManifestInput {
   icon?: string;
   /** Up to 5 unique catalog tags from `EXTENSION_TAGS`; no key — no explicit tags. */
   tags?: ExtensionTag[];
+  /** Up to `MAX_EXTENSION_DEPENDENCIES` extensions this one needs, without the extension itself and repeats; no key — none. */
+  dependencies?: { id: string; range?: string }[];
   contributes: {
     exerciseTypes?: ExerciseTypeContributionInput[];
     themes?: ThemeContribution[];
@@ -298,6 +567,10 @@ export interface ExtensionManifestInput {
     events?: EventContribution[];
     commands?: CommandContribution[];
     panels?: PanelContribution[];
+    widgets?: WidgetContribution[];
+    schedules?: ScheduleContribution[];
+    importers?: ImporterContribution[];
+    exporters?: ExporterContribution[];
   };
 }
 
@@ -342,18 +615,33 @@ export const THEME_VARIABLE_KEYS: readonly string[] = [
 
 export const DEFAULT_MARKDOWN_RENDERER = './markdown.mjs';
 export const DEFAULT_PANEL = './panel.mjs';
+export const DEFAULT_WIDGET = './widget.mjs';
+
+const KEYBINDING_MODIFIER =
+  '(?:Mod|Ctrl|Control|Alt|Option|Shift|Cmd|Command|Meta|Win|Super)\\+';
+const KEYBINDING_KEY =
+  "(?:[A-Z0-9]|F(?:[1-9]|1[0-9]|2[0-4])|Enter|Return|Space|Tab|Escape|Esc|Backspace|Delete|Insert|Arrow(?:Up|Down|Left|Right)|Home|End|Page(?:Up|Down)|Plus|\\[[A-Za-z][A-Za-z0-9]*\\]|[`\\-=\\[\\]\\\\;',./+])";
+const KEYBINDING_STROKE = `(?:${KEYBINDING_MODIFIER}){0,3}${KEYBINDING_KEY}`;
 
 /**
- * Command key hint: up to three modifiers (`Mod`, `Ctrl`, `Alt`,
- * `Shift`) and a key joined with `+`: a letter or digit, `F1`–`F12`, or a name
- * (`Enter`, `Space`, `Tab`, `Escape`, `Backspace`, `Delete`, arrows,
- * `Home`, `End`, `PageUp`, `PageDown`).
+ * Key notation: one stroke or two strokes separated by a space
+ * (`Mod+K Mod+S`). A stroke is up to three modifiers (`Mod`, `Ctrl`, `Alt`,
+ * `Shift`, `Cmd`, `Meta`, `Win`, `Super`, `Option`, ...) and a key joined with
+ * `+`: a letter or digit, `F1`–`F24`, a punctuation mark, a physical key
+ * (`[KeyK]`) or a name (`Enter`, `Space`, `Tab`, `Escape`, `Insert`, arrows,
+ * `Home`, `End`, `PageUp`, `PageDown`). A superset for the JSON Schema; the
+ * host validates every string authoritatively with `@dolphy-app/keybindings`.
  */
-export const KEYBINDING_PATTERN =
-  /^(?:(?:Mod|Ctrl|Alt|Shift)\+){0,3}(?:[A-Z0-9]|F(?:[1-9]|1[0-2])|Enter|Space|Tab|Escape|Backspace|Delete|Arrow(?:Up|Down|Left|Right)|Home|End|Page(?:Up|Down))$/;
+export const KEYBINDING_PATTERN = new RegExp(
+  `^${KEYBINDING_STROKE}(?: ${KEYBINDING_STROKE})?$`,
+);
 
 /** Limits on commands and panels (R1, R3); they match those checked by the manifest, host, and engine. */
 export const EXTENSION_COMMAND_LIMITS = Object.freeze({
+  /** Keybinding entries (`keybindings`) per command. */
+  keybindingsPerCommand: 4,
+  /** Length of a `when` condition (of a command, panel, widget or `keybindings[]` entry). */
+  whenLength: WHEN_MAX_LENGTH,
   /** Commands per extension. */
   commands: 64,
   /** Panels per extension. */
@@ -369,6 +657,35 @@ export const EXTENSION_COMMAND_LIMITS = Object.freeze({
   notifyChars: 500,
   /** Handler budget, ms. */
   handlerMs: 10_000,
+});
+
+/** A file extension an importer accepts: a dot and 1–16 lower-case letters or digits. */
+export const TRANSFER_ACCEPT_PATTERN = /^\.[a-z0-9]{1,16}$/;
+
+/** Limits on importers and exporters; the manifest, host, and engine check the same numbers. */
+export const EXTENSION_TRANSFER_LIMITS = Object.freeze({
+  /** Importers per extension. */
+  importers: 8,
+  /** Exporters per extension. */
+  exporters: 8,
+  /** Entries in `accept` of one importer. */
+  acceptExtensions: 8,
+  /** Handler budget, ms (import and export). */
+  handlerMs: 30_000,
+  /** Size of the file the user picks for an importer, bytes. */
+  inputBytes: 20 * 1024 * 1024,
+  /** Files in the directory an importer returns. */
+  files: 5000,
+  /** One file of the returned directory, UTF-8 bytes. */
+  fileBytes: 2 * 1024 * 1024,
+  /** All files of the returned directory (and of a course snapshot), UTF-8 bytes. */
+  totalBytes: 20 * 1024 * 1024,
+  /** Size of the file an exporter returns, bytes. */
+  outputBytes: 20 * 1024 * 1024,
+  /** Length of the file name an exporter returns. */
+  filenameChars: 120,
+  /** One path of the returned directory, UTF-8 bytes. */
+  pathBytes: 1024,
 });
 
 export type GradeValue = 1 | 2 | 3 | 4 | 5;
@@ -430,6 +747,74 @@ export type CommandHandler = (
   args: JsonValue | undefined,
 ) => CommandResult | Promise<CommandResult>;
 
+/** What a `text` importer handler receives: the picked file's base name and its content as a UTF-8 string. */
+export interface TextImportInput {
+  name: string;
+  text: string;
+}
+
+/** What a `bytes` importer handler receives: the picked file's base name and its content. */
+export interface BytesImportInput {
+  name: string;
+  bytes: Uint8Array;
+}
+
+/** What an importer handler receives: the picked file's base name and its content, as the importer's `input` declares. */
+export type ImportInput = TextImportInput | BytesImportInput;
+
+/**
+ * What an importer handler returns: the files of a new course directory.
+ * Paths are relative, use `/`, and have no `..`, empty, or dot-leading
+ * segments and no case-insensitive duplicates; the files are text. At most
+ * `EXTENSION_TRANSFER_LIMITS.files` files, `fileBytes` each, `totalBytes` in all.
+ */
+export interface ImportResult {
+  files: Record<string, string>;
+}
+
+/**
+ * Importer handler. Written as a method type so that a handler of a `text`
+ * importer may declare `(input: TextImportInput)` and one of a `bytes` importer
+ * `(input: BytesImportInput)`; the host passes the form the manifest declares.
+ */
+export type ImporterHandler = {
+  handle(input: ImportInput): ImportResult | Promise<ImportResult>;
+}['handle'];
+
+/** What a `course` exporter handler receives: the text files of the course directory (up to `EXTENSION_TRANSFER_LIMITS.totalBytes`). */
+export interface CourseExportInput {
+  scope: 'course';
+  courseId: string;
+  title: string;
+  /** Path relative to the course directory → content. */
+  files: Record<string, string>;
+}
+
+/** What a `progress` exporter handler receives; it reads the data through `ctx.stats`. */
+export interface ProgressExportInput {
+  scope: 'progress';
+}
+
+export type ExportInput = CourseExportInput | ProgressExportInput;
+
+/**
+ * What an exporter handler returns: the file to save. `filename` has no path
+ * separators and at most `EXTENSION_TRANSFER_LIMITS.filenameChars`
+ * characters; the content is at most `outputBytes`.
+ */
+export type ExportResult =
+  { filename: string; text: string } | { filename: string; bytes: Uint8Array };
+
+/**
+ * Exporter handler. Written as a method type so that a handler of a `course`
+ * exporter may declare `(input: CourseExportInput)` and one of a `progress`
+ * exporter `(input: ProgressExportInput)`; the host passes the scope the
+ * manifest declares.
+ */
+export type ExporterHandler = {
+  handle(input: ExportInput): ExportResult | Promise<ExportResult>;
+}['handle'];
+
 /** Command result as the caller receives it (`normalizeCommandResult`). */
 export type CommandOutcome =
   | { kind: 'none' }
@@ -448,7 +833,7 @@ export class InvalidCommandResultError extends Error {
 const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
-/** String length in UTF-8 bytes (the package has no DOM types or `TextEncoder`); a `JSON.stringify` string contains no lone surrogates. */
+/** String length in UTF-8 bytes (the package has no DOM types or `TextEncoder`); a lone surrogate counts as U+FFFD, as `TextEncoder` encodes it. */
 const utf8Length = (text: string): number => {
   let bytes = 0;
   for (let index = 0; index < text.length; index++) {
@@ -456,8 +841,11 @@ const utf8Length = (text: string): number => {
     if (code < 0x80) bytes += 1;
     else if (code < 0x800) bytes += 2;
     else if (code >= 0xd800 && code <= 0xdbff) {
-      bytes += 4;
-      index++;
+      const next = text.charCodeAt(index + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        bytes += 4;
+        index++;
+      } else bytes += 3;
     } else bytes += 3;
   }
   return bytes;
@@ -537,15 +925,187 @@ export const normalizeCommandResult = (
     : { kind: 'openPanel', panelId: openPanel, props };
 };
 
+/** The result of an importer or exporter handler is unusable: wrong shape, a bad path or file name, or over a limit. */
+export class InvalidTransferResultError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidTransferResultError';
+  }
+}
+
 /**
- * Context of a panel module; it runs in a frame without access to the app's
- * data. `Commands` narrows the ids `call` accepts (the SDK passes the commands
- * declared in `extension.json`).
+ * Why a path of an imported course directory is not allowed, or `null`. The
+ * path is relative, uses `/`, and has no empty, `.`-leading (so no `..`)
+ * segment, no backslash or control character, and at most
+ * `EXTENSION_TRANSFER_LIMITS.pathBytes` UTF-8 bytes.
  */
-export interface PanelContext<Commands extends string = string> {
-  panelId: string;
-  /** Properties the panel was opened with (`openPanel(id, props)`); `undefined` — none. */
-  props: JsonValue | undefined;
+export const findTransferPathProblem = (path: string): string | null => {
+  if (path === '') return 'path is empty';
+  if (utf8Length(path) > EXTENSION_TRANSFER_LIMITS.pathBytes) {
+    return `path is longer than ${EXTENSION_TRANSFER_LIMITS.pathBytes} bytes`;
+  }
+  // eslint-disable-next-line no-control-regex -- control characters are exactly what is refused
+  if (/[\\\u0000-\u001f\u007f]/.test(path)) {
+    return 'path has a backslash or a control character';
+  }
+  for (const segment of path.split('/')) {
+    if (segment === '') return 'path has an empty segment';
+    if (segment.startsWith('.')) {
+      return `path segment '${segment}' starts with a dot`;
+    }
+  }
+  return null;
+};
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> => {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const proto = Object.getPrototypeOf(value) as unknown;
+  return proto === Object.prototype || proto === null;
+};
+
+/**
+ * Checks what an importer handler returned and returns a copy: an object with
+ * only `files`, a record of path → text. At most `EXTENSION_TRANSFER_LIMITS.files`
+ * files, `fileBytes` each and `totalBytes` in all (UTF-8); paths per
+ * `findTransferPathProblem`, no two equal ignoring case. A violation throws
+ * `InvalidTransferResultError`. The host, the app, and `loadImporters` share it.
+ */
+export const normalizeImportResult = (raw: unknown): ImportResult => {
+  if (!isPlainObject(raw)) {
+    throw new InvalidTransferResultError(
+      "result must be an object like { files: { 'path': 'text' } }",
+    );
+  }
+  const stray = Object.keys(raw).find((key) => key !== 'files');
+  if (stray !== undefined) {
+    throw new InvalidTransferResultError(`unexpected key '${stray}'`);
+  }
+  const { files } = raw;
+  if (!isPlainObject(files)) {
+    throw new InvalidTransferResultError('files must be an object');
+  }
+  const entries = Object.entries(files);
+  if (entries.length > EXTENSION_TRANSFER_LIMITS.files) {
+    throw new InvalidTransferResultError(
+      `more than ${EXTENSION_TRANSFER_LIMITS.files} files`,
+    );
+  }
+  const seen = new Map<string, string>();
+  let total = 0;
+  for (const [path, content] of entries) {
+    const problem = findTransferPathProblem(path);
+    if (problem !== null) {
+      throw new InvalidTransferResultError(
+        `${JSON.stringify(path)}: ${problem}`,
+      );
+    }
+    const folded = path.toLowerCase();
+    const clash = seen.get(folded);
+    if (clash !== undefined) {
+      throw new InvalidTransferResultError(
+        `${JSON.stringify(path)} and ${JSON.stringify(clash)} differ only in case`,
+      );
+    }
+    seen.set(folded, path);
+    if (typeof content !== 'string') {
+      throw new InvalidTransferResultError(
+        `${JSON.stringify(path)}: content must be a string`,
+      );
+    }
+    const size = utf8Length(content);
+    if (size > EXTENSION_TRANSFER_LIMITS.fileBytes) {
+      throw new InvalidTransferResultError(
+        `${JSON.stringify(path)} is longer than ${EXTENSION_TRANSFER_LIMITS.fileBytes} bytes`,
+      );
+    }
+    total += size;
+    if (total > EXTENSION_TRANSFER_LIMITS.totalBytes) {
+      throw new InvalidTransferResultError(
+        `the files are longer than ${EXTENSION_TRANSFER_LIMITS.totalBytes} bytes in all`,
+      );
+    }
+  }
+  return { files: Object.fromEntries(entries) as Record<string, string> };
+};
+
+/**
+ * Checks what an exporter handler returned and returns it: an object with
+ * `filename` and exactly one of `text` (a string) or `bytes` (a `Uint8Array`),
+ * at most `EXTENSION_TRANSFER_LIMITS.outputBytes` of content. The file name
+ * is 1..`filenameChars` characters without `/`, `\`, or control characters,
+ * and is not `.` or `..`. A violation throws `InvalidTransferResultError`.
+ */
+export const normalizeExportResult = (raw: unknown): ExportResult => {
+  if (!isPlainObject(raw)) {
+    throw new InvalidTransferResultError(
+      'result must be an object like { filename, text } or { filename, bytes }',
+    );
+  }
+  const { filename } = raw;
+  const hasText = 'text' in raw;
+  const hasBytes = 'bytes' in raw;
+  const stray = Object.keys(raw).find(
+    (key) => key !== 'filename' && key !== 'text' && key !== 'bytes',
+  );
+  if (stray !== undefined) {
+    throw new InvalidTransferResultError(`unexpected key '${stray}'`);
+  }
+  if (hasText === hasBytes) {
+    throw new InvalidTransferResultError(
+      "result must have exactly one of 'text' and 'bytes'",
+    );
+  }
+  if (
+    typeof filename !== 'string' ||
+    filename === '' ||
+    filename.length > EXTENSION_TRANSFER_LIMITS.filenameChars
+  ) {
+    throw new InvalidTransferResultError(
+      `filename must be a string of 1..${EXTENSION_TRANSFER_LIMITS.filenameChars} characters`,
+    );
+  }
+  // eslint-disable-next-line no-control-regex -- control characters are exactly what is refused
+  if (/[/\\\u0000-\u001f\u007f]/.test(filename) || /^\.\.?$/.test(filename)) {
+    throw new InvalidTransferResultError(
+      'filename must not contain path separators or control characters',
+    );
+  }
+  if (hasText) {
+    const { text } = raw;
+    if (typeof text !== 'string') {
+      throw new InvalidTransferResultError('text must be a string');
+    }
+    if (utf8Length(text) > EXTENSION_TRANSFER_LIMITS.outputBytes) {
+      throw new InvalidTransferResultError(
+        `the file is longer than ${EXTENSION_TRANSFER_LIMITS.outputBytes} bytes`,
+      );
+    }
+    return { filename, text };
+  }
+  const { bytes } = raw;
+  if (!(bytes instanceof Uint8Array)) {
+    throw new InvalidTransferResultError('bytes must be a Uint8Array');
+  }
+  if (bytes.byteLength > EXTENSION_TRANSFER_LIMITS.outputBytes) {
+    throw new InvalidTransferResultError(
+      `the file is longer than ${EXTENSION_TRANSFER_LIMITS.outputBytes} bytes`,
+    );
+  }
+  return { filename, bytes };
+};
+
+/** What the app tells a panel or widget about its surroundings; read only. */
+export interface PanelContextInfo {
+  /** The course the app is focused on; `null` — all courses. */
+  readonly courseId: string | null;
+}
+
+/** What the frame of a panel and of a widget have in common. */
+interface FrameContext<Commands extends string = string> {
+  /** The current surroundings; changes arrive through `onContextChange` without reloading the frame. */
+  readonly context: PanelContextInfo;
   /** Aborted when the frame closes. */
   signal: {
     readonly aborted: boolean;
@@ -558,6 +1118,21 @@ export interface PanelContext<Commands extends string = string> {
    * `openPanel` itself. A failure is a rejected promise with an `Error`.
    */
   call(commandId: Commands, args?: JsonValue): Promise<JsonValue | undefined>;
+  /** Subscribes to changes of `context` (the app focused another course); returns the unsubscribe function. */
+  onContextChange(listener: (context: PanelContextInfo) => void): () => void;
+}
+
+/**
+ * Context of a panel module; it runs in a frame without access to the app's
+ * data. `Commands` narrows the ids `call` accepts (the SDK passes the commands
+ * declared in `extension.json`).
+ */
+export interface PanelContext<
+  Commands extends string = string,
+> extends FrameContext<Commands> {
+  panelId: string;
+  /** Properties the panel was opened with (`openPanel(id, props)`); `undefined` — none. */
+  props: JsonValue | undefined;
   /** Subscribes to new properties of the open panel; returns the unsubscribe function. */
   onProps(listener: (props: JsonValue | undefined) => void): () => void;
 }
@@ -570,6 +1145,27 @@ export interface PanelModule<
   mount(
     container: Container,
     context: PanelContext<Commands>,
+  ): void | Promise<void>;
+}
+
+/**
+ * Context of a widget module: a panel's frame without properties (a widget is
+ * not opened by a command). Same isolation: no network, no app data.
+ */
+export interface WidgetContext<
+  Commands extends string = string,
+> extends FrameContext<Commands> {
+  widgetId: string;
+}
+
+/** `export default` of a widget module. */
+export interface WidgetModule<
+  Container = unknown,
+  Commands extends string = string,
+> {
+  mount(
+    container: Container,
+    context: WidgetContext<Commands>,
   ): void | Promise<void>;
 }
 
@@ -693,6 +1289,44 @@ export interface ExtensionStorage {
   keys(): Promise<string[]>;
 }
 
+/** Secret limits; the engine enforces them (`StorageQuotaError`, kinds `key-length`, `value-size`, `key-count`). */
+export const EXTENSION_SECRET_LIMITS = Object.freeze({
+  /** Key length in UTF-16 code units. */
+  keyLength: 128,
+  /** Value size in UTF-8 bytes. */
+  valueBytes: 4 * 1024,
+  /** Number of keys. */
+  keys: 32,
+});
+
+/**
+ * Thrown by `ctx.secrets.set` and by `ctx.secrets.get` of an existing key when
+ * the operating system has no secure key store: no store, Linux `basic_text`
+ * backend, the app is not ready yet, or the stored value cannot be decrypted
+ * any more (the keychain changed; `delete` and write again).
+ */
+export class SecretsUnavailableError extends Error {
+  readonly code = 'SECRETS_UNAVAILABLE';
+  constructor(message?: string) {
+    super(message ?? 'the system secret store is unavailable');
+    this.name = 'SecretsUnavailable';
+  }
+}
+
+/**
+ * Secret strings (tokens, passwords) encrypted with the system key store.
+ * No permission is required; each extension has its own space, cleared with
+ * the extension data. Limits are `EXTENSION_SECRET_LIMITS`.
+ */
+export interface ExtensionSecrets {
+  /** `undefined` if the key does not exist (also when the key store is unavailable). */
+  get(key: string): Promise<string | undefined>;
+  /** Throws `SecretsUnavailableError` without a key store, `StorageQuotaError` over a limit; the write does not happen then. */
+  set(key: string, value: string): Promise<void>;
+  /** `false` if the key did not exist. Works without a key store. */
+  delete(key: string): Promise<boolean>;
+}
+
 /** Setting values of an extension by setting id. */
 export type SettingValues = Record<string, SettingValue>;
 
@@ -714,6 +1348,130 @@ export interface ExtensionSettings<S extends SettingValues = SettingValues> {
   get<K extends keyof S & string>(id: K): S[K];
   /** The handler runs after a change, without restarting the extension; a handler failure is only logged. */
   onDidChange(handler: (change: SettingChange<S>) => void): Disposable;
+}
+
+/** Limits of `ctx.stats`; the engine enforces them. */
+export const EXTENSION_STATS_LIMITS = Object.freeze({
+  /** Most dates in one `daily` range (both ends included). */
+  dailyDays: 366,
+});
+
+/** Study streak in days; see `ExtensionStats.streak`. */
+export interface StreakStats {
+  /** Consecutive days with attempts ending today, or yesterday while today has none yet. */
+  readonly current: number;
+  /** Longest run of consecutive days with attempts in the history. */
+  readonly longest: number;
+}
+
+/** One local calendar day of study; see `ExtensionStats.daily`. */
+export interface DailyStat {
+  /** Local date `YYYY-MM-DD`. */
+  readonly date: string;
+  readonly attempts: number;
+  /** Attempts graded 3 or higher. */
+  readonly correct: number;
+  /** `correct / attempts`; `null` without attempts. */
+  readonly accuracy: number | null;
+}
+
+/**
+ * Aggregated learning statistics; need the `learning.stats` permission, otherwise
+ * every call rejects with `PermissionError('learning.stats')`. Numbers only: no
+ * exercise or course identifiers, answers or content. Days are local days in
+ * the user's time zone; an attempt is correct at grade 3 or higher; the
+ * history counts attempts even after a progress reset. An unknown `courseId`
+ * gives zeros.
+ */
+export interface ExtensionStats {
+  streak(options?: { courseId?: string }): Promise<StreakStats>;
+  /**
+   * One entry for every date from `from` to `to` inclusive (`YYYY-MM-DD`, up to
+   * `EXTENSION_STATS_LIMITS.dailyDays` dates); a malformed or reversed range
+   * rejects.
+   */
+  daily(options: {
+    from: string;
+    to: string;
+    courseId?: string;
+  }): Promise<DailyStat[]>;
+}
+
+/** Limits of `ctx.notifications`; the engine enforces them. */
+export const EXTENSION_NOTIFICATION_LIMITS = Object.freeze({
+  /** Title length in characters (code points). */
+  titleLength: 80,
+  /** Body length in characters (code points). */
+  bodyLength: 300,
+  /** Notifications per rolling minute and extension. */
+  perMinute: 3,
+  /** Notifications per rolling hour and extension. */
+  perHour: 30,
+});
+
+/** Which window of `EXTENSION_NOTIFICATION_LIMITS` was exceeded. */
+export type NotificationRateLimitWindow = 'minute' | 'hour';
+
+/** Thrown by `ctx.notifications.show` over the rate limit: the notification was not shown. */
+export class NotificationRateLimitError extends Error {
+  readonly window: NotificationRateLimitWindow;
+  /** Exceeded limit: notifications per `window`. */
+  readonly limit: number;
+  readonly code = 'EXT_NOTIFICATION_RATE_LIMIT';
+  constructor(
+    window: NotificationRateLimitWindow,
+    limit: number,
+    message?: string,
+  ) {
+    super(
+      message ?? `notification rate limit exceeded: ${limit} per ${window}`,
+    );
+    this.name = 'NotificationRateLimitError';
+    this.window = window;
+    this.limit = limit;
+  }
+}
+
+/** A system notification; plain text, control characters are removed. */
+export interface ExtensionNotification {
+  /** 1 to `EXTENSION_NOTIFICATION_LIMITS.titleLength` characters. */
+  title: string;
+  /** Up to `EXTENSION_NOTIFICATION_LIMITS.bodyLength` characters; may be empty. */
+  body: string;
+}
+
+/**
+ * System notifications; need the `notifications` permission, otherwise
+ * `show` rejects with `PermissionError('notifications')`. The notification
+ * names the extension; a click shows the app window. Works only while the app
+ * runs. The user can switch notifications off per extension in the settings.
+ */
+export interface ExtensionNotifications {
+  /**
+   * Resolves `true` once the notification is handed to the operating system;
+   * `false` when the system does not support notifications or the user turned
+   * them off for this extension. Rejects with `NotificationRateLimitError`
+   * over `perMinute`/`perHour` and with an error for an invalid title or body.
+   */
+  show(notification: ExtensionNotification): Promise<boolean>;
+}
+
+/** Runs when a schedule fires; at most `EXTENSION_SCHEDULE_LIMITS.handlerMs`, a failure is only logged. */
+export type ScheduleHandler = () => void | Promise<void>;
+
+/** Schedules of the extension (`contributes.schedules`); `Id` narrows the schedule ids. */
+export interface ExtensionSchedule<Id extends string = string> {
+  /**
+   * `id` must be declared in the `schedules` of this extension's manifest,
+   * otherwise it throws; subscribing twice throws. The app fires the handler
+   * by the local clock while it runs, activating the extension if needed. A
+   * firing found more than `EXTENSION_SCHEDULE_LIMITS.lateMs` after its moment
+   * (the app was closed or asleep) is skipped and never replayed; a handler
+   * still running from the previous firing misses the next one. No
+   * permission is needed; the user can switch the extension's schedules off
+   * in the settings.
+   */
+  on(id: Id, handler: ScheduleHandler): Disposable;
 }
 
 export type LearningEventHandler<N extends LearningEventName> = (
@@ -742,6 +1500,28 @@ export interface ExtensionCommands<Id extends string = string> {
   register(id: Id, handler: CommandHandler): Disposable;
 }
 
+/** Importers of the extension (`contributes.importers`); `Id` narrows the importer ids. */
+export interface ExtensionImporters<Id extends string = string> {
+  /**
+   * `id` must be declared in the `importers` of this extension's manifest,
+   * otherwise it throws; registering twice throws. The handler runs for at
+   * most `EXTENSION_TRANSFER_LIMITS.handlerMs`; a failure, an exceeded budget,
+   * or a result `normalizeImportResult` refuses reaches the user as an error.
+   */
+  register(id: Id, handler: ImporterHandler): Disposable;
+}
+
+/** Exporters of the extension (`contributes.exporters`); `Id` narrows the exporter ids. */
+export interface ExtensionExporters<Id extends string = string> {
+  /**
+   * `id` must be declared in the `exporters` of this extension's manifest,
+   * otherwise it throws; registering twice throws. The handler runs for at
+   * most `EXTENSION_TRANSFER_LIMITS.handlerMs`; a failure, an exceeded budget,
+   * or a result `normalizeExportResult` refuses reaches the user as an error.
+   */
+  register(id: Id, handler: ExporterHandler): Disposable;
+}
+
 export interface Disposable {
   dispose(): void | Promise<void>;
 }
@@ -765,6 +1545,10 @@ export interface ExtensionIdSet {
   commands: string;
   events: LearningEventName;
   panels: string;
+  widgets: string;
+  schedules: string;
+  importers: string;
+  exporters: string;
   /** Languages of `contributes.markdownRenderers`. */
   markdownLanguages: string;
   /** Setting id → type of its value. */
@@ -777,9 +1561,18 @@ export interface ExtensionContext<Ids extends ExtensionIdSet = ExtensionIdSet> {
   readonly logger: ExtensionLogger;
   readonly library: LibraryReader;
   readonly storage: ExtensionStorage;
+  readonly secrets: ExtensionSecrets;
   readonly settings: ExtensionSettings<Ids['settings']>;
   readonly events: ExtensionEvents<Ids['events']>;
+  /** Learning statistics; needs the `learning.stats` permission. */
+  readonly stats: ExtensionStats;
+  /** System notifications; need the `notifications` permission. */
+  readonly notifications: ExtensionNotifications;
+  /** Schedules the extension declares; no permission needed. */
+  readonly schedule: ExtensionSchedule<Ids['schedules']>;
   readonly commands: ExtensionCommands<Ids['commands']>;
+  readonly importers: ExtensionImporters<Ids['importers']>;
+  readonly exporters: ExtensionExporters<Ids['exporters']>;
   /** `type` must be declared in the manifest of this extension, otherwise it throws. */
   registerExerciseType(
     type: Ids['exerciseTypes'],

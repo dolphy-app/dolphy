@@ -5,6 +5,7 @@ import type {
   EngineEvent,
   ExtensionContributesDto,
   ExtensionInfoDto,
+  ExtensionsDiagnosticsDto,
 } from '@dolphy-app/engine-contract';
 
 export const NO_CONTRIBUTES: ExtensionContributesDto = {
@@ -15,8 +16,22 @@ export const NO_CONTRIBUTES: ExtensionContributesDto = {
   settings: [],
   events: [],
   commands: [],
+  widgets: [],
+  schedules: [],
   panels: [],
+  importers: [],
+  exporters: [],
 };
+
+/** Движок без сбоев: хост работает, безопасный режим выключен, здоровья по расширениям нет. */
+export const diagnosticsDto = (
+  override: Partial<ExtensionsDiagnosticsDto> = {},
+): ExtensionsDiagnosticsDto => ({
+  host: 'running',
+  safeMode: { active: false, persisted: false, forcedBy: null },
+  extensions: [],
+  ...override,
+});
 
 export const extensionInfo = (
   id: string,
@@ -27,19 +42,22 @@ export const extensionInfo = (
   origin: 'bundled',
   state: 'loaded',
   contributes: { ...NO_CONTRIBUTES, exerciseTypes: [id] },
-  message: null,
+  diagnostics: [],
   permissions: [],
   isolation: 'trusted',
   toggleable: false,
   name: null,
   description: null,
   author: null,
+  dependencies: [],
   installed: null,
   icon: null,
   titles: {},
+  messages: {},
   tags: [],
   removable: false,
   revoked: null,
+  deprecated: null,
   ...override,
 });
 
@@ -49,6 +67,7 @@ export const catalogVersion = (
 ): CatalogVersionDto => ({
   version,
   permissions: [],
+  dependencies: [],
   publishedAt: '2026-01-01T00:00:00.000Z',
   size: 1200,
   minAppVersion: null,
@@ -73,6 +92,9 @@ export const catalogEntry = (
   installedVersion: null,
   latest: catalogVersion('1.0.0'),
   incompatible: null,
+  versions: [],
+  deprecated: null,
+  elsewhere: false,
   ...override,
 });
 

@@ -9,12 +9,16 @@ export const REPOSITORY_URL = 'git+https://github.com/dolphy-app/dolphy.git';
 export const NODE_RANGE = '>=22.12';
 export const DOCS_URL =
   'https://github.com/dolphy-app/dolphy/blob/main/docs/design/extensions.md';
+const GUIDE_URL =
+  'https://github.com/dolphy-app/dolphy/blob/main/packages/extension-sdk/docs';
 
 const VERSION_PATTERN = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
 
 /**
  * `entries` — точки входа бандла (имя файла в `dist` → исходник); `exports` — подпуть
- * пакета → имя точки входа (только пакеты с типами); `bin` — команда → точка входа;
+ * пакета → имя точки входа (только пакеты с типами); `assets` — файлы из каталога
+ * пакета, копируемые в `dist` и открытые подпутём `./<имя файла>`; `docs` — файлы каталога
+ * `docs/` пакета, публикуются как `docs/<имя файла>` рядом с `dist`; `bin` — команда → точка входа;
  * `siblings` — публикуемые пакеты, остающиеся зависимостями (их типы видны в `.d.ts`).
  */
 export const PACKAGES = [
@@ -22,6 +26,7 @@ export const PACKAGES = [
     dir: 'extension-api',
     entries: { index: 'src/index.ts' },
     exports: { '.': 'index' },
+    assets: ['extension.schema.json'],
     bin: null,
     dts: true,
     sideEffects: true,
@@ -35,6 +40,54 @@ export const PACKAGES = [
       '```ts',
       "import { EXTENSION_API_VERSION } from '@dolphy-app/extension-api';",
       '```',
+      '',
+      'The package also ships `extension.schema.json`, a JSON Schema of',
+      '`extension.json` for editors (`@dolphy-app/extension-api/extension.schema.json`).',
+    ],
+  },
+  {
+    dir: 'keybindings',
+    entries: { index: 'src/index.ts' },
+    exports: { '.': 'index' },
+    bin: null,
+    dts: true,
+    sideEffects: false,
+    siblings: [],
+    usage: [
+      'Framework-free keybinding registry core: key notation with a',
+      'platform-aware `Mod`, layout-aware matching of keyboard events,',
+      '`when` clauses with overlap analysis, a keymap with source precedence',
+      'and conflict detection. No DOM and no dependencies.',
+      '',
+      '```ts',
+      "import { buildKeymap, parseChord } from '@dolphy-app/keybindings';",
+      '```',
+    ],
+  },
+  {
+    dir: 'extension-ui',
+    entries: { index: 'src/index.ts' },
+    exports: { '.': 'index' },
+    bin: null,
+    dts: true,
+    sideEffects: false,
+    siblings: [],
+    usage: [
+      'Accessible DOM building blocks for extension panels and views: `list`,',
+      '`button`, `textField`, `select`, `toggle`, `card` and `emptyState`. Each',
+      'function returns an `HTMLElement` with a role, a visible name and keyboard',
+      'control; colours come from the CSS variables the app sends to the frame, so',
+      'dark mode works without extra code. No dependencies; the whole package is',
+      'under 10 KiB gzipped.',
+      '',
+      '```ts',
+      "import { button, card, textField } from '@dolphy-app/extension-ui';",
+      '',
+      'container.append(',
+      "  card({ title: 'Profile', children: [textField({ label: 'Name' })] }),",
+      "  button({ label: 'Save', variant: 'primary', onClick: save }),",
+      ');',
+      '```',
     ],
   },
   {
@@ -45,6 +98,19 @@ export const PACKAGES = [
       testing: 'src/testing.ts',
     },
     exports: { '.': 'index', './runtime': 'runtime', './testing': 'testing' },
+    docs: [
+      'debugging.md',
+      'no-build.md',
+      'quick-start.md',
+      'recipe-command-panel.md',
+      'recipe-event-storage.md',
+      'recipe-exercise-type.md',
+      'recipe-import-export.md',
+      'recipe-settings.md',
+      'recipe-theme.md',
+      'recipe-ui-kit.md',
+      'recipe-when-dependencies.md',
+    ],
     bin: null,
     dts: true,
     sideEffects: false,
@@ -61,6 +127,20 @@ export const PACKAGES = [
       "import { defineExtension } from '@dolphy-app/extension-sdk';",
       "import { loadExerciseType } from '@dolphy-app/extension-sdk/testing';",
       '```',
+      '',
+      'The package ships a guide in `docs/` (`node_modules/@dolphy-app/extension-sdk/docs/`',
+      'after the install): a',
+      `[quick start](${GUIDE_URL}/quick-start.md), recipes for`,
+      `[an exercise type](${GUIDE_URL}/recipe-exercise-type.md),`,
+      `[a theme](${GUIDE_URL}/recipe-theme.md),`,
+      `[a command and a panel](${GUIDE_URL}/recipe-command-panel.md),`,
+      `[events and storage](${GUIDE_URL}/recipe-event-storage.md),`,
+      `[settings](${GUIDE_URL}/recipe-settings.md),`,
+      `[an importer and an exporter](${GUIDE_URL}/recipe-import-export.md),`,
+      `[visibility conditions and dependencies](${GUIDE_URL}/recipe-when-dependencies.md) and`,
+      `[a panel on the UI kit](${GUIDE_URL}/recipe-ui-kit.md), a path`,
+      `[without a build](${GUIDE_URL}/no-build.md) and notes on`,
+      `[debugging](${GUIDE_URL}/debugging.md).`,
     ],
   },
   {
@@ -74,12 +154,14 @@ export const PACKAGES = [
     usage: [
       'The `dolphy-ext` command line for extension authors: builds a project',
       'into an extension directory, writes the typed ids of the manifest',
-      '(`.dolphy/ids.d.ts`) and validates the result.',
+      '(`.dolphy/ids.d.ts`), validates the result and runs the installed app on',
+      'a watch build (`dolphy-ext dev`).',
       '',
       '```sh',
       'npx dolphy-ext build',
       'npx dolphy-ext types',
       'npx dolphy-ext validate dist-ext/<id>',
+      'npx dolphy-ext dev',
       'npx dolphy-ext --help',
       '```',
     ],
@@ -192,15 +274,33 @@ export const deriveDependencies = ({
 
 const distPath = (entry, extension) => `./dist/${entry}${extension}`;
 
+/** Файлы пакета, копируемые в `dist` как есть. */
+export const assetFiles = (spec) => spec.assets ?? [];
+
+/** Файлы руководства пакета: `docs/<имя>` в tarball. */
+export const docFiles = (spec) => spec.docs ?? [];
+
+/** Поле `files` опубликованного пакета. */
+export const publishedFiles = (spec) =>
+  docFiles(spec).length === 0 ? ['dist'] : ['dist', 'docs'];
+
 const exportsField = (spec) =>
   spec.exports === null
     ? undefined
-    : Object.fromEntries(
-        Object.entries(spec.exports).map(([subpath, entry]) => [
-          subpath,
-          { types: distPath(entry, '.d.ts'), default: distPath(entry, '.js') },
-        ]),
-      );
+    : {
+        ...Object.fromEntries(
+          Object.entries(spec.exports).map(([subpath, entry]) => [
+            subpath,
+            {
+              types: distPath(entry, '.d.ts'),
+              default: distPath(entry, '.js'),
+            },
+          ]),
+        ),
+        ...Object.fromEntries(
+          assetFiles(spec).map((file) => [`./${file}`, distPath(file, '')]),
+        ),
+      };
 
 const binField = (spec) =>
   spec.bin === null
@@ -241,7 +341,7 @@ export const createManifest = ({
       ? {}
       : { types: distPath(spec.exports['.'], '.d.ts') }),
     ...(spec.bin === null ? {} : { bin: binField(spec) }),
-    files: ['dist'],
+    files: publishedFiles(spec),
     dependencies,
     engines: { node: NODE_RANGE },
     repository: {

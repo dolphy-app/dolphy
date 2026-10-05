@@ -7,7 +7,13 @@ import {
   type ExerciseTypeHandler,
   type ExtensionContext,
 } from '../src/index.ts';
-import { createMemorySettings, createMemoryStorage } from '../src/testing.ts';
+import {
+  createMemorySecrets,
+  createMemorySettings,
+  createMemoryNotifications,
+  createMemoryStats,
+  createMemoryStorage,
+} from '../src/testing.ts';
 
 const handler = (): ExerciseTypeHandler =>
   defineExerciseType({
@@ -42,6 +48,9 @@ const createContext = (log: string[], failOn: readonly string[] = []) => {
       return { dispose: () => void log.push(`dispose policy ${id}`) };
     },
     storage: createMemoryStorage(),
+    stats: createMemoryStats(),
+    notifications: createMemoryNotifications(),
+    secrets: createMemorySecrets(),
     settings: createMemorySettings([]),
     events: {
       on: (name): Disposable => {
@@ -53,6 +62,24 @@ const createContext = (log: string[], failOn: readonly string[] = []) => {
       register: (id): Disposable => {
         log.push(`command ${id}`);
         return { dispose: () => void log.push(`uncommand ${id}`) };
+      },
+    },
+    schedule: {
+      on: (id): Disposable => {
+        log.push(`schedule ${id}`);
+        return { dispose: () => void log.push(`unschedule ${id}`) };
+      },
+    },
+    importers: {
+      register: (id): Disposable => {
+        log.push(`importer ${id}`);
+        return { dispose: () => void log.push(`unimporter ${id}`) };
+      },
+    },
+    exporters: {
+      register: (id): Disposable => {
+        log.push(`exporter ${id}`);
+        return { dispose: () => void log.push(`unexporter ${id}`) };
       },
     },
   };
@@ -315,6 +342,76 @@ describe('defineExtension', () => {
       'register policy a.policy',
       'subscribe attempt.closed',
       'command a.cmd',
+    ]);
+  });
+
+  it('subscribes schedules after commands, skips inActivate ids, and disposes them in reverse on deactivate', async () => {
+    const log: string[] = [];
+    const module = defineExtension({
+      commands: { 'a.cmd': () => undefined },
+      schedules: { 'a.morning': () => undefined, 'a.late': inActivate },
+      activate(ctx) {
+        ctx.schedule.on('a.late', () => undefined);
+      },
+    });
+    await module.activate(createContext(log));
+    expect(log).toEqual([
+      'command a.cmd',
+      'schedule a.morning',
+      'schedule a.late',
+    ]);
+    log.length = 0;
+    await module.deactivate?.();
+    expect(log).toEqual(['unschedule a.morning', 'uncommand a.cmd']);
+  });
+
+  it('registers importers and exporters after commands, disposes them first on deactivate, and rolls back when one throws', async () => {
+    const log: string[] = [];
+    const module = defineExtension({
+      commands: { 'a.cmd': () => undefined },
+      importers: { 'a.in': () => ({ files: {} }), 'a.late': inActivate },
+      exporters: { 'a.out': () => ({ filename: 'a', text: '' }) },
+      activate(ctx) {
+        ctx.importers.register('a.late', () => ({ files: {} }));
+      },
+    });
+    await module.activate(createContext(log));
+    expect(log).toEqual([
+      'command a.cmd',
+      'importer a.in',
+      'exporter a.out',
+      'importer a.late',
+    ]);
+    log.length = 0;
+    await module.deactivate?.();
+    expect(log).toEqual([
+      'unexporter a.out',
+      'unimporter a.in',
+      'uncommand a.cmd',
+    ]);
+
+    const rollback: string[] = [];
+    const context = createContext(rollback);
+    context.exporters.register = (id): Disposable => {
+      if (id === 'a.bad') throw new Error('duplicate exporter');
+      rollback.push(`exporter ${id}`);
+      return { dispose: () => void rollback.push(`unexporter ${id}`) };
+    };
+    const failing = defineExtension({
+      importers: { 'a.in': () => ({ files: {} }) },
+      exporters: {
+        'a.out': () => ({ filename: 'a', text: '' }),
+        'a.bad': () => ({ filename: 'a', text: '' }),
+      },
+    });
+    await expect(failing.activate(context)).rejects.toThrow(
+      'duplicate exporter',
+    );
+    expect(rollback).toEqual([
+      'importer a.in',
+      'exporter a.out',
+      'unexporter a.out',
+      'unimporter a.in',
     ]);
   });
 });

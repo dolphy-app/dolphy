@@ -24,11 +24,20 @@ const extension: ResolvedExtension = stateful(ID, {
       description: null,
       category: null,
       keybinding: null,
+      keybindings: [],
+      when: null,
+      icon: 'puzzle',
       palette: true,
     },
   ],
   panels: [
-    { id: PANEL, title: 'Panel', rendererUrl: `dolphy-ext://${ID}/panel.mjs` },
+    {
+      id: PANEL,
+      title: 'Panel',
+      icon: 'puzzle',
+      when: null,
+      rendererUrl: `dolphy-ext://${ID}/panel.mjs`,
+    },
   ],
 });
 
@@ -145,6 +154,7 @@ describe('createRemoteExtensionCommands', () => {
     ['replaced', 'replaced'],
     ['handler-timeout', 'timeout'],
     ['activation-failed', 'handler-failed'],
+    ['activation-timeout', 'activation-timeout'],
     ['unknown-type', 'handler-failed'],
   ])('причина хоста %s -> %s', async (cause, expected) => {
     const { commands } = setup({

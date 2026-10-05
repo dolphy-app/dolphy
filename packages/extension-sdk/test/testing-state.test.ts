@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  EXTENSION_SECRET_LIMITS,
   EXTENSION_STORAGE_LIMITS,
   PermissionError,
+  SecretsUnavailableError,
   StorageQuotaError,
   defineExtension,
   type ExtensionContext,
@@ -9,6 +11,7 @@ import {
 } from '../src/index.ts';
 import {
   createMemoryEvents,
+  createMemorySecrets,
   createMemorySettings,
   createMemoryStorage,
   loadEvents,
@@ -121,6 +124,124 @@ const definitions: SettingContribution[] = [
     ],
   },
 ];
+
+const rich: SettingContribution[] = [
+  { id: 'a.note', type: 'text', label: 'Note', default: 'x\ny', maxLength: 5 },
+  { id: 'a.tint', type: 'color', label: 'Tint', default: '#AA00bb' },
+  {
+    id: 'a.tags',
+    type: 'list',
+    label: 'Tags',
+    default: ['one'],
+    maxItems: 2,
+    itemMaxLength: 4,
+  },
+];
+
+describe('createMemorySecrets', () => {
+  const limits = EXTENSION_SECRET_LIMITS;
+
+  it('stores strings; a missing key is undefined; delete reports whether the key existed', async () => {
+    const secrets = createMemorySecrets();
+    await secrets.set('token', 'сек-ret');
+    await secrets.set('empty', '');
+    expect(await secrets.get('token')).toBe('сек-ret');
+    expect(await secrets.get('empty')).toBe('');
+    expect(await secrets.get('missing')).toBeUndefined();
+    expect(await secrets.delete('token')).toBe(true);
+    expect(await secrets.delete('token')).toBe(false);
+  });
+
+  it('limits: key 128, value 4 KiB in bytes, 32 keys; a rejected write changes nothing', async () => {
+    const secrets = createMemorySecrets();
+    await secrets.set('k'.repeat(limits.keyLength), 'v');
+    expect(
+      (await quotaOf(secrets.set('k'.repeat(limits.keyLength + 1), 'v'))).kind,
+    ).toBe('key-length');
+    await secrets.set('big', 'я'.repeat(limits.valueBytes / 2));
+    const tooBig = await quotaOf(
+      secrets.set('big', 'я'.repeat(limits.valueBytes / 2 + 1)),
+    );
+    expect([tooBig.kind, tooBig.limit]).toEqual([
+      'value-size',
+      limits.valueBytes,
+    ]);
+    expect(await secrets.get('big')).toBe('я'.repeat(limits.valueBytes / 2));
+    for (let i = 2; i < limits.keys; i++) await secrets.set(`k${i}`, 'v');
+    const full = await quotaOf(secrets.set('extra', 'v'));
+    expect([full.kind, full.limit]).toEqual(['key-count', limits.keys]);
+    await secrets.set('big', 'replaced'); // overwriting does not need a new key
+    expect(await secrets.get('big')).toBe('replaced');
+  });
+
+  it('without a key store set and get of an existing key throw; get of a missing key and delete work', async () => {
+    const secrets = createMemorySecrets();
+    await secrets.set('token', 'x');
+    secrets.setAvailable(false);
+    await expect(secrets.set('new', 'y')).rejects.toBeInstanceOf(
+      SecretsUnavailableError,
+    );
+    const error = await secrets.get('token').catch((e: unknown) => e);
+    expect(error).toMatchObject({
+      name: 'SecretsUnavailable',
+      code: 'SECRETS_UNAVAILABLE',
+    });
+    expect(await secrets.get('new')).toBeUndefined();
+    expect(await secrets.delete('token')).toBe(true);
+    secrets.setAvailable(true);
+    await secrets.set('token', 'again');
+    expect(await secrets.get('token')).toBe('again');
+    await expect(
+      createMemorySecrets({ available: false }).set('k', 'v'),
+    ).rejects.toBeInstanceOf(SecretsUnavailableError);
+  });
+
+  it('loadEvents hands the same secrets to the module and returns them', async () => {
+    const loaded = await loadEvents({
+      activate: async (ctx) => {
+        await ctx.secrets.set('token', 'from-module');
+      },
+    });
+    expect(await loaded.secrets.get('token')).toBe('from-module');
+  });
+});
+
+describe('createMemorySettings: text, color and list', () => {
+  it('a color is stored in lower case, a list is handed out as a copy', () => {
+    const settings = createMemorySettings(rich);
+    expect(settings.get('a.tint')).toBe('#aa00bb');
+    (settings.get('a.tags') as string[]).push('mutated');
+    expect(settings.get('a.tags')).toEqual(['one']);
+  });
+
+  it('set changes a list, equal lists are not a change, a color change is case-insensitive', async () => {
+    const settings = createMemorySettings(rich);
+    const changes: unknown[] = [];
+    settings.onDidChange((change) => changes.push(change));
+    await settings.set('a.tags', ['one']);
+    await settings.set('a.tags', ['two', 'one']);
+    await settings.set('a.tint', '#AA00BB');
+    await settings.set('a.tint', '#00FF00');
+    expect(changes).toEqual([
+      { id: 'a.tags', value: ['two', 'one'] },
+      { id: 'a.tint', value: '#00ff00' },
+    ]);
+  });
+
+  it.each([
+    ['a.note', 'abcdef', /longer than 5/],
+    ['a.note', 3, /string/],
+    ['a.tint', '#abc', /color/],
+    ['a.tint', 'red', /color/],
+    ['a.tags', 'one', /array of strings/],
+    ['a.tags', ['one', 2], /array of strings/],
+    ['a.tags', ['a', 'b', 'c'], /more than 2 items/],
+    ['a.tags', ['abcde'], /longer than 4/],
+  ])('%s ← %j is rejected', async (id, value, message) => {
+    const settings = createMemorySettings(rich);
+    await expect(settings.set(id, value as never)).rejects.toThrow(message);
+  });
+});
 
 describe('createMemorySettings', () => {
   it('get returns the default or the user value; an unknown id throws', () => {

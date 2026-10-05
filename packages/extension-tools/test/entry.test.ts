@@ -44,10 +44,16 @@ describe('shims: output files', () => {
       'main.mjs',
       'markdown.mjs',
       'panel.mjs',
+      'ui/gauge.js',
       'view-three.mjs',
       'view.mjs',
+      'widget.mjs',
     ]);
-    expect(await validateExtension(dir)).toEqual({ ok: true, problems: [] });
+    expect(await validateExtension(dir)).toEqual({
+      ok: true,
+      problems: [],
+      warnings: [],
+    });
   });
 
   it('host code only in main.mjs, the code of each view, panel and renderer only in its own file', async () => {
@@ -59,6 +65,9 @@ describe('shims: output files', () => {
       'VIEW_THREE_MARKER',
       'PANEL_FIRST_MARKER',
       'PANEL_SECOND_MARKER',
+      'WIDGET_CARD_MARKER',
+      'WIDGET_GAUGE_MARKER',
+      'WIDGET_BADGE_MARKER',
       'ALPHA_MARKER',
       'BETA_MARKER',
     ];
@@ -67,6 +76,8 @@ describe('shims: output files', () => {
       'view.mjs': ['VIEW_ONE_MARKER', 'VIEW_TWO_MARKER'],
       'view-three.mjs': ['VIEW_THREE_MARKER'],
       'panel.mjs': ['PANEL_FIRST_MARKER', 'PANEL_SECOND_MARKER'],
+      'widget.mjs': ['WIDGET_CARD_MARKER', 'WIDGET_BADGE_MARKER'],
+      'ui/gauge.js': ['WIDGET_GAUGE_MARKER'],
       'markdown.mjs': ['ALPHA_MARKER', 'BETA_MARKER'],
     };
     for (const [file, own] of Object.entries(expected)) {
@@ -78,6 +89,8 @@ describe('shims: output files', () => {
       'view.mjs',
       'view-three.mjs',
       'panel.mjs',
+      'widget.mjs',
+      'ui/gauge.js',
       'markdown.mjs',
     ]) {
       expect(await read(dir, file), file).not.toContain('child_process');
@@ -106,6 +119,33 @@ describe('shims: output files', () => {
     expect(mountAs('acme.surfaces.first')).toBe('PANEL_FIRST_MARKER');
     expect(mountAs('acme.surfaces.second')).toBe('PANEL_SECOND_MARKER');
     expect(() => mountAs('acme.surfaces.third')).toThrow(/not exported/);
+  });
+
+  it('widgets of one file are dispatched by ctx.widgetId; a widget with its own module gets its own file', async () => {
+    const { dir } = await buildSurfaces();
+    type WidgetModule = {
+      default: { mount(container: unknown, ctx: unknown): void };
+    };
+    const { default: shared } = (await importFile(
+      dir,
+      'widget.mjs',
+    )) as WidgetModule;
+    const { default: own } = (await importFile(
+      dir,
+      'ui/gauge.js',
+    )) as WidgetModule;
+    const signal = new AbortController().signal;
+    const mountAs = (module: WidgetModule['default'], widgetId: string) => {
+      const container = { textContent: '' };
+      module.mount(container, { widgetId, signal });
+      return container.textContent;
+    };
+    expect(mountAs(shared, 'acme.surfaces.card')).toBe('WIDGET_CARD_MARKER');
+    expect(mountAs(shared, 'acme.surfaces.badge')).toBe('WIDGET_BADGE_MARKER');
+    expect(() => mountAs(shared, 'acme.surfaces.gauge')).toThrow(
+      /not exported/,
+    );
+    expect(mountAs(own, 'acme.surfaces.gauge')).toBe('WIDGET_GAUGE_MARKER');
   });
 
   it('renderers of one file are dispatched by block language', async () => {
@@ -166,10 +206,14 @@ describe('shims: output files', () => {
     const root = await copyProject('markdown-only');
     const { files, dir } = await buildExtension({ root });
     expect(files).toEqual(['extension.json', 'markdown.mjs']);
-    expect(await validateExtension(dir)).toEqual({ ok: true, problems: [] });
+    expect(await validateExtension(dir)).toEqual({
+      ok: true,
+      problems: [],
+      warnings: [],
+    });
   });
 
-  it('a view, panel and renderer defined in other files are found through re-exports', async () => {
+  it('a view, panel, widget and renderer defined in other files are found through re-exports', async () => {
     const root = await copyProject('surfaces');
     await writeFile(
       path.join(root, 'src', 'surfaces.ts'),
@@ -180,7 +224,7 @@ describe('shims: output files', () => {
     );
     await edit(path.join(root, 'src', 'index.ts'), (text) => {
       const start = text.indexOf('const textView');
-      return `${text.slice(0, start)}export { views, panels, markdown } from './surfaces.ts';\n`;
+      return `${text.slice(0, start)}export { views, panels, widgets, markdown } from './surfaces.ts';\n`;
     });
     const { dir } = await buildExtension({
       root,
@@ -190,6 +234,7 @@ describe('shims: output files', () => {
     expect(view).toContain('VIEW_ONE_MARKER');
     expect(view).not.toContain('VIEW_THREE_MARKER');
     expect(await read(dir, 'panel.mjs')).not.toContain('ALPHA_MARKER');
+    expect(await read(dir, 'widget.mjs')).toContain('WIDGET_CARD_MARKER');
   });
   it('entry trimming is correct even with non-ASCII text before them', async () => {
     const root = await copyProject('surfaces');
@@ -237,6 +282,19 @@ describe('reconciliation with the manifest', () => {
     expect(message).toContain(
       "src/index.ts: 'panels' has entry 'acme.surfaces.ghost'",
     );
+  });
+
+  it('a declared widget without an entry and an extra widget key name the keys', async () => {
+    const root = await copyProject('surfaces');
+    await edit(path.join(root, 'src', 'index.ts'), (text) =>
+      text.replace(
+        "  'acme.surfaces.badge': defineExtensionWidget",
+        "  'acme.surfaces.ghost': defineExtensionWidget",
+      ),
+    );
+    const message = await failure(root);
+    expect(message).toContain("'widgets' has no entry 'acme.surfaces.badge'");
+    expect(message).toContain("'widgets' has entry 'acme.surfaces.ghost'");
   });
 
   it('no markdown entry for a declared language, and an extra language', async () => {

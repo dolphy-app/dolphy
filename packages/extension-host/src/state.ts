@@ -1,12 +1,23 @@
-import { StorageQuotaError } from '@dolphy-app/extension-api';
+import {
+  NotificationRateLimitError,
+  PermissionError,
+  SecretsUnavailableError,
+  StorageQuotaError,
+} from '@dolphy-app/extension-api';
 import type {
+  DailyStat,
   ExtensionLogger,
+  ExtensionNotifications,
+  ExtensionPermission,
+  ExtensionSecrets,
   ExtensionSettings,
+  ExtensionStats,
   ExtensionStorage,
   JsonValue,
   SettingChange,
   SettingValue,
   StorageQuotaKind,
+  StreakStats,
 } from '@dolphy-app/extension-api';
 import { EngineRequestError } from './engine-link.ts';
 import type { EngineLink } from './engine-link.ts';
@@ -24,6 +35,26 @@ const extensionErrorOf = (error: unknown): unknown => {
   if (!(error instanceof EngineRequestError)) return error;
   const { kind, limit } = error.details ?? {};
   if (
+    error.code === 'INVALID_ARGUMENT' &&
+    error.details?.reason === 'permission' &&
+    (error.details.permission === 'learning.stats' ||
+      error.details.permission === 'notifications')
+  ) {
+    return new PermissionError(error.details.permission, error.message);
+  }
+  if (
+    error.code === 'INVALID_ARGUMENT' &&
+    error.details?.reason === 'rate-limit' &&
+    (error.details.window === 'minute' || error.details.window === 'hour') &&
+    typeof limit === 'number'
+  ) {
+    return new NotificationRateLimitError(
+      error.details.window,
+      limit,
+      error.message,
+    );
+  }
+  if (
     error.code === 'EXTENSION_STORAGE_QUOTA' &&
     QUOTA_KINDS.includes(kind as StorageQuotaKind) &&
     typeof limit === 'number'
@@ -33,6 +64,9 @@ const extensionErrorOf = (error: unknown): unknown => {
       limit,
       error.message,
     );
+  }
+  if (error.code === 'SECRETS_UNAVAILABLE') {
+    return new SecretsUnavailableError(error.message);
   }
   return Object.assign(new Error(error.message), { code: error.code });
 };
@@ -64,6 +98,98 @@ export const createExtensionStorage = (
   };
 };
 
+/**
+ * `ctx.stats`: проверка разрешения здесь — для понятной ошибки без запроса;
+ * решение принимает движок (`ExtensionHostServices.stats`), потому что
+ * ограниченный процесс не доверен.
+ */
+export const createExtensionStats = (
+  link: EngineLink,
+  extensionId: string,
+  permissions: readonly ExtensionPermission[],
+): ExtensionStats => {
+  const request = async (
+    method: 'stats.streak' | 'stats.daily',
+    params: object,
+  ): Promise<unknown> => {
+    if (!permissions.includes('learning.stats')) {
+      throw new PermissionError('learning.stats');
+    }
+    try {
+      return await link.request(method, { extensionId, ...params } as never);
+    } catch (error) {
+      throw extensionErrorOf(error);
+    }
+  };
+  // `courseId: undefined` не попадает в запрос: ключ без значения теряется в IPC, а схема его не принимает
+  const scope = (courseId: string | undefined) =>
+    courseId === undefined ? {} : { courseId };
+  return {
+    streak: async (options) =>
+      (await request('stats.streak', scope(options?.courseId))) as StreakStats,
+    daily: async ({ from, to, courseId }) =>
+      (await request('stats.daily', {
+        from,
+        to,
+        ...scope(courseId),
+      })) as DailyStat[],
+  };
+};
+
+/** `ctx.secrets` расширения: шифрует движок через платформу, значение живёт в процессе расширения только в ответе. */
+export const createExtensionSecrets = (
+  link: EngineLink,
+  extensionId: string,
+): ExtensionSecrets => {
+  const request = async (
+    method: 'secrets.get' | 'secrets.set' | 'secrets.delete',
+    params: { key: string; value?: string },
+  ): Promise<unknown> => {
+    try {
+      return await link.request(method, { extensionId, ...params } as never);
+    } catch (error) {
+      throw extensionErrorOf(error);
+    }
+  };
+  return {
+    get: async (key) => {
+      const value = await request('secrets.get', { key });
+      return typeof value === 'string' ? value : undefined;
+    },
+    set: async (key, value) => {
+      await request('secrets.set', { key, value });
+    },
+    delete: async (key) =>
+      (await request('secrets.delete', { key })) as boolean,
+  };
+};
+
+/**
+ * `ctx.notifications`: проверка разрешения здесь — для понятной ошибки без
+ * запроса; решение, очистку текста, лимиты и переключатель держит движок
+ * (`ExtensionHostServices.notifications`): ограниченный процесс не доверен.
+ */
+export const createExtensionNotifications = (
+  link: EngineLink,
+  extensionId: string,
+  permissions: readonly ExtensionPermission[],
+): ExtensionNotifications => ({
+  show: async (notification) => {
+    if (!permissions.includes('notifications')) {
+      throw new PermissionError('notifications');
+    }
+    try {
+      return (await link.request('notifications.show', {
+        extensionId,
+        title: notification?.title,
+        body: notification?.body,
+      } as never)) as boolean;
+    } catch (error) {
+      throw extensionErrorOf(error);
+    }
+  },
+});
+
 /** Значение подходит определению по типу; границы проверил движок. */
 const fits = (definition: ResolvedSetting, value: unknown): boolean => {
   switch (definition.type) {
@@ -72,7 +198,13 @@ const fits = (definition: ResolvedSetting, value: unknown): boolean => {
     case 'number':
       return typeof value === 'number';
     case 'string':
+    case 'text':
+    case 'color':
       return typeof value === 'string';
+    case 'list':
+      return (
+        Array.isArray(value) && value.every((item) => typeof item === 'string')
+      );
     default:
       return (
         typeof value === 'string' &&
@@ -80,6 +212,12 @@ const fits = (definition: ResolvedSetting, value: unknown): boolean => {
       );
   }
 };
+
+/** Скаляры сравниваются как есть, списки — поэлементно: `onDidChange` не срабатывает на то же значение. */
+const sameValue = (a: SettingValue | undefined, b: SettingValue): boolean =>
+  Array.isArray(a) && Array.isArray(b)
+    ? a.length === b.length && a.every((item, index) => item === b[index])
+    : Object.is(a, b);
 
 export interface SettingsState {
   readonly api: ExtensionSettings;
@@ -127,7 +265,7 @@ export const createSettingsState = (
   const set = (id: string, value: SettingValue): void => {
     const definition = byId.get(id);
     if (definition === undefined || !fits(definition, value)) return;
-    if (Object.is(values.get(id), value)) return;
+    if (sameValue(values.get(id), value)) return;
     values.set(id, value);
     notify({ id, value });
   };
@@ -141,7 +279,8 @@ export const createSettingsState = (
             `setting '${id}' is not declared in the manifest of '${extensionId}'`,
           );
         }
-        return value as T;
+        // список отдаётся копией: правка в коде не меняет состояние
+        return (Array.isArray(value) ? [...value] : value) as T;
       },
       onDidChange(handler) {
         handlers.add(handler);

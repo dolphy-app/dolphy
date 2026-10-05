@@ -2,17 +2,23 @@ import { en as vuetifyEn, ru as vuetifyRu } from 'vuetify/locale';
 import { coursesMessages } from '@/pages/courses';
 import { dailyPlanMessages } from '@/pages/daily-plan';
 import { extensionPanelMessages } from '@/pages/extension-panel';
-import { graphMessages } from '@/pages/graph';
+import { courseGraphMessages } from '@/widgets/course-graph';
 import { placementMessages } from '@/pages/placement';
 import { sessionMessages } from '@/pages/session';
 import { settingsMessages } from '@/pages/settings';
 import { repositoryMessages } from '@/entities/repository';
 import { appCommandsMessages } from '@/features/app-commands';
 import { courseScopeMessages } from '@/features/course-scope';
+import { courseUpdatesMessages } from '@/features/course-updates';
 import { extensionCommandsMessages } from '@/features/extension-commands';
+import { extensionTransfersMessages } from '@/features/extension-transfers';
+import { keybindingsMessages } from '@/features/keybindings';
+import { onboardingTourMessages } from '@/features/onboarding-tour';
+import { repositoryCoursesMessages } from '@/features/repository-courses';
 import { sharedMessages } from '@/shared/i18n';
 import { commandPaletteMessages } from '@/widgets/command-palette';
 import { exercisePanelMessages } from '@/widgets/exercise-panel';
+import { extensionWidgetsMessages } from '@/widgets/extension-widgets';
 import { en as appEn } from './en.ts';
 import { ru as appRu } from './ru.ts';
 
@@ -23,14 +29,20 @@ export const appMessages = {
     ...appRu,
     ...appCommandsMessages.ru,
     ...courseScopeMessages.ru,
+    ...courseUpdatesMessages.ru,
     ...extensionCommandsMessages.ru,
+    ...extensionTransfersMessages.ru,
+    ...keybindingsMessages.ru,
+    ...onboardingTourMessages.ru,
+    ...repositoryCoursesMessages.ru,
     ...repositoryMessages.ru,
     ...coursesMessages.ru,
     ...commandPaletteMessages.ru,
     ...dailyPlanMessages.ru,
     ...extensionPanelMessages.ru,
     ...exercisePanelMessages.ru,
-    ...graphMessages.ru,
+    ...extensionWidgetsMessages.ru,
+    ...courseGraphMessages.ru,
     ...placementMessages.ru,
     ...sessionMessages.ru,
     ...settingsMessages.ru,
@@ -40,14 +52,20 @@ export const appMessages = {
     ...appEn,
     ...appCommandsMessages.en,
     ...courseScopeMessages.en,
+    ...courseUpdatesMessages.en,
     ...extensionCommandsMessages.en,
+    ...extensionTransfersMessages.en,
+    ...keybindingsMessages.en,
+    ...onboardingTourMessages.en,
+    ...repositoryCoursesMessages.en,
     ...repositoryMessages.en,
     ...coursesMessages.en,
     ...commandPaletteMessages.en,
     ...dailyPlanMessages.en,
     ...extensionPanelMessages.en,
     ...exercisePanelMessages.en,
-    ...graphMessages.en,
+    ...extensionWidgetsMessages.en,
+    ...courseGraphMessages.en,
     ...placementMessages.en,
     ...sessionMessages.en,
     ...settingsMessages.en,
@@ -70,6 +88,12 @@ const fullDate: Intl.DateTimeFormatOptions = {
   year: 'numeric',
 };
 
+const shortDate: Intl.DateTimeFormatOptions = {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+};
+
 const shortDateTime: Intl.DateTimeFormatOptions = {
   day: 'numeric',
   month: 'short',
@@ -78,7 +102,12 @@ const shortDateTime: Intl.DateTimeFormatOptions = {
   minute: '2-digit',
 };
 
+const shortTime: Intl.DateTimeFormatOptions = {
+  hour: '2-digit',
+  minute: '2-digit',
+};
+
 export const datetimeFormats = {
-  ru: { fullDate, shortDateTime },
-  en: { fullDate, shortDateTime },
+  ru: { fullDate, shortDate, shortDateTime, shortTime },
+  en: { fullDate, shortDate, shortDateTime, shortTime },
 };

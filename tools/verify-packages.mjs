@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Проверка собранных пакетов (`pnpm build:packages` → `dist-publish/`): упаковка
- * `npm pack`, состав tarball'ов, установка всех четырёх в пустой проект, генерация
+ * `npm pack`, состав tarball'ов, установка всех пакетов в пустой проект, генерация
  * проекта расширения из установленного `create-dolphy-extension` и его сборка,
  * проверка, типы и тесты. Запускается в CI, не в `pnpm test` (нужна сеть: сторонние
  * зависимости ставятся из npmjs).
@@ -20,6 +20,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { gzipSync } from 'node:zlib';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { collectImports } from './lib/imports.mjs';
@@ -27,6 +28,9 @@ import {
   PACKAGES,
   REGISTRY,
   SCOPE,
+  assetFiles,
+  docFiles,
+  publishedFiles,
   binFiles,
   isBareSpecifier,
   packageName,
@@ -124,8 +128,8 @@ const assertManifest = ({ manifest, spec }) => {
     `${name}: repository.directory is wrong`,
   );
   check(
-    JSON.stringify(manifest.files) === '["dist"]',
-    `${name}: files is not ["dist"]`,
+    JSON.stringify(manifest.files) === JSON.stringify(publishedFiles(spec)),
+    `${name}: files is not ${JSON.stringify(publishedFiles(spec))}`,
   );
   const ranges = [
     ...Object.values(manifest.dependencies ?? {}),
@@ -141,12 +145,20 @@ const assertManifest = ({ manifest, spec }) => {
   );
 };
 
-const assertEntries = ({ name, entries }) => {
+const assertEntries = ({ name, spec, entries }) => {
+  const docs = docFiles(spec).map((file) => `docs/${file}`);
+  for (const doc of docs) {
+    check(
+      entries.includes(doc),
+      `${name}: guide file ${doc} is not in the tarball`,
+    );
+  }
   for (const entry of entries) {
     const allowed =
       entry === 'package.json' ||
       entry === 'README.md' ||
-      entry.startsWith('dist/');
+      entry.startsWith('dist/') ||
+      docs.includes(entry);
     check(allowed, `${name}: unexpected file in tarball: ${entry}`);
     check(!entry.startsWith('src/'), `${name}: sources in tarball: ${entry}`);
     check(
@@ -171,9 +183,18 @@ const assertBins = ({ spec, dir }) => {
   }
 };
 
+const assertAssets = ({ spec, dir }) => {
+  for (const file of assetFiles(spec)) {
+    check(
+      existsSync(path.join(dir, 'dist', file)),
+      `${packageName(spec)}: asset dist/${file} is missing`,
+    );
+  }
+};
+
 const assertExports = ({ manifest, dir }) => {
   const targets = Object.values(manifest.exports ?? {}).flatMap((entry) =>
-    Object.values(entry),
+    typeof entry === 'string' ? [entry] : Object.values(entry),
   );
   for (const target of targets) {
     check(
@@ -214,7 +235,7 @@ const inspectTarball = ({ spec, tarball, work }) => {
   });
   const name = packageName(spec);
   const manifest = readJson(path.join(dir, 'package.json'));
-  assertEntries({ name, entries: tarball.entries });
+  assertEntries({ name, spec, entries: tarball.entries });
   check(
     listFiles(dir).length === tarball.entries.length,
     `${name}: tarball content differs from the pack listing`,
@@ -222,6 +243,7 @@ const inspectTarball = ({ spec, tarball, work }) => {
   assertManifest({ manifest, spec });
   assertBins({ spec, dir });
   assertExports({ manifest, dir });
+  assertAssets({ spec, dir });
   assertSelfContained({ manifest, dir });
   return manifest;
 };
@@ -243,18 +265,25 @@ const pointAtTarballs = ({ project, tarballs }) => {
   const api = `${SCOPE}/extension-api`;
   check(
     manifest.devDependencies?.[sdk] !== undefined &&
-      manifest.devDependencies?.[tools] !== undefined,
-    'generated project does not depend on extension-sdk and extension-tools',
+      manifest.devDependencies?.[tools] !== undefined &&
+      manifest.devDependencies?.[api] !== undefined,
+    'generated project does not depend on extension-sdk, extension-tools and extension-api',
   );
   manifest.devDependencies[sdk] = toFileSpec(tarballs[sdk].file);
   manifest.devDependencies[tools] = toFileSpec(tarballs[tools].file);
-  manifest.overrides = { [api]: toFileSpec(tarballs[api].file) };
+  manifest.devDependencies[api] = toFileSpec(tarballs[api].file);
+  // транзитивный `extension-api` из SDK тоже берётся из локального tarball'а
+  manifest.overrides = { [api]: `$${api}` };
   writeFileSync(file, `${JSON.stringify(manifest, null, 2)}\n`);
 };
 
 const assertGeneratedProject = ({ demo, version }) => {
   const manifest = readJson(path.join(demo, 'package.json'));
-  for (const name of [`${SCOPE}/extension-sdk`, `${SCOPE}/extension-tools`]) {
+  for (const name of [
+    `${SCOPE}/extension-api`,
+    `${SCOPE}/extension-sdk`,
+    `${SCOPE}/extension-tools`,
+  ]) {
     check(
       manifest.devDependencies[name] === `^${version}`,
       `demo: ${name} is ${manifest.devDependencies[name]}, expected ^${version}`,
@@ -268,6 +297,16 @@ const assertGeneratedProject = ({ demo, version }) => {
   check(
     !readme.includes('_authToken') && !readme.includes('read:packages'),
     'demo: README still has a token section',
+  );
+};
+
+/** `$schema` манифеста указывает на файл, который лежит в установленном пакете. */
+const assertSchemaResolves = (demo) => {
+  const { $schema } = readJson(path.join(demo, 'extension.json'));
+  check(typeof $schema === 'string', 'demo: extension.json has no $schema');
+  check(
+    existsSync(path.resolve(demo, $schema)),
+    `demo: $schema ${$schema} does not exist after install`,
   );
 };
 
@@ -286,6 +325,56 @@ const assertSplitOutputs = (dir) => {
 };
 
 const formatKb = (bytes) => `${(bytes / 1024).toFixed(1)} KiB`;
+
+const UI_FUNCTIONS = [
+  'button',
+  'card',
+  'emptyState',
+  'list',
+  'select',
+  'textField',
+  'toggle',
+];
+const UI_LIMIT_BYTES = 10 * 1024;
+
+/**
+ * UI-кит: весь установленный `dist` не больше 10 КиБ gzip, а импорт из установленного
+ * пакета (чистый Node, без DOM) даёт ровно семь функций.
+ */
+const assertUiKit = ({ consumer, env }) => {
+  const dist = path.join(
+    consumer,
+    'node_modules',
+    ...`${SCOPE}/extension-ui`.split('/'),
+    'dist',
+  );
+  const bytes = listFiles(dist)
+    .filter((file) => file.endsWith('.js'))
+    .reduce(
+      (total, file) =>
+        total +
+        gzipSync(readFileSync(path.join(dist, file)), { level: 9 }).length,
+      0,
+    );
+  check(
+    bytes <= UI_LIMIT_BYTES,
+    `extension-ui: ${bytes} bytes gzip, the limit is ${UI_LIMIT_BYTES}`,
+  );
+  const output = run(
+    process.execPath,
+    [
+      '--input-type=module',
+      '-e',
+      `import * as ui from '${SCOPE}/extension-ui'; console.log(JSON.stringify(Object.keys(ui).sort()));`,
+    ],
+    { cwd: consumer, env },
+  );
+  check(
+    output.trim() === JSON.stringify(UI_FUNCTIONS),
+    `extension-ui exports ${output.trim()}, expected ${JSON.stringify(UI_FUNCTIONS)}`,
+  );
+  console.log(`  ${SCOPE}/extension-ui: ${formatKb(bytes)} gzip`);
+};
 
 const main = () => {
   const keep = process.argv.includes('--keep');
@@ -332,6 +421,7 @@ const main = () => {
       { cwd: consumer, env },
     );
     run(binOf(consumer, 'dolphy-ext'), ['--help'], { cwd: consumer, env });
+    assertUiKit({ consumer, env });
 
     step('create-dolphy-extension demo');
     run(binOf(consumer, 'create-dolphy-extension'), ['demo'], {
@@ -346,6 +436,7 @@ const main = () => {
     run('npm', ['install'], { cwd: demo, env });
 
     step('dolphy-ext build / validate, tsc, npm test');
+    assertSchemaResolves(demo);
     run('npx', ['--no-install', 'dolphy-ext', 'build'], { cwd: demo, env });
     run('npx', ['--no-install', 'dolphy-ext', 'validate', 'dist-ext/demo'], {
       cwd: demo,

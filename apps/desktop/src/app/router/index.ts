@@ -2,12 +2,12 @@ import { createRouter, createWebHashHistory } from 'vue-router';
 import { CoursesPage } from '@/pages/courses';
 import { DailyPlanPage } from '@/pages/daily-plan';
 import { ExtensionPanelPage } from '@/pages/extension-panel';
-import { GraphPage } from '@/pages/graph';
 import { PlacementPage } from '@/pages/placement';
 import { SessionPage } from '@/pages/session';
 import {
   SettingsAbout,
   SettingsAppearance,
+  SettingsExtensionDetails,
   SettingsExtensions,
   SettingsLearning,
   SettingsLibrary,
@@ -63,18 +63,6 @@ export const router = createRouter({
           },
         },
         {
-          path: 'graph',
-          name: ROUTE.graph,
-          component: GraphPage,
-          meta: {
-            nav: {
-              titleKey: 'nav.graph',
-              icon: 'mdi-graph-outline',
-              order: 3,
-            },
-          },
-        },
-        {
           path: 'ext/:extensionId/:panelId',
           name: ROUTE.extensionPanel,
           component: ExtensionPanelPage,
@@ -117,9 +105,20 @@ export const router = createRouter({
               component: SettingsShortcuts,
             },
             {
+              // вкладка «Расширения» остаётся выбранной на странице расширения
               path: 'extensions',
-              name: ROUTE.settingsExtensions,
-              component: SettingsExtensions,
+              children: [
+                {
+                  path: '',
+                  name: ROUTE.settingsExtensions,
+                  component: SettingsExtensions,
+                },
+                {
+                  path: ':id',
+                  name: ROUTE.settingsExtensionDetails,
+                  component: SettingsExtensionDetails,
+                },
+              ],
             },
             {
               path: 'about',

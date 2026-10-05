@@ -2,6 +2,7 @@ import type { ExtensionInfoDto } from '@dolphy-app/engine-contract';
 import { ExtensionInstallError } from '@dolphy-app/engine/ports';
 import { describe, expect, it } from 'vitest';
 import {
+  FAKE_CATALOG_URL,
   buildAttempt,
   buildLibrary,
   buildProgressReset,
@@ -296,21 +297,28 @@ describe('createFakeExtensionRegistry', () => {
         settings: [],
         events: [],
         commands: [],
+        widgets: [],
+        schedules: [],
         panels: [],
+        importers: [],
+        exporters: [],
       },
-      message: 'broken',
+      diagnostics: [{ code: 'load-failed', data: { reason: 'broken' } }],
       permissions: [],
       isolation: 'isolated',
       toggleable: false,
       name: null,
       description: null,
       author: null,
+      dependencies: [],
       icon: null,
       titles: {},
+      messages: {},
       tags: [],
       installed: null,
       removable: true,
       revoked: null,
+      deprecated: null,
     };
     expect(createFakeExtensionRegistry([{ ...item }]).list()).toEqual([item]);
   });
@@ -324,6 +332,11 @@ describe('createFakeExtensionRegistry', () => {
       settings: [],
       commands: [],
       panels: [],
+      widgets: [],
+      schedules: [],
+      importers: [],
+      exporters: [],
+      messages: {},
     };
     expect(createFakeExtensionRegistry().contributions()).toEqual(empty);
     const given = {
@@ -346,11 +359,33 @@ describe('createFakeExtensionPolicy', () => {
       disabled: ['acme.x', 'dolphy.sql'],
       trusted: ['acme.x'],
       checkUpdates: true,
+      safeMode: false,
+      notificationsOff: [],
+      catalogUrl: null,
+      schedulesOff: [],
     });
     expect(policy.isEnabled('acme.x')).toBe(false);
     expect(policy.isEnabled('dolphy.sql')).toBe(true);
     expect(policy.isIsolated('acme.x')).toBe(false);
     expect(policy.updates).toHaveLength(1);
+  });
+
+  it('schedules are on unless the user switched them off; bundled extensions have no switch', () => {
+    const policy = createFakeExtensionPolicy({ bundled: ['dolphy.sql'] });
+    expect(policy.areSchedulesOn('acme.x')).toBe(true);
+    policy.update({
+      disabled: [],
+      trusted: [],
+      checkUpdates: true,
+      safeMode: false,
+      notificationsOff: [],
+      catalogUrl: null,
+      schedulesOff: ['acme.x', 'dolphy.sql'],
+    });
+    expect(policy.areSchedulesOn('acme.x')).toBe(false);
+    expect(policy.areSchedulesOn('acme.y')).toBe(true);
+    expect(policy.areSchedulesOn('dolphy.sql')).toBe(true);
+    expect(policy.isEnabled('acme.x')).toBe(true);
   });
 
   it('revoked extensions are disabled regardless of settings, except bundled', () => {
@@ -392,13 +427,101 @@ describe('createFakeExtensionInstaller', () => {
     ).rejects.toMatchObject({ cause: 'network' });
     expect(await installer.updates()).toEqual([]);
     expect(await installer.checkForUpdates()).toBe(0);
-    expect(installer.revocationOf('acme.x', '1.0.0')).toBe('bad');
-    expect(installer.revocationOf('acme.y', '1.0.0')).toBeNull();
+    expect(installer.revocationOf('acme.x', '1.0.0', FAKE_CATALOG_URL)).toBe(
+      'bad',
+    );
+    expect(
+      installer.revocationOf('acme.y', '1.0.0', FAKE_CATALOG_URL),
+    ).toBeNull();
     expect(installer.calls).toEqual([
       { method: 'install', args: ['acme.ok'] },
       { method: 'install', args: ['acme.broken', '1.0.0'] },
       { method: 'updates', args: [] },
       { method: 'checkForUpdates', args: [] },
+    ]);
+  });
+});
+
+describe('createFakeExtensionInstaller: docs and deprecation', () => {
+  const deprecation = {
+    versions: null,
+    reason: 'Old',
+    alternatives: [{ id: 'acme.new', name: null }],
+  };
+
+  it('answers deprecationOf from the table (copies) and setDeprecated changes it', () => {
+    const installer = createFakeExtensionInstaller({
+      deprecated: { 'acme.x': deprecation },
+    });
+    const first = installer.deprecationOf('acme.x', '1.0.0', FAKE_CATALOG_URL);
+    expect(first).toEqual(deprecation);
+    first?.alternatives.pop();
+    expect(
+      installer.deprecationOf('acme.x', '1.0.0', FAKE_CATALOG_URL),
+    ).toEqual(deprecation);
+    installer.setDeprecated('acme.x', null);
+    expect(
+      installer.deprecationOf('acme.x', '1.0.0', FAKE_CATALOG_URL),
+    ).toBeNull();
+    installer.setDeprecated('acme.y', deprecation);
+    expect(
+      installer.deprecationOf('acme.y', '9.9.9', FAKE_CATALOG_URL),
+    ).toEqual(deprecation);
+  });
+
+  it('revocation and deprecation apply only to extensions installed from the current catalog, which useCatalog switches', async () => {
+    const installer = createFakeExtensionInstaller({
+      revoked: { 'acme.x': 'bad' },
+      deprecated: { 'acme.x': deprecation },
+    });
+    const other = 'https://other.test/index.json';
+    expect(installer.revocationOf('acme.x', '1.0.0', other)).toBeNull();
+    expect(installer.deprecationOf('acme.x', '1.0.0', other)).toBeNull();
+    await installer.useCatalog(other);
+    expect(installer.catalogSource()).toEqual({
+      url: other,
+      default: FAKE_CATALOG_URL,
+      origin: 'setting',
+    });
+    expect(installer.revocationOf('acme.x', '1.0.0', other)).toBe('bad');
+    expect(
+      installer.revocationOf('acme.x', '1.0.0', FAKE_CATALOG_URL),
+    ).toBeNull();
+    await installer.useCatalog(null);
+    expect(installer.catalogSource().origin).toBe('default');
+  });
+
+  it('records docs, docImage and versionFile; handlers override the defaults', async () => {
+    const installer = createFakeExtensionInstaller({
+      handlers: {
+        docs: (id) => ({
+          version: '3.0.0',
+          readme: id,
+          changelog: null,
+          truncated: false,
+          source: 'cache',
+        }),
+      },
+    });
+    expect(await installer.docs('acme.x')).toMatchObject({
+      version: '3.0.0',
+      readme: 'acme.x',
+      source: 'cache',
+    });
+    expect(await installer.docs('acme.y', '1.0.0')).toMatchObject({
+      readme: 'acme.y',
+    });
+    expect(await installer.docImage('acme.x', '1.0.0', 'a.png')).toMatch(
+      /^data:image\/png/,
+    );
+    expect(
+      (await installer.versionFile('acme.x', '1.0.0', 'README.md')).bytes,
+    ).toHaveLength(0);
+    expect(installer.calls).toEqual([
+      { method: 'docs', args: ['acme.x'] },
+      { method: 'docs', args: ['acme.y', '1.0.0'] },
+      { method: 'docImage', args: ['acme.x', '1.0.0', 'a.png'] },
+      { method: 'versionFile', args: ['acme.x', '1.0.0', 'README.md'] },
     ]);
   });
 });

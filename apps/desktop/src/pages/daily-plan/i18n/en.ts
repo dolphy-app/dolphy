@@ -18,5 +18,6 @@ export const en: typeof ru = {
       more: 'and {n} more',
     },
     remembered: 'Remembered: {n}%',
+    rememberedHint: 'Chance that you can recall this right now',
   },
 };

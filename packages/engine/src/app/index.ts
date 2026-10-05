@@ -1,5 +1,7 @@
 export { ERRORS, EngineError, createErrorMapper } from './errors.ts';
 export { prepareStorageWrite } from './extension-storage.ts';
+export { SECRET_STORE_LIMITS } from '../domain/extension-data.ts';
+export type { StorageLimits } from '../domain/extension-data.ts';
 export type {
   EngineErrorOptions,
   ErrorMapper,
@@ -67,7 +69,18 @@ export type {
 export { createSyncService } from './services/sync.ts';
 export { createLibraryService } from './services/library.ts';
 export { createCurationService } from './services/curation.ts';
+export { COURSE_SNAPSHOT_LIMITS } from './course-snapshot.ts';
 export { createExtensionsService } from './services/extensions.ts';
+export {
+  MAX_IMPORT_DIAGNOSTICS,
+  MAX_PENDING_IMPORTS,
+  PENDING_IMPORT_TTL_MS,
+  createExtensionTransfers,
+} from './services/extension-transfers.ts';
+export type {
+  ExtensionTransfersDeps,
+  ExtensionTransfersService,
+} from './services/extension-transfers.ts';
 export { createExtensionHostServices } from './services/extension-host-services.ts';
 export type { ExtensionHostServices } from './services/extension-host-services.ts';
 export { createExtensionValues } from './extension-values.ts';
@@ -86,6 +99,8 @@ export {
 export { createContext } from './create-context.ts';
 export { createEngine, createEngineFromContext } from './create-engine.ts';
 export type { HostedEngine } from './create-engine.ts';
+export { createUnavailablePlatform } from './unavailable-platform.ts';
+export { createExtensionHealth } from './extension-health.ts';
 export { createExtensionApply } from './extension-apply.ts';
 export type { ExtensionApply } from './extension-apply.ts';
 export { ENGINE_VERSION, collectDiagnostics } from './diagnostics.ts';

@@ -12,7 +12,6 @@ import {
   assetExtensionOf,
   compareSemver,
   iconDataUri,
-  legacySubset,
   parseIndex,
 } from '@dolphy-app/extension-catalog';
 import type {
@@ -31,6 +30,15 @@ export const CATALOG_FIXTURES = fileURLToPath(
 /** Окружение запуска приложения с каталогом на `url`. */
 export const catalogEnv = (url: string): Record<string, string> => ({
   DOLPHY_EXTENSION_CATALOG_URL: url,
+  DOLPHY_APP_VERSION: E2E_APP_VERSION,
+});
+
+/**
+ * Окружение без адреса каталога: адрес задаёт настройка «Каталог → Дополнительно»
+ * (пустое значение перекрывает переменную оболочки).
+ */
+export const settingCatalogEnv = (): Record<string, string> => ({
+  DOLPHY_EXTENSION_CATALOG_URL: '',
   DOLPHY_APP_VERSION: E2E_APP_VERSION,
 });
 
@@ -59,6 +67,8 @@ interface PublishedVersion {
   apiVersion: number;
   minAppVersion: string | null;
   permissions: string[];
+  /** Зависимости манифеста: запись версии индекса `dependencies`. */
+  dependencies: { id: string; range?: string }[];
   files: PublishedFile[];
 }
 
@@ -72,7 +82,18 @@ interface PublishedExtension {
     'exerciseTypes' | 'themes' | 'markdownRenderers' | 'gradePolicies',
     string[]
   > &
-    Partial<Record<'settings' | 'events' | 'commands' | 'panels', string[]>>;
+    Partial<
+      Record<
+        | 'settings'
+        | 'events'
+        | 'commands'
+        | 'panels'
+        | 'widgets'
+        | 'importers'
+        | 'exporters',
+        string[]
+      >
+    >;
   /** Названия вкладов из манифеста (запись индекса `titles`). */
   titles: ContributionTitles;
   versions: PublishedVersion[];
@@ -84,17 +105,24 @@ interface Revocation {
   reason: string;
 }
 
+/** Пометка «устарело» записи индекса (`deprecated.json` каталога). */
+export interface Deprecation {
+  /** Диапазон версий; `null` — все. */
+  versions: string | null;
+  reason: string;
+  alternatives: string[];
+}
+
 export interface CatalogServerOptions {
   /**
-   * `dual` — публикуются `index.v2.json` (полный) и `index.json` (подмножество для выпущенных
-   * приложений), как делает `catalog build`; `legacy` — старый статический сервер: только
-   * `index.json`, на `index.v2.json` ответ 404.
+   * `false` — индекс не опубликован: на `index.v2.json` ответ 404 (как у каталога, который
+   * его не выкладывает); `index.json` сервер не отдаёт никогда.
    */
-  format?: 'dual' | 'legacy';
+  publishIndex?: boolean;
 }
 
 export interface CatalogServer {
-  /** Адрес `index.json` — значение `DOLPHY_EXTENSION_CATALOG_URL`. */
+  /** Адрес каталога (рядом лежит `index.v2.json`) — значение `DOLPHY_EXTENSION_CATALOG_URL`. */
   readonly url: string;
   /** Журнал запросов: `GET <путь> [304]`. */
   readonly requests: readonly string[];
@@ -102,6 +130,10 @@ export interface CatalogServer {
   publish(source: CatalogSource): Promise<void>;
   /** Отзывает версии по диапазону (`<1.2.0`, `1.1.0`). */
   revoke(id: string, versions: string, reason: string): void;
+  /** Помечает расширение устаревшим (`versions: null` — все версии). */
+  deprecate(id: string, deprecation: Deprecation): void;
+  /** Снимает пометку «устарело». */
+  undeprecate(id: string): void;
   /** Сервер отдаёт неверные байты для одного файла версии (sha256 в индексе прежний). */
   tamper(id: string, version: string, path: string): void;
   /** `true` — все запросы получают 503. */
@@ -164,15 +196,19 @@ interface RawManifest {
   tags?: string[];
   minAppVersion?: string;
   permissions?: string[];
+  dependencies?: { id: string; range?: string }[];
   contributes?: {
-    exerciseTypes?: { id: string }[];
+    exerciseTypes?: { id: string; title?: string }[];
     themes?: { id: string; label: string }[];
-    markdownRenderers?: { language: string }[];
+    markdownRenderers?: { language: string; title?: string }[];
     gradePolicies?: { id: string; label: string }[];
     settings?: { id: string; label: string }[];
     events?: { event: string }[];
     commands?: { id: string; title: string }[];
     panels?: { id: string; title: string }[];
+    widgets?: { id: string; title: string }[];
+    importers?: { id: string; title: string }[];
+    exporters?: { id: string; title: string }[];
   };
 }
 
@@ -183,6 +219,9 @@ const contributesOf = (
   const events = (manifest.contributes?.events ?? []).map(({ event }) => event);
   const commands = (manifest.contributes?.commands ?? []).map(({ id }) => id);
   const panels = (manifest.contributes?.panels ?? []).map(({ id }) => id);
+  const widgets = (manifest.contributes?.widgets ?? []).map(({ id }) => id);
+  const importers = (manifest.contributes?.importers ?? []).map(({ id }) => id);
+  const exporters = (manifest.contributes?.exporters ?? []).map(({ id }) => id);
   return {
     exerciseTypes: (manifest.contributes?.exerciseTypes ?? []).map(
       ({ id }) => id,
@@ -198,6 +237,9 @@ const contributesOf = (
     ...(events.length > 0 ? { events } : {}),
     ...(commands.length > 0 ? { commands } : {}),
     ...(panels.length > 0 ? { panels } : {}),
+    ...(widgets.length > 0 ? { widgets } : {}),
+    ...(importers.length > 0 ? { importers } : {}),
+    ...(exporters.length > 0 ? { exporters } : {}),
   };
 };
 
@@ -205,6 +247,13 @@ const contributesOf = (
 const titlesOf = (manifest: RawManifest): ContributionTitles => {
   const contributes = manifest.contributes ?? {};
   const byPoint: Record<TitledPoint, { id: string; title: string }[]> = {
+    exerciseTypes: (contributes.exerciseTypes ?? []).flatMap(({ id, title }) =>
+      title === undefined ? [] : [{ id, title }],
+    ),
+    markdownRenderers: (contributes.markdownRenderers ?? []).flatMap(
+      ({ language, title }) =>
+        title === undefined ? [] : [{ id: language, title }],
+    ),
     themes: (contributes.themes ?? []).map(({ id, label }) => ({
       id,
       title: label,
@@ -221,7 +270,19 @@ const titlesOf = (manifest: RawManifest): ContributionTitles => {
       id,
       title,
     })),
+    widgets: (contributes.widgets ?? []).map(({ id, title }) => ({
+      id,
+      title,
+    })),
     panels: (contributes.panels ?? []).map(({ id, title }) => ({ id, title })),
+    importers: (contributes.importers ?? []).map(({ id, title }) => ({
+      id,
+      title,
+    })),
+    exporters: (contributes.exporters ?? []).map(({ id, title }) => ({
+      id,
+      title,
+    })),
   };
   return Object.fromEntries(
     TITLED_POINTS.filter((point) => byPoint[point].length > 0).map((point) => [
@@ -243,9 +304,10 @@ export const startCatalogServer = async (
   sources: readonly CatalogSource[] = [],
   options: CatalogServerOptions = {},
 ): Promise<CatalogServer> => {
-  const format = options.format ?? 'dual';
+  const publishIndex = options.publishIndex ?? true;
   const extensions = new Map<string, PublishedExtension>();
   const revoked: Revocation[] = [];
+  const deprecations = new Map<string, Deprecation>();
   const tampered = new Set<string>();
   const requests: string[] = [];
   let offline = false;
@@ -268,6 +330,7 @@ export const startCatalogServer = async (
       apiVersion: manifest.apiVersion,
       minAppVersion: manifest.minAppVersion ?? null,
       permissions: manifest.permissions ?? [],
+      dependencies: manifest.dependencies ?? [],
       files: await readFiles(source.dir),
     };
     const known = extensions.get(manifest.id);
@@ -287,8 +350,8 @@ export const startCatalogServer = async (
     });
   };
 
-  /** Оба файла сразу и с одним `generatedAt`, как пишет их `catalog build`. */
-  const buildIndexes = (): { full: string; legacy: string } => {
+  /** Тело `index.v2.json`; `generatedAt` только растёт. */
+  const buildIndex = (): string => {
     // индекс не должен «откатываться»: generatedAt только растёт
     generatedAt = Math.max(generatedAt + MIN_NOW_STEP_MS, Date.now());
     const index = {
@@ -305,6 +368,9 @@ export const startCatalogServer = async (
         ...(Object.keys(entry.titles).length === 0
           ? {}
           : { titles: entry.titles }),
+        ...(deprecations.has(entry.id)
+          ? { deprecated: deprecations.get(entry.id) }
+          : {}),
         versions: entry.versions.map((version) => ({
           version: version.version,
           apiVersion: version.apiVersion,
@@ -319,21 +385,23 @@ export const startCatalogServer = async (
           })),
           ...(version.icon === null ? {} : { icon: version.icon }),
           ...(version.tags.length === 0 ? {} : { tags: version.tags }),
+          ...(version.dependencies.length === 0
+            ? {}
+            : { dependencies: version.dependencies }),
         })),
       })),
       revoked: [...revoked],
     };
-    const legacy = legacySubset(parseIndex(index));
-    parseIndex(legacy);
-    return { full: JSON.stringify(index), legacy: JSON.stringify(legacy) };
+    parseIndex(index);
+    return JSON.stringify(index);
   };
 
   // тела меняются только при изменении каталога: иначе ETag был бы всегда новым
-  let cached: { full: string; legacy: string } | null = null;
+  let cached: string | null = null;
   const invalidate = () => {
     cached = null;
   };
-  const bodies = () => (cached ??= buildIndexes());
+  const body = () => (cached ??= buildIndex());
 
   const send = (
     response: ServerResponse,
@@ -364,22 +432,21 @@ export const startCatalogServer = async (
       send(response, 503, 'catalog is offline');
       return;
     }
-    const isFull = path === '/index.v2.json';
-    if (isFull && format === 'legacy') {
+    if (path === '/index.v2.json' && !publishIndex) {
       requests.push(`GET ${path} 404`);
       send(response, 404, 'not found');
       return;
     }
-    if (isFull || path === '/index.json') {
-      const body = isFull ? bodies().full : bodies().legacy;
-      const etag = etagOf(body);
+    if (path === '/index.v2.json') {
+      const text = body();
+      const etag = etagOf(text);
       if (request.headers['if-none-match'] === etag) {
         requests.push(`GET ${path} 304`);
         send(response, 304, '', { ETag: etag });
         return;
       }
       requests.push(`GET ${path}`);
-      send(response, 200, body, {
+      send(response, 200, text, {
         'Content-Type': 'application/json',
         ETag: etag,
       });
@@ -408,6 +475,14 @@ export const startCatalogServer = async (
     },
     revoke: (id, versions, reason) => {
       revoked.push({ id, versions, reason });
+      invalidate();
+    },
+    deprecate: (id, deprecation) => {
+      deprecations.set(id, deprecation);
+      invalidate();
+    },
+    undeprecate: (id) => {
+      deprecations.delete(id);
       invalidate();
     },
     tamper: (id, version, path) => {

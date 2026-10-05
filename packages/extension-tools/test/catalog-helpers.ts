@@ -3,7 +3,7 @@ import path from 'node:path';
 import { copyProject, linkSdk, makeTemp } from './helpers.ts';
 
 export type Fixture =
-  'theme-only' | 'markdown-only' | 'hello' | 'commands-panel';
+  'theme-only' | 'markdown-only' | 'hello' | 'commands-panel' | 'surfaces';
 
 export interface ExtensionSpec {
   fixture: Fixture;
@@ -115,7 +115,7 @@ export const publishedIndex = (
   id: string,
   versions: readonly string[],
 ): unknown => ({
-  schemaVersion: 1,
+  schemaVersion: 2,
   generatedAt: '2026-10-01T00:00:00.000Z',
   extensions: [
     {

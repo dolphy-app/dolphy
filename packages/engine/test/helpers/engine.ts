@@ -13,6 +13,8 @@ import {
   createFakeClock,
   createFakeExerciseTypes,
   createFakeExtensionCommands,
+  createFakeExtensionTransfers,
+  createFakeExtensionHostControl,
   createFakeExtensionInstaller,
   createFakeExtensionPolicy,
   createFakeExtensionRegistry,
@@ -29,7 +31,11 @@ import type {
   SeededRng,
   TestIds,
 } from '@dolphy-app/testkit';
-import { createContext, createEngineFromContext } from '../../src/app/index.ts';
+import {
+  createContext,
+  createEngineFromContext,
+  createExtensionHealth,
+} from '../../src/app/index.ts';
 import type { HostedEngine } from '../../src/app/index.ts';
 import type { EngineContext, EngineDeps } from '../../src/app/index.ts';
 import {
@@ -46,6 +52,7 @@ import type {
   EventStore,
   ExtensionDataStore,
   GitSnapshotFetcher,
+  PlatformServices,
   RepositoryStore,
   SettingsStore,
   SnapshotInstaller,
@@ -53,9 +60,15 @@ import type {
 import type { ExerciseTypes } from '../../src/ports/exercise-types.ts';
 import type { GradePolicies } from '../../src/ports/grade-policies.ts';
 import type { ExtensionCommands } from '../../src/ports/extension-commands.ts';
+import type { ExtensionTransfers } from '../../src/ports/extension-transfers.ts';
+import type {
+  ExtensionHealth,
+  ExtensionHostControl,
+} from '../../src/ports/extension-health.ts';
 import type { ExtensionInstaller } from '../../src/ports/extension-installer.ts';
 import type { ExtensionPolicy } from '../../src/ports/extension-policy.ts';
 import type { ExtensionReloader } from '../../src/ports/extension-reloader.ts';
+import type { LogReader } from '../../src/ports/log-reader.ts';
 import type { ExtensionRegistry } from '../../src/ports/extension-registry.ts';
 import { createTsFsrsMemoryModel } from '../../src/scoring/memory-model.ts';
 import { LIBRARIES_DIR } from './fixtures.ts';
@@ -80,18 +93,26 @@ export interface TestEngineOptions {
   exerciseTypes?: ExerciseTypes;
   gradePolicies?: GradePolicies;
   extensionCommands?: ExtensionCommands;
+  extensionTransfers?: ExtensionTransfers;
   extensionRegistry?: ExtensionRegistry;
   extensionPolicy?: ExtensionPolicy;
+  /** По умолчанию — `createExtensionHealth(clock)`. */
+  extensionHealth?: ExtensionHealth;
+  extensionHostControl?: ExtensionHostControl;
   extensionInstaller?: ExtensionInstaller;
   extensionReloader?: ExtensionReloader;
+  logReader?: LogReader;
   clock?: FakeClock;
   seed?: number;
   config?: Partial<EngineConfig>;
+  osPlatform?: EngineDeps['osPlatform'];
   folderSync?: EngineDeps['folderSync'];
   openTraneSource?: EngineDeps['openTraneSource'];
   repositoryStore?: RepositoryStore;
   /** По умолчанию — `createMemoryExtensionDataStore()`. */
   extensionDataStore?: ExtensionDataStore;
+  /** По умолчанию — платформа без хранилища ключей (`createUnavailablePlatform()`). */
+  platform?: PlatformServices;
   /** По умолчанию — без сети (`GIT_FETCH_FAILED/network`). */
   snapshotFetcher?: GitSnapshotFetcher;
   /** По умолчанию — `createNodeSnapshotInstaller` над `libraryRoot` и `dataDir`. */
@@ -181,15 +202,23 @@ export const createTestContext = async (
     gradePolicies: options.gradePolicies ?? createFakeGradePolicies(),
     extensionCommands:
       options.extensionCommands ?? createFakeExtensionCommands(),
+    extensionTransfers:
+      options.extensionTransfers ?? createFakeExtensionTransfers(),
     extensionRegistry:
       options.extensionRegistry ?? createFakeExtensionRegistry(),
     extensionPolicy: options.extensionPolicy ?? createFakeExtensionPolicy(),
+    extensionHealth: options.extensionHealth ?? createExtensionHealth(clock),
+    extensionHostControl:
+      options.extensionHostControl ?? createFakeExtensionHostControl(),
     extensionInstaller:
       options.extensionInstaller ?? createFakeExtensionInstaller(),
     extensionReloader:
       options.extensionReloader ?? createFakeExtensionReloader(),
     repositoryStore,
     extensionDataStore,
+    ...(options.osPlatform !== undefined && {
+      osPlatform: options.osPlatform,
+    }),
     snapshotFetcher: options.snapshotFetcher ?? offlineFetcher,
     snapshotInstaller:
       options.snapshotInstaller ??
@@ -198,6 +227,8 @@ export const createTestContext = async (
         dataDir: config.dataDir,
       }),
     ...(options.folderSync !== undefined && { folderSync: options.folderSync }),
+    ...(options.logReader !== undefined && { logReader: options.logReader }),
+    ...(options.platform !== undefined && { platform: options.platform }),
     ...(options.openTraneSource !== undefined && {
       openTraneSource: options.openTraneSource,
     }),

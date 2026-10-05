@@ -1,3 +1,4 @@
+import { formatDiagnostic } from '../src/diagnostics.ts';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createDiscoveryHolder } from '../src/holder.ts';
 import { tmpdir } from 'node:os';
@@ -31,7 +32,7 @@ const withContributes = (contributes: Record<string, unknown>) => ({
 });
 
 describe('реестр точек вклада', () => {
-  it('содержит все восемь точек с уникальными ключами', () => {
+  it('содержит все двенадцать точек с уникальными ключами', () => {
     expect(CONTRIBUTION_POINTS.map(({ key }) => key)).toEqual([
       'exerciseTypes',
       'themes',
@@ -41,12 +42,16 @@ describe('реестр точек вклада', () => {
       'events',
       'commands',
       'panels',
+      'widgets',
+      'schedules',
+      'importers',
+      'exporters',
     ]);
   });
 
   it('неизвестный ключ contributes отклоняется', () => {
     const result = parseManifest(
-      withContributes({ themes: [theme()], widgets: [] }),
+      withContributes({ themes: [theme()], gadgets: [] }),
     );
     expect(result.ok).toBe(false);
   });
@@ -57,7 +62,12 @@ describe('реестр точек вклада', () => {
   ])('%s: нужен хотя бы один вклад', (_name, contributes) => {
     expect(parseManifest(withContributes(contributes))).toEqual({
       ok: false,
-      message: 'contributes: at least one contribution is required',
+      diagnostic: {
+        code: 'manifest-invalid',
+        data: {
+          issues: ['contributes: at least one contribution is required'],
+        },
+      },
     });
   });
 });
@@ -93,7 +103,7 @@ describe('main зависит от точек', () => {
 
   it('нормализованный манифест содержит массивы всех восьми точек', () => {
     const result = parseManifest(withContributes({ themes: [theme()] }));
-    if (!result.ok) throw new Error(result.message);
+    if (!result.ok) throw new Error(formatDiagnostic(result.diagnostic));
     expect(result.manifest.contributes).toMatchObject({
       exerciseTypes: [],
       markdownRenderers: [],
@@ -102,6 +112,8 @@ describe('main зависит от точек', () => {
       events: [],
       commands: [],
       panels: [],
+      importers: [],
+      exporters: [],
     });
   });
 });
@@ -199,7 +211,7 @@ describe('обнаружение вкладов без кода', () => {
     const result = await inspectExtensionDir(
       path.join(fixturesDir, 'acme.themes'),
     );
-    if (!result.ok) throw new Error(result.message);
+    if (!result.ok) throw new Error(formatDiagnostic(result.diagnostic));
     expect(result.extension.mainPath).toBeNull();
     expect(result.extension.themes).toEqual([
       {
@@ -216,11 +228,12 @@ describe('обнаружение вкладов без кода', () => {
     const result = await inspectExtensionDir(
       path.join(fixturesDir, 'acme.markdown'),
     );
-    if (!result.ok) throw new Error(result.message);
+    if (!result.ok) throw new Error(formatDiagnostic(result.diagnostic));
     expect(result.extension.mainPath).toBeNull();
     expect(result.extension.markdownRenderers).toEqual([
       {
         language: 'chart',
+        title: null,
         rendererUrl: 'dolphy-ext://acme.markdown/markdown.mjs',
       },
     ]);
@@ -230,7 +243,7 @@ describe('обнаружение вкладов без кода', () => {
     const result = await inspectExtensionDir(
       path.join(fixturesDir, 'acme.mixed'),
     );
-    if (!result.ok) throw new Error(result.message);
+    if (!result.ok) throw new Error(formatDiagnostic(result.diagnostic));
     const { extension } = result;
     expect(extension.mainPath).toBe(
       path.join(fixturesDir, 'acme.mixed', 'main.mjs'),
@@ -259,7 +272,7 @@ describe('обнаружение вкладов без кода', () => {
         logger: createLogger(),
       });
       expect(strict.extensions).toEqual([]);
-      expect(strict.diagnostics[0]?.message).toContain(
+      expect(formatDiagnostic(strict.diagnostics[0]!.diagnostic)).toContain(
         "markdown renderer './markdown.mjs' (default) is not a file",
       );
       const lax = await discoverExtensions({
@@ -325,9 +338,12 @@ describe('конфликты вкладов между расширениями'
         logger: createLogger(),
       });
       expect(result.extensions.map(({ id }) => id)).toEqual(['a']);
-      expect(result.diagnostics).toMatchObject([
-        { extensionId: 'a.x', message },
-      ]);
+      expect(
+        result.diagnostics.map(({ extensionId, diagnostic }) => [
+          extensionId,
+          formatDiagnostic(diagnostic),
+        ]),
+      ).toEqual([['a.x', message]]);
     },
   );
 });
@@ -381,6 +397,10 @@ describe('createExtensionRegistry: contributions', () => {
       events: [],
       commands: [],
       panels: [],
+      widgets: [],
+      schedules: [],
+      importers: [],
+      exporters: [],
     });
   });
 
@@ -388,7 +408,7 @@ describe('createExtensionRegistry: contributions', () => {
     const themes = await inspectExtensionDir(
       path.join(fixturesDir, 'acme.themes'),
     );
-    if (!themes.ok) throw new Error(themes.message);
+    if (!themes.ok) throw new Error(formatDiagnostic(themes.diagnostic));
     const discovery = createDiscoveryHolder({
       extensions: [
         {

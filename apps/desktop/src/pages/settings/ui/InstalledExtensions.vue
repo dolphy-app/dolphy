@@ -1,27 +1,49 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { isEffectiveExtensionState } from '@dolphy-app/engine-contract';
+import {
+  dependencyMessageParams,
+  rowsOfInstalled,
+} from '../lib/dependencies.ts';
 import { useI18n } from 'vue-i18n';
 import type {
+  ExtensionDiagnosticDto,
   ExtensionInfoDto,
   ExtensionStateDto,
 } from '@dolphy-app/engine-contract';
 import { useEngine } from '@/shared/api/engine';
-import { displayName } from '../lib/catalog.ts';
+import { useContributions } from '@/shared/api/engine/contributions.ts';
+import { ROUTE } from '@/shared/config/routes.ts';
+import { useExtensionText } from '@/shared/lib/extension-text.ts';
 import { effectiveTags } from '../lib/tags.ts';
 import {
+  areNotificationsOn,
+  areSchedulesOn,
+  hasNotifications,
+  hasSchedules,
   hasSwitches,
   isEnabled,
   isTrusted,
+  scheduleSummaryOf,
   useExtensions,
 } from '../model/extensions.ts';
+import { useDiagnosticsCopy } from '../model/diagnostics-copy.ts';
 import { useExtensionData } from '../model/extension-data.ts';
 import { useInstallContext } from '../model/install.ts';
+import { isFromAnotherCatalog } from '../lib/catalog-source.ts';
+import { useCatalogSource } from '../model/catalog-source.ts';
+import DeprecatedChip from './DeprecatedChip.vue';
 import ExtensionContributions from './ExtensionContributions.vue';
+import ExtensionDeprecation from './ExtensionDeprecation.vue';
 import ExtensionTags from './ExtensionTags.vue';
 import ExtensionData from './ExtensionData.vue';
+import ExtensionHealth from './ExtensionHealth.vue';
 import ExtensionHeading from './ExtensionHeading.vue';
+import ExtensionDependencies from './ExtensionDependencies.vue';
 import ExtensionPermissions from './ExtensionPermissions.vue';
+import ExtensionRemoveDialog from './ExtensionRemoveDialog.vue';
 import ExtensionSettingsDialog from './ExtensionSettingsDialog.vue';
+import ExtensionLogDialog from './ExtensionLogDialog.vue';
 
 interface StateView {
   icon: string;
@@ -33,11 +55,13 @@ const STATE_VIEW: Record<ExtensionStateDto, StateView> = {
   overridden: { icon: 'mdi-layers-outline', color: 'secondary' },
   invalid: { icon: 'mdi-alert-circle-outline', color: 'error' },
   disabled: { icon: 'mdi-pause-circle-outline', color: 'warning' },
+  'dependencies-unmet': { icon: 'mdi-link-variant-off', color: 'warning' },
 };
 
 const props = defineProps<{ active: boolean }>();
 
 const { t } = useI18n();
+const extensionText = useExtensionText();
 const install = useInstallContext();
 const {
   items,
@@ -49,18 +73,81 @@ const {
   load,
   switching,
   switchError,
+  diagnostics,
+  restartingHost,
   setEnabled,
   setTrusted,
+  setNotifications,
+  setSchedules,
   setCheckUpdates,
+  setSafeMode,
+  restartHost,
   updateTargets,
 } = useExtensions(useEngine());
+const catalogSource = useCatalogSource(useEngine());
+
+const { source } = catalogSource;
+onMounted(() => void catalogSource.load());
+
+const contributions = useContributions();
+/** Расписания включённых расширений по id расширения, в порядке манифеста. */
+const schedulesByExtension = computed(() => {
+  const map = new Map<string, string[]>();
+  for (const schedule of contributions.value.schedules) {
+    const { key, at } = scheduleSummaryOf(schedule);
+    const texts = map.get(schedule.extensionId) ?? [];
+    texts.push(t(`settings.extensions.schedule.${key}`, { at }));
+    map.set(schedule.extensionId, texts);
+  }
+  return map;
+});
 
 const removeTarget = ref<ExtensionInfoDto | null>(null);
-const removeData = ref(false);
 const settingsTarget = ref<ExtensionInfoDto | null>(null);
+/** Диалог журнала: `''` — все записи, иначе предустановленный фильтр по id. */
+const logTarget = ref<string | null>(null);
+const diagnosticsCopy = useDiagnosticsCopy(useEngine(), {
+  appInfo: () => window.dolphy.platform.appInfo(),
+  // системный буфер пишет main: navigator.clipboard не работает без фокуса окна
+  writeText: (text) => window.dolphy.platform.copyText(text),
+});
 const data = useExtensionData(useEngine(), items);
 
 /** Настройки есть у загруженного (включённого) расширения, объявившего `settings`. */
+const issuesOf = (diagnostic: ExtensionDiagnosticDto): string[] => {
+  const { issues } = diagnostic.data;
+  return Array.isArray(issues) ? issues : [];
+};
+
+const diagnosticParams = (diagnostic: ExtensionDiagnosticDto) => {
+  if (diagnostic.code === 'overridden-by') {
+    return {
+      ...diagnostic.data,
+      origin: t(`settings.extensions.origin.${diagnostic.data.origin}`),
+    };
+  }
+  return diagnostic.code.startsWith('dependency-')
+    ? dependencyMessageParams(diagnostic)
+    : diagnostic.data;
+};
+
+const diagnosticText = (diagnostic: ExtensionDiagnosticDto): string =>
+  t(
+    `settings.extensions.diagnostic.${diagnostic.code}`,
+    diagnosticParams(diagnostic),
+  );
+
+// предупреждений о переводах может быть несколько с одним кодом: ключ отличает данные
+const diagnosticKey = (diagnostic: ExtensionDiagnosticDto): string =>
+  `${diagnostic.code}:${diagnostic.data.key ?? diagnostic.data.file ?? diagnostic.data.id ?? ''}`;
+
+/** Предупреждения о переводах: расширение работает, поэтому они выделены иначе, чем причины сбоя. */
+const isWarning = (diagnostic: ExtensionDiagnosticDto): boolean =>
+  diagnostic.code.startsWith('locale.');
+
+const healthOf = (id: string) =>
+  diagnostics.value?.extensions.find((health) => health.id === id);
+
 const hasSettings = (extension: ExtensionInfoDto) =>
   extension.state === 'loaded' && extension.contributes.settings.length > 0;
 
@@ -68,10 +155,12 @@ const updateOf = (id: string) =>
   updates.value.find((update) => update.id === id);
 
 const isMuted = (extension: ExtensionInfoDto) =>
-  extension.state === 'overridden' || extension.state === 'disabled';
+  extension.state === 'overridden' ||
+  extension.state === 'disabled' ||
+  extension.state === 'dependencies-unmet';
 
 const isActive = (extension: ExtensionInfoDto) =>
-  extension.state === 'loaded' || extension.state === 'disabled';
+  isEffectiveExtensionState(extension.state);
 
 const reviewUpdates = async (ids?: readonly string[]) => {
   install.review(await updateTargets(ids));
@@ -99,23 +188,22 @@ const closeSettings = () => {
   restoreFocus();
 };
 
+const openLog = (extensionId: string, event: Event) => {
+  rememberOpener(event);
+  logTarget.value = extensionId;
+};
+
+const closeLog = () => {
+  logTarget.value = null;
+  restoreFocus();
+};
+
 const askRemove = (extension: ExtensionInfoDto, event: Event) => {
   rememberOpener(event);
-  install.removeError.value = null;
-  removeData.value = false;
   removeTarget.value = extension;
 };
 
-const confirmRemove = async () => {
-  const target = removeTarget.value;
-  if (target === null) return;
-  if (await install.remove(target.id, removeData.value)) {
-    removeTarget.value = null;
-  }
-};
-
 const closeRemove = () => {
-  if (install.removing.value !== null) return;
   removeTarget.value = null;
   restoreFocus();
 };
@@ -168,6 +256,31 @@ watch(
     </v-alert>
 
     <template v-if="state === 'loaded'">
+      <v-alert
+        v-if="diagnostics?.host === 'gave-up'"
+        type="error"
+        variant="tonal"
+        class="mb-6"
+        :title="t('settings.extensions.host.gaveUpTitle')"
+        data-testid="host-gave-up"
+      >
+        <div class="d-flex align-center ga-3">
+          <span class="flex-grow-1">{{
+            t('settings.extensions.host.gaveUpText')
+          }}</span>
+          <v-btn
+            variant="flat"
+            color="error"
+            prepend-icon="mdi-restart"
+            :loading="restartingHost"
+            data-testid="host-restart"
+            @click="restartHost"
+          >
+            {{ t('settings.extensions.host.restart') }}
+          </v-btn>
+        </div>
+      </v-alert>
+
       <v-alert
         v-if="updates.length > 0"
         type="info"
@@ -224,6 +337,84 @@ watch(
         </v-btn>
       </div>
 
+      <div class="mb-4" data-testid="safe-mode-section">
+        <v-switch
+          :model-value="settings.safeMode"
+          :label="t('settings.extensions.safeMode.label')"
+          :hint="t('settings.extensions.safeMode.hint')"
+          :disabled="switching.has('safeMode')"
+          color="warning"
+          density="compact"
+          persistent-hint
+          inset
+          data-testid="safe-mode"
+          @update:model-value="setSafeMode($event === true)"
+        />
+        <p
+          v-if="diagnostics?.safeMode.forcedBy"
+          class="text-body-small text-medium-emphasis mt-1"
+          data-testid="safe-mode-forced"
+        >
+          {{ t('settings.extensions.safeMode.forced') }}
+        </p>
+      </div>
+
+      <div class="mb-4" data-testid="diagnostics-section">
+        <h3 class="text-title-small">
+          {{ t('settings.extensions.support.title') }}
+        </h3>
+        <p class="text-body-small text-medium-emphasis mt-1">
+          {{ t('settings.extensions.support.hint') }}
+        </p>
+        <div class="d-flex flex-wrap align-center ga-2 mt-2">
+          <v-btn
+            variant="tonal"
+            color="primary"
+            prepend-icon="mdi-text-box-search-outline"
+            data-testid="extensions-log-open"
+            @click="openLog('', $event)"
+          >
+            {{ t('settings.extensions.support.openLog') }}
+          </v-btn>
+          <v-btn
+            variant="tonal"
+            :color="
+              diagnosticsCopy.state.value === 'failed' ? 'error' : 'primary'
+            "
+            :prepend-icon="
+              diagnosticsCopy.state.value === 'copied'
+                ? 'mdi-check'
+                : 'mdi-content-copy'
+            "
+            :loading="diagnosticsCopy.state.value === 'copying'"
+            data-testid="extensions-copy-diagnostics"
+            @click="diagnosticsCopy.copy"
+          >
+            {{
+              diagnosticsCopy.state.value === 'copied'
+                ? t('settings.extensions.support.copied')
+                : t('settings.extensions.support.copy')
+            }}
+          </v-btn>
+        </div>
+        <v-alert
+          v-if="diagnosticsCopy.state.value === 'failed'"
+          type="error"
+          variant="tonal"
+          density="compact"
+          class="mt-2"
+          data-testid="extensions-copy-failed"
+        >
+          {{ t('settings.extensions.support.copyFailed') }}:
+          {{ diagnosticsCopy.error.value }}
+        </v-alert>
+        <span class="visually-hidden" role="status">{{
+          diagnosticsCopy.state.value === 'copied'
+            ? t('settings.extensions.support.copied')
+            : ''
+        }}</span>
+      </div>
+
       <p
         v-if="items.length === 0"
         class="text-body-medium text-medium-emphasis"
@@ -242,7 +433,16 @@ watch(
             <div class="d-flex flex-wrap align-center ga-2">
               <ExtensionHeading :icon="extension.icon">
                 <h3 class="name text-title-medium font-weight-bold">
-                  {{ displayName(extension) }}
+                  <router-link
+                    class="details-link"
+                    :to="{
+                      name: ROUTE.settingsExtensionDetails,
+                      params: { id: extension.id },
+                    }"
+                    :data-testid="`details-${extension.id}`"
+                  >
+                    {{ extensionText.nameOf(extension) }}
+                  </router-link>
                 </h3>
               </ExtensionHeading>
               <span
@@ -262,7 +462,25 @@ watch(
                 {{ t(`settings.extensions.origin.${extension.origin}`) }}
               </v-chip>
               <v-chip
-                v-if="extension.installed !== null"
+                v-if="
+                  extension.installed !== null &&
+                  isFromAnotherCatalog(extension.installed, source?.url ?? null)
+                "
+                size="small"
+                label
+                variant="outlined"
+                prepend-icon="mdi-storefront-outline"
+                :aria-describedby="`other-catalog-${extension.id}`"
+                data-testid="from-other-catalog"
+              >
+                {{
+                  t('settings.extensions.installed.fromOtherCatalog', {
+                    version: extension.installed.version,
+                  })
+                }}
+              </v-chip>
+              <v-chip
+                v-else-if="extension.installed !== null"
                 size="small"
                 label
                 color="primary"
@@ -276,6 +494,7 @@ watch(
                   })
                 }}
               </v-chip>
+              <DeprecatedChip v-if="extension.deprecated !== null" />
               <v-chip
                 v-if="extension.origin === 'bundled'"
                 size="small"
@@ -317,6 +536,16 @@ watch(
             </div>
 
             <p
+              v-if="
+                isFromAnotherCatalog(extension.installed, source?.url ?? null)
+              "
+              :id="`other-catalog-${extension.id}`"
+              class="text-body-small text-medium-emphasis mt-1"
+              data-testid="other-catalog-hint"
+            >
+              {{ t('settings.extensions.installed.otherCatalogHint') }}
+            </p>
+            <p
               v-if="extension.author !== null"
               class="text-body-small text-medium-emphasis mt-1"
             >
@@ -329,10 +558,20 @@ watch(
               v-if="extension.description !== null"
               class="text-body-medium mt-2"
             >
-              {{ extension.description }}
+              {{
+                extensionText.withTables(
+                  extension.description,
+                  extension.messages,
+                )
+              }}
             </p>
             <ExtensionTags
               :tags="effectiveTags(extension.tags, extension.contributes)"
+            />
+
+            <ExtensionDeprecation
+              v-if="extension.deprecated !== null"
+              :deprecation="extension.deprecated"
             />
 
             <v-alert
@@ -356,24 +595,55 @@ watch(
               </p>
             </v-alert>
 
-            <p
-              v-if="
-                extension.message !== null &&
-                extension.message !== extension.revoked
-              "
-              class="message text-body-medium mt-2"
+            <template
+              v-for="diagnostic in extension.diagnostics"
+              :key="diagnosticKey(diagnostic)"
             >
-              {{ extension.message }}
-            </p>
+              <!-- предупреждение: расширение работает, поэтому не сообщение об ошибке -->
+              <v-alert
+                v-if="isWarning(diagnostic)"
+                type="warning"
+                variant="tonal"
+                density="compact"
+                class="mt-2"
+                data-testid="diagnostic"
+                :data-code="diagnostic.code"
+              >
+                {{ diagnosticText(diagnostic) }}
+              </v-alert>
+              <div
+                v-else
+                class="text-body-medium mt-2"
+                data-testid="diagnostic"
+                :data-code="diagnostic.code"
+              >
+                <p>{{ diagnosticText(diagnostic) }}</p>
+                <ul
+                  v-if="diagnostic.code === 'manifest-invalid'"
+                  class="message ps-4"
+                >
+                  <li v-for="issue in issuesOf(diagnostic)" :key="issue">
+                    {{ issue }}
+                  </li>
+                </ul>
+              </div>
+            </template>
+
+            <ExtensionHealth
+              v-if="isActive(extension)"
+              :health="healthOf(extension.id)"
+            />
 
             <ExtensionPermissions
               v-if="isActive(extension)"
               :permissions="extension.permissions"
             />
+            <ExtensionDependencies :rows="rowsOfInstalled(extension)" />
             <ExtensionContributions
               :contributes="extension.contributes"
               :titles="extension.titles"
               :name="extension.name"
+              :messages="extension.messages"
             />
             <ExtensionData
               v-if="isActive(extension)"
@@ -395,6 +665,43 @@ watch(
                 :data-testid="`enabled-${extension.id}`"
                 @update:model-value="setEnabled(extension.id, $event === true)"
               />
+              <v-switch
+                v-if="hasNotifications(extension)"
+                :model-value="areNotificationsOn(settings, extension.id)"
+                :label="t('settings.extensions.notificationsLabel')"
+                :disabled="switching.has(`notifications:${extension.id}`)"
+                color="primary"
+                density="compact"
+                hide-details
+                inset
+                :data-testid="`notifications-${extension.id}`"
+                @update:model-value="
+                  setNotifications(extension.id, $event === true)
+                "
+              />
+              <v-switch
+                v-if="hasSchedules(extension)"
+                :model-value="areSchedulesOn(settings, extension.id)"
+                :label="t('settings.extensions.schedulesLabel')"
+                :disabled="switching.has(`schedules:${extension.id}`)"
+                :aria-describedby="`schedules-text-${extension.id}`"
+                color="primary"
+                density="compact"
+                hide-details
+                inset
+                :data-testid="`schedules-${extension.id}`"
+                @update:model-value="
+                  setSchedules(extension.id, $event === true)
+                "
+              />
+              <p
+                v-if="hasSchedules(extension)"
+                :id="`schedules-text-${extension.id}`"
+                class="text-body-small text-medium-emphasis mt-0 mb-2"
+                :data-testid="`schedules-text-${extension.id}`"
+              >
+                {{ (schedulesByExtension.get(extension.id) ?? []).join(' · ') }}
+              </p>
               <v-switch
                 :model-value="isTrusted(settings, extension.id)"
                 :label="t('settings.extensions.trustLabel')"
@@ -419,13 +726,27 @@ watch(
                 prepend-icon="mdi-cog-outline"
                 :aria-label="
                   t('settings.extensions.action.settingsLabel', {
-                    name: displayName(extension),
+                    name: extensionText.nameOf(extension),
                   })
                 "
                 :data-testid="`settings-${extension.id}`"
                 @click="openSettings(extension, $event)"
               >
                 {{ t('settings.extensions.action.settings') }}
+              </v-btn>
+              <v-btn
+                variant="tonal"
+                size="small"
+                prepend-icon="mdi-text-box-search-outline"
+                :aria-label="
+                  t('settings.extensions.log.rowActionLabel', {
+                    name: extensionText.nameOf(extension),
+                  })
+                "
+                :data-testid="`extension-log-open-${extension.id}`"
+                @click="openLog(extension.id, $event)"
+              >
+                {{ t('settings.extensions.log.rowAction') }}
               </v-btn>
               <v-btn
                 v-if="updateOf(extension.id)"
@@ -436,7 +757,7 @@ watch(
                 :disabled="install.phase.value === 'running'"
                 :aria-label="
                   t('settings.extensions.action.updateLabel', {
-                    name: displayName(extension),
+                    name: extensionText.nameOf(extension),
                     version: updateOf(extension.id)?.available.version,
                   })
                 "
@@ -457,7 +778,7 @@ watch(
                 prepend-icon="mdi-delete-outline"
                 :aria-label="
                   t('settings.extensions.action.removeLabel', {
-                    name: displayName(extension),
+                    name: extensionText.nameOf(extension),
                   })
                 "
                 :data-testid="`remove-${extension.id}`"
@@ -471,71 +792,20 @@ watch(
       </ul>
     </template>
 
-    <v-dialog
-      :model-value="removeTarget !== null"
-      max-width="480"
-      aria-labelledby="extension-remove-title"
-      :persistent="install.removing.value !== null"
-      @update:model-value="closeRemove"
-    >
-      <v-card v-if="removeTarget" class="pa-2">
-        <v-card-title id="extension-remove-title" class="text-wrap">
-          {{
-            t('settings.extensions.remove.title', {
-              name: displayName(removeTarget),
-            })
-          }}
-        </v-card-title>
-        <v-card-text>
-          <p>{{ t('settings.extensions.remove.text') }}</p>
-          <v-checkbox
-            v-model="removeData"
-            :label="t('settings.extensions.remove.removeData')"
-            :hint="t('settings.extensions.remove.removeDataHint')"
-            persistent-hint
-            density="compact"
-            color="error"
-            :disabled="install.removing.value !== null"
-            data-testid="remove-data"
-          />
-          <v-alert
-            v-if="install.removeError.value"
-            type="error"
-            variant="tonal"
-            density="compact"
-            class="mt-3"
-          >
-            {{ t('settings.extensions.remove.failed') }}:
-            {{ install.removeError.value }}
-          </v-alert>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn
-            variant="text"
-            :disabled="install.removing.value !== null"
-            @click="closeRemove"
-          >
-            {{ t('settings.extensions.remove.cancel') }}
-          </v-btn>
-          <v-btn
-            variant="flat"
-            color="error"
-            :loading="install.removing.value !== null"
-            data-testid="remove-confirm"
-            @click="confirmRemove"
-          >
-            {{ t('settings.extensions.remove.confirm') }}
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+    <ExtensionRemoveDialog :target="removeTarget" @close="closeRemove" />
 
     <ExtensionSettingsDialog
       v-if="settingsTarget !== null"
       :key="settingsTarget.id"
       :extension="settingsTarget"
       @close="closeSettings"
+    />
+
+    <ExtensionLogDialog
+      v-if="logTarget !== null"
+      :preset-extension-id="logTarget"
+      :extension-ids="items.map(({ id }) => id)"
+      @close="closeLog"
     />
   </div>
 </template>
@@ -568,6 +838,16 @@ watch(
 
 .name {
   overflow-wrap: anywhere;
+}
+
+.details-link {
+  color: rgb(var(--v-theme-primary));
+  text-decoration: none;
+}
+
+.details-link:hover,
+.details-link:focus-visible {
+  text-decoration: underline;
 }
 
 .visually-hidden {

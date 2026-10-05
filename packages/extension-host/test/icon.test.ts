@@ -1,3 +1,4 @@
+import { formatDiagnostic } from '../src/diagnostics.ts';
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -51,7 +52,9 @@ const extensionWith = async (
 
 const inspect = async (dir: string, verifyFiles = true) => {
   const result = await inspectExtensionDir(dir, { verifyFiles });
-  return result.ok ? result.extension.icon : result.message;
+  return result.ok
+    ? result.extension.icon
+    : formatDiagnostic(result.diagnostic);
 };
 
 describe('manifest icon', () => {
@@ -144,7 +147,7 @@ describe('icon discovery', () => {
       logger: createLogger(),
     });
     expect(extensions).toEqual([]);
-    expect(diagnostics[0]?.message).toMatch(/64 to 512/);
+    expect(formatDiagnostic(diagnostics[0]!.diagnostic)).toMatch(/64 to 512/);
   });
 
   it('passes the icon of a loaded extension to the registry', async () => {

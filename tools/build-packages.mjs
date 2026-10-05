@@ -1,13 +1,20 @@
 #!/usr/bin/env node
 /**
- * Сборка публикуемых пакетов (`@dolphy-app/extension-api|sdk|tools|create-extension`)
+ * Сборка публикуемых пакетов (`@dolphy-app/extension-api|keybindings|ui|sdk|tools|create-extension`)
  * в `dist-publish/<каталог пакета>/`: собранный JS, `.d.ts`, сгенерированные
  * `package.json` и README. Рабочие пакеты остаются `private`: публикуется только
  * сгенерированный каталог.
  *
  * Запуск: `pnpm build:packages [--version X.Y.Z]` (по умолчанию — версия корня).
  */
-import { chmod, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import {
+  chmod,
+  copyFile,
+  mkdir,
+  readFile,
+  readdir,
+  writeFile,
+} from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { build } from 'tsdown';
@@ -15,10 +22,12 @@ import { collectImports } from './lib/imports.mjs';
 import {
   PACKAGES,
   SCOPE,
+  assetFiles,
   binFiles,
   createManifest,
   createRangeResolver,
   deriveDependencies,
+  docFiles,
   isBareSpecifier,
   isValidVersion,
   packageName,
@@ -132,6 +141,20 @@ const buildPackage = async ({ spec, version, rootManifest, workspace }) => {
   const source = await readJson(path.join(sourceDir, 'package.json'));
 
   await bundle({ spec, sourceDir, distDir, version });
+  for (const file of assetFiles(spec)) {
+    await copyFile(path.join(sourceDir, file), path.join(distDir, file));
+  }
+  const docs = docFiles(spec);
+  if (docs.length > 0) {
+    const docsDir = path.join(packageDir, 'docs');
+    await mkdir(docsDir, { recursive: true });
+    for (const file of docs) {
+      await copyFile(
+        path.join(sourceDir, 'docs', file),
+        path.join(docsDir, file),
+      );
+    }
+  }
 
   const dependencies = deriveDependencies({
     spec,

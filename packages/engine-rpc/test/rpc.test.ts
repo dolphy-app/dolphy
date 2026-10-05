@@ -141,6 +141,69 @@ describe('dispatcher validation', () => {
     }
   });
 
+  it('settings.setUi validates the material panel width and collapse', async () => {
+    const { dispatcher } = await connect();
+    const [hostSide, rawSide] = createInProcessPair();
+    dispatcher.attach(hostSide, 'raw-material');
+    const raw = createRawClient(rawSide);
+    for (const patch of [
+      { materialWidth: 280 },
+      { materialWidth: 800 },
+      { materialWidth: null },
+      { materialCollapsed: true },
+      { materialCollapsed: false },
+    ]) {
+      expect(await raw.call('settings.setUi', [patch])).toMatchObject({
+        ok: true,
+      });
+    }
+    for (const patch of [
+      { materialWidth: 279 },
+      { materialWidth: 801 },
+      { materialWidth: 400.5 },
+      { materialWidth: '400' },
+      { materialCollapsed: 'yes' },
+    ]) {
+      expect(await raw.call('settings.setUi', [patch])).toMatchObject({
+        ok: false,
+        error: { code: 'INVALID_ARGUMENT' },
+      });
+    }
+  });
+
+  it('settings.setUi validates tour outcomes', async () => {
+    const { dispatcher } = await connect();
+    const [hostSide, rawSide] = createInProcessPair();
+    dispatcher.attach(hostSide, 'raw-tours');
+    const raw = createRawClient(rawSide);
+    for (const patch of [
+      { tours: { welcome: 'completed' } },
+      { tours: { welcome: 'skipped', 'courses-2': null } },
+      { tours: {} },
+    ]) {
+      expect(await raw.call('settings.setUi', [patch])).toMatchObject({
+        ok: true,
+      });
+    }
+    for (const patch of [
+      { tours: { 'Bad Id': 'completed' } },
+      { tours: { welcome: 'done' } },
+      { tours: { welcome: true } },
+      { tours: ['welcome'] },
+      { tours: 'welcome' },
+      {
+        tours: Object.fromEntries(
+          Array.from({ length: 33 }, (_, i) => [`t${i}`, 'skipped']),
+        ),
+      },
+    ]) {
+      expect(await raw.call('settings.setUi', [patch])).toMatchObject({
+        ok: false,
+        error: { code: 'INVALID_ARGUMENT' },
+      });
+    }
+  });
+
   it('settings.setLearning accepts passAtN and extension policy ids, rejects malformed ones', async () => {
     const { dispatcher } = await connect();
     const [hostSide, rawSide] = createInProcessPair();
@@ -158,12 +221,57 @@ describe('dispatcher validation', () => {
     }
   });
 
-  it('extensions.setEnabled / setTrusted require an extension id and a boolean', async () => {
+  it('settings.setKeybindings accepts sets and null, rejects malformed patches', async () => {
+    const { dispatcher } = await connect();
+    const [hostSide, rawSide] = createInProcessPair();
+    dispatcher.attach(hostSide, 'raw-keybindings');
+    const raw = createRawClient(rawSide);
+    const entry = { key: 'Alt+1', when: null };
+    for (const patch of [
+      {},
+      { 'app:a': [entry], 'app:b': null, 'app:c': [] },
+      { 'app:a': [{ key: 'Alt+1', when: '!inputFocus' }] },
+    ]) {
+      expect(await raw.call('settings.setKeybindings', [patch])).toMatchObject({
+        ok: true,
+      });
+    }
+    const tooMany = Object.fromEntries(
+      Array.from({ length: 513 }, (_, i) => [`app:c${i}`, null]),
+    );
+    for (const patch of [
+      null,
+      { 'app:a': 'Alt+1' },
+      { 'app:a': [{ key: 'Alt+1' }] },
+      { 'app:a': [{ key: 5, when: null }] },
+      { 'app:a': [{ key: 'Alt+1', when: null, extra: 1 }] },
+      { 'app:a': [{ key: 'x'.repeat(65), when: null }] },
+      { 'app:a': [{ key: 'Alt+1', when: 'k'.repeat(257) }] },
+      { ['a'.repeat(201)]: null },
+      tooMany,
+    ]) {
+      expect(await raw.call('settings.setKeybindings', [patch])).toMatchObject({
+        ok: false,
+        error: { code: 'INVALID_ARGUMENT' },
+      });
+    }
+    expect(await raw.call('settings.getKeybindings', [1])).toMatchObject({
+      ok: false,
+      error: { code: 'INVALID_ARGUMENT' },
+    });
+  });
+
+  it('extensions.setEnabled / setTrusted / setNotificationsEnabled / setSchedulesEnabled require an extension id and a boolean', async () => {
     const { dispatcher } = await connect();
     const [hostSide, rawSide] = createInProcessPair();
     dispatcher.attach(hostSide, 'raw-extensions');
     const raw = createRawClient(rawSide);
-    for (const method of ['extensions.setEnabled', 'extensions.setTrusted']) {
+    for (const method of [
+      'extensions.setEnabled',
+      'extensions.setTrusted',
+      'extensions.setNotificationsEnabled',
+      'extensions.setSchedulesEnabled',
+    ]) {
       expect(await raw.call(method, ['acme.ext', true])).toMatchObject({
         ok: true,
       });
@@ -214,7 +322,80 @@ describe('dispatcher validation', () => {
     }
   });
 
-  it('extensions catalog/install/uninstall/updates/setCheckUpdates validate their arguments', async () => {
+  it('extensions.runImporter, commitImport, discardImport and runExporter validate their arguments', async () => {
+    const { dispatcher } = await connect();
+    const [hostSide, rawSide] = createInProcessPair();
+    dispatcher.attach(hostSide, 'raw-transfer');
+    const raw = createRawClient(rawSide);
+    const text = { name: 'a.csv', text: 'a,b' };
+    const bytes = { name: 'a.bin', bytes: new Uint8Array([1, 2]) };
+    const accepted: [string, unknown[]][] = [
+      ['extensions.runImporter', ['acme.ext', 'acme.ext.import', text]],
+      ['extensions.runImporter', ['acme.ext', 'acme.ext.import', bytes]],
+      ['extensions.commitImport', ['import-1']],
+      ['extensions.discardImport', ['import-1']],
+      [
+        'extensions.runExporter',
+        ['acme.ext', 'acme.ext.export', { scope: 'progress' }],
+      ],
+      [
+        'extensions.runExporter',
+        ['acme.ext', 'acme.ext.export', { scope: 'course', courseId: 'c' }],
+      ],
+    ];
+    for (const [method, args] of accepted) {
+      expect(await raw.call(method, args)).toMatchObject({ ok: true });
+    }
+    const rejected: [string, unknown[]][] = [
+      ['extensions.runImporter', []],
+      ['extensions.runImporter', ['Acme', 'acme.ext.import', text]],
+      ['extensions.runImporter', ['acme.ext', '', text]],
+      [
+        'extensions.runImporter',
+        ['acme.ext', 'acme.ext.import', { name: '', text: '' }],
+      ],
+      [
+        'extensions.runImporter',
+        ['acme.ext', 'acme.ext.import', { name: 'a', text: 1 }],
+      ],
+      [
+        'extensions.runImporter',
+        ['acme.ext', 'acme.ext.import', { name: 'a', bytes: [1, 2] }],
+      ],
+      [
+        'extensions.runImporter',
+        [
+          'acme.ext',
+          'acme.ext.import',
+          { name: 'a', text: '', bytes: new Uint8Array() },
+        ],
+      ],
+      [
+        'extensions.runImporter',
+        ['acme.ext', 'acme.ext.import', text, 'extra'],
+      ],
+      ['extensions.commitImport', []],
+      ['extensions.commitImport', ['']],
+      ['extensions.discardImport', [7]],
+      ['extensions.runExporter', ['acme.ext', 'acme.ext.export', {}]],
+      [
+        'extensions.runExporter',
+        ['acme.ext', 'acme.ext.export', { scope: 'course' }],
+      ],
+      [
+        'extensions.runExporter',
+        ['acme.ext', 'acme.ext.export', { scope: 'progress', courseId: 'c' }],
+      ],
+    ];
+    for (const [method, args] of rejected) {
+      expect(await raw.call(method, args)).toMatchObject({
+        ok: false,
+        error: { code: 'INVALID_ARGUMENT' },
+      });
+    }
+  });
+
+  it('extensions catalog/install/uninstall/updates/setCheckUpdates/setCatalogUrl validate their arguments', async () => {
     const { dispatcher } = await connect();
     const [hostSide, rawSide] = createInProcessPair();
     dispatcher.attach(hostSide, 'raw-install');
@@ -230,7 +411,14 @@ describe('dispatcher validation', () => {
       ['extensions.uninstall', ['acme.ext', {}]],
       ['extensions.uninstall', ['acme.ext', { removeData: true }]],
       ['extensions.updates', []],
+      ['extensions.docs', ['acme.ext']],
+      ['extensions.docs', ['acme.ext', {}]],
+      ['extensions.docs', ['acme.ext', { version: '1.2.3' }]],
+      ['extensions.docImage', ['acme.ext', '1.2.3', 'docs/a.png']],
       ['extensions.setCheckUpdates', [false]],
+      ['extensions.setCatalogUrl', [null]],
+      ['extensions.setCatalogUrl', ['https://example.test/index.json']],
+      ['extensions.catalogSource', []],
       [
         'extensions.setSettingValue',
         ['acme.ext', 'acme.ext.n', { a: [1, null] }],
@@ -255,14 +443,59 @@ describe('dispatcher validation', () => {
       ['practice.finishSession', [{ sessionId: '' }]],
       ['practice.finishSession', [{}]],
       ['extensions.updates', ['x']],
+      ['extensions.docs', []],
+      ['extensions.docs', ['Acme']],
+      ['extensions.docs', ['acme.ext', { version: 'latest' }]],
+      ['extensions.docs', ['acme.ext', { tag: 'x' }]],
+      ['extensions.docImage', ['acme.ext', '1.2.3']],
+      ['extensions.docImage', ['acme.ext', 'latest', 'a.png']],
+      ['extensions.docImage', ['acme.ext', '1.2.3', '']],
+      ['extensions.docImage', ['acme.ext', '1.2.3', 'x'.repeat(201)]],
       ['extensions.setCheckUpdates', ['no']],
       ['extensions.setCheckUpdates', []],
+      ['extensions.setCatalogUrl', []],
+      ['extensions.setCatalogUrl', [42]],
+      ['extensions.setCatalogUrl', [undefined]],
+      ['extensions.setCatalogUrl', ['https://example.test/i.json', 'x']],
+      ['extensions.catalogSource', ['x']],
     ];
     for (const [method, args] of accepted) {
       expect(await raw.call(method, args), method).toMatchObject({ ok: true });
     }
     for (const [method, args] of rejected) {
       expect(await raw.call(method, args), method).toMatchObject({
+        ok: false,
+        error: { code: 'INVALID_ARGUMENT' },
+      });
+    }
+  });
+
+  it('repositories.remove accepts only a boolean removeProgress', async () => {
+    const { dispatcher } = await connect();
+    const [hostSide, rawSide] = createInProcessPair();
+    dispatcher.attach(hostSide, 'raw-repositories');
+    const raw = createRawClient(rawSide);
+    for (const args of [
+      ['id1'],
+      ['id1', {}],
+      ['id1', { removeProgress: false }],
+      ['id1', { removeProgress: true }],
+    ]) {
+      expect(
+        await raw.call('repositories.remove', args),
+        String(args),
+      ).toMatchObject({ ok: true });
+    }
+    for (const args of [
+      [],
+      ['id1', { removeProgress: 'yes' }],
+      ['id1', { removeData: true }],
+      ['id1', { removeProgress: true }, 'x'],
+    ]) {
+      expect(
+        await raw.call('repositories.remove', args),
+        String(args),
+      ).toMatchObject({
         ok: false,
         error: { code: 'INVALID_ARGUMENT' },
       });
@@ -457,10 +690,23 @@ describe('ordering and events', () => {
       ['add', [{ url: 'https://h/r.git', extra: 1 }]],
       ['add', [{ url: `https://h/${'a'.repeat(2048)}` }]],
       ['add', [{ url: 'https://h/r.git', ref: 'r'.repeat(256) }]],
+      ['add', [{ url: 'https://h/r.git', courseIds: 'a' }]],
+      ['add', [{ url: 'https://h/r.git', courseIds: [1] }]],
+      ['add', [{ url: 'https://h/r.git', previewId: '' }]],
+      ['add', [{ url: 'https://h/r.git', previewId: 'p'.repeat(201) }]],
+      ['add', [{ url: 'https://h/r.git', courseIds: [''] }]],
+      ['add', [{ url: 'https://h/r.git', courseIds: Array(1001).fill('a') }]],
+      ['preview', [{ url: '' }]],
+      ['preview', [{ url: 'https://h/r.git', courseIds: ['a'] }]],
       ['update', ['']],
+      ['update', ['id1', { courseIds: [1] }]],
+      ['update', ['id1', { previewId: '' }]],
+      ['update', ['id1', { previewId: 7 }]],
+      ['update', ['id1', { extra: 1 }]],
       ['remove', ['x'.repeat(201)]],
       ['cancel', [42]],
       ['list', ['extra']],
+      ['checkUpdates', ['extra']],
     ] as const)(
       '%s rejects bad params without reaching the engine',
       async (name, params) => {
@@ -478,26 +724,49 @@ describe('ordering and events', () => {
 
     it('routes valid calls to the engine with positional args', async () => {
       const { client, fake } = await connect();
-      await client.engine.repositories.add({
+      await client.engine.repositories.preview({
         url: 'https://h/r.git',
         ref: 'main',
       });
+      await client.engine.repositories.add({
+        url: 'https://h/r.git',
+        ref: 'main',
+        courseIds: ['a', 'b'],
+        previewId: 'p1',
+      });
       await client.engine.repositories.update('id1');
-      await client.engine.repositories.remove('id2');
+      await client.engine.repositories.update('id1', { courseIds: ['a'] });
+      await client.engine.repositories.update('id1', {
+        courseIds: ['a'],
+        previewId: 'p1',
+      });
+      await client.engine.repositories.remove('id2', { removeProgress: true });
       await client.engine.repositories.cancel('id3');
       await client.engine.repositories.list();
+      await client.engine.repositories.checkUpdates();
       expect(fake.calls.filter((name) => name !== 'diagnostics')).toEqual([
+        'repositories.preview',
         'repositories.add',
+        'repositories.update',
+        'repositories.update',
         'repositories.update',
         'repositories.remove',
         'repositories.cancel',
         'repositories.list',
+        'repositories.checkUpdates',
       ]);
     });
 
-    it('add is not replayed after a drop; update/remove/cancel/list are', () => {
+    it('add is not replayed after a drop; preview/update/remove/cancel/list are', () => {
       expect(RPC_METHODS['repositories.add'].idempotent).toBe(false);
-      for (const name of ['list', 'update', 'remove', 'cancel'] as const) {
+      for (const name of [
+        'list',
+        'preview',
+        'update',
+        'remove',
+        'cancel',
+        'checkUpdates',
+      ] as const) {
         expect(RPC_METHODS[`repositories.${name}`].idempotent).toBe(true);
       }
     });
@@ -539,6 +808,18 @@ describe('ordering and events', () => {
           loaded: 1,
           total: 2,
         },
+      ]);
+    });
+
+    it('repository-updates-checked events reach a subscribed client', async () => {
+      const { client, fake } = await connect();
+      const events: EngineEvent[] = [];
+      client.engine.subscribe((event) => events.push(event));
+      await tick(5);
+      fake.emit({ type: 'repository-updates-checked', available: ['r'] });
+      await tick(5);
+      expect(events).toEqual([
+        { type: 'repository-updates-checked', available: ['r'] },
       ]);
     });
   });

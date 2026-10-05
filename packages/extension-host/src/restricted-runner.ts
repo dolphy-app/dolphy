@@ -1,6 +1,12 @@
 import { spawn as nodeSpawn } from 'node:child_process';
 import { realpath } from 'node:fs/promises';
 import path from 'node:path';
+import {
+  EXTENSION_TRANSFER_LIMITS,
+  InvalidTransferResultError,
+  normalizeExportResult,
+  normalizeImportResult,
+} from '@dolphy-app/extension-api';
 import type { ExtensionLogger, LibraryReader } from '@dolphy-app/extension-api';
 import type { ResolvedExtension } from './discover.ts';
 import { EngineRequestError, hostFailureOf } from './engine-link.ts';
@@ -19,7 +25,18 @@ import type {
   ChildMessage,
   LibraryFailure,
   ParentMessage,
+  StreamedResult,
 } from './restricted-protocol.ts';
+import {
+  TransferWireError,
+  chunksOf,
+  createBodyReceiver,
+  joinResult,
+  maxRequestBody,
+  maxResultBody,
+  splitRequest,
+} from './transfer-wire.ts';
+import type { BodyReceiver } from './transfer-wire.ts';
 
 /** Дочерний процесс с точки зрения раннера: шов для подмены в тестах. */
 export interface RestrictedChild {
@@ -96,37 +113,81 @@ export interface RestrictedRunnerOptions {
   spawn?: SpawnRestricted;
   /** Запас сверх `timeoutMs` для `grade`. */
   graceMs?: number;
-  /** Сколько ждать `ready` от нового процесса. */
+  /** Сколько ждать `ready` от нового процесса (срок `activate()`); по умолчанию 10 с. */
   readyTimeoutMs?: number;
   /**
-   * Срок вызова команды, включая запуск процесса. Больше срока обработчика
-   * (10 с) и меньше срока клиента движка (14 с).
+   * Срок вызова команды или срабатывания расписания, включая запуск процесса.
+   * Больше срока обработчика (10 с) и меньше срока клиента движка (14 с).
    */
   commandDeadlineMs?: number;
+  /**
+   * Срок импорта или экспорта, включая запуск процесса и передачу тела.
+   * Больше срока обработчика (`EXTENSION_TRANSFER_LIMITS.handlerMs`, 30 с) и
+   * меньше срока клиента движка (34 с); по умолчанию 32 с.
+   */
+  transferDeadlineMs?: number;
 }
 
 const DEFAULT_GRACE_MS = 1500;
 const DEFAULT_READY_TIMEOUT_MS = 10_000;
 const OTHER_DEADLINE_MS = 10_000;
 const COMMAND_DEADLINE_MS = 12_000;
+/** Раннер ждёт обработчик импорта или экспорта дольше его срока (30 с), но короче клиента движка (34 с). */
+export const TRANSFER_DEADLINE_MS = EXTENSION_TRANSFER_LIMITS.handlerMs + 2000;
 const DISPOSE_KILL_MS = 1000;
 const CRASH_WINDOW_MS = 60_000;
 const MAX_EXITS = 5;
+/** Вывод процесса в журнал: не больше `OUTPUT_LIMIT_BYTES` за окно `OUTPUT_WINDOW_MS` на расширение. */
+export const OUTPUT_LIMIT_BYTES = 64 * 1024;
+export const OUTPUT_WINDOW_MS = 60_000;
+/** Сообщение процесса больше этого размера (в знаках после сериализации) или поток быстрее `IPC_MAX_PER_SECOND` завершает процесс. */
+export const IPC_MAX_MESSAGE_CHARS = 1024 * 1024;
+export const IPC_MAX_PER_SECOND = 200;
 
 const LOG_LEVELS = ['debug', 'info', 'warn', 'error'] as const;
+
+/** Процесс не сообщил о готовности за `readyTimeoutMs`: `activate()` не завершился. */
+class ActivationTimeoutError extends Error {}
+
+/** Процесс убит за превышение предела IPC до готовности: вызову достаётся причина предела. */
+class IpcLimitError extends Error {
+  readonly reason: 'ipc-size' | 'ipc-rate';
+
+  constructor(reason: 'ipc-size' | 'ipc-rate', message: string) {
+    super(message);
+    this.reason = reason;
+  }
+}
 
 interface Live {
   child: RestrictedChild;
   pending: Map<string, (response: ExtResponse) => void>;
+  /** Метод вызова в полёте: ответ на импорт и экспорт принимается только потоком. */
+  methods: Map<string, ExtRequest['method']>;
+  /** Тела ответов импорта и экспорта, которые процесс ещё досылает. */
+  streams: Map<string, { head: StreamedResult; receiver: BodyReceiver }>;
   ready: Promise<void>;
+  isReady: boolean;
   exited: Promise<void>;
   isExited: boolean;
   disposing: boolean;
+  /** Процесс нарушил предел IPC и убит: его сообщения больше не читаются. */
+  limit: IpcLimitError | null;
+  /** Начало текущей секунды и число сообщений в ней. */
+  rateStart: number;
+  rateCount: number;
 }
 
 const failure = (
   id: string,
-  cause: 'handler-failed' | 'handler-timeout' | 'activation-failed',
+  cause:
+    | 'handler-failed'
+    | 'handler-timeout'
+    | 'invalid-result'
+    | 'activation-failed'
+    | 'activation-timeout'
+    | 'ipc-size'
+    | 'ipc-rate',
   message: string,
 ): ExtResponse => ({ id, ok: false, error: { cause, message } });
 
@@ -151,12 +212,134 @@ export const createRestrictedRunner = (
   const graceMs = options.graceMs ?? DEFAULT_GRACE_MS;
   const readyTimeoutMs = options.readyTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS;
   const commandDeadlineMs = options.commandDeadlineMs ?? COMMAND_DEADLINE_MS;
+  const transferDeadlineMs = options.transferDeadlineMs ?? TRANSFER_DEADLINE_MS;
   const canReadLibrary = extension.permissions.includes('library.read');
   let live: Live | null = null;
   let starting: Promise<Live> | null = null;
   let disposed = false;
   let exits: number[] = [];
   let suppressedUntil = 0;
+  // сбой по сроку запоминается до замены сборки (раннер заменяется вместе с ней)
+  let activationTimeout: string | null = null;
+  // окно вывода процесса общее для всех его запусков: предел — на расширение
+  let outputStart: number | null = null;
+  let outputBytes = 0;
+  let outputDropped = 0;
+  let outputTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** Окно вывода закрыто: отброшенное сообщается одной строкой. */
+  const closeOutputWindow = (): void => {
+    if (outputTimer !== null) clearTimeout(outputTimer);
+    outputTimer = null;
+    if (outputDropped > 0) {
+      logger.warn(
+        { extensionId: extension.id, droppedBytes: outputDropped },
+        'output truncated',
+      );
+    }
+    outputBytes = 0;
+    outputDropped = 0;
+    outputStart = null;
+  };
+
+  /** Строки вывода процесса попадают в журнал, пока не исчерпан предел окна. */
+  const logOutput = (stream: 'stdout' | 'stderr', text: string): void => {
+    const now = Date.now();
+    if (outputStart !== null && now - outputStart >= OUTPUT_WINDOW_MS) {
+      closeOutputWindow();
+    }
+    outputStart ??= now;
+    for (const line of text.split('\n')) {
+      if (line.trim() === '') continue;
+      const size = Buffer.byteLength(line) + 1;
+      if (outputBytes + size <= OUTPUT_LIMIT_BYTES) {
+        outputBytes += size;
+        logger.warn({ extensionId: extension.id, stream }, line);
+        continue;
+      }
+      outputDropped += size;
+      // итог сообщается и тогда, когда процесс замолчал
+      outputTimer ??= setTimeout(
+        closeOutputWindow,
+        Math.max(0, outputStart + OUTPUT_WINDOW_MS - now),
+      );
+      outputTimer.unref();
+    }
+  };
+
+  /** Приостановка видна в здоровье расширения; без ответа движка (он не нужен) ничего не теряется. */
+  const reportSuppression = (until: number): void => {
+    engine
+      .request('health.report', {
+        extensionId: extension.id,
+        kind: 'suppressed',
+        until,
+      })
+      .catch(() => {});
+  };
+
+  /** Сбой вне вызова (предел IPC): причина видна в здоровье расширения. */
+  const reportFailure = (reason: string, message: string): void => {
+    engine
+      .request('health.report', {
+        extensionId: extension.id,
+        kind: 'failed',
+        reason,
+        message,
+      })
+      .catch(() => {});
+  };
+
+  /**
+   * Процесс превысил предел IPC: он убивается, вызовы в полёте получают
+   * причину предела, следующий вызов поднимает новый процесс (и идёт в счёт
+   * цикла падений через `onExit`).
+   */
+  const enforceLimit = (
+    current: Live,
+    reason: 'ipc-size' | 'ipc-rate',
+    message: string,
+  ): void => {
+    current.limit = new IpcLimitError(reason, message);
+    if (live === current) live = null;
+    logger.error({ extensionId: extension.id, reason }, message);
+    reportFailure(reason, message);
+    for (const [id, settle] of current.pending) {
+      settle(failure(id, reason, message));
+    }
+    current.pending.clear();
+    current.streams.clear();
+    current.child.kill();
+  };
+
+  /** Предел на каждое сообщение процесса; `false` — процесс убит, сообщение отброшено. */
+  const withinLimits = (current: Live, raw: unknown): boolean => {
+    if (current.limit !== null) return false;
+    const now = Date.now();
+    if (now - current.rateStart >= 1000) {
+      current.rateStart = now;
+      current.rateCount = 0;
+    }
+    current.rateCount += 1;
+    if (current.rateCount > IPC_MAX_PER_SECOND) {
+      enforceLimit(
+        current,
+        'ipc-rate',
+        `extension process killed: more than ${IPC_MAX_PER_SECOND} messages per second`,
+      );
+      return false;
+    }
+    const size = JSON.stringify(raw)?.length ?? 0;
+    if (size > IPC_MAX_MESSAGE_CHARS) {
+      enforceLimit(
+        current,
+        'ipc-size',
+        `extension process killed: message of ${size} characters exceeds ${IPC_MAX_MESSAGE_CHARS}`,
+      );
+      return false;
+    }
+    return true;
+  };
 
   const serveLibrary = async (
     current: Live,
@@ -242,7 +425,81 @@ export const createRestrictedRunner = (
     }
   };
 
+  /** Вызов в полёте получил ответ: ожидающий освобождается, поток его тела (если был) забывается. */
+  const settleCall = (current: Live, response: ExtResponse): void => {
+    const settle = current.pending.get(response.id);
+    if (settle === undefined) return;
+    current.pending.delete(response.id);
+    current.methods.delete(response.id);
+    current.streams.delete(response.id);
+    settle(response);
+  };
+
+  const rejectStream = (current: Live, id: string, message: string): void => {
+    logger.warn({ extensionId: extension.id, message }, 'invalid transfer');
+    settleCall(current, failure(id, 'invalid-result', message));
+  };
+
+  /** Голова ответа импорта или экспорта: форма и размер проверяются до выделения памяти под тело. */
+  const openResultStream = (
+    current: Live,
+    message: Extract<ChildMessage, { t: 'result-stream' }>,
+  ): void => {
+    const { id, size, result: head } = message;
+    const method = current.methods.get(id);
+    if (method !== 'runImporter' && method !== 'runExporter') return;
+    const expected =
+      method === 'runImporter'
+        ? head.kind === 'files'
+        : head.kind === 'text' || head.kind === 'bytes';
+    if (!expected || current.streams.has(id)) {
+      rejectStream(current, id, 'extension process sent a malformed result');
+      return;
+    }
+    if (!Number.isInteger(size) || size < 0 || size > maxResultBody(head)) {
+      rejectStream(
+        current,
+        id,
+        'extension process sent a result of an unacceptable size',
+      );
+      return;
+    }
+    current.streams.set(id, { head, receiver: createBodyReceiver(size) });
+  };
+
+  /** Часть тела ответа; последняя собирает, проверяет теми же правилами, что и рантайм, и завершает вызов. */
+  const acceptResultChunk = (
+    current: Live,
+    message: Extract<ChildMessage, { t: 'chunk' }>,
+  ): void => {
+    const { id } = message;
+    const stream = current.streams.get(id);
+    if (stream === undefined) return;
+    if (!stream.receiver.accept(message.seq, message.data)) {
+      rejectStream(current, id, 'extension process sent a corrupted result');
+      return;
+    }
+    if (!stream.receiver.complete) return;
+    try {
+      const joined = joinResult(stream.head, stream.receiver.body());
+      const result =
+        stream.head.kind === 'files'
+          ? normalizeImportResult(joined)
+          : normalizeExportResult(joined);
+      settleCall(current, { id, ok: true, result });
+    } catch (error) {
+      if (
+        !(error instanceof TransferWireError) &&
+        !(error instanceof InvalidTransferResultError)
+      ) {
+        throw error;
+      }
+      rejectStream(current, id, error.message);
+    }
+  };
+
   const onMessage = (current: Live, markReady: () => void, raw: unknown) => {
+    if (!withinLimits(current, raw)) return;
     if (!isChildMessage(raw)) {
       logger.warn({ extensionId: extension.id }, 'invalid message from child');
       return;
@@ -254,11 +511,27 @@ export const createRestrictedRunner = (
         void serveEngine(current, raw.message as { id: string });
         return;
       }
-      const settle = current.pending.get(id);
-      if (settle === undefined) return;
-      current.pending.delete(id);
-      settle(raw.message as ExtResponse);
-    } else if (raw.t === 'library') void serveLibrary(current, raw);
+      const response = raw.message as ExtResponse;
+      const method = current.methods.get(id);
+      // успешный ответ импорта и экспорта приходит только потоком: проверка тела — здесь
+      if (
+        response.ok &&
+        (method === 'runImporter' || method === 'runExporter')
+      ) {
+        settleCall(
+          current,
+          failure(
+            id,
+            'invalid-result',
+            'extension process sent a result outside the transfer stream',
+          ),
+        );
+        return;
+      }
+      settleCall(current, response);
+    } else if (raw.t === 'result-stream') openResultStream(current, raw);
+    else if (raw.t === 'chunk') acceptResultChunk(current, raw);
+    else if (raw.t === 'library') void serveLibrary(current, raw);
     else {
       const level = LOG_LEVELS.includes(raw.level) ? raw.level : 'info';
       logger[level]({ ...raw.fields, extensionId: extension.id }, raw.message);
@@ -275,13 +548,14 @@ export const createRestrictedRunner = (
     if (!current.disposing) {
       const now = Date.now();
       exits = [...exits.filter((at) => at > now - CRASH_WINDOW_MS), now];
-      if (exits.length > MAX_EXITS) {
+      if (exits.length >= MAX_EXITS) {
         suppressedUntil = now + CRASH_WINDOW_MS;
         exits = [];
         logger.error(
           { extensionId: extension.id },
           'extension process keeps crashing',
         );
+        reportSuppression(suppressedUntil);
       }
     }
     const reason = `extension process exited (code ${code ?? signal})`;
@@ -289,6 +563,7 @@ export const createRestrictedRunner = (
       settle(failure(id, 'handler-failed', reason));
     }
     current.pending.clear();
+    current.streams.clear();
   };
 
   const launch = async (): Promise<Live> => {
@@ -325,8 +600,14 @@ export const createRestrictedRunner = (
     const current: Live = {
       child,
       pending: new Map(),
+      methods: new Map(),
+      streams: new Map(),
       isExited: false,
+      isReady: false,
       disposing: false,
+      limit: null,
+      rateStart: 0,
+      rateCount: 0,
       ready: new Promise<void>((resolve, reject) => {
         markReady = resolve;
         rejectReady = reject;
@@ -336,24 +617,33 @@ export const createRestrictedRunner = (
       }),
     };
     current.ready.catch(() => {});
-    child.onMessage((raw) => onMessage(current, markReady, raw));
-    child.onOutput((stream, text) => {
-      for (const line of text.split('\n')) {
-        if (line.trim() === '') continue;
-        logger.warn({ extensionId: extension.id, stream }, line);
-      }
-    });
+    child.onMessage((raw) =>
+      onMessage(
+        current,
+        () => {
+          current.isReady = true;
+          markReady();
+        },
+        raw,
+      ),
+    );
+    child.onOutput(logOutput);
     child.onExit((code, signal) => {
       onExit(current, code, signal);
       rejectReady(
-        new Error(`extension process exited (code ${code ?? signal})`),
+        current.limit ??
+          new Error(`extension process exited (code ${code ?? signal})`),
       );
       markExited();
     });
     live = current;
     child.send({ t: 'init', extension: real });
     const timer = setTimeout(() => {
-      rejectReady(new Error('extension process did not become ready'));
+      rejectReady(
+        new ActivationTimeoutError(
+          `activate() did not finish in ${readyTimeoutMs} ms`,
+        ),
+      );
       child.kill();
     }, readyTimeoutMs);
     try {
@@ -376,6 +666,20 @@ export const createRestrictedRunner = (
   };
 
   const call = async (request: ExtRequest): Promise<ExtResponse> => {
+    const streamed =
+      request.method === 'runImporter' || request.method === 'runExporter'
+        ? splitRequest(request)
+        : null;
+    if (
+      streamed !== null &&
+      streamed.body.length > maxRequestBody(streamed.head)
+    ) {
+      return failure(
+        request.id,
+        'handler-failed',
+        'the data for the extension is too large',
+      );
+    }
     const current = await ensureLive();
     return new Promise<ExtResponse>((resolve) => {
       if (current.isExited) {
@@ -385,8 +689,35 @@ export const createRestrictedRunner = (
         return;
       }
       current.pending.set(request.id, resolve);
-      current.child.send({ t: 'rpc', message: request });
+      current.methods.set(request.id, request.method);
+      if (streamed === null) {
+        current.child.send({ t: 'rpc', message: request });
+        return;
+      }
+      // голова и части идут одним потоком: процесс собирает вызов, когда пришли все `size` байт
+      current.child.send({
+        t: 'stream',
+        size: streamed.body.length,
+        request: streamed.head,
+      });
+      let seq = 0;
+      for (const data of chunksOf(streamed.body)) {
+        current.child.send({ t: 'chunk', id: request.id, seq, data });
+        seq += 1;
+      }
     });
+  };
+
+  const timedOutActivation = (
+    id: string,
+    message = `activate() did not finish in ${readyTimeoutMs} ms`,
+  ): ExtResponse => {
+    activationTimeout = message;
+    logger.warn(
+      { extensionId: extension.id },
+      'extension activation timed out; the process was killed',
+    );
+    return failure(id, 'activation-timeout', message);
   };
 
   const killCurrent = (): void => {
@@ -405,6 +736,9 @@ export const createRestrictedRunner = (
       if (disposed) {
         return failure(request.id, 'activation-failed', 'runner is disposed');
       }
+      if (activationTimeout !== null) {
+        return failure(request.id, 'activation-timeout', activationTimeout);
+      }
       if (Date.now() < suppressedUntil) {
         return failure(
           request.id,
@@ -415,8 +749,16 @@ export const createRestrictedRunner = (
       let deadlineMs = OTHER_DEADLINE_MS;
       if (request.method === 'grade') {
         deadlineMs = request.params.timeoutMs + graceMs;
-      } else if (request.method === 'invokeCommand') {
+      } else if (
+        request.method === 'invokeCommand' ||
+        request.method === 'fireSchedule'
+      ) {
         deadlineMs = commandDeadlineMs;
+      } else if (
+        request.method === 'runImporter' ||
+        request.method === 'runExporter'
+      ) {
+        deadlineMs = transferDeadlineMs;
       }
       let timer: ReturnType<typeof setTimeout> | undefined;
       const deadline = new Promise<'deadline'>((resolve) => {
@@ -425,15 +767,27 @@ export const createRestrictedRunner = (
       try {
         const outcome = await Promise.race([call(request), deadline]);
         if (outcome !== 'deadline') return outcome;
+        // срок вызова вышел, пока процесс ещё активировался: причина — активация, а не вызов
+        const activating = live === null ? starting !== null : !live.isReady;
         killCurrent();
+        if (activating) return timedOutActivation(request.id);
         return failure(
           request.id,
-          request.method === 'invokeCommand'
+          request.method === 'invokeCommand' ||
+            request.method === 'fireSchedule' ||
+            request.method === 'runImporter' ||
+            request.method === 'runExporter'
             ? 'handler-timeout'
             : 'handler-failed',
           'extension process was killed: deadline exceeded',
         );
       } catch (error) {
+        if (error instanceof ActivationTimeoutError) {
+          return timedOutActivation(request.id, error.message);
+        }
+        if (error instanceof IpcLimitError) {
+          return failure(request.id, error.reason, error.message);
+        }
         return failure(request.id, 'activation-failed', messageOf(error));
       } finally {
         clearTimeout(timer);
@@ -446,6 +800,7 @@ export const createRestrictedRunner = (
     },
     async dispose() {
       disposed = true;
+      closeOutputWindow();
       const current = live;
       if (current === null || current.isExited) return;
       current.disposing = true;

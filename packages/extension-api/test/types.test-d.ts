@@ -1,16 +1,23 @@
 import { describe, expectTypeOf, it } from 'vitest';
 import type {
+  BytesImportInput,
+  CourseExportInput,
   ExerciseTypeHandler,
   ExtensionContext,
   GradeResult,
+  ImportInput,
   JsonValue,
   LearningEventHandler,
   LearningEventName,
   LearningEventPayloads,
   PanelContext,
+  PanelContextInfo,
   PanelModule,
+  ProgressExportInput,
   SettingContribution,
   SettingValue,
+  WidgetModule,
+  TextImportInput,
 } from '../src/index.ts';
 
 describe('extension-api types', () => {
@@ -76,6 +83,42 @@ describe('extension-api types', () => {
     commands.register('a.bad', () => () => 1);
   });
 
+  it('an importer takes the text or bytes form, an exporter the course or progress form', () => {
+    const importers: ExtensionContext['importers'] = {
+      register: () => ({ dispose: () => undefined }),
+    };
+    importers.register('a.text', ({ name, text }: TextImportInput) => ({
+      files: { [name]: text },
+    }));
+    importers.register('a.bytes', ({ bytes }: BytesImportInput) => ({
+      files: { size: String(bytes.length) },
+    }));
+    importers.register('a.any', async (input) => {
+      expectTypeOf(input).toEqualTypeOf<ImportInput>();
+      return { files: {} };
+    });
+    // @ts-expect-error the result needs `files`
+    importers.register('a.bad', () => ({ file: {} }));
+    // @ts-expect-error a file content is text
+    importers.register('a.number', () => ({ files: { a: 1 } }));
+
+    const exporters: ExtensionContext['exporters'] = {
+      register: () => ({ dispose: () => undefined }),
+    };
+    exporters.register('a.course', ({ title, files }: CourseExportInput) => ({
+      filename: `${title}.json`,
+      text: JSON.stringify(files),
+    }));
+    exporters.register('a.progress', (input: ProgressExportInput) => {
+      expectTypeOf(input.scope).toEqualTypeOf<'progress'>();
+      return { filename: 'p.bin', bytes: new Uint8Array() };
+    });
+    // @ts-expect-error `filename` is required
+    exporters.register('a.nameless', () => ({ text: 'x' }));
+    // @ts-expect-error a file is text or bytes, not both missing
+    exporters.register('a.empty', () => ({ filename: 'a' }));
+  });
+
   it('a panel module receives call, onProps, signal, panelId and props', () => {
     const module: PanelModule<{ id: string }> = {
       mount: (container, ctx) => {
@@ -87,6 +130,23 @@ describe('extension-api types', () => {
           Promise<JsonValue | undefined>
         >();
         expectTypeOf(ctx.onProps).returns.toEqualTypeOf<() => void>();
+        expectTypeOf(ctx.context).toEqualTypeOf<PanelContextInfo>();
+        expectTypeOf(ctx.context.courseId).toEqualTypeOf<string | null>();
+        expectTypeOf(ctx.onContextChange).returns.toEqualTypeOf<() => void>();
+      },
+    };
+    expectTypeOf(module.mount).toBeFunction();
+  });
+
+  it('a widget module gets the frame context without properties', () => {
+    const module: WidgetModule<{ id: string }, 'a.run'> = {
+      mount: (container, ctx) => {
+        expectTypeOf(container).toEqualTypeOf<{ id: string }>();
+        expectTypeOf(ctx.widgetId).toEqualTypeOf<string>();
+        expectTypeOf(ctx.context.courseId).toEqualTypeOf<string | null>();
+        expectTypeOf(ctx.call).parameter(0).toEqualTypeOf<'a.run'>();
+        // a widget is not opened with properties
+        expectTypeOf(ctx).not.toHaveProperty('props');
       },
     };
     expectTypeOf(module.mount).toBeFunction();
@@ -99,6 +159,10 @@ describe('extension-api types', () => {
       commands: 'a.run' | 'a.stop';
       events: 'attempt.closed';
       panels: 'a.panel';
+      widgets: 'a.widget';
+      schedules: 'a.morning' | 'a.hourly';
+      importers: 'a.in';
+      exporters: 'a.out';
       markdownLanguages: 'a';
       settings: { 'a.goal': number; 'a.mode': 'fast' | 'slow' };
     }
@@ -140,10 +204,13 @@ describe('extension-api types', () => {
       >();
     });
 
-    it('commands, events and registrations take the declared ids only', () => {
+    it('commands, schedules, events and registrations take the declared ids only', () => {
       expectTypeOf<Narrow['commands']['register']>()
         .parameter(0)
         .toEqualTypeOf<'a.run' | 'a.stop'>();
+      expectTypeOf<Narrow['schedule']['on']>()
+        .parameter(0)
+        .toEqualTypeOf<'a.morning' | 'a.hourly'>();
       expectTypeOf<Narrow['events']['on']>()
         .parameter(0)
         .toEqualTypeOf<'attempt.closed'>();

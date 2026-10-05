@@ -111,9 +111,9 @@ const serve = async (...sources: CatalogSource[]) => {
   return server;
 };
 
-/** Старый статический сервер: только `index.json`, на `index.v2.json` — 404. */
-const serveLegacy = async (...sources: CatalogSource[]) => {
-  server = await startCatalogServer(sources, { format: 'legacy' });
+/** Каталог без `index.v2.json`: на него 404, `index.json` сервер не отдаёт. */
+const serveWithoutIndex = async (...sources: CatalogSource[]) => {
+  server = await startCatalogServer(sources, { publishIndex: false });
   return server;
 };
 
@@ -416,7 +416,7 @@ describe('Каталог без связи', () => {
     // индекс дописывается в кэш на диск после ответа: ждём файл
     await expect
       .poll(() =>
-        exists(join(extensionsDir(userData), '.catalog', 'index.json')),
+        exists(join(extensionsDir(userData), '.catalog', 'index.v2.json')),
       )
       .toBe(true);
 
@@ -474,7 +474,11 @@ describe('Отзыв и целостность', () => {
     // индекс с отзывом попадает в кэш на диске и читается при следующем запуске
     await expect
       .poll(async () => {
-        const cache = join(extensionsDir(userData), '.catalog', 'index.json');
+        const cache = join(
+          extensionsDir(userData),
+          '.catalog',
+          'index.v2.json',
+        );
         return (
           (await exists(cache)) &&
           (await readFile(cache, 'utf8')).includes('утечка токенов')
@@ -558,42 +562,21 @@ describe('Отзыв и целостность', () => {
     expect(meta.catalogUrl).toBe(catalogServer.url);
   });
 
-  it('старый каталог без index.v2.json: приложение берёт index.json, версии с новыми типами файлов в нём нет', async () => {
-    const catalogServer = await serveLegacy(PICTURED, SUNRISE_1_0);
-    const { userData } = workspace!;
-    const { client, catalog } = await launch(userData, catalogServer.url);
+  it('каталог без index.v2.json недоступен: на index.json запрос не уходит', async () => {
+    const catalogServer = await serveWithoutIndex(SUNRISE_1_0);
+    const { client, catalog } = await launch(
+      workspace!.userData,
+      catalogServer.url,
+    );
     await client.openSettingsExtensions();
     await catalog.openCatalogTab();
 
-    expect(await catalog.catalogNames()).toEqual(['Sunrise']);
-    // без titles и tags: вклад показан идентификатором, теги вычислены окном
     await expectText(
-      catalog.catalogCard(ID).locator('[data-point="themes"]'),
-      ID,
-    );
-    await expectText(
-      catalog.catalogCard(ID).locator('[data-point="tags"]'),
-      'Интерфейс',
-    );
-    await expectText(
-      catalog.catalogCard(ID).locator('[data-point="tags"]'),
-      'Тема',
+      catalog.page.getByTestId('catalog-unavailable'),
+      'Каталог недоступен',
     );
     expect(catalogServer.requests).toContain('GET /index.v2.json 404');
-    expect(catalogServer.requests).toContain('GET /index.json');
-    await expectCount(catalog.page.getByTestId('extension-icon'), 0);
-
-    await catalog.installButton(ID).click();
-    await catalog.confirmInstall();
-    await expectText(catalog.dialog, 'Установлено. Расширение уже работает.');
-    await catalog.closeDialog();
-    const meta = JSON.parse(
-      await readFile(
-        join(extensionsDir(userData), ID, '.dolphy-install.json'),
-        'utf8',
-      ),
-    );
-    expect(meta.catalogUrl).toBe(catalogServer.url);
+    expect(catalogServer.requests).not.toContain('GET /index.json');
   });
 });
 

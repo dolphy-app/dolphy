@@ -861,6 +861,45 @@ describe('запросы ограниченного процесса к данн
     });
   });
 
+  it('запрос уведомления идёт движку от имени этого расширения: чужой id подменяется, форма проверяется', async () => {
+    const request = vi.fn(async () => true);
+    const { child, replies } = await started({
+      engine: { request } as EngineLink,
+    });
+
+    child.emit({
+      t: 'rpc',
+      message: {
+        id: 'n1',
+        method: 'notifications.show',
+        params: { extensionId: 'acme.victim', title: 'T', body: 'B' },
+      },
+    });
+    child.emit({
+      t: 'rpc',
+      message: {
+        id: 'n2',
+        method: 'notifications.show',
+        params: { extensionId: 'acme.victim', title: 5, body: 'B' },
+      } as never,
+    });
+
+    await vi.waitFor(() =>
+      expect(replies()).toContainEqual({ id: 'n1', ok: true, result: true }),
+    );
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledWith('notifications.show', {
+      extensionId: 'acme.fake',
+      title: 'T',
+      body: 'B',
+    });
+    expect(replies()).toContainEqual({
+      id: 'n2',
+      ok: false,
+      error: { code: 'INVALID_ARGUMENT', message: expect.any(String) },
+    });
+  });
+
   it('сообщение процесса о здоровье идёт движку от имени этого расширения; чужой id подменяется', async () => {
     const request = vi.fn(async () => null);
     const { child } = await started({ engine: { request } as EngineLink });

@@ -1,6 +1,7 @@
 import {
   EXTENSION_COMMAND_LIMITS,
   COLOR_SETTING_PATTERN,
+  EXTENSION_NOTIFICATION_LIMITS,
   EXTENSION_STATS_LIMITS,
   EXTENSION_SECRET_LIMITS,
   EXTENSION_STORAGE_LIMITS,
@@ -8,6 +9,7 @@ import {
   SETTING_LIMITS,
   InvalidCommandResultError,
   InvalidTransferResultError,
+  NotificationRateLimitError,
   PermissionError,
   SecretsUnavailableError,
   ANSWER_EVENT,
@@ -34,6 +36,8 @@ import type {
   ExtensionImporters,
   ExtensionLogger,
   ExtensionModule,
+  ExtensionNotification,
+  ExtensionNotifications,
   ExtensionSecrets,
   ExtensionSettings,
   ExtensionStats,
@@ -765,6 +769,99 @@ export const createMemoryStats = (
   };
 };
 
+export interface MemoryNotificationsOptions {
+  /** false — every call rejects with `PermissionError('notifications')`, as for an extension without the permission. Defaults to true. */
+  permitted?: boolean;
+  /** false — the operating system does not support notifications: `show` resolves `false`. Defaults to true. */
+  supported?: boolean;
+  /** false — the user switched notifications off for the extension: `show` resolves `false`. Defaults to true. */
+  enabled?: boolean;
+  /** The current time for the rate windows. Defaults to `Date.now`. */
+  now?: () => number;
+}
+
+export interface MemoryNotifications extends ExtensionNotifications {
+  /** Notifications handed to the (imitated) operating system, oldest first, as the app shows them: sanitized text. */
+  readonly shown: readonly ExtensionNotification[];
+  /** The user's switch "Notifications" of the extension. */
+  setEnabled(enabled: boolean): void;
+  /** Whether the imitated operating system supports notifications. */
+  setSupported(supported: boolean): void;
+}
+
+/** Control characters (except the line feed), line and paragraph separators and text direction marks. */
+// eslint-disable-next-line no-control-regex
+const NOTIFICATION_CONTROL =
+  /[\u0000-\u0009\u000B-\u001F\u007F-\u009F\u2028\u2029\u200E\u200F\u202A-\u202E\u2066-\u2069]/gu;
+
+const notificationText = (
+  field: 'title' | 'body',
+  value: unknown,
+  max: number,
+): string => {
+  if (typeof value !== 'string') {
+    throw new Error(`notification ${field} must be a string`);
+  }
+  const unified = value.replace(/\r\n?/gu, '\n').replace(/\t/gu, ' ');
+  const flat = field === 'body' ? unified : unified.replace(/\n/gu, ' ');
+  const text = flat.replace(NOTIFICATION_CONTROL, '').trim();
+  if ((field === 'title' && text === '') || [...text].length > max) {
+    throw new Error(
+      `notification ${field} must be ${field === 'title' ? '1 to ' : 'up to '}${max} characters`,
+    );
+  }
+  return text;
+};
+
+/**
+ * In-memory notifications with the engine's rules: the text is sanitized and
+ * limited, `perMinute`/`perHour` windows throw `NotificationRateLimitError`,
+ * a switched-off extension or an unsupporting system resolves `false` (and
+ * does not use the rate limit). `shown` is the log the app's fake notifier
+ * would keep.
+ */
+export const createMemoryNotifications = (
+  options: MemoryNotificationsOptions = {},
+): MemoryNotifications => {
+  const now = options.now ?? Date.now;
+  let enabled = options.enabled !== false;
+  let supported = options.supported !== false;
+  const shown: ExtensionNotification[] = [];
+  const times: number[] = [];
+  const limits = EXTENSION_NOTIFICATION_LIMITS;
+  return {
+    shown,
+    setEnabled: (value) => {
+      enabled = value;
+    },
+    setSupported: (value) => {
+      supported = value;
+    },
+    async show(notification) {
+      if (options.permitted === false) {
+        throw new PermissionError('notifications');
+      }
+      const title = notificationText('title', notification?.title, limits.titleLength);
+      const body = notificationText('body', notification?.body, limits.bodyLength);
+      if (!enabled) return false;
+      const at = now();
+      const recent = times.filter((time) => at - time < 3_600_000);
+      times.length = 0;
+      times.push(...recent);
+      if (recent.filter((time) => at - time < 60_000).length >= limits.perMinute) {
+        throw new NotificationRateLimitError('minute', limits.perMinute);
+      }
+      if (recent.length >= limits.perHour) {
+        throw new NotificationRateLimitError('hour', limits.perHour);
+      }
+      times.push(at);
+      if (!supported) return false;
+      shown.push({ title, body });
+      return true;
+    },
+  };
+};
+
 /** What a test replaces in the extension context; by default everything is in memory and silent. */
 export interface LoadOptions {
   library?: LibraryReader;
@@ -777,6 +874,7 @@ export interface LoadOptions {
   importers?: ExtensionImporters;
   exporters?: ExtensionExporters;
   stats?: ExtensionStats;
+  notifications?: ExtensionNotifications;
 }
 
 const contextOf = (
@@ -794,6 +892,7 @@ const contextOf = (
   settings: options.settings ?? createMemorySettings([]),
   events: options.events ?? createMemoryEvents(),
   stats: options.stats ?? createMemoryStats(),
+  notifications: options.notifications ?? createMemoryNotifications(),
   commands: options.commands ?? createMemoryCommands(),
   importers: options.importers ?? createMemoryImporters(),
   exporters: options.exporters ?? createMemoryExporters(),
@@ -1015,6 +1114,9 @@ export const loadEvents = async (
       ...(options.library !== undefined && { library: options.library }),
       ...(options.logger !== undefined && { logger: options.logger }),
       ...(options.stats !== undefined && { stats: options.stats }),
+      ...(options.notifications !== undefined && {
+        notifications: options.notifications,
+      }),
       storage,
       secrets,
       settings,
@@ -1062,6 +1164,9 @@ export const loadCommands = async (
       ...(options.settings !== undefined && { settings: options.settings }),
       ...(options.events !== undefined && { events: options.events }),
       ...(options.stats !== undefined && { stats: options.stats }),
+      ...(options.notifications !== undefined && {
+        notifications: options.notifications,
+      }),
       commands,
     },
     {
@@ -1089,6 +1194,9 @@ const loadOptionsOf = (options: LoadOptions): LoadOptions => ({
   ...(options.events !== undefined && { events: options.events }),
   ...(options.commands !== undefined && { commands: options.commands }),
   ...(options.stats !== undefined && { stats: options.stats }),
+  ...(options.notifications !== undefined && {
+    notifications: options.notifications,
+  }),
 });
 
 export interface LoadedImporters {

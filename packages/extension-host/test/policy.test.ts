@@ -63,6 +63,7 @@ describe('createExtensionPolicy', () => {
       trusted: ['acme.u'],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
     expect(policy.isEnabled('acme.u')).toBe(false);
     expect(policy.isIsolated('acme.u')).toBe(false);
@@ -71,6 +72,7 @@ describe('createExtensionPolicy', () => {
       trusted: [],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
     expect(policy.isEnabled('acme.u')).toBe(true);
     expect(policy.isIsolated('acme.u')).toBe(true);
@@ -83,6 +85,7 @@ describe('createExtensionPolicy', () => {
       trusted: ['dolphy.sql'],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
     expect(policy.isIsolated('dolphy.sql')).toBe(false);
     expect(policy.isEnabled('dolphy.sql')).toBe(true);
@@ -97,6 +100,7 @@ describe('createExtensionPolicy', () => {
       trusted: [],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
     expect(policy.isEnabled('dolphy.sql')).toBe(false);
   });
@@ -107,6 +111,7 @@ describe('createExtensionPolicy', () => {
       trusted: ['acme.d'],
       checkUpdates: true,
       safeMode,
+      notificationsOff: [],
     });
     const items = [
       extension('dolphy.sql', 'bundled'),

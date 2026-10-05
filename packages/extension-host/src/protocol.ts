@@ -190,6 +190,11 @@ export type HostRequest =
         courseId?: string;
       };
     }
+  | {
+      id: string;
+      method: 'notifications.show';
+      params: { extensionId: string; title: string; body: string };
+    }
   | { id: string; method: 'health.report'; params: HealthReport };
 
 /**
@@ -467,6 +472,15 @@ export const hostRequestSchema = z.discriminatedUnion('method', [
       from: z.string(),
       to: z.string(),
       courseId: z.string().optional(),
+    }),
+  }),
+  z.strictObject({
+    id: z.string(),
+    method: z.literal('notifications.show'),
+    params: z.strictObject({
+      extensionId: z.string(),
+      title: z.string(),
+      body: z.string(),
     }),
   }),
   z.strictObject({

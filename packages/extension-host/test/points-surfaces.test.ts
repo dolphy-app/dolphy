@@ -540,6 +540,7 @@ describe('обнаружение и реестр команд и панелей'
       trusted: [ID],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
 
     const registry = createExtensionRegistry(holder, policy);
@@ -587,6 +588,7 @@ describe('обнаружение и реестр команд и панелей'
       trusted: [ID],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
 
     const registry = createExtensionRegistry(holder, policy);
@@ -637,6 +639,7 @@ describe('обнаружение и реестр команд и панелей'
       trusted: [],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
 
     const contributions = createExtensionRegistry(

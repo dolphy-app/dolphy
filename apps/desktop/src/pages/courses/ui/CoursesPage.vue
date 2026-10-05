@@ -4,6 +4,11 @@ import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import type { CourseSummary } from '@/entities/course';
 import { useCourseScope } from '@/features/course-scope';
+import {
+  CheckUpdatesButton,
+  CourseUpdatesBanner,
+  useCourseUpdates,
+} from '@/features/course-updates';
 import { ROUTE } from '@/shared/config/routes.ts';
 import PageHeader from '@/shared/ui/PageHeader.vue';
 import { CourseGraphDialog } from '@/widgets/course-graph';
@@ -24,6 +29,7 @@ const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const scope = useCourseScope();
+const courseUpdates = useCourseUpdates();
 
 const filters = reactive<CourseFilters>({
   query: '',
@@ -109,6 +115,7 @@ const noticeOpen = computed({
     <PageHeader :title="t('courses.title')" :subtitle="t('courses.subtitle')">
       <template #actions>
         <div class="d-flex flex-wrap ga-2">
+          <CheckUpdatesButton />
           <v-btn
             v-if="scope.activeId.value !== null"
             variant="text"
@@ -143,6 +150,8 @@ const noticeOpen = computed({
         </v-btn>
       </template>
     </v-alert>
+
+    <CourseUpdatesBanner />
 
     <div class="toolbar mb-6">
       <v-text-field
@@ -197,6 +206,7 @@ const noticeOpen = computed({
           :tone="toneOf(course.id)"
           :focused="scope.activeId.value === course.id"
           :recommended="recommendedId === course.id"
+          :update-available="courseUpdates.updateOf(course.id) !== undefined"
           @study="study(course)"
           @open-plan="openPlan"
           @check="checkKnowledge(course)"

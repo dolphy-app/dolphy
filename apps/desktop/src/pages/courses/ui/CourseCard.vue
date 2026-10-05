@@ -13,6 +13,8 @@ const props = defineProps<{
   focused: boolean;
   /** Курс, который предлагаем учить (когда фокуса нет). */
   recommended: boolean;
+  /** В репозитории курса на сервере есть новый коммит. */
+  updateAvailable: boolean;
 }>();
 const emit = defineEmits<{ study: []; openPlan: []; check: []; graph: [] }>();
 
@@ -55,23 +57,34 @@ const act = () => (props.focused ? emit('openPlan') : emit('study'));
           <h2 class="title text-title-large font-weight-bold">
             {{ course.name }}
           </h2>
-          <v-chip
-            v-if="focused"
-            size="small"
-            color="primary"
-            variant="flat"
-            prepend-icon="mdi-target"
-          >
-            {{ t('courses.card.focused') }}
-          </v-chip>
-          <v-chip
-            v-else-if="recommended"
-            size="small"
-            color="primary"
-            variant="tonal"
-          >
-            {{ t('courses.card.recommended') }}
-          </v-chip>
+          <div class="d-flex flex-column align-end ga-1 flex-shrink-0">
+            <v-chip
+              v-if="focused"
+              size="small"
+              color="primary"
+              variant="flat"
+              prepend-icon="mdi-target"
+            >
+              {{ t('courses.card.focused') }}
+            </v-chip>
+            <v-chip
+              v-else-if="recommended"
+              size="small"
+              color="primary"
+              variant="tonal"
+            >
+              {{ t('courses.card.recommended') }}
+            </v-chip>
+            <v-chip
+              v-if="updateAvailable"
+              size="small"
+              color="info"
+              variant="tonal"
+              prepend-icon="mdi-update"
+            >
+              {{ t('repository.updateAvailable') }}
+            </v-chip>
+          </div>
         </div>
         <p class="text-body-medium text-medium-emphasis mt-1">
           {{

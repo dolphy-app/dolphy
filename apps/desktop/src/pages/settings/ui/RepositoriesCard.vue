@@ -124,6 +124,16 @@ const confirmRemove = () => {
             />
             {{ t(`repository.status.${statusOf(repository)}`) }}
           </v-chip>
+          <v-chip
+            v-if="repository.availableCommit !== undefined"
+            size="small"
+            color="info"
+            variant="tonal"
+            label
+            prepend-icon="mdi-update"
+          >
+            {{ t('repository.updateAvailable') }}
+          </v-chip>
           <v-spacer />
           <v-btn
             v-if="pendingId === repository.id"

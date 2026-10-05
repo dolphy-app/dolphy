@@ -9,6 +9,7 @@ export const en: typeof ru = {
       validate: 'Validating courses',
       reload: 'Updating the library',
     },
+    updateAvailable: 'Update available',
     status: {
       ready: 'Ready',
       updating: 'Updating',

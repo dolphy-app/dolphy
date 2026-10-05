@@ -31,7 +31,6 @@ describe('panels and commands: project', () => {
         views: [],
         panels: ['acme.commands-panel.main'],
         widgets: [],
-        schedules: [],
         languages: [],
       },
     ]);

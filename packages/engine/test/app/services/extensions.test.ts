@@ -388,7 +388,7 @@ describe('extensions settings', () => {
       disabled: [],
       trusted: [],
       notificationsOff: [],
-      schedulesOff: [],
+      schedulesOff: ['acme.other'],
     });
   });
 

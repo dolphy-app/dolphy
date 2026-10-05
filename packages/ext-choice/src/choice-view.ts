@@ -5,12 +5,21 @@ import type { ChoiceView } from './grade.ts';
 
 const STYLE = `
   :host { display: block; }
-  fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 4px; }
+  fieldset {
+    border: 0; margin: 0; padding: 0; min-width: 0;
+    display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px;
+  }
   label {
     display: flex; gap: 8px; align-items: center; padding: 6px 8px;
     border-radius: 4px; color: rgb(var(--v-theme-on-surface)); cursor: pointer;
   }
-  label:hover { background: rgba(var(--v-theme-on-surface), 0.06); }
+  label:hover:not(:has(input:disabled)),
+  label:has(input:focus-visible) {
+    background: rgba(var(--v-theme-on-surface), 0.06);
+  }
+  label:has(input:disabled) { cursor: default; }
+  input { accent-color: rgb(var(--v-theme-primary)); flex: none; }
+  span { min-width: 0; overflow-wrap: anywhere; }
   input:disabled + span { opacity: 0.6; }
 `;
 

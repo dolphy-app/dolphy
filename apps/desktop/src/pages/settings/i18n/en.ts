@@ -138,6 +138,16 @@ export const en: typeof ru = {
           title: 'Remove the repository?',
           text: 'Its courses will disappear from the library. Your progress is kept and comes back if you add the repository again.',
         },
+        notInstalled:
+          'none not installed | {n} course not installed | {n} courses not installed',
+        choose: 'Courses…',
+        chooseLabel: 'Choose courses of repository {url}',
+        chooser: {
+          title: 'Courses of the repository',
+          hint: 'Checked courses are in the library. Applying downloads the repository again; your progress is kept for courses you remove.',
+          apply: 'Apply',
+          close: 'Close',
+        },
       },
       ignored: {
         title: 'Ignored folders',

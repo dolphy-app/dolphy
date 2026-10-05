@@ -13,6 +13,7 @@ import type {
 } from '@dolphy-app/engine-contract';
 import { useEngine } from '@/shared/api/engine';
 import { useRepositories } from '../model/repositories.ts';
+import RepositoryCoursesDialog from './RepositoryCoursesDialog.vue';
 
 const { t, d } = useI18n();
 const {
@@ -81,6 +82,17 @@ const confirmRemove = () => {
   toRemove.value = null;
   if (repository) void remove(repository.id);
 };
+
+const toChoose = ref<RepositoryDto | null>(null);
+const chooseOpen = computed({
+  get: () => toChoose.value !== null,
+  set: (value: boolean) => {
+    if (!value) toChoose.value = null;
+  },
+});
+const applyCourses = (id: string, courseIds: string[]) => {
+  void update(id, courseIds);
+};
 </script>
 
 <template>
@@ -133,6 +145,18 @@ const confirmRemove = () => {
           >
             {{ t('repository.updateAvailable') }}
           </v-chip>
+          <v-chip
+            v-if="repository.skippedCourseIds.length > 0"
+            size="small"
+            variant="tonal"
+            label
+          >
+            {{
+              t('settings.library.repositories.notInstalled', {
+                n: repository.skippedCourseIds.length,
+              })
+            }}
+          </v-chip>
           <v-spacer />
           <v-btn
             v-if="pendingId === repository.id"
@@ -141,6 +165,19 @@ const confirmRemove = () => {
             @click="cancel(repository.id)"
           >
             {{ t('common.cancel') }}
+          </v-btn>
+          <v-btn
+            variant="text"
+            prepend-icon="mdi-format-list-checks"
+            :disabled="busy"
+            :aria-label="
+              t('settings.library.repositories.chooseLabel', {
+                url: repository.url,
+              })
+            "
+            @click="toChoose = repository"
+          >
+            {{ t('settings.library.repositories.choose') }}
           </v-btn>
           <v-btn
             variant="tonal"
@@ -242,6 +279,12 @@ const confirmRemove = () => {
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <RepositoryCoursesDialog
+      v-model="chooseOpen"
+      :repository="toChoose"
+      @apply="applyCourses"
+    />
   </v-card>
 </template>
 

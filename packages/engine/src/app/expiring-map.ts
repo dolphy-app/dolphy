@@ -1,15 +1,22 @@
 import type { Clock } from '../ports/index.ts';
 
-export interface ExpiringMapOptions {
+export interface ExpiringMapOptions<T = unknown> {
   capacity: number;
   ttlMs: number;
   clock: Clock;
+  /**
+   * Запись ушла сама: истёк срок, её вытеснила или заменила новая либо вызван `clear`.
+   * Явный `delete` не вызывает: вызывающий сам забрал значение.
+   */
+  onDrop?: (key: string, value: T) => void;
 }
 
 export interface ExpiringMap<T> {
   set(key: string, value: T): void;
   get(key: string): T | undefined;
   delete(key: string): boolean;
+  /** Сбрасывает все записи (каждая — через `onDrop`). */
+  clear(): void;
   readonly size: number;
 }
 
@@ -23,23 +30,30 @@ export const createExpiringMap = <T>({
   capacity,
   ttlMs,
   clock,
-}: ExpiringMapOptions): ExpiringMap<T> => {
+  onDrop,
+}: ExpiringMapOptions<T>): ExpiringMap<T> => {
   const entries = new Map<string, Entry<T>>();
+
+  const drop = (key: string, entry: Entry<T>): void => {
+    entries.delete(key);
+    onDrop?.(key, entry.value);
+  };
 
   const sweep = (): void => {
     const now = clock.now();
     for (const [key, entry] of entries) {
-      if (entry.expiresAt <= now) entries.delete(key);
+      if (entry.expiresAt <= now) drop(key, entry);
     }
   };
 
   const set = (key: string, value: T): void => {
     sweep();
-    entries.delete(key);
+    const replaced = entries.get(key);
+    if (replaced !== undefined) drop(key, replaced);
     while (entries.size >= capacity) {
-      const oldest = entries.keys().next();
+      const oldest = entries.entries().next();
       if (oldest.done) break;
-      entries.delete(oldest.value);
+      drop(oldest.value[0], oldest.value[1]);
     }
     entries.set(key, { value, expiresAt: clock.now() + ttlMs });
   };
@@ -53,6 +67,9 @@ export const createExpiringMap = <T>({
     set,
     get,
     delete: (key) => entries.delete(key),
+    clear: () => {
+      for (const [key, entry] of [...entries]) drop(key, entry);
+    },
     get size() {
       sweep();
       return entries.size;

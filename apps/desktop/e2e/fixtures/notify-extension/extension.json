@@ -1,0 +1,15 @@
+{
+  "id": "acme.notify",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "description": "Показывает системные уведомления",
+  "author": "acme",
+  "permissions": ["notifications"],
+  "contributes": {
+    "commands": [
+      { "id": "acme.notify.one", "title": "Уведомление: показать" },
+      { "id": "acme.notify.many", "title": "Уведомление: много" },
+      { "id": "acme.notify.long", "title": "Уведомление: слишком длинное" }
+    ]
+  }
+}

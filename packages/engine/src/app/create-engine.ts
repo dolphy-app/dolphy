@@ -9,6 +9,7 @@ import type { LearningEventListener } from './event-bus.ts';
 import { createExtensionHostServices } from './services/extension-host-services.ts';
 import type { ExtensionHostServices } from './services/extension-host-services.ts';
 import { createCurationService } from './services/curation.ts';
+import { createExtensionTransfers } from './services/extension-transfers.ts';
 import {
   createExtensionsService,
   runStartupUpdateCheck,
@@ -57,6 +58,7 @@ export const createEngineFromContext = (ctx: EngineContext): HostedEngine => {
   const queue = createCommandQueue();
   const closing = new AbortController();
   const library = createLibraryService(ctx);
+  const transfers = createExtensionTransfers(ctx, { library });
   const services: EngineServices = {
     library,
     repositories: createRepositoriesService(ctx, {
@@ -71,7 +73,7 @@ export const createEngineFromContext = (ctx: EngineContext): HostedEngine => {
     plan: createPlanService(ctx),
     placement: createPlacementService(ctx),
     remediation: createRemediationService(ctx),
-    extensions: createExtensionsService(ctx),
+    extensions: createExtensionsService(ctx, transfers.methods),
   };
   // фоновая проверка обновлений: запуск не ждёт её и не зависит от её исхода
   void runStartupUpdateCheck(ctx);
@@ -87,10 +89,12 @@ export const createEngineFromContext = (ctx: EngineContext): HostedEngine => {
     reloadExtensions: () => ctx.extensionApply.reload(),
     extensionHost: createExtensionHostServices(ctx),
     onLearningEvent: ctx.bus.subscribeLearning,
-    close: () => {
+    close: async () => {
       const closed = facade.close();
       closing.abort(); // долгая загрузка не должна держать закрытие
-      return closed;
+      await closed;
+      // после очереди и вызовов вне очереди: ожидающие импорты больше не появятся
+      await transfers.dispose();
     },
   };
 };

@@ -470,6 +470,7 @@ describe('обнаружение и реестр', () => {
       trusted: [],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
 
     expect(registry.contributions().settings).toEqual([

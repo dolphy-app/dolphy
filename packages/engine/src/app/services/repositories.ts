@@ -21,6 +21,7 @@ import type {
   RepositoryRecord,
   RepositoryStore,
   SnapshotInstaller,
+  SnapshotRoot,
 } from '../../ports/index.ts';
 import type { EngineContext } from '../context.ts';
 import { EngineError } from '../errors.ts';
@@ -30,6 +31,9 @@ import {
   repositorySlug,
   urlHash8,
 } from '../repository-url.ts';
+
+/** Снимки репозиториев лежат в `<libraryRoot>/repositories/<id>`. */
+const ROOT: SnapshotRoot = 'repositories';
 
 /** Сколько диагностик попадает в `details` отказа. */
 const MAX_DIAGNOSTICS = 50;
@@ -181,7 +185,7 @@ export const createRepositoriesService = (
   ): Promise<RepositoryStatus> => {
     if (operationsOf(record.id).length > 0) return 'updating';
     if (record.lastError !== undefined) return 'error';
-    return (await installer.exists(record.id)) ? 'ready' : 'error';
+    return (await installer.exists(ROOT, record.id)) ? 'ready' : 'error';
   };
 
   const uniqueId = async (
@@ -252,7 +256,7 @@ export const createRepositoriesService = (
   /** Возвращает прежний снимок и прежнюю библиотеку; сбой отката только логируется. */
   const restore = async (id: string, opId: string): Promise<void> => {
     try {
-      await installer.rollback(id, opId);
+      await installer.rollback(ROOT, id, opId);
       await library.reload();
     } catch (error) {
       ctx.logger.error({ error, id }, 'repository rollback failed');
@@ -286,7 +290,7 @@ export const createRepositoriesService = (
       };
       let installed = false;
       try {
-        await installer.install(id, opId);
+        await installer.install(ROOT, id, opId);
         installed = true;
         const info = await library.reload();
         if (info.state === 'invalid' || info.diagnostics.errors > 0) {
@@ -368,12 +372,12 @@ export const createRepositoriesService = (
       const upToDate = async (commit: string) =>
         previous !== undefined &&
         commit === previous.commit &&
-        (await installer.exists(id));
+        (await installer.exists(ROOT, id));
       if (previous !== undefined && (await upToDate(resolved.commit))) {
         return { changed: false, record: await settle(previous) };
       }
       began = true;
-      const dirs = await installer.begin(id, opId);
+      const dirs = await installer.begin(ROOT, id, opId);
       signal.throwIfAborted();
       progress(id, 'fetch');
       const snapshot = await fetcher.fetchSnapshot({
@@ -429,10 +433,10 @@ export const createRepositoriesService = (
       }
       const id = await uniqueId(url, records);
       op.id = id;
-      if (await installer.exists(id)) {
+      if (await installer.exists(ROOT, id)) {
         throw rejected('Library already has a directory for this repository', {
           reason: 'path-conflict',
-          path: installer.snapshotPath(id),
+          path: installer.snapshotPath(ROOT, id),
         });
       }
       checks.delete(id);
@@ -471,7 +475,7 @@ export const createRepositoriesService = (
         if (ctx.state.closed) throw new EngineError('ENGINE_CLOSED');
         try {
           if (ctx.state.dirty) await ctx.rebuild();
-          await installer.remove(id);
+          await installer.remove(ROOT, id);
           await store.delete(id);
           checks.delete(id);
           await library.reload();
@@ -573,14 +577,15 @@ export const recoverRepositories = async (
 ): Promise<void> => {
   const { repositoryStore, snapshotInstaller, logger } = deps;
   try {
-    const dirs = await snapshotInstaller.recover();
+    // `imported/` реестра не имеет: каталоги импорта — обычные курсы библиотеки
+    const { repositories: dirs } = await snapshotInstaller.recover();
     const known = new Set(
       (await repositoryStore.list()).map((record) => record.id),
     );
     for (const id of dirs) {
       if (known.has(id)) continue;
       try {
-        await snapshotInstaller.remove(id);
+        await snapshotInstaller.remove(ROOT, id);
         logger.warn({ id }, 'removed repository snapshot without a record');
       } catch (error) {
         logger.warn({ error, id }, 'cannot remove repository snapshot');

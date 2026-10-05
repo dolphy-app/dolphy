@@ -62,7 +62,7 @@ superseded-by: null
 ## Progress
 
 - [x] 2026-10-05 спека
-- [x] 2026-10-05 контракт: `RepositoryDto.availableCommit/checkedAt`, `RepositoriesService.checkUpdates`, событие, `CONTRACT_VERSION` 23
+- [x] 2026-10-05 контракт: `RepositoryDto.availableCommit/checkedAt`, `RepositoriesService.checkUpdates`, событие, `CONTRACT_VERSION` 23 (при слиянии с `develop` 24 уже занят: перенумерован в 25)
 - [x] 2026-10-05 RPC: метод, схема, `UNQUEUED`, идемпотентность
 - [x] 2026-10-05 движок: проверка, сброс при `update`/`remove`, проверка при запуске, события
 - [x] 2026-10-05 тесты движка и RPC (`repositories.test.ts`, `rpc.test.ts`, `integration/engine.test.ts`)
@@ -87,7 +87,7 @@ superseded-by: null
 
 ## Outcomes
 
-Сделано всё по требованиям R1–R14. Контракт 23: `RepositoryDto.availableCommit/checkedAt`, `repositories.checkUpdates`, событие `repository-updates-checked`. Проверка при запуске и по кнопке, плашка на «Курсы» с «Обновить», чип на карточке и в «Настройки → Библиотека», уведомление запуска. Результат проверки только в памяти движка, схема `engine.db` не менялась.
+Сделано всё по требованиям R1–R14. Контракт 25 (первоначально 23, перенумерован при слиянии с `develop`): `RepositoryDto.availableCommit/checkedAt`, `repositories.checkUpdates`, событие `repository-updates-checked`. Проверка при запуске и по кнопке, плашка на «Курсы» с «Обновить», чип на карточке и в «Настройки → Библиотека», уведомление запуска. Результат проверки только в памяти движка, схема `engine.db` не менялась.
 
 Отличия от плана: уведомление запуска на экране «Курсы» не откладывается, а считает всё сообщённым (Decision Log); итог ручной проверки различает «найдено», «актуально» и «нет связи» (R10); подпись чипа в узких карточках сворачивается в значок; тест метки в настройках заменён e2e (R12).
 

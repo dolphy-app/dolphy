@@ -11,6 +11,8 @@ import { ROUTE } from '@/shared/config/routes.ts';
 import { useExtensionText } from '@/shared/lib/extension-text.ts';
 import { effectiveTags } from '../lib/tags.ts';
 import {
+  areNotificationsOn,
+  hasNotifications,
   hasSwitches,
   isEnabled,
   isTrusted,
@@ -62,6 +64,7 @@ const {
   restartingHost,
   setEnabled,
   setTrusted,
+  setNotifications,
   setCheckUpdates,
   setSafeMode,
   restartHost,
@@ -592,6 +595,20 @@ watch(
                 inset
                 :data-testid="`enabled-${extension.id}`"
                 @update:model-value="setEnabled(extension.id, $event === true)"
+              />
+              <v-switch
+                v-if="hasNotifications(extension)"
+                :model-value="areNotificationsOn(settings, extension.id)"
+                :label="t('settings.extensions.notificationsLabel')"
+                :disabled="switching.has(`notifications:${extension.id}`)"
+                color="primary"
+                density="compact"
+                hide-details
+                inset
+                :data-testid="`notifications-${extension.id}`"
+                @update:model-value="
+                  setNotifications(extension.id, $event === true)
+                "
               />
               <v-switch
                 :model-value="isTrusted(settings, extension.id)"

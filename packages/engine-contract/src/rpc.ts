@@ -49,6 +49,7 @@ export const RPC_METHODS = {
   'extensions.getSettings': { idempotent: true },
   'extensions.setEnabled': { idempotent: false },
   'extensions.setTrusted': { idempotent: false },
+  'extensions.setNotificationsEnabled': { idempotent: true }, // задаёт значение, не приращение
   'extensions.catalog': { idempotent: true },
   'extensions.install': { idempotent: false },
   'extensions.uninstall': { idempotent: false },
@@ -66,6 +67,10 @@ export const RPC_METHODS = {
   'extensions.dataUsage': { idempotent: true },
   'extensions.clearData': { idempotent: true },
   'extensions.invokeCommand': { idempotent: false },
+  'extensions.runImporter': { idempotent: false },
+  'extensions.commitImport': { idempotent: false },
+  'extensions.discardImport': { idempotent: true },
+  'extensions.runExporter': { idempotent: false },
   'curation.blacklist.list': { idempotent: true },
   'curation.blacklist.has': { idempotent: true },
   'curation.blacklist.add': { idempotent: false },

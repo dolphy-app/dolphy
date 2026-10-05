@@ -114,6 +114,7 @@ const open = (options: OpenOptions = {}) => {
       trusted: [],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     },
   });
   return createTestEngine({

@@ -232,6 +232,7 @@ describe('обнаружение и реестр импортёров и экс�
       trusted: [],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
     return createExtensionRegistry(holder, policy);
   };

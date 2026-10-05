@@ -69,7 +69,18 @@ export type {
 export { createSyncService } from './services/sync.ts';
 export { createLibraryService } from './services/library.ts';
 export { createCurationService } from './services/curation.ts';
+export { COURSE_SNAPSHOT_LIMITS } from './course-snapshot.ts';
 export { createExtensionsService } from './services/extensions.ts';
+export {
+  MAX_IMPORT_DIAGNOSTICS,
+  MAX_PENDING_IMPORTS,
+  PENDING_IMPORT_TTL_MS,
+  createExtensionTransfers,
+} from './services/extension-transfers.ts';
+export type {
+  ExtensionTransfersDeps,
+  ExtensionTransfersService,
+} from './services/extension-transfers.ts';
 export { createExtensionHostServices } from './services/extension-host-services.ts';
 export type { ExtensionHostServices } from './services/extension-host-services.ts';
 export { createExtensionValues } from './extension-values.ts';

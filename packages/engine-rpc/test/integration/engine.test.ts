@@ -7,7 +7,9 @@ import type {
   CatalogDto,
   CommandContributionDto,
   EngineEvent,
+  ExporterContributionDto,
   ExtensionInfoDto,
+  ImporterContributionDto,
   PanelContributionDto,
   WidgetContributionDto,
   ExtensionSettingDefDto,
@@ -31,6 +33,7 @@ import {
   buildLibrary,
   createFakeClock,
   createFakeExtensionCommands,
+  createFakeExtensionTransfers,
   createFakeExerciseTypes,
   createFakeExtensionHostControl,
   createFakeLogReader,
@@ -206,6 +209,20 @@ const UPDATE: ExtensionUpdateDto = {
   },
 };
 
+const IMPORT_BYTES: ImporterContributionDto = {
+  id: 'dolphy.sql.import',
+  extensionId: 'dolphy.sql',
+  title: 'Import',
+  accept: ['.bin'],
+  input: 'bytes',
+};
+const EXPORT_PROGRESS: ExporterContributionDto = {
+  id: 'dolphy.sql.export',
+  extensionId: 'dolphy.sql',
+  title: 'Export',
+  scope: 'progress',
+};
+
 /** Вид задания, всегда отвечающий `passed`: проверяет путь вердикта через RPC. */
 const passingTypes = () =>
   createFakeExerciseTypes({
@@ -245,6 +262,14 @@ const start = async () => {
           text: '42 rows',
         }),
       }),
+      extensionTransfers: createFakeExtensionTransfers({
+        exporters: {
+          'dolphy.sql/dolphy.sql.export': () => ({
+            filename: 'progress.bin',
+            bytes: new Uint8Array([1, 2, 3]),
+          }),
+        },
+      }),
       extensionRegistry: createFakeExtensionRegistry(
         [REGISTERED, USER_EXTENSION],
         {
@@ -256,8 +281,8 @@ const start = async () => {
           commands: [STATS_COMMAND],
           widgets: [SQL_WIDGET],
           panels: [SQL_PANEL],
-          importers: [],
-          exporters: [],
+          importers: [IMPORT_BYTES],
+          exporters: [EXPORT_PROGRESS],
           messages: {},
         },
       ),
@@ -689,6 +714,7 @@ describe('rpc → dispatcher → real engine', () => {
       trusted: [],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
     expect(
       await call('extensions.getSettingValues', () =>
@@ -732,6 +758,7 @@ describe('rpc → dispatcher → real engine', () => {
       trusted: [],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
     expect(
       await call('extensions.setTrusted', () =>
@@ -742,6 +769,18 @@ describe('rpc → dispatcher → real engine', () => {
       trusted: ['acme.user'],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
+    });
+    expect(
+      await call('extensions.setNotificationsEnabled', () =>
+        client.extensions.setNotificationsEnabled('acme.user', false),
+      ),
+    ).toEqual({
+      disabled: ['acme.user'],
+      trusted: ['acme.user'],
+      checkUpdates: true,
+      safeMode: false,
+      notificationsOff: ['acme.user'],
     });
     expect(
       await call('extensions.setCheckUpdates', () =>
@@ -833,6 +872,50 @@ describe('rpc → dispatcher → real engine', () => {
       code: 'EXTENSION_COMMAND_FAILED',
       details: { reason: 'unknown-command' },
     });
+    // байты проходят структурное копирование туда и обратно
+    expect(
+      await call('extensions.runExporter', () =>
+        client.extensions.runExporter('dolphy.sql', 'dolphy.sql.export', {
+          scope: 'progress',
+        }),
+      ),
+    ).toEqual({ filename: 'progress.bin', bytes: new Uint8Array([1, 2, 3]) });
+    await expect(
+      client.extensions.runExporter('dolphy.sql', 'dolphy.sql.export', {
+        scope: 'course',
+        courseId: 'x',
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+    await expect(
+      client.extensions.runImporter('dolphy.sql', 'dolphy.sql.import', {
+        name: 'a.bin',
+        text: 'not bytes',
+      }),
+    ).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+      details: { reason: 'input-kind' },
+    });
+    await call('extensions.runImporter', () =>
+      expect(
+        client.extensions.runImporter('dolphy.sql', 'dolphy.sql.nope', {
+          name: 'a.bin',
+          bytes: new Uint8Array(2),
+        }),
+      ).rejects.toMatchObject({
+        code: 'EXTENSION_TRANSFER_FAILED',
+        details: { kind: 'import', reason: 'unknown-importer' },
+      }),
+    );
+    await call('extensions.commitImport', () =>
+      expect(client.extensions.commitImport('missing')).rejects.toMatchObject({
+        code: 'NOT_FOUND',
+      }),
+    );
+    expect(
+      await call('extensions.discardImport', () =>
+        client.extensions.discardImport('missing'),
+      ),
+    ).toBe(false);
     await expect(
       client.extensions.setEnabled('dolphy.sql', false),
     ).rejects.toMatchObject({
@@ -854,8 +937,8 @@ describe('rpc → dispatcher → real engine', () => {
       commands: [STATS_COMMAND],
       panels: [SQL_PANEL],
       widgets: [SQL_WIDGET],
-      importers: [],
-      exporters: [],
+      importers: [IMPORT_BYTES],
+      exporters: [EXPORT_PROGRESS],
       messages: {},
     });
     await call('diagnostics', () => client.diagnostics());

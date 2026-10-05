@@ -13,6 +13,7 @@ export * from './extension-installer.ts';
 export * from './extension-policy.ts';
 export * from './extension-registry.ts';
 export * from './extension-reloader.ts';
+export * from './extension-transfers.ts';
 export * from './grade-policies.ts';
 export * from './log-reader.ts';
 export * from './platform.ts';

@@ -29,6 +29,7 @@ export const createFakeExtensionPolicy = (
       trusted: [],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     },
   );
   const updates: ExtensionSettingsDto[] = [];

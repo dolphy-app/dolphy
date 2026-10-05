@@ -1,6 +1,8 @@
-export const CONTRACT_VERSION = 23 as const;
+export const CONTRACT_VERSION = 25 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
+/** Потолок файла импорта, суммарного размера присланного дерева и снимка курса для экспорта, байт (R3, R4, R7 спеки `extension-api-breadth-2`). */
+export const MAX_EXTENSION_TRANSFER_BYTES = 20_971_520 as const; // 20 МиБ
 
 export type UnitId = string;
 export type EpochMs = number;
@@ -1433,7 +1435,52 @@ export type ExtensionTransferFailureReason =
   | 'handler-failed'
   | 'invalid-result'
   | 'disabled'
-  | 'replaced';
+  | 'replaced'
+  /** Файл импорта или снимок курса для экспорта больше `MAX_EXTENSION_TRANSFER_BYTES`: обработчик не вызывался. */
+  | 'too-large'
+  /** Курс из присланного дерева отвергнут перезагрузкой библиотеки: каталог откатан, `details` несёт `summary` и `diagnostics`. */
+  | 'reload-rejected';
+
+/** Файл, который пользователь выбрал для импортёра: имя без каталога и содержимое по `input` импортёра. */
+export type ImportFileDto =
+  { name: string; text: string } | { name: string; bytes: Uint8Array };
+
+/** Результат `extensions.runImporter`: сводка присланного дерева после проверки компилятором курсов. */
+export interface ImportPreviewDto {
+  /** Для `commitImport` и `discardImport`; `null` — в дереве есть ошибки или нет ни одного курса: ничего не ожидает, на диске ничего нет. */
+  importId: string | null;
+  extensionId: string;
+  importerId: string;
+  /** Каталог курса от корня библиотеки: `imported/<id расширения>-<имя файла латиницей>`. */
+  path: string;
+  /** Каталог уже есть (повторный импорт того же файла): `commitImport` заменит его. */
+  replaces: boolean;
+  /** Файлов в присланном дереве. */
+  files: number;
+  counts: { courses: number; lessons: number; exercises: number };
+  /** Все диагностики дерева, а не только вошедшие в `diagnostics`. */
+  summary: DiagnosticSummary;
+  /** Ошибки, затем предупреждения, не более 50, без `info`; пути — от каталога курса. */
+  diagnostics: Diagnostic[];
+}
+
+/** Результат `extensions.commitImport`. */
+export interface CommitImportResultDto {
+  /** Каталог курса от корня библиотеки. */
+  path: string;
+  /** Прежний каталог был заменён. */
+  replaced: boolean;
+  /** Курсы каталога; после `commitImport` они в библиотеке. */
+  courseIds: UnitId[];
+}
+
+/** Что экспортировать: курс (снимок собирает движок) или прогресс (обработчик читает `ctx.stats`). */
+export type ExportRequestDto =
+  { scope: 'course'; courseId: UnitId } | { scope: 'progress' };
+
+/** Файл, который вернул экспортёр; имя без разделителей пути, размер проверен. */
+export type ExportFileDto =
+  { filename: string; text: string } | { filename: string; bytes: Uint8Array };
 
 export interface ThemeContributionDto {
   id: string;
@@ -1662,6 +1709,12 @@ export interface ExtensionSettingsDto {
    * По умолчанию выключено. Флаг запуска включает режим независимо от настройки.
    */
   safeMode: boolean;
+  /**
+   * Расширения с выключенными системными уведомлениями (по id), отсортированы,
+   * без повторов: `ctx.notifications.show` у них даёт `false`. По умолчанию
+   * пусто (уведомления включены).
+   */
+  notificationsOff: string[];
 }
 
 /** Состояние процесса хоста расширений: `gave-up` — после повторных сбоев перезапуск прекращён до `restartHost()`. */
@@ -1737,6 +1790,16 @@ export interface ExtensionsService {
   /** `NOT_FOUND` — нет такого расширения; `INVALID_ARGUMENT` `{reason:'bundled'}` — расширение из поставки. */
   setEnabled(id: string, enabled: boolean): Promise<ExtensionSettingsDto>;
   setTrusted(id: string, trusted: boolean): Promise<ExtensionSettingsDto>;
+  /**
+   * Включает и выключает системные уведомления расширения (`notificationsOff`);
+   * не перезапускает расширение. `NOT_FOUND` — нет такого расширения;
+   * `INVALID_ARGUMENT` `{reason:'bundled'}` — расширение из поставки не
+   * настраивается; не булево значение — `INVALID_ARGUMENT`.
+   */
+  setNotificationsEnabled(
+    id: string,
+    enabled: boolean,
+  ): Promise<ExtensionSettingsDto>;
   /** Вклады загруженных расширений для окна (только чтение). */
   contributions(): Promise<ContributionsDto>;
   /**
@@ -1833,6 +1896,48 @@ export interface ExtensionsService {
     commandId: string,
     args?: JsonValue,
   ): Promise<CommandResultDto>;
+  /**
+   * Запускает объявленный импортёр на файле, который выбрал пользователь:
+   * присланное расширением дерево курса проверяется компилятором курсов во
+   * временном каталоге, на диск библиотеки ничего не попадает. Ожидающих
+   * импортов не более 4, каждый живёт 10 минут и пропадает вместе с движком.
+   * Вызов не занимает очередь команд. `INVALID_ARGUMENT` — неверные id, имя
+   * файла (не имя, а путь) или форма файла не по `input` импортёра.
+   * `EXTENSION_TRANSFER_FAILED` с `details` `{ extensionId, id, kind: 'import',
+   * reason }` (`ExtensionTransferFailureReason`): `unknown-importer`,
+   * `disabled`, `too-large` (файл больше `MAX_EXTENSION_TRANSFER_BYTES`),
+   * остальное — как в хосте; `timeout` и `host-down` допускают повтор.
+   */
+  runImporter(
+    extensionId: string,
+    importerId: string,
+    file: ImportFileDto,
+  ): Promise<ImportPreviewDto>;
+  /**
+   * Кладёт ожидающий импорт в библиотеку: заменяет каталог `imported/<имя>` и
+   * перезагружает библиотеку; курс виден без перезапуска. Библиотека отвергла
+   * результат — каталог откатывается, прежняя библиотека остаётся, ошибка
+   * `EXTENSION_TRANSFER_FAILED` с `reason: 'reload-rejected'` и `details`
+   * `summary` и `diagnostics`. Нет такого ожидающего импорта (не было,
+   * истёк, уже применён или отменён) — `NOT_FOUND`. Идёт в очереди команд.
+   */
+  commitImport(importId: string): Promise<CommitImportResultDto>;
+  /** Отменяет ожидающий импорт и удаляет его временный каталог; `false`, если такого не было. Идемпотентна. */
+  discardImport(importId: string): Promise<boolean>;
+  /**
+   * Запускает объявленный экспортёр. Для `scope: 'course'` движок читает
+   * текстовые файлы каталога курса (до `MAX_EXTENSION_TRANSFER_BYTES`) и
+   * передаёт их обработчику; для `progress` обработчик читает `ctx.stats`.
+   * Область запроса должна совпасть с областью экспортёра (иначе
+   * `INVALID_ARGUMENT`), курса нет — `NOT_FOUND`. Вызов не занимает очередь
+   * команд. Ошибки — как у `runImporter` с `kind: 'export'` и
+   * `unknown-exporter`; снимок курса больше потолка — `too-large`.
+   */
+  runExporter(
+    extensionId: string,
+    exporterId: string,
+    request: ExportRequestDto,
+  ): Promise<ExportFileDto>;
 }
 
 export type CatalogStatusDto =

@@ -228,12 +228,16 @@ describe('dispatcher validation', () => {
     });
   });
 
-  it('extensions.setEnabled / setTrusted require an extension id and a boolean', async () => {
+  it('extensions.setEnabled / setTrusted / setNotificationsEnabled require an extension id and a boolean', async () => {
     const { dispatcher } = await connect();
     const [hostSide, rawSide] = createInProcessPair();
     dispatcher.attach(hostSide, 'raw-extensions');
     const raw = createRawClient(rawSide);
-    for (const method of ['extensions.setEnabled', 'extensions.setTrusted']) {
+    for (const method of [
+      'extensions.setEnabled',
+      'extensions.setTrusted',
+      'extensions.setNotificationsEnabled',
+    ]) {
       expect(await raw.call(method, ['acme.ext', true])).toMatchObject({
         ok: true,
       });

@@ -1,13 +1,15 @@
 ---
-status: active
+status: done
 branch: feature/repository-remove-progress
 created: 2026-10-05
-closed: null
+closed: 2026-10-05
 touches: [engine-contract, engine, engine-rpc, desktop]
 depends-on: [specs/archive/2026-10-05-repository-course-selection]
 supersedes: null
 superseded-by: null
 ---
+
+> Исторический документ. Не источник требований.
 
 # Удаление репозитория с прогрессом или без
 
@@ -63,7 +65,7 @@ superseded-by: null
 - [x] 2026-10-05 `apps/desktop`: `useRepositories.remove(id, removeProgress)`, флажок и пояснение в `RepositoriesCard.vue`, i18n ru/en, уведомление, тест модели, e2e `git-courses`
 - [x] 2026-10-05 документация: `engine-ts/design/engine-ts-api.md` (§3.1, метод `remove`), `apps/desktop/README.md` (удаление репозитория, e2e)
 - [x] 2026-10-05 `pnpm fix`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, e2e `git-courses` (4 теста)
-- [ ] закрытие: `Outcomes`, архив спеки, PR в `develop`
+- [x] 2026-10-05 закрытие: `Outcomes`, архив спеки
 
 ## Surprises & Discoveries
 
@@ -82,4 +84,8 @@ superseded-by: null
 
 ## Outcomes
 
-<Заполняется при закрытии.>
+Сделано всё из `Требований` R1–R8: `repositories.remove(id, { removeProgress })` (по умолчанию `false`) пишет `progress_reset` на каждый курс репозитория до `reload`; схема RPC, `CONTRACT_VERSION` 27; флажок «Удалить и прогресс курсов» в диалоге удаления (`ru`/`en`), два вида уведомления. Проверено: `pnpm lint`, `pnpm typecheck`, `pnpm test`, e2e `git-courses` в настоящем Electron, мутационная проверка тестов движка.
+
+Отличия от плана: общий шаг сброса (`app/progress-reset.ts`) не проверяет наличие юнита в графе, проверка осталась в `practice.resetProgress`; номер версии контракта 27 (на `develop` уже была 26). ADR не заведён: решение повторяет образец `extensions.uninstall(removeData)` и не ограничивает будущее.
+
+Осталось (новая спека или issue): `W_ORPHAN_EVENTS` для курсов, удалённых вместе с прогрессом, остаётся в `library.getDiagnostics` (журнал append-only); сброс флагов blacklist/review и статистики серий; отдельный экран сброса прогресса курса без удаления репозитория.

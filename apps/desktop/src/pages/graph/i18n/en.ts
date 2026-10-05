@@ -5,6 +5,8 @@ export const en: typeof ru = {
     title: 'Knowledge graph',
     subtitle: 'Lessons and how they connect: what to master first',
     showCovers: 'Show coverage',
+    open: 'Open graph',
+    close: 'Close graph',
     canvas: 'Lesson graph',
     truncated:
       'Showing part of the graph: the selected courses have more lessons than fit on the diagram.',

@@ -3,6 +3,14 @@
 The built-in `dolphy.js` extension: JavaScript exercises checked by running the
 learner's code against tests written by the course author.
 
+## Answer field
+
+The answer field is a plain `textarea` under a highlighted copy of the same text
+(JavaScript, by `sugar-high`). Typing, selection and the caret are the browser's
+own. The colors are the `--sh-*` variables that the app publishes on the document
+root from the current theme, so the field follows built-in and extension
+themes. In forced-colors mode the highlight layer is hidden.
+
 ## How it works
 
 Each check runs in a fresh child process started in Node's permission mode with

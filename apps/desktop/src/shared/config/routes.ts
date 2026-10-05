@@ -11,5 +11,6 @@ export const ROUTE = {
   settingsAppearance: 'settings-appearance',
   settingsShortcuts: 'settings-shortcuts',
   settingsExtensions: 'settings-extensions',
+  settingsExtensionDetails: 'settings-extension-details',
   settingsAbout: 'settings-about',
 } as const;

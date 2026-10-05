@@ -175,6 +175,10 @@ export class GitClient {
     await this.page.evaluate(`location.hash = '#/graph?course=${courseId}'`);
     const nodes = this.page.locator('.vue-flow__node-lesson');
     await nodes.first().waitFor({ timeout: TIMEOUT });
-    return (await nodes.allInnerTexts()).map((text) => text.trim());
+    const names = (await nodes.allInnerTexts()).map((text) => text.trim());
+    // граф открыт на всё окно и закрывает боковое меню: дальше тест ходит по экранам
+    await this.page.keyboard.press('Escape');
+    await nodes.first().waitFor({ state: 'detached', timeout: TIMEOUT });
+    return names;
   }
 }

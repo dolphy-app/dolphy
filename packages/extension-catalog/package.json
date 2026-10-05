@@ -5,7 +5,8 @@
   "description": "Extension catalog: index schema, semver, compatible version selection, revocation (no Node dependencies)",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./semver": "./src/semver.ts"
   },
   "scripts": {
     "typecheck": "tsc -b tsconfig.json tsconfig.test.json",

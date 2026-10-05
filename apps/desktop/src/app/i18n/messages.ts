@@ -73,6 +73,12 @@ const fullDate: Intl.DateTimeFormatOptions = {
   year: 'numeric',
 };
 
+const shortDate: Intl.DateTimeFormatOptions = {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+};
+
 const shortDateTime: Intl.DateTimeFormatOptions = {
   day: 'numeric',
   month: 'short',
@@ -87,6 +93,6 @@ const shortTime: Intl.DateTimeFormatOptions = {
 };
 
 export const datetimeFormats = {
-  ru: { fullDate, shortDateTime, shortTime },
-  en: { fullDate, shortDateTime, shortTime },
+  ru: { fullDate, shortDate, shortDateTime, shortTime },
+  en: { fullDate, shortDate, shortDateTime, shortTime },
 };

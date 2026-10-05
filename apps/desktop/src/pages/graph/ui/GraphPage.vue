@@ -11,6 +11,7 @@ import { pickGraphCourse } from '../lib/course.ts';
 import { useGraph } from '../model/graph.ts';
 import { useLayout } from '../model/use-layout.ts';
 import GraphCanvas from './GraphCanvas.vue';
+import GraphToolbar from './GraphToolbar.vue';
 import LessonPanel from './LessonPanel.vue';
 
 const { t } = useI18n();
@@ -74,6 +75,22 @@ const hasDependencies = computed(
   () => (view.value?.dependencies.length ?? 0) > 0,
 );
 const errorText = computed(() => error.value ?? layoutError.value);
+const ready = computed(
+  () => view.value !== null && laidOut.value !== null && hasLessons.value,
+);
+const masteredText = computed(() => {
+  const course = view.value?.courses[0];
+  return course
+    ? t('graph.frame.mastered', {
+        done: course.mastered,
+        total: course.lessonIds.length,
+      })
+    : '';
+});
+
+// граф открывается сразу при переходе на экран; закрытое окно возвращается
+// кнопкой на странице
+const open = ref(true);
 
 const study = () => {
   if (!selected.value) return;
@@ -85,22 +102,13 @@ const study = () => {
 </script>
 
 <template>
-  <v-container fluid class="page pa-8">
+  <v-container fluid class="pa-8">
     <PageHeader :title="t('graph.title')" :subtitle="t('graph.subtitle')">
       <CourseScopeSwitcher
         class="mt-4"
         :allow-all="false"
         :fallback-id="courseId"
       />
-      <template #actions>
-        <v-switch
-          v-model="showCovers"
-          :label="t('graph.showCovers')"
-          color="primary"
-          density="comfortable"
-          hide-details
-        />
-      </template>
     </PageHeader>
 
     <v-alert
@@ -131,59 +139,93 @@ const study = () => {
         :text="t('graph.empty.noLessons.text')"
       />
     </v-card>
+    <v-card v-else-if="view && ready" class="pa-4">
+      <v-empty-state
+        icon="mdi-graph-outline"
+        :title="view.courses[0]?.name"
+        :text="masteredText"
+        :action-text="t('graph.open')"
+        @click:action="open = true"
+      />
+    </v-card>
 
-    <template v-if="view && laidOut && hasLessons">
-      <v-alert
-        v-if="view.truncated"
-        type="warning"
-        variant="tonal"
-        class="mb-4"
-        :text="t('graph.truncated')"
-      />
-      <v-alert
-        v-if="!hasDependencies"
-        type="info"
-        variant="tonal"
-        class="mb-4"
-        :text="t('graph.noDependencies')"
-      />
-      <div class="workspace" :class="{ 'with-panel': selected }">
-        <GraphCanvas
-          class="canvas"
-          :view="view"
-          :laid-out="laidOut"
-          :selected-id="selectedId"
-          :show-covers="showCovers"
-          @select="selectedId = $event"
+    <!-- граф на весь экран: окно под шапкой страницы было тесным, и граф не помещался -->
+    <v-dialog
+      :model-value="open && ready"
+      fullscreen
+      :aria-label="t('graph.title')"
+      :scrim="false"
+      transition="dialog-bottom-transition"
+      @update:model-value="open = $event"
+    >
+      <v-card v-if="view && laidOut" class="graph-dialog" rounded="0">
+        <GraphToolbar :view="view">
+          <template #prepend>
+            <v-btn
+              icon="mdi-close"
+              variant="text"
+              size="small"
+              :aria-label="t('graph.close')"
+              :title="t('graph.close')"
+              @click="open = false"
+            />
+          </template>
+        </GraphToolbar>
+
+        <v-alert
+          v-if="view.truncated"
+          type="warning"
+          variant="tonal"
+          density="compact"
+          rounded="0"
+          :text="t('graph.truncated')"
         />
-        <LessonPanel
-          v-if="selected"
-          :lesson="selected"
-          :course="selectedCourse"
-          :view="view"
-          @close="selectedId = null"
-          @select="selectedId = $event"
-          @study="study"
+        <v-alert
+          v-if="!hasDependencies"
+          type="info"
+          variant="tonal"
+          density="compact"
+          rounded="0"
+          :text="t('graph.noDependencies')"
         />
-      </div>
-    </template>
+
+        <div class="workspace" :class="{ 'with-panel': selected }">
+          <GraphCanvas
+            v-model:show-covers="showCovers"
+            class="canvas"
+            :view="view"
+            :laid-out="laidOut"
+            :selected-id="selectedId"
+            @select="selectedId = $event"
+          />
+          <LessonPanel
+            v-if="selected"
+            class="panel"
+            :lesson="selected"
+            :course="selectedCourse"
+            :view="view"
+            @close="selectedId = null"
+            @select="selectedId = $event"
+            @study="study"
+          />
+        </div>
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>
 
 <style scoped>
-/* граф занимает остаток высоты окна под шапкой, какой бы высоты она ни была */
-.page {
+.graph-dialog {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100%;
 }
 
 .workspace {
   display: grid;
-  flex: 1 1 20rem;
+  flex: 1 1 0;
   grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
-  min-height: 20rem;
+  min-height: 0;
 }
 
 .with-panel {
@@ -192,5 +234,14 @@ const study = () => {
 
 .canvas {
   min-height: 0;
+}
+
+/* панель урока — боковая колонка во всю высоту, а не карточка с отступами */
+.panel {
+  min-height: 0;
+  overflow-y: auto;
+  border-radius: 0;
+  border-inline-start: 1px solid
+    rgba(var(--v-border-color), var(--v-border-opacity));
 }
 </style>

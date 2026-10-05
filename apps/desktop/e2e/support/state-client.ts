@@ -233,10 +233,15 @@ export class StateClient {
 
   // --- данные ---
 
-  /** Строка «Данные» в карточке расширения или `null`, если её нет. */
+  /**
+   * Строка «Данные» в карточке расширения или `null`, если её нет. Читается
+   * одним обращением к странице: пара `count()` + `innerText()` не атомарна, и
+   * строка, исчезнувшая между ними (очистка данных), заставляла `innerText()`
+   * ждать вернувшегося элемента весь таймаут Playwright.
+   */
   async dataLine(id = STATE_ID): Promise<string | null> {
-    const line = this.row(id).getByTestId('data-usage');
-    return (await line.count()) === 0 ? null : (await line.innerText()).trim();
+    const [text] = await this.row(id).getByTestId('data-usage').allInnerTexts();
+    return text === undefined ? null : text.trim();
   }
 
   async clearData(id = STATE_ID) {

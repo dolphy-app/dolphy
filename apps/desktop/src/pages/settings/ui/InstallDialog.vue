@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { ROUTE } from '@/shared/config/routes.ts';
 import { formatBytes } from '../lib/format.ts';
 import type { InstallItemStatus } from '../model/install.ts';
 import { useInstallContext } from '../model/install.ts';
 import ExtensionContributions from './ExtensionContributions.vue';
+import ExtensionDeprecation from './ExtensionDeprecation.vue';
 import ExtensionTags from './ExtensionTags.vue';
 import ExtensionHeading from './ExtensionHeading.vue';
 import ExtensionPermissions from './ExtensionPermissions.vue';
+import ReadmeView from './ReadmeView.vue';
 
 interface StatusView {
   icon: string;
@@ -159,6 +162,81 @@ const closeOnBackdrop = (open: boolean) => {
             </v-alert>
 
             <template v-if="isDetailed">
+              <ExtensionDeprecation
+                v-if="item.target.deprecated !== null"
+                :deprecation="item.target.deprecated"
+                @navigate="install.dismiss"
+              />
+              <section
+                v-if="item.notes.state !== 'none'"
+                class="mt-3"
+                :aria-labelledby="`whats-new-${item.target.id}`"
+                :aria-busy="item.notes.state === 'loading'"
+                :data-state="item.notes.state"
+                data-testid="whats-new"
+              >
+                <h4
+                  :id="`whats-new-${item.target.id}`"
+                  class="text-title-small"
+                >
+                  {{ t('settings.extensions.install.whatsNew.title') }}
+                </h4>
+                <p
+                  v-if="item.notes.state === 'loading'"
+                  class="text-body-small text-medium-emphasis mt-1"
+                  role="status"
+                >
+                  {{ t('settings.extensions.install.whatsNew.loading') }}
+                </p>
+                <template
+                  v-else-if="
+                    item.notes.state === 'ready' &&
+                    item.notes.sections.length > 0
+                  "
+                >
+                  <ReadmeView
+                    v-for="section in item.notes.sections"
+                    :key="section.version"
+                    :markdown="`## ${section.title}\n\n${section.body}`"
+                    :extension-id="item.target.id"
+                    :version="item.target.version"
+                    :heading-offset="3"
+                    :images="false"
+                    data-testid="whats-new-section"
+                    :data-version="section.version"
+                  />
+                </template>
+                <div v-else data-testid="whats-new-empty">
+                  <p class="text-body-medium mt-1">
+                    {{
+                      item.notes.state === 'failed'
+                        ? t('settings.extensions.install.whatsNew.failed')
+                        : t('settings.extensions.install.whatsNew.notFound')
+                    }}
+                  </p>
+                  <v-btn
+                    variant="text"
+                    color="primary"
+                    size="small"
+                    class="mt-1"
+                    prepend-icon="mdi-open-in-app"
+                    :aria-label="
+                      t('settings.extensions.install.whatsNew.openPageLabel', {
+                        name: item.target.name,
+                      })
+                    "
+                    :to="{
+                      name: ROUTE.settingsExtensionDetails,
+                      params: { id: item.target.id },
+                      query: { version: item.target.version },
+                    }"
+                    data-testid="whats-new-page"
+                    @click="install.dismiss"
+                  >
+                    {{ t('settings.extensions.install.whatsNew.openPage') }}
+                  </v-btn>
+                </div>
+              </section>
               <ExtensionTags :tags="item.target.tags" />
               <ExtensionContributions
                 :contributes="item.target.contributes"

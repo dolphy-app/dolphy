@@ -10,6 +10,7 @@
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
   },
   "include": ["src", ".dolphy/ids.d.ts"],
+  "exclude": ["src/**/*.stories.ts"],
   "references": [
     {
       "path": "../extension-api"

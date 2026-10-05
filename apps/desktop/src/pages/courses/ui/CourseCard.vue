@@ -64,28 +64,47 @@ const act = () => (props.focused ? emit('openPlan') : emit('study'));
         </span>
       </v-avatar>
       <div class="flex-grow-1 min-width-0">
-        <div class="d-flex align-start justify-space-between ga-2">
-          <h2 class="title text-title-large font-weight-bold">
-            {{ course.name }}
-          </h2>
+        <!-- метка над названием: рядом с ним она отнимала ширину и рвала слова -->
+        <div v-if="focused || recommended" class="mb-1">
           <v-chip
             v-if="focused"
             size="small"
             color="primary"
             variant="flat"
             prepend-icon="mdi-target"
+            tabindex="0"
           >
             {{ t('courses.card.focused') }}
+            <v-tooltip
+              activator="parent"
+              location="bottom"
+              max-width="280"
+              :aria-label="t('courses.card.focusedHint')"
+            >
+              {{ t('courses.card.focusedHint') }}
+            </v-tooltip>
           </v-chip>
           <v-chip
             v-else-if="recommended"
             size="small"
             color="primary"
             variant="tonal"
+            tabindex="0"
           >
             {{ t('courses.card.recommended') }}
+            <v-tooltip
+              activator="parent"
+              location="bottom"
+              max-width="280"
+              :aria-label="t('courses.card.recommendedHint')"
+            >
+              {{ t('courses.card.recommendedHint') }}
+            </v-tooltip>
           </v-chip>
         </div>
+        <h2 class="title text-title-large font-weight-bold">
+          {{ course.name }}
+        </h2>
         <p class="text-body-medium text-medium-emphasis mt-1">
           {{
             t(
@@ -124,6 +143,7 @@ const act = () => (props.focused ? emit('openPlan') : emit('study'));
         >
       </div>
       <v-progress-linear
+        class="progress"
         :model-value="percent"
         height="8"
         rounded
@@ -203,6 +223,13 @@ const act = () => (props.focused ? emit('openPlan') : emit('study'));
 
 .title {
   overflow-wrap: anywhere;
+}
+
+/* пустая дорожка 1.16:1 к фону карточки: контур даёт ≥ 3:1 в обеих темах */
+.progress {
+  outline: 1px solid
+    color-mix(in srgb, rgb(var(--v-theme-on-surface-variant)) 70%, transparent);
+  outline-offset: -1px;
 }
 
 .description {

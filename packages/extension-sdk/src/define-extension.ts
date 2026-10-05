@@ -2,9 +2,11 @@ import type {
   CommandHandler,
   Disposable,
   ExerciseTypeHandler,
+  ExporterHandler,
   ExtensionContext as ApiExtensionContext,
   ExtensionModule,
   GradePolicyHandler,
+  ImporterHandler,
   LearningEventHandler,
   LearningEventName,
 } from '@dolphy-app/extension-api';
@@ -20,6 +22,7 @@ export interface InActivate {
 /**
  * A record value in `defineExtension` that says "this id is registered in
  * `activate`" (`ctx.commands.register`, `ctx.events.on`,
+ * `ctx.importers.register`, `ctx.exporters.register`,
  * `ctx.registerExerciseType`, `ctx.registerGradePolicy`) rather than by a
  * handler in the record. Needed because the records must name every declared
  * id: a handler that needs `ctx` is written in `activate`, and its id gets this
@@ -54,8 +57,8 @@ export type EventHandlers = {
 };
 
 /**
- * What `defineExtension` takes. `exerciseTypes`, `gradePolicies`, `events` and
- * `commands` name every id `extension.json` declares for them, exactly: a
+ * What `defineExtension` takes. `exerciseTypes`, `gradePolicies`, `events`,
+ * `commands`, `importers` and `exporters` name every id `extension.json` declares for them, exactly: a
  * handler, or `inActivate` for an id that `activate` registers.
  */
 export type ExtensionDefinition = Section<
@@ -73,6 +76,16 @@ export type ExtensionDefinition = Section<
     'commands',
     Ids['commands'],
     { readonly [K in Ids['commands']]: CommandHandler | InActivate }
+  > &
+  Section<
+    'importers',
+    Ids['importers'],
+    { readonly [K in Ids['importers']]: ImporterHandler | InActivate }
+  > &
+  Section<
+    'exporters',
+    Ids['exporters'],
+    { readonly [K in Ids['exporters']]: ExporterHandler | InActivate }
   > & {
     /** Runs after the records are registered. */
     activate?(context: ExtensionContext): void | Promise<void>;
@@ -109,6 +122,8 @@ interface LooseDefinition {
     Partial<Record<LearningEventName, LearningEventHandler<never> | InActivate>>
   >;
   commands?: Readonly<Record<string, CommandHandler | InActivate>>;
+  importers?: Readonly<Record<string, ImporterHandler | InActivate>>;
+  exporters?: Readonly<Record<string, ExporterHandler | InActivate>>;
   activate?(context: ApiExtensionContext): void | Promise<void>;
   deactivate?(): void | Promise<void>;
 }
@@ -147,6 +162,12 @@ export const defineExtension = (
     }
     for (const [id, handler] of handlersOf(definition.commands)) {
       registrations.push(context.commands.register(id, handler));
+    }
+    for (const [id, handler] of handlersOf(definition.importers)) {
+      registrations.push(context.importers.register(id, handler));
+    }
+    for (const [id, handler] of handlersOf(definition.exporters)) {
+      registrations.push(context.exporters.register(id, handler));
     }
   };
 

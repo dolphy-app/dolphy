@@ -7,6 +7,7 @@ import type {
   PlacementService,
   PlacementStartRequest,
   PlacementStartResult,
+  PlacementStepResult,
   PlacementSummaryDto,
   UnitId,
 } from '@dolphy-app/engine-contract';
@@ -41,12 +42,23 @@ const PASSING_GRADE = 3;
 const GUESSABLE_MIN_PASS = 2;
 const GRADES = new Set<number>([1, 2, 3, 4, 5]);
 
+interface AnsweredProbe {
+  readonly topic: number;
+  readonly pass: boolean;
+}
+
 interface PlacementSession {
   readonly sessionId: string;
   readonly seed: number;
   readonly budget: number;
   readonly topics: PlacementTopics;
-  readonly diagnostic: DiagnosticSession;
+  readonly minPass: number;
+  /** Заменяется при `undo`/`redo`: диагностика пересобирается по ответам. */
+  diagnostic: DiagnosticSession;
+  /** Действующие ответы по порядку. */
+  answered: readonly AnsweredProbe[];
+  /** Снятые ответы: последний снятый возвращает `redo`; новый ответ их сбрасывает. */
+  undone: readonly AnsweredProbe[];
   /** Выданная и ещё не отвеченная проба (тема). */
   issued: number | null;
   finished: { requestId: string; summary: PlacementSummaryDto } | null;
@@ -140,16 +152,20 @@ export const createPlacementService = (
     });
     const usedSeed = seed ?? drawSeed(ctx.rng);
     const guessable = topics.verifiable.some((verifiable) => !verifiable);
+    const minPass = guessable ? GUESSABLE_MIN_PASS : 0;
     const session: PlacementSession = {
       sessionId: ctx.ids.next(),
       seed: usedSeed,
       budget,
       topics,
+      minPass,
       diagnostic: createDiagnosticSession(topics.graph, {
         budget,
         seed: usedSeed,
-        minPass: guessable ? GUESSABLE_MIN_PASS : 0,
+        minPass,
       }),
+      answered: [],
+      undone: [],
       issued: null,
       finished: null,
     };
@@ -234,6 +250,8 @@ export const createPlacementService = (
       session.topics.probeExercise[parsed.topic] as UnitId,
     );
     diagnostic.answer(parsed.topic, pass);
+    session.answered = [...session.answered, { topic: parsed.topic, pass }];
+    session.undone = [];
     session.issued = null;
     // итог открытой попытки принят: попытка закрыта, события в журнал нет
     if (result.kind === 'attempt') ctx.attempts.delete(result.attemptId);
@@ -242,6 +260,63 @@ export const createPlacementService = (
       budget: session.budget,
       unresolved: diagnostic.unresolvedCount,
     };
+  };
+
+  const progressOf = (session: PlacementSession): PlacementProgressDto => ({
+    asked: session.diagnostic.probes.length,
+    budget: session.budget,
+    unresolved: session.diagnostic.unresolvedCount,
+  });
+
+  /**
+   * Новая диагностика с теми же `(граф, seed, бюджет)` и ответами `answers`:
+   * состояние — функция `(seed, ответы)`, откатить шаг на месте нельзя.
+   */
+  const replayed = (
+    session: PlacementSession,
+    answers: readonly AnsweredProbe[],
+  ): DiagnosticSession => {
+    const diagnostic = createDiagnosticSession(session.topics.graph, {
+      budget: session.budget,
+      seed: session.seed,
+      minPass: session.minPass,
+    });
+    for (const { topic, pass } of answers) {
+      const issued = diagnostic.nextProbe();
+      if (issued !== topic) {
+        throw new Error(
+          `placement replay diverged: expected topic ${topic}, got ${issued}`,
+        );
+      }
+      diagnostic.answer(topic, pass);
+    }
+    return diagnostic;
+  };
+
+  const undo = async (sessionId: string): Promise<PlacementStepResult> => {
+    const session = requireOpen(sessionId);
+    const last = session.answered.at(-1);
+    if (last === undefined)
+      return { changed: false, progress: progressOf(session) };
+    const kept = session.answered.slice(0, -1);
+    session.diagnostic = replayed(session, kept);
+    session.answered = kept;
+    session.undone = [...session.undone, last];
+    session.issued = null;
+    return { changed: true, progress: progressOf(session) };
+  };
+
+  const redo = async (sessionId: string): Promise<PlacementStepResult> => {
+    const session = requireOpen(sessionId);
+    const next = session.undone.at(-1);
+    if (next === undefined)
+      return { changed: false, progress: progressOf(session) };
+    const answers = [...session.answered, next];
+    session.diagnostic = replayed(session, answers);
+    session.answered = answers;
+    session.undone = session.undone.slice(0, -1);
+    session.issued = null;
+    return { changed: true, progress: progressOf(session) };
   };
 
   const summarize = (session: PlacementSession, attemptsWritten: number) => {
@@ -322,5 +397,5 @@ export const createPlacementService = (
     if (activeId === sessionId) activeId = null;
   };
 
-  return { start, nextProbe, answer, finish, abort };
+  return { start, nextProbe, answer, undo, redo, finish, abort };
 };

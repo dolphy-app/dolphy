@@ -679,6 +679,16 @@ describe('rpc → dispatcher → real engine', () => {
     } else {
       called.add('placement.answer');
     }
+    expect(
+      await call('placement.undo', () =>
+        client.placement.undo(placement.sessionId),
+      ),
+    ).toMatchObject({ changed: probe !== null });
+    expect(
+      await call('placement.redo', () =>
+        client.placement.redo(placement.sessionId),
+      ),
+    ).toMatchObject({ changed: probe !== null });
     await call('placement.finish', () =>
       client.placement.finish({
         sessionId: placement.sessionId,

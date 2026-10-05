@@ -11,7 +11,7 @@
 - **Идентификаторы юнитов** — строки; в курсах Trane по соглашению `course`, `course::lesson`, `course::lesson::exercise`, но контракт этого не гарантирует.
 - **Ошибки** — исключения `EngineError` с `code` внутри процесса, `EngineErrorDto` по IPC. Ожидаемые проблемы данных (диагностики библиотеки) возвращаются данными, не исключениями.
 - **Пагинация** — курсор (`Page`): непрозрачная строка, порядок стабилен. Лимиты в §10.
-- **Идемпотентность.** `recordAttempt` — по `requestId` (он становится `id` события), `completeAttempt` — по `attemptId`, `placement.finish` — по `requestId`, `resetProgress` — по `requestId`, `import` — по `id` записи, `sync.folder.sync` — по содержимому сегментов (повтор даёт `duplicates`). Чтения без побочных эффектов (`plan.getDay` при заданном `seed`, `remediation.getPlan`, `library.validate`, `placement.nextProbe` до ответа на выданную пробу) безопасно повторять. Не идемпотентны: `getBatch` (RNG и счётчик показов), `startSession`, `beginAttempt`, `placement.start`, `placement.answer`, `sync.resolveConflict`. UI кэширует батч и не повторяет эти вызовы вслепую.
+- **Идемпотентность.** `recordAttempt` — по `requestId` (он становится `id` события), `completeAttempt` — по `attemptId`, `placement.finish` — по `requestId`, `resetProgress` — по `requestId`, `import` — по `id` записи, `sync.folder.sync` — по содержимому сегментов (повтор даёт `duplicates`). Чтения без побочных эффектов (`plan.getDay` при заданном `seed`, `remediation.getPlan`, `library.validate`, `placement.nextProbe` до ответа на выданную пробу) безопасно повторять. Не идемпотентны: `getBatch` (RNG и счётчик показов), `startSession`, `beginAttempt`, `placement.start`, `placement.answer`, `placement.undo`, `placement.redo`, `sync.resolveConflict`. UI кэширует батч и не повторяет эти вызовы вслепую.
 - **Версионирование.** `CONTRACT_VERSION` (целое) отдаётся в `library.getInfo()` и проверяется при рукопожатии хоста и renderer. Внутри версии — только аддитивные изменения (новые необязательные поля, новые значения перечислений; клиент обязан терпеть неизвестные значения).
 - **Не экспортируется** (в Rust есть, в API нет): сырые записи в `practice_*` (`record_*`, `trim_*`), мутаторы графа (`add_*`), `invalidate_cached_score*`, `override_current_timestamp`, `get_scheduler_data`. Единственный путь записи попытки — `recordAttempt`/`completeAttempt`.
 - **Пакет типов** `@dolphy-app/engine-contract` содержит только `export type` и константы; renderer импортирует его через `import type`, не подтягивая `ts-fsrs`, zod и fs.
@@ -462,11 +462,16 @@ export interface PlacementSummaryDto {
   attemptsWritten: number;
   duplicate: boolean;
 }
+export interface PlacementStepResult { changed: boolean; progress: PlacementProgressDto }
 export interface PlacementService {
   start(req: PlacementStartRequest): Promise<PlacementStartResult>;
   /** `null` — проб больше нет (бюджет исчерпан или все темы решены). До ответа на выданную пробу возвращает ту же пробу. */
   nextProbe(sessionId: string): Promise<PlacementProbeDto | null>;
   answer(req: PlacementAnswerRequest): Promise<PlacementProgressDto>;
+  /** Снимает последний ответ открытой сессии (один шаг за вызов); следующая `nextProbe` выдаёт ту же тему. Диагностика пересобирается по `(seed, ответы)`. */
+  undo(sessionId: string): Promise<PlacementStepResult>;
+  /** Возвращает последний снятый ответ; новый `answer` сбрасывает возврат. */
+  redo(sessionId: string): Promise<PlacementStepResult>;
   finish(req: PlacementFinishRequest): Promise<PlacementSummaryDto>;
   abort(req: { sessionId: string }): Promise<void>;
 }
@@ -869,7 +874,7 @@ export interface RpcPush { event: EngineEvent }
 
 **Раннер SQL не часть контракта.** Пул проверок — дочерние процессы (`child_process.fork`; в Electron `utilityProcess`), живущие рядом с хостом движка; renderer до них не достаёт, по RPC видны только `beginAttempt`/`submitAnswer` и `VerdictDto` (протокол пула — внутренний: `{type:'check'}` → `{type:'verdict'}`). Откуда хост порождает процессы (внутри `utilityProcess` или через main) не проверено в Electron 44 [НЕ ПОДТВЕРЖДЕНО, §13]. Кап `MAX_SQL_CHARS = 100_000` символов хост применяет **до IPC** раннера: длиннее — `failed/sqlite_limit` с `durationMs: 0`, раннер не запускается. Молчание процесса дольше `timeoutMs + 100 мс` — kill и `outcome: 'error'`, `reason: 'timeout'`. `submitAnswer` с `outcome: 'error'` ничего не пишет и `attemptsUsed` не увеличивает; журнал пишет только `completeAttempt`. Сессии `placement` и открытые попытки живут в памяти хоста и теряются при его падении; после перезапуска renderer повторяет только идемпотентные вызовы (`placement.finish` по `requestId`).
 
-RPC-имена новых методов: `plan.getDay`, `placement.start`, `placement.nextProbe`, `placement.answer`, `placement.finish`, `placement.abort`, `remediation.getPlan`, `library.validate`, `library.compile`, `sync.getConflicts`, `sync.resolveConflict`, `sync.folder.configure`, `sync.folder.sync`, `sync.folder.checkRestore`. Длинные вызовы (`library.compile` с `runChecks`, `folder.sync`) хост не выполняет синхронно в одной итерации: остальные команды ждут в очереди порядка получения [ВЫВОД].
+RPC-имена новых методов: `plan.getDay`, `placement.start`, `placement.nextProbe`, `placement.answer`, `placement.undo`, `placement.redo`, `placement.finish`, `placement.abort`, `remediation.getPlan`, `library.validate`, `library.compile`, `sync.getConflicts`, `sync.resolveConflict`, `sync.folder.configure`, `sync.folder.sync`, `sync.folder.checkRestore`. Длинные вызовы (`library.compile` с `runChecks`, `folder.sync`) хост не выполняет синхронно в одной итерации: остальные команды ждут в очереди порядка получения [ВЫВОД].
 
 ## 10. Лимиты
 

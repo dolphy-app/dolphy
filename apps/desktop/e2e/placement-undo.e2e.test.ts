@@ -25,6 +25,18 @@ const journal = () =>
     kind === 'attempt' ? `attempt:${source}` : `${kind}:${op ?? ''}`,
   );
 
+/** Открывает входной тест по курсу Git и нажимает «Начать». */
+const openPlacementTest = async (page: DolphyApp['page']) => {
+  await page.getByRole('link', { name: 'Курсы', exact: true }).click();
+  const card = page.locator('.course-card', {
+    has: page.getByRole('heading', { name: GIT, exact: true }),
+  });
+  await card
+    .getByRole('button', { name: 'Проверить, что я знаю', exact: true })
+    .click();
+  await page.getByRole('button', { name: 'Начать', exact: true }).click();
+};
+
 /** Проходит входной тест по курсу Git: на каждую пробу «Легко», пока не появится итог. */
 const takePlacementTest = async (page: DolphyApp['page']) => {
   await page.getByRole('link', { name: 'Курсы', exact: true }).click();
@@ -80,5 +92,40 @@ describe('отмена результата входного теста', () => 
     await page
       .getByRole('button', { name: 'Отменить результат', exact: true })
       .waitFor({ timeout: TIMEOUT });
+  });
+});
+
+describe('отмена ответа внутри входного теста', () => {
+  it('«Отменить ответ» возвращает ту же пробу, «Вернуть ответ» — следующую; в журнал до конца теста ничего не пишется', async () => {
+    const { page } = app!;
+    await openPlacementTest(page);
+    const prompt = page.locator('.content-inner .prompt-lead').first();
+    const back = page.getByRole('button', {
+      name: 'Отменить ответ',
+      exact: true,
+    });
+    const forward = page.getByRole('button', {
+      name: 'Вернуть ответ',
+      exact: true,
+    });
+    await prompt.waitFor({ timeout: TIMEOUT });
+    const first = await prompt.innerText();
+    await expect(back.isDisabled()).resolves.toBe(true);
+
+    await page
+      .getByRole('button', { name: 'Не знаю / пропустить', exact: true })
+      .click();
+    await expect.poll(() => back.isEnabled()).toBe(true);
+    const second = await prompt.innerText();
+    expect(second).not.toBe(first);
+
+    await back.click();
+    await expect.poll(() => prompt.innerText()).toBe(first);
+    await expect.poll(() => forward.isEnabled()).toBe(true);
+    await expect(back.isDisabled()).resolves.toBe(true);
+
+    await forward.click();
+    await expect.poll(() => prompt.innerText()).toBe(second);
+    expect(journal()).toEqual([]);
   });
 });

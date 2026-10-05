@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 27 as const;
+export const CONTRACT_VERSION = 28 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 /** Потолок файла импорта, суммарного размера присланного дерева и снимка курса для экспорта, байт (R3, R4, R7 спеки `extension-api-breadth-2`). */
@@ -641,11 +641,24 @@ export interface PlacementSummaryDto {
   attemptsWritten: number;
   duplicate: boolean;
 }
+export interface PlacementStepResult {
+  /** Ответ снят или возвращён; `false` — снимать (возвращать) было нечего. */
+  changed: boolean;
+  progress: PlacementProgressDto;
+}
 export interface PlacementService {
   start(req: PlacementStartRequest): Promise<PlacementStartResult>;
   /** `null` — проб больше нет (бюджет исчерпан или все темы решены). До ответа на выданную пробу возвращает ту же пробу. */
   nextProbe(sessionId: string): Promise<PlacementProbeDto | null>;
   answer(req: PlacementAnswerRequest): Promise<PlacementProgressDto>;
+  /**
+   * Снимает последний ответ открытой сессии: следующая `nextProbe` выдаёт ту
+   * же тему. Каждый вызов — один шаг назад. Завершённая, прерванная и
+   * неизвестная сессия — `PLACEMENT_SESSION_NOT_FOUND`.
+   */
+  undo(sessionId: string): Promise<PlacementStepResult>;
+  /** Возвращает последний снятый `undo` ответ; новый `answer` сбрасывает возврат. */
+  redo(sessionId: string): Promise<PlacementStepResult>;
   finish(req: PlacementFinishRequest): Promise<PlacementSummaryDto>;
   abort(req: { sessionId: string }): Promise<void>;
 }

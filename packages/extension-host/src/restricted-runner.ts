@@ -1,6 +1,12 @@
 import { spawn as nodeSpawn } from 'node:child_process';
 import { realpath } from 'node:fs/promises';
 import path from 'node:path';
+import {
+  EXTENSION_TRANSFER_LIMITS,
+  InvalidTransferResultError,
+  normalizeExportResult,
+  normalizeImportResult,
+} from '@dolphy-app/extension-api';
 import type { ExtensionLogger, LibraryReader } from '@dolphy-app/extension-api';
 import type { ResolvedExtension } from './discover.ts';
 import { EngineRequestError, hostFailureOf } from './engine-link.ts';
@@ -19,7 +25,18 @@ import type {
   ChildMessage,
   LibraryFailure,
   ParentMessage,
+  StreamedResult,
 } from './restricted-protocol.ts';
+import {
+  TransferWireError,
+  chunksOf,
+  createBodyReceiver,
+  joinResult,
+  maxRequestBody,
+  maxResultBody,
+  splitRequest,
+} from './transfer-wire.ts';
+import type { BodyReceiver } from './transfer-wire.ts';
 
 /** Дочерний процесс с точки зрения раннера: шов для подмены в тестах. */
 export interface RestrictedChild {
@@ -103,12 +120,20 @@ export interface RestrictedRunnerOptions {
    * (10 с) и меньше срока клиента движка (14 с).
    */
   commandDeadlineMs?: number;
+  /**
+   * Срок импорта или экспорта, включая запуск процесса и передачу тела.
+   * Больше срока обработчика (`EXTENSION_TRANSFER_LIMITS.handlerMs`, 30 с) и
+   * меньше срока клиента движка (34 с); по умолчанию 32 с.
+   */
+  transferDeadlineMs?: number;
 }
 
 const DEFAULT_GRACE_MS = 1500;
 const DEFAULT_READY_TIMEOUT_MS = 10_000;
 const OTHER_DEADLINE_MS = 10_000;
 const COMMAND_DEADLINE_MS = 12_000;
+/** Раннер ждёт обработчик импорта или экспорта дольше его срока (30 с), но короче клиента движка (34 с). */
+export const TRANSFER_DEADLINE_MS = EXTENSION_TRANSFER_LIMITS.handlerMs + 2000;
 const DISPOSE_KILL_MS = 1000;
 const CRASH_WINDOW_MS = 60_000;
 const MAX_EXITS = 5;
@@ -137,6 +162,10 @@ class IpcLimitError extends Error {
 interface Live {
   child: RestrictedChild;
   pending: Map<string, (response: ExtResponse) => void>;
+  /** Метод вызова в полёте: ответ на импорт и экспорт принимается только потоком. */
+  methods: Map<string, ExtRequest['method']>;
+  /** Тела ответов импорта и экспорта, которые процесс ещё досылает. */
+  streams: Map<string, { head: StreamedResult; receiver: BodyReceiver }>;
   ready: Promise<void>;
   isReady: boolean;
   exited: Promise<void>;
@@ -154,6 +183,7 @@ const failure = (
   cause:
     | 'handler-failed'
     | 'handler-timeout'
+    | 'invalid-result'
     | 'activation-failed'
     | 'activation-timeout'
     | 'ipc-size'
@@ -182,6 +212,7 @@ export const createRestrictedRunner = (
   const graceMs = options.graceMs ?? DEFAULT_GRACE_MS;
   const readyTimeoutMs = options.readyTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS;
   const commandDeadlineMs = options.commandDeadlineMs ?? COMMAND_DEADLINE_MS;
+  const transferDeadlineMs = options.transferDeadlineMs ?? TRANSFER_DEADLINE_MS;
   const canReadLibrary = extension.permissions.includes('library.read');
   let live: Live | null = null;
   let starting: Promise<Live> | null = null;
@@ -277,6 +308,7 @@ export const createRestrictedRunner = (
       settle(failure(id, reason, message));
     }
     current.pending.clear();
+    current.streams.clear();
     current.child.kill();
   };
 
@@ -393,6 +425,79 @@ export const createRestrictedRunner = (
     }
   };
 
+  /** Вызов в полёте получил ответ: ожидающий освобождается, поток его тела (если был) забывается. */
+  const settleCall = (current: Live, response: ExtResponse): void => {
+    const settle = current.pending.get(response.id);
+    if (settle === undefined) return;
+    current.pending.delete(response.id);
+    current.methods.delete(response.id);
+    current.streams.delete(response.id);
+    settle(response);
+  };
+
+  const rejectStream = (current: Live, id: string, message: string): void => {
+    logger.warn({ extensionId: extension.id, message }, 'invalid transfer');
+    settleCall(current, failure(id, 'invalid-result', message));
+  };
+
+  /** Голова ответа импорта или экспорта: форма и размер проверяются до выделения памяти под тело. */
+  const openResultStream = (
+    current: Live,
+    message: Extract<ChildMessage, { t: 'result-stream' }>,
+  ): void => {
+    const { id, size, result: head } = message;
+    const method = current.methods.get(id);
+    if (method !== 'runImporter' && method !== 'runExporter') return;
+    const expected =
+      method === 'runImporter'
+        ? head.kind === 'files'
+        : head.kind === 'text' || head.kind === 'bytes';
+    if (!expected || current.streams.has(id)) {
+      rejectStream(current, id, 'extension process sent a malformed result');
+      return;
+    }
+    if (!Number.isInteger(size) || size < 0 || size > maxResultBody(head)) {
+      rejectStream(
+        current,
+        id,
+        'extension process sent a result of an unacceptable size',
+      );
+      return;
+    }
+    current.streams.set(id, { head, receiver: createBodyReceiver(size) });
+  };
+
+  /** Часть тела ответа; последняя собирает, проверяет теми же правилами, что и рантайм, и завершает вызов. */
+  const acceptResultChunk = (
+    current: Live,
+    message: Extract<ChildMessage, { t: 'chunk' }>,
+  ): void => {
+    const { id } = message;
+    const stream = current.streams.get(id);
+    if (stream === undefined) return;
+    if (!stream.receiver.accept(message.seq, message.data)) {
+      rejectStream(current, id, 'extension process sent a corrupted result');
+      return;
+    }
+    if (!stream.receiver.complete) return;
+    try {
+      const joined = joinResult(stream.head, stream.receiver.body());
+      const result =
+        stream.head.kind === 'files'
+          ? normalizeImportResult(joined)
+          : normalizeExportResult(joined);
+      settleCall(current, { id, ok: true, result });
+    } catch (error) {
+      if (
+        !(error instanceof TransferWireError) &&
+        !(error instanceof InvalidTransferResultError)
+      ) {
+        throw error;
+      }
+      rejectStream(current, id, error.message);
+    }
+  };
+
   const onMessage = (current: Live, markReady: () => void, raw: unknown) => {
     if (!withinLimits(current, raw)) return;
     if (!isChildMessage(raw)) {
@@ -406,11 +511,27 @@ export const createRestrictedRunner = (
         void serveEngine(current, raw.message as { id: string });
         return;
       }
-      const settle = current.pending.get(id);
-      if (settle === undefined) return;
-      current.pending.delete(id);
-      settle(raw.message as ExtResponse);
-    } else if (raw.t === 'library') void serveLibrary(current, raw);
+      const response = raw.message as ExtResponse;
+      const method = current.methods.get(id);
+      // успешный ответ импорта и экспорта приходит только потоком: проверка тела — здесь
+      if (
+        response.ok &&
+        (method === 'runImporter' || method === 'runExporter')
+      ) {
+        settleCall(
+          current,
+          failure(
+            id,
+            'invalid-result',
+            'extension process sent a result outside the transfer stream',
+          ),
+        );
+        return;
+      }
+      settleCall(current, response);
+    } else if (raw.t === 'result-stream') openResultStream(current, raw);
+    else if (raw.t === 'chunk') acceptResultChunk(current, raw);
+    else if (raw.t === 'library') void serveLibrary(current, raw);
     else {
       const level = LOG_LEVELS.includes(raw.level) ? raw.level : 'info';
       logger[level]({ ...raw.fields, extensionId: extension.id }, raw.message);
@@ -442,6 +563,7 @@ export const createRestrictedRunner = (
       settle(failure(id, 'handler-failed', reason));
     }
     current.pending.clear();
+    current.streams.clear();
   };
 
   const launch = async (): Promise<Live> => {
@@ -478,6 +600,8 @@ export const createRestrictedRunner = (
     const current: Live = {
       child,
       pending: new Map(),
+      methods: new Map(),
+      streams: new Map(),
       isExited: false,
       isReady: false,
       disposing: false,
@@ -542,6 +666,20 @@ export const createRestrictedRunner = (
   };
 
   const call = async (request: ExtRequest): Promise<ExtResponse> => {
+    const streamed =
+      request.method === 'runImporter' || request.method === 'runExporter'
+        ? splitRequest(request)
+        : null;
+    if (
+      streamed !== null &&
+      streamed.body.length > maxRequestBody(streamed.head)
+    ) {
+      return failure(
+        request.id,
+        'handler-failed',
+        'the data for the extension is too large',
+      );
+    }
     const current = await ensureLive();
     return new Promise<ExtResponse>((resolve) => {
       if (current.isExited) {
@@ -551,7 +689,22 @@ export const createRestrictedRunner = (
         return;
       }
       current.pending.set(request.id, resolve);
-      current.child.send({ t: 'rpc', message: request });
+      current.methods.set(request.id, request.method);
+      if (streamed === null) {
+        current.child.send({ t: 'rpc', message: request });
+        return;
+      }
+      // голова и части идут одним потоком: процесс собирает вызов, когда пришли все `size` байт
+      current.child.send({
+        t: 'stream',
+        size: streamed.body.length,
+        request: streamed.head,
+      });
+      let seq = 0;
+      for (const data of chunksOf(streamed.body)) {
+        current.child.send({ t: 'chunk', id: request.id, seq, data });
+        seq += 1;
+      }
     });
   };
 
@@ -598,6 +751,11 @@ export const createRestrictedRunner = (
         deadlineMs = request.params.timeoutMs + graceMs;
       } else if (request.method === 'invokeCommand') {
         deadlineMs = commandDeadlineMs;
+      } else if (
+        request.method === 'runImporter' ||
+        request.method === 'runExporter'
+      ) {
+        deadlineMs = transferDeadlineMs;
       }
       let timer: ReturnType<typeof setTimeout> | undefined;
       const deadline = new Promise<'deadline'>((resolve) => {
@@ -612,7 +770,9 @@ export const createRestrictedRunner = (
         if (activating) return timedOutActivation(request.id);
         return failure(
           request.id,
-          request.method === 'invokeCommand'
+          request.method === 'invokeCommand' ||
+            request.method === 'runImporter' ||
+            request.method === 'runExporter'
             ? 'handler-timeout'
             : 'handler-failed',
           'extension process was killed: deadline exceeded',

@@ -6,7 +6,9 @@ import type {
   LibraryStat,
 } from '@dolphy-app/extension-api';
 import type { MessageEndpoint } from '@dolphy-app/engine-contract';
+import type { ExportResult, ImportResult } from '@dolphy-app/extension-api';
 import { childInboundSchema } from './protocol.ts';
+import type { ExtResponse } from './protocol.ts';
 import { createExtensionRuntime } from './runtime.ts';
 import type { ExtensionRuntime } from './runtime.ts';
 import { isParentMessage } from './restricted-protocol.ts';
@@ -15,9 +17,25 @@ import type {
   LibraryCall,
   LibraryFailure,
   LogLevel,
+  StreamedRequest,
 } from './restricted-protocol.ts';
+import {
+  TransferWireError,
+  chunksOf,
+  createBodyReceiver,
+  joinRequest,
+  maxRequestBody,
+  splitResult,
+} from './transfer-wire.ts';
+import type { BodyReceiver } from './transfer-wire.ts';
 
 const EXIT_FLUSH_MS = 200;
+/**
+ * Пауза между частями потока ответа: родитель завершает процесс, который шлёт
+ * больше `IPC_MAX_PER_SECOND` сообщений в секунду, а ответ в 20 МиБ — это
+ * около 130 частей. 10 мс на часть — не больше 100 в секунду.
+ */
+export const CHUNK_PACE_MS = 10;
 const LEVELS: readonly LogLevel[] = ['debug', 'info', 'warn', 'error'];
 
 // Error и циклические структуры не проходят через IPC как есть
@@ -117,13 +135,71 @@ export const startRestrictedChild = (proc: NodeJS.Process = process): void => {
   };
 
   const listeners: ((message: unknown) => void)[] = [];
+  // вызовы импорта и экспорта, ответ на которые уходит потоком
+  const transfers = new Map<string, 'runImporter' | 'runExporter'>();
+  // тела ответов уходят по одному: так частота частей остаётся под пределом родителя
+  let outgoing: Promise<void> = Promise.resolve();
+
+  const streamResult = (
+    id: string,
+    method: 'runImporter' | 'runExporter',
+    result: ImportResult | ExportResult,
+  ): void => {
+    const { head, body } = splitResult(method, result);
+    outgoing = outgoing.then(async () => {
+      send({ t: 'result-stream', id, size: body.length, result: head });
+      let seq = 0;
+      for (const data of chunksOf(body)) {
+        if (seq > 0) {
+          await new Promise<void>((resolve) => {
+            setTimeout(resolve, CHUNK_PACE_MS);
+          });
+        }
+        send({ t: 'chunk', id, seq, data });
+        seq += 1;
+      }
+    });
+  };
+
   const endpoint: MessageEndpoint = {
-    post: (message) => send({ t: 'rpc', message: message as never }),
+    post: (message) => {
+      const response = message as ExtResponse;
+      const method = transfers.get(response.id);
+      transfers.delete(response.id);
+      if (method !== undefined && response.ok) {
+        streamResult(
+          response.id,
+          method,
+          response.result as ImportResult | ExportResult,
+        );
+        return;
+      }
+      send({ t: 'rpc', message: message as never });
+    },
     onMessage: (listener) => void listeners.push(listener),
     onClose: () => {},
     close: () => {},
   };
   let runtime: ExtensionRuntime | null = null;
+
+  // вызовы, чьё тело ещё идёт потоком
+  const incoming = new Map<
+    string,
+    { head: StreamedRequest; receiver: BodyReceiver }
+  >();
+  const refuse = (id: string, message: string): void =>
+    endpoint.post({
+      id,
+      ok: false,
+      error: { cause: 'handler-failed', message },
+    });
+  const deliver = (message: unknown): void => {
+    const { id, method } = message as { id: string; method: string };
+    if (method === 'runImporter' || method === 'runExporter') {
+      transfers.set(id, method);
+    }
+    for (const listener of listeners) listener(message);
+  };
 
   proc.on('message', (raw: unknown) => {
     if (!isParentMessage(raw)) return;
@@ -140,7 +216,37 @@ export const startRestrictedChild = (proc: NodeJS.Process = process): void => {
     } else if (raw.t === 'rpc') {
       const parsed = childInboundSchema.safeParse(raw.message);
       if (!parsed.success) return;
-      for (const listener of listeners) listener(parsed.data);
+      deliver(parsed.data);
+    } else if (raw.t === 'stream') {
+      const { request, size } = raw;
+      if (
+        !Number.isInteger(size) ||
+        size < 0 ||
+        size > maxRequestBody(request)
+      ) {
+        refuse(request.id, 'transfer body has an invalid size');
+        return;
+      }
+      incoming.set(request.id, {
+        head: request,
+        receiver: createBodyReceiver(size),
+      });
+    } else if (raw.t === 'chunk') {
+      const stream = incoming.get(raw.id);
+      if (stream === undefined) return;
+      if (!stream.receiver.accept(raw.seq, raw.data)) {
+        incoming.delete(raw.id);
+        refuse(raw.id, 'transfer body is corrupted');
+        return;
+      }
+      if (!stream.receiver.complete) return;
+      incoming.delete(raw.id);
+      try {
+        deliver(joinRequest(stream.head, stream.receiver.body()));
+      } catch (error) {
+        if (!(error instanceof TransferWireError)) throw error;
+        refuse(raw.id, error.message);
+      }
     } else if (raw.t === 'library-result') {
       const waiter = waiters.get(raw.id);
       if (waiter === undefined) return;

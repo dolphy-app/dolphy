@@ -4,13 +4,17 @@ import {
   EXTENSION_STATS_LIMITS,
   EXTENSION_SECRET_LIMITS,
   EXTENSION_STORAGE_LIMITS,
+  EXTENSION_TRANSFER_LIMITS,
   SETTING_LIMITS,
   InvalidCommandResultError,
+  InvalidTransferResultError,
   PermissionError,
   SecretsUnavailableError,
   ANSWER_EVENT,
   StorageQuotaError,
   normalizeCommandResult,
+  normalizeExportResult,
+  normalizeImportResult,
 } from '@dolphy-app/extension-api';
 import type {
   AnswerChangeDetail,
@@ -20,9 +24,14 @@ import type {
   DailyStat,
   Disposable,
   ExerciseTypeHandler,
+  ExportInput,
+  ExportResult,
+  ExporterHandler,
   ExtensionContext,
   ExtensionEvents,
   ExtensionCommands,
+  ExtensionExporters,
+  ExtensionImporters,
   ExtensionLogger,
   ExtensionModule,
   ExtensionSecrets,
@@ -33,6 +42,10 @@ import type {
   GradePolicyInput,
   GradeResult,
   GradeValue,
+  ImportInput,
+  ImportResult,
+  ImporterHandler,
+  ImporterInputKind,
   JsonSchema,
   JsonValue,
   LearningEventHandler,
@@ -437,6 +450,164 @@ export const createMemoryCommands = (
   };
 };
 
+export interface MemoryImporters extends ExtensionImporters {
+  /**
+   * Runs a registered importer the way the host does: the input must have the
+   * form the importer declares (`text` unless `input: 'bytes'`) and at most
+   * `EXTENSION_TRANSFER_LIMITS.inputBytes`; the result goes through the host's
+   * rules (`normalizeImportResult`: paths, sizes, number of files). An
+   * unregistered importer and an invalid result reject the promise. The 30 s
+   * handler timeout is not applied.
+   */
+  run(id: string, input: ImportInput): Promise<ImportResult>;
+  /** Registered importers in registration order. */
+  ids(): string[];
+}
+
+export interface MemoryImportersOptions {
+  /** Importers from `contributes.importers`: registering another throws and `input` is checked, as in the host. Unset — any are allowed. */
+  declaredImporters?: readonly { id: string; input?: ImporterInputKind }[];
+}
+
+/** In-memory importers: the same registration rules and result checks as the host. */
+export const createMemoryImporters = (
+  options: MemoryImportersOptions = {},
+): MemoryImporters => {
+  const handlers = new Map<string, ImporterHandler>();
+  const declaredOf = (id: string) =>
+    options.declaredImporters?.find((entry) => entry.id === id);
+  return {
+    register(id, handler) {
+      if (
+        options.declaredImporters !== undefined &&
+        declaredOf(id) === undefined
+      ) {
+        throw new Error(`importer '${id}' is not declared in the manifest`);
+      }
+      if (handlers.has(id)) {
+        throw new Error(`importer '${id}' is already registered`);
+      }
+      handlers.set(id, handler);
+      return {
+        dispose: () => {
+          if (handlers.get(id) === handler) handlers.delete(id);
+        },
+      };
+    },
+    async run(id, input) {
+      const handler = handlers.get(id);
+      if (handler === undefined) {
+        throw new Error(`importer '${id}' was not registered`);
+      }
+      const expected = declaredOf(id)?.input ?? 'text';
+      if (
+        options.declaredImporters !== undefined &&
+        ('text' in input ? 'text' : 'bytes') !== expected
+      ) {
+        throw new Error(`importer '${id}' takes ${expected} input`);
+      }
+      const size =
+        'text' in input
+          ? new TextEncoder().encode(input.text).length
+          : input.bytes.byteLength;
+      if (size > EXTENSION_TRANSFER_LIMITS.inputBytes) {
+        throw new Error(
+          `the file is longer than ${EXTENSION_TRANSFER_LIMITS.inputBytes} bytes`,
+        );
+      }
+      const result = await handler(input);
+      try {
+        return normalizeImportResult(result);
+      } catch (error) {
+        if (error instanceof InvalidTransferResultError) {
+          throw new Error(`invalid import result: ${error.message}`);
+        }
+        throw error;
+      }
+    },
+    ids: () => [...handlers.keys()],
+  };
+};
+
+export interface MemoryExporters extends ExtensionExporters {
+  /**
+   * Runs a registered exporter the way the host does: the input must match the
+   * exporter's declared `scope` and a course snapshot is at most
+   * `EXTENSION_TRANSFER_LIMITS.totalBytes`; the result goes through the host's
+   * rules (`normalizeExportResult`: file name, size, `text` xor `bytes`). An
+   * unregistered exporter and an invalid result reject the promise. The 30 s
+   * handler timeout is not applied.
+   */
+  run(id: string, input: ExportInput): Promise<ExportResult>;
+  /** Registered exporters in registration order. */
+  ids(): string[];
+}
+
+export interface MemoryExportersOptions {
+  /** Exporters from `contributes.exporters`: registering another throws and `scope` is checked, as in the host. Unset — any are allowed. */
+  declaredExporters?: readonly { id: string; scope: ExportInput['scope'] }[];
+}
+
+/** In-memory exporters: the same registration rules and result checks as the host. */
+export const createMemoryExporters = (
+  options: MemoryExportersOptions = {},
+): MemoryExporters => {
+  const handlers = new Map<string, ExporterHandler>();
+  const declaredOf = (id: string) =>
+    options.declaredExporters?.find((entry) => entry.id === id);
+  return {
+    register(id, handler) {
+      if (
+        options.declaredExporters !== undefined &&
+        declaredOf(id) === undefined
+      ) {
+        throw new Error(`exporter '${id}' is not declared in the manifest`);
+      }
+      if (handlers.has(id)) {
+        throw new Error(`exporter '${id}' is already registered`);
+      }
+      handlers.set(id, handler);
+      return {
+        dispose: () => {
+          if (handlers.get(id) === handler) handlers.delete(id);
+        },
+      };
+    },
+    async run(id, input) {
+      const handler = handlers.get(id);
+      if (handler === undefined) {
+        throw new Error(`exporter '${id}' was not registered`);
+      }
+      const declared = declaredOf(id);
+      if (declared !== undefined && declared.scope !== input.scope) {
+        throw new Error(`exporter '${id}' takes the ${declared.scope} scope`);
+      }
+      if (input.scope === 'course') {
+        const encoder = new TextEncoder();
+        const size = Object.values(input.files).reduce(
+          (sum, text) => sum + encoder.encode(text).length,
+          0,
+        );
+        if (size > EXTENSION_TRANSFER_LIMITS.totalBytes) {
+          throw new Error(
+            `the course files are longer than ${EXTENSION_TRANSFER_LIMITS.totalBytes} bytes`,
+          );
+        }
+      }
+      const result = await handler(input);
+      try {
+        return normalizeExportResult(result);
+      } catch (error) {
+        if (error instanceof InvalidTransferResultError) {
+          throw new Error(`invalid export result: ${error.message}`);
+        }
+        throw error;
+      }
+    },
+    ids: () => [...handlers.keys()],
+  };
+};
+
 export interface MemoryStatsAttempt {
   /** When the attempt happened: epoch milliseconds, a `Date`, or an ISO-8601 string. */
   at: number | Date | string;
@@ -601,6 +772,8 @@ export interface LoadOptions {
   settings?: ExtensionSettings;
   events?: ExtensionEvents;
   commands?: ExtensionCommands;
+  importers?: ExtensionImporters;
+  exporters?: ExtensionExporters;
   stats?: ExtensionStats;
 }
 
@@ -620,6 +793,8 @@ const contextOf = (
   events: options.events ?? createMemoryEvents(),
   stats: options.stats ?? createMemoryStats(),
   commands: options.commands ?? createMemoryCommands(),
+  importers: options.importers ?? createMemoryImporters(),
+  exporters: options.exporters ?? createMemoryExporters(),
   ...registrars,
 });
 
@@ -896,6 +1071,84 @@ export const loadCommands = async (
   return {
     run: commands.run,
     ids: commands.ids,
+    dispose: async () => {
+      await module.deactivate?.();
+    },
+  };
+};
+
+/** The context parts a test replaced, without the keys it left unset. */
+const loadOptionsOf = (options: LoadOptions): LoadOptions => ({
+  ...(options.library !== undefined && { library: options.library }),
+  ...(options.logger !== undefined && { logger: options.logger }),
+  ...(options.storage !== undefined && { storage: options.storage }),
+  ...(options.secrets !== undefined && { secrets: options.secrets }),
+  ...(options.settings !== undefined && { settings: options.settings }),
+  ...(options.events !== undefined && { events: options.events }),
+  ...(options.commands !== undefined && { commands: options.commands }),
+  ...(options.stats !== undefined && { stats: options.stats }),
+});
+
+export interface LoadedImporters {
+  run: MemoryImporters['run'];
+  ids: MemoryImporters['ids'];
+  /** Deactivates the extension module. */
+  dispose(): Promise<void>;
+}
+
+export interface LoadImportersOptions
+  extends Omit<LoadOptions, 'importers'>, MemoryImportersOptions {}
+
+/** Activates the module with in-memory importers and lets the test run them like the host. */
+export const loadImporters = async (
+  module: ExtensionModule,
+  options: LoadImportersOptions = {},
+): Promise<LoadedImporters> => {
+  const importers = createMemoryImporters(options);
+  const context = contextOf(
+    { ...loadOptionsOf(options), importers },
+    {
+      registerExerciseType: () => ({ dispose: () => undefined }),
+      registerGradePolicy: () => ({ dispose: () => undefined }),
+    },
+  );
+  await module.activate(context);
+  return {
+    run: importers.run,
+    ids: importers.ids,
+    dispose: async () => {
+      await module.deactivate?.();
+    },
+  };
+};
+
+export interface LoadedExporters {
+  run: MemoryExporters['run'];
+  ids: MemoryExporters['ids'];
+  /** Deactivates the extension module. */
+  dispose(): Promise<void>;
+}
+
+export interface LoadExportersOptions
+  extends Omit<LoadOptions, 'exporters'>, MemoryExportersOptions {}
+
+/** Activates the module with in-memory exporters and lets the test run them like the host; `stats` feeds `ctx.stats` of a progress exporter. */
+export const loadExporters = async (
+  module: ExtensionModule,
+  options: LoadExportersOptions = {},
+): Promise<LoadedExporters> => {
+  const exporters = createMemoryExporters(options);
+  const context = contextOf(
+    { ...loadOptionsOf(options), exporters },
+    {
+      registerExerciseType: () => ({ dispose: () => undefined }),
+      registerGradePolicy: () => ({ dispose: () => undefined }),
+    },
+  );
+  await module.activate(context);
+  return {
+    run: exporters.run,
+    ids: exporters.ids,
     dispose: async () => {
       await module.deactivate?.();
     },

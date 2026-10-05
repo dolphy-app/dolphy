@@ -526,6 +526,8 @@ export const EXTENSION_TRANSFER_LIMITS = Object.freeze({
   outputBytes: 20 * 1024 * 1024,
   /** Length of the file name an exporter returns. */
   filenameChars: 120,
+  /** One path of the returned directory, UTF-8 bytes. */
+  pathBytes: 1024,
 });
 
 export type GradeValue = 1 | 2 | 3 | 4 | 5;
@@ -587,9 +589,20 @@ export type CommandHandler = (
   args: JsonValue | undefined,
 ) => CommandResult | Promise<CommandResult>;
 
+/** What a `text` importer handler receives: the picked file's base name and its content as a UTF-8 string. */
+export interface TextImportInput {
+  name: string;
+  text: string;
+}
+
+/** What a `bytes` importer handler receives: the picked file's base name and its content. */
+export interface BytesImportInput {
+  name: string;
+  bytes: Uint8Array;
+}
+
 /** What an importer handler receives: the picked file's base name and its content, as the importer's `input` declares. */
-export type ImportInput =
-  { name: string; text: string } | { name: string; bytes: Uint8Array };
+export type ImportInput = TextImportInput | BytesImportInput;
 
 /**
  * What an importer handler returns: the files of a new course directory.
@@ -601,9 +614,14 @@ export interface ImportResult {
   files: Record<string, string>;
 }
 
-export type ImporterHandler = (
-  input: ImportInput,
-) => ImportResult | Promise<ImportResult>;
+/**
+ * Importer handler. Written as a method type so that a handler of a `text`
+ * importer may declare `(input: TextImportInput)` and one of a `bytes` importer
+ * `(input: BytesImportInput)`; the host passes the form the manifest declares.
+ */
+export type ImporterHandler = {
+  handle(input: ImportInput): ImportResult | Promise<ImportResult>;
+}['handle'];
 
 /** What a `course` exporter handler receives: the text files of the course directory (up to `EXTENSION_TRANSFER_LIMITS.totalBytes`). */
 export interface CourseExportInput {
@@ -629,9 +647,15 @@ export type ExportInput = CourseExportInput | ProgressExportInput;
 export type ExportResult =
   { filename: string; text: string } | { filename: string; bytes: Uint8Array };
 
-export type ExporterHandler = (
-  input: ExportInput,
-) => ExportResult | Promise<ExportResult>;
+/**
+ * Exporter handler. Written as a method type so that a handler of a `course`
+ * exporter may declare `(input: CourseExportInput)` and one of a `progress`
+ * exporter `(input: ProgressExportInput)`; the host passes the scope the
+ * manifest declares.
+ */
+export type ExporterHandler = {
+  handle(input: ExportInput): ExportResult | Promise<ExportResult>;
+}['handle'];
 
 /** Command result as the caller receives it (`normalizeCommandResult`). */
 export type CommandOutcome =
@@ -651,7 +675,7 @@ export class InvalidCommandResultError extends Error {
 const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
-/** String length in UTF-8 bytes (the package has no DOM types or `TextEncoder`); a `JSON.stringify` string contains no lone surrogates. */
+/** String length in UTF-8 bytes (the package has no DOM types or `TextEncoder`); a lone surrogate counts as U+FFFD, as `TextEncoder` encodes it. */
 const utf8Length = (text: string): number => {
   let bytes = 0;
   for (let index = 0; index < text.length; index++) {
@@ -659,8 +683,11 @@ const utf8Length = (text: string): number => {
     if (code < 0x80) bytes += 1;
     else if (code < 0x800) bytes += 2;
     else if (code >= 0xd800 && code <= 0xdbff) {
-      bytes += 4;
-      index++;
+      const next = text.charCodeAt(index + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        bytes += 4;
+        index++;
+      } else bytes += 3;
     } else bytes += 3;
   }
   return bytes;
@@ -738,6 +765,177 @@ export const normalizeCommandResult = (
   return props === undefined
     ? { kind: 'openPanel', panelId: openPanel }
     : { kind: 'openPanel', panelId: openPanel, props };
+};
+
+/** The result of an importer or exporter handler is unusable: wrong shape, a bad path or file name, or over a limit. */
+export class InvalidTransferResultError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidTransferResultError';
+  }
+}
+
+/**
+ * Why a path of an imported course directory is not allowed, or `null`. The
+ * path is relative, uses `/`, and has no empty, `.`-leading (so no `..`)
+ * segment, no backslash or control character, and at most
+ * `EXTENSION_TRANSFER_LIMITS.pathBytes` UTF-8 bytes.
+ */
+export const findTransferPathProblem = (path: string): string | null => {
+  if (path === '') return 'path is empty';
+  if (utf8Length(path) > EXTENSION_TRANSFER_LIMITS.pathBytes) {
+    return `path is longer than ${EXTENSION_TRANSFER_LIMITS.pathBytes} bytes`;
+  }
+  // eslint-disable-next-line no-control-regex -- control characters are exactly what is refused
+  if (/[\\\u0000-\u001f\u007f]/.test(path)) {
+    return 'path has a backslash or a control character';
+  }
+  for (const segment of path.split('/')) {
+    if (segment === '') return 'path has an empty segment';
+    if (segment.startsWith('.')) {
+      return `path segment '${segment}' starts with a dot`;
+    }
+  }
+  return null;
+};
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> => {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const proto = Object.getPrototypeOf(value) as unknown;
+  return proto === Object.prototype || proto === null;
+};
+
+/**
+ * Checks what an importer handler returned and returns a copy: an object with
+ * only `files`, a record of path → text. At most `EXTENSION_TRANSFER_LIMITS.files`
+ * files, `fileBytes` each and `totalBytes` in all (UTF-8); paths per
+ * `findTransferPathProblem`, no two equal ignoring case. A violation throws
+ * `InvalidTransferResultError`. The host, the app, and `loadImporters` share it.
+ */
+export const normalizeImportResult = (raw: unknown): ImportResult => {
+  if (!isPlainObject(raw)) {
+    throw new InvalidTransferResultError(
+      "result must be an object like { files: { 'path': 'text' } }",
+    );
+  }
+  const stray = Object.keys(raw).find((key) => key !== 'files');
+  if (stray !== undefined) {
+    throw new InvalidTransferResultError(`unexpected key '${stray}'`);
+  }
+  const { files } = raw;
+  if (!isPlainObject(files)) {
+    throw new InvalidTransferResultError('files must be an object');
+  }
+  const entries = Object.entries(files);
+  if (entries.length > EXTENSION_TRANSFER_LIMITS.files) {
+    throw new InvalidTransferResultError(
+      `more than ${EXTENSION_TRANSFER_LIMITS.files} files`,
+    );
+  }
+  const seen = new Map<string, string>();
+  let total = 0;
+  for (const [path, content] of entries) {
+    const problem = findTransferPathProblem(path);
+    if (problem !== null) {
+      throw new InvalidTransferResultError(
+        `${JSON.stringify(path)}: ${problem}`,
+      );
+    }
+    const folded = path.toLowerCase();
+    const clash = seen.get(folded);
+    if (clash !== undefined) {
+      throw new InvalidTransferResultError(
+        `${JSON.stringify(path)} and ${JSON.stringify(clash)} differ only in case`,
+      );
+    }
+    seen.set(folded, path);
+    if (typeof content !== 'string') {
+      throw new InvalidTransferResultError(
+        `${JSON.stringify(path)}: content must be a string`,
+      );
+    }
+    const size = utf8Length(content);
+    if (size > EXTENSION_TRANSFER_LIMITS.fileBytes) {
+      throw new InvalidTransferResultError(
+        `${JSON.stringify(path)} is longer than ${EXTENSION_TRANSFER_LIMITS.fileBytes} bytes`,
+      );
+    }
+    total += size;
+    if (total > EXTENSION_TRANSFER_LIMITS.totalBytes) {
+      throw new InvalidTransferResultError(
+        `the files are longer than ${EXTENSION_TRANSFER_LIMITS.totalBytes} bytes in all`,
+      );
+    }
+  }
+  return { files: Object.fromEntries(entries) as Record<string, string> };
+};
+
+/**
+ * Checks what an exporter handler returned and returns it: an object with
+ * `filename` and exactly one of `text` (a string) or `bytes` (a `Uint8Array`),
+ * at most `EXTENSION_TRANSFER_LIMITS.outputBytes` of content. The file name
+ * is 1..`filenameChars` characters without `/`, `\`, or control characters,
+ * and is not `.` or `..`. A violation throws `InvalidTransferResultError`.
+ */
+export const normalizeExportResult = (raw: unknown): ExportResult => {
+  if (!isPlainObject(raw)) {
+    throw new InvalidTransferResultError(
+      'result must be an object like { filename, text } or { filename, bytes }',
+    );
+  }
+  const { filename } = raw;
+  const hasText = 'text' in raw;
+  const hasBytes = 'bytes' in raw;
+  const stray = Object.keys(raw).find(
+    (key) => key !== 'filename' && key !== 'text' && key !== 'bytes',
+  );
+  if (stray !== undefined) {
+    throw new InvalidTransferResultError(`unexpected key '${stray}'`);
+  }
+  if (hasText === hasBytes) {
+    throw new InvalidTransferResultError(
+      "result must have exactly one of 'text' and 'bytes'",
+    );
+  }
+  if (
+    typeof filename !== 'string' ||
+    filename === '' ||
+    filename.length > EXTENSION_TRANSFER_LIMITS.filenameChars
+  ) {
+    throw new InvalidTransferResultError(
+      `filename must be a string of 1..${EXTENSION_TRANSFER_LIMITS.filenameChars} characters`,
+    );
+  }
+  // eslint-disable-next-line no-control-regex -- control characters are exactly what is refused
+  if (/[/\\\u0000-\u001f\u007f]/.test(filename) || /^\.\.?$/.test(filename)) {
+    throw new InvalidTransferResultError(
+      'filename must not contain path separators or control characters',
+    );
+  }
+  if (hasText) {
+    const { text } = raw;
+    if (typeof text !== 'string') {
+      throw new InvalidTransferResultError('text must be a string');
+    }
+    if (utf8Length(text) > EXTENSION_TRANSFER_LIMITS.outputBytes) {
+      throw new InvalidTransferResultError(
+        `the file is longer than ${EXTENSION_TRANSFER_LIMITS.outputBytes} bytes`,
+      );
+    }
+    return { filename, text };
+  }
+  const { bytes } = raw;
+  if (!(bytes instanceof Uint8Array)) {
+    throw new InvalidTransferResultError('bytes must be a Uint8Array');
+  }
+  if (bytes.byteLength > EXTENSION_TRANSFER_LIMITS.outputBytes) {
+    throw new InvalidTransferResultError(
+      `the file is longer than ${EXTENSION_TRANSFER_LIMITS.outputBytes} bytes`,
+    );
+  }
+  return { filename, bytes };
 };
 
 /**
@@ -1030,6 +1228,28 @@ export interface ExtensionCommands<Id extends string = string> {
   register(id: Id, handler: CommandHandler): Disposable;
 }
 
+/** Importers of the extension (`contributes.importers`); `Id` narrows the importer ids. */
+export interface ExtensionImporters<Id extends string = string> {
+  /**
+   * `id` must be declared in the `importers` of this extension's manifest,
+   * otherwise it throws; registering twice throws. The handler runs for at
+   * most `EXTENSION_TRANSFER_LIMITS.handlerMs`; a failure, an exceeded budget,
+   * or a result `normalizeImportResult` refuses reaches the user as an error.
+   */
+  register(id: Id, handler: ImporterHandler): Disposable;
+}
+
+/** Exporters of the extension (`contributes.exporters`); `Id` narrows the exporter ids. */
+export interface ExtensionExporters<Id extends string = string> {
+  /**
+   * `id` must be declared in the `exporters` of this extension's manifest,
+   * otherwise it throws; registering twice throws. The handler runs for at
+   * most `EXTENSION_TRANSFER_LIMITS.handlerMs`; a failure, an exceeded budget,
+   * or a result `normalizeExportResult` refuses reaches the user as an error.
+   */
+  register(id: Id, handler: ExporterHandler): Disposable;
+}
+
 export interface Disposable {
   dispose(): void | Promise<void>;
 }
@@ -1053,6 +1273,8 @@ export interface ExtensionIdSet {
   commands: string;
   events: LearningEventName;
   panels: string;
+  importers: string;
+  exporters: string;
   /** Languages of `contributes.markdownRenderers`. */
   markdownLanguages: string;
   /** Setting id → type of its value. */
@@ -1071,6 +1293,8 @@ export interface ExtensionContext<Ids extends ExtensionIdSet = ExtensionIdSet> {
   /** Learning statistics; needs the `learning.stats` permission. */
   readonly stats: ExtensionStats;
   readonly commands: ExtensionCommands<Ids['commands']>;
+  readonly importers: ExtensionImporters<Ids['importers']>;
+  readonly exporters: ExtensionExporters<Ids['exporters']>;
   /** `type` must be declared in the manifest of this extension, otherwise it throws. */
   registerExerciseType(
     type: Ids['exerciseTypes'],

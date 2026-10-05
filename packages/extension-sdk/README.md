@@ -81,6 +81,8 @@ generates, not by your code.
   `disabled`, `verdict`.
 - `defineExtensionPanel({ mount(container, ctx) })` — an entry of `panels`
   (key: panel id).
+- `defineExtensionWidget({ mount(container, ctx) })` — an entry of `widgets`
+  (key: widget id; see "Widgets").
 - `defineMarkdownRenderer(render)` — an entry of `markdown` (key: block
   language); `render(source, container, { language, signal })`. When it throws,
   the app keeps the original block text.
@@ -89,10 +91,10 @@ generates, not by your code.
   policies are registered and released together with the exercise types;
   `events` is a dictionary `event name -> handler` (see "State, settings and
   events").
-- The keys of `views`, `panels` and `markdown` must be exactly the exercise
-  types, panels and languages the manifest declares; the build reports a
+- The keys of `views`, `panels`, `widgets` and `markdown` must be exactly the
+  exercise types, panels, widgets and languages the manifest declares; the build reports a
   missing or extra key, and `satisfies ExtensionViews` (`ExtensionPanels`,
-  `ExtensionMarkdown`) makes the compiler report it first (see "Typed ids").
+  `ExtensionWidgets`, `ExtensionMarkdown`) makes the compiler report it first (see "Typed ids").
 
 Themes need no code: they are data in `extension.json`. Details on all
 contribution points are in `docs/design/extensions.md`, "Точки вклада".
@@ -170,7 +172,12 @@ export const host = defineExtension({
   gives it. `options`: `props`, `call(commandId, args)` (the answer to
   `ctx.call`; without it calls are rejected) and `container`. It returns
   `container`, `calls`, `aborted`, `setProps(props)` (delivers new `ctx.onProps`
-  values) and `dispose()` (aborts `ctx.signal`).
+  values), `setContext({ courseId })` (changes `ctx.context` and notifies
+  `ctx.onContextChange`; `options.context` sets the start value) and
+  `dispose()` (aborts `ctx.signal`).
+- `loadWidget(widgets, id, options?)` does the same for a widget: `options`
+  `call`, `context`, `container`; it returns `container`, `calls`, `aborted`,
+  `setContext` and `dispose()`.
 - `createSchemaValidator(schema)`, `createMemoryLibrary(files)`,
   `createMemoryStorage()`, `createMemorySettings(definitions, values?)`,
   `createMemoryEvents(options?)`, `createMemoryCommands(options?)`,
@@ -345,11 +352,54 @@ panel.calls; // [{ commandId: 'acme.tools.ping', args: undefined }]
   `ctx.commands.register(id, handler)`. The result is `notify(text)` (1–500
   characters), `openPanel(id, props?)`, a JSON value or nothing.
 - `defineExtensionPanel({ mount(container, ctx) })` — `ctx` has `panelId`,
-  `props`, `signal`, `call(commandId, args?)`, `onProps(listener)`.
+  `props`, `context` (`{ courseId: string | null }`, read only), `signal`,
+  `call(commandId, args?)`, `onProps(listener)`, `onContextChange(listener)`.
 - `loadCommands(host, options?)` gives `run(id, args?)` → `CommandOutcome`,
   `ids()`, `dispose()`; it throws on an unregistered command and an invalid
   result (the rules are `normalizeCommandResult` from
   `@dolphy-app/extension-api`).
+
+## Widgets and icons
+
+A widget is the `contributes.widgets` point: a card in an isolated frame on the
+"Daily plan" screen (`slot: "dailyPlan"`, `minHeight` / `maxHeight` 80–320 px,
+at most 3 per extension, module `./widget.mjs` by default, main is not needed).
+The app sizes the frame to its content within the range; taller content scrolls
+inside. `ctx.call` reaches the commands of the same extension only, and
+`ctx.context.courseId` (with `ctx.onContextChange`) is the course the app is
+focused on, `null` for all courses.
+
+```ts
+// src/index.ts
+import {
+  defineExtension,
+  defineExtensionWidget,
+  type ExtensionWidgets,
+} from '@dolphy-app/extension-sdk';
+
+export const host = defineExtension({
+  commands: { 'acme.streak.today': () => ({ days: 3 }) },
+});
+
+export const widgets = {
+  'acme.streak.card': defineExtensionWidget({
+    async mount(container, ctx) {
+      const render = async () => {
+        const answer = await ctx.call('acme.streak.today', {
+          courseId: ctx.context.courseId,
+        });
+        container.textContent = JSON.stringify(answer);
+      };
+      ctx.onContextChange(() => void render());
+      await render();
+    },
+  }),
+} satisfies ExtensionWidgets;
+```
+
+`commands` and `panels` take an optional `icon`, a name from `EXTENSION_ICONS`
+(24 names, `puzzle` by default); the app draws its own glyph in the command
+palette and the sidebar, decoratively.
 
 ## Importers and exporters
 

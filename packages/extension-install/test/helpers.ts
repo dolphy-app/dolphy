@@ -35,6 +35,7 @@ export interface Contributes {
   events?: string[];
   commands?: string[];
   panels?: string[];
+  widgets?: string[];
   importers?: string[];
   exporters?: string[];
 }
@@ -255,6 +256,7 @@ export const inspectJson = async (
           settings: raw.contributes.settings ?? [],
           events: raw.contributes.events ?? [],
           commands: raw.contributes.commands ?? [],
+          widgets: raw.contributes.widgets ?? [],
           panels: raw.contributes.panels ?? [],
           importers: raw.contributes.importers ?? [],
           exporters: raw.contributes.exporters ?? [],

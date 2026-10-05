@@ -174,7 +174,7 @@ describe('parseIndexLenient', () => {
       {
         ...good,
         future: true,
-        contributes: { ...good.contributes, widgets: ['x'] },
+        contributes: { ...good.contributes, gadgets: ['x'] },
         versions: [{ ...version(), signature: 'abc' }],
       },
     ]) as Record<string, unknown>;
@@ -182,7 +182,7 @@ describe('parseIndexLenient', () => {
     expect(warnings).toEqual([]);
     const parsed = index.extensions[0];
     expect(parsed).not.toHaveProperty('future');
-    expect(parsed?.contributes).not.toHaveProperty('widgets');
+    expect(parsed?.contributes).not.toHaveProperty('gadgets');
     expect(parsed?.versions[0]).not.toHaveProperty('signature');
     expect(index).not.toHaveProperty('banner');
   });
@@ -262,7 +262,7 @@ describe('parseIndexLenient', () => {
       full([
         {
           ...good,
-          titles: { themes: { 'acme.dark': 'Dark' }, widgets: { x: 'y' } },
+          titles: { themes: { 'acme.dark': 'Dark' }, gadgets: { x: 'y' } },
         },
       ]),
     );

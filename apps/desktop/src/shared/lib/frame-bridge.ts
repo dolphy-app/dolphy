@@ -1,4 +1,8 @@
-import type { AnswerChangeDetail, JsonValue } from '@dolphy-app/extension-api';
+import type {
+  AnswerChangeDetail,
+  JsonValue,
+  PanelContextInfo,
+} from '@dolphy-app/extension-api';
 import { createDomThemeSource } from './frame-theme.ts';
 import type { ThemeSource } from './frame-theme.ts';
 
@@ -29,7 +33,15 @@ const READY_TIMEOUT_MS = 10_000;
 export type FrameInit =
   | { mode: 'answer'; rendererUrl: string; element: string; label: string }
   | { mode: 'markdown'; rendererUrl: string; language: string; source: string }
-  | { mode: 'panel'; rendererUrl: string; panelId: string; props?: JsonValue };
+  | { mode: 'panel'; rendererUrl: string; panelId: string; props?: JsonValue }
+  | { mode: 'widget'; rendererUrl: string; widgetId: string };
+
+/** Окружение, которое рамка панели или виджета читает как `ctx.context`. */
+export type FrameContext = PanelContextInfo;
+
+/** Режимы, где расширение вызывает свои команды и получает окружение. */
+const isInteractive = (init: FrameInit): boolean =>
+  init.mode === 'panel' || init.mode === 'widget';
 
 export interface FrameProps {
   view: unknown;
@@ -148,12 +160,12 @@ export interface FrameHandlers {
   onSize?(height: number): void;
   onDone?(): void;
   onError?(message: string): void;
-  /** Рамка панели переслала Ctrl/⌘+K (единственное сочетание, которое она передаёт). */
+  /** Рамка панели или виджета переслала Ctrl/⌘+K (единственное сочетание, которое она передаёт). */
   onShortcut?(): void;
 }
 
 /**
- * Привязка рамки панели к расширению. Создаётся приложением вместе с рамкой:
+ * Привязка рамки панели или виджета к расширению. Создаётся приложением вместе с рамкой:
  * идентификатор расширения и допустимые команды берутся отсюда, а не из
  * сообщений рамки.
  */
@@ -175,8 +187,10 @@ export interface FrameHostOptions {
   init: FrameInit;
   props?: Partial<FrameProps>;
   handlers: FrameHandlers;
-  /** Только для `init.mode === 'panel'`: без неё вызовы команд и сочетания игнорируются. */
+  /** Только для режимов `panel` и `widget`: без неё вызовы команд и сочетания игнорируются. */
   panel?: PanelBinding;
+  /** Окружение панели или виджета на момент создания; по умолчанию — все курсы. */
+  context?: FrameContext;
   /** Откуда приходят сообщения; по умолчанию окно приложения. */
   target?: Pick<Window, 'addEventListener' | 'removeEventListener'>;
   theme?: ThemeSource;
@@ -188,6 +202,8 @@ export interface FrameHost {
   update(props: Partial<FrameProps>): void;
   /** Новые свойства открытой панели (`openPanel(id, props)`); до `ready` копятся. */
   updatePanelProps(props: JsonValue | undefined): void;
+  /** Новое окружение панели или виджета (курс в фокусе сменился); до `ready` копится, повтор того же значения не шлётся. */
+  updateContext(context: FrameContext): void;
   dispose(): void;
 }
 
@@ -270,6 +286,7 @@ export const createFrameHost = (options: FrameHostOptions): FrameHost => {
   const props: Partial<FrameProps> = { ...options.props };
   let panelProps: JsonValue | undefined =
     init.mode === 'panel' ? init.props : undefined;
+  let context: FrameContext = { courseId: options.context?.courseId ?? null };
   let ready = false;
   let disposed = false;
   const readyTimer = setTimeout(() => {
@@ -295,9 +312,9 @@ export const createFrameHost = (options: FrameHostOptions): FrameHost => {
       lang: frame.ownerDocument.documentElement.lang,
     });
   };
-  // вызовы команд и сочетание принимает только рамка панели, привязанная приложением
+  // вызовы команд и сочетание принимает только рамка панели или виджета, привязанная приложением
   const handleCall =
-    init.mode === 'panel' && options.panel
+    isInteractive(init) && options.panel
       ? createPanelCalls(options.panel, post, () => disposed)
       : null;
 
@@ -305,7 +322,17 @@ export const createFrameHost = (options: FrameHostOptions): FrameHost => {
     ready = true;
     clearTimeout(readyTimer);
     if (init.mode === 'panel') {
-      post({ ...init, type: 'init', props: toPlain(panelProps) });
+      post({
+        ...init,
+        type: 'init',
+        props: toPlain(panelProps),
+        context,
+      });
+      postTheme();
+      return;
+    }
+    if (init.mode === 'widget') {
+      post({ ...init, type: 'init', context });
       postTheme();
       return;
     }
@@ -360,6 +387,11 @@ export const createFrameHost = (options: FrameHostOptions): FrameHost => {
     updatePanelProps: (next) => {
       panelProps = next;
       if (ready) post({ type: 'panel-props', props: toPlain(next) });
+    },
+    updateContext: (next) => {
+      if (next.courseId === context.courseId) return;
+      context = { courseId: next.courseId };
+      if (ready && isInteractive(init)) post({ type: 'context', context });
     },
     dispose: () => {
       if (disposed) return;

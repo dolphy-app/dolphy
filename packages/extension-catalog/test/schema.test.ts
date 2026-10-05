@@ -80,6 +80,23 @@ describe('parseIndex', () => {
     expect(parseIndex(JSON.parse(JSON.stringify(parsed)))).toEqual(parsed);
   });
 
+  it('сводка принимает widgets и сохраняет их; неверный тип отвергается', () => {
+    const base = entry().contributes;
+    const parsed = parseIndex(
+      index([entry({ contributes: { ...base, widgets: ['acme.quiz.card'] } })]),
+    );
+    expect(parsed.extensions[0]?.contributes.widgets).toEqual([
+      'acme.quiz.card',
+    ]);
+    expect(
+      issuesOf(
+        index([
+          { ...entry(), contributes: { ...base, widgets: 'acme.quiz.card' } },
+        ]),
+      )[0],
+    ).toContain('extensions.0.contributes.widgets');
+  });
+
   it('сводка принимает importers и exporters и сохраняет их; неверный тип отвергается', () => {
     const base = entry().contributes;
     const parsed = parseIndex(
@@ -114,6 +131,7 @@ describe('parseIndex', () => {
     const parsed = parseIndex(index());
     expect(parsed.extensions[0]?.contributes.commands).toBeUndefined();
     expect(parsed.extensions[0]?.contributes.panels).toBeUndefined();
+    expect(parsed.extensions[0]?.contributes.widgets).toBeUndefined();
   });
 
   it('commands и panels неверного типа отвергаются', () => {
@@ -131,7 +149,7 @@ describe('parseIndex', () => {
   it('неизвестный ключ сводки по-прежнему отвергается', () => {
     const base = entry().contributes;
     const raw = index([
-      { ...entry(), contributes: { ...base, widgets: ['x'] } },
+      { ...entry(), contributes: { ...base, gadgets: ['x'] } },
     ]);
     expect(issuesOf(raw)[0]).toContain('extensions.0.contributes');
   });

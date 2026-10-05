@@ -33,6 +33,7 @@ const info = (overrides: Partial<ExtensionInfoDto> = {}): ExtensionInfoDto => ({
     settings: [],
     events: [],
     commands: [`${ID}.run`],
+    widgets: [],
     panels: [],
     importers: [],
     exporters: [],
@@ -63,6 +64,7 @@ const command = (id: string, extensionId = ID): CommandContributionDto => ({
   category: null,
   keybinding: null,
   keybindings: [],
+  icon: 'puzzle',
   palette: true,
 });
 
@@ -70,6 +72,7 @@ const panel = (id: string, extensionId = ID): PanelContributionDto => ({
   id,
   extensionId,
   title: id,
+  icon: 'puzzle',
   rendererUrl: `dolphy-ext://${extensionId}/panel.mjs`,
   isolated: true,
   origin: 'user',
@@ -124,6 +127,7 @@ const open = (options: OpenOptions = {}) => {
       gradePolicies: [],
       settings: [],
       commands: options.commands ?? [command(`${ID}.run`)],
+      widgets: [],
       panels: [],
       importers: [],
       exporters: [],
@@ -294,6 +298,7 @@ describe('extensions.contributions: команды и панели', () => {
           command('a.ext.z', 'a.ext'),
           command('a.ext.a', 'a.ext'),
         ],
+        widgets: [],
         panels: [panel('b.ext.p', 'b.ext'), panel('a.ext.q', 'a.ext')],
         importers: [
           importer('b.ext.csv', 'b.ext'),

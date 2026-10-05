@@ -23,6 +23,7 @@ describe('effectiveTags', () => {
     ['markdownRenderers', ['content']],
     ['commands', ['productivity']],
     ['panels', ['interface']],
+    ['widgets', ['interface']],
     ['settings', []],
   ] as const)('без явных тегов %s даёт %j', (point, expected) => {
     expect(effectiveTags([], only(point))).toEqual(expected);
@@ -53,6 +54,7 @@ describe('effectiveTags', () => {
       events: ['a'],
       commands: ['a'],
       panels: ['a'],
+      widgets: ['a'],
       importers: [],
       exporters: [],
     });

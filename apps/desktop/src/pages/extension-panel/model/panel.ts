@@ -2,6 +2,7 @@ import type {
   ContributionsDto,
   PanelContributionDto,
 } from '@dolphy-app/engine-contract';
+import { declaredCommands } from '@/shared/lib/declared-commands.ts';
 
 export interface ResolvedPanel {
   panel: PanelContributionDto;
@@ -22,14 +23,7 @@ export const resolvePanel = (
     (item) => item.extensionId === extensionId && item.id === panelId,
   );
   if (panel === undefined) return null;
-  return {
-    panel,
-    commands: new Set(
-      contributions.commands
-        .filter((command) => command.extensionId === extensionId)
-        .map((command) => command.id),
-    ),
-  };
+  return { panel, commands: declaredCommands(contributions, extensionId) };
 };
 
 /** Ключ рамки: новая `revision` (обновление, правка в режиме разработчика) пересоздаёт её. */

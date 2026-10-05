@@ -15,6 +15,7 @@ export const NO_CONTRIBUTIONS: ContributionsDto = {
   gradePolicies: [],
   settings: [],
   commands: [],
+  widgets: [],
   panels: [],
   importers: [],
   exporters: [],

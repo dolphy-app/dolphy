@@ -26,6 +26,8 @@ export interface CommandDescriptor {
   description?: MaybeRefOrGetter<string | undefined>;
   /** Подпись рядом с названием (у команд расширений — id расширения). */
   caption?: string;
+  /** Символ перед названием (`mdi-…`); декоративный, название несёт смысл. У команд расширений — их `icon`. */
+  icon?: string;
   /**
    * Привязки по умолчанию. Только у команд приложения: проверяются при
    * регистрации на всех платформах (ошибка — ошибка программиста). Привязки
@@ -49,6 +51,7 @@ export interface Command {
   readonly category: string | undefined;
   readonly description: string | undefined;
   readonly caption: string | undefined;
+  readonly icon: string | undefined;
   /** Привязки по умолчанию; действующие читают у карты привязок (`features/keybindings`). */
   readonly defaultBindings: readonly DefaultBinding[];
   /** `undefined` — команда не из набора вариантов; иначе выбран ли вариант. */
@@ -81,6 +84,7 @@ const resolve = (descriptor: CommandDescriptor): Command => ({
   category: toValue(descriptor.category),
   description: toValue(descriptor.description),
   caption: descriptor.caption,
+  icon: descriptor.icon,
   defaultBindings: descriptor.keybindings ?? [],
   checked: toValue(descriptor.checked),
   enabled: toValue(descriptor.enabled) ?? true,

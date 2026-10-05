@@ -8,6 +8,7 @@ import { markdownRenderers } from './markdown-renderers.ts';
 import { panels } from './panels.ts';
 import { settings } from './settings.ts';
 import { themes } from './themes.ts';
+import { widgets } from './widgets.ts';
 import type { ContributionPoint, PointKey } from './types.ts';
 
 /** Реестр точек вклада: порядок значим для диагностики и разбора. */
@@ -20,6 +21,7 @@ export const CONTRIBUTION_POINTS: readonly ContributionPoint[] = [
   events,
   commands,
   panels,
+  widgets,
   importers,
   exporters,
 ] as readonly ContributionPoint[];

@@ -16,8 +16,10 @@ describe('defineExtensionPanel', () => {
     const context: PanelContext = {
       panelId: 'p',
       props: { a: 1 },
+      context: { courseId: null },
       signal: { aborted: false, addEventListener: () => undefined },
       call: async () => 'ok',
+      onContextChange: () => () => undefined,
       onProps: (listener) => {
         listeners.push(listener);
         return () => undefined;

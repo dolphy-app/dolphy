@@ -27,7 +27,7 @@ describe('ids generated from extension.json, compiled by tsc', () => {
     await buildExtension({ root });
     const lines = [
       "import { defineExtension, inActivate } from '@dolphy-app/extension-sdk';",
-      "import type { ExtensionViews } from '@dolphy-app/extension-sdk';",
+      "import type { ExtensionViews, ExtensionWidgets } from '@dolphy-app/extension-sdk';",
       '',
       'export const wrongUse = defineExtension({',
       "  exerciseTypes: { 'acme.typed.echo': inActivate },",
@@ -68,6 +68,10 @@ describe('ids generated from extension.json, compiled by tsc', () => {
       "  'acme.typed.other': 1 as never,",
       '} satisfies ExtensionViews;',
       '',
+      'export const wrongWidgets = {',
+      "  'acme.typed.gauge': 1 as never,",
+      '} satisfies ExtensionWidgets;',
+      '',
     ];
     await writeFile(path.join(root, 'src/wrong.ts'), lines.join('\n'));
     const at = (fragment: string): number =>
@@ -103,6 +107,11 @@ describe('ids generated from extension.json, compiled by tsc', () => {
       expect.stringMatching(
         new RegExp(
           `^${at("'acme.typed.other': 1")} TS2353 .*'acme\\.typed\\.other'`,
+        ),
+      ),
+      expect.stringMatching(
+        new RegExp(
+          `^${at("'acme.typed.gauge': 1")} TS2353 .*'acme\\.typed\\.gauge'`,
         ),
       ),
     ]);

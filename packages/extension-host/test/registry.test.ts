@@ -38,6 +38,7 @@ const extension = (id: string, version = '1.0.0'): ResolvedExtension => ({
   settings: [],
   events: [],
   commands: [],
+  widgets: [],
   panels: [],
   importers: [],
   exporters: [],
@@ -52,6 +53,7 @@ const NONE = {
   events: [],
   commands: [],
   panels: [],
+  widgets: [],
   importers: [],
   exporters: [],
 };

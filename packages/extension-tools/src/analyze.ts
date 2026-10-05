@@ -5,7 +5,7 @@ import type { SourceMap } from 'magic-string';
 import { parseAst } from 'vite';
 
 /** Named entries of `src/index.ts` from which the browser files are built. */
-export const RECORDS = ['views', 'panels', 'markdown'] as const;
+export const RECORDS = ['views', 'panels', 'widgets', 'markdown'] as const;
 export type RecordName = (typeof RECORDS)[number];
 
 /** A single entry key: its name and the property range in the source. */
@@ -128,7 +128,7 @@ const propertyKeys = (
 
 /**
  * Static analysis of `src/index.ts` without executing author code: whether the
- * `host` export exists and which keys the `views`, `panels` and `markdown`
+ * `host` export exists and which keys the `views`, `panels`, `widgets` and `markdown`
  * entries have. Entries are found through local constants and relative
  * re-exports; keys must be given as an object literal.
  */
@@ -298,7 +298,9 @@ export const analyzeIndex = async (
     };
   };
 
-  const [views, panels, markdown] = await Promise.all(RECORDS.map(recordOf));
+  const [views, panels, widgets, markdown] = await Promise.all(
+    RECORDS.map(recordOf),
+  );
   const hasHost = (await walk.export(indexFile, 'host', 0)) !== null;
   return {
     files: [...cache.keys()],
@@ -306,6 +308,7 @@ export const analyzeIndex = async (
     records: {
       views: views as RecordResult,
       panels: panels as RecordResult,
+      widgets: widgets as RecordResult,
       markdown: markdown as RecordResult,
     },
   };

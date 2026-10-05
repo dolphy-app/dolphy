@@ -11,10 +11,12 @@ import type {
   LearningEventName,
   LearningEventPayloads,
   PanelContext,
+  PanelContextInfo,
   PanelModule,
   ProgressExportInput,
   SettingContribution,
   SettingValue,
+  WidgetModule,
   TextImportInput,
 } from '../src/index.ts';
 
@@ -128,6 +130,23 @@ describe('extension-api types', () => {
           Promise<JsonValue | undefined>
         >();
         expectTypeOf(ctx.onProps).returns.toEqualTypeOf<() => void>();
+        expectTypeOf(ctx.context).toEqualTypeOf<PanelContextInfo>();
+        expectTypeOf(ctx.context.courseId).toEqualTypeOf<string | null>();
+        expectTypeOf(ctx.onContextChange).returns.toEqualTypeOf<() => void>();
+      },
+    };
+    expectTypeOf(module.mount).toBeFunction();
+  });
+
+  it('a widget module gets the frame context without properties', () => {
+    const module: WidgetModule<{ id: string }, 'a.run'> = {
+      mount: (container, ctx) => {
+        expectTypeOf(container).toEqualTypeOf<{ id: string }>();
+        expectTypeOf(ctx.widgetId).toEqualTypeOf<string>();
+        expectTypeOf(ctx.context.courseId).toEqualTypeOf<string | null>();
+        expectTypeOf(ctx.call).parameter(0).toEqualTypeOf<'a.run'>();
+        // a widget is not opened with properties
+        expectTypeOf(ctx).not.toHaveProperty('props');
       },
     };
     expectTypeOf(module.mount).toBeFunction();
@@ -140,6 +159,7 @@ describe('extension-api types', () => {
       commands: 'a.run' | 'a.stop';
       events: 'attempt.closed';
       panels: 'a.panel';
+      widgets: 'a.widget';
       importers: 'a.in';
       exporters: 'a.out';
       markdownLanguages: 'a';

@@ -17,6 +17,7 @@ const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
   events: [],
   commands: [],
   panels: [],
+  widgets: [],
   importers: [],
   exporters: [],
 };
@@ -69,6 +70,7 @@ export const contributesOf = (
     | 'events'
     | 'commands'
     | 'panels'
+    | 'widgets'
     | 'importers'
     | 'exporters'
   >,
@@ -83,6 +85,7 @@ export const contributesOf = (
   events: extension.events.map(({ event }) => event),
   commands: extension.commands.map(({ id }) => id),
   panels: extension.panels.map(({ id }) => id),
+  widgets: extension.widgets.map(({ id }) => id),
   importers: extension.importers.map(({ id }) => id),
   exporters: extension.exporters.map(({ id }) => id),
 });
@@ -98,6 +101,7 @@ export const titlesOf = (
     | 'settings'
     | 'commands'
     | 'panels'
+    | 'widgets'
     | 'importers'
     | 'exporters'
   >,
@@ -137,6 +141,7 @@ export const titlesOf = (
   add('settings', extension.settings, (item: { label: string }) => item.label);
   add('commands', extension.commands, (item: { title: string }) => item.title);
   add('panels', extension.panels, (item: { title: string }) => item.title);
+  add('widgets', extension.widgets, (item: { title: string }) => item.title);
   add(
     'importers',
     extension.importers,
@@ -283,6 +288,16 @@ export const createExtensionRegistry = (
       panels: enabled().flatMap((extension) =>
         extension.panels.map((panel) => ({
           ...panel,
+          extensionId: extension.id,
+          isolated: true,
+          origin: extension.origin,
+          revision: extension.revision,
+        })),
+      ),
+      // виджет, как и панель, всегда в рамке, даже у доверенного расширения
+      widgets: enabled().flatMap((extension) =>
+        extension.widgets.map((widget) => ({
+          ...widget,
           extensionId: extension.id,
           isolated: true,
           origin: extension.origin,

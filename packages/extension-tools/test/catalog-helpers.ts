@@ -3,7 +3,7 @@ import path from 'node:path';
 import { copyProject, linkSdk, makeTemp } from './helpers.ts';
 
 export type Fixture =
-  'theme-only' | 'markdown-only' | 'hello' | 'commands-panel';
+  'theme-only' | 'markdown-only' | 'hello' | 'commands-panel' | 'surfaces';
 
 export interface ExtensionSpec {
   fixture: Fixture;

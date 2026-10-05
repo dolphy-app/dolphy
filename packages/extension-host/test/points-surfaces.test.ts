@@ -63,9 +63,28 @@ describe('точка commands', () => {
         category: 'Streak',
         keybinding: 'Mod+Shift+L',
         palette: true,
+        icon: 'puzzle',
       },
-      { id: `${ID}.other`, title: 'Run', palette: true },
+      { id: `${ID}.other`, title: 'Run', palette: true, icon: 'puzzle' },
     ]);
+  });
+
+  it('значок: из закрытого списка, без него — puzzle; неизвестное имя — ошибка манифеста', () => {
+    const parsed = parseManifest(
+      manifest({
+        commands: [command({ icon: 'fire' }), command({ id: `${ID}.b` })],
+      }),
+    );
+    if (!parsed.ok) throw new Error(formatDiagnostic(parsed.diagnostic));
+    expect(
+      parsed.manifest.contributes.commands.map(({ icon }) => icon),
+    ).toEqual(['fire', 'puzzle']);
+    expect(
+      messageOf(manifest({ commands: [command({ icon: 'rocket' })] })),
+    ).toContain('contributes.commands.0.icon');
+    expect(
+      messageOf(manifest({ commands: [command({ icon: 'mdi-fire' })] })),
+    ).toContain('contributes.commands.0.icon');
   });
 
   it('ключ when зарезервирован: манифест с ним отклоняется и сообщение называет ключ', () => {
@@ -163,11 +182,12 @@ describe('точка commands', () => {
     it('resolve: пропущенные поля — null, отсутствие keybindings — []', async () => {
       const resolved = await commands.resolve(
         [
-          { id: `${ID}.a`, title: 'A', palette: true },
+          { id: `${ID}.a`, title: 'A', palette: true, icon: 'puzzle' },
           {
             id: `${ID}.b`,
             title: 'B',
             palette: true,
+            icon: 'puzzle',
             keybindings: [{ key: 'Mod+Shift+O', mac: 'Mod+Alt+O' }],
           },
         ],
@@ -286,9 +306,30 @@ describe('точка panels', () => {
     if (!parsed.ok) throw new Error(formatDiagnostic(parsed.diagnostic));
     expect(parsed.manifest.main).toBeNull();
     expect(parsed.manifest.contributes.panels).toEqual([
-      { id: `${ID}.screen`, title: 'Screen', module: './panel.mjs' },
-      { id: `${ID}.b`, title: 'Screen', module: './ui/b.js' },
+      {
+        id: `${ID}.screen`,
+        title: 'Screen',
+        module: './panel.mjs',
+        icon: 'puzzle',
+      },
+      { id: `${ID}.b`, title: 'Screen', module: './ui/b.js', icon: 'puzzle' },
     ]);
+  });
+
+  it('значок: из закрытого списка, без него — puzzle; неизвестное имя — ошибка манифеста', () => {
+    const parsed = parseManifest(
+      manifest({
+        panels: [panel({ icon: 'trophy' }), panel({ id: `${ID}.b` })],
+      }),
+    );
+    if (!parsed.ok) throw new Error(formatDiagnostic(parsed.diagnostic));
+    expect(parsed.manifest.contributes.panels.map(({ icon }) => icon)).toEqual([
+      'trophy',
+      'puzzle',
+    ]);
+    expect(
+      messageOf(manifest({ panels: [panel({ icon: 'rocket' })] })),
+    ).toContain('contributes.panels.0.icon');
   });
 
   it.each([
@@ -314,7 +355,7 @@ describe('точка panels', () => {
       panel({ module: '/panel.mjs' }),
       'safe relative path',
     ],
-    ['лишний ключ', panel({ icon: 'x' }), 'icon'],
+    ['лишний ключ', panel({ extra: 1 }), 'extra'],
   ])('отклоняет: %s', (_name, entry, fragment) => {
     expect(messageOf(manifest({ panels: [entry] }))).toContain(fragment);
   });
@@ -338,6 +379,118 @@ describe('точка panels', () => {
     expect(
       parseManifest(manifest({ commands: [command()], panels: [panel()] })).ok,
     ).toBe(true);
+  });
+});
+
+const widget = (patch: Record<string, unknown> = {}) => ({
+  id: `${ID}.card`,
+  title: 'Card',
+  slot: 'dailyPlan',
+  ...patch,
+});
+
+describe('точка widgets', () => {
+  it('принимает виджет; высоты 80 и 320, module ./widget.mjs; кода не требует: main = null', () => {
+    const parsed = parseManifest(
+      manifest({
+        widgets: [
+          widget(),
+          widget({
+            id: `${ID}.b`,
+            minHeight: 120,
+            maxHeight: 200,
+            module: './ui/b.js',
+          }),
+        ],
+      }),
+    );
+
+    if (!parsed.ok) throw new Error(formatDiagnostic(parsed.diagnostic));
+    expect(parsed.manifest.main).toBeNull();
+    expect(parsed.manifest.contributes.widgets).toEqual([
+      {
+        id: `${ID}.card`,
+        title: 'Card',
+        slot: 'dailyPlan',
+        minHeight: 80,
+        maxHeight: 320,
+        module: './widget.mjs',
+      },
+      {
+        id: `${ID}.b`,
+        title: 'Card',
+        slot: 'dailyPlan',
+        minHeight: 120,
+        maxHeight: 200,
+        module: './ui/b.js',
+      },
+    ]);
+  });
+
+  it.each([
+    [
+      'id вне пространства расширения',
+      widget({ id: 'other.card' }),
+      "id must be 'acme.surf'",
+    ],
+    ['пустое название', widget({ title: '' }), 'title'],
+    ['название 61 знак', widget({ title: 'x'.repeat(61) }), 'title'],
+    ['нет места', widget({ slot: undefined }), 'slot'],
+    ['неизвестное место', widget({ slot: 'sidebar' }), 'slot'],
+    ['minHeight 79', widget({ minHeight: 79 }), 'minHeight'],
+    ['maxHeight 321', widget({ maxHeight: 321 }), 'maxHeight'],
+    ['дробная высота', widget({ minHeight: 100.5 }), 'minHeight'],
+    ['строка вместо высоты', widget({ maxHeight: '200' }), 'maxHeight'],
+    [
+      'minHeight больше maxHeight',
+      widget({ minHeight: 200, maxHeight: 100 }),
+      'contributes.widgets.0.minHeight: minHeight (200) must not exceed maxHeight (100)',
+    ],
+    [
+      'module не .js/.mjs',
+      widget({ module: './widget.ts' }),
+      'must end with .js or .mjs',
+    ],
+    [
+      'module выходит из каталога',
+      widget({ module: '../widget.mjs' }),
+      'safe relative path',
+    ],
+    ['лишний ключ', widget({ icon: 'puzzle' }), 'icon'],
+  ])('отклоняет: %s', (_name, entry, fragment) => {
+    expect(messageOf(manifest({ widgets: [entry] }))).toContain(fragment);
+  });
+
+  it('границы высот 80 и 320 допустимы, равные minHeight и maxHeight тоже', () => {
+    expect(
+      parseManifest(
+        manifest({ widgets: [widget({ minHeight: 320, maxHeight: 320 })] }),
+      ).ok,
+    ).toBe(true);
+    expect(
+      parseManifest(
+        manifest({ widgets: [widget({ minHeight: 80, maxHeight: 80 })] }),
+      ).ok,
+    ).toBe(true);
+  });
+
+  it('отклоняет повтор id и более 3 виджетов', () => {
+    const many = (count: number) =>
+      Array.from({ length: count }, (_value, index) =>
+        widget({ id: `${ID}.w${index}` }),
+      );
+
+    expect(messageOf(manifest({ widgets: [widget(), widget()] }))).toContain(
+      `contributes.widgets.1.id: duplicate id '${ID}.card'`,
+    );
+    expect(parseManifest(manifest({ widgets: many(3) })).ok).toBe(true);
+    expect(messageOf(manifest({ widgets: many(4) }))).toContain(
+      'at most 3 widgets',
+    );
+  });
+
+  it('виджет не требует разрешений и основного файла', () => {
+    expect(parseManifest(manifest({ widgets: [widget()] })).ok).toBe(true);
   });
 });
 
@@ -402,6 +555,7 @@ describe('обнаружение и реестр команд и панелей'
         keybinding: 'Mod+K',
         keybindings: [],
         palette: true,
+        icon: 'puzzle',
       },
     ]);
     expect(contributions.panels).toEqual([
@@ -409,6 +563,7 @@ describe('обнаружение и реестр команд и панелей'
         id: `${ID}.screen`,
         extensionId: ID,
         title: 'Screen',
+        icon: 'puzzle',
         rendererUrl: `dolphy-ext://${ID}/ui/screen.js`,
         isolated: true,
         origin: 'user',
@@ -421,8 +576,60 @@ describe('обнаружение и реестр команд и панелей'
     });
   });
 
-  it('отключённое расширение не даёт ни команд, ни панелей', async () => {
-    await write(ID, { commands: [command()], panels: [panel()] });
+  it('виджет: адрес модуля и вклад в реестре — рамка всегда, даже у доверенного расширения', async () => {
+    await write(ID, { widgets: [widget({ minHeight: 100, maxHeight: 150 })] }, [
+      'widget.mjs',
+    ]);
+    const holder = holderOf((await discover()).extensions);
+    const policy = createExtensionPolicy(holder);
+    policy.update({
+      disabled: [],
+      trusted: [ID],
+      checkUpdates: true,
+      safeMode: false,
+    });
+
+    const registry = createExtensionRegistry(holder, policy);
+
+    expect(registry.contributions().widgets).toEqual([
+      {
+        id: `${ID}.card`,
+        extensionId: ID,
+        title: 'Card',
+        slot: 'dailyPlan',
+        minHeight: 100,
+        maxHeight: 150,
+        rendererUrl: `dolphy-ext://${ID}/widget.mjs`,
+        isolated: true,
+        origin: 'user',
+        revision: expect.stringMatching(/./) as unknown as string,
+      },
+    ]);
+    expect(registry.list()[0]?.contributes).toMatchObject({
+      widgets: [`${ID}.card`],
+    });
+    expect(registry.list()[0]?.titles).toMatchObject({
+      widgets: { [`${ID}.card`]: 'Card' },
+    });
+  });
+
+  it('нет файла модуля виджета — расширение пропускается с понятным сообщением', async () => {
+    await write(ID, { widgets: [widget()] }, []);
+
+    const found = await discover();
+
+    expect(found.extensions).toEqual([]);
+    expect(formatDiagnostic(found.diagnostics[0]!.diagnostic)).toContain(
+      "widget module './widget.mjs' (default) is not a file",
+    );
+  });
+
+  it('отключённое расширение не даёт ни команд, ни панелей, ни виджетов', async () => {
+    await write(
+      ID,
+      { commands: [command()], panels: [panel()], widgets: [widget()] },
+      ['main.mjs', 'panel.mjs', 'widget.mjs'],
+    );
     const holder = holderOf((await discover()).extensions);
     const policy = createExtensionPolicy(holder);
     policy.update({
@@ -439,6 +646,7 @@ describe('обнаружение и реестр команд и панелей'
 
     expect(contributions.commands).toEqual([]);
     expect(contributions.panels).toEqual([]);
+    expect(contributions.widgets).toEqual([]);
   });
 
   it('нет файла модуля панели — расширение пропускается с понятным сообщением', async () => {
@@ -503,10 +711,13 @@ describe('обнаружение и реестр команд и панелей'
           category: null,
           keybinding: null,
           keybindings: [],
+          icon: 'puzzle',
           palette: true,
         },
       ],
-      panels: [{ id: `${ID}.screen`, title: 'S', rendererUrl: 'x' }],
+      panels: [
+        { id: `${ID}.screen`, title: 'S', icon: 'puzzle', rendererUrl: 'x' },
+      ],
     });
 
     expect(contributesOf(extension)).toMatchObject({
@@ -547,10 +758,13 @@ describe('протокол замены набора расширений', () =
           category: null,
           keybinding: null,
           keybindings: [],
+          icon: 'puzzle',
           palette: true,
         },
       ],
-      panels: [{ id: `${ID}.screen`, title: 'S', rendererUrl: 'x' }],
+      panels: [
+        { id: `${ID}.screen`, title: 'S', icon: 'puzzle', rendererUrl: 'x' },
+      ],
     });
 
     expect(extMessageSchema.safeParse(replace([extension])).success).toBe(true);

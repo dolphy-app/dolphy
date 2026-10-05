@@ -36,6 +36,7 @@ export const TITLED_POINTS = [
   'settings',
   'commands',
   'panels',
+  'widgets',
   'importers',
   'exporters',
 ] as const;
@@ -311,6 +312,7 @@ const contributesSchemaOf = (profile: Profile) =>
     events: z.array(z.string()).optional(),
     commands: z.array(z.string()).optional(),
     panels: z.array(z.string()).optional(),
+    widgets: z.array(z.string()).optional(),
     importers: z.array(z.string()).optional(),
     exporters: z.array(z.string()).optional(),
   });

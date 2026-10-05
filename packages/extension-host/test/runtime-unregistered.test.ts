@@ -21,6 +21,7 @@ const command = (name: string) => ({
   category: null,
   keybinding: null,
   keybindings: [],
+  icon: 'puzzle',
   palette: true,
 });
 

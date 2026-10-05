@@ -21,6 +21,7 @@ const command = (id: string, override: Omit<Spec, 'id'> = {}): Command => {
     category: override.category,
     description: undefined,
     caption: extensionId,
+    icon: undefined,
     defaultBindings: [],
     checked: undefined,
     enabled: override.enabled ?? true,

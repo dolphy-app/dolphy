@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 21 as const;
+export const CONTRACT_VERSION = 22 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 
@@ -1263,6 +1263,8 @@ export interface ExtensionContributesDto {
   commands: string[];
   /** Id панелей (`contributes.panels`). */
   panels: string[];
+  /** Id виджетов (`contributes.widgets`). */
+  widgets: string[];
   /** Id импортёров (`contributes.importers`). */
   importers: string[];
   /** Id экспортёров (`contributes.exporters`). */
@@ -1284,6 +1286,7 @@ export type ContributionTitlesDto = Partial<
     | 'settings'
     | 'commands'
     | 'panels'
+    | 'widgets'
     | 'importers'
     | 'exporters',
     Record<string, string>
@@ -1317,6 +1320,8 @@ export interface CommandContributionDto {
   keybindings: ExtensionKeybindingDto[];
   /** `false` скрывает команду из палитры: её вызывает только панель. */
   palette: boolean;
+  /** Имя значка из закрытого списка `EXTENSION_ICONS` (умолчание `puzzle`); окно рисует свой символ, подпись декоративна. */
+  icon: string;
 }
 
 /** Панель расширения (`contributes.panels`): экран приложения в изолированной рамке. */
@@ -1325,9 +1330,32 @@ export interface PanelContributionDto {
   extensionId: string;
   /** Название пункта бокового меню и заголовка страницы; данные расширения. */
   title: string;
+  /** Имя значка из закрытого списка `EXTENSION_ICONS` (умолчание `puzzle`); окно рисует свой символ, подпись декоративна. */
+  icon: string;
   /** `dolphy-ext://<extensionId>/<путь>`. */
   rendererUrl: string;
   /** Панель всегда исполняется в рамке; поле оставлено для единообразия с остальными видами с модулем. */
+  isolated: boolean;
+  origin: ExtensionOriginDto;
+  /** Отпечаток файлов расширения; у расширений из поставки — пустая строка. */
+  revision: string;
+}
+
+/** Виджет расширения (`contributes.widgets`): карточка в изолированной рамке на экране приложения. */
+export interface WidgetContributionDto {
+  id: string;
+  extensionId: string;
+  /** Заголовок карточки и имя рамки; данные расширения (`%ключ%` подставляет окно). */
+  title: string;
+  /** Место виджета: `dailyPlan` — экран «План дня». */
+  slot: 'dailyPlan';
+  /** Наименьшая высота рамки, px (80–320). */
+  minHeight: number;
+  /** Наибольшая высота рамки, px (80–320, не меньше `minHeight`); выше — прокрутка внутри. */
+  maxHeight: number;
+  /** `dolphy-ext://<extensionId>/<путь>`. */
+  rendererUrl: string;
+  /** Виджет всегда исполняется в рамке, как панель. */
   isolated: boolean;
   origin: ExtensionOriginDto;
   /** Отпечаток файлов расширения; у расширений из поставки — пустая строка. */
@@ -1448,6 +1476,8 @@ export interface ContributionsDto {
   commands: CommandContributionDto[];
   /** Панели включённых расширений. */
   panels: PanelContributionDto[];
+  /** Виджеты включённых расширений. */
+  widgets: WidgetContributionDto[];
   /** Импортёры включённых расширений. */
   importers: ImporterContributionDto[];
   /** Экспортёры включённых расширений. */

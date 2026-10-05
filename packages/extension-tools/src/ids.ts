@@ -57,6 +57,7 @@ export const renderIds = ({ contributes }: ExtensionManifest): string => {
     ['commands', union(contributes.commands.map(({ id }) => id))],
     ['events', union(contributes.events.map(({ event }) => event))],
     ['panels', union(contributes.panels.map(({ id }) => id))],
+    ['widgets', union(contributes.widgets.map(({ id }) => id))],
     ['importers', union(contributes.importers.map(({ id }) => id))],
     ['exporters', union(contributes.exporters.map(({ id }) => id))],
     [

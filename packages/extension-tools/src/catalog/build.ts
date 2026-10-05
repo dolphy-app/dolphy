@@ -260,6 +260,7 @@ const titlesOf = (manifest: Staged['manifest']): ContributionTitles => {
     })),
     commands: contributes.commands.map(({ id, title }) => ({ id, title })),
     panels: contributes.panels.map(({ id, title }) => ({ id, title })),
+    widgets: contributes.widgets.map(({ id, title }) => ({ id, title })),
     importers: contributes.importers.map(({ id, title }) => ({ id, title })),
     exporters: contributes.exporters.map(({ id, title }) => ({ id, title })),
   };
@@ -324,6 +325,7 @@ const entryOf = (
   const events = manifest.contributes.events.map((item) => item.event);
   const commands = manifest.contributes.commands.map(({ id }) => id);
   const panels = manifest.contributes.panels.map(({ id }) => id);
+  const widgets = manifest.contributes.widgets.map(({ id }) => id);
   const importers = manifest.contributes.importers.map(({ id }) => id);
   const exporters = manifest.contributes.exporters.map(({ id }) => id);
   const titles = titlesOf(manifest);
@@ -347,6 +349,7 @@ const entryOf = (
       ...(events.length > 0 ? { events } : {}),
       ...(commands.length > 0 ? { commands } : {}),
       ...(panels.length > 0 ? { panels } : {}),
+      ...(widgets.length > 0 ? { widgets } : {}),
       ...(importers.length > 0 ? { importers } : {}),
       ...(exporters.length > 0 ? { exporters } : {}),
     },

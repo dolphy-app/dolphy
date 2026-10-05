@@ -1,6 +1,7 @@
 import type { BindingDefinition } from '@dolphy-app/keybindings';
 import type { ContributionsDto } from '@dolphy-app/engine-contract';
 import { syncCommands } from '@/shared/lib/command-registry.ts';
+import { extensionIconOf } from '@/shared/config/extension-icons.ts';
 import { textOfExtension } from '@/shared/lib/extension-text.ts';
 import type { CommandRegistry } from '@/shared/lib/command-registry.ts';
 import type { CommandRunner } from './runner.ts';
@@ -78,11 +79,17 @@ export const syncExtensionCommands = (
             description: () =>
               description === null ? undefined : text(description),
             caption: extensionId,
+            icon: extensionIconOf(command.icon),
             run: async () => {
               await runner.run(extensionId, id, undefined, 'palette');
             },
           },
-          revision: JSON.stringify([command.title, category, description]),
+          revision: JSON.stringify([
+            command.title,
+            category,
+            description,
+            command.icon,
+          ]),
         };
       }),
   );

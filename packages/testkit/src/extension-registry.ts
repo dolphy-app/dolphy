@@ -15,6 +15,7 @@ export const createFakeExtensionRegistry = (
     settings: [],
     commands: [],
     panels: [],
+    widgets: [],
     importers: [],
     exporters: [],
     messages: {},

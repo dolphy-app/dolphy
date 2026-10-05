@@ -66,6 +66,7 @@ const updatesBadge = computed(() =>
         v-for="section in SECTIONS"
         :key="section.name"
         :to="{ name: section.name }"
+        :data-tour="`tab-${section.name}`"
         :prepend-icon="section.icon"
         :aria-describedby="
           section.name === ROUTE.settingsExtensions && updatesBadge

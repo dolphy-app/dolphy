@@ -43,6 +43,7 @@ const act = () => (props.focused ? emit('openPlan') : emit('study'));
 <template>
   <v-card
     class="course-card d-flex flex-column pa-5 h-100"
+    data-tour="course-card"
     :border="border"
     :aria-current="ariaCurrent"
   >
@@ -186,6 +187,7 @@ const act = () => (props.focused ? emit('openPlan') : emit('study'));
       class="mt-2 w-100"
       variant="text"
       color="primary"
+      data-tour="course-check"
       prepend-icon="mdi-clipboard-check-outline"
       @click="emit('check')"
     >

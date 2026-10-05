@@ -1,4 +1,4 @@
-import { MATERIAL_WIDTH_RANGE } from '@dolphy-app/engine-contract';
+import { MATERIAL_WIDTH_RANGE, MAX_TOURS } from '@dolphy-app/engine-contract';
 import type {
   DeepPartial,
   KeybindingsPatch,
@@ -17,6 +17,8 @@ import { isGradePolicyId } from '../../domain/learning-settings.ts';
 import {
   isLocaleMode,
   isMaterialWidth,
+  isTourId,
+  isTourStatus,
   isThemeId,
   isUnitId,
 } from '../../domain/ui-settings.ts';
@@ -254,7 +256,36 @@ export const createSettingsService = (ctx: EngineContext): SettingsService => {
         details: { field: 'materialCollapsed' },
       });
     }
+    const { tours } = patch;
+    if (tours !== undefined) {
+      const valid =
+        typeof tours === 'object' &&
+        tours !== null &&
+        !Array.isArray(tours) &&
+        Object.entries(tours).every(
+          ([id, status]) =>
+            isTourId(id) && (status === null || isTourStatus(status)),
+        );
+      if (!valid) {
+        throw new EngineError('INVALID_ARGUMENT', {
+          message:
+            'tours must map tour ids (a-z, 0-9, "-", up to 64 chars) to "completed", "skipped" or null',
+          details: { field: 'tours' },
+        });
+      }
+    }
     const current = await ctx.settings.loadUi();
+    const mergedTours = new Map(Object.entries(current.tours ?? {}));
+    for (const [id, status] of Object.entries(tours ?? {})) {
+      if (status === null) mergedTours.delete(id);
+      else mergedTours.set(id, status);
+    }
+    if (mergedTours.size > MAX_TOURS) {
+      throw new EngineError('INVALID_ARGUMENT', {
+        message: `at most ${MAX_TOURS} tours can be stored`,
+        details: { field: 'tours' },
+      });
+    }
     const focus =
       activeCourseId === undefined ? current.activeCourseId : activeCourseId;
     const width =
@@ -269,6 +300,7 @@ export const createSettingsService = (ctx: EngineContext): SettingsService => {
       ...(focus !== undefined && focus !== null && { activeCourseId: focus }),
       ...(width !== undefined && width !== null && { materialWidth: width }),
       ...(collapsed && { materialCollapsed: true as const }),
+      ...(mergedTours.size > 0 && { tours: Object.fromEntries(mergedTours) }),
     };
     await ctx.settings.saveUi(next);
     ctx.emit({ type: 'settings-changed', scope: 'ui' });

@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { _electron as electron } from 'playwright-core';
 import type { ElectronApplication, Page } from 'playwright-core';
+import { openSqliteStorage } from '@dolphy-app/engine-sqlite';
+import type { TourStatus } from '@dolphy-app/engine-contract';
 
 const APP_DIR = fileURLToPath(new URL('../..', import.meta.url));
 /** Релизная сборка для e2e: `vite build` с `DOLPHY_BUILD_OUT=dist-e2e` (global-setup). */
@@ -124,6 +126,12 @@ const LIBRARY_SOURCES = [
 export const SEEDED_LIBRARY_SOURCES = LIBRARY_SOURCES;
 
 export interface WorkspaceOptions {
+  /**
+   * Исходы обучающих туров, записанные в `engine.db` до запуска. По умолчанию
+   * `welcome` пропущен: диалог первого запуска закрывал бы экран любого теста.
+   * `{}` — чистая база (первый запуск).
+   */
+  tours?: Record<string, TourStatus>;
   /** Каталоги расширений: имя подкаталога → источник; копируются в `<userData>/extensions`. */
   extensions?: Record<string, string>;
   /** Дополнительные файлы библиотеки: путь от корня библиотеки → содержимое. */
@@ -153,6 +161,16 @@ export const createWorkspace = async (
   }
   for (const [name, source] of Object.entries(options.extensions ?? {})) {
     await cp(source, join(userData, 'extensions', name), { recursive: true });
+  }
+  const tours = options.tours ?? { welcome: 'skipped' };
+  if (Object.keys(tours).length > 0) {
+    // настоящая схема движка: БД создаёт тот же код, что и при первом запуске
+    await mkdir(join(userData, 'data'), { recursive: true });
+    const storage = openSqliteStorage({
+      path: join(userData, 'data', 'engine.db'),
+    });
+    await storage.settings.saveUi({ theme: 'system', locale: 'system', tours });
+    storage.events.close();
   }
   return {
     userData,

@@ -112,7 +112,8 @@ describe('реестр команд: команды приложения (R2, R5
         'Язык: Как в системе',
       ]),
     );
-    expect(titles).toHaveLength(8 + 3 + 3);
+    // 8 переходов + 3 темы + 3 языка + «Показать обучающий тур»
+    expect(titles).toHaveLength(8 + 3 + 3 + 1);
     expect(titles).not.toContain('Открыть палитру команд');
     // у команд приложения идентификатора расширения нет
     await expectCount(commands.extensionOptions, 0);
@@ -123,6 +124,7 @@ describe('реестр команд: команды приложения (R2, R5
       .allInnerTexts();
     expect(headings.map((text) => text.trim())).toEqual([
       'Переход',
+      'Приложение',
       'Тема',
       'Язык',
     ]);
@@ -175,8 +177,8 @@ describe('реестр команд: сочетания клавиш (R6, R7, R1
     );
     await openShortcuts(client);
     const rows = client.page.getByTestId('shortcut');
-    // палитра + 8 переходов + 3 темы + 3 языка + отмена и возврат ответа в сессии
-    await expectCount(rows, 17);
+    // палитра + 8 переходов + 3 темы + 3 языка + обучающий тур + отмена и возврат ответа в сессии
+    await expectCount(rows, 18);
     const textOf = async (command: string) =>
       (
         await client.page

@@ -7,6 +7,7 @@ import {
 } from '@/features/keybindings';
 import { CourseUpdatesNotice } from '@/features/course-updates';
 import { NoticeSnackbar } from '@/features/extension-commands';
+import { TourHost } from '@/features/onboarding-tour';
 import { TransferDialogs } from '@/features/extension-transfers';
 import { InstallDialog } from '@/pages/settings';
 import { ROUTE } from '@/shared/config/routes.ts';
@@ -60,6 +61,8 @@ onBeforeUnmount(() => stopShortcuts?.());
     <!-- палитра и уведомления живут здесь, чтобы работать и на /session, и на /placement -->
     <CommandPalette />
     <NoticeSnackbar />
+    <!-- тур поверх любой страницы оболочки; предложение при первом запуске -->
+    <TourHost />
     <!-- импорт и экспорт запускает и палитра, и «Библиотека»: диалоги живут здесь -->
     <TransferDialogs />
     <!-- установка и обновление расширений: диалог открывают настройки и ссылка dolphy://, на любой странице -->

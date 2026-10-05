@@ -19,7 +19,16 @@ export interface RepositoryRecord {
   /** Полный SHA-1 загруженного коммита. */
   commit: string;
   fetchedAt: EpochMs;
+  /** Установленные курсы: курсы загруженного коммита, попавшие в выбор (без выбора — все). */
   courseIds: UnitId[];
+  /**
+   * Явный выбор ученика: курсы, которые он просил поставить. Нет поля — все
+   * курсы коммита (запись без выбора, в том числе созданная до выбора курсов).
+   * Хранится как намерение: курс, которого нет в коммите, остаётся в списке.
+   */
+  selected?: UnitId[];
+  /** Курсы загруженного коммита, не попавшие в снимок из-за выбора; нет поля — пусто. */
+  skippedCourseIds?: UnitId[];
   lastError?: EngineErrorDto;
 }
 
@@ -162,6 +171,12 @@ export interface SnapshotInstaller {
    * `course_manifest.json` — курс).
    */
   begin(root: SnapshotRoot, id: string, opId: string): Promise<OperationDirs>;
+  /**
+   * Удаляет из `.staging/<opId>/<id>` каталоги `paths` (от корня снимка) со
+   * всем содержимым. Пути проверяются как в `writeStaging`; несуществующий
+   * путь не ошибка. Пустой путь (сам корень снимка) отвергается.
+   */
+  prune(id: string, opId: string, paths: readonly string[]): Promise<void>;
   /**
    * Записывает файлы (`путь → текст UTF-8`) в `.staging/<opId>/<id>`, созданный
    * `begin`. Пути проверяются заново: относительные, с `/`, без `..`, пустых и

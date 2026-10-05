@@ -11,6 +11,14 @@ export {
 } from './lib/progress.ts';
 export type { RepositoryProgress } from './lib/progress.ts';
 export {
+  blockedCourses,
+  installedIds,
+  requiredBy,
+  selectableIds,
+  toggleCourse,
+} from './lib/selection.ts';
+export type { CourseBlock } from './lib/selection.ts';
+export {
   validateRepositoryRef,
   validateRepositoryUrl,
 } from './lib/validate.ts';

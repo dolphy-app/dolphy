@@ -26,6 +26,8 @@ export type RepositoryErrorKey =
   | 'repository.error.rejected.invalid-library'
   | 'repository.error.rejected.reload-rejected'
   | 'repository.error.rejected.path-conflict'
+  | 'repository.error.rejected.unknown-course'
+  | 'repository.error.rejected.missing-requirement'
   | 'repository.error.rejected.unknown'
   | 'repository.error.unknown';
 
@@ -64,6 +66,8 @@ const REJECT_REASONS = new Set([
   'invalid-library',
   'reload-rejected',
   'path-conflict',
+  'unknown-course',
+  'missing-requirement',
 ]);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -93,6 +97,26 @@ const diagnosticMessages = (details: Record<string, unknown>): string[] => {
   return list
     .map((item) => (isRecord(item) ? item['message'] : undefined))
     .filter((message): message is string => typeof message === 'string');
+};
+
+/** Тексты отказа по выбору курсов: чего не хватает выбранным курсам или каких курсов нет в репозитории. */
+const selectionMessages = (
+  details: Record<string, unknown>,
+  fallback: string,
+  summary: unknown,
+): string[] => {
+  const requirements = details['requirements'];
+  if (isRecord(requirements)) {
+    return Object.entries(requirements).map(
+      ([course, needs]) =>
+        `${course} → ${Array.isArray(needs) ? needs.join(', ') : ''}`,
+    );
+  }
+  const courseIds = details['courseIds'];
+  if (Array.isArray(courseIds) && courseIds.length > 0) {
+    return courseIds.map(String);
+  }
+  return [typeof summary === 'string' ? summary : fallback];
 };
 
 /**
@@ -144,7 +168,7 @@ export const describeRepositoryError = (
         messages:
           diagnostics.length > 0
             ? diagnostics
-            : [typeof summary === 'string' ? summary : error.message],
+            : selectionMessages(details, error.message, summary),
       };
     }
     default:

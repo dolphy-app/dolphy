@@ -3,10 +3,13 @@ import type {
   Diagnostic,
   LibraryInfo,
   LibraryService,
+  PreviewRepositoryRequest,
   RepositoriesService,
   RepositoryDto,
   RepositoryPhase,
+  RepositoryPreviewDto,
   RepositoryStatus,
+  UpdateRepositoryOptions,
   UpdateRepositoryResult,
 } from '@dolphy-app/engine-contract';
 import { loadCompiled } from '../../authoring/artifact.ts';
@@ -26,11 +29,13 @@ import type {
 import type { EngineContext } from '../context.ts';
 import { EngineError } from '../errors.ts';
 import {
+  normalizeCourseSelection,
   normalizeRepositoryRef,
   normalizeRepositoryUrl,
   repositorySlug,
   urlHash8,
 } from '../repository-url.ts';
+import { inspectSnapshot, scanCourses } from '../repository-courses.ts';
 
 /** Снимки репозиториев лежат в `<libraryRoot>/repositories/<id>`. */
 const ROOT: SnapshotRoot = 'repositories';
@@ -46,7 +51,7 @@ export interface RepositoriesServiceDeps {
   closeSignal?: AbortSignal;
 }
 
-type OperationKind = 'add' | 'update' | 'remove';
+type OperationKind = 'add' | 'update' | 'remove' | 'preview';
 
 /** Операция над репозиторием; `id` у `add` появляется, когда очередь дошла до неё. */
 interface Operation {
@@ -61,6 +66,10 @@ interface Target {
   id: string;
   url: string;
   ref: string | null;
+  /** Курсы, которые нужно поставить; `null` — все курсы коммита. */
+  selected: string[] | null;
+  /** Выбор задан этим вызовом: неизвестный курс — отказ, а не пропуск. */
+  explicit: boolean;
   /** Запись до операции (`update`). */
   previous?: RepositoryRecord;
 }
@@ -83,6 +92,7 @@ const toDto = (
   fetchedAt: record.fetchedAt,
   status,
   courseIds: [...record.courseIds],
+  skippedCourseIds: [...(record.skippedCourseIds ?? [])],
   ...(record.lastError !== undefined && { lastError: record.lastError }),
 });
 
@@ -93,7 +103,20 @@ const withoutLastError = (record: RepositoryRecord): RepositoryRecord => ({
   commit: record.commit,
   fetchedAt: record.fetchedAt,
   courseIds: record.courseIds,
+  ...(record.selected !== undefined && { selected: record.selected }),
+  ...(record.skippedCourseIds !== undefined && {
+    skippedCourseIds: record.skippedCourseIds,
+  }),
 });
+
+/** Выбор курсов как множество: порядок не важен; `null` — «все курсы». */
+const sameSelection = (
+  a: readonly string[] | null,
+  b: readonly string[] | null,
+): boolean => {
+  if (a === null || b === null) return a === b;
+  return a.length === b.length && a.every((courseId) => b.includes(courseId));
+};
 
 const rejected = (
   message: string,
@@ -102,6 +125,15 @@ const rejected = (
 
 const notFound = (id: unknown): EngineError =>
   new EngineError('NOT_FOUND', { details: { id } });
+
+/**
+ * Отказ по запросу, а не по репозиторию: курсы выбраны неверно. Состояние
+ * репозитория цело, поэтому `lastError` в записи не пишется.
+ */
+const isSelectionRefusal = (failure: EngineError): boolean => {
+  const reason = failure.details?.['reason'];
+  return reason === 'unknown-course' || reason === 'missing-requirement';
+};
 
 /**
  * `repositories.*` (спека `course-git-source`): реестр git-репозиториев и
@@ -183,7 +215,11 @@ export const createRepositoriesService = (
   const statusOf = async (
     record: RepositoryRecord,
   ): Promise<RepositoryStatus> => {
-    if (operationsOf(record.id).length > 0) return 'updating';
+    // предпросмотр репозитория ничего не обновляет
+    const running = operationsOf(record.id).filter(
+      ({ kind }) => kind !== 'preview',
+    );
+    if (running.length > 0) return 'updating';
     if (record.lastError !== undefined) return 'error';
     return (await installer.exists(ROOT, record.id)) ? 'ready' : 'error';
   };
@@ -271,9 +307,13 @@ export const createRepositoriesService = (
     op: Operation,
     target: Target,
     opId: string,
-    fetched: { commit: string; courseIds: string[] },
+    fetched: {
+      commit: string;
+      courseIds: string[];
+      skippedCourseIds: string[];
+    },
   ): Promise<FlowResult> => {
-    const { id, url, ref } = target;
+    const { id, url, ref, selected } = target;
     if (ctx.state.closed) throw new EngineError('ENGINE_CLOSED');
     op.controller.signal.throwIfAborted();
     op.committing = true;
@@ -287,6 +327,10 @@ export const createRepositoriesService = (
         commit: fetched.commit,
         fetchedAt: ctx.clock.now(),
         courseIds: fetched.courseIds,
+        ...(selected !== null && { selected }),
+        ...(fetched.skippedCourseIds.length > 0 && {
+          skippedCourseIds: fetched.skippedCourseIds,
+        }),
       };
       let installed = false;
       try {
@@ -356,12 +400,66 @@ export const createRepositoriesService = (
     return cleared;
   };
 
-  /** `resolve → fetch → export → validate → (queue) reload`; общий путь `add` и `update`. */
+  /**
+   * Явный выбор курсов (`target.selected`): курсы снимка → проверка выбора →
+   * удаление каталогов невыбранных. Возвращает курсы коммита без выбора.
+   * Запомненный выбор (`explicit: false`) не отвергается за курсы, которых
+   * в коммите больше нет: они просто не ставятся.
+   */
+  const applySelection = async (
+    id: string,
+    opId: string,
+    selected: readonly string[],
+    explicit: boolean,
+  ): Promise<string[]> => {
+    const { courses, dirs } = await scanCourses(
+      installer.stagingSource(opId),
+      id,
+    );
+    const known = new Set(courses.map((course) => course.id));
+    if (explicit) {
+      const unknown = selected.filter((courseId) => !known.has(courseId));
+      if (unknown.length > 0) {
+        throw rejected('Selected courses are not in the repository', {
+          reason: 'unknown-course',
+          courseIds: unknown,
+        });
+      }
+    }
+    const wanted = new Set(selected.filter((courseId) => known.has(courseId)));
+    if (wanted.size === 0) {
+      throw rejected('Repository contains none of the selected courses', {
+        reason: 'no-courses',
+        summary: { errors: 0, warnings: 0, infos: 0 },
+        diagnostics: [],
+      });
+    }
+    const requirements: Record<string, string[]> = {};
+    for (const course of courses) {
+      if (!wanted.has(course.id)) continue;
+      const missing = course.requires.filter((need) => !wanted.has(need));
+      if (missing.length > 0) requirements[course.id] = missing;
+    }
+    if (Object.keys(requirements).length > 0) {
+      throw rejected('Selected courses need courses that are not selected', {
+        reason: 'missing-requirement',
+        requirements,
+      });
+    }
+    const skipped = courses.filter((course) => !wanted.has(course.id));
+    const paths = skipped
+      .map((course) => dirs.get(course.id))
+      .filter((path): path is string => path !== undefined && path !== '');
+    await installer.prune(id, opId, paths);
+    return skipped.map((course) => course.id);
+  };
+
+  /** `resolve → fetch → export → (select) → validate → (queue) reload`; общий путь `add` и `update`. */
   const fetchFlow = async (
     op: Operation,
     target: Target,
   ): Promise<FlowResult> => {
-    const { id, url, ref, previous } = target;
+    const { id, url, ref, previous, selected, explicit } = target;
     const { signal } = op.controller;
     const opId = ctx.ids.next().toLowerCase();
     let began = false;
@@ -369,9 +467,11 @@ export const createRepositoriesService = (
       signal.throwIfAborted();
       progress(id, 'resolve');
       const resolved = await fetcher.resolve({ url, ref, signal });
+      // тот же коммит и тот же выбор: скачивать нечего
       const upToDate = async (commit: string) =>
         previous !== undefined &&
         commit === previous.commit &&
+        sameSelection(selected, previous.selected ?? null) &&
         (await installer.exists(ROOT, id));
       if (previous !== undefined && (await upToDate(resolved.commit))) {
         return { changed: false, record: await settle(previous) };
@@ -395,17 +495,26 @@ export const createRepositoriesService = (
         return { changed: false, record: await settle(previous) };
       }
       progress(id, 'validate');
+      const skippedCourseIds =
+        selected === null
+          ? []
+          : await applySelection(id, opId, selected, explicit);
       const courseIds = await validateStaging(id, opId);
       signal.throwIfAborted();
       return await exclusive(() =>
-        commit(op, target, opId, { commit: snapshot.commit, courseIds }),
+        commit(op, target, opId, {
+          commit: snapshot.commit,
+          courseIds,
+          skippedCourseIds,
+        }),
       );
     } catch (error) {
       const failure = toFailure(error, op);
       if (
         previous !== undefined &&
         failure instanceof EngineError &&
-        failure.code === 'REPOSITORY_REJECTED'
+        failure.code === 'REPOSITORY_REJECTED' &&
+        !isSelectionRefusal(failure)
       ) {
         await recordRejection(previous, failure);
       }
@@ -422,6 +531,7 @@ export const createRepositoriesService = (
   const add = async (req: AddRepositoryRequest): Promise<RepositoryDto> => {
     const url = normalizeRepositoryUrl(req.url);
     const ref = normalizeRepositoryRef(req.ref);
+    const selected = normalizeCourseSelection(req.courseIds);
     const op = newOperation('add', null);
     return serial(op, async () => {
       const records = await store.list();
@@ -440,12 +550,22 @@ export const createRepositoriesService = (
         });
       }
       checks.delete(id);
-      const { record } = await fetchFlow(op, { id, url, ref });
+      const { record } = await fetchFlow(op, {
+        id,
+        url,
+        ref,
+        selected,
+        explicit: selected !== null,
+      });
       return toDto(record, 'ready');
     });
   };
 
-  const update = async (id: string): Promise<UpdateRepositoryResult> => {
+  const update = async (
+    id: string,
+    options?: UpdateRepositoryOptions,
+  ): Promise<UpdateRepositoryResult> => {
+    const chosen = normalizeCourseSelection(options?.courseIds);
     const op = newOperation('update', id);
     return serial(op, async () => {
       const previous = await find(id);
@@ -455,6 +575,9 @@ export const createRepositoriesService = (
         url: previous.url,
         ref: previous.ref,
         previous,
+        // без явного выбора действует прежний (запись без выбора — все курсы)
+        selected: chosen ?? previous.selected ?? null,
+        explicit: chosen !== null,
       });
       // сервер мог уйти вперёд за время операции: пометка появится после следующей проверки
       checks.delete(id);
@@ -462,6 +585,72 @@ export const createRepositoriesService = (
         changed,
         repository: toDto(record, record.lastError ? 'error' : 'ready'),
       };
+    });
+  };
+
+  /**
+   * Скачивает коммит во временный каталог, сканирует и отдаёт курсы для
+   * выбора. Ничего не устанавливает: файлы живут только в `.staging/<opId>` и
+   * `git-tmp/<opId>` и убираются в `finally`.
+   */
+  const preview = async (
+    req: PreviewRepositoryRequest,
+  ): Promise<RepositoryPreviewDto> => {
+    const url = normalizeRepositoryUrl(req.url);
+    const ref = normalizeRepositoryRef(req.ref);
+    const op = newOperation('preview', null);
+    return serial(op, async () => {
+      const existing = (await store.list()).find(
+        (record) => record.url === url,
+      );
+      const id = existing?.id ?? repositorySlug(url);
+      op.id = id;
+      const { signal } = op.controller;
+      const opId = ctx.ids.next().toLowerCase();
+      let began = false;
+      try {
+        signal.throwIfAborted();
+        progress(id, 'resolve');
+        began = true;
+        const dirs = await installer.begin(ROOT, id, opId);
+        progress(id, 'fetch');
+        const snapshot = await fetcher.fetchSnapshot({
+          url,
+          ref,
+          signal,
+          destDir: dirs.stagingDir,
+          tmpDir: dirs.tmpDir,
+          limits: DEFAULT_SNAPSHOT_LIMITS,
+          onProgress: (phase, { loaded, total }) =>
+            progress(id, phase, loaded, total),
+        });
+        signal.throwIfAborted();
+        progress(id, 'validate');
+        const found = await inspectSnapshot(installer.stagingSource(opId), id);
+        signal.throwIfAborted();
+        const mine = new Set(existing?.courseIds ?? []);
+        const loaded = new Set(
+          ctx.library.current()?.library?.getCourseIds() ?? [],
+        );
+        return {
+          url,
+          ref,
+          commit: snapshot.commit,
+          courses: found.map((course) => ({
+            ...course,
+            installed: mine.has(course.id),
+            inLibrary: !mine.has(course.id) && loaded.has(course.id),
+          })),
+        };
+      } catch (error) {
+        throw toFailure(error, op);
+      } finally {
+        if (began) {
+          await installer.finish(opId).catch((error: unknown) => {
+            ctx.logger.warn({ error, opId }, 'cannot clean up preview dirs');
+          });
+        }
+      }
     });
   };
 
@@ -549,7 +738,7 @@ export const createRepositoriesService = (
     return items;
   };
 
-  return { list, add, update, remove, cancel, checkUpdates };
+  return { list, preview, add, update, remove, cancel, checkUpdates };
 };
 
 /**

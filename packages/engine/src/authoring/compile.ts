@@ -31,6 +31,7 @@ import type {
 } from './reference-check.ts';
 import { scan } from './scan.ts';
 import type { ScanOptions, ScanStats } from './scan.ts';
+import type { Model } from './model.ts';
 
 export interface CompileOptions {
   scan?: Partial<ScanOptions>;
@@ -59,6 +60,8 @@ export interface CompileResult {
   summary: DiagnosticSummary;
   /** `null` при ошибках (`emit: 'clean'`) или сбое чтения входов. */
   artifact: Artifact | null;
+  /** Курсы, уроки и упражнения, найденные сканером (до проверок графа). */
+  model: Model;
   timings: CompileTimings;
   /** Есть только при `runChecks`: сколько эталонов прогнано, пропущено, не прошло. */
   referenceChecks?: ReferenceCheckStats;
@@ -113,6 +116,7 @@ export const compile = async (
       diagnostics: all,
       summary: summarize(all),
       artifact,
+      model: scanResult.model,
       timings,
       ...(reference === null ? {} : { referenceChecks: reference.stats }),
     };

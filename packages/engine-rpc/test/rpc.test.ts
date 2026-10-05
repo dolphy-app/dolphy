@@ -624,7 +624,15 @@ describe('ordering and events', () => {
       ['add', [{ url: 'https://h/r.git', extra: 1 }]],
       ['add', [{ url: `https://h/${'a'.repeat(2048)}` }]],
       ['add', [{ url: 'https://h/r.git', ref: 'r'.repeat(256) }]],
+      ['add', [{ url: 'https://h/r.git', courseIds: 'a' }]],
+      ['add', [{ url: 'https://h/r.git', courseIds: [1] }]],
+      ['add', [{ url: 'https://h/r.git', courseIds: [''] }]],
+      ['add', [{ url: 'https://h/r.git', courseIds: Array(1001).fill('a') }]],
+      ['preview', [{ url: '' }]],
+      ['preview', [{ url: 'https://h/r.git', courseIds: ['a'] }]],
       ['update', ['']],
+      ['update', ['id1', { courseIds: [1] }]],
+      ['update', ['id1', { extra: 1 }]],
       ['remove', ['x'.repeat(201)]],
       ['cancel', [42]],
       ['list', ['extra']],
@@ -646,17 +654,25 @@ describe('ordering and events', () => {
 
     it('routes valid calls to the engine with positional args', async () => {
       const { client, fake } = await connect();
-      await client.engine.repositories.add({
+      await client.engine.repositories.preview({
         url: 'https://h/r.git',
         ref: 'main',
       });
+      await client.engine.repositories.add({
+        url: 'https://h/r.git',
+        ref: 'main',
+        courseIds: ['a', 'b'],
+      });
       await client.engine.repositories.update('id1');
+      await client.engine.repositories.update('id1', { courseIds: ['a'] });
       await client.engine.repositories.remove('id2');
       await client.engine.repositories.cancel('id3');
       await client.engine.repositories.list();
       await client.engine.repositories.checkUpdates();
       expect(fake.calls.filter((name) => name !== 'diagnostics')).toEqual([
+        'repositories.preview',
         'repositories.add',
+        'repositories.update',
         'repositories.update',
         'repositories.remove',
         'repositories.cancel',
@@ -665,10 +681,11 @@ describe('ordering and events', () => {
       ]);
     });
 
-    it('add is not replayed after a drop; update/remove/cancel/list are', () => {
+    it('add is not replayed after a drop; preview/update/remove/cancel/list are', () => {
       expect(RPC_METHODS['repositories.add'].idempotent).toBe(false);
       for (const name of [
         'list',
+        'preview',
         'update',
         'remove',
         'cancel',

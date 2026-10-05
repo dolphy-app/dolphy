@@ -3,6 +3,7 @@ import { detectPlatform } from '@dolphy-app/keybindings';
 import { EngineCallError } from '@dolphy-app/engine-rpc/client';
 import App from './App.vue';
 import { applyLocale, createDolphyI18n } from './providers/i18n.ts';
+import { createDolphyQuery } from './providers/query.ts';
 import { createDolphyVuetify } from './providers/vuetify.ts';
 import { router } from './router';
 import StartupError from './startup-error/StartupError.vue';
@@ -89,6 +90,8 @@ const bootstrap = async () => {
       void extensionUpdates.reconnected();
       void userKeybindings.reconnected();
     });
+    const query = createDolphyQuery(engine);
+    onReconnect(() => query.reconnected());
     const i18n = createDolphyI18n(resolveLocale(locale, navigator.language));
     const courseScope = await createCourseScope(engine);
     const courseUpdates = createCourseUpdates(engine, {
@@ -155,6 +158,7 @@ const bootstrap = async () => {
       .use(i18n)
       .use(vuetify)
       .use(router)
+      .use(query)
       .provide(ENGINE_KEY, engine)
       .provide(CONTRIBUTIONS_KEY, contributions.contributions)
       .provide(EXTENSION_UPDATES_KEY, extensionUpdates)

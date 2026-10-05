@@ -15,6 +15,7 @@ import {
   toggleCourse,
 } from '@/entities/repository';
 import { useRepositoryCourses } from '@/pages/settings/model/repository-courses.ts';
+import { createTestQueryCache } from './support/query-cache.ts';
 
 const course = (
   id: string,
@@ -156,7 +157,9 @@ const listing = (courses: RepositoryCourseDto[]): RepositoryPreviewDto => ({
 });
 
 const mount = (engine: LearningEngine) =>
-  effectScope().run(() => useRepositoryCourses(engine))!;
+  effectScope().run(() =>
+    useRepositoryCourses(engine, createTestQueryCache()),
+  )!;
 
 describe('useRepositoryCourses', () => {
   it('просматривает репозиторий с его веткой и отмечает установленные курсы', async () => {
@@ -244,5 +247,26 @@ describe('useRepositoryCourses', () => {
     );
     await cancelled;
     expect(model.error.value).toBeNull();
+  });
+});
+
+describe('useRepositoryCourses и кэш предпросмотра', () => {
+  it('повторное открытие «Курсы…» того же репозитория не вызывает preview', async () => {
+    const fake = createFake();
+    const cache = createTestQueryCache();
+    const first = effectScope().run(() =>
+      useRepositoryCourses(fake.engine, cache),
+    )!;
+    const loading = first.load(repository);
+    fake.pending[0]?.resolve(listing([course('a', { installed: true })]));
+    await loading;
+    first.reset();
+
+    const second = effectScope().run(() =>
+      useRepositoryCourses(fake.engine, cache),
+    )!;
+    await second.load(repository);
+    expect(fake.previewCalls).toHaveLength(1);
+    expect([...second.selected.value]).toEqual(['a']);
   });
 });

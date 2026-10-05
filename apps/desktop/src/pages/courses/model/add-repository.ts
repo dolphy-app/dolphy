@@ -1,3 +1,5 @@
+import { useQueryCache } from '@pinia/colada';
+import type { QueryCache } from '@pinia/colada';
 import { computed, onScopeDispose, ref, shallowRef } from 'vue';
 import type {
   LearningEngine,
@@ -7,6 +9,7 @@ import type {
 import {
   describeRepositoryError,
   isProgressEvent,
+  loadRepositoryPreview,
   selectableIds,
   toEngineError,
   toggleCourse,
@@ -41,7 +44,10 @@ type Run<T> =
  * нажатая раньше, запоминается и уходит в `repositories.cancel(id)` с этим
  * событием.
  */
-export const useAddRepository = (engine: LearningEngine) => {
+export const useAddRepository = (
+  engine: LearningEngine,
+  queryCache: QueryCache = useQueryCache(),
+) => {
   const url = ref('');
   const branch = ref('');
   const running = ref(false);
@@ -150,7 +156,9 @@ export const useAddRepository = (engine: LearningEngine) => {
     if (urlIssue.value !== null || refIssue.value !== null) {
       return { status: 'invalid' };
     }
-    const result = await run(() => engine.repositories.preview(source()));
+    const result = await run(() =>
+      loadRepositoryPreview(queryCache, engine, source()),
+    );
     if (result.status !== 'done') return result;
     const { courses } = result.value;
     if (courses.length === 0) {

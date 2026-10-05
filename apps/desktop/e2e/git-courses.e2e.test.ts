@@ -262,6 +262,12 @@ describe('курсы из git-репозитория', () => {
     expect((await client.chooserCourses()).sort()).toEqual(
       [REMOTE_COURSE.name, second.name].sort(),
     );
+    // «Назад → Далее»: предпросмотр берётся из кэша окна, список тот же
+    await client.backToAddress();
+    await client.submitAdd(server.urlOf('pair'));
+    expect((await client.chooserCourses()).sort()).toEqual(
+      [REMOTE_COURSE.name, second.name].sort(),
+    );
     expect(await client.courseCheckbox(REMOTE_COURSE.name).isChecked()).toBe(
       true,
     );

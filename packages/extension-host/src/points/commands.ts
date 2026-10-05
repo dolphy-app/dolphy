@@ -8,7 +8,13 @@ import { validateBinding } from '@dolphy-app/keybindings';
 import type { BindingProblem } from '@dolphy-app/keybindings';
 import { z } from 'zod';
 import type { CommandContribution } from '@dolphy-app/extension-api';
-import { duplicateIssues, extensionId, idPrefixIssues } from './support.ts';
+import {
+  duplicateIssues,
+  extensionId,
+  idPrefixIssues,
+  whenField,
+  whenIssues,
+} from './support.ts';
 import type { ContributionPoint } from './types.ts';
 
 const { commands: MAX_COMMANDS, keybindingsPerCommand: MAX_KEYBINDINGS } =
@@ -85,7 +91,6 @@ const bindingIssues = (entry: CommandContribution, index: number): string[] => {
 export const commands: ContributionPoint<'commands'> = {
   key: 'commands',
   needsMain: true,
-  // `when` прямо у команды не поддерживается: strictObject отклоняет его как неизвестный; условия — у записей `keybindings`
   schema: z.strictObject({
     id: extensionId,
     title: z.string().min(1).max(EXTENSION_COMMAND_LIMITS.titleLength),
@@ -120,6 +125,8 @@ export const commands: ContributionPoint<'commands'> = {
       .max(MAX_KEYBINDINGS)
       .optional(),
     palette: z.boolean().optional(),
+    // условие видимости команды; условия записей `keybindings` — отдельный язык пакета `@dolphy-app/keybindings`
+    when: whenField.optional(),
     icon: z.enum(EXTENSION_ICONS).optional(),
   }),
   normalize: (entries) =>
@@ -137,6 +144,9 @@ export const commands: ContributionPoint<'commands'> = {
       ...idPrefixIssues('commands', ids, owner),
       ...duplicateIssues('contributes.commands', 'id', ids),
       ...entries.flatMap(bindingIssues),
+      ...entries.flatMap((entry, index) =>
+        whenIssues('commands', index, entry.when),
+      ),
     ];
   },
   resolve: async (entries) =>
@@ -154,6 +164,7 @@ export const commands: ContributionPoint<'commands'> = {
         when: binding.when ?? null,
       })),
       palette: entry.palette,
+      when: entry.when ?? null,
       icon: entry.icon,
     })),
   claims: (resolved) => resolved.map((command) => `command:${command.id}`),

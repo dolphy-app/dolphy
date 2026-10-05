@@ -6,6 +6,7 @@ import { useCourseScope } from '@/features/course-scope';
 import { useExtensionCommands } from '@/features/extension-commands';
 import { useContributions } from '@/shared/api/engine';
 import { useExtensionText } from '@/shared/lib/extension-text.ts';
+import { useExtensionWhen } from '@/shared/lib/extension-when.ts';
 import { frameUrlOf } from '@/shared/lib/frame-bridge.ts';
 import type { PanelBinding } from '@/shared/lib/frame-bridge.ts';
 import WidgetFrame from '@/shared/ui/WidgetFrame.vue';
@@ -20,12 +21,15 @@ const props = defineProps<{
 const { t } = useI18n();
 const contributions = useContributions();
 const extensionText = useExtensionText();
+const extensionWhen = useExtensionWhen();
 const { runner } = useExtensionCommands();
 const scope = useCourseScope();
 const palette = useCommandPalette();
 const headingId = useId();
 
-const items = computed(() => widgetsOf(contributions.value, props.area));
+const items = computed(() =>
+  widgetsOf(contributions.value, props.area, extensionWhen),
+);
 // курс в фокусе доходит до рамок без их пересоздания
 const context = computed(() => ({ courseId: scope.activeId.value }));
 // ошибка загрузки рамки по ключу рамки: новая ревизия начинает с чистого листа
@@ -129,6 +133,11 @@ const titleOf = (widget: WidgetContributionDto) =>
 .widget-title {
   overflow-wrap: anywhere;
   white-space: normal;
+}
+
+/* подзаголовок карточки Vuetify полупрозрачен: подпись с id расширения на нём не набирала контраст 4.5:1 (axe color-contrast) */
+.widget :deep(.v-card-subtitle) {
+  opacity: 1;
 }
 
 .caption {

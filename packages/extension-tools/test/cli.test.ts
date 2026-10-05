@@ -115,6 +115,57 @@ describe('runCli', () => {
     expect(upper.stderr()).toMatch(/importers\.0\.accept\.0: /);
   });
 
+  it('validate: `when` of a command, a panel and a widget is checked with the position of the problem', async () => {
+    const root = await copyProject('commands-panel');
+    const built = createIo();
+    expect(await runCli(['build', root], built.io), built.stderr()).toBe(0);
+    const dir = path.join(root, 'dist-ext', 'acme.commands-panel');
+    const manifestPath = path.join(dir, 'extension.json');
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as {
+      contributes: {
+        commands: object[];
+        panels: object[];
+        widgets?: object[];
+      };
+    };
+    const withWhen = async (when: string) => {
+      const { commands, panels } = manifest.contributes;
+      await writeFile(
+        manifestPath,
+        JSON.stringify({
+          ...manifest,
+          contributes: {
+            commands: [{ ...commands[0], when }, commands[1]],
+            panels: [{ ...panels[0], when }],
+            widgets: [
+              {
+                id: 'acme.commands-panel.card',
+                title: 'Card',
+                slot: 'dailyPlan',
+                module: './panel.mjs',
+                when,
+              },
+            ],
+          },
+        }),
+      );
+      const cli = createIo();
+      return { code: await runCli(['validate', dir], cli.io), cli };
+    };
+
+    const ok = await withWhen("route == 'courses' && !(session.active)");
+    expect(ok.code, ok.cli.stderr()).toBe(0);
+
+    const bad = await withWhen("route == 'home'");
+    expect(bad.code).toBe(1);
+    for (const where of ['commands', 'panels', 'widgets']) {
+      expect(bad.cli.stderr()).toContain(
+        `contributes.${where}.0.when: invalid "when" (unknown value 'home' for 'route'`,
+      );
+    }
+    expect(bad.cli.stderr()).toContain(') at 9)');
+  });
+
   it('metadata and compatibility: build copies the manifest as is, validate checks the shape', async () => {
     const root = await copyProject('with-metadata');
     const built = createIo();

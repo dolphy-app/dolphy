@@ -75,14 +75,21 @@ const act = () => (props.focused ? emit('openPlan') : emit('study'));
             >
               {{ t('courses.card.recommended') }}
             </v-chip>
+            <!-- в узкой карточке остаётся значок: подпись отдана названию курса -->
             <v-chip
               v-if="updateAvailable"
+              class="update-chip"
               size="small"
               color="info"
               variant="tonal"
               prepend-icon="mdi-update"
+              role="img"
+              :aria-label="t('repository.updateAvailable')"
+              :title="t('repository.updateAvailable')"
             >
-              {{ t('repository.updateAvailable') }}
+              <span class="update-label">{{
+                t('repository.updateAvailable')
+              }}</span>
             </v-chip>
           </div>
         </div>
@@ -184,6 +191,21 @@ const act = () => (props.focused ? emit('openPlan') : emit('study'));
 </template>
 
 <style scoped>
+.course-card {
+  container-type: inline-size;
+}
+
+/* в узкой карточке (три колонки на широком окне) подпись чипа не отнимает ширину у названия */
+@container (max-width: 24rem) {
+  .update-label {
+    display: none;
+  }
+
+  .update-chip :deep(.v-chip__prepend) {
+    margin-inline: 0;
+  }
+}
+
 .min-width-0 {
   min-width: 0;
 }

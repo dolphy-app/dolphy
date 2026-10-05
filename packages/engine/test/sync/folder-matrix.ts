@@ -275,6 +275,29 @@ export const describeFolderMatrix = ({
         expect(d.store.entryCount()).toBe(0);
       }));
 
+    it('F-05b a kind this version does not know (a newer app): whole segment rejected, nothing inserted, nothing lost (ADR 0017)', () =>
+      scenario(async ({ clock, dir }) => {
+        const a = await node(dir, 'a', { clock });
+        await a.many(5);
+        await a.fs.export();
+        corruptSegment(dir, (lines) =>
+          lines.map((line, i) =>
+            i === 4
+              ? JSON.stringify({
+                  ...JSON.parse(line),
+                  kind: 'from_a_newer_app',
+                })
+              : line,
+          ),
+        );
+        const b = await node(dir, 'b', { clock });
+        const report = await b.fs.import();
+        expect(report.corruptSegments).toHaveLength(1);
+        expect(report.corruptSegments[0]).toContain('schema: bad kind');
+        expect(report).toMatchObject({ inserted: 0, rejected: 5 });
+        expect(b.store.entryCount()).toBe(0);
+      }));
+
     it('F-06 duplicates, conflicted copies and tmp files are ignored (T-27)', () =>
       scenario(async ({ clock, dir }) => {
         const a = await node(dir, 'a', { clock });

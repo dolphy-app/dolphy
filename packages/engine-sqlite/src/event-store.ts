@@ -119,6 +119,14 @@ const toEntry = (row: EntryRow): LogEntry => {
       source: row.source as 'self',
     };
   }
+  if (row.kind === 'retract') {
+    return {
+      ...base,
+      kind: 'retract',
+      targetId: row.unit_id,
+      op: row.op as 'set',
+    };
+  }
   if (row.kind === 'unit_flag') {
     return {
       ...base,
@@ -145,6 +153,8 @@ const toEntry = (row: EntryRow): LogEntry => {
 const toParams = (entry: LogEntry): SqlParam[] => {
   const isAttempt = entry.kind === 'attempt';
   const isFlag = entry.kind === 'unit_flag';
+  const op =
+    entry.kind === 'unit_flag' || entry.kind === 'retract' ? entry.op : null;
   const revision =
     entry.kind === 'progress_reset' ? entry.libraryRevision : undefined;
   return [
@@ -158,7 +168,7 @@ const toParams = (entry: LogEntry): SqlParam[] => {
     isAttempt ? entry.grade : null,
     isAttempt ? entry.source : null,
     isFlag ? entry.flag : null,
-    isFlag ? entry.op : null,
+    op,
     revision === undefined
       ? null
       : JSON.stringify({ libraryRevision: revision }),

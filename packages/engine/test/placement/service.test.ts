@@ -84,6 +84,43 @@ describe('placement service on sql-course (T-47)', () => {
     );
   });
 
+  test('undo by the finish requestId withdraws the whole batch and redo restores it', async () => {
+    const t = await createTestEngine({ library: 'sql-course' });
+    const frontierOf = async () =>
+      (await t.engine.practice.getFrontier()).items.map((i) => i.lessonId);
+    const untouched = await frontierOf();
+    const { sessionId } = await start(t);
+    await runSession(t.engine, sessionId, TRUE_KNOWN);
+    const summary = await t.engine.placement.finish({
+      sessionId,
+      requestId: 'finish-undo',
+    });
+    expect(await frontierOf()).toEqual(summary.frontier);
+    const before = t.eventStore.entryCount();
+
+    const undone = await t.engine.practice.undo({
+      targetId: 'finish-undo',
+      requestId: 'undo-1',
+    });
+    expect(undone).toMatchObject({ changed: true, duplicate: false });
+    expect(t.eventStore.entryCount()).toBe(before + 1);
+    expect(await frontierOf()).toEqual(untouched);
+    for (const lesson of summary.known) {
+      const page = await t.engine.practice.getAttempts(`${lesson}::q1`);
+      expect(page.items).toEqual([]);
+    }
+
+    await t.engine.practice.redo({
+      targetId: 'finish-undo',
+      requestId: 'redo-1',
+    });
+    expect(await frontierOf()).toEqual(summary.frontier);
+    const [lesson] = summary.known;
+    expect(
+      (await t.engine.practice.getAttempts(`${lesson}::q1`)).items,
+    ).toHaveLength(2);
+  });
+
   test('finish writes inferred attempts but announces none of them to extensions', async () => {
     const t = await createTestEngine({ library: 'sql-course' });
     const { sessionId } = await start(t);

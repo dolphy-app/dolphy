@@ -1,6 +1,7 @@
 import {
   buildAttempt,
   buildProgressReset,
+  buildRetract,
   buildUnitFlag,
   createFakeClock,
 } from '@dolphy-app/testkit';
@@ -75,7 +76,7 @@ export const describeEventStoreContract = (
       for (const harness of harnesses.splice(0)) await harness.dispose();
     });
 
-    it('round-trips attempt, unit_flag and progress_reset with libraryRevision', async () => {
+    it('round-trips attempt, unit_flag, progress_reset with libraryRevision and retract', async () => {
       const { store } = await open();
       const entries: LogEntry[] = [
         attempt('dev-a', 1, 1_000),
@@ -100,13 +101,20 @@ export const describeEventStoreContract = (
           at: 1_003,
           unitId: 'c',
         }),
+        buildRetract({
+          deviceId: 'dev-a',
+          seq: 5,
+          at: 1_004,
+          targetId: 'batch-1',
+          op: 'unset',
+        }),
       ];
       const result = await store.append(entries);
       expect(result).toEqual({ appended: entries, duplicates: [] });
       expect(await collect(store)).toEqual(entries);
-      expect(store.entryCount()).toBe(4);
-      expect(store.lastSeq()).toBe(4);
-      expect(store.maxAt()).toBe(1_003);
+      expect(store.entryCount()).toBe(5);
+      expect(store.lastSeq()).toBe(5);
+      expect(store.maxAt()).toBe(1_004);
     });
 
     it('reads in (at, deviceId, seq) order regardless of insertion order (T-03)', async () => {

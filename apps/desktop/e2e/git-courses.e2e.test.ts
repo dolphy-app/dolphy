@@ -151,6 +151,16 @@ describe('курсы из git-репозитория', () => {
     await expect
       .poll(() => client.courseNames(), { timeout: 15_000 })
       .toEqual(before);
+
+    // (8) повторное добавление и «Удалить» с отметкой «Удалить и прогресс курсов»
+    await client.openAddDialog();
+    await client.submitAdd(server.urlOf('course'));
+    await client.waitAdded();
+    await client.courseCard(REMOTE_COURSE.name).waitFor({ timeout: 15_000 });
+    await client.openLibrarySettings();
+    await client.removeRepository(url, { withProgress: true });
+    expect(readRepositories(workspace.userData)).toEqual([]);
+    expect(snapshots()).toEqual([]);
   });
 
   it('ошибки остаются в диалоге и не меняют библиотеку, после исправления адрес принимается', async () => {
@@ -194,10 +204,14 @@ describe('курсы из git-репозитория', () => {
     expect(await client.dialogError()).toContain('не найдено ни одного курса');
     await unchanged();
 
-    // курс с занятым id отклоняется библиотекой, прежний граф цел
+    // курс с занятым id виден в списке выбора, но недоступен: добавлять нечего
     await client.submitAdd(server.urlOf('clash'));
-    expect(await client.dialogError()).toContain('Библиотека отклонила');
+    expect(await client.chooserRow(REMOTE_COURSE.name)).toContain(
+      'уже есть в библиотеке',
+    );
+    expect(await client.confirmButton.isDisabled()).toBe(true);
     await unchanged();
+    await client.backToAddress();
 
     // тот же диалог принимает верный адрес
     await client.submitAdd(server.urlOf('course'));
@@ -235,5 +249,90 @@ describe('курсы из git-репозитория', () => {
     const snapshot = join(workspace.userData, 'library', 'repositories', id);
     expect(existsSync(join(snapshot, 'course_manifest.json'))).toBe(true);
     expect(hasGitDir(snapshot)).toBe(false);
+  });
+
+  it('несколько курсов: выбрать часть при добавлении, потом докупить остальные в настройках', async () => {
+    const second = { id: 'git_remote_two', name: 'Второй курс из репозитория' };
+    server = await serveGitRepo({
+      name: 'pair',
+      files: {
+        ...courseTree(),
+        ...courseTree({ id: second.id, name: second.name }),
+        'README.md': 'два курса\n',
+      },
+      branch: 'main',
+    });
+    await start();
+    await client.openCourses();
+    const before = await client.courseNames();
+    await client.openAddDialog();
+
+    // шаг 2: оба курса в списке и отмечены; снимаем второй
+    await client.submitAdd(server.urlOf('pair'));
+    expect((await client.chooserCourses()).sort()).toEqual(
+      [REMOTE_COURSE.name, second.name].sort(),
+    );
+    // «Назад → Далее»: предпросмотр берётся из кэша окна, список тот же
+    const requestsAfterPreview = server.requests.length;
+    expect(requestsAfterPreview).toBeGreaterThan(0);
+    await client.backToAddress();
+    await client.submitAdd(server.urlOf('pair'));
+    expect((await client.chooserCourses()).sort()).toEqual(
+      [REMOTE_COURSE.name, second.name].sort(),
+    );
+    expect(server.requests.length).toBe(requestsAfterPreview);
+    expect(await client.courseCheckbox(REMOTE_COURSE.name).isChecked()).toBe(
+      true,
+    );
+    expect(await client.courseCheckbox(second.name).isChecked()).toBe(true);
+    await client.courseCheckbox(second.name).uncheck();
+    // «Добавить» ставит курсы из снимка предпросмотра: новых запросов к серверу нет
+    const requestsAtConfirm = server.requests.length;
+    await client.confirmChoice();
+    await client.waitAdded();
+    expect(server.requests.length).toBe(requestsAtConfirm);
+    await client.courseCard(REMOTE_COURSE.name).waitFor({ timeout: 15_000 });
+    expect((await client.courseNames()).sort()).toEqual(
+      [...before, REMOTE_COURSE.name].sort(),
+    );
+
+    // реестр помнит выбор, снимок без каталога второго курса, остальные файлы целы
+    const [repository, ...rest] = readRepositories(workspace.userData);
+    expect(rest).toEqual([]);
+    expect(repository).toMatchObject({
+      courseIds: [REMOTE_COURSE.id],
+      selected: [REMOTE_COURSE.id],
+      skippedCourseIds: [second.id],
+    });
+    const { id, url } = repository ?? { id: '', url: '' };
+    const snapshot = join(workspace.userData, 'library', 'repositories', id);
+    expect(existsSync(join(snapshot, REMOTE_COURSE.id))).toBe(true);
+    expect(existsSync(join(snapshot, second.id))).toBe(false);
+    expect(existsSync(join(snapshot, 'README.md'))).toBe(true);
+
+    // настройки: метка «не установлен 1 курс», «Курсы…» ставит второй
+    await client.openLibrarySettings();
+    const [row] = await client.repositories();
+    expect(row?.url).toBe(url);
+    expect(row?.chips).toContain('не установлен 1 курс');
+    await client.openCourseChooser(url);
+    expect(await client.courseCheckbox(REMOTE_COURSE.name).isChecked()).toBe(
+      true,
+    );
+    expect(await client.courseCheckbox(second.name).isChecked()).toBe(false);
+    await client.courseCheckbox(second.name).check();
+    // выбор применяется из снимка предпросмотра: новых запросов к серверу нет
+    const requestsAtApply = server.requests.length;
+    await client.applyChoice();
+    await client.waitUpdateNotice('updated-two');
+    expect(server.requests.length).toBe(requestsAtApply);
+    await expect
+      .poll(() => readRepositories(workspace.userData)[0]?.courseIds.sort(), {
+        timeout: 30_000,
+      })
+      .toEqual([REMOTE_COURSE.id, second.id].sort());
+    expect(existsSync(join(snapshot, second.id))).toBe(true);
+    await client.openCourses();
+    await client.courseCard(second.name).waitFor({ timeout: 15_000 });
   });
 });

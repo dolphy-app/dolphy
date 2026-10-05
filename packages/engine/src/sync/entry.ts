@@ -54,9 +54,20 @@ export const sha256Hex = (data: string | Uint8Array): string =>
 
 export const entryHash = (entry: LogEntry): string => sha256Hex(canon(entry));
 
-/** Идентификатор юнита записи: колонка `unit_id` (упражнение или юнит). */
-export const unitOf = (entry: LogEntry): string =>
-  entry.kind === 'attempt' ? entry.exerciseId : entry.unitId;
+/**
+ * Значение колонки `unit_id`: упражнение попытки, юнит флага или сброса,
+ * `targetId` отмены (это не юнит: сиротами в `W_ORPHAN_EVENTS` не считается).
+ */
+export const unitOf = (entry: LogEntry): string => {
+  switch (entry.kind) {
+    case 'attempt':
+      return entry.exerciseId;
+    case 'retract':
+      return entry.targetId;
+    default:
+      return entry.unitId;
+  }
+};
 
 /** Причина `clock-skew` не зависит от часов получателя, если `nowMs` не задан. */
 export const isClockSkewed = (entry: LogEntry, nowMs?: number): boolean => {
@@ -124,6 +135,13 @@ export const parseEntry = (input: unknown): ParsedEntry => {
         return { ok: true, entry: entry as LogEntry };
       }
       return { ok: true, entry: { ...entry, libraryRevision } as LogEntry };
+    }
+    case 'retract': {
+      const { targetId, op } = raw;
+      if (!isText(targetId)) return fail('bad targetId');
+      if (!OPS.includes(op)) return fail('bad op');
+      const entry = { ...base, kind: 'retract', targetId, op };
+      return { ok: true, entry: entry as LogEntry };
     }
     default:
       return fail('bad kind');

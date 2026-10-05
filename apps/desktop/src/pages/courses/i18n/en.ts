@@ -46,6 +46,11 @@ export const en: typeof ru = {
       ref: 'Branch or tag',
       refHint: 'Empty — the default branch',
       submit: 'Add',
+      next: 'Next',
+      back: 'Back',
+      chooseTitle: 'Choose courses',
+      chooseDescription:
+        'The repository {url} has several courses. Select the ones you need: the others will not be loaded into the library.',
       close: 'Close',
       cancelling: 'Cancelling…',
       moreMessages: 'and {n} more',

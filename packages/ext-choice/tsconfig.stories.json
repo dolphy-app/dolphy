@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["vite/client"],
+    "lib": ["ES2023", "DOM"],
+    "incremental": true,
+    "tsBuildInfoFile": "dist/tsconfig.stories.tsbuildinfo"
+  },
+  "include": ["src/**/*.stories.ts", ".storybook"],
+  "references": [
+    {
+      "path": "."
+    }
+  ]
+}

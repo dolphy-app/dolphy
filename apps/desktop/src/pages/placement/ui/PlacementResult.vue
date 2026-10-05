@@ -15,8 +15,13 @@ const SECTIONS: Section[] = [
   { key: 'unknown', icon: 'mdi-circle-outline', color: 'secondary' },
 ];
 
-defineProps<{ result: PlacementResultView }>();
-defineEmits<{ toPlan: []; openGraph: [] }>();
+defineProps<{
+  result: PlacementResultView;
+  /** Результат отменён: записанные тестом попытки не действуют. */
+  undone: boolean;
+  busy: boolean;
+}>();
+defineEmits<{ toPlan: []; openGraph: []; undo: []; redo: [] }>();
 const { t } = useI18n();
 </script>
 
@@ -45,6 +50,14 @@ const { t } = useI18n();
       variant="tonal"
       class="mt-6"
       :text="t('placement.finished.duplicate')"
+    />
+
+    <v-alert
+      v-if="undone"
+      type="warning"
+      variant="tonal"
+      class="mt-6"
+      :text="t('placement.finished.undone')"
     />
 
     <section v-for="section in SECTIONS" :key="section.key" class="mt-8">
@@ -96,6 +109,18 @@ const { t } = useI18n();
         @click="$emit('openGraph')"
       >
         {{ t('placement.finished.openGraph') }}
+      </v-btn>
+      <v-btn
+        v-if="result.attemptsWritten > 0"
+        variant="text"
+        size="large"
+        :prepend-icon="undone ? 'mdi-redo' : 'mdi-undo'"
+        :loading="busy"
+        @click="undone ? $emit('redo') : $emit('undo')"
+      >
+        {{
+          undone ? t('placement.finished.redo') : t('placement.finished.undo')
+        }}
       </v-btn>
     </div>
   </v-card>

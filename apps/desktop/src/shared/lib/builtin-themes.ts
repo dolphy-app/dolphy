@@ -16,6 +16,8 @@ export const LIGHT_THEME: ThemeDefinition = {
     'on-secondary': '#FFFFFF',
     error: '#DC2626',
     warning: '#D97706',
+    // белый на янтарном давал ~3.2:1 (бейдж «Есть обновление»): тёмный текст ≥ 4.5:1
+    'on-warning': '#1F1300',
     success: '#16A34A',
     info: '#0284C7',
     // градиент акцентной карточки «плана дня»: белый текст ≥ 4.5:1
@@ -45,6 +47,7 @@ export const DARK_THEME: ThemeDefinition = {
     'on-secondary': '#0E1020',
     error: '#F87171',
     warning: '#FBBF24',
+    'on-warning': '#1F1300',
     success: '#4ADE80',
     info: '#38BDF8',
     'hero-start': '#4338CA',

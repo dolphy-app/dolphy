@@ -5,6 +5,7 @@ export const ru = {
       go: 'Переход',
       theme: 'Тема',
       language: 'Язык',
+      session: 'Сессия',
     },
     palette: {
       open: 'Открыть палитру команд',
@@ -18,6 +19,10 @@ export const ru = {
       settingsAppearance: 'Перейти: Настройки — Внешний вид',
       settingsExtensions: 'Перейти: Настройки — Расширения',
       settingsAbout: 'Перейти: Настройки — О движке',
+    },
+    session: {
+      undo: 'Отменить последний ответ',
+      redo: 'Вернуть отменённый ответ',
     },
     theme: 'Тема: {name}',
     language: 'Язык: {name}',

@@ -3,6 +3,7 @@ import { computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { progressPercent } from '@/entities/repository';
 import type { RefIssue, UrlIssue } from '@/entities/repository';
+import { RepositoryCoursePicker } from '@/features/repository-courses';
 import { useEngine } from '@/shared/api/engine';
 import { useAddRepository } from '../model/add-repository.ts';
 
@@ -22,7 +23,16 @@ const {
   error,
   urlIssue,
   refIssue,
+  step,
+  preview,
+  selected,
+  canConfirm,
   submit,
+  confirm,
+  back,
+  toggle,
+  selectAll,
+  clear,
   cancel,
   reset,
 } = useAddRepository(useEngine());
@@ -62,8 +72,8 @@ watch(open, (isOpen) => {
   if (isOpen) reset();
 });
 
-const add = async () => {
-  const outcome = await submit();
+const next = async () => {
+  const outcome = step.value === 'source' ? await submit() : await confirm();
   if (outcome.status === 'added') {
     open.value = false;
     emit('added', outcome.repository.courseIds.length);
@@ -77,33 +87,56 @@ const close = () => {
 </script>
 
 <template>
-  <v-dialog v-model="open" max-width="560" :persistent="running">
-    <v-card tag="form" class="pa-2" :aria-busy="running" @submit.prevent="add">
+  <v-dialog
+    v-model="open"
+    :max-width="step === 'courses' ? 640 : 560"
+    :persistent="running"
+  >
+    <v-card tag="form" class="pa-2" :aria-busy="running" @submit.prevent="next">
       <v-card-title class="text-title-large font-weight-bold">
-        {{ t('courses.git.title') }}
+        {{
+          step === 'courses'
+            ? t('courses.git.chooseTitle')
+            : t('courses.git.title')
+        }}
       </v-card-title>
       <v-card-text>
-        <p class="text-body-medium text-medium-emphasis mb-4">
-          {{ t('courses.git.description') }}
-        </p>
-        <v-text-field
-          v-model="url"
-          :label="t('courses.git.url')"
-          :placeholder="t('courses.git.urlPlaceholder')"
-          :error-messages="urlMessages"
-          :disabled="running"
-          inputmode="url"
-          autofocus
-          class="mb-2"
-        />
-        <v-text-field
-          v-model="branch"
-          :label="t('courses.git.ref')"
-          :hint="t('courses.git.refHint')"
-          :error-messages="refMessages"
-          :disabled="running"
-          persistent-hint
-        />
+        <template v-if="step === 'source'">
+          <p class="text-body-medium text-medium-emphasis mb-4">
+            {{ t('courses.git.description') }}
+          </p>
+          <v-text-field
+            v-model="url"
+            :label="t('courses.git.url')"
+            :placeholder="t('courses.git.urlPlaceholder')"
+            :error-messages="urlMessages"
+            :disabled="running"
+            inputmode="url"
+            autofocus
+            class="mb-2"
+          />
+          <v-text-field
+            v-model="branch"
+            :label="t('courses.git.ref')"
+            :hint="t('courses.git.refHint')"
+            :error-messages="refMessages"
+            :disabled="running"
+            persistent-hint
+          />
+        </template>
+        <template v-else-if="preview">
+          <p class="text-body-medium text-medium-emphasis mb-4 url">
+            {{ t('courses.git.chooseDescription', { url: preview.url }) }}
+          </p>
+          <RepositoryCoursePicker
+            :courses="preview.courses"
+            :selected="selected"
+            :disabled="running"
+            @toggle="toggle"
+            @select-all="selectAll"
+            @clear="clear"
+          />
+        </template>
 
         <div v-if="running" class="mt-6" role="status" aria-live="polite">
           <p class="text-body-medium mb-2">
@@ -138,6 +171,14 @@ const close = () => {
         </v-alert>
       </v-card-text>
       <v-card-actions>
+        <v-btn
+          v-if="step === 'courses' && !running"
+          variant="text"
+          prepend-icon="mdi-arrow-left"
+          @click="back"
+        >
+          {{ t('courses.git.back') }}
+        </v-btn>
         <v-spacer />
         <v-btn
           v-if="running"
@@ -155,9 +196,11 @@ const close = () => {
           color="primary"
           variant="flat"
           :loading="running"
-          :disabled="running"
+          :disabled="running || (step === 'courses' && !canConfirm)"
         >
-          {{ t('courses.git.submit') }}
+          {{
+            step === 'courses' ? t('courses.git.submit') : t('courses.git.next')
+          }}
         </v-btn>
       </v-card-actions>
     </v-card>
@@ -167,6 +210,10 @@ const close = () => {
 <style scoped>
 .messages {
   padding-left: 1.25rem;
+  overflow-wrap: anywhere;
+}
+
+.url {
   overflow-wrap: anywhere;
 }
 </style>

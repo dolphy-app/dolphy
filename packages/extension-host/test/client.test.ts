@@ -515,6 +515,7 @@ describe('isolated в запросах', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
     expect(await call()).toEqual([false, false]);

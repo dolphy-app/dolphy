@@ -21,3 +21,4 @@ specs
 dist-publish
 .dolphy
 packages/extension-api/extension.schema.json
+storybook-static

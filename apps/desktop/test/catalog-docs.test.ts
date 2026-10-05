@@ -55,6 +55,7 @@ const open = () =>
       extensionCatalogUrl: server.url,
       appVersion: E2E_APP_VERSION,
     },
+    settingUrl: null,
     discovery: createDiscoveryHolder({
       extensions: [],
       overridden: [],
@@ -157,11 +158,13 @@ describe('сервер каталога: deprecated', () => {
       reason: 'Replaced by Documented',
       alternatives: [{ id: 'acme.documented', name: 'Documented' }],
     });
-    expect(installer.deprecationOf('acme.sunrise', '1.0.0')?.reason).toBe(
-      'Replaced by Documented',
-    );
+    expect(
+      installer.deprecationOf('acme.sunrise', '1.0.0', server.url)?.reason,
+    ).toBe('Replaced by Documented');
     server.undeprecate('acme.sunrise');
     expect((await find())?.deprecated).toBeNull();
-    expect(installer.deprecationOf('acme.sunrise', '1.0.0')).toBeNull();
+    expect(
+      installer.deprecationOf('acme.sunrise', '1.0.0', server.url),
+    ).toBeNull();
   });
 });

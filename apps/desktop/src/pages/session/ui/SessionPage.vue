@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { useEngine } from '@/shared/api/engine';
 import { ITEM_REASON } from '@/shared/config/item-reason.ts';
 import { ROUTE } from '@/shared/config/routes.ts';
+import { activeSessionHistory } from '@/shared/lib/session-history.ts';
 import MarkdownView from '@/shared/ui/MarkdownView.vue';
 import { ExerciseAnswer, ExerciseWorkspace } from '@/widgets/exercise-panel';
 import { createSession } from '../model/session.ts';
@@ -34,17 +35,36 @@ const {
   position,
   total,
   summary,
+  canUndo,
+  canRedo,
 } = session;
 void session.start();
+
+// команды приложения («Отменить», `Ctrl+Z`) работают с сессией, пока открыта её страница
+const history = {
+  get canUndo() {
+    return canUndo.value;
+  },
+  get canRedo() {
+    return canRedo.value;
+  },
+  undo: () => session.undo(),
+  redo: () => session.redo(),
+};
+activeSessionHistory.value = history;
+onBeforeUnmount(() => {
+  if (activeSessionHistory.value === history) activeSessionHistory.value = null;
+});
 
 const paused = ref(false);
 
 watch(paused, (isPaused) => {
   stopwatch.running.value = !isPaused;
 });
-// сессия закончена — время больше не копится
+// сессия закончена — время больше не копится; «Отменить» из итога возвращает к занятию
 watch(stage, (next) => {
   if (next === 'finished') stopwatch.running.value = false;
+  else if (!paused.value) stopwatch.running.value = true;
 });
 
 const progress = computed(() =>
@@ -75,12 +95,16 @@ const exit = () => void router.push({ name: ROUTE.dailyPlan });
 <template>
   <v-main class="session">
     <SessionTopBar
+      :can-undo="canUndo"
+      :can-redo="canRedo"
       :title="title"
       :subtitle="subtitle"
       :progress="progress"
       :elapsed="stopwatch.formatted.value"
       @exit="exit"
       @pause="paused = true"
+      @undo="session.undo()"
+      @redo="session.redo()"
     />
     <v-divider />
 

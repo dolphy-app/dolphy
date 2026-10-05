@@ -218,7 +218,7 @@ export async function createEngine(deps: EngineDeps, config: EngineConfig): Prom
 ### 5.1 Журнал событий (единственный первичный факт)
 
 ```ts
-type LogEntry = AttemptEntry | UnitFlagEntry | ProgressResetEntry;
+type LogEntry = AttemptEntry | UnitFlagEntry | ProgressResetEntry | RetractEntry;
 interface EntryBase { id: string /* uuidv7 */; deviceId: string; seq: number /* по устройству, без пропусков */;
                       at: number /* мс, время события */; recordedAt: number /* мс, wall-clock записи */ }
 interface AttemptEntry extends EntryBase { kind: 'attempt'; exerciseId: string; grade: 1|2|3|4|5;
@@ -227,6 +227,8 @@ interface UnitFlagEntry extends EntryBase { kind: 'unit_flag'; unitId: string;
                       flag: 'blacklist' | 'review'; op: 'set' | 'unset' }
 interface ProgressResetEntry extends EntryBase { kind: 'progress_reset'; unitId: string /* курс, урок или упражнение */;
                      libraryRevision?: string /* revision артефакта на момент записи; диагностика расхождения версий курса, хранится в extra */ }
+interface RetractEntry extends EntryBase { kind: 'retract'; targetId: string /* id попытки или общая часть id пачки `<targetId>#<i>` */;
+                     op: 'set' | 'unset' /* LWW по ключу записи, как у флагов; ADR 0017 */ }
 ```
 
 SQLite (`PRAGMA journal_mode=WAL`, `synchronous=FULL` и `fullfsync=ON` на macOS по умолчанию — опция `durability: 'normal'` даёт `NORMAL`; `foreign_keys=ON`, версия схемы в `PRAGMA user_version`, миграции — обычные `.sql`-строки):
@@ -236,16 +238,17 @@ CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT;   -- devic
 CREATE TABLE log_entry (
   device_id TEXT NOT NULL, seq INTEGER NOT NULL,
   id TEXT NOT NULL UNIQUE,                       -- идемпотентность записи и импорта
-  kind TEXT NOT NULL CHECK (kind IN ('attempt','unit_flag','progress_reset')),
+  kind TEXT NOT NULL CHECK (kind IN ('attempt','unit_flag','progress_reset','retract')),
   at INTEGER NOT NULL, recorded_at INTEGER NOT NULL,
-  unit_id TEXT NOT NULL,                         -- exerciseId или unitId
+  unit_id TEXT NOT NULL,                         -- exerciseId, unitId или targetId (retract); миграция 6
   grade INTEGER, source TEXT,                    -- attempt
   flag TEXT, op TEXT,                            -- unit_flag
   extra TEXT,                                    -- JSON, прямая совместимость
   PRIMARY KEY (device_id, seq),
   CHECK ((kind='attempt' AND grade BETWEEN 1 AND 5 AND source IS NOT NULL)
       OR (kind='unit_flag' AND flag IS NOT NULL AND op IN ('set','unset'))
-      OR (kind='progress_reset'))
+      OR (kind='progress_reset')
+      OR (kind='retract' AND op IN ('set','unset')))
 ) STRICT;
 CREATE INDEX log_order ON log_entry (at, device_id, seq);      -- порядок проекций
 CREATE INDEX log_unit  ON log_entry (unit_id, at, device_id, seq);
@@ -280,7 +283,7 @@ CREATE TABLE imported_segment (
 
 | Проекция | Содержимое | Трансформация относительно Trane |
 |---|---|---|
-| `AttemptIndex` | на упражнение: последние N=20 неотменённых попыток (не покрытых `progress_reset`) по убыванию `(at,…)` и их число | замена `practice_stats.get_scores` |
+| `AttemptIndex` | на упражнение: последние N=20 неотменённых попыток (не покрытых `progress_reset` и не отменённых `retract`, ADR 0017) по убыванию `(at,…)` и их число | замена `practice_stats.get_scores` |
 | `RewardIndex` | на юнит: ≤ 20 наград `{value, weight, at}` | чистая функция `(событие, граф)`; дедуп «похожих» наград детерминированный на отсортированной последовательности (в Rust — кэш в памяти процесса, обнулялся при рестарте) |
 | `FlagState` | множества blacklist и review list | LWW по `(at, deviceId, seq)`; `removePrefix` раскрывается в id при вызове |
 | `MemoryIndex` | на упражнение `{S, D, lastAt}`; только при включённом неявном повторе: обновляется реальными попытками (`step`) и кредитом по `encompassed` (`stepFractional`) | реплей журнала целиком: 1.1 с на 500k событий при разреженных явных рёбрах; `FsrsScorer` берёт состояние отсюда вместо реплея окна из 20 попыток [ВЫВОД] |

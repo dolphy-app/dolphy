@@ -27,6 +27,8 @@ export const en: typeof ru = {
       unresolved:
         'Everything is clear | {n} topic left to sort out | {n} topics left to sort out',
       hint: 'A grade of 3 or higher means “I know it”.',
+      back: 'Undo the answer',
+      forward: 'Redo the answer',
       next: 'Continue',
       skip: 'I don’t know / skip',
       finishEarly: 'Finish early',
@@ -51,6 +53,10 @@ export const en: typeof ru = {
         'This result was already saved earlier: no attempts were added again.',
       toPlan: 'Go to daily plan',
       openGraph: 'Open knowledge graph',
+      undo: 'Undo the result',
+      redo: 'Restore the result',
+      undone:
+        'The result is undone: the attempts recorded by the test no longer count, and your daily plan starts without them. You can restore it.',
     },
     backToCourses: 'Back to courses',
   },

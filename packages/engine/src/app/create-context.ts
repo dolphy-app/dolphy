@@ -230,10 +230,11 @@ export const createContext = async (
     eventStore,
     clock,
     timeZone: () => new Intl.DateTimeFormat().resolvedOptions().timeZone,
+    isRetracted: (attemptId) => projections.attempts.isRetractedId(attemptId),
   });
 
   const applyEntries = (entries: readonly LogEntry[]): UnitId[] => {
-    if (entries.some((entry) => entry.kind === 'attempt')) {
+    if (entries.some(({ kind }) => kind === 'attempt' || kind === 'retract')) {
       statsIndex.invalidate();
     }
     const affected = new Set<UnitId>();

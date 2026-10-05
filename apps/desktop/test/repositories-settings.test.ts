@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest';
 import type {
   EngineEvent,
   LearningEngine,
+  RemoveRepositoryOptions,
   RepositoryDto,
+  UpdateRepositoryOptions,
   UpdateRepositoryResult,
 } from '@dolphy-app/engine-contract';
 import { useRepositories } from '@/pages/settings/model/repositories.ts';
@@ -16,6 +18,7 @@ const repo = (id: string, courses = 1): RepositoryDto => ({
   fetchedAt: 0,
   status: 'ready',
   courseIds: Array.from({ length: courses }, (_, i) => `${id}-${i}`),
+  skippedCourseIds: [],
 });
 
 const MICROTASK_ROUNDS = 10;
@@ -24,12 +27,15 @@ const flush = async () => {
     await Promise.resolve();
 };
 
+type UpdateArgs = [id: string, options?: UpdateRepositoryOptions];
+
 const createFake = (initial: RepositoryDto[]) => {
   let stored = initial;
+  const removed: Array<RemoveRepositoryOptions | undefined> = [];
   const listeners = new Set<(event: EngineEvent) => void>();
   const state = {
-    update: (id: string): Promise<UpdateRepositoryResult> =>
-      Promise.resolve({ changed: false, repository: repo(id) }),
+    update: (...args: UpdateArgs): Promise<UpdateRepositoryResult> =>
+      Promise.resolve({ changed: false, repository: repo(args[0]) }),
     remove: (): Promise<void> => Promise.resolve(),
   };
   const engine = {
@@ -39,8 +45,9 @@ const createFake = (initial: RepositoryDto[]) => {
     },
     repositories: {
       list: () => Promise.resolve(stored),
-      update: (id: string) => state.update(id),
-      remove: async (id: string) => {
+      update: (...args: UpdateArgs) => state.update(...args),
+      remove: async (id: string, options?: RemoveRepositoryOptions) => {
+        removed.push(options);
         await state.remove();
         stored = stored.filter((item) => item.id !== id);
       },
@@ -50,7 +57,7 @@ const createFake = (initial: RepositoryDto[]) => {
   const emit = (event: EngineEvent) => {
     for (const listener of listeners) listener(event);
   };
-  return { engine, state, emit };
+  return { engine, state, emit, removed };
 };
 
 const mount = (engine: LearningEngine) =>
@@ -74,6 +81,26 @@ describe('useRepositories', () => {
       Promise.resolve({ changed: true, repository: repo(id, 3) });
     await model.update('a');
     expect(model.notice.value).toEqual({ kind: 'updated', courses: 3 });
+  });
+
+  it('update с выбором курсов передаёт courseIds, без выбора — только id', async () => {
+    const fake = createFake([repo('a')]);
+    const calls: unknown[][] = [];
+    fake.state.update = (...args) => {
+      calls.push(args);
+      return Promise.resolve({ changed: true, repository: repo('a', 2) });
+    };
+    const model = mount(fake.engine);
+    await flush();
+    await model.update('a', ['a-0', 'a-1']);
+    await model.update('a', ['a-0'], 'p1');
+    await model.update('a');
+    expect(calls).toEqual([
+      ['a', { courseIds: ['a-0', 'a-1'] }],
+      ['a', { courseIds: ['a-0'], previewId: 'p1' }],
+      ['a'],
+    ]);
+    expect(model.notice.value).toEqual({ kind: 'updated', courses: 2 });
   });
 
   it('пока идёт действие, другие блокируются; прогресс чистится после', async () => {
@@ -104,12 +131,23 @@ describe('useRepositories', () => {
     expect(model.progress.value).toEqual({});
   });
 
-  it('remove обновляет список и сообщает об удалении', async () => {
-    const model = mount(createFake([repo('a'), repo('b')]).engine);
+  it('remove обновляет список и сообщает об удалении; прогресс по умолчанию остаётся', async () => {
+    const fake = createFake([repo('a'), repo('b')]);
+    const model = mount(fake.engine);
     await flush();
     await model.remove('a');
     expect(model.items.value.map(({ id }) => id)).toEqual(['b']);
     expect(model.notice.value).toEqual({ kind: 'removed' });
+    expect(fake.removed).toEqual([{ removeProgress: false }]);
+  });
+
+  it('remove с removeProgress передаёт опцию движку и сообщает об удалении с прогрессом', async () => {
+    const fake = createFake([repo('a')]);
+    const model = mount(fake.engine);
+    await flush();
+    await model.remove('a', true);
+    expect(fake.removed).toEqual([{ removeProgress: true }]);
+    expect(model.notice.value).toEqual({ kind: 'removedWithProgress' });
   });
 
   it('отказ update показывается ошибкой и список перечитывается', async () => {

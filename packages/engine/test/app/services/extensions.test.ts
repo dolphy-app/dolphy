@@ -267,6 +267,7 @@ describe('extensions settings', () => {
         checkUpdates: true,
         safeMode: false,
         notificationsOff: [],
+        catalogUrl: null,
         schedulesOff: [],
       },
     });
@@ -277,6 +278,7 @@ describe('extensions settings', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
     expect(policy.isEnabled('acme.user')).toBe(false);
@@ -290,6 +292,7 @@ describe('extensions settings', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
     expect(await engine.extensions.setTrusted('acme.user', true)).toEqual({
@@ -298,6 +301,7 @@ describe('extensions settings', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
     expect(await settings.loadExtensions()).toEqual({
@@ -306,6 +310,7 @@ describe('extensions settings', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
     expect(policy.isEnabled('acme.user')).toBe(false);
@@ -317,6 +322,7 @@ describe('extensions settings', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
     expect(policy.isEnabled('acme.user')).toBe(true);
@@ -332,6 +338,7 @@ describe('extensions settings', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
     expect(await engine.extensions.setEnabled('acme.user', true)).toEqual(
@@ -354,6 +361,7 @@ describe('extensions settings', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
   });
@@ -437,6 +445,7 @@ describe('extensions settings', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
   });
@@ -604,6 +613,7 @@ describe('extensions safe mode', () => {
       checkUpdates: false,
       safeMode: true,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
   });
@@ -628,6 +638,7 @@ describe('extensions safe mode', () => {
         checkUpdates: true,
         safeMode: true,
         notificationsOff: [],
+        catalogUrl: null,
         schedulesOff: [],
       },
     });

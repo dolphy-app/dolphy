@@ -362,7 +362,7 @@ describe('dispatcher validation', () => {
     }
   });
 
-  it('extensions catalog/install/uninstall/updates/setCheckUpdates validate their arguments', async () => {
+  it('extensions catalog/install/uninstall/updates/setCheckUpdates/setCatalogUrl validate their arguments', async () => {
     const { dispatcher } = await connect();
     const [hostSide, rawSide] = createInProcessPair();
     dispatcher.attach(hostSide, 'raw-install');
@@ -383,6 +383,9 @@ describe('dispatcher validation', () => {
       ['extensions.docs', ['acme.ext', { version: '1.2.3' }]],
       ['extensions.docImage', ['acme.ext', '1.2.3', 'docs/a.png']],
       ['extensions.setCheckUpdates', [false]],
+      ['extensions.setCatalogUrl', [null]],
+      ['extensions.setCatalogUrl', ['https://example.test/index.json']],
+      ['extensions.catalogSource', []],
       [
         'extensions.setSettingValue',
         ['acme.ext', 'acme.ext.n', { a: [1, null] }],
@@ -417,12 +420,49 @@ describe('dispatcher validation', () => {
       ['extensions.docImage', ['acme.ext', '1.2.3', 'x'.repeat(201)]],
       ['extensions.setCheckUpdates', ['no']],
       ['extensions.setCheckUpdates', []],
+      ['extensions.setCatalogUrl', []],
+      ['extensions.setCatalogUrl', [42]],
+      ['extensions.setCatalogUrl', [undefined]],
+      ['extensions.setCatalogUrl', ['https://example.test/i.json', 'x']],
+      ['extensions.catalogSource', ['x']],
     ];
     for (const [method, args] of accepted) {
       expect(await raw.call(method, args), method).toMatchObject({ ok: true });
     }
     for (const [method, args] of rejected) {
       expect(await raw.call(method, args), method).toMatchObject({
+        ok: false,
+        error: { code: 'INVALID_ARGUMENT' },
+      });
+    }
+  });
+
+  it('repositories.remove accepts only a boolean removeProgress', async () => {
+    const { dispatcher } = await connect();
+    const [hostSide, rawSide] = createInProcessPair();
+    dispatcher.attach(hostSide, 'raw-repositories');
+    const raw = createRawClient(rawSide);
+    for (const args of [
+      ['id1'],
+      ['id1', {}],
+      ['id1', { removeProgress: false }],
+      ['id1', { removeProgress: true }],
+    ]) {
+      expect(
+        await raw.call('repositories.remove', args),
+        String(args),
+      ).toMatchObject({ ok: true });
+    }
+    for (const args of [
+      [],
+      ['id1', { removeProgress: 'yes' }],
+      ['id1', { removeData: true }],
+      ['id1', { removeProgress: true }, 'x'],
+    ]) {
+      expect(
+        await raw.call('repositories.remove', args),
+        String(args),
+      ).toMatchObject({
         ok: false,
         error: { code: 'INVALID_ARGUMENT' },
       });
@@ -617,10 +657,23 @@ describe('ordering and events', () => {
       ['add', [{ url: 'https://h/r.git', extra: 1 }]],
       ['add', [{ url: `https://h/${'a'.repeat(2048)}` }]],
       ['add', [{ url: 'https://h/r.git', ref: 'r'.repeat(256) }]],
+      ['add', [{ url: 'https://h/r.git', courseIds: 'a' }]],
+      ['add', [{ url: 'https://h/r.git', courseIds: [1] }]],
+      ['add', [{ url: 'https://h/r.git', previewId: '' }]],
+      ['add', [{ url: 'https://h/r.git', previewId: 'p'.repeat(201) }]],
+      ['add', [{ url: 'https://h/r.git', courseIds: [''] }]],
+      ['add', [{ url: 'https://h/r.git', courseIds: Array(1001).fill('a') }]],
+      ['preview', [{ url: '' }]],
+      ['preview', [{ url: 'https://h/r.git', courseIds: ['a'] }]],
       ['update', ['']],
+      ['update', ['id1', { courseIds: [1] }]],
+      ['update', ['id1', { previewId: '' }]],
+      ['update', ['id1', { previewId: 7 }]],
+      ['update', ['id1', { extra: 1 }]],
       ['remove', ['x'.repeat(201)]],
       ['cancel', [42]],
       ['list', ['extra']],
+      ['checkUpdates', ['extra']],
     ] as const)(
       '%s rejects bad params without reaching the engine',
       async (name, params) => {
@@ -638,26 +691,49 @@ describe('ordering and events', () => {
 
     it('routes valid calls to the engine with positional args', async () => {
       const { client, fake } = await connect();
-      await client.engine.repositories.add({
+      await client.engine.repositories.preview({
         url: 'https://h/r.git',
         ref: 'main',
       });
+      await client.engine.repositories.add({
+        url: 'https://h/r.git',
+        ref: 'main',
+        courseIds: ['a', 'b'],
+        previewId: 'p1',
+      });
       await client.engine.repositories.update('id1');
-      await client.engine.repositories.remove('id2');
+      await client.engine.repositories.update('id1', { courseIds: ['a'] });
+      await client.engine.repositories.update('id1', {
+        courseIds: ['a'],
+        previewId: 'p1',
+      });
+      await client.engine.repositories.remove('id2', { removeProgress: true });
       await client.engine.repositories.cancel('id3');
       await client.engine.repositories.list();
+      await client.engine.repositories.checkUpdates();
       expect(fake.calls.filter((name) => name !== 'diagnostics')).toEqual([
+        'repositories.preview',
         'repositories.add',
+        'repositories.update',
+        'repositories.update',
         'repositories.update',
         'repositories.remove',
         'repositories.cancel',
         'repositories.list',
+        'repositories.checkUpdates',
       ]);
     });
 
-    it('add is not replayed after a drop; update/remove/cancel/list are', () => {
+    it('add is not replayed after a drop; preview/update/remove/cancel/list are', () => {
       expect(RPC_METHODS['repositories.add'].idempotent).toBe(false);
-      for (const name of ['list', 'update', 'remove', 'cancel'] as const) {
+      for (const name of [
+        'list',
+        'preview',
+        'update',
+        'remove',
+        'cancel',
+        'checkUpdates',
+      ] as const) {
         expect(RPC_METHODS[`repositories.${name}`].idempotent).toBe(true);
       }
     });
@@ -699,6 +775,18 @@ describe('ordering and events', () => {
           loaded: 1,
           total: 2,
         },
+      ]);
+    });
+
+    it('repository-updates-checked events reach a subscribed client', async () => {
+      const { client, fake } = await connect();
+      const events: EngineEvent[] = [];
+      client.engine.subscribe((event) => events.push(event));
+      await tick(5);
+      fake.emit({ type: 'repository-updates-checked', available: ['r'] });
+      await tick(5);
+      expect(events).toEqual([
+        { type: 'repository-updates-checked', available: ['r'] },
       ]);
     });
   });

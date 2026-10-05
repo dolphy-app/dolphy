@@ -72,6 +72,7 @@ export const boot = async (
   // установка из каталога: отзыв читается из кэша индекса, поэтому кэш загружается до движка
   const extensionInstaller = createDesktopInstaller({
     config,
+    settingUrl: (await settings.loadExtensions()).catalogUrl,
     discovery,
     logger: defaults.logger,
   });

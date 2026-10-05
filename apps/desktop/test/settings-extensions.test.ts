@@ -40,6 +40,7 @@ const NONE_SET: ExtensionSettingsDto = {
   checkUpdates: true,
   safeMode: false,
   notificationsOff: [],
+  catalogUrl: null,
   schedulesOff: [],
 };
 
@@ -458,6 +459,7 @@ describe('переключатели', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
     await pending;
@@ -469,6 +471,7 @@ describe('переключатели', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
     expect(model.switching.value.size).toBe(0);
@@ -484,6 +487,7 @@ describe('переключатели', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
     const model = mount(engine);
@@ -496,6 +500,7 @@ describe('переключатели', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
     await pending;
@@ -526,6 +531,7 @@ describe('переключатели', () => {
     const { engine, calls } = createSwitchEngine({
       ...NONE_SET,
       notificationsOff: ['acme.x'],
+      catalogUrl: null,
     });
     const model = mount(engine);
     await flush();
@@ -613,6 +619,7 @@ describe('переключатели', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
     await first;

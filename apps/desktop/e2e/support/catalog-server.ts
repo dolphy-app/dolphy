@@ -33,6 +33,15 @@ export const catalogEnv = (url: string): Record<string, string> => ({
   DOLPHY_APP_VERSION: E2E_APP_VERSION,
 });
 
+/**
+ * Окружение без адреса каталога: адрес задаёт настройка «Каталог → Дополнительно»
+ * (пустое значение перекрывает переменную оболочки).
+ */
+export const settingCatalogEnv = (): Record<string, string> => ({
+  DOLPHY_EXTENSION_CATALOG_URL: '',
+  DOLPHY_APP_VERSION: E2E_APP_VERSION,
+});
+
 export interface CatalogSource {
   /** Каталог расширения с `extension.json` (версия, вклады и разрешения берутся из манифеста). */
   dir: string;

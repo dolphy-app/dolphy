@@ -250,6 +250,12 @@ describe('entryAction', () => {
     ).toEqual({ kind: 'installed', version: '1.1.0' });
   });
 
+  it('elsewhere важнее остального: кнопка неактивна, даже если запись совместима', () => {
+    expect(
+      entryAction(catalogEntry('a.b', { latest, elsewhere: true })),
+    ).toEqual({ kind: 'elsewhere' });
+  });
+
   it('update → что стоит и до чего обновить', () => {
     expect(
       entryAction(

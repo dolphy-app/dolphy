@@ -228,6 +228,7 @@ describe('createExtensionRegistry: политика', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
     const item = registry.list().find(({ id }) => id === 'acme.u');
@@ -251,6 +252,7 @@ describe('createExtensionRegistry: политика', () => {
       checkUpdates: true,
       safeMode: true,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
     const items = registry.list();
@@ -276,6 +278,7 @@ describe('createExtensionRegistry: политика', () => {
       checkUpdates: true,
       safeMode,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
     policy.update(settings(true));
@@ -351,6 +354,7 @@ describe('createExtensionRegistry: политика', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
     expect(types()).toEqual([['dolphy.math.a', 'bundled', '', false]]);
@@ -383,6 +387,7 @@ describe('createExtensionRegistry: политика', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
     expect(flags()).toEqual({ math: false, chart: false });
@@ -492,6 +497,7 @@ describe('createExtensionRegistry: titles and tags', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
     expect(rowOf('acme.titled')).toMatchObject({
@@ -505,6 +511,7 @@ describe('createExtensionRegistry: titles and tags', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
   });

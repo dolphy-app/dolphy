@@ -1,5 +1,6 @@
 import type {
   CatalogDto,
+  CatalogSourceDto,
   DeprecationDto,
   ExtensionDocsDto,
   ExtensionUpdateDto,
@@ -43,8 +44,15 @@ export interface FakeExtensionInstallerOptions {
   revoked?: Readonly<Record<string, string>>;
   /** id → пометка «устарело» (для любой версии). */
   deprecated?: Readonly<Record<string, DeprecationDto>>;
+  /** Действующий адрес каталога (`FAKE_CATALOG_URL` по умолчанию); отзыв и устаревание действуют только на установленное из него. */
+  catalogUrl?: string;
+  /** Откуда взят адрес; `env` запрещает `useCatalog`. По умолчанию `default`. */
+  origin?: CatalogSourceDto['origin'];
   handlers?: FakeExtensionInstallerHandlers;
 }
+
+/** Адрес каталога фейкового установщика по умолчанию (он же «умолчание» у `catalogSource`). */
+export const FAKE_CATALOG_URL = 'https://catalog.test/index.json';
 
 export interface FakeInstallerCall {
   method: keyof ExtensionInstaller;
@@ -74,6 +82,11 @@ export const createFakeExtensionInstaller = (
   const revoked = new Map(Object.entries(options.revoked ?? {}));
   const deprecated = new Map(Object.entries(options.deprecated ?? {}));
   const updates = options.updates ?? [];
+  const source: CatalogSourceDto = {
+    url: options.catalogUrl ?? FAKE_CATALOG_URL,
+    default: FAKE_CATALOG_URL,
+    origin: options.origin ?? 'default',
+  };
   const record = (method: keyof ExtensionInstaller, args: unknown[]): void => {
     calls.push({ method, args });
   };
@@ -119,8 +132,21 @@ export const createFakeExtensionInstaller = (
       record('checkForUpdates', []);
       return (await handlers.checkForUpdates?.()) ?? updates.length;
     },
-    revocationOf: (id) => revoked.get(id) ?? null,
-    deprecationOf: (id) => structuredClone(deprecated.get(id) ?? null),
+    revocationOf: (id, _version, catalogUrl) =>
+      catalogUrl === source.url ? (revoked.get(id) ?? null) : null,
+    deprecationOf: (id, _version, catalogUrl) =>
+      catalogUrl === source.url
+        ? structuredClone(deprecated.get(id) ?? null)
+        : null,
+    catalogSource: () => ({ ...source }),
+    useCatalog: async (url) => {
+      record('useCatalog', [url]);
+      if (source.origin === 'env') {
+        throw new Error('the catalog address is set by the environment');
+      }
+      source.url = url ?? source.default;
+      source.origin = url === null ? 'default' : 'setting';
+    },
     docs: async (id, version) => {
       record('docs', version === undefined ? [id] : [id, version]);
       return structuredClone(

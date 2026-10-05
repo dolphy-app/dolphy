@@ -136,6 +136,7 @@ describe('createCatalog: отключённые расширения', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
     expect(catalog.describe('acme.t')).toBeUndefined();
@@ -155,6 +156,7 @@ describe('createCatalog: отключённые расширения', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
     expect(catalog.describe('acme.t')?.extensionId).toBe('acme.t');

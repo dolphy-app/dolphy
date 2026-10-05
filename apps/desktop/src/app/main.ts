@@ -3,11 +3,16 @@ import { detectPlatform } from '@dolphy-app/keybindings';
 import { EngineCallError } from '@dolphy-app/engine-rpc/client';
 import App from './App.vue';
 import { applyLocale, createDolphyI18n } from './providers/i18n.ts';
+import { createDolphyQuery } from './providers/query.ts';
 import { createDolphyVuetify } from './providers/vuetify.ts';
 import { router } from './router';
 import StartupError from './startup-error/StartupError.vue';
 import { registerAppCommands } from '@/features/app-commands';
 import { COURSE_SCOPE_KEY, createCourseScope } from '@/features/course-scope';
+import {
+  COURSE_UPDATES_KEY,
+  createCourseUpdates,
+} from '@/features/course-updates';
 import {
   createKeybindingsService,
   createUserKeybindings,
@@ -85,8 +90,15 @@ const bootstrap = async () => {
       void extensionUpdates.reconnected();
       void userKeybindings.reconnected();
     });
+    const query = createDolphyQuery(engine);
+    onReconnect(() => query.reconnected());
     const i18n = createDolphyI18n(resolveLocale(locale, navigator.language));
     const courseScope = await createCourseScope(engine);
+    const courseUpdates = createCourseUpdates(engine, {
+      courseNames: () =>
+        new Map(courseScope.courses.value.map(({ id, name }) => [id, name])),
+    });
+    onReconnect(() => void courseUpdates.reconnected());
     const vuetify = createDolphyVuetify(i18n);
     const themeSelection = createThemeSelection(engine, theme);
     const localeSelection = createLocaleSelection(engine, locale, {
@@ -146,12 +158,14 @@ const bootstrap = async () => {
       .use(i18n)
       .use(vuetify)
       .use(router)
+      .use(query)
       .provide(ENGINE_KEY, engine)
       .provide(CONTRIBUTIONS_KEY, contributions.contributions)
       .provide(EXTENSION_UPDATES_KEY, extensionUpdates)
       .provide(THEME_SELECTION_KEY, themeSelection)
       .provide(LOCALE_SELECTION_KEY, localeSelection)
       .provide(COURSE_SCOPE_KEY, courseScope)
+      .provide(COURSE_UPDATES_KEY, courseUpdates)
       .provide(COMMAND_REGISTRY_KEY, registry)
       .provide(COMMAND_PALETTE_KEY, palette)
       .provide(EXTENSION_COMMANDS_KEY, extensionCommands)

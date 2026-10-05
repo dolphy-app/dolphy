@@ -9,8 +9,10 @@ import { settingsMessages } from '@/pages/settings';
 import { repositoryMessages } from '@/entities/repository';
 import { appCommandsMessages } from '@/features/app-commands';
 import { courseScopeMessages } from '@/features/course-scope';
+import { courseUpdatesMessages } from '@/features/course-updates';
 import { extensionCommandsMessages } from '@/features/extension-commands';
 import { keybindingsMessages } from '@/features/keybindings';
+import { repositoryCoursesMessages } from '@/features/repository-courses';
 import { sharedMessages } from '@/shared/i18n';
 import { commandPaletteMessages } from '@/widgets/command-palette';
 import { exercisePanelMessages } from '@/widgets/exercise-panel';
@@ -25,8 +27,10 @@ export const appMessages = {
     ...appRu,
     ...appCommandsMessages.ru,
     ...courseScopeMessages.ru,
+    ...courseUpdatesMessages.ru,
     ...extensionCommandsMessages.ru,
     ...keybindingsMessages.ru,
+    ...repositoryCoursesMessages.ru,
     ...repositoryMessages.ru,
     ...coursesMessages.ru,
     ...commandPaletteMessages.ru,
@@ -44,8 +48,10 @@ export const appMessages = {
     ...appEn,
     ...appCommandsMessages.en,
     ...courseScopeMessages.en,
+    ...courseUpdatesMessages.en,
     ...extensionCommandsMessages.en,
     ...keybindingsMessages.en,
+    ...repositoryCoursesMessages.en,
     ...repositoryMessages.en,
     ...coursesMessages.en,
     ...commandPaletteMessages.en,

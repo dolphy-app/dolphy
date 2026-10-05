@@ -8,6 +8,7 @@ import type {
   AttemptEntry,
   LogEntry,
   ProgressResetEntry,
+  RetractEntry,
   UnitFlagEntry,
 } from '@dolphy-app/engine';
 import { T0_MS } from './clock.ts';
@@ -79,6 +80,18 @@ export const buildProgressReset = (
   ...(fields.libraryRevision !== undefined && {
     libraryRevision: fields.libraryRevision,
   }),
+});
+
+export interface RetractFields extends EntryBaseFields {
+  targetId: string;
+  op?: RetractEntry['op'];
+}
+
+export const buildRetract = (fields: RetractFields): RetractEntry => ({
+  ...base(fields),
+  kind: 'retract',
+  targetId: fields.targetId,
+  op: fields.op ?? 'set',
 });
 
 export interface JournalBuilderOptions {

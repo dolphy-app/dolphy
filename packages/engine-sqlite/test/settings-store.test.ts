@@ -115,6 +115,7 @@ describe('SQLite settings store', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
   });
@@ -185,6 +186,7 @@ describe('настройки расширений', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
   });

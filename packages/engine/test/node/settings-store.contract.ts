@@ -238,6 +238,7 @@ export const describeSettingsStoreContract = (
         checkUpdates: true,
         safeMode: false,
         notificationsOff: [],
+        catalogUrl: null,
         schedulesOff: [],
       });
     });
@@ -250,6 +251,7 @@ export const describeSettingsStoreContract = (
         checkUpdates: false,
         safeMode: false,
         notificationsOff: [],
+        catalogUrl: null,
         schedulesOff: [],
       });
       expect(await store.loadExtensions()).toEqual({
@@ -258,6 +260,7 @@ export const describeSettingsStoreContract = (
         checkUpdates: false,
         safeMode: false,
         notificationsOff: [],
+        catalogUrl: null,
         schedulesOff: [],
       });
       await store.saveExtensions({
@@ -266,6 +269,7 @@ export const describeSettingsStoreContract = (
         checkUpdates: true,
         safeMode: false,
         notificationsOff: [],
+        catalogUrl: null,
         schedulesOff: [],
       });
       expect(await store.loadExtensions()).toEqual({
@@ -274,6 +278,7 @@ export const describeSettingsStoreContract = (
         checkUpdates: true,
         safeMode: false,
         notificationsOff: [],
+        catalogUrl: null,
         schedulesOff: [],
       });
     });
@@ -287,6 +292,7 @@ export const describeSettingsStoreContract = (
         checkUpdates: false,
         safeMode: true,
         notificationsOff: [],
+        catalogUrl: null,
         schedulesOff: [],
       });
       expect(await store.loadExtensions()).toEqual({
@@ -295,6 +301,7 @@ export const describeSettingsStoreContract = (
         checkUpdates: false,
         safeMode: true,
         notificationsOff: [],
+        catalogUrl: null,
         schedulesOff: [],
       });
       await store.saveExtensions({
@@ -303,6 +310,7 @@ export const describeSettingsStoreContract = (
         checkUpdates: false,
         safeMode: false,
         notificationsOff: [],
+        catalogUrl: null,
         schedulesOff: [],
       });
       expect((await store.loadExtensions()).safeMode).toBe(false);
@@ -316,6 +324,7 @@ export const describeSettingsStoreContract = (
         checkUpdates: true,
         safeMode: false,
         notificationsOff: ['acme.z', 'acme.a', 'acme.z'],
+        catalogUrl: null,
         schedulesOff: ['acme.s', 'acme.r', 'acme.s'],
       });
       expect(await store.loadExtensions()).toEqual({
@@ -324,6 +333,7 @@ export const describeSettingsStoreContract = (
         checkUpdates: true,
         safeMode: false,
         notificationsOff: ['acme.a', 'acme.z'],
+        catalogUrl: null,
         schedulesOff: ['acme.r', 'acme.s'],
       });
     });
@@ -333,6 +343,38 @@ export const describeSettingsStoreContract = (
       expect(await store.loadUpdateCheckedAt()).toBeNull();
       await store.saveUpdateCheckedAt(1_700_000_000_000);
       expect(await store.loadUpdateCheckedAt()).toBe(1_700_000_000_000);
+    });
+
+    it('метка проверки обновлений: null сбрасывает сохранённое значение', async () => {
+      const store = await make();
+      await store.saveUpdateCheckedAt(1_700_000_000_000);
+      await store.saveUpdateCheckedAt(null);
+      expect(await store.loadUpdateCheckedAt()).toBeNull();
+    });
+
+    it('расширения: адрес каталога переживает круг сохранения и сбрасывается в null', async () => {
+      const store = await make();
+      expect((await store.loadExtensions()).catalogUrl).toBeNull();
+      await store.saveExtensions({
+        disabled: [],
+        trusted: [],
+        checkUpdates: true,
+        safeMode: false,
+        notificationsOff: [],
+        catalogUrl: 'https://example.test/catalog/index.json',
+      });
+      expect((await store.loadExtensions()).catalogUrl).toBe(
+        'https://example.test/catalog/index.json',
+      );
+      await store.saveExtensions({
+        disabled: [],
+        trusted: [],
+        checkUpdates: true,
+        safeMode: false,
+        notificationsOff: [],
+        catalogUrl: null,
+      });
+      expect((await store.loadExtensions()).catalogUrl).toBeNull();
     });
 
     it('значения разных видов не мешают друг другу', async () => {
@@ -346,6 +388,7 @@ export const describeSettingsStoreContract = (
         checkUpdates: true,
         safeMode: false,
         notificationsOff: [],
+        catalogUrl: null,
         schedulesOff: [],
       });
       await store.savePreferences({
@@ -364,6 +407,7 @@ export const describeSettingsStoreContract = (
         checkUpdates: true,
         safeMode: false,
         notificationsOff: [],
+        catalogUrl: null,
         schedulesOff: [],
       });
       expect((await store.loadPreferences()).ignored_paths).toEqual(['x']);

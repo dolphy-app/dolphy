@@ -66,7 +66,7 @@ export interface ExtensionDetails {
   deprecation: DeprecationDto | null;
   /** Версии записи каталога (до 5, новейшие первыми); пусто без записи. */
   versions: VersionRow[];
-  /** Действие карточки; `null` — действия каталога нет (нет записи или расширение уже есть из другого источника). */
+  /** Действие карточки; `null` — действия каталога нет (нет записи). */
   action: EntryAction | null;
   /** Установленное можно удалить. */
   removable: boolean;
@@ -107,7 +107,7 @@ const actionOf = (
   entry: CatalogEntryDto | null,
   update: ExtensionUpdateDto | null,
 ): EntryAction | null => {
-  if (entry !== null) return entry.elsewhere ? null : entryAction(entry);
+  if (entry !== null) return entryAction(entry);
   if (update === null) return null;
   return {
     kind: 'update',

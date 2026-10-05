@@ -120,6 +120,7 @@ describe('политика, каталог и реестр читают сним
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
     expect(catalog.list()).toEqual([]);
@@ -131,6 +132,7 @@ describe('политика, каталог и реестр читают сним
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
     expect(catalog.list().map(({ type }) => type)).toEqual(['acme.a']);

@@ -19,10 +19,12 @@ export const RPC_METHODS = {
   'library.getGraph': { idempotent: true },
   'library.readAsset': { idempotent: true },
   'repositories.list': { idempotent: true },
+  'repositories.preview': { idempotent: true }, // читает сервер, ничего не меняет
   'repositories.add': { idempotent: false },
-  'repositories.update': { idempotent: true }, // по коммиту на сервере
+  'repositories.update': { idempotent: true }, // по коммиту на сервере и выбору курсов
   'repositories.remove': { idempotent: true },
   'repositories.cancel': { idempotent: true },
+  'repositories.checkUpdates': { idempotent: true }, // читает коммиты сервера, состояние не накапливает
   'practice.startSession': { idempotent: false },
   'practice.finishSession': { idempotent: true }, // по sessionId
   'practice.getBatch': { idempotent: false }, // RNG и счётчик показов
@@ -36,10 +38,14 @@ export const RPC_METHODS = {
   'practice.getFrontier': { idempotent: true },
   'practice.getDue': { idempotent: true },
   'practice.resetProgress': { idempotent: true }, // по requestId
+  'practice.undo': { idempotent: true }, // по requestId
+  'practice.redo': { idempotent: true }, // по requestId
   'plan.getDay': { idempotent: true }, // при заданном seed
   'placement.start': { idempotent: false },
   'placement.nextProbe': { idempotent: true }, // до ответа на выданную пробу
   'placement.answer': { idempotent: false },
+  'placement.undo': { idempotent: false }, // один шаг назад за вызов
+  'placement.redo': { idempotent: false },
   'placement.finish': { idempotent: true }, // по requestId
   'placement.abort': { idempotent: false },
   'remediation.getPlan': { idempotent: true },
@@ -57,6 +63,8 @@ export const RPC_METHODS = {
   'extensions.docs': { idempotent: true },
   'extensions.docImage': { idempotent: true },
   'extensions.setCheckUpdates': { idempotent: false },
+  'extensions.setCatalogUrl': { idempotent: true }, // задаёт значение, не приращение
+  'extensions.catalogSource': { idempotent: true },
   'extensions.setSafeMode': { idempotent: true }, // задаёт значение, не приращение
   'extensions.diagnostics': { idempotent: true },
   'extensions.restartHost': { idempotent: true }, // перезапуск уже работающего хоста ничего не ломает

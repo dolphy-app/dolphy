@@ -471,6 +471,7 @@ describe('обнаружение и реестр', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
 

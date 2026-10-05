@@ -85,6 +85,7 @@ const open = () =>
         checkUpdates: true,
         safeMode: false,
         notificationsOff: [],
+        catalogUrl: null,
         schedulesOff: [],
       },
     }),

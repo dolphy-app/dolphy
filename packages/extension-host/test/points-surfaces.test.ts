@@ -541,6 +541,7 @@ describe('обнаружение и реестр команд и панелей'
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
 
@@ -590,6 +591,7 @@ describe('обнаружение и реестр команд и панелей'
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
 
@@ -642,6 +644,7 @@ describe('обнаружение и реестр команд и панелей'
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
 

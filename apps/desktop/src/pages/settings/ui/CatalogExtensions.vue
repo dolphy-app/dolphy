@@ -18,6 +18,7 @@ import { GROUPS, TAGS } from '../lib/tags.ts';
 import type { ExtensionTag, TagGroup } from '../lib/tags.ts';
 import { useCatalog } from '../model/catalog.ts';
 import { useInstallContext } from '../model/install.ts';
+import CatalogAdvanced from './CatalogAdvanced.vue';
 import DeprecatedChip from './DeprecatedChip.vue';
 import ExtensionContributions from './ExtensionContributions.vue';
 import ExtensionDeprecation from './ExtensionDeprecation.vue';
@@ -399,6 +400,39 @@ onMounted(() => void open());
                 </v-btn>
               </template>
 
+              <template v-else-if="action.kind === 'elsewhere'">
+                <v-btn
+                  variant="flat"
+                  color="primary"
+                  prepend-icon="mdi-download-outline"
+                  disabled
+                  :aria-describedby="`elsewhere-${entry.id}`"
+                  :aria-label="
+                    t('settings.extensions.action.elsewhereLabel', {
+                      name: entry.name,
+                    })
+                  "
+                  :data-testid="`install-${entry.id}`"
+                >
+                  {{ t('settings.extensions.action.install') }}
+                </v-btn>
+                <p
+                  :id="`elsewhere-${entry.id}`"
+                  class="d-flex align-center ga-1 text-body-small"
+                  data-testid="elsewhere"
+                >
+                  <v-icon
+                    icon="mdi-information-outline"
+                    size="small"
+                    aria-hidden="true"
+                  />
+                  <span class="reason"
+                    >{{ t('settings.extensions.action.elsewhere') }}.
+                    {{ t('settings.extensions.action.elsewhereHint') }}</span
+                  >
+                </p>
+              </template>
+
               <template v-else-if="action.kind === 'installed'">
                 <span
                   class="d-inline-flex align-center ga-1 text-body-medium"
@@ -508,6 +542,8 @@ onMounted(() => void open());
         </li>
       </ul>
     </template>
+
+    <CatalogAdvanced @changed="load({ refresh: true })" />
   </div>
 </template>
 

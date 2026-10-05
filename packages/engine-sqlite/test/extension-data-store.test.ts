@@ -37,7 +37,7 @@ describe('SQLite extension data store', () => {
   it('БД предыдущей схемы получает таблицу секретов, данные расширений и журнал целы', async () => {
     const path = nextPath();
     const legacy = openBetterSqliteDatabase({ path });
-    const previous = SCHEMA_VERSION - 1;
+    const previous = 4; // секреты добавляет миграция 5
     for (const sql of MIGRATIONS.slice(0, previous)) legacy.exec(sql);
     legacy.exec(`PRAGMA user_version = ${previous}`);
     legacy

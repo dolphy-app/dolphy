@@ -65,6 +65,7 @@ describe('createExtensionPolicy', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
     expect(policy.isEnabled('acme.u')).toBe(false);
@@ -75,6 +76,7 @@ describe('createExtensionPolicy', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
     expect(policy.isEnabled('acme.u')).toBe(true);
@@ -89,6 +91,7 @@ describe('createExtensionPolicy', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
     expect(policy.isIsolated('dolphy.sql')).toBe(false);
@@ -105,6 +108,7 @@ describe('createExtensionPolicy', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
     expect(policy.isEnabled('dolphy.sql')).toBe(false);
@@ -117,6 +121,7 @@ describe('createExtensionPolicy', () => {
       checkUpdates: true,
       safeMode,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
     const items = [

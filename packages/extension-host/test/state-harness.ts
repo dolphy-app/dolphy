@@ -320,6 +320,7 @@ export const createHarness = (options: HarnessOptions): Harness => {
     checkUpdates: true,
     safeMode: false,
     notificationsOff: [],
+    catalogUrl: null,
     schedulesOff: [],
   });
   const runtime = createExtensionRuntime({

@@ -13,6 +13,8 @@ const props = defineProps<{
   focused: boolean;
   /** Курс, который предлагаем учить (когда фокуса нет). */
   recommended: boolean;
+  /** В репозитории курса на сервере есть новый коммит. */
+  updateAvailable: boolean;
 }>();
 const emit = defineEmits<{ study: []; openPlan: []; check: []; graph: [] }>();
 
@@ -44,6 +46,17 @@ const act = () => (props.focused ? emit('openPlan') : emit('study'));
     :border="border"
     :aria-current="ariaCurrent"
   >
+    <!-- бейдж на верхней кромке: не занимает места в карточке и не сдвигает название -->
+    <v-chip
+      v-if="updateAvailable"
+      class="update-badge"
+      size="small"
+      color="warning"
+      variant="flat"
+      prepend-icon="mdi-update"
+    >
+      {{ t('repository.updateAvailable') }}
+    </v-chip>
     <div class="d-flex align-start ga-4">
       <v-avatar :color="tone" variant="tonal" size="48" rounded="lg">
         <span class="text-title-large font-weight-bold" aria-hidden="true">
@@ -171,6 +184,19 @@ const act = () => (props.focused ? emit('openPlan') : emit('study'));
 </template>
 
 <style scoped>
+.course-card {
+  /* бейдж обновления сидит на верхней кромке и выходит за неё */
+  overflow: visible;
+}
+
+.update-badge {
+  position: absolute;
+  top: 0;
+  right: 1.25rem;
+  z-index: 1;
+  transform: translateY(-50%);
+}
+
 .min-width-0 {
   min-width: 0;
 }

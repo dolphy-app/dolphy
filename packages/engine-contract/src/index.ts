@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 23 as const;
+export const CONTRACT_VERSION = 24 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 /** Потолок файла импорта, суммарного размера присланного дерева и снимка курса для экспорта, байт (R3, R4, R7 спеки `extension-api-breadth-2`). */

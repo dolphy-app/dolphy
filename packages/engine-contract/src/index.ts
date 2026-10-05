@@ -1425,7 +1425,7 @@ export type ImportFileDto =
 
 /** Результат `extensions.runImporter`: сводка присланного дерева после проверки компилятором курсов. */
 export interface ImportPreviewDto {
-  /** Для `commitImport` и `discardImport`; `null` — в дереве есть ошибки: ничего не ожидает и на диске ничего нет. */
+  /** Для `commitImport` и `discardImport`; `null` — в дереве есть ошибки или нет ни одного курса: ничего не ожидает, на диске ничего нет. */
   importId: string | null;
   extensionId: string;
   importerId: string;

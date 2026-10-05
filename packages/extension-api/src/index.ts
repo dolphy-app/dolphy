@@ -18,6 +18,7 @@ export const EXTENSION_PERMISSIONS = [
   'network',
   'learning.events',
   'learning.stats',
+  'notifications',
 ] as const;
 export type ExtensionPermission = (typeof EXTENSION_PERMISSIONS)[number];
 /** Platforms the extension can run on (`process.platform`). */
@@ -1319,6 +1320,66 @@ export interface ExtensionStats {
   }): Promise<DailyStat[]>;
 }
 
+/** Limits of `ctx.notifications`; the engine enforces them. */
+export const EXTENSION_NOTIFICATION_LIMITS = Object.freeze({
+  /** Title length in characters (code points). */
+  titleLength: 80,
+  /** Body length in characters (code points). */
+  bodyLength: 300,
+  /** Notifications per rolling minute and extension. */
+  perMinute: 3,
+  /** Notifications per rolling hour and extension. */
+  perHour: 30,
+});
+
+/** Which window of `EXTENSION_NOTIFICATION_LIMITS` was exceeded. */
+export type NotificationRateLimitWindow = 'minute' | 'hour';
+
+/** Thrown by `ctx.notifications.show` over the rate limit: the notification was not shown. */
+export class NotificationRateLimitError extends Error {
+  readonly window: NotificationRateLimitWindow;
+  /** Exceeded limit: notifications per `window`. */
+  readonly limit: number;
+  readonly code = 'EXT_NOTIFICATION_RATE_LIMIT';
+  constructor(
+    window: NotificationRateLimitWindow,
+    limit: number,
+    message?: string,
+  ) {
+    super(
+      message ??
+        `notification rate limit exceeded: ${limit} per ${window}`,
+    );
+    this.name = 'NotificationRateLimitError';
+    this.window = window;
+    this.limit = limit;
+  }
+}
+
+/** A system notification; plain text, control characters are removed. */
+export interface ExtensionNotification {
+  /** 1 to `EXTENSION_NOTIFICATION_LIMITS.titleLength` characters. */
+  title: string;
+  /** Up to `EXTENSION_NOTIFICATION_LIMITS.bodyLength` characters; may be empty. */
+  body: string;
+}
+
+/**
+ * System notifications; need the `notifications` permission, otherwise
+ * `show` rejects with `PermissionError('notifications')`. The notification
+ * names the extension; a click shows the app window. Works only while the app
+ * runs. The user can switch notifications off per extension in the settings.
+ */
+export interface ExtensionNotifications {
+  /**
+   * Resolves `true` once the notification is handed to the operating system;
+   * `false` when the system does not support notifications or the user turned
+   * them off for this extension. Rejects with `NotificationRateLimitError`
+   * over `perMinute`/`perHour` and with an error for an invalid title or body.
+   */
+  show(notification: ExtensionNotification): Promise<boolean>;
+}
+
 export type LearningEventHandler<N extends LearningEventName> = (
   payload: LearningEventPayloads[N],
 ) => void | Promise<void>;
@@ -1410,6 +1471,8 @@ export interface ExtensionContext<Ids extends ExtensionIdSet = ExtensionIdSet> {
   readonly events: ExtensionEvents<Ids['events']>;
   /** Learning statistics; needs the `learning.stats` permission. */
   readonly stats: ExtensionStats;
+  /** System notifications; need the `notifications` permission. */
+  readonly notifications: ExtensionNotifications;
   readonly commands: ExtensionCommands<Ids['commands']>;
   readonly importers: ExtensionImporters<Ids['importers']>;
   readonly exporters: ExtensionExporters<Ids['exporters']>;

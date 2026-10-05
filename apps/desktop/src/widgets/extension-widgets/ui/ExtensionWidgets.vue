@@ -135,6 +135,11 @@ const titleOf = (widget: WidgetContributionDto) =>
   white-space: normal;
 }
 
+/* подзаголовок карточки Vuetify полупрозрачен: подпись с id расширения на нём не набирала контраст 4.5:1 (axe color-contrast) */
+.widget :deep(.v-card-subtitle) {
+  opacity: 1;
+}
+
 .caption {
   font-size: 0.8125rem;
   color: rgb(var(--v-theme-on-surface-variant));

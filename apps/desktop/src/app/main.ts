@@ -60,6 +60,10 @@ import {
   createCommandPalette,
 } from '@/widgets/command-palette';
 import { textOfExtension } from '@/shared/lib/extension-text.ts';
+import {
+  createExtensionWhen,
+  EXTENSION_WHEN_KEY,
+} from '@/shared/lib/extension-when.ts';
 import { bindSyntaxPalette } from '@/shared/lib/syntax-binding.ts';
 import { bindExtensionThemes } from '@/shared/lib/theme-registry.ts';
 
@@ -123,11 +127,19 @@ const bootstrap = async () => {
     // цвета подсветки кода следуют за темой: Markdown и редактор ответа
     bindSyntaxPalette(vuetify.theme);
     const registry = createCommandRegistry();
+    // условия `when` команд, панелей и виджетов расширений: значения читаются у источников при каждом вычислении
+    const extensionWhen = createExtensionWhen({
+      route: () => router.currentRoute.value.name,
+      courseActive: () => courseScope.activeId.value !== null,
+      locale: () => i18n.global.locale.value,
+      dark: () => vuetify.theme.current.value.dark,
+    });
     const extensionCommands = createExtensionCommands({
       registry,
       engine: engine.extensions,
       contributions: () => contributions.contributions.value,
       locale: () => i18n.global.locale.value,
+      when: extensionWhen,
       openPanel: ({ extensionId, panelId }) =>
         void router.push({
           name: ROUTE.extensionPanel,
@@ -213,6 +225,7 @@ const bootstrap = async () => {
       .provide(COMMAND_REGISTRY_KEY, registry)
       .provide(COMMAND_PALETTE_KEY, palette)
       .provide(EXTENSION_COMMANDS_KEY, extensionCommands)
+      .provide(EXTENSION_WHEN_KEY, extensionWhen)
       .provide(EXTENSION_TRANSFERS_KEY, extensionTransfers)
       .provide(INSTALL_KEY, install)
       .provide(CONTEXT_KEYS_KEY, contextKeys)

@@ -11,6 +11,8 @@ import {
   idPrefixIssues,
   resolveModuleUrl,
   safePath,
+  whenField,
+  whenIssues,
 } from './support.ts';
 import type { ContributionPoint } from './types.ts';
 
@@ -24,6 +26,7 @@ export const panels: ContributionPoint<'panels'> = {
     title: z.string().min(1).max(EXTENSION_COMMAND_LIMITS.titleLength),
     module: safePath(['.js', '.mjs']).optional(),
     icon: z.enum(EXTENSION_ICONS).optional(),
+    when: whenField.optional(),
   }),
   normalize: (entries) =>
     entries.map((entry) => ({
@@ -31,6 +34,7 @@ export const panels: ContributionPoint<'panels'> = {
       title: entry.title,
       module: entry.module ?? DEFAULT_PANEL,
       icon: entry.icon ?? DEFAULT_EXTENSION_ICON,
+      ...(entry.when === undefined ? {} : { when: entry.when }),
     })),
   check: (entries, owner) => {
     const ids = entries.map(({ id }) => id);
@@ -40,6 +44,9 @@ export const panels: ContributionPoint<'panels'> = {
         : []),
       ...idPrefixIssues('panels', ids, owner),
       ...duplicateIssues('contributes.panels', 'id', ids),
+      ...entries.flatMap((entry, index) =>
+        whenIssues('panels', index, entry.when),
+      ),
     ];
   },
   resolve: async (entries, { dir, extensionId: owner, verifyFiles }) => {
@@ -49,6 +56,7 @@ export const panels: ContributionPoint<'panels'> = {
         id: entry.id,
         title: entry.title,
         icon: entry.icon,
+        when: entry.when ?? null,
         rendererUrl: await resolveModuleUrl(
           owner,
           dir,

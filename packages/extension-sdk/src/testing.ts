@@ -790,8 +790,8 @@ export interface MemoryNotifications extends ExtensionNotifications {
 }
 
 /** Control characters (except the line feed), line and paragraph separators and text direction marks. */
-// eslint-disable-next-line no-control-regex
 const NOTIFICATION_CONTROL =
+  // eslint-disable-next-line no-control-regex
   /[\u0000-\u0009\u000B-\u001F\u007F-\u009F\u2028\u2029\u200E\u200F\u202A-\u202E\u2066-\u2069]/gu;
 
 const notificationText = (
@@ -841,14 +841,24 @@ export const createMemoryNotifications = (
       if (options.permitted === false) {
         throw new PermissionError('notifications');
       }
-      const title = notificationText('title', notification?.title, limits.titleLength);
-      const body = notificationText('body', notification?.body, limits.bodyLength);
+      const title = notificationText(
+        'title',
+        notification?.title,
+        limits.titleLength,
+      );
+      const body = notificationText(
+        'body',
+        notification?.body,
+        limits.bodyLength,
+      );
       if (!enabled) return false;
       const at = now();
       const recent = times.filter((time) => at - time < 3_600_000);
       times.length = 0;
       times.push(...recent);
-      if (recent.filter((time) => at - time < 60_000).length >= limits.perMinute) {
+      if (
+        recent.filter((time) => at - time < 60_000).length >= limits.perMinute
+      ) {
         throw new NotificationRateLimitError('minute', limits.perMinute);
       }
       if (recent.length >= limits.perHour) {

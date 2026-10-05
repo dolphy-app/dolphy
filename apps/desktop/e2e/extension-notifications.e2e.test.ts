@@ -156,9 +156,9 @@ describe('notifications', () => {
     expect(
       await app!.page.getByTestId(`notifications-${DENIED_ID}`).count(),
     ).toBe(0);
-    expect(await client.extensionSwitchChecked(NOTIFY_ID, 'notifications')).toBe(
-      true,
-    );
+    expect(
+      await client.extensionSwitchChecked(NOTIFY_ID, 'notifications'),
+    ).toBe(true);
 
     await client.setExtensionSwitch(NOTIFY_ID, 'notifications', false);
     await runCommand(session, SHOW);

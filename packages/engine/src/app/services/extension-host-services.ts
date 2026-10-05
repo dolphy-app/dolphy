@@ -331,7 +331,8 @@ export const createExtensionHostServices = (
         if (notificationsOff.includes(info.id)) return false;
         const exhausted = limiter.take(info.id, ctx.clock.now());
         if (exhausted !== null) {
-          const limit = exhausted === 'minute' ? limits.perMinute : limits.perHour;
+          const limit =
+            exhausted === 'minute' ? limits.perMinute : limits.perHour;
           throw new EngineError('INVALID_ARGUMENT', {
             message: `Notification rate limit exceeded: ${limit} per ${exhausted}`,
             details: {

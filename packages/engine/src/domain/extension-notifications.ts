@@ -42,7 +42,15 @@ export const sanitizeNotificationText = (
 /** Длина в символах (кодовых точках), как её видит автор. */
 export const textLength = (text: string): number => {
   let count = 0;
-  for (const _ of text) count += 1;
+  for (let i = 0; i < text.length; i += 1) {
+    const unit = text.charCodeAt(i);
+    const next = text.charCodeAt(i + 1);
+    // пара суррогатов — один символ
+    if (unit >= 0xd800 && unit <= 0xdbff && next >= 0xdc00 && next <= 0xdfff) {
+      i += 1;
+    }
+    count += 1;
+  }
   return count;
 };
 

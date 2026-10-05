@@ -124,6 +124,21 @@ const NO_SETTINGS: ExtensionSettingsDto = {
   notificationsOff: [],
 };
 
+/** Метод движка, который записывает переключатель. */
+const WRITERS: Record<
+  ExtensionSwitch,
+  (
+    engine: LearningEngine,
+    id: string,
+    value: boolean,
+  ) => Promise<ExtensionSettingsDto>
+> = {
+  enabled: (engine, id, value) => engine.extensions.setEnabled(id, value),
+  trusted: (engine, id, value) => engine.extensions.setTrusted(id, value),
+  notifications: (engine, id, value) =>
+    engine.extensions.setNotificationsEnabled(id, value),
+};
+
 const errorText = (caught: unknown) =>
   caught instanceof Error ? caught.message : String(caught);
 
@@ -133,8 +148,10 @@ export const isEnabled = (settings: ExtensionSettingsDto, id: string) =>
 export const isTrusted = (settings: ExtensionSettingsDto, id: string) =>
   settings.trusted.includes(id);
 
-export const areNotificationsOn = (settings: ExtensionSettingsDto, id: string) =>
-  !settings.notificationsOff.includes(id);
+export const areNotificationsOn = (
+  settings: ExtensionSettingsDto,
+  id: string,
+) => !settings.notificationsOff.includes(id);
 
 /** Переключатель «Уведомления» нужен расширению, которое просит разрешение `notifications`. */
 export const hasNotifications = (extension: ExtensionInfoDto): boolean =>
@@ -235,12 +252,7 @@ export const useExtensions = (engine: LearningEngine) => {
     switchError.value = null;
     setSwitching(key, true);
     try {
-      settings.value =
-        which === 'enabled'
-          ? await engine.extensions.setEnabled(id, value)
-          : which === 'trusted'
-            ? await engine.extensions.setTrusted(id, value)
-            : await engine.extensions.setNotificationsEnabled(id, value);
+      settings.value = await WRITERS[which](engine, id, value);
       // список показывает действующие состояние и изоляцию: перечитываем без мигания
       void load();
     } catch (caught) {

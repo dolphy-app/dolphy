@@ -1347,8 +1347,7 @@ export class NotificationRateLimitError extends Error {
     message?: string,
   ) {
     super(
-      message ??
-        `notification rate limit exceeded: ${limit} per ${window}`,
+      message ?? `notification rate limit exceeded: ${limit} per ${window}`,
     );
     this.name = 'NotificationRateLimitError';
     this.window = window;

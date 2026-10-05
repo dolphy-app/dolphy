@@ -59,9 +59,8 @@ export const notificationLogOf = (
   env: Readonly<Record<string, string | undefined>>,
   packaged: boolean,
 ): string | undefined => {
-  if (packaged) return undefined;
-  const path = env.DOLPHY_NOTIFICATION_LOG;
-  return path === undefined || path === '' ? undefined : path;
+  const path = packaged ? undefined : env.DOLPHY_NOTIFICATION_LOG;
+  return path === '' ? undefined : path;
 };
 
 export interface PlatformServicesDeps {

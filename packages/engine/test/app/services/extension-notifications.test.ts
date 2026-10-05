@@ -92,9 +92,9 @@ describe('разрешение', () => {
 
   it('неизвестное расширение — NOT_FOUND', async () => {
     const { notifications } = await open();
-    await expect(notifications.show('acme.none', 'T', 'B')).rejects.toMatchObject(
-      { code: 'NOT_FOUND' },
-    );
+    await expect(
+      notifications.show('acme.none', 'T', 'B'),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 });
 
@@ -112,7 +112,10 @@ describe('показ', () => {
       info(A, ['notifications']),
       info(B, ['notifications'], {
         name: '%ext.name%',
-        messages: { en: { 'ext.name': 'Localized' }, ru: { 'ext.name': 'Имя' } },
+        messages: {
+          en: { 'ext.name': 'Localized' },
+          ru: { 'ext.name': 'Имя' },
+        },
       }),
     ]);
     await notifications.show(A, 'T', '');
@@ -149,7 +152,11 @@ describe('пределы текста', () => {
   it('ровно предельная длина принимается, на символ больше — INVALID_ARGUMENT с полем', async () => {
     const { platform, notifications } = await open();
     expect(
-      await notifications.show(A, 'a'.repeat(titleLength), 'b'.repeat(bodyLength)),
+      await notifications.show(
+        A,
+        'a'.repeat(titleLength),
+        'b'.repeat(bodyLength),
+      ),
     ).toBe(true);
     await expect(
       notifications.show(A, 'a'.repeat(titleLength + 1), ''),
@@ -168,7 +175,9 @@ describe('пределы текста', () => {
 
   it('длина считается в символах, а не в кодовых единицах UTF-16', async () => {
     const { notifications } = await open();
-    expect(await notifications.show(A, '😀'.repeat(titleLength), '')).toBe(true);
+    expect(await notifications.show(A, '😀'.repeat(titleLength), '')).toBe(
+      true,
+    );
   });
 
   it('пустое после очистки название и не строка — INVALID_ARGUMENT', async () => {

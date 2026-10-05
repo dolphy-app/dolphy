@@ -168,18 +168,16 @@ describe('main: операция notify', () => {
       }),
     );
     expect(response).toMatchObject({ ok: true, result: true });
-    expect(entries).toEqual([
-      { source: 'Acme', title: 'Title', body: 'Body' },
-    ]);
+    expect(entries).toEqual([{ source: 'Acme', title: 'Title', body: 'Body' }]);
     expect(fake.created).toEqual([]);
   });
 });
 
 describe('DOLPHY_NOTIFICATION_LOG', () => {
   it('действует только в несобранном приложении и только с путём', () => {
-    expect(notificationLogOf({ DOLPHY_NOTIFICATION_LOG: '/tmp/n' }, false)).toBe(
-      '/tmp/n',
-    );
+    expect(
+      notificationLogOf({ DOLPHY_NOTIFICATION_LOG: '/tmp/n' }, false),
+    ).toBe('/tmp/n');
     expect(
       notificationLogOf({ DOLPHY_NOTIFICATION_LOG: '/tmp/n' }, true),
     ).toBeUndefined();
@@ -225,9 +223,9 @@ describe('хост движка: порт notifier', () => {
   it('ОС без уведомлений, отказ main, нет ответа и закрытый хост — false, а не исключение', async () => {
     const note = { source: 'Acme', title: 'T', body: 'B' };
     expect(
-      await wired({ notifications: fakeNotifications(false).api }).host.services.notifier.show(
-        note,
-      ),
+      await wired({
+        notifications: fakeNotifications(false).api,
+      }).host.services.notifier.show(note),
     ).toBe(false);
     const broken = wired({
       notifications: {

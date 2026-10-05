@@ -5,6 +5,7 @@ export const en: typeof ru = {
     save: 'Save',
     cancel: 'Cancel',
     retry: 'Try again',
+    extensionUpdates: 'Updates available: {n}',
   },
   keybinding: {
     command: 'Command',

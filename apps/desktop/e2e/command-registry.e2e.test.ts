@@ -270,7 +270,8 @@ describe('реестр команд: сочетания клавиш (R6, R7, R1
     ]) {
       await client.page.keyboard.press(combo);
     }
-    expect(commands.route()).toBe('#/settings/extensions');
+    // сочетания не увели со страницы «Расширения» (в адресе может быть открытая вкладка)
+    expect(commands.route().split('?')[0]).toBe('#/settings/extensions');
     await client.page.keyboard.press(`${MOD_KEY}+K`);
     await commands.waitForPalette();
     await commands.combobox.press('Escape');

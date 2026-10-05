@@ -9,13 +9,17 @@ import type {
   ExtensionCommands,
   ExtensionHealth,
   ExtensionPolicy,
+  ExtensionTransfers,
 } from '@dolphy-app/engine/ports';
 import type { ExtensionModule } from '@dolphy-app/extension-api';
 import { connectEngine } from '../src/engine-bridge.ts';
 import type { HostableEngine } from '../src/engine-bridge.ts';
 import { createHostChannel } from '../src/channel.ts';
 import type { HostChannel } from '../src/channel.ts';
-import { createRemoteExtensionCommands } from '../src/client.ts';
+import {
+  createRemoteExtensionCommands,
+  createRemoteExtensionTransfers,
+} from '../src/client.ts';
 import type { ResolvedExtension } from '../src/discover.ts';
 import { createDiscoveryHolder, discoveryOf } from '../src/holder.ts';
 import type { DiscoveryHolder } from '../src/holder.ts';
@@ -273,6 +277,8 @@ export interface Harness {
   policy: ExtensionPolicy;
   /** Клиент команд движка поверх того же канала. */
   commands: ExtensionCommands;
+  /** Клиент импорта и экспорта движка поверх того же канала. */
+  transfers: ExtensionTransfers;
   logger: TestLogger;
   /** Меняет набор расширений так же, как применение изменений: снимок движка и хост. */
   replace(extensions: readonly ResolvedExtension[]): Promise<void>;
@@ -321,6 +327,7 @@ export const createHarness = (options: HarnessOptions): Harness => {
       policy,
       logger,
     }),
+    transfers: createRemoteExtensionTransfers({ channel, policy, logger }),
     discovery,
     policy,
     logger,

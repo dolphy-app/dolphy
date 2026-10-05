@@ -103,6 +103,8 @@ declare module '@dolphy-app/extension-sdk' {
     commands: 'acme.open' | 'acme.close';
     events: 'attempt.closed';
     panels: never;
+    importers: 'acme.csv';
+    exporters: never;
     markdownLanguages: never;
     settings: { 'acme.goal': number; 'acme.mode': 'fast' | 'slow' };
   }

@@ -4,6 +4,7 @@ import {
   LEARNING_EVENT_NAMES,
 } from '@dolphy-app/extension-api';
 import type {
+  ExportInput,
   JsonValue,
   LearningEventName,
   LearningEventPayloads,
@@ -57,7 +58,9 @@ export type ExtRequest =
       };
     }
   | DeliverEventRequest
-  | InvokeCommandRequest;
+  | InvokeCommandRequest
+  | RunImporterRequest
+  | RunExporterRequest;
 
 /**
  * Событие обучения расширению. Ответ `{ delivered }`: `false` — обработчика нет
@@ -89,6 +92,42 @@ export interface InvokeCommandRequest {
     extensionId: string;
     commandId: string;
     args?: JsonValue;
+    isolated: boolean;
+  };
+}
+
+/**
+ * Запуск импортёра (`ctx.importers.register`): файл, который выбрал
+ * пользователь, целиком в `text` (UTF-8) либо в `bytes` — по `input`
+ * импортёра. Лениво активирует расширение. Ответ — `ImportResult`, уже
+ * проверенный `normalizeImportResult`; неизвестный или незарегистрированный
+ * импортёр — `unknown-importer`, сбой обработчика — `handler-failed`, срок
+ * `EXTENSION_TRANSFER_LIMITS.handlerMs` — `handler-timeout`, неверный
+ * результат — `invalid-result`.
+ */
+export interface RunImporterRequest {
+  id: string;
+  method: 'runImporter';
+  params: {
+    extensionId: string;
+    importerId: string;
+    name: string;
+    isolated: boolean;
+  } & ({ text: string } | { bytes: Uint8Array });
+}
+
+/**
+ * Запуск экспортёра (`ctx.exporters.register`): снимок курса либо запрос
+ * прогресса — по `scope` экспортёра. Ответ — `ExportResult`, проверенный
+ * `normalizeExportResult`; причины как у `runImporter` (`unknown-exporter`).
+ */
+export interface RunExporterRequest {
+  id: string;
+  method: 'runExporter';
+  params: {
+    extensionId: string;
+    exporterId: string;
+    input: ExportInput;
     isolated: boolean;
   };
 }
@@ -199,6 +238,8 @@ export type ExtFailureCause =
   | Exclude<ExerciseTypeErrorCause, 'host-down' | 'timeout'>
   | 'unknown-policy'
   | 'unknown-command'
+  | 'unknown-importer'
+  | 'unknown-exporter'
   | 'handler-timeout'
   | 'activation-timeout'
   | 'ipc-size'
@@ -244,6 +285,28 @@ const commandParams = z.strictObject({
   args: z.unknown().optional(),
   isolated: z.boolean(),
 });
+
+const bytesField = z.custom<Uint8Array>(
+  (value) => value instanceof Uint8Array,
+  'must be a Uint8Array',
+);
+
+const importParams = {
+  extensionId: z.string(),
+  importerId: z.string(),
+  name: z.string(),
+  isolated: z.boolean(),
+};
+
+const exportInput = z.discriminatedUnion('scope', [
+  z.strictObject({
+    scope: z.literal('course'),
+    courseId: z.string(),
+    title: z.string(),
+    files: z.record(z.string(), z.string()),
+  }),
+  z.strictObject({ scope: z.literal('progress') }),
+]);
 
 const typed = {
   type: z.string(),
@@ -297,6 +360,24 @@ export const extRequestSchema = z.discriminatedUnion('method', [
     id: z.string(),
     method: z.literal('invokeCommand'),
     params: commandParams,
+  }),
+  z.strictObject({
+    id: z.string(),
+    method: z.literal('runImporter'),
+    params: z.union([
+      z.strictObject({ ...importParams, text: z.string() }),
+      z.strictObject({ ...importParams, bytes: bytesField }),
+    ]),
+  }),
+  z.strictObject({
+    id: z.string(),
+    method: z.literal('runExporter'),
+    params: z.strictObject({
+      extensionId: z.string(),
+      exporterId: z.string(),
+      input: exportInput,
+      isolated: z.boolean(),
+    }),
   }),
 ]);
 

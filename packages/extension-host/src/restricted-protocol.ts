@@ -21,6 +21,41 @@ export type LibraryFailure = {
   permission?: ExtensionPermission;
 };
 
+/**
+ * Голова вызова, чьё тело идёт потоком (см. `transfer-wire.ts`): те же поля,
+ * что у `RunImporterRequest`/`RunExporterRequest`, без текста, байт и файлов.
+ */
+export type StreamedRequest =
+  | {
+      id: string;
+      method: 'runImporter';
+      params: {
+        extensionId: string;
+        importerId: string;
+        name: string;
+        isolated: boolean;
+        /** Поток — файл пользователя: UTF-8 текст или байты. */
+        input: 'text' | 'bytes';
+      };
+    }
+  | {
+      id: string;
+      method: 'runExporter';
+      params: {
+        extensionId: string;
+        exporterId: string;
+        isolated: boolean;
+        /** Поток — кадры `count` текстовых файлов курса. */
+        input: { courseId: string; title: string; count: number };
+      };
+    };
+
+/** Голова результата, чьё тело идёт потоком: каталог файлов импорта либо файл экспорта. */
+export type StreamedResult =
+  | { kind: 'files'; count: number }
+  | { kind: 'text'; filename: string }
+  | { kind: 'bytes'; filename: string };
+
 export type ParentMessage =
   | { t: 'init'; extension: ResolvedExtension }
   | {
@@ -28,6 +63,13 @@ export type ParentMessage =
       /** Вызов хоста, ответ на запрос процесса к движку или сообщение без ответа. */
       message: ExtRequest | HostResponse | SettingChangedNotice;
     }
+  | {
+      /** Вызов с телом потоком: за головой идут `chunk`, всего `size` байт. */
+      t: 'stream';
+      size: number;
+      request: StreamedRequest;
+    }
+  | { t: 'chunk'; id: string; seq: number; data: string }
   | { t: 'library-result'; id: string; ok: true; value: unknown }
   | { t: 'library-result'; id: string; ok: false; error: LibraryFailure }
   | { t: 'shutdown' };
@@ -39,6 +81,14 @@ export type ChildMessage =
       /** Ответ на вызов хоста или запрос процесса к данным расширения. */
       message: ExtResponse | HostRequest;
     }
+  | {
+      /** Успешный ответ на вызов `id` с телом потоком: за головой идут `chunk`, всего `size` байт. */
+      t: 'result-stream';
+      id: string;
+      size: number;
+      result: StreamedResult;
+    }
+  | { t: 'chunk'; id: string; seq: number; data: string }
   | ({ t: 'library'; id: string } & LibraryCall)
   | { t: 'log'; level: LogLevel; fields: object; message?: string };
 
@@ -50,6 +100,14 @@ export const isChildMessage = (value: unknown): value is ChildMessage =>
   isObject(value) &&
   (value.t === 'ready' ||
     (value.t === 'rpc' && isObject(value.message)) ||
+    (value.t === 'result-stream' &&
+      typeof value.id === 'string' &&
+      typeof value.size === 'number' &&
+      isObject(value.result)) ||
+    (value.t === 'chunk' &&
+      typeof value.id === 'string' &&
+      typeof value.seq === 'number' &&
+      typeof value.data === 'string') ||
     (value.t === 'library' &&
       typeof value.id === 'string' &&
       typeof value.path === 'string' &&
@@ -62,5 +120,12 @@ export const isParentMessage = (value: unknown): value is ParentMessage =>
   isObject(value) &&
   (value.t === 'init' ||
     value.t === 'rpc' ||
+    (value.t === 'stream' &&
+      typeof value.size === 'number' &&
+      isObject(value.request)) ||
+    (value.t === 'chunk' &&
+      typeof value.id === 'string' &&
+      typeof value.seq === 'number' &&
+      typeof value.data === 'string') ||
     value.t === 'library-result' ||
     value.t === 'shutdown');

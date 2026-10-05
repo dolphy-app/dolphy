@@ -137,7 +137,8 @@ export const host = defineExtension({
   (also for `text` and `color`), `string[]` for a `list`, `number`, or the union
   of the option values of an `enum`.
   `ctx.settings.onDidChange` hands over `{ id, value }` that narrows `value` by
-  `id`. `ctx.commands.register`, `ctx.events.on` (the handler payload follows
+  `id`. `ctx.commands.register`, `ctx.importers.register`,
+  `ctx.exporters.register`, `ctx.events.on` (the handler payload follows
   the event name), `ctx.registerExerciseType` and `ctx.registerGradePolicy`
   accept the declared ids only; so do `ctx.call` in a panel and `openPanel`.
 - Write `export const views = { … } satisfies ExtensionViews` (likewise
@@ -152,7 +153,8 @@ export const host = defineExtension({
 `@dolphy-app/extension-sdk/testing`:
 
 - `loadExerciseType(host, type)`, `loadGradePolicy(host, id)`,
-  `loadEvents(host, options?)`, `loadCommands(host, options?)` activate the
+  `loadEvents(host, options?)`, `loadCommands(host, options?)`,
+  `loadImporters(host, options?)`, `loadExporters(host, options?)` activate the
   `host` export as it is, with in-memory storage, settings, events and
   commands, and give the test the handlers (`grade`, `evaluate`, `emit`, `run`,
   `dispose()`). `loadExerciseType` checks the shape of results;
@@ -348,6 +350,53 @@ panel.calls; // [{ commandId: 'acme.tools.ping', args: undefined }]
   `ids()`, `dispose()`; it throws on an unregistered command and an invalid
   result (the rules are `normalizeCommandResult` from
   `@dolphy-app/extension-api`).
+
+## Importers and exporters
+
+An importer turns a file the user picked into a new course directory; an
+exporter writes a course or the learning progress to a file. Declare them in
+`contributes.importers` / `contributes.exporters` of `extension.json` (no
+permission is needed; the user's choice of a file is the consent, and an
+exporter with `scope: 'progress'` needs `learning.stats`).
+
+```ts
+import {
+  defineExtension,
+  type CourseExportInput,
+  type TextImportInput,
+} from '@dolphy-app/extension-sdk';
+
+export const host = defineExtension({
+  importers: {
+    // `input` defaults to `text`; `bytes` hands over a Uint8Array instead
+    'acme.csv.import': ({ name, text }: TextImportInput) => ({
+      files: { 'course.yaml': `id: ${name}\n`, 'rows.csv': text },
+    }),
+  },
+  exporters: {
+    'acme.csv.export': ({ title, files }: CourseExportInput) => ({
+      filename: `${title}.json`,
+      text: JSON.stringify(files),
+    }),
+  },
+});
+```
+
+- An importer returns `{ files: Record<path, text> }`: at most 5000 files,
+  2 MiB each, 20 MiB in all; a path is relative, uses `/`, and has no `..`,
+  empty or dot-leading segment, backslash, control character, or case-only
+  duplicate. An exporter returns `{ filename, text }` or `{ filename, bytes }`
+  of at most 20 MiB; the file name has no path separator and is at most 120
+  characters. A handler has 30 seconds. `ctx.importers.register(id, handler)`
+  and `ctx.exporters.register(id, handler)` do the same inside `activate`.
+- `loadImporters(host, options?)` and `loadExporters(host, options?)` give
+  `run(id, input)`, `ids()`, `dispose()`. `run` applies the host's rules (the
+  `text`/`bytes` form of a declared importer, the `scope` of a declared
+  exporter, the size of the input, and the result) and rejects with
+  `invalid import result: …` / `invalid export result: …`. Pass
+  `declaredImporters: [{ id, input? }]` / `declaredExporters: [{ id, scope }]`
+  to check against the manifest and `stats: createMemoryStats(…)` for a
+  progress exporter.
 
 ## Style sheets, images and fonts
 

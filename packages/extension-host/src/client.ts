@@ -1,6 +1,7 @@
 import {
   ExerciseTypeError,
   ExtensionCommandError,
+  ExtensionTransferError,
   GradePolicyError,
 } from '@dolphy-app/engine/ports';
 import type {
@@ -10,10 +11,17 @@ import type {
   ExtensionCommands,
   ExtensionHealth,
   ExtensionPolicy,
+  ExtensionTransferErrorCause,
+  ExtensionTransfers,
   GradePolicies,
   GradePolicyErrorCause,
   RawVerdict,
 } from '@dolphy-app/engine/ports';
+import {
+  InvalidTransferResultError,
+  normalizeExportResult,
+  normalizeImportResult,
+} from '@dolphy-app/extension-api';
 import type { ExtensionLogger } from '@dolphy-app/extension-api';
 import type { createCatalog } from './catalog.ts';
 import type { ChannelOutcome, ChannelParams, HostChannel } from './channel.ts';
@@ -36,6 +44,8 @@ const exerciseCause = (cause: ExtFailureCause): ExerciseTypeErrorCause => {
       return 'activation-failed';
     case 'unknown-policy':
     case 'unknown-command':
+    case 'unknown-importer':
+    case 'unknown-exporter':
     case 'handler-timeout':
     case 'ipc-size':
     case 'ipc-rate':
@@ -358,5 +368,121 @@ export const createRemoteExtensionCommands = (
         ? { kind: 'openPanel', panelId: data.panelId }
         : { kind: 'openPanel', panelId: data.panelId, props: data.props };
     },
+  };
+};
+
+/**
+ * Срок импорта или экспорта у движка: больше раннера ограниченного процесса
+ * (32 с) и обработчика (30 с), включает ленивую активацию, запуск процесса и
+ * передачу файла.
+ */
+export const TRANSFER_CLIENT_DEADLINE_MS = 34_000;
+
+export interface RemoteExtensionTransfersOptions {
+  channel: HostChannel;
+  /** Режим исполнения (`isolated`) вычисляется на каждый вызов. */
+  policy: ExtensionPolicy;
+  logger: ExtensionLogger;
+  deadlineMs?: number;
+}
+
+const transferCause = (cause: ExtFailureCause): ExtensionTransferErrorCause => {
+  switch (cause) {
+    case 'unknown-importer':
+    case 'unknown-exporter':
+    case 'invalid-result':
+    case 'replaced':
+    case 'handler-failed':
+      return cause;
+    case 'handler-timeout':
+      return 'timeout';
+    default:
+      return 'handler-failed';
+  }
+};
+
+export const createRemoteExtensionTransfers = (
+  options: RemoteExtensionTransfersOptions,
+): ExtensionTransfers => {
+  const { channel, policy, logger } = options;
+  const deadlineMs = options.deadlineMs ?? TRANSFER_CLIENT_DEADLINE_MS;
+
+  /** Общий путь: вызов хоста, свод причин, проверка результата теми же правилами, что в рантайме. */
+  const run = async <T>(
+    kind: 'import' | 'export',
+    extensionId: string,
+    id: string,
+    call: () => Promise<ChannelOutcome>,
+    check: (result: unknown) => T,
+  ): Promise<T> => {
+    const fail = (
+      cause: ExtensionTransferErrorCause,
+      message: string,
+    ): ExtensionTransferError =>
+      new ExtensionTransferError(cause, extensionId, id, kind, message);
+    const outcome = await call();
+    if (outcome.kind === 'timeout') {
+      throw fail('timeout', `extension ${kind} timed out`);
+    }
+    if (outcome.kind !== 'response') {
+      throw fail('host-down', 'extension host is down');
+    }
+    const { response } = outcome;
+    if (!response.ok) {
+      const cause = transferCause(response.error.cause);
+      logger.debug(
+        { extensionId, id, kind, cause },
+        'extension transfer failed',
+      );
+      throw fail(cause, response.error.message);
+    }
+    try {
+      return check(response.result);
+    } catch (error) {
+      if (!(error instanceof InvalidTransferResultError)) throw error;
+      throw fail('invalid-result', error.message);
+    }
+  };
+
+  // таймаут хост не перезапускает: выбор файла пользователем не должен убивать чужие вызовы
+  return {
+    runImporter: (extensionId, importerId, input) =>
+      run(
+        'import',
+        extensionId,
+        importerId,
+        () =>
+          channel.call(
+            'runImporter',
+            {
+              extensionId,
+              importerId,
+              isolated: policy.isIsolated(extensionId),
+              ...input,
+            },
+            deadlineMs,
+            { restart: false },
+          ),
+        normalizeImportResult,
+      ),
+    runExporter: (extensionId, exporterId, input) =>
+      run(
+        'export',
+        extensionId,
+        exporterId,
+        () =>
+          channel.call(
+            'runExporter',
+            {
+              extensionId,
+              exporterId,
+              input,
+              isolated: policy.isIsolated(extensionId),
+            },
+            deadlineMs,
+            { restart: false },
+          ),
+        normalizeExportResult,
+      ),
   };
 };

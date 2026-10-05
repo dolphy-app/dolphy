@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Сборка публикуемых пакетов (`@dolphy-app/extension-api|sdk|tools|create-extension`)
+ * Сборка публикуемых пакетов (`@dolphy-app/extension-api|keybindings|ui|sdk|tools|create-extension`)
  * в `dist-publish/<каталог пакета>/`: собранный JS, `.d.ts`, сгенерированные
  * `package.json` и README. Рабочие пакеты остаются `private`: публикуется только
  * сгенерированный каталог.

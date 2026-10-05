@@ -1,0 +1,8 @@
+{
+  "id": "acme.uikit",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "contributes": {
+    "panels": [{ "id": "acme.uikit.main", "title": "Набор элементов" }]
+  }
+}

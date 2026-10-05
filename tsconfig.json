@@ -53,6 +53,12 @@
       "path": "packages/keybindings/tsconfig.test.json"
     },
     {
+      "path": "packages/extension-ui"
+    },
+    {
+      "path": "packages/extension-ui/tsconfig.test.json"
+    },
+    {
       "path": "packages/extension-api"
     },
     {

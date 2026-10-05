@@ -7,6 +7,7 @@ export const ru = {
       validate: 'Проверка курсов',
       reload: 'Обновление библиотеки',
     },
+    updateAvailable: 'Есть обновление',
     status: {
       ready: 'Готов',
       updating: 'Обновляется',

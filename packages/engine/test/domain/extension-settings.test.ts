@@ -18,6 +18,7 @@ describe('decodeExtensionSettings', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
     });
   });
 
@@ -52,6 +53,7 @@ describe('decodeExtensionSettings', () => {
         disabled: [],
         trusted: [],
         notificationsOff: ['b.x', 'a.y', 'b.x'],
+        catalogUrl: null,
       }).notificationsOff,
     ).toEqual(['a.y', 'b.x']);
     expect(
@@ -59,6 +61,7 @@ describe('decodeExtensionSettings', () => {
         disabled: [],
         trusted: [],
         notificationsOff: ['Not An Id'],
+        catalogUrl: null,
       }),
     ).toEqual({
       disabled: [],
@@ -66,6 +69,7 @@ describe('decodeExtensionSettings', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
     });
   });
 
@@ -82,6 +86,32 @@ describe('decodeExtensionSettings', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
     });
+  });
+
+  it.each([
+    ['https://example.test/index.json', 'https://example.test/index.json'],
+    ['http://127.0.0.1:4010/index.json', 'http://127.0.0.1:4010/index.json'],
+    ['javascript:alert(1)', null],
+    ['file:///etc/passwd', null],
+    ['not a url', null],
+    [42, null],
+    [undefined, null],
+  ])('reads the catalog address %j as %j', (raw, expected) => {
+    expect(
+      decodeExtensionSettings({ disabled: [], trusted: [], catalogUrl: raw })
+        .catalogUrl,
+    ).toBe(expected);
+  });
+
+  it('keeps the catalog address when the id lists are unreadable', () => {
+    expect(
+      decodeExtensionSettings({
+        disabled: 'x',
+        trusted: [],
+        catalogUrl: 'https://example.test/index.json',
+      }).catalogUrl,
+    ).toBe('https://example.test/index.json');
   });
 });

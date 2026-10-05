@@ -83,7 +83,7 @@ The installer doesn't include courses yet. A course is a folder; drop it into th
 
 ## Try it from source
 
-Needs Node ≥ 22.12 and pnpm 9.15.9.
+Needs Node ≥ 22.12 and pnpm 12.9.1.
 
 ```sh
 pnpm install

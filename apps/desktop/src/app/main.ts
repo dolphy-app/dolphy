@@ -9,6 +9,10 @@ import StartupError from './startup-error/StartupError.vue';
 import { registerAppCommands } from '@/features/app-commands';
 import { COURSE_SCOPE_KEY, createCourseScope } from '@/features/course-scope';
 import {
+  COURSE_UPDATES_KEY,
+  createCourseUpdates,
+} from '@/features/course-updates';
+import {
   createKeybindingsService,
   createUserKeybindings,
   KEYBINDINGS_KEY,
@@ -87,6 +91,11 @@ const bootstrap = async () => {
     });
     const i18n = createDolphyI18n(resolveLocale(locale, navigator.language));
     const courseScope = await createCourseScope(engine);
+    const courseUpdates = createCourseUpdates(engine, {
+      courseNames: () =>
+        new Map(courseScope.courses.value.map(({ id, name }) => [id, name])),
+    });
+    onReconnect(() => void courseUpdates.reconnected());
     const vuetify = createDolphyVuetify(i18n);
     const themeSelection = createThemeSelection(engine, theme);
     const localeSelection = createLocaleSelection(engine, locale, {
@@ -152,6 +161,7 @@ const bootstrap = async () => {
       .provide(THEME_SELECTION_KEY, themeSelection)
       .provide(LOCALE_SELECTION_KEY, localeSelection)
       .provide(COURSE_SCOPE_KEY, courseScope)
+      .provide(COURSE_UPDATES_KEY, courseUpdates)
       .provide(COMMAND_REGISTRY_KEY, registry)
       .provide(COMMAND_PALETTE_KEY, palette)
       .provide(EXTENSION_COMMANDS_KEY, extensionCommands)

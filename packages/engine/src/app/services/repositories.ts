@@ -120,6 +120,8 @@ export const createRepositoriesService = (
   const fetcher: GitSnapshotFetcher = ctx.snapshotFetcher;
   const installer: SnapshotInstaller = ctx.snapshotInstaller;
   const operations = new Set<Operation>();
+  /** Последняя успешная сверка с сервером в этом запуске: в `engine.db` не пишется. */
+  const checks = new Map<string, { remoteCommit: string; checkedAt: number }>();
   let chain: Promise<unknown> = Promise.resolve();
 
   const operationsOf = (id: string): Operation[] =>
@@ -164,6 +166,19 @@ export const createRepositoriesService = (
 
   const find = async (id: string): Promise<RepositoryRecord | undefined> =>
     (await store.list()).find((record) => record.id === id);
+
+  /** Результат проверки, если он ещё про загруженный коммит: совпавший с серверным коммит ничего не предлагает. */
+  const withCheck = (dto: RepositoryDto): RepositoryDto => {
+    const check = checks.get(dto.id);
+    if (check === undefined) return dto;
+    return {
+      ...dto,
+      checkedAt: check.checkedAt,
+      ...(check.remoteCommit !== dto.commit && {
+        availableCommit: check.remoteCommit,
+      }),
+    };
+  };
 
   const statusOf = async (
     record: RepositoryRecord,
@@ -424,6 +439,7 @@ export const createRepositoriesService = (
           path: installer.snapshotPath(ROOT, id),
         });
       }
+      checks.delete(id);
       const { record } = await fetchFlow(op, { id, url, ref });
       return toDto(record, 'ready');
     });
@@ -440,6 +456,8 @@ export const createRepositoriesService = (
         ref: previous.ref,
         previous,
       });
+      // сервер мог уйти вперёд за время операции: пометка появится после следующей проверки
+      checks.delete(id);
       return {
         changed,
         repository: toDto(record, record.lastError ? 'error' : 'ready'),
@@ -459,6 +477,7 @@ export const createRepositoriesService = (
           if (ctx.state.dirty) await ctx.rebuild();
           await installer.remove(ROOT, id);
           await store.delete(id);
+          checks.delete(id);
           await library.reload();
           ctx.bus.flush();
         } catch (error) {
@@ -480,11 +499,72 @@ export const createRepositoriesService = (
   const list = async (): Promise<RepositoryDto[]> => {
     const records = await store.list();
     return Promise.all(
-      records.map(async (record) => toDto(record, await statusOf(record))),
+      records.map(async (record) =>
+        withCheck(toDto(record, await statusOf(record))),
+      ),
     );
   };
 
-  return { list, add, update, remove, cancel };
+  const checkUpdates = async (): Promise<RepositoryDto[]> => {
+    const signal = closeSignal ?? new AbortController().signal;
+    let checked = 0;
+    for (const record of await store.list()) {
+      if (ctx.state.closed || signal.aborted) break;
+      if (operationsOf(record.id).length > 0) continue;
+      try {
+        const { commit } = await fetcher.resolve({
+          url: record.url,
+          ref: record.ref,
+          signal,
+        });
+        // за время ответа репозиторий могли обновить или удалить: результат устарел
+        const current = await find(record.id);
+        if (
+          current?.commit !== record.commit ||
+          operationsOf(record.id).length > 0
+        ) {
+          continue;
+        }
+        checks.set(record.id, {
+          remoteCommit: commit,
+          checkedAt: ctx.clock.now(),
+        });
+        checked++;
+      } catch (error) {
+        ctx.logger.warn(
+          { error, id: record.id },
+          'repository update check failed',
+        );
+      }
+    }
+    const items = await list();
+    if (checked > 0) {
+      ctx.bus.publish({
+        type: 'repository-updates-checked',
+        available: items
+          .filter(({ availableCommit }) => availableCommit !== undefined)
+          .map(({ id }) => id),
+      });
+    }
+    return items;
+  };
+
+  return { list, add, update, remove, cancel, checkUpdates };
+};
+
+/**
+ * Фоновая проверка обновлений курсов при запуске (спека `course-updates`):
+ * вызывающий не ждёт результат; сбой только в журнал.
+ */
+export const runStartupRepositoryCheck = async (
+  ctx: Pick<EngineContext, 'logger'>,
+  repositories: Pick<RepositoriesService, 'checkUpdates'>,
+): Promise<void> => {
+  try {
+    await repositories.checkUpdates();
+  } catch (error) {
+    ctx.logger.warn({ error }, 'repository update check failed');
+  }
 };
 
 /**

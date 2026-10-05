@@ -122,6 +122,7 @@ const NO_SETTINGS: ExtensionSettingsDto = {
   checkUpdates: true,
   safeMode: false,
   notificationsOff: [],
+  catalogUrl: null,
 };
 
 /** Метод движка, который записывает переключатель. */

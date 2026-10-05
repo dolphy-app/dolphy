@@ -1,7 +1,10 @@
 import path from 'node:path';
 import { EXTENSION_ID_PATTERN } from '@dolphy-app/extension-api';
 import { ExtensionInstallError } from '@dolphy-app/engine/ports';
-import type { ExtensionInstaller } from '@dolphy-app/engine/ports';
+import type {
+  CatalogInstaller,
+  ExtensionInstaller,
+} from '@dolphy-app/engine/ports';
 import type {
   CatalogDto,
   DeprecationDto,
@@ -110,7 +113,7 @@ const byName = (
 
 export const createExtensionInstaller = (
   options: InstallerOptions,
-): ExtensionInstaller => {
+): CatalogInstaller => {
   const { logger, extensionsDir, catalogUrl } = options;
   const fs = options.fs ?? nodeFs;
   const now = options.now ?? Date.now;
@@ -839,18 +842,27 @@ export const createExtensionInstaller = (
     return (await updates()).length;
   };
 
-  const revocationOf = (id: string, version: string): string | null => {
+  const revocationOf = (
+    id: string,
+    version: string,
+    installedFrom: string,
+  ): string | null => {
     const { cached } = state;
-    if (cached === null || !isSemver(version)) return null;
+    if (cached === null || installedFrom !== catalogUrl || !isSemver(version)) {
+      return null;
+    }
     return isRevoked(cached.index.revoked, id, version)?.reason ?? null;
   };
 
   const deprecationOf = (
     id: string,
     version: string,
+    installedFrom: string,
   ): DeprecationDto | null => {
     const { cached } = state;
-    if (cached === null || !isSemver(version)) return null;
+    if (cached === null || installedFrom !== catalogUrl || !isSemver(version)) {
+      return null;
+    }
     const entry = cached.index.extensions.find((item) => item.id === id);
     const deprecated =
       entry === undefined ? null : deprecationFor(entry, version);

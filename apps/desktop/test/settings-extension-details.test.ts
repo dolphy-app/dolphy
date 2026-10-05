@@ -204,12 +204,12 @@ describe('describeDetails: по установленному', () => {
     ).toMatchObject({ kind: 'update', installed: '1.0.0' });
   });
 
-  it('расширение уже есть из другого источника: действия каталога нет', () => {
+  it('расширение уже есть из другого источника: кнопка каталога неактивна (действие «elsewhere»)', () => {
     const info = extensionInfo('acme.sunrise', { origin: 'user' });
     const entry = catalogEntry('acme.sunrise', { elsewhere: true });
     expect(
       describeDetails('acme.sunrise', info, entry, null, null)?.action,
-    ).toBeNull();
+    ).toEqual({ kind: 'elsewhere' });
   });
 
   it('предупреждение: установленной версии важнее; без него — записи каталога, кроме «из другого источника»', () => {

@@ -115,6 +115,7 @@ const open = (options: OpenOptions = {}) => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
     },
   });
   return createTestEngine({

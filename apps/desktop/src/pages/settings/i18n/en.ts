@@ -382,6 +382,11 @@ export const en: typeof ru = {
         installFallback: 'Install v{version} (compatible)',
         installFallbackLabel:
           'Install v{version} (compatible): extension “{name}”',
+        elsewhere: 'Already installed from another source',
+        elsewhereLabel:
+          'Install extension “{name}”: already installed from another source',
+        elsewhereHint:
+          'To install it from this catalog, remove the installed extension first.',
         remove: 'Remove',
         removeLabel: 'Remove extension “{name}”',
         settings: 'Settings',
@@ -466,6 +471,10 @@ export const en: typeof ru = {
       },
       installed: {
         fromCatalog: 'From the catalog v{version}',
+        fromOtherCatalogShort: 'From another catalog',
+        fromOtherCatalog: 'From another catalog v{version}',
+        otherCatalogHint:
+          'Installed from a catalog that is not in use now: the extension works, but updates, revocation and deprecation notes come only from the active catalog.',
         updatesBanner: 'Updates available: {n}',
         updateAll: 'Update all',
         checkUpdates: 'Check for updates at startup',
@@ -604,6 +613,38 @@ export const en: typeof ru = {
         incompatible: 'Incompatible: {detail}',
         installedStatus: 'Installed v{version}',
         installedFrom: 'Now v{version}',
+        advanced: {
+          title: 'Advanced',
+          addressLabel: 'Catalog address',
+          addressHint:
+            'Address of a .json file: https, or http on this computer (localhost)',
+          apply: 'Apply',
+          reset: 'Reset',
+          current: 'Active address',
+          origin: {
+            default: 'default',
+            setting: 'from settings',
+            env: 'from an environment variable',
+          },
+          envNote:
+            'The address is set by the DOLPHY_EXTENSION_CATALOG_URL environment variable: the setting has no effect while it is set.',
+          formerNote:
+            'Extensions installed from the former catalog stay in the list and keep working, but get no updates from the new catalog.',
+          applied: 'Catalog address changed',
+          failed: 'Could not change the address: {message}',
+          errors: {
+            'not-url': 'This is not an address: check what you typed.',
+            scheme:
+              'An https address is required (http only for localhost and 127.0.0.1).',
+            credentials:
+              'The address must not contain a user name or password.',
+            fragment:
+              'The address must not contain a fragment (the part after #).',
+            'not-json': 'The address must point to a .json file.',
+            'too-long': 'The address is longer than 2048 characters.',
+            env: 'The address is set by an environment variable and cannot be changed.',
+          },
+        },
       },
       install: {
         titleInstall: 'Install “{name}”?',

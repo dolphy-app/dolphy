@@ -5,6 +5,7 @@ import {
 } from '@dolphy-app/engine-contract';
 import type {
   CatalogDto,
+  CatalogUrlRejection,
   ContributionsDto,
   ExtensionDocsDto,
   ExtensionCommandFailureReason,
@@ -101,7 +102,7 @@ const withDeprecation = (
     deprecated:
       info.installed === null || version === null
         ? null
-        : installer.deprecationOf(info.id, version),
+        : installer.deprecationOf(info.id, version, info.installed.catalogUrl),
   };
 };
 
@@ -263,6 +264,76 @@ const isDocImagePath = (value: unknown): value is string =>
   value.length <= 200 &&
   DOC_IMAGE_PATH.test(value);
 
+const MAX_CATALOG_URL_LENGTH = 2048;
+
+const isLoopbackHost = (hostname: string): boolean =>
+  hostname === 'localhost' ||
+  hostname === '[::1]' ||
+  /^127(?:\.\d{1,3}){3}$/.test(hostname);
+
+const rejectCatalogUrl = (
+  reason: CatalogUrlRejection,
+  message: string,
+): EngineError =>
+  new EngineError('INVALID_ARGUMENT', {
+    message,
+    details: { field: 'url', reason },
+  });
+
+/**
+ * Адрес каталога из настройки → `URL.href` или отказ с причиной. `https:` либо
+ * `http:` на loopback (локальный каталог и e2e), до 2048 знаков, без логина и
+ * фрагмента, путь оканчивается на `.json`.
+ */
+export const parseCatalogUrl = (value: string): string => {
+  if (value.length > MAX_CATALOG_URL_LENGTH) {
+    throw rejectCatalogUrl(
+      'too-long',
+      `catalog address is longer than ${MAX_CATALOG_URL_LENGTH} characters`,
+    );
+  }
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw rejectCatalogUrl('not-url', 'catalog address is not a URL');
+  }
+  if (
+    url.protocol !== 'https:' &&
+    !(url.protocol === 'http:' && isLoopbackHost(url.hostname))
+  ) {
+    throw rejectCatalogUrl(
+      'scheme',
+      'catalog address must use https (http only on loopback)',
+    );
+  }
+  if (url.username !== '' || url.password !== '') {
+    throw rejectCatalogUrl(
+      'credentials',
+      'catalog address must not contain credentials',
+    );
+  }
+  if (url.href.includes('#')) {
+    throw rejectCatalogUrl(
+      'fragment',
+      'catalog address must not contain a fragment',
+    );
+  }
+  if (!url.pathname.toLowerCase().endsWith('.json')) {
+    throw rejectCatalogUrl(
+      'not-json',
+      'catalog address must point to a .json file',
+    );
+  }
+  if (url.href.length > MAX_CATALOG_URL_LENGTH) {
+    throw rejectCatalogUrl(
+      'too-long',
+      `catalog address is longer than ${MAX_CATALOG_URL_LENGTH} characters`,
+    );
+  }
+  return url.href;
+};
+
 const invalidId = (id: unknown): EngineError =>
   new EngineError('INVALID_ARGUMENT', {
     message: `Invalid extension id: ${String(id)}`,
@@ -393,6 +464,9 @@ export const createExtensionsService = (
     | 'config'
     | 'emit'
     | 'bus'
+    | 'clock'
+    | 'logger'
+    | 'state'
   >,
   transfers: Pick<
     ExtensionsService,
@@ -485,6 +559,40 @@ export const createExtensionsService = (
         reload: false,
       });
     },
+    setCatalogUrl: async (url) => {
+      const { origin, default: defaultUrl } =
+        ctx.extensionInstaller.catalogSource();
+      if (origin === 'env') {
+        throw rejectCatalogUrl(
+          'env',
+          'the catalog address is set by DOLPHY_EXTENSION_CATALOG_URL',
+        );
+      }
+      if (url !== null && typeof url !== 'string') {
+        throw new EngineError('INVALID_ARGUMENT', {
+          message: 'url must be a string or null',
+          details: { field: 'url' },
+        });
+      }
+      // равный умолчанию хранится как «не задан»: иначе `catalogUrl` в
+      // `.dolphy-install.json` расходился бы с адресом по умолчанию
+      const parsed = url === null ? null : parseCatalogUrl(url);
+      const next = parsed === new URL(defaultUrl).href ? null : parsed;
+      const before = await ctx.settings.loadExtensions();
+      if (before.catalogUrl === next) return normalizeExtensionSettings(before);
+      const saved = await persist(
+        (settings) => ({ ...settings, catalogUrl: next }),
+        { reload: false },
+      );
+      await guarded(null, () => ctx.extensionInstaller.useCatalog(next));
+      await ctx.settings.saveUpdateCheckedAt(null);
+      // отзыв и устаревание берутся из нового каталога: набор применяется заново
+      await ctx.extensionApply.reload();
+      ctx.emit({ type: 'extensions-changed' });
+      void runStartupUpdateCheck(ctx);
+      return saved;
+    },
+    catalogSource: async () => ctx.extensionInstaller.catalogSource(),
     setSafeMode: (enabled) => {
       if (typeof enabled !== 'boolean') {
         throw new EngineError('INVALID_ARGUMENT', {

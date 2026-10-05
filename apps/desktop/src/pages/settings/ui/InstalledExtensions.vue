@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from 'vue';
+import { nextTick, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type {
   ExtensionDiagnosticDto,
@@ -21,6 +21,8 @@ import {
 import { useDiagnosticsCopy } from '../model/diagnostics-copy.ts';
 import { useExtensionData } from '../model/extension-data.ts';
 import { useInstallContext } from '../model/install.ts';
+import { isFromAnotherCatalog } from '../lib/catalog-source.ts';
+import { useCatalogSource } from '../model/catalog-source.ts';
 import DeprecatedChip from './DeprecatedChip.vue';
 import ExtensionContributions from './ExtensionContributions.vue';
 import ExtensionDeprecation from './ExtensionDeprecation.vue';
@@ -70,6 +72,10 @@ const {
   restartHost,
   updateTargets,
 } = useExtensions(useEngine());
+const catalogSource = useCatalogSource(useEngine());
+
+const { source } = catalogSource;
+onMounted(() => void catalogSource.load());
 
 const removeTarget = ref<ExtensionInfoDto | null>(null);
 const settingsTarget = ref<ExtensionInfoDto | null>(null);
@@ -422,7 +428,25 @@ watch(
                 {{ t(`settings.extensions.origin.${extension.origin}`) }}
               </v-chip>
               <v-chip
-                v-if="extension.installed !== null"
+                v-if="
+                  extension.installed !== null &&
+                  isFromAnotherCatalog(extension.installed, source?.url ?? null)
+                "
+                size="small"
+                label
+                variant="outlined"
+                prepend-icon="mdi-storefront-outline"
+                :aria-describedby="`other-catalog-${extension.id}`"
+                data-testid="from-other-catalog"
+              >
+                {{
+                  t('settings.extensions.installed.fromOtherCatalog', {
+                    version: extension.installed.version,
+                  })
+                }}
+              </v-chip>
+              <v-chip
+                v-else-if="extension.installed !== null"
                 size="small"
                 label
                 color="primary"
@@ -477,6 +501,16 @@ watch(
               </span>
             </div>
 
+            <p
+              v-if="
+                isFromAnotherCatalog(extension.installed, source?.url ?? null)
+              "
+              :id="`other-catalog-${extension.id}`"
+              class="text-body-small text-medium-emphasis mt-1"
+              data-testid="other-catalog-hint"
+            >
+              {{ t('settings.extensions.installed.otherCatalogHint') }}
+            </p>
             <p
               v-if="extension.author !== null"
               class="text-body-small text-medium-emphasis mt-1"

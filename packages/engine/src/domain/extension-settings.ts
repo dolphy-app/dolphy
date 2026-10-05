@@ -12,6 +12,7 @@ export const DEFAULT_EXTENSION_SETTINGS: Readonly<ExtensionSettingsDto> =
     checkUpdates: true,
     safeMode: false,
     notificationsOff: [],
+    catalogUrl: null,
   });
 
 export const isExtensionId = (value: unknown): value is string =>
@@ -37,10 +38,22 @@ export const normalizeExtensionSettings = (
   checkUpdates: settings.checkUpdates,
   safeMode: settings.safeMode,
   notificationsOff: normalizeIds(settings.notificationsOff),
+  catalogUrl: settings.catalogUrl,
 });
 
 /** Только явное `false` выключает проверку: всё остальное — умолчание. */
 const decodeCheckUpdates = (raw: unknown): boolean => raw !== false;
+
+/** Адрес каталога: нечитаемое значение (не строка, не `http(s)`-URL) — «не задан». */
+const decodeCatalogUrl = (raw: unknown): string | null => {
+  if (typeof raw !== 'string') return null;
+  try {
+    const { protocol } = new URL(raw);
+    return protocol === 'https:' || protocol === 'http:' ? raw : null;
+  } catch {
+    return null;
+  }
+};
 
 /** Только явное `true` включает безопасный режим: всё остальное — умолчание. */
 const decodeSafeMode = (raw: unknown): boolean => raw === true;
@@ -67,14 +80,23 @@ export const decodeExtensionSettings = (raw: unknown): ExtensionSettingsDto => {
   const notificationsOff = decodeOptionalIds(
     Reflect.get(raw, 'notificationsOff'),
   );
+  const catalogUrl = decodeCatalogUrl(Reflect.get(raw, 'catalogUrl'));
   if (disabled === null || trusted === null || notificationsOff === null) {
     return normalizeExtensionSettings({
       ...DEFAULT_EXTENSION_SETTINGS,
       checkUpdates,
       safeMode,
+      catalogUrl,
     });
   }
-  return { disabled, trusted, checkUpdates, safeMode, notificationsOff };
+  return {
+    disabled,
+    trusted,
+    checkUpdates,
+    safeMode,
+    notificationsOff,
+    catalogUrl,
+  };
 };
 
 /** Метка последней проверки обновлений (epoch ms): неверное значение — «не проверяли». */

@@ -17,6 +17,12 @@ const RU = {
   updated: 'Обновлено: 1 курс',
   removedNotice: 'Репозиторий удалён',
   emptyList: 'Репозиториев пока нет',
+  checkUpdates: 'Проверить обновления',
+  checkUpToDate: 'Все курсы актуальны',
+  checkFound: 'Найдено 1 обновление',
+  noticeOpen: 'К курсам',
+  bannerUpdate: /^Обновить курсы из /,
+  updateChip: 'Есть обновление',
 } as const;
 
 const TIMEOUT = 30_000;
@@ -141,6 +147,55 @@ export class GitClient {
 
   async emptyListShown(): Promise<boolean> {
     return (await this.page.getByText(RU.emptyList).count()) > 0;
+  }
+
+  /** Уведомление при запуске: «Доступно обновление курсов: …». */
+  get startupNotice(): Locator {
+    return this.page.getByTestId('course-updates-notice');
+  }
+
+  /** Нажимает «К курсам» в уведомлении при запуске. */
+  async openCoursesFromNotice() {
+    await this.startupNotice
+      .getByRole('button', { name: RU.noticeOpen, exact: true })
+      .click();
+    await this.page
+      .getByRole('button', { name: RU.open, exact: true })
+      .waitFor({ timeout: TIMEOUT });
+  }
+
+  /** Плашки обновлений на экране «Курсы». */
+  get updateBanners(): Locator {
+    return this.page.locator('[data-testid^="course-update-"]');
+  }
+
+  /** «Обновить» в плашке обновления. */
+  async updateFromBanner() {
+    await this.updateBanners
+      .first()
+      .getByRole('button', { name: RU.bannerUpdate })
+      .click();
+  }
+
+  /** Карточка курса с пометкой «Есть обновление». */
+  updatedCourseCard(name: string): Locator {
+    return this.courseCard(name).getByText(RU.updateChip, { exact: true });
+  }
+
+  /** «Проверить обновления» в шапке экрана «Курсы». */
+  async checkUpdates() {
+    await this.page
+      .getByRole('button', { name: RU.checkUpdates, exact: true })
+      .click();
+  }
+
+  /** Уведомление по итогу ручной проверки. */
+  async waitCheckNotice(kind: 'up-to-date' | 'found') {
+    await this.page
+      .locator('.v-snackbar__content', {
+        hasText: kind === 'found' ? RU.checkFound : RU.checkUpToDate,
+      })
+      .waitFor({ timeout: TIMEOUT });
   }
 
   async updateRepository(url: string) {

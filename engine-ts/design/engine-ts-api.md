@@ -226,7 +226,7 @@ export interface LibraryService {
 
 ### 3.1 Репозитории курсов (`repositories`)
 
-Курсы можно подгрузить из публичного git-репозитория (`http`/`https`, без учётных данных в URL). Состояние: `RepositoryDto { id, url, ref, commit, fetchedAt, status: 'ready' | 'updating' | 'error', courseIds, lastError? }`. Методы: `list()`, `add({url, ref?})`, `update(id)` → `{changed, repository}`, `remove(id)`, `cancel(id)`.
+Курсы можно подгрузить из публичного git-репозитория (`http`/`https`, без учётных данных в URL). Состояние: `RepositoryDto { id, url, ref, commit, fetchedAt, status: 'ready' | 'updating' | 'error', courseIds, lastError?, availableCommit?, checkedAt? }`. Методы: `list()`, `add({url, ref?})`, `update(id)` → `{changed, repository}`, `remove(id)`, `cancel(id)`, `checkUpdates()` → `RepositoryDto[]`.
 
 - На диске лежит **снимок** дерева коммита (`<libraryRoot>/repositories/<id>/`, без `.git`): только обычные файлы, без символических ссылок, путей с `..` и `.git`, коллизий регистра; лимиты — 20 000 файлов, 256 МиБ, 32 МиБ на файл, 60 с сети без байта. Сканер видит курсы штатно.
 - `id` — slug нормализованного URL; уникальность по URL (`REPOSITORY_EXISTS`); `ref` — имя ветки или тега, `null` — ветка по умолчанию. Смена ветки — `remove` + `add`.
@@ -235,6 +235,7 @@ export interface LibraryService {
 - Сетевая часть идёт вне очереди команд (остальные методы не ждут загрузку), подмена и `reload` — внутри очереди; события `repository-progress` уходят сразу. `cancel` прерывает операцию (вызов падает `GIT_FETCH_FAILED`, `details.reason: 'cancelled'`).
 - `remove` удаляет снимок и запись, журнал не трогает: события пропавших курсов дают `W_ORPHAN_EVENTS`, повторное добавление возвращает прогресс.
 - Реестр лежит в `engine.db` (таблица `repository`), устройства его не синхронизируют. Автообновления нет.
+- **Проверка обновлений** (спека `course-updates`). `checkUpdates()` для каждого репозитория спрашивает у сервера только коммит `ref` (`resolve`, объекты не скачиваются) и возвращает то же, что `list()`. Если коммит сервера отличается от загруженного, у репозитория есть `availableCommit`; `checkedAt` — время последней успешной сверки в этом запуске. Результат хранится в памяти движка, в `engine.db` не пишется и после перезапуска пересчитывается. Недоступный репозиторий (сеть, `not-found`, таймаут) пропускается, его прежний результат остаётся, вызов не падает, причина — в журнал `warn`; репозиторий с идущей операцией не проверяется. `update` (успешный, в том числе `changed: false`) и `remove` сбрасывают результат. После каждой проверки, где сверен хотя бы один репозиторий, публикуется `repository-updates-checked { available }` (`id` репозиториев с обновлением, в порядке `list()`). Сразу после открытия движок запускает ту же проверку в фоне; запуск её не ждёт, сбой только в журнал. Метод не встаёт в очередь команд и не ждёт цепочку операций репозиториев.
 
 ## 4. Практика
 
@@ -768,7 +769,8 @@ export type EngineEvent =
   | { type: 'sync-conflict'; conflictIds: string[]; unresolved: number }
   | { type: 'remediation-triggered'; exerciseId: UnitId; steps: number; at: EpochMs }
   | { type: 'settings-changed'; scope: 'scheduler' | 'preferences' | 'filters' | 'sessions' | 'blacklist' | 'reviewList' }
-  | { type: 'repository-progress'; id: string; phase: 'resolve' | 'fetch' | 'export' | 'validate' | 'reload'; loaded?: number; total?: number };
+  | { type: 'repository-progress'; id: string; phase: 'resolve' | 'fetch' | 'export' | 'validate' | 'reload'; loaded?: number; total?: number }
+  | { type: 'repository-updates-checked'; available: string[] };
 
 /** Конфигурация хоста при открытии движка (`createEngine`); через RPC не передаётся и renderer её не меняет. */
 export interface EngineConfig {

@@ -14,7 +14,7 @@ const props = defineProps<{
   /** Курс, который предлагаем учить (когда фокуса нет). */
   recommended: boolean;
 }>();
-const emit = defineEmits<{ study: []; openPlan: []; check: [] }>();
+const emit = defineEmits<{ study: []; openPlan: []; check: []; graph: [] }>();
 
 const { t } = useI18n();
 
@@ -157,6 +157,15 @@ const act = () => (props.focused ? emit('openPlan') : emit('study'));
       @click="emit('check')"
     >
       {{ t('courses.card.check') }}
+    </v-btn>
+    <v-btn
+      class="mt-1 w-100"
+      variant="text"
+      color="primary"
+      prepend-icon="mdi-graph-outline"
+      @click="emit('graph')"
+    >
+      {{ t('courses.card.graph') }}
     </v-btn>
   </v-card>
 </template>

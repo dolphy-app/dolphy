@@ -102,7 +102,6 @@ describe('реестр команд: команды приложения (R2, R5
       expect.arrayContaining([
         'Перейти: План дня',
         'Перейти: Курсы',
-        'Перейти: Граф знаний',
         'Перейти: Настройки',
         'Перейти: Настройки — Внешний вид',
         'Тема: Как в системе',
@@ -113,7 +112,7 @@ describe('реестр команд: команды приложения (R2, R5
         'Язык: Как в системе',
       ]),
     );
-    expect(titles).toHaveLength(9 + 3 + 3);
+    expect(titles).toHaveLength(8 + 3 + 3);
     expect(titles).not.toContain('Открыть палитру команд');
     // у команд приложения идентификатора расширения нет
     await expectCount(commands.extensionOptions, 0);
@@ -176,8 +175,8 @@ describe('реестр команд: сочетания клавиш (R6, R7, R1
     );
     await openShortcuts(client);
     const rows = client.page.getByTestId('shortcut');
-    // палитра + 9 переходов + 3 темы + 3 языка
-    await expectCount(rows, 16);
+    // палитра + 8 переходов + 3 темы + 3 языка
+    await expectCount(rows, 15);
     const textOf = async (command: string) =>
       (
         await client.page
@@ -196,9 +195,6 @@ describe('реестр команд: сочетания клавиш (R6, R7, R1
     );
     expect(await textOf('app:go:courses')).toContain(
       `Перейти: Курсы ${MOD}2 ${MOD_WORD} 2 ${notTyping}`,
-    );
-    expect(await textOf('app:go:graph')).toContain(
-      `Перейти: Граф знаний ${MOD}3 ${MOD_WORD} 3 ${notTyping}`,
     );
     expect(await textOf('app:go:settings')).toContain(
       `Перейти: Настройки ${MOD}, ${MOD_WORD} запятая ${notTyping}`,
@@ -242,12 +238,10 @@ describe('реестр команд: сочетания клавиш (R6, R7, R1
       .toBe('open-palette');
   });
 
-  it('Ctrl+1/2/3 и Ctrl+, переходят на страницы', async () => {
+  it('Ctrl+1/2 и Ctrl+, переходят на страницы', async () => {
     const { client, commands } = await launch();
     await client.page.keyboard.press(`${MOD_KEY}+2`);
     await expect.poll(() => commands.route()).toBe('#/courses');
-    await client.page.keyboard.press(`${MOD_KEY}+3`);
-    await expect.poll(() => commands.route()).toBe('#/graph');
     await client.page.keyboard.press(`${MOD_KEY}+1`);
     await expect.poll(() => commands.route()).toBe('#/');
     await client.page.keyboard.press(`${MOD_KEY}+,`);
@@ -262,12 +256,7 @@ describe('реестр команд: сочетания клавиш (R6, R7, R1
       name: 'Поиск по каталогу',
     });
     await search.focus();
-    for (const combo of [
-      `${MOD_KEY}+,`,
-      `${MOD_KEY}+1`,
-      `${MOD_KEY}+2`,
-      `${MOD_KEY}+3`,
-    ]) {
+    for (const combo of [`${MOD_KEY}+,`, `${MOD_KEY}+1`, `${MOD_KEY}+2`]) {
       await client.page.keyboard.press(combo);
     }
     // сочетания не увели со страницы «Расширения» (в адресе может быть открытая вкладка)

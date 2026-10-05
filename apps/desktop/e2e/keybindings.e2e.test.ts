@@ -20,7 +20,7 @@ const LABEL_2 = MAC ? '⌘2' : 'Ctrl+2';
 
 const GREET = `extension:${COMMANDS_ID}:acme.commands.greet`;
 const COURSES = 'app:go:courses';
-const GRAPH = 'app:go:graph';
+const SETTINGS = 'app:go:settings';
 
 let workspace: Workspace | null = null;
 let app: DolphyApp | null = null;
@@ -161,13 +161,13 @@ describe('сочетания клавиш: изменение в диалоге 
   it('цепочка из двух сочетаний: ожидание второй клавиши показано и озвучено, второе нажатие выполняет команду', async () => {
     const { page, commands } = await launch();
     await openShortcuts(page);
-    await editFirst(page, GRAPH);
+    await editFirst(page, SETTINGS);
     await page.keyboard.press(`${MOD_KEY}+G`);
     await page.keyboard.press(`${MOD_KEY}+H`);
     await expectText(capture(page), MAC ? '⌘G' : 'Ctrl+G');
     await expectText(capture(page), MAC ? '⌘H' : 'Ctrl+H');
     await save(page);
-    await expectText(row(page, GRAPH), MAC ? '⌘H' : 'Ctrl+H');
+    await expectText(row(page, SETTINGS), MAC ? '⌘H' : 'Ctrl+H');
 
     await page.keyboard.press(`${MOD_KEY}+G`);
     await page.getByTestId('chord-pending').waitFor({ timeout: 15_000 });
@@ -176,7 +176,7 @@ describe('сочетания клавиш: изменение в диалоге 
       MAC ? 'Command G' : 'Control G',
     );
     await page.keyboard.press(`${MOD_KEY}+H`);
-    await expect.poll(() => commands.route()).toBe('#/graph');
+    await expect.poll(() => commands.route()).toBe('#/settings/learning');
     await expectCount(page.getByTestId('chord-pending'), 0);
 
     // Escape сбрасывает ожидание: второе нажатие уже ничего не делает
@@ -195,8 +195,8 @@ describe('сочетания клавиш: пересечения и перен�
   it('диалог показывает пересечение до сохранения; «Переназначить» снимает привязку у другой команды в том же сохранении', async () => {
     const { page, commands } = await launch();
     await openShortcuts(page);
-    // «Граф знаний» хочет Mod+2, которое занято «Курсами»
-    await editFirst(page, GRAPH);
+    // «Настройки» хотят Mod+2, которое занято «Курсами»
+    await editFirst(page, SETTINGS);
     await page.keyboard.press(`${MOD_KEY}+2`);
     const conflicts = page.getByTestId('shortcut-conflicts');
     await conflicts.waitFor({ timeout: 15_000 });
@@ -206,27 +206,27 @@ describe('сочетания клавиш: пересечения и перен�
     await dialog(page).waitFor({ state: 'hidden', timeout: 15_000 });
 
     expect(await rowText(page, COURSES)).toContain('Нет сочетаний');
-    expect(await rowText(page, GRAPH)).toContain(LABEL_2);
+    expect(await rowText(page, SETTINGS)).toContain(LABEL_2);
     await expectCount(page.getByTestId('shortcut-conflict'), 0);
 
     await page.keyboard.press(`${MOD_KEY}+2`);
-    await expect.poll(() => commands.route()).toBe('#/graph');
+    await expect.poll(() => commands.route()).toBe('#/settings/learning');
   });
 
   it('сохранение без переназначения оставляет пересечение: таблица называет другую команду и победителя, «Только с пересечениями» оставляет обе строки', async () => {
     const { page, commands } = await launch();
     await openShortcuts(page);
-    await editFirst(page, GRAPH);
+    await editFirst(page, SETTINGS);
     await page.keyboard.press(`${MOD_KEY}+2`);
     await save(page);
 
     await expectText(
-      row(page, GRAPH).getByTestId('shortcut-conflict'),
+      row(page, SETTINGS).getByTestId('shortcut-conflict'),
       'побеждает эта команда',
     );
     await expectText(
       row(page, COURSES).getByTestId('shortcut-conflict'),
-      'побеждает «Перейти: Граф знаний»',
+      'побеждает «Перейти: Настройки»',
     );
     await page.getByTestId('shortcuts-filter-conflicts').click();
     await expectCount(page.getByTestId('shortcut'), 2);
@@ -234,7 +234,7 @@ describe('сочетания клавиш: пересечения и перен�
 
     // побеждает пользовательская привязка
     await page.keyboard.press(`${MOD_KEY}+2`);
-    await expect.poll(() => commands.route()).toBe('#/graph');
+    await expect.poll(() => commands.route()).toBe('#/settings/learning');
   });
 
   it('привязка расширения: действует, видна в таблице с источником «Расширение»; пересечение с командой приложения не мешает расширению, побеждает пользователь', async () => {
@@ -278,7 +278,7 @@ describe('сочетания клавиш: сброс и сохранение (R
     await openShortcuts(page);
     await rebind(page, COURSES, '9');
     await save(page);
-    await rebind(page, GRAPH, '8');
+    await rebind(page, SETTINGS, '8');
     await save(page);
     await expectText(page.getByTestId('shortcuts-filter-changed'), '2');
 
@@ -302,12 +302,12 @@ describe('сочетания клавиш: сброс и сохранение (R
     await page
       .getByTestId('shortcuts-reset-dialog')
       .waitFor({ state: 'hidden' });
-    expect(await rowText(page, GRAPH)).toContain('Ваше');
+    expect(await rowText(page, SETTINGS)).toContain('Ваше');
 
     await page.getByTestId('shortcuts-reset-all').click();
     await page.getByTestId('shortcuts-reset-confirm').click();
     await expectCount(page.getByTestId('shortcut-reset'), 0);
-    expect(await rowText(page, GRAPH)).not.toContain('Ваше');
+    expect(await rowText(page, SETTINGS)).not.toContain('Ваше');
     await expect(
       page.getByTestId('shortcuts-reset-all').isDisabled(),
     ).resolves.toBe(true);

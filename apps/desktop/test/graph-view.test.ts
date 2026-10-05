@@ -4,12 +4,12 @@ import type {
   GraphNodeDto,
   ProgressNodeDto,
 } from '@dolphy-app/engine-contract';
-import { buildEdges } from '@/pages/graph/lib/flow.ts';
+import { buildEdges } from '@/widgets/course-graph/lib/flow.ts';
 import {
   applyProgress,
   buildGraphView,
   legendStatuses,
-} from '@/pages/graph/lib/view.ts';
+} from '@/widgets/course-graph/lib/view.ts';
 
 const lesson = (id: string, parentId: string): GraphNodeDto => ({
   id,

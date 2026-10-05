@@ -59,7 +59,6 @@ const DESTINATIONS: readonly {
     route: ROUTE.courses,
     keybindings: destinationKeys('Mod+2'),
   },
-  { id: 'graph', route: ROUTE.graph, keybindings: destinationKeys('Mod+3') },
   {
     id: 'settings',
     route: ROUTE.settings,

@@ -49,7 +49,8 @@ const orderVersion = (version: CatalogVersion): CatalogVersion => ({
     : { tags: [...version.tags] }),
 });
 
-type OptionalKey = 'settings' | 'events' | 'commands' | 'panels';
+type OptionalKey =
+  'settings' | 'events' | 'commands' | 'panels' | 'importers' | 'exporters';
 
 const optionalIds = (
   key: OptionalKey,
@@ -86,6 +87,8 @@ const orderEntry = (entry: CatalogEntry): CatalogEntry => ({
     ...optionalIds('events', entry.contributes.events),
     ...optionalIds('commands', entry.contributes.commands),
     ...optionalIds('panels', entry.contributes.panels),
+    ...optionalIds('importers', entry.contributes.importers),
+    ...optionalIds('exporters', entry.contributes.exporters),
   },
   ...orderTitles(entry.titles),
   ...(entry.deprecated === undefined

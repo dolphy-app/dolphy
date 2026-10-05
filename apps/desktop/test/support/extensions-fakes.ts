@@ -17,6 +17,8 @@ export const NO_CONTRIBUTES: ExtensionContributesDto = {
   events: [],
   commands: [],
   panels: [],
+  importers: [],
+  exporters: [],
 };
 
 /** Движок без сбоев: хост работает, безопасный режим выключен, здоровья по расширениям нет. */

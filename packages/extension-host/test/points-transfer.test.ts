@@ -326,3 +326,71 @@ describe('обнаружение и реестр импортёров и экс�
     ).toBe(false);
   });
 });
+
+describe('запросы runImporter и runExporter', () => {
+  const accepts = (method: string, params: Record<string, unknown>) =>
+    extMessageSchema.safeParse({ id: '1', method, params }).success;
+  const importBase = {
+    extensionId: ID,
+    importerId: `${ID}.in`,
+    name: 'a.csv',
+    isolated: false,
+  };
+  const exportBase = {
+    extensionId: ID,
+    exporterId: `${ID}.out`,
+    isolated: false,
+  };
+
+  it('импорт принимает ровно одно из text и bytes (Uint8Array)', () => {
+    expect(accepts('runImporter', { ...importBase, text: 'x' })).toBe(true);
+    expect(
+      accepts('runImporter', { ...importBase, bytes: Uint8Array.of(1) }),
+    ).toBe(true);
+    expect(accepts('runImporter', importBase)).toBe(false);
+    expect(
+      accepts('runImporter', {
+        ...importBase,
+        text: 'x',
+        bytes: Uint8Array.of(1),
+      }),
+    ).toBe(false);
+    expect(accepts('runImporter', { ...importBase, bytes: [1, 2] })).toBe(
+      false,
+    );
+    expect(accepts('runImporter', { ...importBase, text: 5 })).toBe(false);
+    expect(accepts('runImporter', { ...importBase, text: 'x', extra: 1 })).toBe(
+      false,
+    );
+  });
+
+  it('экспорт принимает снимок курса с текстовыми файлами и запрос прогресса', () => {
+    const course = {
+      scope: 'course',
+      courseId: 'c',
+      title: 'T',
+      files: { 'a.md': 'x' },
+    };
+
+    expect(accepts('runExporter', { ...exportBase, input: course })).toBe(true);
+    expect(
+      accepts('runExporter', { ...exportBase, input: { scope: 'progress' } }),
+    ).toBe(true);
+    expect(
+      accepts('runExporter', {
+        ...exportBase,
+        input: { ...course, files: { 'a.md': 5 } },
+      }),
+    ).toBe(false);
+    expect(
+      accepts('runExporter', {
+        ...exportBase,
+        input: { scope: 'progress', files: {} },
+      }),
+    ).toBe(false);
+    expect(
+      accepts('runExporter', { ...exportBase, input: { scope: 'other' } }),
+    ).toBe(false);
+    expect(accepts('runExporter', exportBase)).toBe(false);
+  });
+});

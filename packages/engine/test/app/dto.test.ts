@@ -297,6 +297,7 @@ describe('toExerciseDto', () => {
             checkUpdates: true,
             safeMode: false,
             notificationsOff: [],
+            catalogUrl: null,
           },
         }),
       ),

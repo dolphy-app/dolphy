@@ -262,7 +262,8 @@ export interface SettingsStore {
   saveExtensions(extensions: ExtensionSettingsDto): Promise<void>;
   /** Время последней фоновой проверки обновлений расширений (epoch ms); `null` — не проверяли. */
   loadUpdateCheckedAt(): Promise<number | null>;
-  saveUpdateCheckedAt(at: number): Promise<void>;
+  /** `null` — сбросить метку («не проверяли»). */
+  saveUpdateCheckedAt(at: number | null): Promise<void>;
 }
 
 export * from './exercise-types.ts';

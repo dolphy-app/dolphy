@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, provide, ref } from 'vue';
+import { computed, nextTick, onMounted, provide, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import type {
@@ -10,7 +10,9 @@ import { useContributions, useEngine } from '@/shared/api/engine';
 import { ROUTE } from '@/shared/config/routes.ts';
 import { useExtensionText } from '@/shared/lib/extension-text.ts';
 import { targetFromEntry, targetFromUpdate } from '../lib/catalog.ts';
+import { isFromAnotherCatalog } from '../lib/catalog-source.ts';
 import { formatBytes } from '../lib/format.ts';
+import { useCatalogSource } from '../model/catalog-source.ts';
 import { useExtensionDetails } from '../model/extension-details.ts';
 import { INSTALL_KEY, useInstall } from '../model/install.ts';
 import { useReloadRequired } from '../model/reload-required.ts';
@@ -48,6 +50,15 @@ const {
   load,
   retryDocs,
 } = useExtensionDetails(engine, id, requestedVersion);
+
+const catalogSource = useCatalogSource(engine);
+onMounted(() => void catalogSource.load());
+const fromOtherCatalog = computed(() =>
+  isFromAnotherCatalog(
+    details.value?.info?.installed ?? null,
+    catalogSource.source.value?.url ?? null,
+  ),
+);
 
 const reloadRequired = useReloadRequired(useContributions());
 const reloadWindow = () => {
@@ -235,6 +246,16 @@ const publishedDate = (value: string) => d(new Date(value), 'shortDate');
             {{ t(`settings.extensions.origin.${details.info.origin}`) }}
           </v-chip>
           <v-chip
+            v-if="fromOtherCatalog"
+            size="small"
+            label
+            variant="outlined"
+            prepend-icon="mdi-storefront-outline"
+            data-testid="from-other-catalog"
+          >
+            {{ t('settings.extensions.installed.fromOtherCatalogShort') }}
+          </v-chip>
+          <v-chip
             v-if="details.info?.origin === 'bundled'"
             size="small"
             label
@@ -377,6 +398,37 @@ const publishedDate = (value: string) => d(new Date(value), 'shortDate');
             >
               {{ t('settings.extensions.action.install') }}
             </v-btn>
+          </template>
+
+          <template v-else-if="details.action?.kind === 'elsewhere'">
+            <v-btn
+              variant="flat"
+              color="primary"
+              prepend-icon="mdi-download-outline"
+              disabled
+              :aria-describedby="`elsewhere-${details.id}`"
+              :aria-label="
+                t('settings.extensions.action.elsewhereLabel', { name })
+              "
+              :data-testid="`install-${details.id}`"
+            >
+              {{ t('settings.extensions.action.install') }}
+            </v-btn>
+            <p
+              :id="`elsewhere-${details.id}`"
+              class="d-flex align-center ga-1 text-body-small"
+              data-testid="elsewhere"
+            >
+              <v-icon
+                icon="mdi-information-outline"
+                size="small"
+                aria-hidden="true"
+              />
+              <span
+                >{{ t('settings.extensions.action.elsewhere') }}.
+                {{ t('settings.extensions.action.elsewhereHint') }}</span
+              >
+            </p>
           </template>
 
           <template v-else-if="details.action?.kind === 'installed'">

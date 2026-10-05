@@ -143,6 +143,8 @@ export const hasActiveFilters = (filters: CatalogFilters): boolean =>
 
 export type EntryAction =
   | { kind: 'install'; version: CatalogVersionDto }
+  /** С этим id уже есть расширение не из этого каталога: кнопка неактивна. */
+  | { kind: 'elsewhere' }
   | { kind: 'installed'; version: string }
   | { kind: 'update'; installed: string; version: CatalogVersionDto }
   | {
@@ -155,6 +157,7 @@ export type EntryAction =
 /** Состояние карточки → действие: что показать на кнопке и какую версию ставить. */
 export const entryAction = (entry: CatalogEntryDto): EntryAction => {
   const { status, latest, incompatible, installedVersion } = entry;
+  if (entry.elsewhere) return { kind: 'elsewhere' };
   if (status === 'installed') {
     return { kind: 'installed', version: installedVersion ?? '' };
   }

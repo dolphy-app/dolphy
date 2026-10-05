@@ -30,6 +30,7 @@ export const createFakeExtensionPolicy = (
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
     },
   );
   const updates: ExtensionSettingsDto[] = [];

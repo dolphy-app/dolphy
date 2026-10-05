@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 24 as const;
+export const CONTRACT_VERSION = 25 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 /** Потолок файла импорта, суммарного размера присланного дерева и снимка курса для экспорта, байт (R3, R4, R7 спеки `extension-api-breadth-2`). */
@@ -1693,7 +1693,35 @@ export interface ExtensionSettingsDto {
    * пусто (уведомления включены).
    */
   notificationsOff: string[];
+  /**
+   * Свой адрес каталога расширений (канонический `URL.href`); `null` — адрес
+   * по умолчанию (адрес, равный умолчанию, тоже хранится как `null`).
+   * Нечитаемое сохранённое значение читается как `null`.
+   */
+  catalogUrl: string | null;
 }
+
+/** Откуда взят действующий адрес каталога: умолчание, настройка или `DOLPHY_EXTENSION_CATALOG_URL` (только несобранное приложение). */
+export type CatalogSourceOrigin = 'default' | 'setting' | 'env';
+
+/** Действующий адрес каталога расширений (`extensions.catalogSource`). */
+export interface CatalogSourceDto {
+  /** Адрес, из которого читается каталог: идентичность каталога в `ExtensionInstallDto.catalogUrl`. */
+  url: string;
+  /** Адрес по умолчанию (официальный каталог). */
+  default: string;
+  origin: CatalogSourceOrigin;
+}
+
+/** Причины отказа `extensions.setCatalogUrl` (`details.reason` ошибки `INVALID_ARGUMENT`). */
+export type CatalogUrlRejection =
+  | 'not-url'
+  | 'scheme'
+  | 'credentials'
+  | 'fragment'
+  | 'not-json'
+  | 'too-long'
+  | 'env';
 
 /** Состояние процесса хоста расширений: `gave-up` — после повторных сбоев перезапуск прекращён до `restartHost()`. */
 export type ExtensionHostStatusDto = 'running' | 'restarting' | 'gave-up';
@@ -1818,6 +1846,21 @@ export interface ExtensionsService {
    */
   docImage(id: string, version: string, path: string): Promise<string>;
   setCheckUpdates(enabled: boolean): Promise<ExtensionSettingsDto>;
+  /**
+   * Меняет адрес каталога расширений; `null` — вернуть умолчание. Адрес: `https:`
+   * (или `http:` на loopback: `localhost`, `127.0.0.0/8`, `[::1]`), до 2048 знаков,
+   * без логина и фрагмента, путь оканчивается на `.json`; сохраняется как `URL.href`,
+   * равный умолчанию — как `null`. Действует сразу: установщик переключается,
+   * набор расширений применяется заново (отзыв и устаревание берутся только из
+   * нового каталога), метка проверки обновлений сбрасывается и проверка идёт заново,
+   * окно получает `extensions-changed`. Установленное из прежнего каталога
+   * остаётся (`.dolphy-install.json` не меняется). `INVALID_ARGUMENT` с
+   * `details.reason` (`CatalogUrlRejection`); `env` — адрес задан
+   * `DOLPHY_EXTENSION_CATALOG_URL`, настройка не меняется.
+   */
+  setCatalogUrl(url: string | null): Promise<ExtensionSettingsDto>;
+  /** Действующий адрес каталога, умолчание и источник значения. */
+  catalogSource(): Promise<CatalogSourceDto>;
   /**
    * Включает и выключает безопасный режим (настройка `safeMode`); действует
    * сразу, без перезапуска. Не булево значение — `INVALID_ARGUMENT`.

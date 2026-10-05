@@ -413,6 +413,8 @@ export const schemas = {
     z.string().min(1).max(200),
   ]),
   'extensions.setCheckUpdates': z.tuple([bool]),
+  'extensions.setCatalogUrl': z.tuple([z.string().max(100_000).nullable()]),
+  'extensions.catalogSource': z.tuple([]),
   'extensions.setSafeMode': z.tuple([bool]),
   'extensions.diagnostics': z.tuple([]),
   'extensions.restartHost': z.tuple([]),

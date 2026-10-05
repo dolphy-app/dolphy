@@ -361,7 +361,7 @@ describe('dispatcher validation', () => {
     }
   });
 
-  it('extensions catalog/install/uninstall/updates/setCheckUpdates validate their arguments', async () => {
+  it('extensions catalog/install/uninstall/updates/setCheckUpdates/setCatalogUrl validate their arguments', async () => {
     const { dispatcher } = await connect();
     const [hostSide, rawSide] = createInProcessPair();
     dispatcher.attach(hostSide, 'raw-install');
@@ -382,6 +382,9 @@ describe('dispatcher validation', () => {
       ['extensions.docs', ['acme.ext', { version: '1.2.3' }]],
       ['extensions.docImage', ['acme.ext', '1.2.3', 'docs/a.png']],
       ['extensions.setCheckUpdates', [false]],
+      ['extensions.setCatalogUrl', [null]],
+      ['extensions.setCatalogUrl', ['https://example.test/index.json']],
+      ['extensions.catalogSource', []],
       [
         'extensions.setSettingValue',
         ['acme.ext', 'acme.ext.n', { a: [1, null] }],
@@ -416,6 +419,11 @@ describe('dispatcher validation', () => {
       ['extensions.docImage', ['acme.ext', '1.2.3', 'x'.repeat(201)]],
       ['extensions.setCheckUpdates', ['no']],
       ['extensions.setCheckUpdates', []],
+      ['extensions.setCatalogUrl', []],
+      ['extensions.setCatalogUrl', [42]],
+      ['extensions.setCatalogUrl', [undefined]],
+      ['extensions.setCatalogUrl', ['https://example.test/i.json', 'x']],
+      ['extensions.catalogSource', ['x']],
     ];
     for (const [method, args] of accepted) {
       expect(await raw.call(method, args), method).toMatchObject({ ok: true });

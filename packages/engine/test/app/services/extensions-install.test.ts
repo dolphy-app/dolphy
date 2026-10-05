@@ -4,6 +4,7 @@ import type {
   ExtensionUpdateDto,
 } from '@dolphy-app/engine-contract';
 import {
+  FAKE_CATALOG_URL,
   createFakeExtensionInstaller,
   createFakeExtensionPolicy,
   createFakeExtensionRegistry,
@@ -274,6 +275,7 @@ describe('extensions.setCheckUpdates', () => {
       checkUpdates: false,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
     });
     await engine.extensions.setCheckUpdates(false);
     expect((await settings.loadExtensions()).checkUpdates).toBe(false);
@@ -298,6 +300,7 @@ describe('extensions.setCheckUpdates', () => {
       checkUpdates: false,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
     });
   });
 });
@@ -374,6 +377,7 @@ describe('startup update check', () => {
         checkUpdates: false,
         safeMode: false,
         notificationsOff: [],
+        catalogUrl: null,
       },
     });
     const { ctx, installer } = await setup({ updates: [UPDATE] }, settings);
@@ -430,7 +434,7 @@ describe('extensions.list: deprecation overlay', () => {
     alternatives: [{ id: 'acme.new', name: 'New' }],
   };
   const fromCatalog = {
-    catalogUrl: 'https://c.test/',
+    catalogUrl: FAKE_CATALOG_URL,
     version: '1.0.0',
     installedAt: '2026-10-01T00:00:00.000Z',
   };
@@ -461,6 +465,18 @@ describe('extensions.list: deprecation overlay', () => {
     // not installed from the catalog: the catalog's deprecation is not about it
     expect(byId['acme.manual']?.deprecated).toBeNull();
     expect(byId['dolphy.sql']?.deprecated).toBeNull();
+  });
+
+  it('ignores the deprecation of the current catalog for an extension installed from another one', async () => {
+    const { engine } = await open(
+      [
+        info({
+          installed: { ...fromCatalog, catalogUrl: 'https://old.test/i.json' },
+        }),
+      ],
+      { deprecated: { 'acme.user': DEPRECATION } },
+    );
+    expect((await engine.extensions.list())[0]?.deprecated).toBeNull();
   });
 
   it('asks the installer about the installed version', async () => {
@@ -577,5 +593,152 @@ describe('extensions.docs / docImage', () => {
     await expect(engine.extensions.getSettings()).resolves.toBeDefined();
     release?.();
     await expect(pending).resolves.toEqual(DOCS);
+  });
+});
+
+const openSwitching = async () => {
+  const installer = createFakeExtensionInstaller();
+  const t = await createTestEngine({ extensionInstaller: installer });
+  return {
+    ...t,
+    installer,
+    published: () => t.events.map(({ type }) => type as string),
+  };
+};
+
+describe('extensions.setCatalogUrl / catalogSource', () => {
+  const OTHER = 'http://127.0.0.1:4010/index.json';
+
+  const reasonOf = async (run: Promise<unknown>): Promise<unknown> =>
+    run.then(
+      () => undefined,
+      (error: { details?: { reason?: string } }) => error.details?.reason,
+    );
+
+  it('reports the default source until a custom address is applied', async () => {
+    const { engine } = await open([]);
+    expect(await engine.extensions.catalogSource()).toEqual({
+      url: FAKE_CATALOG_URL,
+      default: FAKE_CATALOG_URL,
+      origin: 'default',
+    });
+  });
+
+  it.each([
+    ['not a URL', 'catalog', 'not-url'],
+    ['a non-https scheme', 'ftp://example.test/index.json', 'scheme'],
+    ['http on a non-loopback host', 'http://example.test/index.json', 'scheme'],
+    ['credentials', 'https://user:pw@example.test/index.json', 'credentials'],
+    ['a fragment', 'https://example.test/index.json#x', 'fragment'],
+    ['an empty fragment', 'https://example.test/index.json#', 'fragment'],
+    ['a non-.json path', 'https://example.test/catalog/', 'not-json'],
+    [
+      'more than 2048 characters',
+      `https://example.test/${'a'.repeat(2048)}.json`,
+      'too-long',
+    ],
+  ])('rejects %s and changes nothing', async (_name, url, reason) => {
+    const { engine, installer, settings } = await open([]);
+    expect(await reasonOf(engine.extensions.setCatalogUrl(url))).toBe(reason);
+    expect((await settings.loadExtensions()).catalogUrl).toBeNull();
+    expect(installer.calls.map(({ method }) => method)).not.toContain(
+      'useCatalog',
+    );
+  });
+
+  it('accepts https and loopback http, canonicalises, and applies at once', async () => {
+    const { engine, installer, settings, published } = await openSwitching();
+    const saved = await engine.extensions.setCatalogUrl(
+      'HTTPS://Example.test/a/../index.json',
+    );
+    expect(saved.catalogUrl).toBe('https://example.test/index.json');
+    expect(await engine.extensions.catalogSource()).toEqual({
+      url: 'https://example.test/index.json',
+      default: FAKE_CATALOG_URL,
+      origin: 'setting',
+    });
+    expect((await settings.loadExtensions()).catalogUrl).toBe(
+      'https://example.test/index.json',
+    );
+    expect(installer.calls).toContainEqual({
+      method: 'useCatalog',
+      args: ['https://example.test/index.json'],
+    });
+    for (const url of [
+      OTHER,
+      'http://localhost:1/i.json',
+      'http://[::1]/i.json',
+    ]) {
+      await expect(engine.extensions.setCatalogUrl(url)).resolves.toMatchObject(
+        { catalogUrl: new URL(url).href },
+      );
+    }
+    expect(published()).toContain('extensions-changed');
+  });
+
+  it('stores the default address as "not set" and resets with null', async () => {
+    const { engine, settings } = await openSwitching();
+    await engine.extensions.setCatalogUrl(OTHER);
+    expect((await settings.loadExtensions()).catalogUrl).toBe(OTHER);
+    expect(
+      (await engine.extensions.setCatalogUrl(FAKE_CATALOG_URL)).catalogUrl,
+    ).toBeNull();
+    expect((await engine.extensions.catalogSource()).origin).toBe('default');
+    await engine.extensions.setCatalogUrl(OTHER);
+    expect((await engine.extensions.setCatalogUrl(null)).catalogUrl).toBeNull();
+    expect(await engine.extensions.catalogSource()).toMatchObject({
+      url: FAKE_CATALOG_URL,
+      origin: 'default',
+    });
+  });
+
+  it('resets the update-check stamp and checks again against the new catalog', async () => {
+    const { engine, installer, settings, clock } = await openSwitching();
+    await expect
+      .poll(async () => await settings.loadUpdateCheckedAt())
+      .toBe(clock.now());
+    const before = installer.calls.filter(
+      ({ method }) => method === 'checkForUpdates',
+    ).length;
+    await engine.extensions.setCatalogUrl(OTHER);
+    await expect
+      .poll(
+        () =>
+          installer.calls.filter(({ method }) => method === 'checkForUpdates')
+            .length,
+      )
+      .toBe(before + 1);
+  });
+
+  it('keeps the setting when applying to the same address again (no switch, no events)', async () => {
+    const { engine, installer, published } = await openSwitching();
+    await engine.extensions.setCatalogUrl(OTHER);
+    const switches = () =>
+      installer.calls.filter(({ method }) => method === 'useCatalog').length;
+    const events = published().length;
+    await engine.extensions.setCatalogUrl(OTHER);
+    expect(switches()).toBe(1);
+    expect(published()).toHaveLength(events);
+  });
+
+  it('refuses to change an address set by the environment', async () => {
+    const installer = createFakeExtensionInstaller({
+      catalogUrl: OTHER,
+      origin: 'env',
+    });
+    const { engine, settings } = await createTestEngine({
+      extensionInstaller: installer,
+    });
+    expect(
+      await reasonOf(
+        engine.extensions.setCatalogUrl('https://example.test/index.json'),
+      ),
+    ).toBe('env');
+    expect(await reasonOf(engine.extensions.setCatalogUrl(null))).toBe('env');
+    expect((await settings.loadExtensions()).catalogUrl).toBeNull();
+    expect(await engine.extensions.catalogSource()).toMatchObject({
+      url: OTHER,
+      origin: 'env',
+    });
   });
 });

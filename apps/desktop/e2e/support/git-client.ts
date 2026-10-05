@@ -21,6 +21,8 @@ const RU = {
   updated: 'Обновлено: 1 курс',
   updatedTwo: 'Обновлено: 2 курса',
   removedNotice: 'Репозиторий удалён',
+  removedWithProgressNotice: 'Репозиторий и прогресс удалены',
+  removeProgress: 'Удалить и прогресс курсов',
   emptyList: 'Репозиториев пока нет',
   checkUpdates: 'Проверить обновления',
   checkUpToDate: 'Все курсы актуальны',
@@ -287,15 +289,25 @@ export class GitClient {
       .waitFor({ timeout: TIMEOUT });
   }
 
-  /** «Удалить» → подтверждение в диалоге. */
-  async removeRepository(url: string) {
+  /**
+   * «Удалить» → подтверждение в диалоге. Флажок «Удалить и прогресс курсов» при
+   * открытии снят; `withProgress` отмечает его до подтверждения.
+   */
+  async removeRepository(url: string, { withProgress = false } = {}) {
     await this.page
       .getByRole('button', { name: `${RU.remove} ${url}`, exact: true })
       .click();
+    const box = this.dialog.getByRole('checkbox', { name: RU.removeProgress });
+    if (await box.isChecked()) {
+      throw new Error('флажок «Удалить и прогресс курсов» должен быть снят');
+    }
+    if (withProgress) await box.check();
     await this.dialog
       .getByRole('button', { name: RU.confirmRemove, exact: true })
       .click();
-    await this.page.getByText(RU.removedNotice).waitFor({ timeout: TIMEOUT });
+    await this.page
+      .getByText(withProgress ? RU.removedWithProgressNotice : RU.removedNotice)
+      .waitFor({ timeout: TIMEOUT });
   }
 
   /** Названия уроков курса в окне графа курса. */

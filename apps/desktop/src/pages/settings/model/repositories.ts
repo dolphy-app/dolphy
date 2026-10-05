@@ -19,7 +19,8 @@ import type {
 export type RepositoryNotice =
   | { kind: 'upToDate' }
   | { kind: 'updated'; courses: number }
-  | { kind: 'removed' };
+  | { kind: 'removed' }
+  | { kind: 'removedWithProgress' };
 
 /** Список репозиториев библиотеки и действия «Обновить» / «Удалить». */
 export const useRepositories = (engine: LearningEngine) => {
@@ -87,10 +88,13 @@ export const useRepositories = (engine: LearningEngine) => {
         : { kind: 'upToDate' };
     });
 
-  const remove = (id: string) =>
+  /** `removeProgress` — сбросить и прогресс курсов; по умолчанию он сохраняется. */
+  const remove = (id: string, removeProgress = false) =>
     run(id, async () => {
-      await engine.repositories.remove(id);
-      notice.value = { kind: 'removed' };
+      await engine.repositories.remove(id, { removeProgress });
+      notice.value = {
+        kind: removeProgress ? 'removedWithProgress' : 'removed',
+      };
     });
 
   const cancel = async (id: string) => {

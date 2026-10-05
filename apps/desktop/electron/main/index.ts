@@ -14,11 +14,12 @@ import {
   utilityProcess,
 } from 'electron';
 import { appendFileSync, existsSync, watch } from 'node:fs';
-import { realpath, stat } from 'node:fs/promises';
+import { readFile, realpath, stat, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import type { ExtensionHostStatusDto } from '@dolphy-app/engine-contract';
 import { createExtSupervisor, isTypedMessage } from './ext-supervisor.ts';
+import { createFakeFileDialogs, fakeFileDialogsOf } from './fake-file-dialogs.ts';
 import { createHostLink } from './host-link.ts';
 import { createLogFile, createProcessOutput } from './log-file.ts';
 import { createMainLogger } from './logger.ts';
@@ -122,6 +123,8 @@ const hostLink = createHostLink({ MessageChannelMain });
 const fakeSafeStorage = fakeSafeStorageOf(process.env, app.isPackaged);
 // системные уведомления (`Notification` тоже только в main); e2e пишет их в файл `DOLPHY_NOTIFICATION_LOG` вместо вызова ОС
 const notificationLogPath = notificationLogOf(process.env, app.isPackaged);
+// диалоги файла импорта и экспорта; e2e подменяет их `DOLPHY_FAKE_FILE_DIALOGS` (только в несобранном приложении)
+const fakeFileDialogsDir = fakeFileDialogsOf(process.env, app.isPackaged);
 const showMainWindow = () => {
   const [window] = BrowserWindow.getAllWindows();
   if (window === undefined) return;
@@ -241,7 +244,15 @@ const shells = [
   createEngineShell({ ipcMain, supervisor }),
   createPlatformShell({
     ipcMain,
-    dialog,
+    dialog:
+      fakeFileDialogsDir === undefined
+        ? dialog
+        : createFakeFileDialogs(fakeFileDialogsDir),
+    files: {
+      size: async (filePath) => (await stat(filePath)).size,
+      read: (filePath) => readFile(filePath),
+      write: (filePath, bytes) => writeFile(filePath, bytes),
+    },
     fromWebContents: (sender) =>
       BrowserWindow.fromWebContents(sender as Electron.WebContents),
     clipboard,

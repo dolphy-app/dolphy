@@ -21,6 +21,16 @@ const bridge: DolphyBridge = {
         typeof options?.title === 'string' ? options.title : undefined;
       return ipcRenderer.invoke(CHANNELS.pickDirectory, { title });
     },
+    pickFile: (options) =>
+      ipcRenderer.invoke(CHANNELS.pickFile, {
+        accept: options.accept,
+        title: options.title,
+      }),
+    saveFile: (options) =>
+      ipcRenderer.invoke(CHANNELS.saveFile, {
+        suggestedName: options.suggestedName,
+        bytes: options.bytes,
+      }),
     appInfo: () => ipcRenderer.invoke(CHANNELS.appInfo),
     copyText: (text) => ipcRenderer.invoke(CHANNELS.copyText, text),
   },

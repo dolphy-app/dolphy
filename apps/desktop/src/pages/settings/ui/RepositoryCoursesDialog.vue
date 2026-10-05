@@ -12,7 +12,9 @@ const SHOWN_MESSAGES = 5;
 
 const props = defineProps<{ repository: RepositoryDto | null }>();
 const open = defineModel<boolean>({ required: true });
-const emit = defineEmits<{ apply: [id: string, courseIds: string[]] }>();
+const emit = defineEmits<{
+  apply: [id: string, courseIds: string[], previewId: string];
+}>();
 
 const { t } = useI18n();
 const {
@@ -51,7 +53,9 @@ watch(open, (isOpen) => {
 const apply = () => {
   const repository = props.repository;
   if (repository === null || !canApply.value) return;
-  emit('apply', repository.id, [...selected.value]);
+  const previewId = preview.value?.previewId;
+  if (previewId === undefined) return;
+  emit('apply', repository.id, [...selected.value], previewId);
   open.value = false;
 };
 </script>

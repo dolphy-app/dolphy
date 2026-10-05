@@ -200,6 +200,8 @@ export interface SnapshotInstaller {
   rollback(root: SnapshotRoot, id: string, opId: string): Promise<void>;
   /** Удаляет каталоги операции (`.trash`, `.staging`, `git-tmp`). */
   finish(opId: string): Promise<void>;
+  /** Удаляет только временный `gitdir` операции (`git-tmp/<opId>`); `.staging` остаётся (снимок предпросмотра ждёт установки). */
+  dropTmp(opId: string): Promise<void>;
   /** Удаляет каталог `<root>/<id>`. */
   remove(root: SnapshotRoot, id: string): Promise<void>;
   /**

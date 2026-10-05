@@ -90,8 +90,13 @@ describe('useRepositories', () => {
     const model = mount(fake.engine);
     await flush();
     await model.update('a', ['a-0', 'a-1']);
+    await model.update('a', ['a-0'], 'p1');
     await model.update('a');
-    expect(calls).toEqual([['a', { courseIds: ['a-0', 'a-1'] }], ['a']]);
+    expect(calls).toEqual([
+      ['a', { courseIds: ['a-0', 'a-1'] }],
+      ['a', { courseIds: ['a-0'], previewId: 'p1' }],
+      ['a'],
+    ]);
     expect(model.notice.value).toEqual({ kind: 'updated', courses: 2 });
   });
 

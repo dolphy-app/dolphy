@@ -90,8 +90,8 @@ const chooseOpen = computed({
     if (!value) toChoose.value = null;
   },
 });
-const applyCourses = (id: string, courseIds: string[]) => {
-  void update(id, courseIds);
+const applyCourses = (id: string, courseIds: string[], previewId: string) => {
+  void update(id, courseIds, previewId);
 };
 </script>
 

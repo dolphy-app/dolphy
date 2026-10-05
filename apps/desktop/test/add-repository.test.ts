@@ -48,6 +48,7 @@ const listing = (courses: RepositoryCourseDto[]): RepositoryPreviewDto => ({
   ref: null,
   commit: 'a'.repeat(40),
   courses,
+  previewId: 'p1',
 });
 
 const rpcError = (code: string, details?: Record<string, unknown>) =>
@@ -127,7 +128,9 @@ describe('useAddRepository', () => {
     model.url.value = ' https://x.test/acme ';
     expect(await model.submit()).toMatchObject({ status: 'added' });
     expect(fake.previewCalls).toEqual([{ url: 'https://x.test/acme' }]);
-    expect(fake.addCalls).toEqual([{ url: 'https://x.test/acme' }]);
+    expect(fake.addCalls).toEqual([
+      { url: 'https://x.test/acme', previewId: 'p1' },
+    ]);
     expect(model.step.value).toBe('source');
     model.branch.value = ' v1 ';
     await model.submit();
@@ -135,7 +138,11 @@ describe('useAddRepository', () => {
       url: 'https://x.test/acme',
       ref: 'v1',
     });
-    expect(fake.addCalls[1]).toEqual({ url: 'https://x.test/acme', ref: 'v1' });
+    expect(fake.addCalls[1]).toEqual({
+      url: 'https://x.test/acme',
+      ref: 'v1',
+      previewId: 'p1',
+    });
   });
 
   it('несколько курсов: шаг выбора со всеми доступными курсами отмеченными', async () => {
@@ -196,7 +203,12 @@ describe('useAddRepository', () => {
     const outcome = await model.confirm();
     expect(outcome).toMatchObject({ status: 'added' });
     expect(fake.addCalls).toEqual([
-      { url: 'https://x.test/acme', ref: 'v2', courseIds: ['a', 'c'] },
+      {
+        url: 'https://x.test/acme',
+        ref: 'v2',
+        courseIds: ['a', 'c'],
+        previewId: 'p1',
+      },
     ]);
   });
 

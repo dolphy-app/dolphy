@@ -176,6 +176,10 @@ export const createNodeSnapshotInstaller = ({
     install: (root, id, opId) => swaps[root].install(id, opId),
     rollback: (root, id, opId) => swaps[root].rollback(id, opId),
     finish,
+    dropTmp: async (opId) => {
+      assertSafe('operation id', opId);
+      await removeTree(join(gitTmpRoot, opId));
+    },
     remove: async (root, id) => removeTree(swaps[root].targetDir(id)),
     recover,
   };

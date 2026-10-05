@@ -39,6 +39,9 @@ const preview: Preview = {
   decorators: [
     (story, context) => {
       const theme = String(context.globals['theme']);
+      // набор Vuetify читает тему из переменных `<html>`, как в рамке ответа
+      document.documentElement.className = `v-theme--${theme}`;
+      document.documentElement.style.colorScheme = theme;
       const frame = document.createElement('div');
       frame.className = `v-theme--${theme}`;
       // поверхность карточки упражнения; цвет, шрифт и `color-scheme` повторяют

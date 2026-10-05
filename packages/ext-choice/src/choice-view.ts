@@ -1,53 +1,71 @@
-/** Вид ввода ответа `dolphy.choice`: радиокнопки или чекбоксы в теневом корне элемента. */
-import type { AnswerViewApi } from '@dolphy-app/extension-sdk';
-import { normalizeValue, selectedIndices } from './choice-model.ts';
+/** Вид ввода ответа `dolphy.choice`: группа радиокнопок или чекбоксов Vuetify в теневом корне элемента. */
+import type { AnswerViewApi, MountAnswerView } from '@dolphy-app/extension-sdk';
+import {
+  mountCheckboxGroup,
+  mountRadioGroup,
+} from '@dolphy-app/extension-ui/vuetify/choice';
+import type { ChoiceItem } from '@dolphy-app/extension-ui/vuetify/choice';
+import { normalizeValue } from './choice-model.ts';
 import type { ChoiceView } from './grade.ts';
-
-const STYLE = `
-  :host { display: block; }
-  fieldset {
-    border: 0; margin: 0; padding: 0; min-width: 0;
-    display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px;
-  }
-  label {
-    display: flex; gap: 8px; align-items: center; padding: 6px 8px;
-    border-radius: 4px; color: rgb(var(--v-theme-on-surface)); cursor: pointer;
-  }
-  label:hover:not(:has(input:disabled)),
-  label:has(input:focus-visible) {
-    background: rgba(var(--v-theme-on-surface), 0.06);
-  }
-  label:has(input:disabled) { cursor: default; }
-  input { accent-color: rgb(var(--v-theme-primary)); flex: none; }
-  span { min-width: 0; overflow-wrap: anywhere; }
-  input:disabled + span { opacity: 0.6; }
-`;
 
 const isChoiceView = (view: unknown): view is ChoiceView =>
   typeof view === 'object' &&
   view !== null &&
   Array.isArray((view as ChoiceView).options);
 
-const createRow = (text: string, multiple: boolean) => {
-  const row = document.createElement('label');
-  const input = document.createElement('input');
-  input.type = multiple ? 'checkbox' : 'radio';
-  input.name = 'choice';
-  const caption = document.createElement('span');
-  caption.textContent = text;
-  row.append(input, caption);
-  return { row, input };
+/** Смонтированная группа: выбор — список индексов, независимо от радио или чекбоксов. */
+interface Group {
+  select(indices: readonly number[]): void;
+  setDisabled(disabled: boolean): void;
+  destroy(): void;
+}
+
+const mountGroup = (
+  api: AnswerViewApi,
+  container: Element,
+  view: ChoiceView,
+  initial: { selected: readonly number[]; disabled: boolean },
+): Group => {
+  const items: ChoiceItem<number>[] = view.options.map((label, value) => ({
+    value,
+    label,
+  }));
+  const common = { items, label: api.label, disabled: initial.disabled };
+  // выбранное остаётся на экране, даже если приложение не вернёт `value`
+  if (view.multiple) {
+    const group = mountCheckboxGroup<number>(container, {
+      ...common,
+      value: [...initial.selected],
+      onChange: (next) => {
+        const value = [...next].sort((a, b) => a - b);
+        group.update({ value });
+        api.setAnswer(value, value.length > 0);
+      },
+    });
+    return {
+      select: (indices) => group.update({ value: [...indices] }),
+      setDisabled: (disabled) => group.update({ disabled }),
+      destroy: group.destroy,
+    };
+  }
+  const group = mountRadioGroup<number>(container, {
+    ...common,
+    value: initial.selected[0] ?? null,
+    onChange: (value) => {
+      group.update({ value });
+      api.setAnswer([value], true);
+    },
+  });
+  return {
+    select: (indices) => group.update({ value: indices[0] ?? null }),
+    setDisabled: (disabled) => group.update({ disabled }),
+    destroy: group.destroy,
+  };
 };
 
-export const mountChoice = (
-  api: AnswerViewApi,
-  initial: { view: unknown; value: unknown; disabled: boolean },
-) => {
-  const style = document.createElement('style');
-  style.textContent = STYLE;
-  const fieldset = document.createElement('fieldset');
-  if (api.label !== null) fieldset.setAttribute('aria-label', api.label);
-  api.root.append(style, fieldset);
+export const mountChoice: MountAnswerView = (api, initial) => {
+  const container = document.createElement('div');
+  api.root.append(container);
 
   const state = {
     view: undefined as unknown,
@@ -55,32 +73,17 @@ export const mountChoice = (
     // приложение может не возвращать ответ, и он не должен стираться
     value: undefined as unknown,
     disabled: false,
-    inputs: [] as HTMLInputElement[],
+    group: null as Group | null,
   };
 
-  const applyValue = (value: unknown) => {
-    const selected = new Set(normalizeValue(value, state.inputs.length));
-    state.inputs.forEach((input, index) => {
-      input.checked = selected.has(index);
+  const remount = (view: unknown) => {
+    state.group?.destroy();
+    state.group = null;
+    if (!isChoiceView(view)) return;
+    state.group = mountGroup(api, container, view, {
+      selected: normalizeValue(state.value, view.options.length),
+      disabled: state.disabled,
     });
-  };
-
-  const applyDisabled = (disabled: boolean) => {
-    for (const input of state.inputs) input.disabled = disabled;
-  };
-
-  const emit = () => {
-    const value = selectedIndices(state.inputs.map((input) => input.checked));
-    api.setAnswer(value, value.length > 0);
-  };
-
-  const renderOptions = (view: unknown) => {
-    const rows = isChoiceView(view)
-      ? view.options.map((text) => createRow(text, view.multiple))
-      : [];
-    for (const { input } of rows) input.addEventListener('change', emit);
-    state.inputs = rows.map(({ input }) => input);
-    fieldset.replaceChildren(...rows.map(({ row }) => row));
   };
 
   const update = (props: {
@@ -88,21 +91,24 @@ export const mountChoice = (
     value: unknown;
     disabled: boolean;
   }) => {
-    const isViewChanged = props.view !== state.view;
-    if (isViewChanged) {
+    state.disabled = props.disabled;
+    if (props.view !== state.view) {
       state.view = props.view;
-      renderOptions(props.view);
-    }
-    if (isViewChanged || props.value !== state.value) {
       state.value = props.value;
-      applyValue(props.value);
+      remount(props.view);
+      return;
     }
-    if (isViewChanged || props.disabled !== state.disabled) {
-      state.disabled = props.disabled;
-      applyDisabled(props.disabled);
+    if (props.value !== state.value) {
+      state.value = props.value;
+      if (isChoiceView(state.view)) {
+        state.group?.select(
+          normalizeValue(props.value, state.view.options.length),
+        );
+      }
     }
+    state.group?.setDisabled(props.disabled);
   };
 
   update(initial);
-  return { update };
+  return { update, destroy: () => state.group?.destroy() };
 };

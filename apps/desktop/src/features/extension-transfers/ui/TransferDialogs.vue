@@ -118,8 +118,10 @@ const canImport = computed(() => {
   if (current === null || current.preview.importId === null) return false;
   return current.failure === null || !isFinalFailure(current.failure);
 });
-const locationOf = ({ path, line }: Diagnostic) =>
-  path === undefined ? '' : line === undefined ? path : `${path}:${line}`;
+const locationOf = ({ path, line }: Diagnostic) => {
+  if (path === undefined) return '';
+  return line === undefined ? path : `${path}:${line}`;
+};
 
 const previewOpen = computed({
   get: () => preview.value !== null,

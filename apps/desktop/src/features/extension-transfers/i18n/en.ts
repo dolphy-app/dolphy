@@ -17,7 +17,8 @@ export const en: typeof ru = {
     file: {
       tooLarge: 'The file “{name}” is too large: at most {size} MiB.',
       unsupported: 'The file “{name}” does not fit: expected one of {accept}.',
-      notUtf8: 'The file “{name}” is not UTF-8 text: the extension was not called.',
+      notUtf8:
+        'The file “{name}” is not UTF-8 text: the extension was not called.',
       pickFailed: 'Could not open the file.',
     },
     import: {
@@ -34,7 +35,8 @@ export const en: typeof ru = {
         'The course has errors and cannot be imported. Nothing was left on disk.',
       noCourses: 'The file contains no courses. Nothing was left on disk.',
       diagnostics: 'Course problems',
-      moreHidden: 'Showing the first {n}; the rest are in the totals: {errors} errors, {warnings} warnings.',
+      moreHidden:
+        'Showing the first {n}; the rest are in the totals: {errors} errors, {warnings} warnings.',
       errors: 'Errors: {n}',
       warnings: 'Warnings: {n}',
       severity: { error: 'Error', warning: 'Warning' },
@@ -55,12 +57,15 @@ export const en: typeof ru = {
     },
     failure: {
       changed: 'The set of extensions has changed. Try again.',
-      timeout: 'The extension did not respond within 30 seconds. Nothing was written.',
+      timeout:
+        'The extension did not respond within 30 seconds. Nothing was written.',
       hostDown: 'Extensions are unavailable right now. Try again.',
-      invalidResult: 'The extension returned an invalid result. Nothing was written.',
+      invalidResult:
+        'The extension returned an invalid result. Nothing was written.',
       failed: 'The action failed. Nothing was written.',
       failedWith: 'The action failed: {message}',
-      tooLarge: 'The data is larger than 20 MiB: the extension was not called. Nothing was written.',
+      tooLarge:
+        'The data is larger than 20 MiB: the extension was not called. Nothing was written.',
       reloadRejected:
         'The library did not accept the course (for example, a duplicate course id). The previous library is intact and the import was rolled back.',
       importExpired: 'The import has expired. Choose the file again.',

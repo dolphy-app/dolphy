@@ -207,7 +207,10 @@ describe('platform shell', () => {
       ['пустой accept', { accept: [] }],
       ['без точки', { accept: ['csv'] }],
       ['заглавные', { accept: ['.CSV'] }],
-      ['9 расширений', { accept: Array.from({ length: 9 }, (_, i) => `.e${i}`) }],
+      [
+        '9 расширений',
+        { accept: Array.from({ length: 9 }, (_, i) => `.e${i}`) },
+      ],
       ['не строка', { accept: [1] }],
     ])('параметры отвергаются: %s', async (_name, options) => {
       const { invokePickFile, showOpenDialog } = setup({

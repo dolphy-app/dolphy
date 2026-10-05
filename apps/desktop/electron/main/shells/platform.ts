@@ -82,7 +82,9 @@ const parsePickOptions = (
       (item) => typeof item === 'string' && ACCEPT_PATTERN.test(item),
     )
   ) {
-    throw new TypeError('pickFile expects 1-8 lowercase extensions like ".csv"');
+    throw new TypeError(
+      'pickFile expects 1-8 lowercase extensions like ".csv"',
+    );
   }
   return {
     accept: accept as string[],
@@ -103,7 +105,10 @@ const parseSaveOptions = (
   if (bytes.byteLength > MAX_EXTENSION_TRANSFER_BYTES) {
     throw new TypeError('saveFile expects at most 20 MiB');
   }
-  const name = baseNameOf(suggestedName).replace(/[\u0000-\u001f]/g, '');
+  // управляющие знаки (код < 32) в имени файла отбрасываются
+  const name = [...baseNameOf(suggestedName)]
+    .filter((char) => char.charCodeAt(0) >= 32)
+    .join('');
   if (name === '' || name === '.' || name === '..') {
     throw new TypeError('saveFile expects a file name');
   }

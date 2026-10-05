@@ -23,7 +23,10 @@ export const transferCommandKey = (
 /** Все импортёры, затем экспортёры включённых расширений: по id расширения, затем в порядке вклада. */
 export const transferEntries = (
   contributions: Pick<ContributionsDto, 'importers' | 'exporters'>,
-): { importers: ImporterContributionDto[]; exporters: ExporterContributionDto[] } => {
+): {
+  importers: ImporterContributionDto[];
+  exporters: ExporterContributionDto[];
+} => {
   const sorted = <T extends { extensionId: string }>(items: T[]): T[] =>
     items
       .map((item, index) => ({ item, index }))

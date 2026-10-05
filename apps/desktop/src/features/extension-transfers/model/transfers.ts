@@ -9,14 +9,16 @@ import type {
   ImportPreviewDto,
 } from '@dolphy-app/engine-contract';
 import { MAX_EXTENSION_TRANSFER_BYTES } from '@dolphy-app/engine-contract';
+import type { Platform } from '../../../../shared/bridge.ts';
 import { decodeUtf8 } from '../lib/decode.ts';
-import { describeTransferFailure, isFinalFailure } from '../lib/failure.ts';
+import { describeTransferFailure } from '../lib/failure.ts';
 import type { TransferFailure } from '../lib/failure.ts';
 
-type Platform = Window['dolphy']['platform'];
-
 /** Перевод строки окна: ключ и данные; текст расширения подставляется как данные. */
-export type Translate = (key: string, params?: Record<string, unknown>) => string;
+export type Translate = (
+  key: string,
+  params?: Record<string, unknown>,
+) => string;
 
 /** Что сейчас происходит; `idle` — ничего, диалогов нет. */
 export type TransferPhase =
@@ -71,8 +73,9 @@ export interface ExtensionTransfers {
   cancelExport(): void;
 }
 
-export const EXTENSION_TRANSFERS_KEY: InjectionKey<ExtensionTransfers> =
-  Symbol('extension-transfers');
+export const EXTENSION_TRANSFERS_KEY: InjectionKey<ExtensionTransfers> = Symbol(
+  'extension-transfers',
+);
 
 const MIB = 1024 * 1024;
 const IDLE: TransferPhase = { kind: 'idle' };
@@ -221,7 +224,8 @@ export const createExtensionTransfers = (
     phase.value = IDLE;
     const { importId } = current.preview;
     // сбой отмены не мешает закрыть окно: ожидающий импорт истечёт сам
-    if (importId !== null) await engine.discardImport(importId).catch(() => false);
+    if (importId !== null)
+      await engine.discardImport(importId).catch(() => false);
   };
 
   const save = async (file: ExportFileDto, title: string) => {

@@ -135,7 +135,8 @@ const bootstrap = async () => {
       engine: engine.extensions,
       platform: window.dolphy.platform,
       contributions: () => contributions.contributions.value,
-      notify: (text) => extensionCommands.notices.push({ kind: 'notify', text }),
+      notify: (text) =>
+        extensionCommands.notices.push({ kind: 'notify', text }),
       t: translate,
     });
     syncTransferCommands(

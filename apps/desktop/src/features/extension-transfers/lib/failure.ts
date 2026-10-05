@@ -91,7 +91,9 @@ export const describeTransferFailure = (
   return {
     kind,
     message,
-    diagnostics: Array.isArray(diagnostics) ? (diagnostics as Diagnostic[]) : [],
+    diagnostics: Array.isArray(diagnostics)
+      ? (diagnostics as Diagnostic[])
+      : [],
     summary: isSummary(summary) ? summary : null,
   };
 };

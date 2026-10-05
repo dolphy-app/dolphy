@@ -8,6 +8,7 @@ import type {
   ImportPreviewDto,
 } from '@dolphy-app/engine-contract';
 import { EngineCallError } from '@dolphy-app/engine-rpc/client';
+import type { Platform } from '../shared/bridge.ts';
 import { createExtensionTransfers } from '@/features/extension-transfers/model/transfers.ts';
 import { syncTransferCommands } from '@/features/extension-transfers/model/registry-adapter.ts';
 import { transferEntries } from '@/features/extension-transfers/lib/entries.ts';
@@ -15,7 +16,7 @@ import { describeTransferFailure } from '@/features/extension-transfers/lib/fail
 import { NO_CONTRIBUTIONS } from '@/shared/api/engine/contributions.ts';
 import { createCommandRegistry } from '@/shared/lib/command-registry.ts';
 
-type Pick = Awaited<ReturnType<Window['dolphy']['platform']['pickFile']>>;
+type Pick = Awaited<ReturnType<Platform['pickFile']>>;
 
 const importer = (
   id: string,
@@ -62,7 +63,10 @@ const transferError = (reason: string, details: object = {}) =>
 const setup = (
   initial: Partial<ContributionsDto> = {
     importers: [importer('csv')],
-    exporters: [exporter('course-csv'), exporter('stats', { scope: 'progress' })],
+    exporters: [
+      exporter('course-csv'),
+      exporter('stats', { scope: 'progress' }),
+    ],
   },
 ) => {
   const contributions = shallowRef<ContributionsDto>({
@@ -79,9 +83,10 @@ const setup = (
       courseIds: ['words_kb'],
     })),
     discardImport: vi.fn(async () => true),
-    runExporter: vi.fn(
-      async (): Promise<ExportFileDto> => ({ filename: 'out.csv', text: 'a,b' }),
-    ),
+    runExporter: vi.fn(async (): Promise<ExportFileDto> => ({
+      filename: 'out.csv',
+      text: 'a,b',
+    })),
   };
   const platform = {
     pickFile: vi.fn(async () => picked.value),
@@ -120,15 +125,18 @@ describe('импорт', () => {
   it.each([
     ['too-large', 'transfers.file.tooLarge'],
     ['unsupported', 'transfers.file.unsupported'],
-  ] as const)('файл «%s» — сообщение без вызова расширения', async (status, key) => {
-    const { transfers, engine, notices, picked } = setup();
-    picked.value = { status, name: 'x.csv' };
-    await transfers.startImport('acme.csv', 'csv');
-    expect(engine.runImporter).not.toHaveBeenCalled();
-    expect(notices).toHaveLength(1);
-    expect(notices[0]).toContain(key);
-    expect(transfers.phase.value.kind).toBe('idle');
-  });
+  ] as const)(
+    'файл «%s» — сообщение без вызова расширения',
+    async (status, key) => {
+      const { transfers, engine, notices, picked } = setup();
+      picked.value = { status, name: 'x.csv' };
+      await transfers.startImport('acme.csv', 'csv');
+      expect(engine.runImporter).not.toHaveBeenCalled();
+      expect(notices).toHaveLength(1);
+      expect(notices[0]).toContain(key);
+      expect(transfers.phase.value.kind).toBe('idle');
+    },
+  );
 
   it('текстовый импортёр не получает файл не в UTF-8', async () => {
     const { transfers, engine, notices, picked } = setup();
@@ -144,7 +152,11 @@ describe('импорт', () => {
 
   it('текстовый импортёр получает строку, байтовый — байты', async () => {
     const text = setup();
-    text.picked.value = { status: 'picked', name: 'a.csv', bytes: bytes('привет') };
+    text.picked.value = {
+      status: 'picked',
+      name: 'a.csv',
+      bytes: bytes('привет'),
+    };
     await text.transfers.startImport('acme.csv', 'csv');
     expect(text.engine.runImporter).toHaveBeenCalledWith('acme.csv', 'csv', {
       name: 'a.csv',
@@ -220,7 +232,10 @@ describe('импорт', () => {
     expect(phase.kind).toBe('preview');
     if (phase.kind !== 'preview') return;
     expect(phase.committing).toBe(false);
-    expect(phase.failure).toMatchObject({ kind: 'reloadRejected', diagnostics });
+    expect(phase.failure).toMatchObject({
+      kind: 'reloadRejected',
+      diagnostics,
+    });
   });
 
   it('сбой расширения при разборе файла — сообщение по причине, окно свободно', async () => {
@@ -380,9 +395,26 @@ describe('команды палитры', () => {
       exporters: [exporter('out', { title: 'В CSV' })],
     });
     const commands = registry.list.value;
-    expect(commands.map(({ key, title, category, caption }) => [key, title, category, caption])).toEqual([
-      ['extension:acme.csv:import:csv', 'transfers.command.import|Из CSV', 'transfers.category|', 'acme.csv'],
-      ['extension:acme.csv:export:out', 'transfers.command.export|В CSV', 'transfers.category|', 'acme.csv'],
+    expect(
+      commands.map(({ key, title, category, caption }) => [
+        key,
+        title,
+        category,
+        caption,
+      ]),
+    ).toEqual([
+      [
+        'extension:acme.csv:import:csv',
+        'transfers.command.import|Из CSV',
+        'transfers.category|',
+        'acme.csv',
+      ],
+      [
+        'extension:acme.csv:export:out',
+        'transfers.command.export|В CSV',
+        'transfers.category|',
+        'acme.csv',
+      ],
     ]);
     await commands[0]?.run();
     await commands[1]?.run();

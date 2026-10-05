@@ -59,7 +59,11 @@ export const createFakeFileDialogs = (
       if (await exists(path.join(dir, 'save-cancel'))) {
         return { canceled: true };
       }
-      const target = path.join(dir, 'saved', path.basename(options.defaultPath));
+      const target = path.join(
+        dir,
+        'saved',
+        path.basename(options.defaultPath),
+      );
       await mkdir(path.dirname(target), { recursive: true });
       return { canceled: false, filePath: target };
     },

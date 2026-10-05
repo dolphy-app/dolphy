@@ -19,7 +19,10 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import type { ExtensionHostStatusDto } from '@dolphy-app/engine-contract';
 import { createExtSupervisor, isTypedMessage } from './ext-supervisor.ts';
-import { createFakeFileDialogs, fakeFileDialogsOf } from './fake-file-dialogs.ts';
+import {
+  createFakeFileDialogs,
+  fakeFileDialogsOf,
+} from './fake-file-dialogs.ts';
 import { createHostLink } from './host-link.ts';
 import { createLogFile, createProcessOutput } from './log-file.ts';
 import { createMainLogger } from './logger.ts';

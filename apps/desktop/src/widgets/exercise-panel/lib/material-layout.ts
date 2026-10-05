@@ -1,15 +1,16 @@
 import { MATERIAL_WIDTH_RANGE } from '@dolphy-app/engine-contract';
 
-/** Панель теории не занимает больше этой доли рабочей области. */
-export const MAX_SHARE = 0.6;
 export const KEY_STEP_PX = 16;
 export const KEY_STEP_LARGE_PX = 64;
 
-/** Наибольшая ширина панели при рабочей области `available` px. */
+/**
+ * Наибольшая ширина панели при рабочей области `available` px: вся область,
+ * чтобы теорию можно было раскрыть для чтения (упражнение при этом скрыто).
+ */
 export const maxWidth = (available: number): number =>
   Math.max(
     MATERIAL_WIDTH_RANGE.min,
-    Math.min(MATERIAL_WIDTH_RANGE.max, Math.floor(available * MAX_SHARE)),
+    Math.min(MATERIAL_WIDTH_RANGE.max, Math.floor(available)),
   );
 
 /** Ширина в допустимых границах, целая: движок хранит только целые px. */

@@ -148,7 +148,7 @@ describe('dispatcher validation', () => {
     const raw = createRawClient(rawSide);
     for (const patch of [
       { materialWidth: 280 },
-      { materialWidth: 800 },
+      { materialWidth: 8192 },
       { materialWidth: null },
       { materialCollapsed: true },
       { materialCollapsed: false },
@@ -159,7 +159,7 @@ describe('dispatcher validation', () => {
     }
     for (const patch of [
       { materialWidth: 279 },
-      { materialWidth: 801 },
+      { materialWidth: 8193 },
       { materialWidth: 400.5 },
       { materialWidth: '400' },
       { materialCollapsed: 'yes' },

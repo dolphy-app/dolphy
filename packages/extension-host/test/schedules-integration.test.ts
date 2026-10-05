@@ -126,6 +126,7 @@ describe('расписания в процессе хоста: планиров�
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
     time.state.now = local(10, 0, 1);
@@ -138,6 +139,7 @@ describe('расписания в процессе хоста: планиров�
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: [],
     });
     time.state.now = local(11, 0, 1);

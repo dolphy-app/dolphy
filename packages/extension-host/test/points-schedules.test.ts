@@ -128,6 +128,7 @@ describe('обнаружение и реестр расписаний', () => {
     checkUpdates: true,
     safeMode: false,
     notificationsOff: [],
+    catalogUrl: null,
     schedulesOff: [],
     ...patch,
   });

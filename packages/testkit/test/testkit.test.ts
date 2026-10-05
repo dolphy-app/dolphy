@@ -378,6 +378,7 @@ describe('createFakeExtensionPolicy', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
       schedulesOff: ['acme.x', 'dolphy.sql'],
     });
     expect(policy.areSchedulesOn('acme.x')).toBe(false);

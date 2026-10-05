@@ -362,6 +362,7 @@ export const describeSettingsStoreContract = (
         safeMode: false,
         notificationsOff: [],
         catalogUrl: 'https://example.test/catalog/index.json',
+        schedulesOff: [],
       });
       expect((await store.loadExtensions()).catalogUrl).toBe(
         'https://example.test/catalog/index.json',
@@ -373,6 +374,7 @@ export const describeSettingsStoreContract = (
         safeMode: false,
         notificationsOff: [],
         catalogUrl: null,
+        schedulesOff: [],
       });
       expect((await store.loadExtensions()).catalogUrl).toBeNull();
     });

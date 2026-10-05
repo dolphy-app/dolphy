@@ -198,6 +198,7 @@ const settings = (patch: Record<string, unknown> = {}) => ({
   checkUpdates: true,
   safeMode: false,
   notificationsOff: [],
+  catalogUrl: null,
   schedulesOff: [],
   ...patch,
 });

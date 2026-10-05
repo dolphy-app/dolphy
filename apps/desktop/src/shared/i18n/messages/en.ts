@@ -43,4 +43,10 @@ export const en: typeof ru = {
     review: 'Review',
     remediation: 'Foundations refresh',
   },
+  reasonHint: {
+    new: 'An exercise you have not done yet.',
+    review: 'Material you have already studied: reviewing keeps it in memory.',
+    remediation:
+      'An exercise on foundations you got wrong: they are needed to move on.',
+  },
 };

@@ -18,5 +18,7 @@ export const en: typeof ru = {
       more: 'and {n} more',
     },
     remembered: 'Remembered: {n}%',
+    rememberedHint:
+      'Estimated chance that you can recall this material right now. Below {threshold}% it is fading, so better not to postpone the review.',
   },
 };

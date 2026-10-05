@@ -1,8 +1,11 @@
 import { describe, expectTypeOf, it } from 'vitest';
 import type {
+  BytesImportInput,
+  CourseExportInput,
   ExerciseTypeHandler,
   ExtensionContext,
   GradeResult,
+  ImportInput,
   JsonValue,
   LearningEventHandler,
   LearningEventName,
@@ -10,9 +13,11 @@ import type {
   PanelContext,
   PanelContextInfo,
   PanelModule,
+  ProgressExportInput,
   SettingContribution,
   SettingValue,
   WidgetModule,
+  TextImportInput,
 } from '../src/index.ts';
 
 describe('extension-api types', () => {
@@ -78,6 +83,42 @@ describe('extension-api types', () => {
     commands.register('a.bad', () => () => 1);
   });
 
+  it('an importer takes the text or bytes form, an exporter the course or progress form', () => {
+    const importers: ExtensionContext['importers'] = {
+      register: () => ({ dispose: () => undefined }),
+    };
+    importers.register('a.text', ({ name, text }: TextImportInput) => ({
+      files: { [name]: text },
+    }));
+    importers.register('a.bytes', ({ bytes }: BytesImportInput) => ({
+      files: { size: String(bytes.length) },
+    }));
+    importers.register('a.any', async (input) => {
+      expectTypeOf(input).toEqualTypeOf<ImportInput>();
+      return { files: {} };
+    });
+    // @ts-expect-error the result needs `files`
+    importers.register('a.bad', () => ({ file: {} }));
+    // @ts-expect-error a file content is text
+    importers.register('a.number', () => ({ files: { a: 1 } }));
+
+    const exporters: ExtensionContext['exporters'] = {
+      register: () => ({ dispose: () => undefined }),
+    };
+    exporters.register('a.course', ({ title, files }: CourseExportInput) => ({
+      filename: `${title}.json`,
+      text: JSON.stringify(files),
+    }));
+    exporters.register('a.progress', (input: ProgressExportInput) => {
+      expectTypeOf(input.scope).toEqualTypeOf<'progress'>();
+      return { filename: 'p.bin', bytes: new Uint8Array() };
+    });
+    // @ts-expect-error `filename` is required
+    exporters.register('a.nameless', () => ({ text: 'x' }));
+    // @ts-expect-error a file is text or bytes, not both missing
+    exporters.register('a.empty', () => ({ filename: 'a' }));
+  });
+
   it('a panel module receives call, onProps, signal, panelId and props', () => {
     const module: PanelModule<{ id: string }> = {
       mount: (container, ctx) => {
@@ -119,6 +160,8 @@ describe('extension-api types', () => {
       events: 'attempt.closed';
       panels: 'a.panel';
       widgets: 'a.widget';
+      importers: 'a.in';
+      exporters: 'a.out';
       markdownLanguages: 'a';
       settings: { 'a.goal': number; 'a.mode': 'fast' | 'slow' };
     }

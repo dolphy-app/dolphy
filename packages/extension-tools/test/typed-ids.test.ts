@@ -116,4 +116,52 @@ describe('ids generated from extension.json, compiled by tsc', () => {
       ),
     ]);
   });
+
+  it('importers and exporters: the declared ids compile, a missing or foreign one does not', async () => {
+    const root = await copyProject('typed-transfers');
+    await buildExtension({ root });
+    const ok = await tsc(root);
+    expect(ok.code, ok.output).toBe(0);
+
+    const lines = [
+      "import { defineExtension } from '@dolphy-app/extension-sdk';",
+      '',
+      'export const missingExporter = defineExtension({',
+      "  importers: { 'acme.transfer.csv': () => ({ files: {} }), 'acme.transfer.zip': () => ({ files: {} }) },",
+      "  exporters: { 'acme.transfer.course': () => ({ filename: 'a', text: '' }) },",
+      '});',
+      '',
+      'export const foreignImporter = defineExtension({',
+      '  importers: {',
+      "    'acme.transfer.csv': () => ({ files: {} }),",
+      "    'acme.transfer.zip': () => ({ files: {} }),",
+      "    'acme.transfer.other': () => ({ files: {} }),",
+      '  },',
+      "  exporters: { 'acme.transfer.course': () => ({ filename: 'a', text: '' }), 'acme.transfer.progress': () => ({ filename: 'a', text: '' }) },",
+      '  activate(ctx) {',
+      "    ctx.exporters.register('acme.transfer.csv', () => ({ filename: 'a', text: '' }));",
+      '  },',
+      '});',
+      '',
+    ];
+    await writeFile(path.join(root, 'src/wrong.ts'), lines.join('\n'));
+    const at = (fragment: string): number =>
+      lines.findIndex((line) => line.includes(fragment)) + 1;
+
+    const { code, output } = await tsc(root);
+    expect(code).toBe(1);
+    expect(diagnosticsOf(output, 'src/wrong\\.ts'), output).toEqual([
+      expect.stringMatching(
+        new RegExp(
+          `^${at("exporters: { 'acme.transfer.course': () => ({ filename: 'a', text: '' }) },")} TS2741 Property '"acme\\.transfer\\.progress"' is missing`,
+        ),
+      ),
+      expect.stringMatching(
+        new RegExp(
+          `^${at("'acme.transfer.other'")} TS2353 .*'acme\\.transfer\\.other'`,
+        ),
+      ),
+      `${at("register('acme.transfer.csv'")} TS2345 Argument of type '"acme.transfer.csv"' is not assignable to parameter of type '"acme.transfer.course" | "acme.transfer.progress"'.`,
+    ]);
+  });
 });

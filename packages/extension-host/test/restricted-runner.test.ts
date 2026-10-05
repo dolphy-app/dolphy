@@ -15,9 +15,16 @@ import {
   IPC_MAX_PER_SECOND,
   OUTPUT_LIMIT_BYTES,
   OUTPUT_WINDOW_MS,
+  TRANSFER_DEADLINE_MS,
   createRestrictedRunner,
 } from '../src/restricted-runner.ts';
 import type { RestrictedChild, SpawnSpec } from '../src/restricted-runner.ts';
+import {
+  chunksOf,
+  createBodyReceiver,
+  splitResult,
+} from '../src/transfer-wire.ts';
+import type { StreamedResult } from '../src/restricted-protocol.ts';
 import { createLogger, nullEngine } from './helpers.ts';
 
 interface FakeChild extends RestrictedChild {
@@ -172,6 +179,7 @@ const setup = (
       stat: () => Promise<null>;
     };
     graceMs?: number;
+    transferDeadlineMs?: number;
     engine?: EngineLink;
   } = {},
 ) => {
@@ -188,6 +196,9 @@ const setup = (
     engine: options.engine ?? nullEngine,
     logger,
     ...(options.graceMs !== undefined && { graceMs: options.graceMs }),
+    ...(options.transferDeadlineMs !== undefined && {
+      transferDeadlineMs: options.transferDeadlineMs,
+    }),
     spawn: (spec) => {
       specs.push(spec);
       const behavior =
@@ -932,5 +943,370 @@ describe('запросы ограниченного процесса к данн
     runner.notify(notice);
 
     expect(replies()).toContainEqual(notice);
+  });
+});
+
+describe('импорт и экспорт через ограниченный процесс', () => {
+  const importRequest = (
+    id: string,
+    body: { text: string } | { bytes: Uint8Array },
+  ): ExtRequest => ({
+    id,
+    method: 'runImporter',
+    params: {
+      extensionId: 'acme.fake',
+      importerId: 'acme.fake.in',
+      name: 'a.csv',
+      isolated: true,
+      ...body,
+    },
+  });
+
+  const exporterRequest = (
+    id: string,
+    input: Extract<ExtRequest, { method: 'runExporter' }>['params']['input'],
+  ): ExtRequest => ({
+    id,
+    method: 'runExporter',
+    params: {
+      extensionId: 'acme.fake',
+      exporterId: 'acme.fake.out',
+      input,
+      isolated: true,
+    },
+  });
+
+  /** Ответ процесса потоком: голова и части. */
+  const streamBack = (
+    child: FakeChild,
+    id: string,
+    head: StreamedResult,
+    body: Uint8Array,
+    size = body.length,
+  ) => {
+    child.emit({ t: 'result-stream', id, size, result: head });
+    let seq = 0;
+    for (const data of chunksOf(body)) {
+      child.emit({ t: 'chunk', id, seq, data });
+      seq += 1;
+    }
+  };
+
+  const filesBack = (
+    child: FakeChild,
+    id: string,
+    files: Record<string, string>,
+  ) => {
+    const { head, body } = splitResult('runImporter', { files });
+    streamBack(child, id, head, body);
+  };
+
+  const sentStream = async (children: FakeChild[]) => {
+    await vi.waitFor(() =>
+      expect(children[0]?.sent.some(({ t }) => t === 'stream')).toBe(true),
+    );
+    return children[0]?.sent ?? [];
+  };
+
+  it('файл уходит процессу головой и частями без тела в rpc; ответ потоком становится результатом', async () => {
+    const { runner, children } = setup(() => ({}));
+    const text = 'я'.repeat(300_000);
+    const pending = runner.handle(importRequest('1', { text }));
+
+    const sent = await sentStream(children);
+
+    expect(sent.some(({ t }) => t === 'rpc')).toBe(false);
+    const head = sent.find(({ t }) => t === 'stream');
+    expect(head).toMatchObject({
+      t: 'stream',
+      size: 600_000,
+      request: {
+        id: '1',
+        method: 'runImporter',
+        params: { importerId: 'acme.fake.in', name: 'a.csv', input: 'text' },
+      },
+    });
+    expect(JSON.stringify(head)).not.toContain('яяя');
+    const receiver = createBodyReceiver(600_000);
+    for (const message of sent) {
+      if (message.t === 'chunk') {
+        expect(message.data.length).toBeLessThanOrEqual(256 * 1024);
+        expect(receiver.accept(message.seq, message.data)).toBe(true);
+      }
+    }
+    expect(new TextDecoder().decode(receiver.body())).toBe(text);
+
+    filesBack(children[0] as FakeChild, '1', { 'course.yaml': 'id: c' });
+
+    expect(await pending).toEqual({
+      id: '1',
+      ok: true,
+      result: { files: { 'course.yaml': 'id: c' } },
+    });
+    await runner.dispose();
+  });
+
+  it('экспорт прогресса не имеет тела и идёт обычным rpc; ответ — файл потоком', async () => {
+    const { runner, children } = setup(() => ({}));
+    const pending = runner.handle(exporterRequest('1', { scope: 'progress' }));
+
+    await vi.waitFor(() =>
+      expect(children[0]?.sent.some(({ t }) => t === 'rpc')).toBe(true),
+    );
+    const { head, body } = splitResult('runExporter', {
+      filename: 'p.csv',
+      text: 'a,b',
+    });
+    streamBack(children[0] as FakeChild, '1', head, body);
+
+    expect(await pending).toEqual({
+      id: '1',
+      ok: true,
+      result: { filename: 'p.csv', text: 'a,b' },
+    });
+    await runner.dispose();
+  });
+
+  it('экспорт курса: файлы уходят потоком, в голове — id, название и число файлов', async () => {
+    const { runner, children } = setup(() => ({}));
+    const pending = runner.handle(
+      exporterRequest('1', {
+        scope: 'course',
+        courseId: 'c1',
+        title: 'T',
+        files: { 'a.md': 'x', 'b.md': 'y' },
+      }),
+    );
+
+    const sent = await sentStream(children);
+
+    expect(sent.find(({ t }) => t === 'stream')).toMatchObject({
+      request: {
+        method: 'runExporter',
+        params: { input: { courseId: 'c1', title: 'T', count: 2 } },
+      },
+    });
+    children[0]?.exit(1);
+    await pending;
+  });
+
+  it('успешный ответ импорта в обход потока — invalid-result, процесс не убивается', async () => {
+    const { runner, children } = setup(() => ({}));
+    const pending = runner.handle(importRequest('1', { text: 'x' }));
+    await sentStream(children);
+
+    children[0]?.emit({
+      t: 'rpc',
+      message: { id: '1', ok: true, result: { files: { '../x': 'y' } } },
+    });
+
+    expect(await pending).toMatchObject({
+      ok: false,
+      error: { cause: 'invalid-result' },
+    });
+    expect(children[0]?.killed).toBe(false);
+    await runner.dispose();
+  });
+
+  it('отказ обработчика в процессе проходит как есть', async () => {
+    const { runner, children } = setup(() => ({}));
+    const pending = runner.handle(importRequest('1', { text: 'x' }));
+    await sentStream(children);
+
+    children[0]?.emit({
+      t: 'rpc',
+      message: {
+        id: '1',
+        ok: false,
+        error: { cause: 'handler-failed', message: 'boom' },
+      },
+    });
+
+    expect(await pending).toEqual({
+      id: '1',
+      ok: false,
+      error: { cause: 'handler-failed', message: 'boom' },
+    });
+    await runner.dispose();
+  });
+
+  it.each([
+    [
+      'путь вне правил в каталоге',
+      (child: FakeChild) => filesBack(child, '1', { '../x': 'y' }),
+    ],
+    [
+      'два пути, различающихся регистром',
+      (child: FakeChild) => filesBack(child, '1', { 'A.md': '1', 'a.md': '2' }),
+    ],
+    [
+      'голова экспорта на вызов импорта',
+      (child: FakeChild) => {
+        const { head, body } = splitResult('runExporter', {
+          filename: 'a',
+          text: 'b',
+        });
+        streamBack(child, '1', head, body);
+      },
+    ],
+    [
+      'размер больше потолка',
+      (child: FakeChild) =>
+        streamBack(
+          child,
+          '1',
+          { kind: 'files', count: 0 },
+          new Uint8Array(),
+          1e9,
+        ),
+    ],
+    [
+      'отрицательный размер',
+      (child: FakeChild) =>
+        streamBack(
+          child,
+          '1',
+          { kind: 'files', count: 0 },
+          new Uint8Array(),
+          -1,
+        ),
+    ],
+    [
+      'часть не по порядку',
+      (child: FakeChild) => {
+        child.emit({
+          t: 'result-stream',
+          id: '1',
+          size: 4,
+          result: { kind: 'files', count: 0 },
+        });
+        child.emit({ t: 'chunk', id: '1', seq: 1, data: 'AAAA' });
+      },
+    ],
+    [
+      'часть не base64',
+      (child: FakeChild) => {
+        child.emit({
+          t: 'result-stream',
+          id: '1',
+          size: 4,
+          result: { kind: 'files', count: 0 },
+        });
+        child.emit({ t: 'chunk', id: '1', seq: 0, data: '**' });
+      },
+    ],
+    [
+      'обещано файлов больше, чем в потоке',
+      (child: FakeChild) =>
+        streamBack(child, '1', { kind: 'files', count: 3 }, new Uint8Array()),
+    ],
+  ])(
+    'ответ процесса, нарушающий правила (%s), — invalid-result',
+    async (_name, answer) => {
+      const { runner, children } = setup(() => ({}));
+      const pending = runner.handle(importRequest('1', { text: 'x' }));
+      await sentStream(children);
+
+      answer(children[0] as FakeChild);
+
+      expect(await pending).toMatchObject({
+        ok: false,
+        error: { cause: 'invalid-result' },
+      });
+      await runner.dispose();
+    },
+  );
+
+  it('результат экспорта: имя с разделителем и байты вместо текста проверяются так же, как в рантайме', async () => {
+    const { runner, children } = setup(() => ({}));
+    const bad = runner.handle(exporterRequest('1', { scope: 'progress' }));
+    await vi.waitFor(() =>
+      expect(children[0]?.sent.some(({ t }) => t === 'rpc')).toBe(true),
+    );
+    streamBack(
+      children[0] as FakeChild,
+      '1',
+      { kind: 'text', filename: '../etc/passwd' },
+      new TextEncoder().encode('x'),
+    );
+    expect(await bad).toMatchObject({
+      ok: false,
+      error: { cause: 'invalid-result' },
+    });
+
+    const good = runner.handle(exporterRequest('2', { scope: 'progress' }));
+    await vi.waitFor(() =>
+      expect(
+        children[0]?.sent.filter(({ t }) => t === 'rpc').length,
+      ).toBeGreaterThan(1),
+    );
+    streamBack(
+      children[0] as FakeChild,
+      '2',
+      { kind: 'bytes', filename: 'a.bin' },
+      Uint8Array.of(0, 255),
+    );
+    expect(await good).toEqual({
+      id: '2',
+      ok: true,
+      result: { filename: 'a.bin', bytes: Uint8Array.of(0, 255) },
+    });
+    await runner.dispose();
+  });
+
+  it('вызов без ответа по сроку раннера (32 с по умолчанию) — handler-timeout, процесс убит', async () => {
+    const { runner, children } = setup(() => ({}), {
+      transferDeadlineMs: 40,
+    });
+    const started = Date.now();
+
+    const response = await runner.handle(importRequest('1', { text: 'x' }));
+
+    expect(response).toMatchObject({
+      ok: false,
+      error: { cause: 'handler-timeout' },
+    });
+    expect(Date.now() - started).toBeGreaterThanOrEqual(35);
+    expect(children[0]?.killed).toBe(true);
+  });
+
+  it('срок раннера длиннее срока обработчика (30 с) и короче срока клиента движка (34 с)', () => {
+    expect(TRANSFER_DEADLINE_MS).toBe(32_000);
+  });
+
+  it('процесс упал посреди ответа потоком — handler-failed', async () => {
+    const { runner, children } = setup(() => ({}));
+    const pending = runner.handle(importRequest('1', { text: 'x' }));
+    await sentStream(children);
+
+    children[0]?.emit({
+      t: 'result-stream',
+      id: '1',
+      size: 10,
+      result: { kind: 'files', count: 1 },
+    });
+    children[0]?.exit(9);
+
+    expect(await pending).toMatchObject({
+      ok: false,
+      error: {
+        cause: 'handler-failed',
+        message: 'extension process exited (code 9)',
+      },
+    });
+  });
+
+  it('файл больше 20 МиБ не доходит до процесса', async () => {
+    const { runner, specs } = setup(() => ({}));
+
+    const response = await runner.handle(
+      importRequest('1', { bytes: new Uint8Array(20 * 1024 * 1024 + 1) }),
+    );
+
+    expect(response).toMatchObject({
+      ok: false,
+      error: { cause: 'handler-failed' },
+    });
+    expect(specs).toHaveLength(0);
   });
 });

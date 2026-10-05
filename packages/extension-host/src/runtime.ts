@@ -3,18 +3,24 @@ import { pathToFileURL } from 'node:url';
 import type { MessageEndpoint } from '@dolphy-app/engine-contract';
 import {
   EXTENSION_COMMAND_LIMITS,
+  EXTENSION_TRANSFER_LIMITS,
   InvalidCommandResultError,
+  InvalidTransferResultError,
   PermissionError,
   normalizeCommandResult,
+  normalizeExportResult,
+  normalizeImportResult,
 } from '@dolphy-app/extension-api';
 import type {
   CommandHandler,
   Disposable,
   ExerciseTypeHandler,
+  ExporterHandler,
   ExtensionContext,
   ExtensionLogger,
   ExtensionModule,
   GradePolicyHandler,
+  ImporterHandler,
   LearningEventName,
   LibraryReader,
 } from '@dolphy-app/extension-api';
@@ -121,6 +127,9 @@ export const EVENT_HANDLER_MS = 2000;
 /** Срок обработчика команды расширения (R3); раннер ограниченного процесса и клиент движка ждут дольше. */
 export const COMMAND_HANDLER_MS = EXTENSION_COMMAND_LIMITS.handlerMs;
 
+/** Срок обработчика импортёра и экспортёра; раннер ограниченного процесса (32 с) и клиент движка (34 с) ждут дольше. */
+export const TRANSFER_HANDLER_MS = EXTENSION_TRANSFER_LIMITS.handlerMs;
+
 const ignore = (): void => {};
 
 /** Регистрация после срока активации: ничего не делает, освобождать нечего. */
@@ -167,6 +176,8 @@ interface Activation {
   policies: Map<string, GradePolicyHandler>;
   events: Map<LearningEventName, (payload: unknown) => void | Promise<void>>;
   commands: Map<string, CommandHandler>;
+  importers: Map<string, ImporterHandler>;
+  exporters: Map<string, ExporterHandler>;
   settings: SettingsState;
   disposables: Disposable[];
   /** Срок активации вышел: регистрации, которые код делает позже, ничего не регистрируют. */
@@ -324,6 +335,12 @@ export const createExtensionRuntime = (
       commands: extension.commands
         .map(({ id }) => id)
         .filter((id) => !activation.commands.has(id)),
+      importers: extension.importers
+        .map(({ id }) => id)
+        .filter((id) => !activation.importers.has(id)),
+      exporters: extension.exporters
+        .map(({ id }) => id)
+        .filter((id) => !activation.exporters.has(id)),
     };
     for (const [kind, ids] of Object.entries(missing)) {
       if (ids.length === 0) continue;
@@ -345,6 +362,8 @@ export const createExtensionRuntime = (
     );
     const declaredEvents = new Set(extension.events.map(({ event }) => event));
     const declaredCommands = new Set(extension.commands.map(({ id }) => id));
+    const declaredImporters = new Set(extension.importers.map(({ id }) => id));
+    const declaredExporters = new Set(extension.exporters.map(({ id }) => id));
     const settings = createSettingsState(
       extension.id,
       extension.settings,
@@ -356,6 +375,8 @@ export const createExtensionRuntime = (
       policies: new Map(),
       events: new Map(),
       commands: new Map(),
+      importers: new Map(),
+      exporters: new Map(),
       settings,
       disposables: [{ dispose: settings.dispose }],
       abandoned: false,
@@ -416,6 +437,52 @@ export const createExtensionRuntime = (
             dispose: () => {
               if (activation.commands.get(id) === handler) {
                 activation.commands.delete(id);
+              }
+            },
+          };
+          activation.disposables.push(disposable);
+          return disposable;
+        },
+      },
+      importers: {
+        register(id, handler) {
+          if (!declaredImporters.has(id)) {
+            throw new Error(
+              `importer '${id}' is not declared in the manifest of '${extension.id}'`,
+            );
+          }
+          if (activation.abandoned) return lateRegistration;
+          if (activation.importers.has(id)) {
+            throw new Error(`importer '${id}' is already registered`);
+          }
+          activation.importers.set(id, handler);
+          const disposable: Disposable = {
+            dispose: () => {
+              if (activation.importers.get(id) === handler) {
+                activation.importers.delete(id);
+              }
+            },
+          };
+          activation.disposables.push(disposable);
+          return disposable;
+        },
+      },
+      exporters: {
+        register(id, handler) {
+          if (!declaredExporters.has(id)) {
+            throw new Error(
+              `exporter '${id}' is not declared in the manifest of '${extension.id}'`,
+            );
+          }
+          if (activation.abandoned) return lateRegistration;
+          if (activation.exporters.has(id)) {
+            throw new Error(`exporter '${id}' is already registered`);
+          }
+          activation.exporters.set(id, handler);
+          const disposable: Disposable = {
+            dispose: () => {
+              if (activation.exporters.get(id) === handler) {
+                activation.exporters.delete(id);
               }
             },
           };
@@ -594,6 +661,18 @@ export const createExtensionRuntime = (
     }
   };
 
+  /** Результат импортёра или экспортёра, не прошедший проверку формы и потолков, — `invalid-result`. */
+  const checkedTransfer = <T>(check: () => T): T => {
+    try {
+      return check();
+    } catch (error) {
+      if (error instanceof InvalidTransferResultError) {
+        throw new RuntimeFailure('invalid-result', error.message);
+      }
+      throw error;
+    }
+  };
+
   const evaluatePolicy = async (
     extension: ResolvedExtension | undefined,
     params: Extract<ExtRequest, { method: 'gradePolicy' }>['params'],
@@ -637,6 +716,111 @@ export const createExtensionRuntime = (
     return { delivered: true };
   };
 
+  /** Активация расширения; сборку, заменённую во время активации, вызывающий получает как `replaced`: ему нужен повтор, а не сбой кода. */
+  const liveActivation = async (
+    extension: ResolvedExtension,
+  ): Promise<Activation> => {
+    try {
+      return await activationOf(extension);
+    } catch (error) {
+      if (known.get(extension.id) !== extension) {
+        throw new RuntimeFailure(
+          'replaced',
+          `extension '${extension.id}' was replaced`,
+        );
+      }
+      throw error;
+    }
+  };
+
+  const utf8Bytes = (text: string): number => Buffer.byteLength(text);
+
+  const runImporter = async (
+    extension: ResolvedExtension | undefined,
+    params: Extract<ExtRequest, { method: 'runImporter' }>['params'],
+  ): Promise<unknown> => {
+    const { importerId } = params;
+    const declared = extension?.importers.find(({ id }) => id === importerId);
+    if (extension === undefined || declared === undefined) {
+      throw new RuntimeFailure(
+        'unknown-importer',
+        `unknown importer '${importerId}' of '${params.extensionId}'`,
+      );
+    }
+    const size =
+      'text' in params ? utf8Bytes(params.text) : params.bytes.byteLength;
+    if (size > EXTENSION_TRANSFER_LIMITS.inputBytes) {
+      throw new RuntimeFailure(
+        'handler-failed',
+        `the file is longer than ${EXTENSION_TRANSFER_LIMITS.inputBytes} bytes`,
+      );
+    }
+    if (('text' in params ? 'text' : 'bytes') !== declared.input) {
+      throw new RuntimeFailure(
+        'handler-failed',
+        `importer '${importerId}' takes ${declared.input} input`,
+      );
+    }
+    const handler = (await liveActivation(extension)).importers.get(importerId);
+    if (handler === undefined) {
+      throw new RuntimeFailure(
+        'unknown-importer',
+        `extension '${extension.id}' did not register importer '${importerId}'`,
+      );
+    }
+    const input =
+      'text' in params
+        ? { name: params.name, text: params.text }
+        : { name: params.name, bytes: params.bytes };
+    const result = await invoke(() =>
+      within(Promise.resolve(handler(input)), TRANSFER_HANDLER_MS),
+    );
+    return checkedTransfer(() => normalizeImportResult(result));
+  };
+
+  const runExporter = async (
+    extension: ResolvedExtension | undefined,
+    params: Extract<ExtRequest, { method: 'runExporter' }>['params'],
+  ): Promise<unknown> => {
+    const { exporterId, input } = params;
+    const declared = extension?.exporters.find(({ id }) => id === exporterId);
+    if (extension === undefined || declared === undefined) {
+      throw new RuntimeFailure(
+        'unknown-exporter',
+        `unknown exporter '${exporterId}' of '${params.extensionId}'`,
+      );
+    }
+    if (input.scope !== declared.scope) {
+      throw new RuntimeFailure(
+        'handler-failed',
+        `exporter '${exporterId}' takes the ${declared.scope} scope`,
+      );
+    }
+    if (
+      input.scope === 'course' &&
+      Object.values(input.files).reduce(
+        (sum, text) => sum + utf8Bytes(text),
+        0,
+      ) > EXTENSION_TRANSFER_LIMITS.totalBytes
+    ) {
+      throw new RuntimeFailure(
+        'handler-failed',
+        `the course files are longer than ${EXTENSION_TRANSFER_LIMITS.totalBytes} bytes`,
+      );
+    }
+    const handler = (await liveActivation(extension)).exporters.get(exporterId);
+    if (handler === undefined) {
+      throw new RuntimeFailure(
+        'unknown-exporter',
+        `extension '${extension.id}' did not register exporter '${exporterId}'`,
+      );
+    }
+    const result = await invoke(() =>
+      within(Promise.resolve(handler(input)), TRANSFER_HANDLER_MS),
+    );
+    return checkedTransfer(() => normalizeExportResult(result));
+  };
+
   const invokeCommand = async (
     extension: ResolvedExtension | undefined,
     params: Extract<ExtRequest, { method: 'invokeCommand' }>['params'],
@@ -648,19 +832,7 @@ export const createExtensionRuntime = (
         `unknown command '${commandId}' of '${params.extensionId}'`,
       );
     }
-    let activation: Activation;
-    try {
-      activation = await activationOf(extension);
-    } catch (error) {
-      // сборку заменили, пока шла активация: вызывающему нужен повтор, а не сбой кода
-      if (known.get(extension.id) !== extension) {
-        throw new RuntimeFailure(
-          'replaced',
-          `extension '${extension.id}' was replaced`,
-        );
-      }
-      throw error;
-    }
+    const activation = await liveActivation(extension);
     const handler = activation.commands.get(commandId);
     if (handler === undefined) {
       throw new RuntimeFailure(
@@ -696,6 +868,12 @@ export const createExtensionRuntime = (
     }
     if (request.method === 'invokeCommand') {
       return invokeCommand(extension, request.params);
+    }
+    if (request.method === 'runImporter') {
+      return runImporter(extension, request.params);
+    }
+    if (request.method === 'runExporter') {
+      return runExporter(extension, request.params);
     }
     const { params } = request;
     const handler = await handlerFor(extension, params.type);
@@ -800,6 +978,9 @@ export const createExtensionRuntime = (
         return request.params.timeoutMs;
       case 'invokeCommand':
         return COMMAND_HANDLER_MS;
+      case 'runImporter':
+      case 'runExporter':
+        return TRANSFER_HANDLER_MS;
       default:
         return DEFAULT_CALL_MS;
     }
@@ -882,6 +1063,8 @@ export const createExtensionRuntime = (
         return catalog.ownerOfPolicy(request.params.policyId);
       case 'deliverEvent':
       case 'invokeCommand':
+      case 'runImporter':
+      case 'runExporter':
         return known.get(request.params.extensionId);
       default:
         return catalog.ownerOf(request.params.type);
@@ -927,7 +1110,11 @@ export const createExtensionRuntime = (
         return refused(
           request,
           `extension '${extension.id}' was replaced`,
-          request.method === 'invokeCommand' ? 'replaced' : 'activation-failed',
+          request.method === 'invokeCommand' ||
+            request.method === 'runImporter' ||
+            request.method === 'runExporter'
+            ? 'replaced'
+            : 'activation-failed',
         );
       }
       runner = options.runners.create(extension, engine);

@@ -53,6 +53,18 @@ describe('renderIds', () => {
         events: [{ event: 'attempt.closed' }, { event: 'session.started' }],
         panels: [{ id: 'acme.ids.main', title: 'Main' }],
         widgets: [{ id: 'acme.ids.card', title: 'Card', slot: 'dailyPlan' }],
+        importers: [
+          { id: 'acme.ids.csv', title: 'CSV', accept: ['.csv'] },
+          {
+            id: 'acme.ids.bin',
+            title: 'Bin',
+            accept: ['.bin'],
+            input: 'bytes',
+          },
+        ],
+        exporters: [
+          { id: 'acme.ids.report', title: 'Report', scope: 'course' },
+        ],
         markdownRenderers: [{ language: 'echo' }, { language: 'plot-2d' }],
       }),
     );
@@ -66,6 +78,8 @@ declare module '@dolphy-app/extension-sdk' {
     events: 'attempt.closed' | 'session.started';
     panels: 'acme.ids.main';
     widgets: 'acme.ids.card';
+    importers: 'acme.ids.csv' | 'acme.ids.bin';
+    exporters: 'acme.ids.report';
     markdownLanguages: 'echo' | 'plot-2d';
     settings: {};
   }
@@ -141,7 +155,7 @@ export {};
     ).toEqual([value, 'plain']);
   });
 
-  it('a manifest without commands, events, panels and widgets gives never for them', () => {
+  it('a manifest without commands, events, panels, widgets, importers and exporters gives never for them', () => {
     const text = renderIds(
       manifestOf({ exerciseTypes: [{ id: 'acme.ids.one', ...schemas }] }),
     );
@@ -152,6 +166,8 @@ export {};
       'events',
       'panels',
       'widgets',
+      'importers',
+      'exporters',
       'markdownLanguages',
     ]) {
       expect(member(text, name)).toBe('never');
@@ -178,6 +194,8 @@ export {};
       'events',
       'panels',
       'widgets',
+      'importers',
+      'exporters',
       'markdownLanguages',
     ]) {
       expect(member(text, name)).toBe('never');

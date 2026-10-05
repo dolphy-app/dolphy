@@ -105,6 +105,8 @@ declare module '@dolphy-app/extension-sdk' {
     events: 'attempt.closed';
     panels: never;
     widgets: never;
+    importers: 'acme.csv';
+    exporters: never;
     markdownLanguages: never;
     settings: { 'acme.goal': number; 'acme.mode': 'fast' | 'slow' };
   }

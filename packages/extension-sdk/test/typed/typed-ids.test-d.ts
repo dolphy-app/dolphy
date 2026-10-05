@@ -26,6 +26,11 @@ const complete = {
   gradePolicies: { 'acme.strict': () => 5 as const },
   events: { 'attempt.closed': () => undefined },
   commands: { 'acme.a': () => undefined, 'acme.b': () => undefined },
+  importers: { 'acme.in': () => ({ files: {} }) },
+  exporters: {
+    'acme.out': () => ({ filename: 'a.txt', text: '' }),
+    'acme.report': () => ({ filename: 'r.txt', text: '' }),
+  },
 } as const;
 
 describe('defineExtension with generated ids', () => {
@@ -51,11 +56,85 @@ describe('defineExtension with generated ids', () => {
   });
 
   it('rejects a record that is absent while its ids are declared', () => {
-    const { exerciseTypes, gradePolicies, events, commands } = complete;
+    const {
+      exerciseTypes,
+      gradePolicies,
+      events,
+      commands,
+      importers,
+      exporters,
+    } = complete;
     // @ts-expect-error the declared commands have no record
-    defineExtension({ exerciseTypes, gradePolicies, events });
+    defineExtension({
+      exerciseTypes,
+      gradePolicies,
+      events,
+      importers,
+      exporters,
+    });
     // @ts-expect-error the declared exercise type has no record
-    defineExtension({ gradePolicies, events, commands });
+    defineExtension({ gradePolicies, events, commands, importers, exporters });
+    // @ts-expect-error the declared importer has no record
+    defineExtension({
+      exerciseTypes,
+      gradePolicies,
+      events,
+      commands,
+      exporters,
+    });
+    // @ts-expect-error the declared exporters have no record
+    defineExtension({
+      exerciseTypes,
+      gradePolicies,
+      events,
+      commands,
+      importers,
+    });
+  });
+
+  it('names importers and exporters exactly: a missing, an extra, and an inActivate id', () => {
+    defineExtension({
+      ...complete,
+      importers: { 'acme.in': inActivate },
+      exporters: {
+        'acme.out': inActivate,
+        'acme.report': () => ({ filename: 'r', text: '' }),
+      },
+    });
+    defineExtension({
+      ...complete,
+      // @ts-expect-error 'acme.report' is declared but not named
+      exporters: { 'acme.out': () => ({ filename: 'a', text: '' }) },
+    });
+    defineExtension({
+      ...complete,
+      importers: {
+        'acme.in': () => ({ files: {} }),
+        // @ts-expect-error 'acme.more' is not declared
+        'acme.more': () => ({ files: {} }),
+      },
+    });
+  });
+
+  it('types the importer input as text or bytes and checks the result shape', () => {
+    defineExtension({
+      ...complete,
+      importers: {
+        'acme.in': (input) => {
+          expectTypeOf(input.name).toBeString();
+          if ('text' in input) expectTypeOf(input.text).toBeString();
+          else expectTypeOf(input.bytes).toEqualTypeOf<Uint8Array>();
+          return { files: { 'a.md': 'x' } };
+        },
+      },
+    });
+    defineExtension({
+      ...complete,
+      importers: {
+        // @ts-expect-error the result needs `files`
+        'acme.in': () => ({ file: {} }),
+      },
+    });
   });
 
   it('rejects an id the manifest does not declare', () => {
@@ -134,6 +213,15 @@ describe('defineExtension with generated ids', () => {
     defineExtension({
       ...complete,
       activate(ctx) {
+        ctx.importers.register('acme.in', () => ({ files: {} }));
+        // @ts-expect-error not a declared importer
+        ctx.importers.register('acme.out', () => ({ files: {} }));
+        ctx.exporters.register('acme.report', () => ({
+          filename: 'a',
+          text: '',
+        }));
+        // @ts-expect-error not a declared exporter
+        ctx.exporters.register('acme.in', () => ({ filename: 'a', text: '' }));
         ctx.commands.register('acme.a', () => undefined);
         // @ts-expect-error not a declared command
         ctx.commands.register('acme.c', () => undefined);

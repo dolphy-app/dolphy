@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 23 as const;
+export const CONTRACT_VERSION = 25 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 
@@ -1066,6 +1066,17 @@ export interface EngineConfig {
   logsDir?: string;
   /** Версия приложения; не задана — проверка `minAppVersion` расширений не выполняется. */
   appVersion?: string;
+  /**
+   * Период проверки расписаний расширений, мс (по умолчанию 30 000). Задаёт
+   * только несобранное приложение (`DOLPHY_SCHEDULE_TICK_MS`, e2e).
+   */
+  scheduleTickMs?: number;
+  /**
+   * Смещение часов планировщика расписаний относительно системных, мс (может
+   * быть отрицательным). Задаёт только несобранное приложение
+   * (`DOLPHY_CLOCK_OFFSET_MS`, e2e): время срабатывания не нужно ждать.
+   */
+  scheduleClockOffsetMs?: number;
 }
 
 export interface EngineDiagnosticsDto {
@@ -1265,6 +1276,8 @@ export interface ExtensionContributesDto {
   panels: string[];
   /** Id виджетов (`contributes.widgets`). */
   widgets: string[];
+  /** Id расписаний (`contributes.schedules`). */
+  schedules: string[];
   /** Id импортёров (`contributes.importers`). */
   importers: string[];
   /** Id экспортёров (`contributes.exporters`). */
@@ -1360,6 +1373,16 @@ export interface WidgetContributionDto {
   origin: ExtensionOriginDto;
   /** Отпечаток файлов расширения; у расширений из поставки — пустая строка. */
   revision: string;
+}
+
+/** Расписание расширения (`contributes.schedules`): когда приложение запускает обработчик `ctx.schedule.on`. */
+export interface ScheduleContributionDto {
+  id: string;
+  extensionId: string;
+  /** `daily` — раз в сутки в `at`, `hourly` — в начале каждого часа; по местному времени. */
+  every: 'daily' | 'hourly';
+  /** `HH:MM` у `daily` (умолчание манифеста — `09:00`); `null` у `hourly`. */
+  at: string | null;
 }
 
 /** Импортёр расширения (`contributes.importers`): файл пользователя → каталог курса. */
@@ -1478,6 +1501,8 @@ export interface ContributionsDto {
   panels: PanelContributionDto[];
   /** Виджеты включённых расширений. */
   widgets: WidgetContributionDto[];
+  /** Расписания включённых расширений. */
+  schedules: ScheduleContributionDto[];
   /** Импортёры включённых расширений. */
   importers: ImporterContributionDto[];
   /** Экспортёры включённых расширений. */
@@ -1646,6 +1671,12 @@ export interface ExtensionSettingsDto {
    * пусто (уведомления включены).
    */
   notificationsOff: string[];
+  /**
+   * Расширения с выключенными расписаниями (по id), отсортированы, без
+   * повторов: их `ctx.schedule.on` не срабатывает. По умолчанию пусто
+   * (расписания включены).
+   */
+  schedulesOff: string[];
 }
 
 /** Состояние процесса хоста расширений: `gave-up` — после повторных сбоев перезапуск прекращён до `restartHost()`. */
@@ -1728,6 +1759,16 @@ export interface ExtensionsService {
    * настраивается; не булево значение — `INVALID_ARGUMENT`.
    */
   setNotificationsEnabled(
+    id: string,
+    enabled: boolean,
+  ): Promise<ExtensionSettingsDto>;
+  /**
+   * Включает и выключает расписания расширения (`schedulesOff`); не
+   * перезапускает расширение. `NOT_FOUND` — нет такого расширения;
+   * `INVALID_ARGUMENT` `{reason:'bundled'}` — расширение из поставки не
+   * настраивается; не булево значение — `INVALID_ARGUMENT`.
+   */
+  setSchedulesEnabled(
     id: string,
     enabled: boolean,
   ): Promise<ExtensionSettingsDto>;

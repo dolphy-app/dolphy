@@ -30,6 +30,7 @@ export const createFakeExtensionPolicy = (
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      schedulesOff: [],
     },
   );
   const updates: ExtensionSettingsDto[] = [];
@@ -46,6 +47,8 @@ export const createFakeExtensionPolicy = (
       bundled.has(id) ||
       (!safeMode() && !settings.disabled.includes(id) && !revoked.has(id)),
     isIsolated: (id) => !bundled.has(id) && !settings.trusted.includes(id),
+    areSchedulesOn: (id) =>
+      bundled.has(id) || !settings.schedulesOff.includes(id),
     safeMode,
     update(next) {
       settings = structuredClone(next);

@@ -9,6 +9,7 @@ import type {
   EngineEvent,
   ExtensionInfoDto,
   PanelContributionDto,
+  ScheduleContributionDto,
   WidgetContributionDto,
   ExtensionSettingDefDto,
   ExtensionUpdateDto,
@@ -85,6 +86,7 @@ const REGISTERED: ExtensionInfoDto = {
     events: [],
     commands: ['dolphy.sql.stats'],
     widgets: ['dolphy.sql.card'],
+    schedules: ['dolphy.sql.nightly'],
     panels: ['dolphy.sql.panel'],
     importers: [],
     exporters: [],
@@ -115,6 +117,7 @@ const USER_EXTENSION: ExtensionInfoDto = {
     settings: [],
     commands: [],
     widgets: [],
+    schedules: [],
     panels: [],
     importers: [],
     exporters: [],
@@ -164,6 +167,12 @@ const SQL_PANEL: PanelContributionDto = {
   isolated: true,
   origin: 'bundled',
   revision: '',
+};
+const SQL_SCHEDULE: ScheduleContributionDto = {
+  id: 'dolphy.sql.nightly',
+  extensionId: 'dolphy.sql',
+  every: 'daily',
+  at: '09:00',
 };
 const SQL_WIDGET: WidgetContributionDto = {
   id: 'dolphy.sql.card',
@@ -255,6 +264,7 @@ const start = async () => {
           settings: [ROWS_SETTING],
           commands: [STATS_COMMAND],
           widgets: [SQL_WIDGET],
+          schedules: [SQL_SCHEDULE],
           panels: [SQL_PANEL],
           importers: [],
           exporters: [],
@@ -684,6 +694,7 @@ describe('rpc → dispatcher → real engine', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      schedulesOff: [],
     });
     expect(
       await call('extensions.getSettingValues', () =>
@@ -728,6 +739,7 @@ describe('rpc → dispatcher → real engine', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      schedulesOff: [],
     });
     expect(
       await call('extensions.setTrusted', () =>
@@ -739,6 +751,7 @@ describe('rpc → dispatcher → real engine', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      schedulesOff: [],
     });
     expect(
       await call('extensions.setNotificationsEnabled', () =>
@@ -750,6 +763,19 @@ describe('rpc → dispatcher → real engine', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: ['acme.user'],
+      schedulesOff: [],
+    });
+    expect(
+      await call('extensions.setSchedulesEnabled', () =>
+        client.extensions.setSchedulesEnabled('acme.user', false),
+      ),
+    ).toEqual({
+      disabled: ['acme.user'],
+      trusted: ['acme.user'],
+      checkUpdates: true,
+      safeMode: false,
+      notificationsOff: ['acme.user'],
+      schedulesOff: ['acme.user'],
     });
     expect(
       await call('extensions.setCheckUpdates', () =>
@@ -862,6 +888,7 @@ describe('rpc → dispatcher → real engine', () => {
       commands: [STATS_COMMAND],
       panels: [SQL_PANEL],
       widgets: [SQL_WIDGET],
+      schedules: [SQL_SCHEDULE],
       importers: [],
       exporters: [],
       messages: {},

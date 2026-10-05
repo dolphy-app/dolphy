@@ -30,6 +30,7 @@ const info = (id: string): ExtensionInfoDto => ({
     events: [],
     commands: [],
     widgets: [],
+    schedules: [],
     panels: [],
     importers: [],
     exporters: [],

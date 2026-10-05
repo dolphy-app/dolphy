@@ -34,6 +34,7 @@ const info = (overrides: Partial<ExtensionInfoDto> = {}): ExtensionInfoDto => ({
     events: [],
     commands: [`${ID}.run`],
     widgets: [],
+    schedules: [],
     panels: [],
     importers: [],
     exporters: [],
@@ -115,6 +116,7 @@ const open = (options: OpenOptions = {}) => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      schedulesOff: [],
     },
   });
   return createTestEngine({
@@ -129,6 +131,7 @@ const open = (options: OpenOptions = {}) => {
       settings: [],
       commands: options.commands ?? [command(`${ID}.run`)],
       widgets: [],
+      schedules: [],
       panels: [],
       importers: [],
       exporters: [],
@@ -300,6 +303,7 @@ describe('extensions.contributions: команды и панели', () => {
           command('a.ext.a', 'a.ext'),
         ],
         widgets: [],
+        schedules: [],
         panels: [panel('b.ext.p', 'b.ext'), panel('a.ext.q', 'a.ext')],
         importers: [
           importer('b.ext.csv', 'b.ext'),

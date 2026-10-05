@@ -136,6 +136,7 @@ const copyInfo = (info: ExtensionInfoDto): ExtensionInfoDto => ({
     commands: [...info.contributes.commands],
     panels: [...info.contributes.panels],
     widgets: [...info.contributes.widgets],
+    schedules: [...info.contributes.schedules],
     importers: [...info.contributes.importers],
     exporters: [...info.contributes.exporters],
   },
@@ -184,6 +185,10 @@ const sortedContributions = (
     commands: copy.commands.sort(compareBy((command) => command.extensionId)),
     panels: copy.panels.sort(compareBy((panel) => panel.extensionId)),
     widgets: copy.widgets.sort(compareBy((widget) => widget.extensionId)),
+    // между расширениями — по id, внутри расширения — порядок манифеста
+    schedules: copy.schedules.sort(
+      compareBy((schedule) => schedule.extensionId),
+    ),
     importers: copy.importers.sort(
       compareBy((importer) => importer.extensionId),
     ),
@@ -416,6 +421,22 @@ export const createExtensionsService = (
     findToggleable(ctx.extensionRegistry.list(), id, options);
     return persist(apply, { reload: true });
   };
+  /** Переключатель, который не меняет расширение (уведомления, расписания): набор не перезагружается. */
+  const setSwitch = async (
+    id: string,
+    enabled: unknown,
+    apply: (settings: ExtensionSettingsDto) => ExtensionSettingsDto,
+  ): Promise<ExtensionSettingsDto> => {
+    if (!isExtensionId(id)) throw invalidId(id);
+    if (typeof enabled !== 'boolean') {
+      throw new EngineError('INVALID_ARGUMENT', {
+        message: 'enabled must be a boolean',
+        details: { field: 'enabled' },
+      });
+    }
+    findToggleable(ctx.extensionRegistry.list(), id, { allowRevoked: true });
+    return persist(apply, { reload: false });
+  };
   return {
     list: async () =>
       ctx.extensionRegistry
@@ -448,23 +469,16 @@ export const createExtensionsService = (
         }),
         { allowRevoked: true },
       ),
-    setNotificationsEnabled: async (id, enabled) => {
-      if (!isExtensionId(id)) throw invalidId(id);
-      if (typeof enabled !== 'boolean') {
-        throw new EngineError('INVALID_ARGUMENT', {
-          message: 'enabled must be a boolean',
-          details: { field: 'enabled' },
-        });
-      }
-      findToggleable(ctx.extensionRegistry.list(), id, { allowRevoked: true });
-      return persist(
-        (settings) => ({
-          ...settings,
-          notificationsOff: withMember(settings.notificationsOff, id, !enabled),
-        }),
-        { reload: false },
-      );
-    },
+    setNotificationsEnabled: (id, enabled) =>
+      setSwitch(id, enabled, (settings) => ({
+        ...settings,
+        notificationsOff: withMember(settings.notificationsOff, id, !enabled),
+      })),
+    setSchedulesEnabled: (id, enabled) =>
+      setSwitch(id, enabled, (settings) => ({
+        ...settings,
+        schedulesOff: withMember(settings.schedulesOff, id, !enabled),
+      })),
     setCheckUpdates: (enabled) => {
       if (typeof enabled !== 'boolean') {
         throw new EngineError('INVALID_ARGUMENT', {

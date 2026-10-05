@@ -238,6 +238,7 @@ export const describeSettingsStoreContract = (
         checkUpdates: true,
         safeMode: false,
         notificationsOff: [],
+        schedulesOff: [],
       });
     });
 
@@ -249,6 +250,7 @@ export const describeSettingsStoreContract = (
         checkUpdates: false,
         safeMode: false,
         notificationsOff: [],
+        schedulesOff: [],
       });
       expect(await store.loadExtensions()).toEqual({
         disabled: ['acme.a', 'acme.b'],
@@ -256,6 +258,7 @@ export const describeSettingsStoreContract = (
         checkUpdates: false,
         safeMode: false,
         notificationsOff: [],
+        schedulesOff: [],
       });
       await store.saveExtensions({
         disabled: [],
@@ -263,6 +266,7 @@ export const describeSettingsStoreContract = (
         checkUpdates: true,
         safeMode: false,
         notificationsOff: [],
+        schedulesOff: [],
       });
       expect(await store.loadExtensions()).toEqual({
         disabled: [],
@@ -270,6 +274,7 @@ export const describeSettingsStoreContract = (
         checkUpdates: true,
         safeMode: false,
         notificationsOff: [],
+        schedulesOff: [],
       });
     });
 
@@ -282,6 +287,7 @@ export const describeSettingsStoreContract = (
         checkUpdates: false,
         safeMode: true,
         notificationsOff: [],
+        schedulesOff: [],
       });
       expect(await store.loadExtensions()).toEqual({
         disabled: ['acme.a'],
@@ -289,6 +295,7 @@ export const describeSettingsStoreContract = (
         checkUpdates: false,
         safeMode: true,
         notificationsOff: [],
+        schedulesOff: [],
       });
       await store.saveExtensions({
         disabled: ['acme.a'],
@@ -296,11 +303,12 @@ export const describeSettingsStoreContract = (
         checkUpdates: false,
         safeMode: false,
         notificationsOff: [],
+        schedulesOff: [],
       });
       expect((await store.loadExtensions()).safeMode).toBe(false);
     });
 
-    it('расширения: notificationsOff переживает круг сохранения, канонический и независимый от остальных полей', async () => {
+    it('расширения: notificationsOff и schedulesOff переживают круг сохранения, каноничны и независимы друг от друга и от остальных полей', async () => {
       const store = await make();
       await store.saveExtensions({
         disabled: ['acme.d'],
@@ -308,6 +316,7 @@ export const describeSettingsStoreContract = (
         checkUpdates: true,
         safeMode: false,
         notificationsOff: ['acme.z', 'acme.a', 'acme.z'],
+        schedulesOff: ['acme.s', 'acme.r', 'acme.s'],
       });
       expect(await store.loadExtensions()).toEqual({
         disabled: ['acme.d'],
@@ -315,6 +324,7 @@ export const describeSettingsStoreContract = (
         checkUpdates: true,
         safeMode: false,
         notificationsOff: ['acme.a', 'acme.z'],
+        schedulesOff: ['acme.r', 'acme.s'],
       });
     });
 
@@ -336,6 +346,7 @@ export const describeSettingsStoreContract = (
         checkUpdates: true,
         safeMode: false,
         notificationsOff: [],
+        schedulesOff: [],
       });
       await store.savePreferences({
         scheduler: null,
@@ -353,6 +364,7 @@ export const describeSettingsStoreContract = (
         checkUpdates: true,
         safeMode: false,
         notificationsOff: [],
+        schedulesOff: [],
       });
       expect((await store.loadPreferences()).ignored_paths).toEqual(['x']);
     });

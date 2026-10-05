@@ -12,6 +12,7 @@ export const DEFAULT_EXTENSION_SETTINGS: Readonly<ExtensionSettingsDto> =
     checkUpdates: true,
     safeMode: false,
     notificationsOff: [],
+    schedulesOff: [],
   });
 
 export const isExtensionId = (value: unknown): value is string =>
@@ -37,6 +38,7 @@ export const normalizeExtensionSettings = (
   checkUpdates: settings.checkUpdates,
   safeMode: settings.safeMode,
   notificationsOff: normalizeIds(settings.notificationsOff),
+  schedulesOff: normalizeIds(settings.schedulesOff),
 });
 
 /** Только явное `false` выключает проверку: всё остальное — умолчание. */
@@ -67,14 +69,27 @@ export const decodeExtensionSettings = (raw: unknown): ExtensionSettingsDto => {
   const notificationsOff = decodeOptionalIds(
     Reflect.get(raw, 'notificationsOff'),
   );
-  if (disabled === null || trusted === null || notificationsOff === null) {
+  const schedulesOff = decodeOptionalIds(Reflect.get(raw, 'schedulesOff'));
+  if (
+    disabled === null ||
+    trusted === null ||
+    notificationsOff === null ||
+    schedulesOff === null
+  ) {
     return normalizeExtensionSettings({
       ...DEFAULT_EXTENSION_SETTINGS,
       checkUpdates,
       safeMode,
     });
   }
-  return { disabled, trusted, checkUpdates, safeMode, notificationsOff };
+  return {
+    disabled,
+    trusted,
+    checkUpdates,
+    safeMode,
+    notificationsOff,
+    schedulesOff,
+  };
 };
 
 /** Метка последней проверки обновлений (epoch ms): неверное значение — «не проверяли». */

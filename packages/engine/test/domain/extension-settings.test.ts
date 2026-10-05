@@ -18,6 +18,7 @@ describe('decodeExtensionSettings', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      schedulesOff: [],
     });
   });
 
@@ -66,6 +67,42 @@ describe('decodeExtensionSettings', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      schedulesOff: [],
+    });
+  });
+
+  it('schedulesOff: нет значения — пусто (запись до появления поля), список сохраняется и сортируется, испорченный список сбрасывается вместе с остальными', () => {
+    expect(
+      decodeExtensionSettings({ disabled: ['a.x'], trusted: [] }).schedulesOff,
+    ).toEqual([]);
+    expect(
+      decodeExtensionSettings({
+        disabled: [],
+        trusted: [],
+        notificationsOff: ['n.x'],
+        schedulesOff: ['b.x', 'a.y', 'b.x'],
+      }),
+    ).toEqual({
+      disabled: [],
+      trusted: [],
+      checkUpdates: true,
+      safeMode: false,
+      notificationsOff: ['n.x'],
+      schedulesOff: ['a.y', 'b.x'],
+    });
+    expect(
+      decodeExtensionSettings({
+        disabled: ['a.x'],
+        trusted: [],
+        schedulesOff: ['Not An Id'],
+      }),
+    ).toEqual({
+      disabled: [],
+      trusted: [],
+      checkUpdates: true,
+      safeMode: false,
+      notificationsOff: [],
+      schedulesOff: [],
     });
   });
 
@@ -82,6 +119,7 @@ describe('decodeExtensionSettings', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      schedulesOff: [],
     });
   });
 });

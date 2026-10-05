@@ -129,7 +129,6 @@ const noticeOpen = computed({
           <v-btn
             variant="tonal"
             color="primary"
-            data-tour="courses-git"
             prepend-icon="mdi-source-branch-plus"
             @click="gitDialog = true"
           >

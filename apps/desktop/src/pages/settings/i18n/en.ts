@@ -36,11 +36,13 @@ export const en: typeof ru = {
         },
         missing:
           "The selected rule “{id}” is unavailable: its extension was not found. Pass{'@'}N applies for now.",
+        hint: "A grade from 1 to 5 decides when an exercise comes back for review. Pass{'@'}N reads “passed on attempt N”: the earlier the answer is right, the higher the grade. Extensions add other rules.",
       },
       targetRetention: {
         title: 'Target retention',
         description:
           'How confidently you should remember the material by the time it is reviewed. Higher means more reviews.',
+        hint: 'Retention is an estimate of the chance you will recall an exercise. When it drops below this threshold the exercise enters the plan as a review: 90% is relaxed, 99% means many reviews.',
       },
       newFraction: {
         title: 'Share of new material',
@@ -55,30 +57,36 @@ export const en: typeof ru = {
       tagDistance: {
         title: 'Gap between similar topics',
         description: 'How many exercises must separate tasks that share tags.',
+        hint: 'Tags are exercise topics set by the course author (for example “JOIN” or “commits”). The distance keeps similar tasks from coming back to back.',
       },
       batchSize: {
         title: 'Batch size',
         description: 'How many exercises the scheduler picks per request.',
+        hint: 'A batch is the set of exercises the scheduler picks at once for a session. You rarely need to change it.',
       },
       lessonsInProgress: {
         title: 'Lessons in progress',
         description:
           'How many lessons you can study at once before new ones unlock.',
+        hint: 'A lesson is “in progress” until its exercises are mastered. The limit stops you from opening ten lessons and finishing none.',
       },
       failThreshold: {
         title: 'Failure threshold',
         description:
           'How many failures on an exercise trigger reinforcement of the basics.',
+        hint: 'After this many failures on an exercise the scheduler adds exercises for its prerequisites, the topics it is hard to learn without.',
       },
       remediationItems: {
         title: 'Reinforcement exercises',
         description:
           'At most this many prerequisite exercises are added to the plan.',
+        hint: 'Prerequisites are the lessons and exercises the current one depends on; the course author defines the links.',
       },
       implicitCredit: {
         title: 'Implicit reviews',
         description:
           'Reviewing a hard topic also counts for the simpler ones inside it. The effect has only been measured on the model.',
+        hint: 'A hard exercise contains simple topics, so a right answer partly counts as a review of them (the FIRe method). Off by default: checked on a model only.',
       },
       actions: {
         revert: 'Discard',
@@ -779,6 +787,7 @@ export const en: typeof ru = {
       },
       scorer: {
         title: 'Memory model',
+        hint: 'The memory model estimates how well you remember each exercise and schedules reviews. FSRS is a spaced-repetition algorithm; “power-law” is a simpler power-law forgetting curve.',
         memoryModel: 'Memory model',
         kind: 'Scoring type',
         ratingMap: 'Attempt ratings',

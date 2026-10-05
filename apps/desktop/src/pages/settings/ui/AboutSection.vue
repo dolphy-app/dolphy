@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useOnboardingTour } from '@/features/onboarding-tour';
+import HelpHint from '@/shared/ui/HelpHint.vue';
 import { useEngine } from '@/shared/api/engine';
 import { formatBytes, formatUptime } from '../lib/format.ts';
 import { useEngineInfo } from '../model/engine-info.ts';
@@ -131,8 +132,11 @@ const scorerFacts = computed<Fact[]>(() => {
       </v-card>
 
       <v-card class="pa-5">
-        <h3 class="text-title-large font-weight-bold mb-2">
+        <h3
+          class="d-flex align-center ga-1 text-title-large font-weight-bold mb-2"
+        >
           {{ t('settings.about.scorer.title') }}
+          <HelpHint :text="t('settings.about.scorer.hint')" />
         </h3>
         <v-list bg-color="transparent" density="compact">
           <v-list-item v-for="fact in scorerFacts" :key="fact.label">

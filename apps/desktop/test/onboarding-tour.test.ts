@@ -97,7 +97,7 @@ describe('onboarding tour: where the learner ends up', () => {
     );
     await tour.start();
     await tour.runner.next();
-    expect(current.route).toBe(ROUTE.dailyPlan);
+    expect(current.route).toBe(ROUTE.courses);
     const before = tour.endedAt.value;
     tour.runner.skip();
     await vi.waitFor(() => expect(tour.endedAt.value).toBe(before + 1));

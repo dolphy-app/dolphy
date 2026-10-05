@@ -1,11 +1,17 @@
 <script setup lang="ts">
-defineProps<{ title: string; description: string }>();
+import HelpHint from '@/shared/ui/HelpHint.vue';
+
+/** `hint` — пояснение для непонятных терминов: значок «?» рядом с названием. */
+defineProps<{ title: string; description: string; hint?: string }>();
 </script>
 
 <template>
   <v-card class="row px-5 py-4">
     <div class="text">
-      <div class="text-title-medium font-weight-bold">{{ title }}</div>
+      <div class="d-flex align-center ga-1">
+        <div class="text-title-medium font-weight-bold">{{ title }}</div>
+        <HelpHint v-if="hint" :text="hint" />
+      </div>
       <div class="text-body-medium text-medium-emphasis">{{ description }}</div>
     </div>
     <div class="control">

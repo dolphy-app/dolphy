@@ -1,8 +1,8 @@
 ---
-status: active
+status: done
 branch: feature/repository-course-selection
 created: 2026-10-05
-closed: null
+closed: 2026-10-05
 touches:
   - packages/engine-contract
   - packages/engine
@@ -13,6 +13,8 @@ depends-on:
 supersedes: null
 superseded-by: null
 ---
+
+> Исторический документ. Не источник требований.
 
 # Выбор курсов при добавлении репозитория
 
@@ -60,23 +62,25 @@ superseded-by: null
 
 **Предпросмотр — операция цепочки.** `preview` встаёт в ту же цепочку `serial`, что и остальные операции над репозиториями (R10 спеки `course-git-source`), но очередь команд движка не занимает (`UNQUEUED`). Статус репозитория из-за предпросмотра `updating` не становится. Файлы пишутся только в `.staging/<opId>` и `git-tmp/<opId>`, `finish(opId)` убирает их при любом исходе.
 
-**Окно.** Общий выбор — компонент `features/repository-courses` (функции выбора в `model/selection.ts`, без Vue, под юнит-тесты); им пользуются `AddRepositoryDialog` (шаг 2) и новый диалог настроек `RepositoryCoursesDialog`. Состояние шагов — в `useAddRepository` (`step`, `preview`, `selected`), по образцу существующей модели.
+**Окно.** Общий выбор — компонент `features/repository-courses/ui/RepositoryCoursePicker.vue`, чистые функции выбора — `entities/repository/lib/selection.ts` (без Vue, под юнит-тесты); ими пользуются `AddRepositoryDialog` (шаг 2) и новый диалог настроек `RepositoryCoursesDialog`. Состояние шагов — в `useAddRepository` (`step`, `preview`, `selected`), выбор уже добавленного репозитория — в `useRepositoryCourses` (`pages/settings/model`).
 
 ## Progress
 
-- [ ] Контракт: `PreviewRepositoryRequest`/`RepositoryPreviewDto`/`RepositoryCourseDto`, `courseIds` в `add`, `update(id, options?)`, `skippedCourseIds`, коды отказов
-- [ ] Схема RPC и `RPC_METHODS`, `UNQUEUED`
-- [ ] Движок: `CompileResult.model`, разбор курсов репозитория (`requires`, диагностики по курсам), `SnapshotInstaller.prune`
-- [ ] Движок: `preview`, выбор в `add`/`update`, запись `selected`/`skippedCourseIds`
-- [ ] Тесты движка, RPC и адаптеров реестра
-- [ ] Окно: функции выбора и модель, `RepositoryCoursePicker`, шаг 2 диалога добавления
-- [ ] Окно: настройки (метка, «Курсы…», диалог), i18n ru/en
-- [ ] Тесты окна и e2e `git-courses`
-- [ ] Документация (`docs/design`/README, `engine-ts-api.md`) и закрытие спеки
+- [x] 2026-10-05 Контракт: `PreviewRepositoryRequest`/`RepositoryPreviewDto`/`RepositoryCourseDto`, `courseIds` в `add`, `update(id, options?)`, `skippedCourseIds`, коды отказов
+- [x] 2026-10-05 Схема RPC и `RPC_METHODS`, `UNQUEUED`
+- [x] 2026-10-05 Движок: `CompileResult.model`, разбор курсов репозитория (`requires`, диагностики по курсам), `SnapshotInstaller.prune`
+- [x] 2026-10-05 Движок: `preview`, выбор в `add`/`update`, запись `selected`/`skippedCourseIds`
+- [x] 2026-10-05 Тесты движка, RPC и адаптеров реестра
+- [x] 2026-10-05 Окно: функции выбора и модель, `RepositoryCoursePicker`, шаг 2 диалога добавления
+- [x] 2026-10-05 Окно: настройки (метка, «Курсы…», диалог), i18n ru/en
+- [x] 2026-10-05 Тесты окна и e2e `git-courses`
+- [x] 2026-10-05 Документация (`engine-ts-api.md`, README приложения) и закрытие спеки
 
 ## Surprises & Discoveries
 
-Пока нет.
+- Юнит-проект окна (`vitest` без плагина Vue) падает на импорте любого индекса со `.vue`: `Failed to parse source for import analysis … Install @vitejs/plugin-vue`. Модель страницы, импортирующая индекс фичи, тестироваться не может — поэтому функции выбора перенесены в слой `entities`.
+- В e2e `[role="status"]` внутри диалога служит признаком «операция идёт» (`GitClient.dialogError` ждёт его исчезновения); счётчик выбранных курсов получил `aria-live="polite"` без роли, иначе ожидание зависло бы на втором шаге.
+- `v-checkbox-btn` в `flex`-строке растягивался на всю ширину и отодвигал название курса вправо (виден на скриншоте e2e); поправлено `flex: none` у `.v-selection-control`.
 
 ## Decision Log
 
@@ -85,7 +89,14 @@ superseded-by: null
 - 2026-10-05. Движок не расширяет выбор по `requires`, а отказывает `missing-requirement`. Причина: результат вызова предсказуем, окно само отмечает зависимости.
 - 2026-10-05. Явный выбор хранится как намерение (`selected`), новые курсы репозитория не ставятся молча и показываются как «не установлено». Причина: выбор ученика не должен тихо расти; запись без выбора сохраняет прежнее «все курсы».
 - 2026-10-05. Курсы с ошибками в предпросмотре недоступны для выбора, но не блокируют остальные. Причина: один сломанный курс репозитория не должен лишать ученика остальных (раньше отказывал весь репозиторий).
+- 2026-10-05. Функции выбора живут в `entities/repository/lib/selection.ts`. Причина: их используют две страницы и компонент фичи; юнит-тесты окна не импортируют `.vue`, а индекс фичи его тянет.
+- 2026-10-05. Отказы `unknown-course` и `missing-requirement` не записываются в `lastError` репозитория. Причина: это ошибка запроса, снимок цел и совпадает с коммитом; пометка «Ошибка» вводила бы в заблуждение (R3: состояние не меняется).
+- 2026-10-05. Репозиторий с одним доступным курсом добавляется без шага выбора и без `courseIds` (запись «все курсы»). Причина: частый случай (`dolphy-courses` сегодня) не должен получить лишний клик; рост репозитория до нескольких курсов позже подтянется как раньше.
 
 ## Outcomes
 
-Заполняется при закрытии.
+Сделано всё из R1–R9: `repositories.preview`, выбор курсов в `add` и `update(id, {courseIds})`, запись `selected`/`skippedCourseIds` в JSON-теле строки реестра (миграции нет), обрезка снимка `SnapshotInstaller.prune`, двухшаговый диалог добавления, метка «не установлено» и окно «Курсы…» в настройках. Проверено: тесты сервиса `repositories` (предпросмотр, добавление, обновление, смена выбора, прогресс ученика), `snapshot-installer`, схемы RPC, контракт адаптеров реестра, юнит-тесты окна (модель диалога, функции выбора, модель окна настроек), e2e `git-courses` в настоящем Electron (выбор части курсов, добавление остальных из настроек, курс с занятым `id` недоступен).
+
+Отличия от плана: функции выбора лежат в `entities/repository/lib/selection.ts`, а не в `features/repository-courses/model` (юнит-проект окна не умеет импортировать `.vue`, а модели страниц не должны тянуть индекс фичи); отказы по выбору (`unknown-course`, `missing-requirement`) не пишут `lastError` в запись репозитория; кнопка первого шага диалога теперь «Далее» (репозиторий с одним курсом по-прежнему добавляется сразу), поэтому e2e-проверка занятого `id` смотрит на недоступный курс в списке, а не на ошибку.
+
+Осталось (вне спеки): кэш предпросмотра, чтобы `add` не скачивал репозиторий второй раз.

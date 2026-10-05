@@ -157,6 +157,14 @@ export const boot = async (
     policy,
     logger: defaults.logger,
     health,
+    schedule: {
+      ...(config.scheduleTickMs !== undefined && {
+        tickMs: config.scheduleTickMs,
+      }),
+      ...(config.scheduleClockOffsetMs !== undefined && {
+        now: () => Date.now() + (config.scheduleClockOffsetMs ?? 0),
+      }),
+    },
   });
   return { engine, logger: defaults.logger, channel, health };
 };

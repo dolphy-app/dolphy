@@ -16,6 +16,7 @@ export const NO_CONTRIBUTIONS: ContributionsDto = {
   settings: [],
   commands: [],
   widgets: [],
+  schedules: [],
   panels: [],
   importers: [],
   exporters: [],

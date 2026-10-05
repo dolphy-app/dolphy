@@ -343,6 +343,11 @@ export const en: typeof ru = {
       },
       enabledLabel: 'Enabled',
       notificationsLabel: 'Notifications',
+      schedulesLabel: 'Schedule',
+      schedule: {
+        daily: 'Every day at {at}',
+        hourly: 'Every hour',
+      },
       trustLabel: 'Trust (no isolation)',
       trustHint:
         'A trusted extension runs without isolation: its code runs with the app’s rights and its elements live in the app window and can see its data. Trust only extensions you believe in.',

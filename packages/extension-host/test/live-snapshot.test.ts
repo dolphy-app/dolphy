@@ -42,6 +42,7 @@ const extension = (
   commands: [],
   panels: [],
   widgets: [],
+  schedules: [],
   importers: [],
   exporters: [],
   ...overrides,
@@ -120,6 +121,7 @@ describe('политика, каталог и реестр читают сним
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
     expect(catalog.list()).toEqual([]);
     holder.replace(discoveryOf([withType('acme.a', 'acme.a')]));
@@ -131,6 +133,7 @@ describe('политика, каталог и реестр читают сним
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
     expect(catalog.list().map(({ type }) => type)).toEqual(['acme.a']);
   });

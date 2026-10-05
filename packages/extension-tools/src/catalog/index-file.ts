@@ -55,6 +55,7 @@ type OptionalKey =
   | 'commands'
   | 'panels'
   | 'widgets'
+  | 'schedules'
   | 'importers'
   | 'exporters';
 
@@ -94,6 +95,7 @@ const orderEntry = (entry: CatalogEntry): CatalogEntry => ({
     ...optionalIds('commands', entry.contributes.commands),
     ...optionalIds('panels', entry.contributes.panels),
     ...optionalIds('widgets', entry.contributes.widgets),
+    ...optionalIds('schedules', entry.contributes.schedules),
     ...optionalIds('importers', entry.contributes.importers),
     ...optionalIds('exporters', entry.contributes.exporters),
   },

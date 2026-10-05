@@ -116,6 +116,7 @@ describe('SQLite settings store', () => {
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
   });
 
@@ -186,6 +187,7 @@ describe('настройки расширений', () => {
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
   });
 });

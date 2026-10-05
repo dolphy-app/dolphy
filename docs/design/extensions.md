@@ -141,7 +141,7 @@ engine:
 
 ## Точки вклада
 
-Манифест может содержать любые из одиннадцати ключей `contributes`; пропущенный ключ — пустой список. Неизвестный ключ отклоняется. Во всех точках с `id`: `id` равен id расширения или начинается с `<id расширения>.`. Каждый пример в этом разделе, помеченный строкой `Файл ...`, проверяется тестом `packages/extension-tools/test/docs-contributions.test.ts`.
+Манифест может содержать любые из двенадцати ключей `contributes`; пропущенный ключ — пустой список. Неизвестный ключ отклоняется. Во всех точках с `id`: `id` равен id расширения или начинается с `<id расширения>.`. Каждый пример в этом разделе, помеченный строкой `Файл ...`, проверяется тестом `packages/extension-tools/test/docs-contributions.test.ts`.
 
 ### Виды заданий (`exerciseTypes`)
 
@@ -709,6 +709,62 @@ export const widgets = {
 
 Контракт 22 добавил `WidgetContributionDto`, `ContributionsDto.widgets`, `ExtensionContributesDto.widgets`, `ContributionTitlesDto.widgets` и поле `icon` у `CommandContributionDto` и `PanelContributionDto`.
 
+### Расписания (`schedules`)
+
+Расписание запускает обработчик расширения в заданное местное время, пока приложение работает. Запись: `id`, `every` (`daily` или `hourly`) и необязательное `at` — `HH:MM` по 24-часовым часам, только у `daily` (умолчание `09:00`; у `hourly` ключ `at` — ошибка манифеста). До четырёх расписаний на расширение (`EXTENSION_SCHEDULE_LIMITS.schedules`), `id` — как у остальных вкладов. Расписание требует код (`main`), разрешений не просит: оно запускает тот же код с теми же охранами (изоляция, пределы, учёт сбоев), а пользователь выключает его в строке расширения.
+
+Файл `extension.json` (расписания расширения):
+
+```json
+{
+  "id": "acme.reminder",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "permissions": ["notifications"],
+  "contributes": {
+    "schedules": [
+      { "id": "acme.reminder.morning", "every": "daily", "at": "08:30" },
+      { "id": "acme.reminder.hourly", "every": "hourly" }
+    ]
+  }
+}
+```
+
+Файл `src/index.ts` (расписания расширения):
+
+```ts
+import { defineExtension, inActivate } from '@dolphy-app/extension-sdk';
+
+export const host = defineExtension({
+  schedules: {
+    'acme.reminder.morning': inActivate,
+    'acme.reminder.hourly': () => undefined,
+  },
+  activate(ctx) {
+    ctx.schedule.on('acme.reminder.morning', async () => {
+      await ctx.notifications.show({
+        title: 'Время заниматься',
+        body: 'Утреннее повторение ждёт',
+      });
+    });
+  },
+});
+```
+
+Контракт:
+
+- `ctx.schedule.on(id, handler)` (или запись `schedules` в `defineExtension`, `inActivate` — когда обработчику нужен `ctx`). `id` обязан быть объявлен в манифесте, иначе бросает; вторая подписка на тот же `id` бросает. Обработчик вызывается без аргументов. Подписанное расписание, о котором код забыл, видно в журнале предупреждением `declared in the manifest but not registered by the extension code`.
+- Время — местное время компьютера: `daily` срабатывает в `at`, `hourly` — в начале каждого часа (в поясах со сдвигом в полчаса — по местным часам). Местное время, которого нет в сутки перехода на летнее время (например, `02:30` весной), в этот день не срабатывает; повторяющийся осенью час срабатывает по первому вхождению у `daily` и в каждый реальный час у `hourly`.
+- Лениво: расширение активируется в момент срабатывания (как при событии), не раньше. Обработчик ограничен 10 с (`EXTENSION_SCHEDULE_LIMITS.handlerMs`); сбой и превышение срока попадают в здоровье расширения и в журнал, хост не перезапускается.
+- Пропущенное не воспроизводится. Планировщик (`packages/extension-host/src/scheduler.ts`, в процессе движка рядом с доставкой событий) проверяет срабатывания каждые 30 с по часам процесса и хранит в памяти только курсор прошлой проверки. Срабатывание, обнаруженное позже чем через 2 минуты после своего момента (`EXTENSION_SCHEDULE_LIMITS.lateMs`: приложение было закрыто или компьютер спал), пропускается. Обработчик, который ещё работает с прошлого срабатывания (в том числе не уложившийся в 10 с), нового срабатывания не получает: об этом пишет планировщик (пока не вернулся вызов) и сам рантайм (пока работает код).
+- Действует сразу, без перезапуска: каждая проверка читает набор расширений и политику заново. Отключённое расширение, расширение в безопасном режиме, удалённое и отозванное не срабатывают; включённое снова не получает пропущенного.
+- Переключатель «Расписание» в строке расширения (только у загруженных расширений с `schedules`): выключен — расписания расширения не срабатывают. Значение — `ExtensionSettingsDto.schedulesOff` (отсортированные id без повторов, `engine.db`), метод `extensions.setSchedulesEnabled(id, enabled)`; расширение не перезапускается, значение переживает перезапуск приложения и обновление расширения. Под переключателем строка показывает расписания человеческим текстом («Каждый день в 08:30 · Каждый час»).
+- Доставка — запрос хоста `fireSchedule` (`ExtRequest`, лениво активирует, `restart: false`); ограниченный процесс получает его тем же раннером, срок вызова — как у команды (12 с у раннера, 14 с у планировщика).
+- e2e в несобранном приложении ускоряет часы: `DOLPHY_SCHEDULE_TICK_MS` — период проверки, `DOLPHY_CLOCK_OFFSET_FILE` — файл со смещением часов планировщика относительно системных (мс; перечитывается на каждом тике, поэтому тест подводит часы к моменту срабатывания, когда приложение уже готово); в собранном приложении переменные не действуют.
+- Тест без приложения: `createMemorySchedule({ declared? })` и `loadSchedules(module, options)` из `@dolphy-app/extension-sdk/testing`: `fire(id)` зовёт подписанный обработчик и ждёт его (`true`), без подписки или при ещё работающем прошлом обработчике пропускает (`false`), сбой обработчика отклоняет обещание; `ids()` — подписанные расписания.
+
+Контракт 29 добавил `ScheduleContributionDto`, `ContributionsDto.schedules`, `ExtensionContributesDto.schedules`, `ExtensionSettingsDto.schedulesOff`, метод `extensions.setSchedulesEnabled` и поля `EngineConfig.scheduleTickMs`/`scheduleClockOffsetFile`.
+
 ### Значки команд и панелей (`icon`)
 
 Необязательное `icon` у `commands` и `panels` — имя из закрытого списка `EXTENSION_ICONS` (`@dolphy-app/extension-api`), умолчание `puzzle`. Имена: `puzzle`, `book`, `brain`, `calendar`, `chart`, `check`, `clock`, `cog`, `fire`, `flag`, `heart`, `help`, `home`, `idea`, `list`, `message`, `pencil`, `play`, `star`, `target`, `trophy`, `bell`, `bookmark`, `tag`. Неизвестное имя — ошибка манифеста (`contributes.commands.0.icon`). Картинку рисует приложение (`shared/config/extension-icons.ts`: имя → символ шрифта иконок, запись по всем именам обязательна), от расширения приходит только имя.
@@ -903,6 +959,7 @@ const shown = await ctx.notifications.show({
 ### Как проверить
 
 - Уведомления (`ctx.notifications`): `packages/engine/test/app/services/extension-notifications.test.ts` (разрешение, очистка, длины, лимиты, переключатель), `packages/extension-host/test/runtime-state.test.ts`, `channel-host-requests.test.ts` и `restricted-runner.test.ts`, `packages/extension-sdk/test/testing-notifications.test.ts`, `apps/desktop/test/platform-notifications.test.ts` (main с подменой `Notification`, адаптер хоста), e2e `apps/desktop/e2e/extension-notifications.e2e.test.ts` (фикстуры `notify-extension`, `notify-denied-extension`).
+- Расписания (`ctx.schedule`): `packages/extension-host/test/scheduler.test.ts` (границы окна и опоздания в 2 минуты, сон, пересечение суток, переход на летнее время в `Europe/Berlin`, пояс со сдвигом в полчаса, перекрытие, отключение, переключатель, безопасный режим, удаление), `runtime-schedules.test.ts` (ленивая активация, срок 10 с, ещё работающий обработчик), `schedules-integration.test.ts` (планировщик → канал → рантайм и настоящий ограниченный процесс), `points-schedules.test.ts` (манифест, реестр, протокол), общий набор `describeSettingsStoreContract` (`schedulesOff`), `apps/desktop/e2e/extension-schedules.e2e.test.ts` (ускоренные часы).
 - Статистика (`ctx.stats`): `packages/engine/test/app/stats-index.test.ts` (границы суток, летнее время, серия, фильтр курса, сброс индекса), `packages/engine/test/app/services/extension-stats.test.ts` (разрешение, приватность, диапазоны), `packages/extension-host/test/runtime-state.test.ts` и `restricted-runner.test.ts`, `packages/extension-sdk/test/testing-stats.test.ts`, e2e `apps/desktop/e2e/extension-stats.e2e.test.ts` (фикстуры `stats-extension`, `stats-denied-extension`).
 - Unit: `packages/engine` (сервисы, приёмник событий), контрактные тесты `ExtensionDataStore` для memory и sqlite, `packages/extension-host/test` (канал, `ctx.*` в процессе и в ограниченном процессе, доставка, `engine-parity.test.ts`), `packages/extension-sdk/test`; окно — `apps/desktop/test/settings-extension-settings.test.ts`, `settings-extension-data.test.ts`, `settings-install.test.ts`, `session-model.test.ts`.
 - e2e: `apps/desktop/e2e/extension-state.e2e.test.ts` (фикстура `fixtures/state-extension`: настройки без перезагрузки, события ровно один раз в изолированном и доверенном режимах, переживание перезапуска, отключение, очистка, квота, установка из каталога и удаление с флажком и без).
@@ -1903,7 +1960,7 @@ export const panels = {
 
 ### Шпаргалка по SDK
 
-- `defineExtension({ exerciseTypes?, gradePolicies?, events?, commands?, importers?, exporters?, activate?, deactivate? })` — готовый модуль расширения (экспорт `host` файла `src/index.ts`): виды из `exerciseTypes` регистрируются сами, при `deactivate` освобождаются; `events` — словарь «имя события → обработчик» (нужны `learning.events` и `contributes.events`); `commands` — словарь «id команды → обработчик» (команда объявлена в `contributes.commands`, разрешение не нужно; обработчику, которому нужен `ctx`, регистрируйтесь в `activate` через `ctx.commands.register`). `ctx.storage`, `ctx.settings`, `ctx.events` и `ctx.commands` доступны в `activate` и обработчиках (разделы «Данные, настройки и события» и «Команды»). Помощники результата команды — `notify(text)` и `openPanel(id, props?)`; модуль панели — `defineExtensionPanel({ mount })` в `src/panel.ts`.
+- `defineExtension({ exerciseTypes?, gradePolicies?, events?, commands?, schedules?, importers?, exporters?, activate?, deactivate? })` — готовый модуль расширения (экспорт `host` файла `src/index.ts`): виды из `exerciseTypes` регистрируются сами, при `deactivate` освобождаются; `events` — словарь «имя события → обработчик» (нужны `learning.events` и `contributes.events`); `commands` — словарь «id команды → обработчик» (команда объявлена в `contributes.commands`, разрешение не нужно; обработчику, которому нужен `ctx`, регистрируйтесь в `activate` через `ctx.commands.register`). `ctx.storage`, `ctx.settings`, `ctx.events` и `ctx.commands` доступны в `activate` и обработчиках (разделы «Данные, настройки и события» и «Команды»). Помощники результата команды — `notify(text)` и `openPanel(id, props?)`; модуль панели — `defineExtensionPanel({ mount })` в `src/panel.ts`.
 - `defineExerciseType<Spec, Answer, View>({ project, grade, referenceAnswer? })` — типизированный обработчик. `project` отдаёт элементу публичный вид задания (без ключей ответа); `grade` возвращает `{ outcome: 'passed' }`, `{ outcome: 'failed', reason, detail? }` или `{ outcome: 'error', reason }`; `referenceAnswer` — эталон для проверки библиотеки компилятором. К моменту вызова `grade` `spec` и ответ уже проверены схемами из манифеста.
 - `defineAnswerView(mount)` — запись `views[<id вида>]`: описание элемента ввода с shadow DOM, ничего не регистрирует (custom element с тегом `element` из манифеста определяет сборка в `view.mjs`). `mount(api, props)` получает `api.root`, `api.label` (`aria-label` от приложения), `api.setAnswer(value, complete)` и `api.submit()`, возвращает `{ update(props), destroy?() }`; `props` — `view`, `value`, `disabled`, `verdict`.
 - `defineExtensionPanel({ mount })` — запись `panels[<id панели>]`; `defineExtensionWidget({ mount })` — запись `widgets[<id виджета>]` (`ctx = WidgetContext = { widgetId, context, signal, call, onContextChange }`); `defineMarkdownRenderer(render)` — запись `markdown[<язык>]`.

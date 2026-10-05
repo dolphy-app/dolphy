@@ -214,6 +214,46 @@ export interface WidgetContribution {
   module?: string;
 }
 
+/** How often a schedule fires. */
+export const EXTENSION_SCHEDULE_EVERY = ['daily', 'hourly'] as const;
+export type ExtensionScheduleEvery = (typeof EXTENSION_SCHEDULE_EVERY)[number];
+
+/** `at` of a `daily` schedule: `HH:MM`, 24-hour clock, local time. */
+export const SCHEDULE_AT_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+/** `at` of a `daily` schedule without one. */
+export const DEFAULT_SCHEDULE_AT = '09:00';
+
+/** Limits on schedules; the manifest, the scheduler, and the runtime enforce them. */
+export const EXTENSION_SCHEDULE_LIMITS = Object.freeze({
+  /** Schedules per extension. */
+  schedules: 4,
+  /** Handler budget, ms. */
+  handlerMs: 10_000,
+  /** A firing found later than this after its moment (the app was closed or asleep) is skipped, ms. */
+  lateMs: 120_000,
+  /** How often the app looks for due firings, ms. */
+  tickMs: 30_000,
+});
+
+/**
+ * Extension schedule: a handler the app runs at fixed local times
+ * (`ctx.schedule.on`) while it is running. `daily` fires at `at`; `hourly` at
+ * the start of every hour and takes no `at`.
+ */
+export type ScheduleContribution =
+  | {
+      /** Equal to the extension id or starts with `<extension id>.`. */
+      id: string;
+      every: 'daily';
+      /** `HH:MM` local time (`SCHEDULE_AT_PATTERN`); defaults to `DEFAULT_SCHEDULE_AT`. */
+      at?: string;
+    }
+  | {
+      /** Equal to the extension id or starts with `<extension id>.`. */
+      id: string;
+      every: 'hourly';
+    };
+
 /** What an importer accepts: `text` hands the handler the file as a UTF-8 string, `bytes` as a `Uint8Array`. */
 export type ImporterInputKind = 'text' | 'bytes';
 
@@ -444,6 +484,10 @@ export interface ExtensionManifest {
       maxHeight: number;
       module: string;
     })[];
+    schedules: (
+      | { id: string; every: 'daily'; at: string }
+      | { id: string; every: 'hourly' }
+    )[];
     importers: (ImporterContribution & { input: ImporterInputKind })[];
     exporters: ExporterContribution[];
   };
@@ -492,6 +536,7 @@ export interface ExtensionManifestInput {
     commands?: CommandContribution[];
     panels?: PanelContribution[];
     widgets?: WidgetContribution[];
+    schedules?: ScheduleContribution[];
     importers?: ImporterContribution[];
     exporters?: ExporterContribution[];
   };
@@ -1379,6 +1424,24 @@ export interface ExtensionNotifications {
   show(notification: ExtensionNotification): Promise<boolean>;
 }
 
+/** Runs when a schedule fires; at most `EXTENSION_SCHEDULE_LIMITS.handlerMs`, a failure is only logged. */
+export type ScheduleHandler = () => void | Promise<void>;
+
+/** Schedules of the extension (`contributes.schedules`); `Id` narrows the schedule ids. */
+export interface ExtensionSchedule<Id extends string = string> {
+  /**
+   * `id` must be declared in the `schedules` of this extension's manifest,
+   * otherwise it throws; subscribing twice throws. The app fires the handler
+   * by the local clock while it runs, activating the extension if needed. A
+   * firing found more than `EXTENSION_SCHEDULE_LIMITS.lateMs` after its moment
+   * (the app was closed or asleep) is skipped and never replayed; a handler
+   * still running from the previous firing misses the next one. No
+   * permission is needed; the user can switch the extension's schedules off
+   * in the settings.
+   */
+  on(id: Id, handler: ScheduleHandler): Disposable;
+}
+
 export type LearningEventHandler<N extends LearningEventName> = (
   payload: LearningEventPayloads[N],
 ) => void | Promise<void>;
@@ -1451,6 +1514,7 @@ export interface ExtensionIdSet {
   events: LearningEventName;
   panels: string;
   widgets: string;
+  schedules: string;
   importers: string;
   exporters: string;
   /** Languages of `contributes.markdownRenderers`. */
@@ -1472,6 +1536,8 @@ export interface ExtensionContext<Ids extends ExtensionIdSet = ExtensionIdSet> {
   readonly stats: ExtensionStats;
   /** System notifications; need the `notifications` permission. */
   readonly notifications: ExtensionNotifications;
+  /** Schedules the extension declares; no permission needed. */
+  readonly schedule: ExtensionSchedule<Ids['schedules']>;
   readonly commands: ExtensionCommands<Ids['commands']>;
   readonly importers: ExtensionImporters<Ids['importers']>;
   readonly exporters: ExtensionExporters<Ids['exporters']>;

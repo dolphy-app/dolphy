@@ -26,6 +26,7 @@ const USER: ExtensionInfoDto = {
     events: [],
     commands: [],
     widgets: [],
+    schedules: [],
     panels: [],
     importers: [],
     exporters: [],

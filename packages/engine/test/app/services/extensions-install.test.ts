@@ -28,6 +28,7 @@ const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
   events: [],
   commands: [],
   widgets: [],
+  schedules: [],
   panels: [],
   importers: [],
   exporters: [],
@@ -276,6 +277,7 @@ describe('extensions.setCheckUpdates', () => {
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
     await engine.extensions.setCheckUpdates(false);
     expect((await settings.loadExtensions()).checkUpdates).toBe(false);
@@ -301,6 +303,7 @@ describe('extensions.setCheckUpdates', () => {
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
   });
 });
@@ -378,6 +381,7 @@ describe('startup update check', () => {
         safeMode: false,
         notificationsOff: [],
         catalogUrl: null,
+        schedulesOff: [],
       },
     });
     const { ctx, installer } = await setup({ updates: [UPDATE] }, settings);

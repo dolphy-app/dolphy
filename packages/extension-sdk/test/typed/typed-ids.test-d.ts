@@ -26,6 +26,10 @@ const complete = {
   gradePolicies: { 'acme.strict': () => 5 as const },
   events: { 'attempt.closed': () => undefined },
   commands: { 'acme.a': () => undefined, 'acme.b': () => undefined },
+  schedules: {
+    'acme.morning': () => undefined,
+    'acme.hourly': () => undefined,
+  },
   importers: { 'acme.in': () => ({ files: {} }) },
   exporters: {
     'acme.out': () => ({ filename: 'a.txt', text: '' }),
@@ -61,6 +65,7 @@ describe('defineExtension with generated ids', () => {
       gradePolicies,
       events,
       commands,
+      schedules,
       importers,
       exporters,
     } = complete;
@@ -69,17 +74,26 @@ describe('defineExtension with generated ids', () => {
       exerciseTypes,
       gradePolicies,
       events,
+      schedules,
       importers,
       exporters,
     });
     // @ts-expect-error the declared exercise type has no record
-    defineExtension({ gradePolicies, events, commands, importers, exporters });
+    defineExtension({
+      gradePolicies,
+      events,
+      commands,
+      schedules,
+      importers,
+      exporters,
+    });
     // @ts-expect-error the declared importer has no record
     defineExtension({
       exerciseTypes,
       gradePolicies,
       events,
       commands,
+      schedules,
       exporters,
     });
     // @ts-expect-error the declared exporters have no record
@@ -88,7 +102,38 @@ describe('defineExtension with generated ids', () => {
       gradePolicies,
       events,
       commands,
+      schedules,
       importers,
+    });
+    // @ts-expect-error the declared schedules have no record
+    defineExtension({
+      exerciseTypes,
+      gradePolicies,
+      events,
+      commands,
+      importers,
+      exporters,
+    });
+  });
+
+  it('names schedules exactly: a missing, an extra, and an inActivate id', () => {
+    defineExtension({
+      ...complete,
+      schedules: { 'acme.morning': inActivate, 'acme.hourly': () => undefined },
+    });
+    defineExtension({
+      ...complete,
+      // @ts-expect-error 'acme.hourly' is declared but not named
+      schedules: { 'acme.morning': () => undefined },
+    });
+    defineExtension({
+      ...complete,
+      schedules: {
+        'acme.morning': () => undefined,
+        'acme.hourly': () => undefined,
+        // @ts-expect-error 'acme.more' is not declared
+        'acme.more': () => undefined,
+      },
     });
   });
 
@@ -225,6 +270,9 @@ describe('defineExtension with generated ids', () => {
         ctx.commands.register('acme.a', () => undefined);
         // @ts-expect-error not a declared command
         ctx.commands.register('acme.c', () => undefined);
+        ctx.schedule.on('acme.morning', () => undefined);
+        // @ts-expect-error not a declared schedule
+        ctx.schedule.on('acme.evening', () => undefined);
         ctx.events.on('attempt.closed', ({ grade }) => void grade);
         // @ts-expect-error not a declared event
         ctx.events.on('session.started', () => undefined);

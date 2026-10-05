@@ -58,6 +58,7 @@ export type ExtRequest =
       };
     }
   | DeliverEventRequest
+  | FireScheduleRequest
   | InvokeCommandRequest
   | RunImporterRequest
   | RunExporterRequest;
@@ -75,6 +76,22 @@ export interface DeliverEventRequest {
     extensionId: string;
     name: LearningEventName;
     payload: LearningEventPayloads[LearningEventName];
+    isolated: boolean;
+  };
+}
+
+/**
+ * Срабатывание расписания (`ctx.schedule.on`). Лениво активирует расширение;
+ * ответ `{ delivered }`: `false` — расписание не объявлено или обработчик не
+ * подписан. Сбой обработчика — `handler-failed`, превышение 10 с —
+ * `handler-timeout`; клиент их только учитывает и логирует.
+ */
+export interface FireScheduleRequest {
+  id: string;
+  method: 'fireSchedule';
+  params: {
+    extensionId: string;
+    scheduleId: string;
     isolated: boolean;
   };
 }
@@ -284,6 +301,12 @@ const eventParams = z.strictObject({
   isolated: z.boolean(),
 });
 
+const scheduleParams = z.strictObject({
+  extensionId: z.string(),
+  scheduleId: z.string(),
+  isolated: z.boolean(),
+});
+
 const commandParams = z.strictObject({
   extensionId: z.string(),
   commandId: z.string(),
@@ -360,6 +383,11 @@ export const extRequestSchema = z.discriminatedUnion('method', [
     id: z.string(),
     method: z.literal('deliverEvent'),
     params: eventParams,
+  }),
+  z.strictObject({
+    id: z.string(),
+    method: z.literal('fireSchedule'),
+    params: scheduleParams,
   }),
   z.strictObject({
     id: z.string(),
@@ -550,6 +578,7 @@ const isResolvedExtension = (value: unknown): value is ResolvedExtension => {
     Array.isArray(item.commands) &&
     Array.isArray(item.panels) &&
     Array.isArray(item.widgets) &&
+    Array.isArray(item.schedules) &&
     Array.isArray(item.importers) &&
     Array.isArray(item.exporters)
   );

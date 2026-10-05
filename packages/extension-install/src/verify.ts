@@ -14,6 +14,7 @@ const CONTRIBUTION_KEYS = [
   'commands',
   'panels',
   'widgets',
+  'schedules',
   'importers',
   'exporters',
 ] as const;

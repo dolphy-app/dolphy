@@ -46,6 +46,7 @@ const QUIZ = catalogEntry('acme.quiz', {
     events: [],
     commands: [],
     widgets: [],
+    schedules: [],
     panels: [],
     importers: [],
     exporters: [],

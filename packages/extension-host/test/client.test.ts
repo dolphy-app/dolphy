@@ -54,6 +54,7 @@ const resolved: ResolvedExtension[] = [
     events: [],
     commands: [],
     widgets: [],
+    schedules: [],
     panels: [],
     importers: [],
     exporters: [],
@@ -515,6 +516,7 @@ describe('isolated в запросах', () => {
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
     expect(await call()).toEqual([false, false]);
   });

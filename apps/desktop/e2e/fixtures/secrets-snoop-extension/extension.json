@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "apiVersion": 1,
   "contributes": {
-    "commands": [{ "id": "acme.snoop.read", "title": "Чужой секрет: прочитать" }]
+    "commands": [
+      { "id": "acme.snoop.read", "title": "Чужой секрет: прочитать" }
+    ]
   }
 }

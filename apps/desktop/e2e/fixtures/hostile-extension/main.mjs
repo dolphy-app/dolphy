@@ -45,7 +45,9 @@ export default {
           await attempt('worker', worker),
           `env:HOME=${process.env.HOME === undefined ? 'unset' : 'set'}`,
           await attempt('library', async () => {
-            const text = await ctx.library.readText(spec.libraryPath ?? 'probe.txt');
+            const text = await ctx.library.readText(
+              spec.libraryPath ?? 'probe.txt',
+            );
             return `allowed:${text.length}`;
           }),
         ];

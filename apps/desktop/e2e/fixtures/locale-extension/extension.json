@@ -16,7 +16,11 @@
       }
     ],
     "markdownRenderers": [
-      { "language": "locale", "title": "%renderer.title%", "renderer": "./markdown.mjs" }
+      {
+        "language": "locale",
+        "title": "%renderer.title%",
+        "renderer": "./markdown.mjs"
+      }
     ],
     "themes": [
       {
@@ -31,7 +35,9 @@
         }
       }
     ],
-    "gradePolicies": [{ "id": "acme.locale.policy", "label": "%policy.label%" }],
+    "gradePolicies": [
+      { "id": "acme.locale.policy", "label": "%policy.label%" }
+    ],
     "settings": [
       {
         "id": "acme.locale.mode",

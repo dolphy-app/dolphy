@@ -8,6 +8,7 @@ import type { RevocationLookup } from './revocation.ts';
 export const createAllTrustedPolicy = (): ExtensionPolicy => ({
   isEnabled: () => true,
   isIsolated: () => false,
+  areSchedulesOn: () => true,
   safeMode: () => false,
   update: () => {},
 });
@@ -40,16 +41,19 @@ export const createExtensionPolicy = (
   };
   let disabled = new Set<string>();
   let trusted = new Set<string>();
+  let schedulesOff = new Set<string>();
   let persistedSafeMode = false;
   const safeMode = (): boolean => forceSafeMode || persistedSafeMode;
   return {
     isEnabled: (id) =>
       bundled(id) || (!safeMode() && !disabled.has(id) && !revoked(id)),
     isIsolated: (id) => !bundled(id) && !trusted.has(id),
+    areSchedulesOn: (id) => bundled(id) || !schedulesOff.has(id),
     safeMode,
     update(settings: ExtensionSettingsDto) {
       disabled = new Set(settings.disabled);
       trusted = new Set(settings.trusted);
+      schedulesOff = new Set(settings.schedulesOff);
       persistedSafeMode = settings.safeMode;
     },
   };

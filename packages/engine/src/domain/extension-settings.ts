@@ -13,6 +13,7 @@ export const DEFAULT_EXTENSION_SETTINGS: Readonly<ExtensionSettingsDto> =
     safeMode: false,
     notificationsOff: [],
     catalogUrl: null,
+    schedulesOff: [],
   });
 
 export const isExtensionId = (value: unknown): value is string =>
@@ -39,6 +40,7 @@ export const normalizeExtensionSettings = (
   safeMode: settings.safeMode,
   notificationsOff: normalizeIds(settings.notificationsOff),
   catalogUrl: settings.catalogUrl,
+  schedulesOff: normalizeIds(settings.schedulesOff),
 });
 
 /** Только явное `false` выключает проверку: всё остальное — умолчание. */
@@ -81,7 +83,13 @@ export const decodeExtensionSettings = (raw: unknown): ExtensionSettingsDto => {
     Reflect.get(raw, 'notificationsOff'),
   );
   const catalogUrl = decodeCatalogUrl(Reflect.get(raw, 'catalogUrl'));
-  if (disabled === null || trusted === null || notificationsOff === null) {
+  const schedulesOff = decodeOptionalIds(Reflect.get(raw, 'schedulesOff'));
+  if (
+    disabled === null ||
+    trusted === null ||
+    notificationsOff === null ||
+    schedulesOff === null
+  ) {
     return normalizeExtensionSettings({
       ...DEFAULT_EXTENSION_SETTINGS,
       checkUpdates,
@@ -96,6 +104,7 @@ export const decodeExtensionSettings = (raw: unknown): ExtensionSettingsDto => {
     safeMode,
     notificationsOff,
     catalogUrl,
+    schedulesOff,
   };
 };
 

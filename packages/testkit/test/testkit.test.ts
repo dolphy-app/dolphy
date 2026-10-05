@@ -298,6 +298,7 @@ describe('createFakeExtensionRegistry', () => {
         events: [],
         commands: [],
         widgets: [],
+        schedules: [],
         panels: [],
         importers: [],
         exporters: [],
@@ -331,6 +332,7 @@ describe('createFakeExtensionRegistry', () => {
       commands: [],
       panels: [],
       widgets: [],
+      schedules: [],
       importers: [],
       exporters: [],
       messages: {},
@@ -359,11 +361,30 @@ describe('createFakeExtensionPolicy', () => {
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
     expect(policy.isEnabled('acme.x')).toBe(false);
     expect(policy.isEnabled('dolphy.sql')).toBe(true);
     expect(policy.isIsolated('acme.x')).toBe(false);
     expect(policy.updates).toHaveLength(1);
+  });
+
+  it('schedules are on unless the user switched them off; bundled extensions have no switch', () => {
+    const policy = createFakeExtensionPolicy({ bundled: ['dolphy.sql'] });
+    expect(policy.areSchedulesOn('acme.x')).toBe(true);
+    policy.update({
+      disabled: [],
+      trusted: [],
+      checkUpdates: true,
+      safeMode: false,
+      notificationsOff: [],
+      catalogUrl: null,
+      schedulesOff: ['acme.x', 'dolphy.sql'],
+    });
+    expect(policy.areSchedulesOn('acme.x')).toBe(false);
+    expect(policy.areSchedulesOn('acme.y')).toBe(true);
+    expect(policy.areSchedulesOn('dolphy.sql')).toBe(true);
+    expect(policy.isEnabled('acme.x')).toBe(true);
   });
 
   it('revoked extensions are disabled regardless of settings, except bundled', () => {

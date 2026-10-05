@@ -284,6 +284,79 @@ describe('dispatcher validation', () => {
     }
   });
 
+  it('extensions.runImporter, commitImport, discardImport and runExporter validate their arguments', async () => {
+    const { dispatcher } = await connect();
+    const [hostSide, rawSide] = createInProcessPair();
+    dispatcher.attach(hostSide, 'raw-transfer');
+    const raw = createRawClient(rawSide);
+    const text = { name: 'a.csv', text: 'a,b' };
+    const bytes = { name: 'a.bin', bytes: new Uint8Array([1, 2]) };
+    const accepted: [string, unknown[]][] = [
+      ['extensions.runImporter', ['acme.ext', 'acme.ext.import', text]],
+      ['extensions.runImporter', ['acme.ext', 'acme.ext.import', bytes]],
+      ['extensions.commitImport', ['import-1']],
+      ['extensions.discardImport', ['import-1']],
+      [
+        'extensions.runExporter',
+        ['acme.ext', 'acme.ext.export', { scope: 'progress' }],
+      ],
+      [
+        'extensions.runExporter',
+        ['acme.ext', 'acme.ext.export', { scope: 'course', courseId: 'c' }],
+      ],
+    ];
+    for (const [method, args] of accepted) {
+      expect(await raw.call(method, args)).toMatchObject({ ok: true });
+    }
+    const rejected: [string, unknown[]][] = [
+      ['extensions.runImporter', []],
+      ['extensions.runImporter', ['Acme', 'acme.ext.import', text]],
+      ['extensions.runImporter', ['acme.ext', '', text]],
+      [
+        'extensions.runImporter',
+        ['acme.ext', 'acme.ext.import', { name: '', text: '' }],
+      ],
+      [
+        'extensions.runImporter',
+        ['acme.ext', 'acme.ext.import', { name: 'a', text: 1 }],
+      ],
+      [
+        'extensions.runImporter',
+        ['acme.ext', 'acme.ext.import', { name: 'a', bytes: [1, 2] }],
+      ],
+      [
+        'extensions.runImporter',
+        [
+          'acme.ext',
+          'acme.ext.import',
+          { name: 'a', text: '', bytes: new Uint8Array() },
+        ],
+      ],
+      [
+        'extensions.runImporter',
+        ['acme.ext', 'acme.ext.import', text, 'extra'],
+      ],
+      ['extensions.commitImport', []],
+      ['extensions.commitImport', ['']],
+      ['extensions.discardImport', [7]],
+      ['extensions.runExporter', ['acme.ext', 'acme.ext.export', {}]],
+      [
+        'extensions.runExporter',
+        ['acme.ext', 'acme.ext.export', { scope: 'course' }],
+      ],
+      [
+        'extensions.runExporter',
+        ['acme.ext', 'acme.ext.export', { scope: 'progress', courseId: 'c' }],
+      ],
+    ];
+    for (const [method, args] of rejected) {
+      expect(await raw.call(method, args)).toMatchObject({
+        ok: false,
+        error: { code: 'INVALID_ARGUMENT' },
+      });
+    }
+  });
+
   it('extensions catalog/install/uninstall/updates/setCheckUpdates validate their arguments', async () => {
     const { dispatcher } = await connect();
     const [hostSide, rawSide] = createInProcessPair();

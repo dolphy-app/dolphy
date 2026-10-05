@@ -39,6 +39,7 @@ import type {
 import type { ExerciseTypes } from '../ports/exercise-types.ts';
 import type { GradePolicies } from '../ports/grade-policies.ts';
 import type { ExtensionCommands } from '../ports/extension-commands.ts';
+import type { ExtensionTransfers } from '../ports/extension-transfers.ts';
 import type { ExtensionDataStore } from '../ports/extension-data.ts';
 import type { PlatformServices } from '../ports/platform.ts';
 import type { ExtensionInstaller } from '../ports/extension-installer.ts';
@@ -107,6 +108,8 @@ export interface EngineDeps {
   gradePolicies: GradePolicies;
   /** Команды расширений: вызов в хосте расширений (`@dolphy-app/extension-host`). */
   extensionCommands: ExtensionCommands;
+  /** Импорт и экспорт расширений: запуск в хосте расширений (`@dolphy-app/extension-host`). */
+  extensionTransfers: ExtensionTransfers;
   /** Обзор расширений для `extensions.list`. */
   extensionRegistry: ExtensionRegistry;
   /** Политика расширений (включено / изолировано); тот же экземпляр, что у реестра и клиентов хоста. */
@@ -367,6 +370,7 @@ export interface EngineContext extends FacadeContext {
   readonly attempts: ExpiringMap<OpenAttempt>;
   readonly gradePolicies: GradePolicies;
   readonly extensionCommands: ExtensionCommands;
+  readonly extensionTransfers: ExtensionTransfers;
   /** Настройки обучения в памяти (читаются при каждом закрытии попытки); пишет только `settings.setLearning`. */
   readonly learning: { gradePolicy: string };
   readonly journal: JournalWriter;

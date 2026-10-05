@@ -13,6 +13,7 @@ import {
   createFakeClock,
   createFakeExerciseTypes,
   createFakeExtensionCommands,
+  createFakeExtensionTransfers,
   createFakeExtensionHostControl,
   createFakeExtensionInstaller,
   createFakeExtensionPolicy,
@@ -59,6 +60,7 @@ import type {
 import type { ExerciseTypes } from '../../src/ports/exercise-types.ts';
 import type { GradePolicies } from '../../src/ports/grade-policies.ts';
 import type { ExtensionCommands } from '../../src/ports/extension-commands.ts';
+import type { ExtensionTransfers } from '../../src/ports/extension-transfers.ts';
 import type {
   ExtensionHealth,
   ExtensionHostControl,
@@ -91,6 +93,7 @@ export interface TestEngineOptions {
   exerciseTypes?: ExerciseTypes;
   gradePolicies?: GradePolicies;
   extensionCommands?: ExtensionCommands;
+  extensionTransfers?: ExtensionTransfers;
   extensionRegistry?: ExtensionRegistry;
   extensionPolicy?: ExtensionPolicy;
   /** По умолчанию — `createExtensionHealth(clock)`. */
@@ -199,6 +202,8 @@ export const createTestContext = async (
     gradePolicies: options.gradePolicies ?? createFakeGradePolicies(),
     extensionCommands:
       options.extensionCommands ?? createFakeExtensionCommands(),
+    extensionTransfers:
+      options.extensionTransfers ?? createFakeExtensionTransfers(),
     extensionRegistry:
       options.extensionRegistry ?? createFakeExtensionRegistry(),
     extensionPolicy: options.extensionPolicy ?? createFakeExtensionPolicy(),

@@ -438,6 +438,28 @@ export const schemas = {
     str.min(1).max(128),
     optional(jsonValue),
   ]),
+  'extensions.runImporter': z.tuple([
+    extensionId,
+    str.min(1).max(128),
+    // размер проверяет сервис: слишком большой файл — `too-large`, а не отказ схемы
+    z.union([
+      z.strictObject({ name: str.min(1).max(255), text: str }),
+      z.strictObject({
+        name: str.min(1).max(255),
+        bytes: z.instanceof(Uint8Array),
+      }),
+    ]),
+  ]),
+  'extensions.commitImport': z.tuple([str.min(1).max(128)]),
+  'extensions.discardImport': z.tuple([str.min(1).max(128)]),
+  'extensions.runExporter': z.tuple([
+    extensionId,
+    str.min(1).max(128),
+    z.union([
+      z.strictObject({ scope: z.literal('course'), courseId: unitId }),
+      z.strictObject({ scope: z.literal('progress') }),
+    ]),
+  ]),
   'curation.blacklist.list': z.tuple([optional(pageRequest)]),
   'curation.blacklist.has': z.tuple([unitId]),
   'curation.blacklist.add': z.tuple([unitId]),

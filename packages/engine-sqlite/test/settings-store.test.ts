@@ -114,6 +114,7 @@ describe('SQLite settings store', () => {
       trusted: ['acme.b'],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
   });
 
@@ -182,6 +183,7 @@ describe('настройки расширений', () => {
       trusted: [],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
   });
 });

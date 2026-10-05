@@ -11,6 +11,7 @@ export const DEFAULT_EXTENSION_SETTINGS: Readonly<ExtensionSettingsDto> =
     trusted: [],
     checkUpdates: true,
     safeMode: false,
+    notificationsOff: [],
   });
 
 export const isExtensionId = (value: unknown): value is string =>
@@ -35,6 +36,7 @@ export const normalizeExtensionSettings = (
   trusted: normalizeIds(settings.trusted),
   checkUpdates: settings.checkUpdates,
   safeMode: settings.safeMode,
+  notificationsOff: normalizeIds(settings.notificationsOff),
 });
 
 /** Только явное `false` выключает проверку: всё остальное — умолчание. */
@@ -45,6 +47,10 @@ const decodeSafeMode = (raw: unknown): boolean => raw === true;
 
 const decodeIds = (raw: unknown): string[] | null =>
   Array.isArray(raw) && raw.every(isExtensionId) ? normalizeIds(raw) : null;
+
+/** Список, которого могло не быть (запись до его появления): нет значения — пусто, неверная форма — `null`. */
+const decodeOptionalIds = (raw: unknown): string[] | null =>
+  raw === undefined ? [] : decodeIds(raw);
 
 /**
  * Сохранённое значение → настройки расширений: неверная форма целиком
@@ -58,14 +64,17 @@ export const decodeExtensionSettings = (raw: unknown): ExtensionSettingsDto => {
   const trusted = decodeIds(Reflect.get(raw, 'trusted'));
   const checkUpdates = decodeCheckUpdates(Reflect.get(raw, 'checkUpdates'));
   const safeMode = decodeSafeMode(Reflect.get(raw, 'safeMode'));
-  if (disabled === null || trusted === null) {
+  const notificationsOff = decodeOptionalIds(
+    Reflect.get(raw, 'notificationsOff'),
+  );
+  if (disabled === null || trusted === null || notificationsOff === null) {
     return normalizeExtensionSettings({
       ...DEFAULT_EXTENSION_SETTINGS,
       checkUpdates,
       safeMode,
     });
   }
-  return { disabled, trusted, checkUpdates, safeMode };
+  return { disabled, trusted, checkUpdates, safeMode, notificationsOff };
 };
 
 /** Метка последней проверки обновлений (epoch ms): неверное значение — «не проверяли». */

@@ -1,4 +1,5 @@
 import type {
+  ExtensionInfoDto,
   ExtensionSettingChangeDto,
   ExtensionSettingValuesDto,
   JsonValue,
@@ -8,7 +9,14 @@ import {
   parseStatsDate,
 } from '../../domain/learning-stats.ts';
 import type { DailyResult, StreakResult } from '../../domain/learning-stats.ts';
-import { EXTENSION_SECRET_LIMITS, utf8Length } from '../../domain/index.ts';
+import {
+  EXTENSION_NOTIFICATION_LIMITS,
+  EXTENSION_SECRET_LIMITS,
+  createNotificationRateLimiter,
+  sanitizeNotificationText,
+  textLength,
+  utf8Length,
+} from '../../domain/index.ts';
 import type { EngineContext } from '../context.ts';
 import { EngineError } from '../errors.ts';
 import { createExtensionValues } from '../extension-values.ts';
@@ -64,6 +72,19 @@ export interface ExtensionHostServices {
     ): Promise<DailyResult[]>;
   };
   /**
+   * Системные уведомления (`ctx.notifications`): нужно разрешение
+   * `notifications`, иначе `INVALID_ARGUMENT` `{ reason: 'permission',
+   * permission: 'notifications' }`. Текст очищается от управляющих
+   * символов; пустое название или длина сверх `EXTENSION_NOTIFICATION_LIMITS`
+   * — `INVALID_ARGUMENT` с `details.field` (`title` | `body`). Сверх
+   * `perMinute`/`perHour` — `INVALID_ARGUMENT` `{ reason: 'rate-limit',
+   * window, limit }`. `false` — переключатель «Уведомления» выключен или
+   * платформа уведомления не показывает; такой вызов лимит не расходует.
+   */
+  readonly notifications: {
+    show(extensionId: string, title: string, body: string): Promise<boolean>;
+  };
+  /**
    * Сообщения хоста о здоровье расширения: длительность активации, сбой вне
    * вызова (процесс убит за предел IPC), приостановка за цикл падений, сброс при смене файлов расширения. В отличие
    * от данных расширения, принимаются и для отключённого: это учёт, а не доступ.
@@ -84,6 +105,20 @@ export interface ExtensionHostServices {
   ): () => void;
 }
 
+const MESSAGE_KEY = /^%([A-Za-z0-9_.-]{1,64})%$/;
+
+/**
+ * Имя расширения в уведомлении: название манифеста, `%ключ%` — по таблице
+ * `en` (язык окна движок не знает); нет названия — id.
+ */
+const sourceNameOf = (info: ExtensionInfoDto): string => {
+  const name = info.name;
+  if (name === null) return info.id;
+  const key = MESSAGE_KEY.exec(name)?.[1];
+  if (key === undefined) return name;
+  return info.messages.en?.[key] ?? info.id;
+};
+
 export const createExtensionHostServices = (
   ctx: Pick<
     EngineContext,
@@ -92,6 +127,8 @@ export const createExtensionHostServices = (
     | 'extensionHealth'
     | 'extensionData'
     | 'platform'
+    | 'settings'
+    | 'clock'
     | 'extensionSettingChanges'
     | 'statsIndex'
     | 'emit'
@@ -152,6 +189,46 @@ export const createExtensionHostServices = (
     }
     return day;
   };
+  const notificationsOf = (extensionId: string): ExtensionInfoDto => {
+    const id = active(extensionId);
+    const info = ctx.extensionRegistry
+      .list()
+      .find((item) => item.id === id && item.state === 'loaded');
+    if (info?.permissions.includes('notifications') !== true) {
+      throw new EngineError('INVALID_ARGUMENT', {
+        message: `Extension '${id}' does not declare the 'notifications' permission`,
+        details: {
+          reason: 'permission',
+          permission: 'notifications',
+          extensionId: id,
+        },
+      });
+    }
+    return info;
+  };
+  const notificationText = (
+    field: 'title' | 'body',
+    value: unknown,
+    max: number,
+  ): string => {
+    if (typeof value !== 'string') {
+      throw new EngineError('INVALID_ARGUMENT', {
+        message: `Notification ${field} must be a string`,
+        details: { field },
+      });
+    }
+    const text = sanitizeNotificationText(value, {
+      multiline: field === 'body',
+    });
+    if ((field === 'title' && text === '') || textLength(text) > max) {
+      throw new EngineError('INVALID_ARGUMENT', {
+        message: `Notification ${field} must be ${field === 'title' ? '1 to ' : 'up to '}${max} characters`,
+        details: { field, max },
+      });
+    }
+    return text;
+  };
+  const limiter = createNotificationRateLimiter();
   const { secrets } = ctx.extensionData;
   const { cipher } = ctx.platform;
   /** Шифр не отвечает или отказал: ни запись, ни чтение невозможны. */
@@ -239,6 +316,33 @@ export const createExtensionHostServices = (
           });
         }
         return ctx.statsIndex.daily(first, last, courseIdOf(courseId));
+      },
+    },
+    notifications: {
+      show: async (extensionId, title, body) => {
+        const info = notificationsOf(extensionId);
+        const limits = EXTENSION_NOTIFICATION_LIMITS;
+        const notification = {
+          source: sourceNameOf(info),
+          title: notificationText('title', title, limits.titleLength),
+          body: notificationText('body', body, limits.bodyLength),
+        };
+        const { notificationsOff } = await ctx.settings.loadExtensions();
+        if (notificationsOff.includes(info.id)) return false;
+        const exhausted = limiter.take(info.id, ctx.clock.now());
+        if (exhausted !== null) {
+          const limit = exhausted === 'minute' ? limits.perMinute : limits.perHour;
+          throw new EngineError('INVALID_ARGUMENT', {
+            message: `Notification rate limit exceeded: ${limit} per ${exhausted}`,
+            details: {
+              reason: 'rate-limit',
+              window: exhausted,
+              limit,
+              extensionId: info.id,
+            },
+          });
+        }
+        return ctx.platform.notifier.show(notification);
       },
     },
     health: {

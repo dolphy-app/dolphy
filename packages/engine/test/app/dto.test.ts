@@ -296,6 +296,7 @@ describe('toExerciseDto', () => {
             trusted: ['dolphy.sql'],
             checkUpdates: true,
             safeMode: false,
+            notificationsOff: [],
           },
         }),
       ),

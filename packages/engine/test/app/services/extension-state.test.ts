@@ -181,6 +181,7 @@ const open = (installer = createFakeExtensionInstaller()) =>
         trusted: [],
         checkUpdates: true,
         safeMode: false,
+        notificationsOff: [],
       },
     }),
     extensionInstaller: installer,

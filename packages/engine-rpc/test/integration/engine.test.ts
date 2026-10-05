@@ -683,6 +683,7 @@ describe('rpc → dispatcher → real engine', () => {
       trusted: [],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
     expect(
       await call('extensions.getSettingValues', () =>
@@ -726,6 +727,7 @@ describe('rpc → dispatcher → real engine', () => {
       trusted: [],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
     expect(
       await call('extensions.setTrusted', () =>
@@ -736,6 +738,7 @@ describe('rpc → dispatcher → real engine', () => {
       trusted: ['acme.user'],
       checkUpdates: true,
       safeMode: false,
+      notificationsOff: [],
     });
     expect(
       await call('extensions.setCheckUpdates', () =>

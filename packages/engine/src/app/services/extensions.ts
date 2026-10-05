@@ -448,6 +448,23 @@ export const createExtensionsService = (
         }),
         { allowRevoked: true },
       ),
+    setNotificationsEnabled: async (id, enabled) => {
+      if (!isExtensionId(id)) throw invalidId(id);
+      if (typeof enabled !== 'boolean') {
+        throw new EngineError('INVALID_ARGUMENT', {
+          message: 'enabled must be a boolean',
+          details: { field: 'enabled' },
+        });
+      }
+      findToggleable(ctx.extensionRegistry.list(), id, { allowRevoked: true });
+      return persist(
+        (settings) => ({
+          ...settings,
+          notificationsOff: withMember(settings.notificationsOff, id, !enabled),
+        }),
+        { reload: false },
+      );
+    },
     setCheckUpdates: (enabled) => {
       if (typeof enabled !== 'boolean') {
         throw new EngineError('INVALID_ARGUMENT', {

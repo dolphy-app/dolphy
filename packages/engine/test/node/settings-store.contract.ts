@@ -237,6 +237,7 @@ export const describeSettingsStoreContract = (
         trusted: [],
         checkUpdates: true,
         safeMode: false,
+        notificationsOff: [],
       });
     });
 
@@ -247,24 +248,28 @@ export const describeSettingsStoreContract = (
         trusted: ['acme.z'],
         checkUpdates: false,
         safeMode: false,
+        notificationsOff: [],
       });
       expect(await store.loadExtensions()).toEqual({
         disabled: ['acme.a', 'acme.b'],
         trusted: ['acme.z'],
         checkUpdates: false,
         safeMode: false,
+        notificationsOff: [],
       });
       await store.saveExtensions({
         disabled: [],
         trusted: [],
         checkUpdates: true,
         safeMode: false,
+        notificationsOff: [],
       });
       expect(await store.loadExtensions()).toEqual({
         disabled: [],
         trusted: [],
         checkUpdates: true,
         safeMode: false,
+        notificationsOff: [],
       });
     });
 
@@ -276,20 +281,41 @@ export const describeSettingsStoreContract = (
         trusted: ['acme.t'],
         checkUpdates: false,
         safeMode: true,
+        notificationsOff: [],
       });
       expect(await store.loadExtensions()).toEqual({
         disabled: ['acme.a'],
         trusted: ['acme.t'],
         checkUpdates: false,
         safeMode: true,
+        notificationsOff: [],
       });
       await store.saveExtensions({
         disabled: ['acme.a'],
         trusted: ['acme.t'],
         checkUpdates: false,
         safeMode: false,
+        notificationsOff: [],
       });
       expect((await store.loadExtensions()).safeMode).toBe(false);
+    });
+
+    it('расширения: notificationsOff переживает круг сохранения, канонический и независимый от остальных полей', async () => {
+      const store = await make();
+      await store.saveExtensions({
+        disabled: ['acme.d'],
+        trusted: [],
+        checkUpdates: true,
+        safeMode: false,
+        notificationsOff: ['acme.z', 'acme.a', 'acme.z'],
+      });
+      expect(await store.loadExtensions()).toEqual({
+        disabled: ['acme.d'],
+        trusted: [],
+        checkUpdates: true,
+        safeMode: false,
+        notificationsOff: ['acme.a', 'acme.z'],
+      });
     });
 
     it('метка проверки обновлений: по умолчанию null, save → load', async () => {
@@ -309,6 +335,7 @@ export const describeSettingsStoreContract = (
         trusted: [],
         checkUpdates: true,
         safeMode: false,
+        notificationsOff: [],
       });
       await store.savePreferences({
         scheduler: null,
@@ -325,6 +352,7 @@ export const describeSettingsStoreContract = (
         trusted: [],
         checkUpdates: true,
         safeMode: false,
+        notificationsOff: [],
       });
       expect((await store.loadPreferences()).ignored_paths).toEqual(['x']);
     });

@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useEngine } from '@/shared/api/engine';
 import { useLibrarySettings } from '../model/library.ts';
+import ExtensionTransfersCard from './ExtensionTransfersCard.vue';
 import RepositoriesCard from './RepositoriesCard.vue';
 import SectionHeader from './SectionHeader.vue';
 
@@ -140,6 +141,8 @@ const add = () => {
       </v-card>
 
       <RepositoriesCard />
+
+      <ExtensionTransfersCard />
 
       <v-card class="pa-5">
         <h3 class="text-title-large font-weight-bold">

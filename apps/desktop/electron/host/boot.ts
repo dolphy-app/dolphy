@@ -19,6 +19,7 @@ import {
   createHostChannel,
   createRemoteExerciseTypes,
   createRemoteExtensionCommands,
+  createRemoteExtensionTransfers,
   createRemoteGradePolicies,
   discoverExtensions,
 } from '@dolphy-app/extension-host';
@@ -112,6 +113,11 @@ export const boot = async (
     policy,
     logger: defaults.logger,
   });
+  const extensionTransfers = createRemoteExtensionTransfers({
+    channel,
+    policy,
+    logger: defaults.logger,
+  });
   if (__DOLPHY_SMOKE_BUILD__ && process.env.DOLPHY_SMOKE === '1') {
     defaults.logger.info(
       { types: exerciseTypes.list().map(({ type }) => type) },
@@ -130,6 +136,7 @@ export const boot = async (
       exerciseTypes,
       gradePolicies,
       extensionCommands,
+      extensionTransfers,
       extensionRegistry: createExtensionRegistry(
         discovery,
         policy,

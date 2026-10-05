@@ -442,7 +442,11 @@ export const runStartupUpdateCheck = async (
   }
 };
 
-/** `extensions.*`: снимки реестра, копии записей, настройки включения, доверия и проверки обновлений, установка из каталога. */
+/**
+ * `extensions.*`: снимки реестра, копии записей, настройки включения, доверия и
+ * проверки обновлений, установка из каталога. Импорт и экспорт (`transfers`)
+ * живут в `extension-transfers.ts` и подмешиваются как есть.
+ */
 export const createExtensionsService = (
   ctx: Pick<
     EngineContext,
@@ -463,6 +467,10 @@ export const createExtensionsService = (
     | 'clock'
     | 'logger'
     | 'state'
+  >,
+  transfers: Pick<
+    ExtensionsService,
+    'runImporter' | 'commitImport' | 'discardImport' | 'runExporter'
   >,
 ): ExtensionsService => {
   const values = createExtensionValues(ctx);
@@ -491,6 +499,7 @@ export const createExtensionsService = (
     return persist(apply, { reload: true });
   };
   return {
+    ...transfers,
     list: async () =>
       ctx.extensionRegistry
         .list()

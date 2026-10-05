@@ -47,6 +47,30 @@ describe('раннер дочерних процессов', () => {
     expect(childPids()).toEqual([]);
   });
 
+  it('ответ воркера, вышедшего сразу после отправки, не теряется', async () => {
+    // как настоящий воркер: выход в колбэке отправки. Пока цикл событий родителя
+    // занят, `exit` и сообщение приходят в одном тике, и `exit` мог выиграть:
+    // результат превращался в worker_crash
+    const runner = await runnerFor(
+      "process.on('message', () => process.send({ type: 'result', result: { status: 'passed', failures: [] } }, () => process.exit(0))); process.send({ type: 'ready' });",
+    );
+    let loaded = true;
+    const load = () => {
+      const start = Date.now();
+      while (Date.now() - start < 15);
+      if (loaded) setImmediate(load);
+    };
+    setImmediate(load);
+    try {
+      const outcomes = await Promise.all(
+        Array.from({ length: 60 }, () => runner.run(request)),
+      );
+      expect(outcomes.filter(({ kind }) => kind !== 'result')).toEqual([]);
+    } finally {
+      loaded = false;
+    }
+  });
+
   it('ответ неверной формы — worker_bad_result', async () => {
     const runner = await runnerFor(
       "process.on('message', () => process.send({ type: 'result', result: 1 })); process.send({ type: 'ready' });",

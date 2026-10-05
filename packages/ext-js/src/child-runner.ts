@@ -144,7 +144,10 @@ export const createChildRunner = (
         START_TIMEOUT_MS,
       );
       child.on('error', () => crash('worker_crash'));
-      child.on('exit', () => crash('worker_crash'));
+      // Не `exit`: он может прийти раньше, чем родитель дочитает IPC-канал, и
+      // ответ уже вышедшего воркера потерялся бы как `worker_crash`.
+      // `disconnect` приходит после доставки всех сообщений канала.
+      child.on('disconnect', () => crash('worker_crash'));
       child.on('message', (raw: FromWorker) => {
         if (raw.type === 'ready') {
           clearTimeout(timers.start);

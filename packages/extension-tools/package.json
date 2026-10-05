@@ -5,7 +5,8 @@
   "description": "Tools for extension authors: dolphy-ext build, types and validate",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./dependency-styles": "./src/dependency-styles.ts"
   },
   "bin": {
     "dolphy-ext": "./src/cli/main.ts"

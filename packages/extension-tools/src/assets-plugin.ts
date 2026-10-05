@@ -1,6 +1,7 @@
 import { statSync } from 'node:fs';
 import path from 'node:path';
 import type { Plugin } from 'vite';
+import { dependencyStyleId, loadDependencyStyle } from './dependency-styles.ts';
 import type { JobState } from './shim.ts';
 
 /**
@@ -33,14 +34,17 @@ const isBig = (file: string): boolean => {
 
 /**
  * Vite in library mode inlines every asset and has no place for a style sheet: the
- * plugin brings the two documented paths. An image or a font is a data URI up to
+ * plugin brings the documented paths. An image or a font is a data URI up to
  * `ASSETS_INLINE_LIMIT` and a file in `assets/` above it (an import with `?url` or
- * `new URL('./x.png', import.meta.url)`); a style sheet is imported as a string with
- * `?inline`, a plain `import './x.css'` is an error with the way out in the message.
+ * `new URL('./x.png', import.meta.url)`); a style sheet of the author is imported as a
+ * string with `?inline`, a plain `import './x.css'` is an error with the way out in the
+ * message; a plain import inside `node_modules` (a UI library) is collected into a
+ * registry (`dependency-styles.ts`).
  */
 export const assetsPlugin = (state: JobState): Plugin => ({
   name: 'dolphy-ext:assets',
   enforce: 'pre',
+  load: loadDependencyStyle,
   // Vite resolves `new URL(…, import.meta.url)` itself, bypassing `resolveId`: the mark goes into the literal
   transform(code, id) {
     const file = cleanId(id);
@@ -68,6 +72,8 @@ export const assetsPlugin = (state: JobState): Plugin => ({
     const query = resolved.id.slice(file.length);
     if (STYLE_FILE.test(file)) {
       if (TEXT_IMPORT.test(query)) return null;
+      const dependency = dependencyStyleId(resolved.id);
+      if (dependency !== null) return dependency;
       const message = `'${source}' is imported as a side-effect style sheet, which a bundle cannot carry: import it as text with import css from '${source}?inline' and add it to the page, or ship it as a file in assets/`;
       state.problem = message;
       return this.error(message);

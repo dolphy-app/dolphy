@@ -44,7 +44,9 @@ export const panels: ContributionPoint<'panels'> = {
         : []),
       ...idPrefixIssues('panels', ids, owner),
       ...duplicateIssues('contributes.panels', 'id', ids),
-      ...entries.flatMap((entry, index) => whenIssues('panels', index, entry.when)),
+      ...entries.flatMap((entry, index) =>
+        whenIssues('panels', index, entry.when),
+      ),
     ];
   },
   resolve: async (entries, { dir, extensionId: owner, verifyFiles }) => {

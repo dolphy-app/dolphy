@@ -123,7 +123,9 @@ describe('условие when: команда, панель и виджет (R10
     const { client, page } = await prepare();
     const titles = async () =>
       (
-        await widgetCards(page).getByRole('heading', { level: 3 }).allInnerTexts()
+        await widgetCards(page)
+          .getByRole('heading', { level: 3 })
+          .allInnerTexts()
       ).map((text) => text.trim());
 
     await expectCount(widgetCards(page), 1);

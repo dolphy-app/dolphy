@@ -95,8 +95,11 @@ describe('widgetsOf', () => {
     expect(widgetKeyOf(before)).not.toBe(widgetKeyOf(after));
     expect(widgetKeyOf(before)).toBe(widgetKeyOf({ ...before }));
     expect(
-      widgetsOf({ ...NO_CONTRIBUTIONS, widgets: [after] }, 'dailyPlan', ALWAYS)[0]
-        ?.key,
+      widgetsOf(
+        { ...NO_CONTRIBUTIONS, widgets: [after] },
+        'dailyPlan',
+        ALWAYS,
+      )[0]?.key,
     ).toBe(widgetKeyOf(after));
   });
 

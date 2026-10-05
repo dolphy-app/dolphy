@@ -160,7 +160,11 @@ const tokenize = (text: string): Token[] => {
     if (char === "'") {
       const close = text.indexOf("'", index + 1);
       if (close === -1) {
-        throw new WhenError('unterminated-string', index, 'unterminated string');
+        throw new WhenError(
+          'unterminated-string',
+          index,
+          'unterminated string',
+        );
       }
       tokens.push({
         kind: 'string',
@@ -195,6 +199,14 @@ const describe = (token: Token): string => {
   return `'${token.text}'`;
 };
 
+const fail = (token: Token, expected: string): never => {
+  throw new WhenError(
+    token.kind === 'end' ? 'unexpected-end' : 'unexpected-token',
+    token.at,
+    `expected ${expected}, found ${describe(token)}`,
+  );
+};
+
 class Parser {
   private index = 0;
   private readonly tokens: readonly Token[];
@@ -213,14 +225,6 @@ class Parser {
     return token;
   }
 
-  private fail(token: Token, expected: string): never {
-    throw new WhenError(
-      token.kind === 'end' ? 'unexpected-end' : 'unexpected-token',
-      token.at,
-      `expected ${expected}, found ${describe(token)}`,
-    );
-  }
-
   private isPunct(text: string): boolean {
     const token = this.peek();
     return token.kind === 'punct' && token.text === text;
@@ -234,7 +238,7 @@ class Parser {
   parse(): WhenExpr {
     const expr = this.or();
     const token = this.peek();
-    if (token.kind !== 'end') this.fail(token, "'&&', '||' or the end");
+    if (token.kind !== 'end') fail(token, "'&&', '||' or the end");
     return expr;
   }
 
@@ -267,12 +271,12 @@ class Parser {
       const expr = this.or();
       const close = this.peek();
       if (!(close.kind === 'punct' && close.text === ')')) {
-        this.fail(close, "')'");
+        fail(close, "')'");
       }
       this.next();
       return expr;
     }
-    if (token.kind !== 'word') this.fail(token, 'a key, true, false, ! or (');
+    if (token.kind !== 'word') fail(token, 'a key, true, false, ! or (');
     if (token.text === 'true' || token.text === 'false') {
       this.next();
       return { type: 'literal', value: token.text === 'true' };
@@ -300,7 +304,7 @@ class Parser {
   /** A key alone (boolean keys only), or a comparison with it. */
   private keyed(): WhenExpr {
     const token = this.next();
-    if (token.kind !== 'word') this.fail(token, 'a key');
+    if (token.kind !== 'word') fail(token, 'a key');
     if (!isKey(token.text)) {
       throw new WhenError(
         'unknown-key',
@@ -320,7 +324,7 @@ class Parser {
       this.next();
       const open = this.peek();
       if (!(open.kind === 'punct' && open.text === '(')) {
-        this.fail(open, "'(' after in");
+        fail(open, "'(' after in");
       }
       this.next();
       const values = [this.literal(key, spec)];
@@ -330,7 +334,7 @@ class Parser {
       }
       const close = this.peek();
       if (!(close.kind === 'punct' && close.text === ')')) {
-        this.fail(close, "',' or ')'");
+        fail(close, "',' or ')'");
       }
       this.next();
       return { type: 'in', key, values };
@@ -378,7 +382,7 @@ class Parser {
       }
       return token.text === 'true';
     }
-    return this.fail(
+    return fail(
       token,
       spec.type === 'boolean' ? 'true or false' : "a 'string'",
     );
@@ -425,7 +429,7 @@ export const evaluateWhen = (
       return expr.values.some((value) => context[expr.key] === value);
     case 'and':
       return expr.terms.every((term) => evaluateWhen(term, context));
-    case 'or':
+    default:
       return expr.terms.some((term) => evaluateWhen(term, context));
   }
 };

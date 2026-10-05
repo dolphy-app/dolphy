@@ -27,7 +27,9 @@ const scope = useCourseScope();
 const palette = useCommandPalette();
 const headingId = useId();
 
-const items = computed(() => widgetsOf(contributions.value, props.area, extensionWhen));
+const items = computed(() =>
+  widgetsOf(contributions.value, props.area, extensionWhen),
+);
 // курс в фокусе доходит до рамок без их пересоздания
 const context = computed(() => ({ courseId: scope.activeId.value }));
 // ошибка загрузки рамки по ключу рамки: новая ревизия начинает с чистого листа

@@ -144,7 +144,9 @@ export const commands: ContributionPoint<'commands'> = {
       ...idPrefixIssues('commands', ids, owner),
       ...duplicateIssues('contributes.commands', 'id', ids),
       ...entries.flatMap(bindingIssues),
-      ...entries.flatMap((entry, index) => whenIssues('commands', index, entry.when)),
+      ...entries.flatMap((entry, index) =>
+        whenIssues('commands', index, entry.when),
+      ),
     ];
   },
   resolve: async (entries) =>

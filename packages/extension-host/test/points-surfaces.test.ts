@@ -31,6 +31,13 @@ const panel = (patch: Record<string, unknown> = {}) => ({
   ...patch,
 });
 
+const widget = (patch: Record<string, unknown> = {}) => ({
+  id: `${ID}.card`,
+  title: 'Card',
+  slot: 'dailyPlan',
+  ...patch,
+});
+
 const messageOf = (raw: unknown): string => {
   const parsed = parseManifest(raw);
   if (parsed.ok) throw new Error('manifest was accepted');
@@ -315,7 +322,7 @@ describe('условие when у команды, панели и виджета'
   );
 
   it.each([
-    ['неизвестный ключ', "foo == 'x'", 'unknown key \'foo\' (known:', 'at 0'],
+    ['неизвестный ключ', "foo == 'x'", "unknown key 'foo' (known:", 'at 0'],
     ['ключ другого реестра', 'inputFocus', "unknown key 'inputFocus'", 'at 0'],
     ['неизвестное значение', "route == 'home'", "unknown value 'home'", 'at 9'],
     [
@@ -357,9 +364,9 @@ describe('условие when у команды, панели и виджета'
   });
 
   it('пустое условие — ошибка', () => {
-    expect(
-      messageOf(manifest({ widgets: [widget({ when: '' })] })),
-    ).toContain('contributes.widgets.0.when');
+    expect(messageOf(manifest({ widgets: [widget({ when: '' })] }))).toContain(
+      'contributes.widgets.0.when',
+    );
   });
 
   it('команда с palette: false может иметь условие: оно скрывает только строку палитры, которой нет', () => {
@@ -457,13 +464,6 @@ describe('точка panels', () => {
       parseManifest(manifest({ commands: [command()], panels: [panel()] })).ok,
     ).toBe(true);
   });
-});
-
-const widget = (patch: Record<string, unknown> = {}) => ({
-  id: `${ID}.card`,
-  title: 'Card',
-  slot: 'dailyPlan',
-  ...patch,
 });
 
 describe('точка widgets', () => {
@@ -833,7 +833,13 @@ describe('обнаружение и реестр команд и панелей'
         },
       ],
       panels: [
-        { id: `${ID}.screen`, title: 'S', icon: 'puzzle', when: null, rendererUrl: 'x' },
+        {
+          id: `${ID}.screen`,
+          title: 'S',
+          icon: 'puzzle',
+          when: null,
+          rendererUrl: 'x',
+        },
       ],
     });
 
@@ -881,7 +887,13 @@ describe('протокол замены набора расширений', () =
         },
       ],
       panels: [
-        { id: `${ID}.screen`, title: 'S', icon: 'puzzle', when: null, rendererUrl: 'x' },
+        {
+          id: `${ID}.screen`,
+          title: 'S',
+          icon: 'puzzle',
+          when: null,
+          rendererUrl: 'x',
+        },
       ],
     });
 

@@ -1,6 +1,10 @@
 import { inject } from 'vue';
 import type { InjectionKey } from 'vue';
-import { WHEN_ROUTES, evaluateWhen, parseWhen } from '@dolphy-app/extension-api';
+import {
+  WHEN_ROUTES,
+  evaluateWhen,
+  parseWhen,
+} from '@dolphy-app/extension-api';
 import type { WhenContext, WhenExpr } from '@dolphy-app/extension-api';
 
 /** Источники значений ключей `when` расширений: читаются реактивно. */

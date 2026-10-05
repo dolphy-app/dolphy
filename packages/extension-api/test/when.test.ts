@@ -61,7 +61,7 @@ describe('evaluateWhen', () => {
     ],
     ["!(route == 'courses' || session.active)", { route: 'placement' }, true],
     ["  route\t==\n'courses'  ", {}, true],
-    ['route==\'courses\'&&!session.active||theme.dark', {}, true],
+    ["route=='courses'&&!session.active||theme.dark", {}, true],
   ];
 
   it.each(table)('%s with %j is %s', (text, overrides, expected) => {
@@ -101,9 +101,9 @@ describe('evaluateWhen', () => {
         return 'ru';
       },
     } satisfies WhenContext;
-    expect(evaluateWhen(parseWhen("route == 'courses' || theme.dark"), lazy)).toBe(
-      true,
-    );
+    expect(
+      evaluateWhen(parseWhen("route == 'courses' || theme.dark"), lazy),
+    ).toBe(true);
     expect(read).toEqual(['route']);
   });
 });
@@ -120,7 +120,12 @@ describe('parseWhen: errors', () => {
     ['string against a boolean', "theme.dark == 'true'", 'type-mismatch', 14],
     ['boolean against a text key', 'route == true', 'type-mismatch', 9],
     ['text key alone', 'route', 'type-mismatch', 0],
-    ['text key alone in a group', "(locale) && course.active", 'type-mismatch', 1],
+    [
+      'text key alone in a group',
+      '(locale) && course.active',
+      'type-mismatch',
+      1,
+    ],
     ['number', 'route == 1', 'unexpected-character', 9],
     ['missing right side', 'route ==', 'unexpected-end', 8],
     ['missing literal', 'route == && course.active', 'unexpected-token', 9],
@@ -134,11 +139,21 @@ describe('parseWhen: errors', () => {
     ['two keys', 'course.active session.active', 'unexpected-token', 14],
     ['in without a list', "route in 'courses'", 'unexpected-token', 9],
     ['empty list', 'route in ()', 'unexpected-token', 10],
-    ['trailing comma in a list', "route in ('courses',)", 'unexpected-token', 20],
+    [
+      'trailing comma in a list',
+      "route in ('courses',)",
+      'unexpected-token',
+      20,
+    ],
     ['unclosed list', "route in ('courses'", 'unexpected-end', 19],
     ['! before a comparison', "!route == 'courses'", 'unexpected-token', 1],
     ['! before nothing', '!', 'unexpected-end', 1],
-    ['chained comparison', "route == 'courses' == 'courses'", 'unexpected-token', 19],
+    [
+      'chained comparison',
+      "route == 'courses' == 'courses'",
+      'unexpected-token',
+      19,
+    ],
     ['keyword as a key', 'in', 'unknown-key', 0],
   ];
 

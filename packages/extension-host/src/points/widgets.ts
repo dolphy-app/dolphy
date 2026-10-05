@@ -54,7 +54,9 @@ export const widgets: ContributionPoint<'widgets'> = {
         : []),
       ...idPrefixIssues('widgets', ids, owner),
       ...duplicateIssues('contributes.widgets', 'id', ids),
-      ...entries.flatMap((entry, index) => whenIssues('widgets', index, entry.when)),
+      ...entries.flatMap((entry, index) =>
+        whenIssues('widgets', index, entry.when),
+      ),
       ...entries.flatMap((entry, index) =>
         entry.minHeight > entry.maxHeight
           ? [

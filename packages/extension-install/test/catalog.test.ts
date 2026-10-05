@@ -149,7 +149,7 @@ describe('catalog: статусы записей', () => {
 });
 
 describe('catalog: сводка вклада в DTO', () => {
-  it('commands и panels копируются в contributes, по умолчанию []', async () => {
+  it('commands, panels и widgets копируются в contributes, по умолчанию []', async () => {
     serveIndex(env.routes, [
       {
         id: 'acme.cmds',
@@ -158,6 +158,7 @@ describe('catalog: сводка вклада в DTO', () => {
           ...contributesOf([]),
           commands: ['acme.cmds.open'],
           panels: ['acme.cmds.main'],
+          widgets: ['acme.cmds.card'],
         },
       },
       { id: 'acme.plain', version: '1.0.0' },
@@ -167,10 +168,12 @@ describe('catalog: сводка вклада в DTO', () => {
     expect(byId['acme.cmds']?.contributes).toMatchObject({
       commands: ['acme.cmds.open'],
       panels: ['acme.cmds.main'],
+      widgets: ['acme.cmds.card'],
     });
     expect(byId['acme.plain']?.contributes).toMatchObject({
       commands: [],
       panels: [],
+      widgets: [],
     });
   });
 });

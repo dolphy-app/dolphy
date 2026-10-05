@@ -80,10 +80,28 @@ describe('parseIndex', () => {
     expect(parseIndex(JSON.parse(JSON.stringify(parsed)))).toEqual(parsed);
   });
 
+  it('сводка принимает widgets и сохраняет их; неверный тип отвергается', () => {
+    const base = entry().contributes;
+    const parsed = parseIndex(
+      index([entry({ contributes: { ...base, widgets: ['acme.quiz.card'] } })]),
+    );
+    expect(parsed.extensions[0]?.contributes.widgets).toEqual([
+      'acme.quiz.card',
+    ]);
+    expect(
+      issuesOf(
+        index([
+          { ...entry(), contributes: { ...base, widgets: 'acme.quiz.card' } },
+        ]),
+      )[0],
+    ).toContain('extensions.0.contributes.widgets');
+  });
+
   it('старый индекс без commands и panels остаётся валидным', () => {
     const parsed = parseIndex(index());
     expect(parsed.extensions[0]?.contributes.commands).toBeUndefined();
     expect(parsed.extensions[0]?.contributes.panels).toBeUndefined();
+    expect(parsed.extensions[0]?.contributes.widgets).toBeUndefined();
   });
 
   it('commands и panels неверного типа отвергаются', () => {

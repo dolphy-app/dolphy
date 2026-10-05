@@ -268,6 +268,26 @@ describe('catalog build: commands and panels', () => {
     expect(paths).toContain('main.mjs');
   });
 
+  it('writes widget ids and titles into the index entry', async () => {
+    const repo = await createRepo([{ fixture: 'surfaces' }]);
+    const out = await makeTemp();
+    await publish(repo, out, ['acme.surfaces']);
+    const [entry] = (await indexOf(out)).extensions;
+    expect(entry?.contributes.widgets).toEqual([
+      'acme.surfaces.card',
+      'acme.surfaces.gauge',
+      'acme.surfaces.badge',
+    ]);
+    expect(entry?.titles?.widgets).toEqual({
+      'acme.surfaces.card': 'Card',
+      'acme.surfaces.gauge': 'Gauge',
+      'acme.surfaces.badge': 'Badge',
+    });
+    const paths = entry?.versions[0]?.files.map((file) => file.path);
+    expect(paths).toContain('widget.mjs');
+    expect(paths).toContain('ui/gauge.js');
+  });
+
   it('without commands and panels the entry has no keys', async () => {
     const repo = await createRepo([{ fixture: 'hello' }]);
     const out = await makeTemp();
@@ -278,6 +298,7 @@ describe('catalog build: commands and panels', () => {
     const keys = Object.keys(raw.extensions[0]?.contributes ?? {});
     expect(keys).not.toContain('commands');
     expect(keys).not.toContain('panels');
+    expect(keys).not.toContain('widgets');
   });
 });
 

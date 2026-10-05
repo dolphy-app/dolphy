@@ -7,7 +7,10 @@
   "author": "acme",
   "contributes": {
     "commands": [
-      { "id": "acme.nonotify.show", "title": "Уведомление без разрешения: показать" }
+      {
+        "id": "acme.nonotify.show",
+        "title": "Уведомление без разрешения: показать"
+      }
     ]
   }
 }

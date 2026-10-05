@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 25 as const;
+export const CONTRACT_VERSION = 31 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 /** Потолок файла импорта, суммарного размера присланного дерева и снимка курса для экспорта, байт (R3, R4, R7 спеки `extension-api-breadth-2`). */
@@ -539,6 +539,30 @@ export interface PracticeService {
     unitId: UnitId;
     requestId: string;
   }): Promise<{ eventId: string; duplicate: boolean }>;
+  /**
+   * Отменяет попытку: она перестаёт влиять на оценки, награды, фронтир,
+   * повторы, ремедиацию и статистику; в журнал пишется запись `retract`
+   * (`op: 'set'`), попытка остаётся в нём. `targetId` — `id` попытки
+   * (`eventId` результата записи) либо `requestId` завершённого входного
+   * теста: тогда отменяется вся его пачка. Повтор с тем же `requestId` ничего
+   * не пишет (`duplicate: true`); цель уже отменена — запись не пишется,
+   * `changed: false`. Неизвестная цель — `NOT_FOUND`.
+   */
+  undo(req: RetractRequest): Promise<RetractResult>;
+  /** Возвращает отменённую `undo` цель (`op: 'unset'`); семантика та же. */
+  redo(req: RetractRequest): Promise<RetractResult>;
+}
+export interface RetractRequest {
+  targetId: string;
+  requestId: string;
+}
+export interface RetractResult {
+  /** `id` записи отмены; `null`, если запись не понадобилась (`changed: false`). */
+  eventId: string | null;
+  /** Повтор `requestId`: прежний результат. */
+  duplicate: boolean;
+  /** Состояние цели изменилось. */
+  changed: boolean;
 }
 
 export interface PlanRequest {
@@ -617,11 +641,24 @@ export interface PlacementSummaryDto {
   attemptsWritten: number;
   duplicate: boolean;
 }
+export interface PlacementStepResult {
+  /** Ответ снят или возвращён; `false` — снимать (возвращать) было нечего. */
+  changed: boolean;
+  progress: PlacementProgressDto;
+}
 export interface PlacementService {
   start(req: PlacementStartRequest): Promise<PlacementStartResult>;
   /** `null` — проб больше нет (бюджет исчерпан или все темы решены). До ответа на выданную пробу возвращает ту же пробу. */
   nextProbe(sessionId: string): Promise<PlacementProbeDto | null>;
   answer(req: PlacementAnswerRequest): Promise<PlacementProgressDto>;
+  /**
+   * Снимает последний ответ открытой сессии: следующая `nextProbe` выдаёт ту
+   * же тему. Каждый вызов — один шаг назад. Завершённая, прерванная и
+   * неизвестная сессия — `PLACEMENT_SESSION_NOT_FOUND`.
+   */
+  undo(sessionId: string): Promise<PlacementStepResult>;
+  /** Возвращает последний снятый `undo` ответ; новый `answer` сбрасывает возврат. */
+  redo(sessionId: string): Promise<PlacementStepResult>;
   finish(req: PlacementFinishRequest): Promise<PlacementSummaryDto>;
   abort(req: { sessionId: string }): Promise<void>;
 }
@@ -759,16 +796,32 @@ export interface UiSettingsDto {
   materialWidth?: number;
   /** Панель теории скрыта. Нет поля — показана. */
   materialCollapsed?: true;
+  /** Исход обучающих туров по их id; нет записи — тур ещё не предлагали. */
+  tours?: Record<string, TourStatus>;
 }
+/** Как закончился тур: дошёл до конца или пропущен. */
+export type TourStatus = 'completed' | 'skipped';
+/** Допустимый вид id тура (`UiSettingsDto.tours`). */
+export const TOUR_ID_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;
+/** Сколько туров запоминается, не больше. */
+export const MAX_TOURS = 32;
 /** Допустимая ширина панели теории, px (`UiSettingsDto.materialWidth`). */
-export const MATERIAL_WIDTH_RANGE = { min: 280, max: 800 } as const;
-/** `activeCourseId: null` снимает фокус, `materialWidth: null` возвращает умолчание, `materialCollapsed: false` показывает панель. */
+export const MATERIAL_WIDTH_RANGE = { min: 280, max: 8192 } as const;
+/**
+ * `activeCourseId: null` снимает фокус, `materialWidth: null` возвращает умолчание,
+ * `materialCollapsed: false` показывает панель; `tours` меняет только перечисленные
+ * ключи, `null` удаляет запись о туре.
+ */
 export type UiSettingsPatch = Partial<
-  Omit<UiSettingsDto, 'activeCourseId' | 'materialWidth' | 'materialCollapsed'>
+  Omit<
+    UiSettingsDto,
+    'activeCourseId' | 'materialWidth' | 'materialCollapsed' | 'tours'
+  >
 > & {
   activeCourseId?: UnitId | null;
   materialWidth?: number | null;
   materialCollapsed?: boolean;
+  tours?: Record<string, TourStatus | null>;
 };
 
 /** Id встроенного правила оценки (`pass@N`). */
@@ -862,8 +915,14 @@ export interface ProgressResetEntryDto extends LogEntryBaseDto {
   /** `revision` библиотеки на момент записи: диагностика расхождения версий курса между устройствами. */
   libraryRevision?: string;
 }
+export interface RetractEntryDto extends LogEntryBaseDto {
+  kind: 'retract';
+  /** `id` попытки или общая часть `id` пачки `<targetId>#<i>`. */
+  targetId: string;
+  op: 'set' | 'unset';
+}
 export type LogEntryDto =
-  AttemptEntryDto | UnitFlagEntryDto | ProgressResetEntryDto;
+  AttemptEntryDto | UnitFlagEntryDto | ProgressResetEntryDto | RetractEntryDto;
 
 export interface SyncStateDto {
   deviceId: string;
@@ -1075,6 +1134,20 @@ export interface EngineConfig {
   logsDir?: string;
   /** Версия приложения; не задана — проверка `minAppVersion` расширений не выполняется. */
   appVersion?: string;
+  /**
+   * Период проверки расписаний расширений, мс (по умолчанию 30 000). Задаёт
+   * только несобранное приложение (`DOLPHY_SCHEDULE_TICK_MS`, e2e).
+   */
+  scheduleTickMs?: number;
+  /**
+   * Файл со смещением часов планировщика расписаний относительно системных,
+   * мс (целое, может быть отрицательным). Планировщик перечитывает его на
+   * каждом тике: e2e подводит часы к моменту срабатывания, когда приложение
+   * уже готово. Задаёт только несобранное приложение
+   * (`DOLPHY_CLOCK_OFFSET_FILE`); нет файла или в нём не число — часы
+   * системные.
+   */
+  scheduleClockOffsetFile?: string;
 }
 
 export interface EngineDiagnosticsDto {
@@ -1125,6 +1198,8 @@ export interface RepositoryDto {
   status: RepositoryStatus;
   /** Курсы, пришедшие из этого репозитория. */
   courseIds: UnitId[];
+  /** Курсы загруженного коммита, которых нет в библиотеке из-за выбора ученика; у репозитория без выбора пусто. */
+  skippedCourseIds: UnitId[];
   lastError?: EngineErrorDto;
   /**
    * Коммит на сервере, если он отличается от загруженного (последняя проверка
@@ -1136,9 +1211,80 @@ export interface RepositoryDto {
   checkedAt?: EpochMs;
 }
 
+/** Вход `repositories.preview`: как у `add`, без выбора курсов. */
+export interface PreviewRepositoryRequest {
+  url: string;
+  ref?: string;
+}
+
 export interface AddRepositoryRequest {
   url: string;
   ref?: string;
+  /**
+   * Курсы репозитория, которые нужно поставить (непустой список без повторов).
+   * Нет поля — все курсы коммита, и новые курсы при `update` тоже ставятся.
+   */
+  courseIds?: UnitId[];
+  /** `RepositoryPreviewDto.previewId` того же адреса и ветки: установка без загрузки. */
+  previewId?: string;
+}
+
+export interface UpdateRepositoryOptions {
+  /** Новый выбор курсов (как `AddRepositoryRequest.courseIds`); нет поля — прежний. */
+  courseIds?: UnitId[];
+  /** `RepositoryPreviewDto.previewId` того же репозитория: установка без загрузки. */
+  previewId?: string;
+}
+
+export interface RemoveRepositoryOptions {
+  /**
+   * Сбросить прогресс курсов репозитория (`progress_reset` на каждый курс из
+   * `RepositoryDto.courseIds`, на других устройствах — после синхронизации).
+   * По умолчанию `false`: журнал не меняется, прогресс вернётся при повторном
+   * добавлении.
+   */
+  removeProgress?: boolean;
+}
+
+/** Курс репозитория в предпросмотре (`repositories.preview`). */
+export interface RepositoryCourseDto {
+  id: UnitId;
+  title: string;
+  /** Каталог курса от корня репозитория. */
+  path: string;
+  lessonCount: number;
+  /**
+   * Курсы того же репозитория, без которых этот не загрузится: зависимости,
+   * `superseded` и `encompassed` на юниты других курсов, курсы-предки по
+   * вложенности каталогов.
+   */
+  requires: UnitId[];
+  /** Диагностики сканера в каталоге курса. */
+  errors: number;
+  warnings: number;
+  /** До пяти первых текстов ошибок; не переводятся. */
+  messages: string[];
+  /** Курс уже пришёл из этого репозитория (запись реестра с тем же URL). */
+  installed: boolean;
+  /** Курс с таким `id` уже есть в библиотеке из другого источника. */
+  inLibrary: boolean;
+}
+
+export interface RepositoryPreviewDto {
+  /** Нормализованный URL. */
+  url: string;
+  ref: string | null;
+  /** Полный SHA-1 просмотренного коммита. */
+  commit: string;
+  /** Все курсы коммита в порядке обхода каталогов. */
+  courses: RepositoryCourseDto[];
+  /**
+   * Токен скачанного снимка: движок держит его до 5 минут (не больше двух
+   * снимков) и ставит курсы из него, если передать токен в `add` или `update`.
+   * Токен одноразовый; просроченный, израсходованный или чужой токен не
+   * ошибка — репозиторий скачивается заново.
+   */
+  previewId: string;
 }
 
 export interface UpdateRepositoryResult {
@@ -1149,12 +1295,32 @@ export interface UpdateRepositoryResult {
 
 export interface RepositoriesService {
   list(): Promise<RepositoryDto[]>;
-  /** `INVALID_ARGUMENT`, `REPOSITORY_EXISTS`, `GIT_FETCH_FAILED`, `REPOSITORY_REJECTED`. */
+  /**
+   * Скачивает репозиторий во временный каталог и возвращает его курсы для
+   * выбора; библиотека, реестр и каталоги библиотеки не меняются.
+   * `INVALID_ARGUMENT`, `GIT_FETCH_FAILED`, `REPOSITORY_REJECTED` (правила снимка).
+   */
+  preview(req: PreviewRepositoryRequest): Promise<RepositoryPreviewDto>;
+  /**
+   * `INVALID_ARGUMENT`, `REPOSITORY_EXISTS`, `GIT_FETCH_FAILED`,
+   * `REPOSITORY_REJECTED` (в том числе `unknown-course` и `missing-requirement`
+   * при `courseIds`).
+   */
   add(req: AddRepositoryRequest): Promise<RepositoryDto>;
-  /** `NOT_FOUND`, `GIT_FETCH_FAILED`, `REPOSITORY_REJECTED`. */
-  update(id: string): Promise<UpdateRepositoryResult>;
-  /** Снимок и запись удаляются, журнал не меняется. `NOT_FOUND`. */
-  remove(id: string): Promise<void>;
+  /**
+   * Обновляет репозиторий; `options.courseIds` заменяет выбор курсов.
+   * `NOT_FOUND`, `INVALID_ARGUMENT`, `GIT_FETCH_FAILED`, `REPOSITORY_REJECTED`.
+   */
+  update(
+    id: string,
+    options?: UpdateRepositoryOptions,
+  ): Promise<UpdateRepositoryResult>;
+  /**
+   * Снимок и запись удаляются, курсы пропадают из библиотеки. С
+   * `options.removeProgress` прогресс курсов сбрасывается (журнал только
+   * дополняется), иначе журнал не меняется. `NOT_FOUND`, `INVALID_ARGUMENT`.
+   */
+  remove(id: string, options?: RemoveRepositoryOptions): Promise<void>;
   /** `true`, если операция над репозиторием шла и прервана. */
   cancel(id: string): Promise<boolean>;
   /**
@@ -1167,8 +1333,22 @@ export interface RepositoriesService {
 }
 
 export type ExtensionOriginDto = 'bundled' | 'user' | 'dev';
+/**
+ * Состояние расширения. `dependencies-unmet` — включено, но не загружено:
+ * зависимость отсутствует, отключена, не загружена или не подходит по версии
+ * (причины — в `diagnostics`), вкладов нет. Отключение пользователем и
+ * безопасный режим важнее: такое расширение — `disabled`.
+ */
 export type ExtensionStateDto =
-  'loaded' | 'overridden' | 'invalid' | 'disabled';
+  'loaded' | 'overridden' | 'invalid' | 'disabled' | 'dependencies-unmet';
+
+/**
+ * Запись расширения, которая действует в наборе (не перекрыта и не
+ * отвергнута): у неё есть переключатель, настройки и данные. Загруженное,
+ * отключённое и с невыполненными зависимостями.
+ */
+export const isEffectiveExtensionState = (state: ExtensionStateDto): boolean =>
+  state === 'loaded' || state === 'disabled' || state === 'dependencies-unmet';
 
 /** Закрытый список кодов диагностик расширения; интерфейс строит текст по коду и данным. */
 export const EXTENSION_DIAGNOSTIC_CODES = [
@@ -1181,6 +1361,11 @@ export const EXTENSION_DIAGNOSTIC_CODES = [
   'load-failed',
   'overridden-by',
   'safe-mode',
+  'dependency-missing',
+  'dependency-disabled',
+  'dependency-version',
+  'dependency-unmet',
+  'dependency-cycle',
   'locale.missing-key',
   'locale.invalid-file',
 ] as const;
@@ -1197,6 +1382,11 @@ export type ExtensionDiagnosticValue = string | number | string[];
  * `id-mismatch` — `expected`, `actual`; `requires-app` — `minAppVersion`;
  * `unavailable-platform` — `platform`; `claim-clash` — `kind`, `name`, `by`;
  * `load-failed` — `reason`; `overridden-by` — `origin`, `version`; `safe-mode` — без данных;
+ * `dependency-missing` — `id`, `range` (нет, если диапазон не задан): расширения с таким id нет;
+ * `dependency-disabled` — `id`, `range`: зависимость отключена пользователем, отозвана или безопасным режимом;
+ * `dependency-version` — `id`, `range`, `found`: установлена версия вне диапазона;
+ * `dependency-unmet` — `id`, `range`: зависимость включена, но сама не загружена (её зависимости не выполнены);
+ * `dependency-cycle` — `cycle` (id расширений цикла): расширения зависят друг от друга;
  * `locale.missing-key` — `key` (ключ `%ключ%` манифеста, которого нет в `locales/en.json`; предупреждение
  * у загруженного расширения); `locale.invalid-file` — `file`, `reason` (файл перевода проигнорирован).
  */
@@ -1227,6 +1417,8 @@ export interface ExtensionInfoDto {
   description: string | null;
   /** GitHub-логин автора из манифеста. */
   author: string | null;
+  /** Зависимости из манифеста; `[]` — нет или манифест не прочитан. */
+  dependencies: ExtensionDependencyDto[];
   /** Значок из манифеста как `data:image/png|webp;base64,…`; `null` — значка нет или манифест не прочитан. */
   icon: string | null;
   /** Названия вкладов (`label`/`title` манифеста); `{}` — нет или манифест не прочитан. */
@@ -1247,6 +1439,12 @@ export interface ExtensionInfoDto {
    * `extensions.list`; это предупреждение, а не отзыв: состояние и политика не меняются.
    */
   deprecated: DeprecationDto | null;
+}
+
+/** Зависимость расширения (`dependencies` манифеста): `range` — диапазон версий, `null` — любая. */
+export interface ExtensionDependencyDto {
+  id: string;
+  range: string | null;
 }
 
 /** Альтернатива устаревшему расширению; `name` берётся из индекса каталога. */
@@ -1289,6 +1487,8 @@ export interface ExtensionContributesDto {
   panels: string[];
   /** Id виджетов (`contributes.widgets`). */
   widgets: string[];
+  /** Id расписаний (`contributes.schedules`). */
+  schedules: string[];
   /** Id импортёров (`contributes.importers`). */
   importers: string[];
   /** Id экспортёров (`contributes.exporters`). */
@@ -1344,6 +1544,12 @@ export interface CommandContributionDto {
   keybindings: ExtensionKeybindingDto[];
   /** `false` скрывает команду из палитры: её вызывает только панель. */
   palette: boolean;
+  /**
+   * Условие видимости (`parseWhen` из `@dolphy-app/extension-api`), `null` — всегда.
+   * Пока оно ложно, команды нет в палитре и она не выполняется сочетанием;
+   * расширению она по-прежнему доступна (`ctx.call`).
+   */
+  when: string | null;
   /** Имя значка из закрытого списка `EXTENSION_ICONS` (умолчание `puzzle`); окно рисует свой символ, подпись декоративна. */
   icon: string;
 }
@@ -1356,6 +1562,8 @@ export interface PanelContributionDto {
   title: string;
   /** Имя значка из закрытого списка `EXTENSION_ICONS` (умолчание `puzzle`); окно рисует свой символ, подпись декоративна. */
   icon: string;
+  /** Условие видимости пункта бокового меню (`parseWhen`), `null` — всегда; панель по-прежнему открывается из расширения (`openPanel`). */
+  when: string | null;
   /** `dolphy-ext://<extensionId>/<путь>`. */
   rendererUrl: string;
   /** Панель всегда исполняется в рамке; поле оставлено для единообразия с остальными видами с модулем. */
@@ -1377,6 +1585,8 @@ export interface WidgetContributionDto {
   minHeight: number;
   /** Наибольшая высота рамки, px (80–320, не меньше `minHeight`); выше — прокрутка внутри. */
   maxHeight: number;
+  /** Условие видимости (`parseWhen`), `null` — всегда; пока оно ложно, карточка не рисуется и рамка не загружается. */
+  when: string | null;
   /** `dolphy-ext://<extensionId>/<путь>`. */
   rendererUrl: string;
   /** Виджет всегда исполняется в рамке, как панель. */
@@ -1384,6 +1594,16 @@ export interface WidgetContributionDto {
   origin: ExtensionOriginDto;
   /** Отпечаток файлов расширения; у расширений из поставки — пустая строка. */
   revision: string;
+}
+
+/** Расписание расширения (`contributes.schedules`): когда приложение запускает обработчик `ctx.schedule.on`. */
+export interface ScheduleContributionDto {
+  id: string;
+  extensionId: string;
+  /** `daily` — раз в сутки в `at`, `hourly` — в начале каждого часа; по местному времени. */
+  every: 'daily' | 'hourly';
+  /** `HH:MM` у `daily` (умолчание манифеста — `09:00`); `null` у `hourly`. */
+  at: string | null;
 }
 
 /** Импортёр расширения (`contributes.importers`): файл пользователя → каталог курса. */
@@ -1547,6 +1767,8 @@ export interface ContributionsDto {
   panels: PanelContributionDto[];
   /** Виджеты включённых расширений. */
   widgets: WidgetContributionDto[];
+  /** Расписания включённых расширений. */
+  schedules: ScheduleContributionDto[];
   /** Импортёры включённых расширений. */
   importers: ImporterContributionDto[];
   /** Экспортёры включённых расширений. */
@@ -1721,6 +1943,12 @@ export interface ExtensionSettingsDto {
    * Нечитаемое сохранённое значение читается как `null`.
    */
   catalogUrl: string | null;
+  /**
+   * Расширения с выключенными расписаниями (по id), отсортированы, без
+   * повторов: их `ctx.schedule.on` не срабатывает. По умолчанию пусто
+   * (расписания включены).
+   */
+  schedulesOff: string[];
 }
 
 /** Откуда взят действующий адрес каталога: умолчание, настройка или `DOLPHY_EXTENSION_CATALOG_URL` (только несобранное приложение). */
@@ -1825,6 +2053,16 @@ export interface ExtensionsService {
    * настраивается; не булево значение — `INVALID_ARGUMENT`.
    */
   setNotificationsEnabled(
+    id: string,
+    enabled: boolean,
+  ): Promise<ExtensionSettingsDto>;
+  /**
+   * Включает и выключает расписания расширения (`schedulesOff`); не
+   * перезапускает расширение. `NOT_FOUND` — нет такого расширения;
+   * `INVALID_ARGUMENT` `{reason:'bundled'}` — расширение из поставки не
+   * настраивается; не булево значение — `INVALID_ARGUMENT`.
+   */
+  setSchedulesEnabled(
     id: string,
     enabled: boolean,
   ): Promise<ExtensionSettingsDto>;
@@ -1989,6 +2227,8 @@ export type CatalogStatusDto =
 export interface CatalogVersionDto {
   version: string;
   permissions: string[];
+  /** Зависимости версии; установка их не ставит и не блокируется. */
+  dependencies: ExtensionDependencyDto[];
   /** ISO-время публикации. */
   publishedAt: string;
   /** Суммарный размер файлов, байты. */

@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { ExtensionDiagnosticDto } from '@dolphy-app/engine-contract';
 import { DEFAULT_MAIN } from '@dolphy-app/extension-api';
 import type {
+  ExtensionDependency,
   ExtensionLogger,
   ExtensionManifest,
   ExtensionPermission,
@@ -19,6 +20,7 @@ import {
 } from '@dolphy-app/extension-catalog';
 import type { InstallMeta } from '@dolphy-app/extension-catalog';
 import { Ajv2020 } from 'ajv/dist/2020.js';
+import { orderByDependencies } from './dependencies.ts';
 import { formatDiagnostic } from './diagnostics.ts';
 import { loadLocales } from './locales.ts';
 import { fingerprintDir } from './fingerprint.ts';
@@ -57,6 +59,8 @@ export interface ResolvedExtension extends ResolvedContributions {
   warnings: ExtensionDiagnosticDto[];
   /** Явные теги каталога из манифеста; пусто — теги не заданы. */
   tags: ExtensionTag[];
+  /** Расширения, которые нужны этому (`dependencies` манифеста); пусто — нет. Выполнены ли они, решает политика по текущему снимку. */
+  dependencies: ExtensionDependency[];
   /** Метаданные установки из каталога (`.dolphy-install.json`); `null` — нет или не читаются; читаются только у origin `user`. */
   install: InstallMeta | null;
   /** Отпечаток файлов каталога (`fingerprintDir`); `''` у расширений из поставки: они не меняются, пока работает приложение. */
@@ -286,6 +290,7 @@ export const inspectExtensionDir = async (
         messages: locales.messages,
         warnings: locales.warnings,
         tags: manifest.tags,
+        dependencies: manifest.dependencies,
         ...(resolved as unknown as ResolvedContributions),
       },
     };
@@ -375,7 +380,7 @@ export const discoverExtensions = async (
     }
   }
 
-  const extensions: ResolvedExtension[] = [];
+  const unordered: ResolvedExtension[] = [];
   const claimed = new Map<string, string>();
   for (const extension of byId.values()) {
     const claims = claimsOf(extension);
@@ -385,7 +390,9 @@ export const discoverExtensions = async (
       continue;
     }
     for (const claim of claims) claimed.set(claim, extension.id);
-    extensions.push(extension);
+    unordered.push(extension);
   }
+  // зависимость раньше зависимого: вклады регистрируются в этом порядке
+  const extensions = orderByDependencies(unordered);
   return { extensions, diagnostics, overridden };
 };

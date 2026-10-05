@@ -4,6 +4,7 @@ export const ru = {
     save: 'Сохранить',
     cancel: 'Отмена',
     retry: 'Повторить',
+    hint: 'Что это?',
     extensionUpdates: 'Доступно обновлений: {n}',
   },
   keybinding: {
@@ -41,5 +42,10 @@ export const ru = {
     new: 'Новое',
     review: 'Повторение',
     remediation: 'Закрепление основ',
+  },
+  reasonHint: {
+    new: 'Новое: этого упражнения вы ещё не делали',
+    review: 'Повторение: вы уже делали это упражнение',
+    remediation: 'Закрепление основ: добавлено после ошибок',
   },
 };

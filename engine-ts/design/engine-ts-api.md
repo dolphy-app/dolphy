@@ -11,7 +11,7 @@
 - **Идентификаторы юнитов** — строки; в курсах Trane по соглашению `course`, `course::lesson`, `course::lesson::exercise`, но контракт этого не гарантирует.
 - **Ошибки** — исключения `EngineError` с `code` внутри процесса, `EngineErrorDto` по IPC. Ожидаемые проблемы данных (диагностики библиотеки) возвращаются данными, не исключениями.
 - **Пагинация** — курсор (`Page`): непрозрачная строка, порядок стабилен. Лимиты в §10.
-- **Идемпотентность.** `recordAttempt` — по `requestId` (он становится `id` события), `completeAttempt` — по `attemptId`, `placement.finish` — по `requestId`, `resetProgress` — по `requestId`, `import` — по `id` записи, `sync.folder.sync` — по содержимому сегментов (повтор даёт `duplicates`). Чтения без побочных эффектов (`plan.getDay` при заданном `seed`, `remediation.getPlan`, `library.validate`, `placement.nextProbe` до ответа на выданную пробу) безопасно повторять. Не идемпотентны: `getBatch` (RNG и счётчик показов), `startSession`, `beginAttempt`, `placement.start`, `placement.answer`, `sync.resolveConflict`. UI кэширует батч и не повторяет эти вызовы вслепую.
+- **Идемпотентность.** `recordAttempt` — по `requestId` (он становится `id` события), `completeAttempt` — по `attemptId`, `placement.finish` — по `requestId`, `resetProgress` — по `requestId`, `import` — по `id` записи, `sync.folder.sync` — по содержимому сегментов (повтор даёт `duplicates`). Чтения без побочных эффектов (`plan.getDay` при заданном `seed`, `remediation.getPlan`, `library.validate`, `placement.nextProbe` до ответа на выданную пробу) безопасно повторять. Не идемпотентны: `getBatch` (RNG и счётчик показов), `startSession`, `beginAttempt`, `placement.start`, `placement.answer`, `placement.undo`, `placement.redo`, `sync.resolveConflict`. UI кэширует батч и не повторяет эти вызовы вслепую.
 - **Версионирование.** `CONTRACT_VERSION` (целое) отдаётся в `library.getInfo()` и проверяется при рукопожатии хоста и renderer. Внутри версии — только аддитивные изменения (новые необязательные поля, новые значения перечислений; клиент обязан терпеть неизвестные значения).
 - **Не экспортируется** (в Rust есть, в API нет): сырые записи в `practice_*` (`record_*`, `trim_*`), мутаторы графа (`add_*`), `invalidate_cached_score*`, `override_current_timestamp`, `get_scheduler_data`. Единственный путь записи попытки — `recordAttempt`/`completeAttempt`.
 - **Пакет типов** `@dolphy-app/engine-contract` содержит только `export type` и константы; renderer импортирует его через `import type`, не подтягивая `ts-fsrs`, zod и fs.
@@ -226,16 +226,18 @@ export interface LibraryService {
 
 ### 3.1 Репозитории курсов (`repositories`)
 
-Курсы можно подгрузить из публичного git-репозитория (`http`/`https`, без учётных данных в URL). Состояние: `RepositoryDto { id, url, ref, commit, fetchedAt, status: 'ready' | 'updating' | 'error', courseIds, lastError?, availableCommit?, checkedAt? }`. Методы: `list()`, `add({url, ref?})`, `update(id)` → `{changed, repository}`, `remove(id)`, `cancel(id)`, `checkUpdates()` → `RepositoryDto[]`.
+Курсы можно подгрузить из публичного git-репозитория (`http`/`https`, без учётных данных в URL). Состояние: `RepositoryDto { id, url, ref, commit, fetchedAt, status: 'ready' | 'updating' | 'error', courseIds, skippedCourseIds, lastError?, availableCommit?, checkedAt? }`. Методы: `list()`, `preview({url, ref?})` → `RepositoryPreviewDto` (с `previewId`), `add({url, ref?, courseIds?, previewId?})`, `update(id, {courseIds?, previewId?}?)` → `{changed, repository}`, `remove(id, {removeProgress?}?)`, `cancel(id)`, `checkUpdates()` → `RepositoryDto[]`.
 
 - На диске лежит **снимок** дерева коммита (`<libraryRoot>/repositories/<id>/`, без `.git`): только обычные файлы, без символических ссылок, путей с `..` и `.git`, коллизий регистра; лимиты — 20 000 файлов, 256 МиБ, 32 МиБ на файл, 60 с сети без байта. Сканер видит курсы штатно.
 - `id` — slug нормализованного URL; уникальность по URL (`REPOSITORY_EXISTS`); `ref` — имя ветки или тега, `null` — ветка по умолчанию. Смена ветки — `remove` + `add`.
 - `add`/`update` атомарны: снимок проверяется сканером во временном каталоге, затем подменяется каталог и вызывается `library.reload()`; отклонённый `reload` (например, `E_ID_DUPLICATE` с уже загруженным курсом) откатывает подмену, запись и граф остаются прежними (`REPOSITORY_REJECTED`, диагностики в `details`). Запись реестра — последний шаг.
 - `update` сначала спрашивает у сервера только коммит ветки/тега; совпал — `changed: false`, объекты не скачиваются.
 - Сетевая часть идёт вне очереди команд (остальные методы не ждут загрузку), подмена и `reload` — внутри очереди; события `repository-progress` уходят сразу. `cancel` прерывает операцию (вызов падает `GIT_FETCH_FAILED`, `details.reason: 'cancelled'`).
-- `remove` удаляет снимок и запись, журнал не трогает: события пропавших курсов дают `W_ORPHAN_EVENTS`, повторное добавление возвращает прогресс.
+- `remove` удаляет снимок и запись; по умолчанию (и при `removeProgress: false`) журнал не трогает: события пропавших курсов дают `W_ORPHAN_EVENTS`, повторное добавление возвращает прогресс. С `removeProgress: true` (спека `repository-remove-progress`) в журнал добавляется по одному `progress_reset` на каждый курс из `courseIds` (записи не удаляются; сброс доходит до других устройств синхронизацией, как любой `progress_reset`), и повторное добавление начинает курсы с нуля. Порядок: удаление каталога → запись сбросов → удаление записи реестра → `reload`. Сброс идёт до `reload`: границы сброса считаются по графу, в котором курс ещё есть. Сбой удаления каталога прогресс не трогает; сбой записи сбросов оставляет запись реестра без снимка (`status: 'error'`), повторный `remove` завершает удаление. Флаги blacklist/review и статистика серий не сбрасываются; `W_ORPHAN_EVENTS` остаётся.
 - Реестр лежит в `engine.db` (таблица `repository`), устройства его не синхронизируют. Автообновления нет.
 - **Проверка обновлений** (спека `course-updates`). `checkUpdates()` для каждого репозитория спрашивает у сервера только коммит `ref` (`resolve`, объекты не скачиваются) и возвращает то же, что `list()`. Если коммит сервера отличается от загруженного, у репозитория есть `availableCommit`; `checkedAt` — время последней успешной сверки в этом запуске. Результат хранится в памяти движка, в `engine.db` не пишется и после перезапуска пересчитывается. Недоступный репозиторий (сеть, `not-found`, таймаут) пропускается, его прежний результат остаётся, вызов не падает, причина — в журнал `warn`; репозиторий с идущей операцией не проверяется. `update` (успешный, в том числе `changed: false`) и `remove` сбрасывают результат. После каждой проверки, где сверен хотя бы один репозиторий, публикуется `repository-updates-checked { available }` (`id` репозиториев с обновлением, в порядке `list()`). Сразу после открытия движок запускает ту же проверку в фоне; запуск её не ждёт, сбой только в журнал. Метод не встаёт в очередь команд и не ждёт цепочку операций репозиториев.
+- **Выбор курсов** (спека `repository-course-selection`). `preview({url, ref?})` скачивает репозиторий во временный каталог (`.staging/<opId>`), сканирует и возвращает `RepositoryPreviewDto { url, ref, commit, courses }`; ничего не устанавливает, библиотеку, реестр и каталоги библиотеки не меняет, событий `library-reloaded` нет (прогресс — `repository-progress`, отмена — `cancel(id)`). Курс предпросмотра: `RepositoryCourseDto { id, title, path, lessonCount, requires, errors, warnings, messages, installed, inLibrary }`; `requires` — курсы того же репозитория, без которых этот не загрузится (`dependencies`, `superseded`, `encompassed` на юниты других курсов и курсы-предки по каталогам), `errors`/`warnings` — диагностики сканера в каталоге курса, `inLibrary` — `id` занят курсом из другого источника. `add({url, ref?, courseIds?})` и `update(id, {courseIds?})`: с `courseIds` из снимка перед проверкой удаляются каталоги невыбранных курсов (корневые файлы и остальные каталоги остаются), `RepositoryDto.courseIds` — установленные курсы, `skippedCourseIds` — курсы коммита, которых нет в библиотеке из-за выбора. Выбор непустой и без повторов (`INVALID_ARGUMENT`, `details.field: 'courseIds'`), движок его не расширяет (`missing-requirement`), ошибки в невыбранном курсе добавление не блокируют. Запись реестра хранит `selected` (явный выбор; нет поля — все курсы, как у записей до фичи) и `skippedCourseIds`. `update` без `courseIds` берёт сохранённый выбор: новые курсы коммита не ставятся, исчезнувший выбранный курс просто пропадает (запомненный выбор не меняется), если выбранных курсов не осталось — `no-courses`. С `courseIds` тот же коммит скачивается заново (`changed: true`); тот же коммит с тем же выбором — `changed: false`. Журнал ученика выбор не трогает.
+- **Токен предпросмотра** (спека `repository-preview-token`). `RepositoryPreviewDto.previewId` — токен скачанного снимка: `preview` оставляет каталог `.staging/<opId>/<id>` (временный `gitdir` убирает) и хранит его до 5 минут, не больше двух снимков одновременно (третий вытесняет самый старый, новый предпросмотр того же адреса и ветки заменяет прежний). `add({…, previewId})` и `update(id, {…, previewId})` с живым токеном того же адреса, ветки и репозитория (`id`) не обращаются к серверу вовсе — ни `resolve`, ни загрузки: курсы выбираются, проверяются и ставятся из хранимого снимка, а ставится коммит, который видел ученик. Токен расходуется первым вызовом, который его использовал, при любом исходе (выбор обрезает снимок); неизвестный, просроченный, израсходованный и чужой токен не ошибка — репозиторий скачивается как раньше. Просроченный снимок убирает таймер, при закрытии движка убираются все, остатки после аварии — старт (`.staging` стирается). Неиспользованные снимки видны только в `.staging`, который сканер пропускает; событий `library-reloaded` и смены статуса репозитория нет.
 
 ## 4. Практика
 
@@ -368,6 +370,8 @@ export interface PracticeService {
   getFrontier(req?: FrontierRequest): Promise<Page<FrontierItemDto>>;
   getDue(req?: DueRequest): Promise<Page<DueItemDto>>;
   resetProgress(req: { unitId: UnitId; requestId: string }): Promise<{ eventId: string; duplicate: boolean }>;
+  undo(req: RetractRequest): Promise<RetractResult>;
+  redo(req: RetractRequest): Promise<RetractResult>;
 }
 ```
 
@@ -379,6 +383,7 @@ export interface PracticeService {
 - **`recordAttempt`** — путь Trane `score_exercise`: единственная запись в журнал (`source: 'self'` по умолчанию). `at` вычисляется по HLC-правилу (§6): `max(min(now, now + 5 минут), maxAtУвиденный + 1, свойПрошлыйAt)`; переданное `at` участвует как `now`. `affected` — новые оценки упражнения, урока и курса. Если эта попытка — `remediation.failThreshold`-я неудача подряд на упражнении (§4.3), в результате есть `remediation`.
 - **`getFrontier`** — уроки, которые **не начаты** (нет попыток по их упражнениям) и у которых все зависимости «проходят порог» Trane (среднее `value` ≥ `passingScore.minScore` = 3.0, среднее число попыток ≥ `passingScore.minAvgTrials` = 1.8, по данным `UnitScorer`). **Нет данных = закрыто**: зависимость без оценки блокирует урок. До дифференциального теста M3 против Rust `get_candidates` (сравнивается множество уроков-источников новых упражнений) `getBatch` (паритет Trane, `passes_threshold` при отсутствии данных пропускает) может показать урок, которого нет во фронтире; семантика `getFrontier` зафиксирована здесь [НЕ ПОДТВЕРЖДЕНО]. **`getDue`** — упражнения с состоянием и `R ≤ plan.targetRetention` (0.9) по убыванию `need = 1 − R` (Trane их публично не отдаёт [ИЗМЕРЕНО чтением аудита]); `minNeed` отсекает по `need`.
 - **`resetProgress`** пишет `progress_reset` для курса, урока или упражнения (журнал не редактируется); повтор с тем же `requestId` безопасен.
+- **`undo` / `redo`** (ADR 0017) пишут `retract` (`op: 'set'` / `'unset'`) по `targetId`: `id` попытки (`eventId` результата записи) или `requestId` завершённого `placement.finish` — тогда отменяется вся пачка `<requestId>#<i>`. Отменённая попытка не входит в оценку, награды, фронтир, повторы, ремедиацию и статистику обучения; в журнале она остаётся. Повтор с тем же `requestId` — `duplicate: true`; цель уже в нужном состоянии — запись не пишется, `changed: false`, `eventId: null`. Неизвестная цель — `NOT_FOUND`; цель — запись не попытки (сброс, флаг) — `INVALID_ARGUMENT`. Побеждает запись с большим ключом `(at, deviceId, seq, id)`, порядок прихода не важен.
 - Статусы `ProgressNodeDto.status`: `locked` — есть неудовлетворённая зависимость; `ready` — фронтир без попыток; `in-progress` — есть попытки и оценка ниже верхней границы окна `target`; `mastered` — оценка в окне `mastered` или `easy`; `blacklisted`, `superseded` — по правилам Trane.
 
 ### 4.1 План дня
@@ -457,11 +462,16 @@ export interface PlacementSummaryDto {
   attemptsWritten: number;
   duplicate: boolean;
 }
+export interface PlacementStepResult { changed: boolean; progress: PlacementProgressDto }
 export interface PlacementService {
   start(req: PlacementStartRequest): Promise<PlacementStartResult>;
   /** `null` — проб больше нет (бюджет исчерпан или все темы решены). До ответа на выданную пробу возвращает ту же пробу. */
   nextProbe(sessionId: string): Promise<PlacementProbeDto | null>;
   answer(req: PlacementAnswerRequest): Promise<PlacementProgressDto>;
+  /** Снимает последний ответ открытой сессии (один шаг за вызов); следующая `nextProbe` выдаёт ту же тему. Диагностика пересобирается по `(seed, ответы)`. */
+  undo(sessionId: string): Promise<PlacementStepResult>;
+  /** Возвращает последний снятый ответ; новый `answer` сбрасывает возврат. */
+  redo(sessionId: string): Promise<PlacementStepResult>;
   finish(req: PlacementFinishRequest): Promise<PlacementSummaryDto>;
   abort(req: { sessionId: string }): Promise<void>;
 }
@@ -600,25 +610,33 @@ export interface UiSettingsDto {
   locale: LocaleMode;
   /** Курс в фокусе: клиент передаёт его в `courseIds` плана и повторений (§4.1). Нет поля — все курсы. Движок не проверяет, что курс есть в библиотеке: курс могли убрать, клиент сверяет сам. */
   activeCourseId?: UnitId;
-  /** Ширина панели теории в сессии и вход-тесте, px (`MATERIAL_WIDTH_RANGE`: 280…800). Нет поля — умолчание клиента. */
+  /** Ширина панели теории в сессии и вход-тесте, px (`MATERIAL_WIDTH_RANGE`: 280…8192). Нет поля — умолчание клиента. */
   materialWidth?: number;
   /** Панель теории скрыта. Нет поля — показана. */
   materialCollapsed?: true;
+  /** Исход обучающих туров по id (`TOUR_ID_PATTERN`, не больше `MAX_TOURS` = 32); нет записи — тур ещё не предлагали. */
+  tours?: Record<string, TourStatus>;
 }
-/** `activeCourseId: null` снимает фокус, `materialWidth: null` возвращает умолчание, `materialCollapsed: false` показывает панель. */
+/** Как закончился тур: дошёл до конца или пропущен. */
+export type TourStatus = 'completed' | 'skipped';
+/** `activeCourseId: null` снимает фокус, `materialWidth: null` возвращает умолчание, `materialCollapsed: false` показывает панель; `tours` меняет только перечисленные ключи, `null` удаляет запись. */
 export type UiSettingsPatch = Partial<
-  Omit<UiSettingsDto, 'activeCourseId' | 'materialWidth' | 'materialCollapsed'>
+  Omit<
+    UiSettingsDto,
+    'activeCourseId' | 'materialWidth' | 'materialCollapsed' | 'tours'
+  >
 > & {
   activeCourseId?: UnitId | null;
   materialWidth?: number | null;
   materialCollapsed?: boolean;
+  tours?: Record<string, TourStatus | null>;
 };
 ```
 
 Семантика:
 - Изменения blacklist и review list — записи журнала (LWW), сбрасывают кэши оценок затронутых юнитов до ответа (порядок «запись → инвалидация», а не наоборот, как в Rust).
 - `setScheduler` в Trane не вызывал `verify()` и не доходил до `UnitScorer`, `CandidateFilter`, `ReviewKnocker`, `RelearnPile` (у них клоны опций); в порте один holder, поведение покрыто тестом. Поля `numDeltas` в DTO нет: в Rust оно не читается.
-- `setUi` меняет только переданные поля (`activeCourseId` — `null` снимает); пустой `activeCourseId`, `materialWidth` не целое или вне 280…800, `materialCollapsed` не логическое — `INVALID_ARGUMENT` (`details.field`); запись сопровождается событием `settings-changed` (`scope: 'ui'`). Настройки интерфейса не синхронизируются между устройствами.
+- `setUi` меняет только переданные поля (`activeCourseId` — `null` снимает); пустой `activeCourseId`, `materialWidth` не целое или вне 280…8192, `materialCollapsed` не логическое, `tours` не словарь «id → `completed`/`skipped`/`null`», неверный id тура или больше 32 записей — `INVALID_ARGUMENT` (`details.field`); запись `tours` из хранилища с неверным ключом или значением читается как «нет записи»; запись сопровождается событием `settings-changed` (`scope: 'ui'`). Настройки интерфейса не синхронизируются между устройствами.
 - `ignoredPaths` применяется при следующем `library.reload()`; `setPreferences` возвращает `restartRequired`, если изменились пути данных.
 - Настройки фильтров и сессий пишутся атомарно (tmp + rename) в `settings/`; читаются только `*.json`.
 - `implicitCredit.*` меняет `MemoryIndex`: `setScheduler` пересобирает проекцию (событие `state-rebuilt`); rebuild 500k событий — 0.4 с без кредита, 1.1 с при разреженных явных `encompassed`, 17.6 с при «зависимость = охват @1.0» [ИЗМЕРЕНО в спайке], поэтому кредит идёт только по явно объявленным `encompassed`. Валидация (`verify`) как при открытии: диапазоны выше, `failThreshold`, `maxItems`, `maxSameCourseRun` — целые ≥ 1, `minTagDistance` — целое ≥ 0, `targetRetention` и `minNewFraction` в (0, 1) и [0, 1] [диапазоны — ВЫВОД].
@@ -655,7 +673,13 @@ export interface ProgressResetEntryDto extends LogEntryBaseDto {
   /** `revision` библиотеки на момент записи: диагностика расхождения версий курса между устройствами. */
   libraryRevision?: string;
 }
-export type LogEntryDto = AttemptEntryDto | UnitFlagEntryDto | ProgressResetEntryDto;
+export interface RetractEntryDto extends LogEntryBaseDto {
+  kind: 'retract';
+  /** `id` попытки или общая часть `id` пачки `<targetId>#<i>`. */
+  targetId: string;
+  op: 'set' | 'unset';
+}
+export type LogEntryDto = AttemptEntryDto | UnitFlagEntryDto | ProgressResetEntryDto | RetractEntryDto;
 
 export interface SyncStateDto {
   deviceId: string;
@@ -839,7 +863,7 @@ export interface LearningEngine {
 | `STORE_READONLY`, `STORE_CORRUPT` | БД только для чтения; порча (движок остаётся в режиме чтения журнала) | нет |
 | `INTERNAL` | Ошибка движка; состояние помечено `dirty`, перестройка при следующем чтении | да |
 | `REPOSITORY_EXISTS` | `repositories.add` для URL, который уже в реестре (`details.id`) | нет |
-| `REPOSITORY_REJECTED` | Снимок нарушает правила (`details.reason`: `symlink`, `path-escapes`, `git-segment`, `unsafe-name`, `case-collision`, `special-file`, `too-many-files`, `too-large`, `file-too-large`), в нём нет курсов (`no-courses`), сканер нашёл ошибки (`invalid-library`, `reload-rejected`; `details.diagnostics` ≤ 50), либо каталог `repositories/<id>` занят (`path-conflict`) | нет |
+| `REPOSITORY_REJECTED` | Снимок нарушает правила (`details.reason`: `symlink`, `path-escapes`, `git-segment`, `unsafe-name`, `case-collision`, `special-file`, `too-many-files`, `too-large`, `file-too-large`), в нём нет курсов или ни одного из выбранных (`no-courses`), сканер нашёл ошибки (`invalid-library`, `reload-rejected`; `details.diagnostics` ≤ 50), каталог `repositories/<id>` занят (`path-conflict`), выбранных курсов нет в коммите (`unknown-course`, `details.courseIds`) или выбранным нужны невыбранные (`missing-requirement`, `details.requirements`: `id` выбранного → недостающие `id`) | нет |
 | `GIT_FETCH_FAILED` | Сеть или сервер; `details.reason`: `not-found`, `auth-required`, `ref-not-found`, `timeout`, `network`, `too-large`, `cancelled` | да для `network`, `timeout`, `cancelled` |
 
 ## 9. Транспорт (справочно; обвязка вне области)
@@ -858,7 +882,7 @@ export interface RpcPush { event: EngineEvent }
 
 **Раннер SQL не часть контракта.** Пул проверок — дочерние процессы (`child_process.fork`; в Electron `utilityProcess`), живущие рядом с хостом движка; renderer до них не достаёт, по RPC видны только `beginAttempt`/`submitAnswer` и `VerdictDto` (протокол пула — внутренний: `{type:'check'}` → `{type:'verdict'}`). Откуда хост порождает процессы (внутри `utilityProcess` или через main) не проверено в Electron 44 [НЕ ПОДТВЕРЖДЕНО, §13]. Кап `MAX_SQL_CHARS = 100_000` символов хост применяет **до IPC** раннера: длиннее — `failed/sqlite_limit` с `durationMs: 0`, раннер не запускается. Молчание процесса дольше `timeoutMs + 100 мс` — kill и `outcome: 'error'`, `reason: 'timeout'`. `submitAnswer` с `outcome: 'error'` ничего не пишет и `attemptsUsed` не увеличивает; журнал пишет только `completeAttempt`. Сессии `placement` и открытые попытки живут в памяти хоста и теряются при его падении; после перезапуска renderer повторяет только идемпотентные вызовы (`placement.finish` по `requestId`).
 
-RPC-имена новых методов: `plan.getDay`, `placement.start`, `placement.nextProbe`, `placement.answer`, `placement.finish`, `placement.abort`, `remediation.getPlan`, `library.validate`, `library.compile`, `sync.getConflicts`, `sync.resolveConflict`, `sync.folder.configure`, `sync.folder.sync`, `sync.folder.checkRestore`. Длинные вызовы (`library.compile` с `runChecks`, `folder.sync`) хост не выполняет синхронно в одной итерации: остальные команды ждут в очереди порядка получения [ВЫВОД].
+RPC-имена новых методов: `plan.getDay`, `placement.start`, `placement.nextProbe`, `placement.answer`, `placement.undo`, `placement.redo`, `placement.finish`, `placement.abort`, `remediation.getPlan`, `library.validate`, `library.compile`, `sync.getConflicts`, `sync.resolveConflict`, `sync.folder.configure`, `sync.folder.sync`, `sync.folder.checkRestore`. Длинные вызовы (`library.compile` с `runChecks`, `folder.sync`) хост не выполняет синхронно в одной итерации: остальные команды ждут в очереди порядка получения [ВЫВОД].
 
 ## 10. Лимиты
 

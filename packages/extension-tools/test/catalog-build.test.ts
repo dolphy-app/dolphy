@@ -352,6 +352,43 @@ describe('catalog build: importers and exporters', () => {
   });
 });
 
+describe('catalog build: schedules', () => {
+  const contributes = {
+    commands: [{ id: 'acme.commands-panel.open', title: 'Open panel' }],
+    panels: [{ id: 'acme.commands-panel.main', title: 'Acme panel' }],
+    schedules: [
+      { id: 'acme.commands-panel.morning', every: 'daily', at: '08:30' },
+      { id: 'acme.commands-panel.tick', every: 'hourly' },
+    ],
+  };
+
+  it('writes schedule ids (no titles) into the index entry', async () => {
+    const repo = await createRepo([
+      { fixture: 'commands-panel', manifest: { contributes } },
+    ]);
+    const out = await makeTemp();
+    await publish(repo, out, ['acme.commands-panel']);
+    const [entry] = (await indexOf(out)).extensions;
+    expect(entry?.contributes.schedules).toEqual([
+      'acme.commands-panel.morning',
+      'acme.commands-panel.tick',
+    ]);
+    expect(entry?.titles ?? {}).not.toHaveProperty('schedules');
+  });
+
+  it('without them the entry has no key', async () => {
+    const repo = await createRepo([{ fixture: 'commands-panel' }]);
+    const out = await makeTemp();
+    await publish(repo, out, ['acme.commands-panel']);
+    const raw = (await readJson(path.join(out, 'index.v2.json'))) as {
+      extensions: { contributes: Record<string, unknown> }[];
+    };
+    expect(Object.keys(raw.extensions[0]?.contributes ?? {})).not.toContain(
+      'schedules',
+    );
+  });
+});
+
 describe('catalog build: version immutability', () => {
   it('rebuilding the same sources is a no-op, publishedAt is kept', async () => {
     const repo = await createRepo([{ fixture: 'theme-only' }]);
@@ -736,6 +773,35 @@ describe('catalog build: failures write nothing', () => {
     ]);
     await expect(publish(repo, await makeTemp(), [NIGHT])).rejects.toThrow(
       /lacks publication metadata: author/,
+    );
+  });
+});
+
+describe('catalog build: dependencies', () => {
+  const dependencies = [
+    { id: 'acme.base', range: '>=1.0.0 <2.0.0' },
+    { id: 'acme.helper' },
+  ];
+
+  it('writes the manifest dependencies into the version record, ranges only where given', async () => {
+    const repo = await createRepo([
+      { fixture: 'commands-panel', manifest: { dependencies } },
+    ]);
+    const out = await makeTemp();
+    await publish(repo, out, ['acme.commands-panel']);
+    const [entry] = (await indexOf(out)).extensions;
+    expect(entry?.versions[0]?.dependencies).toEqual(dependencies);
+  });
+
+  it('a version without dependencies has no key', async () => {
+    const repo = await createRepo([{ fixture: 'commands-panel' }]);
+    const out = await makeTemp();
+    await publish(repo, out, ['acme.commands-panel']);
+    const raw = (await readJson(path.join(out, 'index.v2.json'))) as {
+      extensions: { versions: Record<string, unknown>[] }[];
+    };
+    expect(Object.keys(raw.extensions[0]?.versions[0] ?? {})).not.toContain(
+      'dependencies',
     );
   });
 });

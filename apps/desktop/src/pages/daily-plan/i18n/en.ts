@@ -16,7 +16,9 @@ export const en: typeof ru = {
     upcoming: {
       title: 'Up next',
       more: 'and {n} more',
+      less: 'Show less',
     },
     remembered: 'Remembered: {n}%',
+    rememberedHint: 'Chance that you can recall this right now',
   },
 };

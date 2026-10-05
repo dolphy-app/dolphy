@@ -8,14 +8,21 @@ const RU = {
   open: 'Добавить из Git',
   url: 'Адрес репозитория',
   ref: 'Ветка или тег',
+  next: 'Далее',
   submit: 'Добавить',
+  back: 'Назад',
+  chooseLabel: 'Выбрать курсы репозитория',
+  apply: 'Применить',
   close: 'Закрыть',
   update: 'Обновить репозиторий',
   remove: 'Удалить репозиторий',
   confirmRemove: 'Удалить',
   upToDate: 'Уже актуально',
   updated: 'Обновлено: 1 курс',
+  updatedTwo: 'Обновлено: 2 курса',
   removedNotice: 'Репозиторий удалён',
+  removedWithProgressNotice: 'Репозиторий и прогресс удалены',
+  removeProgress: 'Удалить и прогресс курсов',
   emptyList: 'Репозиториев пока нет',
   checkUpdates: 'Проверить обновления',
   checkUpToDate: 'Все курсы актуальны',
@@ -32,6 +39,8 @@ export interface RepositoryRowView {
   /** Строка «ветка · коммит · дата · курсы» под адресом. */
   details: string;
   status: string;
+  /** Тексты всех чипов строки (статус, обновление, «не установлено»). */
+  chips: string[];
 }
 
 /** Оператор диалога добавления и списка репозиториев: клики и чтение экрана. */
@@ -78,7 +87,7 @@ export class GitClient {
     await this.dialog.getByLabel(RU.url).fill(url);
     if (ref !== undefined) await this.dialog.getByLabel(RU.ref).fill(ref);
     await this.dialog
-      .getByRole('button', { name: RU.submit, exact: true })
+      .getByRole('button', { name: RU.next, exact: true })
       .click();
     // даём Vue отрисовать состояние после клика: иначе видна прежняя ошибка
     await this.page.evaluate(
@@ -94,6 +103,68 @@ export class GitClient {
       const shown = await this.dialog.innerText().catch(() => '(нет диалога)');
       throw new Error(`диалог не закрылся:\n${shown}`, { cause: error });
     }
+  }
+
+  /** Список курсов на втором шаге диалога: названия в порядке показа. */
+  async chooserCourses(): Promise<string[]> {
+    const rows = this.dialog.locator('ul.courses li.course');
+    await rows.first().waitFor({ timeout: TIMEOUT });
+    return (await rows.locator('.text-body-large').allInnerTexts()).map(
+      (text) => text.trim(),
+    );
+  }
+
+  /** Текст строки курса в списке выбора (название, id, пояснение). */
+  async chooserRow(title: string): Promise<string> {
+    return (
+      await this.dialog
+        .locator('li.course', { hasText: title })
+        .first()
+        .innerText()
+    ).trim();
+  }
+
+  /** Чекбокс курса в списке выбора. */
+  courseCheckbox(title: string): Locator {
+    return this.dialog.getByRole('checkbox', { name: title, exact: true });
+  }
+
+  /** Нажимает «Добавить» на втором шаге диалога. */
+  async confirmChoice() {
+    await this.dialog
+      .getByRole('button', { name: RU.submit, exact: true })
+      .click();
+  }
+
+  /** «Назад» на втором шаге диалога. */
+  async backToAddress() {
+    await this.dialog
+      .getByRole('button', { name: RU.back, exact: true })
+      .click();
+    await this.dialog.getByLabel(RU.url).waitFor({ timeout: TIMEOUT });
+  }
+
+  /** Кнопка «Добавить» второго шага. */
+  get confirmButton(): Locator {
+    return this.dialog.getByRole('button', { name: RU.submit, exact: true });
+  }
+
+  /** «Курсы…» в строке репозитория → окно выбора с загруженным списком. */
+  async openCourseChooser(url: string) {
+    await this.page
+      .getByRole('button', { name: `${RU.chooseLabel} ${url}`, exact: true })
+      .click();
+    await this.dialog
+      .locator('li.course')
+      .first()
+      .waitFor({ timeout: TIMEOUT });
+  }
+
+  /** «Применить» в окне выбора курсов репозитория. */
+  async applyChoice() {
+    await this.dialog
+      .getByRole('button', { name: RU.apply, exact: true })
+      .click();
   }
 
   /** Текст ошибки в диалоге (поле адреса или общий блок) после неудачи. */
@@ -139,7 +210,10 @@ export class GitClient {
       rows.push({
         url: (await item.locator('.url').innerText()).trim(),
         details: (await item.locator('p').first().innerText()).trim(),
-        status: (await item.locator('.v-chip').innerText()).trim(),
+        status: (await item.locator('.v-chip').first().innerText()).trim(),
+        chips: (await item.locator('.v-chip').allInnerTexts()).map((text) =>
+          text.trim(),
+        ),
       });
     }
     return rows;
@@ -204,23 +278,36 @@ export class GitClient {
   }
 
   /** Уведомление после «Обновить»: «Уже актуально» или «Обновлено: …». */
-  async waitUpdateNotice(kind: 'up-to-date' | 'updated') {
+  async waitUpdateNotice(kind: 'up-to-date' | 'updated' | 'updated-two') {
+    const text = {
+      'up-to-date': RU.upToDate,
+      updated: RU.updated,
+      'updated-two': RU.updatedTwo,
+    }[kind];
     await this.page
-      .locator('.v-snackbar__content', {
-        hasText: kind === 'updated' ? RU.updated : RU.upToDate,
-      })
+      .locator('.v-snackbar__content', { hasText: text })
       .waitFor({ timeout: TIMEOUT });
   }
 
-  /** «Удалить» → подтверждение в диалоге. */
-  async removeRepository(url: string) {
+  /**
+   * «Удалить» → подтверждение в диалоге. Флажок «Удалить и прогресс курсов» при
+   * открытии снят; `withProgress` отмечает его до подтверждения.
+   */
+  async removeRepository(url: string, { withProgress = false } = {}) {
     await this.page
       .getByRole('button', { name: `${RU.remove} ${url}`, exact: true })
       .click();
+    const box = this.dialog.getByRole('checkbox', { name: RU.removeProgress });
+    if (await box.isChecked()) {
+      throw new Error('флажок «Удалить и прогресс курсов» должен быть снят');
+    }
+    if (withProgress) await box.check();
     await this.dialog
       .getByRole('button', { name: RU.confirmRemove, exact: true })
       .click();
-    await this.page.getByText(RU.removedNotice).waitFor({ timeout: TIMEOUT });
+    await this.page
+      .getByText(withProgress ? RU.removedWithProgressNotice : RU.removedNotice)
+      .waitFor({ timeout: TIMEOUT });
   }
 
   /** Названия уроков курса в окне графа курса. */

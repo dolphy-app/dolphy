@@ -21,4 +21,5 @@ export * from './restricted-child.ts';
 export * from './restricted-protocol.ts';
 export * from './restricted-runner.ts';
 export * from './runtime.ts';
+export * from './scheduler.ts';
 export * from './state.ts';

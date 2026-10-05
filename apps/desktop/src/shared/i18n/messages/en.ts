@@ -5,6 +5,7 @@ export const en: typeof ru = {
     save: 'Save',
     cancel: 'Cancel',
     retry: 'Try again',
+    hint: 'What is this?',
     extensionUpdates: 'Updates available: {n}',
   },
   keybinding: {
@@ -42,5 +43,10 @@ export const en: typeof ru = {
     new: 'New',
     review: 'Review',
     remediation: 'Foundations refresh',
+  },
+  reasonHint: {
+    new: 'New: you have not done this exercise yet',
+    review: 'Review: you have already done this exercise',
+    remediation: 'Foundations refresh: added after mistakes',
   },
 };

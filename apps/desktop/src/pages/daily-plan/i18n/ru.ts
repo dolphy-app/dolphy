@@ -14,7 +14,9 @@ export const ru = {
     upcoming: {
       title: 'Ближайшие упражнения',
       more: 'и ещё {n}',
+      less: 'Свернуть',
     },
     remembered: 'Запомнено: {n}%',
+    rememberedHint: 'Вероятность, что вы вспомните это сейчас',
   },
 };

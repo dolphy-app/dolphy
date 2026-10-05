@@ -33,6 +33,7 @@ const commandsOf = (...names: string[]): ResolvedExtension['commands'] =>
     category: null,
     keybinding: null,
     keybindings: [],
+    when: null,
     icon: 'puzzle',
     palette: true,
   }));
@@ -52,6 +53,7 @@ const extensionWith = (
         id: PANEL,
         title: 'Panel',
         icon: 'puzzle',
+        when: null,
         rendererUrl: `dolphy-ext://${ID}/panel.mjs`,
       },
     ],

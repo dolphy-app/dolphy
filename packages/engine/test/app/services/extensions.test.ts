@@ -18,6 +18,7 @@ const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
   events: [],
   commands: [],
   widgets: [],
+  schedules: [],
   panels: [],
   importers: [],
   exporters: [],
@@ -36,6 +37,7 @@ const info = (overrides: Partial<ExtensionInfoDto>): ExtensionInfoDto => ({
   name: null,
   description: null,
   author: null,
+  dependencies: [],
   installed: null,
   icon: null,
   titles: {},
@@ -139,6 +141,7 @@ describe('extensions.contributions', () => {
     settings: [],
     commands: [],
     widgets: [],
+    schedules: [],
     panels: [],
     importers: [],
     exporters: [],
@@ -183,6 +186,31 @@ describe('extensions.contributions', () => {
     const second = await engine.extensions.contributions();
     expect(second.themes).toHaveLength(2);
     expect(second.themes[0]?.colors['background']).toBe('#ffffff');
+  });
+
+  it('sorts schedules by extension, keeps the manifest order inside one, and returns copies', async () => {
+    const schedule = (
+      extensionId: string,
+      id: string,
+      every: 'daily' | 'hourly',
+      at: string | null,
+    ) => ({ id, extensionId, every, at });
+    const { engine } = await openWith({
+      ...contributions,
+      schedules: [
+        schedule('b.ext', 'b.ext.tick', 'hourly', null),
+        schedule('a.ext', 'a.ext.zeta', 'daily', '09:00'),
+        schedule('a.ext', 'a.ext.alpha', 'hourly', null),
+      ],
+    });
+    const first = await engine.extensions.contributions();
+    expect(first.schedules.map(({ id }) => id)).toEqual([
+      'a.ext.zeta',
+      'a.ext.alpha',
+      'b.ext.tick',
+    ]);
+    first.schedules.pop();
+    expect((await engine.extensions.contributions()).schedules).toHaveLength(3);
   });
 
   it('passes the translation tables by extension id and returns copies of them', async () => {
@@ -241,6 +269,7 @@ describe('extensions settings', () => {
         safeMode: false,
         notificationsOff: [],
         catalogUrl: null,
+        schedulesOff: [],
       },
     });
     const { engine, policy } = await openSettings([USER], settings);
@@ -251,6 +280,7 @@ describe('extensions settings', () => {
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
     expect(policy.isEnabled('acme.user')).toBe(false);
   });
@@ -264,6 +294,7 @@ describe('extensions settings', () => {
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
     expect(await engine.extensions.setTrusted('acme.user', true)).toEqual({
       disabled: ['acme.user'],
@@ -272,6 +303,7 @@ describe('extensions settings', () => {
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
     expect(await settings.loadExtensions()).toEqual({
       disabled: ['acme.user'],
@@ -280,6 +312,7 @@ describe('extensions settings', () => {
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
     expect(policy.isEnabled('acme.user')).toBe(false);
     expect(policy.isIsolated('acme.user')).toBe(false);
@@ -291,6 +324,7 @@ describe('extensions settings', () => {
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
     expect(policy.isEnabled('acme.user')).toBe(true);
   });
@@ -306,6 +340,7 @@ describe('extensions settings', () => {
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
     expect(await engine.extensions.setEnabled('acme.user', true)).toEqual(
       again,
@@ -328,7 +363,65 @@ describe('extensions settings', () => {
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
+  });
+
+  it('setSchedulesEnabled: stores a sorted list without repeats, announces it and tells the policy, without reloading the extensions', async () => {
+    const { engine, settings, events, policy } = await openSettings([
+      USER,
+      info({ id: 'acme.other', origin: 'user', toggleable: true }),
+      BUNDLED,
+    ]);
+    const off = await engine.extensions.setSchedulesEnabled('acme.user', false);
+    expect(off.schedulesOff).toEqual(['acme.user']);
+    await engine.extensions.setSchedulesEnabled('acme.other', false);
+    const again = await engine.extensions.setSchedulesEnabled(
+      'acme.user',
+      false,
+    );
+    expect(again.schedulesOff).toEqual(['acme.other', 'acme.user']);
+    expect((await settings.loadExtensions()).schedulesOff).toEqual([
+      'acme.other',
+      'acme.user',
+    ]);
+    expect(policy.areSchedulesOn('acme.user')).toBe(false);
+    expect(policy.isEnabled('acme.user')).toBe(true);
+    expect(changes(events)).toHaveLength(2);
+
+    const on = await engine.extensions.setSchedulesEnabled('acme.user', true);
+    expect(on.schedulesOff).toEqual(['acme.other']);
+    expect(policy.areSchedulesOn('acme.user')).toBe(true);
+    // не затрагивает остальные переключатели
+    expect(on).toMatchObject({
+      disabled: [],
+      trusted: [],
+      notificationsOff: [],
+      schedulesOff: ['acme.other'],
+    });
+  });
+
+  it('setSchedulesEnabled: NOT_FOUND, malformed id, bundled and a non-boolean are refused without a write', async () => {
+    const { engine, events } = await openSettings();
+    await expect(
+      engine.extensions.setSchedulesEnabled('acme.missing', false),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(
+      engine.extensions.setSchedulesEnabled('Not An Id', false),
+    ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+    await expect(
+      engine.extensions.setSchedulesEnabled('dolphy.sql', false),
+    ).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+      details: { reason: 'bundled' },
+    });
+    await expect(
+      engine.extensions.setSchedulesEnabled('acme.user', 'no' as never),
+    ).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+      details: { field: 'enabled' },
+    });
+    expect(changes(events)).toEqual([]);
   });
 
   it('rejects a bundled extension with reason bundled', async () => {
@@ -354,6 +447,7 @@ describe('extensions settings', () => {
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
   });
 
@@ -521,6 +615,7 @@ describe('extensions safe mode', () => {
       safeMode: true,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
   });
 
@@ -545,6 +640,7 @@ describe('extensions safe mode', () => {
         safeMode: true,
         notificationsOff: [],
         catalogUrl: null,
+        schedulesOff: [],
       },
     });
     const { engine, policy } = await open({}, settings);
@@ -592,5 +688,55 @@ describe('extensions safe mode', () => {
     });
     expect(policy.safeMode()).toBe(false);
     expect(reloader.calls()).toBe(0);
+  });
+});
+
+describe('extensions with unmet dependencies', () => {
+  const UNMET = info({
+    id: 'acme.app',
+    origin: 'user',
+    state: 'dependencies-unmet',
+    toggleable: true,
+    isolation: 'isolated',
+    dependencies: [{ id: 'acme.lib', range: '>=1.0.0' }],
+    diagnostics: [
+      {
+        code: 'dependency-missing',
+        data: { id: 'acme.lib', range: '>=1.0.0' },
+      },
+    ],
+  });
+  const openUnmet = () => {
+    const policy = createFakeExtensionPolicy();
+    policy.setDependencyIssues('acme.app', UNMET.diagnostics);
+    return createTestEngine({
+      extensionRegistry: createFakeExtensionRegistry([UNMET]),
+      extensionPolicy: policy,
+    });
+  };
+
+  it('stay in the list with their dependencies and reasons, as copies', async () => {
+    const { engine } = await openUnmet();
+    const [first] = await engine.extensions.list();
+    expect(first).toEqual(UNMET);
+    first?.dependencies.push({ id: 'evil', range: null });
+    expect((await engine.extensions.list())[0]?.dependencies).toHaveLength(1);
+  });
+
+  it('can still be switched off by the user', async () => {
+    const { engine } = await openUnmet();
+    expect(
+      (await engine.extensions.setEnabled('acme.app', false)).disabled,
+    ).toEqual(['acme.app']);
+  });
+
+  it('refuse commands as disabled, not as unknown', async () => {
+    const { engine } = await openUnmet();
+    await expect(
+      engine.extensions.invokeCommand('acme.app', 'acme.app.run'),
+    ).rejects.toMatchObject({
+      code: 'EXTENSION_COMMAND_FAILED',
+      details: { reason: 'disabled' },
+    });
   });
 });

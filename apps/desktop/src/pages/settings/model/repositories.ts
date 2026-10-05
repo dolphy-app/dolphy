@@ -19,7 +19,8 @@ import type {
 export type RepositoryNotice =
   | { kind: 'upToDate' }
   | { kind: 'updated'; courses: number }
-  | { kind: 'removed' };
+  | { kind: 'removed' }
+  | { kind: 'removedWithProgress' };
 
 /** Список репозиториев библиотеки и действия «Обновить» / «Удалить». */
 export const useRepositories = (engine: LearningEngine) => {
@@ -69,18 +70,31 @@ export const useRepositories = (engine: LearningEngine) => {
     }
   };
 
-  const update = (id: string) =>
+  /**
+   * `courseIds` заменяет выбор курсов репозитория, `previewId` — снимок из
+   * предпросмотра (установка без загрузки); без них — обычное обновление.
+   */
+  const update = (id: string, courseIds?: string[], previewId?: string) =>
     run(id, async () => {
-      const result = await engine.repositories.update(id);
+      const result =
+        courseIds === undefined
+          ? await engine.repositories.update(id)
+          : await engine.repositories.update(id, {
+              courseIds,
+              ...(previewId !== undefined && { previewId }),
+            });
       notice.value = result.changed
         ? { kind: 'updated', courses: result.repository.courseIds.length }
         : { kind: 'upToDate' };
     });
 
-  const remove = (id: string) =>
+  /** `removeProgress` — сбросить и прогресс курсов; по умолчанию он сохраняется. */
+  const remove = (id: string, removeProgress = false) =>
     run(id, async () => {
-      await engine.repositories.remove(id);
-      notice.value = { kind: 'removed' };
+      await engine.repositories.remove(id, { removeProgress });
+      notice.value = {
+        kind: removeProgress ? 'removedWithProgress' : 'removed',
+      };
     });
 
   const cancel = async (id: string) => {

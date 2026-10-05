@@ -112,7 +112,8 @@ describe('реестр команд: команды приложения (R2, R5
         'Язык: Как в системе',
       ]),
     );
-    expect(titles).toHaveLength(8 + 3 + 3);
+    // 8 переходов + 3 темы + 3 языка + «Показать обучающий тур»
+    expect(titles).toHaveLength(8 + 3 + 3 + 1);
     expect(titles).not.toContain('Открыть палитру команд');
     // у команд приложения идентификатора расширения нет
     await expectCount(commands.extensionOptions, 0);
@@ -123,6 +124,7 @@ describe('реестр команд: команды приложения (R2, R5
       .allInnerTexts();
     expect(headings.map((text) => text.trim())).toEqual([
       'Переход',
+      'Приложение',
       'Тема',
       'Язык',
     ]);
@@ -175,8 +177,8 @@ describe('реестр команд: сочетания клавиш (R6, R7, R1
     );
     await openShortcuts(client);
     const rows = client.page.getByTestId('shortcut');
-    // палитра + 8 переходов + 3 темы + 3 языка
-    await expectCount(rows, 15);
+    // палитра + 8 переходов + 3 темы + 3 языка + обучающий тур + отмена и возврат ответа в сессии
+    await expectCount(rows, 18);
     const textOf = async (command: string) =>
       (
         await client.page
@@ -199,6 +201,10 @@ describe('реестр команд: сочетания клавиш (R6, R7, R1
     expect(await textOf('app:go:settings')).toContain(
       `Перейти: Настройки ${MOD}, ${MOD_WORD} запятая ${notTyping}`,
     );
+    // отмена ответа действует только в сессии и не при вводе текста
+    expect(await textOf('app:session.undo')).toContain(
+      `Отменить последний ответ ${MOD}Z ${MOD_WORD} Z inSession && ${notTyping} Приложение`,
+    );
     // команды без привязок тоже в таблице: им можно добавить сочетание
     expect(await textOf('app:theme:dark')).toContain('Нет сочетаний');
     // клавиши озвучиваются словами, а не символами: символы скрыты от скринридера
@@ -209,12 +215,12 @@ describe('реестр команд: сочетания клавиш (R6, R7, R1
         .getAttribute('aria-hidden'),
     ).toBe('true');
     // таблицы с заголовками столбцов и подписью группы
-    await expectCount(client.page.getByRole('table'), 4);
+    await expectCount(client.page.getByRole('table'), 5);
     await expectCount(
       client.page.getByRole('table', { name: 'Переход', exact: true }),
       1,
     );
-    await expectCount(client.page.getByRole('columnheader'), 20);
+    await expectCount(client.page.getByRole('columnheader'), 25);
   });
 
   it('кнопка на странице открывает палитру (с клавиатуры) и получает фокус обратно', async () => {

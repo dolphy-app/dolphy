@@ -30,6 +30,9 @@ const {
   verdict,
   revealed,
   result,
+  undone,
+  canStepBack,
+  canStepForward,
   checked,
   passed,
   position,
@@ -134,8 +137,12 @@ const leave = async () => {
       <PlacementResult
         v-else-if="stage === 'finished' && result"
         :result="result"
+        :undone="undone"
+        :busy="busy"
         @to-plan="toPlan"
         @open-graph="openGraph"
+        @undo="placement.undoResult()"
+        @redo="placement.redoResult()"
       />
 
       <template v-else-if="probing && current">
@@ -190,6 +197,22 @@ const leave = async () => {
             @click="placement.confirm()"
           >
             {{ t('placement.probe.next') }}
+          </v-btn>
+          <v-btn
+            variant="text"
+            prepend-icon="mdi-undo"
+            :disabled="!canStepBack"
+            @click="placement.stepBack()"
+          >
+            {{ t('placement.probe.back') }}
+          </v-btn>
+          <v-btn
+            variant="text"
+            prepend-icon="mdi-redo"
+            :disabled="!canStepForward"
+            @click="placement.stepForward()"
+          >
+            {{ t('placement.probe.forward') }}
           </v-btn>
           <v-btn variant="text" :disabled="busy" @click="placement.skip()">
             {{ t('placement.probe.skip') }}

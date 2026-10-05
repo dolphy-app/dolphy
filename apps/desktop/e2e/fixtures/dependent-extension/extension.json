@@ -1,0 +1,21 @@
+{
+  "id": "acme.dawn",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "dependencies": [{ "id": "acme.midnight", "range": ">=1.0.0 <2.0.0" }],
+  "contributes": {
+    "themes": [
+      {
+        "id": "acme.dawn",
+        "label": "Рассвет",
+        "dark": false,
+        "colors": {
+          "background": "#FFF4E0",
+          "surface": "#FFE8C2",
+          "primary": "#B34700",
+          "on-primary": "#FFFFFF"
+        }
+      }
+    ]
+  }
+}

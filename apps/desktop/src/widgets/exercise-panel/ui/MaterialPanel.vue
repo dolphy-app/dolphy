@@ -157,7 +157,7 @@ onBeforeUnmount(() => {
 .material {
   /* ~55 знаков в строке: 34% окна, но не уже 22 и не шире 30 rem */
   flex: 0 0 clamp(22rem, 34%, 30rem);
-  max-width: 60%;
+  max-width: 100%;
   overflow-y: auto;
   overscroll-behavior: contain;
   border-right: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
@@ -195,6 +195,9 @@ onBeforeUnmount(() => {
 
 /* чтение длинного текста: крупнее и свободнее, заголовки тише */
 .reading {
+  /* раскрытая на весь экран теория читается колонкой по центру, не строкой в 200 знаков */
+  max-width: 42rem;
+  margin-inline: auto;
   font-size: 0.9375rem;
   line-height: 1.65;
   letter-spacing: 0.01em;

@@ -64,6 +64,33 @@ export default {
           '*',
         );
       }),
+      button('Враждебные клавиши', () => {
+        // клавиши привязок приложения и своего расширения: событиями в рамке и сообщениями родителю
+        for (const key of ['G', '9']) {
+          for (const target of [doc, doc.activeElement ?? doc.body]) {
+            target.dispatchEvent(
+              new KeyboardEvent('keydown', {
+                key,
+                code: `Key${key}`,
+                ctrlKey: true,
+                metaKey: true,
+                shiftKey: true,
+                bubbles: true,
+                cancelable: true,
+              }),
+            );
+          }
+          for (const message of [
+            { type: 'shortcut', key: `mod+shift+${key.toLowerCase()}` },
+            { type: 'keydown', key, ctrlKey: true, metaKey: true, shiftKey: true },
+            { type: 'shortcut', key: 'mod+shift+k' },
+            { type: 'command', command: 'app:go:courses' },
+          ]) {
+            window.parent.postMessage({ dolphyFrame: 1, ...message }, '*');
+          }
+        }
+        result.textContent = 'sent';
+      }),
       make('input', '', { 'aria-label': 'Поле панели' }),
     );
   },

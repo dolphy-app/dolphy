@@ -11,15 +11,17 @@ import {
 import { createMaterialLayout } from '@/widgets/exercise-panel/model/material-layout.ts';
 
 describe('material panel width limits', () => {
-  it('is never narrower than 280 px or wider than 800 px', () => {
+  it('is never narrower than 280 px or wider than the workspace', () => {
     expect(clampWidth(10, 2000)).toBe(280);
-    expect(clampWidth(5000, 4000)).toBe(800);
+    expect(clampWidth(5000, 4000)).toBe(4000);
+    expect(clampWidth(1800, 1500)).toBe(1500);
   });
 
-  it('leaves at most 60% of a narrow workspace to the panel, but not below the minimum', () => {
-    expect(maxWidth(1000)).toBe(600);
-    expect(clampWidth(700, 1000)).toBe(600);
-    expect(maxWidth(300)).toBe(280);
+  it('allows the panel to take the whole workspace, but not below the minimum', () => {
+    expect(maxWidth(1000)).toBe(1000);
+    expect(clampWidth(1000, 1000)).toBe(1000);
+    expect(maxWidth(300)).toBe(300);
+    expect(maxWidth(200)).toBe(280);
   });
 
   it('rounds to whole pixels because the engine stores integers', () => {
@@ -36,12 +38,12 @@ describe('widthFromKey', () => {
 
   it('stops at the limits', () => {
     expect(widthFromKey('ArrowLeft', false, 285, 2000)).toBe(280);
-    expect(widthFromKey('ArrowRight', true, 790, 2000)).toBe(800);
+    expect(widthFromKey('ArrowRight', true, 990, 1000)).toBe(1000);
   });
 
   it('jumps to the edges with Home and End', () => {
     expect(widthFromKey('Home', false, 500, 2000)).toBe(280);
-    expect(widthFromKey('End', false, 500, 1000)).toBe(600);
+    expect(widthFromKey('End', false, 500, 1000)).toBe(1000);
   });
 
   it('ignores other keys', () => {

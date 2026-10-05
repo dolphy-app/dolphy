@@ -32,7 +32,7 @@ const withContributes = (contributes: Record<string, unknown>) => ({
 });
 
 describe('реестр точек вклада', () => {
-  it('содержит все одиннадцать точек с уникальными ключами', () => {
+  it('содержит все двенадцать точек с уникальными ключами', () => {
     expect(CONTRIBUTION_POINTS.map(({ key }) => key)).toEqual([
       'exerciseTypes',
       'themes',
@@ -43,6 +43,7 @@ describe('реестр точек вклада', () => {
       'commands',
       'panels',
       'widgets',
+      'schedules',
       'importers',
       'exporters',
     ]);
@@ -397,6 +398,7 @@ describe('createExtensionRegistry: contributions', () => {
       commands: [],
       panels: [],
       widgets: [],
+      schedules: [],
       importers: [],
       exporters: [],
     });

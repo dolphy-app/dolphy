@@ -18,7 +18,7 @@ export type WrapMethod = (name: string, method: AnyMethod) => AnyMethod;
 
 /**
  * Команды, которые не встают в очередь: вердикт ждёт раннер до
- * `timeoutMs`+запас; `repositories.add`/`update`/`remove`/`cancel` ходят в
+ * `timeoutMs`+запас; `repositories.preview`/`add`/`update`/`remove`/`cancel` ходят в
  * сеть и ждут свою цепочку операций, а очередь берут сами (`exclusive`) только
  * на подмену снимка и `reload`: из очереди ждать цепочку нельзя — её
  * операция ждёт очередь (взаимная блокировка). `extensions.catalog`,
@@ -39,6 +39,7 @@ export type WrapMethod = (name: string, method: AnyMethod) => AnyMethod;
  */
 export const UNQUEUED: ReadonlySet<string> = new Set([
   'practice.submitAnswer',
+  'repositories.preview',
   'repositories.add',
   'repositories.update',
   'repositories.remove',

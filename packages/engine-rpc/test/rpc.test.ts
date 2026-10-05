@@ -148,7 +148,7 @@ describe('dispatcher validation', () => {
     const raw = createRawClient(rawSide);
     for (const patch of [
       { materialWidth: 280 },
-      { materialWidth: 800 },
+      { materialWidth: 8192 },
       { materialWidth: null },
       { materialCollapsed: true },
       { materialCollapsed: false },
@@ -159,10 +159,43 @@ describe('dispatcher validation', () => {
     }
     for (const patch of [
       { materialWidth: 279 },
-      { materialWidth: 801 },
+      { materialWidth: 8193 },
       { materialWidth: 400.5 },
       { materialWidth: '400' },
       { materialCollapsed: 'yes' },
+    ]) {
+      expect(await raw.call('settings.setUi', [patch])).toMatchObject({
+        ok: false,
+        error: { code: 'INVALID_ARGUMENT' },
+      });
+    }
+  });
+
+  it('settings.setUi validates tour outcomes', async () => {
+    const { dispatcher } = await connect();
+    const [hostSide, rawSide] = createInProcessPair();
+    dispatcher.attach(hostSide, 'raw-tours');
+    const raw = createRawClient(rawSide);
+    for (const patch of [
+      { tours: { welcome: 'completed' } },
+      { tours: { welcome: 'skipped', 'courses-2': null } },
+      { tours: {} },
+    ]) {
+      expect(await raw.call('settings.setUi', [patch])).toMatchObject({
+        ok: true,
+      });
+    }
+    for (const patch of [
+      { tours: { 'Bad Id': 'completed' } },
+      { tours: { welcome: 'done' } },
+      { tours: { welcome: true } },
+      { tours: ['welcome'] },
+      { tours: 'welcome' },
+      {
+        tours: Object.fromEntries(
+          Array.from({ length: 33 }, (_, i) => [`t${i}`, 'skipped']),
+        ),
+      },
     ]) {
       expect(await raw.call('settings.setUi', [patch])).toMatchObject({
         ok: false,
@@ -228,7 +261,7 @@ describe('dispatcher validation', () => {
     });
   });
 
-  it('extensions.setEnabled / setTrusted / setNotificationsEnabled require an extension id and a boolean', async () => {
+  it('extensions.setEnabled / setTrusted / setNotificationsEnabled / setSchedulesEnabled require an extension id and a boolean', async () => {
     const { dispatcher } = await connect();
     const [hostSide, rawSide] = createInProcessPair();
     dispatcher.attach(hostSide, 'raw-extensions');
@@ -237,6 +270,7 @@ describe('dispatcher validation', () => {
       'extensions.setEnabled',
       'extensions.setTrusted',
       'extensions.setNotificationsEnabled',
+      'extensions.setSchedulesEnabled',
     ]) {
       expect(await raw.call(method, ['acme.ext', true])).toMatchObject({
         ok: true,
@@ -436,6 +470,38 @@ describe('dispatcher validation', () => {
     }
   });
 
+  it('repositories.remove accepts only a boolean removeProgress', async () => {
+    const { dispatcher } = await connect();
+    const [hostSide, rawSide] = createInProcessPair();
+    dispatcher.attach(hostSide, 'raw-repositories');
+    const raw = createRawClient(rawSide);
+    for (const args of [
+      ['id1'],
+      ['id1', {}],
+      ['id1', { removeProgress: false }],
+      ['id1', { removeProgress: true }],
+    ]) {
+      expect(
+        await raw.call('repositories.remove', args),
+        String(args),
+      ).toMatchObject({ ok: true });
+    }
+    for (const args of [
+      [],
+      ['id1', { removeProgress: 'yes' }],
+      ['id1', { removeData: true }],
+      ['id1', { removeProgress: true }, 'x'],
+    ]) {
+      expect(
+        await raw.call('repositories.remove', args),
+        String(args),
+      ).toMatchObject({
+        ok: false,
+        error: { code: 'INVALID_ARGUMENT' },
+      });
+    }
+  });
+
   it('rejects unknown keys, extra arguments and non-array params', async () => {
     const { dispatcher } = await connect();
     const [hostSide, rawSide] = createInProcessPair();
@@ -624,7 +690,19 @@ describe('ordering and events', () => {
       ['add', [{ url: 'https://h/r.git', extra: 1 }]],
       ['add', [{ url: `https://h/${'a'.repeat(2048)}` }]],
       ['add', [{ url: 'https://h/r.git', ref: 'r'.repeat(256) }]],
+      ['add', [{ url: 'https://h/r.git', courseIds: 'a' }]],
+      ['add', [{ url: 'https://h/r.git', courseIds: [1] }]],
+      ['add', [{ url: 'https://h/r.git', previewId: '' }]],
+      ['add', [{ url: 'https://h/r.git', previewId: 'p'.repeat(201) }]],
+      ['add', [{ url: 'https://h/r.git', courseIds: [''] }]],
+      ['add', [{ url: 'https://h/r.git', courseIds: Array(1001).fill('a') }]],
+      ['preview', [{ url: '' }]],
+      ['preview', [{ url: 'https://h/r.git', courseIds: ['a'] }]],
       ['update', ['']],
+      ['update', ['id1', { courseIds: [1] }]],
+      ['update', ['id1', { previewId: '' }]],
+      ['update', ['id1', { previewId: 7 }]],
+      ['update', ['id1', { extra: 1 }]],
       ['remove', ['x'.repeat(201)]],
       ['cancel', [42]],
       ['list', ['extra']],
@@ -646,17 +724,31 @@ describe('ordering and events', () => {
 
     it('routes valid calls to the engine with positional args', async () => {
       const { client, fake } = await connect();
-      await client.engine.repositories.add({
+      await client.engine.repositories.preview({
         url: 'https://h/r.git',
         ref: 'main',
       });
+      await client.engine.repositories.add({
+        url: 'https://h/r.git',
+        ref: 'main',
+        courseIds: ['a', 'b'],
+        previewId: 'p1',
+      });
       await client.engine.repositories.update('id1');
-      await client.engine.repositories.remove('id2');
+      await client.engine.repositories.update('id1', { courseIds: ['a'] });
+      await client.engine.repositories.update('id1', {
+        courseIds: ['a'],
+        previewId: 'p1',
+      });
+      await client.engine.repositories.remove('id2', { removeProgress: true });
       await client.engine.repositories.cancel('id3');
       await client.engine.repositories.list();
       await client.engine.repositories.checkUpdates();
       expect(fake.calls.filter((name) => name !== 'diagnostics')).toEqual([
+        'repositories.preview',
         'repositories.add',
+        'repositories.update',
+        'repositories.update',
         'repositories.update',
         'repositories.remove',
         'repositories.cancel',
@@ -665,10 +757,11 @@ describe('ordering and events', () => {
       ]);
     });
 
-    it('add is not replayed after a drop; update/remove/cancel/list are', () => {
+    it('add is not replayed after a drop; preview/update/remove/cancel/list are', () => {
       expect(RPC_METHODS['repositories.add'].idempotent).toBe(false);
       for (const name of [
         'list',
+        'preview',
         'update',
         'remove',
         'cancel',

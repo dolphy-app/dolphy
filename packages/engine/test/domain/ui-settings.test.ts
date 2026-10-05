@@ -15,12 +15,44 @@ describe('decodeUiSettings: material panel', () => {
 
   it.each([
     { materialWidth: 279 },
-    { materialWidth: 801 },
+    { materialWidth: 8193 },
     { materialWidth: 400.5 },
     { materialWidth: '400' },
     { materialCollapsed: false },
     { materialCollapsed: 'true' },
   ])('reads %j as "no field" instead of failing', (raw) => {
+    expect(decodeUiSettings(raw)).toEqual({
+      theme: 'system',
+      locale: 'system',
+    });
+  });
+});
+
+describe('decodeUiSettings: tours', () => {
+  it('keeps valid outcomes', () => {
+    expect(
+      decodeUiSettings({ tours: { welcome: 'completed', session: 'skipped' } }),
+    ).toEqual({
+      theme: 'system',
+      locale: 'system',
+      tours: { welcome: 'completed', session: 'skipped' },
+    });
+  });
+
+  it('drops a bad key or value without touching the rest', () => {
+    expect(
+      decodeUiSettings({
+        tours: { welcome: 'completed', 'Bad Id': 'skipped', other: 'done' },
+      }),
+    ).toMatchObject({ tours: { welcome: 'completed' } });
+  });
+
+  it.each([
+    { tours: {} },
+    { tours: [] },
+    { tours: 'welcome' },
+    { tours: null },
+  ])('reads %j as "no field"', (raw) => {
     expect(decodeUiSettings(raw)).toEqual({
       theme: 'system',
       locale: 'system',

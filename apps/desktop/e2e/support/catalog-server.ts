@@ -67,6 +67,8 @@ interface PublishedVersion {
   apiVersion: number;
   minAppVersion: string | null;
   permissions: string[];
+  /** Зависимости манифеста: запись версии индекса `dependencies`. */
+  dependencies: { id: string; range?: string }[];
   files: PublishedFile[];
 }
 
@@ -194,6 +196,7 @@ interface RawManifest {
   tags?: string[];
   minAppVersion?: string;
   permissions?: string[];
+  dependencies?: { id: string; range?: string }[];
   contributes?: {
     exerciseTypes?: { id: string; title?: string }[];
     themes?: { id: string; label: string }[];
@@ -327,6 +330,7 @@ export const startCatalogServer = async (
       apiVersion: manifest.apiVersion,
       minAppVersion: manifest.minAppVersion ?? null,
       permissions: manifest.permissions ?? [],
+      dependencies: manifest.dependencies ?? [],
       files: await readFiles(source.dir),
     };
     const known = extensions.get(manifest.id);
@@ -381,6 +385,9 @@ export const startCatalogServer = async (
           })),
           ...(version.icon === null ? {} : { icon: version.icon }),
           ...(version.tags.length === 0 ? {} : { tags: version.tags }),
+          ...(version.dependencies.length === 0
+            ? {}
+            : { dependencies: version.dependencies }),
         })),
       })),
       revoked: [...revoked],

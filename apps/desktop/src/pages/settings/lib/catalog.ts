@@ -1,3 +1,4 @@
+import type { ExtensionDependencyDto } from '@dolphy-app/engine-contract';
 import type {
   CatalogEntryDto,
   CatalogIncompatibleDto,
@@ -208,6 +209,8 @@ export interface InstallTarget {
   /** Версия, установленная из каталога сейчас; `null` — новая установка. */
   installedVersion: string | null;
   permissions: string[];
+  /** Зависимости устанавливаемой версии; установка их не ставит и не блокируется. */
+  dependencies: ExtensionDependencyDto[];
   contributes: ExtensionContributesDto;
   /** Названия вкладов; `{}` — без названий. */
   titles: ContributionTitlesDto;
@@ -231,6 +234,7 @@ export const targetFromEntry = (
   version: version.version,
   installedVersion: entry.installedVersion,
   permissions: [...version.permissions],
+  dependencies: version.dependencies.map((dependency) => ({ ...dependency })),
   contributes: entry.contributes,
   titles: entry.titles,
   tags: entryTags(entry),
@@ -249,6 +253,7 @@ const NO_CONTRIBUTES: ExtensionContributesDto = {
   events: [],
   commands: [],
   widgets: [],
+  schedules: [],
   panels: [],
   importers: [],
   exporters: [],
@@ -283,6 +288,9 @@ export const targetFromUpdate = (
   version: update.available.version,
   installedVersion: update.installed,
   permissions: [...update.available.permissions],
+  dependencies: update.available.dependencies.map((dependency) => ({
+    ...dependency,
+  })),
   contributes: entry?.contributes ?? info?.contributes ?? NO_CONTRIBUTES,
   titles: entry?.titles ?? (info === undefined ? {} : englishTitles(info)),
   tags: effectiveTags(

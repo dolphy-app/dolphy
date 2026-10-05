@@ -70,6 +70,8 @@ export interface GitServer {
   revParse(ref: string, repo?: string): string;
   /** Меняет поведение на лету; `undefined` — вернуть обычное. */
   configure(options: GitServerOptions): void;
+  /** Запросы, пришедшие на сервер, по порядку: `GET /<имя>.git/info/refs?service=…`, `POST /<имя>.git/git-upload-pack`. */
+  readonly requests: readonly string[];
   close(): Promise<void>;
 }
 
@@ -310,7 +312,10 @@ export const serveGitRepo = async (
     });
   };
 
+  const requests: string[] = [];
+
   const server: Server = createServer((req, res) => {
+    requests.push(`${req.method ?? 'GET'} ${req.url ?? ''}`);
     const respond = (): void => {
       if (options.status !== undefined) {
         const headers: Record<string, string> = {
@@ -372,6 +377,7 @@ export const serveGitRepo = async (
     revParse(ref, repo) {
       return git(repoOf(repo).dir, ['rev-parse', `${ref}^{commit}`]);
     },
+    requests,
     configure(next) {
       options = { ...next };
     },

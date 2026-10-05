@@ -64,6 +64,12 @@ const createContext = (log: string[], failOn: readonly string[] = []) => {
         return { dispose: () => void log.push(`uncommand ${id}`) };
       },
     },
+    schedule: {
+      on: (id): Disposable => {
+        log.push(`schedule ${id}`);
+        return { dispose: () => void log.push(`unschedule ${id}`) };
+      },
+    },
     importers: {
       register: (id): Disposable => {
         log.push(`importer ${id}`);
@@ -337,6 +343,26 @@ describe('defineExtension', () => {
       'subscribe attempt.closed',
       'command a.cmd',
     ]);
+  });
+
+  it('subscribes schedules after commands, skips inActivate ids, and disposes them in reverse on deactivate', async () => {
+    const log: string[] = [];
+    const module = defineExtension({
+      commands: { 'a.cmd': () => undefined },
+      schedules: { 'a.morning': () => undefined, 'a.late': inActivate },
+      activate(ctx) {
+        ctx.schedule.on('a.late', () => undefined);
+      },
+    });
+    await module.activate(createContext(log));
+    expect(log).toEqual([
+      'command a.cmd',
+      'schedule a.morning',
+      'schedule a.late',
+    ]);
+    log.length = 0;
+    await module.deactivate?.();
+    expect(log).toEqual(['unschedule a.morning', 'uncommand a.cmd']);
   });
 
   it('registers importers and exporters after commands, disposes them first on deactivate, and rolls back when one throws', async () => {

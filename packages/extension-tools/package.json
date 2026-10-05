@@ -23,6 +23,7 @@
     "vite": "^8.0.16"
   },
   "devDependencies": {
+    "@dolphy-app/engine": "workspace:*",
     "@dolphy-app/extension-install": "workspace:*",
     "@jridgewell/trace-mapping": "0.3.31",
     "@types/node": "^22.20.4",

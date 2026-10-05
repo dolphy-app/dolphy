@@ -4,8 +4,10 @@ import {
   GRADE_POLICY_ID_PATTERN,
   LOG_LEVELS,
   MATERIAL_WIDTH_RANGE,
+  MAX_TOURS,
   MAX_LOG_ENTRIES,
   THEME_ID_PATTERN,
+  TOUR_ID_PATTERN,
 } from '@dolphy-app/engine-contract';
 import {
   KEYBINDING_LIMITS,
@@ -57,6 +59,11 @@ const bool = z.boolean();
 const epochMs = z.number().int().nonnegative();
 const requestId = z.string().min(1);
 const repositoryId = z.string().min(1).max(200);
+/** Токен предпросмотра репозитория: непрозрачная строка движка. */
+const previewToken = z.string().min(1).max(200);
+/** Потолок выбора курсов репозитория: ограничивает размер вызова, смысл проверяет движок. */
+const MAX_SELECTED_COURSES = 1000;
+const courseSelection = z.array(unitId).max(MAX_SELECTED_COURSES);
 const grade = z.union([
   z.literal(1),
   z.literal(2),
@@ -297,6 +304,12 @@ const logEntry: z.ZodType<LogEntryDto> = z.discriminatedUnion('kind', [
     unitId,
     libraryRevision: optional(str),
   }),
+  z.strictObject({
+    ...logEntryBase,
+    kind: z.literal('retract'),
+    targetId: str.min(1),
+    op: z.enum(['set', 'unset']),
+  }),
 ]);
 
 /** По схеме на КАЖДЫЙ ключ `RPC_METHODS`; несовпадение с контрактом — ошибка типов. */
@@ -320,14 +333,33 @@ export const schemas = {
   'library.getGraph': z.tuple([optional(graphQuery)]),
   'library.readAsset': z.tuple([assetRef]),
   'repositories.list': z.tuple([]),
-  'repositories.add': z.tuple([
+  'repositories.preview': z.tuple([
     z.strictObject({
       url: str.min(1).max(2048),
       ref: optional(str.min(1).max(255)),
     }),
   ]),
-  'repositories.update': z.tuple([repositoryId]),
-  'repositories.remove': z.tuple([repositoryId]),
+  'repositories.add': z.tuple([
+    z.strictObject({
+      url: str.min(1).max(2048),
+      ref: optional(str.min(1).max(255)),
+      courseIds: optional(courseSelection),
+      previewId: optional(previewToken),
+    }),
+  ]),
+  'repositories.update': z.tuple([
+    repositoryId,
+    optional(
+      z.strictObject({
+        courseIds: optional(courseSelection),
+        previewId: optional(previewToken),
+      }),
+    ),
+  ]),
+  'repositories.remove': z.tuple([
+    repositoryId,
+    optional(z.strictObject({ removeProgress: optional(bool) })),
+  ]),
   'repositories.cancel': z.tuple([repositoryId]),
   'repositories.checkUpdates': z.tuple([]),
   'practice.startSession': z.tuple([]),
@@ -366,6 +398,12 @@ export const schemas = {
   'practice.getFrontier': z.tuple([optional(frontierRequest)]),
   'practice.getDue': z.tuple([optional(dueRequest)]),
   'practice.resetProgress': z.tuple([z.strictObject({ unitId, requestId })]),
+  'practice.undo': z.tuple([
+    z.strictObject({ targetId: str.min(1), requestId }),
+  ]),
+  'practice.redo': z.tuple([
+    z.strictObject({ targetId: str.min(1), requestId }),
+  ]),
   'plan.getDay': z.tuple([
     z.strictObject({
       maxItems: z.int().min(1),
@@ -384,6 +422,8 @@ export const schemas = {
   'placement.answer': z.tuple([
     z.strictObject({ probeId: str.min(1), result: placementResult }),
   ]),
+  'placement.undo': z.tuple([str.min(1)]),
+  'placement.redo': z.tuple([str.min(1)]),
   'placement.finish': z.tuple([
     z.strictObject({ sessionId: str.min(1), requestId }),
   ]),
@@ -395,6 +435,7 @@ export const schemas = {
   'extensions.setEnabled': z.tuple([extensionId, z.boolean()]),
   'extensions.setTrusted': z.tuple([extensionId, z.boolean()]),
   'extensions.setNotificationsEnabled': z.tuple([extensionId, z.boolean()]),
+  'extensions.setSchedulesEnabled': z.tuple([extensionId, z.boolean()]),
   'extensions.catalog': z.tuple([
     optional(z.strictObject({ refresh: optional(bool) })),
   ]),
@@ -507,6 +548,14 @@ export const schemas = {
           .nullable(),
       ),
       materialCollapsed: optional(z.boolean()),
+      tours: optional(
+        z
+          .record(
+            z.string().regex(TOUR_ID_PATTERN),
+            z.enum(['completed', 'skipped']).nullable(),
+          )
+          .refine((tours) => Object.keys(tours).length <= MAX_TOURS),
+      ),
     }),
   ]),
   'settings.getLearning': z.tuple([]),

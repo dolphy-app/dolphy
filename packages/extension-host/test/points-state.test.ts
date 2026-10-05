@@ -472,6 +472,7 @@ describe('обнаружение и реестр', () => {
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
 
     expect(registry.contributions().settings).toEqual([

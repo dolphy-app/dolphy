@@ -117,6 +117,7 @@ describe('staleAnswerElements (R7)', () => {
       commands: [],
       panels: [],
       widgets: [],
+      schedules: [],
       importers: [],
       exporters: [],
       messages: {},

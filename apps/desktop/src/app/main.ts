@@ -3,10 +3,15 @@ import { detectPlatform } from '@dolphy-app/keybindings';
 import { EngineCallError } from '@dolphy-app/engine-rpc/client';
 import App from './App.vue';
 import { applyLocale, createDolphyI18n } from './providers/i18n.ts';
+import { createDolphyQuery } from './providers/query.ts';
 import { createDolphyVuetify } from './providers/vuetify.ts';
 import { router } from './router';
 import StartupError from './startup-error/StartupError.vue';
 import { registerAppCommands } from '@/features/app-commands';
+import {
+  createOnboardingTour,
+  ONBOARDING_TOUR_KEY,
+} from '@/features/onboarding-tour';
 import { COURSE_SCOPE_KEY, createCourseScope } from '@/features/course-scope';
 import {
   COURSE_UPDATES_KEY,
@@ -17,6 +22,11 @@ import {
   createUserKeybindings,
   KEYBINDINGS_KEY,
 } from '@/features/keybindings';
+import {
+  createExtensionTransfers,
+  EXTENSION_TRANSFERS_KEY,
+  syncTransferCommands,
+} from '@/features/extension-transfers';
 import {
   createExtensionCommands,
   describeCommandFailure,
@@ -34,6 +44,11 @@ import {
   LOCALE_SELECTION_KEY,
   THEME_SELECTION_KEY,
 } from '@/shared/api/engine';
+import {
+  createInstall,
+  createInstallLinks,
+  INSTALL_KEY,
+} from '@/pages/settings';
 import { ROUTE } from '@/shared/config/routes.ts';
 import { resolveLocale } from '@/shared/i18n';
 import {
@@ -49,6 +64,10 @@ import {
   createCommandPalette,
 } from '@/widgets/command-palette';
 import { textOfExtension } from '@/shared/lib/extension-text.ts';
+import {
+  createExtensionWhen,
+  EXTENSION_WHEN_KEY,
+} from '@/shared/lib/extension-when.ts';
 import { bindSyntaxPalette } from '@/shared/lib/syntax-binding.ts';
 import { bindExtensionThemes } from '@/shared/lib/theme-registry.ts';
 
@@ -89,6 +108,8 @@ const bootstrap = async () => {
       void extensionUpdates.reconnected();
       void userKeybindings.reconnected();
     });
+    const query = createDolphyQuery(engine);
+    onReconnect(() => query.reconnected());
     const i18n = createDolphyI18n(resolveLocale(locale, navigator.language));
     const courseScope = await createCourseScope(engine);
     const courseUpdates = createCourseUpdates(engine, {
@@ -110,17 +131,67 @@ const bootstrap = async () => {
     // цвета подсветки кода следуют за темой: Markdown и редактор ответа
     bindSyntaxPalette(vuetify.theme);
     const registry = createCommandRegistry();
+    // условия `when` команд, панелей и виджетов расширений: значения читаются у источников при каждом вычислении
+    const extensionWhen = createExtensionWhen({
+      route: () => router.currentRoute.value.name,
+      courseActive: () => courseScope.activeId.value !== null,
+      locale: () => i18n.global.locale.value,
+      dark: () => vuetify.theme.current.value.dark,
+    });
     const extensionCommands = createExtensionCommands({
       registry,
       engine: engine.extensions,
       contributions: () => contributions.contributions.value,
       locale: () => i18n.global.locale.value,
+      when: extensionWhen,
       openPanel: ({ extensionId, panelId }) =>
         void router.push({
           name: ROUTE.extensionPanel,
           params: { extensionId, panelId },
         }),
     });
+    const onboardingTour = createOnboardingTour({
+      engine,
+      currentRoute: () => router.currentRoute.value.name,
+      navigate: async (name) => {
+        if (router.currentRoute.value.name !== name)
+          await router.push({ name });
+      },
+    });
+    const translate = (key: string, params?: Record<string, unknown>) =>
+      i18n.global.t(key as never, (params ?? {}) as never) as string;
+    // установка и обновление расширений: одно состояние на окно, диалог в App.vue;
+    // ссылка `dolphy://extensions/install/<id>` только открывает диалог, ставит «Установить»
+    const install = createInstall(engine);
+    const installLinks = createInstallLinks({
+      engine,
+      install,
+      notify: ({ key, params }) =>
+        extensionCommands.notices.push({
+          kind: 'notify',
+          text: translate(`settings.extensions.link.${key}`, params),
+        }),
+      openPage: (id) =>
+        void router.push({
+          name: ROUTE.settingsExtensionDetails,
+          params: { id },
+        }),
+    });
+    const extensionTransfers = createExtensionTransfers({
+      engine: engine.extensions,
+      platform: window.dolphy.platform,
+      contributions: () => contributions.contributions.value,
+      notify: (text) =>
+        extensionCommands.notices.push({ kind: 'notify', text }),
+      t: translate,
+    });
+    syncTransferCommands(
+      registry,
+      () => contributions.contributions.value,
+      extensionTransfers,
+      translate,
+      () => i18n.global.locale.value,
+    );
     const palette = createCommandPalette({ registry });
     const platform = detectPlatform(navigator);
     const contextKeys = createContextKeys(platform, document);
@@ -134,6 +205,8 @@ const bootstrap = async () => {
       registry,
       openPalette: () => palette.open(),
       router,
+      startTour: () => onboardingTour.start(),
+      canStartTour: () => onboardingTour.canStart(),
       t: i18n.global.t,
       themeSelection,
       localeSelection,
@@ -155,6 +228,7 @@ const bootstrap = async () => {
       .use(i18n)
       .use(vuetify)
       .use(router)
+      .use(query)
       .provide(ENGINE_KEY, engine)
       .provide(CONTRIBUTIONS_KEY, contributions.contributions)
       .provide(EXTENSION_UPDATES_KEY, extensionUpdates)
@@ -165,9 +239,15 @@ const bootstrap = async () => {
       .provide(COMMAND_REGISTRY_KEY, registry)
       .provide(COMMAND_PALETTE_KEY, palette)
       .provide(EXTENSION_COMMANDS_KEY, extensionCommands)
+      .provide(EXTENSION_WHEN_KEY, extensionWhen)
+      .provide(EXTENSION_TRANSFERS_KEY, extensionTransfers)
+      .provide(INSTALL_KEY, install)
       .provide(CONTEXT_KEYS_KEY, contextKeys)
       .provide(KEYBINDINGS_KEY, keybindings)
+      .provide(ONBOARDING_TOUR_KEY, onboardingTour)
       .mount('#app');
+    // подписка после монтирования: ссылка, принятая до загрузки окна, приходит сразу
+    window.dolphy.deepLink.onInstall(({ id }) => void installLinks.handle(id));
     if (__DOLPHY_SMOKE_BUILD__ && smoke) {
       const { runSmoke } = await import('./smoke/run-smoke.ts');
       smoke.report(await runSmoke(engine, smoke));

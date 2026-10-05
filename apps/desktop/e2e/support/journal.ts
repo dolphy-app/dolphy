@@ -13,6 +13,8 @@ export interface JournalRow {
   unit_id: string;
   grade: number | null;
   source: string | null;
+  /** `set`/`unset` у флагов и `retract`; у остальных записей `null`. */
+  op: string | null;
 }
 
 const open = (userData: string, readonly: boolean) =>
@@ -27,7 +29,7 @@ export const readJournal = (userData: string): JournalRow[] => {
   try {
     return db
       .prepare(
-        `select device_id, seq, id, kind, at, recorded_at, unit_id, grade, source
+        `select device_id, seq, id, kind, at, recorded_at, unit_id, grade, source, op
          from log_entry order by device_id, seq`,
       )
       .all() as JournalRow[];

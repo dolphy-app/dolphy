@@ -12,6 +12,10 @@ import type { SqlDatabase } from './sql-database.ts';
  * Миграция 4 — данные расширений (`ExtensionDataStore`): хранилище кода
  * расширения и значения его настроек, по ключу `(extension_id, key)`; значение —
  * JSON-текст. Не входят в журнал и не синхронизируются.
+ * Миграция 5 — секреты расширений.
+ * Миграция 6 — вид записи `retract` (отмена попытки): `CHECK` на `kind` нельзя
+ * изменить на месте, поэтому `log_entry` пересоздаётся с копированием строк в
+ * порядке `rowid`; `unit_id` у `retract` хранит `targetId`.
  */
 export const MIGRATIONS: readonly string[] = [
   `
@@ -72,6 +76,31 @@ CREATE TABLE extension_secret (
   extension_id TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL,
   PRIMARY KEY (extension_id, key)
 ) STRICT, WITHOUT ROWID;
+`,
+  `
+CREATE TABLE log_entry_next (
+  device_id TEXT NOT NULL, seq INTEGER NOT NULL,
+  id TEXT NOT NULL UNIQUE,
+  kind TEXT NOT NULL CHECK (kind IN ('attempt','unit_flag','progress_reset','retract')),
+  at INTEGER NOT NULL, recorded_at INTEGER NOT NULL,
+  unit_id TEXT NOT NULL,
+  grade INTEGER, source TEXT,
+  flag TEXT, op TEXT,
+  extra TEXT,
+  PRIMARY KEY (device_id, seq),
+  CHECK ((kind='attempt' AND grade BETWEEN 1 AND 5 AND source IS NOT NULL)
+      OR (kind='unit_flag' AND flag IS NOT NULL AND op IN ('set','unset'))
+      OR (kind='progress_reset')
+      OR (kind='retract' AND op IN ('set','unset')))
+) STRICT;
+INSERT INTO log_entry_next
+  (device_id, seq, id, kind, at, recorded_at, unit_id, grade, source, flag, op, extra)
+  SELECT device_id, seq, id, kind, at, recorded_at, unit_id, grade, source, flag, op, extra
+  FROM log_entry ORDER BY rowid;
+DROP TABLE log_entry;
+ALTER TABLE log_entry_next RENAME TO log_entry;
+CREATE INDEX log_order ON log_entry (at, device_id, seq);
+CREATE INDEX log_unit  ON log_entry (unit_id, at, device_id, seq);
 `,
 ];
 

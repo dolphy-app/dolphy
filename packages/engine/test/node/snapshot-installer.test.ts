@@ -40,6 +40,50 @@ describe('createNodeSnapshotInstaller', () => {
     );
   });
 
+  it('prune removes the listed directories of the staging tree and nothing else', async () => {
+    const { installer } = await setup();
+    const { stagingDir } = await installer.begin('repositories', 'acme', 'op1');
+    await writeFiles(stagingDir, {
+      'a/x.txt': '1',
+      'b/deep/y.txt': '2',
+      'b/z.txt': '3',
+      'README.md': '4',
+    });
+    await installer.prune('acme', 'op1', ['b', 'missing/dir']);
+    expect(await exists(join(stagingDir, 'b'))).toBe(false);
+    expect(await exists(join(stagingDir, 'a/x.txt'))).toBe(true);
+    expect(await exists(join(stagingDir, 'README.md'))).toBe(true);
+  });
+
+  it('prune refuses paths that leave the snapshot or name its root, removing nothing', async () => {
+    const { installer } = await setup();
+    const { stagingDir } = await installer.begin('repositories', 'acme', 'op1');
+    await writeFiles(stagingDir, { 'a/x.txt': '1' });
+    for (const bad of ['', '..', 'a/../..', '/a', '.git', 'a//b']) {
+      await expect(installer.prune('acme', 'op1', ['a', bad])).rejects.toThrow(
+        /Unsafe directory path/,
+      );
+    }
+    expect(await exists(join(stagingDir, 'a/x.txt'))).toBe(true);
+  });
+
+  it('dropTmp removes only the git dir of the operation, the staging tree stays', async () => {
+    const { installer, dataDir } = await setup();
+    const { stagingDir, tmpDir } = await installer.begin(
+      'repositories',
+      'acme',
+      'op1',
+    );
+    await writeFiles(stagingDir, { 'course/a.txt': 'one' });
+    await installer.dropTmp('op1');
+    expect(await exists(tmpDir)).toBe(false);
+    expect(await exists(join(dataDir, 'git-tmp', 'op1'))).toBe(false);
+    expect(await readFile(join(stagingDir, 'course/a.txt'), 'utf8')).toBe(
+      'one',
+    );
+    await expect(installer.dropTmp('../x')).rejects.toThrow(/Unsafe/);
+  });
+
   it('install puts the staging tree under repositories/<id>; finish removes the operation dirs', async () => {
     const { installer, libraryRoot, dataDir } = await setup();
     const { stagingDir } = await installer.begin('repositories', 'acme', 'op1');

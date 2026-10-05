@@ -2,6 +2,7 @@ import {
   LOG_LEVELS,
   MAX_ANSWER_CHARS,
   MAX_LOG_ENTRIES,
+  isEffectiveExtensionState,
 } from '@dolphy-app/engine-contract';
 import type {
   CatalogDto,
@@ -137,11 +138,13 @@ const copyInfo = (info: ExtensionInfoDto): ExtensionInfoDto => ({
     commands: [...info.contributes.commands],
     panels: [...info.contributes.panels],
     widgets: [...info.contributes.widgets],
+    schedules: [...info.contributes.schedules],
     importers: [...info.contributes.importers],
     exporters: [...info.contributes.exporters],
   },
   diagnostics: structuredClone(info.diagnostics),
   permissions: [...info.permissions],
+  dependencies: info.dependencies.map((dependency) => ({ ...dependency })),
   titles: structuredClone(info.titles),
   messages: structuredClone(info.messages),
   tags: [...info.tags],
@@ -185,6 +188,10 @@ const sortedContributions = (
     commands: copy.commands.sort(compareBy((command) => command.extensionId)),
     panels: copy.panels.sort(compareBy((panel) => panel.extensionId)),
     widgets: copy.widgets.sort(compareBy((widget) => widget.extensionId)),
+    // между расширениями — по id, внутри расширения — порядок манифеста
+    schedules: copy.schedules.sort(
+      compareBy((schedule) => schedule.extensionId),
+    ),
     importers: copy.importers.sort(
       compareBy((importer) => importer.extensionId),
     ),
@@ -208,9 +215,7 @@ const findToggleable = (
       details: { extensionId: id },
     });
   }
-  const effective = known.find(
-    ({ state }) => state === 'loaded' || state === 'disabled',
-  );
+  const effective = known.find(({ state }) => isEffectiveExtensionState(state));
   if (effective === undefined || effective.origin === 'bundled') {
     throw new EngineError('INVALID_ARGUMENT', {
       message: `Extension '${id}' cannot be configured`,
@@ -498,6 +503,22 @@ export const createExtensionsService = (
     findToggleable(ctx.extensionRegistry.list(), id, options);
     return persist(apply, { reload: true });
   };
+  /** Переключатель, который не меняет расширение (уведомления, расписания): набор не перезагружается. */
+  const setSwitch = async (
+    id: string,
+    enabled: unknown,
+    apply: (settings: ExtensionSettingsDto) => ExtensionSettingsDto,
+  ): Promise<ExtensionSettingsDto> => {
+    if (!isExtensionId(id)) throw invalidId(id);
+    if (typeof enabled !== 'boolean') {
+      throw new EngineError('INVALID_ARGUMENT', {
+        message: 'enabled must be a boolean',
+        details: { field: 'enabled' },
+      });
+    }
+    findToggleable(ctx.extensionRegistry.list(), id, { allowRevoked: true });
+    return persist(apply, { reload: false });
+  };
   return {
     ...transfers,
     list: async () =>
@@ -531,23 +552,16 @@ export const createExtensionsService = (
         }),
         { allowRevoked: true },
       ),
-    setNotificationsEnabled: async (id, enabled) => {
-      if (!isExtensionId(id)) throw invalidId(id);
-      if (typeof enabled !== 'boolean') {
-        throw new EngineError('INVALID_ARGUMENT', {
-          message: 'enabled must be a boolean',
-          details: { field: 'enabled' },
-        });
-      }
-      findToggleable(ctx.extensionRegistry.list(), id, { allowRevoked: true });
-      return persist(
-        (settings) => ({
-          ...settings,
-          notificationsOff: withMember(settings.notificationsOff, id, !enabled),
-        }),
-        { reload: false },
-      );
-    },
+    setNotificationsEnabled: (id, enabled) =>
+      setSwitch(id, enabled, (settings) => ({
+        ...settings,
+        notificationsOff: withMember(settings.notificationsOff, id, !enabled),
+      })),
+    setSchedulesEnabled: (id, enabled) =>
+      setSwitch(id, enabled, (settings) => ({
+        ...settings,
+        schedulesOff: withMember(settings.schedulesOff, id, !enabled),
+      })),
     setCheckUpdates: (enabled) => {
       if (typeof enabled !== 'boolean') {
         throw new EngineError('INVALID_ARGUMENT', {
@@ -719,8 +733,7 @@ export const createExtensionsService = (
         .list()
         .find(
           (item) =>
-            item.id === extensionId &&
-            (item.state === 'loaded' || item.state === 'disabled'),
+            item.id === extensionId && isEffectiveExtensionState(item.state),
         );
       if (info === undefined) {
         throw failed('unknown-command', `Extension not found: ${extensionId}`);

@@ -6,6 +6,7 @@ import { gradePolicies } from './grade-policies.ts';
 import { importers } from './importers.ts';
 import { markdownRenderers } from './markdown-renderers.ts';
 import { panels } from './panels.ts';
+import { schedules } from './schedules.ts';
 import { settings } from './settings.ts';
 import { themes } from './themes.ts';
 import { widgets } from './widgets.ts';
@@ -22,6 +23,7 @@ export const CONTRIBUTION_POINTS: readonly ContributionPoint[] = [
   commands,
   panels,
   widgets,
+  schedules,
   importers,
   exporters,
 ] as readonly ContributionPoint[];

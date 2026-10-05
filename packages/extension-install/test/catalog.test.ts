@@ -149,7 +149,7 @@ describe('catalog: статусы записей', () => {
 });
 
 describe('catalog: сводка вклада в DTO', () => {
-  it('commands, panels и widgets копируются в contributes, по умолчанию []', async () => {
+  it('commands, panels, widgets и schedules копируются в contributes, по умолчанию []', async () => {
     serveIndex(env.routes, [
       {
         id: 'acme.cmds',
@@ -159,6 +159,7 @@ describe('catalog: сводка вклада в DTO', () => {
           commands: ['acme.cmds.open'],
           panels: ['acme.cmds.main'],
           widgets: ['acme.cmds.card'],
+          schedules: ['acme.cmds.daily'],
           importers: ['acme.cmds.csv'],
           exporters: ['acme.cmds.out'],
         },
@@ -171,6 +172,7 @@ describe('catalog: сводка вклада в DTO', () => {
       commands: ['acme.cmds.open'],
       panels: ['acme.cmds.main'],
       widgets: ['acme.cmds.card'],
+      schedules: ['acme.cmds.daily'],
       importers: ['acme.cmds.csv'],
       exporters: ['acme.cmds.out'],
     });
@@ -178,6 +180,7 @@ describe('catalog: сводка вклада в DTO', () => {
       commands: [],
       panels: [],
       widgets: [],
+      schedules: [],
       importers: [],
       exporters: [],
     });
@@ -350,5 +353,27 @@ describe('catalog: кэш и сеть', () => {
     expect(await cold.installer.checkForUpdates()).toBe(0);
     expect(cold.logger.warn).toHaveBeenCalled();
     await cold.cleanup();
+  });
+});
+
+describe('catalog: dependencies of the shown version', () => {
+  it('latest and every listed version carry their dependencies, none by default', async () => {
+    serveIndex(env.routes, [
+      {
+        id: 'acme.needy',
+        version: '1.1.0',
+        versions: ['1.1.0', '1.0.0'],
+        dependencies: [{ id: 'acme.base', range: '>=1.0.0' }, { id: 'acme.x' }],
+      },
+      { id: 'acme.plain', version: '1.0.0' },
+    ]);
+    const { entries } = await env.installer.catalog();
+    const byId = Object.fromEntries(entries.map((e) => [e.id, e]));
+    expect(byId['acme.needy']?.latest?.dependencies).toEqual([
+      { id: 'acme.base', range: '>=1.0.0' },
+      { id: 'acme.x', range: null },
+    ]);
+    expect(byId['acme.needy']?.versions[1]?.dependencies).toHaveLength(2);
+    expect(byId['acme.plain']?.latest?.dependencies).toEqual([]);
   });
 });

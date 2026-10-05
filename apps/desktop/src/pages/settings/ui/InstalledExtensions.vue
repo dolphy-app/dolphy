@@ -1,5 +1,10 @@
 <script setup lang="ts">
-import { nextTick, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { isEffectiveExtensionState } from '@dolphy-app/engine-contract';
+import {
+  dependencyMessageParams,
+  rowsOfInstalled,
+} from '../lib/dependencies.ts';
 import { useI18n } from 'vue-i18n';
 import type {
   ExtensionDiagnosticDto,
@@ -7,15 +12,19 @@ import type {
   ExtensionStateDto,
 } from '@dolphy-app/engine-contract';
 import { useEngine } from '@/shared/api/engine';
+import { useContributions } from '@/shared/api/engine/contributions.ts';
 import { ROUTE } from '@/shared/config/routes.ts';
 import { useExtensionText } from '@/shared/lib/extension-text.ts';
 import { effectiveTags } from '../lib/tags.ts';
 import {
   areNotificationsOn,
+  areSchedulesOn,
   hasNotifications,
+  hasSchedules,
   hasSwitches,
   isEnabled,
   isTrusted,
+  scheduleSummaryOf,
   useExtensions,
 } from '../model/extensions.ts';
 import { useDiagnosticsCopy } from '../model/diagnostics-copy.ts';
@@ -30,6 +39,7 @@ import ExtensionTags from './ExtensionTags.vue';
 import ExtensionData from './ExtensionData.vue';
 import ExtensionHealth from './ExtensionHealth.vue';
 import ExtensionHeading from './ExtensionHeading.vue';
+import ExtensionDependencies from './ExtensionDependencies.vue';
 import ExtensionPermissions from './ExtensionPermissions.vue';
 import ExtensionRemoveDialog from './ExtensionRemoveDialog.vue';
 import ExtensionSettingsDialog from './ExtensionSettingsDialog.vue';
@@ -45,6 +55,7 @@ const STATE_VIEW: Record<ExtensionStateDto, StateView> = {
   overridden: { icon: 'mdi-layers-outline', color: 'secondary' },
   invalid: { icon: 'mdi-alert-circle-outline', color: 'error' },
   disabled: { icon: 'mdi-pause-circle-outline', color: 'warning' },
+  'dependencies-unmet': { icon: 'mdi-link-variant-off', color: 'warning' },
 };
 
 const props = defineProps<{ active: boolean }>();
@@ -67,6 +78,7 @@ const {
   setEnabled,
   setTrusted,
   setNotifications,
+  setSchedules,
   setCheckUpdates,
   setSafeMode,
   restartHost,
@@ -76,6 +88,19 @@ const catalogSource = useCatalogSource(useEngine());
 
 const { source } = catalogSource;
 onMounted(() => void catalogSource.load());
+
+const contributions = useContributions();
+/** Расписания включённых расширений по id расширения, в порядке манифеста. */
+const schedulesByExtension = computed(() => {
+  const map = new Map<string, string[]>();
+  for (const schedule of contributions.value.schedules) {
+    const { key, at } = scheduleSummaryOf(schedule);
+    const texts = map.get(schedule.extensionId) ?? [];
+    texts.push(t(`settings.extensions.schedule.${key}`, { at }));
+    map.set(schedule.extensionId, texts);
+  }
+  return map;
+});
 
 const removeTarget = ref<ExtensionInfoDto | null>(null);
 const settingsTarget = ref<ExtensionInfoDto | null>(null);
@@ -94,20 +119,27 @@ const issuesOf = (diagnostic: ExtensionDiagnosticDto): string[] => {
   return Array.isArray(issues) ? issues : [];
 };
 
+const diagnosticParams = (diagnostic: ExtensionDiagnosticDto) => {
+  if (diagnostic.code === 'overridden-by') {
+    return {
+      ...diagnostic.data,
+      origin: t(`settings.extensions.origin.${diagnostic.data.origin}`),
+    };
+  }
+  return diagnostic.code.startsWith('dependency-')
+    ? dependencyMessageParams(diagnostic)
+    : diagnostic.data;
+};
+
 const diagnosticText = (diagnostic: ExtensionDiagnosticDto): string =>
   t(
     `settings.extensions.diagnostic.${diagnostic.code}`,
-    diagnostic.code === 'overridden-by'
-      ? {
-          ...diagnostic.data,
-          origin: t(`settings.extensions.origin.${diagnostic.data.origin}`),
-        }
-      : diagnostic.data,
+    diagnosticParams(diagnostic),
   );
 
 // предупреждений о переводах может быть несколько с одним кодом: ключ отличает данные
 const diagnosticKey = (diagnostic: ExtensionDiagnosticDto): string =>
-  `${diagnostic.code}:${diagnostic.data.key ?? diagnostic.data.file ?? ''}`;
+  `${diagnostic.code}:${diagnostic.data.key ?? diagnostic.data.file ?? diagnostic.data.id ?? ''}`;
 
 /** Предупреждения о переводах: расширение работает, поэтому они выделены иначе, чем причины сбоя. */
 const isWarning = (diagnostic: ExtensionDiagnosticDto): boolean =>
@@ -123,10 +155,12 @@ const updateOf = (id: string) =>
   updates.value.find((update) => update.id === id);
 
 const isMuted = (extension: ExtensionInfoDto) =>
-  extension.state === 'overridden' || extension.state === 'disabled';
+  extension.state === 'overridden' ||
+  extension.state === 'disabled' ||
+  extension.state === 'dependencies-unmet';
 
 const isActive = (extension: ExtensionInfoDto) =>
-  extension.state === 'loaded' || extension.state === 'disabled';
+  isEffectiveExtensionState(extension.state);
 
 const reviewUpdates = async (ids?: readonly string[]) => {
   install.review(await updateTargets(ids));
@@ -604,6 +638,7 @@ watch(
               v-if="isActive(extension)"
               :permissions="extension.permissions"
             />
+            <ExtensionDependencies :rows="rowsOfInstalled(extension)" />
             <ExtensionContributions
               :contributes="extension.contributes"
               :titles="extension.titles"
@@ -644,6 +679,29 @@ watch(
                   setNotifications(extension.id, $event === true)
                 "
               />
+              <v-switch
+                v-if="hasSchedules(extension)"
+                :model-value="areSchedulesOn(settings, extension.id)"
+                :label="t('settings.extensions.schedulesLabel')"
+                :disabled="switching.has(`schedules:${extension.id}`)"
+                :aria-describedby="`schedules-text-${extension.id}`"
+                color="primary"
+                density="compact"
+                hide-details
+                inset
+                :data-testid="`schedules-${extension.id}`"
+                @update:model-value="
+                  setSchedules(extension.id, $event === true)
+                "
+              />
+              <p
+                v-if="hasSchedules(extension)"
+                :id="`schedules-text-${extension.id}`"
+                class="text-body-small text-medium-emphasis mt-0 mb-2"
+                :data-testid="`schedules-text-${extension.id}`"
+              >
+                {{ (schedulesByExtension.get(extension.id) ?? []).join(' · ') }}
+              </p>
               <v-switch
                 :model-value="isTrusted(settings, extension.id)"
                 :label="t('settings.extensions.trustLabel')"

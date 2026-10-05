@@ -3,7 +3,10 @@
  * by extension code (`main.mjs`), by the answer element (`view.mjs`), and by the engine itself.
  */
 
+import { WHEN_MAX_LENGTH } from './when.ts';
+
 export * from './locale.ts';
+export * from './when.ts';
 
 export const EXTENSION_API_VERSION = 1 as const;
 export const EXTENSION_ID_PATTERN = /^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*$/;
@@ -169,6 +172,12 @@ export interface CommandContribution {
   keybindings?: CommandKeybinding[];
   /** `false` hides the command from the palette while keeping it available to the panel; defaults to `true`. */
   palette?: boolean;
+  /**
+   * Visibility condition (see `parseWhen`), such as `route == 'courses'`. While it is false the
+   * command is not shown in the palette and does not run from a key binding; the extension's
+   * panels and widgets still call it with `ctx.call`.
+   */
+  when?: string;
   /** Glyph in the palette, from `EXTENSION_ICONS`; defaults to `DEFAULT_EXTENSION_ICON`. Decorative. */
   icon?: ExtensionIconName;
 }
@@ -183,6 +192,8 @@ export interface PanelContribution {
   module?: string;
   /** Glyph of the sidebar entry, from `EXTENSION_ICONS`; defaults to `DEFAULT_EXTENSION_ICON`. Decorative. */
   icon?: ExtensionIconName;
+  /** Visibility condition (see `parseWhen`): while it is false the sidebar entry is hidden; the panel still opens with `openPanel`. */
+  when?: string;
 }
 
 /** Where on the screen a widget is shown; `dailyPlan` is the "Daily plan" page. */
@@ -212,7 +223,49 @@ export interface WidgetContribution {
   maxHeight?: number;
   /** Path to the widget's ES module (`.js` or `.mjs`); defaults to `DEFAULT_WIDGET`. */
   module?: string;
+  /** Visibility condition (see `parseWhen`): while it is false the card is not drawn and its frame is not loaded. */
+  when?: string;
 }
+
+/** How often a schedule fires. */
+export const EXTENSION_SCHEDULE_EVERY = ['daily', 'hourly'] as const;
+export type ExtensionScheduleEvery = (typeof EXTENSION_SCHEDULE_EVERY)[number];
+
+/** `at` of a `daily` schedule: `HH:MM`, 24-hour clock, local time. */
+export const SCHEDULE_AT_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+/** `at` of a `daily` schedule without one. */
+export const DEFAULT_SCHEDULE_AT = '09:00';
+
+/** Limits on schedules; the manifest, the scheduler, and the runtime enforce them. */
+export const EXTENSION_SCHEDULE_LIMITS = Object.freeze({
+  /** Schedules per extension. */
+  schedules: 4,
+  /** Handler budget, ms. */
+  handlerMs: 10_000,
+  /** A firing found later than this after its moment (the app was closed or asleep) is skipped, ms. */
+  lateMs: 120_000,
+  /** How often the app looks for due firings, ms. */
+  tickMs: 30_000,
+});
+
+/**
+ * Extension schedule: a handler the app runs at fixed local times
+ * (`ctx.schedule.on`) while it is running. `daily` fires at `at`; `hourly` at
+ * the start of every hour and takes no `at`.
+ */
+export type ScheduleContribution =
+  | {
+      /** Equal to the extension id or starts with `<extension id>.`. */
+      id: string;
+      every: 'daily';
+      /** `HH:MM` local time (`SCHEDULE_AT_PATTERN`); defaults to `DEFAULT_SCHEDULE_AT`. */
+      at?: string;
+    }
+  | {
+      /** Equal to the extension id or starts with `<extension id>.`. */
+      id: string;
+      every: 'hourly';
+    };
 
 /** What an importer accepts: `text` hands the handler the file as a UTF-8 string, `bytes` as a `Uint8Array`. */
 export type ImporterInputKind = 'text' | 'bytes';
@@ -399,6 +452,21 @@ export interface GradePolicyContribution {
   label: string;
 }
 
+/** Most entries in `dependencies`. */
+export const MAX_EXTENSION_DEPENDENCIES = 16;
+
+/**
+ * Another extension this one needs (`dependencies`). The extension loads only
+ * while the dependency is installed, enabled, loaded and its version fits
+ * `range`; the app never installs a dependency on its own.
+ */
+export interface ExtensionDependency {
+  /** Id of the required extension; not the extension's own id, unique in the list. */
+  id: string;
+  /** Version range: space-separated comparators that must all hold (`>=1.2.0 <2.0.0`; operators `<`, `<=`, `>=`, `>`, `=`; bare `1.2.0` means `=1.2.0`); `null` — any version. */
+  range: string | null;
+}
+
 /** Normalized manifest: all defaults applied. */
 export interface ExtensionManifest {
   id: string;
@@ -422,6 +490,8 @@ export interface ExtensionManifest {
   icon: string | null;
   /** Explicit catalog tags (from `EXTENSION_TAGS`); empty — the catalog derives tags from contributions. */
   tags: ExtensionTag[];
+  /** Extensions this one needs; empty — none. */
+  dependencies: ExtensionDependency[];
   contributes: {
     exerciseTypes: ExerciseTypeContribution[];
     themes: ThemeContribution[];
@@ -444,6 +514,10 @@ export interface ExtensionManifest {
       maxHeight: number;
       module: string;
     })[];
+    schedules: (
+      | { id: string; every: 'daily'; at: string }
+      | { id: string; every: 'hourly' }
+    )[];
     importers: (ImporterContribution & { input: ImporterInputKind })[];
     exporters: ExporterContribution[];
   };
@@ -482,6 +556,8 @@ export interface ExtensionManifestInput {
   icon?: string;
   /** Up to 5 unique catalog tags from `EXTENSION_TAGS`; no key — no explicit tags. */
   tags?: ExtensionTag[];
+  /** Up to `MAX_EXTENSION_DEPENDENCIES` extensions this one needs, without the extension itself and repeats; no key — none. */
+  dependencies?: { id: string; range?: string }[];
   contributes: {
     exerciseTypes?: ExerciseTypeContributionInput[];
     themes?: ThemeContribution[];
@@ -492,6 +568,7 @@ export interface ExtensionManifestInput {
     commands?: CommandContribution[];
     panels?: PanelContribution[];
     widgets?: WidgetContribution[];
+    schedules?: ScheduleContribution[];
     importers?: ImporterContribution[];
     exporters?: ExporterContribution[];
   };
@@ -563,8 +640,8 @@ export const KEYBINDING_PATTERN = new RegExp(
 export const EXTENSION_COMMAND_LIMITS = Object.freeze({
   /** Keybinding entries (`keybindings`) per command. */
   keybindingsPerCommand: 4,
-  /** Length of a `keybindings[].when` condition. */
-  whenLength: 200,
+  /** Length of a `when` condition (of a command, panel, widget or `keybindings[]` entry). */
+  whenLength: WHEN_MAX_LENGTH,
   /** Commands per extension. */
   commands: 64,
   /** Panels per extension. */
@@ -1379,6 +1456,24 @@ export interface ExtensionNotifications {
   show(notification: ExtensionNotification): Promise<boolean>;
 }
 
+/** Runs when a schedule fires; at most `EXTENSION_SCHEDULE_LIMITS.handlerMs`, a failure is only logged. */
+export type ScheduleHandler = () => void | Promise<void>;
+
+/** Schedules of the extension (`contributes.schedules`); `Id` narrows the schedule ids. */
+export interface ExtensionSchedule<Id extends string = string> {
+  /**
+   * `id` must be declared in the `schedules` of this extension's manifest,
+   * otherwise it throws; subscribing twice throws. The app fires the handler
+   * by the local clock while it runs, activating the extension if needed. A
+   * firing found more than `EXTENSION_SCHEDULE_LIMITS.lateMs` after its moment
+   * (the app was closed or asleep) is skipped and never replayed; a handler
+   * still running from the previous firing misses the next one. No
+   * permission is needed; the user can switch the extension's schedules off
+   * in the settings.
+   */
+  on(id: Id, handler: ScheduleHandler): Disposable;
+}
+
 export type LearningEventHandler<N extends LearningEventName> = (
   payload: LearningEventPayloads[N],
 ) => void | Promise<void>;
@@ -1451,6 +1546,7 @@ export interface ExtensionIdSet {
   events: LearningEventName;
   panels: string;
   widgets: string;
+  schedules: string;
   importers: string;
   exporters: string;
   /** Languages of `contributes.markdownRenderers`. */
@@ -1472,6 +1568,8 @@ export interface ExtensionContext<Ids extends ExtensionIdSet = ExtensionIdSet> {
   readonly stats: ExtensionStats;
   /** System notifications; need the `notifications` permission. */
   readonly notifications: ExtensionNotifications;
+  /** Schedules the extension declares; no permission needed. */
+  readonly schedule: ExtensionSchedule<Ids['schedules']>;
   readonly commands: ExtensionCommands<Ids['commands']>;
   readonly importers: ExtensionImporters<Ids['importers']>;
   readonly exporters: ExtensionExporters<Ids['exporters']>;

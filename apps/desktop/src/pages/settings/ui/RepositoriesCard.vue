@@ -13,6 +13,7 @@ import type {
 } from '@dolphy-app/engine-contract';
 import { useEngine } from '@/shared/api/engine';
 import { useRepositories } from '../model/repositories.ts';
+import RepositoryCoursesDialog from './RepositoryCoursesDialog.vue';
 
 const { t, d } = useI18n();
 const {
@@ -70,16 +71,33 @@ const percentOf = (id: string) => {
 };
 
 const toRemove = ref<RepositoryDto | null>(null);
+const removeProgress = ref(false);
 const confirmOpen = computed({
   get: () => toRemove.value !== null,
   set: (value: boolean) => {
     if (!value) toRemove.value = null;
   },
 });
+// каждое открытие диалога начинается без отметки: прогресс по умолчанию сохраняется
+const askRemove = (repository: RepositoryDto) => {
+  removeProgress.value = false;
+  toRemove.value = repository;
+};
 const confirmRemove = () => {
   const repository = toRemove.value;
   toRemove.value = null;
-  if (repository) void remove(repository.id);
+  if (repository) void remove(repository.id, removeProgress.value);
+};
+
+const toChoose = ref<RepositoryDto | null>(null);
+const chooseOpen = computed({
+  get: () => toChoose.value !== null,
+  set: (value: boolean) => {
+    if (!value) toChoose.value = null;
+  },
+});
+const applyCourses = (id: string, courseIds: string[], previewId: string) => {
+  void update(id, courseIds, previewId);
 };
 </script>
 
@@ -133,6 +151,18 @@ const confirmRemove = () => {
           >
             {{ t('repository.updateAvailable') }}
           </v-chip>
+          <v-chip
+            v-if="repository.skippedCourseIds.length > 0"
+            size="small"
+            variant="tonal"
+            label
+          >
+            {{
+              t('settings.library.repositories.notInstalled', {
+                n: repository.skippedCourseIds.length,
+              })
+            }}
+          </v-chip>
           <v-spacer />
           <v-btn
             v-if="pendingId === repository.id"
@@ -141,6 +171,19 @@ const confirmRemove = () => {
             @click="cancel(repository.id)"
           >
             {{ t('common.cancel') }}
+          </v-btn>
+          <v-btn
+            variant="text"
+            prepend-icon="mdi-format-list-checks"
+            :disabled="busy"
+            :aria-label="
+              t('settings.library.repositories.chooseLabel', {
+                url: repository.url,
+              })
+            "
+            @click="toChoose = repository"
+          >
+            {{ t('settings.library.repositories.choose') }}
           </v-btn>
           <v-btn
             variant="tonal"
@@ -166,7 +209,7 @@ const confirmRemove = () => {
                 url: repository.url,
               })
             "
-            @click="toRemove = repository"
+            @click="askRemove(repository)"
           >
             {{ t('settings.library.repositories.remove') }}
           </v-btn>
@@ -230,6 +273,21 @@ const confirmRemove = () => {
         <v-card-text>
           <p class="url mb-2">{{ toRemove.url }}</p>
           <p>{{ t('settings.library.repositories.confirm.text') }}</p>
+          <v-checkbox
+            v-model="removeProgress"
+            :label="t('settings.library.repositories.confirm.removeProgress')"
+            :hint="
+              t(
+                removeProgress
+                  ? 'settings.library.repositories.confirm.resetHint'
+                  : 'settings.library.repositories.confirm.keepHint',
+              )
+            "
+            persistent-hint
+            density="compact"
+            color="error"
+            data-testid="remove-progress"
+          />
         </v-card-text>
         <v-card-actions>
           <v-spacer />
@@ -242,6 +300,12 @@ const confirmRemove = () => {
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <RepositoryCoursesDialog
+      v-model="chooseOpen"
+      :repository="toChoose"
+      @apply="applyCourses"
+    />
   </v-card>
 </template>
 

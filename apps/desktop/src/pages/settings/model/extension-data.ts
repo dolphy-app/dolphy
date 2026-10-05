@@ -1,3 +1,4 @@
+import { isEffectiveExtensionState } from '@dolphy-app/engine-contract';
 import { onScopeDispose, ref, shallowRef, watch } from 'vue';
 import type { Ref } from 'vue';
 import type {
@@ -23,7 +24,7 @@ export const hasData = (usage: ExtensionDataUsageDto | undefined): boolean =>
 
 /** Данные есть у действующих расширений (загруженных и отключённых); у перекрытых и некорректных строка их не показывает. */
 const carriesData = (extension: ExtensionInfoDto) =>
-  extension.state === 'loaded' || extension.state === 'disabled';
+  isEffectiveExtensionState(extension.state);
 
 const errorText = (caught: unknown) =>
   caught instanceof Error ? caught.message : String(caught);

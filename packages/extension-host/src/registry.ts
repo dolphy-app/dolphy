@@ -18,6 +18,7 @@ const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
   commands: [],
   panels: [],
   widgets: [],
+  schedules: [],
   importers: [],
   exporters: [],
 };
@@ -36,6 +37,7 @@ const withoutMetadata = (
   | 'name'
   | 'description'
   | 'author'
+  | 'dependencies'
   | 'icon'
   | 'titles'
   | 'messages'
@@ -48,6 +50,7 @@ const withoutMetadata = (
   name: null,
   description: null,
   author: null,
+  dependencies: [],
   icon: null,
   titles: {},
   messages: {},
@@ -71,6 +74,7 @@ export const contributesOf = (
     | 'commands'
     | 'panels'
     | 'widgets'
+    | 'schedules'
     | 'importers'
     | 'exporters'
   >,
@@ -86,6 +90,7 @@ export const contributesOf = (
   commands: extension.commands.map(({ id }) => id),
   panels: extension.panels.map(({ id }) => id),
   widgets: extension.widgets.map(({ id }) => id),
+  schedules: extension.schedules.map(({ id }) => id),
   importers: extension.importers.map(({ id }) => id),
   exporters: extension.exporters.map(({ id }) => id),
 });
@@ -161,16 +166,21 @@ const loaded = (
   revocationOf: RevocationLookup | undefined,
 ): ExtensionInfoDto => {
   const revoked = revocationReason(extension, revocationOf);
+  const issues = policy.dependencyIssues(extension.id);
+  let state: ExtensionInfoDto['state'] = 'disabled';
+  if (issues.length > 0) state = 'dependencies-unmet';
+  else if (policy.isEnabled(extension.id)) state = 'loaded';
   return {
     id: extension.id,
     version: extension.version,
     origin: extension.origin,
-    state: policy.isEnabled(extension.id) ? 'loaded' : 'disabled',
+    state,
     contributes: contributesOf(extension),
     diagnostics: [
       ...(policy.safeMode() && extension.origin !== 'bundled'
         ? [{ code: 'safe-mode' as const, data: {} }]
         : []),
+      ...issues,
       ...extension.warnings,
     ],
     permissions: [...extension.permissions],
@@ -179,6 +189,10 @@ const loaded = (
     name: extension.name,
     description: extension.description,
     author: extension.author,
+    dependencies: extension.dependencies.map(({ id, range }) => ({
+      id,
+      range,
+    })),
     icon: extension.icon,
     titles: titlesOf(extension),
     messages: extension.messages,
@@ -303,6 +317,9 @@ export const createExtensionRegistry = (
           origin: extension.origin,
           revision: extension.revision,
         })),
+      ),
+      schedules: enabled().flatMap(({ id, schedules }) =>
+        schedules.map((schedule) => ({ ...schedule, extensionId: id })),
       ),
       importers: enabled().flatMap(({ id, importers }) =>
         importers.map((importer) => ({

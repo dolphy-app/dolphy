@@ -19,8 +19,9 @@ export const RPC_METHODS = {
   'library.getGraph': { idempotent: true },
   'library.readAsset': { idempotent: true },
   'repositories.list': { idempotent: true },
+  'repositories.preview': { idempotent: true }, // читает сервер, ничего не меняет
   'repositories.add': { idempotent: false },
-  'repositories.update': { idempotent: true }, // по коммиту на сервере
+  'repositories.update': { idempotent: true }, // по коммиту на сервере и выбору курсов
   'repositories.remove': { idempotent: true },
   'repositories.cancel': { idempotent: true },
   'repositories.checkUpdates': { idempotent: true }, // читает коммиты сервера, состояние не накапливает
@@ -37,10 +38,14 @@ export const RPC_METHODS = {
   'practice.getFrontier': { idempotent: true },
   'practice.getDue': { idempotent: true },
   'practice.resetProgress': { idempotent: true }, // по requestId
+  'practice.undo': { idempotent: true }, // по requestId
+  'practice.redo': { idempotent: true }, // по requestId
   'plan.getDay': { idempotent: true }, // при заданном seed
   'placement.start': { idempotent: false },
   'placement.nextProbe': { idempotent: true }, // до ответа на выданную пробу
   'placement.answer': { idempotent: false },
+  'placement.undo': { idempotent: false }, // один шаг назад за вызов
+  'placement.redo': { idempotent: false },
   'placement.finish': { idempotent: true }, // по requestId
   'placement.abort': { idempotent: false },
   'remediation.getPlan': { idempotent: true },
@@ -50,6 +55,7 @@ export const RPC_METHODS = {
   'extensions.setEnabled': { idempotent: false },
   'extensions.setTrusted': { idempotent: false },
   'extensions.setNotificationsEnabled': { idempotent: true }, // задаёт значение, не приращение
+  'extensions.setSchedulesEnabled': { idempotent: true }, // задаёт значение, не приращение
   'extensions.catalog': { idempotent: true },
   'extensions.install': { idempotent: false },
   'extensions.uninstall': { idempotent: false },

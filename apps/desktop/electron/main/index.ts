@@ -14,11 +14,15 @@ import {
   utilityProcess,
 } from 'electron';
 import { appendFileSync, existsSync, watch } from 'node:fs';
-import { realpath, stat } from 'node:fs/promises';
+import { readFile, realpath, stat, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import type { ExtensionHostStatusDto } from '@dolphy-app/engine-contract';
 import { createExtSupervisor, isTypedMessage } from './ext-supervisor.ts';
+import {
+  createFakeFileDialogs,
+  fakeFileDialogsOf,
+} from './fake-file-dialogs.ts';
 import { createHostLink } from './host-link.ts';
 import { createLogFile, createProcessOutput } from './log-file.ts';
 import { createMainLogger } from './logger.ts';
@@ -28,7 +32,9 @@ import {
   notificationLogOf,
 } from './platform-services.ts';
 import { safeModeSource } from './safe-mode.ts';
+import { scheduleClockOf } from './schedule-clock.ts';
 import { createDevExtensionsShell } from './shells/dev-extensions.ts';
+import { createDeepLinkShell } from './shells/deep-link.ts';
 import { createDevToolsShortcutShell } from './shells/devtools-shortcut.ts';
 import { createEngineShell } from './shells/engine.ts';
 import { createExtensionAssetsShell } from './shells/extension-assets.ts';
@@ -115,6 +121,8 @@ const extensionCatalogUrl = app.isPackaged
 
 // безопасный режим, заданный запуском (флаг или переменная): настройкой не снимается
 const forceSafeMode = safeModeSource(process.argv, process.env);
+// ускоренные часы расписаний для e2e (`DOLPHY_SCHEDULE_TICK_MS`, `DOLPHY_CLOCK_OFFSET_FILE`): только в несобранном приложении
+const scheduleClock = scheduleClockOf(process.env, app.isPackaged);
 
 const hostLink = createHostLink({ MessageChannelMain });
 // шифр секретов расширений: `safeStorage` есть только в main, хост движка спрашивает по `parentPort`;
@@ -122,6 +130,8 @@ const hostLink = createHostLink({ MessageChannelMain });
 const fakeSafeStorage = fakeSafeStorageOf(process.env, app.isPackaged);
 // системные уведомления (`Notification` тоже только в main); e2e пишет их в файл `DOLPHY_NOTIFICATION_LOG` вместо вызова ОС
 const notificationLogPath = notificationLogOf(process.env, app.isPackaged);
+// диалоги файла импорта и экспорта; e2e подменяет их `DOLPHY_FAKE_FILE_DIALOGS` (только в несобранном приложении)
+const fakeFileDialogsDir = fakeFileDialogsOf(process.env, app.isPackaged);
 const showMainWindow = () => {
   const [window] = BrowserWindow.getAllWindows();
   if (window === undefined) return;
@@ -184,6 +194,7 @@ const supervisor = createSupervisor({
     ...(devExtensionsDir ? { devExtensionsDir } : {}),
     ...(extensionCatalogUrl ? { extensionCatalogUrl } : {}),
     ...(forceSafeMode ? { forceSafeMode } : {}),
+    ...scheduleClock,
     logsDir,
   },
   logger,
@@ -233,6 +244,16 @@ const shells = [
     hidden: hiddenWindow,
     additionalArguments: smoke ? [SMOKE_ARGUMENT] : [],
   }),
+  // ссылки `dolphy://extensions/install/<id>`: схему регистрирует только собранное приложение;
+  // скрытое окно e2e на передний план не выводится; смоук-сборка схему не перехватывает
+  createDeepLinkShell({
+    app,
+    ipcMain,
+    registerScheme: app.isPackaged && !smoke,
+    argv: process.argv,
+    logger,
+    reveal: hiddenWindow ? () => undefined : showMainWindow,
+  }),
   createDevToolsShortcutShell({
     app,
     ...(devExtensionsDir ? { devExtensionsDir } : {}),
@@ -241,7 +262,15 @@ const shells = [
   createEngineShell({ ipcMain, supervisor }),
   createPlatformShell({
     ipcMain,
-    dialog,
+    dialog:
+      fakeFileDialogsDir === undefined
+        ? dialog
+        : createFakeFileDialogs(fakeFileDialogsDir),
+    files: {
+      size: async (filePath) => (await stat(filePath)).size,
+      read: (filePath) => readFile(filePath),
+      write: (filePath, bytes) => writeFile(filePath, bytes),
+    },
     fromWebContents: (sender) =>
       BrowserWindow.fromWebContents(sender as Electron.WebContents),
     clipboard,

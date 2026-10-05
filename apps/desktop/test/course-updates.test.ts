@@ -28,6 +28,7 @@ const repo = (
   fetchedAt: 0,
   status: 'ready',
   courseIds: [`${id}-a`, `${id}-b`],
+  skippedCourseIds: [],
   ...extra,
 });
 

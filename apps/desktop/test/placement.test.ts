@@ -93,8 +93,22 @@ const createFakeEngine = (options: FakeOptions = {}) => {
     finish: [] as PlacementFinishRequest[],
     abort: [] as string[],
     submitted: [] as SubmitAnswerRequest[],
+    stepped: [] as string[],
+    retract: [] as {
+      op: 'undo' | 'redo';
+      targetId: string;
+      requestId: string;
+    }[],
   };
   let answered = 0;
+  let served: PlacementProbeDto | null = null;
+  const answeredProbes: PlacementProbeDto[] = [];
+  const redoStack: PlacementProbeDto[] = [];
+  const progressNow = () => ({
+    asked: answered,
+    budget: 6,
+    unresolved: 3 - answered,
+  });
   let sessions = 0;
 
   const thrown = (key: keyof typeof errors) => {
@@ -178,6 +192,26 @@ const createFakeEngine = (options: FakeOptions = {}) => {
         if (!verdict) throw new Error('no verdict queued');
         return verdict;
       },
+      undo: async ({
+        targetId,
+        requestId,
+      }: {
+        targetId: string;
+        requestId: string;
+      }) => {
+        calls.retract.push({ op: 'undo', targetId, requestId });
+        return { eventId: requestId, duplicate: false, changed: true };
+      },
+      redo: async ({
+        targetId,
+        requestId,
+      }: {
+        targetId: string;
+        requestId: string;
+      }) => {
+        calls.retract.push({ op: 'redo', targetId, requestId });
+        return { eventId: requestId, duplicate: false, changed: true };
+      },
     },
     placement: {
       start: async (request: PlacementStartRequest) => {
@@ -193,13 +227,35 @@ const createFakeEngine = (options: FakeOptions = {}) => {
       },
       nextProbe: async () => {
         thrown('nextProbe');
-        return probes.shift() ?? null;
+        served = probes.shift() ?? null;
+        return served;
       },
       answer: async (request: PlacementAnswerRequest) => {
         thrown('answer');
         calls.answer.push(request);
         answered += 1;
-        return { asked: answered, budget: 6, unresolved: 3 - answered };
+        if (served) answeredProbes.push(served);
+        redoStack.length = 0;
+        return progressNow();
+      },
+      undo: async (sessionId: string) => {
+        calls.stepped.push(`undo:${sessionId}`);
+        const last = answeredProbes.pop();
+        if (!last) return { changed: false, progress: progressNow() };
+        // выданная, но не отвеченная проба встаёт в очередь после снятой
+        if (served) probes.unshift(served);
+        probes.unshift(last);
+        redoStack.push(last);
+        answered -= 1;
+        return { changed: true, progress: progressNow() };
+      },
+      redo: async (sessionId: string) => {
+        calls.stepped.push(`redo:${sessionId}`);
+        const next = redoStack.pop();
+        if (!next) return { changed: false, progress: progressNow() };
+        answeredProbes.push(next);
+        answered += 1;
+        return { changed: true, progress: progressNow() };
       },
       finish: async (request: PlacementFinishRequest) => {
         calls.finish.push(request);
@@ -498,5 +554,94 @@ describe('placement model', () => {
 
     await Promise.all([placement.selfGrade(3), placement.selfGrade(5)]);
     expect(calls.answer).toHaveLength(1);
+  });
+});
+
+describe('placement result undo', () => {
+  const finished = async () => {
+    const fake = createFakeEngine({ probes: [probe(1)] });
+    const placement = newPlacement(fake.engine);
+    await placement.init();
+    await placement.begin();
+    await placement.selfGrade(4);
+    expect(placement.stage.value).toBe('finished');
+    return { placement, calls: fake.calls };
+  };
+
+  it('undoes the whole batch by the finish requestId and restores it', async () => {
+    const { placement, calls } = await finished();
+    expect(placement.undone.value).toBe(false);
+
+    await placement.undoResult();
+    expect(placement.undone.value).toBe(true);
+    expect(calls.retract).toEqual([
+      { op: 'undo', targetId: 'request-1', requestId: 'request-2' },
+    ]);
+
+    await placement.redoResult();
+    expect(placement.undone.value).toBe(false);
+    expect(calls.retract.at(-1)).toEqual({
+      op: 'redo',
+      targetId: 'request-1',
+      requestId: 'request-3',
+    });
+  });
+
+  it('does nothing twice: undo of an undone result and redo of a live one', async () => {
+    const { placement, calls } = await finished();
+    await placement.redoResult();
+    expect(calls.retract).toEqual([]);
+    await placement.undoResult();
+    await placement.undoResult();
+    expect(calls.retract).toHaveLength(1);
+  });
+});
+
+describe('placement step back and forward', () => {
+  const twoProbes = async () => {
+    const fake = createFakeEngine({ probes: [probe(1), probe(2), probe(3)] });
+    const placement = newPlacement(fake.engine);
+    await placement.init();
+    await placement.begin();
+    await placement.selfGrade(4);
+    return { placement, calls: fake.calls };
+  };
+
+  it('is unavailable before the first answer', async () => {
+    const fake = createFakeEngine({ probes: [probe(1), probe(2)] });
+    const placement = newPlacement(fake.engine);
+    await placement.init();
+    await placement.begin();
+    expect(placement.canStepBack.value).toBe(false);
+    expect(placement.canStepForward.value).toBe(false);
+    await placement.stepBack();
+    expect(fake.calls.stepped).toEqual([]);
+  });
+
+  it('step back asks the previous probe again, step forward returns the answer and moves on', async () => {
+    const { placement, calls } = await twoProbes();
+    expect(placement.current.value?.probeId).toBe('probe-2');
+    expect(placement.canStepBack.value).toBe(true);
+
+    await placement.stepBack();
+    expect(calls.stepped).toEqual(['undo:session-1']);
+    expect(placement.current.value?.probeId).toBe('probe-1');
+    expect(placement.progress.value?.asked).toBe(0);
+    expect(placement.canStepBack.value).toBe(false);
+    expect(placement.canStepForward.value).toBe(true);
+
+    await placement.stepForward();
+    expect(calls.stepped).toEqual(['undo:session-1', 'redo:session-1']);
+    expect(placement.current.value?.probeId).toBe('probe-2');
+    expect(placement.progress.value?.asked).toBe(1);
+    expect(placement.canStepForward.value).toBe(false);
+  });
+
+  it('a new answer after step back drops step forward', async () => {
+    const { placement } = await twoProbes();
+    await placement.stepBack();
+    await placement.selfGrade(2);
+    expect(placement.canStepForward.value).toBe(false);
+    expect(placement.progress.value?.asked).toBe(1);
   });
 });

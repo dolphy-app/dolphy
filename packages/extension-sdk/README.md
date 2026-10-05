@@ -16,8 +16,11 @@ repository's tests:
   [`docs/recipe-exercise-type.md`](docs/recipe-exercise-type.md),
   [`docs/recipe-theme.md`](docs/recipe-theme.md),
   [`docs/recipe-command-panel.md`](docs/recipe-command-panel.md),
-  [`docs/recipe-event-storage.md`](docs/recipe-event-storage.md) and
-  [`docs/recipe-settings.md`](docs/recipe-settings.md);
+  [`docs/recipe-event-storage.md`](docs/recipe-event-storage.md),
+  [`docs/recipe-settings.md`](docs/recipe-settings.md),
+  [`docs/recipe-import-export.md`](docs/recipe-import-export.md),
+  [`docs/recipe-when-dependencies.md`](docs/recipe-when-dependencies.md) and
+  [`docs/recipe-ui-kit.md`](docs/recipe-ui-kit.md);
 - [`docs/no-build.md`](docs/no-build.md) — an extension from two hand-written
   files, no TypeScript and no build;
 - [`docs/debugging.md`](docs/debugging.md) — tests, checks, the development loop
@@ -156,7 +159,8 @@ export const host = defineExtension({
 
 - `loadExerciseType(host, type)`, `loadGradePolicy(host, id)`,
   `loadEvents(host, options?)`, `loadCommands(host, options?)`,
-  `loadImporters(host, options?)`, `loadExporters(host, options?)` activate the
+  `loadSchedules(host, options?)`, `loadImporters(host, options?)`,
+  `loadExporters(host, options?)` activate the
   `host` export as it is, with in-memory storage, settings, events and
   commands, and give the test the handlers (`grade`, `evaluate`, `emit`, `run`,
   `dispose()`). `loadExerciseType` checks the shape of results;
@@ -181,7 +185,8 @@ export const host = defineExtension({
 - `createSchemaValidator(schema)`, `createMemoryLibrary(files)`,
   `createMemoryStorage()`, `createMemorySettings(definitions, values?)`,
   `createMemoryEvents(options?)`, `createMemoryCommands(options?)`,
-  `createMemoryStats(options?)`, `createMemoryNotifications(options?)`.
+  `createMemorySchedule(options?)`, `createMemoryStats(options?)`,
+  `createMemoryNotifications(options?)`.
 
 ```ts
 // src/index.ts — a grade policy (needs main)
@@ -288,9 +293,22 @@ export const host = defineExtension({
   30 per hour per extension: over the limit `show` rejects with
   `NotificationRateLimitError` (`window`, `limit`). It works only while the app
   runs.
+- `ctx.schedule.on(id, handler)` — runs `handler` (no arguments, at most
+  `EXTENSION_SCHEDULE_LIMITS.handlerMs` = 10 s) at the times the manifest's
+  `contributes.schedules` declares, by the local clock, while the app runs.
+  `{ id, every: 'daily', at?: 'HH:MM' }` fires once a day (`at` defaults to
+  `09:00`), `{ id, every: 'hourly' }` at the start of every hour. No permission
+  is needed. `id` must be declared, otherwise `on` throws; subscribing twice
+  throws. The extension is activated at the moment of the firing. A firing
+  found more than 2 minutes after its moment (the app was closed or the
+  computer slept) is skipped and never replayed; a handler still running from
+  the previous firing misses the next one; a failure is only logged. The user
+  can switch an extension's schedules off ("Settings → Extensions →
+  Installed"). In `defineExtension` it is the `schedules` record
+  (`inActivate` when the handler needs `ctx`).
 - The host logs a warning after activation for the exercise types, grade
-  policies, events and commands the manifest declares but the code did not
-  register.
+  policies, events, schedules and commands the manifest declares but the code
+  did not register.
 - Test helpers: `createMemoryStorage()` (same ceilings and
   `StorageQuotaError`), `createMemorySecrets({ available? })` (same ceilings;
   `setAvailable(false)` imitates a missing key store), `createMemorySettings(definitions, values?)` (values are
@@ -309,6 +327,13 @@ export const host = defineExtension({
   (both make `show` resolve `false` without using the rate limit);
   `permitted: false` makes every call reject with
   `PermissionError('notifications')`. All `load*` helpers take `notifications`.
+- `createMemorySchedule({ declared? })` is `ctx.schedule`: `fire(id)` runs the
+  subscribed handler and resolves `true`; with no subscription, or while the
+  handler of the previous firing is still running, the firing is skipped and it
+  resolves `false`; a handler failure rejects the promise (the host only logs
+  it) and the 10 s limit is not applied. `ids()` lists the subscribed
+  schedules. `loadSchedules(host, options?)` activates the module with it and
+  returns `fire`, `ids`, `dispose()`; all `load*` helpers take `schedule`.
 - `createMemoryStats({ attempts?, timeZone?, now?, permitted? })` is `ctx.stats`
   over a list of attempts (`{ at, grade, courseId? }`; more through
   `record(attempt)`) with the app's rules: local days in `timeZone`, correct at
@@ -437,9 +462,20 @@ import {
 
 export const host = defineExtension({
   importers: {
-    // `input` defaults to `text`; `bytes` hands over a Uint8Array instead
+    // `input` defaults to `text`; `bytes` hands over a Uint8Array instead.
+    // The tree is a course in the library layout: `course_manifest.json`,
+    // `lesson_manifest.json` and `exercise_manifest.json` files plus texts
     'acme.csv.import': ({ name, text }: TextImportInput) => ({
-      files: { 'course.yaml': `id: ${name}\n`, 'rows.csv': text },
+      files: {
+        'cards/course_manifest.json': JSON.stringify({
+          id: 'cards',
+          name,
+          dependencies: [],
+          encompassed: [],
+          superseded: [],
+        }),
+        'cards/rows.csv': text,
+      },
     }),
   },
   exporters: {
@@ -466,6 +502,38 @@ export const host = defineExtension({
   `declaredImporters: [{ id, input? }]` / `declaredExporters: [{ id, scope }]`
   to check against the manifest and `stats: createMemoryStats(…)` for a
   progress exporter.
+
+The recipe [`docs/recipe-import-export.md`](docs/recipe-import-export.md) is a
+whole project: a CSV importer that builds a flashcard course, the matching
+exporter, and tests. The app compiles the returned tree before it writes
+anything, shows a summary with diagnostics, and writes
+`imported/<extension id>-<file name>` atomically; with an error, nothing is
+left on disk. Importing the same file name again replaces the directory.
+
+## Visibility conditions and dependencies
+
+A command, a panel and a widget may have a `when` in `extension.json`: a
+boolean expression over `route`, `course.active`, `session.active`, `locale` and
+`theme.dark` (`==`, `!=`, `in ('a', 'b')`, `&&`, `||`, `!`, parentheses, single
+quoted strings, at most 200 characters). While it is false the command is not
+in the palette and its keys do nothing, the panel's menu item is hidden and the
+widget is not drawn; your own code still reaches them. `parseWhen(text)` and
+`evaluateWhen(expr, context)` are exported for tests; an unknown key or value, a
+wrong type or a syntax error is a manifest error with a position.
+
+`dependencies: [{ id, range? }]` (up to 16; `range` is comparators separated by
+a space, such as `>=1.0.0 <2.0.0`) makes the extension load only when each
+dependency is present, enabled, loaded and in range; otherwise the app shows
+"dependencies not met" with the reason and the extension contributes nothing.
+Dependencies are not installed for the user, and extensions cannot call each
+other. See [`docs/recipe-when-dependencies.md`](docs/recipe-when-dependencies.md).
+
+## UI kit
+
+`@dolphy-app/extension-ui` has accessible DOM elements for a panel (`list`,
+`button`, `textField`, `select`, `toggle`, `card`, `emptyState`) themed by the
+frame; see [`docs/recipe-ui-kit.md`](docs/recipe-ui-kit.md) and the package
+README.
 
 ## Style sheets, images and fonts
 

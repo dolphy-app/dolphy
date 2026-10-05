@@ -34,6 +34,7 @@ const info = (overrides: Partial<ExtensionInfoDto> = {}): ExtensionInfoDto => ({
     events: [],
     commands: [`${ID}.run`],
     widgets: [],
+    schedules: [],
     panels: [],
     importers: [],
     exporters: [],
@@ -45,6 +46,7 @@ const info = (overrides: Partial<ExtensionInfoDto> = {}): ExtensionInfoDto => ({
   name: null,
   description: null,
   author: null,
+  dependencies: [],
   installed: null,
   icon: null,
   titles: {},
@@ -66,6 +68,7 @@ const command = (id: string, extensionId = ID): CommandContributionDto => ({
   keybindings: [],
   icon: 'puzzle',
   palette: true,
+  when: null,
 });
 
 const panel = (id: string, extensionId = ID): PanelContributionDto => ({
@@ -73,6 +76,7 @@ const panel = (id: string, extensionId = ID): PanelContributionDto => ({
   extensionId,
   title: id,
   icon: 'puzzle',
+  when: null,
   rendererUrl: `dolphy-ext://${extensionId}/panel.mjs`,
   isolated: true,
   origin: 'user',
@@ -116,6 +120,7 @@ const open = (options: OpenOptions = {}) => {
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     },
   });
   return createTestEngine({
@@ -130,6 +135,7 @@ const open = (options: OpenOptions = {}) => {
       settings: [],
       commands: options.commands ?? [command(`${ID}.run`)],
       widgets: [],
+      schedules: [],
       panels: [],
       importers: [],
       exporters: [],
@@ -301,6 +307,7 @@ describe('extensions.contributions: команды и панели', () => {
           command('a.ext.a', 'a.ext'),
         ],
         widgets: [],
+        schedules: [],
         panels: [panel('b.ext.p', 'b.ext'), panel('a.ext.q', 'a.ext')],
         importers: [
           importer('b.ext.csv', 'b.ext'),

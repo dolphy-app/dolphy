@@ -1,5 +1,6 @@
 import { expect } from 'vitest';
 import type { Locator, Page } from 'playwright-core';
+import { MOD_KEY } from './keys.ts';
 
 /** Строки интерфейса (`ru`), по которым находятся элементы (i18n слайсов). */
 const RU = {
@@ -12,6 +13,8 @@ const RU = {
   giveUp: 'Сдаться',
   next: 'Далее',
   finish: 'Завершить',
+  undoAnswer: 'Отменить последний ответ',
+  redoAnswer: 'Вернуть отменённый ответ',
   toPlan: 'К плану дня',
   sessionFinished: 'Сессия завершена',
   sessionEmpty: 'Сегодня нечего проходить',
@@ -27,6 +30,7 @@ const RU = {
   extensionEnabled: 'Включено',
   extensionTrust: 'Доверять (без изоляции)',
   extensionNotifications: 'Уведомления',
+  extensionSchedules: 'Расписание',
   reloadWindow: 'Перезагрузить окно',
   verdictPassed: 'Верно',
   verdictFailed: 'Пока неверно',
@@ -49,12 +53,14 @@ const RU = {
 
 const TIMEOUT = 15_000;
 
-export type ExtensionSwitchName = 'enabled' | 'trusted' | 'notifications';
+export type ExtensionSwitchName =
+  'enabled' | 'trusted' | 'notifications' | 'schedules';
 
 const SWITCH_LABELS: Record<ExtensionSwitchName, string> = {
   enabled: RU.extensionEnabled,
   trusted: RU.extensionTrust,
   notifications: RU.extensionNotifications,
+  schedules: RU.extensionSchedules,
 };
 
 /** Рамка элемента ответа недоверенного расширения (`IsolatedFrame`, режим `answer`). */
@@ -282,6 +288,59 @@ export class Client {
     return this.readSummary();
   }
 
+  /**
+   * Записывает ответ на текущее упражнение, не дожидаясь следующего: оценка
+   * самопроверкой или, у проверяемого упражнения, «Сдаться» (оценка 1).
+   */
+  async gradeCurrent(grade: Grade) {
+    const reveal = this.page.getByRole('button', {
+      name: RU.reveal,
+      exact: true,
+    });
+    if (!(await reveal.isVisible())) {
+      await this.giveUp();
+      return;
+    }
+    await reveal.click();
+    await this.page
+      .getByRole('button', {
+        name: new RegExp(`^${grade}\\s*${RU.grades[grade]}$`),
+      })
+      .click();
+  }
+
+  /** «Отменить последний ответ»: кнопкой или сочетанием `Mod+Z`. */
+  async undoAnswer(how: 'button' | 'keyboard') {
+    if (how === 'button') {
+      await this.page
+        .getByRole('button', { name: RU.undoAnswer, exact: true })
+        .click();
+      return;
+    }
+    await this.page.keyboard.press(`${MOD_KEY}+KeyZ`);
+  }
+
+  /** «Вернуть отменённый ответ»: кнопкой или сочетанием `Mod+Shift+Z`. */
+  async redoAnswer(how: 'button' | 'keyboard') {
+    if (how === 'button') {
+      await this.page
+        .getByRole('button', { name: RU.redoAnswer, exact: true })
+        .click();
+      return;
+    }
+    await this.page.keyboard.press(`${MOD_KEY}+Shift+KeyZ`);
+  }
+
+  /** Кнопки отмены и возврата в шапке сессии доступны (не `disabled`). */
+  async answerHistory(): Promise<{ canUndo: boolean; canRedo: boolean }> {
+    const enabled = (name: string) =>
+      this.page.getByRole('button', { name, exact: true }).isEnabled();
+    return {
+      canUndo: await enabled(RU.undoAnswer),
+      canRedo: await enabled(RU.redoAnswer),
+    };
+  }
+
   private async stat(label: string): Promise<string> {
     return (
       await this.page
@@ -422,7 +481,7 @@ export class Client {
   }
 
   /**
-   * Переключает «Включено» / «Доверять» / «Уведомления» и ждёт, пока движок применит
+   * Переключает «Включено» / «Доверять» / «Уведомления» / «Расписание» и ждёт, пока движок применит
    * изменение: переключатель снова доступен. Окно не перезагружается.
    */
   async setExtensionSwitch(

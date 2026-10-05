@@ -11,6 +11,7 @@ import type {
   ExtensionInfoDto,
   ImporterContributionDto,
   PanelContributionDto,
+  ScheduleContributionDto,
   WidgetContributionDto,
   ExtensionSettingDefDto,
   ExtensionUpdateDto,
@@ -88,6 +89,7 @@ const REGISTERED: ExtensionInfoDto = {
     events: [],
     commands: ['dolphy.sql.stats'],
     widgets: ['dolphy.sql.card'],
+    schedules: ['dolphy.sql.nightly'],
     panels: ['dolphy.sql.panel'],
     importers: [],
     exporters: [],
@@ -99,6 +101,7 @@ const REGISTERED: ExtensionInfoDto = {
   name: null,
   description: null,
   author: null,
+  dependencies: [],
   installed: null,
   icon: null,
   titles: {},
@@ -118,6 +121,7 @@ const USER_EXTENSION: ExtensionInfoDto = {
     settings: [],
     commands: [],
     widgets: [],
+    schedules: [],
     panels: [],
     importers: [],
     exporters: [],
@@ -157,16 +161,24 @@ const STATS_COMMAND: CommandContributionDto = {
   keybindings: [],
   icon: 'puzzle',
   palette: true,
+  when: "route == 'courses'",
 };
 const SQL_PANEL: PanelContributionDto = {
   id: 'dolphy.sql.panel',
   extensionId: 'dolphy.sql',
   title: 'SQL',
   icon: 'puzzle',
+  when: null,
   rendererUrl: 'dolphy-ext://dolphy.sql/panel.mjs',
   isolated: true,
   origin: 'bundled',
   revision: '',
+};
+const SQL_SCHEDULE: ScheduleContributionDto = {
+  id: 'dolphy.sql.nightly',
+  extensionId: 'dolphy.sql',
+  every: 'daily',
+  at: '09:00',
 };
 const SQL_WIDGET: WidgetContributionDto = {
   id: 'dolphy.sql.card',
@@ -175,6 +187,7 @@ const SQL_WIDGET: WidgetContributionDto = {
   slot: 'dailyPlan',
   minHeight: 80,
   maxHeight: 320,
+  when: null,
   rendererUrl: 'dolphy-ext://dolphy.sql/widget.mjs',
   isolated: true,
   origin: 'bundled',
@@ -203,6 +216,7 @@ const UPDATE: ExtensionUpdateDto = {
   available: {
     version: '1.1.0',
     permissions: [],
+    dependencies: [],
     publishedAt: '2026-10-01T00:00:00.000Z',
     size: 10,
     minAppVersion: null,
@@ -280,6 +294,7 @@ const start = async () => {
           settings: [ROWS_SETTING],
           commands: [STATS_COMMAND],
           widgets: [SQL_WIDGET],
+          schedules: [SQL_SCHEDULE],
           panels: [SQL_PANEL],
           importers: [IMPORT_BYTES],
           exporters: [EXPORT_PROGRESS],
@@ -465,6 +480,16 @@ describe('rpc → dispatcher → real engine', () => {
     expect(
       await call('repositories.list', () => client.repositories.list()),
     ).toEqual([]);
+    await call('repositories.preview', () =>
+      client.repositories
+        .preview({ url: 'https://example.com/a.git' })
+        .catch((error) => {
+          expect(error).toMatchObject({
+            code: 'GIT_FETCH_FAILED',
+            details: { reason: 'network' },
+          });
+        }),
+    );
     await call('repositories.add', () =>
       client.repositories
         .add({ url: 'https://example.com/a.git' })
@@ -481,9 +506,11 @@ describe('rpc → dispatcher → real engine', () => {
       }),
     );
     await call('repositories.remove', () =>
-      client.repositories.remove('nope').catch((error) => {
-        expect(error).toMatchObject({ code: 'NOT_FOUND' });
-      }),
+      client.repositories
+        .remove('nope', { removeProgress: true })
+        .catch((error) => {
+          expect(error).toMatchObject({ code: 'NOT_FOUND' });
+        }),
     );
     expect(
       await call('repositories.cancel', () =>
@@ -548,6 +575,16 @@ describe('rpc → dispatcher → real engine', () => {
     await call('practice.resetProgress', () =>
       client.practice.resetProgress({ unitId: 'c::l4', requestId: 'reset' }),
     );
+    expect(
+      await call('practice.undo', () =>
+        client.practice.undo({ targetId: 'r2', requestId: 'undo-r2' }),
+      ),
+    ).toEqual({ eventId: 'undo-r2', duplicate: false, changed: true });
+    expect(
+      await call('practice.redo', () =>
+        client.practice.redo({ targetId: 'r2', requestId: 'redo-r2' }),
+      ),
+    ).toEqual({ eventId: 'redo-r2', duplicate: false, changed: true });
 
     await call('curation.blacklist.list', () =>
       client.curation.blacklist.list(),
@@ -657,6 +694,16 @@ describe('rpc → dispatcher → real engine', () => {
     } else {
       called.add('placement.answer');
     }
+    expect(
+      await call('placement.undo', () =>
+        client.placement.undo(placement.sessionId),
+      ),
+    ).toMatchObject({ changed: probe !== null });
+    expect(
+      await call('placement.redo', () =>
+        client.placement.redo(placement.sessionId),
+      ),
+    ).toMatchObject({ changed: probe !== null });
     await call('placement.finish', () =>
       client.placement.finish({
         sessionId: placement.sessionId,
@@ -716,6 +763,7 @@ describe('rpc → dispatcher → real engine', () => {
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
     expect(
       await call('extensions.getSettingValues', () =>
@@ -761,6 +809,7 @@ describe('rpc → dispatcher → real engine', () => {
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
     expect(
       await call('extensions.setTrusted', () =>
@@ -773,6 +822,7 @@ describe('rpc → dispatcher → real engine', () => {
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
     expect(
       await call('extensions.setNotificationsEnabled', () =>
@@ -785,6 +835,20 @@ describe('rpc → dispatcher → real engine', () => {
       safeMode: false,
       notificationsOff: ['acme.user'],
       catalogUrl: null,
+      schedulesOff: [],
+    });
+    expect(
+      await call('extensions.setSchedulesEnabled', () =>
+        client.extensions.setSchedulesEnabled('acme.user', false),
+      ),
+    ).toEqual({
+      disabled: ['acme.user'],
+      trusted: ['acme.user'],
+      checkUpdates: true,
+      safeMode: false,
+      notificationsOff: ['acme.user'],
+      catalogUrl: null,
+      schedulesOff: ['acme.user'],
     });
     expect(
       await call('extensions.setCheckUpdates', () =>
@@ -954,6 +1018,7 @@ describe('rpc → dispatcher → real engine', () => {
       commands: [STATS_COMMAND],
       panels: [SQL_PANEL],
       widgets: [SQL_WIDGET],
+      schedules: [SQL_SCHEDULE],
       importers: [IMPORT_BYTES],
       exporters: [EXPORT_PROGRESS],
       messages: {},

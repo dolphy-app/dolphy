@@ -83,6 +83,27 @@
         ]
       }
     },
+    "dependencies": {
+      "maxItems": 16,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)*$"
+          },
+          "range": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false
+      }
+    },
     "contributes": {
       "type": "object",
       "properties": {
@@ -855,6 +876,11 @@
               "palette": {
                 "type": "boolean"
               },
+              "when": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
               "icon": {
                 "type": "string",
                 "enum": [
@@ -938,6 +964,11 @@
                   "bookmark",
                   "tag"
                 ]
+              },
+              "when": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
               }
             },
             "required": [
@@ -980,6 +1011,11 @@
               },
               "module": {
                 "type": "string"
+              },
+              "when": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
               }
             },
             "required": [
@@ -988,6 +1024,55 @@
               "slot"
             ],
             "additionalProperties": false
+          }
+        },
+        "schedules": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)*$"
+                  },
+                  "every": {
+                    "type": "string",
+                    "const": "daily"
+                  },
+                  "at": {
+                    "type": "string",
+                    "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+                  }
+                },
+                "required": [
+                  "id",
+                  "every"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)*$"
+                  },
+                  "every": {
+                    "type": "string",
+                    "const": "hourly"
+                  }
+                },
+                "required": [
+                  "id",
+                  "every"
+                ],
+                "additionalProperties": false
+              }
+            ]
           }
         },
         "importers": {

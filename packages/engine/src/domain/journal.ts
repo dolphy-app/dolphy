@@ -40,4 +40,16 @@ export interface ProgressResetEntry extends EntryBase {
   libraryRevision?: string;
 }
 
-export type LogEntry = AttemptEntry | UnitFlagEntry | ProgressResetEntry;
+/**
+ * Отмена попытки (`op: 'set'`) и её возврат (`op: 'unset'`): LWW по ключу
+ * записи, как у флагов. `targetId` — `id` попытки либо общая часть `id` пачки
+ * `<targetId>#<i>` (результат входного теста).
+ */
+export interface RetractEntry extends EntryBase {
+  kind: 'retract';
+  targetId: string;
+  op: 'set' | 'unset';
+}
+
+export type LogEntry =
+  AttemptEntry | UnitFlagEntry | ProgressResetEntry | RetractEntry;

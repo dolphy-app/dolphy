@@ -10,7 +10,7 @@
 
 ## Что такое расширение
 
-Каталог с манифестом `extension.json` и файлами вкладов. Расширение может вносить любую комбинацию из одиннадцати точек (`contributes.exerciseTypes`, `themes`, `markdownRenderers`, `gradePolicies`, `settings`, `events`, `commands`, `panels`, `widgets`, `importers`, `exporters`, раздел «Точки вклада»). Код для процесса расширений (`main`, ES-модуль `.mjs`) нужен только вкладам `exerciseTypes`, `gradePolicies`, `events` и `commands`; у расширения из одних тем, рендереров содержимого и настроек `main` — `null`, и `src/index.ts` писать не нужно. Ниже — расширение с видом задания: JSON Schema для `spec` и ответа лежат в файлах или записаны прямо в манифесте, элемент ввода ответа (`renderer`) определяет custom element:
+Каталог с манифестом `extension.json` и файлами вкладов. Расширение может вносить любую комбинацию из двенадцати точек (`contributes.exerciseTypes`, `themes`, `markdownRenderers`, `gradePolicies`, `settings`, `events`, `commands`, `panels`, `widgets`, `schedules`, `importers`, `exporters`, раздел «Точки вклада»). Код для процесса расширений (`main`, ES-модуль `.mjs`) нужен только вкладам `exerciseTypes`, `gradePolicies`, `events` и `commands`; у расширения из одних тем, рендереров содержимого и настроек `main` — `null`, и `src/index.ts` писать не нужно. Ниже — расширение с видом задания: JSON Schema для `spec` и ответа лежат в файлах или записаны прямо в манифесте, элемент ввода ответа (`renderer`) определяет custom element:
 
 ```
 dolphy.choice/
@@ -50,7 +50,9 @@ dolphy.choice/
 
 Совместимость проверяют `discoverExtensions` и `inspectExtensionDir` по `appVersion` и `platform` (по умолчанию `process.platform`). Расширение не загружается и получает состояние `invalid` с диагностикой `requires-app` (данные `minAppVersion`) или `unavailable-platform` (данные `platform`); английский текст для CLI и логов даёт `formatDiagnostic` (`requires app >= X.Y.Z`, `not available on <platform>`), проверку совместимости — `checkCompatibility` из `@dolphy-app/extension-catalog`, её же используют выбор версии каталога и установщик. Версия приложения приходит из `EngineConfig.appVersion`; в несобранном приложении (режим разработки) она не задана, и `minAppVersion` не проверяется, пока не задан `DOLPHY_APP_VERSION=x.y.z`. `dolphy-ext validate` версии приложения не знает и сообщает только об ошибках формы этих полей.
 
-**Диагностики.** Причина состояния расширения — не строка, а `diagnostics: [{code, data}]` (`ExtensionInfoDto`, контракт 14). Коды закрытого списка `EXTENSION_DIAGNOSTIC_CODES`: `manifest-unreadable` (`reason`), `manifest-invalid` (`issues` — `путь: сообщение`), `id-mismatch` (`expected`, `actual`), `requires-app` (`minAppVersion`), `unavailable-platform` (`platform`), `claim-clash` (`kind`, `name`, `by`), `load-failed` (`reason`), `overridden-by` (`origin`, `version`), `safe-mode`; предупреждения о переводах `locale.missing-key` (`key`) и `locale.invalid-file` (`file`, `reason`) — раздел «Локализация манифеста». У загруженного и отключённого пользователем расширения список пуст, если нет безопасного режима или предупреждений о переводах; причина отзыва остаётся отдельным полем `revoked`. Окно строит текст по коду и данным на русском и английском (`settings.extensions.diagnostic.<код>`); `formatDiagnostic` из `@dolphy-app/extension-host` — единственное место, строящее английский текст для `dolphy-ext`, логов и установщика.
+**Зависимости.** Необязательное `dependencies` — до 16 записей `{ id, range? }`: расширения, без которых это не работает (раздел «Зависимости (`dependencies`)»). Каталог несёт их в записи версии индекса, а окно показывает в диалоге установки и на карточке каталога.
+
+**Диагностики.** Причина состояния расширения — не строка, а `diagnostics: [{code, data}]` (`ExtensionInfoDto`, контракт 14). Коды закрытого списка `EXTENSION_DIAGNOSTIC_CODES`: `manifest-unreadable` (`reason`), `manifest-invalid` (`issues` — `путь: сообщение`), `id-mismatch` (`expected`, `actual`), `requires-app` (`minAppVersion`), `unavailable-platform` (`platform`), `claim-clash` (`kind`, `name`, `by`), `load-failed` (`reason`), `overridden-by` (`origin`, `version`), `safe-mode`, зависимости `dependency-missing`, `dependency-disabled`, `dependency-version`, `dependency-unmet` (`id`, `range`, у версии `found`) и `dependency-cycle` (`cycle`) — раздел «Зависимости (`dependencies`)»; предупреждения о переводах `locale.missing-key` (`key`) и `locale.invalid-file` (`file`, `reason`) — раздел «Локализация манифеста». У загруженного и отключённого пользователем расширения список пуст, если нет безопасного режима или предупреждений о переводах; причина отзыва остаётся отдельным полем `revoked`. Окно строит текст по коду и данным на русском и английском (`settings.extensions.diagnostic.<код>`); `formatDiagnostic` из `@dolphy-app/extension-host` — единственное место, строящее английский текст для `dolphy-ext`, логов и установщика.
 
 **Ключ `$schema` и JSON Schema.** В манифесте допустим необязательный строковый ключ `$schema`: приложение и инструменты его игнорируют, `dolphy-ext build` копирует манифест как есть, ключ остаётся в `extension.json` сборки. `@dolphy-app/extension-api` содержит `extension.schema.json` (JSON Schema 2020-12 из zod-манифеста: `z.toJSONSchema(manifestSchema, { io: 'input', unrepresentable: 'any' })`, `additionalProperties: false` у объектов); файл лежит в `packages/extension-api/`, коммитится, сверяется тестом `manifest-schema.test.ts` (обновление — `UPDATE_EXTENSION_SCHEMA=1`) и публикуется как `dist/extension.schema.json` с подпутём экспорта `./extension.schema.json`. Генератор проекта пишет в манифест `$schema`, указывающий на этот файл установленного пакета. Схема помогает редактору (подсказки, ошибки), но не выражает перекрёстные правила — префикс `id`, «хотя бы один вклад», разрешение `learning.events` для событий, проверки точек вклада: источником истины остаются `parseManifest` и `dolphy-ext validate`.
 
@@ -141,7 +143,7 @@ engine:
 
 ## Точки вклада
 
-Манифест может содержать любые из одиннадцати ключей `contributes`; пропущенный ключ — пустой список. Неизвестный ключ отклоняется. Во всех точках с `id`: `id` равен id расширения или начинается с `<id расширения>.`. Каждый пример в этом разделе, помеченный строкой `Файл ...`, проверяется тестом `packages/extension-tools/test/docs-contributions.test.ts`.
+Манифест может содержать любые из двенадцати ключей `contributes`; пропущенный ключ — пустой список. Неизвестный ключ отклоняется. Во всех точках с `id`: `id` равен id расширения или начинается с `<id расширения>.`. Каждый пример в этом разделе, помеченный строкой `Файл ...`, проверяется тестом `packages/extension-tools/test/docs-contributions.test.ts`.
 
 ### Виды заданий (`exerciseTypes`)
 
@@ -433,7 +435,7 @@ export const host = defineExtension({
 
 ### Команды (`commands`)
 
-Команда — именованное действие расширения с обработчиком в `main`. Запись: `id` (по правилам `id` расширения), `title` (до 60 символов), необязательные `description` (до 200), `category` (до 40), `keybinding` (сокращение вида `Mod+Shift+L`), `keybindings` (список привязок, до 4) `palette` (по умолчанию `true`; `false` скрывает команду из палитры, но её по-прежнему можно вызвать из панели или виджета расширения) и `icon` (имя из закрытого списка `EXTENSION_ICONS`, умолчание `puzzle`; раздел «Значки»). Не более 64 команд на расширение. Ключ `when` прямо у команды не поддерживается и отклоняется как неизвестный; условие задаётся у записи `keybindings`. Новые разрешения не нужны. Нужен `main`.
+Команда — именованное действие расширения с обработчиком в `main`. Запись: `id` (по правилам `id` расширения), `title` (до 60 символов), необязательные `description` (до 200), `category` (до 40), `keybinding` (сокращение вида `Mod+Shift+L`), `keybindings` (список привязок, до 4) `palette` (по умолчанию `true`; `false` скрывает команду из палитры, но её по-прежнему можно вызвать из панели или виджета расширения), `when` (условие видимости, раздел «Условия видимости (`when`)») и `icon` (имя из закрытого списка `EXTENSION_ICONS`, умолчание `puzzle`; раздел «Значки»). Не более 64 команд на расширение. Ключ `when` прямо у команды не поддерживается и отклоняется как неизвестный; условие задаётся у записи `keybindings`. Новые разрешения не нужны. Нужен `main`.
 
 **Сочетания клавиш.** `keybinding` — сокращение: действующая привязка без условия, равная записи `{ "key": ... }` списка `keybindings`. Запись `keybindings`: `key` (обязательно; `Mod+Shift+L`, цепочка из двух нажатий `Mod+K Mod+S`, физическая клавиша `[KeyK]`; `Mod` — ⌘ на macOS, Ctrl на остальных), необязательные `mac`, `windows`, `linux` (заменяют `key` на своей платформе) и `when` (условие). Не более 4 записей на команду; одинаковая пара (`key`, `when`) в одной команде — ошибка.
 
@@ -565,9 +567,65 @@ export const panels = {
 - Раздел «Настройки → Сочетания клавиш» строится из реестра (команды приложения с сочетанием, по категориям, клавиши по платформе), содержит кнопку «Открыть палитру команд» и пояснение. Переназначение сочетаний (в том числе команд расширений) — в том же разделе.
 - Компромисс: кнопки палитры в боковом меню нет, пользователь узнаёт о палитре из раздела «Сочетания клавиш» и по описанию; возможная доработка — подсказка при первом запуске.
 
+#### Условия видимости (`when`)
+
+Команда, панель и виджет могут иметь `when` — условие видимости: строка до 200 знаков, булево выражение над закрытым набором ключей окна. Пока оно ложно, вклад не показывается; значение пересчитывается при смене маршрута, курса в фокусе, языка и темы без перезагрузки окна.
+
+| Ключ             | Тип     | Значение                                                                                          |
+| ---------------- | ------- | ------------------------------------------------------------------------------------------------- |
+| `route`          | текст   | Текущий экран: имя маршрута окна (`daily-plan`, `courses`, `session`, `settings-library` и т. д.) |
+| `course.active`  | булево  | Курс в фокусе: выбран один курс, а не «все курсы»                                                 |
+| `session.active` | булево  | Открыт экран учебной сессии                                                                       |
+| `locale`         | текст   | Язык окна после разрешения режима «как в системе»: `ru` или `en`                                  |
+| `theme.dark`     | булево  | Текущая тема тёмная                                                                               |
+
+Операторы: `==`, `!=`, `in ('a', 'b')` (значение входит в список), `&&`, `||`, `!` и скобки; значения — строки в одинарных кавычках (без экранирования), `true` и `false`. Приоритет: `!`, затем `&&`, затем `||`. `!` ставится перед булевым ключом, группой в скобках или другим `!`; отрицание сравнения — `!=` или `!(route == 'courses')`. Булев ключ можно писать без сравнения (`course.active`, `!theme.dark`); текстовый ключ без сравнения — ошибка. Пример: `route in ('courses', 'daily-plan') && !theme.dark`.
+
+- Манифест проверяется той же функцией `parseWhen` из `@dolphy-app/extension-api`, что используют окно и `dolphy-ext validate`: неизвестный ключ, неизвестное значение текстового ключа (`route == 'home'`), несовпадение типа (`theme.dark == 'yes'`, `route == true`), ошибка синтаксиса, пустое условие и условие длиннее 200 знаков — ошибка манифеста с путём записи и позицией (индекс знака в условии), например `contributes.commands.0.when: invalid "when" (unknown value 'home' for 'route' (known: …) at 9)`.
+- Команда с ложным `when` не показана в палитре и не выполняется сочетанием клавиш (она недоступна, как команда с `enabled: false`); её привязки при этом не снимаются и не считаются свободными. Панели и виджеты расширения по-прежнему вызывают её через `ctx.call`: `when` скрывает вклад от пользователя, а не от расширения.
+- Пункт меню панели с ложным `when` скрыт. Сама панель остаётся доступна расширению: `openPanel` открывает её по маршруту `/ext/<extensionId>/<panelId>`, даже когда пункта нет. Условие по `route` скрывает пункт и на самой странице панели (её маршрут — `extension-panel`), поэтому для панели лучше условия по состоянию: `course.active`, `session.active`, `locale`, `theme.dark`.
+- Виджет с ложным `when` не рисуется: его рамка не создаётся, пока условие не станет истинным. Если ложны все виджеты места, блока «Виджеты расширений» нет.
+- `when` у команды с `palette: false` допустим, но ничего не скрывает: такую команду не видно в палитре и без него.
+- Условие команды и `when` записи `keybindings` — разные условия. Условие команды — этот язык (ключи таблицы выше); `keybindings[].when` — язык привязок над ключами ввода (`inputFocus`, `page`, …, раздел «Команды»). Привязка срабатывает, когда истинны оба.
+- `parseWhen(text)` разбирает и проверяет условие (бросает `WhenError` с `reason`, `position` и `detail`), `evaluateWhen(expr, context)` — чистая функция без обращения к окну: контекст — объект `WhenContext` со значениями пяти ключей (значение может быть геттером, и читаются только те ключи, которые назвало условие). Обе экспортирует `@dolphy-app/extension-api`: любой диспетчер, который умеет собрать `WhenContext`, может пользоваться ими, как окно.
+
+Файл `extension.json` (условие видимости):
+
+```json
+{
+  "id": "acme.focus",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "contributes": {
+    "commands": [
+      {
+        "id": "acme.focus.report",
+        "title": "Отчёт по курсу",
+        "when": "route == 'courses' && course.active"
+      }
+    ],
+    "panels": [
+      {
+        "id": "acme.focus.board",
+        "title": "Доска курса",
+        "when": "course.active && !session.active"
+      }
+    ],
+    "widgets": [
+      {
+        "id": "acme.focus.hint",
+        "title": "Подсказка",
+        "slot": "dailyPlan",
+        "when": "locale in ('ru', 'en') && !theme.dark"
+      }
+    ]
+  }
+}
+```
+
 ### Панели (`panels`)
 
-Панель — страница расширения внутри приложения. Запись: `id`, `title` (до 60 символов), необязательные `module` (`.js` или `.mjs`, по умолчанию `./panel.mjs`; код панели — запись `panels[<id>]` в `src/index.ts`) и `icon` (имя из `EXTENSION_ICONS`, умолчание `puzzle`; значок пункта бокового меню, раздел «Значки»). Не более 8 панелей на расширение. Сама по себе панель `main` не требует; открывают её командой с результатом `openPanel`.
+Панель — страница расширения внутри приложения. Запись: `id`, `title` (до 60 символов), необязательные `module` (`.js` или `.mjs`, по умолчанию `./panel.mjs`; код панели — запись `panels[<id>]` в `src/index.ts`), `when` (условие видимости пункта меню, раздел «Условия видимости (`when`)») и `icon` (имя из `EXTENSION_ICONS`, умолчание `puzzle`; значок пункта бокового меню, раздел «Значки»). Не более 8 панелей на расширение. Сама по себе панель `main` не требует; открывают её командой с результатом `openPanel`.
 
 Файл `extension.json` (панель расширения):
 
@@ -635,7 +693,7 @@ export const panels = {
 
 ### Виджеты (`widgets`)
 
-Виджет — карточка расширения на экране приложения. Запись: `id`, `title` (до 60 символов), `slot` (сейчас единственное значение — `dailyPlan`, экран «План на сегодня»; ключ обязателен), необязательные `minHeight` и `maxHeight` (целые, 80–320 px; умолчания 80 и 320; `minHeight` не больше `maxHeight`) и `module` (`.js` или `.mjs`, по умолчанию `./widget.mjs`; код виджета — запись `widgets[<id>]` в `src/index.ts`). Не более 3 виджетов на расширение. Нового разрешения виджет не просит и сам `main` не требует; команды, которые он вызывает, требуют.
+Виджет — карточка расширения на экране приложения. Запись: `id`, `title` (до 60 символов), `slot` (сейчас единственное значение — `dailyPlan`, экран «План на сегодня»; ключ обязателен), необязательные `minHeight` и `maxHeight` (целые, 80–320 px; умолчания 80 и 320; `minHeight` не больше `maxHeight`), `module` (`.js` или `.mjs`, по умолчанию `./widget.mjs`; код виджета — запись `widgets[<id>]` в `src/index.ts`) и `when` (условие видимости, раздел «Условия видимости (`when`)»). Не более 3 виджетов на расширение. Нового разрешения виджет не просит и сам `main` не требует; команды, которые он вызывает, требуют.
 
 Файл `extension.json` (виджет расширения):
 
@@ -709,6 +767,62 @@ export const widgets = {
 
 Контракт 22 добавил `WidgetContributionDto`, `ContributionsDto.widgets`, `ExtensionContributesDto.widgets`, `ContributionTitlesDto.widgets` и поле `icon` у `CommandContributionDto` и `PanelContributionDto`.
 
+### Расписания (`schedules`)
+
+Расписание запускает обработчик расширения в заданное местное время, пока приложение работает. Запись: `id`, `every` (`daily` или `hourly`) и необязательное `at` — `HH:MM` по 24-часовым часам, только у `daily` (умолчание `09:00`; у `hourly` ключ `at` — ошибка манифеста). До четырёх расписаний на расширение (`EXTENSION_SCHEDULE_LIMITS.schedules`), `id` — как у остальных вкладов. Расписание требует код (`main`), разрешений не просит: оно запускает тот же код с теми же охранами (изоляция, пределы, учёт сбоев), а пользователь выключает его в строке расширения.
+
+Файл `extension.json` (расписания расширения):
+
+```json
+{
+  "id": "acme.reminder",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "permissions": ["notifications"],
+  "contributes": {
+    "schedules": [
+      { "id": "acme.reminder.morning", "every": "daily", "at": "08:30" },
+      { "id": "acme.reminder.hourly", "every": "hourly" }
+    ]
+  }
+}
+```
+
+Файл `src/index.ts` (расписания расширения):
+
+```ts
+import { defineExtension, inActivate } from '@dolphy-app/extension-sdk';
+
+export const host = defineExtension({
+  schedules: {
+    'acme.reminder.morning': inActivate,
+    'acme.reminder.hourly': () => undefined,
+  },
+  activate(ctx) {
+    ctx.schedule.on('acme.reminder.morning', async () => {
+      await ctx.notifications.show({
+        title: 'Время заниматься',
+        body: 'Утреннее повторение ждёт',
+      });
+    });
+  },
+});
+```
+
+Контракт:
+
+- `ctx.schedule.on(id, handler)` (или запись `schedules` в `defineExtension`, `inActivate` — когда обработчику нужен `ctx`). `id` обязан быть объявлен в манифесте, иначе бросает; вторая подписка на тот же `id` бросает. Обработчик вызывается без аргументов. Подписанное расписание, о котором код забыл, видно в журнале предупреждением `declared in the manifest but not registered by the extension code`.
+- Время — местное время компьютера: `daily` срабатывает в `at`, `hourly` — в начале каждого часа (в поясах со сдвигом в полчаса — по местным часам). Местное время, которого нет в сутки перехода на летнее время (например, `02:30` весной), в этот день не срабатывает; повторяющийся осенью час срабатывает по первому вхождению у `daily` и в каждый реальный час у `hourly`.
+- Лениво: расширение активируется в момент срабатывания (как при событии), не раньше. Обработчик ограничен 10 с (`EXTENSION_SCHEDULE_LIMITS.handlerMs`); сбой и превышение срока попадают в здоровье расширения и в журнал, хост не перезапускается.
+- Пропущенное не воспроизводится. Планировщик (`packages/extension-host/src/scheduler.ts`, в процессе движка рядом с доставкой событий) проверяет срабатывания каждые 30 с по часам процесса и хранит в памяти только курсор прошлой проверки. Срабатывание, обнаруженное позже чем через 2 минуты после своего момента (`EXTENSION_SCHEDULE_LIMITS.lateMs`: приложение было закрыто или компьютер спал), пропускается. Обработчик, который ещё работает с прошлого срабатывания (в том числе не уложившийся в 10 с), нового срабатывания не получает: об этом пишет планировщик (пока не вернулся вызов) и сам рантайм (пока работает код).
+- Действует сразу, без перезапуска: каждая проверка читает набор расширений и политику заново. Отключённое расширение, расширение в безопасном режиме, удалённое и отозванное не срабатывают; включённое снова не получает пропущенного.
+- Переключатель «Расписание» в строке расширения (только у загруженных расширений с `schedules`): выключен — расписания расширения не срабатывают. Значение — `ExtensionSettingsDto.schedulesOff` (отсортированные id без повторов, `engine.db`), метод `extensions.setSchedulesEnabled(id, enabled)`; расширение не перезапускается, значение переживает перезапуск приложения и обновление расширения. Под переключателем строка показывает расписания человеческим текстом («Каждый день в 08:30 · Каждый час»).
+- Доставка — запрос хоста `fireSchedule` (`ExtRequest`, лениво активирует, `restart: false`); ограниченный процесс получает его тем же раннером, срок вызова — как у команды (12 с у раннера, 14 с у планировщика).
+- e2e в несобранном приложении ускоряет часы: `DOLPHY_SCHEDULE_TICK_MS` — период проверки, `DOLPHY_CLOCK_OFFSET_FILE` — файл со смещением часов планировщика относительно системных (мс; перечитывается на каждом тике, поэтому тест подводит часы к моменту срабатывания, когда приложение уже готово); в собранном приложении переменные не действуют.
+- Тест без приложения: `createMemorySchedule({ declared? })` и `loadSchedules(module, options)` из `@dolphy-app/extension-sdk/testing`: `fire(id)` зовёт подписанный обработчик и ждёт его (`true`), без подписки или при ещё работающем прошлом обработчике пропускает (`false`), сбой обработчика отклоняет обещание; `ids()` — подписанные расписания.
+
+Контракт 29 добавил `ScheduleContributionDto`, `ContributionsDto.schedules`, `ExtensionContributesDto.schedules`, `ExtensionSettingsDto.schedulesOff`, метод `extensions.setSchedulesEnabled` и поля `EngineConfig.scheduleTickMs`/`scheduleClockOffsetFile`.
+
 ### Значки команд и панелей (`icon`)
 
 Необязательное `icon` у `commands` и `panels` — имя из закрытого списка `EXTENSION_ICONS` (`@dolphy-app/extension-api`), умолчание `puzzle`. Имена: `puzzle`, `book`, `brain`, `calendar`, `chart`, `check`, `clock`, `cog`, `fire`, `flag`, `heart`, `help`, `home`, `idea`, `list`, `message`, `pencil`, `play`, `star`, `target`, `trophy`, `bell`, `bookmark`, `tag`. Неизвестное имя — ошибка манифеста (`contributes.commands.0.icon`). Картинку рисует приложение (`shared/config/extension-icons.ts`: имя → символ шрифта иконок, запись по всем именам обязательна), от расширения приходит только имя.
@@ -729,6 +843,174 @@ export const widgets = {
 **Запись и проверка в движке.** Расширение возвращает только строки, на диск пишет движок (методы `extensions.runImporter`, `commitImport`, `discardImport`, `runExporter`, `extension-transfers.ts`; новых разрешений нет, согласие — явный выбор файла в окне). `runImporter(extensionId, importerId, file)` проверяет, что расширение включено и импортёр объявлен, что имя файла — имя без каталога, форма файла (`{name, text}` или `{name, bytes}`) совпадает с `input` импортёра и размер не больше 20 МиБ (`MAX_EXTENSION_TRANSFER_BYTES`; больше — `too-large` без вызова расширения), и вызывает порт `ExtensionTransfers`. Присланное дерево записывается в `.staging/<opId>/<имя>` (порт `SnapshotInstaller`, корень `imported`; каталог с точкой сканер библиотеки пропускает), проверяется компилятором курсов с теми же проверками, что у загрузки библиотеки (`exerciseTypes`), и движок возвращает `ImportPreviewDto`: число курсов, уроков и упражнений, сводку диагностик и до 50 ошибок и предупреждений (ошибки первыми, пути — от каталога курса). Ошибки или ни одного курса — `importId: null`, временный каталог удалён сразу и на диске ничего нет; иначе импорт ждёт решения: не больше 4 (`MAX_PENDING_IMPORTS`) по 10 минут (`PENDING_IMPORT_TTL_MS`), вытесненный, истёкший, отменённый и оставшийся при закрытии движка импорт теряет временный каталог, а `.staging` целиком очищается при старте. Каталог назначения — `imported/<id расширения>-<имя файла без расширения латиницей через дефис>` (кириллица транслитерируется, без латиницы и цифр — `import`), поэтому повторный импорт того же файла тем же расширением заменяет каталог, а `ImportPreviewDto.replaces` говорит об этом заранее. `commitImport(importId)` идёт в очереди команд: подменяет каталог (`install`, прежний уходит в `.trash/imported/<opId>`), перезагружает библиотеку и при отказе (ошибки в библиотеке, например повтор `id` курса из другого каталога) возвращает прежний каталог и прежнюю библиотеку и бросает `EXTENSION_TRANSFER_FAILED` с `reason: 'reload-rejected'` и `details.summary`/`details.diagnostics`; нет такого ожидающего импорта — `NOT_FOUND`. Остальные три метода идут вне очереди (`UNQUEUED`): обработчик занимает до 30 с, и медленный импорт не должен замораживать остальные вызовы. `discardImport` идемпотентен (`false`, если импорта нет).
 
 `runExporter(extensionId, exporterId, request)` принимает `{scope: 'course', courseId}` или `{scope: 'progress'}`; область запроса должна совпасть с `scope` экспортёра (иначе `INVALID_ARGUMENT`). Для курса движок сканирует библиотеку, находит каталог курса и читает его текстовые файлы (корректный UTF-8 без NUL; точечные имена, символические ссылки и файлы вне корня пропускаются; до 20 МиБ, 5000 файлов и 1024 байт на путь — иначе `too-large`) и передаёт обработчику `{scope: 'course', courseId, title, files}`; пути расширению не видны, доступ идёт по явному действию пользователя, разрешение `library.read` не нужно. Курса нет в библиотеке — `NOT_FOUND`. Сбои порта (`ExtensionTransferError`) становятся `EXTENSION_TRANSFER_FAILED`; `handler-failed`, `timeout` и `invalid-result` пишутся в здоровье расширения, как сбои команд, `timeout` и `host-down` допускают повтор. Тесты: `packages/engine/test/app/services/extension-transfers.test.ts` (настоящая библиотека на диске), `packages/engine-rpc/test/{rpc,integration/engine}.test.ts`.
+
+**Окно: диалоги файла, импорт и экспорт.** Файл и место сохранения выбирает пользователь в системном диалоге главного процесса (`window.dolphy.platform.pickFile({accept, title})` и `saveFile({suggestedName, bytes})`, `electron/main/shells/platform.ts`): путь окну и расширению не отдаётся, main читает файл до 20 МиБ сам и возвращает `{status: 'picked', name, bytes}` (либо `too-large` без чтения, либо `unsupported` для файла вне `accept`); `saveFile` берёт только имя без каталога и пишет туда, куда указал пользователь. Окно (`features/extension-transfers`) декодирует файл как UTF-8 для `input: 'text'` (не UTF-8 — сообщение без вызова расширения), вызывает `runImporter` и показывает сводку: число курсов, уроков и упражнений, диагностики (до 50), предупреждение «заменит существующий» при повторе; при ошибках или без курсов «Импортировать» недоступна, а на диске ничего нет. «Импортировать» вызывает `commitImport`; отказ перезагрузки (`reload-rejected`) остаётся в диалоге с диагностиками, импорт откатан. «Отмена» вызывает `discardImport`. Экспорт курса сначала спрашивает курс (по умолчанию курс в фокусе), экспорт прогресса идёт сразу; результат расширения уходит в `saveFile`. Входы — команды палитры «Импорт: …» и «Экспорт: …» (ключ `extension:<id расширения>:import|export:<id>`) и карточка «Импорт и экспорт» в «Настройки → Библиотека»; обе следуют за вкладами без перезагрузки окна, пока идёт действие, второе не начинается. e2e (несобранное приложение): `DOLPHY_FAKE_FILE_DIALOGS=<каталог>` заменяет диалоги ОС файлами каталога (`pick.txt` — путь «выбранного» файла, один раз; `save-cancel` — отказ от сохранения; сохранённые файлы лежат в `saved/`, вызовы — в `dialogs.jsonl`); в собранном приложении переменная не действует.
+
+Пример: импортёр превращает CSV с парами «вопрос,ответ» в курс из карточек. Обработчик возвращает только дерево файлов курса (`course_manifest.json`, `lesson_manifest.json`, `exercise_manifest.json` и тексты карточек), пути — относительно каталога `imported/<id расширения>-<имя файла>`; на диск пишет приложение. Ошибка в строке файла — исключение обработчика, окно показывает его причину как `handler-failed`. Проверяется машиной: `docs-contributions.test.ts` собирает проект, запускает обработчик через `loadImporters` и компилирует результат компилятором курсов движка.
+
+Файл `extension.json` (импортёр CSV):
+
+```json
+{
+  "id": "acme.cards",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "main": "./main.mjs",
+  "contributes": {
+    "importers": [
+      {
+        "id": "acme.cards.csv",
+        "title": "Карточки из CSV",
+        "accept": [".csv"]
+      }
+    ]
+  }
+}
+```
+
+Файл `src/index.ts` (импортёр CSV):
+
+```ts
+import {
+  defineExtension,
+  type TextImportInput,
+} from '@dolphy-app/extension-sdk';
+
+const json = (value: unknown): string => `${JSON.stringify(value, null, 2)}\n`;
+
+const slug = (name: string): string =>
+  name
+    .replace(/\.csv$/i, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '') || 'cards';
+
+export const host = defineExtension({
+  importers: {
+    'acme.cards.csv': ({ name, text }: TextImportInput) => {
+      const rows = text.split(/\r?\n/).filter((line) => line.trim() !== '');
+      if (rows.length === 0) throw new Error('В файле нет строк');
+      const courseId = slug(name);
+      const lessonId = `${courseId}::cards`;
+      const files: Record<string, string> = {
+        [`${courseId}/course_manifest.json`]: json({
+          id: courseId,
+          name: name.replace(/\.csv$/i, ''),
+          dependencies: [],
+          encompassed: [],
+          superseded: [],
+        }),
+        [`${courseId}/cards/lesson_manifest.json`]: json({
+          id: lessonId,
+          name: 'Карточки',
+          course_id: courseId,
+          dependencies: [],
+          encompassed: [],
+          superseded: [],
+        }),
+      };
+      rows.forEach((row, index) => {
+        const comma = row.indexOf(',');
+        if (comma <= 0 || comma === row.length - 1) {
+          throw new Error(`Строка ${index + 1}: ожидается «вопрос,ответ»`);
+        }
+        const dir = `${courseId}/cards/c${index + 1}`;
+        files[`${dir}/exercise_manifest.json`] = json({
+          id: `${lessonId}::c${index + 1}`,
+          name: `Карточка ${index + 1}`,
+          lesson_id: lessonId,
+          course_id: courseId,
+          exercise_type: 'Declarative',
+          exercise_asset: {
+            FlashcardAsset: { front_path: 'front.md', back_path: 'back.md' },
+          },
+        });
+        files[`${dir}/front.md`] = `${row.slice(0, comma).trim()}\n`;
+        files[`${dir}/back.md`] = `${row.slice(comma + 1).trim()}\n`;
+      });
+      return { files };
+    },
+  },
+});
+```
+
+Пример экспортёра курса: обработчик получает снимок текстовых файлов выбранного курса (пути относительно каталога курса, пути на диске расширению не видны) и возвращает имя файла и текст; место сохранения выбирает пользователь. Экспортёр ниже выгружает карточки обратно в CSV, поэтому вместе с импортёром выше они образуют круг.
+
+Файл `extension.json` (экспортёр курса):
+
+```json
+{
+  "id": "acme.cardsout",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "main": "./main.mjs",
+  "contributes": {
+    "exporters": [
+      { "id": "acme.cardsout.csv", "title": "Курс в CSV", "scope": "course" }
+    ]
+  }
+}
+```
+
+Файл `src/index.ts` (экспортёр курса):
+
+```ts
+import {
+  defineExtension,
+  type CourseExportInput,
+} from '@dolphy-app/extension-sdk';
+
+const cell = (text: string): string => text.trim().replace(/\s+/g, ' ');
+
+export const host = defineExtension({
+  exporters: {
+    'acme.cardsout.csv': ({ title, files }: CourseExportInput) => {
+      const fronts = Object.keys(files)
+        .filter((path) => path.endsWith('/front.md'))
+        .sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
+      const rows = fronts.map((path) => {
+        const back = files[`${path.slice(0, -'front.md'.length)}back.md`];
+        return `${cell(files[path] ?? '')},${cell(back ?? '')}`;
+      });
+      return {
+        filename: `${title.replace(/[\\/]/g, '-').slice(0, 100)}.csv`,
+        text: `${rows.join('\n')}\n`,
+      };
+    },
+  },
+});
+```
+
+Экспортёр прогресса (`scope: 'progress'`) устроен так же, но получает `{ scope: 'progress' }` и читает данные из `ctx.stats` (внутри `activate` через `ctx.exporters.register`); без разрешения `learning.stats` манифест отвергается.
+
+### Зависимости (`dependencies`)
+
+Расширение может потребовать другое расширение: `dependencies` — до 16 записей `{ id, range? }`. `id` — id расширения, `range` — необязательный диапазон версий из сравнений через пробел (`>=1.2.0 <2.0.0`; операторы `<`, `<=`, `>=`, `>`, `=`; тильды, каретки и `||` не разбираются). Манифест отвергает зависимость от самого себя и повтор `id` (`dependencies.N.id`); цикл из нескольких расширений виден только при обнаружении (диагностика `dependency-cycle`). Зависимость от расширения из поставки допустима.
+
+- Расширение загружается, только если каждая его зависимость есть, включена, сама загружена и подходит по версии. Иначе его состояние — `dependencies-unmet` («зависимости не выполнены» в «Настройки → Расширения»), вкладов у него нет, а причины перечислены диагностиками с данными `id`, `range` (ключа нет без диапазона) и у версии `found`: `dependency-missing` (не установлена), `dependency-disabled` (выключена), `dependency-version` (версия вне диапазона), `dependency-unmet` (зависимость включена, но не загружена из-за собственных зависимостей), `dependency-cycle` (данные `cycle` — id расширений цикла; других причин у члена цикла нет).
+- Отключение пользователем, безопасный режим и отзыв сильнее зависимостей: такое расширение просто `disabled`, без диагностик зависимостей.
+- Состояние считается по текущему набору и настройкам при каждом запросе, поэтому включение, отключение, установка и удаление зависимости пересчитывают зависимых без перезагрузки окна.
+- Порядок обнаружения топологический: зависимость раньше зависимого получает регистрацию вкладов; независимые расширения остаются в прежнем порядке.
+- Зависимость — только присутствие, включённость и версия. Сервисов, сигналов и вызовов между расширениями нет, зависимости сами не устанавливаются, установка не блокируется: диалог установки и карточка каталога показывают зависимости с отметкой «установлено / нет» (`useInstalledExtensions` по `extensions.list`), а ставит их пользователь. Запись версии в индексе каталога несёт `versions[].dependencies`; скачанный манифест сверяется с ней.
+- Диапазон версий приложения в зависимостях не задаётся: для этого есть `minAppVersion`.
+
+Файл `extension.json` (зависимости):
+
+```json
+{
+  "id": "acme.report",
+  "version": "1.2.0",
+  "apiVersion": 1,
+  "main": "./main.mjs",
+  "dependencies": [
+    { "id": "acme.cards", "range": ">=1.0.0 <2.0.0" },
+    { "id": "dolphy.choice" }
+  ],
+  "contributes": {
+    "commands": [{ "id": "acme.report.show", "title": "Показать отчёт" }]
+  }
+}
+```
 
 ### Локализация манифеста (`locales/`)
 
@@ -848,6 +1130,10 @@ const shown = await ctx.notifications.show({
 - e2e (несобранное приложение): `DOLPHY_NOTIFICATION_LOG=<файл>` заменяет вызов ОС строкой JSON `{ source, title, body }` на уведомление; в собранном приложении переменная не действует. Настоящий `Notification` покрыт юнитом с подменой и ручной проверкой на macOS.
 - Помощник тестов — `createMemoryNotifications({ permitted?, supported?, enabled?, now? })` из `@dolphy-app/extension-sdk/testing`: те же очистка текста, длины и окна частоты; `shown` — журнал показанного, `setEnabled`/`setSupported` — переключатель пользователя и поддержка ОС.
 
+### Мост платформенных сервисов (main)
+
+Решение — [ADR 0018](../adr/0018-platform-services-bridge.md). `safeStorage` и `Notification` есть только в главном процессе Electron, а хост движка и хост расширений — `utilityProcess` с единственным каналом `parentPort` к main. Движок видит платформу через порт `PlatformServices` (`packages/engine/src/ports`): `cipher` (`available`, `encrypt`, `decrypt`) и `notifier` (`show({ source, title, body })` → `boolean`); `createUnavailablePlatform()` — реализация «платформы нет» (хранилища ключей нет, уведомления `false`). Адаптер `apps/desktop/electron/host/platform.ts` превращает вызов порта в сообщение `platform-request` (`id`, `op`: `cipher.available|encrypt|decrypt` или `notify`, данные), main отвечает `platform-response` с тем же `id` (`apps/desktop/shared/platform.ts`, обработчик `electron/main/platform-services.ts`). Срок ответа — 5 с; закрытый хост и срок дают отказ порта (для секретов `SecretsUnavailableError`, для уведомлений `false`). Main — машина без состояния: шифртекст хранит движок, лимиты, права и переключатели проверяет служба `ExtensionHostServices`; main не доверяет содержимому запроса сверх формы, логирует только операцию и код отказа. Новая платформенная операция — новый `op` протокола, метод порта, ветка обработчика main и подмена в тестах (`createUnavailablePlatform`, `apps/desktop/test/platform-services.test.ts`).
+
 ### События: что, когда и кому приходит
 
 | Событие            | Поля                                                                           | Когда                                                                                                                                         |
@@ -875,7 +1161,7 @@ const shown = await ctx.notifications.show({
 
 - Дни — местные сутки в часовом поясе процесса движка (`Intl.DateTimeFormat().resolvedOptions().timeZone`); переход на летнее время и 23- или 25-часовые сутки серию не рвут, потому что даты считаются по календарю, а не по 24 часам.
 - Попытка «верна» при оценке не ниже 3 (порог планировщика). `current` не обрывается, пока сегодня попыток ещё нет: считается серия до вчера; день без попыток серию разрывает; `longest` — самая длинная серия за всю историю.
-- Это история попыток, а не прогресс: `progress_reset` в счёт не идёт, сброшенный курс свою историю сохраняет. Курс — префикс `<курс>::` идентификатора упражнения; неизвестный `courseId` даёт нули (серия `{ 0, 0 }`, дни с нулями).
+- Это история попыток, а не прогресс: `progress_reset` в счёт не идёт, сброшенный курс свою историю сохраняет. Отменённые учеником попытки (`practice.undo`, ADR 0017) в историю не входят: отмена — «этого не было». Курс — префикс `<курс>::` идентификатора упражнения; неизвестный `courseId` даёт нули (серия `{ 0, 0 }`, дни с нулями).
 - Приватность: в ответе только числа и даты. Идентификаторов упражнений и курсов, оценок, времени попыток и текстов нет; журнал целиком расширению недоступен.
 - Индекс «местная дата × курс → { попыток, верных }» движок строит при первом обращении одним проходом по журналу (`createStatsIndex`, `packages/engine/src/app/stats-index.ts`) и сбрасывает при любой записи попытки (запись, синхронизация, импорт, перестройка проекций) и при смене часового пояса. Дальше запросы — просмотр готовых счётчиков.
 - Неверные границы (`from`/`to` не дата, `from` позже `to`, больше 366 дат, `courseId` не строка) — `INVALID_ARGUMENT` с `details.field`; отключённое расширение — `reason: 'disabled'`.
@@ -903,6 +1189,7 @@ const shown = await ctx.notifications.show({
 ### Как проверить
 
 - Уведомления (`ctx.notifications`): `packages/engine/test/app/services/extension-notifications.test.ts` (разрешение, очистка, длины, лимиты, переключатель), `packages/extension-host/test/runtime-state.test.ts`, `channel-host-requests.test.ts` и `restricted-runner.test.ts`, `packages/extension-sdk/test/testing-notifications.test.ts`, `apps/desktop/test/platform-notifications.test.ts` (main с подменой `Notification`, адаптер хоста), e2e `apps/desktop/e2e/extension-notifications.e2e.test.ts` (фикстуры `notify-extension`, `notify-denied-extension`).
+- Расписания (`ctx.schedule`): `packages/extension-host/test/scheduler.test.ts` (границы окна и опоздания в 2 минуты, сон, пересечение суток, переход на летнее время в `Europe/Berlin`, пояс со сдвигом в полчаса, перекрытие, отключение, переключатель, безопасный режим, удаление), `runtime-schedules.test.ts` (ленивая активация, срок 10 с, ещё работающий обработчик), `schedules-integration.test.ts` (планировщик → канал → рантайм и настоящий ограниченный процесс), `points-schedules.test.ts` (манифест, реестр, протокол), общий набор `describeSettingsStoreContract` (`schedulesOff`), `apps/desktop/e2e/extension-schedules.e2e.test.ts` (ускоренные часы).
 - Статистика (`ctx.stats`): `packages/engine/test/app/stats-index.test.ts` (границы суток, летнее время, серия, фильтр курса, сброс индекса), `packages/engine/test/app/services/extension-stats.test.ts` (разрешение, приватность, диапазоны), `packages/extension-host/test/runtime-state.test.ts` и `restricted-runner.test.ts`, `packages/extension-sdk/test/testing-stats.test.ts`, e2e `apps/desktop/e2e/extension-stats.e2e.test.ts` (фикстуры `stats-extension`, `stats-denied-extension`).
 - Unit: `packages/engine` (сервисы, приёмник событий), контрактные тесты `ExtensionDataStore` для memory и sqlite, `packages/extension-host/test` (канал, `ctx.*` в процессе и в ограниченном процессе, доставка, `engine-parity.test.ts`), `packages/extension-sdk/test`; окно — `apps/desktop/test/settings-extension-settings.test.ts`, `settings-extension-data.test.ts`, `settings-install.test.ts`, `session-model.test.ts`.
 - e2e: `apps/desktop/e2e/extension-state.e2e.test.ts` (фикстура `fixtures/state-extension`: настройки без перезагрузки, события ровно один раз в изолированном и доверенном режимах, переживание перезапуска, отключение, очистка, квота, установка из каталога и удаление с флажком и без).
@@ -1074,6 +1361,7 @@ CSP страницы рамки строится для конкретного �
 
 1. «Настройки → Расширения → Каталог»: список из индекса. Поиск работает по названию, id и описанию; фильтры — быстрые группы, теги и виды вклада (раздел «Фильтры, теги и названия в окне»). Расширения, недоступные на текущей платформе, скрыты. Карточка показывает значок (если он есть), название, id, версию, автора, описание, теги, разрешения и вклады.
 2. «Установить»: диалог повторяет значок, название, версию, разрешения и то, что расширение работает в изоляции. Приложение скачивает файлы, проверяет их и ставит расширение; любая ошибка оставляет прежнее состояние нетронутым.
+   Диалог и карточка каталога также называют импортёры и экспортёры расширения и его зависимости с отметкой «установлено / нет»; зависимости сами не ставятся и установку не блокируют (раздел «Зависимости (`dependencies`)»).
 3. Расширение работает сразу после ответа об успехе: диалог пишет «Установлено. Расширение уже работает.», темы появляются в «Настройки → Внешний вид», вид задания доступен новой попытке, рендерер действует на выводимые после этого блоки, правило оценки видно в «Настройки → Обучение». Окно не перезагружается, хосты не перезапускаются (раздел «Живое применение»). Единственное исключение — обновление доверенного расширения, чей элемент ввода уже определён в окне: настройки показывают «Обновление применится после перезагрузки окна» с кнопкой «Перезагрузить окно».
 4. Обновления. При запуске приложение в фоне (не чаще раза в 24 часа) перечитывает индекс и сравнивает установленные из каталога расширения с ним; запуск не ждёт результата. Если есть новее совместимая версия, экран показывает «Доступно обновлений: N», у расширения — «Обновить до vX.Y.Z», у списка — «Обновить все». Ничего не заменяется без нажатия. Флажок «Проверять обновления при запуске» (по умолчанию включён) хранится в настройках движка; при выключенном флажке проверки на старте нет, но вкладка «Каталог» читает индекс при открытии (кэш моложе 10 минут не перезапрашивается; «Обновить каталог» запрашивает принудительно).
 5. «Удалить» доступно для расширений из пользовательского корня (`origin = user`), в том числе скопированных вручную: каталог уходит в `.trash`, данные курсов и прогресс не затрагиваются. Расширения из поставки и из режима разработчика удалить нельзя. Расширение, его темы, рендереры и правила пропадают сразу; если выбранная тема принадлежала ему, окно сразу показывает «Как в системе» (сохранённый выбор не меняется и возвращается вместе с расширением), а правило оценки удалённого расширения даёт «Pass@N» с пометкой в «Настройки → Обучение».
@@ -1120,6 +1408,8 @@ CSP страницы рамки строится для конкретного �
 
 **Индекс.** JSON `index.v2.json` со `schemaVersion: 2`, который разбирает `parseIndex` (тот же код использует приложение и сборщик каталога). Версия расширения с любым разрешением, типом файла (`css`, `svg`, `png`, `webp`, `jpg`, `jpeg`, `woff2` и файлы с кодом), ключом записи и `icon` попадает в индекс целиком: отдельного подмножества для старых приложений нет (ADR 0014). У расширения — не более 5 последних версий, от новой к старой, у версии — до 100 файлов; `baseUrl` относительный (от адреса каталога), `source` — https-адрес исходников; `revoked` — список отзыва.
 
+Запись расширения в `contributes` перечисляет id точек вклада, в том числе `importers` и `exporters`; запись версии несёт `dependencies` (`[{ id, range? }]`, до 16, без повторов): `parseIndex` отвергает повтор и неверный диапазон, терпимый разбор при чтении отбрасывает нечитаемый список, версия остаётся. Скачанный манифест сверяется с записью (`manifest dependencies differ from the catalog entry`).
+
 **Один индекс.** `dolphy-ext catalog build` пишет один файл `index.v2.json`; `index.json` не пишется и приложением не читается. Приложения, выпущенные до ADR 0014, разбирали `index.json` первой схемы строго и теряют каталог: это принято владельцем (ADR 0014, у ADR 0013 отменено решение о двух индексах). Имя `index.v2.json` — просто имя формата, оно не меняется, чтобы не менять адрес каталога.
 
 Приложение читает `index.v2.json` в том же каталоге, что и адрес каталога (`fullIndexUrl`); ответ 404 — «каталог недоступен» (показывается кэш, если он есть), запасного обращения нет. **Идентичность каталога — адрес `catalogUrl`** (по умолчанию он оканчивается на `index.json`, но сам этот файл не запрашивается): `catalogUrl` в `.dolphy-install.json`, кэш и отзыв привязаны к нему, поэтому установленные расширения продолжают получать обновления. ETag и кэш (`.catalog/index.v2.json` и `meta.json` с ETag, временем и адресом) ведутся по одному файлу, защита от отката сравнивает `generatedAt` с закэшированным индексом. Разбор в приложении терпим (`parseIndexLenient`): неизвестные ключи отбрасываются, непонятная запись или версия пропускается с предупреждением в логе (`some catalog entries were skipped`); список `revoked` строгий — непонятный отзыв отвергает индекс целиком, а не теряется. `catalog check` и `catalog build` разбирают строго (`parseIndex`).
@@ -1143,6 +1433,9 @@ CSP страницы рамки строится для конкретного �
 Порт `ExtensionInstaller` разделён: `CatalogInstaller` — установщик одного адреса (`createExtensionInstaller`), `ExtensionInstaller` добавляет `catalogSource()` и `useCatalog(url | null)`; `createSwitchableInstaller` (`@dolphy-app/extension-install`) создаёт установщик нового адреса, загружает его кэш и только потом подменяет действующий (операции, начатые на прежнем, доделываются на нём). `setCatalogUrl` сохраняет настройку, переключает установщик, сбрасывает метку `updateCheckedAt` (`saveUpdateCheckedAt(null)`), заново применяет набор расширений (`extensionApply.reload()`), публикует `extensions-changed` и запускает проверку обновлений. Файл `.dolphy-install.json` не трогается: `catalogUrl` в нём — идентичность прежнего каталога. Поэтому `revocationOf(id, version, catalogUrl)` и `deprecationOf(id, version, catalogUrl)` возвращают `null`, если адрес установки не совпадает с действующим (`revocationReason` в `extension-host` передаёт `install.catalogUrl`; сервис `extensions.list` передаёт его в `deprecationOf`), а `updates()`, `assertReplaceable` и `elsewhere` уже сверяли адрес. Откат индекса сравнивается только внутри одного адреса (кэш индекса хранит `meta.url`, кэш другого адреса не читается; файлы версий в `.catalog/files` адресованы по `sha256` и общие).
 
 В окне «Каталог → Дополнительно» (`ui/CatalogAdvanced.vue`, `model/catalog-source.ts`): поле адреса, «Применить» и «Сбросить», действующий адрес с признаком (по умолчанию / из настройки / из переменной окружения), ошибка рядом с полем по причине отказа движка; после применения каталог перечитывается. Расширение, чей `installed.catalogUrl` не равен действующему адресу (`isFromAnotherCatalog`), помечено «Из другого каталога» в списке и на странице; запись нового каталога с тем же id получает действие `elsewhere` — неактивная кнопка «Установить» и пояснение «Уже установлено из другого источника».
+
+**Ссылка установки `dolphy://extensions/install/<id>` (спека `extension-distribution-ux`, стадия 5d, ADR 0020).** Ссылка только открывает диалог установки записи каталога, ничего не ставит: установка начинается кнопкой «Установить». Оболочка `electron/main/shells/deep-link.ts` берёт ссылки из `process.argv` (холодный старт на Windows и Linux), `second-instance` и `open-url` (macOS). Разбор строгий (`parseInstallLink`): схема `dolphy:` и хост `extensions` (без учёта регистра), путь ровно `/install/<id>`, `id` по `EXTENSION_ID_PATTERN` до 64 знаков, без логина, порта, параметров, фрагмента, завершающего `/` и `%`-последовательностей; остальное игнорируется с предупреждением в журнале. Принятая ссылка буферизуется (хранится последняя) и передаётся окну по каналу `deeplink:install`; окно выводится на передний план. Схема регистрируется установщиками (`electron-builder.json`: `Info.plist`, NSIS, `x-scheme-handler/dolphy`), собранное приложение вызывает `setAsDefaultProtocolClient`, несобранное схему не перехватывает. Контракт не менялся.
+
 
 Файл `extension.json` (расширение для каталога):
 
@@ -1301,6 +1594,7 @@ CSP страницы рамки строится для конкретного �
 | Исходники расширений           | `extensions/<id>/` (ветка `main`); `<id>` равен `id` из манифеста |
 | Правила ревью                  | `rules/rules.json` и `skills/extension-reviewer/SKILL.md`         |
 | Отзыв версий                   | `revoked.json` — массив `{ id, versions, reason }`                |
+| Устаревание                    | `deprecated.json` — массив `{ id, versions?, reason, alternatives }` (предупреждение, не отзыв) |
 | Проверки pull request'а        | `.github/workflows/pr-check.yml`                                  |
 | Публикация                     | `.github/workflows/deploy.yml`                                    |
 | Опубликованные файлы и индексы | ветка `gh-pages`: `index.v2.json` и `extensions/<id>/<версия>/…`  |
@@ -1769,6 +2063,94 @@ export const panels = {
 - Значок расширения — другое: `"icon": "assets/icon.png"` в манифесте (`.png` или `.webp`, квадрат 64–512 px, до 16 КиБ, лучше с непрозрачным фоном); его показывает приложение в списках, рамка и протокол тут ни при чём (раздел «Метаданные и совместимость»).
 - В режиме разработчика правка таблицы или картинки пересоздаёт рамку без перезагрузки окна (раздел «Живое применение»).
 
+### UI-кит (`@dolphy-app/extension-ui`)
+
+Панель собирается из готовых доступных элементов: пакет `@dolphy-app/extension-ui` (ванильный TypeScript без зависимостей, не больше 10 КиБ в gzip) даёт функции `list`, `button`, `textField`, `select`, `toggle`, `card` и `emptyState`, которые возвращают DOM-элементы. У каждого элемента есть роль, видимое имя и управление с клавиатуры; цвета и отступы берутся из CSS-переменных темы рамки (`--v-theme-*`), поэтому светлая и тёмная темы работают без кода автора. Тексты ставятся как `textContent`, разметка не разбирается. Таблица стилей — один `<style id="dolphy-ui-kit">` на документ рамки, он же красит `body` фоном темы. Элементы статичны: список меняют пересборкой и `replaceWith`, пустой `list` показывает `emptyText`. Кит не даёт панели новых прав: она остаётся в рамке без доступа к сети и `window.dolphy`. Справочник — README пакета; e2e-панель `apps/desktop/e2e/fixtures/ui-kit-extension` проверяется axe (serious и critical) в обеих темах. Vue и Vuetify в бандлах расширений — отдельная фича `extension-ui-vuetify` (`specs/extension-ui-vuetify`), корневой экспорт пакета она не меняет.
+
+Файл `extension.json` (панель на UI-ките):
+
+```json
+{
+  "id": "acme.notes",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "contributes": {
+    "panels": [{ "id": "acme.notes.view", "title": "Заметки" }]
+  }
+}
+```
+
+Файл `src/index.ts` (панель на UI-ките):
+
+```ts
+import { defineExtensionPanel } from '@dolphy-app/extension-sdk';
+import {
+  button,
+  card,
+  emptyState,
+  list,
+  textField,
+} from '@dolphy-app/extension-ui';
+
+export const panels = {
+  'acme.notes.view': defineExtensionPanel({
+    mount(container) {
+      const notes: string[] = [];
+      const status = document.createElement('p');
+      status.setAttribute('role', 'status');
+      let draft = '';
+      const body = document.createElement('div');
+      const render = () => {
+        body.replaceChildren(
+          notes.length === 0
+            ? emptyState({
+                title: 'Заметок пока нет',
+                description: 'Введите текст и нажмите «Добавить».',
+              })
+            : list({
+                label: 'Заметки',
+                emptyText: 'Заметок нет',
+                items: notes.map((note, index) => ({
+                  id: String(index),
+                  label: note,
+                })),
+                onSelect: (id) => {
+                  status.textContent = `Выбрана заметка ${Number(id) + 1}`;
+                },
+              }),
+        );
+      };
+      render();
+      container.append(
+        card({
+          title: 'Заметки',
+          children: [
+            textField({
+              label: 'Текст заметки',
+              onInput: (value) => {
+                draft = value;
+              },
+            }),
+            button({
+              label: 'Добавить',
+              variant: 'primary',
+              onClick: () => {
+                if (draft.trim() === '') return;
+                notes.push(draft.trim());
+                status.textContent = `Заметок: ${notes.length}`;
+                render();
+              },
+            }),
+            body,
+          ],
+        }),
+        status,
+      );
+    },
+  }),
+};
+```
+
 ### Типизированные id
 
 `dolphy-ext types` (и каждая сборка, в том числе перестройка `--watch` после правки `extension.json`) читает `extension.json` и пишет `.dolphy/ids.d.ts`: расширение интерфейса `ExtensionIds` из `@dolphy-app/extension-sdk` (`declare module '@dolphy-app/extension-sdk' { interface ExtensionIds { … } }`). Генерация статическая: манифест разбирается тем же `parseManifest`, что и в `validate`, код автора не исполняется, сети нет. Вывод детерминирован и не перезаписывается, если содержимое не изменилось, поэтому вотчер проекта не зацикливается. `.dolphy/` не попадает ни в `dist-ext`, ни в проверку исходников каталога (`catalog check` её пропускает), а в проекте из шаблона лежит в `.gitignore`. В `tsconfig.json` файл подключается по имени (`"include": ["src", "test", ".dolphy/ids.d.ts"]`): каталог `.dolphy` целиком `include` пропустил бы как скрытый.
@@ -1903,7 +2285,7 @@ export const panels = {
 
 ### Шпаргалка по SDK
 
-- `defineExtension({ exerciseTypes?, gradePolicies?, events?, commands?, importers?, exporters?, activate?, deactivate? })` — готовый модуль расширения (экспорт `host` файла `src/index.ts`): виды из `exerciseTypes` регистрируются сами, при `deactivate` освобождаются; `events` — словарь «имя события → обработчик» (нужны `learning.events` и `contributes.events`); `commands` — словарь «id команды → обработчик» (команда объявлена в `contributes.commands`, разрешение не нужно; обработчику, которому нужен `ctx`, регистрируйтесь в `activate` через `ctx.commands.register`). `ctx.storage`, `ctx.settings`, `ctx.events` и `ctx.commands` доступны в `activate` и обработчиках (разделы «Данные, настройки и события» и «Команды»). Помощники результата команды — `notify(text)` и `openPanel(id, props?)`; модуль панели — `defineExtensionPanel({ mount })` в `src/panel.ts`.
+- `defineExtension({ exerciseTypes?, gradePolicies?, events?, commands?, schedules?, importers?, exporters?, activate?, deactivate? })` — готовый модуль расширения (экспорт `host` файла `src/index.ts`): виды из `exerciseTypes` регистрируются сами, при `deactivate` освобождаются; `events` — словарь «имя события → обработчик» (нужны `learning.events` и `contributes.events`); `commands` — словарь «id команды → обработчик» (команда объявлена в `contributes.commands`, разрешение не нужно; обработчику, которому нужен `ctx`, регистрируйтесь в `activate` через `ctx.commands.register`). `ctx.storage`, `ctx.settings`, `ctx.events` и `ctx.commands` доступны в `activate` и обработчиках (разделы «Данные, настройки и события» и «Команды»). Помощники результата команды — `notify(text)` и `openPanel(id, props?)`; модуль панели — `defineExtensionPanel({ mount })` в `src/panel.ts`.
 - `defineExerciseType<Spec, Answer, View>({ project, grade, referenceAnswer? })` — типизированный обработчик. `project` отдаёт элементу публичный вид задания (без ключей ответа); `grade` возвращает `{ outcome: 'passed' }`, `{ outcome: 'failed', reason, detail? }` или `{ outcome: 'error', reason }`; `referenceAnswer` — эталон для проверки библиотеки компилятором. К моменту вызова `grade` `spec` и ответ уже проверены схемами из манифеста.
 - `defineAnswerView(mount)` — запись `views[<id вида>]`: описание элемента ввода с shadow DOM, ничего не регистрирует (custom element с тегом `element` из манифеста определяет сборка в `view.mjs`). `mount(api, props)` получает `api.root`, `api.label` (`aria-label` от приложения), `api.setAnswer(value, complete)` и `api.submit()`, возвращает `{ update(props), destroy?() }`; `props` — `view`, `value`, `disabled`, `verdict`.
 - `defineExtensionPanel({ mount })` — запись `panels[<id панели>]`; `defineExtensionWidget({ mount })` — запись `widgets[<id виджета>]` (`ctx = WidgetContext = { widgetId, context, signal, call, onContextChange }`); `defineMarkdownRenderer(render)` — запись `markdown[<язык>]`.
@@ -1965,13 +2347,19 @@ pnpm test
 
 - Изоляция — ограничение ущерба, а не граница безопасности против злонамеренного кода: Node-процесс защищён режимом разрешений («ремень безопасности»), сеть кода не ограничивается, нет квот процессора и памяти, нет подписей и проверки издателей; доверенные расширения и расширения из поставки не ограничены (раздел «Права и изоляция», «Пределы»).
 - Установка и каталог реализованы (раздел «Установка и каталог»). Вне границ: автообновление (обновляет только нажатие пользователя), подписи индекса и файлов и проверка издателя (доверие — ревью PR, сборка в CI и `sha256` в индексе), собственный сервер каталога (только статические файлы GitHub Pages).
-- Точек вклада одиннадцать: `exerciseTypes`, `themes`, `markdownRenderers`, `gradePolicies`, `settings`, `events`, `commands`, `panels`, `widgets`, `importers`, `exporters`. Планировщик и модель памяти расширениями не задаются; интерфейс расширения — элемент ввода ответа, рендерер содержимого и панель (всегда в рамке).
+- Точек вклада двенадцать: `exerciseTypes`, `themes`, `markdownRenderers`, `gradePolicies`, `settings`, `events`, `commands`, `panels`, `widgets`, `schedules`, `importers`, `exporters`. Планировщик и модель памяти расширениями не задаются; интерфейс расширения — элемент ввода ответа, рендерер содержимого и панель (всегда в рамке).
 - Изоляция реализована для расширений не из поставки (код — ограниченный процесс с `permissions`, интерфейс — рамка `sandbox="allow-scripts"`); вне её остаются расширения из поставки, доверенные расширения и всё перечисленное в пределах выше.
 - Применение живое (раздел «Живое применение», ADR 0006, контракт `@dolphy-app/engine-contract` 9: `ContributionsDto.generation`, событие `contributions-changed`). Единственная перезагрузка окна — обновление расширения с интерфейсом в окне (из поставки или доверенного), чей элемент ввода уже определён (`customElements.define` не повторить); смонтированный элемент и введённый ответ при обновлении не меняются. Замена кода в процессе хоста накапливает память старых версий до перезапуска хоста; зависимость доверенного кода от нескольких файлов при правке обновляется после перезапуска хоста.
 - Данные расширений: хранилище, значения настроек и события обучения описаны в разделе «Данные, настройки и события» (ADR 0007, контракт `@dolphy-app/engine-contract` 10: определения и значения настроек, `extensions.dataUsage|clearData`, `uninstall(id, { removeData })`, `practice.finishSession`, `settings` и `events` в `ExtensionContributesDto`). Настройки декларативны: расширение не рисует интерфейс, форму рисует приложение. Вне границ остаются чтение журнала обучения расширением, синхронизация и экспорт данных расширений, файловое хранилище и бинарные данные (хранилище — только JSON), локализация подписей настроек (подписи — данные расширения, как у тем).
-- Команды и панели реализованы (разделы «Команды» и «Панели», [ADR 0008](../adr/0008-extension-commands-and-panels.md), контракт `@dolphy-app/engine-contract` 11: `CommandContributionDto`, `PanelContributionDto`, `CommandResultDto`, `commands` и `panels` в `ContributionsDto` и `ExtensionContributesDto`, метод `extensions.invokeCommand` вне очереди, ошибка `EXTENSION_COMMAND_FAILED`). Вне границ: контекстное условие `when` прямо у команды (оно задаётся у записей `keybindings`, у команды манифест с ним отклоняется), нативное меню Electron и глобальные сочетания ОС, панели в окне приложения для доверенных расширений (панель всегда в рамке), доступ панели к данным движка и к чужим расширениям (только команды своего), произвольная разметка результатом команды и перезапуск хоста по таймауту команды.
-- Ресурсы и значок реализованы (раздел «Ресурсы расширения», [ADR 0010](../adr/0010-extension-static-assets.md), контракт `@dolphy-app/engine-contract` 12: `icon` в `ExtensionInfoDto` и `CatalogEntryDto`, новых методов нет). Вне границ: темы с CSS и шрифтами (тема остаётся данными), ресурсы для доверенных и поставляемых элементов в окне по протоколу (`style-src`, `img-src` и `font-src` окна не расширяются; такие элементы используют встроенные `data:`-ресурсы), значок панели в боковом меню и в палитре команд, анимированные форматы и видео, `.gif`, `.ico`, `.html`, `.wasm`, SVG-значок, подпись индекса и файлов. Расширения с новыми типами файлов, значком или вкладами `settings`, `events`, `commands`, `panels` выпущенное приложение в каталоге не видит: они есть только в `index.v2.json`.
-- Названия вкладов и теги реализованы (спека `catalog-metadata`, контракт `@dolphy-app/engine-contract` 13: `ContributionTitlesDto` и поля `titles` и `tags` в `ExtensionInfoDto` и `CatalogEntryDto`, новых методов нет; абзац «Названия и теги» раздела «Установка и каталог»). Вне границ: названия видов заданий (у них нет `title` в манифесте), теги пользователей и собственный словарь.
+- Команды и панели реализованы (разделы «Команды» и «Панели», [ADR 0008](../adr/0008-extension-commands-and-panels.md), контракт `@dolphy-app/engine-contract` 11: `CommandContributionDto`, `PanelContributionDto`, `CommandResultDto`, `commands` и `panels` в `ContributionsDto` и `ExtensionContributesDto`, метод `extensions.invokeCommand` вне очереди, ошибка `EXTENSION_COMMAND_FAILED`). Вне границ: нативное меню Electron и глобальные сочетания ОС, панели в окне приложения для доверенных расширений (панель всегда в рамке), доступ панели к данным движка и к чужим расширениям (только команды своего), произвольная разметка результатом команды и перезапуск хоста по таймауту команды.
+- Условия видимости реализованы (раздел «Условия видимости (`when`)», контракт `@dolphy-app/engine-contract` 30: `when: string | null` в `CommandContributionDto`, `PanelContributionDto` и `WidgetContributionDto`, новых методов нет). Вне границ: ключи вне закрытого набора (в том числе контекстные ключи, которые задавало бы само расширение), списки значений в виде переменных, `when` у остальных точек вклада.
+- Ресурсы и значок реализованы (раздел «Ресурсы расширения», [ADR 0010](../adr/0010-extension-static-assets.md), контракт `@dolphy-app/engine-contract` 12: `icon` в `ExtensionInfoDto` и `CatalogEntryDto`, новых методов нет). Вне границ: темы с CSS и шрифтами (тема остаётся данными), ресурсы для доверенных и поставляемых элементов в окне по протоколу (`style-src`, `img-src` и `font-src` окна не расширяются; такие элементы используют встроенные `data:`-ресурсы), анимированные форматы и видео, `.gif`, `.ico`, `.html`, `.wasm`, SVG-значок, подпись индекса и файлов. Расширения с новыми типами файлов, значком или вкладами `settings`, `events`, `commands`, `panels` выпущенное приложение в каталоге не видит: они есть только в `index.v2.json`.
+- Названия вкладов и теги реализованы (спека `catalog-metadata`, контракт `@dolphy-app/engine-contract` 13: `ContributionTitlesDto` и поля `titles` и `tags` в `ExtensionInfoDto` и `CatalogEntryDto`, новых методов нет; абзац «Названия и теги» раздела «Установка и каталог»). Вне границ: теги пользователей и собственный словарь.
 - Диагностика, безопасный режим, журнал и CI реализованы (раздел «Диагностика и безопасный режим», [ADR 0015](../adr/0015-extension-diagnostics-safe-mode-and-logs.md), контракты `@dolphy-app/engine-contract` 14, 15 и 17: `diagnostics` вместо `message`, `extensions.{setSafeMode,diagnostics,restartHost,readLogs}`, `ExtensionSettingsDto.safeMode`). Вне границ: отправка журналов и диагностики куда-либо (только копирование по действию пользователя), сохранение здоровья между запусками, лимит кучи V8, квоты процессора.
+- Волна API 1 (настройки `text`/`color`/`list` с `group`/`order`/`visibleWhen`, локализация манифеста, секреты, `learning.stats`, виджеты и значки, уведомления, расписания) реализована (разделы «Настройки», «Локализация манифеста», «Секреты», «Статистика обучения», «Виджеты», «Расписания», «Системные уведомления», «Мост платформенных сервисов»; [ADR 0018](../adr/0018-platform-services-bridge.md); контракт `@dolphy-app/engine-contract` до 29). Вне границ: локализация строк, которые код возвращает во время работы, и данных курсов; сырые идентификаторы и ответы в статистике; работа при закрытом приложении (трей, автозапуск, воспроизведение пропущенных срабатываний расписаний); ограничение сети через посредника движка (`network` остаётся информационным разрешением).
+- Импорт и экспорт реализованы (раздел «Импортёры и экспортёры», [ADR 0019](../adr/0019-extension-import-export.md), контракт `@dolphy-app/engine-contract` 31: `extensions.runImporter|commitImport|discardImport|runExporter`, код `EXTENSION_TRANSFER_FAILED`, `importers` и `exporters` в `ContributionsDto` и `ExtensionContributesDto`). Вне границ: бинарные ассеты в импортированном курсе (только текстовые файлы), импорт из сети и из каталога, пакетный импорт нескольких файлов, новое разрешение для импорта (согласие — выбор файла), выбор расширением места записи или чтение им файловой системы.
+- Зависимости реализованы (раздел «Зависимости (`dependencies`)», контракт 31: состояние `dependencies-unmet`, диагностики `dependency-*`, `dependencies` в `ExtensionInfoDto` и записи версии каталога). Вне границ: сервисы и вызовы между расширениями, автоустановка зависимостей, диапазоны версий приложения, диапазоны вида `^`/`~`.
+- UI-кит реализован (раздел «UI-кит», пакет `@dolphy-app/extension-ui`, README пакета). Вне границ: состояние в элементах (они статичны), декларативное дерево UI; Vue и Vuetify в бандлах — фича `extension-ui-vuetify`.
+- Сочетания клавиш пользователя и привязки расширений закрыты [ADR 0016](../adr/0016-keybindings-registry.md) (раздел «Команды», «Сочетания клавиш»). Вне границ: вызов команд приложения из расширений (ADR 0012), клавиши, пересылаемые из рамки расширения (рамка отдаёт родителю только Ctrl/⌘+K).
 
 **Отложенное (единый список; волны W1–W5 ссылаются на него).** Не делаем сейчас: сайт документации; typedoc-сайт; витрина каталога; `dolphy-ext analyze`; постраничный индекс; мастер «новое расширение» в приложении; хуки планировщика и модели памяти (вернуться после статистики и импортёров); сервисы между расширениями; инструмент матрицы совместимости; автообновление (только ручное, ADR 0004). Вне всех волн (уровень безопасности — как у Obsidian: ревью, безопасный режим, диагностика): независимый аудит, песочница ОС, подписанный индекс и проверка издателей, принудительное ограничение сети, лимит кучи V8, запрет симлинков, процессные тесты на всех ОС. Источник — Decision Log спеки `specs/archive/2026-10-04-extension-housekeeping`.

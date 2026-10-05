@@ -28,6 +28,7 @@ const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
   events: [],
   commands: [],
   widgets: [],
+  schedules: [],
   panels: [],
   importers: [],
   exporters: [],
@@ -46,6 +47,7 @@ const info = (overrides: Partial<ExtensionInfoDto>): ExtensionInfoDto => ({
   name: null,
   description: null,
   author: null,
+  dependencies: [],
   installed: null,
   icon: null,
   titles: {},
@@ -71,6 +73,7 @@ const UPDATE: ExtensionUpdateDto = {
   available: {
     version: '1.1.0',
     permissions: [],
+    dependencies: [],
     publishedAt: '2026-10-01T00:00:00.000Z',
     size: 10,
     minAppVersion: null,
@@ -276,6 +279,7 @@ describe('extensions.setCheckUpdates', () => {
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
     await engine.extensions.setCheckUpdates(false);
     expect((await settings.loadExtensions()).checkUpdates).toBe(false);
@@ -301,6 +305,7 @@ describe('extensions.setCheckUpdates', () => {
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
   });
 });
@@ -378,6 +383,7 @@ describe('startup update check', () => {
         safeMode: false,
         notificationsOff: [],
         catalogUrl: null,
+        schedulesOff: [],
       },
     });
     const { ctx, installer } = await setup({ updates: [UPDATE] }, settings);

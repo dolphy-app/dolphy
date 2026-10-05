@@ -36,11 +36,13 @@ export const en: typeof ru = {
         },
         missing:
           "The selected rule “{id}” is unavailable: its extension was not found. Pass{'@'}N applies for now.",
+        hint: "A grade from 1 to 5 decides when an exercise comes back for review. Pass{'@'}N reads “passed on attempt N”: the earlier the answer is right, the higher the grade. Extensions add other rules.",
       },
       targetRetention: {
         title: 'Target retention',
         description:
           'How confidently you should remember the material by the time it is reviewed. Higher means more reviews.',
+        hint: 'Retention is an estimate of the chance you will recall an exercise. When it drops below this threshold the exercise enters the plan as a review: 90% is relaxed, 99% means many reviews.',
       },
       newFraction: {
         title: 'Share of new material',
@@ -55,30 +57,36 @@ export const en: typeof ru = {
       tagDistance: {
         title: 'Gap between similar topics',
         description: 'How many exercises must separate tasks that share tags.',
+        hint: 'Tags are exercise topics set by the course author (for example “JOIN” or “commits”). The distance keeps similar tasks from coming back to back.',
       },
       batchSize: {
         title: 'Batch size',
         description: 'How many exercises the scheduler picks per request.',
+        hint: 'A batch is the set of exercises the scheduler picks at once for a session. You rarely need to change it.',
       },
       lessonsInProgress: {
         title: 'Lessons in progress',
         description:
           'How many lessons you can study at once before new ones unlock.',
+        hint: 'A lesson is “in progress” until its exercises are mastered. The limit stops you from opening ten lessons and finishing none.',
       },
       failThreshold: {
         title: 'Failure threshold',
         description:
           'How many failures on an exercise trigger reinforcement of the basics.',
+        hint: 'After this many failures on an exercise the scheduler adds exercises for its prerequisites, the topics it is hard to learn without.',
       },
       remediationItems: {
         title: 'Reinforcement exercises',
         description:
           'At most this many prerequisite exercises are added to the plan.',
+        hint: 'Prerequisites are the lessons and exercises the current one depends on; the course author defines the links.',
       },
       implicitCredit: {
         title: 'Implicit reviews',
         description:
           'Reviewing a hard topic also counts for the simpler ones inside it. The effect has only been measured on the model.',
+        hint: 'A hard exercise contains simple topics, so a right answer partly counts as a review of them (the FIRe method). Off by default: checked on a model only.',
       },
       actions: {
         revert: 'Discard',
@@ -133,11 +141,42 @@ export const en: typeof ru = {
           updated:
             'Updated: no courses | Updated: {n} course | Updated: {n} courses',
           removed: 'Repository removed',
+          removedWithProgress: 'Repository and progress removed',
         },
         confirm: {
           title: 'Remove the repository?',
-          text: 'Its courses will disappear from the library. Your progress is kept and comes back if you add the repository again.',
+          text: 'Its courses will disappear from the library.',
+          removeProgress: 'Also delete the progress of its courses',
+          keepHint:
+            'Your progress is kept and comes back if you add the repository again.',
+          resetHint:
+            'Attempts and scores of these courses will be reset, including on your other devices after sync.',
         },
+        notInstalled:
+          'none not installed | {n} course not installed | {n} courses not installed',
+        choose: 'Courses…',
+        chooseLabel: 'Choose courses of repository {url}',
+        chooser: {
+          title: 'Courses of the repository',
+          hint: 'Checked courses are in the library. Applying downloads the repository again; your progress is kept for courses you remove.',
+          apply: 'Apply',
+          close: 'Close',
+        },
+      },
+      transfers: {
+        title: 'Import and export',
+        description:
+          'Extensions turn a file into a course and export a course or progress into a file. You choose the file and where to save it in the system dialog; extensions never see paths.',
+        empty:
+          'No extensions with import or export. They appear here once installed and enabled.',
+        importers: 'Import',
+        exporters: 'Export',
+        import: 'Import…',
+        export: 'Export…',
+        importLabel: 'Import: {title}',
+        exportLabel: 'Export: {title}',
+        scope: { course: 'course', progress: 'progress' },
+        accept: 'Files: {accept}',
       },
       ignored: {
         title: 'Ignored folders',
@@ -335,6 +374,7 @@ export const en: typeof ru = {
         overridden: 'Overridden',
         invalid: 'Failed to load',
         disabled: 'Disabled',
+        'dependencies-unmet': 'Dependencies not met',
       },
       builtIn: 'Built in',
       isolation: {
@@ -343,9 +383,26 @@ export const en: typeof ru = {
       },
       enabledLabel: 'Enabled',
       notificationsLabel: 'Notifications',
+      schedulesLabel: 'Schedule',
+      schedule: {
+        daily: 'Every day at {at}',
+        hourly: 'Every hour',
+      },
       trustLabel: 'Trust (no isolation)',
       trustHint:
         'A trusted extension runs without isolation: its code runs with the app’s rights and its elements live in the app window and can see its data. Trust only extensions you believe in.',
+      dependencies: {
+        title: 'Dependencies',
+        status: {
+          ok: 'loaded',
+          installed: 'installed',
+          missing: 'not installed',
+          disabled: 'disabled',
+          version: 'version does not fit',
+          unmet: 'not loaded',
+        },
+        hint: 'Dependencies are not installed automatically: install them yourself. Installing this extension is not blocked — it starts working once its dependencies are met.',
+      },
       permissionsTitle: 'Permissions',
       permissionsNone: 'none requested',
       permissions: {
@@ -404,6 +461,15 @@ export const en: typeof ru = {
         'load-failed': 'Could not load the extension: {reason}',
         'overridden-by': 'Overridden by: {origin}, version {version}',
         'safe-mode': 'Disabled in safe mode',
+        'dependency-missing':
+          'Requires the extension “{id}”{range}, which is not installed',
+        'dependency-disabled':
+          'Requires the extension “{id}”{range}, which is disabled',
+        'dependency-version':
+          'Requires the extension “{id}”{range}, found version {found}',
+        'dependency-unmet':
+          'Requires the extension “{id}”{range}, which is not loaded: its dependencies are not met',
+        'dependency-cycle': 'Extensions depend on each other: {cycle}',
         locale: {
           'missing-key':
             'No translation for "{key}" in locales/en.json: the label is shown as is',
@@ -697,6 +763,15 @@ export const en: typeof ru = {
           unknown: 'Could not install the extension.',
         },
       },
+      link: {
+        busy: 'Wait for the installation to finish',
+        notFound: 'Extension “{id}” was not found in the catalog',
+        upToDate: 'Extension “{name}” is already installed: v{version}',
+        elsewhere:
+          'Extension “{name}” is already installed from another source. Remove the installed one first to install it from the catalog.',
+        incompatible: 'Extension “{name}” is incompatible: {detail}',
+        failed: 'Could not open the extension from the link: {message}',
+      },
     },
     about: {
       title: 'About the engine',
@@ -712,6 +787,7 @@ export const en: typeof ru = {
       },
       scorer: {
         title: 'Memory model',
+        hint: 'The memory model estimates how well you remember each exercise and schedules reviews. FSRS is a spaced-repetition algorithm; “power-law” is a simpler power-law forgetting curve.',
         memoryModel: 'Memory model',
         kind: 'Scoring type',
         ratingMap: 'Attempt ratings',

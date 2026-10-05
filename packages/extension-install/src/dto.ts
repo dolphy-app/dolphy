@@ -25,6 +25,10 @@ export const totalSize = (version: CatalogVersion): number =>
 export const toVersionDto = (version: CatalogVersion): CatalogVersionDto => ({
   version: version.version,
   permissions: [...version.permissions],
+  dependencies: (version.dependencies ?? []).map(({ id, range }) => ({
+    id,
+    range: range ?? null,
+  })),
   publishedAt: version.publishedAt,
   size: totalSize(version),
   minAppVersion: version.minAppVersion,
@@ -106,6 +110,7 @@ export const describeEntry = (
       commands: [...(entry.contributes.commands ?? [])],
       panels: [...(entry.contributes.panels ?? [])],
       widgets: [...(entry.contributes.widgets ?? [])],
+      schedules: [...(entry.contributes.schedules ?? [])],
       importers: [...(entry.contributes.importers ?? [])],
       exporters: [...(entry.contributes.exporters ?? [])],
     },

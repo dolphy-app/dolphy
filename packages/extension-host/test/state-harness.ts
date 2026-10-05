@@ -46,6 +46,7 @@ export const stateful = (
   name: null,
   description: null,
   author: null,
+  dependencies: [],
   platforms: [],
   minAppVersion: null,
   icon: null,
@@ -99,6 +100,7 @@ export const stateful = (
   commands: [],
   panels: [],
   widgets: [],
+  schedules: [],
   importers: [],
   exporters: [],
   ...overrides,
@@ -286,6 +288,8 @@ export interface HarnessOptions {
   queueLimit?: number;
   deliveryMs?: number;
   restart?: () => void;
+  /** Часы и период планировщика расписаний. */
+  schedule?: { now?: () => number; tickMs?: number };
 }
 
 export interface Harness {
@@ -318,6 +322,7 @@ export const createHarness = (options: HarnessOptions): Harness => {
     safeMode: false,
     notificationsOff: [],
     catalogUrl: null,
+    schedulesOff: [],
   });
   const runtime = createExtensionRuntime({
     extensions: options.extensions,
@@ -342,6 +347,7 @@ export const createHarness = (options: HarnessOptions): Harness => {
     health: engine.health,
     ...(options.queueLimit !== undefined && { queueLimit: options.queueLimit }),
     ...(options.deliveryMs !== undefined && { deliveryMs: options.deliveryMs }),
+    ...(options.schedule !== undefined && { schedule: options.schedule }),
   });
   return {
     engine,

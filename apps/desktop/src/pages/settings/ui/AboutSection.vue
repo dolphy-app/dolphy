@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useOnboardingTour } from '@/features/onboarding-tour';
+import HelpHint from '@/shared/ui/HelpHint.vue';
 import { useEngine } from '@/shared/api/engine';
 import { formatBytes, formatUptime } from '../lib/format.ts';
 import { useEngineInfo } from '../model/engine-info.ts';
@@ -12,6 +14,7 @@ interface Fact {
 }
 
 const { t, locale } = useI18n();
+const tour = useOnboardingTour();
 
 const { info, error } = useEngineInfo(useEngine());
 const initialLoading = computed(() => !info.value && !error.value);
@@ -79,6 +82,28 @@ const scorerFacts = computed<Fact[]>(() => {
       :subtitle="t('settings.about.subtitle')"
     />
 
+    <v-card class="pa-5 mb-6 d-flex align-center justify-space-between ga-4">
+      <div>
+        <h3 class="text-title-large font-weight-bold">
+          {{ t('tour.replay.title') }}
+        </h3>
+        <p class="text-body-medium text-medium-emphasis mt-1">
+          {{ t('tour.replay.text') }}
+        </p>
+      </div>
+      <v-btn
+        variant="tonal"
+        color="primary"
+        prepend-icon="mdi-map-marker-path"
+        class="flex-shrink-0"
+        data-focus-key="tour-replay"
+        :disabled="!tour.canStart()"
+        @click="tour.start()"
+      >
+        {{ t('tour.replay.button') }}
+      </v-btn>
+    </v-card>
+
     <v-alert v-if="error" type="error" variant="tonal" class="mb-6">
       {{ error }}
     </v-alert>
@@ -107,8 +132,11 @@ const scorerFacts = computed<Fact[]>(() => {
       </v-card>
 
       <v-card class="pa-5">
-        <h3 class="text-title-large font-weight-bold mb-2">
+        <h3
+          class="d-flex align-center ga-1 text-title-large font-weight-bold mb-2"
+        >
           {{ t('settings.about.scorer.title') }}
+          <HelpHint :text="t('settings.about.scorer.hint')" />
         </h3>
         <v-list bg-color="transparent" density="compact">
           <v-list-item v-for="fact in scorerFacts" :key="fact.label">

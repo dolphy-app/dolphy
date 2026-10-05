@@ -13,6 +13,8 @@ import type {
   ProgressQuery,
   RecordAttemptRequest,
   RecordResultDto,
+  RetractRequest,
+  RetractResult,
   SubmitAnswerRequest,
   UnitId,
   VerdictDto,
@@ -32,6 +34,7 @@ import { DEFAULT_EXERCISE_TIMEOUT_MS, toExerciseDto } from '../dto.ts';
 import { EngineError } from '../errors.ts';
 import { paginate } from '../pagination.ts';
 import { createProgressReader } from '../progress.ts';
+import { commitProgressResets } from '../progress-reset.ts';
 
 const GRADES: ReadonlySet<unknown> = new Set([1, 2, 3, 4, 5]);
 const SOURCES: ReadonlySet<unknown> = new Set([
@@ -507,16 +510,8 @@ export const createPracticeService = (ctx: EngineContext): PracticeService => {
     if (graph.graph.getUnitType(unitId) === undefined) {
       throw new EngineError('NOT_FOUND', { details: { unitId } });
     }
-    const revision = library.current()?.revision ?? '';
-    const { appended, duplicates } = await ctx.commit([
-      {
-        fields: {
-          kind: 'progress_reset',
-          unitId,
-          ...(revision !== '' && { libraryRevision: revision }),
-        },
-        id: requestId,
-      },
+    const { appended, duplicates } = await commitProgressResets(ctx, [
+      { unitId, id: requestId },
     ]);
     const [entry] = appended;
     if (entry === undefined) {
@@ -525,18 +520,59 @@ export const createPracticeService = (ctx: EngineContext): PracticeService => {
       }
       return { eventId: requestId, duplicate: true };
     }
-    // оценки меняются у самого юнита, вложенных и охватывающих
-    const unitIds = [
-      unitId,
-      ...graph.graph.getContainers(unitId),
-      ...graph.graph.getExercisesUnder(unitId).filter((id) => id !== unitId),
-    ];
+    return { eventId: entry.id, duplicate: false };
+  };
+
+  /**
+   * `undo` (`set`) и `redo` (`unset`): запись `retract` по `targetId`. Журнал
+   * не редактируется; состояние цели не меняется — запись не пишется.
+   */
+  const retract = async (
+    op: 'set' | 'unset',
+    { targetId, requestId }: RetractRequest,
+  ): Promise<RetractResult> => {
+    requireText('targetId', targetId);
+    requireText('requestId', requestId);
+    library.require();
+    const known = await ctx.eventStore.transact((tx) => tx.findById(requestId));
+    if (known !== null) {
+      if (
+        known.kind !== 'retract' ||
+        known.targetId !== targetId ||
+        known.op !== op
+      ) {
+        throw invalid({
+          requestId,
+          reason: 'request id is used by another entry',
+        });
+      }
+      return { eventId: known.id, duplicate: true, changed: true };
+    }
+    if (projections.attempts.exercisesOf(targetId).length === 0) {
+      const other = await ctx.eventStore.transact((tx) =>
+        tx.findById(targetId),
+      );
+      if (other !== null) {
+        throw invalid({ targetId, reason: 'target is not an attempt' });
+      }
+      throw new EngineError('NOT_FOUND', { details: { targetId } });
+    }
+    if (projections.attempts.isTargetRetracted(targetId) === (op === 'set')) {
+      return { eventId: null, duplicate: false, changed: false };
+    }
+    const { appended, affectedUnitIds } = await ctx.commit([
+      { fields: { kind: 'retract', targetId, op }, id: requestId },
+    ]);
+    const [entry] = appended;
+    if (entry === undefined) {
+      throw new Error(`retract: nothing appended for ${requestId}`);
+    }
     ctx.emit({
       type: 'progress',
-      unitIds: [...new Set(unitIds)],
+      unitIds: affectedUnitIds,
       at: entry.at,
     });
-    return { eventId: entry.id, duplicate: false };
+    return { eventId: entry.id, duplicate: false, changed: true };
   };
 
   /** Прямая запись оценки без открытой попытки: проверки не было, оценку поставил ученик. */
@@ -557,5 +593,7 @@ export const createPracticeService = (ctx: EngineContext): PracticeService => {
     getFrontier,
     getDue,
     resetProgress,
+    undo: (request: RetractRequest) => retract('set', request),
+    redo: (request: RetractRequest) => retract('unset', request),
   });
 };

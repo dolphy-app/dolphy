@@ -178,6 +178,8 @@ describe('contributionGroups', () => {
         events: [],
         commands: ['acme.run'],
         panels: ['acme.view'],
+        importers: [],
+        exporters: [],
       }),
     ).toEqual([
       {

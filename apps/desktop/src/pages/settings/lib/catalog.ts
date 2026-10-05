@@ -221,6 +221,8 @@ const NO_CONTRIBUTES: ExtensionContributesDto = {
   events: [],
   commands: [],
   panels: [],
+  importers: [],
+  exporters: [],
 };
 
 /** Названия вкладов установленного расширения на английском: так их показывает каталог. */

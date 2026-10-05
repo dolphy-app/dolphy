@@ -522,6 +522,8 @@ describe('ctx.events', () => {
           events: [],
           commands: [],
           panels: [],
+          importers: [],
+          exporters: [],
           exerciseTypes: [
             {
               id: 'acme.np',

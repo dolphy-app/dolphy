@@ -71,7 +71,17 @@ interface PublishedExtension {
     'exerciseTypes' | 'themes' | 'markdownRenderers' | 'gradePolicies',
     string[]
   > &
-    Partial<Record<'settings' | 'events' | 'commands' | 'panels', string[]>>;
+    Partial<
+      Record<
+        | 'settings'
+        | 'events'
+        | 'commands'
+        | 'panels'
+        | 'importers'
+        | 'exporters',
+        string[]
+      >
+    >;
   /** Названия вкладов из манифеста (запись индекса `titles`). */
   titles: ContributionTitles;
   versions: PublishedVersion[];
@@ -183,6 +193,8 @@ interface RawManifest {
     events?: { event: string }[];
     commands?: { id: string; title: string }[];
     panels?: { id: string; title: string }[];
+    importers?: { id: string; title: string }[];
+    exporters?: { id: string; title: string }[];
   };
 }
 
@@ -193,6 +205,8 @@ const contributesOf = (
   const events = (manifest.contributes?.events ?? []).map(({ event }) => event);
   const commands = (manifest.contributes?.commands ?? []).map(({ id }) => id);
   const panels = (manifest.contributes?.panels ?? []).map(({ id }) => id);
+  const importers = (manifest.contributes?.importers ?? []).map(({ id }) => id);
+  const exporters = (manifest.contributes?.exporters ?? []).map(({ id }) => id);
   return {
     exerciseTypes: (manifest.contributes?.exerciseTypes ?? []).map(
       ({ id }) => id,
@@ -208,6 +222,8 @@ const contributesOf = (
     ...(events.length > 0 ? { events } : {}),
     ...(commands.length > 0 ? { commands } : {}),
     ...(panels.length > 0 ? { panels } : {}),
+    ...(importers.length > 0 ? { importers } : {}),
+    ...(exporters.length > 0 ? { exporters } : {}),
   };
 };
 
@@ -239,6 +255,14 @@ const titlesOf = (manifest: RawManifest): ContributionTitles => {
       title,
     })),
     panels: (contributes.panels ?? []).map(({ id, title }) => ({ id, title })),
+    importers: (contributes.importers ?? []).map(({ id, title }) => ({
+      id,
+      title,
+    })),
+    exporters: (contributes.exporters ?? []).map(({ id, title }) => ({
+      id,
+      title,
+    })),
   };
   return Object.fromEntries(
     TITLED_POINTS.filter((point) => byPoint[point].length > 0).map((point) => [

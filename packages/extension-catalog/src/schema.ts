@@ -36,6 +36,8 @@ export const TITLED_POINTS = [
   'settings',
   'commands',
   'panels',
+  'importers',
+  'exporters',
 ] as const;
 export type TitledPoint = (typeof TITLED_POINTS)[number];
 /** Contribution titles of an entry: point → id → title. */
@@ -309,6 +311,8 @@ const contributesSchemaOf = (profile: Profile) =>
     events: z.array(z.string()).optional(),
     commands: z.array(z.string()).optional(),
     panels: z.array(z.string()).optional(),
+    importers: z.array(z.string()).optional(),
+    exporters: z.array(z.string()).optional(),
   });
 
 const titleMap = z.record(extensionId, z.string().min(1).max(MAX_TITLE_LENGTH));

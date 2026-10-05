@@ -106,6 +106,18 @@ export const manifestSchema = z
         message: "contributes.events requires the 'learning.events' permission",
       });
     }
+    entriesOf(manifest.contributes, 'exporters').forEach((entry, index) => {
+      if (
+        (entry as { scope?: unknown }).scope === 'progress' &&
+        !permissions.includes('learning.stats')
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['contributes', 'exporters', index, 'scope'],
+          message: "scope 'progress' requires the 'learning.stats' permission",
+        });
+      }
+    });
     if (isEmpty(manifest.contributes)) {
       ctx.addIssue({
         code: 'custom',

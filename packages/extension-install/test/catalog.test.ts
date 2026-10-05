@@ -158,6 +158,8 @@ describe('catalog: сводка вклада в DTO', () => {
           ...contributesOf([]),
           commands: ['acme.cmds.open'],
           panels: ['acme.cmds.main'],
+          importers: ['acme.cmds.csv'],
+          exporters: ['acme.cmds.out'],
         },
       },
       { id: 'acme.plain', version: '1.0.0' },
@@ -167,10 +169,14 @@ describe('catalog: сводка вклада в DTO', () => {
     expect(byId['acme.cmds']?.contributes).toMatchObject({
       commands: ['acme.cmds.open'],
       panels: ['acme.cmds.main'],
+      importers: ['acme.cmds.csv'],
+      exporters: ['acme.cmds.out'],
     });
     expect(byId['acme.plain']?.contributes).toMatchObject({
       commands: [],
       panels: [],
+      importers: [],
+      exporters: [],
     });
   });
 });

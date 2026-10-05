@@ -67,6 +67,23 @@ describe('createNodeSnapshotInstaller', () => {
     expect(await exists(join(stagingDir, 'a/x.txt'))).toBe(true);
   });
 
+  it('dropTmp removes only the git dir of the operation, the staging tree stays', async () => {
+    const { installer, dataDir } = await setup();
+    const { stagingDir, tmpDir } = await installer.begin(
+      'repositories',
+      'acme',
+      'op1',
+    );
+    await writeFiles(stagingDir, { 'course/a.txt': 'one' });
+    await installer.dropTmp('op1');
+    expect(await exists(tmpDir)).toBe(false);
+    expect(await exists(join(dataDir, 'git-tmp', 'op1'))).toBe(false);
+    expect(await readFile(join(stagingDir, 'course/a.txt'), 'utf8')).toBe(
+      'one',
+    );
+    await expect(installer.dropTmp('../x')).rejects.toThrow(/Unsafe/);
+  });
+
   it('install puts the staging tree under repositories/<id>; finish removes the operation dirs', async () => {
     const { installer, libraryRoot, dataDir } = await setup();
     const { stagingDir } = await installer.begin('repositories', 'acme', 'op1');

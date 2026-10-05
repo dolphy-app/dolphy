@@ -626,12 +626,16 @@ describe('ordering and events', () => {
       ['add', [{ url: 'https://h/r.git', ref: 'r'.repeat(256) }]],
       ['add', [{ url: 'https://h/r.git', courseIds: 'a' }]],
       ['add', [{ url: 'https://h/r.git', courseIds: [1] }]],
+      ['add', [{ url: 'https://h/r.git', previewId: '' }]],
+      ['add', [{ url: 'https://h/r.git', previewId: 'p'.repeat(201) }]],
       ['add', [{ url: 'https://h/r.git', courseIds: [''] }]],
       ['add', [{ url: 'https://h/r.git', courseIds: Array(1001).fill('a') }]],
       ['preview', [{ url: '' }]],
       ['preview', [{ url: 'https://h/r.git', courseIds: ['a'] }]],
       ['update', ['']],
       ['update', ['id1', { courseIds: [1] }]],
+      ['update', ['id1', { previewId: '' }]],
+      ['update', ['id1', { previewId: 7 }]],
       ['update', ['id1', { extra: 1 }]],
       ['remove', ['x'.repeat(201)]],
       ['cancel', [42]],
@@ -662,9 +666,14 @@ describe('ordering and events', () => {
         url: 'https://h/r.git',
         ref: 'main',
         courseIds: ['a', 'b'],
+        previewId: 'p1',
       });
       await client.engine.repositories.update('id1');
       await client.engine.repositories.update('id1', { courseIds: ['a'] });
+      await client.engine.repositories.update('id1', {
+        courseIds: ['a'],
+        previewId: 'p1',
+      });
       await client.engine.repositories.remove('id2');
       await client.engine.repositories.cancel('id3');
       await client.engine.repositories.list();
@@ -672,6 +681,7 @@ describe('ordering and events', () => {
       expect(fake.calls.filter((name) => name !== 'diagnostics')).toEqual([
         'repositories.preview',
         'repositories.add',
+        'repositories.update',
         'repositories.update',
         'repositories.update',
         'repositories.remove',

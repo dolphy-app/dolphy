@@ -62,6 +62,24 @@ interface Operation {
   committing: boolean;
 }
 
+/** Сколько снимок предпросмотра ждёт установки. */
+export const PREVIEW_TTL_MS = 5 * 60 * 1000;
+
+/** Сколько снимков предпросмотров хранится одновременно: каждый до `maxBytes` на диске. */
+export const MAX_HELD_PREVIEWS = 2;
+
+/** Скачанный снимок предпросмотра: каталог `.staging/<opId>/<id>` ждёт `add`/`update` с токеном `opId`. */
+interface HeldPreview {
+  opId: string;
+  /** Каталог снимка называется `<id>`: годится только для установки под тем же `id`. */
+  id: string;
+  url: string;
+  ref: string | null;
+  commit: string;
+  expiresAt: number;
+  timer: ReturnType<typeof setTimeout>;
+}
+
 interface Target {
   id: string;
   url: string;
@@ -72,6 +90,8 @@ interface Target {
   explicit: boolean;
   /** Запись до операции (`update`). */
   previous?: RepositoryRecord;
+  /** `RepositoryPreviewDto.previewId`: установить из скачанного снимка. */
+  previewId?: string;
 }
 
 interface FlowResult {
@@ -163,8 +183,74 @@ export const createRepositoriesService = (
     if (isCancellable(op) && !op.committing) op.controller.abort();
   };
 
+  /** Снимки предпросмотров, ожидающие установки (ключ — `opId` = `previewId`). */
+  const held = new Map<string, HeldPreview>();
+
+  const releaseHeld = (entry: HeldPreview): void => {
+    clearTimeout(entry.timer);
+    void installer.finish(entry.opId).catch((error: unknown) => {
+      ctx.logger.warn(
+        { error, opId: entry.opId },
+        'cannot clean up preview dirs',
+      );
+    });
+  };
+
+  const dropHeld = (opId: string): void => {
+    const entry = held.get(opId);
+    if (entry === undefined) return;
+    held.delete(opId);
+    releaseHeld(entry);
+  };
+
+  /** Новый снимок заменяет прежний того же адреса и ветки; сверх `MAX_HELD_PREVIEWS` вытесняется самый старый. */
+  const holdPreview = (entry: Omit<HeldPreview, 'expiresAt' | 'timer'>) => {
+    for (const other of [...held.values()]) {
+      if (other.url === entry.url && other.ref === entry.ref) {
+        dropHeld(other.opId);
+      }
+    }
+    while (held.size >= MAX_HELD_PREVIEWS) {
+      const oldest = held.keys().next().value;
+      if (oldest === undefined) break;
+      dropHeld(oldest);
+    }
+    const timer = setTimeout(() => dropHeld(entry.opId), PREVIEW_TTL_MS);
+    timer.unref();
+    held.set(entry.opId, {
+      ...entry,
+      expiresAt: ctx.clock.now() + PREVIEW_TTL_MS,
+      timer,
+    });
+  };
+
+  /**
+   * Достаёт снимок предпросмотра для `add`/`update`: только живой токен того
+   * же адреса, ветки и репозитория. Просроченный снимок удаляется; чужой
+   * токен не трогается; незнакомый — не ошибка (вызывающий качает заново).
+   */
+  const takePreview = (
+    previewId: string | undefined,
+    url: string,
+    ref: string | null,
+    id: string,
+  ): HeldPreview | null => {
+    if (previewId === undefined) return null;
+    const entry = held.get(previewId);
+    if (entry === undefined) return null;
+    if (ctx.clock.now() >= entry.expiresAt) {
+      dropHeld(previewId);
+      return null;
+    }
+    if (entry.url !== url || entry.ref !== ref || entry.id !== id) return null;
+    held.delete(previewId);
+    clearTimeout(entry.timer);
+    return entry;
+  };
+
   closeSignal?.addEventListener('abort', () => {
     for (const op of operations) abort(op);
+    for (const opId of [...held.keys()]) dropHeld(opId);
   });
 
   const serial = <T>(op: Operation, body: () => Promise<T>): Promise<T> => {
@@ -454,45 +540,56 @@ export const createRepositoriesService = (
     return skipped.map((course) => course.id);
   };
 
-  /** `resolve → fetch → export → (select) → validate → (queue) reload`; общий путь `add` и `update`. */
+  /** `(preview) | resolve → fetch → export → (select) → validate → (queue) reload`; общий путь `add` и `update`. */
   const fetchFlow = async (
     op: Operation,
     target: Target,
   ): Promise<FlowResult> => {
     const { id, url, ref, previous, selected, explicit } = target;
     const { signal } = op.controller;
-    const opId = ctx.ids.next().toLowerCase();
-    let began = false;
+    // снимок предпросмотра заменяет загрузку; расходуется при любом исходе
+    const staged = takePreview(target.previewId, url, ref, id);
+    const opId = staged?.opId ?? ctx.ids.next().toLowerCase();
+    let began = staged !== null;
     try {
       signal.throwIfAborted();
-      progress(id, 'resolve');
-      const resolved = await fetcher.resolve({ url, ref, signal });
       // тот же коммит и тот же выбор: скачивать нечего
       const upToDate = async (commit: string) =>
         previous !== undefined &&
         commit === previous.commit &&
         sameSelection(selected, previous.selected ?? null) &&
         (await installer.exists(ROOT, id));
-      if (previous !== undefined && (await upToDate(resolved.commit))) {
-        return { changed: false, record: await settle(previous) };
-      }
-      began = true;
-      const dirs = await installer.begin(ROOT, id, opId);
-      signal.throwIfAborted();
-      progress(id, 'fetch');
-      const snapshot = await fetcher.fetchSnapshot({
-        url,
-        ref,
-        signal,
-        destDir: dirs.stagingDir,
-        tmpDir: dirs.tmpDir,
-        limits: DEFAULT_SNAPSHOT_LIMITS,
-        onProgress: (phase, { loaded, total }) =>
-          progress(id, phase, loaded, total),
-      });
-      signal.throwIfAborted();
-      if (previous !== undefined && (await upToDate(snapshot.commit))) {
-        return { changed: false, record: await settle(previous) };
+      let loadedCommit: string;
+      if (staged !== null) {
+        loadedCommit = staged.commit;
+        if (previous !== undefined && (await upToDate(loadedCommit))) {
+          return { changed: false, record: await settle(previous) };
+        }
+      } else {
+        progress(id, 'resolve');
+        const resolved = await fetcher.resolve({ url, ref, signal });
+        if (previous !== undefined && (await upToDate(resolved.commit))) {
+          return { changed: false, record: await settle(previous) };
+        }
+        began = true;
+        const dirs = await installer.begin(ROOT, id, opId);
+        signal.throwIfAborted();
+        progress(id, 'fetch');
+        const snapshot = await fetcher.fetchSnapshot({
+          url,
+          ref,
+          signal,
+          destDir: dirs.stagingDir,
+          tmpDir: dirs.tmpDir,
+          limits: DEFAULT_SNAPSHOT_LIMITS,
+          onProgress: (phase, { loaded, total }) =>
+            progress(id, phase, loaded, total),
+        });
+        signal.throwIfAborted();
+        loadedCommit = snapshot.commit;
+        if (previous !== undefined && (await upToDate(loadedCommit))) {
+          return { changed: false, record: await settle(previous) };
+        }
       }
       progress(id, 'validate');
       const skippedCourseIds =
@@ -503,7 +600,7 @@ export const createRepositoriesService = (
       signal.throwIfAborted();
       return await exclusive(() =>
         commit(op, target, opId, {
-          commit: snapshot.commit,
+          commit: loadedCommit,
           courseIds,
           skippedCourseIds,
         }),
@@ -556,6 +653,7 @@ export const createRepositoriesService = (
         ref,
         selected,
         explicit: selected !== null,
+        ...(req.previewId !== undefined && { previewId: req.previewId }),
       });
       return toDto(record, 'ready');
     });
@@ -578,6 +676,9 @@ export const createRepositoriesService = (
         // без явного выбора действует прежний (запись без выбора — все курсы)
         selected: chosen ?? previous.selected ?? null,
         explicit: chosen !== null,
+        ...(options?.previewId !== undefined && {
+          previewId: options.previewId,
+        }),
       });
       // сервер мог уйти вперёд за время операции: пометка появится после следующей проверки
       checks.delete(id);
@@ -590,8 +691,8 @@ export const createRepositoriesService = (
 
   /**
    * Скачивает коммит во временный каталог, сканирует и отдаёт курсы для
-   * выбора. Ничего не устанавливает: файлы живут только в `.staging/<opId>` и
-   * `git-tmp/<opId>` и убираются в `finally`.
+   * выбора. Ничего не устанавливает; снимок остаётся в `.staging/<opId>` до
+   * установки по токену (`previewId` = `opId`), срока или вытеснения.
    */
   const preview = async (
     req: PreviewRepositoryRequest,
@@ -608,6 +709,7 @@ export const createRepositoriesService = (
       const { signal } = op.controller;
       const opId = ctx.ids.next().toLowerCase();
       let began = false;
+      let kept = false;
       try {
         signal.throwIfAborted();
         progress(id, 'resolve');
@@ -632,6 +734,10 @@ export const createRepositoriesService = (
         const loaded = new Set(
           ctx.library.current()?.library?.getCourseIds() ?? [],
         );
+        // временный gitdir больше не нужен, снимок ждёт установки
+        await installer.dropTmp(opId);
+        holdPreview({ opId, id, url, ref, commit: snapshot.commit });
+        kept = true;
         return {
           url,
           ref,
@@ -641,11 +747,12 @@ export const createRepositoriesService = (
             installed: mine.has(course.id),
             inLibrary: !mine.has(course.id) && loaded.has(course.id),
           })),
+          previewId: opId,
         };
       } catch (error) {
         throw toFailure(error, op);
       } finally {
-        if (began) {
+        if (began && !kept) {
           await installer.finish(opId).catch((error: unknown) => {
             ctx.logger.warn({ error, opId }, 'cannot clean up preview dirs');
           });

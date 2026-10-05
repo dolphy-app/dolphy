@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 25 as const;
+export const CONTRACT_VERSION = 26 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 /** Потолок файла импорта, суммарного размера присланного дерева и снимка курса для экспорта, байт (R3, R4, R7 спеки `extension-api-breadth-2`). */
@@ -1152,11 +1152,15 @@ export interface AddRepositoryRequest {
    * Нет поля — все курсы коммита, и новые курсы при `update` тоже ставятся.
    */
   courseIds?: UnitId[];
+  /** `RepositoryPreviewDto.previewId` того же адреса и ветки: установка без загрузки. */
+  previewId?: string;
 }
 
 export interface UpdateRepositoryOptions {
   /** Новый выбор курсов (как `AddRepositoryRequest.courseIds`); нет поля — прежний. */
   courseIds?: UnitId[];
+  /** `RepositoryPreviewDto.previewId` того же репозитория: установка без загрузки. */
+  previewId?: string;
 }
 
 /** Курс репозитория в предпросмотре (`repositories.preview`). */
@@ -1191,6 +1195,13 @@ export interface RepositoryPreviewDto {
   commit: string;
   /** Все курсы коммита в порядке обхода каталогов. */
   courses: RepositoryCourseDto[];
+  /**
+   * Токен скачанного снимка: движок держит его до 5 минут (не больше двух
+   * снимков) и ставит курсы из него, если передать токен в `add` или `update`.
+   * Токен одноразовый; просроченный, израсходованный или чужой токен не
+   * ошибка — репозиторий скачивается заново.
+   */
+  previewId: string;
 }
 
 export interface UpdateRepositoryResult {

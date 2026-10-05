@@ -3,7 +3,10 @@
  * by extension code (`main.mjs`), by the answer element (`view.mjs`), and by the engine itself.
  */
 
+import { WHEN_MAX_LENGTH } from './when.ts';
+
 export * from './locale.ts';
+export * from './when.ts';
 
 export const EXTENSION_API_VERSION = 1 as const;
 export const EXTENSION_ID_PATTERN = /^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*$/;
@@ -169,6 +172,12 @@ export interface CommandContribution {
   keybindings?: CommandKeybinding[];
   /** `false` hides the command from the palette while keeping it available to the panel; defaults to `true`. */
   palette?: boolean;
+  /**
+   * Visibility condition (see `parseWhen`), such as `route == 'courses'`. While it is false the
+   * command is not shown in the palette and does not run from a key binding; the extension's
+   * panels and widgets still call it with `ctx.call`.
+   */
+  when?: string;
   /** Glyph in the palette, from `EXTENSION_ICONS`; defaults to `DEFAULT_EXTENSION_ICON`. Decorative. */
   icon?: ExtensionIconName;
 }
@@ -183,6 +192,8 @@ export interface PanelContribution {
   module?: string;
   /** Glyph of the sidebar entry, from `EXTENSION_ICONS`; defaults to `DEFAULT_EXTENSION_ICON`. Decorative. */
   icon?: ExtensionIconName;
+  /** Visibility condition (see `parseWhen`): while it is false the sidebar entry is hidden; the panel still opens with `openPanel`. */
+  when?: string;
 }
 
 /** Where on the screen a widget is shown; `dailyPlan` is the "Daily plan" page. */
@@ -212,6 +223,8 @@ export interface WidgetContribution {
   maxHeight?: number;
   /** Path to the widget's ES module (`.js` or `.mjs`); defaults to `DEFAULT_WIDGET`. */
   module?: string;
+  /** Visibility condition (see `parseWhen`): while it is false the card is not drawn and its frame is not loaded. */
+  when?: string;
 }
 
 /** How often a schedule fires. */
@@ -608,8 +621,8 @@ export const KEYBINDING_PATTERN = new RegExp(
 export const EXTENSION_COMMAND_LIMITS = Object.freeze({
   /** Keybinding entries (`keybindings`) per command. */
   keybindingsPerCommand: 4,
-  /** Length of a `keybindings[].when` condition. */
-  whenLength: 200,
+  /** Length of a `when` condition (of a command, panel, widget or `keybindings[]` entry). */
+  whenLength: WHEN_MAX_LENGTH,
   /** Commands per extension. */
   commands: 64,
   /** Panels per extension. */

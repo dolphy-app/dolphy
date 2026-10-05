@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 29 as const;
+export const CONTRACT_VERSION = 30 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 /** Потолок файла импорта, суммарного размера присланного дерева и снимка курса для экспорта, байт (R3, R4, R7 спеки `extension-api-breadth-2`). */
@@ -1512,6 +1512,12 @@ export interface CommandContributionDto {
   keybindings: ExtensionKeybindingDto[];
   /** `false` скрывает команду из палитры: её вызывает только панель. */
   palette: boolean;
+  /**
+   * Условие видимости (`parseWhen` из `@dolphy-app/extension-api`), `null` — всегда.
+   * Пока оно ложно, команды нет в палитре и она не выполняется сочетанием;
+   * расширению она по-прежнему доступна (`ctx.call`).
+   */
+  when: string | null;
   /** Имя значка из закрытого списка `EXTENSION_ICONS` (умолчание `puzzle`); окно рисует свой символ, подпись декоративна. */
   icon: string;
 }
@@ -1524,6 +1530,8 @@ export interface PanelContributionDto {
   title: string;
   /** Имя значка из закрытого списка `EXTENSION_ICONS` (умолчание `puzzle`); окно рисует свой символ, подпись декоративна. */
   icon: string;
+  /** Условие видимости пункта бокового меню (`parseWhen`), `null` — всегда; панель по-прежнему открывается из расширения (`openPanel`). */
+  when: string | null;
   /** `dolphy-ext://<extensionId>/<путь>`. */
   rendererUrl: string;
   /** Панель всегда исполняется в рамке; поле оставлено для единообразия с остальными видами с модулем. */
@@ -1545,6 +1553,8 @@ export interface WidgetContributionDto {
   minHeight: number;
   /** Наибольшая высота рамки, px (80–320, не меньше `minHeight`); выше — прокрутка внутри. */
   maxHeight: number;
+  /** Условие видимости (`parseWhen`), `null` — всегда; пока оно ложно, карточка не рисуется и рамка не загружается. */
+  when: string | null;
   /** `dolphy-ext://<extensionId>/<путь>`. */
   rendererUrl: string;
   /** Виджет всегда исполняется в рамке, как панель. */

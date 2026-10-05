@@ -170,6 +170,7 @@ describe('createContributionsStore: команды и панели', () => {
     category: null,
     keybinding: null,
     keybindings: [],
+    when: null,
     palette: true,
     icon: 'puzzle',
   });
@@ -178,6 +179,7 @@ describe('createContributionsStore: команды и панели', () => {
     extensionId: 'acme.cmd',
     title: id,
     icon: 'puzzle',
+    when: null,
     rendererUrl: 'dolphy-ext://acme.cmd/panel.mjs',
     isolated: true,
     origin: 'user' as const,

@@ -11,11 +11,13 @@ import { APP_NAME } from '@/shared/config/app.ts';
 import { extensionIconOf } from '@/shared/config/extension-icons.ts';
 import { ROUTE } from '@/shared/config/routes.ts';
 import { useExtensionText } from '@/shared/lib/extension-text.ts';
+import { useExtensionWhen } from '@/shared/lib/extension-when.ts';
 
 const { t } = useI18n();
 const router = useRouter();
 const contributions = useContributions();
 const extensionText = useExtensionText();
+const extensionWhen = useExtensionWhen();
 const extensionUpdates = useExtensionUpdates();
 
 /** Значок на «Настройках»: сколько расширений можно обновить; без обновлений его нет. */
@@ -23,7 +25,10 @@ const updatesBadge = computed(() =>
   updatesBadgeText(extensionUpdates.count.value),
 );
 
-const panels = computed(() => contributions.value.panels);
+// пункт панели с ложным `when` скрыт; сама панель открывается из расширения (`openPanel`)
+const panels = computed(() =>
+  contributions.value.panels.filter(({ when }) => extensionWhen.matches(when)),
+);
 
 const items = computed(() =>
   router

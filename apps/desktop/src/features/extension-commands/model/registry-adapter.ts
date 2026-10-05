@@ -3,6 +3,7 @@ import type { ContributionsDto } from '@dolphy-app/engine-contract';
 import { syncCommands } from '@/shared/lib/command-registry.ts';
 import { extensionIconOf } from '@/shared/config/extension-icons.ts';
 import { textOfExtension } from '@/shared/lib/extension-text.ts';
+import type { ExtensionWhen } from '@/shared/lib/extension-when.ts';
 import type { CommandRegistry } from '@/shared/lib/command-registry.ts';
 import type { CommandRunner } from './runner.ts';
 
@@ -53,13 +54,17 @@ export const extensionBindings = (
  * отключено) снимаются. Выполнение — прежний исполнитель: проверка по живым
  * вкладам, эффекты, сообщения о сбоях. Команды `palette: false` остаются
  * доступны только панелям. Подписи (`%ключ%`) подставляет `locale`: смена
- * языка меняет их без повторной регистрации. Возвращает остановку со снятием всех записей.
+ * языка меняет их без повторной регистрации. Пока `when` команды ложно, она
+ * недоступна (`enabled`): её нет в палитре и сочетание её не выполняет, а
+ * панели расширения по-прежнему вызывают её через мост. Возвращает остановку
+ * со снятием всех записей.
  */
 export const syncExtensionCommands = (
   registry: CommandRegistry,
   contributions: () => Readonly<ContributionsDto>,
   runner: CommandRunner,
   locale: () => string,
+  when: ExtensionWhen,
 ): (() => void) =>
   syncCommands(registry, () =>
     contributions()
@@ -80,6 +85,8 @@ export const syncExtensionCommands = (
               description === null ? undefined : text(description),
             caption: extensionId,
             icon: extensionIconOf(command.icon),
+            // условие читает реактивные ключи окна: смена маршрута, курса, языка и темы пересчитывает список
+            enabled: () => when.matches(command.when),
             run: async () => {
               await runner.run(extensionId, id, undefined, 'palette');
             },
@@ -89,6 +96,7 @@ export const syncExtensionCommands = (
             category,
             description,
             command.icon,
+            command.when,
           ]),
         };
       }),

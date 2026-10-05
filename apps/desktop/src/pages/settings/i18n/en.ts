@@ -155,6 +155,21 @@ export const en: typeof ru = {
           close: 'Close',
         },
       },
+      transfers: {
+        title: 'Import and export',
+        description:
+          'Extensions turn a file into a course and export a course or progress into a file. You choose the file and where to save it in the system dialog; extensions never see paths.',
+        empty:
+          'No extensions with import or export. They appear here once installed and enabled.',
+        importers: 'Import',
+        exporters: 'Export',
+        import: 'Import…',
+        export: 'Export…',
+        importLabel: 'Import: {title}',
+        exportLabel: 'Export: {title}',
+        scope: { course: 'course', progress: 'progress' },
+        accept: 'Files: {accept}',
+      },
       ignored: {
         title: 'Ignored folders',
         description:

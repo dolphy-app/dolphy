@@ -199,10 +199,12 @@ const startSession = () => {
                 variant="tonal"
                 rounded="lg"
                 role="img"
-                :aria-label="t(`reason.${entry.reason}`)"
-                :title="t(`reason.${entry.reason}`)"
+                :aria-label="t(`reasonHint.${entry.reason}`)"
               >
                 <v-icon :icon="ITEM_REASON[entry.reason].icon" />
+                <v-tooltip activator="parent" location="bottom" max-width="280">
+                  {{ t(`reasonHint.${entry.reason}`) }}
+                </v-tooltip>
               </v-avatar>
             </template>
             <template #title>
@@ -213,7 +215,6 @@ const startSession = () => {
                 class="d-inline-flex align-center ga-1 text-label-large text-medium-emphasis"
                 role="img"
                 :aria-label="t('dailyPlan.remembered', { n: entry.remembered })"
-                :title="t('dailyPlan.remembered', { n: entry.remembered })"
               >
                 <v-icon
                   :icon="rememberedView(entry.remembered).icon"
@@ -221,6 +222,9 @@ const startSession = () => {
                   size="16"
                 />
                 {{ entry.remembered }}%
+                <v-tooltip activator="parent" location="bottom" max-width="280">
+                  {{ t('dailyPlan.rememberedHint') }}
+                </v-tooltip>
               </span>
             </template>
           </v-list-item>

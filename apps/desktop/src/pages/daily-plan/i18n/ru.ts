@@ -16,5 +16,6 @@ export const ru = {
       more: 'и ещё {n}',
     },
     remembered: 'Запомнено: {n}%',
+    rememberedHint: 'Вероятность, что вы вспомните это сейчас',
   },
 };

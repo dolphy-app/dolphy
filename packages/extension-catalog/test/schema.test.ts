@@ -172,7 +172,10 @@ describe('parseIndex', () => {
 
     it('are optional and kept with and without a range', () => {
       const parsed = parseIndex(
-        deps([{ id: 'acme.base' }, { id: 'acme.lib', range: '>=1.0.0 <2.0.0' }]),
+        deps([
+          { id: 'acme.base' },
+          { id: 'acme.lib', range: '>=1.0.0 <2.0.0' },
+        ]),
       );
       expect(parsed.extensions[0]?.versions[0]?.dependencies).toEqual([
         { id: 'acme.base' },

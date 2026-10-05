@@ -120,8 +120,9 @@ describe('manifest: dependencies', () => {
   });
 
   it('defaults to no dependencies', () => {
-    const { dependencies: _unused, ...rest } = manifest([]);
-    const result = parseManifest(rest);
+    const withoutKey: Record<string, unknown> = manifest([]);
+    delete withoutKey['dependencies'];
+    const result = parseManifest(withoutKey);
     expect(result.ok && result.manifest.dependencies).toEqual([]);
   });
 

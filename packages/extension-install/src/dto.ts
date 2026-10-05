@@ -106,6 +106,7 @@ export const describeEntry = (
       commands: [...(entry.contributes.commands ?? [])],
       panels: [...(entry.contributes.panels ?? [])],
       widgets: [...(entry.contributes.widgets ?? [])],
+      schedules: [...(entry.contributes.schedules ?? [])],
       importers: [...(entry.contributes.importers ?? [])],
       exporters: [...(entry.contributes.exporters ?? [])],
     },

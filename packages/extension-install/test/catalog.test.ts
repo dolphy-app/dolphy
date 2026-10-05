@@ -149,7 +149,7 @@ describe('catalog: статусы записей', () => {
 });
 
 describe('catalog: сводка вклада в DTO', () => {
-  it('commands, panels и widgets копируются в contributes, по умолчанию []', async () => {
+  it('commands, panels, widgets и schedules копируются в contributes, по умолчанию []', async () => {
     serveIndex(env.routes, [
       {
         id: 'acme.cmds',
@@ -159,6 +159,7 @@ describe('catalog: сводка вклада в DTO', () => {
           commands: ['acme.cmds.open'],
           panels: ['acme.cmds.main'],
           widgets: ['acme.cmds.card'],
+          schedules: ['acme.cmds.daily'],
           importers: ['acme.cmds.csv'],
           exporters: ['acme.cmds.out'],
         },
@@ -171,6 +172,7 @@ describe('catalog: сводка вклада в DTO', () => {
       commands: ['acme.cmds.open'],
       panels: ['acme.cmds.main'],
       widgets: ['acme.cmds.card'],
+      schedules: ['acme.cmds.daily'],
       importers: ['acme.cmds.csv'],
       exporters: ['acme.cmds.out'],
     });
@@ -178,6 +180,7 @@ describe('catalog: сводка вклада в DTO', () => {
       commands: [],
       panels: [],
       widgets: [],
+      schedules: [],
       importers: [],
       exporters: [],
     });

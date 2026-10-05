@@ -38,6 +38,7 @@ import type {
   ExtensionModule,
   ExtensionNotification,
   ExtensionNotifications,
+  ExtensionSchedule,
   ExtensionSecrets,
   ExtensionSettings,
   ExtensionStats,
@@ -58,6 +59,7 @@ import type {
   LibraryReader,
   PanelContextInfo,
   PanelModule,
+  ScheduleHandler,
   SettingChange,
   SettingContribution,
   SettingValue,
@@ -450,6 +452,60 @@ export const createMemoryCommands = (
           throw new Error(`invalid command result: ${error.message}`);
         }
         throw error;
+      }
+    },
+    ids: () => [...handlers.keys()],
+  };
+};
+
+export interface MemorySchedule extends ExtensionSchedule {
+  /**
+   * Fires a schedule the way the host does and awaits the handler: resolves
+   * `true` once the handler returned. With no subscription, or while the
+   * handler of the previous firing is still running, the firing is skipped and
+   * resolves `false`. Unlike the host, a handler failure is not swallowed but
+   * rejects the promise, and the 10 s handler timeout is not applied.
+   */
+  fire(id: string): Promise<boolean>;
+  /** Subscribed schedules in subscription order. */
+  ids(): string[];
+}
+
+export interface MemoryScheduleOptions {
+  /** Schedules from `contributes.schedules`: subscribing to another throws, as in the host. Unset — any are allowed. */
+  declared?: readonly string[];
+}
+
+/** In-memory schedule subscriptions: one handler per schedule and no overlapping firings, as in the host. */
+export const createMemorySchedule = (
+  options: MemoryScheduleOptions = {},
+): MemorySchedule => {
+  const handlers = new Map<string, ScheduleHandler>();
+  const running = new Set<string>();
+  return {
+    on(id, handler) {
+      if (options.declared !== undefined && !options.declared.includes(id)) {
+        throw new Error(`schedule '${id}' is not declared in the manifest`);
+      }
+      if (handlers.has(id)) {
+        throw new Error(`schedule '${id}' is already subscribed`);
+      }
+      handlers.set(id, handler);
+      return {
+        dispose: () => {
+          if (handlers.get(id) === handler) handlers.delete(id);
+        },
+      };
+    },
+    async fire(id) {
+      const handler = handlers.get(id);
+      if (handler === undefined || running.has(id)) return false;
+      running.add(id);
+      try {
+        await handler();
+        return true;
+      } finally {
+        running.delete(id);
       }
     },
     ids: () => [...handlers.keys()],
@@ -885,6 +941,7 @@ export interface LoadOptions {
   exporters?: ExtensionExporters;
   stats?: ExtensionStats;
   notifications?: ExtensionNotifications;
+  schedule?: ExtensionSchedule;
 }
 
 const contextOf = (
@@ -903,6 +960,7 @@ const contextOf = (
   events: options.events ?? createMemoryEvents(),
   stats: options.stats ?? createMemoryStats(),
   notifications: options.notifications ?? createMemoryNotifications(),
+  schedule: options.schedule ?? createMemorySchedule(),
   commands: options.commands ?? createMemoryCommands(),
   importers: options.importers ?? createMemoryImporters(),
   exporters: options.exporters ?? createMemoryExporters(),
@@ -1127,6 +1185,7 @@ export const loadEvents = async (
       ...(options.notifications !== undefined && {
         notifications: options.notifications,
       }),
+      ...(options.schedule !== undefined && { schedule: options.schedule }),
       storage,
       secrets,
       settings,
@@ -1177,6 +1236,7 @@ export const loadCommands = async (
       ...(options.notifications !== undefined && {
         notifications: options.notifications,
       }),
+      ...(options.schedule !== undefined && { schedule: options.schedule }),
       commands,
     },
     {
@@ -1207,6 +1267,7 @@ const loadOptionsOf = (options: LoadOptions): LoadOptions => ({
   ...(options.notifications !== undefined && {
     notifications: options.notifications,
   }),
+  ...(options.schedule !== undefined && { schedule: options.schedule }),
 });
 
 export interface LoadedImporters {
@@ -1269,6 +1330,39 @@ export const loadExporters = async (
   return {
     run: exporters.run,
     ids: exporters.ids,
+    dispose: async () => {
+      await module.deactivate?.();
+    },
+  };
+};
+
+export interface LoadedSchedules {
+  fire: MemorySchedule['fire'];
+  ids: MemorySchedule['ids'];
+  /** Deactivates the extension module. */
+  dispose(): Promise<void>;
+}
+
+export interface LoadSchedulesOptions
+  extends Omit<LoadOptions, 'schedule'>, MemoryScheduleOptions {}
+
+/** Activates the module with in-memory schedules and lets the test fire them like the host. */
+export const loadSchedules = async (
+  module: ExtensionModule,
+  options: LoadSchedulesOptions = {},
+): Promise<LoadedSchedules> => {
+  const schedule = createMemorySchedule(options);
+  const context = contextOf(
+    { ...loadOptionsOf(options), schedule },
+    {
+      registerExerciseType: () => ({ dispose: () => undefined }),
+      registerGradePolicy: () => ({ dispose: () => undefined }),
+    },
+  );
+  await module.activate(context);
+  return {
+    fire: schedule.fire,
+    ids: schedule.ids,
     dispose: async () => {
       await module.deactivate?.();
     },

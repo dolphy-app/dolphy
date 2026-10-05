@@ -47,6 +47,7 @@ const manifestWith = (
     commands: [],
     panels: [],
     widgets: [],
+    schedules: [],
     importers: [],
     exporters: [],
     ...contributes,
@@ -151,6 +152,36 @@ describe('manifestMismatch: widgets', () => {
     expect(
       manifestMismatch(
         manifestWith({ widgets: ['acme.state.b', 'acme.state.a'] }),
+        entry,
+        v,
+      ),
+    ).toBeNull();
+  });
+});
+
+describe('manifestMismatch: schedules', () => {
+  it('расписание в манифесте, которого нет в записи, и запись без расписания в манифесте отвергаются', () => {
+    const [entry, v] = entryWith({});
+    expect(
+      manifestMismatch(
+        manifestWith({ schedules: ['acme.state.daily'] }),
+        entry,
+        v,
+      ),
+    ).toContain('(schedules)');
+    const [recorded, w] = entryWith({ schedules: ['acme.state.daily'] });
+    expect(manifestMismatch(manifestWith(), recorded, w)).toContain(
+      '(schedules)',
+    );
+  });
+
+  it('одинаковые наборы без учёта порядка проходят', () => {
+    const [entry, v] = entryWith({
+      schedules: ['acme.state.a', 'acme.state.b'],
+    });
+    expect(
+      manifestMismatch(
+        manifestWith({ schedules: ['acme.state.b', 'acme.state.a'] }),
         entry,
         v,
       ),

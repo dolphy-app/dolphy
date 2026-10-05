@@ -313,6 +313,7 @@ const contributesSchemaOf = (profile: Profile) =>
     commands: z.array(z.string()).optional(),
     panels: z.array(z.string()).optional(),
     widgets: z.array(z.string()).optional(),
+    schedules: z.array(z.string()).optional(),
     importers: z.array(z.string()).optional(),
     exporters: z.array(z.string()).optional(),
   });

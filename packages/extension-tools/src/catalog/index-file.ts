@@ -47,6 +47,14 @@ const orderVersion = (version: CatalogVersion): CatalogVersion => ({
   ...(version.tags === undefined || version.tags.length === 0
     ? {}
     : { tags: [...version.tags] }),
+  ...(version.dependencies === undefined || version.dependencies.length === 0
+    ? {}
+    : {
+        dependencies: version.dependencies.map(({ id, range }) => ({
+          id,
+          ...(range === undefined ? {} : { range }),
+        })),
+      }),
 });
 
 type OptionalKey =

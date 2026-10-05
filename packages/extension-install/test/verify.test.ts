@@ -37,6 +37,7 @@ const manifestWith = (
   permissions,
   icon: null,
   tags: [],
+  dependencies: [],
   contributes: {
     exerciseTypes: [],
     themes: [],

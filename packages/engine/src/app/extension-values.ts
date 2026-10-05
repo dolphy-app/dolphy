@@ -1,3 +1,4 @@
+import { isEffectiveExtensionState } from '@dolphy-app/engine-contract';
 import type {
   ExtensionSettingDefDto,
   ExtensionSettingValuesDto,
@@ -63,11 +64,7 @@ export const createExtensionValues = (ctx: ValuesContext): ExtensionValues => {
     const id = requireId(extensionId);
     const effective = ctx.extensionRegistry
       .list()
-      .find(
-        (item) =>
-          item.id === id &&
-          (item.state === 'loaded' || item.state === 'disabled'),
-      );
+      .find((item) => item.id === id && isEffectiveExtensionState(item.state));
     if (effective === undefined) {
       throw new EngineError('NOT_FOUND', {
         message: `Extension not found: ${id}`,

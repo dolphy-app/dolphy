@@ -236,6 +236,7 @@ export const inspectJson = async (
       permissions: string[];
       icon?: string;
       tags?: string[];
+      dependencies?: { id: string; range?: string }[];
       contributes: Contributes;
     };
     return {
@@ -252,6 +253,10 @@ export const inspectJson = async (
                 await readFile(path.join(directory, raw.icon)),
               ),
         tags: raw.tags ?? [],
+        dependencies: (raw.dependencies ?? []).map(({ id, range }) => ({
+          id,
+          range: range ?? null,
+        })),
         contributes: {
           ...raw.contributes,
           settings: raw.contributes.settings ?? [],

@@ -89,7 +89,8 @@ const inspectForInstall =
     });
     if (!result.ok)
       return { ok: false, message: formatDiagnostic(result.diagnostic) };
-    const { id, version, permissions, icon, tags, ...rest } = result.extension;
+    const { id, version, permissions, icon, tags, dependencies, ...rest } =
+      result.extension;
     return {
       ok: true,
       manifest: {
@@ -98,6 +99,10 @@ const inspectForInstall =
         permissions,
         icon,
         tags,
+        dependencies: dependencies.map(({ id: dependency, range }) => ({
+          id: dependency,
+          range,
+        })),
         contributes: contributesOf(rest),
       },
     };

@@ -37,6 +37,7 @@ const withoutMetadata = (
   | 'name'
   | 'description'
   | 'author'
+  | 'dependencies'
   | 'icon'
   | 'titles'
   | 'messages'
@@ -49,6 +50,7 @@ const withoutMetadata = (
   name: null,
   description: null,
   author: null,
+  dependencies: [],
   icon: null,
   titles: {},
   messages: {},
@@ -164,16 +166,21 @@ const loaded = (
   revocationOf: RevocationLookup | undefined,
 ): ExtensionInfoDto => {
   const revoked = revocationReason(extension, revocationOf);
+  const issues = policy.dependencyIssues(extension.id);
+  let state: ExtensionInfoDto['state'] = 'disabled';
+  if (issues.length > 0) state = 'dependencies-unmet';
+  else if (policy.isEnabled(extension.id)) state = 'loaded';
   return {
     id: extension.id,
     version: extension.version,
     origin: extension.origin,
-    state: policy.isEnabled(extension.id) ? 'loaded' : 'disabled',
+    state,
     contributes: contributesOf(extension),
     diagnostics: [
       ...(policy.safeMode() && extension.origin !== 'bundled'
         ? [{ code: 'safe-mode' as const, data: {} }]
         : []),
+      ...issues,
       ...extension.warnings,
     ],
     permissions: [...extension.permissions],
@@ -182,6 +189,10 @@ const loaded = (
     name: extension.name,
     description: extension.description,
     author: extension.author,
+    dependencies: extension.dependencies.map(({ id, range }) => ({
+      id,
+      range,
+    })),
     icon: extension.icon,
     titles: titlesOf(extension),
     messages: extension.messages,

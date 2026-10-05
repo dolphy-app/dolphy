@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 29 as const;
+export const CONTRACT_VERSION = 31 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 /** Потолок файла импорта, суммарного размера присланного дерева и снимка курса для экспорта, байт (R3, R4, R7 спеки `extension-api-breadth-2`). */
@@ -1317,8 +1317,22 @@ export interface RepositoriesService {
 }
 
 export type ExtensionOriginDto = 'bundled' | 'user' | 'dev';
+/**
+ * Состояние расширения. `dependencies-unmet` — включено, но не загружено:
+ * зависимость отсутствует, отключена, не загружена или не подходит по версии
+ * (причины — в `diagnostics`), вкладов нет. Отключение пользователем и
+ * безопасный режим важнее: такое расширение — `disabled`.
+ */
 export type ExtensionStateDto =
-  'loaded' | 'overridden' | 'invalid' | 'disabled';
+  'loaded' | 'overridden' | 'invalid' | 'disabled' | 'dependencies-unmet';
+
+/**
+ * Запись расширения, которая действует в наборе (не перекрыта и не
+ * отвергнута): у неё есть переключатель, настройки и данные. Загруженное,
+ * отключённое и с невыполненными зависимостями.
+ */
+export const isEffectiveExtensionState = (state: ExtensionStateDto): boolean =>
+  state === 'loaded' || state === 'disabled' || state === 'dependencies-unmet';
 
 /** Закрытый список кодов диагностик расширения; интерфейс строит текст по коду и данным. */
 export const EXTENSION_DIAGNOSTIC_CODES = [
@@ -1331,6 +1345,11 @@ export const EXTENSION_DIAGNOSTIC_CODES = [
   'load-failed',
   'overridden-by',
   'safe-mode',
+  'dependency-missing',
+  'dependency-disabled',
+  'dependency-version',
+  'dependency-unmet',
+  'dependency-cycle',
   'locale.missing-key',
   'locale.invalid-file',
 ] as const;
@@ -1347,6 +1366,11 @@ export type ExtensionDiagnosticValue = string | number | string[];
  * `id-mismatch` — `expected`, `actual`; `requires-app` — `minAppVersion`;
  * `unavailable-platform` — `platform`; `claim-clash` — `kind`, `name`, `by`;
  * `load-failed` — `reason`; `overridden-by` — `origin`, `version`; `safe-mode` — без данных;
+ * `dependency-missing` — `id`, `range` (нет, если диапазон не задан): расширения с таким id нет;
+ * `dependency-disabled` — `id`, `range`: зависимость отключена пользователем, отозвана или безопасным режимом;
+ * `dependency-version` — `id`, `range`, `found`: установлена версия вне диапазона;
+ * `dependency-unmet` — `id`, `range`: зависимость включена, но сама не загружена (её зависимости не выполнены);
+ * `dependency-cycle` — `cycle` (id расширений цикла): расширения зависят друг от друга;
  * `locale.missing-key` — `key` (ключ `%ключ%` манифеста, которого нет в `locales/en.json`; предупреждение
  * у загруженного расширения); `locale.invalid-file` — `file`, `reason` (файл перевода проигнорирован).
  */
@@ -1377,6 +1401,8 @@ export interface ExtensionInfoDto {
   description: string | null;
   /** GitHub-логин автора из манифеста. */
   author: string | null;
+  /** Зависимости из манифеста; `[]` — нет или манифест не прочитан. */
+  dependencies: ExtensionDependencyDto[];
   /** Значок из манифеста как `data:image/png|webp;base64,…`; `null` — значка нет или манифест не прочитан. */
   icon: string | null;
   /** Названия вкладов (`label`/`title` манифеста); `{}` — нет или манифест не прочитан. */
@@ -1397,6 +1423,12 @@ export interface ExtensionInfoDto {
    * `extensions.list`; это предупреждение, а не отзыв: состояние и политика не меняются.
    */
   deprecated: DeprecationDto | null;
+}
+
+/** Зависимость расширения (`dependencies` манифеста): `range` — диапазон версий, `null` — любая. */
+export interface ExtensionDependencyDto {
+  id: string;
+  range: string | null;
 }
 
 /** Альтернатива устаревшему расширению; `name` берётся из индекса каталога. */
@@ -2169,6 +2201,8 @@ export type CatalogStatusDto =
 export interface CatalogVersionDto {
   version: string;
   permissions: string[];
+  /** Зависимости версии; установка их не ставит и не блокируется. */
+  dependencies: ExtensionDependencyDto[];
   /** ISO-время публикации. */
   publishedAt: string;
   /** Суммарный размер файлов, байты. */

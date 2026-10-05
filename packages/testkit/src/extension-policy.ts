@@ -1,4 +1,7 @@
-import type { ExtensionSettingsDto } from '@dolphy-app/engine-contract';
+import type {
+  ExtensionDiagnosticDto,
+  ExtensionSettingsDto,
+} from '@dolphy-app/engine-contract';
 import type { ExtensionPolicy } from '@dolphy-app/engine/ports';
 
 export interface FakeExtensionPolicyOptions {
@@ -16,6 +19,11 @@ export type FakeExtensionPolicy = ExtensionPolicy & {
   readonly updates: ExtensionSettingsDto[];
   /** Отозвать (причина) или вернуть (`null`) расширение. */
   setRevoked(id: string, reason: string | null): void;
+  /** Задать невыполненные зависимости расширения (пусто — выполнены): сам пересчёт зависимостей — дело адаптера хоста. */
+  setDependencyIssues(
+    id: string,
+    issues: readonly ExtensionDiagnosticDto[],
+  ): void;
 };
 
 /** Политика в памяти с той же семантикой, что у адаптера хоста расширений. */
@@ -36,17 +44,25 @@ export const createFakeExtensionPolicy = (
   );
   const updates: ExtensionSettingsDto[] = [];
   const revoked = new Set(Object.keys(options.revoked ?? {}));
+  const unmet = new Map<string, ExtensionDiagnosticDto[]>();
   const safeMode = (): boolean =>
     options.forceSafeMode === true || settings.safeMode;
+  const isOn = (id: string): boolean =>
+    bundled.has(id) ||
+    (!safeMode() && !settings.disabled.includes(id) && !revoked.has(id));
   return {
     updates,
     setRevoked: (id, reason) => {
       if (reason === null) revoked.delete(id);
       else revoked.add(id);
     },
-    isEnabled: (id) =>
-      bundled.has(id) ||
-      (!safeMode() && !settings.disabled.includes(id) && !revoked.has(id)),
+    setDependencyIssues: (id, issues) => {
+      if (issues.length === 0) unmet.delete(id);
+      else unmet.set(id, structuredClone([...issues]));
+    },
+    isEnabled: (id) => isOn(id) && !unmet.has(id),
+    dependencyIssues: (id) =>
+      isOn(id) ? structuredClone(unmet.get(id) ?? []) : [],
     isIsolated: (id) => !bundled.has(id) && !settings.trusted.includes(id),
     areSchedulesOn: (id) =>
       bundled.has(id) || !settings.schedulesOff.includes(id),

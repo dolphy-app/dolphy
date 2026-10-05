@@ -11,6 +11,9 @@ const text = (data: Data, key: string): string => {
   return Array.isArray(value) ? value.join(', ') : String(value ?? '');
 };
 
+const rangeSuffix = (data: Data): string =>
+  data.range === undefined ? '' : ` ${text(data, 'range')}`;
+
 const FORMATTERS: Record<ExtensionDiagnosticCode, (data: Data) => string> = {
   'manifest-unreadable': (data) =>
     `extension.json is unreadable: ${text(data, 'reason')}`,
@@ -27,6 +30,16 @@ const FORMATTERS: Record<ExtensionDiagnosticCode, (data: Data) => string> = {
   'overridden-by': (data) =>
     `overridden by ${text(data, 'origin')} ${text(data, 'version')}`,
   'safe-mode': () => 'disabled in safe mode',
+  'dependency-missing': (data) =>
+    `requires extension '${text(data, 'id')}'${rangeSuffix(data)}, which is not installed`,
+  'dependency-disabled': (data) =>
+    `requires extension '${text(data, 'id')}'${rangeSuffix(data)}, which is disabled`,
+  'dependency-version': (data) =>
+    `requires extension '${text(data, 'id')}' ${text(data, 'range')}, found ${text(data, 'found')}`,
+  'dependency-unmet': (data) =>
+    `requires extension '${text(data, 'id')}'${rangeSuffix(data)}, which is not loaded because its own dependencies are not met`,
+  'dependency-cycle': (data) =>
+    `extensions depend on each other: ${text(data, 'cycle')}`,
   'locale.missing-key': (data) =>
     `key '${text(data, 'key')}' is missing in locales/en.json`,
   'locale.invalid-file': (data) =>

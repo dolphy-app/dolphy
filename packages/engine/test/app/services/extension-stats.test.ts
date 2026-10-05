@@ -35,6 +35,7 @@ const base: Omit<ExtensionInfoDto, 'id' | 'permissions' | 'state'> = {
   name: null,
   description: null,
   author: null,
+  dependencies: [],
   installed: null,
   icon: null,
   titles: {},

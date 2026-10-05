@@ -28,3 +28,8 @@ html {
   outline: 2px solid rgb(var(--v-theme-primary));
   outline-offset: 2px;
 }
+
+/* цель шага обучающего тура при прокрутке не прижимается к самому краю окна */
+[data-tour] {
+  scroll-margin-top: 5rem;
+}

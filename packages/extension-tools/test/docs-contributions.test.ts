@@ -42,6 +42,7 @@ const EXAMPLES: Readonly<Record<string, Mode>> = {
   'команды расширения': 'build-with-code',
   'панель расширения': 'build-with-code',
   'виджет расширения': 'build-with-code',
+  'условие видимости': 'manifest',
   'расписания расширения': 'build-with-code',
   'серия дней целиком': 'build-with-code',
   'вид задания с правами': 'manifest',

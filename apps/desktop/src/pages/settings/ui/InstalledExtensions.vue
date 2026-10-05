@@ -646,7 +646,7 @@ watch(
               <p
                 v-if="hasSchedules(extension)"
                 :id="`schedules-text-${extension.id}`"
-                class="text-body-small text-medium-emphasis"
+                class="text-body-small text-medium-emphasis mt-0 mb-2"
                 :data-testid="`schedules-text-${extension.id}`"
               >
                 {{ (schedulesByExtension.get(extension.id) ?? []).join(' · ') }}

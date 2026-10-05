@@ -48,7 +48,7 @@ const setup = (
           url: url === null ? DEFAULT : new URL(url).href,
           origin: url === null ? 'default' : 'setting',
         };
-        return {};
+        return { catalogUrl: url === null ? null : new URL(url).href };
       },
     },
   } as unknown as LearningEngine;
@@ -179,6 +179,19 @@ describe('useCatalogSource', () => {
     bus.emit({ type: 'extensions-changed' });
     await flush();
     expect(model.source.value?.origin).toBe('default');
+  });
+
+  it('поле показывает принятый адрес, даже если параллельное чтение по событию отбросило чтение после применения', async () => {
+    const { model, bus } = setup();
+    await model.load();
+    model.draft.value = '  HTTPS://Own.test/catalog/index.json';
+    const applying = model.apply();
+    // событие приходит, пока команда ещё не вернулась: его чтение становится последним
+    bus.emit({ type: 'extensions-changed' });
+    await applying;
+    await flush();
+    expect(model.draft.value).toBe(OWN);
+    expect(model.source.value?.url).toBe(OWN);
   });
 
   it('снимает подписку вместе с областью', async () => {

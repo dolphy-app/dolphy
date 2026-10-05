@@ -3,6 +3,7 @@ import type { ComputedRef, Ref, ShallowRef } from 'vue';
 import type {
   CatalogSourceDto,
   CatalogUrlRejection,
+  ExtensionSettingsDto,
   LearningEngine,
 } from '@dolphy-app/engine-contract';
 import { toEngineError } from '@/entities/repository';
@@ -87,8 +88,9 @@ export const useCatalogSource = (
   const change = async (url: string | null): Promise<boolean> => {
     busy.value = true;
     error.value = null;
+    let saved: ExtensionSettingsDto;
     try {
-      await engine.extensions.setCatalogUrl(url);
+      saved = await engine.extensions.setCatalogUrl(url);
     } catch (caught) {
       const failure = toEngineError(caught);
       const reason =
@@ -102,9 +104,10 @@ export const useCatalogSource = (
       busy.value = false;
       return false;
     }
+    // поле показывает принятый адрес в каноническом виде (после сброса — умолчание);
+    // из ответа, а не из чтения: параллельное чтение по событию отбросило бы это
+    draft.value = saved.catalogUrl ?? source.value?.default ?? draft.value;
     await read();
-    // поле показывает принятый адрес в каноническом виде (после сброса — умолчание)
-    if (source.value !== null) draft.value = source.value.url;
     busy.value = false;
     return true;
   };

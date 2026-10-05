@@ -1,0 +1,10 @@
+{
+  "id": "acme.control",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "description": "Контрольное расписание: срабатывает всегда, пока часы идут",
+  "author": "acme",
+  "contributes": {
+    "schedules": [{ "id": "acme.control.hourly", "every": "hourly" }]
+  }
+}

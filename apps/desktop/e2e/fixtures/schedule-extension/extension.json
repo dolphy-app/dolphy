@@ -1,0 +1,13 @@
+{
+  "id": "acme.schedule",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "description": "Записывает срабатывания расписаний",
+  "author": "acme",
+  "contributes": {
+    "schedules": [
+      { "id": "acme.schedule.morning", "every": "daily", "at": "09:00" },
+      { "id": "acme.schedule.hourly", "every": "hourly" }
+    ]
+  }
+}

@@ -1,10 +1,10 @@
 ---
-status: draft
+status: active
 branch: feature/repository-remove-progress
 created: 2026-10-05
 closed: null
 touches: [engine-contract, engine, engine-rpc, desktop]
-depends-on: []
+depends-on: [specs/archive/2026-10-05-repository-course-selection]
 supersedes: null
 superseded-by: null
 ---
@@ -51,24 +51,26 @@ superseded-by: null
 
 **Диалог.** Флажок в существующем подтверждении `RepositoriesCard.vue` (а не второй диалог и не две кнопки): один ответ на один вопрос, образец уже есть в настройках расширений и покрыт e2e. Курсы репозитория в диалоге не перечисляются: `RepositoryDto.courseIds` — идентификаторы, названий в диалоге нет.
 
-**Пересечение со спекой `repository-course-selection`** (ветка `feature/repository-course-selection`, в `develop` не влита): она добавляет `RepositoryDto.skippedCourseIds` и параметры `add`/`update`. `remove` она не меняет; сбрасываются только поставленные курсы (`courseIds`), пропущенные не ставились. Ожидаемы конфликты в `packages/engine-contract/src/index.ts`, `schemas.ts`, `repositories.ts`, `CONTRACT_VERSION`: подтягивать `develop` по мере слияния.
+**Пересечение со спекой `repository-course-selection`** (влита, архив `specs/archive/2026-10-05-repository-course-selection`): она добавила `RepositoryDto.skippedCourseIds` и параметры `add`/`update`. `remove` она не меняет; сбрасываются только поставленные курсы (`courseIds`), пропущенные не ставились.
 
 ## Progress
 
 - [x] 2026-10-05 worktree `../lms-platform-design-repository-remove-progress` от `origin/develop`, исследование кода, спека
-- [ ] `@dolphy-app/engine-contract`: `RepositoriesService.remove(id, options?)`, `CONTRACT_VERSION` +1
-- [ ] `@dolphy-app/engine-rpc`: схема `repositories.remove`, `rpc.test.ts`, интеграционный `engine.test.ts`
-- [ ] `@dolphy-app/engine`: общий шаг `progress_reset` по курсам, `repositories.remove` с опцией, тесты R1–R6
-- [ ] `apps/desktop`: `useRepositories.remove(id, removeProgress)`, флажок и пояснение в `RepositoriesCard.vue`, i18n ru/en, уведомление, тест модели, e2e `git-courses`
-- [ ] документация: `engine-ts/design/engine-ts-api.md` (§3.1, метод `remove`), `apps/desktop/README.md` (удаление репозитория)
-- [ ] `pnpm fix`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, e2e `git-courses`
+- [x] 2026-10-05 `develop` с `repository-course-selection`, `repository-preview-cache`, `repository-preview-token` влит в ветку
+- [x] 2026-10-05 `@dolphy-app/engine-contract`: `RepositoriesService.remove(id, options?)`, `RemoveRepositoryOptions`, `CONTRACT_VERSION` 27
+- [x] 2026-10-05 `@dolphy-app/engine-rpc`: схема `repositories.remove`, `rpc.test.ts`, интеграционный `engine.test.ts`
+- [x] 2026-10-05 `@dolphy-app/engine`: `app/progress-reset.ts` (`commitProgressResets`, общий с `practice.resetProgress`), `repositories.remove` с опцией, тесты R1–R6
+- [x] 2026-10-05 `apps/desktop`: `useRepositories.remove(id, removeProgress)`, флажок и пояснение в `RepositoriesCard.vue`, i18n ru/en, уведомление, тест модели, e2e `git-courses`
+- [x] 2026-10-05 документация: `engine-ts/design/engine-ts-api.md` (§3.1, метод `remove`), `apps/desktop/README.md` (удаление репозитория, e2e)
+- [x] 2026-10-05 `pnpm fix`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, e2e `git-courses` (4 теста)
 - [ ] закрытие: `Outcomes`, архив спеки, PR в `develop`
 
 ## Surprises & Discoveries
 
 - Прогресс остаётся после удаления по задумке архивной спеки `course-git-source` (R6), а не по ошибке: события пропавших курсов остаются в журнале, повторное добавление возвращает их. Новая спека меняет только выбор ученика, умолчание то же.
-- `W_ORPHAN_EVENTS` строится по `seenUnitIds()` (`app/orphans.ts`), а запись `progress_reset` тоже запоминает юнит. После удаления «с прогрессом» диагностики в `library.getDiagnostics` останутся для курса и его упражнений с попытками — стёртых из журнала записей нет. [ИНФЕРЕНЦИЯ: по коду `orphans.ts` и существующему тесту R6; проверить в тесте R1 и решить, нужен ли отдельный фикс (не цель этой спеки).]
-- Журнал сбрасывается на уровне курса по графу при чтении; сброс юнита вне графа невозможен через `practice.resetProgress` (`NOT_FOUND`), поэтому порядок «сброс, затем `reload`» обязателен.
+- `W_ORPHAN_EVENTS` строится по `seenUnitIds()` (`app/orphans.ts`), а запись `progress_reset` тоже запоминает юнит. Проверено одноразовым тестом: после `remove` с `removeProgress: true` и одной попыткой `library.getDiagnostics` возвращает `W_ORPHAN_EVENTS` для `sql` (сброс) и `sql::l0::e0` (попытка). Стёртых из журнала записей нет, предупреждение остаётся; в тестах не закреплено, чтобы не фиксировать нежелательное поведение.
+- Журнал сбрасывается на уровне курса по графу при чтении; сброс юнита вне графа невозможен через `practice.resetProgress` (`NOT_FOUND`), поэтому порядок «сброс, затем `reload`» обязателен. Общий шаг `commitProgressResets` не проверяет наличие юнита в графе (проверка осталась в `practice.resetProgress`): сброс привязан к `unitId` и покроет курс, когда он появится.
+- Мутационная проверка: с отключённой записью сбросов падают тесты R1, R3 и повтора после сбоя записи.
 
 ## Decision Log
 
@@ -76,7 +78,7 @@ superseded-by: null
 - 2026-10-05. Умолчание — прогресс остаётся. Причина: сохраняет сегодняшнее поведение, необратимое действие требует явной отметки.
 - 2026-10-05. Форма — флажок в существующем диалоге и `options.removeProgress` в API, по образцу `extensions.uninstall(removeData)`. Причина: один вопрос, готовый образец и тесты.
 - 2026-10-05. Флаги blacklist/review и статистика серий не сбрасываются. Причина: это не прогресс (оценки и попытки); сброс флагов — отдельное решение.
-- 2026-10-05. `CONTRACT_VERSION` +1, хотя опция аддитивная. Причина: в репозитории версия растёт с каждым изменением контракта (`course-updates`: 23→25 при слиянии); при слиянии с `develop` номер перенумеровать.
+- 2026-10-05. `CONTRACT_VERSION` +1 (27), хотя опция аддитивная. Причина: в репозитории версия растёт с каждым изменением контракта (`course-updates`: 23→25 при слиянии).
 
 ## Outcomes
 

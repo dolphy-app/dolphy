@@ -297,6 +297,12 @@ const logEntry: z.ZodType<LogEntryDto> = z.discriminatedUnion('kind', [
     unitId,
     libraryRevision: optional(str),
   }),
+  z.strictObject({
+    ...logEntryBase,
+    kind: z.literal('retract'),
+    targetId: str.min(1),
+    op: z.enum(['set', 'unset']),
+  }),
 ]);
 
 /** По схеме на КАЖДЫЙ ключ `RPC_METHODS`; несовпадение с контрактом — ошибка типов. */
@@ -366,6 +372,12 @@ export const schemas = {
   'practice.getFrontier': z.tuple([optional(frontierRequest)]),
   'practice.getDue': z.tuple([optional(dueRequest)]),
   'practice.resetProgress': z.tuple([z.strictObject({ unitId, requestId })]),
+  'practice.undo': z.tuple([
+    z.strictObject({ targetId: str.min(1), requestId }),
+  ]),
+  'practice.redo': z.tuple([
+    z.strictObject({ targetId: str.min(1), requestId }),
+  ]),
   'plan.getDay': z.tuple([
     z.strictObject({
       maxItems: z.int().min(1),

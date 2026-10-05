@@ -7,6 +7,7 @@ import type { Grade, UnitId } from '@dolphy-app/engine-contract';
 import {
   buildAttempt,
   buildProgressReset,
+  buildRetract,
   buildUnitFlag,
   generateLibrary,
 } from '@dolphy-app/testkit';
@@ -31,7 +32,7 @@ const allUnits = [...library.graph.unitIds()].sort();
 
 interface Draft {
   device: number;
-  kind: 'attempt' | 'flag' | 'reset';
+  kind: 'attempt' | 'flag' | 'reset' | 'retract';
   exercise: number;
   unit: number;
   grade: Grade;
@@ -46,6 +47,7 @@ const draftArb: fc.Arbitrary<Draft> = fc.record({
     { weight: 12, arbitrary: fc.constant('attempt' as const) },
     { weight: 2, arbitrary: fc.constant('flag' as const) },
     { weight: 1, arbitrary: fc.constant('reset' as const) },
+    { weight: 3, arbitrary: fc.constant('retract' as const) },
   ),
   exercise: fc.integer({ min: 0, max: exerciseIds.length - 1 }),
   unit: fc.integer({ min: 0, max: allUnits.length - 1 }),
@@ -56,11 +58,16 @@ const draftArb: fc.Arbitrary<Draft> = fc.record({
   atStep: fc.integer({ min: 0, max: 3 }),
 });
 
+/** Попытки с `unit % 3 === 0` входят в пачку `batch0`/`batch1` (`id` вида `<пачка>#<n>`). */
+const batchOf = (draft: Draft) =>
+  draft.unit % 3 === 0 ? `batch${draft.unit % 2}` : null;
+
 /** Записи одной «вселенной»: seq по устройствам без пропусков, `at` не убывает по устройству. */
 const universeOf = (drafts: readonly Draft[]): LogEntry[] => {
   const seqs = [0, 0, 0];
   const ats = [0, 0, 0];
-  return drafts.map((draft) => {
+  const attemptIds: string[] = [];
+  return drafts.map((draft, index) => {
     const seq = ++seqs[draft.device]!;
     const at = (ats[draft.device] =
       ats[draft.device]! + draft.atStep * 3_600_000);
@@ -70,11 +77,16 @@ const universeOf = (drafts: readonly Draft[]): LogEntry[] => {
       at: 1_800_000_000_000 + at,
     };
     if (draft.kind === 'attempt') {
-      return buildAttempt({
+      const batch = batchOf(draft);
+      const id = batch === null ? undefined : `${batch}#${index}`;
+      const entry = buildAttempt({
         ...base,
+        ...(id !== undefined && { id }),
         exerciseId: exerciseIds[draft.exercise]!,
         grade: draft.grade,
       });
+      attemptIds.push(entry.id);
+      return entry;
     }
     if (draft.kind === 'flag') {
       return buildUnitFlag({
@@ -83,6 +95,11 @@ const universeOf = (drafts: readonly Draft[]): LogEntry[] => {
         flag: draft.flag,
         op: draft.op,
       });
+    }
+    if (draft.kind === 'retract') {
+      const own = attemptIds[draft.exercise % Math.max(attemptIds.length, 1)];
+      const targetId = batchOf(draft) ?? own ?? 'ghost';
+      return buildRetract({ ...base, targetId, op: draft.op });
     }
     return buildProgressReset({ ...base, unitId: allUnits[draft.unit]! });
   });
@@ -159,7 +176,10 @@ describe('progress_reset: a brute-force oracle (T-25)', () => {
       fc.property(
         fc.array(draftArb, { minLength: 1, maxLength: 60 }),
         (drafts) => {
-          const entries = universeOf(drafts);
+          // этот оракул про сбросы: отмены проверяет следующий блок
+          const entries = universeOf(
+            drafts.filter(({ kind }) => kind !== 'retract'),
+          );
           const { projections } = rebuilt(entries);
           const resets = entries.filter((e) => e.kind === 'progress_reset');
           for (const exerciseId of exerciseIds) {
@@ -185,6 +205,67 @@ describe('progress_reset: a brute-force oracle (T-25)', () => {
               projections.attempts.getRecords(exerciseId).map((r) => r.id),
             ).toEqual(alive);
             expect(projections.attempts.count(exerciseId)).toBe(alive.length);
+          }
+        },
+      ),
+      { seed: SEED, numRuns: 300 },
+    );
+  });
+});
+
+describe('retract: a brute-force oracle', () => {
+  it('an attempt is alive iff not reset-covered and the latest retract of its id or its batch is not "set"', () => {
+    fc.assert(
+      fc.property(
+        fc.array(draftArb, { minLength: 1, maxLength: 60 }),
+        (drafts) => {
+          const entries = universeOf(drafts);
+          const { projections } = rebuilt(entries);
+          const resets = entries.filter((e) => e.kind === 'progress_reset');
+          const retracts = entries.filter((e) => e.kind === 'retract');
+          const retracted = (id: string) => {
+            const mark = id.indexOf('#');
+            return [id, ...(mark > 0 ? [id.slice(0, mark)] : [])].some(
+              (targetId) => {
+                const latest = retracts
+                  .filter((e) => e.targetId === targetId)
+                  .sort(compareEntryKeys)
+                  .at(-1);
+                return latest?.op === 'set';
+              },
+            );
+          };
+          for (const exerciseId of exerciseIds) {
+            const lessonId = library.graph.getExerciseLesson(exerciseId)!;
+            const courseId = library.graph.getLessonCourse(lessonId)!;
+            const ancestors = new Set([exerciseId, lessonId, courseId]);
+            const alive = entries
+              .filter(
+                (e) => e.kind === 'attempt' && e.exerciseId === exerciseId,
+              )
+              .filter(
+                (attempt) =>
+                  !retracted(attempt.id) &&
+                  !resets.some(
+                    (reset) =>
+                      reset.kind === 'progress_reset' &&
+                      ancestors.has(reset.unitId) &&
+                      compareEntryKeys(reset, attempt) >= 0,
+                  ),
+              )
+              .sort((a, b) => compareEntryKeys(b, a))
+              .map(({ id }) => id);
+            expect(
+              projections.attempts.getRecords(exerciseId).map((r) => r.id),
+            ).toEqual(alive);
+            expect(projections.attempts.count(exerciseId)).toBe(alive.length);
+            expect(
+              projections.attempts
+                .getTrials(exerciseId, 1_000)
+                .map(({ timestamp }) => timestamp),
+            ).toEqual(
+              projections.attempts.getRecords(exerciseId).map((r) => r.at),
+            );
           }
         },
       ),

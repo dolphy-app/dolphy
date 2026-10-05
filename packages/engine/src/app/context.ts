@@ -176,6 +176,14 @@ export interface AttemptIndex extends AttemptCatalog {
   applyAttempt(entry: AttemptEntry): boolean;
   /** Сброс прогресса; `false` — запись с таким `id` уже применена. */
   applyReset(unitId: UnitId, key: EntryKey): boolean;
+  /** Отмена или возврат цели (LWW по ключу); `false` — устаревшая или уже применённая запись. */
+  applyRetraction(entry: Extract<LogEntry, { kind: 'retract' }>): boolean;
+  /** Упражнения, у которых есть попытка с `id === targetId` или `<targetId>#<i>`; пусто — такой цели нет. */
+  exercisesOf(targetId: string): UnitId[];
+  /** Цель сейчас отменена (решение именно по ней). */
+  isTargetRetracted(targetId: string): boolean;
+  /** Попытка с этим `id` отменена: своим `id` или целью-пачкой `<targetId>#<i>`. */
+  isRetractedId(id: string): boolean;
   /** Не более `limit` новейших неотменённых попыток, от новых к старым. */
   getTrials: AttemptSource['getTrials'];
   /** Неотменённые попытки, от новых к старым. */

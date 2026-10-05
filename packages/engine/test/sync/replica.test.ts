@@ -106,6 +106,31 @@ describe('parseEntry', () => {
       reason: 'bad libraryRevision',
     });
   });
+
+  it('parses retract with a targetId and an op, and strips unknown fields', () => {
+    const retract = {
+      id: 'u',
+      deviceId: 'dev-a',
+      seq: 3,
+      at: 1,
+      recordedAt: 1,
+      kind: 'retract',
+      targetId: 'a1',
+      op: 'set',
+    };
+    expect(parseEntry({ ...retract, extra: 1 })).toEqual({
+      ok: true,
+      entry: retract,
+    });
+    expect(parseEntry({ ...retract, targetId: '' })).toEqual({
+      ok: false,
+      reason: 'bad targetId',
+    });
+    expect(parseEntry({ ...retract, op: 'maybe' })).toEqual({
+      ok: false,
+      reason: 'bad op',
+    });
+  });
 });
 
 describe('Replica.import / exportSince', () => {

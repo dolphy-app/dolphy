@@ -1,6 +1,11 @@
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { EXTENSION_ID_PATTERN } from '@dolphy-app/extension-api';
+import {
+  EXTENSION_COMMAND_LIMITS,
+  EXTENSION_ID_PATTERN,
+  WhenError,
+  parseWhen,
+} from '@dolphy-app/extension-api';
 import type { JsonSchema } from '@dolphy-app/extension-api';
 import type { Ajv2020 } from 'ajv/dist/2020.js';
 import { z } from 'zod';
@@ -25,6 +30,30 @@ export const extensionId = z
   .string()
   .max(64)
   .regex(EXTENSION_ID_PATTERN, 'invalid extension id');
+
+/** Условие видимости `when` у команды, панели и виджета: длина здесь, разбор и типы — в `whenIssues`. */
+export const whenField = z
+  .string()
+  .min(1)
+  .max(EXTENSION_COMMAND_LIMITS.whenLength);
+
+/** Ошибки условия `when` записи `contributes.<key>.<index>` (с позицией в тексте условия). */
+export const whenIssues = (
+  key: string,
+  index: number,
+  when: string | undefined,
+): string[] => {
+  if (when === undefined) return [];
+  try {
+    parseWhen(when);
+    return [];
+  } catch (error) {
+    if (!(error instanceof WhenError)) throw error;
+    return [
+      `contributes.${key}.${index}.when: invalid "when" (${error.detail} at ${error.position})`,
+    ];
+  }
+};
 
 /** Пути с нарушением правила «`id` равен id расширения или начинается с ним». */
 export const idPrefixIssues = (

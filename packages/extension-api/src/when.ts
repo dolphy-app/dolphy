@@ -197,8 +197,11 @@ const describe = (token: Token): string => {
 
 class Parser {
   private index = 0;
+  private readonly tokens: readonly Token[];
 
-  constructor(private readonly tokens: readonly Token[]) {}
+  constructor(tokens: readonly Token[]) {
+    this.tokens = tokens;
+  }
 
   private peek(): Token {
     return this.tokens[this.index]!;

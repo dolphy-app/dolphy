@@ -29,6 +29,7 @@ const commandsExtension = (): ResolvedExtension =>
         category: null,
         keybinding: null,
         keybindings: [],
+        when: null,
         icon: 'puzzle',
         palette: true,
       },

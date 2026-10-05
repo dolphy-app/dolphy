@@ -160,12 +160,14 @@ const STATS_COMMAND: CommandContributionDto = {
   keybindings: [],
   icon: 'puzzle',
   palette: true,
+  when: "route == 'courses'",
 };
 const SQL_PANEL: PanelContributionDto = {
   id: 'dolphy.sql.panel',
   extensionId: 'dolphy.sql',
   title: 'SQL',
   icon: 'puzzle',
+  when: null,
   rendererUrl: 'dolphy-ext://dolphy.sql/panel.mjs',
   isolated: true,
   origin: 'bundled',
@@ -184,6 +186,7 @@ const SQL_WIDGET: WidgetContributionDto = {
   slot: 'dailyPlan',
   minHeight: 80,
   maxHeight: 320,
+  when: null,
   rendererUrl: 'dolphy-ext://dolphy.sql/widget.mjs',
   isolated: true,
   origin: 'bundled',

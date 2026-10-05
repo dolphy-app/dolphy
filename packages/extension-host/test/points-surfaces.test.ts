@@ -87,13 +87,6 @@ describe('точка commands', () => {
     ).toContain('contributes.commands.0.icon');
   });
 
-  it('ключ when зарезервирован: манифест с ним отклоняется и сообщение называет ключ', () => {
-    const message = messageOf(manifest({ commands: [command({ when: 'x' })] }));
-
-    expect(message).toContain('contributes.commands.0');
-    expect(message).toContain('"when"');
-  });
-
   it.each([
     [
       'id вне пространства расширения',
@@ -292,6 +285,90 @@ describe('точка commands', () => {
         }),
       ).toHaveLength(1);
     });
+  });
+});
+
+describe('условие when у команды, панели и виджета', () => {
+  const entryOf = {
+    commands: (patch: Record<string, unknown>) => command(patch),
+    panels: (patch: Record<string, unknown>) => panel(patch),
+    widgets: (patch: Record<string, unknown>) => widget(patch),
+  } as const;
+
+  it.each(Object.keys(entryOf) as (keyof typeof entryOf)[])(
+    '%s: принимает условие; без условия поля нет',
+    (key) => {
+      const text = "route == 'courses' && !session.active";
+      const parsed = parseManifest(
+        manifest({
+          [key]: [
+            entryOf[key]({ when: text }),
+            entryOf[key]({ id: `${ID}.other` }),
+          ],
+        }),
+      );
+      if (!parsed.ok) throw new Error(formatDiagnostic(parsed.diagnostic));
+      expect(
+        parsed.manifest.contributes[key].map((entry) => entry.when),
+      ).toEqual([text, undefined]);
+    },
+  );
+
+  it.each([
+    ['неизвестный ключ', "foo == 'x'", 'unknown key \'foo\' (known:', 'at 0'],
+    ['ключ другого реестра', 'inputFocus', "unknown key 'inputFocus'", 'at 0'],
+    ['неизвестное значение', "route == 'home'", "unknown value 'home'", 'at 9'],
+    [
+      'несовпадение типа',
+      "course.active == 'yes'",
+      "'course.active' is a boolean",
+      'at 17',
+    ],
+    ['синтаксис', 'route ==', 'end of the condition', 'at 8'],
+    ['одиночный &', 'course.active & session.active', "character '&'", 'at 14'],
+  ])('отклоняет: %s, сообщение с позицией', (_name, when, cause, position) => {
+    for (const key of ['commands', 'panels', 'widgets'] as const) {
+      const message = messageOf(manifest({ [key]: [entryOf[key]({ when })] }));
+      expect(message).toContain(`contributes.${key}.0.when`);
+      expect(message).toContain('invalid "when"');
+      expect(message).toContain(cause);
+      expect(message).toContain(position);
+    }
+  });
+
+  it('позиция в сообщении указывает запись списка', () => {
+    const message = messageOf(
+      manifest({
+        panels: [panel(), panel({ id: `${ID}.b`, when: 'nope' })],
+      }),
+    );
+    expect(message).toContain('contributes.panels.1.when');
+  });
+
+  it('длина условия: 200 знаков допустимы, 201 — ошибка', () => {
+    const fits = `course.active${' '.repeat(187)}`;
+    expect(fits).toHaveLength(200);
+    expect(
+      parseManifest(manifest({ commands: [command({ when: fits })] })).ok,
+    ).toBe(true);
+    expect(
+      messageOf(manifest({ commands: [command({ when: `${fits} ` })] })),
+    ).toContain('contributes.commands.0.when');
+  });
+
+  it('пустое условие — ошибка', () => {
+    expect(
+      messageOf(manifest({ widgets: [widget({ when: '' })] })),
+    ).toContain('contributes.widgets.0.when');
+  });
+
+  it('команда с palette: false может иметь условие: оно скрывает только строку палитры, которой нет', () => {
+    const parsed = parseManifest(
+      manifest({
+        commands: [command({ palette: false, when: 'course.active' })],
+      }),
+    );
+    expect(parsed.ok).toBe(true);
   });
 });
 
@@ -557,6 +634,7 @@ describe('обнаружение и реестр команд и панелей'
         category: null,
         keybinding: 'Mod+K',
         keybindings: [],
+        when: null,
         palette: true,
         icon: 'puzzle',
       },
@@ -567,6 +645,7 @@ describe('обнаружение и реестр команд и панелей'
         extensionId: ID,
         title: 'Screen',
         icon: 'puzzle',
+        when: null,
         rendererUrl: `dolphy-ext://${ID}/ui/screen.js`,
         isolated: true,
         origin: 'user',
@@ -605,6 +684,7 @@ describe('обнаружение и реестр команд и панелей'
         slot: 'dailyPlan',
         minHeight: 100,
         maxHeight: 150,
+        when: null,
         rendererUrl: `dolphy-ext://${ID}/widget.mjs`,
         isolated: true,
         origin: 'user',
@@ -617,6 +697,33 @@ describe('обнаружение и реестр команд и панелей'
     expect(registry.list()[0]?.titles).toMatchObject({
       widgets: { [`${ID}.card`]: 'Card' },
     });
+  });
+
+  it('when команды, панели и виджета доходит до вкладов окна; без условия — null', async () => {
+    const text = "route == 'courses'";
+    await write(
+      ID,
+      {
+        commands: [command({ when: text }), command({ id: `${ID}.plain` })],
+        panels: [panel({ when: text }), panel({ id: `${ID}.plain` })],
+        widgets: [widget({ when: text }), widget({ id: `${ID}.plain` })],
+      },
+      ['main.mjs', 'panel.mjs', 'widget.mjs'],
+    );
+    const holder = holderOf((await discover()).extensions);
+    const policy = createExtensionPolicy(holder);
+
+    const contributions = createExtensionRegistry(
+      holder,
+      policy,
+    ).contributions();
+
+    expect(contributions.commands.map(({ when }) => when)).toEqual([
+      text,
+      null,
+    ]);
+    expect(contributions.panels.map(({ when }) => when)).toEqual([text, null]);
+    expect(contributions.widgets.map(({ when }) => when)).toEqual([text, null]);
   });
 
   it('нет файла модуля виджета — расширение пропускается с понятным сообщением', async () => {
@@ -720,12 +827,13 @@ describe('обнаружение и реестр команд и панелей'
           category: null,
           keybinding: null,
           keybindings: [],
+          when: null,
           icon: 'puzzle',
           palette: true,
         },
       ],
       panels: [
-        { id: `${ID}.screen`, title: 'S', icon: 'puzzle', rendererUrl: 'x' },
+        { id: `${ID}.screen`, title: 'S', icon: 'puzzle', when: null, rendererUrl: 'x' },
       ],
     });
 
@@ -767,12 +875,13 @@ describe('протокол замены набора расширений', () =
           category: null,
           keybinding: null,
           keybindings: [],
+          when: null,
           icon: 'puzzle',
           palette: true,
         },
       ],
       panels: [
-        { id: `${ID}.screen`, title: 'S', icon: 'puzzle', rendererUrl: 'x' },
+        { id: `${ID}.screen`, title: 'S', icon: 'puzzle', when: null, rendererUrl: 'x' },
       ],
     });
 

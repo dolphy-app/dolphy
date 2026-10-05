@@ -855,6 +855,11 @@
               "palette": {
                 "type": "boolean"
               },
+              "when": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
               "icon": {
                 "type": "string",
                 "enum": [
@@ -938,6 +943,11 @@
                   "bookmark",
                   "tag"
                 ]
+              },
+              "when": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
               }
             },
             "required": [
@@ -980,6 +990,11 @@
               },
               "module": {
                 "type": "string"
+              },
+              "when": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
               }
             },
             "required": [

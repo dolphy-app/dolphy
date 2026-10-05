@@ -11,6 +11,8 @@ import {
   idPrefixIssues,
   resolveModuleUrl,
   safePath,
+  whenField,
+  whenIssues,
 } from './support.ts';
 import type { ContributionPoint } from './types.ts';
 
@@ -32,6 +34,7 @@ export const widgets: ContributionPoint<'widgets'> = {
     minHeight: height.optional(),
     maxHeight: height.optional(),
     module: safePath(['.js', '.mjs']).optional(),
+    when: whenField.optional(),
   }),
   normalize: (entries) =>
     entries.map((entry) => ({
@@ -41,6 +44,7 @@ export const widgets: ContributionPoint<'widgets'> = {
       minHeight: entry.minHeight ?? MIN_HEIGHT,
       maxHeight: entry.maxHeight ?? MAX_HEIGHT,
       module: entry.module ?? DEFAULT_WIDGET,
+      ...(entry.when === undefined ? {} : { when: entry.when }),
     })),
   check: (entries, owner) => {
     const ids = entries.map(({ id }) => id);
@@ -50,6 +54,7 @@ export const widgets: ContributionPoint<'widgets'> = {
         : []),
       ...idPrefixIssues('widgets', ids, owner),
       ...duplicateIssues('contributes.widgets', 'id', ids),
+      ...entries.flatMap((entry, index) => whenIssues('widgets', index, entry.when)),
       ...entries.flatMap((entry, index) =>
         entry.minHeight > entry.maxHeight
           ? [
@@ -68,6 +73,7 @@ export const widgets: ContributionPoint<'widgets'> = {
         slot: entry.slot,
         minHeight: entry.minHeight,
         maxHeight: entry.maxHeight,
+        when: entry.when ?? null,
         rendererUrl: await resolveModuleUrl(
           owner,
           dir,

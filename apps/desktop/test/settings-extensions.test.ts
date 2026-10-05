@@ -381,8 +381,8 @@ describe('расписания в строке', () => {
       });
     expect(hasSchedules(declared('loaded', ['acme.x.morning']))).toBe(true);
     expect(hasSchedules(declared('loaded', []))).toBe(false);
-    // у отключённого расширения вкладов нет: переключателя тоже
-    expect(hasSchedules(declared('disabled', []))).toBe(false);
+    // у отключённого манифест всё ещё объявляет расписания, но вкладов нет: ни переключателя, ни текста
+    expect(hasSchedules(declared('disabled', ['acme.x.morning']))).toBe(false);
   });
 
   it('включено, пока id нет в schedulesOff', () => {

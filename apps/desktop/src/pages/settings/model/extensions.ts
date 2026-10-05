@@ -162,9 +162,13 @@ export const areNotificationsOn = (
 export const areSchedulesOn = (settings: ExtensionSettingsDto, id: string) =>
   !settings.schedulesOff.includes(id);
 
-/** Переключатель «Расписание» нужен загруженному расширению, которое объявило `schedules`. */
+/**
+ * Переключатель «Расписание» нужен загруженному расширению, которое объявило
+ * `schedules`. У отключённого манифест всё ещё объявляет расписания, но
+ * движок вкладов не отдаёт: текста под переключателем не было бы.
+ */
 export const hasSchedules = (extension: ExtensionInfoDto): boolean =>
-  extension.contributes.schedules.length > 0;
+  extension.state === 'loaded' && extension.contributes.schedules.length > 0;
 
 /** Как показать расписание человеческим текстом: ключ сообщения и подстановка. */
 export const scheduleSummaryOf = (

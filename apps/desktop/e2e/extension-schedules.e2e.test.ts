@@ -1,9 +1,13 @@
+import { rename, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createWorkspace, launchApp } from './support/app.ts';
 import type { DolphyApp, Workspace } from './support/app.ts';
 import { Client } from './support/client.ts';
+import { CommandsClient } from './support/commands-client.ts';
 import { readExtensionData } from './support/journal.ts';
+import { expectText } from './support/locator.ts';
 import { PLAIN_LIBRARY } from './support/state-client.ts';
 
 const dir = (name: string) =>
@@ -11,37 +15,62 @@ const dir = (name: string) =>
 
 const SCHEDULE_ID = 'acme.schedule';
 const CONTROL_ID = 'acme.control';
-/** Время срабатывания `daily` у фикстуры и час, к которому подводятся часы. */
-const MOMENT = { hours: 9, minutes: 0 };
-/** Сколько до момента на часах планировщика в начале запуска приложения, мс: запас на старт Electron и движка. */
-const LEAD_MS = 15_000;
-/** Запас сценариев, где тест успевает зайти в настройки до момента срабатывания. */
-const LONG_LEAD_MS = 30_000;
 const SCHEDULE_TEXT = 'Каждый день в 09:00 · Каждый час';
+/** Период проверки планировщика в тестах, мс (по умолчанию 30 000). */
+const TICK_MS = 100;
+/** Срок, за который срабатывание доходит до расширения: тик, запуск ограниченного процесса и обработчик. */
+const FIRING_TIMEOUT = 20_000;
+/** Окно, в котором «не сработало» наблюдается: несколько десятков тиков при ускоренных часах. */
+const QUIET_MS = 1500;
 
 let workspace: Workspace | null = null;
 let app: DolphyApp | null = null;
 
-/** Смещение часов планировщика, при котором сейчас — `LEAD_MS` до 09:00 по местному времени. */
-const offsetToMoment = (leadMs = LEAD_MS): number => {
-  const now = new Date();
-  const target = new Date(now);
-  target.setHours(MOMENT.hours, MOMENT.minutes, 0, 0);
-  return target.getTime() - leadMs - now.getTime();
+/** Местное время сегодняшнего дня, epoch ms. */
+const today = (hours: number, minutes = 0, seconds = 0): number => {
+  const date = new Date();
+  date.setHours(hours, minutes, seconds, 0);
+  return date.getTime();
 };
 
-const launch = async (clockOffsetMs: number | null) => {
+const clockFile = (): string =>
+  join(dirname(workspace!.userData), 'clock-offset');
+
+/**
+ * Ставит часы планировщика на местное время `at` (дальше они идут в реальном
+ * темпе). Запись целиком и переименование: хост перечитывает файл на каждом
+ * тике и не должен увидеть половину числа.
+ */
+const setClock = async (at: number): Promise<void> => {
+  const file = clockFile();
+  await writeFile(`${file}.tmp`, String(at - Date.now()));
+  await rename(`${file}.tmp`, file);
+};
+
+/**
+ * Запуск с часами, которые стоят за 50 минут до момента срабатывания (08:10):
+ * пока тест не подведёт их сам, ни одно расписание не срабатывает, какой бы
+ * медленной ни была загрузка. Возвращает клиента, когда приложение готово и
+ * хост расширений подключён к движку: срабатывание, пришедшееся на отключённый
+ * хост, теряется по замыслу, поэтому подведение часов раньше было бы гонкой.
+ */
+const launch = async () => {
   await app?.close();
+  await setClock(today(8, 10));
   app = await launchApp(workspace!.userData, {
-    // тик каждые 100 мс вместо 30 с; часы сдвинуты так, чтобы до момента оставалось несколько секунд
-    DOLPHY_SCHEDULE_TICK_MS: '100',
-    ...(clockOffsetMs !== null && {
-      DOLPHY_CLOCK_OFFSET_MS: String(clockOffsetMs),
-    }),
+    DOLPHY_SCHEDULE_TICK_MS: String(TICK_MS),
+    DOLPHY_CLOCK_OFFSET_FILE: clockFile(),
   });
   await app.page
     .getByRole('link', { name: 'План на сегодня', exact: true })
     .waitFor({ timeout: 30_000 });
+  // команда расширения отвечает, только когда запрос дошёл до хоста расширений (запрос ждёт подключения)
+  const commands = new CommandsClient(app.page);
+  await commands.openPalette();
+  await commands.search('проверить связь');
+  await commands.option('Проверить связь').waitFor({ timeout: 30_000 });
+  await commands.combobox.press('Enter');
+  await expectText(commands.notice, 'Связь есть');
   return new Client(app.page);
 };
 
@@ -74,23 +103,23 @@ afterEach(async () => {
 describe('schedules', () => {
   it('в момент срабатывания расширение активируется и получает daily и hourly по одному разу; повтора нет', async () => {
     await prepare();
-    await launch(offsetToMoment());
-    // до момента расширения не активированы: данных нет
+    await launch();
+    // часы стоят до момента: расширение не активировано, данных нет
     expect(fired(SCHEDULE_ID, 'morning')).toBeUndefined();
+    expect(fired(SCHEDULE_ID, 'hourly')).toBeUndefined();
 
+    await setClock(today(9));
     await expect
       .poll(
         () => [fired(SCHEDULE_ID, 'morning'), fired(SCHEDULE_ID, 'hourly')],
-        {
-          timeout: LEAD_MS + 15_000,
-        },
+        { timeout: FIRING_TIMEOUT },
       )
       .toEqual([1, 1]);
     await expect
-      .poll(() => fired(CONTROL_ID, 'hourly'), { timeout: 10_000 })
+      .poll(() => fired(CONTROL_ID, 'hourly'), { timeout: FIRING_TIMEOUT })
       .toBe(1);
     // тики идут дальше, а момент уже обработан
-    await pause(1500);
+    await pause(QUIET_MS);
     expect([
       fired(SCHEDULE_ID, 'morning'),
       fired(SCHEDULE_ID, 'hourly'),
@@ -100,17 +129,30 @@ describe('schedules', () => {
 
   it('срабатывание, найденное позже двух минут, пропускается и не воспроизводится', async () => {
     await prepare();
-    // часы уже на 3 минуты позже момента: прошлое не воспроизводится, следующий час далеко
-    await launch(offsetToMoment(-3 * 60_000));
-    await pause(2500);
+    await launch();
+    // 09:03: момент 09:00 найден через три минуты, прошлое не воспроизводится
+    await setClock(today(9, 3));
+    // следующие тики точно приняли первый скачок; при остановке хоста оба скачка сольются в одну проверку,
+    // тогда тест лишь теряет охват, ложного провала нет
+    await pause(TICK_MS * 5);
+    // 10:00: ближайший час срабатывает, и это доказывает, что планировщик жив и дошёл до конца
+    await setClock(today(10));
+    await expect
+      .poll(() => fired(CONTROL_ID, 'hourly'), { timeout: FIRING_TIMEOUT })
+      .toBe(1);
+    await expect
+      .poll(() => fired(SCHEDULE_ID, 'hourly'), { timeout: FIRING_TIMEOUT })
+      .toBe(1);
+    // `daily` 09:00 пропущен, `hourly` 09:00 не повторился (был бы второй раз)
+    await pause(QUIET_MS);
     expect(fired(SCHEDULE_ID, 'morning')).toBeUndefined();
-    expect(fired(SCHEDULE_ID, 'hourly')).toBeUndefined();
-    expect(fired(CONTROL_ID, 'hourly')).toBeUndefined();
+    expect(fired(SCHEDULE_ID, 'hourly')).toBe(1);
+    expect(fired(CONTROL_ID, 'hourly')).toBe(1);
   });
 
   it('строка показывает расписания человеческим текстом и переключатель «Расписание»; выключенный переключатель переживает перезапуск и не пускает расписание, контрольное срабатывает', async () => {
     await prepare();
-    let client = await launch(null);
+    let client = await launch();
 
     await client.openSettingsExtensions();
     const [row] = await client.readExtensions(SCHEDULE_ID);
@@ -125,31 +167,32 @@ describe('schedules', () => {
       false,
     );
 
-    client = await launch(offsetToMoment(LONG_LEAD_MS));
+    client = await launch();
     await client.openSettingsExtensions();
     expect(await client.extensionSwitchChecked(SCHEDULE_ID, 'schedules')).toBe(
       false,
     );
+    await setClock(today(9));
     await expect
-      .poll(() => fired(CONTROL_ID, 'hourly'), {
-        timeout: LONG_LEAD_MS + 15_000,
-      })
+      .poll(() => fired(CONTROL_ID, 'hourly'), { timeout: FIRING_TIMEOUT })
       .toBe(1);
+    // расписания обоих расширений приходят в один тик: ждём, пока вторая доставка успела бы дойти
+    await pause(QUIET_MS);
     expect(fired(SCHEDULE_ID, 'morning')).toBeUndefined();
     expect(fired(SCHEDULE_ID, 'hourly')).toBeUndefined();
   });
 
   it('отключённое расширение не срабатывает: переключатель «Включено» действует сразу, без перезапуска', async () => {
     await prepare();
-    const client = await launch(offsetToMoment(LONG_LEAD_MS));
+    const client = await launch();
     await client.openSettingsExtensions();
     await client.setExtensionSwitch(SCHEDULE_ID, 'enabled', false);
 
+    await setClock(today(9));
     await expect
-      .poll(() => fired(CONTROL_ID, 'hourly'), {
-        timeout: LONG_LEAD_MS + 15_000,
-      })
+      .poll(() => fired(CONTROL_ID, 'hourly'), { timeout: FIRING_TIMEOUT })
       .toBe(1);
+    await pause(QUIET_MS);
     expect(fired(SCHEDULE_ID, 'morning')).toBeUndefined();
     expect(fired(SCHEDULE_ID, 'hourly')).toBeUndefined();
   });

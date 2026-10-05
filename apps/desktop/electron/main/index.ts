@@ -116,7 +116,7 @@ const extensionCatalogUrl = app.isPackaged
 
 // безопасный режим, заданный запуском (флаг или переменная): настройкой не снимается
 const forceSafeMode = safeModeSource(process.argv, process.env);
-// ускоренные часы расписаний для e2e (`DOLPHY_SCHEDULE_TICK_MS`, `DOLPHY_CLOCK_OFFSET_MS`): только в несобранном приложении
+// ускоренные часы расписаний для e2e (`DOLPHY_SCHEDULE_TICK_MS`, `DOLPHY_CLOCK_OFFSET_FILE`): только в несобранном приложении
 const scheduleClock = scheduleClockOf(process.env, app.isPackaged);
 
 const hostLink = createHostLink({ MessageChannelMain });

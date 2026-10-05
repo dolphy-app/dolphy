@@ -1,13 +1,15 @@
 ---
-status: active
+status: done
 branch: feature/extension-api-breadth-1
 created: 2026-10-04
-closed: null
+closed: 2026-10-05
 touches: [extension-api, extension-host, extension-catalog, extension-install, extension-tools, extension-sdk, engine-contract, engine-rpc, engine, engine-sqlite, desktop]
 depends-on: [specs/archive/2026-10-05-extension-foundation]
 supersedes: null
 superseded-by: null
 ---
+
+> Исторический документ. Не источник требований.
 
 # API расширений, волна 1: настройки, локализация, секреты, статистика, виджеты, уведомления и расписания
 
@@ -73,7 +75,8 @@ superseded-by: null
 - [x] 2b-2 (PR) Виджеты, `icon` и `PanelContext.context`: точка, режим рамки `widget`, блок плана дня, `EXTENSION_ICONS`, палитра и меню, SDK и сборка, axe
 - [x] 2c-1 (PR) `notifications`: разрешение, служба и лимиты, операция `notify` в main, переключатель в строке, `createMemoryNotifications`
 - [x] 2c-2 (PR) `schedules`: точка, планировщик, `fireSchedule`, `ctx.schedule`, переключатель и текст расписания в строке, `createMemorySchedule`, e2e с ускоренными часами
-- [ ] 2c-3 (PR) Закрытие: `docs/design/extensions.md` (разделы точек и «Пределы»), README пакетов на английском, ADR о мосте платформенных сервисов (следующий свободный номер), PR в репозиторий каталога, `Outcomes`, архив
+- [x] 2c-3 (PR) Закрытие: `docs/design/extensions.md` (точки, границы, раздел «Мост платформенных сервисов»), README пакетов проверены, [ADR 0018](../../../docs/adr/0018-platform-services-bridge.md), `Outcomes`, архив
+- [ ] PR в `dolphy-app/dolphy-extensions` (поднять `@dolphy-app/extension-tools`, пересобрать индекс) — заблокирован до следующего релиза пакетов; см. `Outcomes`
 
 ## Surprises & Discoveries
 
@@ -150,6 +153,8 @@ superseded-by: null
 
 ## Decision Log
 
+- 2026-10-05. Мост к main оформлен как [ADR 0018](../../../docs/adr/0018-platform-services-bridge.md) (порт `PlatformServices`, протокол `platform-request`/`platform-response`).
+
 - 2026-10-04. Уровень безопасности как у Obsidian (обзор, безопасный режим, диагностика) (владелец). Не входят: независимый аудит, песочница ОС, подпись и проверка издателя, ограничение сети, лимит кучи V8, отклонение симлинков, процессные тесты на всех ОС.
 - 2026-10-04. Обратная совместимость не обеспечивается (владелец): приложение и расширения сырые, ломаем сразу. Причина: экономия усилий, нет внешних пользователей API.
 - 2026-10-04. Отложено (владелец): сайт документации и typedoc, витрина каталога, `dolphy-ext analyze`, постраничный индекс, мастер «новое расширение» в приложении, хуки планировщика и модели памяти (вернуться после статистики и импортёров), сервисы между расширениями, матрица совместимости, автообновление (ADR 0004 остаётся).
@@ -181,4 +186,14 @@ superseded-by: null
 
 ## Outcomes
 
-Заполняется при закрытии.
+**Сделано.** Все 14 требований (R1–R14) реализованы восемью этапами 2a-1…2c-2 и проверены юнитами, контрактными тестами адаптеров и e2e (`extension-settings-rich`, `extension-locales`, `extension-secrets`, `extension-stats`, `extension-widgets`, `extension-notifications`, `extension-schedules`): типы и структура настроек, названия вкладов, локализация манифеста и инструментов, секреты, `learning.stats` и `ctx.stats`, виджеты, значки и контекст панелей, уведомления, расписания, переключатели «Расписание» и «Уведомления». Контракт `engine-contract` дошёл до 29. Долговечное перенесено в `docs/design/extensions.md` (точки вклада, раздел «Мост платформенных сервисов», «Границы»); решение о мосте — ADR 0018. Пакеты `extension-api`, `extension-host`, `extension-catalog`, `extension-install` README не имеют: их описывает `packages/README.md` (актуален); README `extension-sdk` и `extension-tools` уже описывают новые API.
+
+**Отличия от плана.**
+- e2e разнесены по файлам этапов, а не в один `extension-breadth-1.e2e.test.ts`.
+- Номера контракта не зафиксированы заранее и из-за параллельных волн пересчитывались при слиянии (21, 23, 29).
+- Сам порт `PlatformServices` вырос по этапам: `cipher` в 2a-3, `notifier` в 2c-1.
+- Статистика и уведомления не добавили кодов ошибок: отказы идут через `INVALID_ARGUMENT` с `details.reason`.
+
+**Осталось.**
+- PR в `dolphy-app/dolphy-extensions` (поднять `@dolphy-app/extension-tools`, пересобрать индекс с новыми `titles`, `widgets`, `schedules`) — заблокирован: нужны опубликованные пакеты следующего релиза; выполнить после него.
+- Отложенное осталось в списке «Отложенное» `docs/design/extensions.md` (хуки планировщика и модели памяти, сервисы между расширениями, автообновление и др.).

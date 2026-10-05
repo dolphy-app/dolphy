@@ -9,6 +9,7 @@ import { settingsMessages } from '@/pages/settings';
 import { repositoryMessages } from '@/entities/repository';
 import { appCommandsMessages } from '@/features/app-commands';
 import { courseScopeMessages } from '@/features/course-scope';
+import { courseUpdatesMessages } from '@/features/course-updates';
 import { extensionCommandsMessages } from '@/features/extension-commands';
 import { keybindingsMessages } from '@/features/keybindings';
 import { sharedMessages } from '@/shared/i18n';
@@ -25,6 +26,7 @@ export const appMessages = {
     ...appRu,
     ...appCommandsMessages.ru,
     ...courseScopeMessages.ru,
+    ...courseUpdatesMessages.ru,
     ...extensionCommandsMessages.ru,
     ...keybindingsMessages.ru,
     ...repositoryMessages.ru,
@@ -44,6 +46,7 @@ export const appMessages = {
     ...appEn,
     ...appCommandsMessages.en,
     ...courseScopeMessages.en,
+    ...courseUpdatesMessages.en,
     ...extensionCommandsMessages.en,
     ...keybindingsMessages.en,
     ...repositoryMessages.en,

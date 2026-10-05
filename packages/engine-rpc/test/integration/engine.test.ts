@@ -490,6 +490,12 @@ describe('rpc → dispatcher → real engine', () => {
         client.repositories.cancel('nope'),
       ),
     ).toBe(false);
+    // реестр пуст: проверять нечего, вызов не падает и событий не даёт
+    expect(
+      await call('repositories.checkUpdates', () =>
+        client.repositories.checkUpdates(),
+      ),
+    ).toEqual([]);
 
     const started = await call('practice.startSession', () =>
       client.practice.startSession(),

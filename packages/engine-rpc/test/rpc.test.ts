@@ -628,6 +628,7 @@ describe('ordering and events', () => {
       ['remove', ['x'.repeat(201)]],
       ['cancel', [42]],
       ['list', ['extra']],
+      ['checkUpdates', ['extra']],
     ] as const)(
       '%s rejects bad params without reaching the engine',
       async (name, params) => {
@@ -653,18 +654,26 @@ describe('ordering and events', () => {
       await client.engine.repositories.remove('id2');
       await client.engine.repositories.cancel('id3');
       await client.engine.repositories.list();
+      await client.engine.repositories.checkUpdates();
       expect(fake.calls.filter((name) => name !== 'diagnostics')).toEqual([
         'repositories.add',
         'repositories.update',
         'repositories.remove',
         'repositories.cancel',
         'repositories.list',
+        'repositories.checkUpdates',
       ]);
     });
 
     it('add is not replayed after a drop; update/remove/cancel/list are', () => {
       expect(RPC_METHODS['repositories.add'].idempotent).toBe(false);
-      for (const name of ['list', 'update', 'remove', 'cancel'] as const) {
+      for (const name of [
+        'list',
+        'update',
+        'remove',
+        'cancel',
+        'checkUpdates',
+      ] as const) {
         expect(RPC_METHODS[`repositories.${name}`].idempotent).toBe(true);
       }
     });
@@ -706,6 +715,18 @@ describe('ordering and events', () => {
           loaded: 1,
           total: 2,
         },
+      ]);
+    });
+
+    it('repository-updates-checked events reach a subscribed client', async () => {
+      const { client, fake } = await connect();
+      const events: EngineEvent[] = [];
+      client.engine.subscribe((event) => events.push(event));
+      await tick(5);
+      fake.emit({ type: 'repository-updates-checked', available: ['r'] });
+      await tick(5);
+      expect(events).toEqual([
+        { type: 'repository-updates-checked', available: ['r'] },
       ]);
     });
   });

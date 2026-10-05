@@ -1036,7 +1036,14 @@ export type EngineEvent =
       /** Байты или объекты — по фазе; `total` неизвестен, пока сервер его не сообщил. */
       loaded?: number;
       total?: number;
-    };
+    }
+  /**
+   * Закончилась проверка обновлений репозиториев курсов (`repositories.checkUpdates`
+   * или проверка при запуске). `available` — `id` репозиториев с `availableCommit`
+   * в порядке `repositories.list()`; пусто, если обновлений нет. Окно перечитывает
+   * `repositories.list()`. Не приходит, если не проверялся ни один репозиторий.
+   */
+  | { type: 'repository-updates-checked'; available: string[] };
 
 /** Конфигурация хоста при открытии движка (`createEngine`); через RPC не передаётся и renderer её не меняет. */
 export interface EngineConfig {
@@ -1119,6 +1126,14 @@ export interface RepositoryDto {
   /** Курсы, пришедшие из этого репозитория. */
   courseIds: UnitId[];
   lastError?: EngineErrorDto;
+  /**
+   * Коммит на сервере, если он отличается от загруженного (последняя проверка
+   * этого запуска движка, в `engine.db` не пишется); нет — обновления нет или
+   * проверки ещё не было.
+   */
+  availableCommit?: string;
+  /** Когда репозиторий в последний раз успешно сверен с сервером в этом запуске; нет — не сверялся. */
+  checkedAt?: EpochMs;
 }
 
 export interface AddRepositoryRequest {
@@ -1142,6 +1157,13 @@ export interface RepositoriesService {
   remove(id: string): Promise<void>;
   /** `true`, если операция над репозиторием шла и прервана. */
   cancel(id: string): Promise<boolean>;
+  /**
+   * Сверяет коммиты репозиториев с сервером без скачивания объектов и
+   * возвращает то же, что `list()`. Недоступный репозиторий пропускается
+   * (его прежний результат остаётся), репозиторий с идущей операцией не
+   * проверяется; вызов не падает из-за сети. Публикует `repository-updates-checked`.
+   */
+  checkUpdates(): Promise<RepositoryDto[]>;
 }
 
 export type ExtensionOriginDto = 'bundled' | 'user' | 'dev';

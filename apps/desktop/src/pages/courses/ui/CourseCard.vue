@@ -13,6 +13,8 @@ const props = defineProps<{
   focused: boolean;
   /** Курс, который предлагаем учить (когда фокуса нет). */
   recommended: boolean;
+  /** В репозитории курса на сервере есть новый коммит. */
+  updateAvailable: boolean;
 }>();
 const emit = defineEmits<{ study: []; openPlan: []; check: []; graph: [] }>();
 
@@ -55,23 +57,41 @@ const act = () => (props.focused ? emit('openPlan') : emit('study'));
           <h2 class="title text-title-large font-weight-bold">
             {{ course.name }}
           </h2>
-          <v-chip
-            v-if="focused"
-            size="small"
-            color="primary"
-            variant="flat"
-            prepend-icon="mdi-target"
-          >
-            {{ t('courses.card.focused') }}
-          </v-chip>
-          <v-chip
-            v-else-if="recommended"
-            size="small"
-            color="primary"
-            variant="tonal"
-          >
-            {{ t('courses.card.recommended') }}
-          </v-chip>
+          <div class="d-flex flex-column align-end ga-1 flex-shrink-0">
+            <v-chip
+              v-if="focused"
+              size="small"
+              color="primary"
+              variant="flat"
+              prepend-icon="mdi-target"
+            >
+              {{ t('courses.card.focused') }}
+            </v-chip>
+            <v-chip
+              v-else-if="recommended"
+              size="small"
+              color="primary"
+              variant="tonal"
+            >
+              {{ t('courses.card.recommended') }}
+            </v-chip>
+            <!-- в узкой карточке остаётся значок: подпись отдана названию курса -->
+            <v-chip
+              v-if="updateAvailable"
+              class="update-chip"
+              size="small"
+              color="info"
+              variant="tonal"
+              prepend-icon="mdi-update"
+              role="img"
+              :aria-label="t('repository.updateAvailable')"
+              :title="t('repository.updateAvailable')"
+            >
+              <span class="update-label">{{
+                t('repository.updateAvailable')
+              }}</span>
+            </v-chip>
+          </div>
         </div>
         <p class="text-body-medium text-medium-emphasis mt-1">
           {{
@@ -171,6 +191,21 @@ const act = () => (props.focused ? emit('openPlan') : emit('study'));
 </template>
 
 <style scoped>
+.course-card {
+  container-type: inline-size;
+}
+
+/* в узкой карточке (три колонки на широком окне) подпись чипа не отнимает ширину у названия */
+@container (max-width: 24rem) {
+  .update-label {
+    display: none;
+  }
+
+  .update-chip :deep(.v-chip__prepend) {
+    margin-inline: 0;
+  }
+}
+
 .min-width-0 {
   min-width: 0;
 }

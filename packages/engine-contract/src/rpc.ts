@@ -23,6 +23,7 @@ export const RPC_METHODS = {
   'repositories.update': { idempotent: true }, // по коммиту на сервере
   'repositories.remove': { idempotent: true },
   'repositories.cancel': { idempotent: true },
+  'repositories.checkUpdates': { idempotent: true }, // читает коммиты сервера, состояние не накапливает
   'practice.startSession': { idempotent: false },
   'practice.finishSession': { idempotent: true }, // по sessionId
   'practice.getBatch': { idempotent: false }, // RNG и счётчик показов

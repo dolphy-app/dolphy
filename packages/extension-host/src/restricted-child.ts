@@ -151,7 +151,9 @@ export const startRestrictedChild = (proc: NodeJS.Process = process): void => {
       let seq = 0;
       for (const data of chunksOf(body)) {
         if (seq > 0) {
-          await new Promise((resolve) => setTimeout(resolve, CHUNK_PACE_MS));
+          await new Promise<void>((resolve) => {
+            setTimeout(resolve, CHUNK_PACE_MS);
+          });
         }
         send({ t: 'chunk', id, seq, data });
         seq += 1;

@@ -107,10 +107,10 @@ describe('extension-api types', () => {
       filename: `${title}.json`,
       text: JSON.stringify(files),
     }));
-    exporters.register('a.progress', (_input: ProgressExportInput) => ({
-      filename: 'p.bin',
-      bytes: new Uint8Array(),
-    }));
+    exporters.register('a.progress', (input: ProgressExportInput) => {
+      expectTypeOf(input.scope).toEqualTypeOf<'progress'>();
+      return { filename: 'p.bin', bytes: new Uint8Array() };
+    });
     // @ts-expect-error `filename` is required
     exporters.register('a.nameless', () => ({ text: 'x' }));
     // @ts-expect-error a file is text or bytes, not both missing

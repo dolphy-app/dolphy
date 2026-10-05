@@ -103,7 +103,8 @@ describe('импорт и экспорт изолированного расши
       const body = Object.keys(result.files)
         .filter((path) => path.startsWith('body/'))
         .sort(
-          (a, b) => Number.parseInt(a.slice(5)) - Number.parseInt(b.slice(5)),
+          (a, b) =>
+            Number.parseInt(a.slice(5), 10) - Number.parseInt(b.slice(5), 10),
         )
         .map((path) => result.files[path])
         .join('');

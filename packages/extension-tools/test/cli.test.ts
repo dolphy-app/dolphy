@@ -77,6 +77,44 @@ describe('runCli', () => {
     expect(bad.stderr()).toMatch(/permissions\.0: /);
   });
 
+  it('validate: importers and exporters pass; a progress exporter needs learning.stats; an upper-case accept is refused', async () => {
+    const root = await copyProject('typed-transfers');
+    const built = createIo();
+    expect(await runCli(['build', root], built.io), built.stderr()).toBe(0);
+    const dir = path.join(root, 'dist-ext', 'acme.transfer');
+    const manifestPath = path.join(dir, 'extension.json');
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as {
+      contributes: { importers: { accept: string[] }[] };
+    };
+
+    const ok = createIo();
+    expect(await runCli(['validate', dir], ok.io)).toBe(0);
+
+    await writeFile(
+      manifestPath,
+      JSON.stringify({ ...manifest, permissions: [] }),
+    );
+    const noStats = createIo();
+    expect(await runCli(['validate', dir], noStats.io)).toBe(1);
+    expect(noStats.stderr()).toMatch(/exporters\.1\.scope: .*learning\.stats/);
+
+    await writeFile(
+      manifestPath,
+      JSON.stringify({
+        ...manifest,
+        contributes: {
+          ...manifest.contributes,
+          importers: [
+            { ...manifest.contributes.importers[0], accept: ['.CSV'] },
+          ],
+        },
+      }),
+    );
+    const upper = createIo();
+    expect(await runCli(['validate', dir], upper.io)).toBe(1);
+    expect(upper.stderr()).toMatch(/importers\.0\.accept\.0: /);
+  });
+
   it('metadata and compatibility: build copies the manifest as is, validate checks the shape', async () => {
     const root = await copyProject('with-metadata');
     const built = createIo();

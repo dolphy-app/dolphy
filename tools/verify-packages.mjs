@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Проверка собранных пакетов (`pnpm build:packages` → `dist-publish/`): упаковка
- * `npm pack`, состав tarball'ов, установка всех четырёх в пустой проект, генерация
+ * `npm pack`, состав tarball'ов, установка всех пакетов в пустой проект, генерация
  * проекта расширения из установленного `create-dolphy-extension` и его сборка,
  * проверка, типы и тесты. Запускается в CI, не в `pnpm test` (нужна сеть: сторонние
  * зависимости ставятся из npmjs).
@@ -20,6 +20,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { gzipSync } from 'node:zlib';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { collectImports } from './lib/imports.mjs';
@@ -325,6 +326,56 @@ const assertSplitOutputs = (dir) => {
 
 const formatKb = (bytes) => `${(bytes / 1024).toFixed(1)} KiB`;
 
+const UI_FUNCTIONS = [
+  'button',
+  'card',
+  'emptyState',
+  'list',
+  'select',
+  'textField',
+  'toggle',
+];
+const UI_LIMIT_BYTES = 10 * 1024;
+
+/**
+ * UI-кит: весь установленный `dist` не больше 10 КиБ gzip, а импорт из установленного
+ * пакета (чистый Node, без DOM) даёт ровно семь функций.
+ */
+const assertUiKit = ({ consumer, env }) => {
+  const dist = path.join(
+    consumer,
+    'node_modules',
+    ...`${SCOPE}/extension-ui`.split('/'),
+    'dist',
+  );
+  const bytes = listFiles(dist)
+    .filter((file) => file.endsWith('.js'))
+    .reduce(
+      (total, file) =>
+        total +
+        gzipSync(readFileSync(path.join(dist, file)), { level: 9 }).length,
+      0,
+    );
+  check(
+    bytes <= UI_LIMIT_BYTES,
+    `extension-ui: ${bytes} bytes gzip, the limit is ${UI_LIMIT_BYTES}`,
+  );
+  const output = run(
+    process.execPath,
+    [
+      '--input-type=module',
+      '-e',
+      `import * as ui from '${SCOPE}/extension-ui'; console.log(JSON.stringify(Object.keys(ui).sort()));`,
+    ],
+    { cwd: consumer, env },
+  );
+  check(
+    output.trim() === JSON.stringify(UI_FUNCTIONS),
+    `extension-ui exports ${output.trim()}, expected ${JSON.stringify(UI_FUNCTIONS)}`,
+  );
+  console.log(`  ${SCOPE}/extension-ui: ${formatKb(bytes)} gzip`);
+};
+
 const main = () => {
   const keep = process.argv.includes('--keep');
   check(existsSync(DIST), 'dist-publish is missing: run `pnpm build:packages`');
@@ -370,6 +421,7 @@ const main = () => {
       { cwd: consumer, env },
     );
     run(binOf(consumer, 'dolphy-ext'), ['--help'], { cwd: consumer, env });
+    assertUiKit({ consumer, env });
 
     step('create-dolphy-extension demo');
     run(binOf(consumer, 'create-dolphy-extension'), ['demo'], {

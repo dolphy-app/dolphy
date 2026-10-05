@@ -4,8 +4,10 @@ import {
   GRADE_POLICY_ID_PATTERN,
   LOG_LEVELS,
   MATERIAL_WIDTH_RANGE,
+  MAX_TOURS,
   MAX_LOG_ENTRIES,
   THEME_ID_PATTERN,
+  TOUR_ID_PATTERN,
 } from '@dolphy-app/engine-contract';
 import {
   KEYBINDING_LIMITS,
@@ -546,6 +548,14 @@ export const schemas = {
           .nullable(),
       ),
       materialCollapsed: optional(z.boolean()),
+      tours: optional(
+        z
+          .record(
+            z.string().regex(TOUR_ID_PATTERN),
+            z.enum(['completed', 'skipped']).nullable(),
+          )
+          .refine((tours) => Object.keys(tours).length <= MAX_TOURS),
+      ),
     }),
   ]),
   'settings.getLearning': z.tuple([]),

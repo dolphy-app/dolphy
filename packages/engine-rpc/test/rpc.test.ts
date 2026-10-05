@@ -171,6 +171,39 @@ describe('dispatcher validation', () => {
     }
   });
 
+  it('settings.setUi validates tour outcomes', async () => {
+    const { dispatcher } = await connect();
+    const [hostSide, rawSide] = createInProcessPair();
+    dispatcher.attach(hostSide, 'raw-tours');
+    const raw = createRawClient(rawSide);
+    for (const patch of [
+      { tours: { welcome: 'completed' } },
+      { tours: { welcome: 'skipped', 'courses-2': null } },
+      { tours: {} },
+    ]) {
+      expect(await raw.call('settings.setUi', [patch])).toMatchObject({
+        ok: true,
+      });
+    }
+    for (const patch of [
+      { tours: { 'Bad Id': 'completed' } },
+      { tours: { welcome: 'done' } },
+      { tours: { welcome: true } },
+      { tours: ['welcome'] },
+      { tours: 'welcome' },
+      {
+        tours: Object.fromEntries(
+          Array.from({ length: 33 }, (_, i) => [`t${i}`, 'skipped']),
+        ),
+      },
+    ]) {
+      expect(await raw.call('settings.setUi', [patch])).toMatchObject({
+        ok: false,
+        error: { code: 'INVALID_ARGUMENT' },
+      });
+    }
+  });
+
   it('settings.setLearning accepts passAtN and extension policy ids, rejects malformed ones', async () => {
     const { dispatcher } = await connect();
     const [hostSide, rawSide] = createInProcessPair();

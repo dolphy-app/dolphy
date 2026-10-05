@@ -146,6 +146,20 @@ export const createNodeSnapshotInstaller = ({
     return listed;
   };
 
+  const prune = async (
+    id: string,
+    opId: string,
+    paths: readonly string[],
+  ): Promise<void> => {
+    for (const path of paths) {
+      if (!isSafeRelativePath(path)) {
+        throw new Error(`Unsafe directory path: ${JSON.stringify(path)}`);
+      }
+    }
+    const base = staging.stagingDir(id, opId);
+    for (const path of paths) await removeTree(join(base, ...path.split('/')));
+  };
+
   return {
     snapshotPath: (root, id) => {
       assertSafe('directory id', id);
@@ -153,6 +167,7 @@ export const createNodeSnapshotInstaller = ({
     },
     begin,
     writeStaging,
+    prune,
     stagingSource: (opId) => {
       assertSafe('operation id', opId);
       return createNodeFsCourseSource(join(stagingRoot, opId));
@@ -161,6 +176,10 @@ export const createNodeSnapshotInstaller = ({
     install: (root, id, opId) => swaps[root].install(id, opId),
     rollback: (root, id, opId) => swaps[root].rollback(id, opId),
     finish,
+    dropTmp: async (opId) => {
+      assertSafe('operation id', opId);
+      await removeTree(join(gitTmpRoot, opId));
+    },
     remove: async (root, id) => removeTree(swaps[root].targetDir(id)),
     recover,
   };

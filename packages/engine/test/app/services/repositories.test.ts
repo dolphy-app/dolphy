@@ -26,6 +26,10 @@ import {
   recoverRepositories,
 } from '../../../src/app/index.ts';
 import {
+  MAX_HELD_PREVIEWS,
+  PREVIEW_TTL_MS,
+} from '../../../src/app/services/repositories.ts';
+import {
   createMemoryEventStore,
   createMemoryExtensionDataStore,
   createMemoryRepositoryStore,
@@ -1125,5 +1129,701 @@ describe('startup update check (course-updates R5)', () => {
       expect(t.logs.some(({ level }) => level === 'warn')).toBe(true),
     );
     expect(await t.engine.repositories.list()).toHaveLength(1);
+  });
+});
+
+/** Три курса: `b` зависит от `a`, `c` самостоятельный; повторяет разметку `renderLibrary` (каталог = id курса). */
+const trio = (extra: string[] = []): CourseLibrary =>
+  buildLibrary({
+    courses: [
+      { id: 'a', lessons: [{ id: 'l0', exercises: 1 }] },
+      { id: 'b', dependencies: ['a'], lessons: [{ id: 'l0', exercises: 1 }] },
+      { id: 'c', lessons: [{ id: 'l0', exercises: 2 }] },
+      ...extra.map((id) => ({
+        id,
+        lessons: [{ id: 'l0', exercises: 1 }],
+      })),
+    ],
+  });
+
+const withRootFiles = (library: CourseLibrary) => ({
+  ...filesOf(library),
+  'README.md': 'About\n',
+  LICENSE: 'MIT\n',
+});
+
+const dirOf = (t: Opened, ...path: string[]) =>
+  join(t.libraryRoot, 'repositories', ID_SQL, ...path);
+
+/** В `.staging` только снимки предпросмотров (по числу `count`), без `git-tmp`. */
+const expectOnlyHeld = async (t: Opened, count: number) => {
+  expect(
+    await readdir(join(t.libraryRoot, '.staging')).catch(() => []),
+  ).toHaveLength(count);
+  expect(await readdir(join(t.dataDir, 'git-tmp')).catch(() => [])).toEqual([]);
+};
+
+describe('repositories.preview (course-selection R1)', () => {
+  const preview = (t: Opened) =>
+    t.engine.repositories.preview({ url: `${URL_SQL}.git` });
+
+  it('lists every course of the commit with its requirements and changes nothing', async () => {
+    const t = await open();
+    remote(t, URL_SQL, trio());
+    const before = await t.courseIds();
+    const result = await preview(t);
+    expect(result).toMatchObject({ url: URL_SQL, ref: null });
+    expect(result.commit).toBe(sha(1));
+    expect(result.courses).toEqual([
+      {
+        id: 'a',
+        title: 'Course a',
+        path: 'a',
+        lessonCount: 1,
+        requires: [],
+        errors: 0,
+        warnings: 0,
+        messages: [],
+        installed: false,
+        inLibrary: false,
+      },
+      expect.objectContaining({ id: 'b', requires: ['a'] }),
+      expect.objectContaining({ id: 'c', requires: [], lessonCount: 1 }),
+    ]);
+    expect(await t.courseIds()).toEqual(before);
+    expect(await t.store.list()).toEqual([]);
+    expect(await exists(join(t.libraryRoot, 'repositories'))).toBe(false);
+    expect(t.events.some(({ type }) => type === 'library-reloaded')).toBe(
+      false,
+    );
+    expect(phasesOf(t.events)).toEqual([
+      'resolve',
+      'fetch',
+      'export',
+      'validate',
+    ]);
+    await expectOnlyHeld(t, 1);
+  });
+
+  it('attributes scanner errors to the course that owns the file and flags courses already in the library', async () => {
+    const t = await open();
+    t.git.remotes.set(URL_SQL, {
+      commit: sha(1),
+      files: {
+        ...filesOf(trio(['base'])),
+        'c/l0/e0/exercise_manifest.json': '{',
+      },
+    });
+    const result = await preview(t);
+    const byId = Object.fromEntries(result.courses.map((c) => [c.id, c]));
+    expect(byId['c']?.errors).toBeGreaterThan(0);
+    expect(byId['c']?.messages.length).toBeGreaterThan(0);
+    expect(byId['a']?.errors).toBe(0);
+    expect(byId['b']?.errors).toBe(0);
+    expect(byId['base']).toMatchObject({ inLibrary: true, installed: false });
+    expect(byId['a']?.inLibrary).toBe(false);
+  });
+
+  it('marks the courses the registered repository already installed', async () => {
+    const t = await open();
+    remote(t, URL_SQL, trio());
+    await t.engine.repositories.add({ url: URL_SQL, courseIds: ['a', 'c'] });
+    const result = await preview(t);
+    expect(
+      result.courses.map(({ id, installed, inLibrary }) => [
+        id,
+        installed,
+        inLibrary,
+      ]),
+    ).toEqual([
+      ['a', true, false],
+      ['b', false, false],
+      ['c', true, false],
+    ]);
+  });
+
+  it('returns an empty list for a repository without courses', async () => {
+    const t = await open();
+    t.git.remotes.set(URL_SQL, { commit: sha(1), files: { 'README.md': 'x' } });
+    expect((await preview(t)).courses).toEqual([]);
+    await expectOnlyHeld(t, 1);
+  });
+
+  it('validates its input and reports network failures like add', async () => {
+    const t = await open();
+    const invalid = await failure(
+      t.engine.repositories.preview({ url: 'ftp://example.com/x' }),
+    );
+    expect(invalid).toMatchObject({
+      code: 'INVALID_ARGUMENT',
+      details: { field: 'url' },
+    });
+    expect(t.git.calls).toEqual([]);
+    const missing = await failure(preview(t));
+    expect(missing).toMatchObject({
+      code: 'GIT_FETCH_FAILED',
+      details: { reason: 'not-found' },
+    });
+    await expectClean(t);
+  });
+
+  it('is cancelled by repositories.cancel and cleans up', async () => {
+    const t = await open();
+    remote(t, URL_SQL, trio());
+    const gate = t.git.block();
+    const running = failure(preview(t));
+    await gate.started;
+    expect(await t.engine.repositories.cancel(ID_SQL)).toBe(true);
+    expect(await running).toMatchObject({
+      code: 'GIT_FETCH_FAILED',
+      details: { reason: 'cancelled' },
+    });
+    await expectClean(t);
+  });
+
+  it('does not make a registered repository look like it is updating', async () => {
+    const t = await open();
+    remote(t, URL_SQL, trio());
+    await t.engine.repositories.add({ url: URL_SQL });
+    const gate = t.git.block();
+    const running = preview(t);
+    await gate.started;
+    const [listed] = await t.engine.repositories.list();
+    expect(listed?.status).toBe('ready');
+    gate.release();
+    await running;
+  });
+});
+
+describe('repositories.add with courseIds (course-selection R2, R3)', () => {
+  it('installs only the chosen courses and keeps the rest of the commit', async () => {
+    const t = await open();
+    t.git.remotes.set(URL_SQL, {
+      commit: sha(1),
+      files: withRootFiles(trio()),
+    });
+    const dto = await t.engine.repositories.add({
+      url: URL_SQL,
+      courseIds: ['a', 'c'],
+    });
+    expect(dto.courseIds).toEqual(['a', 'c']);
+    expect(dto.skippedCourseIds).toEqual(['b']);
+    expect(await t.courseIds()).toEqual(['a', 'base', 'c']);
+    expect(await exists(dirOf(t, 'a'))).toBe(true);
+    expect(await exists(dirOf(t, 'c'))).toBe(true);
+    expect(await exists(dirOf(t, 'b'))).toBe(false);
+    expect(await readFile(dirOf(t, 'LICENSE'), 'utf8')).toBe('MIT\n');
+    expect(await t.store.list()).toEqual([
+      expect.objectContaining({
+        selected: ['a', 'c'],
+        skippedCourseIds: ['b'],
+      }),
+    ]);
+    await expectClean(t);
+  });
+
+  it('installs everything and records no selection without courseIds', async () => {
+    const t = await open();
+    remote(t, URL_SQL, trio());
+    const dto = await t.engine.repositories.add({ url: URL_SQL });
+    expect(dto.courseIds).toEqual(['a', 'b', 'c']);
+    expect(dto.skippedCourseIds).toEqual([]);
+    const [record] = await t.store.list();
+    expect(record).not.toHaveProperty('selected');
+    expect(record).not.toHaveProperty('skippedCourseIds');
+  });
+
+  it('rejects an empty or repeating selection before any network call', async () => {
+    const t = await open();
+    remote(t, URL_SQL, trio());
+    for (const courseIds of [[], ['a', 'a'], ['']]) {
+      const error = await failure(
+        t.engine.repositories.add({ url: URL_SQL, courseIds }),
+      );
+      expect(error).toMatchObject({
+        code: 'INVALID_ARGUMENT',
+        details: { field: 'courseIds' },
+      });
+    }
+    expect(t.git.calls).toEqual([]);
+  });
+
+  it('rejects unknown courses and a selection that misses a requirement without changing anything', async () => {
+    const t = await open();
+    remote(t, URL_SQL, trio());
+    const unknown = await failure(
+      t.engine.repositories.add({ url: URL_SQL, courseIds: ['a', 'zzz'] }),
+    );
+    expect(unknown).toMatchObject({
+      code: 'REPOSITORY_REJECTED',
+      details: { reason: 'unknown-course', courseIds: ['zzz'] },
+    });
+    const missing = await failure(
+      t.engine.repositories.add({ url: URL_SQL, courseIds: ['b'] }),
+    );
+    expect(missing).toMatchObject({
+      code: 'REPOSITORY_REJECTED',
+      details: {
+        reason: 'missing-requirement',
+        requirements: { b: ['a'] },
+      },
+    });
+    expect(await t.courseIds()).toEqual(['base']);
+    expect(await t.store.list()).toEqual([]);
+    expect(await exists(join(t.libraryRoot, 'repositories', ID_SQL))).toBe(
+      false,
+    );
+    await expectClean(t);
+  });
+
+  it('is not blocked by errors in a course that was not chosen, but rejects them in a chosen one', async () => {
+    const t = await open();
+    t.git.remotes.set(URL_SQL, {
+      commit: sha(1),
+      files: { ...filesOf(trio()), 'c/l0/e0/exercise_manifest.json': '{' },
+    });
+    const dto = await t.engine.repositories.add({
+      url: URL_SQL,
+      courseIds: ['a', 'b'],
+    });
+    expect(dto.courseIds).toEqual(['a', 'b']);
+    expect(dto.skippedCourseIds).toEqual(['c']);
+    await t.engine.repositories.remove(dto.id);
+
+    const error = await failure(
+      t.engine.repositories.add({ url: URL_SQL, courseIds: ['a', 'c'] }),
+    );
+    expect(error).toMatchObject({
+      code: 'REPOSITORY_REJECTED',
+      details: { reason: 'invalid-library' },
+    });
+    expect(await t.courseIds()).toEqual(['base']);
+  });
+
+  it('treats a nested course as requiring the course around it', async () => {
+    const t = await open();
+    const outer = filesOf(
+      buildLibrary({
+        courses: [{ id: 'outer', lessons: [{ id: 'l0', exercises: 1 }] }],
+      }),
+    );
+    const inner = filesOf(
+      buildLibrary({
+        courses: [{ id: 'inner', lessons: [{ id: 'l0', exercises: 1 }] }],
+      }),
+    );
+    t.git.remotes.set(URL_SQL, {
+      commit: sha(1),
+      files: {
+        ...outer,
+        ...Object.fromEntries(
+          Object.entries(inner).map(([path, text]) => [`outer/${path}`, text]),
+        ),
+      },
+    });
+    const found = await t.engine.repositories.preview({ url: URL_SQL });
+    expect(
+      found.courses.map(({ id, path, requires }) => [id, path, requires]),
+    ).toEqual([
+      ['outer', 'outer', []],
+      ['inner', 'outer/inner', ['outer']],
+    ]);
+    const error = await failure(
+      t.engine.repositories.add({ url: URL_SQL, courseIds: ['inner'] }),
+    );
+    expect(error).toMatchObject({
+      details: {
+        reason: 'missing-requirement',
+        requirements: { inner: ['outer'] },
+      },
+    });
+    const dto = await t.engine.repositories.add({
+      url: URL_SQL,
+      courseIds: ['outer'],
+    });
+    expect(dto.courseIds).toEqual(['outer']);
+    expect(dto.skippedCourseIds).toEqual(['inner']);
+    expect(await exists(dirOf(t, 'outer', 'inner'))).toBe(false);
+  });
+});
+
+describe('selection survives update and can be changed (course-selection R4, R5)', () => {
+  const chosen = async (courseIds: string[]) => {
+    const t = await open();
+    remote(t, URL_SQL, trio());
+    const dto = await t.engine.repositories.add({ url: URL_SQL, courseIds });
+    t.git.calls.length = 0;
+    return { t, dto };
+  };
+
+  it('keeps the selection on update: a new course is listed as not installed', async () => {
+    const { t, dto } = await chosen(['a', 'c']);
+    remote(t, URL_SQL, trio(['d']), 2);
+    const result = await t.engine.repositories.update(dto.id);
+    expect(result.changed).toBe(true);
+    expect(result.repository.courseIds).toEqual(['a', 'c']);
+    expect(result.repository.skippedCourseIds).toEqual(['b', 'd']);
+    expect(await t.courseIds()).toEqual(['a', 'base', 'c']);
+  });
+
+  it('lets a chosen course disappear upstream and come back, and rejects when nothing is left', async () => {
+    const { t, dto } = await chosen(['a', 'c']);
+    remote(
+      t,
+      URL_SQL,
+      buildLibrary({
+        courses: [{ id: 'a', lessons: [{ id: 'l0', exercises: 1 }] }],
+      }),
+      2,
+    );
+    const gone = await t.engine.repositories.update(dto.id);
+    expect(gone.repository.courseIds).toEqual(['a']);
+    expect(await t.courseIds()).toEqual(['a', 'base']);
+    expect((await t.store.list())[0]?.selected).toEqual(['a', 'c']);
+
+    remote(t, URL_SQL, trio(), 3);
+    const back = await t.engine.repositories.update(dto.id);
+    expect(back.repository.courseIds).toEqual(['a', 'c']);
+
+    remote(
+      t,
+      URL_SQL,
+      buildLibrary({
+        courses: [{ id: 'z', lessons: [{ id: 'l0', exercises: 1 }] }],
+      }),
+      4,
+    );
+    const error = await failure(t.engine.repositories.update(dto.id));
+    expect(error).toMatchObject({
+      code: 'REPOSITORY_REJECTED',
+      details: { reason: 'no-courses' },
+    });
+    expect(await t.courseIds()).toEqual(['a', 'base', 'c']);
+    expect((await t.store.list())[0]?.lastError).toBeDefined();
+  });
+
+  it('keeps installing every course for a repository added without a selection', async () => {
+    const t = await open();
+    remote(t, URL_SQL, trio());
+    const dto = await t.engine.repositories.add({ url: URL_SQL });
+    remote(t, URL_SQL, trio(['d']), 2);
+    const result = await t.engine.repositories.update(dto.id);
+    expect(result.repository.courseIds).toEqual(['a', 'b', 'c', 'd']);
+    expect(result.repository.skippedCourseIds).toEqual([]);
+  });
+
+  it('applies a new selection to the same commit: widening, narrowing and no-op', async () => {
+    const { t, dto } = await chosen(['a']);
+    const wider = await t.engine.repositories.update(dto.id, {
+      courseIds: ['a', 'c'],
+    });
+    expect(wider.changed).toBe(true);
+    expect(wider.repository.courseIds).toEqual(['a', 'c']);
+    expect(wider.repository.skippedCourseIds).toEqual(['b']);
+    expect(await t.courseIds()).toEqual(['a', 'base', 'c']);
+
+    const narrower = await t.engine.repositories.update(dto.id, {
+      courseIds: ['c'],
+    });
+    expect(narrower.repository.courseIds).toEqual(['c']);
+    expect(await t.courseIds()).toEqual(['base', 'c']);
+    expect(await exists(dirOf(t, 'a'))).toBe(false);
+
+    t.git.calls.length = 0;
+    const same = await t.engine.repositories.update(dto.id, {
+      courseIds: ['c'],
+    });
+    expect(same.changed).toBe(false);
+    expect(t.git.calls).toEqual([`resolve ${URL_SQL}`]);
+    await expectClean(t);
+  });
+
+  it('turns a repository without a selection into a chosen one', async () => {
+    const t = await open();
+    remote(t, URL_SQL, trio());
+    const dto = await t.engine.repositories.add({ url: URL_SQL });
+    const result = await t.engine.repositories.update(dto.id, {
+      courseIds: ['c'],
+    });
+    expect(result.changed).toBe(true);
+    expect(result.repository.courseIds).toEqual(['c']);
+    expect(result.repository.skippedCourseIds).toEqual(['a', 'b']);
+  });
+
+  it('validates the new selection and keeps the loaded state when it is refused', async () => {
+    const { t, dto } = await chosen(['a']);
+    const bad = await failure(
+      t.engine.repositories.update(dto.id, { courseIds: ['b'] }),
+    );
+    expect(bad).toMatchObject({
+      details: { reason: 'missing-requirement' },
+    });
+    const empty = await failure(
+      t.engine.repositories.update(dto.id, { courseIds: [] }),
+    );
+    expect(empty).toMatchObject({ code: 'INVALID_ARGUMENT' });
+    expect(await t.courseIds()).toEqual(['a', 'base']);
+    const [record] = await t.store.list();
+    expect(record?.selected).toEqual(['a']);
+    // отказ по запросу не делает репозиторий «с ошибкой»
+    expect(record).not.toHaveProperty('lastError');
+    expect((await t.engine.repositories.list())[0]?.status).toBe('ready');
+    const unknownId = await failure(
+      t.engine.repositories.update('nope', { courseIds: ['a'] }),
+    );
+    expect(unknownId.code).toBe('NOT_FOUND');
+    await expectClean(t);
+  });
+
+  it('keeps the learner progress when a course is deselected and chosen again', async () => {
+    const { t, dto } = await chosen(['a', 'c']);
+    await t.engine.practice.recordAttempt({
+      requestId: 'r1',
+      exerciseId: 'c::l0::e0',
+      grade: 4,
+    });
+    const progress = await t.engine.practice.getProgress();
+    const entries = t.eventStore.entryCount();
+
+    await t.engine.repositories.update(dto.id, { courseIds: ['a'] });
+    expect(t.eventStore.entryCount()).toBe(entries);
+
+    await t.engine.repositories.update(dto.id, { courseIds: ['a', 'c'] });
+    expect(await t.engine.practice.getProgress()).toEqual(progress);
+  });
+});
+
+describe('preview token: add and update install from the held snapshot (preview-token R1-R4)', () => {
+  const sync = async (t: Opened) => {
+    // вытеснение и расход убирают каталоги в фоне
+    await vi.waitFor(async () => {
+      expect(await readdir(join(t.dataDir, 'git-tmp')).catch(() => [])).toEqual(
+        [],
+      );
+    });
+  };
+
+  const stagingCount = async (t: Opened) =>
+    (await readdir(join(t.libraryRoot, '.staging')).catch(() => [])).length;
+
+  it('preview returns a token and keeps the snapshot (without the git dir) until it is used', async () => {
+    const t = await open();
+    remote(t, URL_SQL, trio());
+    const result = await t.engine.repositories.preview({ url: URL_SQL });
+    expect(result.previewId).toMatch(/^[a-z0-9-]+$/);
+    expect(
+      await exists(join(t.libraryRoot, '.staging', result.previewId, ID_SQL)),
+    ).toBe(true);
+    await expectOnlyHeld(t, 1);
+    expect(t.events.some(({ type }) => type === 'library-reloaded')).toBe(
+      false,
+    );
+  });
+
+  it('add with the token does not touch the network and gives what a download gives', async () => {
+    const t = await open();
+    remote(t, URL_SQL, trio());
+    const { previewId } = await t.engine.repositories.preview({ url: URL_SQL });
+    t.git.calls.length = 0;
+    t.events.length = 0;
+
+    const dto = await t.engine.repositories.add({
+      url: URL_SQL,
+      courseIds: ['a', 'c'],
+      previewId,
+    });
+    expect(t.git.calls).toEqual([]);
+    expect(dto).toMatchObject({
+      courseIds: ['a', 'c'],
+      skippedCourseIds: ['b'],
+      commit: sha(1),
+    });
+    expect(await t.courseIds()).toEqual(['a', 'base', 'c']);
+    expect(await exists(dirOf(t, 'a'))).toBe(true);
+    expect(await exists(dirOf(t, 'b'))).toBe(false);
+    expect(phasesOf(t.events)).toEqual(['validate', 'reload']);
+    await expectClean(t);
+  });
+
+  it('add of a single-course repository without courseIds also uses the token', async () => {
+    const t = await open();
+    remote(t, URL_SQL, course('sql'));
+    const { previewId } = await t.engine.repositories.preview({ url: URL_SQL });
+    t.git.calls.length = 0;
+    const dto = await t.engine.repositories.add({ url: URL_SQL, previewId });
+    expect(t.git.calls).toEqual([]);
+    expect(dto.courseIds).toEqual(['sql']);
+    expect(await t.courseIds()).toEqual(['base', 'sql']);
+    await expectClean(t);
+  });
+
+  it('update with the token changes the selection of a registered repository without any network call', async () => {
+    const t = await open();
+    remote(t, URL_SQL, trio());
+    const dto = await t.engine.repositories.add({
+      url: URL_SQL,
+      courseIds: ['a'],
+    });
+    const { previewId, courses } = await t.engine.repositories.preview({
+      url: URL_SQL,
+    });
+    expect(courses.find(({ id }) => id === 'a')?.installed).toBe(true);
+    t.git.calls.length = 0;
+    const result = await t.engine.repositories.update(dto.id, {
+      courseIds: ['a', 'c'],
+      previewId,
+    });
+    expect(t.git.calls).toEqual([]);
+    expect(result.changed).toBe(true);
+    expect(result.repository.courseIds).toEqual(['a', 'c']);
+    expect(await t.courseIds()).toEqual(['a', 'base', 'c']);
+    await expectClean(t);
+  });
+
+  it('update with the token and an unchanged commit and selection is a no-op that drops the snapshot', async () => {
+    const t = await open();
+    remote(t, URL_SQL, trio());
+    const dto = await t.engine.repositories.add({
+      url: URL_SQL,
+      courseIds: ['a'],
+    });
+    const { previewId } = await t.engine.repositories.preview({ url: URL_SQL });
+    t.git.calls.length = 0;
+    const result = await t.engine.repositories.update(dto.id, {
+      courseIds: ['a'],
+      previewId,
+    });
+    expect(result.changed).toBe(false);
+    expect(t.git.calls).toEqual([]);
+    await expectClean(t);
+  });
+
+  it('uses the commit the learner saw, even if the server moved on', async () => {
+    const t = await open();
+    remote(t, URL_SQL, trio());
+    const { previewId } = await t.engine.repositories.preview({ url: URL_SQL });
+    remote(t, URL_SQL, trio(['d']), 2);
+    const dto = await t.engine.repositories.add({
+      url: URL_SQL,
+      courseIds: ['a'],
+      previewId,
+    });
+    expect(dto.commit).toBe(sha(1));
+    expect(dto.skippedCourseIds).toEqual(['b', 'c']);
+  });
+
+  it('a token is spent by the first add that uses it, also when that add is refused', async () => {
+    const t = await open();
+    remote(t, URL_SQL, trio());
+    const { previewId } = await t.engine.repositories.preview({ url: URL_SQL });
+    const refused = await failure(
+      t.engine.repositories.add({ url: URL_SQL, courseIds: ['b'], previewId }),
+    );
+    expect(refused.details).toMatchObject({ reason: 'missing-requirement' });
+    await sync(t);
+    expect(await stagingCount(t)).toBe(0);
+
+    t.git.calls.length = 0;
+    const dto = await t.engine.repositories.add({
+      url: URL_SQL,
+      courseIds: ['a', 'b'],
+      previewId,
+    });
+    expect(t.git.calls).toEqual([`resolve ${URL_SQL}`, `fetch ${URL_SQL}`]);
+    expect(dto.courseIds).toEqual(['a', 'b']);
+  });
+
+  it('an unknown token is not an error: the repository is downloaded', async () => {
+    const t = await open();
+    remote(t, URL_SQL, trio());
+    const dto = await t.engine.repositories.add({
+      url: URL_SQL,
+      courseIds: ['a'],
+      previewId: 'no-such-token',
+    });
+    expect(dto.courseIds).toEqual(['a']);
+    expect(t.git.calls).toContain(`fetch ${URL_SQL}`);
+  });
+
+  it('a token of another address is ignored and stays usable for its own', async () => {
+    const t = await open();
+    const other = 'https://example.com/acme/other';
+    remote(t, URL_SQL, trio());
+    remote(t, other, course('x'));
+    const { previewId } = await t.engine.repositories.preview({ url: URL_SQL });
+    t.git.calls.length = 0;
+    await t.engine.repositories.add({ url: other, previewId });
+    expect(t.git.calls).toEqual([`resolve ${other}`, `fetch ${other}`]);
+    expect(await stagingCount(t)).toBe(1);
+
+    t.git.calls.length = 0;
+    await t.engine.repositories.add({
+      url: URL_SQL,
+      courseIds: ['a'],
+      previewId,
+    });
+    expect(t.git.calls).toEqual([]);
+  });
+
+  it('a token expires after PREVIEW_TTL_MS: the snapshot is removed and the repository is downloaded', async () => {
+    const t = await open();
+    remote(t, URL_SQL, trio());
+    const { previewId } = await t.engine.repositories.preview({ url: URL_SQL });
+    t.clock.advance(PREVIEW_TTL_MS);
+    t.git.calls.length = 0;
+    await t.engine.repositories.add({
+      url: URL_SQL,
+      courseIds: ['a'],
+      previewId,
+    });
+    expect(t.git.calls).toContain(`fetch ${URL_SQL}`);
+    await sync(t);
+    expect(await stagingCount(t)).toBe(0);
+  });
+
+  it('an unused snapshot is removed by the timer', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const t = await open();
+      remote(t, URL_SQL, trio());
+      await t.engine.repositories.preview({ url: URL_SQL });
+      expect(await stagingCount(t)).toBe(1);
+      await vi.advanceTimersByTimeAsync(PREVIEW_TTL_MS);
+      await vi.waitFor(async () => expect(await stagingCount(t)).toBe(0));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps at most MAX_HELD_PREVIEWS snapshots, the oldest goes first, and a new preview of the same address replaces the old one', async () => {
+    const t = await open();
+    const urls = [1, 2, 3].map((n) => `https://example.com/acme/r${n}`);
+    for (const url of urls) remote(t, url, course(`c${urls.indexOf(url)}`));
+    const tokens: string[] = [];
+    for (const url of urls) {
+      tokens.push((await t.engine.repositories.preview({ url })).previewId);
+    }
+    await vi.waitFor(async () =>
+      expect(await stagingCount(t)).toBe(MAX_HELD_PREVIEWS),
+    );
+    t.git.calls.length = 0;
+    await t.engine.repositories.add({ url: urls[0]!, previewId: tokens[0]! });
+    expect(t.git.calls).toContain(`fetch ${urls[0]}`);
+    t.git.calls.length = 0;
+    await t.engine.repositories.add({ url: urls[2]!, previewId: tokens[2]! });
+    expect(t.git.calls).toEqual([]);
+
+    const again = await t.engine.repositories.preview({ url: urls[1]! });
+    expect(again.previewId).not.toBe(tokens[1]);
+    await vi.waitFor(async () => expect(await stagingCount(t)).toBe(1));
+  });
+
+  it('closing the engine removes the held snapshots', async () => {
+    const t = await open();
+    remote(t, URL_SQL, trio());
+    await t.engine.repositories.preview({ url: URL_SQL });
+    expect(await stagingCount(t)).toBe(1);
+    await t.engine.close();
+    await vi.waitFor(async () => expect(await stagingCount(t)).toBe(0));
   });
 });

@@ -19,8 +19,9 @@ export const RPC_METHODS = {
   'library.getGraph': { idempotent: true },
   'library.readAsset': { idempotent: true },
   'repositories.list': { idempotent: true },
+  'repositories.preview': { idempotent: true }, // читает сервер, ничего не меняет
   'repositories.add': { idempotent: false },
-  'repositories.update': { idempotent: true }, // по коммиту на сервере
+  'repositories.update': { idempotent: true }, // по коммиту на сервере и выбору курсов
   'repositories.remove': { idempotent: true },
   'repositories.cancel': { idempotent: true },
   'repositories.checkUpdates': { idempotent: true }, // читает коммиты сервера, состояние не накапливает

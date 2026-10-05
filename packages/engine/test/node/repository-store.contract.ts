@@ -29,6 +29,8 @@ export const describeRepositoryStoreContract = (
       const full = record('r', {
         ref: 'refs/heads/main',
         courseIds: ['a', 'b'],
+        selected: ['a', 'b', 'gone'],
+        skippedCourseIds: ['c'],
         lastError: {
           code: 'GIT_FETCH_FAILED',
           message: 'boom',

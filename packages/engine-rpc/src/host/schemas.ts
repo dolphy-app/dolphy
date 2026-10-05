@@ -57,6 +57,11 @@ const bool = z.boolean();
 const epochMs = z.number().int().nonnegative();
 const requestId = z.string().min(1);
 const repositoryId = z.string().min(1).max(200);
+/** Токен предпросмотра репозитория: непрозрачная строка движка. */
+const previewToken = z.string().min(1).max(200);
+/** Потолок выбора курсов репозитория: ограничивает размер вызова, смысл проверяет движок. */
+const MAX_SELECTED_COURSES = 1000;
+const courseSelection = z.array(unitId).max(MAX_SELECTED_COURSES);
 const grade = z.union([
   z.literal(1),
   z.literal(2),
@@ -320,13 +325,29 @@ export const schemas = {
   'library.getGraph': z.tuple([optional(graphQuery)]),
   'library.readAsset': z.tuple([assetRef]),
   'repositories.list': z.tuple([]),
-  'repositories.add': z.tuple([
+  'repositories.preview': z.tuple([
     z.strictObject({
       url: str.min(1).max(2048),
       ref: optional(str.min(1).max(255)),
     }),
   ]),
-  'repositories.update': z.tuple([repositoryId]),
+  'repositories.add': z.tuple([
+    z.strictObject({
+      url: str.min(1).max(2048),
+      ref: optional(str.min(1).max(255)),
+      courseIds: optional(courseSelection),
+      previewId: optional(previewToken),
+    }),
+  ]),
+  'repositories.update': z.tuple([
+    repositoryId,
+    optional(
+      z.strictObject({
+        courseIds: optional(courseSelection),
+        previewId: optional(previewToken),
+      }),
+    ),
+  ]),
   'repositories.remove': z.tuple([repositoryId]),
   'repositories.cancel': z.tuple([repositoryId]),
   'repositories.checkUpdates': z.tuple([]),

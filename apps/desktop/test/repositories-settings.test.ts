@@ -4,6 +4,7 @@ import type {
   EngineEvent,
   LearningEngine,
   RepositoryDto,
+  UpdateRepositoryOptions,
   UpdateRepositoryResult,
 } from '@dolphy-app/engine-contract';
 import { useRepositories } from '@/pages/settings/model/repositories.ts';
@@ -16,6 +17,7 @@ const repo = (id: string, courses = 1): RepositoryDto => ({
   fetchedAt: 0,
   status: 'ready',
   courseIds: Array.from({ length: courses }, (_, i) => `${id}-${i}`),
+  skippedCourseIds: [],
 });
 
 const MICROTASK_ROUNDS = 10;
@@ -24,12 +26,14 @@ const flush = async () => {
     await Promise.resolve();
 };
 
+type UpdateArgs = [id: string, options?: UpdateRepositoryOptions];
+
 const createFake = (initial: RepositoryDto[]) => {
   let stored = initial;
   const listeners = new Set<(event: EngineEvent) => void>();
   const state = {
-    update: (id: string): Promise<UpdateRepositoryResult> =>
-      Promise.resolve({ changed: false, repository: repo(id) }),
+    update: (...args: UpdateArgs): Promise<UpdateRepositoryResult> =>
+      Promise.resolve({ changed: false, repository: repo(args[0]) }),
     remove: (): Promise<void> => Promise.resolve(),
   };
   const engine = {
@@ -39,7 +43,7 @@ const createFake = (initial: RepositoryDto[]) => {
     },
     repositories: {
       list: () => Promise.resolve(stored),
-      update: (id: string) => state.update(id),
+      update: (...args: UpdateArgs) => state.update(...args),
       remove: async (id: string) => {
         await state.remove();
         stored = stored.filter((item) => item.id !== id);
@@ -74,6 +78,26 @@ describe('useRepositories', () => {
       Promise.resolve({ changed: true, repository: repo(id, 3) });
     await model.update('a');
     expect(model.notice.value).toEqual({ kind: 'updated', courses: 3 });
+  });
+
+  it('update с выбором курсов передаёт courseIds, без выбора — только id', async () => {
+    const fake = createFake([repo('a')]);
+    const calls: unknown[][] = [];
+    fake.state.update = (...args) => {
+      calls.push(args);
+      return Promise.resolve({ changed: true, repository: repo('a', 2) });
+    };
+    const model = mount(fake.engine);
+    await flush();
+    await model.update('a', ['a-0', 'a-1']);
+    await model.update('a', ['a-0'], 'p1');
+    await model.update('a');
+    expect(calls).toEqual([
+      ['a', { courseIds: ['a-0', 'a-1'] }],
+      ['a', { courseIds: ['a-0'], previewId: 'p1' }],
+      ['a'],
+    ]);
+    expect(model.notice.value).toEqual({ kind: 'updated', courses: 2 });
   });
 
   it('пока идёт действие, другие блокируются; прогресс чистится после', async () => {

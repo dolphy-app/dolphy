@@ -69,9 +69,19 @@ export const useRepositories = (engine: LearningEngine) => {
     }
   };
 
-  const update = (id: string) =>
+  /**
+   * `courseIds` заменяет выбор курсов репозитория, `previewId` — снимок из
+   * предпросмотра (установка без загрузки); без них — обычное обновление.
+   */
+  const update = (id: string, courseIds?: string[], previewId?: string) =>
     run(id, async () => {
-      const result = await engine.repositories.update(id);
+      const result =
+        courseIds === undefined
+          ? await engine.repositories.update(id)
+          : await engine.repositories.update(id, {
+              courseIds,
+              ...(previewId !== undefined && { previewId }),
+            });
       notice.value = result.changed
         ? { kind: 'updated', courses: result.repository.courseIds.length }
         : { kind: 'upToDate' };

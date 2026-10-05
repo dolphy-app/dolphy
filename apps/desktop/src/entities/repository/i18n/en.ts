@@ -53,6 +53,10 @@ export const en: typeof ru = {
         'reload-rejected':
           'The library rejected the repository courses, for example because of a duplicate id.',
         'path-conflict': 'The repository folder in the library is taken.',
+        'unknown-course':
+          'The selected courses are not in the repository: it may have changed. Open the selection again.',
+        'missing-requirement':
+          'The selected courses need other courses of the repository. Select them too.',
         unknown: 'The repository was rejected.',
       },
       unknown: 'Something went wrong.',

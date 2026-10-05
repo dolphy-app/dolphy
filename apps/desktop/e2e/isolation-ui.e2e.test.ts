@@ -260,10 +260,12 @@ describe('изоляция интерфейса расширений', () => {
       .getByRole('button', { name: 'Проверить', exact: true })
       .click();
     await submitVerdict(client, 'Верно').waitFor({ timeout: 15_000 });
-    expect(readJournal(workspace.userData)[0]).toMatchObject({
-      unit_id: 'hostile_ui_kb::basic::q1',
-      source: 'runner',
-    });
+    // вердикт показывается раньше записи попытки: `submit` сначала выставляет
+    // его, и только затем отдельным запросом закрывает попытку (`complete`)
+    const { userData } = workspace;
+    await expect
+      .poll(() => readJournal(userData)[0], { timeout: 15_000 })
+      .toMatchObject({ unit_id: 'hostile_ui_kb::basic::q1', source: 'runner' });
     await stillSameWindow();
   });
 });

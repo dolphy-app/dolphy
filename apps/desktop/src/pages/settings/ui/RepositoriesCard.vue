@@ -129,105 +129,117 @@ const applyCourses = (id: string, courseIds: string[], previewId: string) => {
 
     <ul v-else class="list mt-4">
       <li v-for="repository in items" :key="repository.id" class="item">
-        <div class="d-flex flex-wrap align-center ga-3">
-          <span class="url text-body-large font-weight-medium">
-            {{ repository.url }}
-          </span>
-          <v-chip size="small" variant="tonal" label>
-            <v-icon
-              start
-              size="small"
-              :icon="STATUS_ICON[statusOf(repository)]"
-              :color="STATUS_COLOR[statusOf(repository)]"
-            />
-            {{ t(`repository.status.${statusOf(repository)}`) }}
-          </v-chip>
-          <v-chip
-            v-if="repository.availableCommit !== undefined"
-            size="small"
-            color="warning"
-            variant="flat"
-            prepend-icon="mdi-update"
-          >
-            {{ t('repository.updateAvailable') }}
-          </v-chip>
-          <v-chip
-            v-if="repository.skippedCourseIds.length > 0"
-            size="small"
-            variant="tonal"
-            label
-          >
-            {{
-              t('settings.library.repositories.notInstalled', {
-                n: repository.skippedCourseIds.length,
-              })
-            }}
-          </v-chip>
-          <v-spacer />
-          <v-btn
-            v-if="pendingId === repository.id"
-            variant="text"
-            :disabled="cancelling"
-            @click="cancel(repository.id)"
-          >
-            {{ t('common.cancel') }}
-          </v-btn>
-          <v-btn
-            variant="text"
-            prepend-icon="mdi-format-list-checks"
-            :disabled="busy"
-            :aria-label="
-              t('settings.library.repositories.chooseLabel', {
-                url: repository.url,
-              })
-            "
-            @click="toChoose = repository"
-          >
-            {{ t('settings.library.repositories.choose') }}
-          </v-btn>
-          <v-btn
-            variant="tonal"
-            prepend-icon="mdi-refresh"
-            :disabled="busy"
-            :loading="pendingId === repository.id"
-            :aria-label="
-              t('settings.library.repositories.updateLabel', {
-                url: repository.url,
-              })
-            "
-            @click="update(repository.id)"
-          >
-            {{ t('settings.library.repositories.update') }}
-          </v-btn>
-          <v-btn
-            variant="text"
-            color="error"
-            prepend-icon="mdi-delete-outline"
-            :disabled="busy"
-            :aria-label="
-              t('settings.library.repositories.removeLabel', {
-                url: repository.url,
-              })
-            "
-            @click="askRemove(repository)"
-          >
-            {{ t('settings.library.repositories.remove') }}
-          </v-btn>
-        </div>
+        <div class="row">
+          <div class="info">
+            <div class="d-flex flex-wrap align-center ga-2">
+              <span class="url text-body-large font-weight-medium">
+                {{ repository.url }}
+              </span>
+              <v-chip size="small" variant="tonal" label>
+                <v-icon
+                  start
+                  size="small"
+                  :icon="STATUS_ICON[statusOf(repository)]"
+                  :color="STATUS_COLOR[statusOf(repository)]"
+                />
+                {{ t(`repository.status.${statusOf(repository)}`) }}
+              </v-chip>
+              <v-chip
+                v-if="repository.availableCommit !== undefined"
+                size="small"
+                color="warning"
+                variant="flat"
+                prepend-icon="mdi-update"
+              >
+                {{ t('repository.updateAvailable') }}
+              </v-chip>
+              <v-chip
+                v-if="repository.skippedCourseIds.length > 0"
+                size="small"
+                variant="tonal"
+                label
+              >
+                {{
+                  t('settings.library.repositories.notInstalled', {
+                    n: repository.skippedCourseIds.length,
+                  })
+                }}
+              </v-chip>
+            </div>
+            <p class="text-body-medium text-medium-emphasis mt-1">
+              {{
+                repository.ref ??
+                t('settings.library.repositories.defaultBranch')
+              }}
+              ·
+              <span class="mono">{{ shortCommit(repository.commit) }}</span>
+              · {{ d(repository.fetchedAt, 'shortDateTime') }} ·
+              {{
+                t('settings.library.repositories.courses', {
+                  n: repository.courseIds.length,
+                })
+              }}
+            </p>
+          </div>
 
-        <p class="text-body-medium text-medium-emphasis mt-1">
-          {{
-            repository.ref ?? t('settings.library.repositories.defaultBranch')
-          }}
-          ·
-          <span class="mono">{{ shortCommit(repository.commit) }}</span>
-          · {{ d(repository.fetchedAt, 'shortDateTime') }} ·
-          {{
-            t('settings.library.repositories.courses', {
-              n: repository.courseIds.length,
-            })
-          }}
-        </p>
+          <div class="actions">
+            <v-btn
+              v-if="pendingId === repository.id"
+              variant="text"
+              :disabled="cancelling"
+              @click="cancel(repository.id)"
+            >
+              {{ t('common.cancel') }}
+            </v-btn>
+            <v-btn
+              variant="text"
+              prepend-icon="mdi-format-list-checks"
+              :disabled="busy"
+              :aria-label="
+                t('settings.library.repositories.chooseLabel', {
+                  url: repository.url,
+                })
+              "
+              @click="toChoose = repository"
+            >
+              {{ t('settings.library.repositories.choose') }}
+            </v-btn>
+            <v-btn
+              variant="tonal"
+              prepend-icon="mdi-refresh"
+              :disabled="busy"
+              :loading="pendingId === repository.id"
+              :aria-label="
+                t('settings.library.repositories.updateLabel', {
+                  url: repository.url,
+                })
+              "
+              @click="update(repository.id)"
+            >
+              {{ t('settings.library.repositories.update') }}
+            </v-btn>
+            <v-btn
+              variant="text"
+              color="error"
+              icon
+              density="comfortable"
+              :disabled="busy"
+              :aria-label="
+                t('settings.library.repositories.removeLabel', {
+                  url: repository.url,
+                })
+              "
+              @click="askRemove(repository)"
+            >
+              <v-icon icon="mdi-delete-outline" />
+              <v-tooltip
+                activator="parent"
+                location="top"
+                :text="t('settings.library.repositories.remove')"
+              />
+            </v-btn>
+          </div>
+        </div>
 
         <div
           v-if="pendingId === repository.id"
@@ -311,6 +323,7 @@ const applyCourses = (id: string, courseIds: string[], previewId: string) => {
 
 <style scoped>
 .list {
+  margin-bottom: 0;
   padding: 0;
   list-style: none;
 }
@@ -321,6 +334,26 @@ const applyCourses = (id: string, courseIds: string[], previewId: string) => {
 
 .item + .item {
   border-top: 1px solid rgb(var(--v-theme-on-surface), 0.12);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+}
+
+.info {
+  flex: 1 1 20rem;
+  min-width: 0;
+}
+
+.actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.5rem;
+  margin-inline-start: auto;
 }
 
 .url {

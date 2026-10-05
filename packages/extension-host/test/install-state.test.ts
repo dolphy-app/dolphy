@@ -192,7 +192,10 @@ describe('registry and policy: metadata and revocation', () => {
       state: 'disabled',
       revoked: 'revoked here',
     });
-    expect(info('acme.there')).toMatchObject({ state: 'loaded', revoked: null });
+    expect(info('acme.there')).toMatchObject({
+      state: 'loaded',
+      revoked: null,
+    });
     expect(policy.isEnabled('acme.there')).toBe(true);
     expect(asked).toContain('acme.there@https://former.test/index.json');
   });

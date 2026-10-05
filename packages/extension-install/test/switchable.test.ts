@@ -1,7 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { createExtensionInstaller, createSwitchableInstaller } from '../src/index.ts';
+import {
+  createExtensionInstaller,
+  createSwitchableInstaller,
+} from '../src/index.ts';
 import {
   CATALOG_URL,
   callsTo,
@@ -25,9 +28,7 @@ afterEach(async () => {
   await env.cleanup();
 });
 
-const open = (
-  extra: { envUrl?: string; settingUrl?: string | null } = {},
-) =>
+const open = (extra: { envUrl?: string; settingUrl?: string | null } = {}) =>
   createSwitchableInstaller({
     defaultUrl: CATALOG_URL,
     settingUrl: extra.settingUrl ?? null,
@@ -111,7 +112,9 @@ describe('two catalogs', () => {
     expect(await installer.checkForUpdates()).toBe(0);
     // the installed extension's identity is the former catalog
     expect(installer.revocationOf('acme.old', '1.0.0', CATALOG_URL)).toBeNull();
-    expect(installer.deprecationOf('acme.old', '1.0.0', CATALOG_URL)).toBeNull();
+    expect(
+      installer.deprecationOf('acme.old', '1.0.0', CATALOG_URL),
+    ).toBeNull();
     // ...while an extension installed from the new catalog would be affected
     expect(installer.revocationOf('acme.old', '1.0.0', OTHER_URL)).toBe(
       'bad build',
@@ -130,9 +133,13 @@ describe('two catalogs', () => {
   });
 
   it('going back to the former address brings updates and revocation back', async () => {
-    serveIndex(env.routes, [
-      { id: 'acme.old', version: '2.0.0', versions: ['2.0.0', '1.0.0'] },
-    ], { revoked: [{ id: 'acme.old', versions: '<1.5.0', reason: 'old build' }] });
+    serveIndex(
+      env.routes,
+      [{ id: 'acme.old', version: '2.0.0', versions: ['2.0.0', '1.0.0'] }],
+      {
+        revoked: [{ id: 'acme.old', versions: '<1.5.0', reason: 'old build' }],
+      },
+    );
     await installFake(env.dir, 'acme.old', '1.0.0');
     const installer = open();
     await installer.catalog();
@@ -169,7 +176,9 @@ describe('two catalogs', () => {
     await installer.catalog();
     await installer.useCatalog(OTHER_URL);
     await installer.catalog({ refresh: true });
-    expect(callsTo(env.fake.calls, 'https://catalog.test/index.v2.json')).toHaveLength(1);
+    expect(
+      callsTo(env.fake.calls, 'https://catalog.test/index.v2.json'),
+    ).toHaveLength(1);
     expect(callsTo(env.fake.calls, OTHER_INDEX_URL)).toHaveLength(1);
   });
 
@@ -191,6 +200,8 @@ describe('two catalogs', () => {
     await installer.catalog();
     await installer.useCatalog(null);
     await installer.catalog();
-    expect(callsTo(env.fake.calls, 'https://catalog.test/index.v2.json')).toHaveLength(1);
+    expect(
+      callsTo(env.fake.calls, 'https://catalog.test/index.v2.json'),
+    ).toHaveLength(1);
   });
 });

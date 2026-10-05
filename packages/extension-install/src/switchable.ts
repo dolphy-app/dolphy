@@ -30,15 +30,18 @@ export const createSwitchableInstaller = (
   const originOf = (url: string): CatalogSourceOrigin =>
     url === defaultUrl ? 'default' : 'setting';
   // holder вместо `let` в замыканиях: методы читают установщик при каждом вызове
-  const state: { url: string; origin: CatalogSourceOrigin; current: CatalogInstaller } =
-    (() => {
-      const url = envUrl ?? settingUrl ?? defaultUrl;
-      return {
-        url,
-        origin: envUrl === undefined ? originOf(url) : 'env',
-        current: create(url),
-      };
-    })();
+  const state: {
+    url: string;
+    origin: CatalogSourceOrigin;
+    current: CatalogInstaller;
+  } = (() => {
+    const url = envUrl ?? settingUrl ?? defaultUrl;
+    return {
+      url,
+      origin: envUrl === undefined ? originOf(url) : 'env',
+      current: create(url),
+    };
+  })();
   return {
     ready: () => state.current.ready(),
     catalog: (options) => state.current.catalog(options),

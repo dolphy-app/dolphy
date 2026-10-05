@@ -102,11 +102,7 @@ const withDeprecation = (
     deprecated:
       info.installed === null || version === null
         ? null
-        : installer.deprecationOf(
-            info.id,
-            version,
-            info.installed.catalogUrl,
-          ),
+        : installer.deprecationOf(info.id, version, info.installed.catalogUrl),
   };
 };
 
@@ -555,7 +551,8 @@ export const createExtensionsService = (
       });
     },
     setCatalogUrl: async (url) => {
-      const { origin, default: defaultUrl } = ctx.extensionInstaller.catalogSource();
+      const { origin, default: defaultUrl } =
+        ctx.extensionInstaller.catalogSource();
       if (origin === 'env') {
         throw rejectCatalogUrl(
           'env',

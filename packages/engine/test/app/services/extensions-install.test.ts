@@ -659,7 +659,11 @@ describe('extensions.setCatalogUrl / catalogSource', () => {
       method: 'useCatalog',
       args: ['https://example.test/index.json'],
     });
-    for (const url of [OTHER, 'http://localhost:1/i.json', 'http://[::1]/i.json']) {
+    for (const url of [
+      OTHER,
+      'http://localhost:1/i.json',
+      'http://[::1]/i.json',
+    ]) {
       await expect(engine.extensions.setCatalogUrl(url)).resolves.toMatchObject(
         { catalogUrl: new URL(url).href },
       );

@@ -405,8 +405,12 @@ describe('createFakeExtensionInstaller', () => {
     ).rejects.toMatchObject({ cause: 'network' });
     expect(await installer.updates()).toEqual([]);
     expect(await installer.checkForUpdates()).toBe(0);
-    expect(installer.revocationOf('acme.x', '1.0.0', FAKE_CATALOG_URL)).toBe('bad');
-    expect(installer.revocationOf('acme.y', '1.0.0', FAKE_CATALOG_URL)).toBeNull();
+    expect(installer.revocationOf('acme.x', '1.0.0', FAKE_CATALOG_URL)).toBe(
+      'bad',
+    );
+    expect(
+      installer.revocationOf('acme.y', '1.0.0', FAKE_CATALOG_URL),
+    ).toBeNull();
     expect(installer.calls).toEqual([
       { method: 'install', args: ['acme.ok'] },
       { method: 'install', args: ['acme.broken', '1.0.0'] },
@@ -430,11 +434,17 @@ describe('createFakeExtensionInstaller: docs and deprecation', () => {
     const first = installer.deprecationOf('acme.x', '1.0.0', FAKE_CATALOG_URL);
     expect(first).toEqual(deprecation);
     first?.alternatives.pop();
-    expect(installer.deprecationOf('acme.x', '1.0.0', FAKE_CATALOG_URL)).toEqual(deprecation);
+    expect(
+      installer.deprecationOf('acme.x', '1.0.0', FAKE_CATALOG_URL),
+    ).toEqual(deprecation);
     installer.setDeprecated('acme.x', null);
-    expect(installer.deprecationOf('acme.x', '1.0.0', FAKE_CATALOG_URL)).toBeNull();
+    expect(
+      installer.deprecationOf('acme.x', '1.0.0', FAKE_CATALOG_URL),
+    ).toBeNull();
     installer.setDeprecated('acme.y', deprecation);
-    expect(installer.deprecationOf('acme.y', '9.9.9', FAKE_CATALOG_URL)).toEqual(deprecation);
+    expect(
+      installer.deprecationOf('acme.y', '9.9.9', FAKE_CATALOG_URL),
+    ).toEqual(deprecation);
   });
 
   it('revocation and deprecation apply only to extensions installed from the current catalog, which useCatalog switches', async () => {

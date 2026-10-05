@@ -307,7 +307,9 @@ describe('deprecated и elsewhere в каталоге', () => {
     ];
     serveIndex(env.routes, entries);
     await env.installer.catalog();
-    expect(env.installer.deprecationOf('acme.old', '1.0.0', CATALOG_URL)).toEqual({
+    expect(
+      env.installer.deprecationOf('acme.old', '1.0.0', CATALOG_URL),
+    ).toEqual({
       versions: '<2.0.0',
       reason: 'Replaced',
       alternatives: [
@@ -315,10 +317,18 @@ describe('deprecated и elsewhere в каталоге', () => {
         { id: 'acme.gone', name: null },
       ],
     });
-    expect(env.installer.deprecationOf('acme.old', '2.0.0', CATALOG_URL)).toBeNull();
-    expect(env.installer.deprecationOf('acme.new', '1.0.0', CATALOG_URL)).toBeNull();
-    expect(env.installer.deprecationOf('acme.none', '1.0.0', CATALOG_URL)).toBeNull();
-    expect(env.installer.deprecationOf('acme.old', 'not-semver', CATALOG_URL)).toBeNull();
+    expect(
+      env.installer.deprecationOf('acme.old', '2.0.0', CATALOG_URL),
+    ).toBeNull();
+    expect(
+      env.installer.deprecationOf('acme.new', '1.0.0', CATALOG_URL),
+    ).toBeNull();
+    expect(
+      env.installer.deprecationOf('acme.none', '1.0.0', CATALOG_URL),
+    ).toBeNull();
+    expect(
+      env.installer.deprecationOf('acme.old', 'not-semver', CATALOG_URL),
+    ).toBeNull();
   });
 
   it('запись каталога: deprecated по показанной версии, versions с совместимостью и журналом, elsewhere', async () => {

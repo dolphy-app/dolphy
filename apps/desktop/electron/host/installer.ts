@@ -12,19 +12,22 @@ import type {
   DiscoveryResult,
   DiscoverySource,
 } from '@dolphy-app/extension-host';
-import { createExtensionInstaller } from '@dolphy-app/extension-install';
+import {
+  createExtensionInstaller,
+  createSwitchableInstaller,
+} from '@dolphy-app/extension-install';
 import type { InstallerOptions } from '@dolphy-app/extension-install';
 
 /** Официальный каталог расширений: статические файлы GitHub Pages репозитория каталога. */
 export const DEFAULT_EXTENSION_CATALOG_URL =
   'https://dolphy-app.github.io/dolphy-extensions/index.json';
 
-/** Заданный адрес годится, если это `http(s)`-URL; иначе — официальный (с предупреждением). */
-export const resolveCatalogUrl = (
+/** Адрес из окружения годится, если это `http(s)`-URL; иначе он игнорируется (с предупреждением). */
+export const envCatalogUrl = (
   configured: string | undefined,
   logger: ExtensionLogger,
-): string => {
-  if (configured === undefined) return DEFAULT_EXTENSION_CATALOG_URL;
+): string | undefined => {
+  if (configured === undefined) return undefined;
   try {
     const { protocol } = new URL(configured);
     if (protocol === 'https:' || protocol === 'http:') return configured;
@@ -33,9 +36,9 @@ export const resolveCatalogUrl = (
   }
   logger.warn(
     { extensionCatalogUrl: configured },
-    'extension catalog url is invalid, using the official one',
+    'extension catalog url is invalid, ignoring it',
   );
-  return DEFAULT_EXTENSION_CATALOG_URL;
+  return undefined;
 };
 
 /** Без пользовательского каталога ставить некуда: каталог и установка недоступны, обновлений нет. */
@@ -56,6 +59,12 @@ export const createUnavailableInstaller = (): ExtensionInstaller => {
     checkForUpdates: async () => 0,
     revocationOf: () => null,
     deprecationOf: () => null,
+    catalogSource: () => ({
+      url: DEFAULT_EXTENSION_CATALOG_URL,
+      default: DEFAULT_EXTENSION_CATALOG_URL,
+      origin: 'default',
+    }),
+    useCatalog: async () => {},
     versionFile: async () => unavailable(),
     docs: async () => unavailable(),
     docImage: async () => unavailable(),
@@ -100,6 +109,8 @@ export interface DesktopInstallerDeps {
     EngineConfig,
     'userExtensionsDir' | 'extensionCatalogUrl' | 'appVersion'
   >;
+  /** Сохранённый адрес каталога (`ExtensionSettingsDto.catalogUrl`); `null` — не задан. Важнее него только адрес окружения. */
+  settingUrl: string | null;
   /** Снимок читается при каждом обращении: применённые изменения видны установщику сразу. */
   discovery: DiscoverySource;
   logger: ExtensionLogger;
@@ -107,24 +118,36 @@ export interface DesktopInstallerDeps {
   fetch?: typeof fetch;
 }
 
-/** Установщик расширений процесса движка: сеть — глобальный `fetch`, файлы — пользовательский каталог расширений. */
+/**
+ * Установщик расширений процесса движка: сеть — глобальный `fetch`, файлы —
+ * пользовательский каталог расширений, адрес каталога переключаемый
+ * (`DOLPHY_EXTENSION_CATALOG_URL` → настройка → официальный).
+ */
 export const createDesktopInstaller = ({
   config,
+  settingUrl,
   discovery,
   logger,
   fetch: fetchImpl = fetch,
 }: DesktopInstallerDeps): ExtensionInstaller => {
   const { userExtensionsDir, appVersion } = config;
   if (userExtensionsDir === undefined) return createUnavailableInstaller();
-  return createExtensionInstaller({
-    catalogUrl: resolveCatalogUrl(config.extensionCatalogUrl, logger),
-    extensionsDir: userExtensionsDir,
-    bundledIds: () => fixedIds(discovery.get()),
-    appVersion,
-    apiVersion: EXTENSION_API_VERSION,
-    platform: process.platform,
-    inspectDir: inspectForInstall(appVersion),
-    logger,
-    fetch: fetchImpl,
+  const envUrl = envCatalogUrl(config.extensionCatalogUrl, logger);
+  return createSwitchableInstaller({
+    defaultUrl: DEFAULT_EXTENSION_CATALOG_URL,
+    ...(envUrl !== undefined && { envUrl }),
+    settingUrl,
+    create: (catalogUrl) =>
+      createExtensionInstaller({
+        catalogUrl,
+        extensionsDir: userExtensionsDir,
+        bundledIds: () => fixedIds(discovery.get()),
+        appVersion,
+        apiVersion: EXTENSION_API_VERSION,
+        platform: process.platform,
+        inspectDir: inspectForInstall(appVersion),
+        logger,
+        fetch: fetchImpl,
+      }),
   });
 };

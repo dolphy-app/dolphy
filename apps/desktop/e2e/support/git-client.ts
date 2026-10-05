@@ -169,10 +169,10 @@ export class GitClient {
     await this.page.getByText(RU.removedNotice).waitFor({ timeout: TIMEOUT });
   }
 
-  /** Названия уроков курса на экране «Граф знаний». */
+  /** Названия уроков курса в окне графа курса. */
   async lessonNames(courseId: string): Promise<string[]> {
     // строкой: tsconfig e2e без DOM-типов
-    await this.page.evaluate(`location.hash = '#/graph?course=${courseId}'`);
+    await this.page.evaluate(`location.hash = '#/courses?graph=${courseId}'`);
     const nodes = this.page.locator('.vue-flow__node-lesson');
     await nodes.first().waitFor({ timeout: TIMEOUT });
     const names = (await nodes.allInnerTexts()).map((text) => text.trim());

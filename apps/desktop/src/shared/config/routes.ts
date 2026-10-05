@@ -1,7 +1,6 @@
 export const ROUTE = {
   dailyPlan: 'daily-plan',
   courses: 'courses',
-  graph: 'graph',
   extensionPanel: 'extension-panel',
   placement: 'placement',
   session: 'session',

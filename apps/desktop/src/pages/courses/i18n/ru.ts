@@ -32,6 +32,7 @@ export const ru = {
       study: 'Учить',
       openPlan: 'План курса',
       check: 'Проверить, что я знаю',
+      graph: 'Посмотреть граф знаний',
     },
     git: {
       open: 'Добавить из Git',

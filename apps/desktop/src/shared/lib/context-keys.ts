@@ -5,12 +5,11 @@ import { ROUTE } from '@/shared/config/routes.ts';
 
 /** Раздел окна: значение контекстного ключа `page`. */
 export type PageContext =
-  'dailyPlan' | 'courses' | 'graph' | 'settings' | 'session' | 'extension';
+  'dailyPlan' | 'courses' | 'settings' | 'session' | 'extension';
 
 const PAGE_BY_ROUTE: Record<string, PageContext> = {
   [ROUTE.dailyPlan]: 'dailyPlan',
   [ROUTE.courses]: 'courses',
-  [ROUTE.graph]: 'graph',
   [ROUTE.extensionPanel]: 'extension',
   [ROUTE.session]: 'session',
   [ROUTE.settings]: 'settings',

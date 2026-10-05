@@ -15,11 +15,25 @@ afterEach(async () => {
   await workspace.dispose();
 });
 
-describe('граф знаний', () => {
-  it('клик мышью по уроку открывает панель урока', async () => {
+const COURSE = 'SQL: аналитика данных';
+
+describe('граф знаний в карточке курса', () => {
+  it('кнопка на карточке открывает граф на всё окно; клик по уроку открывает панель урока', async () => {
     const { page } = app;
     // строкой: tsconfig e2e без DOM-типов
-    await page.evaluate("location.hash = '#/graph?course=sql_analytics'");
+    await page.evaluate("location.hash = '#/courses'");
+    await page
+      .locator('.course-card', { hasText: COURSE })
+      .getByRole('button', { name: 'Посмотреть граф знаний' })
+      .click();
+    const dialog = page.getByRole('dialog', { name: COURSE });
+    await dialog.waitFor();
+    const covers = await page.evaluate(`(() => {
+      const box = document.querySelector('.graph-dialog').getBoundingClientRect();
+      return box.width === innerWidth && box.height === innerHeight;
+    })()`);
+    expect(covers).toBe(true);
+
     // стартовый урок виден сразу; первый узел в DOM может быть за краем окна
     const node = page.getByRole('button', { name: /^SELECT и выражения/ });
     await node.waitFor();
@@ -29,26 +43,18 @@ describe('граф знаний', () => {
     if (!box) throw new Error('lesson node has no box');
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
     await expect
-      .poll(() => page.getByRole('button', { name: 'Учить' }).count())
+      .poll(() => dialog.getByRole('button', { name: 'Учить' }).count())
       .toBe(1);
-  });
-
-  it('граф открыт на всё окно, Escape закрывает, кнопка открывает снова', async () => {
-    const { page } = app;
-    await page.evaluate("location.hash = '#/graph?course=sql_analytics'");
-    const dialog = page.getByRole('dialog', { name: 'Граф знаний' });
-    await dialog.waitFor();
-    // строкой: tsconfig e2e без DOM-типов
-    const covers = await page.evaluate(`(() => {
-      const box = document.querySelector('.graph-dialog').getBoundingClientRect();
-      return box.width === innerWidth && box.height === innerHeight;
-    })()`);
-    expect(covers).toBe(true);
 
     await page.keyboard.press('Escape');
     await dialog.waitFor({ state: 'hidden' });
-    await page.getByRole('button', { name: 'Открыть граф' }).click();
-    await dialog.waitFor();
-    await page.getByRole('button', { name: 'Приблизить' }).waitFor();
+    await page.getByRole('heading', { name: 'Курсы', exact: true }).waitFor();
+  });
+
+  it('ссылка ?graph= открывает граф курса и не оставляет параметр в адресе', async () => {
+    const { page } = app;
+    await page.evaluate("location.hash = '#/courses?graph=sql_analytics'");
+    await page.getByRole('dialog', { name: COURSE }).waitFor();
+    expect(await page.evaluate('location.hash')).toBe('#/courses');
   });
 });

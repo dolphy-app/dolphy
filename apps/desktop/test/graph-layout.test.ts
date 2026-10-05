@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { GraphEdgeDto } from '@dolphy-app/engine-contract';
-import { neighborInDirection } from '@/pages/graph/lib/flow.ts';
+import { neighborInDirection } from '@/widgets/course-graph/lib/flow.ts';
 import {
   FRAME_PADDING,
   NODE_HEIGHT,
   NODE_WIDTH,
   layoutCourses,
   layoutGraph,
-} from '@/pages/graph/lib/layout.ts';
-import type { Layout } from '@/pages/graph/lib/layout.ts';
+} from '@/widgets/course-graph/lib/layout.ts';
+import type { Layout } from '@/widgets/course-graph/lib/layout.ts';
 
 const dependency = (from: string, to: string): GraphEdgeDto => ({
   from,

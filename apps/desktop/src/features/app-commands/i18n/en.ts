@@ -14,7 +14,6 @@ export const en: typeof ru = {
     go: {
       dailyPlan: 'Go to: Daily plan',
       courses: 'Go to: Courses',
-      graph: 'Go to: Knowledge graph',
       settings: 'Go to: Settings',
       settingsLearning: 'Go to: Settings — Learning',
       settingsLibrary: 'Go to: Settings — Library',

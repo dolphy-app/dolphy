@@ -163,7 +163,7 @@ describe('Адрес каталога', () => {
     await openAdvanced(page);
     await expectDisabled(input(page), true);
     await expectDisabled(page.getByTestId('catalog-url-apply'), true);
-    await expectVisible(page.getByTestId('catalog-url-env'));
+    await expectVisible(page.getByTestId('catalog-url-env-note'));
     await expectText(currentUrl(page), catalogServer.url);
   });
 

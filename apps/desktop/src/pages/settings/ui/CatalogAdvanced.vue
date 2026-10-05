@@ -70,10 +70,10 @@ onMounted(() => void load());
       {{ t('settings.extensions.catalog.advanced.title') }}
     </v-btn>
 
-    <div
+    <v-card
       v-show="open"
       id="catalog-advanced-body"
-      class="mt-2"
+      class="pa-4 mt-2"
       data-testid="catalog-advanced-body"
     >
       <form
@@ -89,9 +89,8 @@ onMounted(() => void load());
           density="comfortable"
           autocomplete="off"
           spellcheck="false"
-          persistent-hint
           :label="t('settings.extensions.catalog.advanced.addressLabel')"
-          :hint="t('settings.extensions.catalog.advanced.addressHint')"
+          aria-describedby="catalog-url-hint"
           :disabled="locked || busy"
           :error-messages="errorText"
           data-testid="catalog-url-input"
@@ -119,6 +118,13 @@ onMounted(() => void load());
       </form>
 
       <p
+        id="catalog-url-hint"
+        class="text-body-small text-medium-emphasis mt-1"
+      >
+        {{ t('settings.extensions.catalog.advanced.addressHint') }}
+      </p>
+
+      <p
         v-if="source"
         class="d-flex flex-wrap align-center ga-2 text-body-small mt-3"
         data-testid="catalog-url-current"
@@ -143,7 +149,7 @@ onMounted(() => void load());
       <p
         v-if="locked"
         class="d-flex align-center ga-1 text-body-small mt-2"
-        data-testid="catalog-url-env"
+        data-testid="catalog-url-env-note"
       >
         <v-icon
           icon="mdi-information-outline"
@@ -172,7 +178,7 @@ onMounted(() => void load());
           }}</span>
         </template>
       </p>
-    </div>
+    </v-card>
   </section>
 </template>
 

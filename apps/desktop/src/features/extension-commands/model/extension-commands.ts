@@ -6,6 +6,7 @@ import type {
   ExtensionsService,
 } from '@dolphy-app/engine-contract';
 import type { CommandRegistry } from '@/shared/lib/command-registry.ts';
+import type { ExtensionWhen } from '@/shared/lib/extension-when.ts';
 import { createNotices } from './notices.ts';
 import type { Notices } from './notices.ts';
 import { createPanelProps } from './panel-props.ts';
@@ -34,6 +35,8 @@ export interface ExtensionCommandsDeps {
   contributions: () => Readonly<ContributionsDto>;
   /** Язык окна (`ru`/`en`); читается реактивно. */
   locale: () => string;
+  /** Условия видимости `when` команд расширений. */
+  when: ExtensionWhen;
   openPanel(target: { extensionId: string; panelId: string }): void;
 }
 
@@ -52,6 +55,7 @@ export const createExtensionCommands = (
     deps.contributions,
     runner,
     deps.locale,
+    deps.when,
   );
   const bindings = computed(() => extensionBindings(deps.contributions()));
   return { notices, panelProps, runner, bindings, dispose };

@@ -8,6 +8,7 @@ import type {
 import { createExtensionCommands } from '@/features/extension-commands/model/extension-commands.ts';
 import { NO_CONTRIBUTIONS } from '@/shared/api/engine/contributions.ts';
 import { createCommandRegistry } from '@/shared/lib/command-registry.ts';
+import { createExtensionWhen } from '@/shared/lib/extension-when.ts';
 
 const command = (
   id: string,
@@ -20,6 +21,7 @@ const command = (
   category: null,
   keybinding: null,
   keybindings: [],
+  when: null,
   palette: true,
   icon: 'puzzle',
   ...override,
@@ -36,6 +38,7 @@ const contributionsOf = (
     extensionId,
     title: id,
     icon: 'puzzle',
+    when: null,
     rendererUrl: `dolphy-ext://${extensionId}/panel.mjs`,
     isolated: true,
     origin: 'user',
@@ -49,6 +52,9 @@ const setup = (
 ) => {
   const contributions = shallowRef(initial);
   const locale = shallowRef('en');
+  const route = shallowRef<string>('daily-plan');
+  const courseActive = shallowRef(false);
+  const dark = shallowRef(false);
   const registry = createCommandRegistry();
   const invokeCommand = vi.fn(async () => result);
   const openPanel = vi.fn();
@@ -57,12 +63,21 @@ const setup = (
     engine: { invokeCommand },
     contributions: () => contributions.value,
     locale: () => locale.value,
+    when: createExtensionWhen({
+      route: () => route.value,
+      courseActive: () => courseActive.value,
+      locale: () => locale.value,
+      dark: () => dark.value,
+    }),
     openPanel,
   });
   const keys = () => registry.list.value.map(({ key }) => key);
   return {
     contributions,
     locale,
+    route,
+    courseActive,
+    dark,
     registry,
     invokeCommand,
     openPanel,
@@ -192,6 +207,69 @@ describe('адаптер команд расширений: реестр', () =>
       command('b', { extensionId: 'acme.other', palette: false }),
     ]);
     expect(keys()).toEqual([]);
+  });
+
+  it('when: пока условие ложно, команда недоступна; смена маршрута, курса, языка и темы пересчитывает без перерегистрации', () => {
+    const { registry, route, courseActive, locale, dark } = setup(
+      contributionsOf([
+        command('plain'),
+        command('here', { when: "route == 'courses'" }),
+        command('focused', { when: 'course.active' }),
+        command('russian', { when: "locale == 'ru'" }),
+        command('night', { when: 'theme.dark && !session.active' }),
+      ]),
+    );
+    const enabled = () =>
+      Object.fromEntries(
+        registry.list.value.map(({ key, enabled }) => [
+          key.split(':')[2],
+          enabled,
+        ]),
+      );
+    const before = registry.list.value.map(({ run }) => run);
+    expect(enabled()).toEqual({
+      plain: true,
+      here: false,
+      focused: false,
+      russian: false,
+      night: false,
+    });
+
+    route.value = 'courses';
+    courseActive.value = true;
+    locale.value = 'ru';
+    dark.value = true;
+    expect(enabled()).toEqual({
+      plain: true,
+      here: true,
+      focused: true,
+      russian: true,
+      night: true,
+    });
+
+    route.value = 'session';
+    expect(enabled()).toMatchObject({ here: false, night: false });
+    expect(registry.list.value.map(({ run }) => run)).toEqual(before);
+  });
+
+  it('when: смена условия во вкладе заменяет запись; убранное условие делает команду доступной', () => {
+    const { registry, contributions } = setup(
+      contributionsOf([command('a', { when: "route == 'courses'" })]),
+    );
+    expect(registry.list.value[0]?.enabled).toBe(false);
+    contributions.value = contributionsOf([
+      command('a', { when: "route == 'daily-plan'" }),
+    ]);
+    expect(registry.list.value[0]?.enabled).toBe(true);
+    contributions.value = contributionsOf([command('a', { when: null })]);
+    expect(registry.list.value[0]?.enabled).toBe(true);
+  });
+
+  it('when: условие, которого окно не разбирает, скрывает команду', () => {
+    const { registry } = setup(
+      contributionsOf([command('a', { when: "route == 'no-such-screen'" })]),
+    );
+    expect(registry.list.value[0]?.enabled).toBe(false);
   });
 
   it('dispose снимает все команды расширений', () => {

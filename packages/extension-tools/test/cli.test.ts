@@ -166,6 +166,59 @@ describe('runCli', () => {
     expect(bad.cli.stderr()).toContain(') at 9)');
   });
 
+  it('validate: `keybinding` and `keybindings` are checked for every platform, with the path of the problem', async () => {
+    const root = await copyProject('commands-panel');
+    const built = createIo();
+    expect(await runCli(['build', root], built.io), built.stderr()).toBe(0);
+    const dir = path.join(root, 'dist-ext', 'acme.commands-panel');
+    const manifestPath = path.join(dir, 'extension.json');
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as {
+      contributes: { commands: object[] };
+    };
+    const withBindings = async (binding: object) => {
+      const [first, ...rest] = manifest.contributes.commands;
+      await writeFile(
+        manifestPath,
+        JSON.stringify({
+          ...manifest,
+          contributes: {
+            ...manifest.contributes,
+            commands: [{ ...first, palette: true, ...binding }, ...rest],
+          },
+        }),
+      );
+      const cli = createIo();
+      return { code: await runCli(['validate', dir], cli.io), cli };
+    };
+
+    const ok = await withBindings({
+      keybinding: 'Ctrl+X',
+      keybindings: [
+        { key: 'Mod+Shift+L', mac: 'Mod+Alt+L', when: '!inputFocus' },
+        { key: 'Mod+K Mod+S' },
+      ],
+    });
+    expect(ok.code, ok.cli.stderr()).toBe(0);
+
+    const repeated = await withBindings({ keybinding: 'Mod+Ctrl+K' });
+    expect(repeated.code).toBe(1);
+    expect(repeated.cli.stderr()).toContain(
+      'contributes.commands.0.keybinding: invalid key',
+    );
+
+    const bare = await withBindings({ keybindings: [{ key: 'Shift+L' }] });
+    expect(bare.code).toBe(1);
+    expect(bare.cli.stderr()).toContain('contributes.commands.0.keybindings.0');
+
+    const platform = await withBindings({
+      keybindings: [{ key: 'Mod+L', mac: 'Mod+Cmd+L' }],
+    });
+    expect(platform.code).toBe(1);
+    expect(platform.cli.stderr()).toContain(
+      'contributes.commands.0.keybindings.0.mac: invalid key',
+    );
+  });
+
   it('metadata and compatibility: build copies the manifest as is, validate checks the shape', async () => {
     const root = await copyProject('with-metadata');
     const built = createIo();

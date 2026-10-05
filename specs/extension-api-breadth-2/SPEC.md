@@ -82,7 +82,7 @@ superseded-by: null
 - [x] 4a.3 Движок: staging и проверка компилятором, ожидающие импорты, `commitImport` с откатом, обобщение `SnapshotInstaller`, снимок курса для экспорта
 - [x] 4a.4 Окно: `pickFile`/`saveFile` в `platform` и preload, диалог импорта со сводкой, выбор курса для экспорта, карточка в «Библиотеке», команды палитры, i18n ru/en, e2e (импорт, замена, откат, зависший обработчик, экспорт)
 - [x] 4b.1 `when`: `parseWhen`/`evaluateWhen`, схемы команды, панели и виджета, DTO, окно (`enabled`, меню, виджеты), `dolphy-ext validate`, e2e
-- [ ] 4b.2 Сочетания: сверка с ADR 0016 (спека), `dolphy-ext validate` на `keybinding`/`keybindings` (тест CLI), e2e с враждебной рамкой
+- [x] 4b.2 Сочетания: сверка с ADR 0016 (спека), `dolphy-ext validate` на `keybinding`/`keybindings` (тест CLI), e2e с враждебной рамкой
 - [x] 4c.1 `packages/extension-ui`, e2e-панель с axe в двух темах, публикация и `verify:packages`
 - [ ] 4c.2 `dependencies`: схема, топологический порядок, состояние и диагностика, живой пересчёт, строка в «Расширениях», диалог установки и карточка каталога
 - [ ] 4c.3 Документация и примеры `docs-contributions.test.ts`, README, ADR, PR в репозиторий каталога (поднять `extension-tools`), `Outcomes`, архив

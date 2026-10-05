@@ -1,0 +1,27 @@
+{
+  "id": "acme.needy",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "name": "Needy",
+  "description": "Тема, которой нужны другие расширения",
+  "author": "acme",
+  "dependencies": [
+    { "id": "acme.midnight", "range": ">=1.0.0 <2.0.0" },
+    { "id": "acme.absent", "range": ">=1.0.0" }
+  ],
+  "contributes": {
+    "themes": [
+      {
+        "id": "acme.needy",
+        "label": "Нуждающаяся",
+        "dark": false,
+        "colors": {
+          "background": "#F4F4FF",
+          "surface": "#E4E4FF",
+          "primary": "#3030B0",
+          "on-primary": "#FFFFFF"
+        }
+      }
+    ]
+  }
+}

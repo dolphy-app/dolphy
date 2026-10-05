@@ -12,7 +12,7 @@ app uses to load it (`inspectExtensionDir` from `@dolphy-app/extension-host`),
 ```
 <project>/
   extension.json          # source manifest (required), same format as an installed one
-  src/index.ts            # all extension code: host, views, panels, markdown
+  src/index.ts            # all extension code: host, views, panels, widgets, markdown
   dolphy-ext.config.json  # optional
   schema/, assets/        # optional directories, copied as is (assets/ is checked, see "Style sheets, images and fonts")
   locales/                # optional ru.json, en.json: texts for %key% labels (see "Translations")
@@ -21,12 +21,13 @@ app uses to load it (`inspectExtensionDir` from `@dolphy-app/extension-host`),
 `src/index.ts` has named exports; the build lays them out into the files the
 manifest names (`main`, `renderer`, `module`):
 
-| Export     | Value                                        | Output file                                |
-| ---------- | -------------------------------------------- | ------------------------------------------ |
-| `host`     | `defineExtension({ … })`                     | `main` (`main.mjs`, Node bundle)           |
-| `views`    | exercise type id → `defineAnswerView(mount)` | the type's `renderer` (`view.mjs`)         |
-| `panels`   | panel id → `defineExtensionPanel({ mount })` | the panel's `module` (`panel.mjs`)         |
-| `markdown` | language → `defineMarkdownRenderer(render)`  | the renderer's `renderer` (`markdown.mjs`) |
+| Export     | Value                                          | Output file                                |
+| ---------- | ---------------------------------------------- | ------------------------------------------ |
+| `host`     | `defineExtension({ … })`                       | `main` (`main.mjs`, Node bundle)           |
+| `views`    | exercise type id → `defineAnswerView(mount)`   | the type's `renderer` (`view.mjs`)         |
+| `panels`   | panel id → `defineExtensionPanel({ mount })`   | the panel's `module` (`panel.mjs`)         |
+| `widgets`  | widget id → `defineExtensionWidget({ mount })` | the widget's `module` (`widget.mjs`)       |
+| `markdown` | language → `defineMarkdownRenderer(render)`    | the renderer's `renderer` (`markdown.mjs`) |
 
 ```ts
 import {
@@ -103,6 +104,7 @@ declare module '@dolphy-app/extension-sdk' {
     commands: 'acme.open' | 'acme.close';
     events: 'attempt.closed';
     panels: never;
+    widgets: never;
     markdownLanguages: never;
     settings: { 'acme.goal': number; 'acme.mode': 'fast' | 'slow' };
   }

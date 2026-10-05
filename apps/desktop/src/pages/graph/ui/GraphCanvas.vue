@@ -8,7 +8,6 @@ import { buildEdges, buildNodes, neighborInDirection } from '../lib/flow.ts';
 import type { Direction } from '../lib/flow.ts';
 import { NODE_HEIGHT, NODE_WIDTH } from '../lib/layout.ts';
 import type { Point } from '../lib/layout.ts';
-import { STATUS_VIEW, legendStatuses } from '../lib/view.ts';
 import type { GraphView } from '../lib/view.ts';
 import { GRAPH_CONTEXT } from '../model/context.ts';
 import type { LaidOut } from '../model/use-layout.ts';
@@ -31,8 +30,8 @@ const props = defineProps<{
   /** Раскладка структуры; узлы и рёбра строятся по её структуре. */
   laidOut: LaidOut;
   selectedId: UnitId | null;
-  showCovers: boolean;
 }>();
+const showCovers = defineModel<boolean>('showCovers', { required: true });
 const emit = defineEmits<{ select: [id: UnitId] }>();
 
 const { t, n } = useI18n();
@@ -48,7 +47,7 @@ const layout = computed(() => props.laidOut.layout);
 const nodes = computed(() => buildNodes(structure.value, layout.value));
 const lessonName = (id: UnitId) => props.view.lessons.get(id)?.name ?? id;
 const edges = computed(() =>
-  buildEdges(structure.value, props.showCovers, {
+  buildEdges(structure.value, showCovers.value, {
     weight: (weight) =>
       t('graph.edge.weight', { weight: n(weight, { style: 'percent' }) }),
     dependency: (from, to) =>
@@ -64,7 +63,6 @@ const edges = computed(() =>
       }),
   }),
 );
-const legend = computed(() => legendStatuses(props.view));
 
 const firstLessonId = computed(
   () =>
@@ -232,65 +230,7 @@ const controls = computed(() => [
     :aria-label="t('graph.canvas')"
     @focusin="onFocusIn"
   >
-    <!-- название курса, легенда и масштаб — над полотном, а не поверх него: плавающие панели закрывали узлы и перехватывали мышь, а шапка рамки уходила из кадра при панорамировании -->
-    <div class="toolbar">
-      <div v-for="course in view.courses" :key="course.id" class="course">
-        <h2 class="text-title-medium font-weight-bold text-high-emphasis">
-          {{ course.name }}
-        </h2>
-        <span class="text-label-large text-medium-emphasis">
-          {{
-            t('graph.frame.mastered', {
-              done: course.mastered,
-              total: course.lessonIds.length,
-            })
-          }}
-        </span>
-      </div>
-
-      <div class="legend" role="group" :aria-label="t('graph.legend.title')">
-        <span class="overline-label d-none d-md-inline" aria-hidden="true">
-          {{ t('graph.legend.title') }}
-        </span>
-        <ul class="legend-list">
-          <li
-            v-for="status in legend"
-            :key="status"
-            class="d-flex align-center ga-2"
-            :title="t(`graph.statusHint.${status}`)"
-          >
-            <v-icon
-              :icon="STATUS_VIEW[status].icon"
-              :color="STATUS_VIEW[status].color"
-              size="18"
-            />
-            <span class="text-label-large">
-              {{ t(`graph.status.${status}`) }}
-            </span>
-          </li>
-        </ul>
-      </div>
-
-      <div
-        class="controls"
-        role="group"
-        :aria-label="t('graph.controls.label')"
-      >
-        <v-btn
-          v-for="control in controls"
-          :key="control.icon"
-          icon
-          size="small"
-          variant="tonal"
-          :aria-label="control.label"
-          :title="control.label"
-          @click="control.act"
-        >
-          <v-icon :icon="control.icon" />
-        </v-btn>
-      </div>
-    </div>
-
+    <!-- масштаб — в левом нижнем углу полотна, название курса и легенда — в GraphToolbar над ним: узкий угол с кнопками не закрывает граф, а шапка рамки курса уходила из кадра при панорамировании -->
     <div class="flow">
       <VueFlow
         :id="flowId"
@@ -315,6 +255,35 @@ const controls = computed(() => [
           <CourseFrame v-bind="nodeProps" />
         </template>
       </VueFlow>
+
+      <div
+        class="controls"
+        role="group"
+        :aria-label="t('graph.controls.label')"
+      >
+        <v-btn
+          v-for="control in controls"
+          :key="control.icon"
+          :icon="control.icon"
+          size="small"
+          variant="text"
+          :aria-label="control.label"
+          :title="control.label"
+          @click="control.act"
+        />
+        <v-divider class="my-1" />
+        <v-btn
+          icon="mdi-vector-polyline"
+          size="small"
+          variant="text"
+          :color="showCovers ? 'primary' : undefined"
+          :active="showCovers"
+          :aria-pressed="showCovers"
+          :aria-label="t('graph.showCovers')"
+          :title="t('graph.showCovers')"
+          @click="showCovers = !showCovers"
+        />
+      </div>
     </div>
   </div>
 </template>
@@ -327,8 +296,6 @@ const controls = computed(() => [
   height: 100%;
   overflow: hidden;
   background: rgb(var(--v-theme-background));
-  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
-  border-radius: 16px;
 }
 
 .flow {
@@ -365,45 +332,17 @@ const controls = computed(() => [
   fill: rgb(var(--v-theme-surface));
 }
 
-.toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 24px;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  background: rgb(var(--v-theme-surface));
-  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
-}
-
-.course {
-  display: flex;
-  flex-basis: 100%;
-  flex-wrap: wrap;
-  gap: 0 16px;
-  align-items: baseline;
-  justify-content: space-between;
-}
-
-.legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 16px;
-  align-items: center;
-  min-width: 0;
-}
-
-.legend-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 16px;
-  padding: 0;
-  list-style: none;
-}
-
 .controls {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  z-index: 5;
   display: flex;
-  gap: 8px;
-  margin-inline-start: auto;
+  flex-direction: column;
+  padding: 2px;
+  background: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
 }
 </style>

@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 26 as const;
+export const CONTRACT_VERSION = 27 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 /** Потолок файла импорта, суммарного размера присланного дерева и снимка курса для экспорта, байт (R3, R4, R7 спеки `extension-api-breadth-2`). */
@@ -1193,6 +1193,16 @@ export interface UpdateRepositoryOptions {
   previewId?: string;
 }
 
+export interface RemoveRepositoryOptions {
+  /**
+   * Сбросить прогресс курсов репозитория (`progress_reset` на каждый курс из
+   * `RepositoryDto.courseIds`, на других устройствах — после синхронизации).
+   * По умолчанию `false`: журнал не меняется, прогресс вернётся при повторном
+   * добавлении.
+   */
+  removeProgress?: boolean;
+}
+
 /** Курс репозитория в предпросмотре (`repositories.preview`). */
 export interface RepositoryCourseDto {
   id: UnitId;
@@ -1262,8 +1272,12 @@ export interface RepositoriesService {
     id: string,
     options?: UpdateRepositoryOptions,
   ): Promise<UpdateRepositoryResult>;
-  /** Снимок и запись удаляются, журнал не меняется. `NOT_FOUND`. */
-  remove(id: string): Promise<void>;
+  /**
+   * Снимок и запись удаляются, курсы пропадают из библиотеки. С
+   * `options.removeProgress` прогресс курсов сбрасывается (журнал только
+   * дополняется), иначе журнал не меняется. `NOT_FOUND`, `INVALID_ARGUMENT`.
+   */
+  remove(id: string, options?: RemoveRepositoryOptions): Promise<void>;
   /** `true`, если операция над репозиторием шла и прервана. */
   cancel(id: string): Promise<boolean>;
   /**

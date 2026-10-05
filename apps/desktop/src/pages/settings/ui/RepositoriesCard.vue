@@ -71,16 +71,22 @@ const percentOf = (id: string) => {
 };
 
 const toRemove = ref<RepositoryDto | null>(null);
+const removeProgress = ref(false);
 const confirmOpen = computed({
   get: () => toRemove.value !== null,
   set: (value: boolean) => {
     if (!value) toRemove.value = null;
   },
 });
+// каждое открытие диалога начинается без отметки: прогресс по умолчанию сохраняется
+const askRemove = (repository: RepositoryDto) => {
+  removeProgress.value = false;
+  toRemove.value = repository;
+};
 const confirmRemove = () => {
   const repository = toRemove.value;
   toRemove.value = null;
-  if (repository) void remove(repository.id);
+  if (repository) void remove(repository.id, removeProgress.value);
 };
 
 const toChoose = ref<RepositoryDto | null>(null);
@@ -203,7 +209,7 @@ const applyCourses = (id: string, courseIds: string[], previewId: string) => {
                 url: repository.url,
               })
             "
-            @click="toRemove = repository"
+            @click="askRemove(repository)"
           >
             {{ t('settings.library.repositories.remove') }}
           </v-btn>
@@ -267,6 +273,21 @@ const applyCourses = (id: string, courseIds: string[], previewId: string) => {
         <v-card-text>
           <p class="url mb-2">{{ toRemove.url }}</p>
           <p>{{ t('settings.library.repositories.confirm.text') }}</p>
+          <v-checkbox
+            v-model="removeProgress"
+            :label="t('settings.library.repositories.confirm.removeProgress')"
+            :hint="
+              t(
+                removeProgress
+                  ? 'settings.library.repositories.confirm.resetHint'
+                  : 'settings.library.repositories.confirm.keepHint',
+              )
+            "
+            persistent-hint
+            density="compact"
+            color="error"
+            data-testid="remove-progress"
+          />
         </v-card-text>
         <v-card-actions>
           <v-spacer />

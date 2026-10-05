@@ -42,8 +42,10 @@ import {
   SnapshotRejectedError,
 } from '../../../src/ports/index.ts';
 import type {
+  EventStore,
   GitSnapshotFetcher,
   RepositoryStore,
+  SnapshotInstaller,
 } from '../../../src/ports/index.ts';
 import { createTestEngine } from '../../helpers/engine.ts';
 import type { TestEngine } from '../../helpers/engine.ts';
@@ -176,7 +178,15 @@ interface Opened extends TestEngine {
 
 /** Библиотека на диске с курсом `base`; поверх — настоящий движок со скриптованным git. */
 const open = async (
-  options: { store?: RepositoryStore; git?: FakeGit } = {},
+  options: {
+    store?: RepositoryStore;
+    git?: FakeGit;
+    eventStore?: EventStore;
+    snapshotInstaller?: (paths: {
+      libraryRoot: string;
+      dataDir: string;
+    }) => SnapshotInstaller;
+  } = {},
 ): Promise<Opened> => {
   const root = await tmp.make();
   const libraryRoot = join(root, 'library');
@@ -190,6 +200,12 @@ const open = async (
     config: { libraryRoot, dataDir },
     snapshotFetcher: git.fetcher,
     repositoryStore: store,
+    ...(options.eventStore !== undefined && {
+      eventStore: options.eventStore,
+    }),
+    ...(options.snapshotInstaller !== undefined && {
+      snapshotInstaller: options.snapshotInstaller({ libraryRoot, dataDir }),
+    }),
   });
   const courseIds = async () =>
     (await t.engine.library.listCourses()).items.map(({ id }) => id);
@@ -695,6 +711,177 @@ describe('repositories.remove (R6)', () => {
     const t = await open();
     const error = await failure(t.engine.repositories.remove('nope'));
     expect(error.code).toBe('NOT_FOUND');
+  });
+});
+
+describe('repositories.remove with removeProgress', () => {
+  const URL_PAIR = 'https://example.com/acme/pair';
+  const ID_PAIR = 'example.com-acme-pair';
+  const pair = buildLibrary({
+    courses: [
+      { id: 'p1', lessons: [{ id: 'l0', exercises: 2 }] },
+      { id: 'p2', lessons: [{ id: 'l0', exercises: 2 }] },
+    ],
+  });
+
+  const attempt = (t: Opened, requestId: string, exerciseId: string) =>
+    t.engine.practice.recordAttempt({ requestId, exerciseId, grade: 4 });
+
+  const progressOf = (t: Opened, courseId: string) =>
+    t.engine.practice.getProgress({ scope: { courseId } });
+
+  const resets = async (t: Opened) => {
+    const unitIds: string[] = [];
+    for await (const entry of t.eventStore.readAll()) {
+      if (entry.kind === 'progress_reset') unitIds.push(entry.unitId);
+    }
+    return unitIds.sort();
+  };
+
+  it('resets the progress of the courses: re-adding starts from scratch and new attempts count', async () => {
+    const t = await open();
+    remote(t, URL_SQL, course('sql'));
+    const dto = await t.engine.repositories.add({ url: URL_SQL });
+    const empty = await t.engine.practice.getProgress();
+    await attempt(t, 'r1', 'sql::l0::e0');
+    expect(await t.engine.practice.getProgress()).not.toEqual(empty);
+    const entries = t.eventStore.entryCount();
+
+    await t.engine.repositories.remove(dto.id, { removeProgress: true });
+    expect(await t.courseIds()).toEqual(['base']);
+    expect(await t.engine.repositories.list()).toEqual([]);
+    expect(await resets(t)).toEqual(['sql']);
+    expect(t.eventStore.entryCount()).toBe(entries + 1);
+
+    await t.engine.repositories.add({ url: URL_SQL });
+    expect(await t.engine.practice.getProgress()).toEqual(empty);
+    expect(
+      (await t.engine.practice.getAttempts('sql::l0::e0')).items,
+    ).toHaveLength(0);
+
+    await attempt(t, 'r2', 'sql::l0::e0');
+    expect(
+      (await t.engine.practice.getAttempts('sql::l0::e0')).items,
+    ).toHaveLength(1);
+  });
+
+  it('keeps the progress and the journal without the option, with {} and with false', async () => {
+    const t = await open();
+    remote(t, URL_SQL, course('sql'));
+    await t.engine.repositories.add({ url: URL_SQL });
+    await attempt(t, 'r1', 'sql::l0::e0');
+    const progress = await t.engine.practice.getProgress();
+    const entries = t.eventStore.entryCount();
+
+    for (const options of [undefined, {}, { removeProgress: false }]) {
+      await t.engine.repositories.remove(ID_SQL, options);
+      expect(t.eventStore.entryCount()).toBe(entries);
+      await t.engine.repositories.add({ url: URL_SQL });
+      expect(await t.engine.practice.getProgress()).toEqual(progress);
+    }
+  });
+
+  it('resets every course of the repository and no other course', async () => {
+    const t = await open();
+    remote(t, URL_SQL, course('sql'));
+    remote(t, URL_PAIR, pair);
+    await t.engine.repositories.add({ url: URL_SQL });
+    await t.engine.repositories.add({ url: URL_PAIR });
+    const empty = {
+      p1: await progressOf(t, 'p1'),
+      p2: await progressOf(t, 'p2'),
+    };
+    await attempt(t, 'r1', 'sql::l0::e0');
+    await attempt(t, 'r2', 'p1::l0::e0');
+    await attempt(t, 'r3', 'p2::l0::e1');
+    const sql = await progressOf(t, 'sql');
+    expect(await progressOf(t, 'p1')).not.toEqual(empty.p1);
+    expect(await progressOf(t, 'p2')).not.toEqual(empty.p2);
+
+    await t.engine.repositories.remove(ID_PAIR, { removeProgress: true });
+    expect(await resets(t)).toEqual(['p1', 'p2']);
+    expect(await progressOf(t, 'sql')).toEqual(sql);
+
+    await t.engine.repositories.add({ url: URL_PAIR });
+    expect(await progressOf(t, 'p1')).toEqual(empty.p1);
+    expect(await progressOf(t, 'p2')).toEqual(empty.p2);
+    expect(await progressOf(t, 'sql')).toEqual(sql);
+  });
+
+  it('fails and keeps the progress, the record and the courses when the snapshot cannot be removed', async () => {
+    const t = await open({
+      snapshotInstaller: (paths) => ({
+        ...createNodeSnapshotInstaller(paths),
+        remove: () => Promise.reject(new Error('disk is read-only')),
+      }),
+    });
+    remote(t, URL_SQL, course('sql'));
+    const dto = await t.engine.repositories.add({ url: URL_SQL });
+    await attempt(t, 'r1', 'sql::l0::e0');
+    const progress = await t.engine.practice.getProgress();
+    const entries = t.eventStore.entryCount();
+
+    await expect(
+      t.engine.repositories.remove(dto.id, { removeProgress: true }),
+    ).rejects.toMatchObject({ code: 'INTERNAL' });
+    expect(t.eventStore.entryCount()).toBe(entries);
+    expect(await t.engine.practice.getProgress()).toEqual(progress);
+    expect(await t.courseIds()).toEqual(['base', 'sql']);
+    expect(await t.engine.repositories.list()).toEqual([dto]);
+  });
+
+  it('keeps the record when the reset cannot be written, and a retry finishes the removal', async () => {
+    let failing = false;
+    const inner = createMemoryEventStore();
+    const eventStore: EventStore = {
+      ...inner,
+      transact: (work) =>
+        failing
+          ? Promise.reject(new Error('journal is read-only'))
+          : inner.transact(work),
+    };
+    const t = await open({ eventStore });
+    remote(t, URL_SQL, course('sql'));
+    const dto = await t.engine.repositories.add({ url: URL_SQL });
+    const empty = await t.engine.practice.getProgress();
+    await attempt(t, 'r1', 'sql::l0::e0');
+
+    failing = true;
+    await expect(
+      t.engine.repositories.remove(dto.id, { removeProgress: true }),
+    ).rejects.toMatchObject({ code: 'INTERNAL' });
+    expect(await t.store.list()).toHaveLength(1);
+    expect(await t.engine.repositories.list()).toMatchObject([
+      { id: dto.id, status: 'error' },
+    ]);
+
+    failing = false;
+    await t.engine.repositories.remove(dto.id, { removeProgress: true });
+    expect(await t.store.list()).toEqual([]);
+    await t.engine.repositories.add({ url: URL_SQL });
+    expect(await t.engine.practice.getProgress()).toEqual(empty);
+  });
+
+  it('rejects a wrong option before touching anything; an unknown id stays NOT_FOUND without a journal write', async () => {
+    const t = await open();
+    remote(t, URL_SQL, course('sql'));
+    const dto = await t.engine.repositories.add({ url: URL_SQL });
+    const entries = t.eventStore.entryCount();
+
+    const bad = await failure(
+      t.engine.repositories.remove(dto.id, {
+        removeProgress: 'yes',
+      } as never),
+    );
+    expect(bad.code).toBe('INVALID_ARGUMENT');
+    expect(await t.engine.repositories.list()).toEqual([dto]);
+    expect(t.eventStore.entryCount()).toBe(entries);
+
+    const missing = await failure(
+      t.engine.repositories.remove('nope', { removeProgress: true }),
+    );
+    expect(missing.code).toBe('NOT_FOUND');
+    expect(t.eventStore.entryCount()).toBe(entries);
   });
 });
 

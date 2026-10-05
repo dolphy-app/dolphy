@@ -151,6 +151,16 @@ describe('курсы из git-репозитория', () => {
     await expect
       .poll(() => client.courseNames(), { timeout: 15_000 })
       .toEqual(before);
+
+    // (8) повторное добавление и «Удалить» с отметкой «Удалить и прогресс курсов»
+    await client.openAddDialog();
+    await client.submitAdd(server.urlOf('course'));
+    await client.waitAdded();
+    await client.courseCard(REMOTE_COURSE.name).waitFor({ timeout: 15_000 });
+    await client.openLibrarySettings();
+    await client.removeRepository(url, { withProgress: true });
+    expect(readRepositories(workspace.userData)).toEqual([]);
+    expect(snapshots()).toEqual([]);
   });
 
   it('ошибки остаются в диалоге и не меняют библиотеку, после исправления адрес принимается', async () => {

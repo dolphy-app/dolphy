@@ -354,7 +354,10 @@ export const schemas = {
       }),
     ),
   ]),
-  'repositories.remove': z.tuple([repositoryId]),
+  'repositories.remove': z.tuple([
+    repositoryId,
+    optional(z.strictObject({ removeProgress: optional(bool) })),
+  ]),
   'repositories.cancel': z.tuple([repositoryId]),
   'repositories.checkUpdates': z.tuple([]),
   'practice.startSession': z.tuple([]),

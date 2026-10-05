@@ -34,6 +34,7 @@ import { DEFAULT_EXERCISE_TIMEOUT_MS, toExerciseDto } from '../dto.ts';
 import { EngineError } from '../errors.ts';
 import { paginate } from '../pagination.ts';
 import { createProgressReader } from '../progress.ts';
+import { commitProgressResets } from '../progress-reset.ts';
 
 const GRADES: ReadonlySet<unknown> = new Set([1, 2, 3, 4, 5]);
 const SOURCES: ReadonlySet<unknown> = new Set([
@@ -509,16 +510,8 @@ export const createPracticeService = (ctx: EngineContext): PracticeService => {
     if (graph.graph.getUnitType(unitId) === undefined) {
       throw new EngineError('NOT_FOUND', { details: { unitId } });
     }
-    const revision = library.current()?.revision ?? '';
-    const { appended, duplicates } = await ctx.commit([
-      {
-        fields: {
-          kind: 'progress_reset',
-          unitId,
-          ...(revision !== '' && { libraryRevision: revision }),
-        },
-        id: requestId,
-      },
+    const { appended, duplicates } = await commitProgressResets(ctx, [
+      { unitId, id: requestId },
     ]);
     const [entry] = appended;
     if (entry === undefined) {
@@ -527,17 +520,6 @@ export const createPracticeService = (ctx: EngineContext): PracticeService => {
       }
       return { eventId: requestId, duplicate: true };
     }
-    // оценки меняются у самого юнита, вложенных и охватывающих
-    const unitIds = [
-      unitId,
-      ...graph.graph.getContainers(unitId),
-      ...graph.graph.getExercisesUnder(unitId).filter((id) => id !== unitId),
-    ];
-    ctx.emit({
-      type: 'progress',
-      unitIds: [...new Set(unitIds)],
-      at: entry.at,
-    });
     return { eventId: entry.id, duplicate: false };
   };
 

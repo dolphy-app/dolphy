@@ -141,6 +141,10 @@ const empty = computed(
   gap: 0.75rem;
 }
 
+.entry-text p {
+  margin: 0;
+}
+
 .entry-text {
   flex: 1 1 14rem;
   min-width: 0;

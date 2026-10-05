@@ -95,6 +95,7 @@ export const linkToolchain = async (project: string): Promise<void> => {
       '@dolphy-app/extension-sdk',
       path.join(REPO_ROOT, 'packages/extension-sdk'),
     ],
+    ['@dolphy-app/extension-ui', path.join(REPO_ROOT, 'packages/extension-ui')],
     [
       '@dolphy-app/extension-tools',
       path.join(REPO_ROOT, 'packages/extension-tools'),

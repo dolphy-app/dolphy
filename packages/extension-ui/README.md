@@ -18,6 +18,14 @@ The stylesheet is one `<style id="dolphy-ui-kit">` in the frame document, insert
 
 Elements are static: to change a list, build a new one and call `replaceWith`.
 
+## Install and use
+
+```sh
+pnpm add @dolphy-app/extension-ui
+```
+
+Import the functions in the code of a panel (`panels` of `src/index.ts`, built by `dolphy-ext build` into `panel.mjs`); the kit has no side effects and is bundled into the panel. A panel runs in an isolated frame with no network and no access to the app, and the kit adds no permission. A complete project with tests is in the `@dolphy-app/extension-sdk` guide, `docs/recipe-ui-kit.md`.
+
 ## Example
 
 A panel (`src/panel.ts` of an extension project):

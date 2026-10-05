@@ -123,6 +123,37 @@ keep `.dolphy` out of git; it is never part of `dist-ext` or of a catalog
 source check. What the SDK does with the ids is described in the README of
 `@dolphy-app/extension-sdk`, "Typed ids".
 
+## Importers, exporters, `when`, key bindings and dependencies
+
+`dolphy-ext validate` (and `build`, which runs it) parses these manifest fields
+with the same code as the app and reports each problem with its path:
+
+- `contributes.importers` (`id`, `title`, `accept` of 1–8 lower-case file
+  extensions such as `.csv`, optional `input` `text` or `bytes`) and
+  `contributes.exporters` (`id`, `title`, `scope` `course` or `progress`): at
+  most 8 of each kind. A `progress` exporter without the `learning.stats`
+  permission is an error at `contributes.exporters.<i>.scope`. `dolphy-ext
+types` writes their ids, so a handler record of `defineExtension` that misses
+  a declared id fails `tsc`.
+- `when` of a command, a panel and a widget: at most 200 characters over the
+  keys `route`, `course.active`, `session.active`, `locale` and `theme.dark`. An
+  unknown key, an unknown value of `route` or `locale`, a type mismatch or a
+  syntax error is reported with the position in the text.
+- `keybinding` and `keybindings[]` of a command must parse on macOS, Windows and
+  Linux: `Ctrl+X` is fine, `Mod+Ctrl+K` (a repeated modifier on Windows and
+  Linux) and a bare printable key without a `when` are errors, with the path
+  such as `contributes.commands.0.keybindings.1.key`.
+- `dependencies` (up to 16 entries `{ id, range? }`, `range` being comparators
+  such as `>=1.0.0 <2.0.0`): a repeat, a dependency on the extension itself and
+  a bad range are errors. Whether a dependency is installed is a runtime
+  question for the app; `validate` does not know it.
+
+`catalog build` carries the ids of `importers` and `exporters` into the entry's
+`contributes` and the `dependencies` of the manifest into the version record;
+`catalog check` rejects a manifest whose fields the parser above refuses. The
+catalog repository pins a released version of this package, so a submission
+that uses these fields passes the check only after that pin is raised.
+
 ## Style sheets, images and fonts
 
 An extension can ship style sheets (`css`), images (`png`, `webp`, `jpg`, `jpeg`,

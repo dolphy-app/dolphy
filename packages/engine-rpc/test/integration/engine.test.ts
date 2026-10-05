@@ -465,6 +465,16 @@ describe('rpc → dispatcher → real engine', () => {
     expect(
       await call('repositories.list', () => client.repositories.list()),
     ).toEqual([]);
+    await call('repositories.preview', () =>
+      client.repositories
+        .preview({ url: 'https://example.com/a.git' })
+        .catch((error) => {
+          expect(error).toMatchObject({
+            code: 'GIT_FETCH_FAILED',
+            details: { reason: 'network' },
+          });
+        }),
+    );
     await call('repositories.add', () =>
       client.repositories
         .add({ url: 'https://example.com/a.git' })

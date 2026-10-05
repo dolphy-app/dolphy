@@ -1125,6 +1125,8 @@ export interface RepositoryDto {
   status: RepositoryStatus;
   /** Курсы, пришедшие из этого репозитория. */
   courseIds: UnitId[];
+  /** Курсы загруженного коммита, которых нет в библиотеке из-за выбора ученика; у репозитория без выбора пусто. */
+  skippedCourseIds: UnitId[];
   lastError?: EngineErrorDto;
   /**
    * Коммит на сервере, если он отличается от загруженного (последняя проверка
@@ -1136,9 +1138,59 @@ export interface RepositoryDto {
   checkedAt?: EpochMs;
 }
 
+/** Вход `repositories.preview`: как у `add`, без выбора курсов. */
+export interface PreviewRepositoryRequest {
+  url: string;
+  ref?: string;
+}
+
 export interface AddRepositoryRequest {
   url: string;
   ref?: string;
+  /**
+   * Курсы репозитория, которые нужно поставить (непустой список без повторов).
+   * Нет поля — все курсы коммита, и новые курсы при `update` тоже ставятся.
+   */
+  courseIds?: UnitId[];
+}
+
+export interface UpdateRepositoryOptions {
+  /** Новый выбор курсов (как `AddRepositoryRequest.courseIds`); нет поля — прежний. */
+  courseIds?: UnitId[];
+}
+
+/** Курс репозитория в предпросмотре (`repositories.preview`). */
+export interface RepositoryCourseDto {
+  id: UnitId;
+  title: string;
+  /** Каталог курса от корня репозитория. */
+  path: string;
+  lessonCount: number;
+  /**
+   * Курсы того же репозитория, без которых этот не загрузится: зависимости,
+   * `superseded` и `encompassed` на юниты других курсов, курсы-предки по
+   * вложенности каталогов.
+   */
+  requires: UnitId[];
+  /** Диагностики сканера в каталоге курса. */
+  errors: number;
+  warnings: number;
+  /** До пяти первых текстов ошибок; не переводятся. */
+  messages: string[];
+  /** Курс уже пришёл из этого репозитория (запись реестра с тем же URL). */
+  installed: boolean;
+  /** Курс с таким `id` уже есть в библиотеке из другого источника. */
+  inLibrary: boolean;
+}
+
+export interface RepositoryPreviewDto {
+  /** Нормализованный URL. */
+  url: string;
+  ref: string | null;
+  /** Полный SHA-1 просмотренного коммита. */
+  commit: string;
+  /** Все курсы коммита в порядке обхода каталогов. */
+  courses: RepositoryCourseDto[];
 }
 
 export interface UpdateRepositoryResult {
@@ -1149,10 +1201,26 @@ export interface UpdateRepositoryResult {
 
 export interface RepositoriesService {
   list(): Promise<RepositoryDto[]>;
-  /** `INVALID_ARGUMENT`, `REPOSITORY_EXISTS`, `GIT_FETCH_FAILED`, `REPOSITORY_REJECTED`. */
+  /**
+   * Скачивает репозиторий во временный каталог и возвращает его курсы для
+   * выбора; библиотека, реестр и каталоги библиотеки не меняются.
+   * `INVALID_ARGUMENT`, `GIT_FETCH_FAILED`, `REPOSITORY_REJECTED` (правила снимка).
+   */
+  preview(req: PreviewRepositoryRequest): Promise<RepositoryPreviewDto>;
+  /**
+   * `INVALID_ARGUMENT`, `REPOSITORY_EXISTS`, `GIT_FETCH_FAILED`,
+   * `REPOSITORY_REJECTED` (в том числе `unknown-course` и `missing-requirement`
+   * при `courseIds`).
+   */
   add(req: AddRepositoryRequest): Promise<RepositoryDto>;
-  /** `NOT_FOUND`, `GIT_FETCH_FAILED`, `REPOSITORY_REJECTED`. */
-  update(id: string): Promise<UpdateRepositoryResult>;
+  /**
+   * Обновляет репозиторий; `options.courseIds` заменяет выбор курсов.
+   * `NOT_FOUND`, `INVALID_ARGUMENT`, `GIT_FETCH_FAILED`, `REPOSITORY_REJECTED`.
+   */
+  update(
+    id: string,
+    options?: UpdateRepositoryOptions,
+  ): Promise<UpdateRepositoryResult>;
   /** Снимок и запись удаляются, журнал не меняется. `NOT_FOUND`. */
   remove(id: string): Promise<void>;
   /** `true`, если операция над репозиторием шла и прервана. */

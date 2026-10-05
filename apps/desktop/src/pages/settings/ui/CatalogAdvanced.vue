@@ -25,14 +25,16 @@ const open = ref(false);
 /** Адрес принят и действует; снимается, когда пользователь снова правит поле. */
 const applied = ref(false);
 
-const errorText = computed(() => {
+const errorText = computed<string[]>(() => {
   const current = error.value;
-  if (current === null) return undefined;
-  return current.kind === 'rejected'
-    ? t(`settings.extensions.catalog.advanced.errors.${current.reason}`)
-    : t('settings.extensions.catalog.advanced.failed', {
-        message: current.message,
-      });
+  if (current === null) return [];
+  const text =
+    current.kind === 'rejected'
+      ? t(`settings.extensions.catalog.advanced.errors.${current.reason}`)
+      : t('settings.extensions.catalog.advanced.failed', {
+          message: current.message,
+        });
+  return [text];
 });
 
 watch(draft, () => {

@@ -27,18 +27,17 @@ export const envCatalogUrl = (
   configured: string | undefined,
   logger: ExtensionLogger,
 ): string | undefined => {
-  if (configured === undefined) return undefined;
-  try {
-    const { protocol } = new URL(configured);
-    if (protocol === 'https:' || protocol === 'http:') return configured;
-  } catch {
-    // сообщение ниже
+  const valid =
+    configured !== undefined &&
+    URL.canParse(configured) &&
+    /^https?:$/.test(new URL(configured).protocol);
+  if (configured !== undefined && !valid) {
+    logger.warn(
+      { extensionCatalogUrl: configured },
+      'extension catalog url is invalid, ignoring it',
+    );
   }
-  logger.warn(
-    { extensionCatalogUrl: configured },
-    'extension catalog url is invalid, ignoring it',
-  );
-  return undefined;
+  return valid ? configured : undefined;
 };
 
 /** Без пользовательского каталога ставить некуда: каталог и установка недоступны, обновлений нет. */

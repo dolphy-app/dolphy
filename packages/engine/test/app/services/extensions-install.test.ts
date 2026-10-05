@@ -596,19 +596,24 @@ describe('extensions.docs / docImage', () => {
   });
 });
 
+const openSwitching = async () => {
+  const installer = createFakeExtensionInstaller();
+  const t = await createTestEngine({ extensionInstaller: installer });
+  return {
+    ...t,
+    installer,
+    published: () => t.events.map(({ type }) => type as string),
+  };
+};
+
 describe('extensions.setCatalogUrl / catalogSource', () => {
   const OTHER = 'http://127.0.0.1:4010/index.json';
 
-  const reasonOf = async (
-    run: Promise<unknown>,
-  ): Promise<string | undefined> => {
-    try {
-      await run;
-    } catch (error) {
-      return (error as { details?: { reason?: string } }).details?.reason;
-    }
-    return undefined;
-  };
+  const reasonOf = async (run: Promise<unknown>): Promise<unknown> =>
+    run.then(
+      () => undefined,
+      (error: { details?: { reason?: string } }) => error.details?.reason,
+    );
 
   it('reports the default source until a custom address is applied', async () => {
     const { engine } = await open([]);
@@ -737,13 +742,3 @@ describe('extensions.setCatalogUrl / catalogSource', () => {
     });
   });
 });
-
-const openSwitching = async () => {
-  const installer = createFakeExtensionInstaller();
-  const t = await createTestEngine({ extensionInstaller: installer });
-  return {
-    ...t,
-    installer,
-    published: () => t.events.map(({ type }) => type as string),
-  };
-};

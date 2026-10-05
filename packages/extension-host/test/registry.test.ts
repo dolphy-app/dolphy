@@ -39,6 +39,8 @@ const extension = (id: string, version = '1.0.0'): ResolvedExtension => ({
   events: [],
   commands: [],
   panels: [],
+  importers: [],
+  exporters: [],
 });
 
 const NONE = {
@@ -50,6 +52,8 @@ const NONE = {
   events: [],
   commands: [],
   panels: [],
+  importers: [],
+  exporters: [],
 };
 
 const discovery: DiscoveryResult = {

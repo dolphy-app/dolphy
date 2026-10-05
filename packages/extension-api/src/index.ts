@@ -146,6 +146,34 @@ export interface PanelContribution {
   module?: string;
 }
 
+/** What an importer accepts: `text` hands the handler the file as a UTF-8 string, `bytes` as a `Uint8Array`. */
+export type ImporterInputKind = 'text' | 'bytes';
+
+/** Extension importer: turns a file the user picked into a course directory (`ctx.importers.register`). */
+export interface ImporterContribution {
+  /** Equal to the extension id or starts with `<extension id>.`. */
+  id: string;
+  /** Name in the command palette and the library card, 1–60 characters. */
+  title: string;
+  /** 1–`EXTENSION_TRANSFER_LIMITS.acceptExtensions` unique file extensions in lower case, such as `.csv` (`TRANSFER_ACCEPT_PATTERN`). */
+  accept: string[];
+  /** Defaults to `text`. */
+  input?: ImporterInputKind;
+}
+
+/** What an exporter hands the extension: a course snapshot or aggregated progress. */
+export type ExporterScope = 'course' | 'progress';
+
+/** Extension exporter: turns a course or the learning progress into a file the user saves (`ctx.exporters.register`). */
+export interface ExporterContribution {
+  /** Equal to the extension id or starts with `<extension id>.`. */
+  id: string;
+  /** Name in the command palette and the library card, 1–60 characters. */
+  title: string;
+  /** `progress` needs the `learning.stats` permission. */
+  scope: ExporterScope;
+}
+
 /** Value of an extension setting. */
 export type SettingValue = boolean | string | number | string[];
 
@@ -337,6 +365,8 @@ export interface ExtensionManifest {
     events: EventContribution[];
     commands: (CommandContribution & { palette: boolean })[];
     panels: (PanelContribution & { module: string })[];
+    importers: (ImporterContribution & { input: ImporterInputKind })[];
+    exporters: ExporterContribution[];
   };
 }
 
@@ -382,6 +412,8 @@ export interface ExtensionManifestInput {
     events?: EventContribution[];
     commands?: CommandContribution[];
     panels?: PanelContribution[];
+    importers?: ImporterContribution[];
+    exporters?: ExporterContribution[];
   };
 }
 
@@ -469,6 +501,33 @@ export const EXTENSION_COMMAND_LIMITS = Object.freeze({
   handlerMs: 10_000,
 });
 
+/** A file extension an importer accepts: a dot and 1–16 lower-case letters or digits. */
+export const TRANSFER_ACCEPT_PATTERN = /^\.[a-z0-9]{1,16}$/;
+
+/** Limits on importers and exporters; the manifest, host, and engine check the same numbers. */
+export const EXTENSION_TRANSFER_LIMITS = Object.freeze({
+  /** Importers per extension. */
+  importers: 8,
+  /** Exporters per extension. */
+  exporters: 8,
+  /** Entries in `accept` of one importer. */
+  acceptExtensions: 8,
+  /** Handler budget, ms (import and export). */
+  handlerMs: 30_000,
+  /** Size of the file the user picks for an importer, bytes. */
+  inputBytes: 20 * 1024 * 1024,
+  /** Files in the directory an importer returns. */
+  files: 5000,
+  /** One file of the returned directory, UTF-8 bytes. */
+  fileBytes: 2 * 1024 * 1024,
+  /** All files of the returned directory (and of a course snapshot), UTF-8 bytes. */
+  totalBytes: 20 * 1024 * 1024,
+  /** Size of the file an exporter returns, bytes. */
+  outputBytes: 20 * 1024 * 1024,
+  /** Length of the file name an exporter returns. */
+  filenameChars: 120,
+});
+
 export type GradeValue = 1 | 2 | 3 | 4 | 5;
 
 /** Grading rule input: the attempt's verdicts and a "gave up" flag. */
@@ -527,6 +586,52 @@ export type CommandResult = void | undefined | CommandEffect | JsonValue;
 export type CommandHandler = (
   args: JsonValue | undefined,
 ) => CommandResult | Promise<CommandResult>;
+
+/** What an importer handler receives: the picked file's base name and its content, as the importer's `input` declares. */
+export type ImportInput =
+  { name: string; text: string } | { name: string; bytes: Uint8Array };
+
+/**
+ * What an importer handler returns: the files of a new course directory.
+ * Paths are relative, use `/`, and have no `..`, empty, or dot-leading
+ * segments and no case-insensitive duplicates; the files are text. At most
+ * `EXTENSION_TRANSFER_LIMITS.files` files, `fileBytes` each, `totalBytes` in all.
+ */
+export interface ImportResult {
+  files: Record<string, string>;
+}
+
+export type ImporterHandler = (
+  input: ImportInput,
+) => ImportResult | Promise<ImportResult>;
+
+/** What a `course` exporter handler receives: the text files of the course directory (up to `EXTENSION_TRANSFER_LIMITS.totalBytes`). */
+export interface CourseExportInput {
+  scope: 'course';
+  courseId: string;
+  title: string;
+  /** Path relative to the course directory → content. */
+  files: Record<string, string>;
+}
+
+/** What a `progress` exporter handler receives; it reads the data through `ctx.stats`. */
+export interface ProgressExportInput {
+  scope: 'progress';
+}
+
+export type ExportInput = CourseExportInput | ProgressExportInput;
+
+/**
+ * What an exporter handler returns: the file to save. `filename` has no path
+ * separators and at most `EXTENSION_TRANSFER_LIMITS.filenameChars`
+ * characters; the content is at most `outputBytes`.
+ */
+export type ExportResult =
+  { filename: string; text: string } | { filename: string; bytes: Uint8Array };
+
+export type ExporterHandler = (
+  input: ExportInput,
+) => ExportResult | Promise<ExportResult>;
 
 /** Command result as the caller receives it (`normalizeCommandResult`). */
 export type CommandOutcome =

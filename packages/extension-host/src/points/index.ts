@@ -1,7 +1,9 @@
 import { commands } from './commands.ts';
 import { exerciseTypes } from './exercise-types.ts';
 import { events } from './events.ts';
+import { exporters } from './exporters.ts';
 import { gradePolicies } from './grade-policies.ts';
+import { importers } from './importers.ts';
 import { markdownRenderers } from './markdown-renderers.ts';
 import { panels } from './panels.ts';
 import { settings } from './settings.ts';
@@ -18,6 +20,8 @@ export const CONTRIBUTION_POINTS: readonly ContributionPoint[] = [
   events,
   commands,
   panels,
+  importers,
+  exporters,
 ] as readonly ContributionPoint[];
 
 export const POINT_KEYS: readonly PointKey[] = CONTRIBUTION_POINTS.map(

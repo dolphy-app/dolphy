@@ -27,6 +27,8 @@ const info = (id: string): ExtensionInfoDto => ({
     events: [],
     commands: [`${id}.run`],
     panels: [],
+    importers: [],
+    exporters: [],
   },
   diagnostics: [],
   permissions: [],
@@ -181,6 +183,8 @@ describe('extensions.invokeCommand → здоровье', () => {
           },
         ],
         panels: [],
+        importers: [],
+        exporters: [],
         messages: {},
       }),
     });

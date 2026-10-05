@@ -215,14 +215,21 @@ const phasesOf = (events: readonly EngineEvent[]): RepositoryPhase[] => {
   return phases;
 };
 
-/** Нет ни `.staging`/`.trash`, ни `git-tmp`: операция убрала за собой. */
+/**
+ * Нет ни `.staging`, ни `git-tmp`, ни операций в `.trash`: операция убрала за
+ * собой (пустые корзины корней `.trash/repositories` и `.trash/imported` не в счёт).
+ */
 const expectClean = async (t: Opened) => {
   for (const dir of [
     join(t.libraryRoot, '.staging'),
-    join(t.libraryRoot, '.trash'),
     join(t.dataDir, 'git-tmp'),
   ]) {
     expect(await readdir(dir).catch(() => [])).toEqual([]);
+  }
+  const trash = join(t.libraryRoot, '.trash');
+  for (const root of await readdir(trash).catch(() => [])) {
+    expect(['repositories', 'imported']).toContain(root);
+    expect(await readdir(join(trash, root))).toEqual([]);
   }
 };
 

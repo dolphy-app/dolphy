@@ -43,6 +43,7 @@ import {
   createCommandPalette,
 } from '@/widgets/command-palette';
 import { textOfExtension } from '@/shared/lib/extension-text.ts';
+import { bindSyntaxPalette } from '@/shared/lib/syntax-binding.ts';
 import { bindExtensionThemes } from '@/shared/lib/theme-registry.ts';
 
 import './styles/global.css';
@@ -93,6 +94,8 @@ const bootstrap = async () => {
       themeSelection.saved,
       () => contributions.contributions.value.themes,
     );
+    // цвета подсветки кода следуют за темой: Markdown и редактор ответа
+    bindSyntaxPalette(vuetify.theme);
     const registry = createCommandRegistry();
     const extensionCommands = createExtensionCommands({
       registry,

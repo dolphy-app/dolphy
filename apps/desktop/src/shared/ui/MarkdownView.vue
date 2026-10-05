@@ -11,14 +11,11 @@ import { useContributions } from '@/shared/api/engine/contributions.ts';
 import { moduleUrlOf } from '@/shared/lib/extension-url.ts';
 import { hydrateMarkdownBlocks } from '@/shared/lib/markdown-blocks.ts';
 import { createMarkdownRenderer } from '@/shared/lib/markdown.ts';
-import { useSyntaxStyle } from '@/shared/lib/use-syntax-palette.ts';
 
 const props = defineProps<{ source: string }>();
 const { t } = useI18n();
 const contributions = useContributions();
 const root = useTemplateRef<HTMLElement>('root');
-// цвета подсветки кода — из текущей темы (`--sh-*`)
-const syntaxStyle = useSyntaxStyle();
 
 const renderers = computed(() => contributions.value.markdownRenderers);
 const render = computed(() =>
@@ -58,15 +55,8 @@ onBeforeUnmount(() => controller.current?.abort());
 </script>
 
 <template>
-  <!-- eslint-disable vue/no-v-html -- markdown-it с html: false -->
-  <div
-    :key="rendererKey"
-    ref="root"
-    class="markdown"
-    :style="syntaxStyle"
-    v-html="html"
-  />
-  <!-- eslint-enable vue/no-v-html -->
+  <!-- eslint-disable-next-line vue/no-v-html -- markdown-it с html: false -->
+  <div :key="rendererKey" ref="root" class="markdown" v-html="html" />
 </template>
 
 <style scoped>
@@ -146,7 +136,8 @@ onBeforeUnmount(() => controller.current?.abort());
   background: none;
 }
 
-/* подсветка кода: цвета `--sh-*` выводятся из темы (use-syntax-palette.ts);
+/* подсветка кода: цвета `--sh-*` выводятся из темы и лежат на корне документа
+   (syntax-binding.ts);
    остальные токены (имена, знаки, пробелы) красит сам блок */
 .markdown :deep(.sh__token--keyword) {
   color: var(--sh-keyword);
@@ -205,13 +196,36 @@ onBeforeUnmount(() => controller.current?.abort());
   border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
 }
 
-/* выделенная врезка: цитата читается как примечание, а не как обычный абзац */
+/* выделенная врезка: цитата читается как примечание, а не как обычный абзац;
+   `> [!WARNING]` и другие виды меняют только цвет акцента (`--callout`) */
 .markdown :deep(blockquote) {
+  --callout: var(--v-theme-primary);
+
   margin: 1em 0;
   padding: 0.35em 1em;
-  border-left: 3px solid rgb(var(--v-theme-primary));
+  border-left: 3px solid rgb(var(--callout));
   border-radius: 0 10px 10px 0;
-  background: rgba(var(--v-theme-primary), 0.07);
+  background: rgba(var(--callout), 0.07);
+}
+
+.markdown :deep(blockquote.callout--note) {
+  --callout: var(--v-theme-info);
+}
+
+.markdown :deep(blockquote.callout--tip) {
+  --callout: var(--v-theme-success);
+}
+
+.markdown :deep(blockquote.callout--important) {
+  --callout: var(--v-theme-primary);
+}
+
+.markdown :deep(blockquote.callout--warning) {
+  --callout: var(--v-theme-warning);
+}
+
+.markdown :deep(blockquote.callout--caution) {
+  --callout: var(--v-theme-error);
 }
 
 .markdown :deep(blockquote > :first-child) {

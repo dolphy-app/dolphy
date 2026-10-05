@@ -19,7 +19,9 @@ export default {
     );
     ctx.commands.register(
       'acme.secrets.read',
-      outcome(async () => `value:${(await ctx.secrets.get('token')) ?? 'none'}`),
+      outcome(
+        async () => `value:${(await ctx.secrets.get('token')) ?? 'none'}`,
+      ),
     );
     ctx.commands.register(
       'acme.secrets.drop',

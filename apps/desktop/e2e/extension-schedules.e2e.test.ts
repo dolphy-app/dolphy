@@ -45,8 +45,9 @@ const launch = async (clockOffsetMs: number | null) => {
   return new Client(app.page);
 };
 
-const fired = (id: string): unknown =>
-  readExtensionData(workspace!.userData, id).storage['fired'];
+/** Сколько раз сработало расписание (`morning` / `hourly`); `undefined` — ни разу. */
+const fired = (id: string, which: 'morning' | 'hourly'): unknown =>
+  readExtensionData(workspace!.userData, id).storage[`fired.${which}`];
 
 const pause = (ms: number): Promise<void> =>
   new Promise<void>((resolve) => {
@@ -75,21 +76,26 @@ describe('schedules', () => {
     await prepare();
     await launch(offsetToMoment());
     // до момента расширения не активированы: данных нет
-    expect(fired(SCHEDULE_ID)).toBeUndefined();
+    expect(fired(SCHEDULE_ID, 'morning')).toBeUndefined();
 
     await expect
-      .poll(() => fired(SCHEDULE_ID), { timeout: LEAD_MS + 15_000 })
-      .toEqual(expect.arrayContaining(['morning', 'hourly']));
+      .poll(
+        () => [fired(SCHEDULE_ID, 'morning'), fired(SCHEDULE_ID, 'hourly')],
+        {
+          timeout: LEAD_MS + 15_000,
+        },
+      )
+      .toEqual([1, 1]);
     await expect
-      .poll(() => fired(CONTROL_ID), { timeout: 10_000 })
-      .toEqual(['hourly']);
+      .poll(() => fired(CONTROL_ID, 'hourly'), { timeout: 10_000 })
+      .toBe(1);
     // тики идут дальше, а момент уже обработан
     await pause(1500);
-    expect([...(fired(SCHEDULE_ID) as string[])].sort()).toEqual([
-      'hourly',
-      'morning',
-    ]);
-    expect(fired(CONTROL_ID)).toEqual(['hourly']);
+    expect([
+      fired(SCHEDULE_ID, 'morning'),
+      fired(SCHEDULE_ID, 'hourly'),
+    ]).toEqual([1, 1]);
+    expect(fired(CONTROL_ID, 'hourly')).toBe(1);
   });
 
   it('срабатывание, найденное позже двух минут, пропускается и не воспроизводится', async () => {
@@ -97,8 +103,9 @@ describe('schedules', () => {
     // часы уже на 3 минуты позже момента: прошлое не воспроизводится, следующий час далеко
     await launch(offsetToMoment(-3 * 60_000));
     await pause(2500);
-    expect(fired(SCHEDULE_ID)).toBeUndefined();
-    expect(fired(CONTROL_ID)).toBeUndefined();
+    expect(fired(SCHEDULE_ID, 'morning')).toBeUndefined();
+    expect(fired(SCHEDULE_ID, 'hourly')).toBeUndefined();
+    expect(fired(CONTROL_ID, 'hourly')).toBeUndefined();
   });
 
   it('строка показывает расписания человеческим текстом и переключатель «Расписание»; выключенный переключатель переживает перезапуск и не пускает расписание, контрольное срабатывает', async () => {
@@ -124,9 +131,12 @@ describe('schedules', () => {
       false,
     );
     await expect
-      .poll(() => fired(CONTROL_ID), { timeout: LONG_LEAD_MS + 15_000 })
-      .toEqual(['hourly']);
-    expect(fired(SCHEDULE_ID)).toBeUndefined();
+      .poll(() => fired(CONTROL_ID, 'hourly'), {
+        timeout: LONG_LEAD_MS + 15_000,
+      })
+      .toBe(1);
+    expect(fired(SCHEDULE_ID, 'morning')).toBeUndefined();
+    expect(fired(SCHEDULE_ID, 'hourly')).toBeUndefined();
   });
 
   it('отключённое расширение не срабатывает: переключатель «Включено» действует сразу, без перезапуска', async () => {
@@ -136,8 +146,11 @@ describe('schedules', () => {
     await client.setExtensionSwitch(SCHEDULE_ID, 'enabled', false);
 
     await expect
-      .poll(() => fired(CONTROL_ID), { timeout: LONG_LEAD_MS + 15_000 })
-      .toEqual(['hourly']);
-    expect(fired(SCHEDULE_ID)).toBeUndefined();
+      .poll(() => fired(CONTROL_ID, 'hourly'), {
+        timeout: LONG_LEAD_MS + 15_000,
+      })
+      .toBe(1);
+    expect(fired(SCHEDULE_ID, 'morning')).toBeUndefined();
+    expect(fired(SCHEDULE_ID, 'hourly')).toBeUndefined();
   });
 });

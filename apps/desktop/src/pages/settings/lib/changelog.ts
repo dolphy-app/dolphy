@@ -1,4 +1,7 @@
-import { compareSemver, parseSemver } from '@dolphy-app/extension-catalog';
+import {
+  compareSemver,
+  parseSemver,
+} from '@dolphy-app/extension-catalog/semver';
 
 /** Раздел журнала изменений: версия из заголовка `## [v]<semver>` и его текст. */
 export interface ChangelogSection {

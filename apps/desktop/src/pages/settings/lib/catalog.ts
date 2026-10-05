@@ -8,7 +8,7 @@ import type {
   ExtensionInfoDto,
   ExtensionUpdateDto,
 } from '@dolphy-app/engine-contract';
-import { satisfiesRange } from '@dolphy-app/extension-catalog';
+import { satisfiesRange } from '@dolphy-app/extension-catalog/semver';
 import { resolveText } from '@dolphy-app/extension-api';
 import { GROUPS, TAGS, effectiveTags, groupsOf } from './tags.ts';
 import type { ExtensionTag, TagGroup } from './tags.ts';

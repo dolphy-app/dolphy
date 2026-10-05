@@ -68,15 +68,6 @@ const rememberedView = (remembered: number) =>
     ? { icon: 'mdi-trending-down', color: 'warning' }
     : { icon: 'mdi-check-circle-outline', color: 'secondary' };
 
-const reasonLabel = (reason: ItemReason) =>
-  `${t(`reason.${reason}`)}. ${t(`reasonHint.${reason}`)}`;
-
-const rememberedLabel = (remembered: number) =>
-  `${t('dailyPlan.remembered', { n: remembered })}. ${t(
-    'dailyPlan.rememberedHint',
-    { threshold: REMEMBERED_WARNING },
-  )}`;
-
 const startSession = () => {
   if (!plan.value) return;
   const { seed, courseId } = plan.value;
@@ -208,12 +199,10 @@ const startSession = () => {
                 variant="tonal"
                 rounded="lg"
                 role="img"
-                :aria-label="reasonLabel(entry.reason)"
+                :aria-label="t(`reasonHint.${entry.reason}`)"
               >
                 <v-icon :icon="ITEM_REASON[entry.reason].icon" />
                 <v-tooltip activator="parent" location="bottom" max-width="280">
-                  <strong>{{ t(`reason.${entry.reason}`) }}</strong>
-                  <br />
                   {{ t(`reasonHint.${entry.reason}`) }}
                 </v-tooltip>
               </v-avatar>
@@ -225,7 +214,7 @@ const startSession = () => {
               <span
                 class="d-inline-flex align-center ga-1 text-label-large text-medium-emphasis"
                 role="img"
-                :aria-label="rememberedLabel(entry.remembered)"
+                :aria-label="t('dailyPlan.remembered', { n: entry.remembered })"
               >
                 <v-icon
                   :icon="rememberedView(entry.remembered).icon"
@@ -234,15 +223,7 @@ const startSession = () => {
                 />
                 {{ entry.remembered }}%
                 <v-tooltip activator="parent" location="bottom" max-width="280">
-                  <strong>
-                    {{ t('dailyPlan.remembered', { n: entry.remembered }) }}
-                  </strong>
-                  <br />
-                  {{
-                    t('dailyPlan.rememberedHint', {
-                      threshold: REMEMBERED_WARNING,
-                    })
-                  }}
+                  {{ t('dailyPlan.rememberedHint') }}
                 </v-tooltip>
               </span>
             </template>

@@ -24,35 +24,17 @@ export interface TourDefinition {
 export const WELCOME_TOUR_ID = 'welcome';
 
 /**
- * Знакомство с оболочкой: «План», «Курсы», «Настройки». Существенно
- * переписанный тур получает новый id, и его предложат снова; правка текстов
+ * Знакомство с неочевидным: проверка знаний на «Курсах», главные параметры
+ * «Обучения» (запоминаемость, закрепление основ, правило оценки), «Библиотека»,
+ * «Расширения» и сочетания клавиш — те места настроек, названия которых
+ * ничего не говорят с первого взгляда.
+ * Существенно переписанный тур получает новый id, и его предложат снова; правка текстов
  * id не меняет.
  */
 export const WELCOME_TOUR: TourDefinition = {
   id: WELCOME_TOUR_ID,
   steps: [
     { id: 'intro', icon: 'mdi-hand-wave-outline', route: ROUTE.dailyPlan },
-    {
-      id: 'plan',
-      icon: 'mdi-calendar-check',
-      route: ROUTE.dailyPlan,
-      target: 'nav-daily-plan',
-      placement: 'end',
-    },
-    {
-      id: 'scope',
-      icon: 'mdi-target',
-      route: ROUTE.dailyPlan,
-      target: 'plan-course-switcher',
-      placement: 'bottom',
-    },
-    {
-      id: 'card',
-      icon: 'mdi-card-text-outline',
-      route: ROUTE.courses,
-      target: 'course-card',
-      placement: 'bottom',
-    },
     {
       id: 'check',
       icon: 'mdi-clipboard-check-outline',
@@ -61,10 +43,45 @@ export const WELCOME_TOUR: TourDefinition = {
       placement: 'top',
     },
     {
-      id: 'git',
-      icon: 'mdi-source-branch-plus',
-      route: ROUTE.courses,
-      target: 'courses-git',
+      id: 'learning',
+      icon: 'mdi-school-outline',
+      route: ROUTE.settingsLearning,
+      target: 'tab-settings-learning',
+      placement: 'bottom',
+    },
+    {
+      id: 'retention',
+      icon: 'mdi-brain',
+      route: ROUTE.settingsLearning,
+      target: 'learning-retention',
+      placement: 'bottom',
+    },
+    {
+      id: 'remediation',
+      icon: 'mdi-lifebuoy',
+      route: ROUTE.settingsLearning,
+      target: 'learning-remediation',
+      placement: 'top',
+    },
+    {
+      id: 'grade',
+      icon: 'mdi-star-check-outline',
+      route: ROUTE.settingsLearning,
+      target: 'learning-grade',
+      placement: 'top',
+    },
+    {
+      id: 'library',
+      icon: 'mdi-book-multiple-outline',
+      route: ROUTE.settingsLibrary,
+      target: 'tab-settings-library',
+      placement: 'bottom',
+    },
+    {
+      id: 'extensions',
+      icon: 'mdi-puzzle-outline',
+      route: ROUTE.settingsExtensions,
+      target: 'tab-settings-extensions',
       placement: 'bottom',
     },
     {

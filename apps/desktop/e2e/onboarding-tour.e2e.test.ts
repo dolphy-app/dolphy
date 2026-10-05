@@ -82,7 +82,7 @@ describe('обучающий тур: предложение при первом 
 });
 
 describe('обучающий тур: прохождение', () => {
-  it('семь шагов по вкладкам, подсветка цели, axe на каждом шаге, «Готово» записывает completed', async () => {
+  it('девять шагов по вкладкам, подсветка цели, axe на каждом шаге, «Готово» записывает completed', async () => {
     const { page, tour } = await launch();
     await tour.offer.waitFor({ timeout: TIMEOUT });
     await tour.offer
@@ -109,36 +109,42 @@ describe('обучающий тур: прохождение', () => {
         expect(box).not.toBeNull();
         expect(box!.width).toBeGreaterThan(20);
         // карточка не наезжает на подсвеченное, не выходит за окно и не обрезает кнопки
-        const geometry = await page.evaluate(() => {
-          const rect = (selector: string) =>
-            document.querySelector(selector)!.getBoundingClientRect();
-          const card = rect('[data-tour-card]');
-          const hole = rect('.tour-hole');
-          const overlap =
-            Math.max(
-              0,
-              Math.min(card.right, hole.right) - Math.max(card.left, hole.left),
-            ) *
-            Math.max(
-              0,
-              Math.min(card.bottom, hole.bottom) - Math.max(card.top, hole.top),
-            );
-          const buttons = [
-            ...document.querySelectorAll('[data-tour-card] button'),
-          ].map((button) => button.getBoundingClientRect());
-          return {
-            overlap,
-            inside:
-              card.left >= 0 &&
-              card.top >= 0 &&
-              card.right <= window.innerWidth &&
-              card.bottom <= window.innerHeight,
-            clipped: buttons.some(
-              (b) => b.left < card.left || b.right > card.right,
-            ),
-          };
-        });
-        expect(geometry).toEqual({ overlap: 0, inside: true, clipped: false });
+        // прокрутка к цели идёт плавно: положение карточки устанавливается за несколько кадров
+        const measure = () =>
+          page.evaluate(() => {
+            const rect = (selector: string) =>
+              document.querySelector(selector)!.getBoundingClientRect();
+            const card = rect('[data-tour-card]');
+            const hole = rect('.tour-hole');
+            const overlap =
+              Math.max(
+                0,
+                Math.min(card.right, hole.right) -
+                  Math.max(card.left, hole.left),
+              ) *
+              Math.max(
+                0,
+                Math.min(card.bottom, hole.bottom) -
+                  Math.max(card.top, hole.top),
+              );
+            const buttons = [
+              ...document.querySelectorAll('[data-tour-card] button'),
+            ].map((button) => button.getBoundingClientRect());
+            return {
+              overlap,
+              inside:
+                card.left >= 0 &&
+                card.top >= 0 &&
+                card.right <= window.innerWidth &&
+                card.bottom <= window.innerHeight,
+              clipped: buttons.some(
+                (b) => b.left < card.left || b.right > card.right,
+              ),
+            };
+          });
+        await expect
+          .poll(measure, { timeout: 5000 })
+          .toEqual({ overlap: 0, inside: true, clipped: false });
         expect(await tour.button(TOUR.back).count()).toBe(1);
       }
       if (index < total - 1) {
@@ -156,23 +162,22 @@ describe('обучающий тур: прохождение', () => {
     expect(await next.offer.count()).toBe(0);
   });
 
-  it('тур сам переходит между вкладками: «Курсы» на шагах про карточку, «Настройки» на последнем', async () => {
+  it('тур сам переходит между вкладками: «Курсы» на шаге про проверку знаний, «Настройки» на остальных', async () => {
     const { page, tour } = await launch();
     await tour.offer.getByRole('button', { name: TOUR.start }).click();
     await tour.expectStep(TOUR.steps[0]);
-    await tour.button(TOUR.next).click();
-    await tour.expectStep(TOUR.steps[1]);
     expect(page.url()).not.toContain('courses');
     await tour.button(TOUR.next).click();
-    await tour.expectStep(TOUR.steps[2]);
-    await tour.button(TOUR.next).click();
-    await tour.expectStep(TOUR.steps[3]);
+    await tour.expectStep(TOUR.steps[1]);
     expect(page.url()).toContain('courses');
-    // подсвечена карточка курса, а не вся страница
+    // подсвечена одна кнопка, а не вся страница
     await tour.hole.waitFor();
     const box = await tour.hole.boundingBox();
     const height = await page.evaluate(() => window.innerHeight);
-    expect(box!.height).toBeLessThan(height);
+    expect(box!.height).toBeLessThan(height / 4);
+    await tour.button(TOUR.next).click();
+    await tour.expectStep(TOUR.steps[2]);
+    expect(page.url()).toContain('settings');
   });
 
   it('клавиатура: → и ← листают, Tab не выходит из карточки, Escape пропускает и пишет skipped', async () => {
@@ -185,6 +190,8 @@ describe('обучающий тур: прохождение', () => {
     await tour.expectStep(TOUR.steps[2]);
     await page.keyboard.press('ArrowLeft');
     await tour.expectStep(TOUR.steps[1]);
+    // карточка пересоздаётся при смене шага: фокус приходит в неё чуть позже
+    await expectFocused(tour.card);
 
     for (let press = 0; press < 6; press++) {
       await page.keyboard.press('Tab');

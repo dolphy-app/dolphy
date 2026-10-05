@@ -8,6 +8,7 @@ import {
 import { CourseUpdatesNotice } from '@/features/course-updates';
 import { NoticeSnackbar } from '@/features/extension-commands';
 import { TransferDialogs } from '@/features/extension-transfers';
+import { InstallDialog } from '@/pages/settings';
 import { ROUTE } from '@/shared/config/routes.ts';
 import { useCommandRegistry } from '@/shared/lib/command-registry.ts';
 import { pageOfRoute, useContextKeys } from '@/shared/lib/context-keys.ts';
@@ -61,6 +62,8 @@ onBeforeUnmount(() => stopShortcuts?.());
     <NoticeSnackbar />
     <!-- импорт и экспорт запускает и палитра, и «Библиотека»: диалоги живут здесь -->
     <TransferDialogs />
+    <!-- установка и обновление расширений: диалог открывают настройки и ссылка dolphy://, на любой странице -->
+    <InstallDialog />
     <!-- ожидание второй клавиши цепочки: видно и озвучивается скринридеру -->
     <ChordStatus :pending="dispatcher.pending.value" />
   </v-app>

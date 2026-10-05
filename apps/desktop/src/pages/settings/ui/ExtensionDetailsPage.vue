@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, provide, ref } from 'vue';
+import { computed, nextTick, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import type {
@@ -14,7 +14,7 @@ import { isFromAnotherCatalog } from '../lib/catalog-source.ts';
 import { formatBytes } from '../lib/format.ts';
 import { useCatalogSource } from '../model/catalog-source.ts';
 import { useExtensionDetails } from '../model/extension-details.ts';
-import { INSTALL_KEY, useInstall } from '../model/install.ts';
+import { useInstallContext } from '../model/install.ts';
 import { useReloadRequired } from '../model/reload-required.ts';
 import DeprecatedChip from './DeprecatedChip.vue';
 import ExtensionContributions from './ExtensionContributions.vue';
@@ -23,7 +23,6 @@ import ExtensionHeading from './ExtensionHeading.vue';
 import ExtensionPermissions from './ExtensionPermissions.vue';
 import ExtensionRemoveDialog from './ExtensionRemoveDialog.vue';
 import ExtensionTags from './ExtensionTags.vue';
-import InstallDialog from './InstallDialog.vue';
 import ReadmeView from './ReadmeView.vue';
 
 const { t, d, locale } = useI18n();
@@ -31,8 +30,7 @@ const route = useRoute();
 const router = useRouter();
 const engine = useEngine();
 const extensionText = useExtensionText();
-const install = useInstall(engine);
-provide(INSTALL_KEY, install);
+const install = useInstallContext();
 
 const id = computed(() => String(route.params['id'] ?? ''));
 const requestedVersion = computed(() => {
@@ -757,7 +755,6 @@ const publishedDate = (value: string) => d(new Date(value), 'shortDate');
     </template>
 
     <ExtensionRemoveDialog :target="removeTarget" @close="closeRemove" />
-    <InstallDialog />
   </section>
 </template>
 

@@ -34,6 +34,7 @@ export const en: typeof ru = {
       study: 'Study',
       openPlan: 'Course plan',
       check: 'Check what I already know',
+      graph: 'View knowledge graph',
     },
     git: {
       open: 'Add from Git',

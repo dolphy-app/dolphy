@@ -2,10 +2,7 @@ import type { ru } from './ru.ts';
 
 export const en: typeof ru = {
   graph: {
-    title: 'Knowledge graph',
-    subtitle: 'Lessons and how they connect: what to master first',
     showCovers: 'Show coverage',
-    open: 'Open graph',
     close: 'Close graph',
     canvas: 'Lesson graph',
     truncated:
@@ -13,14 +10,8 @@ export const en: typeof ru = {
     noDependencies:
       'There are no dependencies between lessons, so lessons are shown as a grid. Links appear once the course author says what comes before what.',
     empty: {
-      noCourses: {
-        title: 'No courses yet',
-        text: 'Add courses to the library and reload it in “Settings → Library”.',
-      },
-      noLessons: {
-        title: 'This course has no lessons',
-        text: 'The graph is built from lessons: add some to the course and reload the library.',
-      },
+      title: 'This course has no lessons',
+      text: 'The graph is built from lessons: add some to the course and reload the library.',
     },
     controls: {
       label: 'Zoom controls',

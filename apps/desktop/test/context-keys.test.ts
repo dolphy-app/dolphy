@@ -11,7 +11,6 @@ describe('pageOfRoute', () => {
   it.each([
     [ROUTE.dailyPlan, 'dailyPlan'],
     [ROUTE.courses, 'courses'],
-    [ROUTE.graph, 'graph'],
     [ROUTE.session, 'session'],
     [ROUTE.extensionPanel, 'extension'],
     [ROUTE.settings, 'settings'],
@@ -49,7 +48,7 @@ describe('createContextKeys', () => {
   it('page, inSession и paletteOpen — значения приложения, читаются в момент вызова', () => {
     const keys = createContextKeys('linux', document);
     expect(keys.lookup(null)('page')).toBeUndefined();
-    keys.page.value = 'graph';
+    keys.page.value = 'courses';
     keys.inSession.value = true;
     keys.paletteOpen.value = true;
     const lookup = keys.lookup(null);
@@ -57,7 +56,7 @@ describe('createContextKeys', () => {
       lookup('page'),
       lookup('inSession'),
       lookup('paletteOpen'),
-    ]).toEqual(['graph', true, true]);
+    ]).toEqual(['courses', true, true]);
   });
 
   it.each([

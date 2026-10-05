@@ -12,7 +12,6 @@ export const ru = {
     go: {
       dailyPlan: 'Перейти: План дня',
       courses: 'Перейти: Курсы',
-      graph: 'Перейти: Граф знаний',
       settings: 'Перейти: Настройки',
       settingsLearning: 'Перейти: Настройки — Обучение',
       settingsLibrary: 'Перейти: Настройки — Библиотека',

@@ -6,7 +6,6 @@ export const en: typeof ru = {
     more: 'More',
     dailyPlan: "Today's plan",
     courses: 'Courses',
-    graph: 'Knowledge graph',
     settings: 'Settings',
     extensions: 'Extension panels',
   },

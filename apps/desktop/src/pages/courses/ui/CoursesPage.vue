@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue';
+import { computed, nextTick, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import type { CourseSummary } from '@/entities/course';
 import { useCourseScope } from '@/features/course-scope';
 import { ROUTE } from '@/shared/config/routes.ts';
 import PageHeader from '@/shared/ui/PageHeader.vue';
+import { CourseGraphDialog } from '@/widgets/course-graph';
 import {
   COURSE_SORTS,
   STATE_FILTERS,
@@ -20,6 +21,7 @@ import CourseCard from './CourseCard.vue';
 const TONES = ['primary', 'secondary', 'info'] as const;
 
 const { t } = useI18n();
+const route = useRoute();
 const router = useRouter();
 const scope = useCourseScope();
 
@@ -61,6 +63,36 @@ const study = async (course: CourseSummary) => {
 const checkKnowledge = (course: CourseSummary) =>
   router.push({ name: ROUTE.placement, query: { course: course.id } });
 const openPlan = () => router.push({ name: ROUTE.dailyPlan });
+
+/** Граф курса в окне поверх экрана; в данные лезет, только пока окно смонтировано. */
+const graphCourse = ref<CourseSummary | null>(null);
+/** Кнопка, открывшая граф: после закрытия фокус возвращается на неё. */
+let graphTrigger: HTMLElement | null = null;
+const openGraph = (course: CourseSummary) => {
+  graphTrigger =
+    document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+  graphCourse.value = course;
+};
+const closeGraph = async () => {
+  graphCourse.value = null;
+  await nextTick();
+  graphTrigger?.focus();
+  graphTrigger = null;
+};
+// `?graph=` — переход по ссылке (например, с итога входного теста): открываем
+// граф курса и убираем параметр, чтобы он не открыл граф снова
+watch(
+  () => [route.query.graph, scope.courses.value.length] as const,
+  async ([graph, count]) => {
+    if (typeof graph !== 'string' || graph === '' || count === 0) return;
+    graphCourse.value =
+      scope.courses.value.find(({ id }) => id === graph) ?? null;
+    await router.replace({ query: { ...route.query, graph: undefined } });
+  },
+  { immediate: true },
+);
 
 const gitDialog = ref(false);
 const addedNotice = ref<number | null>(null);
@@ -168,11 +200,18 @@ const noticeOpen = computed({
           @study="study(course)"
           @open-plan="openPlan"
           @check="checkKnowledge(course)"
+          @graph="openGraph(course)"
         />
       </li>
     </ul>
 
     <AddRepositoryDialog v-model="gitDialog" @added="addedNotice = $event" />
+    <CourseGraphDialog
+      v-if="graphCourse"
+      :key="graphCourse.id"
+      :course="graphCourse"
+      @closed="closeGraph"
+    />
     <v-snackbar v-model="noticeOpen" timeout="6000" role="status">
       {{ t('courses.git.added', { n: addedNotice ?? 0 }) }}
     </v-snackbar>

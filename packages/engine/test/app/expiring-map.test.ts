@@ -76,4 +76,29 @@ describe('createExpiringMap', () => {
     expect(map.delete('a')).toBe(false);
     expect(map.get('a')).toBeUndefined();
   });
+
+  it('onDrop reports expired, evicted, replaced and cleared entries but not deleted ones', () => {
+    const clock = createFakeClock();
+    const dropped: string[] = [];
+    const map = createExpiringMap<string>({
+      capacity: 2,
+      ttlMs: 10,
+      clock,
+      onDrop: (key, value) => dropped.push(`${key}=${value}`),
+    });
+    map.set('a', 'A');
+    map.set('b', 'B');
+    map.set('c', 'C'); // вытесняет самую старую
+    map.set('c', 'C2'); // замена
+    expect(map.delete('b')).toBe(true); // забрал вызывающий
+    expect(dropped).toEqual(['a=A', 'c=C']);
+    clock.advance(10);
+    expect(map.size).toBe(0);
+    expect(dropped).toEqual(['a=A', 'c=C', 'c=C2']);
+    map.set('d', 'D');
+    map.set('e', 'E');
+    map.clear();
+    expect(dropped.slice(3)).toEqual(['d=D', 'e=E']);
+    expect(map.size).toBe(0);
+  });
 });

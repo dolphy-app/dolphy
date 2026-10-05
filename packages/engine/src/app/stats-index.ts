@@ -28,6 +28,8 @@ export interface StatsIndexDeps {
   clock: Clock;
   /** Часовой пояс пользователя (IANA); читается при каждом обращении. */
   timeZone(): string;
+  /** Попытка отменена (`retract`): отменённые в счёт не идут, в отличие от сброса. */
+  isRetracted?(attemptId: string): boolean;
 }
 
 interface Built {
@@ -66,6 +68,7 @@ export const createStatsIndex = (deps: StatsIndexDeps): StatsIndex => {
       const next: Built = { timeZone, total: new Map(), byCourse: new Map() };
       for await (const entry of deps.eventStore.readAll()) {
         if (entry.kind !== 'attempt') continue;
+        if (deps.isRetracted?.(entry.id) === true) continue;
         const { exerciseId, grade, at } = entry;
         const day = localDayOf(at, timeZone);
         const correct = grade >= PASSING_GRADE_MIN;

@@ -370,6 +370,8 @@ export interface PracticeService {
   getFrontier(req?: FrontierRequest): Promise<Page<FrontierItemDto>>;
   getDue(req?: DueRequest): Promise<Page<DueItemDto>>;
   resetProgress(req: { unitId: UnitId; requestId: string }): Promise<{ eventId: string; duplicate: boolean }>;
+  undo(req: RetractRequest): Promise<RetractResult>;
+  redo(req: RetractRequest): Promise<RetractResult>;
 }
 ```
 
@@ -381,6 +383,7 @@ export interface PracticeService {
 - **`recordAttempt`** — путь Trane `score_exercise`: единственная запись в журнал (`source: 'self'` по умолчанию). `at` вычисляется по HLC-правилу (§6): `max(min(now, now + 5 минут), maxAtУвиденный + 1, свойПрошлыйAt)`; переданное `at` участвует как `now`. `affected` — новые оценки упражнения, урока и курса. Если эта попытка — `remediation.failThreshold`-я неудача подряд на упражнении (§4.3), в результате есть `remediation`.
 - **`getFrontier`** — уроки, которые **не начаты** (нет попыток по их упражнениям) и у которых все зависимости «проходят порог» Trane (среднее `value` ≥ `passingScore.minScore` = 3.0, среднее число попыток ≥ `passingScore.minAvgTrials` = 1.8, по данным `UnitScorer`). **Нет данных = закрыто**: зависимость без оценки блокирует урок. До дифференциального теста M3 против Rust `get_candidates` (сравнивается множество уроков-источников новых упражнений) `getBatch` (паритет Trane, `passes_threshold` при отсутствии данных пропускает) может показать урок, которого нет во фронтире; семантика `getFrontier` зафиксирована здесь [НЕ ПОДТВЕРЖДЕНО]. **`getDue`** — упражнения с состоянием и `R ≤ plan.targetRetention` (0.9) по убыванию `need = 1 − R` (Trane их публично не отдаёт [ИЗМЕРЕНО чтением аудита]); `minNeed` отсекает по `need`.
 - **`resetProgress`** пишет `progress_reset` для курса, урока или упражнения (журнал не редактируется); повтор с тем же `requestId` безопасен.
+- **`undo` / `redo`** (ADR 0017) пишут `retract` (`op: 'set'` / `'unset'`) по `targetId`: `id` попытки (`eventId` результата записи) или `requestId` завершённого `placement.finish` — тогда отменяется вся пачка `<requestId>#<i>`. Отменённая попытка не входит в оценку, награды, фронтир, повторы, ремедиацию и статистику обучения; в журнале она остаётся. Повтор с тем же `requestId` — `duplicate: true`; цель уже в нужном состоянии — запись не пишется, `changed: false`, `eventId: null`. Неизвестная цель — `NOT_FOUND`; цель — запись не попытки (сброс, флаг) — `INVALID_ARGUMENT`. Побеждает запись с большим ключом `(at, deviceId, seq, id)`, порядок прихода не важен.
 - Статусы `ProgressNodeDto.status`: `locked` — есть неудовлетворённая зависимость; `ready` — фронтир без попыток; `in-progress` — есть попытки и оценка ниже верхней границы окна `target`; `mastered` — оценка в окне `mastered` или `easy`; `blacklisted`, `superseded` — по правилам Trane.
 
 ### 4.1 План дня
@@ -657,7 +660,13 @@ export interface ProgressResetEntryDto extends LogEntryBaseDto {
   /** `revision` библиотеки на момент записи: диагностика расхождения версий курса между устройствами. */
   libraryRevision?: string;
 }
-export type LogEntryDto = AttemptEntryDto | UnitFlagEntryDto | ProgressResetEntryDto;
+export interface RetractEntryDto extends LogEntryBaseDto {
+  kind: 'retract';
+  /** `id` попытки или общая часть `id` пачки `<targetId>#<i>`. */
+  targetId: string;
+  op: 'set' | 'unset';
+}
+export type LogEntryDto = AttemptEntryDto | UnitFlagEntryDto | ProgressResetEntryDto | RetractEntryDto;
 
 export interface SyncStateDto {
   deviceId: string;

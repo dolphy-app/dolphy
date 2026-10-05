@@ -558,6 +558,16 @@ describe('rpc → dispatcher → real engine', () => {
     await call('practice.resetProgress', () =>
       client.practice.resetProgress({ unitId: 'c::l4', requestId: 'reset' }),
     );
+    expect(
+      await call('practice.undo', () =>
+        client.practice.undo({ targetId: 'r2', requestId: 'undo-r2' }),
+      ),
+    ).toEqual({ eventId: 'undo-r2', duplicate: false, changed: true });
+    expect(
+      await call('practice.redo', () =>
+        client.practice.redo({ targetId: 'r2', requestId: 'redo-r2' }),
+      ),
+    ).toEqual({ eventId: 'redo-r2', duplicate: false, changed: true });
 
     await call('curation.blacklist.list', () =>
       client.curation.blacklist.list(),

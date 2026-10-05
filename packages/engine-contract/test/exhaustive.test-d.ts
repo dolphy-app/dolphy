@@ -52,6 +52,9 @@ const describeEntry = (entry: LogEntryDto): string => {
     case 'progress_reset':
       expectTypeOf(entry.libraryRevision).toEqualTypeOf<string | undefined>();
       return entry.unitId;
+    case 'retract':
+      expectTypeOf(entry.op).toEqualTypeOf<'set' | 'unset'>();
+      return `${entry.targetId} ${entry.op}`;
     default: {
       const unhandled: never = entry;
       return unhandled;
@@ -79,7 +82,7 @@ test('T-20 EngineEvent: набор типов события зафиксиро�
 
 test('T-20 LogEntryDto: набор kind зафиксирован, обработка исчерпывающая', () => {
   expectTypeOf<LogEntryDto['kind']>().toEqualTypeOf<
-    'attempt' | 'unit_flag' | 'progress_reset'
+    'attempt' | 'unit_flag' | 'progress_reset' | 'retract'
   >();
   expectTypeOf(describeEntry).returns.toEqualTypeOf<string>();
 });

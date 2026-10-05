@@ -13,6 +13,8 @@ import type {
   ProgressQuery,
   RecordAttemptRequest,
   RecordResultDto,
+  RetractRequest,
+  RetractResult,
   SubmitAnswerRequest,
   UnitId,
   VerdictDto,
@@ -539,6 +541,58 @@ export const createPracticeService = (ctx: EngineContext): PracticeService => {
     return { eventId: entry.id, duplicate: false };
   };
 
+  /**
+   * `undo` (`set`) и `redo` (`unset`): запись `retract` по `targetId`. Журнал
+   * не редактируется; состояние цели не меняется — запись не пишется.
+   */
+  const retract = async (
+    op: 'set' | 'unset',
+    { targetId, requestId }: RetractRequest,
+  ): Promise<RetractResult> => {
+    requireText('targetId', targetId);
+    requireText('requestId', requestId);
+    library.require();
+    const known = await ctx.eventStore.transact((tx) => tx.findById(requestId));
+    if (known !== null) {
+      if (
+        known.kind !== 'retract' ||
+        known.targetId !== targetId ||
+        known.op !== op
+      ) {
+        throw invalid({
+          requestId,
+          reason: 'request id is used by another entry',
+        });
+      }
+      return { eventId: known.id, duplicate: true, changed: true };
+    }
+    if (projections.attempts.exercisesOf(targetId).length === 0) {
+      const other = await ctx.eventStore.transact((tx) =>
+        tx.findById(targetId),
+      );
+      if (other !== null) {
+        throw invalid({ targetId, reason: 'target is not an attempt' });
+      }
+      throw new EngineError('NOT_FOUND', { details: { targetId } });
+    }
+    if (projections.attempts.isTargetRetracted(targetId) === (op === 'set')) {
+      return { eventId: null, duplicate: false, changed: false };
+    }
+    const { appended, affectedUnitIds } = await ctx.commit([
+      { fields: { kind: 'retract', targetId, op }, id: requestId },
+    ]);
+    const [entry] = appended;
+    if (entry === undefined) {
+      throw new Error(`retract: nothing appended for ${requestId}`);
+    }
+    ctx.emit({
+      type: 'progress',
+      unitIds: affectedUnitIds,
+      at: entry.at,
+    });
+    return { eventId: entry.id, duplicate: false, changed: true };
+  };
+
   /** Прямая запись оценки без открытой попытки: проверки не было, оценку поставил ученик. */
   const recordAttempt = (request: RecordAttemptRequest) =>
     record(request, 'self-assessed');
@@ -557,5 +611,7 @@ export const createPracticeService = (ctx: EngineContext): PracticeService => {
     getFrontier,
     getDue,
     resetProgress,
+    undo: (request: RetractRequest) => retract('set', request),
+    redo: (request: RetractRequest) => retract('unset', request),
   });
 };

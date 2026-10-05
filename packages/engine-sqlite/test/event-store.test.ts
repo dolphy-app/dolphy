@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { buildAttempt } from '@dolphy-app/testkit';
+import { buildAttempt, buildRetract } from '@dolphy-app/testkit';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { LogEntry } from '@dolphy-app/engine';
 import {
@@ -197,5 +197,94 @@ describe('SqliteEventStore storage', () => {
         .get(),
     ).toBeUndefined();
     check.close();
+  });
+
+  it('migration 6 keeps existing rows and their order and accepts retract entries', async () => {
+    const path = pathOf();
+    const legacy = openBetterSqliteDatabase({ path });
+    for (const sql of MIGRATIONS.slice(0, 5)) legacy.exec(sql);
+    legacy.exec('PRAGMA user_version = 5');
+    legacy
+      .prepare("INSERT INTO meta (key, value) VALUES ('device_id', 'dev-a')")
+      .run();
+    const insert = legacy.prepare(
+      `INSERT INTO log_entry (device_id, seq, id, kind, at, recorded_at, unit_id, grade, source, flag, op, extra)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    insert.run(
+      'dev-a',
+      1,
+      'a1',
+      'attempt',
+      10,
+      10,
+      'c::l::e',
+      4,
+      'self',
+      null,
+      null,
+      null,
+    );
+    insert.run(
+      'dev-a',
+      2,
+      'f1',
+      'unit_flag',
+      9,
+      9,
+      'c::l',
+      null,
+      null,
+      'review',
+      'set',
+      null,
+    );
+    insert.run(
+      'dev-a',
+      3,
+      'r1',
+      'progress_reset',
+      11,
+      11,
+      'c',
+      null,
+      null,
+      null,
+      null,
+      '{"libraryRevision":"rev"}',
+    );
+    legacy.close();
+
+    const store = open(path);
+    expect(store.inspect().userVersion).toBe(SCHEMA_VERSION);
+    await store.append([
+      buildRetract({ deviceId: 'dev-a', seq: 4, at: 12, targetId: 'a1' }),
+    ]);
+    const found: LogEntry[] = [];
+    for await (const entry of store.readAll()) found.push(entry);
+    expect(found.map(({ id, kind }) => [id, kind])).toEqual([
+      ['f1', 'unit_flag'],
+      ['a1', 'attempt'],
+      ['r1', 'progress_reset'],
+      [expect.any(String), 'retract'],
+    ]);
+    expect(found[2]).toMatchObject({ libraryRevision: 'rev' });
+    await store.close();
+
+    const raw = openBetterSqliteDatabase({ path });
+    expect(
+      raw
+        .prepare<{ name: string }>(
+          "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'log_entry' AND name LIKE 'log_%' ORDER BY name",
+        )
+        .all()
+        .map(({ name }) => name),
+    ).toEqual(['log_order', 'log_unit']);
+    const bad = raw.prepare(
+      `INSERT INTO log_entry (device_id, seq, id, kind, at, recorded_at, unit_id, op)
+       VALUES ('d', 9, 'x', 'retract', 1, 1, 'u', 'maybe')`,
+    );
+    expect(() => bad.run()).toThrow(/CHECK/);
+    raw.close();
   });
 });

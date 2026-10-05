@@ -539,6 +539,30 @@ export interface PracticeService {
     unitId: UnitId;
     requestId: string;
   }): Promise<{ eventId: string; duplicate: boolean }>;
+  /**
+   * Отменяет попытку: она перестаёт влиять на оценки, награды, фронтир,
+   * повторы, ремедиацию и статистику; в журнал пишется запись `retract`
+   * (`op: 'set'`), попытка остаётся в нём. `targetId` — `id` попытки
+   * (`eventId` результата записи) либо `requestId` завершённого входного
+   * теста: тогда отменяется вся его пачка. Повтор с тем же `requestId` ничего
+   * не пишет (`duplicate: true`); цель уже отменена — запись не пишется,
+   * `changed: false`. Неизвестная цель — `NOT_FOUND`.
+   */
+  undo(req: RetractRequest): Promise<RetractResult>;
+  /** Возвращает отменённую `undo` цель (`op: 'unset'`); семантика та же. */
+  redo(req: RetractRequest): Promise<RetractResult>;
+}
+export interface RetractRequest {
+  targetId: string;
+  requestId: string;
+}
+export interface RetractResult {
+  /** `id` записи отмены; `null`, если запись не понадобилась (`changed: false`). */
+  eventId: string | null;
+  /** Повтор `requestId`: прежний результат. */
+  duplicate: boolean;
+  /** Состояние цели изменилось. */
+  changed: boolean;
 }
 
 export interface PlanRequest {
@@ -862,8 +886,14 @@ export interface ProgressResetEntryDto extends LogEntryBaseDto {
   /** `revision` библиотеки на момент записи: диагностика расхождения версий курса между устройствами. */
   libraryRevision?: string;
 }
+export interface RetractEntryDto extends LogEntryBaseDto {
+  kind: 'retract';
+  /** `id` попытки или общая часть `id` пачки `<targetId>#<i>`. */
+  targetId: string;
+  op: 'set' | 'unset';
+}
 export type LogEntryDto =
-  AttemptEntryDto | UnitFlagEntryDto | ProgressResetEntryDto;
+  AttemptEntryDto | UnitFlagEntryDto | ProgressResetEntryDto | RetractEntryDto;
 
 export interface SyncStateDto {
   deviceId: string;

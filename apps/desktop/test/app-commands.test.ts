@@ -12,6 +12,7 @@ import { messages as appCommandsMessages } from '@/features/app-commands/i18n/in
 import { ROUTE } from '@/shared/config/routes.ts';
 import { sharedMessages } from '@/shared/i18n';
 import { createCommandRegistry } from '@/shared/lib/command-registry.ts';
+import { activeSessionHistory } from '@/shared/lib/session-history.ts';
 import { messages as settingsMessages } from '@/pages/settings/i18n/index.ts';
 import { russianPluralRule } from '@/shared/i18n/plural.ts';
 
@@ -139,7 +140,7 @@ describe('команды приложения: переходы', () => {
     expect(push).toHaveBeenCalledExactlyOnceWith({ name: route });
   });
 
-  it('умолчания: Mod+K без условия, Mod+1..3 и Mod+, — «не при вводе и не при диалоге»; у остальных команд привязок нет', () => {
+  it('умолчания: Mod+K без условия, Mod+1..3 и Mod+, — «не при вводе и не при диалоге»; отмена и возврат — только в сессии; у остальных команд привязок нет', () => {
     const { registry } = setup();
     const bound = Object.fromEntries(
       registry.list.value
@@ -147,12 +148,48 @@ describe('команды приложения: переходы', () => {
         .map(({ key, defaultBindings }) => [key, defaultBindings]),
     );
     const notTyping = '!inputFocus && !modalOpen';
+    const inSession = 'inSession && !inputFocus && !modalOpen';
     expect(bound).toEqual({
       'app:palette.open': [{ key: 'Mod+K' }],
       'app:go:dailyPlan': [{ key: 'Mod+1', when: notTyping }],
       'app:go:courses': [{ key: 'Mod+2', when: notTyping }],
       'app:go:settings': [{ key: 'Mod+,', when: notTyping }],
+      'app:session.undo': [{ key: 'Mod+Z', when: inSession }],
+      'app:session.redo': [
+        { key: 'Mod+Shift+Z', when: inSession },
+        { key: 'Mod+Y', when: inSession },
+      ],
     });
+  });
+
+  it('отмена и возврат: недоступны без сессии, следуют за состоянием истории сессии и запускают её методы', async () => {
+    const { find } = setup();
+    const undo = find('app:session.undo');
+    const redo = find('app:session.redo');
+    expect(undo).toMatchObject({
+      title: 'Отменить последний ответ',
+      category: 'Сессия',
+      enabled: false,
+    });
+    expect(redo).toMatchObject({ enabled: false });
+
+    const history = {
+      canUndo: true,
+      canRedo: false,
+      undo: vi.fn(async () => undefined),
+      redo: vi.fn(async () => undefined),
+    };
+    activeSessionHistory.value = history;
+    try {
+      expect(find('app:session.undo')?.enabled).toBe(true);
+      expect(find('app:session.redo')?.enabled).toBe(false);
+      await find('app:session.undo')?.run();
+      expect(history.undo).toHaveBeenCalledOnce();
+      await find('app:session.redo')?.run();
+      expect(history.redo).toHaveBeenCalledOnce();
+    } finally {
+      activeSessionHistory.value = null;
+    }
   });
 
   it('«Открыть палитру команд» — команда приложения, скрытая из палитры; запускает открытие палитры', async () => {

@@ -48,6 +48,21 @@ export const createAttemptIndex = (
   const byExercise = new Map<UnitId, AttemptRecord[]>();
   const resets = new Map<UnitId, EntryKey>();
   const seen = new Set<UnitId>();
+  /** Решения `retract` по `targetId`: LWW по ключу записи. */
+  const retractions = new Map<string, { key: EntryKey; set: boolean }>();
+  /** Число целей в состоянии «отменено»: 0 — чтение идёт без проверки каждой записи. */
+  let retractedTargets = 0;
+
+  const isTargetRetracted = (targetId: string) =>
+    retractions.get(targetId)?.set === true;
+
+  /** Попытка отменена по своему `id` или по общей части `id` пачки `<id>#<i>`. */
+  const isRetractedId = (id: string): boolean => {
+    if (retractedTargets === 0) return false;
+    if (isTargetRetracted(id)) return true;
+    const mark = id.indexOf('#');
+    return mark > 0 && isTargetRetracted(id.slice(0, mark));
+  };
 
   const newer = (candidate: EntryKey | undefined, other: EntryKey | null) => {
     if (candidate === undefined) return other;
@@ -103,10 +118,40 @@ export const createAttemptIndex = (
     return true;
   };
 
+  const applyRetraction: AttemptIndex['applyRetraction'] = (entry) => {
+    const known = retractions.get(entry.targetId);
+    if (known !== undefined && compareEntryKeys(known.key, entry) >= 0) {
+      return false;
+    }
+    const set = entry.op === 'set';
+    retractions.set(entry.targetId, { key: toKey(entry), set });
+    retractedTargets += Number(set) - Number(known?.set === true);
+    return true;
+  };
+
+  const exercisesOf: AttemptIndex['exercisesOf'] = (targetId) => {
+    const batch = `${targetId}#`;
+    const found: UnitId[] = [];
+    for (const [exerciseId, list] of byExercise) {
+      if (list.some(({ id }) => id === targetId || id.startsWith(batch))) {
+        found.push(exerciseId);
+      }
+    }
+    return found;
+  };
+
+  /** Неотменённые (ни сбросом, ни `retract`) попытки упражнения по возрастанию ключа. */
+  const liveOf = (list: readonly AttemptRecord[], exerciseId: UnitId) => {
+    const tail = list.slice(startOf(list, exerciseId));
+    return retractedTargets === 0
+      ? tail
+      : tail.filter((record) => !isRetractedId(record.id));
+  };
+
   const getRecords: AttemptIndex['getRecords'] = (exerciseId) => {
     const list = byExercise.get(exerciseId);
     if (list === undefined) return [];
-    return list.slice(startOf(list, exerciseId)).reverse();
+    return liveOf(list, exerciseId).reverse();
   };
 
   const getTrials: AttemptIndex['getTrials'] = (exerciseId, limit) => {
@@ -115,29 +160,34 @@ export const createAttemptIndex = (
     const start = startOf(list, exerciseId);
     const trials: ExerciseTrial[] = [];
     for (let i = list.length - 1; i >= start && trials.length < limit; i--) {
-      const { grade, at } = list[i] as AttemptRecord;
-      trials.push({ score: grade, timestamp: at });
+      const record = list[i] as AttemptRecord;
+      if (isRetractedId(record.id)) continue;
+      trials.push({ score: record.grade, timestamp: record.at });
     }
     return trials;
   };
 
   const count: AttemptIndex['count'] = (exerciseId) => {
     const list = byExercise.get(exerciseId);
-    return list === undefined ? 0 : list.length - startOf(list, exerciseId);
+    if (list === undefined) return 0;
+    if (retractedTargets === 0) return list.length - startOf(list, exerciseId);
+    return liveOf(list, exerciseId).length;
   };
 
   const attemptedExerciseIds = function* (): Generator<UnitId> {
     for (const [exerciseId, list] of byExercise) {
-      if (startOf(list, exerciseId) < list.length) yield exerciseId;
+      if (retractedTargets === 0) {
+        if (startOf(list, exerciseId) < list.length) yield exerciseId;
+      } else if (liveOf(list, exerciseId).length > 0) {
+        yield exerciseId;
+      }
     }
   };
 
   const allInOrder: AttemptIndex['allInOrder'] = () => {
     const all: AttemptRecord[] = [];
     for (const [exerciseId, list] of byExercise) {
-      for (let i = startOf(list, exerciseId); i < list.length; i++) {
-        all.push(list[i] as AttemptRecord);
-      }
+      all.push(...liveOf(list, exerciseId));
     }
     return all.sort(compareEntryKeys);
   };
@@ -145,11 +195,17 @@ export const createAttemptIndex = (
   const clear = () => {
     byExercise.clear();
     resets.clear();
+    retractions.clear();
+    retractedTargets = 0;
     seen.clear();
   };
 
   return {
     applyAttempt,
+    applyRetraction,
+    exercisesOf,
+    isTargetRetracted,
+    isRetractedId,
     applyReset,
     getTrials,
     getRecords,

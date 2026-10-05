@@ -15,6 +15,7 @@ import type {
   SyncedCommand,
 } from '@/shared/lib/command-registry.ts';
 import { effectiveThemeId } from '@/shared/lib/extension-themes.ts';
+import { activeSessionHistory } from '@/shared/lib/session-history.ts';
 
 export interface AppCommandsDeps {
   registry: CommandRegistry;
@@ -39,6 +40,9 @@ export interface AppCommandsDeps {
  * подставляет его в новую привязку команды приложения.
  */
 export const NOT_TYPING_WHEN = '!inputFocus && !modalOpen';
+
+/** Сочетания отмены и возврата: только в сессии и не при вводе текста (в поле работает отмена поля). */
+const SESSION_WHEN = `inSession && ${NOT_TYPING_WHEN}`;
 
 const destinationKeys = (key: string): DefaultBinding[] => [
   { key, when: NOT_TYPING_WHEN },
@@ -112,6 +116,32 @@ export const registerAppCommands = (deps: AppCommandsDeps): (() => void) => {
       }),
     ),
   ];
+  const history = () => activeSessionHistory.value;
+  disposers.push(
+    registry.register(
+      app('session.undo', {
+        title: () => t('appCommands.session.undo'),
+        category: () => t('appCommands.category.session'),
+        icon: 'mdi-undo',
+        keybindings: [{ key: 'Mod+Z', when: SESSION_WHEN }],
+        enabled: () => history()?.canUndo ?? false,
+        run: guarded(() => history()?.undo()),
+      }),
+    ),
+    registry.register(
+      app('session.redo', {
+        title: () => t('appCommands.session.redo'),
+        category: () => t('appCommands.category.session'),
+        icon: 'mdi-redo',
+        keybindings: [
+          { key: 'Mod+Shift+Z', when: SESSION_WHEN },
+          { key: 'Mod+Y', when: SESSION_WHEN },
+        ],
+        enabled: () => history()?.canRedo ?? false,
+        run: guarded(() => history()?.redo()),
+      }),
+    ),
+  );
   disposers.push(
     ...DESTINATIONS.map(({ id, route, keybindings }) =>
       registry.register(

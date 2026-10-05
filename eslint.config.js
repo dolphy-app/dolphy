@@ -15,6 +15,7 @@ module.exports = [
       '**/dist-e2e/**',
       '**/dist-smoke/**',
       '**/dist-ext/**',
+      '**/storybook-static/**',
       '**/dist-publish/**',
       '**/.dolphy/**',
       'apps/desktop/extensions/**',

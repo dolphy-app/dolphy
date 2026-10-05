@@ -16,3 +16,4 @@ release
 *.sw?
 *.tsbuildinfo
 dist-publish
+storybook-static

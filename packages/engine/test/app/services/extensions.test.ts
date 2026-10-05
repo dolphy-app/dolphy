@@ -18,6 +18,8 @@ const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
   events: [],
   commands: [],
   panels: [],
+  importers: [],
+  exporters: [],
 };
 
 const info = (overrides: Partial<ExtensionInfoDto>): ExtensionInfoDto => ({
@@ -40,6 +42,7 @@ const info = (overrides: Partial<ExtensionInfoDto>): ExtensionInfoDto => ({
   tags: [],
   removable: false,
   revoked: null,
+  deprecated: null,
   ...overrides,
 });
 
@@ -135,6 +138,8 @@ describe('extensions.contributions', () => {
     settings: [],
     commands: [],
     panels: [],
+    importers: [],
+    exporters: [],
     messages: {},
   };
   const openWith = (source: RegistryContributions) =>

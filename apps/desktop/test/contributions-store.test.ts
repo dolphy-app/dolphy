@@ -25,6 +25,8 @@ const dto = (
   settings: [],
   commands: [],
   panels: [],
+  importers: [],
+  exporters: [],
   messages: {},
 });
 
@@ -165,6 +167,7 @@ describe('createContributionsStore: команды и панели', () => {
     description: null,
     category: null,
     keybinding: null,
+    keybindings: [],
     palette: true,
   });
   const panel = (id: string, revision: string) => ({

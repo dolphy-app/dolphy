@@ -6,7 +6,7 @@ import {
 } from './relearn-pile.ts';
 
 /** Оценки 3–5 — успех, 1–2 — провал (`update_success_rate`, data.rs:402). */
-const PASSING_GRADE_MIN = 3;
+export const PASSING_GRADE_MIN = 3;
 
 export interface TrialCounts {
   readonly success: number;

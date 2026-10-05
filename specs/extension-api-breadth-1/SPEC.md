@@ -4,7 +4,7 @@ branch: feature/extension-api-breadth-1
 created: 2026-10-04
 closed: null
 touches: [extension-api, extension-host, extension-catalog, extension-install, extension-tools, extension-sdk, engine-contract, engine-rpc, engine, engine-sqlite, desktop]
-depends-on: [specs/extension-foundation]
+depends-on: [specs/archive/2026-10-05-extension-foundation]
 supersedes: null
 superseded-by: null
 ---
@@ -68,8 +68,8 @@ superseded-by: null
 
 - [x] 2a-1 (PR) Настройки и названия: `text`/`color`/`list`, `group`/`order`/`visibleWhen` (манифест, `findSettingValueProblem`, `state.ts`, протокол, `dolphy-ext types`, SDK testing), `title` видов и рендереров (+ `titles` каталога, расширения из поставки), поле формы и чипы, контракт, RPC, e2e
 - [x] 2a-2 (PR) Локализация: `locales/*.json`, `resolveText`, `messages` в DTO, подстановка во всех местах окна, проверки инструментов, `catalog build` на `en`, предупреждение `locale.missing-key`, протокол не отдаёт `locales/`
-- [ ] 2a-3 (PR) Секреты: порт `PlatformServices`, протокол `platform-request`, `platform.ts` и `platform-services.ts`, `ExtensionDataStore.secrets` и миграция, `ctx.secrets`, ошибки, `createMemorySecrets`, `dataUsage`, подменный шифр для e2e
-- [ ] 2b-1 (PR) `learning.stats`: разрешение и подписи, служба и индекс статистики, `ctx.stats`, `createMemoryStats`, e2e
+- [x] 2a-3 (PR) Секреты: порт `PlatformServices`, протокол `platform-request`, `platform.ts` и `platform-services.ts`, `ExtensionDataStore.secrets` и миграция, `ctx.secrets`, ошибки, `createMemorySecrets`, `dataUsage`, подменный шифр для e2e
+- [x] 2b-1 (PR) `learning.stats`: разрешение и подписи, служба и индекс статистики, `ctx.stats`, `createMemoryStats`, e2e
 - [ ] 2b-2 (PR) Виджеты, `icon` и `PanelContext.context`: точка, режим рамки `widget`, блок плана дня, `EXTENSION_ICONS`, палитра и меню, SDK и сборка, axe
 - [ ] 2c-1 (PR) `notifications`: разрешение, служба и лимиты, операция `notify` в main, переключатель в строке, `createMemoryNotifications`
 - [ ] 2c-2 (PR) `schedules`: точка, планировщик, `fireSchedule`, `ctx.schedule`, переключатель и текст расписания в строке, `createMemorySchedule`, e2e с ускоренными часами
@@ -98,6 +98,22 @@ superseded-by: null
 - `CHECK-026` стоит в конце таблицы правил (после эвристик `CHECK-022`…`CHECK-025`), чтобы вывод `--list-rules` шёл по возрастанию номеров.
 - Окно: описание команды в реестре (`CommandDescriptor.description`) стало `MaybeRefOrGetter`, как название и категория: смена языка не перерегистрирует команды.
 
+Этап 2a-3:
+- Порт `PlatformServices` пока содержит только `cipher`: `notifier` и операция `notify` протокола `platform-request` добавит этап 2c-1, где они появляются в коде (пустой порт без вызывающего — мёртвый код).
+- Таблица `extension_secret` — миграция 5 (после 4, `extension_storage`/`extension_setting`); на момент слияния номер может сдвинуться из-за параллельных этапов.
+- В хранилище секретов лежит шифртекст (base64 в JSON-строке), он длиннее открытого значения: потолки адаптера (`SECRET_STORE_LIMITS`) — вдвое выше открытых (значение 8 КиБ, 32 ключа), а 4 КиБ открытого значения, длину ключа и число ключей проверяет служба (`EXTENSION_SECRET_LIMITS`). Общий размер потолком не служит: поэтому контрактные тесты `total-size` для пространства секретов пропускаются (`it.skipIf`).
+- Хост движка не знает, готово ли приложение: `app.isReady()` и бэкенд Linux читает только main, поэтому доступность — запрос `cipher.available`, а не кэш в движке.
+- Тест, что секрет не попадает в журналы, — `apps/desktop/test/platform-services.test.ts` (файловый журнал main и stderr при враждебном `safeStorage`, который кладёт открытый текст в сообщение ошибки) и `extension-secrets.test.ts` движка (логгер движка). Диагностический отчёт строится из DTO движка, секретов в нём нет по построению.
+
+Этап 2b-1:
+- Контракт `engine-contract` не менялся: разрешения в DTO — строки (`ExtensionInfoDto.permissions: string[]`), запросы статистики — внутренний протокол хоста (`HostRequest`), не RPC окна. Версию контракта этот этап не поднимает.
+- Отказ службы без разрешения — `INVALID_ARGUMENT` с `details: { reason: 'permission', permission: 'learning.stats', extensionId }` (по образцу `reason: 'disabled'`), нового кода ошибки нет: разрешение — единственный отказ этого вида, а `details.reason` уже различает отказы `INVALID_ARGUMENT` (`disabled`). `createExtensionStats` превращает такой отказ в `PermissionError('learning.stats')`.
+- Индекс статистики лежит в `EngineContext.statsIndex` (`app/stats-index.ts`), а не внутри `ExtensionHostServices`: сбрасывать его должны `applyEntries` (запись, синхронизация, импорт) и `rebuild`, а они принадлежат контексту. Проход по журналу повторяется, если запись пришла во время прохода (счётчик поколений), и не залипает на сбое чтения.
+- `PASSING_GRADE_MIN` экспортирован из `scheduler/session-state.ts`: порог «верно» один, а не копия.
+- Арифметика локальных дат — номера дней по календарю (`domain/learning-stats.ts`), а не разность в миллисекундах: сутки в 23 и 25 часов не ломают серию.
+- Помощник SDK `createMemoryStats` дублирует эту арифметику (SDK не зависит от движка, движок — от `extension-api`); паритет держат одинаковые таблицы случаев в тестах обеих сторон.
+- e2e этапа лежит в `apps/desktop/e2e/extension-stats.e2e.test.ts`, а не в общем `extension-breadth-1.e2e.test.ts` из «Требований»: остальные этапы волны тоже ведут отдельные файлы (`extension-settings-rich`, `extension-locales`). Дни в e2e создаёт `shiftJournalBack` (сдвиг на целые сутки), поэтому прогон в пределах часа вокруг местной полуночи или перехода на летнее время может дать расхождение на день.
+
 ## Decision Log
 
 - 2026-10-04. Уровень безопасности как у Obsidian (обзор, безопасный режим, диагностика) (владелец). Не входят: независимый аудит, песочница ОС, подпись и проверка издателя, ограничение сети, лимит кучи V8, отклонение симлинков, процессные тесты на всех ОС.
@@ -116,6 +132,9 @@ superseded-by: null
 - 2026-10-04. Движок принимает цвет в любом регистре и хранит нижний (`normalizeSettingValue`); равный по содержимому список и тот же цвет в другом регистре изменением не считаются.
 - 2026-10-04. Названия видов задания и рендереров bundled-расширений (`dolphy.choice`, `dolphy.sql`, `dolphy.math`) написаны по-английски: `extension.json` — публичный файл, перевод появится вместе с локализацией манифеста (2a-2).
 - 2026-10-04. Предупреждения о переводах хранятся среди `diagnostics` загруженного расширения и показываются предупреждением (`v-alert`), а не текстом причины сбоя. Причина: расширение работает, а дизайн-ревью показало, что строка обычного текста неотличима от описания.
+
+- 2026-10-05. `DOLPHY_FAKE_SAFE_STORAGE` принимает два значения: `1` — обратимый шифр, `unavailable` — хранилища ключей нет (только в несобранном приложении). Причина: e2e сценария «без хранилища ключей» не может опираться на настоящую связку ключей, а CI Linux и без подмены дал бы `basic_text` недетерминированно.
+- 2026-10-05. Предел `valueBytes` открытого значения секрета — 4 КиБ в байтах UTF-8 (а не в символах), ключ — 128 кодовых единиц UTF-16, как у хранилища кода. Причина: единые правила с `ctx.storage`.
 
 ## Outcomes
 

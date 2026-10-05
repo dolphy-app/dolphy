@@ -73,6 +73,16 @@ describe('установщик без пользовательского кат�
     expect(await installer.updates()).toEqual([]);
     expect(await installer.checkForUpdates()).toBe(0);
     expect(installer.revocationOf('acme.x', '1.0.0')).toBeNull();
+    expect(installer.deprecationOf('acme.x', '1.0.0')).toBeNull();
+    for (const call of [
+      () => installer.docs('acme.x'),
+      () => installer.docImage('acme.x', '1.0.0', 'a.png'),
+      () => installer.versionFile('acme.x', '1.0.0', 'README.md'),
+    ]) {
+      await expect(call()).rejects.toMatchObject({
+        cause: 'catalog-unavailable',
+      });
+    }
   });
 
   it('createUnavailableInstaller — тот же набор поведения', async () => {
@@ -127,6 +137,8 @@ const indexOf = (revoked: { id: string; versions: string; reason: string }[]) =>
           events: [],
           commands: [],
           panels: [],
+          importers: [],
+          exporters: [],
         },
         versions: [
           {
@@ -210,6 +222,7 @@ describe('установка из каталога → обнаружение �
     expect(registry.list()[0]).toMatchObject({
       state: 'loaded',
       revoked: null,
+      deprecated: null,
     });
 
     revoked = [{ id: 'acme.theme', versions: '<2.0.0', reason: 'malware' }];

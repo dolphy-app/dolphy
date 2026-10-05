@@ -26,6 +26,8 @@ const USER: ExtensionInfoDto = {
     events: [],
     commands: [],
     panels: [],
+    importers: [],
+    exporters: [],
   },
   diagnostics: [],
   permissions: [],
@@ -41,6 +43,7 @@ const USER: ExtensionInfoDto = {
   tags: [],
   removable: true,
   revoked: null,
+  deprecated: null,
 };
 
 /** Перезагрузка, которую тест завершает вручную: видно, что идёт и что ждёт. */

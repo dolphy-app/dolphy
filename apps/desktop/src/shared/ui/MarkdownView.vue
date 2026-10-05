@@ -111,7 +111,10 @@ onBeforeUnmount(() => controller.current?.abort());
 }
 
 .markdown :deep(code) {
+  /* перенос внутри узкой колонки не рвёт рамку и фон на две полосы */
+  box-decoration-break: clone;
   padding: 0.1em 0.35em;
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
   border-radius: 6px;
   background: rgb(var(--v-theme-surface-variant));
   font-size: 0.9em;
@@ -121,13 +124,44 @@ onBeforeUnmount(() => controller.current?.abort());
   margin: 1em 0;
   padding: 1em;
   overflow-x: auto;
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
   border-radius: 12px;
   background: rgb(var(--v-theme-surface-variant));
+  tab-size: 2;
 }
 
 .markdown :deep(pre code) {
   padding: 0;
+  border: 0;
   background: none;
+}
+
+/* подсветка кода: цвета `--sh-*` выводятся из темы и лежат на корне документа
+   (syntax-binding.ts);
+   остальные токены (имена, знаки, пробелы) красит сам блок */
+.markdown :deep(.sh__token--keyword) {
+  color: var(--sh-keyword);
+}
+
+.markdown :deep(.sh__token--string) {
+  color: var(--sh-string);
+}
+
+.markdown :deep(.sh__token--class) {
+  color: var(--sh-class);
+}
+
+.markdown :deep(.sh__token--property) {
+  color: var(--sh-property);
+}
+
+.markdown :deep(.sh__token--entity) {
+  color: var(--sh-entity);
+}
+
+.markdown :deep(.sh__token--comment) {
+  color: var(--sh-comment);
+  font-style: italic;
 }
 
 /* широкая таблица прокручивается сама, а не раздвигает колонку */
@@ -141,12 +175,19 @@ onBeforeUnmount(() => controller.current?.abort());
 
 .markdown :deep(th),
 .markdown :deep(td) {
-  padding: 0.35em 0.75em;
+  padding: 0.4em 0.75em;
   border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  vertical-align: top;
 }
 
 .markdown :deep(th) {
+  background: rgb(var(--v-theme-surface-variant));
+  font-weight: 600;
   text-align: left;
+}
+
+.markdown :deep(tbody tr:nth-child(even) td) {
+  background: rgba(var(--v-theme-surface-variant), 0.45);
 }
 
 .markdown :deep(hr) {
@@ -155,11 +196,44 @@ onBeforeUnmount(() => controller.current?.abort());
   border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
 }
 
+/* выделенная врезка: цитата читается как примечание, а не как обычный абзац;
+   `> [!WARNING]` и другие виды меняют только цвет акцента (`--callout`) */
 .markdown :deep(blockquote) {
+  --callout: var(--v-theme-primary);
+
   margin: 1em 0;
-  padding: 0.1em 0 0.1em 1em;
-  border-left: 3px solid rgba(var(--v-border-color), var(--v-border-opacity));
-  color: rgba(var(--v-theme-on-surface), var(--v-medium-emphasis-opacity));
+  padding: 0.35em 1em;
+  border-left: 3px solid rgb(var(--callout));
+  border-radius: 0 10px 10px 0;
+  background: rgba(var(--callout), 0.07);
+}
+
+.markdown :deep(blockquote.callout--note) {
+  --callout: var(--v-theme-info);
+}
+
+.markdown :deep(blockquote.callout--tip) {
+  --callout: var(--v-theme-success);
+}
+
+.markdown :deep(blockquote.callout--important) {
+  --callout: var(--v-theme-primary);
+}
+
+.markdown :deep(blockquote.callout--warning) {
+  --callout: var(--v-theme-warning);
+}
+
+.markdown :deep(blockquote.callout--caution) {
+  --callout: var(--v-theme-error);
+}
+
+.markdown :deep(blockquote > :first-child) {
+  margin-top: 0;
+}
+
+.markdown :deep(blockquote > :last-child) {
+  margin-bottom: 0;
 }
 
 .markdown :deep(.dolphy-md-block) {

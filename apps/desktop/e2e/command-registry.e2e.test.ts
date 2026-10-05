@@ -11,6 +11,7 @@ import {
 import type { CatalogServer, CatalogSource } from './support/catalog-server.ts';
 import { Client } from './support/client.ts';
 import { CommandsClient } from './support/commands-client.ts';
+import { MOD_KEY, MOD_LABEL, MOD_WORD } from './support/keys.ts';
 import { expectAttribute, expectCount, expectText } from './support/locator.ts';
 
 const SUNRISE: CatalogSource = {
@@ -19,11 +20,7 @@ const SUNRISE: CatalogSource = {
   description: 'Тёплая светлая тема «Рассвет»',
   author: 'acme',
 };
-/** Подпись Mod на платформе окна. */
-const MOD = process.platform === 'darwin' ? '⌘' : 'Ctrl+';
-
-/** Как клавиша Mod озвучивается скринридеру. */
-const MOD_WORD = process.platform === 'darwin' ? 'Command' : 'Control';
+const MOD = MOD_LABEL;
 
 const SUNRISE_BACKGROUND = 'rgb(255, 244, 229)';
 const DARK_BACKGROUND = 'rgb(14, 16, 32)';
@@ -170,7 +167,7 @@ describe('реестр команд: команды приложения (R2, R5
 });
 
 describe('реестр команд: сочетания клавиш (R6, R7, R10)', () => {
-  it('в боковом меню нет кнопки палитры; «Настройки → Сочетания клавиш» показывает пять строк с клавишами платформы', async () => {
+  it('в боковом меню нет кнопки палитры; «Настройки → Сочетания клавиш» показывает все команды приложения с привязками платформы, условием и источником (R19, R20)', async () => {
     const { client } = await launch();
     await expectCount(
       client.page.getByRole('button', { name: /палитр|команд/i }),
@@ -178,50 +175,52 @@ describe('реестр команд: сочетания клавиш (R6, R7, R1
     );
     await openShortcuts(client);
     const rows = client.page.getByTestId('shortcut');
-    await expectCount(rows, 4);
-    const texts = (await rows.allInnerTexts()).map((text) =>
-      text.replace(/\s+/g, ' ').trim(),
+    // палитра + 8 переходов + 3 темы + 3 языка
+    await expectCount(rows, 15);
+    const textOf = async (command: string) =>
+      (
+        await client.page
+          .locator(`[data-testid="shortcut"][data-command="${command}"]`)
+          .innerText()
+      )
+        .replace(/\s+/g, ' ')
+        .trim();
+    // палитра: без условия («всегда»), срабатывает и в полях ввода
+    expect(await textOf('app:palette.open')).toContain(
+      `Открыть палитру команд ${MOD}K ${MOD_WORD} K всегда Приложение`,
     );
-    expect(texts).toEqual([
-      `Открыть палитру команд ${MOD}K ${MOD_WORD} K`,
-      `Перейти: План дня ${MOD}1 ${MOD_WORD} 1`,
-      `Перейти: Курсы ${MOD}2 ${MOD_WORD} 2`,
-      `Перейти: Настройки ${MOD}, ${MOD_WORD} запятая`,
-    ]);
+    const notTyping = '!inputFocus && !modalOpen';
+    expect(await textOf('app:go:dailyPlan')).toContain(
+      `Перейти: План дня ${MOD}1 ${MOD_WORD} 1 ${notTyping} Приложение`,
+    );
+    expect(await textOf('app:go:courses')).toContain(
+      `Перейти: Курсы ${MOD}2 ${MOD_WORD} 2 ${notTyping}`,
+    );
+    expect(await textOf('app:go:settings')).toContain(
+      `Перейти: Настройки ${MOD}, ${MOD_WORD} запятая ${notTyping}`,
+    );
+    // команды без привязок тоже в таблице: им можно добавить сочетание
+    expect(await textOf('app:theme:dark')).toContain('Нет сочетаний');
     // клавиши озвучиваются словами, а не символами: символы скрыты от скринридера
-    await expectCount(
-      client.page.getByRole('cell', { name: `${MOD_WORD} 2`, exact: true }),
-      1,
-    );
-    await expectCount(
-      client.page.getByRole('cell', {
-        name: `${MOD_WORD} comma`,
-        exact: false,
-      }),
-      0,
-    );
-    await expectCount(
-      client.page.getByRole('cell', {
-        name: `${MOD_WORD} запятая`,
-        exact: true,
-      }),
-      1,
-    );
+    expect(
+      await client.page
+        .locator('[data-command="app:go:courses"] kbd')
+        .first()
+        .getAttribute('aria-hidden'),
+    ).toBe('true');
     // таблицы с заголовками столбцов и подписью группы
-    await expectCount(client.page.getByRole('table'), 2);
+    await expectCount(client.page.getByRole('table'), 4);
     await expectCount(
       client.page.getByRole('table', { name: 'Переход', exact: true }),
       1,
     );
-    await expectCount(client.page.getByRole('columnheader'), 4);
+    await expectCount(client.page.getByRole('columnheader'), 20);
   });
 
   it('кнопка на странице открывает палитру (с клавиатуры) и получает фокус обратно', async () => {
     const { client, commands } = await launch();
     await openShortcuts(client);
-    const button = client.page.getByRole('button', {
-      name: /Открыть палитру команд/,
-    });
+    const button = client.page.getByTestId('open-palette');
     // с клавиатуры: фокус остаётся в закрывающемся диалоге, пока не придёт after-leave
     await button.focus();
     await client.page.keyboard.press('Enter');
@@ -241,11 +240,11 @@ describe('реестр команд: сочетания клавиш (R6, R7, R1
 
   it('Ctrl+1/2 и Ctrl+, переходят на страницы', async () => {
     const { client, commands } = await launch();
-    await client.page.keyboard.press('Control+2');
+    await client.page.keyboard.press(`${MOD_KEY}+2`);
     await expect.poll(() => commands.route()).toBe('#/courses');
-    await client.page.keyboard.press('Control+1');
+    await client.page.keyboard.press(`${MOD_KEY}+1`);
     await expect.poll(() => commands.route()).toBe('#/');
-    await client.page.keyboard.press('Control+,');
+    await client.page.keyboard.press(`${MOD_KEY}+,`);
     await expect.poll(() => commands.route()).toBe('#/settings/learning');
   });
 
@@ -257,11 +256,11 @@ describe('реестр команд: сочетания клавиш (R6, R7, R1
       name: 'Поиск по каталогу',
     });
     await search.focus();
-    for (const combo of ['Control+,', 'Control+1', 'Control+2']) {
+    for (const combo of [`${MOD_KEY}+,`, `${MOD_KEY}+1`, `${MOD_KEY}+2`]) {
       await client.page.keyboard.press(combo);
     }
     expect(commands.route()).toBe('#/settings/extensions');
-    await client.page.keyboard.press('Control+K');
+    await client.page.keyboard.press(`${MOD_KEY}+K`);
     await commands.waitForPalette();
     await commands.combobox.press('Escape');
     await commands.palette.waitFor({ state: 'hidden' });
@@ -270,7 +269,7 @@ describe('реестр команд: сочетания клавиш (R6, R7, R1
     await client.page
       .getByRole('tab', { name: 'Каталог', exact: true })
       .focus();
-    await client.page.keyboard.press('Control+2');
+    await client.page.keyboard.press(`${MOD_KEY}+2`);
     await expect.poll(() => commands.route()).toBe('#/courses');
   });
 });
@@ -337,7 +336,7 @@ describe('реестр команд: тема и язык (R2, R3, R8)', () => {
       (await options.locator('.title').allInnerTexts()).map((text) =>
         text.trim(),
       );
-    await first.client.page.keyboard.press('Control+K');
+    await first.client.page.keyboard.press(`${MOD_KEY}+K`);
     await combobox.waitFor({ timeout: 15_000 });
     expect(await titles()).toEqual(
       expect.arrayContaining([
@@ -361,7 +360,7 @@ describe('реестр команд: тема и язык (R2, R3, R8)', () => {
       .getByRole('link', { name: "Today's plan", exact: true })
       .waitFor({ timeout: 30_000 });
     const secondPalette = second.client.page.getByTestId('command-palette');
-    await second.client.page.keyboard.press('Control+K');
+    await second.client.page.keyboard.press(`${MOD_KEY}+K`);
     const secondInput = secondPalette.locator('input[role="combobox"]');
     await secondInput.waitFor({ timeout: 15_000 });
     await secondInput.fill('Language: Русский');

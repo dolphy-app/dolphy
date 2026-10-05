@@ -17,6 +17,8 @@ export const NO_CONTRIBUTES: ExtensionContributesDto = {
   events: [],
   commands: [],
   panels: [],
+  importers: [],
+  exporters: [],
 };
 
 /** Движок без сбоев: хост работает, безопасный режим выключен, здоровья по расширениям нет. */
@@ -52,6 +54,7 @@ export const extensionInfo = (
   tags: [],
   removable: false,
   revoked: null,
+  deprecated: null,
   ...override,
 });
 
@@ -85,6 +88,9 @@ export const catalogEntry = (
   installedVersion: null,
   latest: catalogVersion('1.0.0'),
   incompatible: null,
+  versions: [],
+  deprecated: null,
+  elsewhere: false,
   ...override,
 });
 

@@ -19,6 +19,7 @@ const contributions = (revision = 'r1'): ContributionsDto => ({
     description: null,
     category: null,
     keybinding: null,
+    keybindings: [],
     palette: palette === true,
   })),
   panels: [

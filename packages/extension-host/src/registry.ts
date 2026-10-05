@@ -17,6 +17,8 @@ const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
   events: [],
   commands: [],
   panels: [],
+  importers: [],
+  exporters: [],
 };
 
 const isolationOf = (
@@ -40,6 +42,7 @@ const withoutMetadata = (
   | 'installed'
   | 'removable'
   | 'revoked'
+  | 'deprecated'
 > => ({
   name: null,
   description: null,
@@ -51,6 +54,7 @@ const withoutMetadata = (
   installed: null,
   removable: origin === 'user',
   revoked: null,
+  deprecated: null,
 });
 
 /** Идентификаторы вкладов расширения в том же виде, что в записи каталога. */
@@ -65,6 +69,8 @@ export const contributesOf = (
     | 'events'
     | 'commands'
     | 'panels'
+    | 'importers'
+    | 'exporters'
   >,
 ): ExtensionInfoDto['contributes'] => ({
   exerciseTypes: extension.exerciseTypes.map(({ id }) => id),
@@ -77,6 +83,8 @@ export const contributesOf = (
   events: extension.events.map(({ event }) => event),
   commands: extension.commands.map(({ id }) => id),
   panels: extension.panels.map(({ id }) => id),
+  importers: extension.importers.map(({ id }) => id),
+  exporters: extension.exporters.map(({ id }) => id),
 });
 
 /** Названия вкладов с `label`/`title` в том же виде, что `titles` записи каталога; пустые точки опущены. */
@@ -90,6 +98,8 @@ export const titlesOf = (
     | 'settings'
     | 'commands'
     | 'panels'
+    | 'importers'
+    | 'exporters'
   >,
 ): ExtensionInfoDto['titles'] => {
   const titles: ExtensionInfoDto['titles'] = {};
@@ -127,6 +137,16 @@ export const titlesOf = (
   add('settings', extension.settings, (item: { label: string }) => item.label);
   add('commands', extension.commands, (item: { title: string }) => item.title);
   add('panels', extension.panels, (item: { title: string }) => item.title);
+  add(
+    'importers',
+    extension.importers,
+    (item: { title: string }) => item.title,
+  );
+  add(
+    'exporters',
+    extension.exporters,
+    (item: { title: string }) => item.title,
+  );
   return titles;
 };
 
@@ -161,6 +181,8 @@ const loaded = (
     installed: extension.install === null ? null : { ...extension.install },
     removable: extension.origin === 'user',
     revoked,
+    // пометку «устарело» накладывает сервис `extensions.list`: реестр о каталоге знает только отзыв
+    deprecated: null,
   };
 };
 
@@ -266,6 +288,16 @@ export const createExtensionRegistry = (
           origin: extension.origin,
           revision: extension.revision,
         })),
+      ),
+      importers: enabled().flatMap(({ id, importers }) =>
+        importers.map((importer) => ({
+          ...importer,
+          accept: [...importer.accept],
+          extensionId: id,
+        })),
+      ),
+      exporters: enabled().flatMap(({ id, exporters }) =>
+        exporters.map((exporter) => ({ ...exporter, extensionId: id })),
       ),
       messages: Object.fromEntries(
         enabled()

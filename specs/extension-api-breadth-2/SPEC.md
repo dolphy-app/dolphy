@@ -1,10 +1,10 @@
 ---
-status: draft
+status: active
 branch: feature/extension-api-breadth-2
 created: 2026-10-04
 closed: null
 touches: [engine-contract, engine, engine-rpc, engine-sqlite, extension-api, extension-host, extension-sdk, extension-tools, extension-catalog, extension-ui, desktop]
-depends-on: [specs/extension-foundation, specs/extension-api-breadth-1]
+depends-on: [specs/archive/2026-10-05-extension-foundation, specs/extension-api-breadth-1]
 supersedes: null
 superseded-by: null
 ---

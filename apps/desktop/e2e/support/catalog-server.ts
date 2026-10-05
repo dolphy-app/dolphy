@@ -71,7 +71,17 @@ interface PublishedExtension {
     'exerciseTypes' | 'themes' | 'markdownRenderers' | 'gradePolicies',
     string[]
   > &
-    Partial<Record<'settings' | 'events' | 'commands' | 'panels', string[]>>;
+    Partial<
+      Record<
+        | 'settings'
+        | 'events'
+        | 'commands'
+        | 'panels'
+        | 'importers'
+        | 'exporters',
+        string[]
+      >
+    >;
   /** Названия вкладов из манифеста (запись индекса `titles`). */
   titles: ContributionTitles;
   versions: PublishedVersion[];
@@ -81,6 +91,14 @@ interface Revocation {
   id: string;
   versions: string;
   reason: string;
+}
+
+/** Пометка «устарело» записи индекса (`deprecated.json` каталога). */
+export interface Deprecation {
+  /** Диапазон версий; `null` — все. */
+  versions: string | null;
+  reason: string;
+  alternatives: string[];
 }
 
 export interface CatalogServerOptions {
@@ -100,6 +118,10 @@ export interface CatalogServer {
   publish(source: CatalogSource): Promise<void>;
   /** Отзывает версии по диапазону (`<1.2.0`, `1.1.0`). */
   revoke(id: string, versions: string, reason: string): void;
+  /** Помечает расширение устаревшим (`versions: null` — все версии). */
+  deprecate(id: string, deprecation: Deprecation): void;
+  /** Снимает пометку «устарело». */
+  undeprecate(id: string): void;
   /** Сервер отдаёт неверные байты для одного файла версии (sha256 в индексе прежний). */
   tamper(id: string, version: string, path: string): void;
   /** `true` — все запросы получают 503. */
@@ -171,6 +193,8 @@ interface RawManifest {
     events?: { event: string }[];
     commands?: { id: string; title: string }[];
     panels?: { id: string; title: string }[];
+    importers?: { id: string; title: string }[];
+    exporters?: { id: string; title: string }[];
   };
 }
 
@@ -181,6 +205,8 @@ const contributesOf = (
   const events = (manifest.contributes?.events ?? []).map(({ event }) => event);
   const commands = (manifest.contributes?.commands ?? []).map(({ id }) => id);
   const panels = (manifest.contributes?.panels ?? []).map(({ id }) => id);
+  const importers = (manifest.contributes?.importers ?? []).map(({ id }) => id);
+  const exporters = (manifest.contributes?.exporters ?? []).map(({ id }) => id);
   return {
     exerciseTypes: (manifest.contributes?.exerciseTypes ?? []).map(
       ({ id }) => id,
@@ -196,6 +222,8 @@ const contributesOf = (
     ...(events.length > 0 ? { events } : {}),
     ...(commands.length > 0 ? { commands } : {}),
     ...(panels.length > 0 ? { panels } : {}),
+    ...(importers.length > 0 ? { importers } : {}),
+    ...(exporters.length > 0 ? { exporters } : {}),
   };
 };
 
@@ -227,6 +255,14 @@ const titlesOf = (manifest: RawManifest): ContributionTitles => {
       title,
     })),
     panels: (contributes.panels ?? []).map(({ id, title }) => ({ id, title })),
+    importers: (contributes.importers ?? []).map(({ id, title }) => ({
+      id,
+      title,
+    })),
+    exporters: (contributes.exporters ?? []).map(({ id, title }) => ({
+      id,
+      title,
+    })),
   };
   return Object.fromEntries(
     TITLED_POINTS.filter((point) => byPoint[point].length > 0).map((point) => [
@@ -251,6 +287,7 @@ export const startCatalogServer = async (
   const publishIndex = options.publishIndex ?? true;
   const extensions = new Map<string, PublishedExtension>();
   const revoked: Revocation[] = [];
+  const deprecations = new Map<string, Deprecation>();
   const tampered = new Set<string>();
   const requests: string[] = [];
   let offline = false;
@@ -310,6 +347,9 @@ export const startCatalogServer = async (
         ...(Object.keys(entry.titles).length === 0
           ? {}
           : { titles: entry.titles }),
+        ...(deprecations.has(entry.id)
+          ? { deprecated: deprecations.get(entry.id) }
+          : {}),
         versions: entry.versions.map((version) => ({
           version: version.version,
           apiVersion: version.apiVersion,
@@ -411,6 +451,14 @@ export const startCatalogServer = async (
     },
     revoke: (id, versions, reason) => {
       revoked.push({ id, versions, reason });
+      invalidate();
+    },
+    deprecate: (id, deprecation) => {
+      deprecations.set(id, deprecation);
+      invalidate();
+    },
+    undeprecate: (id) => {
+      deprecations.delete(id);
       invalidate();
     },
     tamper: (id, version, path) => {

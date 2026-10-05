@@ -139,18 +139,19 @@ describe('команды приложения: переходы', () => {
     expect(push).toHaveBeenCalledExactlyOnceWith({ name: route });
   });
 
-  it('сочетания: Mod+K, Mod+, и Mod+1..3 — остальные команды без сочетаний', () => {
+  it('умолчания: Mod+K без условия, Mod+1..3 и Mod+, — «не при вводе и не при диалоге»; у остальных команд привязок нет', () => {
     const { registry } = setup();
     const bound = Object.fromEntries(
       registry.list.value
-        .filter(({ keybinding }) => keybinding !== undefined)
-        .map(({ key, keybinding }) => [key, keybinding]),
+        .filter(({ defaultBindings }) => defaultBindings.length > 0)
+        .map(({ key, defaultBindings }) => [key, defaultBindings]),
     );
+    const notTyping = '!inputFocus && !modalOpen';
     expect(bound).toEqual({
-      'app:palette.open': 'Mod+K',
-      'app:go:dailyPlan': 'Mod+1',
-      'app:go:courses': 'Mod+2',
-      'app:go:settings': 'Mod+,',
+      'app:palette.open': [{ key: 'Mod+K' }],
+      'app:go:dailyPlan': [{ key: 'Mod+1', when: notTyping }],
+      'app:go:courses': [{ key: 'Mod+2', when: notTyping }],
+      'app:go:settings': [{ key: 'Mod+,', when: notTyping }],
     });
   });
 

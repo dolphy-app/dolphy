@@ -1,4 +1,5 @@
 import { createApp } from 'vue';
+import { detectPlatform } from '@dolphy-app/keybindings';
 import { EngineCallError } from '@dolphy-app/engine-rpc/client';
 import App from './App.vue';
 import { applyLocale, createDolphyI18n } from './providers/i18n.ts';
@@ -7,6 +8,11 @@ import { router } from './router';
 import StartupError from './startup-error/StartupError.vue';
 import { registerAppCommands } from '@/features/app-commands';
 import { COURSE_SCOPE_KEY, createCourseScope } from '@/features/course-scope';
+import {
+  createKeybindingsService,
+  createUserKeybindings,
+  KEYBINDINGS_KEY,
+} from '@/features/keybindings';
 import {
   createExtensionCommands,
   describeCommandFailure,
@@ -29,10 +35,15 @@ import {
   createCommandRegistry,
 } from '@/shared/lib/command-registry.ts';
 import {
+  CONTEXT_KEYS_KEY,
+  createContextKeys,
+} from '@/shared/lib/context-keys.ts';
+import {
   COMMAND_PALETTE_KEY,
   createCommandPalette,
 } from '@/widgets/command-palette';
 import { textOfExtension } from '@/shared/lib/extension-text.ts';
+import { bindSyntaxPalette } from '@/shared/lib/syntax-binding.ts';
 import { bindExtensionThemes } from '@/shared/lib/theme-registry.ts';
 
 import './styles/global.css';
@@ -56,11 +67,20 @@ const bootstrap = async () => {
   try {
     // UI монтируется после рукопожатия
     const { engine, onReconnect } = await connectEngine();
-    const [{ theme, locale }, contributions] = await Promise.all([
-      engine.settings.getUi(),
-      createContributionsStore(engine),
-    ]);
-    onReconnect(() => void contributions.reconnected());
+    const [{ theme, locale }, keybindingsSettings, contributions] =
+      await Promise.all([
+        engine.settings.getUi(),
+        engine.settings.getKeybindings(),
+        createContributionsStore(engine),
+      ]);
+    const userKeybindings = createUserKeybindings(
+      engine,
+      keybindingsSettings.commands,
+    );
+    onReconnect(() => {
+      void contributions.reconnected();
+      void userKeybindings.reconnected();
+    });
     const i18n = createDolphyI18n(resolveLocale(locale, navigator.language));
     const courseScope = await createCourseScope(engine);
     const vuetify = createDolphyVuetify(i18n);
@@ -74,6 +94,8 @@ const bootstrap = async () => {
       themeSelection.saved,
       () => contributions.contributions.value.themes,
     );
+    // цвета подсветки кода следуют за темой: Markdown и редактор ответа
+    bindSyntaxPalette(vuetify.theme);
     const registry = createCommandRegistry();
     const extensionCommands = createExtensionCommands({
       registry,
@@ -87,6 +109,14 @@ const bootstrap = async () => {
         }),
     });
     const palette = createCommandPalette({ registry });
+    const platform = detectPlatform(navigator);
+    const contextKeys = createContextKeys(platform, document);
+    const keybindings = createKeybindingsService({
+      registry,
+      user: userKeybindings,
+      extensionBindings: () => extensionCommands.bindings.value,
+      platform,
+    });
     registerAppCommands({
       registry,
       openPalette: () => palette.open(),
@@ -120,6 +150,8 @@ const bootstrap = async () => {
       .provide(COMMAND_REGISTRY_KEY, registry)
       .provide(COMMAND_PALETTE_KEY, palette)
       .provide(EXTENSION_COMMANDS_KEY, extensionCommands)
+      .provide(CONTEXT_KEYS_KEY, contextKeys)
+      .provide(KEYBINDINGS_KEY, keybindings)
       .mount('#app');
     if (__DOLPHY_SMOKE_BUILD__ && smoke) {
       const { runSmoke } = await import('./smoke/run-smoke.ts');

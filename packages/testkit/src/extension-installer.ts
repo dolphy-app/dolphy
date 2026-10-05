@@ -1,5 +1,7 @@
 import type {
   CatalogDto,
+  DeprecationDto,
+  ExtensionDocsDto,
   ExtensionUpdateDto,
   InstallResultDto,
 } from '@dolphy-app/engine-contract';
@@ -15,6 +17,22 @@ export interface FakeExtensionInstallerHandlers {
   uninstall?(id: string): void | Promise<void>;
   updates?(): ExtensionUpdateDto[] | Promise<ExtensionUpdateDto[]>;
   checkForUpdates?(): number | Promise<number>;
+  docs?(
+    id: string,
+    version?: string,
+  ): ExtensionDocsDto | Promise<ExtensionDocsDto>;
+  docImage?(
+    id: string,
+    version: string,
+    path: string,
+  ): string | Promise<string>;
+  versionFile?(
+    id: string,
+    version: string,
+    path: string,
+  ):
+    | { bytes: Uint8Array; source: 'catalog' | 'cache' }
+    | Promise<{ bytes: Uint8Array; source: 'catalog' | 'cache' }>;
   ready?(): void | Promise<void>;
 }
 
@@ -23,6 +41,8 @@ export interface FakeExtensionInstallerOptions {
   updates?: readonly ExtensionUpdateDto[];
   /** id → причина отзыва (для любой версии). */
   revoked?: Readonly<Record<string, string>>;
+  /** id → пометка «устарело» (для любой версии). */
+  deprecated?: Readonly<Record<string, DeprecationDto>>;
   handlers?: FakeExtensionInstallerHandlers;
 }
 
@@ -32,9 +52,10 @@ export interface FakeInstallerCall {
 }
 
 export type FakeExtensionInstaller = ExtensionInstaller & {
-  /** Вызовы в порядке поступления (без `revocationOf`: он синхронный и частый). */
+  /** Вызовы в порядке поступления (без `revocationOf` и `deprecationOf`: они синхронные и частые). */
   readonly calls: FakeInstallerCall[];
   setRevoked(id: string, reason: string | null): void;
+  setDeprecated(id: string, deprecation: DeprecationDto | null): void;
 };
 
 const EMPTY_CATALOG: CatalogDto = {
@@ -51,6 +72,7 @@ export const createFakeExtensionInstaller = (
   const { handlers = {} } = options;
   const calls: FakeInstallerCall[] = [];
   const revoked = new Map(Object.entries(options.revoked ?? {}));
+  const deprecated = new Map(Object.entries(options.deprecated ?? {}));
   const updates = options.updates ?? [];
   const record = (method: keyof ExtensionInstaller, args: unknown[]): void => {
     calls.push({ method, args });
@@ -60,6 +82,10 @@ export const createFakeExtensionInstaller = (
     setRevoked: (id, reason) => {
       if (reason === null) revoked.delete(id);
       else revoked.set(id, reason);
+    },
+    setDeprecated: (id, deprecation) => {
+      if (deprecation === null) deprecated.delete(id);
+      else deprecated.set(id, deprecation);
     },
     ready: async () => {
       record('ready', []);
@@ -94,5 +120,34 @@ export const createFakeExtensionInstaller = (
       return (await handlers.checkForUpdates?.()) ?? updates.length;
     },
     revocationOf: (id) => revoked.get(id) ?? null,
+    deprecationOf: (id) => structuredClone(deprecated.get(id) ?? null),
+    docs: async (id, version) => {
+      record('docs', version === undefined ? [id] : [id, version]);
+      return structuredClone(
+        (await handlers.docs?.(id, version)) ?? {
+          version: version ?? '1.0.0',
+          readme: null,
+          changelog: null,
+          truncated: false,
+          source: 'catalog' as const,
+        },
+      );
+    },
+    docImage: async (id, version, path) => {
+      record('docImage', [id, version, path]);
+      return (
+        (await handlers.docImage?.(id, version, path)) ??
+        'data:image/png;base64,'
+      );
+    },
+    versionFile: async (id, version, path) => {
+      record('versionFile', [id, version, path]);
+      return (
+        (await handlers.versionFile?.(id, version, path)) ?? {
+          bytes: new Uint8Array(0),
+          source: 'catalog' as const,
+        }
+      );
+    },
   };
 };

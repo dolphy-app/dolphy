@@ -69,9 +69,11 @@ export const shiftJournalBack = (userData: string, days: number) => {
 export interface ExtensionData {
   storage: Record<string, unknown>;
   settings: Record<string, unknown>;
+  /** Шифртекст секретов (base64), как он лежит в БД. */
+  secrets: Record<string, unknown>;
 }
 
-/** Данные расширения в `engine.db`: хранилище кода и сохранённые значения настроек (чтение). */
+/** Данные расширения в `engine.db`: хранилище кода, значения настроек и шифртекст секретов (чтение). */
 export const readExtensionData = (
   userData: string,
   extensionId: string,
@@ -89,6 +91,7 @@ export const readExtensionData = (
     return {
       storage: rows('extension_storage'),
       settings: rows('extension_setting'),
+      secrets: rows('extension_secret'),
     };
   } finally {
     db.close();

@@ -128,6 +128,8 @@ const extensionOf = (
   events: [],
   commands: [],
   panels: [],
+  importers: [],
+  exporters: [],
 });
 
 const gradeRequest = (id: string, timeoutMs = 2000): ExtRequest => ({
@@ -767,6 +769,83 @@ describe('запросы ограниченного процесса к данн
     );
     expect(request).toHaveBeenCalledWith('storage.keys', {
       extensionId: 'acme.fake',
+    });
+  });
+
+  it('запрос статистики идёт движку от имени этого расширения: чужой id подменяется, форма проверяется', async () => {
+    const request = vi.fn(async () => ({ current: 1, longest: 2 }));
+    const { child, replies } = await started({
+      engine: { request } as EngineLink,
+    });
+
+    child.emit({
+      t: 'rpc',
+      message: {
+        id: 'h3',
+        method: 'stats.streak',
+        params: { extensionId: 'acme.victim', courseId: 'alpha' },
+      },
+    });
+    child.emit({
+      t: 'rpc',
+      message: {
+        id: 'h4',
+        method: 'stats.daily',
+        params: { extensionId: 'acme.victim', from: 5, to: '2024-05-02' },
+      } as never,
+    });
+
+    await vi.waitFor(() =>
+      expect(replies()).toContainEqual({
+        id: 'h3',
+        ok: true,
+        result: { current: 1, longest: 2 },
+      }),
+    );
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledWith('stats.streak', {
+      extensionId: 'acme.fake',
+      courseId: 'alpha',
+    });
+    expect(replies()).toContainEqual({
+      id: 'h4',
+      ok: false,
+      error: { code: 'INVALID_ARGUMENT', message: expect.any(String) },
+    });
+  });
+
+  it('секреты: запрос идёт к движку с id этого расширения; чужой id из процесса подменяется, неверная форма не доходит', async () => {
+    const request = vi.fn(async () => 'v');
+    const { child, replies } = await started({
+      engine: { request } as EngineLink,
+    });
+
+    for (const [id, method, params] of [
+      ['h1', 'secrets.get', { extensionId: 'acme.victim', key: 'token' }],
+      [
+        'h2',
+        'secrets.set',
+        { extensionId: 'acme.victim', key: 'token', value: 'v' },
+      ],
+      ['h3', 'secrets.delete', { extensionId: 'acme.victim', key: 'token' }],
+    ] as const) {
+      child.emit({ t: 'rpc', message: { id, method, params } as never });
+    }
+    child.emit({
+      t: 'rpc',
+      message: { id: 'h4', method: 'secrets.list', params: {} } as never,
+    });
+
+    await vi.waitFor(() => expect(replies()).toHaveLength(5));
+    expect(request.mock.calls).toEqual([
+      ['secrets.get', { extensionId: 'acme.fake', key: 'token' }],
+      ['secrets.set', { extensionId: 'acme.fake', key: 'token', value: 'v' }],
+      ['secrets.delete', { extensionId: 'acme.fake', key: 'token' }],
+    ]);
+    expect(replies()).toContainEqual({
+      id: 'h4',
+      ok: false,
+      error: { code: 'INVALID_ARGUMENT', message: expect.any(String) },
     });
   });
 

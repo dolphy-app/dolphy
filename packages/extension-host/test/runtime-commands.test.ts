@@ -32,6 +32,7 @@ const commandsOf = (...names: string[]): ResolvedExtension['commands'] =>
     description: null,
     category: null,
     keybinding: null,
+    keybindings: [],
     palette: true,
   }));
 

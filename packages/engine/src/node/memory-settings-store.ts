@@ -4,6 +4,7 @@ import type {
   SchedulerOptionsDto,
   StudySessionWire,
   ExtensionSettingsDto,
+  KeybindingsSettingsDto,
   LearningSettingsDto,
   UiSettingsDto,
 } from '@dolphy-app/engine-contract';
@@ -13,6 +14,7 @@ import {
   normalizeExtensionSettings,
 } from '../domain/extension-settings.ts';
 import { DEFAULT_LEARNING_SETTINGS } from '../domain/learning-settings.ts';
+import { DEFAULT_KEYBINDINGS_SETTINGS } from '../domain/keybindings-settings.ts';
 import { DEFAULT_UI_SETTINGS } from '../domain/ui-settings.ts';
 import type { SettingsStore } from '../ports/index.ts';
 import {
@@ -31,6 +33,7 @@ export interface MemorySettingsInit {
   schedulerOverrides?: DeepPartial<SchedulerOptionsDto>;
   ui?: UiSettingsDto;
   learning?: LearningSettingsDto;
+  keybindings?: KeybindingsSettingsDto;
   extensions?: ExtensionSettingsDto;
 }
 
@@ -52,6 +55,9 @@ export const createMemorySettingsStore = (
   let schedulerOverrides = structuredClone(initial.schedulerOverrides ?? {});
   let ui = structuredClone(initial.ui ?? DEFAULT_UI_SETTINGS);
   let learning = { ...(initial.learning ?? DEFAULT_LEARNING_SETTINGS) };
+  let keybindings = structuredClone(
+    initial.keybindings ?? DEFAULT_KEYBINDINGS_SETTINGS,
+  );
   let extensions = normalizeExtensionSettings(
     initial.extensions ?? DEFAULT_EXTENSION_SETTINGS,
   );
@@ -88,6 +94,10 @@ export const createMemorySettingsStore = (
     loadLearning: async () => ({ ...learning }),
     saveLearning: async (next) => {
       learning = { ...next };
+    },
+    loadKeybindings: async () => structuredClone(keybindings),
+    saveKeybindings: async (next) => {
+      keybindings = structuredClone(next);
     },
     loadExtensions: async () => structuredClone(extensions),
     saveExtensions: async (next) => {

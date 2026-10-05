@@ -174,20 +174,113 @@ export const en: typeof ru = {
     },
     shortcuts: {
       title: 'Keyboard shortcuts',
-      subtitle: 'Keys that run app commands.',
+      subtitle:
+        'Keys of app and extension commands: change, add, remove or reset a shortcut.',
       palette: {
         title: 'Command palette',
-        description:
-          'The command palette searches the commands of the app and of extensions.',
+        description: 'The command palette searches app and extension commands.',
         open: 'Open command palette',
       },
-      empty: 'There are no keyboard shortcuts yet.',
+      toolbar: {
+        label: 'Search and filters',
+        search: 'Search commands',
+        searchHint: 'Title, category, keys or command key',
+        changed: 'Changed',
+        conflicts: 'Conflicts only',
+        resetAll: 'Reset all',
+      },
+      empty: 'No commands yet.',
+      noMatches: 'Nothing found.',
       noCategory: 'Other',
       columns: {
         command: 'Command',
-        keys: 'Shortcut',
+        keys: 'Shortcuts',
+        when: 'Condition',
+        source: 'Source',
+        actions: 'Actions',
       },
-      note: 'Shortcuts are set by the app and cannot be changed yet.',
+      none: 'No shortcuts',
+      always: 'always',
+      source: {
+        default: 'App',
+        extension: 'Extension',
+        user: 'Yours',
+      },
+      conflict: {
+        badge: 'Conflict',
+        same: {
+          wins: 'Overlaps with “{other}” ({keys}): this command wins.',
+          loses: 'Overlaps with “{other}” ({keys}): “{other}” wins.',
+        },
+        prefix: {
+          wins: 'Chord start matches “{other}” ({keys}): this command wins.',
+          loses: 'Chord start matches “{other}” ({keys}): “{other}” wins.',
+        },
+      },
+      actions: {
+        edit: 'Edit shortcut {keys}: {title}',
+        remove: 'Remove shortcut {keys}: {title}',
+        add: 'Add shortcut: {title}',
+        reset: 'Reset shortcuts: {title}',
+      },
+      resetAll: {
+        title: 'Reset all shortcuts?',
+        text: 'Your changes will be discarded: commands get the shortcuts of the app and extensions back.',
+        confirm: 'Reset',
+        cancel: 'Cancel',
+      },
+      dialog: {
+        titleEdit: 'Edit shortcut: {title}',
+        titleAdd: 'Add shortcut: {title}',
+        capture: 'Shortcut',
+        captureHelp:
+          'Press the keys. A second combination continues the chord (two at most). Backspace or Delete clears the recording, Escape with nothing recorded closes the dialog.',
+        captureEmpty: 'Press keys…',
+        recorded: 'Recorded: {keys}',
+        clear: 'Clear recording',
+        when: 'Condition (when)',
+        whenHint:
+          'Empty means always. Keys: {keys}. Operators: {operators}, parentheses.',
+        conflictsTitle: 'Conflicts',
+        noConflicts: 'No conflicts.',
+        overrides: 'Your shortcut will win.',
+        blocking:
+          'This is your own shortcut of another command: “Reassign” removes it there.',
+        save: 'Save',
+        reassign: 'Reassign',
+        cancel: 'Cancel',
+      },
+      problems: {
+        key: 'Invalid key text: {reason}.',
+        when: 'Condition error at position {position}: {reason}.',
+        typing:
+          'A shortcut without Ctrl or ⌘ types a character: set a condition that is false while typing, for example !inputFocus.',
+        duplicate: 'The command already has this shortcut with this condition.',
+        reason: {
+          empty: 'empty',
+          'empty-part': 'empty part',
+          'too-long': 'text is too long',
+          'too-long-text': 'text is too long',
+          'too-deep': 'nesting is too deep',
+          'modifier-only': 'a modifier without a key',
+          'unknown-modifier': 'unknown modifier',
+          'repeated-modifier': 'repeated modifier',
+          'unknown-key': 'unknown key',
+          'invalid-code': 'invalid physical key code',
+          'unexpected-token': 'unexpected character',
+          'unexpected-end': 'unexpected end',
+          'unterminated-string': 'unclosed quote',
+        },
+      },
+      failed: {
+        syntax: 'The engine rejected the entry ({field}): {message}',
+        typing: 'The engine rejected the entry ({field}): {message}',
+        conflict:
+          'The shortcut overlaps another command of your set: “{command}” and “{other}”. Use “Reassign”.',
+        limit: 'Limit exceeded: {message}',
+        duplicate: 'Repeated shortcut and condition ({field}).',
+        unknown: 'Shortcuts were not saved: {message}',
+      },
     },
     extensions: {
       title: 'Extensions',
@@ -254,7 +347,10 @@ export const en: typeof ru = {
       permissionsTitle: 'Permissions',
       permissionsNone: 'none requested',
       permissions: {
-        learning: { events: 'Learning events' },
+        learning: {
+          events: 'Learning events',
+          stats: 'Learning statistics',
+        },
         library: { read: 'Read the course library' },
         process: { spawn: 'Launch processes' },
         worker: { threads: 'Threads' },

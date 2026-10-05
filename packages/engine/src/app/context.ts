@@ -18,6 +18,7 @@ import type {
   UnitId,
   VerdictDto,
 } from '@dolphy-app/engine-contract';
+import type { Platform } from '@dolphy-app/keybindings';
 import type { LibraryHolder } from '../authoring/library-holder.ts';
 import type { AttemptEntry, LogEntry } from '../domain/journal.ts';
 import type { Library } from '../domain/library.ts';
@@ -39,6 +40,7 @@ import type { ExerciseTypes } from '../ports/exercise-types.ts';
 import type { GradePolicies } from '../ports/grade-policies.ts';
 import type { ExtensionCommands } from '../ports/extension-commands.ts';
 import type { ExtensionDataStore } from '../ports/extension-data.ts';
+import type { PlatformServices } from '../ports/platform.ts';
 import type { ExtensionInstaller } from '../ports/extension-installer.ts';
 import type {
   ExtensionHealth,
@@ -68,6 +70,7 @@ import type { ExtensionApply } from './extension-apply.ts';
 import type { EventBus } from './event-bus.ts';
 import type { ExpiringMap } from './expiring-map.ts';
 import type { EntryFields, JournalWriter } from './journal-writer.ts';
+import type { StatsIndex } from './stats-index.ts';
 
 export type { LibraryHolder } from '../authoring/library-holder.ts';
 
@@ -118,6 +121,8 @@ export interface EngineDeps {
   extensionReloader: ExtensionReloader;
   /** Чтение файлового журнала (`extensions.readLogs`); нет порта — журнала нет, ответ пустой. */
   logReader?: LogReader;
+  /** Платформа хоста; по умолчанию `platformFromNode(process.platform)`. */
+  osPlatform?: Platform;
   /** Нет порта — `sync.folder.*` отвечает `SYNC_FOLDER_NOT_CONFIGURED`. */
   folderSync?: FolderSyncPort;
   /** Чтение каталога `.trane` (`readTraneDirectory` из `@dolphy-app/engine-sqlite`); нет — `importFromTrane` отказывает. */
@@ -126,6 +131,8 @@ export interface EngineDeps {
   repositoryStore: RepositoryStore;
   /** Хранилище и значения настроек расширений; SQLite или память. */
   extensionDataStore: ExtensionDataStore;
+  /** Возможности main (шифр секретов); нет порта — `createUnavailablePlatform()`: хранилища ключей нет. */
+  platform?: PlatformServices;
   /** Получение снимков по `http(s)`; `createIsomorphicGitFetcher` из `@dolphy-app/engine-git`. */
   snapshotFetcher: GitSnapshotFetcher;
   /** Подмена каталогов снимков; `createNodeSnapshotInstaller` из `@dolphy-app/engine/node`. */
@@ -334,10 +341,15 @@ export interface EngineContext extends FacadeContext {
   readonly extensionApply: ExtensionApply;
   readonly folderSync: FolderSyncPort | null;
   readonly logReader: LogReader | null;
+  /** Платформа хоста: по ней `Mod` в пользовательских привязках раскрывается в Ctrl или ⌘ (`settings.setKeybindings`). */
+  readonly osPlatform: Platform;
   readonly openTraneSource: EngineDeps['openTraneSource'];
   readonly repositoryStore: RepositoryStore;
   readonly extensionData: ExtensionDataStore;
+  readonly platform: PlatformServices;
   readonly extensionSettingChanges: ExtensionSettingChanges;
+  /** Статистика попыток для расширений (`learning.stats`); сбрасывается записями журнала. */
+  readonly statsIndex: StatsIndex;
   readonly snapshotFetcher: GitSnapshotFetcher;
   readonly snapshotInstaller: SnapshotInstaller;
   /** `current()` / `require()` / `swap()` — атомарная подмена. */

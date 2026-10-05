@@ -55,6 +55,10 @@ export const createUnavailableInstaller = (): ExtensionInstaller => {
     updates: async () => [],
     checkForUpdates: async () => 0,
     revocationOf: () => null,
+    deprecationOf: () => null,
+    versionFile: async () => unavailable(),
+    docs: async () => unavailable(),
+    docImage: async () => unavailable(),
   };
 };
 

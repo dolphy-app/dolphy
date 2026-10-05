@@ -436,6 +436,51 @@ const shortDescriptionRule: CheckRule = {
     ),
 };
 
+export const MAX_CHANGELOG_BYTES = 64 * 1024;
+
+const escapeRegExp = (text: string): string =>
+  text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** Why the bytes are no acceptable `CHANGELOG.md` (over 64 KiB, not UTF-8, NUL); `null` — fine. */
+export const changelogProblem = (bytes: Uint8Array): string | null => {
+  if (bytes.length > MAX_CHANGELOG_BYTES) {
+    return `${bytes.length} bytes exceed the limit of ${MAX_CHANGELOG_BYTES}`;
+  }
+  try {
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    return text.includes('\0') ? 'contains NUL characters' : null;
+  } catch {
+    return 'is not valid UTF-8';
+  }
+};
+
+/** CHANGELOG.md: up to 64 KiB, UTF-8 without NUL; a missing section of the manifest version is a warning. */
+const changelog: CheckRule = {
+  id: 'CHECK-030',
+  title:
+    'CHANGELOG.md is up to 64 KiB of UTF-8 text and has a section of the current version',
+  run: async ({ readBytes, manifest }) => {
+    const bytes = await readBytes('CHANGELOG.md');
+    if (bytes === null) return [];
+    const problem = changelogProblem(bytes);
+    if (problem !== null) return [error('CHANGELOG.md', problem)];
+    const text = new TextDecoder().decode(bytes);
+    if (manifest === null) return [];
+    const heading = new RegExp(
+      `^##[ \\t]+\\[?v?${escapeRegExp(manifest.version)}\\]?(?:[ \\t]|$)`,
+      'm',
+    );
+    return heading.test(text)
+      ? []
+      : [
+          warning(
+            'CHANGELOG.md',
+            `has no '## ${manifest.version}' section for the current version`,
+          ),
+        ];
+  },
+};
+
 const translations: CheckRule = {
   id: 'CHECK-026',
   title:
@@ -537,4 +582,5 @@ export const RULES: readonly CheckRule[] = [
   bundleRule('CHECK-024', 'URLs in built code need the network permission'),
   bundleRule('CHECK-025', 'built code has no embedded source map'),
   translations,
+  changelog,
 ];

@@ -39,6 +39,8 @@ const extension = (id: string, version = '1.0.0'): ResolvedExtension => ({
   events: [],
   commands: [],
   panels: [],
+  importers: [],
+  exporters: [],
 });
 
 const NONE = {
@@ -50,6 +52,8 @@ const NONE = {
   events: [],
   commands: [],
   panels: [],
+  importers: [],
+  exporters: [],
 };
 
 const discovery: DiscoveryResult = {
@@ -102,6 +106,7 @@ describe('createExtensionRegistry', () => {
       tags: [],
       removable: true,
       revoked: null,
+      deprecated: null,
     });
   });
 
@@ -128,6 +133,7 @@ describe('createExtensionRegistry', () => {
       tags: [],
       removable: false,
       revoked: null,
+      deprecated: null,
     });
   });
 
@@ -154,6 +160,7 @@ describe('createExtensionRegistry', () => {
       tags: [],
       removable: true,
       revoked: null,
+      deprecated: null,
     });
   });
 
@@ -417,6 +424,7 @@ describe('createExtensionRegistry: titles and tags', () => {
         description: null,
         category: null,
         keybinding: null,
+        keybindings: [],
         palette: true,
       },
     ],

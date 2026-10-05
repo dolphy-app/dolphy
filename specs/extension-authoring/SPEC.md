@@ -4,7 +4,7 @@ branch: feature/extension-authoring
 created: 2026-10-04
 closed: null
 touches: [create-extension, extension-tools, extension-sdk, desktop]
-depends-on: [specs/extension-foundation, specs/archive/2026-10-04-extension-housekeeping]
+depends-on: [specs/archive/2026-10-05-extension-foundation, specs/archive/2026-10-04-extension-housekeeping]
 supersedes: null
 superseded-by: null
 ---

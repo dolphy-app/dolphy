@@ -41,6 +41,8 @@ const extension = (
   events: [],
   commands: [],
   panels: [],
+  importers: [],
+  exporters: [],
   ...overrides,
 });
 

@@ -1,13 +1,15 @@
 ---
-status: active
+status: done
 branch: feature/extension-foundation
 created: 2026-10-04
-closed: null
+closed: 2026-10-05
 touches: [extension-api, extension-host, extension-tools, create-extension, engine, engine-contract, engine-rpc, engine-sqlite, testkit, desktop, tools]
 depends-on: [specs/archive/2026-09-30-extension-isolation, specs/archive/2026-10-01-extension-live-apply, specs/archive/2026-10-03-extension-hardening]
 supersedes: null
 superseded-by: null
 ---
+
+> Исторический документ. Не источник требований.
 
 # Фундамент расширений: диагностика, устойчивость, CI
 
@@ -76,7 +78,7 @@ superseded-by: null
 - [x] 1c `log-file.ts`, `stdio: 'pipe'`, `LogReader`, `readLogs` (контракт 17), `platform.appInfo`/`platform.copyText`
 - [x] 1c диалог журнала, «Скопировать диагностику», e2e `diagnostics.e2e.test.ts`, дизайн-ревью
 - [x] 1d CI (PR 4): `desktop-checks.yml`, первый запуск на Linux и macOS, правка `scripts/smoke.mjs`/`global-setup.ts` по итогам, README, `AGENTS.md`, `git-workflow`
-- [ ] Закрытие: перенос долговечного в `docs/design`, `Outcomes`, архив
+- [x] 2026-10-05 Закрытие: перенос долговечного в `docs/design`, `Outcomes`, архив
 
 ## Surprises & Discoveries
 
@@ -146,8 +148,14 @@ superseded-by: null
 - 2026-10-04 (1a). `DiscoveryDiagnostic` и `InspectResult` несут поле `diagnostic` (одна диагностика), `ExtensionInfoDto` — `diagnostics` (список): у расширения в реестре пока ровно ноль или одна запись.
 - 2026-10-04 (1b). Контракт 15 (следующий свободный на момент ветки; при слиянии номер пересчитывается): `ExtensionSettingsDto.safeMode`, `EngineConfig.forceSafeMode`, `extensions.{setSafeMode,diagnostics,restartHost}`, событие `extension-health-changed`.
 - 2026-10-04 (1c). Контракт 17 (16 занят фичей js-course, влитой в `develop`; номер пересчитан при слиянии): `EngineConfig.logsDir`, `extensions.readLogs`, `ExtensionLogEntryDto`, `LOG_LEVELS`, `MAX_LOG_ENTRIES`.
+- 2026-10-05. Решение оформлено в [ADR 0015](../../../docs/adr/0015-extension-diagnostics-safe-mode-and-logs.md).
 - 2026-10-04 (1b). Здоровье и состояние хоста — в памяти движка, главный процесс сообщает состояние хоста расширений сообщением `ext-host-status` и повторяет его, когда хост движка (пере)запускается.
 
 ## Outcomes
 
-Заполняется при закрытии.
+Сделано всё по R1–R18, стадии 1a–1d влиты в `develop`: структурированные диагностики вместо `message` (контракт 14), JSON Schema манифеста и ключ `$schema`; безопасный режим (флаг, переменная, настройка) с баннером; здоровье расширений и состояние хоста с перезапуском (контракт 15); лимиты вывода и IPC, файловый журнал с ротацией, диалог журнала, «Скопировать диагностику» (контракт 17); `desktop-checks.yml` (упакованный смоук на macOS и Linux, e2e на Linux). Долговечное — `docs/design/extensions.md` (разделы «Метаданные и совместимость», «Диагностика и безопасный режим» вместе с подразделом CI, «Пределы», «Границы»), решение — [ADR 0015](../../../docs/adr/0015-extension-diagnostics-safe-mode-and-logs.md).
+
+Отличия от плана: стадия 1b разбита на 1b/1c/1d; сообщение хоста `health` стало запросом `health.report` (`activated`/`suppressed`/`reset`/`failed`); добавлено событие `extension-health-changed`; `LogReader` лежит в `packages/engine`, а не в `apps/desktop`; буфер обмена пишет main (`platform.copyText`), не `navigator.clipboard`; песочница Chromium на Linux в CI открыта шагом `sysctl kernel.apparmor_restrict_unprivileged_userns=0`, а не SUID на `chrome-sandbox`; номера контракта сдвигались при слиянии (14, 15, 17).
+
+Осталось: `gh workflow run desktop-checks.yml` и ночной запуск в `gh workflow list` подтверждаются, только когда workflow окажется на `main` (файл должен быть в ветке по умолчанию), первый релиз-PR проверит R16 и R17 на деле; e2e `extension-surfaces.e2e.test.ts` («Счётчик: —» вместо «1») нестабилен и на чистом `develop`, разбирается отдельно; режим `--local` генератора не разрешает путь `$schema` (допущение режима разработки репозитория). Вне объёма остаются пункты «Не цели».
+

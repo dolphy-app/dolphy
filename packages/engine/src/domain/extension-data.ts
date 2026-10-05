@@ -14,6 +14,35 @@ export const EXTENSION_STORAGE_LIMITS = Object.freeze({
   totalBytes: 1024 * 1024,
 });
 
+/** Потолки одного пространства данных: те же четыре числа, что у `EXTENSION_STORAGE_LIMITS`. */
+export type StorageLimits = Readonly<
+  Record<'keyLength' | 'valueBytes' | 'keys' | 'totalBytes', number>
+>;
+
+/**
+ * Потолки секретов расширения (спека extension-api-breadth-1, R6): их проверяет
+ * служба по открытому значению. `valueBytes` — открытое значение в байтах
+ * UTF-8, не шифртекст.
+ */
+export const EXTENSION_SECRET_LIMITS = Object.freeze({
+  keyLength: 128,
+  valueBytes: 4 * 1024,
+  keys: 32,
+});
+
+/**
+ * Потолки пространства секретов в хранилище: там лежит шифртекст (base64 в
+ * JSON-строке), он длиннее открытого значения. Запас — вдвое от открытого
+ * значения; общий размер потолком не служит (ключей мало).
+ */
+export const SECRET_STORE_LIMITS: StorageLimits = Object.freeze({
+  keyLength: EXTENSION_SECRET_LIMITS.keyLength,
+  valueBytes: EXTENSION_SECRET_LIMITS.valueBytes * 2,
+  keys: EXTENSION_SECRET_LIMITS.keys,
+  totalBytes:
+    EXTENSION_SECRET_LIMITS.valueBytes * 2 * EXTENSION_SECRET_LIMITS.keys,
+});
+
 /** Какой потолок превышен (`details.kind` ошибки `EXTENSION_STORAGE_QUOTA`). */
 export type StorageQuotaKind =
   'key-length' | 'value-size' | 'key-count' | 'total-size';
@@ -82,8 +111,8 @@ export const findStorageViolation = (
   key: string,
   valueBytes: number,
   snapshot: StorageSnapshot,
+  limits: StorageLimits = EXTENSION_STORAGE_LIMITS,
 ): StorageViolation | null => {
-  const limits = EXTENSION_STORAGE_LIMITS;
   if (key.length > limits.keyLength) {
     return { kind: 'key-length', limit: limits.keyLength };
   }

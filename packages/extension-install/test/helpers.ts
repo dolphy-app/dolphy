@@ -35,6 +35,8 @@ export interface Contributes {
   events?: string[];
   commands?: string[];
   panels?: string[];
+  importers?: string[];
+  exporters?: string[];
 }
 
 export const contributesOf = (exerciseTypes: string[]): Contributes => ({
@@ -67,6 +69,12 @@ export interface ExtensionSpec {
   tags?: Record<string, string[]>;
   /** `titles` of the index entry. */
   titles?: Record<string, Record<string, string>>;
+  /** `deprecated` of the index entry. */
+  deprecated?: {
+    versions: string | null;
+    reason: string;
+    alternatives: string[];
+  };
 }
 
 export const ICON_PATH = 'assets/icon.png';
@@ -104,6 +112,7 @@ export const rawEntry = (spec: ExtensionSpec): Record<string, unknown> => ({
   platforms: spec.platforms ?? [],
   contributes: spec.contributes ?? contributesOf([spec.id]),
   ...(spec.titles === undefined ? {} : { titles: spec.titles }),
+  ...(spec.deprecated === undefined ? {} : { deprecated: spec.deprecated }),
   versions: (spec.versions ?? [spec.version]).map((version) => ({
     version,
     apiVersion: spec.apiVersion ?? 1,
@@ -247,6 +256,8 @@ export const inspectJson = async (
           events: raw.contributes.events ?? [],
           commands: raw.contributes.commands ?? [],
           panels: raw.contributes.panels ?? [],
+          importers: raw.contributes.importers ?? [],
+          exporters: raw.contributes.exporters ?? [],
         },
       },
     };

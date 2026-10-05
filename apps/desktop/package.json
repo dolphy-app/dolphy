@@ -36,6 +36,7 @@
     "@dolphy-app/extension-catalog": "workspace:*",
     "@dolphy-app/extension-host": "workspace:*",
     "@dolphy-app/extension-install": "workspace:*",
+    "@dolphy-app/keybindings": "workspace:*",
     "@electron/fuses": "1.8.0",
     "@fontsource/roboto": "^5.2.10",
     "@mdi/font": "^7.4.47",
@@ -62,6 +63,7 @@
   },
   "dependencies": {
     "better-sqlite3": "13.0.3",
+    "sugar-high": "2.5.1",
     "zod": "4.6.5"
   }
 }

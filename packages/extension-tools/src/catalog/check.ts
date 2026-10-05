@@ -17,6 +17,7 @@ import type {
   Finding,
   RuleContext,
 } from './rules.ts';
+import { deprecatedProblems, loadDeprecated } from './deprecated.ts';
 import { readTree } from './tree.ts';
 
 export const SKIPPED_SOURCE_DIRS: ReadonlySet<string> = new Set([
@@ -31,6 +32,8 @@ export interface CheckOptions {
   /** Only these directories; unset — all subdirectories. */
   ids?: readonly string[];
   publishedIndex?: string;
+  /** `deprecated.json`: the form is checked, and the alternatives against `publishedIndex`. */
+  deprecated?: string;
   /** Site root with built versions `extensions/<id>/<version>/`; unset — the bundle rules are silent. */
   builtDir?: string;
   maxAppVersion?: string;
@@ -198,6 +201,41 @@ const contextFor = async (
   };
 };
 
+const DEPRECATED_RULE = 'deprecated';
+
+/** The form of `deprecated.json` and (with an index) the existence of the alternatives; unknown ids are a build matter. */
+const deprecatedFindings = async (
+  file: string,
+  published: CatalogIndex | null,
+): Promise<CheckFinding[]> => {
+  let items;
+  try {
+    items = await loadDeprecated(file);
+  } catch (error) {
+    if (!(error instanceof BuildError)) throw error;
+    return [
+      {
+        severity: 'error',
+        extensionId: path.basename(file),
+        ruleId: DEPRECATED_RULE,
+        field: '/',
+        message: error.message,
+      },
+    ];
+  }
+  if (published === null) return [];
+  const known = new Set(published.extensions.map(({ id }) => id));
+  return deprecatedProblems(items, known, { checkIds: false }).map(
+    ({ id, field, message }) => ({
+      severity: 'error',
+      extensionId: id,
+      ruleId: DEPRECATED_RULE,
+      field,
+      message,
+    }),
+  );
+};
+
 export const checkCatalog = async (
   options: CheckOptions,
 ): Promise<CheckFinding[]> => {
@@ -212,7 +250,11 @@ export const checkCatalog = async (
       ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
       token: options.githubToken,
     });
-  const findings: CheckFinding[] = [];
+  const findings: CheckFinding[] = [
+    ...(options.deprecated === undefined
+      ? []
+      : await deprecatedFindings(options.deprecated, published)),
+  ];
   for (const dirName of dirs) {
     const context = await contextFor(
       options,

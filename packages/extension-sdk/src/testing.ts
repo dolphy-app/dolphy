@@ -1,10 +1,13 @@
 import {
   EXTENSION_COMMAND_LIMITS,
   COLOR_SETTING_PATTERN,
+  EXTENSION_STATS_LIMITS,
+  EXTENSION_SECRET_LIMITS,
   EXTENSION_STORAGE_LIMITS,
   SETTING_LIMITS,
   InvalidCommandResultError,
   PermissionError,
+  SecretsUnavailableError,
   ANSWER_EVENT,
   StorageQuotaError,
   normalizeCommandResult,
@@ -14,6 +17,7 @@ import type {
   AnswerElementProps,
   CommandHandler,
   CommandOutcome,
+  DailyStat,
   Disposable,
   ExerciseTypeHandler,
   ExtensionContext,
@@ -21,7 +25,9 @@ import type {
   ExtensionCommands,
   ExtensionLogger,
   ExtensionModule,
+  ExtensionSecrets,
   ExtensionSettings,
+  ExtensionStats,
   ExtensionStorage,
   GradePolicyHandler,
   GradePolicyInput,
@@ -37,6 +43,7 @@ import type {
   SettingChange,
   SettingContribution,
   SettingValue,
+  StreakStats,
 } from '@dolphy-app/extension-api';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import { createAnswerElementClass } from './answer-element.ts';
@@ -123,6 +130,64 @@ export const createMemoryStorage = (): ExtensionStorage => {
     },
     delete: async (key) => entries.delete(key),
     keys: async () => [...entries.keys()].sort(compareKeys),
+  };
+};
+
+/** In-memory secrets for tests: `ExtensionSecrets` plus a switch that imitates a missing system key store. */
+export interface MemorySecrets extends ExtensionSecrets {
+  /** Imitates the system key store becoming (un)available; stored values are kept. */
+  setAvailable(available: boolean): void;
+}
+
+export interface MemorySecretsOptions {
+  /** Default `true`; `false` imitates Linux `basic_text`, no key store, or an app that is not ready. */
+  available?: boolean;
+}
+
+/**
+ * In-memory secrets with the engine's limits and errors
+ * (`EXTENSION_SECRET_LIMITS`, `StorageQuotaError`, `SecretsUnavailableError`):
+ * without a key store `set` and `get` of an existing key throw, `get` of a
+ * missing key gives `undefined` and `delete` works.
+ */
+export const createMemorySecrets = (
+  options: MemorySecretsOptions = {},
+): MemorySecrets => {
+  const limits = EXTENSION_SECRET_LIMITS;
+  const entries = new Map<string, string>();
+  let available = options.available ?? true;
+  const requireStore = (): void => {
+    if (!available) throw new SecretsUnavailableError();
+  };
+  return {
+    setAvailable: (value) => {
+      available = value;
+    },
+    get: async (key) => {
+      const value = entries.get(key);
+      if (value !== undefined) requireStore();
+      return value;
+    },
+    set: async (key, value) => {
+      if (typeof key !== 'string' || key.length === 0) {
+        throw new Error('secret key must be a non-empty string');
+      }
+      if (typeof value !== 'string') {
+        throw new Error('secret value must be a string');
+      }
+      if (key.length > limits.keyLength) {
+        throw new StorageQuotaError('key-length', limits.keyLength);
+      }
+      if (Buffer.byteLength(value) > limits.valueBytes) {
+        throw new StorageQuotaError('value-size', limits.valueBytes);
+      }
+      requireStore();
+      if (!entries.has(key) && entries.size >= limits.keys) {
+        throw new StorageQuotaError('key-count', limits.keys);
+      }
+      entries.set(key, value);
+    },
+    delete: async (key) => entries.delete(key),
   };
 };
 
@@ -372,14 +437,171 @@ export const createMemoryCommands = (
   };
 };
 
+export interface MemoryStatsAttempt {
+  /** When the attempt happened: epoch milliseconds, a `Date`, or an ISO-8601 string. */
+  at: number | Date | string;
+  /** Grade 1-5; 3 and higher counts as correct, as in the app. */
+  grade: number;
+  /** Course of the attempt, for the `courseId` filter. Without it the attempt belongs to no course. */
+  courseId?: string;
+}
+
+export interface MemoryStatsOptions {
+  /** Attempts the statistics start with; more arrive through `record`. */
+  attempts?: readonly MemoryStatsAttempt[];
+  /** IANA time zone whose local days are counted. Defaults to the time zone of this process. */
+  timeZone?: string;
+  /** The current time, for the `current` streak. Defaults to `Date.now`. */
+  now?: () => number;
+  /** false — every call rejects with `PermissionError('learning.stats')`, as for an extension without the permission. Defaults to true. */
+  permitted?: boolean;
+}
+
+export interface MemoryStats extends ExtensionStats {
+  /** Adds an attempt to the history. */
+  record(attempt: MemoryStatsAttempt): void;
+}
+
+const DAY_MS = 86_400_000;
+const STATS_CORRECT_GRADE_MIN = 3;
+
+const dayNumberOf = (year: number, month: number, day: number): number => {
+  const date = new Date(0);
+  date.setUTCFullYear(year, month - 1, day);
+  return Math.floor(date.getTime() / DAY_MS);
+};
+
+const dayLabelOf = (dayNumber: number): string =>
+  new Date(dayNumber * DAY_MS).toISOString().slice(0, 10);
+
+const parseDay = (field: string, value: unknown): number => {
+  const match =
+    typeof value === 'string' ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(value) : null;
+  const day =
+    match === null
+      ? null
+      : dayNumberOf(Number(match[1]), Number(match[2]), Number(match[3]));
+  if (day === null || dayLabelOf(day) !== value) {
+    throw new Error(`'${field}' must be a date as YYYY-MM-DD`);
+  }
+  return day;
+};
+
+/**
+ * In-memory statistics with the semantics of the app: local days in a time zone,
+ * correct at grade 3 or higher, `current` streak not broken while today has no
+ * attempts yet, one `daily` entry per date (at most `EXTENSION_STATS_LIMITS.dailyDays`).
+ */
+export const createMemoryStats = (
+  options: MemoryStatsOptions = {},
+): MemoryStats => {
+  const timeZone =
+    options.timeZone ?? new Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    calendar: 'gregory',
+    numberingSystem: 'latn',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const localDay = (at: number): number => {
+    const parts = Object.fromEntries(
+      formatter.formatToParts(at).map(({ type, value }) => [type, value]),
+    );
+    return dayNumberOf(
+      Number(parts.year),
+      Number(parts.month),
+      Number(parts.day),
+    );
+  };
+  const attempts: { day: number; correct: boolean; courseId?: string }[] = [];
+  const record = (attempt: MemoryStatsAttempt): void => {
+    const at = new Date(attempt.at).getTime();
+    if (Number.isNaN(at)) throw new Error('attempt.at is not a valid time');
+    attempts.push({
+      day: localDay(at),
+      correct: attempt.grade >= STATS_CORRECT_GRADE_MIN,
+      ...(attempt.courseId !== undefined && { courseId: attempt.courseId }),
+    });
+  };
+  for (const attempt of options.attempts ?? []) record(attempt);
+
+  const guard = (): void => {
+    if (options.permitted === false)
+      throw new PermissionError('learning.stats');
+  };
+  const countsOf = (courseId: string | undefined) => {
+    const days = new Map<number, { attempts: number; correct: number }>();
+    for (const item of attempts) {
+      if (courseId !== undefined && item.courseId !== courseId) continue;
+      const counts = days.get(item.day) ?? { attempts: 0, correct: 0 };
+      counts.attempts += 1;
+      if (item.correct) counts.correct += 1;
+      days.set(item.day, counts);
+    }
+    return days;
+  };
+  return {
+    record,
+    async streak(streakOptions): Promise<StreakStats> {
+      guard();
+      const days = countsOf(streakOptions?.courseId);
+      const today = localDay((options.now ?? Date.now)());
+      let longest = 0;
+      let run = 0;
+      let previous = Number.NaN;
+      for (const day of [...days.keys()].sort((a, b) => a - b)) {
+        run = day === previous + 1 ? run + 1 : 1;
+        longest = Math.max(longest, run);
+        previous = day;
+      }
+      let cursor = days.has(today) ? today : today - 1;
+      let current = 0;
+      while (days.has(cursor)) {
+        current += 1;
+        cursor -= 1;
+      }
+      return { current, longest };
+    },
+    async daily({ from, to, courseId }): Promise<DailyStat[]> {
+      guard();
+      const first = parseDay('from', from);
+      const last = parseDay('to', to);
+      if (last < first || last - first + 1 > EXTENSION_STATS_LIMITS.dailyDays) {
+        throw new Error(
+          `the range must be ascending and cover at most ${EXTENSION_STATS_LIMITS.dailyDays} dates`,
+        );
+      }
+      const days = countsOf(courseId);
+      const result: DailyStat[] = [];
+      for (let day = first; day <= last; day += 1) {
+        const { attempts: made, correct } = days.get(day) ?? {
+          attempts: 0,
+          correct: 0,
+        };
+        result.push({
+          date: dayLabelOf(day),
+          attempts: made,
+          correct,
+          accuracy: made === 0 ? null : correct / made,
+        });
+      }
+      return result;
+    },
+  };
+};
+
 /** What a test replaces in the extension context; by default everything is in memory and silent. */
 export interface LoadOptions {
   library?: LibraryReader;
   logger?: ExtensionLogger;
   storage?: ExtensionStorage;
+  secrets?: ExtensionSecrets;
   settings?: ExtensionSettings;
   events?: ExtensionEvents;
   commands?: ExtensionCommands;
+  stats?: ExtensionStats;
 }
 
 const contextOf = (
@@ -393,8 +615,10 @@ const contextOf = (
   logger: options.logger ?? silentLogger,
   library: options.library ?? createMemoryLibrary({}),
   storage: options.storage ?? createMemoryStorage(),
+  secrets: options.secrets ?? createMemorySecrets(),
   settings: options.settings ?? createMemorySettings([]),
   events: options.events ?? createMemoryEvents(),
+  stats: options.stats ?? createMemoryStats(),
   commands: options.commands ?? createMemoryCommands(),
   ...registrars,
 });
@@ -576,6 +800,7 @@ export interface LoadedEvents {
   /** Events are delivered as in the host: to the subscribed handler, one at a time. See `MemoryEvents.emit`. */
   emit: MemoryEvents['emit'];
   storage: ExtensionStorage;
+  secrets: ExtensionSecrets;
   settings: MemorySettings;
   /** Deactivates the extension module. */
   dispose(): Promise<void>;
@@ -583,9 +808,10 @@ export interface LoadedEvents {
 
 export interface LoadEventsOptions
   extends
-    Omit<LoadOptions, 'storage' | 'settings' | 'events'>,
+    Omit<LoadOptions, 'storage' | 'secrets' | 'settings' | 'events'>,
     MemoryEventsOptions {
   storage?: ExtensionStorage;
+  secrets?: ExtensionSecrets;
   /** Definitions from the manifest's `contributes.settings`; values are read and changed through `settings`. */
   settings?: readonly SettingContribution[];
   /** User values in place of `default`. */
@@ -602,6 +828,7 @@ export const loadEvents = async (
 ): Promise<LoadedEvents> => {
   const events = createMemoryEvents(options);
   const storage = options.storage ?? createMemoryStorage();
+  const secrets = options.secrets ?? createMemorySecrets();
   const settings = createMemorySettings(
     options.settings ?? [],
     options.settingValues,
@@ -610,7 +837,9 @@ export const loadEvents = async (
     {
       ...(options.library !== undefined && { library: options.library }),
       ...(options.logger !== undefined && { logger: options.logger }),
+      ...(options.stats !== undefined && { stats: options.stats }),
       storage,
+      secrets,
       settings,
       events,
     },
@@ -623,6 +852,7 @@ export const loadEvents = async (
   return {
     emit: events.emit,
     storage,
+    secrets,
     settings,
     dispose: async () => {
       await module.deactivate?.();
@@ -651,8 +881,10 @@ export const loadCommands = async (
       ...(options.library !== undefined && { library: options.library }),
       ...(options.logger !== undefined && { logger: options.logger }),
       ...(options.storage !== undefined && { storage: options.storage }),
+      ...(options.secrets !== undefined && { secrets: options.secrets }),
       ...(options.settings !== undefined && { settings: options.settings }),
       ...(options.events !== undefined && { events: options.events }),
+      ...(options.stats !== undefined && { stats: options.stats }),
       commands,
     },
     {

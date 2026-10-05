@@ -297,6 +297,8 @@ describe('createFakeExtensionRegistry', () => {
         events: [],
         commands: [],
         panels: [],
+        importers: [],
+        exporters: [],
       },
       diagnostics: [{ code: 'load-failed', data: { reason: 'broken' } }],
       permissions: [],
@@ -312,6 +314,7 @@ describe('createFakeExtensionRegistry', () => {
       installed: null,
       removable: true,
       revoked: null,
+      deprecated: null,
     };
     expect(createFakeExtensionRegistry([{ ...item }]).list()).toEqual([item]);
   });
@@ -325,6 +328,8 @@ describe('createFakeExtensionRegistry', () => {
       settings: [],
       commands: [],
       panels: [],
+      importers: [],
+      exporters: [],
       messages: {},
     };
     expect(createFakeExtensionRegistry().contributions()).toEqual(empty);
@@ -402,6 +407,62 @@ describe('createFakeExtensionInstaller', () => {
       { method: 'install', args: ['acme.broken', '1.0.0'] },
       { method: 'updates', args: [] },
       { method: 'checkForUpdates', args: [] },
+    ]);
+  });
+});
+
+describe('createFakeExtensionInstaller: docs and deprecation', () => {
+  const deprecation = {
+    versions: null,
+    reason: 'Old',
+    alternatives: [{ id: 'acme.new', name: null }],
+  };
+
+  it('answers deprecationOf from the table (copies) and setDeprecated changes it', () => {
+    const installer = createFakeExtensionInstaller({
+      deprecated: { 'acme.x': deprecation },
+    });
+    const first = installer.deprecationOf('acme.x', '1.0.0');
+    expect(first).toEqual(deprecation);
+    first?.alternatives.pop();
+    expect(installer.deprecationOf('acme.x', '1.0.0')).toEqual(deprecation);
+    installer.setDeprecated('acme.x', null);
+    expect(installer.deprecationOf('acme.x', '1.0.0')).toBeNull();
+    installer.setDeprecated('acme.y', deprecation);
+    expect(installer.deprecationOf('acme.y', '9.9.9')).toEqual(deprecation);
+  });
+
+  it('records docs, docImage and versionFile; handlers override the defaults', async () => {
+    const installer = createFakeExtensionInstaller({
+      handlers: {
+        docs: (id) => ({
+          version: '3.0.0',
+          readme: id,
+          changelog: null,
+          truncated: false,
+          source: 'cache',
+        }),
+      },
+    });
+    expect(await installer.docs('acme.x')).toMatchObject({
+      version: '3.0.0',
+      readme: 'acme.x',
+      source: 'cache',
+    });
+    expect(await installer.docs('acme.y', '1.0.0')).toMatchObject({
+      readme: 'acme.y',
+    });
+    expect(await installer.docImage('acme.x', '1.0.0', 'a.png')).toMatch(
+      /^data:image\/png/,
+    );
+    expect(
+      (await installer.versionFile('acme.x', '1.0.0', 'README.md')).bytes,
+    ).toHaveLength(0);
+    expect(installer.calls).toEqual([
+      { method: 'docs', args: ['acme.x'] },
+      { method: 'docs', args: ['acme.y', '1.0.0'] },
+      { method: 'docImage', args: ['acme.x', '1.0.0', 'a.png'] },
+      { method: 'versionFile', args: ['acme.x', '1.0.0', 'README.md'] },
     ]);
   });
 });

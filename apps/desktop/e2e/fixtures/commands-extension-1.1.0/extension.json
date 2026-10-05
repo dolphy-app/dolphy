@@ -14,7 +14,11 @@
       {
         "id": "acme.commands.open",
         "title": "Открыть панель приветствий",
-        "category": "Приветствия"
+        "category": "Приветствия",
+        "keybindings": [
+          { "key": "Mod+Shift+O", "mac": "Mod+Alt+O" },
+          { "key": "Mod+Shift+P", "when": "page == 'settings'" }
+        ]
       },
       {
         "id": "acme.commands.bump",

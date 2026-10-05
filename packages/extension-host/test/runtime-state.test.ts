@@ -1,8 +1,17 @@
-import { PermissionError, StorageQuotaError } from '@dolphy-app/extension-api';
-import type { ExtensionContext } from '@dolphy-app/extension-api';
+import {
+  PermissionError,
+  SecretsUnavailableError,
+  StorageQuotaError,
+} from '@dolphy-app/extension-api';
+import type {
+  ExtensionContext,
+  ExtensionPermission,
+} from '@dolphy-app/extension-api';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createEndpointPair } from '../src/loopback.ts';
-import { ENGINE_REQUEST_MS } from '../src/engine-link.ts';
+import { ENGINE_REQUEST_MS, EngineRequestError } from '../src/engine-link.ts';
+import type { HostFailure as EngineRequestFailure } from '../src/protocol.ts';
+import { createExtensionStats } from '../src/state.ts';
 import { createExtensionRuntime } from '../src/runtime.ts';
 import { createLogger, deferred, nullLibrary } from './helpers.ts';
 import {
@@ -85,6 +94,65 @@ describe('ctx.logger', () => {
   });
 });
 
+describe('ctx.secrets', () => {
+  it('значения у каждого расширения свои; без хранилища ключей запись и чтение существующего ключа — SecretsUnavailableError, а чтение отсутствующего и удаление работают', async () => {
+    const seen: Record<string, unknown> = {};
+    const h = open({
+      extensions: [stateful('acme.a'), stateful('acme.b')],
+      trusted: ['acme.a', 'acme.b'],
+      modules: {
+        'acme.a': {
+          activate: async (ctx) => {
+            await ctx.secrets.set('token', 's3cret');
+            seen.got = await ctx.secrets.get('token');
+            seen.missing = await ctx.secrets.get('nope');
+            seen.deletedMissing = await ctx.secrets.delete('nope');
+            h.engine.keyStore.available = false;
+            const failure = async (run: () => Promise<unknown>) => {
+              try {
+                await run();
+              } catch (error) {
+                return error;
+              }
+              return null;
+            };
+            seen.setError = await failure(() => ctx.secrets.set('x', 'y'));
+            seen.getError = await failure(() => ctx.secrets.get('token'));
+            seen.missingWhileDown = await ctx.secrets.get('nope');
+            seen.deleted = await ctx.secrets.delete('token');
+          },
+        },
+        'acme.b': {
+          activate: async (ctx) => {
+            seen.foreign = await ctx.secrets.get('token');
+          },
+        },
+      },
+    });
+
+    h.engine.emit(sessionStarted('s1'));
+
+    await vi.waitFor(() => {
+      expect(seen.deleted).toBe(true);
+      expect(seen).toHaveProperty('foreign');
+    });
+    expect(seen).toMatchObject({
+      got: 's3cret',
+      missing: undefined,
+      deletedMissing: false,
+      missingWhileDown: undefined,
+    });
+    for (const error of [seen.setError, seen.getError]) {
+      expect(error).toBeInstanceOf(SecretsUnavailableError);
+      expect(error).toMatchObject({
+        name: 'SecretsUnavailable',
+        code: 'SECRETS_UNAVAILABLE',
+      });
+    }
+    expect(await h.engine.readSecret('acme.a', 'token')).toBeUndefined();
+  });
+});
+
 describe('ctx.storage', () => {
   it('значения лежат у движка и у каждого расширения свои; превышение потолка — StorageQuotaError, запись не происходит', async () => {
     const seen: Record<string, unknown> = {};
@@ -164,6 +232,131 @@ describe('ctx.storage', () => {
     expect(failure).toBeInstanceOf(Error);
     expect(failure).not.toBeInstanceOf(StorageQuotaError);
     expect(failure).toMatchObject({ code: 'INVALID_ARGUMENT' });
+  });
+});
+
+describe('ctx.stats', () => {
+  const statsExtension = (id: string, permissions: ExtensionPermission[]) =>
+    stateful(id, { permissions });
+
+  it('с разрешением запросы идут движку от имени расширения; courseId, которого нет, в запрос не попадает', async () => {
+    const seen: Record<string, unknown> = {};
+    const h = open({
+      extensions: [statsExtension(ID, ['learning.events', 'learning.stats'])],
+      trusted: [ID],
+      modules: {
+        [ID]: {
+          activate: async (ctx) => {
+            seen.streak = await ctx.stats.streak();
+            seen.course = await ctx.stats.streak({ courseId: 'alpha' });
+            seen.daily = await ctx.stats.daily({
+              from: '2024-05-01',
+              to: '2024-05-02',
+              courseId: 'alpha',
+            });
+            seen.all = await ctx.stats.daily({
+              from: '2024-05-01',
+              to: '2024-05-02',
+            });
+          },
+        },
+      },
+    });
+
+    h.engine.emit(sessionStarted('s1'));
+
+    await vi.waitFor(() => expect(seen.all).toBeDefined());
+    expect(seen.streak).toEqual({ current: 3, longest: 7 });
+    expect(seen.daily).toEqual([
+      { date: '2024-05-01', attempts: 2, correct: 1, accuracy: 0.5 },
+    ]);
+    expect(h.engine.statsCalls).toEqual([
+      { extensionId: ID, method: 'streak', args: [] },
+      { extensionId: ID, method: 'streak', args: ['alpha'] },
+      {
+        extensionId: ID,
+        method: 'daily',
+        args: ['2024-05-01', '2024-05-02', 'alpha'],
+      },
+      { extensionId: ID, method: 'daily', args: ['2024-05-01', '2024-05-02'] },
+    ]);
+  });
+
+  it('без разрешения оба вызова бросают PermissionError(learning.stats), и до движка запрос не доходит', async () => {
+    const seen: Record<string, unknown> = {};
+    const h = open({
+      extensions: [statsExtension(ID, ['learning.events'])],
+      trusted: [ID],
+      modules: {
+        [ID]: {
+          activate: async (ctx) => {
+            for (const [name, call] of [
+              ['streak', () => ctx.stats.streak()],
+              [
+                'daily',
+                () => ctx.stats.daily({ from: '2024-05-01', to: '2024-05-02' }),
+              ],
+            ] as const) {
+              try {
+                await call();
+              } catch (error) {
+                seen[name] = error;
+              }
+            }
+          },
+        },
+      },
+    });
+
+    h.engine.emit(sessionStarted('s1'));
+
+    await vi.waitFor(() => expect(seen.daily).toBeDefined());
+    for (const error of [seen.streak, seen.daily]) {
+      expect(error).toBeInstanceOf(PermissionError);
+      expect(error).toMatchObject({ permission: 'learning.stats' });
+    }
+    expect(h.engine.statsCalls).toEqual([]);
+  });
+
+  it('отказ движка по разрешению (процесс не доверен) тоже становится PermissionError; остальные отказы — Error с кодом', async () => {
+    const reject = (failure: EngineRequestFailure) => ({
+      request: async () => {
+        throw new EngineRequestError(failure);
+      },
+    });
+    const denied = createExtensionStats(
+      reject({
+        code: 'INVALID_ARGUMENT',
+        message: 'no permission',
+        details: { reason: 'permission', permission: 'learning.stats' },
+      }),
+      ID,
+      ['learning.stats'],
+    );
+    const error = await denied.streak().catch((reason: unknown) => reason);
+    expect(error).toBeInstanceOf(PermissionError);
+    expect(error).toMatchObject({
+      permission: 'learning.stats',
+      message: 'no permission',
+    });
+
+    const invalid = createExtensionStats(
+      reject({
+        code: 'INVALID_ARGUMENT',
+        message: 'bad range',
+        details: { field: 'to' },
+      }),
+      ID,
+      ['learning.stats'],
+    );
+    const failure = await invalid
+      .daily({ from: '2024-05-02', to: '2024-05-01' })
+      .catch((reason: unknown) => reason);
+    expect(failure).not.toBeInstanceOf(PermissionError);
+    expect(failure).toMatchObject({
+      message: 'bad range',
+      code: 'INVALID_ARGUMENT',
+    });
   });
 });
 
@@ -329,6 +522,8 @@ describe('ctx.events', () => {
           events: [],
           commands: [],
           panels: [],
+          importers: [],
+          exporters: [],
           exerciseTypes: [
             {
               id: 'acme.np',

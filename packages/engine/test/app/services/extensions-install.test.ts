@@ -27,6 +27,8 @@ const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
   events: [],
   commands: [],
   panels: [],
+  importers: [],
+  exporters: [],
 };
 
 const info = (overrides: Partial<ExtensionInfoDto>): ExtensionInfoDto => ({
@@ -49,6 +51,7 @@ const info = (overrides: Partial<ExtensionInfoDto>): ExtensionInfoDto => ({
   tags: [],
   removable: true,
   revoked: null,
+  deprecated: null,
   ...overrides,
 });
 
@@ -413,5 +416,162 @@ describe('startup update check', () => {
     await engine.extensions.getSettings();
     await expect.poll(() => checks(installer).length).toBe(1);
     await expect(engine.extensions.list()).resolves.toEqual([]);
+  });
+});
+
+describe('extensions.list: deprecation overlay', () => {
+  const DEPRECATION = {
+    versions: '<2.0.0',
+    reason: 'Replaced',
+    alternatives: [{ id: 'acme.new', name: 'New' }],
+  };
+  const fromCatalog = {
+    catalogUrl: 'https://c.test/',
+    version: '1.0.0',
+    installedAt: '2026-10-01T00:00:00.000Z',
+  };
+
+  it('marks an extension installed from the catalog and leaves state and revoked alone', async () => {
+    const { engine } = await open(
+      [
+        info({ installed: fromCatalog }),
+        info({ id: 'acme.manual', installed: null }),
+        info({ id: 'dolphy.sql', origin: 'bundled', removable: false }),
+      ],
+      {
+        deprecated: {
+          'acme.user': DEPRECATION,
+          'acme.manual': DEPRECATION,
+          'dolphy.sql': DEPRECATION,
+        },
+      },
+    );
+    const byId = Object.fromEntries(
+      (await engine.extensions.list()).map((item) => [item.id, item]),
+    );
+    expect(byId['acme.user']).toMatchObject({
+      deprecated: DEPRECATION,
+      state: 'loaded',
+      revoked: null,
+    });
+    // not installed from the catalog: the catalog's deprecation is not about it
+    expect(byId['acme.manual']?.deprecated).toBeNull();
+    expect(byId['dolphy.sql']?.deprecated).toBeNull();
+  });
+
+  it('asks the installer about the installed version', async () => {
+    let asked: [string, string] | null = null;
+    const installer = createFakeExtensionInstaller();
+    installer.deprecationOf = (id, version) => {
+      asked = [id, version];
+      return null;
+    };
+    const { engine } = await createTestEngine({
+      extensionRegistry: createFakeExtensionRegistry([
+        info({ version: '1.4.0', installed: fromCatalog }),
+      ]),
+      extensionInstaller: installer,
+    });
+    await engine.extensions.list();
+    expect(asked).toEqual(['acme.user', '1.4.0']);
+  });
+});
+
+describe('extensions.docs / docImage', () => {
+  const DOCS = {
+    version: '1.0.0',
+    readme: '# Hi',
+    changelog: null,
+    truncated: false,
+    source: 'catalog' as const,
+  };
+
+  it('pass the arguments through and return the installer result', async () => {
+    const { engine, installer } = await open([], {
+      handlers: {
+        docs: () => DOCS,
+        docImage: () => 'data:image/png;base64,AA==',
+      },
+    });
+    expect(await engine.extensions.docs('acme.user')).toEqual(DOCS);
+    expect(
+      await engine.extensions.docs('acme.user', { version: '1.0.0' }),
+    ).toEqual(DOCS);
+    expect(
+      await engine.extensions.docImage('acme.user', '1.0.0', 'docs/a.png'),
+    ).toBe('data:image/png;base64,AA==');
+    expect(
+      installer.calls
+        .filter(({ method }) => method.startsWith('doc'))
+        .map(({ method, args }) => [method, args]),
+    ).toEqual([
+      ['docs', ['acme.user']],
+      ['docs', ['acme.user', '1.0.0']],
+      ['docImage', ['acme.user', '1.0.0', 'docs/a.png']],
+    ]);
+  });
+
+  it('reject malformed arguments without calling the installer', async () => {
+    const { engine, installer } = await open([]);
+    const bad = [
+      engine.extensions.docs('Not An Id'),
+      engine.extensions.docs('acme.user', { version: 'latest' }),
+      engine.extensions.docImage('Not An Id', '1.0.0', 'a.png'),
+      engine.extensions.docImage('acme.user', 'latest', 'a.png'),
+      engine.extensions.docImage('acme.user', '1.0.0', 'a.gif'),
+      engine.extensions.docImage('acme.user', '1.0.0', '../a.png'),
+      engine.extensions.docImage('acme.user', '1.0.0', '/a.png'),
+      engine.extensions.docImage(
+        'acme.user',
+        '1.0.0',
+        `${'d/'.repeat(100)}a.png`,
+      ),
+    ];
+    for (const call of bad) {
+      await expect(call).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+    }
+    expect(
+      installer.calls.filter(({ method }) => method.startsWith('doc')),
+    ).toEqual([]);
+  });
+
+  it.each([
+    ['not-found', 'NOT_FOUND'],
+    ['catalog-unavailable', 'CATALOG_UNAVAILABLE'],
+    ['network', 'EXTENSION_INSTALL_FAILED'],
+    ['integrity', 'EXTENSION_INSTALL_FAILED'],
+    ['limits', 'EXTENSION_INSTALL_FAILED'],
+  ] as const)('map installer failure %s to %s', async (cause, code) => {
+    const fail = () => {
+      throw new ExtensionInstallError(cause, 'acme.user', `failed: ${cause}`);
+    };
+    const { engine } = await open([], {
+      handlers: { docs: fail, docImage: fail },
+    });
+    await expect(engine.extensions.docs('acme.user')).rejects.toMatchObject({
+      code,
+    });
+    await expect(
+      engine.extensions.docImage('acme.user', '1.0.0', 'a.png'),
+    ).rejects.toMatchObject({ code });
+  });
+
+  it('do not hold the command queue while the download runs', async () => {
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { engine } = await open([], {
+      handlers: {
+        docs: async () => {
+          await gate;
+          return DOCS;
+        },
+      },
+    });
+    const pending = engine.extensions.docs('acme.slow');
+    await expect(engine.extensions.getSettings()).resolves.toBeDefined();
+    release?.();
+    await expect(pending).resolves.toEqual(DOCS);
   });
 });

@@ -11,14 +11,14 @@ import { syncCommands } from '@/shared/lib/command-registry.ts';
 import type {
   CommandDescriptor,
   CommandRegistry,
+  DefaultBinding,
   SyncedCommand,
 } from '@/shared/lib/command-registry.ts';
-import { PALETTE_KEYBINDING } from '@/shared/lib/keybinding.ts';
 import { effectiveThemeId } from '@/shared/lib/extension-themes.ts';
 
 export interface AppCommandsDeps {
   registry: CommandRegistry;
-  /** Открывает палитру (команда «Открыть палитру команд» с Mod+K). */
+  /** Открывает палитру (команда «Открыть палитру команд», умолчание Mod+K). */
   openPalette(): void;
   router: { push(to: RouteLocationRaw): Promise<unknown> };
   /** Переводчик окна: названия читаются при каждом чтении списка, язык меняется на лету. */
@@ -33,32 +33,43 @@ export interface AppCommandsDeps {
   reportFailure(error: unknown): void;
 }
 
-const DESTINATIONS = [
-  { id: 'dailyPlan', route: ROUTE.dailyPlan, keybinding: 'Mod+1' },
-  { id: 'courses', route: ROUTE.courses, keybinding: 'Mod+2' },
-  { id: 'settings', route: ROUTE.settings, keybinding: 'Mod+,' },
+/**
+ * Условие привязок «не при вводе текста»: фокус не в поле ввода и не открыт
+ * диалог или меню. Умолчание сочетаний без `Mod+K`; редактор привязок
+ * подставляет его в новую привязку команды приложения.
+ */
+export const NOT_TYPING_WHEN = '!inputFocus && !modalOpen';
+
+const destinationKeys = (key: string): DefaultBinding[] => [
+  { key, when: NOT_TYPING_WHEN },
+];
+
+const DESTINATIONS: readonly {
+  id: string;
+  route: string;
+  keybindings?: DefaultBinding[];
+}[] = [
   {
-    id: 'settingsLearning',
-    route: ROUTE.settingsLearning,
-    keybinding: undefined,
+    id: 'dailyPlan',
+    route: ROUTE.dailyPlan,
+    keybindings: destinationKeys('Mod+1'),
   },
   {
-    id: 'settingsLibrary',
-    route: ROUTE.settingsLibrary,
-    keybinding: undefined,
+    id: 'courses',
+    route: ROUTE.courses,
+    keybindings: destinationKeys('Mod+2'),
   },
   {
-    id: 'settingsAppearance',
-    route: ROUTE.settingsAppearance,
-    keybinding: undefined,
+    id: 'settings',
+    route: ROUTE.settings,
+    keybindings: destinationKeys('Mod+,'),
   },
-  {
-    id: 'settingsExtensions',
-    route: ROUTE.settingsExtensions,
-    keybinding: undefined,
-  },
-  { id: 'settingsAbout', route: ROUTE.settingsAbout, keybinding: undefined },
-] as const;
+  { id: 'settingsLearning', route: ROUTE.settingsLearning },
+  { id: 'settingsLibrary', route: ROUTE.settingsLibrary },
+  { id: 'settingsAppearance', route: ROUTE.settingsAppearance },
+  { id: 'settingsExtensions', route: ROUTE.settingsExtensions },
+  { id: 'settingsAbout', route: ROUTE.settingsAbout },
+];
 
 const BUILTIN_THEMES = ['system', 'light', 'dark'] as const;
 const LOCALE_MODES: readonly LocaleMode[] = ['system', 'ru', 'en'];
@@ -93,7 +104,8 @@ export const registerAppCommands = (deps: AppCommandsDeps): (() => void) => {
       app('palette.open', {
         title: () => t('appCommands.palette.open'),
         category: () => t('appCommands.category.app'),
-        keybinding: PALETTE_KEYBINDING,
+        // без `when`: палитра открывается и из полей ввода
+        keybindings: [{ key: 'Mod+K' }],
         // уже в палитре: пункт «Открыть палитру» там бессмыслен
         listed: false,
         run: () => deps.openPalette(),
@@ -101,12 +113,12 @@ export const registerAppCommands = (deps: AppCommandsDeps): (() => void) => {
     ),
   ];
   disposers.push(
-    ...DESTINATIONS.map(({ id, route, keybinding }) =>
+    ...DESTINATIONS.map(({ id, route, keybindings }) =>
       registry.register(
         app(`go:${id}`, {
           title: () => t(`appCommands.go.${id}`),
           category: () => t('appCommands.category.go'),
-          keybinding,
+          ...(keybindings && { keybindings }),
           run: guarded(() => deps.router.push({ name: route })),
         }),
       ),

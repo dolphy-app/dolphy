@@ -3,6 +3,12 @@ import type {
   ExtensionSettingValuesDto,
   JsonValue,
 } from '@dolphy-app/engine-contract';
+import {
+  STATS_DAILY_MAX_DAYS,
+  parseStatsDate,
+} from '../../domain/learning-stats.ts';
+import type { DailyResult, StreakResult } from '../../domain/learning-stats.ts';
+import { EXTENSION_SECRET_LIMITS, utf8Length } from '../../domain/index.ts';
 import type { EngineContext } from '../context.ts';
 import { EngineError } from '../errors.ts';
 import { createExtensionValues } from '../extension-values.ts';
@@ -23,9 +29,39 @@ export interface ExtensionHostServices {
     delete(extensionId: string, key: string): Promise<boolean>;
     keys(extensionId: string): Promise<string[]>;
   };
+  /**
+   * Секреты расширения: открытое значение уходит шифру платформы, в
+   * хранилище остаётся шифртекст. Без системного хранилища ключей `set` и
+   * `get` существующего ключа — `SECRETS_UNAVAILABLE`; `get` отсутствующего
+   * ключа — `undefined`, `delete` работает всегда. Потолки —
+   * `EXTENSION_SECRET_LIMITS` (`EXTENSION_STORAGE_QUOTA`).
+   */
+  readonly secrets: {
+    get(extensionId: string, key: string): Promise<string | undefined>;
+    set(extensionId: string, key: string, value: string): Promise<void>;
+    /** `false`, если ключа не было. */
+    delete(extensionId: string, key: string): Promise<boolean>;
+  };
   readonly settings: {
     /** Действующие значения по `id` определений: сохранённое пользователем или `default`. */
     all(extensionId: string): Promise<ExtensionSettingValuesDto>;
+  };
+  /**
+   * Агрегированная статистика обучения (`ctx.stats`): нужно разрешение
+   * `learning.stats`, иначе `INVALID_ARGUMENT` `{ reason: 'permission',
+   * permission: 'learning.stats' }`. Только числа: идентификаторов заданий и
+   * курсов в ответе нет. `courseId` не задан — все курсы; неизвестный курс —
+   * нули. `daily`: `from` и `to` — даты `YYYY-MM-DD`, `from ≤ to`, не более
+   * 366 дат (`INVALID_ARGUMENT` с `details.field`).
+   */
+  readonly stats: {
+    streak(extensionId: string, courseId?: string): Promise<StreakResult>;
+    daily(
+      extensionId: string,
+      from: string,
+      to: string,
+      courseId?: string,
+    ): Promise<DailyResult[]>;
   };
   /**
    * Сообщения хоста о здоровье расширения: длительность активации, сбой вне
@@ -55,7 +91,9 @@ export const createExtensionHostServices = (
     | 'extensionPolicy'
     | 'extensionHealth'
     | 'extensionData'
+    | 'platform'
     | 'extensionSettingChanges'
+    | 'statsIndex'
     | 'emit'
     | 'state'
   >,
@@ -77,7 +115,102 @@ export const createExtensionHostServices = (
     }
     return key;
   };
+  /** Разрешение проверяет движок, а не процесс расширения: ограниченному процессу доверять нельзя. */
+  const statsOf = (extensionId: string): string => {
+    const id = active(extensionId);
+    const info = ctx.extensionRegistry
+      .list()
+      .find((item) => item.id === id && item.state === 'loaded');
+    if (info?.permissions.includes('learning.stats') !== true) {
+      throw new EngineError('INVALID_ARGUMENT', {
+        message: `Extension '${id}' does not declare the 'learning.stats' permission`,
+        details: {
+          reason: 'permission',
+          permission: 'learning.stats',
+          extensionId: id,
+        },
+      });
+    }
+    return id;
+  };
+  const courseIdOf = (courseId: unknown): string | undefined => {
+    if (courseId !== undefined && typeof courseId !== 'string') {
+      throw new EngineError('INVALID_ARGUMENT', {
+        message: 'courseId must be a string',
+        details: { field: 'courseId' },
+      });
+    }
+    return courseId;
+  };
+  const dateOf = (field: 'from' | 'to', value: unknown): number => {
+    const day = parseStatsDate(value);
+    if (day === null) {
+      throw new EngineError('INVALID_ARGUMENT', {
+        message: `'${field}' must be a date as YYYY-MM-DD`,
+        details: { field },
+      });
+    }
+    return day;
+  };
+  const { secrets } = ctx.extensionData;
+  const { cipher } = ctx.platform;
+  /** Шифр не отвечает или отказал: ни запись, ни чтение невозможны. */
+  const unavailable = (cause?: unknown): EngineError =>
+    new EngineError('SECRETS_UNAVAILABLE', {
+      message: 'System secret store is unavailable',
+      ...(cause !== undefined && { cause }),
+    });
+  const viaCipher = async <T>(run: () => Promise<T>): Promise<T> => {
+    try {
+      return await run();
+    } catch (error) {
+      throw error instanceof EngineError && error.code === 'SECRETS_UNAVAILABLE'
+        ? error
+        : unavailable(error);
+    }
+  };
+  const quota = (extensionId: string, kind: string, limit: number) =>
+    new EngineError('EXTENSION_STORAGE_QUOTA', {
+      message: `Extension secret quota exceeded (${kind}: limit ${limit})`,
+      details: { extensionId, kind, limit },
+    });
   return {
+    secrets: {
+      get: async (extensionId, key) => {
+        const id = active(extensionId);
+        const stored = await secrets.get(id, keyOf(key));
+        return stored === undefined
+          ? undefined
+          : viaCipher(async () => {
+              if (!(await cipher.available())) throw unavailable();
+              return cipher.decrypt(stored as string);
+            });
+      },
+      set: async (extensionId, key, value) => {
+        const id = active(extensionId);
+        const name = keyOf(key);
+        if (typeof value !== 'string') {
+          throw new EngineError('INVALID_ARGUMENT', {
+            message: 'Secret value must be a string',
+            details: { field: 'value' },
+          });
+        }
+        const limits = EXTENSION_SECRET_LIMITS;
+        if (name.length > limits.keyLength) {
+          throw quota(id, 'key-length', limits.keyLength);
+        }
+        if (utf8Length(value) > limits.valueBytes) {
+          throw quota(id, 'value-size', limits.valueBytes);
+        }
+        const encrypted = await viaCipher(async () => {
+          if (!(await cipher.available())) throw unavailable();
+          return cipher.encrypt(value);
+        });
+        await secrets.set(id, name, encrypted);
+      },
+      delete: async (extensionId, key) =>
+        secrets.delete(active(extensionId), keyOf(key)),
+    },
     storage: {
       get: async (extensionId, key) =>
         storage.get(active(extensionId), keyOf(key)),
@@ -89,6 +222,24 @@ export const createExtensionHostServices = (
     },
     settings: {
       all: async (extensionId) => values.values(active(extensionId)),
+    },
+    stats: {
+      streak: async (extensionId, courseId) => {
+        statsOf(extensionId);
+        return ctx.statsIndex.streak(courseIdOf(courseId));
+      },
+      daily: async (extensionId, from, to, courseId) => {
+        statsOf(extensionId);
+        const first = dateOf('from', from);
+        const last = dateOf('to', to);
+        if (last < first || last - first + 1 > STATS_DAILY_MAX_DAYS) {
+          throw new EngineError('INVALID_ARGUMENT', {
+            message: `The range must be ascending and cover at most ${STATS_DAILY_MAX_DAYS} dates`,
+            details: { field: 'to', maxDays: STATS_DAILY_MAX_DAYS },
+          });
+        }
+        return ctx.statsIndex.daily(first, last, courseIdOf(courseId));
+      },
     },
     health: {
       activated: (extensionId, durationMs) =>

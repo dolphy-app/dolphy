@@ -17,6 +17,7 @@ export const EXTENSION_PERMISSIONS = [
   'native.addons',
   'network',
   'learning.events',
+  'learning.stats',
 ] as const;
 export type ExtensionPermission = (typeof EXTENSION_PERMISSIONS)[number];
 /** Platforms the extension can run on (`process.platform`). */
@@ -103,6 +104,20 @@ export interface MarkdownRendererContribution {
   renderer?: string;
 }
 
+/** Command key binding (`commands[].keybindings`). */
+export interface CommandKeybinding {
+  /** Key notation such as `Mod+Shift+L` or `Mod+K Mod+S`; valid on every platform. */
+  key: string;
+  /** Replaces `key` on macOS. */
+  mac?: string;
+  /** Replaces `key` on Windows. */
+  windows?: string;
+  /** Replaces `key` on Linux. */
+  linux?: string;
+  /** Condition such as `page == 'settings'`; a key that types text needs one inactive while `inputFocus`. */
+  when?: string;
+}
+
 /** Extension command: a command-palette action executed by extension code (`ctx.commands.register`). */
 export interface CommandContribution {
   /** Equal to the extension id or starts with `<extension id>.`. */
@@ -113,8 +128,10 @@ export interface CommandContribution {
   description?: string;
   /** Palette group, up to 40 characters. */
   category?: string;
-  /** Hint such as `Mod+Shift+L` (`KEYBINDING_PATTERN`); the app does not bind the key. */
+  /** Active binding without a condition, such as `Mod+Shift+L` (`KEYBINDING_PATTERN`); needs `palette: true`. */
   keybinding?: string;
+  /** Up to `EXTENSION_COMMAND_LIMITS.keybindingsPerCommand` bindings; needs `palette: true`. The user may replace them in settings. */
+  keybindings?: CommandKeybinding[];
   /** `false` hides the command from the palette while keeping it available to the panel; defaults to `true`. */
   palette?: boolean;
 }
@@ -127,6 +144,34 @@ export interface PanelContribution {
   title: string;
   /** Path to the panel's ES module (`.js` or `.mjs`); defaults to `DEFAULT_PANEL`. */
   module?: string;
+}
+
+/** What an importer accepts: `text` hands the handler the file as a UTF-8 string, `bytes` as a `Uint8Array`. */
+export type ImporterInputKind = 'text' | 'bytes';
+
+/** Extension importer: turns a file the user picked into a course directory (`ctx.importers.register`). */
+export interface ImporterContribution {
+  /** Equal to the extension id or starts with `<extension id>.`. */
+  id: string;
+  /** Name in the command palette and the library card, 1–60 characters. */
+  title: string;
+  /** 1–`EXTENSION_TRANSFER_LIMITS.acceptExtensions` unique file extensions in lower case, such as `.csv` (`TRANSFER_ACCEPT_PATTERN`). */
+  accept: string[];
+  /** Defaults to `text`. */
+  input?: ImporterInputKind;
+}
+
+/** What an exporter hands the extension: a course snapshot or aggregated progress. */
+export type ExporterScope = 'course' | 'progress';
+
+/** Extension exporter: turns a course or the learning progress into a file the user saves (`ctx.exporters.register`). */
+export interface ExporterContribution {
+  /** Equal to the extension id or starts with `<extension id>.`. */
+  id: string;
+  /** Name in the command palette and the library card, 1–60 characters. */
+  title: string;
+  /** `progress` needs the `learning.stats` permission. */
+  scope: ExporterScope;
 }
 
 /** Value of an extension setting. */
@@ -320,6 +365,8 @@ export interface ExtensionManifest {
     events: EventContribution[];
     commands: (CommandContribution & { palette: boolean })[];
     panels: (PanelContribution & { module: string })[];
+    importers: (ImporterContribution & { input: ImporterInputKind })[];
+    exporters: ExporterContribution[];
   };
 }
 
@@ -365,6 +412,8 @@ export interface ExtensionManifestInput {
     events?: EventContribution[];
     commands?: CommandContribution[];
     panels?: PanelContribution[];
+    importers?: ImporterContribution[];
+    exporters?: ExporterContribution[];
   };
 }
 
@@ -410,17 +459,31 @@ export const THEME_VARIABLE_KEYS: readonly string[] = [
 export const DEFAULT_MARKDOWN_RENDERER = './markdown.mjs';
 export const DEFAULT_PANEL = './panel.mjs';
 
+const KEYBINDING_MODIFIER =
+  '(?:Mod|Ctrl|Control|Alt|Option|Shift|Cmd|Command|Meta|Win|Super)\\+';
+const KEYBINDING_KEY =
+  "(?:[A-Z0-9]|F(?:[1-9]|1[0-9]|2[0-4])|Enter|Return|Space|Tab|Escape|Esc|Backspace|Delete|Insert|Arrow(?:Up|Down|Left|Right)|Home|End|Page(?:Up|Down)|Plus|\\[[A-Za-z][A-Za-z0-9]*\\]|[`\\-=\\[\\]\\\\;',./+])";
+const KEYBINDING_STROKE = `(?:${KEYBINDING_MODIFIER}){0,3}${KEYBINDING_KEY}`;
+
 /**
- * Command key hint: up to three modifiers (`Mod`, `Ctrl`, `Alt`,
- * `Shift`) and a key joined with `+`: a letter or digit, `F1`–`F12`, or a name
- * (`Enter`, `Space`, `Tab`, `Escape`, `Backspace`, `Delete`, arrows,
- * `Home`, `End`, `PageUp`, `PageDown`).
+ * Key notation: one stroke or two strokes separated by a space
+ * (`Mod+K Mod+S`). A stroke is up to three modifiers (`Mod`, `Ctrl`, `Alt`,
+ * `Shift`, `Cmd`, `Meta`, `Win`, `Super`, `Option`, ...) and a key joined with
+ * `+`: a letter or digit, `F1`–`F24`, a punctuation mark, a physical key
+ * (`[KeyK]`) or a name (`Enter`, `Space`, `Tab`, `Escape`, `Insert`, arrows,
+ * `Home`, `End`, `PageUp`, `PageDown`). A superset for the JSON Schema; the
+ * host validates every string authoritatively with `@dolphy-app/keybindings`.
  */
-export const KEYBINDING_PATTERN =
-  /^(?:(?:Mod|Ctrl|Alt|Shift)\+){0,3}(?:[A-Z0-9]|F(?:[1-9]|1[0-2])|Enter|Space|Tab|Escape|Backspace|Delete|Arrow(?:Up|Down|Left|Right)|Home|End|Page(?:Up|Down))$/;
+export const KEYBINDING_PATTERN = new RegExp(
+  `^${KEYBINDING_STROKE}(?: ${KEYBINDING_STROKE})?$`,
+);
 
 /** Limits on commands and panels (R1, R3); they match those checked by the manifest, host, and engine. */
 export const EXTENSION_COMMAND_LIMITS = Object.freeze({
+  /** Keybinding entries (`keybindings`) per command. */
+  keybindingsPerCommand: 4,
+  /** Length of a `keybindings[].when` condition. */
+  whenLength: 200,
   /** Commands per extension. */
   commands: 64,
   /** Panels per extension. */
@@ -436,6 +499,33 @@ export const EXTENSION_COMMAND_LIMITS = Object.freeze({
   notifyChars: 500,
   /** Handler budget, ms. */
   handlerMs: 10_000,
+});
+
+/** A file extension an importer accepts: a dot and 1–16 lower-case letters or digits. */
+export const TRANSFER_ACCEPT_PATTERN = /^\.[a-z0-9]{1,16}$/;
+
+/** Limits on importers and exporters; the manifest, host, and engine check the same numbers. */
+export const EXTENSION_TRANSFER_LIMITS = Object.freeze({
+  /** Importers per extension. */
+  importers: 8,
+  /** Exporters per extension. */
+  exporters: 8,
+  /** Entries in `accept` of one importer. */
+  acceptExtensions: 8,
+  /** Handler budget, ms (import and export). */
+  handlerMs: 30_000,
+  /** Size of the file the user picks for an importer, bytes. */
+  inputBytes: 20 * 1024 * 1024,
+  /** Files in the directory an importer returns. */
+  files: 5000,
+  /** One file of the returned directory, UTF-8 bytes. */
+  fileBytes: 2 * 1024 * 1024,
+  /** All files of the returned directory (and of a course snapshot), UTF-8 bytes. */
+  totalBytes: 20 * 1024 * 1024,
+  /** Size of the file an exporter returns, bytes. */
+  outputBytes: 20 * 1024 * 1024,
+  /** Length of the file name an exporter returns. */
+  filenameChars: 120,
 });
 
 export type GradeValue = 1 | 2 | 3 | 4 | 5;
@@ -496,6 +586,52 @@ export type CommandResult = void | undefined | CommandEffect | JsonValue;
 export type CommandHandler = (
   args: JsonValue | undefined,
 ) => CommandResult | Promise<CommandResult>;
+
+/** What an importer handler receives: the picked file's base name and its content, as the importer's `input` declares. */
+export type ImportInput =
+  { name: string; text: string } | { name: string; bytes: Uint8Array };
+
+/**
+ * What an importer handler returns: the files of a new course directory.
+ * Paths are relative, use `/`, and have no `..`, empty, or dot-leading
+ * segments and no case-insensitive duplicates; the files are text. At most
+ * `EXTENSION_TRANSFER_LIMITS.files` files, `fileBytes` each, `totalBytes` in all.
+ */
+export interface ImportResult {
+  files: Record<string, string>;
+}
+
+export type ImporterHandler = (
+  input: ImportInput,
+) => ImportResult | Promise<ImportResult>;
+
+/** What a `course` exporter handler receives: the text files of the course directory (up to `EXTENSION_TRANSFER_LIMITS.totalBytes`). */
+export interface CourseExportInput {
+  scope: 'course';
+  courseId: string;
+  title: string;
+  /** Path relative to the course directory → content. */
+  files: Record<string, string>;
+}
+
+/** What a `progress` exporter handler receives; it reads the data through `ctx.stats`. */
+export interface ProgressExportInput {
+  scope: 'progress';
+}
+
+export type ExportInput = CourseExportInput | ProgressExportInput;
+
+/**
+ * What an exporter handler returns: the file to save. `filename` has no path
+ * separators and at most `EXTENSION_TRANSFER_LIMITS.filenameChars`
+ * characters; the content is at most `outputBytes`.
+ */
+export type ExportResult =
+  { filename: string; text: string } | { filename: string; bytes: Uint8Array };
+
+export type ExporterHandler = (
+  input: ExportInput,
+) => ExportResult | Promise<ExportResult>;
 
 /** Command result as the caller receives it (`normalizeCommandResult`). */
 export type CommandOutcome =
@@ -760,6 +896,44 @@ export interface ExtensionStorage {
   keys(): Promise<string[]>;
 }
 
+/** Secret limits; the engine enforces them (`StorageQuotaError`, kinds `key-length`, `value-size`, `key-count`). */
+export const EXTENSION_SECRET_LIMITS = Object.freeze({
+  /** Key length in UTF-16 code units. */
+  keyLength: 128,
+  /** Value size in UTF-8 bytes. */
+  valueBytes: 4 * 1024,
+  /** Number of keys. */
+  keys: 32,
+});
+
+/**
+ * Thrown by `ctx.secrets.set` and by `ctx.secrets.get` of an existing key when
+ * the operating system has no secure key store: no store, Linux `basic_text`
+ * backend, the app is not ready yet, or the stored value cannot be decrypted
+ * any more (the keychain changed; `delete` and write again).
+ */
+export class SecretsUnavailableError extends Error {
+  readonly code = 'SECRETS_UNAVAILABLE';
+  constructor(message?: string) {
+    super(message ?? 'the system secret store is unavailable');
+    this.name = 'SecretsUnavailable';
+  }
+}
+
+/**
+ * Secret strings (tokens, passwords) encrypted with the system key store.
+ * No permission is required; each extension has its own space, cleared with
+ * the extension data. Limits are `EXTENSION_SECRET_LIMITS`.
+ */
+export interface ExtensionSecrets {
+  /** `undefined` if the key does not exist (also when the key store is unavailable). */
+  get(key: string): Promise<string | undefined>;
+  /** Throws `SecretsUnavailableError` without a key store, `StorageQuotaError` over a limit; the write does not happen then. */
+  set(key: string, value: string): Promise<void>;
+  /** `false` if the key did not exist. Works without a key store. */
+  delete(key: string): Promise<boolean>;
+}
+
 /** Setting values of an extension by setting id. */
 export type SettingValues = Record<string, SettingValue>;
 
@@ -781,6 +955,53 @@ export interface ExtensionSettings<S extends SettingValues = SettingValues> {
   get<K extends keyof S & string>(id: K): S[K];
   /** The handler runs after a change, without restarting the extension; a handler failure is only logged. */
   onDidChange(handler: (change: SettingChange<S>) => void): Disposable;
+}
+
+/** Limits of `ctx.stats`; the engine enforces them. */
+export const EXTENSION_STATS_LIMITS = Object.freeze({
+  /** Most dates in one `daily` range (both ends included). */
+  dailyDays: 366,
+});
+
+/** Study streak in days; see `ExtensionStats.streak`. */
+export interface StreakStats {
+  /** Consecutive days with attempts ending today, or yesterday while today has none yet. */
+  readonly current: number;
+  /** Longest run of consecutive days with attempts in the history. */
+  readonly longest: number;
+}
+
+/** One local calendar day of study; see `ExtensionStats.daily`. */
+export interface DailyStat {
+  /** Local date `YYYY-MM-DD`. */
+  readonly date: string;
+  readonly attempts: number;
+  /** Attempts graded 3 or higher. */
+  readonly correct: number;
+  /** `correct / attempts`; `null` without attempts. */
+  readonly accuracy: number | null;
+}
+
+/**
+ * Aggregated learning statistics; need the `learning.stats` permission, otherwise
+ * every call rejects with `PermissionError('learning.stats')`. Numbers only: no
+ * exercise or course identifiers, answers or content. Days are local days in
+ * the user's time zone; an attempt is correct at grade 3 or higher; the
+ * history counts attempts even after a progress reset. An unknown `courseId`
+ * gives zeros.
+ */
+export interface ExtensionStats {
+  streak(options?: { courseId?: string }): Promise<StreakStats>;
+  /**
+   * One entry for every date from `from` to `to` inclusive (`YYYY-MM-DD`, up to
+   * `EXTENSION_STATS_LIMITS.dailyDays` dates); a malformed or reversed range
+   * rejects.
+   */
+  daily(options: {
+    from: string;
+    to: string;
+    courseId?: string;
+  }): Promise<DailyStat[]>;
 }
 
 export type LearningEventHandler<N extends LearningEventName> = (
@@ -844,8 +1065,11 @@ export interface ExtensionContext<Ids extends ExtensionIdSet = ExtensionIdSet> {
   readonly logger: ExtensionLogger;
   readonly library: LibraryReader;
   readonly storage: ExtensionStorage;
+  readonly secrets: ExtensionSecrets;
   readonly settings: ExtensionSettings<Ids['settings']>;
   readonly events: ExtensionEvents<Ids['events']>;
+  /** Learning statistics; needs the `learning.stats` permission. */
+  readonly stats: ExtensionStats;
   readonly commands: ExtensionCommands<Ids['commands']>;
   /** `type` must be declared in the manifest of this extension, otherwise it throws. */
   registerExerciseType(

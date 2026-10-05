@@ -7,7 +7,12 @@ import {
   type ExerciseTypeHandler,
   type ExtensionContext,
 } from '../src/index.ts';
-import { createMemorySettings, createMemoryStorage } from '../src/testing.ts';
+import {
+  createMemorySecrets,
+  createMemorySettings,
+  createMemoryStats,
+  createMemoryStorage,
+} from '../src/testing.ts';
 
 const handler = (): ExerciseTypeHandler =>
   defineExerciseType({
@@ -42,6 +47,8 @@ const createContext = (log: string[], failOn: readonly string[] = []) => {
       return { dispose: () => void log.push(`dispose policy ${id}`) };
     },
     storage: createMemoryStorage(),
+    stats: createMemoryStats(),
+    secrets: createMemorySecrets(),
     settings: createMemorySettings([]),
     events: {
       on: (name): Disposable => {

@@ -120,7 +120,37 @@ export type HostRequest =
       params: { extensionId: string; key: string };
     }
   | { id: string; method: 'storage.keys'; params: { extensionId: string } }
+  | {
+      id: string;
+      method: 'secrets.get';
+      params: { extensionId: string; key: string };
+    }
+  | {
+      id: string;
+      method: 'secrets.set';
+      params: { extensionId: string; key: string; value: string };
+    }
+  | {
+      id: string;
+      method: 'secrets.delete';
+      params: { extensionId: string; key: string };
+    }
   | { id: string; method: 'settings.all'; params: { extensionId: string } }
+  | {
+      id: string;
+      method: 'stats.streak';
+      params: { extensionId: string; courseId?: string };
+    }
+  | {
+      id: string;
+      method: 'stats.daily';
+      params: {
+        extensionId: string;
+        from: string;
+        to: string;
+        courseId?: string;
+      };
+    }
   | { id: string; method: 'health.report'; params: HealthReport };
 
 /**
@@ -317,8 +347,46 @@ export const hostRequestSchema = z.discriminatedUnion('method', [
   }),
   z.strictObject({
     id: z.string(),
+    method: z.literal('secrets.get'),
+    params: hostKey,
+  }),
+  z.strictObject({
+    id: z.string(),
+    method: z.literal('secrets.set'),
+    // тип значения проверяет служба движка: ошибка приходит как `INVALID_ARGUMENT`
+    params: z.strictObject({
+      extensionId: z.string(),
+      key: z.string(),
+      value: z.unknown(),
+    }),
+  }),
+  z.strictObject({
+    id: z.string(),
+    method: z.literal('secrets.delete'),
+    params: hostKey,
+  }),
+  z.strictObject({
+    id: z.string(),
     method: z.literal('settings.all'),
     params: hostOwner,
+  }),
+  z.strictObject({
+    id: z.string(),
+    method: z.literal('stats.streak'),
+    params: z.strictObject({
+      extensionId: z.string(),
+      courseId: z.string().optional(),
+    }),
+  }),
+  z.strictObject({
+    id: z.string(),
+    method: z.literal('stats.daily'),
+    params: z.strictObject({
+      extensionId: z.string(),
+      from: z.string(),
+      to: z.string(),
+      courseId: z.string().optional(),
+    }),
   }),
   z.strictObject({
     id: z.string(),
@@ -385,7 +453,9 @@ const isResolvedExtension = (value: unknown): value is ResolvedExtension => {
     Array.isArray(item.settings) &&
     Array.isArray(item.events) &&
     Array.isArray(item.commands) &&
-    Array.isArray(item.panels)
+    Array.isArray(item.panels) &&
+    Array.isArray(item.importers) &&
+    Array.isArray(item.exporters)
   );
 };
 

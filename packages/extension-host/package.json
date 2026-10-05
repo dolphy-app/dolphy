@@ -17,6 +17,7 @@
     "@dolphy-app/engine-contract": "workspace:*",
     "@dolphy-app/extension-api": "workspace:*",
     "@dolphy-app/extension-catalog": "workspace:*",
+    "@dolphy-app/keybindings": "workspace:*",
     "ajv": "^8",
     "zod": "4.6.5"
   },

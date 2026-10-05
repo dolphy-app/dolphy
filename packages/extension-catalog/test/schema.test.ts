@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { CatalogFormatError, parseIndex } from '../src/index.ts';
+import {
+  CatalogFormatError,
+  parseDeprecatedList,
+  parseIndex,
+  parseIndexLenient,
+} from '../src/index.ts';
 import { entry, index, sha, version } from './fixtures.ts';
 
 const issuesOf = (raw: unknown): string[] => {
@@ -73,6 +78,36 @@ describe('parseIndex', () => {
       'acme.quiz.main',
     ]);
     expect(parseIndex(JSON.parse(JSON.stringify(parsed)))).toEqual(parsed);
+  });
+
+  it('сводка принимает importers и exporters и сохраняет их; неверный тип отвергается', () => {
+    const base = entry().contributes;
+    const parsed = parseIndex(
+      index([
+        entry({
+          contributes: {
+            ...base,
+            importers: ['acme.quiz.csv'],
+            exporters: ['acme.quiz.out'],
+          },
+        }),
+      ]),
+    );
+    expect(parsed.extensions[0]?.contributes.importers).toEqual([
+      'acme.quiz.csv',
+    ]);
+    expect(parsed.extensions[0]?.contributes.exporters).toEqual([
+      'acme.quiz.out',
+    ]);
+    expect(parseIndex(JSON.parse(JSON.stringify(parsed)))).toEqual(parsed);
+    expect(
+      issuesOf(
+        index([{ ...entry(), contributes: { ...base, importers: 'x' } }]),
+      )[0],
+    ).toContain('extensions.0.contributes.importers');
+    expect(parseIndex(index()).extensions[0]?.contributes.importers).toBe(
+      undefined,
+    );
   });
 
   it('старый индекс без commands и panels остаётся валидным', () => {
@@ -287,5 +322,57 @@ describe('parseIndex', () => {
     expect(issuesOf(withVersion({ permissions: ['root'] }))).not.toEqual([]);
     expect(issuesOf(withVersion({ minAppVersion: '1.0' }))).not.toEqual([]);
     expect(issuesOf(withVersion({ minAppVersion: '1.0.0' }))).toEqual([]);
+  });
+});
+
+describe('deprecated', () => {
+  const withDeprecated = (deprecated: unknown) =>
+    index([{ ...entry(), deprecated }]);
+  const good = {
+    versions: '<2.0.0',
+    reason: 'Replaced',
+    alternatives: ['acme.new'],
+  };
+
+  it('строгий разбор принимает запись с диапазоном и без него', () => {
+    expect(parseIndex(withDeprecated(good)).extensions[0]?.deprecated).toEqual(
+      good,
+    );
+    expect(
+      parseIndex(withDeprecated({ ...good, versions: null })).extensions[0]
+        ?.deprecated?.versions,
+    ).toBeNull();
+  });
+
+  it('строгий разбор отвергает пустую и длинную причину, 4 альтернативы, неверный диапазон и лишние ключи', () => {
+    for (const bad of [
+      { ...good, reason: '' },
+      { ...good, reason: 'x'.repeat(201) },
+      { ...good, alternatives: ['a.a', 'a.b', 'a.c', 'a.d'] },
+      { ...good, alternatives: ['Not An Id'] },
+      { ...good, versions: 'nonsense' },
+      { ...good, extra: true },
+    ]) {
+      expect(issuesOf(withDeprecated(bad)), JSON.stringify(bad)).not.toEqual(
+        [],
+      );
+    }
+  });
+
+  it('терпимый разбор отбрасывает нечитаемое deprecated, запись остаётся', () => {
+    const { index: parsed } = parseIndexLenient(
+      withDeprecated({ ...good, reason: '' }),
+    );
+    expect(parsed.extensions).toHaveLength(1);
+    expect(parsed.extensions[0]?.deprecated).toBeUndefined();
+    expect(
+      parseIndexLenient(withDeprecated(good)).index.extensions[0]?.deprecated,
+    ).toEqual(good);
+  });
+
+  it('parseDeprecatedList: повтор id — ошибка', () => {
+    const item = { id: 'acme.quiz', reason: 'x', alternatives: [] };
+    expect(parseDeprecatedList([item])).toEqual([item]);
+    expect(() => parseDeprecatedList([item, item])).toThrow(/duplicate id/);
   });
 });

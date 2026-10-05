@@ -7,6 +7,11 @@ import {
   MAX_LOG_ENTRIES,
   THEME_ID_PATTERN,
 } from '@dolphy-app/engine-contract';
+import {
+  KEYBINDING_LIMITS,
+  KEY_MAX_LENGTH,
+  WHEN_MAX_LENGTH,
+} from '@dolphy-app/engine';
 import * as z from 'zod';
 import type {
   AttemptEntryDto,
@@ -246,6 +251,23 @@ const schedulerPatch: z.ZodType<DeepPartial<SchedulerOptionsDto>> =
     ),
   });
 
+/** Размеры строк — как в движке; число записей сверх лимита доходит до сервиса, чтобы тот ответил `reason: 'limit'`. */
+const keybindingEntry = z.strictObject({
+  key: z.string().max(KEY_MAX_LENGTH),
+  when: z.string().max(WHEN_MAX_LENGTH).nullable(),
+});
+const keybindingsPatch = z
+  .record(
+    z.string().max(KEYBINDING_LIMITS.commandLength),
+    z
+      .array(keybindingEntry)
+      .max(KEYBINDING_LIMITS.entriesPerCommand * 8)
+      .nullable(),
+  )
+  .refine((patch) => Object.keys(patch).length <= KEYBINDING_LIMITS.commands, {
+    message: `at most ${KEYBINDING_LIMITS.commands} commands in one patch`,
+  });
+
 const stateVector = z.record(str, z.int().nonnegative());
 const logEntryBase = {
   id: str.min(1),
@@ -380,6 +402,15 @@ export const schemas = {
     optional(z.strictObject({ removeData: optional(bool) })),
   ]),
   'extensions.updates': z.tuple([]),
+  'extensions.docs': z.tuple([
+    extensionId,
+    optional(z.strictObject({ version: optional(extensionVersion) })),
+  ]),
+  'extensions.docImage': z.tuple([
+    extensionId,
+    extensionVersion,
+    z.string().min(1).max(200),
+  ]),
   'extensions.setCheckUpdates': z.tuple([bool]),
   'extensions.setSafeMode': z.tuple([bool]),
   'extensions.diagnostics': z.tuple([]),
@@ -463,6 +494,8 @@ export const schemas = {
       ),
     }),
   ]),
+  'settings.getKeybindings': z.tuple([]),
+  'settings.setKeybindings': z.tuple([keybindingsPatch]),
   'sync.getState': z.tuple([]),
   'sync.exportSince': z.tuple([
     optional(

@@ -31,6 +31,10 @@ export const en: typeof ru = {
       due: 'no reviews due | {n} review due | {n} reviews due',
       focused: 'In focus',
       recommended: 'Recommended',
+      focusedHint:
+        'You are studying this course: the daily plan, reviews and sessions use only its exercises. To go back to all courses, press "Show all courses" at the top of the page.',
+      recommendedHint:
+        'A good place to start: the most reviews due, otherwise the course you started last, otherwise the first one not started.',
       study: 'Study',
       openPlan: 'Course plan',
       check: 'Check what I already know',

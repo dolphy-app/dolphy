@@ -326,7 +326,7 @@ describe('значки команд и панелей (R10)', () => {
 
     await commands.openPalette();
     const glyphOf = async (title: string) => {
-      const icon = commands.option(title).locator('.glyph');
+      const icon = commands.option(title).locator('.v-icon.glyph');
       expect(await icon.getAttribute('aria-hidden')).toBe('true');
       return icon.getAttribute('class');
     };
@@ -338,6 +338,6 @@ describe('значки команд и панелей (R10)', () => {
       'Открыть панель виджетов',
     );
     // команды приложения значка не имеют
-    await expectCount(commands.option('Перейти: Курсы').locator('.glyph'), 0);
+    await expectCount(commands.option('Перейти: Курсы').locator('.v-icon'), 0);
   });
 });

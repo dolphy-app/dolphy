@@ -31,7 +31,10 @@ const context = computed(() => ({ courseId: scope.activeId.value }));
 // ошибка загрузки рамки по ключу рамки: новая ревизия начинает с чистого листа
 const failures = reactive(new Map<string, string>());
 
-const bindingOf = (widget: WidgetContributionDto, commands: ReadonlySet<string>) =>
+const bindingOf = (
+  widget: WidgetContributionDto,
+  commands: ReadonlySet<string>,
+) =>
   ({
     extensionId: widget.extensionId,
     commands,
@@ -49,7 +52,7 @@ const titleOf = (widget: WidgetContributionDto) =>
     :aria-labelledby="headingId"
     data-testid="extension-widgets"
   >
-    <h2 :id="headingId" class="text-title-large font-weight-bold mb-3">
+    <h2 :id="headingId" class="section-title text-title-large font-weight-bold">
       {{ t('extensionWidgets.title') }}
     </h2>
     <div class="grid">
@@ -62,9 +65,11 @@ const titleOf = (widget: WidgetContributionDto) =>
         :data-extension-id="item.widget.extensionId"
       >
         <v-card-item>
-          <h3 class="text-title-medium font-weight-bold widget-title">
-            {{ titleOf(item.widget) }}
-          </h3>
+          <template #title>
+            <h3 class="text-title-medium font-weight-bold widget-title">
+              {{ titleOf(item.widget) }}
+            </h3>
+          </template>
           <template #subtitle>
             <span class="caption">{{ item.widget.extensionId }}</span>
           </template>
@@ -107,6 +112,11 @@ const titleOf = (widget: WidgetContributionDto) =>
 <style scoped>
 .extension-widgets {
   margin-top: 1.5rem;
+}
+
+.section-title {
+  /* глобальный `h1..h6 { margin: 0 }` не слоёный и перебивает утилиты Vuetify */
+  margin: 0 0 0.75rem;
 }
 
 .grid {

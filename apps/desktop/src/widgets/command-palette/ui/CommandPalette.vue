@@ -32,6 +32,8 @@ const activeOption = computed(() =>
   activeIndex.value < 0 ? undefined : optionId(activeIndex.value),
 );
 const isEmpty = computed(() => palette.query.value.trim() === '');
+// значки есть у команд расширений: если хоть у одной видимой строки он есть, остальные держат место
+const hasGlyphs = computed(() => entries.value.some(({ icon }) => icon));
 
 // группы по категориям, как subheader у VCommandPalette: без запроса список упорядочен по
 // категории (без категории — последней группой), с запросом — по релевантности, и заголовки не нужны
@@ -174,6 +176,12 @@ const vComboboxInput = {
                 :icon="row.entry.icon"
                 size="small"
                 class="glyph"
+                aria-hidden="true"
+              />
+              <!-- без значка строка сохраняет поле под него: названия в списке стоят в один столбец -->
+              <span
+                v-else-if="hasGlyphs"
+                class="glyph glyph-spacer"
                 aria-hidden="true"
               />
               <span class="main">
@@ -327,6 +335,11 @@ const vComboboxInput = {
 .glyph {
   flex: none;
   opacity: var(--v-medium-emphasis-opacity);
+}
+
+/* ширина `v-icon size="small"` */
+.glyph-spacer {
+  width: 1.25rem;
 }
 
 .main {

@@ -12,6 +12,7 @@ import { courseScopeMessages } from '@/features/course-scope';
 import { courseUpdatesMessages } from '@/features/course-updates';
 import { extensionCommandsMessages } from '@/features/extension-commands';
 import { keybindingsMessages } from '@/features/keybindings';
+import { onboardingTourMessages } from '@/features/onboarding-tour';
 import { repositoryCoursesMessages } from '@/features/repository-courses';
 import { sharedMessages } from '@/shared/i18n';
 import { commandPaletteMessages } from '@/widgets/command-palette';
@@ -30,6 +31,7 @@ export const appMessages = {
     ...courseUpdatesMessages.ru,
     ...extensionCommandsMessages.ru,
     ...keybindingsMessages.ru,
+    ...onboardingTourMessages.ru,
     ...repositoryCoursesMessages.ru,
     ...repositoryMessages.ru,
     ...coursesMessages.ru,
@@ -51,6 +53,7 @@ export const appMessages = {
     ...courseUpdatesMessages.en,
     ...extensionCommandsMessages.en,
     ...keybindingsMessages.en,
+    ...onboardingTourMessages.en,
     ...repositoryCoursesMessages.en,
     ...repositoryMessages.en,
     ...coursesMessages.en,

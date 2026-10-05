@@ -24,6 +24,7 @@ const selected = computed({
     color="primary"
     variant="tonal"
     filter
+    data-tour="plan-course-switcher"
     :aria-label="t('courseScope.label')"
   >
     <v-chip :value="ALL">

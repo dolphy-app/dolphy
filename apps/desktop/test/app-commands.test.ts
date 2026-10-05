@@ -60,11 +60,15 @@ const setup = () => {
   });
   const reportFailure = vi.fn();
   const openPalette = vi.fn();
+  const startTour = vi.fn(async () => {});
+  const canStart = ref(true);
   const scope = effectScope();
   const stop = scope.run(() =>
     registerAppCommands({
       registry,
       openPalette,
+      startTour,
+      canStartTour: () => canStart.value,
       router: { push },
       t: i18n.global.t as never,
       themeSelection: { saved, select: selectTheme },
@@ -90,6 +94,8 @@ const setup = () => {
     selectLocale,
     reportFailure,
     openPalette,
+    startTour,
+    canStart,
     stop,
     find,
     titles,
@@ -320,6 +326,34 @@ describe('команды приложения: язык', () => {
     const { find, selectLocale, reportFailure } = setup();
     selectLocale.mockRejectedValueOnce(new Error('disk full'));
     await find('app:locale:ru')?.run();
+    expect(reportFailure).toHaveBeenCalledOnce();
+  });
+});
+
+describe('команды приложения: обучающий тур', () => {
+  it('app:tour.start запускает тур и не имеет сочетания по умолчанию', async () => {
+    const { find, startTour } = setup();
+    const command = find('app:tour.start');
+    expect(command).toMatchObject({
+      source: 'app',
+      title: 'Показать обучающий тур',
+    });
+    expect(command?.defaultBindings).toEqual([]);
+    await command?.run();
+    expect(startTour).toHaveBeenCalledOnce();
+  });
+
+  it('на странице, которую тур прервал бы (сессия, вход-тест), команда недоступна', () => {
+    const { find, canStart } = setup();
+    expect(find('app:tour.start')?.enabled).toBe(true);
+    canStart.value = false;
+    expect(find('app:tour.start')?.enabled).toBe(false);
+  });
+
+  it('сбой запуска тура — в уведомление', async () => {
+    const { find, startTour, reportFailure } = setup();
+    startTour.mockRejectedValueOnce(new Error('boom'));
+    await find('app:tour.start')?.run();
     expect(reportFailure).toHaveBeenCalledOnce();
   });
 });

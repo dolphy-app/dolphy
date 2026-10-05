@@ -8,6 +8,10 @@ import { createDolphyVuetify } from './providers/vuetify.ts';
 import { router } from './router';
 import StartupError from './startup-error/StartupError.vue';
 import { registerAppCommands } from '@/features/app-commands';
+import {
+  createOnboardingTour,
+  ONBOARDING_TOUR_KEY,
+} from '@/features/onboarding-tour';
 import { COURSE_SCOPE_KEY, createCourseScope } from '@/features/course-scope';
 import {
   COURSE_UPDATES_KEY,
@@ -124,6 +128,14 @@ const bootstrap = async () => {
           params: { extensionId, panelId },
         }),
     });
+    const onboardingTour = createOnboardingTour({
+      engine,
+      currentRoute: () => router.currentRoute.value.name,
+      navigate: async (name) => {
+        if (router.currentRoute.value.name !== name)
+          await router.push({ name });
+      },
+    });
     const palette = createCommandPalette({ registry });
     const platform = detectPlatform(navigator);
     const contextKeys = createContextKeys(platform, document);
@@ -137,6 +149,8 @@ const bootstrap = async () => {
       registry,
       openPalette: () => palette.open(),
       router,
+      startTour: () => onboardingTour.start(),
+      canStartTour: () => onboardingTour.canStart(),
       t: i18n.global.t,
       themeSelection,
       localeSelection,
@@ -171,6 +185,7 @@ const bootstrap = async () => {
       .provide(EXTENSION_COMMANDS_KEY, extensionCommands)
       .provide(CONTEXT_KEYS_KEY, contextKeys)
       .provide(KEYBINDINGS_KEY, keybindings)
+      .provide(ONBOARDING_TOUR_KEY, onboardingTour)
       .mount('#app');
     if (__DOLPHY_SMOKE_BUILD__ && smoke) {
       const { runSmoke } = await import('./smoke/run-smoke.ts');

@@ -26,10 +26,16 @@
  *   { dolphyFrame: 1, type: 'answer-change', detail }  { value, complete }
  *   { dolphyFrame: 1, type: 'answer-submit' }          в том числе Ctrl/⌘+Enter
  *   { dolphyFrame: 1, type: 'size', height }           высота содержимого, px (answer, markdown, widget)
+ *   { dolphyFrame: 1, type: 'overlay', height }        нужная высота рамки, px, пока открыт оверлей; null — закрыт (answer, markdown, widget)
  *   { dolphyFrame: 1, type: 'done' }                   markdown: блок выведен
  *   { dolphyFrame: 1, type: 'error', message }
  *   { dolphyFrame: 1, type: 'panel-call', callId, command, args }      panel, widget: вызов команды
  *   { dolphyFrame: 1, type: 'shortcut', key: 'mod+k' }                  panel, widget: только Ctrl/⌘+K
+ *
+ * `overlay` рамка шлёт по событию `dolphy-overlay` (`CustomEvent`, `bubbles`
+ * и `composed`, `detail.height`: число ≥ 0 или `null`), которое расширение
+ * бросает на любом своём элементе. Другие значения игнорируются, повтор того
+ * же значения не шлётся; панель событие игнорирует.
  *
  * Режим `panel` занимает всю рамку (высоту задаёт приложение), `size` не
  * шлёт. Режим `widget` — карточка: высоту рамки приложение выбирает по `size`
@@ -65,6 +71,8 @@ const dolphyFrameRuntime = (win, loadModule) => {
     props: {},
     variables: new Set(),
     height: -1,
+    overlayEnabled: false,
+    overlay: null,
     submitting: false,
     observer: null,
     controller: new AbortController(),
@@ -101,6 +109,25 @@ const dolphyFrameRuntime = (win, loadModule) => {
     if (height === state.height) return;
     state.height = height;
     post({ type: 'size', height });
+  };
+
+  const MAX_OVERLAY_HEIGHT = 100000;
+
+  const reportOverlay = (event) => {
+    if (!state.overlayEnabled) return;
+    const height = event.detail?.height;
+    let next;
+    if (height === null) {
+      next = null;
+    } else if (typeof height === 'number' && Number.isFinite(height)) {
+      if (height < 0) return;
+      next = Math.min(Math.ceil(height), MAX_OVERLAY_HEIGHT);
+    } else {
+      return;
+    }
+    if (next === state.overlay) return;
+    state.overlay = next;
+    post({ type: 'overlay', height: next });
   };
 
   const observeSize = () => {
@@ -318,6 +345,9 @@ const dolphyFrameRuntime = (win, loadModule) => {
     init: (message) => {
       if (state.started) return;
       state.started = true;
+      state.overlayEnabled = ['answer', 'markdown', 'widget'].includes(
+        message.mode,
+      );
       const start = Object.hasOwn(starters, message.mode)
         ? starters[message.mode]
         : () => Promise.reject(new Error('unknown mode'));
@@ -411,6 +441,8 @@ const dolphyFrameRuntime = (win, loadModule) => {
     if (message.dolphy !== 1 || typeof message.type !== 'string') return;
     if (Object.hasOwn(handlers, message.type)) handlers[message.type](message);
   });
+
+  doc.addEventListener('dolphy-overlay', reportOverlay);
 
   doc.addEventListener(
     'keydown',

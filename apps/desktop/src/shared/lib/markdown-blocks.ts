@@ -1,7 +1,11 @@
 import type { MarkdownRendererDto } from '@dolphy-app/engine-contract';
 import type { MarkdownRendererModule } from '@dolphy-app/extension-api';
 import { moduleUrlOf } from '@/shared/lib/extension-url.ts';
-import { createFrameHost, frameUrlOf } from '@/shared/lib/frame-bridge.ts';
+import {
+  createFrameHost,
+  frameUrlOf,
+  overlayFrameHeight,
+} from '@/shared/lib/frame-bridge.ts';
 import type { FrameHost } from '@/shared/lib/frame-bridge.ts';
 import { MARKDOWN_BLOCK_CLASS } from './markdown.ts';
 
@@ -91,6 +95,15 @@ const renderInFrame = ({
     frame.style.cssText =
       'display:block;width:100%;height:0;border:0;visibility:hidden;background:transparent';
     block.append(frame);
+    // высота рамки: содержимое, а пока открыт оверлей расширения — запрошенная, не выше окна
+    const size: { content: number; overlay: number | null } = {
+      content: 0,
+      overlay: null,
+    };
+    const applyHeight = () => {
+      const ceiling = block.ownerDocument.defaultView?.innerHeight ?? 0;
+      frame.style.height = `${overlayFrameHeight(size.content, size.overlay, ceiling)}px`;
+    };
     const link: { host: FrameHost | null } = { host: null };
     link.host = createFrameHost({
       frame,
@@ -102,7 +115,12 @@ const renderInFrame = ({
       },
       handlers: {
         onSize: (height) => {
-          frame.style.height = `${height}px`;
+          size.content = height;
+          applyHeight();
+        },
+        onOverlay: (height) => {
+          size.overlay = height;
+          applyHeight();
         },
         onDone: () => {
           pre?.remove();

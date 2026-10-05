@@ -5,6 +5,8 @@ import {
   frameUrlOf,
   MAX_ERROR_CHARS,
   MAX_FRAME_HEIGHT,
+  MAX_OVERLAY_HEIGHT,
+  overlayFrameHeight,
   parseFrameMessage,
 } from '../src/shared/lib/frame-bridge.ts';
 import type {
@@ -80,6 +82,21 @@ describe('parseFrameMessage', () => {
     expect(height(1e9)).toEqual({ type: 'size', height: MAX_FRAME_HEIGHT });
   });
 
+  it('overlay: число (вверх до целого, не более предела) и null; остальное отбрасывается', () => {
+    const overlay = (value: unknown) =>
+      parseFrameMessage(frameMessage({ type: 'overlay', height: value }));
+    expect(overlay(null)).toEqual({ type: 'overlay', height: null });
+    expect(overlay(0)).toEqual({ type: 'overlay', height: 0 });
+    expect(overlay(250.2)).toEqual({ type: 'overlay', height: 251 });
+    expect(overlay(1e9)).toEqual({
+      type: 'overlay',
+      height: MAX_OVERLAY_HEIGHT,
+    });
+    for (const bad of ['10', Number.NaN, Infinity, -1, undefined]) {
+      expect(overlay(bad)).toBeNull();
+    }
+  });
+
   it('обрезает сообщение об ошибке до 10 000 символов', () => {
     const parsed = parseFrameMessage(
       frameMessage({
@@ -135,6 +152,7 @@ const setup = (
     onChange: vi.fn(),
     onSubmit: vi.fn(),
     onSize: vi.fn(),
+    onOverlay: vi.fn(),
     onDone: vi.fn(),
     onError: vi.fn(),
     ...overrides.handlers,
@@ -233,6 +251,8 @@ describe('createFrameHost', () => {
     );
     receive(frameMessage({ type: 'answer-submit' }));
     receive(frameMessage({ type: 'size', height: 99_999 }));
+    receive(frameMessage({ type: 'overlay', height: 500 }));
+    receive(frameMessage({ type: 'overlay', height: null }));
     receive(frameMessage({ type: 'done' }));
     receive(frameMessage({ type: 'error', message: 'boom' }));
     expect(handlers.onChange).toHaveBeenCalledWith({
@@ -241,6 +261,8 @@ describe('createFrameHost', () => {
     });
     expect(handlers.onSubmit).toHaveBeenCalledOnce();
     expect(handlers.onSize).toHaveBeenCalledWith(MAX_FRAME_HEIGHT);
+    expect(handlers.onOverlay).toHaveBeenNthCalledWith(1, 500);
+    expect(handlers.onOverlay).toHaveBeenNthCalledWith(2, null);
     expect(handlers.onDone).toHaveBeenCalledOnce();
     expect(handlers.onError).toHaveBeenCalledWith('boom');
   });
@@ -341,5 +363,22 @@ describe('тема приложения', () => {
     root.className = 'v-application v-theme--light';
     await Promise.resolve();
     expect(listener).not.toHaveBeenCalled();
+  });
+});
+
+describe('overlayFrameHeight', () => {
+  it('без оверлея — высота содержимого', () => {
+    expect(overlayFrameHeight(120, null, 800)).toBe(120);
+  });
+
+  it('оверлей увеличивает рамку, но не уменьшает её ниже содержимого', () => {
+    expect(overlayFrameHeight(120, 400, 800)).toBe(400);
+    expect(overlayFrameHeight(500, 400, 800)).toBe(500);
+  });
+
+  it('запрос не превышает потолок окна; после null — снова высота содержимого', () => {
+    expect(overlayFrameHeight(120, 100_000, 800)).toBe(800);
+    expect(overlayFrameHeight(120, 100_000, 600)).toBe(600);
+    expect(overlayFrameHeight(120, null, 600)).toBe(120);
   });
 });

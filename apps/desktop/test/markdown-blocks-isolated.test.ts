@@ -105,6 +105,21 @@ describe('изолированный рендерер блока Markdown', () =
     expect(frame.style.visibility).toBe('visible');
   });
 
+  it('overlay: рамка растёт до запрошенной высоты не выше окна и возвращается к высоте содержимого', () => {
+    const root = mount('```wild\nE=mc^2\n```');
+    const { frame } = start(root);
+    const { send } = attachWindow(frame);
+    send({ type: 'size', height: 100 });
+    send({ type: 'overlay', height: 400 });
+    expect(frame.style.height).toBe(`${Math.min(400, window.innerHeight)}px`);
+    send({ type: 'overlay', height: 100_000 });
+    expect(frame.style.height).toBe(`${window.innerHeight}px`);
+    send({ type: 'size', height: 120 });
+    expect(frame.style.height).toBe(`${window.innerHeight}px`);
+    send({ type: 'overlay', height: null });
+    expect(frame.style.height).toBe('120px');
+  });
+
   it('error рамки: исходник и заметка остаются, рамка убрана', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const root = mount('```wild\nraw\n```');

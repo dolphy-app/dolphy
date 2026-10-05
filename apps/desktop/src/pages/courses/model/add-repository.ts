@@ -127,11 +127,16 @@ export const useAddRepository = (
     };
   };
 
-  const add = async (courseIds?: string[]): Promise<AddOutcome> => {
+  /** `previewId` — снимок, уже скачанный предпросмотром: движок ставит курсы из него без второй загрузки. */
+  const add = async (
+    previewId: string,
+    courseIds?: string[],
+  ): Promise<AddOutcome> => {
     const result = await run(() =>
       engine.repositories.add({
         ...source(),
         ...(courseIds !== undefined && { courseIds }),
+        previewId,
       }),
     );
     return result.status === 'done'
@@ -181,7 +186,9 @@ export const useAddRepository = (
       );
     }
     const available = selectableIds(courses);
-    if (courses.length === 1 && available.size === 1) return add();
+    if (courses.length === 1 && available.size === 1) {
+      return add(result.value.previewId);
+    }
     preview.value = result.value;
     selected.value = available;
     step.value = 'courses';
@@ -191,7 +198,9 @@ export const useAddRepository = (
   /** Шаг 2: добавить отмеченные курсы. */
   const confirm = async (): Promise<AddOutcome> => {
     if (!canConfirm.value) return { status: 'invalid' };
-    return add([...selected.value]);
+    const previewId = preview.value?.previewId;
+    if (previewId === undefined) return { status: 'invalid' };
+    return add(previewId, [...selected.value]);
   };
 
   const back = () => {

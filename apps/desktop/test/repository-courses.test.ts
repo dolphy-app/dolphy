@@ -154,6 +154,7 @@ const listing = (courses: RepositoryCourseDto[]): RepositoryPreviewDto => ({
   ref: 'v1',
   commit: 'b'.repeat(40),
   courses,
+  previewId: 'p1',
 });
 
 const mount = (engine: LearningEngine) =>

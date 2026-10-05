@@ -263,18 +263,24 @@ describe('курсы из git-репозитория', () => {
       [REMOTE_COURSE.name, second.name].sort(),
     );
     // «Назад → Далее»: предпросмотр берётся из кэша окна, список тот же
+    const requestsAfterPreview = server.requests.length;
+    expect(requestsAfterPreview).toBeGreaterThan(0);
     await client.backToAddress();
     await client.submitAdd(server.urlOf('pair'));
     expect((await client.chooserCourses()).sort()).toEqual(
       [REMOTE_COURSE.name, second.name].sort(),
     );
+    expect(server.requests.length).toBe(requestsAfterPreview);
     expect(await client.courseCheckbox(REMOTE_COURSE.name).isChecked()).toBe(
       true,
     );
     expect(await client.courseCheckbox(second.name).isChecked()).toBe(true);
     await client.courseCheckbox(second.name).uncheck();
+    // «Добавить» ставит курсы из снимка предпросмотра: новых запросов к серверу нет
+    const requestsAtConfirm = server.requests.length;
     await client.confirmChoice();
     await client.waitAdded();
+    expect(server.requests.length).toBe(requestsAtConfirm);
     await client.courseCard(REMOTE_COURSE.name).waitFor({ timeout: 15_000 });
     expect((await client.courseNames()).sort()).toEqual(
       [...before, REMOTE_COURSE.name].sort(),
@@ -305,8 +311,11 @@ describe('курсы из git-репозитория', () => {
     );
     expect(await client.courseCheckbox(second.name).isChecked()).toBe(false);
     await client.courseCheckbox(second.name).check();
+    // выбор применяется из снимка предпросмотра: новых запросов к серверу нет
+    const requestsAtApply = server.requests.length;
     await client.applyChoice();
     await client.waitUpdateNotice('updated-two');
+    expect(server.requests.length).toBe(requestsAtApply);
     await expect
       .poll(() => readRepositories(workspace.userData)[0]?.courseIds.sort(), {
         timeout: 30_000,

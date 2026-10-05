@@ -14,6 +14,7 @@ const listing: RepositoryPreviewDto = {
   ref: null,
   commit: 'a'.repeat(40),
   courses: [],
+  previewId: 'p1',
 };
 
 const setup = () => {

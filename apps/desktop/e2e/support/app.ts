@@ -160,6 +160,43 @@ export const createWorkspace = async (
   };
 };
 
+/** Тот же Electron, что запускает `launchApp`: копия с `LSUIElement` на macOS, пока окна не показываются. */
+const executablePathOf = (): string =>
+  process.platform === 'darwin' && !E2E_SHOW
+    ? quietElectronPath
+    : (createRequire(import.meta.url)('electron') as string);
+
+/**
+ * Второй запуск приложения с теми же `userData` и аргументами ссылки, как это
+ * делает ОС на Windows и Linux при открытии `dolphy://…`: процесс видит замок
+ * единственного экземпляра, передаёт аргументы первому и завершается. Ждёт
+ * завершения второго процесса.
+ */
+export const launchSecondInstance = async (
+  userData: string,
+  args: readonly string[],
+  env?: Record<string, string>,
+): Promise<void> => {
+  await execFileAsync(
+    executablePathOf(),
+    [
+      join(E2E_BUILD_DIR, 'dist-electron/main/index.js'),
+      `--user-data-dir=${userData}`,
+      '--lang=ru',
+      ...args,
+    ],
+    {
+      cwd: APP_DIR,
+      env: {
+        ...(process.env as Record<string, string>),
+        DOLPHY_HIDDEN_WINDOW: '1',
+        ...env,
+      },
+      timeout: 30_000,
+    },
+  );
+};
+
 export interface DolphyApp {
   readonly page: Page;
   /**
@@ -196,10 +233,7 @@ export const launchApp = async (
   /** Дополнительные аргументы командной строки приложения (`--safe-mode`). */
   extraArgs: readonly string[] = [],
 ): Promise<DolphyApp> => {
-  const executablePath =
-    process.platform === 'darwin' && !E2E_SHOW
-      ? quietElectronPath
-      : (createRequire(import.meta.url)('electron') as string);
+  const executablePath = executablePathOf();
   const app: ElectronApplication = await electron.launch({
     executablePath,
     cwd: APP_DIR,

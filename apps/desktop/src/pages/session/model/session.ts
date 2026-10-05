@@ -49,6 +49,13 @@ export interface SessionOptions {
   seed?: number;
   /** Курс, по которому строится сессия; без него — все курсы. */
   courseId?: UnitId;
+  /** Идентификатор запроса отмены и возврата; по умолчанию `crypto.randomUUID`. */
+  newRequestId?: () => string;
+}
+
+interface AnsweredItem {
+  index: number;
+  result: RecordResultDto;
 }
 
 const PASSING_GRADE = 3;
@@ -71,6 +78,11 @@ export const createSession = (
   const position = ref(0);
   const total = ref(0);
   const results = shallowRef<RecordResultDto[]>([]);
+  /** Записанные ответы по порядку: что снимает «Отменить». `index` — упражнение плана. */
+  const answered = shallowRef<AnsweredItem[]>([]);
+  /** Отменённые ответы: что возвращает «Вернуть»; новый ответ их сбрасывает. */
+  const undone = shallowRef<AnsweredItem[]>([]);
+  const newRequestId = options.newRequestId ?? (() => crypto.randomUUID());
   let items: PlanItemDto[] = [];
   /** Сессия движка (`startSession`): id нужен, чтобы сообщить о конце обучения. */
   let engineSession: Promise<string | null> | null = null;
@@ -162,6 +174,11 @@ export const createSession = (
       ...grading,
     });
     results.value = [...results.value, recorded];
+    answered.value = [
+      ...answered.value,
+      { index: position.value - 1, result: recorded },
+    ];
+    undone.value = [];
     result.value = recorded;
     if (recorded.remediation?.active) {
       const steps = recorded.remediation.steps;
@@ -245,6 +262,56 @@ export const createSession = (
 
   const next = () => guarded(advance);
 
+  const canStep = () =>
+    !busy.value &&
+    (stage.value === 'answering' ||
+      stage.value === 'reviewed' ||
+      stage.value === 'finished');
+  const canUndo = computed(() => canStep() && answered.value.length > 0);
+  const canRedo = computed(() => canStep() && undone.value.length > 0);
+
+  /** Показывает упражнение плана `index`; за концом плана — итог. */
+  const goTo = async (index: number) => {
+    if (index >= total.value) {
+      stage.value = 'finished';
+      finishEngineSession();
+      return;
+    }
+    await openExercise(index);
+  };
+
+  /** Снимает последний записанный ответ и возвращает то же упражнение. */
+  const undo = async () => {
+    const last = answered.value.at(-1);
+    if (last === undefined || !canUndo.value) return;
+    await guarded(async () => {
+      await engine.practice.undo({
+        targetId: last.result.eventId,
+        requestId: newRequestId(),
+      });
+      answered.value = answered.value.slice(0, -1);
+      results.value = results.value.filter((item) => item !== last.result);
+      undone.value = [...undone.value, last];
+      await openExercise(last.index);
+    });
+  };
+
+  /** Возвращает последний отменённый ответ и переходит к следующему упражнению. */
+  const redo = async () => {
+    const last = undone.value.at(-1);
+    if (last === undefined || !canRedo.value) return;
+    await guarded(async () => {
+      await engine.practice.redo({
+        targetId: last.result.eventId,
+        requestId: newRequestId(),
+      });
+      undone.value = undone.value.slice(0, -1);
+      answered.value = [...answered.value, last];
+      results.value = [...results.value, last.result];
+      await goTo(last.index + 1);
+    });
+  };
+
   return {
     stage,
     busy,
@@ -263,5 +330,9 @@ export const createSession = (
     reveal,
     selfGrade,
     next,
+    canUndo,
+    canRedo,
+    undo,
+    redo,
   };
 };

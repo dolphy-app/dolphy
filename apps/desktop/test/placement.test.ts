@@ -93,6 +93,11 @@ const createFakeEngine = (options: FakeOptions = {}) => {
     finish: [] as PlacementFinishRequest[],
     abort: [] as string[],
     submitted: [] as SubmitAnswerRequest[],
+    retract: [] as {
+      op: 'undo' | 'redo';
+      targetId: string;
+      requestId: string;
+    }[],
   };
   let answered = 0;
   let sessions = 0;
@@ -177,6 +182,26 @@ const createFakeEngine = (options: FakeOptions = {}) => {
         const verdict = verdicts.shift();
         if (!verdict) throw new Error('no verdict queued');
         return verdict;
+      },
+      undo: async ({
+        targetId,
+        requestId,
+      }: {
+        targetId: string;
+        requestId: string;
+      }) => {
+        calls.retract.push({ op: 'undo', targetId, requestId });
+        return { eventId: requestId, duplicate: false, changed: true };
+      },
+      redo: async ({
+        targetId,
+        requestId,
+      }: {
+        targetId: string;
+        requestId: string;
+      }) => {
+        calls.retract.push({ op: 'redo', targetId, requestId });
+        return { eventId: requestId, duplicate: false, changed: true };
       },
     },
     placement: {
@@ -498,5 +523,45 @@ describe('placement model', () => {
 
     await Promise.all([placement.selfGrade(3), placement.selfGrade(5)]);
     expect(calls.answer).toHaveLength(1);
+  });
+});
+
+describe('placement result undo', () => {
+  const finished = async () => {
+    const fake = createFakeEngine({ probes: [probe(1)] });
+    const placement = newPlacement(fake.engine);
+    await placement.init();
+    await placement.begin();
+    await placement.selfGrade(4);
+    expect(placement.stage.value).toBe('finished');
+    return { placement, calls: fake.calls };
+  };
+
+  it('undoes the whole batch by the finish requestId and restores it', async () => {
+    const { placement, calls } = await finished();
+    expect(placement.undone.value).toBe(false);
+
+    await placement.undoResult();
+    expect(placement.undone.value).toBe(true);
+    expect(calls.retract).toEqual([
+      { op: 'undo', targetId: 'request-1', requestId: 'request-2' },
+    ]);
+
+    await placement.redoResult();
+    expect(placement.undone.value).toBe(false);
+    expect(calls.retract.at(-1)).toEqual({
+      op: 'redo',
+      targetId: 'request-1',
+      requestId: 'request-3',
+    });
+  });
+
+  it('does nothing twice: undo of an undone result and redo of a live one', async () => {
+    const { placement, calls } = await finished();
+    await placement.redoResult();
+    expect(calls.retract).toEqual([]);
+    await placement.undoResult();
+    await placement.undoResult();
+    expect(calls.retract).toHaveLength(1);
   });
 });

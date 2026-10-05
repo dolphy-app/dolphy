@@ -86,9 +86,13 @@ export const createPlacement = (
   const verdict = shallowRef<VerdictDto | null>(null);
   const revealed = ref(false);
   const result = shallowRef<PlacementResultView | null>(null);
+  /** Результат отменён (`practice.undo`): записанные тестом попытки не действуют. */
+  const undone = ref(false);
 
   let sessionId: string | null = null;
   let requestId: string | null = null;
+  /** `requestId` завершённого теста: по нему `practice.undo` снимает всю пачку попыток. */
+  let finishedId: string | null = null;
   let step: Step = 'load';
   let lessonNames = new Map<UnitId, string>();
 
@@ -175,6 +179,8 @@ export const createPlacement = (
     requestId ??= newRequestId();
     const summary = await engine.placement.finish({ sessionId, requestId });
     result.value = describeSummary(summary, lessonNames);
+    undone.value = false;
+    finishedId = requestId;
     current.value = null;
     sessionId = null;
     requestId = null;
@@ -330,6 +336,28 @@ export const createPlacement = (
     }
   };
 
+  /** «Отменить результат»: попытки теста перестают влиять на траекторию, в журнале остаются. */
+  const undoResult = () =>
+    guarded(async () => {
+      if (finishedId === null || undone.value) return;
+      await engine.practice.undo({
+        targetId: finishedId,
+        requestId: newRequestId(),
+      });
+      undone.value = true;
+    });
+
+  /** «Вернуть результат» после отмены. */
+  const redoResult = () =>
+    guarded(async () => {
+      if (finishedId === null || !undone.value) return;
+      await engine.practice.redo({
+        targetId: finishedId,
+        requestId: newRequestId(),
+      });
+      undone.value = false;
+    });
+
   return {
     stage,
     busy,
@@ -341,6 +369,7 @@ export const createPlacement = (
     verdict,
     revealed,
     result,
+    undone,
     checked,
     passed,
     position,
@@ -354,5 +383,7 @@ export const createPlacement = (
     reveal,
     finishEarly,
     abort,
+    undoResult,
+    redoResult,
   };
 };

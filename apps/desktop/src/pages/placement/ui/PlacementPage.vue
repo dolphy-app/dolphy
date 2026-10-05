@@ -30,6 +30,7 @@ const {
   verdict,
   revealed,
   result,
+  undone,
   checked,
   passed,
   position,
@@ -134,8 +135,12 @@ const leave = async () => {
       <PlacementResult
         v-else-if="stage === 'finished' && result"
         :result="result"
+        :undone="undone"
+        :busy="busy"
         @to-plan="toPlan"
         @open-graph="openGraph"
+        @undo="placement.undoResult()"
+        @redo="placement.redoResult()"
       />
 
       <template v-else-if="probing && current">

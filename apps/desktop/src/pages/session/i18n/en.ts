@@ -8,6 +8,8 @@ export const en: typeof ru = {
       pause: 'Pause',
       progress: 'Session progress',
       time: 'Time',
+      undo: 'Undo the last answer',
+      redo: 'Redo the undone answer',
     },
     empty: {
       title: 'Nothing to practice today',

@@ -51,6 +51,10 @@ export const en: typeof ru = {
         'This result was already saved earlier: no attempts were added again.',
       toPlan: 'Go to daily plan',
       openGraph: 'Open knowledge graph',
+      undo: 'Undo the result',
+      redo: 'Restore the result',
+      undone:
+        'The result is undone: the attempts recorded by the test no longer count, and your daily plan starts without them. You can restore it.',
     },
     backToCourses: 'Back to courses',
   },

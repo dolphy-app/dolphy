@@ -7,9 +7,11 @@ defineProps<{
   /** Доля пройденных упражнений, 0..100. */
   progress: number;
   elapsed: string;
+  canUndo: boolean;
+  canRedo: boolean;
 }>();
 
-defineEmits<{ exit: []; pause: [] }>();
+defineEmits<{ exit: []; pause: []; undo: []; redo: [] }>();
 const { t } = useI18n();
 </script>
 
@@ -45,6 +47,22 @@ const { t } = useI18n();
         <div class="text-title-medium font-weight-bold tabular">
           {{ elapsed }}
         </div>
+      </div>
+      <div class="d-flex align-center">
+        <v-btn
+          icon="mdi-undo"
+          variant="text"
+          :disabled="!canUndo"
+          :aria-label="t('session.topBar.undo')"
+          @click="$emit('undo')"
+        />
+        <v-btn
+          icon="mdi-redo"
+          variant="text"
+          :disabled="!canRedo"
+          :aria-label="t('session.topBar.redo')"
+          @click="$emit('redo')"
+        />
       </div>
       <v-btn
         icon="mdi-pause"

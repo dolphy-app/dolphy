@@ -1,13 +1,15 @@
 ---
-status: active
+status: done
 branch: feature/extension-distribution-ux
 created: 2026-10-04
-closed: null
+closed: 2026-10-05
 touches: [engine-contract, engine-rpc, engine, engine-sqlite, extension-catalog, extension-install, extension-host, extension-tools, desktop]
 depends-on: [specs/archive/2026-10-04-extension-housekeeping, specs/archive/2026-10-03-catalog-metadata]
 supersedes: null
 superseded-by: null
 ---
+
+> Исторический документ. Не источник требований.
 
 # Распространение расширений: страница расширения, «Что нового», обновления, устаревание, ссылка установки, адрес каталога
 
@@ -69,7 +71,7 @@ superseded-by: null
 - [x] 5b. Окно: страница расширения, рендер README, «Что нового» в диалоге обновления, предупреждение об устаревании, глобальный индикатор; i18n, юнит-тесты, e2e, axe
 - [x] 5c. Адрес каталога: поле контракта, сервис, RPC, адаптеры; переключаемый установщик; правка отзыва по `catalogUrl`; блок «Дополнительно», «Из другого каталога»; тесты, e2e
 - [x] 5d. Ссылка установки: разбор, оболочка, мост и модель окна, `electron-builder.json`, проверка `Info.plist` в `smoke:packaged`; тесты, e2e
-- [ ] 5e. Документация, ADR, PR в репозиторий каталога (список выше), `Outcomes`, архив
+- [x] 5e. Документация, ADR 0020, `Outcomes`, архив (PR в репозиторий каталога — BLOCKED до выхода `@dolphy-app/extension-tools`, см. `Outcomes`)
 
 ## Surprises & Discoveries
 
@@ -110,4 +112,8 @@ superseded-by: null
 
 ## Outcomes
 
-Заполняется при закрытии.
+Сделано: R1–R13 в коде (стадии 5a–5d): страница расширения с безопасным README и журналом изменений, версии и кэш файлов по `sha256`, `deprecated.json` и пометка в индексе и окне, индикатор обновлений, адрес каталога как настройка с пометкой «Из другого каталога», ссылка `dolphy://extensions/install/<id>` и регистрация схемы. Долговечное содержимое перенесено в `docs/design/extensions.md` («Установка и каталог»), `apps/desktop/README.md`, README `@dolphy-app/extension-tools` и `packages/README.md`; решение — ADR 0020.
+
+Отличия от плана: кэш файлов версии без ETag, по `sha256`; состояние установки и `InstallDialog` один на окно в `App.vue`; `elsewhere` — отдельный вид действия; контракт повышен на 5a и 5c, ссылка контракта не меняла (подробности — `Decision Log`). Отдельного README у `@dolphy-app/extension-install` нет: описание пакета — строка в `packages/README.md`.
+
+Осталось (BLOCKED до следующего выпуска `@dolphy-app/extension-tools`, PR в `dolphy-app/dolphy-extensions`, репозиторий не тронут): (1) поднять `@dolphy-app/extension-tools`; (2) добавить `deprecated.json` (`[]`); (3) `deploy.yml`: `deprecated.json` в `paths`, флаг `--deprecated deprecated.json` в сборке и в ветке `--reindex`; (4) `pr-check.yml`: `deprecated.json` в `paths`, `catalog check --deprecated deprecated.json --published-index published.json`; (5) README и `AGENTS.md` каталога (английский): `CHANGELOG.md`, `deprecated.json`, процесс устаревания; `skills/extension-reviewer/SKILL.md`: проверка причины и альтернатив. Проверка ссылки операционной системой на собранном приложении — вручную.

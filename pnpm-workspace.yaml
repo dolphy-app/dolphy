@@ -9,4 +9,5 @@ shamefullyHoist: true
 # pnpm ≥ 10 fails on dependency build scripts that are not decided explicitly.
 allowBuilds:
   electron-winstaller: false
+  esbuild: false
   vue-demi: false

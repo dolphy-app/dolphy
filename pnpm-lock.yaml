@@ -114,6 +114,9 @@ importers:
       '@dolphy-app/extension-install':
         specifier: workspace:*
         version: link:../../packages/extension-install
+      '@dolphy-app/extension-ui':
+        specifier: workspace:*
+        version: link:../../packages/extension-ui
       '@dolphy-app/keybindings':
         specifier: workspace:*
         version: link:../../packages/keybindings
@@ -576,6 +579,18 @@ importers:
       ajv:
         specifier: ^8
         version: 8.20.0
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  packages/extension-ui:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.20.4
+        version: 22.20.4
+      happy-dom:
+        specifier: ^20.14.5
+        version: 20.14.5
       typescript:
         specifier: 7.0.2
         version: 7.0.2

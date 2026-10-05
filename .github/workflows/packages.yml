@@ -55,6 +55,6 @@ jobs:
       - name: Publish (dry run, no token needed)
         shell: bash
         run: |
-          for short in extension-api keybindings extension-sdk extension-tools create-extension; do
+          for short in extension-api keybindings extension-ui extension-sdk extension-tools create-extension; do
             (cd "dist-publish/$short" && npm publish --dry-run)
           done

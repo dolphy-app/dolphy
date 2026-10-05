@@ -305,7 +305,12 @@ export const createFrameHost = (options: FrameHostOptions): FrameHost => {
   };
   const postTheme = () => {
     const { variables, dark } = theme.read();
-    post({ type: 'theme', variables, dark });
+    post({
+      type: 'theme',
+      variables,
+      dark,
+      lang: frame.ownerDocument.documentElement.lang,
+    });
   };
   // вызовы команд и сочетание принимает только рамка панели или виджета, привязанная приложением
   const handleCall =

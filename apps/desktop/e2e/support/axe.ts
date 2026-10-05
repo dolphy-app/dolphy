@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import type { Page } from 'playwright-core';
+import type { Frame, Page } from 'playwright-core';
 
 export interface AxeViolation {
   id: string;
@@ -23,13 +23,15 @@ const axeSource = (): Promise<string> => {
  * Проверка доступности текущего экрана движком `axe-core` (без сети: скрипт
  * подставляется в страницу). Возвращает нарушения; пустой список — чисто.
  * `include` — селектор области (диалоги Vuetify лежат в `body`, а не в корне приложения).
+ * `page` может быть рамкой (`Frame`, например панелью расширения). `impacts` оставляет
+ * только нарушения указанной важности.
  */
 export const runAxe = async (
-  page: Page,
-  options: { include?: string } = {},
+  page: Page | Frame,
+  options: { include?: string; impacts?: readonly string[] } = {},
 ): Promise<AxeViolation[]> => {
   await page.evaluate(await axeSource());
-  return page.evaluate(async (include) => {
+  const violations = await page.evaluate(async (include) => {
     const context = include === undefined ? document : { include: [include] };
     const result = await (
       globalThis as unknown as {
@@ -53,4 +55,10 @@ export const runAxe = async (
       nodes: violation.nodes.map((node) => node.target.join(' ')),
     }));
   }, options.include);
+  const { impacts } = options;
+  return impacts === undefined
+    ? violations
+    : violations.filter((violation) =>
+        impacts.includes(violation.impact ?? ''),
+      );
 };

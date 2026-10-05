@@ -1,3 +1,4 @@
+import { isEffectiveExtensionState } from '@dolphy-app/engine-contract';
 import { onScopeDispose, ref, shallowRef } from 'vue';
 import type {
   ContributionTitlesDto,
@@ -187,7 +188,7 @@ export const hasNotifications = (extension: ExtensionInfoDto): boolean =>
 export const hasSwitches = (extension: ExtensionInfoDto): boolean =>
   extension.toggleable &&
   extension.revoked === null &&
-  (extension.state === 'loaded' || extension.state === 'disabled');
+  isEffectiveExtensionState(extension.state);
 
 /** Ключ переключателя в списке занятых запросом. */
 const switchKey = (id: string, which: ExtensionSwitch) => `${which}:${id}`;

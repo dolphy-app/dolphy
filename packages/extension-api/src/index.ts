@@ -452,6 +452,21 @@ export interface GradePolicyContribution {
   label: string;
 }
 
+/** Most entries in `dependencies`. */
+export const MAX_EXTENSION_DEPENDENCIES = 16;
+
+/**
+ * Another extension this one needs (`dependencies`). The extension loads only
+ * while the dependency is installed, enabled, loaded and its version fits
+ * `range`; the app never installs a dependency on its own.
+ */
+export interface ExtensionDependency {
+  /** Id of the required extension; not the extension's own id, unique in the list. */
+  id: string;
+  /** Version range: space-separated comparators that must all hold (`>=1.2.0 <2.0.0`; operators `<`, `<=`, `>=`, `>`, `=`; bare `1.2.0` means `=1.2.0`); `null` — any version. */
+  range: string | null;
+}
+
 /** Normalized manifest: all defaults applied. */
 export interface ExtensionManifest {
   id: string;
@@ -475,6 +490,8 @@ export interface ExtensionManifest {
   icon: string | null;
   /** Explicit catalog tags (from `EXTENSION_TAGS`); empty — the catalog derives tags from contributions. */
   tags: ExtensionTag[];
+  /** Extensions this one needs; empty — none. */
+  dependencies: ExtensionDependency[];
   contributes: {
     exerciseTypes: ExerciseTypeContribution[];
     themes: ThemeContribution[];
@@ -539,6 +556,8 @@ export interface ExtensionManifestInput {
   icon?: string;
   /** Up to 5 unique catalog tags from `EXTENSION_TAGS`; no key — no explicit tags. */
   tags?: ExtensionTag[];
+  /** Up to `MAX_EXTENSION_DEPENDENCIES` extensions this one needs, without the extension itself and repeats; no key — none. */
+  dependencies?: { id: string; range?: string }[];
   contributes: {
     exerciseTypes?: ExerciseTypeContributionInput[];
     themes?: ThemeContribution[];

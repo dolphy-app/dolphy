@@ -25,6 +25,10 @@ const sameSet = (a: readonly string[], b: readonly string[]): boolean => {
   return left.size === right.size && [...left].every((x) => right.has(x));
 };
 
+const dependencyKeys = (
+  dependencies: readonly { id: string; range?: string | null | undefined }[],
+): string[] => dependencies.map(({ id, range }) => `${id}@${range ?? ''}`);
+
 /** Сообщение о расхождении скачанного каталога с записью индекса; `null` — совпадает. */
 export const manifestMismatch = (
   manifest: InspectedManifest,
@@ -45,6 +49,14 @@ export const manifestMismatch = (
   }
   if (!sameSet(manifest.tags, version.tags ?? [])) {
     return 'manifest tags differ from the catalog entry';
+  }
+  if (
+    !sameSet(
+      dependencyKeys(manifest.dependencies),
+      dependencyKeys(version.dependencies ?? []),
+    )
+  ) {
+    return 'manifest dependencies differ from the catalog entry';
   }
   const changed = CONTRIBUTION_KEYS.find(
     (key) => !sameSet(manifest.contributes[key], entry.contributes[key] ?? []),

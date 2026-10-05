@@ -39,6 +39,7 @@ const info = (id: string): ExtensionInfoDto => ({
   name: null,
   description: null,
   author: null,
+  dependencies: [],
   installed: null,
   icon: null,
   titles: {},

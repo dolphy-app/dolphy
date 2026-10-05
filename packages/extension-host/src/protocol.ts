@@ -566,6 +566,7 @@ const isResolvedExtension = (value: unknown): value is ResolvedExtension => {
       item.origin === 'user' ||
       item.origin === 'dev') &&
     Array.isArray(item.permissions) &&
+    Array.isArray(item.dependencies) &&
     typeof item.messages === 'object' &&
     item.messages !== null &&
     Array.isArray(item.warnings) &&

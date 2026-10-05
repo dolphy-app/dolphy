@@ -310,6 +310,7 @@ describe('createFakeExtensionRegistry', () => {
       name: null,
       description: null,
       author: null,
+      dependencies: [],
       icon: null,
       titles: {},
       messages: {},

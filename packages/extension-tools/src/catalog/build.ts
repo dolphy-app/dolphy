@@ -284,6 +284,14 @@ const newRecord = (staged: Staged, publishedAt: string): CatalogVersion => ({
   ...(staged.manifest.tags.length === 0
     ? {}
     : { tags: [...staged.manifest.tags] }),
+  ...(staged.manifest.dependencies.length === 0
+    ? {}
+    : {
+        dependencies: staged.manifest.dependencies.map(({ id, range }) => ({
+          id,
+          ...(range === null ? {} : { range }),
+        })),
+      }),
 });
 
 const plan = async (

@@ -2,6 +2,7 @@ import {
   LOG_LEVELS,
   MAX_ANSWER_CHARS,
   MAX_LOG_ENTRIES,
+  isEffectiveExtensionState,
 } from '@dolphy-app/engine-contract';
 import type {
   CatalogDto,
@@ -143,6 +144,7 @@ const copyInfo = (info: ExtensionInfoDto): ExtensionInfoDto => ({
   },
   diagnostics: structuredClone(info.diagnostics),
   permissions: [...info.permissions],
+  dependencies: info.dependencies.map((dependency) => ({ ...dependency })),
   titles: structuredClone(info.titles),
   messages: structuredClone(info.messages),
   tags: [...info.tags],
@@ -213,9 +215,7 @@ const findToggleable = (
       details: { extensionId: id },
     });
   }
-  const effective = known.find(
-    ({ state }) => state === 'loaded' || state === 'disabled',
-  );
+  const effective = known.find(({ state }) => isEffectiveExtensionState(state));
   if (effective === undefined || effective.origin === 'bundled') {
     throw new EngineError('INVALID_ARGUMENT', {
       message: `Extension '${id}' cannot be configured`,
@@ -733,8 +733,7 @@ export const createExtensionsService = (
         .list()
         .find(
           (item) =>
-            item.id === extensionId &&
-            (item.state === 'loaded' || item.state === 'disabled'),
+            item.id === extensionId && isEffectiveExtensionState(item.state),
         );
       if (info === undefined) {
         throw failed('unknown-command', `Extension not found: ${extensionId}`);

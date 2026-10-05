@@ -4,6 +4,7 @@ import {
   EXTENSION_PLATFORMS,
   EXTENSION_TAGS,
   GITHUB_LOGIN_PATTERN,
+  MAX_EXTENSION_DEPENDENCIES,
 } from '@dolphy-app/extension-api';
 import type { ExtensionTag } from '@dolphy-app/extension-api';
 import { z } from 'zod';
@@ -283,6 +284,40 @@ const tagsSchemaOf = (
     z.ZodType<ExtensionTag[]>
   >;
 
+const strictDependencies = z
+  .array(
+    z.strictObject({
+      id: extensionId,
+      range: rangeText.optional(),
+    }),
+  )
+  .max(MAX_EXTENSION_DEPENDENCIES)
+  .superRefine((items, ctx) => {
+    items.forEach(({ id }, index) => {
+      if (items.findIndex((item) => item.id === id) !== index) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [index, 'id'],
+          message: `duplicate dependency '${id}'`,
+        });
+      }
+    });
+  });
+
+/** The tolerant reader drops an unreadable `dependencies`; the version stays. */
+const tolerantDependencies = z
+  .array(
+    z.object({
+      id: extensionId,
+      range: rangeText.optional(),
+    }),
+  )
+  .max(MAX_EXTENSION_DEPENDENCIES)
+  .catch([]);
+
+const dependenciesSchemaOf = (profile: Profile) =>
+  (profile.strict ? strictDependencies : tolerantDependencies).optional();
+
 const versionSchemaOf = (profile: Profile) =>
   object(profile, {
     version: semver,
@@ -300,6 +335,8 @@ const versionSchemaOf = (profile: Profile) =>
       .optional(),
     /** Explicit tags of the version (a closed vocabulary); the tolerant reader drops the ones it does not know. */
     tags: tagsSchemaOf(profile),
+    /** Extensions the version needs (`dependencies` of the manifest); no key — none. */
+    dependencies: dependenciesSchemaOf(profile),
   });
 
 const contributesSchemaOf = (profile: Profile) =>

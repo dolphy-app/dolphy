@@ -1,3 +1,6 @@
+import { rowsOfCatalog, rowsOfInstalled } from './dependencies.ts';
+import type { DependencyRow } from './dependencies.ts';
+import { isEffectiveExtensionState } from '@dolphy-app/engine-contract';
 import type {
   CatalogEntryDto,
   CatalogListedVersionDto,
@@ -70,10 +73,12 @@ export interface ExtensionDetails {
   action: EntryAction | null;
   /** Установленное можно удалить. */
   removable: boolean;
+  /** Зависимости показанной версии: установленной — с состоянием из диагностик, версии каталога — с отметкой «установлено / нет». */
+  dependencies: DependencyRow[];
 }
 
 const isActive = (info: ExtensionInfoDto) =>
-  info.state === 'loaded' || info.state === 'disabled';
+  isEffectiveExtensionState(info.state);
 
 const shownTags = (
   info: ExtensionInfoDto | null,
@@ -127,6 +132,8 @@ export const describeDetails = (
   entry: CatalogEntryDto | null,
   update: ExtensionUpdateDto | null,
   selected: string | null,
+  /** Установленные расширения для отметок зависимостей каталога; `null` — список не получен. */
+  installed: readonly ExtensionInfoDto[] | null = null,
 ): ExtensionDetails | null => {
   if (info === null && entry === null) return null;
   const contributes = info?.contributes ?? entry?.contributes;
@@ -162,5 +169,9 @@ export const describeDetails = (
     })),
     action: actionOf(entry, update),
     removable: info?.removable === true,
+    dependencies:
+      info === null
+        ? rowsOfCatalog(entry?.latest?.dependencies ?? [], installed)
+        : rowsOfInstalled(info),
   };
 };

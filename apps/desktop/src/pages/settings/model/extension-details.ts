@@ -72,6 +72,7 @@ export const useExtensionDetails = (
   const state = ref<DetailsState>('loading');
   const error = ref<string | null>(null);
   const info = shallowRef<ExtensionInfoDto | null>(null);
+  const installedList = shallowRef<readonly ExtensionInfoDto[] | null>(null);
   const entry = shallowRef<CatalogEntryDto | null>(null);
   const update = shallowRef<ExtensionUpdateDto | null>(null);
   const catalogError = ref<string | null>(null);
@@ -89,6 +90,7 @@ export const useExtensionDetails = (
       entry.value,
       update.value,
       docs.value.status === 'ready' ? docs.value.docs.version : selected.value,
+      installedList.value,
     ),
   );
 
@@ -134,6 +136,7 @@ export const useExtensionDetails = (
           })),
       ]);
       if (request !== lastLoad) return;
+      installedList.value = list;
       info.value = installedOf(list, wanted);
       update.value = available.find((item) => item.id === wanted) ?? null;
       entry.value =

@@ -26,6 +26,7 @@ const extension = (
   name: null,
   description: null,
   author: null,
+  dependencies: [],
   platforms: [],
   minAppVersion: null,
   icon: null,

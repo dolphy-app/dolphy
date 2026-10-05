@@ -115,6 +115,34 @@ describe('runCli', () => {
     expect(upper.stderr()).toMatch(/importers\.0\.accept\.0: /);
   });
 
+  it('validate: dependencies with a range pass; itself, a repeat and a bad range are refused with the field path', async () => {
+    const root = await copyProject('hello');
+    const built = createIo();
+    expect(await runCli(['build', root], built.io), built.stderr()).toBe(0);
+    const dir = path.join(root, 'dist-ext', 'acme.hello');
+    const manifestPath = path.join(dir, 'extension.json');
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as object;
+    const run = async (dependencies: unknown[]) => {
+      await writeFile(
+        manifestPath,
+        JSON.stringify({ ...manifest, dependencies }),
+      );
+      const io = createIo();
+      return { code: await runCli(['validate', dir], io.io), err: io.stderr() };
+    };
+
+    expect(
+      (await run([{ id: 'acme.base', range: '>=1.0.0 <2.0.0' }])).code,
+    ).toBe(0);
+    const self = await run([{ id: 'acme.hello' }]);
+    expect(self.code).toBe(1);
+    expect(self.err).toMatch(/dependencies\.0\.id: .*itself/);
+    const repeat = await run([{ id: 'acme.a' }, { id: 'acme.a' }]);
+    expect(repeat.err).toMatch(/dependencies\.1\.id: duplicate/);
+    const range = await run([{ id: 'acme.a', range: 'newer' }]);
+    expect(range.err).toMatch(/dependencies\.0\.range: /);
+  });
+
   it('validate: `when` of a command, a panel and a widget is checked with the position of the problem', async () => {
     const root = await copyProject('commands-panel');
     const built = createIo();

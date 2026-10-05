@@ -1,4 +1,7 @@
-import { MAX_EXTENSION_TRANSFER_BYTES } from '@dolphy-app/engine-contract';
+import {
+  MAX_EXTENSION_TRANSFER_BYTES,
+  isEffectiveExtensionState,
+} from '@dolphy-app/engine-contract';
 import type {
   CommitImportResultDto,
   Diagnostic,
@@ -247,8 +250,7 @@ export const createExtensionTransfers = (
       .list()
       .find(
         (item) =>
-          item.id === extensionId &&
-          (item.state === 'loaded' || item.state === 'disabled'),
+          item.id === extensionId && isEffectiveExtensionState(item.state),
       );
     if (info === undefined) {
       throw failed(

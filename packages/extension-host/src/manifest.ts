@@ -5,13 +5,14 @@ import {
   EXTENSION_PLATFORMS,
   EXTENSION_TAGS,
   GITHUB_LOGIN_PATTERN,
+  MAX_EXTENSION_DEPENDENCIES,
 } from '@dolphy-app/extension-api';
 import type {
   ExtensionManifest,
   ExtensionManifestInput,
 } from '@dolphy-app/extension-api';
 import type { ExtensionDiagnosticDto } from '@dolphy-app/engine-contract';
-import { isSemver } from '@dolphy-app/extension-catalog';
+import { isSemver, parseRange } from '@dolphy-app/extension-catalog';
 import { z } from 'zod';
 import { CONTRIBUTION_POINTS } from './points/index.ts';
 import { extensionId, safePath } from './points/support.ts';
@@ -34,6 +35,19 @@ const isEmpty = (contributes: unknown): boolean =>
   CONTRIBUTION_POINTS.every(
     (point) => entriesOf(contributes, point.key).length === 0,
   );
+
+/** Диапазон версий в том же виде, что `versions` отзыва и устаревания в каталоге. */
+const versionRange = z.string().superRefine((value, ctx) => {
+  try {
+    parseRange(value);
+  } catch {
+    ctx.addIssue({
+      code: 'custom',
+      message:
+        "range must be space-separated comparators such as '>=1.2.0 <2.0.0'",
+    });
+  }
+});
 
 export const manifestSchema = z
   .strictObject({
@@ -64,6 +78,15 @@ export const manifestSchema = z
       )
       .max(5, 'at most 5 tags')
       .optional(),
+    dependencies: z
+      .array(
+        z.strictObject({ id: extensionId, range: versionRange.optional() }),
+      )
+      .max(
+        MAX_EXTENSION_DEPENDENCIES,
+        `at most ${MAX_EXTENSION_DEPENDENCIES} dependencies`,
+      )
+      .optional(),
     contributes: contributesSchema,
   })
   .superRefine((manifest, ctx) => {
@@ -93,6 +116,22 @@ export const manifestSchema = z
           code: 'custom',
           path: ['tags', index],
           message: `duplicate tag '${tag}'`,
+        });
+      }
+    });
+    const { dependencies = [] } = manifest;
+    dependencies.forEach(({ id }, index) => {
+      if (id === manifest.id) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['dependencies', index, 'id'],
+          message: 'an extension cannot depend on itself',
+        });
+      } else if (dependencies.findIndex((item) => item.id === id) !== index) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['dependencies', index, 'id'],
+          message: `duplicate dependency '${id}'`,
         });
       }
     });
@@ -155,6 +194,10 @@ export const normalizeManifest = (
     platforms: [...(input.platforms ?? [])],
     minAppVersion: input.minAppVersion ?? null,
     tags: [...(input.tags ?? [])],
+    dependencies: (input.dependencies ?? []).map(({ id, range }) => ({
+      id,
+      range: range ?? null,
+    })),
     icon: input.icon ?? null,
     contributes: contributes as ExtensionManifest['contributes'],
   };

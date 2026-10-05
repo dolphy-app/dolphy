@@ -776,3 +776,32 @@ describe('catalog build: failures write nothing', () => {
     );
   });
 });
+
+describe('catalog build: dependencies', () => {
+  const dependencies = [
+    { id: 'acme.base', range: '>=1.0.0 <2.0.0' },
+    { id: 'acme.helper' },
+  ];
+
+  it('writes the manifest dependencies into the version record, ranges only where given', async () => {
+    const repo = await createRepo([
+      { fixture: 'commands-panel', manifest: { dependencies } },
+    ]);
+    const out = await makeTemp();
+    await publish(repo, out, ['acme.commands-panel']);
+    const [entry] = (await indexOf(out)).extensions;
+    expect(entry?.versions[0]?.dependencies).toEqual(dependencies);
+  });
+
+  it('a version without dependencies has no key', async () => {
+    const repo = await createRepo([{ fixture: 'commands-panel' }]);
+    const out = await makeTemp();
+    await publish(repo, out, ['acme.commands-panel']);
+    const raw = (await readJson(path.join(out, 'index.v2.json'))) as {
+      extensions: { versions: Record<string, unknown>[] }[];
+    };
+    expect(Object.keys(raw.extensions[0]?.versions[0] ?? {})).not.toContain(
+      'dependencies',
+    );
+  });
+});

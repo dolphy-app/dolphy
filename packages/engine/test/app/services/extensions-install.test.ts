@@ -47,6 +47,7 @@ const info = (overrides: Partial<ExtensionInfoDto>): ExtensionInfoDto => ({
   name: null,
   description: null,
   author: null,
+  dependencies: [],
   installed: null,
   icon: null,
   titles: {},
@@ -72,6 +73,7 @@ const UPDATE: ExtensionUpdateDto = {
   available: {
     version: '1.1.0',
     permissions: [],
+    dependencies: [],
     publishedAt: '2026-10-01T00:00:00.000Z',
     size: 10,
     minAppVersion: null,

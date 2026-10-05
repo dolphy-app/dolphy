@@ -366,6 +366,7 @@ export const en: typeof ru = {
         overridden: 'Overridden',
         invalid: 'Failed to load',
         disabled: 'Disabled',
+        'dependencies-unmet': 'Dependencies not met',
       },
       builtIn: 'Built in',
       isolation: {
@@ -382,6 +383,18 @@ export const en: typeof ru = {
       trustLabel: 'Trust (no isolation)',
       trustHint:
         'A trusted extension runs without isolation: its code runs with the app’s rights and its elements live in the app window and can see its data. Trust only extensions you believe in.',
+      dependencies: {
+        title: 'Dependencies',
+        status: {
+          ok: 'loaded',
+          installed: 'installed',
+          missing: 'not installed',
+          disabled: 'disabled',
+          version: 'version does not fit',
+          unmet: 'not loaded',
+        },
+        hint: 'Dependencies are not installed automatically: install them yourself. Installing this extension is not blocked — it starts working once its dependencies are met.',
+      },
       permissionsTitle: 'Permissions',
       permissionsNone: 'none requested',
       permissions: {
@@ -440,6 +453,15 @@ export const en: typeof ru = {
         'load-failed': 'Could not load the extension: {reason}',
         'overridden-by': 'Overridden by: {origin}, version {version}',
         'safe-mode': 'Disabled in safe mode',
+        'dependency-missing':
+          'Requires the extension “{id}”{range}, which is not installed',
+        'dependency-disabled':
+          'Requires the extension “{id}”{range}, which is disabled',
+        'dependency-version':
+          'Requires the extension “{id}”{range}, found version {found}',
+        'dependency-unmet':
+          'Requires the extension “{id}”{range}, which is not loaded: its dependencies are not met',
+        'dependency-cycle': 'Extensions depend on each other: {cycle}',
         locale: {
           'missing-key':
             'No translation for "{key}" in locales/en.json: the label is shown as is',

@@ -18,6 +18,7 @@ const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
   commands: [],
   panels: [],
   widgets: [],
+  schedules: [],
   importers: [],
   exporters: [],
 };
@@ -71,6 +72,7 @@ export const contributesOf = (
     | 'commands'
     | 'panels'
     | 'widgets'
+    | 'schedules'
     | 'importers'
     | 'exporters'
   >,
@@ -86,6 +88,7 @@ export const contributesOf = (
   commands: extension.commands.map(({ id }) => id),
   panels: extension.panels.map(({ id }) => id),
   widgets: extension.widgets.map(({ id }) => id),
+  schedules: extension.schedules.map(({ id }) => id),
   importers: extension.importers.map(({ id }) => id),
   exporters: extension.exporters.map(({ id }) => id),
 });
@@ -303,6 +306,9 @@ export const createExtensionRegistry = (
           origin: extension.origin,
           revision: extension.revision,
         })),
+      ),
+      schedules: enabled().flatMap(({ id, schedules }) =>
+        schedules.map((schedule) => ({ ...schedule, extensionId: id })),
       ),
       importers: enabled().flatMap(({ id, importers }) =>
         importers.map((importer) => ({

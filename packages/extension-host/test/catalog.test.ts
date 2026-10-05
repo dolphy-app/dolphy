@@ -46,6 +46,7 @@ const extension: ResolvedExtension = {
   events: [],
   commands: [],
   widgets: [],
+  schedules: [],
   panels: [],
   importers: [],
   exporters: [],
@@ -135,6 +136,7 @@ describe('createCatalog: отключённые расширения', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      schedulesOff: [],
     });
     expect(catalog.describe('acme.t')).toBeUndefined();
     expect(catalog.list()).toEqual([]);
@@ -153,6 +155,7 @@ describe('createCatalog: отключённые расширения', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      schedulesOff: [],
     });
     expect(catalog.describe('acme.t')?.extensionId).toBe('acme.t');
     expect(catalog.list()).toHaveLength(1);

@@ -4,6 +4,7 @@ import type {
   ExtensionSettingDefDto,
   ImporterContributionDto,
   PanelContributionDto,
+  ScheduleContributionDto,
   WidgetContributionDto,
 } from '@dolphy-app/engine-contract';
 import type {
@@ -65,6 +66,9 @@ export type ResolvedWidget = Pick<
   'id' | 'title' | 'slot' | 'minHeight' | 'maxHeight' | 'rendererUrl'
 >;
 
+/** Расписание в виде, в котором его получает окно (DTO движка без `extensionId`). */
+export type ResolvedSchedule = Omit<ScheduleContributionDto, 'extensionId'>;
+
 /** Импортёр в виде, в котором его получает окно (DTO движка без `extensionId`). */
 export type ResolvedImporter = Omit<ImporterContributionDto, 'extensionId'>;
 
@@ -81,6 +85,7 @@ export interface ResolvedContributions {
   commands: ResolvedCommand[];
   panels: ResolvedPanel[];
   widgets: ResolvedWidget[];
+  schedules: ResolvedSchedule[];
   importers: ResolvedImporter[];
   exporters: ResolvedExporter[];
 }

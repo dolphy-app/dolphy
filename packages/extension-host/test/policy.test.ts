@@ -29,6 +29,7 @@ const extension = (id: string, origin: ExtensionOrigin): ResolvedExtension => ({
   events: [],
   commands: [],
   widgets: [],
+  schedules: [],
   panels: [],
   importers: [],
   exporters: [],
@@ -64,6 +65,7 @@ describe('createExtensionPolicy', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      schedulesOff: [],
     });
     expect(policy.isEnabled('acme.u')).toBe(false);
     expect(policy.isIsolated('acme.u')).toBe(false);
@@ -73,6 +75,7 @@ describe('createExtensionPolicy', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      schedulesOff: [],
     });
     expect(policy.isEnabled('acme.u')).toBe(true);
     expect(policy.isIsolated('acme.u')).toBe(true);
@@ -86,6 +89,7 @@ describe('createExtensionPolicy', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      schedulesOff: [],
     });
     expect(policy.isIsolated('dolphy.sql')).toBe(false);
     expect(policy.isEnabled('dolphy.sql')).toBe(true);
@@ -101,6 +105,7 @@ describe('createExtensionPolicy', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      schedulesOff: [],
     });
     expect(policy.isEnabled('dolphy.sql')).toBe(false);
   });
@@ -112,6 +117,7 @@ describe('createExtensionPolicy', () => {
       checkUpdates: true,
       safeMode,
       notificationsOff: [],
+      schedulesOff: [],
     });
     const items = [
       extension('dolphy.sql', 'bundled'),

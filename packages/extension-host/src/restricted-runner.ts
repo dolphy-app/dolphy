@@ -116,8 +116,8 @@ export interface RestrictedRunnerOptions {
   /** Сколько ждать `ready` от нового процесса (срок `activate()`); по умолчанию 10 с. */
   readyTimeoutMs?: number;
   /**
-   * Срок вызова команды, включая запуск процесса. Больше срока обработчика
-   * (10 с) и меньше срока клиента движка (14 с).
+   * Срок вызова команды или срабатывания расписания, включая запуск процесса.
+   * Больше срока обработчика (10 с) и меньше срока клиента движка (14 с).
    */
   commandDeadlineMs?: number;
   /**
@@ -749,7 +749,10 @@ export const createRestrictedRunner = (
       let deadlineMs = OTHER_DEADLINE_MS;
       if (request.method === 'grade') {
         deadlineMs = request.params.timeoutMs + graceMs;
-      } else if (request.method === 'invokeCommand') {
+      } else if (
+        request.method === 'invokeCommand' ||
+        request.method === 'fireSchedule'
+      ) {
         deadlineMs = commandDeadlineMs;
       } else if (
         request.method === 'runImporter' ||
@@ -771,6 +774,7 @@ export const createRestrictedRunner = (
         return failure(
           request.id,
           request.method === 'invokeCommand' ||
+            request.method === 'fireSchedule' ||
             request.method === 'runImporter' ||
             request.method === 'runExporter'
             ? 'handler-timeout'

@@ -3,6 +3,7 @@ import { pathToFileURL } from 'node:url';
 import type { MessageEndpoint } from '@dolphy-app/engine-contract';
 import {
   EXTENSION_COMMAND_LIMITS,
+  EXTENSION_SCHEDULE_LIMITS,
   EXTENSION_TRANSFER_LIMITS,
   InvalidCommandResultError,
   InvalidTransferResultError,
@@ -23,6 +24,7 @@ import type {
   ImporterHandler,
   LearningEventName,
   LibraryReader,
+  ScheduleHandler,
 } from '@dolphy-app/extension-api';
 import { createCatalog } from './catalog.ts';
 import type { ResolvedExtension } from './discover.ts';
@@ -125,6 +127,9 @@ export const ACTIVATION_TIMEOUT_MS = 10_000;
 /** Срок обработчика события обучения (R6). */
 export const EVENT_HANDLER_MS = 2000;
 
+/** Срок обработчика расписания (R12); раннер ограниченного процесса и клиент планировщика ждут дольше. */
+export const SCHEDULE_HANDLER_MS = EXTENSION_SCHEDULE_LIMITS.handlerMs;
+
 /** Срок обработчика команды расширения (R3); раннер ограниченного процесса и клиент движка ждут дольше. */
 export const COMMAND_HANDLER_MS = EXTENSION_COMMAND_LIMITS.handlerMs;
 
@@ -177,6 +182,9 @@ interface Activation {
   policies: Map<string, GradePolicyHandler>;
   events: Map<LearningEventName, (payload: unknown) => void | Promise<void>>;
   commands: Map<string, CommandHandler>;
+  schedules: Map<string, ScheduleHandler>;
+  /** Обработчики расписаний, которые ещё работают: срок вышел, а код не вернулся — следующее срабатывание пропускается. */
+  firing: Set<string>;
   importers: Map<string, ImporterHandler>;
   exporters: Map<string, ExporterHandler>;
   settings: SettingsState;
@@ -336,6 +344,9 @@ export const createExtensionRuntime = (
       commands: extension.commands
         .map(({ id }) => id)
         .filter((id) => !activation.commands.has(id)),
+      schedules: extension.schedules
+        .map(({ id }) => id)
+        .filter((id) => !activation.schedules.has(id)),
       importers: extension.importers
         .map(({ id }) => id)
         .filter((id) => !activation.importers.has(id)),
@@ -363,6 +374,7 @@ export const createExtensionRuntime = (
     );
     const declaredEvents = new Set(extension.events.map(({ event }) => event));
     const declaredCommands = new Set(extension.commands.map(({ id }) => id));
+    const declaredSchedules = new Set(extension.schedules.map(({ id }) => id));
     const declaredImporters = new Set(extension.importers.map(({ id }) => id));
     const declaredExporters = new Set(extension.exporters.map(({ id }) => id));
     const settings = createSettingsState(
@@ -376,6 +388,8 @@ export const createExtensionRuntime = (
       policies: new Map(),
       events: new Map(),
       commands: new Map(),
+      schedules: new Map(),
+      firing: new Set(),
       importers: new Map(),
       exporters: new Map(),
       settings,
@@ -420,6 +434,29 @@ export const createExtensionRuntime = (
             dispose: () => {
               if (activation.events.get(name) === stored) {
                 activation.events.delete(name);
+              }
+            },
+          };
+          activation.disposables.push(disposable);
+          return disposable;
+        },
+      },
+      schedule: {
+        on(id, handler) {
+          if (!declaredSchedules.has(id)) {
+            throw new Error(
+              `schedule '${id}' is not declared in the manifest of '${extension.id}'`,
+            );
+          }
+          if (activation.abandoned) return lateRegistration;
+          if (activation.schedules.has(id)) {
+            throw new Error(`schedule '${id}' is already subscribed`);
+          }
+          activation.schedules.set(id, handler);
+          const disposable: Disposable = {
+            dispose: () => {
+              if (activation.schedules.get(id) === handler) {
+                activation.schedules.delete(id);
               }
             },
           };
@@ -722,6 +759,41 @@ export const createExtensionRuntime = (
     return { delivered: true };
   };
 
+  const fireSchedule = async (
+    extension: ResolvedExtension | undefined,
+    params: Extract<ExtRequest, { method: 'fireSchedule' }>['params'],
+  ): Promise<{ delivered: boolean }> => {
+    if (extension === undefined) {
+      throw new RuntimeFailure(
+        'unknown-type',
+        `unknown extension '${params.extensionId}'`,
+      );
+    }
+    // расписание, которого расширение не объявляло, его не активирует
+    if (!extension.schedules.some(({ id }) => id === params.scheduleId)) {
+      return { delivered: false };
+    }
+    const activation = await activationOf(extension);
+    const handler = activation.schedules.get(params.scheduleId);
+    if (handler === undefined) return { delivered: false };
+    if (activation.firing.has(params.scheduleId)) {
+      logger.warn(
+        { extensionId: extension.id, scheduleId: params.scheduleId },
+        'schedule handler is still running, the firing is skipped',
+      );
+      return { delivered: false };
+    }
+    const running = Promise.resolve().then(() => handler());
+    activation.firing.add(params.scheduleId);
+    // обработчик, не уложившийся в срок, продолжает работать: расписание свободно, когда вернётся он сам
+    const release = (): void => {
+      activation.firing.delete(params.scheduleId);
+    };
+    running.then(release, release);
+    await invoke(() => within(running, SCHEDULE_HANDLER_MS));
+    return { delivered: true };
+  };
+
   /** Активация расширения; сборку, заменённую во время активации, вызывающий получает как `replaced`: ему нужен повтор, а не сбой кода. */
   const liveActivation = async (
     extension: ResolvedExtension,
@@ -872,6 +944,9 @@ export const createExtensionRuntime = (
     if (request.method === 'deliverEvent') {
       return deliverEvent(extension, request.params);
     }
+    if (request.method === 'fireSchedule') {
+      return fireSchedule(extension, request.params);
+    }
     if (request.method === 'invokeCommand') {
       return invokeCommand(extension, request.params);
     }
@@ -982,6 +1057,8 @@ export const createExtensionRuntime = (
     switch (request.method) {
       case 'grade':
         return request.params.timeoutMs;
+      case 'fireSchedule':
+        return SCHEDULE_HANDLER_MS;
       case 'invokeCommand':
         return COMMAND_HANDLER_MS;
       case 'runImporter':
@@ -1068,6 +1145,7 @@ export const createExtensionRuntime = (
       case 'gradePolicy':
         return catalog.ownerOfPolicy(request.params.policyId);
       case 'deliverEvent':
+      case 'fireSchedule':
       case 'invokeCommand':
       case 'runImporter':
       case 'runExporter':

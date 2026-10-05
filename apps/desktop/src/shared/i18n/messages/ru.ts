@@ -4,6 +4,7 @@ export const ru = {
     save: 'Сохранить',
     cancel: 'Отмена',
     retry: 'Повторить',
+    extensionUpdates: 'Доступно обновлений: {n}',
   },
   keybinding: {
     command: 'Command',

@@ -7,6 +7,7 @@ import type {
   ExtensionStateDto,
 } from '@dolphy-app/engine-contract';
 import { useEngine } from '@/shared/api/engine';
+import { ROUTE } from '@/shared/config/routes.ts';
 import { useExtensionText } from '@/shared/lib/extension-text.ts';
 import { effectiveTags } from '../lib/tags.ts';
 import {
@@ -18,12 +19,15 @@ import {
 import { useDiagnosticsCopy } from '../model/diagnostics-copy.ts';
 import { useExtensionData } from '../model/extension-data.ts';
 import { useInstallContext } from '../model/install.ts';
+import DeprecatedChip from './DeprecatedChip.vue';
 import ExtensionContributions from './ExtensionContributions.vue';
+import ExtensionDeprecation from './ExtensionDeprecation.vue';
 import ExtensionTags from './ExtensionTags.vue';
 import ExtensionData from './ExtensionData.vue';
 import ExtensionHealth from './ExtensionHealth.vue';
 import ExtensionHeading from './ExtensionHeading.vue';
 import ExtensionPermissions from './ExtensionPermissions.vue';
+import ExtensionRemoveDialog from './ExtensionRemoveDialog.vue';
 import ExtensionSettingsDialog from './ExtensionSettingsDialog.vue';
 import ExtensionLogDialog from './ExtensionLogDialog.vue';
 
@@ -65,7 +69,6 @@ const {
 } = useExtensions(useEngine());
 
 const removeTarget = ref<ExtensionInfoDto | null>(null);
-const removeData = ref(false);
 const settingsTarget = ref<ExtensionInfoDto | null>(null);
 /** Диалог журнала: `''` — все записи, иначе предустановленный фильтр по id. */
 const logTarget = ref<string | null>(null);
@@ -154,21 +157,10 @@ const closeLog = () => {
 
 const askRemove = (extension: ExtensionInfoDto, event: Event) => {
   rememberOpener(event);
-  install.removeError.value = null;
-  removeData.value = false;
   removeTarget.value = extension;
 };
 
-const confirmRemove = async () => {
-  const target = removeTarget.value;
-  if (target === null) return;
-  if (await install.remove(target.id, removeData.value)) {
-    removeTarget.value = null;
-  }
-};
-
 const closeRemove = () => {
-  if (install.removing.value !== null) return;
   removeTarget.value = null;
   restoreFocus();
 };
@@ -398,7 +390,16 @@ watch(
             <div class="d-flex flex-wrap align-center ga-2">
               <ExtensionHeading :icon="extension.icon">
                 <h3 class="name text-title-medium font-weight-bold">
-                  {{ extensionText.nameOf(extension) }}
+                  <router-link
+                    class="details-link"
+                    :to="{
+                      name: ROUTE.settingsExtensionDetails,
+                      params: { id: extension.id },
+                    }"
+                    :data-testid="`details-${extension.id}`"
+                  >
+                    {{ extensionText.nameOf(extension) }}
+                  </router-link>
                 </h3>
               </ExtensionHeading>
               <span
@@ -432,6 +433,7 @@ watch(
                   })
                 }}
               </v-chip>
+              <DeprecatedChip v-if="extension.deprecated !== null" />
               <v-chip
                 v-if="extension.origin === 'bundled'"
                 size="small"
@@ -494,6 +496,11 @@ watch(
             </p>
             <ExtensionTags
               :tags="effectiveTags(extension.tags, extension.contributes)"
+            />
+
+            <ExtensionDeprecation
+              v-if="extension.deprecated !== null"
+              :deprecation="extension.deprecated"
             />
 
             <v-alert
@@ -676,65 +683,7 @@ watch(
       </ul>
     </template>
 
-    <v-dialog
-      :model-value="removeTarget !== null"
-      max-width="480"
-      aria-labelledby="extension-remove-title"
-      :persistent="install.removing.value !== null"
-      @update:model-value="closeRemove"
-    >
-      <v-card v-if="removeTarget" class="pa-2">
-        <v-card-title id="extension-remove-title" class="text-wrap">
-          {{
-            t('settings.extensions.remove.title', {
-              name: extensionText.nameOf(removeTarget),
-            })
-          }}
-        </v-card-title>
-        <v-card-text>
-          <p>{{ t('settings.extensions.remove.text') }}</p>
-          <v-checkbox
-            v-model="removeData"
-            :label="t('settings.extensions.remove.removeData')"
-            :hint="t('settings.extensions.remove.removeDataHint')"
-            persistent-hint
-            density="compact"
-            color="error"
-            :disabled="install.removing.value !== null"
-            data-testid="remove-data"
-          />
-          <v-alert
-            v-if="install.removeError.value"
-            type="error"
-            variant="tonal"
-            density="compact"
-            class="mt-3"
-          >
-            {{ t('settings.extensions.remove.failed') }}:
-            {{ install.removeError.value }}
-          </v-alert>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn
-            variant="text"
-            :disabled="install.removing.value !== null"
-            @click="closeRemove"
-          >
-            {{ t('settings.extensions.remove.cancel') }}
-          </v-btn>
-          <v-btn
-            variant="flat"
-            color="error"
-            :loading="install.removing.value !== null"
-            data-testid="remove-confirm"
-            @click="confirmRemove"
-          >
-            {{ t('settings.extensions.remove.confirm') }}
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+    <ExtensionRemoveDialog :target="removeTarget" @close="closeRemove" />
 
     <ExtensionSettingsDialog
       v-if="settingsTarget !== null"
@@ -780,6 +729,16 @@ watch(
 
 .name {
   overflow-wrap: anywhere;
+}
+
+.details-link {
+  color: rgb(var(--v-theme-primary));
+  text-decoration: none;
+}
+
+.details-link:hover,
+.details-link:focus-visible {
+  text-decoration: underline;
 }
 
 .visually-hidden {

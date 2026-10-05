@@ -6,6 +6,7 @@ declare module 'vue-i18n' {
   interface DefineLocaleMessage extends MessageSchema {}
   interface DefineDateTimeFormat {
     fullDate: Intl.DateTimeFormatOptions;
+    shortDate: Intl.DateTimeFormatOptions;
     shortDateTime: Intl.DateTimeFormatOptions;
     shortTime: Intl.DateTimeFormatOptions;
   }

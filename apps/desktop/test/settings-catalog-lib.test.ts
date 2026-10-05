@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  deprecationFor,
   entryAction,
   facetCounts,
   filterEntries,
@@ -450,5 +451,59 @@ describe('describeInstallFailure', () => {
       'unavailable',
     );
     expect(describeInstallFailure(error('NOT_FOUND')).reason).toBe('notFound');
+  });
+});
+
+describe('устаревание: действие по диапазону', () => {
+  const all = { versions: null, reason: 'Abandoned', alternatives: [] };
+  const old = { versions: '<1.2.0', reason: 'Old line', alternatives: [] };
+
+  it('без диапазона действует на любую версию, с диапазоном — только в нём', () => {
+    expect(deprecationFor(null, '1.0.0')).toBeNull();
+    expect(deprecationFor(all, '9.9.9')).toBe(all);
+    expect(deprecationFor(old, '1.1.9')).toBe(old);
+    expect(deprecationFor(old, '1.2.0')).toBeNull();
+    expect(deprecationFor(old, '2.0.0')).toBeNull();
+  });
+
+  it('нечитаемый диапазон или версия не прячут предупреждение', () => {
+    const broken = { versions: 'not a range', reason: 'x', alternatives: [] };
+    expect(deprecationFor(broken, '1.0.0')).toBe(broken);
+    expect(deprecationFor(old, 'latest')).toBe(old);
+  });
+
+  it('диалог установки берёт предупреждение для той версии, которая будет установлена', () => {
+    const entry = catalogEntry('a.b', {
+      latest: catalogVersion('2.0.0'),
+      deprecated: old,
+    });
+    expect(targetFromEntry(entry, catalogVersion('1.0.0')).deprecated).toBe(
+      old,
+    );
+    expect(
+      targetFromEntry(entry, catalogVersion('2.0.0')).deprecated,
+    ).toBeNull();
+    const deprecatedAll = catalogEntry('a.c', { deprecated: all });
+    expect(
+      targetFromEntry(deprecatedAll, catalogVersion('1.0.0')).deprecated,
+    ).toBe(all);
+  });
+
+  it('обновление: пометка записи каталога по целевой версии, без записи — нет', () => {
+    const update = {
+      id: 'a.b',
+      name: 'B',
+      installed: '1.0.0',
+      available: catalogVersion('1.1.0'),
+    };
+    const entry = catalogEntry('a.b', { deprecated: old });
+    expect(targetFromUpdate(update, undefined, entry).deprecated).toBe(old);
+    expect(
+      targetFromUpdate(
+        update,
+        extensionInfo('a.b', { deprecated: old }),
+        undefined,
+      ).deprecated,
+    ).toBeNull();
   });
 });

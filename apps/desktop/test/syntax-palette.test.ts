@@ -181,3 +181,26 @@ describe('syntaxCssVars', () => {
     );
   });
 });
+
+describe('built-in themes: text on filled accents', () => {
+  const pairs = [
+    ['primary', 'on-primary'],
+    ['secondary', 'on-secondary'],
+  ] as const;
+
+  it.each([
+    ['light', LIGHT_THEME],
+    ['dark', DARK_THEME],
+  ])(
+    '%s: text on primary and secondary fills is at least AA',
+    (_name, theme) => {
+      const colors = theme.colors as Record<string, unknown>;
+      for (const [fill, text] of pairs) {
+        expect(
+          contrast(rgb(String(colors[fill])), rgb(String(colors[text]))),
+          `${text} on ${fill}`,
+        ).toBeGreaterThanOrEqual(MIN_CONTRAST);
+      }
+    },
+  );
+});

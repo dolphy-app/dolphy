@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { provide, ref } from 'vue';
+import { computed, provide } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRoute, useRouter } from 'vue-router';
 import { useContributions, useEngine } from '@/shared/api/engine';
 import { INSTALL_KEY, useInstall } from '../model/install.ts';
 import { useReloadRequired } from '../model/reload-required.ts';
@@ -12,7 +13,16 @@ import SectionHeader from './SectionHeader.vue';
 type ExtensionsTab = 'installed' | 'catalog';
 
 const { t } = useI18n();
-const tab = ref<ExtensionsTab>('installed');
+const route = useRoute();
+const router = useRouter();
+
+// вкладка живёт в адресе: возврат со страницы расширения открывает ту же вкладку
+const tab = computed<ExtensionsTab>({
+  get: () => (route.query['tab'] === 'catalog' ? 'catalog' : 'installed'),
+  set: (next) => {
+    void router.replace({ query: next === 'catalog' ? { tab: next } : {} });
+  },
+});
 
 provide(INSTALL_KEY, useInstall(useEngine()));
 

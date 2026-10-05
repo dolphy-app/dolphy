@@ -343,9 +343,9 @@ describe('панель (R5, R7, R8)', () => {
     await expectText(commands.panelRole('props'), 'Свойства: null');
     const stillSameWindow = await client.markWindow();
 
-    await commands.panelButton('Прибавить').click();
+    await commands.pressPanelButton('Прибавить');
     await expectText(commands.panelRole('count'), 'Счётчик: 1');
-    await commands.panelButton('Прибавить').click();
+    await commands.pressPanelButton('Прибавить');
     await expectText(commands.panelRole('count'), 'Счётчик: 2');
     expect(readExtensionData(workspace!.userData, COMMANDS_ID).storage).toEqual(
       {
@@ -354,19 +354,19 @@ describe('панель (R5, R7, R8)', () => {
     );
 
     // notify из панели показывает приложение
-    await commands.panelButton('Уведомить').click();
+    await commands.pressPanelButton('Уведомить');
     await expectText(commands.notice, GREETING);
 
     // openPanel из панели обновляет свойства, рамка остаётся прежней
     await commands.frameElement.evaluate((node) =>
       Reflect.set(node, '__same', true),
     );
-    await commands.panelButton('Открыть снова').click();
+    await commands.pressPanelButton('Открыть снова');
     await expectText(
       commands.panelRole('props'),
       'Свойства: {"from":"command","opened":1}',
     );
-    await commands.panelButton('Открыть снова').click();
+    await commands.pressPanelButton('Открыть снова');
     await expectText(
       commands.panelRole('props'),
       'Свойства: {"from":"command","opened":2}',
@@ -378,7 +378,7 @@ describe('панель (R5, R7, R8)', () => {
     ).toBe(true);
 
     // ошибка обработчика приходит панели отклонённым промисом
-    await commands.panelButton('Сломать').click();
+    await commands.pressPanelButton('Сломать');
     await expectText(commands.panelRole('result'), 'Ошибка: кубик сломан');
     await stillSameWindow();
   });
@@ -406,15 +406,15 @@ describe('панель (R5, R7, R8)', () => {
       [VICTIM_ID]: VICTIM_DIR,
     });
     await commands.navItem(PANEL_TITLE).click();
-    await commands.panelButton('Чужая команда').click();
+    await commands.pressPanelButton('Чужая команда');
     await expectText(
       commands.panelRole('result'),
       'Ошибка: unknown command: acme.victim.mark',
     );
 
-    await commands.panelButton('Подделка').click();
+    await commands.pressPanelButton('Подделка');
     // следующий настоящий вызов проходит после подделки: она уже обработана
-    await commands.panelButton('Прибавить').click();
+    await commands.pressPanelButton('Прибавить');
     await expectText(commands.panelRole('count'), 'Счётчик: 1');
     await expectCount(commands.notice.filter({ hasText: 'жертва' }), 0);
     expect(victimData().storage).toEqual({});
@@ -434,7 +434,7 @@ describe('панель (R5, R7, R8)', () => {
       'allow-scripts',
     );
     expect(await client.page.locator('.v-main iframe').count()).toBe(1);
-    await commands.panelButton('Прибавить').click();
+    await commands.pressPanelButton('Прибавить');
     await expectText(commands.panelRole('count'), 'Счётчик: 1');
   });
 });

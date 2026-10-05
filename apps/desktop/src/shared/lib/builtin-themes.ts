@@ -11,7 +11,8 @@ export const LIGHT_THEME: ThemeDefinition = {
     'on-surface-variant': '#5B6280',
     primary: '#4F46E5',
     'on-primary': '#FFFFFF',
-    secondary: '#0D9488',
+    // белый текст на чипе «Новое» и кнопках: #0D9488 давал 3.74:1, нужно 4.5:1
+    secondary: '#0E7C72',
     'on-secondary': '#FFFFFF',
     error: '#DC2626',
     warning: '#D97706',

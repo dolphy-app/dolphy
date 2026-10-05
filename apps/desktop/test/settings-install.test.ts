@@ -1,6 +1,7 @@
 import { effectScope } from 'vue';
 import { describe, expect, it } from 'vitest';
 import type {
+  ExtensionDocsDto,
   InstallResultDto,
   LearningEngine,
 } from '@dolphy-app/engine-contract';
@@ -12,6 +13,7 @@ import {
   FakeEngineError,
   catalogEntry,
   catalogVersion,
+  flush,
 } from './support/extensions-fakes.ts';
 
 const target = (
@@ -31,6 +33,7 @@ const installFailed = (reason: string, retryable = false) =>
 
 interface Setup {
   install: ExtensionInstall;
+  docsCalls: Array<{ id: string; version: string | undefined }>;
   calls: { id: string; version: string | undefined }[];
   removed: string[];
   uninstallOptions: Array<{ removeData?: boolean } | undefined>;
@@ -39,13 +42,31 @@ interface Setup {
 /** `outcomes` — что делает `install(id)`: ошибка или успех (по умолчанию). */
 const setup = (
   outcomes: Record<string, Error> = {},
-  setupOptions: { uninstallError?: Error } = {},
+  setupOptions: {
+    uninstallError?: Error;
+    /** Что отвечает `docs(id)`; по умолчанию журнала нет. */
+    docs?: (id: string) => Promise<ExtensionDocsDto>;
+  } = {},
 ): Setup => {
+  const docsCalls: Setup['docsCalls'] = [];
   const calls: Setup['calls'] = [];
   const removed: string[] = [];
   const uninstallOptions: Array<{ removeData?: boolean } | undefined> = [];
   const engine = {
     extensions: {
+      docs: (id: string, options?: { version?: string }) => {
+        docsCalls.push({ id, version: options?.version });
+        return (
+          setupOptions.docs?.(id) ??
+          Promise.resolve({
+            version: options?.version ?? '1.1.0',
+            readme: null,
+            changelog: null,
+            truncated: false,
+            source: 'catalog',
+          } satisfies ExtensionDocsDto)
+        );
+      },
       install: async (
         id: string,
         version?: string,
@@ -67,7 +88,7 @@ const setup = (
     },
   } as unknown as LearningEngine;
   const install = effectScope().run(() => useInstall(engine))!;
-  return { install, calls, removed, uninstallOptions };
+  return { install, docsCalls, calls, removed, uninstallOptions };
 };
 
 describe('установка одного расширения', () => {
@@ -257,5 +278,127 @@ describe('удаление', () => {
     expect(await install.remove('dolphy.sql')).toBe(false);
     expect(install.removeError.value).toBe('extension is not removable');
     expect(install.removing.value).toBeNull();
+  });
+});
+
+const docsWith = (changelog: string | null) =>
+  Promise.resolve({
+    version: '1.2.0',
+    readme: null,
+    changelog,
+    truncated: false,
+    source: 'catalog',
+  } satisfies ExtensionDocsDto);
+
+const LOG = [
+  '## [1.2.0] - 2026-10-02',
+  '',
+  '- два',
+  '',
+  '## 1.1.0',
+  '',
+  '- один',
+  '',
+  '## 1.0.0',
+  '',
+  '- ноль',
+].join('\n');
+
+describe('«Что нового» в диалоге обновления', () => {
+  const update = () =>
+    targetFromEntry(
+      catalogEntry('acme.sunrise', { installedVersion: '1.0.0' }),
+      catalogVersion('1.2.0'),
+    );
+
+  it('обновление запрашивает журнал целевой версии и берёт разделы новее установленной', async () => {
+    const { install, docsCalls } = setup({}, { docs: () => docsWith(LOG) });
+    install.review([update()]);
+    expect(install.items.value[0]?.notes).toEqual({ state: 'loading' });
+    await flush();
+    expect(docsCalls).toEqual([{ id: 'acme.sunrise', version: '1.2.0' }]);
+    const notes = install.items.value[0]?.notes;
+    expect(notes?.state).toBe('ready');
+    expect(
+      notes?.state === 'ready' && notes.sections.map((s) => s.version),
+    ).toEqual(['1.2.0', '1.1.0']);
+  });
+
+  it('новая установка журнал не запрашивает', async () => {
+    const { install, docsCalls } = setup();
+    install.review([target('acme.sunrise')]);
+    await flush();
+    expect(docsCalls).toEqual([]);
+    expect(install.items.value[0]?.notes).toEqual({ state: 'none' });
+  });
+
+  it('журнала нет или в нём нет подходящих разделов — пустой список, установка работает', async () => {
+    for (const changelog of [null, '## 0.9.0\n\n- старое']) {
+      const { install, calls } = setup({}, { docs: () => docsWith(changelog) });
+      install.review([update()]);
+      await flush();
+      expect(install.items.value[0]?.notes).toEqual({
+        state: 'ready',
+        sections: [],
+      });
+      await install.confirm();
+      expect(calls).toEqual([{ id: 'acme.sunrise', version: '1.2.0' }]);
+    }
+  });
+
+  it('сбой получения журнала не мешает обновлению', async () => {
+    const { install, calls } = setup(
+      {},
+      {
+        docs: () =>
+          Promise.reject(
+            new FakeEngineError('EXTENSION_INSTALL_FAILED', 'offline', {
+              details: { reason: 'network' },
+            }),
+          ),
+      },
+    );
+    install.review([update()]);
+    await flush();
+    expect(install.items.value[0]?.notes).toEqual({
+      state: 'failed',
+      message: 'offline',
+    });
+    await install.confirm();
+    expect(calls).toHaveLength(1);
+    expect(install.items.value[0]?.status).toBe('done');
+  });
+
+  it('ответ о журнале закрытого диалога не попадает в новый', async () => {
+    let resolveFirst: (docs: ExtensionDocsDto) => void = () => {};
+    const first = new Promise<ExtensionDocsDto>((resolve) => {
+      resolveFirst = resolve;
+    });
+    let calls = 0;
+    const { install } = setup(
+      {},
+      {
+        docs: () => {
+          calls += 1;
+          return calls === 1 ? first : docsWith('## 1.2.0\n\n- новое');
+        },
+      },
+    );
+    install.review([update()]);
+    install.dismiss();
+    install.review([update()]);
+    await flush();
+    resolveFirst({
+      version: '1.2.0',
+      readme: null,
+      changelog: '## 1.2.0\n\n- прежнее',
+      truncated: false,
+      source: 'catalog',
+    });
+    await flush();
+    const notes = install.items.value[0]?.notes;
+    expect(
+      notes?.state === 'ready' && notes.sections.map((s) => s.body),
+    ).toEqual(['- новое']);
   });
 });

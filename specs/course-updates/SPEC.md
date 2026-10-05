@@ -60,10 +60,10 @@ superseded-by: null
 ## Progress
 
 - [x] 2026-10-05 спека
-- [ ] контракт: `RepositoryDto.availableCommit/checkedAt`, `RepositoriesService.checkUpdates`, событие, `CONTRACT_VERSION`
-- [ ] RPC: метод, схема, `UNQUEUED`, идемпотентность
-- [ ] движок: проверка, сброс при `update`/`remove`, проверка при запуске, события
-- [ ] тесты движка и RPC
+- [x] 2026-10-05 контракт: `RepositoryDto.availableCommit/checkedAt`, `RepositoriesService.checkUpdates`, событие, `CONTRACT_VERSION` 23
+- [x] 2026-10-05 RPC: метод, схема, `UNQUEUED`, идемпотентность
+- [x] 2026-10-05 движок: проверка, сброс при `update`/`remove`, проверка при запуске, события
+- [x] 2026-10-05 тесты движка и RPC (`repositories.test.ts`, `rpc.test.ts`, `integration/engine.test.ts`)
 - [ ] окно: хранилище, плашка, чип карточки, кнопка проверки, уведомление запуска, метка в настройках
 - [ ] тесты окна и e2e
 - [ ] документация (`engine-ts-api.md`, `apps/desktop/README.md`)
@@ -71,7 +71,7 @@ superseded-by: null
 
 ## Surprises & Discoveries
 
-Пока нет.
+- Тест «createEngine recovers before the first library load…» утверждал «сети при запуске нет» (`git.calls` пуст). Проверка при запуске вызывает `resolve`, поэтому утверждение сужено: восстановление снимков в сеть не ходит и снимков не качает, допустимы только вызовы `resolve`.
 
 ## Decision Log
 

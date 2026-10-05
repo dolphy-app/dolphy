@@ -25,6 +25,8 @@ const describeEvent = (event: EngineEvent): string => {
       return event.scope;
     case 'repository-progress':
       return `repository ${event.id} ${event.phase}`;
+    case 'repository-updates-checked':
+      return `repository updates ${event.available.length}`;
     case 'extensions-changed':
     case 'extension-health-changed':
       return event.type;
@@ -67,6 +69,7 @@ test('T-20 EngineEvent: набор типов события зафиксиро�
     | 'remediation-triggered'
     | 'settings-changed'
     | 'repository-progress'
+    | 'repository-updates-checked'
     | 'extensions-changed'
     | 'extension-health-changed'
     | 'contributions-changed'

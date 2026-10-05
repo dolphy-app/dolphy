@@ -17,7 +17,7 @@ import {
   renderLibrary,
 } from '@dolphy-app/testkit';
 import type { CourseLibrary } from '@dolphy-app/testkit';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   EngineError,
   createEngine,
@@ -854,8 +854,10 @@ describe('startup recovery (R9)', () => {
     });
     git.calls.length = 0;
     const second = await boot();
-    expect(git.calls).toEqual([]); // сети при запуске нет
-    expect(await second.repositories.list()).toEqual([dto]);
+    // восстановление в сеть не ходит; проверка обновлений читает только ссылки (`resolve`), снимков не качает
+    expect(git.calls.filter((call) => !call.startsWith('resolve'))).toEqual([]);
+    // `checkedAt` мог уже появиться: проверка идёт в фоне
+    expect(await second.repositories.list()).toMatchObject([dto]);
     expect(
       (await second.library.listCourses()).items.map(({ id }) => id),
     ).toEqual(['base', 'sql']);
@@ -864,5 +866,255 @@ describe('startup recovery (R9)', () => {
     );
     expect(await exists(join(libraryRoot, '.staging'))).toBe(false);
     await second.close();
+  });
+});
+
+const URL_JS = 'https://example.com/acme/js';
+const ID_JS = 'example.com-acme-js';
+
+const resolveCalls = (t: Opened) =>
+  t.git.calls.filter((call) => call.startsWith('resolve')).length;
+
+describe('repositories.checkUpdates (course-updates)', () => {
+  it('marks a repository whose server commit differs and reads only refs (R1, R3, R6)', async () => {
+    const t = await open();
+    remote(t, URL_SQL, course('sql'));
+    const added = await t.engine.repositories.add({ url: URL_SQL });
+    expect(added).not.toHaveProperty('availableCommit');
+    expect(added).not.toHaveProperty('checkedAt');
+    expect(await t.engine.repositories.list()).toEqual([added]);
+
+    remote(t, URL_SQL, course('sql', 2), 2);
+    const fetches = t.git.calls.filter((call) => call.startsWith('fetch'));
+    const [checked] = await t.engine.repositories.checkUpdates();
+
+    expect(checked).toMatchObject({
+      id: ID_SQL,
+      commit: sha(1),
+      availableCommit: sha(2),
+      checkedAt: t.clock.now(),
+    });
+    expect(await t.engine.repositories.list()).toEqual([checked]);
+    expect(t.git.calls.filter((call) => call.startsWith('fetch'))).toEqual(
+      fetches,
+    );
+    expect(await t.courseIds()).toEqual(['base', 'sql']);
+    expect(
+      t.events.filter(({ type }) => type === 'repository-updates-checked'),
+    ).toEqual([{ type: 'repository-updates-checked', available: [ID_SQL] }]);
+  });
+
+  it('offers nothing when the server commit equals the loaded one (R1, R6)', async () => {
+    const t = await open();
+    remote(t, URL_SQL, course('sql'));
+    await t.engine.repositories.add({ url: URL_SQL });
+
+    const [checked] = await t.engine.repositories.checkUpdates();
+    expect(checked).not.toHaveProperty('availableCommit');
+    expect(checked?.checkedAt).toBe(t.clock.now());
+    expect(
+      t.events.filter(({ type }) => type === 'repository-updates-checked'),
+    ).toEqual([{ type: 'repository-updates-checked', available: [] }]);
+  });
+
+  it('skips an unreachable repository, keeps its previous result and checks the rest (R2)', async () => {
+    const t = await open();
+    remote(t, URL_SQL, course('sql'));
+    remote(t, URL_JS, course('js'));
+    await t.engine.repositories.add({ url: URL_SQL });
+    await t.engine.repositories.add({ url: URL_JS });
+    remote(t, URL_SQL, course('sql', 2), 2);
+    remote(t, URL_JS, course('js', 2), 2);
+    await t.engine.repositories.checkUpdates();
+    t.clock.advance(5000);
+
+    const sql = t.git.remotes.get(URL_SQL);
+    const js = t.git.remotes.get(URL_JS);
+    if (sql === undefined || js === undefined) throw new Error('remote');
+    sql.resolveError = new GitFetchError('network', 'down');
+    js.commit = sha(3);
+    const before = t.logs.length;
+    const items = await t.engine.repositories.checkUpdates();
+
+    const byId = Object.fromEntries(items.map((item) => [item.id, item]));
+    expect(byId[ID_SQL]).toMatchObject({
+      availableCommit: sha(2),
+      checkedAt: t.clock.now() - 5000,
+    });
+    expect(byId[ID_JS]).toMatchObject({
+      availableCommit: sha(3),
+      checkedAt: t.clock.now(),
+    });
+    expect(t.logs.slice(before).map(({ level }) => level)).toContain('warn');
+    expect(
+      t.events
+        .filter(({ type }) => type === 'repository-updates-checked')
+        .at(-1),
+    ).toEqual({
+      type: 'repository-updates-checked',
+      available: [ID_JS, ID_SQL],
+    });
+  });
+
+  it('neither fails nor publishes when no repository could be checked (R2, R6)', async () => {
+    const t = await open();
+    expect(await t.engine.repositories.checkUpdates()).toEqual([]);
+
+    remote(t, URL_SQL, course('sql'));
+    await t.engine.repositories.add({ url: URL_SQL });
+    const sql = t.git.remotes.get(URL_SQL);
+    if (sql === undefined) throw new Error('remote');
+    sql.resolveError = new GitFetchError('timeout', 'slow');
+
+    const [item] = await t.engine.repositories.checkUpdates();
+    expect(item?.status).toBe('ready');
+    expect(item).not.toHaveProperty('checkedAt');
+    expect(
+      t.events.filter(({ type }) => type === 'repository-updates-checked'),
+    ).toEqual([]);
+  });
+
+  it('does not check a repository with a running operation (R2)', async () => {
+    const t = await open();
+    remote(t, URL_SQL, course('sql'));
+    const dto = await t.engine.repositories.add({ url: URL_SQL });
+    remote(t, URL_SQL, course('sql', 2), 2);
+    const gate = t.git.block();
+    const updating = t.engine.repositories.update(dto.id);
+    await gate.started;
+    const resolved = resolveCalls(t);
+
+    const [item] = await t.engine.repositories.checkUpdates();
+    expect(item).toMatchObject({ status: 'updating' });
+    expect(item).not.toHaveProperty('checkedAt');
+    expect(resolveCalls(t)).toBe(resolved);
+
+    gate.release();
+    await updating;
+  });
+
+  it('update clears the mark, also when the server was already at the loaded commit (R4)', async () => {
+    const t = await open();
+    remote(t, URL_SQL, course('sql'));
+    const dto = await t.engine.repositories.add({ url: URL_SQL });
+    remote(t, URL_SQL, course('sql', 2), 2);
+    await t.engine.repositories.checkUpdates();
+
+    const { changed, repository } = await t.engine.repositories.update(dto.id);
+    expect(changed).toBe(true);
+    expect(repository.commit).toBe(sha(2));
+    expect(repository).not.toHaveProperty('availableCommit');
+    const [listed] = await t.engine.repositories.list();
+    expect(listed).not.toHaveProperty('availableCommit');
+    expect(listed).not.toHaveProperty('checkedAt');
+
+    // сервер откатился: отметка снова только по свежей проверке
+    remote(t, URL_SQL, course('sql', 2), 2);
+    await t.engine.repositories.checkUpdates();
+    const again = await t.engine.repositories.update(dto.id);
+    expect(again.changed).toBe(false);
+    expect(again.repository).not.toHaveProperty('availableCommit');
+  });
+
+  it('a rejected update keeps the mark: the loaded commit is unchanged (R4)', async () => {
+    const t = await open();
+    remote(t, URL_SQL, course('sql'));
+    const dto = await t.engine.repositories.add({ url: URL_SQL });
+    t.git.remotes.set(URL_SQL, {
+      commit: sha(2),
+      files: { 'bad/course_manifest.json': '{' },
+    });
+    await t.engine.repositories.checkUpdates();
+    expect((await failure(t.engine.repositories.update(dto.id))).code).toBe(
+      'REPOSITORY_REJECTED',
+    );
+    const [item] = await t.engine.repositories.list();
+    expect(item).toMatchObject({ availableCommit: sha(2), status: 'error' });
+  });
+
+  it('remove forgets the check: a repository added again starts clean (R4)', async () => {
+    const t = await open();
+    remote(t, URL_SQL, course('sql'));
+    const dto = await t.engine.repositories.add({ url: URL_SQL });
+    remote(t, URL_SQL, course('sql', 2), 2);
+    await t.engine.repositories.checkUpdates();
+    await t.engine.repositories.remove(dto.id);
+
+    remote(t, URL_SQL, course('sql'), 1);
+    const added = await t.engine.repositories.add({ url: URL_SQL });
+    expect(added).not.toHaveProperty('availableCommit');
+    const [item] = await t.engine.repositories.list();
+    expect(item).not.toHaveProperty('availableCommit');
+    expect(item).not.toHaveProperty('checkedAt');
+  });
+
+  it('does not keep a result obtained for a commit that was replaced meanwhile (R3)', async () => {
+    const t = await open();
+    remote(t, URL_SQL, course('sql'));
+    const dto = await t.engine.repositories.add({ url: URL_SQL });
+    remote(t, URL_SQL, course('sql', 2), 2);
+    await t.engine.repositories.checkUpdates();
+    // загруженный коммит догнал серверный, не пройдя через `update` (например, повторное добавление)
+    await t.store.put({
+      id: dto.id,
+      url: dto.url,
+      ref: dto.ref,
+      commit: sha(2),
+      fetchedAt: dto.fetchedAt,
+      courseIds: dto.courseIds,
+    });
+    const [item] = await t.engine.repositories.list();
+    expect(item?.commit).toBe(sha(2));
+    expect(item).not.toHaveProperty('availableCommit');
+  });
+});
+
+describe('startup update check (course-updates R5)', () => {
+  const record = {
+    id: ID_SQL,
+    url: URL_SQL,
+    ref: null,
+    commit: sha(1),
+    fetchedAt: 1,
+    courseIds: ['sql'],
+  };
+
+  it('runs in the background after opening and publishes the result', async () => {
+    const git = createFakeGit();
+    git.remotes.set(URL_SQL, { commit: sha(2), files: {} });
+    const store = createMemoryRepositoryStore();
+    await store.put(record);
+    const t = await open({ git, store });
+
+    await vi.waitFor(() =>
+      expect(
+        t.events.filter(({ type }) => type === 'repository-updates-checked'),
+      ).toEqual([{ type: 'repository-updates-checked', available: [ID_SQL] }]),
+    );
+    const [item] = await t.engine.repositories.list();
+    expect(item?.availableCommit).toBe(sha(2));
+    expect(git.calls.every((call) => call.startsWith('resolve'))).toBe(true);
+  });
+
+  it('does not delay opening while the server is slow and survives its failure', async () => {
+    const git = createFakeGit();
+    git.remotes.set(URL_SQL, { commit: sha(2), files: {} });
+    const pending = deferred<never>();
+    const slow: FakeGit = {
+      ...git,
+      fetcher: { ...git.fetcher, resolve: () => pending.promise },
+    };
+    const store = createMemoryRepositoryStore();
+    await store.put(record);
+
+    const t = await open({ git: slow, store });
+    const [item] = await t.engine.repositories.list();
+    expect(item).not.toHaveProperty('checkedAt');
+
+    pending.reject(new GitFetchError('network', 'offline'));
+    await vi.waitFor(() =>
+      expect(t.logs.some(({ level }) => level === 'warn')).toBe(true),
+    );
+    expect(await t.engine.repositories.list()).toHaveLength(1);
   });
 });

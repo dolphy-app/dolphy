@@ -24,7 +24,8 @@ export type WrapMethod = (name: string, method: AnyMethod) => AnyMethod;
  * операция ждёт очередь (взаимная блокировка). `extensions.catalog`,
  * `extensions.install`, `extensions.docs` и `extensions.docImage` тоже ходят в
  * сеть (индекс, файлы версии) и очередь не держат; событие
- * `extensions-changed` публикует сама установка.
+ * `extensions-changed` публикует сама установка. `repositories.checkUpdates`
+ * только читает ссылки сервера и никого не ждёт.
  * `extensions.invokeCommand` исполняет код расширения до 14 с: медленная
  * команда не должна замораживать остальные вызовы движка. По той же причине
  * `extensions.diagnostics` и `extensions.restartHost` (здоровье и перезапуск
@@ -38,6 +39,7 @@ export const UNQUEUED: ReadonlySet<string> = new Set([
   'repositories.update',
   'repositories.remove',
   'repositories.cancel',
+  'repositories.checkUpdates',
   'extensions.catalog',
   'extensions.install',
   'extensions.docs',

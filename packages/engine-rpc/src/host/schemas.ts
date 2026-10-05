@@ -329,6 +329,7 @@ export const schemas = {
   'repositories.update': z.tuple([repositoryId]),
   'repositories.remove': z.tuple([repositoryId]),
   'repositories.cancel': z.tuple([repositoryId]),
+  'repositories.checkUpdates': z.tuple([]),
   'practice.startSession': z.tuple([]),
   'practice.finishSession': z.tuple([
     z.strictObject({ sessionId: str.min(1) }),

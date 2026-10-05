@@ -21,6 +21,7 @@ import { createRemediationService } from './services/remediation.ts';
 import {
   createRepositoriesService,
   recoverRepositories,
+  runStartupRepositoryCheck,
 } from './services/repositories.ts';
 import { createSettingsService } from './services/settings.ts';
 import { createSyncService } from './services/sync.ts';
@@ -74,6 +75,7 @@ export const createEngineFromContext = (ctx: EngineContext): HostedEngine => {
   };
   // фоновая проверка обновлений: запуск не ждёт её и не зависит от её исхода
   void runStartupUpdateCheck(ctx);
+  void runStartupRepositoryCheck(ctx, services.repositories);
   const facade = createFacade(
     ctx,
     services,

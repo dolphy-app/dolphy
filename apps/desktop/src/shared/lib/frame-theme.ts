@@ -53,7 +53,10 @@ export const readThemeSnapshot = (doc: Document): ThemeSnapshot => {
   return { variables, dark: style.colorScheme === 'dark' };
 };
 
-/** Тему приложения Vuetify переключает классом `v-theme--*` на корне приложения. */
+/**
+ * Тему приложения Vuetify переключает классом `v-theme--*` на корне приложения;
+ * язык интерфейса — атрибут `lang` корня документа (рамка повторяет его в своём `<html lang>`).
+ */
 export const createDomThemeSource = (doc: Document): ThemeSource => ({
   read: () => readThemeSnapshot(doc),
   subscribe: (listener) => {
@@ -63,6 +66,10 @@ export const createDomThemeSource = (doc: Document): ThemeSource => ({
     observer.observe(appRoot(doc), {
       attributes: true,
       attributeFilter: ['class'],
+    });
+    observer.observe(doc.documentElement, {
+      attributes: true,
+      attributeFilter: ['lang'],
     });
     return () => observer.disconnect();
   },

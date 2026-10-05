@@ -16,7 +16,7 @@
  *   { dolphy: 1, type: 'props', view?, value?, disabled?, verdict? }   (answer)
  *   { dolphy: 1, type: 'panel-props', props }                         (panel)
  *   { dolphy: 1, type: 'panel-result', callId, ok, value | error: { message } }
- *   { dolphy: 1, type: 'theme', variables: { '--v-…': string }, dark: boolean }
+ *   { dolphy: 1, type: 'theme', variables: { '--v-…': string }, dark: boolean, lang }
  *   { dolphy: 1, type: 'dispose' }
  *
  * Рамка → приложение (`dolphyFrame: 1`):
@@ -45,6 +45,7 @@ const dolphyFrameRuntime = (win, loadModule) => {
   const MAX_VARIABLE_CHARS = 200;
   const ELEMENT_NAME = /^[a-z][a-z0-9]*(-[a-z0-9]+)+$/;
   const VARIABLE_NAME = /^--v-[a-z0-9-]+$/;
+  const LANGUAGE_TAG = /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8}){0,4}$/;
   const PROP_NAMES = ['view', 'value', 'disabled', 'verdict'];
   // клиент движка ждёт команду до 14 с: рамка не отвечает раньше приложения
   const CALL_TIMEOUT_MS = 15000;
@@ -284,8 +285,12 @@ const dolphyFrameRuntime = (win, loadModule) => {
         new Error(text.slice(0, MAX_MESSAGE_CHARS) || 'command failed'),
       );
     },
-    theme: ({ variables, dark }) => {
+    theme: ({ variables, dark, lang }) => {
       const root = doc.documentElement;
+      // язык интерфейса приложения: `<html lang>` нужен скринридеру и axe (`html-has-lang`)
+      if (typeof lang === 'string' && LANGUAGE_TAG.test(lang)) {
+        root.lang = lang;
+      }
       const applied = new Set();
       for (const [name, value] of Object.entries(variables ?? {})) {
         const valid =

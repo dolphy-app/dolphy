@@ -307,6 +307,25 @@ describe('рантайм рамки', () => {
     expect(style.getPropertyValue('color-scheme')).toBe('light');
   });
 
+  it('тема: язык интерфейса попадает в <html lang>, чужое значение игнорируется', () => {
+    const { send, document } = setup();
+    const root = document.documentElement;
+    send({ dolphy: 1, type: 'theme', variables: {}, dark: false, lang: 'en' });
+    expect(root.lang).toBe('en');
+    send({
+      dolphy: 1,
+      type: 'theme',
+      variables: {},
+      dark: false,
+      lang: 'ru-RU',
+    });
+    expect(root.lang).toBe('ru-RU');
+    for (const lang of ['', '"><script>', 'x'.repeat(40), 5, null]) {
+      send({ dolphy: 1, type: 'theme', variables: {}, dark: false, lang });
+      expect(root.lang, String(lang)).toBe('ru-RU');
+    }
+  });
+
   it('высота: сообщает при изменении, не повторяет прежнее значение', async () => {
     const { send, define, flush, posted, height } = setup();
     define('x-answer');

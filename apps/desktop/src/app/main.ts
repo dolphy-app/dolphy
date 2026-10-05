@@ -19,6 +19,11 @@ import {
   KEYBINDINGS_KEY,
 } from '@/features/keybindings';
 import {
+  createExtensionTransfers,
+  EXTENSION_TRANSFERS_KEY,
+  syncTransferCommands,
+} from '@/features/extension-transfers';
+import {
   createExtensionCommands,
   describeCommandFailure,
   EXTENSION_COMMANDS_KEY,
@@ -124,6 +129,23 @@ const bootstrap = async () => {
           params: { extensionId, panelId },
         }),
     });
+    const translate = (key: string, params?: Record<string, unknown>) =>
+      i18n.global.t(key as never, (params ?? {}) as never) as string;
+    const extensionTransfers = createExtensionTransfers({
+      engine: engine.extensions,
+      platform: window.dolphy.platform,
+      contributions: () => contributions.contributions.value,
+      notify: (text) =>
+        extensionCommands.notices.push({ kind: 'notify', text }),
+      t: translate,
+    });
+    syncTransferCommands(
+      registry,
+      () => contributions.contributions.value,
+      extensionTransfers,
+      translate,
+      () => i18n.global.locale.value,
+    );
     const palette = createCommandPalette({ registry });
     const platform = detectPlatform(navigator);
     const contextKeys = createContextKeys(platform, document);
@@ -169,6 +191,7 @@ const bootstrap = async () => {
       .provide(COMMAND_REGISTRY_KEY, registry)
       .provide(COMMAND_PALETTE_KEY, palette)
       .provide(EXTENSION_COMMANDS_KEY, extensionCommands)
+      .provide(EXTENSION_TRANSFERS_KEY, extensionTransfers)
       .provide(CONTEXT_KEYS_KEY, contextKeys)
       .provide(KEYBINDINGS_KEY, keybindings)
       .mount('#app');

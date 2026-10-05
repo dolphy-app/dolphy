@@ -127,9 +127,8 @@ const confirmRemove = () => {
           <v-chip
             v-if="repository.availableCommit !== undefined"
             size="small"
-            color="info"
-            variant="tonal"
-            label
+            color="warning"
+            variant="flat"
             prepend-icon="mdi-update"
           >
             {{ t('repository.updateAvailable') }}

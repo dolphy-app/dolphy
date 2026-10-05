@@ -20,12 +20,6 @@ const dismiss = () => {
   shown.value = [];
 };
 
-const open = computed({
-  get: () => shown.value.length > 0,
-  set: (value: boolean) => {
-    if (!value) dismiss();
-  },
-});
 const text = computed(() =>
   t('courseUpdates.notice.text', {
     courses: shown.value
@@ -49,26 +43,45 @@ const openCourses = () => router.push({ name: ROUTE.courses });
 </script>
 
 <template>
-  <v-snackbar
-    v-model="open"
-    timeout="15000"
+  <!-- как плашка безопасного режима: полоса сверху окна, предупреждение несут рамка и значок -->
+  <v-system-bar
+    v-if="shown.length > 0"
+    app
+    color="surface-variant"
+    :height="48"
+    class="course-updates-notice ga-3 px-4"
     role="status"
     data-testid="course-updates-notice"
   >
-    <span class="notice-text">{{ text }}</span>
-    <template #actions>
-      <v-btn variant="text" class="font-weight-bold" @click="openCourses">
-        {{ t('courseUpdates.notice.open') }}
-      </v-btn>
-      <v-btn variant="text" @click="open = false">
-        {{ t('courseUpdates.notice.close') }}
-      </v-btn>
-    </template>
-  </v-snackbar>
+    <v-icon icon="mdi-update" color="warning" aria-hidden="true" />
+    <span class="text-body-medium text-start flex-grow-1 message">
+      {{ text }}
+    </span>
+    <v-btn size="small" variant="flat" color="surface" @click="openCourses">
+      {{ t('courseUpdates.notice.open') }}
+    </v-btn>
+    <v-btn
+      icon="mdi-close"
+      size="small"
+      variant="text"
+      :aria-label="t('courseUpdates.notice.close')"
+      @click="dismiss"
+    />
+  </v-system-bar>
 </template>
 
 <style scoped>
-.notice-text {
-  overflow-wrap: anywhere;
+.course-updates-notice {
+  flex-wrap: nowrap;
+  border-bottom: 3px solid rgb(var(--v-theme-warning));
+}
+
+.message {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 </style>

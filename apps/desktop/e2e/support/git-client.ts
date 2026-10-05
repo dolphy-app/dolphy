@@ -192,9 +192,8 @@ export class GitClient {
   /** Уведомление по итогу ручной проверки. */
   async waitCheckNotice(kind: 'up-to-date' | 'found') {
     await this.page
-      .locator('.v-snackbar__content', {
-        hasText: kind === 'found' ? RU.checkFound : RU.checkUpToDate,
-      })
+      .getByTestId('check-outcome')
+      .filter({ hasText: kind === 'found' ? RU.checkFound : RU.checkUpToDate })
       .waitFor({ timeout: TIMEOUT });
   }
 

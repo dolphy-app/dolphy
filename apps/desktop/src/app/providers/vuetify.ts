@@ -25,6 +25,8 @@ export const createDolphyVuetify = (i18n: DolphyI18n) =>
       VBtn: { class: 'text-none font-weight-medium', rounded: 'lg' },
       VCard: { variant: 'flat', border: true, rounded: 'lg' },
       VChip: { rounded: 'md' },
+      // снекбар в правом нижнем углу: по центру он перекрывал действия карточек и строки списка
+      VSnackbar: { location: 'bottom end' },
       VTextField: { variant: 'outlined', density: 'comfortable' },
       VTextarea: { variant: 'outlined' },
     },

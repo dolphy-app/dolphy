@@ -43,6 +43,9 @@ export interface CourseUpdates {
   readonly checking: Readonly<Ref<boolean>>;
   /** Сверяет репозитории с сервером; `null` — проверка уже идёт, сбой вызова — `unreachable`. */
   check(): Promise<CheckOutcome | null>;
+  /** Итог последней ручной проверки для сообщения на экране «Курсы»; `null` — нечего показывать. */
+  readonly outcome: Readonly<ShallowRef<CheckOutcome | null>>;
+  clearOutcome(): void;
   /** Репозиторий с идущим обновлением. */
   readonly pendingId: Readonly<Ref<string | null>>;
   /** Ход обновления по `id` репозитория. */
@@ -83,6 +86,7 @@ export const createCourseUpdates = (
 ): CourseUpdates => {
   const repositories = shallowRef<readonly RepositoryDto[]>([]);
   const checking = shallowRef(false);
+  const outcome = shallowRef<CheckOutcome | null>(null);
   const pendingId = shallowRef<string | null>(null);
   const progress = shallowRef<Readonly<Record<string, RepositoryProgress>>>({});
   const failure = shallowRef<CourseUpdateFailure | null>(null);
@@ -116,10 +120,12 @@ export const createCourseUpdates = (
       // ответ новее любого чтения, начатого до него
       latest++;
       repositories.value = after;
-      return checkOutcome(before, after);
+      outcome.value = checkOutcome(before, after);
+      return outcome.value;
     } catch (error) {
       console.error({ error }, 'course updates check failed');
-      return { kind: 'unreachable' };
+      outcome.value = { kind: 'unreachable' };
+      return outcome.value;
     } finally {
       checking.value = false;
     }
@@ -166,6 +172,10 @@ export const createCourseUpdates = (
     courseName: (courseId) => courseNames().get(courseId) ?? courseId,
     checking,
     check,
+    outcome,
+    clearOutcome: () => {
+      outcome.value = null;
+    },
     pendingId,
     progress,
     failure,

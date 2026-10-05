@@ -6,7 +6,7 @@ closed: 2026-10-05
 touches: [engine-contract, engine-rpc, engine, desktop]
 depends-on: []
 supersedes: null
-superseded-by: null
+superseded-by: specs/archive/2026-10-05-course-updates-ux
 ---
 
 > Исторический документ. Не источник требований.

@@ -19,6 +19,9 @@
     },
     {
       "path": "../extension-sdk"
+    },
+    {
+      "path": "../extension-ui"
     }
   ]
 }

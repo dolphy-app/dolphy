@@ -6,5 +6,7 @@ export default defineConfig({
     include: ['test/**/*.test.ts'],
     testTimeout: 60_000,
     hookTimeout: 30_000,
+    // Vuetify imports style sheets from its modules: Vite has to process them, Node cannot
+    server: { deps: { inline: ['vuetify'] } },
   },
 });

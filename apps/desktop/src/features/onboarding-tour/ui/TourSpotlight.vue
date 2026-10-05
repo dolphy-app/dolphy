@@ -1,59 +1,10 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import type { Box } from '../lib/placement.ts';
 
-const props = defineProps<{
-  /** Цель шага; `null` — только затемнение. */
-  element: HTMLElement | null;
-  /** Отступ подсветки от границ цели, px. */
-  padding?: number;
+defineProps<{
+  /** Подсвеченная область (цель с отступом) в координатах окна; `null` — только затемнение. */
+  box: Box | null;
 }>();
-
-interface Box {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-}
-
-const box = ref<Box | null>(null);
-const frame = { id: 0 };
-
-// цель не мутируется: подсветка — отдельный блок, который следует за ней
-// каждый кадр (прокрутка вложенных контейнеров и размер окна дают то же самое)
-const track = () => {
-  const gap = props.padding ?? 6;
-  if (props.element?.isConnected) {
-    const rect = props.element.getBoundingClientRect();
-    const next = {
-      left: Math.round(rect.left - gap),
-      top: Math.round(rect.top - gap),
-      width: Math.round(rect.width + gap * 2),
-      height: Math.round(rect.height + gap * 2),
-    };
-    const prev = box.value;
-    if (
-      !prev ||
-      prev.left !== next.left ||
-      prev.top !== next.top ||
-      prev.width !== next.width ||
-      prev.height !== next.height
-    ) {
-      box.value = next;
-    }
-  } else {
-    box.value = null;
-  }
-  frame.id = requestAnimationFrame(track);
-};
-
-onMounted(track);
-onBeforeUnmount(() => cancelAnimationFrame(frame.id));
-watch(
-  () => props.element,
-  () => {
-    if (!props.element) box.value = null;
-  },
-);
 </script>
 
 <template>

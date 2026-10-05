@@ -89,7 +89,7 @@ const closeOnBackdrop = (open: boolean) => {
         :aria-label="t('settings.extensions.install.progress')"
       />
 
-      <v-card-text>
+      <v-card-text tabindex="0">
         <ul class="items">
           <li
             v-for="item in install.items.value"

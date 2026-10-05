@@ -41,6 +41,7 @@ const needsManualInstall = computed(() =>
           :data-status="row.status ?? undefined"
         >
           <v-chip
+            class="dep-chip"
             size="small"
             variant="tonal"
             :color="
@@ -63,7 +64,7 @@ const needsManualInstall = computed(() =>
     </div>
     <p
       v-if="needsManualInstall"
-      class="text-body-small text-medium-emphasis mt-1"
+      class="text-body-small text-medium-emphasis mt-2 mb-0"
       data-testid="dependencies-hint"
     >
       {{ t('settings.extensions.dependencies.hint') }}
@@ -77,7 +78,29 @@ const needsManualInstall = computed(() =>
   flex-wrap: wrap;
   gap: 0.5rem;
   list-style: none;
+  margin: 0;
   padding: 0;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.deps > li {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Длинный id переносится внутри чипа: иначе диапазон и отметка обрезаются. */
+.dep-chip {
+  height: auto;
+  min-height: 1.5rem;
+  max-width: 100%;
+  padding-block: 0.25rem;
+}
+
+.dep-chip :deep(.v-chip__content) {
+  flex-wrap: wrap;
+  white-space: normal;
+  min-width: 0;
 }
 
 .id {

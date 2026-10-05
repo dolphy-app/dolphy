@@ -420,6 +420,8 @@ export const schemas = {
   'placement.answer': z.tuple([
     z.strictObject({ probeId: str.min(1), result: placementResult }),
   ]),
+  'placement.undo': z.tuple([str.min(1)]),
+  'placement.redo': z.tuple([str.min(1)]),
   'placement.finish': z.tuple([
     z.strictObject({ sessionId: str.min(1), requestId }),
   ]),

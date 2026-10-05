@@ -88,6 +88,8 @@ export const createPlacement = (
   const result = shallowRef<PlacementResultView | null>(null);
   /** Результат отменён (`practice.undo`): записанные тестом попытки не действуют. */
   const undone = ref(false);
+  /** Сколько снятых ответов можно вернуть; новый ответ их сбрасывает. */
+  const stepsForward = ref(0);
 
   let sessionId: string | null = null;
   let requestId: string | null = null;
@@ -279,6 +281,7 @@ export const createPlacement = (
       probeId: probe.probeId,
       result: answered,
     });
+    stepsForward.value = 0;
     // ответ принят: дальнейший сбой повторяет переход, а не ответ
     step = 'advance';
     try {
@@ -336,6 +339,35 @@ export const createPlacement = (
     }
   };
 
+  const canStepBack = computed(
+    () =>
+      stage.value === 'probing' &&
+      !busy.value &&
+      (progress.value?.asked ?? 0) > 0,
+  );
+  const canStepForward = computed(
+    () => stage.value === 'probing' && !busy.value && stepsForward.value > 0,
+  );
+
+  /** Один шаг `placement.undo` или `placement.redo`, затем та же или следующая проба. */
+  const retract = (action: 'undo' | 'redo') =>
+    guarded(async () => {
+      if (sessionId === null || stage.value !== 'probing') return;
+      const stepped = await engine.placement[action](sessionId);
+      if (!stepped.changed) return;
+      progress.value = stepped.progress;
+      stepsForward.value += action === 'undo' ? 1 : -1;
+      step = 'advance';
+      await advance();
+    });
+
+  /** «Назад»: снимает последний ответ, та же проба спрашивается заново. */
+  const stepBack = () =>
+    canStepBack.value ? retract('undo') : Promise.resolve();
+  /** «Вернуть ответ» после «Назад». */
+  const stepForward = () =>
+    canStepForward.value ? retract('redo') : Promise.resolve();
+
   /** «Отменить результат»: попытки теста перестают влиять на траекторию, в журнале остаются. */
   const undoResult = () =>
     guarded(async () => {
@@ -385,5 +417,9 @@ export const createPlacement = (
     abort,
     undoResult,
     redoResult,
+    canStepBack,
+    canStepForward,
+    stepBack,
+    stepForward,
   };
 };

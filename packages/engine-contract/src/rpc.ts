@@ -44,6 +44,8 @@ export const RPC_METHODS = {
   'placement.start': { idempotent: false },
   'placement.nextProbe': { idempotent: true }, // до ответа на выданную пробу
   'placement.answer': { idempotent: false },
+  'placement.undo': { idempotent: false }, // один шаг назад за вызов
+  'placement.redo': { idempotent: false },
   'placement.finish': { idempotent: true }, // по requestId
   'placement.abort': { idempotent: false },
   'remediation.getPlan': { idempotent: true },

@@ -27,6 +27,8 @@ export const en: typeof ru = {
       unresolved:
         'Everything is clear | {n} topic left to sort out | {n} topics left to sort out',
       hint: 'A grade of 3 or higher means “I know it”.',
+      back: 'Undo the answer',
+      forward: 'Redo the answer',
       next: 'Continue',
       skip: 'I don’t know / skip',
       finishEarly: 'Finish early',

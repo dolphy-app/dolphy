@@ -240,6 +240,7 @@ describe('extensions settings', () => {
         checkUpdates: true,
         safeMode: false,
         notificationsOff: [],
+        catalogUrl: null,
       },
     });
     const { engine, policy } = await openSettings([USER], settings);
@@ -249,6 +250,7 @@ describe('extensions settings', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
     });
     expect(policy.isEnabled('acme.user')).toBe(false);
   });
@@ -261,6 +263,7 @@ describe('extensions settings', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
     });
     expect(await engine.extensions.setTrusted('acme.user', true)).toEqual({
       disabled: ['acme.user'],
@@ -268,6 +271,7 @@ describe('extensions settings', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
     });
     expect(await settings.loadExtensions()).toEqual({
       disabled: ['acme.user'],
@@ -275,6 +279,7 @@ describe('extensions settings', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
     });
     expect(policy.isEnabled('acme.user')).toBe(false);
     expect(policy.isIsolated('acme.user')).toBe(false);
@@ -285,6 +290,7 @@ describe('extensions settings', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
     });
     expect(policy.isEnabled('acme.user')).toBe(true);
   });
@@ -299,6 +305,7 @@ describe('extensions settings', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
     });
     expect(await engine.extensions.setEnabled('acme.user', true)).toEqual(
       again,
@@ -320,6 +327,7 @@ describe('extensions settings', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
     });
   });
 
@@ -345,6 +353,7 @@ describe('extensions settings', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
     });
   });
 
@@ -511,6 +520,7 @@ describe('extensions safe mode', () => {
       checkUpdates: false,
       safeMode: true,
       notificationsOff: [],
+      catalogUrl: null,
     });
   });
 
@@ -534,6 +544,7 @@ describe('extensions safe mode', () => {
         checkUpdates: true,
         safeMode: true,
         notificationsOff: [],
+        catalogUrl: null,
       },
     });
     const { engine, policy } = await open({}, settings);

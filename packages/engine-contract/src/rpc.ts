@@ -56,6 +56,8 @@ export const RPC_METHODS = {
   'extensions.docs': { idempotent: true },
   'extensions.docImage': { idempotent: true },
   'extensions.setCheckUpdates': { idempotent: false },
+  'extensions.setCatalogUrl': { idempotent: true }, // задаёт значение, не приращение
+  'extensions.catalogSource': { idempotent: true },
   'extensions.setSafeMode': { idempotent: true }, // задаёт значение, не приращение
   'extensions.diagnostics': { idempotent: true },
   'extensions.restartHost': { idempotent: true }, // перезапуск уже работающего хоста ничего не ломает

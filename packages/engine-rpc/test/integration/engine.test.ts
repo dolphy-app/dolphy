@@ -684,6 +684,7 @@ describe('rpc → dispatcher → real engine', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
     });
     expect(
       await call('extensions.getSettingValues', () =>
@@ -728,6 +729,7 @@ describe('rpc → dispatcher → real engine', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
     });
     expect(
       await call('extensions.setTrusted', () =>
@@ -739,6 +741,7 @@ describe('rpc → dispatcher → real engine', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
     });
     expect(
       await call('extensions.setNotificationsEnabled', () =>
@@ -750,12 +753,26 @@ describe('rpc → dispatcher → real engine', () => {
       checkUpdates: true,
       safeMode: false,
       notificationsOff: ['acme.user'],
+      catalogUrl: null,
     });
     expect(
       await call('extensions.setCheckUpdates', () =>
         client.extensions.setCheckUpdates(false),
       ),
     ).toMatchObject({ checkUpdates: false, safeMode: false });
+    expect(
+      await call('extensions.setCatalogUrl', () =>
+        client.extensions.setCatalogUrl('https://example.test/index.json'),
+      ),
+    ).toMatchObject({ catalogUrl: 'https://example.test/index.json' });
+    expect(
+      await call('extensions.catalogSource', () =>
+        client.extensions.catalogSource(),
+      ),
+    ).toMatchObject({
+      url: 'https://example.test/index.json',
+      origin: 'setting',
+    });
     expect(
       await call('extensions.setSafeMode', () =>
         client.extensions.setSafeMode(true),
@@ -852,8 +869,8 @@ describe('rpc → dispatcher → real engine', () => {
         client.extensions.contributions(),
       ),
     ).toEqual({
-      // поколение растёт на каждое применение: включение, доверие, безопасный режим (два раза), установка, удаление выше
-      generation: 6,
+      // поколение растёт на каждое применение: включение, доверие, безопасный режим (два раза), смена адреса каталога, установка, удаление выше
+      generation: 7,
       exerciseTypes: [],
       themes: [],
       markdownRenderers: [],

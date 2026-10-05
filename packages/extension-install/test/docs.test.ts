@@ -10,6 +10,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ExtensionInstallError } from '@dolphy-app/engine/ports';
 import {
+  CATALOG_URL,
   callsTo,
   createEnv,
   installFake,
@@ -306,7 +307,7 @@ describe('deprecated и elsewhere в каталоге', () => {
     ];
     serveIndex(env.routes, entries);
     await env.installer.catalog();
-    expect(env.installer.deprecationOf('acme.old', '1.0.0')).toEqual({
+    expect(env.installer.deprecationOf('acme.old', '1.0.0', CATALOG_URL)).toEqual({
       versions: '<2.0.0',
       reason: 'Replaced',
       alternatives: [
@@ -314,10 +315,10 @@ describe('deprecated и elsewhere в каталоге', () => {
         { id: 'acme.gone', name: null },
       ],
     });
-    expect(env.installer.deprecationOf('acme.old', '2.0.0')).toBeNull();
-    expect(env.installer.deprecationOf('acme.new', '1.0.0')).toBeNull();
-    expect(env.installer.deprecationOf('acme.none', '1.0.0')).toBeNull();
-    expect(env.installer.deprecationOf('acme.old', 'not-semver')).toBeNull();
+    expect(env.installer.deprecationOf('acme.old', '2.0.0', CATALOG_URL)).toBeNull();
+    expect(env.installer.deprecationOf('acme.new', '1.0.0', CATALOG_URL)).toBeNull();
+    expect(env.installer.deprecationOf('acme.none', '1.0.0', CATALOG_URL)).toBeNull();
+    expect(env.installer.deprecationOf('acme.old', 'not-semver', CATALOG_URL)).toBeNull();
   });
 
   it('запись каталога: deprecated по показанной версии, versions с совместимостью и журналом, elsewhere', async () => {

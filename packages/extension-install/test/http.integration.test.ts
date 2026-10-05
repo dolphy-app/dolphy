@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createExtensionInstaller } from '../src/index.ts';
-import type { ExtensionInstaller } from '@dolphy-app/engine/ports';
+import type { CatalogInstaller } from '@dolphy-app/engine/ports';
 import {
   contributesOf,
   createClock,
@@ -52,7 +52,7 @@ const mainSource = (id: string): string =>
 let work: string;
 let catalog: Running;
 let foreign: Running;
-let installer: ExtensionInstaller;
+let installer: CatalogInstaller;
 let extensionsDir: string;
 const requests: string[] = [];
 const foreignRequests: string[] = [];

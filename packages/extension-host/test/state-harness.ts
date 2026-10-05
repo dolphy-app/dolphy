@@ -317,6 +317,7 @@ export const createHarness = (options: HarnessOptions): Harness => {
     checkUpdates: true,
     safeMode: false,
     notificationsOff: [],
+    catalogUrl: null,
   });
   const runtime = createExtensionRuntime({
     extensions: options.extensions,

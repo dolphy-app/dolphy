@@ -294,7 +294,7 @@ describe('updates и отзыв', () => {
   });
 
   it('revocationOf: диапазоны, границы и отсутствие индекса', async () => {
-    expect(env.installer.revocationOf('acme.bad', '1.0.0')).toBeNull();
+    expect(env.installer.revocationOf('acme.bad', '1.0.0', CATALOG_URL)).toBeNull();
     serveIndex(env.routes, [{ id: 'acme.bad', version: '1.3.0' }], {
       revoked: [
         { id: 'acme.bad', versions: '<1.2.0', reason: 'security fix' },
@@ -302,14 +302,14 @@ describe('updates и отзыв', () => {
       ],
     });
     await env.installer.catalog();
-    expect(env.installer.revocationOf('acme.bad', '1.1.9')).toBe(
+    expect(env.installer.revocationOf('acme.bad', '1.1.9', CATALOG_URL)).toBe(
       'security fix',
     );
-    expect(env.installer.revocationOf('acme.bad', '1.2.0')).toBeNull();
-    expect(env.installer.revocationOf('acme.range', '2.4.9')).toBe('broken');
-    expect(env.installer.revocationOf('acme.range', '2.5.0')).toBeNull();
-    expect(env.installer.revocationOf('acme.other', '1.0.0')).toBeNull();
-    expect(env.installer.revocationOf('acme.bad', 'not-semver')).toBeNull();
+    expect(env.installer.revocationOf('acme.bad', '1.2.0', CATALOG_URL)).toBeNull();
+    expect(env.installer.revocationOf('acme.range', '2.4.9', CATALOG_URL)).toBe('broken');
+    expect(env.installer.revocationOf('acme.range', '2.5.0', CATALOG_URL)).toBeNull();
+    expect(env.installer.revocationOf('acme.other', '1.0.0', CATALOG_URL)).toBeNull();
+    expect(env.installer.revocationOf('acme.bad', 'not-semver', CATALOG_URL)).toBeNull();
   });
 
   it('revocationOf работает офлайн после ready() по кэшу с диска', async () => {
@@ -320,6 +320,6 @@ describe('updates и отзыв', () => {
     env.routes.set(FULL_INDEX_URL, { fail: true });
     const restarted = env.restart();
     await restarted.ready();
-    expect(restarted.revocationOf('acme.bad', '1.0.0')).toBe('security fix');
+    expect(restarted.revocationOf('acme.bad', '1.0.0', CATALOG_URL)).toBe('security fix');
   });
 });

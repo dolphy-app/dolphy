@@ -6,3 +6,5 @@ export type {
 } from './options.ts';
 export { nodeFs } from './fs.ts';
 export type { EntryStat, InstallerFs } from './fs.ts';
+export { createSwitchableInstaller } from './switchable.ts';
+export type { SwitchableInstallerOptions } from './switchable.ts';

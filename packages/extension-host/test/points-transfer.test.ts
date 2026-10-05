@@ -233,6 +233,7 @@ describe('обнаружение и реестр импортёров и экс�
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
+      catalogUrl: null,
     });
     return createExtensionRegistry(holder, policy);
   };

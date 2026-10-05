@@ -182,6 +182,7 @@ const open = (installer = createFakeExtensionInstaller()) =>
         checkUpdates: true,
         safeMode: false,
         notificationsOff: [],
+        catalogUrl: null,
       },
     }),
     extensionInstaller: installer,

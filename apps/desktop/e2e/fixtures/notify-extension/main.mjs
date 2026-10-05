@@ -38,9 +38,12 @@ export default {
       return { notify: 'готово' };
     });
     ctx.commands.register('acme.notify.long', async () => {
-      await ctx.storage.set('long', await attempt(() =>
-        ctx.notifications.show({ title: 'x'.repeat(81), body: '' }),
-      ));
+      await ctx.storage.set(
+        'long',
+        await attempt(() =>
+          ctx.notifications.show({ title: 'x'.repeat(81), body: '' }),
+        ),
+      );
       return { notify: 'готово' };
     });
   },

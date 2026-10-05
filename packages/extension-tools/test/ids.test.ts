@@ -53,6 +53,10 @@ describe('renderIds', () => {
         events: [{ event: 'attempt.closed' }, { event: 'session.started' }],
         panels: [{ id: 'acme.ids.main', title: 'Main' }],
         widgets: [{ id: 'acme.ids.card', title: 'Card', slot: 'dailyPlan' }],
+        schedules: [
+          { id: 'acme.ids.morning', every: 'daily' },
+          { id: 'acme.ids.tick', every: 'hourly' },
+        ],
         importers: [
           { id: 'acme.ids.csv', title: 'CSV', accept: ['.csv'] },
           {
@@ -78,6 +82,7 @@ declare module '@dolphy-app/extension-sdk' {
     events: 'attempt.closed' | 'session.started';
     panels: 'acme.ids.main';
     widgets: 'acme.ids.card';
+    schedules: 'acme.ids.morning' | 'acme.ids.tick';
     importers: 'acme.ids.csv' | 'acme.ids.bin';
     exporters: 'acme.ids.report';
     markdownLanguages: 'echo' | 'plot-2d';
@@ -155,7 +160,7 @@ export {};
     ).toEqual([value, 'plain']);
   });
 
-  it('a manifest without commands, events, panels, widgets, importers and exporters gives never for them', () => {
+  it('a manifest without commands, events, panels, widgets, schedules, importers and exporters gives never for them', () => {
     const text = renderIds(
       manifestOf({ exerciseTypes: [{ id: 'acme.ids.one', ...schemas }] }),
     );
@@ -166,6 +171,7 @@ export {};
       'events',
       'panels',
       'widgets',
+      'schedules',
       'importers',
       'exporters',
       'markdownLanguages',
@@ -194,6 +200,7 @@ export {};
       'events',
       'panels',
       'widgets',
+      'schedules',
       'importers',
       'exporters',
       'markdownLanguages',

@@ -776,6 +776,7 @@ describe('ctx.events', () => {
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
     h.engine.emit(attemptClosed('off'));
     h.policy.update({
@@ -785,6 +786,7 @@ describe('ctx.events', () => {
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
     h.engine.emit(attemptClosed('on-again'));
 

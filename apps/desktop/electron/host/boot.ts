@@ -25,6 +25,7 @@ import {
 } from '@dolphy-app/extension-host';
 import { extensionRoots } from '../extension-roots.ts';
 import { createDesktopInstaller } from './installer.ts';
+import { createOffsetClock } from './schedule-clock.ts';
 
 export const boot = async (
   config: EngineConfig,
@@ -165,6 +166,14 @@ export const boot = async (
     policy,
     logger: defaults.logger,
     health,
+    schedule: {
+      ...(config.scheduleTickMs !== undefined && {
+        tickMs: config.scheduleTickMs,
+      }),
+      ...(config.scheduleClockOffsetFile !== undefined && {
+        now: createOffsetClock(config.scheduleClockOffsetFile),
+      }),
+    },
   });
   return { engine, logger: defaults.logger, channel, health };
 };

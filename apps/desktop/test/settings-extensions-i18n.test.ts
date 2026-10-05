@@ -105,6 +105,26 @@ describe('строки «Расширения»', () => {
     }
   });
 
+  it('переключатель «Расписание» и тексты расписаний есть на обоих языках, время подставляется', () => {
+    const expected = {
+      ru: {
+        label: 'Расписание',
+        daily: 'Каждый день в {at}',
+        hourly: 'Каждый час',
+      },
+      en: {
+        label: 'Schedule',
+        daily: 'Every day at {at}',
+        hourly: 'Every hour',
+      },
+    };
+    for (const locale of ['ru', 'en'] as const) {
+      expect(leaf(locale, 'schedulesLabel')).toBe(expected[locale].label);
+      expect(leaf(locale, 'schedule.daily')).toBe(expected[locale].daily);
+      expect(leaf(locale, 'schedule.hourly')).toBe(expected[locale].hourly);
+    }
+  });
+
   it('у числительных четыре формы по-русски и три по-английски', () => {
     for (const key of PLURAL_KEYS) {
       expect(leaf('ru', key).split('|'), key).toHaveLength(4);

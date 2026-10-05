@@ -35,6 +35,7 @@ const info = (
     events: [],
     commands: [],
     widgets: [],
+    schedules: [],
     panels: [],
     importers: [],
     exporters: [],

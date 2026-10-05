@@ -91,22 +91,48 @@ const probes = [
   // контроль: свои ресурсы доступны, значит пробы измеряют именно CSP и протокол
   ['control: own png via img', () => viaImg(`${SELF}/assets/own.png`)],
   ['control: own css via link', () => viaLink(`${SELF}/assets/own.css`)],
-  ['control: own css via @import', () => viaImportRule(`${SELF}/assets/own-import.css`, 'own-import', 'rgb(7, 8, 9)')],
-  ['control: own png via css url()', () => viaBackground(`${SELF}/assets/own.png`)],
-  ['control: own font via @font-face', () => viaFontFace('OwnFont', `${SELF}/assets/own.woff2`)],
+  [
+    'control: own css via @import',
+    () =>
+      viaImportRule(
+        `${SELF}/assets/own-import.css`,
+        'own-import',
+        'rgb(7, 8, 9)',
+      ),
+  ],
+  [
+    'control: own png via css url()',
+    () => viaBackground(`${SELF}/assets/own.png`),
+  ],
+  [
+    'control: own font via @font-face',
+    () => viaFontFace('OwnFont', `${SELF}/assets/own.woff2`),
+  ],
   // чужое расширение
   ['other: script via import()', () => viaImport(`${VICTIM}/shared.mjs`)],
   ['other: main via import()', () => viaImport(`${VICTIM}/main.mjs`)],
   ['other: css via link', () => viaLink(`${VICTIM}/assets/panel.css`)],
   ['other: png via img', () => viaImg(`${VICTIM}/assets/pixel.png`)],
   ['other: svg via img', () => viaImg(`${VICTIM}/assets/shape.svg`)],
-  ['other: font via @font-face', () => viaFontFace('StolenFont', `${VICTIM}/assets/font.woff2`)],
-  ['other: css via @import', () => viaImportRule(`${VICTIM}/assets/panel.css`, 'probe', 'rgb(1, 2, 3)')],
-  ['other: png via css url()', () => viaBackground(`${VICTIM}/assets/pixel.png`)],
+  [
+    'other: font via @font-face',
+    () => viaFontFace('StolenFont', `${VICTIM}/assets/font.woff2`),
+  ],
+  [
+    'other: css via @import',
+    () => viaImportRule(`${VICTIM}/assets/panel.css`, 'probe', 'rgb(1, 2, 3)'),
+  ],
+  [
+    'other: png via css url()',
+    () => viaBackground(`${VICTIM}/assets/pixel.png`),
+  ],
   // манифест и README: не отдаются никому, в том числе своему расширению
   ['other: extension.json via link', () => viaLink(`${VICTIM}/extension.json`)],
   ['other: README.md via img', () => viaImg(`${VICTIM}/README.md`)],
-  ['own: extension.json via import()', () => viaImport(`${SELF}/extension.json`)],
+  [
+    'own: extension.json via import()',
+    () => viaImport(`${SELF}/extension.json`),
+  ],
   ['own: extension.json via link', () => viaLink(`${SELF}/extension.json`)],
   ['own: README.md via img', () => viaImg(`${SELF}/README.md`)],
   ['own: extension.json via fetch', () => viaFetch(`${SELF}/extension.json`)],

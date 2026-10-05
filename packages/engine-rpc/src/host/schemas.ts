@@ -433,6 +433,7 @@ export const schemas = {
   'extensions.setEnabled': z.tuple([extensionId, z.boolean()]),
   'extensions.setTrusted': z.tuple([extensionId, z.boolean()]),
   'extensions.setNotificationsEnabled': z.tuple([extensionId, z.boolean()]),
+  'extensions.setSchedulesEnabled': z.tuple([extensionId, z.boolean()]),
   'extensions.catalog': z.tuple([
     optional(z.strictObject({ refresh: optional(bool) })),
   ]),

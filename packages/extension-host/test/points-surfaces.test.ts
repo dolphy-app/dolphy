@@ -542,6 +542,7 @@ describe('обнаружение и реестр команд и панелей'
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
 
     const registry = createExtensionRegistry(holder, policy);
@@ -591,6 +592,7 @@ describe('обнаружение и реестр команд и панелей'
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
 
     const registry = createExtensionRegistry(holder, policy);
@@ -643,6 +645,7 @@ describe('обнаружение и реестр команд и панелей'
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
 
     const contributions = createExtensionRegistry(

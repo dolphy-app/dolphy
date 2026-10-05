@@ -39,6 +39,7 @@ const extension = (id: string, version = '1.0.0'): ResolvedExtension => ({
   events: [],
   commands: [],
   widgets: [],
+  schedules: [],
   panels: [],
   importers: [],
   exporters: [],
@@ -54,6 +55,7 @@ const NONE = {
   commands: [],
   panels: [],
   widgets: [],
+  schedules: [],
   importers: [],
   exporters: [],
 };
@@ -227,6 +229,7 @@ describe('createExtensionRegistry: политика', () => {
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
     const item = registry.list().find(({ id }) => id === 'acme.u');
     expect(item).toMatchObject({
@@ -250,6 +253,7 @@ describe('createExtensionRegistry: политика', () => {
       safeMode: true,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
     const items = registry.list();
     expect(items.find(({ id }) => id === 'acme.u')).toMatchObject({
@@ -275,6 +279,7 @@ describe('createExtensionRegistry: политика', () => {
       safeMode,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
     policy.update(settings(true));
     expect(registry.list().find(({ id }) => id === 'acme.u')).toMatchObject({
@@ -350,6 +355,7 @@ describe('createExtensionRegistry: политика', () => {
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
     expect(types()).toEqual([['dolphy.math.a', 'bundled', '', false]]);
   });
@@ -382,6 +388,7 @@ describe('createExtensionRegistry: политика', () => {
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
     expect(flags()).toEqual({ math: false, chart: false });
     expect(registry.list().map(({ isolation }) => isolation)).toEqual([
@@ -491,6 +498,7 @@ describe('createExtensionRegistry: titles and tags', () => {
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
     expect(rowOf('acme.titled')).toMatchObject({
       state: 'disabled',
@@ -504,6 +512,7 @@ describe('createExtensionRegistry: titles and tags', () => {
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
   });
 

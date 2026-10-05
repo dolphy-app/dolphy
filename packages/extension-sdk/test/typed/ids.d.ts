@@ -8,6 +8,7 @@ declare module '@dolphy-app/extension-sdk' {
     events: 'attempt.closed';
     panels: 'acme.panel';
     widgets: 'acme.widget';
+    schedules: 'acme.morning' | 'acme.hourly';
     importers: 'acme.in';
     exporters: 'acme.out' | 'acme.report';
     markdownLanguages: 'echo';

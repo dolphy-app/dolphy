@@ -25,6 +25,7 @@ const dto = (
   settings: [],
   commands: [],
   widgets: [],
+  schedules: [],
   panels: [],
   importers: [],
   exporters: [],

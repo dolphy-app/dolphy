@@ -20,3 +20,11 @@ html {
 .first-upper::first-letter {
   text-transform: uppercase;
 }
+
+/* Vuetify показывает фокус кнопки и чипа только оверлеем с прозрачностью 0.12
+   (1.1:1 к фону): добавляем контур цветом темы */
+.v-btn:focus-visible,
+.v-chip:focus-visible {
+  outline: 2px solid rgb(var(--v-theme-primary));
+  outline-offset: 2px;
+}

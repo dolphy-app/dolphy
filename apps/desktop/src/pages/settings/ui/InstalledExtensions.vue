@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type {
   ExtensionDiagnosticDto,
@@ -7,15 +7,19 @@ import type {
   ExtensionStateDto,
 } from '@dolphy-app/engine-contract';
 import { useEngine } from '@/shared/api/engine';
+import { useContributions } from '@/shared/api/engine/contributions.ts';
 import { ROUTE } from '@/shared/config/routes.ts';
 import { useExtensionText } from '@/shared/lib/extension-text.ts';
 import { effectiveTags } from '../lib/tags.ts';
 import {
   areNotificationsOn,
+  areSchedulesOn,
   hasNotifications,
+  hasSchedules,
   hasSwitches,
   isEnabled,
   isTrusted,
+  scheduleSummaryOf,
   useExtensions,
 } from '../model/extensions.ts';
 import { useDiagnosticsCopy } from '../model/diagnostics-copy.ts';
@@ -67,6 +71,7 @@ const {
   setEnabled,
   setTrusted,
   setNotifications,
+  setSchedules,
   setCheckUpdates,
   setSafeMode,
   restartHost,
@@ -76,6 +81,19 @@ const catalogSource = useCatalogSource(useEngine());
 
 const { source } = catalogSource;
 onMounted(() => void catalogSource.load());
+
+const contributions = useContributions();
+/** Расписания включённых расширений по id расширения, в порядке манифеста. */
+const schedulesByExtension = computed(() => {
+  const map = new Map<string, string[]>();
+  for (const schedule of contributions.value.schedules) {
+    const { key, at } = scheduleSummaryOf(schedule);
+    const texts = map.get(schedule.extensionId) ?? [];
+    texts.push(t(`settings.extensions.schedule.${key}`, { at }));
+    map.set(schedule.extensionId, texts);
+  }
+  return map;
+});
 
 const removeTarget = ref<ExtensionInfoDto | null>(null);
 const settingsTarget = ref<ExtensionInfoDto | null>(null);
@@ -644,6 +662,29 @@ watch(
                   setNotifications(extension.id, $event === true)
                 "
               />
+              <v-switch
+                v-if="hasSchedules(extension)"
+                :model-value="areSchedulesOn(settings, extension.id)"
+                :label="t('settings.extensions.schedulesLabel')"
+                :disabled="switching.has(`schedules:${extension.id}`)"
+                :aria-describedby="`schedules-text-${extension.id}`"
+                color="primary"
+                density="compact"
+                hide-details
+                inset
+                :data-testid="`schedules-${extension.id}`"
+                @update:model-value="
+                  setSchedules(extension.id, $event === true)
+                "
+              />
+              <p
+                v-if="hasSchedules(extension)"
+                :id="`schedules-text-${extension.id}`"
+                class="text-body-small text-medium-emphasis mt-0 mb-2"
+                :data-testid="`schedules-text-${extension.id}`"
+              >
+                {{ (schedulesByExtension.get(extension.id) ?? []).join(' · ') }}
+              </p>
               <v-switch
                 :model-value="isTrusted(settings, extension.id)"
                 :label="t('settings.extensions.trustLabel')"

@@ -88,6 +88,7 @@ describe('createJsonSettingsStore: свои файлы движка', () => {
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
   });
 });

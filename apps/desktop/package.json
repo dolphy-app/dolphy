@@ -23,7 +23,9 @@
     "smoke": "node scripts/smoke.mjs",
     "smoke:packaged": "node scripts/smoke.mjs --packaged",
     "preview": "vite preview",
-    "e2e": "vitest run -c vitest.e2e.config.ts"
+    "e2e": "vitest run -c vitest.e2e.config.ts",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
   },
   "devDependencies": {
     "@dagrejs/dagre": "^3.1.1",
@@ -42,6 +44,8 @@
     "@fontsource/roboto": "^5.2.10",
     "@mdi/font": "^7.4.47",
     "@pinia/colada": "^1.4.7",
+    "@storybook/addon-docs": "^10.6.1",
+    "@storybook/vue3-vite": "^10.6.1",
     "@types/better-sqlite3": "^7.6.13",
     "@types/markdown-it": "^14.2.0",
     "@types/node": "^22.20.4",
@@ -54,6 +58,7 @@
     "markdown-it": "^15.0.2",
     "pinia": "^4.0.3",
     "playwright-core": "^1.63.0",
+    "storybook": "^10.6.1",
     "typescript": "^6.0.3",
     "vite": "^8.0.16",
     "vite-plugin-electron": "^1.0.1",

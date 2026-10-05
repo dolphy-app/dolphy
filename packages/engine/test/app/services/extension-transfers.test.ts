@@ -50,6 +50,7 @@ const info = (): ExtensionInfoDto => ({
     events: [],
     commands: [],
     widgets: [],
+    schedules: [],
     panels: [],
     importers: [IMPORTER, BYTES_IMPORTER],
     exporters: [EXPORTER, PROGRESS_EXPORTER],
@@ -156,6 +157,7 @@ const open = async (handlers: Handlers = {}) => {
       settings: [],
       commands: [],
       widgets: [],
+      schedules: [],
       panels: [],
       importers: [
         importer(IMPORTER, 'text'),

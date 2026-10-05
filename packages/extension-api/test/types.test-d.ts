@@ -160,6 +160,7 @@ describe('extension-api types', () => {
       events: 'attempt.closed';
       panels: 'a.panel';
       widgets: 'a.widget';
+      schedules: 'a.morning' | 'a.hourly';
       importers: 'a.in';
       exporters: 'a.out';
       markdownLanguages: 'a';
@@ -203,10 +204,13 @@ describe('extension-api types', () => {
       >();
     });
 
-    it('commands, events and registrations take the declared ids only', () => {
+    it('commands, schedules, events and registrations take the declared ids only', () => {
       expectTypeOf<Narrow['commands']['register']>()
         .parameter(0)
         .toEqualTypeOf<'a.run' | 'a.stop'>();
+      expectTypeOf<Narrow['schedule']['on']>()
+        .parameter(0)
+        .toEqualTypeOf<'a.morning' | 'a.hourly'>();
       expectTypeOf<Narrow['events']['on']>()
         .parameter(0)
         .toEqualTypeOf<'attempt.closed'>();

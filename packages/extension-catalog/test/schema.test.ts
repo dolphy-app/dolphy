@@ -97,6 +97,27 @@ describe('parseIndex', () => {
     ).toContain('extensions.0.contributes.widgets');
   });
 
+  it('сводка принимает schedules и сохраняет их; неверный тип отвергается, без ключа остаётся undefined', () => {
+    const base = entry().contributes;
+    const parsed = parseIndex(
+      index([
+        entry({ contributes: { ...base, schedules: ['acme.quiz.morning'] } }),
+      ]),
+    );
+    expect(parsed.extensions[0]?.contributes.schedules).toEqual([
+      'acme.quiz.morning',
+    ]);
+    expect(parseIndex(JSON.parse(JSON.stringify(parsed)))).toEqual(parsed);
+    expect(
+      issuesOf(
+        index([{ ...entry(), contributes: { ...base, schedules: 'x' } }]),
+      )[0],
+    ).toContain('extensions.0.contributes.schedules');
+    expect(
+      parseIndex(index()).extensions[0]?.contributes.schedules,
+    ).toBeUndefined();
+  });
+
   it('сводка принимает importers и exporters и сохраняет их; неверный тип отвергается', () => {
     const base = entry().contributes;
     const parsed = parseIndex(

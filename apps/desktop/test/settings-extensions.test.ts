@@ -10,9 +10,12 @@ import type {
 } from '@dolphy-app/engine-contract';
 import {
   COLLAPSED_VALUES,
+  areSchedulesOn,
   contributionGroups,
+  hasSchedules,
   hasSwitches,
   hidesContributions,
+  scheduleSummaryOf,
   useExtensions,
   visibleValues,
 } from '@/pages/settings/model/extensions.ts';
@@ -38,6 +41,7 @@ const NONE_SET: ExtensionSettingsDto = {
   safeMode: false,
   notificationsOff: [],
   catalogUrl: null,
+  schedulesOff: [],
 };
 
 /** Каждый вызов `list()` ждёт, пока тест его не завершит. */
@@ -181,6 +185,7 @@ describe('contributionGroups', () => {
         commands: ['acme.run'],
         panels: ['acme.view'],
         widgets: ['acme.card'],
+        schedules: [],
         importers: [],
         exporters: [],
       }),
@@ -368,9 +373,45 @@ describe('hasSwitches', () => {
   });
 });
 
+describe('расписания в строке', () => {
+  it('переключатель нужен загруженному расширению, объявившему schedules', () => {
+    const declared = (state: ExtensionInfoDto['state'], schedules: string[]) =>
+      extension('acme.x', {
+        state,
+        contributes: { ...NO_CONTRIBUTES, schedules },
+      });
+    expect(hasSchedules(declared('loaded', ['acme.x.morning']))).toBe(true);
+    expect(hasSchedules(declared('loaded', []))).toBe(false);
+    // у отключённого манифест всё ещё объявляет расписания, но вкладов нет: ни переключателя, ни текста
+    expect(hasSchedules(declared('disabled', ['acme.x.morning']))).toBe(false);
+  });
+
+  it('включено, пока id нет в schedulesOff', () => {
+    const off = { ...NONE_SET, schedulesOff: ['acme.x'] };
+    expect(areSchedulesOn(NONE_SET, 'acme.x')).toBe(true);
+    expect(areSchedulesOn(off, 'acme.x')).toBe(false);
+    expect(areSchedulesOn(off, 'acme.y')).toBe(true);
+  });
+
+  it('текст: daily называет время, hourly — нет', () => {
+    expect(scheduleSummaryOf({ every: 'daily', at: '08:30' })).toEqual({
+      key: 'daily',
+      at: '08:30',
+    });
+    expect(scheduleSummaryOf({ every: 'hourly', at: null })).toEqual({
+      key: 'hourly',
+      at: '',
+    });
+  });
+});
+
 describe('переключатели', () => {
   interface Call {
-    method: 'setEnabled' | 'setTrusted' | 'setNotificationsEnabled';
+    method:
+      | 'setEnabled'
+      | 'setTrusted'
+      | 'setNotificationsEnabled'
+      | 'setSchedulesEnabled';
     id: string;
     value: boolean;
     resolve(next: ExtensionSettingsDto): void;
@@ -398,6 +439,7 @@ describe('переключатели', () => {
         setEnabled: write('setEnabled'),
         setTrusted: write('setTrusted'),
         setNotificationsEnabled: write('setNotificationsEnabled'),
+        setSchedulesEnabled: write('setSchedulesEnabled'),
       },
     } as unknown as LearningEngine;
     return { engine, calls, listCalls: () => listCalls };
@@ -418,6 +460,7 @@ describe('переключатели', () => {
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
     await pending;
 
@@ -429,6 +472,7 @@ describe('переключатели', () => {
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
     expect(model.switching.value.size).toBe(0);
     expect(model.switchError.value).toBeNull();
@@ -444,6 +488,7 @@ describe('переключатели', () => {
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
     const model = mount(engine);
     await flush();
@@ -456,6 +501,7 @@ describe('переключатели', () => {
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
     await pending;
     expect(calls[0]).toMatchObject({ method: 'setEnabled', value: true });
@@ -499,6 +545,52 @@ describe('переключатели', () => {
     expect(model.switchError.value).toBe('cannot write');
   });
 
+  it('«Расписание» хранится как наличие в списке выключенных и пишется своим методом, не трогая «Уведомления»', async () => {
+    const { engine, calls } = createSwitchEngine({
+      ...NONE_SET,
+      notificationsOff: ['acme.x'],
+    });
+    const model = mount(engine);
+    await flush();
+
+    const pending = model.setSchedules('acme.x', false);
+    expect(model.settings.value.schedulesOff).toEqual(['acme.x']);
+    expect(model.settings.value.notificationsOff).toEqual(['acme.x']);
+    expect(model.switching.value.has('schedules:acme.x')).toBe(true);
+    calls[0]?.resolve({
+      ...NONE_SET,
+      notificationsOff: ['acme.x'],
+      schedulesOff: ['acme.x'],
+    });
+    await pending;
+    expect(calls[0]).toMatchObject({
+      method: 'setSchedulesEnabled',
+      id: 'acme.x',
+      value: false,
+    });
+  });
+
+  it('включение «Расписания» убирает id из списка, отказ движка возвращает его и показывает ошибку', async () => {
+    const { engine, calls } = createSwitchEngine({
+      ...NONE_SET,
+      schedulesOff: ['acme.x'],
+    });
+    const model = mount(engine);
+    await flush();
+
+    const pending = model.setSchedules('acme.x', true);
+    expect(model.settings.value.schedulesOff).toEqual([]);
+    calls[0]?.reject(new Error('cannot write'));
+    await pending;
+
+    expect(calls[0]).toMatchObject({
+      method: 'setSchedulesEnabled',
+      value: true,
+    });
+    expect(model.settings.value.schedulesOff).toEqual(['acme.x']);
+    expect(model.switchError.value).toBe('cannot write');
+  });
+
   it('отказ движка откатывает переключатель и показывает ошибку', async () => {
     const { engine, calls } = createSwitchEngine();
     const model = mount(engine);
@@ -528,6 +620,7 @@ describe('переключатели', () => {
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
+      schedulesOff: [],
     });
     await first;
   });

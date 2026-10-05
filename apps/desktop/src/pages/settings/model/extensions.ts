@@ -8,6 +8,7 @@ import type {
   ExtensionUpdateDto,
   ExtensionsDiagnosticsDto,
   LearningEngine,
+  ScheduleContributionDto,
 } from '@dolphy-app/engine-contract';
 import { CONTRIBUTION_POINTS, targetFromUpdate } from '../lib/catalog.ts';
 import type { ContributionPoint, InstallTarget } from '../lib/catalog.ts';
@@ -107,13 +108,15 @@ export const hasHealthIssue = (health: ExtensionHealthDto | undefined) =>
   health !== undefined &&
   (health.failures > 0 || health.suppressedUntil !== null);
 
-export type ExtensionSwitch = 'enabled' | 'trusted' | 'notifications';
+export type ExtensionSwitch =
+  'enabled' | 'trusted' | 'notifications' | 'schedules';
 
 /** Список настроек, в котором переключатель хранит расширение, и что означает членство (`true` — выключено или доверено). */
 const SWITCH_LISTS = {
   enabled: { field: 'disabled', listedWhenOn: false },
   trusted: { field: 'trusted', listedWhenOn: true },
   notifications: { field: 'notificationsOff', listedWhenOn: false },
+  schedules: { field: 'schedulesOff', listedWhenOn: false },
 } as const;
 
 const NO_SETTINGS: ExtensionSettingsDto = {
@@ -123,6 +126,7 @@ const NO_SETTINGS: ExtensionSettingsDto = {
   safeMode: false,
   notificationsOff: [],
   catalogUrl: null,
+  schedulesOff: [],
 };
 
 /** Метод движка, который записывает переключатель. */
@@ -138,6 +142,8 @@ const WRITERS: Record<
   trusted: (engine, id, value) => engine.extensions.setTrusted(id, value),
   notifications: (engine, id, value) =>
     engine.extensions.setNotificationsEnabled(id, value),
+  schedules: (engine, id, value) =>
+    engine.extensions.setSchedulesEnabled(id, value),
 };
 
 const errorText = (caught: unknown) =>
@@ -153,6 +159,25 @@ export const areNotificationsOn = (
   settings: ExtensionSettingsDto,
   id: string,
 ) => !settings.notificationsOff.includes(id);
+
+export const areSchedulesOn = (settings: ExtensionSettingsDto, id: string) =>
+  !settings.schedulesOff.includes(id);
+
+/**
+ * Переключатель «Расписание» нужен загруженному расширению, которое объявило
+ * `schedules`. У отключённого манифест всё ещё объявляет расписания, но
+ * движок вкладов не отдаёт: текста под переключателем не было бы.
+ */
+export const hasSchedules = (extension: ExtensionInfoDto): boolean =>
+  extension.state === 'loaded' && extension.contributes.schedules.length > 0;
+
+/** Как показать расписание человеческим текстом: ключ сообщения и подстановка. */
+export const scheduleSummaryOf = (
+  schedule: Pick<ScheduleContributionDto, 'every' | 'at'>,
+): { key: 'daily' | 'hourly'; at: string } => ({
+  key: schedule.every,
+  at: schedule.at ?? '',
+});
 
 /** Переключатель «Уведомления» нужен расширению, которое просит разрешение `notifications`. */
 export const hasNotifications = (extension: ExtensionInfoDto): boolean =>
@@ -236,7 +261,7 @@ export const useExtensions = (engine: LearningEngine) => {
   ): ExtensionSettingsDto => {
     const current = settings.value;
     const { field, listedWhenOn } = SWITCH_LISTS[which];
-    // `enabled` и `notifications` хранят выключенные: включить = убрать из списка
+    // `enabled`, `notifications` и `schedules` хранят выключенные: включить = убрать из списка
     const member = listedWhenOn ? value : !value;
     const rest = current[field].filter((item) => item !== id);
     return {
@@ -380,5 +405,7 @@ export const useExtensions = (engine: LearningEngine) => {
     setTrusted: (id: string, value: boolean) => change(id, 'trusted', value),
     setNotifications: (id: string, value: boolean) =>
       change(id, 'notifications', value),
+    setSchedules: (id: string, value: boolean) =>
+      change(id, 'schedules', value),
   };
 };

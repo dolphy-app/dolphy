@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "apiVersion": 1,
   "contributes": {
-    "panels": [{ "id": "acme.hostile-assets.main", "title": "Враждебные ресурсы" }]
+    "panels": [
+      { "id": "acme.hostile-assets.main", "title": "Враждебные ресурсы" }
+    ]
   }
 }

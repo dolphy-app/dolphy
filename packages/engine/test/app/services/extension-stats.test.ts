@@ -24,6 +24,7 @@ const base: Omit<ExtensionInfoDto, 'id' | 'permissions' | 'state'> = {
     events: [],
     commands: [],
     widgets: [],
+    schedules: [],
     panels: [],
     importers: [],
     exporters: [],
@@ -85,6 +86,7 @@ const open = () =>
         safeMode: false,
         notificationsOff: [],
         catalogUrl: null,
+        schedulesOff: [],
       },
     }),
   });

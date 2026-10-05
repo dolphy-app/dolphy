@@ -55,6 +55,7 @@ describe('effectiveTags', () => {
       commands: ['a'],
       panels: ['a'],
       widgets: ['a'],
+      schedules: [],
       importers: [],
       exporters: [],
     });

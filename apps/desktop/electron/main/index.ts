@@ -32,6 +32,7 @@ import {
   notificationLogOf,
 } from './platform-services.ts';
 import { safeModeSource } from './safe-mode.ts';
+import { scheduleClockOf } from './schedule-clock.ts';
 import { createDevExtensionsShell } from './shells/dev-extensions.ts';
 import { createDevToolsShortcutShell } from './shells/devtools-shortcut.ts';
 import { createEngineShell } from './shells/engine.ts';
@@ -119,6 +120,8 @@ const extensionCatalogUrl = app.isPackaged
 
 // безопасный режим, заданный запуском (флаг или переменная): настройкой не снимается
 const forceSafeMode = safeModeSource(process.argv, process.env);
+// ускоренные часы расписаний для e2e (`DOLPHY_SCHEDULE_TICK_MS`, `DOLPHY_CLOCK_OFFSET_FILE`): только в несобранном приложении
+const scheduleClock = scheduleClockOf(process.env, app.isPackaged);
 
 const hostLink = createHostLink({ MessageChannelMain });
 // шифр секретов расширений: `safeStorage` есть только в main, хост движка спрашивает по `parentPort`;
@@ -190,6 +193,7 @@ const supervisor = createSupervisor({
     ...(devExtensionsDir ? { devExtensionsDir } : {}),
     ...(extensionCatalogUrl ? { extensionCatalogUrl } : {}),
     ...(forceSafeMode ? { forceSafeMode } : {}),
+    ...scheduleClock,
     logsDir,
   },
   logger,

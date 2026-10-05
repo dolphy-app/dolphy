@@ -30,6 +30,7 @@ const RU = {
   extensionEnabled: 'Включено',
   extensionTrust: 'Доверять (без изоляции)',
   extensionNotifications: 'Уведомления',
+  extensionSchedules: 'Расписание',
   reloadWindow: 'Перезагрузить окно',
   verdictPassed: 'Верно',
   verdictFailed: 'Пока неверно',
@@ -52,12 +53,14 @@ const RU = {
 
 const TIMEOUT = 15_000;
 
-export type ExtensionSwitchName = 'enabled' | 'trusted' | 'notifications';
+export type ExtensionSwitchName =
+  'enabled' | 'trusted' | 'notifications' | 'schedules';
 
 const SWITCH_LABELS: Record<ExtensionSwitchName, string> = {
   enabled: RU.extensionEnabled,
   trusted: RU.extensionTrust,
   notifications: RU.extensionNotifications,
+  schedules: RU.extensionSchedules,
 };
 
 /** Рамка элемента ответа недоверенного расширения (`IsolatedFrame`, режим `answer`). */
@@ -478,7 +481,7 @@ export class Client {
   }
 
   /**
-   * Переключает «Включено» / «Доверять» / «Уведомления» и ждёт, пока движок применит
+   * Переключает «Включено» / «Доверять» / «Уведомления» / «Расписание» и ждёт, пока движок применит
    * изменение: переключатель снова доступен. Окно не перезагружается.
    */
   async setExtensionSwitch(

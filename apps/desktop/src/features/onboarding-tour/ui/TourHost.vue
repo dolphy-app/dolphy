@@ -9,6 +9,8 @@ import {
 } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
+import { placeCard } from '../lib/placement.ts';
+import type { Box, Size } from '../lib/placement.ts';
 import { targetSelector } from '../lib/tours.ts';
 import { useOnboardingTour } from '../model/onboarding-tour.ts';
 import TourOfferDialog from './TourOfferDialog.vue';
@@ -40,6 +42,24 @@ const found = computed(() => runner.state.element);
 // страница может перерисовать цель (данные пришли заново): тогда ищем её снова
 const element = shallowRef<HTMLElement | null>(null);
 watch(found, (next) => (element.value = next), { immediate: true });
+
+/** Отступ подсветки от границ цели, px. */
+const PADDING = 6;
+const box = shallowRef<Box | null>(null);
+const viewport = shallowRef<Size>({
+  width: window.innerWidth,
+  height: window.innerHeight,
+});
+const sameBox = (a: Box | null, b: Box | null) =>
+  a === b ||
+  (a !== null &&
+    b !== null &&
+    a.left === b.left &&
+    a.top === b.top &&
+    a.width === b.width &&
+    a.height === b.height);
+// один кадровый цикл: цель, подсветка и карточка следуют за прокруткой вложенных
+// контейнеров и размером окна; перерисованная страницей цель ищется заново
 const keepTarget = { frame: 0 };
 const follow = () => {
   const target = step.value?.target;
@@ -47,9 +67,56 @@ const follow = () => {
     const next = document.querySelector<HTMLElement>(targetSelector(target));
     if (next) element.value = next;
   }
+  const el = element.value;
+  let next: Box | null = null;
+  if (el?.isConnected) {
+    const rect = el.getBoundingClientRect();
+    next = {
+      left: Math.round(rect.left - PADDING),
+      top: Math.round(rect.top - PADDING),
+      width: Math.round(rect.width + PADDING * 2),
+      height: Math.round(rect.height + PADDING * 2),
+    };
+  }
+  if (!sameBox(box.value, next)) box.value = next;
+  if (
+    viewport.value.width !== window.innerWidth ||
+    viewport.value.height !== window.innerHeight
+  ) {
+    viewport.value = {
+      width: window.innerWidth,
+      height: window.innerHeight,
+    };
+  }
   keepTarget.frame = requestAnimationFrame(follow);
 };
 keepTarget.frame = requestAnimationFrame(follow);
+
+// размер карточки известен после отрисовки: до этого она скрыта в углу
+const popover = ref<HTMLElement | null>(null);
+const size = shallowRef<Size | null>(null);
+const observer = new ResizeObserver(([entry]) => {
+  if (entry)
+    size.value = {
+      width: entry.target.getBoundingClientRect().width,
+      height: entry.target.getBoundingClientRect().height,
+    };
+});
+watch(popover, (el, previous) => {
+  if (previous) observer.unobserve(previous);
+  size.value = null;
+  if (el) observer.observe(el);
+});
+const placement = computed(() =>
+  box.value && size.value
+    ? placeCard(box.value, size.value, viewport.value, step.value?.placement)
+    : null,
+);
+const popoverStyle = computed(() =>
+  placement.value
+    ? { left: `${placement.value.left}px`, top: `${placement.value.top}px` }
+    : { left: '0px', top: '0px', visibility: 'hidden' as const },
+);
 const total = computed(() => runner.state.tour?.steps.length ?? 0);
 const key = computed(() => {
   const id = runner.state.tour?.id;
@@ -115,6 +182,18 @@ watch(
   { flush: 'post' },
 );
 
+// карточка не помещается рядом с высокой целью: поднимаем цель к верху окна,
+// под ней появляется место (один раз на шаг; `scroll-margin` задан в global.css)
+const scrolledFor: { key: string | null } = { key: null };
+watch(placement, (next) => {
+  if (!next || next.overlap === 0 || scrolledFor.key === key.value) return;
+  scrolledFor.key = key.value;
+  element.value?.scrollIntoView({
+    block: 'start',
+    behavior: reducedMotion ? 'auto' : 'smooth',
+  });
+});
+
 /** `→` далее, `←` назад, `Escape` пропустить; Enter и пробел на кнопках — их собственные. */
 function onKeydown(event: KeyboardEvent) {
   if (!runner.running || event.defaultPrevented) return;
@@ -144,6 +223,7 @@ function onKeydown(event: KeyboardEvent) {
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown, true);
   cancelAnimationFrame(keepTarget.frame);
+  observer.disconnect();
 });
 </script>
 
@@ -154,49 +234,47 @@ onBeforeUnmount(() => {
     @skip="tour.decline()"
   />
   <template v-if="runner.running">
-    <TourSpotlight :element="element" />
-    <v-overlay
-      v-if="visible && step && element"
-      :key="key ?? undefined"
-      :model-value="true"
-      persistent
-      no-click-animation
-      :scrim="false"
-      :target="element"
-      :offset="14"
-      location-strategy="connected"
-      :location="step.placement ?? 'bottom'"
-      origin="auto"
-      :transition="reducedMotion ? false : 'fade-transition'"
-    >
-      <TourStepCard
-        ref="card"
-        :title="title"
-        :text="text"
-        :step="runner.state.index + 1"
-        :total="total"
-        :is-first="runner.isFirst"
-        :is-last="runner.isLast"
-        @back="runner.previous()"
-        @next="runner.next()"
-        @skip="runner.skip()"
-      />
-    </v-overlay>
+    <TourSpotlight :box="box" />
+    <!-- рядом с целью, не на ней: сторона выбирается так, чтобы карточка не закрывала подсветку -->
+    <Transition name="tour-fade" mode="out-in" appear>
+      <div
+        v-if="visible && step && element"
+        :key="key ?? undefined"
+        ref="popover"
+        class="tour-popover"
+        :style="popoverStyle"
+      >
+        <TourStepCard
+          ref="card"
+          :title="title"
+          :text="text"
+          :icon="step.icon"
+          :step="runner.state.index + 1"
+          :total="total"
+          :is-first="runner.isFirst"
+          :is-last="runner.isLast"
+          @back="runner.previous()"
+          @next="runner.next()"
+          @skip="runner.skip()"
+        />
+      </div>
+    </Transition>
     <!-- шаг без цели: карточка по центру, затемнение рисует TourSpotlight -->
     <v-dialog
-      v-else-if="visible && step"
+      v-if="visible && step && !element"
       :key="key ?? undefined"
       :model-value="true"
       persistent
       no-click-animation
       :scrim="false"
       width="auto"
-      :transition="reducedMotion ? false : 'fade-transition'"
+      :transition="false"
     >
       <TourStepCard
         ref="card"
         :title="title"
         :text="text"
+        :icon="step.icon"
         :step="runner.state.index + 1"
         :total="total"
         :is-first="runner.isFirst"
@@ -219,6 +297,25 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.tour-popover {
+  position: fixed;
+  z-index: 2000;
+}
+
+.tour-fade-enter-active {
+  transition: opacity 0.15s;
+}
+
+.tour-fade-enter-from {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-fade-enter-active {
+    transition: none;
+  }
+}
+
 .tour-sr-only {
   position: absolute;
   width: 1px;

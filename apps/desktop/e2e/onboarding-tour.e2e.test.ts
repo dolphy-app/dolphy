@@ -108,6 +108,37 @@ describe('обучающий тур: прохождение', () => {
         const box = await tour.hole.boundingBox();
         expect(box).not.toBeNull();
         expect(box!.width).toBeGreaterThan(20);
+        // карточка не наезжает на подсвеченное, не выходит за окно и не обрезает кнопки
+        const geometry = await page.evaluate(() => {
+          const rect = (selector: string) =>
+            document.querySelector(selector)!.getBoundingClientRect();
+          const card = rect('[data-tour-card]');
+          const hole = rect('.tour-hole');
+          const overlap =
+            Math.max(
+              0,
+              Math.min(card.right, hole.right) - Math.max(card.left, hole.left),
+            ) *
+            Math.max(
+              0,
+              Math.min(card.bottom, hole.bottom) - Math.max(card.top, hole.top),
+            );
+          const buttons = [
+            ...document.querySelectorAll('[data-tour-card] button'),
+          ].map((button) => button.getBoundingClientRect());
+          return {
+            overlap,
+            inside:
+              card.left >= 0 &&
+              card.top >= 0 &&
+              card.right <= window.innerWidth &&
+              card.bottom <= window.innerHeight,
+            clipped: buttons.some(
+              (b) => b.left < card.left || b.right > card.right,
+            ),
+          };
+        });
+        expect(geometry).toEqual({ overlap: 0, inside: true, clipped: false });
         expect(await tour.button(TOUR.back).count()).toBe(1);
       }
       if (index < total - 1) {

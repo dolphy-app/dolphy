@@ -43,7 +43,6 @@ const act = () => (props.focused ? emit('openPlan') : emit('study'));
 <template>
   <v-card
     class="course-card d-flex flex-column pa-5 h-100"
-    data-tour="course-card"
     :border="border"
     :aria-current="ariaCurrent"
   >
@@ -58,7 +57,8 @@ const act = () => (props.focused ? emit('openPlan') : emit('study'));
     >
       {{ t('repository.updateAvailable') }}
     </v-chip>
-    <div class="d-flex align-start ga-4">
+    <!-- шапка (метка, название, счётчики) — цель шага тура: вся карточка выше окна -->
+    <div class="d-flex align-start ga-4" data-tour="course-card">
       <v-avatar :color="tone" variant="tonal" size="48" rounded="lg">
         <span class="text-title-large font-weight-bold" aria-hidden="true">
           {{ initial }}

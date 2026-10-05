@@ -8,10 +8,10 @@ const el = (name: string) => ({ name }) as unknown as HTMLElement;
 const tour: TourDefinition = {
   id: 'demo',
   steps: [
-    { id: 'intro', route: 'plan' },
-    { id: 'a', route: 'plan', target: 'a' },
-    { id: 'b', route: 'courses', target: 'b' },
-    { id: 'c', route: 'courses', target: 'c' },
+    { id: 'intro', icon: 'mdi-circle', route: 'plan' },
+    { id: 'a', icon: 'mdi-circle', route: 'plan', target: 'a' },
+    { id: 'b', icon: 'mdi-circle', route: 'courses', target: 'b' },
+    { id: 'c', icon: 'mdi-circle', route: 'courses', target: 'c' },
   ],
 };
 
@@ -120,8 +120,8 @@ describe('tour runner: missing targets', () => {
     const targeted: TourDefinition = {
       id: 'ghost',
       steps: [
-        { id: 'x', target: 'x' },
-        { id: 'y', target: 'y' },
+        { id: 'x', icon: 'mdi-circle', target: 'x' },
+        { id: 'y', icon: 'mdi-circle', target: 'y' },
       ],
     };
     const { runner, ended } = setup([]);
@@ -159,8 +159,8 @@ describe('tour runner: skipping', () => {
     await runner.start({
       id: 'late-tour',
       steps: [
-        { id: 'one', target: 'one' },
-        { id: 'two', target: 'late' },
+        { id: 'one', icon: 'mdi-circle', target: 'one' },
+        { id: 'two', icon: 'mdi-circle', target: 'late' },
       ],
     });
     const moving = runner.next();

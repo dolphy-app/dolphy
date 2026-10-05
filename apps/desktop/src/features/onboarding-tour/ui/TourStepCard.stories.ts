@@ -8,6 +8,7 @@ const meta = {
   args: {
     title: 'Один курс или все сразу',
     text: 'Выберите курс, и план, повторения и занятие возьмут задания только из него. «Все курсы» возвращает общий план. Прогресс каждого курса хранится отдельно.',
+    icon: 'mdi-target',
     step: 3,
     total: 7,
     isFirst: false,
@@ -43,6 +44,23 @@ export const LongText: Story = {
 
 export const UnbrokenWord: Story = {
   args: { title: 'ЭлектромагнитноСовместимыйИнтерфейсПрограммирования' },
+};
+
+/** Без значка плитки нет: заголовок занимает всю ширину. */
+export const NoIcon: Story = { args: { icon: undefined } };
+
+/** Кнопки не вылезают за края карточки, в том числе с самой длинной подписью. */
+export const ButtonsStayInside: Story = {
+  globals: { locale: 'ru' },
+  play: async ({ canvasElement }) => {
+    const card = canvasElement.querySelector('[data-tour-card]') as HTMLElement;
+    const inner = card.getBoundingClientRect();
+    for (const button of card.querySelectorAll('button')) {
+      const rect = button.getBoundingClientRect();
+      await expect(rect.left).toBeGreaterThanOrEqual(inner.left);
+      await expect(rect.right).toBeLessThanOrEqual(inner.right);
+    }
+  },
 };
 
 export const EmitsActions: Story = {

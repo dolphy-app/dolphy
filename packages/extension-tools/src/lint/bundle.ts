@@ -13,7 +13,13 @@ const OBFUSCATION_MIN_BYTES = 20 * 1024;
 const OBFUSCATION_LINE_LENGTH = 500;
 const OBFUSCATION_IDENTIFIERS = 20;
 
-const DYNAMIC_EXECUTION = /(?<![\w$])(?:eval\s*\(|new\s+Function\s*\()/;
+/**
+ * `eval(…)` and `new Function(…)`, except `new Function("")`: its body is
+ * empty, nothing runs. `zod` makes that call to find out whether code
+ * generation is allowed, so every bundle that validates with `zod` has it.
+ */
+const DYNAMIC_EXECUTION =
+  /(?<![\w$])(?:eval\s*\(|new\s+Function\s*\((?!\s*(?:""|''|``)\s*\)))/;
 const HEX_IDENTIFIER = /(?<![\w$])_0x[0-9a-f]{3,}(?![\w$])/gi;
 const SOURCE_MAP = /\/\/[#@]\s*sourceMappingURL=/;
 

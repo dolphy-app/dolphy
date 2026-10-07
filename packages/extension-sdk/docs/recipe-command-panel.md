@@ -143,17 +143,6 @@ void load();
 </style>
 ```
 
-File `src/env.d.ts` (command-panel):
-
-```ts
-declare module '*.vue' {
-  import type { DefineComponent } from 'vue';
-
-  const component: DefineComponent<object, object, unknown>;
-  export default component;
-}
-```
-
 - `client.addPanel({ id, title, component })` adds the screen and its entry in
   the sidebar menu. The component is a Vue component, here a single-file
   component (`.vue`), or a `Mountable` that draws with another framework (see
@@ -171,9 +160,9 @@ declare module '*.vue' {
   id>">` tag of the window document, so a plain `<style>` reaches the whole
   window. Write `<style scoped>`, as the template does. `<style module>` is
   not supported.
-- `src/env.d.ts` tells `tsc` that a `.vue` import is a Vue component. `tsc`
-  does not look inside a `.vue` file; add `vue-tsc` to `typecheck` if you
-  want the script and the template checked too.
+- `pnpm typecheck` runs `vue-tsc --noEmit`: it checks the `<script setup
+  lang="ts">` and the `<template>` of a `.vue` file, which plain `tsc` does not
+  look into, and knows `.vue` imports without a `declare module` shim.
 - Inside the component `usePanel()` from `@dolphy-app/extension-sdk/client`
   returns the handle: `panelId`, the reactive `props` the panel was opened with
   (a repeated `openPanel` with new properties updates them in place, so a

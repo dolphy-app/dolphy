@@ -345,7 +345,7 @@ const verifyTemplateProject = ({ consumer, template, tarballs, env }) => {
     ['--no-install', 'dolphy-ext', 'validate', `dist-ext/${template}`],
     { cwd: project, env },
   );
-  run('npx', ['--no-install', 'tsc', '--noEmit'], { cwd: project, env });
+  run('npm', ['run', 'typecheck'], { cwd: project, env });
   check(
     run('npm', ['test'], { cwd: project, env }).includes('passed'),
     `${template}: npm test reported no passing tests`,
@@ -418,7 +418,7 @@ const main = () => {
       env,
     });
     assertSplitOutputs(path.join(demo, 'dist-ext', 'demo'));
-    run('npx', ['--no-install', 'tsc', '--noEmit'], { cwd: demo, env });
+    run('npm', ['run', 'typecheck'], { cwd: demo, env });
     const testOutput = run('npm', ['test'], { cwd: demo, env });
     check(
       testOutput.includes('passed'),

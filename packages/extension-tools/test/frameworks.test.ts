@@ -105,6 +105,121 @@ describe('framework react', () => {
     expect(main).not.toMatch(/createRoot|jsx|useState|flushSync/);
   });
 
+  describe('server file and the React of the client part', () => {
+    const REACT_RUNTIME = 'react.transitional.element';
+
+    /** A package laid out like `@dolphy-app/extension-sdk` as published: `sideEffects: false`, the constructors in a chunk shared by the entries, the React adapter in its own entry. */
+    const publishedSdk = (root: string) =>
+      write(root, {
+        'node_modules/@dolphy-app/extension-sdk/package.json': JSON.stringify({
+          name: '@dolphy-app/extension-sdk',
+          type: 'module',
+          sideEffects: false,
+          exports: { '.': './dist/index.js', './react': './dist/react.js' },
+        }),
+        'node_modules/@dolphy-app/extension-sdk/dist/define-entry.js': `const defineMountable = /* @__NO_SIDE_EFFECTS__ */ (mount) => ({ mount });
+const defineServer = /* @__NO_SIDE_EFFECTS__ */ (entry) => entry;
+const defineClient = /* @__NO_SIDE_EFFECTS__ */ (entry) => entry;
+export { defineServer as i, defineMountable as r, defineClient as t };
+`,
+        'node_modules/@dolphy-app/extension-sdk/dist/index.js': `import { i as defineServer, t as defineClient } from './define-entry.js';
+export { defineClient, defineServer };
+`,
+        'node_modules/@dolphy-app/extension-sdk/dist/react.js': `import { r as defineMountable } from './define-entry.js';
+import { Component, createContext, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
+const Context = createContext(null);
+class Boundary extends Component {}
+const reactComponent = /* @__NO_SIDE_EFFECTS__ */ (component) =>
+  /* @__PURE__ */ defineMountable((el) => {
+    createRoot(el).render(
+      createElement(Context.Provider, { value: 1 }, createElement(Boundary, null, createElement(component))),
+    );
+  });
+export { reactComponent };
+`,
+      });
+
+    const SERVER_IMPORTS = `import { defineServer } from '@dolphy-app/extension-sdk';\n`;
+    const SERVER = `export const server = defineServer((s) => {
+  s.registerCommand({ id: 'acme.react-panel.ping', title: 'Ping', run: () => 1 });
+});
+`;
+    const PANEL_IMPORTS = `import { defineClient } from '@dolphy-app/extension-sdk';
+import { reactComponent } from '@dolphy-app/extension-sdk/react';
+import { createElement, useState } from 'react';
+`;
+    const PANEL = `const Panel = () => createElement('p', null, useState(0)[0]);
+const panel = reactComponent(Panel);
+export const client = defineClient((c) => {
+  c.addPanel({ id: 'acme.react-panel.main', title: 'Panel', component: panel });
+});
+`;
+
+    const layouts: Record<string, Record<string, string>> = {
+      'reexports of the files of the parts': {
+        'src/index.ts': `export { client } from './client.ts';\nexport { server } from './server.ts';\n`,
+        'src/client.ts': `${PANEL_IMPORTS}${PANEL}`,
+        'src/server.ts': `${SERVER_IMPORTS}${SERVER}`,
+      },
+      'both parts in src/index.ts': {
+        'src/index.ts': `import { defineClient, defineServer } from '@dolphy-app/extension-sdk';
+import { reactComponent } from '@dolphy-app/extension-sdk/react';
+import { createElement, useState } from 'react';
+${PANEL}${SERVER}`,
+      },
+    };
+
+    it.each(Object.keys(layouts))(
+      'keeps the library of a component the server does not use out: %s',
+      async (layout) => {
+        const root = await withConfig(
+          'react-panel',
+          { frameworks: ['react'] },
+          { isReactLinked: true },
+        );
+        await publishedSdk(root);
+        await write(root, layouts[layout] ?? {});
+        const { dir } = await build(root);
+        const main = await read(dir, 'main.mjs');
+        expect(main).toContain('acme.react-panel.ping');
+        expect(main).not.toContain(REACT_RUNTIME);
+        expect(main.length).toBeLessThan(5000);
+        expect(await read(dir, 'client.mjs')).toContain(REACT_RUNTIME);
+      },
+    );
+
+    it('keeps react in the server file that calls it', async () => {
+      const root = await withConfig(
+        'react-panel',
+        { frameworks: ['react'] },
+        { isReactLinked: true },
+      );
+      await write(root, {
+        'src/index.ts': `import { renderToStaticMarkup } from 'react-dom/server';
+import { createElement } from 'react';
+import { client } from './client.ts';
+export { client };
+export const server = (s) => {
+  s.registerCommand({
+    id: 'acme.react-panel.ping',
+    title: 'Ping',
+    run: () => renderToStaticMarkup(createElement('b', null, 'rendered')),
+  });
+};
+`,
+        'src/client.ts': `export const client = (c) => {
+  c.addPanel({ id: 'acme.react-panel.main', title: 'Panel', component: { mount: () => () => undefined } });
+};
+`,
+      });
+      const { dir } = await build(root);
+      const main = await read(dir, 'main.mjs');
+      expect(main).toContain(REACT_RUNTIME);
+      expect(main).toContain('renderToStaticMarkup');
+    });
+  });
+
   it('JSX without the framework in the config is an error that names the file and the fix', async () => {
     const root = await copyProject('react-panel');
     await linkReact(root);

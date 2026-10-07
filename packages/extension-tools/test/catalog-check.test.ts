@@ -436,6 +436,17 @@ describe('catalog check: authoring rules', () => {
     expect(hit).toContain(' main.mjs: ');
   });
 
+  it('CHECK-022: new Function("") is the probe of validator libraries, not dynamic code', async () => {
+    const probe = await builtSite({
+      'main.mjs': 'try { new Function(""); } catch { /* no eval */ }',
+    });
+    expect(await run(await single(), { builtDir: probe })).toEqual([]);
+    const alongside = await builtSite({
+      'main.mjs': 'new Function(""); new Function(source);',
+    });
+    await expectRule({}, 'CHECK-022', 'warning', { builtDir: alongside });
+  });
+
   it('CHECK-023: obfuscated built code', async () => {
     const builtDir = await builtSite({ 'view.mjs': `${'a'.repeat(21_000)}\n` });
     await expectRule({}, 'CHECK-023', 'warning', { builtDir });

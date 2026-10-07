@@ -1,5 +1,13 @@
 import { spawn } from 'node:child_process';
-import { cp, mkdir, mkdtemp, realpath, rm, symlink } from 'node:fs/promises';
+import {
+  cp,
+  mkdir,
+  mkdtemp,
+  readdir,
+  realpath,
+  rm,
+  symlink,
+} from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -80,16 +88,35 @@ const tscBin = path.join(
   'bin',
   'tsc',
 );
+const vueTscBin = fileURLToPath(
+  new URL(
+    '../../../apps/desktop/node_modules/vue-tsc/bin/vue-tsc.js',
+    import.meta.url,
+  ),
+);
 
-/** `tsc --noEmit` in the project: the exit code (1 — diagnostics) and what it printed. */
-export const runTsc = (project: string) =>
-  new Promise<{ code: number | null; output: string }>((resolve, reject) => {
-    const child = spawn(process.execPath, [tscBin, '--noEmit'], {
-      cwd: project,
-    });
-    let output = '';
-    child.stdout.on('data', (chunk: Buffer) => void (output += chunk));
-    child.stderr.on('data', (chunk: Buffer) => void (output += chunk));
-    child.on('error', reject);
-    child.on('close', (code) => resolve({ code, output }));
-  });
+/**
+ * `tsc --noEmit` in the project (`vue-tsc --noEmit` when `src` has `.vue`
+ * files, which `tsc` does not look into): the exit code (1 — diagnostics) and
+ * what it printed.
+ */
+export const runTsc = async (project: string) => {
+  const entries = await readdir(path.join(project, 'src'), {
+    recursive: true,
+  }).catch(() => []);
+  const bin = entries.some((entry) => entry.endsWith('.vue'))
+    ? vueTscBin
+    : tscBin;
+  return new Promise<{ code: number | null; output: string }>(
+    (resolve, reject) => {
+      const child = spawn(process.execPath, [bin, '--noEmit'], {
+        cwd: project,
+      });
+      let output = '';
+      child.stdout.on('data', (chunk: Buffer) => void (output += chunk));
+      child.stderr.on('data', (chunk: Buffer) => void (output += chunk));
+      child.on('error', reject);
+      child.on('close', (code) => resolve({ code, output }));
+    },
+  );
+};

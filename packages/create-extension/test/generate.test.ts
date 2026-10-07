@@ -67,7 +67,6 @@ describe('generateExtension', () => {
       [
         'src/StatusPanel.vue',
         'src/client.ts',
-        'src/env.d.ts',
         'src/index.ts',
         'src/server.ts',
         'test/index.test.ts',

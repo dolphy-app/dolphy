@@ -32,16 +32,25 @@ export interface TemplateModule {
   devDependencies?: Readonly<Record<string, string>>;
   /** Extra `compilerOptions` of `tsconfig.json` (name → JSON value). */
   compilerOptions?: Readonly<Record<string, string>>;
+  /** The `typecheck` script; defaults to `tsc`. */
+  typecheck?: string;
 }
 
 export const lines = (parts: readonly string[]): string =>
   `${parts.join('\n')}\n`;
 
+/** `typecheck` script command (default `tsc`). */
+export const typecheckCommand = (module: TemplateModule): string =>
+  module.typecheck ?? 'tsc';
+
 /** The `pnpm` scripts of every generated project. */
-export const scripts = (id: string): Record<string, string> => ({
+export const scripts = (
+  id: string,
+  module: TemplateModule,
+): Record<string, string> => ({
   build: 'dolphy-ext build',
   dev: 'dolphy-ext build --watch',
-  typecheck: 'tsc',
+  typecheck: typecheckCommand(module),
   validate: `dolphy-ext validate dist-ext/${id}`,
   lint: 'dolphy-ext lint',
   test: 'vitest run',
@@ -57,7 +66,7 @@ export const packageJson = (
       version: INITIAL_VERSION,
       private: true,
       type: 'module',
-      scripts: scripts(id),
+      scripts: scripts(id, module),
       devDependencies: Object.fromEntries(
         Object.entries({
           '@dolphy-app/extension-api': dependencies.api,
@@ -136,7 +145,7 @@ export const readme = (id: string, module: TemplateModule): string =>
     `pnpm build      # dist-ext/${id}`,
     'pnpm validate   # the same manifest parsing the app does',
     'pnpm lint       # metadata and bundle checks before a catalog pull request',
-    'pnpm typecheck  # tsc',
+    `pnpm typecheck  # ${typecheckCommand(module)}`,
     'pnpm test',
     '```',
     '',
@@ -151,8 +160,8 @@ export const readme = (id: string, module: TemplateModule): string =>
     '`<userData>/extensions/` and restart the app.',
     '',
     'To try the extension while developing, set `DOLPHY_DEV_EXTENSIONS` to the',
-    'project `dist-ext` directory when starting the app (read only by an',
-    'unpackaged app).',
+    'project `dist-ext` directory when starting the app (any build of the app',
+    'reads it, packaged or not; `dolphy-ext dev` relies on this).',
   ]);
 
 export const gitignore = (): string => lines(['node_modules', 'dist-ext']);
@@ -177,7 +186,7 @@ export const agentsMd = (id: string, module: TemplateModule): string =>
     '- `pnpm install` — install the toolchain;',
     `- \`pnpm build\` — build into \`dist-ext/${id}\`;`,
     '- `pnpm dev` — rebuild on every change (`dolphy-ext build --watch`);',
-    '- `pnpm typecheck` — `tsc`;',
+    `- \`pnpm typecheck\` — \`${typecheckCommand(module)}\`;`,
     '- `pnpm validate` — parse the built manifest the way the app does;',
     '- `pnpm lint` — metadata and bundle checks the catalog review also runs;',
     '- `pnpm test` — `vitest`.',

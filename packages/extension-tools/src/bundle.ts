@@ -89,6 +89,21 @@ const bundleConfig = (
 /** Constants of the extension API are `Object.freeze({…})` calls: without this a browser bundle keeps all of them. */
 const BROWSER_PURE_CALLS = ['Object.freeze'];
 
+/**
+ * Calls of the client part that the server file shares `src/index.ts` with: a
+ * call whose result the server does not use is dropped with everything it
+ * refers to (a component and the library behind it). The `__NO_SIDE_EFFECTS__`
+ * mark of the SDK does not do it for the SDK as published: the bundler keeps
+ * the call, and with it React, in `main.mjs`.
+ */
+const SERVER_PURE_CALLS = [
+  'defineComponent',
+  'defineAsyncComponent',
+  'defineClient',
+  'defineMountable',
+  'reactComponent',
+];
+
 /** `presets`: plugins of the frameworks of the client file (the server file and workers are built without them). */
 const outputJob = (
   project: Project,
@@ -115,7 +130,7 @@ const outputJob = (
         ? { manualPureFunctions: BROWSER_PURE_CALLS }
         : {
             moduleSideEffects: (id) => !frameworkPackages.test(id),
-            manualPureFunctions: ['defineComponent', 'defineAsyncComponent'],
+            manualPureFunctions: SERVER_PURE_CALLS,
           },
     },
   };

@@ -118,7 +118,7 @@ shape of a host module (`activate`, `deactivate`).
 ## Publishing
 
 The extension catalog reviews a project, not a bare directory: it requires a
-`package.json` with a lock file and a `README.md` that explains what each
-permission is for (`dolphy-ext catalog check`). A hand-written directory is for
+`package.json` with a lock file and a `README.md` that explains what the
+extension does (`dolphy-ext catalog check`). A hand-written directory is for
 yourself or for handing a folder to someone. To publish, generate a project with
 `create-dolphy-extension` and move the code into it.

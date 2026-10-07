@@ -27,11 +27,10 @@ import { createEndpointPair } from '../src/loopback.ts';
 import { createExtensionPolicy } from '../src/policy.ts';
 import { createExtensionRuntime } from '../src/runtime.ts';
 import type { ExtensionRuntime } from '../src/runtime.ts';
-import type { RunnerFactory } from '../src/restricted-runner.ts';
 import { createLogger } from './helpers.ts';
 import type { TestLogger } from './helpers.ts';
 
-/** Расширение с состоянием: разрешение, подписки на события и настройки разных видов. */
+/** Расширение с состоянием: подписки на события и настройки разных видов. */
 export const stateful = (
   id: string,
   overrides: Partial<ResolvedExtension> = {},
@@ -42,7 +41,6 @@ export const stateful = (
   revision: '',
   dir: `/x/${id}`,
   mainPath: `/x/${id}/main.mjs`,
-  permissions: ['learning.events'],
   name: null,
   description: null,
   author: null,
@@ -280,11 +278,8 @@ export const createStubEngine = (): StubEngine => {
 
 export interface HarnessOptions {
   extensions: readonly ResolvedExtension[];
-  /** Модули в процессе хоста (для расширений, исполняемых без изоляции). */
+  /** Модули в процессе хоста . */
   modules?: Record<string, ExtensionModule>;
-  /** Расширения, которым доверяют (исполняются в процессе хоста); остальные изолированы. */
-  trusted?: readonly string[];
-  runners?: RunnerFactory;
   queueLimit?: number;
   deliveryMs?: number;
   restart?: () => void;
@@ -314,10 +309,8 @@ export const createHarness = (options: HarnessOptions): Harness => {
   const engine = createStubEngine();
   const discovery = createDiscoveryHolder(discoveryOf(options.extensions));
   const policy = createExtensionPolicy(discovery);
-  const trusted = [...(options.trusted ?? [])];
   policy.update({
     disabled: [],
-    trusted,
     checkUpdates: true,
     safeMode: false,
     notificationsOff: [],
@@ -329,7 +322,6 @@ export const createHarness = (options: HarnessOptions): Harness => {
     library: { readText: async () => '', stat: async () => null },
     logger,
     ...(options.modules !== undefined && { modules: options.modules }),
-    ...(options.runners !== undefined && { runners: options.runners }),
   });
   const channel = createHostChannel({
     logger,
@@ -356,10 +348,9 @@ export const createHarness = (options: HarnessOptions): Harness => {
     commands: createRemoteExtensionCommands({
       channel,
       discovery,
-      policy,
       logger,
     }),
-    transfers: createRemoteExtensionTransfers({ channel, policy, logger }),
+    transfers: createRemoteExtensionTransfers({ channel, logger }),
     discovery,
     policy,
     logger,

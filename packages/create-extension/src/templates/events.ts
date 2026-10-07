@@ -9,7 +9,6 @@ const manifestJson = (id: string): string => `{
   "name": "Day streak",
   "description": "Counts the days in a row with a closed attempt and shows the streak.",
   "author": "your-github-login",
-  "permissions": ["learning.events"],
   "tags": ["learning"],
   "contributes": {
     "events": [{ "event": "attempt.closed" }],
@@ -248,11 +247,10 @@ export const events: TemplateModule = {
   summary: [
     'A Dolphy extension: a day streak. It listens to `attempt.closed`, keeps',
     'the streak in `ctx.storage`, and shows it with a command and a panel.',
-    'It asks for the `learning.events` permission: without it no event arrives.',
   ],
   layout: [
-    '- `extension.json` — the manifest (the event, the commands, the panel and',
-    '  the `learning.events` permission are declared in it);',
+    '- `extension.json` — the manifest (the event, the commands and the panel',
+    '  are declared in it);',
     '- `src/index.ts` — all the extension code: `host` (`defineExtension`: the',
     '  event handler, the commands, `ctx.storage`) and `panels`',
     '  (`defineExtensionPanel`: a Vue component the app draws); the build splits',

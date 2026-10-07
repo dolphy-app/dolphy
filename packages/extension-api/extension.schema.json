@@ -20,22 +20,6 @@
     "main": {
       "type": "string"
     },
-    "permissions": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "enum": [
-          "library.read",
-          "process.spawn",
-          "worker.threads",
-          "native.addons",
-          "network",
-          "learning.events",
-          "learning.stats",
-          "notifications"
-        ]
-      }
-    },
     "name": {
       "type": "string",
       "minLength": 1,
@@ -1145,5 +1129,5 @@
   ],
   "additionalProperties": false,
   "title": "Dolphy extension manifest",
-  "description": "Editor aid for extension.json. It does not express cross-field rules (id prefix, at least one contribution, the learning.events permission for events, per-point checks); `dolphy-ext validate` and the app remain the source of truth."
+  "description": "Editor aid for extension.json. It does not express cross-field rules (id prefix, at least one contribution, per-point checks); `dolphy-ext validate` and the app remain the source of truth."
 }

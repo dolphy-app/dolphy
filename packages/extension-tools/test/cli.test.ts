@@ -53,31 +53,7 @@ describe('runCli', () => {
     expect(bad.stderr()).toContain(`error ${root}: `);
   });
 
-  it('validate: an unknown permission — an error with the field path, a known one passes', async () => {
-    const root = await copyProject('hello');
-    const built = createIo();
-    await runCli(['build', root], built.io);
-    const dir = path.join(root, 'dist-ext', 'acme.hello');
-    const manifestPath = path.join(dir, 'extension.json');
-    const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as object;
-
-    await writeFile(
-      manifestPath,
-      JSON.stringify({ ...manifest, permissions: ['network'] }),
-    );
-    const ok = createIo();
-    expect(await runCli(['validate', dir], ok.io)).toBe(0);
-
-    await writeFile(
-      manifestPath,
-      JSON.stringify({ ...manifest, permissions: ['disk.write'] }),
-    );
-    const bad = createIo();
-    expect(await runCli(['validate', dir], bad.io)).toBe(1);
-    expect(bad.stderr()).toMatch(/permissions\.0: /);
-  });
-
-  it('validate: importers and exporters pass; a progress exporter needs learning.stats; an upper-case accept is refused', async () => {
+  it('validate: importers and exporters pass; an upper-case accept is refused', async () => {
     const root = await copyProject('typed-transfers');
     const built = createIo();
     expect(await runCli(['build', root], built.io), built.stderr()).toBe(0);
@@ -89,14 +65,6 @@ describe('runCli', () => {
 
     const ok = createIo();
     expect(await runCli(['validate', dir], ok.io)).toBe(0);
-
-    await writeFile(
-      manifestPath,
-      JSON.stringify({ ...manifest, permissions: [] }),
-    );
-    const noStats = createIo();
-    expect(await runCli(['validate', dir], noStats.io)).toBe(1);
-    expect(noStats.stderr()).toMatch(/exporters\.1\.scope: .*learning\.stats/);
 
     await writeFile(
       manifestPath,

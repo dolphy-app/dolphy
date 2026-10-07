@@ -76,14 +76,10 @@ describe('createJsonSettingsStore: свои файлы движка', () => {
 
   it('файл расширений прежней формы (без checkUpdates) — проверка включена', async () => {
     const dir = await tmp.make('settings-');
-    await writeFile(
-      `${dir}/extensions.json`,
-      '{"disabled":["acme.a"],"trusted":[]}',
-    );
+    await writeFile(`${dir}/extensions.json`, '{"disabled":["acme.a"]}');
     const store = createJsonSettingsStore({ dir });
     expect(await store.loadExtensions()).toEqual({
       disabled: ['acme.a'],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],

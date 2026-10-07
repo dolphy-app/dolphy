@@ -7,7 +7,7 @@ import { createCatalog } from '../src/catalog.ts';
 import { createHostChannel } from '../src/channel.ts';
 import { createRemoteExerciseTypes } from '../src/client.ts';
 import { discoverExtensions } from '../src/discover.ts';
-import { createAllTrustedPolicy } from '../src/policy.ts';
+import { createAllEnabledPolicy } from '../src/policy.ts';
 import { createLogger, holderOf } from './helpers.ts';
 
 const childPath = fileURLToPath(
@@ -71,8 +71,7 @@ describe('extension host в отдельном процессе', () => {
     const channel = createHostChannel({ logger, connectTimeoutMs: 5000 });
     const client = createRemoteExerciseTypes({
       channel,
-      catalog: createCatalog(holderOf(extensions), createAllTrustedPolicy()),
-      policy: createAllTrustedPolicy(),
+      catalog: createCatalog(holderOf(extensions), createAllEnabledPolicy()),
       logger,
     });
     const grade = (type: string, answer: string) =>

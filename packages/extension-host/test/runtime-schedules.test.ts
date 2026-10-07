@@ -22,7 +22,7 @@ const extension = (): ResolvedExtension =>
 const fire = (scheduleId: string, id = '1'): ExtRequest => ({
   id,
   method: 'fireSchedule',
-  params: { extensionId: ID, scheduleId, isolated: false },
+  params: { extensionId: ID, scheduleId },
 });
 
 let runtime: ExtensionRuntime | null = null;
@@ -41,7 +41,6 @@ const open = (
     library: nullLibrary,
     logger,
     modules: { [ID]: module },
-    enforceIsolation: false,
   });
   return runtime;
 };
@@ -170,7 +169,7 @@ describe('fireSchedule в процессе хоста', () => {
     const response = await host.handle({
       id: '9',
       method: 'fireSchedule',
-      params: { extensionId: 'acme.none', scheduleId: 'x', isolated: false },
+      params: { extensionId: 'acme.none', scheduleId: 'x' },
     });
     expect(failureOf(response)).toMatchObject({ cause: 'unknown-type' });
   });

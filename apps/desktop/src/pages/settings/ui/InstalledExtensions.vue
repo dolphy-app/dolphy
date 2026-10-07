@@ -19,11 +19,9 @@ import { effectiveTags } from '../lib/tags.ts';
 import {
   areNotificationsOn,
   areSchedulesOn,
-  hasNotifications,
   hasSchedules,
   hasSwitches,
   isEnabled,
-  isTrusted,
   scheduleSummaryOf,
   useExtensions,
 } from '../model/extensions.ts';
@@ -40,7 +38,6 @@ import ExtensionData from './ExtensionData.vue';
 import ExtensionHealth from './ExtensionHealth.vue';
 import ExtensionHeading from './ExtensionHeading.vue';
 import ExtensionDependencies from './ExtensionDependencies.vue';
-import ExtensionPermissions from './ExtensionPermissions.vue';
 import ExtensionRemoveDialog from './ExtensionRemoveDialog.vue';
 import ExtensionSettingsDialog from './ExtensionSettingsDialog.vue';
 import ExtensionLogDialog from './ExtensionLogDialog.vue';
@@ -76,7 +73,6 @@ const {
   diagnostics,
   restartingHost,
   setEnabled,
-  setTrusted,
   setNotifications,
   setSchedules,
   setCheckUpdates,
@@ -505,24 +501,6 @@ watch(
               >
                 {{ t('settings.extensions.builtIn') }}
               </v-chip>
-              <v-chip
-                v-if="isActive(extension)"
-                size="small"
-                label
-                :variant="
-                  extension.isolation === 'isolated' ? 'tonal' : 'outlined'
-                "
-                :color="
-                  extension.isolation === 'isolated' ? 'success' : undefined
-                "
-                :prepend-icon="
-                  extension.isolation === 'isolated'
-                    ? 'mdi-shield-check-outline'
-                    : 'mdi-shield-alert-outline'
-                "
-              >
-                {{ t(`settings.extensions.isolation.${extension.isolation}`) }}
-              </v-chip>
               <v-spacer />
               <span class="d-inline-flex align-center ga-1 text-body-medium">
                 <v-icon
@@ -634,10 +612,6 @@ watch(
               :health="healthOf(extension.id)"
             />
 
-            <ExtensionPermissions
-              v-if="isActive(extension)"
-              :permissions="extension.permissions"
-            />
             <ExtensionDependencies :rows="rowsOfInstalled(extension)" />
             <ExtensionContributions
               :contributes="extension.contributes"
@@ -666,7 +640,6 @@ watch(
                 @update:model-value="setEnabled(extension.id, $event === true)"
               />
               <v-switch
-                v-if="hasNotifications(extension)"
                 :model-value="areNotificationsOn(settings, extension.id)"
                 :label="t('settings.extensions.notificationsLabel')"
                 :disabled="switching.has(`notifications:${extension.id}`)"
@@ -701,20 +674,6 @@ watch(
                 :data-testid="`schedules-text-${extension.id}`"
               >
                 {{ (schedulesByExtension.get(extension.id) ?? []).join(' · ') }}
-              </p>
-              <v-switch
-                :model-value="isTrusted(settings, extension.id)"
-                :label="t('settings.extensions.trustLabel')"
-                :disabled="switching.has(`trusted:${extension.id}`)"
-                color="warning"
-                density="compact"
-                hide-details
-                inset
-                :data-testid="`trusted-${extension.id}`"
-                @update:model-value="setTrusted(extension.id, $event === true)"
-              />
-              <p class="text-body-small text-medium-emphasis">
-                {{ t('settings.extensions.trustHint') }}
               </p>
             </div>
 

@@ -47,11 +47,6 @@ const inEnglish = (
   return text === null ? null : englishText(text, table);
 };
 
-const stringsOf = (value: unknown): string[] =>
-  Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === 'string')
-    : [];
-
 const readManifest = async (root: string): Promise<Record<string, unknown>> => {
   let raw: unknown;
   try {
@@ -126,7 +121,7 @@ export const lintProject = async (
       ? { root }
       : { root, built: path.resolve(options.built) },
   );
-  findings.push(...bundleFindings(files, stringsOf(manifest.permissions)));
+  findings.push(...bundleFindings(files));
   return findings.map((finding) => ({
     ...finding,
     // the source map is a catalog error, but the author fixes it before the PR

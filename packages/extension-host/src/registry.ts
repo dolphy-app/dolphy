@@ -23,12 +23,6 @@ const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
   exporters: [],
 };
 
-const isolationOf = (
-  extension: Pick<ResolvedExtension, 'id'>,
-  policy: ExtensionPolicy,
-): ExtensionInfoDto['isolation'] =>
-  policy.isIsolated(extension.id) ? 'isolated' : 'trusted';
-
 /** Перекрытые и некорректные расширения манифеста не дали; удалить можно пользовательский каталог. */
 const withoutMetadata = (
   origin: ExtensionInfoDto['origin'],
@@ -183,8 +177,6 @@ const loaded = (
       ...issues,
       ...extension.warnings,
     ],
-    permissions: [...extension.permissions],
-    isolation: isolationOf(extension, policy),
     toggleable: extension.origin !== 'bundled' && revoked === null,
     name: extension.name,
     description: extension.description,
@@ -227,8 +219,6 @@ export const createExtensionRegistry = (
           data: { origin: by.origin, version: by.version },
         },
       ],
-      permissions: [],
-      isolation: origin === 'bundled' ? 'trusted' : 'isolated',
       toggleable: false,
       ...withoutMetadata(origin),
     }));
@@ -240,8 +230,6 @@ export const createExtensionRegistry = (
       state: 'invalid',
       contributes: NO_CONTRIBUTES,
       diagnostics: [diagnostic],
-      permissions: [],
-      isolation: origin === 'bundled' ? 'trusted' : 'isolated',
       toggleable: false,
       ...withoutMetadata(origin),
     }));

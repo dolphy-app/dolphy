@@ -43,7 +43,7 @@ export const settingCatalogEnv = (): Record<string, string> => ({
 });
 
 export interface CatalogSource {
-  /** Каталог расширения с `extension.json` (версия, вклады и разрешения берутся из манифеста). */
+  /** Каталог расширения с `extension.json` (версия, вклады берутся из манифеста). */
   dir: string;
   name: string;
   description: string;
@@ -66,7 +66,6 @@ interface PublishedVersion {
   tags: string[];
   apiVersion: number;
   minAppVersion: string | null;
-  permissions: string[];
   /** Зависимости манифеста: запись версии индекса `dependencies`. */
   dependencies: { id: string; range?: string }[];
   files: PublishedFile[];
@@ -195,7 +194,6 @@ interface RawManifest {
   icon?: string;
   tags?: string[];
   minAppVersion?: string;
-  permissions?: string[];
   dependencies?: { id: string; range?: string }[];
   contributes?: {
     exerciseTypes?: { id: string; title?: string }[];
@@ -329,7 +327,6 @@ export const startCatalogServer = async (
             ),
       apiVersion: manifest.apiVersion,
       minAppVersion: manifest.minAppVersion ?? null,
-      permissions: manifest.permissions ?? [],
       dependencies: manifest.dependencies ?? [],
       files: await readFiles(source.dir),
     };
@@ -375,7 +372,6 @@ export const startCatalogServer = async (
           version: version.version,
           apiVersion: version.apiVersion,
           minAppVersion: version.minAppVersion,
-          permissions: version.permissions,
           publishedAt: '2026-01-01T00:00:00.000Z',
           baseUrl: `extensions/${entry.id}/${version.version}/`,
           files: version.files.map(({ path, bytes, sha256 }) => ({

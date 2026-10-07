@@ -21,7 +21,6 @@ export type ExtRequest =
         type: string;
         exerciseId: string;
         spec: unknown;
-        isolated: boolean;
       };
     }
   | {
@@ -34,7 +33,6 @@ export type ExtRequest =
         answer: unknown;
         timeoutMs: number;
         authorMode: boolean;
-        isolated: boolean;
       };
     }
   | {
@@ -44,7 +42,6 @@ export type ExtRequest =
         type: string;
         exerciseId: string;
         spec: unknown;
-        isolated: boolean;
       };
     }
   | {
@@ -54,7 +51,6 @@ export type ExtRequest =
         policyId: string;
         verdicts: { outcome: 'passed' | 'failed' | 'error'; reason?: string }[];
         gaveUp: boolean;
-        isolated: boolean;
       };
     }
   | DeliverEventRequest
@@ -76,7 +72,6 @@ export interface DeliverEventRequest {
     extensionId: string;
     name: LearningEventName;
     payload: LearningEventPayloads[LearningEventName];
-    isolated: boolean;
   };
 }
 
@@ -92,7 +87,6 @@ export interface FireScheduleRequest {
   params: {
     extensionId: string;
     scheduleId: string;
-    isolated: boolean;
   };
 }
 
@@ -109,7 +103,6 @@ export interface InvokeCommandRequest {
     extensionId: string;
     commandId: string;
     args?: JsonValue;
-    isolated: boolean;
   };
 }
 
@@ -129,7 +122,6 @@ export interface RunImporterRequest {
     extensionId: string;
     importerId: string;
     name: string;
-    isolated: boolean;
   } & ({ text: string } | { bytes: Uint8Array });
 }
 
@@ -145,7 +137,6 @@ export interface RunExporterRequest {
     extensionId: string;
     exporterId: string;
     input: ExportInput;
-    isolated: boolean;
   };
 }
 
@@ -298,20 +289,17 @@ const eventParams = z.strictObject({
   extensionId: z.string(),
   name: z.enum(LEARNING_EVENT_NAMES),
   payload: z.record(z.string(), z.unknown()),
-  isolated: z.boolean(),
 });
 
 const scheduleParams = z.strictObject({
   extensionId: z.string(),
   scheduleId: z.string(),
-  isolated: z.boolean(),
 });
 
 const commandParams = z.strictObject({
   extensionId: z.string(),
   commandId: z.string(),
   args: z.unknown().optional(),
-  isolated: z.boolean(),
 });
 
 const bytesField = z.custom<Uint8Array>(
@@ -323,7 +311,6 @@ const importParams = {
   extensionId: z.string(),
   importerId: z.string(),
   name: z.string(),
-  isolated: z.boolean(),
 };
 
 const exportInput = z.discriminatedUnion('scope', [
@@ -340,7 +327,6 @@ const typed = {
   type: z.string(),
   exerciseId: z.string(),
   spec: z.unknown(),
-  isolated: z.boolean(),
 };
 
 export const extRequestSchema = z.discriminatedUnion('method', [
@@ -376,7 +362,6 @@ export const extRequestSchema = z.discriminatedUnion('method', [
         }),
       ),
       gaveUp: z.boolean(),
-      isolated: z.boolean(),
     }),
   }),
   z.strictObject({
@@ -409,7 +394,6 @@ export const extRequestSchema = z.discriminatedUnion('method', [
       extensionId: z.string(),
       exporterId: z.string(),
       input: exportInput,
-      isolated: z.boolean(),
     }),
   }),
 ]);
@@ -565,7 +549,6 @@ const isResolvedExtension = (value: unknown): value is ResolvedExtension => {
     (item.origin === 'bundled' ||
       item.origin === 'user' ||
       item.origin === 'dev') &&
-    Array.isArray(item.permissions) &&
     Array.isArray(item.dependencies) &&
     typeof item.messages === 'object' &&
     item.messages !== null &&

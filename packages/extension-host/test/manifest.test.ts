@@ -159,52 +159,11 @@ describe('минимальный манифест', () => {
 });
 
 describe('permissions', () => {
-  const withPermissions = (permissions: unknown) => ({
-    ...valid(),
-    permissions,
-  });
-
-  it('по умолчанию пусто', () => {
-    const result = parseManifest(valid());
-    expect(result).toMatchObject({ ok: true, manifest: { permissions: [] } });
-  });
-
-  it('принимает все объявленные возможности', () => {
-    const all = [
-      'library.read',
-      'process.spawn',
-      'worker.threads',
-      'native.addons',
-      'network',
-    ];
-    expect(parseManifest(withPermissions(all))).toMatchObject({
-      ok: true,
-      manifest: { permissions: all },
-    });
-  });
-
-  it.each([
-    ['неизвестное имя', ['library.write']],
-    ['не массив', 'network'],
-    ['не строка', [1]],
-  ])('отклоняет: %s, сообщение — путь и причина', (_name, permissions) => {
-    const result = parseManifest(withPermissions(permissions));
+  it('ключ permissions отклоняется как неизвестный', () => {
+    const result = parseManifest({ ...valid(), permissions: ['network'] });
     expect(result.ok).toBe(false);
     if (!result.ok)
-      expect(formatDiagnostic(result.diagnostic)).toMatch(
-        /^permissions(\.\d+)?: /,
-      );
-  });
-
-  it('отклоняет дубль, называя разрешение', () => {
-    const result = parseManifest(withPermissions(['network', 'network']));
-    expect(result).toEqual({
-      ok: false,
-      diagnostic: {
-        code: 'manifest-invalid',
-        data: { issues: ["permissions.1: duplicate permission 'network'"] },
-      },
-    });
+      expect(formatDiagnostic(result.diagnostic)).toContain('permissions');
   });
 });
 

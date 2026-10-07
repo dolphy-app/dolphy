@@ -1,6 +1,5 @@
 import {
   NotificationRateLimitError,
-  PermissionError,
   SecretsUnavailableError,
   StorageQuotaError,
 } from '@dolphy-app/extension-api';
@@ -8,7 +7,6 @@ import type {
   DailyStat,
   ExtensionLogger,
   ExtensionNotifications,
-  ExtensionPermission,
   ExtensionSecrets,
   ExtensionSettings,
   ExtensionStats,
@@ -34,14 +32,6 @@ const QUOTA_KINDS: readonly StorageQuotaKind[] = [
 const extensionErrorOf = (error: unknown): unknown => {
   if (!(error instanceof EngineRequestError)) return error;
   const { kind, limit } = error.details ?? {};
-  if (
-    error.code === 'INVALID_ARGUMENT' &&
-    error.details?.reason === 'permission' &&
-    (error.details.permission === 'learning.stats' ||
-      error.details.permission === 'notifications')
-  ) {
-    return new PermissionError(error.details.permission, error.message);
-  }
   if (
     error.code === 'INVALID_ARGUMENT' &&
     error.details?.reason === 'rate-limit' &&
@@ -98,23 +88,15 @@ export const createExtensionStorage = (
   };
 };
 
-/**
- * `ctx.stats`: проверка разрешения здесь — для понятной ошибки без запроса;
- * решение принимает движок (`ExtensionHostServices.stats`), потому что
- * ограниченный процесс не доверен.
- */
+/** `ctx.stats`: запросы к движку (`ExtensionHostServices.stats`). */
 export const createExtensionStats = (
   link: EngineLink,
   extensionId: string,
-  permissions: readonly ExtensionPermission[],
 ): ExtensionStats => {
   const request = async (
     method: 'stats.streak' | 'stats.daily',
     params: object,
   ): Promise<unknown> => {
-    if (!permissions.includes('learning.stats')) {
-      throw new PermissionError('learning.stats');
-    }
     try {
       return await link.request(method, { extensionId, ...params } as never);
     } catch (error) {
@@ -165,19 +147,14 @@ export const createExtensionSecrets = (
 };
 
 /**
- * `ctx.notifications`: проверка разрешения здесь — для понятной ошибки без
- * запроса; решение, очистку текста, лимиты и переключатель держит движок
- * (`ExtensionHostServices.notifications`): ограниченный процесс не доверен.
+ * `ctx.notifications`: очистку текста, лимиты и переключатель держит движок
+ * (`ExtensionHostServices.notifications`).
  */
 export const createExtensionNotifications = (
   link: EngineLink,
   extensionId: string,
-  permissions: readonly ExtensionPermission[],
 ): ExtensionNotifications => ({
   show: async (notification) => {
-    if (!permissions.includes('notifications')) {
-      throw new PermissionError('notifications');
-    }
     try {
       return (await link.request('notifications.show', {
         extensionId,

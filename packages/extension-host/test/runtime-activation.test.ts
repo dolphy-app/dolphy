@@ -39,7 +39,7 @@ const commandsExtension = (): ResolvedExtension =>
 const command = (id = '1'): ExtRequest => ({
   id,
   method: 'invokeCommand',
-  params: { extensionId: ID, commandId: COMMAND, isolated: false },
+  params: { extensionId: ID, commandId: COMMAND },
 });
 
 const event = (id = '1'): ExtRequest => ({
@@ -49,14 +49,13 @@ const event = (id = '1'): ExtRequest => ({
     extensionId: ID,
     name: 'session.started',
     payload: { sessionId: 's', at: 1 },
-    isolated: false,
   },
 });
 
 const project = (id = '1'): ExtRequest => ({
   id,
   method: 'project',
-  params: { type: 'acme.echo', exerciseId: 'e', spec: {}, isolated: false },
+  params: { type: 'acme.echo', exerciseId: 'e', spec: {} },
 });
 
 const grade = (id = '1'): ExtRequest => ({
@@ -69,7 +68,6 @@ const grade = (id = '1'): ExtRequest => ({
     answer: 1,
     timeoutMs: 1000,
     authorMode: false,
-    isolated: false,
   },
 });
 
@@ -108,7 +106,6 @@ const open = (
     library: nullLibrary,
     logger: createLogger(),
     modules,
-    enforceIsolation: false,
     ...(activationTimeoutMs !== undefined && { activationTimeoutMs }),
   });
   return runtime;

@@ -104,7 +104,6 @@ describe('dolphy-ext catalog check', () => {
     expect(result.code).toBe(0);
     const lines = result.stdout.trimEnd().split('\n');
     expect(lines).toHaveLength(RULES.length);
-    expect(lines).toHaveLength(27);
     expect(lines[0]).toMatch(/^CHECK-001 \S/);
   });
 

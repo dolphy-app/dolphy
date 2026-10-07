@@ -98,25 +98,21 @@ export const boot = async (
   const exerciseTypes = createRemoteExerciseTypes({
     channel,
     catalog,
-    policy,
     logger: defaults.logger,
     health,
   });
   const gradePolicies = createRemoteGradePolicies({
     channel,
     catalog,
-    policy,
     logger: defaults.logger,
   });
   const extensionCommands = createRemoteExtensionCommands({
     channel,
     discovery,
-    policy,
     logger: defaults.logger,
   });
   const extensionTransfers = createRemoteExtensionTransfers({
     channel,
-    policy,
     logger: defaults.logger,
   });
   if (__DOLPHY_SMOKE_BUILD__ && process.env.DOLPHY_SMOKE === '1') {

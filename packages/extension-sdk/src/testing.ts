@@ -10,7 +10,6 @@ import {
   InvalidCommandResultError,
   InvalidTransferResultError,
   NotificationRateLimitError,
-  PermissionError,
   SecretsUnavailableError,
   StorageQuotaError,
   normalizeCommandResult,
@@ -344,8 +343,6 @@ export interface MemoryEvents extends ExtensionEvents {
 export interface MemoryEventsOptions {
   /** Events from `contributes.events`: subscribing to another throws, as in the host. Unset — any are allowed. */
   declared?: readonly LearningEventName[];
-  /** false — subscribing throws `PermissionError`, as for an extension without `learning.events`. Defaults to true. */
-  permitted?: boolean;
 }
 
 /** In-memory learning event subscriptions: one handler per event, as in the host. */
@@ -361,9 +358,6 @@ export const createMemoryEvents = (
       name: N,
       handler: LearningEventHandler<N>,
     ): Disposable {
-      if (options.permitted === false) {
-        throw new PermissionError('learning.events');
-      }
       if (options.declared !== undefined && !options.declared.includes(name)) {
         throw new Error(`event '${name}' is not declared in the manifest`);
       }
@@ -678,8 +672,6 @@ export interface MemoryStatsOptions {
   timeZone?: string;
   /** The current time, for the `current` streak. Defaults to `Date.now`. */
   now?: () => number;
-  /** false — every call rejects with `PermissionError('learning.stats')`, as for an extension without the permission. Defaults to true. */
-  permitted?: boolean;
 }
 
 export interface MemoryStats extends ExtensionStats {
@@ -752,10 +744,6 @@ export const createMemoryStats = (
   };
   for (const attempt of options.attempts ?? []) record(attempt);
 
-  const guard = (): void => {
-    if (options.permitted === false)
-      throw new PermissionError('learning.stats');
-  };
   const countsOf = (courseId: string | undefined) => {
     const days = new Map<number, { attempts: number; correct: number }>();
     for (const item of attempts) {
@@ -770,7 +758,6 @@ export const createMemoryStats = (
   return {
     record,
     async streak(streakOptions): Promise<StreakStats> {
-      guard();
       const days = countsOf(streakOptions?.courseId);
       const today = localDay((options.now ?? Date.now)());
       let longest = 0;
@@ -790,7 +777,6 @@ export const createMemoryStats = (
       return { current, longest };
     },
     async daily({ from, to, courseId }): Promise<DailyStat[]> {
-      guard();
       const first = parseDay('from', from);
       const last = parseDay('to', to);
       if (last < first || last - first + 1 > EXTENSION_STATS_LIMITS.dailyDays) {
@@ -818,8 +804,6 @@ export const createMemoryStats = (
 };
 
 export interface MemoryNotificationsOptions {
-  /** false — every call rejects with `PermissionError('notifications')`, as for an extension without the permission. Defaults to true. */
-  permitted?: boolean;
   /** false — the operating system does not support notifications: `show` resolves `false`. Defaults to true. */
   supported?: boolean;
   /** false — the user switched notifications off for the extension: `show` resolves `false`. Defaults to true. */
@@ -886,9 +870,6 @@ export const createMemoryNotifications = (
       supported = value;
     },
     async show(notification) {
-      if (options.permitted === false) {
-        throw new PermissionError('notifications');
-      }
       const title = notificationText(
         'title',
         notification?.title,

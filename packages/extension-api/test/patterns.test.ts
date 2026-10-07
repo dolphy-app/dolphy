@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_SCHEDULE_AT,
   EXTENSION_ID_PATTERN,
-  EXTENSION_PERMISSIONS,
   SCHEDULE_AT_PATTERN,
 } from '../src/index.ts';
 
@@ -42,16 +41,5 @@ describe('extension id pattern', () => {
     'a/b',
   ])('rejects extension id %j', (id) => {
     expect(EXTENSION_ID_PATTERN.test(id)).toBe(false);
-  });
-});
-
-describe('EXTENSION_PERMISSIONS', () => {
-  it('lists capabilities without repeats as id names', () => {
-    for (const permission of EXTENSION_PERMISSIONS) {
-      expect(permission).toMatch(/^[a-z]+(\.[a-z]+)?$/);
-    }
-    expect(new Set(EXTENSION_PERMISSIONS).size).toBe(
-      EXTENSION_PERMISSIONS.length,
-    );
   });
 });

@@ -42,7 +42,6 @@ const extensionJson = (id: string): string =>
   JSON.stringify({
     id,
     version: '1.0.0',
-    permissions: [],
     contributes: contributesOf([id]),
   });
 
@@ -76,7 +75,6 @@ const entry = (id: string) => ({
       version: '1.0.0',
       apiVersion: 1,
       minAppVersion: null,
-      permissions: [],
       publishedAt: '2026-10-01T00:00:00Z',
       baseUrl: `extensions/${id}/1.0.0/`,
       files: Object.entries(files(id)).map(([filePath, content]) => ({

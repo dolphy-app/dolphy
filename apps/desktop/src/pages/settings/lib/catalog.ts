@@ -208,7 +208,6 @@ export interface InstallTarget {
   version: string;
   /** Версия, установленная из каталога сейчас; `null` — новая установка. */
   installedVersion: string | null;
-  permissions: string[];
   /** Зависимости устанавливаемой версии; установка их не ставит и не блокируется. */
   dependencies: ExtensionDependencyDto[];
   contributes: ExtensionContributesDto;
@@ -233,7 +232,6 @@ export const targetFromEntry = (
   author: entry.author,
   version: version.version,
   installedVersion: entry.installedVersion,
-  permissions: [...version.permissions],
   dependencies: version.dependencies.map((dependency) => ({ ...dependency })),
   contributes: entry.contributes,
   titles: entry.titles,
@@ -287,7 +285,6 @@ export const targetFromUpdate = (
   author: entry?.author ?? info?.author ?? null,
   version: update.available.version,
   installedVersion: update.installed,
-  permissions: [...update.available.permissions],
   dependencies: update.available.dependencies.map((dependency) => ({
     ...dependency,
   })),

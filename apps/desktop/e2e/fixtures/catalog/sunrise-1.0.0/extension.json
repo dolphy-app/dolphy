@@ -5,7 +5,6 @@
   "name": "Sunrise",
   "description": "Тёплая светлая тема «Рассвет»",
   "author": "acme",
-  "permissions": ["library.read"],
   "contributes": {
     "themes": [
       {

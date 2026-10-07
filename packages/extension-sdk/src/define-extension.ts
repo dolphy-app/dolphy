@@ -52,7 +52,7 @@ type Section<Name extends string, Id extends string, Entries> = [
 
 type Ids = ResolvedIds;
 
-/** Learning-event handlers by event name; the events must be declared in `contributes.events`, the `learning.events` permission is needed. */
+/** Learning-event handlers by event name; the events must be declared in `contributes.events`. */
 export type EventHandlers = {
   readonly [N in Ids['events']]: LearningEventHandler<N> | InActivate;
 };

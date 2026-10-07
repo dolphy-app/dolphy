@@ -127,17 +127,92 @@ describe('точка importers', () => {
 });
 
 describe('точка exporters', () => {
-  it('принимает course и progress (progress — с разрешением learning.stats)', () => {
+  it('принимает course и progress', () => {
     const parsed = parseManifest(
-      manifest(
-        {
-          exporters: [
-            exporter(),
-            exporter({ id: `${ID}.p`, scope: 'progress' }),
-          ],
-        },
-        { permissions: ['learning.stats'] },
-      ),
+      manifest({
+        exporters: [exporter(), exporter({ id: `${ID}.p`, scope: 'progress' })],
+      }),
+    );
+
+    if (!parsed.ok) throw new Error(formatDiagnostic(parsed.diagnostic));
+    expect(parsed.manifest.main).toBe('./main.mjs');
+    expect(parsed.manifest.contributes.exporters).toEqual([
+      { id: `${ID}.out`, title: 'CSV', scope: 'course' },
+      { id: `${ID}.p`, title: 'CSV', scope: 'progress' },
+    ]);
+  });
+
+  it.each([
+    [
+      'id вне пространства расширения',
+      importer({ id: 'other.in' }),
+      "id must be 'acme.csv'",
+    ],
+    ['пустое название', importer({ title: '' }), 'title'],
+    ['название 61 знак', importer({ title: 'x'.repeat(61) }), 'title'],
+    ['пустой accept', importer({ accept: [] }), 'accept'],
+    [
+      '9 расширений в accept',
+      importer({
+        accept: Array.from({ length: 9 }, (_value, index) => `.e${index}`),
+      }),
+      'accept',
+    ],
+    [
+      'верхний регистр',
+      importer({ accept: ['.CSV'] }),
+      'lower-case file extension',
+    ],
+    ['без точки', importer({ accept: ['csv'] }), 'lower-case file extension'],
+    [
+      'путь вместо расширения',
+      importer({ accept: ['../x'] }),
+      'lower-case file extension',
+    ],
+    ['звёздочка', importer({ accept: ['.*'] }), 'lower-case file extension'],
+    ['неизвестный input', importer({ input: 'stream' }), 'input'],
+    ['лишний ключ', importer({ module: './x.mjs' }), 'module'],
+  ])('отклоняет: %s', (_name, entry, fragment) => {
+    expect(messageOf(manifest({ importers: [entry] }))).toContain(fragment);
+  });
+
+  it('границы accept: 8 расширений проходят, повтор в одной записи — нет', () => {
+    const eight = Array.from({ length: 8 }, (_value, index) => `.e${index}`);
+
+    expect(
+      parseManifest(manifest({ importers: [importer({ accept: eight })] })).ok,
+    ).toBe(true);
+    expect(
+      messageOf(manifest({ importers: [importer({ accept: ['.a', '.a'] })] })),
+    ).toContain("contributes.importers.0.accept.1: duplicate extension '.a'");
+  });
+
+  it('повтор id и более 8 записей', () => {
+    const many = (count: number) =>
+      Array.from({ length: count }, (_value, index) =>
+        importer({ id: `${ID}.i${index}` }),
+      );
+
+    expect(
+      messageOf(manifest({ importers: [importer(), importer()] })),
+    ).toContain(`contributes.importers.1.id: duplicate id '${ID}.in'`);
+    expect(parseManifest(manifest({ importers: many(8) })).ok).toBe(true);
+    expect(messageOf(manifest({ importers: many(9) }))).toContain(
+      'at most 8 importers',
+    );
+  });
+
+  it('импортёр не требует разрешений', () => {
+    expect(parseManifest(manifest({ importers: [importer()] })).ok).toBe(true);
+  });
+});
+
+describe('точка exporters', () => {
+  it('принимает course и progress', () => {
+    const parsed = parseManifest(
+      manifest({
+        exporters: [exporter(), exporter({ id: `${ID}.p`, scope: 'progress' })],
+      }),
     );
 
     if (!parsed.ok) throw new Error(formatDiagnostic(parsed.diagnostic));
@@ -150,19 +225,6 @@ describe('точка exporters', () => {
 
   it('экспортёр курса не требует разрешений', () => {
     expect(parseManifest(manifest({ exporters: [exporter()] })).ok).toBe(true);
-  });
-
-  it('progress без learning.stats — ошибка манифеста с путём к записи', () => {
-    const raw = manifest({
-      exporters: [exporter(), exporter({ id: `${ID}.p`, scope: 'progress' })],
-    });
-
-    expect(messageOf(raw)).toContain(
-      "contributes.exporters.1.scope: scope 'progress' requires the 'learning.stats' permission",
-    );
-    expect(parseManifest({ ...raw, permissions: ['library.read'] }).ok).toBe(
-      false,
-    );
   });
 
   it.each([
@@ -229,7 +291,6 @@ describe('обнаружение и реестр импортёров и экс�
     const policy = createExtensionPolicy(holder);
     policy.update({
       disabled,
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -337,12 +398,10 @@ describe('запросы runImporter и runExporter', () => {
     extensionId: ID,
     importerId: `${ID}.in`,
     name: 'a.csv',
-    isolated: false,
   };
   const exportBase = {
     extensionId: ID,
     exporterId: `${ID}.out`,
-    isolated: false,
   };
 
   it('импорт принимает ровно одно из text и bytes (Uint8Array)', () => {

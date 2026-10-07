@@ -90,7 +90,7 @@ describe('журнал и диагностика', () => {
     ).toBe(true);
   });
 
-  it('ограниченное расширение: запись несёт его id; диалог показывает её, фильтры и предустановка из строки расширения', async () => {
+  it('расширение: запись несёт его id; диалог показывает её, фильтры и предустановка из строки расширения', async () => {
     const { client, commands, diagnostics, userData } = await prepare();
     await say(commands);
     await expect
@@ -167,28 +167,6 @@ describe('журнал и диагностика', () => {
     ).toBe(true);
     await diagnostics.refresh.click();
     await expectText(diagnostics.entries.last(), 'acme.logs says hello 2');
-  });
-
-  it('доверенное расширение (в процессе хоста): запись тоже несёт id расширения', async () => {
-    const { client, commands, diagnostics, userData } = await prepare();
-    await client.openSettingsExtensions();
-    await client.setExtensionSwitch(ID, 'trusted', true);
-    await say(commands);
-    await expect
-      .poll(
-        async () =>
-          (await readLog(userData)).some(
-            (entry) =>
-              entry.extensionId === ID &&
-              entry.source === 'ext-host' &&
-              entry.message === 'acme.logs says hello 1',
-          ),
-        { timeout: 30_000 },
-      )
-      .toBe(true);
-    await diagnostics.openForExtension(ID).click();
-    await diagnostics.dialog.waitFor({ timeout: 15_000 });
-    await expectText(diagnostics.entries.last(), 'acme.logs says hello 1');
   });
 
   it('«Скопировать диагностику» кладёт в буфер версии и список расширений без путей домашнего каталога', async () => {

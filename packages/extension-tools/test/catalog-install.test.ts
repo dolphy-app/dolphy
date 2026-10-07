@@ -53,7 +53,6 @@ const inspectDir = async (directory: string): Promise<InspectResult> => {
     manifest: {
       id: extension.id,
       version: extension.version,
-      permissions: extension.permissions,
       tags: extension.tags,
       dependencies: extension.dependencies,
       icon: extension.icon,

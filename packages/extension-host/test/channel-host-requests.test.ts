@@ -254,7 +254,7 @@ describe('запросы хоста к движку по каналу', () => {
 
     const call = channel.call(
       'project',
-      { type: 't', exerciseId: 'e', spec: {}, isolated: false },
+      { type: 't', exerciseId: 'e', spec: {} },
       1000,
     );
     const keys = await request('storage.keys', { extensionId: 'acme.a' });
@@ -286,7 +286,6 @@ describe('срок вызова без перезапуска хоста', () =>
       extensionId: 'acme.a',
       name: 'session.started' as const,
       payload: { sessionId: 's', at: 1 },
-      isolated: false,
     };
 
     const quiet = channel.call('deliverEvent', params, 100, { restart: false });

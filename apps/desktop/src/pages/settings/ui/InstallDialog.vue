@@ -13,7 +13,6 @@ import ExtensionDeprecation from './ExtensionDeprecation.vue';
 import ExtensionTags from './ExtensionTags.vue';
 import ExtensionHeading from './ExtensionHeading.vue';
 import ExtensionDependencies from './ExtensionDependencies.vue';
-import ExtensionPermissions from './ExtensionPermissions.vue';
 import ReadmeView from './ReadmeView.vue';
 
 interface StatusView {
@@ -248,7 +247,6 @@ const closeOnBackdrop = (open: boolean) => {
                 :titles="item.target.titles"
                 :name="item.target.name"
               />
-              <ExtensionPermissions :permissions="item.target.permissions" />
               <ExtensionDependencies
                 :rows="rowsOfCatalog(item.target.dependencies, installed)"
               />
@@ -271,15 +269,6 @@ const closeOnBackdrop = (open: boolean) => {
             </template>
           </li>
         </ul>
-
-        <p
-          v-if="isDetailed"
-          class="d-flex align-center ga-2 text-body-medium mt-4"
-          data-testid="install-isolation"
-        >
-          <v-icon icon="mdi-shield-check-outline" color="success" />
-          {{ t('settings.extensions.install.isolation') }}
-        </p>
 
         <v-alert
           v-if="isFinished && install.succeeded.value"

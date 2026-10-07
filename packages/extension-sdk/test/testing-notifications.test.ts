@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   EXTENSION_NOTIFICATION_LIMITS,
   NotificationRateLimitError,
-  PermissionError,
   defineExtension,
 } from '../src/index.ts';
 import { createMemoryNotifications, loadCommands } from '../src/testing.ts';
@@ -77,16 +76,6 @@ describe('createMemoryNotifications', () => {
     notifications.setSupported(true);
     expect(await notifications.show({ title: 't', body: '' })).toBe(true);
     expect(notifications.shown).toHaveLength(1);
-  });
-
-  it('permitted: false rejects with PermissionError(notifications)', async () => {
-    const notifications = createMemoryNotifications({ permitted: false });
-    await expect(
-      notifications.show({ title: 't', body: '' }),
-    ).rejects.toBeInstanceOf(PermissionError);
-    await expect(
-      notifications.show({ title: 't', body: '' }),
-    ).rejects.toMatchObject({ permission: 'notifications' });
   });
 
   it('loaders hand the extension ctx.notifications', async () => {

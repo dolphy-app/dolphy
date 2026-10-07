@@ -56,8 +56,6 @@ const info = (): ExtensionInfoDto => ({
     exporters: [EXPORTER, PROGRESS_EXPORTER],
   },
   diagnostics: [],
-  permissions: [],
-  isolation: 'isolated',
   toggleable: true,
   name: null,
   description: null,

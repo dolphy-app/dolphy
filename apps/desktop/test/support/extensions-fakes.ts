@@ -43,8 +43,6 @@ export const extensionInfo = (
   state: 'loaded',
   contributes: { ...NO_CONTRIBUTES, exerciseTypes: [id] },
   diagnostics: [],
-  permissions: [],
-  isolation: 'trusted',
   toggleable: false,
   name: null,
   description: null,
@@ -66,7 +64,6 @@ export const catalogVersion = (
   override: Partial<CatalogVersionDto> = {},
 ): CatalogVersionDto => ({
   version,
-  permissions: [],
   dependencies: [],
   publishedAt: '2026-01-01T00:00:00.000Z',
   size: 1200,

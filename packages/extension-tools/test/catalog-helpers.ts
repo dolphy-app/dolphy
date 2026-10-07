@@ -135,7 +135,6 @@ export const publishedIndex = (
         version,
         apiVersion: 1,
         minAppVersion: null,
-        permissions: [],
         publishedAt: '2026-10-01T00:00:00.000Z',
         baseUrl: `extensions/${id}/${version}/`,
         files: [

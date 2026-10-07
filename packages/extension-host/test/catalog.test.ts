@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { holderOf } from './helpers.ts';
 import { createCatalog } from '../src/catalog.ts';
 import {
-  createAllTrustedPolicy,
+  createAllEnabledPolicy,
   createExtensionPolicy,
 } from '../src/policy.ts';
 import type { ResolvedExtension } from '../src/discover.ts';
@@ -14,7 +14,6 @@ const extension: ResolvedExtension = {
   revision: '',
   dir: '/x/acme.t',
   mainPath: '/x/acme.t/main.mjs',
-  permissions: [],
   name: null,
   description: null,
   author: null,
@@ -55,7 +54,7 @@ const extension: ResolvedExtension = {
 describe('createCatalog', () => {
   const catalog = createCatalog(
     holderOf([extension]),
-    createAllTrustedPolicy(),
+    createAllEnabledPolicy(),
   );
 
   it('описывает вид и владельца', () => {
@@ -107,7 +106,7 @@ describe('createCatalog: правила оценки', () => {
   };
   const catalog = createCatalog(
     holderOf([extension, withPolicies]),
-    createAllTrustedPolicy(),
+    createAllEnabledPolicy(),
   );
 
   it('описывает правила и владельца', () => {
@@ -131,7 +130,6 @@ describe('createCatalog: отключённые расширения', () => {
   it('ведёт себя так, будто расширения нет, и сразу возвращается при включении', () => {
     policy.update({
       disabled: ['acme.t'],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -151,7 +149,6 @@ describe('createCatalog: отключённые расширения', () => {
     ]);
     policy.update({
       disabled: [],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],

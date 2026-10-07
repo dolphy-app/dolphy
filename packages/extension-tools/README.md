@@ -137,8 +137,7 @@ with the same code as the app and reports each problem with its path:
 - `contributes.importers` (`id`, `title`, `accept` of 1–8 lower-case file
   extensions such as `.csv`, optional `input` `text` or `bytes`) and
   `contributes.exporters` (`id`, `title`, `scope` `course` or `progress`): at
-  most 8 of each kind. A `progress` exporter without the `learning.stats`
-  permission is an error at `contributes.exporters.<i>.scope`. `dolphy-ext
+  most 8 of each kind. `dolphy-ext
 types` writes their ids, so a handler record of `defineExtension` that misses
   a declared id fails `tsc`.
 - `when` of a command, a panel and a widget: at most 200 characters over the
@@ -380,7 +379,7 @@ The bundle rules are heuristics over the whole bundle, dependencies included
 (a validator library may legitimately use `new Function`), so they only
 warn and the reviewer decides. `CHECK-023` fires on a file of 20 KiB or more
 with an average line longer than 500 characters, or on 20 distinct identifiers
-of the form `_0x1a2b`. `CHECK-024` ignores `www.w3.org` XML namespaces. A source
+of the form `_0x1a2b`. A source
 map is an `error`: the catalog builds without maps.
 
 | Rule        | What it checks                                                                                                                     |
@@ -404,11 +403,9 @@ map is an `error`: the catalog builds without maps.
 | `CHECK-017` | files in `assets/` match their type: signature, size, pixels, safe SVG and CSS                                                     |
 | `CHECK-018` | `icon` is a square 64–512 px PNG or WebP file up to 16 KiB                                                                         |
 | `CHECK-019` | `description` is at least 20 characters (`warning`)                                                                                |
-| `CHECK-020` | every `permissions` entry is mentioned in `README.md` (`warning`)                                                                  |
 | `CHECK-021` | the id is not already published under another `author` (any case): first publisher owns the id                                     |
 | `CHECK-022` | built code has no `eval(` or `new Function(` (`warning`, needs `--built`)                                                          |
 | `CHECK-023` | built code does not look obfuscated (`warning`, needs `--built`)                                                                   |
-| `CHECK-024` | built code has no `http(s)://` URL without the `network` permission (`warning`, needs `--built`)                                   |
 | `CHECK-025` | built code has no embedded source map (needs `--built`)                                                                            |
 | `CHECK-026` | `locales/*.json`: `en` is complete, texts fit their fields, files are valid (see "Translations")                                   |
 | `CHECK-030` | `CHANGELOG.md` (optional) is at most 64 KiB of UTF-8 without NUL; no `## <version>` section for the current version is a `warning` |
@@ -447,7 +444,7 @@ changelog with `## 1.2.0`, `## [1.2.0] - 2026-10-01` or `## v1.2.0` headings
 (`CHECK-030`). A `CHANGELOG.md` over 64 KiB, not UTF-8 or with NUL fails the build.
 
 One file is published: `index.v2.json` (`schemaVersion: 2`). Every version of
-an extension is in it, whatever file types, permissions, `icon`, `tags` and
+an extension is in it, whatever file types, `icon`, `tags` and
 contribution points it uses. The app reads it next to the catalog address; the
 address (`catalogUrl`) stays the identity of installed extensions. No
 `index.json` is written.
@@ -501,26 +498,15 @@ const { file, changed } = await generateTypes({ root }); // .dolphy/ids.d.ts
 Build errors are `BuildError` (its `message` matches the text the app prints
 for the same manifest).
 
-The examples in the "Точки вклада", "Права и изоляция" and "Как написать
+The examples in the "Точки вклада" and "Как написать
 расширение" sections of `docs/design/extensions.md` are built and checked by
 `test/docs-contributions.test.ts` (a theme is a project of one `extension.json`;
 a markdown renderer or a grade policy comes with one `src/index.ts`).
 
-## Permissions
-
-`permissions` in `extension.json` is parsed by the same `parseManifest` as in the
-app: `dolphy-ext validate` (and the check at the end of `dolphy-ext build`)
-rejects an unknown name (`permissions.0: …`) and a duplicate
-(`duplicate permission '…'`). The valid names are `EXTENSION_PERMISSIONS` from
-`@dolphy-app/extension-api`. A manifest example with permissions is in
-`docs/design/extensions.md`, "Права и изоляция"; it is checked by
-`test/docs-contributions.test.ts` together with the "Точки вклада" examples.
+## Settings and events
 
 The `settings` points (settings the user changes in the app) and `events`
-(subscription to learning events) are checked by the same `parseManifest`. An
-extension with `contributes.events` must declare the `learning.events`
-permission, otherwise `validate` and `build` reject the manifest.
-`ctx.storage` needs no permission. `dolphy-ext catalog build` writes
+(subscription to learning events) are checked by the same `parseManifest`.
+`ctx.storage` needs no declaration. `dolphy-ext catalog build` writes
 `contributes.settings` and `contributes.events` into the index entry only when
-they are not empty, and `learning.events` goes into the `permissions` of the
-version.
+they are not empty.

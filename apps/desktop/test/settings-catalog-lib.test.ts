@@ -294,14 +294,13 @@ describe('entryAction', () => {
 describe('цели установки', () => {
   it('targetFromEntry берёт разрешения выбранной версии, а не последней', () => {
     const entry = catalogEntry('a.b', {
-      latest: catalogVersion('2.0.0', { permissions: ['network'] }),
+      latest: catalogVersion('2.0.0'),
       platforms: ['darwin'],
     });
-    const older = catalogVersion('1.0.0', { permissions: [], size: 50 });
+    const older = catalogVersion('1.0.0', { size: 50 });
     expect(targetFromEntry(entry, older)).toMatchObject({
       id: 'a.b',
       version: '1.0.0',
-      permissions: [],
       platforms: ['darwin'],
       sizeBytes: 50,
       installedVersion: null,
@@ -392,7 +391,7 @@ describe('цели установки', () => {
       id: 'a.b',
       name: 'A B',
       installed: '1.0.0',
-      available: catalogVersion('1.1.0', { permissions: ['network'] }),
+      available: catalogVersion('1.1.0'),
     };
     const info = extensionInfo('a.b', {
       author: 'old',
@@ -410,7 +409,6 @@ describe('цели установки', () => {
       platforms: ['linux'],
       installedVersion: '1.0.0',
       version: '1.1.0',
-      permissions: ['network'],
     });
     expect(targetFromUpdate(update, info, undefined)).toMatchObject({
       author: 'old',

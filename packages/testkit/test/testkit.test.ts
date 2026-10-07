@@ -306,8 +306,6 @@ describe('createFakeExtensionRegistry', () => {
         exporters: [],
       },
       diagnostics: [{ code: 'load-failed', data: { reason: 'broken' } }],
-      permissions: [],
-      isolation: 'isolated',
       toggleable: false,
       name: null,
       description: null,
@@ -352,14 +350,11 @@ describe('createFakeExtensionRegistry', () => {
 });
 
 describe('createFakeExtensionPolicy', () => {
-  it('isolates everything except bundled and trusted; disabled only by settings', () => {
+  it('bundled extensions stay enabled; the rest are disabled only by settings', () => {
     const policy = createFakeExtensionPolicy({ bundled: ['dolphy.sql'] });
-    expect(policy.isIsolated('acme.x')).toBe(true);
-    expect(policy.isIsolated('dolphy.sql')).toBe(false);
     expect(policy.isEnabled('acme.x')).toBe(true);
     policy.update({
       disabled: ['acme.x', 'dolphy.sql'],
-      trusted: ['acme.x'],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -368,7 +363,6 @@ describe('createFakeExtensionPolicy', () => {
     });
     expect(policy.isEnabled('acme.x')).toBe(false);
     expect(policy.isEnabled('dolphy.sql')).toBe(true);
-    expect(policy.isIsolated('acme.x')).toBe(false);
     expect(policy.updates).toHaveLength(1);
   });
 
@@ -377,7 +371,6 @@ describe('createFakeExtensionPolicy', () => {
     expect(policy.areSchedulesOn('acme.x')).toBe(true);
     policy.update({
       disabled: [],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],

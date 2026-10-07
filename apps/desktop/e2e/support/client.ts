@@ -28,7 +28,6 @@ const RU = {
   themeGroup: 'Тема оформления',
   extensionList: 'Установленные расширения',
   extensionEnabled: 'Включено',
-  extensionTrust: 'Доверять (без изоляции)',
   extensionNotifications: 'Уведомления',
   extensionSchedules: 'Расписание',
   verdictPassed: 'Верно',
@@ -52,12 +51,10 @@ const RU = {
 
 const TIMEOUT = 15_000;
 
-export type ExtensionSwitchName =
-  'enabled' | 'trusted' | 'notifications' | 'schedules';
+export type ExtensionSwitchName = 'enabled' | 'notifications' | 'schedules';
 
 const SWITCH_LABELS: Record<ExtensionSwitchName, string> = {
   enabled: RU.extensionEnabled,
-  trusted: RU.extensionTrust,
   notifications: RU.extensionNotifications,
   schedules: RU.extensionSchedules,
 };
@@ -470,7 +467,7 @@ export class Client {
   }
 
   /**
-   * Переключает «Включено» / «Доверять» / «Уведомления» / «Расписание» и ждёт, пока движок применит
+   * Переключает «Включено» / «Уведомления» / «Расписание» и ждёт, пока движок применит
    * изменение: переключатель снова доступен. Окно не перезагружается.
    */
   async setExtensionSwitch(

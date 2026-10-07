@@ -83,7 +83,6 @@ describe('catalog build: publishing a version', () => {
       version: '1.0.0',
       apiVersion: 1,
       minAppVersion: null,
-      permissions: [],
       publishedAt: NOW.toISOString(),
       baseUrl: `extensions/${NIGHT}/1.0.0/`,
     });
@@ -115,7 +114,6 @@ describe('catalog build: publishing a version', () => {
       'version',
       'apiVersion',
       'minAppVersion',
-      'permissions',
       'publishedAt',
       'baseUrl',
       'files',
@@ -190,7 +188,6 @@ describe('catalog build: publishing a version', () => {
 
 describe('catalog build: settings and events', () => {
   const STATE = {
-    permissions: ['learning.events'],
     contributes: {
       settings: [
         {
@@ -204,7 +201,7 @@ describe('catalog build: settings and events', () => {
     },
   };
 
-  it('writes settings, events and permissions into the index entry', async () => {
+  it('writes settings and events into the index entry', async () => {
     const repo = await createRepo([
       {
         fixture: 'hello',
@@ -222,7 +219,6 @@ describe('catalog build: settings and events', () => {
     const [entry] = index.extensions;
     expect(entry?.contributes.settings).toEqual(['acme.hello.mode']);
     expect(entry?.contributes.events).toEqual(['attempt.closed']);
-    expect(entry?.versions[0]?.permissions).toEqual(['learning.events']);
     const raw = (await readJson(path.join(out, 'index.v2.json'))) as {
       extensions: { contributes: Record<string, unknown> }[];
     };

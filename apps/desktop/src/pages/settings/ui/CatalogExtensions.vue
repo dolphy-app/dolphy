@@ -26,7 +26,6 @@ import ExtensionContributions from './ExtensionContributions.vue';
 import ExtensionDeprecation from './ExtensionDeprecation.vue';
 import ExtensionHeading from './ExtensionHeading.vue';
 import ExtensionDependencies from './ExtensionDependencies.vue';
-import ExtensionPermissions from './ExtensionPermissions.vue';
 import ExtensionTags from './ExtensionTags.vue';
 import FilterChip from './FilterChip.vue';
 
@@ -371,10 +370,6 @@ onMounted(() => void open());
               :deprecation="entry.deprecated"
             />
 
-            <ExtensionPermissions
-              v-if="entry.latest"
-              :permissions="entry.latest.permissions"
-            />
             <ExtensionDependencies
               v-if="entry.latest"
               :rows="rowsOfCatalog(entry.latest.dependencies, installed)"

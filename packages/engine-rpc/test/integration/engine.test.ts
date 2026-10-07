@@ -95,8 +95,6 @@ const REGISTERED: ExtensionInfoDto = {
     exporters: [],
   },
   diagnostics: [],
-  permissions: ['library.read'],
-  isolation: 'trusted',
   toggleable: false,
   name: null,
   description: null,
@@ -126,8 +124,6 @@ const USER_EXTENSION: ExtensionInfoDto = {
     importers: [],
     exporters: [],
   },
-  permissions: [],
-  isolation: 'isolated',
   toggleable: true,
   icon: null,
   titles: {},
@@ -211,7 +207,6 @@ const UPDATE: ExtensionUpdateDto = {
   installed: '1.0.0',
   available: {
     version: '1.1.0',
-    permissions: [],
     dependencies: [],
     publishedAt: '2026-10-01T00:00:00.000Z',
     size: 10,
@@ -754,7 +749,6 @@ describe('rpc → dispatcher → real engine', () => {
       ),
     ).toEqual({
       disabled: [],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -800,20 +794,6 @@ describe('rpc → dispatcher → real engine', () => {
       ),
     ).toEqual({
       disabled: ['acme.user'],
-      trusted: [],
-      checkUpdates: true,
-      safeMode: false,
-      notificationsOff: [],
-      catalogUrl: null,
-      schedulesOff: [],
-    });
-    expect(
-      await call('extensions.setTrusted', () =>
-        client.extensions.setTrusted('acme.user', true),
-      ),
-    ).toEqual({
-      disabled: ['acme.user'],
-      trusted: ['acme.user'],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -826,7 +806,6 @@ describe('rpc → dispatcher → real engine', () => {
       ),
     ).toEqual({
       disabled: ['acme.user'],
-      trusted: ['acme.user'],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: ['acme.user'],
@@ -839,7 +818,6 @@ describe('rpc → dispatcher → real engine', () => {
       ),
     ).toEqual({
       disabled: ['acme.user'],
-      trusted: ['acme.user'],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: ['acme.user'],
@@ -1004,8 +982,8 @@ describe('rpc → dispatcher → real engine', () => {
         client.extensions.contributions(),
       ),
     ).toEqual({
-      // поколение растёт на каждое применение: включение, доверие, безопасный режим (два раза), смена адреса каталога, установка, удаление выше
-      generation: 7,
+      // поколение растёт на каждое применение: включение, безопасный режим (два раза), смена адреса каталога, установка, удаление выше
+      generation: 6,
       exerciseTypes: [],
       themes: [],
       markdownRenderers: [],

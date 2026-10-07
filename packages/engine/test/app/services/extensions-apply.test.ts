@@ -32,8 +32,6 @@ const USER: ExtensionInfoDto = {
     exporters: [],
   },
   diagnostics: [],
-  permissions: [],
-  isolation: 'isolated',
   toggleable: true,
   name: null,
   description: null,

@@ -143,7 +143,6 @@ const copyInfo = (info: ExtensionInfoDto): ExtensionInfoDto => ({
     exporters: [...info.contributes.exporters],
   },
   diagnostics: structuredClone(info.diagnostics),
-  permissions: [...info.permissions],
   dependencies: info.dependencies.map((dependency) => ({ ...dependency })),
   titles: structuredClone(info.titles),
   messages: structuredClone(info.messages),
@@ -542,15 +541,6 @@ export const createExtensionsService = (
           disabled: withMember(settings.disabled, id, !enabled),
         }),
         { allowRevoked: false },
-      ),
-    setTrusted: (id, trusted) =>
-      change(
-        id,
-        (settings) => ({
-          ...settings,
-          trusted: withMember(settings.trusted, id, trusted),
-        }),
-        { allowRevoked: true },
       ),
     setNotificationsEnabled: (id, enabled) =>
       setSwitch(id, enabled, (settings) => ({

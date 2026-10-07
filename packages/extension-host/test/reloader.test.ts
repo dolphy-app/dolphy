@@ -9,7 +9,7 @@ import { discoverExtensions } from '../src/discover.ts';
 import type { DiscoveryResult } from '../src/discover.ts';
 import { createDiscoveryHolder } from '../src/holder.ts';
 import { createEndpointPair } from '../src/loopback.ts';
-import { createAllTrustedPolicy } from '../src/policy.ts';
+import { createAllEnabledPolicy } from '../src/policy.ts';
 import { createExtensionReloader } from '../src/reloader.ts';
 import { createExtensionRuntime } from '../src/runtime.ts';
 import type { ExtensionRuntime } from '../src/runtime.ts';
@@ -59,8 +59,7 @@ const setup = async () => {
   });
   const types = createRemoteExerciseTypes({
     channel,
-    catalog: createCatalog(holder, createAllTrustedPolicy()),
-    policy: createAllTrustedPolicy(),
+    catalog: createCatalog(holder, createAllEnabledPolicy()),
     logger,
   });
   const connect = (): ExtensionRuntime => {

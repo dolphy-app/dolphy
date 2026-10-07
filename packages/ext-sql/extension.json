@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "apiVersion": 1,
   "main": "./main.mjs",
-  "permissions": ["library.read", "process.spawn", "native.addons"],
   "contributes": {
     "exerciseTypes": [
       {

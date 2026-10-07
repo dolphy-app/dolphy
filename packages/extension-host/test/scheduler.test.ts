@@ -167,7 +167,6 @@ const extension = (
   revision: '',
   dir: `/x/${id}`,
   mainPath: '/x/main.mjs',
-  permissions: [],
   name: null,
   description: null,
   author: null,
@@ -195,7 +194,6 @@ const extension = (
 
 const settings = (patch: Record<string, unknown> = {}) => ({
   disabled: [],
-  trusted: [],
   checkUpdates: true,
   safeMode: false,
   notificationsOff: [],
@@ -206,7 +204,7 @@ const settings = (patch: Record<string, unknown> = {}) => ({
 
 interface Call {
   method: string;
-  params: { extensionId: string; scheduleId: string; isolated: boolean };
+  params: { extensionId: string; scheduleId: string };
 }
 
 const harness = (extensions: ResolvedExtension[], start: number) => {
@@ -274,7 +272,7 @@ describe('createScheduler', () => {
     expect(t.calls).toEqual([
       {
         method: 'fireSchedule',
-        params: { extensionId: 'acme.a', scheduleId: 'a', isolated: true },
+        params: { extensionId: 'acme.a', scheduleId: 'a' },
       },
     ]);
     await t.at(local(2026, 10, 5, 9, 0, 40));
@@ -282,24 +280,6 @@ describe('createScheduler', () => {
     expect(t.calls).toHaveLength(1);
     await t.at(local(2026, 10, 6, 9, 0, 5));
     expect(t.calls).toHaveLength(2);
-  });
-
-  it('режим исполнения берётся у политики на каждую отправку; расширение из поставки не изолировано', async () => {
-    const t = harness(
-      [
-        extension('acme.a', [hourly]),
-        extension('dolphy.b', [hourly], 'bundled'),
-      ],
-      local(2026, 10, 5, 9, 59),
-    );
-    t.policy.update(settings({ trusted: ['acme.a'] }));
-    await t.at(local(2026, 10, 5, 10, 0, 5));
-    expect(
-      t.calls.map(({ params }) => [params.extensionId, params.isolated]),
-    ).toEqual([
-      ['acme.a', false],
-      ['dolphy.b', false],
-    ]);
   });
 
   it('приложение спало: пропущенное не воспроизводится, следующее срабатывание идёт штатно', async () => {

@@ -36,7 +36,6 @@ interface Deferred {
 
 const NONE_SET: ExtensionSettingsDto = {
   disabled: [],
-  trusted: [],
   checkUpdates: true,
   safeMode: false,
   notificationsOff: [],
@@ -407,11 +406,7 @@ describe('расписания в строке', () => {
 
 describe('переключатели', () => {
   interface Call {
-    method:
-      | 'setEnabled'
-      | 'setTrusted'
-      | 'setNotificationsEnabled'
-      | 'setSchedulesEnabled';
+    method: 'setEnabled' | 'setNotificationsEnabled' | 'setSchedulesEnabled';
     id: string;
     value: boolean;
     resolve(next: ExtensionSettingsDto): void;
@@ -437,7 +432,6 @@ describe('переключатели', () => {
         },
         getSettings: async () => stored,
         setEnabled: write('setEnabled'),
-        setTrusted: write('setTrusted'),
         setNotificationsEnabled: write('setNotificationsEnabled'),
         setSchedulesEnabled: write('setSchedulesEnabled'),
       },
@@ -450,27 +444,28 @@ describe('переключатели', () => {
     const model = mount(engine);
     await flush();
 
-    const pending = model.setTrusted('acme.x', true);
-    expect(model.settings.value.trusted).toEqual(['acme.x']);
-    expect(model.switching.value.has('trusted:acme.x')).toBe(true);
+    const pending = model.setNotifications('acme.x', false);
+    expect(model.settings.value.notificationsOff).toEqual(['acme.x']);
+    expect(model.switching.value.has('notifications:acme.x')).toBe(true);
     calls[0]?.resolve({
       disabled: [],
-      trusted: ['acme.x'],
       checkUpdates: true,
       safeMode: false,
-      notificationsOff: [],
+      notificationsOff: ['acme.x'],
       catalogUrl: null,
       schedulesOff: [],
     });
     await pending;
 
-    expect(calls[0]).toMatchObject({ method: 'setTrusted', value: true });
+    expect(calls[0]).toMatchObject({
+      method: 'setNotificationsEnabled',
+      value: false,
+    });
     expect(model.settings.value).toEqual({
       disabled: [],
-      trusted: ['acme.x'],
       checkUpdates: true,
       safeMode: false,
-      notificationsOff: [],
+      notificationsOff: ['acme.x'],
       catalogUrl: null,
       schedulesOff: [],
     });
@@ -483,7 +478,6 @@ describe('переключатели', () => {
   it('«Включено» хранится как отсутствие в списке отключённых', async () => {
     const { engine, calls } = createSwitchEngine({
       disabled: ['acme.x'],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -496,7 +490,6 @@ describe('переключатели', () => {
     expect(model.settings.value.disabled).toEqual([]);
     calls[0]?.resolve({
       disabled: [],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -610,15 +603,14 @@ describe('переключатели', () => {
     const { engine, calls } = createSwitchEngine();
     const model = mount(engine);
     await flush();
-    const first = model.setTrusted('acme.x', true);
-    await model.setTrusted('acme.x', false);
+    const first = model.setNotifications('acme.x', false);
+    await model.setNotifications('acme.x', true);
     expect(calls).toHaveLength(1);
     calls[0]?.resolve({
       disabled: [],
-      trusted: ['acme.x'],
       checkUpdates: true,
       safeMode: false,
-      notificationsOff: [],
+      notificationsOff: ['acme.x'],
       catalogUrl: null,
       schedulesOff: [],
     });
@@ -647,7 +639,6 @@ describe('обновления и установка из каталога', () 
     installed: '1.0.0',
     available: {
       version: '1.1.0',
-      permissions: ['network'],
       dependencies: [],
       publishedAt: '2026-01-01T00:00:00.000Z',
       size: 100,
@@ -900,7 +891,6 @@ describe('обновления и установка из каталога', () 
         id: 'acme.x',
         version: '1.1.0',
         installedVersion: '1.0.0',
-        permissions: ['network'],
         platforms: ['darwin'],
         contributes: { themes: ['new'] },
       },

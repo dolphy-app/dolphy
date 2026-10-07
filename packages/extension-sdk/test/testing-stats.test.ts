@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  EXTENSION_STATS_LIMITS,
-  PermissionError,
-  defineExtension,
-} from '../src/index.ts';
+import { EXTENSION_STATS_LIMITS, defineExtension } from '../src/index.ts';
 import { createMemoryStats, loadCommands, loadEvents } from '../src/testing.ts';
 
 const NEW_YORK = 'America/New_York';
@@ -114,19 +110,6 @@ describe('createMemoryStats', () => {
       await expect(stats.daily({ from, to }), `${from}..${to}`).rejects.toThrow(
         Error,
       );
-    }
-  });
-
-  it('with permitted: false every call rejects with PermissionError(learning.stats)', async () => {
-    const stats = createMemoryStats({ permitted: false });
-
-    for (const call of [
-      () => stats.streak(),
-      () => stats.daily({ from: '2024-05-01', to: '2024-05-02' }),
-    ]) {
-      const error = await call().catch((reason: unknown) => reason);
-      expect(error).toBeInstanceOf(PermissionError);
-      expect(error).toMatchObject({ permission: 'learning.stats' });
     }
   });
 

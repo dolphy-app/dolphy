@@ -41,7 +41,6 @@ const extension = (
   revision: '',
   dir: `/x/${id}`,
   mainPath: null,
-  permissions: [],
   name: null,
   description: null,
   author: null,
@@ -72,7 +71,6 @@ const extension = (
 
 const SETTINGS: ExtensionSettingsDto = {
   disabled: [],
-  trusted: [],
   checkUpdates: true,
   safeMode: false,
   notificationsOff: [],

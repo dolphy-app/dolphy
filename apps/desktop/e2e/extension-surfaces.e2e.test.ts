@@ -427,17 +427,6 @@ describe('панель (R5, R7, R8)', () => {
     await commands.search('жертва');
     expect((await commands.optionTitles()).length).toBe(1);
   });
-
-  it('доверенное расширение: панель так же компонент в окне, без iframe', async () => {
-    const { commands, client } = await prepare();
-    await client.openSettingsExtensions();
-    await client.setExtensionSwitch(COMMANDS_ID, 'trusted', true);
-    await commands.navItem(PANEL_TITLE).click();
-    await commands.panelRole('panel-id').waitFor({ timeout: 30_000 });
-    await expectCount(client.page.locator('iframe'), 0);
-    await commands.pressPanelButton('Прибавить');
-    await expectText(commands.panelRole('count'), 'Счётчик: 1');
-  });
 });
 
 describe('живое применение (R4, R5, R6)', () => {

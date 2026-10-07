@@ -21,14 +21,14 @@ import {
 import type { ResolvedExtension } from './discover.ts';
 import { createDiscoveryHolder, discoveryOf } from './holder.ts';
 import { createEndpointPair } from './loopback.ts';
-import { createAllTrustedPolicy } from './policy.ts';
+import { createAllEnabledPolicy } from './policy.ts';
 import { createExtensionRuntime } from './runtime.ts';
 
 export interface LocalExtensionHostOptions {
   extensions: readonly ResolvedExtension[];
   library: LibraryReader;
   logger: ExtensionLogger;
-  /** Кто изолирован и кто отключён; по умолчанию все доверенные и включённые. */
+  /** Кто отключён; по умолчанию все включены. */
   policy?: ExtensionPolicy;
   modules?: Record<string, ExtensionModule>;
 }
@@ -54,7 +54,7 @@ export const createLocalExtensionHost = (
     logger: options.logger,
     ...(options.modules !== undefined && { modules: options.modules }),
   });
-  const policy = options.policy ?? createAllTrustedPolicy();
+  const policy = options.policy ?? createAllEnabledPolicy();
   const discovery = createDiscoveryHolder(discoveryOf(options.extensions));
   const catalog = createCatalog(discovery, policy);
   const channel = createHostChannel({
@@ -68,24 +68,20 @@ export const createLocalExtensionHost = (
     exerciseTypes: createRemoteExerciseTypes({
       channel,
       catalog,
-      policy,
       logger: options.logger,
     }),
     gradePolicies: createRemoteGradePolicies({
       channel,
       catalog,
-      policy,
       logger: options.logger,
     }),
     extensionCommands: createRemoteExtensionCommands({
       channel,
       discovery,
-      policy,
       logger: options.logger,
     }),
     extensionTransfers: createRemoteExtensionTransfers({
       channel,
-      policy,
       logger: options.logger,
     }),
     async close() {

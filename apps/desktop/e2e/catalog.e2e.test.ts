@@ -207,7 +207,7 @@ describe('Настройки → Расширения → Каталог', () =>
       .toBe(true);
   });
 
-  it('установка через диалог: разрешения видны, тема появляется без перезагрузки окна, метка «Из каталога»', async () => {
+  it('установка через диалог: тема появляется без перезагрузки окна, метка «Из каталога»', async () => {
     const catalogServer = await serve(SUNRISE_1_0, SUNSET);
     const { userData } = workspace!;
     const { client, catalog } = await launch(userData, catalogServer.url);
@@ -220,8 +220,6 @@ describe('Настройки → Расширения → Каталог', () =>
     await catalog.installButton(ID).click();
     await expectText(catalog.dialog, 'Sunrise');
     await expectText(catalog.dialog, '@acme');
-    await expectText(catalog.dialog, 'Чтение библиотеки курсов');
-    await expectText(catalog.dialog, 'Расширение будет работать в изоляции');
     await expectText(catalog.dialog, ID);
 
     await catalog.confirmInstall();

@@ -147,7 +147,6 @@ describe('registry and policy: metadata and revocation', () => {
     // настройки пользователя отзыв не отменяют
     policy.update({
       disabled: [],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],

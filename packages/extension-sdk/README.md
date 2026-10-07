@@ -219,8 +219,7 @@ Three capabilities of the context `ctx`; details and manifest examples are in
 `docs/design/extensions.md`.
 
 ```ts
-// extension.json: "permissions": ["learning.events"],
-// "contributes": { "events": [{ "event": "attempt.closed" }],
+// extension.json: "contributes": { "events": [{ "event": "attempt.closed" }],
 //   "settings": [{ "id": "acme.streak.goal", "type": "number", "label": "Daily goal",
 //     "default": 3, "min": 1, "max": 20, "integer": true }] }
 import {
@@ -246,14 +245,14 @@ export const host = defineExtension({
 
 - `ctx.storage` — `get<T>(key)`, `set(key, value)`, `delete(key)`, `keys()`: JSON
   under string keys, each extension has its own space; data survives restart,
-  update and disabling. No permission is needed, but there are ceilings
+  update and disabling. There are ceilings
   (`EXTENSION_STORAGE_LIMITS`): key — 128 characters, value — 64 KiB, 256 keys,
   1 MiB in total. Exceeding one throws `StorageQuotaError` (`kind`, `limit`),
-  nothing is written. Works in the restricted process too.
+  nothing is written.
 - `ctx.secrets` — `get(key)` (`string | undefined`), `set(key, value)`,
   `delete(key)`: strings encrypted by the system key store (Electron
   `safeStorage`), a private space per extension, cleared with the extension
-  data. No permission is needed; ceilings (`EXTENSION_SECRET_LIMITS`): key —
+  data. Ceilings (`EXTENSION_SECRET_LIMITS`): key —
   128 characters, value — 4 KiB, 32 keys (`StorageQuotaError`). Without a
   secure key store (no store, Linux `basic_text`, the app is not ready) `set`
   and `get` of an existing key throw `SecretsUnavailableError`
@@ -265,15 +264,11 @@ export const host = defineExtension({
   restart.
 - `ctx.events.on(name, handler)` (and `events` in `defineExtension`) — the
   learning events `session.started`, `session.finished`, `attempt.closed`; they
-  need the `learning.events` permission and a declaration in
-  `contributes.events`, otherwise it throws. One handler per event. Delivery is
+  need a declaration in `contributes.events`, otherwise it throws. One handler per event. Delivery is
   asynchronous, in order, at most once; a handler gets 2 s; the queue holds 100
   events per extension (the oldest are dropped with a warning in the log); a
   handler's failure, exception and timeout affect only the log.
-- `ctx.stats` — aggregated learning statistics; needs the `learning.stats`
-  permission, otherwise every call rejects with `PermissionError('learning.stats')`
-  (in the restricted process too: the engine decides, not the process).
-  `streak({ courseId? })` gives `{ current, longest }` in days, `daily({ from, to, courseId? })`
+- `ctx.stats` — aggregated learning statistics: `streak({ courseId? })` gives `{ current, longest }` in days, `daily({ from, to, courseId? })`
   one `{ date, attempts, correct, accuracy }` per date from `from` to `to`
   inclusive (`YYYY-MM-DD`, at most `EXTENSION_STATS_LIMITS.dailyDays` = 366;
   `accuracy` is `correct / attempts`, `null` without attempts). Days are local
@@ -281,9 +276,7 @@ export const host = defineExtension({
   not broken while today has no attempts yet (the streak up to yesterday
   counts); a progress reset does not erase the history; an unknown course gives
   zeros. The answer holds numbers and dates only: no exercise or course ids.
-- `ctx.notifications` — system notifications; needs the `notifications`
-  permission, otherwise `show` rejects with `PermissionError('notifications')`
-  (in the restricted process too: the engine decides). `show({ title, body })`
+- `ctx.notifications` — system notifications: `show({ title, body })`
   takes a title of 1–80 and a body of up to 300 characters (plain text; control
   characters are removed), shows an operating-system notification that names
   the extension (a click shows the app window) and resolves `true`; `false`
@@ -296,8 +289,8 @@ export const host = defineExtension({
   `EXTENSION_SCHEDULE_LIMITS.handlerMs` = 10 s) at the times the manifest's
   `contributes.schedules` declares, by the local clock, while the app runs.
   `{ id, every: 'daily', at?: 'HH:MM' }` fires once a day (`at` defaults to
-  `09:00`), `{ id, every: 'hourly' }` at the start of every hour. No permission
-  is needed. `id` must be declared, otherwise `on` throws; subscribing twice
+  `09:00`), `{ id, every: 'hourly' }` at the start of every hour.
+  `id` must be declared, otherwise `on` throws; subscribing twice
   throws. The extension is activated at the moment of the firing. A firing
   found more than 2 minutes after its moment (the app was closed or the
   computer slept) is skipped and never replayed; a handler still running from
@@ -318,14 +311,13 @@ export const host = defineExtension({
   the host, the helpers do not swallow a handler failure and do not count 2 s.
   `loadExerciseType` and `loadGradePolicy` accept ready-made `storage`,
   `settings` and `events` (objects from these helpers).
-- `createMemoryNotifications({ permitted?, supported?, enabled?, now? })` is
+- `createMemoryNotifications({ supported?, enabled?, now? })` is
   `ctx.notifications` with the engine's rules (sanitized text, length limits,
   the minute and hour windows, `NotificationRateLimitError`): `shown` lists what
   the app would show, `setEnabled(false)` imitates the user's "Notifications"
   switch and `setSupported(false)` an operating system without notifications
   (both make `show` resolve `false` without using the rate limit);
-  `permitted: false` makes every call reject with
-  `PermissionError('notifications')`. All `load*` helpers take `notifications`.
+  All `load*` helpers take `notifications`.
 - `createMemorySchedule({ declared? })` is `ctx.schedule`: `fire(id)` runs the
   subscribed handler and resolves `true`; with no subscription, or while the
   handler of the previous firing is still running, the firing is skipped and it
@@ -333,11 +325,10 @@ export const host = defineExtension({
   it) and the 10 s limit is not applied. `ids()` lists the subscribed
   schedules. `loadSchedules(host, options?)` activates the module with it and
   returns `fire`, `ids`, `dispose()`; all `load*` helpers take `schedule`.
-- `createMemoryStats({ attempts?, timeZone?, now?, permitted? })` is `ctx.stats`
+- `createMemoryStats({ attempts?, timeZone?, now? })` is `ctx.stats`
   over a list of attempts (`{ at, grade, courseId? }`; more through
   `record(attempt)`) with the app's rules: local days in `timeZone`, correct at
-  grade 3 or higher, the same range limits. `permitted: false` makes every call
-  reject with `PermissionError('learning.stats')`. All `load*` helpers take
+  grade 3 or higher, the same range limits. All `load*` helpers take
   `stats`; by default the statistics are empty.
 
 ## Commands and panels
@@ -470,9 +461,8 @@ palette and the sidebar, decoratively.
 
 An importer turns a file the user picked into a new course directory; an
 exporter writes a course or the learning progress to a file. Declare them in
-`contributes.importers` / `contributes.exporters` of `extension.json` (no
-permission is needed; the user's choice of a file is the consent, and an
-exporter with `scope: 'progress'` needs `learning.stats`).
+`contributes.importers` / `contributes.exporters` of `extension.json` (the
+user's choice of a file is the consent).
 
 ```ts
 import {
@@ -584,27 +574,16 @@ same for `'*?url'`.
 The manifest `icon` (`"icon": "assets/icon.png"`, a square 64–512 px PNG or WebP up
 to 16 KiB) is what the app shows for the extension at 32 px.
 
-## Permissions and `ctx.library`
+## Execution environment
 
-An extension that is not bundled and not trusted runs in a restricted process
-(`docs/design/extensions.md`, "Права и изоляция"): what `permissions` of the
-manifest does not declare is unavailable. The SDK exports
-`EXTENSION_PERMISSIONS` (`library.read`, `process.spawn`, `worker.threads`,
-`native.addons`, `network`, `learning.events`, `learning.stats`,
-`notifications`) and the
-`PermissionError` class
-(`permission`, `code: 'EXT_PERMISSION'`).
+Extension code runs without restrictions: files, processes, threads, native
+modules and the network are available, and nothing is declared in the manifest
+for them (`docs/design/extensions.md`, "Среда исполнения"). The server part runs
+in the extension host process, the interface in the app window.
 
-- `ctx.library` in the restricted process is a proxy: `readText` and `stat`
-  requests are run by the parent, and only if `library.read` is declared.
-  Without it both methods throw `PermissionError` (checked before the parent is
-  asked; the parent refuses too). An uncaught handler exception becomes a
-  `handler-failed` error, a check becomes an `error` verdict.
-- Spawning processes, threads and native modules without `process.spawn`,
-  `worker.threads` and `native.addons` fail with `ERR_ACCESS_DENIED` from Node;
-  `network` is informational, it does not limit network access of code.
-- A trusted extension and a bundled one have no restrictions.
+- `ctx.library` reads the course library: `readText` and `stat`. An uncaught
+  handler exception becomes a `handler-failed` error, a check becomes an
+  `error` verdict.
 - `@dolphy-app/extension-sdk/testing` runs a handler in your process, without
-  restrictions and without checking `permissions`: `PermissionError` and
-  `ERR_ACCESS_DENIED` are not reproduced there, so check permissions in the app
-  (as a third-party, untrusted extension).
+  the host: timeouts and the process boundary are not reproduced there, so try
+  such code in the app.

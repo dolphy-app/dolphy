@@ -8,8 +8,7 @@ import type {
 import { EXTENSION_TRANSFER_LIMITS } from '@dolphy-app/extension-api';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ResolvedExtension } from '../src/discover.ts';
-import { createExtensionRuntime } from '../src/runtime.ts';
-import { createLogger, deferred, nullLibrary } from './helpers.ts';
+import { deferred } from './helpers.ts';
 import { createHarness, stateful } from './state-harness.ts';
 import type { Harness } from './state-harness.ts';
 
@@ -29,7 +28,6 @@ const extensionWith = (
   overrides: Partial<ResolvedExtension> = {},
 ): ResolvedExtension =>
   stateful(ID, {
-    permissions: ['learning.stats'],
     events: [],
     settings: [],
     importers: [
@@ -62,7 +60,6 @@ const moduleOf = ({ importers, exporters }: Handlers): ExtensionModule => ({
 const start = (handlers: Handlers, extension = extensionWith()) => {
   harness = createHarness({
     extensions: [extension],
-    trusted: [ID],
     modules: { [ID]: moduleOf(handlers) },
   });
   return harness;
@@ -159,7 +156,6 @@ describe('ctx.importers.register', () => {
     const errors: string[] = [];
     const h = (harness = createHarness({
       extensions: [extensionWith()],
-      trusted: [ID],
       modules: {
         [ID]: {
           activate(ctx) {
@@ -235,7 +231,6 @@ describe('ctx.importers.register', () => {
     const restart = vi.fn();
     harness = createHarness({
       extensions: [extensionWith()],
-      trusted: [ID],
       restart,
       modules: {
         [ID]: moduleOf({
@@ -387,7 +382,6 @@ describe('ctx.exporters.register', () => {
     let calls = 0;
     const h = (harness = createHarness({
       extensions: [extensionWith()],
-      trusted: [ID],
       modules: {
         [ID]: {
           activate(ctx) {
@@ -451,7 +445,6 @@ describe('ctx.exporters.register', () => {
     vi.useFakeTimers();
     harness = createHarness({
       extensions: [extensionWith()],
-      trusted: [ID],
       modules: {
         [ID]: moduleOf({
           exporters: {
@@ -563,36 +556,6 @@ describe('результат экспортёра', () => {
 });
 
 describe('замена набора расширений', () => {
-  it('набор заменён до активации — replaced, а не сбой кода', async () => {
-    const runtime = createExtensionRuntime({
-      extensions: [extensionWith()],
-      library: nullLibrary,
-      logger: createLogger(),
-      modules: {
-        [ID]: moduleOf({ importers: { [IN]: () => ({ files: {} }) } }),
-      },
-    });
-
-    const racing = runtime.handle({
-      id: '1',
-      method: 'runImporter',
-      params: {
-        extensionId: ID,
-        importerId: IN,
-        name: 'a.csv',
-        text: 'x',
-        isolated: false,
-      },
-    });
-    await runtime.replace([extensionWith({ version: '2.0.0' })]);
-
-    expect(await racing).toMatchObject({
-      ok: false,
-      error: { cause: 'replaced' },
-    });
-    await runtime.dispose();
-  });
-
   it('идущий импорт доходит до результата старой сборки; новая сборка без импортёра отвечает unknown-importer', async () => {
     vi.useFakeTimers();
     const release = deferred();
@@ -608,7 +571,6 @@ describe('замена набора расширений', () => {
     };
     harness = createHarness({
       extensions: [extensionWith()],
-      trusted: [ID],
       modules,
     });
     const h = harness;

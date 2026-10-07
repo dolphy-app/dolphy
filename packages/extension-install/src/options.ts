@@ -9,7 +9,6 @@ import type { InstallerFs } from './fs.ts';
 export interface InspectedManifest {
   id: string;
   version: string;
-  permissions: readonly string[];
   /** Значок как `data:`-URI (проверенный файл манифеста); `null` — значка нет. */
   icon: string | null;
   /** Теги манифеста; порядок не важен при сверке. */

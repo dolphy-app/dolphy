@@ -31,8 +31,6 @@ const info = (overrides: Partial<ExtensionInfoDto>): ExtensionInfoDto => ({
   state: 'loaded',
   contributes: { ...NO_CONTRIBUTES, exerciseTypes: ['dolphy.sql'] },
   diagnostics: [],
-  permissions: [],
-  isolation: 'trusted',
   toggleable: false,
   name: null,
   description: null,
@@ -231,7 +229,6 @@ describe('extensions settings', () => {
   const USER = info({
     id: 'acme.user',
     origin: 'user',
-    isolation: 'isolated',
     toggleable: true,
   });
   const BUNDLED = info({ id: 'dolphy.sql' });
@@ -261,7 +258,6 @@ describe('extensions settings', () => {
     const settings = createMemorySettingsStore({
       extensions: {
         disabled: ['acme.user'],
-        trusted: [],
         checkUpdates: true,
         safeMode: false,
         notificationsOff: [],
@@ -272,7 +268,6 @@ describe('extensions settings', () => {
     const { engine, policy } = await openSettings([USER], settings);
     expect(await engine.extensions.getSettings()).toEqual({
       disabled: ['acme.user'],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -286,16 +281,6 @@ describe('extensions settings', () => {
     const { engine, settings, events, policy } = await openSettings();
     expect(await engine.extensions.setEnabled('acme.user', false)).toEqual({
       disabled: ['acme.user'],
-      trusted: [],
-      checkUpdates: true,
-      safeMode: false,
-      notificationsOff: [],
-      catalogUrl: null,
-      schedulesOff: [],
-    });
-    expect(await engine.extensions.setTrusted('acme.user', true)).toEqual({
-      disabled: ['acme.user'],
-      trusted: ['acme.user'],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -304,7 +289,6 @@ describe('extensions settings', () => {
     });
     expect(await settings.loadExtensions()).toEqual({
       disabled: ['acme.user'],
-      trusted: ['acme.user'],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -312,11 +296,9 @@ describe('extensions settings', () => {
       schedulesOff: [],
     });
     expect(policy.isEnabled('acme.user')).toBe(false);
-    expect(policy.isIsolated('acme.user')).toBe(false);
-    expect(changes(events)).toHaveLength(2);
+    expect(changes(events)).toHaveLength(1);
     expect(await engine.extensions.setEnabled('acme.user', true)).toEqual({
       disabled: [],
-      trusted: ['acme.user'],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -328,20 +310,16 @@ describe('extensions settings', () => {
 
   it('is idempotent: repeating a write changes and announces nothing', async () => {
     const { engine, events } = await openSettings();
-    await engine.extensions.setTrusted('acme.user', true);
-    const again = await engine.extensions.setTrusted('acme.user', true);
+    await engine.extensions.setEnabled('acme.user', false);
+    const again = await engine.extensions.setEnabled('acme.user', false);
     expect(again).toEqual({
-      disabled: [],
-      trusted: ['acme.user'],
+      disabled: ['acme.user'],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
       schedulesOff: [],
     });
-    expect(await engine.extensions.setEnabled('acme.user', true)).toEqual(
-      again,
-    );
     expect(changes(events)).toHaveLength(1);
   });
 
@@ -351,11 +329,10 @@ describe('extensions settings', () => {
       engine.extensions.setEnabled('acme.missing', false),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
     await expect(
-      engine.extensions.setTrusted('Not An Id', true),
+      engine.extensions.setEnabled('Not An Id', false),
     ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
     expect(await settings.loadExtensions()).toEqual({
       disabled: [],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -392,7 +369,6 @@ describe('extensions settings', () => {
     // не затрагивает остальные переключатели
     expect(on).toMatchObject({
       disabled: [],
-      trusted: [],
       notificationsOff: [],
       schedulesOff: ['acme.other'],
     });
@@ -425,7 +401,7 @@ describe('extensions settings', () => {
     const { engine, events } = await openSettings();
     for (const call of [
       () => engine.extensions.setEnabled('dolphy.sql', false),
-      () => engine.extensions.setTrusted('dolphy.sql', true),
+      () => engine.extensions.setSchedulesEnabled('dolphy.sql', false),
     ]) {
       await expect(call()).rejects.toMatchObject({
         code: 'INVALID_ARGUMENT',
@@ -439,7 +415,6 @@ describe('extensions settings', () => {
     const { engine } = await openSettings([OVERRIDDEN_BUNDLED, USER]);
     expect(await engine.extensions.setEnabled('acme.user', false)).toEqual({
       disabled: ['acme.user'],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -480,7 +455,6 @@ describe('extensions live apply', () => {
   const USER = info({
     id: 'acme.user',
     origin: 'user',
-    isolation: 'isolated',
     toggleable: true,
   });
   const openApplying = (settings = createMemorySettingsStore()) => {
@@ -500,10 +474,10 @@ describe('extensions live apply', () => {
     });
   };
 
-  it('setEnabled and setTrusted apply the set before announcing contributions-changed', async () => {
+  it('setEnabled applies the set before announcing contributions-changed', async () => {
     const { engine, order, events } = await openApplying();
     await engine.extensions.setEnabled('acme.user', false);
-    await engine.extensions.setTrusted('acme.user', true);
+    await engine.extensions.setEnabled('acme.user', true);
     expect(order.filter((type) => type !== 'settings-changed')).toEqual([
       'reload',
       'contributions-changed',
@@ -558,7 +532,6 @@ describe('extensions safe mode', () => {
   const USER = info({
     id: 'acme.user',
     origin: 'user',
-    isolation: 'isolated',
     toggleable: true,
   });
   const open = (
@@ -601,13 +574,12 @@ describe('extensions safe mode', () => {
     expect(reloader.calls()).toBe(2);
   });
 
-  it('keeps the disabled and trusted lists and the update check', async () => {
+  it('keeps the disabled list and the update check', async () => {
     const { engine } = await open();
     await engine.extensions.setEnabled('acme.user', false);
     await engine.extensions.setCheckUpdates(false);
     expect(await engine.extensions.setSafeMode(true)).toEqual({
       disabled: ['acme.user'],
-      trusted: [],
       checkUpdates: false,
       safeMode: true,
       notificationsOff: [],
@@ -632,7 +604,6 @@ describe('extensions safe mode', () => {
     const settings = createMemorySettingsStore({
       extensions: {
         disabled: [],
-        trusted: [],
         checkUpdates: true,
         safeMode: true,
         notificationsOff: [],
@@ -694,7 +665,6 @@ describe('extensions with unmet dependencies', () => {
     origin: 'user',
     state: 'dependencies-unmet',
     toggleable: true,
-    isolation: 'isolated',
     dependencies: [{ id: 'acme.lib', range: '>=1.0.0' }],
     diagnostics: [
       {

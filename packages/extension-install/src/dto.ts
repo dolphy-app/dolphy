@@ -24,7 +24,6 @@ export const totalSize = (version: CatalogVersion): number =>
 
 export const toVersionDto = (version: CatalogVersion): CatalogVersionDto => ({
   version: version.version,
-  permissions: [...version.permissions],
   dependencies: (version.dependencies ?? []).map(({ id, range }) => ({
     id,
     range: range ?? null,

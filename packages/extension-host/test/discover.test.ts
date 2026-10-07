@@ -122,7 +122,6 @@ describe('discoverExtensions', () => {
     });
     const [extension] = extensions;
     expect(path.isAbsolute(extension!.mainPath ?? '')).toBe(true);
-    expect(extension!.permissions).toEqual([]);
     expect(extension!.exerciseTypes[0]).toMatchObject({
       id: 'acme.one',
       specSchema: { type: 'object' },

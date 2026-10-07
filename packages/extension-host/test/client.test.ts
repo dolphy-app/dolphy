@@ -9,10 +9,7 @@ import {
   createRemoteGradePolicies,
 } from '../src/client.ts';
 import { createEndpointPair } from '../src/loopback.ts';
-import {
-  createAllTrustedPolicy,
-  createExtensionPolicy,
-} from '../src/policy.ts';
+import { createAllEnabledPolicy } from '../src/policy.ts';
 import type { ExtRequest, ExtResponse } from '../src/protocol.ts';
 import { createLogger, holderOf } from './helpers.ts';
 
@@ -26,7 +23,6 @@ const resolved: ResolvedExtension[] = [
     revision: '',
     dir: '/x',
     mainPath: '/x/main.mjs',
-    permissions: [],
     name: null,
     description: null,
     author: null,
@@ -60,7 +56,7 @@ const resolved: ResolvedExtension[] = [
     exporters: [],
   },
 ];
-const catalog = createCatalog(holderOf(resolved), createAllTrustedPolicy());
+const catalog = createCatalog(holderOf(resolved), createAllEnabledPolicy());
 
 const gradeRequest = {
   type: 'acme.t',
@@ -71,30 +67,22 @@ const gradeRequest = {
   authorMode: false,
 };
 
-const setup = (
-  options: {
-    restart?: () => void;
-    policy?: ReturnType<typeof createExtensionPolicy>;
-  } = {},
-) => {
-  const { policy = createAllTrustedPolicy(), ...channelOptions } = options;
+const setup = (options: { restart?: () => void } = {}) => {
   const logger = createLogger();
   const channel = createHostChannel({
     logger,
     connectTimeoutMs: 500,
-    ...channelOptions,
+    ...options,
   });
   const client = createRemoteExerciseTypes({
     channel,
     catalog,
-    policy,
     logger,
     graceMs: 50,
   });
   const policies = createRemoteGradePolicies({
     channel,
     catalog,
-    policy,
     logger,
     deadlineMs: 100,
   });
@@ -202,7 +190,6 @@ describe('createRemoteExerciseTypes', () => {
     const client = createRemoteExerciseTypes({
       channel,
       catalog,
-      policy: createAllTrustedPolicy(),
       logger,
       projectTimeoutMs: 300,
     });
@@ -241,7 +228,6 @@ describe('createRemoteExerciseTypes', () => {
     const client = createRemoteExerciseTypes({
       channel: createHostChannel({ logger, connectTimeoutMs: 1000 }),
       catalog,
-      policy: createAllTrustedPolicy(),
       logger,
     });
     const project = client.project({
@@ -484,66 +470,6 @@ describe('createEndpointPair', () => {
   });
 });
 
-describe('isolated в запросах', () => {
-  const answering = (
-    hostSide: MessageEndpoint,
-    result: unknown = { outcome: 'passed' },
-  ) =>
-    hostSide.onMessage((message) => {
-      hostSide.post({ id: (message as ExtRequest).id, ok: true, result });
-    });
-
-  it('каждый запрос несёт режим владельца, вычисленный при вызове', async () => {
-    const policy = createExtensionPolicy(holderOf(resolved));
-    const { client, policies, channel, engineSide, hostSide, requests } = setup(
-      { policy },
-    );
-    answering(hostSide, null);
-    channel.attach(engineSide);
-    const call = async () => {
-      requests.length = 0;
-      await client.grade(gradeRequest);
-      await policies.evaluate('acme.t.gen', { verdicts: [], gaveUp: false });
-      return requests.map(
-        ({ params }) => (params as { isolated: boolean }).isolated,
-      );
-    };
-    expect(await call()).toEqual([true, true]);
-    policy.update({
-      disabled: [],
-      trusted: ['acme.t'],
-      checkUpdates: true,
-      safeMode: false,
-      notificationsOff: [],
-      catalogUrl: null,
-      schedulesOff: [],
-    });
-    expect(await call()).toEqual([false, false]);
-  });
-
-  it('project и referenceAnswer тоже несут isolated; неизвестный вид — изолирован', async () => {
-    const policy = createExtensionPolicy(holderOf(resolved));
-    const { client, channel, engineSide, hostSide, requests } = setup({
-      policy,
-    });
-    answering(hostSide, { found: false });
-    channel.attach(engineSide);
-    await client.project({ type: 'acme.t', exerciseId: 'e', spec: {} });
-    await client.referenceAnswer({ type: 'acme.t', exerciseId: 'e', spec: {} });
-    await client.project({ type: 'gone', exerciseId: 'e', spec: {} });
-    expect(
-      requests.map(({ method, params }) => [
-        method,
-        (params as { isolated: boolean }).isolated,
-      ]),
-    ).toEqual([
-      ['project', true],
-      ['referenceAnswer', true],
-      ['project', true],
-    ]);
-  });
-});
-
 describe('createRemoteExerciseTypes: здоровье расширения', () => {
   const open = () => {
     const health = createExtensionHealth({ now: () => Date.now() });
@@ -552,7 +478,6 @@ describe('createRemoteExerciseTypes: здоровье расширения', () 
     const client = createRemoteExerciseTypes({
       channel,
       catalog,
-      policy: createAllTrustedPolicy(),
       logger,
       graceMs: 50,
       projectTimeoutMs: 100,
@@ -602,7 +527,6 @@ describe('createRemoteExerciseTypes: здоровье расширения', () 
     const slow = createRemoteExerciseTypes({
       channel,
       catalog,
-      policy: createAllTrustedPolicy(),
       logger: createLogger(),
       graceMs: 50,
       health,

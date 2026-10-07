@@ -261,14 +261,13 @@ describe('dispatcher validation', () => {
     });
   });
 
-  it('extensions.setEnabled / setTrusted / setNotificationsEnabled / setSchedulesEnabled require an extension id and a boolean', async () => {
+  it('extensions.setEnabled / setNotificationsEnabled / setSchedulesEnabled require an extension id and a boolean', async () => {
     const { dispatcher } = await connect();
     const [hostSide, rawSide] = createInProcessPair();
     dispatcher.attach(hostSide, 'raw-extensions');
     const raw = createRawClient(rawSide);
     for (const method of [
       'extensions.setEnabled',
-      'extensions.setTrusted',
       'extensions.setNotificationsEnabled',
       'extensions.setSchedulesEnabled',
     ]) {

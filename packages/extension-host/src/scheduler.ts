@@ -81,7 +81,7 @@ export interface SchedulerOptions {
   channel: HostChannel;
   /** Набор расширений движка: читается на каждом тике. */
   discovery: DiscoverySource;
-  /** Отключённое расширение и расширение с выключенным переключателем «Расписание» не срабатывает; `isIsolated` — режим на каждую отправку. */
+  /** Отключённое расширение и расширение с выключенным переключателем «Расписание» не срабатывает. */
   policy: ExtensionPolicy;
   logger: ExtensionLogger;
   /** Часы планировщика, epoch ms; по умолчанию `Date.now`. */
@@ -133,7 +133,7 @@ export const createScheduler = (options: SchedulerOptions): Scheduler => {
   ): Promise<void> => {
     const outcome = await channel.call(
       'fireSchedule',
-      { extensionId, scheduleId, isolated: policy.isIsolated(extensionId) },
+      { extensionId, scheduleId },
       deliveryMs,
       { restart: false },
     );

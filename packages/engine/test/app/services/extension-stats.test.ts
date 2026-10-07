@@ -1,6 +1,6 @@
 /**
  * `ExtensionHostServices.stats` (спека extension-api-breadth-1, R7, R8):
- * разрешение решает движок, ответ — только числа, индекс сбрасывается записями журнала.
+ * ответ — только числа, индекс сбрасывается записями журнала.
  */
 import type { ExtensionInfoDto } from '@dolphy-app/engine-contract';
 import {
@@ -12,7 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestEngine } from '../../helpers/engine.ts';
 import type { TestEngine } from '../../helpers/engine.ts';
 
-const base: Omit<ExtensionInfoDto, 'id' | 'permissions' | 'state'> = {
+const base: Omit<ExtensionInfoDto, 'id' | 'state'> = {
   version: '1.0.0',
   origin: 'user',
   contributes: {
@@ -30,7 +30,6 @@ const base: Omit<ExtensionInfoDto, 'id' | 'permissions' | 'state'> = {
     exporters: [],
   },
   diagnostics: [],
-  isolation: 'isolated',
   toggleable: true,
   name: null,
   description: null,
@@ -47,9 +46,8 @@ const base: Omit<ExtensionInfoDto, 'id' | 'permissions' | 'state'> = {
 };
 const ext = (
   id: string,
-  permissions: string[],
   state: ExtensionInfoDto['state'] = 'loaded',
-): ExtensionInfoDto => ({ ...base, id, permissions, state });
+): ExtensionInfoDto => ({ ...base, id, state });
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
@@ -75,14 +73,13 @@ const open = () =>
       ],
     }),
     extensionRegistry: createFakeExtensionRegistry([
-      ext('acme.stats', ['learning.stats']),
-      ext('acme.plain', ['learning.events']),
-      ext('acme.off', ['learning.stats'], 'disabled'),
+      ext('acme.stats'),
+      ext('acme.plain'),
+      ext('acme.off', 'disabled'),
     ]),
     extensionPolicy: createFakeExtensionPolicy({
       settings: {
         disabled: ['acme.off'],
-        trusted: [],
         checkUpdates: true,
         safeMode: false,
         notificationsOff: [],
@@ -131,22 +128,16 @@ const rejection = async (call: Promise<unknown>) => {
   throw new Error('expected a rejection');
 };
 
-describe('разрешение', () => {
-  it('расширение без learning.stats получает INVALID_ARGUMENT с reason permission — решает движок, а не процесс', async () => {
+describe('доступ', () => {
+  it('статистика доступна любому включённому расширению без условий', async () => {
     const { engine } = await seeded();
     const { stats } = engine.extensionHost;
-    for (const call of [
-      stats.streak('acme.plain'),
-      stats.daily('acme.plain', '2024-05-01', '2024-05-10'),
-    ]) {
-      const error = await rejection(call);
-      expect(error.code).toBe('INVALID_ARGUMENT');
-      expect(error.details).toEqual({
-        reason: 'permission',
-        permission: 'learning.stats',
-        extensionId: 'acme.plain',
-      });
-    }
+    expect(await stats.streak('acme.plain')).toEqual(
+      await stats.streak('acme.stats'),
+    );
+    expect(
+      await stats.daily('acme.plain', '2024-05-01', '2024-05-10'),
+    ).toHaveLength(10);
   });
 
   it('отключённое расширение — disabled, неизвестное — NOT_FOUND, чужой id вместо расширения — INVALID_ARGUMENT', async () => {

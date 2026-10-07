@@ -321,17 +321,6 @@ describe('catalog check: authoring rules', () => {
     expect(await run(repo)).toEqual([]);
   });
 
-  it('CHECK-020: a permission missing from README.md is a warning; a mention silences it', async () => {
-    const spec = { manifest: { permissions: ['network'] } };
-    const hit = await expectRule(spec, 'CHECK-020', 'warning');
-    expect(hit).toContain("permission 'network'");
-    const repo = await single({
-      ...spec,
-      files: { 'README.md': '# Sample\n\nUses `network` to fetch hints.\n' },
-    });
-    expect(await run(repo)).toEqual([]);
-  });
-
   it('CHECK-030: CHANGELOG.md limits; a missing section of the current version is a warning', async () => {
     const good = '# Changelog\n\n## [1.0.0] - 2026-10-01\n\n- first\n';
     expect(
@@ -451,18 +440,6 @@ describe('catalog check: authoring rules', () => {
   it('CHECK-023: obfuscated built code', async () => {
     const builtDir = await builtSite({ 'view.mjs': `${'a'.repeat(21_000)}\n` });
     await expectRule({}, 'CHECK-023', 'warning', { builtDir });
-  });
-
-  it('CHECK-024: a URL without the network permission, none with it', async () => {
-    const builtDir = await builtSite({
-      'main.mjs': 'fetch("https://example.com/x")',
-    });
-    await expectRule({}, 'CHECK-024', 'warning', { builtDir });
-    const repo = await single({
-      manifest: { permissions: ['network'] },
-      files: { 'README.md': '# Sample\n\nneeds network\n' },
-    });
-    expect(await run(repo, { builtDir })).toEqual([]);
   });
 
   it('CHECK-025: an embedded source map is an error', async () => {

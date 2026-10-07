@@ -1,6 +1,5 @@
 import { rowsOfCatalog, rowsOfInstalled } from './dependencies.ts';
 import type { DependencyRow } from './dependencies.ts';
-import { isEffectiveExtensionState } from '@dolphy-app/engine-contract';
 import type {
   CatalogEntryDto,
   CatalogListedVersionDto,
@@ -60,8 +59,6 @@ export interface ExtensionDetails {
   titles: ContributionTitlesDto;
   /** Таблицы переводов установленного; у записи каталога `undefined` (там английский текст). */
   messages: ExtensionMessagesDto | undefined;
-  /** Разрешения показанной версии; `null` — не показываются. */
-  permissions: string[] | null;
   /** «Исходники» из записи каталога; `null` — нет ссылки. */
   sourceUrl: string | null;
   /** Версия, установленная из каталога; `null` — не установлена или установлена не оттуда. */
@@ -77,24 +74,12 @@ export interface ExtensionDetails {
   dependencies: DependencyRow[];
 }
 
-const isActive = (info: ExtensionInfoDto) =>
-  isEffectiveExtensionState(info.state);
-
 const shownTags = (
   info: ExtensionInfoDto | null,
   entry: CatalogEntryDto | null,
 ): ExtensionTag[] => {
   if (info !== null) return effectiveTags(info.tags, info.contributes);
   return entry === null ? [] : entryTags(entry);
-};
-
-/** Разрешения показанной версии: установленной (если она действует) или новейшей из каталога. */
-const shownPermissions = (
-  info: ExtensionInfoDto | null,
-  entry: CatalogEntryDto | null,
-): string[] | null => {
-  if (info === null) return entry?.latest?.permissions ?? null;
-  return isActive(info) ? info.permissions : null;
 };
 
 /** Предупреждение страницы: установленной версии, а без установленной — показанной версии каталога. */
@@ -141,7 +126,6 @@ export const describeDetails = (
   const installedVersion =
     entry?.installedVersion ?? info?.installed?.version ?? null;
   const author = info?.author ?? entry?.author ?? null;
-  const permissions = shownPermissions(info, entry);
   return {
     id,
     info,
@@ -154,7 +138,6 @@ export const describeDetails = (
     contributes,
     titles: info?.titles ?? entry?.titles ?? {},
     messages: info?.messages,
-    permissions,
     sourceUrl: externalUrl(entry?.source),
     installedVersion,
     deprecation: deprecationOf(info, entry),

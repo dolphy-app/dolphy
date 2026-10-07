@@ -33,8 +33,6 @@ const info = (id: string): ExtensionInfoDto => ({
     exporters: [],
   },
   diagnostics: [],
-  permissions: [],
-  isolation: 'isolated',
   toggleable: true,
   name: null,
   description: null,

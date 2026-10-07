@@ -7,10 +7,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { discoverExtensions } from '../src/discover.ts';
 import type { ExtensionOrigin, ResolvedExtension } from '../src/discover.ts';
 import type { ExtRequest, ExtResponse } from '../src/protocol.ts';
-import type {
-  RestrictedRunner,
-  RunnerFactory,
-} from '../src/restricted-runner.ts';
 import { createExtensionRuntime } from '../src/runtime.ts';
 import { createLogger, nullLibrary } from './helpers.ts';
 
@@ -29,10 +25,10 @@ const discover = async (
     })
   ).extensions;
 
-const project = (id = '1', isolated = false): ExtRequest => ({
+const project = (id = '1'): ExtRequest => ({
   id,
   method: 'project',
-  params: { type: 'acme.echo', exerciseId: 'e', spec: {}, isolated },
+  params: { type: 'acme.echo', exerciseId: 'e', spec: {} },
 });
 
 const grade = (id = '1', timeoutMs = 1000): ExtRequest => ({
@@ -45,7 +41,6 @@ const grade = (id = '1', timeoutMs = 1000): ExtRequest => ({
     answer: 1,
     timeoutMs,
     authorMode: false,
-    isolated: false,
   },
 });
 
@@ -72,7 +67,7 @@ const versioned = (label: string, gate?: Promise<void>) => {
 
 const open = async (
   modules: Record<string, ExtensionModule>,
-  extra: { drainGraceMs?: number; runners?: RunnerFactory } = {},
+  extra: { drainGraceMs?: number } = {},
 ) => {
   const all = await discover();
   const echo = all.find(({ id }) => id === 'acme.echo') as ResolvedExtension;
@@ -84,7 +79,6 @@ const open = async (
     ...(extra.drainGraceMs !== undefined && {
       drainGraceMs: extra.drainGraceMs,
     }),
-    ...(extra.runners !== undefined && { runners: extra.runners }),
   });
   return { runtime, echo, all };
 };
@@ -155,7 +149,6 @@ describe('ExtensionRuntime.replace', () => {
         policyId: 'acme.policy.generous',
         verdicts: [],
         gaveUp: false,
-        isolated: false,
       },
     });
     expect(resultOf(response)).not.toMatchObject({ cause: 'unknown-policy' });
@@ -222,42 +215,6 @@ describe('ExtensionRuntime.replace', () => {
       await replaced;
       expect(old.deactivate).toHaveBeenCalledTimes(1);
     });
-  });
-
-  it('ограниченный процесс изменившегося расширения закрывается, следующий изолированный вызов получает свежий', async () => {
-    const runnerOf = () => {
-      const dispose = vi.fn(async () => {});
-      const runner: RestrictedRunner = {
-        handle: async (incoming) => ({
-          id: incoming.id,
-          ok: true,
-          result: 'restricted',
-        }),
-        notify: vi.fn(),
-        dispose,
-      };
-      return { runner, dispose };
-    };
-    const first = runnerOf();
-    const second = runnerOf();
-    const create = vi
-      .fn<(extension: ResolvedExtension) => RestrictedRunner>()
-      .mockReturnValueOnce(first.runner)
-      .mockReturnValueOnce(second.runner);
-    const { runtime, echo } = await open(
-      { 'acme.echo': versioned('v1').module },
-      { runners: { create } },
-    );
-    await runtime.handle(project('1', true));
-    expect(create).toHaveBeenCalledTimes(1);
-
-    const updated = { ...echo, version: '2.0.0' };
-    await runtime.replace([updated]);
-    expect(first.dispose).toHaveBeenCalledTimes(1);
-    await runtime.handle(project('2', true));
-    expect(create).toHaveBeenCalledTimes(2);
-    expect(create).toHaveBeenLastCalledWith(updated, expect.anything());
-    expect(second.dispose).not.toHaveBeenCalled();
   });
 
   it('dispose дожидается начатого вытеснения', async () => {

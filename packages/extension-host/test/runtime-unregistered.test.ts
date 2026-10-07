@@ -46,7 +46,6 @@ const open = (module: ExtensionModule): Harness => {
         commands: [command('open'), command('ping')],
       }),
     ],
-    trusted: [ID],
     modules: { [ID]: module },
   });
   return harness;

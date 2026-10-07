@@ -5,8 +5,7 @@ import type {
 } from '@dolphy-app/extension-api';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ResolvedExtension } from '../src/discover.ts';
-import { createExtensionRuntime } from '../src/runtime.ts';
-import { createLogger, deferred, nullLibrary } from './helpers.ts';
+import { deferred } from './helpers.ts';
 import { createHarness, stateful } from './state-harness.ts';
 import type { Harness } from './state-harness.ts';
 
@@ -44,7 +43,6 @@ const extensionWith = (
   overrides: Partial<ResolvedExtension> = {},
 ): ResolvedExtension =>
   stateful(ID, {
-    permissions: [],
     events: [],
     settings: [],
     commands: commandsOf(...names),
@@ -74,7 +72,6 @@ const moduleOf = (handlers: Handlers): ExtensionModule => ({
 const start = (handlers: Handlers, names = Object.keys(handlers)) =>
   open({
     extensions: [extensionWith(names)],
-    trusted: [ID],
     modules: { [ID]: moduleOf(handlers) },
   });
 
@@ -99,7 +96,6 @@ describe('ctx.commands.register', () => {
     const errors: string[] = [];
     const h = open({
       extensions: [extensionWith(['run'])],
-      trusted: [ID],
       modules: {
         [ID]: {
           activate(ctx) {
@@ -127,7 +123,6 @@ describe('ctx.commands.register', () => {
     let registration: { dispose(): void | Promise<void> } | undefined;
     const h = open({
       extensions: [extensionWith(['run'])],
-      trusted: [ID],
       modules: {
         [ID]: {
           activate(ctx) {
@@ -152,7 +147,6 @@ describe('ctx.commands.register', () => {
     });
     const h = open({
       extensions: [extensionWith(['a', 'b'])],
-      trusted: [ID],
       modules: { [ID]: { activate } },
     });
     expect(activate).not.toHaveBeenCalled();
@@ -166,7 +160,6 @@ describe('ctx.commands.register', () => {
   it('активация, бросившая ошибку, даёт handler-failed с её текстом', async () => {
     const h = open({
       extensions: [extensionWith(['run'])],
-      trusted: [ID],
       modules: {
         [ID]: {
           activate: () => {
@@ -264,7 +257,6 @@ describe('сбои и таймауты', () => {
   it('неизвестная и незарегистрированная команда — unknown-command; соседняя команда работает', async () => {
     const h = open({
       extensions: [extensionWith(['run', 'unregistered'])],
-      trusted: [ID],
       modules: { [ID]: moduleOf({ run: () => 'ok' }) },
     });
 
@@ -311,7 +303,6 @@ describe('сбои и таймауты', () => {
     const restart = vi.fn();
     const h = open({
       extensions: [extensionWith(['hang', 'fast'])],
-      trusted: [ID],
       restart,
       modules: {
         [ID]: moduleOf({
@@ -388,7 +379,6 @@ describe('замена набора расширений', () => {
     const modules: Record<string, ExtensionModule> = { [ID]: old.module };
     const h = open({
       extensions: [extensionWith(['run'])],
-      trusted: [ID],
       modules,
     });
     const inFlight = call(h, 'run');
@@ -407,33 +397,9 @@ describe('замена набора расширений', () => {
     expect(next.deactivate).not.toHaveBeenCalled();
   });
 
-  it('набор заменён, пока вызов ещё не дошёл до активации, — replaced, а не сбой кода', async () => {
-    const runtime = createExtensionRuntime({
-      extensions: [extensionWith(['run'])],
-      library: nullLibrary,
-      logger: createLogger(),
-      modules: { [ID]: build('v1').module },
-    });
-
-    // владелец вызова определён при приёме, активация случится на следующем шаге
-    const racing = runtime.handle({
-      id: '1',
-      method: 'invokeCommand',
-      params: { extensionId: ID, commandId: `${ID}.run`, isolated: false },
-    });
-    await runtime.replace([extensionWith(['run'], { version: '2.0.0' })]);
-
-    expect(await racing).toMatchObject({
-      ok: false,
-      error: { cause: 'replaced' },
-    });
-    await runtime.dispose();
-  });
-
   it('команда, удалённая новой сборкой, перестаёт отвечать', async () => {
     const h = open({
       extensions: [extensionWith(['run', 'gone'])],
-      trusted: [ID],
       modules: {
         [ID]: moduleOf({ run: () => 'ok', gone: () => 'ok' }),
       },

@@ -53,7 +53,6 @@ export interface ExtensionSpec {
   name?: string;
   version: string;
   versions?: string[];
-  permissions?: string[];
   /** `dependencies` of the manifest and of every version record. */
   dependencies?: { id: string; range?: string }[];
   contributes?: Contributes;
@@ -89,7 +88,6 @@ export const filesOf = (spec: ExtensionSpec, version: string): FakeFile[] => [
     content: JSON.stringify({
       id: spec.id,
       version,
-      permissions: spec.permissions ?? [],
       ...(spec.dependencies === undefined
         ? {}
         : { dependencies: spec.dependencies }),
@@ -125,7 +123,6 @@ export const rawEntry = (spec: ExtensionSpec): Record<string, unknown> => ({
     apiVersion: spec.apiVersion ?? 1,
     minAppVersion:
       spec.minAppByVersion?.[version] ?? spec.minAppVersion ?? null,
-    permissions: spec.permissions ?? [],
     ...(spec.dependencies === undefined
       ? {}
       : { dependencies: spec.dependencies }),
@@ -241,7 +238,6 @@ export const inspectJson = async (
     ) as {
       id: string;
       version: string;
-      permissions: string[];
       icon?: string;
       tags?: string[];
       dependencies?: { id: string; range?: string }[];
@@ -252,7 +248,6 @@ export const inspectJson = async (
       manifest: {
         id: raw.id,
         version: raw.version,
-        permissions: raw.permissions,
         icon:
           raw.icon === undefined
             ? null

@@ -68,7 +68,7 @@ const extensionLines = (
   const codes = extension.diagnostics.map(({ code }) => clean(code));
   return [
     `- ${clean(extension.id)} ${clean(extension.version ?? 'unknown')}`,
-    `  origin: ${clean(extension.origin)}; state: ${clean(extension.state)}; isolation: ${clean(extension.isolation)}`,
+    `  origin: ${clean(extension.origin)}; state: ${clean(extension.state)}`,
     `  diagnostics: ${codes.length === 0 ? 'none' : codes.join(', ')}`,
     `  ${healthLine(health)}`,
   ];

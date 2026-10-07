@@ -1,6 +1,5 @@
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { EXTENSION_PERMISSIONS } from '@dolphy-app/extension-api';
 import { parseIndex } from '@dolphy-app/extension-catalog';
 import { describe, expect, it } from 'vitest';
 import { buildCatalog, reindexCatalog } from '../src/catalog/build.ts';
@@ -202,13 +201,12 @@ describe('catalog build: assets and icon', () => {
 });
 
 describe('catalog build: the whole catalog', () => {
-  it('publishes a version with every permission, file type and entry key', async () => {
+  it('publishes a version with every file type and entry key', async () => {
     const repo = await createRepo([
       { fixture: 'theme-only' },
       {
         fixture: 'hello',
         manifest: {
-          permissions: [...EXTENSION_PERMISSIONS],
           tags: ['learning', 'developer'],
           icon: 'assets/icon.png',
           contributes: {
@@ -247,9 +245,6 @@ describe('catalog build: the whole catalog', () => {
       '1.0.0',
     ]);
     const [hello] = byId['acme.hello']?.versions ?? [];
-    expect(hello?.permissions).toEqual(
-      expect.arrayContaining([...EXTENSION_PERMISSIONS]),
-    );
     expect(hello?.tags).toEqual(['learning', 'developer']);
     expect(hello?.icon).toMatch(/^data:image\/png;base64,/);
     expect(hello?.files.map((file) => file.path)).toEqual(

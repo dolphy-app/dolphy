@@ -55,9 +55,9 @@ ${CATALOG_SYNOPSIS}
                    schemas, main and renderer, locales/*.json)
   lint [dir]       check the project before a pull request to the catalog:
                    manifest metadata, README.md and the built code (eval,
-                   obfuscation, URLs without the network permission, source
-                   maps); lines «error|warning <id> <RULE-ID> <field>:
-                   <message>», exit code 1 only if README.md is missing
+                   obfuscation, source maps); lines «error|warning <id>
+                   <RULE-ID> <field>: <message>», exit code 1 only if
+                   README.md is missing
   dev [dir]        watch-build the project and launch the installed Dolphy app
                    with DOLPHY_DEV_EXTENSIONS=<dir>/dist-ext; Ctrl+C stops both.
                    The app is --app, then the DOLPHY_APP variable, then the

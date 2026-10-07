@@ -10,11 +10,10 @@ import type { DiscoverySource } from './holder.ts';
 import { revocationReason } from './revocation.ts';
 import type { RevocationLookup } from './revocation.ts';
 
-/** Все расширения включены и доверены: CLI и сторона рантайма, где политики нет. */
-export const createAllTrustedPolicy = (): ExtensionPolicy => ({
+/** Все расширения включены: CLI и сторона рантайма, где политики нет. */
+export const createAllEnabledPolicy = (): ExtensionPolicy => ({
   isEnabled: () => true,
   dependencyIssues: () => [],
-  isIsolated: () => false,
   areSchedulesOn: () => true,
   safeMode: () => false,
   update: () => {},
@@ -22,8 +21,7 @@ export const createAllTrustedPolicy = (): ExtensionPolicy => ({
 
 /**
  * Адаптер: снимок обнаружения (происхождение расширений) + настройки
- * пользователя → `ExtensionPolicy`. Расширения из поставки не отключаются и
- * не изолируются, даже если id попал в настройки (например, после того как
+ * пользователя → `ExtensionPolicy`. Расширения из поставки не отключаются, даже если id попал в настройки (например, после того как
  * пользователь убрал свою копию с тем же id). Отозванное в каталоге
  * расширение отключено независимо от настроек. В безопасном режиме (запуск
  * с `forceSafeMode` или настройка `safeMode`) отключено всё, что не из
@@ -50,7 +48,6 @@ export const createExtensionPolicy = (
     );
   };
   let disabled = new Set<string>();
-  let trusted = new Set<string>();
   let schedulesOff = new Set<string>();
   let persistedSafeMode = false;
   const safeMode = (): boolean => forceSafeMode || persistedSafeMode;
@@ -80,12 +77,10 @@ export const createExtensionPolicy = (
   return {
     isEnabled: (id) => isOn(id) && dependencyIssues(id).length === 0,
     dependencyIssues,
-    isIsolated: (id) => !bundled(id) && !trusted.has(id),
     areSchedulesOn: (id) => bundled(id) || !schedulesOff.has(id),
     safeMode,
     update(settings: ExtensionSettingsDto) {
       disabled = new Set(settings.disabled);
-      trusted = new Set(settings.trusted);
       schedulesOff = new Set(settings.schedulesOff);
       persistedSafeMode = settings.safeMode;
     },

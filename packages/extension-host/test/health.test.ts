@@ -20,7 +20,6 @@ describe('здоровье расширения: хост → движок', () 
   it('успешная активация записывает длительность; расширение без активации — нули', async () => {
     const h = open({
       extensions: [stateful(ID), stateful('acme.idle', { events: [] })],
-      trusted: [ID, 'acme.idle'],
       modules: {
         [ID]: {
           activate: async (ctx) => {
@@ -55,7 +54,6 @@ describe('здоровье расширения: хост → движок', () 
   it('сбой активации не записывает длительность', async () => {
     const h = open({
       extensions: [stateful(ID)],
-      trusted: [ID],
       modules: {
         [ID]: {
           activate: () => {
@@ -73,7 +71,6 @@ describe('здоровье расширения: хост → движок', () 
     vi.useFakeTimers();
     const h = open({
       extensions: [stateful(ID)],
-      trusted: [ID],
       modules: {
         [ID]: {
           activate: (ctx) => {
@@ -106,7 +103,6 @@ describe('здоровье расширения: хост → движок', () 
     const stay = stateful('acme.stay');
     const h = open({
       extensions: [stateful(ID), stateful('acme.gone'), stay],
-      trusted: [ID, 'acme.gone', 'acme.stay'],
       modules: {
         [ID]: { activate: () => {} },
         'acme.gone': { activate: () => {} },

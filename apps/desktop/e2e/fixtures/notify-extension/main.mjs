@@ -1,4 +1,4 @@
-// Расширение с `notifications`: команды показывают уведомления и записывают в ctx.storage, что вернул show.
+// Команды показывают уведомления и записывают в ctx.storage, что вернул show.
 const failure = (error) => ({
   name: error.name,
   code: error.code ?? null,

@@ -20,7 +20,6 @@ import ExtensionContributions from './ExtensionContributions.vue';
 import ExtensionDeprecation from './ExtensionDeprecation.vue';
 import ExtensionHeading from './ExtensionHeading.vue';
 import ExtensionDependencies from './ExtensionDependencies.vue';
-import ExtensionPermissions from './ExtensionPermissions.vue';
 import ExtensionRemoveDialog from './ExtensionRemoveDialog.vue';
 import ExtensionTags from './ExtensionTags.vue';
 import ReadmeView from './ReadmeView.vue';
@@ -327,10 +326,6 @@ const publishedDate = (value: string) => d(new Date(value), 'shortDate');
           }}
         </v-alert>
 
-        <ExtensionPermissions
-          v-if="details.permissions !== null"
-          :permissions="details.permissions"
-        />
         <ExtensionDependencies :rows="details.dependencies" />
         <ExtensionContributions
           :contributes="details.contributes"

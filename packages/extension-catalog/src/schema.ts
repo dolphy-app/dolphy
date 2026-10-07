@@ -1,6 +1,5 @@
 import {
   EXTENSION_ID_PATTERN,
-  EXTENSION_PERMISSIONS,
   EXTENSION_PLATFORMS,
   EXTENSION_TAGS,
   GITHUB_LOGIN_PATTERN,
@@ -323,7 +322,6 @@ const versionSchemaOf = (profile: Profile) =>
     version: semver,
     apiVersion: z.number().int().min(1),
     minAppVersion: semver.nullable(),
-    permissions: z.array(z.enum(EXTENSION_PERMISSIONS)),
     publishedAt: timestamp,
     baseUrl,
     files: filesSchemaOf(profile),

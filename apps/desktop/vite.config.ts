@@ -1,9 +1,8 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
-import { builtinModules } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { build, defineConfig } from 'vite';
+import { defineConfig } from 'vite';
 import type { Plugin } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import vuetify from 'vite-plugin-vuetify';
@@ -72,35 +71,6 @@ const extensions = (target: string): Plugin => ({
   },
 });
 
-// дочерний процесс для кода расширений не из поставки: один самодостаточный
-// ES-модуль <outRoot>/restricted/ext-restricted.mjs (в упаковке — extraResources,
-// вне asar: режим разрешений Node проверяет настоящие пути файлов)
-const restrictedChild = (target: string): Plugin => ({
-  name: 'dolphy:restricted-child',
-  async buildStart() {
-    fs.rmSync(target, { recursive: true, force: true });
-    await build({
-      root: fileURLToPath(new URL('.', import.meta.url)),
-      configFile: false,
-      publicDir: false,
-      logLevel: 'warn',
-      build: {
-        target: 'node22',
-        outDir: path.resolve(target),
-        emptyOutDir: true,
-        minify: false,
-        copyPublicDir: false,
-        lib: {
-          entry: 'electron/ext-host/restricted-child.ts',
-          formats: ['es'],
-          fileName: () => 'ext-restricted.mjs',
-        },
-        rolldownOptions: { external: [/^node:/, ...builtinModules] },
-      },
-    });
-  },
-});
-
 // нативный модуль не бандлится: грузится из node_modules (asarUnpack)
 const NATIVE = ['better-sqlite3'];
 
@@ -134,7 +104,6 @@ export default defineConfig(({ command }) => {
       vuetify(),
       csp(command),
       extensions(out('extensions')),
-      restrictedChild(out('restricted')),
       electron([
         {
           name: 'main',

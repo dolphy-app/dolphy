@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 33 as const;
+export const CONTRACT_VERSION = 34 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 /** Потолок файла импорта, суммарного размера присланного дерева и снимка курса для экспорта, байт (R3, R4, R7 спеки `extension-api-breadth-2`). */
@@ -1403,10 +1403,6 @@ export interface ExtensionInfoDto {
   contributes: ExtensionContributesDto;
   /** Почему некорректно, кем перекрыто; пусто у загруженного и отключённого пользователем. */
   diagnostics: ExtensionDiagnosticDto[];
-  /** Возможности, объявленные в манифесте; пусто, если манифест не прочитан. */
-  permissions: string[];
-  /** Действующий режим кода и интерфейса: расширения из поставки — всегда `trusted`. */
-  isolation: 'trusted' | 'isolated';
   /** `false` у расширений из поставки, перекрытых и некорректных: переключатели недоступны. */
   toggleable: boolean;
   /** Название из манифеста; `null` — не задано. */
@@ -1904,8 +1900,6 @@ export type SafeModeSource = 'flag' | 'env';
 export interface ExtensionSettingsDto {
   /** Отключённые расширения (по id), отсортированы, без повторов. */
   disabled: string[];
-  /** Доверенные расширения (исполняются без изоляции), отсортированы, без повторов. */
-  trusted: string[];
   /** Проверять обновления расширений из каталога при запуске. По умолчанию включено. */
   checkUpdates: boolean;
   /**
@@ -2028,7 +2022,6 @@ export interface ExtensionsService {
   getSettings(): Promise<ExtensionSettingsDto>;
   /** `NOT_FOUND` — нет такого расширения; `INVALID_ARGUMENT` `{reason:'bundled'}` — расширение из поставки. */
   setEnabled(id: string, enabled: boolean): Promise<ExtensionSettingsDto>;
-  setTrusted(id: string, trusted: boolean): Promise<ExtensionSettingsDto>;
   /**
    * Включает и выключает системные уведомления расширения (`notificationsOff`);
    * не перезапускает расширение. `NOT_FOUND` — нет такого расширения;
@@ -2209,7 +2202,6 @@ export type CatalogStatusDto =
 
 export interface CatalogVersionDto {
   version: string;
-  permissions: string[];
   /** Зависимости версии; установка их не ставит и не блокируется. */
   dependencies: ExtensionDependencyDto[];
   /** ISO-время публикации. */

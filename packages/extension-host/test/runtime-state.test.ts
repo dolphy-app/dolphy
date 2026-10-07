@@ -1,13 +1,9 @@
 import {
   NotificationRateLimitError,
-  PermissionError,
   SecretsUnavailableError,
   StorageQuotaError,
 } from '@dolphy-app/extension-api';
-import type {
-  ExtensionContext,
-  ExtensionPermission,
-} from '@dolphy-app/extension-api';
+import type { ExtensionContext } from '@dolphy-app/extension-api';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createEndpointPair } from '../src/loopback.ts';
 import { ENGINE_REQUEST_MS, EngineRequestError } from '../src/engine-link.ts';
@@ -63,7 +59,6 @@ describe('ctx.logger', () => {
   it('записи доверенного расширения несут его extensionId; чужой id в полях записи его не подменяет', async () => {
     const h = open({
       extensions: [stateful('acme.a')],
-      trusted: ['acme.a'],
       modules: {
         'acme.a': {
           activate: (ctx) => {
@@ -103,7 +98,6 @@ describe('ctx.secrets', () => {
     const seen: Record<string, unknown> = {};
     const h = open({
       extensions: [stateful('acme.a'), stateful('acme.b')],
-      trusted: ['acme.a', 'acme.b'],
       modules: {
         'acme.a': {
           activate: async (ctx) => {
@@ -162,7 +156,6 @@ describe('ctx.storage', () => {
     const seen: Record<string, unknown> = {};
     const h = open({
       extensions: [stateful('acme.a'), stateful('acme.b')],
-      trusted: ['acme.a', 'acme.b'],
       modules: {
         'acme.a': {
           activate: async (ctx) => {
@@ -218,7 +211,6 @@ describe('ctx.storage', () => {
     let failure: unknown;
     const h = open({
       extensions: [stateful(ID)],
-      trusted: [ID],
       modules: {
         [ID]: {
           activate: async (ctx) => {
@@ -240,14 +232,10 @@ describe('ctx.storage', () => {
 });
 
 describe('ctx.stats', () => {
-  const statsExtension = (id: string, permissions: ExtensionPermission[]) =>
-    stateful(id, { permissions });
-
-  it('с разрешением запросы идут движку от имени расширения; courseId, которого нет, в запрос не попадает', async () => {
+  it('запросы идут движку от имени расширения; courseId, которого нет, в запрос не попадает', async () => {
     const seen: Record<string, unknown> = {};
     const h = open({
-      extensions: [statsExtension(ID, ['learning.events', 'learning.stats'])],
-      trusted: [ID],
+      extensions: [stateful(ID)],
       modules: {
         [ID]: {
           activate: async (ctx) => {
@@ -286,64 +274,12 @@ describe('ctx.stats', () => {
     ]);
   });
 
-  it('без разрешения оба вызова бросают PermissionError(learning.stats), и до движка запрос не доходит', async () => {
-    const seen: Record<string, unknown> = {};
-    const h = open({
-      extensions: [statsExtension(ID, ['learning.events'])],
-      trusted: [ID],
-      modules: {
-        [ID]: {
-          activate: async (ctx) => {
-            for (const [name, call] of [
-              ['streak', () => ctx.stats.streak()],
-              [
-                'daily',
-                () => ctx.stats.daily({ from: '2024-05-01', to: '2024-05-02' }),
-              ],
-            ] as const) {
-              try {
-                await call();
-              } catch (error) {
-                seen[name] = error;
-              }
-            }
-          },
-        },
-      },
-    });
-
-    h.engine.emit(sessionStarted('s1'));
-
-    await vi.waitFor(() => expect(seen.daily).toBeDefined());
-    for (const error of [seen.streak, seen.daily]) {
-      expect(error).toBeInstanceOf(PermissionError);
-      expect(error).toMatchObject({ permission: 'learning.stats' });
-    }
-    expect(h.engine.statsCalls).toEqual([]);
-  });
-
-  it('отказ движка по разрешению (процесс не доверен) тоже становится PermissionError; остальные отказы — Error с кодом', async () => {
+  it('отказ движка становится Error с кодом', async () => {
     const reject = (failure: EngineRequestFailure) => ({
       request: async () => {
         throw new EngineRequestError(failure);
       },
     });
-    const denied = createExtensionStats(
-      reject({
-        code: 'INVALID_ARGUMENT',
-        message: 'no permission',
-        details: { reason: 'permission', permission: 'learning.stats' },
-      }),
-      ID,
-      ['learning.stats'],
-    );
-    const error = await denied.streak().catch((reason: unknown) => reason);
-    expect(error).toBeInstanceOf(PermissionError);
-    expect(error).toMatchObject({
-      permission: 'learning.stats',
-      message: 'no permission',
-    });
-
     const invalid = createExtensionStats(
       reject({
         code: 'INVALID_ARGUMENT',
@@ -351,12 +287,10 @@ describe('ctx.stats', () => {
         details: { field: 'to' },
       }),
       ID,
-      ['learning.stats'],
     );
     const failure = await invalid
       .daily({ from: '2024-05-02', to: '2024-05-01' })
       .catch((reason: unknown) => reason);
-    expect(failure).not.toBeInstanceOf(PermissionError);
     expect(failure).toMatchObject({
       message: 'bad range',
       code: 'INVALID_ARGUMENT',
@@ -365,14 +299,10 @@ describe('ctx.stats', () => {
 });
 
 describe('ctx.notifications', () => {
-  const notifying = (id: string, permissions: ExtensionPermission[]) =>
-    stateful(id, { permissions });
-
-  it('с разрешением show идёт движку от имени расширения и возвращает его ответ', async () => {
+  it('show идёт движку от имени расширения и возвращает его ответ', async () => {
     const seen: unknown[] = [];
     const h = open({
-      extensions: [notifying(ID, ['learning.events', 'notifications'])],
-      trusted: [ID],
+      extensions: [stateful(ID)],
       modules: {
         [ID]: {
           activate: async (ctx) => {
@@ -394,33 +324,7 @@ describe('ctx.notifications', () => {
     ]);
   });
 
-  it('без разрешения show бросает PermissionError(notifications), и до движка запрос не доходит', async () => {
-    let seen: unknown;
-    const h = open({
-      extensions: [notifying(ID, ['learning.events'])],
-      trusted: [ID],
-      modules: {
-        [ID]: {
-          activate: async (ctx) => {
-            try {
-              await ctx.notifications.show({ title: 'T', body: 'B' });
-            } catch (error) {
-              seen = error;
-            }
-          },
-        },
-      },
-    });
-
-    h.engine.emit(sessionStarted('s1'));
-
-    await vi.waitFor(() => expect(seen).toBeDefined());
-    expect(seen).toBeInstanceOf(PermissionError);
-    expect(seen).toMatchObject({ permission: 'notifications' });
-    expect(h.engine.notified).toEqual([]);
-  });
-
-  it('отказы движка: разрешение — PermissionError, предел частоты — NotificationRateLimitError, остальное — Error с кодом', async () => {
+  it('отказы движка: предел частоты — NotificationRateLimitError, остальное — Error с кодом', async () => {
     const reject = (failure: EngineRequestFailure) =>
       createExtensionNotifications(
         {
@@ -429,19 +333,8 @@ describe('ctx.notifications', () => {
           },
         },
         ID,
-        ['notifications'],
       );
     const note = { title: 'T', body: 'B' };
-
-    const denied = await reject({
-      code: 'INVALID_ARGUMENT',
-      message: 'no permission',
-      details: { reason: 'permission', permission: 'notifications' },
-    })
-      .show(note)
-      .catch((reason: unknown) => reason);
-    expect(denied).toBeInstanceOf(PermissionError);
-    expect(denied).toMatchObject({ permission: 'notifications' });
 
     const limited = await reject({
       code: 'INVALID_ARGUMENT',
@@ -460,7 +353,6 @@ describe('ctx.notifications', () => {
     })
       .show(note)
       .catch((reason: unknown) => reason);
-    expect(invalid).not.toBeInstanceOf(PermissionError);
     expect(invalid).not.toBeInstanceOf(NotificationRateLimitError);
     expect(invalid).toMatchObject({
       message: 'title is too long',
@@ -476,7 +368,6 @@ describe('ctx.settings', () => {
     let context: ExtensionContext | null = null;
     const h = open({
       extensions: [stateful(ID)],
-      trusted: [ID],
       modules: {
         [ID]: {
           activate: (ctx) => {
@@ -511,7 +402,6 @@ describe('ctx.settings', () => {
     let ctx: ExtensionContext | null = null;
     const h = open({
       extensions: [stateful(ID)],
-      trusted: [ID],
       modules: {
         [ID]: {
           activate: (context) => {
@@ -544,7 +434,6 @@ describe('ctx.settings', () => {
     const reads: unknown[] = [];
     const h = open({
       extensions: [stateful(ID)],
-      trusted: [ID],
       modules: {
         [ID]: {
           activate: (ctx) => void reads.push(ctx.settings.get(GREETING)),
@@ -563,7 +452,6 @@ describe('ctx.settings', () => {
     let ctx: ExtensionContext | null = null;
     const h = open({
       extensions: [stateful(ID)],
-      trusted: [ID],
       modules: {
         [ID]: {
           activate: (context) => {
@@ -599,7 +487,6 @@ describe('ctx.settings', () => {
     const reads: unknown[] = [];
     const h = open({
       extensions: [stateful(ID)],
-      trusted: [ID],
       modules: {
         [ID]: {
           activate: (ctx) => void reads.push(ctx.settings.get(GREETING)),
@@ -622,44 +509,11 @@ describe('ctx.settings', () => {
 });
 
 describe('ctx.events', () => {
-  it('подписка требует разрешения, объявления события и бывает одна на событие', async () => {
+  it('подписка требует объявления события и бывает одна на событие', async () => {
     const errors: Record<string, unknown> = {};
     const h = open({
-      extensions: [
-        stateful('acme.np', {
-          permissions: [],
-          events: [],
-          commands: [],
-          panels: [],
-          importers: [],
-          exporters: [],
-          exerciseTypes: [
-            {
-              id: 'acme.np',
-              title: null,
-              specSchema: {},
-              answerSchema: {},
-              rendererUrl: 'dolphy-ext://acme.np/view.mjs',
-            },
-          ],
-        }),
-        stateful(ID),
-      ],
-      trusted: ['acme.np', ID],
+      extensions: [stateful(ID)],
       modules: {
-        'acme.np': {
-          activate: (ctx) => {
-            try {
-              ctx.events.on('session.started', () => {});
-            } catch (error) {
-              errors.permission = error;
-            }
-            ctx.registerExerciseType('acme.np', {
-              project: () => ({}),
-              grade: () => ({ outcome: 'passed' }),
-            });
-          },
-        },
         [ID]: {
           activate: (ctx) => {
             try {
@@ -682,16 +536,9 @@ describe('ctx.events', () => {
       },
     });
 
-    await h.runtime.handle({
-      id: '1',
-      method: 'project',
-      params: { type: 'acme.np', exerciseId: 'e', spec: {}, isolated: false },
-    });
     h.engine.emit(sessionStarted('s1'));
     await vi.waitFor(() => expect(errors.done).toBe(true));
 
-    expect(errors.permission).toBeInstanceOf(PermissionError);
-    expect(errors.permission).toMatchObject({ permission: 'learning.events' });
     expect(errors.undeclared).toMatchObject({
       message: expect.stringContaining("'session.finished' is not declared"),
     });
@@ -712,7 +559,6 @@ describe('ctx.events', () => {
     });
     const h = open({
       extensions: [stateful(ID)],
-      trusted: [ID],
       modules: { [ID]: { activate } },
     });
     expect(activate).not.toHaveBeenCalled();
@@ -732,7 +578,6 @@ describe('ctx.events', () => {
         stateful(ID, { events: [{ event: 'session.started' }] }),
         stateful('acme.quiet'),
       ],
-      trusted: [ID, 'acme.quiet'],
       modules: {
         [ID]: { activate },
         'acme.quiet': { activate: quiet },
@@ -754,7 +599,6 @@ describe('ctx.events', () => {
     const seen: string[] = [];
     const h = open({
       extensions: [stateful(ID)],
-      trusted: [ID],
       modules: {
         [ID]: {
           activate: (ctx) => {
@@ -770,7 +614,6 @@ describe('ctx.events', () => {
 
     h.policy.update({
       disabled: [ID],
-      trusted: [ID],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -780,7 +623,6 @@ describe('ctx.events', () => {
     h.engine.emit(attemptClosed('off'));
     h.policy.update({
       disabled: [],
-      trusted: [ID],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -797,7 +639,6 @@ describe('ctx.events', () => {
     const restart = vi.fn();
     const h = open({
       extensions: [stateful(ID)],
-      trusted: [ID],
       restart,
       modules: {
         [ID]: {
@@ -833,7 +674,6 @@ describe('ctx.events', () => {
     const restart = vi.fn();
     const h = open({
       extensions: [stateful(ID)],
-      trusted: [ID],
       restart,
       modules: {
         [ID]: {
@@ -867,7 +707,6 @@ describe('ctx.events', () => {
     const blocker = gate();
     const h = open({
       extensions: [stateful(ID)],
-      trusted: [ID],
       queueLimit: 3,
       modules: {
         [ID]: {
@@ -902,7 +741,6 @@ describe('ctx.events', () => {
     const restart = vi.fn();
     const h = open({
       extensions: [stateful('acme.broken'), stateful(ID)],
-      trusted: ['acme.broken', ID],
       restart,
       modules: {
         'acme.broken': {
@@ -943,7 +781,6 @@ describe('ctx.events', () => {
     const witness = sentinel(watched);
     const h = open({
       extensions: [stateful(ID), witness.extension],
-      trusted: [ID, 'acme.sentinel'],
       modules: {
         [ID]: {
           activate: (ctx) => {
@@ -978,7 +815,6 @@ describe('ctx.events', () => {
     const seen: string[] = [];
     const h = open({
       extensions: [stateful(ID)],
-      trusted: [ID],
       modules: {
         [ID]: {
           activate: (ctx) => {
@@ -1017,7 +853,6 @@ describe('запросы хоста к движку', () => {
       extensionId: ID,
       name: 'session.started' as const,
       payload: { sessionId: 's', at: 1 },
-      isolated: false,
     },
   };
 

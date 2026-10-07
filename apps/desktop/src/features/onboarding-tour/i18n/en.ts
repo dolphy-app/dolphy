@@ -53,7 +53,7 @@ export const en: typeof ru = {
       },
       extensions: {
         title: 'Extensions',
-        text: 'Extensions live here, in “Settings → Extensions”: there is no separate item in the side menu. They add exercise types, themes, commands and panels (panels appear in the side menu). Install them from the catalog, turn them on and configure them; without your trust they run isolated.',
+        text: 'Extensions live here, in “Settings → Extensions”: there is no separate item in the side menu. They add exercise types, themes, commands and panels (panels appear in the side menu). Install them from the catalog, turn them on and configure them.',
       },
       settings: {
         title: 'Keyboard shortcuts',

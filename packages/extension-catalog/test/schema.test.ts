@@ -397,12 +397,11 @@ describe('parseIndex', () => {
     },
   );
 
-  it('автор, платформа, разрешение, minAppVersion', () => {
+  it('автор, платформа, minAppVersion', () => {
     expect(issuesOf(index([entry({ author: '-x' })]))).not.toEqual([]);
     expect(
       issuesOf(index([entry({ platforms: ['bsd' as never] })])),
     ).not.toEqual([]);
-    expect(issuesOf(withVersion({ permissions: ['root'] }))).not.toEqual([]);
     expect(issuesOf(withVersion({ minAppVersion: '1.0' }))).not.toEqual([]);
     expect(issuesOf(withVersion({ minAppVersion: '1.0.0' }))).toEqual([]);
   });

@@ -11,7 +11,6 @@ const extension = (id: string, version = '1.0.0'): ResolvedExtension => ({
   revision: '',
   dir: `/x/${id}`,
   mainPath: `/x/${id}/main.mjs`,
-  permissions: ['library.read'],
   name: null,
   description: null,
   author: null,
@@ -97,8 +96,6 @@ describe('createExtensionRegistry', () => {
       state: 'loaded',
       contributes: { ...NONE, exerciseTypes: ['dolphy.sql.a'] },
       diagnostics: [],
-      permissions: ['library.read'],
-      isolation: 'isolated',
       toggleable: true,
       name: null,
       description: null,
@@ -125,8 +122,6 @@ describe('createExtensionRegistry', () => {
       diagnostics: [
         { code: 'overridden-by', data: { origin: 'user', version: '1.0.1' } },
       ],
-      permissions: [],
-      isolation: 'trusted',
       toggleable: false,
       name: null,
       description: null,
@@ -153,8 +148,6 @@ describe('createExtensionRegistry', () => {
       diagnostics: [
         { code: 'manifest-invalid', data: { issues: ['bad manifest'] } },
       ],
-      permissions: [],
-      isolation: 'isolated',
       toggleable: false,
       name: null,
       description: null,
@@ -187,7 +180,6 @@ describe('createExtensionRegistry: политика', () => {
   const bundled: ResolvedExtension = {
     ...extension('dolphy.math'),
     origin: 'bundled',
-    permissions: [],
     markdownRenderers: [
       {
         language: 'math',
@@ -227,7 +219,6 @@ describe('createExtensionRegistry: политика', () => {
     const registry = createExtensionRegistry(bothHolder, policy);
     policy.update({
       disabled: ['acme.u'],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -251,7 +242,6 @@ describe('createExtensionRegistry: политика', () => {
     const registry = createExtensionRegistry(bothHolder, policy);
     policy.update({
       disabled: [],
-      trusted: [],
       checkUpdates: true,
       safeMode: true,
       notificationsOff: [],
@@ -277,7 +267,6 @@ describe('createExtensionRegistry: политика', () => {
     const registry = createExtensionRegistry(bothHolder, policy);
     const settings = (safeMode: boolean) => ({
       disabled: ['acme.u'],
-      trusted: [],
       checkUpdates: true,
       safeMode,
       notificationsOff: [],
@@ -352,7 +341,6 @@ describe('createExtensionRegistry: политика', () => {
     ]);
     policy.update({
       disabled: ['acme.u'],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -362,29 +350,16 @@ describe('createExtensionRegistry: политика', () => {
     expect(types()).toEqual([['dolphy.math.a', 'bundled', '']]);
   });
 
-  it('isolation: поставка — доверена, доверенное пользователем — тоже', () => {
-    const policy = createExtensionPolicy(bothHolder);
-    const registry = createExtensionRegistry(bothHolder, policy);
+  it('toggleable: расширение из поставки не переключается, пользовательское — да', () => {
+    const registry = createExtensionRegistry(
+      bothHolder,
+      createExtensionPolicy(bothHolder),
+    );
     expect(
-      registry
-        .list()
-        .map(({ id, isolation, toggleable }) => [id, isolation, toggleable]),
+      registry.list().map(({ id, toggleable }) => [id, toggleable]),
     ).toEqual([
-      ['dolphy.math', 'trusted', false],
-      ['acme.u', 'isolated', true],
-    ]);
-    policy.update({
-      disabled: [],
-      trusted: ['acme.u', 'dolphy.math'],
-      checkUpdates: true,
-      safeMode: false,
-      notificationsOff: [],
-      catalogUrl: null,
-      schedulesOff: [],
-    });
-    expect(registry.list().map(({ isolation }) => isolation)).toEqual([
-      'trusted',
-      'trusted',
+      ['dolphy.math', false],
+      ['acme.u', true],
     ]);
   });
 });
@@ -482,7 +457,6 @@ describe('createExtensionRegistry: titles and tags', () => {
   it('keeps the titles and tags of a disabled extension', () => {
     policy.update({
       disabled: ['acme.titled'],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -496,7 +470,6 @@ describe('createExtensionRegistry: titles and tags', () => {
     });
     policy.update({
       disabled: [],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],

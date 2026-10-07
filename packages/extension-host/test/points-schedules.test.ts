@@ -124,7 +124,6 @@ describe('обнаружение и реестр расписаний', () => {
 
   const settings = (patch: Record<string, string[]> = {}) => ({
     disabled: [],
-    trusted: [],
     checkUpdates: true,
     safeMode: false,
     notificationsOff: [],
@@ -176,7 +175,7 @@ describe('обнаружение и реестр расписаний', () => {
 });
 
 describe('протокол fireSchedule', () => {
-  const params = { extensionId: ID, scheduleId: `${ID}.tick`, isolated: false };
+  const params = { extensionId: ID, scheduleId: `${ID}.tick` };
 
   it('принимает запрос расписания и отвергает лишние поля', () => {
     expect(
@@ -194,7 +193,7 @@ describe('протокол fireSchedule', () => {
       extMessageSchema.safeParse({
         id: '1',
         method: 'fireSchedule',
-        params: { extensionId: ID, isolated: false },
+        params: { extensionId: ID },
       }).success,
     ).toBe(false);
   });

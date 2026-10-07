@@ -1,4 +1,4 @@
-// Расширение с `learning.stats`: команда записывает в ctx.storage всё, что вернул ctx.stats.
+// Команда записывает в ctx.storage всё, что вернул ctx.stats.
 const pad = (value) => String(value).padStart(2, '0');
 
 /** Местная дата `YYYY-MM-DD` со сдвигом в днях от сегодня: тот же пояс, что у движка. */
@@ -11,7 +11,6 @@ const localDate = (offset) => {
 const failure = (error) => ({
   name: error.name,
   code: error.code ?? null,
-  permission: error.permission ?? null,
 });
 
 export default {

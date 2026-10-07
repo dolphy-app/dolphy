@@ -109,20 +109,17 @@ export const hasHealthIssue = (health: ExtensionHealthDto | undefined) =>
   health !== undefined &&
   (health.failures > 0 || health.suppressedUntil !== null);
 
-export type ExtensionSwitch =
-  'enabled' | 'trusted' | 'notifications' | 'schedules';
+export type ExtensionSwitch = 'enabled' | 'notifications' | 'schedules';
 
-/** Список настроек, в котором переключатель хранит расширение, и что означает членство (`true` — выключено или доверено). */
+/** Список настроек, в котором переключатель хранит расширение, и что означает членство (`true` — выключено). */
 const SWITCH_LISTS = {
   enabled: { field: 'disabled', listedWhenOn: false },
-  trusted: { field: 'trusted', listedWhenOn: true },
   notifications: { field: 'notificationsOff', listedWhenOn: false },
   schedules: { field: 'schedulesOff', listedWhenOn: false },
 } as const;
 
 const NO_SETTINGS: ExtensionSettingsDto = {
   disabled: [],
-  trusted: [],
   checkUpdates: true,
   safeMode: false,
   notificationsOff: [],
@@ -140,7 +137,6 @@ const WRITERS: Record<
   ) => Promise<ExtensionSettingsDto>
 > = {
   enabled: (engine, id, value) => engine.extensions.setEnabled(id, value),
-  trusted: (engine, id, value) => engine.extensions.setTrusted(id, value),
   notifications: (engine, id, value) =>
     engine.extensions.setNotificationsEnabled(id, value),
   schedules: (engine, id, value) =>
@@ -152,9 +148,6 @@ const errorText = (caught: unknown) =>
 
 export const isEnabled = (settings: ExtensionSettingsDto, id: string) =>
   !settings.disabled.includes(id);
-
-export const isTrusted = (settings: ExtensionSettingsDto, id: string) =>
-  settings.trusted.includes(id);
 
 export const areNotificationsOn = (
   settings: ExtensionSettingsDto,
@@ -180,10 +173,6 @@ export const scheduleSummaryOf = (
   at: schedule.at ?? '',
 });
 
-/** Переключатель «Уведомления» нужен расширению, которое просит разрешение `notifications`. */
-export const hasNotifications = (extension: ExtensionInfoDto): boolean =>
-  extension.permissions.includes('notifications');
-
 /** Строка с переключателями: не из поставки, действующая (загружена или отключена) и не отозванная. */
 export const hasSwitches = (extension: ExtensionInfoDto): boolean =>
   extension.toggleable &&
@@ -195,7 +184,7 @@ const switchKey = (id: string, which: ExtensionSwitch) => `${which}:${id}`;
 
 /**
  * Расширения, которые видит движок (`extensions.list`), в порядке движка, и
- * настройки включения и доверия. Повторная загрузка не сбрасывает уже
+ * настройки включения. Повторная загрузка не сбрасывает уже
  * показанный список: `busy` — признак идущего запроса, `state` меняется на
  * `loading` только пока данных нет. Переключатель меняется сразу и
  * откатывается, если движок отказал; изменение действует сразу (движок
@@ -403,7 +392,6 @@ export const useExtensions = (engine: LearningEngine) => {
     restartHost,
     updateTargets,
     setEnabled: (id: string, value: boolean) => change(id, 'enabled', value),
-    setTrusted: (id: string, value: boolean) => change(id, 'trusted', value),
     setNotifications: (id: string, value: boolean) =>
       change(id, 'notifications', value),
     setSchedules: (id: string, value: boolean) =>

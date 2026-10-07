@@ -20,7 +20,6 @@ shape, a setting read before it is set, a handler that throws) show up there.
 - They do not swallow a handler's failure and do not count the host's time
   limits, so a test that passes does not prove a handler is fast enough: an
   event handler gets 2 seconds, `activate` gets 10.
-- They do not restrict permissions (see section 5).
 
 ## 2. Run the checks
 
@@ -99,7 +98,7 @@ variable the keys do nothing and an installed app has no DevTools.
   A plain `dolphy-ext build` (`pnpm build`) and the catalog build never write
   source maps, and the catalog check rejects a submission that has one.
 - The code that runs in the extension process (`main.mjs`: commands, events,
-  `activate`) is not in this window: see section 7 and the log.
+  `activate`) is not in this window: see section 6 and the log.
 
 ## 5. The log
 
@@ -138,7 +137,6 @@ The labels the dialog shows, with the keys of the app's messages (ru and en):
 | -------------------------- | -------------------------------- | ----------------------------- | ------------------------------------------ |
 | Settings section           | Extensions                       | Расширения                    | `settings.extensions.title`                |
 | Origin of a dev extension  | Development                      | Разработка                    | `settings.extensions.origin.dev`           |
-| Trust switch               | Trust (no isolation)             | Доверять (без изоляции)       | `settings.extensions.trustLabel`           |
 | Block with the log button  | Diagnostics                      | Диагностика                   | `settings.extensions.support.title`        |
 | Button of the block        | Log                              | Журнал                        | `settings.extensions.support.openLog`      |
 | Action in an extension row | Log                              | Журнал                        | `settings.extensions.log.rowAction`        |
@@ -154,18 +152,12 @@ The labels the dialog shows, with the keys of the app's messages (ru and en):
 | Reread the log             | Refresh                          | Обновить                      | `settings.extensions.log.refresh`          |
 | Filters match nothing      | No entries match the filters.    | Нет записей, подходящих под условия. | `settings.extensions.log.empty`     |
 
-### Output of the restricted process
+### Output of the extension process
 
-An extension that is not trusted runs in a restricted process (section 6). What
-it prints with `console.log`, `console.error` or an uncaught error goes to the
-log as `warn` entries with the extension id and `stream` (`stdout` or `stderr`)
-in "Details". Use `ctx.logger` for anything you want to filter by level; use
-`console` only for a quick look. The output is limited so that one extension
-cannot flood the log: at most 64 KiB in 60 seconds per extension; the rest is
-dropped and one entry "output truncated" with `droppedBytes` closes the window.
-A process that sends a message larger than 1 MiB or more than 200 messages in
-a second is stopped, with an `error` entry whose reason is `ipc-size` or
-`ipc-rate`.
+What the extension prints with `console.log`, `console.error` or an uncaught
+error goes to the log as `warn` entries of the extension host in "Details". Use
+`ctx.logger` for anything you want to filter by level (its entries carry the
+extension id); use `console` only for a quick look.
 
 ### The file
 
@@ -177,19 +169,7 @@ relevant lines, or the text of "Copy diagnostics" in the "Diagnostics" block (it
 has no paths of your home folder, library content or learning data), to a bug
 report.
 
-## 6. Permissions and the restricted process
-
-An extension that is not bundled with the app and not trusted runs in a
-restricted process, and what its `permissions` do not declare is unavailable:
-`ctx.library` throws `PermissionError` without `library.read`; spawning a
-process, a worker thread or a native module fails with `ERR_ACCESS_DENIED`.
-Test helpers do not reproduce this, so a feature that needs a permission must be
-tried in the app. Extensions in development get the permissions their manifest
-declares. To debug without the restrictions, turn on "Trust (no isolation)" for
-the extension in Settings → Extensions; turn it off again before you release,
-because your users will not have it on.
-
-## 7. Reading a stack trace
+## 6. Reading a stack trace
 
 The code of the extension process is `dist-ext/<id>/main.mjs`, readable and not
 minified. A watch build (`dolphy-ext dev`, `dolphy-ext build --watch`) appends

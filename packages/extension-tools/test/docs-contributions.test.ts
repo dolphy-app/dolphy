@@ -1,5 +1,5 @@
 /**
- * Examples from the sections “Точки вклада”, “Права и изоляция” and “Установка и каталог”
+ * Examples from the sections “Точки вклада” and “Установка и каталог”
  * of `docs/design/extensions.md` (an internal Russian doc) are machine-checked: the document does not drift from the code.
  *
  * Marker convention: an example is a regular code block whose last non-empty line
@@ -48,7 +48,6 @@ const EXAMPLES: Readonly<Record<string, Mode>> = {
   'условие видимости': 'manifest',
   'расписания расширения': 'build-with-code',
   'серия дней целиком': 'build-with-code',
-  'вид задания с правами': 'manifest',
   'расширение для каталога': 'build-no-code',
   'индекс каталога': 'index',
   'панель со стилями и картинкой': 'build-with-code',
@@ -61,7 +60,6 @@ const REPO_ROOT = path.resolve(import.meta.dirname, '../../..');
 const DOC = path.join(REPO_ROOT, 'docs/design/extensions.md');
 const SECTIONS = [
   '## Точки вклада',
-  '## Права и изоляция',
   '## Установка и каталог',
   '## Как написать расширение',
 ];
@@ -171,7 +169,7 @@ const TSCONFIG = `${JSON.stringify({
   include: ['src', '.dolphy/ids.d.ts'],
 })}\n`;
 
-describe('examples of the sections “Точки вклада”, “Права и изоляция”, “Установка и каталог” and “Как написать расширение”', () => {
+describe('examples of the sections “Точки вклада”, “Установка и каталог” and “Как написать расширение”', () => {
   it('example labels match the checks table', () => {
     expect([...examples.keys()].sort()).toEqual(Object.keys(EXAMPLES).sort());
   });

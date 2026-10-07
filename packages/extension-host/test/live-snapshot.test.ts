@@ -22,7 +22,6 @@ const extension = (
   revision: '',
   dir: `/x/${id}`,
   mainPath: null,
-  permissions: [],
   name: null,
   description: null,
   author: null,
@@ -103,9 +102,6 @@ describe('политика, каталог и реестр читают сним
     expect(registry.contributions().themes.map(({ id }) => id)).toEqual([
       'acme.b.theme',
     ]);
-    // происхождение берётся из нового снимка: расширение из поставки не изолируется
-    expect(policy.isIsolated('dolphy.sql')).toBe(false);
-    expect(policy.isIsolated('acme.a')).toBe(true);
   });
 
   it('настройки пользователя переживают замену снимка', () => {
@@ -116,7 +112,6 @@ describe('политика, каталог и реестр читают сним
     const catalog = createCatalog(holder, policy);
     policy.update({
       disabled: ['acme.a'],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -128,7 +123,6 @@ describe('политика, каталог и реестр читают сним
     expect(catalog.list()).toEqual([]); // всё ещё отключено
     policy.update({
       disabled: [],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],

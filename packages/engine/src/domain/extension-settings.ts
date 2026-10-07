@@ -8,7 +8,6 @@ export const MAX_EXTENSION_ID_LENGTH = 64;
 export const DEFAULT_EXTENSION_SETTINGS: Readonly<ExtensionSettingsDto> =
   Object.freeze({
     disabled: [],
-    trusted: [],
     checkUpdates: true,
     safeMode: false,
     notificationsOff: [],
@@ -35,7 +34,6 @@ export const normalizeExtensionSettings = (
   settings: ExtensionSettingsDto,
 ): ExtensionSettingsDto => ({
   disabled: normalizeIds(settings.disabled),
-  trusted: normalizeIds(settings.trusted),
   checkUpdates: settings.checkUpdates,
   safeMode: settings.safeMode,
   notificationsOff: normalizeIds(settings.notificationsOff),
@@ -76,7 +74,6 @@ export const decodeExtensionSettings = (raw: unknown): ExtensionSettingsDto => {
     return normalizeExtensionSettings(DEFAULT_EXTENSION_SETTINGS);
   }
   const disabled = decodeIds(Reflect.get(raw, 'disabled'));
-  const trusted = decodeIds(Reflect.get(raw, 'trusted'));
   const checkUpdates = decodeCheckUpdates(Reflect.get(raw, 'checkUpdates'));
   const safeMode = decodeSafeMode(Reflect.get(raw, 'safeMode'));
   const notificationsOff = decodeOptionalIds(
@@ -84,12 +81,7 @@ export const decodeExtensionSettings = (raw: unknown): ExtensionSettingsDto => {
   );
   const catalogUrl = decodeCatalogUrl(Reflect.get(raw, 'catalogUrl'));
   const schedulesOff = decodeOptionalIds(Reflect.get(raw, 'schedulesOff'));
-  if (
-    disabled === null ||
-    trusted === null ||
-    notificationsOff === null ||
-    schedulesOff === null
-  ) {
+  if (disabled === null || notificationsOff === null || schedulesOff === null) {
     return normalizeExtensionSettings({
       ...DEFAULT_EXTENSION_SETTINGS,
       checkUpdates,
@@ -99,7 +91,6 @@ export const decodeExtensionSettings = (raw: unknown): ExtensionSettingsDto => {
   }
   return {
     disabled,
-    trusted,
     checkUpdates,
     safeMode,
     notificationsOff,

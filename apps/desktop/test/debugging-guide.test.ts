@@ -46,7 +46,6 @@ describe('debugging guide (R15)', () => {
         'settings.extensions.log.filterLevel',
         'settings.extensions.log.refresh',
         'settings.extensions.origin.dev',
-        'settings.extensions.trustLabel',
       ]),
     );
   });

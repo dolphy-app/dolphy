@@ -20,7 +20,6 @@ const STATE_EXTENSION = fileURLToPath(
   new URL('./fixtures/state-extension', import.meta.url),
 );
 const LIBRARY = { ...STATE_LIBRARY, ...PLAIN_LIBRARY };
-const PERMISSION_LABEL = 'События обучения';
 
 let workspace: Workspace | null = null;
 let app: DolphyApp | null = null;
@@ -201,17 +200,10 @@ describe('настройки расширения', () => {
   });
 });
 
-describe.each([
-  ['изолированный режим (по умолчанию)', false],
-  ['«Доверять» включено', true],
-])('события обучения и хранилище: %s', (_name, trusted) => {
+describe('события обучения и хранилище', () => {
   it('attempt.closed приходит ровно один раз на попытку, session.* — по одному на сессию; счётчик переживает перезапуск', async () => {
     const first = await prepare();
-    const { client, state } = first;
-    if (trusted) {
-      await client.openSettingsExtensions();
-      await client.setExtensionSwitch(STATE_ID, 'trusted', true);
-    }
+    const { state } = first;
     await startStateSession(first);
     const opened = await state.reportUntil(({ started }) => started === 1);
     expect(opened).toMatchObject({ closed: 0, finished: 0, activations: 1 });
@@ -358,7 +350,7 @@ describe('жизненный цикл данных', () => {
 });
 
 describe('установка из каталога и удаление', () => {
-  it('разрешение и точки видны при установке, в каталоге и в списке; удаление сохраняет данные или стирает их по флажку', async () => {
+  it('точки видны при установке, в каталоге и в списке; удаление сохраняет данные или стирает их по флажку', async () => {
     server = await startCatalogServer([
       {
         dir: STATE_EXTENSION,
@@ -376,16 +368,13 @@ describe('установка из каталога и удаление', () => {
 
     await catalog.openCatalogTab();
     const card = await catalog.catalogCard(STATE_ID).innerText();
-    expect(card).toContain(PERMISSION_LABEL);
     expect(card).toContain('Настройки');
     await catalog.installButton(STATE_ID).click();
-    expect(await catalog.dialog.innerText()).toContain(PERMISSION_LABEL);
     await catalog.confirmInstall();
     await catalog.closeDialog();
 
     await catalog.openInstalledTab();
     const row = await catalog.installedText(STATE_ID);
-    expect(row).toContain(PERMISSION_LABEL);
     expect(row).toContain('Настройки:');
     expect(row).toContain('События обучения:');
 

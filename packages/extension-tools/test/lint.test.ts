@@ -118,8 +118,8 @@ globalThis.probe = probe;
 
 describe('dolphy-ext lint: bundle heuristics', () => {
   const file = (text: string, name = 'main.mjs') => [{ path: name, text }];
-  const rules = (text: string, permissions: string[] = []) =>
-    bundleFindings(file(text), permissions).map((item) => item.ruleId);
+  const rules = (text: string) =>
+    bundleFindings(file(text)).map((item) => item.ruleId);
 
   it('eval and new Function, but not identifiers that merely contain them', () => {
     expect(rules('const x = eval("1");')).toEqual(['CHECK-022']);
@@ -138,19 +138,9 @@ describe('dolphy-ext lint: bundle heuristics', () => {
     expect(rules(`var ${ids.slice(0, 19).join(', ')};`)).toEqual([]);
   });
 
-  it('URLs need the network permission; XML namespaces do not count', () => {
-    const code = 'fetch("https://example.com/api");';
-    expect(rules(code)).toEqual(['CHECK-024']);
-    expect(rules(code, ['network'])).toEqual([]);
-    expect(
-      rules('createElementNS("http://www.w3.org/2000/svg", "g");'),
-    ).toEqual([]);
-  });
-
   it('an embedded source map is an error', () => {
     const [finding] = bundleFindings(
       file('x();\n//# sourceMappingURL=data:application/json;base64,e30='),
-      [],
     );
     expect(finding?.ruleId).toBe('CHECK-025');
     expect(finding?.severity).toBe('error');

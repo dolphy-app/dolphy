@@ -6,7 +6,6 @@ import type {
   ExtensionDependency,
   ExtensionLogger,
   ExtensionManifest,
-  ExtensionPermission,
   ExtensionPlatform,
   ExtensionTag,
   LocaleTables,
@@ -43,8 +42,6 @@ export interface ResolvedExtension extends ResolvedContributions {
   dir: string;
   /** `null` — расширению код не нужен. */
   mainPath: string | null;
-  /** Объявленные в манифесте возможности кода; по умолчанию пусто. */
-  permissions: ExtensionPermission[];
   name: string | null;
   description: string | null;
   author: string | null;
@@ -280,7 +277,6 @@ export const inspectExtensionDir = async (
         version: manifest.version,
         dir,
         mainPath,
-        permissions: manifest.permissions,
         name: manifest.name,
         description: manifest.description,
         author: manifest.author,

@@ -15,7 +15,6 @@ const manifestOf = (
     id: 'acme.ids',
     version: '1.0.0',
     apiVersion: 1,
-    permissions: ['learning.events'],
     ...extra,
     contributes,
   });
@@ -220,7 +219,6 @@ export {};
         version: '2.3.4',
         name: 'Ids',
         description: 'Other metadata',
-        permissions: [],
       }),
     );
     expect(decorated).toBe(plain);

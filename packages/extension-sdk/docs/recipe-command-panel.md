@@ -38,7 +38,6 @@ File `extension.json` (command-panel):
   panel calls.
 - `panels[]` declares the screen; its module defaults to `./panel.mjs`, which
   the build writes.
-- No permissions: commands, panels and `notify` need none.
 
 ## The code
 

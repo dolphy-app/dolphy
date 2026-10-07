@@ -12,18 +12,6 @@ export const EXTENSION_API_VERSION = 1 as const;
 export const EXTENSION_ID_PATTERN = /^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*$/;
 /** GitHub login of the extension author (`author` in the manifest and catalog). */
 export const GITHUB_LOGIN_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
-/** Capabilities an extension declares in its manifest; none without a declaration. */
-export const EXTENSION_PERMISSIONS = [
-  'library.read',
-  'process.spawn',
-  'worker.threads',
-  'native.addons',
-  'network',
-  'learning.events',
-  'learning.stats',
-  'notifications',
-] as const;
-export type ExtensionPermission = (typeof EXTENSION_PERMISSIONS)[number];
 /** Platforms the extension can run on (`process.platform`). */
 export const EXTENSION_PLATFORMS = ['darwin', 'linux', 'win32'] as const;
 export type ExtensionPlatform = (typeof EXTENSION_PLATFORMS)[number];
@@ -305,7 +293,6 @@ export interface ExporterContribution {
   id: string;
   /** Name in the command palette and the library card, 1–60 characters. */
   title: string;
-  /** `progress` needs the `learning.stats` permission. */
   scope: ExporterScope;
 }
 
@@ -418,7 +405,7 @@ export const SETTING_LIMITS = Object.freeze({
 /** `#rrggbb` (any case in the manifest; the stored value is lower-case). */
 export const COLOR_SETTING_PATTERN = /^#[0-9a-fA-F]{6}$/;
 
-/** Learning events an extension with the `learning.events` permission can subscribe to. */
+/** Learning events an extension can subscribe to. */
 export const LEARNING_EVENT_NAMES = [
   'session.started',
   'session.finished',
@@ -489,8 +476,6 @@ export interface ExtensionManifest {
   apiVersion: typeof EXTENSION_API_VERSION;
   /** Path to the `.mjs` with the extension code; `null` means the extension needs no code. */
   main: string | null;
-  /** Declared capabilities of the extension code; empty by default. */
-  permissions: ExtensionPermission[];
   /** Human-readable name; `null` if not set. */
   name: string | null;
   description: string | null;
@@ -553,7 +538,6 @@ export interface ExtensionManifestInput {
   apiVersion: typeof EXTENSION_API_VERSION;
   /** Defaults to `DEFAULT_MAIN` if contributions need code; otherwise `null`. */
   main?: string;
-  permissions?: ExtensionPermission[];
   name?: string;
   description?: string;
   author?: string;
@@ -1199,20 +1183,6 @@ export interface LibraryReader {
   stat(path: string): Promise<LibraryStat | null>;
 }
 
-/** Thrown when an extension calls a capability without the declared permission. */
-export class PermissionError extends Error {
-  readonly permission: ExtensionPermission;
-  readonly code = 'EXT_PERMISSION';
-  constructor(permission: ExtensionPermission, message?: string) {
-    super(
-      message ??
-        `permission '${permission}' is not declared in the extension manifest`,
-    );
-    this.name = 'PermissionError';
-    this.permission = permission;
-  }
-}
-
 /** Extension storage limits (R2); they match the engine's limits, which enforces them. */
 export const EXTENSION_STORAGE_LIMITS = Object.freeze({
   /** Key length in UTF-16 code units. */
@@ -1249,7 +1219,7 @@ export type JsonValue =
 /**
  * Extension data storage: JSON under string keys. Each extension has
  * its own space; data survives restart, update, and disabling.
- * No permission is required; limits are `EXTENSION_STORAGE_LIMITS`.
+ * Limits are `EXTENSION_STORAGE_LIMITS`.
  */
 export interface ExtensionStorage {
   get<T extends JsonValue = JsonValue>(key: string): Promise<T | undefined>;
@@ -1286,8 +1256,7 @@ export class SecretsUnavailableError extends Error {
 
 /**
  * Secret strings (tokens, passwords) encrypted with the system key store.
- * No permission is required; each extension has its own space, cleared with
- * the extension data. Limits are `EXTENSION_SECRET_LIMITS`.
+ * Each extension has its own space, cleared with the extension data. Limits are `EXTENSION_SECRET_LIMITS`.
  */
 export interface ExtensionSecrets {
   /** `undefined` if the key does not exist (also when the key store is unavailable). */
@@ -1347,8 +1316,7 @@ export interface DailyStat {
 }
 
 /**
- * Aggregated learning statistics; need the `learning.stats` permission, otherwise
- * every call rejects with `PermissionError('learning.stats')`. Numbers only: no
+ * Aggregated learning statistics. Numbers only: no
  * exercise or course identifiers, answers or content. Days are local days in
  * the user's time zone; an attempt is correct at grade 3 or higher; the
  * history counts attempts even after a progress reset. An unknown `courseId`
@@ -1412,8 +1380,7 @@ export interface ExtensionNotification {
 }
 
 /**
- * System notifications; need the `notifications` permission, otherwise
- * `show` rejects with `PermissionError('notifications')`. The notification
+ * System notifications. The notification
  * names the extension; a click shows the app window. Works only while the app
  * runs. The user can switch notifications off per extension in the settings.
  */
@@ -1438,8 +1405,7 @@ export interface ExtensionSchedule<Id extends string = string> {
    * by the local clock while it runs, activating the extension if needed. A
    * firing found more than `EXTENSION_SCHEDULE_LIMITS.lateMs` after its moment
    * (the app was closed or asleep) is skipped and never replayed; a handler
-   * still running from the previous firing misses the next one. No
-   * permission is needed; the user can switch the extension's schedules off
+   * still running from the previous firing misses the next one. The user can switch the extension's schedules off
    * in the settings.
    */
   on(id: Id, handler: ScheduleHandler): Disposable;
@@ -1449,7 +1415,7 @@ export type LearningEventHandler<N extends LearningEventName> = (
   payload: LearningEventPayloads[N],
 ) => void | Promise<void>;
 
-/** Learning events; need the `learning.events` permission and the event declared in `contributes.events`. `N` narrows the event names. */
+/** Learning events; the event must be declared in `contributes.events`. `N` narrows the event names. */
 export interface ExtensionEvents<
   N extends LearningEventName = LearningEventName,
 > {
@@ -1535,11 +1501,11 @@ export interface ExtensionContext<Ids extends ExtensionIdSet = ExtensionIdSet> {
   readonly secrets: ExtensionSecrets;
   readonly settings: ExtensionSettings<Ids['settings']>;
   readonly events: ExtensionEvents<Ids['events']>;
-  /** Learning statistics; needs the `learning.stats` permission. */
+  /** Learning statistics. */
   readonly stats: ExtensionStats;
-  /** System notifications; need the `notifications` permission. */
+  /** System notifications. */
   readonly notifications: ExtensionNotifications;
-  /** Schedules the extension declares; no permission needed. */
+  /** Schedules the extension declares. */
   readonly schedule: ExtensionSchedule<Ids['schedules']>;
   readonly commands: ExtensionCommands<Ids['commands']>;
   readonly importers: ExtensionImporters<Ids['importers']>;

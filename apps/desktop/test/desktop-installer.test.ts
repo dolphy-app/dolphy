@@ -187,7 +187,6 @@ const indexOf = (revoked: { id: string; versions: string; reason: string }[]) =>
             version: '1.0.0',
             apiVersion: 1,
             minAppVersion: null,
-            permissions: [],
             publishedAt: '2026-10-01T00:00:00Z',
             baseUrl: 'extensions/acme.theme/1.0.0/',
             files: [

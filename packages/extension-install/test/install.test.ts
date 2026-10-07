@@ -292,7 +292,6 @@ describe('install: сбой оставляет прежнюю установку
   it.each([
     ['id', { id: 'acme.other' }],
     ['версия', { version: '1.1.1' }],
-    ['разрешения', { permissions: ['network'] }],
     ['вклады', { contributes: contributesOf(['acme.evil']) }],
   ])('манифест расходится с индексом: %s', async (_name, manifest) => {
     const lying: ExtensionSpec = { ...ECHO, manifest };

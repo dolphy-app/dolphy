@@ -3,7 +3,6 @@ import { createHostChannel } from '../src/channel.ts';
 import { createRemoteExtensionCommands } from '../src/client.ts';
 import type { ResolvedExtension } from '../src/discover.ts';
 import { createEndpointPair } from '../src/loopback.ts';
-import { createAllTrustedPolicy } from '../src/policy.ts';
 import type { ExtRequest } from '../src/protocol.ts';
 import { createLogger, holderOf } from './helpers.ts';
 import { stateful } from './state-harness.ts';
@@ -14,7 +13,6 @@ const ID = 'acme.cmd';
 const PANEL = `${ID}.panel`;
 
 const extension: ResolvedExtension = stateful(ID, {
-  permissions: [],
   events: [],
   settings: [],
   commands: [
@@ -61,7 +59,6 @@ const setup = (reply: Reply | null, deadlineMs?: number) => {
   const commands = createRemoteExtensionCommands({
     channel,
     discovery: holderOf([extension]),
-    policy: createAllTrustedPolicy(),
     logger,
     ...(deadlineMs !== undefined && { deadlineMs }),
   });
@@ -88,13 +85,9 @@ describe('createRemoteExtensionCommands', () => {
           extensionId: ID,
           commandId: `${ID}.run`,
           args: { n: 1 },
-          isolated: false,
         },
       ],
-      [
-        'invokeCommand',
-        { extensionId: ID, commandId: `${ID}.run`, isolated: false },
-      ],
+      ['invokeCommand', { extensionId: ID, commandId: `${ID}.run` }],
     ]);
   });
 

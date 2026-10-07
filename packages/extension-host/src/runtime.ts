@@ -7,7 +7,6 @@ import {
   EXTENSION_TRANSFER_LIMITS,
   InvalidCommandResultError,
   InvalidTransferResultError,
-  PermissionError,
   normalizeCommandResult,
   normalizeExportResult,
   normalizeImportResult,
@@ -31,7 +30,7 @@ import type { ResolvedExtension } from './discover.ts';
 import { ENGINE_REQUEST_MS, EngineRequestError } from './engine-link.ts';
 import type { EngineLink } from './engine-link.ts';
 import { createDiscoveryHolder, discoveryOf } from './holder.ts';
-import { createAllTrustedPolicy } from './policy.ts';
+import { createAllEnabledPolicy } from './policy.ts';
 import {
   extMessageSchema,
   gradeResultSchema,
@@ -46,7 +45,6 @@ import type {
   HostResponse,
   SettingChangedNotice,
 } from './protocol.ts';
-import type { RestrictedRunner, RunnerFactory } from './restricted-runner.ts';
 import {
   createExtensionNotifications,
   createExtensionStats,
@@ -63,14 +61,6 @@ export interface ExtensionRuntimeOptions {
   logger: ExtensionLogger;
   /** Шов для тестов: модуль расширения с этим id берётся отсюда вместо `import()`. */
   modules?: Readonly<Record<string, ExtensionModule>>;
-  /**
-   * Фабрика ограниченных раннеров. Без неё запросы с `isolated: true` для
-   * расширений не из поставки отклоняются: неверная настройка не должна молча
-   * исполнять код без ограничений.
-   */
-  runners?: RunnerFactory;
-  /** false — не маршрутизировать по `isolated`: сам процесс и есть ограничение (дочерний процесс раннера). */
-  enforceIsolation?: boolean;
   /**
    * Запас сверх срока вызова (`timeoutMs` у `grade`, 10 с у команд, 5 с у остальных), сколько
    * `replace` ждёт вызов, идущий в момент замены, прежде чем вытеснить
@@ -238,16 +228,14 @@ export const createExtensionRuntime = (
     options.activationTimeoutMs ?? ACTIVATION_TIMEOUT_MS;
   // каталог читает снимок, `replace` подменяет его целиком
   const discovery = createDiscoveryHolder(discoveryOf(options.extensions));
-  const catalog = createCatalog(discovery, createAllTrustedPolicy());
+  const catalog = createCatalog(discovery, createAllEnabledPolicy());
   // текущая сборка расширения; совпадение по тождеству объекта = «ещё актуальна»
   let known = new Map(options.extensions.map((item) => [item.id, item]));
   const slots = new Map<string, Slot>();
-  const runners = new Map<string, RestrictedRunner>();
   const flights = new Map<string, Set<Flight>>();
   const retiring = new Set<Promise<void>>();
   // загрузчик ESM не вытесняет модули: каждая загрузка получает свой `?v=`
   const loads = new Map<string, number>();
-  const enforceIsolation = options.enforceIsolation ?? true;
   let current: MessageEndpoint | null = null;
   // запросы к движку: собственные идентификаторы `h<N>`, таймер перезапуска не взводят
   const engineRequests = new Map<string, EnginePending>();
@@ -406,19 +394,12 @@ export const createExtensionRuntime = (
       logger: scopedLogger(options.logger, extension.id),
       library: options.library,
       storage: createExtensionStorage(engine, extension.id),
-      stats: createExtensionStats(engine, extension.id, extension.permissions),
+      stats: createExtensionStats(engine, extension.id),
       secrets: createExtensionSecrets(engine, extension.id),
-      notifications: createExtensionNotifications(
-        engine,
-        extension.id,
-        extension.permissions,
-      ),
+      notifications: createExtensionNotifications(engine, extension.id),
       settings: settings.api,
       events: {
         on(name, handler) {
-          if (!extension.permissions.includes('learning.events')) {
-            throw new PermissionError('learning.events');
-          }
           if (!declaredEvents.has(name)) {
             throw new Error(
               `event '${name}' is not declared in the manifest of '${extension.id}'`,
@@ -744,11 +725,8 @@ export const createExtensionRuntime = (
         `unknown extension '${params.extensionId}'`,
       );
     }
-    // расширение без разрешения или объявления события не активируется ради него
-    if (
-      !extension.permissions.includes('learning.events') ||
-      !extension.events.some(({ event }) => event === params.name)
-    ) {
+    // расширение без объявления события не активируется ради него
+    if (!extension.events.some(({ event }) => event === params.name)) {
       return { delivered: false };
     }
     const handler = (await activationOf(extension)).events.get(params.name);
@@ -1024,14 +1002,6 @@ export const createExtensionRuntime = (
     }
   };
 
-  const disposeRunner = async (runner: RestrictedRunner): Promise<void> => {
-    try {
-      await runner.dispose();
-    } catch (error) {
-      logger.error({ error: messageOf(error) }, 'runner dispose failed');
-    }
-  };
-
   /** Освобождение в фоне: `dispose()` рантайма дожидается всех. */
   const background = (work: Promise<void>): Promise<void> => {
     retiring.add(work);
@@ -1044,12 +1014,6 @@ export const createExtensionRuntime = (
     const slot = slots.get(extensionId);
     slots.delete(extensionId);
     if (slot !== undefined) await background(disposeActivation(slot));
-  };
-
-  const releaseRunner = async (extensionId: string): Promise<void> => {
-    const runner = runners.get(extensionId);
-    runners.delete(extensionId);
-    if (runner !== undefined) await background(disposeRunner(runner));
   };
 
   /** Срок вызова, который стоит дождаться при замене набора; обработчики команды и `grade` задают его сами. */
@@ -1100,19 +1064,16 @@ export const createExtensionRuntime = (
     );
   };
 
-  /** Вытеснение при замене: активация и ограниченный процесс уходят из обращения сразу, освобождаются после вызовов в полёте. */
+  /** Вытеснение при замене: активация уходит из обращения сразу, освобождаются после вызовов в полёте. */
   const evict = async (extensionId: string): Promise<void> => {
     const waiting = [...(flights.get(extensionId) ?? [])];
     const slot = slots.get(extensionId);
-    const runner = runners.get(extensionId);
     slots.delete(extensionId);
-    runners.delete(extensionId);
-    if (slot === undefined && runner === undefined) return;
+    if (slot === undefined) return;
     await background(
       (async () => {
         await drain(waiting);
-        if (slot !== undefined) await disposeActivation(slot);
-        if (runner !== undefined) await disposeRunner(runner);
+        await disposeActivation(slot);
       })(),
     );
   };
@@ -1155,77 +1116,17 @@ export const createExtensionRuntime = (
     }
   };
 
-  /** Изменение настройки — работающему расширению: в процессе или в ограниченном процессе. */
+  /** Изменение настройки — работающему расширению. */
   const applySettingChange = ({ params }: SettingChangedNotice): void => {
     slots
       .get(params.extensionId)
       ?.activation?.settings.apply({ id: params.id, value: params.value });
-    runners
-      .get(params.extensionId)
-      ?.notify({ method: 'settingChanged', params });
   };
 
-  const refused = (
-    request: ExtRequest,
-    message: string,
-    cause: Extract<
-      ExtResponse,
-      { ok: false }
-    >['error']['cause'] = 'activation-failed',
-  ): ExtResponse => ({
-    id: request.id,
-    ok: false,
-    error: { cause, message },
-  });
-
-  // Расширение не из поставки с isolated === true исполняется в ограниченном
-  // процессе; смена режима освобождает активацию другого режима.
-  const runIsolated = async (
-    request: ExtRequest,
-    extension: ResolvedExtension,
-  ): Promise<ExtResponse> => {
-    if (options.runners === undefined) {
-      return refused(request, 'isolated execution is not configured');
-    }
-    await releaseActivation(extension.id);
-    let runner = runners.get(extension.id);
-    if (runner === undefined) {
-      if (known.get(extension.id) !== extension) {
-        return refused(
-          request,
-          `extension '${extension.id}' was replaced`,
-          request.method === 'invokeCommand' ||
-            request.method === 'runImporter' ||
-            request.method === 'runExporter'
-            ? 'replaced'
-            : 'activation-failed',
-        );
-      }
-      runner = options.runners.create(extension, engine);
-      runners.set(extension.id, runner);
-    }
-    const response = await runner.handle(request);
-    if (!response.ok) {
-      logger.warn(
-        { extensionId: extension.id, ...response.error },
-        'restricted extension call failed',
-      );
-    }
-    return response;
-  };
-
-  const dispatch = async (
+  const execute = async (
     request: ExtRequest,
     extension: ResolvedExtension | undefined,
   ): Promise<ExtResponse> => {
-    if (extension !== undefined) {
-      const isolated =
-        enforceIsolation &&
-        request.params.isolated &&
-        extension.origin !== 'bundled';
-      if (isolated) return runIsolated(request, extension);
-      await releaseRunner(extension.id);
-    }
     try {
       return {
         id: request.id,
@@ -1252,7 +1153,7 @@ export const createExtensionRuntime = (
   // владелец вызова определяется один раз: замена набора посреди вызова его не переключает
   const handle = (request: ExtRequest): Promise<ExtResponse> => {
     const extension = ownerOfRequest(request);
-    const response = dispatch(request, extension);
+    const response = execute(request, extension);
     return extension === undefined
       ? response
       : fly(extension.id, request, response);
@@ -1314,7 +1215,6 @@ export const createExtensionRuntime = (
       }
       current = null;
       for (const id of [...slots.keys()]) await releaseActivation(id);
-      for (const id of [...runners.keys()]) await releaseRunner(id);
       await Promise.all([...retiring]);
     },
   };

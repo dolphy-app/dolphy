@@ -24,7 +24,6 @@ export interface CheckedManifest {
   description: string | null;
   author: string | null;
   minAppVersion: string | null;
-  permissions: readonly string[];
 }
 
 /**
@@ -495,24 +494,6 @@ const translations: CheckRule = {
         }),
 };
 
-const permissionsExplained: CheckRule = {
-  id: 'CHECK-020',
-  title: 'every permission is mentioned in README.md',
-  run: async (context) => {
-    const { manifest } = context;
-    if (manifest === null || manifest.permissions.length === 0) return [];
-    const readmeText = (await context.readText('README.md')) ?? '';
-    return manifest.permissions
-      .filter((permission) => !readmeText.includes(permission))
-      .map((permission) =>
-        warning(
-          'permissions',
-          `permission '${permission}' is not mentioned in README.md: explain why the extension needs it`,
-        ),
-      );
-  },
-};
-
 const firstPublisherOwnsId: CheckRule = {
   id: 'CHECK-021',
   title: 'the id is not published under another author',
@@ -549,7 +530,7 @@ const bundleRule = (
         ? [warning('--built', `${NO_BUNDLE} (${bundleDir})`)]
         : [];
     }
-    return bundleFindings(files, manifest.permissions)
+    return bundleFindings(files)
       .filter((finding) => finding.ruleId === id)
       .map(({ severity, field, message }) => ({ severity, field, message }));
   },
@@ -575,11 +556,9 @@ export const RULES: readonly CheckRule[] = [
   assetFiles,
   iconFile,
   shortDescriptionRule,
-  permissionsExplained,
   firstPublisherOwnsId,
   bundleRule('CHECK-022', 'built code does not execute dynamic code', true),
   bundleRule('CHECK-023', 'built code is not obfuscated'),
-  bundleRule('CHECK-024', 'URLs in built code need the network permission'),
   bundleRule('CHECK-025', 'built code has no embedded source map'),
   translations,
   changelog,

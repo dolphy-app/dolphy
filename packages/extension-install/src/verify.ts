@@ -41,9 +41,6 @@ export const manifestMismatch = (
   if (manifest.version !== version.version) {
     return `manifest version '${manifest.version}' differs from catalog version '${version.version}'`;
   }
-  if (!sameSet(manifest.permissions, version.permissions)) {
-    return 'manifest permissions differ from the catalog entry';
-  }
   if (manifest.icon !== (version.icon ?? null)) {
     return 'manifest icon differs from the catalog entry';
   }

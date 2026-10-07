@@ -157,10 +157,10 @@ Save a file: the build writes the new files and the app applies them without a
 restart. The window does not reload; answer inputs of extensions in development
 are recreated, so their state can be lost.
 
-An extension that is not bundled with the app and not trusted runs in a
-restricted process: what the `permissions` of the manifest do not declare is
-unavailable. The test helpers do not reproduce that; try permission-dependent
-code in the app.
+The extension code runs without restrictions: files, processes, threads and the
+network are available. The test helpers run a handler in your process and do not
+reproduce the host (time limits, the process boundary); try such code in the
+app.
 
 ## 5. Next
 
@@ -168,5 +168,5 @@ code in the app.
 - Before a pull request to the extension catalog run `pnpm build`,
   `pnpm validate`, `pnpm lint`, `pnpm typecheck` and `pnpm test`: all must pass.
   The generated `.github/workflows/ci.yml` runs the same steps on every push.
-- Write in `README.md` what the extension does and what each permission is for;
-  the catalog review reads it.
+- Write in `README.md` what the extension does; the catalog
+  review reads it.

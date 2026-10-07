@@ -8,12 +8,10 @@ import { manifestMismatch } from '../src/verify.ts';
 
 const version = {
   version: '1.0.0',
-  permissions: [],
 } as unknown as CatalogVersion;
 
 const entryWith = (
   contributes: Record<string, string[]>,
-  permissions: string[] = [],
 ): [CatalogEntry, CatalogVersion] => [
   {
     id: 'acme.state',
@@ -25,16 +23,14 @@ const entryWith = (
       ...contributes,
     },
   } as unknown as CatalogEntry,
-  { ...version, permissions } as CatalogVersion,
+  version,
 ];
 
 const manifestWith = (
   contributes: Partial<InspectedManifest['contributes']> = {},
-  permissions: string[] = [],
 ): InspectedManifest => ({
   id: 'acme.state',
   version: '1.0.0',
-  permissions,
   icon: null,
   tags: [],
   dependencies: [],
@@ -55,16 +51,16 @@ const manifestWith = (
   },
 });
 
-describe('manifestMismatch: settings, events и разрешение', () => {
+describe('manifestMismatch: settings и events', () => {
   it('совпадающие settings и events проходят', () => {
-    const [entry, v] = entryWith(
-      { settings: ['acme.state.mode'], events: ['attempt.closed'] },
-      ['learning.events'],
-    );
-    const manifest = manifestWith(
-      { settings: ['acme.state.mode'], events: ['attempt.closed'] },
-      ['learning.events'],
-    );
+    const [entry, v] = entryWith({
+      settings: ['acme.state.mode'],
+      events: ['attempt.closed'],
+    });
+    const manifest = manifestWith({
+      settings: ['acme.state.mode'],
+      events: ['attempt.closed'],
+    });
     expect(manifestMismatch(manifest, entry, v)).toBeNull();
   });
 
@@ -88,12 +84,6 @@ describe('manifestMismatch: settings, events и разрешение', () => {
   it('записанные в индексе, но не объявленные события отвергаются', () => {
     const [entry, v] = entryWith({ events: ['session.started'] });
     expect(manifestMismatch(manifestWith(), entry, v)).toContain('(events)');
-  });
-
-  it('разрешение learning.events должно совпасть', () => {
-    const [entry, v] = entryWith({});
-    const manifest = manifestWith({}, ['learning.events']);
-    expect(manifestMismatch(manifest, entry, v)).toContain('permissions');
   });
 });
 

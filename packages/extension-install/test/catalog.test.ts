@@ -59,7 +59,7 @@ describe('catalog: статусы записей', () => {
     const byId = Object.fromEntries(catalog.entries.map((e) => [e.id, e]));
     expect(byId['alpha.upd']).toMatchObject({
       installedVersion: '1.0.0',
-      latest: { version: '1.1.0', permissions: [] },
+      latest: { version: '1.1.0' },
     });
     expect(byId['zeta.new']?.installedVersion).toBeNull();
     expect(catalog).toMatchObject({ stale: false, error: null });
@@ -140,7 +140,6 @@ describe('catalog: статусы записей', () => {
       JSON.stringify({
         id: 'acme.echo',
         version: '1.0.0',
-        permissions: [],
         contributes: contributesOf(['acme.echo']),
       }),
     );

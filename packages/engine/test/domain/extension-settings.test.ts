@@ -7,14 +7,12 @@ describe('decodeExtensionSettings', () => {
     [undefined],
     ['x'],
     [{}],
-    [{ disabled: ['a.b'] }],
-    [{ disabled: 'a.b', trusted: [] }],
-    [{ disabled: [1], trusted: [] }],
-    [{ disabled: [], trusted: ['Not An Id'] }],
+    [{ disabled: 'a.b' }],
+    [{ disabled: [1] }],
+    [{ disabled: ['Not An Id'] }],
   ])('неверная форма %j — пустые списки', (raw) => {
     expect(decodeExtensionSettings(raw)).toEqual({
       disabled: [],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -24,35 +22,34 @@ describe('decodeExtensionSettings', () => {
   });
 
   it.each([
-    [{ disabled: [], trusted: [] }, true],
-    [{ disabled: [], trusted: [], checkUpdates: false }, false],
-    [{ disabled: [], trusted: [], checkUpdates: 'no' }, true],
-    [{ disabled: [], trusted: [], checkUpdates: 0 }, true],
-    [{ disabled: 1, trusted: [], checkUpdates: false }, false],
+    [{ disabled: [] }, true],
+    [{ disabled: [], checkUpdates: false }, false],
+    [{ disabled: [], checkUpdates: 'no' }, true],
+    [{ disabled: [], checkUpdates: 0 }, true],
+    [{ disabled: 1, checkUpdates: false }, false],
   ])('checkUpdates в %j — %s', (raw, expected) => {
     expect(decodeExtensionSettings(raw).checkUpdates).toBe(expected);
   });
 
   it.each([
-    [{ disabled: [], trusted: [] }, false],
-    [{ disabled: [], trusted: [], safeMode: true }, true],
-    [{ disabled: [], trusted: [], safeMode: false }, false],
-    [{ disabled: [], trusted: [], safeMode: 'yes' }, false],
-    [{ disabled: [], trusted: [], safeMode: 1 }, false],
+    [{ disabled: [] }, false],
+    [{ disabled: [], safeMode: true }, true],
+    [{ disabled: [], safeMode: false }, false],
+    [{ disabled: [], safeMode: 'yes' }, false],
+    [{ disabled: [], safeMode: 1 }, false],
     // безопасный режим не теряется из-за испорченных списков: запуск остаётся безопасным
-    [{ disabled: 1, trusted: [], safeMode: true }, true],
+    [{ disabled: 1, safeMode: true }, true],
   ])('safeMode в %j — %s: включает только явное true', (raw, expected) => {
     expect(decodeExtensionSettings(raw).safeMode).toBe(expected);
   });
 
   it('notificationsOff: нет значения — пусто (запись до появления поля), список сохраняется даже рядом с испорченным списком', () => {
-    expect(
-      decodeExtensionSettings({ disabled: [], trusted: [] }).notificationsOff,
-    ).toEqual([]);
+    expect(decodeExtensionSettings({ disabled: [] }).notificationsOff).toEqual(
+      [],
+    );
     expect(
       decodeExtensionSettings({
         disabled: [],
-        trusted: [],
         notificationsOff: ['b.x', 'a.y', 'b.x'],
         catalogUrl: null,
       }).notificationsOff,
@@ -60,13 +57,11 @@ describe('decodeExtensionSettings', () => {
     expect(
       decodeExtensionSettings({
         disabled: [],
-        trusted: [],
         notificationsOff: ['Not An Id'],
         catalogUrl: null,
       }),
     ).toEqual({
       disabled: [],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -76,19 +71,17 @@ describe('decodeExtensionSettings', () => {
   });
 
   it('schedulesOff: нет значения — пусто (запись до появления поля), список сохраняется и сортируется, испорченный список сбрасывается вместе с остальными', () => {
-    expect(
-      decodeExtensionSettings({ disabled: ['a.x'], trusted: [] }).schedulesOff,
-    ).toEqual([]);
+    expect(decodeExtensionSettings({ disabled: ['a.x'] }).schedulesOff).toEqual(
+      [],
+    );
     expect(
       decodeExtensionSettings({
         disabled: [],
-        trusted: [],
         notificationsOff: ['n.x'],
         schedulesOff: ['b.x', 'a.y', 'b.x'],
       }),
     ).toEqual({
       disabled: [],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: ['n.x'],
@@ -98,12 +91,10 @@ describe('decodeExtensionSettings', () => {
     expect(
       decodeExtensionSettings({
         disabled: ['a.x'],
-        trusted: [],
         schedulesOff: ['Not An Id'],
       }),
     ).toEqual({
       disabled: [],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -116,12 +107,10 @@ describe('decodeExtensionSettings', () => {
     expect(
       decodeExtensionSettings({
         disabled: ['b.x', 'a.y', 'b.x'],
-        trusted: ['c.z'],
         extra: 1,
       }),
     ).toEqual({
       disabled: ['a.y', 'b.x'],
-      trusted: ['c.z'],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -140,8 +129,7 @@ describe('decodeExtensionSettings', () => {
     [undefined, null],
   ])('reads the catalog address %j as %j', (raw, expected) => {
     expect(
-      decodeExtensionSettings({ disabled: [], trusted: [], catalogUrl: raw })
-        .catalogUrl,
+      decodeExtensionSettings({ disabled: [], catalogUrl: raw }).catalogUrl,
     ).toBe(expected);
   });
 
@@ -149,7 +137,6 @@ describe('decodeExtensionSettings', () => {
     expect(
       decodeExtensionSettings({
         disabled: 'x',
-        trusted: [],
         catalogUrl: 'https://example.test/index.json',
       }).catalogUrl,
     ).toBe('https://example.test/index.json');

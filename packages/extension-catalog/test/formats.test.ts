@@ -216,7 +216,7 @@ describe('parseIndexLenient', () => {
     const { index, warnings } = lenient(
       full([
         entry({
-          versions: [version({ permissions: ['telepathy'] as never })],
+          versions: [version({ version: 'not-a-version' })],
         }),
       ]),
     );

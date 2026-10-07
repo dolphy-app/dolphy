@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "apiVersion": 1,
   "main": "./main.mjs",
-  "permissions": ["learning.stats"],
   "contributes": {
     "importers": [
       { "id": "acme.csv.text", "title": "Text", "accept": [".txt", ".csv"] },

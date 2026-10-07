@@ -356,30 +356,16 @@ describe('точка settings', () => {
   });
 });
 
-describe('точка events и разрешение learning.events', () => {
-  it('события требуют разрешения learning.events', () => {
-    const contributes = { events: [{ event: 'attempt.closed' }] };
-
-    expect(messageOf(manifest(contributes))).toBe(
-      "permissions: contributes.events requires the 'learning.events' permission",
-    );
-    expect(
-      messageOf(manifest(contributes, { permissions: ['library.read'] })),
-    ).toContain("'learning.events' permission");
-  });
-
-  it('с разрешением принимает три события и подставляет main (событиям нужен код)', () => {
+describe('точка events', () => {
+  it('принимает три события без разрешений и подставляет main (событиям нужен код)', () => {
     const parsed = parseManifest(
-      manifest(
-        {
-          events: [
-            { event: 'session.started' },
-            { event: 'session.finished' },
-            { event: 'attempt.closed' },
-          ],
-        },
-        { permissions: ['learning.events'] },
-      ),
+      manifest({
+        events: [
+          { event: 'session.started' },
+          { event: 'session.finished' },
+          { event: 'attempt.closed' },
+        ],
+      }),
     );
 
     expect(parsed.ok).toBe(true);
@@ -395,20 +381,7 @@ describe('точка events и разрешение learning.events', () => {
     ],
     ['лишний ключ', [{ event: 'attempt.closed', filter: 1 }], 'filter'],
   ])('отклоняет: %s', (_name, events, fragment) => {
-    expect(
-      messageOf(manifest({ events }, { permissions: ['learning.events'] })),
-    ).toContain(fragment);
-  });
-
-  it('разрешение без событий допустимо', () => {
-    expect(
-      parseManifest(
-        manifest(
-          { settings: [setting()] },
-          { permissions: ['learning.events'] },
-        ),
-      ).ok,
-    ).toBe(true);
+    expect(messageOf(manifest({ events }))).toContain(fragment);
   });
 });
 
@@ -467,7 +440,6 @@ describe('обнаружение и реестр', () => {
     const registry = createExtensionRegistry(discovery, policy);
     policy.update({
       disabled: ['acme.b'],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],

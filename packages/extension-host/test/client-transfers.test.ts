@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createHostChannel } from '../src/channel.ts';
 import { createRemoteExtensionTransfers } from '../src/client.ts';
 import { createEndpointPair } from '../src/loopback.ts';
-import { createAllTrustedPolicy } from '../src/policy.ts';
 import type { ExtRequest } from '../src/protocol.ts';
 import { createLogger } from './helpers.ts';
 
@@ -30,7 +29,6 @@ const setup = (reply: Reply | null, deadlineMs?: number) => {
   channel.attach(engineSide);
   const transfers = createRemoteExtensionTransfers({
     channel,
-    policy: createAllTrustedPolicy(),
     logger,
     ...(deadlineMs !== undefined && { deadlineMs }),
   });
@@ -70,7 +68,6 @@ describe('createRemoteExtensionTransfers', () => {
           importerId: `${ID}.in`,
           name: 'a.bin',
           bytes,
-          isolated: false,
         },
       ],
       [
@@ -80,7 +77,6 @@ describe('createRemoteExtensionTransfers', () => {
           importerId: `${ID}.in`,
           name: 'a.csv',
           text: 'x',
-          isolated: false,
         },
       ],
       [
@@ -94,7 +90,6 @@ describe('createRemoteExtensionTransfers', () => {
             title: 'T',
             files: { 'a.md': 'x' },
           },
-          isolated: false,
         },
       ],
     ]);
@@ -209,7 +204,6 @@ describe('createRemoteExtensionTransfers', () => {
     await channel.close();
     const transfers = createRemoteExtensionTransfers({
       channel,
-      policy: createAllTrustedPolicy(),
       logger,
     });
 

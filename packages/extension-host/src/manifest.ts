@@ -1,7 +1,6 @@
 import {
   DEFAULT_MAIN,
   EXTENSION_API_VERSION,
-  EXTENSION_PERMISSIONS,
   EXTENSION_PLATFORMS,
   EXTENSION_TAGS,
   GITHUB_LOGIN_PATTERN,
@@ -57,7 +56,6 @@ export const manifestSchema = z
     version: z.string().refine(isSemver, 'version must be semver'),
     apiVersion: z.literal(EXTENSION_API_VERSION),
     main: safePath(['.mjs']).optional(),
-    permissions: z.array(z.enum(EXTENSION_PERMISSIONS)).optional(),
     name: z.string().min(1).max(80).optional(),
     description: z.string().min(1).max(500).optional(),
     author: z
@@ -90,22 +88,13 @@ export const manifestSchema = z
     contributes: contributesSchema,
   })
   .superRefine((manifest, ctx) => {
-    const { permissions = [], platforms = [] } = manifest;
+    const { platforms = [] } = manifest;
     platforms.forEach((platform, index) => {
       if (platforms.indexOf(platform) !== index) {
         ctx.addIssue({
           code: 'custom',
           path: ['platforms', index],
           message: `duplicate platform '${platform}'`,
-        });
-      }
-    });
-    permissions.forEach((permission, index) => {
-      if (permissions.indexOf(permission) !== index) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['permissions', index],
-          message: `duplicate permission '${permission}'`,
         });
       }
     });
@@ -132,28 +121,6 @@ export const manifestSchema = z
           code: 'custom',
           path: ['dependencies', index, 'id'],
           message: `duplicate dependency '${id}'`,
-        });
-      }
-    });
-    if (
-      entriesOf(manifest.contributes, 'events').length > 0 &&
-      !permissions.includes('learning.events')
-    ) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['permissions'],
-        message: "contributes.events requires the 'learning.events' permission",
-      });
-    }
-    entriesOf(manifest.contributes, 'exporters').forEach((entry, index) => {
-      if (
-        (entry as { scope?: unknown }).scope === 'progress' &&
-        !permissions.includes('learning.stats')
-      ) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['contributes', 'exporters', index, 'scope'],
-          message: "scope 'progress' requires the 'learning.stats' permission",
         });
       }
     });
@@ -187,7 +154,6 @@ export const normalizeManifest = (
     version: input.version,
     apiVersion: input.apiVersion,
     main: input.main ?? (needsMain(input.contributes) ? DEFAULT_MAIN : null),
-    permissions: [...(input.permissions ?? [])],
     name: input.name ?? null,
     description: input.description ?? null,
     author: input.author ?? null,
@@ -239,12 +205,12 @@ export const parseManifest = (
 /**
  * JSON Schema (2020-12) of `extension.json` for editors. It cannot express the
  * cross-field rules (`id` prefix, at least one contribution, the
- * `learning.events` permission for events, per-point checks): `parseManifest`
+ * per-point checks): `parseManifest`
  * and `dolphy-ext validate` stay the source of truth.
  */
 export const manifestJsonSchema = (): Record<string, unknown> => ({
   ...z.toJSONSchema(manifestSchema, { io: 'input', unrepresentable: 'any' }),
   title: 'Dolphy extension manifest',
   description:
-    'Editor aid for extension.json. It does not express cross-field rules (id prefix, at least one contribution, the learning.events permission for events, per-point checks); `dolphy-ext validate` and the app remain the source of truth.',
+    'Editor aid for extension.json. It does not express cross-field rules (id prefix, at least one contribution, per-point checks); `dolphy-ext validate` and the app remain the source of truth.',
 });

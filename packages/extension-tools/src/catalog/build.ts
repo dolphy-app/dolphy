@@ -276,7 +276,6 @@ const newRecord = (staged: Staged, publishedAt: string): CatalogVersion => ({
   version: staged.manifest.version,
   apiVersion: staged.manifest.apiVersion,
   minAppVersion: staged.manifest.minAppVersion,
-  permissions: [...staged.manifest.permissions],
   publishedAt,
   baseUrl: baseUrlOf(staged),
   files: staged.files,

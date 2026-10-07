@@ -40,8 +40,6 @@ const info = (overrides: Partial<ExtensionInfoDto> = {}): ExtensionInfoDto => ({
     exporters: [],
   },
   diagnostics: [],
-  permissions: [],
-  isolation: 'isolated',
   toggleable: true,
   name: null,
   description: null,
@@ -114,7 +112,6 @@ const open = (options: OpenOptions = {}) => {
   const settings = createMemorySettingsStore({
     extensions: {
       disabled: options.disabled ?? [],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],

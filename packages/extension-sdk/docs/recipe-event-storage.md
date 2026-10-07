@@ -20,7 +20,6 @@ File `extension.json` (events):
   "name": "Day streak",
   "description": "Counts the days in a row with a closed attempt and shows the streak.",
   "author": "your-github-login",
-  "permissions": ["learning.events"],
   "tags": ["learning"],
   "contributes": {
     "events": [{ "event": "attempt.closed" }],
@@ -33,13 +32,9 @@ File `extension.json` (events):
 }
 ```
 
-- `permissions: ["learning.events"]` and `contributes.events` are both required
-  to receive an event. The events are `session.started`, `session.finished` and
+- `contributes.events` is required to receive an event. The events are `session.started`, `session.finished` and
   `attempt.closed`. The payloads carry ids, the grade, the outcome and the time,
   never the learner's answer or the exercise text.
-- Mention the permission in your `README.md` and say what it is for: the catalog
-  review asks.
-- Storage and settings need no permission.
 
 ## The code
 

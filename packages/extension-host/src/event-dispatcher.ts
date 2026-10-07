@@ -23,7 +23,7 @@ export interface EventDispatcherOptions {
   channel: HostChannel;
   /** Набор расширений движка: читается при каждом событии и перед каждой отправкой. */
   discovery: DiscoverySource;
-  /** Отключённое расширение событий не получает; `isIsolated` — режим исполнения на каждую отправку. */
+  /** Отключённое расширение событий не получает. */
   policy: ExtensionPolicy;
   logger: ExtensionLogger;
   queueLimit?: number;
@@ -69,7 +69,6 @@ export const createEventDispatcher = (
       .extensions.find(({ id }) => id === extensionId);
     return extension !== undefined &&
       policy.isEnabled(extension.id) &&
-      extension.permissions.includes('learning.events') &&
       extension.events.some(({ event }) => event === name)
       ? extension
       : undefined;
@@ -99,7 +98,6 @@ export const createEventDispatcher = (
             extensionId,
             name: event.name,
             payload: event.payload,
-            isolated: policy.isIsolated(extensionId),
           },
           deliveryMs,
           { restart: false },

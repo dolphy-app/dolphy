@@ -581,7 +581,6 @@ describe('обнаружение и реестр команд и панелей'
     const policy = createExtensionPolicy(holder);
     policy.update({
       disabled: [],
-      trusted: [ID],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -630,7 +629,6 @@ describe('обнаружение и реестр команд и панелей'
     const policy = createExtensionPolicy(holder);
     policy.update({
       disabled: [],
-      trusted: [ID],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -708,7 +706,6 @@ describe('обнаружение и реестр команд и панелей'
     const policy = createExtensionPolicy(holder);
     policy.update({
       disabled: [ID],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -880,11 +877,11 @@ describe('протокол замены набора расширений', () =
     const call = (params: Record<string, unknown>) =>
       extMessageSchema.safeParse({ id: '1', method: 'invokeCommand', params })
         .success;
-    const base = { extensionId: ID, commandId: `${ID}.run`, isolated: false };
+    const base = { extensionId: ID, commandId: `${ID}.run` };
 
     expect(call(base)).toBe(true);
     expect(call({ ...base, args: { a: [1] } })).toBe(true);
     expect(call({ ...base, extra: 1 })).toBe(false);
-    expect(call({ extensionId: ID, commandId: `${ID}.run` })).toBe(false);
+    expect(call({ extensionId: ID })).toBe(false);
   });
 });

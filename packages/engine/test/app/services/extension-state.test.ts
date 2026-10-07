@@ -36,8 +36,6 @@ const base = {
     exporters: [],
   },
   diagnostics: [],
-  permissions: [],
-  isolation: 'isolated' as const,
   toggleable: true,
   name: null,
   description: null,
@@ -181,7 +179,6 @@ const open = (installer = createFakeExtensionInstaller()) =>
       bundled: ['dolphy.bundled'],
       settings: {
         disabled: ['acme.off'],
-        trusted: [],
         checkUpdates: true,
         safeMode: false,
         notificationsOff: [],

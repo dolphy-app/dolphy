@@ -99,20 +99,31 @@ describe('SQLite settings store', () => {
     expect(await settings.loadUi()).toEqual({ theme: 'light', locale: 'ru' });
   });
 
-  it('запись расширений прежней формы (без checkUpdates) — проверка включена', async () => {
+  it('миграция 7 убирает ключ trusted из сохранённых настроек расширений', async () => {
     const path = nextPath();
+    const legacy = openBetterSqliteDatabase({ path });
+    for (const sql of MIGRATIONS.slice(0, 6)) legacy.exec(sql);
+    legacy.exec('PRAGMA user_version = 6');
+    legacy
+      .prepare("INSERT INTO setting (key, value) VALUES ('extensions', ?)")
+      .run('{"disabled":["acme.a"],"trusted":["acme.b"],"checkUpdates":false}');
+    legacy.close();
+
     const { events } = open(path);
+    expect(events.inspect().userVersion).toBe(SCHEMA_VERSION);
     await events.close();
     const raw = openBetterSqliteDatabase({ path });
-    raw
-      .prepare("INSERT INTO setting (key, value) VALUES ('extensions', ?)")
-      .run('{"disabled":["acme.a"],"trusted":["acme.b"]}');
+    const row = raw
+      .prepare("SELECT value FROM setting WHERE key = 'extensions'")
+      .get() as { value: string };
     raw.close();
-
+    expect(JSON.parse(row.value)).toEqual({
+      disabled: ['acme.a'],
+      checkUpdates: false,
+    });
     expect(await open(path).settings.loadExtensions()).toEqual({
       disabled: ['acme.a'],
-      trusted: ['acme.b'],
-      checkUpdates: true,
+      checkUpdates: false,
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
@@ -178,11 +189,10 @@ describe('настройки расширений', () => {
     const raw = openBetterSqliteDatabase({ path });
     raw
       .prepare("INSERT INTO setting (key, value) VALUES ('extensions', ?)")
-      .run('{"disabled":["Bad Id"],"trusted":[]}');
+      .run('{"disabled":["Bad Id"]}');
     raw.close();
     expect(await open(path).settings.loadExtensions()).toEqual({
       disabled: [],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],

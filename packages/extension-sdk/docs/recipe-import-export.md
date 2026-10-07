@@ -36,9 +36,8 @@ File `extension.json` (import-export):
   lower-case file extensions such as `.csv`) and an optional `input`: `text`
   (the default, the handler gets the file as a UTF-8 string) or `bytes` (a
   `Uint8Array`). An exporter has `scope`: `course` or `progress`.
-- No permission is needed: the user choosing the file is the consent, and your
-  code never sees a path. A `progress` exporter reads `ctx.stats` and needs the
-  `learning.stats` permission.
+- The user choosing the file is the consent, and your code never sees a path. A
+  `progress` exporter reads `ctx.stats`.
 - The importer appears in the palette as "Import: Cards from CSV", the exporter
   as "Export: Course to CSV", and both have buttons in Settings → Library.
 

@@ -39,7 +39,6 @@ const orderVersion = (version: CatalogVersion): CatalogVersion => ({
   version: version.version,
   apiVersion: version.apiVersion,
   minAppVersion: version.minAppVersion,
-  permissions: [...version.permissions],
   publishedAt: version.publishedAt,
   baseUrl: version.baseUrl,
   files: [...version.files].sort(byPath).map(orderFile),

@@ -10,7 +10,6 @@ import type {
   ExtensionCommandErrorCause,
   ExtensionCommands,
   ExtensionHealth,
-  ExtensionPolicy,
   ExtensionTransferErrorCause,
   ExtensionTransfers,
   GradePolicies,
@@ -59,8 +58,6 @@ const exerciseCause = (cause: ExtFailureCause): ExerciseTypeErrorCause => {
 export interface RemoteExerciseTypesOptions {
   channel: HostChannel;
   catalog: ReturnType<typeof createCatalog>;
-  /** Режим исполнения (`isolated`) вычисляется на каждый вызов. */
-  policy: ExtensionPolicy;
   logger: ExtensionLogger;
   /** Дедлайн `grade` = `timeoutMs + graceMs`. */
   graceMs?: number;
@@ -72,7 +69,6 @@ export interface RemoteExerciseTypesOptions {
 export interface RemoteGradePoliciesOptions {
   channel: HostChannel;
   catalog: ReturnType<typeof createCatalog>;
-  policy: ExtensionPolicy;
   logger: ExtensionLogger;
   deadlineMs?: number;
 }
@@ -80,11 +76,7 @@ export interface RemoteGradePoliciesOptions {
 export const createRemoteExerciseTypes = (
   options: RemoteExerciseTypesOptions,
 ): ExerciseTypes => {
-  const { catalog, channel, policy, health } = options;
-  const isolatedOwner = (type: string): boolean => {
-    const owner = catalog.ownerOf(type);
-    return owner === undefined ? true : policy.isIsolated(owner.id);
-  };
+  const { catalog, channel, health } = options;
   const graceMs = options.graceMs ?? 2000;
   const projectTimeoutMs = options.projectTimeoutMs ?? 5000;
 
@@ -107,13 +99,9 @@ export const createRemoteExerciseTypes = (
 
   const request = async (
     method: 'project' | 'referenceAnswer',
-    params: Omit<ChannelParams<'project'>, 'isolated'>,
+    params: ChannelParams<'project'>,
   ): Promise<unknown> => {
-    const outcome = await channel.call(
-      method,
-      { ...params, isolated: isolatedOwner(params.type) },
-      projectTimeoutMs,
-    );
+    const outcome = await channel.call(method, params, projectTimeoutMs);
     if (outcome.kind !== 'response') throw failure(params.type, outcome);
     const { response } = outcome;
     if (!response.ok) {
@@ -190,11 +178,7 @@ export const createRemoteExerciseTypes = (
 
     async grade(req) {
       const started = performance.now();
-      const outcome = await channel.call(
-        'grade',
-        { ...req, isolated: isolatedOwner(req.type) },
-        req.timeoutMs + graceMs,
-      );
+      const outcome = await channel.call('grade', req, req.timeoutMs + graceMs);
       const durationMs = Math.round(performance.now() - started);
       switch (outcome.kind) {
         case 'response':
@@ -227,12 +211,8 @@ const policyCause = (cause: ExtFailureCause): GradePolicyErrorCause =>
 export const createRemoteGradePolicies = (
   options: RemoteGradePoliciesOptions,
 ): GradePolicies => {
-  const { catalog, channel, logger, policy } = options;
+  const { catalog, channel, logger } = options;
   const deadlineMs = options.deadlineMs ?? POLICY_DEADLINE_MS;
-  const isolatedPolicy = (id: string): boolean => {
-    const owner = catalog.ownerOfPolicy(id);
-    return owner === undefined ? true : policy.isIsolated(owner.id);
-  };
   return {
     list: catalog.describePolicies,
 
@@ -246,7 +226,6 @@ export const createRemoteGradePolicies = (
             ...(verdict.outcome !== 'passed' && { reason: verdict.reason }),
           })),
           gaveUp,
-          isolated: isolatedPolicy(id),
         },
         deadlineMs,
       );
@@ -285,8 +264,6 @@ export interface RemoteExtensionCommandsOptions {
   channel: HostChannel;
   /** Набор расширений движка: панель, на которую указывает `openPanel`, обязана в нём быть. */
   discovery: DiscoverySource;
-  /** Режим исполнения (`isolated`) вычисляется на каждый вызов. */
-  policy: ExtensionPolicy;
   logger: ExtensionLogger;
   deadlineMs?: number;
 }
@@ -309,7 +286,7 @@ const commandCause = (cause: ExtFailureCause): ExtensionCommandErrorCause => {
 export const createRemoteExtensionCommands = (
   options: RemoteExtensionCommandsOptions,
 ): ExtensionCommands => {
-  const { channel, discovery, policy, logger } = options;
+  const { channel, discovery, logger } = options;
   const deadlineMs = options.deadlineMs ?? COMMAND_CLIENT_DEADLINE_MS;
   return {
     async invoke(extensionId, commandId, args) {
@@ -325,7 +302,6 @@ export const createRemoteExtensionCommands = (
           extensionId,
           commandId,
           ...(args !== undefined && { args }),
-          isolated: policy.isIsolated(extensionId),
         },
         deadlineMs,
         { restart: false },
@@ -380,8 +356,6 @@ export const TRANSFER_CLIENT_DEADLINE_MS = 34_000;
 
 export interface RemoteExtensionTransfersOptions {
   channel: HostChannel;
-  /** Режим исполнения (`isolated`) вычисляется на каждый вызов. */
-  policy: ExtensionPolicy;
   logger: ExtensionLogger;
   deadlineMs?: number;
 }
@@ -404,7 +378,7 @@ const transferCause = (cause: ExtFailureCause): ExtensionTransferErrorCause => {
 export const createRemoteExtensionTransfers = (
   options: RemoteExtensionTransfersOptions,
 ): ExtensionTransfers => {
-  const { channel, policy, logger } = options;
+  const { channel, logger } = options;
   const deadlineMs = options.deadlineMs ?? TRANSFER_CLIENT_DEADLINE_MS;
 
   /** Общий путь: вызов хоста, свод причин, проверка результата теми же правилами, что в рантайме. */
@@ -457,7 +431,6 @@ export const createRemoteExtensionTransfers = (
             {
               extensionId,
               importerId,
-              isolated: policy.isIsolated(extensionId),
               ...input,
             },
             deadlineMs,
@@ -477,7 +450,6 @@ export const createRemoteExtensionTransfers = (
               extensionId,
               exporterId,
               input,
-              isolated: policy.isIsolated(extensionId),
             },
             deadlineMs,
             { restart: false },

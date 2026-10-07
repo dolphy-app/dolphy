@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   EXTENSION_SECRET_LIMITS,
   EXTENSION_STORAGE_LIMITS,
-  PermissionError,
   SecretsUnavailableError,
   StorageQuotaError,
   defineExtension,
@@ -316,10 +315,7 @@ describe('createMemoryEvents', () => {
     expect(order).toEqual(['e1']);
   });
 
-  it('subscription is checked as in the host: permission, declaration, one per event', () => {
-    expect(() =>
-      createMemoryEvents({ permitted: false }).on('session.started', vi.fn()),
-    ).toThrow(PermissionError);
+  it('subscription is checked as in the host: declaration, one per event', () => {
     const events = createMemoryEvents({ declared: ['session.started'] });
     expect(() => events.on('attempt.closed', vi.fn())).toThrow(/not declared/);
     const first = events.on('session.started', vi.fn());

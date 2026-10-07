@@ -95,7 +95,8 @@ const bundle = async ({ spec, sourceDir, distDir, version }) => {
     format: 'esm',
     platform: spec.dts ? 'neutral' : 'node',
     tsconfig: path.join(sourceDir, 'tsconfig.json'),
-    dts: spec.dts,
+    // пакеты ссылаются на соседние проекты (`references`): декларации строит `tsc -b`
+    dts: spec.dts ? { build: true } : false,
     sourcemap: false,
     minify: false,
     define: { [VERSION_CONSTANT]: JSON.stringify(version) },

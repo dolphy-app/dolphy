@@ -1,14 +1,16 @@
 // @vitest-environment happy-dom
-import { loadView } from '@dolphy-app/extension-sdk/testing';
-import type { LoadedView } from '@dolphy-app/extension-sdk/testing';
+import { createTestClient } from '@dolphy-app/extension-sdk/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import { nextTick } from 'vue';
-import { views } from '../src/index.ts';
+import { client } from '../src/index.ts';
+import { ChoiceAnswerView } from '../src/choice-view.ts';
+import { mountView as mount } from './mount-view.ts';
+import type { MountedView } from './mount-view.ts';
 
 const single = { multiple: false, options: ['a', 'b', 'c'] };
 const multi = { multiple: true, options: ['a', 'b', 'c', 'd'] };
 
-const loaded: LoadedView[] = [];
+const loaded: MountedView[] = [];
 
 /** Vue рисует на следующем тике: ждём его после каждого действия. */
 const settle = async () => {
@@ -17,23 +19,32 @@ const settle = async () => {
 };
 
 const mountView = async (view: unknown, label?: string) => {
-  const result = await loadView(views, 'dolphy.choice', {
+  const result = await mount(ChoiceAnswerView, {
     view,
     ...(label === undefined ? {} : { label }),
   });
   loaded.push(result);
-  await settle();
   return result;
 };
 
-const inputs = (view: LoadedView) => view.queryAll<HTMLInputElement>('input');
+describe('client dolphy.choice', () => {
+  it('добавляет вид ответа для вида задания', async () => {
+    const running = await createTestClient(client, {
+      extensionId: 'dolphy.choice',
+    });
+    expect(running.answerViews.get('dolphy.choice')).toBe(ChoiceAnswerView);
+    await running.dispose();
+  });
+});
+
+const inputs = (view: MountedView) => view.queryAll<HTMLInputElement>('input');
 
 const click = async (input: HTMLInputElement) => {
   input.click();
   await settle();
 };
 
-const update = async (view: LoadedView, props: Record<string, unknown>) => {
+const update = async (view: MountedView, props: Record<string, unknown>) => {
   await view.update(props);
   await settle();
 };
@@ -151,7 +162,7 @@ describe('вид dolphy.choice', () => {
     ]);
   });
 
-  it('aria-label хоста становится именем группы внутри shadow DOM', async () => {
+  it('prop label становится именем группы', async () => {
     const radios = await mountView(single, 'Ваш ответ');
     expect(
       radios.query('[role="radiogroup"]')?.getAttribute('aria-label'),
@@ -160,10 +171,5 @@ describe('вид dolphy.choice', () => {
     expect(boxes.query('[role="group"]')?.getAttribute('aria-label')).toBe(
       'Ваши ответы',
     );
-  });
-
-  it('стили Vuetify лежат в теневом корне, а не на странице', async () => {
-    const view = await mountView(single);
-    expect(view.query('style[data-dolphy-ui="theme"]')).not.toBeNull();
   });
 });

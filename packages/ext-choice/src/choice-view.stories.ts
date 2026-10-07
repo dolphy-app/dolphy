@@ -1,13 +1,8 @@
-import { ANSWER_EVENT } from '@dolphy-app/extension-api';
-import type { AnswerChangeDetail } from '@dolphy-app/extension-api';
-import { registerAnswerView } from '@dolphy-app/extension-sdk/runtime';
-import type { Meta, StoryObj } from '@storybook/html-vite';
+import type { AnswerChange } from '@dolphy-app/extension-api';
+import type { Meta, StoryObj } from '@storybook/vue3-vite';
 import { expect, fn, waitFor } from 'storybook/test';
-import { views } from './index.ts';
-
-const TAG = 'dolphy-choice-answer';
-
-registerAnswerView(TAG, views['dolphy.choice']);
+import { h } from 'vue';
+import { ChoiceAnswerView } from './choice-view.ts';
 
 interface ChoiceArgs {
   /** `view.options`: подписи вариантов. */
@@ -18,27 +13,13 @@ interface ChoiceArgs {
   value: number[];
   /** Свойство `disabled`: блокирует варианты, выбор сохраняется. */
   disabled: boolean;
-  /** `aria-label` элемента, который выставляет приложение. */
+  /** Свойство `label`: имя группы для скринридера. */
   label: string;
-  /** Событие `dolphy-answer-change`. */
-  onAnswerChange: (detail: AnswerChangeDetail) => void;
+  /** Событие `change`. */
+  onChange: (change: AnswerChange<number[]>) => void;
 }
 
 const OPTIONS = ['SELECT', 'INSERT', 'UPDATE', 'DELETE'];
-
-const mountElement = (args: ChoiceArgs) => {
-  const element = document.createElement(TAG);
-  element.setAttribute('aria-label', args.label);
-  element.addEventListener(ANSWER_EVENT.change, (event) =>
-    args.onAnswerChange((event as CustomEvent<AnswerChangeDetail>).detail),
-  );
-  Object.assign(element, {
-    view: { multiple: args.multiple, options: args.options },
-    value: args.value,
-    disabled: args.disabled,
-  });
-  return element;
-};
 
 const meta = {
   tags: ['autodocs'],
@@ -46,10 +27,9 @@ const meta = {
     docs: {
       description: {
         component:
-          'Вид ввода ответа `dolphy.choice`: элемент `dolphy-choice-answer` ' +
-          'с радиокнопками или чекбоксами в теневом корне. Тему даёт ' +
-          'переключатель Theme на панели (переменные `--v-theme-*` ' +
-          'встроенных тем приложения).',
+          'Вид ввода ответа `dolphy.choice`: компонент с радиокнопками или ' +
+          'чекбоксами Vuetify. Тему даёт переключатель Theme на панели ' +
+          '(встроенные темы приложения).',
       },
     },
   },
@@ -59,7 +39,7 @@ const meta = {
     value: { control: 'object' },
     disabled: { control: 'boolean' },
     label: { control: 'text' },
-    onAnswerChange: { control: false },
+    onChange: { control: false },
   },
   args: {
     options: OPTIONS,
@@ -67,23 +47,29 @@ const meta = {
     value: [],
     disabled: false,
     label: 'Choose the correct answer',
-    onAnswerChange: fn(),
+    onChange: fn(),
   },
-  render: mountElement,
+  render: (args: ChoiceArgs) => ({
+    render: () =>
+      h(ChoiceAnswerView, {
+        view: { multiple: args.multiple, options: args.options },
+        value: args.value,
+        disabled: args.disabled,
+        label: args.label,
+        onChange: args.onChange,
+      }),
+  }),
 } satisfies Meta<ChoiceArgs>;
 
 export default meta;
 type Story = StoryObj<ChoiceArgs>;
 
-/** Поля ввода в теневом корне: запросы `canvas` теневой DOM не видят. */
 const inputsOf = (canvasElement: HTMLElement, type: 'radio' | 'checkbox') =>
   waitFor(() => {
     const inputs = [
-      ...(canvasElement
-        .querySelector(TAG)
-        ?.shadowRoot?.querySelectorAll<HTMLInputElement>(
-          `input[type=${type}]`,
-        ) ?? []),
+      ...canvasElement.querySelectorAll<HTMLInputElement>(
+        `input[type=${type}]`,
+      ),
     ];
     if (inputs.length === 0) throw new Error(`no ${type} inputs rendered`);
     return inputs;
@@ -128,7 +114,7 @@ export const SelectsOne: Story = {
     const radios = await inputsOf(canvasElement, 'radio');
     await userEvent.click(radios[2]!);
     await userEvent.click(radios[1]!);
-    await expect(args.onAnswerChange).toHaveBeenLastCalledWith({
+    await expect(args.onChange).toHaveBeenLastCalledWith({
       value: [1],
       complete: true,
     });
@@ -142,13 +128,13 @@ export const SelectsManyInOrder: Story = {
     const boxes = await inputsOf(canvasElement, 'checkbox');
     await userEvent.click(boxes[3]!);
     await userEvent.click(boxes[0]!);
-    await expect(args.onAnswerChange).toHaveBeenLastCalledWith({
+    await expect(args.onChange).toHaveBeenLastCalledWith({
       value: [0, 3],
       complete: true,
     });
     await userEvent.click(boxes[0]!);
     await userEvent.click(boxes[3]!);
-    await expect(args.onAnswerChange).toHaveBeenLastCalledWith({
+    await expect(args.onChange).toHaveBeenLastCalledWith({
       value: [],
       complete: false,
     });
@@ -161,6 +147,6 @@ export const DisabledIgnoresClicks: Story = {
     const radios = await inputsOf(canvasElement, 'radio');
     await userEvent.click(radios[0]!);
     await expect(radios[1]).toBeChecked();
-    await expect(args.onAnswerChange).not.toHaveBeenCalled();
+    await expect(args.onChange).not.toHaveBeenCalled();
   },
 };

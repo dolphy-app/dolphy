@@ -2,11 +2,11 @@
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import type { ItemReason } from '@dolphy-app/engine-contract';
+import { ANCHOR_ATTRIBUTE } from '@dolphy-app/extension-api';
 import { useEngine } from '@/shared/api/engine';
 import { ITEM_REASON } from '@/shared/config/item-reason.ts';
 import { ROUTE } from '@/shared/config/routes.ts';
 import PageHeader from '@/shared/ui/PageHeader.vue';
-import { ExtensionWidgets } from '@/widgets/extension-widgets';
 import { CourseScopeSwitcher, useCourseScope } from '@/features/course-scope';
 import { useDailyPlan } from '../model/daily-plan.ts';
 import OtherDue from './OtherDue.vue';
@@ -252,11 +252,20 @@ const startSession = () => {
       </v-card>
     </template>
 
-    <ExtensionWidgets area="dailyPlan" />
+    <div :[ANCHOR_ATTRIBUTE]="'dailyPlan'" class="extension-anchor" />
   </v-container>
 </template>
 
 <style scoped>
+/* пустой якорь места не занимает; вставка расширения сама задаёт свой вид */
+.extension-anchor:empty {
+  display: none;
+}
+
+.extension-anchor:not(:empty) {
+  margin-top: 1.5rem;
+}
+
 .hero {
   background: linear-gradient(
     135deg,

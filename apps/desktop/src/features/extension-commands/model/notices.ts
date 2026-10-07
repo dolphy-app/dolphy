@@ -1,10 +1,11 @@
 import { shallowRef } from 'vue';
 import type { Ref } from 'vue';
+import type { AppNotifyKind } from '@dolphy-app/extension-api';
 import type { CommandFailure } from '../lib/failure.ts';
 
 /** Уведомление приложения: текст расширения или сбой команды (текст собирает компонент). */
 export type Notice =
-  | { kind: 'notify'; text: string }
+  | { kind: 'notify'; text: string; level?: AppNotifyKind }
   | { kind: 'failure'; failure: CommandFailure };
 
 export interface NoticeEntry {

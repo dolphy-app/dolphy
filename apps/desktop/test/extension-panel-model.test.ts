@@ -1,12 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { ContributionsDto } from '@dolphy-app/engine-contract';
 import { NO_CONTRIBUTIONS } from '@/shared/api/engine/contributions.ts';
-import {
-  frameKeyOf,
-  resolvePanel,
-} from '@/pages/extension-panel/model/panel.ts';
+import type { ClientPanel } from '@/shared/lib/extension-clients.ts';
+import { resolvePanel } from '@/pages/extension-panel/model/panel.ts';
+import { textComponent } from './support/client-fakes.ts';
 
-const contributions = (revision = 'r1'): ContributionsDto => ({
+const contributions: ContributionsDto = {
   ...NO_CONTRIBUTIONS,
   commands: [
     ['acme.panel', 'acme.panel.ping', true],
@@ -18,31 +17,31 @@ const contributions = (revision = 'r1'): ContributionsDto => ({
     title: String(id),
     description: null,
     category: null,
-    keybinding: null,
     keybindings: [],
     when: null,
     palette: palette === true,
     icon: 'puzzle',
   })),
-  panels: [
-    {
-      id: 'acme.panel.main',
-      extensionId: 'acme.panel',
-      title: 'Панель',
-      icon: 'puzzle',
-      when: null,
-      rendererUrl: 'dolphy-ext://acme.panel/panel.mjs',
-      isolated: true,
-      origin: 'user',
-      revision,
-    },
-  ],
-});
+};
+
+const panels: ClientPanel[] = [
+  {
+    kind: 'panel',
+    key: 'acme.panel:1:1',
+    extensionId: 'acme.panel',
+    id: 'acme.panel.main',
+    title: 'Панель',
+    icon: 'puzzle',
+    when: null,
+    component: textComponent('panel'),
+  },
+];
 
 describe('resolvePanel', () => {
-  it('отдаёт панель и команды только её расширения, включая palette:false', () => {
+  it('отдаёт панель и серверные команды только её расширения, включая palette:false', () => {
     const resolved = resolvePanel(
-      contributions(),
+      panels,
+      contributions,
       'acme.panel',
       'acme.panel.main',
     );
@@ -53,33 +52,15 @@ describe('resolvePanel', () => {
     ]);
   });
 
-  it('панели нет (отключена, удалена, чужой id) — null', () => {
+  it('панели нет (не загружена, отключена, удалена, чужой id) — null', () => {
     expect(
-      resolvePanel(NO_CONTRIBUTIONS, 'acme.panel', 'acme.panel.main'),
+      resolvePanel([], contributions, 'acme.panel', 'acme.panel.main'),
     ).toBeNull();
     expect(
-      resolvePanel(contributions(), 'acme.other', 'acme.panel.main'),
-    ).toBeNull();
-    expect(resolvePanel(contributions(), 'acme.panel', 'nope')).toBeNull();
-  });
-
-  it('панель возвращается, когда расширение вернулось', () => {
-    expect(
-      resolvePanel(NO_CONTRIBUTIONS, 'acme.panel', 'acme.panel.main'),
+      resolvePanel(panels, contributions, 'acme.other', 'acme.panel.main'),
     ).toBeNull();
     expect(
-      resolvePanel(contributions(), 'acme.panel', 'acme.panel.main'),
-    ).not.toBeNull();
-  });
-});
-
-describe('frameKeyOf', () => {
-  it('новая revision — новый ключ рамки, та же revision — тот же', () => {
-    const [first] = contributions('r1').panels;
-    const [same] = contributions('r1').panels;
-    const [updated] = contributions('r2').panels;
-    expect(frameKeyOf(first as never)).toBe(frameKeyOf(same as never));
-    expect(frameKeyOf(first as never)).not.toBe(frameKeyOf(updated as never));
-    expect(frameKeyOf(first as never)).toBe('acme.panel:acme.panel.main:r1');
+      resolvePanel(panels, contributions, 'acme.panel', 'nope'),
+    ).toBeNull();
   });
 });

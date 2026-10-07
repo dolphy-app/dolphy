@@ -7,7 +7,6 @@ import {
 import { parseIndex } from '@dolphy-app/extension-catalog';
 import type { CatalogIndex } from '@dolphy-app/extension-catalog';
 import { BuildError, CatalogUsageError } from '../errors.ts';
-import { englishText, readEnglishTable } from '../locales.ts';
 import { createGithubChecker } from './github.ts';
 import type { GithubUserChecker } from './github.ts';
 import { RULES } from './rules.ts';
@@ -23,7 +22,6 @@ import { readTree } from './tree.ts';
 export const SKIPPED_SOURCE_DIRS: ReadonlySet<string> = new Set([
   'node_modules',
   'dist-ext',
-  '.dolphy',
   '.git',
 ]);
 
@@ -136,7 +134,7 @@ const inspectManifest = async (
 const stringOrNull = (value: unknown): string | null =>
   typeof value === 'string' ? value : null;
 
-/** The extension manifest as written, with name and description in English (`%key%` → `locales/en.json`). */
+/** The extension manifest as written. */
 const readDeclared = async (
   dir: string,
 ): Promise<{ raw: unknown; declared: DeclaredMetadata | null }> => {
@@ -148,16 +146,11 @@ const readDeclared = async (
   }
   if (typeof raw !== 'object' || raw === null) return { raw, declared: null };
   const fields = raw as Record<string, unknown>;
-  const english = await readEnglishTable(dir);
-  const text = (value: unknown): string | null => {
-    const plain = stringOrNull(value);
-    return plain === null ? null : englishText(plain, english);
-  };
   return {
     raw,
     declared: {
-      name: text(fields.name),
-      description: text(fields.description),
+      name: stringOrNull(fields.name),
+      description: stringOrNull(fields.description),
       author: stringOrNull(fields.author),
       icon: stringOrNull(fields.icon),
     },

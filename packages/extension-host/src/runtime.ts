@@ -1,76 +1,68 @@
-import { isDeepStrictEqual } from 'node:util';
 import { pathToFileURL } from 'node:url';
-import type { MessageEndpoint } from '@dolphy-app/engine-contract';
+import type {
+  ExtensionEngine,
+  MessageEndpoint,
+} from '@dolphy-app/engine-contract';
 import {
+  EMPTY_SERVER_REGISTRATION,
   EXTENSION_COMMAND_LIMITS,
+  EXTENSION_HOOK_LIMITS,
+  EXTENSION_RPC_LIMITS,
   EXTENSION_SCHEDULE_LIMITS,
   EXTENSION_TRANSFER_LIMITS,
   InvalidCommandResultError,
   InvalidTransferResultError,
-  PermissionError,
   normalizeCommandResult,
   normalizeExportResult,
   normalizeImportResult,
 } from '@dolphy-app/extension-api';
+import { EXTENSION_HOOKS } from '@dolphy-app/extension-api/hook-schemas';
 import type {
-  CommandHandler,
-  Disposable,
-  ExerciseTypeHandler,
-  ExporterHandler,
-  ExtensionContext,
+  EntryResult,
   ExtensionLogger,
-  ExtensionModule,
-  GradePolicyHandler,
-  ImporterHandler,
-  LearningEventName,
   LibraryReader,
-  ScheduleHandler,
+  ServerEntry,
+  ServerRegistration,
 } from '@dolphy-app/extension-api';
-import { createCatalog } from './catalog.ts';
-import type { ResolvedExtension } from './discover.ts';
+import type { ExtensionCandidate } from './discover.ts';
 import { ENGINE_REQUEST_MS, EngineRequestError } from './engine-link.ts';
 import type { EngineLink } from './engine-link.ts';
-import { createDiscoveryHolder, discoveryOf } from './holder.ts';
-import { createAllTrustedPolicy } from './policy.ts';
+import { createEngineClients } from './engine-tunnel.ts';
+import type { EngineHandle } from './engine-tunnel.ts';
 import {
   extMessageSchema,
   gradeResultSchema,
   gradeValueSchema,
+  isJsonValue,
 } from './protocol.ts';
 import type {
+  EngineTunnelMessage,
   ExtMessage,
   ExtRequest,
   ExtResponse,
+  ExtensionRegistrationResult,
   HealthReport,
   HostFailure,
   HostResponse,
+  ReplaceExtensionsResult,
   SettingChangedNotice,
 } from './protocol.ts';
-import type { RestrictedRunner, RunnerFactory } from './restricted-runner.ts';
-import {
-  createExtensionNotifications,
-  createExtensionStats,
-  createExtensionSecrets,
-  createExtensionStorage,
-  createSettingsState,
-} from './state.ts';
+import { createRegistrar } from './registrar.ts';
+import type { Registrar } from './registrar.ts';
+import { schemaIssues } from './registrar-support.ts';
+import { createSettingsState } from './state.ts';
 import type { SettingsState } from './state.ts';
 
+/** Серверная часть расширения: экспорты `main.mjs`. */
+export interface ServerModule {
+  server?: ServerEntry<ExtensionEngine>;
+}
+
 export interface ExtensionRuntimeOptions {
-  /** Начальный набор; позже его заменяет `replace`. */
-  extensions: readonly ResolvedExtension[];
   library: LibraryReader;
   logger: ExtensionLogger;
   /** Шов для тестов: модуль расширения с этим id берётся отсюда вместо `import()`. */
-  modules?: Readonly<Record<string, ExtensionModule>>;
-  /**
-   * Фабрика ограниченных раннеров. Без неё запросы с `isolated: true` для
-   * расширений не из поставки отклоняются: неверная настройка не должна молча
-   * исполнять код без ограничений.
-   */
-  runners?: RunnerFactory;
-  /** false — не маршрутизировать по `isolated`: сам процесс и есть ограничение (дочерний процесс раннера). */
-  enforceIsolation?: boolean;
+  modules?: Readonly<Record<string, ServerModule>>;
   /**
    * Запас сверх срока вызова (`timeoutMs` у `grade`, 10 с у команд, 5 с у остальных), сколько
    * `replace` ждёт вызов, идущий в момент замены, прежде чем вытеснить
@@ -78,9 +70,9 @@ export interface ExtensionRuntimeOptions {
    */
   drainGraceMs?: number;
   /**
-   * Срок `activate()` (загрузка модуля, настройки, сам вызов): не завершился —
-   * сбой `activation-timeout`, он запоминается до замены сборки. По умолчанию
-   * `ACTIVATION_TIMEOUT_MS`; тот же срок у ограниченного процесса (`readyTimeoutMs`).
+   * Срок регистрации расширения (загрузка модуля, настройки, сам `server`):
+   * не завершилась — расширение остаётся без вкладов. По умолчанию
+   * `ACTIVATION_TIMEOUT_MS`.
    */
   activationTimeoutMs?: number;
 }
@@ -88,15 +80,18 @@ export interface ExtensionRuntimeOptions {
 export interface ExtensionRuntime {
   handle(request: ExtRequest): Promise<ExtResponse>;
   /**
-   * Заменяет набор расширений. Каталог меняется сразу и целиком: вызовы, пришедшие
-   * после, идут в новую сборку. Расширение, которого нет в новом наборе или
-   * которое изменилось (версия, файлы, вклады), вытесняется: его активация
-   * получает `deactivate()`, ограниченный процесс закрывается — после того как
-   * закончатся вызовы, шедшие в момент замены (не дольше их срока и запаса).
-   * Незатронутые расширения не перезагружаются. Промис завершается, когда
-   * вытеснение закончено; на подтверждение движку оно не влияет.
+   * Заменяет набор расширений. Расширения, которых ещё нет или у которых
+   * сменились файлы (`revision`, `mainPath`), загружаются сразу и
+   * параллельно: вызывается `server`, обработчики остаются в хосте, а
+   * ответ несёт регистрацию каждого расширения (всё или ничего: ошибка или
+   * срок — `ok: false`, вкладов нет). Неизменившиеся расширения не
+   * перезапускаются. Прежний код изменившихся и убранных расширений
+   * выгружается (его очистка вызывается) после вызовов, шедших в момент замены
+   * (не дольше их срока и запаса); на ответ это не влияет.
    */
-  replace(extensions: readonly ResolvedExtension[]): Promise<void>;
+  replace(
+    candidates: readonly ExtensionCandidate[],
+  ): Promise<ReplaceExtensionsResult>;
   attach(endpoint: MessageEndpoint): void;
   dispose(): Promise<void>;
 }
@@ -121,28 +116,31 @@ const messageOf = (error: unknown): string =>
 /** Срок вызова, кроме `grade`, у клиента хоста (`projectTimeoutMs`). */
 const DEFAULT_CALL_MS = 5000;
 
-/** Срок `activate()` расширения в процессе хоста; совпадает с `readyTimeoutMs` ограниченного процесса. */
+/** Срок регистрации расширения (`server` вместе с загрузкой модуля); параллельно, на каждое расширение. */
 export const ACTIVATION_TIMEOUT_MS = 10_000;
 
 /** Срок обработчика события обучения (R6). */
 export const EVENT_HANDLER_MS = 2000;
 
-/** Срок обработчика расписания (R12); раннер ограниченного процесса и клиент планировщика ждут дольше. */
+/** Срок обработчика расписания (R12); клиент планировщика ждёт дольше. */
 export const SCHEDULE_HANDLER_MS = EXTENSION_SCHEDULE_LIMITS.handlerMs;
 
-/** Срок обработчика команды расширения (R3); раннер ограниченного процесса и клиент движка ждут дольше. */
+/** Срок обработчика команды расширения (R3); клиент движка ждёт дольше. */
 export const COMMAND_HANDLER_MS = EXTENSION_COMMAND_LIMITS.handlerMs;
 
-/** Срок обработчика импортёра и экспортёра; раннер ограниченного процесса (32 с) и клиент движка (34 с) ждут дольше. */
+/** Срок обработчика `server.handle`; клиент движка ждёт дольше. */
+export const RPC_HANDLER_MS = EXTENSION_RPC_LIMITS.handlerMs;
+
+/** Срок обработчика импортёра и экспортёра; клиент движка (34 с) ждёт дольше. */
 export const TRANSFER_HANDLER_MS = EXTENSION_TRANSFER_LIMITS.handlerMs;
 
 const ignore = (): void => {};
 
-/** Регистрация после срока активации: ничего не делает, освобождать нечего. */
-const lateRegistration: Disposable = { dispose: ignore };
-
 /** Обработчик не уложился в срок: `invoke` превращает её в `handler-timeout`. */
 class HandlerTimeout extends Error {}
+
+/** Регистрация не уложилась в срок. */
+class ActivationTimeout extends Error {}
 
 /** Ждёт `work`, но не дольше `ms`; опоздавший результат и отказ отбрасываются. */
 const within = async <T>(work: Promise<T>, ms: number): Promise<T> => {
@@ -176,22 +174,27 @@ const settledWithin = async (
   }
 };
 
-interface Activation {
-  module: ExtensionModule;
-  handlers: Map<string, ExerciseTypeHandler>;
-  policies: Map<string, GradePolicyHandler>;
-  events: Map<LearningEventName, (payload: unknown) => void | Promise<void>>;
-  commands: Map<string, CommandHandler>;
-  schedules: Map<string, ScheduleHandler>;
+/** Загруженное расширение: его регистратор держит обработчики, `cleanup` — то, что вернул `server`. */
+interface Loaded {
+  candidate: ExtensionCandidate;
+  registration: ServerRegistration;
+  registrar: Registrar;
+  settings: SettingsState;
+  cleanup: EntryResult;
+  /** Клиент движка расширения (`server.engine`): отпускается при выгрузке. */
+  engine: EngineHandle;
   /** Обработчики расписаний, которые ещё работают: срок вышел, а код не вернулся — следующее срабатывание пропускается. */
   firing: Set<string>;
-  importers: Map<string, ImporterHandler>;
-  exporters: Map<string, ExporterHandler>;
-  settings: SettingsState;
-  disposables: Disposable[];
-  /** Срок активации вышел: регистрации, которые код делает позже, ничего не регистрируют. */
-  abandoned: boolean;
 }
+
+/** Исход регистрации одного расширения. */
+type Activation =
+  | { ok: true; loaded: Loaded | null; registration: ServerRegistration }
+  | {
+      ok: false;
+      cause: 'activation-failed' | 'activation-timeout';
+      error: string;
+    };
 
 /** Запрос хоста к движку, ожидающий ответа. */
 interface EnginePending {
@@ -199,13 +202,6 @@ interface EnginePending {
   resolve(value: unknown): void;
   reject(error: Error): void;
   timer: ReturnType<typeof setTimeout>;
-}
-
-/** Активация расширения: появляется сразу, готова — когда `ready`; запоминается вместе с отказом. */
-interface Slot {
-  /** `null`, пока модуль грузится. */
-  activation: Activation | null;
-  ready: Promise<Activation>;
 }
 
 /** Вызов, идущий прямо сейчас; `deadlineAt` — до какого момента его стоит ждать при замене. */
@@ -229,6 +225,12 @@ const scopedLogger = (
   error: (fields, message) => base.error({ ...fields, extensionId }, message),
 });
 
+/** Очистка, которую вернул `server`: функция или `Disposable`. */
+const runCleanup = async (cleanup: EntryResult): Promise<void> => {
+  if (typeof cleanup === 'function') await cleanup();
+  else if (cleanup !== undefined && cleanup !== null) await cleanup.dispose();
+};
+
 export const createExtensionRuntime = (
   options: ExtensionRuntimeOptions,
 ): ExtensionRuntime => {
@@ -236,19 +238,16 @@ export const createExtensionRuntime = (
   const drainGraceMs = options.drainGraceMs ?? 2000;
   const activationTimeoutMs =
     options.activationTimeoutMs ?? ACTIVATION_TIMEOUT_MS;
-  // каталог читает снимок, `replace` подменяет его целиком
-  const discovery = createDiscoveryHolder(discoveryOf(options.extensions));
-  const catalog = createCatalog(discovery, createAllTrustedPolicy());
-  // текущая сборка расширения; совпадение по тождеству объекта = «ещё актуальна»
-  let known = new Map(options.extensions.map((item) => [item.id, item]));
-  const slots = new Map<string, Slot>();
-  const runners = new Map<string, RestrictedRunner>();
+  let loaded = new Map<string, Loaded>();
   const flights = new Map<string, Set<Flight>>();
   const retiring = new Set<Promise<void>>();
   // загрузчик ESM не вытесняет модули: каждая загрузка получает свой `?v=`
   const loads = new Map<string, number>();
-  const enforceIsolation = options.enforceIsolation ?? true;
+  // замены идут по очереди: следующая видит итог предыдущей
+  let replacing: Promise<unknown> = Promise.resolve();
+  let replaceCount = 0;
   let current: MessageEndpoint | null = null;
+  const engineClients = createEngineClients(logger);
   // запросы к движку: собственные идентификаторы `h<N>`, таймер перезапуска не взводят
   const engineRequests = new Map<string, EnginePending>();
   let nextEngineId = 0;
@@ -302,395 +301,162 @@ export const createExtensionRuntime = (
     else pending.reject(new EngineRequestError(response.error));
   };
 
-  const loadModule = async (
-    extension: ResolvedExtension,
-  ): Promise<ExtensionModule> => {
-    const injected = options.modules?.[extension.id];
-    if (injected === undefined && extension.mainPath === null) {
-      throw new Error(`extension '${extension.id}' has no main`);
-    }
-    let module = injected;
-    if (module === undefined) {
-      const load = (loads.get(extension.id) ?? 0) + 1;
-      loads.set(extension.id, load);
-      const url = `${pathToFileURL(extension.mainPath ?? '').href}?v=${load}`;
-      module = ((await import(url)) as { default?: ExtensionModule }).default;
-    }
-    if (
-      module === undefined ||
-      module === null ||
-      typeof module.activate !== 'function'
-    ) {
-      throw new Error(`extension '${extension.id}' has no activate()`);
-    }
-    return module;
-  };
-
-  /** Код мог забыть вклад, который манифест объявил: обращение к нему потом упадёт, а здесь причина видна сразу. */
-  const warnUnregistered = (
-    extension: ResolvedExtension,
-    activation: Activation,
-  ): void => {
-    const missing = {
-      exerciseTypes: extension.exerciseTypes
-        .map((type) => type.id)
-        .filter((id) => !activation.handlers.has(id)),
-      gradePolicies: extension.gradePolicies
-        .map((policy) => policy.id)
-        .filter((id) => !activation.policies.has(id)),
-      events: extension.events
-        .map(({ event }) => event)
-        .filter((event) => !activation.events.has(event)),
-      commands: extension.commands
-        .map(({ id }) => id)
-        .filter((id) => !activation.commands.has(id)),
-      schedules: extension.schedules
-        .map(({ id }) => id)
-        .filter((id) => !activation.schedules.has(id)),
-      importers: extension.importers
-        .map(({ id }) => id)
-        .filter((id) => !activation.importers.has(id)),
-      exporters: extension.exporters
-        .map(({ id }) => id)
-        .filter((id) => !activation.exporters.has(id)),
-    };
-    for (const [kind, ids] of Object.entries(missing)) {
-      if (ids.length === 0) continue;
-      logger.warn(
-        { extensionId: extension.id, kind, ids },
-        'declared in the manifest but not registered by the extension code',
-      );
-    }
-  };
-
-  const activate = async (
-    extension: ResolvedExtension,
-    created: (activation: Activation) => void,
-  ): Promise<Activation> => {
-    const module = await loadModule(extension);
-    const declared = new Set(extension.exerciseTypes.map((type) => type.id));
-    const declaredPolicies = new Set(
-      extension.gradePolicies.map((policy) => policy.id),
-    );
-    const declaredEvents = new Set(extension.events.map(({ event }) => event));
-    const declaredCommands = new Set(extension.commands.map(({ id }) => id));
-    const declaredSchedules = new Set(extension.schedules.map(({ id }) => id));
-    const declaredImporters = new Set(extension.importers.map(({ id }) => id));
-    const declaredExporters = new Set(extension.exporters.map(({ id }) => id));
-    const settings = createSettingsState(
-      extension.id,
-      extension.settings,
-      logger,
-    );
-    const activation: Activation = {
-      module,
-      handlers: new Map(),
-      policies: new Map(),
-      events: new Map(),
-      commands: new Map(),
-      schedules: new Map(),
-      firing: new Set(),
-      importers: new Map(),
-      exporters: new Map(),
-      settings,
-      disposables: [{ dispose: settings.dispose }],
-      abandoned: false,
-    };
-    created(activation);
-    // изменения, пришедшие во время загрузки, `settings` применяет поверх неё
-    await settings.load(() =>
-      engine.request('settings.all', { extensionId: extension.id }),
-    );
-    const context: ExtensionContext = {
-      extensionId: extension.id,
-      logger: scopedLogger(options.logger, extension.id),
-      library: options.library,
-      storage: createExtensionStorage(engine, extension.id),
-      stats: createExtensionStats(engine, extension.id, extension.permissions),
-      secrets: createExtensionSecrets(engine, extension.id),
-      notifications: createExtensionNotifications(
-        engine,
-        extension.id,
-        extension.permissions,
-      ),
-      settings: settings.api,
-      events: {
-        on(name, handler) {
-          if (!extension.permissions.includes('learning.events')) {
-            throw new PermissionError('learning.events');
-          }
-          if (!declaredEvents.has(name)) {
-            throw new Error(
-              `event '${name}' is not declared in the manifest of '${extension.id}'`,
-            );
-          }
-          if (activation.abandoned) return lateRegistration;
-          if (activation.events.has(name)) {
-            throw new Error(`event '${name}' is already subscribed`);
-          }
-          const stored = handler as (payload: unknown) => void | Promise<void>;
-          activation.events.set(name, stored);
-          const disposable: Disposable = {
-            dispose: () => {
-              if (activation.events.get(name) === stored) {
-                activation.events.delete(name);
-              }
-            },
-          };
-          activation.disposables.push(disposable);
-          return disposable;
-        },
-      },
-      schedule: {
-        on(id, handler) {
-          if (!declaredSchedules.has(id)) {
-            throw new Error(
-              `schedule '${id}' is not declared in the manifest of '${extension.id}'`,
-            );
-          }
-          if (activation.abandoned) return lateRegistration;
-          if (activation.schedules.has(id)) {
-            throw new Error(`schedule '${id}' is already subscribed`);
-          }
-          activation.schedules.set(id, handler);
-          const disposable: Disposable = {
-            dispose: () => {
-              if (activation.schedules.get(id) === handler) {
-                activation.schedules.delete(id);
-              }
-            },
-          };
-          activation.disposables.push(disposable);
-          return disposable;
-        },
-      },
-      commands: {
-        register(id, handler) {
-          if (!declaredCommands.has(id)) {
-            throw new Error(
-              `command '${id}' is not declared in the manifest of '${extension.id}'`,
-            );
-          }
-          if (activation.abandoned) return lateRegistration;
-          if (activation.commands.has(id)) {
-            throw new Error(`command '${id}' is already registered`);
-          }
-          activation.commands.set(id, handler);
-          const disposable: Disposable = {
-            dispose: () => {
-              if (activation.commands.get(id) === handler) {
-                activation.commands.delete(id);
-              }
-            },
-          };
-          activation.disposables.push(disposable);
-          return disposable;
-        },
-      },
-      importers: {
-        register(id, handler) {
-          if (!declaredImporters.has(id)) {
-            throw new Error(
-              `importer '${id}' is not declared in the manifest of '${extension.id}'`,
-            );
-          }
-          if (activation.abandoned) return lateRegistration;
-          if (activation.importers.has(id)) {
-            throw new Error(`importer '${id}' is already registered`);
-          }
-          activation.importers.set(id, handler);
-          const disposable: Disposable = {
-            dispose: () => {
-              if (activation.importers.get(id) === handler) {
-                activation.importers.delete(id);
-              }
-            },
-          };
-          activation.disposables.push(disposable);
-          return disposable;
-        },
-      },
-      exporters: {
-        register(id, handler) {
-          if (!declaredExporters.has(id)) {
-            throw new Error(
-              `exporter '${id}' is not declared in the manifest of '${extension.id}'`,
-            );
-          }
-          if (activation.abandoned) return lateRegistration;
-          if (activation.exporters.has(id)) {
-            throw new Error(`exporter '${id}' is already registered`);
-          }
-          activation.exporters.set(id, handler);
-          const disposable: Disposable = {
-            dispose: () => {
-              if (activation.exporters.get(id) === handler) {
-                activation.exporters.delete(id);
-              }
-            },
-          };
-          activation.disposables.push(disposable);
-          return disposable;
-        },
-      },
-      registerExerciseType(type, handler) {
-        if (!declared.has(type)) {
-          throw new Error(
-            `exercise type '${type}' is not declared in the manifest of '${extension.id}'`,
-          );
-        }
-        if (activation.abandoned) return lateRegistration;
-        if (activation.handlers.has(type)) {
-          throw new Error(`exercise type '${type}' is already registered`);
-        }
-        activation.handlers.set(type, handler);
-        const disposable: Disposable = {
-          dispose: () => void activation.handlers.delete(type),
-        };
-        activation.disposables.push(disposable);
-        return disposable;
-      },
-      registerGradePolicy(id, handler) {
-        if (!declaredPolicies.has(id)) {
-          throw new Error(
-            `grade policy '${id}' is not declared in the manifest of '${extension.id}'`,
-          );
-        }
-        if (activation.abandoned) return lateRegistration;
-        if (activation.policies.has(id)) {
-          throw new Error(`grade policy '${id}' is already registered`);
-        }
-        activation.policies.set(id, handler);
-        const disposable: Disposable = {
-          dispose: () => void activation.policies.delete(id),
-        };
-        activation.disposables.push(disposable);
-        return disposable;
-      },
-    };
-    await module.activate(context);
-    if (!activation.abandoned) warnUnregistered(extension, activation);
-    return activation;
-  };
-
-  /** Сборка, заменённая после начала вызова, не оживает: её активация осталась бы без владельца. */
-  const assertCurrent = (extension: ResolvedExtension): void => {
-    if (known.get(extension.id) !== extension) {
-      throw new RuntimeFailure(
-        'activation-failed',
-        `extension '${extension.id}' was replaced`,
-      );
-    }
-  };
-
   /** Сообщение о здоровье движку: учёт не должен ломать вызов, поэтому отказ канала молча теряется. */
   const reportHealth = (report: HealthReport): void => {
     engine.request('health.report', report).catch(ignore);
   };
 
-  const openSlot = (extension: ResolvedExtension): Slot => {
-    let created: Activation | null = null;
+  const loadServer = async (
+    candidate: ExtensionCandidate,
+  ): Promise<ServerEntry<ExtensionEngine>> => {
+    let module = options.modules?.[candidate.id];
+    if (module === undefined) {
+      const load = (loads.get(candidate.id) ?? 0) + 1;
+      loads.set(candidate.id, load);
+      const url = `${pathToFileURL(candidate.mainPath ?? '').href}?v=${load}`;
+      module = (await import(url)) as ServerModule;
+    }
+    if (typeof module.server !== 'function') {
+      throw new Error('main.mjs does not export server');
+    }
+    return module.server;
+  };
+
+  /** Загружает модуль, вызывает `server`, подгружает настройки; всё или ничего. */
+  const register = async (
+    candidate: ExtensionCandidate,
+    registrar: Registrar,
+    settings: SettingsState,
+    engineHandle: EngineHandle,
+  ): Promise<Loaded> => {
+    try {
+      const server = await loadServer(candidate);
+      const cleanup = await server(registrar.context);
+      registrar.seal();
+      // значения настроек известны движку по определениям, поэтому грузятся после регистрации
+      await settings.load(() =>
+        engine.request('settings.all', { extensionId: candidate.id }),
+      );
+      return {
+        candidate,
+        registration: registrar.snapshot(),
+        registrar,
+        settings,
+        cleanup,
+        firing: new Set(),
+        engine: engineHandle,
+      };
+    } catch (error) {
+      registrar.seal();
+      settings.dispose();
+      throw error;
+    }
+  };
+
+  const drain = async (waiting: readonly Flight[]): Promise<void> => {
+    if (waiting.length === 0) return;
+    const until = Math.max(...waiting.map(({ deadlineAt }) => deadlineAt));
+    await settledWithin(
+      Promise.all(waiting.map(({ done }) => done)),
+      until - Date.now(),
+    );
+  };
+
+  /** Выгрузка: вызовы, шедшие в момент замены, договаривают, затем очистка расширения. */
+  const retire = async (
+    item: Loaded,
+    waiting: readonly Flight[] = [],
+  ): Promise<void> => {
+    await drain(waiting);
+    item.settings.dispose();
+    try {
+      await runCleanup(item.cleanup);
+    } catch (error) {
+      logger.error(
+        { extensionId: item.candidate.id, error: messageOf(error) },
+        'extension cleanup failed',
+      );
+    } finally {
+      item.engine.release();
+    }
+  };
+
+  const activate = async (
+    candidate: ExtensionCandidate,
+  ): Promise<Activation> => {
+    if (
+      candidate.mainPath === null &&
+      options.modules?.[candidate.id] === undefined
+    ) {
+      return {
+        ok: true,
+        loaded: null,
+        registration: EMPTY_SERVER_REGISTRATION,
+      };
+    }
     const started = performance.now();
-    let abandoned = false;
-    const work = activate(extension, (activation) => {
-      created = activation;
-      activation.abandoned = abandoned;
-    });
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const expired = new Promise<never>((_resolve, reject) => {
+    let expired = false;
+    const settings = createSettingsState(candidate.id, logger);
+    const engineHandle = engineClients.open(candidate.id);
+    const registrar = createRegistrar({
+      extensionId: candidate.id,
+      logger: scopedLogger(logger, candidate.id),
+      library: options.library,
+      engine,
+      engineClient: engineHandle.engine,
+      settings,
+    });
+    const work = register(candidate, registrar, settings, engineHandle);
+    // опоздавший итог не должен остаться без владельца: его очистка вызывается сразу
+    work.then((late) => {
+      if (expired) void retire(late);
+    }, ignore);
+    const timeout = new Promise<never>((_resolve, reject) => {
       timer = setTimeout(() => {
-        abandoned = true;
-        if (created !== null) created.abandoned = true;
-        logger.warn(
-          { extensionId: extension.id },
-          'extension activation timed out',
-        );
+        registrar.seal();
+        expired = true;
         reject(
-          new RuntimeFailure(
-            'activation-timeout',
-            `activate() did not finish in ${activationTimeoutMs} ms`,
+          new ActivationTimeout(
+            `server() did not finish in ${activationTimeoutMs} ms (the engine starts after registration: do not await s.engine inside server(), call it from handlers)`,
           ),
         );
       }, activationTimeoutMs);
     });
-    // опоздавший отказ активации не должен всплыть необработанным
-    work.catch(ignore);
-    const ready = Promise.race([work, expired]).finally(() => {
-      clearTimeout(timer);
-    });
-    // успешная активация записывает длительность (в ограниченном процессе — его рантайм через раннер)
-    void ready.then(
-      () =>
-        reportHealth({
-          extensionId: extension.id,
-          kind: 'activated',
-          durationMs: Math.round(performance.now() - started),
-        }),
-      ignore,
-    );
-    return {
-      get activation() {
-        return created;
-      },
-      ready,
-    };
-  };
-
-  const activationOf = async (
-    extension: ResolvedExtension,
-  ): Promise<Activation> => {
-    assertCurrent(extension);
-    let slot = slots.get(extension.id);
-    if (slot === undefined) {
-      slot = openSlot(extension);
-      slots.set(extension.id, slot);
-    }
     try {
-      return await slot.ready;
+      const result = await Promise.race([work, timeout]);
+      reportHealth({
+        extensionId: candidate.id,
+        kind: 'activated',
+        durationMs: Math.round(performance.now() - started),
+      });
+      return { ok: true, loaded: result, registration: result.registration };
     } catch (error) {
-      if (error instanceof RuntimeFailure) throw error;
-      throw new RuntimeFailure('activation-failed', messageOf(error));
+      const cause =
+        error instanceof ActivationTimeout
+          ? 'activation-timeout'
+          : 'activation-failed';
+      logger.warn(
+        { extensionId: candidate.id, cause, error: messageOf(error) },
+        'extension registration failed',
+      );
+      reportHealth({
+        extensionId: candidate.id,
+        kind: 'failed',
+        reason: cause,
+        message: messageOf(error),
+      });
+      engineHandle.release();
+      return { ok: false, cause, error: messageOf(error) };
+    } finally {
+      clearTimeout(timer);
     }
   };
 
-  const handlerFor = async (
-    extension: ResolvedExtension | undefined,
-    type: string,
-  ): Promise<ExerciseTypeHandler> => {
-    if (extension === undefined) {
-      throw new RuntimeFailure(
-        'unknown-type',
-        `unknown exercise type '${type}'`,
-      );
-    }
-    const handler = (await activationOf(extension)).handlers.get(type);
-    if (handler === undefined) {
-      throw new RuntimeFailure(
-        'activation-failed',
-        `extension '${extension.id}' did not register '${type}'`,
-      );
-    }
-    return handler;
-  };
-
-  const policyFor = async (
-    extension: ResolvedExtension | undefined,
-    id: string,
-  ): Promise<GradePolicyHandler> => {
-    if (extension === undefined) {
-      throw new RuntimeFailure(
-        'unknown-policy',
-        `unknown grade policy '${id}'`,
-      );
-    }
-    const handler = (await activationOf(extension)).policies.get(id);
-    if (handler === undefined) {
-      throw new RuntimeFailure(
-        'activation-failed',
-        `extension '${extension.id}' did not register '${id}'`,
-      );
-    }
-    return handler;
+  /** Освобождение в фоне: `dispose()` рантайма дожидается всех. */
+  const background = (work: Promise<void>): void => {
+    retiring.add(work);
+    void work.finally(() => retiring.delete(work));
   };
 
   const invoke = async <T>(call: () => T | Promise<T>): Promise<T> => {
@@ -716,13 +482,36 @@ export const createExtensionRuntime = (
     }
   };
 
+  const utf8Bytes = (text: string): number => Buffer.byteLength(text);
+
+  const requireOwner = (
+    owner: Loaded | undefined,
+    extensionId: string,
+  ): Loaded => {
+    if (owner === undefined) {
+      throw new RuntimeFailure(
+        'unknown-type',
+        `unknown extension '${extensionId}'`,
+      );
+    }
+    return owner;
+  };
+
   const evaluatePolicy = async (
-    extension: ResolvedExtension | undefined,
+    owner: Loaded | undefined,
     params: Extract<ExtRequest, { method: 'gradePolicy' }>['params'],
   ): Promise<unknown> => {
-    const policy = await policyFor(extension, params.policyId);
+    const handler = owner?.registrar.handlers.gradePolicies.get(
+      params.policyId,
+    )?.handler;
+    if (handler === undefined) {
+      throw new RuntimeFailure(
+        'unknown-policy',
+        `unknown grade policy '${params.policyId}'`,
+      );
+    }
     const result = await invoke(() =>
-      policy({ verdicts: params.verdicts, gaveUp: params.gaveUp }),
+      handler({ verdicts: params.verdicts, gaveUp: params.gaveUp }),
     );
     const parsed = gradeValueSchema.safeParse(result);
     if (!parsed.success) {
@@ -735,23 +524,13 @@ export const createExtensionRuntime = (
   };
 
   const deliverEvent = async (
-    extension: ResolvedExtension | undefined,
+    owner: Loaded | undefined,
     params: Extract<ExtRequest, { method: 'deliverEvent' }>['params'],
   ): Promise<{ delivered: boolean }> => {
-    if (extension === undefined) {
-      throw new RuntimeFailure(
-        'unknown-type',
-        `unknown extension '${params.extensionId}'`,
-      );
-    }
-    // расширение без разрешения или объявления события не активируется ради него
-    if (
-      !extension.permissions.includes('learning.events') ||
-      !extension.events.some(({ event }) => event === params.name)
-    ) {
-      return { delivered: false };
-    }
-    const handler = (await activationOf(extension)).events.get(params.name);
+    const handler = requireOwner(
+      owner,
+      params.extensionId,
+    ).registrar.handlers.events.get(params.name);
     if (handler === undefined) return { delivered: false };
     await invoke(() =>
       within(Promise.resolve(handler(params.payload)), EVENT_HANDLER_MS),
@@ -760,66 +539,39 @@ export const createExtensionRuntime = (
   };
 
   const fireSchedule = async (
-    extension: ResolvedExtension | undefined,
+    owner: Loaded | undefined,
     params: Extract<ExtRequest, { method: 'fireSchedule' }>['params'],
   ): Promise<{ delivered: boolean }> => {
-    if (extension === undefined) {
-      throw new RuntimeFailure(
-        'unknown-type',
-        `unknown extension '${params.extensionId}'`,
-      );
-    }
-    // расписание, которого расширение не объявляло, его не активирует
-    if (!extension.schedules.some(({ id }) => id === params.scheduleId)) {
-      return { delivered: false };
-    }
-    const activation = await activationOf(extension);
-    const handler = activation.schedules.get(params.scheduleId);
+    const extension = requireOwner(owner, params.extensionId);
+    const handler = extension.registrar.handlers.schedules.get(
+      params.scheduleId,
+    )?.handler;
     if (handler === undefined) return { delivered: false };
-    if (activation.firing.has(params.scheduleId)) {
+    if (extension.firing.has(params.scheduleId)) {
       logger.warn(
-        { extensionId: extension.id, scheduleId: params.scheduleId },
+        { extensionId: params.extensionId, scheduleId: params.scheduleId },
         'schedule handler is still running, the firing is skipped',
       );
       return { delivered: false };
     }
     const running = Promise.resolve().then(() => handler());
-    activation.firing.add(params.scheduleId);
+    extension.firing.add(params.scheduleId);
     // обработчик, не уложившийся в срок, продолжает работать: расписание свободно, когда вернётся он сам
     const release = (): void => {
-      activation.firing.delete(params.scheduleId);
+      extension.firing.delete(params.scheduleId);
     };
     running.then(release, release);
     await invoke(() => within(running, SCHEDULE_HANDLER_MS));
     return { delivered: true };
   };
 
-  /** Активация расширения; сборку, заменённую во время активации, вызывающий получает как `replaced`: ему нужен повтор, а не сбой кода. */
-  const liveActivation = async (
-    extension: ResolvedExtension,
-  ): Promise<Activation> => {
-    try {
-      return await activationOf(extension);
-    } catch (error) {
-      if (known.get(extension.id) !== extension) {
-        throw new RuntimeFailure(
-          'replaced',
-          `extension '${extension.id}' was replaced`,
-        );
-      }
-      throw error;
-    }
-  };
-
-  const utf8Bytes = (text: string): number => Buffer.byteLength(text);
-
   const runImporter = async (
-    extension: ResolvedExtension | undefined,
+    owner: Loaded | undefined,
     params: Extract<ExtRequest, { method: 'runImporter' }>['params'],
   ): Promise<unknown> => {
     const { importerId } = params;
-    const declared = extension?.importers.find(({ id }) => id === importerId);
-    if (extension === undefined || declared === undefined) {
+    const entry = owner?.registrar.handlers.importers.get(importerId);
+    if (entry === undefined) {
       throw new RuntimeFailure(
         'unknown-importer',
         `unknown importer '${importerId}' of '${params.extensionId}'`,
@@ -833,17 +585,10 @@ export const createExtensionRuntime = (
         `the file is longer than ${EXTENSION_TRANSFER_LIMITS.inputBytes} bytes`,
       );
     }
-    if (('text' in params ? 'text' : 'bytes') !== declared.input) {
+    if (('text' in params ? 'text' : 'bytes') !== entry.meta.input) {
       throw new RuntimeFailure(
         'handler-failed',
-        `importer '${importerId}' takes ${declared.input} input`,
-      );
-    }
-    const handler = (await liveActivation(extension)).importers.get(importerId);
-    if (handler === undefined) {
-      throw new RuntimeFailure(
-        'unknown-importer',
-        `extension '${extension.id}' did not register importer '${importerId}'`,
+        `importer '${importerId}' takes ${entry.meta.input} input`,
       );
     }
     const input =
@@ -851,27 +596,27 @@ export const createExtensionRuntime = (
         ? { name: params.name, text: params.text }
         : { name: params.name, bytes: params.bytes };
     const result = await invoke(() =>
-      within(Promise.resolve(handler(input)), TRANSFER_HANDLER_MS),
+      within(Promise.resolve(entry.handler(input)), TRANSFER_HANDLER_MS),
     );
     return checkedTransfer(() => normalizeImportResult(result));
   };
 
   const runExporter = async (
-    extension: ResolvedExtension | undefined,
+    owner: Loaded | undefined,
     params: Extract<ExtRequest, { method: 'runExporter' }>['params'],
   ): Promise<unknown> => {
     const { exporterId, input } = params;
-    const declared = extension?.exporters.find(({ id }) => id === exporterId);
-    if (extension === undefined || declared === undefined) {
+    const entry = owner?.registrar.handlers.exporters.get(exporterId);
+    if (entry === undefined) {
       throw new RuntimeFailure(
         'unknown-exporter',
         `unknown exporter '${exporterId}' of '${params.extensionId}'`,
       );
     }
-    if (input.scope !== declared.scope) {
+    if (input.scope !== entry.meta.scope) {
       throw new RuntimeFailure(
         'handler-failed',
-        `exporter '${exporterId}' takes the ${declared.scope} scope`,
+        `exporter '${exporterId}' takes the ${entry.meta.scope} scope`,
       );
     }
     if (
@@ -886,46 +631,30 @@ export const createExtensionRuntime = (
         `the course files are longer than ${EXTENSION_TRANSFER_LIMITS.totalBytes} bytes`,
       );
     }
-    const handler = (await liveActivation(extension)).exporters.get(exporterId);
-    if (handler === undefined) {
-      throw new RuntimeFailure(
-        'unknown-exporter',
-        `extension '${extension.id}' did not register exporter '${exporterId}'`,
-      );
-    }
     const result = await invoke(() =>
-      within(Promise.resolve(handler(input)), TRANSFER_HANDLER_MS),
+      within(Promise.resolve(entry.handler(input)), TRANSFER_HANDLER_MS),
     );
     return checkedTransfer(() => normalizeExportResult(result));
   };
 
   const invokeCommand = async (
-    extension: ResolvedExtension | undefined,
+    owner: Loaded | undefined,
     params: Extract<ExtRequest, { method: 'invokeCommand' }>['params'],
   ): Promise<unknown> => {
     const { commandId } = params;
-    if (!extension?.commands.some(({ id }) => id === commandId)) {
-      throw new RuntimeFailure(
-        'unknown-command',
-        `unknown command '${commandId}' of '${params.extensionId}'`,
-      );
-    }
-    const activation = await liveActivation(extension);
-    const handler = activation.commands.get(commandId);
+    const handler = owner?.registrar.handlers.commands.get(commandId)?.handler;
     if (handler === undefined) {
       throw new RuntimeFailure(
         'unknown-command',
-        `extension '${extension.id}' did not register command '${commandId}'`,
+        `unknown command '${commandId}' of '${params.extensionId}'`,
       );
     }
     const result = await invoke(() =>
       within(Promise.resolve(handler(params.args)), COMMAND_HANDLER_MS),
     );
     try {
-      return normalizeCommandResult(
-        result,
-        extension.panels.map(({ id }) => id),
-      );
+      // панели регистрирует окно: хост не знает их id, окно проверяет `openPanel` само
+      return normalizeCommandResult(result, undefined);
     } catch (error) {
       if (error instanceof InvalidCommandResultError) {
         throw new RuntimeFailure('invalid-result', error.message);
@@ -934,30 +663,116 @@ export const createExtensionRuntime = (
     }
   };
 
+  const invokeRpc = async (
+    owner: Loaded | undefined,
+    params: Extract<ExtRequest, { method: 'invokeRpc' }>['params'],
+  ): Promise<unknown> => {
+    const { name } = params;
+    const entry = owner?.registrar.handlers.rpcs.get(name);
+    if (entry === undefined) {
+      throw new RuntimeFailure(
+        'unknown-rpc',
+        `unknown rpc '${name}' of '${params.extensionId}'`,
+      );
+    }
+    const { contract, handler } = entry;
+    const input = await contract.input.safeParseAsync(params.input);
+    if (!input.success) {
+      throw new RuntimeFailure(
+        'invalid-input',
+        `invalid input of '${name}': ${schemaIssues(input.error).join('; ')}`,
+      );
+    }
+    const result = await invoke(() =>
+      within(Promise.resolve(handler(input.data)), RPC_HANDLER_MS),
+    );
+    const output = await contract.output.safeParseAsync(result);
+    if (!output.success) {
+      throw new RuntimeFailure(
+        'invalid-result',
+        `invalid result of '${name}': ${schemaIssues(output.error).join('; ')}`,
+      );
+    }
+    // `undefined` (контракт с `z.void()`) допустим: ключ `result` у него просто отсутствует
+    if (output.data !== undefined && !isJsonValue(output.data)) {
+      throw new RuntimeFailure(
+        'invalid-result',
+        `the result of '${name}' is not JSON`,
+      );
+    }
+    return output.data;
+  };
+
+  const runHook = async (
+    owner: Loaded | undefined,
+    params: Extract<ExtRequest, { method: 'runHook' }>['params'],
+  ): Promise<unknown> => {
+    const { name } = params;
+    const handler = owner?.registrar.handlers.hooks.get(name);
+    if (handler === undefined) {
+      throw new RuntimeFailure(
+        'unknown-hook',
+        `unknown hook '${name}' of '${params.extensionId}'`,
+      );
+    }
+    const hook = EXTENSION_HOOKS[name];
+    const request = await hook.request.safeParseAsync(params.request);
+    if (!request.success) {
+      throw new RuntimeFailure(
+        'invalid-input',
+        `invalid request of hook '${name}': ${schemaIssues(request.error).join('; ')}`,
+      );
+    }
+    const result = await invoke(() =>
+      within(
+        Promise.resolve(handler(request.data)),
+        EXTENSION_HOOK_LIMITS.timeoutMs,
+      ),
+    );
+    const response = await hook.response.safeParseAsync(result);
+    if (!response.success) {
+      throw new RuntimeFailure(
+        'invalid-result',
+        `invalid result of hook '${name}': ${schemaIssues(response.error).join('; ')}`,
+      );
+    }
+    return response.data;
+  };
+
   const run = async (
     request: ExtRequest,
-    extension: ResolvedExtension | undefined,
+    owner: Loaded | undefined,
   ): Promise<unknown> => {
-    if (request.method === 'gradePolicy') {
-      return evaluatePolicy(extension, request.params);
-    }
-    if (request.method === 'deliverEvent') {
-      return deliverEvent(extension, request.params);
-    }
-    if (request.method === 'fireSchedule') {
-      return fireSchedule(extension, request.params);
-    }
-    if (request.method === 'invokeCommand') {
-      return invokeCommand(extension, request.params);
-    }
-    if (request.method === 'runImporter') {
-      return runImporter(extension, request.params);
-    }
-    if (request.method === 'runExporter') {
-      return runExporter(extension, request.params);
+    switch (request.method) {
+      case 'gradePolicy':
+        return evaluatePolicy(owner, request.params);
+      case 'deliverEvent':
+        return deliverEvent(owner, request.params);
+      case 'fireSchedule':
+        return fireSchedule(owner, request.params);
+      case 'invokeCommand':
+        return invokeCommand(owner, request.params);
+      case 'invokeRpc':
+        return invokeRpc(owner, request.params);
+      case 'runImporter':
+        return runImporter(owner, request.params);
+      case 'runExporter':
+        return runExporter(owner, request.params);
+      case 'runHook':
+        return runHook(owner, request.params);
+      default:
+        break;
     }
     const { params } = request;
-    const handler = await handlerFor(extension, params.type);
+    const handler = owner?.registrar.handlers.exerciseTypes.get(
+      params.type,
+    )?.handler;
+    if (handler === undefined) {
+      throw new RuntimeFailure(
+        'unknown-type',
+        `unknown exercise type '${params.type}'`,
+      );
+    }
     switch (request.method) {
       case 'project':
         return invoke(() =>
@@ -1005,53 +820,6 @@ export const createExtensionRuntime = (
     }
   };
 
-  const disposeActivation = async (slot: Slot): Promise<void> => {
-    // активация, ещё регистрирующая обработчики, дорегистрируется до освобождения
-    await settledWithin(slot.ready, drainGraceMs);
-    const { activation } = slot;
-    if (activation === null) return;
-    try {
-      await activation.module.deactivate?.();
-    } catch (error) {
-      logger.error({ error: messageOf(error) }, 'deactivate failed');
-    }
-    for (const disposable of activation.disposables) {
-      try {
-        await disposable.dispose();
-      } catch (error) {
-        logger.error({ error: messageOf(error) }, 'dispose failed');
-      }
-    }
-  };
-
-  const disposeRunner = async (runner: RestrictedRunner): Promise<void> => {
-    try {
-      await runner.dispose();
-    } catch (error) {
-      logger.error({ error: messageOf(error) }, 'runner dispose failed');
-    }
-  };
-
-  /** Освобождение в фоне: `dispose()` рантайма дожидается всех. */
-  const background = (work: Promise<void>): Promise<void> => {
-    retiring.add(work);
-    void work.finally(() => retiring.delete(work));
-    return work;
-  };
-
-  /** Выводит активацию из обращения сразу; освобождает и ждёт её. */
-  const releaseActivation = async (extensionId: string): Promise<void> => {
-    const slot = slots.get(extensionId);
-    slots.delete(extensionId);
-    if (slot !== undefined) await background(disposeActivation(slot));
-  };
-
-  const releaseRunner = async (extensionId: string): Promise<void> => {
-    const runner = runners.get(extensionId);
-    runners.delete(extensionId);
-    if (runner !== undefined) await background(disposeRunner(runner));
-  };
-
   /** Срок вызова, который стоит дождаться при замене набора; обработчики команды и `grade` задают его сами. */
   const budgetOf = (request: ExtRequest): number => {
     switch (request.method) {
@@ -1061,9 +829,13 @@ export const createExtensionRuntime = (
         return SCHEDULE_HANDLER_MS;
       case 'invokeCommand':
         return COMMAND_HANDLER_MS;
+      case 'invokeRpc':
+        return RPC_HANDLER_MS;
       case 'runImporter':
       case 'runExporter':
         return TRANSFER_HANDLER_MS;
+      case 'runHook':
+        return EXTENSION_HOOK_LIMITS.timeoutMs;
       default:
         return DEFAULT_CALL_MS;
     }
@@ -1091,146 +863,90 @@ export const createExtensionRuntime = (
     return work;
   };
 
-  const drain = async (waiting: readonly Flight[]): Promise<void> => {
-    if (waiting.length === 0) return;
-    const until = Math.max(...waiting.map(({ deadlineAt }) => deadlineAt));
-    await settledWithin(
-      Promise.all(waiting.map(({ done }) => done)),
-      until - Date.now(),
+  const doReplace = async (
+    candidates: readonly ExtensionCandidate[],
+  ): Promise<ReplaceExtensionsResult> => {
+    const previous = loaded;
+    const next = new Map<string, Loaded>();
+    const stale: Loaded[] = [];
+    const outcomes = await Promise.all(
+      candidates.map(
+        async (candidate): Promise<ExtensionRegistrationResult> => {
+          const before = previous.get(candidate.id);
+          if (
+            before !== undefined &&
+            before.candidate.revision === candidate.revision &&
+            before.candidate.mainPath === candidate.mainPath
+          ) {
+            before.candidate = candidate;
+            next.set(candidate.id, before);
+            return { ok: true, registration: before.registration };
+          }
+          if (before !== undefined) stale.push(before);
+          const activation = await activate(candidate);
+          if (!activation.ok) return { ok: false, error: activation.error };
+          if (activation.loaded !== null) {
+            next.set(candidate.id, activation.loaded);
+          }
+          return { ok: true, registration: activation.registration };
+        },
+      ),
     );
-  };
-
-  /** Вытеснение при замене: активация и ограниченный процесс уходят из обращения сразу, освобождаются после вызовов в полёте. */
-  const evict = async (extensionId: string): Promise<void> => {
-    const waiting = [...(flights.get(extensionId) ?? [])];
-    const slot = slots.get(extensionId);
-    const runner = runners.get(extensionId);
-    slots.delete(extensionId);
-    runners.delete(extensionId);
-    if (slot === undefined && runner === undefined) return;
-    await background(
-      (async () => {
-        await drain(waiting);
-        if (slot !== undefined) await disposeActivation(slot);
-        if (runner !== undefined) await disposeRunner(runner);
-      })(),
-    );
-  };
-
-  const replace = (extensions: readonly ResolvedExtension[]): Promise<void> => {
-    const previous = known;
-    const next = new Map<string, ResolvedExtension>();
-    const stale: string[] = [];
-    for (const item of extensions) {
-      const before = previous.get(item.id);
-      if (before !== undefined && isDeepStrictEqual(before, item)) {
-        next.set(item.id, before); // то же тождество: идущие вызовы остаются актуальными
-      } else {
-        next.set(item.id, item);
-        if (before !== undefined) stale.push(item.id);
-      }
+    for (const [id, item] of previous) {
+      if (!next.has(id) && !stale.includes(item)) stale.push(item);
     }
-    for (const id of previous.keys()) if (!next.has(id)) stale.push(id);
-    known = next;
-    discovery.replace(discoveryOf([...next.values()]));
-    // новые файлы — новая сводка здоровья
-    for (const id of stale) reportHealth({ extensionId: id, kind: 'reset' });
-    return Promise.all(stale.map(evict)).then(ignore);
+    loaded = next;
+    for (const item of stale) {
+      // новые файлы — новая сводка здоровья
+      reportHealth({ extensionId: item.candidate.id, kind: 'reset' });
+      background(retire(item, [...(flights.get(item.candidate.id) ?? [])]));
+    }
+    return {
+      registrations: Object.fromEntries(
+        candidates.map(({ id }, index) => [id, outcomes[index]]),
+      ) as Record<string, ExtensionRegistrationResult>,
+    };
   };
 
-  const ownerOfRequest = (
-    request: ExtRequest,
-  ): ResolvedExtension | undefined => {
+  const replace = (
+    candidates: readonly ExtensionCandidate[],
+  ): Promise<ReplaceExtensionsResult> => {
+    replaceCount++;
+    const result = replacing.then(() => doReplace(candidates));
+    replacing = result.then(ignore, ignore).finally(() => replaceCount--);
+    return result;
+  };
+
+  const ownerOfRequest = (request: ExtRequest): Loaded | undefined => {
     switch (request.method) {
       case 'gradePolicy':
-        return catalog.ownerOfPolicy(request.params.policyId);
+        return [...loaded.values()].find((item) =>
+          item.registrar.handlers.gradePolicies.has(request.params.policyId),
+        );
       case 'deliverEvent':
       case 'fireSchedule':
       case 'invokeCommand':
+      case 'invokeRpc':
       case 'runImporter':
       case 'runExporter':
-        return known.get(request.params.extensionId);
+      case 'runHook':
+        return loaded.get(request.params.extensionId);
       default:
-        return catalog.ownerOf(request.params.type);
-    }
-  };
-
-  /** Изменение настройки — работающему расширению: в процессе или в ограниченном процессе. */
-  const applySettingChange = ({ params }: SettingChangedNotice): void => {
-    slots
-      .get(params.extensionId)
-      ?.activation?.settings.apply({ id: params.id, value: params.value });
-    runners
-      .get(params.extensionId)
-      ?.notify({ method: 'settingChanged', params });
-  };
-
-  const refused = (
-    request: ExtRequest,
-    message: string,
-    cause: Extract<
-      ExtResponse,
-      { ok: false }
-    >['error']['cause'] = 'activation-failed',
-  ): ExtResponse => ({
-    id: request.id,
-    ok: false,
-    error: { cause, message },
-  });
-
-  // Расширение не из поставки с isolated === true исполняется в ограниченном
-  // процессе; смена режима освобождает активацию другого режима.
-  const runIsolated = async (
-    request: ExtRequest,
-    extension: ResolvedExtension,
-  ): Promise<ExtResponse> => {
-    if (options.runners === undefined) {
-      return refused(request, 'isolated execution is not configured');
-    }
-    await releaseActivation(extension.id);
-    let runner = runners.get(extension.id);
-    if (runner === undefined) {
-      if (known.get(extension.id) !== extension) {
-        return refused(
-          request,
-          `extension '${extension.id}' was replaced`,
-          request.method === 'invokeCommand' ||
-            request.method === 'runImporter' ||
-            request.method === 'runExporter'
-            ? 'replaced'
-            : 'activation-failed',
+        return [...loaded.values()].find((item) =>
+          item.registrar.handlers.exerciseTypes.has(request.params.type),
         );
-      }
-      runner = options.runners.create(extension, engine);
-      runners.set(extension.id, runner);
     }
-    const response = await runner.handle(request);
-    if (!response.ok) {
-      logger.warn(
-        { extensionId: extension.id, ...response.error },
-        'restricted extension call failed',
-      );
-    }
-    return response;
   };
 
-  const dispatch = async (
+  const execute = async (
     request: ExtRequest,
-    extension: ResolvedExtension | undefined,
+    owner: Loaded | undefined,
   ): Promise<ExtResponse> => {
-    if (extension !== undefined) {
-      const isolated =
-        enforceIsolation &&
-        request.params.isolated &&
-        extension.origin !== 'bundled';
-      if (isolated) return runIsolated(request, extension);
-      await releaseRunner(extension.id);
-    }
     try {
       return {
         id: request.id,
         ok: true,
-        result: await run(request, extension),
+        result: await run(request, owner),
       };
     } catch (error) {
       if (error instanceof RuntimeFailure) {
@@ -1250,12 +966,17 @@ export const createExtensionRuntime = (
   };
 
   // владелец вызова определяется один раз: замена набора посреди вызова его не переключает
-  const handle = (request: ExtRequest): Promise<ExtResponse> => {
-    const extension = ownerOfRequest(request);
-    const response = dispatch(request, extension);
-    return extension === undefined
+  const handle = async (request: ExtRequest): Promise<ExtResponse> => {
+    let owner = ownerOfRequest(request);
+    // расширения, чья регистрация ещё идёт, не «неизвестны»: вызов ждёт её итога
+    if (owner === undefined && replaceCount > 0) {
+      await replacing;
+      owner = ownerOfRequest(request);
+    }
+    const response = execute(request, owner);
+    return owner === undefined
       ? response
-      : fly(extension.id, request, response);
+      : fly(owner.candidate.id, request, response);
   };
 
   return {
@@ -1270,8 +991,12 @@ export const createExtensionRuntime = (
         current.close();
       }
       current = endpoint;
+      engineClients.connect(endpoint);
       endpoint.onClose(() => {
-        if (current === endpoint) current = null;
+        if (current === endpoint) {
+          current = null;
+          engineClients.connect(null);
+        }
         failEngineRequests(endpoint, {
           code: 'UNAVAILABLE',
           message: 'engine connection closed',
@@ -1284,19 +1009,32 @@ export const createExtensionRuntime = (
           return;
         }
         const request = parsed.data as
-          ExtMessage | SettingChangedNotice | HostResponse;
+          | ExtMessage
+          | SettingChangedNotice
+          | EngineTunnelMessage
+          | HostResponse;
         if ('ok' in request) {
           settleEngineRequest(request);
           return;
         }
         if (request.method === 'settingChanged') {
-          applySettingChange(request);
+          loaded.get(request.params.extensionId)?.settings.apply({
+            id: request.params.id,
+            value: request.params.value,
+          });
+          return;
+        }
+        if (
+          request.method === 'engineFrame' ||
+          request.method === 'engineDetach'
+        ) {
+          engineClients.receive(request);
           return;
         }
         if (request.method === 'replaceExtensions') {
-          // подтверждение уходит, когда каталог уже заменён; вытеснение идёт следом
-          void replace(request.params.extensions);
-          endpoint.post({ id: request.id, ok: true, result: null });
+          void replace(request.params.extensions).then((result) => {
+            endpoint.post({ id: request.id, ok: true, result });
+          });
           return;
         }
         void handle(request).then((response) => {
@@ -1313,9 +1051,12 @@ export const createExtensionRuntime = (
         current.close();
       }
       current = null;
-      for (const id of [...slots.keys()]) await releaseActivation(id);
-      for (const id of [...runners.keys()]) await releaseRunner(id);
+      await replacing;
+      const items = [...loaded.values()];
+      loaded = new Map();
+      for (const item of items) background(retire(item));
       await Promise.all([...retiring]);
+      engineClients.closeAll();
     },
   };
 };

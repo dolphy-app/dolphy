@@ -1,39 +1,63 @@
-/** Вид ввода ответа `dolphy.sql`: многострочное моноширинное поле Vuetify в теневом корне элемента. */
-import type { MountAnswerView } from '@dolphy-app/extension-sdk';
-import { mountTextarea } from '@dolphy-app/extension-ui/vuetify/fields';
+/** Вид ввода ответа `dolphy.sql`: многострочное моноширинное поле Vuetify. */
+import type { AnswerChange } from '@dolphy-app/extension-api';
+import { defineComponent, h, ref, watch } from 'vue';
+import type { PropType } from 'vue';
+import { VTextarea } from 'vuetify/components';
 
 const ROWS = 6;
 
 const toText = (value: unknown) => (typeof value === 'string' ? value : '');
 
-export const mountSqlEditor: MountAnswerView = (api, initial) => {
-  const container = document.createElement('div');
-  api.root.append(container);
+const unknownProp = { type: null as unknown as PropType<unknown> };
 
-  // значение свойства применяется только при его смене: приложение может не
-  // возвращать введённый текст, и обновление `disabled` не должно его стирать
-  const state = { value: initial.value };
-  const field = mountTextarea(container, {
-    value: toText(initial.value),
-    label: api.label,
-    rows: ROWS,
-    monospace: true,
-    spellcheck: false,
-    disabled: initial.disabled,
-    onChange: (text) => {
-      api.setAnswer(text, text.trim().length > 0);
-    },
-    onSubmit: api.submit,
-  });
-
-  return {
-    update: (props) => {
-      if (props.value !== state.value) {
-        state.value = props.value;
-        field.update({ value: toText(props.value) });
+export const SqlAnswerView = defineComponent({
+  name: 'SqlAnswerView',
+  props: {
+    view: unknownProp,
+    value: unknownProp,
+    disabled: Boolean,
+    verdict: unknownProp,
+    label: { type: String as PropType<string | null>, default: null },
+  },
+  emits: ['change', 'submit'],
+  setup(props, { emit }) {
+    // текст заменяется только со сменой свойства `value`: приложение может не
+    // возвращать введённое, и обновление `disabled` не должно его стирать
+    const text = ref(toText(props.value));
+    watch(
+      () => props.value,
+      (value) => {
+        text.value = toText(value);
+      },
+    );
+    const onInput = (next: string | null) => {
+      text.value = next ?? '';
+      const change: AnswerChange<string> = {
+        value: text.value,
+        complete: text.value.trim().length > 0,
+      };
+      emit('change', change);
+    };
+    const onKeydown = (event: KeyboardEvent) => {
+      if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        emit('submit');
       }
-      field.update({ disabled: props.disabled });
-    },
-    destroy: field.destroy,
-  };
-};
+    };
+
+    return () =>
+      h(VTextarea, {
+        modelValue: text.value,
+        'onUpdate:modelValue': onInput,
+        onKeydown,
+        'aria-label': props.label ?? undefined,
+        rows: ROWS,
+        spellcheck: false,
+        disabled: props.disabled,
+        style: { fontFamily: 'monospace' },
+        variant: 'outlined',
+        density: 'compact',
+        hideDetails: true,
+      });
+  },
+});

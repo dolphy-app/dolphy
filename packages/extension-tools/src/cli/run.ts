@@ -3,7 +3,6 @@ import { CatalogUsageError } from '../errors.ts';
 import {
   BuildError,
   buildExtension,
-  generateTypes,
   validateExtension,
   watchExtension,
 } from '../index.ts';
@@ -41,23 +40,20 @@ export const EXIT_PROBLEMS = 1;
 export const EXIT_USAGE = 2;
 
 const USAGE = `usage: dolphy-ext build [dir] [--out <dir>] [--watch]
-       dolphy-ext types [dir]
        dolphy-ext validate <dir>
        dolphy-ext lint [dir] [--built <dir>]
        dolphy-ext dev [dir] [--app <path>]
 ${CATALOG_SYNOPSIS}
   build [dir]      build the extension from a project (default: the current
-                   directory) into <dir>/dist-ext/<id>; also writes
-                   <dir>/.dolphy/ids.d.ts
-  types [dir]      write <dir>/.dolphy/ids.d.ts: the ids declared in
-                   extension.json as types for the SDK (no code is run)
+                   directory) into <dir>/dist-ext/<id>: main.mjs from the
+                   'server' export of src/index.ts, client.mjs from 'client'
   validate <dir>   check the directory of a built extension (extension.json,
-                   schemas, main and renderer, locales/*.json)
+                   main and client files, assets)
   lint [dir]       check the project before a pull request to the catalog:
                    manifest metadata, README.md and the built code (eval,
-                   obfuscation, URLs without the network permission, source
-                   maps); lines «error|warning <id> <RULE-ID> <field>:
-                   <message>», exit code 1 only if README.md is missing
+                   obfuscation, source maps); lines «error|warning <id>
+                   <RULE-ID> <field>: <message>», exit code 1 only if
+                   README.md is missing
   dev [dir]        watch-build the project and launch the installed Dolphy app
                    with DOLPHY_DEV_EXTENSIONS=<dir>/dist-ext; Ctrl+C stops both.
                    The app is --app, then the DOLPHY_APP variable, then the
@@ -78,7 +74,6 @@ type Parsed =
   | { help: true }
   | { usageError: string }
   | { command: 'build'; dir: string; out: string | undefined; watch: boolean }
-  | { command: 'types'; dir: string }
   | { command: 'validate'; dir: string }
   | { command: 'lint'; dir: string; built: string | undefined }
   | { command: 'dev'; dir: string; app: string | undefined }
@@ -102,15 +97,6 @@ const parseBuild = (args: readonly string[]): Parsed => {
     return { usageError: `extra arguments: ${positional.slice(1).join(' ')}` };
   }
   return { command: 'build', dir: positional[0] ?? '.', out, watch };
-};
-
-const parseTypes = (args: readonly string[]): Parsed => {
-  const flag = args.find((arg) => arg.startsWith('-'));
-  if (flag !== undefined) return { usageError: `unknown flag: ${flag}` };
-  if (args.length > 1) {
-    return { usageError: `extra arguments: ${args.slice(1).join(' ')}` };
-  }
-  return { command: 'types', dir: args[0] ?? '.' };
 };
 
 const parseValidate = (args: readonly string[]): Parsed => {
@@ -164,7 +150,6 @@ const parseArgs = (argv: readonly string[]): Parsed => {
   if (argv.includes('--help') || argv.includes('-h')) return { help: true };
   const [command, ...rest] = argv;
   if (command === 'build') return parseBuild(rest);
-  if (command === 'types') return parseTypes(rest);
   if (command === 'validate') return parseValidate(rest);
   if (command === 'lint') return parseLint(rest);
   if (command === 'dev') return parseDev(rest);
@@ -226,8 +211,7 @@ const runBuild = async (
 
 const runValidate = async (dir: string, io: CliIo): Promise<number> => {
   const root = path.resolve(dir);
-  const { ok, problems, warnings } = await validateExtension(root);
-  for (const warning of warnings) io.stdout(`warning ${root}: ${warning}\n`);
+  const { ok, problems } = await validateExtension(root);
   if (ok) {
     io.stdout(`${root}: ok\n`);
     return EXIT_OK;
@@ -294,19 +278,7 @@ const runDevCommand = async (
   }
 };
 
-const runTypes = async (dir: string, io: CliIo): Promise<number> => {
-  try {
-    const root = path.resolve(dir);
-    const { file, changed } = await generateTypes({ root });
-    const shown = path.relative(root, file);
-    io.stdout(changed ? `wrote ${shown}\n` : `${shown} is up to date\n`);
-    return EXIT_OK;
-  } catch (error) {
-    return reportBuildError(io, error);
-  }
-};
-
-/** `dolphy-ext build|types|validate|lint|dev|catalog`; `argv` is without `node` and the script name. */
+/** `dolphy-ext build|validate|lint|dev|catalog`; `argv` is without `node` and the script name. */
 export const runCli = async (
   argv: readonly string[],
   io: CliIo,
@@ -332,6 +304,5 @@ export const runCli = async (
   if (parsed.command === 'validate') return runValidate(parsed.dir, io);
   if (parsed.command === 'lint') return runLint(parsed, io);
   if (parsed.command === 'dev') return runDevCommand(parsed, io, deps);
-  if (parsed.command === 'types') return runTypes(parsed.dir, io);
   return runBuild(parsed, io, deps);
 };

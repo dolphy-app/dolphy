@@ -1,6 +1,6 @@
 import { cp, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { copyProject, linkSdk, makeTemp } from './helpers.ts';
+import { copyProject, linkVue, makeTemp } from './helpers.ts';
 
 export type Fixture =
   'theme-only' | 'markdown-only' | 'hello' | 'commands-panel' | 'surfaces';
@@ -74,7 +74,7 @@ export const addExtension = async (
   for (const [file, content] of Object.entries(files)) {
     await writeRelative(target, file, content);
   }
-  if (spec.fixture !== 'theme-only') await linkSdk(target);
+  await linkVue(target);
   return target;
 };
 
@@ -125,17 +125,10 @@ export const publishedIndex = (
       author: 'octo-cat',
       source: `https://github.com/dolphy-app/dolphy-extensions/tree/main/extensions/${id}`,
       platforms: [],
-      contributes: {
-        exerciseTypes: [],
-        themes: [id],
-        markdownRenderers: [],
-        gradePolicies: [],
-      },
       versions: versions.map((version) => ({
         version,
         apiVersion: 1,
         minAppVersion: null,
-        permissions: [],
         publishedAt: '2026-10-01T00:00:00.000Z',
         baseUrl: `extensions/${id}/${version}/`,
         files: [

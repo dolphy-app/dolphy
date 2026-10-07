@@ -2,16 +2,26 @@ import type { ExtensionHostServices } from '@dolphy-app/engine/app';
 import type { MessageEndpoint } from '@dolphy-app/engine-contract';
 import type { ExtensionLogger } from '@dolphy-app/extension-api';
 import { hostFailureOf } from './engine-link.ts';
-import type { ResolvedExtension } from './discover.ts';
-import { hostRequestSchema } from './protocol.ts';
+import { createEngineTunnels } from './engine-tunnel.ts';
+import type { EngineClientSink } from './engine-tunnel.ts';
+import type { ExtensionCandidate } from './discover.ts';
+import {
+  engineTunnelSchema,
+  hostRequestSchema,
+  replaceExtensionsResultSchema,
+} from './protocol.ts';
 import type {
   ExtMessage,
   ExtResponse,
   HealthReport,
   HostRequest,
   HostResponse,
+  ReplaceExtensionsResult,
   SettingChangedNotice,
 } from './protocol.ts';
+
+/** Срок ответа на `replaceExtensions`: регистрация расширений идёт параллельно, каждой до 10 с. */
+export const REPLACE_DEADLINE_MS = 15_000;
 
 export interface HostChannelOptions {
   logger: ExtensionLogger;
@@ -19,13 +29,10 @@ export interface HostChannelOptions {
   restart?: () => void;
   /** Сколько ждать первый `attach`. */
   connectTimeoutMs?: number;
-  /**
-   * Набор расширений, который канал отправляет хосту первым сообщением после
-   * каждого `attach`, до любых вызовов: перезапущенный хост расширений
-   * (и новый порт после перезапуска любой стороны) сразу получает текущий
-   * набор движка.
-   */
-  currentExtensions?: () => readonly ResolvedExtension[];
+  /** Текущие кандидаты: канал отправляет их хосту первым сообщением после каждого `attach`. */
+  currentExtensions: () => readonly ExtensionCandidate[];
+  /** Итог регистрации после `attach`: перезапущенный хост расширений сразу отдаёт движку свои вклады. */
+  onRegistrations: (result: ReplaceExtensionsResult) => void;
 }
 
 export type ChannelOutcome =
@@ -64,6 +71,14 @@ export interface HostChannel {
     deadlineMs: number,
     options?: CallOptions,
   ): Promise<ChannelOutcome>;
+  /**
+   * Отправляет хосту кандидатов, ждёт регистрации (до `REPLACE_DEADLINE_MS`)
+   * и возвращает итог по каждому расширению. Нет хоста, закрытие или срок —
+   * ошибка.
+   */
+  replaceExtensions(
+    candidates: readonly ExtensionCandidate[],
+  ): Promise<ReplaceExtensionsResult>;
   /** Сообщение без ответа; хост не подключён — теряется (хост при активации читает актуальное состояние сам). */
   notify(notice: SettingChangedNotice): void;
   /**
@@ -72,6 +87,13 @@ export interface HostChannel {
    * создаётся после канала, поэтому сервисы подключаются отдельным вызовом.
    */
   serve(services: ExtensionHostServices | null): void;
+  /**
+   * Диспетчер движка (`createDispatcher`): расширения вызывают методы движка
+   * кадрами `engine-rpc` внутри канала, каждое — клиентом `extension:<id>`.
+   * Кадры, пришедшие раньше, ждут подключения; `null` закрывает туннели.
+   * Диспетчер создаётся вместе с движком, поэтому подключается отдельным вызовом.
+   */
+  serveEngine(sink: EngineClientSink | null): void;
   close(): Promise<void>;
 }
 
@@ -173,12 +195,14 @@ export const createHostChannel = (options: HostChannelOptions): HostChannel => {
   let closed = false;
   let services: ExtensionHostServices | null = null;
   const pending = new Map<string, Pending>();
+  const tunnels = createEngineTunnels((message) => endpoint?.post(message));
   const connectWaiters = new Set<(endpoint: MessageEndpoint | null) => void>();
 
   const dropEndpoint = (dropped: MessageEndpoint): void => {
     if (endpoint !== dropped) return;
     endpoint = null;
     for (const entry of [...pending.values()]) entry.settle({ kind: 'closed' });
+    tunnels.reset();
   };
 
   const closeEndpoint = (): void => {
@@ -247,36 +271,96 @@ export const createHostChannel = (options: HostChannelOptions): HostChannel => {
     });
   };
 
+  /** Отправляет запрос `target` и ждёт ответа не дольше дедлайна. */
+  const send = <M extends ChannelMethod>(
+    target: MessageEndpoint,
+    method: M,
+    params: ChannelParams<M>,
+    deadlineMs: number,
+    callOptions: CallOptions,
+  ): Promise<ChannelOutcome> => {
+    const id = String(nextId++);
+    return new Promise<ChannelOutcome>((resolve) => {
+      const slot: { timer?: ReturnType<typeof setTimeout> } = {};
+      const settle = (outcome: ChannelOutcome): void => {
+        clearTimeout(slot.timer);
+        pending.delete(id);
+        resolve(outcome);
+      };
+      slot.timer = setTimeout(() => {
+        settle({ kind: 'timeout' });
+        if (callOptions.restart !== false) options.restart?.();
+      }, deadlineMs);
+      pending.set(id, { settle });
+      target.post({ id, method, params } as ExtMessage);
+    });
+  };
+
+  /** Набор кандидатов хосту; итог регистрации каждого расширения. Нет ответа — ошибка. */
+  const replaceVia = async (
+    target: MessageEndpoint,
+    candidates: readonly ExtensionCandidate[],
+  ): Promise<ReplaceExtensionsResult> => {
+    const outcome = await send(
+      target,
+      'replaceExtensions',
+      { extensions: [...candidates] },
+      REPLACE_DEADLINE_MS,
+      {},
+    );
+    if (outcome.kind !== 'response' || !outcome.response.ok) {
+      throw new Error(
+        outcome.kind === 'response'
+          ? 'extension host refused the extension set'
+          : `extension host did not answer replaceExtensions (${outcome.kind})`,
+      );
+    }
+    const parsed = replaceExtensionsResultSchema.safeParse(
+      outcome.response.result,
+    );
+    if (!parsed.success) {
+      throw new Error('extension host sent an invalid registration result');
+    }
+    return parsed.data as ReplaceExtensionsResult;
+  };
+
   return {
     connected: () => endpoint !== null,
 
     attach(next) {
       closeEndpoint();
       endpoint = next;
-      if (options.currentExtensions !== undefined) {
-        // ответ не нужен: у приветствия нет ожидающего вызова, `onMessage` его пропустит
-        next.post({
-          id: `attach-${nextId++}`,
-          method: 'replaceExtensions',
-          params: { extensions: [...options.currentExtensions()] },
-        } satisfies ExtMessage);
-      }
       next.onMessage((message) => {
         if (endpoint !== next) return;
         if (isHostRequest(message)) {
           void serveHostRequest(next, message);
           return;
         }
-        if (!isResponse(message)) {
-          logger.warn({}, 'invalid extension host response ignored');
+        if (isResponse(message)) {
+          pending
+            .get(message.id)
+            ?.settle({ kind: 'response', response: message });
           return;
         }
-        pending
-          .get(message.id)
-          ?.settle({ kind: 'response', response: message });
+        const tunnel = engineTunnelSchema.safeParse(message);
+        if (tunnel.success) {
+          tunnels.receive(tunnel.data);
+          return;
+        }
+        logger.warn({}, 'invalid extension host response ignored');
       });
       next.onClose(() => dropEndpoint(next));
       for (const waiter of [...connectWaiters]) waiter(next);
+      // перезапущенный хост (и новый порт после перезапуска любой стороны) сразу получает текущий набор
+      replaceVia(next, options.currentExtensions()).then(
+        options.onRegistrations,
+        (error: unknown) => {
+          logger.warn(
+            { error: error instanceof Error ? error.message : String(error) },
+            'extension registrations were not received',
+          );
+        },
+      );
     },
 
     notify(notice) {
@@ -287,24 +371,20 @@ export const createHostChannel = (options: HostChannelOptions): HostChannel => {
       services = next;
     },
 
+    serveEngine(sink) {
+      tunnels.serve(sink);
+    },
+
     async call(method, params, deadlineMs, callOptions = {}) {
       const target = await awaitEndpoint();
       if (target === null) return { kind: 'no-host' };
-      const id = String(nextId++);
-      return new Promise<ChannelOutcome>((resolve) => {
-        const slot: { timer?: ReturnType<typeof setTimeout> } = {};
-        const settle = (outcome: ChannelOutcome): void => {
-          clearTimeout(slot.timer);
-          pending.delete(id);
-          resolve(outcome);
-        };
-        slot.timer = setTimeout(() => {
-          settle({ kind: 'timeout' });
-          if (callOptions.restart !== false) options.restart?.();
-        }, deadlineMs);
-        pending.set(id, { settle });
-        target.post({ id, method, params } as ExtMessage);
-      });
+      return send(target, method, params, deadlineMs, callOptions);
+    },
+
+    async replaceExtensions(candidates) {
+      const target = await awaitEndpoint();
+      if (target === null) throw new Error('extension host is not connected');
+      return replaceVia(target, candidates);
     },
 
     async close() {

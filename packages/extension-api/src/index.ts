@@ -1,29 +1,25 @@
 /**
- * Public extension API. The package depends on neither the engine nor the DOM: it is imported
- * by extension code (`main.mjs`), by the answer element (`view.mjs`), and by the engine itself.
+ * Public extension API. At run time the package depends on neither the engine nor the DOM: it is imported
+ * by the server part of an extension (`main.mjs`, entry `server`), by its client part (`client.mjs`, entry `client`) and by the engine itself.
  */
 
+// `InjectionHandle.target` is a DOM `Element`; the directive gives the type to every
+// package that compiles this file without a DOM lib in its own config
+/// <reference lib="dom" />
+
+import type { ZodType } from 'zod';
+import type { LocalizedText } from './locale.ts';
 import { WHEN_MAX_LENGTH } from './when.ts';
+import type { ExtensionHookName, HookHandler } from './hooks.ts';
 
 export * from './locale.ts';
 export * from './when.ts';
+export * from './hooks.ts';
 
 export const EXTENSION_API_VERSION = 1 as const;
 export const EXTENSION_ID_PATTERN = /^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*$/;
 /** GitHub login of the extension author (`author` in the manifest and catalog). */
 export const GITHUB_LOGIN_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
-/** Capabilities an extension declares in its manifest; none without a declaration. */
-export const EXTENSION_PERMISSIONS = [
-  'library.read',
-  'process.spawn',
-  'worker.threads',
-  'native.addons',
-  'network',
-  'learning.events',
-  'learning.stats',
-  'notifications',
-] as const;
-export type ExtensionPermission = (typeof EXTENSION_PERMISSIONS)[number];
 /** Platforms the extension can run on (`process.platform`). */
 export const EXTENSION_PLATFORMS = ['darwin', 'linux', 'win32'] as const;
 export type ExtensionPlatform = (typeof EXTENSION_PLATFORMS)[number];
@@ -39,76 +35,49 @@ export const EXTENSION_TAGS = [
   'developer',
 ] as const;
 export type ExtensionTag = (typeof EXTENSION_TAGS)[number];
-export const ELEMENT_NAME_PATTERN = /^[a-z][a-z0-9]*(-[a-z0-9]+)+$/;
 
-/** Event names of the answer custom element. */
-export const ANSWER_EVENT = {
-  change: 'dolphy-answer-change',
-  submit: 'dolphy-answer-submit',
-} as const;
+/** Verdict of the last check as the app hands it to an answer view. */
+export interface AnswerVerdict {
+  outcome: 'passed' | 'failed' | 'error';
+  reason?: string;
+  feedback?: string;
+  data?: unknown;
+}
 
-export interface AnswerChangeDetail {
-  value: unknown;
+/**
+ * Props of an answer view: a Vue component the extension registers with
+ * `client.addAnswerView(<exercise type id>, component)`. The component declares `emits: ['change',
+ * 'submit']`: `change` carries an `AnswerChange`, `submit` asks the app to
+ * check the answer.
+ */
+export interface AnswerViewProps<View = unknown, Answer = unknown> {
+  /** Result of `project()`. */
+  readonly view: View;
+  /** Current answer (for restoring); `undefined` — none yet. */
+  readonly value: Answer | undefined;
+  readonly disabled: boolean;
+  readonly verdict: AnswerVerdict | null;
+  /** Accessible name of the input set by the app; `null` if none. */
+  readonly label: string | null;
+}
+
+/** Payload of the `change` event of an answer view. */
+export interface AnswerChange<Answer = unknown> {
+  value: Answer;
   /** The answer can be submitted for checking. */
   complete: boolean;
 }
 
-/** Properties the app sets on the answer element. */
-export interface AnswerElementProps {
-  /** Result of `project()`. */
-  view: unknown;
-  /** Current answer (for restoring). */
-  value: unknown;
-  disabled: boolean;
-  verdict: {
-    outcome: 'passed' | 'failed' | 'error';
-    reason?: string;
-    feedback?: string;
-    data?: unknown;
-  } | null;
+/** Props of a content renderer: a Vue component the extension registers with `client.addMarkdownRenderer(<language>, component)`. */
+export interface MarkdownBlockProps {
+  /** Text of the ` ```<language> ` block. */
+  readonly source: string;
+  readonly language: string;
 }
 
 export type JsonSchema = Record<string, unknown>;
 
-export interface ExerciseTypeContribution {
-  /** Equal to the extension id or starts with `<extension id>.`. */
-  id: string;
-  /** Name shown on the contribution chip, 1–60 characters; without it the id is shown. */
-  title?: string;
-  /** JSON Schema 2020-12 for `engine.exercise.spec`: a path inside the extension directory (`./schema/spec.json`) or a schema object. */
-  specSchema: string | JsonSchema;
-  /** JSON Schema 2020-12 for the learner's answer (`submitAnswer.answer`): a path or a schema object. */
-  answerSchema: string | JsonSchema;
-  /** Tag of the custom element (a hyphen is required) that renders the answer input. */
-  element: string;
-  /** Path to the ES module that defines the element (`./view.mjs`). */
-  renderer: string;
-}
-
-/** A theme added by an extension: data only, no code. */
-export interface ThemeContribution {
-  /** Equal to the extension id or starts with `<extension id>.`; not in `BUILTIN_THEME_IDS`. */
-  id: string;
-  /** Tile title in "Settings → Appearance", up to 60 characters. */
-  label: string;
-  dark: boolean;
-  /** Keys from `THEME_COLOR_KEYS`; values are `#rrggbb` or `#rrggbbaa`. */
-  colors: Record<string, string>;
-  /** Keys from `THEME_VARIABLE_KEYS`: `border-color` is a color, the rest are numbers 0..1. */
-  variables?: Record<string, string | number>;
-}
-
-/** Content renderer: ` ```<language> ` blocks are rendered by the extension module. */
-export interface MarkdownRendererContribution {
-  /** Code block language: `[a-z][a-z0-9-]{0,31}`. */
-  language: string;
-  /** Name shown on the contribution chip, 1–60 characters; without it the language is shown. */
-  title?: string;
-  /** Path to the ES module; always set in the normalized manifest. */
-  renderer?: string;
-}
-
-/** Command key binding (`commands[].keybindings`). */
+/** Key binding of a command (`keybindings` of a command registration). */
 export interface CommandKeybinding {
   /** Key notation such as `Mod+Shift+L` or `Mod+K Mod+S`; valid on every platform. */
   key: string;
@@ -156,75 +125,98 @@ export type ExtensionIconName = (typeof EXTENSION_ICONS)[number];
 /** Icon of a command or panel without `icon`. */
 export const DEFAULT_EXTENSION_ICON: ExtensionIconName = 'puzzle';
 
-/** Extension command: a command-palette action executed by extension code (`ctx.commands.register`). */
-export interface CommandContribution {
-  /** Equal to the extension id or starts with `<extension id>.`. */
+/** Fields shared by a server command (`CommandRegistration`) and a client command (`ClientCommandRegistration`); the texts are at most `EXTENSION_COMMAND_LIMITS.titleLength`, `descriptionLength`, `categoryLength` characters. */
+export interface CommandMetadata {
+  /** Equal to the extension id or starts with `<extension id>.`; at most `EXTENSION_COMMAND_LIMITS.commands` commands per extension. */
   id: string;
-  /** Title in the palette, 1–60 characters. */
-  title: string;
-  /** Up to 200 characters. */
-  description?: string;
-  /** Palette group, up to 40 characters. */
-  category?: string;
-  /** Active binding without a condition, such as `Mod+Shift+L` (`KEYBINDING_PATTERN`); needs `palette: true`. */
-  keybinding?: string;
+  /** Title in the palette, 1–`EXTENSION_COMMAND_LIMITS.titleLength` characters. */
+  title: LocalizedText;
+  /** Up to `EXTENSION_COMMAND_LIMITS.descriptionLength` characters. */
+  description?: LocalizedText;
+  /** Palette group, up to `EXTENSION_COMMAND_LIMITS.categoryLength` characters. */
+  category?: LocalizedText;
   /** Up to `EXTENSION_COMMAND_LIMITS.keybindingsPerCommand` bindings; needs `palette: true`. The user may replace them in settings. */
-  keybindings?: CommandKeybinding[];
+  keybindings?: readonly CommandKeybinding[];
   /** `false` hides the command from the palette while keeping it available to the panel; defaults to `true`. */
   palette?: boolean;
   /**
    * Visibility condition (see `parseWhen`), such as `route == 'courses'`. While it is false the
    * command is not shown in the palette and does not run from a key binding; the extension's
-   * panels and widgets still call it with `ctx.call`.
+   * panels and injected components still call it.
    */
   when?: string;
   /** Glyph in the palette, from `EXTENSION_ICONS`; defaults to `DEFAULT_EXTENSION_ICON`. Decorative. */
   icon?: ExtensionIconName;
 }
 
-/** Extension panel: an app screen in an isolated frame with a sidebar menu entry. */
-export interface PanelContribution {
+/** A command whose handler runs in the extension host (`server.registerCommand`): metadata and handler in one object. */
+export interface CommandRegistration extends CommandMetadata {
+  /**
+   * Runs for at most `EXTENSION_COMMAND_LIMITS.handlerMs`; a failure or an
+   * exceeded budget reaches the caller as an error.
+   */
+  run: CommandHandler;
+}
+
+/** A command whose handler runs in the app window (`client.addCommand`). */
+export interface ClientCommandRegistration extends CommandMetadata {
+  run: () => void | Promise<void>;
+}
+
+/** A panel: an app screen drawn by a Vue component of the extension, with a sidebar menu entry (`client.addPanel`); at most `EXTENSION_COMMAND_LIMITS.panels` per extension. */
+export interface PanelRegistration {
   /** Equal to the extension id or starts with `<extension id>.`. */
   id: string;
-  /** Menu entry and page heading title, 1–60 characters. */
-  title: string;
-  /** Path to the panel's ES module (`.js` or `.mjs`); defaults to `DEFAULT_PANEL`. */
-  module?: string;
+  /** Menu entry and page heading title, 1–`EXTENSION_COMMAND_LIMITS.titleLength` characters. */
+  title: LocalizedText;
   /** Glyph of the sidebar entry, from `EXTENSION_ICONS`; defaults to `DEFAULT_EXTENSION_ICON`. Decorative. */
   icon?: ExtensionIconName;
   /** Visibility condition (see `parseWhen`): while it is false the sidebar entry is hidden; the panel still opens with `openPanel`. */
   when?: string;
+  /** The panel's Vue component (`unknown`: this package does not depend on Vue). */
+  component: unknown;
 }
 
-/** Where on the screen a widget is shown; `dailyPlan` is the "Daily plan" page. */
-export const EXTENSION_WIDGET_SLOTS = ['dailyPlan'] as const;
-export type ExtensionWidgetSlot = (typeof EXTENSION_WIDGET_SLOTS)[number];
+/** Where an injected component goes relative to its target element. */
+export const INJECTION_POSITIONS = [
+  'before',
+  'after',
+  'prepend',
+  'append',
+] as const;
+export type InjectionPosition = (typeof INJECTION_POSITIONS)[number];
 
-/** Limits on widgets; the manifest and the app enforce them. */
-export const EXTENSION_WIDGET_LIMITS = Object.freeze({
-  /** Widgets per extension. */
-  widgets: 3,
-  /** Smallest allowed `minHeight`, px. */
-  minHeight: 80,
-  /** Largest allowed `maxHeight`, px. */
-  maxHeight: 320,
+/** Limits on injections; the app enforces them. */
+export const INJECTION_LIMITS = Object.freeze({
+  /** Characters in `InjectionRegistration.target`. */
+  selectorLength: 200,
 });
 
-/** Extension widget: a card of an isolated frame on a screen of the app (`slot`). */
-export interface WidgetContribution {
-  /** Equal to the extension id or starts with `<extension id>.`. */
+/** Attribute with which the app marks the stable places an extension can inject into. */
+export const ANCHOR_ATTRIBUTE = 'data-ext-anchor';
+
+/** Selector of the element the app marks with `data-ext-anchor="<id>"`. */
+export const anchorSelector = (id: string): string =>
+  `[${ANCHOR_ATTRIBUTE}="${id.replace(/["\\]/g, '\\$&')}"]`;
+
+/**
+ * A component an extension draws in the window next to or inside every element
+ * that matches `target` (`client.addInjection`). The window watches the DOM:
+ * the component is mounted when a target appears and removed when it goes away.
+ */
+export interface InjectionRegistration {
+  /** Unique within the extension. */
   id: string;
-  /** Card title (accessible name of the frame), 1–60 characters. */
-  title: string;
-  slot: ExtensionWidgetSlot;
-  /** Smallest frame height in px, 80–320; defaults to 80. */
-  minHeight?: number;
-  /** Largest frame height in px, 80–320, not below `minHeight`; defaults to 320. Taller content scrolls inside. */
-  maxHeight?: number;
-  /** Path to the widget's ES module (`.js` or `.mjs`); defaults to `DEFAULT_WIDGET`. */
-  module?: string;
-  /** Visibility condition (see `parseWhen`): while it is false the card is not drawn and its frame is not loaded. */
-  when?: string;
+  /**
+   * CSS selector, 1–`INJECTION_LIMITS.selectorLength` characters, that
+   * `document.querySelector` accepts. Prefer `anchorSelector(id)`: the app keeps
+   * its anchors stable, any other selector depends on the app's markup.
+   */
+  target: string;
+  /** Defaults to `append`. `before` and `after` put the component next to the target, `prepend` and `append` inside it. */
+  position?: InjectionPosition;
+  /** The Vue component (`unknown`: this package does not depend on Vue). */
+  component: unknown;
 }
 
 /** How often a schedule fires. */
@@ -233,10 +225,8 @@ export type ExtensionScheduleEvery = (typeof EXTENSION_SCHEDULE_EVERY)[number];
 
 /** `at` of a `daily` schedule: `HH:MM`, 24-hour clock, local time. */
 export const SCHEDULE_AT_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
-/** `at` of a `daily` schedule without one. */
-export const DEFAULT_SCHEDULE_AT = '09:00';
 
-/** Limits on schedules; the manifest, the scheduler, and the runtime enforce them. */
+/** Limits on schedules; the host, the scheduler, and the runtime enforce them. */
 export const EXTENSION_SCHEDULE_LIMITS = Object.freeze({
   /** Schedules per extension. */
   schedules: 4,
@@ -249,17 +239,18 @@ export const EXTENSION_SCHEDULE_LIMITS = Object.freeze({
 });
 
 /**
- * Extension schedule: a handler the app runs at fixed local times
- * (`ctx.schedule.on`) while it is running. `daily` fires at `at`; `hourly` at
- * the start of every hour and takes no `at`.
+ * A schedule: a handler the app runs at fixed local times
+ * (`server.schedule`) while it is running. `daily` fires at `at`; `hourly` at
+ * the start of every hour and takes no `at`. At most
+ * `EXTENSION_SCHEDULE_LIMITS.schedules` per extension.
  */
-export type ScheduleContribution =
+export type ScheduleRegistration =
   | {
       /** Equal to the extension id or starts with `<extension id>.`. */
       id: string;
       every: 'daily';
-      /** `HH:MM` local time (`SCHEDULE_AT_PATTERN`); defaults to `DEFAULT_SCHEDULE_AT`. */
-      at?: string;
+      /** `HH:MM` local time (`SCHEDULE_AT_PATTERN`). */
+      at: string;
     }
   | {
       /** Equal to the extension id or starts with `<extension id>.`. */
@@ -270,29 +261,39 @@ export type ScheduleContribution =
 /** What an importer accepts: `text` hands the handler the file as a UTF-8 string, `bytes` as a `Uint8Array`. */
 export type ImporterInputKind = 'text' | 'bytes';
 
-/** Extension importer: turns a file the user picked into a course directory (`ctx.importers.register`). */
-export interface ImporterContribution {
+/** An importer: turns a file the user picked into a course directory (`server.registerImporter`); at most `EXTENSION_TRANSFER_LIMITS.importers` per extension. */
+export interface ImporterRegistration {
   /** Equal to the extension id or starts with `<extension id>.`. */
   id: string;
-  /** Name in the command palette and the library card, 1–60 characters. */
-  title: string;
+  /** Name in the command palette and the library card, 1–`EXTENSION_COMMAND_LIMITS.titleLength` characters. */
+  title: LocalizedText;
   /** 1–`EXTENSION_TRANSFER_LIMITS.acceptExtensions` unique file extensions in lower case, such as `.csv` (`TRANSFER_ACCEPT_PATTERN`). */
-  accept: string[];
-  /** Defaults to `text`. */
-  input?: ImporterInputKind;
+  accept: readonly string[];
+  input: ImporterInputKind;
+  /**
+   * Runs for at most `EXTENSION_TRANSFER_LIMITS.handlerMs`; a failure, an
+   * exceeded budget, or a result `normalizeImportResult` refuses reaches the
+   * user as an error.
+   */
+  run: ImporterHandler;
 }
 
 /** What an exporter hands the extension: a course snapshot or aggregated progress. */
 export type ExporterScope = 'course' | 'progress';
 
-/** Extension exporter: turns a course or the learning progress into a file the user saves (`ctx.exporters.register`). */
-export interface ExporterContribution {
+/** An exporter: turns a course or the learning progress into a file the user saves (`server.registerExporter`); at most `EXTENSION_TRANSFER_LIMITS.exporters` per extension. */
+export interface ExporterRegistration {
   /** Equal to the extension id or starts with `<extension id>.`. */
   id: string;
-  /** Name in the command palette and the library card, 1–60 characters. */
-  title: string;
-  /** `progress` needs the `learning.stats` permission. */
+  /** Name in the command palette and the library card, 1–`EXTENSION_COMMAND_LIMITS.titleLength` characters. */
+  title: LocalizedText;
   scope: ExporterScope;
+  /**
+   * Runs for at most `EXTENSION_TRANSFER_LIMITS.handlerMs`; a failure, an
+   * exceeded budget, or a result `normalizeExportResult` refuses reaches the
+   * user as an error.
+   */
+  run: ExporterHandler;
 }
 
 /** Value of an extension setting. */
@@ -306,27 +307,27 @@ export interface SettingVisibleWhen {
   equals: boolean | string | number;
 }
 
-interface SettingContributionBase {
+interface SettingDefinitionBase {
   /** Equal to the extension id or starts with `<extension id>.`. */
   id: string;
-  /** Field label in the settings dialog, up to 60 characters; extension data, not translated. */
-  label: string;
-  /** Help text under the field, up to 500 characters. */
-  description?: string;
-  /** Section title in the settings dialog, 1–60 characters; settings without it come first, with no title. */
-  group?: string;
-  /** Sort key in the form, an integer 0–1000; default 0, ties keep the declaration order. */
+  /** Field label in the settings dialog, 1–`SETTING_LIMITS.labelLength` characters. */
+  label: LocalizedText;
+  /** Help text under the field, 1–`SETTING_LIMITS.descriptionLength` characters. */
+  description?: LocalizedText;
+  /** Section title in the settings dialog, 1–`SETTING_LIMITS.groupLength` characters; settings without it come first, with no title. */
+  group?: LocalizedText;
+  /** Sort key in the form, an integer 0–`SETTING_LIMITS.orderMax`; default 0, ties keep the declaration order. */
   order?: number;
   /** The field is hidden while the condition is false; the hidden value is kept and still reaches the code. */
   visibleWhen?: SettingVisibleWhen;
 }
 
-export interface BooleanSettingContribution extends SettingContributionBase {
+export interface BooleanSettingDefinition extends SettingDefinitionBase {
   type: 'boolean';
   default: boolean;
 }
 
-export interface StringSettingContribution extends SettingContributionBase {
+export interface StringSettingDefinition extends SettingDefinitionBase {
   type: 'string';
   default: string;
   /** Length in UTF-16 code units, 1..10000; no key means unlimited (within 10000). */
@@ -334,7 +335,7 @@ export interface StringSettingContribution extends SettingContributionBase {
 }
 
 /** A multi-line string. */
-export interface TextSettingContribution extends SettingContributionBase {
+export interface TextSettingDefinition extends SettingDefinitionBase {
   type: 'text';
   default: string;
   /** Length in UTF-16 code units, 1..10000; no key means unlimited (within 10000). */
@@ -342,14 +343,14 @@ export interface TextSettingContribution extends SettingContributionBase {
 }
 
 /** A color `#rrggbb`; the stored value is lower-case. */
-export interface ColorSettingContribution extends SettingContributionBase {
+export interface ColorSettingDefinition extends SettingDefinitionBase {
   type: 'color';
   /** `#rrggbb`. */
   default: string;
 }
 
 /** A list of strings; the code receives `string[]`. */
-export interface ListSettingContribution extends SettingContributionBase {
+export interface ListSettingDefinition extends SettingDefinitionBase {
   type: 'list';
   default: string[];
   /** Most items, 1..50; default 50. */
@@ -358,7 +359,7 @@ export interface ListSettingContribution extends SettingContributionBase {
   itemMaxLength?: number;
 }
 
-export interface NumberSettingContribution extends SettingContributionBase {
+export interface NumberSettingDefinition extends SettingDefinitionBase {
   type: 'number';
   default: number;
   min?: number;
@@ -368,28 +369,31 @@ export interface NumberSettingContribution extends SettingContributionBase {
 }
 
 export interface EnumSettingOption {
+  /** 1–`SETTING_LIMITS.optionValueLength` characters, unique in the list. */
   value: string;
-  label: string;
+  /** 1–`SETTING_LIMITS.labelLength` characters. */
+  label: LocalizedText;
 }
 
-export interface EnumSettingContribution extends SettingContributionBase {
+export interface EnumSettingDefinition extends SettingDefinitionBase {
   type: 'enum';
   /** One of `options[].value`. */
   default: string;
+  /** 1–`SETTING_LIMITS.options` options. */
   options: EnumSettingOption[];
 }
 
-/** A setting the user changes in "Settings → Extensions"; the app renders the form. */
-export type SettingContribution =
-  | BooleanSettingContribution
-  | StringSettingContribution
-  | TextSettingContribution
-  | ColorSettingContribution
-  | ListSettingContribution
-  | NumberSettingContribution
-  | EnumSettingContribution;
+/** A setting the user changes in "Settings → Extensions"; the app renders the form (`server.registerSettings`). */
+export type SettingDefinition =
+  | BooleanSettingDefinition
+  | StringSettingDefinition
+  | TextSettingDefinition
+  | ColorSettingDefinition
+  | ListSettingDefinition
+  | NumberSettingDefinition
+  | EnumSettingDefinition;
 
-/** Limits of the settings types (`text`, `color`, `list`, `group`, `order`); they match those checked by the manifest and the engine. */
+/** Limits of the settings types (`text`, `color`, `list`, `enum`, `group`, `order`); they match those checked by the host and the engine. */
 export const SETTING_LIMITS = Object.freeze({
   /** `maxLength` of `string` and `text`. */
   stringLength: 10_000,
@@ -397,14 +401,22 @@ export const SETTING_LIMITS = Object.freeze({
   listItems: 50,
   /** `itemMaxLength` of `list`. */
   listItemLength: 200,
+  /** Length of a label, in UTF-16 code units; also of an option's label. */
+  labelLength: 60,
+  /** Length of a help text. */
+  descriptionLength: 500,
   groupLength: 60,
   orderMax: 1000,
+  /** Options of one `enum`. */
+  options: 64,
+  /** Length of an option's value. */
+  optionValueLength: 100,
 });
 
-/** `#rrggbb` (any case in the manifest; the stored value is lower-case). */
+/** `#rrggbb` (any case in a definition; the stored value is lower-case). */
 export const COLOR_SETTING_PATTERN = /^#[0-9a-fA-F]{6}$/;
 
-/** Learning events an extension with the `learning.events` permission can subscribe to. */
+/** Learning events an extension can subscribe to. */
 export const LEARNING_EVENT_NAMES = [
   'session.started',
   'session.finished',
@@ -440,18 +452,6 @@ export interface LearningEventPayloads {
   };
 }
 
-/** An extension's subscription to a learning event (`contributes.events`). */
-export interface EventContribution {
-  event: LearningEventName;
-}
-
-/** Grading rule: how verdicts are turned into a 1–5 grade. */
-export interface GradePolicyContribution {
-  /** Equal to the extension id or starts with `<extension id>.`; not `passAtN`. */
-  id: string;
-  label: string;
-}
-
 /** Most entries in `dependencies`. */
 export const MAX_EXTENSION_DEPENDENCIES = 16;
 
@@ -467,16 +467,19 @@ export interface ExtensionDependency {
   range: string | null;
 }
 
-/** Normalized manifest: all defaults applied. */
+/**
+ * Normalized manifest: all defaults applied. It holds identity and
+ * compatibility only; contributions are registered by code (`server`, `client`).
+ */
 export interface ExtensionManifest {
   id: string;
   /** semver */
   version: string;
   apiVersion: typeof EXTENSION_API_VERSION;
-  /** Path to the `.mjs` with the extension code; `null` means the extension needs no code. */
+  /** Built server part inside the extension (`./main.mjs`, exports `server`); `null` — no server part. */
   main: string | null;
-  /** Declared capabilities of the extension code; empty by default. */
-  permissions: ExtensionPermission[];
+  /** Built client part inside the extension (`./client.mjs`, exports `client`); `null` — no client part. */
+  client: string | null;
   /** Human-readable name; `null` if not set. */
   name: string | null;
   description: string | null;
@@ -488,64 +491,23 @@ export interface ExtensionManifest {
   minAppVersion: string | null;
   /** Path of the icon inside the extension (`.png` or `.webp`, square, 64–512 px, up to 16 KiB); `null` — no icon. */
   icon: string | null;
-  /** Explicit catalog tags (from `EXTENSION_TAGS`); empty — the catalog derives tags from contributions. */
+  /** Catalog tags (from `EXTENSION_TAGS`); empty — none. */
   tags: ExtensionTag[];
   /** Extensions this one needs; empty — none. */
   dependencies: ExtensionDependency[];
-  contributes: {
-    exerciseTypes: ExerciseTypeContribution[];
-    themes: ThemeContribution[];
-    markdownRenderers: (MarkdownRendererContribution & {
-      renderer: string;
-    })[];
-    gradePolicies: GradePolicyContribution[];
-    settings: SettingContribution[];
-    events: EventContribution[];
-    commands: (CommandContribution & {
-      palette: boolean;
-      icon: ExtensionIconName;
-    })[];
-    panels: (PanelContribution & {
-      module: string;
-      icon: ExtensionIconName;
-    })[];
-    widgets: (WidgetContribution & {
-      minHeight: number;
-      maxHeight: number;
-      module: string;
-    })[];
-    schedules: (
-      | { id: string; every: 'daily'; at: string }
-      | { id: string; every: 'hourly' }
-    )[];
-    importers: (ImporterContribution & { input: ImporterInputKind })[];
-    exporters: ExporterContribution[];
-  };
 }
 
-/** Kind of exercise in `extension.json`, as the author writes it. */
-export interface ExerciseTypeContributionInput {
-  id: string;
-  /** Name shown on the contribution chip, 1–60 characters. */
-  title?: string;
-  specSchema: string | JsonSchema;
-  answerSchema: string | JsonSchema;
-  /** Defaults to `defaultElementName(id)`. */
-  element?: string;
-  /** Defaults to `DEFAULT_RENDERER`. */
-  renderer?: string;
-}
-
-/** `extension.json` as the author writes it. */
+/** `extension.json` as the author (or `dolphy-ext build`) writes it. */
 export interface ExtensionManifestInput {
   /** Path or URL of `extension.schema.json` for editors; ignored by the app and the tools. */
   $schema?: string;
   id: string;
   version: string;
   apiVersion: typeof EXTENSION_API_VERSION;
-  /** Defaults to `DEFAULT_MAIN` if contributions need code; otherwise `null`. */
-  main?: string;
-  permissions?: ExtensionPermission[];
+  /** Built server part (`DEFAULT_MAIN`); no key or `null` — none. */
+  main?: string | null;
+  /** Built client part (`DEFAULT_CLIENT`); no key or `null` — none. */
+  client?: string | null;
   name?: string;
   description?: string;
   author?: string;
@@ -554,30 +516,16 @@ export interface ExtensionManifestInput {
   minAppVersion?: string;
   /** Path of the extension icon (`.png` or `.webp`, square, 64–512 px, up to 16 KiB); no key — no icon. */
   icon?: string;
-  /** Up to 5 unique catalog tags from `EXTENSION_TAGS`; no key — no explicit tags. */
+  /** Up to 5 unique catalog tags from `EXTENSION_TAGS`; no key — no tags. */
   tags?: ExtensionTag[];
   /** Up to `MAX_EXTENSION_DEPENDENCIES` extensions this one needs, without the extension itself and repeats; no key — none. */
   dependencies?: { id: string; range?: string }[];
-  contributes: {
-    exerciseTypes?: ExerciseTypeContributionInput[];
-    themes?: ThemeContribution[];
-    markdownRenderers?: MarkdownRendererContribution[];
-    gradePolicies?: GradePolicyContribution[];
-    settings?: SettingContribution[];
-    events?: EventContribution[];
-    commands?: CommandContribution[];
-    panels?: PanelContribution[];
-    widgets?: WidgetContribution[];
-    schedules?: ScheduleContribution[];
-    importers?: ImporterContribution[];
-    exporters?: ExporterContribution[];
-  };
 }
 
 /** Identifiers of built-in themes: extensions cannot take them. */
 export const BUILTIN_THEME_IDS = ['system', 'light', 'dark'] as const;
 
-/** Allowed keys of `ThemeContribution.colors`. */
+/** Allowed keys of `ThemeRegistration.colors`. */
 export const THEME_COLOR_KEYS: readonly string[] = [
   'background',
   'surface',
@@ -604,7 +552,7 @@ export const THEME_COLOR_KEYS: readonly string[] = [
   'hero-contrast',
 ];
 
-/** Allowed keys of `ThemeContribution.variables`. */
+/** Allowed keys of `ThemeRegistration.variables`. */
 export const THEME_VARIABLE_KEYS: readonly string[] = [
   'border-color',
   'border-opacity',
@@ -612,10 +560,6 @@ export const THEME_VARIABLE_KEYS: readonly string[] = [
   'high-emphasis-opacity',
   'disabled-opacity',
 ];
-
-export const DEFAULT_MARKDOWN_RENDERER = './markdown.mjs';
-export const DEFAULT_PANEL = './panel.mjs';
-export const DEFAULT_WIDGET = './widget.mjs';
 
 const KEYBINDING_MODIFIER =
   '(?:Mod|Ctrl|Control|Alt|Option|Shift|Cmd|Command|Meta|Win|Super)\\+';
@@ -636,11 +580,11 @@ export const KEYBINDING_PATTERN = new RegExp(
   `^${KEYBINDING_STROKE}(?: ${KEYBINDING_STROKE})?$`,
 );
 
-/** Limits on commands and panels (R1, R3); they match those checked by the manifest, host, and engine. */
+/** Limits on commands and panels (R1, R3); they match those checked by the host and the engine. */
 export const EXTENSION_COMMAND_LIMITS = Object.freeze({
   /** Keybinding entries (`keybindings`) per command. */
   keybindingsPerCommand: 4,
-  /** Length of a `when` condition (of a command, panel, widget or `keybindings[]` entry). */
+  /** Length of a `when` condition (of a command, panel or `keybindings[]` entry). */
   whenLength: WHEN_MAX_LENGTH,
   /** Commands per extension. */
   commands: 64,
@@ -662,7 +606,7 @@ export const EXTENSION_COMMAND_LIMITS = Object.freeze({
 /** A file extension an importer accepts: a dot and 1–16 lower-case letters or digits. */
 export const TRANSFER_ACCEPT_PATTERN = /^\.[a-z0-9]{1,16}$/;
 
-/** Limits on importers and exporters; the manifest, host, and engine check the same numbers. */
+/** Limits on importers and exporters; the host and the engine check the same numbers. */
 export const EXTENSION_TRANSFER_LIMITS = Object.freeze({
   /** Importers per extension. */
   importers: 8,
@@ -703,24 +647,6 @@ export interface GradePolicyInput {
 export type GradePolicyHandler = (
   input: GradePolicyInput,
 ) => GradeValue | null | Promise<GradeValue | null>;
-
-/** Block rendering context; a structural `AbortSignal` (the package has no DOM types). */
-export interface MarkdownRenderContext {
-  language: string;
-  signal: {
-    readonly aborted: boolean;
-    addEventListener(type: 'abort', listener: () => void): void;
-  };
-}
-
-/** `export default` of a content renderer module. */
-export interface MarkdownRendererModule<Container = unknown> {
-  render(
-    source: string,
-    container: Container,
-    context: MarkdownRenderContext,
-  ): void | Promise<void>;
-}
 
 /** What a command handler asks the app to do: show a notification. */
 export interface NotifyEffect {
@@ -775,7 +701,7 @@ export interface ImportResult {
 /**
  * Importer handler. Written as a method type so that a handler of a `text`
  * importer may declare `(input: TextImportInput)` and one of a `bytes` importer
- * `(input: BytesImportInput)`; the host passes the form the manifest declares.
+ * `(input: BytesImportInput)`; the host passes the form the registration declares.
  */
 export type ImporterHandler = {
   handle(input: ImportInput): ImportResult | Promise<ImportResult>;
@@ -790,7 +716,7 @@ export interface CourseExportInput {
   files: Record<string, string>;
 }
 
-/** What a `progress` exporter handler receives; it reads the data through `ctx.stats`. */
+/** What a `progress` exporter handler receives; it reads the data through `server.stats`. */
 export interface ProgressExportInput {
   scope: 'progress';
 }
@@ -809,7 +735,7 @@ export type ExportResult =
  * Exporter handler. Written as a method type so that a handler of a `course`
  * exporter may declare `(input: CourseExportInput)` and one of a `progress`
  * exporter `(input: ProgressExportInput)`; the host passes the scope the
- * manifest declares.
+ * registration declares.
  */
 export type ExporterHandler = {
   handle(input: ExportInput): ExportResult | Promise<ExportResult>;
@@ -855,7 +781,7 @@ const utf8Length = (text: string): number => {
  * Converts what a command handler returned into a `CommandOutcome`: the host's rules
  * and the SDK's `loadCommands` are the same. `undefined` and `null` are `none`; an object with
  * `notify` (a string of 1–500 characters) or `openPanel` (a panel id from `panels`;
- * `undefined` means any string, for tests without a manifest) and
+ * `undefined` means any string, for tests without a registration) and
  * no other keys (except `props` on `openPanel`) is an effect; any other JSON is
  * `data`. The value goes through JSON (`undefined` fields are dropped); its
  * text is at most `EXTENSION_COMMAND_LIMITS.resultBytes`. A violation throws
@@ -1096,85 +1022,167 @@ export const normalizeExportResult = (raw: unknown): ExportResult => {
   return { filename, bytes };
 };
 
-/** What the app tells a panel or widget about its surroundings; read only. */
+/** What the app tells a panel component about its surroundings; read only. */
 export interface PanelContextInfo {
   /** The course the app is focused on; `null` — all courses. */
   readonly courseId: string | null;
 }
 
-/** What the frame of a panel and of a widget have in common. */
-interface FrameContext<Commands extends string = string> {
-  /** The current surroundings; changes arrive through `onContextChange` without reloading the frame. */
+/**
+ * Key under which the app provides the handle of the panel being drawn
+ * (Vue `provide`/`inject`); a registered symbol, so the app and the bundle of
+ * an extension agree on it without sharing a module.
+ */
+export const PANEL_HANDLE_KEY = Symbol.for('dolphy.extension.panel');
+
+/**
+ * What a panel component gets from the app. A panel is a Vue component the
+ * extension registers with `client.addPanel`; the app draws it as a page inside
+ * its own tree.
+ */
+export interface PanelHandle<Commands extends string = string> {
+  readonly panelId: string;
+  /** Properties the panel was opened with (`openPanel(id, props)`); reactive, `undefined` — none. */
+  readonly props: JsonValue | undefined;
+  /** The current surroundings; reactive, the app updates it in place. */
   readonly context: PanelContextInfo;
-  /** Aborted when the frame closes. */
-  signal: {
-    readonly aborted: boolean;
-    addEventListener(type: 'abort', listener: () => void): void;
-  };
   /**
-   * Calls a command this extension declares (including `palette: false`
-   * ones); at most 20 calls per second and 4 at a time. Resolves to the JSON
-   * answer of the handler (`undefined` — no answer); the app runs `notify` and
-   * `openPanel` itself. A failure is a rejected promise with an `Error`.
+   * Calls a command this extension registers (including `palette: false`
+   * ones). Resolves to the JSON answer of the handler (`undefined` — no
+   * answer); the app runs `notify` and `openPanel` itself. A failure is a
+   * rejected promise with an `Error`.
    */
   call(commandId: Commands, args?: JsonValue): Promise<JsonValue | undefined>;
-  /** Subscribes to changes of `context` (the app focused another course); returns the unsubscribe function. */
-  onContextChange(listener: (context: PanelContextInfo) => void): () => void;
 }
 
 /**
- * Context of a panel module; it runs in a frame without access to the app's
- * data. `Commands` narrows the ids `call` accepts (the SDK passes the commands
- * declared in `extension.json`).
+ * Key under which the app provides the handle of the injected component being
+ * drawn (Vue `provide`/`inject`); a registered symbol, so the app and the
+ * bundle of an extension agree on it without sharing a module.
  */
-export interface PanelContext<
-  Commands extends string = string,
-> extends FrameContext<Commands> {
-  panelId: string;
-  /** Properties the panel was opened with (`openPanel(id, props)`); `undefined` — none. */
-  props: JsonValue | undefined;
-  /** Subscribes to new properties of the open panel; returns the unsubscribe function. */
-  onProps(listener: (props: JsonValue | undefined) => void): () => void;
-}
+export const INJECTION_HANDLE_KEY = Symbol.for('dolphy.extension.injection');
 
-/** `export default` of a panel module. */
-export interface PanelModule<
-  Container = unknown,
-  Commands extends string = string,
-> {
-  mount(
-    container: Container,
-    context: PanelContext<Commands>,
-  ): void | Promise<void>;
+/**
+ * What an injected component gets from the app. The component is registered
+ * with `client.addInjection`; the app draws it inside its own tree, so it
+ * uses the app's Vue, Vuetify, theme and language.
+ */
+export interface InjectionHandle {
+  /** The element the component is drawn at. */
+  readonly target: Element;
+  readonly position: InjectionPosition;
 }
 
 /**
- * Context of a widget module: a panel's frame without properties (a widget is
- * not opened by a command). Same isolation: no network, no app data.
+ * Key under which the app provides the id of the extension to every component
+ * of that extension: panel, injected component, answer view, markdown
+ * renderer and a component mounted with `useApp().mountAt`. The value is the
+ * extension id string; `useRpc` reads it to address the extension's server.
  */
-export interface WidgetContext<
-  Commands extends string = string,
-> extends FrameContext<Commands> {
-  widgetId: string;
+export const EXTENSION_ID_KEY = Symbol.for('dolphy.extension.id');
+
+/**
+ * Key under which the app provides the object returned by `useApp()`
+ * (Vue `provide` on the app level).
+ */
+export const APP_KEY = Symbol.for('dolphy.extension.app');
+
+/**
+ * Key under which the app provides the engine client returned by
+ * `useEngine()` (Vue `provide` on the app level). It is the same client object
+ * the window itself uses; the app provides it under this key apart from its
+ * internal one.
+ */
+export const ENGINE_KEY = Symbol.for('dolphy.extension.engine');
+
+/** Kind of a toast shown by `AppApi.notify`. */
+export type AppNotifyKind = 'info' | 'success' | 'warning' | 'error';
+
+/** Language of the window. */
+export type AppLocale = 'en' | 'ru';
+
+/** The theme the window shows. */
+export interface AppTheme {
+  /** `BUILTIN_THEME_IDS` entry or the id of an extension theme; the effective one, `system` is already resolved. */
+  readonly id: string;
+  readonly dark: boolean;
 }
 
-/** `export default` of a widget module. */
-export interface WidgetModule<
-  Container = unknown,
-  Commands extends string = string,
-> {
-  mount(
-    container: Container,
-    context: WidgetContext<Commands>,
-  ): void | Promise<void>;
+/**
+ * The capabilities of the window an extension component may use
+ * (`useApp()`, `ClientContext.app`). It is an explicit list: no stores, no
+ * router. `theme` and `locale` are getters over reactive state, so reading
+ * them inside `computed`, `watch` or a template tracks the change.
+ */
+export interface AppApi {
+  /** Opens the course page. */
+  openCourse(courseId: string): void;
+  openLesson(courseId: string, lessonId: string): void;
+  openExercise(courseId: string, lessonId: string, exerciseId: string): void;
+  /** Opens a panel of an extension (`client.addPanel` id); `props` reach it as `usePanel().props`. */
+  openPanel(extensionId: string, panelId: string, props?: unknown): void;
+  /** Opens "Settings → Extensions", at the extension's section when `extensionId` is given. */
+  openSettings(extensionId?: string): void;
+  /** Shows a toast with `message` (as is, no markup); `kind` defaults to `info`. */
+  notify(message: string, kind?: AppNotifyKind): void;
+  readonly theme: AppTheme;
+  readonly locale: AppLocale;
+  /**
+   * Runs a command of the app's palette by its key, such as
+   * `extension:<extension id>:<command id>` for an extension command. The
+   * commands are run without arguments. Rejects when there is no such
+   * command, it is disabled, or it fails.
+   */
+  runCommand(commandKey: string): Promise<void>;
+  /**
+   * Mounts a Vue component into an element of the window with the app's
+   * context (Vuetify, i18n, theme). A string `target` is a CSS selector, the
+   * first matching element is taken at the call; an absent element throws.
+   * Mounts once: the component is not re-mounted when the element
+   * is replaced. `dispose()` unmounts it. For a component that follows the
+   * DOM use `client.addInjection`.
+   */
+  mountAt(
+    target: Element | string,
+    component: unknown,
+    props?: Readonly<Record<string, unknown>>,
+  ): Disposable;
+}
+
+/**
+ * Name of an RPC contract: lower-case dot-separated segments, such as
+ * `greeting.say-hello`, the first segment without a hyphen, at least two
+ * segments, at most `EXTENSION_RPC_LIMITS.nameLength` characters.
+ */
+export const RPC_NAME_PATTERN = /^[a-z][a-z0-9]*(\.[a-z][a-z0-9-]*)+$/;
+
+/** Limits on RPC between the client and the server part of an extension; the host and the engine check the same numbers. */
+export const EXTENSION_RPC_LIMITS = Object.freeze({
+  /** Characters in the name of a contract. */
+  nameLength: 120,
+  /** Handlers (`server.handle`) per extension. */
+  rpcs: 64,
+  /** `JSON.stringify(input).length` at the engine boundary. */
+  inputChars: 200_000,
+  /** Handler budget, ms. */
+  handlerMs: 10_000,
+});
+
+/**
+ * A typed call between the client and the server part of an extension: the
+ * name and the schemas of the input and the output, shared by both parts
+ * (`defineRpc`). Both sides validate with the schemas; the data crosses the
+ * process boundary as JSON.
+ */
+export interface RpcContract<Input, Output> {
+  /** Matches `RPC_NAME_PATTERN`. */
+  readonly name: string;
+  readonly input: ZodType<Input>;
+  readonly output: ZodType<Output>;
 }
 
 export const DEFAULT_MAIN = './main.mjs';
-export const DEFAULT_RENDERER = './view.mjs';
-
-/** Default element tag: `dolphy.sql` → `dolphy-sql-answer`. */
-export const defaultElementName = (id: string): string =>
-  `${id.replaceAll('.', '-')}-answer`;
+export const DEFAULT_CLIENT = './client.mjs';
 
 export type GradeResult =
   | { outcome: 'passed'; feedback?: string; data?: unknown }
@@ -1200,7 +1208,7 @@ export interface ExerciseTypeHandler<
   Answer = unknown,
   View = unknown,
 > {
-  /** Public view for the answer element; secrets (answer keys) are excluded. Called on `beginAttempt`. */
+  /** Public view for the answer view component; secrets (answer keys) are excluded. Called on `beginAttempt`. */
   project(request: { exerciseId: string; spec: Spec }): View | Promise<View>;
   grade(
     request: GradeRequest<Spec, Answer>,
@@ -1228,20 +1236,6 @@ export interface LibraryReader {
   stat(path: string): Promise<LibraryStat | null>;
 }
 
-/** Thrown when an extension calls a capability without the declared permission. */
-export class PermissionError extends Error {
-  readonly permission: ExtensionPermission;
-  readonly code = 'EXT_PERMISSION';
-  constructor(permission: ExtensionPermission, message?: string) {
-    super(
-      message ??
-        `permission '${permission}' is not declared in the extension manifest`,
-    );
-    this.name = 'PermissionError';
-    this.permission = permission;
-  }
-}
-
 /** Extension storage limits (R2); they match the engine's limits, which enforces them. */
 export const EXTENSION_STORAGE_LIMITS = Object.freeze({
   /** Key length in UTF-16 code units. */
@@ -1258,7 +1252,7 @@ export const EXTENSION_STORAGE_LIMITS = Object.freeze({
 export type StorageQuotaKind =
   'key-length' | 'value-size' | 'key-count' | 'total-size';
 
-/** Thrown by `ctx.storage.set` when a write exceeds a limit: the write did not happen, other data is unchanged. */
+/** Thrown by `server.storage.set` when a write exceeds a limit: the write did not happen, other data is unchanged. */
 export class StorageQuotaError extends Error {
   readonly kind: StorageQuotaKind;
   /** Exceeded limit: characters, bytes, or key count — per `kind`. */
@@ -1278,7 +1272,7 @@ export type JsonValue =
 /**
  * Extension data storage: JSON under string keys. Each extension has
  * its own space; data survives restart, update, and disabling.
- * No permission is required; limits are `EXTENSION_STORAGE_LIMITS`.
+ * Limits are `EXTENSION_STORAGE_LIMITS`.
  */
 export interface ExtensionStorage {
   get<T extends JsonValue = JsonValue>(key: string): Promise<T | undefined>;
@@ -1300,7 +1294,7 @@ export const EXTENSION_SECRET_LIMITS = Object.freeze({
 });
 
 /**
- * Thrown by `ctx.secrets.set` and by `ctx.secrets.get` of an existing key when
+ * Thrown by `server.secrets.set` and by `server.secrets.get` of an existing key when
  * the operating system has no secure key store: no store, Linux `basic_text`
  * backend, the app is not ready yet, or the stored value cannot be decrypted
  * any more (the keychain changed; `delete` and write again).
@@ -1315,8 +1309,7 @@ export class SecretsUnavailableError extends Error {
 
 /**
  * Secret strings (tokens, passwords) encrypted with the system key store.
- * No permission is required; each extension has its own space, cleared with
- * the extension data. Limits are `EXTENSION_SECRET_LIMITS`.
+ * Each extension has its own space, cleared with the extension data. Limits are `EXTENSION_SECRET_LIMITS`.
  */
 export interface ExtensionSecrets {
   /** `undefined` if the key does not exist (also when the key store is unavailable). */
@@ -1342,15 +1335,15 @@ export type SettingChange<S extends SettingValues = SettingValues> = {
   };
 }[keyof S & string];
 
-/** Settings of the extension (`contributes.settings`); `S` maps declared setting ids to value types. */
+/** Settings of the extension (`server.registerSettings`); `S` maps setting ids to value types. */
 export interface ExtensionSettings<S extends SettingValues = SettingValues> {
-  /** The current value or the `default`; an `id` the manifest does not declare throws. */
+  /** The current value or the `default`; an `id` nobody registered throws. */
   get<K extends keyof S & string>(id: K): S[K];
   /** The handler runs after a change, without restarting the extension; a handler failure is only logged. */
   onDidChange(handler: (change: SettingChange<S>) => void): Disposable;
 }
 
-/** Limits of `ctx.stats`; the engine enforces them. */
+/** Limits of `server.stats`; the engine enforces them. */
 export const EXTENSION_STATS_LIMITS = Object.freeze({
   /** Most dates in one `daily` range (both ends included). */
   dailyDays: 366,
@@ -1376,8 +1369,7 @@ export interface DailyStat {
 }
 
 /**
- * Aggregated learning statistics; need the `learning.stats` permission, otherwise
- * every call rejects with `PermissionError('learning.stats')`. Numbers only: no
+ * Aggregated learning statistics. Numbers only: no
  * exercise or course identifiers, answers or content. Days are local days in
  * the user's time zone; an attempt is correct at grade 3 or higher; the
  * history counts attempts even after a progress reset. An unknown `courseId`
@@ -1397,7 +1389,7 @@ export interface ExtensionStats {
   }): Promise<DailyStat[]>;
 }
 
-/** Limits of `ctx.notifications`; the engine enforces them. */
+/** Limits of `server.notifications`; the engine enforces them. */
 export const EXTENSION_NOTIFICATION_LIMITS = Object.freeze({
   /** Title length in characters (code points). */
   titleLength: 80,
@@ -1412,7 +1404,7 @@ export const EXTENSION_NOTIFICATION_LIMITS = Object.freeze({
 /** Which window of `EXTENSION_NOTIFICATION_LIMITS` was exceeded. */
 export type NotificationRateLimitWindow = 'minute' | 'hour';
 
-/** Thrown by `ctx.notifications.show` over the rate limit: the notification was not shown. */
+/** Thrown by `server.notifications.show` over the rate limit: the notification was not shown. */
 export class NotificationRateLimitError extends Error {
   readonly window: NotificationRateLimitWindow;
   /** Exceeded limit: notifications per `window`. */
@@ -1441,8 +1433,7 @@ export interface ExtensionNotification {
 }
 
 /**
- * System notifications; need the `notifications` permission, otherwise
- * `show` rejects with `PermissionError('notifications')`. The notification
+ * System notifications. The notification
  * names the extension; a click shows the app window. Works only while the app
  * runs. The user can switch notifications off per extension in the settings.
  */
@@ -1459,68 +1450,9 @@ export interface ExtensionNotifications {
 /** Runs when a schedule fires; at most `EXTENSION_SCHEDULE_LIMITS.handlerMs`, a failure is only logged. */
 export type ScheduleHandler = () => void | Promise<void>;
 
-/** Schedules of the extension (`contributes.schedules`); `Id` narrows the schedule ids. */
-export interface ExtensionSchedule<Id extends string = string> {
-  /**
-   * `id` must be declared in the `schedules` of this extension's manifest,
-   * otherwise it throws; subscribing twice throws. The app fires the handler
-   * by the local clock while it runs, activating the extension if needed. A
-   * firing found more than `EXTENSION_SCHEDULE_LIMITS.lateMs` after its moment
-   * (the app was closed or asleep) is skipped and never replayed; a handler
-   * still running from the previous firing misses the next one. No
-   * permission is needed; the user can switch the extension's schedules off
-   * in the settings.
-   */
-  on(id: Id, handler: ScheduleHandler): Disposable;
-}
-
 export type LearningEventHandler<N extends LearningEventName> = (
   payload: LearningEventPayloads[N],
 ) => void | Promise<void>;
-
-/** Learning events; need the `learning.events` permission and the event declared in `contributes.events`. `N` narrows the event names. */
-export interface ExtensionEvents<
-  N extends LearningEventName = LearningEventName,
-> {
-  /**
-   * One handler per event. Delivery is asynchronous, in order, at most once;
-   * 2 s per handler; a failure is only logged.
-   */
-  on<E extends N>(name: E, handler: LearningEventHandler<E>): Disposable;
-}
-
-/** Commands of the extension (`contributes.commands`); `Id` narrows the command ids. */
-export interface ExtensionCommands<Id extends string = string> {
-  /**
-   * `id` must be declared in the `commands` of this extension's manifest,
-   * otherwise it throws; registering twice throws. The handler runs for at
-   * most `EXTENSION_COMMAND_LIMITS.handlerMs`; a failure or an exceeded
-   * budget reaches the caller as an error.
-   */
-  register(id: Id, handler: CommandHandler): Disposable;
-}
-
-/** Importers of the extension (`contributes.importers`); `Id` narrows the importer ids. */
-export interface ExtensionImporters<Id extends string = string> {
-  /**
-   * `id` must be declared in the `importers` of this extension's manifest,
-   * otherwise it throws; registering twice throws. The handler runs for at
-   * most `EXTENSION_TRANSFER_LIMITS.handlerMs`; a failure, an exceeded budget,
-   * or a result `normalizeImportResult` refuses reaches the user as an error.
-   */
-  register(id: Id, handler: ImporterHandler): Disposable;
-}
-
-/** Exporters of the extension (`contributes.exporters`); `Id` narrows the exporter ids. */
-export interface ExtensionExporters<Id extends string = string> {
-  /**
-   * `id` must be declared in the `exporters` of this extension's manifest,
-   * otherwise it throws; registering twice throws. The handler runs for at
-   * most `EXTENSION_TRANSFER_LIMITS.handlerMs`; a failure, an exceeded budget,
-   * or a result `normalizeExportResult` refuses reaches the user as an error.
-   */
-  register(id: Id, handler: ExporterHandler): Disposable;
-}
 
 export interface Disposable {
   dispose(): void | Promise<void>;
@@ -1534,58 +1466,325 @@ export interface ExtensionLogger {
   error(fields: object, message?: string): void;
 }
 
-/**
- * The ids an extension declares in `extension.json`, by kind. The defaults are
- * plain strings; the SDK narrows them to the declared ids (see `ExtensionIds`
- * in `@dolphy-app/extension-sdk`).
- */
-export interface ExtensionIdSet {
-  exerciseTypes: string;
-  gradePolicies: string;
-  commands: string;
-  events: LearningEventName;
-  panels: string;
-  widgets: string;
-  schedules: string;
-  importers: string;
-  exporters: string;
-  /** Languages of `contributes.markdownRenderers`. */
-  markdownLanguages: string;
-  /** Setting id → type of its value. */
-  settings: SettingValues;
+/** A kind of exercise (`server.registerExerciseType`): metadata and handler in one object. */
+export interface ExerciseTypeRegistration<
+  Spec = unknown,
+  Answer = unknown,
+  View = unknown,
+> extends ExerciseTypeHandler<Spec, Answer, View> {
+  /** Equal to the extension id or starts with `<extension id>.`. */
+  id: string;
+  /** Name shown on the contribution chip, 1–`EXTENSION_COMMAND_LIMITS.titleLength` characters; without it the id is shown. */
+  title?: LocalizedText;
+  /** JSON Schema 2020-12 for `engine.exercise.spec`. */
+  specSchema: JsonSchema;
+  /** JSON Schema 2020-12 for the learner's answer (`submitAnswer.answer`). */
+  answerSchema: JsonSchema;
 }
 
-/** `Ids` narrows what the context accepts to the ids the manifest declares. */
-export interface ExtensionContext<Ids extends ExtensionIdSet = ExtensionIdSet> {
+/** A grading rule (`server.registerGradePolicy`): how verdicts are turned into a 1–5 grade. */
+export interface GradePolicyRegistration {
+  /** Equal to the extension id or starts with `<extension id>.`; not `passAtN`. */
+  id: string;
+  /** Name of the rule, 1–`EXTENSION_COMMAND_LIMITS.titleLength` characters. */
+  label: LocalizedText;
+  evaluate: GradePolicyHandler;
+}
+
+/** What an entry function may return: a cleanup called when the extension is unloaded. */
+export type EntryCleanup = Disposable | (() => void | Promise<void>);
+
+/** Result of an entry function: nothing or a cleanup. */
+export type EntryResult = void | EntryCleanup;
+
+/**
+ * What the host gives the server part of an extension (`export const server`
+ * of `src/index.ts`, built into `main.mjs`). Every `register*` call adds a
+ * contribution and returns a `Disposable` that removes it. Ids are
+ * checked by the host; a violation fails the whole registration.
+ * `Engine` is the type of `engine` (`unknown`: this package does not depend on
+ * the engine contract; the SDK fixes it to `ExtensionEngine`).
+ */
+export interface ServerContext<
+  S extends SettingValues = SettingValues,
+  Engine = unknown,
+> {
   readonly extensionId: string;
   readonly logger: ExtensionLogger;
   readonly library: LibraryReader;
   readonly storage: ExtensionStorage;
   readonly secrets: ExtensionSecrets;
-  readonly settings: ExtensionSettings<Ids['settings']>;
-  readonly events: ExtensionEvents<Ids['events']>;
-  /** Learning statistics; needs the `learning.stats` permission. */
+  readonly settings: ExtensionSettings<S>;
+  /** Learning statistics. */
   readonly stats: ExtensionStats;
-  /** System notifications; need the `notifications` permission. */
+  /** System notifications. */
   readonly notifications: ExtensionNotifications;
-  /** Schedules the extension declares; no permission needed. */
-  readonly schedule: ExtensionSchedule<Ids['schedules']>;
-  readonly commands: ExtensionCommands<Ids['commands']>;
-  readonly importers: ExtensionImporters<Ids['importers']>;
-  readonly exporters: ExtensionExporters<Ids['exporters']>;
-  /** `type` must be declared in the manifest of this extension, otherwise it throws. */
-  registerExerciseType(
-    type: Ids['exerciseTypes'],
-    handler: ExerciseTypeHandler,
+  /**
+   * The app's engine: every method of the engine contract, writing ones
+   * included, and `subscribe` for the engine events. Calls are made on behalf
+   * of this extension and fail with `EngineError` as in the window.
+   */
+  readonly engine: Engine;
+  registerExerciseType(reg: ExerciseTypeRegistration): Disposable;
+  registerGradePolicy(reg: GradePolicyRegistration): Disposable;
+  /** Adds the settings to "Settings → Extensions"; ids are unique across the extension. */
+  registerSettings(defs: readonly SettingDefinition[]): Disposable;
+  /**
+   * One handler per event. Delivery is asynchronous, in order, at most once;
+   * 2 s per handler; a failure is only logged.
+   */
+  on<E extends LearningEventName>(
+    event: E,
+    handler: LearningEventHandler<E>,
   ): Disposable;
-  /** `id` must be declared in `gradePolicies` of this extension's manifest, otherwise it throws. */
-  registerGradePolicy(
-    id: Ids['gradePolicies'],
-    handler: GradePolicyHandler,
+  registerCommand(reg: CommandRegistration): Disposable;
+  /**
+   * The app fires the handler by the local clock while it runs. A firing
+   * found more than `EXTENSION_SCHEDULE_LIMITS.lateMs` after its moment (the
+   * app was closed or asleep) is skipped and never replayed; a handler still
+   * running from the previous firing misses the next one. The user can switch
+   * the extension's schedules off in the settings.
+   */
+  schedule(reg: ScheduleRegistration, handler: ScheduleHandler): Disposable;
+  registerImporter(reg: ImporterRegistration): Disposable;
+  registerExporter(reg: ExporterRegistration): Disposable;
+  /**
+   * Answers the calls of `useRpc(contract)` from the extension's components
+   * and of `engine.extensions.invokeRpc`. One handler per contract name, at
+   * most `EXTENSION_RPC_LIMITS.rpcs` per extension. The input is validated
+   * with `contract.input` before the handler runs and the result with
+   * `contract.output` after it; a violation rejects the call. A handler runs
+   * for at most `EXTENSION_RPC_LIMITS.handlerMs`; its error reaches the caller
+   * with the message.
+   */
+  handle<Input, Output>(
+    contract: RpcContract<Input, Output>,
+    handler: (input: Input) => Output | Promise<Output>,
+  ): Disposable;
+  /**
+   * Takes part in an operation before the engine performs it. One handler
+   * per hook name, at most `EXTENSION_HOOK_LIMITS.hooks` per extension; an
+   * unknown name rejects the registration. The handlers of the extensions
+   * that registered the hook run in ascending order of the extension id,
+   * each with the response of the previous one. The request and the
+   * response are validated with `EXTENSION_HOOKS[name]`; an error of the
+   * handler, an invalid response or exceeding `EXTENSION_HOOK_LIMITS.timeoutMs`
+   * cancels the operation, and the message reaches the user.
+   */
+  before<N extends ExtensionHookName>(
+    name: N,
+    handler: HookHandler<N>,
   ): Disposable;
 }
 
-export interface ExtensionModule {
-  activate(context: ExtensionContext): void | Promise<void>;
-  deactivate?(): void | Promise<void>;
+/** `export const server` of an extension: registers contributions; the result, if any, runs when the extension is unloaded. */
+export type ServerEntry<Engine = unknown> = (
+  server: ServerContext<SettingValues, Engine>,
+) => EntryResult | Promise<EntryResult>;
+
+/**
+ * The registered forms below are what the host's registrar produces from the
+ * calls of `server`: handlers dropped, defaults applied, absent values `null`.
+ * The engine and the window read them as they are (the engine's DTOs add
+ * `extensionId` to them).
+ */
+
+/** Exercise type as the registrar hands it over: schemas, no handlers. */
+export interface RegisteredExerciseType {
+  id: string;
+  /** `null` — the id is shown. */
+  title: LocalizedText | null;
+  specSchema: JsonSchema;
+  answerSchema: JsonSchema;
 }
+
+/** Grading rule as the registrar hands it over: no handler. */
+export type RegisteredGradePolicy = Omit<GradePolicyRegistration, 'evaluate'>;
+
+/** Key binding with every platform field present (`null` — same as `key`; `when` `null` — no condition). */
+export interface RegisteredKeybinding {
+  key: string;
+  mac: string | null;
+  windows: string | null;
+  linux: string | null;
+  when: string | null;
+}
+
+/** Command as the registrar hands it over: defaults applied, no handler. */
+export interface RegisteredCommand {
+  id: string;
+  title: LocalizedText;
+  description: LocalizedText | null;
+  category: LocalizedText | null;
+  palette: boolean;
+  icon: ExtensionIconName;
+  keybindings: RegisteredKeybinding[];
+  when: string | null;
+}
+
+/** Schedule as the registrar hands it over: `at` is `null` for `hourly`. */
+export interface RegisteredSchedule {
+  id: string;
+  every: ExtensionScheduleEvery;
+  at: string | null;
+}
+
+/** Importer as the registrar hands it over: no handler. */
+export interface RegisteredImporter {
+  id: string;
+  title: LocalizedText;
+  accept: string[];
+  input: ImporterInputKind;
+}
+
+/** Exporter as the registrar hands it over: no handler. */
+export interface RegisteredExporter {
+  id: string;
+  title: LocalizedText;
+  scope: ExporterScope;
+}
+
+interface RegisteredSettingBase {
+  id: string;
+  label: LocalizedText;
+  description: LocalizedText | null;
+  group: LocalizedText | null;
+  order: number;
+  visibleWhen: SettingVisibleWhen | null;
+}
+
+export interface RegisteredBooleanSetting extends RegisteredSettingBase {
+  type: 'boolean';
+  default: boolean;
+}
+
+export interface RegisteredStringSetting extends RegisteredSettingBase {
+  type: 'string';
+  default: string;
+  /** `null` — up to `SETTING_LIMITS.stringLength`. */
+  maxLength: number | null;
+}
+
+export interface RegisteredTextSetting extends RegisteredSettingBase {
+  type: 'text';
+  default: string;
+  /** `null` — up to `SETTING_LIMITS.stringLength`. */
+  maxLength: number | null;
+}
+
+export interface RegisteredColorSetting extends RegisteredSettingBase {
+  type: 'color';
+  /** Lower-case `#rrggbb`. */
+  default: string;
+}
+
+export interface RegisteredListSetting extends RegisteredSettingBase {
+  type: 'list';
+  default: string[];
+  maxItems: number;
+  itemMaxLength: number;
+}
+
+export interface RegisteredNumberSetting extends RegisteredSettingBase {
+  type: 'number';
+  default: number;
+  min: number | null;
+  max: number | null;
+  integer: boolean;
+}
+
+export interface RegisteredEnumSetting extends RegisteredSettingBase {
+  type: 'enum';
+  default: string;
+  options: EnumSettingOption[];
+}
+
+/** A `SettingDefinition` with its defaults applied. */
+export type RegisteredSetting =
+  | RegisteredBooleanSetting
+  | RegisteredStringSetting
+  | RegisteredTextSetting
+  | RegisteredColorSetting
+  | RegisteredListSetting
+  | RegisteredNumberSetting
+  | RegisteredEnumSetting;
+
+/**
+ * Everything the server part of an extension registered, as data: the host
+ * keeps the handlers and sends this snapshot to the engine. Registration is
+ * all or nothing: when `server` fails or exceeds its budget, the extension has no registration.
+ */
+export interface ServerRegistration {
+  readonly exerciseTypes: readonly RegisteredExerciseType[];
+  readonly gradePolicies: readonly RegisteredGradePolicy[];
+  readonly settings: readonly RegisteredSetting[];
+  readonly events: readonly LearningEventName[];
+  readonly commands: readonly RegisteredCommand[];
+  readonly schedules: readonly RegisteredSchedule[];
+  readonly importers: readonly RegisteredImporter[];
+  readonly exporters: readonly RegisteredExporter[];
+  /** Names of the contracts of `server.handle`. */
+  readonly rpcs: readonly string[];
+  /** Names of the hooks of `server.before`. */
+  readonly hooks: readonly ExtensionHookName[];
+}
+
+/** Registration of an extension without a server part, or before it has registered anything. */
+export const EMPTY_SERVER_REGISTRATION: ServerRegistration = Object.freeze({
+  exerciseTypes: Object.freeze([]),
+  gradePolicies: Object.freeze([]),
+  settings: Object.freeze([]),
+  events: Object.freeze([]),
+  commands: Object.freeze([]),
+  schedules: Object.freeze([]),
+  importers: Object.freeze([]),
+  exporters: Object.freeze([]),
+  rpcs: Object.freeze([]),
+  hooks: Object.freeze([]),
+});
+
+/** Code block language of a markdown renderer: `[a-z][a-z0-9-]{0,31}`. */
+export const MARKDOWN_LANGUAGE_PATTERN = /^[a-z][a-z0-9-]{0,31}$/;
+
+/** A theme added by an extension: data only, no code (`client.addTheme`). */
+export interface ThemeRegistration {
+  /** Equal to the extension id or starts with `<extension id>.`; not in `BUILTIN_THEME_IDS`. */
+  id: string;
+  /** Tile title in "Settings → Appearance", 1–`EXTENSION_COMMAND_LIMITS.titleLength` characters. */
+  label: LocalizedText;
+  dark: boolean;
+  /** Keys from `THEME_COLOR_KEYS`; values are `#rrggbb` or `#rrggbbaa`. */
+  colors: Record<string, string>;
+  /** Keys from `THEME_VARIABLE_KEYS`: `border-color` is a color, the rest are numbers 0..1. */
+  variables?: Record<string, string | number>;
+}
+
+/**
+ * What the window gives the client part of an extension (`export const
+ * client` of `src/index.ts`, built into `client.mjs`). Components are Vue
+ * components (`unknown`: this package does not depend on Vue). Every `add*`
+ * call returns a `Disposable` that removes the contribution. `Engine` is the
+ * type of `engine` (`unknown`: this package does not depend on the engine
+ * contract; the SDK fixes it to `ExtensionEngine`).
+ */
+export interface ClientContext<Engine = unknown> {
+  readonly extensionId: string;
+  /** The window API, the same object as `useApp()` in a component. */
+  readonly app: AppApi;
+  /** The engine client of the window, the same object as `useEngine()` in a component. */
+  readonly engine: Engine;
+  addPanel(reg: PanelRegistration): Disposable;
+  /** Draws `reg.component` at every element that matches `reg.target`. */
+  addInjection(reg: InjectionRegistration): Disposable;
+  /** `exerciseTypeId` is an exercise type this or another extension registers on the server. */
+  addAnswerView(exerciseTypeId: string, component: unknown): Disposable;
+  /** `language` matches `MARKDOWN_LANGUAGE_PATTERN`. */
+  addMarkdownRenderer(language: string, component: unknown): Disposable;
+  addTheme(reg: ThemeRegistration): Disposable;
+  addCommand(reg: ClientCommandRegistration): Disposable;
+}
+
+/** `export const client` of an extension: registers contributions; the result, if any, runs when the extension is unloaded. */
+export type ClientEntry<Engine = unknown> = (
+  client: ClientContext<Engine>,
+) => EntryResult | Promise<EntryResult>;

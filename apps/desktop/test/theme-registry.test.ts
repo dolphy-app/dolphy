@@ -1,11 +1,13 @@
 import { ref, shallowRef } from 'vue';
 import { describe, expect, it } from 'vitest';
-import type { ThemeContributionDto } from '@dolphy-app/engine-contract';
 import type { ThemeDefinition } from 'vuetify';
 import { bindExtensionThemes } from '@/shared/lib/theme-registry.ts';
 import type { ThemeRegistry } from '@/shared/lib/theme-registry.ts';
+import type { ClientTheme } from '@/shared/lib/extension-clients.ts';
 
-const theme = (id: string, dark = false): ThemeContributionDto => ({
+const theme = (id: string, dark = false): ClientTheme => ({
+  kind: 'theme',
+  key: `${id}:1:1`,
   id,
   extensionId: id,
   label: id,
@@ -99,9 +101,16 @@ describe('bindExtensionThemes', () => {
     expect(themes.value['ext__acme__a']?.colors?.['primary']).toBe('#ff0000');
   });
 
-  it('an unknown saved theme shows system', () => {
+  it('shows system until the saved theme is registered, then applies it', () => {
     const { registry, changes } = createRegistry();
-    bindExtensionThemes(registry, shallowRef('gone.theme'), () => []);
+    const contributed = shallowRef<ClientTheme[]>([]);
+    bindExtensionThemes(
+      registry,
+      shallowRef('acme.midnight'),
+      () => contributed.value,
+    );
     expect(changes).toEqual(['system']);
+    contributed.value = [theme('acme.midnight')];
+    expect(changes).toEqual(['system', 'ext__acme__midnight']);
   });
 });

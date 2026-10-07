@@ -1,22 +1,28 @@
-import {
-  defineExtension,
-  defineExtensionPanel,
-  notify,
-  openPanel,
-} from '@dolphy-app/extension-sdk';
+import { defineComponent, h } from 'vue';
 
-export const host = defineExtension({
-  commands: {
-    'acme.commands-panel.open': () =>
-      openPanel('acme.commands-panel.main', { from: 'command' }),
-    'acme.commands-panel.ping': () => notify('pong'),
-  },
+const main = defineComponent({
+  render: () => h('p', 'PANEL_MAIN_MARKER'),
 });
 
-export const panels = {
-  'acme.commands-panel.main': defineExtensionPanel({
-    mount(container, ctx) {
-      container.textContent = `panel ${ctx.panelId}`;
-    },
-  }),
+export const server = (s) => {
+  s.registerCommand({
+    id: 'acme.commands-panel.open',
+    title: 'Open panel',
+    category: 'Acme',
+    run: () => undefined,
+  });
+  s.registerCommand({
+    id: 'acme.commands-panel.ping',
+    title: 'Ping',
+    palette: false,
+    run: () => undefined,
+  });
+};
+
+export const client = (c) => {
+  c.addPanel({
+    id: 'acme.commands-panel.main',
+    title: 'Acme panel',
+    component: main,
+  });
 };

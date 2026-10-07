@@ -13,12 +13,9 @@ const dir = (name: string) =>
   fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url));
 
 const NOTIFY_ID = 'acme.notify';
-const DENIED_ID = 'acme.nonotify';
 const SHOW = 'Уведомление: показать';
 const MANY = 'Уведомление: много';
 const LONG = 'Уведомление: слишком длинное';
-const DENIED_SHOW = 'Уведомление без разрешения: показать';
-const PERMISSION_LABEL = 'Системные уведомления';
 
 let workspace: Workspace | null = null;
 let app: DolphyApp | null = null;
@@ -73,7 +70,6 @@ const prepare = async () => {
   workspace = await createWorkspace({
     extensions: {
       [NOTIFY_ID]: dir('notify-extension'),
-      [DENIED_ID]: dir('notify-denied-extension'),
     },
     libraryFiles: PLAIN_LIBRARY,
   });
@@ -88,7 +84,7 @@ afterEach(async () => {
 });
 
 describe('notifications', () => {
-  it('show доходит до main с именем расширения и очищенным текстом; сверх 3 в минуту — NotificationRateLimitError, длинное название и вызов без разрешения отклоняются', async () => {
+  it('show доходит до main с именем расширения и очищенным текстом; сверх 3 в минуту — NotificationRateLimitError и длинное название отклоняется', async () => {
     const session = await prepare();
 
     await runCommand(session, SHOW);
@@ -132,16 +128,6 @@ describe('notifications', () => {
       .poll(() => stored(NOTIFY_ID, 'long'), { timeout: 15_000 })
       .toMatchObject({ error: { code: 'INVALID_ARGUMENT' } });
 
-    await runCommand(session, DENIED_SHOW);
-    await expect
-      .poll(() => stored(DENIED_ID, 'report'), { timeout: 15_000 })
-      .toEqual({
-        error: {
-          name: 'PermissionError',
-          code: 'EXT_PERMISSION',
-          permission: 'notifications',
-        },
-      });
     expect(notifications()).toHaveLength(3);
   });
 
@@ -150,12 +136,6 @@ describe('notifications', () => {
     const { client } = session;
 
     await client.openSettingsExtensions();
-    const [row] = await client.readExtensions(NOTIFY_ID);
-    expect(row).toContain(PERMISSION_LABEL);
-    // у расширения без разрешения переключателя «Уведомления» нет
-    expect(
-      await app!.page.getByTestId(`notifications-${DENIED_ID}`).count(),
-    ).toBe(0);
     expect(
       await client.extensionSwitchChecked(NOTIFY_ID, 'notifications'),
     ).toBe(true);

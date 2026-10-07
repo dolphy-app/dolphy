@@ -1,18 +1,5 @@
 {
   "id": "acme.nomain",
   "version": "1.0.0",
-  "apiVersion": 1,
-  "contributes": {
-    "exerciseTypes": [
-      {
-        "id": "acme.nomain",
-        "specSchema": {
-          "type": "object",
-          "required": ["expected"],
-          "properties": { "expected": { "type": "string" } }
-        },
-        "answerSchema": { "type": "string" }
-      }
-    ]
-  }
+  "apiVersion": 1
 }

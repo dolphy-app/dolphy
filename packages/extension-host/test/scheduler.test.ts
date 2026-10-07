@@ -8,11 +8,13 @@ import {
   vi,
 } from 'vitest';
 import type { ChannelOutcome, HostChannel } from '../src/channel.ts';
+import { EMPTY_SERVER_REGISTRATION } from '@dolphy-app/extension-api';
+import type { RegisteredSchedule } from '@dolphy-app/extension-api';
 import type { ExtensionOrigin, ResolvedExtension } from '../src/discover.ts';
+import { discoveryOf } from '../src/holder.ts';
 import { createExtensionPolicy } from '../src/policy.ts';
-import type { ResolvedSchedule } from '../src/points/types.ts';
 import { createScheduler, latestOccurrence } from '../src/scheduler.ts';
-import { createLogger, holderOf } from './helpers.ts';
+import { createLogger, holderOf, resolvedOf } from './helpers.ts';
 
 const LATE = 120_000;
 const local = (
@@ -24,12 +26,12 @@ const local = (
   s = 0,
 ): number => new Date(y, mo - 1, d, h, mi, s, 0).getTime();
 
-const daily = (at: string): ResolvedSchedule => ({
+const daily = (at: string): RegisteredSchedule => ({
   id: 'a',
   every: 'daily',
   at,
 });
-const hourly: ResolvedSchedule = { id: 'h', every: 'hourly', at: null };
+const hourly: RegisteredSchedule = { id: 'h', every: 'hourly', at: null };
 
 let zone: string | undefined;
 const setZone = (value: string) => {
@@ -158,44 +160,12 @@ describe('latestOccurrence', () => {
 
 const extension = (
   id: string,
-  schedules: ResolvedSchedule[],
+  schedules: RegisteredSchedule[],
   origin: ExtensionOrigin = 'user',
-): ResolvedExtension => ({
-  id,
-  version: '1.0.0',
-  origin,
-  revision: '',
-  dir: `/x/${id}`,
-  mainPath: '/x/main.mjs',
-  permissions: [],
-  name: null,
-  description: null,
-  author: null,
-  dependencies: [],
-  platforms: [],
-  minAppVersion: null,
-  icon: null,
-  tags: [],
-  install: null,
-  messages: {},
-  warnings: [],
-  exerciseTypes: [],
-  themes: [],
-  markdownRenderers: [],
-  gradePolicies: [],
-  settings: [],
-  events: [],
-  commands: [],
-  widgets: [],
-  schedules,
-  panels: [],
-  importers: [],
-  exporters: [],
-});
+): ResolvedExtension => resolvedOf(id, { schedules }, { origin });
 
 const settings = (patch: Record<string, unknown> = {}) => ({
   disabled: [],
-  trusted: [],
   checkUpdates: true,
   safeMode: false,
   notificationsOff: [],
@@ -206,7 +176,7 @@ const settings = (patch: Record<string, unknown> = {}) => ({
 
 interface Call {
   method: string;
-  params: { extensionId: string; scheduleId: string; isolated: boolean };
+  params: { extensionId: string; scheduleId: string };
 }
 
 const harness = (extensions: ResolvedExtension[], start: number) => {
@@ -263,7 +233,7 @@ const harness = (extensions: ResolvedExtension[], start: number) => {
 describe('createScheduler', () => {
   beforeEach(() => setZone('UTC'));
 
-  it('активирует лениво: отправляет fireSchedule в момент срабатывания и только один раз', async () => {
+  it('отправляет fireSchedule в момент срабатывания и только один раз', async () => {
     const t = harness(
       [extension('acme.a', [daily('09:00')])],
       local(2026, 10, 5, 8, 59),
@@ -274,7 +244,7 @@ describe('createScheduler', () => {
     expect(t.calls).toEqual([
       {
         method: 'fireSchedule',
-        params: { extensionId: 'acme.a', scheduleId: 'a', isolated: true },
+        params: { extensionId: 'acme.a', scheduleId: 'a' },
       },
     ]);
     await t.at(local(2026, 10, 5, 9, 0, 40));
@@ -282,24 +252,6 @@ describe('createScheduler', () => {
     expect(t.calls).toHaveLength(1);
     await t.at(local(2026, 10, 6, 9, 0, 5));
     expect(t.calls).toHaveLength(2);
-  });
-
-  it('режим исполнения берётся у политики на каждую отправку; расширение из поставки не изолировано', async () => {
-    const t = harness(
-      [
-        extension('acme.a', [hourly]),
-        extension('dolphy.b', [hourly], 'bundled'),
-      ],
-      local(2026, 10, 5, 9, 59),
-    );
-    t.policy.update(settings({ trusted: ['acme.a'] }));
-    await t.at(local(2026, 10, 5, 10, 0, 5));
-    expect(
-      t.calls.map(({ params }) => [params.extensionId, params.isolated]),
-    ).toEqual([
-      ['acme.a', false],
-      ['dolphy.b', false],
-    ]);
   });
 
   it('приложение спало: пропущенное не воспроизводится, следующее срабатывание идёт штатно', async () => {
@@ -360,7 +312,10 @@ describe('createScheduler', () => {
 
   it('отключённое расширение, выключенный переключатель и безопасный режим не срабатывают сразу', async () => {
     const t = harness(
-      [extension('acme.a', [hourly]), extension('acme.b', [hourly])],
+      [
+        extension('acme.a', [{ id: 'acme.a.h', every: 'hourly', at: null }]),
+        extension('acme.b', [{ id: 'acme.b.h', every: 'hourly', at: null }]),
+      ],
       local(2026, 10, 5, 9, 59),
     );
     t.policy.update(
@@ -396,11 +351,39 @@ describe('createScheduler', () => {
   it('удалённое расширение не срабатывает: набор читается на каждом тике', async () => {
     const a = extension('acme.a', [hourly]);
     const t = harness([a], local(2026, 10, 5, 9, 59));
-    t.holder.replace({
-      extensions: [],
-      diagnostics: [],
-      overridden: [],
-    } as never);
+    t.holder.replace(discoveryOf([]));
+    await t.at(local(2026, 10, 5, 10, 0, 5));
+    expect(t.calls).toEqual([]);
+  });
+
+  it('новая регистрация заменяет расписания: сняты — не срабатывают, добавлены — срабатывают', async () => {
+    const a = extension('acme.a', [
+      { id: 'acme.a.old', every: 'hourly', at: null },
+    ]);
+    const t = harness([a], local(2026, 10, 5, 9, 59));
+    t.holder.applyRegistrations({
+      registrations: {
+        [a.id]: {
+          ok: true,
+          registration: {
+            ...EMPTY_SERVER_REGISTRATION,
+            schedules: [{ id: 'acme.a.new', every: 'hourly', at: null }],
+          },
+        },
+      },
+    });
+    await t.at(local(2026, 10, 5, 10, 0, 5));
+    expect(t.calls.map(({ params }) => params.scheduleId)).toEqual([
+      'acme.a.new',
+    ]);
+  });
+
+  it('расширение, которое не зарегистрировалось (load-failed), не срабатывает', async () => {
+    const a = extension('acme.a', [hourly]);
+    const t = harness([a], local(2026, 10, 5, 9, 59));
+    t.holder.applyRegistrations({
+      registrations: { [a.id]: { ok: false, error: 'server() threw' } },
+    });
     await t.at(local(2026, 10, 5, 10, 0, 5));
     expect(t.calls).toEqual([]);
   });

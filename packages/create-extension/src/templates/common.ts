@@ -36,8 +36,7 @@ export const lines = (parts: readonly string[]): string =>
 export const scripts = (id: string): Record<string, string> => ({
   build: 'dolphy-ext build',
   dev: 'dolphy-ext build --watch',
-  types: 'dolphy-ext types',
-  typecheck: 'dolphy-ext types && tsc',
+  typecheck: 'tsc',
   validate: `dolphy-ext validate dist-ext/${id}`,
   lint: 'dolphy-ext lint',
   test: 'vitest run',
@@ -59,6 +58,8 @@ export const packageJson = ({ id, dependencies }: TemplateInput): string =>
         'happy-dom': '^20.14.5',
         typescript: '^6.0.3',
         vitest: '^5.0.2',
+        vue: '^3.5.35',
+        vuetify: '^4.0.1',
       },
     },
     null,
@@ -82,17 +83,9 @@ export const tsconfigJson = (): string =>
     '    "skipLibCheck": true,',
     '    "noEmit": true',
     '  },',
-    '  "include": ["src", "test", ".dolphy/ids.d.ts"]',
+    '  "include": ["src", "test"]',
     '}',
   ]);
-
-export const idsBullet: readonly string[] = [
-  '- `.dolphy/ids.d.ts` — generated from `extension.json` by',
-  '  `dolphy-ext types` (and by every build): the ids the manifest declares,',
-  '  as TypeScript types. Not committed. A misspelt id, a declared id without',
-  '  a handler or a view, or `ctx.settings.get` of an undeclared setting fails',
-  '  `pnpm typecheck`;',
-];
 
 export const readme = (id: string, module: TemplateModule): string =>
   lines([
@@ -120,7 +113,7 @@ export const readme = (id: string, module: TemplateModule): string =>
     '```',
     '',
     'A change to a file in `dist-ext` is applied live: the window does not',
-    'reload, mounted answer inputs are recreated. Load errors are shown in',
+    'reload, the components on screen are redrawn. Load errors are shown in',
     '"Settings → Extensions".',
     '',
     '## Build, check, test',
@@ -129,7 +122,7 @@ export const readme = (id: string, module: TemplateModule): string =>
     `pnpm build      # dist-ext/${id}`,
     'pnpm validate   # the same manifest parsing the app does',
     'pnpm lint       # metadata and bundle checks before a catalog pull request',
-    'pnpm typecheck  # writes .dolphy/ids.d.ts, then tsc',
+    'pnpm typecheck  # tsc',
     'pnpm test',
     '```',
     '',
@@ -148,8 +141,7 @@ export const readme = (id: string, module: TemplateModule): string =>
     'unpackaged app).',
   ]);
 
-export const gitignore = (): string =>
-  lines(['node_modules', 'dist-ext', '.dolphy']);
+export const gitignore = (): string => lines(['node_modules', 'dist-ext']);
 
 export const claudeMd = (): string => '@AGENTS.md\n';
 
@@ -171,8 +163,7 @@ export const agentsMd = (id: string, module: TemplateModule): string =>
     '- `pnpm install` — install the toolchain;',
     `- \`pnpm build\` — build into \`dist-ext/${id}\`;`,
     '- `pnpm dev` — rebuild on every change (`dolphy-ext build --watch`);',
-    '- `pnpm types` — write `.dolphy/ids.d.ts` from `extension.json`;',
-    '- `pnpm typecheck` — `types`, then `tsc`;',
+    '- `pnpm typecheck` — `tsc`;',
     '- `pnpm validate` — parse the built manifest the way the app does;',
     '- `pnpm lint` — metadata and bundle checks the catalog review also runs;',
     '- `pnpm test` — `vitest`.',
@@ -182,21 +173,30 @@ export const agentsMd = (id: string, module: TemplateModule): string =>
     '',
     '## Rules',
     '',
-    '- `extension.json` is the only declaration: every id the code registers',
-    '  is declared there first. Never edit `.dolphy/ids.d.ts` or `dist-ext/`.',
-    `- Keep ids prefixed with the extension id (\`${id}\`).`,
-    '- Extension code runs in the extension process (`host`), the app window',
-    '  (`views`) or an isolated frame (`panels`, no network). Do not import',
-    '  `node:*` modules into code that runs in the window or a frame.',
+    '- `extension.json` holds the identity of the extension only (id, version,',
+    '  name, author, tags). Contributions are registered by code: `src/index.ts`',
+    '  exports `server` (`defineServer`, runs in the extension host) and/or',
+    '  `client` (`defineClient`, runs in the app window). `pnpm build` writes',
+    '  `main` and `client` into the built manifest; never edit `dist-ext/`.',
+    `- Write ids in the code, prefixed with the extension id (\`${id}\`): a`,
+    '  command, an exercise type, a setting, a panel. The host and the window',
+    '  refuse an id that is taken or does not carry the prefix.',
+    '- The server part (`server`) must not import `vue`, `vuetify` or any',
+    '  component. The client part (`client`) is Vue components registered with',
+    '  `addPanel`, `addInjection`, `addAnswerView`, `addMarkdownRenderer`; it must',
+    '  not import `node:*` modules. The app gives the client code its own `vue`',
+    '  and `vuetify`: import them as usual, they stay out of the bundle.',
+    '  Keep both parts in separate files that `src/index.ts` re-exports, so the',
+    '  build of one never pulls in the other.',
     '- Before publishing replace `your-github-login` in the `author` field of',
     '  `extension.json` with the GitHub login of the publisher.',
-    '- Ask only for the permissions the extension uses, and say in `README.md`',
-    '  what each one is for.',
-    '- No `eval`, no `new Function`, no minified or obfuscated sources, no',
-    '  `http(s)://` URLs unless the manifest declares the `network`',
-    '  permission: `pnpm lint` and the catalog review flag them.',
-    '- Keep tests next to the behaviour: `@dolphy-app/extension-sdk/testing`',
-    '  runs handlers, commands, events, views and panels without the app.',
+    '- No `eval`, no `new Function`, no minified or obfuscated sources:',
+    '  `pnpm lint` and the catalog review flag them.',
+    '- Keep tests next to the behaviour: `createTestServer` from',
+    '  `@dolphy-app/extension-sdk/testing` starts `server` on in-memory fakes and',
+    '  runs commands, events, schedules, exercise types, importers and',
+    '  exporters; `createTestClient` records what `client` adds; mount a',
+    '  component with `createApp` from `vue` in `happy-dom`.',
     '',
     '## Guide',
     '',

@@ -11,15 +11,9 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
-import {
-  createRestrictedRunner,
-  discoverExtensions,
-  formatDiagnostic,
-  inspectExtensionDir,
-} from '@dolphy-app/extension-host';
+import { discoverExtensions } from '@dolphy-app/extension-host';
 
 const appDir = fileURLToPath(new URL('..', import.meta.url));
-const hostileDir = join(appDir, 'e2e/fixtures/hostile-extension');
 const viteBin = join(
   dirname(createRequire(import.meta.url).resolve('vite/package.json')),
   'bin/vite.js',
@@ -92,26 +86,11 @@ describe('смоук и релизная сборка', () => {
           'extension.json',
           'main.mjs',
           'worker.mjs',
-          'view.mjs',
-          'schema/spec.json',
-          'schema/answer.json',
+          'client.mjs',
         ],
-        'dolphy.choice': [
-          'extension.json',
-          'main.mjs',
-          'view.mjs',
-          'schema/spec.json',
-          'schema/answer.json',
-        ],
-        'dolphy.js': [
-          'extension.json',
-          'main.mjs',
-          'worker.mjs',
-          'view.mjs',
-          'schema/spec.json',
-          'schema/answer.json',
-        ],
-        'dolphy.math': ['extension.json', 'markdown.mjs'],
+        'dolphy.choice': ['extension.json', 'main.mjs', 'client.mjs'],
+        'dolphy.js': ['extension.json', 'main.mjs', 'worker.mjs', 'client.mjs'],
+        'dolphy.math': ['extension.json', 'client.mjs'],
       };
       for (const [id, names] of Object.entries(expected)) {
         for (const name of names) {
@@ -142,48 +121,6 @@ describe('смоук и релизная сборка', () => {
       expect(existsSync(join(out, 'dist-electron/host/sql-worker.js'))).toBe(
         false,
       );
-      // собранный дочерний процесс запускается в режиме разрешений и
-      // отказывает расширению в запрещённом
-      const inspected = await inspectExtensionDir(hostileDir);
-      if (!inspected.ok)
-        throw new Error(formatDiagnostic(inspected.diagnostic));
-      const runner = createRestrictedRunner({
-        extension: {
-          ...inspected.extension,
-          origin: 'user',
-          install: null,
-          revision: '',
-        },
-        entryPath: join(out, 'restricted/ext-restricted.mjs'),
-        library: { readText: async () => '', stat: async () => null },
-        engine: {
-          request: async () => {
-            throw new Error('the hostile extension has no engine');
-          },
-        },
-        logger,
-      });
-      try {
-        const response = await runner.handle({
-          id: '1',
-          method: 'grade',
-          params: {
-            type: 'acme.hostile',
-            exerciseId: 'e',
-            spec: {},
-            answer: join(out, 'pwned.txt'),
-            timeoutMs: 15_000,
-            authorMode: false,
-            isolated: true,
-          },
-        });
-        expect(response.ok && response.result).toMatchObject({
-          feedback: expect.stringContaining('write=denied'),
-        });
-        expect(existsSync(join(out, 'pwned.txt'))).toBe(false);
-      } finally {
-        await runner.dispose();
-      }
       expect(existsSync(join(out, 'dist-electron/host/ext-host.js'))).toBe(
         true,
       );

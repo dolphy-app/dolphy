@@ -1,5 +1,3 @@
-import { writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { Locator, Page } from 'playwright-core';
@@ -100,10 +98,7 @@ const closeDialog = async (page: Page) => {
 };
 
 interface Labels {
-  name: string;
-  description: string;
   kind: string;
-  renderer: string;
   theme: string;
   policy: string;
   group: string;
@@ -118,18 +113,15 @@ interface Labels {
 }
 
 const RU: Labels = {
-  name: 'Набор переводов',
-  description: 'Всё переводимое в одном расширении',
   kind: 'Вид с переводом',
-  renderer: 'Блоки с переводом',
   theme: 'Мох',
   policy: 'Правило с переводом',
   group: 'Поведение',
   mode: 'Скорость',
   modeHint: 'Как быстро идти',
   modeSelected: 'Быстро',
-  // есть только в ru.json: на английском остаётся сырой ключ
-  lonelyHint: 'Есть только в ru',
+  // у подписи нет ru: показывается как есть
+  lonelyHint: 'Only in en',
   command: 'Перейти туда',
   commandHint: 'Запускает команду перевода',
   category: 'Перевод',
@@ -137,52 +129,34 @@ const RU: Labels = {
 };
 
 const EN: Labels = {
-  name: 'Locale pack',
-  description: 'Everything translatable in one extension',
   kind: 'Locale kind',
-  renderer: 'Locale blocks',
   theme: 'Moss',
   policy: 'Locale policy',
   group: 'Behavior',
   mode: 'Speed',
   modeHint: 'How fast to go',
   modeSelected: 'Fast',
-  lonelyHint: '%lonely.missing%',
+  lonelyHint: 'Only in en',
   command: 'Go there',
   commandHint: 'Runs the locale command',
   category: 'Locale',
   panel: 'Locale panel',
 };
 
-/** Список расширений: заголовок, описание, чипы вкладов и предупреждение о переводе. */
+/** Список расширений: чипы вкладов на языке окна; рендерер markdown показывается языком блока. */
 const expectRow = async (page: Page, labels: Labels) => {
-  const target = row(page);
-  await expect
-    .poll(async () => (await target.locator('h3').innerText()).trim(), {
-      timeout: TIMEOUT,
-    })
-    .toBe(labels.name);
-  expect(await target.innerText()).toContain(labels.description);
   const chipTexts = async (point: string) =>
     (await chips(page, point).allInnerTexts()).map((text) => text.trim());
-  expect(await chipTexts('exerciseTypes')).toEqual([labels.kind]);
-  expect(await chipTexts('markdownRenderers')).toEqual([labels.renderer]);
+  await expect
+    .poll(() => chipTexts('exerciseTypes'), { timeout: TIMEOUT })
+    .toEqual([labels.kind]);
+  expect(await chipTexts('markdownRenderers')).toEqual(['locale']);
   expect(await chipTexts('themes')).toEqual([labels.theme]);
   expect(await chipTexts('gradePolicies')).toEqual([labels.policy]);
   expect(await chipTexts('commands')).toEqual([labels.command]);
   expect(await chipTexts('panels')).toEqual([labels.panel]);
   // id остаётся подсказкой чипа
   expect(await chips(page, 'exerciseTypes').getAttribute('title')).toBe(ID);
-};
-
-const expectWarning = async (page: Page) => {
-  const warning = row(page).locator(
-    '[data-testid="diagnostic"][data-code="locale.missing-key"]',
-  );
-  await warning.waitFor({ timeout: TIMEOUT });
-  // структурированное предупреждение: одно, с ключом, которого нет в en
-  expect(await warning.count()).toBe(1);
-  expect(await warning.innerText()).toContain('lonely.missing');
 };
 
 const expectDialog = async (page: Page, labels: Labels) => {
@@ -247,19 +221,18 @@ const expectThemeAndPolicy = async (page: Page, labels: Labels) => {
 };
 
 describe('локализация манифеста расширения', () => {
-  it('на русском все места окна показывают русский текст, ключ без перевода в en даёт предупреждение', async () => {
+  it('на русском все места окна показывают русский текст, строка без перевода остаётся как есть', async () => {
     workspace = await createWorkspace({ extensions: { [ID]: EXTENSION } });
     const client = await launch();
     await client.openSettingsExtensions();
 
     await expectRow(client.page, RU);
-    await expectWarning(client.page);
     await expectDialog(client.page, RU);
     await expectChrome(client.page, RU);
     await expectThemeAndPolicy(client.page, RU);
   });
 
-  it('смена языка без перезагрузки окна меняет подписи во всех местах; ключа нет — виден сырой %ключ%', async () => {
+  it('смена языка без перезагрузки окна меняет подписи во всех местах; строка без ru остаётся как есть', async () => {
     workspace = await createWorkspace({ extensions: { [ID]: EXTENSION } });
     const client = await launch();
     await client.openSettingsExtensions();
@@ -272,7 +245,6 @@ describe('локализация манифеста расширения', () =>
       .toBe('en');
 
     await expectRow(client.page, EN);
-    await expectWarning(client.page);
     await expectDialog(client.page, EN);
     await expectChrome(client.page, EN);
     await expectThemeAndPolicy(client.page, EN);
@@ -284,27 +256,7 @@ describe('локализация манифеста расширения', () =>
     await stillSameWindow();
   });
 
-  it('битый файл перевода игнорируется с предупреждением, расширение работает, подписи берутся из en', async () => {
-    workspace = await createWorkspace({ extensions: { [ID]: EXTENSION } });
-    await writeFile(
-      join(workspace.userData, 'extensions', ID, 'locales', 'ru.json'),
-      '{ "name": ',
-    );
-    const client = await launch();
-    await client.openSettingsExtensions();
-
-    // русский интерфейс, но ru.json не читается: цепочка уходит в en
-    await expectRow(client.page, EN);
-    const warning = row(client.page).locator(
-      '[data-testid="diagnostic"][data-code="locale.invalid-file"]',
-    );
-    await warning.waitFor({ timeout: TIMEOUT });
-    expect(await warning.innerText()).toContain('locales/ru.json');
-    expect(await row(client.page).innerText()).toContain('Загружено');
-    await expectChrome(client.page, { ...EN });
-  });
-
-  it('расширения из поставки переводят названия видов и рендереров вместе с языком', async () => {
+  it('расширения из поставки переводят названия видов вместе с языком; рендерер markdown показан языком блока', async () => {
     workspace = await createWorkspace();
     const client = await launch();
     await client.openSettingsExtensions();
@@ -321,9 +273,7 @@ describe('локализация манифеста расширения', () =>
       'Выбор из вариантов',
     );
     expect(await chipText('dolphy.sql', 'exerciseTypes')).toBe('SQL-запрос');
-    expect(await chipText('dolphy.math', 'markdownRenderers')).toBe(
-      'Математические формулы',
-    );
+    expect(await chipText('dolphy.math', 'markdownRenderers')).toBe('math');
 
     await switchLanguage(client.page, 'Язык: English');
     await expect
@@ -332,8 +282,6 @@ describe('локализация манифеста расширения', () =>
       })
       .toBe('Multiple choice');
     expect(await chipText('dolphy.sql', 'exerciseTypes')).toBe('SQL query');
-    expect(await chipText('dolphy.math', 'markdownRenderers')).toBe(
-      'Math formulas',
-    );
+    expect(await chipText('dolphy.math', 'markdownRenderers')).toBe('math');
   });
 });

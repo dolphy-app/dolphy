@@ -58,8 +58,6 @@ const isPlainEscape = (event: KeyboardEvent): boolean =>
  * срок или другая клавиша сбрасывают ожидание, и команда не выполняется);
  * по `Keymap.resolve` выполняет доступную команду; `preventDefault` — только
  * для выполненного сочетания и для ожидания. Палитра — обычная команда.
- * События из рамок расширений сюда не приходят: рамка пересылает родителю
- * лишь Ctrl/⌘+K (`shortcut` в `frame-bridge`).
  */
 export const createKeybindingDispatcher = (
   deps: KeybindingDispatcherDeps,

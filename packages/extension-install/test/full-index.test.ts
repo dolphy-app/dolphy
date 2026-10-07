@@ -196,9 +196,8 @@ describe('tolerant reading', () => {
     });
   });
 
-  it('reads an index the strict schema would not (unknown contribution keys)', async () => {
-    const entry = rawEntry(ECHO) as { contributes: Record<string, unknown> };
-    entry.contributes.widgets = ['x'];
+  it('reads an index the strict schema would not (unknown entry keys)', async () => {
+    const entry = { ...rawEntry(ECHO), future: ['x'] };
     env.routes.set(FULL_INDEX_URL, { body: rawFull([entry]) });
     expect((await env.installer.catalog()).entries).toHaveLength(1);
   });
@@ -320,29 +319,21 @@ describe('icon and assets', () => {
   });
 });
 
-describe('titles and tags', () => {
+describe('tags', () => {
   const THEMED: ExtensionSpec = {
     id: 'acme.themed',
     version: '1.0.0',
-    contributes: {
-      exerciseTypes: [],
-      themes: ['acme.themed.dark'],
-      markdownRenderers: [],
-      gradePolicies: [],
-    },
-    titles: { themes: { 'acme.themed.dark': 'Dark' } },
     tags: { '1.0.0': ['theme', 'interface'] },
   };
 
-  it('copies the titles of the entry and the tags of the displayed version', async () => {
+  it('copies the tags of the displayed version', async () => {
     serveIndex(env.routes, [THEMED, ECHO]);
     const { entries } = await env.installer.catalog();
     const byId = Object.fromEntries(entries.map((entry) => [entry.id, entry]));
     expect(byId['acme.themed']).toMatchObject({
-      titles: { themes: { 'acme.themed.dark': 'Dark' } },
       tags: ['theme', 'interface'],
     });
-    expect(byId['acme.echo']).toMatchObject({ titles: {}, tags: [] });
+    expect(byId['acme.echo']).toMatchObject({ tags: [] });
   });
 
   it('shows the tags of the newest version, not of an older one', async () => {

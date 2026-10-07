@@ -19,11 +19,9 @@ import { effectiveTags } from '../lib/tags.ts';
 import {
   areNotificationsOn,
   areSchedulesOn,
-  hasNotifications,
   hasSchedules,
   hasSwitches,
   isEnabled,
-  isTrusted,
   scheduleSummaryOf,
   useExtensions,
 } from '../model/extensions.ts';
@@ -33,6 +31,7 @@ import { useInstallContext } from '../model/install.ts';
 import { isFromAnotherCatalog } from '../lib/catalog-source.ts';
 import { useCatalogSource } from '../model/catalog-source.ts';
 import DeprecatedChip from './DeprecatedChip.vue';
+import ExtensionClientFailure from './ExtensionClientFailure.vue';
 import ExtensionContributions from './ExtensionContributions.vue';
 import ExtensionDeprecation from './ExtensionDeprecation.vue';
 import ExtensionTags from './ExtensionTags.vue';
@@ -40,7 +39,6 @@ import ExtensionData from './ExtensionData.vue';
 import ExtensionHealth from './ExtensionHealth.vue';
 import ExtensionHeading from './ExtensionHeading.vue';
 import ExtensionDependencies from './ExtensionDependencies.vue';
-import ExtensionPermissions from './ExtensionPermissions.vue';
 import ExtensionRemoveDialog from './ExtensionRemoveDialog.vue';
 import ExtensionSettingsDialog from './ExtensionSettingsDialog.vue';
 import ExtensionLogDialog from './ExtensionLogDialog.vue';
@@ -76,7 +74,6 @@ const {
   diagnostics,
   restartingHost,
   setEnabled,
-  setTrusted,
   setNotifications,
   setSchedules,
   setCheckUpdates,
@@ -137,13 +134,8 @@ const diagnosticText = (diagnostic: ExtensionDiagnosticDto): string =>
     diagnosticParams(diagnostic),
   );
 
-// предупреждений о переводах может быть несколько с одним кодом: ключ отличает данные
 const diagnosticKey = (diagnostic: ExtensionDiagnosticDto): string =>
-  `${diagnostic.code}:${diagnostic.data.key ?? diagnostic.data.file ?? diagnostic.data.id ?? ''}`;
-
-/** Предупреждения о переводах: расширение работает, поэтому они выделены иначе, чем причины сбоя. */
-const isWarning = (diagnostic: ExtensionDiagnosticDto): boolean =>
-  diagnostic.code.startsWith('locale.');
+  `${diagnostic.code}:${diagnostic.data.id ?? ''}`;
 
 const healthOf = (id: string) =>
   diagnostics.value?.extensions.find((health) => health.id === id);
@@ -505,24 +497,6 @@ watch(
               >
                 {{ t('settings.extensions.builtIn') }}
               </v-chip>
-              <v-chip
-                v-if="isActive(extension)"
-                size="small"
-                label
-                :variant="
-                  extension.isolation === 'isolated' ? 'tonal' : 'outlined'
-                "
-                :color="
-                  extension.isolation === 'isolated' ? 'success' : undefined
-                "
-                :prepend-icon="
-                  extension.isolation === 'isolated'
-                    ? 'mdi-shield-check-outline'
-                    : 'mdi-shield-alert-outline'
-                "
-              >
-                {{ t(`settings.extensions.isolation.${extension.isolation}`) }}
-              </v-chip>
               <v-spacer />
               <span class="d-inline-flex align-center ga-1 text-body-medium">
                 <v-icon
@@ -558,16 +532,9 @@ watch(
               v-if="extension.description !== null"
               class="text-body-medium mt-2"
             >
-              {{
-                extensionText.withTables(
-                  extension.description,
-                  extension.messages,
-                )
-              }}
+              {{ extension.description }}
             </p>
-            <ExtensionTags
-              :tags="effectiveTags(extension.tags, extension.contributes)"
-            />
+            <ExtensionTags :tags="effectiveTags(extension.tags)" />
 
             <ExtensionDeprecation
               v-if="extension.deprecated !== null"
@@ -595,55 +562,35 @@ watch(
               </p>
             </v-alert>
 
-            <template
+            <div
               v-for="diagnostic in extension.diagnostics"
               :key="diagnosticKey(diagnostic)"
+              class="text-body-medium mt-2"
+              data-testid="diagnostic"
+              :data-code="diagnostic.code"
             >
-              <!-- предупреждение: расширение работает, поэтому не сообщение об ошибке -->
-              <v-alert
-                v-if="isWarning(diagnostic)"
-                type="warning"
-                variant="tonal"
-                density="compact"
-                class="mt-2"
-                data-testid="diagnostic"
-                :data-code="diagnostic.code"
+              <p>{{ diagnosticText(diagnostic) }}</p>
+              <ul
+                v-if="diagnostic.code === 'manifest-invalid'"
+                class="message ps-4"
               >
-                {{ diagnosticText(diagnostic) }}
-              </v-alert>
-              <div
-                v-else
-                class="text-body-medium mt-2"
-                data-testid="diagnostic"
-                :data-code="diagnostic.code"
-              >
-                <p>{{ diagnosticText(diagnostic) }}</p>
-                <ul
-                  v-if="diagnostic.code === 'manifest-invalid'"
-                  class="message ps-4"
-                >
-                  <li v-for="issue in issuesOf(diagnostic)" :key="issue">
-                    {{ issue }}
-                  </li>
-                </ul>
-              </div>
-            </template>
+                <li v-for="issue in issuesOf(diagnostic)" :key="issue">
+                  {{ issue }}
+                </li>
+              </ul>
+            </div>
 
             <ExtensionHealth
               v-if="isActive(extension)"
               :health="healthOf(extension.id)"
             />
 
-            <ExtensionPermissions
-              v-if="isActive(extension)"
-              :permissions="extension.permissions"
-            />
             <ExtensionDependencies :rows="rowsOfInstalled(extension)" />
+            <ExtensionClientFailure :extension-id="extension.id" />
             <ExtensionContributions
+              :extension-id="extension.id"
               :contributes="extension.contributes"
-              :titles="extension.titles"
               :name="extension.name"
-              :messages="extension.messages"
             />
             <ExtensionData
               v-if="isActive(extension)"
@@ -666,7 +613,6 @@ watch(
                 @update:model-value="setEnabled(extension.id, $event === true)"
               />
               <v-switch
-                v-if="hasNotifications(extension)"
                 :model-value="areNotificationsOn(settings, extension.id)"
                 :label="t('settings.extensions.notificationsLabel')"
                 :disabled="switching.has(`notifications:${extension.id}`)"
@@ -701,20 +647,6 @@ watch(
                 :data-testid="`schedules-text-${extension.id}`"
               >
                 {{ (schedulesByExtension.get(extension.id) ?? []).join(' · ') }}
-              </p>
-              <v-switch
-                :model-value="isTrusted(settings, extension.id)"
-                :label="t('settings.extensions.trustLabel')"
-                :disabled="switching.has(`trusted:${extension.id}`)"
-                color="warning"
-                density="compact"
-                hide-details
-                inset
-                :data-testid="`trusted-${extension.id}`"
-                @update:model-value="setTrusted(extension.id, $event === true)"
-              />
-              <p class="text-body-small text-medium-emphasis">
-                {{ t('settings.extensions.trustHint') }}
               </p>
             </div>
 

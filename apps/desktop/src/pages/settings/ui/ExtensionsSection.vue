@@ -2,8 +2,6 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
-import { useContributions } from '@/shared/api/engine';
-import { useReloadRequired } from '../model/reload-required.ts';
 import CatalogExtensions from './CatalogExtensions.vue';
 import InstalledExtensions from './InstalledExtensions.vue';
 import SectionHeader from './SectionHeader.vue';
@@ -21,11 +19,6 @@ const tab = computed<ExtensionsTab>({
     void router.replace({ query: next === 'catalog' ? { tab: next } : {} });
   },
 });
-
-const reloadRequired = useReloadRequired(useContributions());
-const reloadWindow = () => {
-  location.reload();
-};
 </script>
 
 <template>
@@ -34,23 +27,6 @@ const reloadWindow = () => {
       :title="t('settings.extensions.title')"
       :subtitle="t('settings.extensions.subtitle')"
     />
-
-    <v-alert
-      v-if="reloadRequired"
-      type="info"
-      variant="tonal"
-      class="mb-6"
-      data-testid="extensions-reload"
-    >
-      <div class="d-flex align-center ga-3">
-        <span class="flex-grow-1">{{
-          t('settings.extensions.reload.message')
-        }}</span>
-        <v-btn variant="text" prepend-icon="mdi-reload" @click="reloadWindow">
-          {{ t('settings.extensions.reload.action') }}
-        </v-btn>
-      </div>
-    </v-alert>
 
     <v-tabs
       v-model="tab"

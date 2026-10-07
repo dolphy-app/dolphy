@@ -5,10 +5,7 @@ import type { ExtensionInfoDto } from '@dolphy-app/engine-contract';
 import { useEngine } from '@/shared/api/engine';
 import { useExtensionText } from '@/shared/lib/extension-text.ts';
 import { useExtensionSettings } from '../model/extension-settings.ts';
-import {
-  buildSettingsSections,
-  localizeSetting,
-} from '../model/extension-settings-form.ts';
+import { buildSettingsSections } from '../model/extension-settings-form.ts';
 import ExtensionSettingField from './ExtensionSettingField.vue';
 
 const props = defineProps<{ extension: ExtensionInfoDto }>();
@@ -19,14 +16,8 @@ const extensionText = useExtensionText();
 const settings = useExtensionSettings(useEngine(), props.extension.id);
 const { definitions, values, state, loadError, errors, resetting, resetError } =
   settings;
-const translate = (value: string) =>
-  extensionText.withTables(value, props.extension.messages);
-// визуальная модель строится по исходным определениям (условия и группы — по ним), затем подписи переводятся
 const sections = computed(() =>
-  buildSettingsSections(definitions.value, values.value).map((section) => ({
-    ...section,
-    fields: section.fields.map((field) => localizeSetting(field, translate)),
-  })),
+  buildSettingsSections(definitions.value, values.value, extensionText.of),
 );
 </script>
 
@@ -82,7 +73,7 @@ const sections = computed(() =>
               :id="`settings-group-${index}`"
               class="group-title text-title-medium font-weight-bold"
             >
-              {{ translate(section.title) }}
+              {{ section.title }}
             </h3>
             <ExtensionSettingField
               v-for="definition in section.fields"

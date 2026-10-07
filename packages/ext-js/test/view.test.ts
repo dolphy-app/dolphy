@@ -1,26 +1,29 @@
 // @vitest-environment happy-dom
-import { loadView } from '@dolphy-app/extension-sdk/testing';
-import type {
-  LoadedView,
-  LoadViewOptions,
-} from '@dolphy-app/extension-sdk/testing';
 import { afterEach, describe, expect, it } from 'vitest';
+import { nextTick } from 'vue';
 import { MAX_HIGHLIGHT_CHARS } from '../src/highlight.ts';
-import { views } from '../src/index.ts';
+import { createTestClient } from '@dolphy-app/extension-sdk/testing';
+import { client } from '../src/index.ts';
+import { mountView as mount } from './mount-view.ts';
+import type { MountedView } from './mount-view.ts';
 
-const loaded: LoadedView[] = [];
+const loaded: MountedView[] = [];
 
-const mountView = async (options: LoadViewOptions = {}) => {
-  const view = await loadView(views, 'dolphy.js', options);
+const mountView = async (props: Record<string, unknown> = {}) => {
+  const harness = await createTestClient(client, { extensionId: 'dolphy.js' });
+  const component = harness.answerViews.get('dolphy.js');
+  if (!component) throw new Error('answer view is not registered');
+  const view = await mount(component, props);
   loaded.push(view);
   const textarea = view.query<HTMLTextAreaElement>('textarea');
   if (!textarea) throw new Error('textarea is not rendered');
   return { view, textarea };
 };
 
-const type = (textarea: HTMLTextAreaElement, text: string) => {
+const type = async (textarea: HTMLTextAreaElement, text: string) => {
   textarea.value = text;
   textarea.dispatchEvent(new Event('input'));
+  await nextTick();
 };
 
 const press = (
@@ -42,15 +45,12 @@ afterEach(() => {
 
 describe('вид dolphy.js', () => {
   it('рисует моноширинное многострочное поле без автоисправлений', async () => {
-    const { textarea } = await mountView({ label: 'Ваш код' });
+    const { view, textarea } = await mountView({ label: 'Ваш код' });
     expect(Number(textarea.rows)).toBeGreaterThanOrEqual(10);
-    expect(textarea.spellcheck).toBe(false);
+    expect(textarea.getAttribute('spellcheck')).toBe('false');
     expect(textarea.getAttribute('autocapitalize')).toBe('off');
     expect(textarea.getAttribute('aria-label')).toBe('Ваш код');
-    expect(
-      (textarea.getRootNode() as ShadowRoot).querySelector('style')
-        ?.textContent,
-    ).toContain('monospace');
+    expect(view.query('style')?.textContent).toContain('monospace');
   });
 
   it('заполняется заготовкой, когда ответа ещё нет, и не сообщает об этом', async () => {
@@ -70,7 +70,7 @@ describe('вид dolphy.js', () => {
 
   it('уже введённый текст не затирается заготовкой', async () => {
     const { view, textarea } = await mountView();
-    type(textarea, 'let x');
+    await type(textarea, 'let x');
     await view.update({ view: { starter: '// start' } });
     expect(textarea.value).toBe('let x');
   });
@@ -95,9 +95,9 @@ describe('вид dolphy.js', () => {
 
   it('ввод сообщает текст и complete по непустому после trim', async () => {
     const { view, textarea } = await mountView();
-    type(textarea, 'let x');
-    type(textarea, ' \n ');
-    type(textarea, '');
+    await type(textarea, 'let x');
+    await type(textarea, ' \n ');
+    await type(textarea, '');
     expect(view.changes).toEqual([
       { value: 'let x', complete: true },
       { value: ' \n ', complete: false },
@@ -178,7 +178,7 @@ describe('вид dolphy.js', () => {
     const { view, textarea } = await mountView({ disabled: true });
     expect(textarea.disabled).toBe(true);
     await view.update({ disabled: false });
-    type(textarea, 'let y');
+    await type(textarea, 'let y');
     await view.update({ disabled: true });
     expect(textarea.disabled).toBe(true);
     expect(textarea.value).toBe('let y');
@@ -190,7 +190,7 @@ describe('вид dolphy.js', () => {
       verdict: { outcome: 'failed', reason: 'tests_failed' },
     });
     expect(textarea.getAttribute('aria-invalid')).toBe('true');
-    type(textarea, 'let z');
+    await type(textarea, 'let z');
     expect(textarea.hasAttribute('aria-invalid')).toBe(false);
   });
 
@@ -205,7 +205,7 @@ describe('вид dolphy.js', () => {
 });
 
 describe('вид dolphy.js: подсветка', () => {
-  const mirrorOf = (view: LoadedView) => {
+  const mirrorOf = (view: MountedView) => {
     const code = view.query<HTMLElement>('.mirror code');
     if (!code) throw new Error('highlight layer is not rendered');
     return code;
@@ -231,15 +231,14 @@ describe('вид dolphy.js: подсветка', () => {
     const { view } = await mountView();
     const layer = view.query<HTMLElement>('.mirror');
     expect(layer?.getAttribute('aria-hidden')).toBe('true');
-    const css = (
-      view.query('textarea')?.getRootNode() as ShadowRoot
-    ).querySelector('style')?.textContent;
-    expect(css).toMatch(/\.mirror \{[^}]*pointer-events: none/);
+    expect(view.query('style')?.textContent).toMatch(
+      /\.mirror \{[^}]*pointer-events: none/,
+    );
   });
 
   it('перерисовывает слой при вводе', async () => {
     const { view, textarea } = await mountView();
-    type(textarea, 'return await fetch("/x");');
+    await type(textarea, 'return await fetch("/x");');
     const code = mirrorOf(view);
     expect(code.querySelectorAll('.sh__token--keyword')).toHaveLength(2);
     expect(code.querySelector('.sh__token--string')).not.toBeNull();
@@ -256,7 +255,7 @@ describe('вид dolphy.js: подсветка', () => {
 
   it('экранирует разметку из ответа, а не вставляет её в слой', async () => {
     const { view, textarea } = await mountView();
-    type(textarea, 'const s = "<img src=x onerror=alert(1)>";');
+    await type(textarea, 'const s = "<img src=x onerror=alert(1)>";');
     const code = mirrorOf(view);
     expect(code.querySelector('img')).toBeNull();
     expect(code.textContent).toContain('<img src=x onerror=alert(1)>');
@@ -282,8 +281,12 @@ describe('вид dolphy.js: подсветка', () => {
 
   it('отключённое поле помечает слой для приглушения', async () => {
     const { view } = await mountView({ disabled: true });
-    expect(view.query('.editor')?.hasAttribute('data-disabled')).toBe(true);
+    expect(view.query('.dolphy-js-editor')?.hasAttribute('data-disabled')).toBe(
+      true,
+    );
     await view.update({ disabled: false });
-    expect(view.query('.editor')?.hasAttribute('data-disabled')).toBe(false);
+    expect(view.query('.dolphy-js-editor')?.hasAttribute('data-disabled')).toBe(
+      false,
+    );
   });
 });

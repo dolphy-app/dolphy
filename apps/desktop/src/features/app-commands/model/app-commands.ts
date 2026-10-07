@@ -1,9 +1,7 @@
 import type { ComposerTranslation } from 'vue-i18n';
 import type { RouteLocationRaw } from 'vue-router';
-import type {
-  LocaleMode,
-  ThemeContributionDto,
-} from '@dolphy-app/engine-contract';
+import type { LocaleMode } from '@dolphy-app/engine-contract';
+import { resolveLocalizedText } from '@dolphy-app/extension-api';
 import type { LocaleSelection } from '@/shared/api/engine/locale-selection.ts';
 import type { ThemeSelection } from '@/shared/api/engine/theme-selection.ts';
 import { ROUTE } from '@/shared/config/routes.ts';
@@ -14,6 +12,7 @@ import type {
   DefaultBinding,
   SyncedCommand,
 } from '@/shared/lib/command-registry.ts';
+import type { ClientTheme } from '@/shared/lib/extension-clients.ts';
 import { effectiveThemeId } from '@/shared/lib/extension-themes.ts';
 import { activeSessionHistory } from '@/shared/lib/session-history.ts';
 
@@ -26,10 +25,10 @@ export interface AppCommandsDeps {
   t: ComposerTranslation;
   themeSelection: Pick<ThemeSelection, 'saved' | 'select'>;
   localeSelection: Pick<LocaleSelection, 'saved' | 'select'>;
-  /** Темы расширений; читается реактивно (`contributions-changed`). */
-  themes: () => readonly ThemeContributionDto[];
-  /** Подпись вклада расширения на текущем языке (`%ключ%` → текст); читается при каждом чтении списка. */
-  extensionText(value: string, extensionId: string): string;
+  /** Темы клиентских частей расширений; читается реактивно. */
+  themes: () => readonly ClientTheme[];
+  /** Язык окна (`ru`/`en`): подписи тем расширений; читается при каждом чтении списка. */
+  locale: () => string;
   /** Запускает обучающий тур (команда «Показать обучающий тур»). */
   startTour(): Promise<void>;
   /** С текущей страницы тур запускать нельзя (сессия, вход-тест): команда недоступна. */
@@ -173,11 +172,11 @@ export const registerAppCommands = (deps: AppCommandsDeps): (() => void) => {
       descriptor: themeCommand(id, () => t(`settings.appearance.theme.${id}`)),
       revision: id,
     })),
-    ...deps.themes().map(({ id, label, extensionId }) => ({
+    ...deps.themes().map(({ id, label }) => ({
       descriptor: themeCommand(id, () =>
-        deps.extensionText(label, extensionId),
+        resolveLocalizedText(label, deps.locale()),
       ),
-      revision: label,
+      revision: JSON.stringify(label),
     })),
   ];
   const stopThemes = syncCommands(registry, themes);

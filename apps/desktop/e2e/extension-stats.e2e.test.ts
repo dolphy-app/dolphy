@@ -2,27 +2,17 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createWorkspace, launchApp } from './support/app.ts';
 import type { DolphyApp, Workspace } from './support/app.ts';
-import { CatalogClient } from './support/catalog-client.ts';
-import { catalogEnv, startCatalogServer } from './support/catalog-server.ts';
-import type { CatalogServer } from './support/catalog-server.ts';
 import { Client } from './support/client.ts';
 import type { Grade } from './support/client.ts';
 import { CommandsClient } from './support/commands-client.ts';
 import { course } from './support/courses.ts';
 import { readExtensionData, shiftJournalBack } from './support/journal.ts';
-import { expectText } from './support/locator.ts';
 
 const STATS_EXTENSION = fileURLToPath(
   new URL('./fixtures/stats-extension', import.meta.url),
 );
-const DENIED_EXTENSION = fileURLToPath(
-  new URL('./fixtures/stats-denied-extension', import.meta.url),
-);
 const STATS_ID = 'acme.stats';
-const DENIED_ID = 'acme.nostats';
 const REPORT = 'Статистика: записать';
-const DENIED_REPORT = 'Статистика без разрешения: записать';
-const PERMISSION_LABEL = 'Статистика обучения';
 
 const COURSES = {
   alpha: 'Alpha (KnowledgeBase)',
@@ -39,12 +29,10 @@ const LIBRARY = Object.assign(
 
 let workspace: Workspace | null = null;
 let app: DolphyApp | null = null;
-let server: CatalogServer | null = null;
 
 interface Session {
   client: Client;
   commands: CommandsClient;
-  catalog: CatalogClient;
 }
 
 const launch = async (env?: Record<string, string>): Promise<Session> => {
@@ -56,7 +44,6 @@ const launch = async (env?: Record<string, string>): Promise<Session> => {
   return {
     client: new Client(app.page),
     commands: new CommandsClient(app.page),
-    catalog: new CatalogClient(app.page),
   };
 };
 
@@ -111,18 +98,15 @@ const report = (id: string) =>
 afterEach(async () => {
   await app?.close();
   app = null;
-  await server?.close();
-  server = null;
   await workspace?.dispose();
   workspace = null;
 });
 
 describe('learning.stats', () => {
-  it('команда расширения с разрешением получает серию и дни по журналу; без разрешения — PermissionError, в изолированном процессе тоже', async () => {
+  it('команда расширения получает серию и дни по журналу', async () => {
     workspace = await createWorkspace({
       extensions: {
         [STATS_ID]: STATS_EXTENSION,
-        [DENIED_ID]: DENIED_EXTENSION,
       },
       libraryFiles: LIBRARY,
     });
@@ -173,44 +157,5 @@ describe('learning.stats', () => {
     expect(
       JSON.stringify([got.streak, got.daily, got.alpha.daily]),
     ).not.toMatch(/alpha|beta|gamma|delta|::/);
-
-    await runCommand(session, DENIED_REPORT);
-    await expect
-      .poll(() => report(DENIED_ID)?.daily, { timeout: 15_000 })
-      .toBeDefined();
-    const denied = {
-      name: 'PermissionError',
-      code: 'EXT_PERMISSION',
-      permission: 'learning.stats',
-    };
-    expect(report(DENIED_ID)).toEqual({
-      streak: { error: denied },
-      daily: { error: denied },
-    });
-  });
-
-  it('диалог установки и список установленных показывают метку разрешения', async () => {
-    workspace = await createWorkspace();
-    server = await startCatalogServer([
-      {
-        dir: STATS_EXTENSION,
-        name: 'Habit tracker',
-        description: 'Записывает серию дней и разбивку по дням',
-        author: 'acme',
-      },
-    ]);
-    const { client, catalog } = await launch(catalogEnv(server.url));
-
-    await client.openSettingsExtensions();
-    await catalog.openCatalogTab();
-    await expectText(catalog.catalogCard(STATS_ID), PERMISSION_LABEL);
-    await catalog.installButton(STATS_ID).click();
-    await expectText(catalog.dialog, PERMISSION_LABEL);
-    await catalog.confirmInstall();
-    await expectText(catalog.dialog, 'Установлено. Расширение уже работает.');
-    await catalog.closeDialog();
-
-    await catalog.openInstalledTab();
-    expect(await catalog.installedText(STATS_ID)).toContain(PERMISSION_LABEL);
   });
 });

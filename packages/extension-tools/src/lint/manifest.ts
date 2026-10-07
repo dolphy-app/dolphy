@@ -62,7 +62,7 @@ export const manifestFindings = (fields: DeclaredFields): RuleFinding[] => {
       severity: 'warning',
       field: 'tags',
       message:
-        "'tags' is not set: without it the catalog derives tags from contributions",
+        "'tags' is not set: the catalog lists the extension without tags",
     });
   }
   return findings;

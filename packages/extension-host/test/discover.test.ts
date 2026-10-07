@@ -5,14 +5,9 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { discoverExtensions, inspectExtensionDir } from '../src/discover.ts';
-import { fileURLToPath } from 'node:url';
 import { createExtensionPolicy } from '../src/policy.ts';
 import { createExtensionRegistry } from '../src/registry.ts';
 import { createLogger } from './helpers.ts';
-
-const fixturesDir = fileURLToPath(
-  new URL('./fixtures/extensions', import.meta.url),
-);
 
 let tmp: string;
 beforeEach(async () => {
@@ -22,53 +17,36 @@ afterEach(() => rm(tmp, { recursive: true, force: true }));
 
 interface Options {
   version?: string;
-  type?: string;
-  element?: string;
   manifestId?: string;
-  specSchema?: string;
   withMain?: boolean;
-  schemaBody?: string;
+  withClient?: boolean;
   extra?: Record<string, unknown>;
 }
 
-/** Создаёт каталог `<root>/<dirName>` с манифестом расширения. */
+/** Создаёт каталог `<root>/<dirName>` с минимальным манифестом и файлами-заглушками. */
 const makeExtension = async (
   root: string,
   dirName: string,
   o: Options = {},
 ): Promise<void> => {
   const dir = path.join(root, dirName);
-  const id = o.manifestId ?? dirName;
-  await mkdir(path.join(dir, 'schema'), { recursive: true });
+  await mkdir(dir, { recursive: true });
   await writeFile(
     path.join(dir, 'extension.json'),
     JSON.stringify({
-      id,
+      id: o.manifestId ?? dirName,
       version: o.version ?? '1.0.0',
       apiVersion: 1,
       main: './main.mjs',
+      client: './client.mjs',
       ...o.extra,
-      contributes: {
-        exerciseTypes: [
-          {
-            id: o.type ?? id,
-            specSchema: o.specSchema ?? './schema/spec.json',
-            answerSchema: './schema/answer.json',
-            element: o.element ?? `${id.replaceAll('.', '-')}-answer`,
-            renderer: './view.mjs',
-          },
-        ],
-      },
     }),
   );
-  await writeFile(
-    path.join(dir, 'schema/spec.json'),
-    o.schemaBody ?? '{"type":"object"}',
-  );
-  await writeFile(path.join(dir, 'schema/answer.json'), '{"type":"string"}');
   if (o.withMain !== false) {
     await writeFile(path.join(dir, 'main.mjs'), 'export default {};');
-    await writeFile(path.join(dir, 'view.mjs'), '');
+  }
+  if (o.withClient !== false) {
+    await writeFile(path.join(dir, 'client.mjs'), 'export default {};');
   }
 };
 
@@ -111,48 +89,39 @@ describe('discoverExtensions', () => {
     expect(logger.info.mock.calls[0]![1]).toContain('1.0.0 → 1.0.1');
   });
 
-  it('разбирает манифест: пути, схемы, URL renderer', async () => {
+  it('разбирает манифест: абсолютные пути main и client', async () => {
     const root = await rootDir('r');
     await makeExtension(root, 'acme.one');
     const { extensions } = await discoverExtensions({
       roots: [{ dir: root, origin: 'bundled' }],
       logger: createLogger(),
     });
-    const [extension] = extensions;
-    expect(path.isAbsolute(extension!.mainPath ?? '')).toBe(true);
-    expect(extension!.permissions).toEqual([]);
-    expect(extension!.exerciseTypes[0]).toMatchObject({
+    expect(extensions).toHaveLength(1);
+    expect(extensions[0]).toMatchObject({
       id: 'acme.one',
-      specSchema: { type: 'object' },
-      rendererUrl: 'dolphy-ext://acme.one/view.mjs',
+      mainPath: path.join(root, 'acme.one', 'main.mjs'),
+      clientPath: path.join(root, 'acme.one', 'client.mjs'),
     });
   });
 
-  it('повторный id вида у разных расширений: первый выигрывает', async () => {
+  it('расширение без main и client валидно', async () => {
     const root = await rootDir('r');
-    await makeExtension(root, 'acme.a', { type: 'acme.a' });
-    await makeExtension(root, 'acme.a.b', { type: 'acme.a' });
-    const logger = createLogger();
-    const { extensions, diagnostics } = await discoverExtensions({
-      roots: [{ dir: root, origin: 'bundled' }],
-      logger,
+    await makeExtension(root, 'acme.bare', {
+      withMain: false,
+      withClient: false,
+      extra: { main: null, client: null },
     });
-    expect(extensions.map((e) => e.id)).toEqual(['acme.a']);
-    expect(diagnostics).toHaveLength(1);
-    expect(diagnostics[0]!.extensionId).toBe('acme.a.b');
-    expect(logger.warn).toHaveBeenCalled();
-  });
-
-  it('повторный element у разных расширений: первый выигрывает', async () => {
-    const root = await rootDir('r');
-    await makeExtension(root, 'acme.a', { element: 'acme-shared' });
-    await makeExtension(root, 'acme.b', { element: 'acme-shared' });
     const { extensions, diagnostics } = await discoverExtensions({
       roots: [{ dir: root, origin: 'bundled' }],
       logger: createLogger(),
     });
-    expect(extensions.map((e) => e.id)).toEqual(['acme.a']);
-    expect(diagnostics[0]).toMatchObject({ extensionId: 'acme.b' });
+    expect(diagnostics).toEqual([]);
+    expect(extensions).toHaveLength(1);
+    expect(extensions[0]).toMatchObject({
+      id: 'acme.bare',
+      mainPath: null,
+      clientPath: null,
+    });
   });
 
   it('имя каталога не совпало с id — расширение пропущено', async () => {
@@ -173,33 +142,17 @@ describe('discoverExtensions', () => {
     );
   });
 
-  it('путь схемы за пределами каталога — расширение пропущено', async () => {
+  it('путь main за пределами каталога — расширение пропущено', async () => {
     const root = await rootDir('r');
-    // '..' отсекается уже разбором манифеста — расширение всё равно не грузится
-    await makeExtension(root, 'acme.esc', { specSchema: './a/../../x.json' });
+    await makeExtension(root, 'acme.esc', {
+      extra: { main: './a/../../x.mjs' },
+    });
     const { extensions, diagnostics } = await discoverExtensions({
       roots: [{ dir: root, origin: 'bundled' }],
       logger: createLogger(),
     });
     expect(extensions).toEqual([]);
     expect(diagnostics).toHaveLength(1);
-  });
-
-  it('схема не JSON или не компилируется — расширение пропущено', async () => {
-    const root = await rootDir('r');
-    await makeExtension(root, 'acme.bad', { schemaBody: '{oops' });
-    await makeExtension(root, 'acme.worse', {
-      schemaBody: '{"type":"nonsense"}',
-    });
-    const { extensions, diagnostics } = await discoverExtensions({
-      roots: [{ dir: root, origin: 'bundled' }],
-      logger: createLogger(),
-    });
-    expect(extensions).toEqual([]);
-    expect(diagnostics.map((d) => d.extensionId).sort()).toEqual([
-      'acme.bad',
-      'acme.worse',
-    ]);
   });
 
   it('отсутствующий корень даёт пустой результат', async () => {
@@ -242,87 +195,33 @@ describe('discoverExtensions', () => {
     expect(logger.warn).not.toHaveBeenCalled();
   });
 
-  it('verifyFiles управляет проверкой main/renderer', async () => {
+  it('verifyFiles управляет проверкой main и client', async () => {
     const root = await rootDir('r');
     await makeExtension(root, 'acme.nomain', { withMain: false });
+    await makeExtension(root, 'acme.noclient', { withClient: false });
     const strict = await discoverExtensions({
       roots: [{ dir: root, origin: 'bundled' }],
       logger: createLogger(),
     });
     expect(strict.extensions).toEqual([]);
-    expect(formatDiagnostic(strict.diagnostics[0]!.diagnostic)).toContain(
-      'main',
-    );
+    expect(
+      strict.diagnostics.map(({ extensionId, diagnostic }) => [
+        extensionId,
+        formatDiagnostic(diagnostic),
+      ]),
+    ).toEqual([
+      ['acme.noclient', "client './client.mjs' is not a file"],
+      ['acme.nomain', "main './main.mjs' is not a file"],
+    ]);
     const lax = await discoverExtensions({
       roots: [{ dir: root, origin: 'bundled' }],
       logger: createLogger(),
       verifyFiles: false,
     });
-    expect(lax.extensions.map((e) => e.id)).toEqual(['acme.nomain']);
-  });
-
-  it('минимальный манифест: умолчания и встроенные схемы', async () => {
-    const { extensions, diagnostics } = await discoverExtensions({
-      roots: [{ dir: fixturesDir, origin: 'bundled' }],
-      logger: createLogger(),
-    });
-    expect(diagnostics).toEqual([]);
-    const minimal = extensions.find((e) => e.id === 'acme.minimal');
-    expect(minimal?.mainPath).toBe(
-      path.join(fixturesDir, 'acme.minimal', 'main.mjs'),
-    );
-    expect(minimal?.exerciseTypes[0]).toMatchObject({
-      element: 'acme-minimal-answer',
-      rendererUrl: 'dolphy-ext://acme.minimal/view.mjs',
-      specSchema: { type: 'object' },
-      answerSchema: { type: 'string' },
-    });
-    expect(Object.isFrozen(minimal?.exerciseTypes[0]?.specSchema)).toBe(true);
-  });
-
-  it('встроенная схема, не компилирующаяся в Ajv, — расширение пропущено', async () => {
-    const root = await rootDir('r');
-    const dir = path.join(root, 'acme.bad');
-    await mkdir(dir);
-    await writeFile(path.join(dir, 'main.mjs'), '');
-    await writeFile(path.join(dir, 'view.mjs'), '');
-    await writeFile(
-      path.join(dir, 'extension.json'),
-      JSON.stringify({
-        id: 'acme.bad',
-        version: '1.0.0',
-        apiVersion: 1,
-        contributes: {
-          exerciseTypes: [
-            {
-              id: 'acme.bad',
-              specSchema: { type: 'nonsense' },
-              answerSchema: { type: 'string' },
-            },
-          ],
-        },
-      }),
-    );
-    const { extensions, diagnostics } = await discoverExtensions({
-      roots: [{ dir: root, origin: 'bundled' }],
-      logger: createLogger(),
-    });
-    expect(extensions).toEqual([]);
-    expect(formatDiagnostic(diagnostics[0]!.diagnostic)).toContain(
-      'does not compile',
-    );
-  });
-
-  it('нет main.mjs по умолчанию — сообщение называет файл и умолчание', async () => {
-    const root = await rootDir('r');
-    await makeExtension(root, 'acme.nomain', { withMain: false });
-    const { diagnostics } = await discoverExtensions({
-      roots: [{ dir: root, origin: 'bundled' }],
-      logger: createLogger(),
-    });
-    expect(formatDiagnostic(diagnostics[0]!.diagnostic)).toBe(
-      "main './main.mjs' (default) is not a file",
-    );
+    expect(lax.extensions.map((e) => e.id).sort()).toEqual([
+      'acme.noclient',
+      'acme.nomain',
+    ]);
   });
 });
 
@@ -385,19 +284,6 @@ describe('диагностики по кодам', () => {
     ]);
   });
 
-  it('claim-clash: вид, имя и владелец', async () => {
-    const found = await codes(async (root) => {
-      await makeExtension(root, 'acme.a', { element: 'acme-shared' });
-      await makeExtension(root, 'acme.b', { element: 'acme-shared' });
-    });
-    expect(found).toEqual([
-      {
-        code: 'claim-clash',
-        data: { kind: 'element', name: 'acme-shared', by: 'acme.a' },
-      },
-    ]);
-  });
-
   it('load-failed: причина — сообщение загрузки', async () => {
     const found = await codes(async (root) => {
       await makeExtension(root, 'acme.nomain', { withMain: false });
@@ -405,7 +291,7 @@ describe('диагностики по кодам', () => {
     expect(found).toEqual([
       {
         code: 'load-failed',
-        data: { reason: "main './main.mjs' (default) is not a file" },
+        data: { reason: "main './main.mjs' is not a file" },
       },
     ]);
   });
@@ -420,13 +306,11 @@ describe('inspectExtensionDir', () => {
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.extension.id).toBe('acme.ok');
-    expect(result.extension.mainPath).toBe(
-      path.join(root, 'acme.ok', 'main.mjs'),
-    );
-    expect(result.extension.exerciseTypes[0]!.rendererUrl).toBe(
-      'dolphy-ext://acme.ok/view.mjs',
-    );
+    expect(result.extension).toMatchObject({
+      id: 'acme.ok',
+      mainPath: path.join(root, 'acme.ok', 'main.mjs'),
+      clientPath: path.join(root, 'acme.ok', 'client.mjs'),
+    });
   });
 
   it('невалидный манифест — сообщение парсера', async () => {
@@ -439,7 +323,7 @@ describe('inspectExtensionDir', () => {
     expect(formatDiagnostic(result.diagnostic)).toContain('id');
   });
 
-  it('нет main.mjs по умолчанию — сообщение называет файл', async () => {
+  it('нет файла main — сообщение называет файл', async () => {
     const root = await rootDir('r');
     await makeExtension(root, 'acme.nomain', { withMain: false });
     const dir = path.join(root, 'acme.nomain');
@@ -449,7 +333,7 @@ describe('inspectExtensionDir', () => {
       id: 'acme.nomain',
       diagnostic: {
         code: 'load-failed',
-        data: { reason: "main './main.mjs' (default) is not a file" },
+        data: { reason: "main './main.mjs' is not a file" },
       },
     });
     expect((await inspectExtensionDir(dir, { verifyFiles: false })).ok).toBe(

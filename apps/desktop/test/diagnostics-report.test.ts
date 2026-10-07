@@ -95,7 +95,6 @@ describe('diagnosticsReport', () => {
         version: '1.2.0',
         origin: 'user',
         state: 'invalid',
-        isolation: 'isolated',
         diagnostics: [
           { code: 'manifest-invalid', data: { issues: ['secret issue'] } },
           { code: 'safe-mode', data: {} },
@@ -122,7 +121,7 @@ describe('diagnosticsReport', () => {
 
     expect(text).toContain('Extensions (2):');
     expect(text).toContain('- acme.sql 1.2.0');
-    expect(text).toContain('origin: user; state: invalid; isolation: isolated');
+    expect(text).toContain('origin: user; state: invalid');
     expect(text).toContain('diagnostics: manifest-invalid, safe-mode');
     expect(text).toContain('failures=3');
     expect(text).toContain(

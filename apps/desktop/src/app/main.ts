@@ -1,6 +1,7 @@
 import { createApp } from 'vue';
 import { detectPlatform } from '@dolphy-app/keybindings';
 import { EngineCallError } from '@dolphy-app/engine-rpc/client';
+import { ENGINE_KEY as EXTENSION_ENGINE_KEY } from '@dolphy-app/extension-api';
 import App from './App.vue';
 import { applyLocale, createDolphyI18n } from './providers/i18n.ts';
 import { createDolphyQuery } from './providers/query.ts';
@@ -29,8 +30,11 @@ import {
 } from '@/features/extension-transfers';
 import {
   createExtensionCommands,
+  createNotices,
+  createPanelProps,
   describeCommandFailure,
   EXTENSION_COMMANDS_KEY,
+  panelKey,
 } from '@/features/extension-commands';
 import {
   CONTRIBUTIONS_KEY,
@@ -50,7 +54,8 @@ import {
   INSTALL_KEY,
 } from '@/pages/settings';
 import { ROUTE } from '@/shared/config/routes.ts';
-import { resolveLocale } from '@/shared/i18n';
+import { FALLBACK_LOCALE, LOCALES, resolveLocale } from '@/shared/i18n';
+import { installHostModules } from '@/shared/lib/host-modules.ts';
 import {
   COMMAND_REGISTRY_KEY,
   createCommandRegistry,
@@ -63,11 +68,18 @@ import {
   COMMAND_PALETTE_KEY,
   createCommandPalette,
 } from '@/widgets/command-palette';
-import { textOfExtension } from '@/shared/lib/extension-text.ts';
+import {
+  createExtensionClients,
+  EXTENSION_CLIENTS_KEY,
+} from '@/shared/lib/extension-clients.ts';
+import { createExtensionApp } from '@/shared/lib/extension-app.ts';
+import { EXTENSION_APPS_KEY } from '@/shared/lib/extension-context.ts';
+import { themeIdOfVuetify } from '@/shared/lib/extension-themes.ts';
 import {
   createExtensionWhen,
   EXTENSION_WHEN_KEY,
 } from '@/shared/lib/extension-when.ts';
+import { createInjectionMounter } from '@/shared/lib/extension-injections.ts';
 import { bindSyntaxPalette } from '@/shared/lib/syntax-binding.ts';
 import { bindExtensionThemes } from '@/shared/lib/theme-registry.ts';
 
@@ -88,6 +100,7 @@ const showStartupError = (error: unknown) => {
 };
 
 const bootstrap = async () => {
+  installHostModules();
   const smoke = __DOLPHY_SMOKE_BUILD__ ? window.dolphy.smoke : undefined;
   try {
     // UI монтируется после рукопожатия
@@ -123,14 +136,53 @@ const bootstrap = async () => {
       apply: (next) => applyLocale(i18n, next),
       systemLanguage: () => navigator.language,
     });
+    const registry = createCommandRegistry();
+    const notices = createNotices();
+    const panelProps = createPanelProps();
+    const openPanelPage = ({
+      extensionId,
+      panelId,
+    }: {
+      extensionId: string;
+      panelId: string;
+    }) =>
+      void router.push({
+        name: ROUTE.extensionPanel,
+        params: { extensionId, panelId },
+      });
+    const app = createApp(App);
+    // `AppApi` расширений: возможности окна, которые расширение вправе вызывать
+    const extensionApps = createExtensionApp({
+      app,
+      router,
+      registry,
+      focusCourse: (courseId) => courseScope.select(courseId),
+      openPanel: (extensionId, panelId, props) => {
+        panelProps.set(panelKey(extensionId, panelId), props);
+        openPanelPage({ extensionId, panelId });
+      },
+      notify: (text, level) => notices.push({ kind: 'notify', text, level }),
+      theme: () => {
+        const { dark } = vuetify.theme.current.value;
+        return { id: themeIdOfVuetify(vuetify.theme.name.value, dark), dark };
+      },
+      locale: () =>
+        LOCALES.find((item) => item === i18n.global.locale.value) ??
+        FALLBACK_LOCALE,
+    });
+    // клиентские части расширений: окно импортирует их `client.mjs` и держит реестр вкладов
+    const clients = createExtensionClients({
+      contributions: () => contributions.contributions.value,
+      apps: extensionApps,
+      engine,
+    });
     bindExtensionThemes(
       vuetify.theme,
       themeSelection.saved,
-      () => contributions.contributions.value.themes,
+      () => clients.themes.value,
     );
     // цвета подсветки кода следуют за темой: Markdown и редактор ответа
     bindSyntaxPalette(vuetify.theme);
-    const registry = createCommandRegistry();
     // условия `when` команд, панелей и виджетов расширений: значения читаются у источников при каждом вычислении
     const extensionWhen = createExtensionWhen({
       route: () => router.currentRoute.value.name,
@@ -142,13 +194,12 @@ const bootstrap = async () => {
       registry,
       engine: engine.extensions,
       contributions: () => contributions.contributions.value,
+      clients,
       locale: () => i18n.global.locale.value,
       when: extensionWhen,
-      openPanel: ({ extensionId, panelId }) =>
-        void router.push({
-          name: ROUTE.extensionPanel,
-          params: { extensionId, panelId },
-        }),
+      notices,
+      panelProps,
+      openPanel: openPanelPage,
     });
     const onboardingTour = createOnboardingTour({
       engine,
@@ -181,6 +232,7 @@ const bootstrap = async () => {
       engine: engine.extensions,
       platform: window.dolphy.platform,
       contributions: () => contributions.contributions.value,
+      locale: () => i18n.global.locale.value,
       notify: (text) =>
         extensionCommands.notices.push({ kind: 'notify', text }),
       t: translate,
@@ -210,26 +262,22 @@ const bootstrap = async () => {
       t: i18n.global.t,
       themeSelection,
       localeSelection,
-      themes: () => contributions.contributions.value.themes,
-      extensionText: (value, extensionId) =>
-        textOfExtension(
-          value,
-          extensionId,
-          contributions.contributions.value,
-          i18n.global.locale.value,
-        ),
+      themes: () => clients.themes.value,
+      locale: () => i18n.global.locale.value,
       reportFailure: (error) =>
         extensionCommands.notices.push({
           kind: 'failure',
           failure: describeCommandFailure(error),
         }),
     });
-    createApp(App)
+    app
       .use(i18n)
       .use(vuetify)
       .use(router)
       .use(query)
       .provide(ENGINE_KEY, engine)
+      .provide(EXTENSION_ENGINE_KEY, engine)
+      .provide(EXTENSION_APPS_KEY, extensionApps)
       .provide(CONTRIBUTIONS_KEY, contributions.contributions)
       .provide(EXTENSION_UPDATES_KEY, extensionUpdates)
       .provide(THEME_SELECTION_KEY, themeSelection)
@@ -238,14 +286,20 @@ const bootstrap = async () => {
       .provide(COURSE_UPDATES_KEY, courseUpdates)
       .provide(COMMAND_REGISTRY_KEY, registry)
       .provide(COMMAND_PALETTE_KEY, palette)
+      .provide(EXTENSION_CLIENTS_KEY, clients)
       .provide(EXTENSION_COMMANDS_KEY, extensionCommands)
       .provide(EXTENSION_WHEN_KEY, extensionWhen)
       .provide(EXTENSION_TRANSFERS_KEY, extensionTransfers)
       .provide(INSTALL_KEY, install)
       .provide(CONTEXT_KEYS_KEY, contextKeys)
       .provide(KEYBINDINGS_KEY, keybindings)
-      .provide(ONBOARDING_TOUR_KEY, onboardingTour)
-      .mount('#app');
+      .provide(ONBOARDING_TOUR_KEY, onboardingTour);
+    app.mount('#app');
+    // компоненты расширений в DOM окна: после монтирования, чтобы цели уже были на месте
+    const injections = createInjectionMounter({ app, clients });
+    window.addEventListener('pagehide', () => injections.dispose(), {
+      once: true,
+    });
     // подписка после монтирования: ссылка, принятая до загрузки окна, приходит сразу
     window.dolphy.deepLink.onInstall(({ id }) => void installLinks.handle(id));
     if (__DOLPHY_SMOKE_BUILD__ && smoke) {

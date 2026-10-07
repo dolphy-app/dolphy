@@ -2,11 +2,15 @@
   "name": "@dolphy-app/extension-api",
   "version": "0.0.0",
   "private": true,
-  "description": "Public API of Dolphy extensions: manifest, exercise type handlers, answer element contract",
+  "description": "Public API of Dolphy extensions: manifest, server and client registration contexts, handlers, answer view contract",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./hook-schemas": "./src/hook-schemas.ts",
     "./extension.schema.json": "./extension.schema.json"
+  },
+  "dependencies": {
+    "zod": "4.6.5"
   },
   "scripts": {
     "typecheck": "tsc -b tsconfig.json tsconfig.test.json",

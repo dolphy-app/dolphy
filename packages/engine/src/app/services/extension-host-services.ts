@@ -55,9 +55,8 @@ export interface ExtensionHostServices {
     all(extensionId: string): Promise<ExtensionSettingValuesDto>;
   };
   /**
-   * Агрегированная статистика обучения (`ctx.stats`): нужно разрешение
-   * `learning.stats`, иначе `INVALID_ARGUMENT` `{ reason: 'permission',
-   * permission: 'learning.stats' }`. Только числа: идентификаторов заданий и
+   * Агрегированная статистика обучения (`ctx.stats`). Только числа:
+   * идентификаторов заданий и
    * курсов в ответе нет. `courseId` не задан — все курсы; неизвестный курс —
    * нули. `daily`: `from` и `to` — даты `YYYY-MM-DD`, `from ≤ to`, не более
    * 366 дат (`INVALID_ARGUMENT` с `details.field`).
@@ -72,9 +71,8 @@ export interface ExtensionHostServices {
     ): Promise<DailyResult[]>;
   };
   /**
-   * Системные уведомления (`ctx.notifications`): нужно разрешение
-   * `notifications`, иначе `INVALID_ARGUMENT` `{ reason: 'permission',
-   * permission: 'notifications' }`. Текст очищается от управляющих
+   * Системные уведомления (`ctx.notifications`). Текст очищается от
+   * управляющих
    * символов; пустое название или длина сверх `EXTENSION_NOTIFICATION_LIMITS`
    * — `INVALID_ARGUMENT` с `details.field` (`title` | `body`). Сверх
    * `perMinute`/`perHour` — `INVALID_ARGUMENT` `{ reason: 'rate-limit',
@@ -104,20 +102,6 @@ export interface ExtensionHostServices {
     listener: (change: ExtensionSettingChangeDto) => void,
   ): () => void;
 }
-
-const MESSAGE_KEY = /^%([A-Za-z0-9_.-]{1,64})%$/;
-
-/**
- * Имя расширения в уведомлении: название манифеста, `%ключ%` — по таблице
- * `en` (язык окна движок не знает); нет названия — id.
- */
-const sourceNameOf = (info: ExtensionInfoDto): string => {
-  const name = info.name;
-  if (name === null) return info.id;
-  const key = MESSAGE_KEY.exec(name)?.[1];
-  if (key === undefined) return name;
-  return info.messages.en?.[key] ?? info.id;
-};
 
 export const createExtensionHostServices = (
   ctx: Pick<
@@ -152,24 +136,6 @@ export const createExtensionHostServices = (
     }
     return key;
   };
-  /** Разрешение проверяет движок, а не процесс расширения: ограниченному процессу доверять нельзя. */
-  const statsOf = (extensionId: string): string => {
-    const id = active(extensionId);
-    const info = ctx.extensionRegistry
-      .list()
-      .find((item) => item.id === id && item.state === 'loaded');
-    if (info?.permissions.includes('learning.stats') !== true) {
-      throw new EngineError('INVALID_ARGUMENT', {
-        message: `Extension '${id}' does not declare the 'learning.stats' permission`,
-        details: {
-          reason: 'permission',
-          permission: 'learning.stats',
-          extensionId: id,
-        },
-      });
-    }
-    return id;
-  };
   const courseIdOf = (courseId: unknown): string | undefined => {
     if (courseId !== undefined && typeof courseId !== 'string') {
       throw new EngineError('INVALID_ARGUMENT', {
@@ -194,14 +160,10 @@ export const createExtensionHostServices = (
     const info = ctx.extensionRegistry
       .list()
       .find((item) => item.id === id && item.state === 'loaded');
-    if (info?.permissions.includes('notifications') !== true) {
-      throw new EngineError('INVALID_ARGUMENT', {
-        message: `Extension '${id}' does not declare the 'notifications' permission`,
-        details: {
-          reason: 'permission',
-          permission: 'notifications',
-          extensionId: id,
-        },
+    if (info === undefined) {
+      throw new EngineError('NOT_FOUND', {
+        message: `Extension not found: ${id}`,
+        details: { extensionId: id },
       });
     }
     return info;
@@ -302,11 +264,11 @@ export const createExtensionHostServices = (
     },
     stats: {
       streak: async (extensionId, courseId) => {
-        statsOf(extensionId);
+        active(extensionId);
         return ctx.statsIndex.streak(courseIdOf(courseId));
       },
       daily: async (extensionId, from, to, courseId) => {
-        statsOf(extensionId);
+        active(extensionId);
         const first = dateOf('from', from);
         const last = dateOf('to', to);
         if (last < first || last - first + 1 > STATS_DAILY_MAX_DAYS) {
@@ -323,7 +285,7 @@ export const createExtensionHostServices = (
         const info = notificationsOf(extensionId);
         const limits = EXTENSION_NOTIFICATION_LIMITS;
         const notification = {
-          source: sourceNameOf(info),
+          source: info.name ?? info.id,
           title: notificationText('title', title, limits.titleLength),
           body: notificationText('body', body, limits.bodyLength),
         };

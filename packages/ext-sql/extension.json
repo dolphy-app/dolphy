@@ -1,19 +1,5 @@
 {
   "id": "dolphy.sql",
   "version": "1.0.0",
-  "apiVersion": 1,
-  "main": "./main.mjs",
-  "permissions": ["library.read", "process.spawn", "native.addons"],
-  "contributes": {
-    "exerciseTypes": [
-      {
-        "id": "dolphy.sql",
-        "title": "%kind.title%",
-        "specSchema": "./schema/spec.json",
-        "answerSchema": "./schema/answer.json",
-        "element": "dolphy-sql-answer",
-        "renderer": "./view.mjs"
-      }
-    ]
-  }
+  "apiVersion": 1
 }

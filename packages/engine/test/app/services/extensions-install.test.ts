@@ -21,15 +21,11 @@ import { createTestContext, createTestEngine } from '../../helpers/engine.ts';
 
 const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
   exerciseTypes: [],
-  themes: [],
-  markdownRenderers: [],
   gradePolicies: [],
   settings: [],
   events: [],
   commands: [],
-  widgets: [],
   schedules: [],
-  panels: [],
   importers: [],
   exporters: [],
 };
@@ -41,8 +37,6 @@ const info = (overrides: Partial<ExtensionInfoDto>): ExtensionInfoDto => ({
   state: 'loaded',
   contributes: NO_CONTRIBUTES,
   diagnostics: [],
-  permissions: [],
-  isolation: 'isolated',
   toggleable: true,
   name: null,
   description: null,
@@ -50,8 +44,6 @@ const info = (overrides: Partial<ExtensionInfoDto>): ExtensionInfoDto => ({
   dependencies: [],
   installed: null,
   icon: null,
-  titles: {},
-  messages: {},
   tags: [],
   removable: true,
   revoked: null,
@@ -72,7 +64,6 @@ const UPDATE: ExtensionUpdateDto = {
   installed: '1.0.0',
   available: {
     version: '1.1.0',
-    permissions: [],
     dependencies: [],
     publishedAt: '2026-10-01T00:00:00.000Z',
     size: 10,
@@ -274,7 +265,6 @@ describe('extensions.setCheckUpdates', () => {
     });
     expect(await engine.extensions.setCheckUpdates(false)).toEqual({
       disabled: [],
-      trusted: [],
       checkUpdates: false,
       safeMode: false,
       notificationsOff: [],
@@ -293,14 +283,13 @@ describe('extensions.setCheckUpdates', () => {
     ).toHaveLength(1);
   });
 
-  it('keeps the disabled and trusted lists', async () => {
+  it('keeps the disabled list', async () => {
     const { engine } = await createTestEngine({
       extensionRegistry: createFakeExtensionRegistry([info({})]),
     });
     await engine.extensions.setEnabled('acme.user', false);
     expect(await engine.extensions.setCheckUpdates(false)).toEqual({
       disabled: ['acme.user'],
-      trusted: [],
       checkUpdates: false,
       safeMode: false,
       notificationsOff: [],
@@ -317,7 +306,7 @@ describe('revoked extensions', () => {
     revoked: 'compromised build',
   });
 
-  it('cannot be enabled or disabled; trust stays settable', async () => {
+  it('cannot be enabled or disabled', async () => {
     const { engine, settings } = await createTestEngine({
       extensionRegistry: createFakeExtensionRegistry([REVOKED]),
     });
@@ -330,9 +319,6 @@ describe('revoked extensions', () => {
       });
     }
     expect((await settings.loadExtensions()).disabled).toEqual([]);
-    await expect(
-      engine.extensions.setTrusted('acme.user', true),
-    ).resolves.toMatchObject({ trusted: ['acme.user'] });
   });
 });
 
@@ -378,7 +364,6 @@ describe('startup update check', () => {
     const settings = createMemorySettingsStore({
       extensions: {
         disabled: [],
-        trusted: [],
         checkUpdates: false,
         safeMode: false,
         notificationsOff: [],

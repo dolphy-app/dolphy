@@ -3,9 +3,7 @@
  * Проверка собранных пакетов (`pnpm build:packages` → `dist-publish/`): упаковка
  * `npm pack`, состав tarball'ов, установка всех пакетов в пустой проект, генерация
  * проекта расширения из установленного `create-dolphy-extension` и его сборка,
- * проверка, типы и тесты; подпути `extension-ui` разрешаются, а вид, собранный из
- * них `dolphy-ext build`, укладывается в потолки размера и не тянет чужие подпути.
- * Запускается в CI, не в `pnpm test` (нужна сеть: сторонние
+ * проверка, типы и тесты. Запускается в CI, не в `pnpm test` (нужна сеть: сторонние
  * зависимости ставятся из npmjs).
  *
  * Запуск: `pnpm verify:packages [--keep]` (`--keep` не удаляет временный каталог).
@@ -22,7 +20,6 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { gzipSync } from 'node:zlib';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { collectImports } from './lib/imports.mjs';
@@ -206,9 +203,12 @@ const assertExports = ({ manifest, dir }) => {
   }
 };
 
-/** Всё, что импортируют JS и `.d.ts`, — встроенное, относительное или объявленная зависимость. */
+/** Всё, что импортируют JS и `.d.ts`, — встроенное, относительное, объявленная зависимость или peer. */
 const assertSelfContained = ({ manifest, dir }) => {
-  const declared = new Set(Object.keys(manifest.dependencies ?? {}));
+  const declared = new Set([
+    ...Object.keys(manifest.dependencies ?? {}),
+    ...Object.keys(manifest.peerDependencies ?? {}),
+  ]);
   for (const file of listFiles(dir).filter((item) =>
     /\.(js|d\.ts)$/.test(item),
   )) {
@@ -259,7 +259,7 @@ const binOf = (project, command) => {
 const toFileSpec = (file) => `file:${file}`;
 
 /** Зависимости проекта по ссылкам на локальные tarball'ы (реестра с ними ещё нет). */
-const pointAtTarballs = ({ project, tarballs, uiKit = false }) => {
+const pointAtTarballs = ({ project, tarballs }) => {
   const file = path.join(project, 'package.json');
   const manifest = readJson(file);
   const sdk = `${SCOPE}/extension-sdk`;
@@ -274,11 +274,6 @@ const pointAtTarballs = ({ project, tarballs, uiKit = false }) => {
   manifest.devDependencies[sdk] = toFileSpec(tarballs[sdk].file);
   manifest.devDependencies[tools] = toFileSpec(tarballs[tools].file);
   manifest.devDependencies[api] = toFileSpec(tarballs[api].file);
-  if (uiKit) {
-    manifest.devDependencies[`${SCOPE}/extension-ui`] = toFileSpec(
-      tarballs[`${SCOPE}/extension-ui`].file,
-    );
-  }
   // транзитивный `extension-api` из SDK тоже берётся из локального tarball'а
   manifest.overrides = { [api]: `$${api}` };
   writeFileSync(file, `${JSON.stringify(manifest, null, 2)}\n`);
@@ -317,290 +312,18 @@ const assertSchemaResolves = (demo) => {
   );
 };
 
-/** Из одного `src/index.ts` сборка кладёт код хоста только в `main.mjs`, код вида — только в `view.mjs`. */
+/** Из одного `src/index.ts` сборка кладёт код хоста только в `main.mjs`, код окна — только в `client.mjs`. */
 const assertSplitOutputs = (dir) => {
   const main = readFileSync(path.join(dir, 'main.mjs'), 'utf8');
-  const view = readFileSync(path.join(dir, 'view.mjs'), 'utf8');
+  const client = readFileSync(path.join(dir, 'client.mjs'), 'utf8');
+  check(main.includes('referenceAnswer'), 'demo: main.mjs has no host code');
   check(
-    main.includes('referenceAnswer') && !main.includes('customElements'),
-    'demo: main.mjs is not the host code alone',
-  );
-  check(
-    view.includes('customElements.define') && !view.includes('referenceAnswer'),
-    'demo: view.mjs is not the view code alone',
+    !client.includes('referenceAnswer'),
+    'demo: client.mjs contains the host code',
   );
 };
 
 const formatKb = (bytes) => `${(bytes / 1024).toFixed(1)} KiB`;
-
-const UI_PACKAGE = `${SCOPE}/extension-ui`;
-
-/** Подпути UI-кита (без корневого экспорта) и функции, которые каждый обязан открывать. */
-const UI_SUBPATHS = {
-  vuetify: ['mountComponent'],
-  'vuetify/choice': ['mountRadioGroup', 'mountCheckboxGroup'],
-  'vuetify/feedback': [
-    'mountAlert',
-    'mountChip',
-    'mountProgress',
-    'mountSkeleton',
-  ],
-  'vuetify/fields': [
-    'mountTextarea',
-    'mountSlider',
-    'mountSwitch',
-    'mountDateField',
-  ],
-  'vuetify/navigation': [
-    'mountTabs',
-    'mountDialog',
-    'mountMenu',
-    'mountTooltip',
-  ],
-  'vuetify/table': ['mountTable', 'mountDataTable'],
-};
-
-const KIB = 1024;
-
-/**
- * Потолки размера (gzip, уровень 9) собранного `view.mjs` после минификации: JS и CSS
- * отдельно. Замерено на `vuetify` 4.0.x и `vue` 3.5.x (JS / CSS, КиБ) и округлено вверх
- * с запасом ~10%. Ключ — что импортирует вид: ядро (`core`), подпуть вместе с ядром или
- * все подпути (`all`).
- */
-const UI_LIMITS = {
-  core: { js: 49 * KIB, css: 30 * KIB }, // 44.6 / 26.7
-  'vuetify/choice': { js: 64 * KIB, css: 32 * KIB }, // 57.6 / 28.6
-  'vuetify/feedback': { js: 77 * KIB, css: 38 * KIB }, // 69.6 / 34.6
-  'vuetify/fields': { js: 112 * KIB, css: 43 * KIB }, // 101.9 / 39.0
-  'vuetify/navigation': { js: 102 * KIB, css: 40 * KIB }, // 92.8 / 36.3
-  'vuetify/table': { js: 152 * KIB, css: 45 * KIB }, // 137.9 / 40.9
-  all: { js: 184 * KIB, css: 54 * KIB }, // 167.4 / 49.1
-};
-
-/** Код, который подпуть Vuetify-кита не должен тянуть в чужие сборки (R5). */
-const FORBIDDEN_IN_ISOLATED = {
-  'vuetify/choice': ['VDataTable', 'VTabs', 'VTextarea', 'VAlert'],
-  'vuetify/feedback': ['VDataTable', 'VRadioGroup', 'VTabs', 'VTextarea'],
-  'vuetify/fields': ['VDataTable', 'VRadioGroup', 'VTabs', 'VAlert'],
-  'vuetify/navigation': ['VDataTable', 'VRadioGroup', 'VTextarea', 'VAlert'],
-  'vuetify/table': ['VRadioGroup', 'VTabs', 'VTextarea', 'VAlert'],
-};
-
-/** Компонент Vuetify, который подпуть обязан принести в бандл: без него проверка отсутствия чужих слов ничего не значит. */
-const OWN_IN_ISOLATED = {
-  'vuetify/choice': 'VRadioGroup',
-  'vuetify/feedback': 'VAlert',
-  'vuetify/fields': 'VTextarea',
-  'vuetify/navigation': 'VTabs',
-  'vuetify/table': 'VDataTable',
-};
-
-const installedUiDir = (consumer) =>
-  path.join(consumer, 'node_modules', ...UI_PACKAGE.split('/'));
-
-/**
- * Установленный пакет открывает ровно шесть подпутей, корень и внутренности `dist`
- * закрыты; каждый подпуть разрешается Node и отдаёт свои функции в `.d.ts`.
- */
-const assertUiSubpaths = ({ consumer, env }) => {
-  const dir = installedUiDir(consumer);
-  const manifest = readJson(path.join(dir, 'package.json'));
-  const expected = Object.keys(UI_SUBPATHS).map((name) => `./${name}`);
-  check(
-    JSON.stringify(Object.keys(manifest.exports).sort()) ===
-      JSON.stringify([...expected].sort()),
-    `extension-ui exports ${Object.keys(manifest.exports).join(', ')}, expected ${expected.join(', ')}`,
-  );
-  const resolve = (specifier) =>
-    run(
-      process.execPath,
-      [
-        '--input-type=module',
-        '-e',
-        `try { console.log(import.meta.resolve(${JSON.stringify(specifier)})); } catch (error) { console.log(error.code); }`,
-      ],
-      { cwd: consumer, env },
-    ).trim();
-  for (const name of Object.keys(UI_SUBPATHS)) {
-    const resolved = resolve(`${UI_PACKAGE}/${name}`);
-    check(
-      resolved.endsWith(
-        `/extension-ui/dist/${name === 'vuetify' ? 'vuetify/index' : name}.js`,
-      ),
-      `extension-ui/${name} resolves to ${resolved}`,
-    );
-    const types = readFileSync(
-      path.join(
-        dir,
-        'dist',
-        `${name === 'vuetify' ? 'vuetify/index' : name}.d.ts`,
-      ),
-      'utf8',
-    );
-    for (const fn of UI_SUBPATHS[name]) {
-      check(
-        types.includes(fn),
-        `extension-ui/${name}: ${fn} is missing in the declarations`,
-      );
-    }
-  }
-  for (const closed of [UI_PACKAGE, `${UI_PACKAGE}/dist/vuetify/choice.js`]) {
-    check(
-      resolve(closed) === 'ERR_PACKAGE_PATH_NOT_EXPORTED',
-      `${closed} must not be resolvable`,
-    );
-  }
-};
-
-const gzipSize = (text) => gzipSync(Buffer.from(text), { level: 9 }).length;
-
-/**
- * Размер `view.mjs`: CSS зависимостей лежит в бандле строками `.add("…")` реестра стилей;
- * они вырезаются, остальное минифицируется минификатором Vite из установленного проекта.
- */
-const measureView = ({ project, file, env }) => {
-  const code = readFileSync(file, 'utf8');
-  const strings = [];
-  const js = code.replace(
-    /\.add\(("(?:[^"\\]|\\.)*")\)/g,
-    (_match, literal) => {
-      strings.push(JSON.parse(literal));
-      return '.add("")';
-    },
-  );
-  check(
-    strings.length > 0,
-    `${file}: no dependency style sheets in the bundle`,
-  );
-  const stripped = path.join(path.dirname(file), 'view.stripped.mjs');
-  writeFileSync(stripped, js);
-  const minified = run(
-    process.execPath,
-    [
-      '--input-type=module',
-      '-e',
-      `import { minifySync } from 'vite'; import { readFileSync } from 'node:fs'; process.stdout.write(minifySync('view.mjs', readFileSync(process.argv[1], 'utf8')).code);`,
-      stripped,
-    ],
-    { cwd: project, env, maxBuffer: 64 * 1024 * 1024 },
-  );
-  rmSync(stripped);
-  return {
-    js: gzipSize(minified),
-    css: gzipSize(strings.join('\n')),
-    code: minified,
-  };
-};
-
-const kitExtensionJson = {
-  id: 'kit',
-  version: '1.0.0',
-  apiVersion: 1,
-  contributes: {
-    exerciseTypes: [
-      {
-        id: 'kit',
-        specSchema: { type: 'object' },
-        answerSchema: { type: 'string' },
-      },
-    ],
-  },
-};
-
-/** `src/index.ts` вида, который импортирует и вызывает функции перечисленных подпутей. */
-const kitSource = (subpaths) => {
-  const imports = subpaths.map(
-    (name) =>
-      `import { ${UI_SUBPATHS[name].join(', ')} } from '${UI_PACKAGE}/${name}';`,
-  );
-  const calls = subpaths.flatMap((name) =>
-    UI_SUBPATHS[name].map((fn) =>
-      fn === 'mountComponent'
-        ? 'mountComponent(container, (() => null) as never, {} as never);'
-        : `${fn}(container, {} as never);`,
-    ),
-  );
-  return `import {
-  defineAnswerView,
-  defineExerciseType,
-  defineExtension,
-} from '@dolphy-app/extension-sdk';
-import type { ExtensionViews } from '@dolphy-app/extension-sdk';
-${imports.join('\n')}
-
-export const host = defineExtension({
-  exerciseTypes: {
-    kit: defineExerciseType<Record<string, never>, string, Record<string, never>>({
-      project: () => ({}),
-      grade: () => ({ outcome: 'passed' }),
-      referenceAnswer: () => '',
-    }),
-  },
-});
-
-export const views = {
-  kit: defineAnswerView((api) => {
-    const container = document.createElement('div');
-    api.root.append(container);
-    ${calls.join('\n    ')}
-    return { update: () => {} };
-  }),
-} satisfies ExtensionViews;
-`;
-};
-
-/**
- * Размеры по ceilings R5/R6: из установленного `extension-ui` собирается вид, который
- * импортирует ядро, один подпуть, каждый подпуть и все сразу (`dolphy-ext build`
- * установленного пакета). Изолированный подпуть не тянет код чужих.
- */
-const assertUiBundles = ({ kit, env }) => {
-  const variants = [
-    { label: 'core', subpaths: ['vuetify'], limits: UI_LIMITS.core },
-    ...Object.keys(UI_SUBPATHS)
-      .filter((name) => name !== 'vuetify')
-      .map((name) => ({
-        label: name,
-        subpaths: ['vuetify', name],
-        limits: UI_LIMITS[name],
-      })),
-    { label: 'all', subpaths: Object.keys(UI_SUBPATHS), limits: UI_LIMITS.all },
-  ];
-  writeFileSync(
-    path.join(kit, 'extension.json'),
-    `${JSON.stringify(kitExtensionJson, null, 2)}\n`,
-  );
-  for (const { label, subpaths, limits } of variants) {
-    writeFileSync(path.join(kit, 'src', 'index.ts'), kitSource(subpaths));
-    run('npx', ['--no-install', 'dolphy-ext', 'build'], { cwd: kit, env });
-    const size = measureView({
-      project: kit,
-      file: path.join(kit, 'dist-ext', 'kit', 'view.mjs'),
-      env,
-    });
-    check(
-      size.js <= limits.js && size.css <= limits.css,
-      `extension-ui ${label}: ${formatKb(size.js)} JS / ${formatKb(size.css)} CSS gzip, ` +
-        `limits ${formatKb(limits.js)} / ${formatKb(limits.css)}`,
-    );
-    if (OWN_IN_ISOLATED[label] !== undefined) {
-      check(
-        size.code.includes(OWN_IN_ISOLATED[label]),
-        `extension-ui ${label}: the bundle has no ${OWN_IN_ISOLATED[label]}`,
-      );
-    }
-    for (const word of FORBIDDEN_IN_ISOLATED[label] ?? []) {
-      check(
-        !size.code.includes(word),
-        `extension-ui ${label}: the bundle contains ${word} of another subpath`,
-      );
-    }
-    console.log(
-      `  extension-ui ${label}: ${formatKb(size.js)} JS + ${formatKb(size.css)} CSS gzip`,
-    );
-  }
-};
 
 const main = () => {
   const keep = process.argv.includes('--keep');
@@ -647,7 +370,6 @@ const main = () => {
       { cwd: consumer, env },
     );
     run(binOf(consumer, 'dolphy-ext'), ['--help'], { cwd: consumer, env });
-    assertUiSubpaths({ consumer, env });
 
     step('create-dolphy-extension demo');
     run(binOf(consumer, 'create-dolphy-extension'), ['demo'], {
@@ -660,16 +382,6 @@ const main = () => {
     step('install demo dependencies from the tarballs');
     pointAtTarballs({ project: demo, tarballs });
     run('npm', ['install'], { cwd: demo, env });
-
-    step('size and isolation of the extension-ui subpaths');
-    run(binOf(consumer, 'create-dolphy-extension'), ['kit'], {
-      cwd: consumer,
-      env,
-    });
-    const kit = path.join(consumer, 'kit');
-    pointAtTarballs({ project: kit, tarballs, uiKit: true });
-    run('npm', ['install'], { cwd: kit, env });
-    assertUiBundles({ kit, env });
 
     step('dolphy-ext build / validate, tsc, npm test');
     assertSchemaResolves(demo);

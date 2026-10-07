@@ -1,29 +1,19 @@
 import { formatDiagnostic } from '../src/diagnostics.ts';
 import { describe, expect, it } from 'vitest';
-import { normalizeManifest, parseManifest } from '../src/manifest.ts';
+import { parseManifest } from '../src/manifest.ts';
 
 const valid = () => ({
   id: 'acme.quiz',
   version: '1.2.3',
   apiVersion: 1,
   main: './main.mjs',
-  contributes: {
-    exerciseTypes: [
-      {
-        id: 'acme.quiz.multi',
-        specSchema: './schema/spec.json',
-        answerSchema: './schema/answer.json',
-        element: 'acme-quiz-answer',
-        renderer: './view.mjs',
-      },
-    ],
-  },
+  client: './client.mjs',
 });
 
-const withType = (patch: Record<string, unknown>) => {
-  const manifest = valid();
-  Object.assign(manifest.contributes.exerciseTypes[0]!, patch);
-  return manifest;
+const issues = (raw: unknown): string => {
+  const result = parseManifest(raw);
+  if (result.ok) throw new Error('manifest unexpectedly valid');
+  return formatDiagnostic(result.diagnostic);
 };
 
 describe('$schema', () => {
@@ -42,13 +32,37 @@ describe('$schema', () => {
 });
 
 describe('parseManifest', () => {
-  it('принимает корректный манифест', () => {
-    const result = parseManifest(valid());
-    expect(result.ok).toBe(true);
+  it('принимает корректный манифест и хранит main и client', () => {
+    expect(parseManifest(valid())).toMatchObject({
+      ok: true,
+      manifest: { main: './main.mjs', client: './client.mjs' },
+    });
   });
 
-  it('принимает вид, равный id расширения', () => {
-    expect(parseManifest(withType({ id: 'acme.quiz' })).ok).toBe(true);
+  it('расширение без main и client пусто, но допустимо', () => {
+    const empty = Object.fromEntries(
+      Object.entries(valid()).filter(
+        ([key]) => key !== 'main' && key !== 'client',
+      ),
+    );
+    expect(parseManifest(empty)).toMatchObject({
+      ok: true,
+      manifest: { main: null, client: null },
+    });
+    expect(parseManifest({ ...empty, main: null, client: null })).toMatchObject(
+      { ok: true, manifest: { main: null, client: null } },
+    );
+  });
+
+  it('одна часть без другой: серверная или клиентская', () => {
+    expect(parseManifest({ ...valid(), client: null })).toMatchObject({
+      ok: true,
+      manifest: { main: './main.mjs', client: null },
+    });
+    expect(parseManifest({ ...valid(), main: null })).toMatchObject({
+      ok: true,
+      manifest: { main: null, client: './client.mjs' },
+    });
   });
 
   const rejected: [string, unknown][] = [
@@ -56,164 +70,33 @@ describe('parseManifest', () => {
     ['id длиннее 64 символов', { ...valid(), id: 'a'.repeat(65) }],
     ['версия не semver', { ...valid(), version: '1.0' }],
     ['версия с ведущим нулём', { ...valid(), version: '01.0.0' }],
-    ['вид вне префикса расширения', withType({ id: 'other.quiz' })],
-    ['вид с общим началом без точки', withType({ id: 'acme.quizzes' })],
     ['main без .mjs', { ...valid(), main: './main.js' }],
+    ['client без .mjs', { ...valid(), client: './client.js' }],
     ['.. в пути main', { ...valid(), main: '../main.mjs' }],
-    ['.. в пути схемы', withType({ specSchema: './a/../../s.json' })],
-    ['обратная косая в пути', withType({ renderer: '.\\view.mjs' })],
-    ['абсолютный путь renderer', withType({ renderer: '/view.mjs' })],
+    ['.. в пути client', { ...valid(), client: './a/../../c.mjs' }],
+    ['обратная косая в пути', { ...valid(), client: '.\\client.mjs' }],
+    ['абсолютный путь main', { ...valid(), main: '/main.mjs' }],
     ['apiVersion: 2', { ...valid(), apiVersion: 2 }],
-    ['пустая схема-объект', withType({ specSchema: {} })],
-    ['схема неверного типа', withType({ answerSchema: 42 })],
-    ['явный element с плохим именем', withType({ element: 'Quiz_Answer' })],
-    ['main: null', { ...valid(), main: null }],
-    ['element без дефиса', withType({ element: 'quiz' })],
-    ['пустой список видов', { ...valid(), contributes: { exerciseTypes: [] } }],
     ['лишнее поле', { ...valid(), extra: true }],
   ];
   it.each(rejected)('отклоняет: %s', (_name, manifest) => {
-    const result = parseManifest(manifest);
-    expect(result.ok).toBe(false);
-    if (!result.ok)
-      expect(formatDiagnostic(result.diagnostic).length).toBeGreaterThan(0);
+    expect(issues(manifest).length).toBeGreaterThan(0);
   });
 });
 
-const minimal = () => ({
-  id: 'acme.quiz',
-  version: '1.0.0',
-  apiVersion: 1,
-  contributes: {
-    exerciseTypes: [
-      {
-        id: 'acme.quiz',
-        specSchema: { type: 'object' },
-        answerSchema: './schema/answer.json',
-      },
-    ],
-  },
-});
-
-describe('минимальный манифест', () => {
-  it('применяет умолчания main, renderer и element', () => {
-    const result = parseManifest(minimal());
-    expect(result).toMatchObject({
-      ok: true,
-      manifest: {
-        main: './main.mjs',
-        contributes: {
-          exerciseTypes: [
-            { element: 'acme-quiz-answer', renderer: './view.mjs' },
-          ],
-        },
-      },
-    });
+describe('вклады регистрирует код', () => {
+  it('ключ contributes отклоняется с подсказкой', () => {
+    expect(issues({ ...valid(), contributes: { exerciseTypes: [] } })).toBe(
+      'contributes: contributions are registered in code (src/index.ts: server, client)',
+    );
   });
 
-  it('сохраняет встроенную схему и путь к схеме как есть', () => {
-    const result = parseManifest(minimal());
-    if (!result.ok) throw new Error(formatDiagnostic(result.diagnostic));
-    expect(result.manifest.contributes.exerciseTypes[0]).toMatchObject({
-      specSchema: { type: 'object' },
-      answerSchema: './schema/answer.json',
-    });
-  });
-
-  it('явные значения важнее умолчаний', () => {
-    const raw = minimal();
-    Object.assign(raw, { main: './dist/main.mjs' });
-    Object.assign(raw.contributes.exerciseTypes[0]!, {
-      element: 'my-el',
-      renderer: './ui.js',
-    });
-    const result = parseManifest(raw);
-    expect(result).toMatchObject({
-      ok: true,
-      manifest: {
-        main: './dist/main.mjs',
-        contributes: {
-          exerciseTypes: [{ element: 'my-el', renderer: './ui.js' }],
-        },
-      },
-    });
-  });
-
-  it('выведенный element обязан быть допустимым тегом', () => {
-    const raw = minimal();
-    raw.contributes.exerciseTypes[0]!.id = 'acme';
-    raw.id = 'acme';
-    expect(parseManifest(raw).ok).toBe(true);
-    const bad = minimal();
-    bad.id = 'acme-';
-    bad.contributes.exerciseTypes[0]!.id = 'acme-';
-    const result = parseManifest(bad);
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(formatDiagnostic(result.diagnostic)).toContain(
-        "contributes.exerciseTypes.0.element: invalid element name 'acme--answer'",
-      );
-    }
-  });
-});
-
-describe('permissions', () => {
-  const withPermissions = (permissions: unknown) => ({
-    ...valid(),
-    permissions,
-  });
-
-  it('по умолчанию пусто', () => {
-    const result = parseManifest(valid());
-    expect(result).toMatchObject({ ok: true, manifest: { permissions: [] } });
-  });
-
-  it('принимает все объявленные возможности', () => {
-    const all = [
-      'library.read',
-      'process.spawn',
-      'worker.threads',
-      'native.addons',
-      'network',
-    ];
-    expect(parseManifest(withPermissions(all))).toMatchObject({
-      ok: true,
-      manifest: { permissions: all },
-    });
-  });
-
-  it.each([
-    ['неизвестное имя', ['library.write']],
-    ['не массив', 'network'],
-    ['не строка', [1]],
-  ])('отклоняет: %s, сообщение — путь и причина', (_name, permissions) => {
-    const result = parseManifest(withPermissions(permissions));
-    expect(result.ok).toBe(false);
-    if (!result.ok)
-      expect(formatDiagnostic(result.diagnostic)).toMatch(
-        /^permissions(\.\d+)?: /,
-      );
-  });
-
-  it('отклоняет дубль, называя разрешение', () => {
-    const result = parseManifest(withPermissions(['network', 'network']));
-    expect(result).toEqual({
-      ok: false,
-      diagnostic: {
-        code: 'manifest-invalid',
-        data: { issues: ["permissions.1: duplicate permission 'network'"] },
-      },
-    });
-  });
-});
-
-describe('normalizeManifest', () => {
-  it('не меняет вход', () => {
-    const input = minimal() as Parameters<typeof normalizeManifest>[0];
-    const before = structuredClone(input);
-    normalizeManifest(input);
-    expect(input).toEqual(before);
-  });
+  it.each(['permissions', 'locales'])(
+    'ключ %s отклоняется как неизвестный',
+    (key) => {
+      expect(issues({ ...valid(), [key]: [] })).toContain(key);
+    },
+  );
 });
 
 describe('метаданные и совместимость', () => {
@@ -231,6 +114,7 @@ describe('метаданные и совместимость', () => {
         author: null,
         platforms: [],
         minAppVersion: null,
+        icon: null,
       },
     });
   });
@@ -309,14 +193,9 @@ describe('tags', () => {
   });
 
   it('names the field and the vocabulary for an unknown tag', () => {
-    const result = parseManifest(withTags(['hologram']));
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(formatDiagnostic(result.diagnostic)).toMatch(/^tags\.0: /);
-      expect(formatDiagnostic(result.diagnostic)).toContain(
-        'learning, language, content',
-      );
-    }
+    const text = issues(withTags(['hologram']));
+    expect(text).toMatch(/^tags\.0: /);
+    expect(text).toContain('learning, language, content');
   });
 
   it('names the duplicate tag', () => {

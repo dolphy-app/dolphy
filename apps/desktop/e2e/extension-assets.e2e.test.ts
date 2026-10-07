@@ -11,10 +11,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { FrameLocator, Locator, Page } from 'playwright-core';
+import type { Locator, Page } from 'playwright-core';
 import { createWorkspace, launchApp } from './support/app.ts';
 import type { DolphyApp, Workspace } from './support/app.ts';
-import { ANSWER_FRAME, Client } from './support/client.ts';
+import { Client } from './support/client.ts';
 import { CommandsClient } from './support/commands-client.ts';
 import {
   course,
@@ -22,20 +22,16 @@ import {
   MARKDOWN,
   markdownCourse,
 } from './support/courses.ts';
-import { expectVisible } from './support/locator.ts';
+import { expectCount } from './support/locator.ts';
 import { PLAIN_LIBRARY } from './support/state-client.ts';
 
 const fixture = (name: string) =>
   fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url));
 
 const ASSETS_ID = 'acme.assets';
-const HOSTILE_ID = 'acme.hostile-assets';
 const ASSETS_DIR = fixture('assets-extension');
-const HOSTILE_DIR = fixture('hostile-assets-extension');
 const ASSETS_PANEL = 'Ресурсы';
-const HOSTILE_PANEL = 'Враждебные ресурсы';
 const ASSETS_NAME = 'Assets (KnowledgeBase)';
-const MARKDOWN_FRAME = 'iframe[sandbox][data-mode="markdown"]';
 
 const ASSETS_COURSE = course(
   'assets_kb',
@@ -43,7 +39,7 @@ const ASSETS_COURSE = course(
   exerciseFront(ASSETS_ID, [], 'Show the assets.'),
 );
 
-/** Что показывает рамка фикстуры, когда ресурсы подключены. */
+/** Что показывает компонент фикстуры, когда ресурсы подключены. */
 const APPLIED = {
   css: 'applied',
   png: '4',
@@ -89,7 +85,7 @@ const launch = async (
   };
 };
 
-const readReport = async (scope: FrameLocator | Locator) => {
+const readReport = async (scope: Locator) => {
   const report = scope.locator('[data-role="assets-report"]');
   await report.waitFor({ timeout: 30_000 });
   await expect
@@ -104,59 +100,42 @@ const openCourseSession = async (client: Client, name: string) => {
   await client.startSession();
 };
 
-/** Состояния проб рамки: имя → `blocked`/`reachable`/`pending`. */
-const readProbes = async (scope: FrameLocator) => {
-  const lines = await scope.locator('[data-probe]').allInnerTexts();
-  return Object.fromEntries(
-    lines.map((line) => {
-      const at = line.lastIndexOf(': ');
-      return [line.slice(0, at), line.slice(at + 2)];
-    }),
-  );
-};
-
-describe('ресурсы расширений в изолированных рамках', () => {
+describe('ресурсы расширений в окне приложения', () => {
   it('панель: таблица стилей применена, PNG и SVG декодированы, шрифт загружен', async () => {
-    const { commands } = await launch(
+    const { page, commands } = await launch(
       { [ASSETS_ID]: ASSETS_DIR },
       PLAIN_LIBRARY,
     );
     await commands.navItem(ASSETS_PANEL).click();
-    expect(await readReport(commands.frame)).toMatchObject({
+    const scope = page.locator('.v-main');
+    expect(await readReport(scope)).toMatchObject({
       ...APPLIED,
       sheets: 'loaded',
     });
     expect(
-      await commands.frame
+      await scope
         .locator('[data-role="probe"]')
         .evaluate((node) => getComputedStyle(node).color),
     ).toBe('rgb(1, 2, 3)');
     expect(
-      await commands.frame
+      await scope
         .locator('[data-role="png"]')
         .evaluate((node) => (node as HTMLImageElement).complete),
     ).toBe(true);
+    await expectCount(page.locator('iframe'), 0);
   });
 
-  it('элемент ввода: стили в тени, шрифт в документе, изображения загружены', async () => {
+  it('вид ответа: стили, шрифт и изображения загружены в окне', async () => {
     const { page, client } = await launch(
       { [ASSETS_ID]: ASSETS_DIR },
       ASSETS_COURSE,
     );
     await openCourseSession(client, ASSETS_NAME);
-    const frame = page.frameLocator(ANSWER_FRAME);
-    await frame.locator('acme-assets-answer').waitFor({ state: 'attached' });
-    expect(await page.locator('acme-assets-answer').count()).toBe(0);
-    // отчёт внутри тени элемента
-    const report = frame.locator(
-      'acme-assets-answer [data-role="assets-report"]',
-    );
-    await expect
-      .poll(() => report.getAttribute('data-font'), { timeout: 30_000 })
-      .not.toBeNull();
-    expect(
-      await report.evaluate((node) => ({ ...(node as HTMLElement).dataset })),
-    ).toMatchObject({ ...APPLIED, sheets: 'loaded,loaded' });
+    expect(await readReport(page.locator('.v-main'))).toMatchObject({
+      ...APPLIED,
+      sheets: 'loaded',
+    });
+    await expectCount(page.locator('iframe'), 0);
   });
 
   it('рендерер Markdown: таблица, изображения и шрифт в блоке', async () => {
@@ -165,26 +144,24 @@ describe('ресурсы расширений в изолированных ра
       markdownCourse('assets'),
     );
     await openCourseSession(client, MARKDOWN);
-    const frame = page.frameLocator(MARKDOWN_FRAME);
-    expect(await readReport(frame)).toMatchObject({
+    expect(await readReport(page.locator('.v-main'))).toMatchObject({
       ...APPLIED,
       sheets: 'loaded',
     });
+    await expectCount(page.locator('iframe'), 0);
   });
 
-  it('режим разработчика: правка таблицы стилей показывает новые стили в новой рамке без перезагрузки окна', async () => {
+  it('режим разработчика: правка таблицы стилей показывает новые стили без перезагрузки окна', async () => {
     devRoot = await mkdtemp(join(tmpdir(), 'dolphy-e2e-dev-assets-'));
     await cp(ASSETS_DIR, join(devRoot, ASSETS_ID), { recursive: true });
-    const { commands, client } = await launch({}, PLAIN_LIBRARY, {
+    const { page, commands, client } = await launch({}, PLAIN_LIBRARY, {
       DOLPHY_DEV_EXTENSIONS: devRoot,
     });
     await commands.navItem(ASSETS_PANEL).click();
-    expect(await readReport(commands.frame)).toMatchObject({
+    const scope = page.locator('.v-main');
+    expect(await readReport(scope)).toMatchObject({
       ...APPLIED,
       sheets: 'loaded',
-    });
-    await commands.frameElement.evaluate((node) => {
-      Reflect.set(node, '__old', true);
     });
     const stillSameWindow = await client.markWindow();
 
@@ -196,93 +173,13 @@ describe('ресурсы расширений в изолированных ра
     await expect
       .poll(
         async () => {
-          const report = commands.frame.locator('[data-role="assets-report"]');
+          const report = scope.locator('[data-role="assets-report"]');
           return report.getAttribute('data-css').catch(() => null);
         },
         { timeout: 30_000 },
       )
       .toBe('rgb(9, 8, 7)');
-    // новый iframe, а не перезагруженный прежний
-    expect(
-      await commands.frameElement.evaluate((node) =>
-        Reflect.get(node, '__old'),
-      ),
-    ).toBeUndefined();
     await stillSameWindow();
-  });
-});
-
-describe('враждебное расширение', () => {
-  const blockedProbes = [
-    'other: script via import()',
-    'other: main via import()',
-    'other: css via link',
-    'other: png via img',
-    'other: svg via img',
-    'other: font via @font-face',
-    'other: css via @import',
-    'other: png via css url()',
-    'other: extension.json via link',
-    'other: README.md via img',
-    'own: extension.json via import()',
-    'own: extension.json via link',
-    'own: README.md via img',
-    'own: extension.json via fetch',
-  ];
-  const controls = [
-    'control: own png via img',
-    'control: own css via link',
-    'control: own css via @import',
-    'control: own png via css url()',
-    'control: own font via @font-face',
-  ];
-
-  it('рамка не загружает скрипты, стили, изображения и шрифты чужого расширения, не получает манифесты и README', async () => {
-    const { commands } = await launch(
-      { [ASSETS_ID]: ASSETS_DIR, [HOSTILE_ID]: HOSTILE_DIR },
-      PLAIN_LIBRARY,
-    );
-    await commands.navItem(HOSTILE_PANEL).click();
-    await expect
-      .poll(
-        async () => {
-          const probes = await readProbes(commands.frame);
-          return Object.keys(probes).length === 0
-            ? ['pending']
-            : Object.values(probes);
-        },
-        { timeout: 30_000 },
-      )
-      .not.toContain('pending');
-    const probes = await readProbes(commands.frame);
-    // контроль: свои ресурсы загружаются, значит пробы измеряют именно запрет
-    for (const name of controls) expect(probes[name], name).toBe('reachable');
-    for (const name of blockedProbes)
-      expect(probes[name], name).toBe('blocked');
-    expect(Object.keys(probes).sort()).toEqual(
-      [...controls, ...blockedProbes].sort(),
-    );
-  });
-
-  it('рамка не может сменить свой адрес на SVG со скриптом: навигация заблокирована, окно приложения цело', async () => {
-    const { page, commands } = await launch(
-      { [HOSTILE_ID]: HOSTILE_DIR },
-      PLAIN_LIBRARY,
-    );
-    await commands.navItem(HOSTILE_PANEL).click();
-    await commands.frame
-      .getByRole('button', { name: 'Открыть SVG', exact: true })
-      .click();
-    // блокировка — отсутствие события: даём навигации время состояться
-    await page.waitForTimeout(2000);
-    const urls = page.frames().map((frame) => frame.url());
-    expect(urls.some((url) => url.endsWith('/assets/evil.svg'))).toBe(false);
-    expect(urls).toContain(`dolphy-ext://${HOSTILE_ID}/__dolphy/frame.html`);
-    // рамка осталась прежней страницей, приложение не затронуто
-    await expectVisible(
-      commands.frame.getByRole('button', { name: 'Открыть SVG', exact: true }),
-    );
-    expect(await page.evaluate(() => 'dolphy' in window)).toBe(true);
   });
 });
 
@@ -317,7 +214,7 @@ describe('протокол dolphy-ext', () => {
   it('типы ресурсов, заголовки, закрытые файлы, символические ссылки, потолки размера', async () => {
     let linked = true;
     await launch(
-      { [ASSETS_ID]: ASSETS_DIR, [HOSTILE_ID]: HOSTILE_DIR },
+      { [ASSETS_ID]: ASSETS_DIR },
       PLAIN_LIBRARY,
       undefined,
       async (userData) => {
@@ -346,7 +243,7 @@ describe('протокол dolphy-ext', () => {
       at(ASSETS_ID, 'assets/pixel.png'),
       at(ASSETS_ID, 'assets/shape.svg'),
       at(ASSETS_ID, 'assets/font.woff2'),
-      at(HOSTILE_ID, 'assets/evil.svg'),
+      at(ASSETS_ID, 'assets/evil.svg'),
       at(ASSETS_ID, 'main.mjs'),
       at(ASSETS_ID, 'extension.json'),
       at(ASSETS_ID, 'README.md'),
@@ -355,7 +252,6 @@ describe('протокол dolphy-ext', () => {
       at(ASSETS_ID, 'assets/huge.css'),
       at(ASSETS_ID, 'assets/leak.png'),
       at(ASSETS_ID, 'linked-dir/a.png'),
-      at(ASSETS_ID, '__dolphy/frame.html'),
     ]);
     const get = (id: string, path: string) => answers[at(id, path)]!;
 
@@ -377,7 +273,7 @@ describe('протокол dolphy-ext', () => {
       csp: sandbox,
     });
     // SVG со скриптом отдаётся, но с той же песочницей
-    expect(get(HOSTILE_ID, 'assets/evil.svg')).toMatchObject({
+    expect(get(ASSETS_ID, 'assets/evil.svg')).toMatchObject({
       status: 200,
       csp: sandbox,
     });
@@ -399,8 +295,5 @@ describe('протокол dolphy-ext', () => {
       expect(get(ASSETS_ID, 'assets/leak.png').status).toBe(404);
       expect(get(ASSETS_ID, 'linked-dir/a.png').status).toBe(404);
     }
-    expect(get(ASSETS_ID, '__dolphy/frame.html').csp).toContain(
-      `script-src dolphy-ext://${ASSETS_ID};`,
-    );
   });
 });

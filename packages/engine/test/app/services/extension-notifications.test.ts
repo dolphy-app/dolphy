@@ -1,6 +1,6 @@
 /**
  * Системные уведомления расширений на стороне движка (спека
- * extension-api-breadth-1, R11, R14): разрешение, очистка текста, пределы,
+ * extension-api-breadth-1, R11, R14): очистка текста, пределы,
  * частота, переключатель «Уведомления».
  */
 import type { ExtensionInfoDto } from '@dolphy-app/engine-contract';
@@ -19,7 +19,6 @@ const PLAIN = 'acme.plain';
 
 const info = (
   id: string,
-  permissions: string[],
   overrides: Partial<ExtensionInfoDto> = {},
 ): ExtensionInfoDto => ({
   id,
@@ -28,21 +27,15 @@ const info = (
   origin: 'user',
   contributes: {
     exerciseTypes: [],
-    themes: [],
-    markdownRenderers: [],
     gradePolicies: [],
     settings: [],
     events: [],
     commands: [],
-    widgets: [],
     schedules: [],
-    panels: [],
     importers: [],
     exporters: [],
   },
   diagnostics: [],
-  permissions,
-  isolation: 'isolated',
   toggleable: true,
   name: null,
   description: null,
@@ -50,8 +43,6 @@ const info = (
   dependencies: [],
   installed: null,
   icon: null,
-  titles: {},
-  messages: {},
   tags: [],
   removable: true,
   revoked: null,
@@ -64,11 +55,7 @@ const open = async (infos?: ExtensionInfoDto[]) => {
   const t = await createTestEngine({
     platform,
     extensionRegistry: createFakeExtensionRegistry(
-      infos ?? [
-        info(A, ['notifications'], { name: 'Notifier' }),
-        info(B, ['notifications']),
-        info(PLAIN, []),
-      ],
+      infos ?? [info(A, { name: 'Notifier' }), info(B), info(PLAIN)],
     ),
     extensionPolicy: createFakeExtensionPolicy(),
   });
@@ -78,18 +65,13 @@ const open = async (infos?: ExtensionInfoDto[]) => {
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 
-describe('разрешение', () => {
-  it('без notifications — INVALID_ARGUMENT reason permission, уведомление не показано', async () => {
+describe('доступ', () => {
+  it('уведомления доступны любому включённому расширению без условий', async () => {
     const { platform, notifications } = await open();
-    await expect(notifications.show(PLAIN, 'T', 'B')).rejects.toMatchObject({
-      code: 'INVALID_ARGUMENT',
-      details: {
-        reason: 'permission',
-        permission: 'notifications',
-        extensionId: PLAIN,
-      },
-    });
-    expect(platform.notifications()).toEqual([]);
+    expect(await notifications.show(PLAIN, 'T', 'B')).toBe(true);
+    expect(platform.notifications()).toEqual([
+      { source: PLAIN, title: 'T', body: 'B' },
+    ]);
   });
 
   it('неизвестное расширение — NOT_FOUND', async () => {
@@ -109,22 +91,16 @@ describe('показ', () => {
     ]);
   });
 
-  it('расширение без названия называется своим id; %ключ% — текстом en', async () => {
+  it('расширение без названия называется своим id', async () => {
     const { platform, notifications } = await open([
-      info(A, ['notifications']),
-      info(B, ['notifications'], {
-        name: '%ext.name%',
-        messages: {
-          en: { 'ext.name': 'Localized' },
-          ru: { 'ext.name': 'Имя' },
-        },
-      }),
+      info(A),
+      info(B, { name: 'Named' }),
     ]);
     await notifications.show(A, 'T', '');
     await notifications.show(B, 'T', '');
     expect(platform.notifications().map((item) => item.source)).toEqual([
       A,
-      'Localized',
+      'Named',
     ]);
   });
 
@@ -279,8 +255,8 @@ describe('переключатель «Уведомления»', () => {
 
   it('неизвестное расширение — NOT_FOUND, расширение из поставки и не булево — INVALID_ARGUMENT', async () => {
     const { t } = await open([
-      info(A, ['notifications']),
-      info('dolphy.bundled', [], { origin: 'bundled', toggleable: false }),
+      info(A),
+      info('dolphy.bundled', { origin: 'bundled', toggleable: false }),
     ]);
     const { extensions } = t.engine;
     await expect(

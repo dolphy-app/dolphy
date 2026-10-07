@@ -1,31 +1,27 @@
-import type {
-  ContributionsDto,
-  PanelContributionDto,
-} from '@dolphy-app/engine-contract';
+import type { ContributionsDto } from '@dolphy-app/engine-contract';
 import { declaredCommands } from '@/shared/lib/declared-commands.ts';
+import type { ClientPanel } from '@/shared/lib/extension-clients.ts';
 
 export interface ResolvedPanel {
-  panel: PanelContributionDto;
-  /** Команды этого расширения, в том числе скрытые из палитры (`palette: false`). */
+  panel: ClientPanel;
+  /** Серверные команды этого расширения, в том числе скрытые из палитры (`palette: false`). */
   commands: ReadonlySet<string>;
 }
 
 /**
- * Панель и допустимые для неё команды по текущим вкладам; `null` — панели нет
- * (расширение отключено, удалено или ещё не загружено).
+ * Панель из реестра окна и допустимые для неё серверные команды; `null` —
+ * панели нет (расширение отключено, удалено, ещё не загрузилось или не
+ * загрузилось).
  */
 export const resolvePanel = (
-  contributions: Readonly<ContributionsDto>,
+  panels: readonly ClientPanel[],
+  contributions: Readonly<Pick<ContributionsDto, 'commands'>>,
   extensionId: string,
   panelId: string,
 ): ResolvedPanel | null => {
-  const panel = contributions.panels.find(
+  const panel = panels.find(
     (item) => item.extensionId === extensionId && item.id === panelId,
   );
   if (panel === undefined) return null;
   return { panel, commands: declaredCommands(contributions, extensionId) };
 };
-
-/** Ключ рамки: новая `revision` (обновление, правка в режиме разработчика) пересоздаёт её. */
-export const frameKeyOf = (panel: PanelContributionDto): string =>
-  `${panel.extensionId}:${panel.id}:${panel.revision}`;

@@ -64,7 +64,7 @@ describe('dolphy-ext lint: project', () => {
       "warning acme.night CHECK-003 name: 'name' is not set: the catalog requires it",
       "warning acme.night CHECK-003 author: 'author' is not set: the catalog requires it",
       'warning acme.night CHECK-019 description: description is shorter than 20 characters: say what the extension does',
-      "warning acme.night LINT-001 tags: 'tags' is not set: without it the catalog derives tags from contributions",
+      "warning acme.night LINT-001 tags: 'tags' is not set: the catalog lists the extension without tags",
     ]);
   });
 
@@ -87,10 +87,10 @@ export const probe = (code: string): unknown => globalThis.eval(code);
 globalThis.probe = probe;
 `,
     );
-    // the module is shared by the host and the view bundles
+    // the module is shared by the server and the client bundles
     expect(await lint(dir)).toEqual([
+      'warning acme.hello CHECK-022 client.mjs: dynamic code execution (eval or new Function)',
       'warning acme.hello CHECK-022 main.mjs: dynamic code execution (eval or new Function)',
-      'warning acme.hello CHECK-022 view.mjs: dynamic code execution (eval or new Function)',
     ]);
   });
 
@@ -118,8 +118,8 @@ globalThis.probe = probe;
 
 describe('dolphy-ext lint: bundle heuristics', () => {
   const file = (text: string, name = 'main.mjs') => [{ path: name, text }];
-  const rules = (text: string, permissions: string[] = []) =>
-    bundleFindings(file(text), permissions).map((item) => item.ruleId);
+  const rules = (text: string) =>
+    bundleFindings(file(text)).map((item) => item.ruleId);
 
   it('eval and new Function, but not identifiers that merely contain them', () => {
     expect(rules('const x = eval("1");')).toEqual(['CHECK-022']);
@@ -138,19 +138,9 @@ describe('dolphy-ext lint: bundle heuristics', () => {
     expect(rules(`var ${ids.slice(0, 19).join(', ')};`)).toEqual([]);
   });
 
-  it('URLs need the network permission; XML namespaces do not count', () => {
-    const code = 'fetch("https://example.com/api");';
-    expect(rules(code)).toEqual(['CHECK-024']);
-    expect(rules(code, ['network'])).toEqual([]);
-    expect(
-      rules('createElementNS("http://www.w3.org/2000/svg", "g");'),
-    ).toEqual([]);
-  });
-
   it('an embedded source map is an error', () => {
     const [finding] = bundleFindings(
       file('x();\n//# sourceMappingURL=data:application/json;base64,e30='),
-      [],
     );
     expect(finding?.ruleId).toBe('CHECK-025');
     expect(finding?.severity).toBe('error');
@@ -200,7 +190,7 @@ describe('dolphy-ext lint: CLI', () => {
   });
 
   it('a clean --built directory passes', async () => {
-    const built = await builtWith({ 'view.mjs': 'export {};' });
+    const built = await builtWith({ 'client.mjs': 'export {};' });
     const dir = await readyProject('theme-only');
     const result = await exec(['lint', dir, '--built', built]);
     expect(result).toEqual({ code: 0, stdout: '', stderr: '' });

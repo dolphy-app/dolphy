@@ -1,62 +1,47 @@
 import { describe, expect, it } from 'vitest';
-import { holderOf } from './helpers.ts';
-import { createCatalog } from '../src/catalog.ts';
+import { holderOf, resolvedOf } from './helpers.ts';
+import { createCatalog, exerciseTypeIssue } from '../src/catalog.ts';
 import {
-  createAllTrustedPolicy,
+  createAllEnabledPolicy,
   createExtensionPolicy,
 } from '../src/policy.ts';
-import type { ResolvedExtension } from '../src/discover.ts';
 
-const extension: ResolvedExtension = {
+const exerciseType = {
   id: 'acme.t',
-  version: '2.0.0',
-  origin: 'bundled',
-  revision: '',
-  dir: '/x/acme.t',
-  mainPath: '/x/acme.t/main.mjs',
-  permissions: [],
-  name: null,
-  description: null,
-  author: null,
-  dependencies: [],
-  platforms: [],
-  minAppVersion: null,
-  icon: null,
-  tags: [],
-  install: null,
-  messages: {},
-  warnings: [],
-  exerciseTypes: [
-    {
-      id: 'acme.t',
-      title: null,
-      specSchema: {
-        type: 'object',
-        required: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'],
-        properties: { a: { type: 'string' } },
-      },
-      answerSchema: { type: 'string' },
-      element: 'acme-t-answer',
-      rendererUrl: 'dolphy-ext://acme.t/view.mjs',
-    },
-  ],
-  themes: [],
-  markdownRenderers: [],
-  gradePolicies: [],
-  settings: [],
-  events: [],
-  commands: [],
-  widgets: [],
-  schedules: [],
-  panels: [],
-  importers: [],
-  exporters: [],
+  title: null,
+  specSchema: {
+    type: 'object',
+    required: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'],
+    properties: { a: { type: 'string' } },
+  },
+  answerSchema: { type: 'string' },
 };
+
+const extension = resolvedOf(
+  'acme.t',
+  { exerciseTypes: [exerciseType] },
+  { version: '2.0.0', origin: 'bundled' },
+);
+
+describe('exerciseTypeIssue', () => {
+  it('null для компилируемых схем', () => {
+    expect(exerciseTypeIssue([exerciseType])).toBeNull();
+    expect(exerciseTypeIssue([])).toBeNull();
+  });
+
+  it('текст ошибки для несжимаемой схемы, с видом и полем', () => {
+    const issue = exerciseTypeIssue([
+      exerciseType,
+      { ...exerciseType, id: 'acme.bad', answerSchema: { type: 'nope' } },
+    ]);
+    expect(issue).toMatch(/^exercise type 'acme\.bad': answerSchema /);
+  });
+});
 
 describe('createCatalog', () => {
   const catalog = createCatalog(
     holderOf([extension]),
-    createAllTrustedPolicy(),
+    createAllEnabledPolicy(),
   );
 
   it('описывает вид и владельца', () => {
@@ -64,13 +49,9 @@ describe('createCatalog', () => {
       type: 'acme.t',
       extensionId: 'acme.t',
       extensionVersion: '2.0.0',
-      extensionOrigin: extension.origin,
-      extensionRevision: extension.revision,
-      element: 'acme-t-answer',
-      rendererUrl: 'dolphy-ext://acme.t/view.mjs',
     });
     expect(catalog.list()).toHaveLength(1);
-    expect(catalog.ownerOf('acme.t')).toBe(extension);
+    expect(catalog.ownerOf('acme.t')?.id).toBe('acme.t');
     expect(catalog.describe('nope')).toBeUndefined();
     expect(catalog.ownerOf('nope')).toBeUndefined();
   });
@@ -103,13 +84,17 @@ describe('createCatalog', () => {
 });
 
 describe('createCatalog: правила оценки', () => {
-  const withPolicies: ResolvedExtension = {
-    ...extension,
-    gradePolicies: [{ id: 'acme.t.generous', label: 'Generous' }],
-  };
+  const withPolicies = resolvedOf(
+    'acme.t',
+    {
+      exerciseTypes: [exerciseType],
+      gradePolicies: [{ id: 'acme.t.generous', label: 'Generous' }],
+    },
+    { version: '2.0.0', origin: 'bundled' },
+  );
   const catalog = createCatalog(
-    holderOf([extension, withPolicies]),
-    createAllTrustedPolicy(),
+    holderOf([withPolicies]),
+    createAllEnabledPolicy(),
   );
 
   it('описывает правила и владельца', () => {
@@ -122,18 +107,21 @@ describe('createCatalog: правила оценки', () => {
 });
 
 describe('createCatalog: отключённые расширения', () => {
-  const withPolicy: ResolvedExtension = {
-    ...extension,
-    origin: 'user',
-    gradePolicies: [{ id: 'acme.t.generous', label: 'Generous' }],
-  };
-  const policy = createExtensionPolicy(holderOf([withPolicy]));
-  const catalog = createCatalog(holderOf([withPolicy]), policy);
+  const withPolicy = resolvedOf(
+    'acme.t',
+    {
+      exerciseTypes: [exerciseType],
+      gradePolicies: [{ id: 'acme.t.generous', label: 'Generous' }],
+    },
+    { origin: 'user' },
+  );
+  const holder = holderOf([withPolicy]);
+  const policy = createExtensionPolicy(holder);
+  const catalog = createCatalog(holder, policy);
 
   it('ведёт себя так, будто расширения нет, и сразу возвращается при включении', () => {
     policy.update({
       disabled: ['acme.t'],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -153,7 +141,6 @@ describe('createCatalog: отключённые расширения', () => {
     ]);
     policy.update({
       disabled: [],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],

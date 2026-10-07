@@ -94,12 +94,6 @@ const bundledExtensionsDir = app.isPackaged
   ? path.join(process.resourcesPath, 'extensions')
   : path.join(APP_ROOT, 'extensions');
 const userExtensionsDir = path.join(userData, 'extensions');
-// сборка дочернего процесса с ограничениями лежит вне asar: режим разрешений Node проверяет настоящие пути
-const restrictedEntry = path.join(
-  app.isPackaged ? process.resourcesPath : APP_ROOT,
-  'restricted',
-  'ext-restricted.mjs',
-);
 // режим разработчика: каталог с приоритетом выше пользовательского, под наблюдением
 const devExtensionsDir = process.env.DOLPHY_DEV_EXTENSIONS
   ? path.resolve(process.env.DOLPHY_DEV_EXTENSIONS)
@@ -171,7 +165,7 @@ const publishExtHostStatus = () => {
 const extSupervisor = createExtSupervisor({
   utilityProcess,
   hostPath: path.join(__dirname, '../host/ext-host.js'),
-  init: { type: 'init', libraryRoot, restrictedEntry },
+  init: { type: 'init', libraryRoot },
   logger,
   onHostReady: (host) => hostLink.setExtHost(host),
   onHostExit: () => hostLink.setExtHost(null),
@@ -208,7 +202,6 @@ const supervisor = createSupervisor({
   },
   onHostReady: (host) => {
     engineHost = host;
-    hostLink.setEngine(host);
     publishExtHostStatus();
     if (reloadPending) reloadExtensions();
   },
@@ -216,7 +209,9 @@ const supervisor = createSupervisor({
     engineHost = null;
     hostLink.setEngine(null);
   },
-  onMessage: (message) => {
+  onMessage: (message, host) => {
+    // канал к хосту расширений готов: движок ждёт первой регистрации вкладов до открытия библиотеки, поэтому порт нужен раньше `ready`
+    if (isTypedMessage(message, 'ext-link')) hostLink.setEngine(host);
     // зависший синхронный код расширения не прервать: движок просит перезапустить хост
     if (isTypedMessage(message, 'restart-ext-host')) extSupervisor.kill();
     // пользователь просит запустить хост после `gave-up` («Настройки → Расширения»)

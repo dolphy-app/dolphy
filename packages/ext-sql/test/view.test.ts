@@ -1,11 +1,12 @@
 // @vitest-environment happy-dom
-import { loadView } from '@dolphy-app/extension-sdk/testing';
-import type { LoadedView } from '@dolphy-app/extension-sdk/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import { nextTick } from 'vue';
-import { views } from '../src/index.ts';
+import { createTestClient } from '@dolphy-app/extension-sdk/testing';
+import { client } from '../src/index.ts';
+import { mountView as mount } from './mount-view.ts';
+import type { MountedView } from './mount-view.ts';
 
-const loaded: LoadedView[] = [];
+const loaded: MountedView[] = [];
 
 /** Vue рисует на следующем тике: ждём его после каждого действия. */
 const settle = async () => {
@@ -14,7 +15,11 @@ const settle = async () => {
 };
 
 const mountView = async (label?: string) => {
-  const view = await loadView(views, 'dolphy.sql', {
+  const component = (await createTestClient(client)).answerViews.get(
+    'dolphy.sql',
+  );
+  if (!component) throw new Error('answer view is not added');
+  const view = await mount(component, {
     ...(label === undefined ? {} : { label }),
   });
   loaded.push(view);

@@ -22,6 +22,7 @@
   "include": [
     "electron/main",
     "electron/host",
+    "src/vite-env.d.ts",
     "shared",
     "test",
     "e2e",

@@ -9,6 +9,7 @@ export {
   extensionCommandKey,
 } from './model/registry-adapter.ts';
 export type { ExtensionCommands } from './model/extension-commands.ts';
-export { panelKey } from './model/panel-props.ts';
+export { createNotices } from './model/notices.ts';
+export { createPanelProps, panelKey } from './model/panel-props.ts';
 export { default as NoticeSnackbar } from './ui/NoticeSnackbar.vue';
 export { messages as extensionCommandsMessages } from './i18n';

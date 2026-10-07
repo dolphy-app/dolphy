@@ -15,10 +15,7 @@ const OBFUSCATION_IDENTIFIERS = 20;
 
 const DYNAMIC_EXECUTION = /(?<![\w$])(?:eval\s*\(|new\s+Function\s*\()/;
 const HEX_IDENTIFIER = /(?<![\w$])_0x[0-9a-f]{3,}(?![\w$])/gi;
-const URL_PATTERN = /https?:\/\/[^\s"'`<>)\\]+/g;
 const SOURCE_MAP = /\/\/[#@]\s*sourceMappingURL=/;
-/** XML namespaces (`createElementNS`) are identifiers, not network addresses. */
-const NAMESPACE_URL = /^https?:\/\/www\.w3\.org\//;
 
 const listCodeFiles = async (dir: string, prefix = ''): Promise<string[]> => {
   const entries = await readdir(path.join(dir, prefix), {
@@ -58,15 +55,12 @@ const isObfuscated = (text: string): string | null => {
 };
 
 /**
- * Heuristics over the built code (`CHECK-022`…`CHECK-025`). They read the
- * whole bundle, dependencies included, so only the source map is an error.
+ * Heuristics over the built code (`CHECK-022`, `CHECK-023`, `CHECK-025`). They
+ * read the whole bundle, dependencies included, so only the source map is an
+ * error.
  */
-export const bundleFindings = (
-  files: readonly BundleFile[],
-  permissions: readonly string[],
-): RuleFinding[] => {
+export const bundleFindings = (files: readonly BundleFile[]): RuleFinding[] => {
   const findings: RuleFinding[] = [];
-  const mayUseNetwork = permissions.includes('network');
   for (const { path: field, text } of files) {
     if (DYNAMIC_EXECUTION.test(text)) {
       findings.push({
@@ -84,19 +78,6 @@ export const bundleFindings = (
         field,
         message: `looks obfuscated: ${obfuscation}`,
       });
-    }
-    if (!mayUseNetwork) {
-      const url = (text.match(URL_PATTERN) ?? []).find(
-        (item) => !NAMESPACE_URL.test(item),
-      );
-      if (url !== undefined) {
-        findings.push({
-          ruleId: 'CHECK-024',
-          severity: 'warning',
-          field,
-          message: `URL ${url} in code without the 'network' permission`,
-        });
-      }
     }
     if (SOURCE_MAP.test(text)) {
       findings.push({

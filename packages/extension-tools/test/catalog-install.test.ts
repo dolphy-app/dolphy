@@ -53,26 +53,9 @@ const inspectDir = async (directory: string): Promise<InspectResult> => {
     manifest: {
       id: extension.id,
       version: extension.version,
-      permissions: extension.permissions,
       tags: extension.tags,
       dependencies: extension.dependencies,
       icon: extension.icon,
-      contributes: {
-        exerciseTypes: extension.exerciseTypes.map((type) => type.id),
-        themes: extension.themes.map((theme) => theme.id),
-        markdownRenderers: extension.markdownRenderers.map(
-          (renderer) => renderer.language,
-        ),
-        gradePolicies: extension.gradePolicies.map((policy) => policy.id),
-        settings: extension.settings.map((setting) => setting.id),
-        events: extension.events.map((item) => item.event),
-        commands: extension.commands.map(({ id }) => id),
-        widgets: [],
-        schedules: [],
-        panels: extension.panels.map(({ id }) => id),
-        importers: extension.importers.map(({ id }) => id),
-        exporters: extension.exporters.map(({ id }) => id),
-      },
     },
   };
 };
@@ -133,69 +116,36 @@ describe('catalog site and the real installer', () => {
     },
   );
 
-  it('installs locales/*.json as ordinary version files and discovery reads them', async () => {
-    const json = (value: unknown) => JSON.stringify(value);
-    const repo = await createRepo([
-      {
-        fixture: 'theme-only',
-        manifest: {
-          name: '%name%',
-          description: '%description%',
-          contributes: {
-            themes: [
-              {
-                id: 'acme.night',
-                label: '%theme%',
-                dark: true,
-                colors: { background: '#101018', primary: '#8ab4f8' },
-              },
-            ],
-          },
-        },
-        files: {
-          'locales/en.json': json({
-            name: 'Night',
-            description: 'A dark theme with a deep blue background',
-            theme: 'Night',
-          }),
-          'locales/ru.json': json({ name: 'Ночь', theme: 'Ночь' }),
-        },
-      },
-    ]);
+  it('installs the built main.mjs and client.mjs as ordinary version files and discovery resolves them', async () => {
+    const repo = await createRepo([{ fixture: 'hello' }]);
     const site = await makeTemp();
     await buildCatalog({
       src: repo.extensionsDir,
-      ids: ['acme.night'],
+      ids: ['acme.hello'],
       out: site,
     });
     const extensionsDir = path.join(await makeTemp(), 'extensions');
     await mkdir(extensionsDir);
     const installer = installerFor(await serve(site), extensionsDir);
     await installer.catalog();
-    await installer.install('acme.night');
+    await installer.install('acme.hello');
 
-    for (const name of ['locales/en.json', 'locales/ru.json']) {
-      expect(
-        await readFile(path.join(extensionsDir, 'acme.night', name)),
-      ).toEqual(
+    const installed = path.join(extensionsDir, 'acme.hello');
+    for (const name of ['main.mjs', 'client.mjs']) {
+      expect(await readFile(path.join(installed, name))).toEqual(
         await readFile(
-          path.join(site, 'extensions', 'acme.night', '1.0.0', name),
+          path.join(site, 'extensions', 'acme.hello', '1.0.0', name),
         ),
       );
     }
-    const result = await inspectExtensionDir(
-      path.join(extensionsDir, 'acme.night'),
-      { expectedId: 'acme.night' },
-    );
-    expect(result.ok && result.extension.messages).toEqual({
-      en: {
-        name: 'Night',
-        description: 'A dark theme with a deep blue background',
-        theme: 'Night',
-      },
-      ru: { name: 'Ночь', theme: 'Ночь' },
+    const result = await inspectExtensionDir(installed, {
+      expectedId: 'acme.hello',
     });
-    // ru lacks 'description', but only en is required to be complete
-    expect(result.ok && result.extension.warnings).toEqual([]);
+    expect(result.ok && result.extension.mainPath).toBe(
+      path.join(installed, 'main.mjs'),
+    );
+    expect(result.ok && result.extension.clientPath).toBe(
+      path.join(installed, 'client.mjs'),
+    );
   });
 });

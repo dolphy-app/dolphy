@@ -1,4 +1,4 @@
-import { INITIAL_VERSION, idsBullet } from './common.ts';
+import { INITIAL_VERSION } from './common.ts';
 import type { TemplateModule } from './common.ts';
 
 const manifestJson = (id: string): string => `{
@@ -9,152 +9,216 @@ const manifestJson = (id: string): string => `{
   "name": "Hello panel",
   "description": "Palette commands that greet the learner and open a small panel.",
   "author": "your-github-login",
-  "tags": ["productivity"],
-  "contributes": {
-    "commands": [
-      { "id": "${id}.hello", "title": "Say hello", "category": "Hello" },
-      { "id": "${id}.open", "title": "Open the hello panel", "category": "Hello" },
-      { "id": "${id}.data", "title": "Hello panel data", "palette": false }
-    ],
-    "panels": [{ "id": "${id}.view", "title": "Hello" }]
-  }
+  "tags": ["productivity"]
 }
 `;
 
-const indexTs = (id: string): string => `import {
-  defineExtension,
-  defineExtensionPanel,
-  notify,
-  openPanel,
-} from '@dolphy-app/extension-sdk';
-import type { ExtensionPanels } from '@dolphy-app/extension-sdk';
+const indexTs = (): string => `export { client } from './client.ts';
+export { server } from './server.ts';
+`;
 
-// extension code: \`host\` runs in the extension process of the app
-// the ids come from extension.json: a misspelt id or a declared id without a
-// handler fails \`pnpm typecheck\`
-export const host = defineExtension({
-  commands: {
-    // palette command: shows a notification
-    '${id}.hello': (args) => {
+const serverTs = (
+  id: string,
+): string => `import { defineServer, notify, openPanel } from '@dolphy-app/extension-sdk';
+
+// runs in the extension host: every call registers a contribution
+export const server = defineServer((s) => {
+  // palette command: shows a notification
+  s.registerCommand({
+    id: '${id}.hello',
+    title: { en: 'Say hello', ru: 'Поздороваться' },
+    category: 'Hello',
+    run: (args) => {
       const name = typeof args === 'string' ? args : 'world';
       return notify(\`Hello, \${name}!\`);
     },
-    // palette command: opens the panel with properties
-    '${id}.open': () => openPanel('${id}.view', { name: 'Dolphy' }),
-    // hidden from the palette (palette: false): the panel asks for data
-    '${id}.data': () => ({ message: 'Hello from ${id}' }),
+  });
+
+  // palette command: opens the panel (registered by the client) with properties
+  s.registerCommand({
+    id: '${id}.open',
+    title: { en: 'Open the hello panel', ru: 'Открыть панель' },
+    category: 'Hello',
+    run: () => openPanel('${id}.view', { name: 'Dolphy' }),
+  });
+
+  // hidden from the palette (palette: false): the panel asks for data
+  s.registerCommand({
+    id: '${id}.data',
+    title: 'Hello panel data',
+    palette: false,
+    run: () => ({ message: 'Hello from ${id}' }),
+  });
+});
+`;
+
+const clientTs = (
+  id: string,
+): string => `import { defineClient } from '@dolphy-app/extension-sdk';
+import { HelloPanel } from './hello-panel.ts';
+
+// runs in the app window: the panel is a Vue component the app draws
+export const client = defineClient((c) => {
+  c.addPanel({
+    id: '${id}.view',
+    title: { en: 'Hello', ru: 'Привет' },
+    component: HelloPanel,
+  });
+});
+`;
+
+const helloPanelTs = (
+  id: string,
+): string => `import { usePanel } from '@dolphy-app/extension-sdk/client';
+import { computed, defineComponent, h, ref } from 'vue';
+
+// \`usePanel()\` gives the panel the properties it was opened with and \`call\`
+// for the commands of the extension
+export const HelloPanel = defineComponent({
+  setup() {
+    const panel = usePanel();
+    const message = ref('');
+    // the app opens the panel again with new properties: \`panel.props\` is
+    // reactive, the title follows it
+    const name = computed(() => {
+      const { props } = panel;
+      return typeof props === 'object' && props !== null && 'name' in props
+        ? String(props.name)
+        : 'world';
+    });
+    void panel.call('${id}.data').then((data) => {
+      message.value = (data as { message: string }).message;
+    });
+    return () =>
+      h('div', [h('h2', \`Hello, \${name.value}!\`), h('p', message.value)]);
   },
 });
-
-// the panel runs in an isolated frame of the app window: no network, no
-// window.dolphy; the only way out is \`ctx.call\` to the commands above
-export const panels = {
-  '${id}.view': defineExtensionPanel({
-    async mount(container, ctx) {
-      const doc = container.ownerDocument;
-      const title = doc.createElement('h2');
-      const line = doc.createElement('p');
-      container.append(title, line);
-      const name = (props: unknown): string =>
-        typeof props === 'object' && props !== null && 'name' in props
-          ? String(props.name)
-          : 'world';
-      title.textContent = \`Hello, \${name(ctx.props)}!\`;
-      // the app opens the panel again with new properties: redraw the title
-      ctx.signal.addEventListener(
-        'abort',
-        ctx.onProps((props) => {
-          title.textContent = \`Hello, \${name(props)}!\`;
-        }),
-      );
-      const data = (await ctx.call('${id}.data')) as { message: string };
-      line.textContent = data.message;
-    },
-  }),
-} satisfies ExtensionPanels;
 `;
 
 const indexTestTs = (id: string): string => `// @vitest-environment happy-dom
+import { PANEL_HANDLE_KEY } from '@dolphy-app/extension-sdk';
+import type { JsonValue, PanelHandle } from '@dolphy-app/extension-sdk';
 import {
-  loadCommands,
-  loadPanel,
+  createTestClient,
+  createTestServer,
 } from '@dolphy-app/extension-sdk/testing';
 import { afterEach, describe, expect, it } from 'vitest';
-import { host, panels } from '../src/index.ts';
+import { createApp, h, nextTick, shallowReactive } from 'vue';
+import { client, server } from '../src/index.ts';
+import { HelloPanel } from '../src/hello-panel.ts';
 
 const disposables: { dispose(): unknown }[] = [];
 afterEach(async () => {
   await Promise.all(disposables.splice(0).map((item) => item.dispose()));
 });
 
-const load = async () => {
-  const commands = await loadCommands(host, {
-    declaredCommands: ['${id}.hello', '${id}.open', '${id}.data'],
-    declaredPanels: ['${id}.view'],
-  });
-  disposables.push(commands);
-  return commands;
+const start = async () => {
+  const running = await createTestServer(server, { extensionId: '${id}' });
+  disposables.push(running);
+  return running;
 };
 
-describe('${id}: commands', () => {
+describe('${id}: server', () => {
   it('hello greets the name from the arguments, "world" without them', async () => {
-    const commands = await load();
-    expect(await commands.run('${id}.hello', 'Ada')).toEqual({
+    const running = await start();
+    expect(await running.commands.run('${id}.hello', 'Ada')).toEqual({
       kind: 'notify',
       text: 'Hello, Ada!',
     });
-    expect(await commands.run('${id}.hello')).toEqual({
+    expect(await running.commands.run('${id}.hello')).toEqual({
       kind: 'notify',
       text: 'Hello, world!',
     });
   });
 
   it('open asks the app to open the panel with properties', async () => {
-    const commands = await load();
-    expect(await commands.run('${id}.open')).toEqual({
+    const running = await start();
+    expect(await running.commands.run('${id}.open')).toEqual({
       kind: 'openPanel',
       panelId: '${id}.view',
       props: { name: 'Dolphy' },
     });
   });
 
-  it('data returns what the panel shows', async () => {
-    const commands = await load();
-    expect(await commands.run('${id}.data')).toEqual({
+  it('data returns what the panel shows and stays out of the palette', async () => {
+    const running = await start();
+    expect(await running.commands.run('${id}.data')).toEqual({
       kind: 'data',
       value: { message: 'Hello from ${id}' },
     });
+    const hidden = running.registration.commands.find(
+      (command) => command.id === '${id}.data',
+    );
+    expect(hidden?.palette).toBe(false);
   });
 });
 
+describe('${id}: client', () => {
+  it('adds the panel that the open command points to', async () => {
+    const running = await createTestClient(client, { extensionId: '${id}' });
+    disposables.push(running);
+    expect(running.panels.map((panel) => panel.id)).toEqual(['${id}.view']);
+    expect(running.panels[0]?.component).toBe(HelloPanel);
+  });
+});
+
+// draws the panel the way the app does: the handle is provided to the component
+const mountPanel = async (
+  props: JsonValue | undefined,
+  call: PanelHandle['call'],
+) => {
+  const handle = shallowReactive({
+    panelId: '${id}.view',
+    props,
+    context: { courseId: null },
+    call,
+  });
+  const host = document.createElement('div');
+  document.body.append(host);
+  const app = createApp({ render: () => h(HelloPanel) });
+  app.provide(PANEL_HANDLE_KEY, handle);
+  app.mount(host);
+  disposables.push({
+    dispose: () => {
+      app.unmount();
+      host.remove();
+    },
+  });
+  // the panel asks a command: wait for the reply, then for the redraw
+  const settle = async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await nextTick();
+  };
+  await settle();
+  return {
+    host,
+    reopen: async (next: JsonValue) => {
+      handle.props = next;
+      await settle();
+    },
+  };
+};
+
 describe('${id}: panel', () => {
   it('shows the data command reply and follows new properties', async () => {
-    const panel = await loadPanel(panels, '${id}.view', {
-      props: { name: 'Ada' },
-      call: () => ({ message: 'Hello from the test' }),
+    const calls: string[] = [];
+    const panel = await mountPanel({ name: 'Ada' }, async (commandId) => {
+      calls.push(commandId);
+      return { message: 'Hello from the test' };
     });
-    disposables.push(panel);
-    expect(panel.container.querySelector('h2')?.textContent).toBe('Hello, Ada!');
-    expect(panel.container.querySelector('p')?.textContent).toBe(
+    expect(panel.host.querySelector('h2')?.textContent).toBe('Hello, Ada!');
+    expect(panel.host.querySelector('p')?.textContent).toBe(
       'Hello from the test',
     );
-    expect(panel.calls).toEqual([{ commandId: '${id}.data', args: undefined }]);
+    expect(calls).toEqual(['${id}.data']);
 
-    panel.setProps({ name: 'Grace' });
-    expect(panel.container.querySelector('h2')?.textContent).toBe(
-      'Hello, Grace!',
-    );
+    await panel.reopen({ name: 'Grace' });
+    expect(panel.host.querySelector('h2')?.textContent).toBe('Hello, Grace!');
   });
 
-  it('stops listening for properties when the panel closes', async () => {
-    const panel = await loadPanel(panels, '${id}.view', {
-      call: () => ({ message: 'x' }),
-    });
-    const heading = panel.container.querySelector('h2');
-    panel.dispose();
-    expect(panel.aborted).toBe(true);
-    panel.setProps({ name: 'Late' });
-    expect(heading?.textContent).toBe('Hello, world!');
+  it('greets the world when it is opened without properties', async () => {
+    const panel = await mountPanel(undefined, async () => ({ message: 'x' }));
+    expect(panel.host.querySelector('h2')?.textContent).toBe('Hello, world!');
   });
 });
 `;
@@ -165,16 +229,22 @@ export const commandPanel: TemplateModule = {
     'data command and a panel — a page of the extension inside the app.',
   ],
   layout: [
-    '- `extension.json` — the manifest (commands and the panel are declared in it);',
-    '- `src/index.ts` — all the extension code: `host` (`defineExtension`, the',
-    '  command handlers) and `panels` (`defineExtensionPanel`); the build',
-    '  splits it into `main.mjs` and `panel.mjs`;',
-    ...idsBullet,
+    '- `extension.json` — the manifest: identity only, the build adds `main` and',
+    '  `client`;',
+    '- `src/server.ts` — `server` (`defineServer`): the command handlers; the',
+    '  build writes it to `main.mjs`;',
+    '- `src/client.ts` — `client` (`defineClient`): registers the panel with',
+    '  `addPanel`; `src/hello-panel.ts` is the Vue component the app draws; the',
+    '  build writes them to `client.mjs`;',
+    '- `src/index.ts` — re-exports `server` and `client`;',
     '- `test/index.test.ts` — tests (`vitest`, `happy-dom`).',
   ],
   files: (id) => ({
     'extension.json': manifestJson(id),
-    'src/index.ts': indexTs(id),
+    'src/index.ts': indexTs(),
+    'src/server.ts': serverTs(id),
+    'src/client.ts': clientTs(id),
+    'src/hello-panel.ts': helloPanelTs(id),
     'test/index.test.ts': indexTestTs(id),
   }),
 };

@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import { computed, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type {
-  ContributionTitlesDto,
-  ExtensionContributesDto,
-  ExtensionMessagesDto,
-} from '@dolphy-app/engine-contract';
+import type { ExtensionContributesDto } from '@dolphy-app/engine-contract';
+import { useContributions } from '@/shared/api/engine/contributions.ts';
+import { useExtensionClients } from '@/shared/lib/extension-clients.ts';
 import { useExtensionText } from '@/shared/lib/extension-text.ts';
 import { EVENT_MESSAGE_KEYS } from '../lib/catalog.ts';
 import {
@@ -15,35 +13,17 @@ import {
 } from '../model/extensions.ts';
 
 const props = defineProps<{
+  extensionId: string;
+  /** Серверные точки установленного расширения. */
   contributes: ExtensionContributesDto;
-  titles: ContributionTitlesDto;
   /** Название расширения: единственная тема с таким же названием не повторяется. */
   name: string | null;
-  /** Таблицы переводов установленного расширения: названия с `%ключ%` подставляются на языке окна. Каталог отдаёт уже английский текст. */
-  messages?: ExtensionMessagesDto;
 }>();
 
 const { t, te } = useI18n();
 const extensionText = useExtensionText();
-
-const localizedTitles = computed<ContributionTitlesDto>(() =>
-  Object.fromEntries(
-    Object.entries(props.titles).map(([point, titles]) => [
-      point,
-      Object.fromEntries(
-        Object.entries(titles).map(([id, title]) => [
-          id,
-          extensionText.withTables(title, props.messages),
-        ]),
-      ),
-    ]),
-  ),
-);
-const localizedName = computed(() =>
-  props.name === null
-    ? null
-    : extensionText.withTables(props.name, props.messages),
-);
+const contributions = useContributions();
+const clients = useExtensionClients();
 
 // длинная группа (до 64 команд) свёрнута до первых значений; раскрытие — по точке вклада
 const expanded = reactive<Record<string, boolean>>({});
@@ -54,16 +34,25 @@ const eventLabel = (name: string) => {
   return key !== undefined && te(path) ? t(path) : name;
 };
 
-const hidden = computed(() =>
-  hidesContributions(
-    props.contributes,
-    localizedTitles.value,
-    localizedName.value,
+const groups = computed(() =>
+  contributionGroups(
+    {
+      extensionId: props.extensionId,
+      contributes: props.contributes,
+      live: contributions.value,
+      clients: {
+        panels: clients.panels.value,
+        injections: clients.injections.value,
+        themes: clients.themes.value,
+        markdownRenderers: clients.markdownRenderers.value,
+        commands: clients.commands.value,
+      },
+    },
+    extensionText.of,
+    eventLabel,
   ),
 );
-const groups = computed(() =>
-  contributionGroups(props.contributes, localizedTitles.value, eventLabel),
-);
+const hidden = computed(() => hidesContributions(groups.value, props.name));
 </script>
 
 <template>

@@ -34,24 +34,11 @@ const setup = () => {
   return { model, calls, bus, scope };
 };
 
-const SUNRISE = catalogEntry('acme.sunrise', { name: 'Рассвет' });
-const QUIZ = catalogEntry('acme.quiz', {
-  name: 'Quiz',
-  contributes: {
-    exerciseTypes: ['acme.quiz'],
-    themes: [],
-    markdownRenderers: [],
-    gradePolicies: [],
-    settings: [],
-    events: [],
-    commands: [],
-    widgets: [],
-    schedules: [],
-    panels: [],
-    importers: [],
-    exporters: [],
-  },
+const SUNRISE = catalogEntry('acme.sunrise', {
+  name: 'Рассвет',
+  tags: ['theme', 'interface'],
 });
+const QUIZ = catalogEntry('acme.quiz', { name: 'Quiz', tags: ['learning'] });
 
 describe('useCatalog', () => {
   it('индекс не запрашивается, пока вкладку не открыли; открытие грузит один раз', async () => {
@@ -175,9 +162,9 @@ describe('useCatalog', () => {
     expect(model.isFiltered.value).toBe(true);
 
     model.resetFilters();
-    model.setKind('exerciseTypes', true);
+    model.setTag('learning', true);
     expect(model.visible.value.map((entry) => entry.id)).toEqual(['acme.quiz']);
-    model.setKind('exerciseTypes', false);
+    model.setTag('learning', false);
     expect(model.visible.value).toHaveLength(2);
     expect(model.isFiltered.value).toBe(false);
     expect(calls).toHaveLength(1);
@@ -207,8 +194,7 @@ describe('useCatalog', () => {
     // блок остался раскрытым: фокус с чипа не теряется
     expect(model.moreOpen.value).toBe(true);
     expect(model.visible.value).toHaveLength(2);
-
-    model.setKind('themes', true);
+    model.setTag('learning', true);
     expect(model.moreActive.value).toBe(true);
   });
 

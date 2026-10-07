@@ -19,23 +19,26 @@ const VERSION_PATTERN = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
  * пакета → имя точки входа (только пакеты с типами); `assets` — файлы из каталога
  * пакета, копируемые в `dist` и открытые подпутём `./<имя файла>`; `docs` — файлы каталога
  * `docs/` пакета, публикуются как `docs/<имя файла>` рядом с `dist`; `bin` — команда → точка входа;
- * `siblings` — публикуемые пакеты, остающиеся зависимостями (их типы видны в `.d.ts`).
+ * `siblings` — публикуемые пакеты, остающиеся зависимостями (их типы видны в `.d.ts`);
+ * `peers` — библиотеки, объявляемые `peerDependencies` (диапазон — из `peerDependencies`
+ * исходного пакета), а не `dependencies`.
  */
 export const PACKAGES = [
   {
     dir: 'extension-api',
-    entries: { index: 'src/index.ts' },
-    exports: { '.': 'index' },
+    entries: { index: 'src/index.ts', 'hook-schemas': 'src/hook-schemas.ts' },
+    exports: { '.': 'index', './hook-schemas': 'hook-schemas' },
     assets: ['extension.schema.json'],
     bin: null,
     dts: true,
     sideEffects: true,
     siblings: [],
     usage: [
-      'Types and constants of the public extension API: the manifest, exercise',
-      'type handlers, the answer element contract. Usually installed',
-      'transitively through `@dolphy-app/extension-sdk`, which re-exports all of',
-      'it.',
+      'Types and constants of the public extension API: the manifest, the server',
+      'and client registration contexts, handlers, hooks and the schemas of their',
+      'inputs (`@dolphy-app/extension-api/hook-schemas`). Usually installed',
+      'transitively through `@dolphy-app/extension-sdk`, which re-exports the',
+      'API.',
       '',
       '```ts',
       "import { EXTENSION_API_VERSION } from '@dolphy-app/extension-api';",
@@ -65,71 +68,19 @@ export const PACKAGES = [
     ],
   },
   {
-    dir: 'extension-ui',
-    entries: {
-      'vuetify/index': 'src/vuetify/index.ts',
-      'vuetify/choice': 'src/vuetify/choice.ts',
-      'vuetify/feedback': 'src/vuetify/feedback.ts',
-      'vuetify/fields': 'src/vuetify/fields.ts',
-      'vuetify/navigation': 'src/vuetify/navigation.ts',
-      'vuetify/table': 'src/vuetify/table.ts',
-    },
-    exports: {
-      './vuetify': 'vuetify/index',
-      './vuetify/choice': 'vuetify/choice',
-      './vuetify/feedback': 'vuetify/feedback',
-      './vuetify/fields': 'vuetify/fields',
-      './vuetify/navigation': 'vuetify/navigation',
-      './vuetify/table': 'vuetify/table',
-    },
-    bin: null,
-    dts: true,
-    // `import 'vuetify/styles'` stays inside a chunk whose exports are used, so a bundler keeps it
-    sideEffects: false,
-    siblings: [],
-    usage: [
-      'Vuetify components for extension panels, widgets and answer views, mounted',
-      'from plain TypeScript: `mountRadioGroup`, `mountTextarea`, `mountTabs`,',
-      '`mountDataTable` and others. Each `mount…` function renders a Vuetify',
-      'component into a container and returns a handle to update and unmount it;',
-      'colours come from the CSS variables the app sends to the frame, so dark',
-      'mode works without extra code.',
-      '',
-      'There is no root export: import the core and only the groups you use. A',
-      'bundler (`dolphy-ext build`) puts Vue and Vuetify into the extension and',
-      'drops the groups you do not import.',
-      '',
-      '| Subpath | Contents |',
-      '| --- | --- |',
-      '| `@dolphy-app/extension-ui/vuetify` | core: `mountComponent`, `vuetifyOf`, `requestOverlayHeight` |',
-      '| `@dolphy-app/extension-ui/vuetify/choice` | `mountRadioGroup`, `mountCheckboxGroup` |',
-      '| `@dolphy-app/extension-ui/vuetify/feedback` | `mountAlert`, `mountChip`, `mountProgress`, `mountSkeleton` |',
-      '| `@dolphy-app/extension-ui/vuetify/fields` | `mountTextarea`, `mountSlider`, `mountSwitch`, `mountDateField` |',
-      '| `@dolphy-app/extension-ui/vuetify/navigation` | `mountTabs`, `mountDialog`, `mountMenu`, `mountTooltip` |',
-      '| `@dolphy-app/extension-ui/vuetify/table` | `mountTable`, `mountDataTable` |',
-      '',
-      '```ts',
-      "import { mountRadioGroup } from '@dolphy-app/extension-ui/vuetify/choice';",
-      '',
-      'const group = mountRadioGroup(container, {',
-      "  label: 'Answer',",
-      "  items: [{ value: 'a', label: 'A' }],",
-      '  value: null,',
-      '  onChange: (value) => console.log(value),',
-      '});',
-      '```',
-      '',
-      '`vue` and `vuetify` are regular dependencies of the package.',
-    ],
-  },
-  {
     dir: 'extension-sdk',
     entries: {
       index: 'src/index.ts',
-      runtime: 'src/runtime.ts',
+      client: 'src/client.ts',
+      rpc: 'src/rpc.ts',
       testing: 'src/testing.ts',
     },
-    exports: { '.': 'index', './runtime': 'runtime', './testing': 'testing' },
+    exports: {
+      '.': 'index',
+      './client': 'client',
+      './rpc': 'rpc',
+      './testing': 'testing',
+    },
     docs: [
       'debugging.md',
       'no-build.md',
@@ -137,27 +88,34 @@ export const PACKAGES = [
       'recipe-command-panel.md',
       'recipe-event-storage.md',
       'recipe-exercise-type.md',
+      'recipe-hooks.md',
       'recipe-import-export.md',
+      'recipe-rpc-and-app.md',
       'recipe-settings.md',
       'recipe-theme.md',
-      'recipe-ui-kit.md',
       'recipe-when-dependencies.md',
     ],
     bin: null,
     dts: true,
     sideEffects: false,
     siblings: ['extension-api'],
+    peers: ['vue'],
     usage: [
-      '`@dolphy-app/extension-sdk` — extension code (`defineExtension`,',
-      '`defineExerciseType`), answer views (`defineAnswerView`), panels,',
-      'markdown renderers and test helpers (`@dolphy-app/extension-sdk/testing`).',
-      'The package has no side effects: an extension `src/index.ts` can be',
-      'imported in plain Node. Ids declared in `extension.json` become types',
-      'through `.dolphy/ids.d.ts`, which `dolphy-ext types` generates.',
+      '`@dolphy-app/extension-sdk` — extension code: `defineServer` and',
+      '`defineClient` describe the `server` and `client` exports of an extension',
+      '`src/index.ts`, `defineRpc` declares a call from a component to the server',
+      'part. Components of the client part use `useApp`, `useEngine`, `useRpc`,',
+      '`usePanel` and `useInjection` (`@dolphy-app/extension-sdk/client`; `vue` is a',
+      'peer dependency). `createTestServer` and `createTestClient`',
+      '(`@dolphy-app/extension-sdk/testing`) run an extension against in-memory',
+      'implementations of the app. The package has no side effects: an extension',
+      '`src/index.ts` can be imported in plain Node.',
       '',
       '```ts',
-      "import { defineExtension } from '@dolphy-app/extension-sdk';",
-      "import { loadExerciseType } from '@dolphy-app/extension-sdk/testing';",
+      "import { defineClient, defineServer } from '@dolphy-app/extension-sdk';",
+      "import { defineRpc } from '@dolphy-app/extension-sdk/rpc';",
+      "import { useApp, useRpc } from '@dolphy-app/extension-sdk/client';",
+      "import { createTestServer } from '@dolphy-app/extension-sdk/testing';",
       '```',
       '',
       'The package ships a guide in `docs/` (`node_modules/@dolphy-app/extension-sdk/docs/`',
@@ -167,10 +125,11 @@ export const PACKAGES = [
       `[a theme](${GUIDE_URL}/recipe-theme.md),`,
       `[a command and a panel](${GUIDE_URL}/recipe-command-panel.md),`,
       `[events and storage](${GUIDE_URL}/recipe-event-storage.md),`,
+      `[hooks before a session and a batch](${GUIDE_URL}/recipe-hooks.md),`,
+      `[calls between the parts, the engine and the window](${GUIDE_URL}/recipe-rpc-and-app.md),`,
       `[settings](${GUIDE_URL}/recipe-settings.md),`,
       `[an importer and an exporter](${GUIDE_URL}/recipe-import-export.md),`,
-      `[visibility conditions and dependencies](${GUIDE_URL}/recipe-when-dependencies.md) and`,
-      `[a panel on the UI kit](${GUIDE_URL}/recipe-ui-kit.md), a path`,
+      `[visibility conditions and dependencies](${GUIDE_URL}/recipe-when-dependencies.md), a path`,
       `[without a build](${GUIDE_URL}/no-build.md) and notes on`,
       `[debugging](${GUIDE_URL}/debugging.md).`,
     ],
@@ -185,14 +144,15 @@ export const PACKAGES = [
     siblings: [],
     usage: [
       'The `dolphy-ext` command line for extension authors: builds a project',
-      'into an extension directory, writes the typed ids of the manifest',
-      '(`.dolphy/ids.d.ts`), validates the result and runs the installed app on',
-      'a watch build (`dolphy-ext dev`).',
+      'into an extension directory (`main.mjs` from the `server` export of',
+      '`src/index.ts`, `client.mjs` from `client`), validates the result, checks',
+      'a project before a pull request to the catalog and runs the installed app',
+      'on a watch build (`dolphy-ext dev`).',
       '',
       '```sh',
       'npx dolphy-ext build',
-      'npx dolphy-ext types',
       'npx dolphy-ext validate dist-ext/<id>',
+      'npx dolphy-ext lint',
       'npx dolphy-ext dev',
       'npx dolphy-ext --help',
       '```',
@@ -207,18 +167,18 @@ export const PACKAGES = [
     sideEffects: true,
     siblings: [],
     usage: [
-      'Generator of an extension project: `src/index.ts` with the host and a',
-      'view, a manifest, tests, and typed ids (`.dolphy/ids.d.ts`, generated from',
-      '`extension.json`).',
+      'Generator of an extension project: `src/index.ts` with the `server` and',
+      '`client` exports, a manifest, tests, a build and a README.',
       '',
       '```sh',
       'npx @dolphy-app/create-extension <directory>',
       '```',
-      '',
-      'The project gets tests, a build and a README.',
     ],
   },
 ];
+
+/** Библиотеки пакета, объявляемые `peerDependencies`. */
+export const peerNames = (spec) => spec.peers ?? [];
 
 export const packageName = (spec) => `${SCOPE}/${spec.dir}`;
 
@@ -272,6 +232,20 @@ export const createRangeResolver = ({ own, workspace }) => {
   };
 };
 
+/** `peerDependencies` пакета: диапазоны `spec.peers` из `peerDependencies` исходного пакета. */
+export const derivePeerDependencies = ({ spec, source }) =>
+  Object.fromEntries(
+    peerNames(spec).map((name) => {
+      const range = source.peerDependencies?.[name];
+      if (range === undefined) {
+        throw new Error(
+          `${packageName(spec)}: peer '${name}' is not declared in peerDependencies of the package`,
+        );
+      }
+      return [name, range];
+    }),
+  );
+
 /**
  * `dependencies` опубликованного пакета по тому, что бандл действительно импортирует.
  * `imports` — спецификаторы из собранного JS и `.d.ts`.
@@ -289,7 +263,7 @@ export const deriveDependencies = ({
   for (const specifier of imports) {
     if (!isBareSpecifier(specifier) || isBuiltin(specifier)) continue;
     const name = packageOfSpecifier(specifier);
-    if (name === packageName(spec)) continue;
+    if (name === packageName(spec) || peerNames(spec).includes(name)) continue;
     const range = siblings.get(name) ?? resolveRange(name);
     if (range === null) {
       throw new Error(
@@ -355,6 +329,7 @@ export const createManifest = ({
   rootManifest,
   version,
   dependencies,
+  peerDependencies = {},
 }) => {
   if (!isValidVersion(version)) {
     throw new Error(`'${version}' is not a valid semver version`);
@@ -375,6 +350,7 @@ export const createManifest = ({
     ...(spec.bin === null ? {} : { bin: binField(spec) }),
     files: publishedFiles(spec),
     dependencies,
+    ...(Object.keys(peerDependencies).length === 0 ? {} : { peerDependencies }),
     engines: { node: NODE_RANGE },
     repository: {
       type: 'git',

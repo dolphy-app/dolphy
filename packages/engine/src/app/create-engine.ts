@@ -39,6 +39,11 @@ export interface HostedEngine extends LearningEngine {
    */
   reloadExtensions(): Promise<void>;
   /**
+   * Набор вкладов изменился без перезагрузки с диска (хост расширений заново
+   * зарегистрировал вклады): повышает поколение, публикует `contributions-changed`.
+   */
+  notifyExtensionsChanged(): void;
+  /**
    * Данные расширений для хоста расширений (хранилище, значения настроек,
    * подписка на их изменение). Не часть контракта окна и не RPC.
    */
@@ -87,6 +92,7 @@ export const createEngineFromContext = (ctx: EngineContext): HostedEngine => {
   return {
     ...facade,
     reloadExtensions: () => ctx.extensionApply.reload(),
+    notifyExtensionsChanged: () => ctx.extensionApply.notifyChanged(),
     extensionHost: createExtensionHostServices(ctx),
     onLearningEvent: ctx.bus.subscribeLearning,
     close: async () => {

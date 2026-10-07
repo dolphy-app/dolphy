@@ -1,13 +1,10 @@
 import { expect } from 'vitest';
-import type { FrameLocator, Locator, Page } from 'playwright-core';
+import type { Locator, Page } from 'playwright-core';
 import { MOD_KEY } from './keys.ts';
 
 export const COMMANDS_ID = 'acme.commands';
 export const VICTIM_ID = 'acme.victim';
 export const PANEL_TITLE = 'Приветствия';
-
-/** Рамка панели расширения (`PanelFrame`, режим `panel`). */
-export const PANEL_FRAME = 'iframe[sandbox][data-mode="panel"]';
 
 /** Строки интерфейса (`ru`), по которым находятся элементы. */
 const RU = {
@@ -109,43 +106,18 @@ export class CommandsClient {
     return this.page.getByRole('heading', { level: 1 });
   }
 
-  get frameElement(): Locator {
-    return this.page.locator(PANEL_FRAME);
+  /** Тело панели расширения: компонент лежит в дереве окна, под заголовком страницы. */
+  get panel(): Locator {
+    return this.page.getByTestId('extension-panel-body');
   }
 
-  get frame(): FrameLocator {
-    return this.page.frameLocator(PANEL_FRAME);
-  }
-
-  private panelButton(name: string): Locator {
-    return this.frame.getByRole('button', { name, exact: true });
-  }
-
-  /**
-   * Нажимает кнопку панели. Рамка панели — отдельный процесс (непрозрачный
-   * origin): пока браузер не получил её поверхность для маршрутизации ввода
-   * (десятки миллисекунд после появления DOM панели, дольше под нагрузкой),
-   * мышь попадает в родительский `<iframe>`, а не в рамку. Playwright такой
-   * клик не замечает (проверка попадания идёт внутри рамки), и он теряется.
-   * Поэтому нажатию предшествует наведение, подтверждённое состоянием `:hover`
-   * кнопки: оно появляется, только когда рамка получает события мыши.
-   */
+  /** Нажимает кнопку панели: компонент лежит в дереве окна, обычный клик. */
   async pressPanelButton(name: string) {
-    const button = this.panelButton(name);
-    await expect
-      .poll(
-        async () => {
-          await button.hover();
-          return button.evaluate((node) => node.matches(':hover'));
-        },
-        { timeout: 15_000 },
-      )
-      .toBe(true);
-    await button.click();
+    await this.panel.getByRole('button', { name, exact: true }).click();
   }
 
   panelRole(role: string): Locator {
-    return this.frame.locator(`[data-role="${role}"]`);
+    return this.panel.locator(`[data-role="${role}"]`);
   }
 
   get backButton(): Locator {

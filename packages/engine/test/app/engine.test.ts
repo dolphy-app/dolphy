@@ -130,6 +130,31 @@ describe('createEngine', () => {
     expect((await engine.library.getInfo()).state).toBe('ready');
   });
 
+  it('runs beforeLibrary with working host services before the library opens', async () => {
+    const t = await createTestEngine({ library: 'embedded' });
+    const order: string[] = [];
+    const engine = await createEngine(
+      {
+        ...t.deps,
+        courseSource: {
+          ...t.source,
+          list: (...args: Parameters<typeof t.source.list>) => {
+            order.push('library');
+            return t.source.list(...args);
+          },
+        },
+        beforeLibrary: async (host) => {
+          order.push('hook');
+          expect(typeof host.storage.get).toBe('function');
+        },
+      },
+      { libraryRoot: t.source.root, dataDir: '/tmp/engine-test-data' },
+    );
+    expect(order[0]).toBe('hook');
+    expect(order).toContain('library');
+    expect((await engine.library.getInfo()).state).toBe('ready');
+  });
+
   it('close waits for the running command and refuses new ones', async () => {
     const t = await createTestEngine({ library: 'sql-course' });
     const running = t.engine.practice.recordAttempt({

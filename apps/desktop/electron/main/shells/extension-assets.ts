@@ -8,7 +8,6 @@ import {
   type AssetExtension,
 } from '@dolphy-app/extension-catalog';
 import type { MainLogger } from '../logger.ts';
-import frameRuntime from './frame-runtime.js?raw';
 import type { Shell } from './types.ts';
 
 export const EXTENSION_SCHEME = 'dolphy-ext';
@@ -47,85 +46,12 @@ export interface ExtensionAssetsDeps {
 
 const notFound = () => new Response(null, { status: 404 });
 
-/** Служебный префикс: пути под ним отдаёт только сам протокол, не каталог расширения. */
-export const RESERVED_PREFIX = '__dolphy';
-
-/**
- * CSP страницы рамки расширения `id`: без сети, форм и `<base>`; скрипты,
- * стили, изображения и шрифты — только с `dolphy-ext://<id>` этого же
- * расширения (плюс `data:`/`blob:` и встроенные стили). Источник-хост на
- * непрозрачном origin работает: чужое расширение блокируется до запроса к
- * протоколу (эксперимент в Electron, `docs/adr/0010-extension-static-assets.md`).
- */
-export const frameCsp = (id: string): string => {
-  const own = `${EXTENSION_SCHEME}://${id}`;
-  return [
-    "default-src 'none'",
-    `script-src ${own}`,
-    `style-src ${own} 'unsafe-inline'`,
-    `img-src ${own} data: blob:`,
-    `font-src ${own} data:`,
-    "connect-src 'none'",
-    "base-uri 'none'",
-    "form-action 'none'",
-  ].join('; ');
-};
-
-/** Страница рамки не получает доступа к датчикам, медиа и устройствам (дополняет deny-all разрешений сеанса). */
-export const FRAME_PERMISSIONS_POLICY = [
-  'accelerometer',
-  'autoplay',
-  'bluetooth',
-  'camera',
-  'display-capture',
-  'geolocation',
-  'gyroscope',
-  'hid',
-  'magnetometer',
-  'microphone',
-  'midi',
-  'payment',
-  'screen-wake-lock',
-  'serial',
-  'usb',
-  'xr-spatial-tracking',
-]
-  .map((feature) => `${feature}=()`)
-  .join(', ');
-
 /** SVG отдаётся как документ без скриптов, сети и ресурсов: только как картинка. */
 export const SVG_CSP = "default-src 'none'; style-src 'unsafe-inline'; sandbox";
 
-const frameHtml = (id: string) =>
-  `<!doctype html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>${id}</title>
-<style>
-html { background: transparent; }
-body {
-  display: flow-root;
-  margin: 0;
-  background: transparent;
-  color: rgb(var(--v-theme-on-surface, 0, 0, 0));
-  font: 16px/1.5 Roboto, system-ui, -apple-system, 'Segoe UI', sans-serif;
-}
-</style>
-<script type="module" src="${EXTENSION_SCHEME}://${id}/${RESERVED_PREFIX}/frame.js"></script>
-</head>
-<body></body>
-</html>
-`;
-
-// сам рантайм — функция; вызов с настоящим `window` и динамическим import()
-const FRAME_SCRIPT = `${frameRuntime}\ndolphyFrameRuntime(window, (url) => import(url));\n`;
-
 type Route =
   | { kind: 'file'; file: string; asset: AssetExtension | null }
-  | { kind: 'rejected'; status: number }
-  | { kind: 'frame-page'; id: string }
-  | { kind: 'frame-script' };
+  | { kind: 'rejected'; status: number };
 
 const rejected = (status: number): Route => ({ kind: 'rejected', status });
 
@@ -140,9 +66,8 @@ const isDotted = (relative: string) =>
  * и символические ссылки наружу — 404; ресурсу не разрешена ни одна ссылка
  * внутри каталога, размер ресурса ограничен потолком его типа, потому что
  * расширения режима разработчика и скопированные вручную каталог не
- * проверял. Путь `__dolphy/frame.html` и `__dolphy/frame.js` — страница и
- * рантайм изолированной рамки: генерируются протоколом и не читаются из
- * каталога расширения.
+ * проверял. Окно (origin `file://`) грузит модули и ресурсы через `import()`
+ * и `fetch` в режиме CORS.
  */
 export const createExtensionAssetsShell = ({
   app,
@@ -165,8 +90,6 @@ export const createExtensionAssetsShell = ({
       const dir = path.resolve(root, id);
       const file = path.resolve(dir, relative);
       if (!file.startsWith(dir + path.sep)) continue;
-      const [first] = file.slice(dir.length + 1).split(path.sep);
-      if (first === RESERVED_PREFIX) return null;
       let realDir: string;
       let real: string;
       let size: number;
@@ -204,12 +127,6 @@ export const createExtensionAssetsShell = ({
     const id = decodeURIComponent(url.hostname);
     if (!EXTENSION_ID_PATTERN.test(id)) return null;
     const relative = decodeURIComponent(url.pathname.slice(1));
-    if (relative === `${RESERVED_PREFIX}/frame.html`) {
-      return { kind: 'frame-page', id };
-    }
-    if (relative === `${RESERVED_PREFIX}/frame.js`) {
-      return { kind: 'frame-script' };
-    }
     return resolveFile(id, relative);
   };
 
@@ -218,8 +135,7 @@ export const createExtensionAssetsShell = ({
       const upstream = await net.fetch(pathToFileURL(file).href);
       return new Response(upstream.body, {
         status: upstream.status,
-        // renderer грузится с file:// (origin null), рамка — с непрозрачным origin:
-        // модуль и шрифт идут в режиме CORS
+        // окно грузится с file:// (origin null): модуль и шрифт идут в режиме CORS
         headers: {
           'Content-Type':
             asset === null ? 'text/javascript' : ASSET_MIME[asset],
@@ -247,27 +163,7 @@ export const createExtensionAssetsShell = ({
     if (route.kind === 'rejected') {
       return new Response(null, { status: route.status });
     }
-    if (route.kind === 'file') return serveFile(route.file, route.asset);
-    if (route.kind === 'frame-page') {
-      return new Response(frameHtml(route.id), {
-        headers: {
-          'Content-Type': 'text/html; charset=utf-8',
-          'Content-Security-Policy': frameCsp(route.id),
-          'Permissions-Policy': FRAME_PERMISSIONS_POLICY,
-          'X-Content-Type-Options': 'nosniff',
-          'Cache-Control': 'no-cache',
-        },
-      });
-    }
-    // рамка с непрозрачным origin грузит модуль в режиме CORS
-    return new Response(FRAME_SCRIPT, {
-      headers: {
-        'Content-Type': 'text/javascript',
-        'X-Content-Type-Options': 'nosniff',
-        'Access-Control-Allow-Origin': '*',
-        'Cache-Control': 'no-cache',
-      },
-    });
+    return serveFile(route.file, route.asset);
   };
 
   return {

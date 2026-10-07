@@ -1,14 +1,17 @@
 import { syncCommands } from '@/shared/lib/command-registry.ts';
 import type { CommandRegistry } from '@/shared/lib/command-registry.ts';
-import { textOfExtension } from '@/shared/lib/extension-text.ts';
-import type { ContributionsDto } from '@dolphy-app/engine-contract';
+import { resolveLocalizedText } from '@dolphy-app/extension-api';
+import type {
+  ContributionsDto,
+  LocalizedTextDto,
+} from '@dolphy-app/engine-contract';
 import { transferCommandKey, transferEntries } from '../lib/entries.ts';
 import type { ExtensionTransfers, Translate } from './transfers.ts';
 
 /**
  * Держит в реестре команды «Импорт: …» и «Экспорт: …» по вкладам включённых
  * расширений: пропавшие (расширение отключено или удалено) снимаются без
- * перезагрузки окна. Название — данные расширения (`%ключ%` подставляет
+ * перезагрузки окна. Название — данные расширения (язык выбирает
  * `locale`), слово «Импорт»/«Экспорт» и категория — перевод окна. Возвращает
  * остановку со снятием всех записей.
  */
@@ -21,8 +24,8 @@ export const syncTransferCommands = (
 ): (() => void) =>
   syncCommands(registry, () => {
     const { importers, exporters } = transferEntries(contributions());
-    const titleOf = (extensionId: string, value: string) =>
-      textOfExtension(value, extensionId, contributions(), locale());
+    const titleOf = (value: LocalizedTextDto) =>
+      resolveLocalizedText(value, locale());
     return [
       ...importers.map((importer) => ({
         descriptor: {
@@ -30,7 +33,7 @@ export const syncTransferCommands = (
           source: 'extension' as const,
           title: () =>
             t('transfers.command.import', {
-              title: titleOf(importer.extensionId, importer.title),
+              title: titleOf(importer.title),
             }),
           category: () => t('transfers.category'),
           caption: importer.extensionId,
@@ -45,7 +48,7 @@ export const syncTransferCommands = (
           source: 'extension' as const,
           title: () =>
             t('transfers.command.export', {
-              title: titleOf(exporter.extensionId, exporter.title),
+              title: titleOf(exporter.title),
             }),
           category: () => t('transfers.category'),
           caption: exporter.extensionId,

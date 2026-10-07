@@ -9,7 +9,6 @@ const RU = {
   search: 'Поиск по каталогу',
   refresh: 'Обновить каталог',
   retry: 'Повторить',
-  kindsGroup: 'Фильтр по виду вклада',
   groupsGroup: 'Быстрые фильтры',
   tagsGroup: 'Фильтр по тегу',
   moreFilters: 'Ещё фильтры',
@@ -125,14 +124,6 @@ export class CatalogClient {
     return this.page
       .getByRole('status')
       .filter({ hasText: /^(Найдено|ничего не найдено)/ });
-  }
-
-  async toggleKind(label: string) {
-    await this.openMoreFilters();
-    await this.page
-      .getByRole('group', { name: RU.kindsGroup })
-      .getByRole('button', { name: label, exact: true })
-      .click();
   }
 
   async refreshCatalog() {

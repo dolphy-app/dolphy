@@ -4,12 +4,13 @@ import { BUILTIN_GRADE_POLICY } from '@dolphy-app/engine-contract';
 import type {
   GradePolicyInfoDto,
   LearningEngine,
+  LocalizedTextDto,
 } from '@dolphy-app/engine-contract';
 
 export interface GradePolicyOption {
   id: string;
   /** `null` — встроенное правило: название переводит окно. */
-  label: string | null;
+  label: LocalizedTextDto | null;
   extensionId: string | null;
 }
 

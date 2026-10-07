@@ -6,32 +6,42 @@ check to the running app. Commands are those of a generated project; see the
 
 ## 1. Reproduce it in a test
 
-The helpers of `@dolphy-app/extension-sdk/testing` run your handlers in plain
-Node, with a debugger and `console.log` available. Most mistakes (wrong result
-shape, a setting read before it is set, a handler that throws) show up there.
+`createTestServer` and `createTestClient` of `@dolphy-app/extension-sdk/testing`
+run your entries in plain Node, with a debugger and `console.log` available.
+Most mistakes (a wrong result shape, a setting read before it is set, a handler
+that throws, an id without the extension prefix) show up there.
 
-- `loadCommands`, `loadEvents`, `loadExerciseType` and `loadGradePolicy` take a
-  `logger` option: pass an object with `debug`, `info`, `warn` and `error`
-  methods to see what `ctx.logger` receives.
-- The helpers check what the host checks: the shape of a verdict, a grade of
-  1–5 or `null`, a command result (`notify` text of 1–500 characters, a JSON
-  value of at most 64 KiB), a declared id. A message from a helper usually names
-  the rule.
-- They do not swallow a handler's failure and do not count the host's time
-  limits, so a test that passes does not prove a handler is fast enough: an
-  event handler gets 2 seconds, `activate` gets 10.
-- They do not restrict permissions (see section 5).
+- `createTestServer(server, { extensionId, logger })` takes a `logger` option:
+  pass an object with `debug`, `info`, `warn` and `error` methods to see what
+  `server.logger` receives.
+- With `extensionId` set the harness checks that every id you register is the
+  extension id or starts with `<id>.`, the way the host does. It also checks what
+  the host checks about a result: the shape of a verdict, a grade of 1–5 or
+  `null`, a command result (`notify` text of 1–500 characters, a JSON value of
+  at most 64 KiB), an importer's or exporter's result. A message from the harness
+  usually names the rule.
+- An error in `server` fails `createTestServer` itself, as it fails the load in
+  the app: nothing is registered. A handler's failure is not swallowed but
+  rejects the promise.
+- The harness does not count the host's time limits, so a test that passes does
+  not prove a handler is fast enough: an event handler gets 2 seconds, a command
+  or a schedule handler 10, an importer or an exporter 30, and the registration
+  (`server`) 10.
 
 ## 2. Run the checks
 
 ```sh
-pnpm typecheck   # ids against extension.json: a misspelt or missing id
+pnpm typecheck   # tsc
 pnpm validate    # the manifest the way the app parses it
 pnpm lint        # metadata and bundle findings the catalog review also sees
 ```
 
 `pnpm validate` parses the built manifest with the same code as the app and
-exits with code 1 on a problem.
+exits with code 1 on a problem; a key the manifest does not have (a command, a
+setting, a panel written into `extension.json`) is one: the manifest holds the
+identity of the extension, and the code registers everything else. The build
+also fails when `server` imports `vue`, `vuetify` or a component, or `client`
+imports a `node:*` module, and names the file.
 `pnpm lint` prints `warning <id> <RULE> <field>: <message>` lines; a rule that
 looks wrong for your code (for example `eval` in a bundled dependency) is a hint
 for the reviewer, not a failure.
@@ -66,8 +76,9 @@ If you prefer to run the two parts yourself, start `pnpm dev`
 (`dolphy-ext build --watch`) and start Dolphy with
 `DOLPHY_DEV_EXTENSIONS=<project>/dist-ext`; from a checkout of the Dolphy
 repository that is `DOLPHY_DEV_EXTENSIONS=<project>/dist-ext pnpm dev`. The app
-rereads the extensions on every file change and applies the change live. Things
-to know:
+rereads the extensions on every file change and applies the change live: the
+extension host runs `server` again and the window loads `client.mjs` again, and
+the window itself does not reload. Things to know:
 
 - The app has one instance. If Dolphy is already running, a second start exits
   at once and the variable is lost. `dolphy-ext dev` notices an app that quits
@@ -78,8 +89,29 @@ to know:
   extension instead of the extension working: start with that text.
 - If the id is also in the bundled set or installed from the catalog, the
   development copy wins.
-- Answer inputs of extensions in development are recreated on a change, so
-  their state can be lost.
+- The components of extensions in development are redrawn on a change, so their
+  state can be lost.
+
+### `load-failed`
+
+When `server` throws, registers something invalid (an id that is taken or does
+not carry the extension prefix, a bad `when`, an invalid setting definition), or
+does not finish in 10 seconds, the extension host registers
+nothing from it. Registration is all or nothing: the commands, settings and
+event handlers `server` managed to add before the failure are removed too. The
+extension row in Settings → Extensions shows the diagnostic "Could not load the
+extension: {reason}" with the message of the error, and the log has the entry
+`extension registration failed` with the cause (`activation-failed`, or
+`activation-timeout` for the 10 seconds). `server` is called once per load, so
+do slow work (a network request, a big file) in a handler and not in `server`
+itself.
+
+The client part has its own failure. When `client.mjs` does not import, `client`
+throws, or a registration is refused (an id that is taken, a bad injection
+target), the window shows "The extension client part failed to load" on the
+extension and keeps no contribution of the client part; the other extensions
+and the server part of this one keep working. The reason is in the DevTools
+console of section 4. After you fix the file, the next rebuild loads it again.
 
 ## 4. DevTools
 
@@ -88,33 +120,35 @@ build of the app, including an installed one, these keys toggle the DevTools of
 the main window: `F12`, `Cmd+Alt+I` (macOS) and `Ctrl+Shift+I`. Without the
 variable the keys do nothing and an installed app has no DevTools.
 
-- Views, panels and markdown blocks of an extension run in frames with the
-  address `dolphy-ext://<id>/__dolphy/frame.html`. In the console, pick that
-  frame in the context drop-down (the one that says "top") to evaluate code in
-  your view; in "Elements" the frame is an `<iframe>` with that address.
+- Panels, injected components, answer views and markdown blocks of an extension
+  are Vue components in the page of the app window itself. "Elements" shows
+  their markup in the page and the Vue DevTools show the component tree; the
+  console evaluates in the same page as the app and shows what the client part
+  and its components print with `console`.
 - `dolphy-ext dev` and `dolphy-ext build --watch` put an inline source map
   (`//# sourceMappingURL=data:application/json…`) into every bundle, so
-  "Sources" shows your TypeScript (`src/index.ts` and the files it imports) for
-  views, panels and renderers: set a breakpoint there, `debugger;` works too.
-  A plain `dolphy-ext build` (`pnpm build`) and the catalog build never write
-  source maps, and the catalog check rejects a submission that has one.
-- The code that runs in the extension process (`main.mjs`: commands, events,
-  `activate`) is not in this window: see section 7 and the log.
+  "Sources" shows your TypeScript (`src/client.ts` and the files it imports)
+  for the client part: set a breakpoint there, `debugger;` works too. A plain
+  `dolphy-ext build` (`pnpm build`) and the catalog build never write source
+  maps, and the catalog check rejects a submission that has one.
+- The code that runs in the extension host (`main.mjs`: `server`, command and
+  event handlers, schedules, importers and exporters) is not in this window: see
+  section 6 and the log.
 
 ## 5. The log
 
-`ctx.logger` has `debug`, `info`, `warn` and `error`; each takes an object of
+`server.logger` has `debug`, `info`, `warn` and `error`; each takes an object of
 fields and an optional message:
 
 ```text
-ctx.logger.info({ id: change.id, value: change.value }, 'setting changed');
+s.logger.info({ id: change.id, value: change.value }, 'setting changed');
 ```
 
 The output goes to the log of the app, not to a console of the window. Log
 structured fields, not secrets or the learner's answers. The host writes to the
 same log: an exception in a handler, a handler that outlives its time limit, an
-event dropped from a full queue, and a warning after activation about an id the
-manifest declares but the code did not register.
+event dropped from a full queue, and the failure of a registration. The client
+part has no logger: use `console` and the DevTools.
 
 ### Reading the log in the app
 
@@ -138,7 +172,7 @@ The labels the dialog shows, with the keys of the app's messages (ru and en):
 | -------------------------- | -------------------------------- | ----------------------------- | ------------------------------------------ |
 | Settings section           | Extensions                       | Расширения                    | `settings.extensions.title`                |
 | Origin of a dev extension  | Development                      | Разработка                    | `settings.extensions.origin.dev`           |
-| Trust switch               | Trust (no isolation)             | Доверять (без изоляции)       | `settings.extensions.trustLabel`           |
+| Load failure of the client part | The extension client part failed to load | Клиентская часть расширения не загрузилась | `settings.extensions.clientFailed.title` |
 | Block with the log button  | Diagnostics                      | Диагностика                   | `settings.extensions.support.title`        |
 | Button of the block        | Log                              | Журнал                        | `settings.extensions.support.openLog`      |
 | Action in an extension row | Log                              | Журнал                        | `settings.extensions.log.rowAction`        |
@@ -154,18 +188,12 @@ The labels the dialog shows, with the keys of the app's messages (ru and en):
 | Reread the log             | Refresh                          | Обновить                      | `settings.extensions.log.refresh`          |
 | Filters match nothing      | No entries match the filters.    | Нет записей, подходящих под условия. | `settings.extensions.log.empty`     |
 
-### Output of the restricted process
+### Output of the extension host
 
-An extension that is not trusted runs in a restricted process (section 6). What
-it prints with `console.log`, `console.error` or an uncaught error goes to the
-log as `warn` entries with the extension id and `stream` (`stdout` or `stderr`)
-in "Details". Use `ctx.logger` for anything you want to filter by level; use
-`console` only for a quick look. The output is limited so that one extension
-cannot flood the log: at most 64 KiB in 60 seconds per extension; the rest is
-dropped and one entry "output truncated" with `droppedBytes` closes the window.
-A process that sends a message larger than 1 MiB or more than 200 messages in
-a second is stopped, with an `error` entry whose reason is `ipc-size` or
-`ipc-rate`.
+What `server` and its handlers print with `console.log`, `console.error` or an
+uncaught error goes to the log as `warn` entries of the extension host in
+"Details". Use `s.logger` for anything you want to filter by level (its entries
+carry the extension id); use `console` only for a quick look.
 
 ### The file
 
@@ -177,34 +205,24 @@ relevant lines, or the text of "Copy diagnostics" in the "Diagnostics" block (it
 has no paths of your home folder, library content or learning data), to a bug
 report.
 
-## 6. Permissions and the restricted process
+## 6. Reading a stack trace
 
-An extension that is not bundled with the app and not trusted runs in a
-restricted process, and what its `permissions` do not declare is unavailable:
-`ctx.library` throws `PermissionError` without `library.read`; spawning a
-process, a worker thread or a native module fails with `ERR_ACCESS_DENIED`.
-Test helpers do not reproduce this, so a feature that needs a permission must be
-tried in the app. Extensions in development get the permissions their manifest
-declares. To debug without the restrictions, turn on "Trust (no isolation)" for
-the extension in Settings → Extensions; turn it off again before you release,
-because your users will not have it on.
-
-## 7. Reading a stack trace
-
-The code of the extension process is `dist-ext/<id>/main.mjs`, readable and not
+The code of the extension host is `dist-ext/<id>/main.mjs`, readable and not
 minified. A watch build (`dolphy-ext dev`, `dolphy-ext build --watch`) appends
 an inline source map to it, but the app does not turn on source maps for that
 process, so a stack trace in the log still points to lines of `main.mjs`: open
 that file to find the place and search it for the name from the trace. The
-map is for the browser files of section 4. A plain `dolphy-ext build` writes no
+map is for the browser file of section 4. A plain `dolphy-ext build` writes no
 maps at all.
 
 ## Which limit did I hit?
 
 | Symptom                                         | Limit                                                    |
 | ----------------------------------------------- | -------------------------------------------------------- |
-| activation fails with `activation-timeout`      | `activate` must finish in 10 seconds                     |
+| the extension shows `load-failed` with a timeout | `server` must finish in 10 seconds                       |
 | an event handler stops mid-way                  | 2 seconds per event; the queue holds 100 events          |
+| a command or a schedule handler stops mid-way   | 10 seconds                                               |
+| an importer or an exporter stops mid-way        | 30 seconds                                               |
 | `StorageQuotaError`                             | key 128 characters, value 64 KiB, 256 keys, 1 MiB total  |
 | a command result is rejected                    | `notify` text 1–500 characters; a result up to 64 KiB    |
-| a panel cannot load an image or open a socket   | the frame loads only from its own extension, no network  |
+| a panel or a view fails while it draws          | the card "Retry" replaces it; the window stays up        |

@@ -1,5 +1,5 @@
 ---
-status: partially superseded by ADR-0003, ADR-0014
+status: partially superseded by ADR-0003, ADR-0014, ADR-0022
 date: 2026-09-30
 spec: specs/archive/2026-09-30-extension-authoring/SPEC.md
 ---

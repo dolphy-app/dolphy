@@ -5,6 +5,7 @@ import {
   effectiveThemeId,
   resolveThemeName,
   toVuetifyTheme,
+  themeIdOfVuetify,
   vuetifyThemeName,
 } from '@/shared/lib/extension-themes.ts';
 
@@ -16,6 +17,17 @@ describe('vuetifyThemeName', () => {
     const names = ids.map(vuetifyThemeName);
     expect(new Set(names).size).toBe(ids.length);
     for (const name of names) expect(name).toMatch(/^[A-Za-z0-9_-]+$/);
+  });
+});
+
+describe('themeIdOfVuetify', () => {
+  it('returns the extension theme id back, a built-in id as is, and resolves system by dark', () => {
+    for (const id of ['a.b', 'a-b.c', 'acme.mid-night']) {
+      expect(themeIdOfVuetify(vuetifyThemeName(id), true)).toBe(id);
+    }
+    expect(themeIdOfVuetify('light', true)).toBe('light');
+    expect(themeIdOfVuetify('system', true)).toBe('dark');
+    expect(themeIdOfVuetify('system', false)).toBe('light');
   });
 });
 

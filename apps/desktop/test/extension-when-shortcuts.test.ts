@@ -1,11 +1,13 @@
 // @vitest-environment happy-dom
-import { shallowRef } from 'vue';
+import { computed, shallowRef } from 'vue';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createKeybindingDispatcher,
   createKeybindingsService,
 } from '@/features/keybindings';
 import { createExtensionCommands } from '@/features/extension-commands/model/extension-commands.ts';
+import { createNotices } from '@/features/extension-commands/model/notices.ts';
+import { createPanelProps } from '@/features/extension-commands/model/panel-props.ts';
 import { NO_CONTRIBUTIONS } from '@/shared/api/engine/contributions.ts';
 import { createCommandRegistry } from '@/shared/lib/command-registry.ts';
 import { createContextKeys } from '@/shared/lib/context-keys.ts';
@@ -34,8 +36,15 @@ describe('when and shortcuts of extension commands', () => {
           title: 'Run',
           description: null,
           category: null,
-          keybinding: 'Mod+Shift+G',
-          keybindings: [],
+          keybindings: [
+            {
+              key: 'Mod+Shift+G',
+              mac: null,
+              windows: null,
+              linux: null,
+              when: null,
+            },
+          ],
           palette: true,
           when: "route == 'courses'",
           icon: 'puzzle',
@@ -46,6 +55,7 @@ describe('when and shortcuts of extension commands', () => {
       registry,
       engine: { invokeCommand },
       contributions: () => contributions,
+      clients: { commands: computed(() => []), panels: computed(() => []) },
       locale: () => 'en',
       when: createExtensionWhen({
         route: () => route.value,
@@ -53,6 +63,8 @@ describe('when and shortcuts of extension commands', () => {
         locale: () => 'en',
         dark: () => false,
       }),
+      notices: createNotices(),
+      panelProps: createPanelProps(),
       openPanel: vi.fn(),
     });
     const keybindings = createKeybindingsService({

@@ -5,7 +5,6 @@ import type {
 } from '@dolphy-app/engine/ports';
 
 export interface FakeTypeOptions {
-  element?: string;
   /** Сообщения `validateSpec`; по умолчанию `[]`. */
   specErrors?: string[];
   /** Сообщения `validateAnswer`; по умолчанию `[]`. */
@@ -48,10 +47,6 @@ export const createFakeExerciseTypes = (
           type,
           extensionId: type,
           extensionVersion: '0.0.0',
-          extensionOrigin: 'user',
-          extensionRevision: 'rev-0',
-          element: fake.element ?? `fake-${type.replaceAll('.', '-')}`,
-          rendererUrl: `dolphy-ext://fake/${type}.mjs`,
         };
   };
   const requests: FakeGradeRequest[] = [];

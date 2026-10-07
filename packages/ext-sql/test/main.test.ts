@@ -1,21 +1,11 @@
-import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
-import type { JsonSchema } from '@dolphy-app/extension-sdk';
 import {
-  createMemoryLibrary,
   createSchemaValidator,
-  loadExerciseType,
+  createTestServer,
 } from '@dolphy-app/extension-sdk/testing';
 import { afterEach, describe, expect, it } from 'vitest';
-import { host } from '../src/index.ts';
-
-const readSchema = async (name: string): Promise<JsonSchema> =>
-  JSON.parse(
-    await readFile(
-      fileURLToPath(new URL(`../schema/${name}`, import.meta.url)),
-      'utf8',
-    ),
-  ) as JsonSchema;
+import { createMemoryLibrary } from '@dolphy-app/extension-sdk/testing';
+import { server } from '../src/index.ts';
+import { answerSchema, specSchema } from '../src/schema.ts';
 
 const disposables: { dispose(): Promise<void> }[] = [];
 afterEach(async () => {
@@ -23,11 +13,14 @@ afterEach(async () => {
 });
 
 const load = async (files: Record<string, string> = {}) => {
-  const type = await loadExerciseType(host, 'dolphy.sql', {
+  const harness = await createTestServer(server, {
+    extensionId: 'dolphy.sql',
     library: createMemoryLibrary(files),
   });
-  disposables.push(type);
-  return type;
+  disposables.push(harness);
+  return Object.assign(harness.exerciseType('dolphy.sql'), {
+    dispose: () => harness.dispose(),
+  });
 };
 
 const spec = { fixture: 'fixtures/emp.sql', expected: 'checks/q1.csv' };
@@ -86,8 +79,8 @@ describe('dolphy.sql: схемы', () => {
         maxBytes: 1000,
       },
     ],
-  ])('spec: %s допустим', async (_name, value) => {
-    const validate = createSchemaValidator(await readSchema('spec.json'));
+  ])('spec: %s допустим', (_name, value) => {
+    const validate = createSchemaValidator(specSchema);
     expect(validate(value)).toEqual([]);
   });
 
@@ -98,13 +91,13 @@ describe('dolphy.sql: схемы', () => {
     ['maxRows ноль', { ...spec, maxRows: 0 }],
     ['maxBytes больше предела', { ...spec, maxBytes: 10_000_001 }],
     ['лишнее поле', { ...spec, runner: 'sql' }],
-  ])('spec: %s отклоняется', async (_name, value) => {
-    const validate = createSchemaValidator(await readSchema('spec.json'));
+  ])('spec: %s отклоняется', (_name, value) => {
+    const validate = createSchemaValidator(specSchema);
     expect(validate(value)).not.toEqual([]);
   });
 
-  it('answer: принимает строку и отклоняет остальное', async () => {
-    const validate = createSchemaValidator(await readSchema('answer.json'));
+  it('answer: принимает строку и отклоняет остальное', () => {
+    const validate = createSchemaValidator(answerSchema);
     expect(validate('select 1')).toEqual([]);
     expect(validate(['select 1'])).not.toEqual([]);
     expect(validate(null)).not.toEqual([]);

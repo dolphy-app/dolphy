@@ -3,33 +3,23 @@ import type {
   ContributionsDto,
   LearningEngine,
 } from '@dolphy-app/engine-contract';
-import { createContributionsStore } from '@/shared/api/engine/contributions.ts';
+import {
+  createContributionsStore,
+  NO_CONTRIBUTIONS,
+} from '@/shared/api/engine/contributions.ts';
 import { createEventBus } from './support/extensions-fakes.ts';
 
 const dto = (
   generation: number,
-  themeIds: string[] = [],
+  policyIds: string[] = [],
 ): ContributionsDto => ({
+  ...NO_CONTRIBUTIONS,
   generation,
-  exerciseTypes: [],
-  themes: themeIds.map((id) => ({
+  gradePolicies: policyIds.map((id) => ({
     id,
     extensionId: id,
     label: id,
-    dark: false,
-    colors: {},
-    variables: {},
   })),
-  markdownRenderers: [],
-  gradePolicies: [],
-  settings: [],
-  commands: [],
-  widgets: [],
-  schedules: [],
-  panels: [],
-  importers: [],
-  exporters: [],
-  messages: {},
 });
 
 interface Call {
@@ -66,7 +56,7 @@ const flush = () =>
   });
 
 const ids = (store: { contributions: { value: ContributionsDto } }) =>
-  store.contributions.value.themes.map(({ id }) => id);
+  store.contributions.value.gradePolicies.map(({ id }) => id);
 
 describe('createContributionsStore', () => {
   it('reads contributions once at creation and publishes them reactively', async () => {
@@ -161,27 +151,21 @@ describe('createContributionsStore', () => {
   });
 });
 
-describe('createContributionsStore: команды и панели', () => {
+describe('createContributionsStore: команды и клиентские части', () => {
   const command = (id: string, extensionId = 'acme.cmd') => ({
     id,
     extensionId,
     title: id,
     description: null,
     category: null,
-    keybinding: null,
     keybindings: [],
     when: null,
     palette: true,
     icon: 'puzzle',
   });
-  const panel = (id: string, revision: string) => ({
-    id,
+  const client = (revision: string) => ({
     extensionId: 'acme.cmd',
-    title: id,
-    icon: 'puzzle',
-    when: null,
-    rendererUrl: 'dolphy-ext://acme.cmd/panel.mjs',
-    isolated: true,
+    url: 'dolphy-ext://acme.cmd/client.mjs',
     origin: 'user' as const,
     revision,
   });
@@ -189,14 +173,14 @@ describe('createContributionsStore: команды и панели', () => {
   it('before the first answer both lists are empty and typed', async () => {
     const { store } = await setup(dto(0));
     expect(store.contributions.value.commands).toEqual([]);
-    expect(store.contributions.value.panels).toEqual([]);
+    expect(store.contributions.value.clients).toEqual([]);
   });
 
-  it('replaces commands and panels wholesale with each generation: removal and a new revision are visible', async () => {
+  it('replaces commands and clients wholesale with each generation: removal and a new revision are visible', async () => {
     const first = {
       ...dto(0),
       commands: [command('acme.cmd.one'), command('acme.cmd.two')],
-      panels: [panel('acme.cmd.main', 'r1')],
+      clients: [client('r1')],
     };
     const { store, bus, calls } = await setup(first);
     expect(store.contributions.value.commands).toHaveLength(2);
@@ -206,19 +190,19 @@ describe('createContributionsStore: команды и панели', () => {
     calls[0]?.resolve({
       ...dto(1),
       commands: [command('acme.cmd.two')],
-      panels: [panel('acme.cmd.main', 'r2')],
+      clients: [client('r2')],
     });
     await flush();
     expect(store.contributions.value.commands.map(({ id }) => id)).toEqual([
       'acme.cmd.two',
     ]);
-    expect(store.contributions.value.panels[0]?.revision).toBe('r2');
+    expect(store.contributions.value.clients[0]?.revision).toBe('r2');
 
     bus.emit({ type: 'contributions-changed', generation: 2 });
     await flush();
     calls[1]?.resolve(dto(2));
     await flush();
     expect(store.contributions.value.commands).toEqual([]);
-    expect(store.contributions.value.panels).toEqual([]);
+    expect(store.contributions.value.clients).toEqual([]);
   });
 });

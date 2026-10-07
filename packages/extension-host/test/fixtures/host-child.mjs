@@ -1,16 +1,8 @@
-// Дочерний процесс extension host: runtime поверх IPC (`process.send`).
-import { fileURLToPath } from 'node:url';
-import { discoverExtensions } from '../../src/discover.ts';
+// Дочерний процесс extension host: runtime поверх IPC (`process.send`); набор расширений приходит сообщением `replaceExtensions`.
 import { createExtensionRuntime } from '../../src/runtime.ts';
 
 const silent = { debug() {}, info() {}, warn() {}, error() {} };
-const root = fileURLToPath(new URL('./extensions', import.meta.url));
-const { extensions } = await discoverExtensions({
-  roots: [{ dir: root, origin: 'bundled' }],
-  logger: silent,
-});
 const runtime = createExtensionRuntime({
-  extensions,
   logger: silent,
   library: {
     readText: async () => '',

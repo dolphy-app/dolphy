@@ -1,9 +1,10 @@
 // Вид задания, который засчитывает любой ответ: проверяются только ресурсы в рамках.
-export default {
-  activate(ctx) {
-    ctx.registerExerciseType('acme.assets', {
-      project: () => ({}),
-      grade: () => ({ outcome: 'passed' }),
-    });
-  },
+export const server = (s) => {
+  s.registerExerciseType({
+    id: 'acme.assets',
+    specSchema: { type: 'object' },
+    answerSchema: { type: 'string' },
+    project: () => ({}),
+    grade: () => ({ outcome: 'passed' }),
+  });
 };

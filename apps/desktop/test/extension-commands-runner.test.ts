@@ -1,3 +1,4 @@
+import { computed, shallowRef } from 'vue';
 import { describe, expect, it, vi } from 'vitest';
 import type {
   CommandResultDto,
@@ -15,11 +16,10 @@ import {
   CommandRejected,
   createCommandRunner,
 } from '@/features/extension-commands/model/runner.ts';
+import type { ClientPanel } from '@/shared/lib/extension-clients.ts';
 import { NO_CONTRIBUTIONS } from '@/shared/api/engine/contributions.ts';
 
-const withExtension = (
-  panels: string[] = ['acme.cmd.main'],
-): ContributionsDto => ({
+const withExtension = (): ContributionsDto => ({
   ...NO_CONTRIBUTIONS,
   commands: ['acme.cmd.run', 'acme.cmd.hidden'].map((id) => ({
     id,
@@ -27,23 +27,22 @@ const withExtension = (
     title: id,
     description: null,
     category: null,
-    keybinding: null,
     keybindings: [],
     when: null,
     palette: id === 'acme.cmd.run',
     icon: 'puzzle',
   })),
-  panels: panels.map((id) => ({
-    id,
-    extensionId: 'acme.cmd',
-    title: id,
-    icon: 'puzzle',
-    when: null,
-    rendererUrl: 'dolphy-ext://acme.cmd/panel.mjs',
-    isolated: true,
-    origin: 'user',
-    revision: 'r1',
-  })),
+});
+
+const panelOf = (extensionId: string, id: string): ClientPanel => ({
+  kind: 'panel',
+  key: `${extensionId}:${id}:1`,
+  extensionId,
+  id,
+  title: id,
+  icon: 'puzzle',
+  when: null,
+  component: {},
 });
 
 const failure = (
@@ -61,7 +60,12 @@ const setup = (
   result: CommandResultDto | Error = { kind: 'none' },
   contributions: ContributionsDto = withExtension(),
 ) => {
-  const state = { contributions };
+  const state = {
+    contributions,
+    panels: shallowRef<readonly ClientPanel[]>([
+      panelOf('acme.cmd', 'acme.cmd.main'),
+    ]),
+  };
   const invokeCommand = vi.fn(async () => {
     if (result instanceof Error) throw result;
     return result;
@@ -72,6 +76,7 @@ const setup = (
   const runner = createCommandRunner({
     engine: { invokeCommand },
     contributions: () => state.contributions,
+    clients: { panels: computed(() => state.panels.value) },
     notices,
     panelProps,
     openPanel,
@@ -165,18 +170,11 @@ describe('исполнитель команд: эффекты результат
   });
 
   it('openPanel на панель чужого расширения не выполняется', async () => {
-    const other = withExtension();
-    const { runner, openPanel, state } = setup(
-      { kind: 'openPanel', panelId: 'acme.cmd.main' },
-      other,
-    );
-    state.contributions = {
-      ...other,
-      panels: other.panels.map((panel) => ({
-        ...panel,
-        extensionId: 'acme.other',
-      })),
-    };
+    const { runner, openPanel, state } = setup({
+      kind: 'openPanel',
+      panelId: 'acme.cmd.main',
+    });
+    state.panels.value = [panelOf('acme.other', 'acme.cmd.main')];
     await runner.run('acme.cmd', 'acme.cmd.run', undefined, 'palette');
     expect(openPanel).not.toHaveBeenCalled();
   });

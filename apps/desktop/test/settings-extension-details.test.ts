@@ -47,7 +47,7 @@ describe('describeDetails: по записи каталога', () => {
     author: 'acme',
     source: 'https://example.test/sunrise',
     tags: ['theme'],
-    latest: catalogVersion('1.1.0', { permissions: ['network'] }),
+    latest: catalogVersion('1.1.0'),
     versions: [
       listed('1.1.0', { hasChangelog: true }),
       listed('1.0.0', {
@@ -64,7 +64,6 @@ describe('describeDetails: по записи каталога', () => {
       author: 'acme',
       authorUrl: 'https://github.com/acme',
       sourceUrl: 'https://example.test/sunrise',
-      permissions: ['network'],
       installedVersion: null,
       removable: false,
       tags: ['theme'],
@@ -135,7 +134,6 @@ describe('describeDetails: по установленному', () => {
       name: 'Local',
       removable: true,
       author: 'Jane Doe <jane@example.com>',
-      permissions: ['library.read'],
     });
     const view = describeDetails('local.theme', info, null, null, null);
     expect(view).toMatchObject({
@@ -145,13 +143,12 @@ describe('describeDetails: по установленному', () => {
       sourceUrl: null,
       action: null,
       removable: true,
-      permissions: ['library.read'],
       authorUrl: null,
       installedVersion: null,
     });
   });
 
-  it('из поставки: удалить нельзя, разрешения отключённого и перекрытого не показываются', () => {
+  it('из поставки: удалить нельзя', () => {
     const bundled = describeDetails(
       'core.x',
       extensionInfo('core.x', { origin: 'bundled' }),
@@ -160,16 +157,6 @@ describe('describeDetails: по установленному', () => {
       null,
     );
     expect(bundled?.removable).toBe(false);
-    for (const state of ['overridden', 'invalid'] as const) {
-      const view = describeDetails(
-        'core.x',
-        extensionInfo('core.x', { state, permissions: ['network'] }),
-        null,
-        null,
-        null,
-      );
-      expect(view?.permissions).toBeNull();
-    }
   });
 
   it('установленное из каталога: действие по записи, обновление — по `updates`, если записи нет', () => {

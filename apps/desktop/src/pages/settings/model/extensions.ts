@@ -1,7 +1,7 @@
 import { isEffectiveExtensionState } from '@dolphy-app/engine-contract';
 import { onScopeDispose, ref, shallowRef } from 'vue';
 import type {
-  ContributionTitlesDto,
+  ContributionsDto,
   ExtensionContributesDto,
   ExtensionHealthDto,
   ExtensionInfoDto,
@@ -11,14 +11,39 @@ import type {
   LearningEngine,
   ScheduleContributionDto,
 } from '@dolphy-app/engine-contract';
-import { CONTRIBUTION_POINTS, targetFromUpdate } from '../lib/catalog.ts';
-import type { ContributionPoint, InstallTarget } from '../lib/catalog.ts';
+import type { LocalizedText } from '@dolphy-app/extension-api';
+import type {
+  ClientCommand,
+  ClientMarkdownRenderer,
+  ClientPanel,
+  ClientInjection,
+  ClientTheme,
+} from '@/shared/lib/extension-clients.ts';
+import { targetFromUpdate } from '../lib/catalog.ts';
+import type { InstallTarget } from '../lib/catalog.ts';
+
+/** Точки вклада в порядке показа: серверные и клиентские. */
+export const CONTRIBUTION_POINTS = [
+  'exerciseTypes',
+  'themes',
+  'markdownRenderers',
+  'gradePolicies',
+  'settings',
+  'events',
+  'commands',
+  'panels',
+  'injections',
+  'importers',
+  'exporters',
+] as const;
+
+export type ContributionPoint = (typeof CONTRIBUTION_POINTS)[number];
 
 export interface ContributionItem {
   id: string;
-  /** Текст чипа: название вклада, локализованное событие или сам id. */
+  /** Текст чипа: подпись вклада, локализованное событие или сам id. */
   label: string;
-  /** Идентификатор по природе (вид задания, язык рендерера) без названия: моноширинный шрифт. */
+  /** Идентификатор по природе (вид задания, язык рендерера) без подписи: моноширинный шрифт. */
   mono: boolean;
   /** Такой же текст у другого чипа точки: id нужен и скринридеру. */
   duplicate: boolean;
@@ -29,61 +54,201 @@ export interface ContributionGroup {
   items: ContributionItem[];
 }
 
-type TitlesByPoint = Partial<Record<ContributionPoint, Record<string, string>>>;
+/** Живые серверные вклады движка: из них берутся подписи чипов. */
+export type LiveContributions = Pick<
+  ContributionsDto,
+  | 'exerciseTypes'
+  | 'gradePolicies'
+  | 'settings'
+  | 'commands'
+  | 'importers'
+  | 'exporters'
+>;
 
-const MONO_POINTS: ReadonlySet<ContributionPoint> = new Set([
-  'exerciseTypes',
-  'markdownRenderers',
-]);
+/** Вклады клиентской части расширений из реестра окна. */
+export interface ClientContributions {
+  panels: readonly Pick<ClientPanel, 'extensionId' | 'id' | 'title'>[];
+  injections: readonly Pick<ClientInjection, 'extensionId' | 'id'>[];
+  themes: readonly Pick<ClientTheme, 'extensionId' | 'id' | 'label'>[];
+  markdownRenderers: readonly Pick<
+    ClientMarkdownRenderer,
+    'extensionId' | 'language'
+  >[];
+  commands: readonly Pick<ClientCommand, 'extensionId' | 'id' | 'title'>[];
+}
+
+export interface ContributionSources {
+  extensionId: string;
+  /** Серверные точки установленного расширения. */
+  contributes: ExtensionContributesDto;
+  live: LiveContributions;
+  clients: ClientContributions;
+}
+
+interface Chip {
+  id: string;
+  /** `null` — подписи нет, показывается id. */
+  title: LocalizedText | null;
+}
+
+const ofExtension = <T extends { extensionId: string | null }>(
+  items: readonly T[],
+  extensionId: string,
+): T[] => items.filter((item) => item.extensionId === extensionId);
+
+/** Подписи серверных вкладов расширения: id → подпись из живых вкладов. */
+const liveChips = (
+  ids: readonly string[],
+  titled: ReadonlyMap<string, LocalizedText | null>,
+): Chip[] => ids.map((id) => ({ id, title: titled.get(id) ?? null }));
+
+const chipsOf = (
+  point: ContributionPoint,
+  { extensionId, contributes, live, clients }: ContributionSources,
+): Chip[] => {
+  switch (point) {
+    case 'exerciseTypes':
+      return liveChips(
+        contributes.exerciseTypes,
+        new Map(
+          ofExtension(live.exerciseTypes, extensionId).map((item) => [
+            item.type,
+            item.title,
+          ]),
+        ),
+      );
+    case 'gradePolicies':
+      return liveChips(
+        contributes.gradePolicies,
+        new Map(
+          ofExtension(live.gradePolicies, extensionId).map((item) => [
+            item.id,
+            item.label,
+          ]),
+        ),
+      );
+    case 'settings':
+      return liveChips(
+        contributes.settings,
+        new Map(
+          ofExtension(live.settings, extensionId).map((item) => [
+            item.id,
+            item.label,
+          ]),
+        ),
+      );
+    case 'importers':
+      return liveChips(
+        contributes.importers,
+        new Map(
+          ofExtension(live.importers, extensionId).map((item) => [
+            item.id,
+            item.title,
+          ]),
+        ),
+      );
+    case 'exporters':
+      return liveChips(
+        contributes.exporters,
+        new Map(
+          ofExtension(live.exporters, extensionId).map((item) => [
+            item.id,
+            item.title,
+          ]),
+        ),
+      );
+    case 'events':
+      return contributes.events.map((id) => ({ id, title: null }));
+    case 'commands': {
+      const server = liveChips(
+        contributes.commands,
+        new Map(
+          ofExtension(live.commands, extensionId).map((item) => [
+            item.id,
+            item.title,
+          ]),
+        ),
+      );
+      const known = new Set(contributes.commands);
+      const own = ofExtension(clients.commands, extensionId)
+        .filter((command) => !known.has(command.id))
+        .map((command) => ({ id: command.id, title: command.title }));
+      return [...server, ...own];
+    }
+    case 'panels':
+      return ofExtension(clients.panels, extensionId).map((panel) => ({
+        id: panel.id,
+        title: panel.title,
+      }));
+    case 'themes':
+      return ofExtension(clients.themes, extensionId).map((theme) => ({
+        id: theme.id,
+        title: theme.label,
+      }));
+    case 'injections':
+      return ofExtension(clients.injections, extensionId).map(({ id }) => ({
+        id,
+        title: null,
+      }));
+    case 'markdownRenderers':
+    default:
+      return [
+        ...new Set(
+          ofExtension(clients.markdownRenderers, extensionId).map(
+            (renderer) => renderer.language,
+          ),
+        ),
+      ].map((id) => ({ id, title: null }));
+  }
+};
 
 /**
- * Непустые группы вкладов расширения в порядке точек. Текст чипа — название
- * из `titles` (если есть), для событий — `eventLabel`, иначе сам id.
+ * Непустые группы вкладов расширения в порядке точек: серверные по его
+ * `contributes`, клиентские из реестра окна. Команды клиента сливаются с
+ * серверными без повторов по id. Текст чипа — подпись на языке окна (`text`),
+ * для событий — `eventLabel`, иначе сам id.
  */
 export const contributionGroups = (
-  contributes: ExtensionContributesDto,
-  titles: ContributionTitlesDto = {},
+  sources: ContributionSources,
+  text: (title: LocalizedText) => string,
   eventLabel: (name: string) => string = (name) => name,
 ): ContributionGroup[] =>
-  CONTRIBUTION_POINTS.filter((point) => contributes[point].length > 0).map(
-    (point) => {
-      const titled: Record<string, string> =
-        (titles as TitlesByPoint)[point] ?? {};
-      const labels = contributes[point].map((id) =>
-        point === 'events' ? eventLabel(id) : (titled[id] ?? id),
-      );
-      const counts = new Map<string, number>();
-      for (const label of labels) {
-        counts.set(label, (counts.get(label) ?? 0) + 1);
-      }
-      return {
+  CONTRIBUTION_POINTS.flatMap((point) => {
+    const chips = chipsOf(point, sources);
+    if (chips.length === 0) return [];
+    const labelOf = (chip: Chip): string => {
+      if (point === 'events') return eventLabel(chip.id);
+      return chip.title === null ? chip.id : text(chip.title);
+    };
+    const labels = chips.map(labelOf);
+    const counts = new Map<string, number>();
+    for (const label of labels) counts.set(label, (counts.get(label) ?? 0) + 1);
+    return [
+      {
         point,
-        items: contributes[point].map((id, index) => ({
-          id,
+        items: chips.map((chip, index) => ({
+          id: chip.id,
           label: labels[index],
-          mono: MONO_POINTS.has(point) && titled[id] === undefined,
+          mono:
+            point === 'markdownRenderers' ||
+            (point === 'exerciseTypes' && chip.title === null),
           duplicate: (counts.get(labels[index]) ?? 0) > 1,
         })),
-      };
-    },
-  );
+      },
+    ];
+  });
 
 /**
  * Строка вкладов лишняя, если у расширения единственный вклад — тема, а её
  * название совпадает с названием расширения: карточка уже говорит то же самое.
  */
 export const hidesContributions = (
-  contributes: ExtensionContributesDto,
-  titles: ContributionTitlesDto,
+  groups: readonly ContributionGroup[],
   name: string | null,
 ): boolean => {
-  if (name === null) return false;
-  const total = CONTRIBUTION_POINTS.reduce(
-    (sum, point) => sum + contributes[point].length,
-    0,
-  );
-  if (total !== 1 || contributes.themes.length !== 1) return false;
-  return titles.themes?.[contributes.themes[0]] === name;
+  if (name === null || groups.length !== 1) return false;
+  const [{ point, items }] = groups;
+  return point === 'themes' && items.length === 1 && items[0].label === name;
 };
 
 /** Сколько значений вклада показано, пока группа свёрнута: у расширения до 64 команд, карточка не должна расти без предела. */
@@ -109,20 +274,17 @@ export const hasHealthIssue = (health: ExtensionHealthDto | undefined) =>
   health !== undefined &&
   (health.failures > 0 || health.suppressedUntil !== null);
 
-export type ExtensionSwitch =
-  'enabled' | 'trusted' | 'notifications' | 'schedules';
+export type ExtensionSwitch = 'enabled' | 'notifications' | 'schedules';
 
-/** Список настроек, в котором переключатель хранит расширение, и что означает членство (`true` — выключено или доверено). */
+/** Список настроек, в котором переключатель хранит расширение, и что означает членство (`true` — выключено). */
 const SWITCH_LISTS = {
   enabled: { field: 'disabled', listedWhenOn: false },
-  trusted: { field: 'trusted', listedWhenOn: true },
   notifications: { field: 'notificationsOff', listedWhenOn: false },
   schedules: { field: 'schedulesOff', listedWhenOn: false },
 } as const;
 
 const NO_SETTINGS: ExtensionSettingsDto = {
   disabled: [],
-  trusted: [],
   checkUpdates: true,
   safeMode: false,
   notificationsOff: [],
@@ -140,7 +302,6 @@ const WRITERS: Record<
   ) => Promise<ExtensionSettingsDto>
 > = {
   enabled: (engine, id, value) => engine.extensions.setEnabled(id, value),
-  trusted: (engine, id, value) => engine.extensions.setTrusted(id, value),
   notifications: (engine, id, value) =>
     engine.extensions.setNotificationsEnabled(id, value),
   schedules: (engine, id, value) =>
@@ -152,9 +313,6 @@ const errorText = (caught: unknown) =>
 
 export const isEnabled = (settings: ExtensionSettingsDto, id: string) =>
   !settings.disabled.includes(id);
-
-export const isTrusted = (settings: ExtensionSettingsDto, id: string) =>
-  settings.trusted.includes(id);
 
 export const areNotificationsOn = (
   settings: ExtensionSettingsDto,
@@ -180,10 +338,6 @@ export const scheduleSummaryOf = (
   at: schedule.at ?? '',
 });
 
-/** Переключатель «Уведомления» нужен расширению, которое просит разрешение `notifications`. */
-export const hasNotifications = (extension: ExtensionInfoDto): boolean =>
-  extension.permissions.includes('notifications');
-
 /** Строка с переключателями: не из поставки, действующая (загружена или отключена) и не отозванная. */
 export const hasSwitches = (extension: ExtensionInfoDto): boolean =>
   extension.toggleable &&
@@ -195,7 +349,7 @@ const switchKey = (id: string, which: ExtensionSwitch) => `${which}:${id}`;
 
 /**
  * Расширения, которые видит движок (`extensions.list`), в порядке движка, и
- * настройки включения и доверия. Повторная загрузка не сбрасывает уже
+ * настройки включения. Повторная загрузка не сбрасывает уже
  * показанный список: `busy` — признак идущего запроса, `state` меняется на
  * `loading` только пока данных нет. Переключатель меняется сразу и
  * откатывается, если движок отказал; изменение действует сразу (движок
@@ -403,7 +557,6 @@ export const useExtensions = (engine: LearningEngine) => {
     restartHost,
     updateTargets,
     setEnabled: (id: string, value: boolean) => change(id, 'enabled', value),
-    setTrusted: (id: string, value: boolean) => change(id, 'trusted', value),
     setNotifications: (id: string, value: boolean) =>
       change(id, 'notifications', value),
     setSchedules: (id: string, value: boolean) =>

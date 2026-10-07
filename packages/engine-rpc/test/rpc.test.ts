@@ -261,14 +261,13 @@ describe('dispatcher validation', () => {
     });
   });
 
-  it('extensions.setEnabled / setTrusted / setNotificationsEnabled / setSchedulesEnabled require an extension id and a boolean', async () => {
+  it('extensions.setEnabled / setNotificationsEnabled / setSchedulesEnabled require an extension id and a boolean', async () => {
     const { dispatcher } = await connect();
     const [hostSide, rawSide] = createInProcessPair();
     dispatcher.attach(hostSide, 'raw-extensions');
     const raw = createRawClient(rawSide);
     for (const method of [
       'extensions.setEnabled',
-      'extensions.setTrusted',
       'extensions.setNotificationsEnabled',
       'extensions.setSchedulesEnabled',
     ]) {
@@ -316,6 +315,39 @@ describe('dispatcher validation', () => {
       ['acme.ext', 'acme.ext.run', {}, 'extra'],
     ]) {
       expect(await raw.call('extensions.invokeCommand', args)).toMatchObject({
+        ok: false,
+        error: { code: 'INVALID_ARGUMENT' },
+      });
+    }
+  });
+
+  it('extensions.invokeRpc takes one strict object: ids, JSON input that may be omitted, nothing else', async () => {
+    const { dispatcher } = await connect();
+    const [hostSide, rawSide] = createInProcessPair();
+    dispatcher.attach(hostSide, 'raw-rpc');
+    const raw = createRawClient(rawSide);
+    const request = { extensionId: 'acme.ext', name: 'greeting.say-hello' };
+    // схема пропустила: вызов дошёл до движка (в этом тесте он заглушка)
+    for (const args of [
+      [{ ...request, input: { n: [1, null, 'x'] } }],
+      [{ ...request, input: null }],
+      [request],
+    ]) {
+      expect(await raw.call('extensions.invokeRpc', args)).toMatchObject({
+        ok: true,
+      });
+    }
+    // отвергнуто схемой до движка
+    for (const args of [
+      [],
+      ['acme.ext', 'greeting.say-hello'],
+      [{ ...request, extensionId: 'Acme' }],
+      [{ ...request, name: '' }],
+      [{ ...request, name: 'x'.repeat(121) }],
+      [{ ...request, extra: 1 }],
+      [request, 'extra'],
+    ]) {
+      expect(await raw.call('extensions.invokeRpc', args)).toMatchObject({
         ok: false,
         error: { code: 'INVALID_ARGUMENT' },
       });

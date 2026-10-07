@@ -3,7 +3,6 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { nodeFs } from '../src/index.ts';
 import {
-  contributesOf,
   createEnv,
   filesOf,
   installFake,
@@ -292,8 +291,7 @@ describe('install: сбой оставляет прежнюю установку
   it.each([
     ['id', { id: 'acme.other' }],
     ['версия', { version: '1.1.1' }],
-    ['разрешения', { permissions: ['network'] }],
-    ['вклады', { contributes: contributesOf(['acme.evil']) }],
+    ['теги', { tags: ['theme'] }],
   ])('манифест расходится с индексом: %s', async (_name, manifest) => {
     const lying: ExtensionSpec = { ...ECHO, manifest };
     serveIndex(env.routes, [lying]);

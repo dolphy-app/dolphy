@@ -7,8 +7,10 @@ import type {
   ExtensionsService,
   ImporterContributionDto,
   ImportPreviewDto,
+  LocalizedTextDto,
 } from '@dolphy-app/engine-contract';
 import { MAX_EXTENSION_TRANSFER_BYTES } from '@dolphy-app/engine-contract';
+import { resolveLocalizedText } from '@dolphy-app/extension-api';
 import type { Platform } from '../../../../shared/bridge.ts';
 import { decodeUtf8 } from '../lib/decode.ts';
 import { describeTransferFailure } from '../lib/failure.ts';
@@ -54,6 +56,8 @@ export interface ExtensionTransfersDeps {
   /** Короткое уведомление приложения (готовый текст). */
   notify(text: string): void;
   t: Translate;
+  /** Язык окна (`ru`/`en`): подписи расширений; читается реактивно. */
+  locale: () => string;
 }
 
 export interface ExtensionTransfers {
@@ -99,6 +103,8 @@ export const createExtensionTransfers = (
   deps: ExtensionTransfersDeps,
 ): ExtensionTransfers => {
   const { engine, platform, t } = deps;
+  const titleOf = (title: LocalizedTextDto) =>
+    resolveLocalizedText(title, deps.locale());
   const phase = shallowRef<TransferPhase>(IDLE);
   const busy = computed(() => phase.value.kind !== 'idle');
 
@@ -128,13 +134,13 @@ export const createExtensionTransfers = (
     const working = (action: 'import'): TransferPhase => ({
       kind: 'working',
       action,
-      title: importer.title,
+      title: titleOf(importer.title),
     });
     phase.value = working('import');
     try {
       const picked = await platform.pickFile({
         accept: importer.accept,
-        title: importer.title,
+        title: titleOf(importer.title),
       });
       if (picked === null) return;
       if (picked.status === 'too-large') {
@@ -250,7 +256,11 @@ export const createExtensionTransfers = (
     exporter: ExporterContributionDto,
     request: Parameters<ExtensionsService['runExporter']>[2],
   ) => {
-    phase.value = { kind: 'working', action: 'export', title: exporter.title };
+    phase.value = {
+      kind: 'working',
+      action: 'export',
+      title: titleOf(exporter.title),
+    };
     try {
       let file: ExportFileDto;
       try {
@@ -263,7 +273,7 @@ export const createExtensionTransfers = (
         fail(describeTransferFailure(error, 'export'));
         return;
       }
-      await save(file, exporter.title);
+      await save(file, titleOf(exporter.title));
     } finally {
       phase.value = IDLE;
     }

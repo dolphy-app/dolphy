@@ -1,6 +1,5 @@
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { EXTENSION_PERMISSIONS } from '@dolphy-app/extension-api';
 import { parseIndex } from '@dolphy-app/extension-catalog';
 import { describe, expect, it } from 'vitest';
 import { buildCatalog, reindexCatalog } from '../src/catalog/build.ts';
@@ -79,6 +78,7 @@ describe('catalog build: assets and icon', () => {
         'assets/mark.svg',
         'assets/panel.css',
         'assets/photo.jpg',
+        'client.mjs',
         'extension.json',
       ].sort(),
     );
@@ -185,15 +185,15 @@ describe('catalog build: assets and icon', () => {
           '{}',
         ]),
       );
-    // extension.json and README.md are two more files
+    // extension.json, README.md and the built client.mjs are three more files
     const ok = await createRepo([
-      { fixture: 'theme-only', files: filesOf(98) },
+      { fixture: 'theme-only', files: filesOf(97) },
     ]);
     const out = await makeTemp();
     const [result] = await publish(ok, out, [NIGHT]);
     expect(result?.files).toBe(100);
     const tooMany = await createRepo([
-      { fixture: 'theme-only', files: filesOf(99) },
+      { fixture: 'theme-only', files: filesOf(98) },
     ]);
     await expect(publish(tooMany, await makeTemp(), [NIGHT])).rejects.toThrow(
       /101 files exceed the limit of 100/,
@@ -202,32 +202,16 @@ describe('catalog build: assets and icon', () => {
 });
 
 describe('catalog build: the whole catalog', () => {
-  it('publishes a version with every permission, file type and entry key', async () => {
+  it('publishes a version with every file type and entry key', async () => {
     const repo = await createRepo([
       { fixture: 'theme-only' },
       {
         fixture: 'hello',
         manifest: {
-          permissions: [...EXTENSION_PERMISSIONS],
           tags: ['learning', 'developer'],
           icon: 'assets/icon.png',
-          contributes: {
-            settings: [
-              {
-                id: 'acme.hello.mode',
-                type: 'boolean',
-                label: 'Mode',
-                default: true,
-              },
-            ],
-            events: [{ event: 'attempt.closed' }],
-          },
         },
-        files: {
-          ...ASSETS,
-          'src/index.ts':
-            "import { defineExtension } from '@dolphy-app/extension-sdk';\nexport const host = defineExtension({});\n",
-        },
+        files: ASSETS,
       },
       { fixture: 'markdown-only' },
     ]);
@@ -247,18 +231,11 @@ describe('catalog build: the whole catalog', () => {
       '1.0.0',
     ]);
     const [hello] = byId['acme.hello']?.versions ?? [];
-    expect(hello?.permissions).toEqual(
-      expect.arrayContaining([...EXTENSION_PERMISSIONS]),
-    );
     expect(hello?.tags).toEqual(['learning', 'developer']);
     expect(hello?.icon).toMatch(/^data:image\/png;base64,/);
     expect(hello?.files.map((file) => file.path)).toEqual(
       expect.arrayContaining(Object.keys(ASSETS)),
     );
-    expect(byId['acme.hello']?.contributes.settings).toEqual([
-      'acme.hello.mode',
-    ]);
-    expect(byId['acme.hello']?.contributes.events).toEqual(['attempt.closed']);
     expect(byId['acme.chart']?.versions).toHaveLength(1);
   });
 
@@ -278,9 +255,9 @@ describe('catalog build: the whole catalog', () => {
           '{}',
         ]),
       );
-    // extension.json and README.md are two more files
+    // extension.json, README.md and the built client.mjs are three more files
     const repo = await createRepo([
-      { fixture: 'theme-only', files: filesOf(49) },
+      { fixture: 'theme-only', files: filesOf(48) },
     ]);
     const out = await makeTemp();
     await publish(repo, out, [NIGHT]);

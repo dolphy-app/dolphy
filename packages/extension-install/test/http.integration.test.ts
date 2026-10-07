@@ -7,13 +7,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createExtensionInstaller } from '../src/index.ts';
 import type { CatalogInstaller } from '@dolphy-app/engine/ports';
-import {
-  contributesOf,
-  createClock,
-  createLogger,
-  inspectJson,
-  sha256,
-} from './helpers.ts';
+import { createClock, createLogger, inspectJson, sha256 } from './helpers.ts';
 
 /** Настоящие HTTP-серверы на 127.0.0.1: каталог и «чужой» сервер на другом порту. */
 interface Running {
@@ -42,8 +36,6 @@ const extensionJson = (id: string): string =>
   JSON.stringify({
     id,
     version: '1.0.0',
-    permissions: [],
-    contributes: contributesOf([id]),
   });
 
 const mainSource = (id: string): string =>
@@ -70,13 +62,11 @@ const entry = (id: string) => ({
   author: 'octo-cat',
   source: 'https://github.com/dolphy-app/dolphy-extensions',
   platforms: [],
-  contributes: contributesOf([id]),
   versions: [
     {
       version: '1.0.0',
       apiVersion: 1,
       minAppVersion: null,
-      permissions: [],
       publishedAt: '2026-10-01T00:00:00Z',
       baseUrl: `extensions/${id}/1.0.0/`,
       files: Object.entries(files(id)).map(([filePath, content]) => ({

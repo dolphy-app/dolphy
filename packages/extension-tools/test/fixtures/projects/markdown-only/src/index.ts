@@ -1,7 +1,10 @@
-import { defineMarkdownRenderer } from '@dolphy-app/extension-sdk';
+import { defineComponent, h } from 'vue';
 
-export const markdown = {
-  chart: defineMarkdownRenderer((source, container) => {
-    container.textContent = source;
-  }),
+const chart = defineComponent({
+  props: { source: { type: String, required: true } },
+  setup: (props) => () => h('pre', props.source),
+});
+
+export const client = (c) => {
+  c.addMarkdownRenderer('chart', chart);
 };

@@ -51,13 +51,14 @@ describe('catalog build: publishing a version', () => {
         id: NIGHT,
         version: '1.0.0',
         status: 'published',
-        files: 2,
+        files: 3,
         bytes: expect.any(Number),
       },
     ]);
     const versionDir = path.join(out, 'extensions', NIGHT, '1.0.0');
     expect(await listFiles(versionDir)).toEqual([
       'README.md',
+      'client.mjs',
       'extension.json',
     ]);
 
@@ -71,19 +72,12 @@ describe('catalog build: publishing a version', () => {
       author: 'octo-cat',
       source: `https://github.com/dolphy-app/dolphy-extensions/tree/main/extensions/${NIGHT}`,
       platforms: [],
-      contributes: {
-        exerciseTypes: [],
-        themes: [NIGHT],
-        markdownRenderers: [],
-        gradePolicies: [],
-      },
     });
     const [version] = entry?.versions ?? [];
     expect(version).toMatchObject({
       version: '1.0.0',
       apiVersion: 1,
       minAppVersion: null,
-      permissions: [],
       publishedAt: NOW.toISOString(),
       baseUrl: `extensions/${NIGHT}/1.0.0/`,
     });
@@ -111,11 +105,19 @@ describe('catalog build: publishing a version', () => {
       'extensions',
       'revoked',
     ]);
+    expect(Object.keys(parsed.extensions[0])).toEqual([
+      'id',
+      'name',
+      'description',
+      'author',
+      'source',
+      'platforms',
+      'versions',
+    ]);
     expect(Object.keys(parsed.extensions[0].versions[0])).toEqual([
       'version',
       'apiVersion',
       'minAppVersion',
-      'permissions',
       'publishedAt',
       'baseUrl',
       'files',
@@ -144,15 +146,15 @@ describe('catalog build: publishing a version', () => {
     ]);
     const hello = index.extensions[1];
     expect(hello?.source).toBe('https://example.org/src/acme.hello');
-    expect(hello?.contributes.exerciseTypes).toEqual(['acme.hello']);
     expect(hello?.versions[0]?.minAppVersion).toBe('1.2.0');
     expect(hello?.versions[0]?.publishedAt).toBe('2026-01-01T00:00:00Z');
     const paths = hello?.versions[0]?.files.map((file) => file.path);
     expect(paths).toContain('main.mjs');
+    expect(paths).toContain('client.mjs');
     expect(paths).toContain('README.md');
-    expect(index.extensions[0]?.contributes.markdownRenderers).toEqual([
-      'chart',
-    ]);
+    expect(
+      index.extensions[0]?.versions[0]?.files.map((file) => file.path),
+    ).toEqual(['README.md', 'client.mjs', 'extension.json']);
   });
 
   it('R8 version files carry no source maps', async () => {
@@ -184,208 +186,64 @@ describe('catalog build: publishing a version', () => {
         expect(text).not.toContain('sourceMappingURL');
       }
     }
-    expect(scripts.length).toBeGreaterThanOrEqual(4);
+    expect(scripts.length).toBeGreaterThanOrEqual(5);
   });
 });
 
-describe('catalog build: settings and events', () => {
-  const STATE = {
-    permissions: ['learning.events'],
-    contributes: {
-      settings: [
-        {
-          id: 'acme.hello.mode',
-          type: 'boolean',
-          label: 'Mode',
-          default: true,
-        },
-      ],
-      events: [{ event: 'attempt.closed' }],
-    },
-  };
+describe('catalog build: built files', () => {
+  const builtManifestOf = async (out: string, id: string) =>
+    readJson(path.join(out, 'extensions', id, '1.0.0', 'extension.json'));
 
-  it('writes settings, events and permissions into the index entry', async () => {
+  it('a server and a client build into main.mjs and client.mjs named by the version manifest', async () => {
     const repo = await createRepo([
-      {
-        fixture: 'hello',
-        manifest: STATE,
-        // the override manifest declares no views: host code without `views`
-        files: {
-          'src/index.ts':
-            "import { defineExtension } from '@dolphy-app/extension-sdk';\nexport const host = defineExtension({});\n",
-        },
-      },
+      { fixture: 'hello' },
+      { fixture: 'commands-panel' },
+      { fixture: 'surfaces' },
     ]);
     const out = await makeTemp();
-    await publish(repo, out, ['acme.hello']);
-    const index = await indexOf(out);
-    const [entry] = index.extensions;
-    expect(entry?.contributes.settings).toEqual(['acme.hello.mode']);
-    expect(entry?.contributes.events).toEqual(['attempt.closed']);
-    expect(entry?.versions[0]?.permissions).toEqual(['learning.events']);
-    const raw = (await readJson(path.join(out, 'index.v2.json'))) as {
-      extensions: { contributes: Record<string, unknown> }[];
-    };
-    expect(Object.keys(raw.extensions[0]?.contributes ?? {})).toEqual([
-      'exerciseTypes',
-      'themes',
-      'markdownRenderers',
-      'gradePolicies',
-      'settings',
-      'events',
-    ]);
+    const ids = ['acme.hello', 'acme.commands-panel', 'acme.surfaces'];
+    await publish(repo, out, ids);
+    for (const entry of (await indexOf(out)).extensions) {
+      const paths = entry.versions[0]?.files.map((file) => file.path);
+      expect(paths, entry.id).toEqual(
+        expect.arrayContaining(['main.mjs', 'client.mjs', 'extension.json']),
+      );
+      expect(await builtManifestOf(out, entry.id)).toMatchObject({
+        main: './main.mjs',
+        client: './client.mjs',
+      });
+    }
   });
 
-  it('without settings and events the entry has no keys', async () => {
-    const repo = await createRepo([{ fixture: 'hello' }]);
+  it('a client-only extension has no main.mjs and a null main in the version manifest', async () => {
+    const repo = await createRepo([{ fixture: 'markdown-only' }]);
     const out = await makeTemp();
-    await publish(repo, out, ['acme.hello']);
-    const raw = (await readJson(path.join(out, 'index.v2.json'))) as {
-      extensions: { contributes: Record<string, unknown> }[];
-    };
-    expect(Object.keys(raw.extensions[0]?.contributes ?? {})).toEqual([
-      'exerciseTypes',
-      'themes',
-      'markdownRenderers',
-      'gradePolicies',
-    ]);
-  });
-});
-
-describe('catalog build: commands and panels', () => {
-  it('writes command and panel ids into the index entry', async () => {
-    const repo = await createRepo([{ fixture: 'commands-panel' }]);
-    const out = await makeTemp();
-    await publish(repo, out, ['acme.commands-panel']);
-    const [entry] = (await indexOf(out)).extensions;
-    expect(entry?.contributes.commands).toEqual([
-      'acme.commands-panel.open',
-      'acme.commands-panel.ping',
-    ]);
-    expect(entry?.contributes.panels).toEqual(['acme.commands-panel.main']);
-    const paths = entry?.versions[0]?.files.map((file) => file.path);
-    expect(paths).toContain('panel.mjs');
-    expect(paths).toContain('main.mjs');
-  });
-
-  it('writes widget ids and titles into the index entry', async () => {
-    const repo = await createRepo([{ fixture: 'surfaces' }]);
-    const out = await makeTemp();
-    await publish(repo, out, ['acme.surfaces']);
-    const [entry] = (await indexOf(out)).extensions;
-    expect(entry?.contributes.widgets).toEqual([
-      'acme.surfaces.card',
-      'acme.surfaces.gauge',
-      'acme.surfaces.badge',
-    ]);
-    expect(entry?.titles?.widgets).toEqual({
-      'acme.surfaces.card': 'Card',
-      'acme.surfaces.gauge': 'Gauge',
-      'acme.surfaces.badge': 'Badge',
-    });
-    const paths = entry?.versions[0]?.files.map((file) => file.path);
-    expect(paths).toContain('widget.mjs');
-    expect(paths).toContain('ui/gauge.js');
-  });
-
-  it('without commands and panels the entry has no keys', async () => {
-    const repo = await createRepo([{ fixture: 'hello' }]);
-    const out = await makeTemp();
-    await publish(repo, out, ['acme.hello']);
-    const raw = (await readJson(path.join(out, 'index.v2.json'))) as {
-      extensions: { contributes: Record<string, unknown> }[];
-    };
-    const keys = Object.keys(raw.extensions[0]?.contributes ?? {});
-    expect(keys).not.toContain('commands');
-    expect(keys).not.toContain('panels');
-    expect(keys).not.toContain('widgets');
-  });
-});
-
-describe('catalog build: importers and exporters', () => {
-  const contributes = {
-    commands: [{ id: 'acme.commands-panel.open', title: 'Open panel' }],
-    panels: [{ id: 'acme.commands-panel.main', title: 'Acme panel' }],
-    importers: [
-      {
-        id: 'acme.commands-panel.csv',
-        title: 'CSV course',
-        accept: ['.csv'],
-      },
-    ],
-    exporters: [
-      {
-        id: 'acme.commands-panel.out',
-        title: 'Course as CSV',
-        scope: 'course',
-      },
-    ],
-  };
-
-  it('writes importer and exporter ids and titles into the index entry', async () => {
-    const repo = await createRepo([
-      { fixture: 'commands-panel', manifest: { contributes } },
-    ]);
-    const out = await makeTemp();
-    await publish(repo, out, ['acme.commands-panel']);
-    const [entry] = (await indexOf(out)).extensions;
-    expect(entry?.contributes.importers).toEqual(['acme.commands-panel.csv']);
-    expect(entry?.contributes.exporters).toEqual(['acme.commands-panel.out']);
-    expect(entry?.titles?.importers).toEqual({
-      'acme.commands-panel.csv': 'CSV course',
-    });
-    expect(entry?.titles?.exporters).toEqual({
-      'acme.commands-panel.out': 'Course as CSV',
+    await publish(repo, out, ['acme.chart']);
+    expect(
+      await listFiles(path.join(out, 'extensions', 'acme.chart', '1.0.0')),
+    ).toEqual(['README.md', 'client.mjs', 'extension.json']);
+    expect(await builtManifestOf(out, 'acme.chart')).toMatchObject({
+      main: null,
+      client: './client.mjs',
     });
   });
 
-  it('without them the entry has no keys', async () => {
-    const repo = await createRepo([{ fixture: 'commands-panel' }]);
-    const out = await makeTemp();
-    await publish(repo, out, ['acme.commands-panel']);
-    const raw = (await readJson(path.join(out, 'index.v2.json'))) as {
-      extensions: { contributes: Record<string, unknown> }[];
-    };
-    const keys = Object.keys(raw.extensions[0]?.contributes ?? {});
-    expect(keys).not.toContain('importers');
-    expect(keys).not.toContain('exporters');
-  });
-});
-
-describe('catalog build: schedules', () => {
-  const contributes = {
-    commands: [{ id: 'acme.commands-panel.open', title: 'Open panel' }],
-    panels: [{ id: 'acme.commands-panel.main', title: 'Acme panel' }],
-    schedules: [
-      { id: 'acme.commands-panel.morning', every: 'daily', at: '08:30' },
-      { id: 'acme.commands-panel.tick', every: 'hourly' },
-    ],
-  };
-
-  it('writes schedule ids (no titles) into the index entry', async () => {
+  it('the index entry lists no contributions: the manifest keys do not leak into it', async () => {
     const repo = await createRepo([
-      { fixture: 'commands-panel', manifest: { contributes } },
+      { fixture: 'hello', manifest: { tags: ['learning'] } },
     ]);
     const out = await makeTemp();
-    await publish(repo, out, ['acme.commands-panel']);
-    const [entry] = (await indexOf(out)).extensions;
-    expect(entry?.contributes.schedules).toEqual([
-      'acme.commands-panel.morning',
-      'acme.commands-panel.tick',
-    ]);
-    expect(entry?.titles ?? {}).not.toHaveProperty('schedules');
-  });
-
-  it('without them the entry has no key', async () => {
-    const repo = await createRepo([{ fixture: 'commands-panel' }]);
-    const out = await makeTemp();
-    await publish(repo, out, ['acme.commands-panel']);
+    await publish(repo, out, ['acme.hello']);
     const raw = (await readJson(path.join(out, 'index.v2.json'))) as {
-      extensions: { contributes: Record<string, unknown> }[];
+      extensions: Record<string, unknown>[];
     };
-    expect(Object.keys(raw.extensions[0]?.contributes ?? {})).not.toContain(
-      'schedules',
-    );
+    const [entry] = raw.extensions;
+    expect(entry).not.toHaveProperty('contributes');
+    expect(entry).not.toHaveProperty('titles');
+    expect(entry).not.toHaveProperty('tags');
+    expect((await indexOf(out)).extensions[0]?.versions[0]?.tags).toEqual([
+      'learning',
+    ]);
   });
 });
 
@@ -453,6 +311,7 @@ describe('catalog build: version immutability', () => {
     expect(results[0]?.status).toBe('published');
     expect(await listFiles(path.join(second, 'extensions', NIGHT))).toEqual([
       '1.0.0/README.md',
+      '1.0.0/client.mjs',
       '1.0.0/extension.json',
     ]);
   });

@@ -1,68 +1,61 @@
 import { describe, expect, it } from 'vitest';
 import {
-  defineExtension,
+  defineExerciseType,
+  defineServer,
   type ExtensionLogger,
-  type ExtensionModule,
+  type ServerContext,
 } from '../src/index.ts';
 import {
   createMemoryLibrary,
   createSchemaValidator,
-  loadExerciseType,
-  loadGradePolicy,
+  createTestServer,
 } from '../src/testing.ts';
 
 interface EchoSpec {
   expected: string;
 }
 
-const echoModule = defineExtension({
-  exerciseTypes: {
-    'acme.echo': {
-      project: ({ exerciseId }) => ({ exerciseId }),
-      grade: ({ spec, answer, timeoutMs, authorMode, exerciseId }) =>
-        answer === (spec as EchoSpec).expected
-          ? { outcome: 'passed', data: { timeoutMs, authorMode, exerciseId } }
-          : { outcome: 'failed', reason: 'mismatch' },
-      referenceAnswer: ({ spec }) => (spec as EchoSpec).expected,
-    },
-    'acme.plain': {
-      project: () => null,
-      grade: () => ({ outcome: 'passed' }),
-    },
-  },
+const SCHEMA = { type: 'object' };
+
+const echo = defineExerciseType<EchoSpec, string, { exerciseId: string }>({
+  id: 'acme.echo',
+  specSchema: SCHEMA,
+  answerSchema: SCHEMA,
+  project: ({ exerciseId }) => ({ exerciseId }),
+  grade: ({ spec, answer, timeoutMs, authorMode, exerciseId }) =>
+    answer === spec.expected
+      ? { outcome: 'passed', data: { timeoutMs, authorMode, exerciseId } }
+      : { outcome: 'failed', reason: 'mismatch' },
+  referenceAnswer: ({ spec }) => spec.expected,
 });
 
-const moduleWithGrade = (result: unknown): ExtensionModule =>
-  defineExtension({
-    exerciseTypes: {
-      'acme.bad': {
-        project: () => null,
-        grade: () => result as never,
-      },
-    },
+const serverWith = (register: (server: ServerContext) => void) =>
+  createTestServer(defineServer(register));
+
+const gradingAs = (result: unknown) =>
+  serverWith((s) => {
+    s.registerExerciseType({
+      id: 'acme.bad',
+      specSchema: SCHEMA,
+      answerSchema: SCHEMA,
+      project: () => null,
+      grade: () => result as never,
+    });
   });
 
-describe('loadExerciseType', () => {
+describe('createTestServer: exercise types', () => {
   it('projects, grades and returns the reference answer', async () => {
-    const echo = await loadExerciseType(echoModule, 'acme.echo');
-    const spec = { expected: '42' };
-    await expect(echo.project(spec, { exerciseId: 'x' })).resolves.toEqual({
-      exerciseId: 'x',
+    const server = await serverWith((s) => {
+      s.registerExerciseType(echo);
     });
-    await expect(echo.grade({ spec, answer: '1' })).resolves.toEqual({
-      outcome: 'failed',
-      reason: 'mismatch',
-    });
-    await expect(echo.referenceAnswer(spec)).resolves.toEqual({
-      found: true,
-      answer: '42',
-    });
-  });
+    const type = server.exerciseType('acme.echo');
 
-  it('applies defaults and honours overrides', async () => {
-    const echo = await loadExerciseType(echoModule, 'acme.echo');
-    const spec = { expected: 'a' };
-    await expect(echo.grade({ spec, answer: 'a' })).resolves.toEqual({
+    await expect(type.project({ expected: 'x' })).resolves.toEqual({
+      exerciseId: 'test::lesson::exercise',
+    });
+    await expect(
+      type.grade({ spec: { expected: 'x' }, answer: 'x' }),
+    ).resolves.toEqual({
       outcome: 'passed',
       data: {
         timeoutMs: 2000,
@@ -71,56 +64,86 @@ describe('loadExerciseType', () => {
       },
     });
     await expect(
-      echo.grade({
-        spec,
-        answer: 'a',
-        timeoutMs: 5,
+      type.grade({ spec: { expected: 'x' }, answer: 'y' }),
+    ).resolves.toEqual({ outcome: 'failed', reason: 'mismatch' });
+    await expect(type.referenceAnswer({ expected: 'x' })).resolves.toEqual({
+      found: true,
+      answer: 'x',
+    });
+  });
+
+  it('honours the overrides of exercise id, timeout and author mode', async () => {
+    const server = await serverWith((s) => {
+      s.registerExerciseType(echo);
+    });
+    const type = server.exerciseType('acme.echo');
+
+    await expect(
+      type.project({ expected: 'x' }, { exerciseId: 'c::l::e' }),
+    ).resolves.toEqual({ exerciseId: 'c::l::e' });
+    await expect(
+      type.grade({
+        spec: { expected: 'x' },
+        answer: 'x',
+        exerciseId: 'c::l::e',
+        timeoutMs: 50,
         authorMode: true,
-        exerciseId: 'e',
       }),
-    ).resolves.toMatchObject({
-      data: { timeoutMs: 5, authorMode: true, exerciseId: 'e' },
+    ).resolves.toEqual({
+      outcome: 'passed',
+      data: { timeoutMs: 50, authorMode: true, exerciseId: 'c::l::e' },
     });
   });
 
   it('reports found: false when the handler has no reference answer', async () => {
-    const plain = await loadExerciseType(echoModule, 'acme.plain');
-    await expect(plain.referenceAnswer({})).resolves.toEqual({ found: false });
+    const server = await serverWith((s) => {
+      s.registerExerciseType({
+        id: 'acme.plain',
+        specSchema: SCHEMA,
+        answerSchema: SCHEMA,
+        project: () => null,
+        grade: () => ({ outcome: 'passed' }),
+      });
+    });
+    await expect(
+      server.exerciseType('acme.plain').referenceAnswer({ expected: 'x' }),
+    ).resolves.toEqual({ found: false });
   });
 
-  it('fails when the type was not registered', async () => {
-    await expect(loadExerciseType(echoModule, 'acme.none')).rejects.toThrow(
+  it('fails for a type the entry did not register', async () => {
+    const server = await serverWith((s) => {
+      s.registerExerciseType(echo);
+    });
+    expect(() => server.exerciseType('acme.none')).toThrow(
       "exercise type 'acme.none' was not registered",
     );
   });
 
-  it('passes the library and logger to the extension', async () => {
-    const messages: string[] = [];
+  it('passes the library and logger to the entry', async () => {
+    const lines: unknown[] = [];
     const logger: ExtensionLogger = {
       debug: () => undefined,
-      info: (_fields, message) => void messages.push(message ?? ''),
+      info: (fields) => void lines.push(fields),
       warn: () => undefined,
       error: () => undefined,
     };
-    const module = defineExtension({
-      exerciseTypes: {
-        'acme.lib': {
-          project: () => null,
-          grade: () => ({ outcome: 'passed' }),
-          referenceAnswer: async () => 'ref',
-        },
-      },
-      activate: async (context) => {
-        context.logger.info({}, 'activated');
-        expect(context.extensionId).toBe('test');
-        await expect(context.library.readText('a.txt')).resolves.toBe('A');
-      },
-    });
-    await loadExerciseType(module, 'acme.lib', {
-      library: createMemoryLibrary({ 'a.txt': 'A' }),
-      logger,
-    });
-    expect(messages).toEqual(['activated']);
+    const server = await createTestServer(
+      defineServer((s) => {
+        s.registerExerciseType({
+          ...echo,
+          id: 'acme.lib',
+          project: async () => {
+            s.logger.info({ at: 'project' });
+            return s.library.readText('a.txt');
+          },
+        });
+      }),
+      { library: createMemoryLibrary({ 'a.txt': 'from library' }), logger },
+    );
+    await expect(
+      server.exerciseType('acme.lib').project({ expected: '' }),
+    ).resolves.toBe('from library');
+    expect(lines).toEqual([{ at: 'project' }]);
   });
 
   it.each([
@@ -149,10 +172,10 @@ describe('loadExerciseType', () => {
       "unexpected key 'reason'",
     ],
   ])('rejects an invalid grade result: %s', async (_name, result, message) => {
-    const loaded = await loadExerciseType(moduleWithGrade(result), 'acme.bad');
-    await expect(loaded.grade({ spec: {}, answer: 1 })).rejects.toThrow(
-      message,
-    );
+    const server = await gradingAs(result);
+    await expect(
+      server.exerciseType('acme.bad').grade({ spec: {}, answer: 1 }),
+    ).rejects.toThrow(message);
   });
 
   it('accepts valid results of every outcome', async () => {
@@ -162,27 +185,201 @@ describe('loadExerciseType', () => {
       { outcome: 'error', reason: 'r', feedback: 'f' },
     ];
     for (const result of results) {
-      const loaded = await loadExerciseType(
-        moduleWithGrade(result),
-        'acme.bad',
-      );
-      await expect(loaded.grade({ spec: {}, answer: 1 })).resolves.toEqual(
-        result,
-      );
+      const server = await gradingAs(result);
+      await expect(
+        server.exerciseType('acme.bad').grade({ spec: {}, answer: 1 }),
+      ).resolves.toEqual(result);
     }
   });
+});
 
-  it('dispose deactivates the module', async () => {
-    const calls: string[] = [];
-    const module = defineExtension({
-      exerciseTypes: {
-        'acme.d': { project: () => null, grade: () => ({ outcome: 'passed' }) },
-      },
-      deactivate: () => void calls.push('deactivate'),
+describe('createTestServer: grade policies', () => {
+  const policy = (value: unknown) =>
+    serverWith((s) => {
+      s.registerGradePolicy({
+        id: 'acme.policy',
+        label: 'Policy',
+        evaluate: () => value as never,
+      });
     });
-    const loaded = await loadExerciseType(module, 'acme.d');
-    await loaded.dispose();
-    expect(calls).toEqual(['deactivate']);
+
+  it.each([1, 3, 5, null])('passes %s through', async (value) => {
+    const server = await policy(value);
+    await expect(
+      server
+        .gradePolicy('acme.policy')
+        .evaluate({ verdicts: [], gaveUp: false }),
+    ).resolves.toBe(value);
+  });
+
+  it.each([0, 6, 2.5, '3', undefined])('rejects %s', async (value) => {
+    const server = await policy(value);
+    await expect(
+      server
+        .gradePolicy('acme.policy')
+        .evaluate({ verdicts: [], gaveUp: false }),
+    ).rejects.toThrow('invalid grade policy result');
+  });
+
+  it('fails for a policy the entry did not register', async () => {
+    const server = await policy(5);
+    expect(() => server.gradePolicy('acme.other')).toThrow(
+      "grade policy 'acme.other' was not registered",
+    );
+  });
+});
+
+describe('createTestServer: registration', () => {
+  it('snapshots what the entry registered, with the defaults applied', async () => {
+    const server = await serverWith((s) => {
+      s.registerExerciseType({ ...echo, title: { en: 'Echo', ru: 'Эхо' } });
+      s.registerGradePolicy({
+        id: 'acme.policy',
+        label: 'Policy',
+        evaluate: () => 3,
+      });
+      s.registerCommand({ id: 'acme.go', title: 'Go', run: () => undefined });
+      s.schedule(
+        { id: 'acme.daily', every: 'daily', at: '08:30' },
+        () => undefined,
+      );
+      s.schedule({ id: 'acme.hourly', every: 'hourly' }, () => undefined);
+      s.registerImporter({
+        id: 'acme.csv',
+        title: 'CSV',
+        accept: ['.csv'],
+        input: 'text',
+        run: () => ({ files: {} }),
+      });
+      s.registerExporter({
+        id: 'acme.out',
+        title: 'Out',
+        scope: 'progress',
+        run: () => ({ filename: 'a.txt', text: '' }),
+      });
+      s.on('session.started', () => undefined);
+    });
+
+    expect(server.registration).toEqual({
+      exerciseTypes: [
+        {
+          id: 'acme.echo',
+          title: { en: 'Echo', ru: 'Эхо' },
+          specSchema: SCHEMA,
+          answerSchema: SCHEMA,
+        },
+      ],
+      gradePolicies: [{ id: 'acme.policy', label: 'Policy' }],
+      settings: [],
+      events: ['session.started'],
+      commands: [
+        {
+          id: 'acme.go',
+          title: 'Go',
+          description: null,
+          category: null,
+          palette: true,
+          icon: 'puzzle',
+          keybindings: [],
+          when: null,
+        },
+      ],
+      schedules: [
+        { id: 'acme.daily', every: 'daily', at: '08:30' },
+        { id: 'acme.hourly', every: 'hourly', at: null },
+      ],
+      importers: [
+        { id: 'acme.csv', title: 'CSV', accept: ['.csv'], input: 'text' },
+      ],
+      exporters: [{ id: 'acme.out', title: 'Out', scope: 'progress' }],
+      rpcs: [],
+      hooks: [],
+    });
+  });
+
+  it('refuses an id registered twice, in any kind', async () => {
+    await expect(
+      serverWith((s) => {
+        s.registerExerciseType(echo);
+        s.registerExerciseType(echo);
+      }),
+    ).rejects.toThrow("exercise type 'acme.echo' is already registered");
+    await expect(
+      serverWith((s) => {
+        s.registerCommand({ id: 'a.x', title: 'X', run: () => undefined });
+        s.registerCommand({ id: 'a.x', title: 'X', run: () => undefined });
+      }),
+    ).rejects.toThrow("command 'a.x' is already registered");
+    await expect(
+      serverWith((s) => {
+        s.on('attempt.closed', () => undefined);
+        s.on('attempt.closed', () => undefined);
+      }),
+    ).rejects.toThrow("event 'attempt.closed' is already subscribed");
+  });
+
+  it('checks the id prefix once extensionId is given', async () => {
+    await expect(
+      createTestServer(
+        defineServer((s) => {
+          s.registerCommand({
+            id: 'other.x',
+            title: 'X',
+            run: () => undefined,
+          });
+        }),
+        { extensionId: 'acme' },
+      ),
+    ).rejects.toThrow(
+      "command id 'other.x' must be 'acme' or start with 'acme.'",
+    );
+    await expect(
+      createTestServer(
+        defineServer((s) => {
+          s.registerCommand({ id: 'acme', title: 'X', run: () => undefined });
+          s.registerCommand({ id: 'acme.y', title: 'Y', run: () => undefined });
+        }),
+        { extensionId: 'acme' },
+      ),
+    ).resolves.toBeDefined();
+  });
+
+  it('a registration the entry disposed is not in the snapshot', async () => {
+    const server = await serverWith((s) => {
+      s.registerCommand({
+        id: 'a.x',
+        title: 'X',
+        run: () => undefined,
+      }).dispose();
+    });
+    expect(server.registration.commands).toEqual([]);
+  });
+
+  it('fails when the entry throws', async () => {
+    await expect(
+      serverWith(() => {
+        throw new Error('boom');
+      }),
+    ).rejects.toThrow('boom');
+  });
+
+  it('dispose runs the cleanup the entry returned, a function or a Disposable', async () => {
+    const calls: string[] = [];
+    const first = await createTestServer(() => () => void calls.push('fn'));
+    const second = await createTestServer(() => ({
+      dispose: () => void calls.push('disposable'),
+    }));
+    await first.dispose();
+    await second.dispose();
+    expect(calls).toEqual(['fn', 'disposable']);
+  });
+
+  it('after dispose the registrations are gone', async () => {
+    const server = await serverWith((s) => {
+      s.registerCommand({ id: 'a.x', title: 'X', run: () => undefined });
+    });
+    await server.dispose();
+    await expect(server.commands.run('a.x')).rejects.toThrow(/not registered/);
   });
 });
 
@@ -231,36 +428,5 @@ describe('createSchemaValidator', () => {
     const messages = many(Array.from({ length: 20 }, (_, i) => i));
     expect(messages).toHaveLength(6);
     expect(messages[0]).toBe('/0 must be string');
-  });
-});
-
-describe('loadGradePolicy', () => {
-  const policyModule = (result: unknown): ExtensionModule =>
-    defineExtension({
-      gradePolicies: {
-        'acme.policy': ({ gaveUp }) => (gaveUp ? 1 : (result as never)),
-      },
-    });
-
-  it('returns valid grades and null', async () => {
-    const input = { verdicts: [{ outcome: 'passed' as const }], gaveUp: false };
-    const five = await loadGradePolicy(policyModule(5), 'acme.policy');
-    expect(await five.evaluate(input)).toBe(5);
-    expect(await five.evaluate({ ...input, gaveUp: true })).toBe(1);
-    const none = await loadGradePolicy(policyModule(null), 'acme.policy');
-    expect(await none.evaluate(input)).toBeNull();
-  });
-
-  it.each([0, 6, 2.5, '5', undefined])('rejects %j', async (value) => {
-    const loaded = await loadGradePolicy(policyModule(value), 'acme.policy');
-    await expect(
-      loaded.evaluate({ verdicts: [], gaveUp: false }),
-    ).rejects.toThrow('invalid grade policy result');
-  });
-
-  it('fails for an unregistered policy', async () => {
-    await expect(
-      loadGradePolicy(policyModule(5), 'acme.other'),
-    ).rejects.toThrow("grade policy 'acme.other' was not registered");
   });
 });

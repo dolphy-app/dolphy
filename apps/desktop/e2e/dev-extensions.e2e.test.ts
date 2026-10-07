@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createWorkspace, launchApp } from './support/app.ts';
 import type { DolphyApp, Workspace } from './support/app.ts';
-import { ANSWER_FRAME, Client } from './support/client.ts';
+import { Client } from './support/client.ts';
 import { readJournal } from './support/journal.ts';
 
 const ECHO = 'Echo (KnowledgeBase)';
@@ -37,14 +37,15 @@ const ECHO_LIBRARY = {
 };
 
 /** Расширение, которое засчитывает любой ответ. */
-const ALWAYS_PASSES = `export default {
-  activate(ctx) {
-    ctx.registerExerciseType('acme.echo', {
-      project: () => ({}),
-      grade: () => ({ outcome: 'passed' }),
-      referenceAnswer: ({ spec }) => spec.expected,
-    });
-  },
+const ALWAYS_PASSES = `export const server = (s) => {
+  s.registerExerciseType({
+    id: 'acme.echo',
+    specSchema: { type: 'object' },
+    answerSchema: { type: 'string' },
+    project: () => ({}),
+    grade: () => ({ outcome: 'passed' }),
+    referenceAnswer: ({ spec }) => spec.expected,
+  });
 };
 `;
 
@@ -118,7 +119,7 @@ describe('режим разработчика (DOLPHY_DEV_EXTENSIONS)', () => {
     await stillSameWindow();
   });
 
-  it('правка элемента ввода пересоздаёт смонтированный элемент расширения dev', async () => {
+  it('правка вида ответа пересоздаёт смонтированный компонент расширения dev', async () => {
     app = await launchApp(workspace.userData, {
       DOLPHY_DEV_EXTENSIONS: devRoot,
     });
@@ -127,30 +128,31 @@ describe('режим разработчика (DOLPHY_DEV_EXTENSIONS)', () => {
     await client.openCourses();
     await client.focusCourse(ECHO);
     await client.startSession();
-    const frame = page.locator(ANSWER_FRAME);
-    await frame.waitFor({ state: 'attached' });
-    await frame.evaluate((node) => Reflect.set(node, '__old', true));
+    const answer = page.getByTestId('acme-echo-answer');
+    await answer.waitFor();
+    await answer.evaluate((node) => Reflect.set(node, '__old', true));
     const stillSameWindow = await client.markWindow();
 
-    const view = await readFile(join(devRoot, 'acme.echo', 'view.mjs'), 'utf8');
+    const view = await readFile(
+      join(devRoot, 'acme.echo', 'client.mjs'),
+      'utf8',
+    );
     await writeFile(
-      join(devRoot, 'acme.echo', 'view.mjs'),
+      join(devRoot, 'acme.echo', 'client.mjs'),
       view.replace(
-        'connectedCallback() {',
-        "connectedCallback() {\n    this.setAttribute('data-edited', 'yes');",
+        "{ 'data-testid': 'acme-echo-answer'",
+        "{ 'data-edited': 'yes', 'data-testid': 'acme-echo-answer'",
       ),
     );
-    // новая рамка: старый узел заменён, внутри уже правленый элемент
-    await expect
-      .poll(
-        () => frame.evaluate((node) => Reflect.get(node, '__old') === true),
-        { timeout: 30_000 },
-      )
-      .toBe(false);
+    // компонент пересоздан: старый узел заменён, новый уже правленый
     await page
-      .frameLocator(ANSWER_FRAME)
-      .locator('acme-echo-answer[data-edited=yes]')
-      .waitFor({ state: 'attached', timeout: 30_000 });
+      .locator('[data-testid="acme-echo-answer"][data-edited=yes]')
+      .waitFor({ timeout: 30_000 });
+    expect(
+      await page
+        .getByTestId('acme-echo-answer')
+        .evaluate((node) => Reflect.get(node, '__old')),
+    ).toBeUndefined();
     await stillSameWindow();
   });
 

@@ -1,16 +1,13 @@
 import { ExtensionTransferError } from '@dolphy-app/engine/ports';
 import type {
   ExporterHandler,
-  ExtensionContext,
-  ExtensionModule,
   ImporterHandler,
 } from '@dolphy-app/extension-api';
 import { EXTENSION_TRANSFER_LIMITS } from '@dolphy-app/extension-api';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ResolvedExtension } from '../src/discover.ts';
-import { createExtensionRuntime } from '../src/runtime.ts';
-import { createLogger, deferred, nullLibrary } from './helpers.ts';
-import { createHarness, stateful } from './state-harness.ts';
+import type { ServerModule } from '../src/runtime.ts';
+import { candidateOf, deferred } from './helpers.ts';
+import { createHarness } from './state-harness.ts';
 import type { Harness } from './state-harness.ts';
 
 const ID = 'acme.csv';
@@ -25,48 +22,47 @@ afterEach(async () => {
   harness = null;
 });
 
-const extensionWith = (
-  overrides: Partial<ResolvedExtension> = {},
-): ResolvedExtension =>
-  stateful(ID, {
-    permissions: ['learning.stats'],
-    events: [],
-    settings: [],
-    importers: [
-      { id: IN, title: 'CSV', accept: ['.csv'], input: 'text' },
-      { id: `${IN}-bin`, title: 'Bin', accept: ['.bin'], input: 'bytes' },
-    ],
-    exporters: [
-      { id: OUT, title: 'Course', scope: 'course' },
-      { id: `${OUT}-progress`, title: 'Progress', scope: 'progress' },
-    ],
-    ...overrides,
-  });
+const open = async (
+  ...args: Parameters<typeof createHarness>
+): Promise<Harness> => {
+  harness = await createHarness(...args);
+  return harness;
+};
 
 interface Handlers {
   importers?: Record<string, ImporterHandler>;
   exporters?: Record<string, ExporterHandler>;
 }
 
-const moduleOf = ({ importers, exporters }: Handlers): ExtensionModule => ({
-  activate(ctx: ExtensionContext) {
-    for (const [id, handler] of Object.entries(importers ?? {})) {
-      ctx.importers.register(id, handler);
+/** Вид и область вклада по его id: `-bin` принимает байты, `-progress` отдаёт прогресс. */
+const moduleOf = ({ importers, exporters }: Handlers): ServerModule => ({
+  server(s) {
+    for (const [id, run] of Object.entries(importers ?? {})) {
+      const bytes = id.endsWith('-bin');
+      s.registerImporter({
+        id,
+        title: id,
+        accept: [bytes ? '.bin' : '.csv'],
+        input: bytes ? 'bytes' : 'text',
+        run,
+      });
     }
-    for (const [id, handler] of Object.entries(exporters ?? {})) {
-      ctx.exporters.register(id, handler);
+    for (const [id, run] of Object.entries(exporters ?? {})) {
+      s.registerExporter({
+        id,
+        title: id,
+        scope: id.endsWith('-progress') ? 'progress' : 'course',
+        run,
+      });
     }
   },
 });
 
-const start = (handlers: Handlers, extension = extensionWith()) => {
-  harness = createHarness({
-    extensions: [extension],
-    trusted: [ID],
+const start = (handlers: Handlers) =>
+  open({
+    candidates: [candidateOf(ID)],
     modules: { [ID]: moduleOf(handlers) },
   });
-  return harness;
-};
 
 const importText = (h: Harness, text = 'a;b', id = IN) =>
   h.transfers.runImporter(ID, id, { name: 'sheet.csv', text });
@@ -78,10 +74,10 @@ const course = {
   files: { 'course.yaml': 'id: c1' },
 } as const;
 
-describe('ctx.importers.register', () => {
+describe('s.registerImporter', () => {
   it('обработчик получает имя и текст; результат — каталог файлов', async () => {
     const seen: unknown[] = [];
-    const h = start({
+    const h = await start({
       importers: {
         [IN]: (input) => {
           seen.push(input);
@@ -98,7 +94,7 @@ describe('ctx.importers.register', () => {
 
   it('импортёр с input bytes получает Uint8Array с теми же байтами', async () => {
     let received: unknown;
-    const h = start({
+    const h = await start({
       importers: {
         [`${IN}-bin`]: (input) => {
           received = input;
@@ -121,7 +117,7 @@ describe('ctx.importers.register', () => {
 
   it('файл не той формы, которую объявил импортёр, не доходит до обработчика', async () => {
     const handler = vi.fn(() => ({ files: {} }));
-    const h = start({
+    const h = await start({
       importers: { [IN]: handler, [`${IN}-bin`]: handler },
     });
 
@@ -144,7 +140,7 @@ describe('ctx.importers.register', () => {
 
   it('файл больше 20 МиБ отвергается до вызова обработчика', async () => {
     const handler = vi.fn(() => ({ files: {} }));
-    const h = start({ importers: { [`${IN}-bin`]: handler } });
+    const h = await start({ importers: { [`${IN}-bin`]: handler } });
 
     await expect(
       h.transfers.runImporter(ID, `${IN}-bin`, {
@@ -155,21 +151,51 @@ describe('ctx.importers.register', () => {
     expect(handler).not.toHaveBeenCalled();
   });
 
-  it('необъявленный и повторно зарегистрированный импортёр — ошибка в activate с названием', async () => {
+  it('чужой и повторно зарегистрированный вклад — ошибка регистрации с названием', async () => {
     const errors: string[] = [];
-    const h = (harness = createHarness({
-      extensions: [extensionWith()],
-      trusted: [ID],
+    const h = await open({
+      candidates: [candidateOf(ID)],
       modules: {
         [ID]: {
-          activate(ctx) {
-            ctx.importers.register(IN, () => ({ files: {} }));
+          server(s) {
+            s.registerImporter({
+              id: IN,
+              title: 'CSV',
+              accept: ['.csv'],
+              input: 'text',
+              run: () => ({ files: {} }),
+            });
             for (const register of [
               () =>
-                ctx.importers.register('acme.csv.ghost', () => ({ files: {} })),
-              () => ctx.importers.register(IN, () => ({ files: {} })),
+                s.registerImporter({
+                  id: 'other.ghost',
+                  title: 'x',
+                  accept: ['.csv'],
+                  input: 'text',
+                  run: () => ({ files: {} }),
+                }),
               () =>
-                ctx.exporters.register(IN, () => ({ filename: 'a', text: '' })),
+                s.registerImporter({
+                  id: IN,
+                  title: 'x',
+                  accept: ['.csv'],
+                  input: 'text',
+                  run: () => ({ files: {} }),
+                }),
+              () =>
+                s.registerExporter({
+                  id: OUT,
+                  title: 'x',
+                  scope: 'course',
+                  run: () => ({ filename: 'a', text: '' }),
+                }),
+              () =>
+                s.registerExporter({
+                  id: OUT,
+                  title: 'x',
+                  scope: 'course',
+                  run: () => ({ filename: 'a', text: '' }),
+                }),
             ]) {
               try {
                 register();
@@ -180,19 +206,20 @@ describe('ctx.importers.register', () => {
           },
         },
       },
-    }));
+    });
 
     await importText(h);
 
-    expect(errors).toEqual([
-      `importer 'acme.csv.ghost' is not declared in the manifest of '${ID}'`,
-      `importer '${IN}' is already registered`,
-      `exporter '${IN}' is not declared in the manifest of '${ID}'`,
-    ]);
+    expect(errors).toHaveLength(3);
+    expect(errors[0]).toContain("importer 'other.ghost'");
+    expect(errors[1]).toContain(`importer '${IN}'`);
+    expect(errors[1]).toContain('duplicate');
+    expect(errors[2]).toContain(`exporter '${OUT}'`);
+    expect(errors[2]).toContain('duplicate');
   });
 
-  it('импортёр вне манифеста и объявленный, но не зарегистрированный, — unknown-importer', async () => {
-    const h = start({ importers: {} });
+  it('импортёр, которого нет, — unknown-importer', async () => {
+    const h = await start({ importers: {} });
 
     await expect(importText(h, 'x', 'acme.csv.ghost')).rejects.toMatchObject({
       cause: 'unknown-importer',
@@ -201,15 +228,10 @@ describe('ctx.importers.register', () => {
     await expect(importText(h)).rejects.toMatchObject({
       cause: 'unknown-importer',
     });
-    expect(
-      h.logger.warn.mock.calls.some(([fields]) =>
-        JSON.stringify(fields).includes('importers'),
-      ),
-    ).toBe(true);
   });
 
   it('исключение и отказ промиса — handler-failed с текстом, соседний импортёр жив', async () => {
-    const h = start({
+    const h = await start({
       importers: {
         [IN]: () => {
           throw new Error('sync boom');
@@ -231,11 +253,9 @@ describe('ctx.importers.register', () => {
   });
 
   it('обработчик, не уложившийся в 30 с, — timeout; хост не перезапускается', async () => {
-    vi.useFakeTimers();
     const restart = vi.fn();
-    harness = createHarness({
-      extensions: [extensionWith()],
-      trusted: [ID],
+    const h = await open({
+      candidates: [candidateOf(ID)],
       restart,
       modules: {
         [ID]: moduleOf({
@@ -243,7 +263,7 @@ describe('ctx.importers.register', () => {
         }),
       },
     });
-    const h = harness;
+    vi.useFakeTimers();
 
     const outcome = importText(h).then(
       () => 'resolved',
@@ -267,8 +287,8 @@ describe('результат импортёра', () => {
       Array.from({ length: count }, (_, index) => [`f/${index}.txt`, content]),
     );
 
-  const run = (result: unknown) => {
-    const h = start({ importers: { [IN]: () => result as never } });
+  const run = async (result: unknown) => {
+    const h = await start({ importers: { [IN]: () => result as never } });
     return importText(h);
   };
 
@@ -355,10 +375,10 @@ describe('результат импортёра', () => {
   );
 });
 
-describe('ctx.exporters.register', () => {
+describe('s.registerExporter', () => {
   it('курс: обработчик получает снимок и возвращает текст или байты', async () => {
     const seen: unknown[] = [];
-    const h = start({
+    const h = await start({
       exporters: {
         [OUT]: (input) => {
           seen.push(input);
@@ -383,26 +403,30 @@ describe('ctx.exporters.register', () => {
     ).toEqual({ filename: 'p.bin', bytes: Uint8Array.of(1, 2) });
   });
 
-  it('прогресс: данные обработчик берёт через ctx.stats', async () => {
+  it('прогресс: данные обработчик берёт через s.stats', async () => {
     let calls = 0;
-    const h = (harness = createHarness({
-      extensions: [extensionWith()],
-      trusted: [ID],
+    const h = await open({
+      candidates: [candidateOf(ID)],
       modules: {
         [ID]: {
-          activate(ctx) {
-            ctx.exporters.register(`${OUT}-progress`, async (input) => {
-              calls += 1;
-              const streak = await ctx.stats.streak();
-              return {
-                filename: 'p.txt',
-                text: `${input.scope} ${streak.current}/${streak.longest}`,
-              };
+          server(s) {
+            s.registerExporter({
+              id: `${OUT}-progress`,
+              title: 'Progress',
+              scope: 'progress',
+              run: async (input) => {
+                calls += 1;
+                const streak = await s.stats.streak();
+                return {
+                  filename: 'p.txt',
+                  text: `${input.scope} ${streak.current}/${streak.longest}`,
+                };
+              },
             });
           },
         },
       },
-    }));
+    });
 
     expect(
       await h.transfers.runExporter(ID, `${OUT}-progress`, {
@@ -414,7 +438,7 @@ describe('ctx.exporters.register', () => {
 
   it('снимок не той области, которую объявил экспортёр, не доходит до обработчика', async () => {
     const handler = vi.fn(() => ({ filename: 'a', text: '' }));
-    const h = start({
+    const h = await start({
       exporters: { [OUT]: handler, [`${OUT}-progress`]: handler },
     });
 
@@ -433,7 +457,7 @@ describe('ctx.exporters.register', () => {
 
   it('снимок курса больше 20 МиБ не доходит до обработчика', async () => {
     const handler = vi.fn(() => ({ filename: 'a', text: '' }));
-    const h = start({ exporters: { [OUT]: handler } });
+    const h = await start({ exporters: { [OUT]: handler } });
     const big = 'x'.repeat(2 * MIB);
 
     await expect(
@@ -448,22 +472,15 @@ describe('ctx.exporters.register', () => {
   });
 
   it('unknown-exporter, сбой и таймаут обработчика', async () => {
-    vi.useFakeTimers();
-    harness = createHarness({
-      extensions: [extensionWith()],
-      trusted: [ID],
-      modules: {
-        [ID]: moduleOf({
-          exporters: {
-            [OUT]: () => {
-              throw new Error('export boom');
-            },
-            [`${OUT}-progress`]: () => new Promise<never>(() => {}),
-          },
-        }),
+    const h = await start({
+      exporters: {
+        [OUT]: () => {
+          throw new Error('export boom');
+        },
+        [`${OUT}-progress`]: () => new Promise<never>(() => {}),
       },
     });
-    const h = harness;
+    vi.useFakeTimers();
 
     await expect(
       h.transfers.runExporter(ID, 'acme.csv.ghost', course),
@@ -486,8 +503,8 @@ describe('ctx.exporters.register', () => {
 });
 
 describe('результат экспортёра', () => {
-  const run = (result: unknown) => {
-    const h = start({ exporters: { [OUT]: () => result as never } });
+  const run = async (result: unknown) => {
+    const h = await start({ exporters: { [OUT]: () => result as never } });
     return h.transfers.runExporter(ID, OUT, course);
   };
 
@@ -563,40 +580,9 @@ describe('результат экспортёра', () => {
 });
 
 describe('замена набора расширений', () => {
-  it('набор заменён до активации — replaced, а не сбой кода', async () => {
-    const runtime = createExtensionRuntime({
-      extensions: [extensionWith()],
-      library: nullLibrary,
-      logger: createLogger(),
-      modules: {
-        [ID]: moduleOf({ importers: { [IN]: () => ({ files: {} }) } }),
-      },
-    });
-
-    const racing = runtime.handle({
-      id: '1',
-      method: 'runImporter',
-      params: {
-        extensionId: ID,
-        importerId: IN,
-        name: 'a.csv',
-        text: 'x',
-        isolated: false,
-      },
-    });
-    await runtime.replace([extensionWith({ version: '2.0.0' })]);
-
-    expect(await racing).toMatchObject({
-      ok: false,
-      error: { cause: 'replaced' },
-    });
-    await runtime.dispose();
-  });
-
   it('идущий импорт доходит до результата старой сборки; новая сборка без импортёра отвечает unknown-importer', async () => {
-    vi.useFakeTimers();
     const release = deferred();
-    const modules: Record<string, ExtensionModule> = {
+    const modules: Record<string, ServerModule> = {
       [ID]: moduleOf({
         importers: {
           [IN]: async () => {
@@ -606,19 +592,15 @@ describe('замена набора расширений', () => {
         },
       }),
     };
-    harness = createHarness({
-      extensions: [extensionWith()],
-      trusted: [ID],
-      modules,
-    });
-    const h = harness;
+    const h = await open({ candidates: [candidateOf(ID)], modules });
+    vi.useFakeTimers();
     const inFlight = importText(h);
     await vi.advanceTimersByTimeAsync(0);
 
+    modules[ID] = moduleOf({});
     // замена ждёт идущий вызов: без `await`, иначе тест ждал бы его вечно
-    const replaced = h.replace([
-      extensionWith({ version: '2.0.0', importers: [] }),
-    ]);
+    const replaced = h.replace([candidateOf(ID, { revision: 'r2' })]);
+    await vi.advanceTimersByTimeAsync(10);
     await expect(importText(h)).rejects.toMatchObject({
       cause: 'unknown-importer',
     });
@@ -629,7 +611,7 @@ describe('замена набора расширений', () => {
   });
 
   it('хост не подключён — host-down', async () => {
-    const h = start({ importers: { [IN]: () => ({ files: {} }) } });
+    const h = await start({ importers: { [IN]: () => ({ files: {} }) } });
     await h.channel.close();
 
     await expect(importText(h)).rejects.toMatchObject({ cause: 'host-down' });

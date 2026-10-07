@@ -21,19 +21,9 @@ const RESULT_PREFIX = 'DOLPHY_SMOKE_RESULT ';
 const TIMEOUT_MS = 120_000;
 const ORPHAN_WAIT_MS = 5_000;
 const SMOKE_DIR = 'dist-smoke';
-const SCENARIOS = [
-  'basic',
-  'sql',
-  'choice',
-  'js',
-  'renderer',
-  'isolated',
-  'crash',
-];
-// путь, который «враждебное» расширение пробует записать (см. run-smoke.ts)
-const ISOLATED_MARKER = '/tmp/dolphy-smoke-pwned.txt';
+const SCENARIOS = ['basic', 'sql', 'choice', 'js', 'renderer', 'crash'];
 // Ожидаемые fuses упакованного приложения (electron-builder.json → electronFuses).
-// RunAsNode включён намеренно: ограниченный процесс расширений и раннер SQL
+// RunAsNode включён намеренно: раннер SQL и расширения
 // запускаются как process.execPath с ELECTRON_RUN_AS_NODE=1 (ADR 0011).
 // GrantFileProtocolExtraPrivileges включён намеренно: renderer грузится с
 // file://, с выключенным fuse окно не поднимается (смоук не получает результат).
@@ -60,9 +50,6 @@ const choiceFixture = fileURLToPath(
     '../../../packages/engine/test/fixtures/libraries/choice-course/lib_kb',
     import.meta.url,
   ),
-);
-const hostileExtension = fileURLToPath(
-  new URL('../e2e/fixtures/hostile-extension', import.meta.url),
 );
 const verbose = process.argv.includes('--verbose');
 const packaged = process.argv.includes('--packaged');
@@ -185,10 +172,7 @@ if (packaged) {
     directories: { ...base.directories, output: packagedOut },
     files: [SMOKE_DIR, '!**/node_modules/better-sqlite3/{deps,src}/**'],
     // расширения лежат вне asar: их код читают import() и child_process.fork
-    extraResources: [
-      { from: join(SMOKE_DIR, 'extensions'), to: 'extensions' },
-      { from: join(SMOKE_DIR, 'restricted'), to: 'restricted' },
-    ],
+    extraResources: [{ from: join(SMOKE_DIR, 'extensions'), to: 'extensions' }],
     extraMetadata: { main: `${SMOKE_DIR}/dist-electron/main/index.js` },
   };
   const configPath = join(root, 'electron-builder.smoke.json');
@@ -241,21 +225,18 @@ if (packaged) {
     'dolphy.sql/extension.json',
     'dolphy.sql/main.mjs',
     'dolphy.sql/worker.mjs',
-    'dolphy.sql/view.mjs',
+    'dolphy.sql/client.mjs',
     'dolphy.choice/extension.json',
     'dolphy.choice/main.mjs',
-    'dolphy.choice/view.mjs',
+    'dolphy.choice/client.mjs',
     'dolphy.js/extension.json',
     'dolphy.js/main.mjs',
     'dolphy.js/worker.mjs',
-    'dolphy.js/view.mjs',
+    'dolphy.js/client.mjs',
   ]) {
     if (!existsSync(join(resourcesDir, 'extensions', file))) {
       fail(`extension file ${file} missing in ${resourcesDir}/extensions`);
     }
-  }
-  if (!existsSync(join(resourcesDir, 'restricted/ext-restricted.mjs'))) {
-    fail(`restricted/ext-restricted.mjs missing in ${resourcesDir}`);
   }
   console.log(`packaged app: ${command}`);
   await checkFuses(command);
@@ -265,23 +246,6 @@ if (packaged) {
 await mkdir(userData, { recursive: true });
 await cp(libraryFixture, library, { recursive: true });
 await cp(choiceFixture, library, { recursive: true });
-// пользовательское расширение без разрешений и курс из одного его упражнения
-await cp(hostileExtension, join(userData, 'extensions', 'acme.hostile'), {
-  recursive: true,
-});
-await mkdir(join(library, 'hostile_kb/basic.lesson'), { recursive: true });
-await writeFile(
-  join(library, 'hostile_kb/course_manifest.json'),
-  '{"dependencies":[],"description":"Hostile course","engine":{"tags":["hostile"]},"generator_config":{"KnowledgeBase":{}},"id":"hostile_kb","name":"Hostile (KnowledgeBase)"}',
-);
-await writeFile(
-  join(library, 'hostile_kb/basic.lesson/lesson.name.json'),
-  JSON.stringify('Probe'),
-);
-await writeFile(
-  join(library, 'hostile_kb/basic.lesson/q1.front.md'),
-  '---\nengine:\n  exercise:\n    type: acme.hostile\n---\nProbe the sandbox.\n',
-);
 // курс из одного упражнения `dolphy.js` (проверка кода в дочернем процессе)
 await mkdir(join(library, 'js_smoke/basic.lesson'), { recursive: true });
 await writeFile(
@@ -296,7 +260,6 @@ await writeFile(
   join(library, 'js_smoke/basic.lesson/q1.front.md'),
   '---\nengine:\n  exercise:\n    type: dolphy.js\n    spec:\n      starter: |\n        function double(n) {}\n      tests: |\n        test("double(2)", () => assert.equal(double(2), 4));\n        test("double(3)", () => assert.equal(double(3), 6));\n      reference: |\n        function double(n) { return n * 2; }\n---\nWrite double(n).\n',
 );
-rmSync(ISOLATED_MARKER, { force: true });
 const lines = { stdout: [], stderr: [] };
 const child = spawn(command, args, {
   cwd: appDir,
@@ -365,10 +328,6 @@ const problems = [];
 if (!result.ok || code !== 0) problems.push(`exit ${code}`);
 if (payload.packaged !== packaged) {
   problems.push(`packaged is ${payload.packaged}, expected ${packaged}`);
-}
-if (existsSync(ISOLATED_MARKER)) {
-  rmSync(ISOLATED_MARKER, { force: true });
-  problems.push('isolated extension wrote outside its sandbox');
 }
 if (orphans.length > 0) {
   problems.push(`orphan processes killed: ${orphans.join(' | ')}`);

@@ -1,6 +1,5 @@
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { Locator, Page } from 'playwright-core';
 import { createWorkspace, launchApp } from './support/app.ts';
 import type { DolphyApp, Workspace } from './support/app.ts';
 import { Client } from './support/client.ts';
@@ -57,12 +56,9 @@ const paletteTitles = async (commands: CommandsClient): Promise<string[]> => {
   return titles;
 };
 
-const widgetCards = (page: Page): Locator =>
-  page.getByTestId('extension-widget');
-
 const sorted = (values: string[]) => [...values].sort();
 
-describe('условие when: команда, панель и виджет (R10, R11)', () => {
+describe('условие when: команда и панель (R10, R11)', () => {
   it('команда видна в палитре и выполняется сочетанием только там, где when истинно: «Курсы» — да, «План дня» — нет', async () => {
     const { client, commands } = await prepare();
 
@@ -106,37 +102,19 @@ describe('условие when: команда, панель и виджет (R10
     await commands.openPalette();
     await commands.search(OPEN_PANEL);
     await commands.combobox.press('Enter');
-    await commands.frameElement.waitFor({ timeout: 30_000 });
+    await commands.panel
+      .getByRole('heading', { level: 2 })
+      .waitFor({ timeout: 30_000 });
     expect(commands.route()).toBe(`#/ext/${WHEN_ID}/acme.when.main`);
     await expectCount(commands.navItem(PANEL_TITLE), 0);
     // команда с when «route == courses» вызывается панелью, пока открыта другая страница
     await commands.pressPanelButton('Позвать');
     await expect
-      .poll(() => commands.frame.locator('[data-role="result"]').innerText(), {
+      .poll(() => commands.panelRole('result').innerText(), {
         timeout: 30_000,
       })
       .toBe('ok {"pong":true}');
     await expectCount(page.getByTestId('panel-unavailable'), 0);
-  });
-
-  it('виджет рисуется по when: без курса в фокусе — один, с курсом — другой; значение пересчитывается без перезагрузки', async () => {
-    const { client, page } = await prepare();
-    const titles = async () =>
-      (
-        await widgetCards(page)
-          .getByRole('heading', { level: 3 })
-          .allInnerTexts()
-      ).map((text) => text.trim());
-
-    await expectCount(widgetCards(page), 1);
-    expect(await titles()).toEqual(['Без курса']);
-
-    const stillSameWindow = await client.markWindow();
-    await client.openCourses();
-    await client.focusCourse(PLAIN_COURSE);
-    await expectCount(widgetCards(page), 1);
-    expect(await titles()).toEqual(['С курсом']);
-    await stillSameWindow();
   });
 
   it('when по курсу в фокусе и по теме меняет палитру на лету', async () => {

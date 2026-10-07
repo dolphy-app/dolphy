@@ -1,23 +1,14 @@
 /**
- * Порт видов заданий: каталог видов из манифестов расширений и вызовы
+ * Порт видов заданий: каталог видов, зарегистрированных расширениями и вызовы
  * `project`/`grade`/`referenceAnswer` в хосте расширений. Адаптеры живут в
  * `@dolphy-app/extension-host`; ядро знает только этот интерфейс.
  */
-import type { ExtensionOriginDto } from '@dolphy-app/engine-contract';
 import type { RawVerdict } from './index.ts';
 
 export interface ExerciseTypeInfo {
   type: string;
   extensionId: string;
   extensionVersion: string;
-  /** Откуда расширение (поставка, пользователь, режим разработчика). */
-  extensionOrigin: ExtensionOriginDto;
-  /** Отпечаток файлов расширения; у расширений из поставки — пустая строка. */
-  extensionRevision: string;
-  /** Тег custom element'а, рисующего ввод ответа. */
-  element: string;
-  /** `dolphy-ext://<extensionId>/<renderer>`. */
-  rendererUrl: string;
 }
 
 export type ExerciseTypeErrorCause =

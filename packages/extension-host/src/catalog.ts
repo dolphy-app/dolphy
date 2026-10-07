@@ -6,6 +6,7 @@ import type {
 } from '@dolphy-app/engine/ports';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import type { ErrorObject, ValidateFunction } from 'ajv/dist/2020.js';
+import type { RegisteredExerciseType } from '@dolphy-app/extension-api';
 import type { ResolvedExtension } from './discover.ts';
 import type { DiscoverySource } from './holder.ts';
 
@@ -40,12 +41,39 @@ interface View {
   policyInfos: GradePolicyInfo[];
 }
 
+const newAjv = (): Ajv2020 => new Ajv2020({ allErrors: true, strict: false });
+
+/**
+ * Первая схема видов задания, которая не компилируется, с текстом ошибки;
+ * `null` — все схемы годятся. Расширение с такой схемой отвергается при сборке
+ * снимка (`load-failed`), поэтому вид строится только из компилируемых.
+ */
+export const exerciseTypeIssue = (
+  types: readonly RegisteredExerciseType[],
+): string | null => {
+  const ajv = newAjv();
+  for (const { id, specSchema, answerSchema } of types) {
+    for (const [label, schema] of [
+      ['specSchema', specSchema],
+      ['answerSchema', answerSchema],
+    ] as const) {
+      try {
+        ajv.compile(schema);
+      } catch (error) {
+        return `exercise type '${id}': ${label} does not compile: ${error instanceof Error ? error.message : String(error)}`;
+      }
+    }
+  }
+  return null;
+};
+
 const buildView = (source: readonly ResolvedExtension[]): View => {
-  const ajv = new Ajv2020({ allErrors: true, strict: false });
   const entries = new Map<string, Entry>();
   const policyOwners = new Map<string, ResolvedExtension>();
   const policyInfos: GradePolicyInfo[] = [];
   for (const owner of source) {
+    // свой Ajv на расширение: одинаковый `$id` у схем разных расширений не конфликтует
+    const ajv = newAjv();
     for (const type of owner.exerciseTypes) {
       entries.set(type.id, {
         owner,
@@ -53,10 +81,6 @@ const buildView = (source: readonly ResolvedExtension[]): View => {
           type: type.id,
           extensionId: owner.id,
           extensionVersion: owner.version,
-          extensionOrigin: owner.origin,
-          extensionRevision: owner.revision,
-          element: type.element,
-          rendererUrl: type.rendererUrl,
         },
         validateSpec: ajv.compile(type.specSchema),
         validateAnswer: ajv.compile(type.answerSchema),

@@ -24,6 +24,7 @@ import {
 import { resolveCourseScope } from '../course-scope.ts';
 import type { EngineContext } from '../context.ts';
 import { EngineError } from '../errors.ts';
+import { runBatchHook } from '../hooks.ts';
 
 /** Граница размера плана — самый большой замеренный план (engine-ts-api.md §10). */
 export const MAX_PLAN_ITEMS = 200;
@@ -32,7 +33,8 @@ const creditSignature = ({ lambda, minCredit, kappa }: CreditParams) =>
   `${lambda}:${minCredit}:${kappa}`;
 
 /**
- * `plan.getDay` (F4, engine-ts.md §6a.2): чистая функция состояния и `seed`.
+ * `plan.getDay` (F4, engine-ts.md §6a.2): функция состояния, `seed` и хука
+ * `practice.batch` расширений (только они могут изменить результат).
  * Читает проекции, не меняет `SessionState` и `frequencyMap` (в отличие от
  * `getBatch`) и ничего не пишет в журнал. Граф охвата и кредит-модель
  * кэшируются по библиотеке и опциям.
@@ -155,19 +157,28 @@ export const createPlanService = (ctx: EngineContext): PlanService => {
       { maxItems, rng: createSeededRng(usedSeed) },
     );
 
+    const planned = items.map(({ exerciseId, reason, covers }): PlanItemDto => {
+      const withCovers =
+        implicitCredit.enabled && covers.length > 0
+          ? {
+              covers: covers.map((cover) => ({
+                exerciseId: cover.exerciseId,
+                credit: cover.credit,
+              })),
+            }
+          : {};
+      return { exerciseId, reason, ...withCovers };
+    });
+    // хук может переставить, убрать и добавить; оставленные элементы сохраняют `covers`
+    const hooked = await runBatchHook(ctx, 'plan', planned);
+    const plannedById = new Map(planned.map((item) => [item.exerciseId, item]));
+
     return {
-      items: items.map(({ exerciseId, reason, covers }): PlanItemDto => {
-        const withCovers =
-          implicitCredit.enabled && covers.length > 0
-            ? {
-                covers: covers.map((cover) => ({
-                  exerciseId: cover.exerciseId,
-                  credit: cover.credit,
-                })),
-              }
-            : {};
-        return { exerciseId, reason, ...withCovers };
-      }),
+      items: hooked.map(({ exerciseId, reason }): PlanItemDto => ({
+        ...plannedById.get(exerciseId),
+        exerciseId,
+        reason,
+      })),
       interleaveOk,
       implicitCreditEnabled: implicitCredit.enabled,
       seed: usedSeed,

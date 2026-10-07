@@ -264,9 +264,9 @@ describe('createFakeExerciseTypes', () => {
 
   it('describes only configured types and reports missing references', async () => {
     const types = createFakeExerciseTypes({
-      types: { 'fake.t': { element: 'fake-el' } },
+      types: { 'fake.t': {} },
     });
-    expect(types.describe('fake.t')?.element).toBe('fake-el');
+    expect(types.describe('fake.t')?.extensionId).toBe('fake.t');
     expect(types.describe('other')).toBeUndefined();
     expect(types.validateSpec('other', {})).toEqual(['unknown exercise type']);
     expect(
@@ -291,29 +291,21 @@ describe('createFakeExtensionRegistry', () => {
       state: 'invalid',
       contributes: {
         exerciseTypes: [],
-        themes: [],
-        markdownRenderers: [],
         gradePolicies: [],
         settings: [],
         events: [],
         commands: [],
-        widgets: [],
         schedules: [],
-        panels: [],
         importers: [],
         exporters: [],
       },
       diagnostics: [{ code: 'load-failed', data: { reason: 'broken' } }],
-      permissions: [],
-      isolation: 'isolated',
       toggleable: false,
       name: null,
       description: null,
       author: null,
       dependencies: [],
       icon: null,
-      titles: {},
-      messages: {},
       tags: [],
       installed: null,
       removable: true,
@@ -325,18 +317,14 @@ describe('createFakeExtensionRegistry', () => {
 
   it('has empty contributions by default and returns the given ones', () => {
     const empty = {
+      clients: [],
       exerciseTypes: [],
-      themes: [],
-      markdownRenderers: [],
       gradePolicies: [],
       settings: [],
       commands: [],
-      panels: [],
-      widgets: [],
       schedules: [],
       importers: [],
       exporters: [],
-      messages: {},
     };
     expect(createFakeExtensionRegistry().contributions()).toEqual(empty);
     const given = {
@@ -350,14 +338,11 @@ describe('createFakeExtensionRegistry', () => {
 });
 
 describe('createFakeExtensionPolicy', () => {
-  it('isolates everything except bundled and trusted; disabled only by settings', () => {
+  it('bundled extensions stay enabled; the rest are disabled only by settings', () => {
     const policy = createFakeExtensionPolicy({ bundled: ['dolphy.sql'] });
-    expect(policy.isIsolated('acme.x')).toBe(true);
-    expect(policy.isIsolated('dolphy.sql')).toBe(false);
     expect(policy.isEnabled('acme.x')).toBe(true);
     policy.update({
       disabled: ['acme.x', 'dolphy.sql'],
-      trusted: ['acme.x'],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -366,7 +351,6 @@ describe('createFakeExtensionPolicy', () => {
     });
     expect(policy.isEnabled('acme.x')).toBe(false);
     expect(policy.isEnabled('dolphy.sql')).toBe(true);
-    expect(policy.isIsolated('acme.x')).toBe(false);
     expect(policy.updates).toHaveLength(1);
   });
 
@@ -375,7 +359,6 @@ describe('createFakeExtensionPolicy', () => {
     expect(policy.areSchedulesOn('acme.x')).toBe(true);
     policy.update({
       disabled: [],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],

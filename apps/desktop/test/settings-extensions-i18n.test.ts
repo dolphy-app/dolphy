@@ -4,12 +4,10 @@ import {
   EXTENSION_DIAGNOSTIC_CODES,
   LOG_LEVELS,
 } from '@dolphy-app/engine-contract';
-import {
-  EXTENSION_PERMISSIONS,
-  EXTENSION_TAGS,
-} from '@dolphy-app/extension-api';
+import { EXTENSION_TAGS } from '@dolphy-app/extension-api';
 import { EVENT_MESSAGE_KEYS } from '@/pages/settings/lib/catalog.ts';
 import { GROUPS } from '@/pages/settings/lib/tags.ts';
+import { CONTRIBUTION_POINTS } from '@/pages/settings/model/extensions.ts';
 import { messages as settingsMessages } from '@/pages/settings/i18n/index.ts';
 import { russianPluralRule } from '@/shared/i18n';
 
@@ -49,6 +47,12 @@ describe('строки «Расширения»', () => {
     );
   });
 
+  it('сбой загрузки кода показывает причину из диагностики на обоих языках', () => {
+    for (const locale of ['ru', 'en'] as const) {
+      expect(leaf(locale, 'diagnostic.load-failed')).toContain('{reason}');
+    }
+  });
+
   it('каждый код диагностики имеет текст на обоих языках', () => {
     for (const locale of ['ru', 'en'] as const) {
       for (const code of EXTENSION_DIAGNOSTIC_CODES) {
@@ -85,23 +89,14 @@ describe('строки «Расширения»', () => {
     }
   });
 
-  it('каждое разрешение имеет подпись на обоих языках: диалог установки, каталог и список не показывают сырой id', () => {
-    const labels = { ru: 'Статистика обучения', en: 'Learning statistics' };
-    const notificationLabels = {
-      ru: 'Системные уведомления',
-      en: 'System notifications',
-    };
+  it('каждая точка вклада и сообщение о сбое клиентской части есть на обоих языках', () => {
     for (const locale of ['ru', 'en'] as const) {
-      for (const permission of EXTENSION_PERMISSIONS) {
-        expect(
-          leaf(locale, `permissions.${permission}`),
-          `${locale} ${permission}`,
-        ).not.toBe('');
+      for (const point of CONTRIBUTION_POINTS) {
+        expect(leaf(locale, `points.${point}`), `${locale} ${point}`).not.toBe(
+          '',
+        );
       }
-      expect(leaf(locale, 'permissions.learning.stats')).toBe(labels[locale]);
-      expect(leaf(locale, 'permissions.notifications')).toBe(
-        notificationLabels[locale],
-      );
+      expect(leaf(locale, 'clientFailed.title'), locale).not.toBe('');
     }
   });
 

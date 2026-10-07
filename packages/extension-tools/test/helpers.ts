@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { cp, mkdir, mkdtemp, rm, symlink } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, realpath, rm, symlink } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -24,19 +24,19 @@ export const makeTemp = async (): Promise<string> => {
   return dir;
 };
 
-/** Makes the SDK resolvable from a project in a temporary directory (in a real project it sits in node_modules). */
-export const linkSdk = async (root: string): Promise<void> => {
-  const scope = path.join(root, 'node_modules', '@dolphy-app');
-  await mkdir(scope, { recursive: true });
+/** Makes Vue resolvable from a project in a temporary directory (in a real project it sits in node_modules). */
+export const linkVue = async (root: string): Promise<void> => {
+  const sdk = fileURLToPath(new URL('../../extension-sdk', import.meta.url));
+  await mkdir(path.join(root, 'node_modules'), { recursive: true });
   await symlink(
-    fileURLToPath(new URL('../../extension-sdk', import.meta.url)),
-    path.join(scope, 'extension-sdk'),
+    await realpath(path.join(sdk, 'node_modules', 'vue')),
+    path.join(root, 'node_modules', 'vue'),
   );
 };
 
 /**
  * Copy of a fixture project in a temporary directory (the build does not write to
- * the repository); the SDK is resolvable as in an author's project. `isLinked: false` — a copy
+ * the repository); Vue is resolvable as in an author's project. `isLinked: false` — a copy
  * without `node_modules`, e.g. to put the project into a catalog repository.
  */
 export const copyProject = async (
@@ -45,7 +45,7 @@ export const copyProject = async (
 ): Promise<string> => {
   const dir = path.join(await makeTemp(), name);
   await cp(path.join(projectsDir, name), dir, { recursive: true });
-  if (isLinked) await linkSdk(dir);
+  if (isLinked) await linkVue(dir);
   return dir;
 };
 

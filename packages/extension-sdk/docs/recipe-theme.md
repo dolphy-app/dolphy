@@ -1,7 +1,8 @@
 # Recipe: a theme
 
-A theme is data: no TypeScript, no `main.mjs`. This recipe is the `theme`
-template (`npx @dolphy-app/create-extension <dir> --id acme.hello --template theme`).
+A theme is data that the client part registers: no server part, no `main.mjs`.
+This recipe is the `theme` template
+(`npx @dolphy-app/create-extension <dir> --id acme.hello --template theme`).
 The files below are exactly what the generator writes for the id `acme.hello`.
 See [quick-start.md](quick-start.md) for the commands.
 
@@ -18,49 +19,74 @@ File `extension.json` (theme):
   "name": "Midnight",
   "description": "A dark color theme with an amber accent for the Dolphy app.",
   "author": "your-github-login",
-  "tags": ["theme"],
-  "contributes": {
-    "themes": [
-      {
-        "id": "acme.hello",
-        "label": "Midnight",
-        "dark": true,
-        "colors": {
-          "background": "#101820",
-          "surface": "#1B2733",
-          "on-background": "#E6EDF3",
-          "on-surface": "#E6EDF3",
-          "primary": "#FFB000",
-          "on-primary": "#101820"
-        },
-        "variables": { "border-opacity": 0.2 }
-      }
-    ]
-  }
+  "tags": ["theme"]
 }
 ```
 
-- `contributes.themes[]` has an `id` (not `system`, `light` or `dark`), a
-  `label` of 1–60 characters and `dark`, which says whether the theme is dark
-  and so picks the base colors of the interface that `colors` then override.
+The manifest holds the identity only; the colors are in the code.
+
+## The code
+
+File `src/theme.ts` (theme):
+
+```ts
+import type { ThemeRegistration } from '@dolphy-app/extension-sdk';
+
+// the allowed color and variable keys are `THEME_COLOR_KEYS` and
+// `THEME_VARIABLE_KEYS` of '@dolphy-app/extension-sdk'
+export const midnight: ThemeRegistration = {
+  id: 'acme.hello',
+  label: 'Midnight',
+  dark: true,
+  colors: {
+    background: '#101820',
+    surface: '#1B2733',
+    'on-background': '#E6EDF3',
+    'on-surface': '#E6EDF3',
+    primary: '#FFB000',
+    'on-primary': '#101820',
+  },
+  variables: { 'border-opacity': 0.2 },
+};
+```
+
+File `src/index.ts` (theme):
+
+```ts
+import { defineClient } from '@dolphy-app/extension-sdk';
+import { midnight } from './theme.ts';
+
+// runs in the app window: a theme is data, there is no server part
+export const client = defineClient((c) => {
+  c.addTheme(midnight);
+});
+```
+
+- `client.addTheme(registration)` adds a tile to Settings → Appearance next to
+  System, Light and Dark. `id` is the extension id or starts with it and a dot,
+  and is not `system`, `light` or `dark`; `label` is a `LocalizedText` of 1–60
+  characters; `dark` says whether the theme is dark, which picks the base colors
+  of the interface that `colors` then override.
 - `colors` are `#rrggbb` or `#rrggbbaa` values for a fixed list of roles
   (`background`, `surface`, `primary`, the `on-…` colors for text drawn on them,
-  `error`, `success`…). A key outside the list is rejected by `pnpm validate`.
-  Pair every background with a readable text color.
-- `variables` are optional tokens from a fixed list; here `border-opacity`, a
-  number from 0 to 1.
-- `build` of a project with no code writes only `extension.json` to `dist-ext`.
+  `error`, `success`…). The list is `THEME_COLOR_KEYS` of the SDK; a key outside
+  it fails the registration. Pair every background with a readable text color.
+- `variables` are optional tokens from `THEME_VARIABLE_KEYS`; here
+  `border-opacity`, a number from 0 to 1.
+- The build of this project writes `extension.json` and `client.mjs` to
+  `dist-ext`: there is no `server` export, so no `main.mjs`.
 
 ## The test
 
 File `test/theme.test.ts` (theme):
 
 ```ts
+import { createTestClient } from '@dolphy-app/extension-sdk/testing';
 import { describe, expect, it } from 'vitest';
-import manifest from '../extension.json';
+import { client } from '../src/index.ts';
+import { midnight } from '../src/theme.ts';
 
-const [theme] = manifest.contributes.themes;
-const colors: Record<string, string> = theme.colors;
+const colors = midnight.colors;
 
 // WCAG relative luminance of a #rrggbb color
 const luminance = (hex: string): number => {
@@ -79,6 +105,12 @@ const contrast = (foreground: string, background: string): number => {
 };
 
 describe('acme.hello: theme', () => {
+  it('the client adds the theme', async () => {
+    const running = await createTestClient(client, { extensionId: 'acme.hello' });
+    expect(running.themes).toEqual([midnight]);
+    await running.dispose();
+  });
+
   it.each([
     ['on-surface', 'surface'],
     ['on-background', 'background'],
@@ -91,16 +123,16 @@ describe('acme.hello: theme', () => {
   it('a dark theme has a dark background and a light text', () => {
     const background = luminance(colors['background'] as string);
     const text = luminance(colors['on-background'] as string);
-    expect(theme.dark ? background < text : background > text).toBe(true);
+    expect(midnight.dark ? background < text : background > text).toBe(true);
   });
 });
 ```
 
-A project with no code still has something worth testing. The test reads the
-manifest and checks the WCAG contrast of each text color against its background
-(at least 4.5:1) and that `dark` agrees with the colors. A failing contrast is a
-real bug the learner would see, and the test also gives `vitest run` a file to
-run. Keep the test when you change the colors.
+`createTestClient(client, { extensionId })` runs `client` on a context that
+records what it adds, so the test sees the theme in `running.themes`. The rest
+checks the WCAG contrast of each text color against its background (at least
+4.5:1) and that `dark` agrees with the colors. A failing contrast is a real bug
+the learner would see. Keep the test when you change the colors.
 
 ## Try and ship
 
@@ -111,6 +143,6 @@ pnpm dev
 ```
 
 With `DOLPHY_DEV_EXTENSIONS` pointing at `dist-ext` (see the quick start) the
-theme appears as a tile in Settings → Appearance next to System, Light and
-Dark; saving `extension.json` is picked up by the running app. Change the id, the label and the colors; change `tags` and
+theme appears as a tile in Settings → Appearance; saving a file is picked up by
+the running app. Change the id, the label and the colors; change `tags` and
 `description` too, the catalog shows them.

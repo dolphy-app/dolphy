@@ -1,6 +1,6 @@
 # @dolphy-app/extension-sdk
 
-SDK for extension authors ("exercise types"). The whole public API of
+SDK for extension authors. The whole public API of
 `@dolphy-app/extension-api` is re-exported from here; you do not install it
 separately.
 
@@ -17,473 +17,379 @@ repository's tests:
   [`docs/recipe-theme.md`](docs/recipe-theme.md),
   [`docs/recipe-command-panel.md`](docs/recipe-command-panel.md),
   [`docs/recipe-event-storage.md`](docs/recipe-event-storage.md),
+  [`docs/recipe-hooks.md`](docs/recipe-hooks.md),
   [`docs/recipe-settings.md`](docs/recipe-settings.md),
   [`docs/recipe-import-export.md`](docs/recipe-import-export.md),
-  [`docs/recipe-when-dependencies.md`](docs/recipe-when-dependencies.md) and
-  [`docs/recipe-ui-kit.md`](docs/recipe-ui-kit.md);
-- [`docs/no-build.md`](docs/no-build.md) — an extension from two hand-written
+  [`docs/recipe-when-dependencies.md`](docs/recipe-when-dependencies.md),
+  [`docs/recipe-rpc-and-app.md`](docs/recipe-rpc-and-app.md);
+- [`docs/no-build.md`](docs/no-build.md) — an extension from hand-written
   files, no TypeScript and no build;
 - [`docs/debugging.md`](docs/debugging.md) — tests, checks, the development loop
   (`dolphy-ext dev`), DevTools and the log.
 
-An extension's code is one file, `src/index.ts`, with named exports. The build
-(`dolphy-ext build`, `@dolphy-app/extension-tools`) lays it out into
-`main.mjs`, `view.mjs`, `panel.mjs` and `markdown.mjs`:
+## Two entries
+
+`extension.json` holds the identity of the extension (id, version, name,
+author, tags, dependencies). Everything the extension adds to the app is
+registered by code. `src/index.ts` exports up to two entries:
+
+- `server` — runs in the extension host process; registers exercise types,
+  grade policies, settings, event handlers, commands, schedules, importers and
+  exporters. `dolphy-ext build` writes it to `main.mjs`.
+- `client` — runs in the app window; adds panels, injected components, answer
+  views, markdown renderers, themes and client commands. `dolphy-ext build`
+  writes it to `client.mjs`.
+
+`dolphy-ext build` writes the names of the built files into `main` and
+`client` of the built `extension.json`. An extension may have either entry or
+both. Ids are written in the code, prefixed with the extension id.
 
 ```ts
 // src/index.ts
-import { defineAnswerView, defineExtension } from '@dolphy-app/extension-sdk';
-import type { ExtensionViews } from '@dolphy-app/extension-sdk';
+export { client } from './client.ts';
+export { server } from './server.ts';
+```
 
-// code of the extension host process (main.mjs)
-export const host = defineExtension({
-  exerciseTypes: {
-    'acme.echo': {
+```ts
+// src/server.ts — the extension host
+import { defineExerciseType, defineServer } from '@dolphy-app/extension-sdk';
+
+export const server = defineServer((s) => {
+  s.registerExerciseType(
+    defineExerciseType<{ expected: string }, string, Record<string, never>>({
+      id: 'acme.echo',
+      specSchema: {
+        type: 'object',
+        required: ['expected'],
+        properties: { expected: { type: 'string' } },
+      },
+      answerSchema: { type: 'string' },
       project: () => ({}),
       grade: ({ spec, answer }) =>
-        answer === (spec as { expected: string }).expected
+        answer === spec.expected
           ? { outcome: 'passed' }
           : { outcome: 'failed', reason: 'mismatch' },
-    },
-  },
+    }),
+  );
 });
+```
 
-// answer input in the app window (view.mjs): exercise type id -> view
-export const views = {
-  'acme.echo': defineAnswerView((api, props) => {
-    const input = document.createElement('input');
-    input.oninput = () => api.setAnswer(input.value, input.value.length > 0);
-    api.root.append(input);
-    return { update: (next) => void (input.disabled = next.disabled) };
-  }),
-} satisfies ExtensionViews;
+```ts
+// src/client.ts — the app window
+import { defineClient } from '@dolphy-app/extension-sdk';
+import { EchoAnswer } from './echo-answer.ts';
+
+export const client = defineClient((c) => {
+  c.addAnswerView('acme.echo', EchoAnswer);
+});
 ```
 
 ```ts
 // test/index.test.ts — checks without the app
-import { loadExerciseType, loadView } from '@dolphy-app/extension-sdk/testing';
-import { host, views } from '../src/index.ts';
+import { createTestServer } from '@dolphy-app/extension-sdk/testing';
+import { server } from '../src/index.ts';
 
-const echo = await loadExerciseType(host, 'acme.echo');
-await echo.grade({ spec: { expected: '42' }, answer: '42' }); // { outcome: 'passed' }
-
-const view = await loadView(views, 'acme.echo'); // needs a DOM (happy-dom)
-view.query<HTMLInputElement>('input'); // the view's shadow DOM
+const running = await createTestServer(server);
+await running.exerciseType('acme.echo').grade({
+  spec: { expected: '42' },
+  answer: '42',
+}); // { outcome: 'passed' }
 ```
 
-Importing `src/index.ts` has no side effects: `defineAnswerView` and the other
-`define…` functions only describe things, so the file can be imported in tests
-in plain Node. The package is `"sideEffects": false`. The custom element with
-the tag from the manifest `element` is defined by the browser file the build
-generates, not by your code.
+Keep the two parts in separate files and re-export them from `src/index.ts`:
+the server part must not import `vue`, `vuetify` or a component, the client part
+must not import `node:*` modules; the build reports a violation with the file
+and the rule. Importing `src/index.ts` has no side effects: `defineServer`
+and `defineClient` return their argument unchanged and are marked
+`/*#__NO_SIDE_EFFECTS__*/`. The package is `"sideEffects": false`.
 
-- `defineAnswerView(mount)` — an entry of `views` (key: exercise type id).
-  `mount(api, props)` gets `api.root` (shadow root), `api.label` (the app's
-  `aria-label`), `api.setAnswer(value, complete)` and `api.submit()`, and
-  returns `{ update(props), destroy?() }`; `props` are `view`, `value`,
-  `disabled`, `verdict`.
-- `defineExtensionPanel({ mount(container, ctx) })` — an entry of `panels`
-  (key: panel id).
-- `defineExtensionWidget({ mount(container, ctx) })` — an entry of `widgets`
-  (key: widget id; see "Widgets").
-- `defineMarkdownRenderer(render)` — an entry of `markdown` (key: block
-  language); `render(source, container, { language, signal })`. When it throws,
-  the app keeps the original block text.
-- `defineExtension({ exerciseTypes?, gradePolicies?, events?, commands?, activate?, deactivate? })`
-  — the `host` export. `gradePolicies` is a dictionary `id -> GradePolicyHandler`;
-  policies are registered and released together with the exercise types;
-  `events` is a dictionary `event name -> handler` (see "State, settings and
-  events").
-- The keys of `views`, `panels`, `widgets` and `markdown` must be exactly the
-  exercise types, panels, widgets and languages the manifest declares; the build reports a
-  missing or extra key, and `satisfies ExtensionViews` (`ExtensionPanels`,
-  `ExtensionWidgets`, `ExtensionMarkdown`) makes the compiler report it first (see "Typed ids").
+- `defineServer(entry)` — `entry(server)` gets a `ServerContext`; every
+  `register…` call returns a `Disposable` that removes the contribution. The
+  host runs the entry when it loads the extension (not lazily). A failure, an
+  invalid registration or more than 10 seconds leave the extension without any
+  contribution and show `load-failed` in "Settings → Extensions". The entry may
+  return a cleanup function (or a `Disposable`), called when the extension is
+  unloaded.
+- `defineClient(entry)` — `entry(client)` gets a `ClientContext` where the
+  components are Vue components: `addPanel({ id, title, component, icon?, when? })`,
+  `addInjection({ id, target, position?, component })`,
+  `addAnswerView(exerciseTypeId, component)`,
+  `addMarkdownRenderer(language, component)`, `addTheme(registration)`,
+  `addCommand({ id, title, run, … })`. Components are passed directly; there is
+  no wrapper to call.
+- `defineExerciseType(registration)` — only infers `Spec`, `Answer` and `View`
+  from the handlers of an exercise type registration.
+- Texts the user sees (`title`, `label`, `description`, `category`, `group`)
+  are `LocalizedText`: a string, or `{ en, ru? }`; `resolveLocalizedText(text,
+locale)` picks one.
 
-Themes need no code: they are data in `extension.json`. Details on all
-contribution points are in `docs/design/extensions.md`, "Точки вклада".
+### Components
 
-## Typed ids
+- An answer view takes the props of `AnswerViewProps` (`view`, `value`,
+  `disabled`, `verdict`, `label`) and emits `change` with an `AnswerChange`
+  (`{ value, complete }`) and `submit` without data.
+- A markdown renderer takes the props of `MarkdownBlockProps` (`source`,
+  `language`). When it fails the app shows an error block in place of the block
+  and the rest of the text stays.
+- `usePanel()` from `@dolphy-app/extension-sdk/client`, inside a panel
+  component, returns the handle: `panelId`, the reactive `props` the panel was
+  opened with (a repeated `openPanel(id, props)` updates them in place), the
+  reactive `context` (`{ courseId }`) and `call(commandId, args?)`, which
+  reaches the commands of this extension (`palette: false` ones included).
+  Outside a panel it throws.
+- `useInjection()`, inside an injected component, returns `target` (the
+  element the component is drawn at) and `position`. Outside an injected
+  component it throws.
+- `usePanel()` takes the command ids as a type parameter:
+  `usePanel<'acme.go' | 'acme.stop'>()` narrows `call`.
+- `useApp()` returns the window API (`AppApi`): `openCourse(courseId)`,
+  `openLesson(courseId, lessonId)`, `openExercise(courseId, lessonId,
+exerciseId)`, `openPanel(extensionId, panelId, props?)`,
+  `openSettings(extensionId?)`, `notify(message, kind?)`, the reactive
+  `theme` (`{ id, dark }`) and `locale` (`'en' | 'ru'`), `runCommand(commandKey)`
+  for a palette command (`extension:<extension id>:<command id>` for an
+  extension command) and `mountAt(target, component, props?)`, which mounts a
+  component into an element (a CSS selector or an `Element`; the first match
+  is taken at the call) and returns a `Disposable` that unmounts it. The
+  same object is `client.app`. It is a fixed list of capabilities: the
+  window's stores and router are not reachable.
+- `useEngine()` returns the window's engine client (`ExtensionEngine`): every
+  method of the engine contract, writing ones included, and `subscribe`, but
+  not `close`. The same object is `client.engine`.
+- `useRpc(contract)` returns `(input) => Promise<output>` that calls the
+  handler the server part registered with `s.handle(contract, …)`; see
+  "Client–server calls". `useApp`, `useEngine` and `useRpc` throw outside a
+  component the app draws.
 
-`dolphy-ext types` (and every `dolphy-ext build`, also each `--watch` rebuild
-after `extension.json` changes) reads `extension.json` and writes
-`.dolphy/ids.d.ts`. It augments `ExtensionIds` of this package, so the ids the
-manifest declares become types. No author code is run. Add the file to
-`tsconfig.json` (`"include": ["src", ".dolphy/ids.d.ts"]` — a bare `.dolphy`
-entry is skipped because it is a hidden directory) and keep `.dolphy` out of
-git; the project template does both.
+### Injection
 
-```ts
-// extension.json declares: exercise type acme.echo, commands acme.a and
-// acme.b, the event attempt.closed, setting acme.goal (number)
-import { defineExtension, inActivate } from '@dolphy-app/extension-sdk';
+`client.addInjection({ id, target, position?, component })` draws a component
+at every element of the window that matches the CSS selector `target`: `before`
+or `after` it, or inside it as its first (`prepend`) or last (`append`, the
+default) child. The window watches its DOM: the component is mounted when a
+target appears, removed when it goes away, and removed when the injection is
+disposed or the extension is unloaded. `id` is unique within the extension.
+The component runs in the app's own tree, so `inject`, Vuetify, the theme and
+the language work; a failure shows an error card in its place and does not
+affect the rest of the window.
 
-export const host = defineExtension({
-  // each record names exactly the declared ids: a missing or an extra key does
-  // not compile
-  exerciseTypes: { 'acme.echo': echo },
-  events: { 'attempt.closed': ({ grade }) => void grade },
-  // `inActivate` — "this id is registered in activate, with ctx"
-  commands: { 'acme.a': () => 'a', 'acme.b': inActivate },
-  activate(ctx) {
-    ctx.settings.get('acme.goal'); // number
-    ctx.settings.get('acme.nope'); // error: not declared
-    ctx.commands.register('acme.b', () => ctx.settings.get('acme.goal'));
-  },
-});
-```
+The app marks stable places with the `data-ext-anchor` attribute
+(`ANCHOR_ATTRIBUTE`); `anchorSelector('dailyPlan')` selects the "Daily plan"
+screen's anchor. Any other selector depends on the app's markup, which may
+change between versions.
 
-- `defineExtension({ exerciseTypes, gradePolicies, events, commands })` — a
-  record is required when the manifest declares ids of its kind (and must be
-  left out when it declares none), and it names every declared id exactly once.
-  A handler that needs `ctx` is written in `activate`; its id gets the value
-  `inActivate` in the record. The host still warns after activation about a
-  declared id nobody registered.
-- `ctx.settings.get(id)` returns the type of the setting: `boolean`, `string`
-  (also for `text` and `color`), `string[]` for a `list`, `number`, or the union
-  of the option values of an `enum`.
-  `ctx.settings.onDidChange` hands over `{ id, value }` that narrows `value` by
-  `id`. `ctx.commands.register`, `ctx.importers.register`,
-  `ctx.exporters.register`, `ctx.events.on` (the handler payload follows
-  the event name), `ctx.registerExerciseType` and `ctx.registerGradePolicy`
-  accept the declared ids only; so do `ctx.call` in a panel and `openPanel`.
-- Write `export const views = { … } satisfies ExtensionViews` (likewise
-  `panels` with `ExtensionPanels` and `markdown` with `ExtensionMarkdown`):
-  the keys must be exactly the declared exercise types, panels and languages.
-- Without `.dolphy/ids.d.ts` (no generated file) every id is a plain `string`,
-  `ctx.settings.get` returns `boolean | string | number | string[]`, and the records are
-  optional and open.
+`vue` and `vuetify` (`vuetify/components`, `vuetify/directives`) are imported as
+usual in client code; the build leaves them out of the bundle and the app gives
+the components its own instances, so the theme and language of the app apply
+(`vuetify/styles` is dropped too).
 
-## Testing helpers
-
-`@dolphy-app/extension-sdk/testing`:
-
-- `loadExerciseType(host, type)`, `loadGradePolicy(host, id)`,
-  `loadEvents(host, options?)`, `loadCommands(host, options?)`,
-  `loadSchedules(host, options?)`, `loadImporters(host, options?)`,
-  `loadExporters(host, options?)` activate the
-  `host` export as it is, with in-memory storage, settings, events and
-  commands, and give the test the handlers (`grade`, `evaluate`, `emit`, `run`,
-  `dispose()`). `loadExerciseType` checks the shape of results;
-  `loadGradePolicy` checks that a result is an integer 1–5 or `null`.
-- `loadView(views, id, options?)` mounts the view in the test DOM (happy-dom or
-  jsdom) with the same element the app creates. `options`: initial `view`,
-  `value`, `disabled`, `verdict`, `label` (the host `aria-label`) and
-  `container`. It returns `changes` (`dolphy-answer-change` details, in order),
-  `submissions`, `update(props)` (sets properties and waits until the view has
-  applied them), `query(selector)` / `queryAll(selector)` over the shadow DOM,
-  `root`, `element` and `dispose()`.
-- `loadPanel(panels, id, options?)` mounts the panel with the context the frame
-  gives it. `options`: `props`, `call(commandId, args)` (the answer to
-  `ctx.call`; without it calls are rejected) and `container`. It returns
-  `container`, `calls`, `aborted`, `setProps(props)` (delivers new `ctx.onProps`
-  values), `setContext({ courseId })` (changes `ctx.context` and notifies
-  `ctx.onContextChange`; `options.context` sets the start value) and
-  `dispose()` (aborts `ctx.signal`).
-- `loadWidget(widgets, id, options?)` does the same for a widget: `options`
-  `call`, `context`, `container`; it returns `container`, `calls`, `aborted`,
-  `setContext` and `dispose()`.
-- `createSchemaValidator(schema)`, `createMemoryLibrary(files)`,
-  `createMemoryStorage()`, `createMemorySettings(definitions, values?)`,
-  `createMemoryEvents(options?)`, `createMemoryCommands(options?)`,
-  `createMemorySchedule(options?)`, `createMemoryStats(options?)`,
-  `createMemoryNotifications(options?)`.
+## Commands, panels and `when`
 
 ```ts
-// src/index.ts — a grade policy (needs main)
-import { defineExtension } from '@dolphy-app/extension-sdk';
+// src/server.ts
+import { defineServer, notify, openPanel } from '@dolphy-app/extension-sdk';
 
-export const host = defineExtension({
-  gradePolicies: {
-    // 1–5 or null ("self-assessment needed"); a failing policy falls back to passAtN
-    'acme.policy.generous': ({ verdicts, gaveUp }) =>
-      gaveUp
-        ? 1
-        : verdicts.some(({ outcome }) => outcome === 'passed')
-          ? 5
-          : null,
-  },
+export const server = defineServer((s) => {
+  s.registerCommand({
+    id: 'acme.tools.open',
+    title: { en: 'Open tools', ru: 'Открыть инструменты' },
+    run: () => openPanel('acme.tools.main', { from: 'palette' }),
+  });
+  s.registerCommand({
+    id: 'acme.tools.ping',
+    title: 'Ping',
+    palette: false, // reachable from the panel only
+    run: () => notify('pong'),
+  });
 });
 ```
 
 ```ts
-// test/index.test.ts
-import { loadGradePolicy } from '@dolphy-app/extension-sdk/testing';
-import { host } from '../src/index.ts';
+// src/client.ts
+import { defineClient } from '@dolphy-app/extension-sdk';
+import { usePanel } from '@dolphy-app/extension-sdk/client';
+import { defineComponent, h } from 'vue';
 
-const policy = await loadGradePolicy(host, 'acme.policy.generous');
-await policy.evaluate({ verdicts: [{ outcome: 'passed' }], gaveUp: false }); // 5
-```
-
-## State, settings and events
-
-Three capabilities of the context `ctx`; details and manifest examples are in
-`docs/design/extensions.md`.
-
-```ts
-// extension.json: "permissions": ["learning.events"],
-// "contributes": { "events": [{ "event": "attempt.closed" }],
-//   "settings": [{ "id": "acme.streak.goal", "type": "number", "label": "Daily goal",
-//     "default": 3, "min": 1, "max": 20, "integer": true }] }
-import {
-  defineExtension,
-  type ExtensionContext,
-} from '@dolphy-app/extension-sdk';
-
-let ctx: ExtensionContext;
-export const host = defineExtension({
-  activate: (context) => void (ctx = context),
-  events: {
-    'attempt.closed': async ({ at }) => {
-      const day = new Date(at).toISOString().slice(0, 10);
-      const done = (await ctx.storage.get<number>(day)) ?? 0;
-      await ctx.storage.set(day, done + 1);
-      if (done + 1 === ctx.settings.get('acme.streak.goal')) {
-        ctx.logger.info({ day }, 'daily goal reached');
-      }
-    },
+const Main = defineComponent({
+  setup() {
+    const panel = usePanel();
+    void panel.call('acme.tools.ping');
+    return () => h('p', `${panel.panelId}: ${JSON.stringify(panel.props)}`);
   },
+});
+
+export const client = defineClient((c) => {
+  c.addPanel({ id: 'acme.tools.main', title: 'Tools', component: Main });
 });
 ```
 
-- `ctx.storage` — `get<T>(key)`, `set(key, value)`, `delete(key)`, `keys()`: JSON
-  under string keys, each extension has its own space; data survives restart,
-  update and disabling. No permission is needed, but there are ceilings
-  (`EXTENSION_STORAGE_LIMITS`): key — 128 characters, value — 64 KiB, 256 keys,
-  1 MiB in total. Exceeding one throws `StorageQuotaError` (`kind`, `limit`),
-  nothing is written. Works in the restricted process too.
-- `ctx.secrets` — `get(key)` (`string | undefined`), `set(key, value)`,
-  `delete(key)`: strings encrypted by the system key store (Electron
-  `safeStorage`), a private space per extension, cleared with the extension
-  data. No permission is needed; ceilings (`EXTENSION_SECRET_LIMITS`): key —
-  128 characters, value — 4 KiB, 32 keys (`StorageQuotaError`). Without a
-  secure key store (no store, Linux `basic_text`, the app is not ready) `set`
-  and `get` of an existing key throw `SecretsUnavailableError`
-  (`name: 'SecretsUnavailable'`, `code: 'SECRETS_UNAVAILABLE'`), `get` of a
-  missing key gives `undefined` and `delete` works. Never log a secret.
-- `ctx.settings` — `get(id)` (synchronous: the user's value or the
-  `default`; an `id` outside the manifest throws) and `onDidChange(handler)`: a
-  change in "Settings → Extensions" reaches the running extension without a
-  restart.
-- `ctx.events.on(name, handler)` (and `events` in `defineExtension`) — the
-  learning events `session.started`, `session.finished`, `attempt.closed`; they
-  need the `learning.events` permission and a declaration in
-  `contributes.events`, otherwise it throws. One handler per event. Delivery is
+- A command handler `run(args)` returns `notify(text)` (1–500 characters),
+  `openPanel(id, props?)`, a JSON value or nothing. It has
+  `EXTENSION_COMMAND_LIMITS.handlerMs` (10 s).
+- Commands and panels take an optional `icon`, a name from `EXTENSION_ICONS`
+  (`puzzle` by default), drawn by the app decoratively. A command also takes
+  `description`, `category`, `palette` and `keybindings` (up to
+  `EXTENSION_COMMAND_LIMITS.keybindingsPerCommand`).
+- `client.addCommand({ id, title, run })` adds a command whose handler runs in
+  the window: `run` takes no arguments and returns nothing.
+- `when` on a command, a panel or a key binding is a boolean expression over
+  `route`, `course.active`, `session.active`, `locale` and `theme.dark` (`==`,
+  `!=`, `in ('a', 'b')`, `&&`, `||`, `!`, parentheses, single-quoted strings,
+  at most 200 characters). While it is false the command is not in the palette
+  and its keys do nothing and the panel's menu item is hidden; your own code
+  still reaches them. A bad expression fails the registration with the position
+  in the message. `parseWhen(text)` and `evaluateWhen(expr, context)` are
+  exported for tests.
+
+## Server context
+
+`defineServer((s) => …)` — `s` has:
+
+- `s.registerExerciseType(registration)` — `{ id, title?, specSchema,
+answerSchema, project, grade, referenceAnswer? }`. The schemas are JSON Schema
+  2020-12 objects; the app checks `spec` and the answer against them before the
+  handlers run. `project` hides the secrets of the spec from the answer view,
+  `grade` returns a `GradeResult`.
+- `s.registerGradePolicy({ id, label, evaluate })` — `evaluate` returns an
+  integer 1–5 or `null` ("self-assessment needed"); a failing policy falls back
+  to `passAtN`.
+- `s.registerSettings(definitions)` — the settings of "Settings → Extensions"
+  (`boolean`, `string`, `text`, `color`, `list`, `number`, `enum`); the app draws
+  the form. `s.settings.get(id)` returns the user's value or the `default`
+  (an id nobody registered throws) and `s.settings.onDidChange(handler)` gets
+  `{ id, value }` after a change, without a restart.
+- `s.on(event, handler)` — the learning events `session.started`,
+  `session.finished`, `attempt.closed`. One handler per event. Delivery is
   asynchronous, in order, at most once; a handler gets 2 s; the queue holds 100
   events per extension (the oldest are dropped with a warning in the log); a
-  handler's failure, exception and timeout affect only the log.
-- `ctx.stats` — aggregated learning statistics; needs the `learning.stats`
-  permission, otherwise every call rejects with `PermissionError('learning.stats')`
-  (in the restricted process too: the engine decides, not the process).
-  `streak({ courseId? })` gives `{ current, longest }` in days, `daily({ from, to, courseId? })`
-  one `{ date, attempts, correct, accuracy }` per date from `from` to `to`
-  inclusive (`YYYY-MM-DD`, at most `EXTENSION_STATS_LIMITS.dailyDays` = 366;
-  `accuracy` is `correct / attempts`, `null` without attempts). Days are local
-  days of the user; an attempt is correct at grade 3 or higher; `current` is
-  not broken while today has no attempts yet (the streak up to yesterday
-  counts); a progress reset does not erase the history; an unknown course gives
-  zeros. The answer holds numbers and dates only: no exercise or course ids.
-- `ctx.notifications` — system notifications; needs the `notifications`
-  permission, otherwise `show` rejects with `PermissionError('notifications')`
-  (in the restricted process too: the engine decides). `show({ title, body })`
-  takes a title of 1–80 and a body of up to 300 characters (plain text; control
-  characters are removed), shows an operating-system notification that names
-  the extension (a click shows the app window) and resolves `true`; `false`
-  means the system does not support notifications or the user switched them
-  off for this extension in "Settings → Extensions". At most 3 per minute and
-  30 per hour per extension: over the limit `show` rejects with
-  `NotificationRateLimitError` (`window`, `limit`). It works only while the app
-  runs.
-- `ctx.schedule.on(id, handler)` — runs `handler` (no arguments, at most
-  `EXTENSION_SCHEDULE_LIMITS.handlerMs` = 10 s) at the times the manifest's
-  `contributes.schedules` declares, by the local clock, while the app runs.
-  `{ id, every: 'daily', at?: 'HH:MM' }` fires once a day (`at` defaults to
-  `09:00`), `{ id, every: 'hourly' }` at the start of every hour. No permission
-  is needed. `id` must be declared, otherwise `on` throws; subscribing twice
-  throws. The extension is activated at the moment of the firing. A firing
-  found more than 2 minutes after its moment (the app was closed or the
-  computer slept) is skipped and never replayed; a handler still running from
-  the previous firing misses the next one; a failure is only logged. The user
-  can switch an extension's schedules off ("Settings → Extensions →
-  Installed"). In `defineExtension` it is the `schedules` record
-  (`inActivate` when the handler needs `ctx`).
-- The host logs a warning after activation for the exercise types, grade
-  policies, events, schedules and commands the manifest declares but the code
-  did not register.
-- Test helpers: `createMemoryStorage()` (same ceilings and
-  `StorageQuotaError`), `createMemorySecrets({ available? })` (same ceilings;
-  `setAvailable(false)` imitates a missing key store), `createMemorySettings(definitions, values?)` (values are
-  checked against the definitions, `set(id, value)` calls `onDidChange`),
-  `createMemoryEvents(options?)` (`emit(name, payload)` sends an event to the
-  subscriber) and `loadEvents(host, { settings?, settingValues?, declared?, storage? })`,
-  which activates the module and returns `emit`, `storage`, `settings`. Unlike
-  the host, the helpers do not swallow a handler failure and do not count 2 s.
-  `loadExerciseType` and `loadGradePolicy` accept ready-made `storage`,
-  `settings` and `events` (objects from these helpers).
-- `createMemoryNotifications({ permitted?, supported?, enabled?, now? })` is
-  `ctx.notifications` with the engine's rules (sanitized text, length limits,
-  the minute and hour windows, `NotificationRateLimitError`): `shown` lists what
-  the app would show, `setEnabled(false)` imitates the user's "Notifications"
-  switch and `setSupported(false)` an operating system without notifications
-  (both make `show` resolve `false` without using the rate limit);
-  `permitted: false` makes every call reject with
-  `PermissionError('notifications')`. All `load*` helpers take `notifications`.
-- `createMemorySchedule({ declared? })` is `ctx.schedule`: `fire(id)` runs the
-  subscribed handler and resolves `true`; with no subscription, or while the
-  handler of the previous firing is still running, the firing is skipped and it
-  resolves `false`; a handler failure rejects the promise (the host only logs
-  it) and the 10 s limit is not applied. `ids()` lists the subscribed
-  schedules. `loadSchedules(host, options?)` activates the module with it and
-  returns `fire`, `ids`, `dispose()`; all `load*` helpers take `schedule`.
-- `createMemoryStats({ attempts?, timeZone?, now?, permitted? })` is `ctx.stats`
-  over a list of attempts (`{ at, grade, courseId? }`; more through
-  `record(attempt)`) with the app's rules: local days in `timeZone`, correct at
-  grade 3 or higher, the same range limits. `permitted: false` makes every call
-  reject with `PermissionError('learning.stats')`. All `load*` helpers take
-  `stats`; by default the statistics are empty.
+  failure only reaches the log.
+- `s.registerCommand(registration)` — see above.
+- `s.schedule(registration, handler)` — runs `handler` (no arguments, at most
+  `EXTENSION_SCHEDULE_LIMITS.handlerMs` = 10 s) by the local clock while the app
+  runs. `{ id, every: 'daily', at: 'HH:MM' }` fires once a day,
+  `{ id, every: 'hourly' }` at the start of every hour. A firing found more than
+  2 minutes after its moment is skipped and never replayed; a handler still
+  running from the previous firing misses the next one; a failure is only
+  logged. The user can switch an extension's schedules off.
+- `s.registerImporter(registration)` / `s.registerExporter(registration)` — see
+  below.
+- `s.storage` — `get<T>(key)`, `set(key, value)`, `delete(key)`, `keys()`: JSON
+  under string keys, a private space per extension that survives restart,
+  update and disabling. Ceilings (`EXTENSION_STORAGE_LIMITS`): key — 128
+  characters, value — 64 KiB, 256 keys, 1 MiB in total. Exceeding one throws
+  `StorageQuotaError` (`kind`, `limit`); nothing is written.
+- `s.secrets` — `get(key)`, `set(key, value)`, `delete(key)`: strings encrypted
+  by the system key store, a private space per extension. Ceilings
+  (`EXTENSION_SECRET_LIMITS`): key — 128 characters, value — 4 KiB, 32 keys.
+  Without a key store `set` and `get` of an existing key throw
+  `SecretsUnavailableError`; `get` of a missing key gives `undefined` and
+  `delete` works. Never log a secret.
+- `s.stats` — `streak({ courseId? })` gives `{ current, longest }` in days,
+  `daily({ from, to, courseId? })` one `{ date, attempts, correct, accuracy }`
+  per date (`YYYY-MM-DD`, at most `EXTENSION_STATS_LIMITS.dailyDays` = 366).
+  Days are local days of the user; an attempt is correct at grade 3 or higher.
+  Numbers and dates only: no exercise or course ids.
+- `s.notifications.show({ title, body })` — a system notification (title 1–80,
+  body up to 300 characters, plain text) that names the extension. Resolves
+  `true`; `false` means the system does not support notifications or the user
+  switched them off for the extension. At most 3 per minute and 30 per hour:
+  over the limit `show` rejects with `NotificationRateLimitError`.
+- `s.library` — reads the course library: `readText` and `stat`.
+- `s.logger`, `s.extensionId`.
+- `s.engine` — the engine client (`ExtensionEngine`): every method of the
+  engine contract, writing ones included, and `subscribe` for the engine
+  events, but not `close`.
+- `s.handle(contract, handler)` — answers a `defineRpc` contract; see
+  "Client–server calls".
 
-## Commands and panels
+## Client–server calls
 
-A command is the `contributes.commands` point (needs main), a panel is
-`contributes.panels` (a screen in an isolated frame, module `./panel.mjs` by
-default, main is not needed).
+`defineRpc({ name, input, output })` describes a call: `input` and `output` are
+zod schemas, `name` matches `RPC_NAME_PATTERN` (lower-case segments separated
+by dots, at least two, such as `greeting.say-hello`; at most
+`EXTENSION_RPC_LIMITS.nameLength` characters). It returns the contract as is
+and throws on a malformed name. `defineRpc` is exported from
+`@dolphy-app/extension-sdk` and from `@dolphy-app/extension-sdk/rpc`; neither
+imports `vue`, so the module with the contracts can be imported by both parts.
 
 ```ts
-// src/index.ts — handlers by id; every command is declared in the manifest
-import {
-  defineExtension,
-  defineExtensionPanel,
-  notify,
-  openPanel,
-  type ExtensionPanels,
-} from '@dolphy-app/extension-sdk';
+// src/contracts.ts — imported by both parts
+import { defineRpc } from '@dolphy-app/extension-sdk';
+import { z } from 'zod';
 
-export const host = defineExtension({
-  commands: {
-    'acme.tools.open': () => openPanel('acme.tools.main', { from: 'palette' }),
-    'acme.tools.ping': () => notify('pong'),
-  },
+export const sayHello = defineRpc({
+  name: 'greeting.say-hello',
+  input: z.object({ who: z.string() }),
+  output: z.object({ text: z.string() }),
 });
-
-export const panels = {
-  'acme.tools.main': defineExtensionPanel({
-    mount(container, ctx) {
-      container.textContent = `${ctx.panelId}: ${JSON.stringify(ctx.props)}`;
-      void ctx.call('acme.tools.ping'); // any declared command, palette: false included
-    },
-  }),
-} satisfies ExtensionPanels;
 ```
 
 ```ts
-// test/index.test.ts — checks without the app
-import { loadCommands, loadPanel } from '@dolphy-app/extension-sdk/testing';
-import { host, panels } from '../src/index.ts';
-
-const commands = await loadCommands(host, {
-  declaredCommands: ['acme.tools.open', 'acme.tools.ping'],
-  declaredPanels: ['acme.tools.main'],
-});
-await commands.run('acme.tools.ping'); // { kind: 'notify', text: 'pong' }
-
-const panel = await loadPanel(panels, 'acme.tools.main', {
-  props: { from: 'test' },
-  call: async () => undefined,
-});
-panel.calls; // [{ commandId: 'acme.tools.ping', args: undefined }]
+// src/server.ts
+s.handle(sayHello, ({ who }) => ({ text: `Hello, ${who}!` }));
 ```
-
-- `defineExtension({ commands })` — a dictionary `id -> CommandHandler`; so does
-  `ctx.commands.register(id, handler)`. The result is `notify(text)` (1–500
-  characters), `openPanel(id, props?)`, a JSON value or nothing.
-- `defineExtensionPanel({ mount(container, ctx) })` — `ctx` has `panelId`,
-  `props`, `context` (`{ courseId: string | null }`, read only), `signal`,
-  `call(commandId, args?)`, `onProps(listener)`, `onContextChange(listener)`.
-- `loadCommands(host, options?)` gives `run(id, args?)` → `CommandOutcome`,
-  `ids()`, `dispose()`; it throws on an unregistered command and an invalid
-  result (the rules are `normalizeCommandResult` from
-  `@dolphy-app/extension-api`).
-
-## Widgets and icons
-
-A widget is the `contributes.widgets` point: a card in an isolated frame on the
-"Daily plan" screen (`slot: "dailyPlan"`, `minHeight` / `maxHeight` 80–320 px,
-at most 3 per extension, module `./widget.mjs` by default, main is not needed).
-The app sizes the frame to its content within the range; taller content scrolls
-inside. `ctx.call` reaches the commands of the same extension only, and
-`ctx.context.courseId` (with `ctx.onContextChange`) is the course the app is
-focused on, `null` for all courses.
 
 ```ts
-// src/index.ts
-import {
-  defineExtension,
-  defineExtensionWidget,
-  type ExtensionWidgets,
-} from '@dolphy-app/extension-sdk';
-
-export const host = defineExtension({
-  commands: { 'acme.streak.today': () => ({ days: 3 }) },
-});
-
-export const widgets = {
-  'acme.streak.card': defineExtensionWidget({
-    async mount(container, ctx) {
-      const render = async () => {
-        const answer = await ctx.call('acme.streak.today', {
-          courseId: ctx.context.courseId,
-        });
-        container.textContent = JSON.stringify(answer);
-      };
-      ctx.onContextChange(() => void render());
-      await render();
-    },
-  }),
-} satisfies ExtensionWidgets;
+// in a component of the extension
+const say = useRpc(sayHello);
+const { text } = await say({ who: 'world' });
 ```
 
-`commands` and `panels` take an optional `icon`, a name from `EXTENSION_ICONS`
-(24 names, `puzzle` by default); the app draws its own glyph in the command
-palette and the sidebar, decoratively.
+The input is validated with `contract.input` in the component before the call
+and again on the server; the result of the handler is validated with
+`contract.output` on the server and again in the component. The call runs
+through `engine.extensions.invokeRpc({ extensionId, name, input })`; the
+input is at most `EXTENSION_RPC_LIMITS.inputChars` characters of JSON, the
+handler has `EXTENSION_RPC_LIMITS.handlerMs`. An error of the handler reaches
+the component as a rejected promise with its message. One handler per name,
+at most `EXTENSION_RPC_LIMITS.rpcs` per extension.
 
 ## Importers and exporters
 
 An importer turns a file the user picked into a new course directory; an
-exporter writes a course or the learning progress to a file. Declare them in
-`contributes.importers` / `contributes.exporters` of `extension.json` (no
-permission is needed; the user's choice of a file is the consent, and an
-exporter with `scope: 'progress'` needs `learning.stats`).
+exporter writes a course or the learning progress to a file. The user's choice
+of a file is the consent.
 
 ```ts
 import {
-  defineExtension,
+  defineServer,
   type CourseExportInput,
   type TextImportInput,
 } from '@dolphy-app/extension-sdk';
 
-export const host = defineExtension({
-  importers: {
-    // `input` defaults to `text`; `bytes` hands over a Uint8Array instead.
+export const server = defineServer((s) => {
+  s.registerImporter({
+    id: 'acme.csv.import',
+    title: 'CSV cards',
+    accept: ['.csv'],
+    input: 'text', // `bytes` hands over a Uint8Array instead
     // The tree is a course in the library layout: `course_manifest.json`,
     // `lesson_manifest.json` and `exercise_manifest.json` files plus texts
-    'acme.csv.import': ({ name, text }: TextImportInput) => ({
-      files: {
-        'cards/course_manifest.json': JSON.stringify({
-          id: 'cards',
-          name,
-          dependencies: [],
-          encompassed: [],
-          superseded: [],
-        }),
-        'cards/rows.csv': text,
-      },
-    }),
-  },
-  exporters: {
-    'acme.csv.export': ({ title, files }: CourseExportInput) => ({
-      filename: `${title}.json`,
-      text: JSON.stringify(files),
-    }),
-  },
+    run: (input) => {
+      const { name, text } = input as TextImportInput;
+      return {
+        files: {
+          'cards/course_manifest.json': JSON.stringify({
+            id: 'cards',
+            name,
+            dependencies: [],
+            encompassed: [],
+            superseded: [],
+          }),
+          'cards/rows.csv': text,
+        },
+      };
+    },
+  });
+  s.registerExporter({
+    id: 'acme.csv.export',
+    title: 'Course as JSON',
+    scope: 'course', // or 'progress'
+    run: (input) => {
+      const { title, files } = input as CourseExportInput;
+      return { filename: `${title}.json`, text: JSON.stringify(files) };
+    },
+  });
 });
 ```
 
@@ -492,132 +398,137 @@ export const host = defineExtension({
   empty or dot-leading segment, backslash, control character, or case-only
   duplicate. An exporter returns `{ filename, text }` or `{ filename, bytes }`
   of at most 20 MiB; the file name has no path separator and is at most 120
-  characters. A handler has 30 seconds. `ctx.importers.register(id, handler)`
-  and `ctx.exporters.register(id, handler)` do the same inside `activate`.
-- `loadImporters(host, options?)` and `loadExporters(host, options?)` give
-  `run(id, input)`, `ids()`, `dispose()`. `run` applies the host's rules (the
-  `text`/`bytes` form of a declared importer, the `scope` of a declared
-  exporter, the size of the input, and the result) and rejects with
-  `invalid import result: …` / `invalid export result: …`. Pass
-  `declaredImporters: [{ id, input? }]` / `declaredExporters: [{ id, scope }]`
-  to check against the manifest and `stats: createMemoryStats(…)` for a
-  progress exporter.
+  characters. A handler has 30 seconds.
+- The app compiles the returned tree before it writes anything, shows a
+  summary with diagnostics, and writes `imported/<extension id>-<file name>`
+  atomically; with an error, nothing is left on disk.
 
-The recipe [`docs/recipe-import-export.md`](docs/recipe-import-export.md) is a
-whole project: a CSV importer that builds a flashcard course, the matching
-exporter, and tests. The app compiles the returned tree before it writes
-anything, shows a summary with diagnostics, and writes
-`imported/<extension id>-<file name>` atomically; with an error, nothing is
-left on disk. Importing the same file name again replaces the directory.
+## Dependencies
 
-## Visibility conditions and dependencies
+`dependencies: [{ id, range? }]` in `extension.json` (up to 16; `range` is
+comparators separated by a space, such as `>=1.0.0 <2.0.0`) makes the extension
+load only when each dependency is present, enabled, loaded and in range;
+otherwise the app shows "dependencies not met" with the reason and the
+extension contributes nothing. Dependencies are not installed for the user, and
+extensions cannot call each other.
 
-A command, a panel and a widget may have a `when` in `extension.json`: a
-boolean expression over `route`, `course.active`, `session.active`, `locale` and
-`theme.dark` (`==`, `!=`, `in ('a', 'b')`, `&&`, `||`, `!`, parentheses, single
-quoted strings, at most 200 characters). While it is false the command is not
-in the palette and its keys do nothing, the panel's menu item is hidden and the
-widget is not drawn; your own code still reaches them. `parseWhen(text)` and
-`evaluateWhen(expr, context)` are exported for tests; an unknown key or value, a
-wrong type or a syntax error is a manifest error with a position.
+## Testing
 
-`dependencies: [{ id, range? }]` (up to 16; `range` is comparators separated by
-a space, such as `>=1.0.0 <2.0.0`) makes the extension load only when each
-dependency is present, enabled, loaded and in range; otherwise the app shows
-"dependencies not met" with the reason and the extension contributes nothing.
-Dependencies are not installed for the user, and extensions cannot call each
-other. See [`docs/recipe-when-dependencies.md`](docs/recipe-when-dependencies.md).
+`@dolphy-app/extension-sdk/testing` runs the entries in your process, on
+in-memory fakes, without the host or the app.
 
-## UI kit
+`createTestServer(server, options?)` runs the `server` entry and resolves to a
+harness:
 
-`@dolphy-app/extension-ui` has the Vuetify components of the app for a panel,
-a widget or an answer view: radio and checkbox groups, alerts, chips, progress,
-text areas, sliders, switches, a date field, tabs, dialogs, menus, tooltips and
-tables. There is no root import: take one subpath per group
-(`@dolphy-app/extension-ui/vuetify/choice`, `…/feedback`, `…/fields`,
-`…/navigation`, `…/table`), call `mountRadioGroup(container, props)` and the
-like, and keep the returned `{ update(patch), destroy() }`. Vue and Vuetify are
-bundled into your extension by `dolphy-ext build` (the frame is isolated, so
-every extension carries its own copy), and the frame theme and language apply
-with no code of yours. See [`docs/recipe-ui-kit.md`](docs/recipe-ui-kit.md) and
-the package README.
+- `registration` — what the entry registered, as the host's registrar hands it
+  to the engine (`ServerRegistration`). The harness checks types and that an id
+  is registered once; the host does the rest of the validation. With
+  `extensionId` set, an id must be equal to it or start with `<extensionId>.`.
+- `commands.run(id, args?)` → `CommandOutcome` (`none`, `notify`, `openPanel`,
+  `data`); it applies the argument and result bounds of the host
+  (`normalizeCommandResult`) and rejects with `invalid command result: …`.
+- `events.emit(name, payload)` — delivers to the subscribed handler and awaits
+  it; with no subscription the event is skipped, as in the host.
+- `schedule.fire(id)` — runs the handler and resolves `true`; `false` while the
+  handler of the previous firing is still running.
+- `exerciseType(id)` → `project(spec)`, `grade({ spec, answer, … })` (checks the
+  shape of the result), `referenceAnswer(spec)`; `gradePolicy(id).evaluate(input)`
+  (an integer 1–5 or `null`); `importer(id).run(input)` and
+  `exporter(id).run(input)` apply the host's rules (the `text`/`bytes` form, the
+  `scope`, the sizes and `normalizeImportResult` / `normalizeExportResult`) and
+  reject with `invalid import result: …` / `invalid export result: …`.
+- `storage`, `secrets`, `settings`, `stats`, `notifications`, `library` — the
+  fakes the entry received; `settings.set(id, value)` changes a value as the
+  user does in the dialog.
+- `dispose()` — runs the cleanup the entry returned.
+- `rpc(contract, input)` — calls the handler registered under `contract.name`:
+  the input is checked against the schema the handler registered, the result
+  against its output schema; an unregistered name, a violation and an error of
+  the handler reject the promise. `registration.rpcs` lists the names.
+- `hook(name, request)` — calls the handler registered with `s.before(name, …)`:
+  the request is checked against `EXTENSION_HOOKS[name].request`, the response
+  against `EXTENSION_HOOKS[name].response`; an unregistered hook, a violation
+  and an error of the handler reject the promise. Only this extension's handler
+  runs (in the app the handlers of all extensions with the hook run in turn).
+  `registration.hooks` lists the names.
+  The `practice.batch` request carries `memory`, parallel to `exerciseIds`: the
+  `retrievability`, `lastAttemptAt`, `attempts`, `stability` and `difficulty`
+  of each exercise (`null` for an exercise without attempts), so a test passes
+  the memory the handler should see.
+- `engine` — `options.engine`.
+
+Options: `extensionId`, `library`, `logger`, `storage`, `secrets`, `stats`,
+`notifications` (objects from the helpers below), `engine` (the object
+`s.engine` returns; without it any use of `s.engine` throws) and
+`settingValues` (user values by setting id, in place of the defaults; every id
+must be registered by the entry). Unlike the host, a handler failure is not
+swallowed but rejects the promise, and the handler timeouts are not applied.
+
+`createTestClient(client, options?)` runs the `client` entry on a recording
+context: `panels`, `injections`, `answerViews`, `markdownRenderers`, `themes`,
+`commands`. Mount the components with `createApp` from `vue` in `happy-dom` and
+provide `PANEL_HANDLE_KEY` / `INJECTION_HANDLE_KEY` / `EXTENSION_ID_KEY` /
+`APP_KEY` / `ENGINE_KEY` as the app does. The options `app` and `engine` are
+what `client.app` and `client.engine` return; without them any use of the
+property throws.
+
+```ts
+const running = await createTestServer(server, { extensionId: 'acme' });
+await running.events.emit('attempt.closed', {
+  exerciseId: 'e',
+  courseId: 'c',
+  lessonId: 'l',
+  grade: 4,
+  outcome: 'passed',
+  source: 'runner',
+  at: Date.now(),
+});
+expect(await running.storage.get('last-grade')).toBe(4);
+```
+
+The fakes are exported too: `createMemoryStorage()` (same ceilings and
+`StorageQuotaError`), `createMemorySecrets({ available? })` (`setAvailable(false)`
+imitates a missing key store), `createMemorySettings(definitions?, values?)`
+(`set`, `register`), `createMemoryStats({ attempts?, timeZone?, now? })`
+(`record(attempt)`; local days, correct at grade 3 or higher),
+`createMemoryNotifications({ supported?, enabled?, now? })` (`shown` lists what
+the app would show), `createMemoryLibrary(files)` and
+`createSchemaValidator(schema)`.
 
 ## Style sheets, images and fonts
 
-A panel, an answer element and a content renderer run in an isolated frame and
-can bring their own style sheets (`css`), images (`png`, `webp`, `jpg`, `jpeg`,
-`svg`) and fonts (`woff2`). `dolphy-ext build` carries them in two ways:
+A component can bring its own style sheets (`css`), images (`png`, `webp`,
+`jpg`, `jpeg`, `svg`) and fonts (`woff2`). `dolphy-ext build` carries them in
+two ways:
 
 ```ts
-// src/index.ts — inlined: a string and a small data URI, no extra file
+// inlined: a string and a small data URI, no extra file
 import css from './panel.css?inline'; // style sheet as a string
 import mark from './mark.png?url'; // up to 4 KiB: a data: URI
-
-export const panels = {
-  'acme.tools.main': defineExtensionPanel({
-    mount(container) {
-      const style = document.createElement('style');
-      style.textContent = css;
-      container.append(style);
-
-      // a separate file: above 4 KiB the build writes assets/hero-<hash>.png
-      const hero = document.createElement('img');
-      hero.src = new URL('./hero.png', import.meta.url).href;
-      hero.alt = '';
-      // a file you put into assets/ yourself
-      const font = new FontFace(
-        'Acme',
-        `url(${new URL('assets/acme.woff2', import.meta.url).href})`,
-      );
-      container.append(hero);
-      void font.load().then(() => document.fonts.add(font));
-    },
-  }),
-};
 ```
 
-The frame loads scripts, style sheets, images and fonts only from its own
-extension (`dolphy-ext://<id>/…`, plus `data:` and `blob:`): a file of another
-extension is blocked, and so are `extension.json` and `README.md`. Build every
-URL from `import.meta.url` (the frame page has no `<base>`); inside a style sheet
-`url(font.woff2)` is relative to the sheet. A `<link rel="stylesheet">` works in
-a container, in `document.head` and in a shadow root, but `@font-face` registers a
-font only in a document-level sheet, so an element with a shadow root that needs
-its own font must link the sheet into `document.head` too. Use an SVG as an image
-(`<img>`, `url()`); it is never run as a document.
+A string from `?inline` goes into the component (for example a `<style>`
+element in its template); above 4 KiB an image becomes a file,
+`assets/hero-<hash>.png`, addressed with `new URL('./hero.png', import.meta.url)`.
+Use an SVG as an image (`<img>`, `url()`); it is never run as a document.
 
-Choose the inlined form for small things (one file, nothing to fetch) and a
-separate file for big images and fonts; the details, the limits and what the
-build refuses (unsafe SVG, `@import`, external `url()`, a forged image header) are
-in the README of `@dolphy-app/extension-tools`. A plain `import './panel.css'` is
-an error. Declare the suffixes for TypeScript once:
+Choose the inlined form for small things and a separate file for big images and
+fonts; the details, the limits and what the build refuses (unsafe SVG,
+`@import`, external `url()`, a forged image header) are in the README of
+`@dolphy-app/extension-tools`. A plain `import './panel.css'` is an error.
+Declare the suffixes for TypeScript once:
 `declare module '*?inline' { const text: string; export default text; }` and the
 same for `'*?url'`.
 
 The manifest `icon` (`"icon": "assets/icon.png"`, a square 64–512 px PNG or WebP up
 to 16 KiB) is what the app shows for the extension at 32 px.
 
-## Permissions and `ctx.library`
+## Execution environment
 
-An extension that is not bundled and not trusted runs in a restricted process
-(`docs/design/extensions.md`, "Права и изоляция"): what `permissions` of the
-manifest does not declare is unavailable. The SDK exports
-`EXTENSION_PERMISSIONS` (`library.read`, `process.spawn`, `worker.threads`,
-`native.addons`, `network`, `learning.events`, `learning.stats`,
-`notifications`) and the
-`PermissionError` class
-(`permission`, `code: 'EXT_PERMISSION'`).
-
-- `ctx.library` in the restricted process is a proxy: `readText` and `stat`
-  requests are run by the parent, and only if `library.read` is declared.
-  Without it both methods throw `PermissionError` (checked before the parent is
-  asked; the parent refuses too). An uncaught handler exception becomes a
-  `handler-failed` error, a check becomes an `error` verdict.
-- Spawning processes, threads and native modules without `process.spawn`,
-  `worker.threads` and `native.addons` fail with `ERR_ACCESS_DENIED` from Node;
-  `network` is informational, it does not limit network access of code.
-- A trusted extension and a bundled one have no restrictions.
-- `@dolphy-app/extension-sdk/testing` runs a handler in your process, without
-  restrictions and without checking `permissions`: `PermissionError` and
-  `ERR_ACCESS_DENIED` are not reproduced there, so check permissions in the app
-  (as a third-party, untrusted extension).
+Extension code runs without restrictions: files, processes, threads, native
+modules and the network are available. The server part runs in the extension
+host process, the client part in the app window. An uncaught handler exception
+becomes a `handler-failed` error, a check becomes an `error` verdict.
+`@dolphy-app/extension-sdk/testing` runs a handler in your process, without the
+host: timeouts and the process boundary are not reproduced there, so try such
+code in the app.

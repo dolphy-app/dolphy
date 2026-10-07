@@ -11,10 +11,8 @@ import type {
 import {
   COLLAPSED_VALUES,
   areSchedulesOn,
-  contributionGroups,
   hasSchedules,
   hasSwitches,
-  hidesContributions,
   scheduleSummaryOf,
   useExtensions,
   visibleValues,
@@ -36,7 +34,6 @@ interface Deferred {
 
 const NONE_SET: ExtensionSettingsDto = {
   disabled: [],
-  trusted: [],
   checkUpdates: true,
   safeMode: false,
   notificationsOff: [],
@@ -164,179 +161,6 @@ describe('useExtensions', () => {
   });
 });
 
-describe('contributionGroups', () => {
-  const item = (id: string, label = id, extra = {}) => ({
-    id,
-    label,
-    mono: false,
-    duplicate: false,
-    ...extra,
-  });
-
-  it('пропускает пустые точки и сохраняет порядок точек и значения; без названий текст — id', () => {
-    expect(
-      contributionGroups({
-        exerciseTypes: [],
-        themes: ['acme.night', 'acme.day'],
-        markdownRenderers: ['math'],
-        gradePolicies: ['acme.strict'],
-        settings: [],
-        events: [],
-        commands: ['acme.run'],
-        panels: ['acme.view'],
-        widgets: ['acme.card'],
-        schedules: [],
-        importers: [],
-        exporters: [],
-      }),
-    ).toEqual([
-      {
-        point: 'themes',
-        items: [item('acme.night'), item('acme.day')],
-      },
-      {
-        point: 'markdownRenderers',
-        items: [item('math', 'math', { mono: true })],
-      },
-      { point: 'gradePolicies', items: [item('acme.strict')] },
-      { point: 'commands', items: [item('acme.run')] },
-      { point: 'panels', items: [item('acme.view')] },
-      { point: 'widgets', items: [item('acme.card')] },
-    ]);
-  });
-
-  it('расширение без вкладов — без групп', () => {
-    expect(contributionGroups(NO_CONTRIBUTES)).toEqual([]);
-  });
-
-  it('название заменяет id, а id без названия остаётся запасным текстом', () => {
-    const [group] = contributionGroups(
-      { ...NO_CONTRIBUTES, themes: ['a.night', 'a.day'] },
-      { themes: { 'a.night': 'Полночь' } },
-    );
-    expect(group?.items.map((i) => i.label)).toEqual(['Полночь', 'a.day']);
-  });
-
-  it('виды заданий и языки — идентификаторы моноширинно; названия и события — нет', () => {
-    const groups = contributionGroups(
-      {
-        ...NO_CONTRIBUTES,
-        exerciseTypes: ['a.quiz'],
-        markdownRenderers: ['math'],
-        themes: ['a.t'],
-        events: ['session.started'],
-      },
-      { themes: { 'a.t': 'Тема' } },
-    );
-    expect(
-      Object.fromEntries(groups.map((g) => [g.point, g.items[0]?.mono])),
-    ).toEqual({
-      exerciseTypes: true,
-      themes: false,
-      markdownRenderers: true,
-      events: false,
-    });
-  });
-
-  it('вид задания и рендерер с названием — обычным шрифтом, без названия — id моноширинно', () => {
-    const groups = contributionGroups(
-      {
-        ...NO_CONTRIBUTES,
-        exerciseTypes: ['a.quiz', 'a.plain'],
-        markdownRenderers: ['math', 'chart'],
-      },
-      {
-        exerciseTypes: { 'a.quiz': 'Викторина' },
-        markdownRenderers: { math: 'Формулы' },
-      },
-    );
-    expect(groups.map((g) => g.items.map((i) => [i.label, i.mono]))).toEqual([
-      [
-        ['Викторина', false],
-        ['a.plain', true],
-      ],
-      [
-        ['Формулы', false],
-        ['chart', true],
-      ],
-    ]);
-  });
-
-  it('события показываются через переданное название, неизвестные — как есть', () => {
-    const [group] = contributionGroups(
-      { ...NO_CONTRIBUTES, events: ['session.started', 'weird.event'] },
-      {},
-      (name) => (name === 'session.started' ? 'Начало занятия' : name),
-    );
-    expect(group?.items.map((i) => i.label)).toEqual([
-      'Начало занятия',
-      'weird.event',
-    ]);
-  });
-
-  it('одинаковые названия помечены, чтобы id был доступен скринридеру', () => {
-    const [group] = contributionGroups(
-      { ...NO_CONTRIBUTES, commands: ['a.one', 'a.two', 'a.three'] },
-      {
-        commands: {
-          'a.one': 'Запустить',
-          'a.two': 'Запустить',
-          'a.three': 'Стоп',
-        },
-      },
-    );
-    expect(group?.items.map((i) => i.duplicate)).toEqual([true, true, false]);
-  });
-
-  it('64 команды с названиями сворачиваются до первых значений', () => {
-    const commands = Array.from({ length: 64 }, (_, i) => `a.c${i}`);
-    const titles = {
-      commands: Object.fromEntries(commands.map((id) => [id, `Команда ${id}`])),
-    };
-    const [group] = contributionGroups({ ...NO_CONTRIBUTES, commands }, titles);
-    const collapsed = visibleValues(group?.items ?? [], false);
-    expect(collapsed.shown).toHaveLength(COLLAPSED_VALUES);
-    expect(collapsed.shown[0]?.label).toBe('Команда a.c0');
-    expect(collapsed.hidden).toBe(64 - COLLAPSED_VALUES);
-  });
-});
-
-describe('hidesContributions', () => {
-  const theme = { ...NO_CONTRIBUTES, themes: ['a.night'] };
-  const titles = { themes: { 'a.night': 'Полночь' } };
-
-  it('единственная тема с названием расширения не повторяется', () => {
-    expect(hidesContributions(theme, titles, 'Полночь')).toBe(true);
-  });
-
-  it.each([
-    ['название отличается', theme, titles, 'Night'],
-    ['названия нет', theme, {}, 'Полночь'],
-    ['у расширения нет названия', theme, titles, null],
-    [
-      'вкладов два',
-      { ...theme, commands: ['a.run'] },
-      { ...titles, commands: { 'a.run': 'Полночь' } },
-      'Полночь',
-    ],
-    [
-      'единственный вклад — не тема',
-      { ...NO_CONTRIBUTES, commands: ['a.run'] },
-      { commands: { 'a.run': 'Полночь' } },
-      'Полночь',
-    ],
-    ['две темы', { ...theme, themes: ['a.night', 'a.day'] }, titles, 'Полночь'],
-  ] as const)('показывается, если %s', (_why, contributes, t, name) => {
-    expect(
-      hidesContributions(
-        contributes as never,
-        t as never,
-        name as string | null,
-      ),
-    ).toBe(false);
-  });
-});
-
 describe('visibleValues', () => {
   const ids = (n: number) => Array.from({ length: n }, (_, i) => `acme.c${i}`);
 
@@ -407,11 +231,7 @@ describe('расписания в строке', () => {
 
 describe('переключатели', () => {
   interface Call {
-    method:
-      | 'setEnabled'
-      | 'setTrusted'
-      | 'setNotificationsEnabled'
-      | 'setSchedulesEnabled';
+    method: 'setEnabled' | 'setNotificationsEnabled' | 'setSchedulesEnabled';
     id: string;
     value: boolean;
     resolve(next: ExtensionSettingsDto): void;
@@ -437,7 +257,6 @@ describe('переключатели', () => {
         },
         getSettings: async () => stored,
         setEnabled: write('setEnabled'),
-        setTrusted: write('setTrusted'),
         setNotificationsEnabled: write('setNotificationsEnabled'),
         setSchedulesEnabled: write('setSchedulesEnabled'),
       },
@@ -450,27 +269,28 @@ describe('переключатели', () => {
     const model = mount(engine);
     await flush();
 
-    const pending = model.setTrusted('acme.x', true);
-    expect(model.settings.value.trusted).toEqual(['acme.x']);
-    expect(model.switching.value.has('trusted:acme.x')).toBe(true);
+    const pending = model.setNotifications('acme.x', false);
+    expect(model.settings.value.notificationsOff).toEqual(['acme.x']);
+    expect(model.switching.value.has('notifications:acme.x')).toBe(true);
     calls[0]?.resolve({
       disabled: [],
-      trusted: ['acme.x'],
       checkUpdates: true,
       safeMode: false,
-      notificationsOff: [],
+      notificationsOff: ['acme.x'],
       catalogUrl: null,
       schedulesOff: [],
     });
     await pending;
 
-    expect(calls[0]).toMatchObject({ method: 'setTrusted', value: true });
+    expect(calls[0]).toMatchObject({
+      method: 'setNotificationsEnabled',
+      value: false,
+    });
     expect(model.settings.value).toEqual({
       disabled: [],
-      trusted: ['acme.x'],
       checkUpdates: true,
       safeMode: false,
-      notificationsOff: [],
+      notificationsOff: ['acme.x'],
       catalogUrl: null,
       schedulesOff: [],
     });
@@ -483,7 +303,6 @@ describe('переключатели', () => {
   it('«Включено» хранится как отсутствие в списке отключённых', async () => {
     const { engine, calls } = createSwitchEngine({
       disabled: ['acme.x'],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -496,7 +315,6 @@ describe('переключатели', () => {
     expect(model.settings.value.disabled).toEqual([]);
     calls[0]?.resolve({
       disabled: [],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -610,15 +428,14 @@ describe('переключатели', () => {
     const { engine, calls } = createSwitchEngine();
     const model = mount(engine);
     await flush();
-    const first = model.setTrusted('acme.x', true);
-    await model.setTrusted('acme.x', false);
+    const first = model.setNotifications('acme.x', false);
+    await model.setNotifications('acme.x', true);
     expect(calls).toHaveLength(1);
     calls[0]?.resolve({
       disabled: [],
-      trusted: ['acme.x'],
       checkUpdates: true,
       safeMode: false,
-      notificationsOff: [],
+      notificationsOff: ['acme.x'],
       catalogUrl: null,
       schedulesOff: [],
     });
@@ -647,7 +464,6 @@ describe('обновления и установка из каталога', () 
     installed: '1.0.0',
     available: {
       version: '1.1.0',
-      permissions: ['network'],
       dependencies: [],
       publishedAt: '2026-01-01T00:00:00.000Z',
       size: 100,
@@ -693,7 +509,7 @@ describe('обновления и установка из каталога', () 
               origin: 'user',
               toggleable: true,
               author: 'acme',
-              contributes: { ...NO_CONTRIBUTES, themes: ['old'] },
+              tags: ['developer'],
             }),
           ];
         },
@@ -881,7 +697,7 @@ describe('обновления и установка из каталога', () 
     expect(model.restartingHost.value).toBe(false);
   });
 
-  it('updateTargets берёт вклады и платформы из каталога, а без него — из установленного', async () => {
+  it('updateTargets берёт теги и платформы из каталога, а без него — из установленного', async () => {
     const withCatalog = createEngine({
       updates: [UPDATE],
       catalog: async () =>
@@ -889,7 +705,7 @@ describe('обновления и установка из каталога', () 
           catalogEntry('acme.x', {
             author: 'acme',
             platforms: ['darwin'],
-            contributes: { ...NO_CONTRIBUTES, themes: ['new'] },
+            tags: ['theme'],
           }),
         ]),
     });
@@ -900,9 +716,8 @@ describe('обновления и установка из каталога', () 
         id: 'acme.x',
         version: '1.1.0',
         installedVersion: '1.0.0',
-        permissions: ['network'],
         platforms: ['darwin'],
-        contributes: { themes: ['new'] },
+        tags: ['theme'],
       },
     ]);
 
@@ -910,7 +725,7 @@ describe('обновления и установка из каталога', () 
     const fromInstalled = mount(offline.engine);
     await flush();
     expect(await fromInstalled.updateTargets(['acme.x'])).toMatchObject([
-      { platforms: [], contributes: { themes: ['old'] }, author: 'acme' },
+      { platforms: [], tags: ['developer'], author: 'acme' },
     ]);
     expect(await fromInstalled.updateTargets(['acme.other'])).toEqual([]);
   });

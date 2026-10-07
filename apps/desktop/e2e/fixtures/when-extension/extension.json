@@ -2,64 +2,6 @@
   "id": "acme.when",
   "version": "1.0.0",
   "apiVersion": 1,
-  "contributes": {
-    "commands": [
-      {
-        "id": "acme.when.courses",
-        "title": "Только на «Курсах»",
-        "category": "Условия",
-        "keybinding": "Mod+Shift+J",
-        "when": "route == 'courses'"
-      },
-      {
-        "id": "acme.when.plain",
-        "title": "Всегда",
-        "category": "Условия"
-      },
-      {
-        "id": "acme.when.focused",
-        "title": "Только с курсом в фокусе",
-        "category": "Условия",
-        "when": "course.active"
-      },
-      {
-        "id": "acme.when.night",
-        "title": "Только в тёмной теме",
-        "category": "Условия",
-        "when": "theme.dark"
-      },
-      {
-        "id": "acme.when.open",
-        "title": "Открыть панель условий",
-        "category": "Условия"
-      },
-      {
-        "id": "acme.when.ping",
-        "title": "Скрытая команда",
-        "palette": false,
-        "when": "route == 'courses'"
-      }
-    ],
-    "panels": [
-      {
-        "id": "acme.when.main",
-        "title": "Панель условий",
-        "when": "route == 'courses'"
-      }
-    ],
-    "widgets": [
-      {
-        "id": "acme.when.focused-card",
-        "title": "С курсом",
-        "slot": "dailyPlan",
-        "when": "course.active"
-      },
-      {
-        "id": "acme.when.free-card",
-        "title": "Без курса",
-        "slot": "dailyPlan",
-        "when": "!course.active"
-      }
-    ]
-  }
+  "main": "./main.mjs",
+  "client": "./client.mjs"
 }

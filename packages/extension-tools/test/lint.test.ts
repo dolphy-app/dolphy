@@ -1,7 +1,15 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import {
+  mkdir,
+  readFile,
+  realpath,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { runCli } from '../src/cli/run.ts';
+import { buildExtension } from '../src/index.ts';
 import { bundleFindings } from '../src/lint/bundle.ts';
 import { formatLintFinding, lintProject } from '../src/lint/index.ts';
 import { manifestFindings } from '../src/lint/manifest.ts';
@@ -45,6 +53,25 @@ const builtWith = async (files: Record<string, string>): Promise<string> => {
     await writeFile(path.join(dir, file), text);
   }
   return dir;
+};
+
+/** `@dolphy-app/extension-sdk` and `zod` as in an author's `node_modules`. */
+const linkRpcDependencies = async (root: string): Promise<void> => {
+  const packages = fileURLToPath(new URL('../..', import.meta.url));
+  const modules = path.join(root, 'node_modules');
+  await mkdir(path.join(modules, '@dolphy-app'), { recursive: true });
+  for (const name of ['extension-sdk', 'extension-api']) {
+    await symlink(
+      path.join(packages, name),
+      path.join(modules, '@dolphy-app', name),
+      'dir',
+    );
+  }
+  await symlink(
+    await realpath(path.join(packages, 'extension-sdk/node_modules/zod')),
+    path.join(modules, 'zod'),
+    'dir',
+  );
 };
 
 describe('dolphy-ext lint: project', () => {
@@ -94,6 +121,21 @@ globalThis.probe = probe;
     ]);
   });
 
+  it('a build with zod (defineRpc) has no findings: zod only calls new Function("")', async () => {
+    const dir = await readyProject('zod-rpc');
+    await linkRpcDependencies(dir);
+    const { dir: built } = await buildExtension({
+      root: dir,
+      outDir: path.join(dir, 'out'),
+    });
+    // the build contains the probe that the rule has to skip
+    expect(await readFile(path.join(built, 'main.mjs'), 'utf8')).toContain(
+      'new Function("")',
+    );
+    expect(await lint(dir)).toEqual([]);
+    expect(await lint(dir, built)).toEqual([]);
+  });
+
   it('--built checks the given directory instead of building', async () => {
     const dir = await readyProject('theme-only');
     const built = await builtWith({
@@ -127,6 +169,30 @@ describe('dolphy-ext lint: bundle heuristics', () => {
       'CHECK-022',
     ]);
     expect(rules('const retrieval = evaluate(1); medieval(2);')).toEqual([]);
+  });
+
+  it('new Function("") with an empty string only is not dynamic code', () => {
+    for (const code of [
+      'new Function("")',
+      "new Function('')",
+      'new Function(``)',
+      'new  Function( "" )',
+      'try { new Function(""); } catch { allowed = false; }',
+    ]) {
+      expect(rules(code), code).toEqual([]);
+    }
+    for (const code of [
+      'new Function(code)',
+      'new Function("return 1")',
+      "new Function('a', 'return a')",
+      'new Function("", "return 1")',
+      'new Function(" ")',
+      'new Function("" + code)',
+      'eval("")',
+      'new Function(""); new Function(code);',
+    ]) {
+      expect(rules(code), code).toEqual(['CHECK-022']);
+    }
   });
 
   it('obfuscation: long lines in a big file, or many _0x identifiers', () => {

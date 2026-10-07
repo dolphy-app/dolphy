@@ -4,7 +4,7 @@
  * whose toolchain is linked from the repository (no network, no install).
  */
 import { spawn } from 'node:child_process';
-import { mkdir, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, symlink, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { renderProject } from '../src/index.ts';
@@ -103,6 +103,7 @@ export const linkToolchain = async (project: string): Promise<void> => {
       path.join(REPO_ROOT, 'packages/extension-tools'),
     ],
     ['@types/node', packageDir('@types/node')],
+    ['vue-tsc', path.join(REPO_ROOT, 'apps/desktop/node_modules/vue-tsc')],
     [
       '@types/react',
       path.join(REPO_ROOT, 'packages/extension-sdk/node_modules/@types/react'),
@@ -160,7 +161,22 @@ export const runNode = (args: string[], cwd: string) =>
   });
 
 const tscBin = path.join(packageDir('typescript'), 'bin', 'tsc');
-export const tsc = (project: string) => runNode([tscBin, '--noEmit'], project);
+const vueTscBin = path.join(
+  REPO_ROOT,
+  'apps/desktop/node_modules/vue-tsc/bin/vue-tsc.js',
+);
+
+/**
+ * `tsc --noEmit`; `vue-tsc --noEmit` when the project has `.vue` files (the
+ * `typecheck` script of such a template): `tsc` does not look inside them.
+ */
+export const tsc = async (project: string) => {
+  const entries = await readdir(path.join(project, 'src'), {
+    recursive: true,
+  }).catch(() => []);
+  const vue = entries.some((entry) => entry.endsWith('.vue'));
+  return runNode([vue ? vueTscBin : tscBin, '--noEmit'], project);
+};
 
 const vitestBin = path.join(packageDir('vitest'), 'vitest.mjs');
 export const vitest = (project: string) => runNode([vitestBin, 'run'], project);

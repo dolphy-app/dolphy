@@ -106,14 +106,6 @@ void load();
 </style>
 `;
 
-const envDts = (): string => `declare module '*.vue' {
-  import type { DefineComponent } from 'vue';
-
-  const component: DefineComponent<object, object, unknown>;
-  export default component;
-}
-`;
-
 const vitestConfigTs = (): string => `import vue from '@vitejs/plugin-vue';
 import { defineConfig } from 'vitest/config';
 
@@ -283,7 +275,6 @@ export const commandPanel: TemplateModule = {
     '- `src/client.ts` — `client` (`defineClient`): registers the panel with',
     '  `addPanel`; `src/StatusPanel.vue` is the single-file Vue component the',
     '  app draws; the build writes them to `client.mjs`;',
-    '- `src/env.d.ts` — tells `tsc` the type of a `.vue` import;',
     '- `vitest.config.ts` — `@vitejs/plugin-vue`, so a test can import `.vue`;',
     '- `src/index.ts` — re-exports `server` and `client`;',
     '- `test/index.test.ts` — tests (`vitest`, `happy-dom`).',
@@ -294,9 +285,9 @@ export const commandPanel: TemplateModule = {
     'src/server.ts': serverTs(id),
     'src/client.ts': clientTs(id),
     'src/StatusPanel.vue': statusPanelVue(id),
-    'src/env.d.ts': envDts(),
     'vitest.config.ts': vitestConfigTs(),
     'test/index.test.ts': indexTestTs(id),
   }),
-  devDependencies: { '@vitejs/plugin-vue': '^6.0.7' },
+  devDependencies: { '@vitejs/plugin-vue': '^6.0.7', 'vue-tsc': '^3.3.3' },
+  typecheck: 'vue-tsc --noEmit',
 };

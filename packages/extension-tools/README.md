@@ -317,10 +317,14 @@ parsed is one finding under the file name). `--list-rules` prints the rules and 
 
 The bundle rules are heuristics over the whole bundle, dependencies included
 (a validator library may legitimately use `new Function`), so they only
-warn and the reviewer decides. `CHECK-023` fires on a file of 20 KiB or more
-with an average line longer than 500 characters, or on 20 distinct identifiers
-of the form `_0x1a2b`. A source
-map is an `error`: the catalog builds without maps.
+warn and the reviewer decides. `CHECK-022` skips exactly `new Function("")`,
+an empty string and no other argument: the body is empty, nothing runs, and
+`zod` makes that call to find out whether code generation is allowed, so every
+bundle with `zod` (`defineRpc` included) has it. `new Function(code)`,
+`new Function('a', 'return a')` and `eval(…)` are reported. `CHECK-023` fires
+on a file of 20 KiB or more with an average line longer than 500 characters, or
+on 20 distinct identifiers of the form `_0x1a2b`. A source map is an `error`:
+the catalog builds without maps.
 
 | Rule        | What it checks                                                                                                                     |
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------------- |
@@ -344,7 +348,7 @@ map is an `error`: the catalog builds without maps.
 | `CHECK-018` | `icon` is a square 64–512 px PNG or WebP file up to 16 KiB                                                                         |
 | `CHECK-019` | `description` is at least 20 characters (`warning`)                                                                                |
 | `CHECK-021` | the id is not already published under another `author` (any case): first publisher owns the id                                     |
-| `CHECK-022` | built code has no `eval(` or `new Function(` (`warning`, needs `--built`)                                                          |
+| `CHECK-022` | built code has no `eval(` or `new Function(`, except `new Function("")` (`warning`, needs `--built`)                               |
 | `CHECK-023` | built code does not look obfuscated (`warning`, needs `--built`)                                                                   |
 | `CHECK-025` | built code has no embedded source map (needs `--built`)                                                                            |
 | `CHECK-031` | `main.mjs` and `client.mjs` of the built version match the `main` and `client` fields of its manifest (needs `--built`)            |

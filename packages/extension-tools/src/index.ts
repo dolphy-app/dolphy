@@ -194,24 +194,22 @@ export const watchExtension = async (
   const { logger } = options;
   let project = first;
   let dir = firstDir;
+  let current: BundleWatch | null = null;
   const reporter = createReporter((report) =>
     reportTo(project.manifest.id, logger)(report),
   );
-  let current: BundleWatch | null = await watchAll(
-    project,
-    dir,
-    reporter,
-    true,
-  );
-  try {
-    await copyStatic(project, dir);
-    await assertValid(project, dir);
-  } catch (error) {
-    await current.close();
-    reporter.close();
-    throw error;
-  }
-  const result = await resultOf(project, dir);
+  const start = async (): Promise<BuildResult> => {
+    const started = await watchAll(project, dir, reporter, true);
+    current = started;
+    try {
+      await copyStatic(project, dir);
+      await assertValid(project, dir);
+    } catch (error) {
+      await started.close();
+      throw error;
+    }
+    return resultOf(project, dir);
+  };
 
   const reload = async (): Promise<void> => {
     const previous = project.manifestBytes;
@@ -250,19 +248,38 @@ export const watchExtension = async (
   };
 
   let queue: Promise<void> = Promise.resolve();
-  let timer: NodeJS.Timeout | null = null;
-  const manifestWatcher = fsWatch(project.root, (_event, name) => {
+  let timer: NodeJS.Timeout | undefined;
+  // Watching starts before the first build: a new watcher takes a moment to
+  // see the edits (FSEvents on macOS misses a file written right after the
+  // start), and an edit made during the build is applied after it.
+  const manifestWatcher = fsWatch(first.root, (_event, name) => {
     if (name !== MANIFEST_FILE) return;
-    if (timer !== null) clearTimeout(timer);
+    clearTimeout(timer);
     timer = setTimeout(() => {
       queue = queue.then(reload);
     }, MANIFEST_SETTLE_MS);
   });
+  const stopWatching = (): void => {
+    manifestWatcher.close();
+    clearTimeout(timer);
+  };
+  const started = start();
+  queue = started.then(
+    () => undefined,
+    () => undefined,
+  );
+  let result: BuildResult;
+  try {
+    result = await started;
+  } catch (error) {
+    stopWatching();
+    reporter.close();
+    throw error;
+  }
   return {
     result,
     close: async () => {
-      manifestWatcher.close();
-      if (timer !== null) clearTimeout(timer);
+      stopWatching();
       await queue;
       reporter.close();
       await current?.close();

@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { ERRORS, EngineError, createErrorMapper } from '../../src/app/index.ts';
 
 describe('EngineError', () => {
-  it('has all 31 codes (API §8, repositories and extensions) with the documented default retryable', () => {
-    expect(Object.keys(ERRORS)).toHaveLength(31);
+  it('has all 32 codes (API §8, repositories and extensions) with the documented default retryable', () => {
+    expect(Object.keys(ERRORS)).toHaveLength(32);
     const retryable = Object.entries(ERRORS)
       .filter(([, spec]) => spec.retryable)
       .map(([code]) => code)
@@ -94,6 +94,14 @@ describe('EngineError', () => {
         'activation-timeout',
       ].map(retryable),
     ).toEqual([false, false, false, false, false, false, false]);
+  });
+
+  it('EXTENSION_HOOK_FAILED is retryable only after a timeout or a lost host', () => {
+    const retryable = (reason: string) =>
+      new EngineError('EXTENSION_HOOK_FAILED', { details: { reason } })
+        .retryable;
+    expect(['timeout', 'host-down'].map(retryable)).toEqual([true, true]);
+    expect(['failed', 'invalid-result'].map(retryable)).toEqual([false, false]);
   });
 
   it('EXERCISE_TYPE_UNAVAILABLE is not retryable for an unknown type', () => {

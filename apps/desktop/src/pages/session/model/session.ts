@@ -10,6 +10,7 @@ import type {
   UnitId,
   VerdictDto,
 } from '@dolphy-app/engine-contract';
+import { EngineCallError } from '@dolphy-app/engine-rpc/client';
 import { PLAN_MAX_ITEMS } from '@/shared/config/plan.ts';
 import {
   readExerciseContent,
@@ -85,30 +86,33 @@ export const createSession = (
   const newRequestId = options.newRequestId ?? (() => crypto.randomUUID());
   let items: PlanItemDto[] = [];
   /** Сессия движка (`startSession`): id нужен, чтобы сообщить о конце обучения. */
-  let engineSession: Promise<string | null> | null = null;
+  let engineSession: string | null = null;
 
   /**
-   * Сессия обучения в движке начинается вместе с первым упражнением плана.
-   * Сбой не мешает занятию: расширения просто не получат события сессии.
+   * Сессия обучения в движке начинается до плана: расширение может отменить
+   * старт хуком `session.start`, и тогда занятие не начинается. Другие сбои
+   * не мешают занятию: расширения просто не получат события сессии.
    */
-  const openEngineSession = (): Promise<string | null> =>
-    Promise.resolve()
-      .then(() => engine.practice.startSession())
-      .then(({ sessionId }) => sessionId)
-      .catch(() => null);
+  const openEngineSession = async (): Promise<string | null> => {
+    try {
+      return (await engine.practice.startSession()).sessionId;
+    } catch (caught) {
+      if (
+        caught instanceof EngineCallError &&
+        caught.code === 'EXTENSION_HOOK_FAILED'
+      ) {
+        throw caught;
+      }
+      return null;
+    }
+  };
 
   /** Один раз на сессию, когда экран дошёл до итога; выход посреди занятия не вызывает. */
   const finishEngineSession = () => {
-    const opened = engineSession;
+    const sessionId = engineSession;
     engineSession = null;
-    if (opened === null) return;
-    void opened
-      .then((sessionId) =>
-        sessionId === null
-          ? undefined
-          : engine.practice.finishSession({ sessionId }),
-      )
-      .catch(() => undefined);
+    if (sessionId === null) return;
+    void engine.practice.finishSession({ sessionId }).catch(() => undefined);
   };
 
   const summary = computed<SessionSummary>(() => {
@@ -207,6 +211,7 @@ export const createSession = (
     stage.value = 'loading';
     error.value = null;
     try {
+      engineSession ??= await openEngineSession();
       const plan = await engine.plan.getDay({
         maxItems: PLAN_MAX_ITEMS,
         seed: options.seed,
@@ -219,9 +224,9 @@ export const createSession = (
       results.value = [];
       if (items.length === 0) {
         stage.value = 'empty';
+        finishEngineSession();
         return;
       }
-      engineSession ??= openEngineSession();
       await openExercise(0);
     } catch (caught) {
       error.value = errorText(caught);

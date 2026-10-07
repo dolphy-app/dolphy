@@ -17,6 +17,7 @@ repository's tests:
   [`docs/recipe-theme.md`](docs/recipe-theme.md),
   [`docs/recipe-command-panel.md`](docs/recipe-command-panel.md),
   [`docs/recipe-event-storage.md`](docs/recipe-event-storage.md),
+  [`docs/recipe-hooks.md`](docs/recipe-hooks.md),
   [`docs/recipe-settings.md`](docs/recipe-settings.md),
   [`docs/recipe-import-export.md`](docs/recipe-import-export.md),
   [`docs/recipe-when-dependencies.md`](docs/recipe-when-dependencies.md),
@@ -444,6 +445,12 @@ harness:
   the input is checked against the schema the handler registered, the result
   against its output schema; an unregistered name, a violation and an error of
   the handler reject the promise. `registration.rpcs` lists the names.
+- `hook(name, request)` — calls the handler registered with `s.before(name, …)`:
+  the request is checked against `EXTENSION_HOOKS[name].request`, the response
+  against `EXTENSION_HOOKS[name].response`; an unregistered hook, a violation
+  and an error of the handler reject the promise. Only this extension's handler
+  runs (in the app the handlers of all extensions with the hook run in turn).
+  `registration.hooks` lists the names.
 - `engine` — `options.engine`.
 
 Options: `extensionId`, `library`, `logger`, `storage`, `secrets`, `stats`,

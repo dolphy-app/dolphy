@@ -102,8 +102,8 @@ superseded-by: null
 - [x] 2026-10-07 Стадия 4. Интерфейс в окне (R2, R3, R4, R12 в части UI): виды ответа, панели и рендереры markdown — компоненты Vue (`AnswerView.vue`, `PanelHost.vue`, `MarkdownBlock.vue`), `usePanel()`, `defineAnswerView`/`defineExtensionPanel`/`defineMarkdownRenderer` без `mount`, контракт 33 (без `element` и UI-`isolated`), iframe-рамки, мост и рантайм рамок, страница рамки и CSP рамок, баннер «применится после перезагрузки» и пакет `extension-ui` удалены; четыре встроенных расширения на компонентах; документы, рецепты SDK и шаблоны переписаны. Не сделано из исходной строки стадии: каталог мест `EXTENSION_SLOTS` кроме `dailyPlan` (решает владелец по страницам) — переносится в стадию 5
 - [x] 2026-10-07 Стадия 2б. Инъекция вместо слотов (R9): `client.addInjection({ id, target, position?, component })`, реестр и `MutationObserver` в окне (`extension-injections.ts`, `InjectionHost.vue`), якорь `data-ext-anchor="dailyPlan"`, `anchorSelector`; `EXTENSION_SLOTS`, `addSlot`, `SlotHandle`, `ExtensionWidgets` удалены; `useApp().mountAt` остаётся стадией 5
 - [x] 2026-10-07 Стадия 5. Прямой доступ (R7, R8, часть R9): `s.engine` и `useEngine()` (клиент всех методов движка, кроме `close`; на сервере кадры `engine-rpc` идут туннелем через канал хоста, клиент `extension:<id>`), `defineRpc`/`server.handle`/`useRpc` через `extensions.invokeRpc` и `EXTENSION_RPC_FAILED`, `useApp()` (навигация, `notify`, тема, язык, `runCommand`, `mountAt`), `EXTENSION_ID_KEY`, контракт 36; unit 7161, e2e `extension-direct` 6 из 6, `pnpm smoke` зелёный
-- [ ] Стадия 6. Хуки (R10): реестр, диспетчер в движке, вызовы из `practice`, фикстуры
-- [ ] Стадия 7. Каталог (R11): `check`/`build`/установка на минимальном манифесте, индекс нового формата, терпимый разбор
+- [x] 2026-10-07 Стадия 6. Хуки (R10): `server.before('session.start' | 'practice.batch')`, диспетчер в движке (порт `extension-hooks`, порядок по id расширения, цепочка ответов, срок 30 с), ответ проверяется схемой и библиотекой, ошибка/срок/невалидный ответ отменяют операцию (`EXTENSION_HOOK_FAILED`); `practice.batch` применяется в `practice.getBatch` и `plan.getDay` (окно строит сессию из плана), окно ждёт `startSession()` и показывает ошибку хука; контракт 37; e2e `extension-hooks` 3 из 3, `pnpm smoke` зелёный
+- [x] 2026-10-07 Стадия 7. Каталог (R11): выполнена в стадиях 2 и 5: `check`/`build`/установка на минимальном манифесте и собранных `main.mjs`/`client.mjs`, индекс без `contributes`/`titles` (`index.v2.json` остаётся единственным), терпимый разбор приложением; e2e `catalog` зелёный
 - [ ] Стадия 8. Документы и закрытие (R13): раздел «Среда исполнения», ADR, руководство SDK, шаблоны
 
 ## Surprises & Discoveries
@@ -161,6 +161,8 @@ superseded-by: null
 - 2026-10-07. Вызов RPC — отдельный метод движка `extensions.invokeRpc`, а не скрытая команда: имена RPC не попадают в реестр команд и палитру.
 - 2026-10-07. `await s.engine…` внутри `server()` не поддерживается (движок создаётся после первой регистрации); сообщение о сроке `server()` подсказывает это. Хук готовности движка не добавлен: вызовы из обработчиков работают.
 - `openLesson` и `openExercise` открывают сессию курса (`#/session?course=<id>`): отдельных страниц урока и упражнения в окне нет.
+- 2026-10-07. Хук `practice.batch` применяется и в `plan.getDay`: окно строит сессию и страницу «План на сегодня» из плана, а не из `getBatch`; упавший хук поэтому показывает ошибку и на странице плана. В запрос хука добавлены `source` (`batch` | `plan`) и `sessionId` (`string | null`).
+- 2026-10-07. Схемы хуков вынесены в подпуть `@dolphy-app/extension-api/hook-schemas`: иначе `zod` попадал во все клиентские бандлы (рост размера, `new Function` в бандле ломал проверку `CHECK-022`).
 
 ## Outcomes
 

@@ -154,11 +154,16 @@ export class Client {
     };
   }
 
-  /** «Учить»: курс становится единственным в плане дня; открывается план. */
-  async focusCourse(name: string) {
+  /** «Учить» на карточке: открывает план дня курса, не дожидаясь его загрузки. */
+  async clickStudy(name: string) {
     await this.card(name)
       .getByRole('button', { name: RU.study, exact: true })
       .click();
+  }
+
+  /** «Учить»: курс становится единственным в плане дня; открывается план. */
+  async focusCourse(name: string) {
+    await this.clickStudy(name);
     await this.planTotalLocator().waitFor({ timeout: TIMEOUT });
   }
 

@@ -6,6 +6,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./hook-schemas": "./src/hook-schemas.ts",
     "./extension.schema.json": "./extension.schema.json"
   },
   "dependencies": {

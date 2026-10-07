@@ -40,6 +40,7 @@ import type { ExerciseTypes } from '../ports/exercise-types.ts';
 import type { GradePolicies } from '../ports/grade-policies.ts';
 import type { ExtensionCommands } from '../ports/extension-commands.ts';
 import type { ExtensionRpc } from '../ports/extension-rpc.ts';
+import type { ExtensionHooks } from '../ports/extension-hooks.ts';
 import type { ExtensionTransfers } from '../ports/extension-transfers.ts';
 import type { ExtensionDataStore } from '../ports/extension-data.ts';
 import type { PlatformServices } from '../ports/platform.ts';
@@ -112,6 +113,8 @@ export interface EngineDeps {
   extensionCommands: ExtensionCommands;
   /** RPC расширений: вызов обработчика `server.handle` в хосте расширений (`@dolphy-app/extension-host`). */
   extensionRpc: ExtensionRpc;
+  /** Хуки «до» расширений: вызов обработчиков `server.before` в хосте расширений (`@dolphy-app/extension-host`). */
+  extensionHooks: ExtensionHooks;
   /** Импорт и экспорт расширений: запуск в хосте расширений (`@dolphy-app/extension-host`). */
   extensionTransfers: ExtensionTransfers;
   /** Обзор расширений для `extensions.list`. */
@@ -381,6 +384,8 @@ export interface EngineContext extends FacadeContext {
   /** Единый источник опций планировщика, ремедиации и плана. */
   readonly options: SchedulerOptionsHolder;
   readonly session: SessionState;
+  /** Открытая сессия обучения: `practice` открывает и закрывает её, `plan` сообщает хукам. */
+  readonly currentSession: { id: string | null };
   readonly fsrs: FsrsScorer;
   readonly scorer: UnitScorer;
   readonly scheduler: DepthFirstScheduler;
@@ -391,6 +396,7 @@ export interface EngineContext extends FacadeContext {
   readonly extensionCommands: ExtensionCommands;
   readonly extensionRpc: ExtensionRpc;
   readonly extensionTransfers: ExtensionTransfers;
+  readonly extensionHooks: ExtensionHooks;
   /** Настройки обучения в памяти (читаются при каждом закрытии попытки); пишет только `settings.setLearning`. */
   readonly learning: { gradePolicy: string };
   readonly journal: JournalWriter;

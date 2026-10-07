@@ -3,6 +3,8 @@ import {
   DEFAULT_EXTENSION_ICON,
   EXTENSION_COMMAND_LIMITS,
   EXTENSION_RPC_LIMITS,
+  EXTENSION_HOOK_LIMITS,
+  EXTENSION_HOOK_NAMES,
   EXTENSION_NOTIFICATION_LIMITS,
   EXTENSION_SCHEDULE_LIMITS,
   EXTENSION_SECRET_LIMITS,
@@ -23,6 +25,7 @@ import {
   normalizeExportResult,
   normalizeImportResult,
 } from '@dolphy-app/extension-api';
+import { EXTENSION_HOOKS } from '@dolphy-app/extension-api/hook-schemas';
 import type {
   ClientCommandRegistration,
   CommandKeybinding,
@@ -34,6 +37,7 @@ import type {
   ExportInput,
   ExportResult,
   ExporterRegistration,
+  ExtensionHookName,
   ExtensionLogger,
   ExtensionNotification,
   ExtensionNotifications,
@@ -51,6 +55,8 @@ import type {
   JsonSchema,
   JsonValue,
   LearningEventName,
+  HookRequest,
+  HookResponse,
   LearningEventPayloads,
   LibraryReader,
   RegisteredKeybinding,
@@ -836,6 +842,17 @@ export interface TestServer {
       payload: LearningEventPayloads[N],
     ): Promise<void>;
   };
+  /**
+   * Calls the handler registered with `server.before` the way the host does:
+   * the request must pass `EXTENSION_HOOKS[name].request` and the response
+   * `EXTENSION_HOOKS[name].response`. An unregistered hook, a schema
+   * violation and an error of the handler reject the promise. The handler
+   * timeout is not applied, and no other extension's handlers run.
+   */
+  hook<N extends ExtensionHookName>(
+    name: N,
+    request: HookRequest<N>,
+  ): Promise<HookResponse<N>>;
   readonly schedule: {
     /**
      * Fires a registered schedule the way the host does and awaits the
@@ -913,6 +930,7 @@ export const createTestServer = async (
     LearningEventName,
     (payload: never) => void | Promise<void>
   >();
+  const hooks = new Map<ExtensionHookName, (request: never) => unknown>();
   const definitions: SettingDefinition[] = [];
   const running = new Set<string>();
 
@@ -981,6 +999,23 @@ export const createTestServer = async (
       return {
         dispose: () => {
           if (events.get(name) === handler) events.delete(name);
+        },
+      };
+    },
+    before: (name, handler) => {
+      if (!EXTENSION_HOOK_NAMES.includes(name)) {
+        throw new Error(`hook '${String(name)}' is not a known hook`);
+      }
+      if (hooks.has(name)) {
+        throw new Error(`hook '${name}' is already registered`);
+      }
+      if (hooks.size >= EXTENSION_HOOK_LIMITS.hooks) {
+        throw new Error(`more than ${EXTENSION_HOOK_LIMITS.hooks} hooks`);
+      }
+      hooks.set(name, handler);
+      return {
+        dispose: () => {
+          if (hooks.get(name) === handler) hooks.delete(name);
         },
       };
     },
@@ -1084,6 +1119,7 @@ export const createTestServer = async (
       scope: reg.scope,
     })),
     rpcs: [...rpcs.keys()],
+    hooks: [...hooks.keys()],
   };
 
   return {
@@ -1155,6 +1191,15 @@ export const createTestServer = async (
       const checked = registeredContract.input.parse(input);
       const result = await handler(checked);
       return registeredContract.output.parse(result) as Output;
+    },
+    async hook<N extends ExtensionHookName>(
+      name: N,
+      request: HookRequest<N>,
+    ): Promise<HookResponse<N>> {
+      const handler = registered(hooks, 'hook', name);
+      const schemas = EXTENSION_HOOKS[name];
+      const result = await handler(schemas.request.parse(request) as never);
+      return schemas.response.parse(result) as HookResponse<N>;
     },
     exerciseType(id) {
       const reg = registered(exerciseTypes, 'exercise type', id);
@@ -1274,6 +1319,7 @@ export const createTestServer = async (
       exporters.clear();
       rpcs.clear();
       events.clear();
+      hooks.clear();
       if (typeof cleanup === 'function') await cleanup();
       else if (cleanup !== undefined) await cleanup.dispose();
     },

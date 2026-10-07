@@ -8,6 +8,7 @@ import type {
 import type {
   ExtensionCommands,
   ExtensionHealth,
+  ExtensionHooks,
   ExtensionPolicy,
   ExtensionRpc,
   ExtensionTransfers,
@@ -19,6 +20,7 @@ import { createHostChannel } from '../src/channel.ts';
 import type { HostChannel } from '../src/channel.ts';
 import {
   createRemoteExtensionCommands,
+  createRemoteExtensionHooks,
   createRemoteExtensionRpc,
   createRemoteExtensionTransfers,
 } from '../src/client.ts';
@@ -257,6 +259,8 @@ export interface Harness {
   rpc: ExtensionRpc;
   /** Клиент импорта и экспорта движка поверх того же канала. */
   transfers: ExtensionTransfers;
+  /** Клиент хуков «до» движка поверх того же канала. */
+  hooks: ExtensionHooks;
   logger: TestLogger;
   /** Меняет набор расширений так же, как применение изменений: снимок движка и регистрация в хосте. */
   replace(
@@ -321,6 +325,13 @@ export const createHarness = async (
     commands: createRemoteExtensionCommands({ channel, logger }),
     rpc: createRemoteExtensionRpc({ channel, logger }),
     transfers: createRemoteExtensionTransfers({ channel, logger }),
+    hooks: createRemoteExtensionHooks({
+      channel,
+      discovery,
+      policy,
+      logger,
+      health: engine.health,
+    }),
     discovery,
     policy,
     logger,

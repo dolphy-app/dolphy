@@ -42,6 +42,7 @@ const DOC_FILES = [
   'recipe-command-panel.md',
   'recipe-event-storage.md',
   'recipe-exercise-type.md',
+  'recipe-hooks.md',
   'recipe-import-export.md',
   'recipe-rpc-and-app.md',
   'recipe-settings.md',
@@ -75,6 +76,9 @@ const EXAMPLES: Readonly<Record<string, Record<string, Example>>> = {
   },
   'recipe-event-storage.md': {
     events: { template: 'events', built: ['client.mjs', 'main.mjs'] },
+  },
+  'recipe-hooks.md': {
+    hooks: { built: ['main.mjs'] },
   },
   'recipe-import-export.md': {
     'import-export': { built: ['main.mjs'] },

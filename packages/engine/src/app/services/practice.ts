@@ -32,6 +32,7 @@ import type { EngineContext } from '../context.ts';
 import { ExerciseTypeError } from '../../ports/exercise-types.ts';
 import { DEFAULT_EXERCISE_TIMEOUT_MS, toExerciseDto } from '../dto.ts';
 import { EngineError } from '../errors.ts';
+import { runBatchHook, runBeforeHook } from '../hooks.ts';
 import { paginate } from '../pagination.ts';
 import { createProgressReader } from '../progress.ts';
 import { commitProgressResets } from '../progress-reset.ts';
@@ -95,7 +96,6 @@ interface BatchItem {
 export const createPracticeService = (ctx: EngineContext): PracticeService => {
   const { clock, ids, library, projections, session, attempts } = ctx;
   const progress = createProgressReader(ctx);
-  let sessionId: string | null = null;
   /** Выданные и ещё не законченные `finishSession` сессии: событие `session.finished` — один раз на id. */
   const openSessions = new Set<string>();
 
@@ -196,7 +196,7 @@ export const createPracticeService = (ctx: EngineContext): PracticeService => {
   /** Новая сессия движка: `session.started` уходит вместе с ответом команды. */
   const openSession = (): string => {
     const id = ids.next();
-    sessionId = id;
+    ctx.currentSession.id = id;
     openSessions.add(id);
     if (openSessions.size > MAX_OPEN_SESSIONS) {
       const [oldest] = openSessions;
@@ -210,6 +210,7 @@ export const createPracticeService = (ctx: EngineContext): PracticeService => {
   };
 
   const startSession = async () => {
+    await runBeforeHook(ctx, 'session.start', { now: clock.now() });
     session.reset();
     const id = openSession();
     return { sessionId: id, startedAt: clock.now() };
@@ -222,7 +223,8 @@ export const createPracticeService = (ctx: EngineContext): PracticeService => {
   }) => {
     requireText('sessionId', finishing);
     if (!openSessions.delete(finishing)) return { emitted: false };
-    if (sessionId === finishing) sessionId = null; // следующий `getBatch` начнёт новую
+    // следующий `getBatch` начнёт новую
+    if (ctx.currentSession.id === finishing) ctx.currentSession.id = null;
     ctx.emitLearning({
       name: 'session.finished',
       payload: { sessionId: finishing, at: clock.now() },
@@ -246,6 +248,7 @@ export const createPracticeService = (ctx: EngineContext): PracticeService => {
     }));
     // ремедиация встаёт перед новым материалом и вытесняет самые
     // низкоприоритетные новые; с явным фильтром область не расширяется
+    let remediated: ExerciseManifest[] = [];
     if (req.filter === undefined) {
       const inserted = projections.remediation
         .pendingExerciseIds()
@@ -255,7 +258,7 @@ export const createPracticeService = (ctx: EngineContext): PracticeService => {
         const rest = items.filter(
           ({ manifest }) => !insertedIds.has(manifest.id),
         );
-        for (const { id } of inserted) session.incrementFrequency(id);
+        remediated = inserted;
         items = [
           ...inserted.map((manifest): BatchItem => ({
             manifest,
@@ -273,13 +276,33 @@ export const createPracticeService = (ctx: EngineContext): PracticeService => {
       }
     }
     ctx.metrics.record('batch', performance.now() - started);
+    // хуки — после сборки, до любых изменений: отказ расширения не оставляет ни сессии, ни частот
+    if (ctx.currentSession.id === null) {
+      await runBeforeHook(ctx, 'session.start', { now: clock.now() });
+    }
+    const hooked = await runBatchHook(
+      ctx,
+      'batch',
+      items.map(({ manifest, reason }) => ({
+        exerciseId: manifest.id,
+        reason,
+      })),
+    );
+    const shown = hooked.flatMap(({ exerciseId, reason }) => {
+      const manifest = graph.getExercise(exerciseId);
+      return manifest === undefined ? [] : [{ manifest, reason }];
+    });
+    const shownIds = new Set(shown.map(({ manifest }) => manifest.id));
+    for (const { id } of remediated) {
+      if (shownIds.has(id)) session.incrementFrequency(id);
+    }
     // идентификатор — после успешной сборки пачки: сбой команды сбросил бы событие, а id остался
-    const batchSession = sessionId ?? openSession();
+    const batchSession = ctx.currentSession.id ?? openSession();
     return {
-      exercises: items.map(({ manifest }) =>
+      exercises: shown.map(({ manifest }) =>
         toExerciseDto(manifest, ctx.exerciseTypes),
       ),
-      reasons: items.map(({ reason }) => reason),
+      reasons: shown.map(({ reason }) => reason),
       generatedAt: clock.now(),
       sessionId: batchSession,
     };

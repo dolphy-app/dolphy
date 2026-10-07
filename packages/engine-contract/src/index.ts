@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 36 as const;
+export const CONTRACT_VERSION = 37 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 /** Потолок файла импорта, суммарного размера присланного дерева и снимка курса для экспорта, байт (R3, R4, R7 спеки `extension-api-breadth-2`). */
@@ -58,6 +58,8 @@ export type EngineErrorCode =
   | 'EXTENSION_TRANSFER_FAILED'
   /** An RPC call to the server part of an extension failed; `details`: `extensionId`, `name`, `reason` (`ExtensionRpcFailureReason`). The message of a failed handler reaches the caller as the error message. */
   | 'EXTENSION_RPC_FAILED'
+  /** Хук «до» расширения отменил операцию; `details`: `ExtensionHookFailureDetails`. Сообщение ошибки содержит имя расширения и текст его исключения; журнал и сессия не меняются. */
+  | 'EXTENSION_HOOK_FAILED'
   | 'INTERNAL';
 
 export interface EngineErrorDto {
@@ -508,6 +510,10 @@ export interface DueItemDto {
 }
 
 export interface PracticeService {
+  /**
+   * Хук `session.start`: `EXTENSION_HOOK_FAILED` — расширение отменило
+   * старт, сессия не создаётся и `session.started` не уходит.
+   */
   startSession(): Promise<{ sessionId: string; startedAt: EpochMs }>;
   /**
    * Окно сообщает, что сессия обучения закончилась: расширения с событием
@@ -516,6 +522,12 @@ export interface PracticeService {
    * После неё следующий `getBatch` начинает новую сессию.
    */
   finishSession(req: { sessionId: string }): Promise<{ emitted: boolean }>;
+  /**
+   * Хуки расширений: `session.start`, если батч открывает сессию, и
+   * `practice.batch` до возврата батча; `EXTENSION_HOOK_FAILED` — хук
+   * отменил операцию или ответил неверно, батч не возвращается, сессия и
+   * журнал не меняются.
+   */
   getBatch(req?: BatchRequest): Promise<BatchDto>;
   beginAttempt(req: { exerciseId: UnitId }): Promise<AttemptDto>;
   submitAnswer(req: SubmitAnswerRequest): Promise<VerdictDto>;
@@ -589,6 +601,11 @@ export interface DayPlanDto {
   generatedAt: EpochMs;
 }
 export interface PlanService {
+  /**
+   * Расширение с хуком `practice.batch` может переставить, убрать и добавить
+   * упражнения до возврата плана; `EXTENSION_HOOK_FAILED` — хук отменил или
+   * ответил неверно, план не возвращается.
+   */
   getDay(req: PlanRequest): Promise<DayPlanDto>;
 }
 
@@ -1583,6 +1600,26 @@ export type ExtensionTransferFailureReason =
   | 'too-large'
   /** Курс из присланного дерева отвергнут перезагрузкой библиотеки: каталог откатан, `details` несёт `summary` и `diagnostics`. */
   | 'reload-rejected';
+
+/** Хук «до», который расширение регистрирует через `server.before`; совпадает с `EXTENSION_HOOK_NAMES` пакета `extension-api` (контракт от него не зависит). */
+export type ExtensionHookName = 'session.start' | 'practice.batch';
+
+/** Причина `EXTENSION_HOOK_FAILED` (`details.reason`). */
+export type ExtensionHookFailureReason =
+  /** Обработчик бросил ошибку; сообщение ошибки содержит имя расширения и текст исключения. */
+  | 'failed'
+  | 'timeout'
+  /** Ответ не прошёл схему хука или проверку библиотекой (несуществующее упражнение, разные длины, больше потолка). */
+  | 'invalid-result'
+  | 'host-down';
+
+/** `details` ошибки `EXTENSION_HOOK_FAILED`. */
+export interface ExtensionHookFailureDetails {
+  hook: ExtensionHookName;
+  extensionId: string;
+  reason: ExtensionHookFailureReason;
+  message?: string;
+}
 
 /** Reason of `EXTENSION_RPC_FAILED` (`details.reason`). */
 export type ExtensionRpcFailureReason =

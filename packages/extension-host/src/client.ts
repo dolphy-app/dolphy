@@ -1,6 +1,8 @@
+import type { ExtensionHookFailureReason } from '@dolphy-app/engine-contract';
 import {
   ExerciseTypeError,
   ExtensionCommandError,
+  ExtensionHookError,
   ExtensionRpcError,
   ExtensionTransferError,
   GradePolicyError,
@@ -11,6 +13,9 @@ import type {
   ExtensionCommandErrorCause,
   ExtensionCommands,
   ExtensionHealth,
+  ExtensionHookResponses,
+  ExtensionHooks,
+  ExtensionPolicy,
   ExtensionRpc,
   ExtensionRpcErrorCause,
   ExtensionTransferErrorCause,
@@ -24,6 +29,7 @@ import {
   normalizeExportResult,
   normalizeImportResult,
 } from '@dolphy-app/extension-api';
+import { EXTENSION_HOOKS } from '@dolphy-app/extension-api/hook-schemas';
 import type { ExtensionLogger } from '@dolphy-app/extension-api';
 import type { createCatalog } from './catalog.ts';
 import type { ChannelOutcome, ChannelParams, HostChannel } from './channel.ts';
@@ -34,6 +40,7 @@ import {
   isFault,
 } from './protocol.ts';
 import type { ExtFailureCause, ExtResponse } from './protocol.ts';
+import type { DiscoverySource } from './holder.ts';
 
 /**
  * Причины, которые вид задания не различает, сводятся к сбою обработчика;
@@ -49,6 +56,7 @@ const exerciseCause = (cause: ExtFailureCause): ExerciseTypeErrorCause => {
     case 'invalid-input':
     case 'unknown-importer':
     case 'unknown-exporter':
+    case 'unknown-hook':
     case 'handler-timeout':
     case 'ipc-size':
     case 'ipc-rate':
@@ -515,5 +523,96 @@ export const createRemoteExtensionTransfers = (
           ),
         normalizeExportResult,
       ),
+  };
+};
+
+/**
+ * Срок вызова хука у движка: больше обработчика (30 с), с запасом на
+ * передачу по каналу.
+ */
+export const HOOK_CLIENT_DEADLINE_MS = 34_000;
+
+export interface RemoteExtensionHooksOptions {
+  channel: HostChannel;
+  /** Откуда берутся расширения с зарегистрированным хуком. */
+  discovery: DiscoverySource;
+  /** Отключённые расширения не вызываются. */
+  policy: ExtensionPolicy;
+  logger: ExtensionLogger;
+  deadlineMs?: number;
+  /** Сюда идут сбои хуков: срок и неверный ответ (ошибка обработчика — отмена по замыслу, сбоем не считается). */
+  health?: Pick<ExtensionHealth, 'recordFailure'>;
+}
+
+const hookReason = (cause: ExtFailureCause): ExtensionHookFailureReason => {
+  switch (cause) {
+    case 'handler-timeout':
+      return 'timeout';
+    case 'invalid-result':
+      return cause;
+    default:
+      return 'failed';
+  }
+};
+
+export const createRemoteExtensionHooks = (
+  options: RemoteExtensionHooksOptions,
+): ExtensionHooks => {
+  const { channel, discovery, policy, logger, health } = options;
+  const deadlineMs = options.deadlineMs ?? HOOK_CLIENT_DEADLINE_MS;
+  return {
+    async before(name, request, verify) {
+      const extensionIds = discovery
+        .get()
+        .extensions.filter(
+          ({ id, hooks }) => hooks.includes(name) && policy.isEnabled(id),
+        )
+        .map(({ id }) => id)
+        .sort();
+      const schema = EXTENSION_HOOKS[name].response;
+      let current = request;
+      let response: ExtensionHookResponses[typeof name] | undefined;
+      for (const extensionId of extensionIds) {
+        const fail = (
+          reason: ExtensionHookFailureReason,
+          message: string,
+        ): ExtensionHookError =>
+          new ExtensionHookError(reason, name, extensionId, message);
+        // таймаут хука хост не перезапускает: старт сессии не должен убивать чужие вызовы
+        const outcome = await channel.call(
+          'runHook',
+          { extensionId, name, request: current },
+          deadlineMs,
+          { restart: false },
+        );
+        if (outcome.kind === 'timeout') {
+          throw fail('timeout', `hook '${name}' timed out`);
+        }
+        if (outcome.kind !== 'response') {
+          throw fail('host-down', 'extension host is down');
+        }
+        const { response: reply } = outcome;
+        if (!reply.ok) {
+          const { cause, message } = reply.error;
+          logger.debug({ extensionId, name, cause }, 'extension hook failed');
+          if (cause === 'handler-timeout' || cause === 'invalid-result') {
+            health?.recordFailure(extensionId, cause, message);
+          }
+          throw fail(hookReason(cause), message);
+        }
+        const parsed = schema.safeParse(reply.result);
+        if (!parsed.success) {
+          throw fail(
+            'invalid-result',
+            `hook '${name}' returned an invalid result`,
+          );
+        }
+        response = parsed.data as ExtensionHookResponses[typeof name];
+        const problem = verify?.(response) ?? null;
+        if (problem !== null) throw fail('invalid-result', problem);
+        if (response !== undefined) current = { ...current, ...response };
+      }
+      return response;
+    },
   };
 };

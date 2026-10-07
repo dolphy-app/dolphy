@@ -12,6 +12,7 @@ import type {
   UnitDto,
   VerdictDto,
 } from '@dolphy-app/engine-contract';
+import { EngineCallError } from '@dolphy-app/engine-rpc/client';
 import { createSession } from '@/pages/session/model/session.ts';
 import { flush } from './support/extensions-fakes.ts';
 
@@ -70,6 +71,7 @@ const createFakeEngine = (options: FakeOptions) => {
   const verifiable = new Set(options.verifiable ?? []);
   const started: Array<Record<string, never>> = [];
   const finished: Array<{ sessionId: string }> = [];
+  const calls: string[] = [];
 
   const units: Record<string, UnitDto> = {
     'course-1': {
@@ -109,6 +111,7 @@ const createFakeEngine = (options: FakeOptions) => {
   const engine = {
     plan: {
       getDay: async () => {
+        calls.push('getDay');
         if (planError) {
           const error = planError;
           planError = undefined; // повтор после ошибки проходит
@@ -133,6 +136,7 @@ const createFakeEngine = (options: FakeOptions) => {
     practice: {
       ...(!options.withoutSessionCommands && {
         startSession: async () => {
+          calls.push('startSession');
           if (options.sessionError) throw options.sessionError;
           started.push({});
           return { sessionId: `session-${started.length}`, startedAt: 0 };
@@ -175,7 +179,7 @@ const createFakeEngine = (options: FakeOptions) => {
     },
   } as unknown as LearningEngine;
 
-  return { engine, submitted, completed, started, finished };
+  return { engine, submitted, completed, started, finished, calls };
 };
 
 describe('session model', () => {
@@ -324,14 +328,15 @@ describe('session model', () => {
   });
 
   describe('engine session', () => {
-    it('opens a session with the first exercise and finishes it once at the end', async () => {
-      const { engine, started, finished } = createFakeEngine({
+    it('opens a session before the plan is read and finishes it once at the end', async () => {
+      const { engine, calls, started, finished } = createFakeEngine({
         plan: [{ id: 'e1' }, { id: 'e2' }],
       });
       const session = createSession(engine);
       await session.start();
       await flush();
       expect(started).toHaveLength(1);
+      expect(calls).toEqual(['startSession', 'getDay']);
       expect(finished).toEqual([]);
 
       await session.selfGrade(5);
@@ -360,13 +365,45 @@ describe('session model', () => {
       expect(finished).toEqual([]);
     });
 
-    it('does not open a session for an empty plan', async () => {
+    it('closes the session it opened for an empty plan', async () => {
       const { engine, started, finished } = createFakeEngine({ plan: [] });
       const session = createSession(engine);
       await session.start();
       await flush();
-      expect(started).toEqual([]);
-      expect(finished).toEqual([]);
+      expect(session.stage.value).toBe('empty');
+      expect(started).toHaveLength(1);
+      expect(finished).toEqual([{ sessionId: 'session-1' }]);
+    });
+
+    it('stops at the session start with the text of an extension that cancelled it', async () => {
+      const { engine, calls } = createFakeEngine({
+        plan: [{ id: 'e1' }],
+        sessionError: new EngineCallError({
+          code: 'EXTENSION_HOOK_FAILED',
+          message: "Extension 'acme.gate': not today",
+          retryable: false,
+        }),
+      });
+      const session = createSession(engine);
+      await session.start();
+      expect(session.stage.value).toBe('failed');
+      expect(session.error.value).toBe("Extension 'acme.gate': not today");
+      expect(calls).toEqual(['startSession']);
+    });
+
+    it('retries the session start after a cancelled one', async () => {
+      const { engine, calls } = createFakeEngine({
+        plan: [{ id: 'e1' }],
+        sessionError: new EngineCallError({
+          code: 'EXTENSION_HOOK_FAILED',
+          message: 'cancelled',
+          retryable: false,
+        }),
+      });
+      const session = createSession(engine);
+      await session.start();
+      await session.start();
+      expect(calls).toEqual(['startSession', 'startSession']);
     });
 
     it('keeps one engine session across a retry after a failed load', async () => {

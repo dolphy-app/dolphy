@@ -33,6 +33,7 @@ import {
   buildLibrary,
   createFakeClock,
   createFakeExtensionCommands,
+  createFakeExtensionHooks,
   createFakeExtensionRpc,
   createFakeExtensionTransfers,
   createFakeExerciseTypes,
@@ -242,6 +243,7 @@ const start = async () => {
           text: '42 rows',
         }),
       }),
+      extensionHooks: createFakeExtensionHooks(),
       extensionRpc: createFakeExtensionRpc({
         'dolphy.sql/greeting.say-hello': (input) => ({ greeting: input }),
       }),

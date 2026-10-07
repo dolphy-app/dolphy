@@ -23,6 +23,7 @@ import {
   createHostChannel,
   createRemoteExerciseTypes,
   createRemoteExtensionCommands,
+  createRemoteExtensionHooks,
   createRemoteExtensionRpc,
   createRemoteExtensionTransfers,
   createRemoteGradePolicies,
@@ -159,6 +160,13 @@ export const boot = async (
     channel,
     logger: defaults.logger,
   });
+  const extensionHooks = createRemoteExtensionHooks({
+    channel,
+    discovery,
+    policy,
+    logger: defaults.logger,
+    health,
+  });
   const extensionRpc = createRemoteExtensionRpc({
     channel,
     logger: defaults.logger,
@@ -203,6 +211,7 @@ export const boot = async (
       gradePolicies,
       extensionCommands,
       extensionRpc,
+      extensionHooks,
       extensionTransfers,
       extensionRegistry: createExtensionRegistry(
         discovery,

@@ -1,5 +1,11 @@
 import { EXTENSION_STORAGE_LIMITS as ENGINE_LIMITS } from '@dolphy-app/engine';
 import { COURSE_SNAPSHOT_LIMITS } from '@dolphy-app/engine/app';
+import { EXTENSION_HOOK_MAX_EXERCISES } from '@dolphy-app/engine/ports';
+import type {
+  ExtensionHookRequests,
+  ExtensionHookResponses,
+} from '@dolphy-app/engine/ports';
+import type { ExtensionHookName as EngineHookName } from '@dolphy-app/engine-contract';
 import {
   LEARNING_EVENT_NAMES as ENGINE_EVENTS,
   MAX_EXTENSION_TRANSFER_BYTES,
@@ -11,9 +17,14 @@ import type {
 import {
   EXTENSION_STORAGE_LIMITS,
   EXTENSION_TRANSFER_LIMITS,
+  EXTENSION_HOOK_LIMITS,
+  EXTENSION_HOOK_NAMES,
   LEARNING_EVENT_NAMES,
 } from '@dolphy-app/extension-api';
 import type {
+  ExtensionHookName,
+  HookRequest,
+  HookResponse,
   LearningEventName,
   LearningEventPayloads,
 } from '@dolphy-app/extension-api';
@@ -46,5 +57,25 @@ describe('extension-api совпадает с контрактом движка'
 
   it('поля событий обучения', () => {
     expectTypeOf<LearningEventPayloads>().toEqualTypeOf<EnginePayloads>();
+  });
+
+  it('хуки: имена, потолок упражнений, запросы и ответы', () => {
+    expect([...EXTENSION_HOOK_NAMES]).toEqual([
+      'session.start',
+      'practice.batch',
+    ]);
+    expectTypeOf<ExtensionHookName>().toEqualTypeOf<EngineHookName>();
+    expect(EXTENSION_HOOK_LIMITS.maxExercises).toBe(
+      EXTENSION_HOOK_MAX_EXERCISES,
+    );
+    expectTypeOf<HookRequest<'session.start'>>().toEqualTypeOf<
+      ExtensionHookRequests['session.start']
+    >();
+    expectTypeOf<HookRequest<'practice.batch'>>().toEqualTypeOf<
+      ExtensionHookRequests['practice.batch']
+    >();
+    expectTypeOf<HookResponse<'practice.batch'>>().toEqualTypeOf<
+      ExtensionHookResponses['practice.batch']
+    >();
   });
 });

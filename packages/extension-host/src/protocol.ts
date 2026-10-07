@@ -1,10 +1,12 @@
 import type { ExerciseTypeErrorCause } from '@dolphy-app/engine/ports';
 import {
   EXTENSION_COMMAND_LIMITS,
+  EXTENSION_HOOK_NAMES,
   LEARNING_EVENT_NAMES,
 } from '@dolphy-app/extension-api';
 import type {
   ExportInput,
+  ExtensionHookName,
   JsonValue,
   LearningEventName,
   LearningEventPayloads,
@@ -59,7 +61,8 @@ export type ExtRequest =
   | InvokeCommandRequest
   | InvokeRpcRequest
   | RunImporterRequest
-  | RunExporterRequest;
+  | RunExporterRequest
+  | RunHookRequest;
 
 /**
  * Событие обучения расширению. Ответ `{ delivered }`: `false` — обработчика нет
@@ -175,6 +178,24 @@ export interface RunExporterRequest {
     extensionId: string;
     exporterId: string;
     input: ExportInput;
+  };
+}
+
+/**
+ * Вызов хука `server.before`. `request` — запрос хука (схема
+ * `EXTENSION_HOOKS[name].request`). Ответ — результат обработчика, проверенный
+ * схемой ответа хука (`undefined` у хука без ответа); хук не зарегистрирован —
+ * `unknown-hook`, запрос не прошёл схему — `invalid-input`, сбой обработчика —
+ * `handler-failed`, превышение `EXTENSION_HOOK_LIMITS.timeoutMs` —
+ * `handler-timeout`, ответ не прошёл схему — `invalid-result`.
+ */
+export interface RunHookRequest {
+  id: string;
+  method: 'runHook';
+  params: {
+    extensionId: string;
+    name: ExtensionHookName;
+    request: unknown;
   };
 }
 
@@ -308,6 +329,7 @@ export type ExtFailureCause =
   | 'invalid-input'
   | 'unknown-importer'
   | 'unknown-exporter'
+  | 'unknown-hook'
   | 'handler-timeout'
   | 'activation-timeout'
   | 'ipc-size'
@@ -460,6 +482,15 @@ export const extRequestSchema = z.discriminatedUnion('method', [
       extensionId: z.string(),
       exporterId: z.string(),
       input: exportInput,
+    }),
+  }),
+  z.strictObject({
+    id: z.string(),
+    method: z.literal('runHook'),
+    params: z.strictObject({
+      extensionId: z.string(),
+      name: z.enum(EXTENSION_HOOK_NAMES),
+      request: z.unknown(),
     }),
   }),
 ]);

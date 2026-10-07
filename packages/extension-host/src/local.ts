@@ -1,6 +1,7 @@
 import type {
   ExerciseTypes,
   ExtensionCommands,
+  ExtensionHooks,
   ExtensionPolicy,
   ExtensionRpc,
   ExtensionTransfers,
@@ -12,6 +13,7 @@ import { createHostChannel } from './channel.ts';
 import {
   createRemoteExerciseTypes,
   createRemoteExtensionCommands,
+  createRemoteExtensionHooks,
   createRemoteExtensionRpc,
   createRemoteExtensionTransfers,
   createRemoteGradePolicies,
@@ -41,6 +43,7 @@ export interface LocalExtensionHost {
   gradePolicies: GradePolicies;
   extensionCommands: ExtensionCommands;
   extensionRpc: ExtensionRpc;
+  extensionHooks: ExtensionHooks;
   extensionTransfers: ExtensionTransfers;
   /** Закрывает канал и деактивирует расширения. */
   close(): Promise<void>;
@@ -95,6 +98,12 @@ export const createLocalExtensionHost = async (
     }),
     extensionRpc: createRemoteExtensionRpc({
       channel,
+      logger: options.logger,
+    }),
+    extensionHooks: createRemoteExtensionHooks({
+      channel,
+      discovery,
+      policy,
       logger: options.logger,
     }),
     extensionTransfers: createRemoteExtensionTransfers({

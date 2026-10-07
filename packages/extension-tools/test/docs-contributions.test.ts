@@ -53,6 +53,7 @@ const EXAMPLES: Readonly<Record<string, Mode>> = {
   'настройки расширения': server,
   'подписи на двух языках': server,
   'подписка на события': server,
+  'хук перед сессией': server,
   'команды расширения': both,
   'панель расширения': both,
   'инъекция расширения': client,

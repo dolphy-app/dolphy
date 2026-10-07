@@ -1,6 +1,8 @@
 import type { ExtensionEngine } from '@dolphy-app/engine-contract';
 import {
   EXTENSION_COMMAND_LIMITS,
+  EXTENSION_HOOK_LIMITS,
+  EXTENSION_HOOK_NAMES,
   EXTENSION_RPC_LIMITS,
   EXTENSION_SCHEDULE_LIMITS,
   EXTENSION_TRANSFER_LIMITS,
@@ -14,6 +16,7 @@ import type {
   Disposable,
   ExerciseTypeHandler,
   ExporterHandler,
+  ExtensionHookName,
   ExtensionLogger,
   GradePolicyHandler,
   ImporterHandler,
@@ -148,6 +151,9 @@ interface Entry<Meta, Handler> {
 
 type EventHandler = (payload: unknown) => void | Promise<void>;
 
+/** Обработчик хука «до»: запрос и ответ проверяются схемами `EXTENSION_HOOKS` в рантайме. */
+export type HookHandlerFn = (request: unknown) => unknown;
+
 /** Обработчики расширения, найденные по идентификатору вклада. */
 export interface ServerHandlers {
   exerciseTypes: Map<
@@ -157,6 +163,7 @@ export interface ServerHandlers {
   gradePolicies: Map<string, Entry<RegisteredGradePolicy, GradePolicyHandler>>;
   rpcs: Map<string, RpcEntry>;
   events: Map<LearningEventName, EventHandler>;
+  hooks: Map<ExtensionHookName, HookHandlerFn>;
   commands: Map<string, Entry<RegisteredCommand, CommandHandler>>;
   schedules: Map<string, Entry<RegisteredSchedule, ScheduleHandler>>;
   importers: Map<string, Entry<RegisteredImporter, ImporterHandler>>;
@@ -196,6 +203,7 @@ export const createRegistrar = (options: RegistrarOptions): Registrar => {
     gradePolicies: new Map(),
     rpcs: new Map(),
     events: new Map(),
+    hooks: new Map(),
     commands: new Map(),
     schedules: new Map(),
     importers: new Map(),
@@ -330,6 +338,27 @@ export const createRegistrar = (options: RegistrarOptions): Registrar => {
       };
     },
 
+    before(name, handler) {
+      open('hook');
+      const issues: string[] = [];
+      if (!EXTENSION_HOOK_NAMES.includes(name)) issues.push('unknown hook');
+      if (typeof handler !== 'function') {
+        issues.push('handler must be a function');
+      }
+      if (handlers.hooks.has(name)) issues.push('hook is already registered');
+      if (handlers.hooks.size >= EXTENSION_HOOK_LIMITS.hooks) {
+        issues.push(`at most ${EXTENSION_HOOK_LIMITS.hooks} hooks allowed`);
+      }
+      if (issues.length > 0) throw new RegistrationError('hook', name, issues);
+      const stored = handler as HookHandlerFn;
+      handlers.hooks.set(name, stored);
+      return {
+        dispose: () => {
+          if (handlers.hooks.get(name) === stored) handlers.hooks.delete(name);
+        },
+      };
+    },
+
     registerCommand(reg) {
       open('command');
       return claim(
@@ -444,6 +473,7 @@ export const createRegistrar = (options: RegistrarOptions): Registrar => {
       importers: inOrder(handlers.importers),
       exporters: inOrder(handlers.exporters),
       rpcs: [...handlers.rpcs.keys()],
+      hooks: [...handlers.hooks.keys()],
     }),
   };
 };

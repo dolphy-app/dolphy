@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by ADR-0022
 date: 2026-09-30
 spec: specs/archive/2026-09-30-extension-isolation/SPEC.md
 ---

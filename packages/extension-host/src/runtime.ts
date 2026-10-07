@@ -6,6 +6,7 @@ import type {
 import {
   EMPTY_SERVER_REGISTRATION,
   EXTENSION_COMMAND_LIMITS,
+  EXTENSION_HOOK_LIMITS,
   EXTENSION_RPC_LIMITS,
   EXTENSION_SCHEDULE_LIMITS,
   EXTENSION_TRANSFER_LIMITS,
@@ -15,6 +16,7 @@ import {
   normalizeExportResult,
   normalizeImportResult,
 } from '@dolphy-app/extension-api';
+import { EXTENSION_HOOKS } from '@dolphy-app/extension-api/hook-schemas';
 import type {
   EntryResult,
   ExtensionLogger,
@@ -701,6 +703,42 @@ export const createExtensionRuntime = (
     return output.data;
   };
 
+  const runHook = async (
+    owner: Loaded | undefined,
+    params: Extract<ExtRequest, { method: 'runHook' }>['params'],
+  ): Promise<unknown> => {
+    const { name } = params;
+    const handler = owner?.registrar.handlers.hooks.get(name);
+    if (handler === undefined) {
+      throw new RuntimeFailure(
+        'unknown-hook',
+        `unknown hook '${name}' of '${params.extensionId}'`,
+      );
+    }
+    const hook = EXTENSION_HOOKS[name];
+    const request = await hook.request.safeParseAsync(params.request);
+    if (!request.success) {
+      throw new RuntimeFailure(
+        'invalid-input',
+        `invalid request of hook '${name}': ${schemaIssues(request.error).join('; ')}`,
+      );
+    }
+    const result = await invoke(() =>
+      within(
+        Promise.resolve(handler(request.data)),
+        EXTENSION_HOOK_LIMITS.timeoutMs,
+      ),
+    );
+    const response = await hook.response.safeParseAsync(result);
+    if (!response.success) {
+      throw new RuntimeFailure(
+        'invalid-result',
+        `invalid result of hook '${name}': ${schemaIssues(response.error).join('; ')}`,
+      );
+    }
+    return response.data;
+  };
+
   const run = async (
     request: ExtRequest,
     owner: Loaded | undefined,
@@ -720,6 +758,8 @@ export const createExtensionRuntime = (
         return runImporter(owner, request.params);
       case 'runExporter':
         return runExporter(owner, request.params);
+      case 'runHook':
+        return runHook(owner, request.params);
       default:
         break;
     }
@@ -794,6 +834,8 @@ export const createExtensionRuntime = (
       case 'runImporter':
       case 'runExporter':
         return TRANSFER_HANDLER_MS;
+      case 'runHook':
+        return EXTENSION_HOOK_LIMITS.timeoutMs;
       default:
         return DEFAULT_CALL_MS;
     }
@@ -887,6 +929,7 @@ export const createExtensionRuntime = (
       case 'invokeRpc':
       case 'runImporter':
       case 'runExporter':
+      case 'runHook':
         return loaded.get(request.params.extensionId);
       default:
         return [...loaded.values()].find((item) =>

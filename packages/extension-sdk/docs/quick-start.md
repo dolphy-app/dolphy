@@ -9,6 +9,7 @@ same layout:
 - [Theme](recipe-theme.md): colors, registered by the client part.
 - [Command and panel](recipe-command-panel.md): palette commands and a panel, a Vue component in the app window.
 - [Events and storage](recipe-event-storage.md): react to learning events and keep data.
+- [Hooks](recipe-hooks.md): change or cancel a session start and the batch of exercises before the engine acts.
 - [Settings](recipe-settings.md): let the user configure the extension.
 - [Visibility conditions and dependencies](recipe-when-dependencies.md): show a command only where it makes sense, a widget in the daily plan, require another extension.
 - [Importer and exporter](recipe-import-export.md): bring a file in as a course, write a course out.

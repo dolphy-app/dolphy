@@ -10,9 +10,11 @@
 import type { ZodType } from 'zod';
 import type { LocalizedText } from './locale.ts';
 import { WHEN_MAX_LENGTH } from './when.ts';
+import type { ExtensionHookName, HookHandler } from './hooks.ts';
 
 export * from './locale.ts';
 export * from './when.ts';
+export * from './hooks.ts';
 
 export const EXTENSION_API_VERSION = 1 as const;
 export const EXTENSION_ID_PATTERN = /^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*$/;
@@ -1559,6 +1561,20 @@ export interface ServerContext<
     contract: RpcContract<Input, Output>,
     handler: (input: Input) => Output | Promise<Output>,
   ): Disposable;
+  /**
+   * Takes part in an operation before the engine performs it. One handler
+   * per hook name, at most `EXTENSION_HOOK_LIMITS.hooks` per extension; an
+   * unknown name rejects the registration. The handlers of the extensions
+   * that registered the hook run in ascending order of the extension id,
+   * each with the response of the previous one. The request and the
+   * response are validated with `EXTENSION_HOOKS[name]`; an error of the
+   * handler, an invalid response or exceeding `EXTENSION_HOOK_LIMITS.timeoutMs`
+   * cancels the operation, and the message reaches the user.
+   */
+  before<N extends ExtensionHookName>(
+    name: N,
+    handler: HookHandler<N>,
+  ): Disposable;
 }
 
 /** `export const server` of an extension: registers contributions; the result, if any, runs when the extension is unloaded. */
@@ -1709,6 +1725,8 @@ export interface ServerRegistration {
   readonly exporters: readonly RegisteredExporter[];
   /** Names of the contracts of `server.handle`. */
   readonly rpcs: readonly string[];
+  /** Names of the hooks of `server.before`. */
+  readonly hooks: readonly ExtensionHookName[];
 }
 
 /** Registration of an extension without a server part, or before it has registered anything. */
@@ -1722,6 +1740,7 @@ export const EMPTY_SERVER_REGISTRATION: ServerRegistration = Object.freeze({
   importers: Object.freeze([]),
   exporters: Object.freeze([]),
   rpcs: Object.freeze([]),
+  hooks: Object.freeze([]),
 });
 
 /** Code block language of a markdown renderer: `[a-z][a-z0-9-]{0,31}`. */

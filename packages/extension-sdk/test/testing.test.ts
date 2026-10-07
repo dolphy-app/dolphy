@@ -293,6 +293,7 @@ describe('createTestServer: registration', () => {
       ],
       exporters: [{ id: 'acme.out', title: 'Out', scope: 'progress' }],
       rpcs: [],
+      hooks: [],
     });
   });
 

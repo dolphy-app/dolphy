@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by ADR-0022
 date: 2026-10-05
 spec: specs/archive/2026-10-05-extension-ui-vuetify/SPEC.md
 ---

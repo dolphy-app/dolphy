@@ -142,6 +142,7 @@ export const client = defineClient((c) => {
 | `settings`                                              | `get(id)` — текущее значение или `default`; `onDidChange(handler)` — изменение пользователем                  |
 | `registerExerciseType`, `registerGradePolicy`           | вид задания, правило оценки                                                                                   |
 | `registerSettings`, `on`, `registerCommand`, `schedule` | настройки, подписка на событие обучения, серверная команда, расписание                                        |
+| `before`                                                | хук «до» в учебном цикле: `session.start`, `practice.batch` (раздел «Хуки в учебный цикл»)                    |
 | `registerImporter`, `registerExporter`                  | импортёр и экспортёр                                                                                          |
 | `engine`                                                | клиент движка, все методы записи и чтения (раздел «Доступ к движку»)                                          |
 | `handle`                                                | ответ на вызов `defineRpc` (раздел «RPC между частями»)                                                       |
@@ -158,6 +159,7 @@ export const client = defineClient((c) => {
 | Рендерер markdown   | `c.addMarkdownRenderer(language, Component)`                                                                                                                   | `client`           |
 | Настройки           | `s.registerSettings([...])`; чтение — `s.settings.get(id)`, `s.settings.onDidChange`                                                                           | `server`           |
 | События             | `s.on(name, handler)`                                                                                                                                          | `server`           |
+| Хуки «до»           | `s.before(name, handler)`; имена — `session.start`, `practice.batch`                                                                                           | `server`           |
 | Команды             | `s.registerCommand({ id, title, description?, category?, keybindings?, palette?, when?, icon?, run })` (обработчик в хосте), `c.addCommand({ …, run })` (в окне) | `server`, `client` |
 | Панель              | `c.addPanel({ id, title, icon?, when?, component })`; внутри `usePanel()` (`props`, `context`, `call`); открывается результатом команды `openPanel(id, props)`  | `client`           |
 | Инъекция            | `c.addInjection({ id, target, position?, component })`; внутри `useInjection()` → `{ target, position }`; устойчивая цель — `anchorSelector('dailyPlan')`       | `client`           |
@@ -549,6 +551,58 @@ export const server = defineServer((s) => {
 - Доставка асинхронная, по порядку для одного расширения, не более одного раза; обработчик ограничен 2 с; очередь — 100 событий на расширение, при переполнении отбрасываются самые старые с предупреждением в лог.
 - Сбой, исключение или таймаут обработчика никогда не влияют на журнал, оценку и ответ команды. Отключённое расширение и расширение без подписки на событие его не получает.
 - `attempt.closed` — по одному разу на записанную попытку ученика; не приходит при повторе запроса, синхронизации, импорте и выводе по диагностике (`placement`).
+
+### Хуки в учебный цикл (`before`)
+
+Серверная часть вмешивается в учебный цикл хуками «до»: `s.before(name, handler)`. Хук вызывается до операции движка и может изменить её вход или отменить её. Имена — закрытый список (`EXTENSION_HOOK_NAMES` в `@dolphy-app/extension-api`); неизвестное имя — ошибка регистрации. На имя — один обработчик в расширении; `s.before` возвращает `Disposable`.
+
+| Хук              | Запрос                                                                                                               | Ответ                                                                                           | Когда                                                                                                                                         |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `session.start`  | `{ now }` (epoch мс)                                                                                                 | ничего: хук может только отменить, бросив ошибку                                                | `practice.startSession`, до создания сессии                                                                                                   |
+| `practice.batch` | `{ sessionId, exerciseIds, reasons, source }`; `sessionId` — `null`, пока сессии нет (план дня до `startSession`); `reasons[i]` — `review`, `new` или `remediation` для `exerciseIds[i]` | `{ exerciseIds, reasons }` одинаковой длины: упражнения можно переставлять, убирать и добавлять | после того как батч собран и перед возвратом: `practice.getBatch` и `plan.getDay` (из него окно строит сессию); `source` — `batch` или `plan` |
+
+Порядок и результат:
+
+- Расширения с хуком вызываются по очереди, по возрастанию id расширения; каждое получает результат предыдущего (для `session.start` — тот же запрос). Расширения без хука и отключённые не вызываются.
+- Ответ `practice.batch` проверяет движок: схема, длины массивов равны, не больше `EXTENSION_HOOK_LIMITS.maxExercises` (500) упражнений, каждый id есть в библиотеке и принадлежит её курсам. Описания упражнений движок пересобирает для возвращённых id.
+- Срок на один обработчик — `EXTENSION_HOOK_LIMITS.timeoutMs` (30 с).
+- Отмена: исключение обработчика, невалидный ответ, срок и недоступный хост расширений отменяют операцию целиком — сессия не создаётся, батч не возвращается, журнал не меняется. Вызывающий получает ошибку `EXTENSION_HOOK_FAILED` с `details: { hook, extensionId, reason, message? }`, где `reason` — `failed`, `timeout`, `invalid-result` или `host-down`; текст ошибки содержит id расширения и сообщение его исключения. Окно показывает её как обычную ошибку начала сессии.
+
+Файл `extension.json` (хук перед сессией):
+
+```json
+{
+  "id": "acme.focus",
+  "version": "1.0.0",
+  "apiVersion": 1
+}
+```
+
+Файл `src/index.ts` (хук перед сессией):
+
+```ts
+import { defineServer } from '@dolphy-app/extension-sdk';
+
+export const server = defineServer((s) => {
+  s.before('session.start', ({ now }) => {
+    if (new Date(now).getHours() < 6) {
+      throw new Error('sessions are closed until six in the morning');
+    }
+  });
+
+  s.before('practice.batch', ({ exerciseIds, reasons }) => {
+    const order = exerciseIds
+      .map((id, index) => ({ id, reason: reasons[index] ?? 'new' }))
+      .sort(
+        (a, b) => Number(b.reason === 'review') - Number(a.reason === 'review'),
+      );
+    return {
+      exerciseIds: order.map(({ id }) => id),
+      reasons: order.map(({ reason }) => reason),
+    };
+  });
+});
+```
 
 ### Команды (`registerCommand`, `addCommand`)
 

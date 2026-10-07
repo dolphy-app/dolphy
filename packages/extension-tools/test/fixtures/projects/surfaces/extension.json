@@ -29,8 +29,7 @@
       {
         "id": "acme.surfaces.card",
         "title": "Card",
-        "slot": "dailyPlan",
-        "minHeight": 100
+        "slot": "dailyPlan"
       },
       {
         "id": "acme.surfaces.gauge",

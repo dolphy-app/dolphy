@@ -185,11 +185,8 @@ const SQL_WIDGET: WidgetContributionDto = {
   extensionId: 'dolphy.sql',
   title: 'SQL',
   slot: 'dailyPlan',
-  minHeight: 80,
-  maxHeight: 320,
   when: null,
   rendererUrl: 'dolphy-ext://dolphy.sql/widget.mjs',
-  isolated: true,
   origin: 'bundled',
   revision: '',
 };

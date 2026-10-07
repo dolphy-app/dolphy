@@ -60,10 +60,10 @@ export type ResolvedPanel = Pick<
   'id' | 'title' | 'icon' | 'when' | 'rendererUrl'
 >;
 
-/** Виджет: модуль в рамке; `isolated`, `origin` и `revision` добавляет реестр. */
+/** Виджет: карточка с компонентом Vue; `origin` и `revision` добавляет реестр. */
 export type ResolvedWidget = Pick<
   WidgetContributionDto,
-  'id' | 'title' | 'slot' | 'minHeight' | 'maxHeight' | 'when' | 'rendererUrl'
+  'id' | 'title' | 'slot' | 'when' | 'rendererUrl'
 >;
 
 /** Расписание в виде, в котором его получает окно (DTO движка без `extensionId`). */

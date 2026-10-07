@@ -1,10 +1,9 @@
-// Расширение для e2e протокола `overlay`: вид ответа, виджет и рендерер markdown с меню и диалогом
+// Расширение для e2e протокола `overlay`: вид ответа и рендерер markdown с меню и диалогом
 // внизу короткого содержимого. Собирается `dolphy-ext build` (см. ui-kit-overlay.e2e.test.ts).
 import {
   defineAnswerView,
   defineExtension,
   defineExerciseType,
-  defineExtensionWidget,
   defineMarkdownRenderer,
 } from '@dolphy-app/extension-sdk';
 import {
@@ -56,7 +55,8 @@ const mountDemo = (container: Element): (() => void) => {
   const dialog = mountDialog(dialogSlot, {
     open: false,
     title: 'Подтверждение',
-    content: 'Текст диалога из нескольких слов, чтобы он занимал заметную высоту.',
+    content:
+      'Текст диалога из нескольких слов, чтобы он занимал заметную высоту.',
     actions: [
       { label: 'Отмена', value: 'cancel' },
       { label: 'Готово', value: 'done', color: 'primary' },
@@ -99,14 +99,6 @@ export const views = {
   'acme.overlay': defineAnswerView((api) => {
     const destroy = mountDemo(api.root);
     return { update() {}, destroy };
-  }),
-};
-
-export const widgets = {
-  'acme.overlay.widget': defineExtensionWidget({
-    mount(container) {
-      mountDemo(container);
-    },
   }),
 };
 

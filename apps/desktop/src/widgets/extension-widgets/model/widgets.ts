@@ -7,20 +7,20 @@ import type { ExtensionWhen } from '@/shared/lib/extension-when.ts';
 
 export interface ResolvedWidget {
   widget: WidgetContributionDto;
-  /** Ключ рамки: новая `revision` (обновление, правка в режиме разработчика) пересоздаёт её. */
+  /** Ключ карточки: новая `revision` (обновление, правка в режиме разработчика) пересоздаёт компонент. */
   key: string;
   /** Команды этого расширения, в том числе скрытые из палитры (`palette: false`). */
   commands: ReadonlySet<string>;
 }
 
-/** Ключ рамки виджета. */
+/** Ключ карточки виджета. */
 export const widgetKeyOf = (widget: WidgetContributionDto): string =>
   `${widget.extensionId}:${widget.id}:${widget.revision}`;
 
 /**
  * Виджеты места `slot` включённых расширений в порядке вкладов; пусто — блока
  * нет. Расширение отключено или удалено — его виджетов в наборе уже нет.
- * Виджет с ложным `when` не рисуется: рамка не создаётся, пока условие не
+ * Виджет с ложным `when` не рисуется: компонент не создаётся, пока условие не
  * станет истинным.
  */
 export const widgetsOf = (

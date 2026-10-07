@@ -6,19 +6,18 @@
     "exerciseTypes": [
       {
         "id": "acme.overlay",
-        "specSchema": { "type": "object" },
-        "answerSchema": { "type": "string" }
+        "specSchema": {
+          "type": "object"
+        },
+        "answerSchema": {
+          "type": "string"
+        }
       }
     ],
-    "widgets": [
+    "markdownRenderers": [
       {
-        "id": "acme.overlay.widget",
-        "title": "Оверлей",
-        "slot": "dailyPlan",
-        "minHeight": 100,
-        "maxHeight": 200
+        "language": "overlay"
       }
-    ],
-    "markdownRenderers": [{ "language": "overlay" }]
+    ]
   }
 }

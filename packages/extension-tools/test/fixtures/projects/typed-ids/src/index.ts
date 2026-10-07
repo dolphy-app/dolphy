@@ -9,6 +9,7 @@ import {
   notify,
   openPanel,
 } from '@dolphy-app/extension-sdk';
+import { useWidget } from '@dolphy-app/extension-sdk/client';
 import type {
   ExtensionMarkdown,
   ExtensionPanels,
@@ -60,10 +61,10 @@ export const panels = {
 
 export const widgets = {
   'acme.typed.card': defineExtensionWidget({
-    mount(container, ctx) {
-      container.textContent = `${ctx.widgetId} ${ctx.context.courseId ?? ''}`;
-      ctx.onContextChange(({ courseId }) => void courseId);
-      void ctx.call('acme.typed.ping');
+    setup() {
+      const widget = useWidget();
+      void widget.call('acme.typed.ping');
+      return () => `${widget.widgetId} ${widget.context.courseId ?? ''}`;
     },
   }),
 } satisfies ExtensionWidgets;

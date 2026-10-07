@@ -1,0 +1,10 @@
+{
+  "id": "acme.widget-host",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "contributes": {
+    "widgets": [
+      { "id": "acme.widget-host.card", "title": "Card", "slot": "dailyPlan" }
+    ]
+  }
+}

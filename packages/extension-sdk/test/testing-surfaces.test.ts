@@ -2,10 +2,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   defineAnswerView,
   defineExtensionPanel,
-  defineExtensionWidget,
   type JsonValue,
 } from '../src/index.ts';
-import { loadPanel, loadView, loadWidget } from '../src/testing.ts';
+import { loadPanel, loadView } from '../src/testing.ts';
 
 afterEach(() => {
   document.body.replaceChildren();
@@ -121,25 +120,6 @@ const panels = {
   }),
 };
 
-const widgets = {
-  'acme.card': defineExtensionWidget({
-    async mount(container, ctx) {
-      const render = () => {
-        container.textContent = `${ctx.widgetId}:${ctx.context.courseId}`;
-      };
-      render();
-      ctx.onContextChange(render);
-      container.dataset.answer = String(
-        await ctx.call('acme.ping').catch((error: Error) => error.message),
-      );
-      ctx.signal.addEventListener(
-        'abort',
-        () => void (container.dataset.closed = 'yes'),
-      );
-    },
-  }),
-};
-
 describe('loadPanel', () => {
   it('mounts with the panel id and props and awaits an asynchronous mount', async () => {
     const loaded = await loadPanel(panels, 'acme.panel', {
@@ -189,42 +169,5 @@ describe('panel context', () => {
       context: { courseId: 'c9' },
     });
     expect(loaded.container.dataset.course).toBe('c9');
-  });
-});
-
-describe('loadWidget', () => {
-  it('mounts with the widget id and the initial context; ctx.call is rejected unless provided', async () => {
-    const loaded = await loadWidget(widgets, 'acme.card', {
-      context: { courseId: 'c1' },
-    });
-    expect(loaded.container.textContent).toBe('acme.card:c1');
-    expect(loaded.container.dataset.answer).toBe(
-      "command 'acme.ping' is not available in this test",
-    );
-    expect(loaded.calls).toEqual([{ commandId: 'acme.ping', args: undefined }]);
-  });
-
-  it('answers ctx.call from the test and re-renders when the course changes', async () => {
-    const loaded = await loadWidget(widgets, 'acme.card', {
-      call: async () => 'pong',
-    });
-    expect(loaded.container.dataset.answer).toBe('pong');
-    expect(loaded.container.textContent).toBe('acme.card:null');
-    loaded.setContext({ courseId: 'c2' });
-    expect(loaded.container.textContent).toBe('acme.card:c2');
-  });
-
-  it('aborts the signal and removes the container on dispose', async () => {
-    const loaded = await loadWidget(widgets, 'acme.card');
-    loaded.dispose();
-    expect(loaded.aborted).toBe(true);
-    expect(loaded.container.dataset.closed).toBe('yes');
-    expect(document.body.children).toHaveLength(0);
-  });
-
-  it('names the missing widget', async () => {
-    await expect(loadWidget(widgets, 'acme.nope')).rejects.toThrow(
-      "widget 'acme.nope' was not exported",
-    );
   });
 });

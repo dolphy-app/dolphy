@@ -16,7 +16,10 @@
         "palette": false,
         "icon": "trophy"
       },
-      { "id": "acme.widgets.plain", "title": "Команда без значка" }
+      {
+        "id": "acme.widgets.plain",
+        "title": "Команда без значка"
+      }
     ],
     "panels": [
       {
@@ -29,23 +32,17 @@
       {
         "id": "acme.widgets.card",
         "title": "Карточка",
-        "slot": "dailyPlan",
-        "minHeight": 100,
-        "maxHeight": 200
+        "slot": "dailyPlan"
       },
       {
         "id": "acme.widgets.short",
         "title": "Короткий",
-        "slot": "dailyPlan",
-        "minHeight": 120,
-        "maxHeight": 200
+        "slot": "dailyPlan"
       },
       {
         "id": "acme.widgets.tall",
         "title": "Длинный",
-        "slot": "dailyPlan",
-        "minHeight": 80,
-        "maxHeight": 150
+        "slot": "dailyPlan"
       }
     ]
   }

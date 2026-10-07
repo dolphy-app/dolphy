@@ -156,6 +156,7 @@ describe('runCli', () => {
         widgets?: object[];
       };
     };
+    await writeFile(path.join(dir, 'widget.mjs'), 'export default {};\n');
     const withWhen = async (when: string) => {
       const { commands, panels } = manifest.contributes;
       await writeFile(
@@ -170,7 +171,7 @@ describe('runCli', () => {
                 id: 'acme.commands-panel.card',
                 title: 'Card',
                 slot: 'dailyPlan',
-                module: './panel.mjs',
+                module: './widget.mjs',
                 when,
               },
             ],

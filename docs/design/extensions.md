@@ -584,7 +584,7 @@ export const panels = {
 - Манифест проверяется той же функцией `parseWhen` из `@dolphy-app/extension-api`, что используют окно и `dolphy-ext validate`: неизвестный ключ, неизвестное значение текстового ключа (`route == 'home'`), несовпадение типа (`theme.dark == 'yes'`, `route == true`), ошибка синтаксиса, пустое условие и условие длиннее 200 знаков — ошибка манифеста с путём записи и позицией (индекс знака в условии), например `contributes.commands.0.when: invalid "when" (unknown value 'home' for 'route' (known: …) at 9)`.
 - Команда с ложным `when` не показана в палитре и не выполняется сочетанием клавиш (она недоступна, как команда с `enabled: false`); её привязки при этом не снимаются и не считаются свободными. Панели и виджеты расширения по-прежнему вызывают её через `ctx.call`: `when` скрывает вклад от пользователя, а не от расширения.
 - Пункт меню панели с ложным `when` скрыт. Сама панель остаётся доступна расширению: `openPanel` открывает её по маршруту `/ext/<extensionId>/<panelId>`, даже когда пункта нет. Условие по `route` скрывает пункт и на самой странице панели (её маршрут — `extension-panel`), поэтому для панели лучше условия по состоянию: `course.active`, `session.active`, `locale`, `theme.dark`.
-- Виджет с ложным `when` не рисуется: его рамка не создаётся, пока условие не станет истинным. Если ложны все виджеты места, блока «Виджеты расширений» нет.
+- Виджет с ложным `when` не рисуется, пока условие не станет истинным. Если ложны все виджеты места, блока «Виджеты расширений» нет.
 - `when` у команды с `palette: false` допустим, но ничего не скрывает: такую команду не видно в палитре и без него.
 - Условие команды и `when` записи `keybindings` — разные условия. Условие команды — этот язык (ключи таблицы выше); `keybindings[].when` — язык привязок над ключами ввода (`inputFocus`, `page`, …, раздел «Команды»). Привязка срабатывает, когда истинны оба.
 - `parseWhen(text)` разбирает и проверяет условие (бросает `WhenError` с `reason`, `position` и `detail`), `evaluateWhen(expr, context)` — чистая функция без обращения к окну: контекст — объект `WhenContext` со значениями пяти ключей (значение может быть геттером, и читаются только те ключи, которые назвало условие). Обе экспортирует `@dolphy-app/extension-api`: любой диспетчер, который умеет собрать `WhenContext`, может пользоваться ими, как окно.
@@ -693,7 +693,7 @@ export const panels = {
 
 ### Виджеты (`widgets`)
 
-Виджет — карточка расширения на экране приложения. Запись: `id`, `title` (до 60 символов), `slot` (сейчас единственное значение — `dailyPlan`, экран «План на сегодня»; ключ обязателен), необязательные `minHeight` и `maxHeight` (целые, 80–320 px; умолчания 80 и 320; `minHeight` не больше `maxHeight`), `module` (`.js` или `.mjs`, по умолчанию `./widget.mjs`; код виджета — запись `widgets[<id>]` в `src/index.ts`) и `when` (условие видимости, раздел «Условия видимости (`when`)»). Не более 3 виджетов на расширение. Нового разрешения виджет не просит и сам `main` не требует; команды, которые он вызывает, требуют.
+Виджет — карточка расширения на экране приложения. Запись: `id`, `title` (до 60 символов), `slot` (сейчас единственное значение — `dailyPlan`, экран «План на сегодня»; ключ обязателен), `module` (`.js` или `.mjs`, по умолчанию `./widget.mjs`; код виджета — запись `widgets[<id>]` в `src/index.ts`) и `when` (условие видимости, раздел «Условия видимости (`when`)»). Не более 3 виджетов на расширение. Нового разрешения виджет не просит и сам `main` не требует; команды, которые он вызывает, требуют.
 
 Файл `extension.json` (виджет расширения):
 
@@ -715,9 +715,7 @@ export const panels = {
       {
         "id": "acme.streak.card",
         "title": "Серия дней",
-        "slot": "dailyPlan",
-        "minHeight": 96,
-        "maxHeight": 200
+        "slot": "dailyPlan"
       }
     ]
   }
@@ -731,6 +729,9 @@ import {
   defineExtension,
   defineExtensionWidget,
 } from '@dolphy-app/extension-sdk';
+import { useWidget } from '@dolphy-app/extension-sdk/client';
+import { defineComponent, h, ref, watchEffect } from 'vue';
+import { VAlert, VBtn } from 'vuetify/components';
 
 export const host = defineExtension({
   commands: {
@@ -739,33 +740,41 @@ export const host = defineExtension({
 });
 
 export const widgets = {
-  'acme.streak.card': defineExtensionWidget({
-    async mount(container, ctx) {
-      const render = async () => {
-        const answer = await ctx.call('acme.streak.today', {
-          courseId: ctx.context.courseId,
-        });
-        container.textContent = `Серия: ${JSON.stringify(answer)}`;
-      };
-      ctx.onContextChange(() => void render());
-      await render();
-    },
-  }),
+  'acme.streak.card': defineExtensionWidget(
+    defineComponent({
+      setup() {
+        const widget = useWidget();
+        const days = ref<number | null>(null);
+        const refresh = async () => {
+          const answer = await widget.call('acme.streak.today', {
+            courseId: widget.context.courseId,
+          });
+          days.value = (answer as { days: number }).days;
+        };
+        watchEffect(() => void refresh());
+        return () =>
+          h(VAlert, { type: 'info', variant: 'tonal' }, () => [
+            `Серия: ${days.value ?? '…'}`,
+            h(VBtn, { onClick: () => void refresh() }, () => 'Обновить'),
+          ]);
+      },
+    }),
+  ),
 };
 ```
 
 Контракт:
 
-- Запись `widgets[<id>]` — `defineExtensionWidget({ mount })`; `mount(container, ctx)` получает контейнер рамки и `ctx = WidgetContext = { widgetId, context, signal, call(commandId, args), onContextChange(fn) }`. Это `PanelContext` без `props` и `onProps`: виджет не открывают командой. `context` — `{ courseId: string | null }`, только чтение; `onContextChange` срабатывает, когда в приложении выбран другой курс, рамка при этом не пересоздаётся.
-- `ctx.call` — тот же мост, что у панели: только команды этого же расширения (в том числе `palette: false`), не чаще 20 вызовов в секунду и не более 4 одновременных; результаты `notify` и `openPanel` исполняет приложение. Чужая команда отклоняется до вызова движка.
-- Рамка изолирована всегда, и у доверенных расширений тоже (как у панели): `sandbox="allow-scripts"`, без сети, `window.dolphy` и данных приложения.
-- Высота. Рамка сообщает высоту содержимого (`body`), приложение зажимает её в диапазон `minHeight`–`maxHeight`: пустой виджет занимает `minHeight`, содержимое выше `maxHeight` прокручивается внутри рамки. Высоту от высоты окна задавать не нужно; поля абзацев внутри `body` входят в высоту (`body` — `display: flow-root`).
-- Блок. На экране «План на сегодня» виджеты места `dailyPlan` показываются отдельной областью «Виджеты расширений» после списка плана: заголовок `h3` с названием виджета (`title`, `%ключ%` подставляется на языке окна), id расширения под ним и рамка. Область сетка из карточек, на узком окне — одна колонка. Нет виджетов — нет и области. Ошибка загрузки модуля показывается над рамкой.
-- Живое применение. Включение, отключение, удаление и обновление расширения меняют область без перезагрузки окна (`contributions-changed`); рамка живёт под ключом `extensionId:widgetId:revision`, обновление или правка файла в режиме разработчика создаёт её заново.
-- Сборка: `dolphy-ext build` собирает записи `widgets` файла `src/index.ts` в модули виджетов (`widget.mjs` и модули из `module`; виджеты одного файла выбирает по `ctx.widgetId` сама сборка); тип `ExtensionWidgets` проверяет, что ключи совпадают с `contributes.widgets`.
-- Тест без приложения: `loadWidget(widgets, id, { context?, call? })` из `@dolphy-app/extension-sdk/testing`; `setContext({ courseId })` имитирует смену курса.
+- Запись `widgets[<id>]` — `defineExtensionWidget(component)`: Vue-компонент, который окно рисует в своём дереве в месте `slot`, на тех же `vue` и `vuetify`, с темой и языком окна. Внутри компонента `useWidget()` из `@dolphy-app/extension-sdk/client` возвращает `{ widgetId, context, call(commandId, args) }`; вне виджета окна она бросает ошибку. `context` — `{ courseId: string | null }`, реактивный объект только для чтения: когда в приложении выбран другой курс, он меняется на месте, а компонент не пересоздаётся.
+- `call` вызывает только команды этого же расширения (в том числе `palette: false`); результаты `notify` и `openPanel` исполняет приложение, чужая команда отклоняется до вызова движка. Сбой команды — отклонённый промис с `Error`.
+- Файл виджетов содержит только виджеты: `module` виджета не может совпадать с модулем панели, рендерера вида задания или рендерера содержимого — иначе ошибка манифеста (`contributes.widgets.<n>.module: '…' is also the module of a …; a widget file holds only widgets`).
+- Модули `vue`, `vuetify`, `vuetify/components` и `vuetify/directives` в бандл не входят: приложение отдаёт их через `globalThis.__dolphy`, и расширение импортирует их как обычно. Таблицу стилей `vuetify/styles` подключать не нужно, она уже есть в окне.
+- Сбой компонента (загрузка модуля, `setup`, рендер) показывается в карточке виджета сообщением об ошибке с кнопкой «Повторить» и не роняет окно; «Повторить» загружает компонент заново.
+- Блок. На экране «План на сегодня» виджеты места `dailyPlan` показываются отдельной областью «Виджеты расширений» после списка плана: заголовок `h3` с названием виджета (`title`, `%ключ%` подставляется на языке окна), id расширения под ним и содержимое компонента. Область — сетка из карточек, на узком окне — одна колонка. Нет виджетов — нет и области.
+- Живое применение. Включение, отключение, удаление и обновление расширения меняют область без перезагрузки окна (`contributions-changed`); новая `revision` загружает компонент заново.
+- Сборка: `dolphy-ext build` собирает записи `widgets` файла `src/index.ts` в модуль виджетов (`widget.mjs` и модули из `module`); тип `ExtensionWidgets` проверяет, что ключи совпадают с `contributes.widgets`.
 
-Контракт 22 добавил `WidgetContributionDto`, `ContributionsDto.widgets`, `ExtensionContributesDto.widgets`, `ContributionTitlesDto.widgets` и поле `icon` у `CommandContributionDto` и `PanelContributionDto`.
+`WidgetContributionDto` (`id`, `extensionId`, `title`, `slot`, `when`, `rendererUrl`, `origin`, `revision`) входит в `ContributionsDto.widgets`; `ExtensionContributesDto.widgets` и `ContributionTitlesDto.widgets` описывают виджеты в списке расширений, `CommandContributionDto` и `PanelContributionDto` — поле `icon`.
 
 ### Расписания (`schedules`)
 
@@ -1305,14 +1314,6 @@ CSP страницы рамки строится для конкретного �
 - Пределы вызовов: не более 20 в секунду и 4 одновременных; аргументы длиннее 200 000 символов рантайм отклоняет сам, а приложение молча отбрасывает такое сообщение; срок ответа — 15 с.
 - Клавиши. Рамка не передаёт родителю события клавиатуры: рантайм пересылает приложению только Ctrl/⌘+K (`shortcut`), поэтому палитра открывается и при фокусе внутри рамки; приложение принимает это сообщение после той же проверки источника, что и остальные. Больше ничего родителю не уходит.
 
-#### Режим виджета
-
-Виджет использует ту же рамку (`WidgetFrame.vue`, `frame-bridge.ts`, `frame-runtime.js`) в режиме `widget`. От режима `panel` отличается высотой:
-
-- Высоту рамки выбирает приложение: рантайм рамки шлёт `size` (высота `body`; после монтирования рантайм читает её сам, потому что `ResizeObserver` молчит, пока браузер не рисует кросс-доменную рамку вне окна просмотра), приложение зажимает значение в `minHeight`–`maxHeight` из манифеста. Содержимое выше диапазона прокручивается внутри рамки.
-- Сообщения приложение → рамка: `init` с `mode: 'widget'` (адрес модуля, `widgetId`, `context`), `context` (новое окружение), общие `theme` и `dispose`. Рамка → приложение: `panel-call`, `shortcut` (только Ctrl/⌘+K), `size`, `ready`, `error`. Привязка к расширению, пределы вызовов (20 в секунду, 4 одновременных, срок 15 с) и проверка формы сообщений — как у панели.
-- Окружение `{ courseId: string | null }` приложение передаёт в `init` и обновляет сообщением `context` (то же для режима `panel`); рантайм принимает только эту форму (иначе «все курсы»), отдаёт её замороженной и не зовёт слушателей, если значение не изменилось.
-
 ### Что видит пользователь
 
 «Настройки → Расширения»: у каждого расширения не из поставки — заявленные разрешения (и пометка, что сеть не ограничивается), метка «Изолировано» или «Доверено» и два переключателя: «Включено» и «Доверять (без изоляции)». У расширений из поставки — «Встроенное», «Доверено» и нет переключателей. Состояние (отключено, доверено) хранится в `engine.db` и переживает перезапуск.
@@ -1349,7 +1350,7 @@ CSP страницы рамки строится для конкретного �
 - e2e (`pnpm -F @dolphy/desktop e2e`): `isolation-code.e2e.test.ts` (код в Electron, «Доверять» на лету), `isolation-ui.e2e.test.ts` (рамка `sandbox="allow-scripts"`, ввод, Ctrl+Enter, Tab, тема, рендерер содержимого, «Доверять» без перезагрузки окна), `extension-settings.e2e.test.ts` (разрешения и метки, переключатели без перезагрузки окна, отключение, доверие переживает перезапуск).
 - e2e состояния расширений (`extension-state.e2e.test.ts`): события обучения доставляются и в изолированном режиме, и при включённом «Доверять».
 - e2e поверхностей расширений (`extension-surfaces.e2e.test.ts`): панель изолирована (подделка сообщения с чужим `extensionId`, `sandbox="allow-scripts"`), Ctrl/⌘+K работает из рамки.
-- Виджеты и значки. Unit: `packages/extension-host/test/points-surfaces.test.ts` (манифест, высоты, реестр, значки), `packages/extension-tools/test/entry.test.ts`, `ids.test.ts`, `typed-ids.test.ts` (сборка `widgets`, типы), `packages/extension-sdk/test` (`dispatchWidgets`, `loadWidget`), `apps/desktop/test/frame-runtime.test.ts` и `frame-bridge-panel.test.ts` (режим `widget`, окружение), `extension-widgets-model.test.ts`, `extension-icons.test.ts`, `extension-commands-registry.test.ts`. e2e: `extension-widgets.e2e.test.ts` (фикстура `widgets-extension`: блок появляется и пропадает, высота зажата в диапазон, прокрутка внутри, чужая команда отклоняется, курс доходит до рамки без пересоздания, значки в меню и палитре, обновление, удаление, правка в режиме разработчика). Доступность (axe светлой и тёмной темы) проверена ревью окна, в e2e axe нет.
+- Виджеты и значки. Unit: `packages/extension-host/test/points-surfaces.test.ts` (манифест, реестр, значки), `packages/extension-tools/test/entry.test.ts`, `ids.test.ts`, `typed-ids.test.ts`, `host-modules.test.ts`, `widget-build.test.ts` (сборка `widgets`, типы, `vue` и `vuetify` не входят в бандл), `packages/extension-sdk/test/use-widget.test.ts`, `apps/desktop/test/widget-host.test.ts` (компонент из `default[widget.id]` и хендл, карточка ошибки), `extension-widgets-model.test.ts`, `extension-icons.test.ts`, `extension-commands-registry.test.ts`. e2e: `extension-widgets.e2e.test.ts` (фикстура `widgets-extension`: блок появляется и пропадает, компонент видит тему окна, чужая команда отклоняется, курс доходит до компонента без пересоздания, отключение, удаление и обновление расширения, правка в режиме разработчика, значки в меню и палитре). Доступность (axe светлой и тёмной темы) проверена ревью окна, в e2e axe нет.
 - Смоук `pnpm -F @dolphy/desktop smoke`: сценарий `isolated` — упражнение «враждебного» расширения получает вердикт, в отчёте чтение `/etc/hosts`, запись, запуск процесса и поток запрещены, переменная `HOME` не видна.
 - Документация: примеры этого раздела проверяет `packages/extension-tools/test/docs-contributions.test.ts`.
 
@@ -1651,7 +1652,7 @@ DOLPHY_EXTENSION_CATALOG_URL=http://localhost:8080/index.json pnpm dev
 - Правила оценки: параметры выбора в «Настройки → Обучение» реактивны; сохранённый id пропавшего правила не меняется, экран показывает «Pass@N» с пометкой.
 - Элементы ввода: смонтированный элемент и введённый в нём ответ не трогаются при обновлении расширения, новые монтирования берут новые файлы. Исключение — расширения с происхождением `dev`: `AnswerElement` берёт действующий вид из вкладов и пересоздаёт элемент (или рамку) при каждой правке; состояние элемента может быть потеряно.
 - Единственный остаток перезагрузки (R7): `customElements.define` нельзя повторить. `ensureAnswerElement` запоминает ревизию файлов, определивших тег; `staleAnswerElements` сравнивает её с ревизией действующего неизолированного вида, и только при расхождении «Настройки → Расширения» показывают баннер «Обновление применится после перезагрузки окна» с кнопкой «Перезагрузить окно». Удаление и отключение такого расширения перезагрузки не требуют: движок отвергает вид задания, новая попытка получает `EXERCISE_TYPE_UNAVAILABLE`.
-- Виджеты: блок «Виджеты расширений» экрана «План на сегодня» (`widgets/extension-widgets`) читает те же реактивные вклады: включение, отключение, удаление и обновление расширения добавляют и убирают карточки без перезагрузки окна, новая `revision` пересоздаёт рамку виджета (ключ `extensionId:widgetId:revision`); блока без виджетов нет.
+- Виджеты: блок «Виджеты расширений» экрана «План на сегодня» (`widgets/extension-widgets`) читает те же реактивные вклады: включение, отключение, удаление и обновление расширения добавляют и убирают карточки без перезагрузки окна, новая `revision` загружает компонент виджета заново; блока без виджетов нет.
 - Команды и панели: палитра (`features/extension-commands`, `widgets/command-palette`) и группа «Панели расширений» в боковом меню читают те же реактивные вклады, поэтому установка, обновление, отключение и удаление расширения обновляют палитру и меню без перезагрузки окна; выбранная в палитре строка держится за ключом команды. Рамка панели живёт под ключом `extensionId:panelId:revision`: обновление расширения (и правка модуля панели или любого файла, например таблицы стилей, в режиме разработчика) даёт новую `revision` (отпечаток всех файлов каталога) и пересоздаёт рамку, а открытая панель переживает замену набора без перезагрузки окна. Панель исчезнувшего расширения показывает пустое состояние и оживает, когда расширение вернётся.
 - Значок и ресурсы: значок едет в тех же `ExtensionInfoDto` и `CatalogEntryDto`, что и остальные данные списка, поэтому установка, обновление и удаление меняют его вместе со строкой. Ресурсы читаются с диска при каждом запросе (`Cache-Control: no-cache`), так что правка таблицы или картинки в режиме разработчика видна после пересоздания рамки.
 
@@ -2065,13 +2066,13 @@ export const panels = {
 
 ### UI-кит (`@dolphy-app/extension-ui`)
 
-Панель, виджет и вид ответа собираются из настоящих компонентов Vuetify 4: пакет `@dolphy-app/extension-ui` (решение — [ADR 0021](../adr/0021-vue-and-vuetify-in-extension-bundles.md), спека `extension-ui-vuetify`) даёт группы radio и checkbox, alert, chip, progress, skeleton, textarea, slider, switch, поле даты, tabs, dialog, menu, tooltip, table и data-table. Корневого экспорта нет: прежний ванильный набор (`button`, `textField`, `list`, `card` и другие, до 10 КиБ gzip) удалён без обратной совместимости по решению владельца. Подключается один подпуть на группу: `@dolphy-app/extension-ui/vuetify` (ядро: `mountComponent`, `vuetifyOf`, `requestOverlayHeight`), `…/vuetify/choice`, `…/feedback`, `…/fields`, `…/navigation`, `…/table`. Каждая функция `mount…(container, props)` создаёт маленькое приложение Vue в элементе автора и возвращает `{ update(patch), destroy() }`; компоненты управляемые: пользователь выбрал, компонент вызвал `onChange`, а новое значение автор возвращает через `update`.
+Панель и вид ответа собираются из настоящих компонентов Vuetify 4: пакет `@dolphy-app/extension-ui` (решение — [ADR 0021](../adr/0021-vue-and-vuetify-in-extension-bundles.md), спека `extension-ui-vuetify`) даёт группы radio и checkbox, alert, chip, progress, skeleton, textarea, slider, switch, поле даты, tabs, dialog, menu, tooltip, table и data-table. Корневого экспорта нет: прежний ванильный набор (`button`, `textField`, `list`, `card` и другие, до 10 КиБ gzip) удалён без обратной совместимости по решению владельца. Подключается один подпуть на группу: `@dolphy-app/extension-ui/vuetify` (ядро: `mountComponent`, `vuetifyOf`, `requestOverlayHeight`), `…/vuetify/choice`, `…/feedback`, `…/fields`, `…/navigation`, `…/table`. Каждая функция `mount…(container, props)` создаёт маленькое приложение Vue в элементе автора и возвращает `{ update(patch), destroy() }`; компоненты управляемые: пользователь выбрал, компонент вызвал `onChange`, а новое значение автор возвращает через `update`.
 
-Vue и Vuetify собираются внутрь файла расширения (`view.mjs`, `panel.mjs`, `widget.mjs`) командой `dolphy-ext build`, а не берутся из приложения: рамка изолирована (`sandbox="allow-scripts"`, непрозрачный origin, CSP `script-src` только своего расширения), общих модулей у неё нет. Цена — размер: каждое расширение несёт свою копию (вид ответа с radio и checkbox измерен в 549 КБ, 118 КБ gzip до минификации; потолки размера подпутей фиксирует стадия 5 спеки). Сборщик отличает CSS зависимостей от CSS автора: стили Vuetify (`import './VBtn.css'` из `node_modules`) собираются в реестр и подключаются в рамку или в теневой корень вида ответа, собственный `import './x.css'` по-прежнему ошибка с подсказкой `?inline`. Права кит не добавляет: код остаётся в рамке без сети и `window.dolphy`.
+У панели и вида ответа Vue и Vuetify собираются внутрь файла расширения (`view.mjs`, `panel.mjs`) командой `dolphy-ext build`, а не берутся из приложения: рамка изолирована (`sandbox="allow-scripts"`, непрозрачный origin, CSP `script-src` только своего расширения), общих модулей у неё нет. Цена — размер: каждое расширение несёт свою копию (вид ответа с radio и checkbox измерен в 549 КБ, 118 КБ gzip до минификации; потолки размера подпутей фиксирует стадия 5 спеки). Сборщик отличает CSS зависимостей от CSS автора: стили Vuetify (`import './VBtn.css'` из `node_modules`) собираются в реестр и подключаются в рамку или в теневой корень вида ответа, собственный `import './x.css'` по-прежнему ошибка с подсказкой `?inline`. Права кит не добавляет: код остаётся в рамке без сети и `window.dolphy`.
 
 Тема и язык берутся из рамки. Тема Vuetify строится из `--v-theme-*` на `<html>` рамки и пересобирается при их смене (светлая и тёмная без кода автора); язык (`en` или `ru`) — из `<html lang>`, встроенные строки Vuetify (таблица данных, поле даты) переключаются вместе с ним. В теневом корне вида ответа таблицу темы Vuetify (`.v-theme--*`, `.bg-*`) копируют внутрь корня, потому что `<head>` документа тень не видит.
 
-Оверлеи (dialog, menu, tooltip) рисуются внутри элемента автора, а не в `<body>`, и обрезались бы границей рамки: высота рамок `answer`, `markdown` и `widget` равна высоте содержимого. Поэтому открытый оверлей посылает DOM-событие `dolphy-overlay` с нужной высотой (`null` при закрытии); рамка пересылает его сообщением `overlay`, приложение ограничивает высоту высотой окна и держит её, пока оверлей открыт (протокол — комментарий в начале `apps/desktop/electron/main/shells/frame-runtime.js`). Рамка режима `panel` заполняет слот и событие игнорирует.
+Оверлеи (dialog, menu, tooltip) рисуются внутри элемента автора, а не в `<body>`, и обрезались бы границей рамки: высота рамок `answer` и `markdown` равна высоте содержимого. Поэтому открытый оверлей посылает DOM-событие `dolphy-overlay` с нужной высотой (`null` при закрытии); рамка пересылает его сообщением `overlay`, приложение ограничивает высоту высотой окна и держит её, пока оверлей открыт (протокол — комментарий в начале `apps/desktop/electron/main/shells/frame-runtime.js`). Рамка режима `panel` заполняет слот и событие игнорирует.
 
 Расширения репозитория: `ext-choice` (radio и checkbox) и `ext-sql` (textarea) переведены на кит; `ext-js` оставляет собственный редактор кода (прозрачная textarea поверх слоя подсветки — такого компонента в Vuetify нет); `ext-math` интерфейса не имеет. Справочник — README пакета; рецепт — `packages/extension-sdk/docs/recipe-ui-kit.md` (панель и вид ответа); e2e-панель `apps/desktop/e2e/fixtures/ui-kit-extension` проверяется axe (serious и critical) в обеих темах.
 
@@ -2275,9 +2276,9 @@ export const panels = {
 - `defineExtension({ exerciseTypes?, gradePolicies?, events?, commands?, schedules?, importers?, exporters?, activate?, deactivate? })` — готовый модуль расширения (экспорт `host` файла `src/index.ts`): виды из `exerciseTypes` регистрируются сами, при `deactivate` освобождаются; `events` — словарь «имя события → обработчик» (нужны `learning.events` и `contributes.events`); `commands` — словарь «id команды → обработчик» (команда объявлена в `contributes.commands`, разрешение не нужно; обработчику, которому нужен `ctx`, регистрируйтесь в `activate` через `ctx.commands.register`). `ctx.storage`, `ctx.settings`, `ctx.events` и `ctx.commands` доступны в `activate` и обработчиках (разделы «Данные, настройки и события» и «Команды»). Помощники результата команды — `notify(text)` и `openPanel(id, props?)`; модуль панели — `defineExtensionPanel({ mount })` в `src/panel.ts`.
 - `defineExerciseType<Spec, Answer, View>({ project, grade, referenceAnswer? })` — типизированный обработчик. `project` отдаёт элементу публичный вид задания (без ключей ответа); `grade` возвращает `{ outcome: 'passed' }`, `{ outcome: 'failed', reason, detail? }` или `{ outcome: 'error', reason }`; `referenceAnswer` — эталон для проверки библиотеки компилятором. К моменту вызова `grade` `spec` и ответ уже проверены схемами из манифеста.
 - `defineAnswerView(mount)` — запись `views[<id вида>]`: описание элемента ввода с shadow DOM, ничего не регистрирует (custom element с тегом `element` из манифеста определяет сборка в `view.mjs`). `mount(api, props)` получает `api.root`, `api.label` (`aria-label` от приложения), `api.setAnswer(value, complete)` и `api.submit()`, возвращает `{ update(props), destroy?() }`; `props` — `view`, `value`, `disabled`, `verdict`.
-- `defineExtensionPanel({ mount })` — запись `panels[<id панели>]`; `defineExtensionWidget({ mount })` — запись `widgets[<id виджета>]` (`ctx = WidgetContext = { widgetId, context, signal, call, onContextChange }`); `defineMarkdownRenderer(render)` — запись `markdown[<язык>]`.
-- `ExtensionIds` (интерфейс, который расширяет `.dolphy/ids.d.ts`), `ExtensionViews`, `ExtensionPanels`, `ExtensionWidgets`, `ExtensionMarkdown` и `inActivate` — типы и маркер для типизированных id: `export const views = { … } satisfies ExtensionViews`, `commands: { 'acme.data': inActivate }` (раздел «Типизированные id»). `ExtensionContext`, `PanelContext` и `WidgetContext` из SDK уже сужены до объявленных id.
-- `@dolphy-app/extension-sdk/testing`: `loadView(views, id, options?)`, `loadPanel(panels, id, options?)` и `loadWidget(widgets, id, options?)` монтируют вид, панель или виджет в DOM-окружении тестов (happy-dom) и возвращают помощников (`changes`, `submissions`, `update(props)`, `query`/`queryAll` по shadow DOM, `calls`, `setProps`, `setContext({ courseId })` — курс в фокусе для `ctx.context` и `onContextChange`, `dispose()`); `loadExerciseType(host, type)` (как и остальные `load…`, принимает экспорт `host` как есть) запускает `project`/`grade`/`referenceAnswer` без приложения и проверяет форму результата; `createSchemaValidator(schema)` — проверка `spec` и ответа по своим схемам; `createMemoryLibrary(files)` — библиотека в памяти для видов, читающих файлы курса; `createMemoryStorage()`, `createMemorySettings(definitions, values?)`, `createMemoryEvents()` и `loadEvents(module, …)` — хранилище, настройки и события в памяти (те же потолки и `StorageQuotaError`; `emit(name, payload)` отправляет событие обработчику).
+- `defineExtensionPanel({ mount })` — запись `panels[<id панели>]`; `defineExtensionWidget(component)` — запись `widgets[<id виджета>]` (Vue-компонент; внутри него `useWidget()` из `@dolphy-app/extension-sdk/client` возвращает `{ widgetId, context, call }`); `defineMarkdownRenderer(render)` — запись `markdown[<язык>]`.
+- `ExtensionIds` (интерфейс, который расширяет `.dolphy/ids.d.ts`), `ExtensionViews`, `ExtensionPanels`, `ExtensionWidgets`, `ExtensionMarkdown` и `inActivate` — типы и маркер для типизированных id: `export const views = { … } satisfies ExtensionViews`, `commands: { 'acme.data': inActivate }` (раздел «Типизированные id»). `ExtensionContext` и `PanelContext` из SDK уже сужены до объявленных id.
+- `@dolphy-app/extension-sdk/testing`: `loadView(views, id, options?)` и `loadPanel(panels, id, options?)` монтируют вид или панель в DOM-окружении тестов (happy-dom) и возвращают помощников (`changes`, `submissions`, `update(props)`, `query`/`queryAll` по shadow DOM, `calls`, `setProps`, `setContext({ courseId })` — курс в фокусе для `ctx.context` и `onContextChange`, `dispose()`); `loadExerciseType(host, type)` (как и остальные `load…`, принимает экспорт `host` как есть) запускает `project`/`grade`/`referenceAnswer` без приложения и проверяет форму результата; `createSchemaValidator(schema)` — проверка `spec` и ответа по своим схемам; `createMemoryLibrary(files)` — библиотека в памяти для видов, читающих файлы курса; `createMemoryStorage()`, `createMemorySettings(definitions, values?)`, `createMemoryEvents()` и `loadEvents(module, …)` — хранилище, настройки и события в памяти (те же потолки и `StorageQuotaError`; `emit(name, payload)` отправляет событие обработчику).
 - `loadCommands(module, { declaredCommands?, declaredPanels?, storage?, … })` из `@dolphy-app/extension-sdk/testing`: активирует модуль с командами в памяти; `run(id, args)` возвращает `{ kind: 'none' | 'notify' | 'openPanel' | 'data', … }` по тем же правилам, что хост (регистрация необъявленной команды и повторная бросают, `openPanel` на необъявленную панель недопустим, результат больше 64 КиБ отклоняется); `ids()` — зарегистрированные команды. Общее `storage` у `loadCommands` и `loadEvents` даёт тесту проверить обработчик события и команду, читающую то же хранилище.
 - `importers` и `exporters` в `defineExtension` — словари «id → обработчик» (запись объявлена в `contributes.importers`/`exporters`, разрешение не нужно; обработчику, которому нужен `ctx`, — `inActivate` и `ctx.importers.register`/`ctx.exporters.register` в `activate`). Обработчик текстового импортёра пишут как `({ name, text }: TextImportInput) => ({ files })`, байтового — `({ name, bytes }: BytesImportInput) => …`, экспортёра курса — `(input: CourseExportInput) => ({ filename, text })`; результат — `{ files }` или `{ filename, text | bytes }`.
 - `loadImporters(module, { declaredImporters?, … })` и `loadExporters(module, { declaredExporters?, stats?, … })` из `@dolphy-app/extension-sdk/testing`: активируют модуль с импортёрами или экспортёрами в памяти; `run(id, input)` проверяет вход и результат по правилам хоста (форма `text`/`bytes` и `scope` объявленной записи, файл и снимок до 20 МиБ, пределы и пути результата) и бросает `invalid import result: …` / `invalid export result: …`; `ids()` — зарегистрированные записи. Срок 30 с в тесте не применяется.

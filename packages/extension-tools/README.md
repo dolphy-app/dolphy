@@ -26,8 +26,14 @@ manifest names (`main`, `renderer`, `module`):
 | `host`     | `defineExtension({ … })`                       | `main` (`main.mjs`, Node bundle)           |
 | `views`    | exercise type id → `defineAnswerView(mount)`   | the type's `renderer` (`view.mjs`)         |
 | `panels`   | panel id → `defineExtensionPanel({ mount })`   | the panel's `module` (`panel.mjs`)         |
-| `widgets`  | widget id → `defineExtensionWidget({ mount })` | the widget's `module` (`widget.mjs`)       |
+| `widgets`  | widget id → `defineExtensionWidget(component)` | the widget's `module` (`widget.mjs`)       |
 | `markdown` | language → `defineMarkdownRenderer(render)`    | the renderer's `renderer` (`markdown.mjs`) |
+
+A widget file holds widgets only: a manifest that gives a widget the same file
+as a panel, an answer view or a markdown renderer is an error. A widget is a
+Vue component; its file is built with `vue` and `vuetify` left out (the app
+gives its own instances through `globalThis.__dolphy`), so a widget bundle is a
+few KiB.
 
 ```ts
 import {

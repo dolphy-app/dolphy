@@ -24,6 +24,11 @@ import type { BundleWatch, RebuildReport } from './watch.ts';
 export { BuildError } from './errors.ts';
 export { IDS_FILE } from './ids.ts';
 export type { GeneratedIds } from './ids.ts';
+export {
+  HOST_GLOBAL,
+  HOST_MODULES,
+  hostModulesPlugin,
+} from './host-modules.ts';
 
 export interface BuildLogger {
   info(message: string): void;

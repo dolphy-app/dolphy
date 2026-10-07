@@ -308,12 +308,10 @@ export const createExtensionRegistry = (
           revision: extension.revision,
         })),
       ),
-      // виджет, как и панель, всегда в рамке, даже у доверенного расширения
       widgets: enabled().flatMap((extension) =>
         extension.widgets.map((widget) => ({
           ...widget,
           extensionId: extension.id,
-          isolated: true,
           origin: extension.origin,
           revision: extension.revision,
         })),

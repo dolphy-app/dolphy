@@ -20,7 +20,6 @@ const FIXTURE = fileURLToPath(
 const OVERLAY_ID = 'acme.overlay';
 const OVERLAY = 'Overlay (KnowledgeBase)';
 const MARKDOWN_FRAME = 'iframe[sandbox][data-mode="markdown"]';
-const WIDGET_FRAME = 'iframe[sandbox][data-mode="widget"]';
 
 const LIBRARY = {
   ...course(
@@ -87,7 +86,7 @@ const fitsInside = async (inner: Locator, frame: Locator): Promise<boolean> => {
 };
 
 /**
- * Одинаковое поведение рамки `answer`, `markdown` и `widget`: меню и диалог у нижнего края
+ * Одинаковое поведение рамки `answer` и `markdown`: меню и диалог у нижнего края
  * короткого содержимого видны целиком, рамка вырастает на время оверлея и возвращается;
  * просьба расширения занять 100000 px упирается в высоту окна.
  */
@@ -143,7 +142,7 @@ const exerciseOverlays = async (
   await expect.poll(() => heightOf(frameElement)).toBe(idle);
 };
 
-describe('оверлеи набора в рамках answer, markdown и widget (R4)', () => {
+describe('оверлеи набора в рамках answer и markdown (R4)', () => {
   it('вид ответа: меню и диалог видны целиком, рамка растёт и возвращается, потолок — окно', async () => {
     const client = await launch();
     await client.openCourses();
@@ -174,16 +173,5 @@ describe('оверлеи набора в рамках answer, markdown и widget
       block.locator(MARKDOWN_FRAME),
       client.page.frameLocator(MARKDOWN_FRAME),
     );
-  });
-
-  it('виджет: то же поведение, ограничение высоты манифеста на время оверлея не действует', async () => {
-    const client = await launch();
-    const { page } = client;
-    const card = page
-      .getByTestId('extension-widgets')
-      .locator('[data-widget-id="acme.overlay.widget"]');
-    const frame = card.locator(WIDGET_FRAME);
-    await frame.waitFor({ state: 'attached' });
-    await exerciseOverlays(page, frame, card.frameLocator(WIDGET_FRAME));
   });
 });

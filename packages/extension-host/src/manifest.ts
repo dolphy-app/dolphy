@@ -208,11 +208,34 @@ const zodIssues = (error: z.ZodError): string[] =>
     (issue) => `${issue.path.join('.') || '/'}: ${issue.message}`,
   );
 
-/** Сообщения о нарушениях в нормализованном манифесте. */
-const normalizedIssues = (manifest: ExtensionManifest): string[] =>
-  CONTRIBUTION_POINTS.flatMap((point) =>
-    point.check(manifest.contributes[point.key] as never, manifest.id),
+/** Файл с виджетами содержит только виджеты: панель, вид ответа и рендерер markdown живут в других файлах. */
+const widgetModuleIssues = ({ contributes }: ExtensionManifest): string[] => {
+  const others = [
+    ...contributes.panels.map(({ module }) => ['panel', module] as const),
+    ...contributes.exerciseTypes.map(
+      ({ renderer }) => ['exercise type renderer', renderer] as const,
+    ),
+    ...contributes.markdownRenderers.map(
+      ({ renderer }) => ['markdown renderer', renderer] as const,
+    ),
+  ];
+  return contributes.widgets.flatMap((widget, index) =>
+    others
+      .filter(([, file]) => file === widget.module)
+      .map(
+        ([kind]) =>
+          `contributes.widgets.${index}.module: '${widget.module}' is also the module of a ${kind}; a widget file holds only widgets`,
+      ),
   );
+};
+
+/** Сообщения о нарушениях в нормализованном манифесте. */
+const normalizedIssues = (manifest: ExtensionManifest): string[] => [
+  ...CONTRIBUTION_POINTS.flatMap((point) =>
+    point.check(manifest.contributes[point.key] as never, manifest.id),
+  ),
+  ...widgetModuleIssues(manifest),
+];
 
 const invalid = (
   issues: string[],

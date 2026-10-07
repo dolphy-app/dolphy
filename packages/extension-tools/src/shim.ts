@@ -27,6 +27,19 @@ export const shimEntry = (project: Project, output: Output): string =>
 
 const quote = (text: string): string => JSON.stringify(text);
 
+const tableOf = (name: RecordName, keys: readonly string[]): string =>
+  `{ ${keys.map((key) => `${quote(key)}: ${name}[${quote(key)}]`).join(', ')} }`;
+
+/** What else a browser file holds besides widgets (empty — it is a widget file or has none). */
+export const foreignContentOf = (output: Output): string[] =>
+  output.kind === 'host' || output.widgets.length === 0
+    ? []
+    : [
+        ...(output.views.length > 0 ? ['answer views'] : []),
+        ...(output.panels.length > 0 ? ['panels'] : []),
+        ...(output.languages.length > 0 ? ['markdown renderers'] : []),
+      ];
+
 /** Which `src/index.ts` entries the output file needs: entry name → keys. */
 export const wantedRecords = (
   output: Output,
@@ -56,6 +69,14 @@ export const shimSource = (output: Output, indexFile: string): string => {
   if (output.kind === 'host') {
     return `export { host as default } from ${quote(indexFile)};\n`;
   }
+  if (output.widgets.length > 0) {
+    // a widget file is a table of Vue components the window draws, nothing else
+    return [
+      `import { widgets } from ${quote(indexFile)};`,
+      `export default ${tableOf('widgets', output.widgets)};`,
+      '',
+    ].join('\n');
+  }
   const runtime: string[] = [];
   const body: string[] = [];
   const modules: string[] = [];
@@ -67,15 +88,10 @@ export const shimSource = (output: Output, indexFile: string): string => {
       );
     }
   }
-  const table = (name: RecordName, keys: readonly string[]): string =>
-    `{ ${keys.map((key) => `${quote(key)}: ${name}[${quote(key)}]`).join(', ')} }`;
+  const table = tableOf;
   if (output.panels.length > 0) {
     runtime.push('dispatchPanels');
     modules.push(`...dispatchPanels(${table('panels', output.panels)})`);
-  }
-  if (output.widgets.length > 0) {
-    runtime.push('dispatchWidgets');
-    modules.push(`...dispatchWidgets(${table('widgets', output.widgets)})`);
   }
   if (output.languages.length > 0) {
     runtime.push('dispatchMarkdown');
@@ -254,6 +270,13 @@ export const shimPlugin = ({
       for (const file of analysis.files) this.addWatchFile(file);
       const problems = findMismatches(project, analysis, indexSource, root);
       if (problems.length > 0) fail(this, problems.join('; '));
+      const foreign = foreignContentOf(output);
+      if (foreign.length > 0) {
+        fail(
+          this,
+          `${output.output} holds widgets and also ${foreign.join(' and ')}: a widget file holds widgets only, give the others their own files in extension.json`,
+        );
+      }
       const wanted = wantedRecords(output);
       sites = RECORDS.flatMap((name) => {
         const result = analysis.records[name];

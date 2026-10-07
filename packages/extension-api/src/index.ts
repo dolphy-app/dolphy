@@ -204,26 +204,18 @@ export type ExtensionWidgetSlot = (typeof EXTENSION_WIDGET_SLOTS)[number];
 export const EXTENSION_WIDGET_LIMITS = Object.freeze({
   /** Widgets per extension. */
   widgets: 3,
-  /** Smallest allowed `minHeight`, px. */
-  minHeight: 80,
-  /** Largest allowed `maxHeight`, px. */
-  maxHeight: 320,
 });
 
-/** Extension widget: a card of an isolated frame on a screen of the app (`slot`). */
+/** Extension widget: a card on a screen of the app (`slot`) that draws a Vue component of the extension. */
 export interface WidgetContribution {
   /** Equal to the extension id or starts with `<extension id>.`. */
   id: string;
-  /** Card title (accessible name of the frame), 1–60 characters. */
+  /** Card title, 1–60 characters. */
   title: string;
   slot: ExtensionWidgetSlot;
-  /** Smallest frame height in px, 80–320; defaults to 80. */
-  minHeight?: number;
-  /** Largest frame height in px, 80–320, not below `minHeight`; defaults to 320. Taller content scrolls inside. */
-  maxHeight?: number;
   /** Path to the widget's ES module (`.js` or `.mjs`); defaults to `DEFAULT_WIDGET`. */
   module?: string;
-  /** Visibility condition (see `parseWhen`): while it is false the card is not drawn and its frame is not loaded. */
+  /** Visibility condition (see `parseWhen`): while it is false the card is not drawn and its module is not loaded. */
   when?: string;
 }
 
@@ -509,11 +501,7 @@ export interface ExtensionManifest {
       module: string;
       icon: ExtensionIconName;
     })[];
-    widgets: (WidgetContribution & {
-      minHeight: number;
-      maxHeight: number;
-      module: string;
-    })[];
+    widgets: (WidgetContribution & { module: string })[];
     schedules: (
       | { id: string; every: 'daily'; at: string }
       | { id: string; every: 'hourly' }
@@ -1149,24 +1137,28 @@ export interface PanelModule<
 }
 
 /**
- * Context of a widget module: a panel's frame without properties (a widget is
- * not opened by a command). Same isolation: no network, no app data.
+ * Key under which the app provides the handle of the widget being drawn
+ * (Vue `provide`/`inject`); a registered symbol, so the app and the bundle of
+ * an extension agree on it without sharing a module.
  */
-export interface WidgetContext<
-  Commands extends string = string,
-> extends FrameContext<Commands> {
-  widgetId: string;
-}
+export const WIDGET_HANDLE_KEY = Symbol.for('dolphy.extension.widget');
 
-/** `export default` of a widget module. */
-export interface WidgetModule<
-  Container = unknown,
-  Commands extends string = string,
-> {
-  mount(
-    container: Container,
-    context: WidgetContext<Commands>,
-  ): void | Promise<void>;
+/**
+ * What a widget component gets from the app. A widget is a Vue component the
+ * extension exports in `widgets[<widget id>]`; the app draws it inside its
+ * own tree, so it uses the app's Vue, Vuetify, theme and language.
+ */
+export interface WidgetHandle<Commands extends string = string> {
+  readonly widgetId: string;
+  /** The current surroundings; reactive, the app updates it in place. */
+  readonly context: PanelContextInfo;
+  /**
+   * Calls a command this extension declares (including `palette: false`
+   * ones). Resolves to the JSON answer of the handler (`undefined` — no
+   * answer); the app runs `notify` and `openPanel` itself. A failure is a
+   * rejected promise with an `Error`.
+   */
+  call(commandId: Commands, args?: JsonValue): Promise<JsonValue | undefined>;
 }
 
 export const DEFAULT_MAIN = './main.mjs';

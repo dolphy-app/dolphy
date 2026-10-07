@@ -121,31 +121,23 @@ describe('shims: output files', () => {
     expect(() => mountAs('acme.surfaces.third')).toThrow(/not exported/);
   });
 
-  it('widgets of one file are dispatched by ctx.widgetId; a widget with its own module gets its own file', async () => {
+  it('a widget file exports a table of components by widget id; a widget with its own module gets its own file', async () => {
     const { dir } = await buildSurfaces();
-    type WidgetModule = {
-      default: { mount(container: unknown, ctx: unknown): void };
+    type Components = Record<string, { render(): string }>;
+    const { default: shared } = (await importFile(dir, 'widget.mjs')) as {
+      default: Components;
     };
-    const { default: shared } = (await importFile(
-      dir,
-      'widget.mjs',
-    )) as WidgetModule;
-    const { default: own } = (await importFile(
-      dir,
-      'ui/gauge.js',
-    )) as WidgetModule;
-    const signal = new AbortController().signal;
-    const mountAs = (module: WidgetModule['default'], widgetId: string) => {
-      const container = { textContent: '' };
-      module.mount(container, { widgetId, signal });
-      return container.textContent;
+    const { default: own } = (await importFile(dir, 'ui/gauge.js')) as {
+      default: Components;
     };
-    expect(mountAs(shared, 'acme.surfaces.card')).toBe('WIDGET_CARD_MARKER');
-    expect(mountAs(shared, 'acme.surfaces.badge')).toBe('WIDGET_BADGE_MARKER');
-    expect(() => mountAs(shared, 'acme.surfaces.gauge')).toThrow(
-      /not exported/,
-    );
-    expect(mountAs(own, 'acme.surfaces.gauge')).toBe('WIDGET_GAUGE_MARKER');
+    expect(Object.keys(shared)).toEqual([
+      'acme.surfaces.card',
+      'acme.surfaces.badge',
+    ]);
+    expect(shared['acme.surfaces.card']?.render()).toBe('WIDGET_CARD_MARKER');
+    expect(shared['acme.surfaces.badge']?.render()).toBe('WIDGET_BADGE_MARKER');
+    expect(Object.keys(own)).toEqual(['acme.surfaces.gauge']);
+    expect(own['acme.surfaces.gauge']?.render()).toBe('WIDGET_GAUGE_MARKER');
   });
 
   it('renderers of one file are dispatched by block language', async () => {

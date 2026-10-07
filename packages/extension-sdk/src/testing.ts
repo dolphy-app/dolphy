@@ -64,7 +64,6 @@ import type {
   SettingContribution,
   SettingValue,
   StreakStats,
-  WidgetModule,
 } from '@dolphy-app/extension-api';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import { createAnswerElementClass } from './answer-element.ts';
@@ -1474,15 +1473,6 @@ export interface LoadPanelOptions {
   container?: HTMLElement;
 }
 
-export interface LoadWidgetOptions {
-  /** Reply to `ctx.call`; by default the call is rejected. */
-  call?: LoadPanelOptions['call'];
-  /** The surroundings the frame starts with (`ctx.context`); defaults to all courses (`courseId: null`). */
-  context?: PanelContextInfo;
-  /** Where to mount; defaults to a new `div` in `document.body`. */
-  container?: HTMLElement;
-}
-
 export interface LoadedFrame {
   /** Container the module received in `mount`. */
   readonly container: HTMLElement;
@@ -1504,13 +1494,8 @@ export interface LoadedPanel extends LoadedFrame {
   setProps(props: JsonValue | undefined): void;
 }
 
-export type LoadedWidget = LoadedFrame;
-
-/** The part of the context a panel and a widget share, with the controls a test needs. */
-const createFrameContext = (
-  options: LoadPanelOptions | LoadWidgetOptions,
-  doc: Document,
-) => {
+/** The context of a panel, with the controls a test needs. */
+const createFrameContext = (options: LoadPanelOptions, doc: Document) => {
   const calls: { commandId: string; args: JsonValue | undefined }[] = [];
   const listeners = new Set<(context: PanelContextInfo) => void>();
   const controller = new AbortController();
@@ -1584,26 +1569,4 @@ export const loadPanel = async (
       for (const listener of [...listeners]) listener(props);
     },
   });
-};
-
-/** Mounts a widget from `widgets[id]` in the test DOM environment with the same context the frame provides. */
-export const loadWidget = async (
-  widgets: Readonly<Record<string, WidgetModule<HTMLElement>>>,
-  id: string,
-  options: LoadWidgetOptions = {},
-): Promise<LoadedWidget> => {
-  const doc = requireDocument('loadWidget');
-  const widget = widgets[id];
-  if (widget === undefined) throw new Error(`widget '${id}' was not exported`);
-  const { context, frame, container } = createFrameContext(options, doc);
-  await widget.mount(container, {
-    get context() {
-      return context.context;
-    },
-    signal: context.signal,
-    call: context.call,
-    onContextChange: context.onContextChange,
-    widgetId: id,
-  });
-  return frame;
 };

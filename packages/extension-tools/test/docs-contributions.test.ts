@@ -139,6 +139,18 @@ const writeProject = async (
         'dir',
       );
     }
+    // `vue` and `vuetify` are the author's own dependencies
+    const uiModules = path.join(
+      REPO_ROOT,
+      'packages/extension-ui/node_modules',
+    );
+    for (const name of ['vue', 'vuetify']) {
+      await symlink(
+        path.join(uiModules, name),
+        path.join(root, 'node_modules', name),
+        'dir',
+      );
+    }
   }
   return root;
 };

@@ -5,7 +5,8 @@
     "types": ["node"],
     "lib": ["ES2023", "DOM"],
     "paths": {
-      "@dolphy-app/extension-sdk": ["./src/index.ts"]
+      "@dolphy-app/extension-sdk": ["./src/index.ts"],
+      "@dolphy-app/extension-sdk/client": ["./src/client.ts"]
     }
   },
   "include": ["src", "test/typed"]

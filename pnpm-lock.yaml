@@ -764,6 +764,9 @@ importers:
       typescript:
         specifier: 7.0.2
         version: 7.0.2
+      vue:
+        specifier: ^3.5.35
+        version: 3.5.43(typescript@7.0.2)
 
   packages/extension-tools:
     dependencies:

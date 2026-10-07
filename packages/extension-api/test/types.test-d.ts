@@ -16,7 +16,7 @@ import type {
   ProgressExportInput,
   SettingContribution,
   SettingValue,
-  WidgetModule,
+  WidgetHandle,
   TextImportInput,
 } from '../src/index.ts';
 
@@ -138,18 +138,20 @@ describe('extension-api types', () => {
     expectTypeOf(module.mount).toBeFunction();
   });
 
-  it('a widget module gets the frame context without properties', () => {
-    const module: WidgetModule<{ id: string }, 'a.run'> = {
-      mount: (container, ctx) => {
-        expectTypeOf(container).toEqualTypeOf<{ id: string }>();
-        expectTypeOf(ctx.widgetId).toEqualTypeOf<string>();
-        expectTypeOf(ctx.context.courseId).toEqualTypeOf<string | null>();
-        expectTypeOf(ctx.call).parameter(0).toEqualTypeOf<'a.run'>();
-        // a widget is not opened with properties
-        expectTypeOf(ctx).not.toHaveProperty('props');
-      },
+  it('a widget handle gives the id, the reactive surroundings and a command call', () => {
+    const handle: WidgetHandle<'a.run'> = {
+      widgetId: 'a.widget',
+      context: { courseId: null },
+      call: () => Promise.resolve(undefined),
     };
-    expectTypeOf(module.mount).toBeFunction();
+    expectTypeOf(handle.widgetId).toEqualTypeOf<string>();
+    expectTypeOf(handle.context.courseId).toEqualTypeOf<string | null>();
+    expectTypeOf(handle.call).parameter(0).toEqualTypeOf<'a.run'>();
+    expectTypeOf(handle.call).returns.toEqualTypeOf<
+      Promise<JsonValue | undefined>
+    >();
+    // a widget is not opened with properties
+    expectTypeOf(handle).not.toHaveProperty('props');
   });
 
   describe('narrowed ids', () => {

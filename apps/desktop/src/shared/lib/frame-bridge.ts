@@ -35,15 +35,13 @@ const READY_TIMEOUT_MS = 10_000;
 export type FrameInit =
   | { mode: 'answer'; rendererUrl: string; element: string; label: string }
   | { mode: 'markdown'; rendererUrl: string; language: string; source: string }
-  | { mode: 'panel'; rendererUrl: string; panelId: string; props?: JsonValue }
-  | { mode: 'widget'; rendererUrl: string; widgetId: string };
+  | { mode: 'panel'; rendererUrl: string; panelId: string; props?: JsonValue };
 
-/** Окружение, которое рамка панели или виджета читает как `ctx.context`. */
+/** Окружение, которое рамка панели читает как `ctx.context`. */
 export type FrameContext = PanelContextInfo;
 
-/** Режимы, где расширение вызывает свои команды и получает окружение. */
-const isInteractive = (init: FrameInit): boolean =>
-  init.mode === 'panel' || init.mode === 'widget';
+/** Режим, где расширение вызывает свои команды и получает окружение. */
+const isInteractive = (init: FrameInit): boolean => init.mode === 'panel';
 
 export interface FrameProps {
   view: unknown;
@@ -214,7 +212,7 @@ export interface FrameHostOptions {
   init: FrameInit;
   props?: Partial<FrameProps>;
   handlers: FrameHandlers;
-  /** Только для режимов `panel` и `widget`: без неё вызовы команд и сочетания игнорируются. */
+  /** Только для режима `panel`: без неё вызовы команд и сочетания игнорируются. */
   panel?: PanelBinding;
   /** Окружение панели или виджета на момент создания; по умолчанию — все курсы. */
   context?: FrameContext;
@@ -339,7 +337,7 @@ export const createFrameHost = (options: FrameHostOptions): FrameHost => {
       lang: frame.ownerDocument.documentElement.lang,
     });
   };
-  // вызовы команд и сочетание принимает только рамка панели или виджета, привязанная приложением
+  // вызовы команд и сочетание принимает только рамка панели, привязанная приложением
   const handleCall =
     isInteractive(init) && options.panel
       ? createPanelCalls(options.panel, post, () => disposed)
@@ -355,11 +353,6 @@ export const createFrameHost = (options: FrameHostOptions): FrameHost => {
         props: toPlain(panelProps),
         context,
       });
-      postTheme();
-      return;
-    }
-    if (init.mode === 'widget') {
-      post({ ...init, type: 'init', context });
       postTheme();
       return;
     }

@@ -51,6 +51,7 @@ import {
 } from '@/pages/settings';
 import { ROUTE } from '@/shared/config/routes.ts';
 import { resolveLocale } from '@/shared/i18n';
+import { installHostModules } from '@/shared/lib/host-modules.ts';
 import {
   COMMAND_REGISTRY_KEY,
   createCommandRegistry,
@@ -88,6 +89,7 @@ const showStartupError = (error: unknown) => {
 };
 
 const bootstrap = async () => {
+  installHostModules();
   const smoke = __DOLPHY_SMOKE_BUILD__ ? window.dolphy.smoke : undefined;
   try {
     // UI монтируется после рукопожатия

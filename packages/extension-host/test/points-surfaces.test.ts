@@ -467,18 +467,10 @@ describe('точка panels', () => {
 });
 
 describe('точка widgets', () => {
-  it('принимает виджет; высоты 80 и 320, module ./widget.mjs; кода не требует: main = null', () => {
+  it('принимает виджет; module по умолчанию ./widget.mjs; кода не требует: main = null', () => {
     const parsed = parseManifest(
       manifest({
-        widgets: [
-          widget(),
-          widget({
-            id: `${ID}.b`,
-            minHeight: 120,
-            maxHeight: 200,
-            module: './ui/b.js',
-          }),
-        ],
+        widgets: [widget(), widget({ id: `${ID}.b`, module: './ui/b.js' })],
       }),
     );
 
@@ -489,16 +481,12 @@ describe('точка widgets', () => {
         id: `${ID}.card`,
         title: 'Card',
         slot: 'dailyPlan',
-        minHeight: 80,
-        maxHeight: 320,
         module: './widget.mjs',
       },
       {
         id: `${ID}.b`,
         title: 'Card',
         slot: 'dailyPlan',
-        minHeight: 120,
-        maxHeight: 200,
         module: './ui/b.js',
       },
     ]);
@@ -514,15 +502,7 @@ describe('точка widgets', () => {
     ['название 61 знак', widget({ title: 'x'.repeat(61) }), 'title'],
     ['нет места', widget({ slot: undefined }), 'slot'],
     ['неизвестное место', widget({ slot: 'sidebar' }), 'slot'],
-    ['minHeight 79', widget({ minHeight: 79 }), 'minHeight'],
-    ['maxHeight 321', widget({ maxHeight: 321 }), 'maxHeight'],
-    ['дробная высота', widget({ minHeight: 100.5 }), 'minHeight'],
-    ['строка вместо высоты', widget({ maxHeight: '200' }), 'maxHeight'],
-    [
-      'minHeight больше maxHeight',
-      widget({ minHeight: 200, maxHeight: 100 }),
-      'contributes.widgets.0.minHeight: minHeight (200) must not exceed maxHeight (100)',
-    ],
+    ['высота больше не поле', widget({ minHeight: 100 }), 'minHeight'],
     [
       'module не .js/.mjs',
       widget({ module: './widget.ts' }),
@@ -538,17 +518,32 @@ describe('точка widgets', () => {
     expect(messageOf(manifest({ widgets: [entry] }))).toContain(fragment);
   });
 
-  it('границы высот 80 и 320 допустимы, равные minHeight и maxHeight тоже', () => {
-    expect(
-      parseManifest(
-        manifest({ widgets: [widget({ minHeight: 320, maxHeight: 320 })] }),
-      ).ok,
-    ).toBe(true);
-    expect(
-      parseManifest(
-        manifest({ widgets: [widget({ minHeight: 80, maxHeight: 80 })] }),
-      ).ok,
-    ).toBe(true);
+  it.each([
+    ['панели', { panels: [panel({ module: './widget.mjs' })] }, 'panel'],
+    [
+      'вида ответа',
+      {
+        exerciseTypes: [
+          {
+            id: `${ID}.quiz`,
+            specSchema: { type: 'object' },
+            answerSchema: { type: 'object' },
+            renderer: './widget.mjs',
+          },
+        ],
+      },
+      'exercise type renderer',
+    ],
+    [
+      'рендерера markdown',
+      { markdownRenderers: [{ language: 'chart', renderer: './widget.mjs' }] },
+      'markdown renderer',
+    ],
+  ])('отклоняет файл виджета, общий с модулем %s', (_name, extra, kind) => {
+    const message = messageOf(manifest({ widgets: [widget()], ...extra }));
+
+    expect(message).toContain('contributes.widgets.0.module');
+    expect(message).toContain(`module of a ${kind}`);
   });
 
   it('отклоняет повтор id и более 3 виджетов', () => {
@@ -658,10 +653,8 @@ describe('обнаружение и реестр команд и панелей'
     });
   });
 
-  it('виджет: адрес модуля и вклад в реестре — рамка всегда, даже у доверенного расширения', async () => {
-    await write(ID, { widgets: [widget({ minHeight: 100, maxHeight: 150 })] }, [
-      'widget.mjs',
-    ]);
+  it('виджет: адрес модуля и вклад в реестре, у доверенного расширения те же', async () => {
+    await write(ID, { widgets: [widget()] }, ['widget.mjs']);
     const holder = holderOf((await discover()).extensions);
     const policy = createExtensionPolicy(holder);
     policy.update({
@@ -682,11 +675,8 @@ describe('обнаружение и реестр команд и панелей'
         extensionId: ID,
         title: 'Card',
         slot: 'dailyPlan',
-        minHeight: 100,
-        maxHeight: 150,
         when: null,
         rendererUrl: `dolphy-ext://${ID}/widget.mjs`,
-        isolated: true,
         origin: 'user',
         revision: expect.stringMatching(/./) as unknown as string,
       },

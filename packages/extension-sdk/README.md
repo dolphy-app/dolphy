@@ -84,8 +84,8 @@ generates, not by your code.
   `disabled`, `verdict`.
 - `defineExtensionPanel({ mount(container, ctx) })` — an entry of `panels`
   (key: panel id).
-- `defineExtensionWidget({ mount(container, ctx) })` — an entry of `widgets`
-  (key: widget id; see "Widgets").
+- `defineExtensionWidget(component)` — an entry of `widgets` (key: widget id):
+  a Vue component (see "Widgets and icons").
 - `defineMarkdownRenderer(render)` — an entry of `markdown` (key: block
   language); `render(source, container, { language, signal })`. When it throws,
   the app keeps the original block text.
@@ -179,9 +179,6 @@ export const host = defineExtension({
   values), `setContext({ courseId })` (changes `ctx.context` and notifies
   `ctx.onContextChange`; `options.context` sets the start value) and
   `dispose()` (aborts `ctx.signal`).
-- `loadWidget(widgets, id, options?)` does the same for a widget: `options`
-  `call`, `context`, `container`; it returns `container`, `calls`, `aborted`,
-  `setContext` and `dispose()`.
 - `createSchemaValidator(schema)`, `createMemoryLibrary(files)`,
   `createMemoryStorage()`, `createMemorySettings(definitions, values?)`,
   `createMemoryEvents(options?)`, `createMemoryCommands(options?)`,
@@ -405,13 +402,23 @@ panel.calls; // [{ commandId: 'acme.tools.ping', args: undefined }]
 
 ## Widgets and icons
 
-A widget is the `contributes.widgets` point: a card in an isolated frame on the
-"Daily plan" screen (`slot: "dailyPlan"`, `minHeight` / `maxHeight` 80–320 px,
-at most 3 per extension, module `./widget.mjs` by default, main is not needed).
-The app sizes the frame to its content within the range; taller content scrolls
-inside. `ctx.call` reaches the commands of the same extension only, and
-`ctx.context.courseId` (with `ctx.onContextChange`) is the course the app is
-focused on, `null` for all courses.
+A widget is the `contributes.widgets` point: a card on the "Daily plan" screen
+(`slot: "dailyPlan"`, at most 3 per extension, module `./widget.mjs` by
+default, main is not needed). A widget is a Vue component. The app draws it in
+its own tree, inside a card, so it shares the theme, the language and the
+Vuetify components of the app; there is no frame and no size range: the card
+is as tall as the component.
+
+`vue` and `vuetify` (`vuetify/components`, `vuetify/directives`) are imported as
+usual, but the build leaves them out of the bundle and the app gives the
+component its own instances, so a widget bundle is a few KiB. The widget file
+holds widgets only (not a panel, an answer view or a markdown renderer).
+
+Inside the component `useWidget()` from `@dolphy-app/extension-sdk/client`
+returns the handle: `widgetId`, the reactive `context` (`context.courseId` is
+the course the app is focused on, `null` for all courses) and
+`call(commandId, args?)`, which reaches the commands of the same extension only
+and accepts the declared command ids. Outside a widget it throws.
 
 ```ts
 // src/index.ts
@@ -420,25 +427,36 @@ import {
   defineExtensionWidget,
   type ExtensionWidgets,
 } from '@dolphy-app/extension-sdk';
+import StreakCard from './StreakCard.ts';
 
 export const host = defineExtension({
   commands: { 'acme.streak.today': () => ({ days: 3 }) },
 });
 
 export const widgets = {
-  'acme.streak.card': defineExtensionWidget({
-    async mount(container, ctx) {
-      const render = async () => {
-        const answer = await ctx.call('acme.streak.today', {
-          courseId: ctx.context.courseId,
-        });
-        container.textContent = JSON.stringify(answer);
-      };
-      ctx.onContextChange(() => void render());
-      await render();
-    },
-  }),
+  'acme.streak.card': defineExtensionWidget(StreakCard),
 } satisfies ExtensionWidgets;
+```
+
+```ts
+// src/StreakCard.ts
+import { useWidget } from '@dolphy-app/extension-sdk/client';
+import { defineComponent, h, ref, watchEffect } from 'vue';
+import { VAlert } from 'vuetify/components';
+
+export default defineComponent({
+  setup() {
+    const widget = useWidget();
+    const answer = ref('');
+    watchEffect(async () => {
+      const result = await widget.call('acme.streak.today', {
+        courseId: widget.context.courseId,
+      });
+      answer.value = JSON.stringify(result);
+    });
+    return () => h(VAlert, { type: 'info' }, () => answer.value);
+  },
+});
 ```
 
 `commands` and `panels` take an optional `icon`, a name from `EXTENSION_ICONS`

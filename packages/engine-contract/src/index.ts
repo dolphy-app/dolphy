@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 31 as const;
+export const CONTRACT_VERSION = 32 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 /** Потолок файла импорта, суммарного размера присланного дерева и снимка курса для экспорта, байт (R3, R4, R7 спеки `extension-api-breadth-2`). */
@@ -1573,24 +1573,18 @@ export interface PanelContributionDto {
   revision: string;
 }
 
-/** Виджет расширения (`contributes.widgets`): карточка в изолированной рамке на экране приложения. */
+/** Виджет расширения (`contributes.widgets`): карточка на экране приложения, в которой окно рисует Vue-компонент расширения. */
 export interface WidgetContributionDto {
   id: string;
   extensionId: string;
-  /** Заголовок карточки и имя рамки; данные расширения (`%ключ%` подставляет окно). */
+  /** Заголовок карточки; данные расширения (`%ключ%` подставляет окно). */
   title: string;
   /** Место виджета: `dailyPlan` — экран «План дня». */
   slot: 'dailyPlan';
-  /** Наименьшая высота рамки, px (80–320). */
-  minHeight: number;
-  /** Наибольшая высота рамки, px (80–320, не меньше `minHeight`); выше — прокрутка внутри. */
-  maxHeight: number;
-  /** Условие видимости (`parseWhen`), `null` — всегда; пока оно ложно, карточка не рисуется и рамка не загружается. */
+  /** Условие видимости (`parseWhen`), `null` — всегда; пока оно ложно, карточка не рисуется и модуль не загружается. */
   when: string | null;
-  /** `dolphy-ext://<extensionId>/<путь>`. */
+  /** `dolphy-ext://<extensionId>/<путь>` к модулю, чей `default` — таблица `{ <id виджета>: компонент }`. */
   rendererUrl: string;
-  /** Виджет всегда исполняется в рамке, как панель. */
-  isolated: boolean;
   origin: ExtensionOriginDto;
   /** Отпечаток файлов расширения; у расширений из поставки — пустая строка. */
   revision: string;

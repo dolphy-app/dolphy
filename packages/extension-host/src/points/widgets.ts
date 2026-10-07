@@ -16,13 +16,7 @@ import {
 } from './support.ts';
 import type { ContributionPoint } from './types.ts';
 
-const {
-  widgets: MAX_WIDGETS,
-  minHeight: MIN_HEIGHT,
-  maxHeight: MAX_HEIGHT,
-} = EXTENSION_WIDGET_LIMITS;
-
-const height = z.number().int().min(MIN_HEIGHT).max(MAX_HEIGHT);
+const { widgets: MAX_WIDGETS } = EXTENSION_WIDGET_LIMITS;
 
 export const widgets: ContributionPoint<'widgets'> = {
   key: 'widgets',
@@ -31,8 +25,6 @@ export const widgets: ContributionPoint<'widgets'> = {
     id: extensionId,
     title: z.string().min(1).max(EXTENSION_COMMAND_LIMITS.titleLength),
     slot: z.enum(EXTENSION_WIDGET_SLOTS),
-    minHeight: height.optional(),
-    maxHeight: height.optional(),
     module: safePath(['.js', '.mjs']).optional(),
     when: whenField.optional(),
   }),
@@ -41,8 +33,6 @@ export const widgets: ContributionPoint<'widgets'> = {
       id: entry.id,
       title: entry.title,
       slot: entry.slot,
-      minHeight: entry.minHeight ?? MIN_HEIGHT,
-      maxHeight: entry.maxHeight ?? MAX_HEIGHT,
       module: entry.module ?? DEFAULT_WIDGET,
       ...(entry.when === undefined ? {} : { when: entry.when }),
     })),
@@ -57,13 +47,6 @@ export const widgets: ContributionPoint<'widgets'> = {
       ...entries.flatMap((entry, index) =>
         whenIssues('widgets', index, entry.when),
       ),
-      ...entries.flatMap((entry, index) =>
-        entry.minHeight > entry.maxHeight
-          ? [
-              `contributes.widgets.${index}.minHeight: minHeight (${entry.minHeight}) must not exceed maxHeight (${entry.maxHeight})`,
-            ]
-          : [],
-      ),
     ];
   },
   resolve: async (entries, { dir, extensionId: owner, verifyFiles }) => {
@@ -73,8 +56,6 @@ export const widgets: ContributionPoint<'widgets'> = {
         id: entry.id,
         title: entry.title,
         slot: entry.slot,
-        minHeight: entry.minHeight,
-        maxHeight: entry.maxHeight,
         when: entry.when ?? null,
         rendererUrl: await resolveModuleUrl(
           owner,

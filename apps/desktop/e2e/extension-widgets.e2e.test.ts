@@ -1,11 +1,14 @@
 import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { gzipSync } from 'node:zlib';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { Locator, Page } from 'playwright-core';
 import { createWorkspace, launchApp } from './support/app.ts';
 import type { DolphyApp, Workspace } from './support/app.ts';
+import { buildFixtureExtension } from './support/build-extension.ts';
+import type { BuiltExtension } from './support/build-extension.ts';
 import { CatalogClient } from './support/catalog-client.ts';
 import {
   catalogEnv,
@@ -23,18 +26,22 @@ const fixture = (name: string) =>
   fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url));
 
 const WIDGETS_ID = 'acme.widgets';
-const WIDGETS_DIR = fixture('widgets-extension');
-const WIDGETS_1_1_DIR = fixture('widgets-extension-1.1.0');
+/** Расширения виджетов собираются `dolphy-ext build`: виджет — компонент Vue на vue/vuetify приложения. */
+let built: BuiltExtension | null = null;
+let built11: BuiltExtension | null = null;
+const widgetsDir = () => built!.dir;
+const widgets11Dir = () => built11!.dir;
+/** Предел размера бандла виджета: vue и vuetify в него не входят. */
+const BUNDLE_LIMIT_BYTES = 20 * 1024;
 const VICTIM_ID = 'acme.victim';
 const VICTIM_DIR = fixture('commands-victim-extension');
 
-const WIDGETS: CatalogSource = {
-  dir: WIDGETS_DIR,
+const widgetsSource = (dir: string): CatalogSource => ({
+  dir,
   name: 'Widgets',
   description: 'Виджеты для проверки',
   author: 'acme',
-};
-const WIDGETS_1_1: CatalogSource = { ...WIDGETS, dir: WIDGETS_1_1_DIR };
+});
 
 const ALPHA = 'Alpha (KnowledgeBase)';
 const LIBRARY: Record<string, string> = {
@@ -42,9 +49,17 @@ const LIBRARY: Record<string, string> = {
   ...course('beta_kb', 'Beta (KnowledgeBase)', 'Beta question\n'),
 };
 
-/** Рамка виджета расширения (`WidgetFrame`, режим `widget`). */
-const WIDGET_FRAME = 'iframe[sandbox][data-mode="widget"]';
 const PANEL_ROUTE = `#/ext/${WIDGETS_ID}/acme.widgets.main`;
+
+beforeAll(async () => {
+  built = await buildFixtureExtension(fixture('widgets-extension'));
+  built11 = await buildFixtureExtension(fixture('widgets-extension-1.1.0'));
+}, 180_000);
+
+afterAll(async () => {
+  await built?.dispose();
+  await built11?.dispose();
+});
 
 let workspace: Workspace | null = null;
 let app: DolphyApp | null = null;
@@ -69,7 +84,7 @@ const waitForShell = (page: Page) =>
     .waitFor({ timeout: 30_000 });
 
 const prepare = async (
-  extensions: Record<string, string> = { [WIDGETS_ID]: WIDGETS_DIR },
+  extensions: Record<string, string> = { [WIDGETS_ID]: widgetsDir() },
   env?: Record<string, string>,
 ): Promise<Windows> => {
   workspace = await createWorkspace({ extensions, libraryFiles: LIBRARY });
@@ -81,12 +96,11 @@ const prepare = async (
 const block = (page: Page): Locator => page.getByTestId('extension-widgets');
 const card = (page: Page, widgetId: string): Locator =>
   block(page).locator(`[data-widget-id="${widgetId}"]`);
-const frameOf = (page: Page, widgetId: string): Locator =>
-  card(page, widgetId).locator(WIDGET_FRAME);
-
-/** Высота рамки виджета в пикселях окна. */
-const heightOf = async (page: Page, widgetId: string): Promise<number> =>
-  Math.round((await frameOf(page, widgetId).boundingBox())?.height ?? -1);
+/** Тело карточки: компонент виджета рисуется прямо в дереве окна, без рамки. */
+const bodyOf = (page: Page, widgetId: string): Locator =>
+  card(page, widgetId).getByTestId('extension-widget-body');
+const roleOf = (page: Page, widgetId: string, role: string): Locator =>
+  bodyOf(page, widgetId).locator(`[data-role="${role}"]`);
 
 afterEach(async () => {
   await app?.close();
@@ -100,7 +114,7 @@ afterEach(async () => {
 });
 
 describe('виджеты на экране «План дня» (R9)', () => {
-  it('без виджетов блока нет; с расширением он появляется отдельной областью с заголовком и тремя карточками в изолированных рамках', async () => {
+  it('без виджетов блока нет; с расширением он появляется отдельной областью с заголовком и тремя карточками-компонентами без рамки', async () => {
     const empty = await prepare({});
     await expectCount(block(empty.client.page), 0);
     await app?.close();
@@ -116,91 +130,78 @@ describe('виджеты на экране «План дня» (R9)', () => {
     expect(
       await region.getByRole('heading', { level: 3 }).allInnerTexts(),
     ).toEqual(['Карточка', 'Короткий', 'Длинный']);
-    // рамка изолирована: песочница без allow-same-origin, понятное имя
-    const frame = frameOf(page, 'acme.widgets.card');
-    expect(await frame.getAttribute('sandbox')).toBe('allow-scripts');
-    expect(await frame.getAttribute('title')).toContain('Карточка');
-    expect(await frame.getAttribute('title')).toContain(WIDGETS_ID);
     await expectText(
-      page
-        .frameLocator(`[data-widget-id="acme.widgets.card"] ${WIDGET_FRAME}`)
-        .locator('[data-role="version"]'),
+      roleOf(page, 'acme.widgets.card', 'version'),
       'Карточка v1.0.0',
     );
+    // виджет — компонент в дереве окна: рамки нет
+    await expectCount(page.locator('iframe[data-mode="widget"]'), 0);
+    await expectCount(block(page).locator('iframe'), 0);
   });
 
-  it('высота рамки зажата в диапазон манифеста: по содержимому, не ниже minHeight, не выше maxHeight; длинное содержимое прокручивается внутри', async () => {
+  it('компонент виджета видит тему приложения', async () => {
     const { client } = await prepare();
     const { page } = client;
-    // содержимое 120 px, диапазон 100–200
-    await expect.poll(() => heightOf(page, 'acme.widgets.card')).toBe(120);
-    // содержимое ниже minHeight
-    await expect.poll(() => heightOf(page, 'acme.widgets.short')).toBe(120);
-    // содержимое 600 px, предел 150
-    await expect.poll(() => heightOf(page, 'acme.widgets.tall')).toBe(150);
-    // у рамки непрозрачный origin: документ снаружи не читается, прокрутку видно по самому содержимому
-    const inner = page
-      .frameLocator(`[data-widget-id="acme.widgets.tall"] ${WIDGET_FRAME}`)
-      .locator('[data-role="tall"]');
-    expect(
-      await inner.evaluate((node) => ({
-        content: node.getBoundingClientRect().height,
-        view: node.ownerDocument.documentElement.clientHeight,
-        scrolls:
-          node.ownerDocument.documentElement.scrollHeight >
-          node.ownerDocument.documentElement.clientHeight,
-      })),
-    ).toEqual({ content: 600, view: 150, scrolls: true });
+    const theme = roleOf(page, 'acme.widgets.card', 'theme');
+    await expect
+      .poll(async () => (await theme.textContent())?.replace('Тема: ', ''))
+      .toBe(
+        await page.evaluate(
+          () =>
+            document
+              .querySelector('.v-theme--light, .v-theme--dark')
+              ?.className.match(/v-theme--(\S+)/)?.[1],
+        ),
+      );
   });
 
-  it('рамка вызывает команды своего расширения; чужая отклоняется и ничего не меняет', async () => {
+  it('бандл виджета не включает vue и vuetify: widget.mjs не больше 20 КиБ gzip', async () => {
+    const bundle = await readFile(join(widgetsDir(), 'widget.mjs'));
+    expect(gzipSync(bundle).length).toBeLessThanOrEqual(BUNDLE_LIMIT_BYTES);
+  });
+
+  it('виджет вызывает команды своего расширения; чужая отклоняется и ничего не меняет', async () => {
     const { client } = await prepare({
-      [WIDGETS_ID]: WIDGETS_DIR,
+      [WIDGETS_ID]: widgetsDir(),
       [VICTIM_ID]: VICTIM_DIR,
     });
     const { page } = client;
-    const frame = page.frameLocator(
-      `[data-widget-id="acme.widgets.card"] ${WIDGET_FRAME}`,
-    );
-    await frame.getByRole('button', { name: 'Прибавить', exact: true }).click();
-    await expectText(frame.locator('[data-role="result"]'), 'ok {"count":1}');
-    await frame.getByRole('button', { name: 'Прибавить', exact: true }).click();
-    await expectText(frame.locator('[data-role="result"]'), 'ok {"count":2}');
+    const body = bodyOf(page, 'acme.widgets.card');
+    const result = roleOf(page, 'acme.widgets.card', 'result');
+    await body.getByRole('button', { name: 'Прибавить', exact: true }).click();
+    await expectText(result, 'ok {"count":1}');
+    await body.getByRole('button', { name: 'Прибавить', exact: true }).click();
+    await expectText(result, 'ok {"count":2}');
     expect(readExtensionData(workspace!.userData, WIDGETS_ID).storage).toEqual({
       count: 2,
     });
 
-    await frame
+    await body
       .getByRole('button', { name: 'Чужая команда', exact: true })
       .click();
-    await expectText(
-      frame.locator('[data-role="result"]'),
-      'Ошибка: unknown command: acme.victim.mark',
-    );
+    await expectText(result, 'Ошибка: unknown command: acme.victim.mark');
     expect(readExtensionData(workspace!.userData, VICTIM_ID).storage).toEqual(
       {},
     );
   });
 
-  it('курс в фокусе доходит до рамки без её пересоздания и без перезагрузки окна', async () => {
+  it('курс в фокусе доходит до виджета без его пересоздания и без перезагрузки окна', async () => {
     const { client } = await prepare();
     const { page } = client;
-    const course = page
-      .frameLocator(`[data-widget-id="acme.widgets.card"] ${WIDGET_FRAME}`)
-      .locator('[data-role="course"]');
+    const course = roleOf(page, 'acme.widgets.card', 'course');
     await expectText(course, 'Курс: все');
-    await frameOf(page, 'acme.widgets.card').evaluate((node) =>
+    await bodyOf(page, 'acme.widgets.card').evaluate((node) =>
       Reflect.set(node, '__same', true),
     );
     const stillSameWindow = await client.markWindow();
 
-    // выбор курса на самом экране плана: страница остаётся, рамки остаются
+    // выбор курса на самом экране плана: страница остаётся, карточки остаются
     await page.locator('.v-chip', { hasText: ALPHA }).click();
     await expectText(course, 'Курс: alpha_kb');
     await page.locator('.v-chip', { hasText: 'Все курсы' }).click();
     await expectText(course, 'Курс: все');
     expect(
-      await frameOf(page, 'acme.widgets.card').evaluate((node) =>
+      await bodyOf(page, 'acme.widgets.card').evaluate((node) =>
         Reflect.get(node, '__same'),
       ),
     ).toBe(true);
@@ -236,11 +237,11 @@ describe('виджеты на экране «План дня» (R9)', () => {
   });
 
   it('удаление расширения убирает блок без перезагрузки окна', async () => {
-    server = await startCatalogServer([WIDGETS]);
+    server = await startCatalogServer([widgetsSource(widgetsDir())]);
     workspace = await createWorkspace({ libraryFiles: LIBRARY });
     await seedCatalogInstall(workspace.userData, {
       id: WIDGETS_ID,
-      dir: WIDGETS_DIR,
+      dir: widgetsDir(),
       version: '1.0.0',
       catalogUrl: server.url,
     });
@@ -259,23 +260,21 @@ describe('виджеты на экране «План дня» (R9)', () => {
     await stillSameWindow();
   });
 
-  it('обновление расширения пересоздаёт рамки (новая revision) без перезагрузки окна', async () => {
-    server = await startCatalogServer([WIDGETS_1_1]);
+  it('обновление расширения пересоздаёт виджеты (новая revision) без перезагрузки окна', async () => {
+    server = await startCatalogServer([widgetsSource(widgets11Dir())]);
     workspace = await createWorkspace({ libraryFiles: LIBRARY });
     await seedCatalogInstall(workspace.userData, {
       id: WIDGETS_ID,
-      dir: WIDGETS_DIR,
+      dir: widgetsDir(),
       version: '1.0.0',
       catalogUrl: server.url,
     });
     app = await launchApp(workspace.userData, catalogEnv(server.url));
     await waitForShell(app.page);
     const first = operate(app.page);
-    const version = first.client.page
-      .frameLocator(`[data-widget-id="acme.widgets.card"] ${WIDGET_FRAME}`)
-      .locator('[data-role="version"]');
+    const version = roleOf(first.client.page, 'acme.widgets.card', 'version');
     await expectText(version, 'v1.0.0');
-    await frameOf(first.client.page, 'acme.widgets.card').evaluate((node) =>
+    await bodyOf(first.client.page, 'acme.widgets.card').evaluate((node) =>
       Reflect.set(node, '__old', true),
     );
     const stillSameWindow = await first.client.markWindow();
@@ -288,27 +287,25 @@ describe('виджеты на экране «План дня» (R9)', () => {
 
     await expectText(version, 'v1.1.0', 30_000);
     expect(
-      await frameOf(first.client.page, 'acme.widgets.card').evaluate((node) =>
+      await bodyOf(first.client.page, 'acme.widgets.card').evaluate((node) =>
         Reflect.get(node, '__old'),
       ),
     ).toBeUndefined();
     await stillSameWindow();
   });
 
-  it('режим разработчика: правка модуля виджета пересоздаёт рамку', async () => {
+  it('режим разработчика: правка модуля виджета пересоздаёт компонент', async () => {
     devRoot = await mkdtemp(join(tmpdir(), 'dolphy-e2e-dev-widget-'));
-    await cp(WIDGETS_DIR, join(devRoot, WIDGETS_ID), { recursive: true });
+    await cp(widgetsDir(), join(devRoot, WIDGETS_ID), { recursive: true });
     const { client } = await prepare({}, { DOLPHY_DEV_EXTENSIONS: devRoot });
-    const version = client.page
-      .frameLocator(`[data-widget-id="acme.widgets.card"] ${WIDGET_FRAME}`)
-      .locator('[data-role="version"]');
+    const version = roleOf(client.page, 'acme.widgets.card', 'version');
     await expectText(version, 'v1.0.0');
     const stillSameWindow = await client.markWindow();
 
     const file = join(devRoot, WIDGETS_ID, 'widget.mjs');
     await writeFile(
       file,
-      (await readFile(file, 'utf8')).replace("'1.0.0'", "'dev-edit'"),
+      (await readFile(file, 'utf8')).replace('1.0.0', 'dev-edit'),
     );
     await expectText(version, 'vdev-edit', 30_000);
     await stillSameWindow();

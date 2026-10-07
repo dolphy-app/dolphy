@@ -48,19 +48,13 @@ export const panels = {
 
 export const widgets = {
   'acme.surfaces.card': defineExtensionWidget({
-    mount(container) {
-      container.textContent = 'WIDGET_CARD_MARKER';
-    },
+    render: () => 'WIDGET_CARD_MARKER',
   }),
   'acme.surfaces.gauge': defineExtensionWidget({
-    mount(container) {
-      container.textContent = 'WIDGET_GAUGE_MARKER';
-    },
+    render: () => 'WIDGET_GAUGE_MARKER',
   }),
   'acme.surfaces.badge': defineExtensionWidget({
-    mount(container) {
-      container.textContent = 'WIDGET_BADGE_MARKER';
-    },
+    render: () => 'WIDGET_BADGE_MARKER',
   }),
 };
 

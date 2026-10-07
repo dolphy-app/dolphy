@@ -8,6 +8,7 @@ import {
   assetsPlugin,
 } from './assets-plugin.ts';
 import { BuildError } from './errors.ts';
+import { hostModulesPlugin } from './host-modules.ts';
 import type { Entry, Project } from './project.ts';
 import { exportsOf, shimEntry, shimPlugin } from './shim.ts';
 import type { JobState, Output } from './shim.ts';
@@ -79,6 +80,9 @@ const bundleConfig = (
   },
 });
 
+/** Constants of the extension API are `Object.freeze({…})` calls: without this the widget bundle keeps all of them. */
+const WIDGET_PURE_CALLS = ['Object.freeze'];
+
 const outputJob = (project: Project, output: Output, outDir: string): Job => {
   const state: JobState = { problem: null };
   const config = bundleConfig(
@@ -88,12 +92,26 @@ const outputJob = (project: Project, output: Output, outDir: string): Job => {
     outDir,
     output.kind === 'host',
   );
+  const isWidgetFile = output.kind === 'browser' && output.widgets.length > 0;
+  if (isWidgetFile) {
+    config.build = {
+      ...config.build,
+      rolldownOptions: {
+        ...config.build?.rolldownOptions,
+        treeshake: { manualPureFunctions: WIDGET_PURE_CALLS },
+      },
+    };
+  }
   return {
     output: output.output,
     label: `${output.output} (${exportsOf(output).join(', ')} from ${project.indexSource})`,
     config: {
       ...config,
-      plugins: [shimPlugin({ project, output, state }), assetsPlugin(state)],
+      plugins: [
+        shimPlugin({ project, output, state }),
+        ...(isWidgetFile ? [hostModulesPlugin()] : []),
+        assetsPlugin(state),
+      ],
     },
     state,
   };

@@ -23,7 +23,6 @@ export {
   type ExtensionViews,
   type ExtensionWidgets,
   type PanelContext,
-  type WidgetContext,
 } from './ids.ts';
 export { defineMarkdownRenderer } from './markdown-renderer.ts';
 export { defineExtensionPanel, defineExtensionWidget } from './panel.ts';

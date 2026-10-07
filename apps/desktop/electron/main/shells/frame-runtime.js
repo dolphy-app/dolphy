@@ -13,10 +13,9 @@
  *   { dolphy: 1, type: 'init', mode: 'answer', rendererUrl, element, label }
  *   { dolphy: 1, type: 'init', mode: 'markdown', rendererUrl, language, source }
  *   { dolphy: 1, type: 'init', mode: 'panel', rendererUrl, panelId, props, context }
- *   { dolphy: 1, type: 'init', mode: 'widget', rendererUrl, widgetId, context }
  *   { dolphy: 1, type: 'props', view?, value?, disabled?, verdict? }   (answer)
  *   { dolphy: 1, type: 'panel-props', props }                         (panel)
- *   { dolphy: 1, type: 'context', context: { courseId } }             (panel, widget)
+ *   { dolphy: 1, type: 'context', context: { courseId } }             (panel)
  *   { dolphy: 1, type: 'panel-result', callId, ok, value | error: { message } }
  *   { dolphy: 1, type: 'theme', variables: { '--v-…': string }, dark: boolean, lang }
  *   { dolphy: 1, type: 'dispose' }
@@ -25,12 +24,12 @@
  *   { dolphyFrame: 1, type: 'ready' }                  рантайм слушает сообщения
  *   { dolphyFrame: 1, type: 'answer-change', detail }  { value, complete }
  *   { dolphyFrame: 1, type: 'answer-submit' }          в том числе Ctrl/⌘+Enter
- *   { dolphyFrame: 1, type: 'size', height }           высота содержимого, px (answer, markdown, widget)
- *   { dolphyFrame: 1, type: 'overlay', height }        нужная высота рамки, px, пока открыт оверлей; null — закрыт (answer, markdown, widget)
+ *   { dolphyFrame: 1, type: 'size', height }           высота содержимого, px (answer, markdown)
+ *   { dolphyFrame: 1, type: 'overlay', height }        нужная высота рамки, px, пока открыт оверлей; null — закрыт (answer, markdown)
  *   { dolphyFrame: 1, type: 'done' }                   markdown: блок выведен
  *   { dolphyFrame: 1, type: 'error', message }
- *   { dolphyFrame: 1, type: 'panel-call', callId, command, args }      panel, widget: вызов команды
- *   { dolphyFrame: 1, type: 'shortcut', key: 'mod+k' }                  panel, widget: только Ctrl/⌘+K
+ *   { dolphyFrame: 1, type: 'panel-call', callId, command, args }      panel: вызов команды
+ *   { dolphyFrame: 1, type: 'shortcut', key: 'mod+k' }                  panel: только Ctrl/⌘+K
  *
  * `overlay` рамка шлёт по событию `dolphy-overlay` (`CustomEvent`, `bubbles`
  * и `composed`, `detail.height`: число ≥ 0 или `null`), которое расширение
@@ -38,12 +37,10 @@
  * же значения не шлётся; панель событие игнорирует.
  *
  * Режим `panel` занимает всю рамку (высоту задаёт приложение), `size` не
- * шлёт. Режим `widget` — карточка: высоту рамки приложение выбирает по `size`
- * и зажимает в диапазон манифеста, содержимое выше диапазона прокручивается
- * внутри рамки. Рамка не знает, чья она: расширение и допустимые команды
+ * шлёт. Рамка не знает, чья она: расширение и допустимые команды
  * приложение привязывает при создании рамки и не читает из сообщений.
  * Родителю уходит только Ctrl/⌘+K, другие клавиши и события не пересылаются.
- * `context` — окружение, которое приложение сообщает панели и виджету
+ * `context` — окружение, которое приложение сообщает панели
  * (`{ courseId: string | null }`); рантайм отдаёт его замороженным и
  * принимает только такую форму.
  *
@@ -310,44 +307,17 @@ const dolphyFrameRuntime = (win, loadModule) => {
     });
   };
 
-  const startWidget = async ({ rendererUrl, widgetId, context }) => {
-    if (typeof widgetId !== 'string') throw new Error('invalid widget id');
-    state.interactive = true;
-    state.context = contextOf(context);
-    const module = await loadMountable(rendererUrl);
-    // виджет — карточка: приложение выбирает высоту рамки по `size`; выше диапазона — прокрутка внутри
-    const container = doc.createElement('div');
-    doc.body.append(container);
-    observeSize();
-    const base = frameContext();
-    await module.mount(container, {
-      get context() {
-        return base.context;
-      },
-      signal: base.signal,
-      call: base.call,
-      onContextChange: base.onContextChange,
-      widgetId,
-    });
-    // ResizeObserver молчит, пока браузер не рисует рамку (кросс-доменная рамка вне окна просмотра):
-    // размер после монтирования читаем сами, раскладка принудительная и от рисования не зависит
-    reportSize();
-  };
-
   const starters = {
     answer: startAnswer,
     markdown: startMarkdown,
     panel: startPanel,
-    widget: startWidget,
   };
 
   const handlers = {
     init: (message) => {
       if (state.started) return;
       state.started = true;
-      state.overlayEnabled = ['answer', 'markdown', 'widget'].includes(
-        message.mode,
-      );
+      state.overlayEnabled = ['answer', 'markdown'].includes(message.mode);
       const start = Object.hasOwn(starters, message.mode)
         ? starters[message.mode]
         : () => Promise.reject(new Error('unknown mode'));

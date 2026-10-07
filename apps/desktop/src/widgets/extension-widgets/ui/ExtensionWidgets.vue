@@ -1,16 +1,12 @@
 <script setup lang="ts">
-import { computed, reactive, useId } from 'vue';
+import { computed, useId } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { WidgetContributionDto } from '@dolphy-app/engine-contract';
 import { useCourseScope } from '@/features/course-scope';
-import { useExtensionCommands } from '@/features/extension-commands';
 import { useContributions } from '@/shared/api/engine';
 import { useExtensionText } from '@/shared/lib/extension-text.ts';
 import { useExtensionWhen } from '@/shared/lib/extension-when.ts';
-import { frameUrlOf } from '@/shared/lib/frame-bridge.ts';
-import type { PanelBinding } from '@/shared/lib/frame-bridge.ts';
-import WidgetFrame from '@/shared/ui/WidgetFrame.vue';
-import { useCommandPalette } from '@/widgets/command-palette';
+import WidgetHost from './WidgetHost.vue';
 import { widgetsOf } from '../model/widgets.ts';
 
 const props = defineProps<{
@@ -22,29 +18,14 @@ const { t } = useI18n();
 const contributions = useContributions();
 const extensionText = useExtensionText();
 const extensionWhen = useExtensionWhen();
-const { runner } = useExtensionCommands();
 const scope = useCourseScope();
-const palette = useCommandPalette();
 const headingId = useId();
 
 const items = computed(() =>
   widgetsOf(contributions.value, props.area, extensionWhen),
 );
-// курс в фокусе доходит до рамок без их пересоздания
+// курс в фокусе доходит до виджетов без их пересоздания
 const context = computed(() => ({ courseId: scope.activeId.value }));
-// ошибка загрузки рамки по ключу рамки: новая ревизия начинает с чистого листа
-const failures = reactive(new Map<string, string>());
-
-const bindingOf = (
-  widget: WidgetContributionDto,
-  commands: ReadonlySet<string>,
-) =>
-  ({
-    extensionId: widget.extensionId,
-    commands,
-    invoke: (id, commandId, args) => runner.run(id, commandId, args, 'panel'),
-  }) satisfies PanelBinding;
-
 const titleOf = (widget: WidgetContributionDto) =>
   extensionText.of(widget.title, widget.extensionId);
 </script>
@@ -78,36 +59,11 @@ const titleOf = (widget: WidgetContributionDto) =>
             <span class="caption">{{ item.widget.extensionId }}</span>
           </template>
         </v-card-item>
-        <v-alert
-          v-if="failures.has(item.key)"
-          type="error"
-          variant="tonal"
-          density="compact"
-          class="mx-4 mb-2"
-          data-testid="extension-widget-failed"
-        >
-          {{ t('extensionWidgets.loadFailed') }}
-          <div class="caption">{{ failures.get(item.key) }}</div>
-        </v-alert>
-        <div class="frame-area">
-          <WidgetFrame
-            :src="frameUrlOf(item.widget.rendererUrl)"
-            :title="
-              t('extensionWidgets.frameTitle', {
-                title: titleOf(item.widget),
-                extension: item.widget.extensionId,
-              })
-            "
-            :renderer-url="item.widget.rendererUrl"
-            :widget-id="item.widget.id"
-            :binding="bindingOf(item.widget, item.commands)"
-            :min-height="item.widget.minHeight"
-            :max-height="item.widget.maxHeight"
-            :context="context"
-            @shortcut="palette.open()"
-            @error="failures.set(item.key, $event)"
-          />
-        </div>
+        <WidgetHost
+          :widget="item.widget"
+          :commands="item.commands"
+          :context="context"
+        />
       </v-card>
     </div>
   </section>
@@ -144,9 +100,5 @@ const titleOf = (widget: WidgetContributionDto) =>
   font-size: 0.8125rem;
   color: rgb(var(--v-theme-on-surface-variant));
   overflow-wrap: anywhere;
-}
-
-.frame-area {
-  padding: 0 1rem 1rem;
 }
 </style>

@@ -15,6 +15,8 @@ import {
   type ExtensionViews,
   type ExtensionWidgets,
 } from '@dolphy-app/extension-sdk';
+import { useWidget } from '@dolphy-app/extension-sdk/client';
+import { defineComponent } from 'vue';
 
 const echo = defineExerciseType({
   project: () => ({}),
@@ -290,7 +292,7 @@ describe('defineExtension with generated ids', () => {
 describe('views, panels, widgets and markdown with generated ids', () => {
   const view = defineAnswerView(() => ({ update: () => undefined }));
   const panel = defineExtensionPanel({ mount: () => undefined });
-  const widget = defineExtensionWidget({ mount: () => undefined });
+  const widget = defineExtensionWidget(defineComponent({}));
   const renderer = defineMarkdownRenderer(() => undefined);
 
   it('accept exactly the declared keys', () => {
@@ -346,14 +348,11 @@ describe('views, panels, widgets and markdown with generated ids', () => {
   });
 
   it('narrow what a widget may call', () => {
-    defineExtensionWidget({
-      mount(_container, ctx) {
-        void ctx.call('acme.a');
-        // @ts-expect-error not a declared command
-        void ctx.call('acme.c');
-        expectTypeOf(ctx.context.courseId).toEqualTypeOf<string | null>();
-      },
-    });
+    const handle = useWidget();
+    void handle.call('acme.a');
+    // @ts-expect-error not a declared command
+    void handle.call('acme.c');
+    expectTypeOf(handle.context.courseId).toEqualTypeOf<string | null>();
   });
 
   it('narrow what a panel may call and open', () => {

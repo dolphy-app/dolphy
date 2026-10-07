@@ -1,8 +1,8 @@
 ---
-status: active
+status: done
 branch: feature/extension-frameworks
 created: 2026-10-08
-closed: null
+closed: 2026-10-08
 touches: [extension-api, extension-sdk, extension-tools, create-extension, desktop, docs]
 depends-on: [specs/archive/2026-10-07-extension-runtime]
 supersedes: null
@@ -10,6 +10,8 @@ superseded-by: null
 ---
 
 # Интерфейс расширений не только на Vue: монтируемые компоненты и пресеты сборки
+
+> Исторический документ. Не источник требований.
 
 Живой документ, пока `status` — `draft` или `active`: `Progress`, `Surprises & Discoveries`, `Decision Log` обновляются вместе с кодом. По завершении фичи переносится в `specs/archive/` и не меняется. Правила — скилл `spec-workflow`.
 
@@ -80,4 +82,8 @@ superseded-by: null
 
 ## Outcomes
 
-Заполняется при закрытии.
+Сделано всё из «Цели»: `Mountable` на четырёх поверхностях, `MountContext` без привязки к Vue, пресеты `vue` (SFC) и `react`, `@dolphy-app/extension-sdk/react`, шаблоны `react-panel` и `command-panel` на SFC, рецепты и раздел документа, e2e (225 из 225 при закрытии) с React и Vue SFC в одном окне. Решение оформлено в ADR 0023.
+
+**Отличия от плана.** Размер бандла не ограничен (решение владельца): замеры в `Progress`. `vue-tsc` в шаблоне заменён shim'ом `*.vue`. Пресеты внутри бинарного бандла `extension-tools`, отдельных подпутей `presets/*` нет. `peerDependenciesMeta` для публикации добавлено в `tools/lib/package-manifest.mjs`.
+
+**Остатки.** Общий рантайм между расширениями (расширение-пакет `dolphy.react`); пресеты Svelte и других; Shadow DOM; минификация клиентских бандлов; плагины сборки автора, если пресетов не хватит.

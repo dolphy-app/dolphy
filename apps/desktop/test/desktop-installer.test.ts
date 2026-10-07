@@ -2,12 +2,14 @@ import { createHash } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { EMPTY_SERVER_REGISTRATION } from '@dolphy-app/extension-api';
 import {
   createDiscoveryHolder,
   createExtensionPolicy,
   createExtensionRegistry,
   discoverExtensions,
 } from '@dolphy-app/extension-host';
+import type { DiscoveryResult } from '@dolphy-app/extension-host';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_EXTENSION_CATALOG_URL,
@@ -146,17 +148,24 @@ const manifest = JSON.stringify({
   name: 'Acme theme',
   description: 'A theme',
   author: 'acme',
-  contributes: {
-    themes: [
-      {
-        id: 'acme.theme.night',
-        label: 'Night',
-        dark: true,
-        colors: { background: '#000000' },
-      },
-    ],
-  },
 });
+
+/** Снимок с зарегистрированным расписанием: так выглядит загруженное расширение после ответа хоста. */
+const registeredHolder = (found: DiscoveryResult) => {
+  const holder = createDiscoveryHolder(found);
+  holder.applyRegistrations({
+    registrations: {
+      'acme.theme': {
+        ok: true,
+        registration: {
+          ...EMPTY_SERVER_REGISTRATION,
+          schedules: [{ id: 'acme.theme.tick', every: 'hourly', at: null }],
+        },
+      },
+    },
+  });
+  return holder;
+};
 
 const indexOf = (revoked: { id: string; versions: string; reason: string }[]) =>
   JSON.stringify({
@@ -170,18 +179,6 @@ const indexOf = (revoked: { id: string; versions: string; reason: string }[]) =>
         author: 'acme',
         source: 'https://github.com/dolphy-app/dolphy-extensions',
         platforms: [],
-        contributes: {
-          exerciseTypes: [],
-          themes: ['acme.theme.night'],
-          markdownRenderers: [],
-          gradePolicies: [],
-          settings: [],
-          events: [],
-          commands: [],
-          panels: [],
-          importers: [],
-          exporters: [],
-        },
         versions: [
           {
             version: '1.0.0',
@@ -252,12 +249,10 @@ describe('установка из каталога → обнаружение �
       install: { catalogUrl: CATALOG, version: '1.0.0' },
     });
 
-    const policy = createExtensionPolicy(
-      createDiscoveryHolder(found),
-      installer.revocationOf,
-    );
+    const holder = registeredHolder(found);
+    const policy = createExtensionPolicy(holder, installer.revocationOf);
     const registry = createExtensionRegistry(
-      createDiscoveryHolder(found),
+      holder,
       policy,
       installer.revocationOf,
     );
@@ -266,6 +261,7 @@ describe('установка из каталога → обнаружение �
       revoked: null,
       deprecated: null,
     });
+    expect(registry.contributions().schedules).toHaveLength(1);
 
     revoked = [{ id: 'acme.theme', versions: '<2.0.0', reason: 'malware' }];
     await installer.catalog({ refresh: true });
@@ -275,7 +271,7 @@ describe('установка из каталога → обнаружение �
       toggleable: false,
     });
     expect(policy.isEnabled('acme.theme')).toBe(false);
-    expect(registry.contributions().themes).toEqual([]);
+    expect(registry.contributions().schedules).toEqual([]);
   });
 
   it('после смены адреса отзыв нового каталога не отключает установленное из прежнего, а возврат адреса возвращает отзыв', async () => {
@@ -319,7 +315,7 @@ describe('установка из каталога → обнаружение �
       roots: [{ dir, origin: 'user' }],
       logger: log,
     });
-    const holder = createDiscoveryHolder(found);
+    const holder = registeredHolder(found);
     const policy = createExtensionPolicy(holder, installer.revocationOf);
     const registry = createExtensionRegistry(
       holder,

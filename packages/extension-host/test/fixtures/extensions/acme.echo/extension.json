@@ -2,15 +2,5 @@
   "id": "acme.echo",
   "version": "1.0.0",
   "apiVersion": 1,
-  "main": "./main.mjs",
-  "contributes": {
-    "exerciseTypes": [
-      {
-        "id": "acme.echo",
-        "specSchema": "./schema/spec.json",
-        "answerSchema": "./schema/answer.json",
-        "renderer": "./view.mjs"
-      }
-    ]
-  }
+  "main": "./main.mjs"
 }

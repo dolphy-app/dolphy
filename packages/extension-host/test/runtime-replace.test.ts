@@ -2,40 +2,36 @@ import { cp, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { ExtensionModule } from '@dolphy-app/extension-api';
+import type { EntryResult } from '@dolphy-app/extension-api';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { discoverExtensions } from '../src/discover.ts';
-import type { ExtensionOrigin, ResolvedExtension } from '../src/discover.ts';
+import type { ExtensionCandidate, ExtensionOrigin } from '../src/discover.ts';
 import type { ExtRequest, ExtResponse } from '../src/protocol.ts';
 import { createExtensionRuntime } from '../src/runtime.ts';
-import { createLogger, nullLibrary } from './helpers.ts';
+import type { ExtensionRuntime, ServerModule } from '../src/runtime.ts';
+import { candidateOf, createLogger, nullLibrary } from './helpers.ts';
+import type { TestLogger } from './helpers.ts';
 
 const fixtures = fileURLToPath(
   new URL('./fixtures/extensions', import.meta.url),
 );
 
-const discover = async (
-  dir = fixtures,
-  origin: ExtensionOrigin = 'user',
-): Promise<ResolvedExtension[]> =>
-  (
-    await discoverExtensions({
-      roots: [{ dir, origin }],
-      logger: createLogger(),
-    })
-  ).extensions;
+const ID = 'acme.echo';
+
+const echo = (overrides: Partial<ExtensionCandidate> = {}) =>
+  candidateOf(ID, { revision: 'r1', ...overrides });
 
 const project = (id = '1'): ExtRequest => ({
   id,
   method: 'project',
-  params: { type: 'acme.echo', exerciseId: 'e', spec: {} },
+  params: { type: ID, exerciseId: 'e', spec: {} },
 });
 
 const grade = (id = '1', timeoutMs = 1000): ExtRequest => ({
   id,
   method: 'grade',
   params: {
-    type: 'acme.echo',
+    type: ID,
     exerciseId: 'e',
     spec: {},
     answer: 1,
@@ -47,183 +43,283 @@ const grade = (id = '1', timeoutMs = 1000): ExtRequest => ({
 const resultOf = (response: ExtResponse): unknown =>
   response.ok ? response.result : response.error;
 
-/** Модуль расширения, отвечающий своим именем; `grade` ждёт, пока тест его не отпустит. */
-const versioned = (label: string, gate?: Promise<void>) => {
-  const deactivate = vi.fn();
-  const module: ExtensionModule = {
-    activate(ctx) {
-      ctx.registerExerciseType('acme.echo', {
-        project: () => label,
-        grade: async () => {
-          await gate;
-          return { outcome: 'passed', feedback: label };
-        },
-      });
-    },
-    deactivate,
-  };
-  return { module, deactivate };
+const schemas = {
+  specSchema: { type: 'object' },
+  answerSchema: { type: 'string' },
 };
 
-const open = async (
-  modules: Record<string, ExtensionModule>,
-  extra: { drainGraceMs?: number } = {},
+/** Серверная часть, отвечающая своим именем; `grade` ждёт, пока тест его не отпустит. */
+const versioned = (
+  label: string,
+  options: { gate?: Promise<void>; cleanup?: EntryResult; id?: string } = {},
 ) => {
-  const all = await discover();
-  const echo = all.find(({ id }) => id === 'acme.echo') as ResolvedExtension;
-  const runtime = createExtensionRuntime({
-    extensions: [echo],
-    library: nullLibrary,
-    logger: createLogger(),
-    modules,
-    ...(extra.drainGraceMs !== undefined && {
-      drainGraceMs: extra.drainGraceMs,
-    }),
+  const cleanup = vi.fn();
+  const server = vi.fn<NonNullable<ServerModule['server']>>((s) => {
+    s.registerExerciseType({
+      id: options.id ?? ID,
+      ...schemas,
+      project: () => label,
+      grade: async () => {
+        await options.gate;
+        return { outcome: 'passed', feedback: label };
+      },
+    });
+    return options.cleanup ?? cleanup;
   });
-  return { runtime, echo, all };
+  return { module: { server } satisfies ServerModule, server, cleanup };
+};
+
+let runtime: ExtensionRuntime | null = null;
+let logger: TestLogger;
+afterEach(async () => {
+  vi.useRealTimers();
+  await runtime?.dispose();
+  runtime = null;
+});
+
+const open = (
+  modules: Record<string, ServerModule>,
+  options: { drainGraceMs?: number } = {},
+): ExtensionRuntime => {
+  logger = createLogger();
+  runtime = createExtensionRuntime({
+    library: nullLibrary,
+    logger,
+    modules,
+    ...options,
+  });
+  return runtime;
 };
 
 describe('ExtensionRuntime.replace', () => {
-  it('тот же набор ничего не перезагружает', async () => {
+  it('тот же revision и mainPath: server не вызывается снова, обработчики работают, очистка не вызывается', async () => {
     const first = versioned('v1');
-    const activate = vi.spyOn(first.module, 'activate');
-    const { runtime } = await open({ 'acme.echo': first.module });
-    await runtime.handle(project());
-    await runtime.replace(await discover());
-    expect(resultOf(await runtime.handle(project('2')))).toBe('v1');
-    expect(activate).toHaveBeenCalledTimes(1);
-    expect(first.deactivate).not.toHaveBeenCalled();
+    const host = open({ [ID]: first.module });
+    await host.replace([echo()]);
+    expect(resultOf(await host.handle(project()))).toBe('v1');
+
+    const again = await host.replace([echo({ version: '1.0.1' })]);
+    expect(again.registrations[ID]).toMatchObject({
+      ok: true,
+      registration: { exerciseTypes: [{ id: ID }] },
+    });
+    expect(resultOf(await host.handle(project('2')))).toBe('v1');
+    expect(first.server).toHaveBeenCalledTimes(1);
+    expect(first.cleanup).not.toHaveBeenCalled();
   });
 
-  it('новая версия: следующие вызовы идут в неё, прежняя активация получает deactivate()', async () => {
-    const modules: Record<string, ExtensionModule> = {};
+  it('новый revision: server вызывается заново, вызовы идут в новый код, очистка прежнего вызвана', async () => {
+    const modules: Record<string, ServerModule> = {};
     const old = versioned('v1');
     const next = versioned('v2');
-    modules['acme.echo'] = old.module;
-    const { runtime, echo } = await open(modules);
-    expect(resultOf(await runtime.handle(project()))).toBe('v1');
+    modules[ID] = old.module;
+    const host = open(modules);
+    await host.replace([echo()]);
+    expect(resultOf(await host.handle(project()))).toBe('v1');
 
-    modules['acme.echo'] = next.module;
-    await runtime.replace([{ ...echo, version: '2.0.0' }]);
-    expect(old.deactivate).toHaveBeenCalledTimes(1);
-    expect(resultOf(await runtime.handle(project('2')))).toBe('v2');
-    expect(next.deactivate).not.toHaveBeenCalled();
+    modules[ID] = next.module;
+    await host.replace([echo({ revision: 'r2' })]);
+    expect(resultOf(await host.handle(project('2')))).toBe('v2');
+    await host.dispose();
+    expect(old.cleanup).toHaveBeenCalledTimes(1);
+    expect(next.server).toHaveBeenCalledTimes(1);
+    expect(next.cleanup).toHaveBeenCalledTimes(1);
   });
 
-  it('тот же номер версии, другие файлы (revision) — тоже перезагрузка', async () => {
-    const modules: Record<string, ExtensionModule> = {};
+  it('другой mainPath при том же revision — тоже перезапуск', async () => {
+    const modules: Record<string, ServerModule> = {};
     const old = versioned('v1');
-    modules['acme.echo'] = old.module;
-    const { runtime, echo } = await open(modules);
-    await runtime.handle(project());
-    modules['acme.echo'] = versioned('v1-edited').module;
-    await runtime.replace([{ ...echo, revision: 'edited' }]);
-    expect(old.deactivate).toHaveBeenCalledTimes(1);
-    expect(resultOf(await runtime.handle(project('2')))).toBe('v1-edited');
+    modules[ID] = old.module;
+    const host = open(modules);
+    await host.replace([echo()]);
+    modules[ID] = versioned('moved').module;
+    await host.replace([echo({ mainPath: '/y/acme.echo/main.mjs' })]);
+    expect(resultOf(await host.handle(project('2')))).toBe('moved');
+    await host.dispose();
+    expect(old.cleanup).toHaveBeenCalledTimes(1);
   });
 
-  it('удалённое расширение перестаёт отвечать и освобождается; вызов к нему — unknown-type', async () => {
+  it('новая версия не зарегистрировалась: прежняя выгружена, вклады расширения пропали', async () => {
+    const modules: Record<string, ServerModule> = {};
     const old = versioned('v1');
-    const { runtime } = await open({ 'acme.echo': old.module });
-    await runtime.handle(project());
-    await runtime.replace([]);
-    expect(old.deactivate).toHaveBeenCalledTimes(1);
-    expect(resultOf(await runtime.handle(project('2')))).toMatchObject({
+    modules[ID] = old.module;
+    const host = open(modules);
+    await host.replace([echo()]);
+    modules[ID] = {
+      server: () => {
+        throw new Error('v2 is broken');
+      },
+    };
+    const result = await host.replace([echo({ revision: 'r2' })]);
+    expect(result.registrations[ID]).toEqual({
+      ok: false,
+      error: 'v2 is broken',
+    });
+    expect(resultOf(await host.handle(project('2')))).toMatchObject({
+      cause: 'unknown-type',
+    });
+    await host.dispose();
+    expect(old.cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it('удалённое расширение перестаёт отвечать, его очистка вызвана; вызов к нему — unknown-type', async () => {
+    const old = versioned('v1');
+    const host = open({ [ID]: old.module });
+    await host.replace([echo()]);
+    await host.replace([]);
+    await host.dispose();
+    expect(old.cleanup).toHaveBeenCalledTimes(1);
+    expect(resultOf(await host.handle(project('2')))).toMatchObject({
       cause: 'unknown-type',
     });
   });
 
-  it('добавленное расширение сразу доступно, остальные не затронуты', async () => {
-    const old = versioned('v1');
-    const { runtime, echo, all } = await open({ 'acme.echo': old.module });
-    const policy = all.find(
-      ({ id }) => id === 'acme.policy',
-    ) as ResolvedExtension;
-    await runtime.handle(project());
-    const promised = runtime.replace([echo, policy]);
-    // каталог заменён синхронно: ответ на replace ждать не нужно
-    const response = await runtime.handle({
-      id: '2',
-      method: 'gradePolicy',
-      params: {
-        policyId: 'acme.policy.generous',
-        verdicts: [],
-        gaveUp: false,
+  it('добавленное расширение сразу доступно, остальные не перезапускаются', async () => {
+    const first = versioned('v1');
+    const policy = vi.fn(() => 5 as const);
+    const host = open({
+      [ID]: first.module,
+      'acme.policy': {
+        server: (s) => {
+          s.registerGradePolicy({
+            id: 'acme.policy.generous',
+            label: 'Generous',
+            evaluate: policy,
+          });
+        },
       },
     });
-    expect(resultOf(response)).not.toMatchObject({ cause: 'unknown-policy' });
-    await promised;
-    expect(old.deactivate).not.toHaveBeenCalled();
+    await host.replace([echo()]);
+    await host.replace([echo(), candidateOf('acme.policy')]);
+    const response = await host.handle({
+      id: '2',
+      method: 'gradePolicy',
+      params: { policyId: 'acme.policy.generous', verdicts: [], gaveUp: false },
+    });
+    expect(resultOf(response)).toBe(5);
+    expect(first.server).toHaveBeenCalledTimes(1);
+    expect(first.cleanup).not.toHaveBeenCalled();
+  });
+
+  it('очистка — функция или объект с dispose: вызывается при замене и при dispose рантайма', async () => {
+    const fn = vi.fn();
+    const dispose = vi.fn();
+    const objectCleanup = { dispose };
+    const host = open({
+      'acme.fn': versioned('fn', { id: 'acme.fn', cleanup: fn }).module,
+      'acme.obj': versioned('obj', { id: 'acme.obj', cleanup: objectCleanup })
+        .module,
+    });
+    const fnCandidate = candidateOf('acme.fn', { revision: 'r1' });
+    const objCandidate = candidateOf('acme.obj', { revision: 'r1' });
+    await host.replace([fnCandidate, objCandidate]);
+    expect(fn).not.toHaveBeenCalled();
+    expect(dispose).not.toHaveBeenCalled();
+
+    // замена кода: прежняя очистка вызвана; новая запись ещё жива
+    await host.replace([{ ...fnCandidate, revision: 'r2' }, objCandidate]);
+    await vi.waitFor(() => expect(fn).toHaveBeenCalledTimes(1));
+    expect(dispose).not.toHaveBeenCalled();
+
+    await host.dispose();
+    expect(fn).toHaveBeenCalledTimes(2);
+    expect(dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('сбой очистки пишется в журнал и не мешает остальным', async () => {
+    const good = vi.fn();
+    const host = open({
+      'acme.bad': versioned('bad', {
+        id: 'acme.bad',
+        cleanup: () => {
+          throw new Error('cleanup exploded');
+        },
+      }).module,
+      'acme.good': versioned('good', { id: 'acme.good', cleanup: good }).module,
+    });
+    await host.replace([
+      candidateOf('acme.bad', { revision: 'r1' }),
+      candidateOf('acme.good', { revision: 'r1' }),
+    ]);
+    await host.replace([]);
+    await host.dispose();
+    expect(good).toHaveBeenCalledTimes(1);
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        extensionId: 'acme.bad',
+        error: 'cleanup exploded',
+      }),
+      expect.any(String),
+    );
+  });
+
+  it('параллельные replace выполняются по очереди: последний набор побеждает', async () => {
+    const old = versioned('v1');
+    const host = open({ [ID]: old.module });
+    const first = host.replace([echo()]);
+    const second = host.replace([]);
+    await Promise.all([first, second]);
+    expect(resultOf(await host.handle(project()))).toMatchObject({
+      cause: 'unknown-type',
+    });
+  });
+
+  it('dispose дожидается начатого вытеснения', async () => {
+    const old = versioned('v1');
+    const host = open({ [ID]: old.module });
+    await host.replace([echo()]);
+    void host.replace([]);
+    await host.dispose();
+    expect(old.cleanup).toHaveBeenCalledTimes(1);
   });
 
   describe('вызовы в полёте', () => {
     beforeEach(() => {
       vi.useFakeTimers();
     });
-    afterEach(() => {
-      vi.useRealTimers();
-    });
 
-    it('идущий grade доходит до результата старой версии, deactivate — только после него; новый вызов идёт в новую', async () => {
-      const modules: Record<string, ExtensionModule> = {};
+    it('идущий grade доходит до результата старой версии, очистка — только после него; новый вызов идёт в новую', async () => {
+      const modules: Record<string, ServerModule> = {};
       let release: () => void = () => {};
       const gate = new Promise<void>((resolve) => {
         release = resolve;
       });
-      const old = versioned('v1', gate);
+      const old = versioned('v1', { gate });
       const next = versioned('v2');
-      modules['acme.echo'] = old.module;
-      const { runtime, echo } = await open(modules);
-      const inFlight = runtime.handle(grade());
+      modules[ID] = old.module;
+      const host = open(modules);
+      await host.replace([echo()]);
+      const inFlight = host.handle(grade());
       await vi.advanceTimersByTimeAsync(0);
 
-      modules['acme.echo'] = next.module;
-      let evicted = false;
-      const replaced = runtime
-        .replace([{ ...echo, version: '2.0.0' }])
-        .then(() => {
-          evicted = true;
-        });
-      expect(resultOf(await runtime.handle(project('2')))).toBe('v2');
+      modules[ID] = next.module;
+      await host.replace([echo({ revision: 'r2' })]);
+      expect(resultOf(await host.handle(project('2')))).toBe('v2');
       await vi.advanceTimersByTimeAsync(10);
-      expect(evicted).toBe(false);
-      expect(old.deactivate).not.toHaveBeenCalled();
+      expect(old.cleanup).not.toHaveBeenCalled();
 
       release();
       expect(resultOf(await inFlight)).toMatchObject({
         outcome: 'passed',
         feedback: 'v1',
       });
-      await replaced;
-      expect(old.deactivate).toHaveBeenCalledTimes(1);
-      expect(next.deactivate).not.toHaveBeenCalled();
+      await vi.waitFor(() => expect(old.cleanup).toHaveBeenCalledTimes(1));
+      expect(next.cleanup).not.toHaveBeenCalled();
     });
 
     it('вызов, не завершившийся за срок и запас, не держит вытеснение', async () => {
       const never = new Promise<void>(() => {});
-      const old = versioned('v1', never);
-      const { runtime } = await open(
-        { 'acme.echo': old.module },
-        { drainGraceMs: 50 },
-      );
-      void runtime.handle(grade('1', 100));
+      const old = versioned('v1', { gate: never });
+      const host = open({ [ID]: old.module }, { drainGraceMs: 50 });
+      await host.replace([echo()]);
+      void host.handle(grade('1', 100));
       await vi.advanceTimersByTimeAsync(0);
-      const replaced = runtime.replace([]);
+      await host.replace([]);
       await vi.advanceTimersByTimeAsync(149);
-      expect(old.deactivate).not.toHaveBeenCalled();
+      expect(old.cleanup).not.toHaveBeenCalled();
       await vi.advanceTimersByTimeAsync(1);
-      await replaced;
-      expect(old.deactivate).toHaveBeenCalledTimes(1);
+      expect(old.cleanup).toHaveBeenCalledTimes(1);
     });
-  });
-
-  it('dispose дожидается начатого вытеснения', async () => {
-    const old = versioned('v1');
-    const { runtime } = await open({ 'acme.echo': old.module });
-    await runtime.handle(project());
-    void runtime.replace([]);
-    await runtime.dispose();
-    expect(old.deactivate).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -231,30 +327,38 @@ describe('ExtensionRuntime.replace: настоящие файлы', () => {
   let root: string;
   beforeEach(async () => {
     root = await mkdtemp(join(tmpdir(), 'dolphy-replace-'));
-    await cp(join(fixtures, 'acme.echo'), join(root, 'acme.echo'), {
-      recursive: true,
-    });
+    await cp(join(fixtures, ID), join(root, ID), { recursive: true });
   });
   afterEach(async () => {
     await rm(root, { recursive: true, force: true });
   });
 
+  const discover = async (
+    origin: ExtensionOrigin = 'dev',
+  ): Promise<ExtensionCandidate[]> =>
+    (
+      await discoverExtensions({
+        roots: [{ dir: root, origin }],
+        logger: createLogger(),
+      })
+    ).extensions;
+
   const source = (label: string) =>
-    `export default { activate(ctx) { ctx.registerExerciseType('acme.echo', { project: () => '${label}', grade: () => ({ outcome: 'passed' }) }); } };\n`;
+    `export const server = (s) => { s.registerExerciseType({ id: '${ID}', specSchema: { type: 'object' }, answerSchema: { type: 'string' }, project: () => '${label}', grade: () => ({ outcome: 'passed' }) }); };\n`;
 
   it('правка main.mjs без смены версии подхватывается: загрузчик ESM не отдаёт старый модуль', async () => {
-    const main = join(root, 'acme.echo', 'main.mjs');
+    const main = join(root, ID, 'main.mjs');
     await writeFile(main, source('first'));
-    const runtime = createExtensionRuntime({
-      extensions: await discover(root, 'dev'),
+    const host = createExtensionRuntime({
       library: nullLibrary,
       logger: createLogger(),
     });
-    expect(resultOf(await runtime.handle(project()))).toBe('first');
+    runtime = host;
+    await host.replace(await discover());
+    expect(resultOf(await host.handle(project()))).toBe('first');
 
     await writeFile(main, source('second, longer'));
-    await runtime.replace(await discover(root, 'dev'));
-    expect(resultOf(await runtime.handle(project('2')))).toBe('second, longer');
-    await runtime.dispose();
+    await host.replace(await discover());
+    expect(resultOf(await host.handle(project('2')))).toBe('second, longer');
   });
 });

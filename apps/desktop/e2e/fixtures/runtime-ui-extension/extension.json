@@ -1,34 +1,5 @@
 {
   "id": "acme.runtimeui",
   "version": "1.0.0",
-  "apiVersion": 1,
-  "contributes": {
-    "exerciseTypes": [
-      {
-        "id": "acme.runtimeui.ok",
-        "specSchema": { "type": "object" },
-        "answerSchema": { "type": "string" }
-      },
-      {
-        "id": "acme.runtimeui.boom",
-        "specSchema": { "type": "object" },
-        "answerSchema": { "type": "string" }
-      }
-    ],
-    "panels": [
-      { "id": "acme.runtimeui.main", "title": "Компоненты" },
-      { "id": "acme.runtimeui.boom", "title": "Сломанная панель" }
-    ],
-    "widgets": [
-      {
-        "id": "acme.runtimeui.card",
-        "title": "Компонентный виджет",
-        "slot": "dailyPlan"
-      }
-    ],
-    "markdownRenderers": [
-      { "language": "runtimeui" },
-      { "language": "explode" }
-    ]
-  }
+  "apiVersion": 1
 }

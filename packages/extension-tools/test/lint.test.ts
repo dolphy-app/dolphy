@@ -64,7 +64,7 @@ describe('dolphy-ext lint: project', () => {
       "warning acme.night CHECK-003 name: 'name' is not set: the catalog requires it",
       "warning acme.night CHECK-003 author: 'author' is not set: the catalog requires it",
       'warning acme.night CHECK-019 description: description is shorter than 20 characters: say what the extension does',
-      "warning acme.night LINT-001 tags: 'tags' is not set: without it the catalog derives tags from contributions",
+      "warning acme.night LINT-001 tags: 'tags' is not set: the catalog lists the extension without tags",
     ]);
   });
 
@@ -87,10 +87,10 @@ export const probe = (code: string): unknown => globalThis.eval(code);
 globalThis.probe = probe;
 `,
     );
-    // the module is shared by the host and the view bundles
+    // the module is shared by the server and the client bundles
     expect(await lint(dir)).toEqual([
+      'warning acme.hello CHECK-022 client.mjs: dynamic code execution (eval or new Function)',
       'warning acme.hello CHECK-022 main.mjs: dynamic code execution (eval or new Function)',
-      'warning acme.hello CHECK-022 view.mjs: dynamic code execution (eval or new Function)',
     ]);
   });
 
@@ -190,7 +190,7 @@ describe('dolphy-ext lint: CLI', () => {
   });
 
   it('a clean --built directory passes', async () => {
-    const built = await builtWith({ 'view.mjs': 'export {};' });
+    const built = await builtWith({ 'client.mjs': 'export {};' });
     const dir = await readyProject('theme-only');
     const result = await exec(['lint', dir, '--built', built]);
     expect(result).toEqual({ code: 0, stdout: '', stderr: '' });

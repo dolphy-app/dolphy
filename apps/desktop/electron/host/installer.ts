@@ -4,12 +4,11 @@ import type { EngineConfig } from '@dolphy-app/engine-contract';
 import { EXTENSION_API_VERSION } from '@dolphy-app/extension-api';
 import type { ExtensionLogger } from '@dolphy-app/extension-api';
 import {
-  contributesOf,
   formatDiagnostic,
   inspectExtensionDir,
 } from '@dolphy-app/extension-host';
 import type {
-  DiscoveryResult,
+  DiscoverySnapshot,
   DiscoverySource,
 } from '@dolphy-app/extension-host';
 import {
@@ -71,9 +70,11 @@ export const createUnavailableInstaller = (): ExtensionInstaller => {
 };
 
 /** Расширения, которые каталог заменять не вправе: из поставки и режима разработчика (в том числе перекрытые). */
-const fixedIds = (discovery: DiscoveryResult): ReadonlySet<string> =>
+const fixedIds = (
+  discovery: Pick<DiscoverySnapshot, 'candidates' | 'overridden'>,
+): ReadonlySet<string> =>
   new Set([
-    ...discovery.extensions
+    ...discovery.candidates
       .filter(({ origin }) => origin !== 'user')
       .map(({ id }) => id),
     ...discovery.overridden
@@ -89,7 +90,7 @@ const inspectForInstall =
     });
     if (!result.ok)
       return { ok: false, message: formatDiagnostic(result.diagnostic) };
-    const { id, version, icon, tags, dependencies, ...rest } = result.extension;
+    const { id, version, icon, tags, dependencies } = result.extension;
     return {
       ok: true,
       manifest: {
@@ -101,7 +102,6 @@ const inspectForInstall =
           id: dependency,
           range,
         })),
-        contributes: contributesOf(rest),
       },
     };
   };

@@ -1,13 +1,18 @@
 import {
-  EXTENSION_COMMAND_LIMITS,
   COLOR_SETTING_PATTERN,
+  DEFAULT_EXTENSION_ICON,
+  EXTENSION_COMMAND_LIMITS,
   EXTENSION_NOTIFICATION_LIMITS,
-  EXTENSION_STATS_LIMITS,
+  EXTENSION_SCHEDULE_LIMITS,
   EXTENSION_SECRET_LIMITS,
+  INJECTION_LIMITS,
+  INJECTION_POSITIONS,
+  EXTENSION_STATS_LIMITS,
   EXTENSION_STORAGE_LIMITS,
   EXTENSION_TRANSFER_LIMITS,
   SETTING_LIMITS,
   InvalidCommandResultError,
+  MARKDOWN_LANGUAGE_PATTERN,
   InvalidTransferResultError,
   NotificationRateLimitError,
   SecretsUnavailableError,
@@ -17,48 +22,55 @@ import {
   normalizeImportResult,
 } from '@dolphy-app/extension-api';
 import type {
-  CommandHandler,
+  ClientCommandRegistration,
+  CommandKeybinding,
   CommandOutcome,
+  CommandRegistration,
   DailyStat,
   Disposable,
-  ExerciseTypeHandler,
+  ExerciseTypeRegistration,
   ExportInput,
   ExportResult,
-  ExporterHandler,
-  ExtensionContext,
-  ExtensionEvents,
-  ExtensionCommands,
-  ExtensionExporters,
-  ExtensionImporters,
+  ExporterRegistration,
   ExtensionLogger,
-  ExtensionModule,
   ExtensionNotification,
   ExtensionNotifications,
-  ExtensionSchedule,
   ExtensionSecrets,
   ExtensionSettings,
   ExtensionStats,
   ExtensionStorage,
-  GradePolicyHandler,
   GradePolicyInput,
+  GradePolicyRegistration,
   GradeResult,
   GradeValue,
   ImportInput,
   ImportResult,
-  ImporterHandler,
-  ImporterInputKind,
+  ImporterRegistration,
   JsonSchema,
   JsonValue,
-  LearningEventHandler,
   LearningEventName,
   LearningEventPayloads,
   LibraryReader,
+  RegisteredKeybinding,
+  RegisteredSetting,
   ScheduleHandler,
+  ScheduleRegistration,
+  ServerContext,
+  ServerEntry,
+  ServerRegistration,
   SettingChange,
-  SettingContribution,
+  SettingDefinition,
   SettingValue,
   StreakStats,
+  ThemeRegistration,
 } from '@dolphy-app/extension-api';
+import type { Component } from 'vue';
+import type {
+  ClientContext,
+  ClientEntry,
+  InjectionRegistration,
+  PanelRegistration,
+} from './define-entry.ts';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 
 const MAX_MESSAGES = 6;
@@ -205,7 +217,7 @@ export const createMemorySecrets = (
 
 /** The value as the host stores it: a color in lower case, a list copied. */
 const storedForm = (
-  definition: SettingContribution,
+  definition: SettingDefinition,
   value: SettingValue,
 ): SettingValue => {
   if (definition.type === 'color' && typeof value === 'string') {
@@ -221,7 +233,7 @@ const sameSettingValue = (a: SettingValue | undefined, b: SettingValue) =>
 
 /** Why a value does not fit the setting definition; `null` if it fits. */
 const findSettingProblem = (
-  definition: SettingContribution,
+  definition: SettingDefinition,
   value: unknown,
 ): string | null => {
   switch (definition.type) {
@@ -280,27 +292,26 @@ export interface MemorySettings extends ExtensionSettings {
    * Unlike the host, a handler failure is not swallowed but rejects the promise.
    */
   set(id: string, value: SettingValue): Promise<void>;
+  /** Adds definitions, as `server.registerSettings` does; an id registered twice throws. The returned `Disposable` removes them. */
+  register(definitions: readonly SettingDefinition[]): Disposable;
 }
 
-/** In-memory settings from manifest definitions; `initial` provides user values in place of `default`. */
+/**
+ * In-memory settings. `definitions` are registered at once, more come through
+ * `register`; `initial` provides user values in place of `default`, applied
+ * when the setting with that id is registered.
+ */
 export const createMemorySettings = (
-  definitions: readonly SettingContribution[],
+  definitions: readonly SettingDefinition[] = [],
   initial: Readonly<Record<string, SettingValue>> = {},
 ): MemorySettings => {
-  const byId = new Map(
-    definitions.map((definition) => [definition.id, definition]),
-  );
-  const values = new Map<string, SettingValue>(
-    definitions.map((definition) => [
-      definition.id,
-      storedForm(definition, definition.default),
-    ]),
-  );
+  const byId = new Map<string, SettingDefinition>();
+  const values = new Map<string, SettingValue>();
   const handlers = new Set<(change: SettingChange) => void>();
-  const known = (id: string): SettingContribution => {
+  const known = (id: string): SettingDefinition => {
     const definition = byId.get(id);
     if (definition === undefined) {
-      throw new Error(`setting '${id}' is not declared in the manifest`);
+      throw new Error(`setting '${id}' is not registered`);
     }
     return definition;
   };
@@ -309,10 +320,29 @@ export const createMemorySettings = (
     if (problem !== null) throw new Error(`setting '${id}' ${problem}`);
     return storedForm(known(id), value as SettingValue);
   };
-  for (const [id, value] of Object.entries(initial)) {
-    values.set(id, checked(id, value));
-  }
+  const register = (added: readonly SettingDefinition[]): Disposable => {
+    for (const definition of added) {
+      if (byId.has(definition.id)) {
+        throw new Error(`setting '${definition.id}' is already registered`);
+      }
+      byId.set(definition.id, definition);
+      values.set(definition.id, storedForm(definition, definition.default));
+      const user = initial[definition.id];
+      if (user !== undefined)
+        values.set(definition.id, checked(definition.id, user));
+    }
+    return {
+      dispose: () => {
+        for (const definition of added) {
+          byId.delete(definition.id);
+          values.delete(definition.id);
+        }
+      },
+    };
+  };
+  register(definitions);
   return {
+    register,
     get: <T extends SettingValue = SettingValue>(id: string): T =>
       storedForm(known(id), values.get(id) as SettingValue) as T,
     onDidChange(handler) {
@@ -325,334 +355,6 @@ export const createMemorySettings = (
       values.set(id, next);
       for (const handler of [...handlers]) await handler({ id, value: next });
     },
-  };
-};
-
-export interface MemoryEvents extends ExtensionEvents {
-  /**
-   * Sends the event to the subscribed handler and awaits it. With no subscription,
-   * the event is skipped, as in the host. Unlike the host, a handler failure
-   * is not swallowed but rejects the promise, and the 2 s handler timeout is not applied.
-   */
-  emit<N extends LearningEventName>(
-    name: N,
-    payload: LearningEventPayloads[N],
-  ): Promise<void>;
-}
-
-export interface MemoryEventsOptions {
-  /** Events from `contributes.events`: subscribing to another throws, as in the host. Unset — any are allowed. */
-  declared?: readonly LearningEventName[];
-}
-
-/** In-memory learning event subscriptions: one handler per event, as in the host. */
-export const createMemoryEvents = (
-  options: MemoryEventsOptions = {},
-): MemoryEvents => {
-  const handlers = new Map<
-    LearningEventName,
-    (payload: never) => void | Promise<void>
-  >();
-  return {
-    on<N extends LearningEventName>(
-      name: N,
-      handler: LearningEventHandler<N>,
-    ): Disposable {
-      if (options.declared !== undefined && !options.declared.includes(name)) {
-        throw new Error(`event '${name}' is not declared in the manifest`);
-      }
-      if (handlers.has(name)) {
-        throw new Error(`event '${name}' is already subscribed`);
-      }
-      handlers.set(name, handler);
-      return {
-        dispose: () => {
-          if (handlers.get(name) === handler) handlers.delete(name);
-        },
-      };
-    },
-    async emit(name, payload) {
-      await handlers.get(name)?.(payload as never);
-    },
-  };
-};
-
-export interface MemoryCommands extends ExtensionCommands {
-  /**
-   * Runs a registered command the way the host does: the same
-   * argument and result bounds, the same result normalization. An unregistered
-   * command and an invalid result reject the promise. The 10 s handler timeout is not applied.
-   */
-  run(id: string, args?: JsonValue): Promise<CommandOutcome>;
-  /** Registered commands in registration order. */
-  ids(): string[];
-}
-
-export interface MemoryCommandsOptions {
-  /** Commands from `contributes.commands`: registering another throws, as in the host. Unset — any are allowed. */
-  declaredCommands?: readonly string[];
-  /** Panels from `contributes.panels`: `openPanel` on another is invalid, as in the host. Unset — any. */
-  declaredPanels?: readonly string[];
-}
-
-/** In-memory commands: the same registration rules and result parsing as the host. */
-export const createMemoryCommands = (
-  options: MemoryCommandsOptions = {},
-): MemoryCommands => {
-  const handlers = new Map<string, CommandHandler>();
-  return {
-    register(id, handler) {
-      if (
-        options.declaredCommands !== undefined &&
-        !options.declaredCommands.includes(id)
-      ) {
-        throw new Error(`command '${id}' is not declared in the manifest`);
-      }
-      if (handlers.has(id)) {
-        throw new Error(`command '${id}' is already registered`);
-      }
-      handlers.set(id, handler);
-      return {
-        dispose: () => {
-          if (handlers.get(id) === handler) handlers.delete(id);
-        },
-      };
-    },
-    async run(id, args) {
-      const handler = handlers.get(id);
-      if (handler === undefined) {
-        throw new Error(`command '${id}' was not registered`);
-      }
-      if (
-        (JSON.stringify(args)?.length ?? 0) > EXTENSION_COMMAND_LIMITS.argsChars
-      ) {
-        throw new Error(
-          `args are longer than ${EXTENSION_COMMAND_LIMITS.argsChars} characters`,
-        );
-      }
-      const result = await handler(args);
-      try {
-        return normalizeCommandResult(result, options.declaredPanels);
-      } catch (error) {
-        if (error instanceof InvalidCommandResultError) {
-          throw new Error(`invalid command result: ${error.message}`);
-        }
-        throw error;
-      }
-    },
-    ids: () => [...handlers.keys()],
-  };
-};
-
-export interface MemorySchedule extends ExtensionSchedule {
-  /**
-   * Fires a schedule the way the host does and awaits the handler: resolves
-   * `true` once the handler returned. With no subscription, or while the
-   * handler of the previous firing is still running, the firing is skipped and
-   * resolves `false`. Unlike the host, a handler failure is not swallowed but
-   * rejects the promise, and the 10 s handler timeout is not applied.
-   */
-  fire(id: string): Promise<boolean>;
-  /** Subscribed schedules in subscription order. */
-  ids(): string[];
-}
-
-export interface MemoryScheduleOptions {
-  /** Schedules from `contributes.schedules`: subscribing to another throws, as in the host. Unset — any are allowed. */
-  declared?: readonly string[];
-}
-
-/** In-memory schedule subscriptions: one handler per schedule and no overlapping firings, as in the host. */
-export const createMemorySchedule = (
-  options: MemoryScheduleOptions = {},
-): MemorySchedule => {
-  const handlers = new Map<string, ScheduleHandler>();
-  const running = new Set<string>();
-  return {
-    on(id, handler) {
-      if (options.declared !== undefined && !options.declared.includes(id)) {
-        throw new Error(`schedule '${id}' is not declared in the manifest`);
-      }
-      if (handlers.has(id)) {
-        throw new Error(`schedule '${id}' is already subscribed`);
-      }
-      handlers.set(id, handler);
-      return {
-        dispose: () => {
-          if (handlers.get(id) === handler) handlers.delete(id);
-        },
-      };
-    },
-    async fire(id) {
-      const handler = handlers.get(id);
-      if (handler === undefined || running.has(id)) return false;
-      running.add(id);
-      try {
-        await handler();
-        return true;
-      } finally {
-        running.delete(id);
-      }
-    },
-    ids: () => [...handlers.keys()],
-  };
-};
-
-export interface MemoryImporters extends ExtensionImporters {
-  /**
-   * Runs a registered importer the way the host does: the input must have the
-   * form the importer declares (`text` unless `input: 'bytes'`) and at most
-   * `EXTENSION_TRANSFER_LIMITS.inputBytes`; the result goes through the host's
-   * rules (`normalizeImportResult`: paths, sizes, number of files). An
-   * unregistered importer and an invalid result reject the promise. The 30 s
-   * handler timeout is not applied.
-   */
-  run(id: string, input: ImportInput): Promise<ImportResult>;
-  /** Registered importers in registration order. */
-  ids(): string[];
-}
-
-export interface MemoryImportersOptions {
-  /** Importers from `contributes.importers`: registering another throws and `input` is checked, as in the host. Unset — any are allowed. */
-  declaredImporters?: readonly { id: string; input?: ImporterInputKind }[];
-}
-
-/** In-memory importers: the same registration rules and result checks as the host. */
-export const createMemoryImporters = (
-  options: MemoryImportersOptions = {},
-): MemoryImporters => {
-  const handlers = new Map<string, ImporterHandler>();
-  const declaredOf = (id: string) =>
-    options.declaredImporters?.find((entry) => entry.id === id);
-  return {
-    register(id, handler) {
-      if (
-        options.declaredImporters !== undefined &&
-        declaredOf(id) === undefined
-      ) {
-        throw new Error(`importer '${id}' is not declared in the manifest`);
-      }
-      if (handlers.has(id)) {
-        throw new Error(`importer '${id}' is already registered`);
-      }
-      handlers.set(id, handler);
-      return {
-        dispose: () => {
-          if (handlers.get(id) === handler) handlers.delete(id);
-        },
-      };
-    },
-    async run(id, input) {
-      const handler = handlers.get(id);
-      if (handler === undefined) {
-        throw new Error(`importer '${id}' was not registered`);
-      }
-      const expected = declaredOf(id)?.input ?? 'text';
-      if (
-        options.declaredImporters !== undefined &&
-        ('text' in input ? 'text' : 'bytes') !== expected
-      ) {
-        throw new Error(`importer '${id}' takes ${expected} input`);
-      }
-      const size =
-        'text' in input
-          ? new TextEncoder().encode(input.text).length
-          : input.bytes.byteLength;
-      if (size > EXTENSION_TRANSFER_LIMITS.inputBytes) {
-        throw new Error(
-          `the file is longer than ${EXTENSION_TRANSFER_LIMITS.inputBytes} bytes`,
-        );
-      }
-      const result = await handler(input);
-      try {
-        return normalizeImportResult(result);
-      } catch (error) {
-        if (error instanceof InvalidTransferResultError) {
-          throw new Error(`invalid import result: ${error.message}`);
-        }
-        throw error;
-      }
-    },
-    ids: () => [...handlers.keys()],
-  };
-};
-
-export interface MemoryExporters extends ExtensionExporters {
-  /**
-   * Runs a registered exporter the way the host does: the input must match the
-   * exporter's declared `scope` and a course snapshot is at most
-   * `EXTENSION_TRANSFER_LIMITS.totalBytes`; the result goes through the host's
-   * rules (`normalizeExportResult`: file name, size, `text` xor `bytes`). An
-   * unregistered exporter and an invalid result reject the promise. The 30 s
-   * handler timeout is not applied.
-   */
-  run(id: string, input: ExportInput): Promise<ExportResult>;
-  /** Registered exporters in registration order. */
-  ids(): string[];
-}
-
-export interface MemoryExportersOptions {
-  /** Exporters from `contributes.exporters`: registering another throws and `scope` is checked, as in the host. Unset — any are allowed. */
-  declaredExporters?: readonly { id: string; scope: ExportInput['scope'] }[];
-}
-
-/** In-memory exporters: the same registration rules and result checks as the host. */
-export const createMemoryExporters = (
-  options: MemoryExportersOptions = {},
-): MemoryExporters => {
-  const handlers = new Map<string, ExporterHandler>();
-  const declaredOf = (id: string) =>
-    options.declaredExporters?.find((entry) => entry.id === id);
-  return {
-    register(id, handler) {
-      if (
-        options.declaredExporters !== undefined &&
-        declaredOf(id) === undefined
-      ) {
-        throw new Error(`exporter '${id}' is not declared in the manifest`);
-      }
-      if (handlers.has(id)) {
-        throw new Error(`exporter '${id}' is already registered`);
-      }
-      handlers.set(id, handler);
-      return {
-        dispose: () => {
-          if (handlers.get(id) === handler) handlers.delete(id);
-        },
-      };
-    },
-    async run(id, input) {
-      const handler = handlers.get(id);
-      if (handler === undefined) {
-        throw new Error(`exporter '${id}' was not registered`);
-      }
-      const declared = declaredOf(id);
-      if (declared !== undefined && declared.scope !== input.scope) {
-        throw new Error(`exporter '${id}' takes the ${declared.scope} scope`);
-      }
-      if (input.scope === 'course') {
-        const encoder = new TextEncoder();
-        const size = Object.values(input.files).reduce(
-          (sum, text) => sum + encoder.encode(text).length,
-          0,
-        );
-        if (size > EXTENSION_TRANSFER_LIMITS.totalBytes) {
-          throw new Error(
-            `the course files are longer than ${EXTENSION_TRANSFER_LIMITS.totalBytes} bytes`,
-          );
-        }
-      }
-      const result = await handler(input);
-      try {
-        return normalizeExportResult(result);
-      } catch (error) {
-        if (error instanceof InvalidTransferResultError) {
-          throw new Error(`invalid export result: ${error.message}`);
-        }
-        throw error;
-      }
-    },
-    ids: () => [...handlers.keys()],
   };
 };
 
@@ -901,45 +603,6 @@ export const createMemoryNotifications = (
   };
 };
 
-/** What a test replaces in the extension context; by default everything is in memory and silent. */
-export interface LoadOptions {
-  library?: LibraryReader;
-  logger?: ExtensionLogger;
-  storage?: ExtensionStorage;
-  secrets?: ExtensionSecrets;
-  settings?: ExtensionSettings;
-  events?: ExtensionEvents;
-  commands?: ExtensionCommands;
-  importers?: ExtensionImporters;
-  exporters?: ExtensionExporters;
-  stats?: ExtensionStats;
-  notifications?: ExtensionNotifications;
-  schedule?: ExtensionSchedule;
-}
-
-const contextOf = (
-  options: LoadOptions,
-  registrars: Pick<
-    ExtensionContext,
-    'registerExerciseType' | 'registerGradePolicy'
-  >,
-): ExtensionContext => ({
-  extensionId: 'test',
-  logger: options.logger ?? silentLogger,
-  library: options.library ?? createMemoryLibrary({}),
-  storage: options.storage ?? createMemoryStorage(),
-  secrets: options.secrets ?? createMemorySecrets(),
-  settings: options.settings ?? createMemorySettings([]),
-  events: options.events ?? createMemoryEvents(),
-  stats: options.stats ?? createMemoryStats(),
-  notifications: options.notifications ?? createMemoryNotifications(),
-  schedule: options.schedule ?? createMemorySchedule(),
-  commands: options.commands ?? createMemoryCommands(),
-  importers: options.importers ?? createMemoryImporters(),
-  exporters: options.exporters ?? createMemoryExporters(),
-  ...registrars,
-});
-
 export const createSchemaValidator = (schema: JsonSchema) => {
   const validate = new Ajv2020({ allErrors: true, strict: false }).compile(
     schema,
@@ -998,7 +661,92 @@ const findGradeResultProblem = (result: unknown): string | null => {
   );
 };
 
-export interface LoadedExerciseType {
+const isGradeValue = (value: unknown): value is GradeValue =>
+  typeof value === 'number' &&
+  Number.isInteger(value) &&
+  value >= 1 &&
+  value <= 5;
+
+const registeredSettingOf = (
+  definition: SettingDefinition,
+): RegisteredSetting => {
+  const base = {
+    id: definition.id,
+    label: definition.label,
+    description: definition.description ?? null,
+    group: definition.group ?? null,
+    order: definition.order ?? 0,
+    visibleWhen: definition.visibleWhen ?? null,
+  };
+  switch (definition.type) {
+    case 'boolean':
+    case 'color':
+      return {
+        ...base,
+        type: definition.type,
+        default: definition.default,
+      } as RegisteredSetting;
+    case 'string':
+    case 'text':
+      return {
+        ...base,
+        type: definition.type,
+        default: definition.default,
+        maxLength: definition.maxLength ?? null,
+      };
+    case 'list':
+      return {
+        ...base,
+        type: 'list',
+        default: [...definition.default],
+        maxItems: definition.maxItems ?? SETTING_LIMITS.listItems,
+        itemMaxLength:
+          definition.itemMaxLength ?? SETTING_LIMITS.listItemLength,
+      };
+    case 'number':
+      return {
+        ...base,
+        type: 'number',
+        default: definition.default,
+        min: definition.min ?? null,
+        max: definition.max ?? null,
+        integer: definition.integer ?? false,
+      };
+    default:
+      return {
+        ...base,
+        type: 'enum',
+        default: definition.default,
+        options: definition.options.map((option) => ({ ...option })),
+      };
+  }
+};
+
+const registeredKeybindingOf = (
+  binding: CommandKeybinding,
+): RegisteredKeybinding => ({
+  key: binding.key,
+  mac: binding.mac ?? null,
+  windows: binding.windows ?? null,
+  linux: binding.linux ?? null,
+  when: binding.when ?? null,
+});
+
+/** What a test replaces in the context of the server part; by default everything is in memory and silent. */
+export interface TestServerOptions {
+  /** Default `test`. When set, every registered id must be equal to it or start with `<extensionId>.`, as the host checks. */
+  extensionId?: string;
+  library?: LibraryReader;
+  logger?: ExtensionLogger;
+  storage?: ExtensionStorage;
+  secrets?: MemorySecrets;
+  stats?: MemoryStats;
+  notifications?: MemoryNotifications;
+  /** User values of settings in place of `default`, by setting id; every id must be registered by the entry. */
+  settingValues?: Readonly<Record<string, SettingValue>>;
+}
+
+export interface TestExerciseType {
   project(spec: unknown, options?: { exerciseId?: string }): Promise<unknown>;
   grade(input: {
     spec: unknown;
@@ -1011,333 +759,576 @@ export interface LoadedExerciseType {
     spec: unknown,
     options?: { exerciseId?: string },
   ): Promise<{ found: true; answer: unknown } | { found: false }>;
-  /** Deactivates the extension module. */
-  dispose(): Promise<void>;
 }
 
-export const loadExerciseType = async (
-  module: ExtensionModule,
-  type: string,
-  options: LoadOptions = {},
-): Promise<LoadedExerciseType> => {
-  const handlers = new Map<string, ExerciseTypeHandler>();
-  const context = contextOf(options, {
-    registerExerciseType: (registeredType, handler) => {
-      handlers.set(registeredType, handler);
-      return { dispose: () => void handlers.delete(registeredType) };
-    },
-    registerGradePolicy: () => ({ dispose: () => undefined }),
-  });
-  await module.activate(context);
-  const handler = handlers.get(type);
-  if (handler === undefined) {
-    throw new Error(`exercise type '${type}' was not registered`);
-  }
-
-  return {
-    project: async (spec, { exerciseId = DEFAULT_EXERCISE_ID } = {}) =>
-      handler.project({ exerciseId, spec }),
-    grade: async ({
-      spec,
-      answer,
-      exerciseId = DEFAULT_EXERCISE_ID,
-      timeoutMs = DEFAULT_TIMEOUT_MS,
-      authorMode = false,
-    }) => {
-      const result = await handler.grade({
-        exerciseId,
-        spec,
-        answer,
-        timeoutMs,
-        authorMode,
-      });
-      const problem = findGradeResultProblem(result);
-      if (problem !== null) {
-        throw new Error(`invalid grade result: ${problem}`);
-      }
-      return result;
-    },
-    referenceAnswer: async (
-      spec,
-      { exerciseId = DEFAULT_EXERCISE_ID } = {},
-    ) => {
-      const answer = await handler.referenceAnswer?.({ exerciseId, spec });
-      return answer === undefined ? { found: false } : { found: true, answer };
-    },
-    dispose: async () => {
-      await module.deactivate?.();
-    },
-  };
-};
-
-export interface LoadedGradePolicy {
+export interface TestGradePolicy {
   evaluate(input: GradePolicyInput): Promise<GradeValue | null>;
-  /** Deactivates the extension module. */
-  dispose(): Promise<void>;
 }
 
-const isGradeValue = (value: unknown): value is GradeValue =>
-  Number.isInteger(value) && (value as number) >= 1 && (value as number) <= 5;
+export interface TestImporter {
+  /**
+   * Runs the importer the way the host does: the input must have the form the
+   * importer declares and at most `EXTENSION_TRANSFER_LIMITS.inputBytes`; the
+   * result goes through `normalizeImportResult`. An invalid result rejects the
+   * promise. The handler timeout is not applied.
+   */
+  run(input: ImportInput): Promise<ImportResult>;
+}
 
-export const loadGradePolicy = async (
-  module: ExtensionModule,
-  id: string,
-  options: LoadOptions = {},
-): Promise<LoadedGradePolicy> => {
-  const handlers = new Map<string, GradePolicyHandler>();
-  const context = contextOf(options, {
-    registerExerciseType: () => ({ dispose: () => undefined }),
-    registerGradePolicy: (registeredId, handler) => {
-      handlers.set(registeredId, handler);
-      return { dispose: () => void handlers.delete(registeredId) };
-    },
-  });
-  await module.activate(context);
-  const handler = handlers.get(id);
-  if (handler === undefined) {
-    throw new Error(`grade policy '${id}' was not registered`);
-  }
-  return {
-    evaluate: async (input) => {
-      const result = await handler(input);
-      if (result !== null && !isGradeValue(result)) {
-        throw new Error(
-          `invalid grade policy result: ${JSON.stringify(result)} is not an integer 1..5 or null`,
-        );
-      }
-      return result;
-    },
-    dispose: async () => {
-      await module.deactivate?.();
-    },
+export interface TestExporter {
+  /**
+   * Runs the exporter the way the host does: the input must match the
+   * exporter's `scope` and a course snapshot is at most
+   * `EXTENSION_TRANSFER_LIMITS.totalBytes`; the result goes through
+   * `normalizeExportResult`. An invalid result rejects the promise. The handler
+   * timeout is not applied.
+   */
+  run(input: ExportInput): Promise<ExportResult>;
+}
+
+/** The server part of an extension, started on in-memory fakes. */
+export interface TestServer {
+  readonly extensionId: string;
+  /** What the entry registered, as the host's registrar hands it to the engine (checked for types and unique ids only: the host checks the rest). */
+  readonly registration: ServerRegistration;
+  readonly library: LibraryReader;
+  readonly storage: ExtensionStorage;
+  readonly secrets: MemorySecrets;
+  readonly settings: MemorySettings;
+  readonly stats: MemoryStats;
+  readonly notifications: MemoryNotifications;
+  readonly commands: {
+    /**
+     * Runs a registered command the way the host does: the same argument and
+     * result bounds, the same result normalization. An unregistered command
+     * and an invalid result reject the promise. The handler timeout is not applied.
+     */
+    run(id: string, args?: JsonValue): Promise<CommandOutcome>;
   };
-};
-
-export interface LoadedEvents {
-  /** Events are delivered as in the host: to the subscribed handler, one at a time. See `MemoryEvents.emit`. */
-  emit: MemoryEvents['emit'];
-  storage: ExtensionStorage;
-  secrets: ExtensionSecrets;
-  settings: MemorySettings;
-  /** Deactivates the extension module. */
+  readonly events: {
+    /**
+     * Sends the event to the subscribed handler and awaits it. With no
+     * subscription the event is skipped, as in the host. Unlike the host, a
+     * handler failure is not swallowed but rejects the promise, and the
+     * handler timeout is not applied.
+     */
+    emit<N extends LearningEventName>(
+      name: N,
+      payload: LearningEventPayloads[N],
+    ): Promise<void>;
+  };
+  readonly schedule: {
+    /**
+     * Fires a registered schedule the way the host does and awaits the
+     * handler: resolves `true` once the handler returned, `false` while the
+     * handler of the previous firing is still running. An unregistered
+     * schedule rejects the promise. Unlike the host, a handler failure is not
+     * swallowed but rejects the promise.
+     */
+    fire(id: string): Promise<boolean>;
+  };
+  exerciseType(id: string): TestExerciseType;
+  gradePolicy(id: string): TestGradePolicy;
+  importer(id: string): TestImporter;
+  exporter(id: string): TestExporter;
+  /** Runs the cleanup the entry returned and removes the registrations. */
   dispose(): Promise<void>;
 }
 
-export interface LoadEventsOptions
-  extends
-    Omit<LoadOptions, 'storage' | 'secrets' | 'settings' | 'events'>,
-    MemoryEventsOptions {
-  storage?: ExtensionStorage;
-  secrets?: ExtensionSecrets;
-  /** Definitions from the manifest's `contributes.settings`; values are read and changed through `settings`. */
-  settings?: readonly SettingContribution[];
-  /** User values in place of `default`. */
-  settingValues?: Readonly<Record<string, SettingValue>>;
-}
+const registered = <T>(map: Map<string, T>, kind: string, id: string): T => {
+  const entry = map.get(id);
+  if (entry === undefined)
+    throw new Error(`${kind} '${id}' was not registered`);
+  return entry;
+};
 
 /**
- * Activates the module with in-memory storage, settings, and events, and lets the test
- * send events and change settings.
+ * Starts `entry` (the `server` export of an extension) with in-memory
+ * storage, secrets, settings, statistics, notifications and library, and
+ * returns a harness to call what it registered. Registration is all or
+ * nothing, as in the host: when `entry` throws, so does `createTestServer`.
  */
-export const loadEvents = async (
-  module: ExtensionModule,
-  options: LoadEventsOptions = {},
-): Promise<LoadedEvents> => {
-  const events = createMemoryEvents(options);
+export const createTestServer = async (
+  entry: ServerEntry,
+  options: TestServerOptions = {},
+): Promise<TestServer> => {
+  const extensionId = options.extensionId ?? 'test';
+  const library = options.library ?? createMemoryLibrary({});
   const storage = options.storage ?? createMemoryStorage();
   const secrets = options.secrets ?? createMemorySecrets();
-  const settings = createMemorySettings(
-    options.settings ?? [],
-    options.settingValues,
-  );
-  const context = contextOf(
-    {
-      ...(options.library !== undefined && { library: options.library }),
-      ...(options.logger !== undefined && { logger: options.logger }),
-      ...(options.stats !== undefined && { stats: options.stats }),
-      ...(options.notifications !== undefined && {
-        notifications: options.notifications,
-      }),
-      ...(options.schedule !== undefined && { schedule: options.schedule }),
-      storage,
-      secrets,
-      settings,
-      events,
-    },
-    {
-      registerExerciseType: () => ({ dispose: () => undefined }),
-      registerGradePolicy: () => ({ dispose: () => undefined }),
-    },
-  );
-  await module.activate(context);
-  return {
-    emit: events.emit,
+  const stats = options.stats ?? createMemoryStats();
+  const notifications = options.notifications ?? createMemoryNotifications();
+  const settings = createMemorySettings([], options.settingValues);
+
+  const exerciseTypes = new Map<string, ExerciseTypeRegistration>();
+  const gradePolicies = new Map<string, GradePolicyRegistration>();
+  const commands = new Map<string, CommandRegistration>();
+  const schedules = new Map<
+    string,
+    { reg: ScheduleRegistration; handler: ScheduleHandler }
+  >();
+  const importers = new Map<string, ImporterRegistration>();
+  const exporters = new Map<string, ExporterRegistration>();
+  const events = new Map<
+    LearningEventName,
+    (payload: never) => void | Promise<void>
+  >();
+  const definitions: SettingDefinition[] = [];
+  const running = new Set<string>();
+
+  const add = <T>(
+    map: Map<string, T>,
+    kind: string,
+    id: string,
+    value: T,
+    max?: number,
+  ): Disposable => {
+    if (typeof id !== 'string' || id === '') {
+      throw new Error(`${kind} id must be a non-empty string`);
+    }
+    if (
+      options.extensionId !== undefined &&
+      id !== extensionId &&
+      !id.startsWith(`${extensionId}.`)
+    ) {
+      throw new Error(
+        `${kind} id '${id}' must be '${extensionId}' or start with '${extensionId}.'`,
+      );
+    }
+    if (map.has(id)) throw new Error(`${kind} '${id}' is already registered`);
+    if (max !== undefined && map.size >= max) {
+      throw new Error(`more than ${max} ${kind}s`);
+    }
+    map.set(id, value);
+    return {
+      dispose: () => {
+        if (map.get(id) === value) map.delete(id);
+      },
+    };
+  };
+
+  const context: ServerContext = {
+    extensionId,
+    logger: options.logger ?? silentLogger,
+    library,
     storage,
     secrets,
     settings,
-    dispose: async () => {
-      await module.deactivate?.();
+    stats,
+    notifications,
+    registerExerciseType: (reg) =>
+      add(exerciseTypes, 'exercise type', reg.id, reg),
+    registerGradePolicy: (reg) =>
+      add(gradePolicies, 'grade policy', reg.id, reg),
+    registerSettings: (added) => {
+      const registeredSettings = settings.register(added);
+      definitions.push(...added);
+      return {
+        dispose: () => {
+          registeredSettings.dispose();
+          for (const definition of added) {
+            definitions.splice(definitions.indexOf(definition), 1);
+          }
+        },
+      };
+    },
+    on: (name, handler) => {
+      if (events.has(name)) {
+        throw new Error(`event '${name}' is already subscribed`);
+      }
+      events.set(name, handler);
+      return {
+        dispose: () => {
+          if (events.get(name) === handler) events.delete(name);
+        },
+      };
+    },
+    registerCommand: (reg) =>
+      add(commands, 'command', reg.id, reg, EXTENSION_COMMAND_LIMITS.commands),
+    schedule: (reg, handler) =>
+      add(
+        schedules,
+        'schedule',
+        reg.id,
+        { reg, handler },
+        EXTENSION_SCHEDULE_LIMITS.schedules,
+      ),
+    registerImporter: (reg) =>
+      add(
+        importers,
+        'importer',
+        reg.id,
+        reg,
+        EXTENSION_TRANSFER_LIMITS.importers,
+      ),
+    registerExporter: (reg) =>
+      add(
+        exporters,
+        'exporter',
+        reg.id,
+        reg,
+        EXTENSION_TRANSFER_LIMITS.exporters,
+      ),
+  };
+
+  const cleanup = await entry(context);
+  for (const id of Object.keys(options.settingValues ?? {})) {
+    if (!definitions.some((definition) => definition.id === id)) {
+      throw new Error(`setting '${id}' of settingValues is not registered`);
+    }
+  }
+
+  const registration: ServerRegistration = {
+    exerciseTypes: [...exerciseTypes.values()].map((reg) => ({
+      id: reg.id,
+      title: reg.title ?? null,
+      specSchema: reg.specSchema,
+      answerSchema: reg.answerSchema,
+    })),
+    gradePolicies: [...gradePolicies.values()].map((reg) => ({
+      id: reg.id,
+      label: reg.label,
+    })),
+    settings: definitions.map(registeredSettingOf),
+    events: [...events.keys()],
+    commands: [...commands.values()].map((reg) => ({
+      id: reg.id,
+      title: reg.title,
+      description: reg.description ?? null,
+      category: reg.category ?? null,
+      palette: reg.palette ?? true,
+      icon: reg.icon ?? DEFAULT_EXTENSION_ICON,
+      keybindings: (reg.keybindings ?? []).map(registeredKeybindingOf),
+      when: reg.when ?? null,
+    })),
+    schedules: [...schedules.values()].map(({ reg }) => ({
+      id: reg.id,
+      every: reg.every,
+      at: reg.every === 'daily' ? reg.at : null,
+    })),
+    importers: [...importers.values()].map((reg) => ({
+      id: reg.id,
+      title: reg.title,
+      accept: [...reg.accept],
+      input: reg.input,
+    })),
+    exporters: [...exporters.values()].map((reg) => ({
+      id: reg.id,
+      title: reg.title,
+      scope: reg.scope,
+    })),
+  };
+
+  return {
+    extensionId,
+    registration,
+    library,
+    storage,
+    secrets,
+    settings,
+    stats,
+    notifications,
+    commands: {
+      async run(id, args) {
+        const { run } = registered(commands, 'command', id);
+        if (
+          (JSON.stringify(args)?.length ?? 0) >
+          EXTENSION_COMMAND_LIMITS.argsChars
+        ) {
+          throw new Error(
+            `args are longer than ${EXTENSION_COMMAND_LIMITS.argsChars} characters`,
+          );
+        }
+        const result = await run(args);
+        try {
+          return normalizeCommandResult(result, undefined);
+        } catch (error) {
+          if (error instanceof InvalidCommandResultError) {
+            throw new Error(`invalid command result: ${error.message}`);
+          }
+          throw error;
+        }
+      },
+    },
+    events: {
+      async emit(name, payload) {
+        await events.get(name)?.(payload as never);
+      },
+    },
+    schedule: {
+      async fire(id) {
+        const { handler } = registered(schedules, 'schedule', id);
+        if (running.has(id)) return false;
+        running.add(id);
+        try {
+          await handler();
+          return true;
+        } finally {
+          running.delete(id);
+        }
+      },
+    },
+    exerciseType(id) {
+      const reg = registered(exerciseTypes, 'exercise type', id);
+      return {
+        project: async (spec, { exerciseId = DEFAULT_EXERCISE_ID } = {}) =>
+          reg.project({ exerciseId, spec }),
+        grade: async ({
+          spec,
+          answer,
+          exerciseId = DEFAULT_EXERCISE_ID,
+          timeoutMs = DEFAULT_TIMEOUT_MS,
+          authorMode = false,
+        }) => {
+          const result = await reg.grade({
+            exerciseId,
+            spec,
+            answer,
+            timeoutMs,
+            authorMode,
+          });
+          const problem = findGradeResultProblem(result);
+          if (problem !== null) {
+            throw new Error(`invalid grade result: ${problem}`);
+          }
+          return result;
+        },
+        referenceAnswer: async (
+          spec,
+          { exerciseId = DEFAULT_EXERCISE_ID } = {},
+        ) => {
+          const answer = await reg.referenceAnswer?.({ exerciseId, spec });
+          return answer === undefined
+            ? { found: false }
+            : { found: true, answer };
+        },
+      };
+    },
+    gradePolicy(id) {
+      const reg = registered(gradePolicies, 'grade policy', id);
+      return {
+        evaluate: async (input) => {
+          const result = await reg.evaluate(input);
+          if (result !== null && !isGradeValue(result)) {
+            throw new Error(
+              `invalid grade policy result: ${JSON.stringify(result)} is not an integer 1..5 or null`,
+            );
+          }
+          return result;
+        },
+      };
+    },
+    importer(id) {
+      const reg = registered(importers, 'importer', id);
+      return {
+        async run(input) {
+          if (('text' in input ? 'text' : 'bytes') !== reg.input) {
+            throw new Error(`importer '${id}' takes ${reg.input} input`);
+          }
+          const size =
+            'text' in input
+              ? new TextEncoder().encode(input.text).length
+              : input.bytes.byteLength;
+          if (size > EXTENSION_TRANSFER_LIMITS.inputBytes) {
+            throw new Error(
+              `the file is longer than ${EXTENSION_TRANSFER_LIMITS.inputBytes} bytes`,
+            );
+          }
+          const result = await reg.run(input);
+          try {
+            return normalizeImportResult(result);
+          } catch (error) {
+            if (error instanceof InvalidTransferResultError) {
+              throw new Error(`invalid import result: ${error.message}`);
+            }
+            throw error;
+          }
+        },
+      };
+    },
+    exporter(id) {
+      const reg = registered(exporters, 'exporter', id);
+      return {
+        async run(input) {
+          if (reg.scope !== input.scope) {
+            throw new Error(`exporter '${id}' takes the ${reg.scope} scope`);
+          }
+          if (input.scope === 'course') {
+            const encoder = new TextEncoder();
+            const size = Object.values(input.files).reduce(
+              (sum, text) => sum + encoder.encode(text).length,
+              0,
+            );
+            if (size > EXTENSION_TRANSFER_LIMITS.totalBytes) {
+              throw new Error(
+                `the course files are longer than ${EXTENSION_TRANSFER_LIMITS.totalBytes} bytes`,
+              );
+            }
+          }
+          const result = await reg.run(input);
+          try {
+            return normalizeExportResult(result);
+          } catch (error) {
+            if (error instanceof InvalidTransferResultError) {
+              throw new Error(`invalid export result: ${error.message}`);
+            }
+            throw error;
+          }
+        },
+      };
+    },
+    async dispose() {
+      exerciseTypes.clear();
+      gradePolicies.clear();
+      commands.clear();
+      schedules.clear();
+      importers.clear();
+      exporters.clear();
+      events.clear();
+      if (typeof cleanup === 'function') await cleanup();
+      else if (cleanup !== undefined) await cleanup.dispose();
     },
   };
 };
 
-export interface LoadedCommands {
-  run: MemoryCommands['run'];
-  ids: MemoryCommands['ids'];
-  /** Deactivates the extension module. */
+/** The client part of an extension, started on a recording context. */
+export interface TestClient {
+  readonly extensionId: string;
+  readonly panels: readonly PanelRegistration[];
+  /** Injections as registered, with `position` defaulted to `append`. */
+  readonly injections: readonly Required<InjectionRegistration>[];
+  /** Answer views by exercise type id. */
+  readonly answerViews: ReadonlyMap<string, Component>;
+  /** Markdown renderers by block language. */
+  readonly markdownRenderers: ReadonlyMap<string, Component>;
+  readonly themes: readonly ThemeRegistration[];
+  readonly commands: readonly ClientCommandRegistration[];
+  /** Runs the cleanup the entry returned and removes the registrations. */
   dispose(): Promise<void>;
 }
 
-export interface LoadCommandsOptions
-  extends Omit<LoadOptions, 'commands'>, MemoryCommandsOptions {}
+export interface TestClientOptions {
+  /** Default `test`. When set, every registered id must be equal to it or start with `<extensionId>.`, as the window checks. */
+  extensionId?: string;
+}
 
-/** Activates the module with in-memory commands and lets the test invoke them like the host. */
-export const loadCommands = async (
-  module: ExtensionModule,
-  options: LoadCommandsOptions = {},
-): Promise<LoadedCommands> => {
-  const commands = createMemoryCommands(options);
-  const context = contextOf(
-    {
-      ...(options.library !== undefined && { library: options.library }),
-      ...(options.logger !== undefined && { logger: options.logger }),
-      ...(options.storage !== undefined && { storage: options.storage }),
-      ...(options.secrets !== undefined && { secrets: options.secrets }),
-      ...(options.settings !== undefined && { settings: options.settings }),
-      ...(options.events !== undefined && { events: options.events }),
-      ...(options.stats !== undefined && { stats: options.stats }),
-      ...(options.notifications !== undefined && {
-        notifications: options.notifications,
-      }),
-      ...(options.schedule !== undefined && { schedule: options.schedule }),
-      commands,
-    },
-    {
-      registerExerciseType: () => ({ dispose: () => undefined }),
-      registerGradePolicy: () => ({ dispose: () => undefined }),
-    },
-  );
-  await module.activate(context);
-  return {
-    run: commands.run,
-    ids: commands.ids,
-    dispose: async () => {
-      await module.deactivate?.();
-    },
+/**
+ * Starts `entry` (the `client` export of an extension) on a context that
+ * records what it adds, so a test can mount the components and read the
+ * themes and commands. An id added twice and an injection with a bad target
+ * or position fail like in the window.
+ */
+export const createTestClient = async (
+  entry: ClientEntry,
+  options: TestClientOptions = {},
+): Promise<TestClient> => {
+  const extensionId = options.extensionId ?? 'test';
+  const panels: PanelRegistration[] = [];
+  const injections: Required<InjectionRegistration>[] = [];
+  const answerViews = new Map<string, Component>();
+  const markdownRenderers = new Map<string, Component>();
+  const themes: ThemeRegistration[] = [];
+  const commands: ClientCommandRegistration[] = [];
+
+  const checkId = (kind: string, id: string): void => {
+    if (
+      options.extensionId !== undefined &&
+      id !== extensionId &&
+      !id.startsWith(`${extensionId}.`)
+    ) {
+      throw new Error(
+        `${kind} id '${id}' must be '${extensionId}' or start with '${extensionId}.'`,
+      );
+    }
   };
-};
-
-/** The context parts a test replaced, without the keys it left unset. */
-const loadOptionsOf = (options: LoadOptions): LoadOptions => ({
-  ...(options.library !== undefined && { library: options.library }),
-  ...(options.logger !== undefined && { logger: options.logger }),
-  ...(options.storage !== undefined && { storage: options.storage }),
-  ...(options.secrets !== undefined && { secrets: options.secrets }),
-  ...(options.settings !== undefined && { settings: options.settings }),
-  ...(options.events !== undefined && { events: options.events }),
-  ...(options.commands !== undefined && { commands: options.commands }),
-  ...(options.stats !== undefined && { stats: options.stats }),
-  ...(options.notifications !== undefined && {
-    notifications: options.notifications,
-  }),
-  ...(options.schedule !== undefined && { schedule: options.schedule }),
-});
-
-export interface LoadedImporters {
-  run: MemoryImporters['run'];
-  ids: MemoryImporters['ids'];
-  /** Deactivates the extension module. */
-  dispose(): Promise<void>;
-}
-
-export interface LoadImportersOptions
-  extends Omit<LoadOptions, 'importers'>, MemoryImportersOptions {}
-
-/** Activates the module with in-memory importers and lets the test run them like the host. */
-export const loadImporters = async (
-  module: ExtensionModule,
-  options: LoadImportersOptions = {},
-): Promise<LoadedImporters> => {
-  const importers = createMemoryImporters(options);
-  const context = contextOf(
-    { ...loadOptionsOf(options), importers },
-    {
-      registerExerciseType: () => ({ dispose: () => undefined }),
-      registerGradePolicy: () => ({ dispose: () => undefined }),
-    },
-  );
-  await module.activate(context);
-  return {
-    run: importers.run,
-    ids: importers.ids,
-    dispose: async () => {
-      await module.deactivate?.();
-    },
+  const addTo = <T extends { id: string }>(
+    list: T[],
+    kind: string,
+    value: T,
+  ): Disposable => {
+    checkId(kind, value.id);
+    if (list.some((item) => item.id === value.id)) {
+      throw new Error(`${kind} '${value.id}' is already added`);
+    }
+    list.push(value);
+    return { dispose: () => void list.splice(list.indexOf(value), 1) };
   };
-};
-
-export interface LoadedExporters {
-  run: MemoryExporters['run'];
-  ids: MemoryExporters['ids'];
-  /** Deactivates the extension module. */
-  dispose(): Promise<void>;
-}
-
-export interface LoadExportersOptions
-  extends Omit<LoadOptions, 'exporters'>, MemoryExportersOptions {}
-
-/** Activates the module with in-memory exporters and lets the test run them like the host; `stats` feeds `ctx.stats` of a progress exporter. */
-export const loadExporters = async (
-  module: ExtensionModule,
-  options: LoadExportersOptions = {},
-): Promise<LoadedExporters> => {
-  const exporters = createMemoryExporters(options);
-  const context = contextOf(
-    { ...loadOptionsOf(options), exporters },
-    {
-      registerExerciseType: () => ({ dispose: () => undefined }),
-      registerGradePolicy: () => ({ dispose: () => undefined }),
-    },
-  );
-  await module.activate(context);
-  return {
-    run: exporters.run,
-    ids: exporters.ids,
-    dispose: async () => {
-      await module.deactivate?.();
-    },
+  const addToMap = (
+    map: Map<string, Component>,
+    kind: string,
+    key: string,
+    component: Component,
+  ): Disposable => {
+    if (map.has(key)) throw new Error(`${kind} '${key}' is already added`);
+    map.set(key, component);
+    return {
+      dispose: () => {
+        if (map.get(key) === component) map.delete(key);
+      },
+    };
   };
-};
 
-export interface LoadedSchedules {
-  fire: MemorySchedule['fire'];
-  ids: MemorySchedule['ids'];
-  /** Deactivates the extension module. */
-  dispose(): Promise<void>;
-}
-
-export interface LoadSchedulesOptions
-  extends Omit<LoadOptions, 'schedule'>, MemoryScheduleOptions {}
-
-/** Activates the module with in-memory schedules and lets the test fire them like the host. */
-export const loadSchedules = async (
-  module: ExtensionModule,
-  options: LoadSchedulesOptions = {},
-): Promise<LoadedSchedules> => {
-  const schedule = createMemorySchedule(options);
-  const context = contextOf(
-    { ...loadOptionsOf(options), schedule },
-    {
-      registerExerciseType: () => ({ dispose: () => undefined }),
-      registerGradePolicy: () => ({ dispose: () => undefined }),
+  const context: ClientContext = {
+    extensionId,
+    addPanel: (reg) => addTo(panels, 'panel', reg),
+    addInjection: (reg) => {
+      const { target } = reg;
+      if (
+        target.length === 0 ||
+        target.length > INJECTION_LIMITS.selectorLength
+      ) {
+        throw new Error(
+          `injection target must be 1–${INJECTION_LIMITS.selectorLength} characters`,
+        );
+      }
+      const position = reg.position ?? 'append';
+      if (!INJECTION_POSITIONS.includes(position)) {
+        throw new Error(`injection position '${position}' is not valid`);
+      }
+      if (injections.some(({ id }) => id === reg.id)) {
+        throw new Error(`injection '${reg.id}' is already added`);
+      }
+      const added = { ...reg, position };
+      injections.push(added);
+      return {
+        dispose: () => void injections.splice(injections.indexOf(added), 1),
+      };
     },
-  );
-  await module.activate(context);
+    addAnswerView: (id, component) =>
+      addToMap(answerViews, 'answer view', id, component),
+    addMarkdownRenderer: (language, component) => {
+      if (!MARKDOWN_LANGUAGE_PATTERN.test(language)) {
+        throw new Error(`markdown language '${language}' is not valid`);
+      }
+      return addToMap(
+        markdownRenderers,
+        'markdown renderer',
+        language,
+        component,
+      );
+    },
+    addTheme: (reg) => addTo(themes, 'theme', reg),
+    addCommand: (reg) => addTo(commands, 'command', reg),
+  };
+
+  const cleanup = await entry(context);
   return {
-    fire: schedule.fire,
-    ids: schedule.ids,
-    dispose: async () => {
-      await module.deactivate?.();
+    extensionId,
+    panels,
+    injections,
+    answerViews,
+    markdownRenderers,
+    themes,
+    commands,
+    async dispose() {
+      panels.length = 0;
+      injections.length = 0;
+      answerViews.clear();
+      markdownRenderers.clear();
+      themes.length = 0;
+      commands.length = 0;
+      if (typeof cleanup === 'function') await cleanup();
+      else if (cleanup !== undefined) await cleanup.dispose();
     },
   };
 };

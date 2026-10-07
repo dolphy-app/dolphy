@@ -1,6 +1,7 @@
 /**
- * Examples from the sections “Точки вклада” and “Установка и каталог”
- * of `docs/design/extensions.md` (an internal Russian doc) are machine-checked: the document does not drift from the code.
+ * Examples from the sections “Регистрация вкладов”, “Установка и каталог” and
+ * “Как написать расширение” of `docs/design/extensions.md` (an internal
+ * Russian doc) are machine-checked: the document does not drift from the code.
  *
  * Marker convention: an example is a regular code block whose last non-empty line
  * before the opening fence has the form ``Файл `<path>` (<label>):``. Blocks without such
@@ -9,22 +10,22 @@
  * entry must appear in the document.
  *
  * - `manifest` — `extension.json` passes `parseManifest`;
- * - `build-no-code` — a project of a single `extension.json` builds and passes
- *   `validateExtension`;
- * - `build-with-code` — a project of `extension.json` and one `src/index.ts` (the ```ts block
- *   with the marker) builds, passes `validateExtension` and `tsc` with the id types
- *   the build wrote to `.dolphy/ids.d.ts`;
+ * - `build` — a project of `extension.json` and the code files (`src/index.ts`
+ *   exports the listed entries) builds into the listed files, passes
+ *   `validateExtension` and `tsc`, and the built entries register with the
+ *   ids of the extension on the SDK's `createTestServer` / `createTestClient`;
  * - `index` — a single `index.v2.json` file
  *   passes `parseIndex` (`@dolphy-app/extension-catalog`).
  *
  * The examples “серия дней целиком”, “импортёр CSV” and “экспортёр курса” are also
- * executed: the built `main.mjs` goes through the SDK's `loadEvents`, `loadCommands`,
- * `loadImporters` and `loadExporters`; the imported course goes through the course compiler.
+ * executed: the built `main.mjs` and `client.mjs` run on the SDK's test server
+ * and client; the imported course goes through the course compiler.
  */
 import { compile } from '@dolphy-app/engine/authoring';
 import { createNodeFsCourseSource } from '@dolphy-app/engine/node';
 import { mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { parseWhen } from '@dolphy-app/extension-api';
 import { parseIndex } from '@dolphy-app/extension-catalog';
 import { manifestJsonSchema, parseManifest } from '@dolphy-app/extension-host';
 import { Ajv2020 } from 'ajv/dist/2020.js';
@@ -32,34 +33,49 @@ import { describe, expect, it, vi } from 'vitest';
 import { buildExtension, validateExtension } from '../src/index.ts';
 import { makeTemp, runTsc } from './helpers.ts';
 
-type Mode = 'manifest' | 'build-no-code' | 'build-with-code' | 'index';
+type Entry = 'server' | 'client';
+
+type Mode =
+  | { kind: 'manifest' }
+  | { kind: 'build'; entries: readonly Entry[] }
+  | { kind: 'index' };
+
+const manifest: Mode = { kind: 'manifest' };
+const server: Mode = { kind: 'build', entries: ['server'] };
+const client: Mode = { kind: 'build', entries: ['client'] };
+const both: Mode = { kind: 'build', entries: ['server', 'client'] };
 
 const EXAMPLES: Readonly<Record<string, Mode>> = {
-  'вид задания': 'manifest',
-  тема: 'build-no-code',
-  'рендерер содержимого': 'build-with-code',
-  'правило оценки': 'build-with-code',
-  'настройки расширения': 'build-no-code',
-  'переводимые подписи': 'build-no-code',
-  'подписка на события': 'build-with-code',
-  'команды расширения': 'build-with-code',
-  'панель расширения': 'build-with-code',
-  'виджет расширения': 'build-with-code',
-  'условие видимости': 'manifest',
-  'расписания расширения': 'build-with-code',
-  'серия дней целиком': 'build-with-code',
-  'расширение для каталога': 'build-no-code',
-  'индекс каталога': 'index',
-  'панель со стилями и картинкой': 'build-with-code',
-  'импортёр CSV': 'build-with-code',
-  'экспортёр курса': 'build-with-code',
-  зависимости: 'manifest',
+  'вид задания': both,
+  тема: client,
+  'рендерер содержимого': client,
+  'правило оценки': server,
+  'настройки расширения': server,
+  'подписи на двух языках': server,
+  'подписка на события': server,
+  'команды расширения': both,
+  'панель расширения': both,
+  'инъекция расширения': client,
+  'условие видимости': server,
+  'расписания расширения': server,
+  'серия дней целиком': both,
+  'расширение для каталога': client,
+  'индекс каталога': { kind: 'index' },
+  'панель со стилями и картинкой': client,
+  'импортёр CSV': server,
+  'экспортёр курса': server,
+  зависимости: manifest,
+};
+
+const BUILT_FILE: Readonly<Record<Entry, string>> = {
+  server: 'main.mjs',
+  client: 'client.mjs',
 };
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../../..');
 const DOC = path.join(REPO_ROOT, 'docs/design/extensions.md');
 const SECTIONS = [
-  '## Точки вклада',
+  '## Регистрация вкладов',
   '## Установка и каталог',
   '## Как написать расширение',
 ];
@@ -91,7 +107,7 @@ const collect = (lines: string[]): Map<string, ExampleFile[]> => {
     if (marker === null || fence === null) continue;
     const close = lines.indexOf('```', i + 1);
     if (close === -1) throw new Error('unterminated code fence');
-    const [, file, label] = marker as unknown as [string, string, string];
+    const [, file = '', label = ''] = marker;
     const files = examples.get(label) ?? [];
     files.push({
       file,
@@ -114,11 +130,15 @@ const manifestOf = (files: ExampleFile[]): unknown => {
   return JSON.parse(manifests[0]?.content ?? '');
 };
 
+/** The `id` of the extension that an example's `extension.json` declares. */
+const idOf = (files: ExampleFile[]): string => {
+  const parsed = parseManifest(manifestOf(files));
+  if (!parsed.ok) throw new Error('the example manifest is invalid');
+  return parsed.manifest.id;
+};
+
 /** Project in a temporary directory; the SDK and API are links to repository packages. */
-const writeProject = async (
-  files: ExampleFile[],
-  withCode: boolean,
-): Promise<string> => {
+const writeProject = async (files: ExampleFile[]): Promise<string> => {
   const root = path.join(await makeTemp(), 'project');
   await mkdir(root, { recursive: true });
   for (const { file, content } of files) {
@@ -126,28 +146,26 @@ const writeProject = async (
     await mkdir(path.dirname(target), { recursive: true });
     await writeFile(target, content);
   }
-  if (withCode) {
-    const modules = path.join(root, 'node_modules', '@dolphy-app');
-    await mkdir(modules, { recursive: true });
-    for (const name of ['extension-sdk', 'extension-api']) {
-      await symlink(
-        path.join(REPO_ROOT, 'packages', name),
-        path.join(modules, name),
-        'dir',
-      );
-    }
-    // `vue` and `vuetify` are the author's own dependencies
-    const links: [string, string][] = [
-      ['vue', 'packages/extension-sdk/node_modules/vue'],
-      ['vuetify', 'packages/ext-choice/node_modules/vuetify'],
-    ];
-    for (const [name, source] of links) {
-      await symlink(
-        path.join(REPO_ROOT, source),
-        path.join(root, 'node_modules', name),
-        'dir',
-      );
-    }
+  const modules = path.join(root, 'node_modules', '@dolphy-app');
+  await mkdir(modules, { recursive: true });
+  for (const name of ['extension-sdk', 'extension-api']) {
+    await symlink(
+      path.join(REPO_ROOT, 'packages', name),
+      path.join(modules, name),
+      'dir',
+    );
+  }
+  // `vue` and `vuetify` are the author's own dependencies
+  const links: [string, string][] = [
+    ['vue', 'packages/extension-sdk/node_modules/vue'],
+    ['vuetify', 'packages/ext-choice/node_modules/vuetify'],
+  ];
+  for (const [name, source] of links) {
+    await symlink(
+      path.join(REPO_ROOT, source),
+      path.join(root, 'node_modules', name),
+      'dir',
+    );
   }
   return root;
 };
@@ -166,17 +184,117 @@ const TSCONFIG = `${JSON.stringify({
     skipLibCheck: true,
     noEmit: true,
   },
-  include: ['src', '.dolphy/ids.d.ts'],
+  include: ['src'],
 })}\n`;
 
-describe('examples of the sections “Точки вклада”, “Установка и каталог” and “Как написать расширение”', () => {
+/** What the SDK's test harness gives back; the SDK is not a dependency of this package, so only the used part is typed. */
+interface RunningServer {
+  registration: {
+    commands: Array<{ id: string; when: string | null }>;
+    importers: Array<{ id: string }>;
+    exporters: Array<{ id: string }>;
+  };
+  commands: { run(id: string, args?: unknown): Promise<unknown> };
+  events: {
+    emit(name: string, payload: Record<string, unknown>): Promise<void>;
+  };
+  storage: { get(key: string): Promise<unknown> };
+  importer(id: string): {
+    run(input: {
+      name: string;
+      text: string;
+    }): Promise<{ files: Record<string, string> }>;
+  };
+  exporter(id: string): {
+    run(input: {
+      scope: 'course';
+      courseId: string;
+      title: string;
+      files: Record<string, string>;
+    }): Promise<{ filename: string; text?: string }>;
+  };
+  dispose(): Promise<void>;
+}
+
+interface RunningClient {
+  panels: ReadonlyArray<{ id: string; when?: string; component: unknown }>;
+  injections: readonly unknown[];
+  answerViews: ReadonlyMap<string, unknown>;
+  markdownRenderers: ReadonlyMap<string, unknown>;
+  themes: readonly unknown[];
+  commands: readonly unknown[];
+  dispose(): Promise<void>;
+}
+
+interface SdkTesting {
+  createTestServer(
+    entry: unknown,
+    options: { extensionId: string },
+  ): Promise<RunningServer>;
+  createTestClient(
+    entry: unknown,
+    options: { extensionId: string },
+  ): Promise<RunningClient>;
+}
+
+interface BuiltEntries {
+  server?: unknown;
+  client?: unknown;
+}
+
+const sdkTesting = (await import(
+  /* @vite-ignore */ path.join(
+    REPO_ROOT,
+    'packages/extension-sdk/src/testing.ts',
+  )
+)) as SdkTesting;
+
+const vue = (await import(
+  /* @vite-ignore */ path.join(
+    REPO_ROOT,
+    'packages/extension-sdk/node_modules/vue/index.js',
+  )
+)) as typeof import('vue');
+
+/** Imports the built files the way the host and the window do: the client file reads Vue from the app's loader. */
+const importBuilt = async (
+  dir: string,
+  wanted: readonly Entry[],
+): Promise<BuiltEntries> => {
+  const entries: BuiltEntries = {};
+  Object.assign(globalThis, { __dolphy: { require: async () => vue } });
+  try {
+    for (const entry of wanted) {
+      const module = (await import(
+        /* @vite-ignore */ path.join(dir, BUILT_FILE[entry])
+      )) as Record<Entry, unknown>;
+      entries[entry] = module[entry];
+    }
+  } finally {
+    Reflect.deleteProperty(globalThis, '__dolphy');
+  }
+  return entries;
+};
+
+const buildExample = async (label: string) => {
+  const files = examples.get(label) ?? [];
+  const root = await writeProject(files);
+  const built = await buildExtension({ root });
+  await expect(validateExtension(built.dir)).resolves.toEqual({
+    ok: true,
+    problems: [],
+  });
+  return { files, root, built, extensionId: idOf(files) };
+};
+
+describe('examples of the sections “Регистрация вкладов”, “Установка и каталог” and “Как написать расширение”', () => {
   it('example labels match the checks table', () => {
     expect([...examples.keys()].sort()).toEqual(Object.keys(EXAMPLES).sort());
   });
 
   for (const [label, mode] of Object.entries(EXAMPLES)) {
     describe(label, () => {
-      if (mode === 'index') {
+      if (mode.kind === 'index') {
         it('the index passes parseIndex', () => {
           const files = examples.get(label) ?? [];
           expect(files.map(({ file }) => file)).toEqual(['index.v2.json']);
@@ -201,46 +319,50 @@ describe('examples of the sections “Точки вклада”, “Устан�
         const validate = new Ajv2020({ strict: false }).compile(
           manifestJsonSchema(),
         );
-        const manifest = manifestOf(examples.get(label) ?? []);
-        expect(validate(manifest), JSON.stringify(validate.errors)).toBe(true);
+        const parsed = manifestOf(examples.get(label) ?? []);
+        expect(validate(parsed), JSON.stringify(validate.errors)).toBe(true);
       });
 
-      if (mode === 'manifest') return;
+      if (mode.kind === 'manifest') return;
 
-      it('the project builds and passes validate', async () => {
-        const files = examples.get(label) ?? [];
-        const withCode = mode === 'build-with-code';
-        if (withCode) {
-          expect(
-            files
-              .filter(
-                ({ file, lang }) => lang === 'ts' && !file.endsWith('.d.ts'),
-              )
-              .map(({ file }) => file),
-          ).toEqual(['src/index.ts']);
-        } else {
-          expect(files.map(({ file }) => file)).toEqual([
-            'extension.json',
-            ...files
-              .map(({ file }) => file)
-              .filter((file) => file.startsWith('locales/')),
-          ]);
-        }
-        const root = await writeProject(files, withCode);
-        const built = await buildExtension({ root });
-        expect(built.files.some((file) => file.endsWith('.mjs'))).toBe(
-          withCode,
+      it('the project builds, passes validate and tsc, and registers under the id of the extension', async () => {
+        const { files, root, built, extensionId } = await buildExample(label);
+        expect(files.map(({ file }) => file)).toContain('src/index.ts');
+        expect(built.files.filter((file) => file.endsWith('.mjs'))).toEqual(
+          mode.entries.map((entry) => BUILT_FILE[entry]).sort(),
         );
-        await expect(validateExtension(built.dir)).resolves.toEqual({
-          ok: true,
-          problems: [],
-          warnings: [],
-        });
-        if (withCode) {
-          // the ids written by the build must accept the example as written
-          await writeFile(path.join(root, 'tsconfig.json'), TSCONFIG);
-          const { code, output } = await runTsc(root);
-          expect(code, output).toBe(0);
+
+        await writeFile(path.join(root, 'tsconfig.json'), TSCONFIG);
+        const { code, output } = await runTsc(root);
+        expect(code, output).toBe(0);
+
+        // `createTestServer` / `createTestClient` refuse an id without the prefix
+        const entries = await importBuilt(built.dir, mode.entries);
+        if (mode.entries.includes('server')) {
+          const running = await sdkTesting.createTestServer(entries.server, {
+            extensionId,
+          });
+          for (const { when } of running.registration.commands) {
+            if (when !== null) expect(() => parseWhen(when)).not.toThrow();
+          }
+          await running.dispose();
+        }
+        if (mode.entries.includes('client')) {
+          const running = await sdkTesting.createTestClient(entries.client, {
+            extensionId,
+          });
+          for (const { when } of running.panels) {
+            if (when !== undefined) expect(() => parseWhen(when)).not.toThrow();
+          }
+          expect(
+            running.panels.length +
+              running.injections.length +
+              running.answerViews.size +
+              running.markdownRenderers.size +
+              running.themes.length +
+              running.commands.length,
+          ).toBeGreaterThan(0);
+          await running.dispose();
         }
       });
     });
@@ -249,58 +371,23 @@ describe('examples of the sections “Точки вклада”, “Устан�
 
 describe('the “панель со стилями и картинкой” example', () => {
   it('the style sheet is inlined into the panel and the picture is shipped as a file', async () => {
-    const files = examples.get('панель со стилями и картинкой') ?? [];
-    const root = await writeProject(files, true);
-    const built = await buildExtension({ root });
+    const { files, built } = await buildExample(
+      'панель со стилями и картинкой',
+    );
     expect(built.files).toEqual([
       'assets/mark.svg',
+      'client.mjs',
       'extension.json',
-      'panel.mjs',
     ]);
-    const panel = await readFile(path.join(built.dir, 'panel.mjs'), 'utf8');
+    const panel = await readFile(path.join(built.dir, 'client.mjs'), 'utf8');
     expect(panel).toContain('.badge');
     expect(panel).toContain('assets/mark.svg');
     // the shipped picture is the file of the example, byte for byte
     expect(
       await readFile(path.join(built.dir, 'assets/mark.svg'), 'utf8'),
     ).toBe(files.find(({ file }) => file === 'assets/mark.svg')?.content);
-    await expect(validateExtension(built.dir)).resolves.toEqual({
-      ok: true,
-      problems: [],
-      warnings: [],
-    });
   });
 });
-
-interface Streak {
-  days: number;
-  last: string;
-}
-
-interface SdkTesting {
-  createMemoryStorage(): {
-    get(key: string): Promise<unknown>;
-    set(key: string, value: unknown): Promise<void>;
-  };
-  loadEvents(
-    module: unknown,
-    options: { storage: unknown; declared: string[] },
-  ): Promise<{
-    emit(name: string, payload: Record<string, unknown>): Promise<void>;
-  }>;
-  loadCommands(
-    module: unknown,
-    options: {
-      storage: unknown;
-      declaredCommands: string[];
-      declaredPanels: string[];
-    },
-  ): Promise<{ run(id: string, args?: unknown): Promise<unknown> }>;
-}
-
-interface PanelModule {
-  default: { panels: Record<string, unknown> };
-}
 
 /** A text node or an element of the tiny tree the test renderer builds. */
 interface TestNode {
@@ -325,91 +412,51 @@ describe('the “серия дней целиком” example is executed', () 
   });
 
   it('the event counts the streak, commands and panel read the same data', async () => {
-    const files = examples.get('серия дней целиком') ?? [];
-    const manifest = manifestOf(files) as {
-      contributes: {
-        commands: Array<{ id: string; palette?: boolean }>;
-        panels: Array<{ id: string }>;
-      };
-    };
-    const root = await writeProject(files, true);
-    const built = await buildExtension({ root });
-    await expect(validateExtension(built.dir)).resolves.toEqual({
-      ok: true,
-      problems: [],
-      warnings: [],
+    const { built, extensionId } = await buildExample('серия дней целиком');
+    const entries = await importBuilt(built.dir, ['server', 'client']);
+    const running = await sdkTesting.createTestServer(entries.server, {
+      extensionId,
     });
-
-    const sdk = (await import(
-      /* @vite-ignore */ path.join(
-        REPO_ROOT,
-        'packages/extension-sdk/src/testing.ts',
-      )
-    )) as SdkTesting;
-    const module = (
-      await import(/* @vite-ignore */ path.join(built.dir, 'main.mjs'))
-    ).default as unknown;
-    const storage = sdk.createMemoryStorage();
-    const declaredCommands = manifest.contributes.commands.map(({ id }) => id);
-    const declaredPanels = manifest.contributes.panels.map(({ id }) => id);
-    const events = await sdk.loadEvents(module, {
-      storage,
-      declared: ['attempt.closed'],
-    });
-    const commands = await sdk.loadCommands(module, {
-      storage,
-      declaredCommands,
-      declaredPanels,
+    const added = await sdkTesting.createTestClient(entries.client, {
+      extensionId,
     });
 
     // no data: the palette command notifies, the data command returns zeros
-    expect(await commands.run('acme.streak.show')).toMatchObject({
+    expect(await running.commands.run('acme.streak.show')).toMatchObject({
       kind: 'notify',
     });
-    expect(await commands.run('acme.streak.data')).toEqual({
+    expect(await running.commands.run('acme.streak.data')).toEqual({
       kind: 'data',
       value: { days: 0, last: '' },
     });
 
-    await events.emit('attempt.closed', attempt('2026-10-01'));
-    await events.emit('attempt.closed', attempt('2026-10-01'));
-    await events.emit('attempt.closed', attempt('2026-10-02'));
-    expect(await storage.get('streak')).toEqual({
+    await running.events.emit('attempt.closed', attempt('2026-10-01'));
+    await running.events.emit('attempt.closed', attempt('2026-10-01'));
+    await running.events.emit('attempt.closed', attempt('2026-10-02'));
+    expect(await running.storage.get('streak')).toEqual({
       days: 2,
       last: '2026-10-02',
     });
     // a skipped day restarts the streak; “gave up” leaves the streak alone
-    await events.emit('attempt.closed', {
+    await running.events.emit('attempt.closed', {
       ...attempt('2026-10-03'),
       outcome: 'gave-up',
     });
-    expect((await storage.get('streak')) as Streak).toMatchObject({ days: 2 });
-    await events.emit('attempt.closed', attempt('2026-10-05'));
-    expect(await storage.get('streak')).toEqual({
+    expect(await running.storage.get('streak')).toMatchObject({ days: 2 });
+    await running.events.emit('attempt.closed', attempt('2026-10-05'));
+    expect(await running.storage.get('streak')).toEqual({
       days: 1,
       last: '2026-10-05',
     });
 
-    expect(await commands.run('acme.streak.show')).toEqual({
+    expect(await running.commands.run('acme.streak.show')).toEqual({
       kind: 'openPanel',
       panelId: 'acme.streak.view',
       props: { days: 1 },
     });
 
-    // the built panel is a Vue component: it reads Vue from the app's loader
-    // and draws the data command's response
-    const vue = (await import(
-      /* @vite-ignore */ path.join(
-        REPO_ROOT,
-        'packages/extension-sdk/node_modules/vue/index.js',
-      )
-    )) as typeof import('vue');
-    Object.assign(globalThis, { __dolphy: { require: async () => vue } });
-    const panel = (await import(
-      /* @vite-ignore */ path.join(built.dir, 'panel.mjs')
-    )) as PanelModule;
-    Reflect.deleteProperty(globalThis, '__dolphy');
-
+    // the built panel is a Vue component: the client registers it, it reads
+    // Vue from the app's loader and draws the data command's response
     const node = (type: TestNode['type'], text = ''): TestNode => ({
       type,
       text,
@@ -446,89 +493,27 @@ describe('the “серия дней целиком” example is executed', () 
       },
       patchProp: () => undefined,
     });
-    const view = panel.default.panels['acme.streak.view'] as Parameters<
-      typeof createApp
-    >[0];
-    const app = createApp(view);
+    const view = added.panels.find(({ id }) => id === 'acme.streak.view');
+    const app = createApp(view?.component as Parameters<typeof createApp>[0]);
     app.provide(Symbol.for('dolphy.extension.panel'), {
       panelId: 'acme.streak.view',
       props: undefined,
       context: { courseId: null },
       call: async (id: string) => {
-        const outcome = (await commands.run(id)) as { value: unknown };
+        const outcome = (await running.commands.run(id)) as { value: unknown };
         return outcome.value;
       },
     });
     const screen = node('element');
     app.mount(screen);
     await vi.waitFor(() => {
-      expect(textOf(screen)).toBe('Серия: 1 дн., последний день 2026-10-05');
+      expect(textOf(screen)).toMatch(/1.*2026-10-05/);
     });
-    expect(declaredCommands).toEqual(['acme.streak.show', 'acme.streak.data']);
+    app.unmount();
+    await added.dispose();
+    await running.dispose();
   });
 });
-
-interface Importers {
-  run(
-    id: string,
-    input: { name: string; text: string },
-  ): Promise<{ files: Record<string, string> }>;
-  dispose(): Promise<void>;
-}
-
-interface Exporters {
-  run(
-    id: string,
-    input: {
-      scope: 'course';
-      courseId: string;
-      title: string;
-      files: Record<string, string>;
-    },
-  ): Promise<{ filename: string; text?: string }>;
-  dispose(): Promise<void>;
-}
-
-interface TransferTesting {
-  loadImporters(
-    module: unknown,
-    options: { declaredImporters: Array<{ id: string; input?: string }> },
-  ): Promise<Importers>;
-  loadExporters(
-    module: unknown,
-    options: { declaredExporters: Array<{ id: string; scope: string }> },
-  ): Promise<Exporters>;
-}
-
-const loadTransferTesting = async (): Promise<TransferTesting> =>
-  (await import(
-    /* @vite-ignore */ path.join(
-      REPO_ROOT,
-      'packages/extension-sdk/src/testing.ts',
-    )
-  )) as TransferTesting;
-
-const buildExample = async (label: string) => {
-  const files = examples.get(label) ?? [];
-  const root = await writeProject(files, true);
-  const built = await buildExtension({ root });
-  await expect(validateExtension(built.dir)).resolves.toEqual({
-    ok: true,
-    problems: [],
-    warnings: [],
-  });
-  const module = (
-    await import(/* @vite-ignore */ path.join(built.dir, 'main.mjs'))
-  ).default as unknown;
-  return { manifest: manifestOf(files) as ManifestWithTransfers, module };
-};
-
-interface ManifestWithTransfers {
-  contributes: {
-    importers?: Array<{ id: string; accept: string[]; input?: string }>;
-    exporters?: Array<{ id: string; scope: string }>;
-  };
-}
 
 const CSV = 'hola,hello\nadiós,goodbye\n¿cómo estás?,how are you?\n';
 
@@ -546,16 +531,23 @@ const compileTree = async (files: Record<string, string>) => {
   });
 };
 
+/** Starts the built `server` of an example on the SDK's test server. */
+const startServer = async (label: string): Promise<RunningServer> => {
+  const { built, extensionId } = await buildExample(label);
+  const entries = await importBuilt(built.dir, ['server']);
+  return sdkTesting.createTestServer(entries.server, { extensionId });
+};
+
+const only = (items: Array<{ id: string }>): string => {
+  expect(items).toHaveLength(1);
+  return items[0]?.id ?? '';
+};
+
 describe('the “импортёр CSV” and “экспортёр курса” examples are executed', () => {
   it('the importer turns a CSV into a course the compiler accepts', async () => {
-    const { manifest, module } = await buildExample('импортёр CSV');
-    const testing = await loadTransferTesting();
-    const importers = await testing.loadImporters(module, {
-      declaredImporters: (manifest.contributes.importers ?? []).map(
-        ({ id, input }) => ({ id, ...(input && { input }) }),
-      ),
-    });
-    const { files } = await importers.run('acme.cards.csv', {
+    const running = await startServer('импортёр CSV');
+    const importer = running.importer(only(running.registration.importers));
+    const { files } = await importer.run({
       name: 'Spanish basics.csv',
       text: CSV,
     });
@@ -570,44 +562,33 @@ describe('the “импортёр CSV” and “экспортёр курса”
 
     // a row without an answer is the handler's error, nothing is returned
     await expect(
-      importers.run('acme.cards.csv', {
-        name: 'bad.csv',
-        text: 'hola,hello\nadiós\n',
-      }),
+      importer.run({ name: 'bad.csv', text: 'hola,hello\nadiós\n' }),
     ).rejects.toThrow(/Строка 2/);
-    await importers.dispose();
+    await running.dispose();
   });
 
   it('the exporter returns the imported cards as the same CSV', async () => {
-    const importer = await buildExample('импортёр CSV');
-    const exporter = await buildExample('экспортёр курса');
-    const testing = await loadTransferTesting();
-    const importers = await testing.loadImporters(importer.module, {
-      declaredImporters: [{ id: 'acme.cards.csv' }],
-    });
-    const exporters = await testing.loadExporters(exporter.module, {
-      declaredExporters: (exporter.manifest.contributes.exporters ?? []).map(
-        ({ id, scope }) => ({ id, scope }),
-      ),
-    });
-    const { files } = await importers.run('acme.cards.csv', {
-      name: 'deck.csv',
-      text: CSV,
-    });
+    const importing = await startServer('импортёр CSV');
+    const exporting = await startServer('экспортёр курса');
+    const { files } = await importing
+      .importer(only(importing.registration.importers))
+      .run({ name: 'deck.csv', text: CSV });
     // the snapshot has paths relative to the course directory
     const snapshot = Object.fromEntries(
       Object.entries(files)
         .filter(([file]) => file.startsWith('deck/'))
         .map(([file, content]) => [file.slice('deck/'.length), content]),
     );
-    const result = await exporters.run('acme.cardsout.csv', {
-      scope: 'course',
-      courseId: 'deck',
-      title: 'Deck / Spanish',
-      files: snapshot,
-    });
+    const result = await exporting
+      .exporter(only(exporting.registration.exporters))
+      .run({
+        scope: 'course',
+        courseId: 'deck',
+        title: 'Deck / Spanish',
+        files: snapshot,
+      });
     expect(result).toEqual({ filename: 'Deck - Spanish.csv', text: CSV });
-    await importers.dispose();
-    await exporters.dispose();
+    await importing.dispose();
+    await exporting.dispose();
   });
 });

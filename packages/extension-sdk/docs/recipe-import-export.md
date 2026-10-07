@@ -20,33 +20,19 @@ File `extension.json` (import-export):
   "name": "Hello cards",
   "description": "Import flashcards from a CSV file and export a course back to CSV.",
   "author": "your-github-login",
-  "tags": ["content"],
-  "contributes": {
-    "importers": [
-      { "id": "acme.hello.import", "title": "Cards from CSV", "accept": [".csv"] }
-    ],
-    "exporters": [
-      { "id": "acme.hello.export", "title": "Course to CSV", "scope": "course" }
-    ]
-  }
+  "tags": ["content"]
 }
 ```
 
-- An importer has an `id`, a `title` (up to 60 characters), `accept` (1–8
-  lower-case file extensions such as `.csv`) and an optional `input`: `text`
-  (the default, the handler gets the file as a UTF-8 string) or `bytes` (a
-  `Uint8Array`). An exporter has `scope`: `course` or `progress`.
-- The user choosing the file is the consent, and your code never sees a path. A
-  `progress` exporter reads `ctx.stats`.
-- The importer appears in the palette as "Import: Cards from CSV", the exporter
-  as "Export: Course to CSV", and both have buttons in Settings → Library.
+The manifest holds the identity only; the importer and the exporter are
+registered by the code.
 
 ## The code
 
 File `src/index.ts` (import-export):
 
 ```ts
-import { defineExtension } from '@dolphy-app/extension-sdk';
+import { defineServer } from '@dolphy-app/extension-sdk';
 import type {
   CourseExportInput,
   TextImportInput,
@@ -61,11 +47,15 @@ const courseIdOf = (fileName: string): string =>
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '') || 'cards';
 
-export const host = defineExtension({
-  importers: {
+export const server = defineServer((s) => {
+  s.registerImporter({
+    id: 'acme.hello.import',
+    title: { en: 'Cards from CSV', ru: 'Карточки из CSV' },
+    accept: ['.csv'],
+    input: 'text',
     // one line "front,back" is one flashcard; the paths are relative to the
     // new course directory the app creates
-    'acme.hello.import': ({ name, text }: TextImportInput) => {
+    run: ({ name, text }: TextImportInput) => {
       const rows = text.split(/\r?\n/).filter((line) => line.trim() !== '');
       if (rows.length === 0) throw new Error('The file has no rows');
       const course = courseIdOf(name);
@@ -108,11 +98,15 @@ export const host = defineExtension({
       });
       return { files };
     },
-  },
-  exporters: {
+  });
+
+  s.registerExporter({
+    id: 'acme.hello.export',
+    title: { en: 'Course to CSV', ru: 'Курс в CSV' },
+    scope: 'course',
     // the snapshot holds the text files of the chosen course, paths relative
     // to the course directory
-    'acme.hello.export': ({ title, files }: CourseExportInput) => {
+    run: ({ title, files }: CourseExportInput) => {
       const cell = (text: string): string => text.trim().replace(/\s+/g, ' ');
       const fronts = Object.keys(files)
         .filter((path) => path.endsWith('/front.md'))
@@ -126,10 +120,20 @@ export const host = defineExtension({
         text: `${rows.join('\n')}\n`,
       };
     },
-  },
+  });
 });
 ```
 
+- `server.registerImporter({ id, title, accept, input, run })`: `title` (up to 60
+  characters) is a `LocalizedText`; `accept` is 1–8 unique lower-case file
+  extensions such as `.csv`; `input` is `text` (the handler gets the file as a
+  UTF-8 string) or `bytes` (a `Uint8Array`). `server.registerExporter({ id,
+  title, scope, run })` has a `scope`: `course` or `progress`. At most 8 of each
+  per extension.
+- The user choosing the file is the consent, and your code never sees a path. A
+  `progress` exporter reads `server.stats`.
+- The importer appears in the palette as "Import: Cards from CSV", the exporter
+  as "Export: Course to CSV", and both have buttons in Settings → Library.
 - An importer handler gets `{ name, text }` (or `{ name, bytes }`) and returns
   `{ files: Record<path, text> }`: the files of a new directory in the library
   (`imported/<extension id>-<file name>`). At most 5000 files, 2 MiB each and
@@ -146,30 +150,24 @@ export const host = defineExtension({
   and is at most 120 characters. The app asks the user where to save it.
 - A handler has 30 seconds. Throw an `Error` to refuse: its message reaches the
   user, and nothing is written.
-- A handler that needs `ctx` is registered in `activate` with
-  `ctx.importers.register(id, handler)` / `ctx.exporters.register(id, handler)`
-  (`inActivate` in the record, as for commands).
 
 ## The tests
 
 File `test/index.test.ts` (import-export):
 
 ```ts
-import {
-  loadExporters,
-  loadImporters,
-} from '@dolphy-app/extension-sdk/testing';
+import { createTestServer } from '@dolphy-app/extension-sdk/testing';
 import { describe, expect, it } from 'vitest';
-import { host } from '../src/index.ts';
+import { server } from '../src/index.ts';
 
 const CSV = 'hola,hello\nadiós,goodbye\n';
 
+const start = () => createTestServer(server, { extensionId: 'acme.hello' });
+
 describe('acme.hello: importer', () => {
   it('turns every row into a flashcard of one lesson', async () => {
-    const importers = await loadImporters(host, {
-      declaredImporters: [{ id: 'acme.hello.import' }],
-    });
-    const { files } = await importers.run('acme.hello.import', {
+    const running = await start();
+    const { files } = await running.importer('acme.hello.import').run({
       name: 'Spanish basics.csv',
       text: CSV,
     });
@@ -184,26 +182,24 @@ describe('acme.hello: importer', () => {
       'spanish-basics/course_manifest.json',
     ]);
     expect(files['spanish-basics/cards/c2/front.md']).toBe('adiós\n');
-    await importers.dispose();
+    await running.dispose();
   });
 
   it('refuses a row without an answer', async () => {
-    const importers = await loadImporters(host, {
-      declaredImporters: [{ id: 'acme.hello.import' }],
-    });
+    const running = await start();
     await expect(
-      importers.run('acme.hello.import', { name: 'x.csv', text: 'hola\n' }),
+      running
+        .importer('acme.hello.import')
+        .run({ name: 'x.csv', text: 'hola\n' }),
     ).rejects.toThrow('Row 1');
-    await importers.dispose();
+    await running.dispose();
   });
 });
 
 describe('acme.hello: exporter', () => {
   it('writes the cards of the snapshot back to CSV', async () => {
-    const exporters = await loadExporters(host, {
-      declaredExporters: [{ id: 'acme.hello.export', scope: 'course' }],
-    });
-    const result = await exporters.run('acme.hello.export', {
+    const running = await start();
+    const result = await running.exporter('acme.hello.export').run({
       scope: 'course',
       courseId: 'deck',
       title: 'Deck / Spanish',
@@ -220,18 +216,18 @@ describe('acme.hello: exporter', () => {
       filename: 'Deck - Spanish.csv',
       text: 'hola,hello\nadiós,goodbye\ndiez,ten\n',
     });
-    await exporters.dispose();
+    await running.dispose();
   });
 });
 ```
 
-`loadImporters` and `loadExporters` activate the module in memory and run a
-handler with the rules of the host: the `text`/`bytes` form of a declared
-importer, the `scope` of a declared exporter, the size of the input and the
+`running.importer(id).run(input)` and `running.exporter(id).run(input)` run a
+handler with the rules of the host: the `text`/`bytes` form the importer
+declares, the `scope` the exporter declares, the size of the input and the
 shape and limits of the result. A broken result rejects with
 `invalid import result: …` / `invalid export result: …`, so the test fails the
 way the app would refuse it. For a `progress` exporter pass
-`stats: createMemoryStats(…)`.
+`stats: createMemoryStats(…)` to `createTestServer`.
 
 ## Try and ship
 

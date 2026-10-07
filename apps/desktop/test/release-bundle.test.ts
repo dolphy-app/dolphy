@@ -86,26 +86,11 @@ describe('смоук и релизная сборка', () => {
           'extension.json',
           'main.mjs',
           'worker.mjs',
-          'view.mjs',
-          'schema/spec.json',
-          'schema/answer.json',
+          'client.mjs',
         ],
-        'dolphy.choice': [
-          'extension.json',
-          'main.mjs',
-          'view.mjs',
-          'schema/spec.json',
-          'schema/answer.json',
-        ],
-        'dolphy.js': [
-          'extension.json',
-          'main.mjs',
-          'worker.mjs',
-          'view.mjs',
-          'schema/spec.json',
-          'schema/answer.json',
-        ],
-        'dolphy.math': ['extension.json', 'markdown.mjs'],
+        'dolphy.choice': ['extension.json', 'main.mjs', 'client.mjs'],
+        'dolphy.js': ['extension.json', 'main.mjs', 'worker.mjs', 'client.mjs'],
+        'dolphy.math': ['extension.json', 'client.mjs'],
       };
       for (const [id, names] of Object.entries(expected)) {
         for (const name of names) {

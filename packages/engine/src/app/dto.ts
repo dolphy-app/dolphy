@@ -169,9 +169,7 @@ const toTaskField = (
     task: {
       type: block.type,
       timeoutMs: block.timeoutMs ?? DEFAULT_EXERCISE_TIMEOUT_MS,
-      rendererUrl: info.rendererUrl,
-      origin: info.extensionOrigin,
-      revision: info.extensionRevision,
+      extensionId: info.extensionId,
     },
   };
 };

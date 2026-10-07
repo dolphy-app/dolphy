@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  DEFAULT_SCHEDULE_AT,
-  EXTENSION_ID_PATTERN,
-  SCHEDULE_AT_PATTERN,
-} from '../src/index.ts';
+import { EXTENSION_ID_PATTERN, SCHEDULE_AT_PATTERN } from '../src/index.ts';
 
 describe('schedule time pattern', () => {
   it.each(['00:00', '09:00', '12:30', '19:59', '23:59'])('accepts %s', (at) => {
@@ -16,10 +12,6 @@ describe('schedule time pattern', () => {
       expect(SCHEDULE_AT_PATTERN.test(at)).toBe(false);
     },
   );
-
-  it('the default time is itself a valid time', () => {
-    expect(SCHEDULE_AT_PATTERN.test(DEFAULT_SCHEDULE_AT)).toBe(true);
-  });
 });
 
 describe('extension id pattern', () => {

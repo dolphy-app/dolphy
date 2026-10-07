@@ -3,11 +3,8 @@ import type { DependencyRow } from './dependencies.ts';
 import type {
   CatalogEntryDto,
   CatalogListedVersionDto,
-  ContributionTitlesDto,
   DeprecationDto,
-  ExtensionContributesDto,
   ExtensionInfoDto,
-  ExtensionMessagesDto,
   ExtensionUpdateDto,
 } from '@dolphy-app/engine-contract';
 import { entryAction, entryTags } from './catalog.ts';
@@ -49,16 +46,12 @@ export interface ExtensionDetails {
   info: ExtensionInfoDto | null;
   /** Запись каталога; `null` — расширения нет в каталоге или каталог недоступен. */
   entry: CatalogEntryDto | null;
-  /** Чьи вклады, теги и название показаны: установленного, если оно есть. */
+  /** Чьи теги и название показаны: установленного, если оно есть. */
   shown: 'installed' | 'catalog';
   icon: string | null;
   author: string | null;
   authorUrl: string | null;
   tags: ExtensionTag[];
-  contributes: ExtensionContributesDto;
-  titles: ContributionTitlesDto;
-  /** Таблицы переводов установленного; у записи каталога `undefined` (там английский текст). */
-  messages: ExtensionMessagesDto | undefined;
   /** «Исходники» из записи каталога; `null` — нет ссылки. */
   sourceUrl: string | null;
   /** Версия, установленная из каталога; `null` — не установлена или установлена не оттуда. */
@@ -78,7 +71,7 @@ const shownTags = (
   info: ExtensionInfoDto | null,
   entry: CatalogEntryDto | null,
 ): ExtensionTag[] => {
-  if (info !== null) return effectiveTags(info.tags, info.contributes);
+  if (info !== null) return effectiveTags(info.tags);
   return entry === null ? [] : entryTags(entry);
 };
 
@@ -121,8 +114,6 @@ export const describeDetails = (
   installed: readonly ExtensionInfoDto[] | null = null,
 ): ExtensionDetails | null => {
   if (info === null && entry === null) return null;
-  const contributes = info?.contributes ?? entry?.contributes;
-  if (contributes === undefined) return null;
   const installedVersion =
     entry?.installedVersion ?? info?.installed?.version ?? null;
   const author = info?.author ?? entry?.author ?? null;
@@ -135,9 +126,6 @@ export const describeDetails = (
     author,
     authorUrl: authorProfileUrl(author),
     tags: shownTags(info, entry),
-    contributes,
-    titles: info?.titles ?? entry?.titles ?? {},
-    messages: info?.messages,
     sourceUrl: externalUrl(entry?.source),
     installedVersion,
     deprecation: deprecationOf(info, entry),

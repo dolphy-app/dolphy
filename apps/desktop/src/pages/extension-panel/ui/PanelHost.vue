@@ -1,36 +1,22 @@
 <script setup lang="ts">
-import {
-  onErrorCaptured,
-  provide,
-  reactive,
-  ref,
-  shallowRef,
-  watch,
-} from 'vue';
-import type { Component } from 'vue';
+import { onErrorCaptured, provide, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { PanelContributionDto } from '@dolphy-app/engine-contract';
 import { PANEL_HANDLE_KEY } from '@dolphy-app/extension-api';
 import type { JsonValue, PanelHandle } from '@dolphy-app/extension-api';
 import { useExtensionCommands } from '@/features/extension-commands';
-import {
-  importExtensionModule,
-  loadExtensionComponent,
-} from '@/shared/lib/extension-component.ts';
-import type { LoadExtensionModule } from '@/shared/lib/extension-component.ts';
+import type { ClientPanel } from '@/shared/lib/extension-clients.ts';
 
 const props = withDefaults(
   defineProps<{
-    panel: PanelContributionDto;
-    /** Команды этого расширения, которые панель вправе вызывать. */
+    panel: ClientPanel;
+    /** Серверные команды этого расширения, которые панель вправе вызывать. */
     commands: ReadonlySet<string>;
     /** Свойства из `openPanel(id, props)`; повторный `openPanel` обновляет их на месте. */
     openProps?: JsonValue;
     /** Окружение панели: курс в фокусе; смена доходит без пересоздания. */
     context: { courseId: string | null };
-    loadModule?: LoadExtensionModule;
   }>(),
-  { openProps: undefined, loadModule: importExtensionModule },
+  { openProps: undefined },
 );
 
 const { t } = useI18n();
@@ -59,28 +45,21 @@ const handle: PanelHandle = {
 };
 provide(PANEL_HANDLE_KEY, handle);
 
-const component = shallowRef<Component | null>(null);
 const failure = ref<string | null>(null);
+// повтор после сбоя рендера создаёт компонент заново
+const attempt = ref(0);
 
-const load = async () => {
+const retry = () => {
   failure.value = null;
-  component.value = null;
-  try {
-    component.value = await loadExtensionComponent(
-      props.panel,
-      'panels',
-      props.panel.id,
-      props.loadModule,
-    );
-  } catch (error) {
-    failure.value = error instanceof Error ? error.message : String(error);
-  }
+  attempt.value += 1;
 };
-void load();
 
 onErrorCaptured((error) => {
+  console.error(
+    { error, extensionId: props.panel.extensionId, panelId: props.panel.id },
+    'extension panel failed',
+  );
   failure.value = error instanceof Error ? error.message : String(error);
-  component.value = null;
   return false;
 });
 </script>
@@ -102,13 +81,13 @@ onErrorCaptured((error) => {
           size="small"
           variant="text"
           data-testid="panel-retry"
-          @click="load"
+          @click="retry"
         >
           {{ t('extensionPanel.retry') }}
         </v-btn>
       </template>
     </v-alert>
-    <component :is="component" v-else-if="component !== null" />
+    <component :is="panel.component" v-else :key="attempt" />
   </div>
 </template>
 

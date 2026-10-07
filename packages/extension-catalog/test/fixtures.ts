@@ -24,12 +24,6 @@ export const entry = (overrides: Partial<CatalogEntry> = {}): CatalogEntry => ({
   author: 'octo-cat',
   source: 'https://github.com/dolphy-app/dolphy-extensions',
   platforms: [],
-  contributes: {
-    exerciseTypes: ['acme.quiz'],
-    themes: [],
-    markdownRenderers: [],
-    gradePolicies: [],
-  },
   versions: [version()],
   ...overrides,
 });

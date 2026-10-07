@@ -1,10 +1,14 @@
-import { shallowRef } from 'vue';
+import { computed, shallowRef } from 'vue';
 import { describe, expect, it, vi } from 'vitest';
 import type {
   CommandContributionDto,
   CommandResultDto,
   ContributionsDto,
 } from '@dolphy-app/engine-contract';
+import type {
+  ClientCommand,
+  ClientPanel,
+} from '@/shared/lib/extension-clients.ts';
 import { createExtensionCommands } from '@/features/extension-commands/model/extension-commands.ts';
 import { NO_CONTRIBUTIONS } from '@/shared/api/engine/contributions.ts';
 import { createCommandRegistry } from '@/shared/lib/command-registry.ts';
@@ -19,7 +23,6 @@ const command = (
   title: id,
   description: null,
   category: null,
-  keybinding: null,
   keybindings: [],
   when: null,
   palette: true,
@@ -29,20 +32,36 @@ const command = (
 
 const contributionsOf = (
   commands: CommandContributionDto[],
-  panelIds: [extensionId: string, panelId: string][] = [],
-): ContributionsDto => ({
-  ...NO_CONTRIBUTIONS,
-  commands,
-  panels: panelIds.map(([extensionId, id]) => ({
-    id,
-    extensionId,
-    title: id,
-    icon: 'puzzle',
-    when: null,
-    rendererUrl: `dolphy-ext://${extensionId}/panel.mjs`,
-    origin: 'user',
-    revision: 'r1',
-  })),
+): ContributionsDto => ({ ...NO_CONTRIBUTIONS, commands });
+
+const clientCommand = (
+  id: string,
+  override: Partial<ClientCommand> = {},
+): ClientCommand => ({
+  kind: 'command',
+  key: `acme.cmd:${id}:1`,
+  extensionId: 'acme.cmd',
+  id,
+  title: id,
+  description: null,
+  category: null,
+  palette: true,
+  icon: 'puzzle',
+  when: null,
+  keybindings: [],
+  run: () => {},
+  ...override,
+});
+
+const clientPanel = (extensionId: string, id: string): ClientPanel => ({
+  kind: 'panel',
+  key: `${extensionId}:${id}:1`,
+  extensionId,
+  id,
+  title: id,
+  icon: 'puzzle',
+  when: null,
+  component: {},
 });
 
 const setup = (
@@ -50,6 +69,8 @@ const setup = (
   result: CommandResultDto = { kind: 'none' },
 ) => {
   const contributions = shallowRef(initial);
+  const clientCommands = shallowRef<readonly ClientCommand[]>([]);
+  const clientPanels = shallowRef<readonly ClientPanel[]>([]);
   const locale = shallowRef('en');
   const route = shallowRef<string>('daily-plan');
   const courseActive = shallowRef(false);
@@ -61,6 +82,10 @@ const setup = (
     registry,
     engine: { invokeCommand },
     contributions: () => contributions.value,
+    clients: {
+      commands: computed(() => clientCommands.value),
+      panels: computed(() => clientPanels.value),
+    },
     locale: () => locale.value,
     when: createExtensionWhen({
       route: () => route.value,
@@ -73,6 +98,8 @@ const setup = (
   const keys = () => registry.list.value.map(({ key }) => key);
   return {
     contributions,
+    clientCommands,
+    clientPanels,
     locale,
     route,
     courseActive,
@@ -135,27 +162,17 @@ describe('адаптер команд расширений: реестр', () =>
     expect(icons()['extension:acme.cmd:run']).toBe('mdi-trophy-outline');
   });
 
-  it('подставляет %ключ% в название, описание и категорию; смена языка меняет подписи без перерегистрации', () => {
-    const { locale, registry, contributions } = setup({
-      ...contributionsOf([
+  it('подписи выбираются по языку окна; смена языка меняет их без перерегистрации', () => {
+    const { locale, registry } = setup(
+      contributionsOf([
         command('run', {
-          title: '%run.title%',
-          description: '%run.description%',
-          category: '%run.category%',
+          title: { en: 'Run', ru: 'Запуск' },
+          description: { en: 'Starts a run' },
+          category: { en: 'Learning', ru: 'Обучение' },
         }),
         command('plain', { title: 'Plain title' }),
       ]),
-      messages: {
-        'acme.cmd': {
-          en: {
-            'run.title': 'Run',
-            'run.description': 'Starts a run',
-            'run.category': 'Learning',
-          },
-          ru: { 'run.title': 'Запуск', 'run.category': 'Обучение' },
-        },
-      },
-    });
+    );
     const view = () =>
       registry.list.value.map(({ title, description, category }) => ({
         title,
@@ -174,18 +191,7 @@ describe('адаптер команд расширений: реестр', () =>
       description: 'Starts a run',
       category: 'Обучение',
     });
-    // та же регистрация: язык не перерегистрирует команды
     expect(registry.list.value.map(({ run }) => run)).toEqual(before);
-    // таблицы обновились (расширение обновлено): подпись следует за ними
-    contributions.value = {
-      ...contributions.value,
-      messages: { 'acme.cmd': { en: { 'run.title': 'Go' } } },
-    };
-    expect(view()[0]).toEqual({
-      title: 'Go',
-      description: '%run.description%',
-      category: '%run.category%',
-    });
   });
 
   it('добавление, изменение и удаление вкладов обновляют реестр без перезагрузки', () => {
@@ -368,17 +374,15 @@ describe('R9: расширения не вызывают команды прил
     },
   );
 
-  it('openPanel открывает только панель своего расширения; чужая панель и маршруты приложения отклоняются', async () => {
-    const own = setup(
-      contributionsOf(
-        [command('run')],
-        [
-          ['acme.cmd', 'main'],
-          ['acme.other', 'main'],
-        ],
-      ),
-      { kind: 'openPanel', panelId: 'main' },
-    );
+  it('openPanel проверяется по реестру окна: открывается только панель своего расширения; чужая и маршруты приложения отклоняются', async () => {
+    const own = setup(contributionsOf([command('run')]), {
+      kind: 'openPanel',
+      panelId: 'main',
+    });
+    own.clientPanels.value = [
+      clientPanel('acme.cmd', 'main'),
+      clientPanel('acme.other', 'main'),
+    ];
     await own.extensionCommands.runner.run(
       'acme.cmd',
       'run',
@@ -390,10 +394,11 @@ describe('R9: расширения не вызывают команды прил
       panelId: 'main',
     });
 
-    const foreign = setup(
-      contributionsOf([command('run')], [['acme.other', 'main']]),
-      { kind: 'openPanel', panelId: 'main' },
-    );
+    const foreign = setup(contributionsOf([command('run')]), {
+      kind: 'openPanel',
+      panelId: 'main',
+    });
+    foreign.clientPanels.value = [clientPanel('acme.other', 'main')];
     await foreign.extensionCommands.runner.run(
       'acme.cmd',
       'run',
@@ -406,6 +411,7 @@ describe('R9: расширения не вызывают команды прил
       kind: 'openPanel',
       panelId: '/settings',
     });
+    route.clientPanels.value = [clientPanel('acme.cmd', 'main')];
     await route.extensionCommands.runner.run(
       'acme.cmd',
       'run',
@@ -416,18 +422,134 @@ describe('R9: расширения не вызывают команды прил
   });
 });
 
+describe('клиентские команды', () => {
+  it('попадают в реестр с ключом источника и подписями на языке окна; palette:false скрыта', () => {
+    const { registry, clientCommands, locale, keys } = setup(
+      contributionsOf([]),
+    );
+    clientCommands.value = [
+      clientCommand('open', {
+        title: { en: 'Open', ru: 'Открыть' },
+        category: 'Tools',
+        icon: 'fire',
+      }),
+      clientCommand('hidden', { palette: false }),
+    ];
+    expect(keys()).toEqual(['extension:acme.cmd:open']);
+    expect(registry.list.value[0]).toMatchObject({
+      source: 'extension',
+      title: 'Open',
+      category: 'Tools',
+      caption: 'acme.cmd',
+      icon: 'mdi-fire',
+      enabled: true,
+    });
+    locale.value = 'ru';
+    expect(registry.list.value[0]?.title).toBe('Открыть');
+  });
+
+  it('when скрывает команду и пересчитывается по окну', () => {
+    const { registry, clientCommands, route } = setup(contributionsOf([]));
+    clientCommands.value = [
+      clientCommand('here', { when: "route == 'courses'" }),
+    ];
+    expect(registry.list.value[0]?.enabled).toBe(false);
+    route.value = 'courses';
+    expect(registry.list.value[0]?.enabled).toBe(true);
+  });
+
+  it('выполнение вызывает run в окне, движок не трогает', async () => {
+    const { registry, clientCommands, invokeCommand } = setup(
+      contributionsOf([]),
+    );
+    const run = vi.fn();
+    clientCommands.value = [clientCommand('open', { run })];
+    await registry.list.value[0]?.run();
+    expect(run).toHaveBeenCalledOnce();
+    expect(invokeCommand).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      'исключение',
+      () => {
+        throw new Error('boom');
+      },
+    ],
+    ['отклонённый промис', () => Promise.reject(new Error('boom'))],
+  ])('сбой run (%s) — уведомление, без падения', async (_name, run) => {
+    const { registry, clientCommands, extensionCommands } = setup(
+      contributionsOf([]),
+    );
+    clientCommands.value = [clientCommand('open', { run })];
+    await expect(registry.list.value[0]?.run()).resolves.toBeUndefined();
+    expect(extensionCommands.notices.current.value?.notice).toEqual({
+      kind: 'failure',
+      failure: { kind: 'failed', message: 'boom' },
+    });
+  });
+
+  it('при совпадении ключа серверная команда главнее клиентской', async () => {
+    const { registry, clientCommands, invokeCommand, keys } = setup(
+      contributionsOf([command('dup', { title: 'Server' })]),
+    );
+    const run = vi.fn();
+    clientCommands.value = [clientCommand('dup', { title: 'Client', run })];
+    expect(keys()).toEqual(['extension:acme.cmd:dup']);
+    expect(registry.list.value[0]?.title).toBe('Server');
+    await registry.list.value[0]?.run();
+    expect(invokeCommand).toHaveBeenCalledOnce();
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('привязки клиентских команд попадают в карту; palette:false — нет', () => {
+    const { extensionCommands, clientCommands } = setup(contributionsOf([]));
+    clientCommands.value = [
+      clientCommand('open', {
+        keybindings: [
+          { key: 'Mod+J', mac: null, windows: null, linux: null, when: null },
+        ],
+      }),
+      clientCommand('hidden', {
+        palette: false,
+        keybindings: [
+          { key: 'Mod+H', mac: null, windows: null, linux: null, when: null },
+        ],
+      }),
+    ];
+    expect(extensionCommands.bindings.value).toEqual([
+      {
+        command: 'extension:acme.cmd:open',
+        key: 'Mod+J',
+        mac: null,
+        windows: null,
+        linux: null,
+        when: null,
+      },
+    ]);
+  });
+});
+
 describe('адаптер команд расширений: привязки', () => {
+  const key = (value: string) => ({
+    key: value,
+    mac: null,
+    windows: null,
+    linux: null,
+    when: null,
+  });
   const bound = (
     id: string,
     override: Partial<CommandContributionDto> = {},
   ): CommandContributionDto =>
-    command(id, { keybinding: 'Mod+Shift+G', ...override });
+    command(id, { keybindings: [key('Mod+Shift+G')], ...override });
 
-  it('собирает привязки: сначала keybinding, затем keybindings; только palette:true; в описание команды они не попадают', () => {
+  it('собирает привязки: из keybindings серверных команд; только palette:true; в описание команды они не попадают', () => {
     const { extensionCommands, registry } = setup(
       contributionsOf([
         bound('greet', {
           keybindings: [
+            key('Mod+Shift+G'),
             {
               key: 'Mod+J',
               mac: 'Ctrl+J',
@@ -442,7 +564,7 @@ describe('адаптер команд расширений: привязки', (
       ]),
     );
     expect(extensionCommands.bindings.value).toEqual([
-      { command: 'extension:acme.cmd:greet', key: 'Mod+Shift+G' },
+      { command: 'extension:acme.cmd:greet', ...key('Mod+Shift+G') },
       {
         command: 'extension:acme.cmd:greet',
         key: 'Mod+J',
@@ -482,10 +604,10 @@ describe('адаптер команд расширений: привязки', (
     );
     const before = registry.list.value.map(({ run }) => run);
     contributions.value = contributionsOf([
-      bound('greet', { keybinding: 'Mod+Shift+H' }),
+      bound('greet', { keybindings: [key('Mod+Shift+H')] }),
     ]);
     expect(extensionCommands.bindings.value).toEqual([
-      { command: 'extension:acme.cmd:greet', key: 'Mod+Shift+H' },
+      { command: 'extension:acme.cmd:greet', ...key('Mod+Shift+H') },
     ]);
     expect(registry.list.value.map(({ run }) => run)).toEqual(before);
   });

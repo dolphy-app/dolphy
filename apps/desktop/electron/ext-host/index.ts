@@ -33,7 +33,6 @@ const handle = async (
     // расширения хост не ищет: набор приходит от движка сообщением `replaceExtensions`
     // после каждого подключения порта
     runtime = createExtensionRuntime({
-      extensions: [],
       library,
       logger,
     });

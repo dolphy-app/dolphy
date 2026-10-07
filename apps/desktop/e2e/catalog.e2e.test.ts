@@ -72,15 +72,6 @@ const STATE: CatalogSource = {
   description: 'Настройки и события обучения',
   author: 'acme',
 };
-const COMMANDS: CatalogSource = {
-  dir: fileURLToPath(new URL('./fixtures/commands-extension', import.meta.url)),
-  name: 'Commands',
-  description: 'Команды и панель для проверки',
-  author: 'acme',
-};
-/** Единственная тема, название которой совпадает с названием расширения. */
-const SUNSET_SAME_NAME: CatalogSource = { ...SUNSET, name: 'Закат' };
-
 const SUNRISE_THEME = 'Рассвет';
 const SUNRISE_NEW_THEME = 'Зарево';
 const ID = 'acme.sunrise';
@@ -152,7 +143,7 @@ afterEach(async () => {
 });
 
 describe('Настройки → Расширения → Каталог', () => {
-  it('список, поиск без учёта регистра, фильтр по виду вклада; недоступное на платформе скрыто', async () => {
+  it('список, поиск без учёта регистра, фильтр по тегу; недоступное на платформе скрыто', async () => {
     const catalogServer = await serve(
       SUNRISE_1_0,
       SUNSET,
@@ -179,9 +170,10 @@ describe('Настройки → Расширения → Каталог', () =>
     await expect.poll(() => catalog.catalogNames()).toEqual(['Sunset']);
     await catalog.search('');
 
-    await catalog.toggleKind('Виды заданий');
+    await catalog.openMoreFilters();
+    await catalog.toggleTag('Обучение');
     await expect.poll(() => catalog.catalogNames()).toEqual(['Echo']);
-    await catalog.toggleKind('Виды заданий');
+    await catalog.toggleTag('Обучение');
     await catalog.search('нет такого расширения');
     await expect
       .poll(() =>
@@ -575,8 +567,8 @@ describe('Отзыв и целостность', () => {
   });
 });
 
-describe('Каталог: группы, теги и названия вкладов', () => {
-  it('группы с числами, «Ещё фильтры», теги и виды: «или» в ряду, «и» между рядами и с поиском', async () => {
+describe('Каталог: группы и теги', () => {
+  it('группы с числами, «Ещё фильтры», теги: «или» в ряду, «и» между рядами и с поиском', async () => {
     const catalogServer = await serve(SUNRISE_1_0, SUNSET, FUTURE, ECHO, STATE);
     const { client, catalog } = await launch(
       workspace!.userData,
@@ -585,7 +577,7 @@ describe('Каталог: группы, теги и названия вклад�
     await client.openSettingsExtensions();
     await catalog.openCatalogTab();
 
-    // Sunset — явные теги, остальные темы — по вкладам; Echo и State — «Обучение»
+    // группы строятся по явным тегам манифеста
     await expectVisible(catalog.groupChip('Оформление и интерфейс'));
     await expectCount(catalog.groupChip('Оформление и интерфейс'), 1);
     expect(
@@ -599,14 +591,14 @@ describe('Каталог: группы, теги и названия вклад�
     // пустая группа скрыта
     await expectCount(catalog.groupChip('Для разработчиков'), 0);
 
-    // «Ещё фильтры» свёрнуты: чипов видов и тегов не видно
+    // «Ещё фильтры» свёрнуты: чипов тегов не видно
     await expectAttribute(
       catalog.moreFiltersButton(),
       'aria-expanded',
       'false',
     );
     await expectCount(
-      catalog.page.getByRole('button', { name: 'Виды заданий', exact: true }),
+      catalog.page.getByRole('button', { name: 'Тема', exact: true }),
       0,
     );
 
@@ -648,18 +640,11 @@ describe('Каталог: группы, теги и названия вклад�
     await catalog.toggleTag('Обучение');
     await catalog.toggleTag('Тема');
 
-    // вид вклада «и» с группой
-    await catalog.toggleKind('Виды заданий');
-    await expect.poll(() => catalog.catalogNames()).toEqual(['Echo', 'State']);
-    await catalog.toggleGroup('Оформление и интерфейс');
-    await expect.poll(() => catalog.catalogNames()).toEqual([]);
-    await expectText(catalog.foundStatus(), 'ничего не найдено');
-    await catalog.toggleGroup('Оформление и интерфейс');
-
     // поиск «и» с чипами; числа следуют за поиском
+    await catalog.toggleTag('Обучение');
     await catalog.search('закат');
     await expect.poll(() => catalog.catalogNames()).toEqual([]);
-    await catalog.toggleKind('Виды заданий');
+    await catalog.toggleTag('Обучение');
     await expect.poll(() => catalog.catalogNames()).toEqual(['Sunset']);
     await expectCount(catalog.groupChip('Обучение'), 0);
     expect(
@@ -669,7 +654,7 @@ describe('Каталог: группы, теги и названия вклад�
     ).toBe('Оформление и интерфейс: 1');
   });
 
-  it('«Ещё фильтры» раскрыты, пока выбран тег или вид, и остаются раскрытыми после снятия; клавиатура переключает чипы', async () => {
+  it('«Ещё фильтры» раскрыты, пока выбран тег, и остаются раскрытыми после снятия; клавиатура переключает чипы', async () => {
     const catalogServer = await serve(SUNRISE_1_0, ECHO);
     const { client, catalog } = await launch(
       workspace!.userData,
@@ -679,10 +664,10 @@ describe('Каталог: группы, теги и названия вклад�
     await catalog.openCatalogTab();
 
     await catalog.openMoreFilters();
-    await catalog.toggleKind('Темы');
+    await catalog.toggleTag('Тема');
     await expectDisabled(catalog.moreFiltersButton(), true);
     await expectAttribute(catalog.moreFiltersButton(), 'aria-expanded', 'true');
-    await catalog.toggleKind('Темы');
+    await catalog.toggleTag('Тема');
     await expectDisabled(catalog.moreFiltersButton(), false);
     await expectAttribute(catalog.moreFiltersButton(), 'aria-expanded', 'true');
     await catalog.moreFiltersButton().click();
@@ -706,52 +691,6 @@ describe('Каталог: группы, теги и названия вклад�
     ).toBe(true);
   });
 
-  it('чипы вкладов показывают названия, а не id; события — по-русски; единственная тема с названием расширения не повторяется', async () => {
-    const catalogServer = await serve(
-      SUNRISE_1_0,
-      STATE,
-      COMMANDS,
-      SUNSET_SAME_NAME,
-    );
-    const { client, catalog } = await launch(
-      workspace!.userData,
-      catalogServer.url,
-    );
-    await client.openSettingsExtensions();
-    await catalog.openCatalogTab();
-
-    const point = (id: string, name: string) =>
-      catalog.catalogCard(id).locator(`[data-point="${name}"]`);
-
-    const themes = point(ID, 'themes');
-    await expectText(themes, SUNRISE_THEME);
-    expect(await themes.innerText()).not.toContain(ID);
-    // id остаётся подсказкой
-    expect(
-      await themes
-        .locator('.v-chip', { hasText: SUNRISE_THEME })
-        .getAttribute('title'),
-    ).toBe(ID);
-
-    const commands = point('acme.commands', 'commands');
-    await expectText(commands, 'Поприветствовать');
-    expect(await commands.innerText()).not.toContain('acme.commands.greet');
-    await expectText(point('acme.commands', 'panels'), 'Приветствия');
-
-    const events = point('acme.state', 'events');
-    await expectText(events, 'Начало занятия');
-    await expectText(events, 'Конец занятия');
-    await expectText(events, 'Закрытие попытки');
-    expect(await events.innerText()).not.toContain('session.started');
-    await expectText(point('acme.state', 'settings'), 'Приветствие');
-    // виды заданий — идентификатор моноширинно
-    await expectText(point('acme.state', 'exerciseTypes'), 'acme.state');
-
-    // карточка уже называется «Закат»: строка с той же единственной темой не нужна
-    await expectVisible(catalog.catalogCard('acme.sunset'));
-    await expectCount(point('acme.sunset', 'themes'), 0);
-  });
-
   it('диалог установки и список установленных показывают названия и теги', async () => {
     const catalogServer = await serve(SUNSET);
     const { client, catalog } = await launch(
@@ -763,14 +702,12 @@ describe('Каталог: группы, теги и названия вклад�
 
     const card = catalog.catalogCard('acme.sunset');
     await expectText(card.locator('[data-point="tags"]'), 'Тема');
-    await expectText(card.locator('[data-point="themes"]'), 'Закат');
 
     await catalog.installButton('acme.sunset').click();
     await expectText(
       catalog.dialog.locator('[data-point="tags"]'),
       'Интерфейс',
     );
-    await expectText(catalog.dialog.locator('[data-point="themes"]'), 'Закат');
     await catalog.confirmInstall();
     await catalog.closeDialog();
 

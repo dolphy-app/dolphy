@@ -1,48 +1,35 @@
 import { spawn } from 'node:child_process';
-import {
-  defineAnswerView,
-  defineExerciseType,
-  defineExtension,
-  defineExtensionPanel,
-  defineExtensionWidget,
-  defineMarkdownRenderer,
-} from '@dolphy-app/extension-sdk';
 import { defineComponent, h } from 'vue';
 import { shout } from './shout.ts';
-
-export const host = defineExtension({
-  exerciseTypes: {
-    'acme.surfaces.one': defineExerciseType({
-      project: () => 'HOST_ONLY_MARKER',
-      grade: () => {
-        spawn('true');
-        return { outcome: 'passed' };
-      },
-    }),
-  },
-});
 
 const text = (marker: string) =>
   defineComponent({ render: () => h('p', marker) });
 
-export const views = {
-  'acme.surfaces.one': defineAnswerView(text('VIEW_ONE_MARKER')),
-  'acme.surfaces.two': defineAnswerView(text(shout('VIEW_TWO_MARKER'))),
-  'acme.surfaces.three': defineAnswerView(text('VIEW_THREE_MARKER')),
+export const server = (s) => {
+  s.registerExerciseType({
+    id: 'acme.surfaces.one',
+    specSchema: { type: 'object' },
+    answerSchema: { type: 'string' },
+    project: () => 'SERVER_ONLY_MARKER',
+    grade: () => {
+      spawn('true');
+      return { outcome: 'passed' };
+    },
+  });
 };
 
-export const panels = {
-  'acme.surfaces.first': defineExtensionPanel(text('PANEL_FIRST_MARKER')),
-  'acme.surfaces.second': defineExtensionPanel(text('PANEL_SECOND_MARKER')),
-};
-
-export const widgets = {
-  'acme.surfaces.card': defineExtensionWidget(text('WIDGET_CARD_MARKER')),
-  'acme.surfaces.gauge': defineExtensionWidget(text('WIDGET_GAUGE_MARKER')),
-  'acme.surfaces.badge': defineExtensionWidget(text('WIDGET_BADGE_MARKER')),
-};
-
-export const markdown = {
-  alpha: defineMarkdownRenderer(text('ALPHA_MARKER')),
-  beta: defineMarkdownRenderer(text('BETA_MARKER')),
+export const client = (c) => {
+  c.addAnswerView('acme.surfaces.one', text('VIEW_ONE_MARKER'));
+  c.addAnswerView('acme.surfaces.two', text(shout('VIEW_TWO_MARKER')));
+  c.addPanel({
+    id: 'acme.surfaces.first',
+    title: 'First',
+    component: text('PANEL_FIRST_MARKER'),
+  });
+  c.addInjection({
+    id: 'acme.surfaces.plan',
+    target: '[data-ext-anchor="dailyPlan"]',
+    component: text('INJECTION_CARD_MARKER'),
+  });
+  c.addMarkdownRenderer('alpha', text('ALPHA_MARKER'));
 };

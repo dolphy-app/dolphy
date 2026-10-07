@@ -263,9 +263,7 @@ describe('toExerciseDto', () => {
     expect(dto.task).toEqual({
       type: 'dolphy.sql',
       timeoutMs: 500,
-      rendererUrl: 'dolphy-ext://fake/dolphy.sql.mjs',
-      origin: 'user',
-      revision: 'rev-0',
+      extensionId: 'dolphy.sql',
     });
   });
 

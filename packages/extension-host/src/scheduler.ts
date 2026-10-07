@@ -1,5 +1,8 @@
 import { EXTENSION_SCHEDULE_LIMITS } from '@dolphy-app/extension-api';
-import type { ExtensionLogger } from '@dolphy-app/extension-api';
+import type {
+  ExtensionLogger,
+  RegisteredSchedule,
+} from '@dolphy-app/extension-api';
 import type {
   ExtensionHealth,
   ExtensionPolicy,
@@ -7,11 +10,9 @@ import type {
 import type { HostChannel } from './channel.ts';
 import type { DiscoverySource } from './holder.ts';
 import { isFault } from './protocol.ts';
-import type { ResolvedSchedule } from './points/types.ts';
 
 /**
- * Срок доставки одного срабатывания: ленивая активация, запуск ограниченного
- * процесса и обработчик (10 с). Больше раннера ограниченного процесса (12 с).
+ * Срок доставки одного срабатывания: обработчик (10 с) и передача по каналу.
  */
 export const SCHEDULE_DELIVERY_MS = 14_000;
 
@@ -32,7 +33,7 @@ const validAt = (
  * срабатывает один раз (по первому вхождению).
  */
 export const latestOccurrence = (
-  schedule: Pick<ResolvedSchedule, 'every' | 'at'>,
+  schedule: Pick<RegisteredSchedule, 'every' | 'at'>,
   cursor: number,
   now: number,
   lateMs: number,
@@ -107,7 +108,7 @@ export interface Scheduler {
 /**
  * Планировщик расписаний расширений (R12). Раз в `tickMs` смотрит, какие
  * срабатывания пришлись на время после прошлой проверки, и отправляет
- * `fireSchedule` (ленивая активация, как у событий). В памяти хранится только
+ * `fireSchedule`. В памяти хранится только
  * курсор прошлой проверки: пока приложение закрыто или спит, ничего не
  * копится, а срабатывание, обнаруженное позже `lateMs`, пропускается и не
  * воспроизводится. Расширения и политика читаются на каждом тике, поэтому

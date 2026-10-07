@@ -40,6 +40,7 @@ import type {
   OpenAttempt,
 } from './context.ts';
 import { createEventBus } from './event-bus.ts';
+import { createExtensionHostServices } from './services/extension-host-services.ts';
 import { createExtensionApply } from './extension-apply.ts';
 import { checkLibraryRoot, invalidStatus } from './library-root.ts';
 import { createExpiringMap } from './expiring-map.ts';
@@ -151,24 +152,6 @@ export const createContext = async (
   for (const filter of await settings.listFilters()) {
     savedFilters.set(filter.id, filter);
   }
-
-  const openStarted = performance.now();
-  const rootProblem = await checkLibraryRoot(courseSource);
-  const status: LibraryStatus =
-    rootProblem === null
-      ? await openLibrary(
-          courseSource,
-          { clock },
-          {
-            compile: {
-              scan: { ignoredPaths: preferences.ignored_paths },
-              checks: { exerciseTypes: deps.exerciseTypes },
-            },
-          },
-        )
-      : invalidStatus(rootProblem, clock);
-  library.swap(status);
-  metrics.openLibraryMs = performance.now() - openStarted;
 
   const currentLibrary = (): Library | null =>
     library.current()?.library ?? null;
@@ -390,6 +373,25 @@ export const createContext = async (
     markDirty,
     invalidateDerived,
   };
+
+  await deps.beforeLibrary?.(createExtensionHostServices(ctx));
+  const openStarted = performance.now();
+  const rootProblem = await checkLibraryRoot(courseSource);
+  const status: LibraryStatus =
+    rootProblem === null
+      ? await openLibrary(
+          courseSource,
+          { clock },
+          {
+            compile: {
+              scan: { ignoredPaths: preferences.ignored_paths },
+              checks: { exerciseTypes: deps.exerciseTypes },
+            },
+          },
+        )
+      : invalidStatus(rootProblem, clock);
+  library.swap(status);
+  metrics.openLibraryMs = performance.now() - openStarted;
 
   await runRebuild(false);
   return ctx;

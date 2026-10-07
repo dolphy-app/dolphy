@@ -250,8 +250,6 @@ describe('createInstallLinks', () => {
         version: '1.0.0',
         installedVersion: null,
         dependencies: [],
-        contributes: catalogEntry('x').contributes,
-        titles: {},
         tags: [],
         platforms: [],
         sizeBytes: 1,

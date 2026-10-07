@@ -7,6 +7,7 @@ import {
 import { EXTENSION_TAGS } from '@dolphy-app/extension-api';
 import { EVENT_MESSAGE_KEYS } from '@/pages/settings/lib/catalog.ts';
 import { GROUPS } from '@/pages/settings/lib/tags.ts';
+import { CONTRIBUTION_POINTS } from '@/pages/settings/model/extensions.ts';
 import { messages as settingsMessages } from '@/pages/settings/i18n/index.ts';
 import { russianPluralRule } from '@/shared/i18n';
 
@@ -46,6 +47,12 @@ describe('строки «Расширения»', () => {
     );
   });
 
+  it('сбой загрузки кода показывает причину из диагностики на обоих языках', () => {
+    for (const locale of ['ru', 'en'] as const) {
+      expect(leaf(locale, 'diagnostic.load-failed')).toContain('{reason}');
+    }
+  });
+
   it('каждый код диагностики имеет текст на обоих языках', () => {
     for (const locale of ['ru', 'en'] as const) {
       for (const code of EXTENSION_DIAGNOSTIC_CODES) {
@@ -79,6 +86,17 @@ describe('строки «Расширения»', () => {
       for (const key of Object.values(EVENT_MESSAGE_KEYS)) {
         expect(leaf(locale, `events.${key}`), key).not.toBe('');
       }
+    }
+  });
+
+  it('каждая точка вклада и сообщение о сбое клиентской части есть на обоих языках', () => {
+    for (const locale of ['ru', 'en'] as const) {
+      for (const point of CONTRIBUTION_POINTS) {
+        expect(leaf(locale, `points.${point}`), `${locale} ${point}`).not.toBe(
+          '',
+        );
+      }
+      expect(leaf(locale, 'clientFailed.title'), locale).not.toBe('');
     }
   });
 

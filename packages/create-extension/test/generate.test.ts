@@ -41,17 +41,48 @@ describe('generateExtension', () => {
       'README.md',
       'extension.json',
       'package.json',
+      'src/client.ts',
       'src/index.ts',
+      'src/server.ts',
+      'src/text-answer.ts',
       'test/index.test.ts',
       'tsconfig.json',
     ]);
   });
 
   it.each([
-    ['exercise', ['src/index.ts', 'test/index.test.ts']],
-    ['theme', ['test/theme.test.ts']],
-    ['command-panel', ['src/index.ts', 'test/index.test.ts']],
-    ['events', ['src/index.ts', 'test/index.test.ts']],
+    [
+      'exercise',
+      [
+        'src/client.ts',
+        'src/index.ts',
+        'src/server.ts',
+        'src/text-answer.ts',
+        'test/index.test.ts',
+      ],
+    ],
+    ['theme', ['src/index.ts', 'src/theme.ts', 'test/theme.test.ts']],
+    [
+      'command-panel',
+      [
+        'src/client.ts',
+        'src/hello-panel.ts',
+        'src/index.ts',
+        'src/server.ts',
+        'test/index.test.ts',
+      ],
+    ],
+    [
+      'events',
+      [
+        'src/client.ts',
+        'src/index.ts',
+        'src/server.ts',
+        'src/streak-panel.ts',
+        'src/streak.ts',
+        'test/index.test.ts',
+      ],
+    ],
     ['blank', ['src/index.ts', 'test/index.test.ts']],
   ])(
     'template %s has its own files; the shared ones are always there',
@@ -246,8 +277,7 @@ describe('generateExtension', () => {
     expect(pkg['scripts']).toEqual({
       build: 'dolphy-ext build',
       dev: 'dolphy-ext build --watch',
-      types: 'dolphy-ext types',
-      typecheck: 'dolphy-ext types && tsc',
+      typecheck: 'tsc',
       validate: 'dolphy-ext validate dist-ext/acme.hello',
       lint: 'dolphy-ext lint',
       test: 'vitest run',
@@ -270,22 +300,39 @@ describe('generateExtension', () => {
     expect(pkg['devDependencies']).toHaveProperty('@dolphy-app/extension-api');
   });
 
-  it('manifest passes parseManifest; code is bound to the id type from the manifest', async () => {
+  it.each(TEMPLATE_NAMES)(
+    'template %s: the manifest is identity only and passes parseManifest',
+    async (template) => {
+      const root = await makeTemp();
+      const { dir, id } = await generateExtension({
+        dir: path.join(root, 'x'),
+        id: 'acme.hello',
+        template,
+      });
+      const raw = await readJson(path.join(dir, 'extension.json'));
+      expect(raw).not.toHaveProperty('contributes');
+      const parsed = parseManifest(raw);
+      if (!parsed.ok) throw new Error(formatDiagnostic(parsed.diagnostic));
+      expect(parsed.manifest.id).toBe(id);
+    },
+  );
+
+  it('the exercise template registers its type on the server and its view on the client', async () => {
     const root = await makeTemp();
     const { dir, id } = await generateExtension({
       dir: path.join(root, 'x'),
       id: 'acme.hello',
     });
-    const parsed = parseManifest(
-      await readJson(path.join(dir, 'extension.json')),
-    );
-    if (!parsed.ok) throw new Error(formatDiagnostic(parsed.diagnostic));
-    const [type] = parsed.manifest.contributes.exerciseTypes;
-    expect(type?.id).toBe(id);
     const index = await readFile(path.join(dir, 'src/index.ts'), 'utf8');
-    expect(index).toContain(`'${id}': defineExerciseType`);
-    expect(index).toContain(`'${id}': defineAnswerView`);
-    expect(index).not.toContain('defineAnswerElement');
+    expect(index).toContain("export { client } from './client.ts';");
+    expect(index).toContain("export { server } from './server.ts';");
+    const server = await readFile(path.join(dir, 'src/server.ts'), 'utf8');
+    expect(server).toContain(`id: '${id}',`);
+    expect(server).toContain('s.registerExerciseType(');
+    expect(server).not.toContain("from 'vue'");
+    const client = await readFile(path.join(dir, 'src/client.ts'), 'utf8');
+    expect(client).toContain(`c.addAnswerView('${id}', TextAnswer)`);
+    expect(client).not.toContain('node:');
   });
 
   it('the project depends on the vue and vuetify of the app', async () => {

@@ -11,7 +11,7 @@ import {
   filterEntries,
   hasActiveFilters,
 } from '../lib/catalog.ts';
-import type { ContributionPoint, FacetCounts } from '../lib/catalog.ts';
+import type { FacetCounts } from '../lib/catalog.ts';
 import type { ExtensionTag, TagGroup } from '../lib/tags.ts';
 
 /** `idle` — вкладку ещё не открывали, индекс не запрашивался. */
@@ -25,12 +25,11 @@ export interface CatalogModel {
   query: Ref<string>;
   groups: ShallowRef<ReadonlySet<TagGroup>>;
   tags: ShallowRef<ReadonlySet<ExtensionTag>>;
-  kinds: ShallowRef<ReadonlySet<ContributionPoint>>;
   /** Числа в чипах: под поиском, без учёта выбранных фильтров. */
   counts: ComputedRef<FacetCounts>;
-  /** Блок «Ещё фильтры» раскрыт (кнопкой или выбором тега/вида) и остаётся так после снятия выбора. */
+  /** Блок «Ещё фильтры» раскрыт (кнопкой или выбором тега) и остаётся так после снятия выбора. */
   moreOpen: Ref<boolean>;
-  /** Выбран тег или вид вклада: блок «Ещё фильтры» раскрыт и не сворачивается. */
+  /** Выбран тег: блок «Ещё фильтры» раскрыт и не сворачивается. */
   moreActive: ComputedRef<boolean>;
   isFiltered: ComputedRef<boolean>;
   /** Показан сохранённый индекс: свежий получить не удалось. */
@@ -48,7 +47,6 @@ export interface CatalogModel {
   load(options?: { refresh?: boolean }): Promise<void>;
   setGroup(group: TagGroup, on: boolean): void;
   setTag(tag: ExtensionTag, on: boolean): void;
-  setKind(point: ContributionPoint, on: boolean): void;
   resetFilters(): void;
 }
 
@@ -65,7 +63,6 @@ export const useCatalog = (engine: LearningEngine): CatalogModel => {
   const query = ref('');
   const groups = shallowRef<ReadonlySet<TagGroup>>(new Set());
   const tags = shallowRef<ReadonlySet<ExtensionTag>>(new Set());
-  const kinds = shallowRef<ReadonlySet<ContributionPoint>>(new Set());
   const moreOpen = ref(false);
   const stale = ref(false);
   const notice = ref<string | null>(null);
@@ -78,14 +75,11 @@ export const useCatalog = (engine: LearningEngine): CatalogModel => {
     query: query.value,
     groups: groups.value,
     tags: tags.value,
-    kinds: kinds.value,
   }));
   const visible = computed(() => filterEntries(entries.value, filters.value));
   const isFiltered = computed(() => hasActiveFilters(filters.value));
   const counts = computed(() => facetCounts(entries.value, query.value));
-  const moreActive = computed(
-    () => tags.value.size > 0 || kinds.value.size > 0,
-  );
+  const moreActive = computed(() => tags.value.size > 0);
 
   const accept = (catalog: CatalogDto) => {
     entries.value = catalog.entries;
@@ -134,21 +128,16 @@ export const useCatalog = (engine: LearningEngine): CatalogModel => {
   const setGroup = (group: TagGroup, on: boolean) => {
     groups.value = toggled(groups.value, group, on);
   };
-  // выбор тега или вида раскрывает блок насовсем: после снятия чип под курсором не исчезает
+  // выбор тега раскрывает блок насовсем: после снятия чип под курсором не исчезает
   const setTag = (tag: ExtensionTag, on: boolean) => {
     if (on) moreOpen.value = true;
     tags.value = toggled(tags.value, tag, on);
-  };
-  const setKind = (point: ContributionPoint, on: boolean) => {
-    if (on) moreOpen.value = true;
-    kinds.value = toggled(kinds.value, point, on);
   };
 
   const resetFilters = () => {
     query.value = '';
     groups.value = new Set();
     tags.value = new Set();
-    kinds.value = new Set();
   };
 
   const unsubscribe = engine.subscribe((event) => {
@@ -166,7 +155,6 @@ export const useCatalog = (engine: LearningEngine): CatalogModel => {
     query,
     groups,
     tags,
-    kinds,
     counts,
     moreOpen,
     moreActive,
@@ -180,7 +168,6 @@ export const useCatalog = (engine: LearningEngine): CatalogModel => {
     load,
     setGroup,
     setTag,
-    setKind,
     resetFilters,
   };
 };

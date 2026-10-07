@@ -8,7 +8,9 @@ import { createHostChannel } from '../src/channel.ts';
 import { createRemoteExerciseTypes } from '../src/client.ts';
 import { discoverExtensions } from '../src/discover.ts';
 import { createAllEnabledPolicy } from '../src/policy.ts';
-import { createLogger, holderOf } from './helpers.ts';
+import { createDiscoveryHolder, discoveryOf } from '../src/holder.ts';
+import { createLogger, deferred } from './helpers.ts';
+import type { Deferred } from './helpers.ts';
 
 const childPath = fileURLToPath(
   new URL('./fixtures/host-child.mjs', import.meta.url),
@@ -62,16 +64,60 @@ const spawnHost = async (): Promise<ChildProcess> => {
 };
 
 describe('extension host в отдельном процессе', () => {
-  it('падение расширения во время grade → worker_crash, новый процесс работает', async () => {
+  it('набор расширений приходит по каналу, хост регистрирует их в своём процессе', async () => {
     const { extensions } = await discoverExtensions({
       roots: [{ dir: extensionsDir, origin: 'bundled' }],
       logger: createLogger(),
     });
+    const holder = createDiscoveryHolder(discoveryOf(extensions));
+    const registered = deferred();
+    const channel = createHostChannel({
+      logger: createLogger(),
+      connectTimeoutMs: 5000,
+      currentExtensions: () => holder.get().candidates,
+      onRegistrations: (result) => {
+        holder.applyRegistrations(result);
+        registered.resolve();
+      },
+    });
+    // до подключения хоста вкладов нет: их регистрирует код расширений
+    expect(
+      holder.get().extensions.flatMap(({ exerciseTypes }) => exerciseTypes),
+    ).toEqual([]);
+
+    channel.attach(ipcEndpoint(await spawnHost()));
+    await registered.promise;
+    const types = holder
+      .get()
+      .extensions.flatMap(({ exerciseTypes }) => exerciseTypes)
+      .map(({ id }) => id);
+    expect(types).toEqual(
+      expect.arrayContaining(['acme.echo', 'acme.crash', 'acme.minimal']),
+    );
+    expect(holder.get().diagnostics).toEqual([]);
+    await channel.close();
+  });
+
+  it('падение расширения во время grade → worker_crash, новый процесс получает набор и работает', async () => {
+    const { extensions } = await discoverExtensions({
+      roots: [{ dir: extensionsDir, origin: 'bundled' }],
+      logger: createLogger(),
+    });
+    const holder = createDiscoveryHolder(discoveryOf(extensions));
     const logger = createLogger();
-    const channel = createHostChannel({ logger, connectTimeoutMs: 5000 });
+    let registered: Deferred = deferred();
+    const channel = createHostChannel({
+      logger,
+      connectTimeoutMs: 5000,
+      currentExtensions: () => holder.get().candidates,
+      onRegistrations: (result) => {
+        holder.applyRegistrations(result);
+        registered.resolve();
+      },
+    });
     const client = createRemoteExerciseTypes({
       channel,
-      catalog: createCatalog(holderOf(extensions), createAllEnabledPolicy()),
+      catalog: createCatalog(holder, createAllEnabledPolicy()),
       logger,
     });
     const grade = (type: string, answer: string) =>
@@ -86,6 +132,7 @@ describe('extension host в отдельном процессе', () => {
 
     const first = await spawnHost();
     channel.attach(ipcEndpoint(first));
+    await registered.promise;
     expect(await grade('acme.echo', '42')).toMatchObject({ outcome: 'passed' });
     expect(await grade('acme.crash', 'crash')).toMatchObject({
       outcome: 'error',
@@ -93,11 +140,12 @@ describe('extension host в отдельном процессе', () => {
     });
     expect(first.exitCode).toBe(3);
 
-    // между падением и новым attach вызовы ждут хост, а не падают
-    const waiting = grade('acme.echo', '42');
+    // перезапущенный хост не знает расширений, пока канал не пришлёт набор при подключении
+    registered = deferred();
     const second = await spawnHost();
     channel.attach(ipcEndpoint(second));
-    expect(await waiting).toMatchObject({ outcome: 'passed' });
+    await registered.promise;
+    expect(await grade('acme.echo', '42')).toMatchObject({ outcome: 'passed' });
     expect(await grade('acme.echo', '1')).toMatchObject({
       outcome: 'failed',
       reason: 'mismatch',

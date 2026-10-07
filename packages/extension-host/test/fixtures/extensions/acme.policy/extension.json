@@ -2,12 +2,5 @@
   "id": "acme.policy",
   "version": "1.0.0",
   "apiVersion": 1,
-  "contributes": {
-    "gradePolicies": [
-      { "id": "acme.policy.generous", "label": "Generous" },
-      { "id": "acme.policy.broken", "label": "Broken" },
-      { "id": "acme.policy.throws", "label": "Throws" },
-      { "id": "acme.policy.forgotten", "label": "Forgotten" }
-    ]
-  }
+  "main": "./main.mjs"
 }

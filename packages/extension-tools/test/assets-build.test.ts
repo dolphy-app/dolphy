@@ -8,35 +8,32 @@ import { copyProject } from './helpers.ts';
 const SMALL = png(64);
 const BIG = png(128, 128, { padding: 9000 });
 
-const indexSource = (body: string, imports = '') => `import {
-  defineExtension,
-  defineExtensionPanel,
-} from '@dolphy-app/extension-sdk';
-import { defineComponent, h } from 'vue';
+const indexSource = (
+  body: string,
+  imports = '',
+) => `import { defineComponent, h } from 'vue';
 ${imports}
 
-export const host = defineExtension({});
-
-export const panels = {
-  'acme.commands-panel.main': defineExtensionPanel(
-    defineComponent({
-      render: () => h('p', ${body}),
-    }),
-  ),
+export const client = (c) => {
+  c.addPanel({
+    id: 'acme.commands-panel.main',
+    title: 'P',
+    component: defineComponent({ render: () => h('p', ${body}) }),
+  });
 };
 `;
 
-/** The panel fixture without commands (the host stays empty) and with the given sources. */
+/** The commands-panel fixture with the given sources written over it. */
 const project = async (
   files: Record<string, string | Uint8Array>,
   manifest: (value: Record<string, unknown>) => void = () => undefined,
 ): Promise<string> => {
   const root = await copyProject('commands-panel');
   const manifestFile = path.join(root, 'extension.json');
-  const value = JSON.parse(await readFile(manifestFile, 'utf8')) as {
-    contributes: Record<string, unknown>;
-  };
-  value.contributes.commands = [];
+  const value = JSON.parse(await readFile(manifestFile, 'utf8')) as Record<
+    string,
+    unknown
+  >;
   manifest(value);
   await writeFile(manifestFile, JSON.stringify(value));
   for (const [file, content] of Object.entries(files)) {
@@ -63,16 +60,12 @@ describe('dolphy-ext build: style sheets', () => {
       'src/big.png': BIG,
     });
     const { dir, files } = await build(root);
-    expect(files).toEqual(['extension.json', 'panel.mjs']);
-    const panel = await readFile(path.join(dir, 'panel.mjs'), 'utf8');
-    expect(panel).toContain(
+    expect(files).toEqual(['client.mjs', 'extension.json']);
+    const client = await readFile(path.join(dir, 'client.mjs'), 'utf8');
+    expect(client).toContain(
       '.p{color:red;background:url(data:image/png;base64,',
     );
-    expect(await validateExtension(dir)).toEqual({
-      ok: true,
-      problems: [],
-      warnings: [],
-    });
+    expect(await validateExtension(dir)).toEqual({ ok: true, problems: [] });
   });
 
   it('a plain import of a style sheet is an error that names the way out', async () => {
@@ -82,9 +75,9 @@ describe('dolphy-ext build: style sheets', () => {
     });
     const error = await build(root).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(BuildError);
-    expect((error as BuildError).message).toContain(
-      "import css from './side.css?inline'",
-    );
+    expect(error).toMatchObject({
+      message: expect.stringContaining("import css from './side.css?inline'"),
+    });
   });
 });
 
@@ -98,8 +91,8 @@ describe('dolphy-ext build: images and fonts', () => {
       'src/small.png': SMALL,
     });
     const { dir, files } = await build(root);
-    expect(files).toEqual(['extension.json', 'panel.mjs']);
-    expect(await readFile(path.join(dir, 'panel.mjs'), 'utf8')).toContain(
+    expect(files).toEqual(['client.mjs', 'extension.json']);
+    expect(await readFile(path.join(dir, 'client.mjs'), 'utf8')).toContain(
       'data:image/png;base64,',
     );
   });
@@ -117,9 +110,9 @@ describe('dolphy-ext build: images and fonts', () => {
     expect(names).toHaveLength(1);
     expect(names[0]).toMatch(/^big-[\w-]+\.png$/);
     expect(first.files).toContain(`assets/${names[0]}`);
-    const panel = await readFile(path.join(first.dir, 'panel.mjs'), 'utf8');
-    expect(panel).toContain(`new URL("assets/${names[0]}", import.meta.url)`);
-    expect(panel).not.toContain('data:image/png');
+    const client = await readFile(path.join(first.dir, 'client.mjs'), 'utf8');
+    expect(client).toContain(`new URL("assets/${names[0]}", import.meta.url)`);
+    expect(client).not.toContain('data:image/png');
     expect(
       new Uint8Array(
         await readFile(path.join(first.dir, 'assets', names[0] ?? '')),
@@ -128,35 +121,10 @@ describe('dolphy-ext build: images and fonts', () => {
     expect(await validateExtension(first.dir)).toEqual({
       ok: true,
       problems: [],
-      warnings: [],
     });
     // the same sources, the same file
     const second = await build(root);
     expect(await assetsOf(second.dir)).toEqual(names);
-  });
-
-  it('a module in a subdirectory reaches assets/ with ../', async () => {
-    const root = await project(
-      {
-        'src/index.ts': indexSource(
-          'new URL("./big.png", import.meta.url).href',
-        ),
-        'src/big.png': BIG,
-      },
-      (manifest) => {
-        const contributes = manifest.contributes as {
-          panels: { module?: string }[];
-        };
-        if (contributes.panels[0] !== undefined) {
-          contributes.panels[0].module = './ui/screen.js';
-        }
-      },
-    );
-    const { dir, files } = await build(root);
-    expect(files.some((file) => file.startsWith('assets/big-'))).toBe(true);
-    expect(await readFile(path.join(dir, 'ui/screen.js'), 'utf8')).toContain(
-      'new URL("../assets/big-',
-    );
   });
 });
 
@@ -202,7 +170,7 @@ describe('dolphy-ext build: the assets/ directory and the output check', () => {
       const root = await project({ ...sources, [file]: content });
       const error = await build(root).catch((e: unknown) => e);
       expect(error).toBeInstanceOf(BuildError);
-      expect((error as BuildError).message).toMatch(pattern);
+      expect(error).toMatchObject({ message: expect.stringMatching(pattern) });
     },
   );
 

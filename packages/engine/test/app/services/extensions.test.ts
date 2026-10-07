@@ -11,15 +11,11 @@ import { createTestEngine } from '../../helpers/engine.ts';
 
 const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
   exerciseTypes: [],
-  themes: [],
-  markdownRenderers: [],
   gradePolicies: [],
   settings: [],
   events: [],
   commands: [],
-  widgets: [],
   schedules: [],
-  panels: [],
   importers: [],
   exporters: [],
 };
@@ -38,8 +34,6 @@ const info = (overrides: Partial<ExtensionInfoDto>): ExtensionInfoDto => ({
   dependencies: [],
   installed: null,
   icon: null,
-  titles: {},
-  messages: {},
   tags: [],
   removable: false,
   revoked: null,
@@ -85,43 +79,26 @@ describe('extensions.list', () => {
     expect(await engine.extensions.list()).toEqual([info({})]);
   });
 
-  it('returns copies of titles and tags too', async () => {
-    const titled = info({
-      titles: { themes: { 'dolphy.sql.night': 'Night' } },
-      tags: ['theme'],
-    });
-    const { engine } = await open([titled]);
+  it('returns copies of tags too', async () => {
+    const tagged = info({ tags: ['theme'] });
+    const { engine } = await open([tagged]);
     const [first] = await engine.extensions.list();
     first?.tags.push('developer');
-    if (first?.titles.themes !== undefined) {
-      first.titles.themes['dolphy.sql.night'] = 'changed';
-    }
-    expect(await engine.extensions.list()).toEqual([titled]);
+    expect(await engine.extensions.list()).toEqual([tagged]);
   });
 });
 
 describe('extensions.contributions', () => {
-  const theme = (id: string) => ({
-    id,
-    extensionId: 'a.ext',
-    label: id,
-    dark: false,
-    colors: { background: '#ffffff' },
-    variables: {},
-  });
-  const renderer = (language: string) => ({
-    language,
-    extensionId: 'a.ext',
-    rendererUrl: `dolphy-ext://a.ext/${language}.mjs`,
+  const client = (extensionId: string) => ({
+    extensionId,
+    url: `dolphy-ext://${extensionId}/client.mjs`,
     origin: 'user' as const,
     revision: 'rev-1',
   });
   const exerciseType = (type: string) => ({
     type,
     extensionId: 'a.ext',
-    rendererUrl: `dolphy-ext://a.ext/${type}.mjs`,
-    origin: 'dev' as const,
-    revision: 'rev-1',
+    title: null,
   });
   const policy = (id: string) => ({
     id,
@@ -129,35 +106,30 @@ describe('extensions.contributions', () => {
     label: id,
   });
   const contributions: RegistryContributions = {
+    clients: [client('b.ext'), client('a.ext')],
     exerciseTypes: [exerciseType('a.ext.z'), exerciseType('a.ext.b')],
-    themes: [theme('a.ext.z'), theme('a.ext.b')],
-    markdownRenderers: [renderer('math'), renderer('chart')],
     gradePolicies: [policy('a.ext.z'), policy('a.ext.b')],
     settings: [],
     commands: [],
-    widgets: [],
     schedules: [],
-    panels: [],
     importers: [],
     exporters: [],
-    messages: {},
   };
   const openWith = (source: RegistryContributions) =>
     createTestEngine({
       extensionRegistry: createFakeExtensionRegistry([], source),
     });
 
-  it('sorts themes by id, exercise types by type, renderers by language, extension policies by id', async () => {
+  it('sorts clients by extension, exercise types by type, extension policies by id', async () => {
     const { engine } = await openWith(contributions);
     const result = await engine.extensions.contributions();
-    expect(result.themes.map(({ id }) => id)).toEqual(['a.ext.b', 'a.ext.z']);
+    expect(result.clients.map(({ extensionId }) => extensionId)).toEqual([
+      'a.ext',
+      'b.ext',
+    ]);
     expect(result.exerciseTypes.map(({ type }) => type)).toEqual([
       'a.ext.b',
       'a.ext.z',
-    ]);
-    expect(result.markdownRenderers.map(({ language }) => language)).toEqual([
-      'chart',
-      'math',
     ]);
     expect(result.gradePolicies.map(({ id }) => id).slice(1)).toEqual([
       'a.ext.b',
@@ -175,12 +147,12 @@ describe('extensions.contributions', () => {
   it('returns copies: mutating the result does not affect the registry', async () => {
     const { engine } = await openWith(contributions);
     const first = await engine.extensions.contributions();
-    const [firstTheme] = first.themes;
-    if (firstTheme !== undefined) firstTheme.colors['background'] = 'x';
-    first.themes.pop();
+    const [firstClient] = first.clients;
+    if (firstClient !== undefined) firstClient.revision = 'x';
+    first.clients.pop();
     const second = await engine.extensions.contributions();
-    expect(second.themes).toHaveLength(2);
-    expect(second.themes[0]?.colors['background']).toBe('#ffffff');
+    expect(second.clients).toHaveLength(2);
+    expect(second.clients[0]?.revision).toBe('rev-1');
   });
 
   it('sorts schedules by extension, keeps the manifest order inside one, and returns copies', async () => {
@@ -206,22 +178,6 @@ describe('extensions.contributions', () => {
     ]);
     first.schedules.pop();
     expect((await engine.extensions.contributions()).schedules).toHaveLength(3);
-  });
-
-  it('passes the translation tables by extension id and returns copies of them', async () => {
-    const { engine } = await openWith({
-      ...contributions,
-      messages: { 'a.ext': { en: { greeting: 'Hello' }, ru: {} } },
-    });
-    const first = await engine.extensions.contributions();
-    expect(first.messages).toEqual({
-      'a.ext': { en: { greeting: 'Hello' }, ru: {} },
-    });
-    const table = first.messages['a.ext']?.en;
-    if (table !== undefined) table['greeting'] = 'changed';
-    expect(
-      (await engine.extensions.contributions()).messages['a.ext']?.en,
-    ).toEqual({ greeting: 'Hello' });
   });
 });
 

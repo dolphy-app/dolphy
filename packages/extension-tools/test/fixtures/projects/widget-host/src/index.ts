@@ -1,22 +1,15 @@
-import {
-  defineExtension,
-  defineExtensionWidget,
-} from '@dolphy-app/extension-sdk';
-import { useWidget } from '@dolphy-app/extension-sdk/client';
 import { defineComponent, h } from 'vue';
 import 'vuetify/styles';
 import { VAlert } from 'vuetify/components';
 
-export const host = defineExtension({});
+const card = defineComponent({
+  render: () => h(VAlert, { type: 'info' }, () => 'WIDGET_ALERT'),
+});
 
-export const widgets = {
-  'acme.widget-host.card': defineExtensionWidget(
-    defineComponent({
-      setup() {
-        const widget = useWidget();
-        return () =>
-          h(VAlert, { type: 'info' }, () => `WIDGET_ALERT ${widget.widgetId}`);
-      },
-    }),
-  ),
+export const client = (c) => {
+  c.addInjection({
+    id: 'acme.widget-host.card',
+    target: '[data-ext-anchor="dailyPlan"]',
+    component: card,
+  });
 };

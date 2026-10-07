@@ -9,35 +9,50 @@ const manifestJson = (id: string): string => `{
   "name": "Midnight",
   "description": "A dark color theme with an amber accent for the Dolphy app.",
   "author": "your-github-login",
-  "tags": ["theme"],
-  "contributes": {
-    "themes": [
-      {
-        "id": "${id}",
-        "label": "Midnight",
-        "dark": true,
-        "colors": {
-          "background": "#101820",
-          "surface": "#1B2733",
-          "on-background": "#E6EDF3",
-          "on-surface": "#E6EDF3",
-          "primary": "#FFB000",
-          "on-primary": "#101820"
-        },
-        "variables": { "border-opacity": 0.2 }
-      }
-    ]
-  }
+  "tags": ["theme"]
 }
+`;
+
+const themeTs = (
+  id: string,
+): string => `import type { ThemeRegistration } from '@dolphy-app/extension-sdk';
+
+// the allowed color and variable keys are \`THEME_COLOR_KEYS\` and
+// \`THEME_VARIABLE_KEYS\` of '@dolphy-app/extension-sdk'
+export const midnight: ThemeRegistration = {
+  id: '${id}',
+  label: 'Midnight',
+  dark: true,
+  colors: {
+    background: '#101820',
+    surface: '#1B2733',
+    'on-background': '#E6EDF3',
+    'on-surface': '#E6EDF3',
+    primary: '#FFB000',
+    'on-primary': '#101820',
+  },
+  variables: { 'border-opacity': 0.2 },
+};
+`;
+
+const indexTs =
+  (): string => `import { defineClient } from '@dolphy-app/extension-sdk';
+import { midnight } from './theme.ts';
+
+// runs in the app window: a theme is data, there is no server part
+export const client = defineClient((c) => {
+  c.addTheme(midnight);
+});
 `;
 
 const themeTestTs = (
   id: string,
-): string => `import { describe, expect, it } from 'vitest';
-import manifest from '../extension.json';
+): string => `import { createTestClient } from '@dolphy-app/extension-sdk/testing';
+import { describe, expect, it } from 'vitest';
+import { client } from '../src/index.ts';
+import { midnight } from '../src/theme.ts';
 
-const [theme] = manifest.contributes.themes;
-const colors: Record<string, string> = theme.colors;
+const colors = midnight.colors;
 
 // WCAG relative luminance of a #rrggbb color
 const luminance = (hex: string): number => {
@@ -56,6 +71,12 @@ const contrast = (foreground: string, background: string): number => {
 };
 
 describe('${id}: theme', () => {
+  it('the client adds the theme', async () => {
+    const running = await createTestClient(client, { extensionId: '${id}' });
+    expect(running.themes).toEqual([midnight]);
+    await running.dispose();
+  });
+
   it.each([
     ['on-surface', 'surface'],
     ['on-background', 'background'],
@@ -68,24 +89,29 @@ describe('${id}: theme', () => {
   it('a dark theme has a dark background and a light text', () => {
     const background = luminance(colors['background'] as string);
     const text = luminance(colors['on-background'] as string);
-    expect(theme.dark ? background < text : background > text).toBe(true);
+    expect(midnight.dark ? background < text : background > text).toBe(true);
   });
 });
 `;
 
 export const theme: TemplateModule = {
   summary: [
-    'A Dolphy extension: a color theme ("Midnight"). A theme is data only, so',
-    'there is no code to build; the test checks the text contrast.',
+    'A Dolphy extension: a color theme ("Midnight"). A theme is data the client',
+    'part registers with `addTheme`; the test checks the text contrast.',
   ],
   layout: [
-    '- `extension.json` — the manifest: the theme `colors` (allowed keys are',
-    '  listed in the Dolphy extension guide) and `variables`;',
-    '- `test/theme.test.ts` — checks the contrast of the text colors',
-    '  (`vitest`); there is no `src/`, a theme has no code.',
+    '- `extension.json` — the manifest: identity only, the build adds `client`;',
+    '- `src/theme.ts` — the theme: `colors` (the allowed keys are listed in the',
+    '  Dolphy extension guide) and `variables`;',
+    '- `src/index.ts` — `client` (`defineClient`), which adds the theme; the',
+    '  build writes it to `client.mjs`; there is no server part;',
+    '- `test/theme.test.ts` — checks the registration and the contrast of the',
+    '  text colors (`vitest`).',
   ],
   files: (id) => ({
     'extension.json': manifestJson(id),
+    'src/theme.ts': themeTs(id),
+    'src/index.ts': indexTs(),
     'test/theme.test.ts': themeTestTs(id),
   }),
 };

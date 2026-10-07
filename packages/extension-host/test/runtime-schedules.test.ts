@@ -1,23 +1,12 @@
-import type { ExtensionModule } from '@dolphy-app/extension-api';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ResolvedExtension } from '../src/discover.ts';
 import type { ExtRequest, ExtResponse } from '../src/protocol.ts';
 import { SCHEDULE_HANDLER_MS, createExtensionRuntime } from '../src/runtime.ts';
-import type { ExtensionRuntime } from '../src/runtime.ts';
-import { createLogger, nullLibrary } from './helpers.ts';
-import { stateful } from './state-harness.ts';
+import type { ExtensionRuntime, ServerModule } from '../src/runtime.ts';
+import { candidateOf, createLogger, nullLibrary } from './helpers.ts';
 
 const ID = 'acme.sched';
 const MORNING = `${ID}.morning`;
 const TICK = `${ID}.tick`;
-
-const extension = (): ResolvedExtension =>
-  stateful(ID, {
-    schedules: [
-      { id: MORNING, every: 'daily', at: '09:00' },
-      { id: TICK, every: 'hourly', at: null },
-    ],
-  });
 
 const fire = (scheduleId: string, id = '1'): ExtRequest => ({
   id,
@@ -32,16 +21,17 @@ afterEach(async () => {
   runtime = null;
 });
 
-const open = (
-  module: ExtensionModule,
+/** Хост с расширением, чей `server` — переданная функция; расписания регистрирует она сама. */
+const open = async (
+  server: NonNullable<ServerModule['server']>,
   logger = createLogger(),
-): ExtensionRuntime => {
+): Promise<ExtensionRuntime> => {
   runtime = createExtensionRuntime({
-    extensions: [extension()],
     library: nullLibrary,
     logger,
-    modules: { [ID]: module },
+    modules: { [ID]: { server } },
   });
+  await runtime.replace([candidateOf(ID)]);
   return runtime;
 };
 
@@ -49,15 +39,14 @@ const failureOf = (response: ExtResponse) =>
   response.ok ? null : response.error;
 
 describe('fireSchedule в процессе хоста', () => {
-  it('активирует расширение лениво и зовёт подписанный обработчик без аргументов', async () => {
+  it('зовёт зарегистрированный обработчик без аргументов; server вызывается один раз', async () => {
     const handler = vi.fn();
-    const activate = vi.fn(
-      (ctx: Parameters<ExtensionModule['activate']>[0]) => {
-        ctx.schedule.on(MORNING, handler);
+    const server = vi.fn(
+      (s: Parameters<NonNullable<ServerModule['server']>>[0]) => {
+        s.schedule({ id: MORNING, every: 'daily', at: '09:00' }, handler);
       },
     );
-    const host = open({ activate });
-    expect(activate).not.toHaveBeenCalled();
+    const host = await open(server);
 
     const response = await host.handle(fire(MORNING));
 
@@ -66,33 +55,30 @@ describe('fireSchedule в процессе хоста', () => {
       ok: true,
       result: { delivered: true },
     });
-    expect(activate).toHaveBeenCalledTimes(1);
     expect(handler).toHaveBeenCalledWith();
     await host.handle(fire(MORNING, '2'));
-    expect(activate).toHaveBeenCalledTimes(1);
+    expect(server).toHaveBeenCalledTimes(1);
     expect(handler).toHaveBeenCalledTimes(2);
   });
 
-  it('не объявленное в манифесте расписание расширение не активирует; объявленное, но не подписанное — delivered: false', async () => {
-    const activate = vi.fn();
-    const host = open({ activate });
+  it('незарегистрированное расписание — delivered: false, а не отказ', async () => {
+    const host = await open((s) => {
+      s.schedule({ id: TICK, every: 'hourly' }, () => undefined);
+    });
 
-    expect((await host.handle(fire('acme.sched.ghost'))).ok).toBe(true);
-    expect(activate).not.toHaveBeenCalled();
-    expect(await host.handle(fire(TICK, '2'))).toMatchObject({
+    expect(await host.handle(fire('acme.sched.ghost'))).toEqual({
+      id: '1',
       ok: true,
       result: { delivered: false },
     });
   });
 
   it('сбой обработчика — handler-failed, расширение остаётся работоспособным', async () => {
-    const host = open({
-      activate: (ctx) => {
-        ctx.schedule.on(MORNING, () => {
-          throw new Error('boom');
-        });
-        ctx.schedule.on(TICK, () => undefined);
-      },
+    const host = await open((s) => {
+      s.schedule({ id: MORNING, every: 'daily', at: '09:00' }, () => {
+        throw new Error('boom');
+      });
+      s.schedule({ id: TICK, every: 'hourly' }, () => undefined);
     });
 
     expect(failureOf(await host.handle(fire(MORNING)))).toEqual({
@@ -103,13 +89,14 @@ describe('fireSchedule в процессе хоста', () => {
   });
 
   it('обработчик ограничен 10 с: handler-timeout, а не раньше', async () => {
-    vi.useFakeTimers();
     expect(SCHEDULE_HANDLER_MS).toBe(10_000);
-    const host = open({
-      activate: (ctx) => {
-        ctx.schedule.on(MORNING, () => new Promise<void>(() => {}));
-      },
+    const host = await open((s) => {
+      s.schedule(
+        { id: MORNING, every: 'daily', at: '09:00' },
+        () => new Promise<void>(() => {}),
+      );
     });
+    vi.useFakeTimers();
     let settled = false;
     const pending = host.handle(fire(MORNING)).then((response) => {
       settled = true;
@@ -124,7 +111,6 @@ describe('fireSchedule в процессе хоста', () => {
   });
 
   it('обработчик, не вернувшийся к сроку, ещё работает: следующее срабатывание пропускается, после его завершения идёт снова', async () => {
-    vi.useFakeTimers();
     let finish: () => void = () => {};
     const handler = vi.fn(
       () =>
@@ -133,14 +119,10 @@ describe('fireSchedule в процессе хоста', () => {
         }),
     );
     const logger = createLogger();
-    const host = open(
-      {
-        activate: (ctx) => {
-          ctx.schedule.on(MORNING, handler);
-        },
-      },
-      logger,
-    );
+    const host = await open((s) => {
+      s.schedule({ id: MORNING, every: 'daily', at: '09:00' }, handler);
+    }, logger);
+    vi.useFakeTimers();
     const first = host.handle(fire(MORNING));
     await vi.advanceTimersByTimeAsync(10_000);
     expect(failureOf(await first)).toMatchObject({ cause: 'handler-timeout' });
@@ -165,7 +147,7 @@ describe('fireSchedule в процессе хоста', () => {
   });
 
   it('неизвестное расширение — отказ, а не тихий пропуск', async () => {
-    const host = open({ activate: () => undefined });
+    const host = await open(() => undefined);
     const response = await host.handle({
       id: '9',
       method: 'fireSchedule',
@@ -175,26 +157,29 @@ describe('fireSchedule в процессе хоста', () => {
   });
 });
 
-describe('ctx.schedule', () => {
-  const errors: unknown[] = [];
-  const capture = (call: () => void) => {
-    try {
-      call();
-    } catch (error) {
-      errors.push(error);
-    }
-  };
-
-  it('подписка на необъявленное расписание и вторая подписка бросают; освобождённая подписка снимается', async () => {
-    errors.length = 0;
+describe('s.schedule', () => {
+  it('чужой id и повторная регистрация бросают из вызова; освобождённая регистрация снимается', async () => {
+    const errors: string[] = [];
     const handler = vi.fn();
-    const host = open({
-      activate: (ctx) => {
-        capture(() => ctx.schedule.on('acme.sched.ghost', handler));
-        const subscription = ctx.schedule.on(MORNING, handler);
-        capture(() => ctx.schedule.on(MORNING, handler));
-        void subscription.dispose();
-      },
+    const host = await open((s) => {
+      const attempt = (call: () => void) => {
+        try {
+          call();
+        } catch (error) {
+          errors.push((error as Error).message);
+        }
+      };
+      attempt(() =>
+        s.schedule({ id: 'other.ghost', every: 'hourly' }, handler),
+      );
+      const registration = s.schedule(
+        { id: MORNING, every: 'daily', at: '09:00' },
+        handler,
+      );
+      attempt(() =>
+        s.schedule({ id: MORNING, every: 'daily', at: '10:00' }, handler),
+      );
+      void registration.dispose();
     });
 
     expect(await host.handle(fire(MORNING))).toMatchObject({
@@ -202,26 +187,26 @@ describe('ctx.schedule', () => {
       result: { delivered: false },
     });
     expect(handler).not.toHaveBeenCalled();
-    expect(errors.map((error) => (error as Error).message)).toEqual([
-      "schedule 'acme.sched.ghost' is not declared in the manifest of 'acme.sched'",
-      "schedule 'acme.sched.morning' is already subscribed",
-    ]);
+    expect(errors).toHaveLength(2);
+    expect(errors[0]).toContain("schedule 'other.ghost'");
+    expect(errors[1]).toContain(`schedule '${MORNING}'`);
+    expect(errors[1]).toContain('duplicate');
   });
 
-  it('объявленное, но не подписанное в activate расписание попадает в журнал предупреждением', async () => {
-    const logger = createLogger();
-    const host = open(
-      {
-        activate: (ctx) => {
-          ctx.schedule.on(MORNING, () => undefined);
-        },
-      },
-      logger,
-    );
-    await host.handle(fire(MORNING));
-    expect(logger.warn).toHaveBeenCalledWith(
-      { extensionId: ID, kind: 'schedules', ids: [TICK] },
-      'declared in the manifest but not registered by the extension code',
-    );
+  it('расписание с неверным временем отвергается при регистрации', async () => {
+    const errors: string[] = [];
+    await open((s) => {
+      try {
+        s.schedule(
+          { id: MORNING, every: 'daily', at: '25:99' },
+          () => undefined,
+        );
+      } catch (error) {
+        errors.push((error as Error).message);
+      }
+    });
+
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain(`schedule '${MORNING}'`);
   });
 });

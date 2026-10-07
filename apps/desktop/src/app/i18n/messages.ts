@@ -18,7 +18,6 @@ import { repositoryCoursesMessages } from '@/features/repository-courses';
 import { sharedMessages } from '@/shared/i18n';
 import { commandPaletteMessages } from '@/widgets/command-palette';
 import { exercisePanelMessages } from '@/widgets/exercise-panel';
-import { extensionWidgetsMessages } from '@/widgets/extension-widgets';
 import { en as appEn } from './en.ts';
 import { ru as appRu } from './ru.ts';
 
@@ -41,7 +40,6 @@ export const appMessages = {
     ...dailyPlanMessages.ru,
     ...extensionPanelMessages.ru,
     ...exercisePanelMessages.ru,
-    ...extensionWidgetsMessages.ru,
     ...courseGraphMessages.ru,
     ...placementMessages.ru,
     ...sessionMessages.ru,
@@ -64,7 +62,6 @@ export const appMessages = {
     ...dailyPlanMessages.en,
     ...extensionPanelMessages.en,
     ...exercisePanelMessages.en,
-    ...extensionWidgetsMessages.en,
     ...courseGraphMessages.en,
     ...placementMessages.en,
     ...sessionMessages.en,

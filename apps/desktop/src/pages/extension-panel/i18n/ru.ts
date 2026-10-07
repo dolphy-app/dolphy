@@ -2,6 +2,7 @@ export const ru = {
   extensionPanel: {
     back: 'Назад',
     loadFailed: 'Панель не загрузилась',
+    loading: 'Панель загружается',
     retry: 'Повторить',
     unavailable: {
       title: 'Панель недоступна',

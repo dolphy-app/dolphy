@@ -1,41 +1,12 @@
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import MagicString from 'magic-string';
-import type { SourceMap } from 'magic-string';
 import { parseAst } from 'vite';
-
-/** Named entries of `src/index.ts` from which the browser files are built. */
-export const RECORDS = ['views', 'panels', 'widgets', 'markdown'] as const;
-export type RecordName = (typeof RECORDS)[number];
-
-/** A single entry key: its name and the property range in the source. */
-export interface RecordKey {
-  name: string;
-  start: number;
-  end: number;
-}
-
-/** The entry's object literal (`export const views = { … }`) where it is written. */
-export interface RecordSite {
-  file: string;
-  source: string;
-  /** Range of the `{ … }` literal itself. */
-  start: number;
-  end: number;
-  keys: RecordKey[];
-}
-
-export type RecordResult =
-  | { status: 'found'; site: RecordSite }
-  /** The export exists, but its keys cannot be determined from the source. */
-  | { status: 'opaque'; reason: string }
-  | { status: 'missing' };
 
 export interface IndexAnalysis {
   /** Files the analysis read: editing any of them changes the result. */
   files: string[];
-  hasHost: boolean;
-  records: Record<RecordName, RecordResult>;
+  hasServer: boolean;
+  hasClient: boolean;
 }
 
 interface AstNode {
@@ -106,31 +77,10 @@ const resolveRelative = async (
   return null;
 };
 
-const propertyKeys = (
-  literal: AstNode,
-): { keys: RecordKey[] } | { reason: string } => {
-  const keys: RecordKey[] = [];
-  for (const property of children(literal, 'properties')) {
-    if (property.type !== 'Property') {
-      return { reason: 'it uses a spread or a computed entry' };
-    }
-    const key = child(property, 'key');
-    const isStatic = property.computed !== true || key.type === 'Literal';
-    if (!isStatic) return { reason: 'it uses a computed key' };
-    keys.push({
-      name: nameOf(key),
-      start: property.start,
-      end: property.end,
-    });
-  }
-  return { keys };
-};
-
 /**
- * Static analysis of `src/index.ts` without executing author code: whether the
- * `host` export exists and which keys the `views`, `panels`, `widgets` and `markdown`
- * entries have. Entries are found through local constants and relative
- * re-exports; keys must be given as an object literal.
+ * Static analysis of `src/index.ts` without executing author code: whether it
+ * exports `server` and `client`. Exports are found through local constants
+ * and relative re-exports.
  */
 export const analyzeIndex = async (
   indexFile: string,
@@ -275,74 +225,11 @@ export const analyzeIndex = async (
     },
   };
 
-  const recordOf = async (name: RecordName): Promise<RecordResult> => {
-    const resolved = await walk.export(indexFile, name, 0);
-    if (resolved === null) return { status: 'missing' };
-    if (resolved.kind === 'opaque') {
-      return { status: 'opaque', reason: resolved.reason };
-    }
-    if (resolved.node.type !== 'ObjectExpression') {
-      return { status: 'opaque', reason: 'it is not an object literal' };
-    }
-    const found = propertyKeys(resolved.node);
-    if ('reason' in found) return { status: 'opaque', reason: found.reason };
-    return {
-      status: 'found',
-      site: {
-        file: resolved.parsed.file,
-        source: resolved.parsed.source,
-        start: resolved.node.start,
-        end: resolved.node.end,
-        keys: found.keys,
-      },
-    };
-  };
-
-  const [views, panels, widgets, markdown] = await Promise.all(
-    RECORDS.map(recordOf),
-  );
-  const hasHost = (await walk.export(indexFile, 'host', 0)) !== null;
-  return {
-    files: [...cache.keys()],
-    hasHost,
-    records: {
-      views: views as RecordResult,
-      panels: panels as RecordResult,
-      widgets: widgets as RecordResult,
-      markdown: markdown as RecordResult,
-    },
-  };
-};
-
-/**
- * Source of `site.file` with the entry literal trimmed to `keep`: the code of the
- * discarded keys does not reach the bundle, and neither do their dependencies.
- * The source map describes the edit, so inline maps of watch builds point at the
- * author's lines.
- */
-export const pruneRecords = (
-  source: string,
-  sites: readonly { site: RecordSite; keep: ReadonlySet<string> }[],
-): { code: string; map: SourceMap } => {
-  const edit = new MagicString(source);
-  for (const { site, keep } of sites) {
-    // the interior of `{ … }` keeps the kept keys (their text stays as written), the gaps shrink to separators
-    let cursor = site.start + 1;
-    let isFirst = true;
-    for (const key of site.keys) {
-      if (!keep.has(key.name)) continue;
-      if (cursor < key.start) {
-        edit.overwrite(cursor, key.start, isFirst ? ' ' : ', ');
-      }
-      cursor = key.end;
-      isFirst = false;
-    }
-    if (cursor < site.end - 1) edit.overwrite(cursor, site.end - 1, ' ');
-  }
-  return {
-    code: edit.toString(),
-    map: edit.generateMap({ hires: 'boundary' }),
-  };
+  const [hasServer, hasClient] = await Promise.all([
+    walk.export(indexFile, 'server', 0).then((found) => found !== null),
+    walk.export(indexFile, 'client', 0).then((found) => found !== null),
+  ]);
+  return { files: [...cache.keys()], hasServer, hasClient };
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

@@ -16,6 +16,7 @@ import { useCatalogSource } from '../model/catalog-source.ts';
 import { useExtensionDetails } from '../model/extension-details.ts';
 import { useInstallContext } from '../model/install.ts';
 import DeprecatedChip from './DeprecatedChip.vue';
+import ExtensionClientFailure from './ExtensionClientFailure.vue';
 import ExtensionContributions from './ExtensionContributions.vue';
 import ExtensionDeprecation from './ExtensionDeprecation.vue';
 import ExtensionHeading from './ExtensionHeading.vue';
@@ -67,12 +68,9 @@ const name = computed(() => {
 const description = computed(() => {
   const view = details.value;
   if (view === null) return null;
-  if (view.info !== null) {
-    return view.info.description === null
-      ? null
-      : extensionText.withTables(view.info.description, view.info.messages);
-  }
-  return view.entry?.description ?? null;
+  return view.info === null
+    ? (view.entry?.description ?? null)
+    : view.info.description;
 });
 
 const docsVersion = computed(() =>
@@ -327,12 +325,14 @@ const publishedDate = (value: string) => d(new Date(value), 'shortDate');
         </v-alert>
 
         <ExtensionDependencies :rows="details.dependencies" />
-        <ExtensionContributions
-          :contributes="details.contributes"
-          :titles="details.titles"
-          :name="name"
-          :messages="details.messages"
-        />
+        <template v-if="details.info !== null">
+          <ExtensionClientFailure :extension-id="details.info.id" />
+          <ExtensionContributions
+            :extension-id="details.info.id"
+            :contributes="details.info.contributes"
+            :name="name"
+          />
+        </template>
 
         <p v-if="details.sourceUrl !== null" class="text-body-medium mt-3">
           <a

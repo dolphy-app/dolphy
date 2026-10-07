@@ -23,28 +23,8 @@ export const CATALOG_SCHEMA_VERSION = 2 as const;
 
 export const MAX_VERSIONS = 5;
 export const MAX_TOTAL_BYTES = 10_000_000;
-/** Longest contribution title in `titles` (the manifest limit of `label`/`title`). */
-const MAX_TITLE_LENGTH = 60;
 /** Most tags of a version. */
 export const MAX_TAGS = 5;
-/** Contribution points whose entries carry a human title in the manifest (`label` or `title`); for exercise types and renderers the title is optional and the renderer is keyed by its language. */
-export const TITLED_POINTS = [
-  'exerciseTypes',
-  'markdownRenderers',
-  'themes',
-  'gradePolicies',
-  'settings',
-  'commands',
-  'panels',
-  'widgets',
-  'importers',
-  'exporters',
-] as const;
-export type TitledPoint = (typeof TITLED_POINTS)[number];
-/** Contribution titles of an entry: point → id → title. */
-export type ContributionTitles = Partial<
-  Record<TitledPoint, Record<string, string>>
->;
 const MAX_PATH_LENGTH = 200;
 const SHA256 = /^[0-9a-f]{64}$/;
 /** Допустимые символы сегмента пути: без `:` (потоки NTFS), пробелов и управляющих символов. */
@@ -337,39 +317,6 @@ const versionSchemaOf = (profile: Profile) =>
     dependencies: dependenciesSchemaOf(profile),
   });
 
-const contributesSchemaOf = (profile: Profile) =>
-  object(profile, {
-    exerciseTypes: z.array(z.string()),
-    themes: z.array(z.string()),
-    markdownRenderers: z.array(z.string()),
-    gradePolicies: z.array(z.string()),
-    settings: z.array(z.string()).optional(),
-    events: z.array(z.string()).optional(),
-    commands: z.array(z.string()).optional(),
-    panels: z.array(z.string()).optional(),
-    widgets: z.array(z.string()).optional(),
-    schedules: z.array(z.string()).optional(),
-    importers: z.array(z.string()).optional(),
-    exporters: z.array(z.string()).optional(),
-  });
-
-const titleMap = z.record(extensionId, z.string().min(1).max(MAX_TITLE_LENGTH));
-
-/** Titles of the contributions by point; an unreadable map is dropped by the tolerant reader, the entry stays. */
-const titlesSchemaOf = (
-  profile: Profile,
-): z.ZodOptional<z.ZodType<ContributionTitles>> => {
-  const schema = object(
-    profile,
-    Object.fromEntries(
-      TITLED_POINTS.map((point) => [point, titleMap.optional()]),
-    ),
-  ).optional();
-  return (
-    profile.strict ? schema : schema.catch(undefined).optional()
-  ) as z.ZodOptional<z.ZodType<ContributionTitles>>;
-};
-
 const entryHeadOf = (profile: Profile) => ({
   id: extensionId,
   name: z.string().min(1).max(80),
@@ -377,8 +324,6 @@ const entryHeadOf = (profile: Profile) => ({
   author: z.string().regex(GITHUB_LOGIN_PATTERN, 'must be a GitHub login'),
   source: httpsUrl,
   platforms: z.array(z.enum(EXTENSION_PLATFORMS)),
-  contributes: contributesSchemaOf(profile),
-  titles: titlesSchemaOf(profile),
   deprecated: profile.strict ? strictDeprecated.optional() : tolerantDeprecated,
 });
 
@@ -390,20 +335,6 @@ const entrySchemaOf = (profile: Profile) =>
       .min(1)
       .max(MAX_VERSIONS)
       .superRefine(descendingUnique),
-  }).superRefine((entry, ctx) => {
-    if (entry.titles === undefined || !profile.strict) return;
-    for (const point of TITLED_POINTS) {
-      const known = new Set<string>(entry.contributes[point] ?? []);
-      for (const id of Object.keys(entry.titles[point] ?? {})) {
-        if (!known.has(id)) {
-          ctx.addIssue({
-            code: 'custom',
-            path: ['titles', point, id],
-            message: `title for '${id}', which is not in contributes.${point}`,
-          });
-        }
-      }
-    }
   });
 
 const indexSchemaOf = (profile: Profile) =>

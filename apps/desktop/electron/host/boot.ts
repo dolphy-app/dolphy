@@ -1,6 +1,10 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { createEngine, createExtensionHealth } from '@dolphy-app/engine/app';
+import type {
+  ExtensionHostServices,
+  HostedEngine,
+} from '@dolphy-app/engine/app';
 import { nodeDefaults } from '@dolphy-app/engine/node';
 import type { PlatformServices } from '@dolphy-app/engine/ports';
 import type { EngineConfig } from '@dolphy-app/engine-contract';
@@ -23,9 +27,13 @@ import {
   createRemoteGradePolicies,
   discoverExtensions,
 } from '@dolphy-app/extension-host';
+import type { HostChannel } from '@dolphy-app/extension-host';
 import { extensionRoots } from '../extension-roots.ts';
 import { createDesktopInstaller } from './installer.ts';
 import { createOffsetClock } from './schedule-clock.ts';
+
+/** Сколько запуск ждёт первую регистрацию вкладов от хоста расширений. */
+const FIRST_REGISTRATION_TIMEOUT_MS = 15_000;
 
 export const boot = async (
   config: EngineConfig,
@@ -35,6 +43,8 @@ export const boot = async (
   resetExtHost: () => void,
   /** Возможности main (шифр секретов): запросы уходят по `parentPort`. */
   platform: PlatformServices,
+  /** Канал создан: main может соединить его с хостом расширений, до этого регистраций не будет. */
+  onChannelReady: (channel: HostChannel) => void,
 ) => {
   // первый запуск: каталогов ещё нет, библиотека может быть пустой
   mkdirSync(config.libraryRoot, { recursive: true });
@@ -67,7 +77,8 @@ export const boot = async (
       logger: defaults.logger,
       ...(config.appVersion ? { appVersion: config.appVersion } : {}),
     });
-  // один изменяемый снимок на политику, каталог, реестр и установщик: `reload` меняет его целиком
+  // один изменяемый снимок на политику, каталог, реестр и установщик: `reload` меняет его целиком;
+  // вклады приходят позже, из регистраций хоста расширений
   const discovery = createDiscoveryHolder(await discover());
   // установка из каталога: отзыв читается из кэша индекса, поэтому кэш загружается до движка
   const extensionInstaller = createDesktopInstaller({
@@ -79,11 +90,48 @@ export const boot = async (
   await extensionInstaller.ready();
   const { revocationOf } = extensionInstaller;
   // один канал к хосту расширений: виды заданий и правила оценки делят порт, дедлайны и перезапуск;
-  // хост расширений сам расширения не ищет: после каждого подключения ему уходит текущий набор
+  // хост расширений сам расширения не ищет: после каждого подключения канал отправляет ему текущих кандидатов
+  // и отдаёт регистрации сюда; первая открывает запуск, следующие (перезапуск хоста) обновляют вклады у живого движка
+  const live: { engine?: HostedEngine } = {};
+  let hostServices: ExtensionHostServices | undefined;
+  // `server` читает настройки при регистрации, когда снимок движка ещё без её определений: сохранённые значения догоняют расширение сообщениями
+  const pushSettingValues = async (target: HostChannel): Promise<void> => {
+    for (const { id, settings } of discovery.get().extensions) {
+      if (hostServices === undefined || settings.length === 0) continue;
+      const values = await hostServices.settings.all(id);
+      for (const [settingId, value] of Object.entries(values)) {
+        if (
+          typeof value === 'boolean' ||
+          typeof value === 'string' ||
+          typeof value === 'number' ||
+          (Array.isArray(value) &&
+            value.every((item) => typeof item === 'string'))
+        ) {
+          target.notify({
+            method: 'settingChanged',
+            params: { extensionId: id, id: settingId, value },
+          });
+        }
+      }
+    }
+  };
+  let firstRegistration!: () => void;
+  const registered = new Promise<void>((resolve) => {
+    firstRegistration = resolve;
+  });
   const channel = createHostChannel({
     logger: defaults.logger,
     restart: restartExtHost,
-    currentExtensions: () => discovery.get().extensions,
+    currentExtensions: () => discovery.get().candidates,
+    onRegistrations: (result) => {
+      const changed = discovery.applyRegistrations(result);
+      firstRegistration();
+      if (!changed) return;
+      live.engine?.notifyExtensionsChanged();
+      void pushSettingValues(channel).catch((error) =>
+        defaults.logger.warn({ error }, 'setting values were not delivered'),
+      );
+    },
   });
   // одна политика на каталог, клиентов хоста, реестр и движок: «Настройки → Расширения» действует сразу
   // безопасный режим, заданный запуском, действует поверх настройки
@@ -108,22 +156,38 @@ export const boot = async (
   });
   const extensionCommands = createRemoteExtensionCommands({
     channel,
-    discovery,
     logger: defaults.logger,
   });
   const extensionTransfers = createRemoteExtensionTransfers({
     channel,
     logger: defaults.logger,
   });
-  if (__DOLPHY_SMOKE_BUILD__ && process.env.DOLPHY_SMOKE === '1') {
-    defaults.logger.info(
-      { types: exerciseTypes.list().map(({ type }) => type) },
-      'exercise types discovered',
-    );
-  }
+  // порядок запуска: сервисы данных расширений начинают отвечать хосту → хост расширений подключается и регистрирует
+  // вклады (`server` читает хранилище и настройки) → только потом открывается библиотека, уже с видами заданий;
+  // хост не ответил за срок — пустой реестр, дальше обычный путь `reload` → `generation` → `contributions-changed`
+  const beforeLibrary = async (host: ExtensionHostServices): Promise<void> => {
+    hostServices = host;
+    channel.serve(host);
+    onChannelReady(channel);
+    let timer: NodeJS.Timeout | undefined;
+    const timedOut = new Promise<'timeout'>((resolve) => {
+      timer = setTimeout(
+        () => resolve('timeout'),
+        FIRST_REGISTRATION_TIMEOUT_MS,
+      );
+    });
+    if ((await Promise.race([registered, timedOut])) === 'timeout') {
+      defaults.logger.warn(
+        { timeoutMs: FIRST_REGISTRATION_TIMEOUT_MS },
+        'extension host did not register contributions in time, starting without them',
+      );
+    }
+    clearTimeout(timer);
+  };
   const engine = await createEngine(
     {
       ...defaults,
+      beforeLibrary,
       settings,
       eventStore,
       repositoryStore,
@@ -153,6 +217,13 @@ export const boot = async (
     },
     config,
   );
+  live.engine = engine;
+  if (__DOLPHY_SMOKE_BUILD__ && process.env.DOLPHY_SMOKE === '1') {
+    defaults.logger.info(
+      { types: exerciseTypes.list().map(({ type }) => type) },
+      'exercise types discovered',
+    );
+  }
   // хост расширений получает данные расширений, изменения настроек и события обучения;
   // отключать не нужно: закрытие движка закрывает канал и снимает подписки
   connectEngine({

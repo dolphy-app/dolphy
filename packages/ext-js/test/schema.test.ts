@@ -1,16 +1,6 @@
-import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
-import type { JsonSchema } from '@dolphy-app/extension-sdk';
 import { createSchemaValidator } from '@dolphy-app/extension-sdk/testing';
 import { describe, expect, it } from 'vitest';
-
-const readSchema = async (name: string): Promise<JsonSchema> =>
-  JSON.parse(
-    await readFile(
-      fileURLToPath(new URL(`../schema/${name}`, import.meta.url)),
-      'utf8',
-    ),
-  ) as JsonSchema;
+import { answerSchema, specSchema } from '../src/schema.ts';
 
 describe('dolphy.js: схемы', () => {
   it.each([
@@ -25,8 +15,8 @@ describe('dolphy.js: схемы', () => {
       },
     ],
     ['пустой starter', { tests: 't', starter: '' }],
-  ])('spec: %s допустим', async (_name, value) => {
-    const validate = createSchemaValidator(await readSchema('spec.json'));
+  ])('spec: %s допустим', (_name, value) => {
+    const validate = createSchemaValidator(specSchema);
     expect(validate(value)).toEqual([]);
   });
 
@@ -39,13 +29,13 @@ describe('dolphy.js: схемы', () => {
     ['maxOutputChars дробный', { tests: 't', maxOutputChars: 1.5 }],
     ['maxOutputChars нулевой', { tests: 't', maxOutputChars: 0 }],
     ['лишнее поле', { tests: 't', extra: true }],
-  ])('spec: %s отклоняется', async (_name, value) => {
-    const validate = createSchemaValidator(await readSchema('spec.json'));
+  ])('spec: %s отклоняется', (_name, value) => {
+    const validate = createSchemaValidator(specSchema);
     expect(validate(value)).not.toEqual([]);
   });
 
-  it('answer: строка до 20000 символов допустима', async () => {
-    const validate = createSchemaValidator(await readSchema('answer.json'));
+  it('answer: строка до 20000 символов допустима', () => {
+    const validate = createSchemaValidator(answerSchema);
     expect(validate('')).toEqual([]);
     expect(validate('x'.repeat(20_000))).toEqual([]);
   });
@@ -54,8 +44,8 @@ describe('dolphy.js: схемы', () => {
     ['длиннее 20000', 'x'.repeat(20_001)],
     ['число', 1],
     ['массив', ['code']],
-  ])('answer: %s отклоняется', async (_name, value) => {
-    const validate = createSchemaValidator(await readSchema('answer.json'));
+  ])('answer: %s отклоняется', (_name, value) => {
+    const validate = createSchemaValidator(answerSchema);
     expect(validate(value)).not.toEqual([]);
   });
 });

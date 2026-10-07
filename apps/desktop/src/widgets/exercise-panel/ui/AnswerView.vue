@@ -1,15 +1,11 @@
 <script setup lang="ts">
 import { computed, onErrorCaptured, ref, shallowRef, watch } from 'vue';
-import type { Component } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { ExerciseTaskDto, VerdictDto } from '@dolphy-app/engine-contract';
 import type { AnswerChange } from '@dolphy-app/extension-api';
-import { useContributions } from '@/shared/api/engine/contributions.ts';
-import {
-  importExtensionModule,
-  loadExtensionComponent,
-} from '@/shared/lib/extension-component.ts';
-import type { LoadExtensionModule } from '@/shared/lib/extension-component.ts';
+import { useExtensionClients } from '@/shared/lib/extension-clients.ts';
+import type { ClientAnswerView } from '@/shared/lib/extension-clients.ts';
+import { answerViewOf } from '../model/answer-view.ts';
 
 const props = withDefaults(
   defineProps<{
@@ -20,9 +16,8 @@ const props = withDefaults(
     disabled: boolean;
     verdict: VerdictDto | null;
     label: string;
-    loadModule?: LoadExtensionModule;
   }>(),
-  { value: undefined, loadModule: importExtensionModule },
+  { value: undefined },
 );
 const emit = defineEmits<{
   change: [detail: AnswerChange];
@@ -30,85 +25,88 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
-const contributions = useContributions();
+const clients = useExtensionClients();
 
 /**
- * Вид задания, по которому рисуется ввод. Пока расширение есть во вкладах,
- * ввод рисуется по его действующей ревизии: обновление или правка файлов
- * (режим разработчика) пересоздаёт компонент без перезагрузки окна
- * (введённый ответ приходит из `value`). Расширение удалено или отключено
- * посреди упражнения — остаётся вид из задания.
+ * Вид задания, по которому рисуется ввод: из реестра окна. Обновление или
+ * правка расширения (режим разработчика) подменяют компонент без перезагрузки
+ * окна (введённый ответ приходит из `value`). Расширение удалено или
+ * отключено посреди упражнения — остаётся последний найденный вид; если вида не
+ * было вовсе, показывается причина с повтором загрузки.
  */
-const liveTask = computed<ExerciseTaskDto>(() => {
-  const current = contributions.value.exerciseTypes.find(
-    ({ type }) => type === props.task.type,
-  );
-  if (current === undefined) return props.task;
-  const { rendererUrl, revision } = current;
-  return { ...props.task, rendererUrl, revision };
-});
-const instanceKey = computed(
-  () => `${liveTask.value.type}:${liveTask.value.revision}`,
+const current = shallowRef<ClientAnswerView | null>(null);
+watch(
+  () =>
+    answerViewOf(
+      clients.answerViews.value,
+      props.task.type,
+      props.task.extensionId,
+    ),
+  (found) => {
+    if (found !== null) current.value = found;
+  },
+  { immediate: true, flush: 'sync' },
+);
+const ownerState = computed(() =>
+  clients.states.value.get(props.task.extensionId),
 );
 
-const component = shallowRef<Component | null>(null);
 const failure = ref<string | null>(null);
-let token = 0;
+// повтор после сбоя рендера создаёт компонент заново
+const attempt = ref(0);
 
-const load = async () => {
-  const current = ++token;
-  failure.value = null;
-  component.value = null;
-  try {
-    const loaded = await loadExtensionComponent(
-      liveTask.value,
-      'views',
-      liveTask.value.type,
-      props.loadModule,
-    );
-    if (current === token) component.value = loaded;
-  } catch (error) {
-    if (current !== token) return;
-    console.error({ error, type: liveTask.value.type }, 'answer view failed');
-    failure.value = error instanceof Error ? error.message : String(error);
+const retry = () => {
+  if (failure.value !== null) {
+    failure.value = null;
+    attempt.value += 1;
+    return;
   }
+  clients.reload(props.task.extensionId);
 };
-watch(instanceKey, load, { immediate: true });
 
 onErrorCaptured((error) => {
-  console.error({ error, type: liveTask.value.type }, 'answer view failed');
+  console.error({ error, type: props.task.type }, 'answer view failed');
   failure.value = error instanceof Error ? error.message : String(error);
-  component.value = null;
   return false;
 });
+
+const message = computed(
+  () =>
+    failure.value ??
+    ownerState.value?.error ??
+    `no answer view registered for '${props.task.type}'`,
+);
 </script>
 
 <template>
   <div>
     <v-alert
-      v-if="failure !== null"
+      v-if="
+        failure !== null ||
+        (current === null && ownerState?.status !== 'loading')
+      "
       type="error"
       variant="tonal"
       density="compact"
       data-testid="answer-view-failed"
     >
-      {{ t('exercisePanel.answer.loadFailed', { type: liveTask.type }) }}
-      <div class="caption">{{ failure }}</div>
+      {{ t('exercisePanel.answer.loadFailed', { type: task.type }) }}
+      <div class="caption">{{ message }}</div>
       <template #append>
         <v-btn
           size="small"
           variant="text"
           data-testid="answer-view-retry"
-          @click="load"
+          @click="retry"
         >
           {{ t('exercisePanel.answer.retry') }}
         </v-btn>
       </template>
     </v-alert>
     <component
-      :is="component"
-      v-else-if="component !== null"
-      :key="instanceKey"
+      :is="current.component"
+      v-else-if="current !== null"
+      :key="`${current.key}:${attempt}`"
       :view="view"
       :value="value"
       :disabled="disabled"

@@ -1,14 +1,13 @@
 import { lstat, readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import type { ExtensionDiagnosticDto } from '@dolphy-app/engine-contract';
-import { DEFAULT_MAIN } from '@dolphy-app/extension-api';
 import type {
   ExtensionDependency,
   ExtensionLogger,
   ExtensionManifest,
   ExtensionPlatform,
   ExtensionTag,
-  LocaleTables,
+  ServerRegistration,
 } from '@dolphy-app/extension-api';
 import {
   INSTALL_META_FILE,
@@ -18,15 +17,10 @@ import {
   parseInstallMeta,
 } from '@dolphy-app/extension-catalog';
 import type { InstallMeta } from '@dolphy-app/extension-catalog';
-import { Ajv2020 } from 'ajv/dist/2020.js';
 import { orderByDependencies } from './dependencies.ts';
 import { formatDiagnostic } from './diagnostics.ts';
-import { loadLocales } from './locales.ts';
 import { fingerprintDir } from './fingerprint.ts';
 import { parseManifest } from './manifest.ts';
-import { CONTRIBUTION_POINTS } from './points/index.ts';
-import { defaultNote, inside, isFile } from './points/support.ts';
-import type { ResolvedContributions } from './points/types.ts';
 
 export type ExtensionOrigin = 'bundled' | 'user' | 'dev';
 
@@ -35,13 +29,20 @@ export interface ExtensionRoot {
   origin: ExtensionOrigin;
 }
 
-export interface ResolvedExtension extends ResolvedContributions {
+/**
+ * Расширение, найденное на диске: то, что известно без запуска кода. Хост
+ * расширений получает кандидатов (`replaceExtensions`), запускает `server`
+ * каждого и отвечает его `ServerRegistration`.
+ */
+export interface ExtensionCandidate {
   id: string;
   version: string;
   origin: ExtensionOrigin;
   dir: string;
-  /** `null` — расширению код не нужен. */
+  /** Собранная серверная часть (`main.mjs`); `null` — серверной части нет. */
   mainPath: string | null;
+  /** Собранная клиентская часть (`client.mjs`); `null` — клиентской части нет. */
+  clientPath: string | null;
   name: string | null;
   description: string | null;
   author: string | null;
@@ -50,9 +51,7 @@ export interface ResolvedExtension extends ResolvedContributions {
   minAppVersion: string | null;
   /** Значок как `data:`-URI (`data:image/png|webp;base64,…`); `null` — значка нет. Проверен: формат, размер, геометрия. */
   icon: string | null;
-  /** Таблицы `locales/<язык>.json` (≤64 КиБ, ≤500 ключей); подписи в манифесте — `%ключ%`, текст подставляет окно. Читаются при обнаружении; `verifyFiles: false` файлы не читает. */
-  messages: LocaleTables;
-  /** Предупреждения о переводах (`locale.missing-key`, `locale.invalid-file`): расширение работает. */
+  /** Предупреждения обнаружения: расширение работает. */
   warnings: ExtensionDiagnosticDto[];
   /** Явные теги каталога из манифеста; пусто — теги не заданы. */
   tags: ExtensionTag[];
@@ -63,6 +62,9 @@ export interface ResolvedExtension extends ResolvedContributions {
   /** Отпечаток файлов каталога (`fingerprintDir`); `''` у расширений из поставки: они не меняются, пока работает приложение. */
   revision: string;
 }
+
+/** Кандидат с тем, что его `server` зарегистрировал: набор, по которому работают каталог, диспетчеры и реестр вкладов. */
+export type ResolvedExtension = ExtensionCandidate & ServerRegistration;
 
 export interface DiscoveryDiagnostic {
   extensionId: string;
@@ -78,7 +80,7 @@ export interface OverriddenExtension {
 }
 
 export interface DiscoveryResult {
-  extensions: ResolvedExtension[];
+  extensions: ExtensionCandidate[];
   diagnostics: DiscoveryDiagnostic[];
   overridden: OverriddenExtension[];
 }
@@ -87,7 +89,7 @@ export interface DiscoverOptions {
   /** Порядок значим: более поздний корень побеждает при совпадении id. */
   roots: readonly ExtensionRoot[];
   logger: ExtensionLogger;
-  /** false — не проверять существование `main` и `renderer` (тесты исходных манифестов). */
+  /** false — не проверять существование `main` и `client` (тесты исходных манифестов). */
   verifyFiles?: boolean;
   /** Версия приложения; не задана — `minAppVersion` не проверяется. */
   appVersion?: string;
@@ -110,19 +112,33 @@ const compatibilityIssue = (
     : { code: 'unavailable-platform', data: { platform } };
 };
 
-const resolveMain = async (
+const isDirectory = async (dir: string): Promise<boolean> =>
+  (await stat(dir).catch(() => null))?.isDirectory() === true;
+
+const isFile = async (file: string): Promise<boolean> =>
+  (await stat(file).catch(() => null))?.isFile() === true;
+
+/** Путь внутри каталога расширения; выход за каталог — ошибка. */
+const inside = (dir: string, relative: string): string => {
+  const resolved = path.resolve(dir, relative);
+  if (!resolved.startsWith(dir + path.sep)) {
+    throw new Error(`path '${relative}' escapes the extension directory`);
+  }
+  return resolved;
+};
+/** Путь собранной части расширения (`main`, `client`) внутри каталога; `null` — части нет. */
+const resolvePart = async (
   dir: string,
-  main: string | null,
+  part: 'main' | 'client',
+  file: string | null,
   verifyFiles: boolean,
 ): Promise<string | null> => {
-  if (main === null) return null;
-  const mainPath = inside(dir, main);
-  if (verifyFiles && !(await isFile(mainPath))) {
-    throw new Error(
-      `main '${main}'${defaultNote(main, DEFAULT_MAIN)} is not a file`,
-    );
+  if (file === null) return null;
+  const target = inside(dir, file);
+  if (verifyFiles && !(await isFile(target))) {
+    throw new Error(`${part} '${file}' is not a file`);
   }
-  return mainPath;
+  return target;
 };
 
 /**
@@ -146,31 +162,8 @@ const resolveIcon = async (
   return iconDataUri(icon, bytes);
 };
 
-const claimsOf = (extension: ResolvedContributions): string[] =>
-  CONTRIBUTION_POINTS.flatMap((point) =>
-    point.claims(extension[point.key] as never),
-  );
-
-const clashDiagnostic = (
-  claim: string,
-  claimed: ReadonlyMap<string, string>,
-): ExtensionDiagnosticDto => {
-  const separator = claim.indexOf(':');
-  return {
-    code: 'claim-clash',
-    data: {
-      kind: claim.slice(0, separator),
-      name: claim.slice(separator + 1),
-      by: claimed.get(claim) ?? '',
-    },
-  };
-};
-
-const isDirectory = async (dir: string): Promise<boolean> =>
-  (await stat(dir).catch(() => null))?.isDirectory() === true;
-
 export interface InspectOptions {
-  /** false — не проверять существование `main` и `renderer`; по умолчанию true. */
+  /** false — не проверять существование `main` и `client`; по умолчанию true. */
   verifyFiles?: boolean;
   /** Ожидаемый `id` (имя каталога при обнаружении); `null`/не задан — не проверять. */
   expectedId?: string | null;
@@ -183,11 +176,10 @@ export interface InspectOptions {
 export type InspectResult =
   | {
       ok: true;
-      extension: Omit<ResolvedExtension, 'origin' | 'install' | 'revision'>;
+      extension: Omit<ExtensionCandidate, 'origin' | 'install' | 'revision'>;
     }
   | { ok: false; id: string; diagnostic: ExtensionDiagnosticDto };
 
-/** Полностью разбирает каталог одного расширения; ошибка — диагностика (английский текст — `formatDiagnostic`). */
 /** Нет файла — `null` (расширение скопировано вручную); битый файл — `null` и предупреждение: сведения об установке не ломают обнаружение. */
 const readInstallMeta = async (
   dir: string,
@@ -211,6 +203,7 @@ const readInstallMeta = async (
   }
 };
 
+/** Полностью разбирает каталог одного расширения; ошибка — диагностика (английский текст — `formatDiagnostic`). */
 export const inspectExtensionDir = async (
   directory: string,
   options: InspectOptions = {},
@@ -223,7 +216,6 @@ export const inspectExtensionDir = async (
   } = options;
   const dir = path.resolve(directory);
   const dirName = expectedId ?? path.basename(dir);
-  const ajv = new Ajv2020({ allErrors: true, strict: false });
   let raw: unknown;
   try {
     raw = JSON.parse(await readFile(path.join(dir, 'extension.json'), 'utf8'));
@@ -258,36 +250,28 @@ export const inspectExtensionDir = async (
     return { ok: false, id: manifest.id, diagnostic: incompatible };
   }
   try {
-    const mainPath = await resolveMain(dir, manifest.main, verifyFiles);
-    const context = { dir, extensionId: manifest.id, verifyFiles, ajv };
-    const resolved: Record<string, unknown> = {};
-    for (const point of CONTRIBUTION_POINTS) {
-      resolved[point.key] = await point.resolve(
-        manifest.contributes[point.key] as never,
-        context,
-      );
-    }
-    const locales = verifyFiles
-      ? await loadLocales(dir, manifest)
-      : { messages: {}, warnings: [] };
     return {
       ok: true,
       extension: {
         id: manifest.id,
         version: manifest.version,
         dir,
-        mainPath,
+        mainPath: await resolvePart(dir, 'main', manifest.main, verifyFiles),
+        clientPath: await resolvePart(
+          dir,
+          'client',
+          manifest.client,
+          verifyFiles,
+        ),
         name: manifest.name,
         description: manifest.description,
         author: manifest.author,
         platforms: manifest.platforms,
         minAppVersion: manifest.minAppVersion,
         icon: await resolveIcon(dir, manifest.icon, verifyFiles),
-        messages: locales.messages,
-        warnings: locales.warnings,
+        warnings: [],
         tags: manifest.tags,
         dependencies: manifest.dependencies,
-        ...(resolved as unknown as ResolvedContributions),
       },
     };
   } catch (error) {
@@ -323,7 +307,7 @@ export const discoverExtensions = async (
   };
 
   // id расширения → выигравшее; порядок вставки = порядок первого появления
-  const byId = new Map<string, ResolvedExtension>();
+  const byId = new Map<string, ExtensionCandidate>();
   for (const root of options.roots) {
     if (!(await isDirectory(root.dir))) continue;
     // `.staging`, `.trash`, `.catalog` — служебные каталоги установщика
@@ -344,13 +328,7 @@ export const discoverExtensions = async (
         skip(loaded.id, root.origin, loaded.diagnostic);
         continue;
       }
-      for (const warning of loaded.extension.warnings) {
-        logger.warn(
-          { extensionId: loaded.extension.id },
-          `extension locale: ${formatDiagnostic(warning)}`,
-        );
-      }
-      const extension: ResolvedExtension = {
+      const extension: ExtensionCandidate = {
         ...loaded.extension,
         origin: root.origin,
         revision: root.origin === 'bundled' ? '' : await fingerprintDir(dir),
@@ -376,19 +354,7 @@ export const discoverExtensions = async (
     }
   }
 
-  const unordered: ResolvedExtension[] = [];
-  const claimed = new Map<string, string>();
-  for (const extension of byId.values()) {
-    const claims = claimsOf(extension);
-    const clash = claims.find((claim) => claimed.has(claim));
-    if (clash !== undefined) {
-      skip(extension.id, extension.origin, clashDiagnostic(clash, claimed));
-      continue;
-    }
-    for (const claim of claims) claimed.set(claim, extension.id);
-    unordered.push(extension);
-  }
   // зависимость раньше зависимого: вклады регистрируются в этом порядке
-  const extensions = orderByDependencies(unordered);
+  const extensions = orderByDependencies([...byId.values()]);
   return { extensions, diagnostics, overridden };
 };

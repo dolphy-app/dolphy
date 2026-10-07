@@ -40,10 +40,6 @@ const FORMATTERS: Record<ExtensionDiagnosticCode, (data: Data) => string> = {
     `requires extension '${text(data, 'id')}'${rangeSuffix(data)}, which is not loaded because its own dependencies are not met`,
   'dependency-cycle': (data) =>
     `extensions depend on each other: ${text(data, 'cycle')}`,
-  'locale.missing-key': (data) =>
-    `key '${text(data, 'key')}' is missing in locales/en.json`,
-  'locale.invalid-file': (data) =>
-    `${text(data, 'file')} is ignored: ${text(data, 'reason')}`,
 };
 
 /**

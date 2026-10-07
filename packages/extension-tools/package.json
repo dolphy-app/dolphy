@@ -2,7 +2,7 @@
   "name": "@dolphy-app/extension-tools",
   "version": "0.0.0",
   "private": true,
-  "description": "Tools for extension authors: dolphy-ext build, types and validate",
+  "description": "Tools for extension authors: dolphy-ext build, validate, lint and catalog",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"

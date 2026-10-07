@@ -1,13 +1,15 @@
 // @vitest-environment happy-dom
+import { createTestClient } from '@dolphy-app/extension-sdk/testing';
 import { describe, expect, it } from 'vitest';
 import { createApp, h } from 'vue';
-import { markdown } from '../src/index.ts';
+import { client } from '../src/index.ts';
+import { MathBlock } from '../src/math-block.ts';
 
 const render = (source: string) => {
   const host = document.createElement('div');
   const errors: unknown[] = [];
   const app = createApp({
-    render: () => h(markdown.math, { source, language: 'math' }),
+    render: () => h(MathBlock, { source, language: 'math' }),
   });
   app.config.errorHandler = (error) => errors.push(error);
   app.mount(host);
@@ -15,6 +17,14 @@ const render = (source: string) => {
 };
 
 describe('dolphy.math renderer', () => {
+  it('добавляет рендерер блоков math', async () => {
+    const running = await createTestClient(client, {
+      extensionId: 'dolphy.math',
+    });
+    expect(running.markdownRenderers.get('math')).toBe(MathBlock);
+    await running.dispose();
+  });
+
   it('выводит формулу как svg с aria-label', () => {
     const { host, errors } = render('E = mc^2');
     const wrapper = host.querySelector('.dolphy-math');

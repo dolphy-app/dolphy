@@ -1,4 +1,4 @@
-import { INITIAL_VERSION, idsBullet } from './common.ts';
+import { INITIAL_VERSION } from './common.ts';
 import type { TemplateModule } from './common.ts';
 
 export const manifestJson = (id: string): string => `{
@@ -9,74 +9,63 @@ export const manifestJson = (id: string): string => `{
   "name": "Text match",
   "description": "Exercise type: the learner types a string that is compared with the expected text.",
   "author": "your-github-login",
-  "tags": ["learning"],
-  "contributes": {
-    "exerciseTypes": [
-      {
-        "id": "${id}",
-        "specSchema": {
-          "type": "object",
-          "required": ["expected"],
-          "additionalProperties": false,
-          "properties": {
-            "expected": { "type": "string", "minLength": 1 },
-            "ignoreCase": { "type": "boolean" }
-          }
-        },
-        "answerSchema": { "type": "string" }
-      }
-    ],
-    "settings": [
-      {
-        "id": "${id}.trim",
-        "type": "boolean",
-        "label": "Ignore spaces around the answer",
-        "default": true
-      }
-    ],
-    "commands": [
-      { "id": "${id}.status", "title": "Show how answers are compared" }
-    ]
-  }
+  "tags": ["learning"]
 }
 `;
 
-export const indexTs = (id: string): string => `import {
-  defineAnswerView,
+export const indexTs = (): string => `export { client } from './client.ts';
+export { server } from './server.ts';
+`;
+
+export const serverTs = (id: string): string => `import {
   defineExerciseType,
-  defineExtension,
-  inActivate,
+  defineServer,
   notify,
 } from '@dolphy-app/extension-sdk';
-import type { AnswerChange, ExtensionViews } from '@dolphy-app/extension-sdk';
-import { defineComponent, h, ref, watch } from 'vue';
-import type { PropType } from 'vue';
 
 interface Spec {
   expected: string;
   ignoreCase?: boolean;
 }
 
-// filled from the setting in \`activate\`, read by the handlers below
-const options = { trim: true };
+// runs in the extension host: every call registers a contribution
+export const server = defineServer((s) => {
+  s.registerSettings([
+    {
+      id: '${id}.trim',
+      type: 'boolean',
+      label: { en: 'Ignore spaces around the answer', ru: 'Игнорировать пробелы вокруг ответа' },
+      default: true,
+    },
+  ]);
 
-const matches = (answer: string, spec: Spec): boolean => {
-  const given = options.trim ? answer.trim() : answer;
-  if (spec.ignoreCase === true) {
-    return given.toLowerCase() === spec.expected.toLowerCase();
-  }
-  return given === spec.expected;
-};
+  // read when the handler runs, so a change in the settings applies at once
+  const trims = (): boolean => s.settings.get('${id}.trim') === true;
 
-// extension code: runs in the extension process of the app
-// the schemas from extension.json have already checked \`spec\` and the answer
-// before the handlers run
-// the ids come from extension.json: \`dolphy-ext types\` (and every build)
-// writes them to .dolphy/ids.d.ts, so a misspelt id, a declared id without a
-// handler or an undeclared setting fails \`pnpm typecheck\`
-export const host = defineExtension({
-  exerciseTypes: {
-    '${id}': defineExerciseType<Spec, string, Record<string, never>>({
+  const matches = (answer: string, spec: Spec): boolean => {
+    const given = trims() ? answer.trim() : answer;
+    if (spec.ignoreCase === true) {
+      return given.toLowerCase() === spec.expected.toLowerCase();
+    }
+    return given === spec.expected;
+  };
+
+  // the app checks \`spec\` and the answer against the schemas before the
+  // handlers run
+  s.registerExerciseType(
+    defineExerciseType<Spec, string, Record<string, never>>({
+      id: '${id}',
+      title: 'Text match',
+      specSchema: {
+        type: 'object',
+        required: ['expected'],
+        additionalProperties: false,
+        properties: {
+          expected: { type: 'string', minLength: 1 },
+          ignoreCase: { type: 'boolean' },
+        },
+      },
+      answerSchema: { type: 'string' },
       project: () => ({}),
       grade: ({ spec, answer }) =>
         matches(answer, spec)
@@ -84,28 +73,42 @@ export const host = defineExtension({
           : { outcome: 'failed', reason: 'mismatch' },
       referenceAnswer: ({ spec }) => spec.expected,
     }),
-  },
-  // this command is registered in \`activate\`: the marker names the id there
-  commands: { '${id}.status': inActivate },
-  activate(ctx) {
-    options.trim = ctx.settings.get('${id}.trim');
-    ctx.settings.onDidChange((change) => {
-      if (change.id === '${id}.trim') options.trim = change.value;
-    });
-    ctx.commands.register('${id}.status', () =>
+  );
+
+  s.registerCommand({
+    id: '${id}.status',
+    title: { en: 'Show how answers are compared', ru: 'Показать способ сравнения' },
+    run: () =>
       notify(
-        options.trim
+        trims()
           ? 'Answers are compared without the spaces around them.'
           : 'Answers are compared exactly as typed.',
       ),
-    );
-  },
+  });
 });
+`;
+
+export const clientTs = (
+  id: string,
+): string => `import { defineClient } from '@dolphy-app/extension-sdk';
+import { TextAnswer } from './text-answer.ts';
+
+// runs in the app window: the answer view is a Vue component for the exercise
+// type that \`server\` registers
+export const client = defineClient((c) => {
+  c.addAnswerView('${id}', TextAnswer);
+});
+`;
+
+export const textAnswerTs =
+  (): string => `import type { AnswerChange } from '@dolphy-app/extension-sdk';
+import { defineComponent, h, ref, watch } from 'vue';
+import type { PropType } from 'vue';
 
 // the answer input: a Vue component the app draws in its own window tree. It
 // takes the props of \`AnswerViewProps\` and reports the answer with \`change\`;
 // \`submit\` asks the app to check it
-const TextAnswer = defineComponent({
+export const TextAnswer = defineComponent({
   props: {
     view: { type: null },
     value: { type: null },
@@ -146,32 +149,20 @@ const TextAnswer = defineComponent({
       });
   },
 });
-
-// the keys are the exercise type ids of extension.json; the build writes this
-// table into view.mjs, \`vue\` itself is the app's own
-export const views = {
-  '${id}': defineAnswerView(TextAnswer),
-} satisfies ExtensionViews;
 `;
 
 export const indexTestTs = (
   id: string,
 ): string => `// @vitest-environment happy-dom
-import type { SettingContribution } from '@dolphy-app/extension-sdk';
 import {
-  createMemorySettings,
   createSchemaValidator,
-  loadCommands,
-  loadExerciseType,
+  createTestClient,
+  createTestServer,
 } from '@dolphy-app/extension-sdk/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createApp, h, nextTick, reactive } from 'vue';
-import manifest from '../extension.json';
-import { host, views } from '../src/index.ts';
-
-const [contribution] = manifest.contributes.exerciseTypes;
-const validateSpec = createSchemaValidator(contribution.specSchema);
-const validateAnswer = createSchemaValidator(contribution.answerSchema);
+import { client, server } from '../src/index.ts';
+import { TextAnswer } from '../src/text-answer.ts';
 
 const spec = { expected: 'Hello' };
 
@@ -180,13 +171,13 @@ afterEach(async () => {
   await Promise.all(disposables.splice(0).map((item) => item.dispose()));
 });
 
-const newSettings = () =>
-  createMemorySettings(manifest.contributes.settings as SettingContribution[]);
-
-const load = async (settings = newSettings()) => {
-  const type = await loadExerciseType(host, '${id}', { settings });
-  disposables.push(type);
-  return type;
+const start = async (settingValues = {}) => {
+  const running = await createTestServer(server, {
+    extensionId: '${id}',
+    settingValues,
+  });
+  disposables.push(running);
+  return running;
 };
 
 // mounts the answer view the way the app does: the props of \`AnswerViewProps\`
@@ -205,7 +196,7 @@ const mount = async (label?: string) => {
   document.body.append(host);
   const app = createApp({
     render: () =>
-      h(views['${id}'], {
+      h(TextAnswer, {
         ...props,
         onChange: (change: unknown) => changes.push(change),
         onSubmit: () => (submissions += 1),
@@ -234,12 +225,12 @@ const mount = async (label?: string) => {
 
 describe('${id}: handler', () => {
   it('project does not reveal the reference', async () => {
-    const type = await load();
+    const type = (await start()).exerciseType('${id}');
     expect(await type.project(spec)).toEqual({});
   });
 
   it('grade: a match passes, a mismatch does not', async () => {
-    const type = await load();
+    const type = (await start()).exerciseType('${id}');
     expect(await type.grade({ spec, answer: 'Hello' })).toEqual({
       outcome: 'passed',
     });
@@ -250,7 +241,7 @@ describe('${id}: handler', () => {
   });
 
   it('grade: ignoreCase turns case sensitivity off', async () => {
-    const type = await load();
+    const type = (await start()).exerciseType('${id}');
     const relaxed = { ...spec, ignoreCase: true };
     expect(await type.grade({ spec: relaxed, answer: 'hELLO' })).toEqual({
       outcome: 'passed',
@@ -258,7 +249,7 @@ describe('${id}: handler', () => {
   });
 
   it('referenceAnswer passes the check itself', async () => {
-    const type = await load();
+    const type = (await start()).exerciseType('${id}');
     const reference = await type.referenceAnswer(spec);
     expect(reference).toEqual({ found: true, answer: 'Hello' });
     if (!reference.found) throw new Error('reference expected');
@@ -270,12 +261,12 @@ describe('${id}: handler', () => {
 
 describe('${id}: settings and commands', () => {
   it('the trim setting decides whether the spaces around an answer count', async () => {
-    const settings = newSettings();
-    const type = await load(settings);
+    const running = await start();
+    const type = running.exerciseType('${id}');
     expect(await type.grade({ spec, answer: ' Hello ' })).toEqual({
       outcome: 'passed',
     });
-    await settings.set('${id}.trim', false);
+    await running.settings.set('${id}.trim', false);
     expect(await type.grade({ spec, answer: ' Hello ' })).toEqual({
       outcome: 'failed',
       reason: 'mismatch',
@@ -283,29 +274,40 @@ describe('${id}: settings and commands', () => {
   });
 
   it('the status command reports the current mode', async () => {
-    const settings = newSettings();
-    const commands = await loadCommands(host, {
-      declaredCommands: ['${id}.status'],
-      settings,
-    });
-    disposables.push(commands);
-    expect(await commands.run('${id}.status')).toEqual({
+    const running = await start();
+    expect(await running.commands.run('${id}.status')).toEqual({
       kind: 'notify',
       text: 'Answers are compared without the spaces around them.',
     });
-    await settings.set('${id}.trim', false);
-    expect(await commands.run('${id}.status')).toEqual({
+    await running.settings.set('${id}.trim', false);
+    expect(await running.commands.run('${id}.status')).toEqual({
       kind: 'notify',
+      text: 'Answers are compared exactly as typed.',
+    });
+  });
+
+  it('a user value of the setting replaces the default', async () => {
+    const running = await start({ '${id}.trim': false });
+    expect(await running.commands.run('${id}.status')).toMatchObject({
       text: 'Answers are compared exactly as typed.',
     });
   });
 });
 
 describe('${id}: schemas', () => {
+  const registered = async () => {
+    const [type] = (await start()).registration.exerciseTypes;
+    if (type === undefined) throw new Error('exercise type expected');
+    return {
+      validateSpec: createSchemaValidator(type.specSchema),
+      validateAnswer: createSchemaValidator(type.answerSchema),
+    };
+  };
+
   it.each([[{ expected: 'a' }], [{ expected: 'a', ignoreCase: true }]])(
     'spec %j is valid',
-    (value) => {
-      expect(validateSpec(value)).toEqual([]);
+    async (value) => {
+      expect((await registered()).validateSpec(value)).toEqual([]);
     },
   );
 
@@ -314,13 +316,22 @@ describe('${id}: schemas', () => {
     ['empty expected', { expected: '' }],
     ['ignoreCase is not a boolean', { expected: 'a', ignoreCase: 'yes' }],
     ['an extra field', { expected: 'a', extra: 1 }],
-  ])('spec: %s is rejected', (_name, value) => {
-    expect(validateSpec(value)).not.toEqual([]);
+  ])('spec: %s is rejected', async (_name, value) => {
+    expect((await registered()).validateSpec(value)).not.toEqual([]);
   });
 
-  it('answer: a string is valid, a number is not', () => {
+  it('answer: a string is valid, a number is not', async () => {
+    const { validateAnswer } = await registered();
     expect(validateAnswer('text')).toEqual([]);
     expect(validateAnswer(42)).not.toEqual([]);
+  });
+});
+
+describe('${id}: client', () => {
+  it('adds the answer view for the exercise type', async () => {
+    const running = await createTestClient(client, { extensionId: '${id}' });
+    disposables.push(running);
+    expect(running.answerViews.get('${id}')).toBe(TextAnswer);
   });
 });
 
@@ -369,18 +380,23 @@ export const exercise: TemplateModule = {
     'string, it is compared with `spec.expected`), a setting and a command.',
   ],
   layout: [
-    '- `extension.json` — the manifest (the `spec` and answer schemas are written',
-    '  in it);',
-    '- `src/index.ts` — all the extension code: `host` (`defineExtension` +',
-    '  `defineExerciseType`) and `views` (`defineAnswerView`: a Vue component',
-    '  that is the answer input); the build splits it into `main.mjs` and',
-    '  `view.mjs`;',
-    ...idsBullet,
+    '- `extension.json` — the manifest: identity only, the build adds `main` and',
+    '  `client`;',
+    '- `src/server.ts` — `server` (`defineServer`): the exercise type with the',
+    '  `spec` and answer schemas, the setting and the command; the build writes',
+    '  it to `main.mjs`;',
+    '- `src/client.ts` — `client` (`defineClient`): adds the answer view with',
+    '  `addAnswerView`; `src/text-answer.ts` is the Vue component that is the',
+    '  answer input; the build writes them to `client.mjs`;',
+    '- `src/index.ts` — re-exports `server` and `client`;',
     '- `test/index.test.ts` — tests (`vitest`, `happy-dom`).',
   ],
   files: (id) => ({
     'extension.json': manifestJson(id),
-    'src/index.ts': indexTs(id),
+    'src/index.ts': indexTs(),
+    'src/server.ts': serverTs(id),
+    'src/client.ts': clientTs(id),
+    'src/text-answer.ts': textAnswerTs(),
     'test/index.test.ts': indexTestTs(id),
   }),
 };

@@ -1,39 +1,36 @@
 import {
-  DEFAULT_MAIN,
   EXTENSION_API_VERSION,
+  EXTENSION_ID_PATTERN,
   EXTENSION_PLATFORMS,
   EXTENSION_TAGS,
   GITHUB_LOGIN_PATTERN,
   MAX_EXTENSION_DEPENDENCIES,
 } from '@dolphy-app/extension-api';
-import type {
-  ExtensionManifest,
-  ExtensionManifestInput,
-} from '@dolphy-app/extension-api';
+import type { ExtensionManifest } from '@dolphy-app/extension-api';
 import type { ExtensionDiagnosticDto } from '@dolphy-app/engine-contract';
 import { isSemver, parseRange } from '@dolphy-app/extension-catalog';
 import { z } from 'zod';
-import { CONTRIBUTION_POINTS } from './points/index.ts';
-import { extensionId, safePath } from './points/support.ts';
 
-type Entries = Record<string, readonly unknown[] | undefined>;
+/** Относительный путь внутри каталога расширения: без `..`, `\` и ведущего `/`. */
+const isSafeRelativePath = (value: string): boolean =>
+  value.length > 0 &&
+  !value.includes('\\') &&
+  !value.startsWith('/') &&
+  !value.split('/').includes('..');
 
-const contributesSchema = z.strictObject(
-  Object.fromEntries(
-    CONTRIBUTION_POINTS.map((point) => [
-      point.key,
-      z.array(point.schema).optional(),
-    ]),
-  ),
-);
+const safePath = (extensions: readonly string[]) =>
+  z
+    .string()
+    .refine(isSafeRelativePath, 'must be a safe relative path')
+    .refine(
+      (value) => extensions.some((ext) => value.endsWith(ext)),
+      `must end with ${extensions.join(' or ')}`,
+    );
 
-const entriesOf = (contributes: unknown, key: string): readonly unknown[] =>
-  (contributes as Entries)[key] ?? [];
-
-const isEmpty = (contributes: unknown): boolean =>
-  CONTRIBUTION_POINTS.every(
-    (point) => entriesOf(contributes, point.key).length === 0,
-  );
+const extensionId = z
+  .string()
+  .max(64)
+  .regex(EXTENSION_ID_PATTERN, 'invalid extension id');
 
 /** Диапазон версий в том же виде, что `versions` отзыва и устаревания в каталоге. */
 const versionRange = z.string().superRefine((value, ctx) => {
@@ -55,7 +52,8 @@ export const manifestSchema = z
     id: extensionId,
     version: z.string().refine(isSemver, 'version must be semver'),
     apiVersion: z.literal(EXTENSION_API_VERSION),
-    main: safePath(['.mjs']).optional(),
+    main: safePath(['.mjs']).nullable().optional(),
+    client: safePath(['.mjs']).nullable().optional(),
     name: z.string().min(1).max(80).optional(),
     description: z.string().min(1).max(500).optional(),
     author: z
@@ -85,7 +83,13 @@ export const manifestSchema = z
         `at most ${MAX_EXTENSION_DEPENDENCIES} dependencies`,
       )
       .optional(),
-    contributes: contributesSchema,
+    /** Вклады регистрирует код (`server`, `client`): ключ отвергается с подсказкой. */
+    contributes: z
+      .never({
+        error:
+          'contributions are registered in code (src/index.ts: server, client)',
+      })
+      .optional(),
   })
   .superRefine((manifest, ctx) => {
     const { platforms = [] } = manifest;
@@ -124,69 +128,34 @@ export const manifestSchema = z
         });
       }
     });
-    if (isEmpty(manifest.contributes)) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['contributes'],
-        message: 'at least one contribution is required',
-      });
-    }
   });
 
-/** Код нужен, если есть записи в точке, которая его требует. */
-const needsMain = (contributes: unknown): boolean =>
-  CONTRIBUTION_POINTS.some(
-    (point) => point.needsMain && entriesOf(contributes, point.key).length > 0,
-  );
-
-/** Применяет умолчания: `main`, `renderer`, пустые точки. */
-export const normalizeManifest = (
-  input: ExtensionManifestInput,
-): ExtensionManifest => {
-  const contributes = Object.fromEntries(
-    CONTRIBUTION_POINTS.map((point) => [
-      point.key,
-      point.normalize(entriesOf(input.contributes, point.key) as never),
-    ]),
-  );
-  return {
-    id: input.id,
-    version: input.version,
-    apiVersion: input.apiVersion,
-    main: input.main ?? (needsMain(input.contributes) ? DEFAULT_MAIN : null),
-    name: input.name ?? null,
-    description: input.description ?? null,
-    author: input.author ?? null,
-    platforms: [...(input.platforms ?? [])],
-    minAppVersion: input.minAppVersion ?? null,
-    tags: [...(input.tags ?? [])],
-    dependencies: (input.dependencies ?? []).map(({ id, range }) => ({
-      id,
-      range: range ?? null,
-    })),
-    icon: input.icon ?? null,
-    contributes: contributes as ExtensionManifest['contributes'],
-  };
-};
+/** Применяет умолчания: части, которой нет, соответствует `null`. */
+const normalizeManifest = (
+  input: z.output<typeof manifestSchema>,
+): ExtensionManifest => ({
+  id: input.id,
+  version: input.version,
+  apiVersion: input.apiVersion,
+  main: input.main ?? null,
+  client: input.client ?? null,
+  name: input.name ?? null,
+  description: input.description ?? null,
+  author: input.author ?? null,
+  platforms: [...(input.platforms ?? [])],
+  minAppVersion: input.minAppVersion ?? null,
+  tags: [...(input.tags ?? [])],
+  dependencies: (input.dependencies ?? []).map(({ id, range }) => ({
+    id,
+    range: range ?? null,
+  })),
+  icon: input.icon ?? null,
+});
 
 const zodIssues = (error: z.ZodError): string[] =>
   error.issues.map(
     (issue) => `${issue.path.join('.') || '/'}: ${issue.message}`,
   );
-
-/** Сообщения о нарушениях в нормализованном манифесте. */
-const normalizedIssues = (manifest: ExtensionManifest): string[] => [
-  ...CONTRIBUTION_POINTS.flatMap((point) =>
-    point.check(manifest.contributes[point.key] as never, manifest.id),
-  ),
-];
-
-const invalid = (
-  issues: string[],
-): { ok: false; diagnostic: ExtensionDiagnosticDto } => ({
-  ok: false,
-  diagnostic: { code: 'manifest-invalid', data: { issues } },
-});
 
 /** Разбор манифеста; ошибка — диагностика `manifest-invalid` (текст — `formatDiagnostic`). */
 export const parseManifest = (
@@ -195,22 +164,27 @@ export const parseManifest = (
   | { ok: true; manifest: ExtensionManifest }
   | { ok: false; diagnostic: ExtensionDiagnosticDto } => {
   const parsed = manifestSchema.safeParse(raw);
-  if (!parsed.success) return invalid(zodIssues(parsed.error));
-  const manifest = normalizeManifest(parsed.data as ExtensionManifestInput);
-  const issues = normalizedIssues(manifest);
-  if (issues.length > 0) return invalid(issues);
-  return { ok: true, manifest };
+  if (!parsed.success) {
+    return {
+      ok: false,
+      diagnostic: {
+        code: 'manifest-invalid',
+        data: { issues: zodIssues(parsed.error) },
+      },
+    };
+  }
+  return { ok: true, manifest: normalizeManifest(parsed.data) };
 };
 
 /**
  * JSON Schema (2020-12) of `extension.json` for editors. It cannot express the
- * cross-field rules (`id` prefix, at least one contribution, the
- * per-point checks): `parseManifest`
- * and `dolphy-ext validate` stay the source of truth.
+ * cross-field rules (duplicate platforms, tags and dependencies, a dependency
+ * on the extension itself): `parseManifest` and `dolphy-ext validate` stay the
+ * source of truth.
  */
 export const manifestJsonSchema = (): Record<string, unknown> => ({
   ...z.toJSONSchema(manifestSchema, { io: 'input', unrepresentable: 'any' }),
   title: 'Dolphy extension manifest',
   description:
-    'Editor aid for extension.json. It does not express cross-field rules (id prefix, at least one contribution, per-point checks); `dolphy-ext validate` and the app remain the source of truth.',
+    'Editor aid for extension.json. It does not express cross-field rules (duplicate platforms, tags and dependencies); `dolphy-ext validate` and the app remain the source of truth.',
 });

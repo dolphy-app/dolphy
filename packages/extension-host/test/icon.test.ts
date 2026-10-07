@@ -5,6 +5,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { png, webp } from '../../extension-catalog/test/samples.ts';
 import { discoverExtensions, inspectExtensionDir } from '../src/discover.ts';
+import { createDiscoveryHolder } from '../src/holder.ts';
 import { parseManifest } from '../src/manifest.ts';
 import { createExtensionPolicy } from '../src/policy.ts';
 import { createExtensionRegistry } from '../src/registry.ts';
@@ -20,16 +21,6 @@ const manifest = (extra: Record<string, unknown> = {}) => ({
   id: 'acme.night',
   version: '1.0.0',
   apiVersion: 1,
-  contributes: {
-    themes: [
-      {
-        id: 'acme.night',
-        label: 'Night',
-        dark: true,
-        colors: { background: '#101018' },
-      },
-    ],
-  },
   ...extra,
 });
 
@@ -159,10 +150,10 @@ describe('icon discovery', () => {
       roots: [{ dir: tmp, origin: 'user' }],
       logger: createLogger(),
     });
-    const source = { get: () => result };
+    const holder = createDiscoveryHolder(result);
     const registry = createExtensionRegistry(
-      source,
-      createExtensionPolicy(source),
+      holder,
+      createExtensionPolicy(holder),
     );
     const [info] = registry.list();
     expect(info?.icon).toBe(

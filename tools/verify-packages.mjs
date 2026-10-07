@@ -309,14 +309,14 @@ const assertSchemaResolves = (demo) => {
   );
 };
 
-/** Из одного `src/index.ts` сборка кладёт код хоста только в `main.mjs`, код вида — только в `view.mjs`. */
+/** Из одного `src/index.ts` сборка кладёт код хоста только в `main.mjs`, код окна — только в `client.mjs`. */
 const assertSplitOutputs = (dir) => {
   const main = readFileSync(path.join(dir, 'main.mjs'), 'utf8');
-  const view = readFileSync(path.join(dir, 'view.mjs'), 'utf8');
+  const client = readFileSync(path.join(dir, 'client.mjs'), 'utf8');
   check(main.includes('referenceAnswer'), 'demo: main.mjs has no host code');
   check(
-    !view.includes('referenceAnswer'),
-    'demo: view.mjs contains the host code',
+    !client.includes('referenceAnswer'),
+    'demo: client.mjs contains the host code',
   );
 };
 

@@ -9,8 +9,16 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { discoverExtensions } from '@dolphy-app/extension-host';
-import { loadCommands } from '@dolphy-app/extension-sdk/testing';
-import { buildExtension, validateExtension } from '@dolphy-app/extension-tools';
+import type { ClientEntry, ServerEntry } from '@dolphy-app/extension-sdk';
+import {
+  createTestClient,
+  createTestServer,
+} from '@dolphy-app/extension-sdk/testing';
+import {
+  HOST_GLOBAL,
+  buildExtension,
+  validateExtension,
+} from '@dolphy-app/extension-tools';
 import { describe, expect, it } from 'vitest';
 import { renderProject } from '../src/index.ts';
 import type { TemplateName } from '../src/index.ts';
@@ -40,47 +48,48 @@ const DOC_FILES = [
   'recipe-when-dependencies.md',
 ];
 
-type Mode =
-  'build-no-code-and-tests' | 'build-with-code-and-tests' | 'no-build';
-
 interface Example {
-  mode: Mode;
   /** The files equal the output of `renderProject` for this template. */
   template?: TemplateName;
+  /** The entry files the build writes: `server` is `main.mjs`, `client` is `client.mjs`. */
+  built: readonly string[];
 }
 
 /** Document → label of its examples → how it is checked. */
 const EXAMPLES: Readonly<Record<string, Record<string, Example>>> = {
   'quick-start.md': {
-    'quick start': { mode: 'build-with-code-and-tests', template: 'blank' },
+    'quick start': { template: 'blank', built: ['main.mjs'] },
   },
   'recipe-exercise-type.md': {
-    exercise: { mode: 'build-with-code-and-tests', template: 'exercise' },
+    exercise: { template: 'exercise', built: ['client.mjs', 'main.mjs'] },
   },
   'recipe-theme.md': {
-    theme: { mode: 'build-no-code-and-tests', template: 'theme' },
+    theme: { template: 'theme', built: ['client.mjs'] },
   },
   'recipe-command-panel.md': {
     'command-panel': {
-      mode: 'build-with-code-and-tests',
       template: 'command-panel',
+      built: ['client.mjs', 'main.mjs'],
     },
   },
   'recipe-event-storage.md': {
-    events: { mode: 'build-with-code-and-tests', template: 'events' },
+    events: { template: 'events', built: ['client.mjs', 'main.mjs'] },
   },
   'recipe-import-export.md': {
-    'import-export': { mode: 'build-with-code-and-tests' },
+    'import-export': { built: ['main.mjs'] },
   },
   'recipe-settings.md': {
-    settings: { mode: 'build-with-code-and-tests' },
+    settings: { built: ['main.mjs'] },
   },
   'recipe-when-dependencies.md': {
-    'when-dependencies': { mode: 'build-with-code-and-tests' },
+    'when-dependencies': { built: ['client.mjs', 'main.mjs'] },
   },
-  'no-build.md': { 'no build': { mode: 'no-build' } },
+  'no-build.md': {},
   'debugging.md': {},
 };
+
+/** The example of `no-build.md` is not a project: it has its own checks. */
+const NO_BUILD_LABEL = 'no build';
 
 const docs = new Map<string, string>(
   await Promise.all(
@@ -146,9 +155,9 @@ describe('the code blocks of the guide', () => {
 
   it.each(DOC_FILES)('%s: the example labels match the table', (name) => {
     const { examples } = collectBlocks(docs.get(name) ?? '');
-    expect([...examples.keys()].sort()).toEqual(
-      Object.keys(EXAMPLES[name] ?? {}).sort(),
-    );
+    const labels = Object.keys(EXAMPLES[name] ?? {});
+    if (name === 'no-build.md') labels.push(NO_BUILD_LABEL);
+    expect([...examples.keys()].sort()).toEqual(labels.sort());
   });
 
   it('a block without a marker fails the check; a marker or a fragment comment passes', () => {
@@ -173,14 +182,16 @@ const fileNames = (files: readonly ExampleFile[]): string[] =>
   files.map(({ file }) => file);
 
 const checkedExamples = Object.entries(EXAMPLES).flatMap(([name, labels]) =>
-  Object.entries(labels)
-    .filter(([, example]) => example.mode !== 'no-build')
-    .map(([label, example]) => ({ name, label, ...example })),
+  Object.entries(labels).map(([label, example]) => ({
+    name,
+    label,
+    ...example,
+  })),
 );
 
 describe.each(checkedExamples)(
   '$name: $label',
-  ({ name, label, mode, template }) => {
+  ({ name, label, template, built: entries }) => {
     const files = collectBlocks(docs.get(name) ?? '').examples.get(label) ?? [];
 
     if (template !== undefined) {
@@ -194,23 +205,22 @@ describe.each(checkedExamples)(
     }
 
     it('builds, passes validate, type-checks and passes its tests', async () => {
-      const withCode = mode === 'build-with-code-and-tests';
       expect(fileNames(files)).toContain('extension.json');
-      expect(fileNames(files).includes('src/index.ts')).toBe(withCode);
+      expect(fileNames(files)).toContain('src/index.ts');
       expect(fileNames(files).some((file) => file.startsWith('test/'))).toBe(
         true,
       );
 
       const root = await writeExampleProject(files);
       const built = await buildExtension({ root });
-      expect(built.files.some((file) => file.endsWith('.mjs'))).toBe(withCode);
+      expect(
+        built.files.filter((file) => file.endsWith('.mjs')).sort(),
+      ).toEqual(entries);
       await expect(validateExtension(built.dir)).resolves.toEqual({
         ok: true,
         problems: [],
-        warnings: [],
       });
 
-      // the ids written by the build must accept the example as written
       const typechecked = await tsc(root);
       expect(typechecked.code, typechecked.output).toBe(0);
 
@@ -233,17 +243,18 @@ const writeExampleProjectFiles = async (
 
 describe('no-build.md', () => {
   const files =
-    collectBlocks(docs.get('no-build.md') ?? '').examples.get('no build') ?? [];
+    collectBlocks(docs.get('no-build.md') ?? '').examples.get(NO_BUILD_LABEL) ??
+    [];
 
   it('shows a manifest and two modules, no package.json and no TypeScript', () => {
     expect(fileNames(files)).toEqual([
       'extension.json',
       'main.mjs',
-      'panel.mjs',
+      'client.mjs',
     ]);
   });
 
-  it('the directory validates, is discovered and the modules answer', async () => {
+  it('the directory validates, is discovered, and the modules register', async () => {
     const root = await makeTemp();
     const dir = path.join(root, 'acme.plain');
     await writeExampleProjectFiles(dir, files);
@@ -251,7 +262,6 @@ describe('no-build.md', () => {
     await expect(validateExtension(dir)).resolves.toEqual({
       ok: true,
       problems: [],
-      warnings: [],
     });
 
     const { extensions, diagnostics } = await discoverExtensions({
@@ -259,41 +269,58 @@ describe('no-build.md', () => {
       logger: silentLogger,
     });
     expect(diagnostics).toEqual([]);
-    expect(extensions.map((extension) => extension.id)).toEqual(['acme.plain']);
-    expect(extensions[0]?.commands.map((command) => command.id)).toEqual([
-      'acme.plain.hello',
-    ]);
-    expect(extensions[0]?.panels.map((panel) => panel.id)).toEqual([
-      'acme.plain.view',
+    expect(
+      extensions.map(({ id, mainPath, clientPath }) => ({
+        id,
+        mainPath,
+        clientPath,
+      })),
+    ).toEqual([
+      {
+        id: 'acme.plain',
+        mainPath: path.join(dir, 'main.mjs'),
+        clientPath: path.join(dir, 'client.mjs'),
+      },
     ]);
 
-    const module = (await import(
+    // the server module is a server entry
+    const { server } = (await import(
       pathToFileURL(path.join(dir, 'main.mjs')).href
-    )) as { default: Parameters<typeof loadCommands>[0] };
-    const commands = await loadCommands(module.default, {
-      declaredCommands: ['acme.plain.hello'],
+    )) as { server: ServerEntry };
+    const running = await createTestServer(server, {
+      extensionId: 'acme.plain',
     });
-    await expect(commands.run('acme.plain.hello')).resolves.toMatchObject({
+    expect(running.registration.commands.map(({ id }) => id)).toEqual([
+      'acme.plain.hello',
+      'acme.plain.open',
+    ]);
+    await expect(running.commands.run('acme.plain.hello')).resolves.toEqual({
       kind: 'notify',
-      text: expect.stringMatching(/^Hello from .+!$/),
+      text: 'Hello from acme.plain!',
     });
-    await commands.dispose();
+    await expect(running.commands.run('acme.plain.open')).resolves.toEqual({
+      kind: 'openPanel',
+      panelId: 'acme.plain.view',
+    });
+    await running.dispose();
 
-    // the panel module reads Vue from the app's loader and exports components
+    // the client module reads Vue from the app's loader and is a client entry
     const sdkRequire = createRequire(
       path.join(REPO_ROOT, 'packages/extension-sdk/package.json'),
     );
     const vue = (await import(sdkRequire.resolve('vue'))) as object;
-    Object.assign(globalThis, { __dolphy: { require: async () => vue } });
+    Object.assign(globalThis, { [HOST_GLOBAL]: { require: async () => vue } });
     try {
-      const panelModule = (await import(
-        pathToFileURL(path.join(dir, 'panel.mjs')).href
-      )) as { default: { panels: Record<string, unknown> } };
-      expect(Object.keys(panelModule.default.panels)).toEqual([
-        'acme.plain.view',
-      ]);
+      const { client } = (await import(
+        pathToFileURL(path.join(dir, 'client.mjs')).href
+      )) as { client: ClientEntry };
+      const added = await createTestClient(client, {
+        extensionId: 'acme.plain',
+      });
+      expect(added.panels.map(({ id }) => id)).toEqual(['acme.plain.view']);
+      await added.dispose();
     } finally {
-      Reflect.deleteProperty(globalThis, '__dolphy');
+      Reflect.deleteProperty(globalThis, HOST_GLOBAL);
     }
   });
 });

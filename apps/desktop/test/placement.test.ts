@@ -128,9 +128,7 @@ const createFakeEngine = (options: FakeOptions = {}) => {
       task: {
         type: 'dolphy.sql',
         timeoutMs: 1000,
-        rendererUrl: 'dolphy-ext://dolphy.sql/view.mjs',
-        origin: 'bundled',
-        revision: '',
+        extensionId: 'dolphy.sql',
       },
     }),
     keyPrerequisites: [],

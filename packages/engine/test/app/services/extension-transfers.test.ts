@@ -43,15 +43,11 @@ const info = (): ExtensionInfoDto => ({
   state: 'loaded',
   contributes: {
     exerciseTypes: [],
-    themes: [],
-    markdownRenderers: [],
     gradePolicies: [],
     settings: [],
     events: [],
     commands: [],
-    widgets: [],
     schedules: [],
-    panels: [],
     importers: [IMPORTER, BYTES_IMPORTER],
     exporters: [EXPORTER, PROGRESS_EXPORTER],
   },
@@ -63,8 +59,6 @@ const info = (): ExtensionInfoDto => ({
   dependencies: [],
   installed: null,
   icon: null,
-  titles: {},
-  messages: {},
   tags: [],
   removable: true,
   revoked: null,
@@ -150,14 +144,10 @@ const open = async (handlers: Handlers = {}) => {
     extensionTransfers: transfers,
     extensionRegistry: createFakeExtensionRegistry([info()], {
       exerciseTypes: [],
-      themes: [],
-      markdownRenderers: [],
       gradePolicies: [],
       settings: [],
       commands: [],
-      widgets: [],
       schedules: [],
-      panels: [],
       importers: [
         importer(IMPORTER, 'text'),
         importer(BYTES_IMPORTER, 'bytes'),
@@ -166,7 +156,7 @@ const open = async (handlers: Handlers = {}) => {
         exporter(EXPORTER, 'course'),
         exporter(PROGRESS_EXPORTER, 'progress'),
       ],
-      messages: {},
+      clients: [],
     }),
   });
   const courseIds = async () =>

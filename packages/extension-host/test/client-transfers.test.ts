@@ -1,9 +1,9 @@
 import type { ExtensionTransfers } from '@dolphy-app/engine/ports';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createHostChannel } from '../src/channel.ts';
 import { createRemoteExtensionTransfers } from '../src/client.ts';
 import { createEndpointPair } from '../src/loopback.ts';
 import type { ExtRequest } from '../src/protocol.ts';
+import { answerReplace, createBareChannel } from './channel-helpers.ts';
 import { createLogger } from './helpers.ts';
 
 afterEach(() => vi.useRealTimers());
@@ -18,10 +18,11 @@ type Reply =
 const setup = (reply: Reply | null, deadlineMs?: number) => {
   const restart = vi.fn();
   const logger = createLogger();
-  const channel = createHostChannel({ logger, restart });
+  const channel = createBareChannel({ logger, restart });
   const [engineSide, hostSide] = createEndpointPair();
   const requests: ExtRequest[] = [];
   hostSide.onMessage((message) => {
+    if (answerReplace(hostSide, message)) return;
     const request = message as ExtRequest;
     requests.push(request);
     if (reply !== null) hostSide.post({ id: request.id, ...reply });
@@ -200,7 +201,7 @@ describe('createRemoteExtensionTransfers', () => {
   it('хост не подключён — host-down', async () => {
     vi.useFakeTimers();
     const logger = createLogger();
-    const channel = createHostChannel({ logger });
+    const channel = createBareChannel({ logger });
     await channel.close();
     const transfers = createRemoteExtensionTransfers({
       channel,

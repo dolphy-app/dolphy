@@ -4,6 +4,7 @@ export const en: typeof ru = {
   extensionPanel: {
     back: 'Back',
     loadFailed: 'The panel failed to load',
+    loading: 'The panel is loading',
     retry: 'Retry',
     unavailable: {
       title: 'Panel unavailable',

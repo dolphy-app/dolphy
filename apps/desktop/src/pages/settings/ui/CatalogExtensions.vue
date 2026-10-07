@@ -7,13 +7,7 @@ import type {
 } from '@dolphy-app/engine-contract';
 import { useEngine } from '@/shared/api/engine';
 import { ROUTE } from '@/shared/config/routes.ts';
-import {
-  CONTRIBUTION_POINTS,
-  entryAction,
-  entryTags,
-  targetFromEntry,
-} from '../lib/catalog.ts';
-import type { ContributionPoint } from '../lib/catalog.ts';
+import { entryAction, entryTags, targetFromEntry } from '../lib/catalog.ts';
 import { GROUPS, TAGS } from '../lib/tags.ts';
 import type { ExtensionTag, TagGroup } from '../lib/tags.ts';
 import { useCatalog } from '../model/catalog.ts';
@@ -22,7 +16,6 @@ import { useInstalledExtensions } from '../model/installed.ts';
 import { rowsOfCatalog } from '../lib/dependencies.ts';
 import CatalogAdvanced from './CatalogAdvanced.vue';
 import DeprecatedChip from './DeprecatedChip.vue';
-import ExtensionContributions from './ExtensionContributions.vue';
 import ExtensionDeprecation from './ExtensionDeprecation.vue';
 import ExtensionHeading from './ExtensionHeading.vue';
 import ExtensionDependencies from './ExtensionDependencies.vue';
@@ -41,7 +34,6 @@ const {
   query,
   groups,
   tags,
-  kinds,
   counts,
   moreOpen,
   moreActive,
@@ -55,7 +47,6 @@ const {
   load,
   setGroup,
   setTag,
-  setKind,
   resetFilters,
 } = useCatalog(useEngine());
 
@@ -81,10 +72,6 @@ const toggleGroup = (group: TagGroup) => {
 
 const toggleTag = (tag: ExtensionTag) => {
   setTag(tag, !tags.value.has(tag));
-};
-
-const toggleKind = (point: ContributionPoint) => {
-  setKind(point, !kinds.value.has(point));
 };
 
 // группа без расширений скрыта, если не выбрана (иначе её нечем снять)
@@ -179,26 +166,6 @@ onMounted(() => void open());
       class="mt-2"
       data-testid="catalog-more-filters"
     >
-      <div
-        role="group"
-        class="d-flex flex-wrap align-center ga-2 mb-2"
-        :aria-label="t('settings.extensions.catalog.kindsLabel')"
-      >
-        <span
-          class="caption text-body-small text-medium-emphasis"
-          aria-hidden="true"
-        >
-          {{ t('settings.extensions.catalog.kindsCaption') }}
-        </span>
-        <FilterChip
-          v-for="point in CONTRIBUTION_POINTS"
-          :key="point"
-          :selected="kinds.has(point)"
-          :label="t(`settings.extensions.points.${point}`)"
-          :data-testid="`kind-${point}`"
-          @toggle="toggleKind(point)"
-        />
-      </div>
       <div
         v-if="shownTags.length > 0"
         role="group"
@@ -373,11 +340,6 @@ onMounted(() => void open());
             <ExtensionDependencies
               v-if="entry.latest"
               :rows="rowsOfCatalog(entry.latest.dependencies, installed)"
-            />
-            <ExtensionContributions
-              :contributes="entry.contributes"
-              :titles="entry.titles"
-              :name="entry.name"
             />
 
             <div

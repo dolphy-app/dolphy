@@ -362,7 +362,12 @@ export const en: typeof ru = {
         events: 'Learning events',
         commands: 'Commands',
         panels: 'Panels',
-        widgets: 'Widgets',
+        injections: 'Injected interface',
+        importers: 'Importers',
+        exporters: 'Exporters',
+      },
+      clientFailed: {
+        title: 'The extension client part failed to load',
       },
       origin: {
         bundled: 'Bundled',
@@ -443,11 +448,6 @@ export const en: typeof ru = {
         'dependency-unmet':
           'Requires the extension “{id}”{range}, which is not loaded: its dependencies are not met',
         'dependency-cycle': 'Extensions depend on each other: {cycle}',
-        locale: {
-          'missing-key':
-            'No translation for "{key}" in locales/en.json: the label is shown as is',
-          'invalid-file': 'Translation file {file} is ignored: {reason}',
-        },
       },
       safeMode: {
         label: 'Safe mode',
@@ -633,10 +633,8 @@ export const en: typeof ru = {
         listLabel: 'Catalog extensions',
         searchLabel: 'Search the catalog',
         searchHint: 'Name, id, description or author',
-        kindsLabel: 'Filter by contribution kind',
         groupsLabel: 'Quick filters',
         tagsLabel: 'Filter by tag',
-        kindsCaption: 'Contribution kinds',
         moreFilters: 'More filters',
         chipCount: '{label}: {n}',
         refresh: 'Refresh catalog',

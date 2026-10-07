@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   BUILTIN_THEME_IDS,
-  DEFAULT_MARKDOWN_RENDERER,
+  EMPTY_SERVER_REGISTRATION,
+  MARKDOWN_LANGUAGE_PATTERN,
   THEME_COLOR_KEYS,
   THEME_VARIABLE_KEYS,
 } from '../src/index.ts';
 
-describe('contribution points: constants', () => {
+describe('registration constants', () => {
   it('color and variable keys are unique and do not overlap', () => {
     const all = [...THEME_COLOR_KEYS, ...THEME_VARIABLE_KEYS];
     expect(new Set(all).size).toBe(all.length);
@@ -16,7 +17,25 @@ describe('contribution points: constants', () => {
     expect(BUILTIN_THEME_IDS).toEqual(['system', 'light', 'dark']);
   });
 
-  it('the default renderer is markdown.mjs', () => {
-    expect(DEFAULT_MARKDOWN_RENDERER).toBe('./markdown.mjs');
+  it.each(['a', 'mermaid', 'chem-3d', 'a'.repeat(32)])(
+    'accepts markdown language %s',
+    (language) => {
+      expect(MARKDOWN_LANGUAGE_PATTERN.test(language)).toBe(true);
+    },
+  );
+
+  it.each(['', '1a', 'A', 'a_b', 'a b', 'a'.repeat(33)])(
+    'rejects markdown language %j',
+    (language) => {
+      expect(MARKDOWN_LANGUAGE_PATTERN.test(language)).toBe(false);
+    },
+  );
+
+  it('the empty registration holds nothing and cannot be changed', () => {
+    for (const list of Object.values(EMPTY_SERVER_REGISTRATION)) {
+      expect(list).toEqual([]);
+      expect(Object.isFrozen(list)).toBe(true);
+    }
+    expect(Object.isFrozen(EMPTY_SERVER_REGISTRATION)).toBe(true);
   });
 });

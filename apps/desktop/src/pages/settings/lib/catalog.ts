@@ -3,31 +3,13 @@ import type {
   CatalogEntryDto,
   CatalogIncompatibleDto,
   CatalogVersionDto,
-  ContributionTitlesDto,
   DeprecationDto,
-  ExtensionContributesDto,
   ExtensionInfoDto,
   ExtensionUpdateDto,
 } from '@dolphy-app/engine-contract';
 import { satisfiesRange } from '@dolphy-app/extension-catalog/semver';
-import { resolveText } from '@dolphy-app/extension-api';
 import { GROUPS, TAGS, effectiveTags, groupsOf } from './tags.ts';
 import type { ExtensionTag, TagGroup } from './tags.ts';
-
-export type ContributionPoint = keyof ExtensionContributesDto;
-
-/** Точки вклада в порядке показа; то же перечисление — фильтр каталога. */
-export const CONTRIBUTION_POINTS: readonly ContributionPoint[] = [
-  'exerciseTypes',
-  'themes',
-  'markdownRenderers',
-  'gradePolicies',
-  'settings',
-  'events',
-  'commands',
-  'panels',
-  'widgets',
-];
 
 /** Имя события обучения → ключ сообщения `settings.extensions.events.*` (точка в ключе vue-i18n — путь). */
 export const EVENT_MESSAGE_KEYS: Readonly<Record<string, string>> = {
@@ -36,20 +18,16 @@ export const EVENT_MESSAGE_KEYS: Readonly<Record<string, string>> = {
   'attempt.closed': 'attemptClosed',
 };
 
-/**
- * Фильтры каталога. Внутри ряда (группы, теги, виды вклада) — «или», между
- * рядами и с поиском — «и».
- */
+/** Фильтры каталога. Внутри ряда (группы, теги) — «или», между рядами и с поиском — «и». */
 export interface CatalogFilters {
   query: string;
   groups: ReadonlySet<TagGroup>;
   tags: ReadonlySet<ExtensionTag>;
-  kinds: ReadonlySet<ContributionPoint>;
 }
 
-/** Эффективные теги записи каталога (явные теги показанной версии или вычисленные). */
+/** Эффективные теги записи каталога: известные явные теги показанной версии. */
 export const entryTags = (entry: CatalogEntryDto): ExtensionTag[] =>
-  effectiveTags(entry.tags, entry.contributes);
+  effectiveTags(entry.tags);
 
 const normalize = (text: string) => text.trim().toLowerCase();
 
@@ -67,16 +45,6 @@ export const matchesQuery = (
   const fields = [entry.name, entry.id, entry.description, entry.author];
   return fields.some((field) => field.toLowerCase().includes(needle));
 };
-
-/** Пустой набор — без фильтра; иначе достаточно вклада в любую выбранную точку. */
-export const matchesKinds = (
-  entry: CatalogEntryDto,
-  kinds: ReadonlySet<ContributionPoint>,
-): boolean =>
-  kinds.size === 0 ||
-  CONTRIBUTION_POINTS.some(
-    (point) => kinds.has(point) && entry.contributes[point].length > 0,
-  );
 
 /** Пустой набор — без фильтра; иначе запись входит в любую выбранную группу. */
 export const matchesGroups = (
@@ -132,15 +100,13 @@ export const filterEntries = (
       isListed(entry) &&
       matchesGroups(entry, filters.groups) &&
       matchesTags(entry, filters.tags) &&
-      matchesQuery(entry, filters.query) &&
-      matchesKinds(entry, filters.kinds),
+      matchesQuery(entry, filters.query),
   );
 
 export const hasActiveFilters = (filters: CatalogFilters): boolean =>
   normalize(filters.query) !== '' ||
   filters.groups.size > 0 ||
-  filters.tags.size > 0 ||
-  filters.kinds.size > 0;
+  filters.tags.size > 0;
 
 export type EntryAction =
   | { kind: 'install'; version: CatalogVersionDto }
@@ -210,10 +176,7 @@ export interface InstallTarget {
   installedVersion: string | null;
   /** Зависимости устанавливаемой версии; установка их не ставит и не блокируется. */
   dependencies: ExtensionDependencyDto[];
-  contributes: ExtensionContributesDto;
-  /** Названия вкладов; `{}` — без названий. */
-  titles: ContributionTitlesDto;
-  /** Эффективные теги (явные или вычисленные по вкладам). */
+  /** Эффективные теги: известные явные теги расширения. */
   tags: ExtensionTag[];
   platforms: string[];
   sizeBytes: number;
@@ -233,8 +196,6 @@ export const targetFromEntry = (
   version: version.version,
   installedVersion: entry.installedVersion,
   dependencies: version.dependencies.map((dependency) => ({ ...dependency })),
-  contributes: entry.contributes,
-  titles: entry.titles,
   tags: entryTags(entry),
   platforms: [...entry.platforms],
   sizeBytes: version.size,
@@ -242,38 +203,9 @@ export const targetFromEntry = (
   deprecated: deprecationFor(entry.deprecated, version.version),
 });
 
-const NO_CONTRIBUTES: ExtensionContributesDto = {
-  exerciseTypes: [],
-  themes: [],
-  markdownRenderers: [],
-  gradePolicies: [],
-  settings: [],
-  events: [],
-  commands: [],
-  widgets: [],
-  schedules: [],
-  panels: [],
-  importers: [],
-  exporters: [],
-};
-
-/** Названия вкладов установленного расширения на английском: так их показывает каталог. */
-const englishTitles = (info: ExtensionInfoDto): ContributionTitlesDto =>
-  Object.fromEntries(
-    Object.entries(info.titles).map(([point, titles]) => [
-      point,
-      Object.fromEntries(
-        Object.entries(titles).map(([id, title]) => [
-          id,
-          resolveText(title, info.messages, 'en'),
-        ]),
-      ),
-    ]),
-  );
-
 /**
- * Обновление установленного расширения. Вклады и платформы берутся из записи
- * каталога, если она есть; иначе — из установленной версии.
+ * Обновление установленного расширения. Платформы берутся из записи
+ * каталога, если она есть.
  */
 export const targetFromUpdate = (
   update: ExtensionUpdateDto,
@@ -288,12 +220,7 @@ export const targetFromUpdate = (
   dependencies: update.available.dependencies.map((dependency) => ({
     ...dependency,
   })),
-  contributes: entry?.contributes ?? info?.contributes ?? NO_CONTRIBUTES,
-  titles: entry?.titles ?? (info === undefined ? {} : englishTitles(info)),
-  tags: effectiveTags(
-    entry?.tags ?? info?.tags ?? [],
-    entry?.contributes ?? info?.contributes ?? NO_CONTRIBUTES,
-  ),
+  tags: effectiveTags(entry?.tags ?? info?.tags ?? []),
   platforms: entry === undefined ? [] : [...entry.platforms],
   sizeBytes: update.available.size,
   icon: entry?.icon ?? info?.icon ?? null,

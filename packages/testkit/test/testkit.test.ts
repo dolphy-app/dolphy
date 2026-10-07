@@ -266,9 +266,7 @@ describe('createFakeExerciseTypes', () => {
     const types = createFakeExerciseTypes({
       types: { 'fake.t': {} },
     });
-    expect(types.describe('fake.t')?.rendererUrl).toBe(
-      'dolphy-ext://fake/fake.t.mjs',
-    );
+    expect(types.describe('fake.t')?.extensionId).toBe('fake.t');
     expect(types.describe('other')).toBeUndefined();
     expect(types.validateSpec('other', {})).toEqual(['unknown exercise type']);
     expect(
@@ -293,15 +291,11 @@ describe('createFakeExtensionRegistry', () => {
       state: 'invalid',
       contributes: {
         exerciseTypes: [],
-        themes: [],
-        markdownRenderers: [],
         gradePolicies: [],
         settings: [],
         events: [],
         commands: [],
-        widgets: [],
         schedules: [],
-        panels: [],
         importers: [],
         exporters: [],
       },
@@ -312,8 +306,6 @@ describe('createFakeExtensionRegistry', () => {
       author: null,
       dependencies: [],
       icon: null,
-      titles: {},
-      messages: {},
       tags: [],
       installed: null,
       removable: true,
@@ -325,18 +317,14 @@ describe('createFakeExtensionRegistry', () => {
 
   it('has empty contributions by default and returns the given ones', () => {
     const empty = {
+      clients: [],
       exerciseTypes: [],
-      themes: [],
-      markdownRenderers: [],
       gradePolicies: [],
       settings: [],
       commands: [],
-      panels: [],
-      widgets: [],
       schedules: [],
       importers: [],
       exporters: [],
-      messages: {},
     };
     expect(createFakeExtensionRegistry().contributions()).toEqual(empty);
     const given = {

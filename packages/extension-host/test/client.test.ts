@@ -2,8 +2,6 @@ import { createExtensionHealth } from '@dolphy-app/engine/app';
 import type { MessageEndpoint } from '@dolphy-app/engine-contract';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createCatalog } from '../src/catalog.ts';
-import type { ResolvedExtension } from '../src/discover.ts';
-import { createHostChannel } from '../src/channel.ts';
 import {
   createRemoteExerciseTypes,
   createRemoteGradePolicies,
@@ -11,50 +9,18 @@ import {
 import { createEndpointPair } from '../src/loopback.ts';
 import { createAllEnabledPolicy } from '../src/policy.ts';
 import type { ExtRequest, ExtResponse } from '../src/protocol.ts';
-import { createLogger, holderOf } from './helpers.ts';
+import { createBareChannel, isReplaceRequest } from './channel-helpers.ts';
+import { createLogger, holderOf, resolvedOf } from './helpers.ts';
 
 afterEach(() => vi.useRealTimers());
 
-const resolved: ResolvedExtension[] = [
-  {
-    id: 'acme.t',
-    version: '1.0.0',
-    origin: 'user',
-    revision: '',
-    dir: '/x',
-    mainPath: '/x/main.mjs',
-    name: null,
-    description: null,
-    author: null,
-    dependencies: [],
-    platforms: [],
-    minAppVersion: null,
-    icon: null,
-    tags: [],
-    install: null,
-    messages: {},
-    warnings: [],
+const resolved = [
+  resolvedOf('acme.t', {
     exerciseTypes: [
-      {
-        id: 'acme.t',
-        title: null,
-        specSchema: {},
-        answerSchema: {},
-        rendererUrl: 'dolphy-ext://acme.t/view.mjs',
-      },
+      { id: 'acme.t', title: null, specSchema: {}, answerSchema: {} },
     ],
-    themes: [],
-    markdownRenderers: [],
     gradePolicies: [{ id: 'acme.t.gen', label: 'Generous' }],
-    settings: [],
-    events: [],
-    commands: [],
-    widgets: [],
-    schedules: [],
-    panels: [],
-    importers: [],
-    exporters: [],
-  },
+  }),
 ];
 const catalog = createCatalog(holderOf(resolved), createAllEnabledPolicy());
 
@@ -69,7 +35,7 @@ const gradeRequest = {
 
 const setup = (options: { restart?: () => void } = {}) => {
   const logger = createLogger();
-  const channel = createHostChannel({
+  const channel = createBareChannel({
     logger,
     connectTimeoutMs: 500,
     ...options,
@@ -87,8 +53,11 @@ const setup = (options: { restart?: () => void } = {}) => {
     deadlineMs: 100,
   });
   const [engineSide, hostSide] = createEndpointPair();
+  /** Вызовы клиентов; набор кандидатов, который канал шлёт после attach, сюда не входит. */
   const requests: ExtRequest[] = [];
-  hostSide.onMessage((message) => requests.push(message as ExtRequest));
+  hostSide.onMessage((message) => {
+    if (!isReplaceRequest(message)) requests.push(message as ExtRequest);
+  });
   return { client, policies, channel, engineSide, hostSide, requests };
 };
 
@@ -105,7 +74,7 @@ describe('createRemoteExerciseTypes', () => {
         ok: false,
         error: {
           cause: 'activation-timeout',
-          message: 'activate() did not finish in 10000 ms',
+          message: 'server() did not finish in 10000 ms',
         },
       } satisfies ExtResponse);
     });
@@ -115,7 +84,7 @@ describe('createRemoteExerciseTypes', () => {
     ).rejects.toMatchObject({
       name: 'ExerciseTypeError',
       cause: 'activation-failed',
-      message: 'activate() did not finish in 10000 ms',
+      message: 'server() did not finish in 10000 ms',
     });
   });
 
@@ -138,7 +107,7 @@ describe('createRemoteExerciseTypes', () => {
       data: 1,
     });
     expect(typeof verdict.durationMs).toBe('number');
-    expect(requests[0]).toMatchObject({ method: 'grade', id: '0' });
+    expect(requests[0]).toMatchObject({ method: 'grade' });
   });
 
   it('закрытие endpoint во время grade → error/worker_crash', async () => {
@@ -186,7 +155,7 @@ describe('createRemoteExerciseTypes', () => {
     vi.useFakeTimers();
     const restart = vi.fn();
     const logger = createLogger();
-    const channel = createHostChannel({ logger, restart });
+    const channel = createBareChannel({ logger, restart });
     const client = createRemoteExerciseTypes({
       channel,
       catalog,
@@ -226,7 +195,7 @@ describe('createRemoteExerciseTypes', () => {
     vi.useFakeTimers();
     const logger = createLogger();
     const client = createRemoteExerciseTypes({
-      channel: createHostChannel({ logger, connectTimeoutMs: 1000 }),
+      channel: createBareChannel({ logger, connectTimeoutMs: 1000 }),
       catalog,
       logger,
     });
@@ -474,7 +443,7 @@ describe('createRemoteExerciseTypes: здоровье расширения', () 
   const open = () => {
     const health = createExtensionHealth({ now: () => Date.now() });
     const logger = createLogger();
-    const channel = createHostChannel({ logger, connectTimeoutMs: 500 });
+    const channel = createBareChannel({ logger, connectTimeoutMs: 500 });
     const client = createRemoteExerciseTypes({
       channel,
       catalog,
@@ -523,7 +492,7 @@ describe('createRemoteExerciseTypes: здоровье расширения', () 
 
     engineSide.close();
     const [silentEngine] = createEndpointPair();
-    const channel = createHostChannel({ logger: createLogger() });
+    const channel = createBareChannel({ logger: createLogger() });
     const slow = createRemoteExerciseTypes({
       channel,
       catalog,

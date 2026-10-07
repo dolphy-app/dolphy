@@ -1,15 +1,15 @@
 /**
- * Порт правил оценки из расширений: список правил из манифестов и вызов
+ * Порт правил оценки из расширений: список правил, зарегистрированных расширениями и вызов
  * правила в хосте расширений. Адаптеры живут в `@dolphy-app/extension-host`; ядро
  * знает только этот интерфейс. Сбой вызова — `GradePolicyError`: запасное
  * правило выбирает слой композиции (`resolveGradePolicy`), не порт.
  */
-import type { Grade } from '@dolphy-app/engine-contract';
+import type { Grade, LocalizedTextDto } from '@dolphy-app/engine-contract';
 import type { GradeInput } from '../verify/grade-policy.ts';
 
 export interface GradePolicyInfo {
   id: string;
-  label: string;
+  label: LocalizedTextDto;
   extensionId: string;
 }
 

@@ -2,23 +2,9 @@
   "id": "acme.windows-only",
   "version": "1.0.0",
   "apiVersion": 1,
+  "client": "./client.mjs",
   "name": "Windows only",
   "description": "Тема только для другой платформы",
   "author": "acme",
-  "platforms": ["win32"],
-  "contributes": {
-    "themes": [
-      {
-        "id": "acme.windows-only",
-        "label": "Окна",
-        "dark": false,
-        "colors": {
-          "background": "#FFF4E5",
-          "surface": "#FFFFFF",
-          "primary": "#C2410C",
-          "on-primary": "#FFFFFF"
-        }
-      }
-    ]
-  }
+  "platforms": ["win32"]
 }

@@ -67,6 +67,7 @@ import type { FolderSync, FolderSyncOptions } from '../node/folder-sync.ts';
 import type { Replica } from '../sync/replica.ts';
 import type { TraneSource } from '../sync/trane-import.ts';
 import type { EngineState, FacadeContext } from './context-types.ts';
+import type { ExtensionHostServices } from './services/extension-host-services.ts';
 import type { ExtensionApply } from './extension-apply.ts';
 import type { EventBus } from './event-bus.ts';
 import type { ExpiringMap } from './expiring-map.ts';
@@ -122,6 +123,13 @@ export interface EngineDeps {
   extensionInstaller: ExtensionInstaller;
   /** Применение изменений расширений на диске (`@dolphy-app/extension-host`): тот же снимок, что у реестра, политики и клиентов хоста. */
   extensionReloader: ExtensionReloader;
+  /**
+   * Вызывается, когда сервисы данных расширений уже работают, а библиотека ещё
+   * не открыта; открытие ждёт завершения. Так хост расширений при первой
+   * регистрации вкладов видит рабочие хранилище и настройки, а библиотека
+   * открывается уже с видами заданий.
+   */
+  beforeLibrary?: (host: ExtensionHostServices) => Promise<void>;
   /** Чтение файлового журнала (`extensions.readLogs`); нет порта — журнала нет, ответ пустой. */
   logReader?: LogReader;
   /** Платформа хоста; по умолчанию `platformFromNode(process.platform)`. */

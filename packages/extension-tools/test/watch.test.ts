@@ -1,4 +1,4 @@
-import { readFile, stat, utimes, writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 import { describe, expect, it } from 'vitest';
@@ -43,10 +43,11 @@ describe('watchExtension', () => {
         await readFile(path.join(root, 'src', 'index.ts'), 'utf8')
       ).split('\n');
       const markers = [
-        'HOST_ONLY_MARKER',
+        'SERVER_ONLY_MARKER',
         'VIEW_ONE_MARKER',
-        'VIEW_THREE_MARKER',
+        'VIEW_TWO_MARKER',
         'PANEL_FIRST_MARKER',
+        'INJECTION_CARD_MARKER',
         'ALPHA_MARKER',
       ];
       const found = new Set<string>();
@@ -127,9 +128,9 @@ describe('watchExtension', () => {
     try {
       const { dir } = handle.result;
       expect(handle.result.files).toEqual([
+        'client.mjs',
         'extension.json',
         'main.mjs',
-        'view.mjs',
       ]);
       expect(await read(dir, 'main.mjs')).not.toContain('watch-host');
       const index = path.join(root, 'src', 'index.ts');
@@ -141,13 +142,13 @@ describe('watchExtension', () => {
       await waitFor(
         async () =>
           (await read(dir, 'main.mjs')).includes('watch-host') &&
-          (await read(dir, 'view.mjs')).includes('watch-view'),
+          (await read(dir, 'client.mjs')).includes('watch-view'),
       );
       await settle();
       expect(log.error).toEqual([]);
       expect(log.info).toHaveLength(1);
       expect(log.info[0]).toMatch(
-        /^rebuilt (main\.mjs, view\.mjs|view\.mjs, main\.mjs)$/,
+        /^rebuilt (main\.mjs, client\.mjs|client\.mjs, main\.mjs)$/,
       );
     } finally {
       await handle.close();
@@ -167,18 +168,18 @@ describe('watchExtension', () => {
       const good = await readFile(index, 'utf8');
       await writeFile(
         index,
-        good.replace(
-          "'acme.hello': defineAnswerView",
-          "'acme.extra': defineAnswerView",
-        ),
+        `import { readFileSync } from 'node:fs';\n${good.replace(
+          "c.addAnswerView('acme.hello', input);",
+          "c.addAnswerView('acme.hello', input);\n  readFileSync('/x');",
+        )}`,
       );
       await waitFor(async () => log.error.length > 0);
       await settle();
       expect(log.error).toHaveLength(1);
       expect(log.error[0]).toContain('acme.hello');
-      expect(log.error[0]).toContain('acme.extra');
-      expect(log.error[0]).toContain('main.mjs (host');
-      expect(log.error[0]).toContain('view.mjs (views');
+      expect(log.error[0]).toContain('client.mjs (client from src/index.ts)');
+      expect(log.error[0]).toContain("client.mjs imports 'node:fs'");
+      expect(log.error[0]).not.toContain('main.mjs');
 
       log.info.length = 0;
       await writeFile(
@@ -194,7 +195,7 @@ describe('watchExtension', () => {
     }
   });
 
-  it('editing extension.json rebuilds files per the new manifest', async () => {
+  it('editing extension.json rebuilds the manifest of the output and reports the files', async () => {
     const root = await copyProject('hello');
     const log = recordLogger();
     const handle = await watchExtension({
@@ -206,70 +207,46 @@ describe('watchExtension', () => {
       const { dir } = handle.result;
       const manifestFile = path.join(root, 'extension.json');
       const manifest = JSON.parse(await readFile(manifestFile, 'utf8')) as {
-        contributes: Record<string, unknown>;
+        description?: string;
       };
-      manifest.contributes.panels = [
-        { id: 'acme.hello.panel', title: 'Hello' },
-      ];
+      manifest.description = 'Edited while watching';
       await writeFile(manifestFile, JSON.stringify(manifest));
-      // the code does not know about the panel yet: the error names the entry, watchers wait for an edit
       await waitFor(async () =>
-        log.error.some((message) => message.includes('acme.hello.panel')),
+        (await read(dir, 'extension.json')).includes('Edited while watching'),
       );
-      await edit(path.join(root, 'src', 'index.ts'), (text) =>
-        text
-          .replace(
-            'import { defineAnswerView, defineExtension }',
-            'import { defineAnswerView, defineExtension, defineExtensionPanel }',
-          )
-          .concat(
-            "\nexport const panels = { 'acme.hello.panel': defineExtensionPanel(defineComponent({ render: () => h('p', 'hello panel') })) };\n",
-          ),
+      await waitFor(async () =>
+        log.info.includes('rebuilt client.mjs, extension.json, main.mjs'),
       );
-      await waitFor(async () => {
-        try {
-          return (await read(dir, 'panel.mjs')).includes('hello panel');
-        } catch {
-          return false;
-        }
-      });
-      expect(await read(dir, 'extension.json')).toContain('acme.hello.panel');
+      const built = JSON.parse(await read(dir, 'extension.json')) as {
+        main: string | null;
+        client: string | null;
+      };
+      expect(built.main).toBe('./main.mjs');
+      expect(built.client).toBe('./client.mjs');
+      expect((await read(dir, 'main.mjs')).length).toBeGreaterThan(0);
+      expect(log.error).toEqual([]);
     } finally {
       await handle.close();
     }
   });
 
-  it('editing extension.json regenerates .dolphy/ids.d.ts; an edit without an id change and a code edit leave it alone', async () => {
+  it('an invalid extension.json is logged and the previous output stays until it is fixed', async () => {
     const root = await copyProject('hello');
     const log = recordLogger();
-    const idsFile = path.join(root, '.dolphy', 'ids.d.ts');
     const handle = await watchExtension({
       root,
       outDir: path.join(root, 'out'),
       logger: log.logger,
     });
     try {
-      expect(await readFile(idsFile, 'utf8')).toContain('commands: never');
+      const { dir } = handle.result;
       const manifestFile = path.join(root, 'extension.json');
-      const manifest = JSON.parse(await readFile(manifestFile, 'utf8')) as {
-        contributes: Record<string, unknown>;
-      };
-      manifest.contributes.commands = [{ id: 'acme.hello.run', title: 'Run' }];
-      await writeFile(manifestFile, JSON.stringify(manifest));
+      const good = await readFile(manifestFile, 'utf8');
+      await writeFile(manifestFile, good.replace('acme.hello', 'Bad Id'));
       await waitFor(async () =>
-        (await readFile(idsFile, 'utf8')).includes(
-          "commands: 'acme.hello.run'",
-        ),
+        log.error.some((message) => message.includes('invalid extension id')),
       );
-
-      // the same ids in a differently formatted manifest, and a source edit:
-      // the file keeps its old mtime, so a watcher on the project sees nothing
-      const old = new Date('2020-01-01T00:00:00Z');
-      await utimes(idsFile, old, old);
-      await writeFile(manifestFile, JSON.stringify(manifest, null, 4));
-      await edit(path.join(root, 'src', 'index.ts'), (text) => `${text}\n`);
-      await settle(1200);
-      expect((await stat(idsFile)).mtime).toEqual(old);
+      expect((await read(dir, 'main.mjs')).length).toBeGreaterThan(0);
     } finally {
       await handle.close();
     }

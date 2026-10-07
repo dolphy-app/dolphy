@@ -1,8 +1,5 @@
 {
   "id": "acme.chart",
   "version": "1.0.0",
-  "apiVersion": 1,
-  "contributes": {
-    "markdownRenderers": [{ "language": "chart", "title": "Charts" }]
-  }
+  "apiVersion": 1
 }

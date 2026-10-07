@@ -1,11 +1,9 @@
 import { computed, ref, toValue } from 'vue';
 import type { MaybeRefOrGetter } from 'vue';
-import type {
-  LocaleMode,
-  ThemeContributionDto,
-} from '@dolphy-app/engine-contract';
+import type { LocaleMode } from '@dolphy-app/engine-contract';
 import type { LocaleSelection } from '@/shared/api/engine/locale-selection.ts';
 import type { ThemeSelection } from '@/shared/api/engine/theme-selection.ts';
+import type { ClientTheme } from '@/shared/lib/extension-clients.ts';
 import { effectiveThemeId } from '@/shared/lib/extension-themes.ts';
 
 /**
@@ -17,7 +15,7 @@ import { effectiveThemeId } from '@/shared/lib/extension-themes.ts';
 export const useAppearanceSettings = (
   selection: ThemeSelection,
   localeSelection: LocaleSelection,
-  themes: MaybeRefOrGetter<readonly ThemeContributionDto[]>,
+  themes: MaybeRefOrGetter<readonly Pick<ClientTheme, 'id'>[]>,
 ) => {
   const mode = computed(() =>
     effectiveThemeId(selection.saved.value, toValue(themes)),

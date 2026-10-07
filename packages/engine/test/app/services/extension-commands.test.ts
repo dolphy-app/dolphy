@@ -5,7 +5,7 @@ import type {
   ImporterContributionDto,
   CommandResultDto,
   ExtensionInfoDto,
-  PanelContributionDto,
+  ExtensionClientDto,
 } from '@dolphy-app/engine-contract';
 import {
   createFakeExtensionCommands,
@@ -27,15 +27,11 @@ const info = (overrides: Partial<ExtensionInfoDto> = {}): ExtensionInfoDto => ({
   state: 'loaded',
   contributes: {
     exerciseTypes: [],
-    themes: [],
-    markdownRenderers: [],
     gradePolicies: [],
     settings: [],
     events: [],
     commands: [`${ID}.run`],
-    widgets: [],
     schedules: [],
-    panels: [],
     importers: [],
     exporters: [],
   },
@@ -47,8 +43,6 @@ const info = (overrides: Partial<ExtensionInfoDto> = {}): ExtensionInfoDto => ({
   dependencies: [],
   installed: null,
   icon: null,
-  titles: {},
-  messages: {},
   tags: [],
   removable: true,
   revoked: null,
@@ -62,20 +56,15 @@ const command = (id: string, extensionId = ID): CommandContributionDto => ({
   title: id,
   description: null,
   category: null,
-  keybinding: null,
   keybindings: [],
   icon: 'puzzle',
   palette: true,
   when: null,
 });
 
-const panel = (id: string, extensionId = ID): PanelContributionDto => ({
-  id,
+const client = (extensionId: string): ExtensionClientDto => ({
   extensionId,
-  title: id,
-  icon: 'puzzle',
-  when: null,
-  rendererUrl: `dolphy-ext://${extensionId}/panel.mjs`,
+  url: `dolphy-ext://${extensionId}/client.mjs`,
   origin: 'user',
   revision: 'r1',
 });
@@ -125,17 +114,13 @@ const open = (options: OpenOptions = {}) => {
     settings,
     extensionRegistry: createFakeExtensionRegistry(options.items ?? [info()], {
       exerciseTypes: [],
-      themes: [],
-      markdownRenderers: [],
       gradePolicies: [],
       settings: [],
       commands: options.commands ?? [command(`${ID}.run`)],
-      widgets: [],
       schedules: [],
-      panels: [],
       importers: [],
       exporters: [],
-      messages: {},
+      clients: [],
     }),
   }).then((opened) => ({ ...opened, extensionCommands }));
 };
@@ -288,13 +273,11 @@ describe('extensions.invokeCommand', () => {
   });
 });
 
-describe('extensions.contributions: команды и панели', () => {
+describe('extensions.contributions: команды и клиенты', () => {
   it('сортирует по расширению, внутри расширения сохраняет порядок манифеста', async () => {
     const { engine } = await createTestEngine({
       extensionRegistry: createFakeExtensionRegistry([], {
         exerciseTypes: [],
-        themes: [],
-        markdownRenderers: [],
         gradePolicies: [],
         settings: [],
         commands: [
@@ -302,9 +285,8 @@ describe('extensions.contributions: команды и панели', () => {
           command('a.ext.z', 'a.ext'),
           command('a.ext.a', 'a.ext'),
         ],
-        widgets: [],
         schedules: [],
-        panels: [panel('b.ext.p', 'b.ext'), panel('a.ext.q', 'a.ext')],
+        clients: [client('b.ext'), client('a.ext')],
         importers: [
           importer('b.ext.csv', 'b.ext'),
           importer('a.ext.y', 'a.ext'),
@@ -314,7 +296,6 @@ describe('extensions.contributions: команды и панели', () => {
           exporter('b.ext.out', 'b.ext'),
           exporter('a.ext.out', 'a.ext'),
         ],
-        messages: {},
       }),
     });
 
@@ -325,7 +306,10 @@ describe('extensions.contributions: команды и панели', () => {
       'a.ext.a',
       'b.ext.z',
     ]);
-    expect(result.panels.map(({ id }) => id)).toEqual(['a.ext.q', 'b.ext.p']);
+    expect(result.clients.map(({ extensionId }) => extensionId)).toEqual([
+      'a.ext',
+      'b.ext',
+    ]);
     expect(result.importers.map(({ id }) => id)).toEqual([
       'a.ext.y',
       'a.ext.x',
@@ -337,13 +321,9 @@ describe('extensions.contributions: команды и панели', () => {
     ]);
   });
 
-  it('список расширений несёт id команд и панелей копиями', async () => {
+  it('список расширений несёт id команд копиями', async () => {
     const { engine } = await open({
-      items: [
-        info({
-          contributes: { ...info().contributes, panels: [`${ID}.screen`] },
-        }),
-      ],
+      items: [info()],
     });
 
     const [first] = await engine.extensions.list();
@@ -351,7 +331,6 @@ describe('extensions.contributions: команды и панели', () => {
 
     expect((await engine.extensions.list())[0]?.contributes).toMatchObject({
       commands: [`${ID}.run`],
-      panels: [`${ID}.screen`],
     });
   });
 });

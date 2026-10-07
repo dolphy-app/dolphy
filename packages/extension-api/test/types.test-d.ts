@@ -1,124 +1,303 @@
 import { describe, expectTypeOf, it } from 'vitest';
+import { anchorSelector } from '../src/index.ts';
 import type {
   AnswerChange,
   AnswerVerdict,
   AnswerViewProps,
   BytesImportInput,
+  ClientContext,
+  ClientEntry,
+  CommandRegistration,
   CourseExportInput,
+  Disposable,
+  EnumSettingOption,
   ExerciseTypeHandler,
-  ExtensionContext,
-  GradeResult,
+  ExerciseTypeRegistration,
+  ImporterRegistration,
   ImportInput,
   JsonValue,
   LearningEventHandler,
   LearningEventName,
   LearningEventPayloads,
+  LocalizedText,
   PanelContextInfo,
   PanelHandle,
   ProgressExportInput,
-  SettingContribution,
+  ScheduleRegistration,
+  ServerContext,
+  ServerEntry,
+  ServerRegistration,
+  SettingDefinition,
   SettingValue,
-  WidgetHandle,
+  InjectionHandle,
+  InjectionPosition,
+  InjectionRegistration,
   TextImportInput,
 } from '../src/index.ts';
 
+const disposable: Disposable = { dispose: () => undefined };
+
 describe('extension-api types', () => {
-  it('GradeResult is discriminated by outcome', () => {
-    const narrow = (result: GradeResult) => {
-      if (result.outcome === 'failed') return result.reason;
-      if (result.outcome === 'error') return result.reason;
-      return null;
-    };
-    expectTypeOf(narrow).returns.toEqualTypeOf<string | null>();
+  it('LocalizedText is a string or texts by language with a required en', () => {
+    expectTypeOf<LocalizedText>().toEqualTypeOf<
+      string | { readonly en: string; readonly ru?: string }
+    >();
+    const plain: LocalizedText = 'Plan';
+    const both: LocalizedText = { en: 'Plan', ru: 'План' };
+    // @ts-expect-error en is required
+    const noEnglish: LocalizedText = { ru: 'План' };
+    void [plain, both, noEnglish];
   });
 
-  it('a typed handler is registrable through the untyped context', () => {
-    const handler: ExerciseTypeHandler<{ a: 1 }, string> = {
+  it('an exercise type registration carries metadata and the handler', () => {
+    const registration: ExerciseTypeRegistration<{ a: 1 }, string> = {
+      id: 'a.type',
+      title: { en: 'Type' },
+      specSchema: { type: 'object' },
+      answerSchema: { type: 'string' },
       project: ({ spec }) => spec.a,
       grade: ({ answer }) => ({
         outcome: answer === 'x' ? 'passed' : 'failed',
         reason: 'mismatch',
       }),
     };
-    type Register = ExtensionContext['registerExerciseType'];
-    expectTypeOf(handler).toExtend<Parameters<Register>[1]>();
+    expectTypeOf(registration).toExtend<
+      ExerciseTypeHandler<{ a: 1 }, string>
+    >();
+    type Register = ServerContext['registerExerciseType'];
+    expectTypeOf(registration).toExtend<Parameters<Register>[0]>();
+    expectTypeOf<Register>().returns.toEqualTypeOf<Disposable>();
+    expectTypeOf<Parameters<Register>[0]['specSchema']>().toEqualTypeOf<
+      Record<string, unknown>
+    >();
   });
 
   it('the event handler payload follows the event name', () => {
-    const events: ExtensionContext['events'] = {
-      on: () => ({ dispose: () => undefined }),
-    };
-    events.on('attempt.closed', ({ grade }) => void grade);
+    const server = {} as ServerContext;
+    server.on('attempt.closed', ({ grade }) => void grade);
     // @ts-expect-error session.started has no grade
-    events.on('session.started', ({ grade }) => void grade);
+    server.on('session.started', ({ grade }) => void grade);
     // @ts-expect-error unknown event
-    events.on('attempt.opened', () => undefined);
+    server.on('attempt.opened', () => undefined);
     expectTypeOf<LearningEventHandler<'session.finished'>>()
       .parameter(0)
       .toEqualTypeOf<LearningEventPayloads['session.finished']>();
+    expectTypeOf<ServerContext['on']>()
+      .parameter(0)
+      .toEqualTypeOf<LearningEventName>();
   });
 
-  it('a setting is discriminated by its type', () => {
-    const narrow = (setting: SettingContribution) => {
+  it('a setting is discriminated by its type and its texts are localizable', () => {
+    const narrow = (setting: SettingDefinition) => {
       if (setting.type === 'number') return setting.min;
       if (setting.type === 'enum') return setting.options;
       return null;
     };
     expectTypeOf(narrow).returns.toEqualTypeOf<
-      number | undefined | { value: string; label: string }[] | null
+      number | undefined | EnumSettingOption[] | null
     >();
+    expectTypeOf<EnumSettingOption['label']>().toEqualTypeOf<LocalizedText>();
+    const setting: SettingDefinition = {
+      id: 'a.goal',
+      type: 'number',
+      label: { en: 'Goal', ru: 'Цель' },
+      default: 5,
+    };
+    void setting;
   });
 
-  it('a command handler may return nothing, an effect, JSON or a promise of them', () => {
-    const commands: ExtensionContext['commands'] = {
-      register: () => ({ dispose: () => undefined }),
-    };
-    commands.register('a.none', () => undefined);
-    commands.register('a.notify', () => ({ notify: 'done' }));
-    commands.register('a.open', () => ({ openPanel: 'p', props: { n: 1 } }));
-    commands.register('a.json', () => ({ list: [1, null, 'x'] }));
-    commands.register('a.async', async () => ({ notify: 'later' }));
-    commands.register('a.args', (args) => {
-      expectTypeOf(args).toEqualTypeOf<JsonValue | undefined>();
+  it('a command registration holds the metadata and a handler that may return nothing, an effect, JSON or a promise of them', () => {
+    const server = {} as ServerContext;
+    const base = { id: 'a.cmd', title: 'Command' };
+    server.registerCommand({ ...base, run: () => undefined });
+    server.registerCommand({ ...base, run: () => ({ notify: 'done' }) });
+    server.registerCommand({
+      ...base,
+      run: () => ({ openPanel: 'p', props: { n: 1 } }),
+    });
+    server.registerCommand({ ...base, run: () => ({ list: [1, null, 'x'] }) });
+    server.registerCommand({ ...base, run: async () => ({ notify: 'later' }) });
+    server.registerCommand({
+      ...base,
+      palette: false,
+      icon: 'star',
+      when: "route == 'courses'",
+      keybindings: [{ key: 'Mod+Shift+L' }],
+      run: (args) => {
+        expectTypeOf(args).toEqualTypeOf<JsonValue | undefined>();
+      },
     });
     // @ts-expect-error a function is not JSON
-    commands.register('a.bad', () => () => 1);
+    server.registerCommand({ ...base, run: () => () => 1 });
+    // @ts-expect-error a command needs a handler
+    server.registerCommand(base);
+    expectTypeOf<CommandRegistration['title']>().toEqualTypeOf<LocalizedText>();
+  });
+
+  it('a schedule is daily with a time or hourly without one', () => {
+    const daily: ScheduleRegistration = {
+      id: 'a.morning',
+      every: 'daily',
+      at: '09:00',
+    };
+    const hourly: ScheduleRegistration = { id: 'a.hourly', every: 'hourly' };
+    // @ts-expect-error a daily schedule needs a time
+    const timeless: ScheduleRegistration = { id: 'a.late', every: 'daily' };
+    const timed: ScheduleRegistration = {
+      id: 'a.hour',
+      every: 'hourly',
+      // @ts-expect-error an hourly schedule takes no time
+      at: '09:00',
+    };
+    void [daily, hourly, timeless, timed];
+    expectTypeOf<ServerContext['schedule']>()
+      .parameter(1)
+      .toEqualTypeOf<() => void | Promise<void>>();
   });
 
   it('an importer takes the text or bytes form, an exporter the course or progress form', () => {
-    const importers: ExtensionContext['importers'] = {
-      register: () => ({ dispose: () => undefined }),
-    };
-    importers.register('a.text', ({ name, text }: TextImportInput) => ({
-      files: { [name]: text },
-    }));
-    importers.register('a.bytes', ({ bytes }: BytesImportInput) => ({
-      files: { size: String(bytes.length) },
-    }));
-    importers.register('a.any', async (input) => {
-      expectTypeOf(input).toEqualTypeOf<ImportInput>();
-      return { files: {} };
+    const server = {} as ServerContext;
+    const importer = { id: 'a.in', title: 'In', accept: ['.csv'] };
+    server.registerImporter({
+      ...importer,
+      input: 'text',
+      run: ({ name, text }: TextImportInput) => ({ files: { [name]: text } }),
+    });
+    server.registerImporter({
+      ...importer,
+      input: 'bytes',
+      run: ({ bytes }: BytesImportInput) => ({
+        files: { size: String(bytes.length) },
+      }),
+    });
+    server.registerImporter({
+      ...importer,
+      input: 'text',
+      run: async (input) => {
+        expectTypeOf(input).toEqualTypeOf<ImportInput>();
+        return { files: {} };
+      },
     });
     // @ts-expect-error the result needs `files`
-    importers.register('a.bad', () => ({ file: {} }));
-    // @ts-expect-error a file content is text
-    importers.register('a.number', () => ({ files: { a: 1 } }));
-
-    const exporters: ExtensionContext['exporters'] = {
-      register: () => ({ dispose: () => undefined }),
-    };
-    exporters.register('a.course', ({ title, files }: CourseExportInput) => ({
-      filename: `${title}.json`,
-      text: JSON.stringify(files),
-    }));
-    exporters.register('a.progress', (input: ProgressExportInput) => {
-      expectTypeOf(input.scope).toEqualTypeOf<'progress'>();
-      return { filename: 'p.bin', bytes: new Uint8Array() };
+    server.registerImporter({ ...importer, input: 'text', run: () => ({}) });
+    server.registerImporter({
+      ...importer,
+      input: 'text',
+      // @ts-expect-error a file content is text
+      run: () => ({ files: { a: 1 } }),
     });
-    // @ts-expect-error `filename` is required
-    exporters.register('a.nameless', () => ({ text: 'x' }));
-    // @ts-expect-error a file is text or bytes, not both missing
-    exporters.register('a.empty', () => ({ filename: 'a' }));
+    // @ts-expect-error the input kind is required
+    server.registerImporter({ ...importer, run: () => ({ files: {} }) });
+    expectTypeOf<ImporterRegistration['input']>().toEqualTypeOf<
+      'text' | 'bytes'
+    >();
+
+    const exporter = { id: 'a.out', title: 'Out' };
+    server.registerExporter({
+      ...exporter,
+      scope: 'course',
+      run: ({ title, files }: CourseExportInput) => ({
+        filename: `${title}.json`,
+        text: JSON.stringify(files),
+      }),
+    });
+    server.registerExporter({
+      ...exporter,
+      scope: 'progress',
+      run: (input: ProgressExportInput) => {
+        expectTypeOf(input.scope).toEqualTypeOf<'progress'>();
+        return { filename: 'p.bin', bytes: new Uint8Array() };
+      },
+    });
+    server.registerExporter({
+      ...exporter,
+      scope: 'course',
+      // @ts-expect-error `filename` is required
+      run: () => ({ text: 'x' }),
+    });
+    server.registerExporter({
+      ...exporter,
+      scope: 'course',
+      // @ts-expect-error a file is text or bytes, not both missing
+      run: () => ({ filename: 'a' }),
+    });
+  });
+
+  it('a server entry may return nothing, a disposable or a cleanup function, also asynchronously', () => {
+    const plain: ServerEntry = () => undefined;
+    const disposing: ServerEntry = () => disposable;
+    const cleaning: ServerEntry = () => () => undefined;
+    const asynchronous: ServerEntry = async (server) => {
+      expectTypeOf(server).toEqualTypeOf<ServerContext>();
+      return disposable;
+    };
+    // @ts-expect-error the result is a cleanup, not a value
+    const value: ServerEntry = () => 1;
+    void [plain, disposing, cleaning, asynchronous, value];
+  });
+
+  it('a server registration is data only', () => {
+    expectTypeOf<ServerRegistration['events']>().toEqualTypeOf<
+      readonly LearningEventName[]
+    >();
+    expectTypeOf<ServerRegistration['commands'][number]>().not.toHaveProperty(
+      'run',
+    );
+    expectTypeOf<ServerRegistration['importers'][number]>().not.toHaveProperty(
+      'run',
+    );
+    expectTypeOf<
+      ServerRegistration['gradePolicies'][number]
+    >().not.toHaveProperty('evaluate');
+    expectTypeOf<
+      ServerRegistration['exerciseTypes'][number]
+    >().not.toHaveProperty('grade');
+  });
+
+  it('a client context adds components and data and returns a disposable', () => {
+    const client = {} as ClientContext;
+    expectTypeOf(client.addPanel).returns.toEqualTypeOf<Disposable>();
+    client.addPanel({ id: 'a.panel', title: { en: 'Panel' }, component: {} });
+    client.addInjection({
+      id: 'a.plan',
+      target: anchorSelector('dailyPlan'),
+      component: {},
+    });
+    client.addInjection({
+      id: 'a.badge',
+      target: '.title',
+      position: 'before',
+      component: {},
+    });
+    client.addInjection({
+      id: 'a.bad',
+      target: '.title',
+      // @ts-expect-error not a position
+      position: 'inside',
+      component: {},
+    });
+    client.addAnswerView('a.type', {});
+    client.addMarkdownRenderer('mermaid', {});
+    client.addTheme({
+      id: 'a.dark',
+      label: 'Dark',
+      dark: true,
+      colors: { background: '#000000' },
+    });
+    client.addCommand({ id: 'a.open', title: 'Open', run: () => undefined });
+    client.addCommand({
+      id: 'a.open',
+      title: 'Open',
+      // @ts-expect-error a client command takes no arguments
+      run: (args: JsonValue) => void args,
+    });
+    expectTypeOf<
+      Parameters<ClientContext['addInjection']>[0]
+    >().toEqualTypeOf<InjectionRegistration>();
+    const entry: ClientEntry = async (c) => {
+      expectTypeOf(c).toEqualTypeOf<ClientContext>();
+    };
+    void entry;
   });
 
   it('a panel handle gives the id, reactive props and surroundings, and a command call', () => {
@@ -154,90 +333,42 @@ describe('extension-api types', () => {
     >();
   });
 
-  it('a widget handle gives the id, the reactive surroundings and a command call', () => {
-    const handle: WidgetHandle<'a.run'> = {
-      widgetId: 'a.widget',
-      context: { courseId: null },
-      call: () => Promise.resolve(undefined),
-    };
-    expectTypeOf(handle.widgetId).toEqualTypeOf<string>();
-    expectTypeOf(handle.context.courseId).toEqualTypeOf<string | null>();
-    expectTypeOf(handle.call).parameter(0).toEqualTypeOf<'a.run'>();
-    expectTypeOf(handle.call).returns.toEqualTypeOf<
-      Promise<JsonValue | undefined>
+  it('an injection handle gives the target element and the position', () => {
+    const handle = {} as InjectionHandle;
+    expectTypeOf(handle.target).toHaveProperty('tagName');
+    expectTypeOf(handle.position).toEqualTypeOf<InjectionPosition>();
+    expectTypeOf<InjectionPosition>().toEqualTypeOf<
+      'before' | 'after' | 'prepend' | 'append'
     >();
-    // a widget is not opened with properties
-    expectTypeOf(handle).not.toHaveProperty('props');
   });
 
-  describe('narrowed ids', () => {
-    interface Ids {
-      exerciseTypes: 'a.type';
-      gradePolicies: 'a.policy';
-      commands: 'a.run' | 'a.stop';
-      events: 'attempt.closed';
-      panels: 'a.panel';
-      widgets: 'a.widget';
-      schedules: 'a.morning' | 'a.hourly';
-      importers: 'a.in';
-      exporters: 'a.out';
-      markdownLanguages: 'a';
-      settings: { 'a.goal': number; 'a.mode': 'fast' | 'slow' };
-    }
-    type Narrow = ExtensionContext<Ids>;
+  describe('typed settings', () => {
+    type Values = {
+      'a.goal': number;
+      'a.mode': 'fast' | 'slow';
+    };
+    type Typed = ServerContext<Values>;
 
-    it('a context without parameters accepts any id, as the engine and host use it', () => {
-      expectTypeOf<ExtensionContext['commands']['register']>()
-        .parameter(0)
-        .toEqualTypeOf<string>();
+    it('a context without parameters returns any setting value', () => {
       expectTypeOf<
-        ExtensionContext['settings']['get']
+        ServerContext['settings']['get']
       >().returns.toEqualTypeOf<SettingValue>();
-      expectTypeOf<ExtensionContext['registerExerciseType']>()
-        .parameter(0)
-        .toEqualTypeOf<string>();
-      expectTypeOf<ExtensionContext['events']['on']>()
-        .parameter(0)
-        .toEqualTypeOf<LearningEventName>();
     });
 
-    it('settings.get returns the declared type of the setting', () => {
-      const settings: Narrow['settings'] = {
-        get: () => {
-          throw new Error('unused');
-        },
-        onDidChange: () => ({ dispose: () => undefined }),
-      };
+    it('settings.get returns the type of the setting', () => {
+      const { settings } = {} as Typed;
       expectTypeOf(settings.get('a.goal')).toEqualTypeOf<number>();
       expectTypeOf(settings.get('a.mode')).toEqualTypeOf<'fast' | 'slow'>();
-      // @ts-expect-error not a declared setting
+      // @ts-expect-error not a known setting
       settings.get('a.other');
     });
 
     it('onDidChange hands over a change that narrows value by id', () => {
-      type Handler = Parameters<Narrow['settings']['onDidChange']>[0];
+      type Handler = Parameters<Typed['settings']['onDidChange']>[0];
       expectTypeOf<Parameters<Handler>[0]>().toEqualTypeOf<
         | { id: 'a.goal'; value: number }
         | { id: 'a.mode'; value: 'fast' | 'slow' }
       >();
-    });
-
-    it('commands, schedules, events and registrations take the declared ids only', () => {
-      expectTypeOf<Narrow['commands']['register']>()
-        .parameter(0)
-        .toEqualTypeOf<'a.run' | 'a.stop'>();
-      expectTypeOf<Narrow['schedule']['on']>()
-        .parameter(0)
-        .toEqualTypeOf<'a.morning' | 'a.hourly'>();
-      expectTypeOf<Narrow['events']['on']>()
-        .parameter(0)
-        .toEqualTypeOf<'attempt.closed'>();
-      expectTypeOf<Narrow['registerExerciseType']>()
-        .parameter(0)
-        .toEqualTypeOf<'a.type'>();
-      expectTypeOf<Narrow['registerGradePolicy']>()
-        .parameter(0)
-        .toEqualTypeOf<'a.policy'>();
     });
   });
 });

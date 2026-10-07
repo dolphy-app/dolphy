@@ -11,7 +11,7 @@ import type {
   ExtensionPolicy,
   ExtensionTransfers,
 } from '@dolphy-app/engine/ports';
-import type { ExtensionModule } from '@dolphy-app/extension-api';
+import type { SettingDefinition } from '@dolphy-app/extension-api';
 import { connectEngine } from '../src/engine-bridge.ts';
 import type { HostableEngine } from '../src/engine-bridge.ts';
 import { createHostChannel } from '../src/channel.ts';
@@ -20,89 +20,44 @@ import {
   createRemoteExtensionCommands,
   createRemoteExtensionTransfers,
 } from '../src/client.ts';
-import type { ResolvedExtension } from '../src/discover.ts';
+import type { ExtensionCandidate } from '../src/discover.ts';
+import type { ReplaceExtensionsResult } from '../src/protocol.ts';
 import { createDiscoveryHolder, discoveryOf } from '../src/holder.ts';
 import type { DiscoveryHolder } from '../src/holder.ts';
 import { createEndpointPair } from '../src/loopback.ts';
 import { createExtensionPolicy } from '../src/policy.ts';
 import { createExtensionRuntime } from '../src/runtime.ts';
-import type { ExtensionRuntime } from '../src/runtime.ts';
-import { createLogger } from './helpers.ts';
+import type { ExtensionRuntime, ServerModule } from '../src/runtime.ts';
+import { createLogger, deferred } from './helpers.ts';
 import type { TestLogger } from './helpers.ts';
 
-/** Расширение с состоянием: подписки на события и настройки разных видов. */
-export const stateful = (
-  id: string,
-  overrides: Partial<ResolvedExtension> = {},
-): ResolvedExtension => ({
-  id,
-  version: '1.0.0',
-  origin: 'user',
-  revision: '',
-  dir: `/x/${id}`,
-  mainPath: `/x/${id}/main.mjs`,
-  name: null,
-  description: null,
-  author: null,
-  dependencies: [],
-  platforms: [],
-  minAppVersion: null,
-  icon: null,
-  tags: [],
-  install: null,
-  messages: {},
-  warnings: [],
-  exerciseTypes: [],
-  themes: [],
-  markdownRenderers: [],
-  gradePolicies: [],
-  settings: [
-    {
-      id: `${id}.greeting`,
-      type: 'string',
-      label: 'Greeting',
-      description: null,
-      group: null,
-      order: 0,
-      visibleWhen: null,
-      default: 'hello',
-      maxLength: 20,
-    },
-    {
-      id: `${id}.limit`,
-      type: 'number',
-      label: 'Limit',
-      description: null,
-      group: null,
-      order: 0,
-      visibleWhen: null,
-      default: 3,
-      min: 1,
-      max: 10,
-      integer: true,
-    },
-    {
-      id: `${id}.tags`,
-      type: 'list',
-      label: 'Tags',
-      description: null,
-      group: null,
-      order: 0,
-      visibleWhen: null,
-      default: ['a'],
-      maxItems: 5,
-      itemMaxLength: 10,
-    },
-  ],
-  events: [{ event: 'attempt.closed' }, { event: 'session.started' }],
-  commands: [],
-  panels: [],
-  widgets: [],
-  schedules: [],
-  importers: [],
-  exporters: [],
-  ...overrides,
-});
+/** Настройки расширения с состоянием: строка, целое число и список; регистрирует `server.registerSettings`. */
+export const statefulSettings = (id: string): SettingDefinition[] => [
+  {
+    id: `${id}.greeting`,
+    type: 'string',
+    label: 'Greeting',
+    default: 'hello',
+    maxLength: 20,
+  },
+  {
+    id: `${id}.limit`,
+    type: 'number',
+    label: 'Limit',
+    default: 3,
+    min: 1,
+    max: 10,
+    integer: true,
+  },
+  {
+    id: `${id}.tags`,
+    type: 'list',
+    label: 'Tags',
+    default: ['a'],
+    maxItems: 5,
+    itemMaxLength: 10,
+  },
+];
 
 export const attemptClosed = (exerciseId: string): LearningEvent => ({
   name: 'attempt.closed',
@@ -277,9 +232,10 @@ export const createStubEngine = (): StubEngine => {
 };
 
 export interface HarnessOptions {
-  extensions: readonly ResolvedExtension[];
-  /** Модули в процессе хоста . */
-  modules?: Record<string, ExtensionModule>;
+  /** Найденные расширения; регистрируется то, что делает `server` каждого. */
+  candidates: readonly ExtensionCandidate[];
+  /** Серверные части в процессе хоста: экспорт `server` вместо `main.mjs`. */
+  modules?: Record<string, ServerModule>;
   queueLimit?: number;
   deliveryMs?: number;
   restart?: () => void;
@@ -298,16 +254,23 @@ export interface Harness {
   /** Клиент импорта и экспорта движка поверх того же канала. */
   transfers: ExtensionTransfers;
   logger: TestLogger;
-  /** Меняет набор расширений так же, как применение изменений: снимок движка и хост. */
-  replace(extensions: readonly ResolvedExtension[]): Promise<void>;
+  /** Меняет набор расширений так же, как применение изменений: снимок движка и регистрация в хосте. */
+  replace(
+    candidates: readonly ExtensionCandidate[],
+  ): Promise<ReplaceExtensionsResult>;
   close(): Promise<void>;
 }
 
-/** Движок ↔ канал ↔ хост расширений через loopback: тот же путь, что и боевой. */
-export const createHarness = (options: HarnessOptions): Harness => {
+/**
+ * Движок ↔ канал ↔ хост расширений через loopback: тот же путь, что и боевой.
+ * Завершается, когда хост ответил регистрациями на первое подключение.
+ */
+export const createHarness = async (
+  options: HarnessOptions,
+): Promise<Harness> => {
   const logger = createLogger();
   const engine = createStubEngine();
-  const discovery = createDiscoveryHolder(discoveryOf(options.extensions));
+  const discovery = createDiscoveryHolder(discoveryOf(options.candidates));
   const policy = createExtensionPolicy(discovery);
   policy.update({
     disabled: [],
@@ -318,18 +281,24 @@ export const createHarness = (options: HarnessOptions): Harness => {
     schedulesOff: [],
   });
   const runtime = createExtensionRuntime({
-    extensions: options.extensions,
     library: { readText: async () => '', stat: async () => null },
     logger,
     ...(options.modules !== undefined && { modules: options.modules }),
   });
+  const first = deferred();
   const channel = createHostChannel({
     logger,
+    currentExtensions: () => discovery.get().candidates,
+    onRegistrations: (result) => {
+      discovery.applyRegistrations(result);
+      first.resolve();
+    },
     ...(options.restart !== undefined && { restart: options.restart }),
   });
   const [engineSide, hostSide] = createEndpointPair();
   runtime.attach(hostSide);
   channel.attach(engineSide);
+  await first.promise;
   const disconnect = connectEngine({
     channel,
     engine,
@@ -345,18 +314,16 @@ export const createHarness = (options: HarnessOptions): Harness => {
     engine,
     runtime,
     channel,
-    commands: createRemoteExtensionCommands({
-      channel,
-      discovery,
-      logger,
-    }),
+    commands: createRemoteExtensionCommands({ channel, logger }),
     transfers: createRemoteExtensionTransfers({ channel, logger }),
     discovery,
     policy,
     logger,
-    async replace(extensions) {
-      discovery.replace(discoveryOf(extensions));
-      await runtime.replace(extensions);
+    async replace(candidates) {
+      discovery.replace(discoveryOf(candidates));
+      const result = await channel.replaceExtensions(candidates);
+      discovery.applyRegistrations(result);
+      return result;
     },
     async close() {
       disconnect();

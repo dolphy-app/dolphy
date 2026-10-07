@@ -225,14 +225,14 @@ if (packaged) {
     'dolphy.sql/extension.json',
     'dolphy.sql/main.mjs',
     'dolphy.sql/worker.mjs',
-    'dolphy.sql/view.mjs',
+    'dolphy.sql/client.mjs',
     'dolphy.choice/extension.json',
     'dolphy.choice/main.mjs',
-    'dolphy.choice/view.mjs',
+    'dolphy.choice/client.mjs',
     'dolphy.js/extension.json',
     'dolphy.js/main.mjs',
     'dolphy.js/worker.mjs',
-    'dolphy.js/view.mjs',
+    'dolphy.js/client.mjs',
   ]) {
     if (!existsSync(join(resourcesDir, 'extensions', file))) {
       fail(`extension file ${file} missing in ${resourcesDir}/extensions`);

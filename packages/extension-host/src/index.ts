@@ -10,7 +10,7 @@ export * from './fingerprint.ts';
 export * from './holder.ts';
 export * from './loopback.ts';
 export * from './manifest.ts';
-export * from './points/index.ts';
+export * from './registrar.ts';
 export * from './policy.ts';
 export * from './protocol.ts';
 export * from './registry.ts';

@@ -47,9 +47,6 @@ export const createFakeExerciseTypes = (
           type,
           extensionId: type,
           extensionVersion: '0.0.0',
-          extensionOrigin: 'user',
-          extensionRevision: 'rev-0',
-          rendererUrl: `dolphy-ext://fake/${type}.mjs`,
         };
   };
   const requests: FakeGradeRequest[] = [];

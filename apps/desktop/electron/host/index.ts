@@ -59,9 +59,12 @@ const handle = async (
       () => parentPort.postMessage({ type: 'restart-ext-host' }),
       () => parentPort.postMessage({ type: 'reset-ext-host' }),
       platform.services,
+      (opened) => {
+        channel = opened;
+        parentPort.postMessage({ type: 'ext-link' });
+      },
     );
     engine = booted.engine;
-    channel = booted.channel;
     health = booted.health;
     dispatcher = createDispatcher({
       engine: booted.engine,

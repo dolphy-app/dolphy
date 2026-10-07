@@ -11,13 +11,11 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { formatDiagnostic, parseManifest } from '@dolphy-app/extension-host';
-import { FALLBACK_LOCALE, localizeManifest } from '@dolphy-app/extension-api';
 import type { ExtensionManifest } from '@dolphy-app/extension-api';
 import {
   CATALOG_FILE_EXTENSIONS,
   MAX_FILES_V2,
   MAX_TOTAL_BYTES,
-  TITLED_POINTS,
   iconDataUri,
   iconProblem,
   isSafeCatalogPath,
@@ -28,12 +26,9 @@ import type {
   CatalogFile,
   CatalogIndex,
   CatalogVersion,
-  ContributionTitles,
-  TitledPoint,
 } from '@dolphy-app/extension-catalog';
 import { buildExtension } from '../index.ts';
 import { BuildError, CatalogUsageError } from '../errors.ts';
-import { readEnglishTable } from '../locales.ts';
 import { loadIndexFile } from './check.ts';
 import { applyDeprecated, loadDeprecated } from './deprecated.ts';
 import {
@@ -174,12 +169,7 @@ const stage = async (
     ...fileProblems(files),
   ];
   if (problems.length > 0) throw new BuildError(problems.join('; '), id);
-  // the index shows English: `%key%` is replaced by the text of locales/en.json (the build checked every key)
-  const manifest = localizeManifest(
-    await readBuiltManifest(built.dir),
-    { en: (await readEnglishTable(built.dir)) ?? {} },
-    FALLBACK_LOCALE,
-  );
+  const manifest = await readBuiltManifest(built.dir);
   return {
     id,
     dir: built.dir,
@@ -238,40 +228,6 @@ const immutabilityError = (staged: Staged): BuildError =>
     staged.id,
   );
 
-/** `label`/`title` of the manifest contributions by point; points without contributions are left out. */
-const titlesOf = (manifest: Staged['manifest']): ContributionTitles => {
-  const { contributes } = manifest;
-  const byPoint: Record<TitledPoint, { id: string; title: string }[]> = {
-    exerciseTypes: contributes.exerciseTypes.flatMap(({ id, title }) =>
-      title === undefined ? [] : [{ id, title }],
-    ),
-    markdownRenderers: contributes.markdownRenderers.flatMap(
-      ({ language, title }) =>
-        title === undefined ? [] : [{ id: language, title }],
-    ),
-    themes: contributes.themes.map(({ id, label }) => ({ id, title: label })),
-    gradePolicies: contributes.gradePolicies.map(({ id, label }) => ({
-      id,
-      title: label,
-    })),
-    settings: contributes.settings.map(({ id, label }) => ({
-      id,
-      title: label,
-    })),
-    commands: contributes.commands.map(({ id, title }) => ({ id, title })),
-    panels: contributes.panels.map(({ id, title }) => ({ id, title })),
-    widgets: contributes.widgets.map(({ id, title }) => ({ id, title })),
-    importers: contributes.importers.map(({ id, title }) => ({ id, title })),
-    exporters: contributes.exporters.map(({ id, title }) => ({ id, title })),
-  };
-  return Object.fromEntries(
-    TITLED_POINTS.filter((point) => byPoint[point].length > 0).map((point) => [
-      point,
-      Object.fromEntries(byPoint[point].map(({ id, title }) => [id, title])),
-    ]),
-  );
-};
-
 const newRecord = (staged: Staged, publishedAt: string): CatalogVersion => ({
   version: staged.manifest.version,
   apiVersion: staged.manifest.apiVersion,
@@ -328,15 +284,6 @@ const entryOf = (
   const others = (previous?.versions ?? []).filter(
     (version) => version.version !== record.version,
   );
-  const settings = manifest.contributes.settings.map((setting) => setting.id);
-  const events = manifest.contributes.events.map((item) => item.event);
-  const commands = manifest.contributes.commands.map(({ id }) => id);
-  const panels = manifest.contributes.panels.map(({ id }) => id);
-  const widgets = manifest.contributes.widgets.map(({ id }) => id);
-  const schedules = manifest.contributes.schedules.map(({ id }) => id);
-  const importers = manifest.contributes.importers.map(({ id }) => id);
-  const exporters = manifest.contributes.exporters.map(({ id }) => id);
-  const titles = titlesOf(manifest);
   return {
     id: staged.id,
     name: manifest.name ?? '',
@@ -344,25 +291,6 @@ const entryOf = (
     author: manifest.author ?? '',
     source: `${sourceBase.replace(/\/+$/, '')}/${staged.id}`,
     platforms: [...manifest.platforms],
-    contributes: {
-      exerciseTypes: manifest.contributes.exerciseTypes.map((type) => type.id),
-      themes: manifest.contributes.themes.map((theme) => theme.id),
-      markdownRenderers: manifest.contributes.markdownRenderers.map(
-        (renderer) => renderer.language,
-      ),
-      gradePolicies: manifest.contributes.gradePolicies.map(
-        (policy) => policy.id,
-      ),
-      ...(settings.length > 0 ? { settings } : {}),
-      ...(events.length > 0 ? { events } : {}),
-      ...(commands.length > 0 ? { commands } : {}),
-      ...(panels.length > 0 ? { panels } : {}),
-      ...(widgets.length > 0 ? { widgets } : {}),
-      ...(schedules.length > 0 ? { schedules } : {}),
-      ...(importers.length > 0 ? { importers } : {}),
-      ...(exporters.length > 0 ? { exporters } : {}),
-    },
-    ...(Object.keys(titles).length > 0 ? { titles } : {}),
     ...(previous?.deprecated === undefined
       ? {}
       : { deprecated: previous.deprecated }),

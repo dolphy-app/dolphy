@@ -41,9 +41,7 @@ const exercise = (id: string, verifiable: boolean): ExerciseDto => ({
         task: {
           type: 'dolphy.sql',
           timeoutMs: 1000,
-          rendererUrl: 'dolphy-ext://dolphy.sql/view.mjs',
-          origin: 'bundled',
-          revision: '',
+          extensionId: 'dolphy.sql',
         },
       }
     : {}),

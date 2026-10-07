@@ -1,14 +1,35 @@
 // Команды для e2e условий `when`: каждая отвечает уведомлением со своим именем.
-export default {
-  activate(ctx) {
-    for (const name of ['courses', 'plain', 'focused', 'night']) {
-      ctx.commands.register(`acme.when.${name}`, () => ({
-        notify: `Выполнено: ${name}`,
-      }));
-    }
-    ctx.commands.register('acme.when.open', () => ({
-      openPanel: 'acme.when.main',
-    }));
-    ctx.commands.register('acme.when.ping', () => ({ pong: true }));
-  },
+export const server = (s) => {
+  const named = [
+    [
+      'courses',
+      'Только на «Курсах»',
+      { when: "route == 'courses'", keybindings: [{ key: 'Mod+Shift+J' }] },
+    ],
+    ['plain', 'Всегда', {}],
+    ['focused', 'Только с курсом в фокусе', { when: 'course.active' }],
+    ['night', 'Только в тёмной теме', { when: 'theme.dark' }],
+  ];
+  for (const [name, title, rest] of named) {
+    s.registerCommand({
+      id: `acme.when.${name}`,
+      title,
+      category: 'Условия',
+      ...rest,
+      run: () => ({ notify: `Выполнено: ${name}` }),
+    });
+  }
+  s.registerCommand({
+    id: 'acme.when.open',
+    title: 'Открыть панель условий',
+    category: 'Условия',
+    run: () => ({ openPanel: 'acme.when.main' }),
+  });
+  s.registerCommand({
+    id: 'acme.when.ping',
+    title: 'Скрытая команда',
+    palette: false,
+    when: "route == 'courses'",
+    run: () => ({ pong: true }),
+  });
 };

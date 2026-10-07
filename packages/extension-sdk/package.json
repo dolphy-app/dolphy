@@ -2,7 +2,7 @@
   "name": "@dolphy-app/extension-sdk",
   "version": "0.0.0",
   "private": true,
-  "description": "SDK for extension authors: defineExtension, defineAnswerView, test helpers",
+  "description": "SDK for extension authors: defineServer, defineClient, usePanel, useInjection, test harness",
   "type": "module",
   "sideEffects": false,
   "exports": {

@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 34 as const;
+export const CONTRACT_VERSION = 35 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 /** Потолок файла импорта, суммарного размера присланного дерева и снимка курса для экспорта, байт (R3, R4, R7 спеки `extension-api-breadth-2`). */
@@ -238,15 +238,13 @@ export type ExerciseContentDto =
   | { type: 'markdown'; ref: AssetRef }
   | { type: 'inlineMarkdown'; text: string };
 
-/** Вид задания, объявленный расширением: окно рисует компонент `default.views[type]` модуля `rendererUrl`. */
+/** Вид задания: окно ищет компонент ввода ответа в своём реестре по `type` (регистрация `addAnswerView`). */
 export interface ExerciseTaskDto {
+  /** Id вида задания. */
   type: string;
   timeoutMs: number;
-  rendererUrl: string;
-  /** Откуда расширение: у `dev` окно пересоздаёт смонтированный компонент при правке (`revision` меняется). */
-  origin: ExtensionOriginDto;
-  /** Отпечаток файлов расширения (меняется при обновлении и правке); у расширений из поставки — пустая строка. */
-  revision: string;
+  /** Расширение, зарегистрировавшее вид. */
+  extensionId: string;
 }
 export interface ExerciseDto {
   kind: 'exercise';
@@ -1330,6 +1328,15 @@ export interface RepositoriesService {
 }
 
 export type ExtensionOriginDto = 'bundled' | 'user' | 'dev';
+
+/**
+ * Подпись расширения: строка без перевода (показывается как есть) или тексты
+ * по языкам (`en` обязателен и служит запасным). Тот же тип, что `LocalizedText`
+ * в `@dolphy-app/extension-api` (контракт от него не зависит).
+ */
+export type LocalizedTextDto =
+  string | { readonly en: string; readonly ru?: string };
+
 /**
  * Состояние расширения. `dependencies-unmet` — включено, но не загружено:
  * зависимость отсутствует, отключена, не загружена или не подходит по версии
@@ -1363,8 +1370,6 @@ export const EXTENSION_DIAGNOSTIC_CODES = [
   'dependency-version',
   'dependency-unmet',
   'dependency-cycle',
-  'locale.missing-key',
-  'locale.invalid-file',
 ] as const;
 
 export type ExtensionDiagnosticCode =
@@ -1378,14 +1383,12 @@ export type ExtensionDiagnosticValue = string | number | string[];
  * `manifest-unreadable` — `reason`; `manifest-invalid` — `issues` (`путь: сообщение`);
  * `id-mismatch` — `expected`, `actual`; `requires-app` — `minAppVersion`;
  * `unavailable-platform` — `platform`; `claim-clash` — `kind`, `name`, `by`;
- * `load-failed` — `reason`; `overridden-by` — `origin`, `version`; `safe-mode` — без данных;
+ * `load-failed` — `reason` (код не загрузился или `server` не уложился в срок, регистрация расширения отвергнута целиком); `overridden-by` — `origin`, `version`; `safe-mode` — без данных;
  * `dependency-missing` — `id`, `range` (нет, если диапазон не задан): расширения с таким id нет;
  * `dependency-disabled` — `id`, `range`: зависимость отключена пользователем, отозвана или безопасным режимом;
  * `dependency-version` — `id`, `range`, `found`: установлена версия вне диапазона;
  * `dependency-unmet` — `id`, `range`: зависимость включена, но сама не загружена (её зависимости не выполнены);
- * `dependency-cycle` — `cycle` (id расширений цикла): расширения зависят друг от друга;
- * `locale.missing-key` — `key` (ключ `%ключ%` манифеста, которого нет в `locales/en.json`; предупреждение
- * у загруженного расширения); `locale.invalid-file` — `file`, `reason` (файл перевода проигнорирован).
+ * `dependency-cycle` — `cycle` (id расширений цикла): расширения зависят друг от друга.
  */
 export interface ExtensionDiagnosticDto {
   code: ExtensionDiagnosticCode;
@@ -1399,7 +1402,7 @@ export interface ExtensionInfoDto {
   version: string | null;
   origin: ExtensionOriginDto;
   state: ExtensionStateDto;
-  /** Вклады по точкам (id/языки); пусто, если расширение не `loaded`/`overridden`. */
+  /** Серверные вклады по точкам (id); пусто, если расширение не `loaded`/`overridden`. */
   contributes: ExtensionContributesDto;
   /** Почему некорректно, кем перекрыто; пусто у загруженного и отключённого пользователем. */
   diagnostics: ExtensionDiagnosticDto[];
@@ -1414,10 +1417,6 @@ export interface ExtensionInfoDto {
   dependencies: ExtensionDependencyDto[];
   /** Значок из манифеста как `data:image/png|webp;base64,…`; `null` — значка нет или манифест не прочитан. */
   icon: string | null;
-  /** Названия вкладов (`label`/`title` манифеста); `{}` — нет или манифест не прочитан. */
-  titles: ContributionTitlesDto;
-  /** Таблицы переводов `locales/<язык>.json`; подписи выше — как в манифесте (`%ключ%`), текст подставляет окно (`resolveText`). `{}` — нет файлов или манифест не прочитан. */
-  messages: ExtensionMessagesDto;
   /** Явные теги из манифеста; `[]` — нет или манифест не прочитан. */
   tags: string[];
   /** Установлено из каталога; `null` — скопировано вручную, из поставки или из режима разработчика. */
@@ -1465,53 +1464,26 @@ export interface ExtensionInstallDto {
   installedAt: string;
 }
 
+/** Id серверных вкладов расширения (то, что оно зарегистрировало вызовом `server`). */
 export interface ExtensionContributesDto {
   exerciseTypes: string[];
-  themes: string[];
-  markdownRenderers: string[];
   gradePolicies: string[];
-  /** Id настроек (`contributes.settings`). */
+  /** Id настроек (`server.registerSettings`). */
   settings: string[];
-  /** Имена событий обучения (`contributes.events`). */
+  /** Имена событий обучения (`server.on`). */
   events: string[];
-  /** Id команд (`contributes.commands`). */
+  /** Id команд (`server.registerCommand`). */
   commands: string[];
-  /** Id панелей (`contributes.panels`). */
-  panels: string[];
-  /** Id виджетов (`contributes.widgets`). */
-  widgets: string[];
-  /** Id расписаний (`contributes.schedules`). */
+  /** Id расписаний (`server.schedule`). */
   schedules: string[];
-  /** Id импортёров (`contributes.importers`). */
+  /** Id импортёров (`server.registerImporter`). */
   importers: string[];
-  /** Id экспортёров (`contributes.exporters`). */
+  /** Id экспортёров (`server.registerExporter`). */
   exporters: string[];
 }
 
-/** Таблицы переводов расширения (`locales/<язык>.json`): язык → ключ → текст; нет файла — нет языка. */
-export type ExtensionMessagesDto = Partial<
-  Record<'ru' | 'en', Record<string, string>>
->;
-
-/** Названия вкладов по точкам: `id` → `label`/`title` (у рендереров `id` — язык); точки без названий (события) не входят, у видов заданий и рендереров — только записи с `title`. */
-export type ContributionTitlesDto = Partial<
-  Record<
-    | 'exerciseTypes'
-    | 'markdownRenderers'
-    | 'themes'
-    | 'gradePolicies'
-    | 'settings'
-    | 'commands'
-    | 'panels'
-    | 'widgets'
-    | 'importers'
-    | 'exporters',
-    Record<string, string>
-  >
->;
-
 /**
- * Привязка команды расширения (`commands[].keybindings`). `mac`/`windows`/`linux`
+ * Привязка команды расширения (`keybindings` регистрации команды). `mac`/`windows`/`linux`
  * заменяют `key` на своей платформе (`null` — `key`); `when` — условие
  * (`null` — без условия).
  */
@@ -1522,94 +1494,58 @@ export interface ExtensionKeybindingDto {
   linux: string | null;
   when: string | null;
 }
-/** Команда расширения (`contributes.commands`). */
+/** Серверная команда расширения (`server.registerCommand`). */
 export interface CommandContributionDto {
-  /** Id в пространстве расширения (как у тем). */
+  /** Id в пространстве расширения. */
   id: string;
   extensionId: string;
-  /** Название в палитре; данные расширения, не переводится. */
-  title: string;
-  description: string | null;
-  category: string | null;
-  /** Привязка-сокращение вида `Mod+Shift+L` без условия: действующая, как запись `keybindings`; ключи те же, что у `KeybindingEntryDto.key`. */
-  keybinding: string | null;
-  /** Дополнительные привязки команды (до 4); `[]` — нет. Привязывают только эту команду. */
+  /** Название в палитре. */
+  title: LocalizedTextDto;
+  description: LocalizedTextDto | null;
+  category: LocalizedTextDto | null;
+  /** Привязки команды (до 4); `[]` — нет. Привязывают только эту команду. */
   keybindings: ExtensionKeybindingDto[];
   /** `false` скрывает команду из палитры: её вызывает только панель. */
   palette: boolean;
   /**
    * Условие видимости (`parseWhen` из `@dolphy-app/extension-api`), `null` — всегда.
    * Пока оно ложно, команды нет в палитре и она не выполняется сочетанием;
-   * расширению она по-прежнему доступна (`ctx.call`).
+   * расширению она по-прежнему доступна.
    */
   when: string | null;
   /** Имя значка из закрытого списка `EXTENSION_ICONS` (умолчание `puzzle`); окно рисует свой символ, подпись декоративна. */
   icon: string;
 }
 
-/** Панель расширения (`contributes.panels`): экран приложения в изолированной рамке. */
-export interface PanelContributionDto {
-  id: string;
-  extensionId: string;
-  /** Название пункта бокового меню и заголовка страницы; данные расширения. */
-  title: string;
-  /** Имя значка из закрытого списка `EXTENSION_ICONS` (умолчание `puzzle`); окно рисует свой символ, подпись декоративна. */
-  icon: string;
-  /** Условие видимости пункта бокового меню (`parseWhen`), `null` — всегда; панель по-прежнему открывается из расширения (`openPanel`). */
-  when: string | null;
-  /** `dolphy-ext://<extensionId>/<путь>` к модулю, чей `default.panels[id]` — компонент панели. */
-  rendererUrl: string;
-  origin: ExtensionOriginDto;
-  /** Отпечаток файлов расширения; у расширений из поставки — пустая строка. */
-  revision: string;
-}
-
-/** Виджет расширения (`contributes.widgets`): карточка на экране приложения, в которой окно рисует Vue-компонент расширения. */
-export interface WidgetContributionDto {
-  id: string;
-  extensionId: string;
-  /** Заголовок карточки; данные расширения (`%ключ%` подставляет окно). */
-  title: string;
-  /** Место виджета: `dailyPlan` — экран «План дня». */
-  slot: 'dailyPlan';
-  /** Условие видимости (`parseWhen`), `null` — всегда; пока оно ложно, карточка не рисуется и модуль не загружается. */
-  when: string | null;
-  /** `dolphy-ext://<extensionId>/<путь>` к модулю, чей `default.widgets[id]` — компонент виджета. */
-  rendererUrl: string;
-  origin: ExtensionOriginDto;
-  /** Отпечаток файлов расширения; у расширений из поставки — пустая строка. */
-  revision: string;
-}
-
-/** Расписание расширения (`contributes.schedules`): когда приложение запускает обработчик `ctx.schedule.on`. */
+/** Расписание расширения (`server.schedule`): когда приложение запускает обработчик. */
 export interface ScheduleContributionDto {
   id: string;
   extensionId: string;
   /** `daily` — раз в сутки в `at`, `hourly` — в начале каждого часа; по местному времени. */
   every: 'daily' | 'hourly';
-  /** `HH:MM` у `daily` (умолчание манифеста — `09:00`); `null` у `hourly`. */
+  /** `HH:MM` у `daily`; `null` у `hourly`. */
   at: string | null;
 }
 
-/** Импортёр расширения (`contributes.importers`): файл пользователя → каталог курса. */
+/** Импортёр расширения (`server.registerImporter`): файл пользователя → каталог курса. */
 export interface ImporterContributionDto {
   id: string;
   extensionId: string;
-  /** Название в палитре и карточке «Библиотеки»; данные расширения. */
-  title: string;
+  /** Название в палитре и карточке «Библиотеки». */
+  title: LocalizedTextDto;
   /** Допустимые расширения файла в нижнем регистре (`.csv`), от 1 до 8; фильтр системного диалога. */
   accept: string[];
   /** `text` — обработчик получает файл строкой UTF-8, `bytes` — байтами. */
   input: 'text' | 'bytes';
 }
 
-/** Экспортёр расширения (`contributes.exporters`): курс или прогресс → файл пользователя. */
+/** Экспортёр расширения (`server.registerExporter`): курс или прогресс → файл пользователя. */
 export interface ExporterContributionDto {
   id: string;
   extensionId: string;
-  /** Название в палитре и карточке «Библиотеки»; данные расширения. */
-  title: string;
-  /** `course` — снимок выбранного курса; `progress` — статистика через `ctx.stats` (нужно разрешение `learning.stats`). */
+  /** Название в палитре и карточке «Библиотеки». */
+  title: LocalizedTextDto;
+  /** `course` — снимок выбранного курса; `progress` — статистика через `server.stats`. */
   scope: 'course' | 'progress';
 }
 
@@ -1679,7 +1615,7 @@ export interface CommitImportResultDto {
   courseIds: UnitId[];
 }
 
-/** Что экспортировать: курс (снимок собирает движок) или прогресс (обработчик читает `ctx.stats`). */
+/** Что экспортировать: курс (снимок собирает движок) или прогресс (обработчик читает `server.stats`). */
 export type ExportRequestDto =
   { scope: 'course'; courseId: UnitId } | { scope: 'progress' };
 
@@ -1687,35 +1623,12 @@ export type ExportRequestDto =
 export type ExportFileDto =
   { filename: string; text: string } | { filename: string; bytes: Uint8Array };
 
-export interface ThemeContributionDto {
-  id: string;
-  extensionId: string;
-  label: string;
-  dark: boolean;
-  colors: Record<string, string>;
-  variables: Record<string, string | number>;
-}
-
-export interface MarkdownRendererDto {
-  language: string;
-  extensionId: string;
-  /** `dolphy-ext://<extensionId>/<путь>` к модулю, чей `default.markdown[language]` — компонент блока. */
-  rendererUrl: string;
-  /** Откуда расширение: у `dev` окно выводит блоки заново при правке. */
-  origin: ExtensionOriginDto;
-  /** Отпечаток файлов расширения; у расширений из поставки — пустая строка. */
-  revision: string;
-}
-
-/** Вид задания расширения: окно по нему видит правку и обновление компонента ввода ответа. */
+/** Вид задания расширения (`server.registerExerciseType`). */
 export interface ExerciseTypeContributionDto {
   type: string;
   extensionId: string;
-  /** `dolphy-ext://<extensionId>/<путь>` к модулю, чей `default.views[type]` — компонент ввода ответа. */
-  rendererUrl: string;
-  origin: ExtensionOriginDto;
-  /** Отпечаток файлов расширения; у расширений из поставки — пустая строка. */
-  revision: string;
+  /** Название для чипа вклада; `null` — показывается id. */
+  title: LocalizedTextDto | null;
 }
 
 export interface GradePolicyInfoDto {
@@ -1723,7 +1636,21 @@ export interface GradePolicyInfoDto {
   /** `null` у встроенного правила. */
   extensionId: string | null;
   /** `null` у встроенного правила: название переводит окно. */
-  label: string | null;
+  label: LocalizedTextDto | null;
+}
+
+/**
+ * Клиентская часть включённого расширения: окно импортирует `url`, вызывает
+ * `client(c)` и держит свой реестр вкладов (панели, места, виды ответа,
+ * рендереры markdown, темы, клиентские команды); в движок они не попадают.
+ */
+export interface ExtensionClientDto {
+  extensionId: string;
+  /** `dolphy-ext://<extensionId>/<client>` — собранный `client.mjs`. */
+  url: string;
+  origin: ExtensionOriginDto;
+  /** Отпечаток файлов расширения; у расширений из поставки — пустая строка. У `dev` меняется при правке: окно загружает клиентскую часть заново. */
+  revision: string;
 }
 
 export interface ContributionsDto {
@@ -1734,37 +1661,31 @@ export interface ContributionsDto {
    * при каждом запуске движка.
    */
   generation: number;
+  /** Включённые расширения с клиентской частью (`client.mjs`). */
+  clients: ExtensionClientDto[];
   exerciseTypes: ExerciseTypeContributionDto[];
-  themes: ThemeContributionDto[];
-  markdownRenderers: MarkdownRendererDto[];
   gradePolicies: GradePolicyInfoDto[];
   /** Определения настроек включённых расширений. */
   settings: ExtensionSettingDefDto[];
-  /** Команды включённых расширений. */
+  /** Серверные команды включённых расширений. */
   commands: CommandContributionDto[];
-  /** Панели включённых расширений. */
-  panels: PanelContributionDto[];
-  /** Виджеты включённых расширений. */
-  widgets: WidgetContributionDto[];
   /** Расписания включённых расширений. */
   schedules: ScheduleContributionDto[];
   /** Импортёры включённых расширений. */
   importers: ImporterContributionDto[];
   /** Экспортёры включённых расширений. */
   exporters: ExporterContributionDto[];
-  /** Таблицы переводов включённых расширений по id; расширения без файлов перевода не перечислены. Подписи вкладов приходят как в манифесте (`%ключ%`). */
-  messages: Record<string, ExtensionMessagesDto>;
 }
 
 interface ExtensionSettingBaseDto {
   /** Равен id расширения или начинается с `<id расширения>.`. */
   id: string;
   extensionId: string;
-  /** Подпись поля в диалоге настроек; данные расширения, не переводится. */
-  label: string;
-  description: string | null;
+  /** Подпись поля в диалоге настроек. */
+  label: LocalizedTextDto;
+  description: LocalizedTextDto | null;
   /** Заголовок раздела формы; `null` — настройка в первом разделе без заголовка. */
-  group: string | null;
+  group: LocalizedTextDto | null;
   /** Ключ сортировки формы, целое 0–1000; при равных — порядок объявления. */
   order: number;
   /** Поле скрыто, пока значение настройки `setting` (того же расширения, не `list`) не равно `equals`; скрытое значение сохраняется. `null` — поле видно всегда. */
@@ -1823,7 +1744,7 @@ export interface NumberSettingDefDto extends ExtensionSettingBaseDto {
 
 export interface EnumSettingOptionDto {
   value: string;
-  label: string;
+  label: LocalizedTextDto;
 }
 
 export interface EnumSettingDefDto extends ExtensionSettingBaseDto {
@@ -1852,7 +1773,7 @@ export interface ExtensionDataUsageDto {
   secrets: { keys: number; bytes: number };
 }
 
-/** События обучения, которые движок отдаёт расширениям с разрешением `learning.events`. Не входят в `EngineEvent`: окно их не видит. */
+/** События обучения, которые движок отдаёт расширениям (`server.on`). Не входят в `EngineEvent`: окно их не видит. */
 export const LEARNING_EVENT_NAMES = [
   'session.started',
   'session.finished',
@@ -1910,7 +1831,7 @@ export interface ExtensionSettingsDto {
   safeMode: boolean;
   /**
    * Расширения с выключенными системными уведомлениями (по id), отсортированы,
-   * без повторов: `ctx.notifications.show` у них даёт `false`. По умолчанию
+   * без повторов: `server.notifications.show` у них даёт `false`. По умолчанию
    * пусто (уведомления включены).
    */
   notificationsOff: string[];
@@ -1922,7 +1843,7 @@ export interface ExtensionSettingsDto {
   catalogUrl: string | null;
   /**
    * Расширения с выключенными расписаниями (по id), отсортированы, без
-   * повторов: их `ctx.schedule.on` не срабатывает. По умолчанию пусто
+   * повторов: их `server.schedule` не срабатывает. По умолчанию пусто
    * (расписания включены).
    */
   schedulesOff: string[];
@@ -2184,7 +2105,7 @@ export interface ExtensionsService {
   /**
    * Запускает объявленный экспортёр. Для `scope: 'course'` движок читает
    * текстовые файлы каталога курса (до `MAX_EXTENSION_TRANSFER_BYTES`) и
-   * передаёт их обработчику; для `progress` обработчик читает `ctx.stats`.
+   * передаёт их обработчику; для `progress` обработчик читает `server.stats`.
    * Область запроса должна совпасть с областью экспортёра (иначе
    * `INVALID_ARGUMENT`), курса нет — `NOT_FOUND`. Вызов не занимает очередь
    * команд. Ошибки — как у `runImporter` с `kind: 'export'` и
@@ -2240,11 +2161,8 @@ export interface CatalogEntryDto {
   /** Адрес исходников (страница в репозитории каталога). */
   source: string;
   platforms: string[];
-  contributes: ExtensionContributesDto;
   /** Значок показанной версии как `data:image/png|webp;base64,…`; `null` — значка нет (или каталог старого формата). */
   icon: string | null;
-  /** Названия вкладов из записи индекса (`titles`); `{}` — нет (или каталог старого формата). */
-  titles: ContributionTitlesDto;
   /** Теги показанной версии из записи индекса; `[]` — нет. */
   tags: string[];
   status: CatalogStatusDto;

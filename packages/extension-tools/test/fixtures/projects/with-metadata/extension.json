@@ -6,18 +6,5 @@
   "description": "Extension with metadata",
   "author": "octo-cat",
   "platforms": ["darwin", "linux", "win32"],
-  "minAppVersion": "1.0.0",
-  "contributes": {
-    "themes": [
-      {
-        "id": "acme.meta",
-        "label": "Night",
-        "dark": true,
-        "colors": {
-          "background": "#101018",
-          "primary": "#8ab4f8"
-        }
-      }
-    ]
-  }
+  "minAppVersion": "1.0.0"
 }

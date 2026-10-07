@@ -12,21 +12,21 @@ import type { App } from 'vue';
 import { createI18n } from 'vue-i18n';
 import { PANEL_HANDLE_KEY } from '@dolphy-app/extension-api';
 import type { JsonValue, PanelHandle } from '@dolphy-app/extension-api';
-import type { PanelContributionDto } from '@dolphy-app/engine-contract';
 import { EXTENSION_COMMANDS_KEY } from '@/features/extension-commands';
 import PanelHost from '@/pages/extension-panel/ui/PanelHost.vue';
 import { en } from '@/pages/extension-panel/i18n/en.ts';
+import type { ClientPanel } from '@/shared/lib/extension-clients.ts';
 
-const PANEL: PanelContributionDto = {
-  id: 'acme.cards.main',
+const panelOf = (component: unknown): ClientPanel => ({
+  kind: 'panel',
+  key: 'acme.cards:1:1',
   extensionId: 'acme.cards',
+  id: 'acme.cards.main',
   title: 'Cards',
   icon: 'puzzle',
   when: null,
-  rendererUrl: 'dolphy-ext://acme.cards/panel.mjs',
-  origin: 'user',
-  revision: 'r1',
-};
+  component: component as ClientPanel['component'],
+});
 
 const flush = async () => {
   for (let i = 0; i < 20; i += 1) await nextTick();
@@ -40,22 +40,20 @@ afterEach(() => {
 });
 
 const mountHost = async (
-  components: Record<string, unknown>,
+  component: unknown,
   state = shallowReactive({
     courseId: null as string | null,
     props: undefined as JsonValue | undefined,
   }),
 ) => {
   const run = vi.fn(async () => 'pong' as const);
-  const loadModule = vi.fn(async () => ({ default: { panels: components } }));
   const app = createApp({
     render: () =>
       h(PanelHost, {
-        panel: PANEL,
+        panel: panelOf(component),
         commands: new Set(['acme.cards.ping']),
         openProps: state.props,
         context: { courseId: state.courseId },
-        loadModule,
       }),
   });
   app
@@ -85,11 +83,11 @@ const mountHost = async (
   document.body.append(root);
   app.mount(root);
   await flush();
-  return { root, state, run, loadModule };
+  return { root, state, run };
 };
 
 describe('PanelHost', () => {
-  it('рисует default.panels[id] и даёт хендл: props и context реактивны, call проверяет команду', async () => {
+  it('рисует зарегистрированный компонент и даёт хендл: props и context реактивны, call проверяет команду', async () => {
     let handle: PanelHandle | undefined;
     const Page = defineComponent({
       setup() {
@@ -102,13 +100,8 @@ describe('PanelHost', () => {
           );
       },
     });
-    const { root, state, run, loadModule } = await mountHost({
-      [PANEL.id]: Page,
-    });
-    expect(loadModule).toHaveBeenCalledWith(
-      'dolphy-ext://acme.cards/panel.mjs?v=r1',
-    );
-    expect(handle?.panelId).toBe(PANEL.id);
+    const { root, state, run } = await mountHost(Page);
+    expect(handle?.panelId).toBe('acme.cards.main');
     const text = () => root.querySelector('[data-testid="page"]')?.textContent;
     expect(text()).toBe('[null,null]');
 
@@ -133,7 +126,8 @@ describe('PanelHost', () => {
     expect(run).toHaveBeenCalledOnce();
   });
 
-  it('ошибка рендера — v-alert с «Повторить», страница живёт', async () => {
+  it('ошибка рендера — v-alert с «Повторить», страница живёт, повтор создаёт компонент заново', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
     let broken = true;
     const Page = defineComponent({
       render() {
@@ -141,7 +135,7 @@ describe('PanelHost', () => {
         return h('p', { 'data-testid': 'page' }, 'ok');
       },
     });
-    const { root } = await mountHost({ [PANEL.id]: Page });
+    const { root } = await mountHost(Page);
     expect(
       root.querySelector('[data-testid="panel-load-failed"]')?.textContent,
     ).toContain('render broke');
@@ -151,12 +145,5 @@ describe('PanelHost', () => {
       ?.dispatchEvent(new Event('click'));
     await flush();
     expect(root.querySelector('[data-testid="page"]')?.textContent).toBe('ok');
-  });
-
-  it('неизвестный id — ошибка загрузки', async () => {
-    const { root } = await mountHost({ other: defineComponent({}) });
-    expect(
-      root.querySelector('[data-testid="panel-load-failed"]')?.textContent,
-    ).toContain(`no panels component '${PANEL.id}'`);
   });
 });

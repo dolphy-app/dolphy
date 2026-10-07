@@ -37,14 +37,15 @@ const ECHO_LIBRARY = {
 };
 
 /** Расширение, которое засчитывает любой ответ. */
-const ALWAYS_PASSES = `export default {
-  activate(ctx) {
-    ctx.registerExerciseType('acme.echo', {
-      project: () => ({}),
-      grade: () => ({ outcome: 'passed' }),
-      referenceAnswer: ({ spec }) => spec.expected,
-    });
-  },
+const ALWAYS_PASSES = `export const server = (s) => {
+  s.registerExerciseType({
+    id: 'acme.echo',
+    specSchema: { type: 'object' },
+    answerSchema: { type: 'string' },
+    project: () => ({}),
+    grade: () => ({ outcome: 'passed' }),
+    referenceAnswer: ({ spec }) => spec.expected,
+  });
 };
 `;
 
@@ -132,9 +133,12 @@ describe('режим разработчика (DOLPHY_DEV_EXTENSIONS)', () => {
     await answer.evaluate((node) => Reflect.set(node, '__old', true));
     const stillSameWindow = await client.markWindow();
 
-    const view = await readFile(join(devRoot, 'acme.echo', 'view.mjs'), 'utf8');
+    const view = await readFile(
+      join(devRoot, 'acme.echo', 'client.mjs'),
+      'utf8',
+    );
     await writeFile(
-      join(devRoot, 'acme.echo', 'view.mjs'),
+      join(devRoot, 'acme.echo', 'client.mjs'),
       view.replace(
         "{ 'data-testid': 'acme-echo-answer'",
         "{ 'data-edited': 'yes', 'data-testid': 'acme-echo-answer'",

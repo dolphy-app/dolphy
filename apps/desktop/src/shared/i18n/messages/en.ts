@@ -34,6 +34,9 @@ export const en: typeof ru = {
     arrowleft: 'left arrow',
     arrowright: 'right arrow',
   },
+  extensionInjection: {
+    failed: 'The component of extension {extensionId} failed to render',
+  },
   markdown: {
     renderFailed:
       'Could not render the “{language}” block; showing the source.',

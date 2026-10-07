@@ -1,66 +1,39 @@
 import { describe, expect, it } from 'vitest';
-import { createDiscoveryHolder } from '../src/holder.ts';
-import type { DiscoveryResult, ResolvedExtension } from '../src/discover.ts';
+import { candidateOf, holderOf, resolvedOf } from './helpers.ts';
+import { createDiscoveryHolder, discoveryOf } from '../src/holder.ts';
+import type { DiscoveryResult } from '../src/discover.ts';
 import { createExtensionPolicy } from '../src/policy.ts';
 import { createExtensionRegistry } from '../src/registry.ts';
 
-const extension = (id: string, version = '1.0.0'): ResolvedExtension => ({
-  id,
-  version,
-  origin: 'user',
-  revision: '',
-  dir: `/x/${id}`,
-  mainPath: `/x/${id}/main.mjs`,
-  name: null,
-  description: null,
-  author: null,
-  dependencies: [],
-  platforms: [],
-  minAppVersion: null,
-  icon: null,
-  tags: [],
-  install: null,
-  messages: {},
-  warnings: [],
-  exerciseTypes: [
-    {
-      id: `${id}.a`,
-      title: null,
-      specSchema: {},
-      answerSchema: {},
-      rendererUrl: 'dolphy-ext://x/view.mjs',
-    },
-  ],
-  themes: [],
-  markdownRenderers: [],
-  gradePolicies: [],
-  settings: [],
-  events: [],
-  commands: [],
-  widgets: [],
-  schedules: [],
-  panels: [],
-  importers: [],
-  exporters: [],
-});
-
 const NONE = {
   exerciseTypes: [],
-  themes: [],
-  markdownRenderers: [],
   gradePolicies: [],
   settings: [],
   events: [],
   commands: [],
-  panels: [],
-  widgets: [],
   schedules: [],
   importers: [],
   exporters: [],
 };
 
+const exerciseType = (id: string) => ({
+  id,
+  title: null,
+  specSchema: {},
+  answerSchema: {},
+});
+
+const settings = (disabled: string[], safeMode = false) => ({
+  disabled,
+  checkUpdates: true,
+  safeMode,
+  notificationsOff: [],
+  catalogUrl: null,
+  schedulesOff: [],
+});
+
 const discovery: DiscoveryResult = {
-  extensions: [extension('dolphy.sql', '1.0.1')],
+  ...discoveryOf([candidateOf('dolphy.sql', { version: '1.0.1' })]),
   overridden: [
     {
       id: 'dolphy.sql',
@@ -69,26 +42,32 @@ const discovery: DiscoveryResult = {
       by: { origin: 'user', version: '1.0.1' },
     },
   ],
-  diagnostics: [
-    {
-      extensionId: 'broken-dir',
-      origin: 'user',
-      diagnostic: {
-        code: 'manifest-invalid',
-        data: { issues: ['bad manifest'] },
+};
+
+const withBrokenDir = () => {
+  const holder = createDiscoveryHolder(discovery);
+  holder.applyRegistrations({
+    registrations: {
+      'dolphy.sql': {
+        ok: true,
+        registration: {
+          ...NONE,
+          exerciseTypes: [exerciseType('dolphy.sql.a')],
+        },
       },
     },
-  ],
+  });
+  return holder;
 };
-const holder = createDiscoveryHolder(discovery);
 
 describe('createExtensionRegistry', () => {
+  const holder = withBrokenDir();
   const items = createExtensionRegistry(
     holder,
     createExtensionPolicy(holder),
   ).list();
 
-  it('maps loaded extensions with their exercise types', () => {
+  it('отображает загруженные расширения с идентификаторами их вкладов', () => {
     expect(items).toContainEqual({
       id: 'dolphy.sql',
       version: '1.0.1',
@@ -103,8 +82,6 @@ describe('createExtensionRegistry', () => {
       dependencies: [],
       installed: null,
       icon: null,
-      titles: {},
-      messages: {},
       tags: [],
       removable: true,
       revoked: null,
@@ -112,7 +89,7 @@ describe('createExtensionRegistry', () => {
     });
   });
 
-  it('maps overridden copies with the overriding origin and version', () => {
+  it('перекрытые копии несут origin и версию перекрывшего', () => {
     expect(items).toContainEqual({
       id: 'dolphy.sql',
       version: '1.0.0',
@@ -129,8 +106,6 @@ describe('createExtensionRegistry', () => {
       dependencies: [],
       installed: null,
       icon: null,
-      titles: {},
-      messages: {},
       tags: [],
       removable: false,
       revoked: null,
@@ -138,33 +113,77 @@ describe('createExtensionRegistry', () => {
     });
   });
 
-  it('maps diagnostics to invalid entries without a version', () => {
-    expect(items).toContainEqual({
-      id: 'broken-dir',
-      version: null,
-      origin: 'user',
-      state: 'invalid',
-      contributes: NONE,
+  it('диагностики обнаружения дают invalid без версии', () => {
+    const broken = createDiscoveryHolder({
+      extensions: [],
+      overridden: [],
       diagnostics: [
-        { code: 'manifest-invalid', data: { issues: ['bad manifest'] } },
+        {
+          extensionId: 'broken-dir',
+          origin: 'user',
+          diagnostic: {
+            code: 'manifest-invalid',
+            data: { issues: ['bad manifest'] },
+          },
+        },
       ],
-      toggleable: false,
-      name: null,
-      description: null,
-      author: null,
-      dependencies: [],
-      installed: null,
-      icon: null,
-      titles: {},
-      messages: {},
-      tags: [],
-      removable: true,
-      revoked: null,
-      deprecated: null,
     });
+    const list = createExtensionRegistry(
+      broken,
+      createExtensionPolicy(broken),
+    ).list();
+    expect(list).toEqual([
+      expect.objectContaining({
+        id: 'broken-dir',
+        version: null,
+        origin: 'user',
+        state: 'invalid',
+        contributes: NONE,
+        diagnostics: [
+          { code: 'manifest-invalid', data: { issues: ['bad manifest'] } },
+        ],
+        toggleable: false,
+        removable: true,
+      }),
+    ]);
   });
 
-  it('returns copies', () => {
+  it('ошибка регистрации показывается как invalid с load-failed и без вкладов', () => {
+    const failing = createDiscoveryHolder(
+      discoveryOf([
+        candidateOf('acme.ok'),
+        candidateOf('acme.fail', { version: '3.0.0' }),
+      ]),
+    );
+    failing.applyRegistrations({
+      registrations: {
+        'acme.ok': {
+          ok: true,
+          registration: { ...NONE, exerciseTypes: [exerciseType('acme.ok.a')] },
+        },
+        'acme.fail': { ok: false, error: 'boom' },
+      },
+    });
+    const registry = createExtensionRegistry(
+      failing,
+      createExtensionPolicy(failing),
+    );
+    const failed = registry.list().find(({ id }) => id === 'acme.fail');
+    expect(failed).toMatchObject({
+      state: 'invalid',
+      version: null,
+      contributes: NONE,
+      diagnostics: [{ code: 'load-failed', data: { reason: 'boom' } }],
+    });
+    expect(registry.list().find(({ id }) => id === 'acme.ok')?.state).toBe(
+      'loaded',
+    );
+    expect(
+      registry.contributions().exerciseTypes.map(({ type }) => type),
+    ).toEqual(['acme.ok.a']);
+  });
+
+  it('возвращает копии', () => {
     const registry = createExtensionRegistry(
       holder,
       createExtensionPolicy(holder),
@@ -177,77 +196,53 @@ describe('createExtensionRegistry', () => {
 });
 
 describe('createExtensionRegistry: политика', () => {
-  const bundled: ResolvedExtension = {
-    ...extension('dolphy.math'),
-    origin: 'bundled',
-    markdownRenderers: [
-      {
-        language: 'math',
-        title: null,
-        rendererUrl: 'dolphy-ext://dolphy.math/view.mjs',
-      },
-    ],
-  };
-  const user: ResolvedExtension = {
-    ...extension('acme.u'),
-    markdownRenderers: [
-      {
-        language: 'chart',
-        title: null,
-        rendererUrl: 'dolphy-ext://acme.u/view.mjs',
-      },
-    ],
-    themes: [
-      {
-        id: 'acme.u.night',
-        label: 'Night',
-        dark: true,
-        colors: { background: '#000000' },
-        variables: {},
-      },
-    ],
-  };
-  const both: DiscoveryResult = {
-    extensions: [bundled, user],
-    overridden: [],
-    diagnostics: [],
-  };
-  const bothHolder = createDiscoveryHolder(both);
+  const bundled = resolvedOf(
+    'dolphy.math',
+    {
+      exerciseTypes: [exerciseType('dolphy.math.a')],
+      gradePolicies: [{ id: 'dolphy.math.exact', label: 'Exact' }],
+    },
+    { origin: 'bundled', clientPath: '/x/dolphy.math/client.mjs' },
+  );
+  const user = resolvedOf(
+    'acme.u',
+    {
+      exerciseTypes: [exerciseType('acme.u.a')],
+      gradePolicies: [{ id: 'acme.u.strict', label: 'Strict' }],
+    },
+    { clientPath: '/x/acme.u/dist/client.mjs' },
+  );
+  const bothHolder = holderOf([bundled, user]);
 
   it('отключённое расширение в списке со state disabled, без вкладов', () => {
     const policy = createExtensionPolicy(bothHolder);
     const registry = createExtensionRegistry(bothHolder, policy);
-    policy.update({
-      disabled: ['acme.u'],
-      checkUpdates: true,
-      safeMode: false,
-      notificationsOff: [],
-      catalogUrl: null,
-      schedulesOff: [],
-    });
-    const item = registry.list().find(({ id }) => id === 'acme.u');
-    expect(item).toMatchObject({
+    policy.update(settings(['acme.u']));
+    expect(registry.list().find(({ id }) => id === 'acme.u')).toMatchObject({
       state: 'disabled',
       diagnostics: [],
       toggleable: true,
-      contributes: { themes: ['acme.u.night'], markdownRenderers: ['chart'] },
+      contributes: {
+        exerciseTypes: ['acme.u.a'],
+        gradePolicies: ['acme.u.strict'],
+      },
     });
-    const { themes, markdownRenderers } = registry.contributions();
-    expect(themes).toEqual([]);
-    expect(markdownRenderers.map(({ language }) => language)).toEqual(['math']);
+    const contributions = registry.contributions();
+    expect(contributions.exerciseTypes.map(({ type }) => type)).toEqual([
+      'dolphy.math.a',
+    ]);
+    expect(contributions.gradePolicies.map(({ id }) => id)).toEqual([
+      'dolphy.math.exact',
+    ]);
+    expect(contributions.clients.map(({ extensionId }) => extensionId)).toEqual(
+      ['dolphy.math'],
+    );
   });
 
   it('безопасный режим: расширение не из поставки disabled с диагностикой safe-mode и без вкладов, поставка загружена', () => {
     const policy = createExtensionPolicy(bothHolder);
     const registry = createExtensionRegistry(bothHolder, policy);
-    policy.update({
-      disabled: [],
-      checkUpdates: true,
-      safeMode: true,
-      notificationsOff: [],
-      catalogUrl: null,
-      schedulesOff: [],
-    });
+    policy.update(settings([], true));
     const items = registry.list();
     expect(items.find(({ id }) => id === 'acme.u')).toMatchObject({
       state: 'disabled',
@@ -257,97 +252,24 @@ describe('createExtensionRegistry: политика', () => {
       state: 'loaded',
       diagnostics: [],
     });
-    const { themes, markdownRenderers } = registry.contributions();
-    expect(themes).toEqual([]);
-    expect(markdownRenderers.map(({ language }) => language)).toEqual(['math']);
+    expect(
+      registry.contributions().exerciseTypes.map(({ type }) => type),
+    ).toEqual(['dolphy.math.a']);
   });
 
   it('безопасный режим: расширение, отключённое пользователем, всё равно несёт safe-mode; после выхода из режима диагностика исчезает', () => {
     const policy = createExtensionPolicy(bothHolder);
     const registry = createExtensionRegistry(bothHolder, policy);
-    const settings = (safeMode: boolean) => ({
-      disabled: ['acme.u'],
-      checkUpdates: true,
-      safeMode,
-      notificationsOff: [],
-      catalogUrl: null,
-      schedulesOff: [],
-    });
-    policy.update(settings(true));
+    policy.update(settings(['acme.u'], true));
     expect(registry.list().find(({ id }) => id === 'acme.u')).toMatchObject({
       state: 'disabled',
       diagnostics: [{ code: 'safe-mode', data: {} }],
     });
-    policy.update(settings(false));
+    policy.update(settings(['acme.u'], false));
     expect(registry.list().find(({ id }) => id === 'acme.u')).toMatchObject({
       state: 'disabled',
       diagnostics: [],
     });
-  });
-
-  it('рендерер несёт origin и revision расширения: окно перевыводит блоки при правке', () => {
-    const edited: ResolvedExtension = {
-      ...user,
-      origin: 'dev',
-      revision: 'rev-2',
-    };
-    const holder = createDiscoveryHolder({
-      extensions: [bundled, edited],
-      overridden: [],
-      diagnostics: [],
-    });
-    const registry = createExtensionRegistry(
-      holder,
-      createExtensionPolicy(holder),
-    );
-    expect(
-      registry
-        .contributions()
-        .markdownRenderers.map(({ language, origin, revision }) => [
-          language,
-          origin,
-          revision,
-        ]),
-    ).toEqual([
-      ['math', 'bundled', ''],
-      ['chart', 'dev', 'rev-2'],
-    ]);
-  });
-
-  it('виды заданий несут origin и revision: окно видит правку и обновление компонента', () => {
-    const edited: ResolvedExtension = {
-      ...user,
-      origin: 'dev',
-      revision: 'rev-2',
-    };
-    const holder = createDiscoveryHolder({
-      extensions: [bundled, edited],
-      overridden: [],
-      diagnostics: [],
-    });
-    const policy = createExtensionPolicy(holder);
-    const registry = createExtensionRegistry(holder, policy);
-    const types = () =>
-      registry
-        .contributions()
-        .exerciseTypes.map(({ type, origin, revision }) => [
-          type,
-          origin,
-          revision,
-        ]);
-    expect(types()).toEqual([
-      ['dolphy.math.a', 'bundled', ''],
-      ['acme.u.a', 'dev', 'rev-2'],
-    ]);
-    policy.update({
-      disabled: ['acme.u'],
-      checkUpdates: true,
-      safeMode: false,
-      notificationsOff: [],
-      catalogUrl: null,
-      schedulesOff: [],
-    });
-    expect(types()).toEqual([['dolphy.math.a', 'bundled', '']]);
   });
 
   it('toggleable: расширение из поставки не переключается, пользовательское — да', () => {
@@ -362,144 +284,84 @@ describe('createExtensionRegistry: политика', () => {
       ['acme.u', true],
     ]);
   });
+
+  it('виды заданий несут расширение и заголовок и пропадают с отключением', () => {
+    const titled = resolvedOf('acme.t', {
+      exerciseTypes: [{ ...exerciseType('acme.t.a'), title: 'Квиз' }],
+    });
+    const holder = holderOf([bundled, titled]);
+    const policy = createExtensionPolicy(holder);
+    const registry = createExtensionRegistry(holder, policy);
+    expect(registry.contributions().exerciseTypes).toEqual([
+      { type: 'dolphy.math.a', extensionId: 'dolphy.math', title: null },
+      { type: 'acme.t.a', extensionId: 'acme.t', title: 'Квиз' },
+    ]);
+    policy.update(settings(['acme.t']));
+    expect(
+      registry.contributions().exerciseTypes.map(({ type }) => type),
+    ).toEqual(['dolphy.math.a']);
+  });
 });
 
-describe('createExtensionRegistry: titles and tags', () => {
-  const titled: ResolvedExtension = {
-    ...extension('acme.titled'),
-    tags: ['theme', 'interface'],
-    themes: [
+describe('createExtensionRegistry: клиентская часть', () => {
+  it('clients — только у включённых расширений с clientPath; url от каталога расширения, origin и revision из снимка', () => {
+    const withClient = resolvedOf(
+      'acme.x',
+      {},
       {
-        id: 'acme.titled.night',
-        label: 'Night',
-        dark: true,
-        colors: { background: '#000000' },
-        variables: {},
+        dir: '/x/acme.x',
+        clientPath: '/x/acme.x/client.mjs',
+        origin: 'dev',
+        revision: 'rev-2',
       },
-    ],
-    exerciseTypes: [
+    );
+    const nested = resolvedOf(
+      'acme.nested',
+      {},
       {
-        id: 'acme.titled',
-        title: 'Titled quiz',
+        dir: '/x/acme.nested',
+        clientPath: '/x/acme.nested/dist/client.mjs',
+      },
+    );
+    const serverOnly = resolvedOf('acme.server');
+    const holder = holderOf([withClient, nested, serverOnly]);
+    const policy = createExtensionPolicy(holder);
+    const registry = createExtensionRegistry(holder, policy);
+    expect(registry.contributions().clients).toEqual([
+      {
+        extensionId: 'acme.x',
+        url: 'dolphy-ext://acme.x/client.mjs',
+        origin: 'dev',
+        revision: 'rev-2',
       },
       {
-        id: 'acme.titled.bare',
-        title: null,
-      },
-    ],
-    markdownRenderers: [
-      { language: 'chart', title: 'Charts', rendererUrl: 'x' },
-      { language: 'plain', title: null, rendererUrl: 'x' },
-    ],
-    gradePolicies: [{ id: 'acme.titled.strict', label: 'Strict' }],
-    settings: [
-      {
-        type: 'boolean',
-        id: 'acme.titled.flag',
-        label: 'Flag',
-        default: false,
-      },
-    ],
-    commands: [
-      {
-        id: 'acme.titled.go',
-        title: 'Go',
-        description: null,
-        category: null,
-        keybinding: null,
-        keybindings: [],
-        palette: true,
-      },
-    ],
-    panels: [{ id: 'acme.titled.main', title: 'Main', module: 'panel.mjs' }],
-  } as unknown as ResolvedExtension;
-  const discovered = createDiscoveryHolder({
-    extensions: [titled, extension('acme.plain')],
-    overridden: [
-      {
-        id: 'acme.old',
-        version: '1.0.0',
-        origin: 'bundled',
-        by: { origin: 'user', version: '1.0.0' },
-      },
-    ],
-    diagnostics: [
-      {
-        extensionId: 'broken',
+        extensionId: 'acme.nested',
+        url: 'dolphy-ext://acme.nested/dist/client.mjs',
         origin: 'user',
-        diagnostic: { code: 'manifest-invalid', data: { issues: ['bad'] } },
+        revision: '',
       },
-    ],
-  });
-  const policy = createExtensionPolicy(discovered);
-  const registry = createExtensionRegistry(discovered, policy);
-  const rowOf = (id: string) => registry.list().find((item) => item.id === id);
-
-  it('names every titled contribution by id (renderers by language, only those with a title) and keeps the explicit tags', () => {
-    expect(rowOf('acme.titled')).toMatchObject({
-      titles: {
-        exerciseTypes: { 'acme.titled': 'Titled quiz' },
-        markdownRenderers: { chart: 'Charts' },
-        themes: { 'acme.titled.night': 'Night' },
-        gradePolicies: { 'acme.titled.strict': 'Strict' },
-        settings: { 'acme.titled.flag': 'Flag' },
-        commands: { 'acme.titled.go': 'Go' },
-        panels: { 'acme.titled.main': 'Main' },
-      },
-      tags: ['theme', 'interface'],
-    });
+    ]);
+    policy.update(settings(['acme.x']));
+    expect(
+      registry.contributions().clients.map(({ extensionId }) => extensionId),
+    ).toEqual(['acme.nested']);
   });
 
-  it('leaves out points without titles', () => {
-    expect(rowOf('acme.plain')).toMatchObject({ titles: {}, tags: [] });
-  });
-
-  it('keeps the titles and tags of a disabled extension', () => {
-    policy.update({
-      disabled: ['acme.titled'],
-      checkUpdates: true,
-      safeMode: false,
-      notificationsOff: [],
-      catalogUrl: null,
-      schedulesOff: [],
-    });
-    expect(rowOf('acme.titled')).toMatchObject({
-      state: 'disabled',
-      titles: { themes: { 'acme.titled.night': 'Night' } },
-      tags: ['theme', 'interface'],
-    });
-    policy.update({
-      disabled: [],
-      checkUpdates: true,
-      safeMode: false,
-      notificationsOff: [],
-      catalogUrl: null,
-      schedulesOff: [],
-    });
-  });
-
-  it('is empty for overridden and invalid rows', () => {
-    expect(rowOf('acme.old')).toMatchObject({
-      state: 'overridden',
-      titles: {},
-      messages: {},
-      tags: [],
-    });
-    expect(rowOf('broken')).toMatchObject({
-      state: 'invalid',
-      titles: {},
-      messages: {},
-      tags: [],
-    });
-  });
-
-  it('returns copies of titles and tags', () => {
-    const row = rowOf('acme.titled');
-    row?.tags.push('developer');
-    delete row?.titles.themes;
-    expect(rowOf('acme.titled')).toMatchObject({
-      tags: ['theme', 'interface'],
-      titles: { themes: { 'acme.titled.night': 'Night' } },
-    });
+  it('расширение без main и client валидно и пусто', () => {
+    const empty = resolvedOf('acme.empty', {}, { mainPath: null });
+    const holder = holderOf([empty]);
+    const registry = createExtensionRegistry(
+      holder,
+      createExtensionPolicy(holder),
+    );
+    expect(registry.list()).toEqual([
+      expect.objectContaining({
+        id: 'acme.empty',
+        state: 'loaded',
+        contributes: NONE,
+        diagnostics: [],
+      }),
+    ]);
+    expect(registry.contributions().clients).toEqual([]);
   });
 });

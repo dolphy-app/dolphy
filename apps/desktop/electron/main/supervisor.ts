@@ -59,8 +59,8 @@ export interface SupervisorOptions {
   onHostReady?(host: HostProcessLike): void;
   /** Процесс хоста завершился (в том числе при остановке). */
   onHostExit?(): void;
-  /** Любое сообщение хоста, кроме `ready`. */
-  onMessage?(message: unknown): void;
+  /** Любое сообщение хоста, кроме `ready`; `host` — процесс, приславший его. */
+  onMessage?(message: unknown, host: HostProcessLike): void;
   /** Вывод процесса: новый приёмник на каждый запуск (журнал и вывод разработчика). */
   createOutput?(): ProcessOutputLike;
   stopTimeoutMs?: number;
@@ -161,7 +161,7 @@ export const createSupervisor = (options: SupervisorOptions): Supervisor => {
     self.on('message', (message) => {
       if (child !== self) return;
       if (!isReadyMessage(message)) {
-        options.onMessage?.(message);
+        options.onMessage?.(message, self);
         return;
       }
       ready = true;

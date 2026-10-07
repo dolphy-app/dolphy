@@ -64,11 +64,15 @@ import {
   COMMAND_PALETTE_KEY,
   createCommandPalette,
 } from '@/widgets/command-palette';
-import { textOfExtension } from '@/shared/lib/extension-text.ts';
+import {
+  createExtensionClients,
+  EXTENSION_CLIENTS_KEY,
+} from '@/shared/lib/extension-clients.ts';
 import {
   createExtensionWhen,
   EXTENSION_WHEN_KEY,
 } from '@/shared/lib/extension-when.ts';
+import { createInjectionMounter } from '@/shared/lib/extension-injections.ts';
 import { bindSyntaxPalette } from '@/shared/lib/syntax-binding.ts';
 import { bindExtensionThemes } from '@/shared/lib/theme-registry.ts';
 
@@ -125,10 +129,14 @@ const bootstrap = async () => {
       apply: (next) => applyLocale(i18n, next),
       systemLanguage: () => navigator.language,
     });
+    // клиентские части расширений: окно импортирует их `client.mjs` и держит реестр вкладов
+    const clients = createExtensionClients({
+      contributions: () => contributions.contributions.value,
+    });
     bindExtensionThemes(
       vuetify.theme,
       themeSelection.saved,
-      () => contributions.contributions.value.themes,
+      () => clients.themes.value,
     );
     // цвета подсветки кода следуют за темой: Markdown и редактор ответа
     bindSyntaxPalette(vuetify.theme);
@@ -144,6 +152,7 @@ const bootstrap = async () => {
       registry,
       engine: engine.extensions,
       contributions: () => contributions.contributions.value,
+      clients,
       locale: () => i18n.global.locale.value,
       when: extensionWhen,
       openPanel: ({ extensionId, panelId }) =>
@@ -183,6 +192,7 @@ const bootstrap = async () => {
       engine: engine.extensions,
       platform: window.dolphy.platform,
       contributions: () => contributions.contributions.value,
+      locale: () => i18n.global.locale.value,
       notify: (text) =>
         extensionCommands.notices.push({ kind: 'notify', text }),
       t: translate,
@@ -212,21 +222,15 @@ const bootstrap = async () => {
       t: i18n.global.t,
       themeSelection,
       localeSelection,
-      themes: () => contributions.contributions.value.themes,
-      extensionText: (value, extensionId) =>
-        textOfExtension(
-          value,
-          extensionId,
-          contributions.contributions.value,
-          i18n.global.locale.value,
-        ),
+      themes: () => clients.themes.value,
+      locale: () => i18n.global.locale.value,
       reportFailure: (error) =>
         extensionCommands.notices.push({
           kind: 'failure',
           failure: describeCommandFailure(error),
         }),
     });
-    createApp(App)
+    const app = createApp(App)
       .use(i18n)
       .use(vuetify)
       .use(router)
@@ -240,14 +244,20 @@ const bootstrap = async () => {
       .provide(COURSE_UPDATES_KEY, courseUpdates)
       .provide(COMMAND_REGISTRY_KEY, registry)
       .provide(COMMAND_PALETTE_KEY, palette)
+      .provide(EXTENSION_CLIENTS_KEY, clients)
       .provide(EXTENSION_COMMANDS_KEY, extensionCommands)
       .provide(EXTENSION_WHEN_KEY, extensionWhen)
       .provide(EXTENSION_TRANSFERS_KEY, extensionTransfers)
       .provide(INSTALL_KEY, install)
       .provide(CONTEXT_KEYS_KEY, contextKeys)
       .provide(KEYBINDINGS_KEY, keybindings)
-      .provide(ONBOARDING_TOUR_KEY, onboardingTour)
-      .mount('#app');
+      .provide(ONBOARDING_TOUR_KEY, onboardingTour);
+    app.mount('#app');
+    // компоненты расширений в DOM окна: после монтирования, чтобы цели уже были на месте
+    const injections = createInjectionMounter({ app, clients });
+    window.addEventListener('pagehide', () => injections.dispose(), {
+      once: true,
+    });
     // подписка после монтирования: ссылка, принятая до загрузки окна, приходит сразу
     window.dolphy.deepLink.onInstall(({ id }) => void installLinks.handle(id));
     if (__DOLPHY_SMOKE_BUILD__ && smoke) {

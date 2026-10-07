@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   EXTENSION_NOTIFICATION_LIMITS,
   NotificationRateLimitError,
-  defineExtension,
+  defineServer,
 } from '../src/index.ts';
-import { createMemoryNotifications, loadCommands } from '../src/testing.ts';
+import { createMemoryNotifications, createTestServer } from '../src/testing.ts';
 
 const { titleLength, bodyLength, perMinute, perHour } =
   EXTENSION_NOTIFICATION_LIMITS;
@@ -78,20 +78,23 @@ describe('createMemoryNotifications', () => {
     expect(notifications.shown).toHaveLength(1);
   });
 
-  it('loaders hand the extension ctx.notifications', async () => {
+  it('the test server hands the entry the notifications of the test', async () => {
     const notifications = createMemoryNotifications();
-    const loaded = await loadCommands(
-      defineExtension({
-        activate(ctx) {
-          ctx.commands.register('x.ping', async () => {
-            await ctx.notifications.show({ title: 'Ping', body: 'pong' });
-          });
-        },
+    const server = await createTestServer(
+      defineServer((s) => {
+        s.registerCommand({
+          id: 'x.ping',
+          title: 'Ping',
+          run: async () => {
+            await s.notifications.show({ title: 'Ping', body: 'pong' });
+          },
+        });
       }),
       { notifications },
     );
-    await loaded.run('x.ping');
+    await server.commands.run('x.ping');
     expect(notifications.shown).toEqual([{ title: 'Ping', body: 'pong' }]);
-    await loaded.dispose();
+    expect(server.notifications).toBe(notifications);
+    await server.dispose();
   });
 });

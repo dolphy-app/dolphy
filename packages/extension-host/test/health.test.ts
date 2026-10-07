@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { attemptClosed, createHarness, stateful } from './state-harness.ts';
+import { ACTIVATION_TIMEOUT_MS } from '../src/runtime.ts';
+import type { ServerModule } from '../src/runtime.ts';
+import { candidateOf } from './helpers.ts';
+import { attemptClosed, createHarness } from './state-harness.ts';
 import type { Harness } from './state-harness.ts';
 
 const ID = 'acme.h';
@@ -11,74 +14,94 @@ afterEach(async () => {
   harness = null;
 });
 
-const open = (...args: Parameters<typeof createHarness>): Harness => {
-  harness = createHarness(...args);
+/** Хост без расширений: серверные части подкладываются в `modules` до замены набора. */
+const open = async (
+  modules: Record<string, ServerModule> = {},
+  candidates = [candidateOf(ID, { revision: 'r1' })],
+) => {
+  harness = await createHarness({ candidates, modules });
   return harness;
 };
 
+const candidate = (id = ID, revision = 'r1') => candidateOf(id, { revision });
+
+const sleep = (ms: number): Promise<void> =>
+  new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
+/** Доставляет сообщения хоста движку: учёт здоровья идёт через канал. */
+const flush = () => vi.advanceTimersByTimeAsync(0);
+
 describe('здоровье расширения: хост → движок', () => {
-  it('успешная активация записывает длительность; расширение без активации — нули', async () => {
-    const h = open({
-      extensions: [stateful(ID), stateful('acme.idle', { events: [] })],
-      modules: {
-        [ID]: {
-          activate: async (ctx) => {
-            ctx.events.on('attempt.closed', () => {});
-            await new Promise<void>((resolve) => {
-              setTimeout(resolve, 30);
-            });
-          },
-        },
-        'acme.idle': { activate: () => {} },
+  it('успешная регистрация записывает длительность server; расширение без вклада — тоже, но без сбоев', async () => {
+    vi.useFakeTimers();
+    const modules: Record<string, ServerModule> = {};
+    const h = await open(modules, []);
+    modules[ID] = {
+      server: async () => {
+        await sleep(30);
       },
-    });
-    expect(h.engine.health.get(ID).lastActivationMs).toBeNull();
-
-    h.engine.emit(attemptClosed('e1'));
-
-    await vi.waitFor(() =>
-      expect(h.engine.health.get(ID).lastActivationMs).toBeGreaterThanOrEqual(
-        25,
-      ),
-    );
-    expect(h.engine.health.get(ID).failures).toBe(0);
-    expect(h.engine.health.get('acme.idle')).toEqual({
-      id: 'acme.idle',
+    };
+    modules['acme.quick'] = { server: () => {} };
+    const pending = h.replace([candidate(), candidate('acme.quick')]);
+    await vi.advanceTimersByTimeAsync(30);
+    await pending;
+    await flush();
+    expect(h.engine.health.get(ID)).toMatchObject({
       failures: 0,
       lastFailure: null,
-      lastActivationMs: null,
-      suppressedUntil: null,
+      lastActivationMs: 30,
+    });
+    expect(h.engine.health.get('acme.quick')).toMatchObject({
+      failures: 0,
+      lastActivationMs: 0,
     });
   });
 
-  it('сбой активации не записывает длительность', async () => {
-    const h = open({
-      extensions: [stateful(ID)],
-      modules: {
-        [ID]: {
-          activate: () => {
-            throw new Error('boom');
-          },
-        },
+  it('server бросает: сбой activation-failed с сообщением, длительность не записана', async () => {
+    vi.useFakeTimers();
+    const modules: Record<string, ServerModule> = {};
+    const h = await open(modules, []);
+    modules[ID] = {
+      server: () => {
+        throw new Error('boom');
       },
+    };
+    await h.replace([candidate()]);
+    await flush();
+    expect(h.engine.health.get(ID)).toMatchObject({
+      failures: 1,
+      lastFailure: { reason: 'activation-failed', message: 'boom' },
+      lastActivationMs: null,
     });
-    h.engine.emit(attemptClosed('e1'));
-    await vi.waitFor(() => expect(h.engine.health.get(ID).failures).toBe(1));
-    expect(h.engine.health.get(ID).lastActivationMs).toBeNull();
+  });
+
+  it('server не уложился в срок: сбой activation-timeout', async () => {
+    vi.useFakeTimers();
+    const modules: Record<string, ServerModule> = {};
+    const h = await open(modules, []);
+    modules[ID] = { server: () => new Promise<void>(() => {}) };
+    const pending = h.replace([candidate()]);
+    await vi.advanceTimersByTimeAsync(ACTIVATION_TIMEOUT_MS);
+    await pending;
+    await flush();
+    expect(h.engine.health.get(ID)).toMatchObject({
+      failures: 1,
+      lastFailure: { reason: 'activation-timeout' },
+      lastActivationMs: null,
+    });
   });
 
   it('исключение и просрочка обработчика события — сбои с причиной и сообщением', async () => {
     vi.useFakeTimers();
-    const h = open({
-      extensions: [stateful(ID)],
-      modules: {
-        [ID]: {
-          activate: (ctx) => {
-            ctx.events.on('attempt.closed', async ({ exerciseId }) => {
-              if (exerciseId === 'bad') throw new Error('handler bug');
-              if (exerciseId === 'hang') await new Promise<void>(() => {});
-            });
-          },
+    const h = await open({
+      [ID]: {
+        server: (s) => {
+          s.on('attempt.closed', async ({ exerciseId }) => {
+            if (exerciseId === 'bad') throw new Error('handler bug');
+            if (exerciseId === 'hang') await new Promise<void>(() => {});
+          });
         },
       },
     });
@@ -100,25 +123,25 @@ describe('здоровье расширения: хост → движок', () 
   });
 
   it('замена набора сбрасывает сводку изменённого и удалённого расширения, но не нетронутого', async () => {
-    const stay = stateful('acme.stay');
-    const h = open({
-      extensions: [stateful(ID), stateful('acme.gone'), stay],
-      modules: {
-        [ID]: { activate: () => {} },
-        'acme.gone': { activate: () => {} },
-        'acme.stay': { activate: () => {} },
+    vi.useFakeTimers();
+    const stay = candidate('acme.stay');
+    const h = await open(
+      {
+        [ID]: { server: () => {} },
+        'acme.gone': { server: () => {} },
+        'acme.stay': { server: () => {} },
       },
-    });
+      [candidate(), candidate('acme.gone'), stay],
+    );
     for (const id of [ID, 'acme.gone', 'acme.stay']) {
       h.engine.health.recordFailure(id, 'handler-failed', 'x');
     }
 
-    await h.replace([stateful(ID, { revision: 'edited' }), stay]);
+    await h.replace([candidate(ID, 'edited'), stay]);
+    await flush();
 
-    await vi.waitFor(() => {
-      expect(h.engine.health.get(ID).failures).toBe(0);
-      expect(h.engine.health.get('acme.gone').failures).toBe(0);
-    });
+    expect(h.engine.health.get(ID).failures).toBe(0);
+    expect(h.engine.health.get('acme.gone').failures).toBe(0);
     expect(h.engine.health.get('acme.stay').failures).toBe(1);
   });
 });

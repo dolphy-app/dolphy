@@ -202,7 +202,6 @@ const supervisor = createSupervisor({
   },
   onHostReady: (host) => {
     engineHost = host;
-    hostLink.setEngine(host);
     publishExtHostStatus();
     if (reloadPending) reloadExtensions();
   },
@@ -210,7 +209,9 @@ const supervisor = createSupervisor({
     engineHost = null;
     hostLink.setEngine(null);
   },
-  onMessage: (message) => {
+  onMessage: (message, host) => {
+    // канал к хосту расширений готов: движок ждёт первой регистрации вкладов до открытия библиотеки, поэтому порт нужен раньше `ready`
+    if (isTypedMessage(message, 'ext-link')) hostLink.setEngine(host);
     // зависший синхронный код расширения не прервать: движок просит перезапустить хост
     if (isTypedMessage(message, 'restart-ext-host')) extSupervisor.kill();
     // пользователь просит запустить хост после `gave-up` («Настройки → Расширения»)

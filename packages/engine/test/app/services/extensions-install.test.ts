@@ -21,15 +21,11 @@ import { createTestContext, createTestEngine } from '../../helpers/engine.ts';
 
 const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
   exerciseTypes: [],
-  themes: [],
-  markdownRenderers: [],
   gradePolicies: [],
   settings: [],
   events: [],
   commands: [],
-  widgets: [],
   schedules: [],
-  panels: [],
   importers: [],
   exporters: [],
 };
@@ -48,8 +44,6 @@ const info = (overrides: Partial<ExtensionInfoDto>): ExtensionInfoDto => ({
   dependencies: [],
   installed: null,
   icon: null,
-  titles: {},
-  messages: {},
   tags: [],
   removable: true,
   revoked: null,

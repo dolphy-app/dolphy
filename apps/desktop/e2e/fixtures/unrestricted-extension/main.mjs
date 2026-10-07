@@ -5,22 +5,34 @@ import { readFileSync, writeFileSync } from 'node:fs';
 
 const outside = (name) => new URL(`../../${name}`, import.meta.url);
 
-export default {
-  activate(ctx) {
-    ctx.commands.register('acme.unrestricted.read', () => ({
+export const server = (s) => {
+  s.registerCommand({
+    id: 'acme.unrestricted.read',
+    title: 'Свободно: прочитать файл',
+    run: () => ({
       notify: `read:${readFileSync(outside('outside.txt'), 'utf8').trim()}`,
-    }));
-    ctx.commands.register('acme.unrestricted.write', () => {
+    }),
+  });
+  s.registerCommand({
+    id: 'acme.unrestricted.write',
+    title: 'Свободно: записать файл',
+    run: () => {
       writeFileSync(outside('written.txt'), 'written-by-extension');
       return { notify: 'written' };
-    });
-    ctx.commands.register('acme.unrestricted.spawn', () => {
+    },
+  });
+  s.registerCommand({
+    id: 'acme.unrestricted.spawn',
+    title: 'Свободно: запустить процесс',
+    run: () => {
       const pid = execFileSync(
         process.execPath,
         ['-e', 'process.stdout.write(String(process.pid))'],
         { env: { ELECTRON_RUN_AS_NODE: '1' }, encoding: 'utf8' },
       );
-      return { notify: `child:${pid === String(process.pid) ? 'same' : 'other'}` };
-    });
-  },
+      return {
+        notify: `child:${pid === String(process.pid) ? 'same' : 'other'}`,
+      };
+    },
+  });
 };

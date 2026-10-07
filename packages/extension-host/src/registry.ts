@@ -1,23 +1,23 @@
-import type { ExtensionInfoDto } from '@dolphy-app/engine-contract';
+import path from 'node:path';
+import type {
+  ExtensionClientDto,
+  ExtensionInfoDto,
+} from '@dolphy-app/engine-contract';
 import type {
   ExtensionPolicy,
   ExtensionRegistry,
 } from '@dolphy-app/engine/ports';
-import type { ResolvedExtension } from './discover.ts';
+import type { ExtensionCandidate, ResolvedExtension } from './discover.ts';
 import type { DiscoverySource } from './holder.ts';
 import { revocationReason } from './revocation.ts';
 import type { RevocationLookup } from './revocation.ts';
 
 const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
   exerciseTypes: [],
-  themes: [],
-  markdownRenderers: [],
   gradePolicies: [],
   settings: [],
   events: [],
   commands: [],
-  panels: [],
-  widgets: [],
   schedules: [],
   importers: [],
   exporters: [],
@@ -33,8 +33,6 @@ const withoutMetadata = (
   | 'author'
   | 'dependencies'
   | 'icon'
-  | 'titles'
-  | 'messages'
   | 'tags'
   | 'installed'
   | 'removable'
@@ -46,8 +44,6 @@ const withoutMetadata = (
   author: null,
   dependencies: [],
   icon: null,
-  titles: {},
-  messages: {},
   tags: [],
   installed: null,
   removable: origin === 'user',
@@ -55,104 +51,40 @@ const withoutMetadata = (
   deprecated: null,
 });
 
-/** Идентификаторы вкладов расширения в том же виде, что в записи каталога. */
+/** Идентификаторы серверных вкладов расширения в том же виде, что в записи каталога. */
 export const contributesOf = (
   extension: Pick<
     ResolvedExtension,
     | 'exerciseTypes'
-    | 'themes'
-    | 'markdownRenderers'
     | 'gradePolicies'
     | 'settings'
     | 'events'
     | 'commands'
-    | 'panels'
-    | 'widgets'
     | 'schedules'
     | 'importers'
     | 'exporters'
   >,
 ): ExtensionInfoDto['contributes'] => ({
   exerciseTypes: extension.exerciseTypes.map(({ id }) => id),
-  themes: extension.themes.map(({ id }) => id),
-  markdownRenderers: extension.markdownRenderers.map(
-    ({ language }) => language,
-  ),
   gradePolicies: extension.gradePolicies.map(({ id }) => id),
   settings: extension.settings.map(({ id }) => id),
-  events: extension.events.map(({ event }) => event),
+  events: [...extension.events],
   commands: extension.commands.map(({ id }) => id),
-  panels: extension.panels.map(({ id }) => id),
-  widgets: extension.widgets.map(({ id }) => id),
   schedules: extension.schedules.map(({ id }) => id),
   importers: extension.importers.map(({ id }) => id),
   exporters: extension.exporters.map(({ id }) => id),
 });
 
-/** Названия вкладов с `label`/`title` в том же виде, что `titles` записи каталога; пустые точки опущены. */
-export const titlesOf = (
-  extension: Pick<
-    ResolvedExtension,
-    | 'exerciseTypes'
-    | 'markdownRenderers'
-    | 'themes'
-    | 'gradePolicies'
-    | 'settings'
-    | 'commands'
-    | 'panels'
-    | 'widgets'
-    | 'importers'
-    | 'exporters'
-  >,
-): ExtensionInfoDto['titles'] => {
-  const titles: ExtensionInfoDto['titles'] = {};
-  const add = (
-    point: keyof ExtensionInfoDto['titles'],
-    items: readonly { id: string }[],
-    title: (item: never) => string,
-  ): void => {
-    if (items.length === 0) return;
-    titles[point] = Object.fromEntries(
-      items.map((item) => [item.id, title(item as never)]),
-    );
-  };
-  const titled = <T extends { title: string | null }>(items: readonly T[]) =>
-    items.filter(({ title }) => title !== null);
-  add(
-    'exerciseTypes',
-    titled(extension.exerciseTypes),
-    (item: { title: string }) => item.title,
-  );
-  add(
-    'markdownRenderers',
-    titled(extension.markdownRenderers).map((item) => ({
-      ...item,
-      id: item.language,
-    })),
-    (item: { title: string }) => item.title,
-  );
-  add('themes', extension.themes, (item: { label: string }) => item.label);
-  add(
-    'gradePolicies',
-    extension.gradePolicies,
-    (item: { label: string }) => item.label,
-  );
-  add('settings', extension.settings, (item: { label: string }) => item.label);
-  add('commands', extension.commands, (item: { title: string }) => item.title);
-  add('panels', extension.panels, (item: { title: string }) => item.title);
-  add('widgets', extension.widgets, (item: { title: string }) => item.title);
-  add(
-    'importers',
-    extension.importers,
-    (item: { title: string }) => item.title,
-  );
-  add(
-    'exporters',
-    extension.exporters,
-    (item: { title: string }) => item.title,
-  );
-  return titles;
-};
+/** `dolphy-ext://<id>/<путь клиентской части от каталога расширения>`. */
+const clientUrlOf = (
+  { id, dir }: Pick<ExtensionCandidate, 'id' | 'dir'>,
+  clientPath: string,
+): string =>
+  `dolphy-ext://${id}/${path
+    .relative(dir, clientPath)
+    .split(path.sep)
+    .map(encodeURIComponent)
+    .join('/')}`;
 
 const loaded = (
   extension: ResolvedExtension,
@@ -186,8 +118,6 @@ const loaded = (
       range,
     })),
     icon: extension.icon,
-    titles: titlesOf(extension),
-    messages: extension.messages,
     tags: [...extension.tags],
     installed: extension.install === null ? null : { ...extension.install },
     removable: extension.origin === 'user',
@@ -247,25 +177,23 @@ export const createExtensionRegistry = (
         ...invalidItems(),
       ].map((item) => structuredClone(item)),
     contributions: () => ({
+      clients: enabled().flatMap((extension): ExtensionClientDto[] =>
+        extension.clientPath === null
+          ? []
+          : [
+              {
+                extensionId: extension.id,
+                url: clientUrlOf(extension, extension.clientPath),
+                origin: extension.origin,
+                revision: extension.revision,
+              },
+            ],
+      ),
       exerciseTypes: enabled().flatMap((extension) =>
         extension.exerciseTypes.map((type) => ({
           type: type.id,
           extensionId: extension.id,
-          rendererUrl: type.rendererUrl,
-          origin: extension.origin,
-          revision: extension.revision,
-        })),
-      ),
-      themes: enabled().flatMap(({ id, themes }) =>
-        themes.map((theme) => structuredClone({ ...theme, extensionId: id })),
-      ),
-      markdownRenderers: enabled().flatMap((extension) =>
-        extension.markdownRenderers.map((renderer) => ({
-          language: renderer.language,
-          rendererUrl: renderer.rendererUrl,
-          extensionId: extension.id,
-          origin: extension.origin,
-          revision: extension.revision,
+          title: type.title,
         })),
       ),
       gradePolicies: enabled().flatMap(({ id, gradePolicies }) =>
@@ -281,23 +209,9 @@ export const createExtensionRegistry = (
         ),
       ),
       commands: enabled().flatMap(({ id, commands }) =>
-        commands.map((command) => ({ ...command, extensionId: id })),
-      ),
-      panels: enabled().flatMap((extension) =>
-        extension.panels.map((panel) => ({
-          ...panel,
-          extensionId: extension.id,
-          origin: extension.origin,
-          revision: extension.revision,
-        })),
-      ),
-      widgets: enabled().flatMap((extension) =>
-        extension.widgets.map((widget) => ({
-          ...widget,
-          extensionId: extension.id,
-          origin: extension.origin,
-          revision: extension.revision,
-        })),
+        commands.map((command) =>
+          structuredClone({ ...command, extensionId: id }),
+        ),
       ),
       schedules: enabled().flatMap(({ id, schedules }) =>
         schedules.map((schedule) => ({ ...schedule, extensionId: id })),
@@ -311,11 +225,6 @@ export const createExtensionRegistry = (
       ),
       exporters: enabled().flatMap(({ id, exporters }) =>
         exporters.map((exporter) => ({ ...exporter, extensionId: id })),
-      ),
-      messages: Object.fromEntries(
-        enabled()
-          .filter(({ messages }) => Object.keys(messages).length > 0)
-          .map(({ id, messages }) => [id, messages]),
       ),
     }),
   };

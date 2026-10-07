@@ -2,12 +2,5 @@
   "id": "acme.unrestricted",
   "version": "1.0.0",
   "apiVersion": 1,
-  "main": "./main.mjs",
-  "contributes": {
-    "commands": [
-      { "id": "acme.unrestricted.read", "title": "Свободно: прочитать файл" },
-      { "id": "acme.unrestricted.write", "title": "Свободно: записать файл" },
-      { "id": "acme.unrestricted.spawn", "title": "Свободно: запустить процесс" }
-    ]
-  }
+  "main": "./main.mjs"
 }

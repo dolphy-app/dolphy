@@ -333,6 +333,9 @@ export const ru = {
       version: 'Версия {version}',
       moreValues: 'Ещё {n}',
       fewerValues: 'Свернуть',
+      clientFailed: {
+        title: 'Клиентская часть расширения не загрузилась',
+      },
       tagsLabel: 'Теги',
       tags: {
         learning: 'Обучение',
@@ -362,7 +365,9 @@ export const ru = {
         events: 'События обучения',
         commands: 'Команды',
         panels: 'Панели',
-        widgets: 'Виджеты',
+        injections: 'Вставки в интерфейс',
+        importers: 'Импортёры',
+        exporters: 'Экспортёры',
       },
       origin: {
         bundled: 'Поставка',
@@ -443,11 +448,6 @@ export const ru = {
         'dependency-unmet':
           'Требуется расширение «{id}»{range}, но оно не загружено: его зависимости не выполнены',
         'dependency-cycle': 'Расширения зависят друг от друга: {cycle}',
-        locale: {
-          'missing-key':
-            'Нет перевода для «{key}» в locales/en.json: подпись показана как есть',
-          'invalid-file': 'Файл перевода {file} проигнорирован: {reason}',
-        },
       },
       safeMode: {
         label: 'Безопасный режим',
@@ -633,10 +633,8 @@ export const ru = {
         listLabel: 'Расширения из каталога',
         searchLabel: 'Поиск по каталогу',
         searchHint: 'Название, id, описание или автор',
-        kindsLabel: 'Фильтр по виду вклада',
         groupsLabel: 'Быстрые фильтры',
         tagsLabel: 'Фильтр по тегу',
-        kindsCaption: 'Виды вклада',
         moreFilters: 'Ещё фильтры',
         chipCount: '{label}: {n}',
         refresh: 'Обновить каталог',

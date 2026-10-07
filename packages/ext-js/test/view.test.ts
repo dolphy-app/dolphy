@@ -2,14 +2,18 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { nextTick } from 'vue';
 import { MAX_HIGHLIGHT_CHARS } from '../src/highlight.ts';
-import { views } from '../src/index.ts';
+import { createTestClient } from '@dolphy-app/extension-sdk/testing';
+import { client } from '../src/index.ts';
 import { mountView as mount } from './mount-view.ts';
 import type { MountedView } from './mount-view.ts';
 
 const loaded: MountedView[] = [];
 
 const mountView = async (props: Record<string, unknown> = {}) => {
-  const view = await mount(views['dolphy.js'], props);
+  const harness = await createTestClient(client, { extensionId: 'dolphy.js' });
+  const component = harness.answerViews.get('dolphy.js');
+  if (!component) throw new Error('answer view is not registered');
+  const view = await mount(component, props);
   loaded.push(view);
   const textarea = view.query<HTMLTextAreaElement>('textarea');
   if (!textarea) throw new Error('textarea is not rendered');

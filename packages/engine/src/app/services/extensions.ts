@@ -130,22 +130,16 @@ const copyInfo = (info: ExtensionInfoDto): ExtensionInfoDto => ({
   ...info,
   contributes: {
     exerciseTypes: [...info.contributes.exerciseTypes],
-    themes: [...info.contributes.themes],
-    markdownRenderers: [...info.contributes.markdownRenderers],
     gradePolicies: [...info.contributes.gradePolicies],
     settings: [...info.contributes.settings],
     events: [...info.contributes.events],
     commands: [...info.contributes.commands],
-    panels: [...info.contributes.panels],
-    widgets: [...info.contributes.widgets],
     schedules: [...info.contributes.schedules],
     importers: [...info.contributes.importers],
     exporters: [...info.contributes.exporters],
   },
   diagnostics: structuredClone(info.diagnostics),
   dependencies: info.dependencies.map((dependency) => ({ ...dependency })),
-  titles: structuredClone(info.titles),
-  messages: structuredClone(info.messages),
   tags: [...info.tags],
 });
 
@@ -174,10 +168,7 @@ const sortedContributions = (
   return {
     generation,
     exerciseTypes: copy.exerciseTypes.sort(compareBy((type) => type.type)),
-    themes: copy.themes.sort(compareBy((theme) => theme.id)),
-    markdownRenderers: copy.markdownRenderers.sort(
-      compareBy((renderer) => renderer.language),
-    ),
+    clients: copy.clients.sort(compareBy((client) => client.extensionId)),
     gradePolicies: [
       ...BUILTIN_POLICIES,
       ...copy.gradePolicies.sort(compareBy((policy) => policy.id)),
@@ -185,8 +176,6 @@ const sortedContributions = (
     // между расширениями — по id, внутри расширения — порядок манифеста (так автор управляет формой)
     settings: copy.settings.sort(compareBy((setting) => setting.extensionId)),
     commands: copy.commands.sort(compareBy((command) => command.extensionId)),
-    panels: copy.panels.sort(compareBy((panel) => panel.extensionId)),
-    widgets: copy.widgets.sort(compareBy((widget) => widget.extensionId)),
     // между расширениями — по id, внутри расширения — порядок манифеста
     schedules: copy.schedules.sort(
       compareBy((schedule) => schedule.extensionId),
@@ -197,7 +186,6 @@ const sortedContributions = (
     exporters: copy.exporters.sort(
       compareBy((exporter) => exporter.extensionId),
     ),
-    messages: copy.messages,
   };
 };
 

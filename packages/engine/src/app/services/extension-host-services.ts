@@ -103,20 +103,6 @@ export interface ExtensionHostServices {
   ): () => void;
 }
 
-const MESSAGE_KEY = /^%([A-Za-z0-9_.-]{1,64})%$/;
-
-/**
- * Имя расширения в уведомлении: название манифеста, `%ключ%` — по таблице
- * `en` (язык окна движок не знает); нет названия — id.
- */
-const sourceNameOf = (info: ExtensionInfoDto): string => {
-  const name = info.name;
-  if (name === null) return info.id;
-  const key = MESSAGE_KEY.exec(name)?.[1];
-  if (key === undefined) return name;
-  return info.messages.en?.[key] ?? info.id;
-};
-
 export const createExtensionHostServices = (
   ctx: Pick<
     EngineContext,
@@ -299,7 +285,7 @@ export const createExtensionHostServices = (
         const info = notificationsOf(extensionId);
         const limits = EXTENSION_NOTIFICATION_LIMITS;
         const notification = {
-          source: sourceNameOf(info),
+          source: info.name ?? info.id,
           title: notificationText('title', title, limits.titleLength),
           body: notificationText('body', body, limits.bodyLength),
         };

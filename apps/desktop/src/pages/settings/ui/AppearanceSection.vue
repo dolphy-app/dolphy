@@ -2,11 +2,8 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { LocaleMode } from '@dolphy-app/engine-contract';
-import {
-  useContributions,
-  useLocaleSelection,
-  useThemeSelection,
-} from '@/shared/api/engine';
+import { useLocaleSelection, useThemeSelection } from '@/shared/api/engine';
+import { useExtensionClients } from '@/shared/lib/extension-clients.ts';
 import { useExtensionText } from '@/shared/lib/extension-text.ts';
 import { useAppearanceSettings } from '../model/appearance.ts';
 import { buildThemeTiles } from '../model/theme-tiles.ts';
@@ -17,19 +14,19 @@ import ThemeTile from './ThemeTile.vue';
 const LOCALE_MODES: LocaleMode[] = ['system', 'ru', 'en'];
 
 const { t } = useI18n();
-const contributions = useContributions();
+const clients = useExtensionClients();
 const extensionText = useExtensionText();
 const { mode, localeMode, error, select, selectLocale } = useAppearanceSettings(
   useThemeSelection(),
   useLocaleSelection(),
-  () => contributions.value.themes,
+  clients.themes,
 );
 
 const themeTiles = computed(() =>
   buildThemeTiles(
     (id) => t(`settings.appearance.theme.${id}`),
-    contributions.value.themes,
-    (theme) => extensionText.of(theme.label, theme.extensionId),
+    clients.themes.value,
+    extensionText.of,
   ),
 );
 

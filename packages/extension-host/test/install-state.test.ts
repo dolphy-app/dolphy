@@ -35,21 +35,13 @@ const writeExtension = async (
       id,
       version: '1.0.0',
       apiVersion: 1,
+      client: './client.mjs',
       name: 'Acme',
       description: 'Acme extension',
       author: 'acme',
-      contributes: {
-        themes: [
-          {
-            id: `${id}.night`,
-            label: 'Night',
-            dark: true,
-            colors: { background: '#000000' },
-          },
-        ],
-      },
     }),
   );
+  await writeFile(path.join(dir, 'client.mjs'), 'export default {};');
   if (sidecar !== undefined) {
     await writeFile(path.join(dir, INSTALL_META_FILE), sidecar);
   }
@@ -154,10 +146,9 @@ describe('registry and policy: metadata and revocation', () => {
       schedulesOff: [],
     });
     expect(policy.isEnabled('acme.u')).toBe(false);
-    expect(registry.contributions().themes.map(({ id }) => id)).toEqual([
-      'dolphy.b.night',
-      'acme.manual.night',
-    ]);
+    expect(
+      registry.contributions().clients.map(({ extensionId }) => extensionId),
+    ).toEqual(['dolphy.b', 'acme.manual']);
   });
 
   it('revocation follows the lookup at call time: a fresh index re-enables', async () => {

@@ -12,14 +12,16 @@ import { useCourseScope } from '@/features/course-scope';
 import { panelKey, useExtensionCommands } from '@/features/extension-commands';
 import { useContributions } from '@/shared/api/engine';
 import { ROUTE } from '@/shared/config/routes.ts';
+import { useExtensionClients } from '@/shared/lib/extension-clients.ts';
 import { useExtensionText } from '@/shared/lib/extension-text.ts';
-import { instanceKeyOf, resolvePanel } from '../model/panel.ts';
+import { resolvePanel } from '../model/panel.ts';
 import PanelHost from './PanelHost.vue';
 
 const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const contributions = useContributions();
+const clients = useExtensionClients();
 const extensionText = useExtensionText();
 const { panelProps } = useExtensionCommands();
 const scope = useCourseScope();
@@ -30,16 +32,18 @@ const extensionId = computed(() => String(route.params['extensionId']));
 const panelId = computed(() => String(route.params['panelId']));
 const key = computed(() => panelKey(extensionId.value, panelId.value));
 const resolved = computed(() =>
-  resolvePanel(contributions.value, extensionId.value, panelId.value),
+  resolvePanel(
+    clients.panels.value,
+    contributions.value,
+    extensionId.value,
+    panelId.value,
+  ),
 );
+// клиентская часть расширения ещё грузится или не загрузилась: панели нет, но причина известна
+const clientState = computed(() => clients.states.value.get(extensionId.value));
 
 const panelTitle = computed(() =>
-  resolved.value === null
-    ? ''
-    : extensionText.of(
-        resolved.value.panel.title,
-        resolved.value.panel.extensionId,
-      ),
+  resolved.value === null ? '' : extensionText.of(resolved.value.panel.title),
 );
 
 const heading = useTemplateRef<HTMLElement>('heading');
@@ -55,6 +59,14 @@ watch(
   { immediate: true, flush: 'post' },
 );
 onBeforeUnmount(() => panelProps.clear(key.value));
+
+const missingTitle = computed(() => {
+  const status = clientState.value?.status;
+  if (status === 'loading') return '';
+  return status === 'failed'
+    ? t('extensionPanel.loadFailed')
+    : t('extensionPanel.unavailable.title');
+});
 
 const back = () => {
   if (router.options.history.state.back === null) {
@@ -78,7 +90,7 @@ const back = () => {
       </v-btn>
       <div class="titles">
         <h1 ref="heading" tabindex="-1" class="text-title-large">
-          {{ resolved ? panelTitle : t('extensionPanel.unavailable.title') }}
+          {{ resolved ? panelTitle : missingTitle }}
         </h1>
         <span v-if="resolved" class="caption">{{ extensionId }}</span>
       </div>
@@ -86,13 +98,40 @@ const back = () => {
 
     <div v-if="resolved" class="panel-area">
       <PanelHost
-        :key="instanceKeyOf(resolved.panel)"
+        :key="resolved.panel.key"
         :panel="resolved.panel"
         :commands="resolved.commands"
         :open-props="panelProps.get(key)"
         :context="context"
       />
     </div>
+    <div
+      v-else-if="clientState?.status === 'loading'"
+      class="panel-loading"
+      data-testid="panel-loading"
+    >
+      <v-progress-circular
+        indeterminate
+        :aria-label="t('extensionPanel.loading')"
+      />
+    </div>
+    <v-empty-state
+      v-else-if="clientState?.status === 'failed'"
+      icon="mdi-alert-circle-outline"
+      :text="clientState.error ?? ''"
+      data-testid="panel-client-failed"
+    >
+      <template #actions>
+        <v-btn
+          variant="tonal"
+          color="primary"
+          data-testid="panel-client-retry"
+          @click="clients.reload(extensionId)"
+        >
+          {{ t('extensionPanel.retry') }}
+        </v-btn>
+      </template>
+    </v-empty-state>
     <v-empty-state
       v-else
       icon="mdi-puzzle-outline"
@@ -137,5 +176,12 @@ const back = () => {
 .panel-area {
   flex: 1 1 0;
   min-height: 0;
+}
+
+.panel-loading {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
 }
 </style>

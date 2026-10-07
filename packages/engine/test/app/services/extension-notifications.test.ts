@@ -27,15 +27,11 @@ const info = (
   origin: 'user',
   contributes: {
     exerciseTypes: [],
-    themes: [],
-    markdownRenderers: [],
     gradePolicies: [],
     settings: [],
     events: [],
     commands: [],
-    widgets: [],
     schedules: [],
-    panels: [],
     importers: [],
     exporters: [],
   },
@@ -47,8 +43,6 @@ const info = (
   dependencies: [],
   installed: null,
   icon: null,
-  titles: {},
-  messages: {},
   tags: [],
   removable: true,
   revoked: null,
@@ -97,22 +91,16 @@ describe('показ', () => {
     ]);
   });
 
-  it('расширение без названия называется своим id; %ключ% — текстом en', async () => {
+  it('расширение без названия называется своим id', async () => {
     const { platform, notifications } = await open([
       info(A),
-      info(B, {
-        name: '%ext.name%',
-        messages: {
-          en: { 'ext.name': 'Localized' },
-          ru: { 'ext.name': 'Имя' },
-        },
-      }),
+      info(B, { name: 'Named' }),
     ]);
     await notifications.show(A, 'T', '');
     await notifications.show(B, 'T', '');
     expect(platform.notifications().map((item) => item.source)).toEqual([
       A,
-      'Localized',
+      'Named',
     ]);
   });
 

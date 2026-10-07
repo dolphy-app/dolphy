@@ -7,8 +7,8 @@ also the default). The files below are exactly what the generator writes for the
 id `acme.hello`. Read [quick-start.md](quick-start.md) first for the project
 layout and commands.
 
-The exercise type here compares the answer with an expected text. It has three
-parts: a declaration, the grading code (`host`) and the answer input (`views`).
+The exercise type here compares the answer with an expected text. It has two
+parts: the grading code in `server` and the answer input in `client`.
 
 ## The manifest
 
@@ -23,87 +23,78 @@ File `extension.json` (exercise):
   "name": "Text match",
   "description": "Exercise type: the learner types a string that is compared with the expected text.",
   "author": "your-github-login",
-  "tags": ["learning"],
-  "contributes": {
-    "exerciseTypes": [
-      {
-        "id": "acme.hello",
-        "specSchema": {
-          "type": "object",
-          "required": ["expected"],
-          "additionalProperties": false,
-          "properties": {
-            "expected": { "type": "string", "minLength": 1 },
-            "ignoreCase": { "type": "boolean" }
-          }
-        },
-        "answerSchema": { "type": "string" }
-      }
-    ],
-    "settings": [
-      {
-        "id": "acme.hello.trim",
-        "type": "boolean",
-        "label": "Ignore spaces around the answer",
-        "default": true
-      }
-    ],
-    "commands": [
-      { "id": "acme.hello.status", "title": "Show how answers are compared" }
-    ]
-  }
+  "tags": ["learning"]
 }
 ```
 
-- `exerciseTypes[].id` is the name a course uses in its exercises. `specSchema`
-  and `answerSchema` are JSON Schemas: the app checks `spec` and the answer
-  against them before your code runs, so `grade` can trust their shape.
-- `settings` declares a user setting; the code below reads it.
-- The command `acme.hello.status` shows in the palette how answers are compared.
-- `renderer` is not written: the answer input is the module `./view.mjs`, which
-  the build writes.
+The manifest says who the extension is and nothing more. The exercise type, the
+setting and the command are registered by the code below.
 
-## The code
+## The server part
 
 File `src/index.ts` (exercise):
 
 ```ts
+export { client } from './client.ts';
+export { server } from './server.ts';
+```
+
+`src/index.ts` only re-exports the two entries, each from its own file: the
+server part must not import `vue` or a component, the client part must not
+import `node:*` modules.
+
+File `src/server.ts` (exercise):
+
+```ts
 import {
-  defineAnswerView,
   defineExerciseType,
-  defineExtension,
-  inActivate,
+  defineServer,
   notify,
 } from '@dolphy-app/extension-sdk';
-import type { AnswerChange, ExtensionViews } from '@dolphy-app/extension-sdk';
-import { defineComponent, h, ref, watch } from 'vue';
-import type { PropType } from 'vue';
 
 interface Spec {
   expected: string;
   ignoreCase?: boolean;
 }
 
-// filled from the setting in `activate`, read by the handlers below
-const options = { trim: true };
+// runs in the extension host: every call registers a contribution
+export const server = defineServer((s) => {
+  s.registerSettings([
+    {
+      id: 'acme.hello.trim',
+      type: 'boolean',
+      label: { en: 'Ignore spaces around the answer', ru: 'Игнорировать пробелы вокруг ответа' },
+      default: true,
+    },
+  ]);
 
-const matches = (answer: string, spec: Spec): boolean => {
-  const given = options.trim ? answer.trim() : answer;
-  if (spec.ignoreCase === true) {
-    return given.toLowerCase() === spec.expected.toLowerCase();
-  }
-  return given === spec.expected;
-};
+  // read when the handler runs, so a change in the settings applies at once
+  const trims = (): boolean => s.settings.get('acme.hello.trim') === true;
 
-// extension code: runs in the extension process of the app
-// the schemas from extension.json have already checked `spec` and the answer
-// before the handlers run
-// the ids come from extension.json: `dolphy-ext types` (and every build)
-// writes them to .dolphy/ids.d.ts, so a misspelt id, a declared id without a
-// handler or an undeclared setting fails `pnpm typecheck`
-export const host = defineExtension({
-  exerciseTypes: {
-    'acme.hello': defineExerciseType<Spec, string, Record<string, never>>({
+  const matches = (answer: string, spec: Spec): boolean => {
+    const given = trims() ? answer.trim() : answer;
+    if (spec.ignoreCase === true) {
+      return given.toLowerCase() === spec.expected.toLowerCase();
+    }
+    return given === spec.expected;
+  };
+
+  // the app checks `spec` and the answer against the schemas before the
+  // handlers run
+  s.registerExerciseType(
+    defineExerciseType<Spec, string, Record<string, never>>({
+      id: 'acme.hello',
+      title: 'Text match',
+      specSchema: {
+        type: 'object',
+        required: ['expected'],
+        additionalProperties: false,
+        properties: {
+          expected: { type: 'string', minLength: 1 },
+          ignoreCase: { type: 'boolean' },
+        },
+      },
+      answerSchema: { type: 'string' },
       project: () => ({}),
       grade: ({ spec, answer }) =>
         matches(answer, spec)
@@ -111,28 +102,68 @@ export const host = defineExtension({
           : { outcome: 'failed', reason: 'mismatch' },
       referenceAnswer: ({ spec }) => spec.expected,
     }),
-  },
-  // this command is registered in `activate`: the marker names the id there
-  commands: { 'acme.hello.status': inActivate },
-  activate(ctx) {
-    options.trim = ctx.settings.get('acme.hello.trim');
-    ctx.settings.onDidChange((change) => {
-      if (change.id === 'acme.hello.trim') options.trim = change.value;
-    });
-    ctx.commands.register('acme.hello.status', () =>
+  );
+
+  s.registerCommand({
+    id: 'acme.hello.status',
+    title: { en: 'Show how answers are compared', ru: 'Показать способ сравнения' },
+    run: () =>
       notify(
-        options.trim
+        trims()
           ? 'Answers are compared without the spaces around them.'
           : 'Answers are compared exactly as typed.',
       ),
-    );
-  },
+  });
 });
+```
+
+- `server.registerExerciseType(defineExerciseType<Spec, Answer, View>({ … }))`
+  registers the type. Its `id` is the name a course uses in its exercises, and
+  it is the extension id or starts with it and a dot. `defineExerciseType` only
+  infers `Spec`, `Answer` and `View` from the handlers.
+- `specSchema` and `answerSchema` are JSON Schema (2020-12) objects. The app
+  checks the `spec` of an exercise and the learner's answer against them before
+  a handler runs, so `grade` never sees a malformed value.
+- `project(spec)` returns what the answer input may see of the `spec` (`View`);
+  here nothing, so the expected text never reaches the window. `grade` returns
+  `{ outcome: 'passed' }` or `{ outcome: 'failed', reason }`. `referenceAnswer`
+  is optional: it gives the author a way to see the correct answer.
+- `server.registerSettings([...])` adds a setting to Settings → Extensions;
+  `server.settings.get(id)` returns the user's value or the default. Read it
+  where you use it, as `trims()` does, and a change applies at once. The
+  [settings recipe](recipe-settings.md) shows the rest of the types.
+- `server.registerCommand({ id, title, run })` adds a palette command; `notify`
+  shows a notification.
+- Everything registered together is all or nothing: when `server` throws, or
+  takes more than 10 seconds, the extension contributes nothing and shows
+  `load-failed`.
+
+## The client part
+
+File `src/client.ts` (exercise):
+
+```ts
+import { defineClient } from '@dolphy-app/extension-sdk';
+import { TextAnswer } from './text-answer.ts';
+
+// runs in the app window: the answer view is a Vue component for the exercise
+// type that `server` registers
+export const client = defineClient((c) => {
+  c.addAnswerView('acme.hello', TextAnswer);
+});
+```
+
+File `src/text-answer.ts` (exercise):
+
+```ts
+import type { AnswerChange } from '@dolphy-app/extension-sdk';
+import { defineComponent, h, ref, watch } from 'vue';
+import type { PropType } from 'vue';
 
 // the answer input: a Vue component the app draws in its own window tree. It
 // takes the props of `AnswerViewProps` and reports the answer with `change`;
 // `submit` asks the app to check it
-const TextAnswer = defineComponent({
+export const TextAnswer = defineComponent({
   props: {
     view: { type: null },
     value: { type: null },
@@ -173,33 +204,17 @@ const TextAnswer = defineComponent({
       });
   },
 });
-
-// the keys are the exercise type ids of extension.json; the build writes this
-// table into view.mjs, `vue` itself is the app's own
-export const views = {
-  'acme.hello': defineAnswerView(TextAnswer),
-} satisfies ExtensionViews;
 ```
 
-- `host` runs in the extension process. `defineExerciseType<Spec, Answer, Public>`
-  takes `project` (the part of `spec` the window may see; never put the expected
-  answer there), `grade` (the verdict) and, optionally, `referenceAnswer` (what
-  "show the answer" displays).
-- A verdict is `{ outcome: 'passed' }` or `{ outcome: 'failed', reason }`.
-- `inActivate` marks an id that is registered in `activate`, where `ctx` exists.
-  `ctx.settings.get(id)` is synchronous and typed by the manifest (`boolean`
-  here); `onDidChange` delivers a change from Settings → Extensions to the
-  running extension without a restart.
-- `views` runs in the app window. `defineAnswerView(component)` registers a Vue
-  component as the answer input. It takes the props of `AnswerViewProps`
-  (`view`, `value`, `disabled`, `verdict`, `label`) and emits `change` with
-  `{ value, complete }` (`complete`: the answer can be submitted) and `submit`
-  (the learner asks to check it). `vue` is the app's own instance and stays out
-  of the bundle; so does `vuetify`, whose components you may use. The keys of
-  `views` must be exactly the declared exercise types; `satisfies ExtensionViews`
-  makes the compiler check it.
-- `src/index.ts` has no side effects on import, so tests import it in plain
-  Node. The build splits it: `host` goes to `main.mjs`, `views` to `view.mjs`.
+- `client.addAnswerView(exerciseTypeId, component)` tells the window to draw
+  `component` for the exercises of that type. The id is the one `server`
+  registers.
+- The component is a Vue component the app draws in its own window tree, so the
+  theme and the language apply. It takes the props of `AnswerViewProps` (`view`,
+  `value`, `disabled`, `verdict`, `label`) and emits `change` with an
+  `AnswerChange` (`{ value, complete }`) and `submit` without data.
+- `vue` (and `vuetify`) are imported as usual: the build leaves them out of the
+  bundle and the app gives the component its own instances.
 
 ## The tests
 
@@ -207,21 +222,15 @@ File `test/index.test.ts` (exercise):
 
 ```ts
 // @vitest-environment happy-dom
-import type { SettingContribution } from '@dolphy-app/extension-sdk';
 import {
-  createMemorySettings,
   createSchemaValidator,
-  loadCommands,
-  loadExerciseType,
+  createTestClient,
+  createTestServer,
 } from '@dolphy-app/extension-sdk/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createApp, h, nextTick, reactive } from 'vue';
-import manifest from '../extension.json';
-import { host, views } from '../src/index.ts';
-
-const [contribution] = manifest.contributes.exerciseTypes;
-const validateSpec = createSchemaValidator(contribution.specSchema);
-const validateAnswer = createSchemaValidator(contribution.answerSchema);
+import { client, server } from '../src/index.ts';
+import { TextAnswer } from '../src/text-answer.ts';
 
 const spec = { expected: 'Hello' };
 
@@ -230,13 +239,13 @@ afterEach(async () => {
   await Promise.all(disposables.splice(0).map((item) => item.dispose()));
 });
 
-const newSettings = () =>
-  createMemorySettings(manifest.contributes.settings as SettingContribution[]);
-
-const load = async (settings = newSettings()) => {
-  const type = await loadExerciseType(host, 'acme.hello', { settings });
-  disposables.push(type);
-  return type;
+const start = async (settingValues = {}) => {
+  const running = await createTestServer(server, {
+    extensionId: 'acme.hello',
+    settingValues,
+  });
+  disposables.push(running);
+  return running;
 };
 
 // mounts the answer view the way the app does: the props of `AnswerViewProps`
@@ -255,7 +264,7 @@ const mount = async (label?: string) => {
   document.body.append(host);
   const app = createApp({
     render: () =>
-      h(views['acme.hello'], {
+      h(TextAnswer, {
         ...props,
         onChange: (change: unknown) => changes.push(change),
         onSubmit: () => (submissions += 1),
@@ -284,12 +293,12 @@ const mount = async (label?: string) => {
 
 describe('acme.hello: handler', () => {
   it('project does not reveal the reference', async () => {
-    const type = await load();
+    const type = (await start()).exerciseType('acme.hello');
     expect(await type.project(spec)).toEqual({});
   });
 
   it('grade: a match passes, a mismatch does not', async () => {
-    const type = await load();
+    const type = (await start()).exerciseType('acme.hello');
     expect(await type.grade({ spec, answer: 'Hello' })).toEqual({
       outcome: 'passed',
     });
@@ -300,7 +309,7 @@ describe('acme.hello: handler', () => {
   });
 
   it('grade: ignoreCase turns case sensitivity off', async () => {
-    const type = await load();
+    const type = (await start()).exerciseType('acme.hello');
     const relaxed = { ...spec, ignoreCase: true };
     expect(await type.grade({ spec: relaxed, answer: 'hELLO' })).toEqual({
       outcome: 'passed',
@@ -308,7 +317,7 @@ describe('acme.hello: handler', () => {
   });
 
   it('referenceAnswer passes the check itself', async () => {
-    const type = await load();
+    const type = (await start()).exerciseType('acme.hello');
     const reference = await type.referenceAnswer(spec);
     expect(reference).toEqual({ found: true, answer: 'Hello' });
     if (!reference.found) throw new Error('reference expected');
@@ -320,12 +329,12 @@ describe('acme.hello: handler', () => {
 
 describe('acme.hello: settings and commands', () => {
   it('the trim setting decides whether the spaces around an answer count', async () => {
-    const settings = newSettings();
-    const type = await load(settings);
+    const running = await start();
+    const type = running.exerciseType('acme.hello');
     expect(await type.grade({ spec, answer: ' Hello ' })).toEqual({
       outcome: 'passed',
     });
-    await settings.set('acme.hello.trim', false);
+    await running.settings.set('acme.hello.trim', false);
     expect(await type.grade({ spec, answer: ' Hello ' })).toEqual({
       outcome: 'failed',
       reason: 'mismatch',
@@ -333,29 +342,40 @@ describe('acme.hello: settings and commands', () => {
   });
 
   it('the status command reports the current mode', async () => {
-    const settings = newSettings();
-    const commands = await loadCommands(host, {
-      declaredCommands: ['acme.hello.status'],
-      settings,
-    });
-    disposables.push(commands);
-    expect(await commands.run('acme.hello.status')).toEqual({
+    const running = await start();
+    expect(await running.commands.run('acme.hello.status')).toEqual({
       kind: 'notify',
       text: 'Answers are compared without the spaces around them.',
     });
-    await settings.set('acme.hello.trim', false);
-    expect(await commands.run('acme.hello.status')).toEqual({
+    await running.settings.set('acme.hello.trim', false);
+    expect(await running.commands.run('acme.hello.status')).toEqual({
       kind: 'notify',
+      text: 'Answers are compared exactly as typed.',
+    });
+  });
+
+  it('a user value of the setting replaces the default', async () => {
+    const running = await start({ 'acme.hello.trim': false });
+    expect(await running.commands.run('acme.hello.status')).toMatchObject({
       text: 'Answers are compared exactly as typed.',
     });
   });
 });
 
 describe('acme.hello: schemas', () => {
+  const registered = async () => {
+    const [type] = (await start()).registration.exerciseTypes;
+    if (type === undefined) throw new Error('exercise type expected');
+    return {
+      validateSpec: createSchemaValidator(type.specSchema),
+      validateAnswer: createSchemaValidator(type.answerSchema),
+    };
+  };
+
   it.each([[{ expected: 'a' }], [{ expected: 'a', ignoreCase: true }]])(
     'spec %j is valid',
-    (value) => {
-      expect(validateSpec(value)).toEqual([]);
+    async (value) => {
+      expect((await registered()).validateSpec(value)).toEqual([]);
     },
   );
 
@@ -364,13 +384,22 @@ describe('acme.hello: schemas', () => {
     ['empty expected', { expected: '' }],
     ['ignoreCase is not a boolean', { expected: 'a', ignoreCase: 'yes' }],
     ['an extra field', { expected: 'a', extra: 1 }],
-  ])('spec: %s is rejected', (_name, value) => {
-    expect(validateSpec(value)).not.toEqual([]);
+  ])('spec: %s is rejected', async (_name, value) => {
+    expect((await registered()).validateSpec(value)).not.toEqual([]);
   });
 
-  it('answer: a string is valid, a number is not', () => {
+  it('answer: a string is valid, a number is not', async () => {
+    const { validateAnswer } = await registered();
     expect(validateAnswer('text')).toEqual([]);
     expect(validateAnswer(42)).not.toEqual([]);
+  });
+});
+
+describe('acme.hello: client', () => {
+  it('adds the answer view for the exercise type', async () => {
+    const running = await createTestClient(client, { extensionId: 'acme.hello' });
+    disposables.push(running);
+    expect(running.answerViews.get('acme.hello')).toBe(TextAnswer);
   });
 });
 
@@ -413,12 +442,17 @@ describe('acme.hello: view', () => {
 });
 ```
 
-`loadExerciseType` activates `host` and gives `project` and `grade` the way the
-app calls them, and checks the shape of the results. The view is tested as a Vue
-component: `mount` in the file draws it with `createApp` in the test DOM (the
+`createTestServer(server, { extensionId })` starts `server` on in-memory
+settings, storage and library and gives `exerciseType(id)` with `project`,
+`grade` and `referenceAnswer` the way the app calls them, with the checks of the
+host on the shape of the results. `settingValues` plays the user's choice, and
+`running.settings.set` changes a value the way the settings dialog does.
+`createSchemaValidator` checks fixtures against the schemas that were
+registered, so a change to a schema fails the test. `createTestClient(client)`
+records what `client` adds; the view itself is tested as a Vue component:
+`mount` in the file draws it with `createApp` in the test DOM (the
 `@vitest-environment happy-dom` comment), passes the props of `AnswerViewProps`
-and collects the `change` and `submit` events. `createSchemaValidator` checks fixtures against the
-schemas of the manifest, so a change to a schema fails the test.
+and collects the `change` and `submit` events.
 
 ## Try and ship
 

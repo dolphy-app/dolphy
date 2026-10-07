@@ -8,10 +8,11 @@ import type {
   JsonValue,
   LearningEventName,
   LearningEventPayloads,
+  ServerRegistration,
   SettingValue,
 } from '@dolphy-app/extension-api';
 import { z } from 'zod';
-import type { ResolvedExtension } from './discover.ts';
+import type { ExtensionCandidate } from './discover.ts';
 
 export type ExtRequest =
   | {
@@ -61,9 +62,8 @@ export type ExtRequest =
 
 /**
  * Событие обучения расширению. Ответ `{ delivered }`: `false` — обработчика нет
- * (расширение не объявило событие или не подписалось). Лениво активирует
- * расширение; сбой и таймаут обработчика (2 с) — `ok: false`, клиент их только
- * логирует.
+ * (расширение не подписалось через `server.on`). Сбой и таймаут обработчика
+ * (2 с) — `ok: false`, клиент их только логирует.
  */
 export interface DeliverEventRequest {
   id: string;
@@ -76,9 +76,8 @@ export interface DeliverEventRequest {
 }
 
 /**
- * Срабатывание расписания (`ctx.schedule.on`). Лениво активирует расширение;
- * ответ `{ delivered }`: `false` — расписание не объявлено или обработчик не
- * подписан. Сбой обработчика — `handler-failed`, превышение 10 с —
+ * Срабатывание расписания (`server.schedule`). Ответ `{ delivered }`: `false` —
+ * расписания нет. Сбой обработчика — `handler-failed`, превышение 10 с —
  * `handler-timeout`; клиент их только учитывает и логирует.
  */
 export interface FireScheduleRequest {
@@ -91,9 +90,9 @@ export interface FireScheduleRequest {
 }
 
 /**
- * Вызов команды расширения (`ctx.commands.register`). Лениво активирует
- * расширение; `args` — JSON вызывающего (нет аргументов — ключа нет). Ответ —
- * `CommandOutcome`; неизвестная команда — `unknown-command`, сбой обработчика —
+ * Вызов команды расширения (`server.registerCommand`). `args` — JSON
+ * вызывающего (нет аргументов — ключа нет). Ответ — `CommandOutcome`;
+ * неизвестная команда — `unknown-command`, сбой обработчика —
  * `handler-failed`, превышение 10 с — `handler-timeout`.
  */
 export interface InvokeCommandRequest {
@@ -107,9 +106,9 @@ export interface InvokeCommandRequest {
 }
 
 /**
- * Запуск импортёра (`ctx.importers.register`): файл, который выбрал
+ * Запуск импортёра (`server.registerImporter`): файл, который выбрал
  * пользователь, целиком в `text` (UTF-8) либо в `bytes` — по `input`
- * импортёра. Лениво активирует расширение. Ответ — `ImportResult`, уже
+ * импортёра. Ответ — `ImportResult`, уже
  * проверенный `normalizeImportResult`; неизвестный или незарегистрированный
  * импортёр — `unknown-importer`, сбой обработчика — `handler-failed`, срок
  * `EXTENSION_TRANSFER_LIMITS.handlerMs` — `handler-timeout`, неверный
@@ -233,14 +232,29 @@ export type HostResponse =
   | { id: string; ok: false; error: HostFailure };
 
 /**
- * Замена набора расширений: движок присылает полный набор (хост сам их не
- * ищет). Ответ `ok: true` приходит, когда новый каталог уже действует;
- * вытеснение прежних активаций идёт после ответа.
+ * Замена набора расширений: движок присылает полный набор кандидатов (хост
+ * сам их не ищет). Хост сразу, параллельно по расширениям, загружает `main`
+ * каждого и вызывает `server`; ответ `ok: true` (`ReplaceExtensionsResult`)
+ * приходит, когда новый каталог уже действует; вытеснение прежних активаций
+ * идёт после ответа.
  */
 export interface ReplaceExtensionsRequest {
   id: string;
   method: 'replaceExtensions';
-  params: { extensions: ResolvedExtension[] };
+  params: { extensions: ExtensionCandidate[] };
+}
+
+/**
+ * Итог регистрации одного расширения: всё или ничего. Ошибка `server` или
+ * срок в 10 с — `ok: false` с текстом причины (движок показывает его как
+ * `load-failed`), вкладов у расширения нет.
+ */
+export type ExtensionRegistrationResult =
+  { ok: true; registration: ServerRegistration } | { ok: false; error: string };
+
+/** Результат `replaceExtensions`: итог регистрации по id каждого присланного расширения. */
+export interface ReplaceExtensionsResult {
+  registrations: Record<string, ExtensionRegistrationResult>;
 }
 
 /** Всё, что движок отправляет хосту расширений. */
@@ -538,7 +552,7 @@ export const hostResponseSchema = z.union([
   }),
 ]);
 
-const isResolvedExtension = (value: unknown): value is ResolvedExtension => {
+const isExtensionCandidate = (value: unknown): value is ExtensionCandidate => {
   if (typeof value !== 'object' || value === null) return false;
   const item = value as Record<string, unknown>;
   return (
@@ -549,22 +563,10 @@ const isResolvedExtension = (value: unknown): value is ResolvedExtension => {
     (item.origin === 'bundled' ||
       item.origin === 'user' ||
       item.origin === 'dev') &&
+    (item.mainPath === null || typeof item.mainPath === 'string') &&
+    (item.clientPath === null || typeof item.clientPath === 'string') &&
     Array.isArray(item.dependencies) &&
-    typeof item.messages === 'object' &&
-    item.messages !== null &&
-    Array.isArray(item.warnings) &&
-    Array.isArray(item.exerciseTypes) &&
-    Array.isArray(item.themes) &&
-    Array.isArray(item.markdownRenderers) &&
-    Array.isArray(item.gradePolicies) &&
-    Array.isArray(item.settings) &&
-    Array.isArray(item.events) &&
-    Array.isArray(item.commands) &&
-    Array.isArray(item.panels) &&
-    Array.isArray(item.widgets) &&
-    Array.isArray(item.schedules) &&
-    Array.isArray(item.importers) &&
-    Array.isArray(item.exporters)
+    Array.isArray(item.warnings)
   );
 };
 
@@ -573,7 +575,7 @@ const replaceExtensionsSchema = z.strictObject({
   id: z.string(),
   method: z.literal('replaceExtensions'),
   params: z.strictObject({
-    extensions: z.array(z.custom<ResolvedExtension>(isResolvedExtension)),
+    extensions: z.array(z.custom<ExtensionCandidate>(isExtensionCandidate)),
   }),
 });
 
@@ -585,12 +587,21 @@ export const extMessageSchema = z.union([
   hostResponseSchema,
 ]);
 
-/** Всё, что ограниченный процесс принимает от хоста (набор расширений ему не шлют). */
-export const childInboundSchema = z.union([
-  extRequestSchema,
-  settingChangedSchema,
-  hostResponseSchema,
-]);
+/** Ответ на `replaceExtensions`: итог по каждому расширению; форму регистрации проверил регистратор хоста. */
+export const replaceExtensionsResultSchema = z.strictObject({
+  registrations: z.record(
+    z.string(),
+    z.union([
+      z.strictObject({
+        ok: z.literal(true),
+        registration: z.custom<ServerRegistration>(
+          (value) => typeof value === 'object' && value !== null,
+        ),
+      }),
+      z.strictObject({ ok: z.literal(false), error: z.string() }),
+    ]),
+  ),
+});
 
 /** Результат правила оценки: целое 1–5 или `null`. */
 export const gradeValueSchema = z.union([z.literal([1, 2, 3, 4, 5]), z.null()]);

@@ -1,7 +1,4 @@
-import type {
-  ExtensionContributesDto,
-  ExtensionDependencyDto,
-} from '@dolphy-app/engine-contract';
+import type { ExtensionDependencyDto } from '@dolphy-app/engine-contract';
 import type { ExtensionLogger } from '@dolphy-app/extension-api';
 import type { InstallerFs } from './fs.ts';
 
@@ -15,8 +12,6 @@ export interface InspectedManifest {
   tags: readonly string[];
   /** Зависимости манифеста; порядок не важен при сверке. */
   dependencies: readonly ExtensionDependencyDto[];
-  /** Идентификаторы вкладов в том же виде, что в записи индекса. */
-  contributes: ExtensionContributesDto;
 }
 
 export type InspectResult =

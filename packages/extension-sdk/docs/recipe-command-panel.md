@@ -2,8 +2,7 @@
 
 A command appears in the command palette and runs your code; a panel is a
 screen the command can open: a Vue component the app draws inside its own
-window. This recipe is the
-`command-panel` template
+window. This recipe is the `command-panel` template
 (`npx @dolphy-app/create-extension <dir> --id acme.hello --template command-panel`).
 The files below are exactly what the generator writes for the id `acme.hello`.
 See [quick-start.md](quick-start.md) for the commands.
@@ -21,59 +20,96 @@ File `extension.json` (command-panel):
   "name": "Hello panel",
   "description": "Palette commands that greet the learner and open a small panel.",
   "author": "your-github-login",
-  "tags": ["productivity"],
-  "contributes": {
-    "commands": [
-      { "id": "acme.hello.hello", "title": "Say hello", "category": "Hello" },
-      { "id": "acme.hello.open", "title": "Open the hello panel", "category": "Hello" },
-      { "id": "acme.hello.data", "title": "Hello panel data", "palette": false }
-    ],
-    "panels": [{ "id": "acme.hello.view", "title": "Hello" }]
-  }
+  "tags": ["productivity"]
 }
 ```
 
-- `commands[]`: `title` and `category` are what the palette shows. A command
-  with `"palette": false` is hidden from the palette: it is a handler only your
-  panel calls.
-- `panels[]` declares the screen; its module defaults to `./panel.mjs`, which
-  the build writes.
+The commands and the panel are not in the manifest: the two parts register
+them. `dolphy-ext build` writes `main` and `client` into the built manifest.
 
-## The code
+## The server part
 
 File `src/index.ts` (command-panel):
 
 ```ts
-import {
-  defineExtension,
-  defineExtensionPanel,
-  notify,
-  openPanel,
-} from '@dolphy-app/extension-sdk';
-import type { ExtensionPanels } from '@dolphy-app/extension-sdk';
-import { usePanel } from '@dolphy-app/extension-sdk/client';
-import { computed, defineComponent, h, ref } from 'vue';
+export { client } from './client.ts';
+export { server } from './server.ts';
+```
 
-// extension code: `host` runs in the extension process of the app
-// the ids come from extension.json: a misspelt id or a declared id without a
-// handler fails `pnpm typecheck`
-export const host = defineExtension({
-  commands: {
-    // palette command: shows a notification
-    'acme.hello.hello': (args) => {
+File `src/server.ts` (command-panel):
+
+```ts
+import { defineServer, notify, openPanel } from '@dolphy-app/extension-sdk';
+
+// runs in the extension host: every call registers a contribution
+export const server = defineServer((s) => {
+  // palette command: shows a notification
+  s.registerCommand({
+    id: 'acme.hello.hello',
+    title: { en: 'Say hello', ru: 'Поздороваться' },
+    category: 'Hello',
+    run: (args) => {
       const name = typeof args === 'string' ? args : 'world';
       return notify(`Hello, ${name}!`);
     },
-    // palette command: opens the panel with properties
-    'acme.hello.open': () => openPanel('acme.hello.view', { name: 'Dolphy' }),
-    // hidden from the palette (palette: false): the panel asks for data
-    'acme.hello.data': () => ({ message: 'Hello from acme.hello' }),
-  },
-});
+  });
 
-// the panel is a Vue component the app draws in its own window; `usePanel()`
-// gives it the properties it was opened with and `call` for the commands above
-const HelloPanel = defineComponent({
+  // palette command: opens the panel (registered by the client) with properties
+  s.registerCommand({
+    id: 'acme.hello.open',
+    title: { en: 'Open the hello panel', ru: 'Открыть панель' },
+    category: 'Hello',
+    run: () => openPanel('acme.hello.view', { name: 'Dolphy' }),
+  });
+
+  // hidden from the palette (palette: false): the panel asks for data
+  s.registerCommand({
+    id: 'acme.hello.data',
+    title: 'Hello panel data',
+    palette: false,
+    run: () => ({ message: 'Hello from acme.hello' }),
+  });
+});
+```
+
+- `server.registerCommand({ id, title, run })` adds a command. `title` and
+  `category` are what the palette shows (`LocalizedText`: a string or
+  `{ en, ru }`). A command with `palette: false` is hidden from the palette: it
+  is a handler only your panel calls.
+- `run(args)` returns what the app does next: `notify(text)` shows a
+  notification, `openPanel(id, props)` opens a panel with properties, any JSON
+  value is data for the caller, nothing is fine. `args` is whatever the caller
+  passes, so check its type. A handler has 10 seconds.
+- Optional fields of a command: `description`, `icon`, `keybindings` and `when`
+  (see [visibility conditions](recipe-when-dependencies.md)).
+
+## The client part
+
+File `src/client.ts` (command-panel):
+
+```ts
+import { defineClient } from '@dolphy-app/extension-sdk';
+import { HelloPanel } from './hello-panel.ts';
+
+// runs in the app window: the panel is a Vue component the app draws
+export const client = defineClient((c) => {
+  c.addPanel({
+    id: 'acme.hello.view',
+    title: { en: 'Hello', ru: 'Привет' },
+    component: HelloPanel,
+  });
+});
+```
+
+File `src/hello-panel.ts` (command-panel):
+
+```ts
+import { usePanel } from '@dolphy-app/extension-sdk/client';
+import { computed, defineComponent, h, ref } from 'vue';
+
+// `usePanel()` gives the panel the properties it was opened with and `call`
+// for the commands of the extension
+export const HelloPanel = defineComponent({
   setup() {
     const panel = usePanel();
     const message = ref('');
@@ -92,27 +128,23 @@ const HelloPanel = defineComponent({
       h('div', [h('h2', `Hello, ${name.value}!`), h('p', message.value)]);
   },
 });
-
-export const panels = {
-  'acme.hello.view': defineExtensionPanel(HelloPanel),
-} satisfies ExtensionPanels;
 ```
 
-- `commands` maps every declared id to a handler. The result is what the app
-  does next: `notify(text)` shows a notification, `openPanel(id, props)` opens a
-  panel with properties, any JSON value is data for the caller, nothing is fine.
-  `args` is whatever the caller passes, so check its type.
-- A panel is `defineExtensionPanel(component)`: a Vue component. `vue` is the
-  app's own instance, so the panel shares its theme and language. Inside the
-  component `usePanel()` from `@dolphy-app/extension-sdk/client` returns the
-  handle: `panelId`, the reactive `props` the panel was opened with (a repeated
-  `openPanel` with new properties updates them in place, so a `computed` over
-  `panel.props` follows), the reactive `context` and
-  `call(commandId, args)`.
-- The code of a panel runs in the app window, and `call` to a declared command
-  is how it reaches the extension process (the handlers of `host`). That is why
-  the data command exists.
-- The build writes `host` to `main.mjs` and `panels` to `panel.mjs`.
+- `client.addPanel({ id, title, component })` adds the screen and its entry in
+  the sidebar menu. The component is a Vue component; `vue` is the app's own
+  instance, so the panel shares its theme and language. `openPanel('<id>', props)`
+  of a command opens it.
+- Inside the component `usePanel()` from `@dolphy-app/extension-sdk/client`
+  returns the handle: `panelId`, the reactive `props` the panel was opened with
+  (a repeated `openPanel` with new properties updates them in place, so a
+  `computed` over `panel.props` follows), the reactive `context`
+  (`{ courseId }`) and `call(commandId, args)`.
+- The code of a panel runs in the app window, and `call` is how it reaches the
+  commands of the server part, including those with `palette: false`. That is
+  why the data command exists.
+- `client.addCommand({ id, title, run })` adds a command whose handler runs in
+  the window instead; `run` takes no arguments and returns nothing.
+- The build writes `server` to `main.mjs` and `client` to `client.mjs`.
 
 ## The tests
 
@@ -122,53 +154,67 @@ File `test/index.test.ts` (command-panel):
 // @vitest-environment happy-dom
 import { PANEL_HANDLE_KEY } from '@dolphy-app/extension-sdk';
 import type { JsonValue, PanelHandle } from '@dolphy-app/extension-sdk';
-import { loadCommands } from '@dolphy-app/extension-sdk/testing';
+import {
+  createTestClient,
+  createTestServer,
+} from '@dolphy-app/extension-sdk/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createApp, h, nextTick, shallowReactive } from 'vue';
-import { host, panels } from '../src/index.ts';
+import { client, server } from '../src/index.ts';
+import { HelloPanel } from '../src/hello-panel.ts';
 
 const disposables: { dispose(): unknown }[] = [];
 afterEach(async () => {
   await Promise.all(disposables.splice(0).map((item) => item.dispose()));
 });
 
-const load = async () => {
-  const commands = await loadCommands(host, {
-    declaredCommands: ['acme.hello.hello', 'acme.hello.open', 'acme.hello.data'],
-    declaredPanels: ['acme.hello.view'],
-  });
-  disposables.push(commands);
-  return commands;
+const start = async () => {
+  const running = await createTestServer(server, { extensionId: 'acme.hello' });
+  disposables.push(running);
+  return running;
 };
 
-describe('acme.hello: commands', () => {
+describe('acme.hello: server', () => {
   it('hello greets the name from the arguments, "world" without them', async () => {
-    const commands = await load();
-    expect(await commands.run('acme.hello.hello', 'Ada')).toEqual({
+    const running = await start();
+    expect(await running.commands.run('acme.hello.hello', 'Ada')).toEqual({
       kind: 'notify',
       text: 'Hello, Ada!',
     });
-    expect(await commands.run('acme.hello.hello')).toEqual({
+    expect(await running.commands.run('acme.hello.hello')).toEqual({
       kind: 'notify',
       text: 'Hello, world!',
     });
   });
 
   it('open asks the app to open the panel with properties', async () => {
-    const commands = await load();
-    expect(await commands.run('acme.hello.open')).toEqual({
+    const running = await start();
+    expect(await running.commands.run('acme.hello.open')).toEqual({
       kind: 'openPanel',
       panelId: 'acme.hello.view',
       props: { name: 'Dolphy' },
     });
   });
 
-  it('data returns what the panel shows', async () => {
-    const commands = await load();
-    expect(await commands.run('acme.hello.data')).toEqual({
+  it('data returns what the panel shows and stays out of the palette', async () => {
+    const running = await start();
+    expect(await running.commands.run('acme.hello.data')).toEqual({
       kind: 'data',
       value: { message: 'Hello from acme.hello' },
     });
+    const hidden = running.registration.commands.find(
+      (command) => command.id === 'acme.hello.data',
+    );
+    expect(hidden?.palette).toBe(false);
+  });
+});
+
+describe('acme.hello: client', () => {
+  it('adds the panel that the open command points to', async () => {
+    const running = await createTestClient(client, { extensionId: 'acme.hello' });
+    disposables.push(running);
+    expect(running.panels.map((panel) => panel.id)).toEqual(['acme.hello.view']);
+    expect(running.panels[0]?.component).toBe(HelloPanel);
   });
 });
 
@@ -185,7 +231,7 @@ const mountPanel = async (
   });
   const host = document.createElement('div');
   document.body.append(host);
-  const app = createApp({ render: () => h(panels['acme.hello.view']) });
+  const app = createApp({ render: () => h(HelloPanel) });
   app.provide(PANEL_HANDLE_KEY, handle);
   app.mount(host);
   disposables.push({
@@ -233,7 +279,13 @@ describe('acme.hello: panel', () => {
 });
 ```
 
-`loadCommands` runs commands as the host does, with the same rules for results.
+`createTestServer(server, { extensionId })` runs commands as the host does,
+with the same rules for results: `running.commands.run(id, args)` resolves to
+`{ kind: 'notify' | 'openPanel' | 'data' | 'none', … }`. `running.registration`
+lists what the server registered, which is how the test sees that `data` is
+hidden from the palette. `createTestClient(client, { extensionId })` records the
+panels, so the test checks that the id the `open` command points to exists.
+
 A panel is tested like any Vue component: `createApp` mounts it in `happy-dom`,
 and `app.provide(PANEL_HANDLE_KEY, handle)` gives it the handle the app would
 provide. The `call` of the handle answers `panel.call`; here it is a stub, and

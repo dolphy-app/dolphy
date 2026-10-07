@@ -98,6 +98,7 @@ const setup = (
     contributions: () => contributions.value,
     notify: (text) => void notices.push(text),
     t: (key, params) => `${key} ${JSON.stringify(params ?? {})}`,
+    locale: () => 'en',
   });
   return { transfers, engine, platform, notices, picked, contributions };
 };

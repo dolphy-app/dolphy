@@ -31,6 +31,7 @@ import { useInstallContext } from '../model/install.ts';
 import { isFromAnotherCatalog } from '../lib/catalog-source.ts';
 import { useCatalogSource } from '../model/catalog-source.ts';
 import DeprecatedChip from './DeprecatedChip.vue';
+import ExtensionClientFailure from './ExtensionClientFailure.vue';
 import ExtensionContributions from './ExtensionContributions.vue';
 import ExtensionDeprecation from './ExtensionDeprecation.vue';
 import ExtensionTags from './ExtensionTags.vue';
@@ -133,13 +134,8 @@ const diagnosticText = (diagnostic: ExtensionDiagnosticDto): string =>
     diagnosticParams(diagnostic),
   );
 
-// предупреждений о переводах может быть несколько с одним кодом: ключ отличает данные
 const diagnosticKey = (diagnostic: ExtensionDiagnosticDto): string =>
-  `${diagnostic.code}:${diagnostic.data.key ?? diagnostic.data.file ?? diagnostic.data.id ?? ''}`;
-
-/** Предупреждения о переводах: расширение работает, поэтому они выделены иначе, чем причины сбоя. */
-const isWarning = (diagnostic: ExtensionDiagnosticDto): boolean =>
-  diagnostic.code.startsWith('locale.');
+  `${diagnostic.code}:${diagnostic.data.id ?? ''}`;
 
 const healthOf = (id: string) =>
   diagnostics.value?.extensions.find((health) => health.id === id);
@@ -536,16 +532,9 @@ watch(
               v-if="extension.description !== null"
               class="text-body-medium mt-2"
             >
-              {{
-                extensionText.withTables(
-                  extension.description,
-                  extension.messages,
-                )
-              }}
+              {{ extension.description }}
             </p>
-            <ExtensionTags
-              :tags="effectiveTags(extension.tags, extension.contributes)"
-            />
+            <ExtensionTags :tags="effectiveTags(extension.tags)" />
 
             <ExtensionDeprecation
               v-if="extension.deprecated !== null"
@@ -573,39 +562,23 @@ watch(
               </p>
             </v-alert>
 
-            <template
+            <div
               v-for="diagnostic in extension.diagnostics"
               :key="diagnosticKey(diagnostic)"
+              class="text-body-medium mt-2"
+              data-testid="diagnostic"
+              :data-code="diagnostic.code"
             >
-              <!-- предупреждение: расширение работает, поэтому не сообщение об ошибке -->
-              <v-alert
-                v-if="isWarning(diagnostic)"
-                type="warning"
-                variant="tonal"
-                density="compact"
-                class="mt-2"
-                data-testid="diagnostic"
-                :data-code="diagnostic.code"
+              <p>{{ diagnosticText(diagnostic) }}</p>
+              <ul
+                v-if="diagnostic.code === 'manifest-invalid'"
+                class="message ps-4"
               >
-                {{ diagnosticText(diagnostic) }}
-              </v-alert>
-              <div
-                v-else
-                class="text-body-medium mt-2"
-                data-testid="diagnostic"
-                :data-code="diagnostic.code"
-              >
-                <p>{{ diagnosticText(diagnostic) }}</p>
-                <ul
-                  v-if="diagnostic.code === 'manifest-invalid'"
-                  class="message ps-4"
-                >
-                  <li v-for="issue in issuesOf(diagnostic)" :key="issue">
-                    {{ issue }}
-                  </li>
-                </ul>
-              </div>
-            </template>
+                <li v-for="issue in issuesOf(diagnostic)" :key="issue">
+                  {{ issue }}
+                </li>
+              </ul>
+            </div>
 
             <ExtensionHealth
               v-if="isActive(extension)"
@@ -613,11 +586,11 @@ watch(
             />
 
             <ExtensionDependencies :rows="rowsOfInstalled(extension)" />
+            <ExtensionClientFailure :extension-id="extension.id" />
             <ExtensionContributions
+              :extension-id="extension.id"
               :contributes="extension.contributes"
-              :titles="extension.titles"
               :name="extension.name"
-              :messages="extension.messages"
             />
             <ExtensionData
               v-if="isActive(extension)"

@@ -12,6 +12,7 @@ import type {
   ExtensionStats,
   ExtensionStorage,
   JsonValue,
+  RegisteredSetting,
   SettingChange,
   SettingValue,
   StorageQuotaKind,
@@ -19,7 +20,6 @@ import type {
 } from '@dolphy-app/extension-api';
 import { EngineRequestError } from './engine-link.ts';
 import type { EngineLink } from './engine-link.ts';
-import type { ResolvedSetting } from './points/types.ts';
 
 const QUOTA_KINDS: readonly StorageQuotaKind[] = [
   'key-length',
@@ -61,7 +61,7 @@ const extensionErrorOf = (error: unknown): unknown => {
   return Object.assign(new Error(error.message), { code: error.code });
 };
 
-/** `ctx.storage` расширения: запросы к движку, который единственный владеет данными. */
+/** `server.storage` расширения: запросы к движку, который единственный владеет данными. */
 export const createExtensionStorage = (
   link: EngineLink,
   extensionId: string,
@@ -88,7 +88,7 @@ export const createExtensionStorage = (
   };
 };
 
-/** `ctx.stats`: запросы к движку (`ExtensionHostServices.stats`). */
+/** `server.stats`: запросы к движку (`ExtensionHostServices.stats`). */
 export const createExtensionStats = (
   link: EngineLink,
   extensionId: string,
@@ -118,7 +118,7 @@ export const createExtensionStats = (
   };
 };
 
-/** `ctx.secrets` расширения: шифрует движок через платформу, значение живёт в процессе расширения только в ответе. */
+/** `server.secrets` расширения: шифрует движок через платформу, значение живёт в процессе расширения только в ответе. */
 export const createExtensionSecrets = (
   link: EngineLink,
   extensionId: string,
@@ -147,7 +147,7 @@ export const createExtensionSecrets = (
 };
 
 /**
- * `ctx.notifications`: очистку текста, лимиты и переключатель держит движок
+ * `server.notifications`: очистку текста, лимиты и переключатель держит движок
  * (`ExtensionHostServices.notifications`).
  */
 export const createExtensionNotifications = (
@@ -168,7 +168,7 @@ export const createExtensionNotifications = (
 });
 
 /** Значение подходит определению по типу; границы проверил движок. */
-const fits = (definition: ResolvedSetting, value: unknown): boolean => {
+const fits = (definition: RegisteredSetting, value: unknown): boolean => {
   switch (definition.type) {
     case 'boolean':
       return typeof value === 'boolean';
@@ -198,10 +198,14 @@ const sameValue = (a: SettingValue | undefined, b: SettingValue): boolean =>
 
 export interface SettingsState {
   readonly api: ExtensionSettings;
+  /** Добавляет определения (умолчания становятся значениями до загрузки). */
+  define(definitions: readonly RegisteredSetting[]): void;
+  /** Убирает определения; чтение такой настройки снова бросает. */
+  undefine(ids: readonly string[]): void;
   /**
-   * Подгружает действующие значения у движка. Сбой не мешает активации: до
-   * первого изменения расширение читает `default` (в лог — предупреждение).
-   * Изменения, пришедшие во время загрузки, применяются поверх неё.
+   * Подгружает действующие значения у движка для определённых настроек. Сбой
+   * не мешает активации: до первого изменения расширение читает `default` (в
+   * лог — предупреждение). Изменения, пришедшие до загрузки, применяются поверх неё.
    */
   load(fetch: () => Promise<unknown>): Promise<void>;
   /** Новое значение от движка; неизвестный `id` и то же значение игнорируются. */
@@ -212,13 +216,10 @@ export interface SettingsState {
 
 export const createSettingsState = (
   extensionId: string,
-  definitions: readonly ResolvedSetting[],
   logger: ExtensionLogger,
 ): SettingsState => {
-  const byId = new Map(definitions.map((item) => [item.id, item]));
-  const values = new Map<string, SettingValue>(
-    definitions.map((item) => [item.id, item.default]),
-  );
+  const byId = new Map<string, RegisteredSetting>();
+  const values = new Map<string, SettingValue>();
   const handlers = new Set<(change: SettingChange) => void>();
   let loaded = false;
   const early = new Map<string, SettingValue>();
@@ -253,7 +254,7 @@ export const createSettingsState = (
         const value = values.get(id);
         if (value === undefined) {
           throw new Error(
-            `setting '${id}' is not declared in the manifest of '${extensionId}'`,
+            `setting '${id}' is not registered by '${extensionId}'`,
           );
         }
         // список отдаётся копией: правка в коде не меняет состояние
@@ -264,11 +265,23 @@ export const createSettingsState = (
         return { dispose: () => void handlers.delete(handler) };
       },
     },
+    define(definitions) {
+      for (const item of definitions) {
+        byId.set(item.id, item);
+        values.set(item.id, item.default);
+      }
+    },
+    undefine(ids) {
+      for (const id of ids) {
+        byId.delete(id);
+        values.delete(id);
+      }
+    },
     async load(fetch) {
-      if (definitions.length > 0) {
+      if (byId.size > 0) {
         try {
           const all = (await fetch()) as Record<string, unknown>;
-          for (const definition of definitions) {
+          for (const definition of byId.values()) {
             const value = all[definition.id];
             if (fits(definition, value)) {
               values.set(definition.id, value as SettingValue);

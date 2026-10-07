@@ -1,7 +1,9 @@
 // @vitest-environment happy-dom
+import { createTestClient } from '@dolphy-app/extension-sdk/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import { nextTick } from 'vue';
-import { views } from '../src/index.ts';
+import { client } from '../src/index.ts';
+import { ChoiceAnswerView } from '../src/choice-view.ts';
 import { mountView as mount } from './mount-view.ts';
 import type { MountedView } from './mount-view.ts';
 
@@ -17,13 +19,23 @@ const settle = async () => {
 };
 
 const mountView = async (view: unknown, label?: string) => {
-  const result = await mount(views['dolphy.choice'], {
+  const result = await mount(ChoiceAnswerView, {
     view,
     ...(label === undefined ? {} : { label }),
   });
   loaded.push(result);
   return result;
 };
+
+describe('client dolphy.choice', () => {
+  it('добавляет вид ответа для вида задания', async () => {
+    const running = await createTestClient(client, {
+      extensionId: 'dolphy.choice',
+    });
+    expect(running.answerViews.get('dolphy.choice')).toBe(ChoiceAnswerView);
+    await running.dispose();
+  });
+});
 
 const inputs = (view: MountedView) => view.queryAll<HTMLInputElement>('input');
 

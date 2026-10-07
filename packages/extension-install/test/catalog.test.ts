@@ -6,7 +6,6 @@ import {
   CATALOG_URL,
   FULL_INDEX_URL,
   callsTo,
-  contributesOf,
   createEnv,
   installFake,
   rawIndex,
@@ -140,49 +139,9 @@ describe('catalog: статусы записей', () => {
       JSON.stringify({
         id: 'acme.echo',
         version: '1.0.0',
-        contributes: contributesOf(['acme.echo']),
       }),
     );
     expect(entry?.latest?.size).toBe(manifestSize + 4);
-  });
-});
-
-describe('catalog: сводка вклада в DTO', () => {
-  it('commands, panels, widgets и schedules копируются в contributes, по умолчанию []', async () => {
-    serveIndex(env.routes, [
-      {
-        id: 'acme.cmds',
-        version: '1.0.0',
-        contributes: {
-          ...contributesOf([]),
-          commands: ['acme.cmds.open'],
-          panels: ['acme.cmds.main'],
-          widgets: ['acme.cmds.card'],
-          schedules: ['acme.cmds.daily'],
-          importers: ['acme.cmds.csv'],
-          exporters: ['acme.cmds.out'],
-        },
-      },
-      { id: 'acme.plain', version: '1.0.0' },
-    ]);
-    const { entries } = await env.installer.catalog();
-    const byId = Object.fromEntries(entries.map((e) => [e.id, e]));
-    expect(byId['acme.cmds']?.contributes).toMatchObject({
-      commands: ['acme.cmds.open'],
-      panels: ['acme.cmds.main'],
-      widgets: ['acme.cmds.card'],
-      schedules: ['acme.cmds.daily'],
-      importers: ['acme.cmds.csv'],
-      exporters: ['acme.cmds.out'],
-    });
-    expect(byId['acme.plain']?.contributes).toMatchObject({
-      commands: [],
-      panels: [],
-      widgets: [],
-      schedules: [],
-      importers: [],
-      exporters: [],
-    });
   });
 });
 

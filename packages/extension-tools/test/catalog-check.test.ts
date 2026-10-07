@@ -257,12 +257,11 @@ describe('catalog check: rules', () => {
     expect(sizeHit).toContain('exceed the limit of 5000000');
   });
 
-  it('CHECK-013: node_modules, dist-ext, .dolphy and .git are not counted', async () => {
+  it('CHECK-013: node_modules, dist-ext and .git are not counted', async () => {
     const big = 'x'.repeat(1_000_001);
     const files = {
       'node_modules/dep/index.js': big,
       'dist-ext/main.mjs': big,
-      '.dolphy/ids.d.ts': big,
       '.git/objects/blob': big,
     };
     expect(await run(await single({ files }))).toEqual([]);
@@ -448,6 +447,47 @@ describe('catalog check: authoring rules', () => {
         'x();\n//# sourceMappingURL=data:application/json;base64,e30=',
     });
     await expectRule({}, 'CHECK-025', 'error', { builtDir });
+  });
+
+  describe('CHECK-031: main.mjs and client.mjs match the built manifest', () => {
+    const manifestOf = (parts: {
+      main: string | null;
+      client: string | null;
+    }) => JSON.stringify({ id: ID, version: '1.0.0', apiVersion: 1, ...parts });
+
+    it('passes on a normal build', async () => {
+      const builtDir = await builtSite({
+        'extension.json': manifestOf({
+          main: './main.mjs',
+          client: './client.mjs',
+        }),
+        'main.mjs': 'export const server = () => {};\n',
+        'client.mjs': 'export const client = () => {};\n',
+      });
+      expect(await run(await single(), { builtDir })).toEqual([]);
+      const clientOnly = await builtSite({
+        'extension.json': manifestOf({ main: null, client: './client.mjs' }),
+        'client.mjs': 'export const client = () => {};\n',
+      });
+      expect(await run(await single(), { builtDir: clientOnly })).toEqual([]);
+    });
+
+    it('a client named by the built manifest is missing on disk — an error on client', async () => {
+      const builtDir = await builtSite({
+        'extension.json': manifestOf({ main: null, client: './client.mjs' }),
+      });
+      const hit = await expectRule({}, 'CHECK-031', 'error', { builtDir });
+      expect(hit).toContain(' client: ');
+    });
+
+    it('main.mjs is present while the built manifest has main null — an error on main', async () => {
+      const builtDir = await builtSite({
+        'extension.json': manifestOf({ main: null, client: null }),
+        'main.mjs': 'export const server = () => {};\n',
+      });
+      const hit = await expectRule({}, 'CHECK-031', 'error', { builtDir });
+      expect(hit).toContain(' main: ');
+    });
   });
 
   it('bundle rules are silent without --built; a missing built version is one warning; only the checked version is read', async () => {

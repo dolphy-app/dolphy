@@ -1,12 +1,14 @@
-// Команда пишет в журнал через ctx.logger: запись должна нести id расширения в обоих режимах исполнения.
+// Команда пишет в журнал через logger: запись должна нести id расширения.
 let count = 0;
 
-export default {
-  activate(ctx) {
-    ctx.commands.register('acme.logs.say', () => {
+export const server = (s) => {
+  s.registerCommand({
+    id: 'acme.logs.say',
+    title: 'Записать в журнал',
+    run: () => {
       count += 1;
-      ctx.logger.warn({ count }, `acme.logs says hello ${count}`);
+      s.logger.warn({ count }, `acme.logs says hello ${count}`);
       return { count };
-    });
-  },
+    },
+  });
 };

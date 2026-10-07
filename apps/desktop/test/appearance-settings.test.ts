@@ -1,15 +1,13 @@
 import { effectScope, shallowRef } from 'vue';
 import { describe, expect, it } from 'vitest';
-import type {
-  LearningEngine,
-  ThemeContributionDto,
-} from '@dolphy-app/engine-contract';
+import type { LearningEngine } from '@dolphy-app/engine-contract';
 import { useAppearanceSettings } from '@/pages/settings/model/appearance.ts';
 import { createLocaleSelection } from '@/shared/api/engine/locale-selection.ts';
 import { createThemeSelection } from '@/shared/api/engine/theme-selection.ts';
-import { createEventBus } from './support/extensions-fakes.ts';
+import type { ClientTheme } from '@/shared/lib/extension-clients.ts';
+import { createEventBus, flush } from './support/extensions-fakes.ts';
 
-const MIDNIGHT = { id: 'acme.midnight' } as ThemeContributionDto;
+const MIDNIGHT = { id: 'acme.midnight' };
 
 const setup = (saved: string, failWith: Error | null = null) => {
   const saves: unknown[] = [];
@@ -29,7 +27,7 @@ const setup = (saved: string, failWith: Error | null = null) => {
     apply: (next) => applied.push(next),
     systemLanguage: () => 'ru-RU',
   });
-  const themes = shallowRef<readonly ThemeContributionDto[]>([MIDNIGHT]);
+  const themes = shallowRef<readonly Pick<ClientTheme, 'id'>[]>([MIDNIGHT]);
   const selection = createThemeSelection(engine, saved);
   const model = effectScope().run(() =>
     useAppearanceSettings(selection, localeSelection, () => themes.value),
@@ -37,15 +35,10 @@ const setup = (saved: string, failWith: Error | null = null) => {
   return { model, saves, selection, themes, applied };
 };
 
-const settle = () =>
-  new Promise((resolve) => {
-    setTimeout(resolve, 0);
-  });
-
 describe('useAppearanceSettings theme', () => {
   it('select saves the id and shows it at once', async () => {
     const { model, saves, selection } = setup('light');
-    await settle();
+    await flush();
     const saving = model.select('acme.midnight');
     expect(model.mode.value).toBe('acme.midnight');
     expect(selection.saved.value).toBe('acme.midnight');
@@ -55,7 +48,7 @@ describe('useAppearanceSettings theme', () => {
 
   it('rolls back and reports the error when saving fails', async () => {
     const { model, selection } = setup('dark', new Error('boom'));
-    await settle();
+    await flush();
     await model.select('acme.midnight');
     expect(model.mode.value).toBe('dark');
     expect(selection.saved.value).toBe('dark');
@@ -64,7 +57,7 @@ describe('useAppearanceSettings theme', () => {
 
   it('shows system for an unknown saved theme without rewriting it', async () => {
     const { model, saves, selection } = setup('gone.theme');
-    await settle();
+    await flush();
     expect(model.mode.value).toBe('system');
     expect(selection.saved.value).toBe('gone.theme');
     expect(saves).toEqual([]);
@@ -72,7 +65,7 @@ describe('useAppearanceSettings theme', () => {
 
   it('follows the contributions: the theme of a removed extension shows as system and returns with it', async () => {
     const { model, themes, saves } = setup('acme.midnight');
-    await settle();
+    await flush();
     expect(model.mode.value).toBe('acme.midnight');
     themes.value = [];
     expect(model.mode.value).toBe('system');

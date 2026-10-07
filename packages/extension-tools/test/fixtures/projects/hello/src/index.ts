@@ -1,20 +1,25 @@
-import { defineAnswerView, defineExtension } from '@dolphy-app/extension-sdk';
 import { defineComponent, h } from 'vue';
-
-export const host = defineExtension({
-  exerciseTypes: {
-    'acme.hello': {
-      project: () => ({}),
-      grade: ({ spec, answer }) =>
-        answer === (spec as { expected: string }).expected
-          ? { outcome: 'passed' }
-          : { outcome: 'failed', reason: 'mismatch' },
-    },
-  },
-});
 
 const input = defineComponent({ render: () => h('input') });
 
-export const views = {
-  'acme.hello': defineAnswerView(input),
+export const server = (s) => {
+  s.registerExerciseType({
+    id: 'acme.hello',
+    title: 'Hello exercise',
+    specSchema: {
+      type: 'object',
+      required: ['expected'],
+      properties: { expected: { type: 'string' } },
+    },
+    answerSchema: { type: 'string' },
+    project: () => ({}),
+    grade: ({ spec, answer }) =>
+      answer === spec.expected
+        ? { outcome: 'passed' }
+        : { outcome: 'failed', reason: 'mismatch' },
+  });
+};
+
+export const client = (c) => {
+  c.addAnswerView('acme.hello', input);
 };

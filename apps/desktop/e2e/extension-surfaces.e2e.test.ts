@@ -283,29 +283,22 @@ describe('палитра команд (R4, R8)', () => {
   });
 });
 
-describe('срок активации (R4, R5, R7)', () => {
-  it('расширение с вечным activate(): команда из палитры — «не запустилось за 10 с», повтор отвечает сразу тем же сообщением', async () => {
-    const { commands } = await prepare({ 'acme.slowstart': SLOW_START_DIR });
-    const run = async () => {
-      await commands.openPalette();
-      await commands.search('медленное расширение');
-      await commands.combobox.press('Enter');
-    };
-    const started = Date.now();
-    await run();
-    await expectText(
-      commands.notice,
-      'Расширение не запустилось за 10 с',
-      30_000,
+describe('срок запуска (R4, R5, R7)', () => {
+  it('расширение с вечным server(): через 10 с после старта в настройках «Не загрузилось» и причина, остальные вклады на месте', async () => {
+    const { client, commands } = await prepare({
+      [COMMANDS_ID]: COMMANDS_DIR,
+      'acme.slowstart': SLOW_START_DIR,
+    });
+    await client.openSettingsExtensions();
+    await expect
+      .poll(async () => (await client.readExtensions('acme.slowstart'))[0], {
+        timeout: 30_000,
+      })
+      .toContain('Не удалось загрузить расширение');
+    expect((await client.readExtensions('acme.slowstart'))[0]).toContain(
+      'Не загрузилось',
     );
-    expect(Date.now() - started).toBeGreaterThanOrEqual(9_000);
-
-    // сбой запомнен: новая активация не запускается, ответ приходит без ожидания срока
-    const again = Date.now();
-    await commands.notice.getByRole('button', { name: 'Закрыть' }).click();
-    await run();
-    await expectText(commands.notice, 'Расширение не запустилось за 10 с');
-    expect(Date.now() - again).toBeLessThan(5_000);
+    await expectVisible(commands.navItem(PANEL_TITLE));
   });
 });
 
@@ -582,7 +575,7 @@ describe('живое применение (R4, R5, R6)', () => {
     );
     const stillSameWindow = await client.markWindow();
 
-    const file = join(devRoot, COMMANDS_ID, 'panel.mjs');
+    const file = join(devRoot, COMMANDS_ID, 'client.mjs');
     await writeFile(
       file,
       (await readFile(file, 'utf8')).replace("'1.0.0'", "'dev-edit'"),
@@ -597,7 +590,7 @@ describe('живое применение (R4, R5, R6)', () => {
 });
 
 describe('каталог (R10)', () => {
-  it('карточка, диалог установки и список установленных показывают «Команды» и «Панели»; установка добавляет пункт меню и команды без перезагрузки', async () => {
+  it('список установленных показывает «Команды» и «Панели»; установка добавляет пункт меню и команды без перезагрузки', async () => {
     server = await startCatalogServer([COMMANDS]);
     workspace = await createWorkspace({ libraryFiles: PLAIN_LIBRARY });
     app = await launchApp(workspace.userData, catalogEnv(server.url));
@@ -608,21 +601,14 @@ describe('каталог (R10)', () => {
 
     await client.openSettingsExtensions();
     await catalog.openCatalogTab();
-    await expectText(catalog.catalogCard(COMMANDS_ID), 'Команды');
-    await expectText(catalog.catalogCard(COMMANDS_ID), 'Панели');
-    await catalog.toggleKind('Панели');
-    expect(await catalog.catalogNames()).toEqual(['Commands']);
-    await catalog.toggleKind('Панели');
-
     await catalog.installButton(COMMANDS_ID).click();
-    await expectText(catalog.dialog, 'Команды');
-    await expectText(catalog.dialog, 'Панели');
     await catalog.confirmInstall();
     await catalog.closeDialog();
     await catalog.openInstalledTab();
-    const row = await catalog.installedText(COMMANDS_ID);
-    expect(row).toContain('Команды');
-    expect(row).toContain('Панели');
+    await expect
+      .poll(() => catalog.installedText(COMMANDS_ID))
+      .toContain('Команды');
+    expect(await catalog.installedText(COMMANDS_ID)).toContain('Панели');
 
     await expectVisible(commands.navItem(PANEL_TITLE));
     await commands.openPalette();

@@ -351,13 +351,14 @@ describe('виды заданий: dolphy.choice', () => {
     // копия засчитывает любой ответ: неверный вариант проходит
     await writeFile(
       join(target, 'main.mjs'),
-      `export default {
-        activate(ctx) {
-          ctx.registerExerciseType('dolphy.choice', {
-            project: ({ spec }) => ({ multiple: spec.multiple === true, options: spec.options }),
-            grade: () => ({ outcome: 'passed' }),
-          });
-        },
+      `export const server = (s) => {
+        s.registerExerciseType({
+          id: 'dolphy.choice',
+          specSchema: { type: 'object' },
+          answerSchema: { type: 'array' },
+          project: ({ spec }) => ({ multiple: spec.multiple === true, options: spec.options }),
+          grade: () => ({ outcome: 'passed' }),
+        });
       };`,
     );
 

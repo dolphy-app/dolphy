@@ -4,30 +4,5 @@
   "apiVersion": 1,
   "description": "Импорт курса из списка слов и экспорт курса и прогресса",
   "author": "acme",
-  "contributes": {
-    "importers": [
-      {
-        "id": "acme.transfers.words",
-        "title": "Курс из списка слов",
-        "accept": [".words", ".txt"]
-      },
-      {
-        "id": "acme.transfers.hang",
-        "title": "Зависший импорт",
-        "accept": [".hang"]
-      }
-    ],
-    "exporters": [
-      {
-        "id": "acme.transfers.course",
-        "title": "Курс в JSON",
-        "scope": "course"
-      },
-      {
-        "id": "acme.transfers.progress",
-        "title": "Серия в JSON",
-        "scope": "progress"
-      }
-    ]
-  }
+  "main": "./main.mjs"
 }

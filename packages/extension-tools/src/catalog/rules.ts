@@ -1,10 +1,14 @@
+import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { GITHUB_LOGIN_PATTERN } from '@dolphy-app/extension-api';
+import {
+  DEFAULT_CLIENT,
+  DEFAULT_MAIN,
+  GITHUB_LOGIN_PATTERN,
+} from '@dolphy-app/extension-api';
 import { compareSemver, iconProblem } from '@dolphy-app/extension-catalog';
 import type { CatalogEntry } from '@dolphy-app/extension-catalog';
 import { bundleFindings, readBundleFiles } from '../lint/bundle.ts';
 import { shortDescription } from '../lint/manifest.ts';
-import { localeFindings } from '../locales.ts';
 import { assetFindings } from './assets.ts';
 import type { GithubUserChecker } from './github.ts';
 import type { Tree } from './tree.ts';
@@ -26,10 +30,7 @@ export interface CheckedManifest {
   minAppVersion: string | null;
 }
 
-/**
- * Publication metadata from the raw `extension.json`; `null` — the file is not readable as JSON.
- * `name` and `description` are in English: a `%key%` is replaced by the text of `locales/en.json`.
- */
+/** Publication metadata from the raw `extension.json`; `null` — the file is not readable as JSON. */
 export interface DeclaredMetadata {
   name: string | null;
   description: string | null;
@@ -48,7 +49,7 @@ export interface RuleContext {
   rawManifest: unknown;
   /** Why the manifest was not parsed; `null` if it was parsed. */
   manifestProblem: string | null;
-  /** Sources without `node_modules`, `dist-ext`, `.dolphy` and `.git`. */
+  /** Sources without `node_modules`, `dist-ext` and `.git`. */
   tree: Tree;
   /** The built version `<siteDir>/extensions/<id>/<version>/` (`--built`); `null` — no `--built` or no parsed manifest. */
   bundleDir: string | null;
@@ -480,20 +481,6 @@ const changelog: CheckRule = {
   },
 };
 
-const translations: CheckRule = {
-  id: 'CHECK-026',
-  title:
-    'locales/*.json: en is complete, texts fit their fields, files are valid',
-  run: ({ rawManifest, tree, readText }) =>
-    rawManifest === null
-      ? []
-      : localeFindings({
-          manifest: rawManifest,
-          files: tree.files.map((file) => file.path),
-          read: readText,
-        }),
-};
-
 const firstPublisherOwnsId: CheckRule = {
   id: 'CHECK-021',
   title: 'the id is not published under another author',
@@ -536,6 +523,49 @@ const bundleRule = (
   },
 });
 
+const BUILT_PARTS = [
+  { field: 'main', file: DEFAULT_MAIN },
+  { field: 'client', file: DEFAULT_CLIENT },
+] as const;
+
+/** `CHECK-031`: the built manifest's `main` and `client` name the files that are in the built version, and each file has its field; silent without `--built`. */
+const builtParts: CheckRule = {
+  id: 'CHECK-031',
+  title: 'main.mjs and client.mjs match the main and client fields',
+  run: async ({ bundleDir }) => {
+    if (bundleDir === null) return [];
+    let built: unknown;
+    try {
+      built = JSON.parse(
+        await readFile(path.join(bundleDir, 'extension.json'), 'utf8'),
+      );
+    } catch {
+      return [];
+    }
+    if (!isRecord(built)) return [];
+    const findings: Finding[] = [];
+    for (const { field, file } of BUILT_PARTS) {
+      const declared = built[field];
+      const exists =
+        (await stat(path.join(bundleDir, file)).catch(() => null))?.isFile() ===
+        true;
+      if (typeof declared === 'string' && !exists) {
+        findings.push(
+          error(field, `'${declared}' is not in the built version`),
+        );
+      } else if (typeof declared !== 'string' && exists) {
+        findings.push(
+          error(
+            field,
+            `${file} is in the built version, but '${field}' is not set`,
+          ),
+        );
+      }
+    }
+    return findings;
+  },
+};
+
 export const RULES: readonly CheckRule[] = [
   manifestValid,
   directoryName,
@@ -560,6 +590,6 @@ export const RULES: readonly CheckRule[] = [
   bundleRule('CHECK-022', 'built code does not execute dynamic code', true),
   bundleRule('CHECK-023', 'built code is not obfuscated'),
   bundleRule('CHECK-025', 'built code has no embedded source map'),
-  translations,
+  builtParts,
   changelog,
 ];

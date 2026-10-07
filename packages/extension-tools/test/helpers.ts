@@ -24,12 +24,10 @@ export const makeTemp = async (): Promise<string> => {
   return dir;
 };
 
-/** Makes the SDK and Vue resolvable from a project in a temporary directory (in a real project they sit in node_modules). */
-export const linkSdk = async (root: string): Promise<void> => {
-  const scope = path.join(root, 'node_modules', '@dolphy-app');
+/** Makes Vue resolvable from a project in a temporary directory (in a real project it sits in node_modules). */
+export const linkVue = async (root: string): Promise<void> => {
   const sdk = fileURLToPath(new URL('../../extension-sdk', import.meta.url));
-  await mkdir(scope, { recursive: true });
-  await symlink(sdk, path.join(scope, 'extension-sdk'));
+  await mkdir(path.join(root, 'node_modules'), { recursive: true });
   await symlink(
     await realpath(path.join(sdk, 'node_modules', 'vue')),
     path.join(root, 'node_modules', 'vue'),
@@ -38,7 +36,7 @@ export const linkSdk = async (root: string): Promise<void> => {
 
 /**
  * Copy of a fixture project in a temporary directory (the build does not write to
- * the repository); the SDK is resolvable as in an author's project. `isLinked: false` — a copy
+ * the repository); Vue is resolvable as in an author's project. `isLinked: false` — a copy
  * without `node_modules`, e.g. to put the project into a catalog repository.
  */
 export const copyProject = async (
@@ -47,7 +45,7 @@ export const copyProject = async (
 ): Promise<string> => {
   const dir = path.join(await makeTemp(), name);
   await cp(path.join(projectsDir, name), dir, { recursive: true });
-  if (isLinked) await linkSdk(dir);
+  if (isLinked) await linkVue(dir);
   return dir;
 };
 

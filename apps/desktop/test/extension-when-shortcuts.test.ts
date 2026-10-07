@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { shallowRef } from 'vue';
+import { computed, shallowRef } from 'vue';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createKeybindingDispatcher,
@@ -34,8 +34,15 @@ describe('when and shortcuts of extension commands', () => {
           title: 'Run',
           description: null,
           category: null,
-          keybinding: 'Mod+Shift+G',
-          keybindings: [],
+          keybindings: [
+            {
+              key: 'Mod+Shift+G',
+              mac: null,
+              windows: null,
+              linux: null,
+              when: null,
+            },
+          ],
           palette: true,
           when: "route == 'courses'",
           icon: 'puzzle',
@@ -46,6 +53,7 @@ describe('when and shortcuts of extension commands', () => {
       registry,
       engine: { invokeCommand },
       contributions: () => contributions,
+      clients: { commands: computed(() => []), panels: computed(() => []) },
       locale: () => 'en',
       when: createExtensionWhen({
         route: () => route.value,

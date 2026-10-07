@@ -1,20 +1,17 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   EXTENSION_SECRET_LIMITS,
   EXTENSION_STORAGE_LIMITS,
   SecretsUnavailableError,
   StorageQuotaError,
-  defineExtension,
-  type ExtensionContext,
-  type SettingContribution,
+  defineServer,
+  type SettingDefinition,
 } from '../src/index.ts';
 import {
-  createMemoryEvents,
   createMemorySecrets,
   createMemorySettings,
   createMemoryStorage,
-  loadEvents,
-  loadExerciseType,
+  createTestServer,
 } from '../src/testing.ts';
 
 const LIMITS = EXTENSION_STORAGE_LIMITS;
@@ -100,7 +97,7 @@ describe('createMemoryStorage', () => {
   });
 });
 
-const definitions: SettingContribution[] = [
+const definitions: SettingDefinition[] = [
   { id: 'a.on', type: 'boolean', label: 'On', default: false },
   { id: 'a.name', type: 'string', label: 'Name', default: 'x', maxLength: 3 },
   {
@@ -124,7 +121,7 @@ const definitions: SettingContribution[] = [
   },
 ];
 
-const rich: SettingContribution[] = [
+const rich: SettingDefinition[] = [
   { id: 'a.note', type: 'text', label: 'Note', default: 'x\ny', maxLength: 5 },
   { id: 'a.tint', type: 'color', label: 'Tint', default: '#AA00bb' },
   {
@@ -194,15 +191,6 @@ describe('createMemorySecrets', () => {
       createMemorySecrets({ available: false }).set('k', 'v'),
     ).rejects.toBeInstanceOf(SecretsUnavailableError);
   });
-
-  it('loadEvents hands the same secrets to the module and returns them', async () => {
-    const loaded = await loadEvents({
-      activate: async (ctx) => {
-        await ctx.secrets.set('token', 'from-module');
-      },
-    });
-    expect(await loaded.secrets.get('token')).toBe('from-module');
-  });
 });
 
 describe('createMemorySettings: text, color and list', () => {
@@ -248,7 +236,7 @@ describe('createMemorySettings', () => {
 
     expect(settings.get('a.on')).toBe(false);
     expect(settings.get('a.size')).toBe(4);
-    expect(() => settings.get('a.nope')).toThrow(/not declared/);
+    expect(() => settings.get('a.nope')).toThrow(/not registered/);
   });
 
   it('set validates the value against the definition and calls onDidChange only on change', async () => {
@@ -272,13 +260,17 @@ describe('createMemorySettings', () => {
     ['a.size', 0, /less than 1/],
     ['a.size', 6, /greater than 5/],
     ['a.mode', 'medium', /options/],
-    ['a.nope', 1, /not declared/],
   ])('%s ← %j is rejected', async (id, value, message) => {
     const settings = createMemorySettings(definitions);
     await expect(settings.set(id, value as never)).rejects.toThrow(message);
     expect(() =>
       createMemorySettings(definitions, { [id]: value as never }),
     ).toThrow(message);
+  });
+
+  it('set of an id nobody registered is rejected', async () => {
+    const settings = createMemorySettings(definitions);
+    await expect(settings.set('a.nope', 1)).rejects.toThrow(/not registered/);
   });
 
   it('a handler failure rejects set; the value is already changed', async () => {
@@ -292,74 +284,21 @@ describe('createMemorySettings', () => {
   });
 });
 
-describe('createMemoryEvents', () => {
-  it('emit delivers to the subscriber and awaits it; without a subscription it skips', async () => {
-    const events = createMemoryEvents();
-    const order: string[] = [];
-    events.on('attempt.closed', async ({ exerciseId }) => {
-      await Promise.resolve();
-      order.push(exerciseId);
-    });
-
-    await events.emit('session.started', { sessionId: 's', at: 1 });
-    await events.emit('attempt.closed', {
-      exerciseId: 'e1',
-      courseId: 'c',
-      lessonId: 'l',
-      grade: 5,
-      outcome: 'passed',
-      source: 'self',
-      at: 1,
-    });
-
-    expect(order).toEqual(['e1']);
-  });
-
-  it('subscription is checked as in the host: declaration, one per event', () => {
-    const events = createMemoryEvents({ declared: ['session.started'] });
-    expect(() => events.on('attempt.closed', vi.fn())).toThrow(/not declared/);
-    const first = events.on('session.started', vi.fn());
-    expect(() => events.on('session.started', vi.fn())).toThrow(/already/);
-    void first.dispose();
-    expect(() => events.on('session.started', vi.fn())).not.toThrow();
-  });
-
-  it('a handler failure rejects emit', async () => {
-    const events = createMemoryEvents();
-    events.on('session.finished', () => {
-      throw new Error('handler bug');
-    });
-    await expect(
-      events.emit('session.finished', { sessionId: 's', at: 1 }),
-    ).rejects.toThrow('handler bug');
-  });
-});
-
-describe('loadEvents', () => {
-  it('an extension with defineExtension({ events }) receives the event and writes to the test storage and settings', async () => {
-    let context: ExtensionContext | null = null;
-    const module = defineExtension({
-      activate: (ctx) => {
-        context = ctx;
-        ctx.settings.onDidChange(({ id, value }) =>
-          ctx.storage.set('changed', `${id}=${String(value)}`),
+describe('createTestServer: storage, secrets and settings', () => {
+  it('an entry receives the event, writes to the test storage and sees the settings it registered', async () => {
+    const server = await createTestServer(
+      defineServer((s) => {
+        s.registerSettings(definitions);
+        s.settings.onDidChange(({ id, value }) =>
+          s.storage.set('changed', `${id}=${String(value)}`),
         );
-      },
-      events: {
-        'attempt.closed': async ({ grade }) => {
-          await (context as ExtensionContext | null)?.storage.set(
-            'last-grade',
-            grade,
-          );
-        },
-      },
-    });
-    const loaded = await loadEvents(module, {
-      settings: definitions,
-      declared: ['attempt.closed'],
-    });
+        s.on('attempt.closed', async ({ grade }) => {
+          await s.storage.set('last-grade', grade);
+        });
+      }),
+    );
 
-    await loaded.emit('attempt.closed', {
+    await server.events.emit('attempt.closed', {
       exerciseId: 'e',
       courseId: 'c',
       lessonId: 'l',
@@ -368,29 +307,93 @@ describe('loadEvents', () => {
       source: 'runner',
       at: 5,
     });
-    await loaded.settings.set('a.on', true);
+    await server.settings.set('a.on', true);
 
-    expect(await loaded.storage.get('last-grade')).toBe(3);
-    expect(await loaded.storage.get('changed')).toBe('a.on=true');
-    await loaded.dispose();
+    expect(await server.storage.get('last-grade')).toBe(3);
+    expect(await server.storage.get('changed')).toBe('a.on=true');
+    expect(server.registration.events).toEqual(['attempt.closed']);
+    await server.dispose();
   });
 
-  it('other loaders provide memory too: an exercise-kind extension sees ctx.storage', async () => {
-    const module = defineExtension({
-      exerciseTypes: {
-        'a.count': {
-          project: () => null,
-          grade: () => ({ outcome: 'passed' }),
-        },
-      },
-      activate: async (ctx) => {
-        await ctx.storage.set('activated', true);
-      },
-    });
+  it('hands the same secrets to the entry and returns them', async () => {
+    const server = await createTestServer(
+      defineServer(async (s) => {
+        await s.secrets.set('token', 'from-entry');
+      }),
+    );
+    expect(await server.secrets.get('token')).toBe('from-entry');
+  });
+
+  it('uses the storage the test passes', async () => {
     const storage = createMemoryStorage();
+    await createTestServer(
+      defineServer(async (s) => {
+        await s.storage.set('started', true);
+      }),
+      { storage },
+    );
+    expect(await storage.get('started')).toBe(true);
+  });
 
-    await loadExerciseType(module, 'a.count', { storage });
+  it('settingValues replace the defaults of the registered settings', async () => {
+    let seen: unknown;
+    await createTestServer(
+      defineServer((s) => {
+        s.registerSettings(definitions);
+        seen = s.settings.get('a.size');
+      }),
+      { settingValues: { 'a.size': 4 } },
+    );
+    expect(seen).toBe(4);
+  });
 
-    expect(await storage.get('activated')).toBe(true);
+  it('a settingValues id the entry did not register is an error', async () => {
+    await expect(
+      createTestServer(
+        defineServer((s) => {
+          s.registerSettings(definitions);
+        }),
+        { settingValues: { 'a.ghost': 1 } },
+      ),
+    ).rejects.toThrow("setting 'a.ghost' of settingValues is not registered");
+  });
+
+  it('a settingValues value that does not fit its definition is an error', async () => {
+    await expect(
+      createTestServer(
+        defineServer((s) => {
+          s.registerSettings(definitions);
+        }),
+        { settingValues: { 'a.size': 2.5 } },
+      ),
+    ).rejects.toThrow(/integer/);
+  });
+
+  it('the registration snapshot carries the defaults of the settings', async () => {
+    const server = await createTestServer(
+      defineServer((s) => {
+        s.registerSettings(definitions);
+      }),
+    );
+    expect(server.registration.settings.map(({ id }) => id)).toEqual(
+      definitions.map(({ id }) => id),
+    );
+    expect(server.registration.settings[0]).toMatchObject({
+      description: null,
+      group: null,
+      order: 0,
+      visibleWhen: null,
+    });
+  });
+
+  it('a setting registered twice is an error', async () => {
+    await expect(
+      createTestServer(
+        defineServer((s) => {
+          s.registerSettings(definitions);
+          s.registerSettings(definitions);
+        }),
+      ),
+    ).rejects.toThrow(/already registered/);
   });
 });

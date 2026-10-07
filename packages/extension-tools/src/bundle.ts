@@ -10,7 +10,7 @@ import {
 import { BuildError } from './errors.ts';
 import { WINDOW_SPECIFIER, hostModulesPlugin } from './host-modules.ts';
 import type { Entry, Project } from './project.ts';
-import { exportsOf, shimEntry, shimPlugin } from './shim.ts';
+import { exportOf, shimEntry, shimPlugin } from './shim.ts';
 import type { JobState, Output } from './shim.ts';
 
 /** One bundle: one output file, its own build, no shared chunks. */
@@ -82,7 +82,7 @@ const bundleConfig = (
 /** Constants of the extension API are `Object.freeze({…})` calls: without this a browser bundle keeps all of them. */
 const BROWSER_PURE_CALLS = ['Object.freeze'];
 
-/** Vue and Vuetify are the window's: a browser file takes them from the app, and the host file, which only shares `src/index.ts` with it, must not keep what it imports of them (a component defined at the top level of `src/index.ts` is not code of the host). */
+/** Vue and Vuetify are the window's: the client file takes them from the app, and the server file, which only shares `src/index.ts` with it, must not keep what it imports of them (a component defined at the top level of `src/index.ts` is not code of the server). */
 const WINDOW_PACKAGE =
   /[\\/]node_modules[\\/](?:vue|@vue|vuetify|@vuetify)[\\/]/;
 
@@ -93,9 +93,9 @@ const outputJob = (project: Project, output: Output, outDir: string): Job => {
     shimEntry(project, output),
     output.output,
     outDir,
-    output.kind === 'host',
+    output.kind === 'server',
   );
-  const isBrowser = output.kind === 'browser';
+  const isBrowser = output.kind === 'client';
   config.build = {
     ...config.build,
     rolldownOptions: {
@@ -110,7 +110,7 @@ const outputJob = (project: Project, output: Output, outDir: string): Job => {
   };
   return {
     output: output.output,
-    label: `${output.output} (${exportsOf(output).join(', ')} from ${project.indexSource})`,
+    label: `${output.output} (${exportOf(output)} from ${project.indexSource})`,
     config: {
       ...config,
       plugins: [
@@ -142,10 +142,14 @@ const workerJob = (project: Project, entry: Entry, outDir: string): Job => {
   };
 };
 
-/** Project bundles: the extensions process, browser files, workers. */
+/** Project bundles: the server part, the client part, workers. */
 export const jobsOf = (project: Project, outDir: string): Job[] => [
-  ...(project.host === null ? [] : [outputJob(project, project.host, outDir)]),
-  ...project.browserOutputs.map((output) => outputJob(project, output, outDir)),
+  ...(project.server === null
+    ? []
+    : [outputJob(project, project.server, outDir)]),
+  ...(project.client === null
+    ? []
+    : [outputJob(project, project.client, outDir)]),
   ...project.workerEntries.map((entry) => workerJob(project, entry, outDir)),
 ];
 

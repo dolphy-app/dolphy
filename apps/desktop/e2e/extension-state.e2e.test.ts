@@ -88,7 +88,6 @@ describe('настройки расширения', () => {
       loud: false,
       limit: 3,
       mode: 'calm',
-      activations: 1,
       changes: 0,
     });
     await state.leaveSession();
@@ -154,8 +153,6 @@ describe('настройки расширения', () => {
       loud: true,
       limit: 6,
       mode: 'brisk',
-      // расширение не перезапускалось: активация одна, изменения дошли подпиской
-      activations: 1,
       changes: 5,
     });
     await state.leaveSession();
@@ -177,7 +174,6 @@ describe('настройки расширения', () => {
       loud: false,
       limit: 3,
       mode: 'calm',
-      activations: 1,
       changes: 9,
     });
     await stillSameWindow();
@@ -206,7 +202,7 @@ describe('события обучения и хранилище', () => {
     const { state } = first;
     await startStateSession(first);
     const opened = await state.reportUntil(({ started }) => started === 1);
-    expect(opened).toMatchObject({ closed: 0, finished: 0, activations: 1 });
+    expect(opened).toMatchObject({ closed: 0, finished: 0 });
 
     await state.passAndAdvance();
     const afterOne = await state.reportUntil(({ closed }) => closed >= 1);
@@ -232,23 +228,14 @@ describe('события обучения и хранилище', () => {
     const restarted = await stateAgain.reportUntil(
       ({ started }) => started === 2,
     );
-    // данные пережили перезапуск; расширение активировалось второй раз
-    expect(restarted).toMatchObject({
-      closed: 2,
-      finished: 0,
-      activations: 2,
-    });
+    // данные пережили перезапуск
+    expect(restarted).toMatchObject({ closed: 2, finished: 0 });
     // «Завершить» зовёт окно: движок отправляет session.finished
     const closedNow = await stateAgain.passUntilFinished();
     const total = 2 + closedNow;
     await expect
       .poll(() => data().storage, { timeout: 15_000 })
-      .toMatchObject({
-        closed: total,
-        started: 2,
-        finished: 1,
-        activations: 2,
-      });
+      .toMatchObject({ closed: total, started: 2, finished: 1 });
     expect(readJournal(workspace!.userData)).toHaveLength(total);
   });
 });
@@ -300,14 +287,14 @@ describe('жизненный цикл данных', () => {
     await state.leaveSession();
 
     await client.openSettingsExtensions();
-    expect(await state.dataLine()).toMatch(/^4 ключа, /);
+    expect(await state.dataLine()).toMatch(/^3 ключа, /);
     await state.openSettings();
     await state.typeSetting('greeting', 'пока');
     await expect
       .poll(() => data().settings)
       .toEqual({ 'acme.state.greeting': 'пока' });
     await state.closeSettings();
-    await expect.poll(() => state.dataLine()).toMatch(/^5 ключей, /);
+    await expect.poll(() => state.dataLine()).toMatch(/^4 ключа, /);
 
     await state.clearData();
     await expect.poll(() => state.dataLine()).toBeNull();
@@ -316,11 +303,7 @@ describe('жизненный цикл данных', () => {
     await client.openPlan();
     await client.startSession();
     const report = await state.report();
-    expect(report).toMatchObject({
-      closed: 0,
-      activations: 0,
-      greeting: 'привет',
-    });
+    expect(report).toMatchObject({ closed: 0, greeting: 'привет' });
   });
 
   it('у расширения без данных строки «Данные» нет', async () => {
@@ -350,7 +333,7 @@ describe('жизненный цикл данных', () => {
 });
 
 describe('установка из каталога и удаление', () => {
-  it('точки видны при установке, в каталоге и в списке; удаление сохраняет данные или стирает их по флажку', async () => {
+  it('в каталоге — название, версия и теги, вклады видны у установленного; удаление сохраняет данные или стирает их по флажку', async () => {
     server = await startCatalogServer([
       {
         dir: STATE_EXTENSION,
@@ -367,8 +350,13 @@ describe('установка из каталога и удаление', () => {
     await client.openSettingsExtensions();
 
     await catalog.openCatalogTab();
-    const card = await catalog.catalogCard(STATE_ID).innerText();
-    expect(card).toContain('Настройки');
+    const card = catalog.catalogCard(STATE_ID);
+    const cardText = await card.innerText();
+    expect(cardText).toContain('State');
+    expect(cardText).toContain('Версия 1.0.0');
+    expect(await card.locator('[data-point="tags"]').innerText()).toContain(
+      'Обучение',
+    );
     await catalog.installButton(STATE_ID).click();
     await catalog.confirmInstall();
     await catalog.closeDialog();
@@ -377,6 +365,7 @@ describe('установка из каталога и удаление', () => {
     const row = await catalog.installedText(STATE_ID);
     expect(row).toContain('Настройки:');
     expect(row).toContain('События обучения:');
+    expect(row).toContain('Виды заданий:');
 
     await state.openSettings();
     await state.typeSetting('greeting', 'пока');

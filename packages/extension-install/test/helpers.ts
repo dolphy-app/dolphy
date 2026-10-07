@@ -26,28 +26,6 @@ export interface FakeFile {
   content: string | Uint8Array;
 }
 
-export interface Contributes {
-  exerciseTypes: string[];
-  themes: string[];
-  markdownRenderers: string[];
-  gradePolicies: string[];
-  settings?: string[];
-  events?: string[];
-  commands?: string[];
-  panels?: string[];
-  widgets?: string[];
-  schedules?: string[];
-  importers?: string[];
-  exporters?: string[];
-}
-
-export const contributesOf = (exerciseTypes: string[]): Contributes => ({
-  exerciseTypes,
-  themes: [],
-  markdownRenderers: [],
-  gradePolicies: [],
-});
-
 export interface ExtensionSpec {
   id: string;
   name?: string;
@@ -55,7 +33,6 @@ export interface ExtensionSpec {
   versions?: string[];
   /** `dependencies` of the manifest and of every version record. */
   dependencies?: { id: string; range?: string }[];
-  contributes?: Contributes;
   platforms?: string[];
   apiVersion?: number;
   minAppVersion?: string | null;
@@ -70,8 +47,6 @@ export interface ExtensionSpec {
   extraFiles?: Record<string, string | Uint8Array>;
   /** `tags` by version: they join the manifest and the version record of that version. */
   tags?: Record<string, string[]>;
-  /** `titles` of the index entry. */
-  titles?: Record<string, Record<string, string>>;
   /** `deprecated` of the index entry. */
   deprecated?: {
     versions: string | null;
@@ -95,7 +70,6 @@ export const filesOf = (spec: ExtensionSpec, version: string): FakeFile[] => [
       ...(spec.tags?.[version] === undefined
         ? {}
         : { tags: spec.tags[version] }),
-      contributes: spec.contributes ?? contributesOf([spec.id]),
       ...spec.manifest,
     }),
   },
@@ -115,8 +89,6 @@ export const rawEntry = (spec: ExtensionSpec): Record<string, unknown> => ({
   author: 'octo-cat',
   source: 'https://github.com/dolphy-app/dolphy-extensions',
   platforms: spec.platforms ?? [],
-  contributes: spec.contributes ?? contributesOf([spec.id]),
-  ...(spec.titles === undefined ? {} : { titles: spec.titles }),
   ...(spec.deprecated === undefined ? {} : { deprecated: spec.deprecated }),
   versions: (spec.versions ?? [spec.version]).map((version) => ({
     version,
@@ -241,7 +213,6 @@ export const inspectJson = async (
       icon?: string;
       tags?: string[];
       dependencies?: { id: string; range?: string }[];
-      contributes: Contributes;
     };
     return {
       ok: true,
@@ -260,17 +231,6 @@ export const inspectJson = async (
           id,
           range: range ?? null,
         })),
-        contributes: {
-          ...raw.contributes,
-          settings: raw.contributes.settings ?? [],
-          events: raw.contributes.events ?? [],
-          commands: raw.contributes.commands ?? [],
-          widgets: raw.contributes.widgets ?? [],
-          schedules: raw.contributes.schedules ?? [],
-          panels: raw.contributes.panels ?? [],
-          importers: raw.contributes.importers ?? [],
-          exporters: raw.contributes.exporters ?? [],
-        },
       },
     };
   } catch (error) {

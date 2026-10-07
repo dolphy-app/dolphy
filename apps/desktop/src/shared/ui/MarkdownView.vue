@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, shallowRef, useTemplateRef, watch } from 'vue';
-import { useContributions } from '@/shared/api/engine/contributions.ts';
+import { useExtensionClients } from '@/shared/lib/extension-clients.ts';
 import { collectMarkdownBlocks } from '@/shared/lib/markdown-blocks.ts';
 import type { MarkdownBlockSlot } from '@/shared/lib/markdown-blocks.ts';
 import { createMarkdownRenderer } from '@/shared/lib/markdown.ts';
@@ -10,12 +10,17 @@ import MarkdownBlock from './MarkdownBlock.vue';
 defineOptions({ inheritAttrs: false });
 
 const props = defineProps<{ source: string }>();
-const contributions = useContributions();
+const clients = useExtensionClients();
 const root = useTemplateRef<HTMLElement>('root');
 
+// на язык рендерер первого по id расширения
 const renderers = computed(
   () =>
-    new Map(contributions.value.markdownRenderers.map((r) => [r.language, r])),
+    new Map(
+      clients.markdownRenderers.value
+        .toReversed()
+        .map((renderer) => [renderer.language, renderer]),
+    ),
 );
 const render = computed(() =>
   createMarkdownRenderer(new Set(renderers.value.keys())),
@@ -25,7 +30,7 @@ const html = computed(() => render.value(props.source));
 // Блоки рендереров рисуются компонентами расширений через `Teleport` в
 // заглушки документа: общее дерево Vue (тема, язык, provide). Рендерер
 // добавили, убрали, обновили или исправили (режим разработчика) — компонент
-// блока перезагружается сам, документ остаётся.
+// блока сменяется сам, документ остаётся.
 const blocks = shallowRef<MarkdownBlockSlot[]>([]);
 const scan = () => {
   blocks.value = root.value === null ? [] : collectMarkdownBlocks(root.value);

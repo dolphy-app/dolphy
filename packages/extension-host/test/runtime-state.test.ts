@@ -3,7 +3,7 @@ import {
   SecretsUnavailableError,
   StorageQuotaError,
 } from '@dolphy-app/extension-api';
-import type { ExtensionContext } from '@dolphy-app/extension-api';
+import type { ServerContext } from '@dolphy-app/extension-api';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createEndpointPair } from '../src/loopback.ts';
 import { ENGINE_REQUEST_MS, EngineRequestError } from '../src/engine-link.ts';
@@ -13,28 +13,58 @@ import {
   createExtensionStats,
 } from '../src/state.ts';
 import { createExtensionRuntime } from '../src/runtime.ts';
-import { createLogger, deferred, nullLibrary } from './helpers.ts';
+import type { ServerModule } from '../src/runtime.ts';
+import { candidateOf, createLogger, deferred, nullLibrary } from './helpers.ts';
 import {
   attemptClosed,
   createHarness,
-  sessionStarted,
-  stateful,
+  statefulSettings,
 } from './state-harness.ts';
 import type { Harness } from './state-harness.ts';
 
 const ID = 'acme.s';
 const GREETING = `${ID}.greeting`;
+const LIMIT = `${ID}.limit`;
+const TAGS = `${ID}.tags`;
 
 let harness: Harness | null = null;
+/** Контексты, которые получил `server` каждого расширения: последняя загрузка перекрывает прежнюю. */
+const contexts = new Map<string, ServerContext>();
 afterEach(async () => {
   vi.useRealTimers();
+  contexts.clear();
   await harness?.close();
   harness = null;
 });
 
-const open = (...args: Parameters<typeof createHarness>): Harness => {
-  harness = createHarness(...args);
+const open = async (
+  ...args: Parameters<typeof createHarness>
+): Promise<Harness> => {
+  harness = await createHarness(...args);
   return harness;
+};
+
+/** Контекст расширения, как его получил `server`. */
+const ctxOf = (id: string): ServerContext => {
+  const context = contexts.get(id);
+  if (context === undefined) throw new Error(`server of '${id}' did not run`);
+  return context;
+};
+
+/** Модуль, который только запоминает контекст; `extra` регистрирует вклады. */
+const exposing = (
+  id: string,
+  extra: (s: ServerContext) => void = () => {},
+): ServerModule => ({
+  server: (s) => {
+    contexts.set(id, s);
+    extra(s);
+  },
+});
+
+/** Расширение с настройками `statefulSettings` и подпиской на `attempt.closed`. */
+const withSettings = (s: ServerContext): void => {
+  s.registerSettings(statefulSettings(ID));
 };
 
 /** Обработчик ждёт `open`, пока тест не вызовет `release`. */
@@ -43,37 +73,30 @@ const gate = () => {
   return { open: promise, release: resolve };
 };
 
-/** Расширение-свидетель: получает те же события; его приём показывает, что доставка дошла до этого места. */
-const sentinel = (seen: string[]) => ({
-  extension: stateful('acme.sentinel'),
-  module: {
-    activate: (ctx: ExtensionContext) => {
-      ctx.events.on('attempt.closed', ({ exerciseId }) => {
-        seen.push(exerciseId);
-      });
-    },
-  },
-});
+const POLICY_ALLOWING = {
+  checkUpdates: true,
+  safeMode: false,
+  notificationsOff: [],
+  catalogUrl: null,
+  schedulesOff: [],
+};
 
-describe('ctx.logger', () => {
-  it('записи доверенного расширения несут его extensionId; чужой id в полях записи его не подменяет', async () => {
-    const h = open({
-      extensions: [stateful('acme.a')],
+describe('s.logger', () => {
+  it('записи расширения несут его extensionId; чужой id в полях записи его не подменяет', async () => {
+    const h = await open({
+      candidates: [candidateOf('acme.a')],
       modules: {
         'acme.a': {
-          activate: (ctx) => {
-            ctx.logger.info({ n: 1 }, 'hello');
-            ctx.logger.warn({ extensionId: 'acme.other' }, 'spoof');
-            ctx.logger.error({}, 'plain');
-            ctx.logger.debug({ n: 2 });
+          server: (s) => {
+            s.logger.info({ n: 1 }, 'hello');
+            s.logger.warn({ extensionId: 'acme.other' }, 'spoof');
+            s.logger.error({}, 'plain');
+            s.logger.debug({ n: 2 });
           },
         },
       },
     });
 
-    h.engine.emit(sessionStarted('s1'));
-
-    await vi.waitFor(() => expect(h.logger.error).toHaveBeenCalled());
     expect(h.logger.info).toHaveBeenCalledWith(
       { n: 1, extensionId: 'acme.a' },
       'hello',
@@ -93,54 +116,44 @@ describe('ctx.logger', () => {
   });
 });
 
-describe('ctx.secrets', () => {
+describe('s.secrets', () => {
   it('значения у каждого расширения свои; без хранилища ключей запись и чтение существующего ключа — SecretsUnavailableError, а чтение отсутствующего и удаление работают', async () => {
-    const seen: Record<string, unknown> = {};
-    const h = open({
-      extensions: [stateful('acme.a'), stateful('acme.b')],
-      modules: {
-        'acme.a': {
-          activate: async (ctx) => {
-            await ctx.secrets.set('token', 's3cret');
-            seen.got = await ctx.secrets.get('token');
-            seen.missing = await ctx.secrets.get('nope');
-            seen.deletedMissing = await ctx.secrets.delete('nope');
-            h.engine.keyStore.available = false;
-            const failure = async (run: () => Promise<unknown>) => {
-              try {
-                await run();
-              } catch (error) {
-                return error;
-              }
-              return null;
-            };
-            seen.setError = await failure(() => ctx.secrets.set('x', 'y'));
-            seen.getError = await failure(() => ctx.secrets.get('token'));
-            seen.missingWhileDown = await ctx.secrets.get('nope');
-            seen.deleted = await ctx.secrets.delete('token');
-          },
-        },
-        'acme.b': {
-          activate: async (ctx) => {
-            seen.foreign = await ctx.secrets.get('token');
-          },
-        },
+    const h = await open({
+      candidates: [candidateOf('acme.a'), candidateOf('acme.b')],
+      modules: { 'acme.a': exposing('acme.a'), 'acme.b': exposing('acme.b') },
+    });
+    const a = ctxOf('acme.a');
+    const failure = async (run: () => Promise<unknown>) => {
+      try {
+        await run();
+      } catch (error) {
+        return error;
+      }
+      return null;
+    };
+
+    await a.secrets.set('token', 's3cret');
+    const got = await a.secrets.get('token');
+    const missing = await a.secrets.get('nope');
+    const deletedMissing = await a.secrets.delete('nope');
+    h.engine.keyStore.available = false;
+    const setError = await failure(() => a.secrets.set('x', 'y'));
+    const getError = await failure(() => a.secrets.get('token'));
+    const missingWhileDown = await a.secrets.get('nope');
+    const deleted = await a.secrets.delete('token');
+    const foreign = await ctxOf('acme.b').secrets.get('token');
+
+    expect({ got, missing, deletedMissing, missingWhileDown, deleted }).toEqual(
+      {
+        got: 's3cret',
+        missing: undefined,
+        deletedMissing: false,
+        missingWhileDown: undefined,
+        deleted: true,
       },
-    });
-
-    h.engine.emit(sessionStarted('s1'));
-
-    await vi.waitFor(() => {
-      expect(seen.deleted).toBe(true);
-      expect(seen).toHaveProperty('foreign');
-    });
-    expect(seen).toMatchObject({
-      got: 's3cret',
-      missing: undefined,
-      deletedMissing: false,
-      missingWhileDown: undefined,
-    });
-    for (const error of [seen.setError, seen.getError]) {
+    );
+    expect(foreign).toBeUndefined();
+    for (const error of [setError, getError]) {
       expect(error).toBeInstanceOf(SecretsUnavailableError);
       expect(error).toMatchObject({
         name: 'SecretsUnavailable',
@@ -151,115 +164,76 @@ describe('ctx.secrets', () => {
   });
 });
 
-describe('ctx.storage', () => {
+describe('s.storage', () => {
   it('значения лежат у движка и у каждого расширения свои; превышение потолка — StorageQuotaError, запись не происходит', async () => {
-    const seen: Record<string, unknown> = {};
-    const h = open({
-      extensions: [stateful('acme.a'), stateful('acme.b')],
-      modules: {
-        'acme.a': {
-          activate: async (ctx) => {
-            await ctx.storage.set('k', { n: 1 });
-            seen.keys = await ctx.storage.keys();
-            seen.got = await ctx.storage.get('k');
-            try {
-              await ctx.storage.set('x'.repeat(129), 1);
-            } catch (error) {
-              seen.quota = error;
-            }
-            seen.deleted = [
-              await ctx.storage.delete('missing'),
-              await ctx.storage.delete('k'),
-            ];
-            await ctx.storage.set('kept', true);
-          },
-        },
-        'acme.b': {
-          activate: async (ctx) => {
-            seen.foreign = [
-              await ctx.storage.get('kept'),
-              await ctx.storage.keys(),
-            ];
-          },
-        },
-      },
+    const h = await open({
+      candidates: [candidateOf('acme.a'), candidateOf('acme.b')],
+      modules: { 'acme.a': exposing('acme.a'), 'acme.b': exposing('acme.b') },
     });
+    const a = ctxOf('acme.a').storage;
 
-    h.engine.emit(sessionStarted('s1'));
+    await a.set('k', { n: 1 });
+    const keys = await a.keys();
+    const got = await a.get('k');
+    const quota = await a.set('x'.repeat(129), 1).catch((error) => error);
+    const deleted = [await a.delete('missing'), await a.delete('k')];
+    await a.set('kept', true);
+    const foreign = [
+      await ctxOf('acme.b').storage.get('kept'),
+      await ctxOf('acme.b').storage.keys(),
+    ];
 
-    await vi.waitFor(async () => {
-      expect(await h.engine.read('acme.a', 'kept')).toBe(true);
-      expect(seen.foreign).toBeDefined();
-    });
-    expect(seen).toMatchObject({
+    expect({ keys, got, deleted, foreign }).toEqual({
       keys: ['k'],
       got: { n: 1 },
       deleted: [false, true],
       foreign: [undefined, []],
     });
-    const { quota } = seen;
     expect(quota).toBeInstanceOf(StorageQuotaError);
     expect(quota).toMatchObject({
       name: 'StorageQuotaError',
       kind: 'key-length',
       limit: 128,
     });
+    expect(await h.engine.read('acme.a', 'kept')).toBe(true);
     expect(await h.engine.read('acme.b', 'kept')).toBeUndefined();
   });
 
   it('прочие отказы движка — обычный Error с кодом', async () => {
-    let failure: unknown;
-    const h = open({
-      extensions: [stateful(ID)],
-      modules: {
-        [ID]: {
-          activate: async (ctx) => {
-            try {
-              await ctx.storage.set('', 1);
-            } catch (error) {
-              failure = error;
-            }
-          },
-        },
-      },
+    await open({
+      candidates: [candidateOf(ID)],
+      modules: { [ID]: exposing(ID) },
     });
-    h.engine.emit(sessionStarted('s1'));
-    await vi.waitFor(() => expect(failure).toBeDefined());
+
+    const failure = await ctxOf(ID)
+      .storage.set('', 1)
+      .catch((error: unknown) => error);
+
     expect(failure).toBeInstanceOf(Error);
     expect(failure).not.toBeInstanceOf(StorageQuotaError);
     expect(failure).toMatchObject({ code: 'INVALID_ARGUMENT' });
   });
 });
 
-describe('ctx.stats', () => {
+describe('s.stats', () => {
   it('запросы идут движку от имени расширения; courseId, которого нет, в запрос не попадает', async () => {
-    const seen: Record<string, unknown> = {};
-    const h = open({
-      extensions: [stateful(ID)],
-      modules: {
-        [ID]: {
-          activate: async (ctx) => {
-            seen.streak = await ctx.stats.streak();
-            seen.course = await ctx.stats.streak({ courseId: 'alpha' });
-            seen.daily = await ctx.stats.daily({
-              from: '2024-05-01',
-              to: '2024-05-02',
-              courseId: 'alpha',
-            });
-            seen.all = await ctx.stats.daily({
-              from: '2024-05-01',
-              to: '2024-05-02',
-            });
-          },
-        },
-      },
+    const h = await open({
+      candidates: [candidateOf(ID)],
+      modules: { [ID]: exposing(ID) },
     });
+    const { stats } = ctxOf(ID);
 
-    h.engine.emit(sessionStarted('s1'));
+    const streak = await stats.streak();
+    await stats.streak({ courseId: 'alpha' });
+    const daily = await stats.daily({
+      from: '2024-05-01',
+      to: '2024-05-02',
+      courseId: 'alpha',
+    });
+    await stats.daily({ from: '2024-05-01', to: '2024-05-02' });
 
-    await vi.waitFor(() => expect(seen.all).toBeDefined());
-    expect(seen.streak).toEqual({ current: 3, longest: 7 });
-    expect(seen.daily).toEqual([
+    expect(streak).toEqual({ current: 3, longest: 7 });
+    expect(daily).toEqual([
       { date: '2024-05-01', attempts: 2, correct: 1, accuracy: 0.5 },
     ]);
     expect(h.engine.statsCalls).toEqual([
@@ -298,26 +272,19 @@ describe('ctx.stats', () => {
   });
 });
 
-describe('ctx.notifications', () => {
+describe('s.notifications', () => {
   it('show идёт движку от имени расширения и возвращает его ответ', async () => {
-    const seen: unknown[] = [];
-    const h = open({
-      extensions: [stateful(ID)],
-      modules: {
-        [ID]: {
-          activate: async (ctx) => {
-            seen.push(await ctx.notifications.show({ title: 'T', body: 'B' }));
-            h.engine.notifier.shown = false;
-            seen.push(await ctx.notifications.show({ title: 'T2', body: '' }));
-          },
-        },
-      },
+    const h = await open({
+      candidates: [candidateOf(ID)],
+      modules: { [ID]: exposing(ID) },
     });
+    const { notifications } = ctxOf(ID);
 
-    h.engine.emit(sessionStarted('s1'));
+    const first = await notifications.show({ title: 'T', body: 'B' });
+    h.engine.notifier.shown = false;
+    const second = await notifications.show({ title: 'T2', body: '' });
 
-    await vi.waitFor(() => expect(seen).toHaveLength(2));
-    expect(seen).toEqual([true, false]);
+    expect([first, second]).toEqual([true, false]);
     expect(h.engine.notified).toEqual([
       { extensionId: ID, title: 'T', body: 'B' },
       { extensionId: ID, title: 'T2', body: '' },
@@ -361,59 +328,46 @@ describe('ctx.notifications', () => {
   });
 });
 
-describe('ctx.settings', () => {
-  it('get отдаёт default, затем значение пользователя; onDidChange получает изменения без перезапуска', async () => {
+describe('s.settings', () => {
+  it('внутри server get отдаёт default; затем значение пользователя; onDidChange получает изменения без перезапуска', async () => {
     const reads: unknown[] = [];
     const changes: unknown[] = [];
-    let context: ExtensionContext | null = null;
-    const h = open({
-      extensions: [stateful(ID)],
+    const h = await open({
+      candidates: [candidateOf(ID)],
       modules: {
-        [ID]: {
-          activate: (ctx) => {
-            context = ctx;
-            reads.push(ctx.settings.get(GREETING));
-            ctx.settings.onDidChange((change) => changes.push(change));
-          },
-        },
+        [ID]: exposing(ID, (s) => {
+          withSettings(s);
+          reads.push(s.settings.get(GREETING));
+          s.settings.onDidChange((change) => changes.push(change));
+        }),
       },
     });
-
-    h.engine.emit(sessionStarted('s1'));
-    await vi.waitFor(() => expect(context).not.toBeNull());
     expect(reads).toEqual(['hello']);
 
     h.engine.changeSetting({ extensionId: ID, id: GREETING, value: 'hi' });
-    h.engine.changeSetting({ extensionId: ID, id: `${ID}.limit`, value: 7 });
+    h.engine.changeSetting({ extensionId: ID, id: LIMIT, value: 7 });
     await vi.waitFor(() => expect(changes).toHaveLength(2));
 
     expect(changes).toEqual([
       { id: GREETING, value: 'hi' },
-      { id: `${ID}.limit`, value: 7 },
+      { id: LIMIT, value: 7 },
     ]);
-    const ctx = context as ExtensionContext | null;
-    expect(ctx?.settings.get(GREETING)).toBe('hi');
-    expect(ctx?.settings.get(`${ID}.limit`)).toBe(7);
+    expect(ctxOf(ID).settings.get(GREETING)).toBe('hi');
+    expect(ctxOf(ID).settings.get(LIMIT)).toBe(7);
   });
 
   it('список: get отдаёт копию, равный список не событие, значение не того типа игнорируется', async () => {
-    const TAGS = `${ID}.tags`;
     const calls: unknown[] = [];
-    let ctx: ExtensionContext | null = null;
-    const h = open({
-      extensions: [stateful(ID)],
+    const h = await open({
+      candidates: [candidateOf(ID)],
       modules: {
-        [ID]: {
-          activate: (context) => {
-            ctx = context;
-            context.settings.onDidChange((change) => calls.push(change));
-          },
-        },
+        [ID]: exposing(ID, (s) => {
+          withSettings(s);
+          s.settings.onDidChange((change) => calls.push(change));
+        }),
       },
     });
-    h.engine.emit(sessionStarted('s1'));
-    await vi.waitFor(() => expect(ctx).not.toBeNull());
-    const settings = (ctx as unknown as ExtensionContext).settings;
+    const { settings } = ctxOf(ID);
 
     const first = settings.get(TAGS) as string[];
     first.push('mutated');
@@ -430,42 +384,39 @@ describe('ctx.settings', () => {
     expect(settings.get(TAGS)).toEqual(['b', 'a']);
   });
 
-  it('значение, сохранённое до запуска, читается при активации', async () => {
+  it('значение, сохранённое до запуска, подгружается после server: внутри него default, после — сохранённое', async () => {
     const reads: unknown[] = [];
-    const h = open({
-      extensions: [stateful(ID)],
+    const h = await open({
+      candidates: [candidateOf(ID)],
       modules: {
-        [ID]: {
-          activate: (ctx) => void reads.push(ctx.settings.get(GREETING)),
-        },
+        [ID]: exposing(ID, (s) => {
+          withSettings(s);
+          reads.push(s.settings.get(GREETING));
+        }),
       },
     });
     h.engine.changeSetting({ extensionId: ID, id: GREETING, value: 'saved' });
 
-    h.engine.emit(sessionStarted('s1'));
+    await h.replace([candidateOf(ID, { revision: 'r2' })]);
 
-    await vi.waitFor(() => expect(reads).toEqual(['saved']));
+    expect(reads).toEqual(['hello', 'hello']);
+    expect(ctxOf(ID).settings.get(GREETING)).toBe('saved');
   });
 
   it('чужой id, то же значение и сбой обработчика не мешают; неизвестный id при чтении бросает', async () => {
     const calls: unknown[] = [];
-    let ctx: ExtensionContext | null = null;
-    const h = open({
-      extensions: [stateful(ID)],
+    const h = await open({
+      candidates: [candidateOf(ID)],
       modules: {
-        [ID]: {
-          activate: (context) => {
-            ctx = context;
-            context.settings.onDidChange(() => {
-              throw new Error('boom');
-            });
-            context.settings.onDidChange((change) => calls.push(change));
-          },
-        },
+        [ID]: exposing(ID, (s) => {
+          withSettings(s);
+          s.settings.onDidChange(() => {
+            throw new Error('boom');
+          });
+          s.settings.onDidChange((change) => calls.push(change));
+        }),
       },
     });
-    h.engine.emit(sessionStarted('s1'));
-    await vi.waitFor(() => expect(ctx).not.toBeNull());
 
     h.engine.changeSetting({ extensionId: ID, id: 'acme.other.x', value: 1 });
     h.engine.changeSetting({ extensionId: ID, id: GREETING, value: 'hello' });
@@ -478,29 +429,22 @@ describe('ctx.settings', () => {
       expect.objectContaining({ settingId: GREETING }),
       'setting change handler failed',
     );
-    expect(() =>
-      (ctx as ExtensionContext | null)?.settings.get('nope'),
-    ).toThrow(/not declared/);
+    expect(() => ctxOf(ID).settings.get('nope')).toThrow(/not registered/);
   });
 
   it('не загрузились значения — расширение работает со значениями по умолчанию, в лог предупреждение', async () => {
-    const reads: unknown[] = [];
-    const h = open({
-      extensions: [stateful(ID)],
-      modules: {
-        [ID]: {
-          activate: (ctx) => void reads.push(ctx.settings.get(GREETING)),
-        },
-      },
+    const h = await open({
+      candidates: [candidateOf(ID)],
+      modules: { [ID]: exposing(ID, withSettings) },
     });
     h.engine.changeSetting({ extensionId: ID, id: GREETING, value: 'saved' });
     vi.spyOn(h.engine.extensionHost.settings, 'all').mockRejectedValue(
       new Error('db is busy'),
     );
 
-    h.engine.emit(sessionStarted('s1'));
+    await h.replace([candidateOf(ID, { revision: 'r2' })]);
 
-    await vi.waitFor(() => expect(reads).toEqual(['hello']));
+    expect(ctxOf(ID).settings.get(GREETING)).toBe('hello');
     expect(h.logger.warn).toHaveBeenCalledWith(
       expect.objectContaining({ extensionId: ID }),
       'extension settings were not loaded, defaults are used',
@@ -508,79 +452,77 @@ describe('ctx.settings', () => {
   });
 });
 
-describe('ctx.events', () => {
-  it('подписка требует объявления события и бывает одна на событие', async () => {
+describe('s.on', () => {
+  it('неизвестное событие и вторая подписка на событие бросают; после dispose событие снова можно занять', async () => {
     const errors: Record<string, unknown> = {};
-    const h = open({
-      extensions: [stateful(ID)],
+    await open({
+      candidates: [candidateOf(ID)],
       modules: {
         [ID]: {
-          activate: (ctx) => {
+          server: (s) => {
             try {
-              ctx.events.on('session.finished', () => {});
+              s.on('session.unknown' as never, () => {});
             } catch (error) {
-              errors.undeclared = error;
+              errors.unknown = error;
             }
-            const first = ctx.events.on('attempt.closed', () => {});
+            const first = s.on('attempt.closed', () => {});
             try {
-              ctx.events.on('attempt.closed', () => {});
+              s.on('attempt.closed', () => {});
             } catch (error) {
               errors.duplicate = error;
             }
             void first.dispose();
-            // после отписки событие снова можно занять
-            ctx.events.on('attempt.closed', () => {});
+            s.on('attempt.closed', () => {});
             errors.done = true;
           },
         },
       },
     });
 
-    h.engine.emit(sessionStarted('s1'));
-    await vi.waitFor(() => expect(errors.done).toBe(true));
-
-    expect(errors.undeclared).toMatchObject({
-      message: expect.stringContaining("'session.finished' is not declared"),
+    expect(errors.done).toBe(true);
+    expect(errors.unknown).toMatchObject({
+      message: expect.stringContaining('unknown learning event'),
     });
     expect(errors.duplicate).toMatchObject({
       message: expect.stringContaining('already subscribed'),
     });
   });
 
-  it('первое событие лениво активирует расширение; события одного расширения приходят по порядку, по одному разу', async () => {
+  it('server вызывается один раз; события одного расширения приходят по порядку, по одному разу', async () => {
     const order: string[] = [];
     const slow = gate();
-    const activate = vi.fn((ctx: ExtensionContext) => {
-      ctx.events.on('attempt.closed', async ({ exerciseId }) => {
+    const server = vi.fn((s: ServerContext) => {
+      s.on('attempt.closed', async ({ exerciseId }) => {
         // первый обработчик медленнее остальных: порядок обеспечивает доставка, а не скорость
         if (exerciseId === 'e1') await slow.open;
         order.push(exerciseId);
       });
     });
-    const h = open({
-      extensions: [stateful(ID)],
-      modules: { [ID]: { activate } },
+    const h = await open({
+      candidates: [candidateOf(ID)],
+      modules: { [ID]: { server } },
     });
-    expect(activate).not.toHaveBeenCalled();
 
     for (const id of ['e1', 'e2', 'e3']) h.engine.emit(attemptClosed(id));
     slow.release();
 
     await vi.waitFor(() => expect(order).toEqual(['e1', 'e2', 'e3']));
-    expect(activate).toHaveBeenCalledTimes(1);
+    expect(server).toHaveBeenCalledTimes(1);
   });
 
-  it('событие, которого расширение не объявило, и расширение без подписки не активируют код', async () => {
-    const activate = vi.fn();
-    const quiet = vi.fn();
-    const h = open({
-      extensions: [
-        stateful(ID, { events: [{ event: 'session.started' }] }),
-        stateful('acme.quiet'),
-      ],
+  it('событие получает только подписанное на него расширение', async () => {
+    const started = vi.fn();
+    const closed: string[] = [];
+    const h = await open({
+      candidates: [candidateOf(ID), candidateOf('acme.quiet')],
       modules: {
-        [ID]: { activate },
-        'acme.quiet': { activate: quiet },
+        [ID]: { server: (s) => void s.on('session.started', started) },
+        'acme.quiet': {
+          server: (s) =>
+            void s.on('attempt.closed', ({ exerciseId }) => {
+              closed.push(exerciseId);
+            }),
+        },
       },
     });
 
@@ -590,19 +532,18 @@ describe('ctx.events', () => {
       payload: { sessionId: 's', at: 1 },
     });
 
-    // единственный подписчик на `attempt.closed` — acme.quiet; он активируется, но не подписывается
-    await vi.waitFor(() => expect(quiet).toHaveBeenCalledTimes(1));
-    expect(activate).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(closed).toEqual(['e1']));
+    expect(started).not.toHaveBeenCalled();
   });
 
   it('отключённое расширение событий не получает', async () => {
     const seen: string[] = [];
-    const h = open({
-      extensions: [stateful(ID)],
+    const h = await open({
+      candidates: [candidateOf(ID)],
       modules: {
         [ID]: {
-          activate: (ctx) => {
-            ctx.events.on('attempt.closed', ({ exerciseId }) => {
+          server: (s) => {
+            s.on('attempt.closed', ({ exerciseId }) => {
               seen.push(exerciseId);
             });
           },
@@ -612,23 +553,9 @@ describe('ctx.events', () => {
     h.engine.emit(attemptClosed('on'));
     await vi.waitFor(() => expect(seen).toEqual(['on']));
 
-    h.policy.update({
-      disabled: [ID],
-      checkUpdates: true,
-      safeMode: false,
-      notificationsOff: [],
-      catalogUrl: null,
-      schedulesOff: [],
-    });
+    h.policy.update({ ...POLICY_ALLOWING, disabled: [ID] });
     h.engine.emit(attemptClosed('off'));
-    h.policy.update({
-      disabled: [],
-      checkUpdates: true,
-      safeMode: false,
-      notificationsOff: [],
-      catalogUrl: null,
-      schedulesOff: [],
-    });
+    h.policy.update({ ...POLICY_ALLOWING, disabled: [] });
     h.engine.emit(attemptClosed('on-again'));
 
     await vi.waitFor(() => expect(seen).toEqual(['on', 'on-again']));
@@ -637,13 +564,13 @@ describe('ctx.events', () => {
   it('исключение обработчика не мешает следующим событиям, перезапуск хоста не взводится', async () => {
     const seen: string[] = [];
     const restart = vi.fn();
-    const h = open({
-      extensions: [stateful(ID)],
+    const h = await open({
+      candidates: [candidateOf(ID)],
       restart,
       modules: {
         [ID]: {
-          activate: (ctx) => {
-            ctx.events.on('attempt.closed', ({ exerciseId }) => {
+          server: (s) => {
+            s.on('attempt.closed', ({ exerciseId }) => {
               if (exerciseId === 'bad') throw new Error('handler bug');
               seen.push(exerciseId);
             });
@@ -669,16 +596,15 @@ describe('ctx.events', () => {
   });
 
   it('обработчик дольше 2 с отбрасывается, следующее событие идёт дальше; перезапуск хоста не взводится', async () => {
-    vi.useFakeTimers();
     const seen: string[] = [];
     const restart = vi.fn();
-    const h = open({
-      extensions: [stateful(ID)],
+    const h = await open({
+      candidates: [candidateOf(ID)],
       restart,
       modules: {
         [ID]: {
-          activate: (ctx) => {
-            ctx.events.on('attempt.closed', async ({ exerciseId }) => {
+          server: (s) => {
+            s.on('attempt.closed', async ({ exerciseId }) => {
               // завис навсегда: промис не завершается
               if (exerciseId === 'hang') await new Promise<void>(() => {});
               seen.push(exerciseId);
@@ -687,6 +613,7 @@ describe('ctx.events', () => {
         },
       },
     });
+    vi.useFakeTimers();
 
     h.engine.emit(attemptClosed('hang'));
     h.engine.emit(attemptClosed('next'));
@@ -702,16 +629,16 @@ describe('ctx.events', () => {
     expect(restart).not.toHaveBeenCalled();
   });
 
-  it('очередь расширения — 100 событий: при переполнении отбрасываются самые старые, в лог предупреждение', async () => {
+  it('очередь расширения ограничена: при переполнении отбрасываются самые старые, в лог предупреждение', async () => {
     const seen: string[] = [];
     const blocker = gate();
-    const h = open({
-      extensions: [stateful(ID)],
+    const h = await open({
+      candidates: [candidateOf(ID)],
       queueLimit: 3,
       modules: {
         [ID]: {
-          activate: (ctx) => {
-            ctx.events.on('attempt.closed', async ({ exerciseId }) => {
+          server: (s) => {
+            s.on('attempt.closed', async ({ exerciseId }) => {
               await blocker.open;
               seen.push(exerciseId);
             });
@@ -736,21 +663,21 @@ describe('ctx.events', () => {
     ]);
   });
 
-  it('сбой активации не роняет доставку: другое расширение получает события, перезапуска нет', async () => {
+  it('сбой server не роняет доставку: другое расширение получает события, перезапуска нет', async () => {
     const seen: string[] = [];
     const restart = vi.fn();
-    const h = open({
-      extensions: [stateful('acme.broken'), stateful(ID)],
+    const h = await open({
+      candidates: [candidateOf('acme.broken'), candidateOf(ID)],
       restart,
       modules: {
         'acme.broken': {
-          activate: () => {
+          server: () => {
             throw new Error('cannot start');
           },
         },
         [ID]: {
-          activate: (ctx) => {
-            ctx.events.on('attempt.closed', ({ exerciseId }) => {
+          server: (s) => {
+            s.on('attempt.closed', ({ exerciseId }) => {
               seen.push(exerciseId);
             });
           },
@@ -767,58 +694,61 @@ describe('ctx.events', () => {
         extensionId: 'acme.broken',
         cause: 'activation-failed',
       }),
-      'extension event handler failed',
+      'extension registration failed',
     );
     expect(restart).not.toHaveBeenCalled();
   });
 
-  it('замена набора: накопленные события удалённого расширения отбрасываются, его активация закрыта', async () => {
+  it('замена набора: накопленные события удалённого расширения отбрасываются, его очистка вызвана', async () => {
     const seen: string[] = [];
     const watched: string[] = [];
     const blocker = gate();
     const entered = deferred();
-    const deactivate = vi.fn();
-    const witness = sentinel(watched);
-    const h = open({
-      extensions: [stateful(ID), witness.extension],
+    const cleanup = vi.fn();
+    const h = await open({
+      candidates: [candidateOf(ID), candidateOf('acme.sentinel')],
       modules: {
         [ID]: {
-          activate: (ctx) => {
-            ctx.events.on('attempt.closed', async ({ exerciseId }) => {
+          server: (s) => {
+            s.on('attempt.closed', async ({ exerciseId }) => {
               entered.resolve();
               await blocker.open;
               seen.push(exerciseId);
             });
+            return cleanup;
           },
-          deactivate,
         },
-        'acme.sentinel': witness.module,
+        'acme.sentinel': {
+          server: (s) => {
+            s.on('attempt.closed', ({ exerciseId }) => {
+              watched.push(exerciseId);
+            });
+          },
+        },
       },
     });
     for (const id of ['e1', 'e2', 'e3']) h.engine.emit(attemptClosed(id));
     await entered.promise;
 
-    const replaced = h.replace([witness.extension]);
+    const replaced = h.replace([candidateOf('acme.sentinel')]);
     blocker.release();
     await replaced;
     h.engine.emit(attemptClosed('after'));
-    await vi.waitFor(() =>
-      expect(watched).toEqual(['e1', 'e2', 'e3', 'after']),
-    );
+    await vi.waitFor(() => expect(watched).toContain('after'));
 
-    expect(deactivate).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(cleanup).toHaveBeenCalledTimes(1));
     // e1 был в обработке; e2 и e3 стояли в очереди удалённого расширения
     expect(seen).toEqual(['e1']);
   });
 
   it('обновление расширения: старый обработчик снят, событие приходит один раз', async () => {
     const seen: string[] = [];
-    const h = open({
-      extensions: [stateful(ID)],
+    const h = await open({
+      candidates: [candidateOf(ID)],
       modules: {
         [ID]: {
-          activate: (ctx) => {
-            ctx.events.on('attempt.closed', ({ exerciseId }) => {
+          server: (s) => {
+            s.on('attempt.closed', ({ exerciseId }) => {
               seen.push(exerciseId);
             });
           },
@@ -828,7 +758,7 @@ describe('ctx.events', () => {
     h.engine.emit(attemptClosed('before'));
     await vi.waitFor(() => expect(seen).toEqual(['before']));
 
-    await h.replace([stateful(ID, { version: '2.0.0' })]);
+    await h.replace([candidateOf(ID, { revision: 'r2' })]);
     h.engine.emit(attemptClosed('after'));
 
     await vi.waitFor(() => expect(seen).toContain('after'));
@@ -837,66 +767,54 @@ describe('ctx.events', () => {
 });
 
 describe('запросы хоста к движку', () => {
-  const requestingModule = (outcome: { error?: unknown }) => ({
-    activate: async (ctx: ExtensionContext) => {
-      try {
-        await ctx.storage.get('k');
-      } catch (error) {
-        outcome.error = error;
-      }
-    },
-  });
-  const deliver = {
-    id: '1',
-    method: 'deliverEvent' as const,
-    params: {
-      extensionId: ID,
-      name: 'session.started' as const,
-      payload: { sessionId: 's', at: 1 },
-    },
+  /** Хост без движка-заглушки: движок — конец канала, которым управляет тест. */
+  const bare = async () => {
+    const [engineSide, hostSide] = createEndpointPair();
+    let context: ServerContext | undefined;
+    const runtime = createExtensionRuntime({
+      library: nullLibrary,
+      logger: createLogger(),
+      modules: {
+        [ID]: {
+          server: (s) => {
+            context = s;
+          },
+        },
+      },
+    });
+    runtime.attach(hostSide);
+    await runtime.replace([candidateOf(ID)]);
+    return { engineSide, runtime, storage: (context as ServerContext).storage };
   };
 
   it('закрытие соединения отклоняет ожидающие запросы', async () => {
-    const outcome: { error?: unknown } = {};
-    const [engineSide, hostSide] = createEndpointPair();
-    const runtime = createExtensionRuntime({
-      extensions: [stateful(ID, { settings: [] })],
-      library: nullLibrary,
-      logger: createLogger(),
-      modules: { [ID]: requestingModule(outcome) },
-    });
-    runtime.attach(hostSide);
+    const { engineSide, runtime, storage } = await bare();
     const requests: unknown[] = [];
     engineSide.onMessage((message) => requests.push(message));
 
-    engineSide.post(deliver);
+    const pending = storage.get('k').catch((error: unknown) => error);
     await vi.waitFor(() => expect(requests).toHaveLength(1));
     engineSide.close();
 
-    await vi.waitFor(() => expect(outcome.error).toBeDefined());
-    expect(outcome.error).toMatchObject({ code: 'UNAVAILABLE' });
+    expect(await pending).toMatchObject({ code: 'UNAVAILABLE' });
     await runtime.dispose();
   });
 
   it('молчащий движок: запрос отклоняется по сроку, хост это не перезапускает', async () => {
-    vi.useFakeTimers();
-    const outcome: { error?: unknown } = {};
-    const [engineSide, hostSide] = createEndpointPair();
-    const runtime = createExtensionRuntime({
-      extensions: [stateful(ID, { settings: [] })],
-      library: nullLibrary,
-      logger: createLogger(),
-      modules: { [ID]: requestingModule(outcome) },
-    });
-    runtime.attach(hostSide);
+    const { engineSide, runtime, storage } = await bare();
     engineSide.onMessage(() => {});
+    vi.useFakeTimers();
+    let settled = false;
 
-    engineSide.post(deliver);
+    const pending = storage.get('k').catch((error: unknown) => {
+      settled = true;
+      return error;
+    });
     await vi.advanceTimersByTimeAsync(ENGINE_REQUEST_MS - 1);
-    expect(outcome.error).toBeUndefined();
+    expect(settled).toBe(false);
     await vi.advanceTimersByTimeAsync(2);
 
-    expect(outcome.error).toMatchObject({ code: 'TIMEOUT' });
+    expect(await pending).toMatchObject({ code: 'TIMEOUT' });
     await runtime.dispose();
   });
 });

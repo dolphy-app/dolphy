@@ -6,10 +6,8 @@
  */
 import type { EngineEvent, LearningEngine } from '@dolphy-app/engine-contract';
 import type { SmokeBridge } from '../../../shared/smoke.ts';
-import {
-  importExtensionModule,
-  loadExtensionComponent,
-} from '@/shared/lib/extension-component.ts';
+import { importExtensionModule } from '@/shared/lib/extension-clients.ts';
+import { moduleUrlOf } from '@/shared/lib/extension-url.ts';
 
 const EXERCISE_ID = 'sql_kb::where::q2';
 const CHOICE_EXERCISE_ID = 'choice_kb::basic::q1';
@@ -191,23 +189,26 @@ const js = async (engine: LearningEngine): Promise<Scenario> => {
   };
 };
 
-/** Модули видов ответа грузятся по `dolphy-ext://` (CSP, CORS с file://) и отдают компонент вида. */
+/** Клиентские модули расширений видов ответа грузятся по `dolphy-ext://` (CSP, CORS с file://) и отдают функцию `client`. */
 const renderer = async (engine: LearningEngine): Promise<Scenario> => {
   const loaded: Record<string, boolean> = {};
+  const { clients } = await engine.extensions.contributions();
   for (const exerciseId of [EXERCISE_ID, CHOICE_EXERCISE_ID, JS_EXERCISE_ID]) {
     const { exercise } = await engine.practice.beginAttempt({ exerciseId });
-    if (exercise.task === undefined) {
+    const owner = clients.find(
+      ({ extensionId }) => extensionId === exercise.task?.extensionId,
+    );
+    if (owner === undefined) {
       loaded[exerciseId] = false;
       continue;
     }
     try {
-      await loadExtensionComponent(
-        exercise.task,
-        'views',
-        exercise.task.type,
-        importExtensionModule,
-      );
-      loaded[exerciseId] = true;
+      const module = await importExtensionModule(moduleUrlOf(owner));
+      loaded[exerciseId] =
+        typeof module === 'object' &&
+        module !== null &&
+        'client' in module &&
+        typeof module.client === 'function';
     } catch {
       loaded[exerciseId] = false;
     }

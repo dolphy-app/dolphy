@@ -2,20 +2,17 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
-import {
-  updatesBadgeText,
-  useContributions,
-  useExtensionUpdates,
-} from '@/shared/api/engine';
+import { updatesBadgeText, useExtensionUpdates } from '@/shared/api/engine';
 import { APP_NAME } from '@/shared/config/app.ts';
 import { extensionIconOf } from '@/shared/config/extension-icons.ts';
 import { ROUTE } from '@/shared/config/routes.ts';
+import { useExtensionClients } from '@/shared/lib/extension-clients.ts';
 import { useExtensionText } from '@/shared/lib/extension-text.ts';
 import { useExtensionWhen } from '@/shared/lib/extension-when.ts';
 
 const { t } = useI18n();
 const router = useRouter();
-const contributions = useContributions();
+const clients = useExtensionClients();
 const extensionText = useExtensionText();
 const extensionWhen = useExtensionWhen();
 const extensionUpdates = useExtensionUpdates();
@@ -27,7 +24,7 @@ const updatesBadge = computed(() =>
 
 // пункт панели с ложным `when` скрыт; сама панель открывается из расширения (`openPanel`)
 const panels = computed(() =>
-  contributions.value.panels.filter(({ when }) => extensionWhen.matches(when)),
+  clients.panels.value.filter(({ when }) => extensionWhen.matches(when)),
 );
 
 const items = computed(() =>
@@ -77,7 +74,7 @@ const bottomItems = computed(() =>
         rounded="lg"
       />
     </v-list>
-    <!-- панели расширений: список из реактивных вкладов, названия подставляются из переводов расширения -->
+    <!-- панели расширений: список из реестра клиентских частей, названия на языке окна -->
     <v-list
       v-if="panels.length > 0"
       nav
@@ -89,14 +86,14 @@ const bottomItems = computed(() =>
     >
       <v-list-item
         v-for="panel in panels"
-        :key="`${panel.extensionId}:${panel.id}`"
+        :key="panel.key"
         :to="{
           name: ROUTE.extensionPanel,
           params: { extensionId: panel.extensionId, panelId: panel.id },
         }"
         tabindex="0"
         :prepend-icon="extensionIconOf(panel.icon)"
-        :title="extensionText.of(panel.title, panel.extensionId)"
+        :title="extensionText.of(panel.title)"
         color="primary"
         rounded="lg"
       />

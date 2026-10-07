@@ -2,57 +2,6 @@
   "id": "acme.rich",
   "version": "1.0.0",
   "apiVersion": 1,
-  "contributes": {
-    "exerciseTypes": [
-      {
-        "id": "acme.rich",
-        "title": "Богатый вид",
-        "specSchema": { "type": "object" },
-        "answerSchema": { "type": "string" }
-      }
-    ],
-    "settings": [
-      {
-        "id": "acme.rich.advanced",
-        "type": "boolean",
-        "label": "Расширенный режим",
-        "default": false
-      },
-      {
-        "id": "acme.rich.note",
-        "type": "text",
-        "label": "Заметка",
-        "default": "первая\nвторая",
-        "maxLength": 40,
-        "group": "Содержимое",
-        "order": 2
-      },
-      {
-        "id": "acme.rich.tags",
-        "type": "list",
-        "label": "Метки",
-        "description": "До трёх меток",
-        "default": ["alpha"],
-        "maxItems": 3,
-        "itemMaxLength": 6,
-        "group": "Содержимое",
-        "order": 1
-      },
-      {
-        "id": "acme.rich.tint",
-        "type": "color",
-        "label": "Цвет акцента",
-        "default": "#336699",
-        "group": "Оформление"
-      },
-      {
-        "id": "acme.rich.secret",
-        "type": "string",
-        "label": "Скрытая настройка",
-        "default": "x",
-        "group": "Дополнительно",
-        "visibleWhen": { "setting": "acme.rich.advanced", "equals": true }
-      }
-    ]
-  }
+  "main": "./main.mjs",
+  "client": "./client.mjs"
 }

@@ -8,7 +8,6 @@ import { useInstallContext } from '../model/install.ts';
 import { useInstalledExtensions } from '../model/installed.ts';
 import { rowsOfCatalog } from '../lib/dependencies.ts';
 import { useEngine } from '@/shared/api/engine';
-import ExtensionContributions from './ExtensionContributions.vue';
 import ExtensionDeprecation from './ExtensionDeprecation.vue';
 import ExtensionTags from './ExtensionTags.vue';
 import ExtensionHeading from './ExtensionHeading.vue';
@@ -242,11 +241,6 @@ const closeOnBackdrop = (open: boolean) => {
                 </div>
               </section>
               <ExtensionTags :tags="item.target.tags" />
-              <ExtensionContributions
-                :contributes="item.target.contributes"
-                :titles="item.target.titles"
-                :name="item.target.name"
-              />
               <ExtensionDependencies
                 :rows="rowsOfCatalog(item.target.dependencies, installed)"
               />

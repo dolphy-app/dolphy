@@ -19,7 +19,7 @@ describe('сборка dolphy.math', () => {
     const outDir = await mkdtemp(join(tmpdir(), 'dolphy-math-'));
     out.push(outDir);
     const { dir } = await buildExtension({ root, outDir });
-    const code = await readFile(join(dir, 'markdown.mjs'), 'utf8');
+    const code = await readFile(join(dir, 'client.mjs'), 'utf8');
     expect(code).not.toMatch(/\bfrom\s*["']https?:/);
     expect(code).not.toMatch(/\bimport\s*\(\s*["']https?:/);
     expect(code).not.toMatch(/\bimport\s*["']https?:/);

@@ -24,7 +24,6 @@ import {
 import type { ExtensionLogger } from '@dolphy-app/extension-api';
 import type { createCatalog } from './catalog.ts';
 import type { ChannelOutcome, ChannelParams, HostChannel } from './channel.ts';
-import type { DiscoverySource } from './holder.ts';
 import {
   commandOutcomeSchema,
   gradeResultSchema,
@@ -255,15 +254,13 @@ export const createRemoteGradePolicies = (
 };
 
 /**
- * Срок вызова команды у движка: больше раннера ограниченного процесса (12 с) и
- * обработчика (10 с), включает ленивую активацию и запуск процесса.
+ * Срок вызова команды у движка: больше обработчика (10 с), с запасом на
+ * передачу по каналу.
  */
 export const COMMAND_CLIENT_DEADLINE_MS = 14_000;
 
 export interface RemoteExtensionCommandsOptions {
   channel: HostChannel;
-  /** Набор расширений движка: панель, на которую указывает `openPanel`, обязана в нём быть. */
-  discovery: DiscoverySource;
   logger: ExtensionLogger;
   deadlineMs?: number;
 }
@@ -286,7 +283,7 @@ const commandCause = (cause: ExtFailureCause): ExtensionCommandErrorCause => {
 export const createRemoteExtensionCommands = (
   options: RemoteExtensionCommandsOptions,
 ): ExtensionCommands => {
-  const { channel, discovery, logger } = options;
+  const { channel, logger } = options;
   const deadlineMs = options.deadlineMs ?? COMMAND_CLIENT_DEADLINE_MS;
   return {
     async invoke(extensionId, commandId, args) {
@@ -330,16 +327,6 @@ export const createRemoteExtensionCommands = (
       }
       const { data } = parsed;
       if (data.kind !== 'openPanel') return data;
-      const declared = discovery
-        .get()
-        .extensions.find(({ id }) => id === extensionId)
-        ?.panels.some(({ id }) => id === data.panelId);
-      if (declared !== true) {
-        throw fail(
-          'invalid-result',
-          `extension command opened an undeclared panel '${data.panelId}'`,
-        );
-      }
       return data.props === undefined
         ? { kind: 'openPanel', panelId: data.panelId }
         : { kind: 'openPanel', panelId: data.panelId, props: data.props };
@@ -348,8 +335,7 @@ export const createRemoteExtensionCommands = (
 };
 
 /**
- * Срок импорта или экспорта у движка: больше раннера ограниченного процесса
- * (32 с) и обработчика (30 с), включает ленивую активацию, запуск процесса и
+ * Срок импорта или экспорта у движка: больше обработчика (30 с), с запасом на
  * передачу файла.
  */
 export const TRANSFER_CLIENT_DEADLINE_MS = 34_000;

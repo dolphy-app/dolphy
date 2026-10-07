@@ -11,153 +11,71 @@ app uses to load it (`inspectExtensionDir` from `@dolphy-app/extension-host`),
 
 ```
 <project>/
-  extension.json          # source manifest (required), same format as an installed one
-  src/index.ts            # all extension code: host, views, panels, widgets, markdown
+  extension.json          # source manifest (required), identity and metadata only
+  src/index.ts            # all extension code: the `server` and `client` exports
   dolphy-ext.config.json  # optional
-  schema/, assets/        # optional directories, copied as is (assets/ is checked, see "Style sheets, images and fonts")
-  locales/                # optional ru.json, en.json: texts for %key% labels (see "Translations")
+  assets/                 # optional, copied as is (checked, see "Style sheets, images and fonts")
 ```
 
-`src/index.ts` has named exports; the build lays them out into the files the
-manifest names (`main`, `renderer`, `module`):
+`extension.json` holds identity and publication metadata (`id`, `version`,
+`apiVersion`, `name`, `description`, `author`, `platforms`, `minAppVersion`,
+`icon`, `tags`, `dependencies`). It declares no contributions: the extension
+registers them by code. `main` and `client` of the source manifest are not
+needed; the build writes them into the built manifest.
 
-| Export     | Value                                            | Output file                                |
-| ---------- | ------------------------------------------------ | ------------------------------------------ |
-| `host`     | `defineExtension({ … })`                         | `main` (`main.mjs`, Node bundle)           |
-| `views`    | exercise type id → `defineAnswerView(component)` | the type's `renderer` (`view.mjs`)         |
-| `panels`   | panel id → `defineExtensionPanel(component)`     | the panel's `module` (`panel.mjs`)         |
-| `widgets`  | widget id → `defineExtensionWidget(component)`   | the widget's `module` (`widget.mjs`)       |
-| `markdown` | language → `defineMarkdownRenderer(component)`   | the renderer's `renderer` (`markdown.mjs`) |
+`src/index.ts` has two optional named exports:
 
-Every browser file is a table of Vue components: its default export is
-`{ views?, panels?, widgets?, markdown? }` with the non-empty tables only, and
-one file may hold several kinds. The file is built with `vue` and `vuetify`
-left out (the app gives its own instances through `globalThis.__dolphy`), so a
-bundle is a few KiB; `vuetify/styles` is dropped too. The host file keeps them
-out as well: a component defined at the top level of `src/index.ts` does not
-pull Vue into `main.mjs`.
+| Export   | Value                           | Output file                               |
+| -------- | ------------------------------- | ----------------------------------------- |
+| `server` | `(context: ServerContext) => …` | `main.mjs` (Node bundle, extension host)  |
+| `client` | `(context: ClientContext) => …` | `client.mjs` (browser bundle, app window) |
+
+At least one of them must exist. `server` registers exercise types, grade
+policies, commands, schedules, importers, exporters, settings and event
+handlers; `client` adds panels, slot components, answer views, markdown
+renderers, themes and client commands (see `@dolphy-app/extension-api`).
 
 ```ts
-import {
-  defineAnswerView,
-  defineExtension,
-  defineExtensionPanel,
-} from '@dolphy-app/extension-sdk';
+import { defineClient, defineServer } from '@dolphy-app/extension-sdk';
 
-export const host = defineExtension({ commands: { 'acme.open': () => null } });
-export const views = {
-  'acme.echo': defineAnswerView(InputView),
-};
-export const panels = { 'acme.panel': defineExtensionPanel(Screen) };
+export const server = defineServer((s) => {
+  s.registerCommand({ id: 'acme.open', title: 'Open', run: () => undefined });
+});
+export const client = defineClient((c) => {
+  c.addPanel({ id: 'acme.panel', title: 'Acme', component: Screen });
+});
 ```
 
-- Each output file is built from a virtual entry generated from the manifest;
-  nothing is written into the project but `.dolphy/ids.d.ts` (see "Typed
-  ids"). The entry imports only what the file
-  needs from `src/index.ts`, so host code never reaches browser files and view,
-  panel and renderer code never reaches `main.mjs`. The SDK `define…` functions
-  are side-effect free, which is what lets the bundler drop the rest; keep the
-  top level of `src/index.ts` (and of the modules it imports) to declarations.
-  A library imported by host code needs `"sideEffects": false` in its
-  `package.json` (or a list of the files that do have effects), otherwise its
-  top level counts as code with effects and ends up in browser files.
-- The entry of a browser file is generated from the manifest: it imports the
-  needed tables from `src/index.ts` and exports them as one object. Nothing is
-  registered by the bundle.
-- Checks against the manifest, on every build and every rebuild: each declared
-  exercise type, panel and language needs a key in `views`, `panels` and
-  `markdown`; a key the manifest does not declare is an error naming the key
-  and the file; a manifest with `main` needs `host`. The keys are read from the
-  source statically (an object literal, also through a local constant or a
-  re-export from your own files); author code is never executed by the build.
-- A Node module (`node:*`, a builtin) or an `external` package from
-  `dolphy-ext.config.json` that is still imported by a browser file after the
-  host code is dropped is a build error naming the file and the module.
-- A manifest without code (only `themes`, `settings`, or `markdownRenderers`
-  with `main: null`) builds without `host`; a theme needs no `src` directory at
-  all. Commands (`contributes.commands`) are run by extension code, so they
-  need `main` and `host`.
-- No `src/index.ts` in an extension with code is an error with the migration
-  steps from the old layout (`src/main.ts`, `src/view.ts`, `src/panel.ts`,
-  `src/markdown.ts`), which is no longer supported.
-- Output file names come from the manifest (`main`, `renderer`, `module`), for
-  example `./ui/screen.js` produces `ui/screen.js`. Every file is
-  self-contained: no shared chunks.
-- Node bundles: ES module, target `node22`, not minified; only Node builtins and
-  `external` packages stay external. Browser bundles: `es2022`, with `vue` and `vuetify`
-  external.
+- Each output file is built from a virtual entry that re-exports one export of
+  `src/index.ts` under the same name (`main.mjs` exports `server`, `client.mjs` exports `client`); nothing is written into the project. Which
+  files are built follows the exports, found statically (an exported constant,
+  function or specifier, also through a relative re-export); author code is never
+  executed by the build. The built manifest gets `"main": "./main.mjs"` when
+  `server` exists and `"client": "./client.mjs"` when `client` exists, `null`
+  otherwise; the other fields are those of the source manifest.
+- The client file is built with `vue` and `vuetify` left out (the app gives its
+  own instances through `globalThis.__dolphy`), so a bundle is a few KiB;
+  `vuetify/styles` is dropped too. The server file keeps them out as well: a
+  component defined at the top level of `src/index.ts` does not pull Vue into
+  `main.mjs`. Tree shaking separates the parts, so keep the top level of
+  `src/index.ts` (and of the modules it imports) to declarations. A library
+  imported by one part needs `"sideEffects": false` in its `package.json` (or a
+  list of the files that do have effects), otherwise its top level counts as code
+  with effects and ends up in the other file.
+- Boundaries, checked on every build and rebuild, with the file and the module in
+  the message: a Node module (`node:*`, a builtin) or an `external` package from
+  `dolphy-ext.config.json` that is still imported by `client.mjs` is an error;
+  `vue` or `vuetify*` still imported by `main.mjs` is an error.
+- No `src/index.ts`, or one that exports neither `server` nor `client`, is an
+  error.
+- Node bundle: ES module, target `node22`, not minified; only Node builtins and
+  `external` packages stay external. Browser bundle: `es2022`, with `vue` and
+  `vuetify` external. Every file is self-contained: no shared chunks.
 - `dolphy-ext.config.json`:
   `{ "nodeEntries": { "worker.mjs": "src/worker.ts" }, "external": ["better-sqlite3"] }` —
-  additional Node entries (output file → source), built as they are, and
-  external packages.
-- Schema files the manifest references are copied keeping their relative path
-  (except those already under `schema/` or `assets/`). `extension.json` is
-  copied byte for byte; the normalised form is not written.
-
-## Typed ids
-
-`dolphy-ext types [dir]` writes `<dir>/.dolphy/ids.d.ts` from `extension.json`
-alone: nothing of your code is run and no network is used. Every
-`dolphy-ext build` and every `--watch` rebuild after `extension.json` changes
-does the same. The file augments `ExtensionIds` of
-`@dolphy-app/extension-sdk`, so the SDK knows the ids the manifest declares:
-
-```ts
-declare module '@dolphy-app/extension-sdk' {
-  interface ExtensionIds {
-    exerciseTypes: 'acme.echo';
-    gradePolicies: never;
-    commands: 'acme.open' | 'acme.close';
-    events: 'attempt.closed';
-    panels: never;
-    widgets: never;
-    importers: 'acme.csv';
-    exporters: never;
-    markdownLanguages: never;
-    settings: { 'acme.goal': number; 'acme.mode': 'fast' | 'slow' };
-  }
-}
-```
-
-A setting is typed by its definition: `boolean`, `string` (also for `text` and
-`color`), `string[]` for `list`, `number`, or the union of the `enum` option
-values. The output is deterministic and the file is
-not rewritten when its content is unchanged, so a watcher on the project does
-not loop. Include it in `tsconfig.json` as `".dolphy/ids.d.ts"` (a bare
-`.dolphy` entry is skipped by TypeScript because it is a hidden directory) and
-keep `.dolphy` out of git; it is never part of `dist-ext` or of a catalog
-source check. What the SDK does with the ids is described in the README of
-`@dolphy-app/extension-sdk`, "Typed ids".
-
-## Importers, exporters, `when`, key bindings and dependencies
-
-`dolphy-ext validate` (and `build`, which runs it) parses these manifest fields
-with the same code as the app and reports each problem with its path:
-
-- `contributes.importers` (`id`, `title`, `accept` of 1–8 lower-case file
-  extensions such as `.csv`, optional `input` `text` or `bytes`) and
-  `contributes.exporters` (`id`, `title`, `scope` `course` or `progress`): at
-  most 8 of each kind. `dolphy-ext
-types` writes their ids, so a handler record of `defineExtension` that misses
-  a declared id fails `tsc`.
-- `when` of a command, a panel and a widget: at most 200 characters over the
-  keys `route`, `course.active`, `session.active`, `locale` and `theme.dark`. An
-  unknown key, an unknown value of `route` or `locale`, a type mismatch or a
-  syntax error is reported with the position in the text.
-- `keybinding` and `keybindings[]` of a command must parse on macOS, Windows and
-  Linux: `Ctrl+X` is fine, `Mod+Ctrl+K` (a repeated modifier on Windows and
-  Linux) and a bare printable key without a `when` are errors, with the path
-  such as `contributes.commands.0.keybindings.1.key`.
-- `dependencies` (up to 16 entries `{ id, range? }`, `range` being comparators
-  such as `>=1.0.0 <2.0.0`): a repeat, a dependency on the extension itself and
-  a bad range are errors. Whether a dependency is installed is a runtime
-  question for the app; `validate` does not know it.
-
-`catalog build` carries the ids of `importers` and `exporters` into the entry's
-`contributes` and the `dependencies` of the manifest into the version record;
-`catalog check` rejects a manifest whose fields the parser above refuses. The
-catalog repository pins a released version of this package, so a submission
-that uses these fields passes the check only after that pin is raised.
+  additional Node entries (output file → source), built as they are (only with a
+  `server` export), and external packages.
+- `assets/` and the icon are copied keeping their relative path.
 
 ## Style sheets, images and fonts
 
@@ -197,7 +115,7 @@ declare module '*?url' {
 ```
 
 Put `new URL(…)` inside the function that uses it: a module-level expression
-stays in the host bundle too, which then writes the same asset file.
+stays in the other part's bundle too, which then writes the same asset file.
 
 Limits (also those of `catalog check`): `css` up to 256 KiB, `svg` up to 64 KiB,
 raster images up to 512 KiB each and at most 4096×4096 pixels, `woff2` up to
@@ -234,34 +152,8 @@ at the 2x scale of a typical high-density display; a bigger one is scaled down.
 catalog filters: up to 5 unique values of `learning`, `language`, `content`,
 `theme`, `interface`, `productivity` and `developer`. An unknown, a repeated
 or a sixth tag is a manifest error (`tags.N: tag must be one of: …`) reported
-by `validate`, `build` and `catalog check` (`CHECK-001`). Without `tags` the app
-derives them from the contributions; an explicit list replaces the derived one.
-
-## Translations
-
-A label of the manifest can be `%key%` (the whole string; the key is
-`[A-Za-z0-9_.-]{1,64}`): the app takes the text from `locales/<language>.json`
-(`ru`, `en`), a flat object of strings (a file is at most 64 KiB, 500 keys, a
-value at most 500 characters). The fields are `name`, `description`, and for
-contributions `label`/`title`/`description`/`category`, a setting's `group` and
-the labels of its `enum` options. The window picks the text of the interface
-language, then `en`, then shows the `%key%` as it is; the catalog always shows
-`en`. The `%key%` itself is still limited by the length of its field.
-
-`locales/` is copied into the built extension. `dolphy-ext validate` (and
-`build`, which runs it) and `catalog check` (`CHECK-026`):
-
-- require `locales/en.json` when the manifest has any `%key%`;
-- fail for a key that `en` lacks, for a text (in any language) that breaks the
-  limit of its field, and for a file that is not valid JSON or not a flat
-  object of strings within the limits;
-- warn about a key of a file that the manifest does not use and about a file in
-  `locales/` that is not `ru.json` or `en.json`.
-
-`name` and `description` are judged in English by the other checks (`CHECK-003`,
-`CHECK-019`, `lint`), and `catalog build` writes the English `name`,
-`description` and `titles` into the index. The published `extension.json` keeps
-the `%key%` strings.
+by `validate`, `build` and `catalog check` (`CHECK-001`). Without `tags` the extension
+has none in the catalog.
 
 ## Output
 
@@ -274,7 +166,6 @@ discovery root and the value of `DOLPHY_DEV_EXTENSIONS`. After the build the res
 
 ```
 dolphy-ext build [dir] [--out <dir>] [--watch]
-dolphy-ext types [dir]
 dolphy-ext validate <dir>
 dolphy-ext lint [dir] [--built <dir>]
 dolphy-ext dev [dir] [--app <path>]
@@ -303,14 +194,12 @@ check prints nothing.
 
 `--watch` rebuilds the affected files when `src/index.ts` (or anything it
 imports) changes and reloads everything when `extension.json` changes. A burst
-of changes is reported once per rebuild: `rebuilt main.mjs, view.mjs`; an error
+of changes is reported once per rebuild: `rebuilt main.mjs, client.mjs`; an error
 is printed once per distinct reason with the output files and exports it
-affects (`error <id>: failed to bundle main.mjs (host from src/index.ts), …`).
-Schemas and `assets/` are copied at the start and after a manifest change.
-`extension.json` changes also rewrite `.dolphy/ids.d.ts` (only when its content
-changes).
+affects (`error <id>: failed to bundle main.mjs (server from src/index.ts), …`).
+`assets/` is copied at the start and after a manifest change.
 `--watch` bundles carry inline source maps (`//# sourceMappingURL=data:…`), so
-DevTools show your TypeScript in views, panels and renderers; the Node bundle
+DevTools show your TypeScript in the client file; the Node bundle
 `main.mjs` carries one too, but the app does not enable source maps for the
 extension process, so stack traces in the log point at `main.mjs`. A plain
 `build` and `catalog build` never write source maps (`catalog check` rejects
@@ -359,14 +248,14 @@ No output and code 0 means no findings.
 ### `catalog check <extensionsDir>`
 
 Checks the sources in `<extensionsDir>/<id>/` (a `dolphy-ext` project without
-`node_modules`, `dist-ext`, `.dolphy` and `.git`) against the rules below. `--ids a,b`
+`node_modules`, `dist-ext` and `.git`) against the rules below. `--ids a,b`
 limits the check to the listed extensions (all directories by default);
 `--published-index <path>` is the `index.v2.json` of the published catalog for
 `CHECK-012` (no file means nothing is published); `--max-app-version <x.y.z>` is
 the released app version for `CHECK-016`; `--skip-github-check` turns off the
 `api.github.com` request for `CHECK-006` (the API token is `GITHUB_TOKEN`);
 `--built <siteDir>` is the output of `catalog build`: the built version is read
-from `<siteDir>/extensions/<id>/<version>/` for `CHECK-022`…`CHECK-025`, which
+from `<siteDir>/extensions/<id>/<version>/` for `CHECK-022`…`CHECK-025` and `CHECK-031`, which
 are silent without the flag (the source tree has no bundle, so run `check` a
 second time after `catalog build`); a missing built version is one `warning`.
 `CHECK-021` needs `--published-index`. `--deprecated <path>` checks the form of
@@ -407,7 +296,7 @@ map is an `error`: the catalog builds without maps.
 | `CHECK-022` | built code has no `eval(` or `new Function(` (`warning`, needs `--built`)                                                          |
 | `CHECK-023` | built code does not look obfuscated (`warning`, needs `--built`)                                                                   |
 | `CHECK-025` | built code has no embedded source map (needs `--built`)                                                                            |
-| `CHECK-026` | `locales/*.json`: `en` is complete, texts fit their fields, files are valid (see "Translations")                                   |
+| `CHECK-031` | `main.mjs` and `client.mjs` of the built version match the `main` and `client` fields of its manifest (needs `--built`)            |
 | `CHECK-030` | `CHANGELOG.md` (optional) is at most 64 KiB of UTF-8 without NUL; no `## <version>` section for the current version is a `warning` |
 
 The rules are data in code (`src/catalog/rules.ts`, the `RULES` table); the
@@ -428,14 +317,8 @@ only, at most 100 files and 10 MB; each asset passes the checks of "Style sheets
 images and fonts" and the icon travels in the index as a `data:` URI. Any error
 leaves `<siteDir>` untouched.
 
-The build also writes what the catalog shows next to the identifiers. The entry
-gets `titles`: the `label` (themes, grade policies, settings) or `title`
-(exercise types and markdown renderers when they have one, commands, panels)
-of every contribution of the newest manifest, by contribution
-point; points without contributions are omitted, and so is the whole key when
-nothing has a title. The version record gets `tags` from the manifest of that
-version (omitted when empty). Rebuilding without a version bump refreshes the
-titles.
+The version record gets `tags` from the manifest of that version (omitted when
+empty); tags are only the explicit ones of the manifest.
 
 A `CHANGELOG.md` next to `README.md` is optional. When the project has one,
 the build copies it into the version (it is listed in `files` with its size and
@@ -444,8 +327,7 @@ changelog with `## 1.2.0`, `## [1.2.0] - 2026-10-01` or `## v1.2.0` headings
 (`CHECK-030`). A `CHANGELOG.md` over 64 KiB, not UTF-8 or with NUL fails the build.
 
 One file is published: `index.v2.json` (`schemaVersion: 2`). Every version of
-an extension is in it, whatever file types, `icon`, `tags` and
-contribution points it uses. The app reads it next to the catalog address; the
+an extension is in it, whatever file types, `icon` and `tags` it uses. The app reads it next to the catalog address; the
 address (`catalogUrl`) stays the identity of installed extensions. No
 `index.json` is written.
 
@@ -484,15 +366,13 @@ The published `@dolphy-app/extension-tools` package contains only the CLI
 ```ts
 import {
   buildExtension,
-  generateTypes,
   watchExtension,
   validateExtension,
 } from '@dolphy-app/extension-tools';
 
 const { id, dir, files } = await buildExtension({ root, outDir });
 const handle = await watchExtension({ root, logger }); // handle.close()
-const { ok, problems, warnings } = await validateExtension(dir);
-const { file, changed } = await generateTypes({ root }); // .dolphy/ids.d.ts
+const { ok, problems } = await validateExtension(dir);
 ```
 
 Build errors are `BuildError` (its `message` matches the text the app prints
@@ -500,13 +380,4 @@ for the same manifest).
 
 The examples in the "Точки вклада" and "Как написать
 расширение" sections of `docs/design/extensions.md` are built and checked by
-`test/docs-contributions.test.ts` (a theme is a project of one `extension.json`;
-a markdown renderer or a grade policy comes with one `src/index.ts`).
-
-## Settings and events
-
-The `settings` points (settings the user changes in the app) and `events`
-(subscription to learning events) are checked by the same `parseManifest`.
-`ctx.storage` needs no declaration. `dolphy-ext catalog build` writes
-`contributes.settings` and `contributes.events` into the index entry only when
-they are not empty.
+`test/docs-contributions.test.ts`.

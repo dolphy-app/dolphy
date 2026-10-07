@@ -2,32 +2,5 @@
   "id": "acme.csv",
   "version": "1.0.0",
   "apiVersion": 1,
-  "main": "./main.mjs",
-  "contributes": {
-    "importers": [
-      { "id": "acme.csv.text", "title": "Text", "accept": [".txt", ".csv"] },
-      {
-        "id": "acme.csv.bytes",
-        "title": "Bytes",
-        "accept": [".bin"],
-        "input": "bytes"
-      },
-      { "id": "acme.csv.many", "title": "Many", "accept": [".txt"] },
-      { "id": "acme.csv.bad", "title": "Bad", "accept": [".txt"] },
-      { "id": "acme.csv.fail", "title": "Fail", "accept": [".txt"] },
-      { "id": "acme.csv.spin", "title": "Spin", "accept": [".txt"] },
-      { "id": "acme.csv.pid", "title": "Pid", "accept": [".txt"] }
-    ],
-    "exporters": [
-      { "id": "acme.csv.course", "title": "Course", "scope": "course" },
-      {
-        "id": "acme.csv.course-bytes",
-        "title": "Course bytes",
-        "scope": "course"
-      },
-      { "id": "acme.csv.progress", "title": "Progress", "scope": "progress" },
-      { "id": "acme.csv.huge", "title": "Huge", "scope": "progress" },
-      { "id": "acme.csv.bad-name", "title": "Bad name", "scope": "progress" }
-    ]
-  }
+  "main": "./main.mjs"
 }

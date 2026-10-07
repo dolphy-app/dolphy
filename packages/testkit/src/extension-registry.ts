@@ -8,18 +8,14 @@ import type {
 export const createFakeExtensionRegistry = (
   items: readonly ExtensionInfoDto[] = [],
   contributions: RegistryContributions = {
+    clients: [],
     exerciseTypes: [],
-    themes: [],
-    markdownRenderers: [],
     gradePolicies: [],
     settings: [],
     commands: [],
-    panels: [],
-    widgets: [],
     schedules: [],
     importers: [],
     exporters: [],
-    messages: {},
   },
 ): ExtensionRegistry => ({
   list: () => items,

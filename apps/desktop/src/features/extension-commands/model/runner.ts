@@ -4,6 +4,10 @@ import type {
   ExtensionsService,
 } from '@dolphy-app/engine-contract';
 import type { JsonValue } from '@dolphy-app/extension-api';
+import type {
+  ClientCommand,
+  ExtensionClients,
+} from '@/shared/lib/extension-clients.ts';
 import { describeCommandFailure } from '../lib/failure.ts';
 import type { CommandFailure } from '../lib/failure.ts';
 import type { Notices } from './notices.ts';
@@ -15,8 +19,10 @@ export type CommandSource = 'palette' | 'panel';
 
 export interface CommandRunnerDeps {
   engine: Pick<ExtensionsService, 'invokeCommand'>;
-  /** Текущие вклады: команда и панель проверяются по ним в момент выполнения. */
-  contributions: () => Readonly<ContributionsDto>;
+  /** Серверные вклады: команда проверяется по ним в момент выполнения. */
+  contributions: () => Readonly<Pick<ContributionsDto, 'commands'>>;
+  /** Клиентские части окна: панель из результата команды проверяется по их реестру. */
+  clients: Pick<ExtensionClients, 'panels'>;
   notices: Notices;
   panelProps: PanelProps;
   /** Переход на страницу панели (маршрут знает приложение). */
@@ -36,6 +42,8 @@ export interface CommandRunner {
     args: JsonValue | undefined,
     source: CommandSource,
   ): Promise<JsonValue | undefined>;
+  /** Выполняет клиентскую команду в окне; сбой — уведомление, без исключения. */
+  runClient(command: Pick<ClientCommand, 'run'>): Promise<void>;
 }
 
 /** Отказ вызова команды, который панель получает как `Error`. */
@@ -65,11 +73,9 @@ export const createCommandRunner = (deps: CommandRunnerDeps): CommandRunner => {
     panelId: string,
     props: JsonValue | undefined,
   ) => {
-    const exists = deps
-      .contributions()
-      .panels.some(
-        (panel) => panel.extensionId === extensionId && panel.id === panelId,
-      );
+    const exists = deps.clients.panels.value.some(
+      (panel) => panel.extensionId === extensionId && panel.id === panelId,
+    );
     if (!exists) {
       deps.notices.push({ kind: 'failure', failure: CHANGED });
       return;
@@ -117,5 +123,16 @@ export const createCommandRunner = (deps: CommandRunnerDeps): CommandRunner => {
         deps.notices.push({ kind: 'failure', failure: error.failure });
         return undefined;
       }),
+    runClient: async ({ run }) => {
+      try {
+        await run();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        deps.notices.push({
+          kind: 'failure',
+          failure: { kind: 'failed', message },
+        });
+      }
+    },
   };
 };

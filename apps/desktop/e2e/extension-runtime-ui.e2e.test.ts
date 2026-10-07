@@ -14,7 +14,7 @@ import { course, exerciseFront } from './support/courses.ts';
 import { expectCount, expectText, expectVisible } from './support/locator.ts';
 
 const EXTENSION_ID = 'acme.runtimeui';
-const BUNDLES = ['view.mjs', 'panel.mjs', 'widget.mjs', 'markdown.mjs'];
+const BUNDLES = ['main.mjs', 'client.mjs'];
 /** Предел размера бандла: vue и vuetify в него не входят. */
 const BUNDLE_LIMIT_BYTES = 20 * 1024;
 
@@ -115,13 +115,13 @@ const openSession = async (client: Client, name: string) => {
 };
 
 describe('поверхности расширения на Vue и Vuetify (R2, R4)', () => {
-  it('виджет, панель, вид ответа и блок markdown живут в дереве окна без iframe и видят тему приложения', async () => {
+  it('инъекция, панель, вид ответа и блок markdown живут в дереве окна без iframe и видят тему приложения', async () => {
     const { page, client, commands } = await launch();
     const stillSameWindow = await client.markWindow();
 
-    const widget = page.getByTestId('runtimeui-widget');
-    await expectVisible(widget);
-    await expectThemeFollows(page, widget);
+    const injection = page.getByTestId('runtimeui-injection');
+    await expectVisible(injection);
+    await expectThemeFollows(page, injection);
     await expectCount(page.locator('iframe'), 0);
 
     await commands.navItem('Компоненты').click();
@@ -154,7 +154,7 @@ describe('поверхности расширения на Vue и Vuetify (R2, R
     await commands.navItem('Компоненты').click();
     await expectThemeFollows(page, page.getByTestId('runtimeui-panel'));
     await client.openPlan();
-    await expectThemeFollows(page, page.getByTestId('runtimeui-widget'));
+    await expectThemeFollows(page, page.getByTestId('runtimeui-injection'));
     await stillSameWindow();
   });
 

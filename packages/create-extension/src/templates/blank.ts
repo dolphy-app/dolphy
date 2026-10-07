@@ -1,6 +1,5 @@
 import { INITIAL_VERSION } from './common.ts';
 import type { TemplateModule } from './common.ts';
-import { idsBullet } from './common.ts';
 
 const manifestJson = (id: string): string => `{
   "$schema": "./node_modules/@dolphy-app/extension-api/dist/extension.schema.json",
@@ -10,42 +9,37 @@ const manifestJson = (id: string): string => `{
   "name": "Hello command",
   "description": "A command-palette command that shows a notification.",
   "author": "your-github-login",
-  "tags": ["productivity"],
-  "contributes": {
-    "commands": [{ "id": "${id}.hello", "title": "Say hello" }]
-  }
+  "tags": ["productivity"]
 }
 `;
 
 const indexTs = (
   id: string,
-): string => `import { defineExtension, notify } from '@dolphy-app/extension-sdk';
+): string => `import { defineServer, notify } from '@dolphy-app/extension-sdk';
 
-// extension code: runs in the extension process of the app
-// the command id comes from extension.json: a misspelt id or a declared id
-// without a handler fails \`pnpm typecheck\`
-export const host = defineExtension({
-  commands: {
-    '${id}.hello': () => notify('Hello from ${id}!'),
-  },
+// runs in the extension host: every call registers a contribution
+export const server = defineServer((s) => {
+  s.registerCommand({
+    id: '${id}.hello',
+    title: { en: 'Say hello', ru: 'Поздороваться' },
+    run: () => notify('Hello from ${id}!'),
+  });
 });
 `;
 
 const indexTestTs = (
   id: string,
-): string => `import { loadCommands } from '@dolphy-app/extension-sdk/testing';
+): string => `import { createTestServer } from '@dolphy-app/extension-sdk/testing';
 import { expect, it } from 'vitest';
-import { host } from '../src/index.ts';
+import { server } from '../src/index.ts';
 
 it('the hello command notifies', async () => {
-  const commands = await loadCommands(host, {
-    declaredCommands: ['${id}.hello'],
-  });
-  expect(await commands.run('${id}.hello')).toEqual({
+  const running = await createTestServer(server, { extensionId: '${id}' });
+  expect(await running.commands.run('${id}.hello')).toEqual({
     kind: 'notify',
     text: 'Hello from ${id}!',
   });
-  await commands.dispose();
+  await running.dispose();
 });
 `;
 
@@ -55,10 +49,9 @@ export const blank: TemplateModule = {
     'in the command palette (Ctrl/⌘+K) that shows a notification.',
   ],
   layout: [
-    '- `extension.json` — the manifest (the command is declared in it);',
-    '- `src/index.ts` — all the extension code: `host` (`defineExtension`); the',
-    '  build writes it to `main.mjs`;',
-    ...idsBullet,
+    '- `extension.json` — the manifest: identity only, the build adds `main`;',
+    '- `src/index.ts` — all the extension code: `server` (`defineServer`),',
+    '  which registers the command; the build writes it to `main.mjs`;',
     '- `test/index.test.ts` — tests (`vitest`).',
   ],
   files: (id) => ({

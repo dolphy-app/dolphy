@@ -1,21 +1,35 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createApp, defineComponent, h, nextTick, reactive } from 'vue';
-import type { App, Component } from 'vue';
+import { createApp, defineComponent, h, nextTick, shallowRef } from 'vue';
+import type { App } from 'vue';
 import { createI18n } from 'vue-i18n';
 import type { ExerciseTaskDto } from '@dolphy-app/engine-contract';
-import { NO_CONTRIBUTIONS } from '@/shared/api/engine/contributions.ts';
-import { CONTRIBUTIONS_KEY } from '@/shared/api/engine/keys.ts';
+import { EXTENSION_CLIENTS_KEY } from '@/shared/lib/extension-clients.ts';
+import type {
+  ClientAnswerView,
+  ClientState,
+} from '@/shared/lib/extension-clients.ts';
 import AnswerView from '@/widgets/exercise-panel/ui/AnswerView.vue';
+import { answerViewOf } from '@/widgets/exercise-panel/model/answer-view.ts';
 import { en } from '@/widgets/exercise-panel/i18n/en.ts';
 
 const TASK: ExerciseTaskDto = {
   type: 'acme.quiz',
   timeoutMs: 1000,
-  rendererUrl: 'dolphy-ext://acme.quiz/view.mjs',
-  origin: 'user',
-  revision: 'r1',
+  extensionId: 'acme.quiz',
 };
+
+const viewOf = (
+  component: unknown,
+  extensionId = 'acme.quiz',
+  instance = 1,
+): ClientAnswerView => ({
+  kind: 'answerView',
+  key: `${extensionId}:${instance}:1`,
+  extensionId,
+  type: TASK.type,
+  component: component as ClientAnswerView['component'],
+});
 
 const flush = async () => {
   for (let i = 0; i < 20; i += 1) await nextTick();
@@ -56,23 +70,21 @@ const Quiz = defineComponent({
   },
 });
 
-const mountView = async (
-  views: Record<string, Component>,
-  state = reactive({ task: TASK, value: undefined as unknown }),
-  contributions = NO_CONTRIBUTIONS,
-) => {
+const mountView = async (views: ClientAnswerView[]) => {
   const events: unknown[] = [];
-  const loadModule = vi.fn(async () => ({ default: { views } }));
+  const state = shallowRef({ value: undefined as unknown });
+  const registered = shallowRef(views);
+  const states = shallowRef(new Map<string, ClientState>());
+  const reload = vi.fn();
   const app = createApp({
     render: () =>
       h(AnswerView, {
-        task: state.task,
+        task: TASK,
         view: { q: 1 },
-        value: state.value,
+        value: state.value.value,
         disabled: false,
         verdict: null,
         label: 'Answer',
-        loadModule,
         onChange: (detail: unknown) => events.push(['change', detail]),
         onSubmit: () => events.push(['submit']),
       }),
@@ -97,7 +109,11 @@ const mountView = async (
         },
       }),
     )
-    .provide(CONTRIBUTIONS_KEY, { value: contributions } as never)
+    .provide(EXTENSION_CLIENTS_KEY, {
+      answerViews: registered,
+      states,
+      reload,
+    } as never)
     .use(
       createI18n({
         legacy: false,
@@ -110,7 +126,7 @@ const mountView = async (
   document.body.append(root);
   app.mount(root);
   await flush();
-  return { root, events, state, loadModule };
+  return { root, events, state, registered, states, reload };
 };
 
 const click = async (root: HTMLElement, id: string) => {
@@ -120,14 +136,19 @@ const click = async (root: HTMLElement, id: string) => {
   await flush();
 };
 
+describe('answerViewOf', () => {
+  it('вид владельца вида важнее; иначе первый в порядке реестра; вида нет — null', () => {
+    const owner = viewOf('a', 'acme.quiz');
+    const alien = viewOf('b', 'acme.aaa');
+    expect(answerViewOf([alien, owner], TASK.type, 'acme.quiz')).toBe(owner);
+    expect(answerViewOf([alien], TASK.type, 'acme.quiz')).toBe(alien);
+    expect(answerViewOf([owner], 'other.type', 'acme.quiz')).toBeNull();
+  });
+});
+
 describe('AnswerView', () => {
-  it('рисует default.views[type] с props и пересылает change и submit', async () => {
-    const { root, events, loadModule } = await mountView({
-      [TASK.type]: Quiz,
-    });
-    expect(loadModule).toHaveBeenCalledWith(
-      'dolphy-ext://acme.quiz/view.mjs?v=r1',
-    );
+  it('рисует зарегистрированный вид с props и пересылает change и submit', async () => {
+    const { root, events } = await mountView([viewOf(Quiz)]);
     expect(root.querySelector('[data-testid="props"]')?.textContent).toBe(
       JSON.stringify([{ q: 1 }, null, false, null, 'Answer']),
     );
@@ -140,9 +161,9 @@ describe('AnswerView', () => {
   });
 
   it('текущий ответ доходит до компонента без его пересоздания', async () => {
-    const { root, state } = await mountView({ [TASK.type]: Quiz });
+    const { root, state } = await mountView([viewOf(Quiz)]);
     const before = root.querySelector('[data-testid="quiz"]');
-    state.value = 'b';
+    state.value = { value: 'b' };
     await flush();
     expect(root.querySelector('[data-testid="quiz"]')).toBe(before);
     expect(root.querySelector('[data-testid="props"]')?.textContent).toContain(
@@ -159,7 +180,7 @@ describe('AnswerView', () => {
         return h('p', { 'data-testid': 'quiz' }, 'ok');
       },
     });
-    const { root } = await mountView({ [TASK.type]: Flaky });
+    const { root } = await mountView([viewOf(Flaky)]);
     expect(
       root.querySelector('[data-testid="answer-view-failed"]')?.textContent,
     ).toContain('render broke');
@@ -169,45 +190,53 @@ describe('AnswerView', () => {
     expect(root.querySelector('[data-testid="answer-view-failed"]')).toBeNull();
   });
 
-  it('в модуле нет вида типа — ошибка загрузки с названием типа', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const { root } = await mountView({ other: Quiz });
+  it('вида нет в реестре — ошибка с названием типа; «Повторить» просит реестр загрузить расширение заново', async () => {
+    const { root, reload } = await mountView([]);
     const failed = root.querySelector('[data-testid="answer-view-failed"]');
     expect(failed?.textContent).toContain('acme.quiz');
-    expect(failed?.textContent).toContain("no views component 'acme.quiz'");
+    expect(failed?.textContent).toContain(
+      "no answer view registered for 'acme.quiz'",
+    );
+    await click(root, 'answer-view-retry');
+    expect(reload).toHaveBeenCalledExactlyOnceWith('acme.quiz');
   });
 
-  it('новая ревизия задания пересоздаёт компонент и грузит модуль заново', async () => {
-    const { root, state, loadModule } = await mountView({
-      [TASK.type]: Quiz,
-    });
-    const before = root.querySelector('[data-testid="quiz"]');
-    state.task = { ...TASK, revision: 'r2' };
+  it('клиентская часть владельца ещё грузится — ни ошибки, ни ввода; когда вид появился, он рисуется', async () => {
+    const { root, registered, states } = await mountView([]);
+    states.value = new Map([['acme.quiz', { status: 'loading', error: null }]]);
     await flush();
-    expect(loadModule).toHaveBeenLastCalledWith(
-      'dolphy-ext://acme.quiz/view.mjs?v=r2',
-    );
-    expect(root.querySelector('[data-testid="quiz"]')).not.toBe(before);
+    expect(root.querySelector('[data-testid="answer-view-failed"]')).toBeNull();
+    registered.value = [viewOf(Quiz)];
+    await flush();
+    expect(root.querySelector('[data-testid="quiz"]')).not.toBeNull();
   });
 
-  it('происхождение dev: ревизия берётся из действующих вкладов', async () => {
-    const dev: ExerciseTaskDto = { ...TASK, origin: 'dev' };
-    const { loadModule } = await mountView(
-      { [TASK.type]: Quiz },
-      reactive({ task: dev, value: undefined }),
-      {
-        ...NO_CONTRIBUTIONS,
-        exerciseTypes: [
-          {
-            type: TASK.type,
-            rendererUrl: TASK.rendererUrl,
-            revision: 'r9',
-          } as never,
-        ],
-      },
-    );
-    expect(loadModule).toHaveBeenCalledWith(
-      'dolphy-ext://acme.quiz/view.mjs?v=r9',
-    );
+  it('клиентская часть не загрузилась — причина показана', async () => {
+    const { root, states } = await mountView([]);
+    states.value = new Map([
+      ['acme.quiz', { status: 'failed', error: 'import broke' }],
+    ]);
+    await flush();
+    expect(
+      root.querySelector('[data-testid="answer-view-failed"]')?.textContent,
+    ).toContain('import broke');
+  });
+
+  it('новый экземпляр вида (правка расширения) пересоздаёт компонент', async () => {
+    const { root, registered } = await mountView([viewOf(Quiz)]);
+    const before = root.querySelector('[data-testid="quiz"]');
+    registered.value = [viewOf(Quiz, 'acme.quiz', 2)];
+    await flush();
+    const after = root.querySelector('[data-testid="quiz"]');
+    expect(after).not.toBeNull();
+    expect(after).not.toBe(before);
+  });
+
+  it('расширение удалено посреди упражнения — остаётся последний вид, ввод не пропадает', async () => {
+    const { root, registered } = await mountView([viewOf(Quiz)]);
+    registered.value = [];
+    await flush();
+    expect(root.querySelector('[data-testid="quiz"]')).not.toBeNull();
+    expect(root.querySelector('[data-testid="answer-view-failed"]')).toBeNull();
   });
 });

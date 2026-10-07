@@ -1,3 +1,30 @@
+# [0.5.0](https://github.com/dolphy-app/dolphy/compare/v0.4.0...v0.5.0) (2026-10-07)
+
+
+### Bug Fixes
+
+* **desktop:** align library settings layout ([af7f49c](https://github.com/dolphy-app/dolphy/commit/af7f49c38011d485dafec3d47d17c633dcf68325))
+* **desktop:** keep contrast of text on success, info and error fills in the built-in themes ([99810a8](https://github.com/dolphy-app/dolphy/commit/99810a85d8adb3fa140678ebc41cb667cc2f60bd))
+* **extension-tools:** keep frameworks out of main.mjs, steady the watch test ([8d06ef3](https://github.com/dolphy-app/dolphy/commit/8d06ef326f50cc405e03de2490f420bde0f6c4b3))
+
+
+### Features
+
+* **desktop:** draw answer views, panels and markdown blocks as Vue components ([e8a4f49](https://github.com/dolphy-app/dolphy/commit/e8a4f499bfffa19bdf34371b17fc3a276720ddcf))
+* **desktop:** draw extension widgets as Vue components in the window ([92f5ca4](https://github.com/dolphy-app/dolphy/commit/92f5ca472b2cbeef9bcbf5aff2633e296cc4ffce))
+* **desktop:** expand upcoming exercises list in daily plan ([becdafc](https://github.com/dolphy-app/dolphy/commit/becdafc2cdf7f13f55eadbc7cef53e8de0298ebb))
+* **desktop:** grow answer, markdown and widget frames for open overlays ([60b394b](https://github.com/dolphy-app/dolphy/commit/60b394b2f366b5c7a8d422b525234acfb178483e))
+* **desktop:** let the lesson material panel span the whole window ([39120b8](https://github.com/dolphy-app/dolphy/commit/39120b8d191cf83e0d8d9a49b3aca37ea3a573cf))
+* **ext-choice:** render the choice answer view with Vuetify ([b7de254](https://github.com/dolphy-app/dolphy/commit/b7de254df3d0a98d581cdd246e36d4a85befde78))
+* **ext-sql:** render the SQL answer view with a Vuetify textarea ([c74e5e2](https://github.com/dolphy-app/dolphy/commit/c74e5e22d423debdcf302276bff6c2e4f22b9722))
+* **extension-host:** add before hooks for session start and batch composition ([e4042b0](https://github.com/dolphy-app/dolphy/commit/e4042b04c8907457adea42708adb7d76c7f4845b))
+* **extension-host:** give extensions the engine, RPC between parts and the window API ([f7184a7](https://github.com/dolphy-app/dolphy/commit/f7184a71521e320819e8ec576eb7eaf9f50fab2f))
+* **extension-host:** pass FSRS memory to batch hooks and close the extension-runtime spec ([9034c74](https://github.com/dolphy-app/dolphy/commit/9034c7406fab99a86e0c202794bb835519955204))
+* **extension-host:** register extension contributions in code and inject UI into the window ([5d23ff1](https://github.com/dolphy-app/dolphy/commit/5d23ff1ca151afbd2f99efae7a28bb54e496b0ac))
+* **extension-sdk:** mount components of other frameworks and build Vue SFC ([a64340d](https://github.com/dolphy-app/dolphy/commit/a64340d0500ae0174b80292851a4e8da37e62175))
+* **extension-tools:** collect dependency style sheets for browser bundles ([4002fcd](https://github.com/dolphy-app/dolphy/commit/4002fcdb478f7a49595dab405cf8a156b29e69ff))
+* **extension-ui:** replace the DOM kit with Vuetify components in subpaths ([4aa235f](https://github.com/dolphy-app/dolphy/commit/4aa235fac194b7e9ee0a3aa7bf84eda5e1161693))
+
 # [0.4.0](https://github.com/dolphy-app/dolphy/compare/v0.3.0...v0.4.0) (2026-10-05)
 
 

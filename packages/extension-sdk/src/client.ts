@@ -11,6 +11,7 @@ import type {
   RpcContract,
 } from '@dolphy-app/extension-api';
 import type { ExtensionEngine } from '@dolphy-app/engine-contract';
+import { callRpc } from './rpc.ts';
 import { inject } from 'vue';
 import type { AppApi } from './define-entry.ts';
 
@@ -96,13 +97,5 @@ export const useRpc = <Input, Output>(
     );
   }
   const engine = useEngine();
-  return async (input) => {
-    contract.input.parse(input);
-    const result = await engine.extensions.invokeRpc({
-      extensionId,
-      name: contract.name,
-      input,
-    });
-    return contract.output.parse(result);
-  };
+  return (input) => callRpc({ engine, extensionId }, contract, input);
 };

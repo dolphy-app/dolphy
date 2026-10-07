@@ -147,22 +147,22 @@ export const client = defineClient((c) => {
 | `engine`                                                | клиент движка, все методы записи и чтения (раздел «Доступ к движку»)                                          |
 | `handle`                                                | ответ на вызов `defineRpc` (раздел «RPC между частями»)                                                       |
 
-`ClientContext` (параметр `client`, в примерах `c`): `extensionId`, `app` (`AppApi`, раздел «API окна»), `engine`, `addPanel`, `addInjection`, `addAnswerView`, `addMarkdownRenderer`, `addTheme`, `addCommand`. Компоненты в записях клиента — компоненты Vue; общие `vue` и `vuetify` дают приложение и окно (раздел «Интерфейс в окне»).
+`ClientContext` (параметр `client`, в примерах `c`): `extensionId`, `app` (`AppApi`, раздел «API окна»), `engine`, `addPanel`, `addInjection`, `addAnswerView`, `addMarkdownRenderer`, `addTheme`, `addCommand`. Компоненты в записях клиента — компоненты Vue или `Mountable` (раздел «Интерфейс на других фреймворках»); общие `vue` и `vuetify` дают приложение и окно (раздел «Интерфейс в окне»).
 
 ### Что как регистрируется
 
 | Вклад               | Вызов                                                                                                                                                          | Часть              |
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
-| Вид задания         | `s.registerExerciseType(defineExerciseType({ id, title?, specSchema, answerSchema, project, grade, referenceAnswer? }))` и `c.addAnswerView(id, Component)`    | `server`, `client` |
+| Вид задания         | `s.registerExerciseType(defineExerciseType({ id, title?, specSchema, answerSchema, project, grade, referenceAnswer? }))` и `c.addAnswerView(id, Component | Mountable)`    | `server`, `client` |
 | Правило оценки      | `s.registerGradePolicy({ id, label, evaluate })`                                                                                                               | `server`           |
 | Тема                | `c.addTheme({ id, label, dark, colors, variables? })`                                                                                                          | `client`           |
-| Рендерер markdown   | `c.addMarkdownRenderer(language, Component)`                                                                                                                   | `client`           |
+| Рендерер markdown   | `c.addMarkdownRenderer(language, Component | Mountable)`                                                                                                                   | `client`           |
 | Настройки           | `s.registerSettings([...])`; чтение — `s.settings.get(id)`, `s.settings.onDidChange`                                                                           | `server`           |
 | События             | `s.on(name, handler)`                                                                                                                                          | `server`           |
 | Хуки «до»           | `s.before(name, handler)`; имена — `session.start`, `practice.batch`                                                                                           | `server`           |
 | Команды             | `s.registerCommand({ id, title, description?, category?, keybindings?, palette?, when?, icon?, run })` (обработчик в хосте), `c.addCommand({ …, run })` (в окне) | `server`, `client` |
-| Панель              | `c.addPanel({ id, title, icon?, when?, component })`; внутри `usePanel()` (`props`, `context`, `call`); открывается результатом команды `openPanel(id, props)`  | `client`           |
-| Инъекция            | `c.addInjection({ id, target, position?, component })`; внутри `useInjection()` → `{ target, position }`; устойчивая цель — `anchorSelector('dailyPlan')`       | `client`           |
+| Панель              | `c.addPanel({ id, title, icon?, when?, component: Component | Mountable })`; внутри `usePanel()` (`props`, `context`, `call`) или `ctx.handle` у `Mountable`; открывается результатом команды `openPanel(id, props)`  | `client`           |
+| Инъекция            | `c.addInjection({ id, target, position?, component: Component | Mountable })`; внутри `useInjection()` → `{ target, position }` или `ctx.handle` у `Mountable`; устойчивая цель — `anchorSelector('dailyPlan')`       | `client`           |
 | RPC                 | `defineRpc({ name, input, output })` (общий модуль), `s.handle(contract, handler)`, в компоненте `useRpc(contract)`                                            | `server`, `client` |
 | Расписание          | `s.schedule({ id, every: 'daily', at }, handler)` или `s.schedule({ id, every: 'hourly' }, handler)`                                                           | `server`           |
 | Импортёр, экспортёр | `s.registerImporter(…)`, `s.registerExporter(…)`                                                                                                               | `server`           |
@@ -793,7 +793,7 @@ export const server = defineServer((s) => {
 
 ### Панели (`addPanel`)
 
-Панель — страница расширения внутри приложения: компонент Vue, который приложение рисует в своём дереве. Регистрация в `client`: `c.addPanel({ id, title, icon?, when?, component })` — `title` до 60 символов (`LocalizedText`), `icon` — имя из `EXTENSION_ICONS` (умолчание `puzzle`; значок пункта бокового меню, раздел «Значки команд и панелей (`icon`)»), `when` — условие видимости пункта меню (раздел «Условия видимости (`when`)»), `component` — компонент Vue. Не более 8 панелей на расширение (`EXTENSION_COMMAND_LIMITS.panels`). Серверная часть панели не требует; открывают её пунктом меню или командой с результатом `openPanel`.
+Панель — страница расширения внутри приложения: компонент Vue (или `Mountable` другого фреймворка), который приложение рисует в своём дереве. Регистрация в `client`: `c.addPanel({ id, title, icon?, when?, component })` — `title` до 60 символов (`LocalizedText`), `icon` — имя из `EXTENSION_ICONS` (умолчание `puzzle`; значок пункта бокового меню, раздел «Значки команд и панелей (`icon`)»), `when` — условие видимости пункта меню (раздел «Условия видимости (`when`)»), `component` — компонент Vue. Не более 8 панелей на расширение (`EXTENSION_COMMAND_LIMITS.panels`). Серверная часть панели не требует; открывают её пунктом меню или командой с результатом `openPanel`.
 
 Файл `extension.json` (панель расширения):
 
@@ -889,12 +889,12 @@ export const Board = defineComponent({
 
 ### Инъекция в окно (`addInjection`)
 
-Инъекция — компонент Vue, который расширение рисует в любом месте окна: рядом с элементом DOM или внутри него. Закрытого набора мест нет. Регистрация в `client`: `c.addInjection({ id, target, position?, component })`:
+Инъекция — компонент Vue (или `Mountable`), который расширение рисует в любом месте окна: рядом с элементом DOM или внутри него. Закрытого набора мест нет. Регистрация в `client`: `c.addInjection({ id, target, position?, component })`:
 
 - `id` — уникален в расширении;
 - `target` — CSS-селектор (1–200 символов, `INJECTION_LIMITS.selectorLength`), который принимает `document.querySelector`;
 - `position` — `before`, `after`, `prepend` или `append` (по умолчанию `append`): `before` и `after` ставят компонент рядом с целью, `prepend` и `append` — внутрь неё;
-- `component` — компонент Vue; внутри него `useInjection()` из `@dolphy-app/extension-sdk/client` возвращает `{ target, position }` — элемент цели и положение компонента (вне инъекции бросает ошибку).
+- `component` — компонент Vue или `Mountable` (раздел «Интерфейс на других фреймворках»; у `Mountable` то же — `ctx.handle`); внутри компонента Vue `useInjection()` из `@dolphy-app/extension-sdk/client` возвращает `{ target, position }` — элемент цели и положение компонента (вне инъекции бросает ошибку).
 
 **Устойчивая цель — якорь.** Приложение помечает стабильные места атрибутом `data-ext-anchor="<id>"`, а `anchorSelector(id)` из `@dolphy-app/extension-sdk` (и `@dolphy-app/extension-api`) возвращает его селектор: `anchorSelector('dailyPlan')` — `[data-ext-anchor="dailyPlan"]`, экран «План на сегодня». Якоря — единственная цель, которую приложение держит стабильной. Любой другой селектор (класс, `data-testid`, структура разметки) зависит от вёрстки приложения: после её изменения цель может перестать находиться, а компонент оказаться не на месте, и приложение этого не гарантирует. Если всё же берёте такой селектор, выбирайте элемент рядом с контейнером, а не узел внутри списка, который Vue перерисовывает: Vue может сместить чужой узел. Подмена встроенного компонента не поддерживается; скрыть блок можно CSS из ресурсов расширения.
 
@@ -937,6 +937,181 @@ export const client = defineClient((c) => {
   });
 });
 ```
+
+### Интерфейс на других фреймворках
+
+Панель, инъекция, вид ответа и рендерер содержимого принимают в поле `component` либо компонент Vue, либо `Mountable`: функцию `mount(el, ctx)`, которая рисует в выданный элемент любым фреймворком (или без него) и возвращает очистку. Vue остаётся фреймворком по умолчанию: общие `vue` и `vuetify` окна, тема и язык. Остальное рисуется внутри собственного `<div>`, а расширения на разных фреймворках работают в одном окне одновременно; сбой одного не трогает остальные.
+
+#### `Mountable` и `MountContext`
+
+```ts
+type Unmount = () => void | Promise<void>;
+
+interface Mountable<Props, Handle = undefined> {
+  readonly [MOUNTABLE]: true;
+  mount(el: HTMLElement, ctx: MountContext<Props, Handle>): Unmount | Promise<Unmount>;
+}
+```
+
+Тип и бренд (`Symbol.for('dolphy.extension.mountable')`) живут в `@dolphy-app/extension-api`; `defineMountable<Props, Handle>(mount)` из `@dolphy-app/extension-sdk` строит объект, `isMountable(value)` распознаёт его по бренду. Окно создаёт `<div>`, вызывает `mount` один раз, когда компонент появился, и очистку, когда он исчез: смена маршрута, выключение или удаление расширения, исчезновение цели инъекции. Перед очисткой отменяется `ctx.signal`.
+
+`MountContext` не зависит от Vue; это всё, что Vue-компонент получает через `usePanel`, `useInjection`, `useApp`, `useEngine` и `useRpc`:
+
+| Поле                       | Что                                                                                                                                         |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `props`, `onProps(fn)`     | текущие props — неизменяемый снимок (объект не меняется на месте) — и слушатель следующего; `onProps` возвращает функцию отписки             |
+| `theme`, `onTheme(fn)`     | `{ id, dark }` действующей темы окна и слушатель смены                                                                                      |
+| `locale`, `onLocale(fn)`   | `'en' \| 'ru'` и слушатель смены                                                                                                           |
+| `emit(event, payload?)`    | событие приложению; только вид ответа имеет события: `change` с `AnswerChange` и `submit`, на других поверхностях и с другими именами вызов ничего не делает |
+| `app`, `engine`            | `AppApi` и клиент движка, те же объекты, что `client.app` и `client.engine`                                                                 |
+| `callRpc(contract, input)` | вызов серверной части: проверяет вход и ответ схемами контракта, сбой — отклонённый промис; то же, что `useRpc(contract)(input)`               |
+| `extensionId`              | id расширения                                                                                                                               |
+| `signal`                   | `AbortSignal`, отменяется при размонтировании: передайте в `fetch`, проверьте после `await`                                                |
+| `reportError(error)`       | заменяет область компонента карточкой «Расширение <название>: <ошибка>» с кнопкой «Повторить»; для блока markdown — заметкой на месте блока   |
+| `handle`                   | `PanelHandle` панели (`panelId`, `props`, `context`, `call`), `InjectionHandle` вставки (`target`, `position`), `undefined` в виде ответа и рендерере |
+
+`Props` и `Handle` зависят от поверхности: `PanelProps` (`panelId`, `props`, `context`) и `PanelHandle` в панели, `InjectionProps` (`target`, `position`) и `InjectionHandle` во вставке, `AnswerViewProps` в виде ответа, `MarkdownBlockProps` (`source`, `language`) в рендерере. Исключение из `mount`, из очистки или из слушателя, как и `reportError`, показывается карточкой только на этой области; остальное окно и другие расширения работают.
+
+Файл `extension.json` (монтируемый компонент):
+
+```json
+{
+  "id": "acme.plain",
+  "version": "1.0.0",
+  "apiVersion": 1
+}
+```
+
+Файл `src/index.ts` (монтируемый компонент):
+
+```ts
+import { defineClient, defineMountable } from '@dolphy-app/extension-sdk';
+import type { PanelHandle, PanelProps } from '@dolphy-app/extension-sdk';
+
+// чистый DOM: так же монтируется Svelte, Lit или Solid
+const Hello = defineMountable<PanelProps, PanelHandle>((el, ctx) => {
+  const title = document.createElement('h2');
+  const draw = ({ props }: PanelProps) => {
+    title.textContent = `Привет, ${typeof props === 'string' ? props : 'мир'}!`;
+  };
+  draw(ctx.props);
+  el.append(title);
+  const stop = ctx.onProps(draw);
+  return () => {
+    stop();
+    el.replaceChildren();
+  };
+});
+
+export const client = defineClient((c) => {
+  c.addPanel({ id: 'acme.plain.view', title: 'Привет', component: Hello });
+});
+```
+
+#### Пресеты сборки (`frameworks`)
+
+`dolphy-ext.config.json` принимает `"frameworks"`: массив имён пресетов, по умолчанию `["vue"]`. Пресет `vue` включён всегда; неизвестное имя — ошибка конфигурации со списком известных (сейчас `vue` и `react`). Пресет — набор расширений исходников (`.vue`; `.tsx` и `.jsx`), плагинов сборки и добавок к конфигурации Vite клиентского бандла; файл `server` и воркеры пресетов не видят. Внешние для клиентского бандла остаются только `vue` и `vuetify` (читаются из `globalThis.__dolphy`); рантайм остальных фреймворков входит в бандл расширения. `.tsx` или `.jsx` с разметкой JSX без `"react"` в `frameworks` — ошибка сборки, называющая конфиг.
+
+**React** (`"frameworks": ["react"]`). `.tsx` и `.jsx` компилируются автоматическим JSX-рантаймом встроенным компилятором сборки (без `@vitejs/plugin-react`: бандлу не нужен Fast Refresh), `react` и `react-dom` — обычные `devDependencies` проекта и попадают в `client.mjs`. В `tsconfig.json` нужен `"jsx": "react-jsx"`.
+
+```tsx
+import { defineClient } from '@dolphy-app/extension-sdk';
+import type { PanelHandle, PanelProps } from '@dolphy-app/extension-sdk';
+import { reactComponent, usePanel } from '@dolphy-app/extension-sdk/react';
+
+const Panel = ({ props }: PanelProps) => {
+  const panel = usePanel();
+  return <button onClick={() => void panel.call('acme.ping')}>{String(props)}</button>;
+};
+
+export const client = defineClient((c) => {
+  c.addPanel({
+    id: 'acme.react.view',
+    title: 'React',
+    component: reactComponent<PanelProps, PanelHandle>(Panel),
+  });
+});
+```
+
+`@dolphy-app/extension-sdk/react` (`react` и `react-dom` 19 — необязательные peer-зависимости SDK: корень SDK их не импортирует) даёт `reactComponent(Component, { strictMode? })`: оборачивает компонент в `Mountable`, рисует `<Component {...ctx.props} />` через `createRoot`, перерисовывает при смене props, темы и языка, а на очистке размонтирует корень. Хуки на React-контексте, который выдаёт адаптер: `useApp()`, `useEngine()`, `useRpc(contract)`, `usePanel()`, `useInjection()` — те же объекты и правила, что в Vue; `useTheme()`, `useLocale()` (компонент рисуется заново при смене) и `useMountContext()` — весь `MountContext`. Вне компонента, который рисует адаптер, хуки бросают ошибку. Ошибка рендера уходит в `ctx.reportError` сама; ошибки обработчиков событий и асинхронного кода React не ловит — перехватывайте их и вызывайте `useMountContext().reportError(error)`. Готовый проект — шаблон `react-panel` и рецепт `packages/extension-sdk/docs/recipe-react.md`.
+
+**Тесты.** `mountForTest(mountable, { props, handle?, app?, engine?, theme?, locale?, extensionId?, el? })` из `@dolphy-app/extension-sdk/testing` монтирует `Mountable` в новый `<div>` (нужен DOM: `happy-dom` или `jsdom`) на записывающем контексте и возвращает `{ el, ctx, setProps, setTheme, setLocale, emitted, errors, unmount }`. `createTestClient` кладёт `Mountable` в `component` записи как есть.
+
+#### Компоненты `.vue` (SFC)
+
+Пресет `vue` собирает `.vue` в клиентском бандле: `<script setup lang="ts">`, `<template>` и `<style>`.
+
+- Компоненты Vuetify в шаблоне пишутся тегами `<v-btn>`, `<v-card>`, директивы — `v-ripple`, без импорта: сборка превращает использованные в импорты из `vuetify/components` и `vuetify/directives`, а они заменяются чтением общих модулей окна. Бандл не содержит `vue` и `vuetify`; тема и язык окна действуют на компонент.
+- `<style>` и `<style scoped>` собираются строкой и при загрузке `client.mjs` вставляются в один тег `<style data-dolphy-ext="<id расширения>">` в `<head>` **глобально, в документ окна**: обычный `<style>` действует на всё окно, а не на компонент. Пишите `<style scoped>`. Тег один на загруженный модуль; при повторной загрузке `client.mjs` (перезагрузка расширения) старый тег заменяется. `<style module>` не поддержан.
+- `.vue` в серверной части — ошибка сборки: у `main.mjs` нет окна и нет Vue.
+- Для `tsc` импорт `.vue` объявляет `src/env.d.ts` (`declare module '*.vue'`); внутрь `.vue` `tsc` не заглядывает. В тестах нужен `@vitejs/plugin-vue` в `vitest.config.ts`, а `<v-btn>` тест регистрирует заглушкой (`app.component('v-btn', …)`): Vuetify приложения в нём нет. Готовый проект — шаблон `command-panel` и рецепт `packages/extension-sdk/docs/recipe-command-panel.md`.
+
+Файл `extension.json` (панель на SFC):
+
+```json
+{
+  "id": "acme.sfc",
+  "version": "1.0.0",
+  "apiVersion": 1
+}
+```
+
+Файл `src/index.ts` (панель на SFC):
+
+```ts
+import { defineClient } from '@dolphy-app/extension-sdk';
+import Counter from './Counter.vue';
+
+export const client = defineClient((c) => {
+  c.addPanel({ id: 'acme.sfc.view', title: 'Счётчик', component: Counter });
+});
+```
+
+Файл `src/Counter.vue` (панель на SFC):
+
+```vue
+<script setup lang="ts">
+import { usePanel } from '@dolphy-app/extension-sdk/client';
+import { ref } from 'vue';
+
+const panel = usePanel();
+const count = ref(0);
+</script>
+
+<template>
+  <section class="counter">
+    <h2>{{ panel.panelId }}</h2>
+    <v-btn color="primary" @click="count += 1">Нажато {{ count }}</v-btn>
+  </section>
+</template>
+
+<style scoped>
+.counter {
+  padding: 16px;
+}
+</style>
+```
+
+Файл `src/env.d.ts` (панель на SFC):
+
+```ts
+declare module '*.vue' {
+  import type { DefineComponent } from 'vue';
+
+  const component: DefineComponent<object, object, unknown>;
+  export default component;
+}
+```
+
+#### Что стоит знать
+
+- **Размер.** Каждое расширение несёт собственную копию рантайма. Панель React «привет, мир» в том виде, как собирает инструмент (без минификации), — 565 515 Б в `client.mjs` и 106 460 Б после gzip. `.vue` с одной `<v-btn>` — 1 152 Б и 568 Б gzip: Vue и Vuetify общие. Порога размера и теста на него нет.
+- **Свой рантайм.** Общей копии React у расширений нет: два расширения на React загружают две копии, у каждой свои состояние и контекст.
+- **Нет Vuetify и оверлеев приложения** в компонентах чужих фреймворков: `VDialog`, `VMenu`, `VSnackbar` — компоненты Vue. Диалоги и меню автор рисует сам.
+- **Тема** приходит значениями `ctx.theme` (`{ id, dark }`, `ctx.onTheme`; в React `useTheme()`) и CSS-переменными окна: `rgb(var(--v-theme-on-surface))`, `rgb(var(--v-theme-primary))`. Смена темы или языка меняет вид без перезагрузки.
+- **Стили** компонента чужого фреймворка — забота автора: простой `import './x.css'` — ошибка сборки; таблицу импортируют строкой (`import css from './x.css?inline'`) и рисуют в `<style>`. Документ окна общий, поэтому дайте классам префикс, который не пересечётся с приложением. Shadow DOM для изоляции нет.
+- **Ошибки.** Исключение в `mount`, очистке или слушателе контекста и `ctx.reportError` заменяют только область компонента карточкой; ошибки рендера React ловит адаптер, ошибки обработчиков событий и асинхронного кода автор передаёт в `reportError` сам.
+- **Серверная часть не меняется**: `server` остаётся на Node без UI и пресетов.
 
 ### Доступ к движку (`engine`)
 
@@ -1515,6 +1690,8 @@ const shown = await s.notifications.show({
 
 Сбой компонента не роняет окно. Ошибка загрузки модуля, `setup`, рендера или обработчика заменяет только область этого компонента карточкой с сообщением и кнопкой «Повторить»; для блока markdown — заметкой на месте блока, текст страницы цел. Сессия упражнений продолжает работать.
 
+Компонент может быть и `Mountable`: окно даёт ему собственный `<div>` (`MountableHost.vue`) вместо дерева Vue, а Vue-специфичное из списка ниже (общие `vue` и `vuetify`, `provide`/`inject`, оверлеи) ему недоступно; границы и ограничения — раздел «Интерфейс на других фреймворках».
+
 Что должен знать автор вида, панели, инъекции или рендерера:
 
 - Код компонента исполняется в окне приложения: не импортируйте `node:*` и пакеты для Node, не рассчитывайте на файловую систему и процессы — это работа серверной части (`server`), с которой компонент общается командами (`call`).
@@ -1921,7 +2098,7 @@ DOLPHY_DEV_EXTENSIONS=~/projects/acme-hello/dist-ext pnpm dev
 
 **Отладка в режиме разработчика.** `dolphy-ext build --watch` (и `dev`) пишет во все бандлы встроенные карты исходников (`sourcemap: 'inline'` в `watchJob`); обычная сборка и `catalog build` — никогда, `CHECK-025` отвергает их в присланной версии. При заданном `DOLPHY_DEV_EXTENSIONS` оболочка `electron/main/shells/devtools-shortcut.ts` переключает DevTools главного окна по `F12`, `Cmd+Alt+I` (macOS), `Ctrl+Shift+I` — в любой сборке, в том числе упакованной; без переменной сочетания ничего не делают. Компоненты расширений — часть страницы главного окна: их разметка видна в «Elements», а исходники (по встроенным картам) — в «Sources». Node-бандл `main.mjs` несёт карту, но процесс расширений запускается без `--enable-source-maps` (ADR 0011): стек в журнале указывает на строки `main.mjs`. Руководство автора — `packages/extension-sdk/docs/debugging.md`.
 
-**Шаблоны.** `--template exercise|theme|command-panel|events|blank` выбирает вид проекта; без флага — `exercise` (вид задания с настройкой и командой в `server`, поле ввода ответа в `client`). `theme` — тема только в `client` (`addTheme`, тест проверяет контраст текста), `command-panel` — две команды палитры, скрытая команда данных и панель (компонент Vue), `events` — подписка `server.on('attempt.closed')`, `server.storage`, команды и панель («серия дней»), `blank` — одна команда в `server`. Неизвестное имя — код 2 и список имён. Каждый проект проходит `build`, `validate`, `lint`, `typecheck` и свои тесты. В манифесте шаблона заполнены `name`, `description` и `author` (замените `your-github-login` своим логином на GitHub до публикации в каталоге): без них `dolphy-ext lint` предупреждает.
+**Шаблоны.** `--template exercise|theme|command-panel|react-panel|events|blank` выбирает вид проекта; без флага — `exercise` (вид задания с настройкой и командой в `server`, поле ввода ответа в `client`). `theme` — тема только в `client` (`addTheme`, тест проверяет контраст текста), `command-panel` — две команды палитры, скрытая команда данных и панель (однофайловый компонент `StatusPanel.vue`: `<script setup>`, `<v-btn>`, `<style scoped>`; `src/env.d.ts` для `tsc`, `@vitejs/plugin-vue` для vitest), `react-panel` — то же с панелью на React (`dolphy-ext.config.json` с `"frameworks": ["react"]`, `src/client.tsx` с `reactComponent`, `"jsx": "react-jsx"` в `tsconfig.json`, тест через `mountForTest`), `events` — подписка `server.on('attempt.closed')`, `server.storage`, команды и панель («серия дней»), `blank` — одна команда в `server`. Неизвестное имя — код 2 и список имён. Каждый проект проходит `build`, `validate`, `lint`, `typecheck` и свои тесты. В манифесте шаблона заполнены `name`, `description` и `author` (замените `your-github-login` своим логином на GitHub до публикации в каталоге): без них `dolphy-ext lint` предупреждает.
 
 ### Раскладка проекта
 
@@ -1931,7 +2108,7 @@ acme-hello/
   src/index.ts        # экспорты server и client (реэкспорт из отдельных файлов)
   src/server.ts       # server (defineServer): серверные вклады, работает в хосте расширений
   src/client.ts       # client (defineClient): вклады окна
-  src/*.ts            # компоненты Vue и общий код
+  src/*.ts            # компоненты Vue (`.vue`, `defineComponent`), `Mountable` (в проекте с `"frameworks": ["react"]` ещё `.tsx`) и общий код
   test/               # vitest: createTestServer, createTestClient, компоненты через createApp в happy-dom
   assets/             # необязательно: таблицы стилей, изображения, шрифты, значок
   package.json  tsconfig.json  README.md  .gitignore  # vue и vuetify — в devDependencies
@@ -2425,8 +2602,9 @@ it('the show command opens the panel with the days', async () => {
 - `notify(text)` и `openPanel(id, props?)` — результаты команды (раздел «Команды»).
 - `usePanel()` и `useInjection()` из `@dolphy-app/extension-sdk/client` — хендлы компонентов панели и инъекции: `{ panelId, props, context, call }` и `{ target, position }`; вне своего компонента бросают ошибку. `anchorSelector(id)` — селектор устойчивой цели `[data-ext-anchor="<id>"]`.
 - `defineRpc({ name, input, output })` — контракт вызова между частями, схемы `zod`; `s.handle(contract, handler)` отвечает на него на сервере, `useRpc(contract)` вызывает из компонента. `useApp()` и `useEngine()` — `AppApi` окна и клиент движка (`ExtensionEngine`); `s.engine` — тот же клиент на сервере. Разделы «Доступ к движку», «RPC между частями», «API окна».
-- Типы записей: `ServerContext`, `ClientContext`, `CommandRegistration`, `PanelRegistration`, `InjectionRegistration`, `ThemeRegistration`, `SettingDefinition`, `AnswerViewProps`, `AnswerChange`, `MarkdownBlockProps`, `LocalizedText`, `TextImportInput`, `BytesImportInput`, `CourseExportInput`, `ProgressExportInput`. Компоненты в записях клиента — обычные компоненты Vue.
-- `@dolphy-app/extension-sdk/testing`: `createTestServer`, `createTestClient` (раздел «Тесты расширения»), `createSchemaValidator(schema)` — проверка `spec` и ответа по схемам записи вида, `createMemoryLibrary(files)`, `createMemoryStorage()`, `createMemorySettings(definitions, values?)`, `createMemorySecrets({ available? })`, `createMemoryStats(...)`, `createMemoryNotifications(...)` — заглушки с теми же потолками и ошибками, что у движка.
+- `defineMountable<Props, Handle>((el, ctx) => cleanup)` — `Mountable` для `component` любой поверхности клиента; `isMountable(value)` распознаёт его; `callRpc({ engine, extensionId }, contract, input)` — вызов контракта без контекста компонента. `@dolphy-app/extension-sdk/react`: `reactComponent(Component, { strictMode? })`, хуки `useApp`, `useEngine`, `useRpc`, `usePanel`, `useInjection`, `useTheme`, `useLocale`, `useMountContext`. Раздел «Интерфейс на других фреймворках».
+- Типы записей: `ServerContext`, `ClientContext`, `CommandRegistration`, `PanelRegistration`, `InjectionRegistration`, `ThemeRegistration`, `SettingDefinition`, `AnswerViewProps`, `AnswerChange`, `MarkdownBlockProps`, `LocalizedText`, `TextImportInput`, `BytesImportInput`, `CourseExportInput`, `ProgressExportInput`. Компоненты в записях клиента — компоненты Vue или `Mountable`.
+- `@dolphy-app/extension-sdk/testing`: `createTestServer`, `createTestClient` (раздел «Тесты расширения»), `mountForTest` (монтирует `Mountable` на записывающем контексте), `createSchemaValidator(schema)` — проверка `spec` и ответа по схемам записи вида, `createMemoryLibrary(files)`, `createMemoryStorage()`, `createMemorySettings(definitions, values?)`, `createMemorySecrets({ available? })`, `createMemoryStats(...)`, `createMemoryNotifications(...)` — заглушки с теми же потолками и ошибками, что у движка.
 
 ### Сборка и проверка
 

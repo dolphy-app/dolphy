@@ -29,6 +29,7 @@ import { parseWhen } from '@dolphy-app/extension-api';
 import { parseIndex } from '@dolphy-app/extension-catalog';
 import { manifestJsonSchema, parseManifest } from '@dolphy-app/extension-host';
 import { Ajv2020 } from 'ajv/dist/2020.js';
+import { Window } from 'happy-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { buildExtension, validateExtension } from '../src/index.ts';
 import { makeTemp, runTsc } from './helpers.ts';
@@ -49,6 +50,8 @@ const EXAMPLES: Readonly<Record<string, Mode>> = {
   'вид задания': both,
   тема: client,
   'рендерер содержимого': client,
+  'монтируемый компонент': client,
+  'панель на SFC': client,
   'правило оценки': server,
   'настройки расширения': server,
   'подписи на двух языках': server,
@@ -243,6 +246,8 @@ interface SdkTesting {
 interface BuiltEntries {
   server?: unknown;
   client?: unknown;
+  /** The `<style data-dolphy-ext>` tags the client file added to the page: `<id>: <css>`. */
+  styles: string[];
 }
 
 const sdkTesting = (await import(
@@ -259,13 +264,17 @@ const vue = (await import(
   )
 )) as typeof import('vue');
 
-/** Imports the built files the way the host and the window do: the client file reads Vue from the app's loader. */
+/** Imports the built files the way the host and the window do: the client file reads Vue from the app's loader and adds its styles to the page. */
 const importBuilt = async (
   dir: string,
   wanted: readonly Entry[],
 ): Promise<BuiltEntries> => {
-  const entries: BuiltEntries = {};
-  Object.assign(globalThis, { __dolphy: { require: async () => vue } });
+  const entries: BuiltEntries = { styles: [] };
+  const page = new Window();
+  Object.assign(globalThis, {
+    __dolphy: { require: async () => vue },
+    document: page.document,
+  });
   try {
     for (const entry of wanted) {
       const module = (await import(
@@ -273,8 +282,15 @@ const importBuilt = async (
       )) as Record<Entry, unknown>;
       entries[entry] = module[entry];
     }
+    entries.styles = [
+      ...page.document.querySelectorAll('style[data-dolphy-ext]'),
+    ].map(
+      (tag) => `${tag.getAttribute('data-dolphy-ext')}: ${tag.textContent}`,
+    );
   } finally {
     Reflect.deleteProperty(globalThis, '__dolphy');
+    Reflect.deleteProperty(globalThis, 'document');
+    await page.happyDOM.close();
   }
   return entries;
 };
@@ -389,6 +405,20 @@ describe('the “панель со стилями и картинкой” examp
     expect(
       await readFile(path.join(built.dir, 'assets/mark.svg'), 'utf8'),
     ).toBe(files.find(({ file }) => file === 'assets/mark.svg')?.content);
+  });
+});
+
+describe('the “панель на SFC” example', () => {
+  it('the styles go into one tag of the page, Vue and Vuetify stay out of the bundle', async () => {
+    const { built, extensionId } = await buildExample('панель на SFC');
+    const bundle = await readFile(path.join(built.dir, 'client.mjs'), 'utf8');
+    // Vue and Vuetify are read from the window, not carried
+    expect(bundle).toContain('__dolphy');
+    expect(bundle.length).toBeLessThan(20_000);
+    const { styles } = await importBuilt(built.dir, ['client']);
+    expect(styles).toHaveLength(1);
+    expect(styles[0]).toContain(`${extensionId}: `);
+    expect(styles[0]).toMatch(/\.counter\[data-v-[0-9a-f]+\]/);
   });
 });
 

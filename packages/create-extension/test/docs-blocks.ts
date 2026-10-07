@@ -8,6 +8,7 @@ import { mkdir, symlink, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { renderProject } from '../src/index.ts';
+import type { TemplateName } from '../src/index.ts';
 import { REPO_ROOT, makeTemp } from './helpers.ts';
 
 const require = createRequire(import.meta.url);
@@ -31,12 +32,13 @@ export interface CollectedBlocks {
 /** ``File `src/index.ts` (label):`` right before a code block. */
 const MARKER = /^File `([^`]+)` \(([^)]+)\):$/;
 const FRAGMENT = '<!-- fragment -->';
-const CHECKED_LANGUAGES = new Set(['ts', 'json', 'js']);
+const CHECKED_LANGUAGES = new Set(['ts', 'tsx', 'vue', 'json', 'js']);
 
 /**
- * Every `ts`/`json`/`js` block of a guide is either an example file (the line
- * before it is ``File `path` (label):``), or a fragment (`<!-- fragment -->`),
- * or reported in `unmarked`. Other languages (`sh`, `text`) are free.
+ * Every `ts`/`tsx`/`vue`/`json`/`js` block of a guide is either an example file
+ * (the line before it is ``File `path` (label):``), or a fragment
+ * (`<!-- fragment -->`), or reported in `unmarked`. Other languages (`sh`,
+ * `text`) are free.
  */
 export const collectBlocks = (markdown: string): CollectedBlocks => {
   const lines = markdown.split('\n');
@@ -86,6 +88,7 @@ export const linkToolchain = async (project: string): Promise<void> => {
   const modules = path.join(project, 'node_modules');
   await mkdir(path.join(modules, '@dolphy-app'), { recursive: true });
   await mkdir(path.join(modules, '@types'), { recursive: true });
+  await mkdir(path.join(modules, '@vitejs'), { recursive: true });
   const links: [string, string][] = [
     [
       '@dolphy-app/extension-api',
@@ -100,8 +103,34 @@ export const linkToolchain = async (project: string): Promise<void> => {
       path.join(REPO_ROOT, 'packages/extension-tools'),
     ],
     ['@types/node', packageDir('@types/node')],
+    [
+      '@types/react',
+      path.join(REPO_ROOT, 'packages/extension-sdk/node_modules/@types/react'),
+    ],
+    [
+      '@types/react-dom',
+      path.join(
+        REPO_ROOT,
+        'packages/extension-sdk/node_modules/@types/react-dom',
+      ),
+    ],
+    [
+      '@vitejs/plugin-vue',
+      path.join(
+        REPO_ROOT,
+        'packages/extension-tools/node_modules/@vitejs/plugin-vue',
+      ),
+    ],
     ['vitest', packageDir('vitest')],
     ['happy-dom', packageDir('happy-dom')],
+    [
+      'react',
+      path.join(REPO_ROOT, 'packages/extension-sdk/node_modules/react'),
+    ],
+    [
+      'react-dom',
+      path.join(REPO_ROOT, 'packages/extension-sdk/node_modules/react-dom'),
+    ],
     ['vue', path.join(REPO_ROOT, 'packages/extension-sdk/node_modules/vue')],
     [
       'vuetify',
@@ -138,14 +167,17 @@ export const vitest = (project: string) => runNode([vitestBin, 'run'], project);
 
 /**
  * A project in a temporary directory: the `package.json` and `tsconfig.json`
- * every generated project has, the example files, the linked toolchain.
+ * of the template (`exercise` by default), the example files, the linked
+ * toolchain.
  */
 export const writeExampleProject = async (
   files: readonly ExampleFile[],
+  template?: TemplateName,
 ): Promise<string> => {
   const root = path.join(await makeTemp(), 'project');
   const shared = renderProject({
     id: 'acme.hello',
+    ...(template === undefined ? {} : { template }),
     dependencies: { api: '^0.0.0', sdk: '^0.0.0', tools: '^0.0.0' },
   });
   await mkdir(root, { recursive: true });

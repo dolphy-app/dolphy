@@ -110,7 +110,9 @@ describe('runCli', () => {
     expect(code).toBe(2);
     expect(stdout).toBe('');
     expect(stderr).toContain("unknown template 'fancy'");
-    expect(stderr).toContain('exercise, theme, command-panel, events, blank');
+    expect(stderr).toContain(
+      'exercise, theme, command-panel, react-panel, events, blank',
+    );
     await expect(readFile(path.join(cwd, 'x/package.json'))).rejects.toThrow();
   });
 

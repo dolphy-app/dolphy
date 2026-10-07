@@ -17,6 +17,12 @@ const LINKED = ['extension-sdk'] as const;
 /** What an author lists as dependencies: the build resolves Vue and Vuetify for types and tree shaking, then the app's own instances replace them; `zod` of the RPC contracts goes into the bundle. */
 const AUTHOR_DEPENDENCIES = ['vue', 'vuetify', 'zod'] as const;
 
+/** React of the `react` preset is the author's own dependency and goes into the bundle: the app does not carry it, the build takes the copy of `extension-tools`. */
+const TOOLS_DEPENDENCIES = ['react', 'react-dom'] as const;
+const TOOLS_MODULES = fileURLToPath(
+  new URL('../../../../packages/extension-tools/node_modules', import.meta.url),
+);
+
 export interface BuiltExtension {
   /** The built extension (`<out>/<id>`), ready for `createWorkspace({ extensions })`. */
   dir: string;
@@ -44,6 +50,12 @@ export const buildFixtureExtension = async (
     for (const name of AUTHOR_DEPENDENCIES) {
       await symlink(
         await realpath(join(APP_MODULES, name)),
+        join(project, 'node_modules', name),
+      );
+    }
+    for (const name of TOOLS_DEPENDENCIES) {
+      await symlink(
+        await realpath(join(TOOLS_MODULES, name)),
         join(project, 'node_modules', name),
       );
     }

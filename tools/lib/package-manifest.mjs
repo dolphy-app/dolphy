@@ -20,8 +20,8 @@ const VERSION_PATTERN = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
  * пакета, копируемые в `dist` и открытые подпутём `./<имя файла>`; `docs` — файлы каталога
  * `docs/` пакета, публикуются как `docs/<имя файла>` рядом с `dist`; `bin` — команда → точка входа;
  * `siblings` — публикуемые пакеты, остающиеся зависимостями (их типы видны в `.d.ts`);
- * `peers` — библиотеки, объявляемые `peerDependencies` (диапазон — из `peerDependencies`
- * исходного пакета), а не `dependencies`.
+ * `peers` — библиотеки, объявляемые `peerDependencies` (диапазон и пометка `optional` — из
+ * `peerDependencies` и `peerDependenciesMeta` исходного пакета), а не `dependencies`.
  */
 export const PACKAGES = [
   {
@@ -74,12 +74,14 @@ export const PACKAGES = [
       client: 'src/client.ts',
       rpc: 'src/rpc.ts',
       testing: 'src/testing.ts',
+      react: 'src/react.ts',
     },
     exports: {
       '.': 'index',
       './client': 'client',
       './rpc': 'rpc',
       './testing': 'testing',
+      './react': 'react',
     },
     docs: [
       'debugging.md',
@@ -90,6 +92,8 @@ export const PACKAGES = [
       'recipe-exercise-type.md',
       'recipe-hooks.md',
       'recipe-import-export.md',
+      'recipe-mountable.md',
+      'recipe-react.md',
       'recipe-rpc-and-app.md',
       'recipe-settings.md',
       'recipe-theme.md',
@@ -99,22 +103,28 @@ export const PACKAGES = [
     dts: true,
     sideEffects: false,
     siblings: ['extension-api'],
-    peers: ['vue'],
+    peers: ['vue', 'react', 'react-dom'],
     usage: [
       '`@dolphy-app/extension-sdk` — extension code: `defineServer` and',
       '`defineClient` describe the `server` and `client` exports of an extension',
       '`src/index.ts`, `defineRpc` declares a call from a component to the server',
       'part. Components of the client part use `useApp`, `useEngine`, `useRpc`,',
       '`usePanel` and `useInjection` (`@dolphy-app/extension-sdk/client`; `vue` is a',
-      'peer dependency). `createTestServer` and `createTestClient`',
-      '(`@dolphy-app/extension-sdk/testing`) run an extension against in-memory',
-      'implementations of the app. The package has no side effects: an extension',
-      '`src/index.ts` can be imported in plain Node.',
+      'peer dependency). A component is a Vue component (single-file `.vue`',
+      'components included) or a `Mountable` that `defineMountable` builds and that',
+      'draws with any framework; `reactComponent` and the React hooks',
+      '(`@dolphy-app/extension-sdk/react`) draw a React component, `react` and',
+      '`react-dom` being optional peer dependencies. `createTestServer`,',
+      '`createTestClient` and `mountForTest` (`@dolphy-app/extension-sdk/testing`)',
+      'run an extension against in-memory implementations of the app. The package',
+      'has no side effects: an extension `src/index.ts` can be imported in plain',
+      'Node.',
       '',
       '```ts',
       "import { defineClient, defineServer } from '@dolphy-app/extension-sdk';",
       "import { defineRpc } from '@dolphy-app/extension-sdk/rpc';",
       "import { useApp, useRpc } from '@dolphy-app/extension-sdk/client';",
+      "import { reactComponent } from '@dolphy-app/extension-sdk/react';",
       "import { createTestServer } from '@dolphy-app/extension-sdk/testing';",
       '```',
       '',
@@ -124,6 +134,8 @@ export const PACKAGES = [
       `[an exercise type](${GUIDE_URL}/recipe-exercise-type.md),`,
       `[a theme](${GUIDE_URL}/recipe-theme.md),`,
       `[a command and a panel](${GUIDE_URL}/recipe-command-panel.md),`,
+      `[a panel in React](${GUIDE_URL}/recipe-react.md),`,
+      `[a component of any framework](${GUIDE_URL}/recipe-mountable.md),`,
       `[events and storage](${GUIDE_URL}/recipe-event-storage.md),`,
       `[hooks before a session and a batch](${GUIDE_URL}/recipe-hooks.md),`,
       `[calls between the parts, the engine and the window](${GUIDE_URL}/recipe-rpc-and-app.md),`,
@@ -247,6 +259,19 @@ export const derivePeerDependencies = ({ spec, source }) =>
   );
 
 /**
+ * `peerDependenciesMeta` пакета: пометки (`optional`) peer из `spec.peers`, объявленные в
+ * `peerDependenciesMeta` исходного пакета. Необязательный peer не требует установки у
+ * автора, который не использует подпуть, которому он нужен.
+ */
+export const derivePeerDependenciesMeta = ({ spec, source }) =>
+  Object.fromEntries(
+    peerNames(spec).flatMap((name) => {
+      const meta = source.peerDependenciesMeta?.[name];
+      return meta === undefined ? [] : [[name, meta]];
+    }),
+  );
+
+/**
  * `dependencies` опубликованного пакета по тому, что бандл действительно импортирует.
  * `imports` — спецификаторы из собранного JS и `.d.ts`.
  */
@@ -330,6 +355,7 @@ export const createManifest = ({
   version,
   dependencies,
   peerDependencies = {},
+  peerDependenciesMeta = {},
 }) => {
   if (!isValidVersion(version)) {
     throw new Error(`'${version}' is not a valid semver version`);
@@ -351,6 +377,9 @@ export const createManifest = ({
     files: publishedFiles(spec),
     dependencies,
     ...(Object.keys(peerDependencies).length === 0 ? {} : { peerDependencies }),
+    ...(Object.keys(peerDependenciesMeta).length === 0
+      ? {}
+      : { peerDependenciesMeta }),
     engines: { node: NODE_RANGE },
     repository: {
       type: 'git',

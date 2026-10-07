@@ -1,11 +1,12 @@
 import { h, render, watch } from 'vue';
-import type { App, Component } from 'vue';
+import type { App } from 'vue';
 import type {
   InjectionHandle,
   InjectionPosition,
 } from '@dolphy-app/extension-api';
 import InjectionHost from '@/shared/ui/InjectionHost.vue';
 import type { ClientInjection, ExtensionClients } from './extension-clients.ts';
+import type { ExtensionComponent } from './extension-client-registrations.ts';
 
 /** Атрибут контейнера-хоста, в который рисуется компонент вставки. */
 export const INJECTION_HOST_ATTRIBUTE = 'data-ext-injection';
@@ -39,7 +40,7 @@ export interface ShellContent {
   extensionId: string;
   /** Подпись хоста: id вставки или `mountAt`. */
   injectionId: string;
-  component: Component;
+  component: ExtensionComponent;
   componentProps?: Readonly<Record<string, unknown>>;
   handle: InjectionHandle;
 }

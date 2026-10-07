@@ -1,8 +1,8 @@
 # Recipe: a command and a panel
 
 A command appears in the command palette and runs your code; a panel is a
-screen the command can open: a Vue component the app draws inside its own
-window. This recipe is the `command-panel` template
+screen the command can open: a Vue single-file component the app draws inside
+its own window. This recipe is the `command-panel` template
 (`npx @dolphy-app/create-extension <dir> --id acme.hello --template command-panel`).
 The files below are exactly what the generator writes for the id `acme.hello`.
 See [quick-start.md](quick-start.md) for the commands.
@@ -89,51 +89,91 @@ File `src/client.ts` (command-panel):
 
 ```ts
 import { defineClient } from '@dolphy-app/extension-sdk';
-import { HelloPanel } from './hello-panel.ts';
+import StatusPanel from './StatusPanel.vue';
 
 // runs in the app window: the panel is a Vue component the app draws
 export const client = defineClient((c) => {
   c.addPanel({
     id: 'acme.hello.view',
     title: { en: 'Hello', ru: 'Привет' },
-    component: HelloPanel,
+    component: StatusPanel,
   });
 });
 ```
 
-File `src/hello-panel.ts` (command-panel):
+File `src/StatusPanel.vue` (command-panel):
 
-```ts
+```vue
+<script setup lang="ts">
 import { usePanel } from '@dolphy-app/extension-sdk/client';
-import { computed, defineComponent, h, ref } from 'vue';
+import { computed, ref } from 'vue';
 
 // `usePanel()` gives the panel the properties it was opened with and `call`
 // for the commands of the extension
-export const HelloPanel = defineComponent({
-  setup() {
-    const panel = usePanel();
-    const message = ref('');
-    // the app opens the panel again with new properties: `panel.props` is
-    // reactive, the title follows it
-    const name = computed(() => {
-      const { props } = panel;
-      return typeof props === 'object' && props !== null && 'name' in props
-        ? String(props.name)
-        : 'world';
-    });
-    void panel.call('acme.hello.data').then((data) => {
-      message.value = (data as { message: string }).message;
-    });
-    return () =>
-      h('div', [h('h2', `Hello, ${name.value}!`), h('p', message.value)]);
-  },
+const panel = usePanel();
+const message = ref('');
+// the app opens the panel again with new properties: `panel.props` is
+// reactive, the title follows it
+const name = computed(() => {
+  const { props } = panel;
+  return typeof props === 'object' && props !== null && 'name' in props
+    ? String(props.name)
+    : 'world';
 });
+
+const load = async () => {
+  const data = await panel.call('acme.hello.data');
+  message.value = (data as { message: string }).message;
+};
+void load();
+</script>
+
+<template>
+  <section class="status-panel">
+    <h2>Hello, {{ name }}!</h2>
+    <p>{{ message }}</p>
+    <v-btn color="primary" @click="load">Reload</v-btn>
+  </section>
+</template>
+
+<style scoped>
+.status-panel {
+  padding: 16px;
+}
+</style>
+```
+
+File `src/env.d.ts` (command-panel):
+
+```ts
+declare module '*.vue' {
+  import type { DefineComponent } from 'vue';
+
+  const component: DefineComponent<object, object, unknown>;
+  export default component;
+}
 ```
 
 - `client.addPanel({ id, title, component })` adds the screen and its entry in
-  the sidebar menu. The component is a Vue component; `vue` is the app's own
-  instance, so the panel shares its theme and language. `openPanel('<id>', props)`
-  of a command opens it.
+  the sidebar menu. The component is a Vue component, here a single-file
+  component (`.vue`), or a `Mountable` that draws with another framework (see
+  [recipe-mountable.md](recipe-mountable.md) and [recipe-react.md](recipe-react.md)).
+  `vue` is the app's own instance, so the panel shares its theme and language.
+  `openPanel('<id>', props)` of a command opens it.
+- A `.vue` file is built as it is: `<script setup lang="ts">`, `<template>`
+  and `<style>`. Vuetify components are written as tags (`<v-btn>`,
+  `<v-card>`) and Vuetify directives as `v-ripple`, with no import: the build
+  turns the ones a template uses into imports from the app's own Vuetify, so
+  the theme and the language of the app apply and the bundle does not carry
+  Vuetify. A `.vue` file in the server part is a build error.
+- A `<style>` block is not tied to the panel: when `client.mjs` loads, the
+  styles of all its components go into one `<style data-dolphy-ext="<extension
+  id>">` tag of the window document, so a plain `<style>` reaches the whole
+  window. Write `<style scoped>`, as the template does. `<style module>` is
+  not supported.
+- `src/env.d.ts` tells `tsc` that a `.vue` import is a Vue component. `tsc`
+  does not look inside a `.vue` file; add `vue-tsc` to `typecheck` if you
+  want the script and the template checked too.
 - Inside the component `usePanel()` from `@dolphy-app/extension-sdk/client`
   returns the handle: `panelId`, the reactive `props` the panel was opened with
   (a repeated `openPanel` with new properties updates them in place, so a
@@ -148,6 +188,15 @@ export const HelloPanel = defineComponent({
 
 ## The tests
 
+File `vitest.config.ts` (command-panel):
+
+```ts
+import vue from '@vitejs/plugin-vue';
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({ plugins: [vue()] });
+```
+
 File `test/index.test.ts` (command-panel):
 
 ```ts
@@ -159,9 +208,9 @@ import {
   createTestServer,
 } from '@dolphy-app/extension-sdk/testing';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createApp, h, nextTick, shallowReactive } from 'vue';
+import { createApp, defineComponent, h, nextTick, shallowReactive } from 'vue';
 import { client, server } from '../src/index.ts';
-import { HelloPanel } from '../src/hello-panel.ts';
+import StatusPanel from '../src/StatusPanel.vue';
 
 const disposables: { dispose(): unknown }[] = [];
 afterEach(async () => {
@@ -214,8 +263,13 @@ describe('acme.hello: client', () => {
     const running = await createTestClient(client, { extensionId: 'acme.hello' });
     disposables.push(running);
     expect(running.panels.map((panel) => panel.id)).toEqual(['acme.hello.view']);
-    expect(running.panels[0]?.component).toBe(HelloPanel);
+    expect(running.panels[0]?.component).toBe(StatusPanel);
   });
+});
+
+// the app draws `<v-btn>` with its Vuetify; the test gives the panel a plain button
+const VBtn = defineComponent({
+  setup: (_props, { slots }) => () => h('button', slots['default']?.()),
 });
 
 // draws the panel the way the app does: the handle is provided to the component
@@ -231,7 +285,8 @@ const mountPanel = async (
   });
   const host = document.createElement('div');
   document.body.append(host);
-  const app = createApp({ render: () => h(HelloPanel) });
+  const app = createApp({ render: () => h(StatusPanel) });
+  app.component('v-btn', VBtn);
   app.provide(PANEL_HANDLE_KEY, handle);
   app.mount(host);
   disposables.push({
@@ -272,6 +327,17 @@ describe('acme.hello: panel', () => {
     expect(panel.host.querySelector('h2')?.textContent).toBe('Hello, Grace!');
   });
 
+  it('asks the data command again when the button is pressed', async () => {
+    const calls: string[] = [];
+    const panel = await mountPanel(undefined, async (commandId) => {
+      calls.push(commandId);
+      return { message: 'x' };
+    });
+    panel.host.querySelector('button')?.click();
+    await panel.reopen({});
+    expect(calls).toEqual(['acme.hello.data', 'acme.hello.data']);
+  });
+
   it('greets the world when it is opened without properties', async () => {
     const panel = await mountPanel(undefined, async () => ({ message: 'x' }));
     expect(panel.host.querySelector('h2')?.textContent).toBe('Hello, world!');
@@ -289,7 +355,10 @@ panels, so the test checks that the id the `open` command points to exists.
 A panel is tested like any Vue component: `createApp` mounts it in `happy-dom`,
 and `app.provide(PANEL_HANDLE_KEY, handle)` gives it the handle the app would
 provide. The `call` of the handle answers `panel.call`; here it is a stub, and
-in the events recipe it is wired to the real handlers.
+in the events recipe it is wired to the real handlers. `vitest.config.ts` adds
+`@vitejs/plugin-vue` so that the test can import the `.vue` file. The app gives
+`<v-btn>` its Vuetify; the test registers a plain button under that name
+(`app.component('v-btn', …)`) and tests the panel, not Vuetify.
 
 ## Try and ship
 

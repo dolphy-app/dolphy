@@ -1,8 +1,17 @@
 <script setup lang="ts">
-import { onErrorCaptured, shallowRef, toRef, watch, watchEffect } from 'vue';
+import {
+  computed,
+  onErrorCaptured,
+  shallowRef,
+  toRef,
+  watch,
+  watchEffect,
+} from 'vue';
 import { useI18n } from 'vue-i18n';
+import { isMountable } from '@dolphy-app/extension-api';
 import type { ClientMarkdownRenderer } from '@/shared/lib/extension-clients.ts';
 import ExtensionScope from './ExtensionScope.vue';
+import MountableHost from './MountableHost.vue';
 
 const props = defineProps<{
   /** Заглушка блока в разметке: сюда рисуется компонент рендерера. */
@@ -13,9 +22,25 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
+
+const mountable = computed(() =>
+  isMountable(props.renderer.component) ? props.renderer.component : null,
+);
+const vueComponent = computed(() =>
+  isMountable(props.renderer.component) ? null : props.renderer.component,
+);
+const mountProps = computed(() => ({
+  source: props.source,
+  language: props.language,
+}));
+
 const host = toRef(props, 'target');
 
 const failed = shallowRef(false);
+
+const onMountError = () => {
+  failed.value = true;
+};
 
 // новый экземпляр рендерера (обновление, правка в режиме разработчика) — рисуем заново
 watch(
@@ -55,16 +80,20 @@ watchEffect(() => {
         {{ t('markdown.renderFailed', { language }) }}
       </p>
     </template>
+    <MountableHost
+      v-else-if="mountable !== null"
+      :key="renderer.key"
+      :extension-id="renderer.extensionId"
+      :mountable="mountable"
+      :props="mountProps"
+      @error="onMountError"
+    />
     <ExtensionScope
-      v-else
+      v-else-if="vueComponent !== null"
       :key="renderer.key"
       :extension-id="renderer.extensionId"
     >
-      <component
-        :is="renderer.component"
-        :source="source"
-        :language="language"
-      />
+      <component :is="vueComponent" :source="source" :language="language" />
     </ExtensionScope>
   </Teleport>
 </template>

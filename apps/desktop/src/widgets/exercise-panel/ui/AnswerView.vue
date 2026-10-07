@@ -2,10 +2,12 @@
 import { computed, onErrorCaptured, ref, shallowRef, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { ExerciseTaskDto, VerdictDto } from '@dolphy-app/engine-contract';
+import { isMountable } from '@dolphy-app/extension-api';
 import type { AnswerChange } from '@dolphy-app/extension-api';
 import { useExtensionClients } from '@/shared/lib/extension-clients.ts';
 import type { ClientAnswerView } from '@/shared/lib/extension-clients.ts';
 import ExtensionScope from '@/shared/ui/ExtensionScope.vue';
+import MountableHost from '@/shared/ui/MountableHost.vue';
 import { answerViewOf } from '../model/answer-view.ts';
 
 const props = withDefaults(
@@ -65,11 +67,33 @@ const retry = () => {
   clients.reload(props.task.extensionId);
 };
 
+const showFailure = (error: unknown) => {
+  failure.value = error instanceof Error ? error.message : String(error);
+};
+
 onErrorCaptured((error) => {
   console.error({ error, type: props.task.type }, 'answer view failed');
-  failure.value = error instanceof Error ? error.message : String(error);
+  showFailure(error);
   return false;
 });
+
+const mountable = computed(() =>
+  current.value !== null && isMountable(current.value.component)
+    ? current.value.component
+    : null,
+);
+const vueComponent = computed(() =>
+  current.value === null || isMountable(current.value.component)
+    ? null
+    : current.value.component,
+);
+const mountProps = computed(() => ({
+  view: props.view,
+  value: props.value,
+  disabled: props.disabled,
+  verdict: props.verdict,
+  label: props.label,
+}));
 
 const message = computed(
   () =>
@@ -104,13 +128,23 @@ const message = computed(
         </v-btn>
       </template>
     </v-alert>
+    <MountableHost
+      v-else-if="current !== null && mountable !== null"
+      :key="`${current.key}:${attempt}`"
+      :extension-id="current.extensionId"
+      :mountable="mountable"
+      :props="mountProps"
+      @change="emit('change', $event)"
+      @submit="emit('submit')"
+      @error="showFailure"
+    />
     <ExtensionScope
-      v-else-if="current !== null"
+      v-else-if="current !== null && vueComponent !== null"
       :key="`${current.key}:${attempt}`"
       :extension-id="current.extensionId"
     >
       <component
-        :is="current.component"
+        :is="vueComponent"
         :view="view"
         :value="value"
         :disabled="disabled"

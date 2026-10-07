@@ -1,7 +1,8 @@
+import { realpathSync } from 'node:fs';
 import { builtinModules } from 'node:module';
 import path from 'node:path';
 import { build, createLogger } from 'vite';
-import type { InlineConfig } from 'vite';
+import type { InlineConfig, Plugin } from 'vite';
 import {
   ASSETS_INLINE_LIMIT,
   ASSET_FILE_NAME,
@@ -9,7 +10,13 @@ import {
 } from './assets-plugin.ts';
 import { BuildError } from './errors.ts';
 import { WINDOW_SPECIFIER, hostModulesPlugin } from './host-modules.ts';
+import {
+  frameworkPackagePattern,
+  presetConfig,
+  presetPlugins,
+} from './presets/index.ts';
 import type { Entry, Project } from './project.ts';
+import { serverVuePlugin } from './server-vue.ts';
 import { exportOf, shimEntry, shimPlugin } from './shim.ts';
 import type { JobState, Output } from './shim.ts';
 
@@ -82,20 +89,24 @@ const bundleConfig = (
 /** Constants of the extension API are `Object.freeze({…})` calls: without this a browser bundle keeps all of them. */
 const BROWSER_PURE_CALLS = ['Object.freeze'];
 
-/** Vue and Vuetify are the window's: the client file takes them from the app, and the server file, which only shares `src/index.ts` with it, must not keep what it imports of them (a component defined at the top level of `src/index.ts` is not code of the server). */
-const WINDOW_PACKAGE =
-  /[\\/]node_modules[\\/](?:vue|@vue|vuetify|@vuetify)[\\/]/;
-
-const outputJob = (project: Project, output: Output, outDir: string): Job => {
+/** `presets`: plugins of the frameworks of the client file (the server file and workers are built without them). */
+const outputJob = (
+  project: Project,
+  output: Output,
+  outDir: string,
+  presets: Plugin[],
+): Job => {
   const state: JobState = { problem: null };
-  const config = bundleConfig(
+  const isBrowser = output.kind === 'client';
+  const base = bundleConfig(
     project,
     shimEntry(project, output),
     output.output,
     outDir,
-    output.kind === 'server',
+    !isBrowser,
   );
-  const isBrowser = output.kind === 'client';
+  const config = isBrowser ? presetConfig(project.frameworks, base) : base;
+  const frameworkPackages = frameworkPackagePattern(project.frameworks);
   config.build = {
     ...config.build,
     rolldownOptions: {
@@ -103,7 +114,7 @@ const outputJob = (project: Project, output: Output, outDir: string): Job => {
       treeshake: isBrowser
         ? { manualPureFunctions: BROWSER_PURE_CALLS }
         : {
-            moduleSideEffects: (id) => !WINDOW_PACKAGE.test(id),
+            moduleSideEffects: (id) => !frameworkPackages.test(id),
             manualPureFunctions: ['defineComponent', 'defineAsyncComponent'],
           },
     },
@@ -115,7 +126,12 @@ const outputJob = (project: Project, output: Output, outDir: string): Job => {
       ...config,
       plugins: [
         shimPlugin({ project, output, state }),
-        ...(isBrowser ? [hostModulesPlugin()] : []),
+        ...(isBrowser
+          ? [hostModulesPlugin()]
+          : [
+              serverVuePlugin(realpathSync(project.root), output.output, state),
+            ]),
+        ...presets,
         assetsPlugin(state),
       ],
     },
@@ -136,20 +152,35 @@ const workerJob = (project: Project, entry: Entry, outDir: string): Job => {
         outDir,
         true,
       ),
-      plugins: [assetsPlugin(state)],
+      plugins: [
+        serverVuePlugin(realpathSync(project.root), entry.output, state),
+        assetsPlugin(state),
+      ],
     },
     state,
   };
 };
 
 /** Project bundles: the server part, the client part, workers. */
-export const jobsOf = (project: Project, outDir: string): Job[] => [
+export const jobsOf = async (
+  project: Project,
+  outDir: string,
+): Promise<Job[]> => [
   ...(project.server === null
     ? []
-    : [outputJob(project, project.server, outDir)]),
+    : [outputJob(project, project.server, outDir, [])]),
   ...(project.client === null
     ? []
-    : [outputJob(project, project.client, outDir)]),
+    : [
+        outputJob(
+          project,
+          project.client,
+          outDir,
+          await presetPlugins(project.frameworks, {
+            extensionId: project.manifest.id,
+          }),
+        ),
+      ]),
   ...project.workerEntries.map((entry) => workerJob(project, entry, outDir)),
 ];
 
@@ -162,7 +193,7 @@ export const bundleAll = async (
   project: Project,
   outDir: string,
 ): Promise<void> => {
-  for (const job of jobsOf(project, outDir)) {
+  for (const job of await jobsOf(project, outDir)) {
     job.state.problem = null;
     try {
       await build(job.config);

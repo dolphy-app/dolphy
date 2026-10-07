@@ -45,9 +45,10 @@ export interface AnswerVerdict {
 }
 
 /**
- * Props of an answer view: a Vue component the extension registers with
- * `client.addAnswerView(<exercise type id>, component)`. The component declares `emits: ['change',
- * 'submit']`: `change` carries an `AnswerChange`, `submit` asks the app to
+ * Props of an answer view: a Vue component or a `Mountable` the extension
+ * registers with `client.addAnswerView(<exercise type id>, component)`. A Vue
+ * component declares `emits: ['change', 'submit']`, a `Mountable` calls
+ * `ctx.emit`: `change` carries an `AnswerChange`, `submit` asks the app to
  * check the answer.
  */
 export interface AnswerViewProps<View = unknown, Answer = unknown> {
@@ -68,7 +69,7 @@ export interface AnswerChange<Answer = unknown> {
   complete: boolean;
 }
 
-/** Props of a content renderer: a Vue component the extension registers with `client.addMarkdownRenderer(<language>, component)`. */
+/** Props of a content renderer: a Vue component or a `Mountable` the extension registers with `client.addMarkdownRenderer(<language>, component)`. */
 export interface MarkdownBlockProps {
   /** Text of the ` ```<language> ` block. */
   readonly source: string;
@@ -173,7 +174,7 @@ export interface PanelRegistration {
   icon?: ExtensionIconName;
   /** Visibility condition (see `parseWhen`): while it is false the sidebar entry is hidden; the panel still opens with `openPanel`. */
   when?: string;
-  /** The panel's Vue component (`unknown`: this package does not depend on Vue). */
+  /** The panel's component: a Vue component or a `Mountable` (`unknown`: this package does not depend on Vue). */
   component: unknown;
 }
 
@@ -215,7 +216,7 @@ export interface InjectionRegistration {
   target: string;
   /** Defaults to `append`. `before` and `after` put the component next to the target, `prepend` and `append` inside it. */
   position?: InjectionPosition;
-  /** The Vue component (`unknown`: this package does not depend on Vue). */
+  /** The component: a Vue component or a `Mountable` (`unknown`: this package does not depend on Vue). */
   component: unknown;
 }
 
@@ -1181,6 +1182,106 @@ export interface RpcContract<Input, Output> {
   readonly output: ZodType<Output>;
 }
 
+/**
+ * Brand of a `Mountable`: a registered symbol, so the app and the bundle of an
+ * extension agree on it without sharing a module (each extension bundles its
+ * own copy of the SDK).
+ */
+export const MOUNTABLE = Symbol.for('dolphy.extension.mountable');
+
+/** What a `Mountable` returns: runs once, when the app removes the element; may be async. */
+export type Unmount = () => void | Promise<void>;
+
+/** Props of a panel drawn by a `Mountable`: the same values as `PanelHandle`, a snapshot. */
+export type PanelProps = Pick<PanelHandle, 'panelId' | 'props' | 'context'>;
+
+/** Props of an injected `Mountable`: the same values as `InjectionHandle`. */
+export type InjectionProps = InjectionHandle;
+
+/**
+ * What the app gives `Mountable.mount`: the window without Vue. `Props` are the
+ * props of the surface (`PanelProps`, `InjectionProps`, `AnswerViewProps`,
+ * `MarkdownBlockProps`); `Handle` is `PanelHandle` in a panel, `InjectionHandle`
+ * in an injection and `undefined` elsewhere; `Engine` is the type of `engine`
+ * (`unknown`: this package does not depend on the engine contract; the SDK
+ * fixes it to `ExtensionEngine`). `props`, `theme` and `locale` are snapshots:
+ * reading them gives the current value, an old object is never changed; listen
+ * with `onProps`, `onTheme` and `onLocale`.
+ */
+export interface MountContext<
+  Props = unknown,
+  Engine = unknown,
+  Handle = undefined,
+> {
+  /** The current props. */
+  readonly props: Props;
+  /** Calls `listener` with the new props after each change; returns the function that stops listening. */
+  onProps(listener: (props: Props) => void): () => void;
+  /**
+   * Sends an event to the app. An answer view emits `change` with an
+   * `AnswerChange` and `submit` (asks the app to check the answer); other
+   * surfaces have no events and ignore it.
+   */
+  emit(event: string, payload?: unknown): void;
+  /** The window API, the same object as `ClientContext.app`. */
+  readonly app: AppApi;
+  /** The engine client of the window, the same object as `ClientContext.engine`. */
+  readonly engine: Engine;
+  /**
+   * Calls the server part of this extension: validates `input` with
+   * `contract.input` and the answer with `contract.output`; a failure is a
+   * rejected promise with an `Error`. The same as `useRpc(contract)` of a Vue component.
+   */
+  callRpc<Input, Output>(
+    contract: RpcContract<Input, Output>,
+    input: Input,
+  ): Promise<Output>;
+  /** The current theme. */
+  readonly theme: AppTheme;
+  onTheme(listener: (theme: AppTheme) => void): () => void;
+  /** The current language. */
+  readonly locale: AppLocale;
+  onLocale(listener: (locale: AppLocale) => void): () => void;
+  readonly extensionId: string;
+  /** Aborted when the app removes the element: stop requests and timers with it. */
+  readonly signal: AbortSignal;
+  /** Shows the error in place of the component (a card with a retry button); other components keep working. */
+  reportError(error: unknown): void;
+  /**
+   * The panel or the injection the component is drawn for; `undefined` in an
+   * answer view and a markdown renderer. `handle.props` and `handle.context`
+   * of a panel read the current values.
+   */
+  readonly handle: Handle;
+}
+
+/**
+ * A component of any framework: the app creates an element and calls `mount`;
+ * the component draws into it and returns the cleanup. Accepted where
+ * `component` of `addPanel`, `addInjection`, `addAnswerView` and
+ * `addMarkdownRenderer` is. Build it with `defineMountable` of the SDK.
+ */
+export interface Mountable<
+  Props = unknown,
+  Engine = unknown,
+  Handle = undefined,
+> {
+  readonly [MOUNTABLE]: true;
+  mount(
+    el: HTMLElement,
+    ctx: MountContext<Props, Engine, Handle>,
+  ): Unmount | Promise<Unmount>;
+}
+
+/** Tells a `Mountable` from a Vue component by the brand. */
+export const isMountable = (
+  value: unknown,
+): value is Mountable<unknown, unknown, unknown> =>
+  typeof value === 'object' &&
+  value !== null &&
+  MOUNTABLE in value &&
+  value[MOUNTABLE] === true;
+
 export const DEFAULT_MAIN = './main.mjs';
 export const DEFAULT_CLIENT = './client.mjs';
 
@@ -1761,8 +1862,8 @@ export interface ThemeRegistration {
 
 /**
  * What the window gives the client part of an extension (`export const
- * client` of `src/index.ts`, built into `client.mjs`). Components are Vue
- * components (`unknown`: this package does not depend on Vue). Every `add*`
+ * client` of `src/index.ts`, built into `client.mjs`). A component is a Vue
+ * component or a `Mountable` (`unknown`: this package does not depend on Vue). Every `add*`
  * call returns a `Disposable` that removes the contribution. `Engine` is the
  * type of `engine` (`unknown`: this package does not depend on the engine
  * contract; the SDK fixes it to `ExtensionEngine`).

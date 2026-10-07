@@ -10,6 +10,7 @@ import {
   MARKDOWN_LANGUAGE_PATTERN,
   THEME_COLOR_KEYS,
   THEME_VARIABLE_KEYS,
+  isMountable,
   parseWhen,
 } from '@dolphy-app/extension-api';
 import type { ExtensionEngine } from '@dolphy-app/engine-contract';
@@ -20,10 +21,15 @@ import type {
   ExtensionIconName,
   InjectionPosition,
   LocalizedText,
+  Mountable,
   RegisteredKeybinding,
 } from '@dolphy-app/extension-api';
 import { PLATFORMS, validateBinding } from '@dolphy-app/keybindings';
 import type { BindingProblem } from '@dolphy-app/keybindings';
+
+/** Компонент расширения: Vue-компонент или `Mountable` любого фреймворка. */
+export type ExtensionComponent =
+  Component | Mountable<unknown, unknown, unknown>;
 
 /** Панель, которую расширение добавило вызовом `addPanel`. */
 export interface ClientPanel {
@@ -35,7 +41,7 @@ export interface ClientPanel {
   title: LocalizedText;
   icon: ExtensionIconName;
   when: string | null;
-  component: Component;
+  component: ExtensionComponent;
 }
 
 /** Компонент расширения, вставляемый в DOM окна (`addInjection`), с умолчаниями. */
@@ -46,7 +52,7 @@ export interface ClientInjection {
   id: string;
   target: string;
   position: InjectionPosition;
-  component: Component;
+  component: ExtensionComponent;
 }
 
 /** Компонент ввода ответа для вида задания (`addAnswerView`). */
@@ -55,7 +61,7 @@ export interface ClientAnswerView {
   key: string;
   extensionId: string;
   type: string;
-  component: Component;
+  component: ExtensionComponent;
 }
 
 /** Компонент блока markdown для языка (`addMarkdownRenderer`). */
@@ -64,7 +70,7 @@ export interface ClientMarkdownRenderer {
   key: string;
   extensionId: string;
   language: string;
-  component: Component;
+  component: ExtensionComponent;
 }
 
 /** Тема расширения (`addTheme`) с умолчаниями. */
@@ -123,11 +129,12 @@ const { titleLength, descriptionLength, categoryLength, whenLength } =
 
 const HEX_COLOR = /^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/;
 
-const component = z.custom<Component>(
+const component = z.custom<ExtensionComponent>(
   (value) =>
+    isMountable(value) ||
     typeof value === 'function' ||
     (typeof value === 'object' && value !== null),
-  'must be a Vue component',
+  'must be a Vue component or a Mountable',
 );
 
 const text = (max: number) =>

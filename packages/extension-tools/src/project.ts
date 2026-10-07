@@ -2,6 +2,12 @@ import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { DEFAULT_CLIENT, DEFAULT_MAIN } from '@dolphy-app/extension-api';
 import type { ExtensionManifest } from '@dolphy-app/extension-api';
+import {
+  DEFAULT_FRAMEWORKS,
+  FRAMEWORK_NAMES,
+  isFramework,
+  normalizeFrameworks,
+} from './presets/index.ts';
 import { formatDiagnostic, parseManifest } from '@dolphy-app/extension-host';
 import { analyzeIndex } from './analyze.ts';
 import { BuildError } from './errors.ts';
@@ -40,6 +46,8 @@ export interface Project {
   client: ClientOutput | null;
   workerEntries: Entry[];
   external: string[];
+  /** Frameworks of the client file (`frameworks` of the config, `vue` always first). */
+  frameworks: string[];
 }
 
 export const INDEX_SOURCE = 'src/index.ts';
@@ -75,14 +83,43 @@ const readJson = async (file: string, subject: string): Promise<unknown> => {
 interface ToolConfig {
   nodeEntries: Record<string, string>;
   external: string[];
+  frameworks: string[];
 }
+
+/** `frameworks` of the config: names of known presets (an error lists the known ones); `vue` is always on. */
+const frameworksOf = (value: unknown, root: string): string[] => {
+  if (!isStringArray(value)) {
+    throw new BuildError(
+      `${CONFIG_FILE}: 'frameworks' must be an array of framework names (${FRAMEWORK_NAMES.join(', ')})`,
+      root,
+    );
+  }
+  const unknown = value.find((name) => !isFramework(name));
+  if (unknown !== undefined) {
+    throw new BuildError(
+      `${CONFIG_FILE}: unknown framework '${unknown}' in 'frameworks': the known frameworks are ${FRAMEWORK_NAMES.join(', ')}`,
+      root,
+    );
+  }
+  return normalizeFrameworks(value);
+};
 
 const readConfig = async (root: string): Promise<ToolConfig> => {
   const file = path.join(root, CONFIG_FILE);
   const exists = (await stat(file).catch(() => null))?.isFile() === true;
-  if (!exists) return { nodeEntries: {}, external: [] };
+  if (!exists) {
+    return {
+      nodeEntries: {},
+      external: [],
+      frameworks: normalizeFrameworks(DEFAULT_FRAMEWORKS),
+    };
+  }
   const raw = await readJson(file, root);
-  const config = raw as { nodeEntries?: unknown; external?: unknown };
+  const config = raw as {
+    nodeEntries?: unknown;
+    external?: unknown;
+    frameworks?: unknown;
+  };
   const nodeEntries = config.nodeEntries ?? {};
   const external = config.external ?? [];
   if (!isStringRecord(nodeEntries) || !isStringArray(external)) {
@@ -91,7 +128,11 @@ const readConfig = async (root: string): Promise<ToolConfig> => {
       root,
     );
   }
-  return { nodeEntries, external };
+  return {
+    nodeEntries,
+    external,
+    frameworks: frameworksOf(config.frameworks ?? DEFAULT_FRAMEWORKS, root),
+  };
 };
 
 /** Workers are built only together with a server part. */
@@ -154,6 +195,7 @@ export const loadProject = async (rootDir: string): Promise<Project> => {
       : null,
     workerEntries: workerEntriesOf(config, analysis.hasServer),
     external: config.external,
+    frameworks: config.frameworks,
   };
 };
 

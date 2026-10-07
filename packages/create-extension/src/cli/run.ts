@@ -16,7 +16,7 @@ const USAGE = `usage: create-dolphy-extension <dir> [--id <id>] [--template <nam
   <dir>              new project directory (must be empty or not exist)
   --id <id>          extension id (default: kebab-case of the directory name)
   --template <name>  project kind: exercise (default), theme, command-panel,
-                     events or blank
+                     react-panel, events or blank
   --local <repoRoot> Dolphy repository root: @dolphy-app/extension-sdk and
                      @dolphy-app/extension-tools are linked as link:<repoRoot>/packages/...
   --help             show this help

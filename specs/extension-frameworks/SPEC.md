@@ -51,18 +51,21 @@ superseded-by: null
 ## Progress
 
 - [x] 2026-10-08 проектирование (этот документ), решения владельца в `Decision Log`
-- [ ] типы `Mountable`, `MountContext`, бренд, `types.test-d.ts` (`extension-api`)
-- [ ] `defineMountable`, `callRpc`, `mountForTest`, `createTestClient` (SDK)
-- [ ] `MountableHost.vue`, подключение к четырём поверхностям, тесты (окно)
-- [ ] пресеты сборки и `frameworks` в `dolphy-ext.config.json`, пресет `react` (`extension-tools`)
-- [ ] `@dolphy-app/extension-sdk/react`: `reactComponent`, хуки
-- [ ] шаблон `react-panel`, рецепт, документ, e2e `extension-react`
-- [ ] замер размера, порог (R6)
-- [ ] пресет `vue` с `.vue`: `plugin-vue`, `<v-*>` в шаблоне, стили, правило границы для сервера, шаблон `command-panel` на SFC, e2e `extension-sfc`
+- [x] 2026-10-08 типы `Mountable`, `MountContext`, бренд, `types.test-d.ts` (`extension-api`)
+- [x] 2026-10-08 `defineMountable`, `callRpc`, `mountForTest`, `createTestClient` (SDK)
+- [x] 2026-10-08 `MountableHost.vue`, подключение к четырём поверхностям, тесты (окно)
+- [x] 2026-10-08 пресеты сборки и `frameworks` в `dolphy-ext.config.json`, пресет `react` (`extension-tools`)
+- [x] 2026-10-08 `@dolphy-app/extension-sdk/react`: `reactComponent`, хуки
+- [x] 2026-10-08 шаблон `react-panel`, рецепт, документ, e2e `extension-react`
+- [x] 2026-10-08 замер размера: React «hello, world» без минификации 565 515 Б / 106 460 Б gzip (с `esbuild --minify` ≈ 69 КиБ gzip), SFC с одной `<v-btn>` 1 152 Б / 568 Б gzip; порога нет
+- [x] 2026-10-08 пресет `vue` с `.vue`: `plugin-vue`, `<v-*>` в шаблоне, стили, правило границы для сервера, шаблон `command-panel` на SFC, e2e `extension-sfc`
 
 ## Surprises & Discoveries
 
-Пусто, пока нет.
+- Vite 8 при `NODE_ENV≠production` включает `jsxDEV`, которого нет в production-сборке React: пресет `react` ставит `oxc.jsx.development = false`, иначе панель падала бы в рантайме.
+- Серверный бандл тянул `react`/`react-dom`/`scheduler` (1,5 МБ): пресет объявляет пакеты фреймворка, их импорты вычищаются из `main.mjs`.
+- `@vitejs/plugin-vue` по умолчанию кладёт в бандл `__file` с путём машины сборки: пресет `vue` всегда собирает в production-форме.
+- Механизм peer-зависимостей публикации не переносил `peerDependenciesMeta`: `react` не стал бы необязательным (`derivePeerDependenciesMeta`).
 
 ## Decision Log
 

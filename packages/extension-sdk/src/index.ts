@@ -4,13 +4,16 @@ export { notify, openPanel } from './commands.ts';
 export {
   defineClient,
   defineExerciseType,
+  defineMountable,
   defineServer,
   type AppApi,
   type ClientContext,
   type InjectionRegistration,
   type ClientEntry,
+  type MountContext,
+  type Mountable,
   type PanelRegistration,
   type ServerContext,
   type ServerEntry,
 } from './define-entry.ts';
-export { defineRpc } from './rpc.ts';
+export { callRpc, defineRpc, type RpcTarget } from './rpc.ts';

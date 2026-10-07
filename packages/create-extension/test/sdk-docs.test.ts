@@ -44,6 +44,8 @@ const DOC_FILES = [
   'recipe-exercise-type.md',
   'recipe-hooks.md',
   'recipe-import-export.md',
+  'recipe-mountable.md',
+  'recipe-react.md',
   'recipe-rpc-and-app.md',
   'recipe-settings.md',
   'recipe-theme.md',
@@ -67,6 +69,15 @@ const EXAMPLES: Readonly<Record<string, Record<string, Example>>> = {
   },
   'recipe-theme.md': {
     theme: { template: 'theme', built: ['client.mjs'] },
+  },
+  'recipe-mountable.md': {
+    mountable: { built: ['client.mjs', 'main.mjs'] },
+  },
+  'recipe-react.md': {
+    'react-panel': {
+      template: 'react-panel',
+      built: ['client.mjs', 'main.mjs'],
+    },
   },
   'recipe-command-panel.md': {
     'command-panel': {
@@ -219,7 +230,7 @@ describe.each(checkedExamples)(
         true,
       );
 
-      const root = await writeExampleProject(files);
+      const root = await writeExampleProject(files, template);
       const built = await buildExtension({ root });
       expect(
         built.files.filter((file) => file.endsWith('.mjs')).sort(),

@@ -70,6 +70,10 @@ import type {
   SettingValue,
   StreakStats,
   ThemeRegistration,
+  AnswerViewProps,
+  AppLocale,
+  AppTheme,
+  MarkdownBlockProps,
 } from '@dolphy-app/extension-api';
 import type { ExtensionEngine } from '@dolphy-app/engine-contract';
 import type { Component } from 'vue';
@@ -78,10 +82,13 @@ import type {
   ClientContext,
   ClientEntry,
   InjectionRegistration,
+  MountContext,
+  Mountable,
   PanelRegistration,
   ServerContext,
   ServerEntry,
 } from './define-entry.ts';
+import { callRpc } from './rpc.ts';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 
 const MAX_MESSAGES = 6;
@@ -1326,16 +1333,22 @@ export const createTestServer = async (
   };
 };
 
+/** An answer view as registered: a Vue component or a `Mountable`. */
+export type AnswerViewComponent = Component | Mountable<AnswerViewProps>;
+/** A markdown renderer as registered: a Vue component or a `Mountable`. */
+export type MarkdownRendererComponent =
+  Component | Mountable<MarkdownBlockProps>;
+
 /** The client part of an extension, started on a recording context. */
 export interface TestClient {
   readonly extensionId: string;
   readonly panels: readonly PanelRegistration[];
   /** Injections as registered, with `position` defaulted to `append`. */
   readonly injections: readonly Required<InjectionRegistration>[];
-  /** Answer views by exercise type id. */
-  readonly answerViews: ReadonlyMap<string, Component>;
-  /** Markdown renderers by block language. */
-  readonly markdownRenderers: ReadonlyMap<string, Component>;
+  /** Answer views by exercise type id, as registered (a Vue component or a `Mountable`). */
+  readonly answerViews: ReadonlyMap<string, AnswerViewComponent>;
+  /** Markdown renderers by block language, as registered (a Vue component or a `Mountable`). */
+  readonly markdownRenderers: ReadonlyMap<string, MarkdownRendererComponent>;
   readonly themes: readonly ThemeRegistration[];
   readonly commands: readonly ClientCommandRegistration[];
   /** Runs the cleanup the entry returned and removes the registrations. */
@@ -1364,8 +1377,8 @@ export const createTestClient = async (
   const extensionId = options.extensionId ?? 'test';
   const panels: PanelRegistration[] = [];
   const injections: Required<InjectionRegistration>[] = [];
-  const answerViews = new Map<string, Component>();
-  const markdownRenderers = new Map<string, Component>();
+  const answerViews = new Map<string, AnswerViewComponent>();
+  const markdownRenderers = new Map<string, MarkdownRendererComponent>();
   const themes: ThemeRegistration[] = [];
   const commands: ClientCommandRegistration[] = [];
 
@@ -1392,11 +1405,11 @@ export const createTestClient = async (
     list.push(value);
     return { dispose: () => void list.splice(list.indexOf(value), 1) };
   };
-  const addToMap = (
-    map: Map<string, Component>,
+  const addToMap = <T>(
+    map: Map<string, T>,
     kind: string,
     key: string,
-    component: Component,
+    component: T,
   ): Disposable => {
     if (map.has(key)) throw new Error(`${kind} '${key}' is already added`);
     map.set(key, component);
@@ -1470,6 +1483,144 @@ export const createTestClient = async (
       commands.length = 0;
       if (typeof cleanup === 'function') await cleanup();
       else if (cleanup !== undefined) await cleanup.dispose();
+    },
+  };
+};
+
+/** What `mountForTest` gives `ctx`; everything is optional except `props`. */
+export interface MountForTestOptions<Props, Handle = undefined> {
+  /** The first `ctx.props`. */
+  props: Props;
+  /** The element to draw into; by default a new `<div>` of the global `document`. Required without a DOM. */
+  el?: HTMLElement;
+  /** `ctx.handle`: a panel or injection handle; `undefined` by default. */
+  handle?: Handle;
+  /** `ctx.app`; by default every use of it throws, as the test has no window. */
+  app?: AppApi;
+  /** `ctx.engine`, the engine of `ctx.callRpc`; by default every use of it throws. */
+  engine?: ExtensionEngine;
+  /** Default `{ id: 'light', dark: false }`. */
+  theme?: AppTheme;
+  /** Default `en`. */
+  locale?: AppLocale;
+  /** Default `test`. */
+  extensionId?: string;
+}
+
+/** A `Mountable` mounted by `mountForTest`. */
+export interface MountedForTest<Props, Handle = undefined> {
+  readonly el: HTMLElement;
+  /** The context the `Mountable` got. */
+  readonly ctx: MountContext<Props, Handle>;
+  /** Replaces `ctx.props` and calls the `onProps` listeners. */
+  setProps(next: Props): void;
+  /** Replaces `ctx.theme` and calls the `onTheme` listeners. */
+  setTheme(next: AppTheme): void;
+  /** Replaces `ctx.locale` and calls the `onLocale` listeners. */
+  setLocale(next: AppLocale): void;
+  /** Every `ctx.emit` call, in order: `[event, payload]`. */
+  readonly emitted: readonly (readonly [string, unknown])[];
+  /** Every `ctx.reportError` call, in order. */
+  readonly errors: readonly unknown[];
+  /** Aborts `ctx.signal` and runs the cleanup `mount` returned, once. */
+  unmount(): Promise<void>;
+}
+
+const createNotifier = <T>() => {
+  const listeners = new Set<(value: T) => void>();
+  return {
+    subscribe: (listener: (value: T) => void): (() => void) => {
+      listeners.add(listener);
+      return () => void listeners.delete(listener);
+    },
+    notify: (value: T): void => {
+      for (const listener of [...listeners]) listener(value);
+    },
+  };
+};
+
+/**
+ * Mounts a `Mountable` into an element on a recording context, so a test can
+ * change the props, the theme and the language, read what the component
+ * emitted and reported, and unmount it. Rejects with what `mount` throws. Needs
+ * a DOM (`document`) or `options.el`.
+ */
+export const mountForTest = async <Props, Handle = undefined>(
+  mountable: Mountable<Props, Handle>,
+  options: MountForTestOptions<Props, Handle>,
+): Promise<MountedForTest<Props, Handle>> => {
+  let el = options.el;
+  if (el === undefined) {
+    if (typeof document === 'undefined') {
+      throw new Error(
+        'mountForTest needs a DOM: run the test in happy-dom or jsdom, or pass options.el',
+      );
+    }
+    el = document.createElement('div');
+  }
+  const extensionId = options.extensionId ?? 'test';
+  const engine =
+    options.engine ?? unprovided<ExtensionEngine>('engine', 'engine');
+  const abort = new AbortController();
+  const emitted: (readonly [string, unknown])[] = [];
+  const errors: unknown[] = [];
+  const propsListeners = createNotifier<Props>();
+  const themeListeners = createNotifier<AppTheme>();
+  const localeListeners = createNotifier<AppLocale>();
+  let props = options.props;
+  let theme = options.theme ?? { id: 'light', dark: false };
+  let locale = options.locale ?? 'en';
+  // `handle` is optional only for surfaces without one: its type is `undefined` there
+  const handle = options.handle as Handle;
+
+  const ctx: MountContext<Props, Handle> = {
+    get props() {
+      return props;
+    },
+    onProps: propsListeners.subscribe,
+    emit: (event, payload) => void emitted.push([event, payload]),
+    app: options.app ?? unprovided<AppApi>('app', 'app'),
+    engine,
+    callRpc: (contract, input) =>
+      callRpc({ engine, extensionId }, contract, input),
+    get theme() {
+      return theme;
+    },
+    onTheme: themeListeners.subscribe,
+    get locale() {
+      return locale;
+    },
+    onLocale: localeListeners.subscribe,
+    extensionId,
+    signal: abort.signal,
+    reportError: (error) => void errors.push(error),
+    handle,
+  };
+
+  const unmountComponent = await mountable.mount(el, ctx);
+  let unmounted = false;
+  return {
+    el,
+    ctx,
+    setProps(next) {
+      props = next;
+      propsListeners.notify(next);
+    },
+    setTheme(next) {
+      theme = next;
+      themeListeners.notify(next);
+    },
+    setLocale(next) {
+      locale = next;
+      localeListeners.notify(next);
+    },
+    emitted,
+    errors,
+    async unmount() {
+      if (unmounted) return;
+      unmounted = true;
+      abort.abort();
+      await unmountComponent();
     },
   };
 };

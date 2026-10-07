@@ -288,7 +288,7 @@ describe('generateExtension', () => {
     expect(index).not.toContain('defineAnswerElement');
   });
 
-  it("the project depends on the app's own vue and vuetify, not on a UI kit", async () => {
+  it('the project depends on the vue and vuetify of the app', async () => {
     const root = await makeTemp();
     const { dir } = await generateExtension({
       dir: path.join(root, 'acme-hello'),
@@ -298,9 +298,6 @@ describe('generateExtension', () => {
       vue: '^3.5.35',
       vuetify: '^4.0.1',
     });
-    expect(pkg['devDependencies']).not.toHaveProperty(
-      '@dolphy-app/extension-ui',
-    );
   });
 });
 

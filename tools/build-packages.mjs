@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Сборка публикуемых пакетов (`@dolphy-app/extension-api|keybindings|ui|sdk|tools|create-extension`)
+ * Сборка публикуемых пакетов (`@dolphy-app/extension-api|keybindings|sdk|tools|create-extension`)
  * в `dist-publish/<каталог пакета>/`: собранный JS, `.d.ts`, сгенерированные
  * `package.json` и README. Рабочие пакеты остаются `private`: публикуется только
  * сгенерированный каталог.
@@ -27,6 +27,7 @@ import {
   createManifest,
   createRangeResolver,
   deriveDependencies,
+  derivePeerDependencies,
   docFiles,
   isBareSpecifier,
   isValidVersion,
@@ -168,6 +169,7 @@ const buildPackage = async ({ spec, version, rootManifest, workspace }) => {
     rootManifest,
     version,
     dependencies,
+    peerDependencies: derivePeerDependencies({ spec, source }),
   });
   await mkdir(packageDir, { recursive: true });
   await writeFile(

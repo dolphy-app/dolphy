@@ -203,9 +203,12 @@ const assertExports = ({ manifest, dir }) => {
   }
 };
 
-/** Всё, что импортируют JS и `.d.ts`, — встроенное, относительное или объявленная зависимость. */
+/** Всё, что импортируют JS и `.d.ts`, — встроенное, относительное, объявленная зависимость или peer. */
 const assertSelfContained = ({ manifest, dir }) => {
-  const declared = new Set(Object.keys(manifest.dependencies ?? {}));
+  const declared = new Set([
+    ...Object.keys(manifest.dependencies ?? {}),
+    ...Object.keys(manifest.peerDependencies ?? {}),
+  ]);
   for (const file of listFiles(dir).filter((item) =>
     /\.(js|d\.ts)$/.test(item),
   )) {

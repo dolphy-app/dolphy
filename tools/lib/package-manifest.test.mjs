@@ -8,6 +8,7 @@ import {
   createManifest,
   createRangeResolver,
   deriveDependencies,
+  derivePeerDependencies,
   isValidVersion,
   packageOfSpecifier,
   renderReadme,
@@ -45,15 +46,54 @@ describe('руководство пакета SDK', () => {
   });
 });
 
+describe('derivePeerDependencies', () => {
+  it('диапазон peer берётся из peerDependencies исходного пакета', () => {
+    const peers = derivePeerDependencies({
+      spec: specOf('extension-sdk'),
+      source: {
+        peerDependencies: { vue: '^3.5' },
+        devDependencies: { vue: '^3.5.35' },
+      },
+    });
+    assert.deepEqual(peers, { vue: '^3.5' });
+  });
+
+  it('peer без объявления в исходном пакете — ошибка', () => {
+    assert.throws(
+      () =>
+        derivePeerDependencies({ spec: specOf('extension-sdk'), source: {} }),
+      /peer 'vue'/,
+    );
+  });
+
+  it('пакет без peers не получает peerDependencies', () => {
+    assert.deepEqual(
+      derivePeerDependencies({ spec: specOf('extension-api'), source: {} }),
+      {},
+    );
+  });
+
+  it('peer не попадает в dependencies', () => {
+    const dependencies = deriveDependencies({
+      spec: specOf('extension-sdk'),
+      imports: ['vue', 'ajv'],
+      resolveRange: (name) => (name === 'ajv' ? '^8' : null),
+      version: '1.2.3',
+    });
+    assert.deepEqual(dependencies, { ajv: '^8' });
+  });
+});
+
 describe('createManifest', () => {
   it('пакет с типами: exports с types/default и верхний types', () => {
     const manifest = manifestOf('extension-sdk');
     assert.deepEqual(manifest.exports, {
       '.': { types: './dist/index.d.ts', default: './dist/index.js' },
-      './runtime': {
-        types: './dist/runtime.d.ts',
-        default: './dist/runtime.js',
+      './client': {
+        types: './dist/client.d.ts',
+        default: './dist/client.js',
       },
+      './rpc': { types: './dist/rpc.d.ts', default: './dist/rpc.js' },
       './testing': {
         types: './dist/testing.d.ts',
         default: './dist/testing.js',
@@ -63,9 +103,21 @@ describe('createManifest', () => {
     assert.equal(manifest.bin, undefined);
   });
 
-  it('extension-api открывает схему манифеста подпутём на dist/extension.schema.json', () => {
+  it('SDK объявляет vue peer-зависимостью, остальные пакеты peer не пишут', () => {
+    const manifest = manifestOf('extension-sdk', {
+      peerDependencies: { vue: '^3.5' },
+    });
+    assert.deepEqual(manifest.peerDependencies, { vue: '^3.5' });
+    assert.equal(manifestOf('extension-api').peerDependencies, undefined);
+  });
+
+  it('extension-api открывает hook-schemas и схему манифеста подпутём на dist/extension.schema.json', () => {
     assert.deepEqual(manifestOf('extension-api').exports, {
       '.': { types: './dist/index.d.ts', default: './dist/index.js' },
+      './hook-schemas': {
+        types: './dist/hook-schemas.d.ts',
+        default: './dist/hook-schemas.js',
+      },
       './extension.schema.json': './dist/extension.schema.json',
     });
   });

@@ -3,9 +3,11 @@ import {
   EXTENSION_HOOK_MAX_EXERCISES,
   ExtensionHookError,
 } from '../ports/extension-hooks.ts';
+import { retrievabilityAt } from '../scheduler/due.ts';
 import type {
   ExtensionHookRequests,
   ExtensionHookResponses,
+  HookExerciseMemory,
 } from '../ports/extension-hooks.ts';
 import type { EngineContext } from './context.ts';
 import { EngineError } from './errors.ts';
@@ -43,6 +45,32 @@ export const runBeforeHook = async <N extends HookName>(
   }
 };
 
+/** Проекции уже хранят состояние памяти: реплея журнала нет. */
+const memoryOf = (
+  ctx: Pick<EngineContext, 'projections' | 'memoryModel'>,
+  exerciseId: string,
+  now: number,
+): HookExerciseMemory => {
+  const attempts = ctx.projections.attempts.count(exerciseId);
+  const memory = ctx.projections.memory.getMemory(exerciseId);
+  if (memory === null) {
+    return {
+      retrievability: null,
+      lastAttemptAt: null,
+      attempts,
+      stability: null,
+      difficulty: null,
+    };
+  }
+  return {
+    retrievability: retrievabilityAt(ctx.memoryModel, memory, now),
+    lastAttemptAt: memory.lastAt,
+    attempts,
+    stability: memory.state.stability,
+    difficulty: memory.state.difficulty,
+  };
+};
+
 /**
  * Хук `practice.batch`: расширения могут переставить, убрать и добавить
  * упражнения. Ответ каждого обработчика проверяется библиотекой (равные
@@ -50,11 +78,20 @@ export const runBeforeHook = async <N extends HookName>(
  * список в порядке ответа.
  */
 export const runBatchHook = async (
-  ctx: Pick<EngineContext, 'extensionHooks' | 'library' | 'currentSession'>,
+  ctx: Pick<
+    EngineContext,
+    | 'extensionHooks'
+    | 'library'
+    | 'currentSession'
+    | 'projections'
+    | 'memoryModel'
+    | 'clock'
+  >,
   source: ExtensionHookRequests['practice.batch']['source'],
   entries: readonly BatchEntry[],
 ): Promise<BatchEntry[]> => {
   const library = ctx.library.require();
+  const now = ctx.clock.now();
   const response = await runBeforeHook(
     ctx,
     'practice.batch',
@@ -63,6 +100,7 @@ export const runBatchHook = async (
       source,
       exerciseIds: entries.map(({ exerciseId }) => exerciseId),
       reasons: entries.map(({ reason }) => reason),
+      memory: entries.map(({ exerciseId }) => memoryOf(ctx, exerciseId, now)),
     },
     ({ exerciseIds, reasons }) => {
       if (exerciseIds.length !== reasons.length) {

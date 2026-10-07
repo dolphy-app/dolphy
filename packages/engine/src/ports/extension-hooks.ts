@@ -14,6 +14,15 @@ import type {
 /** Потолок упражнений в ответе `practice.batch`; совпадает с `EXTENSION_HOOK_LIMITS.maxExercises` пакета `extension-api` (ядро от него не зависит). */
 export const EXTENSION_HOOK_MAX_EXERCISES = 500;
 
+/** Память упражнения для хука `practice.batch` (только чтение). */
+export interface HookExerciseMemory {
+  retrievability: number | null;
+  lastAttemptAt: number | null;
+  attempts: number;
+  stability: number | null;
+  difficulty: number | null;
+}
+
 export interface ExtensionHookRequests {
   'session.start': { now: number };
   'practice.batch': {
@@ -23,6 +32,8 @@ export interface ExtensionHookRequests {
     source: 'batch' | 'plan';
     exerciseIds: string[];
     reasons: ItemReason[];
+    /** Параллелен `exerciseIds`; `null` — у упражнения нет попыток. */
+    memory: HookExerciseMemory[];
   };
 }
 

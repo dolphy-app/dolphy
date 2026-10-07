@@ -1,9 +1,9 @@
 ---
-status: active
+status: done
 branch: feature/extension-runtime
 created: 2026-10-07
-closed: null
-touches: [extension-api, extension-host, extension-sdk, extension-tools, extension-ui, extension-catalog, create-extension, ext-choice, ext-js, ext-math, ext-sql, engine-contract, engine, engine-rpc, desktop, docs]
+closed: 2026-10-07
+touches: [extension-api, extension-host, extension-sdk, extension-tools, extension-catalog, create-extension, ext-choice, ext-js, ext-math, ext-sql, engine-contract, engine, engine-rpc, desktop, docs]
 depends-on: []
 supersedes: null
 superseded-by: null
@@ -166,4 +166,20 @@ superseded-by: null
 
 ## Outcomes
 
-Заполняется при закрытии.
+Сделано всё из «Цели»; отличия и остатки ниже.
+
+**Что получилось.** Все расширения исполняются без ограничений; вклады регистрируются кодом (`server` в хосте, `client` в окне); интерфейс — Vue-компоненты в дереве окна на общих `vue`/`vuetify`, без iframe; вставка компонента в любой элемент DOM (`addInjection`, `mountAt`); `s.engine`/`useEngine()` — все методы движка; `defineRpc`/`useRpc`; `useApp()`; хуки `session.start` и `practice.batch` (в `practice.getBatch` и `plan.getDay`) с памятью FSRS по упражнениям в запросе; каталог на минимальном манифесте. Контракт движка 31 → 37. Размер клиентского бандла фикстуры: 3,7 КиБ (1,7 КиБ gzip) против 143 КиБ gzip раньше; порог 20 КиБ gzip проверяет e2e `extension-injections`. Проверки при закрытии: `pnpm typecheck`, `pnpm test` (7215 тестов; один нестабильный watch-тест `extension-tools` под нагрузкой всего репозитория), `pnpm lint` (0 ошибок), `pnpm smoke`, `pnpm smoke:packaged`, `pnpm build:packages` и `pnpm verify:packages`, сборка Storybook, e2e 212 из 212.
+
+**Отличия от исходной спеки.**
+- R9: вместо закрытого каталога слотов (`EXTENSION_SLOTS`, `addSlot`) сделана вставка в любой элемент DOM (решение владельца 2026-10-07); устойчива одна цель, `data-ext-anchor="dailyPlan"`.
+- R7: `APP_KEY` даётся оболочкой каждого компонента расширения, а не приложением; `openLesson`/`openExercise` открывают сессию курса (страниц урока и упражнения в окне нет); `await s.engine…` внутри `server()` не поддерживается.
+- R10: `practice.batch` применяется и в `plan.getDay`; в запрос добавлены `source`, `sessionId`, `memory`.
+- Стадия 7 поглощена стадиями 2 и 5.
+- R3: порог размера проверяет e2e, а не `pnpm verify:packages`.
+
+**Остатки.**
+- Влияние на FSRS: уровень 1 сделан (`memory` в `practice.batch`); параметры FSRS как настройки (уровень 2) и замена модели (уровень 3) не делались: нужен вопрос переносимости расчётов между устройствами.
+- Хук готовности движка для `server()` не добавлен.
+- Список устойчивых якорей `data-ext-anchor` растёт по запросу; сегодня один.
+- Холодный старт с жадным запуском всех `server()` не замерялся.
+- Метод `useApp().mountAt` и инъекции не имеют настраиваемого порядка.

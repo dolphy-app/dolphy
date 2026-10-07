@@ -32,6 +32,29 @@ const BATCH: ExtensionHookRequests['practice.batch'] = {
   source: 'plan',
   exerciseIds: ['x', 'y', 'z'],
   reasons: ['new', 'review', 'remediation'],
+  memory: [
+    {
+      retrievability: null,
+      lastAttemptAt: null,
+      attempts: 0,
+      stability: null,
+      difficulty: null,
+    },
+    {
+      retrievability: 0.4,
+      lastAttemptAt: 1_000,
+      attempts: 2,
+      stability: 3,
+      difficulty: 5,
+    },
+    {
+      retrievability: 0.9,
+      lastAttemptAt: 2_000,
+      attempts: 1,
+      stability: 8,
+      difficulty: 6,
+    },
+  ],
 };
 
 const failure = async (call: Promise<unknown>): Promise<unknown> =>

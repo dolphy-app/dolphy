@@ -451,6 +451,10 @@ harness:
   and an error of the handler reject the promise. Only this extension's handler
   runs (in the app the handlers of all extensions with the hook run in turn).
   `registration.hooks` lists the names.
+  The `practice.batch` request carries `memory`, parallel to `exerciseIds`: the
+  `retrievability`, `lastAttemptAt`, `attempts`, `stability` and `difficulty`
+  of each exercise (`null` for an exercise without attempts), so a test passes
+  the memory the handler should see.
 - `engine` — `options.engine`.
 
 Options: `extensionId`, `library`, `logger`, `storage`, `secrets`, `stats`,

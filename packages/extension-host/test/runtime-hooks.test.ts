@@ -40,6 +40,22 @@ const BATCH: ExtensionHookRequests['practice.batch'] = {
   source: 'batch',
   exerciseIds: ['x', 'y'],
   reasons: ['new', 'review'],
+  memory: [
+    {
+      retrievability: null,
+      lastAttemptAt: null,
+      attempts: 0,
+      stability: null,
+      difficulty: null,
+    },
+    {
+      retrievability: 0.4,
+      lastAttemptAt: 1_000,
+      attempts: 2,
+      stability: 3,
+      difficulty: 5,
+    },
+  ],
 };
 
 const batch = (hooks: ExtensionHooks, request = BATCH) =>

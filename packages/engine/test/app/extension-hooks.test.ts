@@ -132,6 +132,59 @@ describe('practice.batch in getBatch', () => {
     expect(t.learning).toEqual([]);
   });
 
+  it('hands over the memory of every exercise: parallel arrays, null for an exercise without attempts', async () => {
+    const requests: {
+      exerciseIds: string[];
+      memory: {
+        retrievability: number | null;
+        lastAttemptAt: number | null;
+        attempts: number;
+        stability: number | null;
+        difficulty: number | null;
+      }[];
+    }[] = [];
+    const t = await open({
+      'practice.batch': (request) => {
+        requests.push(request);
+        return { exerciseIds: request.exerciseIds, reasons: request.reasons };
+      },
+    });
+    const attemptedAt = t.clock.now();
+    await t.engine.practice.recordAttempt({
+      requestId: 'r1',
+      exerciseId: 'c::l::e1',
+      grade: 5,
+    });
+    t.clock.advance(3 * 86_400_000);
+
+    await t.engine.practice.getBatch();
+
+    const [request] = requests;
+    expect(request?.memory.length).toBe(request?.exerciseIds.length);
+    const byId = new Map(
+      request?.exerciseIds.map((id, i) => [id, request.memory[i]]),
+    );
+    expect(byId.get('c::l::e1')).toEqual({
+      retrievability: expect.any(Number),
+      lastAttemptAt: attemptedAt,
+      attempts: 1,
+      stability: expect.any(Number),
+      difficulty: expect.any(Number),
+    });
+    const recalled = byId.get('c::l::e1')?.retrievability ?? 2;
+    expect(recalled).toBeGreaterThan(0);
+    expect(recalled).toBeLessThan(1);
+    for (const id of ['c::l::e0', 'c::l::e2']) {
+      expect(byId.get(id)).toEqual({
+        retrievability: null,
+        lastAttemptAt: null,
+        attempts: 0,
+        stability: null,
+        difficulty: null,
+      });
+    }
+  });
+
   it('the open session is reported to the hook', async () => {
     const sessions: unknown[] = [];
     const t = await open({

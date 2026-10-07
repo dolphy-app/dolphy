@@ -11,6 +11,20 @@ import { EXTENSION_HOOK_LIMITS } from './hooks.ts';
 
 const itemReason = z.enum(['review', 'new', 'remediation']);
 
+/** `null` fields: the exercise has no attempts yet, so there is no memory state. */
+const exerciseMemory = z.object({
+  /** Probability of recall right now, 0..1. */
+  retrievability: z.number().nullable(),
+  /** Unix epoch milliseconds of the newest attempt. */
+  lastAttemptAt: z.number().nullable(),
+  /** Attempts that count (cancelled ones excluded). */
+  attempts: z.number(),
+  /** FSRS stability in days. */
+  stability: z.number().nullable(),
+  /** FSRS difficulty. */
+  difficulty: z.number().nullable(),
+});
+
 /**
  * Request and response schema of every hook. The handlers of the extensions
  * that registered a hook run one after another in ascending order of the
@@ -46,6 +60,11 @@ export const EXTENSION_HOOKS = Object.freeze({
       source: z.enum(['batch', 'plan']),
       exerciseIds: z.array(z.string()),
       reasons: z.array(itemReason),
+      /**
+       * Parallel to `exerciseIds`: what the engine remembers of each
+       * exercise. Read-only; the FSRS state is not changed by the hook.
+       */
+      memory: z.array(exerciseMemory),
     }),
     response: z
       .object({

@@ -2,7 +2,8 @@
 
 Step into the learning loop. A `before` hook runs before the engine does
 something and may change its input or cancel it. This recipe reorders the
-exercises of a session so that reviews come before new material, and refuses to
+exercises of a session so that reviews come before new material and the most
+forgotten come first, and refuses to
 start a session in the small hours. There is no template for it; start from
 `blank` and replace the files below, which are checked as a whole project. See
 [quick-start.md](quick-start.md) for the commands. Events, which only observe,
@@ -45,10 +46,20 @@ export const server = defineServer((s) => {
   });
 
   // gets the batch the engine built and returns the one to use
-  s.before('practice.batch', ({ exerciseIds, reasons }) => {
+  // reviews before new material, the most forgotten first within a group
+  s.before('practice.batch', ({ exerciseIds, reasons, memory }) => {
     const items = exerciseIds
-      .map((id, index) => ({ id, reason: reasons[index] ?? 'new' }))
-      .sort((a, b) => REVIEW_FIRST[a.reason] - REVIEW_FIRST[b.reason]);
+      .map((id, index) => ({
+        id,
+        reason: reasons[index] ?? 'new',
+        // no attempts yet: nothing to forget
+        retrievability: memory[index]?.retrievability ?? 1,
+      }))
+      .sort(
+        (a, b) =>
+          REVIEW_FIRST[a.reason] - REVIEW_FIRST[b.reason] ||
+          a.retrievability - b.retrievability,
+      );
     return {
       exerciseIds: items.map(({ id }) => id),
       reasons: items.map(({ reason }) => reason),
@@ -63,12 +74,16 @@ export const server = defineServer((s) => {
 - `session.start` gets `{ now }` (epoch milliseconds) and returns nothing. The
   only way to act is to throw: the session is not created and the learner sees
   the message of your error.
-- `practice.batch` gets `{ sessionId, exerciseIds, reasons, source }`
+- `practice.batch` gets `{ sessionId, exerciseIds, reasons, memory, source }`
   (`sessionId` is `null` while the session does not exist yet, as in the daily
   plan before it starts).
   `reasons[i]` (`review`, `new` or `remediation`) belongs to `exerciseIds[i]`;
   `source` is `batch` for `practice.getBatch` and `plan` for the daily plan the
-  window builds a session from. Return `{ exerciseIds, reasons }` of the same
+  window builds a session from. `memory[i]` is what the engine remembers of
+  `exerciseIds[i]`, read-only: `retrievability` (0..1 chance to recall now),
+  `lastAttemptAt` (epoch milliseconds), `attempts`, and the FSRS `stability`
+  (days) and `difficulty`. An exercise with no attempts has `attempts: 0` and
+  `null` in the other fields. Return `{ exerciseIds, reasons }` of the same
   length. You may reorder, drop and add exercises; every id must exist in the
   library, at most 500 ids.
 - Extensions with a hook run one after another in the order of their ids; each
@@ -96,12 +111,35 @@ it('puts reviews before new exercises', async () => {
     sessionId: 's1',
     exerciseIds: ['c::l::a', 'c::l::b', 'c::l::c'],
     reasons: ['new', 'review', 'remediation'],
+    memory: [
+      { retrievability: null, lastAttemptAt: null, attempts: 0, stability: null, difficulty: null },
+      { retrievability: 0.8, lastAttemptAt: 1_000, attempts: 3, stability: 9, difficulty: 4 },
+      { retrievability: 0.3, lastAttemptAt: 2_000, attempts: 1, stability: 2, difficulty: 6 },
+    ],
     source: 'batch',
   });
   expect(batch).toEqual({
     exerciseIds: ['c::l::b', 'c::l::c', 'c::l::a'],
     reasons: ['review', 'remediation', 'new'],
   });
+  await running.dispose();
+});
+
+it('puts the most forgotten exercises first within a group', async () => {
+  const running = await start();
+  const batch = await running.hook('practice.batch', {
+    sessionId: 's1',
+    exerciseIds: ['c::l::a', 'c::l::b', 'c::l::c'],
+    reasons: ['new', 'review', 'review'],
+    memory: [
+      { retrievability: null, lastAttemptAt: null, attempts: 0, stability: null, difficulty: null },
+      { retrievability: 0.8, lastAttemptAt: 1_000, attempts: 3, stability: 9, difficulty: 4 },
+      { retrievability: 0.3, lastAttemptAt: 2_000, attempts: 1, stability: 2, difficulty: 6 },
+    ],
+    source: 'batch',
+  });
+  expect(batch.exerciseIds).toEqual(['c::l::c', 'c::l::b', 'c::l::a']);
+  expect(batch.reasons).toEqual(['review', 'review', 'new']);
   await running.dispose();
 });
 

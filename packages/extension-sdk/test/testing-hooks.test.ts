@@ -17,6 +17,22 @@ describe('createTestServer: hooks', () => {
         source: 'batch',
         exerciseIds: ['a', 'b'],
         reasons: ['new', 'review'],
+        memory: [
+          {
+            retrievability: null,
+            lastAttemptAt: null,
+            attempts: 0,
+            stability: null,
+            difficulty: null,
+          },
+          {
+            retrievability: 0.5,
+            lastAttemptAt: 1,
+            attempts: 1,
+            stability: 2,
+            difficulty: 5,
+          },
+        ],
       }),
     ).toEqual({ exerciseIds: ['b', 'a'], reasons: ['review', 'new'] });
   });
@@ -44,6 +60,15 @@ describe('createTestServer: hooks', () => {
         source: 'plan',
         exerciseIds: ['a'],
         reasons: ['new'],
+        memory: [
+          {
+            retrievability: null,
+            lastAttemptAt: null,
+            attempts: 0,
+            stability: null,
+            difficulty: null,
+          },
+        ],
       }),
     ).rejects.toThrow('same length');
     await expect(
@@ -61,6 +86,7 @@ describe('createTestServer: hooks', () => {
         source: 'plan',
         exerciseIds: [],
         reasons: [],
+        memory: [],
       }),
     ).rejects.toThrow("hook 'practice.batch' was not registered");
 

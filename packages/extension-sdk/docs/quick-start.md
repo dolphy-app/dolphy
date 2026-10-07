@@ -7,7 +7,9 @@ same layout:
 
 - [Exercise type](recipe-exercise-type.md): a new kind of task with its own answer input.
 - [Theme](recipe-theme.md): colors, registered by the client part.
-- [Command and panel](recipe-command-panel.md): palette commands and a panel, a Vue component in the app window.
+- [Command and panel](recipe-command-panel.md): palette commands and a panel, a Vue single-file component (`.vue`) in the app window.
+- [A panel in React](recipe-react.md): the same panel drawn with React: `"frameworks": ["react"]`, `reactComponent`, hooks, tests with `mountForTest`.
+- [A component of any framework](recipe-mountable.md): `defineMountable` on plain DOM, the base for Svelte, Solid or Lit, and what `ctx` gives it.
 - [Events and storage](recipe-event-storage.md): react to learning events and keep data.
 - [Hooks](recipe-hooks.md): change or cancel a session start and the batch of exercises before the engine acts.
 - [Settings](recipe-settings.md): let the user configure the extension.
@@ -37,13 +39,14 @@ starts with it and a dot, so pick one that is yours (a publisher prefix, then a
 name). Without `--id` the id is the directory name in kebab-case. The
 `--template` values:
 
-| Template        | What you get                                                 |
-| --------------- | ------------------------------------------------------------ |
-| `exercise`      | a task type with an answer input and a setting (the default) |
-| `theme`         | a color theme                                                |
-| `command-panel` | palette commands and a panel                                 |
-| `events`        | a learning event handler, storage, commands and a panel      |
-| `blank`         | one palette command                                          |
+| Template        | What you get                                                      |
+| --------------- | ----------------------------------------------------------------- |
+| `exercise`      | a task type with an answer input and a setting (the default)      |
+| `theme`         | a color theme                                                     |
+| `command-panel` | palette commands and a panel as a Vue single-file component      |
+| `react-panel`   | palette commands and a panel drawn with React                     |
+| `events`        | a learning event handler, storage, commands and a panel           |
+| `blank`         | one palette command                                               |
 
 An unknown name exits with code 2 and lists the available ones.
 

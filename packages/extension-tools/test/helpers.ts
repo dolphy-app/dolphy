@@ -34,6 +34,18 @@ export const linkVue = async (root: string): Promise<void> => {
   );
 };
 
+/** Makes `react` and `react-dom` (devDependencies of this package) resolvable from a project in a temporary directory. */
+export const linkReact = async (root: string): Promise<void> => {
+  const own = fileURLToPath(new URL('..', import.meta.url));
+  await mkdir(path.join(root, 'node_modules'), { recursive: true });
+  for (const name of ['react', 'react-dom']) {
+    await symlink(
+      await realpath(path.join(own, 'node_modules', name)),
+      path.join(root, 'node_modules', name),
+    );
+  }
+};
+
 /**
  * Copy of a fixture project in a temporary directory (the build does not write to
  * the repository); Vue is resolvable as in an author's project. `isLinked: false` — a copy

@@ -1,9 +1,11 @@
 import { describe, expectTypeOf, it } from 'vitest';
-import { anchorSelector } from '../src/index.ts';
+import { MOUNTABLE, anchorSelector, isMountable } from '../src/index.ts';
 import type {
   AnswerChange,
   AnswerVerdict,
   AnswerViewProps,
+  AppLocale,
+  AppTheme,
   BytesImportInput,
   ClientContext,
   ClientEntry,
@@ -32,7 +34,13 @@ import type {
   InjectionHandle,
   InjectionPosition,
   InjectionRegistration,
+  MarkdownBlockProps,
+  MountContext,
+  Mountable,
+  PanelProps,
+  RpcContract,
   TextImportInput,
+  Unmount,
 } from '../src/index.ts';
 
 const disposable: Disposable = { dispose: () => undefined };
@@ -369,6 +377,56 @@ describe('extension-api types', () => {
         | { id: 'a.goal'; value: number }
         | { id: 'a.mode'; value: 'fast' | 'slow' }
       >();
+    });
+  });
+
+  describe('Mountable', () => {
+    type Ctx = MountContext<PanelProps, { id: 'engine' }, PanelHandle>;
+
+    it('MountContext carries snapshots, listeners and the capabilities of the window', () => {
+      expectTypeOf<Ctx['props']>().toEqualTypeOf<PanelProps>();
+      expectTypeOf<Ctx['onProps']>().toEqualTypeOf<
+        (listener: (props: PanelProps) => void) => () => void
+      >();
+      expectTypeOf<Ctx['engine']>().toEqualTypeOf<{ id: 'engine' }>();
+      expectTypeOf<Ctx['handle']>().toEqualTypeOf<PanelHandle>();
+      expectTypeOf<Ctx['signal']>().toEqualTypeOf<AbortSignal>();
+      expectTypeOf<Ctx['theme']>().toEqualTypeOf<AppTheme>();
+      expectTypeOf<Ctx['locale']>().toEqualTypeOf<AppLocale>();
+      expectTypeOf<Ctx['emit']>().toEqualTypeOf<
+        (event: string, payload?: unknown) => void
+      >();
+      expectTypeOf<Ctx['reportError']>().toEqualTypeOf<
+        (error: unknown) => void
+      >();
+      expectTypeOf<MountContext['handle']>().toEqualTypeOf<undefined>();
+    });
+
+    it('callRpc takes the contract and gives its output', () => {
+      expectTypeOf<Ctx['callRpc']>().toBeCallableWith(
+        {} as RpcContract<string, number>,
+        'x',
+      );
+      expectTypeOf<ReturnType<Ctx['callRpc']>>().toEqualTypeOf<
+        Promise<unknown>
+      >();
+    });
+
+    it('mount returns a cleanup, sync or async', () => {
+      expectTypeOf<
+        Mountable<MarkdownBlockProps>['mount']
+      >().returns.toEqualTypeOf<Unmount | Promise<Unmount>>();
+      expectTypeOf<Unmount>().toEqualTypeOf<() => void | Promise<void>>();
+    });
+
+    it('isMountable narrows to a branded object', () => {
+      const value: unknown = {
+        [MOUNTABLE]: true,
+        mount: () => () => undefined,
+      };
+      if (isMountable(value)) {
+        expectTypeOf(value[MOUNTABLE]).toEqualTypeOf<true>();
+      }
     });
   });
 });

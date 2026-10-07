@@ -72,10 +72,61 @@ export const client = defineClient((c) => {
   `external` packages stay external. Browser bundle: `es2022`, with `vue` and
   `vuetify` external. Every file is self-contained: no shared chunks.
 - `dolphy-ext.config.json`:
-  `{ "nodeEntries": { "worker.mjs": "src/worker.ts" }, "external": ["better-sqlite3"] }` —
+  `{ "nodeEntries": { "worker.mjs": "src/worker.ts" }, "external": ["better-sqlite3"], "frameworks": ["react"] }` —
   additional Node entries (output file → source), built as they are (only with a
-  `server` export), and external packages.
+  `server` export), external packages, and the UI frameworks of the client file
+  (see "Frameworks").
 - `assets/` and the icon are copied keeping their relative path.
+
+## Frameworks
+
+The client file is built with one preset per framework. `frameworks` in
+`dolphy-ext.config.json` lists them; the default is `["vue"]`, `vue` is always
+on (the window is a Vue application), so `["react"]` means vue and react. A name
+that is not known fails the build and the message lists the known ones (`vue`,
+`react`). Presets apply to `client.mjs` only: `main.mjs` and the workers are
+Node code with no UI.
+
+- **`vue`** (always). Single-file components: `import Panel from './Panel.vue'`
+  with `<script setup lang="ts">`, `<template>`, `<style>` and
+  `<style scoped>`. `@vitejs/plugin-vue` compiles them (it needs `vue` in your
+  project, which `@dolphy-app/extension-sdk` already requires). Vue and Vuetify
+  stay the window's: the bundle imports them from the app, it carries no copy.
+  Vuetify tags in a template, `<v-btn>`, `<v-card>`, `<VAlert>`, and the
+  directives `v-ripple`, `v-click-outside`, `v-intersect`, `v-mutate`, `v-resize`,
+  `v-scroll`, `v-tooltip`, `v-touch`, become imports from `vuetify/components`
+  and `vuetify/directives` of the window; any other tag is looked up by Vue as
+  usual (a Vuetify tag that does not exist is reported by Vue at run time).
+  Style blocks become text in the bundle: when `client.mjs` is loaded, all of
+  them go into one `<style data-dolphy-ext="<extension id>">` in the document
+  head, which replaces the tag a previous load of the same extension left. Scoped
+  styles keep their `data-v-…` attribute; the styles are global to the window, so
+  prefix the class names of unscoped blocks. `<style module>` is not supported.
+  A `.vue` file the server code uses (`main.mjs`, a worker) is an error naming
+  the file; a component imported only for `client` is dropped from `main.mjs`
+  like any other client code.
+- **`react`**. `.tsx` and `.jsx` with the automatic JSX runtime, compiled by the
+  bundler (no `@vitejs/plugin-react`, no Fast Refresh). `react` and `react-dom`
+  are your dependencies and go **into** the bundle, with
+  `process.env.NODE_ENV` set to `"production"`: every extension carries its own
+  copy (about 0.55 MB unminified, 0.1 MB gzipped, for "hello, world"; the
+  window shares nothing but Vue and Vuetify). JSX in `.tsx`/`.jsx` without
+  `"react"` in `frameworks` fails the build and points to the setting.
+
+```json
+{ "frameworks": ["react"] }
+```
+
+Plain `tsc` does not know `.vue` imports: declare them once (for example in
+`src/env.d.ts`) or type-check with `vue-tsc`:
+
+```ts
+declare module '*.vue' {
+  import type { DefineComponent } from 'vue';
+  const component: DefineComponent;
+  export default component;
+}
+```
 
 ## Style sheets, images and fonts
 

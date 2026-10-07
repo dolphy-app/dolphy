@@ -26,7 +26,13 @@ type Resolved =
   | { kind: 'value'; parsed: ParsedFile; node: AstNode }
   | { kind: 'opaque'; reason: string };
 
-const SOURCE_EXTENSIONS = ['.ts', '.mts', '.js', '.mjs'];
+const SOURCE_EXTENSIONS = ['.ts', '.mts', '.tsx', '.js', '.mjs', '.jsx'];
+
+const langOf = (file: string): 'ts' | 'tsx' | 'jsx' | 'js' => {
+  if (/\.tsx$/.test(file)) return 'tsx';
+  if (/\.jsx$/.test(file)) return 'jsx';
+  return /\.[mc]?ts$/.test(file) ? 'ts' : 'js';
+};
 const MAX_HOPS = 16;
 
 const child = (node: AstNode, key: string): AstNode =>
@@ -90,7 +96,7 @@ export const analyzeIndex = async (
     let parsed = cache.get(file);
     if (parsed === undefined) {
       parsed = readFile(file, 'utf8').then((source) => {
-        const lang = /\.[mc]?ts$/.test(file) ? 'ts' : 'js';
+        const lang = langOf(file);
         const ast = parseAst(source, { lang });
         return { file, source, body: ast.body as unknown as AstNode[] };
       });

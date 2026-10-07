@@ -28,6 +28,7 @@ import {
   createRangeResolver,
   deriveDependencies,
   derivePeerDependencies,
+  derivePeerDependenciesMeta,
   docFiles,
   isBareSpecifier,
   isValidVersion,
@@ -171,6 +172,7 @@ const buildPackage = async ({ spec, version, rootManifest, workspace }) => {
     version,
     dependencies,
     peerDependencies: derivePeerDependencies({ spec, source }),
+    peerDependenciesMeta: derivePeerDependenciesMeta({ spec, source }),
   });
   await mkdir(packageDir, { recursive: true });
   await writeFile(

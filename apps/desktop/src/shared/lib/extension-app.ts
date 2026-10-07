@@ -1,6 +1,7 @@
-import type { App, Component } from 'vue';
+import type { App } from 'vue';
 import type { Router } from 'vue-router';
 import { z } from 'zod';
+import type { ExtensionComponent } from './extension-client-registrations.ts';
 import type { ExtensionApps } from './extension-context.ts';
 import type {
   AppApi,
@@ -35,11 +36,11 @@ export interface ExtensionAppDeps {
   root?: ParentNode;
 }
 
-const componentSchema = z.custom<Component>(
+const componentSchema = z.custom<ExtensionComponent>(
   (value) =>
     typeof value === 'function' ||
     (typeof value === 'object' && value !== null),
-  'must be a Vue component',
+  'must be a Vue component or a Mountable',
 );
 
 const errorText = (error: unknown): string =>

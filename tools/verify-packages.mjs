@@ -325,6 +325,33 @@ const assertSplitOutputs = (dir) => {
 
 const formatKb = (bytes) => `${(bytes / 1024).toFixed(1)} KiB`;
 
+/** Шаблоны с интерфейсом не на `defineComponent`: однофайловые компоненты Vue и React. */
+const FRAMEWORK_TEMPLATES = ['command-panel', 'react-panel'];
+
+/** Проект шаблона из установленного генератора: установка из tarball'ов, сборка, проверка типов и свои тесты. */
+const verifyTemplateProject = ({ consumer, template, tarballs, env }) => {
+  step(`create-dolphy-extension --template ${template}`);
+  run(
+    binOf(consumer, 'create-dolphy-extension'),
+    [template, '--template', template],
+    { cwd: consumer, env },
+  );
+  const project = path.join(consumer, template);
+  pointAtTarballs({ project, tarballs });
+  run('npm', ['install'], { cwd: project, env });
+  run('npx', ['--no-install', 'dolphy-ext', 'build'], { cwd: project, env });
+  run(
+    'npx',
+    ['--no-install', 'dolphy-ext', 'validate', `dist-ext/${template}`],
+    { cwd: project, env },
+  );
+  run('npx', ['--no-install', 'tsc', '--noEmit'], { cwd: project, env });
+  check(
+    run('npm', ['test'], { cwd: project, env }).includes('passed'),
+    `${template}: npm test reported no passing tests`,
+  );
+};
+
 const main = () => {
   const keep = process.argv.includes('--keep');
   check(existsSync(DIST), 'dist-publish is missing: run `pnpm build:packages`');
@@ -397,6 +424,9 @@ const main = () => {
       testOutput.includes('passed'),
       'demo: npm test reported no passing tests',
     );
+    for (const template of FRAMEWORK_TEMPLATES) {
+      verifyTemplateProject({ consumer, template, tarballs, env });
+    }
     succeeded = true;
     console.log('\nAll package checks passed.');
   } finally {

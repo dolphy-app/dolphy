@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { onErrorCaptured, provide, reactive, ref, watch } from 'vue';
+import { computed, onErrorCaptured, provide, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { PANEL_HANDLE_KEY } from '@dolphy-app/extension-api';
+import { PANEL_HANDLE_KEY, isMountable } from '@dolphy-app/extension-api';
 import type { JsonValue, PanelHandle } from '@dolphy-app/extension-api';
 import { useExtensionCommands } from '@/features/extension-commands';
 import type { ClientPanel } from '@/shared/lib/extension-clients.ts';
 import { provideExtensionContext } from '@/shared/lib/extension-context.ts';
+import MountableHost from '@/shared/ui/MountableHost.vue';
 
 const props = withDefaults(
   defineProps<{
@@ -47,6 +48,18 @@ const handle: PanelHandle = {
 };
 provide(PANEL_HANDLE_KEY, handle);
 
+const mountable = computed(() =>
+  isMountable(props.panel.component) ? props.panel.component : null,
+);
+const vueComponent = computed(() =>
+  isMountable(props.panel.component) ? null : props.panel.component,
+);
+const mountProps = computed(() => ({
+  panelId: props.panel.id,
+  props: props.openProps,
+  context: { courseId: context.courseId },
+}));
+
 const failure = ref<string | null>(null);
 // повтор после сбоя рендера создаёт компонент заново
 const attempt = ref(0);
@@ -56,12 +69,16 @@ const retry = () => {
   attempt.value += 1;
 };
 
+const showFailure = (error: unknown) => {
+  failure.value = error instanceof Error ? error.message : String(error);
+};
+
 onErrorCaptured((error) => {
   console.error(
     { error, extensionId: props.panel.extensionId, panelId: props.panel.id },
     'extension panel failed',
   );
-  failure.value = error instanceof Error ? error.message : String(error);
+  showFailure(error);
   return false;
 });
 </script>
@@ -89,7 +106,20 @@ onErrorCaptured((error) => {
         </v-btn>
       </template>
     </v-alert>
-    <component :is="panel.component" v-else :key="attempt" />
+    <MountableHost
+      v-else-if="mountable !== null"
+      :key="attempt"
+      :extension-id="panel.extensionId"
+      :mountable="mountable"
+      :props="mountProps"
+      :handle="handle"
+      @error="showFailure"
+    />
+    <component
+      :is="vueComponent"
+      v-else-if="vueComponent !== null"
+      :key="attempt"
+    />
   </div>
 </template>
 

@@ -12,6 +12,7 @@ import { blank } from './templates/blank.ts';
 import { commandPanel } from './templates/command-panel.ts';
 import { events } from './templates/events.ts';
 import { exercise } from './templates/exercise.ts';
+import { reactPanel } from './templates/react-panel.ts';
 import { theme } from './templates/theme.ts';
 
 export { TEMPLATE_NAMES } from './templates/common.ts';
@@ -21,6 +22,7 @@ const TEMPLATES: Record<TemplateName, TemplateModule> = {
   exercise,
   theme,
   'command-panel': commandPanel,
+  'react-panel': reactPanel,
   events,
   blank,
 };
@@ -156,8 +158,8 @@ export const renderProject = (input: TemplateInput): Map<string, string> => {
   const { id, template = common.DEFAULT_TEMPLATE } = input;
   const module = TEMPLATES[template];
   return new Map<string, string>([
-    ['package.json', common.packageJson(input)],
-    ['tsconfig.json', common.tsconfigJson()],
+    ['package.json', common.packageJson(input, module)],
+    ['tsconfig.json', common.tsconfigJson(module)],
     ...Object.entries(module.files(id)),
     ['README.md', common.readme(id, module)],
     ['AGENTS.md', common.agentsMd(id, module)],

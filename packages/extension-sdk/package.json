@@ -2,14 +2,15 @@
   "name": "@dolphy-app/extension-sdk",
   "version": "0.0.0",
   "private": true,
-  "description": "SDK for extension authors: defineServer, defineClient, defineRpc, usePanel, useInjection, useApp, useEngine, useRpc, test harness",
+  "description": "SDK for extension authors: defineServer, defineClient, defineRpc, usePanel, useInjection, useApp, useEngine, useRpc, defineMountable, callRpc, reactComponent, test harness",
   "type": "module",
   "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
     "./client": "./src/client.ts",
     "./rpc": "./src/rpc.ts",
-    "./testing": "./src/testing.ts"
+    "./testing": "./src/testing.ts",
+    "./react": "./src/react.ts"
   },
   "scripts": {
     "typecheck": "tsc -b tsconfig.json tsconfig.test.json && tsc -p tsconfig.typed.json",
@@ -21,11 +22,25 @@
     "ajv": "^8"
   },
   "peerDependencies": {
+    "react": "^19",
+    "react-dom": "^19",
     "vue": "^3.5"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/node": "^22.20.4",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "happy-dom": "^20.14.5",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "typescript": "7.0.2",
     "vue": "^3.5.35",
     "zod": "4.6.5"

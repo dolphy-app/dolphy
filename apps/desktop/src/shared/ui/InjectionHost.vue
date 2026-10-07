@@ -1,16 +1,17 @@
 <script setup lang="ts">
-import { onErrorCaptured, provide, ref } from 'vue';
-import type { Component } from 'vue';
+import { computed, onErrorCaptured, provide, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { INJECTION_HANDLE_KEY } from '@dolphy-app/extension-api';
+import { INJECTION_HANDLE_KEY, isMountable } from '@dolphy-app/extension-api';
 import type { InjectionHandle } from '@dolphy-app/extension-api';
+import type { ExtensionComponent } from '@/shared/lib/extension-client-registrations.ts';
 import { provideExtensionContext } from '@/shared/lib/extension-context.ts';
+import MountableHost from './MountableHost.vue';
 
 const props = defineProps<{
   extensionId: string;
   /** Id вставки или `mountAt`. */
   injectionId: string;
-  component: Component;
+  component: ExtensionComponent;
   componentProps?: Readonly<Record<string, unknown>>;
   handle: InjectionHandle;
 }>();
@@ -20,6 +21,17 @@ const { t } = useI18n();
 provideExtensionContext(props.extensionId);
 provide(INJECTION_HANDLE_KEY, props.handle);
 
+const mountable = computed(() =>
+  isMountable(props.component) ? props.component : null,
+);
+const vueComponent = computed(() =>
+  isMountable(props.component) ? null : props.component,
+);
+const mountProps = computed(() => ({
+  target: props.handle.target,
+  position: props.handle.position,
+}));
+
 const failure = ref<string | null>(null);
 // повтор после сбоя рендера создаёт компонент заново
 const attempt = ref(0);
@@ -27,6 +39,10 @@ const attempt = ref(0);
 const retry = () => {
   failure.value = null;
   attempt.value += 1;
+};
+
+const showFailure = (error: unknown) => {
+  failure.value = error instanceof Error ? error.message : String(error);
 };
 
 onErrorCaptured((error) => {
@@ -38,7 +54,7 @@ onErrorCaptured((error) => {
     },
     'extension injection failed',
   );
-  failure.value = error instanceof Error ? error.message : String(error);
+  showFailure(error);
   return false;
 });
 </script>
@@ -64,7 +80,21 @@ onErrorCaptured((error) => {
       </v-btn>
     </template>
   </v-alert>
-  <component :is="component" v-else :key="attempt" v-bind="componentProps" />
+  <MountableHost
+    v-else-if="mountable !== null"
+    :key="attempt"
+    :extension-id="extensionId"
+    :mountable="mountable"
+    :props="mountProps"
+    :handle="handle"
+    @error="showFailure"
+  />
+  <component
+    :is="vueComponent"
+    v-else-if="vueComponent !== null"
+    :key="attempt"
+    v-bind="componentProps"
+  />
 </template>
 
 <style scoped>

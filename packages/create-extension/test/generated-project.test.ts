@@ -33,6 +33,7 @@ const BUILT_FILES: Record<string, string[]> = {
   exercise: ['client.mjs', 'extension.json', 'main.mjs'],
   theme: ['client.mjs', 'extension.json'],
   'command-panel': ['client.mjs', 'extension.json', 'main.mjs'],
+  'react-panel': ['client.mjs', 'extension.json', 'main.mjs'],
   events: ['client.mjs', 'extension.json', 'main.mjs'],
   blank: ['extension.json', 'main.mjs'],
 };
@@ -72,6 +73,19 @@ describe.each(TEMPLATE_NAMES)('generated project: %s', (template) => {
       expect(client.length).toBeLessThan(20_000);
       const main = await readFile(path.join(built.dir, 'main.mjs'), 'utf8');
       expect(main).not.toContain('__dolphy');
+    }
+    if (template === 'command-panel') {
+      const client = await readFile(path.join(built.dir, 'client.mjs'), 'utf8');
+      // the single-file component: Vue and Vuetify are the host's, the styles go in as a tag
+      expect(client).toContain('__dolphy');
+      expect(client).toContain('data-dolphy-ext');
+      expect(client.length).toBeLessThan(20_000);
+    }
+    if (template === 'react-panel') {
+      const client = await readFile(path.join(built.dir, 'client.mjs'), 'utf8');
+      // React is the extension's own: the bundle carries it
+      expect(client).toContain('createRoot');
+      expect(client.length).toBeGreaterThan(200_000);
     }
 
     // no findings at all: a fresh project is clean for the catalog review

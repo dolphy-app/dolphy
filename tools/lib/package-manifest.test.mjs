@@ -9,6 +9,7 @@ import {
   createRangeResolver,
   deriveDependencies,
   derivePeerDependencies,
+  derivePeerDependenciesMeta,
   isValidVersion,
   packageOfSpecifier,
   renderReadme,
@@ -51,11 +52,11 @@ describe('derivePeerDependencies', () => {
     const peers = derivePeerDependencies({
       spec: specOf('extension-sdk'),
       source: {
-        peerDependencies: { vue: '^3.5' },
-        devDependencies: { vue: '^3.5.35' },
+        peerDependencies: { vue: '^3.5', react: '^19', 'react-dom': '^19' },
+        devDependencies: { vue: '^3.5.35', react: '^19.3.0' },
       },
     });
-    assert.deepEqual(peers, { vue: '^3.5' });
+    assert.deepEqual(peers, { vue: '^3.5', react: '^19', 'react-dom': '^19' });
   });
 
   it('peer без объявления в исходном пакете — ошибка', () => {
@@ -76,11 +77,28 @@ describe('derivePeerDependencies', () => {
   it('peer не попадает в dependencies', () => {
     const dependencies = deriveDependencies({
       spec: specOf('extension-sdk'),
-      imports: ['vue', 'ajv'],
+      imports: ['vue', 'react', 'react-dom/client', 'ajv'],
       resolveRange: (name) => (name === 'ajv' ? '^8' : null),
       version: '1.2.3',
     });
     assert.deepEqual(dependencies, { ajv: '^8' });
+  });
+
+  it('необязательность peer берётся из peerDependenciesMeta исходного пакета', () => {
+    const meta = derivePeerDependenciesMeta({
+      spec: specOf('extension-sdk'),
+      source: {
+        peerDependenciesMeta: {
+          react: { optional: true },
+          'not-a-peer': { optional: true },
+        },
+      },
+    });
+    assert.deepEqual(meta, { react: { optional: true } });
+    assert.deepEqual(
+      derivePeerDependenciesMeta({ spec: specOf('extension-api'), source: {} }),
+      {},
+    );
   });
 });
 
@@ -98,17 +116,31 @@ describe('createManifest', () => {
         types: './dist/testing.d.ts',
         default: './dist/testing.js',
       },
+      './react': { types: './dist/react.d.ts', default: './dist/react.js' },
     });
     assert.equal(manifest.types, './dist/index.d.ts');
     assert.equal(manifest.bin, undefined);
   });
 
-  it('SDK объявляет vue peer-зависимостью, остальные пакеты peer не пишут', () => {
+  it('SDK объявляет vue, react и react-dom peer-зависимостями, react необязательны; остальные пакеты peer не пишут', () => {
     const manifest = manifestOf('extension-sdk', {
-      peerDependencies: { vue: '^3.5' },
+      peerDependencies: { vue: '^3.5', react: '^19', 'react-dom': '^19' },
+      peerDependenciesMeta: {
+        react: { optional: true },
+        'react-dom': { optional: true },
+      },
     });
-    assert.deepEqual(manifest.peerDependencies, { vue: '^3.5' });
+    assert.deepEqual(manifest.peerDependencies, {
+      vue: '^3.5',
+      react: '^19',
+      'react-dom': '^19',
+    });
+    assert.deepEqual(manifest.peerDependenciesMeta, {
+      react: { optional: true },
+      'react-dom': { optional: true },
+    });
     assert.equal(manifestOf('extension-api').peerDependencies, undefined);
+    assert.equal(manifestOf('extension-api').peerDependenciesMeta, undefined);
   });
 
   it('extension-api открывает hook-schemas и схему манифеста подпутём на dist/extension.schema.json', () => {

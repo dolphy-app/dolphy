@@ -12,16 +12,21 @@ repository's tests:
 
 - [`docs/quick-start.md`](docs/quick-start.md) — from an empty directory to a
   command in the palette;
-- recipes, each equal to a `create-dolphy-extension --template` project:
+- recipes; the ones for the `create-dolphy-extension --template` kinds equal the
+  generated project:
   [`docs/recipe-exercise-type.md`](docs/recipe-exercise-type.md),
   [`docs/recipe-theme.md`](docs/recipe-theme.md),
-  [`docs/recipe-command-panel.md`](docs/recipe-command-panel.md),
+  [`docs/recipe-command-panel.md`](docs/recipe-command-panel.md) (a panel as a
+  single-file component),
+  [`docs/recipe-react.md`](docs/recipe-react.md) (a panel in React),
   [`docs/recipe-event-storage.md`](docs/recipe-event-storage.md),
   [`docs/recipe-hooks.md`](docs/recipe-hooks.md),
   [`docs/recipe-settings.md`](docs/recipe-settings.md),
   [`docs/recipe-import-export.md`](docs/recipe-import-export.md),
   [`docs/recipe-when-dependencies.md`](docs/recipe-when-dependencies.md),
-  [`docs/recipe-rpc-and-app.md`](docs/recipe-rpc-and-app.md);
+  [`docs/recipe-rpc-and-app.md`](docs/recipe-rpc-and-app.md),
+  [`docs/recipe-mountable.md`](docs/recipe-mountable.md) (a component of any
+  framework on plain DOM);
 - [`docs/no-build.md`](docs/no-build.md) — an extension from hand-written
   files, no TypeScript and no build;
 - [`docs/debugging.md`](docs/debugging.md) — tests, checks, the development loop
@@ -182,6 +187,101 @@ change between versions.
 usual in client code; the build leaves them out of the bundle and the app gives
 the components its own instances, so the theme and language of the app apply
 (`vuetify/styles` is dropped too).
+
+A component may be a single-file component: `src/Panel.vue` with
+`<script setup lang="ts">`, a `<template>` that uses Vuetify as `<v-btn>` with no
+import, and `<style scoped>`. The build compiles `.vue` files (the `vue`
+preset, always on); a `<style>` goes into the window document as one
+`<style data-dolphy-ext>` tag, so prefer `scoped`, and `<style module>` is not
+supported. A `.vue` file in the server part fails the build. Declare the
+`.vue` import for `tsc` with `declare module '*.vue'` (see
+[`docs/recipe-command-panel.md`](docs/recipe-command-panel.md)).
+
+### Components of other frameworks
+
+`component` of `client.addPanel`, `client.addInjection`,
+`client.addAnswerView` and `client.addMarkdownRenderer` is a Vue component or
+a `Mountable`: an object with `mount(el, ctx)` that draws into `el` with any
+framework (or none) and returns the cleanup. `defineMountable(mount)` builds
+it; `isMountable(value)` recognises it by the brand `MOUNTABLE`
+(`Symbol.for('dolphy.extension.mountable')`).
+
+```ts
+import {
+  defineMountable,
+  type PanelHandle,
+  type PanelProps,
+} from '@dolphy-app/extension-sdk';
+
+export const Hello = defineMountable<PanelProps, PanelHandle>((el, ctx) => {
+  const draw = (props: PanelProps) => {
+    el.textContent = `${ctx.extensionId}: ${props.panelId}`;
+  };
+  draw(ctx.props);
+  const stop = ctx.onProps(draw);
+  return () => stop();
+});
+```
+
+`Props` is `PanelProps` (`panelId`, `props`, `context`) in a panel,
+`InjectionProps` (`target`, `position`) in an injection, `AnswerViewProps` in an
+answer view and `MarkdownBlockProps` in a markdown renderer; the second type
+parameter is `ctx.handle`: `PanelHandle` in a panel, `InjectionHandle` in an
+injection and `undefined` elsewhere. The `MountContext` (`ctx`) has:
+
+- `props` and `onProps(listener)`: `props` is the current snapshot, an object
+  is never changed in place; `onProps` calls the listener with the next one
+  and returns the function that stops listening.
+- `theme` and `onTheme(listener)`, `locale` and `onLocale(listener)`: the
+  same for the theme and the language of the window.
+- `emit(event, payload?)`: an answer view emits `change` with an
+  `AnswerChange` and `submit`; other surfaces have no events.
+- `app` (`AppApi`), `engine` (`ExtensionEngine`), `extensionId`, the same
+  as `client.app`, `client.engine` and `client.extensionId`.
+- `callRpc(contract, input)`, the same as `useRpc(contract)(input)`. Without a
+  context, `callRpc({ engine, extensionId }, contract, input)` is exported
+  too.
+- `signal`: an `AbortSignal` aborted when the element is removed.
+- `reportError(error)`: shows the error in place of the component.
+- `handle`: the panel or injection handle (`panelId`, `props`, `context` and
+  `call(commandId, args?)`; `target` and `position`).
+
+### React
+
+`@dolphy-app/extension-sdk/react` wraps a React component into a `Mountable`.
+`react` and `react-dom` (19) are optional peer dependencies: the root of the
+SDK does not import them, an extension that uses this entry has them in its
+own `dependencies`. Put `{ "frameworks": ["react"] }` into
+`dolphy-ext.config.json` so the build compiles `.tsx` and bundles React; the
+whole setup is in [`docs/recipe-react.md`](docs/recipe-react.md).
+
+```ts
+import {
+  reactComponent,
+  usePanel,
+  useRpc,
+} from '@dolphy-app/extension-sdk/react';
+
+const Panel = () => {
+  const panel = usePanel();
+  const hello = useRpc(sayHello);
+  // … return JSX
+};
+
+client.addPanel({
+  id: 'acme.panel',
+  title: 'Hello',
+  component: reactComponent<PanelProps, PanelHandle>(Panel),
+});
+```
+
+`reactComponent(Component, { strictMode? })` draws `<Component {...ctx.props} />`
+with `createRoot`, draws it again when the props, the theme or the language
+change, and unmounts the root on cleanup. An error of the render goes to
+`ctx.reportError`. Inside the component work `useApp()`, `useEngine()`,
+`useRpc(contract)`, `usePanel()`, `useInjection()`, `useTheme()`,
+`useLocale()` and `useMountContext()`; outside a component that the adapter
+draws they throw.
 
 ## Commands, panels and `when`
 
@@ -485,6 +585,20 @@ await running.events.emit('attempt.closed', {
 });
 expect(await running.storage.get('last-grade')).toBe(4);
 ```
+
+`mountForTest(mountable, { props, … })` mounts a `Mountable` (see "Components of
+other frameworks") into a new `<div>` of the global `document` (run it in
+`happy-dom` or `jsdom`, or pass `el`) and resolves to `{ el, ctx, setProps,
+setTheme, setLocale, emitted, errors, unmount }`. `ctx` is the `MountContext`
+the component gets: `setProps(next)`, `setTheme(theme)` and `setLocale(locale)`
+change it and call the `onProps`, `onTheme` and `onLocale` listeners;
+`emitted` lists the `ctx.emit` calls as `[event, payload]`, `errors` the
+`ctx.reportError` calls; `unmount()` aborts `ctx.signal` and runs the cleanup
+once. Options: `props` (required), `el`, `handle` (`ctx.handle`), `app`,
+`engine` (also used by `ctx.callRpc`), `theme` (default `{ id: 'light', dark:
+false }`), `locale` (default `en`), `extensionId` (default `test`). Without
+`app` and `engine` any use of them throws. `createTestClient` records a
+`Mountable` registered in `component` as is.
 
 The fakes are exported too: `createMemoryStorage()` (same ceilings and
 `StorageQuotaError`), `createMemorySecrets({ available? })` (`setAvailable(false)`

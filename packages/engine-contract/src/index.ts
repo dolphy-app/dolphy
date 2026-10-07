@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 32 as const;
+export const CONTRACT_VERSION = 33 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 /** Потолок файла импорта, суммарного размера присланного дерева и снимка курса для экспорта, байт (R3, R4, R7 спеки `extension-api-breadth-2`). */
@@ -238,15 +238,12 @@ export type ExerciseContentDto =
   | { type: 'markdown'; ref: AssetRef }
   | { type: 'inlineMarkdown'; text: string };
 
-/** Вид задания и элемент ввода ответа, объявленные расширением. */
+/** Вид задания, объявленный расширением: окно рисует компонент `default.views[type]` модуля `rendererUrl`. */
 export interface ExerciseTaskDto {
   type: string;
   timeoutMs: number;
-  element: string;
   rendererUrl: string;
-  /** Расширение не из поставки и не доверенное: элемент ответа исполняется в изолированной рамке. */
-  isolated: boolean;
-  /** Откуда расширение: у `dev` окно пересоздаёт смонтированный элемент при правке (`revision` меняется). */
+  /** Откуда расширение: у `dev` окно пересоздаёт смонтированный компонент при правке (`revision` меняется). */
   origin: ExtensionOriginDto;
   /** Отпечаток файлов расширения (меняется при обновлении и правке); у расширений из поставки — пустая строка. */
   revision: string;
@@ -1564,10 +1561,8 @@ export interface PanelContributionDto {
   icon: string;
   /** Условие видимости пункта бокового меню (`parseWhen`), `null` — всегда; панель по-прежнему открывается из расширения (`openPanel`). */
   when: string | null;
-  /** `dolphy-ext://<extensionId>/<путь>`. */
+  /** `dolphy-ext://<extensionId>/<путь>` к модулю, чей `default.panels[id]` — компонент панели. */
   rendererUrl: string;
-  /** Панель всегда исполняется в рамке; поле оставлено для единообразия с остальными видами с модулем. */
-  isolated: boolean;
   origin: ExtensionOriginDto;
   /** Отпечаток файлов расширения; у расширений из поставки — пустая строка. */
   revision: string;
@@ -1583,7 +1578,7 @@ export interface WidgetContributionDto {
   slot: 'dailyPlan';
   /** Условие видимости (`parseWhen`), `null` — всегда; пока оно ложно, карточка не рисуется и модуль не загружается. */
   when: string | null;
-  /** `dolphy-ext://<extensionId>/<путь>` к модулю, чей `default` — таблица `{ <id виджета>: компонент }`. */
+  /** `dolphy-ext://<extensionId>/<путь>` к модулю, чей `default.widgets[id]` — компонент виджета. */
   rendererUrl: string;
   origin: ExtensionOriginDto;
   /** Отпечаток файлов расширения; у расширений из поставки — пустая строка. */
@@ -1708,26 +1703,20 @@ export interface ThemeContributionDto {
 export interface MarkdownRendererDto {
   language: string;
   extensionId: string;
-  /** `dolphy-ext://<extensionId>/<путь>`. */
+  /** `dolphy-ext://<extensionId>/<путь>` к модулю, чей `default.markdown[language]` — компонент блока. */
   rendererUrl: string;
-  /** Модуль исполняется в изолированной рамке (расширение не из поставки и не доверенное). */
-  isolated: boolean;
   /** Откуда расширение: у `dev` окно выводит блоки заново при правке. */
   origin: ExtensionOriginDto;
   /** Отпечаток файлов расширения; у расширений из поставки — пустая строка. */
   revision: string;
 }
 
-/** Вид задания расширения: окно по нему видит правку и обновление элемента ввода (R5, R7). */
+/** Вид задания расширения: окно по нему видит правку и обновление компонента ввода ответа. */
 export interface ExerciseTypeContributionDto {
   type: string;
   extensionId: string;
-  /** Тег custom element'а, рисующего ввод ответа. */
-  element: string;
-  /** `dolphy-ext://<extensionId>/<путь>`. */
+  /** `dolphy-ext://<extensionId>/<путь>` к модулю, чей `default.views[type]` — компонент ввода ответа. */
   rendererUrl: string;
-  /** Расширение не из поставки и не доверенное: элемент ответа исполняется в изолированной рамке. */
-  isolated: boolean;
   origin: ExtensionOriginDto;
   /** Отпечаток файлов расширения; у расширений из поставки — пустая строка. */
   revision: string;

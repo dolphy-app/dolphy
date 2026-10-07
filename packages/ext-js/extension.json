@@ -10,7 +10,6 @@
         "id": "dolphy.js",
         "specSchema": "./schema/spec.json",
         "answerSchema": "./schema/answer.json",
-        "element": "dolphy-js-answer",
         "renderer": "./view.mjs"
       }
     ]

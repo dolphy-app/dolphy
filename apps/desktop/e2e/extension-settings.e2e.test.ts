@@ -96,7 +96,6 @@ describe('Настройки → Расширения: разрешения, в�
       .poll(async () => (await client.readExtensions(ID))[0])
       .toContain('Отключено');
     expect(await client.extensionSwitchChecked(ID, 'enabled')).toBe(false);
-    expect(await client.reloadBanner().count()).toBe(0);
     await client.openSettingsAppearance();
     expect(await client.themeTileExists(THEME)).toBe(false);
 

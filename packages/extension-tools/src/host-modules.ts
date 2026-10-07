@@ -20,6 +20,9 @@ const HOST_STYLES: readonly string[] = ['vuetify/styles'];
 /** Name of the host's loader on `globalThis`: `require(name)` returns a promise of the module. */
 export const HOST_GLOBAL = '__dolphy';
 
+/** Modules of the window (`vue`, `vuetify`, `vuetify/…`): the host file is not a place for them, so they are not read. */
+export const WINDOW_SPECIFIER = /^(?:vue|vuetify)(?:\/.*)?$/;
+
 export const isHostModule = (specifier: string): boolean =>
   HOST_MODULES.includes(specifier);
 
@@ -102,6 +105,11 @@ export const hostModulesPlugin = (): Plugin => ({
   resolveId(source) {
     if (isHostModule(source) || isHostStyle(source)) {
       return { id: source, external: true };
+    }
+    if (WINDOW_SPECIFIER.test(source)) {
+      return this.error(
+        `'${source}' is not a module the app gives to extensions (${HOST_MODULES.join(', ')}): import the components from 'vuetify/components'`,
+      );
     }
     return null;
   },

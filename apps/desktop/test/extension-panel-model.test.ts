@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ContributionsDto } from '@dolphy-app/engine-contract';
 import { NO_CONTRIBUTIONS } from '@/shared/api/engine/contributions.ts';
 import {
-  frameKeyOf,
+  instanceKeyOf,
   resolvePanel,
 } from '@/pages/extension-panel/model/panel.ts';
 
@@ -32,7 +32,6 @@ const contributions = (revision = 'r1'): ContributionsDto => ({
       icon: 'puzzle',
       when: null,
       rendererUrl: 'dolphy-ext://acme.panel/panel.mjs',
-      isolated: true,
       origin: 'user',
       revision,
     },
@@ -73,13 +72,15 @@ describe('resolvePanel', () => {
   });
 });
 
-describe('frameKeyOf', () => {
-  it('новая revision — новый ключ рамки, та же revision — тот же', () => {
+describe('instanceKeyOf', () => {
+  it('новая revision — новый ключ экземпляра, та же revision — тот же', () => {
     const [first] = contributions('r1').panels;
     const [same] = contributions('r1').panels;
     const [updated] = contributions('r2').panels;
-    expect(frameKeyOf(first as never)).toBe(frameKeyOf(same as never));
-    expect(frameKeyOf(first as never)).not.toBe(frameKeyOf(updated as never));
-    expect(frameKeyOf(first as never)).toBe('acme.panel:acme.panel.main:r1');
+    expect(instanceKeyOf(first as never)).toBe(instanceKeyOf(same as never));
+    expect(instanceKeyOf(first as never)).not.toBe(
+      instanceKeyOf(updated as never),
+    );
+    expect(instanceKeyOf(first as never)).toBe('acme.panel:acme.panel.main:r1');
   });
 });

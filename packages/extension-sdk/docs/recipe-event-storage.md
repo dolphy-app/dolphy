@@ -54,6 +54,8 @@ import {
   openPanel,
 } from '@dolphy-app/extension-sdk';
 import type { ExtensionPanels } from '@dolphy-app/extension-sdk';
+import { usePanel } from '@dolphy-app/extension-sdk/client';
+import { defineComponent, h, ref, watchEffect } from 'vue';
 
 // a `type`, not an `interface`: an interface has no index signature and is
 // not JSON for `ctx.storage`
@@ -106,27 +108,27 @@ export const host = defineExtension({
   },
 });
 
-// the panel runs in an isolated frame: no network, the only way out is `ctx.call`
+// the panel is a Vue component the app draws in its own window; the only way
+// to the data is `panel.call` to the commands above
+const StreakPanel = defineComponent({
+  setup() {
+    const panel = usePanel();
+    const text = ref('');
+    // the command opens the panel again with new properties: ask again
+    watchEffect(async () => {
+      void panel.props;
+      const streak = (await panel.call('acme.hello.data')) as Streak;
+      text.value =
+        streak.days === 0
+          ? 'No streak yet.'
+          : `Streak: ${streak.days} days, last day ${streak.last}`;
+    });
+    return () => h('p', text.value);
+  },
+});
+
 export const panels = {
-  'acme.hello.view': defineExtensionPanel({
-    async mount(container, ctx) {
-      const line = container.ownerDocument.createElement('p');
-      container.append(line);
-      const render = async () => {
-        const streak = (await ctx.call('acme.hello.data')) as Streak;
-        line.textContent =
-          streak.days === 0
-            ? 'No streak yet.'
-            : `Streak: ${streak.days} days, last day ${streak.last}`;
-      };
-      // the command opens the panel again with new properties: redraw
-      ctx.signal.addEventListener(
-        'abort',
-        ctx.onProps(() => void render()),
-      );
-      await render();
-    },
-  }),
+  'acme.hello.view': defineExtensionPanel(StreakPanel),
 } satisfies ExtensionPanels;
 ```
 
@@ -139,6 +141,9 @@ export const panels = {
   keys, 1 MiB in total; exceeding one throws `StorageQuotaError`.
 - `advance` is a pure function exported for the test. The hidden command
   `acme.hello.data` is how the panel reads the stored value.
+- The panel is a Vue component: `usePanel()` gives it `call` for the declared
+  commands and the reactive `props`. Reading `panel.props` inside `watchEffect`
+  makes the panel ask again when the command opens it with new properties.
 
 ## The tests
 
@@ -146,14 +151,19 @@ File `test/index.test.ts` (events):
 
 ```ts
 // @vitest-environment happy-dom
-import type { LearningEventPayloads } from '@dolphy-app/extension-api';
+import { PANEL_HANDLE_KEY } from '@dolphy-app/extension-sdk';
+import type {
+  JsonValue,
+  LearningEventPayloads,
+  PanelHandle,
+} from '@dolphy-app/extension-sdk';
 import {
   createMemoryStorage,
   loadCommands,
   loadEvents,
-  loadPanel,
 } from '@dolphy-app/extension-sdk/testing';
 import { afterEach, describe, expect, it } from 'vitest';
+import { createApp, h, nextTick, shallowReactive } from 'vue';
 import { host, panels } from '../src/index.ts';
 
 const disposables: { dispose(): unknown }[] = [];
@@ -186,6 +196,31 @@ const load = async () => {
   });
   disposables.push(events, commands);
   return { storage, events, commands };
+};
+
+// draws the panel the way the app does: the handle is provided to the component
+const mountPanel = async (call: PanelHandle['call']) => {
+  const handle = shallowReactive({
+    panelId: 'acme.hello.view',
+    props: undefined as JsonValue | undefined,
+    context: { courseId: null },
+    call,
+  });
+  const host = document.createElement('div');
+  document.body.append(host);
+  const app = createApp({ render: () => h(panels['acme.hello.view']) });
+  app.provide(PANEL_HANDLE_KEY, handle);
+  app.mount(host);
+  disposables.push({
+    dispose: () => {
+      app.unmount();
+      host.remove();
+    },
+  });
+  // the panel asks a command: wait for the reply, then for the redraw
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await nextTick();
+  return host;
 };
 
 describe('acme.hello: events and storage', () => {
@@ -240,20 +275,19 @@ describe('acme.hello: commands and panel', () => {
   it('the panel shows what the data command returns', async () => {
     const { events, commands } = await load();
     await events.emit('attempt.closed', attempt('2026-10-01'));
-    const panel = await loadPanel(panels, 'acme.hello.view', {
-      call: async (commandId) => {
-        const result = await commands.run(commandId);
-        return result.kind === 'data' ? result.value : undefined;
-      },
+    const panel = await mountPanel(async (commandId) => {
+      const result = await commands.run(commandId);
+      return result.kind === 'data' ? (result.value as JsonValue) : undefined;
     });
-    disposables.push(panel);
-    expect(panel.container.querySelector('p')?.textContent).toBe(
+    expect(panel.querySelector('p')?.textContent).toBe(
       'Streak: 1 days, last day 2026-10-01',
     );
   });
 });
 ```
 
+The panel is mounted with `createApp` in `happy-dom`; `app.provide(PANEL_HANDLE_KEY, handle)`
+gives it a handle whose `call` runs the real command handlers of `host`.
 `loadEvents` activates the extension and gives `emit(name, payload)`, so the test
 sends events the way the host delivers them. `createMemoryStorage` has the same
 ceilings as the app. Pass the same `storage` to `loadEvents` and `loadCommands`

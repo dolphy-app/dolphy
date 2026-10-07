@@ -1,7 +1,5 @@
-export default {
-  mount(container) {
-    const text = container.ownerDocument.createElement('p');
-    text.textContent = 'locale panel';
-    container.append(text);
-  },
-};
+const { defineComponent, h } = await globalThis.__dolphy.require('vue');
+
+const Panel = defineComponent({ render: () => h('p', 'locale panel') });
+
+export default { panels: { 'acme.locale.panel': Panel } };

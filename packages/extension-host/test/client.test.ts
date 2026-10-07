@@ -44,7 +44,6 @@ const resolved: ResolvedExtension[] = [
         title: null,
         specSchema: {},
         answerSchema: {},
-        element: 'acme-t-answer',
         rendererUrl: 'dolphy-ext://acme.t/view.mjs',
       },
     ],

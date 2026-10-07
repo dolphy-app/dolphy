@@ -11,7 +11,7 @@ import type {
   ExtensionContext,
   ExtensionViews,
 } from '@dolphy-app/extension-sdk';
-import { mountSqlEditor } from './sql-view.ts';
+import { SqlAnswerView } from './sql-view.ts';
 
 interface SqlSpec {
   reference?: unknown;
@@ -88,5 +88,5 @@ export const host = defineExtension({
 });
 
 export const views = {
-  'dolphy.sql': defineAnswerView(mountSqlEditor),
+  'dolphy.sql': defineAnswerView(SqlAnswerView),
 } satisfies ExtensionViews;

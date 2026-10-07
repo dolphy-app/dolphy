@@ -1,6 +1,6 @@
 /**
  * Public extension API. The package depends on neither the engine nor the DOM: it is imported
- * by extension code (`main.mjs`), by the answer element (`view.mjs`), and by the engine itself.
+ * by extension code (`main.mjs`), by the components of an extension (`view.mjs`, `panel.mjs`), and by the engine itself.
  */
 
 import { WHEN_MAX_LENGTH } from './when.ts';
@@ -39,33 +39,57 @@ export const EXTENSION_TAGS = [
   'developer',
 ] as const;
 export type ExtensionTag = (typeof EXTENSION_TAGS)[number];
-export const ELEMENT_NAME_PATTERN = /^[a-z][a-z0-9]*(-[a-z0-9]+)+$/;
 
-/** Event names of the answer custom element. */
-export const ANSWER_EVENT = {
-  change: 'dolphy-answer-change',
-  submit: 'dolphy-answer-submit',
-} as const;
+/** Verdict of the last check as the app hands it to an answer view. */
+export interface AnswerVerdict {
+  outcome: 'passed' | 'failed' | 'error';
+  reason?: string;
+  feedback?: string;
+  data?: unknown;
+}
 
-export interface AnswerChangeDetail {
-  value: unknown;
+/**
+ * Props of an answer view: a Vue component the extension exports in
+ * `views[<exercise type id>]`. The component declares `emits: ['change',
+ * 'submit']`: `change` carries an `AnswerChange`, `submit` asks the app to
+ * check the answer.
+ */
+export interface AnswerViewProps<View = unknown, Answer = unknown> {
+  /** Result of `project()`. */
+  readonly view: View;
+  /** Current answer (for restoring); `undefined` — none yet. */
+  readonly value: Answer | undefined;
+  readonly disabled: boolean;
+  readonly verdict: AnswerVerdict | null;
+  /** Accessible name of the input set by the app; `null` if none. */
+  readonly label: string | null;
+}
+
+/** Payload of the `change` event of an answer view. */
+export interface AnswerChange<Answer = unknown> {
+  value: Answer;
   /** The answer can be submitted for checking. */
   complete: boolean;
 }
 
-/** Properties the app sets on the answer element. */
-export interface AnswerElementProps {
-  /** Result of `project()`. */
-  view: unknown;
-  /** Current answer (for restoring). */
-  value: unknown;
-  disabled: boolean;
-  verdict: {
-    outcome: 'passed' | 'failed' | 'error';
-    reason?: string;
-    feedback?: string;
-    data?: unknown;
-  } | null;
+/** Props of a content renderer: a Vue component the extension exports in `markdown[<language>]`. */
+export interface MarkdownBlockProps {
+  /** Text of the ` ```<language> ` block. */
+  readonly source: string;
+  readonly language: string;
+}
+
+/**
+ * `export default` of a browser file of an extension: tables of Vue
+ * components by id. A file holds only the tables it was built for.
+ */
+export interface ExtensionClientModule {
+  /** Answer views by exercise type id. */
+  views?: Readonly<Record<string, unknown>>;
+  panels?: Readonly<Record<string, unknown>>;
+  widgets?: Readonly<Record<string, unknown>>;
+  /** Content renderers by block language. */
+  markdown?: Readonly<Record<string, unknown>>;
 }
 
 export type JsonSchema = Record<string, unknown>;
@@ -79,9 +103,7 @@ export interface ExerciseTypeContribution {
   specSchema: string | JsonSchema;
   /** JSON Schema 2020-12 for the learner's answer (`submitAnswer.answer`): a path or a schema object. */
   answerSchema: string | JsonSchema;
-  /** Tag of the custom element (a hyphen is required) that renders the answer input. */
-  element: string;
-  /** Path to the ES module that defines the element (`./view.mjs`). */
+  /** Path to the ES module whose `default.views[<id>]` is the answer view component (`./view.mjs`). */
   renderer: string;
 }
 
@@ -518,8 +540,6 @@ export interface ExerciseTypeContributionInput {
   title?: string;
   specSchema: string | JsonSchema;
   answerSchema: string | JsonSchema;
-  /** Defaults to `defaultElementName(id)`. */
-  element?: string;
   /** Defaults to `DEFAULT_RENDERER`. */
   renderer?: string;
 }
@@ -691,24 +711,6 @@ export interface GradePolicyInput {
 export type GradePolicyHandler = (
   input: GradePolicyInput,
 ) => GradeValue | null | Promise<GradeValue | null>;
-
-/** Block rendering context; a structural `AbortSignal` (the package has no DOM types). */
-export interface MarkdownRenderContext {
-  language: string;
-  signal: {
-    readonly aborted: boolean;
-    addEventListener(type: 'abort', listener: () => void): void;
-  };
-}
-
-/** `export default` of a content renderer module. */
-export interface MarkdownRendererModule<Container = unknown> {
-  render(
-    source: string,
-    container: Container,
-    context: MarkdownRenderContext,
-  ): void | Promise<void>;
-}
 
 /** What a command handler asks the app to do: show a notification. */
 export interface NotifyEffect {
@@ -1090,50 +1092,31 @@ export interface PanelContextInfo {
   readonly courseId: string | null;
 }
 
-/** What the frame of a panel and of a widget have in common. */
-interface FrameContext<Commands extends string = string> {
-  /** The current surroundings; changes arrive through `onContextChange` without reloading the frame. */
-  readonly context: PanelContextInfo;
-  /** Aborted when the frame closes. */
-  signal: {
-    readonly aborted: boolean;
-    addEventListener(type: 'abort', listener: () => void): void;
-  };
-  /**
-   * Calls a command this extension declares (including `palette: false`
-   * ones); at most 20 calls per second and 4 at a time. Resolves to the JSON
-   * answer of the handler (`undefined` — no answer); the app runs `notify` and
-   * `openPanel` itself. A failure is a rejected promise with an `Error`.
-   */
-  call(commandId: Commands, args?: JsonValue): Promise<JsonValue | undefined>;
-  /** Subscribes to changes of `context` (the app focused another course); returns the unsubscribe function. */
-  onContextChange(listener: (context: PanelContextInfo) => void): () => void;
-}
+/**
+ * Key under which the app provides the handle of the panel being drawn
+ * (Vue `provide`/`inject`); a registered symbol, so the app and the bundle of
+ * an extension agree on it without sharing a module.
+ */
+export const PANEL_HANDLE_KEY = Symbol.for('dolphy.extension.panel');
 
 /**
- * Context of a panel module; it runs in a frame without access to the app's
- * data. `Commands` narrows the ids `call` accepts (the SDK passes the commands
- * declared in `extension.json`).
+ * What a panel component gets from the app. A panel is a Vue component the
+ * extension exports in `panels[<panel id>]`; the app draws it as a page inside
+ * its own tree.
  */
-export interface PanelContext<
-  Commands extends string = string,
-> extends FrameContext<Commands> {
-  panelId: string;
-  /** Properties the panel was opened with (`openPanel(id, props)`); `undefined` — none. */
-  props: JsonValue | undefined;
-  /** Subscribes to new properties of the open panel; returns the unsubscribe function. */
-  onProps(listener: (props: JsonValue | undefined) => void): () => void;
-}
-
-/** `export default` of a panel module. */
-export interface PanelModule<
-  Container = unknown,
-  Commands extends string = string,
-> {
-  mount(
-    container: Container,
-    context: PanelContext<Commands>,
-  ): void | Promise<void>;
+export interface PanelHandle<Commands extends string = string> {
+  readonly panelId: string;
+  /** Properties the panel was opened with (`openPanel(id, props)`); reactive, `undefined` — none. */
+  readonly props: JsonValue | undefined;
+  /** The current surroundings; reactive, the app updates it in place. */
+  readonly context: PanelContextInfo;
+  /**
+   * Calls a command this extension declares (including `palette: false`
+   * ones). Resolves to the JSON answer of the handler (`undefined` — no
+   * answer); the app runs `notify` and `openPanel` itself. A failure is a
+   * rejected promise with an `Error`.
+   */
+  call(commandId: Commands, args?: JsonValue): Promise<JsonValue | undefined>;
 }
 
 /**
@@ -1164,10 +1147,6 @@ export interface WidgetHandle<Commands extends string = string> {
 export const DEFAULT_MAIN = './main.mjs';
 export const DEFAULT_RENDERER = './view.mjs';
 
-/** Default element tag: `dolphy.sql` → `dolphy-sql-answer`. */
-export const defaultElementName = (id: string): string =>
-  `${id.replaceAll('.', '-')}-answer`;
-
 export type GradeResult =
   | { outcome: 'passed'; feedback?: string; data?: unknown }
   | {
@@ -1192,7 +1171,7 @@ export interface ExerciseTypeHandler<
   Answer = unknown,
   View = unknown,
 > {
-  /** Public view for the answer element; secrets (answer keys) are excluded. Called on `beginAttempt`. */
+  /** Public view for the answer view component; secrets (answer keys) are excluded. Called on `beginAttempt`. */
   project(request: { exerciseId: string; spec: Spec }): View | Promise<View>;
   grade(
     request: GradeRequest<Spec, Answer>,

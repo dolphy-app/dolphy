@@ -1,62 +1,56 @@
 <script setup lang="ts">
-import {
-  computed,
-  onBeforeUnmount,
-  onMounted,
-  useTemplateRef,
-  watch,
-} from 'vue';
-import { useI18n } from 'vue-i18n';
+import { computed, onMounted, shallowRef, useTemplateRef, watch } from 'vue';
 import { useContributions } from '@/shared/api/engine/contributions.ts';
-import { moduleUrlOf } from '@/shared/lib/extension-url.ts';
-import { hydrateMarkdownBlocks } from '@/shared/lib/markdown-blocks.ts';
+import { collectMarkdownBlocks } from '@/shared/lib/markdown-blocks.ts';
+import type { MarkdownBlockSlot } from '@/shared/lib/markdown-blocks.ts';
 import { createMarkdownRenderer } from '@/shared/lib/markdown.ts';
+import MarkdownBlock from './MarkdownBlock.vue';
+
+// корень — фрагмент: атрибуты родителя идут на сам документ
+defineOptions({ inheritAttrs: false });
 
 const props = defineProps<{ source: string }>();
-const { t } = useI18n();
 const contributions = useContributions();
 const root = useTemplateRef<HTMLElement>('root');
 
-const renderers = computed(() => contributions.value.markdownRenderers);
+const renderers = computed(
+  () =>
+    new Map(contributions.value.markdownRenderers.map((r) => [r.language, r])),
+);
 const render = computed(() =>
-  createMarkdownRenderer(new Set(renderers.value.map((r) => r.language))),
+  createMarkdownRenderer(new Set(renderers.value.keys())),
 );
 const html = computed(() => render.value(props.source));
-// Рендерер добавили, убрали, обновили, исправили (режим разработчика) или
-// переключили «Доверять»: блоки выводятся заново из исходного текста. Без
-// изменений набор вкладов (например, пришла только тема) документ не трогает.
-const rendererKey = computed(() =>
-  renderers.value
-    .map((r) => [r.language, moduleUrlOf(r), r.isolated].join('|'))
-    .join('\n'),
-);
 
-const controller: { current: AbortController | null } = { current: null };
-
-const hydrate = () => {
-  controller.current?.abort();
-  const element = root.value;
-  if (element === null) return;
-  const next = new AbortController();
-  controller.current = next;
-  void hydrateMarkdownBlocks({
-    root: element,
-    renderers: renderers.value,
-    signal: next.signal,
-    describeError: (language) => t('markdown.renderFailed', { language }),
-    describeFrame: (language) => t('markdown.frameTitle', { language }),
-  });
+// Блоки рендереров рисуются компонентами расширений через `Teleport` в
+// заглушки документа: общее дерево Vue (тема, язык, provide). Рендерер
+// добавили, убрали, обновили или исправили (режим разработчика) — компонент
+// блока перезагружается сам, документ остаётся.
+const blocks = shallowRef<MarkdownBlockSlot[]>([]);
+const scan = () => {
+  blocks.value = root.value === null ? [] : collectMarkdownBlocks(root.value);
 };
-
-onMounted(hydrate);
-// `rendererKey` — ключ корня: Vue создаёт новый элемент с исходной разметкой
-watch([html, rendererKey], hydrate, { flush: 'post' });
-onBeforeUnmount(() => controller.current?.abort());
+onMounted(scan);
+watch(html, scan, { flush: 'post' });
+const placed = computed(() =>
+  blocks.value.flatMap((block) => {
+    const renderer = renderers.value.get(block.language);
+    return renderer === undefined ? [] : [{ ...block, renderer }];
+  }),
+);
 </script>
 
 <template>
   <!-- eslint-disable-next-line vue/no-v-html -- markdown-it с html: false -->
-  <div :key="rendererKey" ref="root" class="markdown" v-html="html" />
+  <div ref="root" v-bind="$attrs" class="markdown" v-html="html" />
+  <MarkdownBlock
+    v-for="(block, index) in placed"
+    :key="index"
+    :target="block.element"
+    :renderer="block.renderer"
+    :language="block.language"
+    :source="block.source"
+  />
 </template>
 
 <style scoped>
@@ -239,6 +233,10 @@ onBeforeUnmount(() => controller.current?.abort());
 .markdown :deep(.dolphy-md-block) {
   margin: 1em 0;
   overflow-x: auto;
+}
+
+.markdown :deep(.dolphy-md-block[data-state='done'] > pre) {
+  display: none;
 }
 
 .markdown :deep(.dolphy-md-block[data-state='error']) {

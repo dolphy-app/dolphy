@@ -420,10 +420,6 @@ export const en: typeof ru = {
       networkCaveat:
         'Network is declared only, not restricted: the extension can reach the network even when isolated.',
       switchFailed: 'Could not change the extension setting',
-      reload: {
-        message: 'The update will apply after the window is reloaded',
-        action: 'Reload window',
-      },
       tabs: {
         label: 'Extension sections',
         installed: 'Installed',

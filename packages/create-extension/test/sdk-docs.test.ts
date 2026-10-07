@@ -5,6 +5,7 @@
  * generator's output byte for byte.
  */
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { discoverExtensions } from '@dolphy-app/extension-host';
@@ -36,7 +37,6 @@ const DOC_FILES = [
   'recipe-import-export.md',
   'recipe-settings.md',
   'recipe-theme.md',
-  'recipe-ui-kit.md',
   'recipe-when-dependencies.md',
 ];
 
@@ -74,9 +74,6 @@ const EXAMPLES: Readonly<Record<string, Record<string, Example>>> = {
   },
   'recipe-settings.md': {
     settings: { mode: 'build-with-code-and-tests' },
-  },
-  'recipe-ui-kit.md': {
-    'ui-kit': { mode: 'build-with-code-and-tests' },
   },
   'recipe-when-dependencies.md': {
     'when-dependencies': { mode: 'build-with-code-and-tests' },
@@ -238,11 +235,15 @@ describe('no-build.md', () => {
   const files =
     collectBlocks(docs.get('no-build.md') ?? '').examples.get('no build') ?? [];
 
-  it('shows a manifest and a module, no package.json and no TypeScript', () => {
-    expect(fileNames(files)).toEqual(['extension.json', 'main.mjs']);
+  it('shows a manifest and two modules, no package.json and no TypeScript', () => {
+    expect(fileNames(files)).toEqual([
+      'extension.json',
+      'main.mjs',
+      'panel.mjs',
+    ]);
   });
 
-  it('the directory validates, is discovered and the module answers its command', async () => {
+  it('the directory validates, is discovered and the modules answer', async () => {
     const root = await makeTemp();
     const dir = path.join(root, 'acme.plain');
     await writeExampleProjectFiles(dir, files);
@@ -262,6 +263,9 @@ describe('no-build.md', () => {
     expect(extensions[0]?.commands.map((command) => command.id)).toEqual([
       'acme.plain.hello',
     ]);
+    expect(extensions[0]?.panels.map((panel) => panel.id)).toEqual([
+      'acme.plain.view',
+    ]);
 
     const module = (await import(
       pathToFileURL(path.join(dir, 'main.mjs')).href
@@ -274,5 +278,22 @@ describe('no-build.md', () => {
       text: expect.stringMatching(/^Hello from .+!$/),
     });
     await commands.dispose();
+
+    // the panel module reads Vue from the app's loader and exports components
+    const sdkRequire = createRequire(
+      path.join(REPO_ROOT, 'packages/extension-sdk/package.json'),
+    );
+    const vue = (await import(sdkRequire.resolve('vue'))) as object;
+    Object.assign(globalThis, { __dolphy: { require: async () => vue } });
+    try {
+      const panelModule = (await import(
+        pathToFileURL(path.join(dir, 'panel.mjs')).href
+      )) as { default: { panels: Record<string, unknown> } };
+      expect(Object.keys(panelModule.default.panels)).toEqual([
+        'acme.plain.view',
+      ]);
+    } finally {
+      Reflect.deleteProperty(globalThis, '__dolphy');
+    }
   });
 });

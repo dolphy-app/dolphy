@@ -23,7 +23,7 @@ afterEach(() => rm(tmp, { recursive: true, force: true }));
 interface Options {
   version?: string;
   type?: string;
-  element?: string;
+  markdown?: string;
   manifestId?: string;
   specSchema?: string;
   withMain?: boolean;
@@ -54,10 +54,12 @@ const makeExtension = async (
             id: o.type ?? id,
             specSchema: o.specSchema ?? './schema/spec.json',
             answerSchema: './schema/answer.json',
-            element: o.element ?? `${id.replaceAll('.', '-')}-answer`,
             renderer: './view.mjs',
           },
         ],
+        ...(o.markdown !== undefined && {
+          markdownRenderers: [{ language: o.markdown, renderer: './view.mjs' }],
+        }),
       },
     }),
   );
@@ -143,10 +145,10 @@ describe('discoverExtensions', () => {
     expect(logger.warn).toHaveBeenCalled();
   });
 
-  it('повторный element у разных расширений: первый выигрывает', async () => {
+  it('повторный язык markdown у разных расширений: первый выигрывает', async () => {
     const root = await rootDir('r');
-    await makeExtension(root, 'acme.a', { element: 'acme-shared' });
-    await makeExtension(root, 'acme.b', { element: 'acme-shared' });
+    await makeExtension(root, 'acme.a', { markdown: 'shared' });
+    await makeExtension(root, 'acme.b', { markdown: 'shared' });
     const { extensions, diagnostics } = await discoverExtensions({
       roots: [{ dir: root, origin: 'bundled' }],
       logger: createLogger(),
@@ -272,7 +274,6 @@ describe('discoverExtensions', () => {
       path.join(fixturesDir, 'acme.minimal', 'main.mjs'),
     );
     expect(minimal?.exerciseTypes[0]).toMatchObject({
-      element: 'acme-minimal-answer',
       rendererUrl: 'dolphy-ext://acme.minimal/view.mjs',
       specSchema: { type: 'object' },
       answerSchema: { type: 'string' },
@@ -385,15 +386,15 @@ describe('диагностики по кодам', () => {
     ]);
   });
 
-  it('claim-clash: вид, имя и владелец', async () => {
+  it('claim-clash: вклад, имя и владелец', async () => {
     const found = await codes(async (root) => {
-      await makeExtension(root, 'acme.a', { element: 'acme-shared' });
-      await makeExtension(root, 'acme.b', { element: 'acme-shared' });
+      await makeExtension(root, 'acme.a', { markdown: 'shared' });
+      await makeExtension(root, 'acme.b', { markdown: 'shared' });
     });
     expect(found).toEqual([
       {
         code: 'claim-clash',
-        data: { kind: 'element', name: 'acme-shared', by: 'acme.a' },
+        data: { kind: 'markdown', name: 'shared', by: 'acme.a' },
       },
     ]);
   });

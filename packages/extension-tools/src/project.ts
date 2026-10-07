@@ -24,8 +24,8 @@ export interface HostOutput {
 export interface BrowserOutput {
   kind: 'browser';
   output: string;
-  /** Job kinds: id and element tag. */
-  views: { id: string; element: string }[];
+  /** Exercise types whose answer view this file holds. */
+  views: { id: string }[];
   panels: string[];
   widgets: string[];
   languages: string[];
@@ -140,7 +140,7 @@ const browserOutputsOf = (manifest: ExtensionManifest): BrowserOutput[] => {
   const { exerciseTypes, markdownRenderers, panels, widgets } =
     manifest.contributes;
   for (const type of exerciseTypes) {
-    outputOf(type.renderer).views.push({ id: type.id, element: type.element });
+    outputOf(type.renderer).views.push({ id: type.id });
   }
   for (const entry of markdownRenderers) {
     outputOf(entry.renderer).languages.push(entry.language);

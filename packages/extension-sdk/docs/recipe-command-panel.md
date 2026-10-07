@@ -1,7 +1,8 @@
 # Recipe: a command and a panel
 
 A command appears in the command palette and runs your code; a panel is a
-screen in an isolated frame that the command can open. This recipe is the
+screen the command can open: a Vue component the app draws inside its own
+window. This recipe is the
 `command-panel` template
 (`npx @dolphy-app/create-extension <dir> --id acme.hello --template command-panel`).
 The files below are exactly what the generator writes for the id `acme.hello`.
@@ -51,6 +52,8 @@ import {
   openPanel,
 } from '@dolphy-app/extension-sdk';
 import type { ExtensionPanels } from '@dolphy-app/extension-sdk';
+import { usePanel } from '@dolphy-app/extension-sdk/client';
+import { computed, defineComponent, h, ref } from 'vue';
 
 // extension code: `host` runs in the extension process of the app
 // the ids come from extension.json: a misspelt id or a declared id without a
@@ -69,31 +72,30 @@ export const host = defineExtension({
   },
 });
 
-// the panel runs in an isolated frame of the app window: no network, no
-// window.dolphy; the only way out is `ctx.call` to the commands above
+// the panel is a Vue component the app draws in its own window; `usePanel()`
+// gives it the properties it was opened with and `call` for the commands above
+const HelloPanel = defineComponent({
+  setup() {
+    const panel = usePanel();
+    const message = ref('');
+    // the app opens the panel again with new properties: `panel.props` is
+    // reactive, the title follows it
+    const name = computed(() => {
+      const { props } = panel;
+      return typeof props === 'object' && props !== null && 'name' in props
+        ? String(props.name)
+        : 'world';
+    });
+    void panel.call('acme.hello.data').then((data) => {
+      message.value = (data as { message: string }).message;
+    });
+    return () =>
+      h('div', [h('h2', `Hello, ${name.value}!`), h('p', message.value)]);
+  },
+});
+
 export const panels = {
-  'acme.hello.view': defineExtensionPanel({
-    async mount(container, ctx) {
-      const doc = container.ownerDocument;
-      const title = doc.createElement('h2');
-      const line = doc.createElement('p');
-      container.append(title, line);
-      const name = (props: unknown): string =>
-        typeof props === 'object' && props !== null && 'name' in props
-          ? String(props.name)
-          : 'world';
-      title.textContent = `Hello, ${name(ctx.props)}!`;
-      // the app opens the panel again with new properties: redraw the title
-      ctx.signal.addEventListener(
-        'abort',
-        ctx.onProps((props) => {
-          title.textContent = `Hello, ${name(props)}!`;
-        }),
-      );
-      const data = (await ctx.call('acme.hello.data')) as { message: string };
-      line.textContent = data.message;
-    },
-  }),
+  'acme.hello.view': defineExtensionPanel(HelloPanel),
 } satisfies ExtensionPanels;
 ```
 
@@ -101,13 +103,16 @@ export const panels = {
   does next: `notify(text)` shows a notification, `openPanel(id, props)` opens a
   panel with properties, any JSON value is data for the caller, nothing is fine.
   `args` is whatever the caller passes, so check its type.
-- A panel is `defineExtensionPanel({ mount(container, ctx) })`. `ctx` has
-  `panelId`, `props`, `signal` (aborted when the panel closes), `onProps(listener)`
-  for new properties when the command opens the panel again, and
-  `ctx.call(commandId, args)`.
-- A panel runs in an isolated frame with no network and no access to the app;
-  `ctx.call` to a declared command is the only way out. That is why the data
-  command exists.
+- A panel is `defineExtensionPanel(component)`: a Vue component. `vue` is the
+  app's own instance, so the panel shares its theme and language. Inside the
+  component `usePanel()` from `@dolphy-app/extension-sdk/client` returns the
+  handle: `panelId`, the reactive `props` the panel was opened with (a repeated
+  `openPanel` with new properties updates them in place, so a `computed` over
+  `panel.props` follows), the reactive `context` and
+  `call(commandId, args)`.
+- The code of a panel runs in the app window, and `call` to a declared command
+  is how it reaches the extension process (the handlers of `host`). That is why
+  the data command exists.
 - The build writes `host` to `main.mjs` and `panels` to `panel.mjs`.
 
 ## The tests
@@ -116,11 +121,11 @@ File `test/index.test.ts` (command-panel):
 
 ```ts
 // @vitest-environment happy-dom
-import {
-  loadCommands,
-  loadPanel,
-} from '@dolphy-app/extension-sdk/testing';
+import { PANEL_HANDLE_KEY } from '@dolphy-app/extension-sdk';
+import type { JsonValue, PanelHandle } from '@dolphy-app/extension-sdk';
+import { loadCommands } from '@dolphy-app/extension-sdk/testing';
 import { afterEach, describe, expect, it } from 'vitest';
+import { createApp, h, nextTick, shallowReactive } from 'vue';
 import { host, panels } from '../src/index.ts';
 
 const disposables: { dispose(): unknown }[] = [];
@@ -168,42 +173,72 @@ describe('acme.hello: commands', () => {
   });
 });
 
+// draws the panel the way the app does: the handle is provided to the component
+const mountPanel = async (
+  props: JsonValue | undefined,
+  call: PanelHandle['call'],
+) => {
+  const handle = shallowReactive({
+    panelId: 'acme.hello.view',
+    props,
+    context: { courseId: null },
+    call,
+  });
+  const host = document.createElement('div');
+  document.body.append(host);
+  const app = createApp({ render: () => h(panels['acme.hello.view']) });
+  app.provide(PANEL_HANDLE_KEY, handle);
+  app.mount(host);
+  disposables.push({
+    dispose: () => {
+      app.unmount();
+      host.remove();
+    },
+  });
+  // the panel asks a command: wait for the reply, then for the redraw
+  const settle = async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await nextTick();
+  };
+  await settle();
+  return {
+    host,
+    reopen: async (next: JsonValue) => {
+      handle.props = next;
+      await settle();
+    },
+  };
+};
+
 describe('acme.hello: panel', () => {
   it('shows the data command reply and follows new properties', async () => {
-    const panel = await loadPanel(panels, 'acme.hello.view', {
-      props: { name: 'Ada' },
-      call: () => ({ message: 'Hello from the test' }),
+    const calls: string[] = [];
+    const panel = await mountPanel({ name: 'Ada' }, async (commandId) => {
+      calls.push(commandId);
+      return { message: 'Hello from the test' };
     });
-    disposables.push(panel);
-    expect(panel.container.querySelector('h2')?.textContent).toBe('Hello, Ada!');
-    expect(panel.container.querySelector('p')?.textContent).toBe(
+    expect(panel.host.querySelector('h2')?.textContent).toBe('Hello, Ada!');
+    expect(panel.host.querySelector('p')?.textContent).toBe(
       'Hello from the test',
     );
-    expect(panel.calls).toEqual([{ commandId: 'acme.hello.data', args: undefined }]);
+    expect(calls).toEqual(['acme.hello.data']);
 
-    panel.setProps({ name: 'Grace' });
-    expect(panel.container.querySelector('h2')?.textContent).toBe(
-      'Hello, Grace!',
-    );
+    await panel.reopen({ name: 'Grace' });
+    expect(panel.host.querySelector('h2')?.textContent).toBe('Hello, Grace!');
   });
 
-  it('stops listening for properties when the panel closes', async () => {
-    const panel = await loadPanel(panels, 'acme.hello.view', {
-      call: () => ({ message: 'x' }),
-    });
-    const heading = panel.container.querySelector('h2');
-    panel.dispose();
-    expect(panel.aborted).toBe(true);
-    panel.setProps({ name: 'Late' });
-    expect(heading?.textContent).toBe('Hello, world!');
+  it('greets the world when it is opened without properties', async () => {
+    const panel = await mountPanel(undefined, async () => ({ message: 'x' }));
+    expect(panel.host.querySelector('h2')?.textContent).toBe('Hello, world!');
   });
 });
 ```
 
 `loadCommands` runs commands as the host does, with the same rules for results.
-`loadPanel` mounts a panel with a context like the frame's; its `call` option
-answers `ctx.call`, and here it is wired to the real handlers so the panel is
-tested against the command it depends on.
+A panel is tested like any Vue component: `createApp` mounts it in `happy-dom`,
+and `app.provide(PANEL_HANDLE_KEY, handle)` gives it the handle the app would
+provide. The `call` of the handle answers `panel.call`; here it is a stub, and
+in the events recipe it is wired to the real handlers.
 
 ## Try and ship
 

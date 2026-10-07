@@ -14,8 +14,6 @@ export interface ExerciseTypeInfo {
   extensionOrigin: ExtensionOriginDto;
   /** Отпечаток файлов расширения; у расширений из поставки — пустая строка. */
   extensionRevision: string;
-  /** Тег custom element'а, рисующего ввод ответа. */
-  element: string;
   /** `dolphy-ext://<extensionId>/<renderer>`. */
   rendererUrl: string;
 }

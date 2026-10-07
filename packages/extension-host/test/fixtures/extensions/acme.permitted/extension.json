@@ -10,7 +10,6 @@
         "id": "acme.permitted",
         "specSchema": "./schema/spec.json",
         "answerSchema": "./schema/answer.json",
-        "element": "acme-permitted-answer",
         "renderer": "./view.mjs"
       }
     ]

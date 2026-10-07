@@ -8,7 +8,7 @@ import {
   assetsPlugin,
 } from './assets-plugin.ts';
 import { BuildError } from './errors.ts';
-import { hostModulesPlugin } from './host-modules.ts';
+import { WINDOW_SPECIFIER, hostModulesPlugin } from './host-modules.ts';
 import type { Entry, Project } from './project.ts';
 import { exportsOf, shimEntry, shimPlugin } from './shim.ts';
 import type { JobState, Output } from './shim.ts';
@@ -29,13 +29,13 @@ export const errorText = (error: unknown): string =>
 const nodeExternal = (external: readonly string[]): (string | RegExp)[] => [
   /^node:/,
   ...builtinModules,
+  WINDOW_SPECIFIER,
   ...external,
 ];
 
-/** Production Vue without devtools and the Options API: what a bundle with Vue in it needs to run in a frame. */
+/** Production flags for browser files: the page has no `process`, and Vue and Vuetify come from the app. */
 const BROWSER_DEFINE: Record<string, string> = {
   'process.env.NODE_ENV': '"production"',
-  // `@vuetify/v0` (the date and table components of Vuetify) reads it when the module is evaluated
   'process.env.VITE_LOGGER_ENABLED': 'undefined',
   __VUE_OPTIONS_API__: 'false',
   __VUE_PROD_DEVTOOLS__: 'false',
@@ -54,7 +54,7 @@ const bundleConfig = (
   publicDir: false,
   // asset addresses relative to the bundle (`new URL('assets/x.png', import.meta.url)`), not to the site root
   base: './',
-  // a library build leaves `process.env.NODE_ENV` and the feature flags of Vue as they are, and a frame has no `process`
+  // a library build leaves `process.env.NODE_ENV` and the feature flags of Vue as they are, and the page has no `process`
   define: isNode ? {} : BROWSER_DEFINE,
   logLevel: 'warn',
   // `watchExtension` reports build errors once per cause, rather than Vite once per file
@@ -64,7 +64,6 @@ const bundleConfig = (
     outDir,
     emptyOutDir: false,
     minify: false,
-    // style sheets of dependencies (Vuetify) are tens of KiB of text in the bundle
     cssMinify: true,
     copyPublicDir: false,
     assetsInlineLimit: ASSETS_INLINE_LIMIT,
@@ -80,8 +79,12 @@ const bundleConfig = (
   },
 });
 
-/** Constants of the extension API are `Object.freeze({…})` calls: without this the widget bundle keeps all of them. */
-const WIDGET_PURE_CALLS = ['Object.freeze'];
+/** Constants of the extension API are `Object.freeze({…})` calls: without this a browser bundle keeps all of them. */
+const BROWSER_PURE_CALLS = ['Object.freeze'];
+
+/** Vue and Vuetify are the window's: a browser file takes them from the app, and the host file, which only shares `src/index.ts` with it, must not keep what it imports of them (a component defined at the top level of `src/index.ts` is not code of the host). */
+const WINDOW_PACKAGE =
+  /[\\/]node_modules[\\/](?:vue|@vue|vuetify|@vuetify)[\\/]/;
 
 const outputJob = (project: Project, output: Output, outDir: string): Job => {
   const state: JobState = { problem: null };
@@ -92,16 +95,19 @@ const outputJob = (project: Project, output: Output, outDir: string): Job => {
     outDir,
     output.kind === 'host',
   );
-  const isWidgetFile = output.kind === 'browser' && output.widgets.length > 0;
-  if (isWidgetFile) {
-    config.build = {
-      ...config.build,
-      rolldownOptions: {
-        ...config.build?.rolldownOptions,
-        treeshake: { manualPureFunctions: WIDGET_PURE_CALLS },
-      },
-    };
-  }
+  const isBrowser = output.kind === 'browser';
+  config.build = {
+    ...config.build,
+    rolldownOptions: {
+      ...config.build?.rolldownOptions,
+      treeshake: isBrowser
+        ? { manualPureFunctions: BROWSER_PURE_CALLS }
+        : {
+            moduleSideEffects: (id) => !WINDOW_PACKAGE.test(id),
+            manualPureFunctions: ['defineComponent', 'defineAsyncComponent'],
+          },
+    },
+  };
   return {
     output: output.output,
     label: `${output.output} (${exportsOf(output).join(', ')} from ${project.indexSource})`,
@@ -109,7 +115,7 @@ const outputJob = (project: Project, output: Output, outDir: string): Job => {
       ...config,
       plugins: [
         shimPlugin({ project, output, state }),
-        ...(isWidgetFile ? [hostModulesPlugin()] : []),
+        ...(isBrowser ? [hostModulesPlugin()] : []),
         assetsPlugin(state),
       ],
     },

@@ -26,6 +26,6 @@ export const resolvePanel = (
   return { panel, commands: declaredCommands(contributions, extensionId) };
 };
 
-/** Ключ рамки: новая `revision` (обновление, правка в режиме разработчика) пересоздаёт её. */
-export const frameKeyOf = (panel: PanelContributionDto): string =>
+/** Ключ экземпляра панели: новая `revision` (обновление, правка в режиме разработчика) пересоздаёт её. */
+export const instanceKeyOf = (panel: PanelContributionDto): string =>
   `${panel.extensionId}:${panel.id}:${panel.revision}`;

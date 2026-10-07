@@ -1,6 +1,5 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { defaultElementName } from '@dolphy-app/extension-api';
 import { formatDiagnostic, parseManifest } from '@dolphy-app/extension-host';
 import { describe, expect, it } from 'vitest';
 import {
@@ -283,11 +282,25 @@ describe('generateExtension', () => {
     if (!parsed.ok) throw new Error(formatDiagnostic(parsed.diagnostic));
     const [type] = parsed.manifest.contributes.exerciseTypes;
     expect(type?.id).toBe(id);
-    expect(type?.element).toBe(defaultElementName(id));
     const index = await readFile(path.join(dir, 'src/index.ts'), 'utf8');
     expect(index).toContain(`'${id}': defineExerciseType`);
     expect(index).toContain(`'${id}': defineAnswerView`);
     expect(index).not.toContain('defineAnswerElement');
+  });
+
+  it("the project depends on the app's own vue and vuetify, not on a UI kit", async () => {
+    const root = await makeTemp();
+    const { dir } = await generateExtension({
+      dir: path.join(root, 'acme-hello'),
+    });
+    const pkg = await readJson(path.join(dir, 'package.json'));
+    expect(pkg['devDependencies']).toMatchObject({
+      vue: '^3.5.35',
+      vuetify: '^4.0.1',
+    });
+    expect(pkg['devDependencies']).not.toHaveProperty(
+      '@dolphy-app/extension-ui',
+    );
   });
 });
 

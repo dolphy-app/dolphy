@@ -9,7 +9,6 @@
         "id": "acme.hostile",
         "specSchema": "./schema/spec.json",
         "answerSchema": "./schema/answer.json",
-        "element": "acme-hostile-answer",
         "renderer": "./view.mjs"
       }
     ]

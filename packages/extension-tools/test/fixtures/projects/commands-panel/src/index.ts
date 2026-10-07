@@ -4,6 +4,8 @@ import {
   notify,
   openPanel,
 } from '@dolphy-app/extension-sdk';
+import { usePanel } from '@dolphy-app/extension-sdk/client';
+import { defineComponent, h } from 'vue';
 
 export const host = defineExtension({
   commands: {
@@ -14,9 +16,12 @@ export const host = defineExtension({
 });
 
 export const panels = {
-  'acme.commands-panel.main': defineExtensionPanel({
-    mount(container, ctx) {
-      container.textContent = `panel ${ctx.panelId}`;
-    },
-  }),
+  'acme.commands-panel.main': defineExtensionPanel(
+    defineComponent({
+      setup() {
+        const panel = usePanel();
+        return () => h('p', `panel ${panel.panelId}`);
+      },
+    }),
+  ),
 };

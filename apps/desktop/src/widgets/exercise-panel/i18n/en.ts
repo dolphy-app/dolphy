@@ -16,9 +16,8 @@ export const en: typeof ru = {
       label: 'Lesson sections',
     },
     answer: {
-      frameTitle:
-        'Answer input from an extension in an isolated frame: {label}',
-      loadFailed: 'Could not load the answer input ({element}).',
+      loadFailed: 'Could not load the answer input ({type}).',
+      retry: 'Retry',
       label: 'Answer',
       hint: 'Ctrl/⌘ + Enter to check',
       title: 'Answer',

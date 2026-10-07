@@ -10,10 +10,8 @@ import {
   stripBareImports,
 } from './analyze.ts';
 import type { IndexAnalysis, RecordName, RecordSite } from './analyze.ts';
+import { WINDOW_SPECIFIER } from './host-modules.ts';
 import type { BrowserOutput, HostOutput, Project } from './project.ts';
-
-/** SDK subpath with element registration and dispatch; resolved from the author's project. */
-export const SDK_RUNTIME = '@dolphy-app/extension-sdk/runtime';
 
 export type Output = HostOutput | BrowserOutput;
 
@@ -29,16 +27,6 @@ const quote = (text: string): string => JSON.stringify(text);
 
 const tableOf = (name: RecordName, keys: readonly string[]): string =>
   `{ ${keys.map((key) => `${quote(key)}: ${name}[${quote(key)}]`).join(', ')} }`;
-
-/** What else a browser file holds besides widgets (empty — it is a widget file or has none). */
-export const foreignContentOf = (output: Output): string[] =>
-  output.kind === 'host' || output.widgets.length === 0
-    ? []
-    : [
-        ...(output.views.length > 0 ? ['answer views'] : []),
-        ...(output.panels.length > 0 ? ['panels'] : []),
-        ...(output.languages.length > 0 ? ['markdown renderers'] : []),
-      ];
 
 /** Which `src/index.ts` entries the output file needs: entry name → keys. */
 export const wantedRecords = (
@@ -62,52 +50,20 @@ export const exportsOf = (output: Output): string[] =>
 /**
  * Source of the output file's virtual shim: imports from `src/index.ts` only
  * what is needed and does what the app expects from this file. The
- * `export default` result is the module the app loads (`ExtensionModule`,
- * panel module, renderer module); a file of this kind registers elements.
+ * `export default` result is the module the app loads: the extension module
+ * of the host file, or the tables of Vue components of a browser file.
  */
 export const shimSource = (output: Output, indexFile: string): string => {
   if (output.kind === 'host') {
     return `export { host as default } from ${quote(indexFile)};\n`;
   }
-  if (output.widgets.length > 0) {
-    // a widget file is a table of Vue components the window draws, nothing else
-    return [
-      `import { widgets } from ${quote(indexFile)};`,
-      `export default ${tableOf('widgets', output.widgets)};`,
-      '',
-    ].join('\n');
-  }
-  const runtime: string[] = [];
-  const body: string[] = [];
-  const modules: string[] = [];
-  if (output.views.length > 0) {
-    runtime.push('registerAnswerView');
-    for (const view of output.views) {
-      body.push(
-        `registerAnswerView(${quote(view.element)}, views[${quote(view.id)}]);`,
-      );
-    }
-  }
-  const table = tableOf;
-  if (output.panels.length > 0) {
-    runtime.push('dispatchPanels');
-    modules.push(`...dispatchPanels(${table('panels', output.panels)})`);
-  }
-  if (output.languages.length > 0) {
-    runtime.push('dispatchMarkdown');
-    modules.push(`...dispatchMarkdown(${table('markdown', output.languages)})`);
-  }
-  const records = RECORDS.filter(
-    (name) => wantedRecords(output)[name].length > 0,
-  );
-  const lines = [
+  const wanted = wantedRecords(output);
+  const records = RECORDS.filter((name) => wanted[name].length > 0);
+  return [
     `import { ${records.join(', ')} } from ${quote(indexFile)};`,
-    `import { ${runtime.join(', ')} } from ${quote(SDK_RUNTIME)};`,
-    ...body,
-  ];
-  if (modules.length > 0)
-    lines.push(`export default { ${modules.join(', ')} };`);
-  return `${lines.join('\n')}\n`;
+    `export default { ${records.map((name) => `${name}: ${tableOf(name, wanted[name])}`).join(', ')} };`,
+    '',
+  ].join('\n');
 };
 
 /** Mismatches between `src/index.ts` and the manifest; empty — everything agrees. */
@@ -241,7 +197,25 @@ export const shimPlugin = ({
       return null;
     },
     generateBundle(_options, bundle) {
-      if (output.kind !== 'browser') return;
+      if (output.kind === 'host') {
+        for (const chunk of Object.values(bundle)) {
+          if (chunk.type !== 'chunk') continue;
+          // `import "vue"` stays from the pruned code of the views: it is not for Node
+          chunk.code = stripBareImports(chunk.code, (specifier) =>
+            WINDOW_SPECIFIER.test(specifier),
+          );
+          const leaked = [...importsOf(chunk.code)].find((specifier) =>
+            WINDOW_SPECIFIER.test(specifier),
+          );
+          if (leaked !== undefined) {
+            fail(
+              this,
+              `${output.output} imports '${leaked}': vue and vuetify are for views, panels, widgets and markdown renderers, keep them out of the code of the extension host`,
+            );
+          }
+        }
+        return;
+      }
       for (const chunk of Object.values(bundle)) {
         if (chunk.type !== 'chunk') continue;
         // the bundler leaves binding-less `import "node:…"` from pruned host code
@@ -255,7 +229,7 @@ export const shimPlugin = ({
         if (leaked !== undefined) {
           fail(
             this,
-            `${output.output} imports '${leaked}': Node.js modules and the 'external' packages of dolphy-ext.config.json are for the extension host, keep them out of code that views, panels, widgets and markdown renderers use`,
+            `${output.output} imports '${leaked}': Node.js modules and the 'external' packages of dolphy-ext.config.json are for the extension host, keep them out of the components of views, panels, widgets and markdown renderers`,
           );
         }
       }
@@ -270,13 +244,6 @@ export const shimPlugin = ({
       for (const file of analysis.files) this.addWatchFile(file);
       const problems = findMismatches(project, analysis, indexSource, root);
       if (problems.length > 0) fail(this, problems.join('; '));
-      const foreign = foreignContentOf(output);
-      if (foreign.length > 0) {
-        fail(
-          this,
-          `${output.output} holds widgets and also ${foreign.join(' and ')}: a widget file holds widgets only, give the others their own files in extension.json`,
-        );
-      }
       const wanted = wantedRecords(output);
       sites = RECORDS.flatMap((name) => {
         const result = analysis.records[name];

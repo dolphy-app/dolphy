@@ -1,5 +1,8 @@
 import { describe, expectTypeOf, it } from 'vitest';
 import type {
+  AnswerChange,
+  AnswerVerdict,
+  AnswerViewProps,
   BytesImportInput,
   CourseExportInput,
   ExerciseTypeHandler,
@@ -10,9 +13,8 @@ import type {
   LearningEventHandler,
   LearningEventName,
   LearningEventPayloads,
-  PanelContext,
   PanelContextInfo,
-  PanelModule,
+  PanelHandle,
   ProgressExportInput,
   SettingContribution,
   SettingValue,
@@ -119,23 +121,37 @@ describe('extension-api types', () => {
     exporters.register('a.empty', () => ({ filename: 'a' }));
   });
 
-  it('a panel module receives call, onProps, signal, panelId and props', () => {
-    const module: PanelModule<{ id: string }> = {
-      mount: (container, ctx) => {
-        expectTypeOf(container).toEqualTypeOf<{ id: string }>();
-        expectTypeOf(ctx.panelId).toEqualTypeOf<string>();
-        expectTypeOf(ctx.props).toEqualTypeOf<JsonValue | undefined>();
-        expectTypeOf(ctx.signal.aborted).toEqualTypeOf<boolean>();
-        expectTypeOf(ctx.call).returns.toEqualTypeOf<
-          Promise<JsonValue | undefined>
-        >();
-        expectTypeOf(ctx.onProps).returns.toEqualTypeOf<() => void>();
-        expectTypeOf(ctx.context).toEqualTypeOf<PanelContextInfo>();
-        expectTypeOf(ctx.context.courseId).toEqualTypeOf<string | null>();
-        expectTypeOf(ctx.onContextChange).returns.toEqualTypeOf<() => void>();
-      },
+  it('a panel handle gives the id, reactive props and surroundings, and a command call', () => {
+    const handle: PanelHandle<'a.run'> = {
+      panelId: 'a.panel',
+      props: undefined,
+      context: { courseId: null },
+      call: () => Promise.resolve(undefined),
     };
-    expectTypeOf(module.mount).toBeFunction();
+    expectTypeOf(handle.panelId).toEqualTypeOf<string>();
+    expectTypeOf(handle.props).toEqualTypeOf<JsonValue | undefined>();
+    expectTypeOf(handle.context).toEqualTypeOf<PanelContextInfo>();
+    expectTypeOf(handle.call).parameter(0).toEqualTypeOf<'a.run'>();
+    expectTypeOf(handle.call).returns.toEqualTypeOf<
+      Promise<JsonValue | undefined>
+    >();
+    expectTypeOf<PanelHandle['call']>().parameter(0).toEqualTypeOf<string>();
+  });
+
+  it('an answer view gets typed props and emits an answer change', () => {
+    type Props = AnswerViewProps<{ options: string[] }, number>;
+    expectTypeOf<Props['view']>().toEqualTypeOf<{ options: string[] }>();
+    expectTypeOf<Props['value']>().toEqualTypeOf<number | undefined>();
+    expectTypeOf<Props['disabled']>().toEqualTypeOf<boolean>();
+    expectTypeOf<Props['verdict']>().toEqualTypeOf<AnswerVerdict | null>();
+    expectTypeOf<Props['label']>().toEqualTypeOf<string | null>();
+    expectTypeOf<AnswerChange<number>>().toEqualTypeOf<{
+      value: number;
+      complete: boolean;
+    }>();
+    expectTypeOf<AnswerVerdict['outcome']>().toEqualTypeOf<
+      'passed' | 'failed' | 'error'
+    >();
   });
 
   it('a widget handle gives the id, the reactive surroundings and a command call', () => {
@@ -222,13 +238,6 @@ describe('extension-api types', () => {
       expectTypeOf<Narrow['registerGradePolicy']>()
         .parameter(0)
         .toEqualTypeOf<'a.policy'>();
-    });
-
-    it('a panel context calls the declared commands only', () => {
-      expectTypeOf<PanelContext<'a.run'>['call']>()
-        .parameter(0)
-        .toEqualTypeOf<'a.run'>();
-      expectTypeOf<PanelContext['call']>().parameter(0).toEqualTypeOf<string>();
     });
   });
 });

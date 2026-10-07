@@ -9,7 +9,6 @@
         "id": "acme.echo",
         "specSchema": "./schema/spec.json",
         "answerSchema": "./schema/answer.json",
-        "element": "acme-echo-answer",
         "renderer": "./view.mjs"
       }
     ]

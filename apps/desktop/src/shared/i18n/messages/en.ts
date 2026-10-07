@@ -35,7 +35,6 @@ export const en: typeof ru = {
     arrowright: 'right arrow',
   },
   markdown: {
-    frameTitle: '“{language}” block from an extension, isolated frame',
     renderFailed:
       'Could not render the “{language}” block; showing the source.',
   },

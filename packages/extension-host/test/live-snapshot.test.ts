@@ -57,7 +57,6 @@ const withType = (id: string, type: string): ResolvedExtension =>
         title: null,
         specSchema: {},
         answerSchema: {},
-        element: `${type.replaceAll('.', '-')}-answer`,
         rendererUrl: `dolphy-ext://${id}/view.mjs`,
       },
     ],

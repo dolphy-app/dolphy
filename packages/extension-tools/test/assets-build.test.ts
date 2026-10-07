@@ -12,16 +12,17 @@ const indexSource = (body: string, imports = '') => `import {
   defineExtension,
   defineExtensionPanel,
 } from '@dolphy-app/extension-sdk';
+import { defineComponent, h } from 'vue';
 ${imports}
 
 export const host = defineExtension({});
 
 export const panels = {
-  'acme.commands-panel.main': defineExtensionPanel({
-    mount(container) {
-      ${body}
-    },
-  }),
+  'acme.commands-panel.main': defineExtensionPanel(
+    defineComponent({
+      render: () => h('p', ${body}),
+    }),
+  ),
 };
 `;
 
@@ -55,7 +56,7 @@ describe('dolphy-ext build: style sheets', () => {
   it('?inline gives a string and adds no file; url() inside it stays inline', async () => {
     const root = await project({
       'src/index.ts': indexSource(
-        'container.textContent = css;',
+        'css',
         "import css from './panel.css?inline';",
       ),
       'src/panel.css': '.p{color:red;background:url(./big.png)}',
@@ -76,10 +77,7 @@ describe('dolphy-ext build: style sheets', () => {
 
   it('a plain import of a style sheet is an error that names the way out', async () => {
     const root = await project({
-      'src/index.ts': indexSource(
-        'container.textContent = "x";',
-        "import './side.css';",
-      ),
+      'src/index.ts': indexSource('"x"', "import './side.css';"),
       'src/side.css': '.a{}',
     });
     const error = await build(root).catch((e: unknown) => e);
@@ -88,38 +86,13 @@ describe('dolphy-ext build: style sheets', () => {
       "import css from './side.css?inline'",
     );
   });
-
-  it('a style sheet imported by a dependency in node_modules goes into the registry, in import order, without a file', async () => {
-    const root = await project({
-      'src/index.ts': indexSource(
-        'container.textContent = widget();',
-        "import { widget } from 'ui-lib';",
-      ),
-      'node_modules/ui-lib/package.json': JSON.stringify({
-        name: 'ui-lib',
-        version: '1.0.0',
-        type: 'module',
-        exports: './index.js',
-      }),
-      'node_modules/ui-lib/index.js':
-        "import './base.css';\nimport './widget.css';\nexport const widget = () => 'ok';\n",
-      'node_modules/ui-lib/base.css': '.base{color:red}',
-      'node_modules/ui-lib/widget.css': '.widget{color:blue}',
-    });
-    const { dir, files } = await build(root);
-    expect(files).toEqual(['extension.json', 'panel.mjs']);
-    const panel = await readFile(path.join(dir, 'panel.mjs'), 'utf8');
-    expect(panel).toContain('Symbol.for("dolphy.styles")');
-    expect(panel.indexOf('.base{')).toBeGreaterThan(-1);
-    expect(panel.indexOf('.widget{')).toBeGreaterThan(panel.indexOf('.base{'));
-  });
 });
 
 describe('dolphy-ext build: images and fonts', () => {
   it('a small asset is inlined as a data URI, no file is written', async () => {
     const root = await project({
       'src/index.ts': indexSource(
-        'container.textContent = small + new URL("./small.png", import.meta.url).href;',
+        'small + new URL("./small.png", import.meta.url).href',
         "import small from './small.png?url';",
       ),
       'src/small.png': SMALL,
@@ -134,7 +107,7 @@ describe('dolphy-ext build: images and fonts', () => {
   it('a big asset becomes a file in assets/ named by its content and is addressed relative to the module', async () => {
     const root = await project({
       'src/index.ts': indexSource(
-        'container.textContent = big + new URL("./big.png", import.meta.url).href;',
+        'big + new URL("./big.png", import.meta.url).href',
         "import big from './big.png?url';",
       ),
       'src/big.png': BIG,
@@ -166,7 +139,7 @@ describe('dolphy-ext build: images and fonts', () => {
     const root = await project(
       {
         'src/index.ts': indexSource(
-          'container.textContent = new URL("./big.png", import.meta.url).href;',
+          'new URL("./big.png", import.meta.url).href',
         ),
         'src/big.png': BIG,
       },
@@ -189,7 +162,7 @@ describe('dolphy-ext build: images and fonts', () => {
 
 describe('dolphy-ext build: the assets/ directory and the output check', () => {
   const sources = {
-    'src/index.ts': indexSource('container.textContent = "x";'),
+    'src/index.ts': indexSource('"x"'),
   };
 
   it('copies assets/ as is', async () => {

@@ -40,7 +40,6 @@ const contributionsOf = (
     icon: 'puzzle',
     when: null,
     rendererUrl: `dolphy-ext://${extensionId}/panel.mjs`,
-    isolated: true,
     origin: 'user',
     revision: 'r1',
   })),

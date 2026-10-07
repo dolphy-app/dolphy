@@ -6,7 +6,6 @@ import {
   defineExtensionPanel,
   defineMarkdownRenderer,
   openPanel,
-  type AnswerView,
   type ExtensionContext,
   type ExtensionMarkdown,
   type ExtensionPanels,
@@ -14,6 +13,7 @@ import {
   type SettingChange,
   type SettingValue,
 } from '../src/index.ts';
+import { defineComponent, type Component } from 'vue';
 import { loadCommands, loadEvents } from '../src/testing.ts';
 
 // No generated declarations are part of this program: every id is a string.
@@ -62,16 +62,16 @@ describe('without generated ids', () => {
 
   it('views, panels and markdown take any keys', () => {
     const views = {
-      'any.view': defineAnswerView(() => ({ update: () => undefined })),
+      'any.view': defineAnswerView(defineComponent({})),
     } satisfies ExtensionViews;
     const panels = {
-      'any.panel': defineExtensionPanel({ mount: () => undefined }),
+      'any.panel': defineExtensionPanel(defineComponent({})),
     } satisfies ExtensionPanels;
     const markdown = {
-      any: defineMarkdownRenderer(() => undefined),
+      any: defineMarkdownRenderer(defineComponent({})),
     } satisfies ExtensionMarkdown;
     expectTypeOf<ExtensionViews>().toEqualTypeOf<
-      Readonly<Record<string, AnswerView>>
+      Readonly<Record<string, Component>>
     >();
     expect(Object.keys({ ...views, ...panels, ...markdown })).toEqual([
       'any.view',

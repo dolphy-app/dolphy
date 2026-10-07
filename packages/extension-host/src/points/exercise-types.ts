@@ -1,8 +1,6 @@
 import {
   DEFAULT_RENDERER,
-  ELEMENT_NAME_PATTERN,
   EXTENSION_COMMAND_LIMITS,
-  defaultElementName,
 } from '@dolphy-app/extension-api';
 import { z } from 'zod';
 import {
@@ -33,7 +31,6 @@ export const exerciseTypes: ContributionPoint<'exerciseTypes'> = {
       .optional(),
     specSchema: schemaField,
     answerSchema: schemaField,
-    element: z.string().optional(),
     renderer: safePath(['.js', '.mjs']).optional(),
   }),
   normalize: (entries) =>
@@ -42,23 +39,14 @@ export const exerciseTypes: ContributionPoint<'exerciseTypes'> = {
       ...(type.title === undefined ? {} : { title: type.title }),
       specSchema: type.specSchema,
       answerSchema: type.answerSchema,
-      element: type.element ?? defaultElementName(type.id),
       renderer: type.renderer ?? DEFAULT_RENDERER,
     })),
-  check: (entries, owner) => [
-    ...idPrefixIssues(
+  check: (entries, owner) =>
+    idPrefixIssues(
       'exerciseTypes',
       entries.map(({ id }) => id),
       owner,
     ),
-    ...entries.flatMap((type, index) =>
-      ELEMENT_NAME_PATTERN.test(type.element)
-        ? []
-        : [
-            `contributes.exerciseTypes.${index}.element: invalid element name '${type.element}'`,
-          ],
-    ),
-  ],
   resolve: async (entries, { dir, extensionId: owner, verifyFiles, ajv }) => {
     const resolved = [];
     for (const contribution of entries) {
@@ -85,15 +73,10 @@ export const exerciseTypes: ContributionPoint<'exerciseTypes'> = {
           contribution.answerSchema,
           `answerSchema of '${contribution.id}'`,
         ),
-        element: contribution.element,
         rendererUrl,
       });
     }
     return resolved;
   },
-  claims: (resolved) =>
-    resolved.flatMap((type) => [
-      `exerciseType:${type.id}`,
-      `element:${type.element}`,
-    ]),
+  claims: (resolved) => resolved.map((type) => `exerciseType:${type.id}`),
 };

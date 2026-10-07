@@ -16,8 +16,19 @@ const buildSurfaces = async () => {
   return { root, ...result };
 };
 
-const importFile = (dir: string, file: string): Promise<unknown> =>
-  import(pathToFileURL(path.join(dir, file)).href) as Promise<unknown>;
+/** Browser files read `vue` from the app: here the loader gives the test's own instance. */
+const importFile = (dir: string, file: string): Promise<unknown> => {
+  vi.stubGlobal('__dolphy', {
+    require: (name: string) => import(name) as Promise<unknown>,
+  });
+  return import(pathToFileURL(path.join(dir, file)).href) as Promise<unknown>;
+};
+
+type Components = Record<string, { render(): { children: string } }>;
+
+/** The text the component draws: the fixtures render a single element with it. */
+const textOf = (components: Components, id: string): string | undefined =>
+  components[id]?.render().children;
 
 const edit = async (
   file: string,
@@ -97,7 +108,7 @@ describe('shims: output files', () => {
     }
   });
 
-  it('main.mjs exports host as default and registers no elements', async () => {
+  it('main.mjs exports host as default', async () => {
     const { dir } = await buildSurfaces();
     const module = (await importFile(dir, 'main.mjs')) as {
       default: { activate: unknown };
@@ -105,82 +116,115 @@ describe('shims: output files', () => {
     expect(typeof module.default.activate).toBe('function');
   });
 
-  it('panels of one file are dispatched by ctx.panelId', async () => {
+  it('a file with panels exports a table of components by panel id', async () => {
     const { dir } = await buildSurfaces();
-    const { default: panel } = (await importFile(dir, 'panel.mjs')) as {
-      default: { mount(container: unknown, ctx: unknown): void };
+    const { default: module } = (await importFile(dir, 'panel.mjs')) as {
+      default: { panels: Components };
     };
-    const signal = new AbortController().signal;
-    const mountAs = (panelId: string) => {
-      const container = { textContent: '' };
-      panel.mount(container, { panelId, props: undefined, signal });
-      return container.textContent;
-    };
-    expect(mountAs('acme.surfaces.first')).toBe('PANEL_FIRST_MARKER');
-    expect(mountAs('acme.surfaces.second')).toBe('PANEL_SECOND_MARKER');
-    expect(() => mountAs('acme.surfaces.third')).toThrow(/not exported/);
+    expect(Object.keys(module)).toEqual(['panels']);
+    expect(Object.keys(module.panels)).toEqual([
+      'acme.surfaces.first',
+      'acme.surfaces.second',
+    ]);
+    expect(textOf(module.panels, 'acme.surfaces.first')).toBe(
+      'PANEL_FIRST_MARKER',
+    );
+    expect(textOf(module.panels, 'acme.surfaces.second')).toBe(
+      'PANEL_SECOND_MARKER',
+    );
   });
 
-  it('a widget file exports a table of components by widget id; a widget with its own module gets its own file', async () => {
+  it('a file with widgets exports a table of components by widget id; a widget with its own module gets its own file', async () => {
     const { dir } = await buildSurfaces();
-    type Components = Record<string, { render(): string }>;
-    const { default: shared } = (await importFile(dir, 'widget.mjs')) as {
-      default: Components;
-    };
-    const { default: own } = (await importFile(dir, 'ui/gauge.js')) as {
-      default: Components;
-    };
-    expect(Object.keys(shared)).toEqual([
+    type Module = { default: { widgets: Components } };
+    const { default: shared } = (await importFile(dir, 'widget.mjs')) as Module;
+    const { default: own } = (await importFile(dir, 'ui/gauge.js')) as Module;
+    expect(Object.keys(shared.widgets)).toEqual([
       'acme.surfaces.card',
       'acme.surfaces.badge',
     ]);
-    expect(shared['acme.surfaces.card']?.render()).toBe('WIDGET_CARD_MARKER');
-    expect(shared['acme.surfaces.badge']?.render()).toBe('WIDGET_BADGE_MARKER');
-    expect(Object.keys(own)).toEqual(['acme.surfaces.gauge']);
-    expect(own['acme.surfaces.gauge']?.render()).toBe('WIDGET_GAUGE_MARKER');
-  });
-
-  it('renderers of one file are dispatched by block language', async () => {
-    const { dir } = await buildSurfaces();
-    const { default: renderer } = (await importFile(dir, 'markdown.mjs')) as {
-      default: {
-        render(source: string, container: unknown, ctx: unknown): void;
-      };
-    };
-    const signal = new AbortController().signal;
-    const renderAs = (language: string) => {
-      const container = { textContent: '' };
-      renderer.render('x', container, { language, signal });
-      return container.textContent;
-    };
-    expect(renderAs('alpha')).toBe('ALPHA_MARKER x');
-    expect(renderAs('beta')).toBe('BETA_MARKER x');
-    expect(() => renderAs('gamma')).toThrow(/not exported/);
-  });
-
-  it('a view file registers an element per view with the tag from the manifest', async () => {
-    const { dir } = await buildSurfaces();
-    const defined = new Map<string, unknown>();
-    vi.stubGlobal(
-      'HTMLElement',
-      class {
-        attachShadow() {
-          return this;
-        }
-      },
+    expect(textOf(shared.widgets, 'acme.surfaces.card')).toBe(
+      'WIDGET_CARD_MARKER',
     );
-    vi.stubGlobal('customElements', {
-      get: (tag: string) => defined.get(tag),
-      define: (tag: string, element: unknown) => void defined.set(tag, element),
-    });
-    await importFile(dir, 'view.mjs');
-    expect([...defined.keys()]).toEqual([
-      'acme-surfaces-one-answer',
-      'acme-surfaces-two-answer',
+    expect(textOf(shared.widgets, 'acme.surfaces.badge')).toBe(
+      'WIDGET_BADGE_MARKER',
+    );
+    expect(Object.keys(own.widgets)).toEqual(['acme.surfaces.gauge']);
+    expect(textOf(own.widgets, 'acme.surfaces.gauge')).toBe(
+      'WIDGET_GAUGE_MARKER',
+    );
+  });
+
+  it('a file with markdown renderers exports a table of components by block language', async () => {
+    const { dir } = await buildSurfaces();
+    const { default: module } = (await importFile(dir, 'markdown.mjs')) as {
+      default: { markdown: Components };
+    };
+    expect(Object.keys(module.markdown)).toEqual(['alpha', 'beta']);
+    expect(textOf(module.markdown, 'alpha')).toBe('ALPHA_MARKER');
+    expect(textOf(module.markdown, 'beta')).toBe('BETA_MARKER');
+  });
+
+  it('a file with views exports a table of components by exercise type id', async () => {
+    const { dir } = await buildSurfaces();
+    type Module = { default: { views: Components } };
+    const { default: shared } = (await importFile(dir, 'view.mjs')) as Module;
+    const { default: own } = (await importFile(
+      dir,
+      'view-three.mjs',
+    )) as Module;
+    expect(Object.keys(shared.views)).toEqual([
+      'acme.surfaces.one',
+      'acme.surfaces.two',
     ]);
-    await importFile(dir, 'view-three.mjs');
-    expect([...defined.keys()]).toContain('acme-surfaces-three-answer');
-    expect(defined.size).toBe(3);
+    expect(textOf(shared.views, 'acme.surfaces.one')).toBe('VIEW_ONE_MARKER');
+    expect(textOf(shared.views, 'acme.surfaces.two')).toBe('VIEW_TWO_MARKER');
+    expect(Object.keys(own.views)).toEqual(['acme.surfaces.three']);
+  });
+
+  it('a view bundle takes vue from the app and does not carry it', async () => {
+    const { dir } = await buildSurfaces();
+    const code = await read(dir, 'view.mjs');
+    expect(code).toContain('globalThis.__dolphy.require("vue")');
+    expect(code).not.toMatch(/from\s*["']vue/);
+    expect(code).not.toContain('createVNode');
+    expect(Buffer.byteLength(code)).toBeLessThan(2 * 1024);
+  });
+
+  it('one file can hold views, panels, widgets and markdown renderers', async () => {
+    const root = await copyProject('surfaces');
+    const manifestFile = path.join(root, 'extension.json');
+    const manifest = JSON.parse(await readFile(manifestFile, 'utf8'));
+    const { exerciseTypes, panels, widgets, markdownRenderers } =
+      manifest.contributes;
+    for (const type of exerciseTypes) type.renderer = './ui.mjs';
+    for (const panel of panels) panel.module = './ui.mjs';
+    for (const widget of widgets) widget.module = './ui.mjs';
+    for (const entry of markdownRenderers) entry.renderer = './ui.mjs';
+    await writeFile(manifestFile, JSON.stringify(manifest));
+    const { dir, files } = await buildExtension({
+      root,
+      outDir: path.join(root, 'out'),
+    });
+    expect(files).toEqual(['extension.json', 'main.mjs', 'ui.mjs']);
+    const { default: module } = (await importFile(dir, 'ui.mjs')) as {
+      default: Record<string, Components>;
+    };
+    expect(Object.keys(module)).toEqual([
+      'views',
+      'panels',
+      'widgets',
+      'markdown',
+    ]);
+    expect(Object.keys(module['views'] ?? {})).toHaveLength(3);
+    expect(textOf(module['panels'] ?? {}, 'acme.surfaces.first')).toBe(
+      'PANEL_FIRST_MARKER',
+    );
+    expect(textOf(module['widgets'] ?? {}, 'acme.surfaces.gauge')).toBe(
+      'WIDGET_GAUGE_MARKER',
+    );
+    expect(textOf(module['markdown'] ?? {}, 'beta')).toBe('BETA_MARKER');
+    expect(await read(dir, 'ui.mjs')).not.toContain('HOST_ONLY_MARKER');
   });
 
   it('main, renderer and module names from the manifest are preserved', async () => {
@@ -215,7 +259,7 @@ describe('shims: output files', () => {
       ),
     );
     await edit(path.join(root, 'src', 'index.ts'), (text) => {
-      const start = text.indexOf('const textView');
+      const start = text.indexOf('const text =');
       return `${text.slice(0, start)}export { views, panels, widgets, markdown } from './surfaces.ts';\n`;
     });
     const { dir } = await buildExtension({
@@ -252,7 +296,7 @@ describe('reconciliation with the manifest', () => {
     const root = await copyProject('surfaces');
     await edit(path.join(root, 'src', 'index.ts'), (text) =>
       text.replace(
-        "  'acme.surfaces.three': textView('VIEW_THREE_MARKER'),\n",
+        "  'acme.surfaces.three': defineAnswerView(text('VIEW_THREE_MARKER')),\n",
         '',
       ),
     );
@@ -267,7 +311,7 @@ describe('reconciliation with the manifest', () => {
     await edit(path.join(root, 'src', 'index.ts'), (text) =>
       text.replace(
         'export const panels = {',
-        "export const panels = {\n  'acme.surfaces.ghost': defineExtensionPanel({ mount() {} }),",
+        "export const panels = {\n  'acme.surfaces.ghost': defineExtensionPanel(text('GHOST_MARKER')),",
       ),
     );
     const message = await failure(root);
@@ -326,8 +370,8 @@ describe('reconciliation with the manifest', () => {
     const root = await copyProject('hello');
     await edit(path.join(root, 'src', 'index.ts'), (text) =>
       text.replace(
-        "export const views = {\n  'acme.hello': defineAnswerView(() => ({ update() {} })),\n};",
-        "const entries = { 'acme.hello': defineAnswerView(() => ({ update() {} })) };\nexport const views = { ...entries };",
+        "export const views = {\n  'acme.hello': defineAnswerView(input),\n};",
+        "const entries = { 'acme.hello': defineAnswerView(input) };\nexport const views = { ...entries };",
       ),
     );
     expect(await failure(root)).toContain("cannot read the keys of 'views'");
@@ -337,8 +381,8 @@ describe('reconciliation with the manifest', () => {
     const root = await copyProject('hello');
     await edit(path.join(root, 'src', 'index.ts'), (text) =>
       text.replace(
-        "export const views = {\n  'acme.hello': defineAnswerView(() => ({ update() {} })),\n};",
-        "const table = { 'acme.hello': defineAnswerView(() => ({ update() {} })) } as const;\nexport const views = table;",
+        "export const views = {\n  'acme.hello': defineAnswerView(input),\n};",
+        "const table = { 'acme.hello': defineAnswerView(input) } as const;\nexport const views = table;",
       ),
     );
     const { files } = await buildExtension({ root });
@@ -364,7 +408,7 @@ describe('protecting browser files from Node modules', () => {
     await edit(
       path.join(root, 'src', 'index.ts'),
       (text) =>
-        `import { readFileSync } from 'node:fs';\n${text.replace('update() {}', "update() { readFileSync('x'); }")}`,
+        `import { readFileSync } from 'node:fs';\n${text.replace("h('input')", "(readFileSync('x'), h('input'))")}`,
     );
     const message = await failure(root);
     expect(message).toContain('view.mjs imports');
@@ -376,7 +420,7 @@ describe('protecting browser files from Node modules', () => {
     await edit(
       path.join(root, 'src', 'index.ts'),
       (text) =>
-        `import { join } from 'path';\n${text.replace('update() {}', "update() { join('x'); }")}`,
+        `import { join } from 'path';\n${text.replace("h('input')", "(join('x'), h('input'))")}`,
     );
     expect(await failure(root)).toContain("'path'");
   });
@@ -433,7 +477,7 @@ describe('old layout', () => {
 });
 
 describe('importing src/index.ts', () => {
-  it('in plain Node without DOM registers nothing and returns the descriptions', async () => {
+  it('in plain Node without DOM registers nothing and returns the components', async () => {
     const root = await copyProject('surfaces');
     const script = `
       const module = await import(${JSON.stringify(pathToFileURL(path.join(root, 'src', 'index.ts')).href)});
@@ -441,7 +485,7 @@ describe('importing src/index.ts', () => {
         document: typeof document,
         customElements: typeof customElements,
         views: Object.keys(module.views),
-        mounts: Object.values(module.views).map((view) => typeof view.mount),
+        renders: Object.values(module.views).map((view) => typeof view.render),
         panels: Object.keys(module.panels),
         host: typeof module.host.activate,
       }));
@@ -461,7 +505,7 @@ describe('importing src/index.ts', () => {
       document: 'undefined',
       customElements: 'undefined',
       views: ['acme.surfaces.one', 'acme.surfaces.two', 'acme.surfaces.three'],
-      mounts: ['function', 'function', 'function'],
+      renders: ['function', 'function', 'function'],
       panels: ['acme.surfaces.first', 'acme.surfaces.second'],
       host: 'function',
     });

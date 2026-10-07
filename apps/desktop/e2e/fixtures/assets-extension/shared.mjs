@@ -1,4 +1,4 @@
-// Общая часть рамок фикстуры: подключает таблицу стилей, два изображения и шрифт
+// Общая часть компонентов фикстуры: подключает таблицу стилей, два изображения и шрифт
 // расширения по адресу модуля и описывает результат в `data-role="assets-report"`.
 const here = import.meta.url;
 
@@ -8,11 +8,9 @@ const settled = (node) =>
     node.addEventListener('error', () => resolve('error'));
   });
 
-/**
- * `hosts` — куда добавить `<link>`: в тень и в документ (`@font-face` в тени
- * не действует, шрифт регистрирует только таблица на уровне документа).
- */
-export const mountAssets = async (doc, container, hosts = [container]) => {
+/** Подключает ресурсы в `container`; таблица стилей уходит в `<head>` окна, возвращается функция, которая её убирает. */
+export const mountAssets = async (doc, container) => {
+  const links = [];
   const probe = doc.createElement('p');
   probe.className = 'probe';
   probe.dataset.role = 'probe';
@@ -31,13 +29,12 @@ export const mountAssets = async (doc, container, hosts = [container]) => {
   const loading = [settled(png), settled(svg)];
   png.src = new URL('assets/pixel.png', here).href;
   svg.src = new URL('assets/shape.svg', here).href;
-  for (const host of hosts) {
-    const link = doc.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = new URL('assets/panel.css', here).href;
-    loading.push(settled(link));
-    host.append(link);
-  }
+  const link = doc.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = new URL('assets/panel.css', here).href;
+  loading.push(settled(link));
+  doc.head.append(link);
+  links.push(link);
   const states = await Promise.all(loading);
 
   let font = 'missing';
@@ -61,4 +58,30 @@ export const mountAssets = async (doc, container, hosts = [container]) => {
   report.textContent = Object.entries(result)
     .map(([name, value]) => `${name}=${value}`)
     .join(' ');
+  return () => {
+    for (const node of links) node.remove();
+  };
+};
+
+/** Компонент, который выводит отчёт о ресурсах; `props` — его входы. */
+export const assetsComponent = (vue, props = []) => {
+  const { defineComponent, h, onBeforeUnmount, onMounted, ref } = vue;
+  return defineComponent({
+    props,
+    setup() {
+      const root = ref(null);
+      let dispose = null;
+      let gone = false;
+      onMounted(async () => {
+        const stop = await mountAssets(document, root.value);
+        if (gone) stop();
+        else dispose = stop;
+      });
+      onBeforeUnmount(() => {
+        gone = true;
+        dispose?.();
+      });
+      return () => h('div', { ref: root });
+    },
+  });
 };

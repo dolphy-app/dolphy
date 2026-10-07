@@ -9,7 +9,6 @@
         "id": "acme.flood",
         "specSchema": "./schema/spec.json",
         "answerSchema": "./schema/answer.json",
-        "element": "acme-flood-answer",
         "renderer": "./view.mjs"
       }
     ]

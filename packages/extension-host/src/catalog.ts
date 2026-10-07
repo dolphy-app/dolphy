@@ -55,7 +55,6 @@ const buildView = (source: readonly ResolvedExtension[]): View => {
           extensionVersion: owner.version,
           extensionOrigin: owner.origin,
           extensionRevision: owner.revision,
-          element: type.element,
           rendererUrl: type.rendererUrl,
         },
         validateSpec: ajv.compile(type.specSchema),

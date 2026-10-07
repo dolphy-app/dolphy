@@ -62,7 +62,9 @@ describe.each(TEMPLATE_NAMES)('generated project: %s', (template) => {
     expect(extensions.map((extension) => extension.id)).toEqual([id]);
     if (template === 'exercise') {
       const view = await readFile(path.join(built.dir, 'view.mjs'), 'utf8');
-      expect(view).toContain(extensions[0]?.exerciseTypes[0]?.element);
+      // Vue is the app's own: the bundle reads it from the host, it does not carry it
+      expect(view).toContain('__dolphy');
+      expect(view.length).toBeLessThan(20_000);
     }
 
     // no findings at all: a fresh project is clean for the catalog review

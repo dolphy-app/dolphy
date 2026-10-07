@@ -9,7 +9,6 @@
         "id": "acme.crash",
         "specSchema": "./schema/spec.json",
         "answerSchema": "./schema/answer.json",
-        "element": "acme-crash-answer",
         "renderer": "./view.mjs"
       }
     ]

@@ -6,7 +6,7 @@ import type {
   CatalogVersionDto,
   ExtensionInfoDto,
 } from '@dolphy-app/engine-contract';
-import { useContributions, useEngine } from '@/shared/api/engine';
+import { useEngine } from '@/shared/api/engine';
 import { ROUTE } from '@/shared/config/routes.ts';
 import { useExtensionText } from '@/shared/lib/extension-text.ts';
 import { targetFromEntry, targetFromUpdate } from '../lib/catalog.ts';
@@ -15,7 +15,6 @@ import { formatBytes } from '../lib/format.ts';
 import { useCatalogSource } from '../model/catalog-source.ts';
 import { useExtensionDetails } from '../model/extension-details.ts';
 import { useInstallContext } from '../model/install.ts';
-import { useReloadRequired } from '../model/reload-required.ts';
 import DeprecatedChip from './DeprecatedChip.vue';
 import ExtensionContributions from './ExtensionContributions.vue';
 import ExtensionDeprecation from './ExtensionDeprecation.vue';
@@ -58,11 +57,6 @@ const fromOtherCatalog = computed(() =>
     catalogSource.source.value?.url ?? null,
   ),
 );
-
-const reloadRequired = useReloadRequired(useContributions());
-const reloadWindow = () => {
-  location.reload();
-};
 
 const name = computed(() => {
   const view = details.value;
@@ -158,23 +152,6 @@ const publishedDate = (value: string) => d(new Date(value), 'shortDate');
     >
       {{ t('settings.extensions.details.back') }}
     </v-btn>
-
-    <v-alert
-      v-if="reloadRequired"
-      type="info"
-      variant="tonal"
-      class="mb-6"
-      data-testid="extensions-reload"
-    >
-      <div class="d-flex align-center ga-3">
-        <span class="flex-grow-1">{{
-          t('settings.extensions.reload.message')
-        }}</span>
-        <v-btn variant="text" prepend-icon="mdi-reload" @click="reloadWindow">
-          {{ t('settings.extensions.reload.action') }}
-        </v-btn>
-      </div>
-    </v-alert>
 
     <div v-if="state === 'loading'" role="status" aria-busy="true">
       <span class="visually-hidden">{{

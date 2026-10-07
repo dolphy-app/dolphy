@@ -78,7 +78,6 @@ const panel = (id: string, extensionId = ID): PanelContributionDto => ({
   icon: 'puzzle',
   when: null,
   rendererUrl: `dolphy-ext://${extensionId}/panel.mjs`,
-  isolated: true,
   origin: 'user',
   revision: 'r1',
 });

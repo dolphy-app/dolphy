@@ -40,7 +40,6 @@ const withExtension = (
     icon: 'puzzle',
     when: null,
     rendererUrl: 'dolphy-ext://acme.cmd/panel.mjs',
-    isolated: true,
     origin: 'user',
     revision: 'r1',
   })),

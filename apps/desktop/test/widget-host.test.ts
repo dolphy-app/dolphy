@@ -36,7 +36,7 @@ const mountHost = async (
   state = reactive({ courseId: null as string | null }),
 ) => {
   const run = vi.fn(async () => 'pong' as const);
-  const loadModule = vi.fn(async () => ({ default: components }));
+  const loadModule = vi.fn(async () => ({ default: { widgets: components } }));
   const app = createApp({
     render: () =>
       h(WidgetHost, {
@@ -126,6 +126,6 @@ describe('WidgetHost', () => {
     expect(
       root.querySelector('[data-testid="extension-widget-failed"]')
         ?.textContent,
-    ).toContain(`widget module has no component ${WIDGET.id}`);
+    ).toContain(`module has no widgets component '${WIDGET.id}'`);
   });
 });

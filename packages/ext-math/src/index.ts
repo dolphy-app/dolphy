@@ -1,5 +1,6 @@
 import { defineMarkdownRenderer } from '@dolphy-app/extension-sdk';
 import type { ExtensionMarkdown } from '@dolphy-app/extension-sdk';
+import { defineComponent, h } from 'vue';
 import { liteAdaptor } from 'mathjax-full/js/adaptors/liteAdaptor.js';
 import { RegisterHTMLHandler } from 'mathjax-full/js/handlers/html.js';
 import { TeX } from 'mathjax-full/js/input/tex.js';
@@ -26,17 +27,29 @@ const createConverter = () => {
 
 const holder: { convert?: (tex: string) => string } = {};
 
+const MathBlock = defineComponent({
+  name: 'MathBlock',
+  props: {
+    source: { type: String, required: true },
+    language: { type: String, required: true },
+  },
+  setup(props) {
+    return () => {
+      const tex = props.source.trim();
+      if (tex === '') throw new Error('empty formula');
+      holder.convert ??= createConverter();
+      return h('div', {
+        class: 'dolphy-math',
+        role: 'math',
+        'aria-label': tex,
+        style:
+          'display:block;text-align:center;max-width:100%;overflow-x:auto;',
+        innerHTML: holder.convert(props.source),
+      });
+    };
+  },
+});
+
 export const markdown = {
-  math: defineMarkdownRenderer((source, container) => {
-    if (source.trim() === '') throw new Error('empty formula');
-    holder.convert ??= createConverter();
-    const wrapper = container.ownerDocument.createElement('div');
-    wrapper.className = 'dolphy-math';
-    wrapper.setAttribute('role', 'math');
-    wrapper.setAttribute('aria-label', source.trim());
-    wrapper.style.cssText =
-      'display:block;text-align:center;max-width:100%;overflow-x:auto;';
-    wrapper.innerHTML = holder.convert(source);
-    container.replaceChildren(wrapper);
-  }),
+  math: defineMarkdownRenderer(MathBlock),
 } satisfies ExtensionMarkdown;

@@ -135,8 +135,7 @@ describe('виджеты на экране «План дня» (R9)', () => {
       'Карточка v1.0.0',
     );
     // виджет — компонент в дереве окна: рамки нет
-    await expectCount(page.locator('iframe[data-mode="widget"]'), 0);
-    await expectCount(block(page).locator('iframe'), 0);
+    await expectCount(page.locator('iframe'), 0);
   });
 
   it('компонент виджета видит тему приложения', async () => {

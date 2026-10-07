@@ -31,7 +31,6 @@ const exerciseType = (id: string) => ({
   title: null,
   specSchema: { type: 'object' },
   answerSchema: { type: 'string' },
-  element: 'acme-warn-answer',
   rendererUrl: `dolphy-ext://${ID}/view.mjs`,
 });
 

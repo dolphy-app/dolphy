@@ -21,19 +21,21 @@ app uses to load it (`inspectExtensionDir` from `@dolphy-app/extension-host`),
 `src/index.ts` has named exports; the build lays them out into the files the
 manifest names (`main`, `renderer`, `module`):
 
-| Export     | Value                                          | Output file                                |
-| ---------- | ---------------------------------------------- | ------------------------------------------ |
-| `host`     | `defineExtension({ … })`                       | `main` (`main.mjs`, Node bundle)           |
-| `views`    | exercise type id → `defineAnswerView(mount)`   | the type's `renderer` (`view.mjs`)         |
-| `panels`   | panel id → `defineExtensionPanel({ mount })`   | the panel's `module` (`panel.mjs`)         |
-| `widgets`  | widget id → `defineExtensionWidget(component)` | the widget's `module` (`widget.mjs`)       |
-| `markdown` | language → `defineMarkdownRenderer(render)`    | the renderer's `renderer` (`markdown.mjs`) |
+| Export     | Value                                            | Output file                                |
+| ---------- | ------------------------------------------------ | ------------------------------------------ |
+| `host`     | `defineExtension({ … })`                         | `main` (`main.mjs`, Node bundle)           |
+| `views`    | exercise type id → `defineAnswerView(component)` | the type's `renderer` (`view.mjs`)         |
+| `panels`   | panel id → `defineExtensionPanel(component)`     | the panel's `module` (`panel.mjs`)         |
+| `widgets`  | widget id → `defineExtensionWidget(component)`   | the widget's `module` (`widget.mjs`)       |
+| `markdown` | language → `defineMarkdownRenderer(component)`   | the renderer's `renderer` (`markdown.mjs`) |
 
-A widget file holds widgets only: a manifest that gives a widget the same file
-as a panel, an answer view or a markdown renderer is an error. A widget is a
-Vue component; its file is built with `vue` and `vuetify` left out (the app
-gives its own instances through `globalThis.__dolphy`), so a widget bundle is a
-few KiB.
+Every browser file is a table of Vue components: its default export is
+`{ views?, panels?, widgets?, markdown? }` with the non-empty tables only, and
+one file may hold several kinds. The file is built with `vue` and `vuetify`
+left out (the app gives its own instances through `globalThis.__dolphy`), so a
+bundle is a few KiB; `vuetify/styles` is dropped too. The host file keeps them
+out as well: a component defined at the top level of `src/index.ts` does not
+pull Vue into `main.mjs`.
 
 ```ts
 import {
@@ -44,9 +46,9 @@ import {
 
 export const host = defineExtension({ commands: { 'acme.open': () => null } });
 export const views = {
-  'acme.echo': defineAnswerView((api) => ({ update() {} })),
+  'acme.echo': defineAnswerView(InputView),
 };
-export const panels = { 'acme.panel': defineExtensionPanel({ mount() {} }) };
+export const panels = { 'acme.panel': defineExtensionPanel(Screen) };
 ```
 
 - Each output file is built from a virtual entry generated from the manifest;
@@ -59,11 +61,9 @@ export const panels = { 'acme.panel': defineExtensionPanel({ mount() {} }) };
   A library imported by host code needs `"sideEffects": false` in its
   `package.json` (or a list of the files that do have effects), otherwise its
   top level counts as code with effects and ends up in browser files.
-- The entry of a browser file registers the answer elements (the tag comes from
-  the manifest `element`, by default `<id with dots as dashes>-answer`) and
-  exports the panel or renderer module. Panels and languages that share one
-  file are served by that file, dispatching by `ctx.panelId` and by the block
-  language.
+- The entry of a browser file is generated from the manifest: it imports the
+  needed tables from `src/index.ts` and exports them as one object. Nothing is
+  registered by the bundle.
 - Checks against the manifest, on every build and every rebuild: each declared
   exercise type, panel and language needs a key in `views`, `panels` and
   `markdown`; a key the manifest does not declare is an error naming the key
@@ -84,7 +84,7 @@ export const panels = { 'acme.panel': defineExtensionPanel({ mount() {} }) };
   example `./ui/screen.js` produces `ui/screen.js`. Every file is
   self-contained: no shared chunks.
 - Node bundles: ES module, target `node22`, not minified; only Node builtins and
-  `external` packages stay external. Browser bundles: `es2022`, nothing
+  `external` packages stay external. Browser bundles: `es2022`, with `vue` and `vuetify`
   external.
 - `dolphy-ext.config.json`:
   `{ "nodeEntries": { "worker.mjs": "src/worker.ts" }, "external": ["better-sqlite3"] }` —
@@ -169,7 +169,7 @@ An extension can ship style sheets (`css`), images (`png`, `webp`, `jpg`, `jpeg`
   style sheet as a string; `import logo from './logo.png?url'` and
   `new URL('./logo.png', import.meta.url)` give a `data:` URI for a file up to
   4 KiB. Choose this for small things: one file to publish, nothing to address
-  at run time, and a style sheet string works in any frame. `url()` inside an
+  at run time. `url()` inside an
   `?inline` style sheet is inlined too (a relative address means nothing in a
   string).
 - **A separate file.** The same `?url` and `new URL(…)` forms write an image or

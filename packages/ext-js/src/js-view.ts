@@ -1,19 +1,20 @@
 /**
- * Вид ввода ответа `dolphy.js`: многострочное моноширинное поле в теневом корне
- * элемента. Подсветка — слой `pre` поверх прозрачного текста `textarea`: ввод,
- * выделение и каретку ведёт сам браузер, а слой только раскрашивает тот же
- * текст с теми же метриками. Цвета — `--sh-*` с корня приложения (палитра из
- * текущей темы), они наследуются через границу теневого DOM.
+ * Вид ввода ответа `dolphy.js`: многострочное моноширинное поле. Подсветка —
+ * слой `pre` поверх прозрачного текста `textarea`: ввод, выделение и каретку
+ * ведёт сам браузер, а слой только раскрашивает тот же текст с теми же
+ * метриками. Цвета — `--sh-*` с корня приложения (палитра из текущей темы),
+ * `--v-theme-*` даёт тема Vuetify окна.
  */
-import type { MountAnswerView } from '@dolphy-app/extension-sdk';
+import type { AnswerChange, AnswerVerdict } from '@dolphy-app/extension-api';
+import { defineComponent, h, onUpdated, ref, watch } from 'vue';
+import type { PropType } from 'vue';
 import { highlightJs } from './highlight.ts';
 
 const INDENT = '  ';
 
 const STYLE = `
-  :host { display: block; }
-  .editor { position: relative; }
-  textarea, .mirror {
+  .dolphy-js-editor { position: relative; }
+  .dolphy-js-editor textarea, .dolphy-js-editor .mirror {
     box-sizing: border-box;
     width: 100%;
     margin: 0;
@@ -28,7 +29,7 @@ const STYLE = `
     border: 1px solid transparent;
     border-radius: 4px;
   }
-  textarea {
+  .dolphy-js-editor textarea {
     display: block;
     resize: vertical;
     overflow: auto;
@@ -37,12 +38,12 @@ const STYLE = `
     background: rgb(var(--v-theme-surface));
     border-color: rgba(var(--v-border-color), var(--v-border-opacity));
   }
-  textarea::selection {
+  .dolphy-js-editor textarea::selection {
     color: transparent;
     background: rgba(var(--v-theme-primary), 0.3);
   }
-  textarea[aria-invalid='true'] { border-color: rgb(var(--v-theme-error)); }
-  .mirror {
+  .dolphy-js-editor textarea[aria-invalid='true'] { border-color: rgb(var(--v-theme-error)); }
+  .dolphy-js-editor .mirror {
     position: absolute;
     inset: 0;
     overflow: hidden;
@@ -50,13 +51,13 @@ const STYLE = `
     color: rgb(var(--v-theme-on-surface));
   }
   /* запас под полосы прокрутки поля: слою нужно доехать до тех же смещений */
-  .mirror code {
+  .dolphy-js-editor .mirror code {
     display: inline-block;
     min-width: 100%;
     padding: 0 24px 24px 0;
     font: inherit;
   }
-  .editor[data-disabled] .mirror { opacity: 0.6; }
+  .dolphy-js-editor[data-disabled] .mirror { opacity: 0.6; }
   .sh__token--keyword { color: var(--sh-keyword, currentColor); }
   .sh__token--string { color: var(--sh-string, currentColor); }
   .sh__token--class { color: var(--sh-class, currentColor); }
@@ -68,8 +69,8 @@ const STYLE = `
   }
   /* системные цвета перекрывают подсветку: слой не нужен, текст рисует поле */
   @media (forced-colors: active) {
-    .mirror { display: none; }
-    textarea { color: CanvasText; }
+    .dolphy-js-editor .mirror { display: none; }
+    .dolphy-js-editor textarea { color: CanvasText; }
   }
 `;
 
@@ -80,123 +81,146 @@ const starterOf = (view: unknown): string =>
     ? toText(Reflect.get(view, 'starter'))
     : '';
 
-export const mountJsEditor: MountAnswerView = (api, initial) => {
-  const style = document.createElement('style');
-  style.textContent = STYLE;
-  const textarea = document.createElement('textarea');
-  textarea.spellcheck = false;
-  textarea.rows = 12;
-  textarea.wrap = 'off';
-  textarea.setAttribute('autocapitalize', 'off');
-  textarea.setAttribute('autocomplete', 'off');
-  textarea.setAttribute('autocorrect', 'off');
-  if (api.label !== null) textarea.setAttribute('aria-label', api.label);
-  const editor = document.createElement('div');
-  editor.className = 'editor';
-  const mirror = document.createElement('pre');
-  mirror.className = 'mirror';
-  mirror.setAttribute('aria-hidden', 'true');
-  const mirrorCode = document.createElement('code');
-  mirror.append(mirrorCode);
-  editor.append(textarea, mirror);
+// ответа ещё нет — поле заполняет заготовка из `spec.starter`
+const initialText = (value: unknown, view: unknown) =>
+  typeof value === 'string' ? value : starterOf(view);
 
-  // `value` и `view` — последние значения свойств, а не введённый текст:
-  // приложение может не возвращать ответ, и обновление не должно его стирать;
-  // `isTyped` — ученик уже менял текст, заготовку поверх него не кладём
-  const state = {
-    value: initial.value,
-    view: initial.view,
-    isTyped: false,
+const unknownProp = { type: null as unknown as PropType<unknown> };
+
+export const JsAnswerView = defineComponent({
+  name: 'JsAnswerView',
+  props: {
+    view: unknownProp,
+    value: unknownProp,
+    disabled: Boolean,
+    verdict: { type: Object as PropType<AnswerVerdict | null>, default: null },
+    label: { type: String as PropType<string | null>, default: null },
+  },
+  emits: ['change', 'submit'],
+  setup(props, { emit }) {
+    const textarea = ref<HTMLTextAreaElement | null>(null);
+    const mirror = ref<HTMLElement | null>(null);
+    const text = ref(initialText(props.value, props.view));
+    // `isTyped` — ученик уже менял текст, заготовку поверх него не кладём;
     // после Escape следующий Tab покидает поле (иначе фокус не уйти с клавиатуры)
-    isTabEscape: false,
-  };
-  // ответа ещё нет — поле заполняет заготовка из `spec.starter`
-  const initialText = (value: unknown, view: unknown) =>
-    typeof value === 'string' ? value : starterOf(view);
-  textarea.value = initialText(initial.value, initial.view);
-  textarea.disabled = initial.disabled;
-  editor.toggleAttribute('data-disabled', initial.disabled);
+    const state = { isTyped: false, isTabEscape: false };
+    const isInvalid = ref(props.verdict?.outcome === 'failed');
 
-  const syncScroll = () => {
-    mirror.scrollTop = textarea.scrollTop;
-    mirror.scrollLeft = textarea.scrollLeft;
-  };
-  // пробел в конце: пустая последняя строка поля занимает место и в слое
-  const paint = () => {
-    const html = highlightJs(textarea.value);
-    if (html === null) mirrorCode.textContent = `${textarea.value} `;
-    else mirrorCode.innerHTML = `${html} `;
-    syncScroll();
-  };
-  paint();
-
-  const report = () => {
-    paint();
-    state.isTyped = true;
-    textarea.removeAttribute('aria-invalid');
-    api.setAnswer(textarea.value, textarea.value.trim().length > 0);
-  };
-
-  const insertIndent = () => {
-    const { selectionStart: start, selectionEnd: end, value } = textarea;
-    textarea.value = `${value.slice(0, start)}${INDENT}${value.slice(end)}`;
-    const caret = start + INDENT.length;
-    textarea.setSelectionRange(caret, caret);
-    report();
-  };
-
-  textarea.addEventListener('input', report);
-  textarea.addEventListener('scroll', syncScroll, { passive: true });
-  textarea.addEventListener('keydown', (event) => {
-    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-      event.preventDefault();
-      api.submit();
-      return;
-    }
-    if (event.key === 'Escape') {
-      state.isTabEscape = true;
-      return;
-    }
-    const isPlainTab =
-      event.key === 'Tab' &&
-      !event.shiftKey &&
-      !event.ctrlKey &&
-      !event.metaKey &&
-      !event.altKey &&
-      !event.isComposing;
-    if (isPlainTab && !state.isTabEscape) {
-      event.preventDefault();
-      insertIndent();
-      return;
-    }
-    state.isTabEscape = false;
-  });
-  textarea.addEventListener('blur', () => {
-    state.isTabEscape = false;
-  });
-  api.root.append(style, editor);
-
-  return {
-    update: (props) => {
-      if (props.value !== state.value) {
-        state.value = props.value;
-        state.view = props.view;
-        textarea.value = initialText(props.value, props.view);
-        paint();
-      } else if (props.view !== state.view) {
-        state.view = props.view;
+    // значение и `view` применяются только со сменой свойств: приложение
+    // может не возвращать ответ, и обновление не должно его стирать
+    watch(
+      () => props.value,
+      (value) => {
+        text.value = initialText(value, props.view);
+      },
+    );
+    watch(
+      () => props.view,
+      (view) => {
         if (!state.isTyped && typeof props.value !== 'string') {
-          textarea.value = starterOf(props.view);
-          paint();
+          text.value = starterOf(view);
         }
+      },
+    );
+    watch(
+      () => props.verdict,
+      (verdict) => {
+        isInvalid.value = verdict?.outcome === 'failed';
+      },
+    );
+
+    const syncScroll = () => {
+      if (!textarea.value || !mirror.value) return;
+      mirror.value.scrollTop = textarea.value.scrollTop;
+      mirror.value.scrollLeft = textarea.value.scrollLeft;
+    };
+    onUpdated(syncScroll);
+
+    const report = (next: string) => {
+      text.value = next;
+      state.isTyped = true;
+      isInvalid.value = false;
+      const change: AnswerChange<string> = {
+        value: next,
+        complete: next.trim().length > 0,
+      };
+      emit('change', change);
+    };
+
+    const insertIndent = (field: HTMLTextAreaElement) => {
+      const { selectionStart: start, selectionEnd: end, value } = field;
+      field.value = `${value.slice(0, start)}${INDENT}${value.slice(end)}`;
+      const caret = start + INDENT.length;
+      field.setSelectionRange(caret, caret);
+      report(field.value);
+    };
+
+    const onKeydown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+        event.preventDefault();
+        emit('submit');
+        return;
       }
-      textarea.disabled = props.disabled;
-      editor.toggleAttribute('data-disabled', props.disabled);
-      if (props.verdict?.outcome === 'failed') {
-        textarea.setAttribute('aria-invalid', 'true');
-      } else {
-        textarea.removeAttribute('aria-invalid');
+      if (event.key === 'Escape') {
+        state.isTabEscape = true;
+        return;
       }
-    },
-  };
-};
+      const isPlainTab =
+        event.key === 'Tab' &&
+        !event.shiftKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey &&
+        !event.isComposing;
+      if (isPlainTab && !state.isTabEscape) {
+        event.preventDefault();
+        if (textarea.value) insertIndent(textarea.value);
+        return;
+      }
+      state.isTabEscape = false;
+    };
+
+    return () => {
+      // пробел в конце: пустая последняя строка поля занимает место и в слое
+      const html = highlightJs(text.value);
+      const code =
+        html === null
+          ? h('code', `${text.value} `)
+          : h('code', { innerHTML: `${html} ` });
+      return h(
+        'div',
+        {
+          class: 'dolphy-js-editor',
+          'data-disabled': props.disabled ? '' : undefined,
+        },
+        [
+          h('style', STYLE),
+          h('textarea', {
+            ref: textarea,
+            value: text.value,
+            rows: 12,
+            wrap: 'off',
+            spellcheck: false,
+            autocapitalize: 'off',
+            autocomplete: 'off',
+            autocorrect: 'off',
+            disabled: props.disabled,
+            'aria-label': props.label ?? undefined,
+            'aria-invalid': isInvalid.value ? 'true' : undefined,
+            onInput: () => {
+              if (textarea.value) report(textarea.value.value);
+            },
+            onScroll: syncScroll,
+            onKeydown,
+            onBlur: () => {
+              state.isTabEscape = false;
+            },
+          }),
+          h('pre', { ref: mirror, class: 'mirror', 'aria-hidden': 'true' }, [
+            code,
+          ]),
+        ],
+      );
+    };
+  },
+});

@@ -23,7 +23,6 @@ export interface ResolvedExerciseType {
   title: string | null;
   specSchema: JsonSchema;
   answerSchema: JsonSchema;
-  element: string;
   rendererUrl: string;
 }
 
@@ -54,7 +53,7 @@ export type ResolvedEvent = EventContribution;
 /** Команда в виде, в котором её получает окно (DTO движка без `extensionId`). */
 export type ResolvedCommand = Omit<CommandContributionDto, 'extensionId'>;
 
-/** Панель: модуль в рамке; `isolated`, `origin` и `revision` добавляет реестр. */
+/** Панель: компонент Vue; `origin` и `revision` добавляет реестр. */
 export type ResolvedPanel = Pick<
   PanelContributionDto,
   'id' | 'title' | 'icon' | 'when' | 'rendererUrl'

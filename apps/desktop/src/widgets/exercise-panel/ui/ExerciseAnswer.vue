@@ -6,11 +6,11 @@ import type {
   Grade,
   VerdictDto,
 } from '@dolphy-app/engine-contract';
-import type { AnswerChangeDetail } from '@dolphy-app/extension-api';
+import type { AnswerChange } from '@dolphy-app/extension-api';
 import MarkdownView from '@/shared/ui/MarkdownView.vue';
 import { splitPrompt } from '../lib/prompt.ts';
 import { describeVerdict } from '../lib/verdict.ts';
-import AnswerElement from './AnswerElement.vue';
+import AnswerView from './AnswerView.vue';
 import SelfGrade from './SelfGrade.vue';
 
 const props = withDefaults(
@@ -21,9 +21,9 @@ const props = withDefaults(
     answer: string | null;
     /** Ответ проверяет раннер; иначе ученик ставит себе оценку. */
     verifiable: boolean;
-    /** Вид задания от расширения (элемент ввода ответа); `null` — нет. */
+    /** Вид задания от расширения (компонент ввода ответа); `null` — нет. */
     task: ExerciseTaskDto | null;
-    /** Публичный вид для элемента ответа (`project()` расширения). */
+    /** Публичный вид для компонента ответа (`project()` расширения). */
     view: unknown;
     verdict: VerdictDto | null;
     /** Ученик открыл эталонный ответ. */
@@ -47,7 +47,7 @@ const emit = defineEmits<{
 const { t } = useI18n();
 
 // ответ живёт, пока смонтирована панель: у нового упражнения свой `key`
-const answerState = ref<AnswerChangeDetail>({
+const answerState = ref<AnswerChange>({
   value: undefined,
   complete: false,
 });
@@ -93,11 +93,12 @@ const submitAnswer = () => {
     />
 
     <template v-if="verifiable">
-      <AnswerElement
+      <AnswerView
         v-if="task"
         class="mt-6"
         :task="task"
         :view="view"
+        :value="answerState.value"
         :disabled="locked"
         :verdict="verdict"
         :label="t('exercisePanel.answer.label')"

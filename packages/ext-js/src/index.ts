@@ -8,7 +8,7 @@ import { createChildRunner } from './child-runner.ts';
 import type { ChildRunner } from './child-runner.ts';
 import { grade, project } from './grade.ts';
 import type { JsSpec, JsView } from './grade.ts';
-import { mountJsEditor } from './js-view.ts';
+import { JsAnswerView } from './js-view.ts';
 
 // обработчики регистрируются до `activate`, раннер создаётся в нём
 const holder: { runner?: ChildRunner } = {};
@@ -45,5 +45,5 @@ export const host = defineExtension({
 });
 
 export const views = {
-  'dolphy.js': defineAnswerView(mountJsEditor),
+  'dolphy.js': defineAnswerView(JsAnswerView),
 } satisfies ExtensionViews;

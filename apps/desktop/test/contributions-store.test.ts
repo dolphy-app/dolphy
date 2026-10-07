@@ -181,7 +181,6 @@ describe('createContributionsStore: команды и панели', () => {
     icon: 'puzzle',
     when: null,
     rendererUrl: 'dolphy-ext://acme.cmd/panel.mjs',
-    isolated: true,
     origin: 'user' as const,
     revision,
   });

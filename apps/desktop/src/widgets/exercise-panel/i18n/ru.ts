@@ -14,8 +14,8 @@ export const ru = {
       label: 'Разделы урока',
     },
     answer: {
-      frameTitle: 'Ввод ответа от расширения в изолированной рамке: {label}',
-      loadFailed: 'Не удалось загрузить ввод ответа ({element}).',
+      loadFailed: 'Не удалось загрузить ввод ответа ({type}).',
+      retry: 'Повторить',
       label: 'Ответ',
       hint: 'Ctrl/⌘ + Enter — проверить',
       title: 'Ответ',

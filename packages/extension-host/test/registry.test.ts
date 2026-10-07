@@ -29,7 +29,6 @@ const extension = (id: string, version = '1.0.0'): ResolvedExtension => ({
       title: null,
       specSchema: {},
       answerSchema: {},
-      element: 'x-a',
       rendererUrl: 'dolphy-ext://x/view.mjs',
     },
   ],
@@ -326,7 +325,7 @@ describe('createExtensionRegistry: политика', () => {
     ]);
   });
 
-  it('виды заданий несут origin, revision и isolated: окно видит правку и обновление элемента', () => {
+  it('виды заданий несут origin и revision: окно видит правку и обновление компонента', () => {
     const edited: ResolvedExtension = {
       ...user,
       origin: 'dev',
@@ -342,15 +341,14 @@ describe('createExtensionRegistry: политика', () => {
     const types = () =>
       registry
         .contributions()
-        .exerciseTypes.map(({ type, origin, revision, isolated }) => [
+        .exerciseTypes.map(({ type, origin, revision }) => [
           type,
           origin,
           revision,
-          isolated,
         ]);
     expect(types()).toEqual([
-      ['dolphy.math.a', 'bundled', '', false],
-      ['acme.u.a', 'dev', 'rev-2', true],
+      ['dolphy.math.a', 'bundled', ''],
+      ['acme.u.a', 'dev', 'rev-2'],
     ]);
     policy.update({
       disabled: ['acme.u'],
@@ -361,22 +359,12 @@ describe('createExtensionRegistry: политика', () => {
       catalogUrl: null,
       schedulesOff: [],
     });
-    expect(types()).toEqual([['dolphy.math.a', 'bundled', '', false]]);
+    expect(types()).toEqual([['dolphy.math.a', 'bundled', '']]);
   });
 
-  it('isolation и isolated: поставка — доверена, доверенное пользователем — тоже', () => {
+  it('isolation: поставка — доверена, доверенное пользователем — тоже', () => {
     const policy = createExtensionPolicy(bothHolder);
     const registry = createExtensionRegistry(bothHolder, policy);
-    const flags = () =>
-      Object.fromEntries(
-        registry
-          .contributions()
-          .markdownRenderers.map((renderer) => [
-            renderer.language,
-            renderer.isolated,
-          ]),
-      );
-    expect(flags()).toEqual({ math: false, chart: true });
     expect(
       registry
         .list()
@@ -394,7 +382,6 @@ describe('createExtensionRegistry: политика', () => {
       catalogUrl: null,
       schedulesOff: [],
     });
-    expect(flags()).toEqual({ math: false, chart: false });
     expect(registry.list().map(({ isolation }) => isolation)).toEqual([
       'trusted',
       'trusted',
@@ -419,12 +406,10 @@ describe('createExtensionRegistry: titles and tags', () => {
       {
         id: 'acme.titled',
         title: 'Titled quiz',
-        element: 'acme-titled-answer',
       },
       {
         id: 'acme.titled.bare',
         title: null,
-        element: 'acme-bare-answer',
       },
     ],
     markdownRenderers: [

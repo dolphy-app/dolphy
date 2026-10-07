@@ -9,7 +9,6 @@
         "id": "acme.worker",
         "specSchema": "./schema/spec.json",
         "answerSchema": "./schema/answer.json",
-        "element": "acme-worker-answer",
         "renderer": "./view.mjs"
       }
     ]

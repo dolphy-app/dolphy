@@ -1,8 +1,8 @@
 // Рендерер блока с ресурсами расширения.
-import { mountAssets } from './shared.mjs';
+import { assetsComponent } from './shared.mjs';
+
+const vue = await globalThis.__dolphy.require('vue');
 
 export default {
-  async render(_source, container) {
-    await mountAssets(container.ownerDocument, container);
-  },
+  markdown: { assets: assetsComponent(vue, ['source', 'language']) },
 };

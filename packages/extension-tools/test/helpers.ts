@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { cp, mkdir, mkdtemp, rm, symlink } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, realpath, rm, symlink } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -24,13 +24,15 @@ export const makeTemp = async (): Promise<string> => {
   return dir;
 };
 
-/** Makes the SDK resolvable from a project in a temporary directory (in a real project it sits in node_modules). */
+/** Makes the SDK and Vue resolvable from a project in a temporary directory (in a real project they sit in node_modules). */
 export const linkSdk = async (root: string): Promise<void> => {
   const scope = path.join(root, 'node_modules', '@dolphy-app');
+  const sdk = fileURLToPath(new URL('../../extension-sdk', import.meta.url));
   await mkdir(scope, { recursive: true });
+  await symlink(sdk, path.join(scope, 'extension-sdk'));
   await symlink(
-    fileURLToPath(new URL('../../extension-sdk', import.meta.url)),
-    path.join(scope, 'extension-sdk'),
+    await realpath(path.join(sdk, 'node_modules', 'vue')),
+    path.join(root, 'node_modules', 'vue'),
   );
 };
 

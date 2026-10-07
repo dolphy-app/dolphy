@@ -86,7 +86,7 @@ describe('widgetsOf', () => {
     expect([...resolved[1]!.commands]).toEqual(['other.steal']);
   });
 
-  it('ключ рамки включает ревизию: обновление расширения пересоздаёт рамку', () => {
+  it('ключ виджета включает ревизию: обновление расширения пересоздаёт его', () => {
     const before = widget('acme.cards.a', 'acme.cards', { revision: 'r1' });
     const after = widget('acme.cards.a', 'acme.cards', { revision: 'r2' });
     expect(widgetKeyOf(before)).not.toBe(widgetKeyOf(after));

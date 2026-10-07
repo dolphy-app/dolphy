@@ -1,12 +1,8 @@
 import type {
   ExtensionContext as ApiExtensionContext,
   ExtensionIdSet,
-  MarkdownRendererModule,
-  PanelContext as ApiPanelContext,
-  PanelModule,
 } from '@dolphy-app/extension-api';
 import type { Component } from 'vue';
-import type { AnswerView } from './answer-view.ts';
 
 /**
  * The ids declared in `extension.json`. Empty here: `dolphy-ext types` (and
@@ -50,9 +46,6 @@ export type HasGeneratedIds = [keyof ExtensionIds] extends [never]
  */
 export type ExtensionContext = ApiExtensionContext<ResolvedIds>;
 
-/** Context of a panel module; `call` accepts the declared command ids only. */
-export type PanelContext = ApiPanelContext<ResolvedIds['commands']>;
-
 /**
  * A record that holds exactly the declared ids: a missing and an extra key are
  * both compile errors. With no generated declarations any keys are accepted;
@@ -65,13 +58,10 @@ export type Exact<Id extends string, Value> = [HasGeneratedIds] extends [false]
     : { readonly [K in Id]: Value };
 
 /** `export const views = { … } satisfies ExtensionViews`: one `defineAnswerView` per declared exercise type. */
-export type ExtensionViews = Exact<ResolvedIds['exerciseTypes'], AnswerView>;
+export type ExtensionViews = Exact<ResolvedIds['exerciseTypes'], Component>;
 
 /** `export const panels = { … } satisfies ExtensionPanels`: one `defineExtensionPanel` per declared panel. */
-export type ExtensionPanels = Exact<
-  ResolvedIds['panels'],
-  PanelModule<HTMLElement, ResolvedIds['commands']>
->;
+export type ExtensionPanels = Exact<ResolvedIds['panels'], Component>;
 
 /** `export const widgets = { … } satisfies ExtensionWidgets`: one `defineExtensionWidget` per declared widget. */
 export type ExtensionWidgets = Exact<ResolvedIds['widgets'], Component>;
@@ -79,5 +69,5 @@ export type ExtensionWidgets = Exact<ResolvedIds['widgets'], Component>;
 /** `export const markdown = { … } satisfies ExtensionMarkdown`: one `defineMarkdownRenderer` per declared language. */
 export type ExtensionMarkdown = Exact<
   ResolvedIds['markdownLanguages'],
-  MarkdownRendererModule<HTMLElement>
+  Component
 >;

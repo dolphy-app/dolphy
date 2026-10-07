@@ -136,10 +136,7 @@ describe('watchExtension', () => {
       await edit(index, (text) =>
         text
           .replace('project: () => ({})', "project: () => 'watch-host'")
-          .replace(
-            'update() {}',
-            "update() { document.title = 'watch-view'; }",
-          ),
+          .replace("h('input')", "h('input', { title: 'watch-view' })"),
       );
       await waitFor(
         async () =>
@@ -186,7 +183,7 @@ describe('watchExtension', () => {
       log.info.length = 0;
       await writeFile(
         index,
-        good.replace('update() {}', 'update() { /* fixed */ }'),
+        good.replace("h('input')", "h('input', { title: 'fixed' })"),
       );
       await waitFor(async () => log.info.length > 0);
       await settle(300);
@@ -226,7 +223,7 @@ describe('watchExtension', () => {
             'import { defineAnswerView, defineExtension, defineExtensionPanel }',
           )
           .concat(
-            "\nexport const panels = { 'acme.hello.panel': defineExtensionPanel({ mount(container) { container.textContent = 'hello panel'; } }) };\n",
+            "\nexport const panels = { 'acme.hello.panel': defineExtensionPanel(defineComponent({ render: () => h('p', 'hello panel') })) };\n",
           ),
       );
       await waitFor(async () => {

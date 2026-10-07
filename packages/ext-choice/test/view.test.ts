@@ -1,14 +1,14 @@
 // @vitest-environment happy-dom
-import { loadView } from '@dolphy-app/extension-sdk/testing';
-import type { LoadedView } from '@dolphy-app/extension-sdk/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import { nextTick } from 'vue';
 import { views } from '../src/index.ts';
+import { mountView as mount } from './mount-view.ts';
+import type { MountedView } from './mount-view.ts';
 
 const single = { multiple: false, options: ['a', 'b', 'c'] };
 const multi = { multiple: true, options: ['a', 'b', 'c', 'd'] };
 
-const loaded: LoadedView[] = [];
+const loaded: MountedView[] = [];
 
 /** Vue рисует на следующем тике: ждём его после каждого действия. */
 const settle = async () => {
@@ -17,23 +17,22 @@ const settle = async () => {
 };
 
 const mountView = async (view: unknown, label?: string) => {
-  const result = await loadView(views, 'dolphy.choice', {
+  const result = await mount(views['dolphy.choice'], {
     view,
     ...(label === undefined ? {} : { label }),
   });
   loaded.push(result);
-  await settle();
   return result;
 };
 
-const inputs = (view: LoadedView) => view.queryAll<HTMLInputElement>('input');
+const inputs = (view: MountedView) => view.queryAll<HTMLInputElement>('input');
 
 const click = async (input: HTMLInputElement) => {
   input.click();
   await settle();
 };
 
-const update = async (view: LoadedView, props: Record<string, unknown>) => {
+const update = async (view: MountedView, props: Record<string, unknown>) => {
   await view.update(props);
   await settle();
 };
@@ -151,7 +150,7 @@ describe('вид dolphy.choice', () => {
     ]);
   });
 
-  it('aria-label хоста становится именем группы внутри shadow DOM', async () => {
+  it('prop label становится именем группы', async () => {
     const radios = await mountView(single, 'Ваш ответ');
     expect(
       radios.query('[role="radiogroup"]')?.getAttribute('aria-label'),
@@ -160,10 +159,5 @@ describe('вид dolphy.choice', () => {
     expect(boxes.query('[role="group"]')?.getAttribute('aria-label')).toBe(
       'Ваши ответы',
     );
-  });
-
-  it('стили Vuetify лежат в теневом корне, а не на странице', async () => {
-    const view = await mountView(single);
-    expect(view.query('style[data-dolphy-ui="theme"]')).not.toBeNull();
   });
 });

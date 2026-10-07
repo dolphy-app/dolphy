@@ -263,9 +263,7 @@ export const createExtensionRegistry = (
         extension.exerciseTypes.map((type) => ({
           type: type.id,
           extensionId: extension.id,
-          element: type.element,
           rendererUrl: type.rendererUrl,
-          isolated: policy.isIsolated(extension.id),
           origin: extension.origin,
           revision: extension.revision,
         })),
@@ -278,7 +276,6 @@ export const createExtensionRegistry = (
           language: renderer.language,
           rendererUrl: renderer.rendererUrl,
           extensionId: extension.id,
-          isolated: policy.isIsolated(extension.id),
           origin: extension.origin,
           revision: extension.revision,
         })),
@@ -298,12 +295,10 @@ export const createExtensionRegistry = (
       commands: enabled().flatMap(({ id, commands }) =>
         commands.map((command) => ({ ...command, extensionId: id })),
       ),
-      // панель всегда в рамке, даже у доверенного расширения (ADR 0008)
       panels: enabled().flatMap((extension) =>
         extension.panels.map((panel) => ({
           ...panel,
           extensionId: extension.id,
-          isolated: true,
           origin: extension.origin,
           revision: extension.revision,
         })),

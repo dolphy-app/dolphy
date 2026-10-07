@@ -6,7 +6,10 @@
  */
 import type { EngineEvent, LearningEngine } from '@dolphy-app/engine-contract';
 import type { SmokeBridge } from '../../../shared/smoke.ts';
-import { ensureAnswerElement } from '@/shared/lib/answer-element.ts';
+import {
+  importExtensionModule,
+  loadExtensionComponent,
+} from '@/shared/lib/extension-component.ts';
 
 const EXERCISE_ID = 'sql_kb::where::q2';
 const CHOICE_EXERCISE_ID = 'choice_kb::basic::q1';
@@ -191,7 +194,7 @@ const js = async (engine: LearningEngine): Promise<Scenario> => {
   };
 };
 
-/** Скрипты элементов ввода грузятся по `dolphy-ext://` (CSP, CORS с file://) и определяют свои теги. */
+/** Модули видов ответа грузятся по `dolphy-ext://` (CSP, CORS с file://) и отдают компонент вида. */
 const renderer = async (engine: LearningEngine): Promise<Scenario> => {
   const loaded: Record<string, boolean> = {};
   for (const exerciseId of [EXERCISE_ID, CHOICE_EXERCISE_ID, JS_EXERCISE_ID]) {
@@ -200,9 +203,17 @@ const renderer = async (engine: LearningEngine): Promise<Scenario> => {
       loaded[exerciseId] = false;
       continue;
     }
-    await ensureAnswerElement(exercise.task);
-    loaded[exerciseId] =
-      customElements.get(exercise.task.element) !== undefined;
+    try {
+      await loadExtensionComponent(
+        exercise.task,
+        'views',
+        exercise.task.type,
+        importExtensionModule,
+      );
+      loaded[exerciseId] = true;
+    } catch {
+      loaded[exerciseId] = false;
+    }
   }
   return { ok: Object.values(loaded).every(Boolean), loaded };
 };
@@ -225,8 +236,7 @@ const isolated = async (engine: LearningEngine): Promise<Scenario> => {
     'env:HOME=unset',
   ].every((probe) => feedback.includes(probe));
   return {
-    ok: attempt.exercise.task?.isolated === true && denied,
-    isolated: attempt.exercise.task?.isolated ?? null,
+    ok: denied,
     feedback,
   };
 };

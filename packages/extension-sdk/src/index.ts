@@ -10,11 +10,10 @@ export {
 } from './define-extension.ts';
 export {
   defineAnswerView,
-  type AnswerView,
-  type AnswerViewApi,
-  type AnswerViewInstance,
-  type MountAnswerView,
-} from './answer-view.ts';
+  defineExtensionPanel,
+  defineExtensionWidget,
+  defineMarkdownRenderer,
+} from './define-components.ts';
 export {
   type ExtensionContext,
   type ExtensionIds,
@@ -22,7 +21,4 @@ export {
   type ExtensionPanels,
   type ExtensionViews,
   type ExtensionWidgets,
-  type PanelContext,
 } from './ids.ts';
-export { defineMarkdownRenderer } from './markdown-renderer.ts';
-export { defineExtensionPanel, defineExtensionWidget } from './panel.ts';

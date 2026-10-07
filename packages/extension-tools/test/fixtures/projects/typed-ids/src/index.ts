@@ -9,7 +9,8 @@ import {
   notify,
   openPanel,
 } from '@dolphy-app/extension-sdk';
-import { useWidget } from '@dolphy-app/extension-sdk/client';
+import { usePanel, useWidget } from '@dolphy-app/extension-sdk/client';
+import { defineComponent, h } from 'vue';
 import type {
   ExtensionMarkdown,
   ExtensionPanels,
@@ -47,30 +48,40 @@ export const host = defineExtension({
 });
 
 export const views = {
-  'acme.typed.echo': defineAnswerView(() => ({ update: () => undefined })),
+  'acme.typed.echo': defineAnswerView(
+    defineComponent({ render: () => h('input') }),
+  ),
 } satisfies ExtensionViews;
 
 export const panels = {
-  'acme.typed.main': defineExtensionPanel({
-    mount(container, ctx) {
-      container.textContent = ctx.panelId;
-      void ctx.call('acme.typed.ping');
-    },
-  }),
+  'acme.typed.main': defineExtensionPanel(
+    defineComponent({
+      setup() {
+        const panel = usePanel();
+        void panel.call('acme.typed.ping');
+        return () => h('p', panel.panelId);
+      },
+    }),
+  ),
 } satisfies ExtensionPanels;
 
 export const widgets = {
-  'acme.typed.card': defineExtensionWidget({
-    setup() {
-      const widget = useWidget();
-      void widget.call('acme.typed.ping');
-      return () => `${widget.widgetId} ${widget.context.courseId ?? ''}`;
-    },
-  }),
+  'acme.typed.card': defineExtensionWidget(
+    defineComponent({
+      setup() {
+        const widget = useWidget();
+        void widget.call('acme.typed.ping');
+        return () => h('p', `${widget.widgetId} ${widget.context.courseId}`);
+      },
+    }),
+  ),
 } satisfies ExtensionWidgets;
 
 export const markdown = {
-  'typed-echo': defineMarkdownRenderer((source, container) => {
-    container.textContent = source;
-  }),
+  'typed-echo': defineMarkdownRenderer(
+    defineComponent({
+      props: { source: { type: String, required: true } },
+      setup: (props) => () => h('pre', props.source),
+    }),
+  ),
 } satisfies ExtensionMarkdown;

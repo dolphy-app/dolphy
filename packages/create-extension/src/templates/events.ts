@@ -30,6 +30,8 @@ const indexTs = (id: string): string => `import {
   openPanel,
 } from '@dolphy-app/extension-sdk';
 import type { ExtensionPanels } from '@dolphy-app/extension-sdk';
+import { usePanel } from '@dolphy-app/extension-sdk/client';
+import { defineComponent, h, ref, watchEffect } from 'vue';
 
 // a \`type\`, not an \`interface\`: an interface has no index signature and is
 // not JSON for \`ctx.storage\`
@@ -82,39 +84,44 @@ export const host = defineExtension({
   },
 });
 
-// the panel runs in an isolated frame: no network, the only way out is \`ctx.call\`
+// the panel is a Vue component the app draws in its own window; the only way
+// to the data is \`panel.call\` to the commands above
+const StreakPanel = defineComponent({
+  setup() {
+    const panel = usePanel();
+    const text = ref('');
+    // the command opens the panel again with new properties: ask again
+    watchEffect(async () => {
+      void panel.props;
+      const streak = (await panel.call('${id}.data')) as Streak;
+      text.value =
+        streak.days === 0
+          ? 'No streak yet.'
+          : \`Streak: \${streak.days} days, last day \${streak.last}\`;
+    });
+    return () => h('p', text.value);
+  },
+});
+
 export const panels = {
-  '${id}.view': defineExtensionPanel({
-    async mount(container, ctx) {
-      const line = container.ownerDocument.createElement('p');
-      container.append(line);
-      const render = async () => {
-        const streak = (await ctx.call('${id}.data')) as Streak;
-        line.textContent =
-          streak.days === 0
-            ? 'No streak yet.'
-            : \`Streak: \${streak.days} days, last day \${streak.last}\`;
-      };
-      // the command opens the panel again with new properties: redraw
-      ctx.signal.addEventListener(
-        'abort',
-        ctx.onProps(() => void render()),
-      );
-      await render();
-    },
-  }),
+  '${id}.view': defineExtensionPanel(StreakPanel),
 } satisfies ExtensionPanels;
 `;
 
 const indexTestTs = (id: string): string => `// @vitest-environment happy-dom
-import type { LearningEventPayloads } from '@dolphy-app/extension-api';
+import { PANEL_HANDLE_KEY } from '@dolphy-app/extension-sdk';
+import type {
+  JsonValue,
+  LearningEventPayloads,
+  PanelHandle,
+} from '@dolphy-app/extension-sdk';
 import {
   createMemoryStorage,
   loadCommands,
   loadEvents,
-  loadPanel,
 } from '@dolphy-app/extension-sdk/testing';
 import { afterEach, describe, expect, it } from 'vitest';
+import { createApp, h, nextTick, shallowReactive } from 'vue';
 import { host, panels } from '../src/index.ts';
 
 const disposables: { dispose(): unknown }[] = [];
@@ -147,6 +154,31 @@ const load = async () => {
   });
   disposables.push(events, commands);
   return { storage, events, commands };
+};
+
+// draws the panel the way the app does: the handle is provided to the component
+const mountPanel = async (call: PanelHandle['call']) => {
+  const handle = shallowReactive({
+    panelId: '${id}.view',
+    props: undefined as JsonValue | undefined,
+    context: { courseId: null },
+    call,
+  });
+  const host = document.createElement('div');
+  document.body.append(host);
+  const app = createApp({ render: () => h(panels['${id}.view']) });
+  app.provide(PANEL_HANDLE_KEY, handle);
+  app.mount(host);
+  disposables.push({
+    dispose: () => {
+      app.unmount();
+      host.remove();
+    },
+  });
+  // the panel asks a command: wait for the reply, then for the redraw
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await nextTick();
+  return host;
 };
 
 describe('${id}: events and storage', () => {
@@ -201,14 +233,11 @@ describe('${id}: commands and panel', () => {
   it('the panel shows what the data command returns', async () => {
     const { events, commands } = await load();
     await events.emit('attempt.closed', attempt('2026-10-01'));
-    const panel = await loadPanel(panels, '${id}.view', {
-      call: async (commandId) => {
-        const result = await commands.run(commandId);
-        return result.kind === 'data' ? result.value : undefined;
-      },
+    const panel = await mountPanel(async (commandId) => {
+      const result = await commands.run(commandId);
+      return result.kind === 'data' ? (result.value as JsonValue) : undefined;
     });
-    disposables.push(panel);
-    expect(panel.container.querySelector('p')?.textContent).toBe(
+    expect(panel.querySelector('p')?.textContent).toBe(
       'Streak: 1 days, last day 2026-10-01',
     );
   });
@@ -226,8 +255,8 @@ export const events: TemplateModule = {
     '  the `learning.events` permission are declared in it);',
     '- `src/index.ts` — all the extension code: `host` (`defineExtension`: the',
     '  event handler, the commands, `ctx.storage`) and `panels`',
-    '  (`defineExtensionPanel`); the build splits it into `main.mjs` and',
-    '  `panel.mjs`;',
+    '  (`defineExtensionPanel`: a Vue component the app draws); the build splits',
+    '  it into `main.mjs` and `panel.mjs`;',
     ...idsBullet,
     '- `test/index.test.ts` — tests (`vitest`, `happy-dom`).',
   ],

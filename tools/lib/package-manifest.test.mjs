@@ -70,43 +70,6 @@ describe('createManifest', () => {
     });
   });
 
-  it('extension-ui: шесть подпутей vuetify без корневого экспорта и без верхнего types', () => {
-    const manifest = manifestOf('extension-ui', {
-      dependencies: { vue: '^3', vuetify: '^4' },
-    });
-    const subpaths = [
-      '',
-      '/choice',
-      '/feedback',
-      '/fields',
-      '/navigation',
-      '/table',
-    ];
-    assert.deepEqual(
-      Object.keys(manifest.exports),
-      subpaths.map((suffix) => `./vuetify${suffix}`),
-    );
-    assert.deepEqual(manifest.exports['./vuetify'], {
-      types: './dist/vuetify/index.d.ts',
-      default: './dist/vuetify/index.js',
-    });
-    assert.deepEqual(manifest.exports['./vuetify/table'], {
-      types: './dist/vuetify/table.d.ts',
-      default: './dist/vuetify/table.js',
-    });
-    assert.equal(manifest.types, undefined);
-    assert.equal(manifest.sideEffects, false);
-    assert.deepEqual(manifest.dependencies, { vue: '^3', vuetify: '^4' });
-  });
-
-  it('extension-ui: точки входа сборки соответствуют подпутям', () => {
-    const spec = specOf('extension-ui');
-    assert.deepEqual(
-      Object.keys(spec.entries).sort(),
-      Object.values(spec.exports).sort(),
-    );
-  });
-
   it('sideEffects: false только у SDK, остальные пакеты поле не пишут', () => {
     assert.equal(manifestOf('extension-sdk').sideEffects, false);
     for (const dir of [

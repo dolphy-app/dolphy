@@ -3,7 +3,6 @@ import {
   computed,
   nextTick,
   onBeforeUnmount,
-  ref,
   useTemplateRef,
   watch,
 } from 'vue';
@@ -11,24 +10,20 @@ import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { useCourseScope } from '@/features/course-scope';
 import { panelKey, useExtensionCommands } from '@/features/extension-commands';
-import { useCommandPalette } from '@/widgets/command-palette';
 import { useContributions } from '@/shared/api/engine';
 import { ROUTE } from '@/shared/config/routes.ts';
 import { useExtensionText } from '@/shared/lib/extension-text.ts';
-import { frameUrlOf } from '@/shared/lib/frame-bridge.ts';
-import type { PanelBinding } from '@/shared/lib/frame-bridge.ts';
-import PanelFrame from '@/shared/ui/PanelFrame.vue';
-import { frameKeyOf, resolvePanel } from '../model/panel.ts';
+import { instanceKeyOf, resolvePanel } from '../model/panel.ts';
+import PanelHost from './PanelHost.vue';
 
 const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const contributions = useContributions();
 const extensionText = useExtensionText();
-const { runner, panelProps } = useExtensionCommands();
-const palette = useCommandPalette();
+const { panelProps } = useExtensionCommands();
 const scope = useCourseScope();
-// курс в фокусе доходит до рамки без её пересоздания
+// курс в фокусе доходит до панели без её пересоздания
 const context = computed(() => ({ courseId: scope.activeId.value }));
 
 const extensionId = computed(() => String(route.params['extensionId']));
@@ -47,26 +42,13 @@ const panelTitle = computed(() =>
       ),
 );
 
-const binding = computed<PanelBinding | null>(() =>
-  resolved.value === null
-    ? null
-    : {
-        extensionId: resolved.value.panel.extensionId,
-        commands: resolved.value.commands,
-        invoke: (id, commandId, args) =>
-          runner.run(id, commandId, args, 'panel'),
-      },
-);
-
 const heading = useTemplateRef<HTMLElement>('heading');
-const frameError = ref<string | null>(null);
 
-// заголовок страницы получает фокус при входе: фокус в рамку не уходит молча
+// заголовок страницы получает фокус при входе
 watch(
   key,
   async (_next, previous) => {
     if (previous !== undefined) panelProps.clear(previous);
-    frameError.value = null;
     await nextTick();
     heading.value?.focus();
   },
@@ -102,35 +84,13 @@ const back = () => {
       </div>
     </header>
 
-    <v-alert
-      v-if="resolved && frameError !== null"
-      type="error"
-      variant="tonal"
-      density="compact"
-      class="mx-4 mb-2 flex-none"
-      data-testid="panel-load-failed"
-    >
-      {{ t('extensionPanel.loadFailed') }}
-      <div class="caption">{{ frameError }}</div>
-    </v-alert>
-
-    <div v-if="resolved && binding" class="frame-area">
-      <PanelFrame
-        :key="frameKeyOf(resolved.panel)"
-        :src="frameUrlOf(resolved.panel.rendererUrl)"
-        :title="
-          t('extensionPanel.frameTitle', {
-            title: panelTitle,
-            extension: resolved.panel.extensionId,
-          })
-        "
-        :renderer-url="resolved.panel.rendererUrl"
-        :panel-id="resolved.panel.id"
-        :binding="binding"
-        :panel-props="panelProps.get(key)"
+    <div v-if="resolved" class="panel-area">
+      <PanelHost
+        :key="instanceKeyOf(resolved.panel)"
+        :panel="resolved.panel"
+        :commands="resolved.commands"
+        :open-props="panelProps.get(key)"
         :context="context"
-        @shortcut="palette.open()"
-        @error="frameError = $event"
       />
     </div>
     <v-empty-state
@@ -174,7 +134,7 @@ const back = () => {
   color: rgb(var(--v-theme-on-surface-variant));
 }
 
-.frame-area {
+.panel-area {
   flex: 1 1 0;
   min-height: 0;
 }

@@ -7,7 +7,7 @@ same layout:
 
 - [Exercise type](recipe-exercise-type.md): a new kind of task with its own answer input.
 - [Theme](recipe-theme.md): colors, no code.
-- [Command and panel](recipe-command-panel.md): palette commands and a screen in an isolated frame.
+- [Command and panel](recipe-command-panel.md): palette commands and a panel, a Vue component in the app window.
 - [Events and storage](recipe-event-storage.md): react to learning events and keep data.
 - [Settings](recipe-settings.md): let the user configure the extension.
 - [Without a build](no-build.md): a hand-written `extension.json` and `main.mjs`, no TypeScript.

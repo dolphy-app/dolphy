@@ -1,114 +1,89 @@
-/** Вид ввода ответа `dolphy.choice`: группа радиокнопок или чекбоксов Vuetify в теневом корне элемента. */
-import type { AnswerViewApi, MountAnswerView } from '@dolphy-app/extension-sdk';
-import {
-  mountCheckboxGroup,
-  mountRadioGroup,
-} from '@dolphy-app/extension-ui/vuetify/choice';
-import type { ChoiceItem } from '@dolphy-app/extension-ui/vuetify/choice';
+/** Вид ввода ответа `dolphy.choice`: группа радиокнопок или чекбоксов Vuetify. */
+import type { AnswerChange } from '@dolphy-app/extension-api';
+import { defineComponent, h, ref, watch } from 'vue';
+import type { Component, PropType } from 'vue';
+import { VCheckbox, VRadio, VRadioGroup } from 'vuetify/components';
 import { normalizeValue } from './choice-model.ts';
 import type { ChoiceView } from './grade.ts';
 
 const isChoiceView = (view: unknown): view is ChoiceView =>
   typeof view === 'object' &&
   view !== null &&
-  Array.isArray((view as ChoiceView).options);
+  Array.isArray(Reflect.get(view, 'options'));
 
-/** Смонтированная группа: выбор — список индексов, независимо от радио или чекбоксов. */
-interface Group {
-  select(indices: readonly number[]): void;
-  setDisabled(disabled: boolean): void;
-  destroy(): void;
-}
+const unknownProp = { type: null as unknown as PropType<unknown> };
 
-const mountGroup = (
-  api: AnswerViewApi,
-  container: Element,
-  view: ChoiceView,
-  initial: { selected: readonly number[]; disabled: boolean },
-): Group => {
-  const items: ChoiceItem<number>[] = view.options.map((label, value) => ({
-    value,
-    label,
-  }));
-  const common = { items, label: api.label, disabled: initial.disabled };
-  // выбранное остаётся на экране, даже если приложение не вернёт `value`
-  if (view.multiple) {
-    const group = mountCheckboxGroup<number>(container, {
-      ...common,
-      value: [...initial.selected],
-      onChange: (next) => {
-        const value = [...next].sort((a, b) => a - b);
-        group.update({ value });
-        api.setAnswer(value, value.length > 0);
+export const ChoiceAnswerView = defineComponent({
+  name: 'ChoiceAnswerView',
+  props: {
+    view: unknownProp,
+    value: unknownProp,
+    disabled: Boolean,
+    verdict: unknownProp,
+    label: { type: String as PropType<string | null>, default: null },
+  },
+  emits: ['change', 'submit'],
+  setup(props, { emit }) {
+    const sizeOf = () =>
+      isChoiceView(props.view) ? props.view.options.length : 0;
+    // выбранное остаётся на экране, даже если приложение не вернёт `value`:
+    // список меняется только вместе со свойствами `view` и `value`
+    const selected = ref(normalizeValue(props.value, sizeOf()));
+    watch(
+      () => [props.view, props.value],
+      () => {
+        selected.value = normalizeValue(props.value, sizeOf());
       },
-    });
-    return {
-      select: (indices) => group.update({ value: [...indices] }),
-      setDisabled: (disabled) => group.update({ disabled }),
-      destroy: group.destroy,
+    );
+    const choose = (indices: number[]) => {
+      selected.value = indices;
+      const change: AnswerChange<number[]> = {
+        value: indices,
+        complete: indices.length > 0,
+      };
+      emit('change', change);
     };
-  }
-  const group = mountRadioGroup<number>(container, {
-    ...common,
-    value: initial.selected[0] ?? null,
-    onChange: (value) => {
-      group.update({ value });
-      api.setAnswer([value], true);
-    },
-  });
-  return {
-    select: (indices) => group.update({ value: indices[0] ?? null }),
-    setDisabled: (disabled) => group.update({ disabled }),
-    destroy: group.destroy,
-  };
-};
 
-export const mountChoice: MountAnswerView = (api, initial) => {
-  const container = document.createElement('div');
-  api.root.append(container);
-
-  const state = {
-    view: undefined as unknown,
-    // последнее значение свойства `value`, а не введённое пользователем:
-    // приложение может не возвращать ответ, и он не должен стираться
-    value: undefined as unknown,
-    disabled: false,
-    group: null as Group | null,
-  };
-
-  const remount = (view: unknown) => {
-    state.group?.destroy();
-    state.group = null;
-    if (!isChoiceView(view)) return;
-    state.group = mountGroup(api, container, view, {
-      selected: normalizeValue(state.value, view.options.length),
-      disabled: state.disabled,
-    });
-  };
-
-  const update = (props: {
-    view: unknown;
-    value: unknown;
-    disabled: boolean;
-  }) => {
-    state.disabled = props.disabled;
-    if (props.view !== state.view) {
-      state.view = props.view;
-      state.value = props.value;
-      remount(props.view);
-      return;
-    }
-    if (props.value !== state.value) {
-      state.value = props.value;
-      if (isChoiceView(state.view)) {
-        state.group?.select(
-          normalizeValue(props.value, state.view.options.length),
+    return () => {
+      const { view } = props;
+      if (!isChoiceView(view)) return null;
+      const label = props.label ?? undefined;
+      if (view.multiple) {
+        return h(
+          'div',
+          { role: 'group', 'aria-label': label, class: 'd-flex flex-column' },
+          view.options.map((text, index) =>
+            // типы Vuetify не сочетаются с `exactOptionalPropertyTypes` пакета
+            h(VCheckbox as Component, {
+              key: index,
+              modelValue: selected.value,
+              'onUpdate:modelValue': (next: number[] | null) => {
+                choose([...(next ?? [])].sort((a, b) => a - b));
+              },
+              value: index,
+              label: text,
+              disabled: props.disabled,
+              hideDetails: true,
+            }),
+          ),
         );
       }
-    }
-    state.group?.setDisabled(props.disabled);
-  };
-
-  update(initial);
-  return { update, destroy: () => state.group?.destroy() };
-};
+      return h(
+        VRadioGroup as Component,
+        {
+          modelValue: selected.value[0] ?? null,
+          'onUpdate:modelValue': (next: number | null) => {
+            if (next !== null) choose([next]);
+          },
+          disabled: props.disabled,
+          'aria-label': label,
+          hideDetails: true,
+        },
+        () =>
+          view.options.map((text, index) =>
+            h(VRadio as Component, { key: index, value: index, label: text }),
+          ),
+      );
+    };
+  },
+});

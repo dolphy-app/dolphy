@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_SCHEDULE_AT,
-  ELEMENT_NAME_PATTERN,
   EXTENSION_ID_PATTERN,
   EXTENSION_PERMISSIONS,
   SCHEDULE_AT_PATTERN,
@@ -24,7 +23,7 @@ describe('schedule time pattern', () => {
   });
 });
 
-describe('extension id and element name patterns', () => {
+describe('extension id pattern', () => {
   it.each(['dolphy.sql', 'acme', 'acme.quiz-pack.choice', 'a1.b2'])(
     'accepts extension id %s',
     (id) => {
@@ -44,20 +43,6 @@ describe('extension id and element name patterns', () => {
   ])('rejects extension id %j', (id) => {
     expect(EXTENSION_ID_PATTERN.test(id)).toBe(false);
   });
-
-  it.each(['dolphy-sql-answer', 'x-y', 'a1-b2'])(
-    'accepts element name %s',
-    (name) => {
-      expect(ELEMENT_NAME_PATTERN.test(name)).toBe(true);
-    },
-  );
-
-  it.each(['div', 'Dolphy-sql', '-a', 'a-', 'a--b', 'a_b-c'])(
-    'rejects element name %j',
-    (name) => {
-      expect(ELEMENT_NAME_PATTERN.test(name)).toBe(false);
-    },
-  );
 });
 
 describe('EXTENSION_PERMISSIONS', () => {

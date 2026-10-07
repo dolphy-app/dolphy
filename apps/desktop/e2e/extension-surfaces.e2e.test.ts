@@ -310,15 +310,13 @@ describe('срок активации (R4, R5, R7)', () => {
 });
 
 describe('панель (R5, R7, R8)', () => {
-  it('команда палитры открывает панель со свойствами; страница в iframe sandbox="allow-scripts"; пункт меню; заголовок получает фокус; «Назад»', async () => {
+  it('команда палитры открывает панель со свойствами; панель — компонент в окне без iframe; пункт меню; заголовок получает фокус; «Назад»', async () => {
     const { commands, client } = await prepare();
     // пункт бокового меню есть и ведёт на панель
     await expectVisible(commands.navItem(PANEL_TITLE));
 
     await openPanelFromPalette({ commands, client } as Windows);
-    expect(await commands.frameElement.getAttribute('sandbox')).toBe(
-      'allow-scripts',
-    );
+    await expectCount(client.page.locator('iframe'), 0);
     await expectText(commands.panelHeading, PANEL_TITLE);
     await expect
       .poll(() => client.page.evaluate(() => document.activeElement?.tagName))
@@ -357,10 +355,10 @@ describe('панель (R5, R7, R8)', () => {
     await commands.pressPanelButton('Уведомить');
     await expectText(commands.notice, GREETING);
 
-    // openPanel из панели обновляет свойства, рамка остаётся прежней
-    await commands.frameElement.evaluate((node) =>
-      Reflect.set(node, '__same', true),
-    );
+    // openPanel из панели обновляет свойства, компонент остаётся прежним
+    await commands
+      .panelRole('props')
+      .evaluate((node) => Reflect.set(node, '__same', true));
     await commands.pressPanelButton('Открыть снова');
     await expectText(
       commands.panelRole('props'),
@@ -372,9 +370,9 @@ describe('панель (R5, R7, R8)', () => {
       'Свойства: {"from":"command","opened":2}',
     );
     expect(
-      await commands.frameElement.evaluate((node) =>
-        Reflect.get(node, '__same'),
-      ),
+      await commands
+        .panelRole('props')
+        .evaluate((node) => Reflect.get(node, '__same')),
     ).toBe(true);
 
     // ошибка обработчика приходит панели отклонённым промисом
@@ -383,24 +381,32 @@ describe('панель (R5, R7, R8)', () => {
     await stillSameWindow();
   });
 
-  it('Ctrl+K при фокусе внутри рамки панели открывает палитру; после Escape фокус возвращается в рамку', async () => {
+  it('Ctrl+K при фокусе в поле панели открывает палитру; после Escape фокус возвращается в поле', async () => {
     const { commands, client } = await prepare();
     await commands.navItem(PANEL_TITLE).click();
-    const input = commands.frame.getByLabel('Поле панели');
+    const input = commands.panel.getByLabel('Поле панели');
     await input.click();
     await input.fill('текст');
     await client.page.keyboard.press(`${MOD_KEY}+K`);
     await commands.combobox.waitFor({ timeout: 15_000 });
     // сочетание не попало в поле панели
     expect(await input.inputValue()).toBe('текст');
+    // Escape закрывает палитру, когда она вошла и забрала фокус (after-enter)
+    await expect
+      .poll(() =>
+        client.page.evaluate(
+          () => document.activeElement?.closest('.v-command-palette') !== null,
+        ),
+      )
+      .toBe(true);
     await commands.combobox.press('Escape');
     await commands.palette.waitFor({ state: 'hidden' });
     await expect
       .poll(() => client.page.evaluate(() => document.activeElement?.tagName))
-      .toBe('IFRAME');
+      .toBe('INPUT');
   });
 
-  it('подделка: панель не может вызвать команду чужого расширения ни через call, ни сообщением с чужим extensionId', async () => {
+  it('панель не может вызвать команду чужого расширения', async () => {
     const { commands } = await prepare({
       [COMMANDS_ID]: COMMANDS_DIR,
       [VICTIM_ID]: VICTIM_DIR,
@@ -412,8 +418,6 @@ describe('панель (R5, R7, R8)', () => {
       'Ошибка: unknown command: acme.victim.mark',
     );
 
-    await commands.pressPanelButton('Подделка');
-    // следующий настоящий вызов проходит после подделки: она уже обработана
     await commands.pressPanelButton('Прибавить');
     await expectText(commands.panelRole('count'), 'Счётчик: 1');
     await expectCount(commands.notice.filter({ hasText: 'жертва' }), 0);
@@ -424,16 +428,13 @@ describe('панель (R5, R7, R8)', () => {
     expect((await commands.optionTitles()).length).toBe(1);
   });
 
-  it('доверенное расширение: панель всё равно в iframe sandbox="allow-scripts"', async () => {
+  it('доверенное расширение: панель так же компонент в окне, без iframe', async () => {
     const { commands, client } = await prepare();
     await client.openSettingsExtensions();
     await client.setExtensionSwitch(COMMANDS_ID, 'trusted', true);
     await commands.navItem(PANEL_TITLE).click();
     await commands.panelRole('panel-id').waitFor({ timeout: 30_000 });
-    expect(await commands.frameElement.getAttribute('sandbox')).toBe(
-      'allow-scripts',
-    );
-    expect(await client.page.locator('.v-main iframe').count()).toBe(1);
+    await expectCount(client.page.locator('iframe'), 0);
     await commands.pressPanelButton('Прибавить');
     await expectText(commands.panelRole('count'), 'Счётчик: 1');
   });
@@ -455,7 +456,7 @@ describe('живое применение (R4, R5, R6)', () => {
     await expectVisible(commands.unavailable);
     await expectText(commands.panelHeading, 'Панель недоступна');
     await expectCount(commands.navItem(PANEL_TITLE), 0);
-    await expectCount(commands.frameElement, 0);
+    await expectCount(commands.panelRole('panel-id'), 0);
     await expectVisible(
       client.page.getByRole('link', { name: 'К плану на сегодня' }),
     );
@@ -533,7 +534,7 @@ describe('живое применение (R4, R5, R6)', () => {
     await stillSameWindow();
   });
 
-  it('обновление расширения пересоздаёт рамку панели (новая revision) без перезагрузки окна', async () => {
+  it('обновление расширения пересоздаёт компонент панели (новая revision) без перезагрузки окна', async () => {
     server = await startCatalogServer([COMMANDS_1_1]);
     workspace = await createWorkspace({ libraryFiles: PLAIN_LIBRARY });
     await seedCatalogInstall(workspace.userData, {
@@ -547,12 +548,12 @@ describe('живое применение (R4, R5, R6)', () => {
     const first = operate(app.page);
     await first.commands.navItem(PANEL_TITLE).click();
     await expectText(
-      first.commands.frame.getByRole('heading', { level: 2 }),
+      first.commands.panel.getByRole('heading', { level: 2 }),
       'v1.0.0',
     );
-    await first.commands.frameElement.evaluate((node) =>
-      Reflect.set(node, '__old', true),
-    );
+    await first.commands.panel
+      .getByRole('heading', { level: 2 })
+      .evaluate((node) => Reflect.set(node, '__old', true));
     const stillSameWindow = await first.client.markWindow();
 
     const second = operate(await app.openWindow());
@@ -562,21 +563,21 @@ describe('живое применение (R4, R5, R6)', () => {
     await second.catalog.closeDialog();
 
     await expectText(
-      first.commands.frame.getByRole('heading', { level: 2 }),
+      first.commands.panel.getByRole('heading', { level: 2 }),
       'v1.1.0',
       30_000,
     );
-    // это уже другой iframe, а не перезагруженный прежний
+    // это уже заново созданный компонент, а не прежний
     expect(
-      await first.commands.frameElement.evaluate((node) =>
-        Reflect.get(node, '__old'),
-      ),
+      await first.commands.panel
+        .getByRole('heading', { level: 2 })
+        .evaluate((node) => Reflect.get(node, '__old')),
     ).toBeUndefined();
     expect(first.commands.route()).toBe(PANEL_ROUTE);
     await stillSameWindow();
   });
 
-  it('режим разработчика: правка модуля панели пересоздаёт рамку', async () => {
+  it('режим разработчика: правка модуля панели пересоздаёт компонент', async () => {
     devRoot = await mkdtemp(join(tmpdir(), 'dolphy-e2e-dev-panel-'));
     await cp(COMMANDS_DIR, join(devRoot, COMMANDS_ID), { recursive: true });
     const { commands, client } = await prepare(
@@ -587,7 +588,7 @@ describe('живое применение (R4, R5, R6)', () => {
     );
     await commands.navItem(PANEL_TITLE).click();
     await expectText(
-      commands.frame.getByRole('heading', { level: 2 }),
+      commands.panel.getByRole('heading', { level: 2 }),
       'v1.0.0',
     );
     const stillSameWindow = await client.markWindow();
@@ -598,7 +599,7 @@ describe('живое применение (R4, R5, R6)', () => {
       (await readFile(file, 'utf8')).replace("'1.0.0'", "'dev-edit'"),
     );
     await expectText(
-      commands.frame.getByRole('heading', { level: 2 }),
+      commands.panel.getByRole('heading', { level: 2 }),
       'vdev-edit',
       30_000,
     );

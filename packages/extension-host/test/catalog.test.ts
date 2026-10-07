@@ -36,7 +36,6 @@ const extension: ResolvedExtension = {
         properties: { a: { type: 'string' } },
       },
       answerSchema: { type: 'string' },
-      element: 'acme-t-answer',
       rendererUrl: 'dolphy-ext://acme.t/view.mjs',
     },
   ],
@@ -66,7 +65,6 @@ describe('createCatalog', () => {
       extensionVersion: '2.0.0',
       extensionOrigin: extension.origin,
       extensionRevision: extension.revision,
-      element: 'acme-t-answer',
       rendererUrl: 'dolphy-ext://acme.t/view.mjs',
     });
     expect(catalog.list()).toHaveLength(1);

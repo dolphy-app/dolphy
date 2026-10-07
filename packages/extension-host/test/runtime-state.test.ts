@@ -639,7 +639,6 @@ describe('ctx.events', () => {
               title: null,
               specSchema: {},
               answerSchema: {},
-              element: 'acme-np-answer',
               rendererUrl: 'dolphy-ext://acme.np/view.mjs',
             },
           ],

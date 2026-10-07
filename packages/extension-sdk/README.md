@@ -19,8 +19,7 @@ repository's tests:
   [`docs/recipe-event-storage.md`](docs/recipe-event-storage.md),
   [`docs/recipe-settings.md`](docs/recipe-settings.md),
   [`docs/recipe-import-export.md`](docs/recipe-import-export.md),
-  [`docs/recipe-when-dependencies.md`](docs/recipe-when-dependencies.md) and
-  [`docs/recipe-ui-kit.md`](docs/recipe-ui-kit.md);
+  [`docs/recipe-when-dependencies.md`](docs/recipe-when-dependencies.md);
 - [`docs/no-build.md`](docs/no-build.md) — an extension from two hand-written
   files, no TypeScript and no build;
 - [`docs/debugging.md`](docs/debugging.md) — tests, checks, the development loop
@@ -28,12 +27,15 @@ repository's tests:
 
 An extension's code is one file, `src/index.ts`, with named exports. The build
 (`dolphy-ext build`, `@dolphy-app/extension-tools`) lays it out into
-`main.mjs`, `view.mjs`, `panel.mjs` and `markdown.mjs`:
+`main.mjs`, `view.mjs`, `panel.mjs`, `widget.mjs` and `markdown.mjs`. Views,
+panels, widgets and markdown renderers are Vue components the app draws in its
+own tree; `vue` and `vuetify` are imported as usual and left out of the bundle:
 
 ```ts
 // src/index.ts
 import { defineAnswerView, defineExtension } from '@dolphy-app/extension-sdk';
-import type { ExtensionViews } from '@dolphy-app/extension-sdk';
+import type { AnswerChange, ExtensionViews } from '@dolphy-app/extension-sdk';
+import { defineComponent, h } from 'vue';
 
 // code of the extension host process (main.mjs)
 export const host = defineExtension({
@@ -50,45 +52,59 @@ export const host = defineExtension({
 
 // answer input in the app window (view.mjs): exercise type id -> view
 export const views = {
-  'acme.echo': defineAnswerView((api, props) => {
-    const input = document.createElement('input');
-    input.oninput = () => api.setAnswer(input.value, input.value.length > 0);
-    api.root.append(input);
-    return { update: (next) => void (input.disabled = next.disabled) };
-  }),
+  'acme.echo': defineAnswerView(
+    defineComponent({
+      props: ['view', 'value', 'disabled', 'verdict', 'label'],
+      emits: ['change', 'submit'],
+      setup:
+        (props, { emit }) =>
+        () =>
+          h('input', {
+            value: props.value,
+            disabled: props.disabled,
+            'aria-label': props.label,
+            onInput: (event: Event) => {
+              const value = (event.target as HTMLInputElement).value;
+              const change: AnswerChange<string> = {
+                value,
+                complete: value.length > 0,
+              };
+              emit('change', change);
+            },
+            onKeydown: () => emit('submit'),
+          }),
+    }),
+  ),
 } satisfies ExtensionViews;
 ```
 
 ```ts
 // test/index.test.ts — checks without the app
-import { loadExerciseType, loadView } from '@dolphy-app/extension-sdk/testing';
-import { host, views } from '../src/index.ts';
+import { loadExerciseType } from '@dolphy-app/extension-sdk/testing';
+import { host } from '../src/index.ts';
 
 const echo = await loadExerciseType(host, 'acme.echo');
 await echo.grade({ spec: { expected: '42' }, answer: '42' }); // { outcome: 'passed' }
-
-const view = await loadView(views, 'acme.echo'); // needs a DOM (happy-dom)
-view.query<HTMLInputElement>('input'); // the view's shadow DOM
 ```
 
-Importing `src/index.ts` has no side effects: `defineAnswerView` and the other
-`define…` functions only describe things, so the file can be imported in tests
-in plain Node. The package is `"sideEffects": false`. The custom element with
-the tag from the manifest `element` is defined by the browser file the build
-generates, not by your code.
+Importing `src/index.ts` has no side effects: the `define…` functions are
+identity functions over Vue components, so the file can be imported in tests in
+plain Node. The package is `"sideEffects": false`. Test components with
+`@vue/test-utils` in your own test setup.
 
-- `defineAnswerView(mount)` — an entry of `views` (key: exercise type id).
-  `mount(api, props)` gets `api.root` (shadow root), `api.label` (the app's
-  `aria-label`), `api.setAnswer(value, complete)` and `api.submit()`, and
-  returns `{ update(props), destroy?() }`; `props` are `view`, `value`,
-  `disabled`, `verdict`.
-- `defineExtensionPanel({ mount(container, ctx) })` — an entry of `panels`
-  (key: panel id).
+- `defineAnswerView(component)` — an entry of `views` (key: exercise type id).
+  The component takes the props of `AnswerViewProps` (`view`, `value`,
+  `disabled`, `verdict`, `label`) and emits `change` with an `AnswerChange`
+  (`{ value, complete }`) and `submit` without data.
+- `defineExtensionPanel(component)` — an entry of `panels` (key: panel id);
+  inside it `usePanel()` from `@dolphy-app/extension-sdk/client` returns the
+  handle (see "Commands and panels").
 - `defineExtensionWidget(component)` — an entry of `widgets` (key: widget id):
   a Vue component (see "Widgets and icons").
-- `defineMarkdownRenderer(render)` — an entry of `markdown` (key: block
-  language); `render(source, container, { language, signal })`. When it throws,
-  the app keeps the original block text.
+- `defineMarkdownRenderer(component)` — an entry of `markdown` (key: block
+  language); the component takes the props of `MarkdownBlockProps` (`source`,
+  `language`). When it fails the app shows an error block in place of the block
+  and the rest of the text stays.
 - `defineExtension({ exerciseTypes?, gradePolicies?, events?, commands?, activate?, deactivate? })`
   — the `host` export. `gradePolicies` is a dictionary `id -> GradePolicyHandler`;
   policies are registered and released together with the exercise types;
@@ -165,20 +181,6 @@ export const host = defineExtension({
   commands, and give the test the handlers (`grade`, `evaluate`, `emit`, `run`,
   `dispose()`). `loadExerciseType` checks the shape of results;
   `loadGradePolicy` checks that a result is an integer 1–5 or `null`.
-- `loadView(views, id, options?)` mounts the view in the test DOM (happy-dom or
-  jsdom) with the same element the app creates. `options`: initial `view`,
-  `value`, `disabled`, `verdict`, `label` (the host `aria-label`) and
-  `container`. It returns `changes` (`dolphy-answer-change` details, in order),
-  `submissions`, `update(props)` (sets properties and waits until the view has
-  applied them), `query(selector)` / `queryAll(selector)` over the shadow DOM,
-  `root`, `element` and `dispose()`.
-- `loadPanel(panels, id, options?)` mounts the panel with the context the frame
-  gives it. `options`: `props`, `call(commandId, args)` (the answer to
-  `ctx.call`; without it calls are rejected) and `container`. It returns
-  `container`, `calls`, `aborted`, `setProps(props)` (delivers new `ctx.onProps`
-  values), `setContext({ courseId })` (changes `ctx.context` and notifies
-  `ctx.onContextChange`; `options.context` sets the start value) and
-  `dispose()` (aborts `ctx.signal`).
 - `createSchemaValidator(schema)`, `createMemoryLibrary(files)`,
   `createMemoryStorage()`, `createMemorySettings(definitions, values?)`,
   `createMemoryEvents(options?)`, `createMemoryCommands(options?)`,
@@ -341,7 +343,7 @@ export const host = defineExtension({
 ## Commands and panels
 
 A command is the `contributes.commands` point (needs main), a panel is
-`contributes.panels` (a screen in an isolated frame, module `./panel.mjs` by
+`contributes.panels` (a Vue component the app draws in its window, module `./panel.mjs` by
 default, main is not needed).
 
 ```ts
@@ -353,6 +355,8 @@ import {
   openPanel,
   type ExtensionPanels,
 } from '@dolphy-app/extension-sdk';
+import { usePanel } from '@dolphy-app/extension-sdk/client';
+import { defineComponent, h } from 'vue';
 
 export const host = defineExtension({
   commands: {
@@ -362,39 +366,38 @@ export const host = defineExtension({
 });
 
 export const panels = {
-  'acme.tools.main': defineExtensionPanel({
-    mount(container, ctx) {
-      container.textContent = `${ctx.panelId}: ${JSON.stringify(ctx.props)}`;
-      void ctx.call('acme.tools.ping'); // any declared command, palette: false included
-    },
-  }),
+  'acme.tools.main': defineExtensionPanel(
+    defineComponent({
+      setup() {
+        const panel = usePanel();
+        void panel.call('acme.tools.ping'); // any declared command, palette: false included
+        return () => h('p', `${panel.panelId}: ${JSON.stringify(panel.props)}`);
+      },
+    }),
+  ),
 } satisfies ExtensionPanels;
 ```
 
 ```ts
 // test/index.test.ts — checks without the app
-import { loadCommands, loadPanel } from '@dolphy-app/extension-sdk/testing';
-import { host, panels } from '../src/index.ts';
+import { loadCommands } from '@dolphy-app/extension-sdk/testing';
+import { host } from '../src/index.ts';
 
 const commands = await loadCommands(host, {
   declaredCommands: ['acme.tools.open', 'acme.tools.ping'],
   declaredPanels: ['acme.tools.main'],
 });
 await commands.run('acme.tools.ping'); // { kind: 'notify', text: 'pong' }
-
-const panel = await loadPanel(panels, 'acme.tools.main', {
-  props: { from: 'test' },
-  call: async () => undefined,
-});
-panel.calls; // [{ commandId: 'acme.tools.ping', args: undefined }]
 ```
 
 - `defineExtension({ commands })` — a dictionary `id -> CommandHandler`; so does
   `ctx.commands.register(id, handler)`. The result is `notify(text)` (1–500
   characters), `openPanel(id, props?)`, a JSON value or nothing.
-- `defineExtensionPanel({ mount(container, ctx) })` — `ctx` has `panelId`,
-  `props`, `context` (`{ courseId: string | null }`, read only), `signal`,
-  `call(commandId, args?)`, `onProps(listener)`, `onContextChange(listener)`.
+- `usePanel()` inside a panel component returns the handle: `panelId`, the
+  reactive `props` the panel was opened with (a repeated `openPanel(id, props)`
+  updates them in place), the reactive `context` (`{ courseId }`) and
+  `call(commandId, args?)`, which accepts the declared command ids. Outside a
+  panel it throws.
 - `loadCommands(host, options?)` gives `run(id, args?)` → `CommandOutcome`,
   `ids()`, `dispose()`; it throws on an unregistered command and an invalid
   result (the rules are `normalizeCommandResult` from
@@ -406,13 +409,13 @@ A widget is the `contributes.widgets` point: a card on the "Daily plan" screen
 (`slot: "dailyPlan"`, at most 3 per extension, module `./widget.mjs` by
 default, main is not needed). A widget is a Vue component. The app draws it in
 its own tree, inside a card, so it shares the theme, the language and the
-Vuetify components of the app; there is no frame and no size range: the card
+Vuetify components of the app; there is no size range: the card
 is as tall as the component.
 
 `vue` and `vuetify` (`vuetify/components`, `vuetify/directives`) are imported as
 usual, but the build leaves them out of the bundle and the app gives the
 component its own instances, so a widget bundle is a few KiB. The widget file
-holds widgets only (not a panel, an answer view or a markdown renderer).
+may also hold panels, views and markdown renderers: a file is a table per kind.
 
 Inside the component `useWidget()` from `@dolphy-app/extension-sdk/client`
 returns the handle: `widgetId`, the reactive `context` (`context.courseId` is
@@ -546,63 +549,29 @@ dependency is present, enabled, loaded and in range; otherwise the app shows
 Dependencies are not installed for the user, and extensions cannot call each
 other. See [`docs/recipe-when-dependencies.md`](docs/recipe-when-dependencies.md).
 
-## UI kit
+## Vuetify
 
-`@dolphy-app/extension-ui` has the Vuetify components of the app for a panel,
-a widget or an answer view: radio and checkbox groups, alerts, chips, progress,
-text areas, sliders, switches, a date field, tabs, dialogs, menus, tooltips and
-tables. There is no root import: take one subpath per group
-(`@dolphy-app/extension-ui/vuetify/choice`, `…/feedback`, `…/fields`,
-`…/navigation`, `…/table`), call `mountRadioGroup(container, props)` and the
-like, and keep the returned `{ update(patch), destroy() }`. Vue and Vuetify are
-bundled into your extension by `dolphy-ext build` (the frame is isolated, so
-every extension carries its own copy), and the frame theme and language apply
-with no code of yours. See [`docs/recipe-ui-kit.md`](docs/recipe-ui-kit.md) and
-the package README.
+`vue` and `vuetify` (`vuetify/components`, `vuetify/directives`) are the app's
+own instances in every component of an extension: import them as usual, the build
+leaves them out and the theme and language of the app apply. `vuetify/styles`
+is dropped as well: the window has the style sheets already.
 
 ## Style sheets, images and fonts
 
-A panel, an answer element and a content renderer run in an isolated frame and
-can bring their own style sheets (`css`), images (`png`, `webp`, `jpg`, `jpeg`,
-`svg`) and fonts (`woff2`). `dolphy-ext build` carries them in two ways:
+A view, a panel, a widget and a renderer can bring their own style sheets
+(`css`), images (`png`, `webp`, `jpg`, `jpeg`, `svg`) and fonts (`woff2`).
+`dolphy-ext build` carries them in two ways:
 
 ```ts
 // src/index.ts — inlined: a string and a small data URI, no extra file
 import css from './panel.css?inline'; // style sheet as a string
 import mark from './mark.png?url'; // up to 4 KiB: a data: URI
-
-export const panels = {
-  'acme.tools.main': defineExtensionPanel({
-    mount(container) {
-      const style = document.createElement('style');
-      style.textContent = css;
-      container.append(style);
-
-      // a separate file: above 4 KiB the build writes assets/hero-<hash>.png
-      const hero = document.createElement('img');
-      hero.src = new URL('./hero.png', import.meta.url).href;
-      hero.alt = '';
-      // a file you put into assets/ yourself
-      const font = new FontFace(
-        'Acme',
-        `url(${new URL('assets/acme.woff2', import.meta.url).href})`,
-      );
-      container.append(hero);
-      void font.load().then(() => document.fonts.add(font));
-    },
-  }),
-};
 ```
 
-The frame loads scripts, style sheets, images and fonts only from its own
-extension (`dolphy-ext://<id>/…`, plus `data:` and `blob:`): a file of another
-extension is blocked, and so are `extension.json` and `README.md`. Build every
-URL from `import.meta.url` (the frame page has no `<base>`); inside a style sheet
-`url(font.woff2)` is relative to the sheet. A `<link rel="stylesheet">` works in
-a container, in `document.head` and in a shadow root, but `@font-face` registers a
-font only in a document-level sheet, so an element with a shadow root that needs
-its own font must link the sheet into `document.head` too. Use an SVG as an image
-(`<img>`, `url()`); it is never run as a document.
+A string from `?inline` goes into the component (for example a `<style>`
+element in its template); above 4 KiB an image becomes a file,
+`assets/hero-<hash>.png`, addressed with `new URL('./hero.png', import.meta.url)`.
+Use an SVG as an image (`<img>`, `url()`); it is never run as a document.
 
 Choose the inlined form for small things (one file, nothing to fetch) and a
 separate file for big images and fonts; the details, the limits and what the

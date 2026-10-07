@@ -7,6 +7,7 @@ import {
   defineExtensionWidget,
   defineMarkdownRenderer,
 } from '@dolphy-app/extension-sdk';
+import { defineComponent, h } from 'vue';
 import { shout } from './shout.ts';
 
 export const host = defineExtension({
@@ -21,48 +22,27 @@ export const host = defineExtension({
   },
 });
 
-const textView = (text: string) =>
-  defineAnswerView((api) => {
-    api.root.textContent = text;
-    return { update() {} };
-  });
+const text = (marker: string) =>
+  defineComponent({ render: () => h('p', marker) });
 
 export const views = {
-  'acme.surfaces.one': textView('VIEW_ONE_MARKER'),
-  'acme.surfaces.two': textView(shout('VIEW_TWO_MARKER')),
-  'acme.surfaces.three': textView('VIEW_THREE_MARKER'),
+  'acme.surfaces.one': defineAnswerView(text('VIEW_ONE_MARKER')),
+  'acme.surfaces.two': defineAnswerView(text(shout('VIEW_TWO_MARKER'))),
+  'acme.surfaces.three': defineAnswerView(text('VIEW_THREE_MARKER')),
 };
 
 export const panels = {
-  'acme.surfaces.first': defineExtensionPanel({
-    mount(container) {
-      container.textContent = 'PANEL_FIRST_MARKER';
-    },
-  }),
-  'acme.surfaces.second': defineExtensionPanel({
-    mount(container) {
-      container.textContent = 'PANEL_SECOND_MARKER';
-    },
-  }),
+  'acme.surfaces.first': defineExtensionPanel(text('PANEL_FIRST_MARKER')),
+  'acme.surfaces.second': defineExtensionPanel(text('PANEL_SECOND_MARKER')),
 };
 
 export const widgets = {
-  'acme.surfaces.card': defineExtensionWidget({
-    render: () => 'WIDGET_CARD_MARKER',
-  }),
-  'acme.surfaces.gauge': defineExtensionWidget({
-    render: () => 'WIDGET_GAUGE_MARKER',
-  }),
-  'acme.surfaces.badge': defineExtensionWidget({
-    render: () => 'WIDGET_BADGE_MARKER',
-  }),
+  'acme.surfaces.card': defineExtensionWidget(text('WIDGET_CARD_MARKER')),
+  'acme.surfaces.gauge': defineExtensionWidget(text('WIDGET_GAUGE_MARKER')),
+  'acme.surfaces.badge': defineExtensionWidget(text('WIDGET_BADGE_MARKER')),
 };
 
 export const markdown = {
-  alpha: defineMarkdownRenderer((source, container) => {
-    container.textContent = `ALPHA_MARKER ${source}`;
-  }),
-  beta: defineMarkdownRenderer((source, container) => {
-    container.textContent = `BETA_MARKER ${source}`;
-  }),
+  alpha: defineMarkdownRenderer(text('ALPHA_MARKER')),
+  beta: defineMarkdownRenderer(text('BETA_MARKER')),
 };

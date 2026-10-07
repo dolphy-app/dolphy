@@ -115,16 +115,13 @@ describe('extensions.contributions', () => {
     language,
     extensionId: 'a.ext',
     rendererUrl: `dolphy-ext://a.ext/${language}.mjs`,
-    isolated: true,
     origin: 'user' as const,
     revision: 'rev-1',
   });
   const exerciseType = (type: string) => ({
     type,
     extensionId: 'a.ext',
-    element: `${type.replaceAll('.', '-')}-answer`,
     rendererUrl: `dolphy-ext://a.ext/${type}.mjs`,
-    isolated: false,
     origin: 'dev' as const,
     revision: 'rev-1',
   });

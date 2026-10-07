@@ -10,12 +10,13 @@ import vuetify from 'vite-plugin-vuetify';
 import electron from 'vite-plugin-electron/multi-env';
 
 // «запретить всё», кроме нужного; шрифты (Roboto, MDI) — с 'self' и data:
-// (Vite инлайнит мелкие подмножества шрифтов); в dev HMR требует websocket
+// (Vite инлайнит мелкие подмножества шрифтов); модули и ресурсы расширений
+// (стили, изображения, шрифты) — с dolphy-ext:; в dev HMR требует websocket
 const CSP = {
   build:
-    "default-src 'none'; script-src 'self' dolphy-ext:; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-src dolphy-ext:",
+    "default-src 'none'; script-src 'self' dolphy-ext:; style-src 'self' 'unsafe-inline' dolphy-ext:; img-src 'self' data: dolphy-ext:; font-src 'self' data: dolphy-ext:; connect-src 'self'",
   serve:
-    "default-src 'none'; script-src 'self' dolphy-ext:; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' ws://localhost:* http://localhost:*; frame-src dolphy-ext:",
+    "default-src 'none'; script-src 'self' dolphy-ext:; style-src 'self' 'unsafe-inline' dolphy-ext:; img-src 'self' data: dolphy-ext:; font-src 'self' data: dolphy-ext:; connect-src 'self' ws://localhost:* http://localhost:*",
 } as const;
 
 const csp = (command: 'build' | 'serve'): Plugin => ({

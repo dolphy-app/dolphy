@@ -46,9 +46,9 @@ describe('panels and commands: build', () => {
       outDir: path.join(root, 'out'),
     });
     expect(files).toEqual(['extension.json', 'main.mjs', 'panel.mjs']);
-    expect(await readFile(path.join(dir, 'panel.mjs'), 'utf8')).toContain(
-      'mount',
-    );
+    const code = await readFile(path.join(dir, 'panel.mjs'), 'utf8');
+    expect(code).toContain('dolphy.extension.panel');
+    expect(code).toContain('globalThis.__dolphy.require("vue")');
     expect(await validateExtension(dir)).toEqual({
       ok: true,
       problems: [],

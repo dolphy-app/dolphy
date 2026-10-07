@@ -277,7 +277,7 @@ export const createPracticeService = (ctx: EngineContext): PracticeService => {
     const batchSession = sessionId ?? openSession();
     return {
       exercises: items.map(({ manifest }) =>
-        toExerciseDto(manifest, ctx.exerciseTypes, ctx.extensionPolicy),
+        toExerciseDto(manifest, ctx.exerciseTypes),
       ),
       reasons: items.map(({ reason }) => reason),
       generatedAt: clock.now(),
@@ -330,7 +330,7 @@ export const createPracticeService = (ctx: EngineContext): PracticeService => {
     });
     return {
       attemptId,
-      exercise: toExerciseDto(exercise, ctx.exerciseTypes, ctx.extensionPolicy),
+      exercise: toExerciseDto(exercise, ctx.exerciseTypes),
       startedAt,
       verifiable,
       view: view ?? null,

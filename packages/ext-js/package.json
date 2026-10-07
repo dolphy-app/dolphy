@@ -22,7 +22,8 @@
     "@dolphy-app/testkit": "workspace:*",
     "@types/node": "^22.20.4",
     "happy-dom": "^20.14.5",
-    "typescript": "7.0.2"
+    "typescript": "7.0.2",
+    "vue": "^3.5.35"
   },
   "engines": {
     "node": ">=22.12"

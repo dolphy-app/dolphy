@@ -11,8 +11,8 @@ const APP_MODULES = fileURLToPath(
   new URL('../../node_modules', import.meta.url),
 );
 
-/** Workspace packages an author's project finds in `node_modules` (the SDK for the entry, the UI kit for the components). */
-const LINKED = ['extension-sdk', 'extension-ui'] as const;
+/** Workspace packages an author's project finds in `node_modules` (the SDK for the entry). */
+const LINKED = ['extension-sdk'] as const;
 
 /** What an author lists as dependencies: the build resolves Vue and Vuetify for types and tree shaking, then the app's own instances replace them. */
 const AUTHOR_DEPENDENCIES = ['vue', 'vuetify'] as const;
@@ -25,9 +25,9 @@ export interface BuiltExtension {
 
 /**
  * Builds the source project `fixture` (`extension.json` and `src/index.ts`) with `dolphy-ext build`,
- * as an author would: Vue and Vuetify of a widget file come from the app
+ * as an author would: Vue and Vuetify of every browser file come from the app
  * (`hostModulesPlugin`). The project is built from a temporary copy that
- * has the SDK and the kit linked into its `node_modules`; the repository stays clean.
+ * has the SDK linked into its `node_modules`; the repository stays clean.
  */
 export const buildFixtureExtension = async (
   fixture: string,

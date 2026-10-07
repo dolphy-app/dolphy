@@ -15,7 +15,7 @@ import {
   type ExtensionViews,
   type ExtensionWidgets,
 } from '@dolphy-app/extension-sdk';
-import { useWidget } from '@dolphy-app/extension-sdk/client';
+import { usePanel, useWidget } from '@dolphy-app/extension-sdk/client';
 import { defineComponent } from 'vue';
 
 const echo = defineExerciseType({
@@ -290,10 +290,10 @@ describe('defineExtension with generated ids', () => {
 });
 
 describe('views, panels, widgets and markdown with generated ids', () => {
-  const view = defineAnswerView(() => ({ update: () => undefined }));
-  const panel = defineExtensionPanel({ mount: () => undefined });
+  const view = defineAnswerView(defineComponent({}));
+  const panel = defineExtensionPanel(defineComponent({}));
   const widget = defineExtensionWidget(defineComponent({}));
-  const renderer = defineMarkdownRenderer(() => undefined);
+  const renderer = defineMarkdownRenderer(defineComponent({}));
 
   it('accept exactly the declared keys', () => {
     const views = { 'acme.echo': view } satisfies ExtensionViews;
@@ -356,13 +356,10 @@ describe('views, panels, widgets and markdown with generated ids', () => {
   });
 
   it('narrow what a panel may call and open', () => {
-    defineExtensionPanel({
-      mount(_container, ctx) {
-        void ctx.call('acme.a');
-        // @ts-expect-error not a declared command
-        void ctx.call('acme.c');
-      },
-    });
+    const handle = usePanel();
+    void handle.call('acme.a');
+    // @ts-expect-error not a declared command
+    void handle.call('acme.c');
     expectTypeOf(openPanel('acme.panel', { n: 1 })).toHaveProperty('openPanel');
     // @ts-expect-error not a declared panel
     openPanel('acme.other');

@@ -28,7 +28,7 @@ import path from 'node:path';
 import { parseIndex } from '@dolphy-app/extension-catalog';
 import { manifestJsonSchema, parseManifest } from '@dolphy-app/extension-host';
 import { Ajv2020 } from 'ajv/dist/2020.js';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { buildExtension, validateExtension } from '../src/index.ts';
 import { makeTemp, runTsc } from './helpers.ts';
 
@@ -55,7 +55,6 @@ const EXAMPLES: Readonly<Record<string, Mode>> = {
   'импортёр CSV': 'build-with-code',
   'экспортёр курса': 'build-with-code',
   зависимости: 'manifest',
-  'панель на UI-ките': 'build-with-code',
 };
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../../..');
@@ -132,7 +131,7 @@ const writeProject = async (
   if (withCode) {
     const modules = path.join(root, 'node_modules', '@dolphy-app');
     await mkdir(modules, { recursive: true });
-    for (const name of ['extension-sdk', 'extension-api', 'extension-ui']) {
+    for (const name of ['extension-sdk', 'extension-api']) {
       await symlink(
         path.join(REPO_ROOT, 'packages', name),
         path.join(modules, name),
@@ -140,13 +139,13 @@ const writeProject = async (
       );
     }
     // `vue` and `vuetify` are the author's own dependencies
-    const uiModules = path.join(
-      REPO_ROOT,
-      'packages/extension-ui/node_modules',
-    );
-    for (const name of ['vue', 'vuetify']) {
+    const links: [string, string][] = [
+      ['vue', 'packages/extension-sdk/node_modules/vue'],
+      ['vuetify', 'packages/ext-choice/node_modules/vuetify'],
+    ];
+    for (const [name, source] of links) {
       await symlink(
-        path.join(uiModules, name),
+        path.join(REPO_ROOT, source),
         path.join(root, 'node_modules', name),
         'dir',
       );
@@ -302,18 +301,19 @@ interface SdkTesting {
 }
 
 interface PanelModule {
-  default: {
-    mount(
-      container: unknown,
-      ctx: {
-        panelId: string;
-        call(id: string): Promise<unknown>;
-        onProps(listener: () => void): () => void;
-        signal: { addEventListener(type: string, fn: () => void): void };
-      },
-    ): Promise<void>;
-  };
+  default: { panels: Record<string, unknown> };
 }
+
+/** A text node or an element of the tiny tree the test renderer builds. */
+interface TestNode {
+  type: 'text' | 'element' | 'comment';
+  text: string;
+  children: TestNode[];
+  parent: TestNode | null;
+}
+
+const textOf = (node: TestNode): string =>
+  node.type === 'element' ? node.children.map(textOf).join('') : node.text;
 
 describe('the “серия дней целиком” example is executed', () => {
   const attempt = (at: string) => ({
@@ -398,25 +398,74 @@ describe('the “серия дней целиком” example is executed', () 
       props: { days: 1 },
     });
 
-    // the built panel runs in a frame and renders the data command's response
+    // the built panel is a Vue component: it reads Vue from the app's loader
+    // and draws the data command's response
+    const vue = (await import(
+      /* @vite-ignore */ path.join(
+        REPO_ROOT,
+        'packages/extension-sdk/node_modules/vue/index.js',
+      )
+    )) as typeof import('vue');
+    Object.assign(globalThis, { __dolphy: { require: async () => vue } });
     const panel = (await import(
       /* @vite-ignore */ path.join(built.dir, 'panel.mjs')
     )) as PanelModule;
-    const line = { textContent: '' };
-    const container = {
-      ownerDocument: { createElement: () => line },
-      append: () => undefined,
+    Reflect.deleteProperty(globalThis, '__dolphy');
+
+    const node = (type: TestNode['type'], text = ''): TestNode => ({
+      type,
+      text,
+      children: [],
+      parent: null,
+    });
+    const insert = (
+      child: TestNode,
+      parent: TestNode,
+      anchor?: TestNode | null,
+    ) => {
+      child.parent = parent;
+      const at = anchor ? parent.children.indexOf(anchor) : -1;
+      parent.children.splice(at === -1 ? parent.children.length : at, 0, child);
     };
-    await panel.default.mount(container, {
+    const { createApp } = vue.createRenderer<TestNode, TestNode>({
+      createElement: () => node('element'),
+      createText: (text) => node('text', text),
+      createComment: (text) => node('comment', text),
+      setText: (target, text) => void (target.text = text),
+      setElementText: (target, text) => {
+        target.children = [];
+        insert(node('text', text), target);
+      },
+      insert,
+      remove: (child) => {
+        const siblings = child.parent?.children ?? [];
+        siblings.splice(siblings.indexOf(child), 1);
+      },
+      parentNode: (child) => child.parent,
+      nextSibling: (child) => {
+        const siblings = child.parent?.children ?? [];
+        return siblings[siblings.indexOf(child) + 1] ?? null;
+      },
+      patchProp: () => undefined,
+    });
+    const view = panel.default.panels['acme.streak.view'] as Parameters<
+      typeof createApp
+    >[0];
+    const app = createApp(view);
+    app.provide(Symbol.for('dolphy.extension.panel'), {
       panelId: 'acme.streak.view',
-      call: async (id) => {
+      props: undefined,
+      context: { courseId: null },
+      call: async (id: string) => {
         const outcome = (await commands.run(id)) as { value: unknown };
         return outcome.value;
       },
-      onProps: () => () => undefined,
-      signal: { addEventListener: () => undefined },
     });
-    expect(line.textContent).toBe('Серия: 1 дн., последний день 2026-10-05');
+    const screen = node('element');
+    app.mount(screen);
+    await vi.waitFor(() => {
+      expect(textOf(screen)).toBe('Серия: 1 дн., последний день 2026-10-05');
+    });
     expect(declaredCommands).toEqual(['acme.streak.show', 'acme.streak.data']);
   });
 });

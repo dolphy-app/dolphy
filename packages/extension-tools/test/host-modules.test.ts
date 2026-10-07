@@ -96,4 +96,28 @@ describe('hostModulesPlugin', () => {
     );
     expect(code.length).toBeLessThan(2_000);
   });
+
+  it('rejects a subpath of a window module with a hint to import from vuetify/components', async () => {
+    const root = await makeTemp();
+    const entry = path.join(root, 'widget.ts');
+    await writeFile(
+      entry,
+      [
+        "import { VBtn } from 'vuetify/components/VBtn';",
+        'export default VBtn;',
+      ].join('\n'),
+    );
+    await expect(
+      build({
+        root,
+        configFile: false,
+        logLevel: 'silent',
+        plugins: [hostModulesPlugin()],
+        build: {
+          write: false,
+          lib: { entry, formats: ['es'], fileName: () => 'out.mjs' },
+        },
+      }),
+    ).rejects.toThrow(/import the components from 'vuetify\/components'/);
+  });
 });

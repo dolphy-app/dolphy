@@ -150,9 +150,6 @@
                   }
                 ]
               },
-              "element": {
-                "type": "string"
-              },
               "renderer": {
                 "type": "string"
               }

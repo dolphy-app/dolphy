@@ -78,8 +78,8 @@ to know:
   extension instead of the extension working: start with that text.
 - If the id is also in the bundled set or installed from the catalog, the
   development copy wins.
-- Answer inputs of extensions in development are recreated on a change, so
-  their state can be lost.
+- Components of extensions in development are redrawn on a change, so their
+  state can be lost.
 
 ## 4. DevTools
 
@@ -88,10 +88,10 @@ build of the app, including an installed one, these keys toggle the DevTools of
 the main window: `F12`, `Cmd+Alt+I` (macOS) and `Ctrl+Shift+I`. Without the
 variable the keys do nothing and an installed app has no DevTools.
 
-- Views, panels and markdown blocks of an extension run in frames with the
-  address `dolphy-ext://<id>/__dolphy/frame.html`. In the console, pick that
-  frame in the context drop-down (the one that says "top") to evaluate code in
-  your view; in "Elements" the frame is an `<iframe>` with that address.
+- Views, panels, widgets and markdown blocks of an extension are Vue
+  components in the page of the app window itself.
+  "Elements" shows their markup in the page and the Vue DevTools show the
+  component tree; the console evaluates in the same page as the app.
 - `dolphy-ext dev` and `dolphy-ext build --watch` put an inline source map
   (`//# sourceMappingURL=data:application/json…`) into every bundle, so
   "Sources" shows your TypeScript (`src/index.ts` and the files it imports) for
@@ -207,4 +207,4 @@ maps at all.
 | an event handler stops mid-way                  | 2 seconds per event; the queue holds 100 events          |
 | `StorageQuotaError`                             | key 128 characters, value 64 KiB, 256 keys, 1 MiB total  |
 | a command result is rejected                    | `notify` text 1–500 characters; a result up to 64 KiB    |
-| a panel cannot load an image or open a socket   | the frame loads only from its own extension, no network  |
+| a panel or a view fails while it draws          | the card "Retry" replaces it; the window stays up        |

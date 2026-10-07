@@ -82,17 +82,17 @@ const legacyHint = (project: Project): string => {
     ...(contributes.exerciseTypes.length === 0
       ? []
       : [
-          `replace defineAnswerElement(tag, mount) with an entry of export const views = { '<exercise type id>': defineAnswerView(mount) } (the tag now comes from extension.json)`,
+          `move the answer view into an entry of export const views = { '<exercise type id>': defineAnswerView(component) }`,
         ]),
     ...(contributes.panels.length === 0
       ? []
       : [
-          `move the default export of the panel module into export const panels = { '<panel id>': defineExtensionPanel({ … }) }`,
+          `move the panel into an entry of export const panels = { '<panel id>': defineExtensionPanel(component) }`,
         ]),
     ...(contributes.markdownRenderers.length === 0
       ? []
       : [
-          `move the default export of the renderer module into export const markdown = { '<language>': defineMarkdownRenderer(…) }`,
+          `move the renderer into an entry of export const markdown = { '<language>': defineMarkdownRenderer(component) }`,
         ]),
     'delete the old src files and import from src/index.ts in tests',
   ];

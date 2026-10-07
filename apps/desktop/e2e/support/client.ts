@@ -31,7 +31,6 @@ const RU = {
   extensionTrust: 'Доверять (без изоляции)',
   extensionNotifications: 'Уведомления',
   extensionSchedules: 'Расписание',
-  reloadWindow: 'Перезагрузить окно',
   verdictPassed: 'Верно',
   verdictFailed: 'Пока неверно',
   grades: {
@@ -62,9 +61,6 @@ const SWITCH_LABELS: Record<ExtensionSwitchName, string> = {
   notifications: RU.extensionNotifications,
   schedules: RU.extensionSchedules,
 };
-
-/** Рамка элемента ответа недоверенного расширения (`IsolatedFrame`, режим `answer`). */
-export const ANSWER_FRAME = 'iframe[sandbox][data-mode="answer"]';
 
 export type Grade = 1 | 2 | 3 | 4 | 5;
 
@@ -358,32 +354,25 @@ export class Client {
   }
 
   /**
-   * Элемент ответа: в окне (расширение из поставки или доверенное) либо в
-   * изолированной рамке (остальные). Ждёт, пока появится любой из двух.
+   * Вид ответа расширения: компонент в дереве окна. Находится по
+   * `data-testid` корня компонента; ждёт, пока он появится.
    */
-  async answerElement(tag: string): Promise<Locator> {
-    const inPage = this.page.locator(tag);
-    const framed = this.page.frameLocator(ANSWER_FRAME).locator(tag);
-    await expect
-      .poll(async () => (await inPage.count()) + (await framed.count()), {
-        timeout: TIMEOUT,
-      })
-      .toBeGreaterThan(0);
-    return (await inPage.count()) > 0 ? inPage : framed;
+  async answerElement(testId: string): Promise<Locator> {
+    const element = this.page.getByTestId(testId);
+    await element.first().waitFor({ timeout: TIMEOUT });
+    return element;
   }
 
-  /** Вводит ответ в элемент расширения (custom element в окне или в рамке). */
+  /** Вводит ответ в вид ответа (компоненты Vuetify в окне). */
   async fillAnswer(reply: AnswerInput) {
     if ('sql' in reply) {
-      const element = await this.answerElement('dolphy-sql-answer');
-      await element.locator('textarea').fill(reply.sql);
+      await this.main.getByRole('textbox').first().fill(reply.sql);
     } else if ('choose' in reply) {
-      const element = await this.answerElement('dolphy-choice-answer');
       // после неверной попытки флажки остаются отмеченными: начинаем с чистого выбора
-      const marked = element.locator('input[type=checkbox]:checked');
+      const marked = this.main.getByRole('checkbox', { checked: true });
       while ((await marked.count()) > 0) await marked.first().uncheck();
       for (const option of reply.choose) {
-        await element.getByLabel(option, { exact: true }).check();
+        await this.main.getByLabel(option, { exact: true }).check();
       }
     } else {
       const element = await this.answerElement(
@@ -495,21 +484,6 @@ export class Client {
     await expect
       .poll(() => control.isDisabled(), { timeout: TIMEOUT })
       .toBe(false);
-  }
-
-  /** Баннер «Обновление применится после перезагрузки окна» (случай R7) на экране расширений. */
-  reloadBanner(): Locator {
-    return this.page.getByTestId('extensions-reload');
-  }
-
-  /** «Перезагрузить окно» в баннере R7; ждёт перезагруженный экран расширений. */
-  async reloadFromBanner() {
-    const reloaded = this.page.waitForEvent('load', { timeout: 30_000 });
-    await this.reloadBanner()
-      .getByRole('button', { name: RU.reloadWindow, exact: true })
-      .click({ noWaitAfter: true });
-    await reloaded;
-    await this.openSettingsExtensions();
   }
 
   /**

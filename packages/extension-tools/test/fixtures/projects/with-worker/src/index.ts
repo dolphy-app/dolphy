@@ -1,4 +1,5 @@
 import { defineAnswerView, defineExtension } from '@dolphy-app/extension-sdk';
+import { defineComponent, h } from 'vue';
 import { helper } from './helper.ts';
 
 export const host = defineExtension({
@@ -9,8 +10,7 @@ export const host = defineExtension({
 });
 
 export const views = {
-  'acme.worker': defineAnswerView((api) => {
-    api.root.textContent = 'worker view';
-    return { update() {} };
-  }),
+  'acme.worker': defineAnswerView(
+    defineComponent({ render: () => h('p', 'worker view') }),
+  ),
 };

@@ -8,7 +8,6 @@
   "exports": {
     ".": "./src/index.ts",
     "./client": "./src/client.ts",
-    "./runtime": "./src/runtime.ts",
     "./testing": "./src/testing.ts"
   },
   "scripts": {

@@ -28,6 +28,8 @@ const indexTs = (id: string): string => `import {
   openPanel,
 } from '@dolphy-app/extension-sdk';
 import type { ExtensionPanels } from '@dolphy-app/extension-sdk';
+import { usePanel } from '@dolphy-app/extension-sdk/client';
+import { computed, defineComponent, h, ref } from 'vue';
 
 // extension code: \`host\` runs in the extension process of the app
 // the ids come from extension.json: a misspelt id or a declared id without a
@@ -46,40 +48,39 @@ export const host = defineExtension({
   },
 });
 
-// the panel runs in an isolated frame of the app window: no network, no
-// window.dolphy; the only way out is \`ctx.call\` to the commands above
+// the panel is a Vue component the app draws in its own window; \`usePanel()\`
+// gives it the properties it was opened with and \`call\` for the commands above
+const HelloPanel = defineComponent({
+  setup() {
+    const panel = usePanel();
+    const message = ref('');
+    // the app opens the panel again with new properties: \`panel.props\` is
+    // reactive, the title follows it
+    const name = computed(() => {
+      const { props } = panel;
+      return typeof props === 'object' && props !== null && 'name' in props
+        ? String(props.name)
+        : 'world';
+    });
+    void panel.call('${id}.data').then((data) => {
+      message.value = (data as { message: string }).message;
+    });
+    return () =>
+      h('div', [h('h2', \`Hello, \${name.value}!\`), h('p', message.value)]);
+  },
+});
+
 export const panels = {
-  '${id}.view': defineExtensionPanel({
-    async mount(container, ctx) {
-      const doc = container.ownerDocument;
-      const title = doc.createElement('h2');
-      const line = doc.createElement('p');
-      container.append(title, line);
-      const name = (props: unknown): string =>
-        typeof props === 'object' && props !== null && 'name' in props
-          ? String(props.name)
-          : 'world';
-      title.textContent = \`Hello, \${name(ctx.props)}!\`;
-      // the app opens the panel again with new properties: redraw the title
-      ctx.signal.addEventListener(
-        'abort',
-        ctx.onProps((props) => {
-          title.textContent = \`Hello, \${name(props)}!\`;
-        }),
-      );
-      const data = (await ctx.call('${id}.data')) as { message: string };
-      line.textContent = data.message;
-    },
-  }),
+  '${id}.view': defineExtensionPanel(HelloPanel),
 } satisfies ExtensionPanels;
 `;
 
 const indexTestTs = (id: string): string => `// @vitest-environment happy-dom
-import {
-  loadCommands,
-  loadPanel,
-} from '@dolphy-app/extension-sdk/testing';
+import { PANEL_HANDLE_KEY } from '@dolphy-app/extension-sdk';
+import type { JsonValue, PanelHandle } from '@dolphy-app/extension-sdk';
+import { loadCommands } from '@dolphy-app/extension-sdk/testing';
 import { afterEach, describe, expect, it } from 'vitest';
+import { createApp, h, nextTick, shallowReactive } from 'vue';
 import { host, panels } from '../src/index.ts';
 
 const disposables: { dispose(): unknown }[] = [];
@@ -127,34 +128,63 @@ describe('${id}: commands', () => {
   });
 });
 
+// draws the panel the way the app does: the handle is provided to the component
+const mountPanel = async (
+  props: JsonValue | undefined,
+  call: PanelHandle['call'],
+) => {
+  const handle = shallowReactive({
+    panelId: '${id}.view',
+    props,
+    context: { courseId: null },
+    call,
+  });
+  const host = document.createElement('div');
+  document.body.append(host);
+  const app = createApp({ render: () => h(panels['${id}.view']) });
+  app.provide(PANEL_HANDLE_KEY, handle);
+  app.mount(host);
+  disposables.push({
+    dispose: () => {
+      app.unmount();
+      host.remove();
+    },
+  });
+  // the panel asks a command: wait for the reply, then for the redraw
+  const settle = async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await nextTick();
+  };
+  await settle();
+  return {
+    host,
+    reopen: async (next: JsonValue) => {
+      handle.props = next;
+      await settle();
+    },
+  };
+};
+
 describe('${id}: panel', () => {
   it('shows the data command reply and follows new properties', async () => {
-    const panel = await loadPanel(panels, '${id}.view', {
-      props: { name: 'Ada' },
-      call: () => ({ message: 'Hello from the test' }),
+    const calls: string[] = [];
+    const panel = await mountPanel({ name: 'Ada' }, async (commandId) => {
+      calls.push(commandId);
+      return { message: 'Hello from the test' };
     });
-    disposables.push(panel);
-    expect(panel.container.querySelector('h2')?.textContent).toBe('Hello, Ada!');
-    expect(panel.container.querySelector('p')?.textContent).toBe(
+    expect(panel.host.querySelector('h2')?.textContent).toBe('Hello, Ada!');
+    expect(panel.host.querySelector('p')?.textContent).toBe(
       'Hello from the test',
     );
-    expect(panel.calls).toEqual([{ commandId: '${id}.data', args: undefined }]);
+    expect(calls).toEqual(['${id}.data']);
 
-    panel.setProps({ name: 'Grace' });
-    expect(panel.container.querySelector('h2')?.textContent).toBe(
-      'Hello, Grace!',
-    );
+    await panel.reopen({ name: 'Grace' });
+    expect(panel.host.querySelector('h2')?.textContent).toBe('Hello, Grace!');
   });
 
-  it('stops listening for properties when the panel closes', async () => {
-    const panel = await loadPanel(panels, '${id}.view', {
-      call: () => ({ message: 'x' }),
-    });
-    const heading = panel.container.querySelector('h2');
-    panel.dispose();
-    expect(panel.aborted).toBe(true);
-    panel.setProps({ name: 'Late' });
-    expect(heading?.textContent).toBe('Hello, world!');
+  it('greets the world when it is opened without properties', async () => {
+    const panel = await mountPanel(undefined, async () => ({ message: 'x' }));
+    expect(panel.host.querySelector('h2')?.textContent).toBe('Hello, world!');
   });
 });
 `;
@@ -167,8 +197,8 @@ export const commandPanel: TemplateModule = {
   layout: [
     '- `extension.json` — the manifest (commands and the panel are declared in it);',
     '- `src/index.ts` — all the extension code: `host` (`defineExtension`, the',
-    '  command handlers) and `panels` (`defineExtensionPanel`); the build',
-    '  splits it into `main.mjs` and `panel.mjs`;',
+    '  command handlers) and `panels` (`defineExtensionPanel`: a Vue component',
+    '  the app draws); the build splits it into `main.mjs` and `panel.mjs`;',
     ...idsBullet,
     '- `test/index.test.ts` — tests (`vitest`, `happy-dom`).',
   ],

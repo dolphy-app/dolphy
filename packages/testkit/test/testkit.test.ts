@@ -264,9 +264,11 @@ describe('createFakeExerciseTypes', () => {
 
   it('describes only configured types and reports missing references', async () => {
     const types = createFakeExerciseTypes({
-      types: { 'fake.t': { element: 'fake-el' } },
+      types: { 'fake.t': {} },
     });
-    expect(types.describe('fake.t')?.element).toBe('fake-el');
+    expect(types.describe('fake.t')?.rendererUrl).toBe(
+      'dolphy-ext://fake/fake.t.mjs',
+    );
     expect(types.describe('other')).toBeUndefined();
     expect(types.validateSpec('other', {})).toEqual(['unknown exercise type']);
     expect(

@@ -518,34 +518,6 @@ describe('точка widgets', () => {
     expect(messageOf(manifest({ widgets: [entry] }))).toContain(fragment);
   });
 
-  it.each([
-    ['панели', { panels: [panel({ module: './widget.mjs' })] }, 'panel'],
-    [
-      'вида ответа',
-      {
-        exerciseTypes: [
-          {
-            id: `${ID}.quiz`,
-            specSchema: { type: 'object' },
-            answerSchema: { type: 'object' },
-            renderer: './widget.mjs',
-          },
-        ],
-      },
-      'exercise type renderer',
-    ],
-    [
-      'рендерера markdown',
-      { markdownRenderers: [{ language: 'chart', renderer: './widget.mjs' }] },
-      'markdown renderer',
-    ],
-  ])('отклоняет файл виджета, общий с модулем %s', (_name, extra, kind) => {
-    const message = messageOf(manifest({ widgets: [widget()], ...extra }));
-
-    expect(message).toContain('contributes.widgets.0.module');
-    expect(message).toContain(`module of a ${kind}`);
-  });
-
   it('отклоняет повтор id и более 3 виджетов', () => {
     const many = (count: number) =>
       Array.from({ length: count }, (_value, index) =>
@@ -642,7 +614,6 @@ describe('обнаружение и реестр команд и панелей'
         icon: 'puzzle',
         when: null,
         rendererUrl: `dolphy-ext://${ID}/ui/screen.js`,
-        isolated: true,
         origin: 'user',
         revision: expect.stringMatching(/./) as unknown as string,
       },

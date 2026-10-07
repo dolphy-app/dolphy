@@ -74,17 +74,16 @@ File `src/index.ts` (when-dependencies):
 ```ts
 import { defineExtension, defineExtensionPanel } from '@dolphy-app/extension-sdk';
 import type { ExtensionPanels } from '@dolphy-app/extension-sdk';
+import { defineComponent, h } from 'vue';
 
 export const host = defineExtension({
   commands: { 'acme.hello.report': () => ({ courses: 1 }) },
 });
 
 export const panels = {
-  'acme.hello.board': defineExtensionPanel({
-    mount(container) {
-      container.textContent = 'Board';
-    },
-  }),
+  'acme.hello.board': defineExtensionPanel(
+    defineComponent({ setup: () => () => h('p', 'Board') }),
+  ),
 } satisfies ExtensionPanels;
 ```
 

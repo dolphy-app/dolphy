@@ -1,21 +1,26 @@
 // Панель для e2e: вызывает скрытую команду, чьё условие `when` сейчас ложно.
-export default {
-  mount(container, ctx) {
-    const doc = container.ownerDocument;
-    const result = doc.createElement('p');
-    result.setAttribute('data-role', 'result');
-    const button = doc.createElement('button');
-    button.textContent = 'Позвать';
-    button.addEventListener('click', async () => {
+const { defineComponent, h, inject, ref } =
+  await globalThis.__dolphy.require('vue');
+
+const Panel = defineComponent({
+  setup() {
+    const panel = inject(Symbol.for('dolphy.extension.panel'));
+    const result = ref('');
+    const call = async () => {
       try {
-        const value = await ctx.call('acme.when.ping');
-        result.textContent = `ok ${JSON.stringify(value)}`;
+        const value = await panel.call('acme.when.ping');
+        result.value = `ok ${JSON.stringify(value)}`;
       } catch (error) {
-        result.textContent = `Ошибка: ${error.message}`;
+        result.value = `Ошибка: ${error.message}`;
       }
-    });
-    const heading = doc.createElement('h2');
-    heading.textContent = 'Панель условий';
-    container.append(heading, button, result);
+    };
+    return () =>
+      h('div', [
+        h('h2', 'Панель условий'),
+        h('button', { onClick: call }, 'Позвать'),
+        h('p', { 'data-role': 'result' }, result.value),
+      ]);
   },
-};
+});
+
+export default { panels: { 'acme.when.main': Panel } };

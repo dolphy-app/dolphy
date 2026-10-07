@@ -4,7 +4,6 @@ import {
   buildExercise,
   buildLesson,
   createFakeExerciseTypes,
-  createFakeExtensionPolicy,
 } from '@dolphy-app/testkit';
 import { describe, expect, it } from 'vitest';
 import {
@@ -23,9 +22,8 @@ import type {
 } from '../../src/domain/manifest.ts';
 
 const noTypes = createFakeExerciseTypes();
-const policy = createFakeExtensionPolicy();
 const toExerciseDto = (exercise: ExerciseManifest) =>
-  toExerciseDtoWith(exercise, noTypes, policy);
+  toExerciseDtoWith(exercise, noTypes);
 
 const exerciseWith = (exerciseAsset: ExerciseAsset, id = 'a::l0::e0') =>
   buildExercise({ id, exercise_asset: exerciseAsset });
@@ -247,7 +245,7 @@ describe('toExerciseDto', () => {
 
   it('describes the task from the exercise type catalog', () => {
     const types = createFakeExerciseTypes({
-      types: { 'dolphy.sql': { element: 'dolphy-sql-answer' } },
+      types: { 'dolphy.sql': {} },
     });
     const dto = toExerciseDtoWith(
       buildExercise({
@@ -261,48 +259,14 @@ describe('toExerciseDto', () => {
         },
       }),
       types,
-      policy,
     );
     expect(dto.task).toEqual({
       type: 'dolphy.sql',
       timeoutMs: 500,
-      element: 'dolphy-sql-answer',
       rendererUrl: 'dolphy-ext://fake/dolphy.sql.mjs',
-      isolated: true,
       origin: 'user',
       revision: 'rev-0',
     });
-  });
-
-  it('marks the task isolated unless the owner is bundled or trusted', () => {
-    const types = createFakeExerciseTypes({
-      types: { 'dolphy.sql': {} },
-    });
-    const exercise = buildExercise({
-      id: 'a::l0::e0',
-      engine: { exercise: { type: 'dolphy.sql' } },
-    });
-    const flag = (p: typeof policy) =>
-      toExerciseDtoWith(exercise, types, p).task?.isolated;
-    expect(flag(createFakeExtensionPolicy())).toBe(true);
-    expect(flag(createFakeExtensionPolicy({ bundled: ['dolphy.sql'] }))).toBe(
-      false,
-    );
-    expect(
-      flag(
-        createFakeExtensionPolicy({
-          settings: {
-            disabled: [],
-            trusted: ['dolphy.sql'],
-            checkUpdates: true,
-            safeMode: false,
-            notificationsOff: [],
-            catalogUrl: null,
-            schedulesOff: [],
-          },
-        }),
-      ),
-    ).toBe(false);
   });
 
   it('defaults the task timeout to 2000 ms', () => {
@@ -313,7 +277,6 @@ describe('toExerciseDto', () => {
         engine: { exercise: { type: 'dolphy.sql' } },
       }),
       types,
-      policy,
     );
     expect(dto.task?.timeoutMs).toBe(DEFAULT_EXERCISE_TIMEOUT_MS);
     expect(DEFAULT_EXERCISE_TIMEOUT_MS).toBe(2000);
@@ -333,23 +296,22 @@ describe('toExerciseDto', () => {
 describe('toUnitDto', () => {
   it('resolves units of every kind with counts from the graph', () => {
     const library = sampleLibrary();
-    expect(toUnitDto(library, 'a', noTypes, policy)).toMatchObject({
+    expect(toUnitDto(library, 'a', noTypes)).toMatchObject({
       kind: 'course',
       lessonCount: 2,
     });
-    expect(toUnitDto(library, 'a::l0', noTypes, policy)).toMatchObject({
+    expect(toUnitDto(library, 'a::l0', noTypes)).toMatchObject({
       kind: 'lesson',
       exerciseCount: 2,
     });
-    expect(toUnitDto(library, 'a::l1::e0', noTypes, policy)).toMatchObject({
+    expect(toUnitDto(library, 'a::l1::e0', noTypes)).toMatchObject({
       kind: 'exercise',
     });
   });
 
   it('unknown id is NOT_FOUND', () => {
     expect(
-      catchError(() => toUnitDto(sampleLibrary(), 'nope', noTypes, policy))
-        .code,
+      catchError(() => toUnitDto(sampleLibrary(), 'nope', noTypes)).code,
     ).toBe('NOT_FOUND');
   });
 });

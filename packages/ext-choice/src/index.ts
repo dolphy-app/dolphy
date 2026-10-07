@@ -4,7 +4,7 @@ import {
   defineExtension,
 } from '@dolphy-app/extension-sdk';
 import type { ExtensionViews } from '@dolphy-app/extension-sdk';
-import { mountChoice } from './choice-view.ts';
+import { ChoiceAnswerView } from './choice-view.ts';
 import { grade, project } from './grade.ts';
 import type { ChoiceSpec } from './grade.ts';
 
@@ -20,5 +20,5 @@ export const host = defineExtension({
 });
 
 export const views = {
-  'dolphy.choice': defineAnswerView(mountChoice),
+  'dolphy.choice': defineAnswerView(ChoiceAnswerView),
 } satisfies ExtensionViews;

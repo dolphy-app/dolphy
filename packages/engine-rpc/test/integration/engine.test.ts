@@ -170,7 +170,6 @@ const SQL_PANEL: PanelContributionDto = {
   icon: 'puzzle',
   when: null,
   rendererUrl: 'dolphy-ext://dolphy.sql/panel.mjs',
-  isolated: true,
   origin: 'bundled',
   revision: '',
 };

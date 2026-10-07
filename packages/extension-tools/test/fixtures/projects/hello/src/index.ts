@@ -1,4 +1,5 @@
 import { defineAnswerView, defineExtension } from '@dolphy-app/extension-sdk';
+import { defineComponent, h } from 'vue';
 
 export const host = defineExtension({
   exerciseTypes: {
@@ -12,6 +13,8 @@ export const host = defineExtension({
   },
 });
 
+const input = defineComponent({ render: () => h('input') });
+
 export const views = {
-  'acme.hello': defineAnswerView(() => ({ update() {} })),
+  'acme.hello': defineAnswerView(input),
 };

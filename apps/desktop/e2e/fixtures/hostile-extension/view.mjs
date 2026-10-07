@@ -1,38 +1,25 @@
-// Элемент ввода ответа стороннего расширения: тот же контракт событий, что у dolphy-choice-answer.
-class AcmeHostileAnswer extends HTMLElement {
-  constructor() {
-    super();
-    this.input = document.createElement('input');
-    this.input.type = 'text';
-    this.attachShadow({ mode: 'open' }).append(this.input);
-    this.input.addEventListener('input', () => {
-      this.dispatchEvent(
-        new CustomEvent('dolphy-answer-change', {
-          detail: {
-            value: this.input.value,
-            complete: this.input.value.length > 0,
-          },
-          bubbles: true,
-          composed: true,
+// Вид ответа стороннего расширения: компонент Vue в окне, без сборки.
+const { defineComponent, h } = await globalThis.__dolphy.require('vue');
+
+const Answer = defineComponent({
+  props: ['view', 'value', 'disabled', 'verdict', 'label'],
+  emits: ['change', 'submit'],
+  setup(props, { emit }) {
+    const input = (event) => {
+      const { value } = event.target;
+      emit('change', { value, complete: value.length > 0 });
+    };
+    return () =>
+      h('div', { 'data-testid': 'acme-hostile-answer' }, [
+        h('input', {
+          type: 'text',
+          'aria-label': props.label,
+          disabled: props.disabled,
+          value: typeof props.value === 'string' ? props.value : '',
+          onInput: input,
         }),
-      );
-    });
-  }
+      ]);
+  },
+});
 
-  connectedCallback() {
-    const label = this.getAttribute('aria-label');
-    if (label) this.input.setAttribute('aria-label', label);
-  }
-
-  set disabled(value) {
-    this.input.disabled = Boolean(value);
-  }
-
-  get disabled() {
-    return this.input.disabled;
-  }
-}
-
-if (!customElements.get('acme-hostile-answer')) {
-  customElements.define('acme-hostile-answer', AcmeHostileAnswer);
-}
+export default { views: { 'acme.hostile': Answer } };

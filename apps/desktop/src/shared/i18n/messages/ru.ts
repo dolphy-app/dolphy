@@ -34,7 +34,6 @@ export const ru = {
     arrowright: 'стрелка вправо',
   },
   markdown: {
-    frameTitle: 'Блок «{language}» от расширения, изолированная рамка',
     renderFailed:
       'Не удалось вывести блок «{language}»; показан исходный текст.',
   },

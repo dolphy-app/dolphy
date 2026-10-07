@@ -95,7 +95,6 @@ export const linkToolchain = async (project: string): Promise<void> => {
       '@dolphy-app/extension-sdk',
       path.join(REPO_ROOT, 'packages/extension-sdk'),
     ],
-    ['@dolphy-app/extension-ui', path.join(REPO_ROOT, 'packages/extension-ui')],
     [
       '@dolphy-app/extension-tools',
       path.join(REPO_ROOT, 'packages/extension-tools'),
@@ -103,6 +102,11 @@ export const linkToolchain = async (project: string): Promise<void> => {
     ['@types/node', packageDir('@types/node')],
     ['vitest', packageDir('vitest')],
     ['happy-dom', packageDir('happy-dom')],
+    ['vue', path.join(REPO_ROOT, 'packages/extension-sdk/node_modules/vue')],
+    [
+      'vuetify',
+      path.join(REPO_ROOT, 'packages/ext-choice/node_modules/vuetify'),
+    ],
   ];
   for (const [name, target] of links) {
     await symlink(target, path.join(modules, name), 'dir');

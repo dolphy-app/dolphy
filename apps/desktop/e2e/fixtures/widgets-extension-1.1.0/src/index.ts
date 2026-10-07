@@ -8,7 +8,7 @@ import {
   defineExtensionPanel,
   defineExtensionWidget,
 } from '@dolphy-app/extension-sdk';
-import { useWidget } from '@dolphy-app/extension-sdk/client';
+import { usePanel, useWidget } from '@dolphy-app/extension-sdk/client';
 
 const VERSION = '1.1.0';
 
@@ -26,19 +26,20 @@ export const host = defineExtension({
   },
 });
 
+const Course = defineComponent({
+  setup() {
+    const panel = usePanel();
+    return () =>
+      h(
+        'p',
+        { 'data-role': 'course' },
+        `Курс: ${panel.context.courseId ?? 'все'}`,
+      );
+  },
+});
+
 export const panels = {
-  'acme.widgets.main': defineExtensionPanel({
-    mount(container, ctx) {
-      const course = container.ownerDocument.createElement('p');
-      course.setAttribute('data-role', 'course');
-      const show = ({ courseId }: { courseId: string | null }) => {
-        course.textContent = `Курс: ${courseId ?? 'все'}`;
-      };
-      show(ctx.context);
-      ctx.onContextChange(show);
-      container.append(course);
-    },
-  }),
+  'acme.widgets.main': defineExtensionPanel(Course),
 };
 
 const Card = defineComponent({

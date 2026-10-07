@@ -48,7 +48,9 @@ export const indexTs = (id: string): string => `import {
   inActivate,
   notify,
 } from '@dolphy-app/extension-sdk';
-import type { ExtensionViews } from '@dolphy-app/extension-sdk';
+import type { AnswerChange, ExtensionViews } from '@dolphy-app/extension-sdk';
+import { defineComponent, h, ref, watch } from 'vue';
+import type { PropType } from 'vue';
 
 interface Spec {
   expected: string;
@@ -100,41 +102,55 @@ export const host = defineExtension({
   },
 });
 
-// the answer input: runs in the app window; the build defines the custom
-// element with the tag from extension.json
-export const views = {
-  '${id}': defineAnswerView((api, initial) => {
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.spellcheck = false;
-    if (api.label !== null) input.setAttribute('aria-label', api.label);
-
-    const applyValue = (value: unknown) => {
-      input.value = typeof value === 'string' ? value : '';
-    };
-    let appliedValue = initial.value;
-    applyValue(appliedValue);
-    input.disabled = initial.disabled;
-
-    input.addEventListener('input', () => {
-      api.setAnswer(input.value, input.value.trim().length > 0);
-    });
-    input.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter') api.submit();
-    });
-    api.root.append(input);
-
-    return {
-      update: (props) => {
-        input.disabled = props.disabled;
-        // apply the value only when the app really changed it
-        if (props.value !== appliedValue) {
-          appliedValue = props.value;
-          applyValue(appliedValue);
-        }
+// the answer input: a Vue component the app draws in its own window tree. It
+// takes the props of \`AnswerViewProps\` and reports the answer with \`change\`;
+// \`submit\` asks the app to check it
+const TextAnswer = defineComponent({
+  props: {
+    view: { type: null },
+    value: { type: null },
+    disabled: Boolean,
+    verdict: { type: null },
+    label: { type: String as PropType<string | null>, default: null },
+  },
+  emits: ['change', 'submit'],
+  setup(props, { emit }) {
+    const asText = (value: unknown): string =>
+      typeof value === 'string' ? value : '';
+    // what is typed stays on screen even if the app never returns \`value\`
+    const text = ref(asText(props.value));
+    watch(
+      () => props.value,
+      (value) => {
+        text.value = asText(value);
       },
-    };
-  }),
+    );
+    return () =>
+      h('input', {
+        type: 'text',
+        spellcheck: false,
+        value: text.value,
+        disabled: props.disabled,
+        'aria-label': props.label ?? undefined,
+        onInput: (event: Event) => {
+          text.value = (event.target as HTMLInputElement).value;
+          const change: AnswerChange<string> = {
+            value: text.value,
+            complete: text.value.trim().length > 0,
+          };
+          emit('change', change);
+        },
+        onKeydown: (event: KeyboardEvent) => {
+          if (event.key === 'Enter') emit('submit');
+        },
+      });
+  },
+});
+
+// the keys are the exercise type ids of extension.json; the build writes this
+// table into view.mjs, \`vue\` itself is the app's own
+export const views = {
+  '${id}': defineAnswerView(TextAnswer),
 } satisfies ExtensionViews;
 `;
 
@@ -147,9 +163,9 @@ import {
   createSchemaValidator,
   loadCommands,
   loadExerciseType,
-  loadView,
 } from '@dolphy-app/extension-sdk/testing';
 import { afterEach, describe, expect, it } from 'vitest';
+import { createApp, h, nextTick, reactive } from 'vue';
 import manifest from '../extension.json';
 import { host, views } from '../src/index.ts';
 
@@ -173,12 +189,47 @@ const load = async (settings = newSettings()) => {
   return type;
 };
 
+// mounts the answer view the way the app does: the props of \`AnswerViewProps\`
+// in, the \`change\` and \`submit\` events out
 const mount = async (label?: string) => {
-  const view = await loadView(views, '${id}', label === undefined ? {} : { label });
-  disposables.push(view);
-  const input = view.query<HTMLInputElement>('input');
+  const props = reactive<Record<string, unknown>>({
+    view: {},
+    value: undefined,
+    disabled: false,
+    verdict: null,
+    label: label ?? null,
+  });
+  const changes: unknown[] = [];
+  let submissions = 0;
+  const host = document.createElement('div');
+  document.body.append(host);
+  const app = createApp({
+    render: () =>
+      h(views['${id}'], {
+        ...props,
+        onChange: (change: unknown) => changes.push(change),
+        onSubmit: () => (submissions += 1),
+      }),
+  });
+  app.mount(host);
+  disposables.push({
+    dispose: () => {
+      app.unmount();
+      host.remove();
+    },
+  });
+  await nextTick();
+  const input = host.querySelector('input');
   if (input === null) throw new Error('no input');
-  return { view, input };
+  return {
+    input,
+    changes,
+    submissions: () => submissions,
+    update: async (next: Record<string, unknown>) => {
+      Object.assign(props, next);
+      await nextTick();
+    },
+  };
 };
 
 describe('${id}: handler', () => {
@@ -275,37 +326,37 @@ describe('${id}: schemas', () => {
 
 describe('${id}: view', () => {
   it('typing reports the answer; an empty input is incomplete', async () => {
-    const { view, input } = await mount();
+    const { changes, input } = await mount();
     input.value = 'Hello';
     input.dispatchEvent(new Event('input'));
     input.value = '  ';
     input.dispatchEvent(new Event('input'));
-    expect(view.changes).toEqual([
+    expect(changes).toEqual([
       { value: 'Hello', complete: true },
       { value: '  ', complete: false },
     ]);
   });
 
   it('Enter submits the answer', async () => {
-    const { view, input } = await mount();
+    const { input, submissions } = await mount();
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
-    expect(view.submissions).toBe(1);
+    expect(submissions()).toBe(1);
   });
 
   it('disabled blocks the input', async () => {
-    const { view, input } = await mount();
-    await view.update({ disabled: true });
+    const { input, update } = await mount();
+    await update({ disabled: true });
     expect(input.disabled).toBe(true);
   });
 
   it('value restores the answer without events', async () => {
-    const { view, input } = await mount();
-    await view.update({ value: 'Hello' });
+    const { changes, input, update } = await mount();
+    await update({ value: 'Hello' });
     expect(input.value).toBe('Hello');
-    expect(view.changes).toEqual([]);
+    expect(changes).toEqual([]);
   });
 
-  it('the aria-label of the host goes to the input', async () => {
+  it('the label of the app becomes the aria-label of the input', async () => {
     const { input } = await mount('Your answer');
     expect(input.getAttribute('aria-label')).toBe('Your answer');
   });
@@ -321,8 +372,9 @@ export const exercise: TemplateModule = {
     '- `extension.json` — the manifest (the `spec` and answer schemas are written',
     '  in it);',
     '- `src/index.ts` — all the extension code: `host` (`defineExtension` +',
-    '  `defineExerciseType`) and `views` (`defineAnswerView`); the build splits',
-    '  it into `main.mjs` and `view.mjs`;',
+    '  `defineExerciseType`) and `views` (`defineAnswerView`: a Vue component',
+    '  that is the answer input); the build splits it into `main.mjs` and',
+    '  `view.mjs`;',
     ...idsBullet,
     '- `test/index.test.ts` — tests (`vitest`, `happy-dom`).',
   ],

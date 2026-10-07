@@ -106,13 +106,15 @@ describe('условие when: команда, панель и виджет (R10
     await commands.openPalette();
     await commands.search(OPEN_PANEL);
     await commands.combobox.press('Enter');
-    await commands.frameElement.waitFor({ timeout: 30_000 });
+    await commands.panel
+      .getByRole('heading', { level: 2 })
+      .waitFor({ timeout: 30_000 });
     expect(commands.route()).toBe(`#/ext/${WHEN_ID}/acme.when.main`);
     await expectCount(commands.navItem(PANEL_TITLE), 0);
     // команда с when «route == courses» вызывается панелью, пока открыта другая страница
     await commands.pressPanelButton('Позвать');
     await expect
-      .poll(() => commands.frame.locator('[data-role="result"]').innerText(), {
+      .poll(() => commands.panelRole('result').innerText(), {
         timeout: 30_000,
       })
       .toBe('ok {"pong":true}');

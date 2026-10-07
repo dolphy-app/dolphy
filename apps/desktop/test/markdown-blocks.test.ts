@@ -1,20 +1,30 @@
 // @vitest-environment happy-dom
 import type { MarkdownRendererDto } from '@dolphy-app/engine-contract';
-import { describe, expect, it, vi } from 'vitest';
-import { hydrateMarkdownBlocks } from '../src/shared/lib/markdown-blocks.ts';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createApp, defineComponent, h, nextTick, shallowRef } from 'vue';
+import type { App } from 'vue';
+import { createI18n } from 'vue-i18n';
+import { CONTRIBUTIONS_KEY } from '@/shared/api/engine/keys.ts';
+import { NO_CONTRIBUTIONS } from '@/shared/api/engine/contributions.ts';
+import MarkdownView from '@/shared/ui/MarkdownView.vue';
+import { collectMarkdownBlocks } from '../src/shared/lib/markdown-blocks.ts';
 import { createMarkdownRenderer } from '../src/shared/lib/markdown.ts';
+
+const loader = vi.hoisted(() => ({ load: vi.fn() }));
+vi.mock('@/shared/lib/extension-component.ts', async (original) => ({
+  ...(await original<typeof import('@/shared/lib/extension-component.ts')>()),
+  importExtensionModule: (url: string) => loader.load(url),
+}));
 
 const renderers: MarkdownRendererDto[] = [
   {
     language: 'math',
     extensionId: 'dolphy.math',
     rendererUrl: 'dolphy-ext://m/a.mjs',
-    isolated: false,
     origin: 'bundled',
     revision: '',
   },
 ];
-const describeError = (language: string) => `failed:${language}`;
 
 const mount = (source: string, languages = ['math']) => {
   const root = document.createElement('div');
@@ -48,114 +58,130 @@ describe('правило fence', () => {
   });
 });
 
-describe('hydrateMarkdownBlocks', () => {
-  const run = (
-    root: HTMLElement,
-    render: (source: string, container: HTMLElement) => unknown,
-    signal = new AbortController().signal,
-    loadModule = vi.fn(async () => ({ render })),
-  ) =>
-    hydrateMarkdownBlocks({
-      root,
-      renderers,
-      signal,
-      describeError,
-      loadModule: loadModule as never,
-    }).then(() => loadModule);
+describe('collectMarkdownBlocks', () => {
+  it('отдаёт заглушки с языком и исходником в порядке документа', () => {
+    const root = mount('```math\nA\n```\n\ntext\n\n```math\nB & C\n```');
+    const blocks = collectMarkdownBlocks(root);
+    expect(blocks.map(({ language, source }) => [language, source])).toEqual([
+      ['math', 'A\n'],
+      ['math', 'B & C\n'],
+    ]);
+    expect(blocks[0]?.element).toBe(root.querySelector('.dolphy-md-block'));
+  });
+});
 
-  it('заменяет pre результатом рендерера', async () => {
-    const root = mount('```math\nE=mc^2\n```');
-    const sources: string[] = [];
-    await run(root, (source, container) => {
-      sources.push(source);
-      container.innerHTML = '<svg></svg>';
-    });
-    const block = root.querySelector('.dolphy-md-block');
-    expect(sources).toEqual(['E=mc^2\n']);
-    expect(block?.getAttribute('data-state')).toBe('done');
-    expect(block?.querySelector('pre')).toBeNull();
-    expect(block?.querySelector('svg')).not.toBeNull();
+describe('MarkdownView: блоки компонентами расширения', () => {
+  const flush = async () => {
+    for (let i = 0; i < 20; i += 1) await nextTick();
+  };
+  const apps: App[] = [];
+  afterEach(() => {
+    for (const app of apps.splice(0)) app.unmount();
+    document.body.innerHTML = '';
+    loader.load.mockReset();
+    vi.restoreAllMocks();
   });
 
-  it.each([
-    ['исключение', () => Promise.reject(new Error('x'))],
-    [
-      'синхронное исключение',
-      () => {
-        throw new Error('x');
-      },
-    ],
-  ])('сбой рендерера (%s) оставляет исходник', async (_name, render) => {
+  const Math = defineComponent({
+    props: { source: { type: String, required: true }, language: String },
+    render() {
+      return h(
+        'span',
+        { 'data-testid': 'math' },
+        `${this.language}:${this.source}`,
+      );
+    },
+  });
+
+  const mountView = async (source: string, revision = '') => {
+    const text = shallowRef(source);
+    const contributions = shallowRef({
+      ...NO_CONTRIBUTIONS,
+      markdownRenderers: renderers.map((r) => ({ ...r, revision })),
+    });
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const root = mount('```math\nE\n```');
-    await run(root, render);
-    const block = root.querySelector('.dolphy-md-block');
-    expect(block?.getAttribute('data-state')).toBe('error');
-    expect(block?.querySelector('pre code')?.textContent).toBe('E\n');
-    const note = block?.querySelector('p.dolphy-md-error');
-    expect(note?.getAttribute('role')).toBe('note');
-    expect(note?.textContent).toBe('failed:math');
-  });
-
-  it('сбой загрузки модуля и язык без рендерера оставляют исходник', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const failing = mount('```math\nE\n```');
-    await hydrateMarkdownBlocks({
-      root: failing,
-      renderers,
-      signal: new AbortController().signal,
-      describeError,
-      loadModule: () => Promise.reject(new Error('import failed')),
+    const app = createApp({
+      render: () => h(MarkdownView, { source: text.value, class: 'host' }),
     });
-    expect(failing.querySelector('[data-state=error] pre code')).not.toBeNull();
-
-    const unknown = mount('```chart\nE\n```', ['chart']);
-    await run(unknown, () => undefined);
-    expect(unknown.querySelector('[data-state=error] pre code')).not.toBeNull();
-  });
-
-  it('модуль грузится по адресу с ревизией: обновлённый рендерер не берётся из кэша окна', async () => {
-    const withRevision: MarkdownRendererDto[] = [
-      { ...renderers[0]!, origin: 'user', revision: 'rev-2' },
-    ];
-    const loadModule = vi.fn(async () => ({
-      render: (_source: string, container: HTMLElement) => {
-        container.textContent = 'ok';
-      },
-    }));
-    await hydrateMarkdownBlocks({
-      root: mount('```math\nA\n```'),
-      renderers: withRevision,
-      signal: new AbortController().signal,
-      describeError,
-      loadModule,
-    });
-    expect(loadModule).toHaveBeenCalledWith('dolphy-ext://m/a.mjs?v=rev-2');
-  });
-
-  it('повторный запуск не трогает готовые и ошибочные блоки', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const root = mount('```math\nA\n```\n\n```math\nB\n```');
-    const render = vi.fn((source: string, container: HTMLElement) => {
-      if (source.startsWith('B')) throw new Error('x');
-      container.textContent = 'ok';
-    });
-    await run(root, render);
-    await run(root, render);
-    expect(render).toHaveBeenCalledTimes(2);
-    expect(root.querySelectorAll('.dolphy-md-error')).toHaveLength(1);
-  });
-
-  it('прерванный сигнал останавливает работу и оставляет блоки ожидающими', async () => {
-    const root = mount('```math\nA\n```\n\n```math\nB\n```');
-    const controller = new AbortController();
-    const render = vi.fn(() => controller.abort());
-    await run(root, render, controller.signal);
-    expect(render).toHaveBeenCalledTimes(1);
-    const states = [...root.querySelectorAll('.dolphy-md-block')].map((b) =>
-      b.getAttribute('data-state'),
+    app.provide(CONTRIBUTIONS_KEY, contributions).use(
+      createI18n({
+        legacy: false,
+        locale: 'en',
+        messages: {
+          en: { markdown: { renderFailed: 'Failed {language}' } },
+        },
+      }),
     );
-    expect(states).toEqual(['pending', 'pending']);
-    expect(root.querySelectorAll('pre')).toHaveLength(2);
+    apps.push(app);
+    const root = document.createElement('div');
+    document.body.append(root);
+    app.mount(root);
+    await flush();
+    return { root, text, contributions };
+  };
+
+  it('компонент рисуется в месте блока, исходник скрыт состоянием', async () => {
+    loader.load.mockResolvedValue({ default: { markdown: { math: Math } } });
+    const { root } = await mountView('before\n\n```math\nx^2\n```\n\nafter');
+    const block = root.querySelector('.dolphy-md-block');
+    expect(block?.querySelector('[data-testid="math"]')?.textContent).toBe(
+      'math:x^2\n',
+    );
+    expect(block?.getAttribute('data-state')).toBe('done');
+    expect(loader.load).toHaveBeenCalledWith('dolphy-ext://m/a.mjs');
+    expect(root.querySelector('.markdown')?.classList.contains('host')).toBe(
+      true,
+    );
+  });
+
+  it('сбой одного блока: заметка на его месте, остальной текст и блоки целы', async () => {
+    const Broken = defineComponent({
+      props: { source: { type: String, required: true } },
+      setup(props) {
+        if (props.source.startsWith('B')) throw new Error('boom');
+        return () => h('span', { 'data-testid': 'math' }, props.source);
+      },
+    });
+    loader.load.mockResolvedValue({ default: { markdown: { math: Broken } } });
+    const { root } = await mountView(
+      'text\n\n```math\nA\n```\n\n```math\nB\n```',
+    );
+    const [ok, bad] = [...root.querySelectorAll('.dolphy-md-block')];
+    expect(ok?.querySelector('[data-testid="math"]')).not.toBeNull();
+    expect(bad?.getAttribute('data-state')).toBe('error');
+    expect(bad?.querySelector('.dolphy-md-error')?.textContent).toContain(
+      'math',
+    );
+    expect(bad?.querySelector('pre')).not.toBeNull();
+    expect(root.querySelector('p')?.textContent).toBe('text');
+  });
+
+  it('нет компонента языка в модуле — заметка об ошибке', async () => {
+    loader.load.mockResolvedValue({ default: { markdown: {} } });
+    const { root } = await mountView('```math\nA\n```');
+    expect(root.querySelector('.dolphy-md-error')).not.toBeNull();
+  });
+
+  it('новый source перерисовывает блок', async () => {
+    loader.load.mockResolvedValue({ default: { markdown: { math: Math } } });
+    const { root, text } = await mountView('```math\nA\n```');
+    text.value = '```math\nB\n```';
+    await flush();
+    const spans = root.querySelectorAll('[data-testid="math"]');
+    expect(spans).toHaveLength(1);
+    expect(spans[0]?.textContent).toBe('math:B\n');
+  });
+
+  it('смена ревизии рендерера грузит модуль по новому адресу', async () => {
+    loader.load.mockResolvedValue({ default: { markdown: { math: Math } } });
+    const { root, contributions } = await mountView('```math\nA\n```', 'r1');
+    expect(loader.load).toHaveBeenLastCalledWith('dolphy-ext://m/a.mjs?v=r1');
+    contributions.value = {
+      ...contributions.value,
+      markdownRenderers: renderers.map((r) => ({ ...r, revision: 'r2' })),
+    };
+    await flush();
+    expect(loader.load).toHaveBeenLastCalledWith('dolphy-ext://m/a.mjs?v=r2');
+    expect(root.querySelectorAll('[data-testid="math"]')).toHaveLength(1);
   });
 });

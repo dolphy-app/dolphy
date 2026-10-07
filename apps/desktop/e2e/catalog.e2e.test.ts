@@ -231,7 +231,6 @@ describe('Настройки → Расширения → Каталог', () =>
       catalog.dialog.getByRole('button', { name: /Перезагрузить/ }),
       0,
     );
-    await expectCount(catalog.page.getByTestId('extensions-reload'), 0);
     const installed = join(extensionsDir(userData), ID);
     expect(await readdir(installed)).toEqual(
       expect.arrayContaining(['extension.json', '.dolphy-install.json']),
@@ -376,7 +375,6 @@ describe('Настройки → Расширения → Каталог', () =>
 
     expect(await exists(join(extensionsDir(userData), ID))).toBe(false);
     await expectCount(catalog.installedRow(ID), 0);
-    await expectCount(catalog.page.getByTestId('extensions-reload'), 0);
     await client.openSettingsAppearance();
     await expect.poll(() => client.themeTileExists(SUNRISE_THEME)).toBe(false);
     await stillSameWindow();
@@ -521,7 +519,6 @@ describe('Отзыв и целостность', () => {
     await catalog.dialog.getByRole('button', { name: 'Закрыть' }).click();
     await catalog.openInstalledTab();
     await expectCount(catalog.installedRow('acme.echo'), 0);
-    await expectCount(catalog.page.getByTestId('extensions-reload'), 0);
   });
 
   it('значок и ресурсы: значок виден на карточке, в диалоге и в списке установленных, файлы версии лежат байт в байт', async () => {

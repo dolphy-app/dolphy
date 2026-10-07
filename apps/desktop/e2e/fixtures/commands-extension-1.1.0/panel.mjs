@@ -1,70 +1,50 @@
 // Панель для e2e: показывает свойства и счётчик, вызывает команды своего расширения.
+// Компонент Vue в окне приложения, без сборки.
+const { defineComponent, h, inject, ref } =
+  await globalThis.__dolphy.require('vue');
+
 const VERSION = '1.1.0';
 
-export default {
-  mount(container, ctx) {
-    const doc = container.ownerDocument;
-    const make = (tag, text, attributes = {}) => {
-      const node = doc.createElement(tag);
-      node.textContent = text;
-      for (const [name, value] of Object.entries(attributes)) {
-        node.setAttribute(name, value);
-      }
-      return node;
-    };
-    const props = make('p', '', { 'data-role': 'props' });
-    const count = make('p', 'Счётчик: —', { 'data-role': 'count' });
-    const result = make('p', '', { 'data-role': 'result' });
-    const showProps = (value) => {
-      props.textContent = `Свойства: ${JSON.stringify(value ?? null)}`;
-    };
-    showProps(ctx.props);
-    ctx.onProps(showProps);
+const Panel = defineComponent({
+  setup() {
+    const panel = inject(Symbol.for('dolphy.extension.panel'));
+    const count = ref('—');
+    const result = ref('');
 
     const attempt = async (command, onValue) => {
       try {
-        const value = await ctx.call(command);
-        result.textContent = 'ok';
+        const value = await panel.call(command);
+        result.value = 'ok';
         onValue?.(value);
       } catch (error) {
-        result.textContent = `Ошибка: ${error.message}`;
+        result.value = `Ошибка: ${error.message}`;
       }
     };
-    const button = (label, action) => {
-      const node = make('button', label);
-      node.addEventListener('click', action);
-      return node;
-    };
+    const button = (label, action) => h('button', { onClick: action }, label);
 
-    container.append(
-      make('h2', `Панель приветствий v${VERSION}`),
-      make('p', ctx.panelId, { 'data-role': 'panel-id' }),
-      props,
-      count,
-      result,
-      button('Прибавить', () =>
-        attempt('acme.commands.bump', (value) => {
-          count.textContent = `Счётчик: ${value.count}`;
-        }),
-      ),
-      button('Уведомить', () => attempt('acme.commands.greet')),
-      button('Открыть снова', () => attempt('acme.commands.open')),
-      button('Сломать', () => attempt('acme.commands.boom')),
-      button('Чужая команда', () => attempt('acme.victim.mark')),
-      button('Подделка', () => {
-        // сообщение в обход ctx.call: поле extensionId приложение не читает
-        window.parent.postMessage(
-          {
-            dolphyFrame: 1,
-            type: 'panel-call',
-            callId: 'forged',
-            command: 'acme.victim.mark',
-            extensionId: 'acme.victim',
-          },
-          '*',
-        );
-      }),
-      make('input', '', { 'aria-label': 'Поле панели' }),
-    );
+    return () =>
+      h('div', [
+        h('h2', `Панель приветствий v${VERSION}`),
+        h('p', { 'data-role': 'panel-id' }, panel.panelId),
+        h(
+          'p',
+          { 'data-role': 'props' },
+          `Свойства: ${JSON.stringify(panel.props ?? null)}`,
+        ),
+        h('p', { 'data-role': 'count' }, `Счётчик: ${count.value}`),
+        h('p', { 'data-role': 'result' }, result.value),
+        button('Прибавить', () =>
+          attempt('acme.commands.bump', (value) => {
+            count.value = value.count;
+          }),
+        ),
+        button('Уведомить', () => attempt('acme.commands.greet')),
+        button('Открыть снова', () => attempt('acme.commands.open')),
+        button('Сломать', () => attempt('acme.commands.boom')),
+        button('Чужая команда', () => attempt('acme.victim.mark')),
+        h('input', { 'aria-label': 'Поле панели' }),
+      ]);
   },
-};
+});
+
+export default { panels: { 'acme.commands.main': Panel } };

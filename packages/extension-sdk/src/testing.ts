@@ -12,15 +12,12 @@ import {
   NotificationRateLimitError,
   PermissionError,
   SecretsUnavailableError,
-  ANSWER_EVENT,
   StorageQuotaError,
   normalizeCommandResult,
   normalizeExportResult,
   normalizeImportResult,
 } from '@dolphy-app/extension-api';
 import type {
-  AnswerChangeDetail,
-  AnswerElementProps,
   CommandHandler,
   CommandOutcome,
   DailyStat,
@@ -57,8 +54,6 @@ import type {
   LearningEventName,
   LearningEventPayloads,
   LibraryReader,
-  PanelContextInfo,
-  PanelModule,
   ScheduleHandler,
   SettingChange,
   SettingContribution,
@@ -66,8 +61,6 @@ import type {
   StreakStats,
 } from '@dolphy-app/extension-api';
 import { Ajv2020 } from 'ajv/dist/2020.js';
-import { createAnswerElementClass } from './answer-element.ts';
-import type { AnswerView } from './answer-view.ts';
 
 const MAX_MESSAGES = 6;
 const MAX_REASON_CHARS = 100;
@@ -1366,207 +1359,4 @@ export const loadSchedules = async (
       await module.deactivate?.();
     },
   };
-};
-
-const requireDocument = (helper: string): Document => {
-  if (typeof document === 'undefined') {
-    throw new Error(
-      `${helper} needs a DOM: run the test in a DOM environment (happy-dom or jsdom)`,
-    );
-  }
-  return document;
-};
-
-const microtask = (): Promise<void> => Promise.resolve();
-
-export interface LoadViewOptions extends Partial<AnswerElementProps> {
-  /** `aria-label` of the host element, as the app sets it. */
-  label?: string;
-  /** Where to mount; defaults to a new `div` in `document.body`. */
-  container?: HTMLElement;
-}
-
-export interface LoadedView {
-  /** The kind's custom element, as the app creates it. */
-  readonly element: HTMLElement;
-  /** The element's shadow root: the view renders its UI here. */
-  readonly root: ShadowRoot;
-  /** `dolphy-answer-change` events in order. */
-  readonly changes: readonly AnswerChangeDetail[];
-  /** How many times the view asked to submit the answer (`dolphy-answer-submit`). */
-  readonly submissions: number;
-  /** Sets element properties and waits for the view to apply the update. */
-  update(props: Partial<AnswerElementProps>): Promise<void>;
-  query<E extends Element = Element>(selector: string): E | null;
-  queryAll<E extends Element = Element>(selector: string): E[];
-  /** Removes the element from the document; the view receives `destroy()`. */
-  dispose(): void;
-}
-
-let viewCounter = 0;
-
-/**
- * Mounts a view from `views[id]` in the test DOM environment with the same element
- * the app creates (test tags are issued; the manifest `element` is not needed).
- */
-export const loadView = async (
-  views: Readonly<Record<string, AnswerView>>,
-  id: string,
-  options: LoadViewOptions = {},
-): Promise<LoadedView> => {
-  const doc = requireDocument('loadView');
-  const view = views[id];
-  if (view === undefined) throw new Error(`view '${id}' was not exported`);
-  const tag = `dolphy-test-view-${++viewCounter}`;
-  customElements.define(tag, createAnswerElementClass(tag, view));
-  const element = doc.createElement(tag) as HTMLElement &
-    Partial<AnswerElementProps>;
-  if (options.label !== undefined) {
-    element.setAttribute('aria-label', options.label);
-  }
-  for (const key of ['view', 'value', 'disabled', 'verdict'] as const) {
-    if (options[key] !== undefined)
-      Object.assign(element, { [key]: options[key] });
-  }
-  const changes: AnswerChangeDetail[] = [];
-  let submissions = 0;
-  element.addEventListener(ANSWER_EVENT.change, (event) => {
-    changes.push((event as CustomEvent<AnswerChangeDetail>).detail);
-  });
-  element.addEventListener(ANSWER_EVENT.submit, () => void (submissions += 1));
-  const container =
-    options.container ?? doc.body.appendChild(doc.createElement('div'));
-  container.append(element);
-  await microtask();
-  const root = element.shadowRoot as ShadowRoot;
-  return {
-    element,
-    root,
-    changes,
-    get submissions() {
-      return submissions;
-    },
-    update: async (props) => {
-      Object.assign(element, props);
-      await microtask();
-    },
-    query: (selector) => root.querySelector(selector),
-    queryAll: (selector) => [...root.querySelectorAll(selector)] as never,
-    dispose: () => {
-      element.remove();
-      if (options.container === undefined) container.remove();
-    },
-  };
-};
-
-export interface LoadPanelOptions {
-  /** Properties the panel was opened with (`openPanel(id, props)`). */
-  props?: JsonValue;
-  /** Reply to `ctx.call`; by default the call is rejected. */
-  call?: (
-    commandId: string,
-    args: JsonValue | undefined,
-  ) => JsonValue | undefined | Promise<JsonValue | undefined>;
-  /** The surroundings the frame starts with (`ctx.context`); defaults to all courses (`courseId: null`). */
-  context?: PanelContextInfo;
-  /** Where to mount; defaults to a new `div` in `document.body`. */
-  container?: HTMLElement;
-}
-
-export interface LoadedFrame {
-  /** Container the module received in `mount`. */
-  readonly container: HTMLElement;
-  /** `ctx.call` invocations in order. */
-  readonly calls: readonly {
-    commandId: string;
-    args: JsonValue | undefined;
-  }[];
-  /** Whether `ctx.signal` was aborted (after `dispose()`). */
-  readonly aborted: boolean;
-  /** The app focused another course: updates `ctx.context` and notifies `ctx.onContextChange` subscribers. */
-  setContext(context: PanelContextInfo): void;
-  /** Closes the frame: aborts `ctx.signal` and removes the container. */
-  dispose(): void;
-}
-
-export interface LoadedPanel extends LoadedFrame {
-  /** Sends new properties to the panel (`ctx.onProps`). */
-  setProps(props: JsonValue | undefined): void;
-}
-
-/** The context of a panel, with the controls a test needs. */
-const createFrameContext = (options: LoadPanelOptions, doc: Document) => {
-  const calls: { commandId: string; args: JsonValue | undefined }[] = [];
-  const listeners = new Set<(context: PanelContextInfo) => void>();
-  const controller = new AbortController();
-  const container =
-    options.container ?? doc.body.appendChild(doc.createElement('div'));
-  let current: PanelContextInfo = {
-    courseId: options.context?.courseId ?? null,
-  };
-  const context = {
-    get context() {
-      return current;
-    },
-    signal: controller.signal,
-    call: async (commandId: string, args?: JsonValue) => {
-      calls.push({ commandId, args });
-      if (options.call === undefined) {
-        throw new Error(`command '${commandId}' is not available in this test`);
-      }
-      return options.call(commandId, args);
-    },
-    onContextChange: (listener: (context: PanelContextInfo) => void) => {
-      listeners.add(listener);
-      return () => void listeners.delete(listener);
-    },
-  };
-  const frame: LoadedFrame = {
-    container,
-    calls,
-    get aborted() {
-      return controller.signal.aborted;
-    },
-    setContext: (next) => {
-      current = { courseId: next.courseId };
-      for (const listener of [...listeners]) listener(current);
-    },
-    dispose: () => {
-      controller.abort();
-      if (options.container === undefined) container.remove();
-    },
-  };
-  return { context, frame, container };
-};
-
-/** Mounts a panel from `panels[id]` in the test DOM environment with the same context the frame provides. */
-export const loadPanel = async (
-  panels: Readonly<Record<string, PanelModule<HTMLElement>>>,
-  id: string,
-  options: LoadPanelOptions = {},
-): Promise<LoadedPanel> => {
-  const doc = requireDocument('loadPanel');
-  const panel = panels[id];
-  if (panel === undefined) throw new Error(`panel '${id}' was not exported`);
-  const { context, frame, container } = createFrameContext(options, doc);
-  const listeners = new Set<(props: JsonValue | undefined) => void>();
-  await panel.mount(container, {
-    get context() {
-      return context.context;
-    },
-    signal: context.signal,
-    call: context.call,
-    onContextChange: context.onContextChange,
-    panelId: id,
-    props: options.props,
-    onProps: (listener) => {
-      listeners.add(listener);
-      return () => void listeners.delete(listener);
-    },
-  });
-  return Object.assign(frame, {
-    setProps: (props: JsonValue | undefined) => {
-      for (const listener of [...listeners]) listener(props);
-    },
-  });
 };

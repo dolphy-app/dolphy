@@ -41,9 +41,7 @@ const exercise = (id: string, verifiable: boolean): ExerciseDto => ({
         task: {
           type: 'dolphy.sql',
           timeoutMs: 1000,
-          element: 'dolphy-sql-answer',
           rendererUrl: 'dolphy-ext://dolphy.sql/view.mjs',
-          isolated: false,
           origin: 'bundled',
           revision: '',
         },
@@ -215,7 +213,6 @@ describe('session model', () => {
     await session.start();
     expect(session.current.value?.task).toMatchObject({
       type: 'dolphy.sql',
-      element: 'dolphy-sql-answer',
     });
     expect(session.current.value?.view).toEqual({ hint: 'e1' });
 

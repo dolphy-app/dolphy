@@ -292,6 +292,7 @@ describe('createTestServer: registration', () => {
         { id: 'acme.csv', title: 'CSV', accept: ['.csv'], input: 'text' },
       ],
       exporters: [{ id: 'acme.out', title: 'Out', scope: 'progress' }],
+      rpcs: [],
     });
   });
 

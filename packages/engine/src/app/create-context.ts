@@ -336,6 +336,7 @@ export const createContext = async (
     }),
     gradePolicies: deps.gradePolicies,
     extensionCommands: deps.extensionCommands,
+    extensionRpc: deps.extensionRpc,
     extensionTransfers: deps.extensionTransfers,
     learning: { ...(await settings.loadLearning()) },
     journal,

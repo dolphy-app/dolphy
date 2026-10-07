@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { ERRORS, EngineError, createErrorMapper } from '../../src/app/index.ts';
 
 describe('EngineError', () => {
-  it('has all 30 codes (API §8, repositories and extensions) with the documented default retryable', () => {
-    expect(Object.keys(ERRORS)).toHaveLength(30);
+  it('has all 31 codes (API §8, repositories and extensions) with the documented default retryable', () => {
+    expect(Object.keys(ERRORS)).toHaveLength(31);
     const retryable = Object.entries(ERRORS)
       .filter(([, spec]) => spec.retryable)
       .map(([code]) => code)
@@ -76,6 +76,24 @@ describe('EngineError', () => {
         'replaced',
       ].map(retryable),
     ).toEqual([false, false, false, false, false]);
+  });
+
+  it('EXTENSION_RPC_FAILED is retryable only after a timeout or a lost host', () => {
+    const retryable = (reason: string) =>
+      new EngineError('EXTENSION_RPC_FAILED', { details: { reason } })
+        .retryable;
+    expect(['timeout', 'host-down'].map(retryable)).toEqual([true, true]);
+    expect(
+      [
+        'unknown-rpc',
+        'handler-failed',
+        'invalid-input',
+        'invalid-result',
+        'disabled',
+        'replaced',
+        'activation-timeout',
+      ].map(retryable),
+    ).toEqual([false, false, false, false, false, false, false]);
   });
 
   it('EXERCISE_TYPE_UNAVAILABLE is not retryable for an unknown type', () => {

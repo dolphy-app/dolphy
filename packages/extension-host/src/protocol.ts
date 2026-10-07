@@ -57,6 +57,7 @@ export type ExtRequest =
   | DeliverEventRequest
   | FireScheduleRequest
   | InvokeCommandRequest
+  | InvokeRpcRequest
   | RunImporterRequest
   | RunExporterRequest;
 
@@ -104,6 +105,44 @@ export interface InvokeCommandRequest {
     args?: JsonValue;
   };
 }
+
+/**
+ * Вызов обработчика `server.handle`. `input` — JSON вызывающего (нет входа —
+ * ключа нет). Ответ — результат обработчика, проверенный `contract.output` и
+ * приведённый к JSON; неизвестное имя — `unknown-rpc`, вход не прошёл схему —
+ * `invalid-input`, сбой обработчика — `handler-failed`, превышение
+ * `EXTENSION_RPC_LIMITS.handlerMs` — `handler-timeout`, результат не прошёл
+ * схему или не JSON — `invalid-result`.
+ */
+export interface InvokeRpcRequest {
+  id: string;
+  method: 'invokeRpc';
+  params: {
+    extensionId: string;
+    name: string;
+    input?: unknown;
+  };
+}
+
+/**
+ * Кадр протокола `engine-rpc` одного расширения (`RpcRequest`, `RpcResponse`,
+ * `RpcPush`) внутри канала хоста. Идёт в обе стороны, без ответа: со стороны
+ * хоста — запросы клиента `extension:<id>` к движку, со стороны движка —
+ * ответы и события диспетчера.
+ */
+export interface EngineFrameNotice {
+  method: 'engineFrame';
+  params: { extensionId: string; frame: unknown };
+}
+
+/** Одна из сторон закрыла туннель расширения: другая закрывает свой конец. Без ответа. */
+export interface EngineDetachNotice {
+  method: 'engineDetach';
+  params: { extensionId: string };
+}
+
+/** Туннель кадров `engine-rpc` между клиентом расширения и диспетчером движка. */
+export type EngineTunnelMessage = EngineFrameNotice | EngineDetachNotice;
 
 /**
  * Запуск импортёра (`server.registerImporter`): файл, который выбрал
@@ -265,6 +304,8 @@ export type ExtFailureCause =
   | Exclude<ExerciseTypeErrorCause, 'host-down' | 'timeout'>
   | 'unknown-policy'
   | 'unknown-command'
+  | 'unknown-rpc'
+  | 'invalid-input'
   | 'unknown-importer'
   | 'unknown-exporter'
   | 'handler-timeout'
@@ -314,6 +355,12 @@ const commandParams = z.strictObject({
   extensionId: z.string(),
   commandId: z.string(),
   args: z.unknown().optional(),
+});
+
+const rpcParams = z.strictObject({
+  extensionId: z.string(),
+  name: z.string(),
+  input: z.unknown().optional(),
 });
 
 const bytesField = z.custom<Uint8Array>(
@@ -392,6 +439,11 @@ export const extRequestSchema = z.discriminatedUnion('method', [
     id: z.string(),
     method: z.literal('invokeCommand'),
     params: commandParams,
+  }),
+  z.strictObject({
+    id: z.string(),
+    method: z.literal('invokeRpc'),
+    params: rpcParams,
   }),
   z.strictObject({
     id: z.string(),
@@ -579,11 +631,24 @@ const replaceExtensionsSchema = z.strictObject({
   }),
 });
 
+/** Кадры туннеля `engine-rpc`: форму кадра проверяет получатель протокола (диспетчер или клиент движка). */
+export const engineTunnelSchema = z.discriminatedUnion('method', [
+  z.strictObject({
+    method: z.literal('engineFrame'),
+    params: z.strictObject({ extensionId: z.string(), frame: z.unknown() }),
+  }),
+  z.strictObject({
+    method: z.literal('engineDetach'),
+    params: z.strictObject({ extensionId: z.string() }),
+  }),
+]);
+
 /** Всё, что хост расширений принимает по каналу. */
 export const extMessageSchema = z.union([
   extRequestSchema,
   replaceExtensionsSchema,
   settingChangedSchema,
+  engineTunnelSchema,
   hostResponseSchema,
 ]);
 
@@ -630,7 +695,7 @@ export const gradeResultSchema = z.discriminatedUnion('outcome', [
   }),
 ]);
 
-const isJsonValue = (value: unknown, depth = 0): boolean => {
+export const isJsonValue = (value: unknown, depth = 0): boolean => {
   if (depth > 64) return false;
   if (value === null || typeof value === 'string') return true;
   if (typeof value === 'boolean') return true;

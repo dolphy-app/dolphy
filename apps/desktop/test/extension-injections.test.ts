@@ -18,6 +18,9 @@ import {
   moduleOf,
 } from './support/client-fakes.ts';
 import { flush } from './support/extensions-fakes.ts';
+import { EXTENSION_APPS_KEY } from '@/shared/lib/extension-context.ts';
+import { contextProbe, fakeApps } from './support/app-fakes.ts';
+import type { ContextSeen } from './support/app-fakes.ts';
 
 const TARGET = '#target';
 
@@ -72,6 +75,7 @@ const setup = async (
   await flush();
   const app = createApp({ render: () => h('div') });
   app
+    .provide(EXTENSION_APPS_KEY, fakeApps().apps)
     .provide('theme', 'indigo')
     .component('VAlert', stub('alert'))
     .component('VBtn', stub('btn'))
@@ -129,6 +133,23 @@ describe('вставки расширений в DOM окна', () => {
     expect((host as HTMLElement).style.display).toBe('contents');
     expect(root.querySelectorAll(shape)).toHaveLength(1);
     expect(injectedTexts(root)).toEqual(['A']);
+  });
+
+  it('вставка получает id своего расширения и его AppApi', async () => {
+    const seen: ContextSeen = {};
+    await setup(
+      {
+        'acme.a': (c) =>
+          void c.addInjection({
+            id: 'acme.a.i',
+            target: TARGET,
+            component: contextProbe(seen),
+          }),
+      },
+      ['acme.a'],
+    );
+    expect(seen.id).toBe('acme.a');
+    expect(seen.app).toMatchObject({ locale: 'en' });
   });
 
   it('позиция по умолчанию — append', async () => {

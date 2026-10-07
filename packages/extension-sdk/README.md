@@ -19,7 +19,8 @@ repository's tests:
   [`docs/recipe-event-storage.md`](docs/recipe-event-storage.md),
   [`docs/recipe-settings.md`](docs/recipe-settings.md),
   [`docs/recipe-import-export.md`](docs/recipe-import-export.md),
-  [`docs/recipe-when-dependencies.md`](docs/recipe-when-dependencies.md);
+  [`docs/recipe-when-dependencies.md`](docs/recipe-when-dependencies.md),
+  [`docs/recipe-rpc-and-app.md`](docs/recipe-rpc-and-app.md);
 - [`docs/no-build.md`](docs/no-build.md) — an extension from hand-written
   files, no TypeScript and no build;
 - [`docs/debugging.md`](docs/debugging.md) — tests, checks, the development loop
@@ -140,6 +141,24 @@ locale)` picks one.
   component it throws.
 - `usePanel()` takes the command ids as a type parameter:
   `usePanel<'acme.go' | 'acme.stop'>()` narrows `call`.
+- `useApp()` returns the window API (`AppApi`): `openCourse(courseId)`,
+  `openLesson(courseId, lessonId)`, `openExercise(courseId, lessonId,
+exerciseId)`, `openPanel(extensionId, panelId, props?)`,
+  `openSettings(extensionId?)`, `notify(message, kind?)`, the reactive
+  `theme` (`{ id, dark }`) and `locale` (`'en' | 'ru'`), `runCommand(commandKey)`
+  for a palette command (`extension:<extension id>:<command id>` for an
+  extension command) and `mountAt(target, component, props?)`, which mounts a
+  component into an element (a CSS selector or an `Element`; the first match
+  is taken at the call) and returns a `Disposable` that unmounts it. The
+  same object is `client.app`. It is a fixed list of capabilities: the
+  window's stores and router are not reachable.
+- `useEngine()` returns the window's engine client (`ExtensionEngine`): every
+  method of the engine contract, writing ones included, and `subscribe`, but
+  not `close`. The same object is `client.engine`.
+- `useRpc(contract)` returns `(input) => Promise<output>` that calls the
+  handler the server part registered with `s.handle(contract, …)`; see
+  "Client–server calls". `useApp`, `useEngine` and `useRpc` throw outside a
+  component the app draws.
 
 ### Injection
 
@@ -276,6 +295,53 @@ answerSchema, project, grade, referenceAnswer? }`. The schemas are JSON Schema
   over the limit `show` rejects with `NotificationRateLimitError`.
 - `s.library` — reads the course library: `readText` and `stat`.
 - `s.logger`, `s.extensionId`.
+- `s.engine` — the engine client (`ExtensionEngine`): every method of the
+  engine contract, writing ones included, and `subscribe` for the engine
+  events, but not `close`.
+- `s.handle(contract, handler)` — answers a `defineRpc` contract; see
+  "Client–server calls".
+
+## Client–server calls
+
+`defineRpc({ name, input, output })` describes a call: `input` and `output` are
+zod schemas, `name` matches `RPC_NAME_PATTERN` (lower-case segments separated
+by dots, at least two, such as `greeting.say-hello`; at most
+`EXTENSION_RPC_LIMITS.nameLength` characters). It returns the contract as is
+and throws on a malformed name. `defineRpc` is exported from
+`@dolphy-app/extension-sdk` and from `@dolphy-app/extension-sdk/rpc`; neither
+imports `vue`, so the module with the contracts can be imported by both parts.
+
+```ts
+// src/contracts.ts — imported by both parts
+import { defineRpc } from '@dolphy-app/extension-sdk';
+import { z } from 'zod';
+
+export const sayHello = defineRpc({
+  name: 'greeting.say-hello',
+  input: z.object({ who: z.string() }),
+  output: z.object({ text: z.string() }),
+});
+```
+
+```ts
+// src/server.ts
+s.handle(sayHello, ({ who }) => ({ text: `Hello, ${who}!` }));
+```
+
+```ts
+// in a component of the extension
+const say = useRpc(sayHello);
+const { text } = await say({ who: 'world' });
+```
+
+The input is validated with `contract.input` in the component before the call
+and again on the server; the result of the handler is validated with
+`contract.output` on the server and again in the component. The call runs
+through `engine.extensions.invokeRpc({ extensionId, name, input })`; the
+input is at most `EXTENSION_RPC_LIMITS.inputChars` characters of JSON, the
+handler has `EXTENSION_RPC_LIMITS.handlerMs`. An error of the handler reaches
+the component as a rejected promise with its message. One handler per name,
+at most `EXTENSION_RPC_LIMITS.rpcs` per extension.
 
 ## Importers and exporters
 
@@ -374,9 +440,15 @@ harness:
   fakes the entry received; `settings.set(id, value)` changes a value as the
   user does in the dialog.
 - `dispose()` — runs the cleanup the entry returned.
+- `rpc(contract, input)` — calls the handler registered under `contract.name`:
+  the input is checked against the schema the handler registered, the result
+  against its output schema; an unregistered name, a violation and an error of
+  the handler reject the promise. `registration.rpcs` lists the names.
+- `engine` — `options.engine`.
 
 Options: `extensionId`, `library`, `logger`, `storage`, `secrets`, `stats`,
-`notifications` (objects from the helpers below) and
+`notifications` (objects from the helpers below), `engine` (the object
+`s.engine` returns; without it any use of `s.engine` throws) and
 `settingValues` (user values by setting id, in place of the defaults; every id
 must be registered by the entry). Unlike the host, a handler failure is not
 swallowed but rejects the promise, and the handler timeouts are not applied.
@@ -384,7 +456,10 @@ swallowed but rejects the promise, and the handler timeouts are not applied.
 `createTestClient(client, options?)` runs the `client` entry on a recording
 context: `panels`, `injections`, `answerViews`, `markdownRenderers`, `themes`,
 `commands`. Mount the components with `createApp` from `vue` in `happy-dom` and
-provide `PANEL_HANDLE_KEY` / `INJECTION_HANDLE_KEY` as the app does.
+provide `PANEL_HANDLE_KEY` / `INJECTION_HANDLE_KEY` / `EXTENSION_ID_KEY` /
+`APP_KEY` / `ENGINE_KEY` as the app does. The options `app` and `engine` are
+what `client.app` and `client.engine` return; without them any use of the
+property throws.
 
 ```ts
 const running = await createTestServer(server, { extensionId: 'acme' });

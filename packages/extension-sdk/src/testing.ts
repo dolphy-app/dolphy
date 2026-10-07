@@ -2,6 +2,7 @@ import {
   COLOR_SETTING_PATTERN,
   DEFAULT_EXTENSION_ICON,
   EXTENSION_COMMAND_LIMITS,
+  EXTENSION_RPC_LIMITS,
   EXTENSION_NOTIFICATION_LIMITS,
   EXTENSION_SCHEDULE_LIMITS,
   EXTENSION_SECRET_LIMITS,
@@ -11,6 +12,7 @@ import {
   EXTENSION_STORAGE_LIMITS,
   EXTENSION_TRANSFER_LIMITS,
   SETTING_LIMITS,
+  RPC_NAME_PATTERN,
   InvalidCommandResultError,
   MARKDOWN_LANGUAGE_PATTERN,
   InvalidTransferResultError,
@@ -53,10 +55,9 @@ import type {
   LibraryReader,
   RegisteredKeybinding,
   RegisteredSetting,
+  RpcContract,
   ScheduleHandler,
   ScheduleRegistration,
-  ServerContext,
-  ServerEntry,
   ServerRegistration,
   SettingChange,
   SettingDefinition,
@@ -64,12 +65,16 @@ import type {
   StreakStats,
   ThemeRegistration,
 } from '@dolphy-app/extension-api';
+import type { ExtensionEngine } from '@dolphy-app/engine-contract';
 import type { Component } from 'vue';
 import type {
+  AppApi,
   ClientContext,
   ClientEntry,
   InjectionRegistration,
   PanelRegistration,
+  ServerContext,
+  ServerEntry,
 } from './define-entry.ts';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 
@@ -85,6 +90,16 @@ const silentLogger: ExtensionLogger = {
   warn: () => undefined,
   error: () => undefined,
 };
+
+/** What a test did not provide: every property read throws an error that names the option to pass. */
+const unprovided = <T extends object>(name: string, option: string): T =>
+  new Proxy({} as T, {
+    get: (_target, property) => {
+      throw new Error(
+        `${name}.${String(property)} is not available: pass options.${option}`,
+      );
+    },
+  });
 
 export const createMemoryLibrary = (
   files: Readonly<Record<string, string>>,
@@ -744,6 +759,8 @@ export interface TestServerOptions {
   notifications?: MemoryNotifications;
   /** User values of settings in place of `default`, by setting id; every id must be registered by the entry. */
   settingValues?: Readonly<Record<string, SettingValue>>;
+  /** The engine `ctx.engine` gives to the entry; by default every use of it throws, as the test server has no engine. */
+  engine?: ExtensionEngine;
 }
 
 export interface TestExerciseType {
@@ -797,6 +814,8 @@ export interface TestServer {
   readonly settings: MemorySettings;
   readonly stats: MemoryStats;
   readonly notifications: MemoryNotifications;
+  /** The engine of the context: `options.engine`. */
+  readonly engine: ExtensionEngine;
   readonly commands: {
     /**
      * Runs a registered command the way the host does: the same argument and
@@ -831,6 +850,18 @@ export interface TestServer {
   gradePolicy(id: string): TestGradePolicy;
   importer(id: string): TestImporter;
   exporter(id: string): TestExporter;
+  /**
+   * Calls the handler registered with `server.handle` under `contract.name`
+   * the way the host does: the input must serialize to at most
+   * `EXTENSION_RPC_LIMITS.inputChars` characters and pass the input schema
+   * the handler registered; the result must pass the output schema. An
+   * unregistered contract, a schema violation and an error of the handler
+   * reject the promise. The handler timeout is not applied.
+   */
+  rpc<Input, Output>(
+    contract: RpcContract<Input, Output>,
+    input: Input,
+  ): Promise<Output>;
   /** Runs the cleanup the entry returned and removes the registrations. */
   dispose(): Promise<void>;
 }
@@ -869,6 +900,15 @@ export const createTestServer = async (
   >();
   const importers = new Map<string, ImporterRegistration>();
   const exporters = new Map<string, ExporterRegistration>();
+  const rpcs = new Map<
+    string,
+    {
+      contract: RpcContract<unknown, unknown>;
+      handler: (input: unknown) => unknown;
+    }
+  >();
+  const engine =
+    options.engine ?? unprovided<ExtensionEngine>('engine', 'engine');
   const events = new Map<
     LearningEventName,
     (payload: never) => void | Promise<void>
@@ -916,6 +956,7 @@ export const createTestServer = async (
     settings,
     stats,
     notifications,
+    engine,
     registerExerciseType: (reg) =>
       add(exerciseTypes, 'exercise type', reg.id, reg),
     registerGradePolicy: (reg) =>
@@ -969,6 +1010,31 @@ export const createTestServer = async (
         reg,
         EXTENSION_TRANSFER_LIMITS.exporters,
       ),
+    handle: (contract, handler) => {
+      const { name } = contract;
+      if (
+        typeof name !== 'string' ||
+        name.length > EXTENSION_RPC_LIMITS.nameLength ||
+        !RPC_NAME_PATTERN.test(name)
+      ) {
+        throw new Error(`rpc name '${String(name)}' is not valid`);
+      }
+      if (rpcs.has(name))
+        throw new Error(`rpc '${name}' is already registered`);
+      if (rpcs.size >= EXTENSION_RPC_LIMITS.rpcs) {
+        throw new Error(`more than ${EXTENSION_RPC_LIMITS.rpcs} rpcs`);
+      }
+      const entry = {
+        contract: contract as unknown as RpcContract<unknown, unknown>,
+        handler: handler as (input: unknown) => unknown,
+      };
+      rpcs.set(name, entry);
+      return {
+        dispose: () => {
+          if (rpcs.get(name) === entry) rpcs.delete(name);
+        },
+      };
+    },
   };
 
   const cleanup = await entry(context);
@@ -1017,6 +1083,7 @@ export const createTestServer = async (
       title: reg.title,
       scope: reg.scope,
     })),
+    rpcs: [...rpcs.keys()],
   };
 
   return {
@@ -1028,6 +1095,7 @@ export const createTestServer = async (
     settings,
     stats,
     notifications,
+    engine,
     commands: {
       async run(id, args) {
         const { run } = registered(commands, 'command', id);
@@ -1067,6 +1135,26 @@ export const createTestServer = async (
           running.delete(id);
         }
       },
+    },
+    async rpc<Input, Output>(
+      contract: RpcContract<Input, Output>,
+      input: Input,
+    ): Promise<Output> {
+      const { contract: registeredContract, handler } = registered(
+        rpcs,
+        'rpc',
+        contract.name,
+      );
+      if (
+        (JSON.stringify(input)?.length ?? 0) > EXTENSION_RPC_LIMITS.inputChars
+      ) {
+        throw new Error(
+          `input is longer than ${EXTENSION_RPC_LIMITS.inputChars} characters`,
+        );
+      }
+      const checked = registeredContract.input.parse(input);
+      const result = await handler(checked);
+      return registeredContract.output.parse(result) as Output;
     },
     exerciseType(id) {
       const reg = registered(exerciseTypes, 'exercise type', id);
@@ -1184,6 +1272,7 @@ export const createTestServer = async (
       schedules.clear();
       importers.clear();
       exporters.clear();
+      rpcs.clear();
       events.clear();
       if (typeof cleanup === 'function') await cleanup();
       else if (cleanup !== undefined) await cleanup.dispose();
@@ -1210,6 +1299,10 @@ export interface TestClient {
 export interface TestClientOptions {
   /** Default `test`. When set, every registered id must be equal to it or start with `<extensionId>.`, as the window checks. */
   extensionId?: string;
+  /** The window API `client.app` gives to the entry; by default every use of it throws, as the test client has no window. */
+  app?: AppApi;
+  /** The engine `client.engine` gives to the entry; by default every use of it throws. */
+  engine?: ExtensionEngine;
 }
 
 /**
@@ -1270,6 +1363,8 @@ export const createTestClient = async (
 
   const context: ClientContext = {
     extensionId,
+    app: options.app ?? unprovided<AppApi>('app', 'app'),
+    engine: options.engine ?? unprovided<ExtensionEngine>('engine', 'engine'),
     addPanel: (reg) => addTo(panels, 'panel', reg),
     addInjection: (reg) => {
       const { target } = reg;

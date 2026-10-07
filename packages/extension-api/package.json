@@ -8,6 +8,9 @@
     ".": "./src/index.ts",
     "./extension.schema.json": "./extension.schema.json"
   },
+  "dependencies": {
+    "zod": "4.6.5"
+  },
   "scripts": {
     "typecheck": "tsc -b tsconfig.json tsconfig.test.json",
     "test": "vitest run"

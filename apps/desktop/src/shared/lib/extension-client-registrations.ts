@@ -12,7 +12,9 @@ import {
   THEME_VARIABLE_KEYS,
   parseWhen,
 } from '@dolphy-app/extension-api';
+import type { ExtensionEngine } from '@dolphy-app/engine-contract';
 import type {
+  AppApi,
   ClientContext,
   Disposable,
   ExtensionIconName,
@@ -104,6 +106,10 @@ export type ClientRegistration =
 /** Что нужно контексту от записи расширения: текущий набор вкладов и способ его изменить. */
 export interface RegistrationSink {
   readonly extensionId: string;
+  /** `AppApi` этого расширения: тот же объект, что `useApp()` в его компонентах. */
+  readonly app: AppApi;
+  /** Клиент движка окна: тот же объект, что `useEngine()`. */
+  readonly engine: ExtensionEngine;
   /** Следующий ключ вклада этого экземпляра. */
   nextKey(): string;
   current(): readonly ClientRegistration[];
@@ -327,10 +333,14 @@ const ensureUnique = (
  * регистрацию, добавляет её в набор расширения и возвращает `Disposable`,
  * который её снимает. Нарушение — исключение из вызова `add*`.
  */
-export const createClientContext = (sink: RegistrationSink): ClientContext => {
-  const { extensionId } = sink;
+export const createClientContext = (
+  sink: RegistrationSink,
+): ClientContext<ExtensionEngine> => {
+  const { extensionId, app, engine } = sink;
   return {
     extensionId,
+    app,
+    engine,
     addPanel: (raw) => {
       const reg = parse(panelSchema, raw, 'panel');
       checkId(extensionId, 'panel', reg.id);

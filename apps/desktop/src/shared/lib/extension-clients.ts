@@ -3,9 +3,11 @@ import type { ComputedRef, InjectionKey, Ref, ShallowRef } from 'vue';
 import type {
   ContributionsDto,
   ExtensionClientDto,
+  ExtensionEngine,
 } from '@dolphy-app/engine-contract';
 import type { ClientEntry, EntryResult } from '@dolphy-app/extension-api';
 import { createClientContext } from './extension-client-registrations.ts';
+import type { ExtensionApps } from './extension-context.ts';
 import type {
   ClientAnswerView,
   ClientCommand,
@@ -44,6 +46,10 @@ export interface ExtensionClientsDeps {
   contributions: () => Readonly<Pick<ContributionsDto, 'clients' | 'commands'>>;
   /** Загрузчик модулей; в окне — `import()`. */
   loadModule?: LoadExtensionModule;
+  /** `AppApi` расширений: `client(c).app`. */
+  apps: ExtensionApps;
+  /** Клиент движка окна: `client(c).engine`. */
+  engine: ExtensionEngine;
 }
 
 export interface ExtensionClients {
@@ -183,6 +189,8 @@ export const createExtensionClients = (
     let keys = 0;
     const context = createClientContext({
       extensionId,
+      app: deps.apps.of(extensionId),
+      engine: deps.engine,
       nextKey: () => {
         keys += 1;
         return `${extensionId}:${instance}:${keys}`;

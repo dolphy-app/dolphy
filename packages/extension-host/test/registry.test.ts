@@ -53,6 +53,7 @@ const withBrokenDir = () => {
         registration: {
           ...NONE,
           exerciseTypes: [exerciseType('dolphy.sql.a')],
+          rpcs: [],
         },
       },
     },
@@ -159,7 +160,11 @@ describe('createExtensionRegistry', () => {
       registrations: {
         'acme.ok': {
           ok: true,
-          registration: { ...NONE, exerciseTypes: [exerciseType('acme.ok.a')] },
+          registration: {
+            ...NONE,
+            exerciseTypes: [exerciseType('acme.ok.a')],
+            rpcs: [],
+          },
         },
         'acme.fail': { ok: false, error: 'boom' },
       },

@@ -9,6 +9,7 @@ import { NO_CONTRIBUTIONS } from '@/shared/api/engine/contributions.ts';
 import { createExtensionClients } from '@/shared/lib/extension-clients.ts';
 import type { ExtensionClients } from '@/shared/lib/extension-clients.ts';
 import { flush } from './extensions-fakes.ts';
+import { fakeApps, fakeEngine } from './app-fakes.ts';
 
 export const clientDto = (
   extensionId: string,
@@ -41,8 +42,12 @@ export const createTestClients = (
     clients,
   });
   const imported: string[] = [];
+  const { apps, api } = fakeApps();
+  const engine = fakeEngine();
   const registry: ExtensionClients = createExtensionClients({
     contributions: () => contributions.value,
+    apps,
+    engine,
     loadModule: async (url) => {
       imported.push(url);
       const module = modules[url.split('?')[0] ?? url];
@@ -52,6 +57,8 @@ export const createTestClients = (
   });
   return {
     registry,
+    app: api,
+    engine,
     contributions,
     imported,
     setClients: async (next: ExtensionClientDto[]) => {

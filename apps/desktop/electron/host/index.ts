@@ -71,6 +71,8 @@ const handle = async (
       schemas,
       logger: booted.logger,
     });
+    // расширения вызывают методы движка кадрами внутри канала хоста: каждое — клиентом `extension:<id>`
+    booted.channel.serveEngine(dispatcher);
     parentPort.postMessage({
       type: 'ready',
       node: process.versions.node,

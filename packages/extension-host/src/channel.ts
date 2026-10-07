@@ -2,8 +2,11 @@ import type { ExtensionHostServices } from '@dolphy-app/engine/app';
 import type { MessageEndpoint } from '@dolphy-app/engine-contract';
 import type { ExtensionLogger } from '@dolphy-app/extension-api';
 import { hostFailureOf } from './engine-link.ts';
+import { createEngineTunnels } from './engine-tunnel.ts';
+import type { EngineClientSink } from './engine-tunnel.ts';
 import type { ExtensionCandidate } from './discover.ts';
 import {
+  engineTunnelSchema,
   hostRequestSchema,
   replaceExtensionsResultSchema,
 } from './protocol.ts';
@@ -84,6 +87,13 @@ export interface HostChannel {
    * создаётся после канала, поэтому сервисы подключаются отдельным вызовом.
    */
   serve(services: ExtensionHostServices | null): void;
+  /**
+   * Диспетчер движка (`createDispatcher`): расширения вызывают методы движка
+   * кадрами `engine-rpc` внутри канала, каждое — клиентом `extension:<id>`.
+   * Кадры, пришедшие раньше, ждут подключения; `null` закрывает туннели.
+   * Диспетчер создаётся вместе с движком, поэтому подключается отдельным вызовом.
+   */
+  serveEngine(sink: EngineClientSink | null): void;
   close(): Promise<void>;
 }
 
@@ -185,12 +195,14 @@ export const createHostChannel = (options: HostChannelOptions): HostChannel => {
   let closed = false;
   let services: ExtensionHostServices | null = null;
   const pending = new Map<string, Pending>();
+  const tunnels = createEngineTunnels((message) => endpoint?.post(message));
   const connectWaiters = new Set<(endpoint: MessageEndpoint | null) => void>();
 
   const dropEndpoint = (dropped: MessageEndpoint): void => {
     if (endpoint !== dropped) return;
     endpoint = null;
     for (const entry of [...pending.values()]) entry.settle({ kind: 'closed' });
+    tunnels.reset();
   };
 
   const closeEndpoint = (): void => {
@@ -324,13 +336,18 @@ export const createHostChannel = (options: HostChannelOptions): HostChannel => {
           void serveHostRequest(next, message);
           return;
         }
-        if (!isResponse(message)) {
-          logger.warn({}, 'invalid extension host response ignored');
+        if (isResponse(message)) {
+          pending
+            .get(message.id)
+            ?.settle({ kind: 'response', response: message });
           return;
         }
-        pending
-          .get(message.id)
-          ?.settle({ kind: 'response', response: message });
+        const tunnel = engineTunnelSchema.safeParse(message);
+        if (tunnel.success) {
+          tunnels.receive(tunnel.data);
+          return;
+        }
+        logger.warn({}, 'invalid extension host response ignored');
       });
       next.onClose(() => dropEndpoint(next));
       for (const waiter of [...connectWaiters]) waiter(next);
@@ -352,6 +369,10 @@ export const createHostChannel = (options: HostChannelOptions): HostChannel => {
 
     serve(next) {
       services = next;
+    },
+
+    serveEngine(sink) {
+      tunnels.serve(sink);
     },
 
     async call(method, params, deadlineMs, callOptions = {}) {

@@ -8,9 +8,7 @@ import type {
 import type { CommandRegistry } from '@/shared/lib/command-registry.ts';
 import type { ExtensionClients } from '@/shared/lib/extension-clients.ts';
 import type { ExtensionWhen } from '@/shared/lib/extension-when.ts';
-import { createNotices } from './notices.ts';
 import type { Notices } from './notices.ts';
-import { createPanelProps } from './panel-props.ts';
 import type { PanelProps } from './panel-props.ts';
 import {
   extensionBindings,
@@ -40,19 +38,22 @@ export interface ExtensionCommandsDeps {
   locale: () => string;
   /** Условия видимости `when` команд расширений. */
   when: ExtensionWhen;
+  /** Уведомления окна: общие с `AppApi.notify`. */
+  notices: Notices;
+  /** Свойства открытых панелей: общие с `AppApi.openPanel`. */
+  panelProps: PanelProps;
   openPanel(target: { extensionId: string; panelId: string }): void;
 }
 
 export const EXTENSION_COMMANDS_KEY: InjectionKey<ExtensionCommands> =
   Symbol('extension-commands');
 
-/** Уведомления, исполнитель команд и их регистрация в реестре окна. */
+/** Исполнитель команд и их регистрация в реестре окна. */
 export const createExtensionCommands = (
   deps: ExtensionCommandsDeps,
 ): ExtensionCommands => {
-  const notices = createNotices();
-  const panelProps = createPanelProps();
-  const runner = createCommandRunner({ ...deps, notices, panelProps });
+  const { notices, panelProps } = deps;
+  const runner = createCommandRunner(deps);
   const dispose = syncExtensionCommands(
     deps.registry,
     deps.contributions,

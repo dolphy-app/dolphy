@@ -1,8 +1,12 @@
 import { pathToFileURL } from 'node:url';
-import type { MessageEndpoint } from '@dolphy-app/engine-contract';
+import type {
+  ExtensionEngine,
+  MessageEndpoint,
+} from '@dolphy-app/engine-contract';
 import {
   EMPTY_SERVER_REGISTRATION,
   EXTENSION_COMMAND_LIMITS,
+  EXTENSION_RPC_LIMITS,
   EXTENSION_SCHEDULE_LIMITS,
   EXTENSION_TRANSFER_LIMITS,
   InvalidCommandResultError,
@@ -21,12 +25,16 @@ import type {
 import type { ExtensionCandidate } from './discover.ts';
 import { ENGINE_REQUEST_MS, EngineRequestError } from './engine-link.ts';
 import type { EngineLink } from './engine-link.ts';
+import { createEngineClients } from './engine-tunnel.ts';
+import type { EngineHandle } from './engine-tunnel.ts';
 import {
   extMessageSchema,
   gradeResultSchema,
   gradeValueSchema,
+  isJsonValue,
 } from './protocol.ts';
 import type {
+  EngineTunnelMessage,
   ExtMessage,
   ExtRequest,
   ExtResponse,
@@ -39,12 +47,13 @@ import type {
 } from './protocol.ts';
 import { createRegistrar } from './registrar.ts';
 import type { Registrar } from './registrar.ts';
+import { schemaIssues } from './registrar-support.ts';
 import { createSettingsState } from './state.ts';
 import type { SettingsState } from './state.ts';
 
 /** Серверная часть расширения: экспорты `main.mjs`. */
 export interface ServerModule {
-  server?: ServerEntry;
+  server?: ServerEntry<ExtensionEngine>;
 }
 
 export interface ExtensionRuntimeOptions {
@@ -117,6 +126,9 @@ export const SCHEDULE_HANDLER_MS = EXTENSION_SCHEDULE_LIMITS.handlerMs;
 /** Срок обработчика команды расширения (R3); клиент движка ждёт дольше. */
 export const COMMAND_HANDLER_MS = EXTENSION_COMMAND_LIMITS.handlerMs;
 
+/** Срок обработчика `server.handle`; клиент движка ждёт дольше. */
+export const RPC_HANDLER_MS = EXTENSION_RPC_LIMITS.handlerMs;
+
 /** Срок обработчика импортёра и экспортёра; клиент движка (34 с) ждёт дольше. */
 export const TRANSFER_HANDLER_MS = EXTENSION_TRANSFER_LIMITS.handlerMs;
 
@@ -167,6 +179,8 @@ interface Loaded {
   registrar: Registrar;
   settings: SettingsState;
   cleanup: EntryResult;
+  /** Клиент движка расширения (`server.engine`): отпускается при выгрузке. */
+  engine: EngineHandle;
   /** Обработчики расписаний, которые ещё работают: срок вышел, а код не вернулся — следующее срабатывание пропускается. */
   firing: Set<string>;
 }
@@ -231,6 +245,7 @@ export const createExtensionRuntime = (
   let replacing: Promise<unknown> = Promise.resolve();
   let replaceCount = 0;
   let current: MessageEndpoint | null = null;
+  const engineClients = createEngineClients(logger);
   // запросы к движку: собственные идентификаторы `h<N>`, таймер перезапуска не взводят
   const engineRequests = new Map<string, EnginePending>();
   let nextEngineId = 0;
@@ -291,7 +306,7 @@ export const createExtensionRuntime = (
 
   const loadServer = async (
     candidate: ExtensionCandidate,
-  ): Promise<ServerEntry> => {
+  ): Promise<ServerEntry<ExtensionEngine>> => {
     let module = options.modules?.[candidate.id];
     if (module === undefined) {
       const load = (loads.get(candidate.id) ?? 0) + 1;
@@ -310,6 +325,7 @@ export const createExtensionRuntime = (
     candidate: ExtensionCandidate,
     registrar: Registrar,
     settings: SettingsState,
+    engineHandle: EngineHandle,
   ): Promise<Loaded> => {
     try {
       const server = await loadServer(candidate);
@@ -326,6 +342,7 @@ export const createExtensionRuntime = (
         settings,
         cleanup,
         firing: new Set(),
+        engine: engineHandle,
       };
     } catch (error) {
       registrar.seal();
@@ -357,6 +374,8 @@ export const createExtensionRuntime = (
         { extensionId: item.candidate.id, error: messageOf(error) },
         'extension cleanup failed',
       );
+    } finally {
+      item.engine.release();
     }
   };
 
@@ -377,14 +396,16 @@ export const createExtensionRuntime = (
     let timer: ReturnType<typeof setTimeout> | undefined;
     let expired = false;
     const settings = createSettingsState(candidate.id, logger);
+    const engineHandle = engineClients.open(candidate.id);
     const registrar = createRegistrar({
       extensionId: candidate.id,
       logger: scopedLogger(logger, candidate.id),
       library: options.library,
       engine,
+      engineClient: engineHandle.engine,
       settings,
     });
-    const work = register(candidate, registrar, settings);
+    const work = register(candidate, registrar, settings, engineHandle);
     // опоздавший итог не должен остаться без владельца: его очистка вызывается сразу
     work.then((late) => {
       if (expired) void retire(late);
@@ -395,7 +416,7 @@ export const createExtensionRuntime = (
         expired = true;
         reject(
           new ActivationTimeout(
-            `server() did not finish in ${activationTimeoutMs} ms`,
+            `server() did not finish in ${activationTimeoutMs} ms (the engine starts after registration: do not await s.engine inside server(), call it from handlers)`,
           ),
         );
       }, activationTimeoutMs);
@@ -423,6 +444,7 @@ export const createExtensionRuntime = (
         reason: cause,
         message: messageOf(error),
       });
+      engineHandle.release();
       return { ok: false, cause, error: messageOf(error) };
     } finally {
       clearTimeout(timer);
@@ -639,6 +661,46 @@ export const createExtensionRuntime = (
     }
   };
 
+  const invokeRpc = async (
+    owner: Loaded | undefined,
+    params: Extract<ExtRequest, { method: 'invokeRpc' }>['params'],
+  ): Promise<unknown> => {
+    const { name } = params;
+    const entry = owner?.registrar.handlers.rpcs.get(name);
+    if (entry === undefined) {
+      throw new RuntimeFailure(
+        'unknown-rpc',
+        `unknown rpc '${name}' of '${params.extensionId}'`,
+      );
+    }
+    const { contract, handler } = entry;
+    const input = await contract.input.safeParseAsync(params.input);
+    if (!input.success) {
+      throw new RuntimeFailure(
+        'invalid-input',
+        `invalid input of '${name}': ${schemaIssues(input.error).join('; ')}`,
+      );
+    }
+    const result = await invoke(() =>
+      within(Promise.resolve(handler(input.data)), RPC_HANDLER_MS),
+    );
+    const output = await contract.output.safeParseAsync(result);
+    if (!output.success) {
+      throw new RuntimeFailure(
+        'invalid-result',
+        `invalid result of '${name}': ${schemaIssues(output.error).join('; ')}`,
+      );
+    }
+    // `undefined` (контракт с `z.void()`) допустим: ключ `result` у него просто отсутствует
+    if (output.data !== undefined && !isJsonValue(output.data)) {
+      throw new RuntimeFailure(
+        'invalid-result',
+        `the result of '${name}' is not JSON`,
+      );
+    }
+    return output.data;
+  };
+
   const run = async (
     request: ExtRequest,
     owner: Loaded | undefined,
@@ -652,6 +714,8 @@ export const createExtensionRuntime = (
         return fireSchedule(owner, request.params);
       case 'invokeCommand':
         return invokeCommand(owner, request.params);
+      case 'invokeRpc':
+        return invokeRpc(owner, request.params);
       case 'runImporter':
         return runImporter(owner, request.params);
       case 'runExporter':
@@ -725,6 +789,8 @@ export const createExtensionRuntime = (
         return SCHEDULE_HANDLER_MS;
       case 'invokeCommand':
         return COMMAND_HANDLER_MS;
+      case 'invokeRpc':
+        return RPC_HANDLER_MS;
       case 'runImporter':
       case 'runExporter':
         return TRANSFER_HANDLER_MS;
@@ -818,6 +884,7 @@ export const createExtensionRuntime = (
       case 'deliverEvent':
       case 'fireSchedule':
       case 'invokeCommand':
+      case 'invokeRpc':
       case 'runImporter':
       case 'runExporter':
         return loaded.get(request.params.extensionId);
@@ -881,8 +948,12 @@ export const createExtensionRuntime = (
         current.close();
       }
       current = endpoint;
+      engineClients.connect(endpoint);
       endpoint.onClose(() => {
-        if (current === endpoint) current = null;
+        if (current === endpoint) {
+          current = null;
+          engineClients.connect(null);
+        }
         failEngineRequests(endpoint, {
           code: 'UNAVAILABLE',
           message: 'engine connection closed',
@@ -895,7 +966,10 @@ export const createExtensionRuntime = (
           return;
         }
         const request = parsed.data as
-          ExtMessage | SettingChangedNotice | HostResponse;
+          | ExtMessage
+          | SettingChangedNotice
+          | EngineTunnelMessage
+          | HostResponse;
         if ('ok' in request) {
           settleEngineRequest(request);
           return;
@@ -905,6 +979,13 @@ export const createExtensionRuntime = (
             id: request.params.id,
             value: request.params.value,
           });
+          return;
+        }
+        if (
+          request.method === 'engineFrame' ||
+          request.method === 'engineDetach'
+        ) {
+          engineClients.receive(request);
           return;
         }
         if (request.method === 'replaceExtensions') {
@@ -932,6 +1013,7 @@ export const createExtensionRuntime = (
       loaded = new Map();
       for (const item of items) background(retire(item));
       await Promise.all([...retiring]);
+      engineClients.closeAll();
     },
   };
 };

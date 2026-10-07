@@ -2,6 +2,7 @@
 import { onErrorCaptured, shallowRef, toRef, watch, watchEffect } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { ClientMarkdownRenderer } from '@/shared/lib/extension-clients.ts';
+import ExtensionScope from './ExtensionScope.vue';
 
 const props = defineProps<{
   /** Заглушка блока в разметке: сюда рисуется компонент рендерера. */
@@ -54,12 +55,16 @@ watchEffect(() => {
         {{ t('markdown.renderFailed', { language }) }}
       </p>
     </template>
-    <component
-      :is="renderer.component"
+    <ExtensionScope
       v-else
       :key="renderer.key"
-      :source="source"
-      :language="language"
-    />
+      :extension-id="renderer.extensionId"
+    >
+      <component
+        :is="renderer.component"
+        :source="source"
+        :language="language"
+      />
+    </ExtensionScope>
   </Teleport>
 </template>

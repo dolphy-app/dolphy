@@ -1,13 +1,40 @@
 import type {
+  AppApi as ApiAppApi,
   ClientContext as ApiClientContext,
   Disposable,
   EntryResult,
   ExerciseTypeRegistration,
   InjectionRegistration as ApiInjectionRegistration,
   PanelRegistration as ApiPanelRegistration,
-  ServerEntry,
+  ServerContext as ApiServerContext,
+  ServerEntry as ApiServerEntry,
+  SettingValues,
 } from '@dolphy-app/extension-api';
+import type { ExtensionEngine } from '@dolphy-app/engine-contract';
 import type { Component } from 'vue';
+
+/**
+ * What the host gives the server part of an extension: `ServerContext` of the
+ * API with `engine` typed as `ExtensionEngine`.
+ */
+export type ServerContext<S extends SettingValues = SettingValues> =
+  ApiServerContext<S, ExtensionEngine>;
+
+/** `export const server` of `src/index.ts`: registers the server contributions; the result, if any, runs when the extension is unloaded. */
+export type ServerEntry = ApiServerEntry<ExtensionEngine>;
+
+/**
+ * The window capabilities of `useApp()` and `ClientContext.app`: `AppApi` of
+ * the API with the component of `mountAt` typed as a Vue component.
+ */
+export interface AppApi extends Omit<ApiAppApi, 'mountAt'> {
+  /** Mounts a Vue component into an element of the window, see `AppApi.mountAt` of the API; the props are passed to the component as is. */
+  mountAt(
+    target: Element | string,
+    component: Component,
+    props?: Readonly<Record<string, unknown>>,
+  ): Disposable;
+}
 
 /** A panel: an app screen drawn by a Vue component of the extension (`client.addPanel`). */
 export interface PanelRegistration extends Omit<
@@ -29,12 +56,15 @@ export interface InjectionRegistration extends Omit<
 
 /**
  * What the window gives the client part of an extension: `ClientContext` of
- * the API with the components typed as Vue components.
+ * the API with the components typed as Vue components, `app` typed as
+ * `AppApi` and `engine` as `ExtensionEngine`.
  */
 export interface ClientContext extends Omit<
-  ApiClientContext,
-  'addPanel' | 'addInjection' | 'addAnswerView' | 'addMarkdownRenderer'
+  ApiClientContext<ExtensionEngine>,
+  'app' | 'addPanel' | 'addInjection' | 'addAnswerView' | 'addMarkdownRenderer'
 > {
+  /** The same object as `useApp()` in a component. */
+  readonly app: AppApi;
   addPanel(reg: PanelRegistration): Disposable;
   addInjection(reg: InjectionRegistration): Disposable;
   /** The component takes the `AnswerViewProps` props and emits `change` (`AnswerChange`) and `submit`. */

@@ -14,8 +14,8 @@ const APP_MODULES = fileURLToPath(
 /** Workspace packages an author's project finds in `node_modules` (the SDK for the entry). */
 const LINKED = ['extension-sdk'] as const;
 
-/** What an author lists as dependencies: the build resolves Vue and Vuetify for types and tree shaking, then the app's own instances replace them. */
-const AUTHOR_DEPENDENCIES = ['vue', 'vuetify'] as const;
+/** What an author lists as dependencies: the build resolves Vue and Vuetify for types and tree shaking, then the app's own instances replace them; `zod` of the RPC contracts goes into the bundle. */
+const AUTHOR_DEPENDENCIES = ['vue', 'vuetify', 'zod'] as const;
 
 export interface BuiltExtension {
   /** The built extension (`<out>/<id>`), ready for `createWorkspace({ extensions })`. */

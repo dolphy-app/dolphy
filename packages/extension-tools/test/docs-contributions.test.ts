@@ -56,6 +56,7 @@ const EXAMPLES: Readonly<Record<string, Mode>> = {
   'команды расширения': both,
   'панель расширения': both,
   'инъекция расширения': client,
+  'прямой доступ и RPC': both,
   'условие видимости': server,
   'расписания расширения': server,
   'серия дней целиком': both,
@@ -155,10 +156,11 @@ const writeProject = async (files: ExampleFile[]): Promise<string> => {
       'dir',
     );
   }
-  // `vue` and `vuetify` are the author's own dependencies
+  // `vue`, `vuetify` and `zod` are the author's own dependencies
   const links: [string, string][] = [
     ['vue', 'packages/extension-sdk/node_modules/vue'],
     ['vuetify', 'packages/ext-choice/node_modules/vuetify'],
+    ['zod', 'packages/extension-sdk/node_modules/zod'],
   ];
   for (const [name, source] of links) {
     await symlink(

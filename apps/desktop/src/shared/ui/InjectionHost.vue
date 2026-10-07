@@ -1,17 +1,23 @@
 <script setup lang="ts">
 import { onErrorCaptured, provide, ref } from 'vue';
+import type { Component } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { INJECTION_HANDLE_KEY } from '@dolphy-app/extension-api';
 import type { InjectionHandle } from '@dolphy-app/extension-api';
-import type { ClientInjection } from '@/shared/lib/extension-clients.ts';
+import { provideExtensionContext } from '@/shared/lib/extension-context.ts';
 
 const props = defineProps<{
-  item: ClientInjection;
+  extensionId: string;
+  /** Id вставки или `mountAt`. */
+  injectionId: string;
+  component: Component;
+  componentProps?: Readonly<Record<string, unknown>>;
   handle: InjectionHandle;
 }>();
 
 const { t } = useI18n();
 
+provideExtensionContext(props.extensionId);
 provide(INJECTION_HANDLE_KEY, props.handle);
 
 const failure = ref<string | null>(null);
@@ -27,8 +33,8 @@ onErrorCaptured((error) => {
   console.error(
     {
       error,
-      extensionId: props.item.extensionId,
-      injectionId: props.item.id,
+      extensionId: props.extensionId,
+      injectionId: props.injectionId,
     },
     'extension injection failed',
   );
@@ -45,7 +51,7 @@ onErrorCaptured((error) => {
     density="compact"
     data-testid="extension-injection-failed"
   >
-    {{ t('extensionInjection.failed', { extensionId: item.extensionId }) }}
+    {{ t('extensionInjection.failed', { extensionId }) }}
     <div class="caption">{{ failure }}</div>
     <template #append>
       <v-btn
@@ -58,7 +64,7 @@ onErrorCaptured((error) => {
       </v-btn>
     </template>
   </v-alert>
-  <component :is="item.component" v-else :key="attempt" />
+  <component :is="component" v-else :key="attempt" v-bind="componentProps" />
 </template>
 
 <style scoped>

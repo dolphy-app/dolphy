@@ -15,6 +15,9 @@ import type { JsonValue, PanelHandle } from '@dolphy-app/extension-api';
 import { EXTENSION_COMMANDS_KEY } from '@/features/extension-commands';
 import PanelHost from '@/pages/extension-panel/ui/PanelHost.vue';
 import { en } from '@/pages/extension-panel/i18n/en.ts';
+import { EXTENSION_APPS_KEY } from '@/shared/lib/extension-context.ts';
+import { contextProbe, fakeApps } from './support/app-fakes.ts';
+import type { ContextSeen } from './support/app-fakes.ts';
 import type { ClientPanel } from '@/shared/lib/extension-clients.ts';
 
 const panelOf = (component: unknown): ClientPanel => ({
@@ -76,6 +79,7 @@ const mountHost = async (
         },
       }),
     )
+    .provide(EXTENSION_APPS_KEY, fakeApps().apps)
     .provide(EXTENSION_COMMANDS_KEY, { runner: { run } } as never)
     .use(createI18n({ legacy: false, locale: 'en', messages: { en } }));
   apps.push(app);
@@ -124,6 +128,12 @@ describe('PanelHost', () => {
       'unknown command',
     );
     expect(run).toHaveBeenCalledOnce();
+  });
+  it('даёт компоненту id расширения и его AppApi', async () => {
+    const seen: ContextSeen = {};
+    await mountHost(contextProbe(seen));
+    expect(seen.id).toBe('acme.cards');
+    expect(seen.app).toMatchObject({ locale: 'en' });
   });
 
   it('ошибка рендера — v-alert с «Повторить», страница живёт, повтор создаёт компонент заново', async () => {

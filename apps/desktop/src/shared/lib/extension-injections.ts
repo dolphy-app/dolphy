@@ -1,6 +1,9 @@
 import { h, render, watch } from 'vue';
-import type { App, VNode } from 'vue';
-import type { InjectionPosition } from '@dolphy-app/extension-api';
+import type { App, Component } from 'vue';
+import type {
+  InjectionHandle,
+  InjectionPosition,
+} from '@dolphy-app/extension-api';
 import InjectionHost from '@/shared/ui/InjectionHost.vue';
 import type { ClientInjection, ExtensionClients } from './extension-clients.ts';
 
@@ -31,14 +34,47 @@ interface InjectionState {
   hosts: Map<Element, HTMLElement>;
 }
 
+/** Что оболочка вставки рисует: компонент расширения и его положение. */
+export interface ShellContent {
+  extensionId: string;
+  /** Подпись хоста: id вставки или `mountAt`. */
+  injectionId: string;
+  component: Component;
+  componentProps?: Readonly<Record<string, unknown>>;
+  handle: InjectionHandle;
+}
+
 /**
+ * Общая часть вставок и `mountAt`: создаёт контейнер-хост (`display: contents`),
+ * ставит его через `placeHost` и рисует в него оболочку R4 с компонентом.
  * `render()` создаёт отдельное дерево без `provide` и глобальных компонентов
  * приложения. Публичного способа передать контекст приложения в `render` у Vue
  * нет, поэтому берётся `app._context`: единственная опора на приватное поле.
  */
-const withAppContext = (app: App, vnode: VNode): VNode => {
+export const mountShell = (
+  app: App,
+  ownerDocument: Document,
+  content: ShellContent,
+  placeHost: (host: HTMLElement) => void,
+): HTMLElement => {
+  const host = ownerDocument.createElement('div');
+  host.setAttribute(
+    INJECTION_HOST_ATTRIBUTE,
+    `${content.extensionId}/${content.injectionId}`,
+  );
+  host.setAttribute('data-testid', 'extension-injection');
+  host.style.display = 'contents';
+  placeHost(host);
+  const vnode = h(InjectionHost, content);
   vnode.appContext = app._context;
-  return vnode;
+  render(vnode, host);
+  return host;
+};
+
+/** Снимает хост, созданный `mountShell`. */
+export const unmountShell = (host: HTMLElement) => {
+  render(null, host);
+  host.remove();
 };
 
 /** Хост на месте, если его не сдвинул и не унёс перерисовкой чужой код. */
@@ -99,37 +135,23 @@ export const createInjectionMounter = (
       HOST_SELECTOR,
     ) ?? null) === null;
 
-  const unmount = (host: HTMLElement) => {
-    render(null, host);
-    host.remove();
-  };
-
   const unmountAll = (state: InjectionState) => {
-    for (const host of state.hosts.values()) unmount(host);
+    for (const host of state.hosts.values()) unmountShell(host);
     state.hosts.clear();
   };
 
-  const mount = ({ injection }: InjectionState, target: Element) => {
-    const host = root.ownerDocument.createElement('div');
-    host.setAttribute(
-      INJECTION_HOST_ATTRIBUTE,
-      `${injection.extensionId}/${injection.id}`,
+  const mount = ({ injection }: InjectionState, target: Element) =>
+    mountShell(
+      app,
+      root.ownerDocument,
+      {
+        extensionId: injection.extensionId,
+        injectionId: injection.id,
+        component: injection.component,
+        handle: { target, position: injection.position },
+      },
+      (host) => place(target, host, injection.position),
     );
-    host.setAttribute('data-testid', 'extension-injection');
-    host.style.display = 'contents';
-    place(target, host, injection.position);
-    render(
-      withAppContext(
-        app,
-        h(InjectionHost, {
-          item: injection,
-          handle: { target, position: injection.position },
-        }),
-      ),
-      host,
-    );
-    return host;
-  };
 
   const targetsOf = (injection: ClientInjection): Element[] | null => {
     try {
@@ -178,7 +200,7 @@ export const createInjectionMounter = (
         ) {
           continue;
         }
-        unmount(host);
+        unmountShell(host);
         state.hosts.delete(target);
       }
       for (const target of targets) {

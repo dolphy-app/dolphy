@@ -4,6 +4,9 @@ import { createApp, defineComponent, h, nextTick, shallowRef } from 'vue';
 import type { App, Component } from 'vue';
 import { createI18n } from 'vue-i18n';
 import { EXTENSION_CLIENTS_KEY } from '@/shared/lib/extension-clients.ts';
+import { EXTENSION_APPS_KEY } from '@/shared/lib/extension-context.ts';
+import { contextProbe, fakeApps } from './support/app-fakes.ts';
+import type { ContextSeen } from './support/app-fakes.ts';
 import type { ClientMarkdownRenderer } from '@/shared/lib/extension-clients.ts';
 import MarkdownView from '@/shared/ui/MarkdownView.vue';
 import { collectMarkdownBlocks } from '../src/shared/lib/markdown-blocks.ts';
@@ -98,6 +101,7 @@ describe('MarkdownView: блоки компонентами расширения
       render: () => h(MarkdownView, { source: text.value, class: 'host' }),
     });
     app
+      .provide(EXTENSION_APPS_KEY, fakeApps().apps)
       .provide(EXTENSION_CLIENTS_KEY, {
         markdownRenderers: registered,
       } as never)
@@ -130,6 +134,16 @@ describe('MarkdownView: блоки компонентами расширения
     expect(root.querySelector('.markdown')?.classList.contains('host')).toBe(
       true,
     );
+  });
+
+  it('компонент рендерера получает id своего расширения и его AppApi', async () => {
+    const seen: ContextSeen = {};
+    const { root } = await mountView('```math\nA\n```', [
+      rendererOf(contextProbe(seen), 'acme.math'),
+    ]);
+    expect(root.querySelector('[data-testid="context-probe"]')).not.toBeNull();
+    expect(seen.id).toBe('acme.math');
+    expect(seen.app).toMatchObject({ locale: 'en' });
   });
 
   it('язык без рендерера остаётся обычным кодом, а появившийся рендерер рисует блок', async () => {

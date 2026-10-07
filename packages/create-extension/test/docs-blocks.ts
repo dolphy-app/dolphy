@@ -107,6 +107,7 @@ export const linkToolchain = async (project: string): Promise<void> => {
       'vuetify',
       path.join(REPO_ROOT, 'packages/ext-choice/node_modules/vuetify'),
     ],
+    ['zod', path.join(REPO_ROOT, 'packages/extension-sdk/node_modules/zod')],
   ];
   for (const [name, target] of links) {
     await symlink(target, path.join(modules, name), 'dir');

@@ -1,8 +1,11 @@
+import type { ExtensionEngine } from '@dolphy-app/engine-contract';
 import {
   EXTENSION_COMMAND_LIMITS,
+  EXTENSION_RPC_LIMITS,
   EXTENSION_SCHEDULE_LIMITS,
   EXTENSION_TRANSFER_LIMITS,
   LEARNING_EVENT_NAMES,
+  RPC_NAME_PATTERN,
   SCHEDULE_AT_PATTERN,
   TRANSFER_ACCEPT_PATTERN,
 } from '@dolphy-app/extension-api';
@@ -24,9 +27,11 @@ import type {
   RegisteredImporter,
   RegisteredSchedule,
   RegisteredSetting,
+  RpcContract,
   ScheduleHandler,
   ServerContext,
   ServerRegistration,
+  SettingValues,
 } from '@dolphy-app/extension-api';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import { z } from 'zod';
@@ -40,6 +45,7 @@ import {
   localizedField,
   ownIdIssue,
   parseRegistration,
+  schemaIssues,
 } from './registrar-support.ts';
 import {
   createExtensionNotifications,
@@ -109,6 +115,31 @@ const exporterSchema = z.strictObject({
   run: functionField,
 });
 
+const schemaLike = z.custom<RpcContract<unknown, unknown>['input']>(
+  (value) =>
+    typeof value === 'object' &&
+    value !== null &&
+    typeof Reflect.get(value, 'safeParseAsync') === 'function',
+  'must be a zod schema',
+);
+
+const rpcSchema = z.object({
+  name: z
+    .string()
+    .max(EXTENSION_RPC_LIMITS.nameLength)
+    .regex(RPC_NAME_PATTERN, 'must match RPC_NAME_PATTERN'),
+  input: schemaLike,
+  output: schemaLike,
+});
+
+type RpcHandler = (input: unknown) => unknown;
+
+/** Контракт RPC и его обработчик: схемы остаются в хосте, наружу уходит только имя. */
+export interface RpcEntry {
+  contract: RpcContract<unknown, unknown>;
+  handler: RpcHandler;
+}
+
 /** Зарегистрированный вклад: метаданные для снимка и обработчик, который остаётся в хосте. */
 interface Entry<Meta, Handler> {
   meta: Meta;
@@ -124,6 +155,7 @@ export interface ServerHandlers {
     Entry<RegisteredExerciseType, ExerciseTypeHandler>
   >;
   gradePolicies: Map<string, Entry<RegisteredGradePolicy, GradePolicyHandler>>;
+  rpcs: Map<string, RpcEntry>;
   events: Map<LearningEventName, EventHandler>;
   commands: Map<string, Entry<RegisteredCommand, CommandHandler>>;
   schedules: Map<string, Entry<RegisteredSchedule, ScheduleHandler>>;
@@ -137,12 +169,14 @@ export interface RegistrarOptions {
   logger: ExtensionLogger;
   library: LibraryReader;
   engine: EngineLink;
+  /** Клиент движка расширения: `server.engine`. */
+  engineClient: ExtensionEngine;
   settings: SettingsState;
 }
 
 export interface Registrar {
   /** То, что получает `server(s)`. */
-  readonly context: ServerContext;
+  readonly context: ServerContext<SettingValues, ExtensionEngine>;
   readonly handlers: ServerHandlers;
   /** После вызова регистрации бросают: `server` закончил, вклады больше не меняются. */
   seal(): void;
@@ -160,6 +194,7 @@ export const createRegistrar = (options: RegistrarOptions): Registrar => {
   const handlers: ServerHandlers = {
     exerciseTypes: new Map(),
     gradePolicies: new Map(),
+    rpcs: new Map(),
     events: new Map(),
     commands: new Map(),
     schedules: new Map(),
@@ -211,7 +246,7 @@ export const createRegistrar = (options: RegistrarOptions): Registrar => {
     }
   };
 
-  const context: ServerContext = {
+  const context: ServerContext<SettingValues, ExtensionEngine> = {
     extensionId: owner,
     logger: options.logger,
     library: options.library,
@@ -219,6 +254,7 @@ export const createRegistrar = (options: RegistrarOptions): Registrar => {
     stats: createExtensionStats(engine, owner),
     secrets: createExtensionSecrets(engine, owner),
     notifications: createExtensionNotifications(engine, owner),
+    engine: options.engineClient,
     settings: settings.api,
 
     registerExerciseType(reg) {
@@ -362,6 +398,34 @@ export const createRegistrar = (options: RegistrarOptions): Registrar => {
         EXTENSION_TRANSFER_LIMITS.exporters,
       );
     },
+
+    handle(contract, handler) {
+      open('rpc');
+      const parsed = rpcSchema.safeParse(contract);
+      const issues = parsed.success ? [] : schemaIssues(parsed.error);
+      if (typeof handler !== 'function')
+        issues.push('handler must be a function');
+      const name = parsed.success ? parsed.data.name : undefined;
+      if (name !== undefined) {
+        if (handlers.rpcs.has(name)) issues.push(`duplicate rpc '${name}'`);
+        if (handlers.rpcs.size >= EXTENSION_RPC_LIMITS.rpcs) {
+          issues.push(`at most ${EXTENSION_RPC_LIMITS.rpcs} rpcs allowed`);
+        }
+      }
+      if (!parsed.success || name === undefined || issues.length > 0) {
+        throw new RegistrationError('rpc', name, issues);
+      }
+      const entry: RpcEntry = {
+        contract: parsed.data,
+        handler: handler as RpcHandler,
+      };
+      handlers.rpcs.set(name, entry);
+      return {
+        dispose: () => {
+          if (handlers.rpcs.get(name) === entry) handlers.rpcs.delete(name);
+        },
+      };
+    },
   };
 
   return {
@@ -379,6 +443,7 @@ export const createRegistrar = (options: RegistrarOptions): Registrar => {
       schedules: inOrder(handlers.schedules),
       importers: inOrder(handlers.importers),
       exporters: inOrder(handlers.exporters),
+      rpcs: [...handlers.rpcs.keys()],
     }),
   };
 };

@@ -33,6 +33,7 @@ import {
   buildLibrary,
   createFakeClock,
   createFakeExtensionCommands,
+  createFakeExtensionRpc,
   createFakeExtensionTransfers,
   createFakeExerciseTypes,
   createFakeExtensionHostControl,
@@ -240,6 +241,9 @@ const start = async () => {
           kind: 'notify',
           text: '42 rows',
         }),
+      }),
+      extensionRpc: createFakeExtensionRpc({
+        'dolphy.sql/greeting.say-hello': (input) => ({ greeting: input }),
       }),
       extensionTransfers: createFakeExtensionTransfers({
         exporters: {
@@ -896,6 +900,25 @@ describe('rpc → dispatcher → real engine', () => {
     ).rejects.toMatchObject({
       code: 'EXTENSION_COMMAND_FAILED',
       details: { reason: 'unknown-command' },
+    });
+    expect(
+      await call('extensions.invokeRpc', () =>
+        client.extensions.invokeRpc({
+          extensionId: 'dolphy.sql',
+          name: 'greeting.say-hello',
+          input: { who: 'Ann' },
+        }),
+      ),
+    ).toEqual({ greeting: { who: 'Ann' } });
+    await expect(
+      client.extensions.invokeRpc({
+        extensionId: 'dolphy.sql',
+        name: 'greeting.missing',
+        input: undefined,
+      }),
+    ).rejects.toMatchObject({
+      code: 'EXTENSION_RPC_FAILED',
+      details: { reason: 'unknown-rpc' },
     });
     // байты проходят структурное копирование туда и обратно
     expect(

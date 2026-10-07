@@ -12,6 +12,9 @@ import type {
 import AnswerView from '@/widgets/exercise-panel/ui/AnswerView.vue';
 import { answerViewOf } from '@/widgets/exercise-panel/model/answer-view.ts';
 import { en } from '@/widgets/exercise-panel/i18n/en.ts';
+import { EXTENSION_APPS_KEY } from '@/shared/lib/extension-context.ts';
+import { contextProbe, fakeApps } from './support/app-fakes.ts';
+import type { ContextSeen } from './support/app-fakes.ts';
 
 const TASK: ExerciseTaskDto = {
   type: 'acme.quiz',
@@ -109,6 +112,7 @@ const mountView = async (views: ClientAnswerView[]) => {
         },
       }),
     )
+    .provide(EXTENSION_APPS_KEY, fakeApps().apps)
     .provide(EXTENSION_CLIENTS_KEY, {
       answerViews: registered,
       states,
@@ -158,6 +162,16 @@ describe('AnswerView', () => {
       ['change', { value: 'b', complete: true }],
       ['submit'],
     ]);
+  });
+
+  it('компонент получает id расширения вида, даже чужого, и его AppApi', async () => {
+    const seen: ContextSeen = {};
+    const { root } = await mountView([
+      viewOf(contextProbe(seen), 'acme.alien'),
+    ]);
+    expect(root.querySelector('[data-testid="context-probe"]')).not.toBeNull();
+    expect(seen.id).toBe('acme.alien');
+    expect(seen.app).toMatchObject({ locale: 'en' });
   });
 
   it('текущий ответ доходит до компонента без его пересоздания', async () => {

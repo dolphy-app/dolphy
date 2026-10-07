@@ -10,6 +10,7 @@ import type {
   ContributionsDto,
   ExtensionDocsDto,
   ExtensionCommandFailureReason,
+  ExtensionRpcFailureReason,
   ExtensionDataUsageDto,
   ExtensionInfoDto,
   ExtensionOriginDto,
@@ -18,7 +19,6 @@ import type {
   ExtensionsDiagnosticsDto,
   ExtensionsService,
   InstallResultDto,
-  JsonValue,
   ReadLogsOptions,
 } from '@dolphy-app/engine-contract';
 import {
@@ -30,6 +30,7 @@ import {
   type ExtensionInstallErrorCause,
 } from '../../ports/extension-installer.ts';
 import { ExtensionCommandError } from '../../ports/extension-commands.ts';
+import { ExtensionRpcError } from '../../ports/extension-rpc.ts';
 import type { RegistryContributions } from '../../ports/extension-registry.ts';
 import type { LogReadQuery } from '../../ports/log-reader.ts';
 import { GRADE_POLICIES } from '../../verify/grade-policy.ts';
@@ -144,11 +145,11 @@ const copyInfo = (info: ExtensionInfoDto): ExtensionInfoDto => ({
 });
 
 /**
- * Причины отказа команды, которые считаются сбоем расширения. Остальные —
- * решение системы или состояние хоста (`unknown-command`, `replaced`,
- * `host-down`): расширение в них не виновато.
+ * Причины отказа команды или RPC, которые считаются сбоем расширения. Остальные —
+ * решение системы или состояние хоста (`unknown-command`, `unknown-rpc`,
+ * `invalid-input`, `replaced`, `host-down`): расширение в них не виновато.
  */
-const COMMAND_FAULTS: ReadonlySet<string> = new Set([
+const HANDLER_FAULTS: ReadonlySet<string> = new Set([
   'handler-failed',
   'timeout',
   'invalid-result',
@@ -221,22 +222,26 @@ const findToggleable = (
   return effective;
 };
 
-/** Аргументы команды — JSON до `MAX_ANSWER_CHARS` знаков; длиннее или не JSON — `INVALID_ARGUMENT` без обращения к расширению. */
-const assertArgsSize = (args: JsonValue | undefined): void => {
+/** Имя контракта RPC: совпадает с `RPC_NAME_PATTERN` и `EXTENSION_RPC_LIMITS.nameLength` пакета `extension-api` (движок от него не зависит). */
+const RPC_NAME_PATTERN = /^[a-z][a-z0-9]*(\.[a-z][a-z0-9-]*)+$/;
+const RPC_NAME_LENGTH = 120;
+
+/** Аргументы команды и вход RPC — JSON до `MAX_ANSWER_CHARS` знаков; длиннее или не JSON — `INVALID_ARGUMENT` без обращения к расширению. */
+const assertJsonSize = (value: unknown, field: string): void => {
   let text: string | undefined;
   try {
-    text = JSON.stringify(args);
+    text = JSON.stringify(value);
   } catch {
     throw new EngineError('INVALID_ARGUMENT', {
-      message: 'args must be JSON',
-      details: { field: 'args', reason: 'not-json' },
+      message: `${field} must be JSON`,
+      details: { field, reason: 'not-json' },
     });
   }
   if ((text?.length ?? 0) > MAX_ANSWER_CHARS) {
     throw new EngineError('INVALID_ARGUMENT', {
-      message: `args are longer than ${MAX_ANSWER_CHARS} characters`,
+      message: `${field} is longer than ${MAX_ANSWER_CHARS} characters`,
       details: {
-        field: 'args',
+        field,
         reason: 'args-too-large',
         limit: MAX_ANSWER_CHARS,
       },
@@ -452,6 +457,7 @@ export const createExtensionsService = (
     | 'settings'
     | 'extensionData'
     | 'extensionCommands'
+    | 'extensionRpc'
     | 'extensionSettingChanges'
     | 'config'
     | 'emit'
@@ -698,7 +704,7 @@ export const createExtensionsService = (
           details: { field: 'commandId' },
         });
       }
-      assertArgsSize(args);
+      assertJsonSize(args, 'args');
       const failed = (
         reason: ExtensionCommandFailureReason,
         message: string,
@@ -738,7 +744,7 @@ export const createExtensionsService = (
         return await ctx.extensionCommands.invoke(extensionId, commandId, args);
       } catch (error) {
         if (error instanceof ExtensionCommandError) {
-          if (COMMAND_FAULTS.has(error.cause)) {
+          if (HANDLER_FAULTS.has(error.cause)) {
             ctx.extensionHealth.recordFailure(
               extensionId,
               error.cause,
@@ -748,6 +754,62 @@ export const createExtensionsService = (
           throw new EngineError('EXTENSION_COMMAND_FAILED', {
             message: error.message,
             details: { extensionId, commandId, reason: error.cause },
+            cause: error,
+          });
+        }
+        throw error;
+      }
+    },
+    invokeRpc: async ({ extensionId, name, input }) => {
+      if (!isExtensionId(extensionId)) throw invalidId(extensionId);
+      if (
+        typeof name !== 'string' ||
+        name.length > RPC_NAME_LENGTH ||
+        !RPC_NAME_PATTERN.test(name)
+      ) {
+        throw new EngineError('INVALID_ARGUMENT', {
+          message: `Invalid RPC name: ${String(name)}`,
+          details: { field: 'name' },
+        });
+      }
+      assertJsonSize(input, 'input');
+      const failed = (
+        reason: ExtensionRpcFailureReason,
+        message: string,
+      ): EngineError =>
+        new EngineError('EXTENSION_RPC_FAILED', {
+          message,
+          details: { extensionId, name, reason },
+        });
+      const info = ctx.extensionRegistry
+        .list()
+        .find(
+          (item) =>
+            item.id === extensionId && isEffectiveExtensionState(item.state),
+        );
+      if (info === undefined) {
+        throw failed('unknown-rpc', `Extension not found: ${extensionId}`);
+      }
+      if (
+        info.state === 'disabled' ||
+        !ctx.extensionPolicy.isEnabled(extensionId)
+      ) {
+        throw failed('disabled', `Extension '${extensionId}' is disabled`);
+      }
+      try {
+        return await ctx.extensionRpc.invoke(extensionId, name, input);
+      } catch (error) {
+        if (error instanceof ExtensionRpcError) {
+          if (HANDLER_FAULTS.has(error.cause)) {
+            ctx.extensionHealth.recordFailure(
+              extensionId,
+              error.cause,
+              error.message,
+            );
+          }
+          throw new EngineError('EXTENSION_RPC_FAILED', {
+            message: error.message,
+            details: { extensionId, name, reason: error.cause },
             cause: error,
           });
         }

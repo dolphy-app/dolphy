@@ -18,6 +18,8 @@ describe('importing extension code without a DOM', () => {
     });
     await entry({
       extensionId: 'a',
+      app: {} as never,
+      engine: {} as never,
       addPanel: () => ({ dispose: () => undefined }),
       addInjection: (reg) => {
         added.push(reg.component);

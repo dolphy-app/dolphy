@@ -7,6 +7,7 @@
 // package that compiles this file without a DOM lib in its own config
 /// <reference lib="dom" />
 
+import type { ZodType } from 'zod';
 import type { LocalizedText } from './locale.ts';
 import { WHEN_MAX_LENGTH } from './when.ts';
 
@@ -1070,6 +1071,114 @@ export interface InjectionHandle {
   readonly position: InjectionPosition;
 }
 
+/**
+ * Key under which the app provides the id of the extension to every component
+ * of that extension: panel, injected component, answer view, markdown
+ * renderer and a component mounted with `useApp().mountAt`. The value is the
+ * extension id string; `useRpc` reads it to address the extension's server.
+ */
+export const EXTENSION_ID_KEY = Symbol.for('dolphy.extension.id');
+
+/**
+ * Key under which the app provides the object returned by `useApp()`
+ * (Vue `provide` on the app level).
+ */
+export const APP_KEY = Symbol.for('dolphy.extension.app');
+
+/**
+ * Key under which the app provides the engine client returned by
+ * `useEngine()` (Vue `provide` on the app level). It is the same client object
+ * the window itself uses; the app provides it under this key apart from its
+ * internal one.
+ */
+export const ENGINE_KEY = Symbol.for('dolphy.extension.engine');
+
+/** Kind of a toast shown by `AppApi.notify`. */
+export type AppNotifyKind = 'info' | 'success' | 'warning' | 'error';
+
+/** Language of the window. */
+export type AppLocale = 'en' | 'ru';
+
+/** The theme the window shows. */
+export interface AppTheme {
+  /** `BUILTIN_THEME_IDS` entry or the id of an extension theme; the effective one, `system` is already resolved. */
+  readonly id: string;
+  readonly dark: boolean;
+}
+
+/**
+ * The capabilities of the window an extension component may use
+ * (`useApp()`, `ClientContext.app`). It is an explicit list: no stores, no
+ * router. `theme` and `locale` are getters over reactive state, so reading
+ * them inside `computed`, `watch` or a template tracks the change.
+ */
+export interface AppApi {
+  /** Opens the course page. */
+  openCourse(courseId: string): void;
+  openLesson(courseId: string, lessonId: string): void;
+  openExercise(courseId: string, lessonId: string, exerciseId: string): void;
+  /** Opens a panel of an extension (`client.addPanel` id); `props` reach it as `usePanel().props`. */
+  openPanel(extensionId: string, panelId: string, props?: unknown): void;
+  /** Opens "Settings → Extensions", at the extension's section when `extensionId` is given. */
+  openSettings(extensionId?: string): void;
+  /** Shows a toast with `message` (as is, no markup); `kind` defaults to `info`. */
+  notify(message: string, kind?: AppNotifyKind): void;
+  readonly theme: AppTheme;
+  readonly locale: AppLocale;
+  /**
+   * Runs a command of the app's palette by its key, such as
+   * `extension:<extension id>:<command id>` for an extension command. The
+   * commands are run without arguments. Rejects when there is no such
+   * command, it is disabled, or it fails.
+   */
+  runCommand(commandKey: string): Promise<void>;
+  /**
+   * Mounts a Vue component into an element of the window with the app's
+   * context (Vuetify, i18n, theme). A string `target` is a CSS selector, the
+   * first matching element is taken at the call; an absent element throws.
+   * Mounts once: the component is not re-mounted when the element
+   * is replaced. `dispose()` unmounts it. For a component that follows the
+   * DOM use `client.addInjection`.
+   */
+  mountAt(
+    target: Element | string,
+    component: unknown,
+    props?: Readonly<Record<string, unknown>>,
+  ): Disposable;
+}
+
+/**
+ * Name of an RPC contract: lower-case dot-separated segments, such as
+ * `greeting.say-hello`, the first segment without a hyphen, at least two
+ * segments, at most `EXTENSION_RPC_LIMITS.nameLength` characters.
+ */
+export const RPC_NAME_PATTERN = /^[a-z][a-z0-9]*(\.[a-z][a-z0-9-]*)+$/;
+
+/** Limits on RPC between the client and the server part of an extension; the host and the engine check the same numbers. */
+export const EXTENSION_RPC_LIMITS = Object.freeze({
+  /** Characters in the name of a contract. */
+  nameLength: 120,
+  /** Handlers (`server.handle`) per extension. */
+  rpcs: 64,
+  /** `JSON.stringify(input).length` at the engine boundary. */
+  inputChars: 200_000,
+  /** Handler budget, ms. */
+  handlerMs: 10_000,
+});
+
+/**
+ * A typed call between the client and the server part of an extension: the
+ * name and the schemas of the input and the output, shared by both parts
+ * (`defineRpc`). Both sides validate with the schemas; the data crosses the
+ * process boundary as JSON.
+ */
+export interface RpcContract<Input, Output> {
+  /** Matches `RPC_NAME_PATTERN`. */
+  readonly name: string;
+  readonly input: ZodType<Input>;
+  readonly output: ZodType<Output>;
+}
+
 export const DEFAULT_MAIN = './main.mjs';
 export const DEFAULT_CLIENT = './client.mjs';
 
@@ -1391,8 +1500,13 @@ export type EntryResult = void | EntryCleanup;
  * of `src/index.ts`, built into `main.mjs`). Every `register*` call adds a
  * contribution and returns a `Disposable` that removes it. Ids are
  * checked by the host; a violation fails the whole registration.
+ * `Engine` is the type of `engine` (`unknown`: this package does not depend on
+ * the engine contract; the SDK fixes it to `ExtensionEngine`).
  */
-export interface ServerContext<S extends SettingValues = SettingValues> {
+export interface ServerContext<
+  S extends SettingValues = SettingValues,
+  Engine = unknown,
+> {
   readonly extensionId: string;
   readonly logger: ExtensionLogger;
   readonly library: LibraryReader;
@@ -1403,6 +1517,12 @@ export interface ServerContext<S extends SettingValues = SettingValues> {
   readonly stats: ExtensionStats;
   /** System notifications. */
   readonly notifications: ExtensionNotifications;
+  /**
+   * The app's engine: every method of the engine contract, writing ones
+   * included, and `subscribe` for the engine events. Calls are made on behalf
+   * of this extension and fail with `EngineError` as in the window.
+   */
+  readonly engine: Engine;
   registerExerciseType(reg: ExerciseTypeRegistration): Disposable;
   registerGradePolicy(reg: GradePolicyRegistration): Disposable;
   /** Adds the settings to "Settings → Extensions"; ids are unique across the extension. */
@@ -1426,11 +1546,24 @@ export interface ServerContext<S extends SettingValues = SettingValues> {
   schedule(reg: ScheduleRegistration, handler: ScheduleHandler): Disposable;
   registerImporter(reg: ImporterRegistration): Disposable;
   registerExporter(reg: ExporterRegistration): Disposable;
+  /**
+   * Answers the calls of `useRpc(contract)` from the extension's components
+   * and of `engine.extensions.invokeRpc`. One handler per contract name, at
+   * most `EXTENSION_RPC_LIMITS.rpcs` per extension. The input is validated
+   * with `contract.input` before the handler runs and the result with
+   * `contract.output` after it; a violation rejects the call. A handler runs
+   * for at most `EXTENSION_RPC_LIMITS.handlerMs`; its error reaches the caller
+   * with the message.
+   */
+  handle<Input, Output>(
+    contract: RpcContract<Input, Output>,
+    handler: (input: Input) => Output | Promise<Output>,
+  ): Disposable;
 }
 
 /** `export const server` of an extension: registers contributions; the result, if any, runs when the extension is unloaded. */
-export type ServerEntry = (
-  server: ServerContext,
+export type ServerEntry<Engine = unknown> = (
+  server: ServerContext<SettingValues, Engine>,
 ) => EntryResult | Promise<EntryResult>;
 
 /**
@@ -1574,6 +1707,8 @@ export interface ServerRegistration {
   readonly schedules: readonly RegisteredSchedule[];
   readonly importers: readonly RegisteredImporter[];
   readonly exporters: readonly RegisteredExporter[];
+  /** Names of the contracts of `server.handle`. */
+  readonly rpcs: readonly string[];
 }
 
 /** Registration of an extension without a server part, or before it has registered anything. */
@@ -1586,6 +1721,7 @@ export const EMPTY_SERVER_REGISTRATION: ServerRegistration = Object.freeze({
   schedules: Object.freeze([]),
   importers: Object.freeze([]),
   exporters: Object.freeze([]),
+  rpcs: Object.freeze([]),
 });
 
 /** Code block language of a markdown renderer: `[a-z][a-z0-9-]{0,31}`. */
@@ -1608,10 +1744,16 @@ export interface ThemeRegistration {
  * What the window gives the client part of an extension (`export const
  * client` of `src/index.ts`, built into `client.mjs`). Components are Vue
  * components (`unknown`: this package does not depend on Vue). Every `add*`
- * call returns a `Disposable` that removes the contribution.
+ * call returns a `Disposable` that removes the contribution. `Engine` is the
+ * type of `engine` (`unknown`: this package does not depend on the engine
+ * contract; the SDK fixes it to `ExtensionEngine`).
  */
-export interface ClientContext {
+export interface ClientContext<Engine = unknown> {
   readonly extensionId: string;
+  /** The window API, the same object as `useApp()` in a component. */
+  readonly app: AppApi;
+  /** The engine client of the window, the same object as `useEngine()` in a component. */
+  readonly engine: Engine;
   addPanel(reg: PanelRegistration): Disposable;
   /** Draws `reg.component` at every element that matches `reg.target`. */
   addInjection(reg: InjectionRegistration): Disposable;
@@ -1624,6 +1766,6 @@ export interface ClientContext {
 }
 
 /** `export const client` of an extension: registers contributions; the result, if any, runs when the extension is unloaded. */
-export type ClientEntry = (
-  client: ClientContext,
+export type ClientEntry<Engine = unknown> = (
+  client: ClientContext<Engine>,
 ) => EntryResult | Promise<EntryResult>;

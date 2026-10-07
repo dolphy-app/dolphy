@@ -12,6 +12,9 @@
   "include": ["src"],
   "references": [
     {
+      "path": "../engine-contract"
+    },
+    {
       "path": "../extension-api"
     }
   ]

@@ -482,6 +482,17 @@ export const schemas = {
     str.min(1).max(128),
     optional(jsonValue),
   ]),
+  'extensions.invokeRpc': z.tuple([
+    z
+      .strictObject({
+        extensionId,
+        name: str.min(1).max(120),
+        // JSON и его размер проверяет сервис (ошибка называет поле и причину);
+        // вход `undefined` (контракт с `z.void()`) теряет ключ при передаче
+        input: z.unknown().optional(),
+      })
+      .transform(({ input, ...request }) => ({ ...request, input })),
+  ]),
   'extensions.runImporter': z.tuple([
     extensionId,
     str.min(1).max(128),

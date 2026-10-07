@@ -43,6 +43,7 @@ const DOC_FILES = [
   'recipe-event-storage.md',
   'recipe-exercise-type.md',
   'recipe-import-export.md',
+  'recipe-rpc-and-app.md',
   'recipe-settings.md',
   'recipe-theme.md',
   'recipe-when-dependencies.md',
@@ -77,6 +78,9 @@ const EXAMPLES: Readonly<Record<string, Record<string, Example>>> = {
   },
   'recipe-import-export.md': {
     'import-export': { built: ['main.mjs'] },
+  },
+  'recipe-rpc-and-app.md': {
+    'rpc-and-app': { built: ['client.mjs', 'main.mjs'] },
   },
   'recipe-settings.md': {
     settings: { built: ['main.mjs'] },

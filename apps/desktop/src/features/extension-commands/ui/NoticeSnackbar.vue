@@ -33,6 +33,13 @@ const text = computed(() => {
     ? entry.notice.text
     : describeFailure(entry.notice.failure);
 });
+// цвет по виду уведомления `app.notify`; `info` и сбои команд — цвет по умолчанию
+const color = computed(() => {
+  const notice = notices.current.value?.notice;
+  return notice?.kind === 'notify' && notice.level !== 'info'
+    ? notice.level
+    : undefined;
+});
 
 const open = computed({
   get: () => notices.current.value !== null,
@@ -48,6 +55,7 @@ const open = computed({
   <v-snackbar
     :key="notices.current.value?.id ?? 0"
     v-model="open"
+    :color="color"
     timeout="6000"
     role="status"
     data-testid="extension-notice"

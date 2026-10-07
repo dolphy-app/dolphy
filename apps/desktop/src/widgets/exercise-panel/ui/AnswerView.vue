@@ -5,6 +5,7 @@ import type { ExerciseTaskDto, VerdictDto } from '@dolphy-app/engine-contract';
 import type { AnswerChange } from '@dolphy-app/extension-api';
 import { useExtensionClients } from '@/shared/lib/extension-clients.ts';
 import type { ClientAnswerView } from '@/shared/lib/extension-clients.ts';
+import ExtensionScope from '@/shared/ui/ExtensionScope.vue';
 import { answerViewOf } from '../model/answer-view.ts';
 
 const props = withDefaults(
@@ -103,18 +104,22 @@ const message = computed(
         </v-btn>
       </template>
     </v-alert>
-    <component
-      :is="current.component"
+    <ExtensionScope
       v-else-if="current !== null"
       :key="`${current.key}:${attempt}`"
-      :view="view"
-      :value="value"
-      :disabled="disabled"
-      :verdict="verdict"
-      :label="label"
-      @change="emit('change', $event)"
-      @submit="emit('submit')"
-    />
+      :extension-id="current.extensionId"
+    >
+      <component
+        :is="current.component"
+        :view="view"
+        :value="value"
+        :disabled="disabled"
+        :verdict="verdict"
+        :label="label"
+        @change="emit('change', $event)"
+        @submit="emit('submit')"
+      />
+    </ExtensionScope>
   </div>
 </template>
 

@@ -4,12 +4,25 @@ import type { ClientTheme } from './extension-client-registrations.ts';
 
 const BUILTIN = ['system', 'light', 'dark'];
 
+const EXTENSION_THEME_PREFIX = 'ext__';
 /**
  * Имя темы в Vuetify (из него растёт класс `.v-theme--<имя>`). Id расширений
  * не содержат `_`, поэтому отображение взаимно однозначно.
  */
 export const vuetifyThemeName = (id: string): string =>
-  `ext__${id.replaceAll('.', '__')}`;
+  `${EXTENSION_THEME_PREFIX}${id.replaceAll('.', '__')}`;
+
+/**
+ * Имя действующей темы Vuetify → id темы для `AppApi.theme`: id темы
+ * расширения или `light`/`dark`; `system` разрешается по `dark`.
+ */
+export const themeIdOfVuetify = (name: string, dark: boolean): string => {
+  if (name.startsWith(EXTENSION_THEME_PREFIX)) {
+    return name.slice(EXTENSION_THEME_PREFIX.length).replaceAll('__', '.');
+  }
+  if (name !== 'system') return name;
+  return dark ? 'dark' : 'light';
+};
 
 /** Встроенная тема, на которую опирается тема расширения. */
 export const baseThemeOf = (

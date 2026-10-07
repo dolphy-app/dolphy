@@ -1,6 +1,7 @@
 import {
   ExerciseTypeError,
   ExtensionCommandError,
+  ExtensionRpcError,
   ExtensionTransferError,
   GradePolicyError,
 } from '@dolphy-app/engine/ports';
@@ -10,6 +11,8 @@ import type {
   ExtensionCommandErrorCause,
   ExtensionCommands,
   ExtensionHealth,
+  ExtensionRpc,
+  ExtensionRpcErrorCause,
   ExtensionTransferErrorCause,
   ExtensionTransfers,
   GradePolicies,
@@ -42,6 +45,8 @@ const exerciseCause = (cause: ExtFailureCause): ExerciseTypeErrorCause => {
       return 'activation-failed';
     case 'unknown-policy':
     case 'unknown-command':
+    case 'unknown-rpc':
+    case 'invalid-input':
     case 'unknown-importer':
     case 'unknown-exporter':
     case 'handler-timeout':
@@ -330,6 +335,74 @@ export const createRemoteExtensionCommands = (
       return data.props === undefined
         ? { kind: 'openPanel', panelId: data.panelId }
         : { kind: 'openPanel', panelId: data.panelId, props: data.props };
+    },
+  };
+};
+
+/**
+ * Срок вызова RPC у движка: больше обработчика (10 с), с запасом на передачу
+ * по каналу.
+ */
+export const RPC_CLIENT_DEADLINE_MS = 14_000;
+
+export interface RemoteExtensionRpcOptions {
+  channel: HostChannel;
+  logger: ExtensionLogger;
+  deadlineMs?: number;
+}
+
+const rpcCause = (cause: ExtFailureCause): ExtensionRpcErrorCause => {
+  switch (cause) {
+    case 'unknown-rpc':
+    case 'invalid-input':
+    case 'invalid-result':
+    case 'replaced':
+    case 'handler-failed':
+    case 'activation-timeout':
+      return cause;
+    case 'handler-timeout':
+      return 'timeout';
+    default:
+      return 'handler-failed';
+  }
+};
+
+export const createRemoteExtensionRpc = (
+  options: RemoteExtensionRpcOptions,
+): ExtensionRpc => {
+  const { channel, logger } = options;
+  const deadlineMs = options.deadlineMs ?? RPC_CLIENT_DEADLINE_MS;
+  return {
+    async invoke(extensionId, name, input) {
+      const fail = (
+        cause: ExtensionRpcErrorCause,
+        message: string,
+      ): ExtensionRpcError =>
+        new ExtensionRpcError(cause, extensionId, name, message);
+      // таймаут вызова хост не перезапускает: запрос окна не должен убивать чужие вызовы
+      const outcome = await channel.call(
+        'invokeRpc',
+        {
+          extensionId,
+          name,
+          ...(input !== undefined && { input }),
+        },
+        deadlineMs,
+        { restart: false },
+      );
+      if (outcome.kind === 'timeout') {
+        throw fail('timeout', 'extension rpc timed out');
+      }
+      if (outcome.kind !== 'response') {
+        throw fail('host-down', 'extension host is down');
+      }
+      const { response } = outcome;
+      if (!response.ok) {
+        const cause = rpcCause(response.error.cause);
+        logger.debug({ extensionId, name, cause }, 'extension rpc failed');
+        throw fail(cause, response.error.message);
+      }
+      return response.result;
     },
   };
 };

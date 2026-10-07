@@ -101,7 +101,7 @@ superseded-by: null
 - [x] 2026-10-07 Стадия 3. Единый режим исполнения (R1, R9 в части разрешений, R12): ограниченный процесс (`restricted-runner/child/protocol`, `permissions.ts`, плагин `restrictedChild`, `restricted-child.ts`), `isolated` в протоколе хоста и клиентах, `isolation`/`trusted`/`permissions` в контракте 34, `setTrusted`, `EXTENSION_PERMISSIONS` и `PermissionError`, переключатель «Доверять» и метки в настройках, разрешения в каталоге, установщике и `catalog check` (`CHECK-020`, `CHECK-024`), `permissions` в манифестах, шаблонах и фикстурах удалены; миграция 7 `engine.db` убирает `trusted`; смоук без сценария изоляции кода; unit 7149, e2e 204 из 204, `pnpm smoke` зелёный
 - [x] 2026-10-07 Стадия 4. Интерфейс в окне (R2, R3, R4, R12 в части UI): виды ответа, панели и рендереры markdown — компоненты Vue (`AnswerView.vue`, `PanelHost.vue`, `MarkdownBlock.vue`), `usePanel()`, `defineAnswerView`/`defineExtensionPanel`/`defineMarkdownRenderer` без `mount`, контракт 33 (без `element` и UI-`isolated`), iframe-рамки, мост и рантайм рамок, страница рамки и CSP рамок, баннер «применится после перезагрузки» и пакет `extension-ui` удалены; четыре встроенных расширения на компонентах; документы, рецепты SDK и шаблоны переписаны. Не сделано из исходной строки стадии: каталог мест `EXTENSION_SLOTS` кроме `dailyPlan` (решает владелец по страницам) — переносится в стадию 5
 - [x] 2026-10-07 Стадия 2б. Инъекция вместо слотов (R9): `client.addInjection({ id, target, position?, component })`, реестр и `MutationObserver` в окне (`extension-injections.ts`, `InjectionHost.vue`), якорь `data-ext-anchor="dailyPlan"`, `anchorSelector`; `EXTENSION_SLOTS`, `addSlot`, `SlotHandle`, `ExtensionWidgets` удалены; `useApp().mountAt` остаётся стадией 5
-- [ ] Стадия 5. Прямой доступ (R7, R8): клиенты `extension:<id>` в диспетчере, `ctx.engine`/`useEngine`, `useApp`, `defineRpc`/`useRpc`/`server.handle`
+- [x] 2026-10-07 Стадия 5. Прямой доступ (R7, R8, часть R9): `s.engine` и `useEngine()` (клиент всех методов движка, кроме `close`; на сервере кадры `engine-rpc` идут туннелем через канал хоста, клиент `extension:<id>`), `defineRpc`/`server.handle`/`useRpc` через `extensions.invokeRpc` и `EXTENSION_RPC_FAILED`, `useApp()` (навигация, `notify`, тема, язык, `runCommand`, `mountAt`), `EXTENSION_ID_KEY`, контракт 36; unit 7161, e2e `extension-direct` 6 из 6, `pnpm smoke` зелёный
 - [ ] Стадия 6. Хуки (R10): реестр, диспетчер в движке, вызовы из `practice`, фикстуры
 - [ ] Стадия 7. Каталог (R11): `check`/`build`/установка на минимальном манифесте, индекс нового формата, терпимый разбор
 - [ ] Стадия 8. Документы и закрытие (R13): раздел «Среда исполнения», ADR, руководство SDK, шаблоны
@@ -157,6 +157,10 @@ superseded-by: null
 - 2026-10-07. Правила каталога `CHECK-020` и `CHECK-024` удалены; номера остальных правил не меняются и не переиспользуются (`--list-rules` печатает оставшиеся 22).
 
 - 2026-10-07. Закрытый каталог слотов заменён инъекцией в любой элемент DOM окна (решение владельца: «как в Obsidian»); якоря `data-ext-anchor` — необязательная устойчивая часть, произвольные селекторы поддерживаются без гарантий.
+- 2026-10-07. `APP_KEY` провайдится оболочкой каждого компонента расширения, а не приложением: `AppApi` создаётся на расширение, потому что `mountAt` обязан знать владельца, чтобы дать смонтированному компоненту `EXTENSION_ID_KEY`. `ENGINE_KEY` — один общий объект движка окна.
+- 2026-10-07. Вызов RPC — отдельный метод движка `extensions.invokeRpc`, а не скрытая команда: имена RPC не попадают в реестр команд и палитру.
+- 2026-10-07. `await s.engine…` внутри `server()` не поддерживается (движок создаётся после первой регистрации); сообщение о сроке `server()` подсказывает это. Хук готовности движка не добавлен: вызовы из обработчиков работают.
+- `openLesson` и `openExercise` открывают сессию курса (`#/session?course=<id>`): отдельных страниц урока и упражнения в окне нет.
 
 ## Outcomes
 

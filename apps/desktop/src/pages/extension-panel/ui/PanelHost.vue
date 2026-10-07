@@ -5,6 +5,7 @@ import { PANEL_HANDLE_KEY } from '@dolphy-app/extension-api';
 import type { JsonValue, PanelHandle } from '@dolphy-app/extension-api';
 import { useExtensionCommands } from '@/features/extension-commands';
 import type { ClientPanel } from '@/shared/lib/extension-clients.ts';
+import { provideExtensionContext } from '@/shared/lib/extension-context.ts';
 
 const props = withDefaults(
   defineProps<{
@@ -21,6 +22,7 @@ const props = withDefaults(
 
 const { t } = useI18n();
 const { runner } = useExtensionCommands();
+provideExtensionContext(props.panel.extensionId);
 
 const context = reactive({ courseId: props.context.courseId });
 watch(

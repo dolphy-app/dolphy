@@ -16,6 +16,8 @@ import type {
 import ExtensionPanelPage from '@/pages/extension-panel/ui/ExtensionPanelPage.vue';
 import { en } from '@/pages/extension-panel/i18n/en.ts';
 import { textComponent } from './support/client-fakes.ts';
+import { EXTENSION_APPS_KEY } from '@/shared/lib/extension-context.ts';
+import { fakeApps } from './support/app-fakes.ts';
 
 const flush = async () => {
   for (let i = 0; i < 20; i += 1) await nextTick();
@@ -73,6 +75,7 @@ const mountPage = async (
     .component('VBtn', button)
     .component('VEmptyState', emptyState)
     .component('VProgressCircular', defineComponent({ render: () => h('i') }))
+    .provide(EXTENSION_APPS_KEY, fakeApps().apps)
     .provide(CONTRIBUTIONS_KEY, shallowRef(NO_CONTRIBUTIONS))
     .provide(COURSE_SCOPE_KEY, { activeId: ref(null) } as never)
     .provide(EXTENSION_COMMANDS_KEY, {

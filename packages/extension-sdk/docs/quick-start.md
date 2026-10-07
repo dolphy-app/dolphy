@@ -12,6 +12,7 @@ same layout:
 - [Settings](recipe-settings.md): let the user configure the extension.
 - [Visibility conditions and dependencies](recipe-when-dependencies.md): show a command only where it makes sense, a widget in the daily plan, require another extension.
 - [Importer and exporter](recipe-import-export.md): bring a file in as a course, write a course out.
+- [Calls, engine and window](recipe-rpc-and-app.md): `defineRpc` between the parts, `engine` access, `useApp`.
 - [Without a build](no-build.md): a hand-written `extension.json`, `main.mjs` and `client.mjs`, no TypeScript.
 - [Debugging](debugging.md): where to look when something does not work.
 
@@ -35,13 +36,13 @@ starts with it and a dot, so pick one that is yours (a publisher prefix, then a
 name). Without `--id` the id is the directory name in kebab-case. The
 `--template` values:
 
-| Template        | What you get                                                  |
-| --------------- | ------------------------------------------------------------- |
-| `exercise`      | a task type with an answer input and a setting (the default)  |
-| `theme`         | a color theme                                                 |
-| `command-panel` | palette commands and a panel                                  |
-| `events`        | a learning event handler, storage, commands and a panel       |
-| `blank`         | one palette command                                           |
+| Template        | What you get                                                 |
+| --------------- | ------------------------------------------------------------ |
+| `exercise`      | a task type with an answer input and a setting (the default) |
+| `theme`         | a color theme                                                |
+| `command-panel` | palette commands and a panel                                 |
+| `events`        | a learning event handler, storage, commands and a panel      |
+| `blank`         | one palette command                                          |
 
 An unknown name exits with code 2 and lists the available ones.
 

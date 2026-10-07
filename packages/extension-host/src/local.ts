@@ -2,6 +2,7 @@ import type {
   ExerciseTypes,
   ExtensionCommands,
   ExtensionPolicy,
+  ExtensionRpc,
   ExtensionTransfers,
   GradePolicies,
 } from '@dolphy-app/engine/ports';
@@ -11,6 +12,7 @@ import { createHostChannel } from './channel.ts';
 import {
   createRemoteExerciseTypes,
   createRemoteExtensionCommands,
+  createRemoteExtensionRpc,
   createRemoteExtensionTransfers,
   createRemoteGradePolicies,
 } from './client.ts';
@@ -38,6 +40,7 @@ export interface LocalExtensionHost {
   exerciseTypes: ExerciseTypes;
   gradePolicies: GradePolicies;
   extensionCommands: ExtensionCommands;
+  extensionRpc: ExtensionRpc;
   extensionTransfers: ExtensionTransfers;
   /** Закрывает канал и деактивирует расширения. */
   close(): Promise<void>;
@@ -87,6 +90,10 @@ export const createLocalExtensionHost = async (
       logger: options.logger,
     }),
     extensionCommands: createRemoteExtensionCommands({
+      channel,
+      logger: options.logger,
+    }),
+    extensionRpc: createRemoteExtensionRpc({
       channel,
       logger: options.logger,
     }),

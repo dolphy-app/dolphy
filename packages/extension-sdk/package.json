@@ -2,12 +2,13 @@
   "name": "@dolphy-app/extension-sdk",
   "version": "0.0.0",
   "private": true,
-  "description": "SDK for extension authors: defineServer, defineClient, usePanel, useInjection, test harness",
+  "description": "SDK for extension authors: defineServer, defineClient, defineRpc, usePanel, useInjection, useApp, useEngine, useRpc, test harness",
   "type": "module",
   "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
     "./client": "./src/client.ts",
+    "./rpc": "./src/rpc.ts",
     "./testing": "./src/testing.ts"
   },
   "scripts": {
@@ -15,6 +16,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@dolphy-app/engine-contract": "workspace:*",
     "@dolphy-app/extension-api": "workspace:*",
     "ajv": "^8"
   },
@@ -25,7 +27,8 @@
     "@types/node": "^22.20.4",
     "happy-dom": "^20.14.5",
     "typescript": "7.0.2",
-    "vue": "^3.5.35"
+    "vue": "^3.5.35",
+    "zod": "4.6.5"
   },
   "engines": {
     "node": ">=22.12"

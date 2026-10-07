@@ -5,6 +5,7 @@ export * from './diagnostics.ts';
 export * from './discover.ts';
 export * from './engine-bridge.ts';
 export * from './engine-link.ts';
+export * from './engine-tunnel.ts';
 export * from './event-dispatcher.ts';
 export * from './fingerprint.ts';
 export * from './holder.ts';

@@ -9,6 +9,7 @@ import type {
   ExtensionCommands,
   ExtensionHealth,
   ExtensionPolicy,
+  ExtensionRpc,
   ExtensionTransfers,
 } from '@dolphy-app/engine/ports';
 import type { SettingDefinition } from '@dolphy-app/extension-api';
@@ -18,6 +19,7 @@ import { createHostChannel } from '../src/channel.ts';
 import type { HostChannel } from '../src/channel.ts';
 import {
   createRemoteExtensionCommands,
+  createRemoteExtensionRpc,
   createRemoteExtensionTransfers,
 } from '../src/client.ts';
 import type { ExtensionCandidate } from '../src/discover.ts';
@@ -251,6 +253,8 @@ export interface Harness {
   policy: ExtensionPolicy;
   /** Клиент команд движка поверх того же канала. */
   commands: ExtensionCommands;
+  /** Клиент RPC расширений поверх того же канала. */
+  rpc: ExtensionRpc;
   /** Клиент импорта и экспорта движка поверх того же канала. */
   transfers: ExtensionTransfers;
   logger: TestLogger;
@@ -315,6 +319,7 @@ export const createHarness = async (
     runtime,
     channel,
     commands: createRemoteExtensionCommands({ channel, logger }),
+    rpc: createRemoteExtensionRpc({ channel, logger }),
     transfers: createRemoteExtensionTransfers({ channel, logger }),
     discovery,
     policy,

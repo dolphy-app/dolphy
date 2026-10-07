@@ -6,6 +6,8 @@ import {
   createKeybindingsService,
 } from '@/features/keybindings';
 import { createExtensionCommands } from '@/features/extension-commands/model/extension-commands.ts';
+import { createNotices } from '@/features/extension-commands/model/notices.ts';
+import { createPanelProps } from '@/features/extension-commands/model/panel-props.ts';
 import { NO_CONTRIBUTIONS } from '@/shared/api/engine/contributions.ts';
 import { createCommandRegistry } from '@/shared/lib/command-registry.ts';
 import { createContextKeys } from '@/shared/lib/context-keys.ts';
@@ -61,6 +63,8 @@ describe('when and shortcuts of extension commands', () => {
         locale: () => 'en',
         dark: () => false,
       }),
+      notices: createNotices(),
+      panelProps: createPanelProps(),
       openPanel: vi.fn(),
     });
     const keybindings = createKeybindingsService({

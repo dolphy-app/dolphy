@@ -143,8 +143,10 @@ export const client = defineClient((c) => {
 | `registerExerciseType`, `registerGradePolicy`           | вид задания, правило оценки                                                                                   |
 | `registerSettings`, `on`, `registerCommand`, `schedule` | настройки, подписка на событие обучения, серверная команда, расписание                                        |
 | `registerImporter`, `registerExporter`                  | импортёр и экспортёр                                                                                          |
+| `engine`                                                | клиент движка, все методы записи и чтения (раздел «Доступ к движку»)                                          |
+| `handle`                                                | ответ на вызов `defineRpc` (раздел «RPC между частями»)                                                       |
 
-`ClientContext` (параметр `client`, в примерах `c`): `extensionId`, `addPanel`, `addInjection`, `addAnswerView`, `addMarkdownRenderer`, `addTheme`, `addCommand`. Компоненты в записях клиента — компоненты Vue; общие `vue` и `vuetify` дают приложение и окно (раздел «Интерфейс в окне»).
+`ClientContext` (параметр `client`, в примерах `c`): `extensionId`, `app` (`AppApi`, раздел «API окна»), `engine`, `addPanel`, `addInjection`, `addAnswerView`, `addMarkdownRenderer`, `addTheme`, `addCommand`. Компоненты в записях клиента — компоненты Vue; общие `vue` и `vuetify` дают приложение и окно (раздел «Интерфейс в окне»).
 
 ### Что как регистрируется
 
@@ -159,6 +161,7 @@ export const client = defineClient((c) => {
 | Команды             | `s.registerCommand({ id, title, description?, category?, keybindings?, palette?, when?, icon?, run })` (обработчик в хосте), `c.addCommand({ …, run })` (в окне) | `server`, `client` |
 | Панель              | `c.addPanel({ id, title, icon?, when?, component })`; внутри `usePanel()` (`props`, `context`, `call`); открывается результатом команды `openPanel(id, props)`  | `client`           |
 | Инъекция            | `c.addInjection({ id, target, position?, component })`; внутри `useInjection()` → `{ target, position }`; устойчивая цель — `anchorSelector('dailyPlan')`       | `client`           |
+| RPC                 | `defineRpc({ name, input, output })` (общий модуль), `s.handle(contract, handler)`, в компоненте `useRpc(contract)`                                            | `server`, `client` |
 | Расписание          | `s.schedule({ id, every: 'daily', at }, handler)` или `s.schedule({ id, every: 'hourly' }, handler)`                                                           | `server`           |
 | Импортёр, экспортёр | `s.registerImporter(…)`, `s.registerExporter(…)`                                                                                                               | `server`           |
 | Зависимости         | только в манифесте (`dependencies`)                                                                                                                            | —                  |
@@ -879,6 +882,164 @@ export const client = defineClient((c) => {
   });
 });
 ```
+
+### Доступ к движку (`engine`)
+
+Расширение вызывает движок напрямую, как само окно. На сервере это `s.engine`, в компоненте — `useEngine()` из `@dolphy-app/extension-sdk/client`, в `client.engine` при регистрации — тот же клиент окна. Тип — `ExtensionEngine` (экспортируется из `@dolphy-app/extension-sdk`): все методы контракта движка (`LearningEngine`: `library`, `practice`, `settings`, `plan`, `extensions` и остальные службы, `diagnostics`), включая методы записи, и `subscribe` для событий движка; нет только `close`. Ошибки приходят как `EngineError` с теми же кодами, что в окне.
+
+- Запись идёт в тот же журнал, что и запись окна: расширение с `practice.recordAttempt` может добавить попытки, которых пользователь не делал, а неверная запись портит журнал, синхронизируемый между устройствами. Расширение исполняется без ограничений (раздел «Среда исполнения»), поэтому проверок на стороне движка сверх обычной проверки аргументов нет: ответственность за запись на авторе.
+- Движок создаётся после первой регистрации (библиотека проверяет виды заданий, которые регистрируют расширения), поэтому `await s.engine…` внутри самого `server()` не завершится: через 10 с расширение получит `load-failed`. Вызывайте `s.engine` в обработчиках (команд, событий, расписаний, `s.handle`); вызов без `await` внутри `server()` дождётся готовности движка.
+- Вне компонента, который рисует приложение, `useEngine()` бросает ошибку. В тестах `createTestServer(server, { extensionId, engine })` и `createTestClient(client, { extensionId, engine })` отдают коду переданный `engine`; без него любое обращение к `engine` бросает ошибку с именем нужной опции.
+
+### RPC между частями (`defineRpc`, `useRpc`, `server.handle`)
+
+Клиентская часть вызывает серверную типизированным вызовом. Контракт — общий модуль, который импортируют обе части: `defineRpc({ name, input, output })` из `@dolphy-app/extension-sdk` (или `@dolphy-app/extension-sdk/rpc`, подпуть не тянет `vue`). `input` и `output` — схемы `zod`: пакет `zod` автор кладёт в зависимости проекта, сборка включает его в бандлы. `name` — строчные сегменты через точку, не меньше двух (`greeting.say-hello`, `RPC_NAME_PATTERN`), до 120 символов (`EXTENSION_RPC_LIMITS.nameLength`); `defineRpc` бросает ошибку на неверное имя и возвращает контракт как есть.
+
+- Сервер отвечает вызовом `s.handle(contract, handler)`: один обработчик на имя, не более 64 на расширение (`EXTENSION_RPC_LIMITS.rpcs`). Возвращает `Disposable`. Вход проверяется `contract.input` до обработчика, результат — `contract.output` после него; нарушение отклоняет вызов.
+- Компонент вызывает `const say = useRpc(contract)` (в `setup`) и затем `await say(input)`. `useRpc` проверяет вход схемой до обращения к серверу и ответ — после него; обращение идёт через `engine.extensions.invokeRpc({ extensionId, name, input })`, поэтому тот же вызов доступен и из серверного кода другого расширения и из `useEngine()`.
+- Вход передаётся как JSON: не больше 200 000 символов `JSON.stringify(input)` (`EXTENSION_RPC_LIMITS.inputChars`), иначе движок отвечает `INVALID_ARGUMENT`. Обработчику отведено 10 с (`EXTENSION_RPC_LIMITS.handlerMs`); вызов не занимает очередь команд движка.
+- Ошибка обработчика доходит до вызывающего с сообщением исключения. Остальные отказы — `EXTENSION_RPC_FAILED` с `details.reason`: `unknown-rpc` (расширения или обработчика нет), `disabled`, `invalid-input`, `invalid-result`, `handler-failed`, `timeout`, `host-down`, `replaced` (расширение перезагружено во время вызова), `activation-timeout`. Повторить стоит `timeout` и `host-down`.
+- `createTestServer(...).rpc(contract, input)` вызывает обработчик так же, как хост: проверяет вход и результат схемами, отклоняет незарегистрированное имя; таймаут обработчика в тесте не действует.
+
+### API окна (`useApp`, `mountAt`)
+
+`useApp()` из `@dolphy-app/extension-sdk/client` (и `client.app` при регистрации) возвращает `AppApi` — явный список возможностей окна. Это не доступ к внутренностям приложения (хранилища, роутер): список не меняется вместе с вёрсткой.
+
+| Член                                        | Что                                                                                                              |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `openCourse(courseId)`                      | показывает курс: ставит его в фокус и открывает «Курсы»                                                          |
+| `openLesson(courseId, lessonId)`            | открывает сессию курса (отдельной страницы урока нет, `lessonId` не используется)                                |
+| `openExercise(courseId, lessonId, exerciseId)` | то же для упражнения: открывает сессию курса                                                                  |
+| `openPanel(extensionId, panelId, props?)`   | открывает панель расширения, `props` приходят в `usePanel().props`                                               |
+| `openSettings(extensionId?)`                | открывает «Настройки → Расширения», у раздела расширения, если id задан                                          |
+| `notify(message, kind?)`                    | показывает уведомление (`info` по умолчанию, также `success`, `warning`, `error`); текст как есть, без разметки  |
+| `theme`, `locale`                           | `{ id, dark }` действующей темы и `'en' \| 'ru'`; реактивные: чтение в `computed`, `watch` и шаблоне следит за изменением |
+| `runCommand(commandKey)`                    | запускает команду палитры по ключу (`extension:<id расширения>:<id команды>`) без аргументов; промис отклоняется, если команды нет, она отключена или упала |
+| `mountAt(target, component, props?)`        | монтирует компонент в элемент окна, возвращает `Disposable`                                                      |
+
+`mountAt` рисует компонент с контекстом приложения (Vuetify, i18n, тема, `inject`) и с теми же `useApp()`, `useEngine()`, `useRpc()`, что у панели. `target` — элемент или CSS-селектор: селектор ищется один раз, в момент вызова, берётся первый найденный элемент, а отсутствующий элемент даёт ошибку. Компонент монтируется один раз и не переносится, если элемент заменили; `dispose()` снимает его. Для компонента, который должен следовать за DOM, есть `c.addInjection` (раздел «Инъекция в окно»). Селекторы, кроме `data-ext-anchor`, зависят от вёрстки приложения.
+
+Файл `extension.json` (прямой доступ и RPC):
+
+```json
+{
+  "id": "acme.direct",
+  "version": "1.0.0",
+  "apiVersion": 1
+}
+```
+
+Файл `src/index.ts` (прямой доступ и RPC):
+
+```ts
+export { client } from './client.ts';
+export { server } from './server.ts';
+```
+
+Файл `src/shared/rpc.ts` (прямой доступ и RPC):
+
+```ts
+import { defineRpc } from '@dolphy-app/extension-sdk';
+import { z } from 'zod';
+
+export const courseNames = defineRpc({
+  name: 'courses.names',
+  input: z.object({}),
+  output: z.object({ names: z.array(z.string()) }),
+});
+
+export const markKnown = defineRpc({
+  name: 'attempts.mark-known',
+  input: z.object({ exerciseId: z.string().min(1) }),
+  output: z.object({ eventId: z.string() }),
+});
+```
+
+Файл `src/server.ts` (прямой доступ и RPC):
+
+```ts
+import { defineServer } from '@dolphy-app/extension-sdk';
+import { courseNames, markKnown } from './shared/rpc.ts';
+
+export const server = defineServer((s) => {
+  s.handle(courseNames, async () => {
+    const page = await s.engine.library.listCourses();
+    return { names: page.items.map((course) => course.name) };
+  });
+
+  s.handle(markKnown, async ({ exerciseId }) => {
+    const result = await s.engine.practice.recordAttempt({
+      requestId: crypto.randomUUID(),
+      exerciseId,
+      grade: 5,
+    });
+    return { eventId: result.eventId };
+  });
+});
+```
+
+Файл `src/client.ts` (прямой доступ и RPC):
+
+```ts
+import { defineClient } from '@dolphy-app/extension-sdk';
+import { Panel } from './panel.ts';
+
+export const client = defineClient((c) => {
+  c.addPanel({
+    id: 'acme.direct.view',
+    title: { en: 'Direct', ru: 'Прямой доступ' },
+    component: Panel,
+  });
+});
+```
+
+Файл `src/panel.ts` (прямой доступ и RPC):
+
+```ts
+import { useApp, useEngine, useRpc } from '@dolphy-app/extension-sdk/client';
+import { defineComponent, h, ref } from 'vue';
+import { courseNames, markKnown } from './shared/rpc.ts';
+
+export const Panel = defineComponent({
+  setup() {
+    const app = useApp();
+    const engine = useEngine();
+    const loadNames = useRpc(courseNames);
+    const markOnServer = useRpc(markKnown);
+    const names = ref<string[]>([]);
+    const fail = (error: unknown) =>
+      app.notify(error instanceof Error ? error.message : String(error), 'error');
+    return () =>
+      h('div', [
+        h(
+          'button',
+          {
+            onClick: () =>
+              void loadNames({}).then((reply) => (names.value = reply.names), fail),
+          },
+          'Courses from the server',
+        ),
+        h(
+          'button',
+          {
+            onClick: () =>
+              void engine.library
+                .listCourses()
+                .then((page) => (names.value = page.items.map((c) => c.name)), fail),
+          },
+          'Courses from the window',
+        ),
+        h(
+          'button',
+          { onClick: () => void markOnServer({ exerciseId: '' }).catch(fail) },
+          'Mark with an empty id',
+        ),
+        h('ul', names.value.map((name) => h('li', name))),
+      ]);
+  },
+});
+```
+
 
 ### Расписания (`schedule`)
 
@@ -2174,7 +2335,8 @@ export const StreakPanel = defineComponent({
 `@dolphy-app/extension-sdk/testing` запускает части расширения без приложения:
 
 - `createTestServer(server, { extensionId })` вызывает `server` на заглушках (хранилище, настройки, секреты, статистика, уведомления, библиотека в памяти) и возвращает `running`: `running.registration` — то, что зарегистрировал код (`ServerRegistration`: те же данные, что хост отдаёт движку), `running.commands.run(id, args?)` — результат команды в виде `{ kind: 'none' | 'notify' | 'openPanel' | 'data', … }` по правилам хоста, `running.events.emit(name, payload)` — событие обучения обработчику, `running.schedule.fire(id)` — срабатывание расписания, `running.exerciseType(id)`, `running.gradePolicy(id)`, `running.importer(id)`, `running.exporter(id)` — вызов обработчиков, `running.settings.set(id, value)` — изменение настройки пользователем, `running.storage`, `running.secrets`, `running.stats`, `running.notifications` — заглушки, `running.dispose()`. Регистрация, как в хосте, всё или ничего: если `server` бросает, бросает и `createTestServer`; с `extensionId` проверяется и префикс каждого id.
-- `createTestClient(client, { extensionId })` вызывает `client` на записывающем контексте: `running.panels`, `running.injections` (с `position`, по умолчанию `append`), `running.answerViews`, `running.markdownRenderers`, `running.themes`, `running.commands`. Компоненты монтирует `createApp` из `vue` в `happy-dom`; `app.provide(PANEL_HANDLE_KEY, handle)` и `app.provide(INJECTION_HANDLE_KEY, handle)` (оба ключа — в `@dolphy-app/extension-sdk`) дают `usePanel()` и `useInjection()` свой хендл.
+- `createTestClient(client, { extensionId, app?, engine? })` вызывает `client` на записывающем контексте: `running.panels`, `running.injections` (с `position`, по умолчанию `append`), `running.answerViews`, `running.markdownRenderers`, `running.themes`, `running.commands`. `app` и `engine` — то, что вернут `client.app` и `client.engine`; без них любое обращение бросает ошибку. Компоненты монтирует `createApp` из `vue` в `happy-dom`; `app.provide(PANEL_HANDLE_KEY, handle)` и `app.provide(INJECTION_HANDLE_KEY, handle)` (оба ключа — в `@dolphy-app/extension-sdk`) дают `usePanel()` и `useInjection()` свой хендл, а `EXTENSION_ID_KEY`, `APP_KEY` и `ENGINE_KEY` — `useRpc()`, `useApp()` и `useEngine()`.
+- Для прямого доступа `createTestServer(server, { extensionId, engine? })` отдаёт коду `engine` как `s.engine` (без него любое обращение бросает ошибку), а `running.rpc(contract, input)` вызывает обработчик `s.handle` так же, как хост; `running.registration.rpcs` — имена контрактов.
 
 ```ts
 import { createTestServer } from '@dolphy-app/extension-sdk/testing';
@@ -2207,6 +2369,7 @@ it('the show command opens the panel with the days', async () => {
 - `defineExerciseType<Spec, Answer, View>({ id, title?, specSchema, answerSchema, project, grade, referenceAnswer? })` — типизированная запись вида для `s.registerExerciseType`. `project` отдаёт виду ответа публичный вид задания (без ключей ответа); `grade` возвращает `{ outcome: 'passed' }`, `{ outcome: 'failed', reason, detail? }` или `{ outcome: 'error', reason }`; `referenceAnswer` — эталон для проверки библиотеки компилятором. К моменту вызова `grade` `spec` и ответ уже проверены схемами записи.
 - `notify(text)` и `openPanel(id, props?)` — результаты команды (раздел «Команды»).
 - `usePanel()` и `useInjection()` из `@dolphy-app/extension-sdk/client` — хендлы компонентов панели и инъекции: `{ panelId, props, context, call }` и `{ target, position }`; вне своего компонента бросают ошибку. `anchorSelector(id)` — селектор устойчивой цели `[data-ext-anchor="<id>"]`.
+- `defineRpc({ name, input, output })` — контракт вызова между частями, схемы `zod`; `s.handle(contract, handler)` отвечает на него на сервере, `useRpc(contract)` вызывает из компонента. `useApp()` и `useEngine()` — `AppApi` окна и клиент движка (`ExtensionEngine`); `s.engine` — тот же клиент на сервере. Разделы «Доступ к движку», «RPC между частями», «API окна».
 - Типы записей: `ServerContext`, `ClientContext`, `CommandRegistration`, `PanelRegistration`, `InjectionRegistration`, `ThemeRegistration`, `SettingDefinition`, `AnswerViewProps`, `AnswerChange`, `MarkdownBlockProps`, `LocalizedText`, `TextImportInput`, `BytesImportInput`, `CourseExportInput`, `ProgressExportInput`. Компоненты в записях клиента — обычные компоненты Vue.
 - `@dolphy-app/extension-sdk/testing`: `createTestServer`, `createTestClient` (раздел «Тесты расширения»), `createSchemaValidator(schema)` — проверка `spec` и ответа по схемам записи вида, `createMemoryLibrary(files)`, `createMemoryStorage()`, `createMemorySettings(definitions, values?)`, `createMemorySecrets({ available? })`, `createMemoryStats(...)`, `createMemoryNotifications(...)` — заглушки с теми же потолками и ошибками, что у движка.
 
@@ -2267,7 +2430,7 @@ pnpm test
 - Расширение видно приложению только после запуска его кода: хост расширений загружает `main.mjs` каждого включённого расширения при запуске и при каждом применении набора, окно импортирует `client.mjs`. Регистрация `server` — всё или ничего; ошибка или срок в 10 с — `load-failed`.
 - Применение живое (раздел «Живое применение», ADR 0006): обновление расширения не требует перезагрузки окна; смонтированный компонент вида ответа и введённый ответ при обновлении не меняются. Замена кода в процессе хоста накапливает память старых версий до перезапуска хоста; зависимость кода от нескольких файлов при правке обновляется после перезапуска хоста.
 - Данные расширений: хранилище, значения настроек и события обучения описаны в разделе «Данные, настройки и события» (ADR 0007). Настройки декларативны: расширение не рисует форму, её рисует приложение. Вне границ остаются чтение журнала обучения расширением, синхронизация и экспорт данных расширений, файловое хранилище и бинарные данные (хранилище — только JSON).
-- Команды и панели реализованы (разделы «Команды» и «Панели», [ADR 0008](../adr/0008-extension-commands-and-panels.md)). Вне границ: нативное меню Electron и глобальные сочетания ОС, доступ панели к данным движка через `usePanel()` и к чужим расширениям (только команды своего), произвольная разметка результатом команды и перезапуск хоста по таймауту команды.
+- Команды и панели реализованы (разделы «Команды» и «Панели», [ADR 0008](../adr/0008-extension-commands-and-panels.md)). Вне границ: нативное меню Electron и глобальные сочетания ОС, доступ `usePanel()` к чужим расширениям (только команды своего; данные движка панель берёт через `useEngine()`), произвольная разметка результатом команды и перезапуск хоста по таймауту команды.
 - Инъекция в DOM окна реализована (раздел «Инъекция в окно»). Устойчива только цель `anchorSelector('dailyPlan')`; любой другой селектор зависит от разметки приложения и может перестать находить элемент после её изменения. Вне границ: подмена встроенного компонента.
 - Условия видимости реализованы (раздел «Условия видимости (`when`)»). Вне границ: ключи вне закрытого набора (в том числе контекстные ключи, которые задавало бы само расширение), списки значений в виде переменных, `when` у остальных вкладов.
 - Ресурсы и значок реализованы (раздел «Ресурсы расширения», [ADR 0010](../adr/0010-extension-static-assets.md)). Вне границ: темы с CSS и шрифтами (тема остаётся данными), анимированные форматы и видео, `.gif`, `.ico`, `.html`, `.wasm`, SVG-значок, подпись индекса и файлов.
@@ -2276,6 +2439,6 @@ pnpm test
 - Секреты, статистика, уведомления, расписания и подписи на двух языках реализованы (разделы «Секреты», «Статистика обучения», «Системные уведомления», «Расписания», «Подписи (`LocalizedText`)»; [ADR 0018](../adr/0018-platform-services-bridge.md)). Вне границ: локализация строк, которые код возвращает во время работы, и данных курсов; сырые идентификаторы и ответы в статистике; работа при закрытом приложении (трей, автозапуск, воспроизведение пропущенных срабатываний расписаний); ограничение сети через посредника движка.
 - Импорт и экспорт реализованы (раздел «Импортёры и экспортёры», [ADR 0019](../adr/0019-extension-import-export.md)). Вне границ: бинарные ассеты в импортированном курсе (только текстовые файлы), импорт из сети и из каталога, пакетный импорт нескольких файлов (согласие — выбор файла), выбор расширением места записи или чтение им файловой системы.
 - Зависимости реализованы (раздел «Зависимости (`dependencies`)»). Вне границ: сервисы и вызовы между расширениями, автоустановка зависимостей, диапазоны версий приложения, диапазоны вида `^`/`~`.
-- Сочетания клавиш пользователя и привязки расширений закрыты [ADR 0016](../adr/0016-keybindings-registry.md) (раздел «Команды», «Сочетания клавиш»). Вне границ: вызов команд приложения из расширений (ADR 0012).
+- Сочетания клавиш пользователя и привязки расширений закрыты [ADR 0016](../adr/0016-keybindings-registry.md) (раздел «Команды», «Сочетания клавиш»). Команду приложения или другого расширения расширение запускает через `useApp().runCommand(key)` (раздел «API окна»).
 
 **Отложенное (единый список; волны W1–W5 ссылаются на него).** Не делаем сейчас: сайт документации; typedoc-сайт; витрина каталога; `dolphy-ext analyze`; постраничный индекс; мастер «новое расширение» в приложении; расширение планировщика и модели памяти (вернуться после статистики и импортёров); сервисы между расширениями; инструмент матрицы совместимости; автообновление (только ручное, ADR 0004). Вне всех волн (уровень безопасности — как у Obsidian: ревью, безопасный режим, диагностика): независимый аудит, песочница ОС, подписанный индекс и проверка издателей, принудительное ограничение сети, лимит кучи V8, запрет симлинков, процессные тесты на всех ОС. Источник — Decision Log спеки `specs/archive/2026-10-04-extension-housekeeping`.

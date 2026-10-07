@@ -7,6 +7,7 @@ import { messages as commandsMessages } from '@/features/extension-commands/i18n
 import { messages as panelMessages } from '@/pages/extension-panel/i18n/index.ts';
 import { messages as paletteMessages } from '@/widgets/command-palette/i18n/index.ts';
 import { russianPluralRule } from '@/shared/i18n/plural.ts';
+import { sharedMessages } from '@/shared/i18n';
 
 type Tree = { [key: string]: Tree | string };
 
@@ -23,6 +24,7 @@ const SLICES: [string, { ru: Tree; en: Tree }][] = [
   ['pages/extension-panel', panelMessages as never],
   ['widgets/command-palette', paletteMessages as never],
   ['app (nav)', { ru: appRu as never, en: appEn as never }],
+  ['shared (оболочка компонента расширения)', sharedMessages as never],
 ];
 
 describe('строки команд и панелей расширений', () => {

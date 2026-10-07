@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 35 as const;
+export const CONTRACT_VERSION = 36 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 /** Потолок файла импорта, суммарного размера присланного дерева и снимка курса для экспорта, байт (R3, R4, R7 спеки `extension-api-breadth-2`). */
@@ -56,6 +56,8 @@ export type EngineErrorCode =
   | 'EXTENSION_COMMAND_FAILED'
   /** Импорт или экспорт расширения не выполнен; `details`: `extensionId`, `id`, `kind` (`import` | `export`), `reason` (`ExtensionTransferFailureReason`). */
   | 'EXTENSION_TRANSFER_FAILED'
+  /** An RPC call to the server part of an extension failed; `details`: `extensionId`, `name`, `reason` (`ExtensionRpcFailureReason`). The message of a failed handler reaches the caller as the error message. */
+  | 'EXTENSION_RPC_FAILED'
   | 'INTERNAL';
 
 export interface EngineErrorDto {
@@ -1582,6 +1584,31 @@ export type ExtensionTransferFailureReason =
   /** Курс из присланного дерева отвергнут перезагрузкой библиотеки: каталог откатан, `details` несёт `summary` и `diagnostics`. */
   | 'reload-rejected';
 
+/** Reason of `EXTENSION_RPC_FAILED` (`details.reason`). */
+export type ExtensionRpcFailureReason =
+  /** The extension is not loaded or registered no handler under `name`. */
+  | 'unknown-rpc'
+  | 'host-down'
+  | 'timeout'
+  /** The handler threw; the error message is the text of the handler's error. */
+  | 'handler-failed'
+  /** The input failed the schema of the contract on the server. */
+  | 'invalid-input'
+  /** The handler's result failed the output schema of the contract or is not JSON. */
+  | 'invalid-result'
+  | 'disabled'
+  | 'replaced'
+  | 'activation-timeout';
+
+/** Parameters of `extensions.invokeRpc`. */
+export interface ExtensionRpcRequest {
+  extensionId: string;
+  /** The name of the contract (`RPC_NAME_PATTERN` of the extension API). */
+  name: string;
+  /** A JSON value; at most `MAX_ANSWER_CHARS` characters of `JSON.stringify(input)`. */
+  input: unknown;
+}
+
 /** Файл, который пользователь выбрал для импортёра: имя без каталога и содержимое по `input` импортёра. */
 export type ImportFileDto =
   { name: string; text: string } | { name: string; bytes: Uint8Array };
@@ -2075,6 +2102,20 @@ export interface ExtensionsService {
     args?: JsonValue,
   ): Promise<CommandResultDto>;
   /**
+   * Calls a handler the server part of an extension registered with
+   * `server.handle` (first call activates the extension lazily). The input is
+   * validated against the input schema of the contract on the server, the
+   * result against the output schema. The call does not occupy the engine
+   * command queue. `INVALID_ARGUMENT` — a malformed `extensionId` or `name`,
+   * or an input longer than `MAX_ANSWER_CHARS` (`details.reason`:
+   * `args-too-large`). Everything else is `EXTENSION_RPC_FAILED` with
+   * `details` `{ extensionId, name, reason }` (`ExtensionRpcFailureReason`):
+   * a missing extension or handler — `unknown-rpc`, a disabled extension —
+   * `disabled`, an exception of the handler — `handler-failed` with the
+   * message of the exception; `timeout` and `host-down` allow a retry.
+   */
+  invokeRpc(params: ExtensionRpcRequest): Promise<unknown>;
+  /**
    * Запускает объявленный импортёр на файле, который выбрал пользователь:
    * присланное расширением дерево курса проверяется компилятором курсов во
    * временном каталоге, на диск библиотеки ничего не попадает. Ожидающих
@@ -2239,6 +2280,14 @@ export interface LearningEngine {
   subscribe(listener: (event: EngineEvent) => void): () => void;
   close(): Promise<void>;
 }
+
+/**
+ * What an extension gets as `ctx.engine` on the server and `useEngine()` in a
+ * component: every method of `LearningEngine` including `subscribe`, but not
+ * `close`. Over the wire `subscribe` is the `events.subscribe` /
+ * `events.unsubscribe` messages of `RPC_CONTROL`.
+ */
+export type ExtensionEngine = Omit<LearningEngine, 'close'>;
 
 export interface RpcRequest {
   id: string;

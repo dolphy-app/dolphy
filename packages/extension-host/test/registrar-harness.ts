@@ -1,3 +1,4 @@
+import { createEngineClient } from '@dolphy-app/engine-rpc/client';
 import { createRegistrar } from '../src/registrar.ts';
 import { createSettingsState } from '../src/state.ts';
 import { createLogger, nullEngine, nullLibrary } from './helpers.ts';
@@ -11,6 +12,8 @@ export const registrarOf = (id: string) => {
     logger,
     library: nullLibrary,
     engine: nullEngine,
+    // клиент без порта: вызовы движка отклоняются
+    engineClient: createEngineClient().engine,
     settings,
   });
   return { registrar, s: registrar.context, settings, logger };

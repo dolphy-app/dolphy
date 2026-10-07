@@ -10,6 +10,8 @@ import type {
   ClientPanel,
 } from '@/shared/lib/extension-clients.ts';
 import { createExtensionCommands } from '@/features/extension-commands/model/extension-commands.ts';
+import { createNotices } from '@/features/extension-commands/model/notices.ts';
+import { createPanelProps } from '@/features/extension-commands/model/panel-props.ts';
 import { NO_CONTRIBUTIONS } from '@/shared/api/engine/contributions.ts';
 import { createCommandRegistry } from '@/shared/lib/command-registry.ts';
 import { createExtensionWhen } from '@/shared/lib/extension-when.ts';
@@ -93,6 +95,8 @@ const setup = (
       locale: () => locale.value,
       dark: () => dark.value,
     }),
+    notices: createNotices(),
+    panelProps: createPanelProps(),
     openPanel,
   });
   const keys = () => registry.list.value.map(({ key }) => key);

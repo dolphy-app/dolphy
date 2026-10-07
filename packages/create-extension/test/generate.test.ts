@@ -1,6 +1,5 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { defaultElementName } from '@dolphy-app/extension-api';
 import { formatDiagnostic, parseManifest } from '@dolphy-app/extension-host';
 import { describe, expect, it } from 'vitest';
 import {
@@ -42,17 +41,59 @@ describe('generateExtension', () => {
       'README.md',
       'extension.json',
       'package.json',
+      'src/client.ts',
       'src/index.ts',
+      'src/server.ts',
+      'src/text-answer.ts',
       'test/index.test.ts',
       'tsconfig.json',
     ]);
   });
 
   it.each([
-    ['exercise', ['src/index.ts', 'test/index.test.ts']],
-    ['theme', ['test/theme.test.ts']],
-    ['command-panel', ['src/index.ts', 'test/index.test.ts']],
-    ['events', ['src/index.ts', 'test/index.test.ts']],
+    [
+      'exercise',
+      [
+        'src/client.ts',
+        'src/index.ts',
+        'src/server.ts',
+        'src/text-answer.ts',
+        'test/index.test.ts',
+      ],
+    ],
+    ['theme', ['src/index.ts', 'src/theme.ts', 'test/theme.test.ts']],
+    [
+      'command-panel',
+      [
+        'src/StatusPanel.vue',
+        'src/client.ts',
+        'src/index.ts',
+        'src/server.ts',
+        'test/index.test.ts',
+        'vitest.config.ts',
+      ],
+    ],
+    [
+      'react-panel',
+      [
+        'dolphy-ext.config.json',
+        'src/client.tsx',
+        'src/index.ts',
+        'src/server.ts',
+        'test/index.test.ts',
+      ],
+    ],
+    [
+      'events',
+      [
+        'src/client.ts',
+        'src/index.ts',
+        'src/server.ts',
+        'src/streak-panel.ts',
+        'src/streak.ts',
+        'test/index.test.ts',
+      ],
+    ],
     ['blank', ['src/index.ts', 'test/index.test.ts']],
   ])(
     'template %s has its own files; the shared ones are always there',
@@ -86,7 +127,7 @@ describe('generateExtension', () => {
     );
     expect(error).toMatchObject({ code: 'invalid-template' });
     expect((error as Error).message).toContain(
-      'exercise, theme, command-panel, events, blank',
+      'exercise, theme, command-panel, react-panel, events, blank',
     );
     await expect(readFile(path.join(dir, 'package.json'))).rejects.toThrow();
   });
@@ -247,8 +288,7 @@ describe('generateExtension', () => {
     expect(pkg['scripts']).toEqual({
       build: 'dolphy-ext build',
       dev: 'dolphy-ext build --watch',
-      types: 'dolphy-ext types',
-      typecheck: 'dolphy-ext types && tsc',
+      typecheck: 'tsc',
       validate: 'dolphy-ext validate dist-ext/acme.hello',
       lint: 'dolphy-ext lint',
       test: 'vitest run',
@@ -271,23 +311,91 @@ describe('generateExtension', () => {
     expect(pkg['devDependencies']).toHaveProperty('@dolphy-app/extension-api');
   });
 
-  it('manifest passes parseManifest; code is bound to the id type from the manifest', async () => {
+  it.each(TEMPLATE_NAMES)(
+    'template %s: the manifest is identity only and passes parseManifest',
+    async (template) => {
+      const root = await makeTemp();
+      const { dir, id } = await generateExtension({
+        dir: path.join(root, 'x'),
+        id: 'acme.hello',
+        template,
+      });
+      const raw = await readJson(path.join(dir, 'extension.json'));
+      expect(raw).not.toHaveProperty('contributes');
+      const parsed = parseManifest(raw);
+      if (!parsed.ok) throw new Error(formatDiagnostic(parsed.diagnostic));
+      expect(parsed.manifest.id).toBe(id);
+    },
+  );
+
+  it('the exercise template registers its type on the server and its view on the client', async () => {
     const root = await makeTemp();
     const { dir, id } = await generateExtension({
       dir: path.join(root, 'x'),
       id: 'acme.hello',
     });
-    const parsed = parseManifest(
-      await readJson(path.join(dir, 'extension.json')),
-    );
-    if (!parsed.ok) throw new Error(formatDiagnostic(parsed.diagnostic));
-    const [type] = parsed.manifest.contributes.exerciseTypes;
-    expect(type?.id).toBe(id);
-    expect(type?.element).toBe(defaultElementName(id));
     const index = await readFile(path.join(dir, 'src/index.ts'), 'utf8');
-    expect(index).toContain(`'${id}': defineExerciseType`);
-    expect(index).toContain(`'${id}': defineAnswerView`);
-    expect(index).not.toContain('defineAnswerElement');
+    expect(index).toContain("export { client } from './client.ts';");
+    expect(index).toContain("export { server } from './server.ts';");
+    const server = await readFile(path.join(dir, 'src/server.ts'), 'utf8');
+    expect(server).toContain(`id: '${id}',`);
+    expect(server).toContain('s.registerExerciseType(');
+    expect(server).not.toContain("from 'vue'");
+    const client = await readFile(path.join(dir, 'src/client.ts'), 'utf8');
+    expect(client).toContain(`c.addAnswerView('${id}', TextAnswer)`);
+    expect(client).not.toContain('node:');
+  });
+
+  it('the project depends on the vue and vuetify of the app', async () => {
+    const root = await makeTemp();
+    const { dir } = await generateExtension({
+      dir: path.join(root, 'acme-hello'),
+    });
+    const pkg = await readJson(path.join(dir, 'package.json'));
+    expect(pkg['devDependencies']).toMatchObject({
+      vue: '^3.5.35',
+      vuetify: '^4.0.1',
+    });
+  });
+
+  it('the react-panel template switches the React build on and types JSX', async () => {
+    const root = await makeTemp();
+    const { dir } = await generateExtension({
+      dir: path.join(root, 'acme-hello'),
+      template: 'react-panel',
+    });
+    await expect(
+      readJson(path.join(dir, 'dolphy-ext.config.json')),
+    ).resolves.toEqual({ frameworks: ['react'] });
+    const pkg = await readJson(path.join(dir, 'package.json'));
+    expect(pkg['devDependencies']).toMatchObject({
+      react: expect.any(String),
+      'react-dom': expect.any(String),
+      '@types/react': expect.any(String),
+      '@types/react-dom': expect.any(String),
+    });
+    await expect(
+      readJson(path.join(dir, 'tsconfig.json')),
+    ).resolves.toMatchObject({ compilerOptions: { jsx: 'react-jsx' } });
+    const index = await readFile(path.join(dir, 'src/index.ts'), 'utf8');
+    expect(index).toContain("export { client } from './client.tsx';");
+  });
+
+  it('the command-panel template is a single-file component with the Vue plugin for the tests', async () => {
+    const root = await makeTemp();
+    const { dir } = await generateExtension({
+      dir: path.join(root, 'acme-hello'),
+      template: 'command-panel',
+    });
+    const pkg = await readJson(path.join(dir, 'package.json'));
+    expect(pkg['devDependencies']).toHaveProperty('@vitejs/plugin-vue');
+    const panel = await readFile(path.join(dir, 'src/StatusPanel.vue'), 'utf8');
+    expect(panel).toContain('<script setup lang="ts">');
+    expect(panel).toContain('<v-btn');
+    expect(panel).toContain('<style scoped>');
+    await expect(
+      readJson(path.join(dir, 'tsconfig.json')),
+    ).resolves.not.toHaveProperty('compilerOptions.jsx');
   });
 });
 

@@ -3,11 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { Locator, Page } from 'playwright-core';
 import { createWorkspace, launchApp } from './support/app.ts';
 import type { DolphyApp, Workspace } from './support/app.ts';
-import {
-  COMMANDS_ID,
-  CommandsClient,
-  PANEL_TITLE,
-} from './support/commands-client.ts';
+import { COMMANDS_ID, CommandsClient } from './support/commands-client.ts';
 import { MOD_KEY } from './support/keys.ts';
 import { expectCount, expectText } from './support/locator.ts';
 
@@ -389,43 +385,6 @@ describe('сочетания клавиш: сброс и сохранение (R
     await expectCount(page.getByTestId('command-palette'), 0);
     await page.keyboard.press(`${MOD_KEY}+Shift+P`);
     await commands.waitForPalette();
-  });
-});
-
-describe('сочетания клавиш: враждебная рамка (R13)', () => {
-  it('рамка расширения не запускает команды ни клавишами, ни сообщениями; те же клавиши вне рамки работают', async () => {
-    const { page, commands } = await launch({ [COMMANDS_ID]: COMMANDS_DIR });
-    // пользовательская привязка команды приложения: рамка знает и её
-    await openShortcuts(page);
-    await rebind(page, COURSES, '9');
-    await save(page);
-
-    await commands.navItem(PANEL_TITLE).click();
-    await expect.poll(() => commands.route()).toContain('/ext/');
-    const panelRoute = commands.route();
-    const input = commands.frame.getByLabel('Поле панели');
-    await input.click();
-
-    // настоящее нажатие внутри рамки: действующие привязки приложения и расширения не срабатывают
-    await page.keyboard.press(`${MOD_KEY}+Shift+G`);
-    await page.keyboard.press(`${MOD_KEY}+Shift+9`);
-    // подделка событий и сообщений `shortcut`/`keydown`/`command` с теми же клавишами
-    await commands.pressPanelButton('Враждебные клавиши');
-    await expectText(commands.panelRole('result'), 'sent');
-    // следующий настоящий вызов проходит после подделки: она уже обработана
-    await commands.pressPanelButton('Прибавить');
-    await expectText(commands.panelRole('count'), 'Счётчик: 1');
-
-    await expectCount(commands.notice.filter({ hasText: 'Привет' }), 0);
-    expect(commands.route()).toBe(panelRoute);
-    await expectCount(commands.palette, 0);
-
-    // контроль: из окна те же сочетания выполняются
-    await page.getByRole('navigation', { name: 'Панели расширений' }).focus();
-    await page.keyboard.press(`${MOD_KEY}+Shift+G`);
-    await expectText(commands.notice, 'Привет');
-    await page.keyboard.press(`${MOD_KEY}+Shift+9`);
-    await expect.poll(() => commands.route()).toBe('#/courses');
   });
 });
 

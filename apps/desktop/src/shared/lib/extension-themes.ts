@@ -1,35 +1,48 @@
-import type { ThemeContributionDto } from '@dolphy-app/engine-contract';
 import type { ThemeDefinition } from 'vuetify';
 import { DARK_THEME, LIGHT_THEME } from './builtin-themes.ts';
+import type { ClientTheme } from './extension-client-registrations.ts';
 
 const BUILTIN = ['system', 'light', 'dark'];
 
+const EXTENSION_THEME_PREFIX = 'ext__';
 /**
  * Имя темы в Vuetify (из него растёт класс `.v-theme--<имя>`). Id расширений
  * не содержат `_`, поэтому отображение взаимно однозначно.
  */
 export const vuetifyThemeName = (id: string): string =>
-  `ext__${id.replaceAll('.', '__')}`;
+  `${EXTENSION_THEME_PREFIX}${id.replaceAll('.', '__')}`;
+
+/**
+ * Имя действующей темы Vuetify → id темы для `AppApi.theme`: id темы
+ * расширения или `light`/`dark`; `system` разрешается по `dark`.
+ */
+export const themeIdOfVuetify = (name: string, dark: boolean): string => {
+  if (name.startsWith(EXTENSION_THEME_PREFIX)) {
+    return name.slice(EXTENSION_THEME_PREFIX.length).replaceAll('__', '.');
+  }
+  if (name !== 'system') return name;
+  return dark ? 'dark' : 'light';
+};
 
 /** Встроенная тема, на которую опирается тема расширения. */
 export const baseThemeOf = (
-  contribution: Pick<ThemeContributionDto, 'dark'>,
-): ThemeDefinition => (contribution.dark ? DARK_THEME : LIGHT_THEME);
+  theme: Pick<ClientTheme, 'dark'>,
+): ThemeDefinition => (theme.dark ? DARK_THEME : LIGHT_THEME);
 
 /** Цвета и переменные расширения поверх базовой темы. */
 export const toVuetifyTheme = (
-  contribution: Pick<ThemeContributionDto, 'dark' | 'colors' | 'variables'>,
+  theme: Pick<ClientTheme, 'dark' | 'colors' | 'variables'>,
   base: ThemeDefinition,
 ): ThemeDefinition => ({
-  dark: contribution.dark,
-  colors: { ...base.colors, ...contribution.colors },
-  variables: { ...base.variables, ...contribution.variables },
+  dark: theme.dark,
+  colors: { ...base.colors, ...theme.colors },
+  variables: { ...base.variables, ...theme.variables },
 });
 
-/** Сохранённый id → имя темы Vuetify; неизвестная тема — системная. */
+/** Сохранённый id → имя темы Vuetify; неизвестная (ещё не загруженная или удалённая) — системная. */
 export const resolveThemeName = (
   saved: string,
-  themes: readonly Pick<ThemeContributionDto, 'id'>[],
+  themes: readonly Pick<ClientTheme, 'id'>[],
 ): string => {
   if (BUILTIN.includes(saved)) return saved;
   return themes.some(({ id }) => id === saved)
@@ -40,5 +53,5 @@ export const resolveThemeName = (
 /** Id, который показывает выбор: неизвестный сохранённый id — `system`. */
 export const effectiveThemeId = (
   saved: string,
-  themes: readonly Pick<ThemeContributionDto, 'id'>[],
+  themes: readonly Pick<ClientTheme, 'id'>[],
 ): string => (resolveThemeName(saved, themes) === 'system' ? 'system' : saved);

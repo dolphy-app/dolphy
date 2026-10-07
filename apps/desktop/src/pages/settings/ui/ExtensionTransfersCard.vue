@@ -52,7 +52,7 @@ const empty = computed(
           >
             <div class="entry-text">
               <p class="text-body-large font-weight-medium">
-                {{ extensionText.of(item.title, item.extensionId) }}
+                {{ extensionText.of(item.title) }}
               </p>
               <p class="text-body-small text-medium-emphasis">
                 <span class="id">{{ item.extensionId }}</span>
@@ -71,7 +71,7 @@ const empty = computed(
               :disabled="transfers.busy.value"
               :aria-label="
                 t('settings.library.transfers.importLabel', {
-                  title: extensionText.of(item.title, item.extensionId),
+                  title: extensionText.of(item.title),
                 })
               "
               @click="transfers.startImport(item.extensionId, item.id)"
@@ -95,7 +95,7 @@ const empty = computed(
           >
             <div class="entry-text">
               <p class="text-body-large font-weight-medium">
-                {{ extensionText.of(item.title, item.extensionId) }}
+                {{ extensionText.of(item.title) }}
               </p>
               <p class="text-body-small text-medium-emphasis">
                 <span class="id">{{ item.extensionId }}</span>
@@ -110,7 +110,7 @@ const empty = computed(
               :disabled="transfers.busy.value"
               :aria-label="
                 t('settings.library.transfers.exportLabel', {
-                  title: extensionText.of(item.title, item.extensionId),
+                  title: extensionText.of(item.title),
                 })
               "
               @click="transfers.startExport(item.extensionId, item.id)"

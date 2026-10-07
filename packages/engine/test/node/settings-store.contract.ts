@@ -248,7 +248,6 @@ export const describeSettingsStoreContract = (
       const store = await make();
       expect(await store.loadExtensions()).toEqual({
         disabled: [],
-        trusted: [],
         checkUpdates: true,
         safeMode: false,
         notificationsOff: [],
@@ -261,7 +260,6 @@ export const describeSettingsStoreContract = (
       const store = await make();
       await store.saveExtensions({
         disabled: ['acme.b', 'acme.a', 'acme.b'],
-        trusted: ['acme.z'],
         checkUpdates: false,
         safeMode: false,
         notificationsOff: [],
@@ -270,7 +268,6 @@ export const describeSettingsStoreContract = (
       });
       expect(await store.loadExtensions()).toEqual({
         disabled: ['acme.a', 'acme.b'],
-        trusted: ['acme.z'],
         checkUpdates: false,
         safeMode: false,
         notificationsOff: [],
@@ -279,7 +276,6 @@ export const describeSettingsStoreContract = (
       });
       await store.saveExtensions({
         disabled: [],
-        trusted: [],
         checkUpdates: true,
         safeMode: false,
         notificationsOff: [],
@@ -288,7 +284,6 @@ export const describeSettingsStoreContract = (
       });
       expect(await store.loadExtensions()).toEqual({
         disabled: [],
-        trusted: [],
         checkUpdates: true,
         safeMode: false,
         notificationsOff: [],
@@ -302,7 +297,6 @@ export const describeSettingsStoreContract = (
       expect((await store.loadExtensions()).safeMode).toBe(false);
       await store.saveExtensions({
         disabled: ['acme.a'],
-        trusted: ['acme.t'],
         checkUpdates: false,
         safeMode: true,
         notificationsOff: [],
@@ -311,7 +305,6 @@ export const describeSettingsStoreContract = (
       });
       expect(await store.loadExtensions()).toEqual({
         disabled: ['acme.a'],
-        trusted: ['acme.t'],
         checkUpdates: false,
         safeMode: true,
         notificationsOff: [],
@@ -320,7 +313,6 @@ export const describeSettingsStoreContract = (
       });
       await store.saveExtensions({
         disabled: ['acme.a'],
-        trusted: ['acme.t'],
         checkUpdates: false,
         safeMode: false,
         notificationsOff: [],
@@ -334,7 +326,6 @@ export const describeSettingsStoreContract = (
       const store = await make();
       await store.saveExtensions({
         disabled: ['acme.d'],
-        trusted: [],
         checkUpdates: true,
         safeMode: false,
         notificationsOff: ['acme.z', 'acme.a', 'acme.z'],
@@ -343,7 +334,6 @@ export const describeSettingsStoreContract = (
       });
       expect(await store.loadExtensions()).toEqual({
         disabled: ['acme.d'],
-        trusted: [],
         checkUpdates: true,
         safeMode: false,
         notificationsOff: ['acme.a', 'acme.z'],
@@ -371,7 +361,6 @@ export const describeSettingsStoreContract = (
       expect((await store.loadExtensions()).catalogUrl).toBeNull();
       await store.saveExtensions({
         disabled: [],
-        trusted: [],
         checkUpdates: true,
         safeMode: false,
         notificationsOff: [],
@@ -383,7 +372,6 @@ export const describeSettingsStoreContract = (
       );
       await store.saveExtensions({
         disabled: [],
-        trusted: [],
         checkUpdates: true,
         safeMode: false,
         notificationsOff: [],
@@ -400,7 +388,6 @@ export const describeSettingsStoreContract = (
       await store.saveLearning({ gradePolicy: 'acme.policy' });
       await store.saveExtensions({
         disabled: ['acme.x'],
-        trusted: [],
         checkUpdates: true,
         safeMode: false,
         notificationsOff: [],
@@ -419,7 +406,6 @@ export const describeSettingsStoreContract = (
       });
       expect(await store.loadExtensions()).toEqual({
         disabled: ['acme.x'],
-        trusted: [],
         checkUpdates: true,
         safeMode: false,
         notificationsOff: [],

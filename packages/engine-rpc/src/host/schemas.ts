@@ -433,7 +433,6 @@ export const schemas = {
   'extensions.contributions': z.tuple([]),
   'extensions.getSettings': z.tuple([]),
   'extensions.setEnabled': z.tuple([extensionId, z.boolean()]),
-  'extensions.setTrusted': z.tuple([extensionId, z.boolean()]),
   'extensions.setNotificationsEnabled': z.tuple([extensionId, z.boolean()]),
   'extensions.setSchedulesEnabled': z.tuple([extensionId, z.boolean()]),
   'extensions.catalog': z.tuple([
@@ -482,6 +481,17 @@ export const schemas = {
     extensionId,
     str.min(1).max(128),
     optional(jsonValue),
+  ]),
+  'extensions.invokeRpc': z.tuple([
+    z
+      .strictObject({
+        extensionId,
+        name: str.min(1).max(120),
+        // JSON и его размер проверяет сервис (ошибка называет поле и причину);
+        // вход `undefined` (контракт с `z.void()`) теряет ключ при передаче
+        input: z.unknown().optional(),
+      })
+      .transform(({ input, ...request }) => ({ ...request, input })),
   ]),
   'extensions.runImporter': z.tuple([
     extensionId,

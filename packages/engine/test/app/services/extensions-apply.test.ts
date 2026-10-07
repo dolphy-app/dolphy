@@ -19,21 +19,15 @@ const USER: ExtensionInfoDto = {
   state: 'loaded',
   contributes: {
     exerciseTypes: [],
-    themes: [],
-    markdownRenderers: [],
     gradePolicies: [],
     settings: [],
     events: [],
     commands: [],
-    widgets: [],
     schedules: [],
-    panels: [],
     importers: [],
     exporters: [],
   },
   diagnostics: [],
-  permissions: [],
-  isolation: 'isolated',
   toggleable: true,
   name: null,
   description: null,
@@ -41,8 +35,6 @@ const USER: ExtensionInfoDto = {
   dependencies: [],
   installed: null,
   icon: null,
-  titles: {},
-  messages: {},
   tags: [],
   removable: true,
   revoked: null,
@@ -145,6 +137,27 @@ describe('createExtensionApply', () => {
     state.closed = true;
     await apply.reload();
     expect(reloader.calls()).toBe(0);
+    expect(published).toEqual([]);
+  });
+
+  it('notifyChanged raises the generation and publishes without reloading', () => {
+    const reloader = createFakeExtensionReloader();
+    const { apply, published } = setup(reloader);
+    apply.notifyChanged();
+    apply.notifyChanged();
+    expect(reloader.calls()).toBe(0);
+    expect(apply.generation()).toBe(2);
+    expect(published).toEqual([
+      { type: 'contributions-changed', generation: 1 },
+      { type: 'contributions-changed', generation: 2 },
+    ]);
+  });
+
+  it('notifyChanged does nothing once the engine is closed', () => {
+    const { apply, published, state } = setup(createFakeExtensionReloader());
+    state.closed = true;
+    apply.notifyChanged();
+    expect(apply.generation()).toBe(0);
     expect(published).toEqual([]);
   });
 });

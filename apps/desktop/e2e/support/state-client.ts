@@ -50,7 +50,6 @@ export const PLAIN_LIBRARY: Record<string, string> = {
 /** Отчёт расширения (`acme.state`) на ответ `report`. */
 export interface StateReport {
   reports: number;
-  activations: number;
   started: number;
   finished: number;
   closed: number;

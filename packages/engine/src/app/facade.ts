@@ -28,8 +28,10 @@ export type WrapMethod = (name: string, method: AnyMethod) => AnyMethod;
  * только читает ссылки сервера и никого не ждёт.
  * `extensions.invokeCommand` исполняет код расширения до 14 с: медленная
  * команда не должна замораживать остальные вызовы движка. Так же
- * `extensions.runImporter` и `extensions.runExporter` (обработчик до 30 с, файл
- * до 20 МиБ) и `extensions.discardImport` (удаляет только временный каталог);
+ * `extensions.invokeRpc` (обработчик до 10 с сам вызывает методы движка, а те
+ * ждут очередь), `extensions.runImporter` и `extensions.runExporter`
+ * (обработчик до 30 с, файл до 20 МиБ) и `extensions.discardImport`
+ * (удаляет только временный каталог);
  * `extensions.commitImport` подменяет каталог библиотеки и перезагружает её,
  * поэтому идёт в очереди. По той же причине
  * `extensions.diagnostics` и `extensions.restartHost` (здоровье и перезапуск
@@ -50,6 +52,7 @@ export const UNQUEUED: ReadonlySet<string> = new Set([
   'extensions.docs',
   'extensions.docImage',
   'extensions.invokeCommand',
+  'extensions.invokeRpc',
   'extensions.runImporter',
   'extensions.discardImport',
   'extensions.runExporter',

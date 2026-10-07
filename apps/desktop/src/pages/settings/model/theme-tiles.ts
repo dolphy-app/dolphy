@@ -1,4 +1,5 @@
-import type { ThemeContributionDto } from '@dolphy-app/engine-contract';
+import type { LocalizedText } from '@dolphy-app/extension-api';
+import type { ClientTheme } from '@/shared/lib/extension-clients.ts';
 import { vuetifyThemeName } from '@/shared/lib/extension-themes.ts';
 
 export const BUILTIN_THEMES = ['system', 'light', 'dark'] as const;
@@ -18,8 +19,8 @@ export interface ThemeTileModel {
  */
 export const buildThemeTiles = (
   builtinLabel: (id: (typeof BUILTIN_THEMES)[number]) => string,
-  themes: readonly ThemeContributionDto[],
-  themeLabel: (theme: ThemeContributionDto) => string,
+  themes: readonly Pick<ClientTheme, 'id' | 'label' | 'extensionId'>[],
+  themeLabel: (label: LocalizedText) => string,
 ): ThemeTileModel[] => [
   ...BUILTIN_THEMES.map((id) => ({
     id,
@@ -28,7 +29,7 @@ export const buildThemeTiles = (
   })),
   ...themes.map((theme) => ({
     id: theme.id,
-    label: themeLabel(theme),
+    label: themeLabel(theme.label),
     tooltip: theme.extensionId,
     names: [vuetifyThemeName(theme.id)],
   })),

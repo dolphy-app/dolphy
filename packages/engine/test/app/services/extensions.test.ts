@@ -11,15 +11,11 @@ import { createTestEngine } from '../../helpers/engine.ts';
 
 const NO_CONTRIBUTES: ExtensionInfoDto['contributes'] = {
   exerciseTypes: [],
-  themes: [],
-  markdownRenderers: [],
   gradePolicies: [],
   settings: [],
   events: [],
   commands: [],
-  widgets: [],
   schedules: [],
-  panels: [],
   importers: [],
   exporters: [],
 };
@@ -31,8 +27,6 @@ const info = (overrides: Partial<ExtensionInfoDto>): ExtensionInfoDto => ({
   state: 'loaded',
   contributes: { ...NO_CONTRIBUTES, exerciseTypes: ['dolphy.sql'] },
   diagnostics: [],
-  permissions: [],
-  isolation: 'trusted',
   toggleable: false,
   name: null,
   description: null,
@@ -40,8 +34,6 @@ const info = (overrides: Partial<ExtensionInfoDto>): ExtensionInfoDto => ({
   dependencies: [],
   installed: null,
   icon: null,
-  titles: {},
-  messages: {},
   tags: [],
   removable: false,
   revoked: null,
@@ -87,46 +79,26 @@ describe('extensions.list', () => {
     expect(await engine.extensions.list()).toEqual([info({})]);
   });
 
-  it('returns copies of titles and tags too', async () => {
-    const titled = info({
-      titles: { themes: { 'dolphy.sql.night': 'Night' } },
-      tags: ['theme'],
-    });
-    const { engine } = await open([titled]);
+  it('returns copies of tags too', async () => {
+    const tagged = info({ tags: ['theme'] });
+    const { engine } = await open([tagged]);
     const [first] = await engine.extensions.list();
     first?.tags.push('developer');
-    if (first?.titles.themes !== undefined) {
-      first.titles.themes['dolphy.sql.night'] = 'changed';
-    }
-    expect(await engine.extensions.list()).toEqual([titled]);
+    expect(await engine.extensions.list()).toEqual([tagged]);
   });
 });
 
 describe('extensions.contributions', () => {
-  const theme = (id: string) => ({
-    id,
-    extensionId: 'a.ext',
-    label: id,
-    dark: false,
-    colors: { background: '#ffffff' },
-    variables: {},
-  });
-  const renderer = (language: string) => ({
-    language,
-    extensionId: 'a.ext',
-    rendererUrl: `dolphy-ext://a.ext/${language}.mjs`,
-    isolated: true,
+  const client = (extensionId: string) => ({
+    extensionId,
+    url: `dolphy-ext://${extensionId}/client.mjs`,
     origin: 'user' as const,
     revision: 'rev-1',
   });
   const exerciseType = (type: string) => ({
     type,
     extensionId: 'a.ext',
-    element: `${type.replaceAll('.', '-')}-answer`,
-    rendererUrl: `dolphy-ext://a.ext/${type}.mjs`,
-    isolated: false,
-    origin: 'dev' as const,
-    revision: 'rev-1',
+    title: null,
   });
   const policy = (id: string) => ({
     id,
@@ -134,35 +106,30 @@ describe('extensions.contributions', () => {
     label: id,
   });
   const contributions: RegistryContributions = {
+    clients: [client('b.ext'), client('a.ext')],
     exerciseTypes: [exerciseType('a.ext.z'), exerciseType('a.ext.b')],
-    themes: [theme('a.ext.z'), theme('a.ext.b')],
-    markdownRenderers: [renderer('math'), renderer('chart')],
     gradePolicies: [policy('a.ext.z'), policy('a.ext.b')],
     settings: [],
     commands: [],
-    widgets: [],
     schedules: [],
-    panels: [],
     importers: [],
     exporters: [],
-    messages: {},
   };
   const openWith = (source: RegistryContributions) =>
     createTestEngine({
       extensionRegistry: createFakeExtensionRegistry([], source),
     });
 
-  it('sorts themes by id, exercise types by type, renderers by language, extension policies by id', async () => {
+  it('sorts clients by extension, exercise types by type, extension policies by id', async () => {
     const { engine } = await openWith(contributions);
     const result = await engine.extensions.contributions();
-    expect(result.themes.map(({ id }) => id)).toEqual(['a.ext.b', 'a.ext.z']);
+    expect(result.clients.map(({ extensionId }) => extensionId)).toEqual([
+      'a.ext',
+      'b.ext',
+    ]);
     expect(result.exerciseTypes.map(({ type }) => type)).toEqual([
       'a.ext.b',
       'a.ext.z',
-    ]);
-    expect(result.markdownRenderers.map(({ language }) => language)).toEqual([
-      'chart',
-      'math',
     ]);
     expect(result.gradePolicies.map(({ id }) => id).slice(1)).toEqual([
       'a.ext.b',
@@ -180,12 +147,12 @@ describe('extensions.contributions', () => {
   it('returns copies: mutating the result does not affect the registry', async () => {
     const { engine } = await openWith(contributions);
     const first = await engine.extensions.contributions();
-    const [firstTheme] = first.themes;
-    if (firstTheme !== undefined) firstTheme.colors['background'] = 'x';
-    first.themes.pop();
+    const [firstClient] = first.clients;
+    if (firstClient !== undefined) firstClient.revision = 'x';
+    first.clients.pop();
     const second = await engine.extensions.contributions();
-    expect(second.themes).toHaveLength(2);
-    expect(second.themes[0]?.colors['background']).toBe('#ffffff');
+    expect(second.clients).toHaveLength(2);
+    expect(second.clients[0]?.revision).toBe('rev-1');
   });
 
   it('sorts schedules by extension, keeps the manifest order inside one, and returns copies', async () => {
@@ -212,29 +179,12 @@ describe('extensions.contributions', () => {
     first.schedules.pop();
     expect((await engine.extensions.contributions()).schedules).toHaveLength(3);
   });
-
-  it('passes the translation tables by extension id and returns copies of them', async () => {
-    const { engine } = await openWith({
-      ...contributions,
-      messages: { 'a.ext': { en: { greeting: 'Hello' }, ru: {} } },
-    });
-    const first = await engine.extensions.contributions();
-    expect(first.messages).toEqual({
-      'a.ext': { en: { greeting: 'Hello' }, ru: {} },
-    });
-    const table = first.messages['a.ext']?.en;
-    if (table !== undefined) table['greeting'] = 'changed';
-    expect(
-      (await engine.extensions.contributions()).messages['a.ext']?.en,
-    ).toEqual({ greeting: 'Hello' });
-  });
 });
 
 describe('extensions settings', () => {
   const USER = info({
     id: 'acme.user',
     origin: 'user',
-    isolation: 'isolated',
     toggleable: true,
   });
   const BUNDLED = info({ id: 'dolphy.sql' });
@@ -264,7 +214,6 @@ describe('extensions settings', () => {
     const settings = createMemorySettingsStore({
       extensions: {
         disabled: ['acme.user'],
-        trusted: [],
         checkUpdates: true,
         safeMode: false,
         notificationsOff: [],
@@ -275,7 +224,6 @@ describe('extensions settings', () => {
     const { engine, policy } = await openSettings([USER], settings);
     expect(await engine.extensions.getSettings()).toEqual({
       disabled: ['acme.user'],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -289,16 +237,6 @@ describe('extensions settings', () => {
     const { engine, settings, events, policy } = await openSettings();
     expect(await engine.extensions.setEnabled('acme.user', false)).toEqual({
       disabled: ['acme.user'],
-      trusted: [],
-      checkUpdates: true,
-      safeMode: false,
-      notificationsOff: [],
-      catalogUrl: null,
-      schedulesOff: [],
-    });
-    expect(await engine.extensions.setTrusted('acme.user', true)).toEqual({
-      disabled: ['acme.user'],
-      trusted: ['acme.user'],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -307,7 +245,6 @@ describe('extensions settings', () => {
     });
     expect(await settings.loadExtensions()).toEqual({
       disabled: ['acme.user'],
-      trusted: ['acme.user'],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -315,11 +252,9 @@ describe('extensions settings', () => {
       schedulesOff: [],
     });
     expect(policy.isEnabled('acme.user')).toBe(false);
-    expect(policy.isIsolated('acme.user')).toBe(false);
-    expect(changes(events)).toHaveLength(2);
+    expect(changes(events)).toHaveLength(1);
     expect(await engine.extensions.setEnabled('acme.user', true)).toEqual({
       disabled: [],
-      trusted: ['acme.user'],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -331,20 +266,16 @@ describe('extensions settings', () => {
 
   it('is idempotent: repeating a write changes and announces nothing', async () => {
     const { engine, events } = await openSettings();
-    await engine.extensions.setTrusted('acme.user', true);
-    const again = await engine.extensions.setTrusted('acme.user', true);
+    await engine.extensions.setEnabled('acme.user', false);
+    const again = await engine.extensions.setEnabled('acme.user', false);
     expect(again).toEqual({
-      disabled: [],
-      trusted: ['acme.user'],
+      disabled: ['acme.user'],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
       catalogUrl: null,
       schedulesOff: [],
     });
-    expect(await engine.extensions.setEnabled('acme.user', true)).toEqual(
-      again,
-    );
     expect(changes(events)).toHaveLength(1);
   });
 
@@ -354,11 +285,10 @@ describe('extensions settings', () => {
       engine.extensions.setEnabled('acme.missing', false),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
     await expect(
-      engine.extensions.setTrusted('Not An Id', true),
+      engine.extensions.setEnabled('Not An Id', false),
     ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
     expect(await settings.loadExtensions()).toEqual({
       disabled: [],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -395,7 +325,6 @@ describe('extensions settings', () => {
     // не затрагивает остальные переключатели
     expect(on).toMatchObject({
       disabled: [],
-      trusted: [],
       notificationsOff: [],
       schedulesOff: ['acme.other'],
     });
@@ -428,7 +357,7 @@ describe('extensions settings', () => {
     const { engine, events } = await openSettings();
     for (const call of [
       () => engine.extensions.setEnabled('dolphy.sql', false),
-      () => engine.extensions.setTrusted('dolphy.sql', true),
+      () => engine.extensions.setSchedulesEnabled('dolphy.sql', false),
     ]) {
       await expect(call()).rejects.toMatchObject({
         code: 'INVALID_ARGUMENT',
@@ -442,7 +371,6 @@ describe('extensions settings', () => {
     const { engine } = await openSettings([OVERRIDDEN_BUNDLED, USER]);
     expect(await engine.extensions.setEnabled('acme.user', false)).toEqual({
       disabled: ['acme.user'],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -483,7 +411,6 @@ describe('extensions live apply', () => {
   const USER = info({
     id: 'acme.user',
     origin: 'user',
-    isolation: 'isolated',
     toggleable: true,
   });
   const openApplying = (settings = createMemorySettingsStore()) => {
@@ -503,10 +430,10 @@ describe('extensions live apply', () => {
     });
   };
 
-  it('setEnabled and setTrusted apply the set before announcing contributions-changed', async () => {
+  it('setEnabled applies the set before announcing contributions-changed', async () => {
     const { engine, order, events } = await openApplying();
     await engine.extensions.setEnabled('acme.user', false);
-    await engine.extensions.setTrusted('acme.user', true);
+    await engine.extensions.setEnabled('acme.user', true);
     expect(order.filter((type) => type !== 'settings-changed')).toEqual([
       'reload',
       'contributions-changed',
@@ -561,7 +488,6 @@ describe('extensions safe mode', () => {
   const USER = info({
     id: 'acme.user',
     origin: 'user',
-    isolation: 'isolated',
     toggleable: true,
   });
   const open = (
@@ -604,13 +530,12 @@ describe('extensions safe mode', () => {
     expect(reloader.calls()).toBe(2);
   });
 
-  it('keeps the disabled and trusted lists and the update check', async () => {
+  it('keeps the disabled list and the update check', async () => {
     const { engine } = await open();
     await engine.extensions.setEnabled('acme.user', false);
     await engine.extensions.setCheckUpdates(false);
     expect(await engine.extensions.setSafeMode(true)).toEqual({
       disabled: ['acme.user'],
-      trusted: [],
       checkUpdates: false,
       safeMode: true,
       notificationsOff: [],
@@ -635,7 +560,6 @@ describe('extensions safe mode', () => {
     const settings = createMemorySettingsStore({
       extensions: {
         disabled: [],
-        trusted: [],
         checkUpdates: true,
         safeMode: true,
         notificationsOff: [],
@@ -697,7 +621,6 @@ describe('extensions with unmet dependencies', () => {
     origin: 'user',
     state: 'dependencies-unmet',
     toggleable: true,
-    isolation: 'isolated',
     dependencies: [{ id: 'acme.lib', range: '>=1.0.0' }],
     diagnostics: [
       {

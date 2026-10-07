@@ -1,11 +1,9 @@
-import { EXTENSION_SCHEME } from './extension-assets.ts';
 import type { Shell } from './types.ts';
 
 interface NavigationEvent {
   preventDefault(): void;
   url: string;
   isMainFrame?: boolean;
-  frame?: { url: string } | null;
 }
 
 export interface GuardedWebContents {
@@ -47,11 +45,9 @@ export interface WebContentsGuardDeps {
  * Чек-лист безопасности Electron для всего приложения, а не только главного
  * окна: сеансу отказано во всех разрешениях (камера, геолокация и т. п.), у
  * любого `webContents` — включая подкадры расширений — навигация, открытие
- * окон и `<webview>` запрещены. Исключений два: перезагрузка текущего адреса
- * главного кадра («Перезагрузить окно» в настройках) и первая загрузка
- * страницы рамки расширения в пустой подкадр (её задаёт приложение через
- * `src`; Electron сообщает о ней как о `will-frame-navigate` с пустым
- * адресом кадра). Загруженная рамка сменить адрес уже не может.
+ * окон и `<webview>` запрещены. Единственное исключение — перезагрузка
+ * текущего адреса главного кадра («Перезагрузить окно» в настройках).
+ * Подкадров у приложения нет: навигация любого подкадра запрещена.
  */
 export const createWebContentsGuardShell = ({
   app,
@@ -60,12 +56,7 @@ export const createWebContentsGuardShell = ({
   register: () => {
     app.on('web-contents-created', (_event, contents) => {
       const forbid = (event: NavigationEvent) => {
-        if (event.isMainFrame !== false) {
-          if (event.url === contents.getURL()) return;
-        } else if (
-          (event.frame?.url ?? '') === '' &&
-          event.url.startsWith(`${EXTENSION_SCHEME}:`)
-        ) {
+        if (event.isMainFrame !== false && event.url === contents.getURL()) {
           return;
         }
         event.preventDefault();

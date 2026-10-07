@@ -1,45 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createHostChannel } from '../src/channel.ts';
 import { createRemoteExtensionCommands } from '../src/client.ts';
-import type { ResolvedExtension } from '../src/discover.ts';
 import { createEndpointPair } from '../src/loopback.ts';
-import { createAllTrustedPolicy } from '../src/policy.ts';
 import type { ExtRequest } from '../src/protocol.ts';
-import { createLogger, holderOf } from './helpers.ts';
-import { stateful } from './state-harness.ts';
+import { answerReplace, createBareChannel } from './channel-helpers.ts';
+import { createLogger } from './helpers.ts';
 
 afterEach(() => vi.useRealTimers());
 
 const ID = 'acme.cmd';
 const PANEL = `${ID}.panel`;
-
-const extension: ResolvedExtension = stateful(ID, {
-  permissions: [],
-  events: [],
-  settings: [],
-  commands: [
-    {
-      id: `${ID}.run`,
-      title: 'Run',
-      description: null,
-      category: null,
-      keybinding: null,
-      keybindings: [],
-      when: null,
-      icon: 'puzzle',
-      palette: true,
-    },
-  ],
-  panels: [
-    {
-      id: PANEL,
-      title: 'Panel',
-      icon: 'puzzle',
-      when: null,
-      rendererUrl: `dolphy-ext://${ID}/panel.mjs`,
-    },
-  ],
-});
 
 type Reply =
   | { ok: true; result: unknown }
@@ -49,10 +18,11 @@ type Reply =
 const setup = (reply: Reply | null, deadlineMs?: number) => {
   const restart = vi.fn();
   const logger = createLogger();
-  const channel = createHostChannel({ logger, restart });
+  const channel = createBareChannel({ logger, restart });
   const [engineSide, hostSide] = createEndpointPair();
   const requests: ExtRequest[] = [];
   hostSide.onMessage((message) => {
+    if (answerReplace(hostSide, message)) return;
     const request = message as ExtRequest;
     requests.push(request);
     if (reply !== null) hostSide.post({ id: request.id, ...reply });
@@ -60,8 +30,6 @@ const setup = (reply: Reply | null, deadlineMs?: number) => {
   channel.attach(engineSide);
   const commands = createRemoteExtensionCommands({
     channel,
-    discovery: holderOf([extension]),
-    policy: createAllTrustedPolicy(),
     logger,
     ...(deadlineMs !== undefined && { deadlineMs }),
   });
@@ -88,13 +56,9 @@ describe('createRemoteExtensionCommands', () => {
           extensionId: ID,
           commandId: `${ID}.run`,
           args: { n: 1 },
-          isolated: false,
         },
       ],
-      [
-        'invokeCommand',
-        { extensionId: ID, commandId: `${ID}.run`, isolated: false },
-      ],
+      ['invokeCommand', { extensionId: ID, commandId: `${ID}.run` }],
     ]);
   });
 
@@ -130,10 +94,6 @@ describe('createRemoteExtensionCommands', () => {
     ['notify длиннее 500', { kind: 'notify', text: 'x'.repeat(501) }],
     ['лишний ключ', { kind: 'none', extra: 1 }],
     ['data больше 64 КиБ', { kind: 'data', value: 'x'.repeat(70_000) }],
-    [
-      'панель, которой нет у расширения',
-      { kind: 'openPanel', panelId: 'acme.cmd.ghost' },
-    ],
     ['data без value', { kind: 'data' }],
   ])(
     'ответ недоверенного процесса отвергается (%s): invalid-result',

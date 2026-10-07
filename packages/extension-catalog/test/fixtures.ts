@@ -8,7 +8,6 @@ export const version = (
   version: '1.0.0',
   apiVersion: 1,
   minAppVersion: null,
-  permissions: [],
   publishedAt: '2026-10-01T00:00:00Z',
   baseUrl: 'extensions/acme.quiz/1.0.0/',
   files: [
@@ -25,12 +24,6 @@ export const entry = (overrides: Partial<CatalogEntry> = {}): CatalogEntry => ({
   author: 'octo-cat',
   source: 'https://github.com/dolphy-app/dolphy-extensions',
   platforms: [],
-  contributes: {
-    exerciseTypes: ['acme.quiz'],
-    themes: [],
-    markdownRenderers: [],
-    gradePolicies: [],
-  },
   versions: [version()],
   ...overrides,
 });

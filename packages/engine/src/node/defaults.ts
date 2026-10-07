@@ -17,6 +17,8 @@ export type NodeDefaults = Omit<
   | 'exerciseTypes'
   | 'gradePolicies'
   | 'extensionCommands'
+  | 'extensionRpc'
+  | 'extensionHooks'
   | 'extensionTransfers'
   | 'extensionRegistry'
   | 'extensionPolicy'

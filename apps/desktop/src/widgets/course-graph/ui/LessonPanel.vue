@@ -192,8 +192,4 @@ const studyHint = computed(() => {
   gap: 8px 16px;
   align-items: start;
 }
-
-.facts dd {
-  margin: 0;
-}
 </style>

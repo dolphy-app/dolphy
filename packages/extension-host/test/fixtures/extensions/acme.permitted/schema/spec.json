@@ -1,4 +1,0 @@
-{
-  "type": "object",
-  "properties": { "libraryPath": { "type": "string" } }
-}

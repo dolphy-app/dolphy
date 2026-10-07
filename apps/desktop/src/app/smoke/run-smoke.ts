@@ -6,14 +6,12 @@
  */
 import type { EngineEvent, LearningEngine } from '@dolphy-app/engine-contract';
 import type { SmokeBridge } from '../../../shared/smoke.ts';
-import { ensureAnswerElement } from '@/shared/lib/answer-element.ts';
+import { importExtensionModule } from '@/shared/lib/extension-clients.ts';
+import { moduleUrlOf } from '@/shared/lib/extension-url.ts';
 
 const EXERCISE_ID = 'sql_kb::where::q2';
 const CHOICE_EXERCISE_ID = 'choice_kb::basic::q1';
 const JS_EXERCISE_ID = 'js_smoke::basic::q1';
-const ISOLATED_EXERCISE_ID = 'hostile_kb::basic::q1';
-/** Путь, который «враждебное» расширение пробует записать; smoke.mjs проверяет, что файла нет. */
-const ISOLATED_MARKER = '/tmp/dolphy-smoke-pwned.txt';
 const RIGHT_SQL = 'SELECT name FROM emp WHERE salary IS NULL;';
 const RIGHT_JS = 'function double(n) { return n * 2; }';
 const WRONG_JS = 'function double(n) { return n + 2; }';
@@ -191,44 +189,31 @@ const js = async (engine: LearningEngine): Promise<Scenario> => {
   };
 };
 
-/** Скрипты элементов ввода грузятся по `dolphy-ext://` (CSP, CORS с file://) и определяют свои теги. */
+/** Клиентские модули расширений видов ответа грузятся по `dolphy-ext://` (CSP, CORS с file://) и отдают функцию `client`. */
 const renderer = async (engine: LearningEngine): Promise<Scenario> => {
   const loaded: Record<string, boolean> = {};
+  const { clients } = await engine.extensions.contributions();
   for (const exerciseId of [EXERCISE_ID, CHOICE_EXERCISE_ID, JS_EXERCISE_ID]) {
     const { exercise } = await engine.practice.beginAttempt({ exerciseId });
-    if (exercise.task === undefined) {
+    const owner = clients.find(
+      ({ extensionId }) => extensionId === exercise.task?.extensionId,
+    );
+    if (owner === undefined) {
       loaded[exerciseId] = false;
       continue;
     }
-    await ensureAnswerElement(exercise.task);
-    loaded[exerciseId] =
-      customElements.get(exercise.task.element) !== undefined;
+    try {
+      const module = await importExtensionModule(moduleUrlOf(owner));
+      loaded[exerciseId] =
+        typeof module === 'object' &&
+        module !== null &&
+        'client' in module &&
+        typeof module.client === 'function';
+    } catch {
+      loaded[exerciseId] = false;
+    }
   }
   return { ok: Object.values(loaded).every(Boolean), loaded };
-};
-
-/** Код пользовательского расширения исполняется в ограниченном процессе (режим разрешений Node). */
-const isolated = async (engine: LearningEngine): Promise<Scenario> => {
-  const attempt = await engine.practice.beginAttempt({
-    exerciseId: ISOLATED_EXERCISE_ID,
-  });
-  const verdict = await engine.practice.submitAnswer({
-    attemptId: attempt.attemptId,
-    answer: ISOLATED_MARKER,
-  });
-  const feedback = verdict.outcome === 'failed' ? (verdict.feedback ?? '') : '';
-  const denied = [
-    'read:/etc/hosts=denied',
-    'write=denied',
-    'spawn=denied',
-    'worker=denied',
-    'env:HOME=unset',
-  ].every((probe) => feedback.includes(probe));
-  return {
-    ok: attempt.exercise.task?.isolated === true && denied,
-    isolated: attempt.exercise.task?.isolated ?? null,
-    feedback,
-  };
 };
 
 const crash = async (
@@ -298,7 +283,6 @@ export const runSmoke = async (engine: LearningEngine, smoke: SmokeBridge) => {
     choice: await attempt(() => choice(engine)),
     js: await attempt(() => js(engine)),
     renderer: await attempt(() => renderer(engine)),
-    isolated: await attempt(() => isolated(engine)),
     crash: await attempt(() => crash(engine, events, smoke)),
   };
   return {

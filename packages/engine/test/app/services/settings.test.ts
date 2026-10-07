@@ -405,7 +405,7 @@ describe('settings ui', () => {
 
   it.each([
     [{ materialWidth: 279 }, 'materialWidth'],
-    [{ materialWidth: 801 }, 'materialWidth'],
+    [{ materialWidth: 8193 }, 'materialWidth'],
     [{ materialWidth: 400.5 }, 'materialWidth'],
     [{ materialCollapsed: 'yes' as unknown as boolean }, 'materialCollapsed'],
   ])('rejects %j and saves nothing', async (patch, field) => {

@@ -19,8 +19,7 @@ export const E2E_BUILD_DIR = 'dist-e2e';
  * `DOLPHY_E2E_SHOW=1`: показывать окна (смотреть прогон глазами). Окна
  * показываются без фокуса (`showInactive`), приложение остаётся без активации.
  * На Linux окна показываются всегда: скрытое (`show: false`) окно Chromium
- * считает невидимым, и клики и сообщения в iframe расширений (ответы, панели) не
- * срабатывают; фокус на Linux (xvfb, CI) пользовательскую работу не прерывает.
+ * считает невидимым, и клики и анимации окна не срабатывают; фокус на Linux (xvfb, CI) пользовательскую работу не прерывает.
  */
 export const E2E_SHOW =
   process.env.DOLPHY_E2E_SHOW === '1' || process.platform === 'linux';
@@ -261,7 +260,7 @@ export const launchApp = async (
       '--lang=ru',
       ...extraArgs,
       // окно на другом space yabai считается перекрытым: без этого Chromium
-      // замедляет его и iframe панелей не успевают ответить
+      // замедляет его и компоненты панелей не успевают ответить
       ...(E2E_SHOW
         ? [
             '--disable-backgrounding-occluded-windows',

@@ -128,11 +128,7 @@ const createFakeEngine = (options: FakeOptions = {}) => {
       task: {
         type: 'dolphy.sql',
         timeoutMs: 1000,
-        element: 'dolphy-sql-answer',
-        rendererUrl: 'dolphy-ext://dolphy.sql/view.mjs',
-        isolated: false,
-        origin: 'bundled',
-        revision: '',
+        extensionId: 'dolphy.sql',
       },
     }),
     keyPrerequisites: [],
@@ -353,7 +349,7 @@ describe('placement model', () => {
     expect(placement.current.value).toMatchObject({
       probeId: 'probe-2',
       verifiable: true,
-      task: { type: 'dolphy.sql', element: 'dolphy-sql-answer' },
+      task: { type: 'dolphy.sql' },
       view: { hint: 'v' },
       attemptId: 'attempt-1',
     });

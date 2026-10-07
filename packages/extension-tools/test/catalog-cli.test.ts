@@ -104,7 +104,6 @@ describe('dolphy-ext catalog check', () => {
     expect(result.code).toBe(0);
     const lines = result.stdout.trimEnd().split('\n');
     expect(lines).toHaveLength(RULES.length);
-    expect(lines).toHaveLength(27);
     expect(lines[0]).toMatch(/^CHECK-001 \S/);
   });
 
@@ -176,7 +175,7 @@ describe('dolphy-ext catalog build', () => {
     const first = await exec(args);
     expect(first.code).toBe(0);
     expect(first.stdout).toMatch(
-      /^published acme\.night@1\.0\.0 \(2 files, \d+ bytes\)\n$/,
+      /^published acme\.night@1\.0\.0 \(3 files, \d+ bytes\)\n$/,
     );
     expect((await exec(args)).stdout).toBe('unchanged acme.night@1.0.0\n');
     const index = JSON.parse(

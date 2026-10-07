@@ -15,6 +15,7 @@
   "dependencies": {
     "@dolphy-app/engine": "workspace:*",
     "@dolphy-app/engine-contract": "workspace:*",
+    "@dolphy-app/engine-rpc": "workspace:*",
     "@dolphy-app/extension-api": "workspace:*",
     "@dolphy-app/extension-catalog": "workspace:*",
     "@dolphy-app/keybindings": "workspace:*",

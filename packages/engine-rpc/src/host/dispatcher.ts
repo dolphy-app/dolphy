@@ -165,9 +165,17 @@ export const createDispatcher = ({
   };
   const controlByName = new Map(Object.entries(control));
 
-  const toErrorDto = (error: unknown, method: string): EngineErrorDto => {
+  const toErrorDto = (
+    error: unknown,
+    client: ClientState,
+    method: string,
+  ): EngineErrorDto => {
     if (error instanceof EngineError) return error.toDto();
-    logger.error({ error, method }, 'dispatcher failure'); // движок уже маппит ошибки
+    // движок уже маппит ошибки
+    logger.error(
+      { error, method, clientId: client.clientId },
+      'dispatcher failure',
+    );
     return new EngineError('INTERNAL').toDto();
   };
 
@@ -198,13 +206,17 @@ export const createDispatcher = ({
     request: RpcRequest,
   ): Promise<RpcResponse> => {
     const { id } = request;
+    logger.debug(
+      { clientId: client.clientId, method: String(request.method) },
+      'rpc call',
+    );
     try {
       return { id, ok: true, result: await execute(client, request) };
     } catch (error) {
       return {
         id,
         ok: false,
-        error: toErrorDto(error, String(request.method)),
+        error: toErrorDto(error, client, String(request.method)),
       };
     }
   };
@@ -213,6 +225,7 @@ export const createDispatcher = ({
     const previous = clients.get(clientId);
     const client: ClientState = { clientId, endpoint, unsubscribe: null };
     clients.set(clientId, client);
+    logger.info({ clientId }, 'rpc client attached');
     if (previous) {
       previous.unsubscribe?.();
       previous.endpoint.close(); // один порт на клиента
@@ -229,6 +242,7 @@ export const createDispatcher = ({
     endpoint.onClose(() => {
       client.unsubscribe?.(); // снять слушателя: утечки нет
       client.unsubscribe = null;
+      logger.info({ clientId }, 'rpc client detached');
       if (clients.get(clientId) === client) clients.delete(clientId);
     });
   };

@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { buildExtension } from '../index.ts';
 import { CatalogUsageError } from '../errors.ts';
-import { englishText, readEnglishTable } from '../locales.ts';
 import { MANIFEST_FILE } from '../project.ts';
 import { bundleFindings, readBundleFiles } from './bundle.ts';
 import { manifestFindings } from './manifest.ts';
@@ -37,20 +36,6 @@ export const lintHasErrors = (findings: readonly LintFinding[]): boolean =>
 
 const stringOrNull = (value: unknown): string | null =>
   typeof value === 'string' ? value : null;
-
-/** A manifest string as the catalog shows it: a `%key%` becomes the text of `locales/en.json`. */
-const inEnglish = (
-  value: unknown,
-  table: Awaited<ReturnType<typeof readEnglishTable>>,
-): string | null => {
-  const text = stringOrNull(value);
-  return text === null ? null : englishText(text, table);
-};
-
-const stringsOf = (value: unknown): string[] =>
-  Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === 'string')
-    : [];
 
 const readManifest = async (root: string): Promise<Record<string, unknown>> => {
   let raw: unknown;
@@ -103,10 +88,9 @@ export const lintProject = async (
   }
   const manifest = await readManifest(root);
   const extensionId = stringOrNull(manifest.id) ?? path.basename(root);
-  const english = await readEnglishTable(root);
   const findings: RuleFinding[] = manifestFindings({
-    name: inEnglish(manifest.name, english),
-    description: inEnglish(manifest.description, english),
+    name: stringOrNull(manifest.name),
+    description: stringOrNull(manifest.description),
     author: stringOrNull(manifest.author),
     tags: Array.isArray(manifest.tags) ? manifest.tags : null,
   });
@@ -126,7 +110,7 @@ export const lintProject = async (
       ? { root }
       : { root, built: path.resolve(options.built) },
   );
-  findings.push(...bundleFindings(files, stringsOf(manifest.permissions)));
+  findings.push(...bundleFindings(files));
   return findings.map((finding) => ({
     ...finding,
     // the source map is a catalog error, but the author fixes it before the PR

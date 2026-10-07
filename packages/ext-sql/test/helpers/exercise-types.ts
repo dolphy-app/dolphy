@@ -8,14 +8,14 @@ import type { ExerciseTypes } from '@dolphy-app/engine/ports';
 import { discoverExtensions } from '@dolphy-app/extension-host';
 import { createLocalExerciseTypes } from '@dolphy-app/extension-host/local';
 import { silentLogger } from '@dolphy-app/testkit';
-import { host } from '../../src/index.ts';
+import { server } from '../../src/index.ts';
 
 const PACKAGE_DIR = fileURLToPath(new URL('../..', import.meta.url));
 
 let rootPromise: Promise<string> | null = null;
 
 /**
- * Корень обнаружения `<tmp>/dolphy.sql/{extension.json,schema}` из исходников
+ * Корень обнаружения `<tmp>/dolphy.sql/{extension.json}` из исходников
  * пакета (без сборки); один на процесс, удаляется при выходе.
  */
 export const extensionRoot = (): Promise<string> => {
@@ -24,9 +24,6 @@ export const extensionRoot = (): Promise<string> => {
     process.on('exit', () => rmSync(root, { recursive: true, force: true }));
     const dir = join(root, 'dolphy.sql');
     await cp(join(PACKAGE_DIR, 'extension.json'), join(dir, 'extension.json'));
-    await cp(join(PACKAGE_DIR, 'schema'), join(dir, 'schema'), {
-      recursive: true,
-    });
     return root;
   })();
   return rootPromise;
@@ -48,6 +45,6 @@ export const createSqlExerciseTypes = async (
     extensions,
     library: createNodeFsCourseSource(libraryDir),
     logger: silentLogger,
-    modules: { 'dolphy.sql': host },
+    modules: { 'dolphy.sql': { server } },
   });
 };

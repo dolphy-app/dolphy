@@ -1,53 +1,63 @@
-/** Вид ввода ответа `dolphy.sql`: текстовое поле в теневом корне элемента. */
-import type { MountAnswerView } from '@dolphy-app/extension-sdk';
+/** Вид ввода ответа `dolphy.sql`: многострочное моноширинное поле Vuetify. */
+import type { AnswerChange } from '@dolphy-app/extension-api';
+import { defineComponent, h, ref, watch } from 'vue';
+import type { PropType } from 'vue';
+import { VTextarea } from 'vuetify/components';
 
-const STYLE = `
-  :host { display: block; }
-  textarea {
-    box-sizing: border-box;
-    width: 100%;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    color: rgb(var(--v-theme-on-surface));
-    background: rgb(var(--v-theme-surface));
-    border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
-    border-radius: 4px;
-    padding: 8px;
-  }
-`;
+const ROWS = 6;
 
 const toText = (value: unknown) => (typeof value === 'string' ? value : '');
 
-export const mountSqlEditor: MountAnswerView = (api, initial) => {
-  const style = document.createElement('style');
-  style.textContent = STYLE;
-  const textarea = document.createElement('textarea');
-  textarea.spellcheck = false;
-  textarea.rows = 6;
-  if (api.label !== null) textarea.setAttribute('aria-label', api.label);
-  // значение свойства применяется только при его смене: приложение может не
-  // возвращать введённый текст, и обновление `disabled` не должно его стирать
-  const state = { value: initial.value };
-  textarea.value = toText(initial.value);
-  textarea.disabled = initial.disabled;
+const unknownProp = { type: null as unknown as PropType<unknown> };
 
-  textarea.addEventListener('input', () => {
-    api.setAnswer(textarea.value, textarea.value.trim().length > 0);
-  });
-  textarea.addEventListener('keydown', (event) => {
-    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-      event.preventDefault();
-      api.submit();
-    }
-  });
-  api.root.append(style, textarea);
-
-  return {
-    update: (props) => {
-      if (props.value !== state.value) {
-        state.value = props.value;
-        textarea.value = toText(props.value);
+export const SqlAnswerView = defineComponent({
+  name: 'SqlAnswerView',
+  props: {
+    view: unknownProp,
+    value: unknownProp,
+    disabled: Boolean,
+    verdict: unknownProp,
+    label: { type: String as PropType<string | null>, default: null },
+  },
+  emits: ['change', 'submit'],
+  setup(props, { emit }) {
+    // текст заменяется только со сменой свойства `value`: приложение может не
+    // возвращать введённое, и обновление `disabled` не должно его стирать
+    const text = ref(toText(props.value));
+    watch(
+      () => props.value,
+      (value) => {
+        text.value = toText(value);
+      },
+    );
+    const onInput = (next: string | null) => {
+      text.value = next ?? '';
+      const change: AnswerChange<string> = {
+        value: text.value,
+        complete: text.value.trim().length > 0,
+      };
+      emit('change', change);
+    };
+    const onKeydown = (event: KeyboardEvent) => {
+      if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        emit('submit');
       }
-      textarea.disabled = props.disabled;
-    },
-  };
-};
+    };
+
+    return () =>
+      h(VTextarea, {
+        modelValue: text.value,
+        'onUpdate:modelValue': onInput,
+        onKeydown,
+        'aria-label': props.label ?? undefined,
+        rows: ROWS,
+        spellcheck: false,
+        disabled: props.disabled,
+        style: { fontFamily: 'monospace' },
+        variant: 'outlined',
+        density: 'compact',
+        hideDetails: true,
+      });
+  },
+});

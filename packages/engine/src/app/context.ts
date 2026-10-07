@@ -39,6 +39,8 @@ import type {
 import type { ExerciseTypes } from '../ports/exercise-types.ts';
 import type { GradePolicies } from '../ports/grade-policies.ts';
 import type { ExtensionCommands } from '../ports/extension-commands.ts';
+import type { ExtensionRpc } from '../ports/extension-rpc.ts';
+import type { ExtensionHooks } from '../ports/extension-hooks.ts';
 import type { ExtensionTransfers } from '../ports/extension-transfers.ts';
 import type { ExtensionDataStore } from '../ports/extension-data.ts';
 import type { PlatformServices } from '../ports/platform.ts';
@@ -67,6 +69,7 @@ import type { FolderSync, FolderSyncOptions } from '../node/folder-sync.ts';
 import type { Replica } from '../sync/replica.ts';
 import type { TraneSource } from '../sync/trane-import.ts';
 import type { EngineState, FacadeContext } from './context-types.ts';
+import type { ExtensionHostServices } from './services/extension-host-services.ts';
 import type { ExtensionApply } from './extension-apply.ts';
 import type { EventBus } from './event-bus.ts';
 import type { ExpiringMap } from './expiring-map.ts';
@@ -108,6 +111,10 @@ export interface EngineDeps {
   gradePolicies: GradePolicies;
   /** Команды расширений: вызов в хосте расширений (`@dolphy-app/extension-host`). */
   extensionCommands: ExtensionCommands;
+  /** RPC расширений: вызов обработчика `server.handle` в хосте расширений (`@dolphy-app/extension-host`). */
+  extensionRpc: ExtensionRpc;
+  /** Хуки «до» расширений: вызов обработчиков `server.before` в хосте расширений (`@dolphy-app/extension-host`). */
+  extensionHooks: ExtensionHooks;
   /** Импорт и экспорт расширений: запуск в хосте расширений (`@dolphy-app/extension-host`). */
   extensionTransfers: ExtensionTransfers;
   /** Обзор расширений для `extensions.list`. */
@@ -122,6 +129,13 @@ export interface EngineDeps {
   extensionInstaller: ExtensionInstaller;
   /** Применение изменений расширений на диске (`@dolphy-app/extension-host`): тот же снимок, что у реестра, политики и клиентов хоста. */
   extensionReloader: ExtensionReloader;
+  /**
+   * Вызывается, когда сервисы данных расширений уже работают, а библиотека ещё
+   * не открыта; открытие ждёт завершения. Так хост расширений при первой
+   * регистрации вкладов видит рабочие хранилище и настройки, а библиотека
+   * открывается уже с видами заданий.
+   */
+  beforeLibrary?: (host: ExtensionHostServices) => Promise<void>;
   /** Чтение файлового журнала (`extensions.readLogs`); нет порта — журнала нет, ответ пустой. */
   logReader?: LogReader;
   /** Платформа хоста; по умолчанию `platformFromNode(process.platform)`. */
@@ -370,6 +384,8 @@ export interface EngineContext extends FacadeContext {
   /** Единый источник опций планировщика, ремедиации и плана. */
   readonly options: SchedulerOptionsHolder;
   readonly session: SessionState;
+  /** Открытая сессия обучения: `practice` открывает и закрывает её, `plan` сообщает хукам. */
+  readonly currentSession: { id: string | null };
   readonly fsrs: FsrsScorer;
   readonly scorer: UnitScorer;
   readonly scheduler: DepthFirstScheduler;
@@ -378,7 +394,9 @@ export interface EngineContext extends FacadeContext {
   readonly attempts: ExpiringMap<OpenAttempt>;
   readonly gradePolicies: GradePolicies;
   readonly extensionCommands: ExtensionCommands;
+  readonly extensionRpc: ExtensionRpc;
   readonly extensionTransfers: ExtensionTransfers;
+  readonly extensionHooks: ExtensionHooks;
   /** Настройки обучения в памяти (читаются при каждом закрытии попытки); пишет только `settings.setLearning`. */
   readonly learning: { gradePolicy: string };
   readonly journal: JournalWriter;

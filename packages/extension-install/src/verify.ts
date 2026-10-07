@@ -4,21 +4,6 @@ import type {
 } from '@dolphy-app/extension-catalog';
 import type { InspectedManifest } from './options.ts';
 
-const CONTRIBUTION_KEYS = [
-  'exerciseTypes',
-  'themes',
-  'markdownRenderers',
-  'gradePolicies',
-  'settings',
-  'events',
-  'commands',
-  'panels',
-  'widgets',
-  'schedules',
-  'importers',
-  'exporters',
-] as const;
-
 const sameSet = (a: readonly string[], b: readonly string[]): boolean => {
   const left = new Set(a);
   const right = new Set(b);
@@ -41,9 +26,6 @@ export const manifestMismatch = (
   if (manifest.version !== version.version) {
     return `manifest version '${manifest.version}' differs from catalog version '${version.version}'`;
   }
-  if (!sameSet(manifest.permissions, version.permissions)) {
-    return 'manifest permissions differ from the catalog entry';
-  }
   if (manifest.icon !== (version.icon ?? null)) {
     return 'manifest icon differs from the catalog entry';
   }
@@ -58,10 +40,5 @@ export const manifestMismatch = (
   ) {
     return 'manifest dependencies differ from the catalog entry';
   }
-  const changed = CONTRIBUTION_KEYS.find(
-    (key) => !sameSet(manifest.contributes[key], entry.contributes[key] ?? []),
-  );
-  return changed === undefined
-    ? null
-    : `manifest contributions (${changed}) differ from the catalog entry`;
+  return null;
 };

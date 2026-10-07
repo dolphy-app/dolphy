@@ -1,29 +1,19 @@
-import { fileURLToPath } from 'node:url';
 import { ExerciseTypeError } from '@dolphy-app/engine/ports';
-import type { ExtensionModule } from '@dolphy-app/extension-api';
 import { describe, expect, it, vi } from 'vitest';
 import { createCatalog } from '../src/catalog.ts';
 import { createHostChannel } from '../src/channel.ts';
 import { createRemoteExerciseTypes } from '../src/client.ts';
-import { discoverExtensions } from '../src/discover.ts';
 import type { DiscoveryResult } from '../src/discover.ts';
-import { createDiscoveryHolder } from '../src/holder.ts';
+import { createDiscoveryHolder, discoveryOf } from '../src/holder.ts';
 import { createEndpointPair } from '../src/loopback.ts';
-import { createAllTrustedPolicy } from '../src/policy.ts';
+import { createAllEnabledPolicy } from '../src/policy.ts';
 import { createExtensionReloader } from '../src/reloader.ts';
 import { createExtensionRuntime } from '../src/runtime.ts';
-import type { ExtensionRuntime } from '../src/runtime.ts';
-import { createLogger, nullLibrary } from './helpers.ts';
+import type { ExtensionRuntime, ServerModule } from '../src/runtime.ts';
+import { candidateOf, createLogger, nullLibrary } from './helpers.ts';
 
-const fixtures = fileURLToPath(
-  new URL('./fixtures/extensions', import.meta.url),
-);
-
-const discover = (): Promise<DiscoveryResult> =>
-  discoverExtensions({
-    roots: [{ dir: fixtures, origin: 'bundled' }],
-    logger: createLogger(),
-  });
+const discover = async (): Promise<DiscoveryResult> =>
+  discoveryOf([candidateOf('acme.echo')]);
 
 /** `grade` ждёт `gate` и сообщает, что вошёл в обработчик: тест держит вызов в полёте, пока не отпустит. */
 const control: { gate: Promise<void>; entered: () => void } = {
@@ -31,9 +21,12 @@ const control: { gate: Promise<void>; entered: () => void } = {
   entered: () => {},
 };
 
-const echoModule = (label: string): ExtensionModule => ({
-  activate(ctx) {
-    ctx.registerExerciseType('acme.echo', {
+const echoModule = (label: string): ServerModule => ({
+  server(server) {
+    server.registerExerciseType({
+      id: 'acme.echo',
+      specSchema: { type: 'object' },
+      answerSchema: { type: 'number' },
       project: () => label,
       grade: async () => {
         control.entered();
@@ -45,27 +38,31 @@ const echoModule = (label: string): ExtensionModule => ({
 });
 
 /** Движок и хост расширений, соединённые в памяти: канал, который сам отправляет набор при подключении. */
-const setup = async () => {
-  const empty: DiscoveryResult = {
-    extensions: [],
-    diagnostics: [],
-    overridden: [],
-  };
-  const holder = createDiscoveryHolder(empty);
+const setup = () => {
+  let registered = (): void => {};
+  /** Завершается, когда канал отдал регистрации хоста: движок узнаёт о видах только после этого. */
+  const nextRegistrations = (): Promise<void> =>
+    new Promise((resolve) => {
+      registered = resolve;
+    });
+  const holder = createDiscoveryHolder(discoveryOf([]));
   const logger = createLogger();
   const channel = createHostChannel({
     logger,
-    currentExtensions: () => holder.get().extensions,
+    restart: () => {},
+    currentExtensions: () => holder.get().candidates,
+    onRegistrations: (result) => {
+      holder.applyRegistrations(result);
+      registered();
+    },
   });
   const types = createRemoteExerciseTypes({
     channel,
-    catalog: createCatalog(holder, createAllTrustedPolicy()),
-    policy: createAllTrustedPolicy(),
+    catalog: createCatalog(holder, createAllEnabledPolicy()),
     logger,
   });
   const connect = (): ExtensionRuntime => {
     const runtime = createExtensionRuntime({
-      extensions: [],
       library: nullLibrary,
       logger: createLogger(),
       modules: { 'acme.echo': echoModule('v1') },
@@ -77,51 +74,63 @@ const setup = async () => {
   };
   const reloadFrom = (source: () => Promise<DiscoveryResult>) =>
     createExtensionReloader({ holder, discover: source, channel, logger });
-  return { holder, channel, types, connect, reloadFrom, logger };
+  return {
+    holder,
+    channel,
+    types,
+    connect,
+    reloadFrom,
+    logger,
+    nextRegistrations,
+  };
 };
 
+const project = (types: ReturnType<typeof setup>['types']) =>
+  types.project({ type: 'acme.echo', exerciseId: 'e', spec: {} });
+
 describe('createExtensionReloader', () => {
-  it('заменяет снимок движка и набор хоста; вызов к новому виду проходит после reload()', async () => {
-    const { holder, types, connect, reloadFrom, logger } = await setup();
+  it('заменяет снимок движка и набор хоста; регистрация из ответа хоста действует после reload()', async () => {
+    const { holder, types, connect, reloadFrom, logger } = setup();
     connect();
-    await expect(
-      types.project({ type: 'acme.echo', exerciseId: 'e', spec: {} }),
-    ).rejects.toBeInstanceOf(ExerciseTypeError); // набор пуст
+    await expect(project(types)).rejects.toBeInstanceOf(ExerciseTypeError); // набор пуст
 
     await reloadFrom(discover).reload();
-    expect(holder.get().extensions.length).toBeGreaterThan(0);
+    expect(holder.get().extensions).toMatchObject([
+      { id: 'acme.echo', exerciseTypes: [{ id: 'acme.echo' }] },
+    ]);
     // хост подтвердил замену: предупреждения об отсутствии подтверждения нет
     expect(logger.warn).not.toHaveBeenCalled();
-    expect(
-      await types.project({ type: 'acme.echo', exerciseId: 'e', spec: {} }),
-    ).toBe('v1');
+    expect(await project(types)).toBe('v1');
   });
 
-  it('хост, подключённый после reload(), получает текущий набор при подключении', async () => {
-    const { types, connect, reloadFrom, channel } = await setup();
+  it('хост, подключённый после reload(), получает кандидатов и отдаёт регистрации при подключении', async () => {
+    const { holder, types, connect, reloadFrom, channel, nextRegistrations } =
+      setup();
     await reloadFrom(discover).reload(); // хоста нет: ничего не отправляется и ничего не ждётся
     expect(channel.connected()).toBe(false);
+    expect(holder.get().extensions[0]?.exerciseTypes).toEqual([]);
+    const applied = nextRegistrations();
     connect();
-    expect(
-      await types.project({ type: 'acme.echo', exerciseId: 'e', spec: {} }),
-    ).toBe('v1');
+    await applied;
+    expect(await project(types)).toBe('v1');
+    expect(holder.get().extensions[0]?.exerciseTypes).toHaveLength(1);
   });
 
   it('перезапущенный хост (новый порт, пустой рантайм) снова получает набор', async () => {
-    const { types, connect, reloadFrom } = await setup();
+    const { types, connect, reloadFrom, nextRegistrations } = setup();
     connect();
     await reloadFrom(discover).reload();
     const first = connect(); // «перезапуск»: прежний endpoint закрывается, рантайм новый
     await first.dispose();
+    const applied = nextRegistrations();
     const second = connect();
-    expect(
-      await types.project({ type: 'acme.echo', exerciseId: 'e', spec: {} }),
-    ).toBe('v1');
+    await applied;
+    expect(await project(types)).toBe('v1');
     await second.dispose();
   });
 
   it('набор, который не удалось собрать, прежний снимок не меняет и отдаётся ошибкой', async () => {
-    const { holder, reloadFrom } = await setup();
+    const { holder, reloadFrom } = setup();
     const before = holder.get();
     const failing = vi.fn(async (): Promise<DiscoveryResult> => {
       throw new Error('roots are unreadable');
@@ -133,7 +142,7 @@ describe('createExtensionReloader', () => {
   });
 
   it('удаление расширения посреди вызова: вызов завершается своим вердиктом, а не worker_crash', async () => {
-    const { holder, types, connect, reloadFrom } = await setup();
+    const { types, connect, reloadFrom } = setup();
     connect();
     await reloadFrom(discover).reload();
     let release: () => void = () => {};
@@ -155,13 +164,7 @@ describe('createExtensionReloader', () => {
     const running = call();
     // вызов дошёл до обработчика хоста и стоит на `control.gate`
     await entered;
-    const removed = async (): Promise<DiscoveryResult> => ({
-      ...holder.get(),
-      extensions: holder
-        .get()
-        .extensions.filter(({ id }): boolean => id !== 'acme.echo'),
-    });
-    await reloadFrom(removed).reload();
+    await reloadFrom(async () => discoveryOf([])).reload();
     release();
     control.gate = Promise.resolve();
     expect(await running).toMatchObject({ outcome: 'passed' });

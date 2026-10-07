@@ -11,14 +11,14 @@ import {
   startCatalogServer,
 } from './support/catalog-server.ts';
 import type { CatalogServer, CatalogSource } from './support/catalog-server.ts';
-import { ANSWER_FRAME, Client } from './support/client.ts';
+import { Client } from './support/client.ts';
 import {
   ECHO,
   ECHO_COURSE,
   MARKDOWN,
   markdownCourse,
 } from './support/courses.ts';
-import { expectCount, expectText } from './support/locator.ts';
+import { expectText } from './support/locator.ts';
 
 const fixture = (name: string) =>
   fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url));
@@ -52,7 +52,6 @@ const POLICY: CatalogSource = {
   author: 'acme',
 };
 
-const MARKDOWN_FRAME = 'iframe[sandbox][data-mode="markdown"]';
 const SUNRISE_THEME = 'Рассвет';
 const SUNRISE_BACKGROUND = 'rgb(255, 244, 229)';
 const BUILTIN_BACKGROUNDS = ['rgb(245, 246, 251)', 'rgb(14, 16, 32)'];
@@ -116,7 +115,7 @@ describe('живое применение расширений', () => {
     await installFromCatalog(second, 'acme.sunrise');
     await installFromCatalog(second, 'acme.policy');
 
-    // блок перевыведен рендерером расширения: в рамке, исходник заменён
+    // блок перевыведен рендерером расширения: исходник заменён
     const block = first.client.page.locator(
       '.dolphy-md-block[data-language=good]',
     );
@@ -124,7 +123,6 @@ describe('живое применение расширений', () => {
       .poll(() => block.getAttribute('data-state'), { timeout: 30_000 })
       .toBe('done');
     await first.client.page
-      .frameLocator(MARKDOWN_FRAME)
       .getByText('good block: hello', { exact: true })
       .waitFor({ state: 'visible' });
 
@@ -193,7 +191,7 @@ describe('живое применение расширений', () => {
     await stillSameWindow();
   });
 
-  it('R3: обновление при смонтированном элементе в другом окне: введённый ответ и рамка целы, проверка идёт в новую версию, новые монтирования — с новыми файлами', async () => {
+  it('R3: обновление при смонтированном виде ответа в другом окне: компонент заменяется без перезагрузки и баннера, введённый ответ цел, проверка идёт в новую версию', async () => {
     server = await startCatalogServer([ECHO_1_1]);
     await seedCatalogInstall(workspace.userData, {
       id: 'acme.echo',
@@ -210,8 +208,6 @@ describe('живое применение расширений', () => {
     await first.client.focusCourse(ECHO);
     await first.client.startSession();
     await first.client.fillAnswer({ text: '41' });
-    const frame = first.client.page.locator(ANSWER_FRAME);
-    await frame.evaluate((node) => Reflect.set(node, '__old', true));
     const stillSameWindow = await first.client.markWindow();
 
     const second = await secondWindow();
@@ -224,21 +220,12 @@ describe('живое применение расширений', () => {
       'Из каталога v1.1.0',
     );
 
-    // элемент и ответ не тронуты
-    expect(await frame.evaluate((node) => Reflect.get(node, '__old'))).toBe(
-      true,
-    );
-    const input = first.client.page
-      .frameLocator(ANSWER_FRAME)
-      .locator('acme-echo-answer input');
-    expect(await input.inputValue()).toBe('41');
-    expect(
-      await first.client.page
-        .frameLocator(ANSWER_FRAME)
-        .locator('acme-echo-answer[data-version]')
-        .count(),
-    ).toBe(0);
-    await expectCount(first.catalog.page.getByTestId('extensions-reload'), 0);
+    // новая ревизия пересоздаёт компонент без перезагрузки окна; ответ цел
+    const element = first.client.page.getByTestId('acme-echo-answer');
+    await element
+      .and(first.client.page.locator('[data-version="1.1.0"]'))
+      .waitFor({ timeout: 30_000 });
+    expect(await element.locator('input').inputValue()).toBe('41');
 
     // 1.0.0 отверг бы «41»; 1.1.0 засчитывает: вердикт даёт новая версия
     await first.client.page
@@ -254,95 +241,7 @@ describe('живое применение расширений', () => {
     await second.client.openPlan();
     await second.client.startSession();
     await second.client.page
-      .frameLocator(ANSWER_FRAME)
-      .locator('acme-echo-answer[data-version="1.1.0"]')
-      .waitFor({ state: 'attached', timeout: 30_000 });
-  });
-
-  it('R7: элемент доверенного расширения уже определён в окне, обновление просит перезагрузку; после неё действует новая версия', async () => {
-    server = await startCatalogServer([ECHO_1_1]);
-    await seedCatalogInstall(workspace.userData, {
-      id: 'acme.echo',
-      dir: ECHO_1_0.dir,
-      version: '1.0.0',
-      catalogUrl: server.url,
-    });
-    app = await launchApp(workspace.userData, catalogEnv(server.url));
-    const { client, catalog } = {
-      client: new Client(app.page),
-      catalog: new CatalogClient(app.page),
-    };
-    await client.openSettingsExtensions();
-    await client.setExtensionSwitch('acme.echo', 'trusted', true);
-    await expectCount(client.reloadBanner(), 0);
-
-    // элемент определяется в окне: расширение доверенное, рамки нет
-    await client.openCourses();
-    await client.focusCourse(ECHO);
-    await client.startSession();
-    await client.answerElement('acme-echo-answer');
-    expect(await client.page.locator('iframe').count()).toBe(0);
-    await client.page
-      .getByRole('button', { name: 'Выйти из сессии', exact: true })
-      .click();
-    const stillSameWindow = await client.markWindow();
-
-    await client.openSettingsExtensions();
-    await catalog.updateFromRow('acme.echo');
-    await catalog.confirmInstall();
-    await catalog.closeDialog();
-    await expectText(
-      client.reloadBanner(),
-      'Обновление применится после перезагрузки окна',
-    );
-    await stillSameWindow();
-
-    // до перезагрузки определённый элемент прежний
-    await client.openPlan();
-    await client.startSession();
-    const element = await client.answerElement('acme-echo-answer');
-    expect(await element.getAttribute('data-version')).toBeNull();
-    await client.page
-      .getByRole('button', { name: 'Выйти из сессии', exact: true })
-      .click();
-
-    await client.openSettingsExtensions();
-    await client.reloadFromBanner();
-    await expectCount(client.reloadBanner(), 0);
-    await client.openPlan();
-    await client.startSession();
-    const fresh = await client.answerElement('acme-echo-answer');
-    expect(await fresh.getAttribute('data-version')).toBe('1.1.0');
-  });
-
-  it('R7: обновление без определённого в окне элемента, и недоверенного расширения, перезагрузки не просит', async () => {
-    server = await startCatalogServer([ECHO_1_1]);
-    await seedCatalogInstall(workspace.userData, {
-      id: 'acme.echo',
-      dir: ECHO_1_0.dir,
-      version: '1.0.0',
-      catalogUrl: server.url,
-    });
-    app = await launchApp(workspace.userData, catalogEnv(server.url));
-    const client = new Client(app.page);
-    const catalog = new CatalogClient(app.page);
-    await client.openSettingsExtensions();
-    // недоверенное: рамка, а не определение тега в окне
-    await client.openCourses();
-    await client.focusCourse(ECHO);
-    await client.startSession();
-    await client.answerElement('acme-echo-answer');
-    await client.page
-      .getByRole('button', { name: 'Выйти из сессии', exact: true })
-      .click();
-
-    await client.openSettingsExtensions();
-    await catalog.updateFromRow('acme.echo');
-    await catalog.confirmInstall();
-    await catalog.closeDialog();
-    expect(await catalog.installedText('acme.echo')).toContain(
-      'Из каталога v1.1.0',
-    );
-    await expectCount(client.reloadBanner(), 0);
+      .locator('[data-testid="acme-echo-answer"][data-version="1.1.0"]')
+      .waitFor({ timeout: 30_000 });
   });
 });

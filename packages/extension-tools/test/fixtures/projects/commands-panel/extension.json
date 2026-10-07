@@ -1,16 +1,5 @@
 {
   "id": "acme.commands-panel",
   "version": "1.0.0",
-  "apiVersion": 1,
-  "contributes": {
-    "commands": [
-      {
-        "id": "acme.commands-panel.open",
-        "title": "Open panel",
-        "category": "Acme"
-      },
-      { "id": "acme.commands-panel.ping", "title": "Ping", "palette": false }
-    ],
-    "panels": [{ "id": "acme.commands-panel.main", "title": "Acme panel" }]
-  }
+  "apiVersion": 1
 }

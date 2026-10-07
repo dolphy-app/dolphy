@@ -87,6 +87,11 @@ export const ERRORS: Record<EngineErrorCode, ErrorSpec> = {
     retryable: false,
   },
   // retryable зависит от details.reason: timeout, host-down → true
+  EXTENSION_RPC_FAILED: {
+    message: 'Extension RPC call failed',
+    retryable: false,
+  },
+  // retryable зависит от details.reason: timeout, host-down → true
   EXTENSION_COMMAND_FAILED: {
     message: 'Extension command failed',
     retryable: false,
@@ -94,6 +99,11 @@ export const ERRORS: Record<EngineErrorCode, ErrorSpec> = {
   // retryable зависит от details.reason: timeout, host-down → true
   EXTENSION_TRANSFER_FAILED: {
     message: 'Extension import or export failed',
+    retryable: false,
+  },
+  // retryable зависит от details.reason: timeout, host-down → true
+  EXTENSION_HOOK_FAILED: {
+    message: 'Extension hook cancelled the operation',
     retryable: false,
   },
   INTERNAL: { message: 'Internal engine error', retryable: true },
@@ -120,6 +130,9 @@ const defaultRetryable = (
     return details?.reason === 'timeout' || details?.reason === 'host-down';
   }
   if (code === 'EXTENSION_TRANSFER_FAILED') {
+    return details?.reason === 'timeout' || details?.reason === 'host-down';
+  }
+  if (code === 'EXTENSION_RPC_FAILED' || code === 'EXTENSION_HOOK_FAILED') {
     return details?.reason === 'timeout' || details?.reason === 'host-down';
   }
   if (code === 'GIT_FETCH_FAILED') {

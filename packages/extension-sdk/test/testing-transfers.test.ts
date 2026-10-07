@@ -1,95 +1,102 @@
 import { describe, expect, it } from 'vitest';
 import {
   EXTENSION_TRANSFER_LIMITS,
+  defineServer,
   type BytesImportInput,
   type CourseExportInput,
-  type TextImportInput,
-  defineExtension,
-  inActivate,
   type ExporterHandler,
   type ImporterHandler,
+  type ImporterInputKind,
+  type ExporterScope,
+  type TextImportInput,
 } from '../src/index.ts';
-import {
-  createMemoryStats,
-  loadExporters,
-  loadImporters,
-} from '../src/testing.ts';
+import { createMemoryStats, createTestServer } from '../src/testing.ts';
 
 const MIB = 1024 * 1024;
 
-const importersOf = (importers: Record<string, ImporterHandler>) =>
-  defineExtension({ importers });
+const importerOf = (
+  run: ImporterHandler,
+  input: ImporterInputKind = 'text',
+  id = 'a.csv',
+) =>
+  createTestServer(
+    defineServer((s) => {
+      s.registerImporter({ id, title: id, accept: ['.csv'], input, run });
+    }),
+  );
 
-const exportersOf = (exporters: Record<string, ExporterHandler>) =>
-  defineExtension({ exporters });
+const exporterOf = (
+  run: ExporterHandler,
+  scope: ExporterScope = 'progress',
+  id = 'a.out',
+) =>
+  createTestServer(
+    defineServer((s) => {
+      s.registerExporter({ id, title: id, scope, run });
+    }),
+  );
 
-describe('loadImporters', () => {
+describe('createTestServer: importers', () => {
   it('runs the importer with the text input and returns the files', async () => {
-    const loaded = await loadImporters(
-      importersOf({
-        'a.csv': ({ name, text }: TextImportInput) => ({
-          files: { 'course.yaml': `id: ${name}`, 'rows.csv': text },
-        }),
-      }),
-    );
-
-    expect(loaded.ids()).toEqual(['a.csv']);
-    expect(await loaded.run('a.csv', { name: 'x.csv', text: 'a;b' })).toEqual({
-      files: { 'course.yaml': 'id: x.csv', 'rows.csv': 'a;b' },
+    const server = await importerOf((input) => {
+      const { name, text } = input as TextImportInput;
+      return { files: { 'course.yaml': `id: ${name}`, 'rows.csv': text } };
     });
+
+    expect(
+      await server.importer('a.csv').run({ name: 'x.csv', text: 'a;b' }),
+    ).toEqual({ files: { 'course.yaml': 'id: x.csv', 'rows.csv': 'a;b' } });
   });
 
   it('hands the bytes of a bytes importer over as a Uint8Array', async () => {
-    const loaded = await loadImporters(
-      importersOf({
-        'a.bin': ({ bytes }: BytesImportInput) => ({
+    const server = await importerOf(
+      (input) => {
+        const { bytes } = input as BytesImportInput;
+        return {
           files: {
             'size.txt':
               bytes instanceof Uint8Array ? String(bytes.length) : 'not bytes',
           },
-        }),
-      }),
-      { declaredImporters: [{ id: 'a.bin', input: 'bytes' }] },
+        };
+      },
+      'bytes',
+      'a.bin',
     );
 
     expect(
-      await loaded.run('a.bin', { name: 'x', bytes: Uint8Array.of(1, 2, 3) }),
+      await server
+        .importer('a.bin')
+        .run({ name: 'x', bytes: Uint8Array.of(1, 2, 3) }),
     ).toEqual({ files: { 'size.txt': '3' } });
   });
 
-  it('refuses the wrong input form for a declared importer, as the host does', async () => {
-    const loaded = await loadImporters(
-      importersOf({
-        'a.csv': () => ({ files: {} }),
-        'a.bin': () => ({ files: {} }),
-      }),
-      {
-        declaredImporters: [{ id: 'a.csv' }, { id: 'a.bin', input: 'bytes' }],
-      },
-    );
+  it('refuses the wrong input form, as the host does', async () => {
+    const text = await importerOf(() => ({ files: {} }));
+    const bytes = await importerOf(() => ({ files: {} }), 'bytes', 'a.bin');
 
     await expect(
-      loaded.run('a.csv', { name: 'x', bytes: Uint8Array.of(1) }),
+      text.importer('a.csv').run({ name: 'x', bytes: Uint8Array.of(1) }),
     ).rejects.toThrow("importer 'a.csv' takes text input");
-    await expect(loaded.run('a.bin', { name: 'x', text: '' })).rejects.toThrow(
-      "importer 'a.bin' takes bytes input",
-    );
+    await expect(
+      bytes.importer('a.bin').run({ name: 'x', text: '' }),
+    ).rejects.toThrow("importer 'a.bin' takes bytes input");
   });
 
   it('refuses a file over the limit and an unregistered importer', async () => {
-    const loaded = await loadImporters(
-      importersOf({ 'a.csv': () => ({ files: {} }) }),
+    const server = await importerOf(
+      (input) => ({ files: { 'a.bin': String('bytes' in input) } }),
+      'bytes',
     );
 
     await expect(
-      loaded.run('a.csv', {
+      server.importer('a.csv').run({
         name: 'x',
         bytes: new Uint8Array(EXTENSION_TRANSFER_LIMITS.inputBytes + 1),
       }),
     ).rejects.toThrow('longer than');
-    await expect(
-      loaded.run('a.other', { name: 'x', text: '' }),
-    ).rejects.toThrow("importer 'a.other' was not registered");
+    expect(() => server.importer('a.other')).toThrow(
+      "importer 'a.other' was not registered",
+    );
   });
 
   it.each([
@@ -116,13 +123,12 @@ describe('loadImporters', () => {
     ],
     ['text instead of an object', 'files', 'must be an object'],
   ])('rejects %s with the host message', async (_name, result, message) => {
-    const loaded = await loadImporters(
-      importersOf({ 'a.csv': () => result as never }),
-    );
+    const server = await importerOf(() => result as never);
 
-    const failure = await loaded
-      .run('a.csv', { name: 'x', text: '' })
-      .catch((error: unknown) => error as Error);
+    const failure = await server
+      .importer('a.csv')
+      .run({ name: 'x', text: '' })
+      .catch((error: unknown) => error);
 
     expect(failure).toBeInstanceOf(Error);
     expect((failure as Error).message).toMatch(/^invalid import result: /);
@@ -133,58 +139,29 @@ describe('loadImporters', () => {
     const files = Object.fromEntries(
       Array.from({ length: 5000 }, (_, i) => [`f${i}`, '']),
     );
-    const loaded = await loadImporters(
-      importersOf({
-        'a.csv': () => ({ files }),
-        'a.big': () => ({ files: { a: 'x'.repeat(2 * MIB) } }),
-      }),
-    );
+    const many = await importerOf(() => ({ files }));
+    const big = await importerOf(() => ({ files: { a: 'x'.repeat(2 * MIB) } }));
 
     expect(
-      Object.keys((await loaded.run('a.csv', { name: 'x', text: '' })).files),
+      Object.keys(
+        (await many.importer('a.csv').run({ name: 'x', text: '' })).files,
+      ),
     ).toHaveLength(5000);
     expect(
-      (await loaded.run('a.big', { name: 'x', text: '' })).files['a']?.length,
+      (await big.importer('a.csv').run({ name: 'x', text: '' })).files['a']
+        ?.length,
     ).toBe(2 * MIB);
   });
 
-  it('refuses an importer the manifest does not declare and a repeated registration', async () => {
-    await expect(
-      loadImporters(importersOf({ 'a.ghost': () => ({ files: {} }) }), {
-        declaredImporters: [{ id: 'a.csv' }],
-      }),
-    ).rejects.toThrow("importer 'a.ghost' is not declared in the manifest");
-    await expect(
-      loadImporters(
-        defineExtension({
-          importers: { 'a.csv': () => ({ files: {} }) },
-          activate(ctx) {
-            ctx.importers.register('a.csv', () => ({ files: {} }));
-          },
-        }),
-      ),
-    ).rejects.toThrow("importer 'a.csv' is already registered");
-  });
-
-  it('dispose deactivates the module', async () => {
-    let deactivated = false;
-    const loaded = await loadImporters(
-      defineExtension({
-        importers: { 'a.csv': () => ({ files: {} }) },
-        deactivate: () => {
-          deactivated = true;
-        },
-      }),
-    );
-
-    await loaded.dispose();
-
-    expect(deactivated).toBe(true);
-    expect(loaded.ids()).toEqual([]);
+  it('the snapshot lists the importer with its accepted extensions and input', async () => {
+    const server = await importerOf(() => ({ files: {} }), 'bytes');
+    expect(server.registration.importers).toEqual([
+      { id: 'a.csv', title: 'a.csv', accept: ['.csv'], input: 'bytes' },
+    ]);
   });
 });
 
-describe('loadExporters', () => {
+describe('createTestServer: exporters', () => {
   const course = {
     scope: 'course',
     courseId: 'c1',
@@ -193,71 +170,68 @@ describe('loadExporters', () => {
   } as const;
 
   it('runs a course exporter on the snapshot', async () => {
-    const loaded = await loadExporters(
-      exportersOf({
-        'a.json': (input: CourseExportInput) => ({
-          filename: 'course.json',
-          text: JSON.stringify(input),
-        }),
+    const server = await exporterOf(
+      (input) => ({
+        filename: 'course.json',
+        text: JSON.stringify(input as CourseExportInput),
       }),
-      { declaredExporters: [{ id: 'a.json', scope: 'course' }] },
+      'course',
     );
 
-    expect(await loaded.run('a.json', course)).toEqual({
+    expect(await server.exporter('a.out').run(course)).toEqual({
       filename: 'course.json',
       text: JSON.stringify(course),
     });
   });
 
   it('runs a progress exporter against the stats of the test', async () => {
-    const loaded = await loadExporters(
-      defineExtension({
-        exporters: { 'a.progress': inActivate },
-        activate(ctx) {
-          ctx.exporters.register('a.progress', async () => {
-            const { current } = await ctx.stats.streak();
+    const stats = createMemoryStats({
+      attempts: [{ at: new Date(2026, 0, 1, 12), grade: 5 }],
+      now: () => new Date(2026, 0, 1, 18).getTime(),
+    });
+    const server = await createTestServer(
+      defineServer((s) => {
+        s.registerExporter({
+          id: 'a.progress',
+          title: 'Progress',
+          scope: 'progress',
+          run: async () => {
+            const { current } = await s.stats.streak();
             return { filename: 'p.txt', text: `streak ${current}` };
-          });
-        },
+          },
+        });
       }),
-      {
-        stats: createMemoryStats({
-          attempts: [{ at: new Date(2026, 0, 1, 12), grade: 5 }],
-          now: () => new Date(2026, 0, 1, 18).getTime(),
-        }),
-      },
+      { stats },
     );
 
-    expect(await loaded.run('a.progress', { scope: 'progress' })).toEqual({
-      filename: 'p.txt',
-      text: 'streak 1',
-    });
+    expect(
+      await server.exporter('a.progress').run({ scope: 'progress' }),
+    ).toEqual({ filename: 'p.txt', text: 'streak 1' });
   });
 
   it('returns bytes as they are', async () => {
-    const loaded = await loadExporters(
-      exportersOf({
-        'a.bin': () => ({ filename: 'a.bin', bytes: Uint8Array.of(0, 255) }),
-      }),
-    );
+    const server = await exporterOf(() => ({
+      filename: 'a.bin',
+      bytes: Uint8Array.of(0, 255),
+    }));
 
-    expect(await loaded.run('a.bin', { scope: 'progress' })).toEqual({
+    expect(await server.exporter('a.out').run({ scope: 'progress' })).toEqual({
       filename: 'a.bin',
       bytes: Uint8Array.of(0, 255),
     });
   });
 
-  it('refuses the wrong scope for a declared exporter and an oversized snapshot', async () => {
-    const loaded = await loadExporters(
-      exportersOf({ 'a.json': () => ({ filename: 'a', text: '' }) }),
-      { declaredExporters: [{ id: 'a.json', scope: 'course' }] },
+  it('refuses the wrong scope and an oversized snapshot', async () => {
+    const server = await exporterOf(
+      () => ({ filename: 'a', text: '' }),
+      'course',
     );
 
-    await expect(loaded.run('a.json', { scope: 'progress' })).rejects.toThrow(
-      "exporter 'a.json' takes the course scope",
-    );
     await expect(
-      loaded.run('a.json', {
+      server.exporter('a.out').run({ scope: 'progress' }),
+    ).rejects.toThrow("exporter 'a.out' takes the course scope");
+    await expect(
+      server.exporter('a.out').run({
         ...course,
         files: Object.fromEntries(
           Array.from({ length: 11 }, (_, i) => [`${i}`, 'x'.repeat(2 * MIB)]),
@@ -276,12 +250,10 @@ describe('loadExporters', () => {
     ['neither text nor bytes', { filename: 'a' }],
     ['a 20 MiB + 1 text', { filename: 'a', text: 'x'.repeat(20 * MIB + 1) }],
   ])('rejects %s with the host message', async (_name, result) => {
-    const loaded = await loadExporters(
-      exportersOf({ 'a.out': () => result as never }),
-    );
+    const server = await exporterOf(() => result as never);
 
-    await expect(loaded.run('a.out', { scope: 'progress' })).rejects.toThrow(
-      /^invalid export result: /,
-    );
+    await expect(
+      server.exporter('a.out').run({ scope: 'progress' }),
+    ).rejects.toThrow(/^invalid export result: /);
   });
 });

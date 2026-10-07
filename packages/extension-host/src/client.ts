@@ -1,6 +1,9 @@
+import type { ExtensionHookFailureReason } from '@dolphy-app/engine-contract';
 import {
   ExerciseTypeError,
   ExtensionCommandError,
+  ExtensionHookError,
+  ExtensionRpcError,
   ExtensionTransferError,
   GradePolicyError,
 } from '@dolphy-app/engine/ports';
@@ -10,7 +13,11 @@ import type {
   ExtensionCommandErrorCause,
   ExtensionCommands,
   ExtensionHealth,
+  ExtensionHookResponses,
+  ExtensionHooks,
   ExtensionPolicy,
+  ExtensionRpc,
+  ExtensionRpcErrorCause,
   ExtensionTransferErrorCause,
   ExtensionTransfers,
   GradePolicies,
@@ -22,10 +29,10 @@ import {
   normalizeExportResult,
   normalizeImportResult,
 } from '@dolphy-app/extension-api';
+import { EXTENSION_HOOKS } from '@dolphy-app/extension-api/hook-schemas';
 import type { ExtensionLogger } from '@dolphy-app/extension-api';
 import type { createCatalog } from './catalog.ts';
 import type { ChannelOutcome, ChannelParams, HostChannel } from './channel.ts';
-import type { DiscoverySource } from './holder.ts';
 import {
   commandOutcomeSchema,
   gradeResultSchema,
@@ -33,6 +40,7 @@ import {
   isFault,
 } from './protocol.ts';
 import type { ExtFailureCause, ExtResponse } from './protocol.ts';
+import type { DiscoverySource } from './holder.ts';
 
 /**
  * Причины, которые вид задания не различает, сводятся к сбою обработчика;
@@ -44,8 +52,11 @@ const exerciseCause = (cause: ExtFailureCause): ExerciseTypeErrorCause => {
       return 'activation-failed';
     case 'unknown-policy':
     case 'unknown-command':
+    case 'unknown-rpc':
+    case 'invalid-input':
     case 'unknown-importer':
     case 'unknown-exporter':
+    case 'unknown-hook':
     case 'handler-timeout':
     case 'ipc-size':
     case 'ipc-rate':
@@ -59,8 +70,6 @@ const exerciseCause = (cause: ExtFailureCause): ExerciseTypeErrorCause => {
 export interface RemoteExerciseTypesOptions {
   channel: HostChannel;
   catalog: ReturnType<typeof createCatalog>;
-  /** Режим исполнения (`isolated`) вычисляется на каждый вызов. */
-  policy: ExtensionPolicy;
   logger: ExtensionLogger;
   /** Дедлайн `grade` = `timeoutMs + graceMs`. */
   graceMs?: number;
@@ -72,7 +81,6 @@ export interface RemoteExerciseTypesOptions {
 export interface RemoteGradePoliciesOptions {
   channel: HostChannel;
   catalog: ReturnType<typeof createCatalog>;
-  policy: ExtensionPolicy;
   logger: ExtensionLogger;
   deadlineMs?: number;
 }
@@ -80,11 +88,7 @@ export interface RemoteGradePoliciesOptions {
 export const createRemoteExerciseTypes = (
   options: RemoteExerciseTypesOptions,
 ): ExerciseTypes => {
-  const { catalog, channel, policy, health } = options;
-  const isolatedOwner = (type: string): boolean => {
-    const owner = catalog.ownerOf(type);
-    return owner === undefined ? true : policy.isIsolated(owner.id);
-  };
+  const { catalog, channel, health } = options;
   const graceMs = options.graceMs ?? 2000;
   const projectTimeoutMs = options.projectTimeoutMs ?? 5000;
 
@@ -107,13 +111,9 @@ export const createRemoteExerciseTypes = (
 
   const request = async (
     method: 'project' | 'referenceAnswer',
-    params: Omit<ChannelParams<'project'>, 'isolated'>,
+    params: ChannelParams<'project'>,
   ): Promise<unknown> => {
-    const outcome = await channel.call(
-      method,
-      { ...params, isolated: isolatedOwner(params.type) },
-      projectTimeoutMs,
-    );
+    const outcome = await channel.call(method, params, projectTimeoutMs);
     if (outcome.kind !== 'response') throw failure(params.type, outcome);
     const { response } = outcome;
     if (!response.ok) {
@@ -190,11 +190,7 @@ export const createRemoteExerciseTypes = (
 
     async grade(req) {
       const started = performance.now();
-      const outcome = await channel.call(
-        'grade',
-        { ...req, isolated: isolatedOwner(req.type) },
-        req.timeoutMs + graceMs,
-      );
+      const outcome = await channel.call('grade', req, req.timeoutMs + graceMs);
       const durationMs = Math.round(performance.now() - started);
       switch (outcome.kind) {
         case 'response':
@@ -227,12 +223,8 @@ const policyCause = (cause: ExtFailureCause): GradePolicyErrorCause =>
 export const createRemoteGradePolicies = (
   options: RemoteGradePoliciesOptions,
 ): GradePolicies => {
-  const { catalog, channel, logger, policy } = options;
+  const { catalog, channel, logger } = options;
   const deadlineMs = options.deadlineMs ?? POLICY_DEADLINE_MS;
-  const isolatedPolicy = (id: string): boolean => {
-    const owner = catalog.ownerOfPolicy(id);
-    return owner === undefined ? true : policy.isIsolated(owner.id);
-  };
   return {
     list: catalog.describePolicies,
 
@@ -246,7 +238,6 @@ export const createRemoteGradePolicies = (
             ...(verdict.outcome !== 'passed' && { reason: verdict.reason }),
           })),
           gaveUp,
-          isolated: isolatedPolicy(id),
         },
         deadlineMs,
       );
@@ -276,17 +267,13 @@ export const createRemoteGradePolicies = (
 };
 
 /**
- * Срок вызова команды у движка: больше раннера ограниченного процесса (12 с) и
- * обработчика (10 с), включает ленивую активацию и запуск процесса.
+ * Срок вызова команды у движка: больше обработчика (10 с), с запасом на
+ * передачу по каналу.
  */
 export const COMMAND_CLIENT_DEADLINE_MS = 14_000;
 
 export interface RemoteExtensionCommandsOptions {
   channel: HostChannel;
-  /** Набор расширений движка: панель, на которую указывает `openPanel`, обязана в нём быть. */
-  discovery: DiscoverySource;
-  /** Режим исполнения (`isolated`) вычисляется на каждый вызов. */
-  policy: ExtensionPolicy;
   logger: ExtensionLogger;
   deadlineMs?: number;
 }
@@ -309,7 +296,7 @@ const commandCause = (cause: ExtFailureCause): ExtensionCommandErrorCause => {
 export const createRemoteExtensionCommands = (
   options: RemoteExtensionCommandsOptions,
 ): ExtensionCommands => {
-  const { channel, discovery, policy, logger } = options;
+  const { channel, logger } = options;
   const deadlineMs = options.deadlineMs ?? COMMAND_CLIENT_DEADLINE_MS;
   return {
     async invoke(extensionId, commandId, args) {
@@ -325,7 +312,6 @@ export const createRemoteExtensionCommands = (
           extensionId,
           commandId,
           ...(args !== undefined && { args }),
-          isolated: policy.isIsolated(extensionId),
         },
         deadlineMs,
         { restart: false },
@@ -354,16 +340,6 @@ export const createRemoteExtensionCommands = (
       }
       const { data } = parsed;
       if (data.kind !== 'openPanel') return data;
-      const declared = discovery
-        .get()
-        .extensions.find(({ id }) => id === extensionId)
-        ?.panels.some(({ id }) => id === data.panelId);
-      if (declared !== true) {
-        throw fail(
-          'invalid-result',
-          `extension command opened an undeclared panel '${data.panelId}'`,
-        );
-      }
       return data.props === undefined
         ? { kind: 'openPanel', panelId: data.panelId }
         : { kind: 'openPanel', panelId: data.panelId, props: data.props };
@@ -372,16 +348,81 @@ export const createRemoteExtensionCommands = (
 };
 
 /**
- * Срок импорта или экспорта у движка: больше раннера ограниченного процесса
- * (32 с) и обработчика (30 с), включает ленивую активацию, запуск процесса и
+ * Срок вызова RPC у движка: больше обработчика (10 с), с запасом на передачу
+ * по каналу.
+ */
+export const RPC_CLIENT_DEADLINE_MS = 14_000;
+
+export interface RemoteExtensionRpcOptions {
+  channel: HostChannel;
+  logger: ExtensionLogger;
+  deadlineMs?: number;
+}
+
+const rpcCause = (cause: ExtFailureCause): ExtensionRpcErrorCause => {
+  switch (cause) {
+    case 'unknown-rpc':
+    case 'invalid-input':
+    case 'invalid-result':
+    case 'replaced':
+    case 'handler-failed':
+    case 'activation-timeout':
+      return cause;
+    case 'handler-timeout':
+      return 'timeout';
+    default:
+      return 'handler-failed';
+  }
+};
+
+export const createRemoteExtensionRpc = (
+  options: RemoteExtensionRpcOptions,
+): ExtensionRpc => {
+  const { channel, logger } = options;
+  const deadlineMs = options.deadlineMs ?? RPC_CLIENT_DEADLINE_MS;
+  return {
+    async invoke(extensionId, name, input) {
+      const fail = (
+        cause: ExtensionRpcErrorCause,
+        message: string,
+      ): ExtensionRpcError =>
+        new ExtensionRpcError(cause, extensionId, name, message);
+      // таймаут вызова хост не перезапускает: запрос окна не должен убивать чужие вызовы
+      const outcome = await channel.call(
+        'invokeRpc',
+        {
+          extensionId,
+          name,
+          ...(input !== undefined && { input }),
+        },
+        deadlineMs,
+        { restart: false },
+      );
+      if (outcome.kind === 'timeout') {
+        throw fail('timeout', 'extension rpc timed out');
+      }
+      if (outcome.kind !== 'response') {
+        throw fail('host-down', 'extension host is down');
+      }
+      const { response } = outcome;
+      if (!response.ok) {
+        const cause = rpcCause(response.error.cause);
+        logger.debug({ extensionId, name, cause }, 'extension rpc failed');
+        throw fail(cause, response.error.message);
+      }
+      return response.result;
+    },
+  };
+};
+
+/**
+ * Срок импорта или экспорта у движка: больше обработчика (30 с), с запасом на
  * передачу файла.
  */
 export const TRANSFER_CLIENT_DEADLINE_MS = 34_000;
 
 export interface RemoteExtensionTransfersOptions {
   channel: HostChannel;
-  /** Режим исполнения (`isolated`) вычисляется на каждый вызов. */
-  policy: ExtensionPolicy;
   logger: ExtensionLogger;
   deadlineMs?: number;
 }
@@ -404,7 +445,7 @@ const transferCause = (cause: ExtFailureCause): ExtensionTransferErrorCause => {
 export const createRemoteExtensionTransfers = (
   options: RemoteExtensionTransfersOptions,
 ): ExtensionTransfers => {
-  const { channel, policy, logger } = options;
+  const { channel, logger } = options;
   const deadlineMs = options.deadlineMs ?? TRANSFER_CLIENT_DEADLINE_MS;
 
   /** Общий путь: вызов хоста, свод причин, проверка результата теми же правилами, что в рантайме. */
@@ -457,7 +498,6 @@ export const createRemoteExtensionTransfers = (
             {
               extensionId,
               importerId,
-              isolated: policy.isIsolated(extensionId),
               ...input,
             },
             deadlineMs,
@@ -477,12 +517,102 @@ export const createRemoteExtensionTransfers = (
               extensionId,
               exporterId,
               input,
-              isolated: policy.isIsolated(extensionId),
             },
             deadlineMs,
             { restart: false },
           ),
         normalizeExportResult,
       ),
+  };
+};
+
+/**
+ * Срок вызова хука у движка: больше обработчика (30 с), с запасом на
+ * передачу по каналу.
+ */
+export const HOOK_CLIENT_DEADLINE_MS = 34_000;
+
+export interface RemoteExtensionHooksOptions {
+  channel: HostChannel;
+  /** Откуда берутся расширения с зарегистрированным хуком. */
+  discovery: DiscoverySource;
+  /** Отключённые расширения не вызываются. */
+  policy: ExtensionPolicy;
+  logger: ExtensionLogger;
+  deadlineMs?: number;
+  /** Сюда идут сбои хуков: срок и неверный ответ (ошибка обработчика — отмена по замыслу, сбоем не считается). */
+  health?: Pick<ExtensionHealth, 'recordFailure'>;
+}
+
+const hookReason = (cause: ExtFailureCause): ExtensionHookFailureReason => {
+  switch (cause) {
+    case 'handler-timeout':
+      return 'timeout';
+    case 'invalid-result':
+      return cause;
+    default:
+      return 'failed';
+  }
+};
+
+export const createRemoteExtensionHooks = (
+  options: RemoteExtensionHooksOptions,
+): ExtensionHooks => {
+  const { channel, discovery, policy, logger, health } = options;
+  const deadlineMs = options.deadlineMs ?? HOOK_CLIENT_DEADLINE_MS;
+  return {
+    async before(name, request, verify) {
+      const extensionIds = discovery
+        .get()
+        .extensions.filter(
+          ({ id, hooks }) => hooks.includes(name) && policy.isEnabled(id),
+        )
+        .map(({ id }) => id)
+        .sort();
+      const schema = EXTENSION_HOOKS[name].response;
+      let current = request;
+      let response: ExtensionHookResponses[typeof name] | undefined;
+      for (const extensionId of extensionIds) {
+        const fail = (
+          reason: ExtensionHookFailureReason,
+          message: string,
+        ): ExtensionHookError =>
+          new ExtensionHookError(reason, name, extensionId, message);
+        // таймаут хука хост не перезапускает: старт сессии не должен убивать чужие вызовы
+        const outcome = await channel.call(
+          'runHook',
+          { extensionId, name, request: current },
+          deadlineMs,
+          { restart: false },
+        );
+        if (outcome.kind === 'timeout') {
+          throw fail('timeout', `hook '${name}' timed out`);
+        }
+        if (outcome.kind !== 'response') {
+          throw fail('host-down', 'extension host is down');
+        }
+        const { response: reply } = outcome;
+        if (!reply.ok) {
+          const { cause, message } = reply.error;
+          logger.debug({ extensionId, name, cause }, 'extension hook failed');
+          if (cause === 'handler-timeout' || cause === 'invalid-result') {
+            health?.recordFailure(extensionId, cause, message);
+          }
+          throw fail(hookReason(cause), message);
+        }
+        const parsed = schema.safeParse(reply.result);
+        if (!parsed.success) {
+          throw fail(
+            'invalid-result',
+            `hook '${name}' returned an invalid result`,
+          );
+        }
+        response = parsed.data as ExtensionHookResponses[typeof name];
+        const problem = verify?.(response) ?? null;
+        if (problem !== null) throw fail('invalid-result', problem);
+        if (response !== undefined) current = { ...current, ...response };
+      }
+      return response;
+    },
   };
 };

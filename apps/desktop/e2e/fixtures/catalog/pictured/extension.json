@@ -2,23 +2,9 @@
   "id": "acme.pictured",
   "version": "1.0.0",
   "apiVersion": 1,
+  "client": "./client.mjs",
   "name": "Pictured",
   "description": "Тема с ресурсами и значком",
   "author": "acme",
-  "icon": "assets/icon.png",
-  "contributes": {
-    "themes": [
-      {
-        "id": "acme.pictured",
-        "label": "Картинка",
-        "dark": false,
-        "colors": {
-          "background": "#FFF4E5",
-          "surface": "#FFFFFF",
-          "primary": "#C2410C",
-          "on-primary": "#FFFFFF"
-        }
-      }
-    ]
-  }
+  "icon": "assets/icon.png"
 }

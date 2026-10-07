@@ -100,42 +100,12 @@ describe('full index (schemaVersion 2)', () => {
     expect(issuesOf(first)[0]).toContain('schemaVersion');
   });
 
-  it('accepts titles and tags of the contributions that exist', () => {
-    const titled = entry({
-      contributes: {
-        ...entry().contributes,
-        commands: ['acme.quiz.open'],
-        markdownRenderers: ['chart'],
-      },
-      titles: {
-        commands: { 'acme.quiz.open': 'Open quiz' },
-        exerciseTypes: { 'acme.quiz': 'Quiz' },
-        markdownRenderers: { chart: 'Charts' },
-      },
+  it('accepts the tags of a version', () => {
+    const tagged = entry({
       versions: [version({ tags: ['learning', 'productivity'] })],
     });
-    const parsed = parseIndex(full([titled])).extensions[0];
-    expect(parsed?.titles).toEqual({
-      commands: { 'acme.quiz.open': 'Open quiz' },
-      exerciseTypes: { 'acme.quiz': 'Quiz' },
-      markdownRenderers: { chart: 'Charts' },
-    });
+    const parsed = parseIndex(full([tagged])).extensions[0];
     expect(parsed?.versions[0]?.tags).toEqual(['learning', 'productivity']);
-  });
-
-  it('rejects titles for ids missing from contributes, bad points and long titles', () => {
-    const titled = (titles: unknown) =>
-      issuesOf(full([entry({ titles: titles as never })]));
-    expect(titled({ themes: { 'acme.ghost': 'Ghost' } })[0]).toContain(
-      'titles.themes.acme.ghost',
-    );
-    expect(titled({ exerciseTypes: { 'acme.ghost': 'Quiz' } })[0]).toContain(
-      'titles.exerciseTypes.acme.ghost',
-    );
-    expect(titled({ events: { 'session.started': 'x' } })).not.toEqual([]);
-    expect(titled({ commands: { 'acme.x': 'x'.repeat(61) } })).not.toEqual([]);
-    expect(titled({ commands: { 'acme.x': '' } })).not.toEqual([]);
-    expect(titled({ themes: { 'Not Valid': 'x' } })).not.toEqual([]);
   });
 
   it('rejects unknown, duplicate and more than five tags', () => {
@@ -174,7 +144,6 @@ describe('parseIndexLenient', () => {
       {
         ...good,
         future: true,
-        contributes: { ...good.contributes, gadgets: ['x'] },
         versions: [{ ...version(), signature: 'abc' }],
       },
     ]) as Record<string, unknown>;
@@ -182,7 +151,6 @@ describe('parseIndexLenient', () => {
     expect(warnings).toEqual([]);
     const parsed = index.extensions[0];
     expect(parsed).not.toHaveProperty('future');
-    expect(parsed?.contributes).not.toHaveProperty('gadgets');
     expect(parsed?.versions[0]).not.toHaveProperty('signature');
     expect(index).not.toHaveProperty('banner');
   });
@@ -216,7 +184,7 @@ describe('parseIndexLenient', () => {
     const { index, warnings } = lenient(
       full([
         entry({
-          versions: [version({ permissions: ['telepathy'] as never })],
+          versions: [version({ version: 'not-a-version' })],
         }),
       ]),
     );
@@ -246,29 +214,6 @@ describe('parseIndexLenient', () => {
     expect(() =>
       lenient({ ...(full([good]) as object), schemaVersion: 1 }),
     ).toThrow(CatalogFormatError);
-  });
-
-  it('keeps the entry when its titles are unreadable and drops the titles', () => {
-    const { index, warnings } = lenient(
-      full([{ ...good, titles: { themes: 'midnight' } }]),
-    );
-    expect(warnings).toEqual([]);
-    expect(index.extensions).toHaveLength(1);
-    expect(index.extensions[0]?.titles).toBeUndefined();
-  });
-
-  it('reads titles and drops unknown points of the map', () => {
-    const { index } = lenient(
-      full([
-        {
-          ...good,
-          titles: { themes: { 'acme.dark': 'Dark' }, gadgets: { x: 'y' } },
-        },
-      ]),
-    );
-    expect(index.extensions[0]?.titles).toEqual({
-      themes: { 'acme.dark': 'Dark' },
-    });
   });
 
   it('drops tags outside its vocabulary, not the version or the entry', () => {

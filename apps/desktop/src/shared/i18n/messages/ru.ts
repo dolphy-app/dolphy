@@ -33,8 +33,10 @@ export const ru = {
     arrowleft: 'стрелка влево',
     arrowright: 'стрелка вправо',
   },
+  extensionInjection: {
+    failed: 'Компонент расширения {extensionId} не отрисовался',
+  },
   markdown: {
-    frameTitle: 'Блок «{language}» от расширения, изолированная рамка',
     renderFailed:
       'Не удалось вывести блок «{language}»; показан исходный текст.',
   },

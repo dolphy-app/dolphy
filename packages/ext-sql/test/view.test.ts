@@ -1,24 +1,38 @@
 // @vitest-environment happy-dom
-import { loadView } from '@dolphy-app/extension-sdk/testing';
-import type { LoadedView } from '@dolphy-app/extension-sdk/testing';
 import { afterEach, describe, expect, it } from 'vitest';
-import { views } from '../src/index.ts';
+import { nextTick } from 'vue';
+import { createTestClient } from '@dolphy-app/extension-sdk/testing';
+import { client } from '../src/index.ts';
+import { mountView as mount } from './mount-view.ts';
+import type { MountedView } from './mount-view.ts';
 
-const loaded: LoadedView[] = [];
+const loaded: MountedView[] = [];
+
+/** Vue рисует на следующем тике: ждём его после каждого действия. */
+const settle = async () => {
+  await nextTick();
+  await nextTick();
+};
 
 const mountView = async (label?: string) => {
-  const view = await loadView(views, 'dolphy.sql', {
+  const component = (await createTestClient(client)).answerViews.get(
+    'dolphy.sql',
+  );
+  if (!component) throw new Error('answer view is not added');
+  const view = await mount(component, {
     ...(label === undefined ? {} : { label }),
   });
   loaded.push(view);
+  await settle();
   const textarea = view.query<HTMLTextAreaElement>('textarea');
   if (!textarea) throw new Error('textarea is not rendered');
   return { view, textarea };
 };
 
-const type = (textarea: HTMLTextAreaElement, text: string) => {
+const type = async (textarea: HTMLTextAreaElement, text: string) => {
   textarea.value = text;
-  textarea.dispatchEvent(new Event('input'));
+  textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  await settle();
 };
 
 const press = (
@@ -41,14 +55,14 @@ afterEach(() => {
 describe('вид dolphy.sql', () => {
   it('рисует textarea без проверки орфографии', async () => {
     const { textarea } = await mountView();
-    expect(textarea.spellcheck).toBe(false);
+    expect(textarea.getAttribute('spellcheck')).toBe('false');
   });
 
   it('ввод сообщает текст и complete', async () => {
     const { view, textarea } = await mountView();
-    type(textarea, 'select 1');
-    type(textarea, '   ');
-    type(textarea, '');
+    await type(textarea, 'select 1');
+    await type(textarea, '   ');
+    await type(textarea, '');
     expect(view.changes).toEqual([
       { value: 'select 1', complete: true },
       { value: '   ', complete: false },
@@ -76,18 +90,22 @@ describe('вид dolphy.sql', () => {
   it('value задаёт текст, нестрока даёт пустой текст', async () => {
     const { view, textarea } = await mountView();
     await view.update({ value: 'select 2' });
+    await settle();
     expect(textarea.value).toBe('select 2');
     await view.update({ value: null });
+    await settle();
     expect(textarea.value).toBe('');
   });
 
   it('disabled блокирует textarea, не стирая введённый текст', async () => {
     const { view, textarea } = await mountView();
-    type(textarea, 'select 3');
+    await type(textarea, 'select 3');
     await view.update({ disabled: true });
+    await settle();
     expect(textarea.disabled).toBe(true);
     expect(textarea.value).toBe('select 3');
     await view.update({ disabled: false });
+    await settle();
     expect(textarea.disabled).toBe(false);
   });
 

@@ -20,7 +20,6 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { gzipSync } from 'node:zlib';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { collectImports } from './lib/imports.mjs';
@@ -204,9 +203,12 @@ const assertExports = ({ manifest, dir }) => {
   }
 };
 
-/** Всё, что импортируют JS и `.d.ts`, — встроенное, относительное или объявленная зависимость. */
+/** Всё, что импортируют JS и `.d.ts`, — встроенное, относительное, объявленная зависимость или peer. */
 const assertSelfContained = ({ manifest, dir }) => {
-  const declared = new Set(Object.keys(manifest.dependencies ?? {}));
+  const declared = new Set([
+    ...Object.keys(manifest.dependencies ?? {}),
+    ...Object.keys(manifest.peerDependencies ?? {}),
+  ]);
   for (const file of listFiles(dir).filter((item) =>
     /\.(js|d\.ts)$/.test(item),
   )) {
@@ -310,70 +312,44 @@ const assertSchemaResolves = (demo) => {
   );
 };
 
-/** Из одного `src/index.ts` сборка кладёт код хоста только в `main.mjs`, код вида — только в `view.mjs`. */
+/** Из одного `src/index.ts` сборка кладёт код хоста только в `main.mjs`, код окна — только в `client.mjs`. */
 const assertSplitOutputs = (dir) => {
   const main = readFileSync(path.join(dir, 'main.mjs'), 'utf8');
-  const view = readFileSync(path.join(dir, 'view.mjs'), 'utf8');
+  const client = readFileSync(path.join(dir, 'client.mjs'), 'utf8');
+  check(main.includes('referenceAnswer'), 'demo: main.mjs has no host code');
   check(
-    main.includes('referenceAnswer') && !main.includes('customElements'),
-    'demo: main.mjs is not the host code alone',
-  );
-  check(
-    view.includes('customElements.define') && !view.includes('referenceAnswer'),
-    'demo: view.mjs is not the view code alone',
+    !client.includes('referenceAnswer'),
+    'demo: client.mjs contains the host code',
   );
 };
 
 const formatKb = (bytes) => `${(bytes / 1024).toFixed(1)} KiB`;
 
-const UI_FUNCTIONS = [
-  'button',
-  'card',
-  'emptyState',
-  'list',
-  'select',
-  'textField',
-  'toggle',
-];
-const UI_LIMIT_BYTES = 10 * 1024;
+/** Шаблоны с интерфейсом не на `defineComponent`: однофайловые компоненты Vue и React. */
+const FRAMEWORK_TEMPLATES = ['command-panel', 'react-panel'];
 
-/**
- * UI-кит: весь установленный `dist` не больше 10 КиБ gzip, а импорт из установленного
- * пакета (чистый Node, без DOM) даёт ровно семь функций.
- */
-const assertUiKit = ({ consumer, env }) => {
-  const dist = path.join(
-    consumer,
-    'node_modules',
-    ...`${SCOPE}/extension-ui`.split('/'),
-    'dist',
-  );
-  const bytes = listFiles(dist)
-    .filter((file) => file.endsWith('.js'))
-    .reduce(
-      (total, file) =>
-        total +
-        gzipSync(readFileSync(path.join(dist, file)), { level: 9 }).length,
-      0,
-    );
-  check(
-    bytes <= UI_LIMIT_BYTES,
-    `extension-ui: ${bytes} bytes gzip, the limit is ${UI_LIMIT_BYTES}`,
-  );
-  const output = run(
-    process.execPath,
-    [
-      '--input-type=module',
-      '-e',
-      `import * as ui from '${SCOPE}/extension-ui'; console.log(JSON.stringify(Object.keys(ui).sort()));`,
-    ],
+/** Проект шаблона из установленного генератора: установка из tarball'ов, сборка, проверка типов и свои тесты. */
+const verifyTemplateProject = ({ consumer, template, tarballs, env }) => {
+  step(`create-dolphy-extension --template ${template}`);
+  run(
+    binOf(consumer, 'create-dolphy-extension'),
+    [template, '--template', template],
     { cwd: consumer, env },
   );
-  check(
-    output.trim() === JSON.stringify(UI_FUNCTIONS),
-    `extension-ui exports ${output.trim()}, expected ${JSON.stringify(UI_FUNCTIONS)}`,
+  const project = path.join(consumer, template);
+  pointAtTarballs({ project, tarballs });
+  run('npm', ['install'], { cwd: project, env });
+  run('npx', ['--no-install', 'dolphy-ext', 'build'], { cwd: project, env });
+  run(
+    'npx',
+    ['--no-install', 'dolphy-ext', 'validate', `dist-ext/${template}`],
+    { cwd: project, env },
   );
-  console.log(`  ${SCOPE}/extension-ui: ${formatKb(bytes)} gzip`);
+  run('npm', ['run', 'typecheck'], { cwd: project, env });
+  check(
+    run('npm', ['test'], { cwd: project, env }).includes('passed'),
+    `${template}: npm test reported no passing tests`,
+  );
 };
 
 const main = () => {
@@ -421,7 +397,6 @@ const main = () => {
       { cwd: consumer, env },
     );
     run(binOf(consumer, 'dolphy-ext'), ['--help'], { cwd: consumer, env });
-    assertUiKit({ consumer, env });
 
     step('create-dolphy-extension demo');
     run(binOf(consumer, 'create-dolphy-extension'), ['demo'], {
@@ -443,12 +418,15 @@ const main = () => {
       env,
     });
     assertSplitOutputs(path.join(demo, 'dist-ext', 'demo'));
-    run('npx', ['--no-install', 'tsc', '--noEmit'], { cwd: demo, env });
+    run('npm', ['run', 'typecheck'], { cwd: demo, env });
     const testOutput = run('npm', ['test'], { cwd: demo, env });
     check(
       testOutput.includes('passed'),
       'demo: npm test reported no passing tests',
     );
+    for (const template of FRAMEWORK_TEMPLATES) {
+      verifyTemplateProject({ consumer, template, tarballs, env });
+    }
     succeeded = true;
     console.log('\nAll package checks passed.');
   } finally {

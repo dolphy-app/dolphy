@@ -1,31 +1,63 @@
-import { readFile, stat, utimes, writeFile } from 'node:fs/promises';
+import { readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { Job } from '../src/bundle.ts';
 import { watchExtension } from '../src/index.ts';
 import type { BuildLogger } from '../src/index.ts';
-import { copyProject, waitFor } from './helpers.ts';
+import { createReporter } from '../src/watch.ts';
+import type { RebuildReport } from '../src/watch.ts';
+import { copyProject } from './helpers.ts';
 
-const settle = (ms = 700): Promise<void> =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-
+/**
+ * Logger that records both streams; `until` resolves on the line that makes
+ * its condition true. A test waits for what the build reports, not for a delay
+ * or for files that a rebuild rewrites.
+ */
 const recordLogger = () => {
   const info: string[] = [];
   const error: string[] = [];
-  const logger: BuildLogger = {
-    info: (message) => void info.push(message),
-    error: (message) => void error.push(message),
+  const waiting: (() => void)[] = [];
+  const record = (lines: string[], message: string): void => {
+    lines.push(message);
+    for (const check of waiting.splice(0)) check();
   };
-  return { logger, info, error };
+  const logger: BuildLogger = {
+    info: (message) => void record(info, message),
+    error: (message) => void record(error, message),
+  };
+  const until = (isDone: () => boolean): Promise<void> =>
+    new Promise((resolve) => {
+      const check = (): void => {
+        if (isDone()) resolve();
+        else waiting.push(check);
+      };
+      check();
+    });
+  return { logger, info, error, until };
 };
+
+/** Files named by the `rebuilt …` lines: one rebuild cycle may be reported in several lines. */
+const rebuiltFiles = (info: readonly string[]): Set<string> =>
+  new Set(
+    info.flatMap((line) => {
+      const match = /^rebuilt (.+)$/.exec(line);
+      return match === null ? [] : (match[1] as string).split(', ');
+    }),
+  );
 
 const edit = async (
   file: string,
   change: (text: string) => string,
 ): Promise<void> => {
   await writeFile(file, change(await readFile(file, 'utf8')));
+};
+
+/** Replaces the file in one step, as editors do: the watcher never sees it truncated. */
+const replace = async (file: string, text: string): Promise<void> => {
+  const next = `${file}.next`;
+  await writeFile(next, text);
+  await rename(next, file);
 };
 
 const read = (dir: string, file: string): Promise<string> =>
@@ -43,10 +75,11 @@ describe('watchExtension', () => {
         await readFile(path.join(root, 'src', 'index.ts'), 'utf8')
       ).split('\n');
       const markers = [
-        'HOST_ONLY_MARKER',
+        'SERVER_ONLY_MARKER',
         'VIEW_ONE_MARKER',
-        'VIEW_THREE_MARKER',
+        'VIEW_TWO_MARKER',
         'PANEL_FIRST_MARKER',
+        'INJECTION_CARD_MARKER',
         'ALPHA_MARKER',
       ];
       const found = new Set<string>();
@@ -116,7 +149,7 @@ describe('watchExtension', () => {
     }
   });
 
-  it('T-20 editing src/index.ts rebuilds affected files and writes one line to the log', async () => {
+  it('T-20 editing src/index.ts rebuilds affected files and reports them in the log', async () => {
     const root = await copyProject('hello');
     const log = recordLogger();
     const handle = await watchExtension({
@@ -127,31 +160,24 @@ describe('watchExtension', () => {
     try {
       const { dir } = handle.result;
       expect(handle.result.files).toEqual([
+        'client.mjs',
         'extension.json',
         'main.mjs',
-        'view.mjs',
       ]);
       expect(await read(dir, 'main.mjs')).not.toContain('watch-host');
       const index = path.join(root, 'src', 'index.ts');
       await edit(index, (text) =>
         text
           .replace('project: () => ({})', "project: () => 'watch-host'")
-          .replace(
-            'update() {}',
-            "update() { document.title = 'watch-view'; }",
-          ),
+          .replace("h('input')", "h('input', { title: 'watch-view' })"),
       );
-      await waitFor(
-        async () =>
-          (await read(dir, 'main.mjs')).includes('watch-host') &&
-          (await read(dir, 'view.mjs')).includes('watch-view'),
+      await log.until(() => rebuiltFiles(log.info).size === 2);
+      expect(rebuiltFiles(log.info)).toEqual(
+        new Set(['main.mjs', 'client.mjs']),
       );
-      await settle();
+      expect(await read(dir, 'main.mjs')).toContain('watch-host');
+      expect(await read(dir, 'client.mjs')).toContain('watch-view');
       expect(log.error).toEqual([]);
-      expect(log.info).toHaveLength(1);
-      expect(log.info[0]).toMatch(
-        /^rebuilt (main\.mjs, view\.mjs|view\.mjs, main\.mjs)$/,
-      );
     } finally {
       await handle.close();
     }
@@ -170,34 +196,31 @@ describe('watchExtension', () => {
       const good = await readFile(index, 'utf8');
       await writeFile(
         index,
-        good.replace(
-          "'acme.hello': defineAnswerView",
-          "'acme.extra': defineAnswerView",
-        ),
+        `import { readFileSync } from 'node:fs';\n${good.replace(
+          "c.addAnswerView('acme.hello', input);",
+          "c.addAnswerView('acme.hello', input);\n  readFileSync('/x');",
+        )}`,
       );
-      await waitFor(async () => log.error.length > 0);
-      await settle();
+      await log.until(() => log.error.length > 0);
       expect(log.error).toHaveLength(1);
       expect(log.error[0]).toContain('acme.hello');
-      expect(log.error[0]).toContain('acme.extra');
-      expect(log.error[0]).toContain('main.mjs (host');
-      expect(log.error[0]).toContain('view.mjs (views');
+      expect(log.error[0]).toContain('client.mjs (client from src/index.ts)');
+      expect(log.error[0]).toContain("client.mjs imports 'node:fs'");
+      expect(log.error[0]).not.toContain('main.mjs');
 
-      log.info.length = 0;
       await writeFile(
         index,
-        good.replace('update() {}', 'update() { /* fixed */ }'),
+        good.replace("h('input')", "h('input', { title: 'fixed' })"),
       );
-      await waitFor(async () => log.info.length > 0);
-      await settle(300);
-      expect(log.info).toHaveLength(1);
+      await log.until(() => rebuiltFiles(log.info).has('client.mjs'));
+      expect(await read(handle.result.dir, 'client.mjs')).toContain('fixed');
       expect(log.error).toHaveLength(1);
     } finally {
       await handle.close();
     }
   });
 
-  it('editing extension.json rebuilds files per the new manifest', async () => {
+  it('editing extension.json rebuilds the manifest of the output and reports the files', async () => {
     const root = await copyProject('hello');
     const log = recordLogger();
     const handle = await watchExtension({
@@ -209,72 +232,151 @@ describe('watchExtension', () => {
       const { dir } = handle.result;
       const manifestFile = path.join(root, 'extension.json');
       const manifest = JSON.parse(await readFile(manifestFile, 'utf8')) as {
-        contributes: Record<string, unknown>;
+        description?: string;
       };
-      manifest.contributes.panels = [
-        { id: 'acme.hello.panel', title: 'Hello' },
-      ];
-      await writeFile(manifestFile, JSON.stringify(manifest));
-      // the code does not know about the panel yet: the error names the entry, watchers wait for an edit
-      await waitFor(async () =>
-        log.error.some((message) => message.includes('acme.hello.panel')),
+      manifest.description = 'Edited while watching';
+      await replace(manifestFile, JSON.stringify(manifest));
+      await log.until(() => rebuiltFiles(log.info).has('extension.json'));
+      expect(rebuiltFiles(log.info)).toEqual(
+        new Set(['client.mjs', 'extension.json', 'main.mjs']),
       );
-      await edit(path.join(root, 'src', 'index.ts'), (text) =>
-        text
-          .replace(
-            'import { defineAnswerView, defineExtension }',
-            'import { defineAnswerView, defineExtension, defineExtensionPanel }',
-          )
-          .concat(
-            "\nexport const panels = { 'acme.hello.panel': defineExtensionPanel({ mount(container) { container.textContent = 'hello panel'; } }) };\n",
-          ),
-      );
-      await waitFor(async () => {
-        try {
-          return (await read(dir, 'panel.mjs')).includes('hello panel');
-        } catch {
-          return false;
-        }
-      });
-      expect(await read(dir, 'extension.json')).toContain('acme.hello.panel');
+      const built = JSON.parse(await read(dir, 'extension.json')) as {
+        description: string;
+        main: string | null;
+        client: string | null;
+      };
+      expect(built.description).toBe('Edited while watching');
+      expect(built.main).toBe('./main.mjs');
+      expect(built.client).toBe('./client.mjs');
+      expect((await read(dir, 'main.mjs')).length).toBeGreaterThan(0);
+      expect(log.error).toEqual([]);
     } finally {
       await handle.close();
     }
   });
 
-  it('editing extension.json regenerates .dolphy/ids.d.ts; an edit without an id change and a code edit leave it alone', async () => {
+  it('an invalid extension.json is logged and the previous output stays until it is fixed', async () => {
     const root = await copyProject('hello');
     const log = recordLogger();
-    const idsFile = path.join(root, '.dolphy', 'ids.d.ts');
     const handle = await watchExtension({
       root,
       outDir: path.join(root, 'out'),
       logger: log.logger,
     });
     try {
-      expect(await readFile(idsFile, 'utf8')).toContain('commands: never');
+      const { dir } = handle.result;
       const manifestFile = path.join(root, 'extension.json');
-      const manifest = JSON.parse(await readFile(manifestFile, 'utf8')) as {
-        contributes: Record<string, unknown>;
-      };
-      manifest.contributes.commands = [{ id: 'acme.hello.run', title: 'Run' }];
-      await writeFile(manifestFile, JSON.stringify(manifest));
-      await waitFor(async () =>
-        (await readFile(idsFile, 'utf8')).includes(
-          "commands: 'acme.hello.run'",
-        ),
+      const good = await readFile(manifestFile, 'utf8');
+      await replace(manifestFile, good.replace('acme.hello', 'Bad Id'));
+      await log.until(() =>
+        log.error.some((message) => message.includes('invalid extension id')),
       );
-
-      // the same ids in a differently formatted manifest, and a source edit:
-      // the file keeps its old mtime, so a watcher on the project sees nothing
-      const old = new Date('2020-01-01T00:00:00Z');
-      await utimes(idsFile, old, old);
-      await writeFile(manifestFile, JSON.stringify(manifest, null, 4));
-      await edit(path.join(root, 'src', 'index.ts'), (text) => `${text}\n`);
-      await settle(1200);
-      expect((await stat(idsFile)).mtime).toEqual(old);
+      expect((await read(dir, 'main.mjs')).length).toBeGreaterThan(0);
     } finally {
       await handle.close();
     }
+  });
+});
+
+describe('createReporter', () => {
+  const QUIET_MS = 150;
+
+  const job = (output: string): Job => ({
+    output,
+    label: `${output} (from src/index.ts)`,
+    config: {},
+    state: { problem: null },
+  });
+
+  const open = () => {
+    const reports: RebuildReport[] = [];
+    const reporter = createReporter((report) => {
+      reports.push(report);
+    }, QUIET_MS);
+    return { reporter, reports };
+  };
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('the bundles of one cycle make one report, and the next cycle a separate one', () => {
+    vi.useFakeTimers();
+    const { reporter, reports } = open();
+    reporter.begin();
+    reporter.begin();
+    reporter.rebuilt(job('main.mjs'));
+    reporter.end();
+    vi.advanceTimersByTime(QUIET_MS - 50);
+    reporter.rebuilt(job('client.mjs'));
+    reporter.end();
+    vi.advanceTimersByTime(QUIET_MS - 1);
+    expect(reports).toEqual([]);
+    vi.advanceTimersByTime(1);
+    expect(reports).toEqual([
+      { rebuilt: ['main.mjs', 'client.mjs'], failures: [] },
+    ]);
+
+    reporter.begin();
+    reporter.rebuilt(job('main.mjs'));
+    reporter.end();
+    vi.advanceTimersByTime(QUIET_MS);
+    expect(reports).toHaveLength(2);
+    expect(reports[1]).toEqual({ rebuilt: ['main.mjs'], failures: [] });
+    reporter.close();
+  });
+
+  it('a bundle that is still rebuilding holds the report back, however long it takes', () => {
+    vi.useFakeTimers();
+    const { reporter, reports } = open();
+    reporter.begin();
+    reporter.begin();
+    reporter.rebuilt(job('main.mjs'));
+    reporter.end();
+    vi.advanceTimersByTime(60 * QUIET_MS);
+    expect(reports).toEqual([]);
+    reporter.rebuilt(job('client.mjs'));
+    reporter.end();
+    vi.advanceTimersByTime(QUIET_MS);
+    expect(reports).toEqual([
+      { rebuilt: ['main.mjs', 'client.mjs'], failures: [] },
+    ]);
+    reporter.close();
+  });
+
+  it('identical causes are one failure naming every bundle; different causes stay apart', () => {
+    vi.useFakeTimers();
+    const { reporter, reports } = open();
+    reporter.failed(job('main.mjs'), 'no export');
+    reporter.failed(job('client.mjs'), 'no export');
+    reporter.failed(job('main.mjs'), 'no export');
+    reporter.failed(job('worker.mjs'), 'bad import');
+    vi.advanceTimersByTime(QUIET_MS);
+    expect(reports).toEqual([
+      {
+        rebuilt: [],
+        failures: [
+          {
+            labels: [
+              'main.mjs (from src/index.ts)',
+              'client.mjs (from src/index.ts)',
+            ],
+            detail: 'no export',
+          },
+          { labels: ['worker.mjs (from src/index.ts)'], detail: 'bad import' },
+        ],
+      },
+    ]);
+    reporter.close();
+  });
+
+  it('a cycle that rebuilt and failed nothing is not reported', () => {
+    vi.useFakeTimers();
+    const { reporter, reports } = open();
+    reporter.begin();
+    reporter.end();
+    vi.advanceTimersByTime(10 * QUIET_MS);
+    expect(reports).toEqual([]);
+    reporter.close();
   });
 });

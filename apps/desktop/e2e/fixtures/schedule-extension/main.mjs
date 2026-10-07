@@ -1,15 +1,15 @@
-// Расширение с расписаниями: каждое срабатывание увеличивает свой счётчик в ctx.storage
-// (расширение изолировано: код идёт в ограниченном процессе; ключи разные — срабатывания одного момента идут параллельно).
-const count = (ctx, id) => async () => {
-  await ctx.storage.set(
-    `fired.${id}`,
-    ((await ctx.storage.get(`fired.${id}`)) ?? 0) + 1,
+// Расширение с расписаниями: каждое срабатывание увеличивает свой счётчик в s.storage
+// (ключи разные — срабатывания одного момента идут параллельно).
+export const server = (s) => {
+  const count = (id) => async () => {
+    await s.storage.set(
+      `fired.${id}`,
+      ((await s.storage.get(`fired.${id}`)) ?? 0) + 1,
+    );
+  };
+  s.schedule(
+    { id: 'acme.schedule.morning', every: 'daily', at: '09:00' },
+    count('morning'),
   );
-};
-
-export default {
-  activate(ctx) {
-    ctx.schedule.on('acme.schedule.morning', count(ctx, 'morning'));
-    ctx.schedule.on('acme.schedule.hourly', count(ctx, 'hourly'));
-  },
+  s.schedule({ id: 'acme.schedule.hourly', every: 'hourly' }, count('hourly'));
 };

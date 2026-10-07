@@ -519,7 +519,6 @@ describe('web-contents guard shell', () => {
       details: {
         url: string;
         isMainFrame?: boolean;
-        frame?: { url: string } | null;
       },
     ): boolean => {
       const preventDefault = vi.fn();
@@ -559,26 +558,18 @@ describe('web-contents guard shell', () => {
     }
   });
 
-  it('подкадр: первая загрузка страницы рамки расширения разрешена, смена адреса загруженной рамки и чужие адреса — нет', () => {
+  it('подкадр не навигирует никуда, в том числе на адрес главного кадра и протокол расширений', () => {
     const { guard, navigate } = setup();
     const contents = guard();
-    const frameNavigate = (url: string, loadedUrl: string) =>
-      navigate(contents, 'will-frame-navigate', {
-        url,
-        isMainFrame: false,
-        frame: { url: loadedUrl },
-      });
-    const page = 'dolphy-ext://acme.echo/__dolphy/frame.html';
-    expect(frameNavigate(page, '')).toBe(false);
-    // загруженная рамка не может сменить адрес, в том числе на свой же или на чужого расширения
-    expect(frameNavigate(page, page)).toBe(true);
-    expect(
-      frameNavigate('dolphy-ext://acme.other/__dolphy/frame.html', page),
-    ).toBe(true);
-    expect(frameNavigate('https://example.org/', page)).toBe(true);
-    // пустой подкадр не загружает что попало и не получает исключения перезагрузки главного кадра
-    expect(frameNavigate('https://example.org/', '')).toBe(true);
-    expect(frameNavigate('file:///app/index.html', '')).toBe(true);
+    for (const url of [
+      'dolphy-ext://acme.echo/view.mjs',
+      'https://example.org/',
+      'file:///app/index.html',
+    ]) {
+      expect(
+        navigate(contents, 'will-frame-navigate', { url, isMainFrame: false }),
+      ).toBe(true);
+    }
   });
 
   it('открытие окон и <webview> запрещены у каждого webContents', () => {

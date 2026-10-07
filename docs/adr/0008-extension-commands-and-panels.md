@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: partially superseded by ADR-0022
 date: 2026-10-02
 spec: specs/archive/2026-10-02-extension-surfaces/SPEC.md
 ---

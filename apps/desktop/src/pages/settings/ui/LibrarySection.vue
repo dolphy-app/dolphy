@@ -25,6 +25,12 @@ const newPath = ref('');
 
 const ready = computed(() => info.value?.state === 'ready');
 const stateColor = computed(() => (ready.value ? 'success' : 'error'));
+const stateIcon = computed(() =>
+  ready.value ? 'mdi-check-circle-outline' : 'mdi-alert-circle-outline',
+);
+const artifactStale = computed(
+  () => info.value?.artifact === 'stale' || info.value?.artifact === 'missing',
+);
 const stateLabel = computed(() =>
   ready.value
     ? t('settings.library.state.ready')
@@ -62,7 +68,8 @@ const add = () => {
           <h3 class="text-title-large font-weight-bold">
             {{ t('settings.library.state.title') }}
           </h3>
-          <v-chip size="small" variant="tonal" :color="stateColor">
+          <v-chip size="small" variant="tonal" label :color="stateColor">
+            <v-icon start size="small" :icon="stateIcon" />
             {{ stateLabel }}
           </v-chip>
           <v-spacer />
@@ -109,7 +116,13 @@ const add = () => {
         </dl>
 
         <div class="d-flex flex-wrap align-center ga-2 mt-5">
-          <v-chip v-if="info.diagnostics.errors > 0" color="error" size="small">
+          <v-chip
+            v-if="info.diagnostics.errors > 0"
+            color="error"
+            size="small"
+            variant="tonal"
+            label
+          >
             {{
               t('settings.library.diagnostics.errors', {
                 n: info.diagnostics.errors,
@@ -120,6 +133,8 @@ const add = () => {
             v-if="info.diagnostics.warnings > 0"
             color="warning"
             size="small"
+            variant="tonal"
+            label
           >
             {{
               t('settings.library.diagnostics.warnings', {
@@ -127,10 +142,19 @@ const add = () => {
               })
             }}
           </v-chip>
-          <v-chip v-if="isClean" color="success" size="small" variant="tonal">
+          <v-chip
+            v-if="isClean"
+            color="success"
+            size="small"
+            variant="tonal"
+            label
+          >
             {{ t('settings.library.diagnostics.clean') }}
           </v-chip>
-          <span class="text-body-small text-medium-emphasis">
+          <span
+            class="text-body-small"
+            :class="artifactStale ? 'text-warning' : 'text-medium-emphasis'"
+          >
             {{
               t('settings.library.artifact.label', {
                 state: t(`settings.library.artifact.${info.artifact}`),

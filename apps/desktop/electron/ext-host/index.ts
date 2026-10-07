@@ -3,15 +3,12 @@ import {
   createNodeFsCourseSource,
 } from '@dolphy-app/engine/node';
 import { fromNodePort } from '@dolphy-app/engine-rpc/host';
-import {
-  createExtensionRuntime,
-  createRestrictedRunner,
-} from '@dolphy-app/extension-host';
+import { createExtensionRuntime } from '@dolphy-app/extension-host';
 import type { ExtensionRuntime } from '@dolphy-app/extension-host';
 
 /** Сообщения main → хост расширений (`process.parentPort`). */
 type ExtHostMessage =
-  | { type: 'init'; libraryRoot: string; restrictedEntry: string }
+  | { type: 'init'; libraryRoot: string }
   | { type: 'connect' }
   | { type: 'shutdown' };
 
@@ -36,20 +33,8 @@ const handle = async (
     // расширения хост не ищет: набор приходит от движка сообщением `replaceExtensions`
     // после каждого подключения порта
     runtime = createExtensionRuntime({
-      extensions: [],
       library,
       logger,
-      // расширения не из поставки с `isolated` исполняются в ограниченном процессе
-      runners: {
-        create: (extension, engine) =>
-          createRestrictedRunner({
-            extension,
-            entryPath: message.restrictedEntry,
-            library,
-            engine,
-            logger,
-          }),
-      },
     });
     parentPort.postMessage({ type: 'ready' });
   } else if (message.type === 'connect') {

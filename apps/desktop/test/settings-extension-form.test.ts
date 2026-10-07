@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import type { ExtensionSettingDefDto } from '@dolphy-app/engine-contract';
-import { resolveText } from '@dolphy-app/extension-api';
+import type {
+  ExtensionSettingDefDto,
+  JsonValue,
+} from '@dolphy-app/engine-contract';
+import { resolveLocalizedText } from '@dolphy-app/extension-api';
+import type { LocalizedText } from '@dolphy-app/extension-api';
 import {
   buildSettingsSections,
   isSettingVisible,
-  localizeSetting,
+  settingTextOf,
 } from '@/pages/settings/model/extension-settings-form.ts';
 
 const def = (
@@ -24,6 +28,15 @@ const def = (
     ...patch,
   }) as ExtensionSettingDefDto;
 
+const build = (
+  definitions: readonly ExtensionSettingDefDto[],
+  values: Record<string, JsonValue>,
+  locale = 'en',
+) =>
+  buildSettingsSections(definitions, values, (text) =>
+    resolveLocalizedText(text, locale),
+  );
+
 const ids = (sections: ReturnType<typeof buildSettingsSections>) =>
   sections.map(({ title, fields }) => [
     title,
@@ -32,13 +45,13 @@ const ids = (sections: ReturnType<typeof buildSettingsSections>) =>
 
 describe('buildSettingsSections', () => {
   it('без group, order и условий — один раздел без заголовка в порядке объявления', () => {
-    expect(
-      ids(buildSettingsSections([def('a'), def('b'), def('c')], {})),
-    ).toEqual([[null, ['a', 'b', 'c']]]);
+    expect(ids(build([def('a'), def('b'), def('c')], {}))).toEqual([
+      [null, ['a', 'b', 'c']],
+    ]);
   });
 
   it('сортирует по order (нет — 0), затем по порядку объявления', () => {
-    const sections = buildSettingsSections(
+    const sections = build(
       [
         def('a', { order: 5 }),
         def('b'),
@@ -52,7 +65,7 @@ describe('buildSettingsSections', () => {
   });
 
   it('настройки без group — первым разделом без заголовка; разделы в порядке первого вхождения', () => {
-    const sections = buildSettingsSections(
+    const sections = build(
       [
         def('a', { group: 'Second' }),
         def('b', { group: 'First', order: 0 }),
@@ -72,7 +85,7 @@ describe('buildSettingsSections', () => {
   });
 
   it('порядок разделов определяет order первой настройки раздела', () => {
-    const sections = buildSettingsSections(
+    const sections = build(
       [def('a', { group: 'Late', order: 9 }), def('b', { group: 'Early' })],
       {},
     );
@@ -90,10 +103,8 @@ describe('buildSettingsSections', () => {
         visibleWhen: { setting: 'acme.on', equals: true },
       }),
     ];
-    expect(ids(buildSettingsSections(defs, { 'acme.on': false }))).toEqual([
-      [null, ['on']],
-    ]);
-    expect(ids(buildSettingsSections(defs, { 'acme.on': true }))).toEqual([
+    expect(ids(build(defs, { 'acme.on': false }))).toEqual([[null, ['on']]]);
+    expect(ids(build(defs, { 'acme.on': true }))).toEqual([
       [null, ['on']],
       ['More', ['detail']],
     ]);
@@ -135,54 +146,53 @@ describe('isSettingVisible', () => {
   });
 });
 
-describe('localizeSetting', () => {
-  const tables = {
-    en: { label: 'Mode', hint: 'Pick one', fast: 'Fast', slow: 'Slow' },
-    ru: { label: 'Режим', fast: 'Быстро' },
-  };
-  const resolve = (locale: string) => (value: string) =>
-    resolveText(value, tables, locale);
+describe('подписи поля', () => {
+  const ru = (text: LocalizedText) => resolveLocalizedText(text, 'ru');
+  const en = (text: LocalizedText) => resolveLocalizedText(text, 'en');
   const mode = def('mode', {
     type: 'enum',
-    label: '%label%',
-    description: '%hint%',
+    label: { en: 'Mode', ru: 'Режим' },
+    description: { en: 'Pick one' },
     default: 'fast',
     options: [
-      { value: 'fast', label: '%fast%' },
-      { value: 'slow', label: '%slow%' },
+      { value: 'fast', label: { en: 'Fast', ru: 'Быстро' } },
+      { value: 'slow', label: { en: 'Slow' } },
       { value: 'off', label: 'Off' },
     ],
   } as Partial<ExtensionSettingDefDto>);
 
-  it('translates label, description and option labels, never values', () => {
-    expect(localizeSetting(mode, resolve('ru'))).toMatchObject({
-      id: 'acme.mode',
+  it('берёт текст языка окна, а без перевода — английский; значения не переводятся', () => {
+    expect(settingTextOf(mode, ru)).toEqual({
       label: 'Режим',
-      // нет в ru — берётся en
       description: 'Pick one',
       options: [
-        { value: 'fast', label: 'Быстро' },
-        { value: 'slow', label: 'Slow' },
-        { value: 'off', label: 'Off' },
+        { value: 'fast', title: 'Быстро' },
+        { value: 'slow', title: 'Slow' },
+        { value: 'off', title: 'Off' },
       ],
     });
+    expect(settingTextOf(mode, en).label).toBe('Mode');
   });
 
-  it('keeps an absent description and non-enum settings intact', () => {
-    const plain = def('plain', { label: '%label%' });
-    expect(localizeSetting(plain, resolve('en'))).toMatchObject({
-      label: 'Mode',
+  it('строка показывается как есть на любом языке; без пояснения и вариантов их нет', () => {
+    const plain = def('plain', { label: 'Plain' });
+    expect(settingTextOf(plain, ru)).toEqual({
+      label: 'Plain',
       description: null,
+      options: [],
     });
-    expect(localizeSetting(plain, resolve('en'))).not.toHaveProperty('options');
   });
 
-  it('leaves the source definition untouched and an unknown key as written', () => {
-    const before = structuredClone(mode);
-    localizeSetting(mode, resolve('ru'));
-    expect(mode).toEqual(before);
-    expect(
-      localizeSetting(def('x', { label: '%nowhere%' }), resolve('ru')).label,
-    ).toBe('%nowhere%');
+  it('разделы с одинаковым заголовком на языке окна объединяются, даже если объекты разные', () => {
+    const defs = [
+      def('a', { group: { en: 'Look', ru: 'Вид' } }),
+      def('b', { group: { en: 'Look', ru: 'Внешний вид' } }),
+      def('c', { group: { en: 'Look', ru: 'Вид' } }),
+    ];
+    expect(ids(build(defs, {}, 'ru'))).toEqual([
+      ['Вид', ['a', 'c']],
+      ['Внешний вид', ['b']],
+    ]);
+    expect(ids(build(defs, {}, 'en'))).toEqual([['Look', ['a', 'b', 'c']]]);
   });
 });

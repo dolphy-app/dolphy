@@ -10,9 +10,8 @@ import type {
   ExporterContributionDto,
   ExtensionInfoDto,
   ImporterContributionDto,
-  PanelContributionDto,
+  ExtensionClientDto,
   ScheduleContributionDto,
-  WidgetContributionDto,
   ExtensionSettingDefDto,
   ExtensionUpdateDto,
   SavedFilterDto,
@@ -34,6 +33,8 @@ import {
   buildLibrary,
   createFakeClock,
   createFakeExtensionCommands,
+  createFakeExtensionHooks,
+  createFakeExtensionRpc,
   createFakeExtensionTransfers,
   createFakeExerciseTypes,
   createFakeExtensionHostControl,
@@ -82,21 +83,15 @@ const REGISTERED: ExtensionInfoDto = {
   state: 'loaded',
   contributes: {
     exerciseTypes: ['dolphy.sql'],
-    themes: [],
-    markdownRenderers: [],
     gradePolicies: [],
     settings: ['dolphy.sql.rows'],
     events: [],
     commands: ['dolphy.sql.stats'],
-    widgets: ['dolphy.sql.card'],
     schedules: ['dolphy.sql.nightly'],
-    panels: ['dolphy.sql.panel'],
     importers: [],
     exporters: [],
   },
   diagnostics: [],
-  permissions: ['library.read'],
-  isolation: 'trusted',
   toggleable: false,
   name: null,
   description: null,
@@ -104,8 +99,6 @@ const REGISTERED: ExtensionInfoDto = {
   dependencies: [],
   installed: null,
   icon: null,
-  titles: {},
-  messages: {},
   tags: [],
   removable: false,
   revoked: null,
@@ -120,18 +113,12 @@ const USER_EXTENSION: ExtensionInfoDto = {
     exerciseTypes: [],
     settings: [],
     commands: [],
-    widgets: [],
     schedules: [],
-    panels: [],
     importers: [],
     exporters: [],
   },
-  permissions: [],
-  isolation: 'isolated',
   toggleable: true,
   icon: null,
-  titles: {},
-  messages: {},
   tags: [],
   removable: true,
 };
@@ -157,20 +144,14 @@ const STATS_COMMAND: CommandContributionDto = {
   title: 'Show stats',
   description: null,
   category: null,
-  keybinding: null,
   keybindings: [],
   icon: 'puzzle',
   palette: true,
   when: "route == 'courses'",
 };
-const SQL_PANEL: PanelContributionDto = {
-  id: 'dolphy.sql.panel',
+const SQL_CLIENT: ExtensionClientDto = {
   extensionId: 'dolphy.sql',
-  title: 'SQL',
-  icon: 'puzzle',
-  when: null,
-  rendererUrl: 'dolphy-ext://dolphy.sql/panel.mjs',
-  isolated: true,
+  url: 'dolphy-ext://dolphy.sql/client.mjs',
   origin: 'bundled',
   revision: '',
 };
@@ -179,19 +160,6 @@ const SQL_SCHEDULE: ScheduleContributionDto = {
   extensionId: 'dolphy.sql',
   every: 'daily',
   at: '09:00',
-};
-const SQL_WIDGET: WidgetContributionDto = {
-  id: 'dolphy.sql.card',
-  extensionId: 'dolphy.sql',
-  title: 'SQL',
-  slot: 'dailyPlan',
-  minHeight: 80,
-  maxHeight: 320,
-  when: null,
-  rendererUrl: 'dolphy-ext://dolphy.sql/widget.mjs',
-  isolated: true,
-  origin: 'bundled',
-  revision: '',
 };
 
 const LOG_ENTRY = {
@@ -215,7 +183,6 @@ const UPDATE: ExtensionUpdateDto = {
   installed: '1.0.0',
   available: {
     version: '1.1.0',
-    permissions: [],
     dependencies: [],
     publishedAt: '2026-10-01T00:00:00.000Z',
     size: 10,
@@ -276,6 +243,10 @@ const start = async () => {
           text: '42 rows',
         }),
       }),
+      extensionHooks: createFakeExtensionHooks(),
+      extensionRpc: createFakeExtensionRpc({
+        'dolphy.sql/greeting.say-hello': (input) => ({ greeting: input }),
+      }),
       extensionTransfers: createFakeExtensionTransfers({
         exporters: {
           'dolphy.sql/dolphy.sql.export': () => ({
@@ -288,17 +259,13 @@ const start = async () => {
         [REGISTERED, USER_EXTENSION],
         {
           exerciseTypes: [],
-          themes: [],
-          markdownRenderers: [],
           gradePolicies: [],
           settings: [ROWS_SETTING],
           commands: [STATS_COMMAND],
-          widgets: [SQL_WIDGET],
           schedules: [SQL_SCHEDULE],
-          panels: [SQL_PANEL],
           importers: [IMPORT_BYTES],
           exporters: [EXPORT_PROGRESS],
-          messages: {},
+          clients: [SQL_CLIENT],
         },
       ),
       extensionPolicy: createFakeExtensionPolicy(),
@@ -758,7 +725,6 @@ describe('rpc → dispatcher → real engine', () => {
       ),
     ).toEqual({
       disabled: [],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -804,20 +770,6 @@ describe('rpc → dispatcher → real engine', () => {
       ),
     ).toEqual({
       disabled: ['acme.user'],
-      trusted: [],
-      checkUpdates: true,
-      safeMode: false,
-      notificationsOff: [],
-      catalogUrl: null,
-      schedulesOff: [],
-    });
-    expect(
-      await call('extensions.setTrusted', () =>
-        client.extensions.setTrusted('acme.user', true),
-      ),
-    ).toEqual({
-      disabled: ['acme.user'],
-      trusted: ['acme.user'],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -830,7 +782,6 @@ describe('rpc → dispatcher → real engine', () => {
       ),
     ).toEqual({
       disabled: ['acme.user'],
-      trusted: ['acme.user'],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: ['acme.user'],
@@ -843,7 +794,6 @@ describe('rpc → dispatcher → real engine', () => {
       ),
     ).toEqual({
       disabled: ['acme.user'],
-      trusted: ['acme.user'],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: ['acme.user'],
@@ -953,6 +903,25 @@ describe('rpc → dispatcher → real engine', () => {
       code: 'EXTENSION_COMMAND_FAILED',
       details: { reason: 'unknown-command' },
     });
+    expect(
+      await call('extensions.invokeRpc', () =>
+        client.extensions.invokeRpc({
+          extensionId: 'dolphy.sql',
+          name: 'greeting.say-hello',
+          input: { who: 'Ann' },
+        }),
+      ),
+    ).toEqual({ greeting: { who: 'Ann' } });
+    await expect(
+      client.extensions.invokeRpc({
+        extensionId: 'dolphy.sql',
+        name: 'greeting.missing',
+        input: undefined,
+      }),
+    ).rejects.toMatchObject({
+      code: 'EXTENSION_RPC_FAILED',
+      details: { reason: 'unknown-rpc' },
+    });
     // байты проходят структурное копирование туда и обратно
     expect(
       await call('extensions.runExporter', () =>
@@ -1008,20 +977,16 @@ describe('rpc → dispatcher → real engine', () => {
         client.extensions.contributions(),
       ),
     ).toEqual({
-      // поколение растёт на каждое применение: включение, доверие, безопасный режим (два раза), смена адреса каталога, установка, удаление выше
-      generation: 7,
+      // поколение растёт на каждое применение: включение, безопасный режим (два раза), смена адреса каталога, установка, удаление выше
+      generation: 6,
       exerciseTypes: [],
-      themes: [],
-      markdownRenderers: [],
       gradePolicies: [{ id: 'passAtN', extensionId: null, label: null }],
       settings: [ROWS_SETTING],
       commands: [STATS_COMMAND],
-      panels: [SQL_PANEL],
-      widgets: [SQL_WIDGET],
       schedules: [SQL_SCHEDULE],
       importers: [IMPORT_BYTES],
       exporters: [EXPORT_PROGRESS],
-      messages: {},
+      clients: [SQL_CLIENT],
     });
     await call('diagnostics', () => client.diagnostics());
 

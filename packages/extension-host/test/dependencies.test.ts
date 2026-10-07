@@ -12,12 +12,12 @@ import {
 import type { DependencyNode } from '../src/dependencies.ts';
 import { formatDiagnostic } from '../src/diagnostics.ts';
 import { discoverExtensions } from '../src/discover.ts';
-import type { ExtensionOrigin, ResolvedExtension } from '../src/discover.ts';
-import { createDiscoveryHolder, discoveryOf } from '../src/holder.ts';
+import type { ExtensionCandidate, ResolvedExtension } from '../src/discover.ts';
+import { discoveryOf } from '../src/holder.ts';
 import { parseManifest } from '../src/manifest.ts';
 import { createExtensionPolicy } from '../src/policy.ts';
 import { createExtensionRegistry } from '../src/registry.ts';
-import { createLogger } from './helpers.ts';
+import { createLogger, holderOf, resolvedOf } from './helpers.ts';
 
 const dep = (id: string, range: string | null = null): ExtensionDependency => ({
   id,
@@ -33,46 +33,29 @@ const node = (
 const extension = (
   id: string,
   dependencies: ExtensionDependency[] = [],
-  patch: Partial<ResolvedExtension> = {},
-): ResolvedExtension => ({
-  id,
-  version: '1.0.0',
-  origin: 'user' satisfies ExtensionOrigin,
-  revision: '',
-  dir: `/x/${id}`,
-  mainPath: null,
-  permissions: [],
-  name: null,
-  description: null,
-  author: null,
-  dependencies,
-  platforms: [],
-  minAppVersion: null,
-  icon: null,
-  tags: [],
-  install: null,
-  messages: {},
-  warnings: [],
-  exerciseTypes: [],
-  themes: [],
-  markdownRenderers: [],
-  gradePolicies: [],
-  settings: [],
-  events: [],
-  commands: [
-    { id: `${id}.run`, title: id, description: null, category: null },
-  ] as never,
-  widgets: [],
-  schedules: [],
-  panels: [],
-  importers: [],
-  exporters: [],
-  ...patch,
-});
+  patch: Partial<ExtensionCandidate> = {},
+): ResolvedExtension =>
+  resolvedOf(
+    id,
+    {
+      commands: [
+        {
+          id: `${id}.run`,
+          title: id,
+          description: null,
+          category: null,
+          palette: true,
+          icon: 'puzzle',
+          keybindings: [],
+          when: null,
+        },
+      ],
+    },
+    { dependencies, ...patch },
+  );
 
 const SETTINGS: ExtensionSettingsDto = {
   disabled: [],
-  trusted: [],
   checkUpdates: true,
   safeMode: false,
   notificationsOff: [],
@@ -81,7 +64,7 @@ const SETTINGS: ExtensionSettingsDto = {
 };
 
 const open = (...items: ResolvedExtension[]) => {
-  const holder = createDiscoveryHolder(discoveryOf(items));
+  const holder = holderOf(items);
   const policy = createExtensionPolicy(holder);
   const registry = createExtensionRegistry(holder, policy);
   const disable = (...ids: string[]) =>
@@ -103,7 +86,6 @@ describe('manifest: dependencies', () => {
     apiVersion: 1,
     main: './main.mjs',
     dependencies,
-    contributes: { gradePolicies: [{ id: 'acme.quiz', label: 'Quiz' }] },
   });
 
   it('accepts ids with and without a range and fills range with null', () => {
@@ -426,7 +408,6 @@ describe('discoverExtensions: order', () => {
         apiVersion: 1,
         main: './main.mjs',
         dependencies,
-        contributes: { gradePolicies: [{ id, label: id }] },
       }),
     );
   };

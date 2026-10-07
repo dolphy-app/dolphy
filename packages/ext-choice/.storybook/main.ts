@@ -1,9 +1,9 @@
-import type { StorybookConfig } from '@storybook/html-vite';
+import type { StorybookConfig } from '@storybook/vue3-vite';
 
 const config: StorybookConfig = {
   stories: ['../src/**/*.stories.ts'],
   addons: ['@storybook/addon-docs'],
-  framework: '@storybook/html-vite',
+  framework: '@storybook/vue3-vite',
   core: { disableTelemetry: true },
 };
 

@@ -8,24 +8,20 @@ import {
   targetFromEntry,
   targetFromUpdate,
 } from '@/pages/settings/lib/catalog.ts';
-import type { ContributionPoint } from '@/pages/settings/lib/catalog.ts';
 import type { ExtensionTag, TagGroup } from '@/pages/settings/lib/tags.ts';
 import { describeInstallFailure } from '@/pages/settings/lib/install-error.ts';
 import {
-  NO_CONTRIBUTES,
   catalogEntry,
   catalogVersion,
   extensionInfo,
 } from './support/extensions-fakes.ts';
 
-const NO_KINDS: ReadonlySet<ContributionPoint> = new Set();
 const NO_GROUPS: ReadonlySet<TagGroup> = new Set();
 const NO_TAGS: ReadonlySet<ExtensionTag> = new Set();
 const NO_FILTERS = {
   query: '',
   groups: NO_GROUPS,
   tags: NO_TAGS,
-  kinds: NO_KINDS,
 };
 
 const ENTRIES = [
@@ -38,7 +34,6 @@ const ENTRIES = [
     name: 'Quiz',
     description: 'Вид заданий с вариантами',
     author: 'bob',
-    contributes: { ...NO_CONTRIBUTES, exerciseTypes: ['acme.quiz'] },
   }),
   catalogEntry('acme.win', {
     name: 'Win only',
@@ -52,13 +47,8 @@ const ENTRIES = [
   }),
 ];
 
-const names = (
-  query: string,
-  kinds: ReadonlySet<ContributionPoint> = NO_KINDS,
-) =>
-  filterEntries(ENTRIES, { ...NO_FILTERS, query, kinds }).map(
-    (entry) => entry.id,
-  );
+const names = (query: string) =>
+  filterEntries(ENTRIES, { ...NO_FILTERS, query }).map((entry) => entry.id);
 
 describe('filterEntries', () => {
   it('ищет по названию, id, описанию и автору без учёта регистра, в том числе по-русски', () => {
@@ -89,34 +79,9 @@ describe('filterEntries', () => {
     expect(result.map((entry) => entry.id)).not.toContain('acme.win');
   });
 
-  it('фильтр по виду вклада: достаточно любого выбранного', () => {
-    expect(names('', new Set<ContributionPoint>(['themes']))).toEqual([
-      'acme.sunrise',
-    ]);
-    expect(names('', new Set<ContributionPoint>(['exerciseTypes']))).toEqual([
-      'acme.quiz',
-    ]);
-    expect(
-      names('', new Set<ContributionPoint>(['themes', 'exerciseTypes'])),
-    ).toEqual(['acme.sunrise', 'acme.quiz']);
-    expect(names('', new Set<ContributionPoint>(['gradePolicies']))).toEqual(
-      [],
-    );
-  });
-
-  it('запрос и фильтр действуют вместе', () => {
-    expect(names('quiz', new Set<ContributionPoint>(['themes']))).toEqual([]);
-  });
-
   it('hasActiveFilters: пробелы в запросе фильтром не считаются', () => {
     expect(hasActiveFilters({ ...NO_FILTERS, query: '  ' })).toBe(false);
     expect(hasActiveFilters({ ...NO_FILTERS, query: 'a' })).toBe(true);
-    expect(
-      hasActiveFilters({
-        ...NO_FILTERS,
-        kinds: new Set<ContributionPoint>(['themes']),
-      }),
-    ).toBe(true);
     expect(
       hasActiveFilters({
         ...NO_FILTERS,
@@ -133,29 +98,19 @@ describe('filterEntries', () => {
 });
 
 describe('фильтры по группам и тегам', () => {
-  // theme+interface (явно), learning (по виду заданий), content (по рендереру),
-  // developer (явно), productivity (по команде) и расширение без вкладов
+  // theme+interface, learning, content, developer, productivity и запись без тегов
   const TAGGED = [
     catalogEntry('a.sunset', { tags: ['theme', 'interface'] }),
-    catalogEntry('a.quiz', {
-      contributes: { ...NO_CONTRIBUTES, exerciseTypes: ['a.quiz'] },
-    }),
-    catalogEntry('a.math', {
-      contributes: { ...NO_CONTRIBUTES, markdownRenderers: ['math'] },
-    }),
-    catalogEntry('a.sdk', {
-      tags: ['developer'],
-      contributes: { ...NO_CONTRIBUTES, commands: ['a.sdk.run'] },
-    }),
-    catalogEntry('a.cmd', {
-      contributes: { ...NO_CONTRIBUTES, commands: ['a.cmd.run'] },
-    }),
-    catalogEntry('a.bare', { contributes: NO_CONTRIBUTES }),
+    catalogEntry('a.quiz', { tags: ['learning'] }),
+    catalogEntry('a.math', { tags: ['content'] }),
+    catalogEntry('a.sdk', { tags: ['developer'] }),
+    catalogEntry('a.cmd', { tags: ['productivity'] }),
+    catalogEntry('a.bare'),
   ];
   const ids = (override: Partial<typeof NO_FILTERS>) =>
     filterEntries(TAGGED, { ...NO_FILTERS, ...override }).map((e) => e.id);
 
-  it('группа — объединение её тегов; явные теги заменяют вычисленные', () => {
+  it('группа — объединение её тегов; запись без явных тегов ни в одну не входит', () => {
     expect(ids({ groups: new Set<TagGroup>(['appearance']) })).toEqual([
       'a.sunset',
       'a.cmd',
@@ -164,7 +119,6 @@ describe('фильтры по группам и тегам', () => {
       'a.quiz',
       'a.math',
     ]);
-    // a.sdk имеет команды (productivity по вкладам), но явный тег только developer
     expect(ids({ groups: new Set<TagGroup>(['developers']) })).toEqual([
       'a.sdk',
     ]);
@@ -185,12 +139,6 @@ describe('фильтры по группам и тегам', () => {
       ids({
         groups: new Set<TagGroup>(['appearance']),
         tags: new Set<ExtensionTag>(['productivity']),
-      }),
-    ).toEqual(['a.cmd']);
-    expect(
-      ids({
-        groups: new Set<TagGroup>(['appearance']),
-        kinds: new Set<ContributionPoint>(['commands']),
       }),
     ).toEqual(['a.cmd']);
     expect(
@@ -294,25 +242,22 @@ describe('entryAction', () => {
 describe('цели установки', () => {
   it('targetFromEntry берёт разрешения выбранной версии, а не последней', () => {
     const entry = catalogEntry('a.b', {
-      latest: catalogVersion('2.0.0', { permissions: ['network'] }),
+      latest: catalogVersion('2.0.0'),
       platforms: ['darwin'],
     });
-    const older = catalogVersion('1.0.0', { permissions: [], size: 50 });
+    const older = catalogVersion('1.0.0', { size: 50 });
     expect(targetFromEntry(entry, older)).toMatchObject({
       id: 'a.b',
       version: '1.0.0',
-      permissions: [],
       platforms: ['darwin'],
       sizeBytes: 50,
       installedVersion: null,
     });
   });
 
-  it('названия вкладов и эффективные теги идут в диалог установки', () => {
-    const titles = { themes: { 'a.night': 'Полночь' } };
-    const entry = catalogEntry('a.night', { titles, tags: ['interface'] });
+  it('эффективные теги идут в диалог установки: записи каталога, иначе установленного', () => {
+    const entry = catalogEntry('a.night', { tags: ['interface', 'future'] });
     expect(targetFromEntry(entry, catalogVersion('1.0.0'))).toMatchObject({
-      titles,
       tags: ['interface'],
     });
     const update = {
@@ -321,44 +266,15 @@ describe('цели установки', () => {
       installed: '1.0.0',
       available: catalogVersion('1.1.0'),
     };
-    const info = extensionInfo('a.night', {
-      titles: { themes: { old: 'Старая' } },
-      tags: ['developer'],
-    });
+    const info = extensionInfo('a.night', { tags: ['developer'] });
     expect(targetFromUpdate(update, info, entry)).toMatchObject({
-      titles,
       tags: ['interface'],
     });
     expect(targetFromUpdate(update, info, undefined)).toMatchObject({
-      titles: { themes: { old: 'Старая' } },
       tags: ['developer'],
     });
     expect(targetFromUpdate(update, undefined, undefined)).toMatchObject({
-      titles: {},
       tags: [],
-    });
-  });
-
-  it('обновление без записи каталога показывает названия установленной копии на английском', () => {
-    const update = {
-      id: 'a.night',
-      name: 'Night',
-      installed: '1.0.0',
-      available: catalogVersion('1.1.0'),
-    };
-    const info = extensionInfo('a.night', {
-      titles: {
-        themes: { 'a.night': '%theme%' },
-        commands: { 'a.night.go': 'Plain' },
-      },
-      messages: {
-        en: { theme: 'Night' },
-        ru: { theme: 'Ночь' },
-      },
-    });
-    expect(targetFromUpdate(update, info, undefined).titles).toEqual({
-      themes: { 'a.night': 'Night' },
-      commands: { 'a.night.go': 'Plain' },
     });
   });
 
@@ -387,34 +303,27 @@ describe('цели установки', () => {
     expect(targetFromUpdate(update, undefined, undefined).icon).toBeNull();
   });
 
-  it('targetFromUpdate: вклады и автор из каталога, иначе из установленного', () => {
+  it('targetFromUpdate: автор и платформы из каталога, иначе из установленного', () => {
     const update = {
       id: 'a.b',
       name: 'A B',
       installed: '1.0.0',
-      available: catalogVersion('1.1.0', { permissions: ['network'] }),
+      available: catalogVersion('1.1.0'),
     };
-    const info = extensionInfo('a.b', {
-      author: 'old',
-      contributes: { ...NO_CONTRIBUTES, themes: ['old'] },
-    });
+    const info = extensionInfo('a.b', { author: 'old' });
     const entry = catalogEntry('a.b', {
       author: 'fresh',
-      contributes: { ...NO_CONTRIBUTES, themes: ['fresh'] },
       platforms: ['linux'],
     });
 
     expect(targetFromUpdate(update, info, entry)).toMatchObject({
       author: 'fresh',
-      contributes: { themes: ['fresh'] },
       platforms: ['linux'],
       installedVersion: '1.0.0',
       version: '1.1.0',
-      permissions: ['network'],
     });
     expect(targetFromUpdate(update, info, undefined)).toMatchObject({
       author: 'old',
-      contributes: { themes: ['old'] },
       platforms: [],
     });
     expect(targetFromUpdate(update, undefined, undefined).author).toBeNull();

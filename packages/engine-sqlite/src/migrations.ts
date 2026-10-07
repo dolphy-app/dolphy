@@ -16,6 +16,7 @@ import type { SqlDatabase } from './sql-database.ts';
  * Миграция 6 — вид записи `retract` (отмена попытки): `CHECK` на `kind` нельзя
  * изменить на месте, поэтому `log_entry` пересоздаётся с копированием строк в
  * порядке `rowid`; `unit_id` у `retract` хранит `targetId`.
+ * Миграция 7 — из сохранённых настроек расширений убран ключ `trusted`.
  */
 export const MIGRATIONS: readonly string[] = [
   `
@@ -101,6 +102,10 @@ DROP TABLE log_entry;
 ALTER TABLE log_entry_next RENAME TO log_entry;
 CREATE INDEX log_order ON log_entry (at, device_id, seq);
 CREATE INDEX log_unit  ON log_entry (unit_id, at, device_id, seq);
+`,
+  `
+UPDATE setting SET value = json_remove(value, '$.trusted')
+  WHERE key = 'extensions' AND json_valid(value);
 `,
 ];
 

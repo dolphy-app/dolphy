@@ -22,7 +22,7 @@ const target = (
 ): InstallTarget =>
   targetFromEntry(
     catalogEntry(id, { installedVersion }),
-    catalogVersion('1.1.0', { permissions: ['network'] }),
+    catalogVersion('1.1.0'),
   );
 
 const installFailed = (reason: string, retryable = false) =>

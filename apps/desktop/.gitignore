@@ -7,5 +7,3 @@ dist-e2e
 # расширения по умолчанию, собранные плагином dolphy:extensions (vite.config.ts)
 /extensions
 
-# дочерний процесс для кода расширений (плагин dolphy:restricted-child, vite.config.ts)
-/restricted

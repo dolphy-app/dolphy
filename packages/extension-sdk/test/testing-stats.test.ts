@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import {
-  EXTENSION_STATS_LIMITS,
-  PermissionError,
-  defineExtension,
-} from '../src/index.ts';
-import { createMemoryStats, loadCommands, loadEvents } from '../src/testing.ts';
+import { EXTENSION_STATS_LIMITS, defineServer } from '../src/index.ts';
+import { createMemoryStats, createTestServer } from '../src/testing.ts';
 
 const NEW_YORK = 'America/New_York';
 const NOW = Date.parse('2024-05-11T16:00:00Z');
@@ -117,19 +113,6 @@ describe('createMemoryStats', () => {
     }
   });
 
-  it('with permitted: false every call rejects with PermissionError(learning.stats)', async () => {
-    const stats = createMemoryStats({ permitted: false });
-
-    for (const call of [
-      () => stats.streak(),
-      () => stats.daily({ from: '2024-05-01', to: '2024-05-02' }),
-    ]) {
-      const error = await call().catch((reason: unknown) => reason);
-      expect(error).toBeInstanceOf(PermissionError);
-      expect(error).toMatchObject({ permission: 'learning.stats' });
-    }
-  });
-
   it('record rejects an invalid time', () => {
     expect(() =>
       createMemoryStats().record({ at: 'not a time', grade: 4 }),
@@ -137,51 +120,39 @@ describe('createMemoryStats', () => {
   });
 });
 
-describe('stats in loaders', () => {
-  const module = defineExtension({
-    activate(ctx) {
-      ctx.commands.register('x.report', async () => ({
-        notify: JSON.stringify(await ctx.stats.streak()),
-      }));
-    },
+describe('stats in the test server', () => {
+  const entry = defineServer((s) => {
+    s.registerCommand({
+      id: 'x.report',
+      title: 'Report',
+      run: async () => ({ notify: JSON.stringify(await s.stats.streak()) }),
+    });
   });
 
-  it('loadCommands hands the extension the stats of the test', async () => {
+  it('hands the entry the stats of the test', async () => {
     const stats = createMemoryStats({
       timeZone: 'UTC',
       now: () => Date.parse('2024-05-07T08:00:00Z'),
       attempts: [{ at: '2024-05-07T07:00:00Z', grade: 4 }],
     });
-    const loaded = await loadCommands(module, { stats });
+    const server = await createTestServer(entry, { stats });
 
-    expect(await loaded.run('x.report')).toMatchObject({
+    expect(await server.commands.run('x.report')).toMatchObject({
       kind: 'notify',
       text: '{"current":1,"longest":1}',
     });
   });
 
-  it('by default the stats are empty, not missing; loadEvents accepts them too', async () => {
-    const loaded = await loadCommands(module);
-    expect(await loaded.run('x.report')).toMatchObject({
+  it('by default the stats are empty, not missing, and the test can record attempts', async () => {
+    const server = await createTestServer(entry);
+    expect(await server.commands.run('x.report')).toMatchObject({
       kind: 'notify',
       text: '{"current":0,"longest":0}',
     });
-
-    let seen: unknown;
-    await loadEvents(
-      defineExtension({
-        activate: async (ctx) => {
-          seen = await ctx.stats.streak();
-        },
-      }),
-      {
-        stats: createMemoryStats({
-          timeZone: 'UTC',
-          now: () => NOW,
-          attempts: [{ at: NOW, grade: 4 }],
-        }),
-      },
-    );
-    expect(seen).toEqual({ current: 1, longest: 1 });
+    server.stats.record({ at: Date.now(), grade: 5 });
+    expect(await server.commands.run('x.report')).toMatchObject({
+      kind: 'notify',
+      text: '{"current":1,"longest":1}',
+    });
   });
 });

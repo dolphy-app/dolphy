@@ -2,13 +2,5 @@
   "id": "acme.slowstart",
   "version": "1.0.0",
   "apiVersion": 1,
-  "contributes": {
-    "commands": [
-      {
-        "id": "acme.slowstart.go",
-        "title": "Запустить медленное расширение",
-        "category": "Сбои"
-      }
-    ]
-  }
+  "main": "./main.mjs"
 }

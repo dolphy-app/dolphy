@@ -23,7 +23,6 @@ import type {
   WeightedRef,
 } from '@dolphy-app/engine-contract';
 import type { ExerciseTypes } from '../ports/exercise-types.ts';
-import type { ExtensionPolicy } from '../ports/extension-policy.ts';
 import type { UnitType } from '../domain/graph.ts';
 import type { Library } from '../domain/library.ts';
 import type {
@@ -161,7 +160,6 @@ const toContent = (
 const toTaskField = (
   exercise: ExerciseManifest,
   types: ExerciseTypes,
-  policy: ExtensionPolicy,
 ): { task?: ExerciseTaskDto } => {
   const block = exercise.engine?.exercise;
   if (block === undefined) return {};
@@ -171,11 +169,7 @@ const toTaskField = (
     task: {
       type: block.type,
       timeoutMs: block.timeoutMs ?? DEFAULT_EXERCISE_TIMEOUT_MS,
-      element: info.element,
-      rendererUrl: info.rendererUrl,
-      isolated: policy.isIsolated(info.extensionId),
-      origin: info.extensionOrigin,
-      revision: info.extensionRevision,
+      extensionId: info.extensionId,
     },
   };
 };
@@ -183,7 +177,6 @@ const toTaskField = (
 export const toExerciseDto = (
   exercise: ExerciseManifest,
   types: ExerciseTypes,
-  policy: ExtensionPolicy,
 ): ExerciseDto => ({
   kind: 'exercise',
   id: exercise.id,
@@ -196,7 +189,7 @@ export const toExerciseDto = (
   exerciseType:
     exercise.exercise_type === 'Declarative' ? 'declarative' : 'procedural',
   content: toContent(exercise.id, exercise.exercise_asset),
-  ...toTaskField(exercise, types, policy),
+  ...toTaskField(exercise, types),
   keyPrerequisites: [...(exercise.engine?.keyPrerequisites ?? [])],
 });
 
@@ -207,7 +200,6 @@ export const toUnitDto = (
   library: Library,
   id: UnitId,
   types: ExerciseTypes,
-  policy: ExtensionPolicy,
 ): UnitDto => {
   const course = library.getCourse(id);
   if (course !== undefined) {
@@ -218,7 +210,7 @@ export const toUnitDto = (
     return toLessonDto(lesson, library.getExerciseIds(id)?.length ?? 0);
   }
   const exercise = library.getExercise(id);
-  if (exercise !== undefined) return toExerciseDto(exercise, types, policy);
+  if (exercise !== undefined) return toExerciseDto(exercise, types);
   throw notFound(id);
 };
 

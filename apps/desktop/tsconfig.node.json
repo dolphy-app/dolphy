@@ -22,6 +22,7 @@
   "include": [
     "electron/main",
     "electron/host",
+    "src/vite-env.d.ts",
     "shared",
     "test",
     "e2e",
@@ -29,5 +30,7 @@
     "vite.config.ts",
     "vitest.config.ts",
     "package.json"
-  ]
+  ],
+  // исходники проектов расширений собирает `dolphy-ext build` из временной копии, у них своя среда типов
+  "exclude": ["e2e/fixtures/**/src"]
 }

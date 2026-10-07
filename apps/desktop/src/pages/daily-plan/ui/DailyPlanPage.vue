@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import type { ItemReason } from '@dolphy-app/engine-contract';
+import { ANCHOR_ATTRIBUTE } from '@dolphy-app/extension-api';
 import { useEngine } from '@/shared/api/engine';
 import { ITEM_REASON } from '@/shared/config/item-reason.ts';
 import { ROUTE } from '@/shared/config/routes.ts';
 import PageHeader from '@/shared/ui/PageHeader.vue';
-import { ExtensionWidgets } from '@/widgets/extension-widgets';
 import { CourseScopeSwitcher, useCourseScope } from '@/features/course-scope';
 import { useDailyPlan } from '../model/daily-plan.ts';
 import OtherDue from './OtherDue.vue';
@@ -30,10 +30,13 @@ const todayLabel = computed(() => d(today.value, 'fullDate'));
 
 const hero = computed(() => plan.value?.entries[0] ?? null);
 const upcoming = computed(() => plan.value?.entries.slice(1) ?? []);
-const upcomingShown = computed(() => upcoming.value.slice(0, UPCOMING_SHOWN));
-const upcomingHidden = computed(
-  () => upcoming.value.length - upcomingShown.value.length,
+const upcomingExpanded = ref(false);
+const upcomingShown = computed(() =>
+  upcomingExpanded.value
+    ? upcoming.value
+    : upcoming.value.slice(0, UPCOMING_SHOWN),
 );
+const upcomingHidden = computed(() => upcoming.value.length - UPCOMING_SHOWN);
 const initialLoading = computed(() => loading.value && !plan.value);
 
 const counts = computed(() =>
@@ -228,13 +231,20 @@ const startSession = () => {
               </span>
             </template>
           </v-list-item>
-          <v-list-item
-            v-if="upcomingHidden > 0"
-            :title="t('dailyPlan.upcoming.more', { n: upcomingHidden })"
-            class="text-medium-emphasis"
-            rounded="lg"
-          />
         </v-list>
+        <button
+          v-if="upcomingHidden > 0"
+          type="button"
+          class="upcoming-toggle text-body-large mx-4 mt-1 mb-3"
+          :aria-expanded="upcomingExpanded"
+          @click="upcomingExpanded = !upcomingExpanded"
+        >
+          {{
+            upcomingExpanded
+              ? t('dailyPlan.upcoming.less')
+              : t('dailyPlan.upcoming.more', { n: upcomingHidden })
+          }}
+        </button>
       </v-card>
 
       <v-card v-if="hero && otherDue.length" class="pa-4">
@@ -242,11 +252,20 @@ const startSession = () => {
       </v-card>
     </template>
 
-    <ExtensionWidgets area="dailyPlan" />
+    <div :[ANCHOR_ATTRIBUTE]="'dailyPlan'" class="extension-anchor" />
   </v-container>
 </template>
 
 <style scoped>
+/* пустой якорь места не занимает; вставка расширения сама задаёт свой вид */
+.extension-anchor:empty {
+  display: none;
+}
+
+.extension-anchor:not(:empty) {
+  margin-top: 1.5rem;
+}
+
 .hero {
   background: linear-gradient(
     135deg,
@@ -262,5 +281,27 @@ const startSession = () => {
 .hero-text {
   flex: 1 1 20rem;
   max-width: 40rem;
+}
+
+.upcoming-toggle {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: rgba(var(--v-theme-on-surface), var(--v-medium-emphasis-opacity));
+  cursor: pointer;
+}
+
+.upcoming-toggle:hover,
+.upcoming-toggle:focus-visible {
+  color: rgb(var(--v-theme-on-surface));
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.upcoming-toggle:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid rgb(var(--v-theme-primary));
+  outline-offset: 2px;
 }
 </style>

@@ -1,7 +1,15 @@
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { formatDiagnostic, parseManifest } from '@dolphy-app/extension-host';
+import { DEFAULT_CLIENT, DEFAULT_MAIN } from '@dolphy-app/extension-api';
 import type { ExtensionManifest } from '@dolphy-app/extension-api';
+import {
+  DEFAULT_FRAMEWORKS,
+  FRAMEWORK_NAMES,
+  isFramework,
+  normalizeFrameworks,
+} from './presets/index.ts';
+import { formatDiagnostic, parseManifest } from '@dolphy-app/extension-host';
+import { analyzeIndex } from './analyze.ts';
 import { BuildError } from './errors.ts';
 
 export const MANIFEST_FILE = 'extension.json';
@@ -14,49 +22,43 @@ export interface Entry {
   output: string;
 }
 
-/** Extensions process file: the `host` export of `src/index.ts`. */
-export interface HostOutput {
-  kind: 'host';
+/** Extension host file: the `server` export of `src/index.ts`. */
+export interface ServerOutput {
+  kind: 'server';
   output: string;
 }
 
-/** Browser file: `views`, `panels`, `widgets` and `markdown` entries whose manifest names this file. */
-export interface BrowserOutput {
-  kind: 'browser';
+/** Window file: the `client` export of `src/index.ts`. */
+export interface ClientOutput {
+  kind: 'client';
   output: string;
-  /** Job kinds: id and element tag. */
-  views: { id: string; element: string }[];
-  panels: string[];
-  widgets: string[];
-  languages: string[];
 }
 
 export interface Project {
   root: string;
+  /** The source manifest: `main` and `client` are written into the built one. */
   manifest: ExtensionManifest;
   manifestBytes: Buffer;
-  /** `src/index.ts` if the extension needs code; otherwise `null`. */
-  indexSource: string | null;
-  host: HostOutput | null;
-  browserOutputs: BrowserOutput[];
+  indexSource: string;
+  /** Present when `src/index.ts` exports `server`. */
+  server: ServerOutput | null;
+  /** Present when `src/index.ts` exports `client`. */
+  client: ClientOutput | null;
   workerEntries: Entry[];
   external: string[];
-  /** Schema files from the manifest (relative paths, without `./`). */
-  schemaPaths: string[];
+  /** Frameworks of the client file (`frameworks` of the config, `vue` always first). */
+  frameworks: string[];
 }
 
 export const INDEX_SOURCE = 'src/index.ts';
 
 const stripDot = (file: string): string => file.replace(/^\.\//, '');
 
-const stripExtension = (file: string): string =>
-  file.slice(0, file.length - path.posix.extname(file).length);
-
-const entrySource = (file: string): string =>
-  `src/${path.posix.basename(stripExtension(file))}.ts`;
-
 const errorText = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
+
+const isFile = async (file: string): Promise<boolean> =>
+  (await stat(file).catch(() => null))?.isFile() === true;
 
 const isStringRecord = (value: unknown): value is Record<string, string> =>
   typeof value === 'object' &&
@@ -81,14 +83,43 @@ const readJson = async (file: string, subject: string): Promise<unknown> => {
 interface ToolConfig {
   nodeEntries: Record<string, string>;
   external: string[];
+  frameworks: string[];
 }
+
+/** `frameworks` of the config: names of known presets (an error lists the known ones); `vue` is always on. */
+const frameworksOf = (value: unknown, root: string): string[] => {
+  if (!isStringArray(value)) {
+    throw new BuildError(
+      `${CONFIG_FILE}: 'frameworks' must be an array of framework names (${FRAMEWORK_NAMES.join(', ')})`,
+      root,
+    );
+  }
+  const unknown = value.find((name) => !isFramework(name));
+  if (unknown !== undefined) {
+    throw new BuildError(
+      `${CONFIG_FILE}: unknown framework '${unknown}' in 'frameworks': the known frameworks are ${FRAMEWORK_NAMES.join(', ')}`,
+      root,
+    );
+  }
+  return normalizeFrameworks(value);
+};
 
 const readConfig = async (root: string): Promise<ToolConfig> => {
   const file = path.join(root, CONFIG_FILE);
   const exists = (await stat(file).catch(() => null))?.isFile() === true;
-  if (!exists) return { nodeEntries: {}, external: [] };
+  if (!exists) {
+    return {
+      nodeEntries: {},
+      external: [],
+      frameworks: normalizeFrameworks(DEFAULT_FRAMEWORKS),
+    };
+  }
   const raw = await readJson(file, root);
-  const config = raw as { nodeEntries?: unknown; external?: unknown };
+  const config = raw as {
+    nodeEntries?: unknown;
+    external?: unknown;
+    frameworks?: unknown;
+  };
   const nodeEntries = config.nodeEntries ?? {};
   const external = config.external ?? [];
   if (!isStringRecord(nodeEntries) || !isStringArray(external)) {
@@ -97,74 +128,23 @@ const readConfig = async (root: string): Promise<ToolConfig> => {
       root,
     );
   }
-  return { nodeEntries, external };
+  return {
+    nodeEntries,
+    external,
+    frameworks: frameworksOf(config.frameworks ?? DEFAULT_FRAMEWORKS, root),
+  };
 };
 
-const schemaPathsOf = (manifest: ExtensionManifest): string[] => {
-  const paths = manifest.contributes.exerciseTypes
-    .flatMap((type) => [type.specSchema, type.answerSchema])
-    .filter((schema): schema is string => typeof schema === 'string')
-    .map(stripDot);
-  return [...new Set(paths)];
-};
-
-/** Workers are built only together with code: without `main` there are none. */
-const workerEntriesOf = (
-  manifest: ExtensionManifest,
-  config: ToolConfig,
-): Entry[] =>
-  manifest.main === null
-    ? []
-    : Object.entries(config.nodeEntries).map(([output, source]) => ({
+/** Workers are built only together with a server part. */
+const workerEntriesOf = (config: ToolConfig, hasServer: boolean): Entry[] =>
+  hasServer
+    ? Object.entries(config.nodeEntries).map(([output, source]) => ({
         source,
         output: stripDot(output),
-      }));
+      }))
+    : [];
 
-const browserOutputsOf = (manifest: ExtensionManifest): BrowserOutput[] => {
-  const outputs = new Map<string, BrowserOutput>();
-  const outputOf = (file: string): BrowserOutput => {
-    const output = stripDot(file);
-    const existing = outputs.get(output);
-    if (existing !== undefined) return existing;
-    const created: BrowserOutput = {
-      kind: 'browser',
-      output,
-      views: [],
-      panels: [],
-      widgets: [],
-      languages: [],
-    };
-    outputs.set(output, created);
-    return created;
-  };
-  const { exerciseTypes, markdownRenderers, panels, widgets } =
-    manifest.contributes;
-  for (const type of exerciseTypes) {
-    outputOf(type.renderer).views.push({ id: type.id, element: type.element });
-  }
-  for (const entry of markdownRenderers) {
-    outputOf(entry.renderer).languages.push(entry.language);
-  }
-  for (const panel of panels) outputOf(panel.module).panels.push(panel.id);
-  for (const widget of widgets) {
-    outputOf(widget.module).widgets.push(widget.id);
-  }
-  return [...outputs.values()];
-};
-
-/**
- * Paths where code lived before the single entry (`src/<file name>.ts`):
- * the build uses them to recognize the old layout and suggest a migration.
- */
-export const legacySources = (project: Project): string[] => {
-  const outputs = [
-    ...(project.host === null ? [] : [project.host.output]),
-    ...project.browserOutputs.map((entry) => entry.output),
-  ];
-  return [...new Set(outputs.map(entrySource))];
-};
-
-/** Reads the source manifest and project config, computes the output files. */
+/** Reads the source manifest, project config and exports of `src/index.ts`, computes the output files. */
 export const loadProject = async (rootDir: string): Promise<Project> => {
   const root = path.resolve(rootDir);
   const manifestFile = path.join(root, MANIFEST_FILE);
@@ -183,22 +163,52 @@ export const loadProject = async (rootDir: string): Promise<Project> => {
     throw new BuildError(formatDiagnostic(parsed.diagnostic), root);
   const { manifest } = parsed;
   const config = await readConfig(root);
-
-  const host: HostOutput | null =
-    manifest.main === null
-      ? null
-      : { kind: 'host', output: stripDot(manifest.main) };
-  const browserOutputs = browserOutputsOf(manifest);
+  const indexFile = path.join(root, INDEX_SOURCE);
+  if (!(await isFile(indexFile))) {
+    throw new BuildError(
+      `'${INDEX_SOURCE}' is not found: an extension is built from one entry file that exports 'server' and/or 'client'`,
+      manifest.id,
+    );
+  }
+  const analysis = await analyzeIndex(indexFile).catch((error: unknown) => {
+    throw new BuildError(
+      `${INDEX_SOURCE} cannot be read: ${errorText(error)}`,
+      manifest.id,
+    );
+  });
+  if (!analysis.hasServer && !analysis.hasClient) {
+    throw new BuildError(
+      `${INDEX_SOURCE} exports neither 'server' nor 'client': export const server = defineServer(…) and/or export const client = defineClient(…)`,
+      manifest.id,
+    );
+  }
   return {
     root,
     manifest,
     manifestBytes,
-    indexSource:
-      host !== null || browserOutputs.length > 0 ? INDEX_SOURCE : null,
-    host,
-    browserOutputs,
-    workerEntries: workerEntriesOf(manifest, config),
+    indexSource: INDEX_SOURCE,
+    server: analysis.hasServer
+      ? { kind: 'server', output: stripDot(DEFAULT_MAIN) }
+      : null,
+    client: analysis.hasClient
+      ? { kind: 'client', output: stripDot(DEFAULT_CLIENT) }
+      : null,
+    workerEntries: workerEntriesOf(config, analysis.hasServer),
     external: config.external,
-    schemaPaths: schemaPathsOf(manifest),
+    frameworks: config.frameworks,
   };
+};
+
+/** Bytes of the built `extension.json`: the source manifest with `main` and `client` naming the built files (`null` — no such part). */
+export const builtManifestText = (project: Project): string => {
+  const source = JSON.parse(project.manifestBytes.toString('utf8')) as Record<
+    string,
+    unknown
+  >;
+  const built = {
+    ...source,
+    main: project.server === null ? null : `./${project.server.output}`,
+    client: project.client === null ? null : `./${project.client.output}`,
+  };
+  return `${JSON.stringify(built, null, 2)}\n`;
 };

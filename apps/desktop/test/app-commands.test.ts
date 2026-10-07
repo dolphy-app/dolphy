@@ -1,10 +1,9 @@
 import { effectScope, ref, shallowRef } from 'vue';
 import { createI18n } from 'vue-i18n';
 import { describe, expect, it, vi } from 'vitest';
-import type {
-  LocaleMode,
-  ThemeContributionDto,
-} from '@dolphy-app/engine-contract';
+import type { LocaleMode } from '@dolphy-app/engine-contract';
+import type { LocalizedText } from '@dolphy-app/extension-api';
+import type { ClientTheme } from '@/shared/lib/extension-clients.ts';
 import { en as appEn } from '@/app/i18n/en.ts';
 import { ru as appRu } from '@/app/i18n/ru.ts';
 import { registerAppCommands } from '@/features/app-commands/model/app-commands.ts';
@@ -16,8 +15,10 @@ import { activeSessionHistory } from '@/shared/lib/session-history.ts';
 import { messages as settingsMessages } from '@/pages/settings/i18n/index.ts';
 import { russianPluralRule } from '@/shared/i18n/plural.ts';
 
-const theme = (id: string, label: string): ThemeContributionDto => ({
+const theme = (id: string, label: LocalizedText): ClientTheme => ({
+  kind: 'theme',
   id,
+  key: `${id}:1`,
   extensionId: id.split('.').slice(0, 2).join('.'),
   label,
   dark: true,
@@ -50,7 +51,7 @@ const setup = () => {
   const push = vi.fn(async () => undefined);
   const saved = ref('system');
   const localeSaved = ref<LocaleMode>('system');
-  const themes = shallowRef<readonly ThemeContributionDto[]>([]);
+  const themes = shallowRef<readonly ClientTheme[]>([]);
   const selectTheme = vi.fn(async (id: string) => {
     saved.value = id;
   });
@@ -74,7 +75,7 @@ const setup = () => {
       themeSelection: { saved, select: selectTheme },
       localeSelection: { saved: localeSaved, select: selectLocale },
       themes: () => themes.value,
-      extensionText: (value) => value,
+      locale: () => i18n.global.locale.value,
       reportFailure,
     }),
   )!;
@@ -234,6 +235,14 @@ describe('команды приложения: темы', () => {
       'Тема: Тёмная',
       'Тема: Полночь',
     ]);
+  });
+
+  it('подпись темы расширения выбирается по языку окна', () => {
+    const { titles, themes, i18n } = setup();
+    themes.value = [theme('acme.midnight', { en: 'Midnight', ru: 'Полночь' })];
+    expect(titles('app:theme:').at(-1)).toBe('Тема: Полночь');
+    i18n.global.locale.value = 'en';
+    expect(titles('app:theme:').at(-1)).toBe('Theme: Midnight');
   });
 
   it('команда темы расширения появляется и пропадает вместе с вкладом', () => {

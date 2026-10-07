@@ -96,9 +96,9 @@ describe('runCli', () => {
     const cwd = await makeTemp();
     const { code, stderr } = await run(['x', '--template', 'theme'], cwd);
     expect(code, stderr).toBe(0);
-    const manifest = await readFile(path.join(cwd, 'x/extension.json'), 'utf8');
-    expect(manifest).toContain('"themes"');
-    await expect(readFile(path.join(cwd, 'x/src/index.ts'))).rejects.toThrow();
+    const theme = await readFile(path.join(cwd, 'x/src/theme.ts'), 'utf8');
+    expect(theme).toContain('ThemeRegistration');
+    await expect(readFile(path.join(cwd, 'x/src/server.ts'))).rejects.toThrow();
   });
 
   it('an unknown --template: code 2 and the list of names', async () => {
@@ -110,7 +110,9 @@ describe('runCli', () => {
     expect(code).toBe(2);
     expect(stdout).toBe('');
     expect(stderr).toContain("unknown template 'fancy'");
-    expect(stderr).toContain('exercise, theme, command-panel, events, blank');
+    expect(stderr).toContain(
+      'exercise, theme, command-panel, react-panel, events, blank',
+    );
     await expect(readFile(path.join(cwd, 'x/package.json'))).rejects.toThrow();
   });
 

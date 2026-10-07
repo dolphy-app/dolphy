@@ -1,108 +1,89 @@
-/** Вид ввода ответа `dolphy.choice`: радиокнопки или чекбоксы в теневом корне элемента. */
-import type { AnswerViewApi } from '@dolphy-app/extension-sdk';
-import { normalizeValue, selectedIndices } from './choice-model.ts';
+/** Вид ввода ответа `dolphy.choice`: группа радиокнопок или чекбоксов Vuetify. */
+import type { AnswerChange } from '@dolphy-app/extension-api';
+import { defineComponent, h, ref, watch } from 'vue';
+import type { Component, PropType } from 'vue';
+import { VCheckbox, VRadio, VRadioGroup } from 'vuetify/components';
+import { normalizeValue } from './choice-model.ts';
 import type { ChoiceView } from './grade.ts';
-
-const STYLE = `
-  :host { display: block; }
-  fieldset {
-    border: 0; margin: 0; padding: 0; min-width: 0;
-    display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px;
-  }
-  label {
-    display: flex; gap: 8px; align-items: center; padding: 6px 8px;
-    border-radius: 4px; color: rgb(var(--v-theme-on-surface)); cursor: pointer;
-  }
-  label:hover:not(:has(input:disabled)),
-  label:has(input:focus-visible) {
-    background: rgba(var(--v-theme-on-surface), 0.06);
-  }
-  label:has(input:disabled) { cursor: default; }
-  input { accent-color: rgb(var(--v-theme-primary)); flex: none; }
-  span { min-width: 0; overflow-wrap: anywhere; }
-  input:disabled + span { opacity: 0.6; }
-`;
 
 const isChoiceView = (view: unknown): view is ChoiceView =>
   typeof view === 'object' &&
   view !== null &&
-  Array.isArray((view as ChoiceView).options);
+  Array.isArray(Reflect.get(view, 'options'));
 
-const createRow = (text: string, multiple: boolean) => {
-  const row = document.createElement('label');
-  const input = document.createElement('input');
-  input.type = multiple ? 'checkbox' : 'radio';
-  input.name = 'choice';
-  const caption = document.createElement('span');
-  caption.textContent = text;
-  row.append(input, caption);
-  return { row, input };
-};
+const unknownProp = { type: null as unknown as PropType<unknown> };
 
-export const mountChoice = (
-  api: AnswerViewApi,
-  initial: { view: unknown; value: unknown; disabled: boolean },
-) => {
-  const style = document.createElement('style');
-  style.textContent = STYLE;
-  const fieldset = document.createElement('fieldset');
-  if (api.label !== null) fieldset.setAttribute('aria-label', api.label);
-  api.root.append(style, fieldset);
+export const ChoiceAnswerView = defineComponent({
+  name: 'ChoiceAnswerView',
+  props: {
+    view: unknownProp,
+    value: unknownProp,
+    disabled: Boolean,
+    verdict: unknownProp,
+    label: { type: String as PropType<string | null>, default: null },
+  },
+  emits: ['change', 'submit'],
+  setup(props, { emit }) {
+    const sizeOf = () =>
+      isChoiceView(props.view) ? props.view.options.length : 0;
+    // выбранное остаётся на экране, даже если приложение не вернёт `value`:
+    // список меняется только вместе со свойствами `view` и `value`
+    const selected = ref(normalizeValue(props.value, sizeOf()));
+    watch(
+      () => [props.view, props.value],
+      () => {
+        selected.value = normalizeValue(props.value, sizeOf());
+      },
+    );
+    const choose = (indices: number[]) => {
+      selected.value = indices;
+      const change: AnswerChange<number[]> = {
+        value: indices,
+        complete: indices.length > 0,
+      };
+      emit('change', change);
+    };
 
-  const state = {
-    view: undefined as unknown,
-    // последнее значение свойства `value`, а не введённое пользователем:
-    // приложение может не возвращать ответ, и он не должен стираться
-    value: undefined as unknown,
-    disabled: false,
-    inputs: [] as HTMLInputElement[],
-  };
-
-  const applyValue = (value: unknown) => {
-    const selected = new Set(normalizeValue(value, state.inputs.length));
-    state.inputs.forEach((input, index) => {
-      input.checked = selected.has(index);
-    });
-  };
-
-  const applyDisabled = (disabled: boolean) => {
-    for (const input of state.inputs) input.disabled = disabled;
-  };
-
-  const emit = () => {
-    const value = selectedIndices(state.inputs.map((input) => input.checked));
-    api.setAnswer(value, value.length > 0);
-  };
-
-  const renderOptions = (view: unknown) => {
-    const rows = isChoiceView(view)
-      ? view.options.map((text) => createRow(text, view.multiple))
-      : [];
-    for (const { input } of rows) input.addEventListener('change', emit);
-    state.inputs = rows.map(({ input }) => input);
-    fieldset.replaceChildren(...rows.map(({ row }) => row));
-  };
-
-  const update = (props: {
-    view: unknown;
-    value: unknown;
-    disabled: boolean;
-  }) => {
-    const isViewChanged = props.view !== state.view;
-    if (isViewChanged) {
-      state.view = props.view;
-      renderOptions(props.view);
-    }
-    if (isViewChanged || props.value !== state.value) {
-      state.value = props.value;
-      applyValue(props.value);
-    }
-    if (isViewChanged || props.disabled !== state.disabled) {
-      state.disabled = props.disabled;
-      applyDisabled(props.disabled);
-    }
-  };
-
-  update(initial);
-  return { update };
-};
+    return () => {
+      const { view } = props;
+      if (!isChoiceView(view)) return null;
+      const label = props.label ?? undefined;
+      if (view.multiple) {
+        return h(
+          'div',
+          { role: 'group', 'aria-label': label, class: 'd-flex flex-column' },
+          view.options.map((text, index) =>
+            // типы Vuetify не сочетаются с `exactOptionalPropertyTypes` пакета
+            h(VCheckbox as Component, {
+              key: index,
+              modelValue: selected.value,
+              'onUpdate:modelValue': (next: number[] | null) => {
+                choose([...(next ?? [])].sort((a, b) => a - b));
+              },
+              value: index,
+              label: text,
+              disabled: props.disabled,
+              hideDetails: true,
+            }),
+          ),
+        );
+      }
+      return h(
+        VRadioGroup as Component,
+        {
+          modelValue: selected.value[0] ?? null,
+          'onUpdate:modelValue': (next: number | null) => {
+            if (next !== null) choose([next]);
+          },
+          disabled: props.disabled,
+          'aria-label': label,
+          hideDetails: true,
+        },
+        () =>
+          view.options.map((text, index) =>
+            h(VRadio as Component, { key: index, value: index, label: text }),
+          ),
+      );
+    };
+  },
+});

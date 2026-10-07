@@ -9,90 +9,54 @@ import { fingerprintDir } from '../src/fingerprint.ts';
 import { createDiscoveryHolder, discoveryOf } from '../src/holder.ts';
 import { createExtensionPolicy } from '../src/policy.ts';
 import { createExtensionRegistry } from '../src/registry.ts';
-import { createLogger } from './helpers.ts';
-
-const extension = (
-  id: string,
-  origin: ExtensionOrigin,
-  overrides: Partial<ResolvedExtension> = {},
-): ResolvedExtension => ({
-  id,
-  version: '1.0.0',
-  origin,
-  revision: '',
-  dir: `/x/${id}`,
-  mainPath: null,
-  permissions: [],
-  name: null,
-  description: null,
-  author: null,
-  dependencies: [],
-  platforms: [],
-  minAppVersion: null,
-  icon: null,
-  tags: [],
-  install: null,
-  messages: {},
-  warnings: [],
-  exerciseTypes: [],
-  themes: [],
-  markdownRenderers: [],
-  gradePolicies: [],
-  settings: [],
-  events: [],
-  commands: [],
-  panels: [],
-  widgets: [],
-  schedules: [],
-  importers: [],
-  exporters: [],
-  ...overrides,
-});
+import { createLogger, registrationsOf, resolvedOf } from './helpers.ts';
 
 const withType = (id: string, type: string): ResolvedExtension =>
-  extension(id, 'user', {
+  resolvedOf(id, {
     exerciseTypes: [
-      {
-        id: type,
-        title: null,
-        specSchema: {},
-        answerSchema: {},
-        element: `${type.replaceAll('.', '-')}-answer`,
-        rendererUrl: `dolphy-ext://${id}/view.mjs`,
-      },
+      { id: type, title: null, specSchema: {}, answerSchema: {} },
     ],
-    themes: [
+    commands: [
       {
-        id: `${id}.theme`,
-        label: 'Theme',
-        dark: false,
-        colors: { background: '#fff' },
-        variables: {},
+        id: `${id}.command`,
+        title: 'Command',
+        description: null,
+        category: null,
+        palette: true,
+        icon: 'puzzle',
+        keybindings: [],
+        when: null,
       },
     ],
   });
 
+/** Заменяет набор снимка и сразу применяет регистрации: так хост расширений отвечает на `replaceExtensions`. */
+const replaceWith = (
+  holder: ReturnType<typeof createDiscoveryHolder>,
+  extensions: ResolvedExtension[],
+): void => {
+  holder.replace(discoveryOf(extensions));
+  holder.applyRegistrations(registrationsOf(extensions));
+};
+
 describe('политика, каталог и реестр читают снимок при каждом вызове', () => {
   it('replace виден всем трём без пересоздания', () => {
-    const holder = createDiscoveryHolder(
-      discoveryOf([withType('acme.a', 'acme.a')]),
-    );
+    const holder = createDiscoveryHolder(discoveryOf([]));
+    replaceWith(holder, [withType('acme.a', 'acme.a')]);
     const policy = createExtensionPolicy(holder);
     const catalog = createCatalog(holder, policy);
     const registry = createExtensionRegistry(holder, policy);
 
     expect(catalog.list().map(({ type }) => type)).toEqual(['acme.a']);
     expect(registry.list().map(({ id }) => id)).toEqual(['acme.a']);
-    expect(registry.contributions().themes.map(({ id }) => id)).toEqual([
-      'acme.a.theme',
+    expect(registry.contributions().commands.map(({ id }) => id)).toEqual([
+      'acme.a.command',
     ]);
 
-    holder.replace(
-      discoveryOf([
-        withType('acme.b', 'acme.b'),
-        extension('dolphy.sql', 'bundled'),
-      ]),
-    );
+    replaceWith(holder, [
+      withType('acme.b', 'acme.b'),
+      resolvedOf('dolphy.sql', {}, { origin: 'bundled' }),
+    ]);
 
     expect(catalog.list().map(({ type }) => type)).toEqual(['acme.b']);
     expect(catalog.describe('acme.a')).toBeUndefined();
@@ -101,23 +65,18 @@ describe('политика, каталог и реестр читают сним
       'acme.b',
       'dolphy.sql',
     ]);
-    expect(registry.contributions().themes.map(({ id }) => id)).toEqual([
-      'acme.b.theme',
+    expect(registry.contributions().commands.map(({ id }) => id)).toEqual([
+      'acme.b.command',
     ]);
-    // происхождение берётся из нового снимка: расширение из поставки не изолируется
-    expect(policy.isIsolated('dolphy.sql')).toBe(false);
-    expect(policy.isIsolated('acme.a')).toBe(true);
   });
 
   it('настройки пользователя переживают замену снимка', () => {
-    const holder = createDiscoveryHolder(
-      discoveryOf([withType('acme.a', 'acme.a')]),
-    );
+    const holder = createDiscoveryHolder(discoveryOf([]));
+    replaceWith(holder, [withType('acme.a', 'acme.a')]);
     const policy = createExtensionPolicy(holder);
     const catalog = createCatalog(holder, policy);
     policy.update({
       disabled: ['acme.a'],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -125,11 +84,10 @@ describe('политика, каталог и реестр читают сним
       schedulesOff: [],
     });
     expect(catalog.list()).toEqual([]);
-    holder.replace(discoveryOf([withType('acme.a', 'acme.a')]));
+    replaceWith(holder, [withType('acme.a', 'acme.a')]);
     expect(catalog.list()).toEqual([]); // всё ещё отключено
     policy.update({
       disabled: [],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -178,16 +136,7 @@ describe('отпечаток каталога расширения (revision)', 
         id: 'acme.fp',
         version: '1.0.0',
         apiVersion: 1,
-        contributes: {
-          exerciseTypes: [
-            {
-              id: 'acme.fp',
-              specSchema: { type: 'object' },
-              answerSchema: { type: 'string' },
-              renderer: './main.mjs',
-            },
-          ],
-        },
+        main: './main.mjs',
       }),
     );
     await writeFile(join(root, 'acme.fp', 'main.mjs'), 'export default 1;\n');

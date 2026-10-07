@@ -3,7 +3,7 @@ import path from 'node:path';
 import { parseIndex } from '@dolphy-app/extension-catalog';
 import type { CatalogIndex } from '@dolphy-app/extension-catalog';
 import { describe, expect, it } from 'vitest';
-import { buildCatalog, reindexCatalog } from '../src/catalog/build.ts';
+import { buildCatalog } from '../src/catalog/build.ts';
 import type { BuildCatalogOptions } from '../src/catalog/build.ts';
 import { assembleIndex, hasSameContent } from '../src/catalog/index-file.ts';
 import { createRepo, readJson, setVersion } from './catalog-helpers.ts';
@@ -11,7 +11,6 @@ import type { Repo } from './catalog-helpers.ts';
 import { makeTemp } from './helpers.ts';
 
 const NIGHT = 'acme.night';
-const PANELS = 'acme.commands-panel';
 const NOW = new Date('2026-10-03T10:00:00.000Z');
 
 const publish = (
@@ -30,65 +29,6 @@ const publish = (
 
 const fullOf = async (out: string) =>
   parseIndex(await readJson(path.join(out, 'index.v2.json')));
-
-describe('catalog build: titles', () => {
-  it('writes the titles of the newest manifest and omits points without any', async () => {
-    const repo = await createRepo([
-      { fixture: 'theme-only' },
-      { fixture: 'commands-panel' },
-      { fixture: 'markdown-only' },
-      { fixture: 'hello' },
-    ]);
-    const out = await makeTemp();
-    await publish(repo, out, [NIGHT, PANELS, 'acme.chart', 'acme.hello']);
-    const entries = Object.fromEntries(
-      (await fullOf(out)).extensions.map((entry) => [entry.id, entry]),
-    );
-    expect(entries[NIGHT]?.titles).toEqual({
-      themes: { [NIGHT]: 'Night' },
-    });
-    expect(entries[PANELS]?.titles).toEqual({
-      commands: {
-        'acme.commands-panel.open': 'Open panel',
-        'acme.commands-panel.ping': 'Ping',
-      },
-      panels: { 'acme.commands-panel.main': 'Acme panel' },
-    });
-    // exercise types are titled by id, renderers by language; only titled entries are written
-    expect(entries['acme.chart']?.titles).toEqual({
-      markdownRenderers: { chart: 'Charts' },
-    });
-    expect(entries['acme.hello']?.titles).toEqual({
-      exerciseTypes: { 'acme.hello': 'Hello exercise' },
-    });
-  });
-
-  it('refreshes the titles of an unchanged version and keeps them across reindex', async () => {
-    const repo = await createRepo([{ fixture: 'theme-only' }]);
-    const out = await makeTemp();
-    await publish(repo, out, [NIGHT]);
-    const file = path.join(out, 'index.v2.json');
-    const stale = (await readJson(file)) as {
-      extensions: Record<string, unknown>[];
-    };
-    // an index written by tools that did not know titles
-    delete stale.extensions[0]?.titles;
-    await writeFile(file, JSON.stringify(stale));
-    const [result] = await publish(repo, out, [NIGHT]);
-    expect(result?.status).toBe('unchanged');
-    expect((await fullOf(out)).extensions[0]?.titles).toEqual({
-      themes: { [NIGHT]: 'Night' },
-    });
-    const reindexed = await reindexCatalog({
-      out,
-      now: () => new Date('2026-11-01T00:00:00.000Z'),
-    });
-    expect(reindexed.changed).toBe(false);
-    expect((await fullOf(out)).extensions[0]?.titles).toEqual({
-      themes: { [NIGHT]: 'Night' },
-    });
-  });
-});
 
 describe('catalog build: tags', () => {
   it('records tags per version: a tagged version next to an older untagged one', async () => {
@@ -110,7 +50,6 @@ describe('catalog build: tags', () => {
       ['1.0.0', undefined],
     ]);
     expect(full?.versions[1]).not.toHaveProperty('tags');
-    expect(full?.titles).toEqual({ themes: { [NIGHT]: 'Night' } });
   });
 
   it('writes tags of the version only when the manifest has them', async () => {
@@ -131,32 +70,25 @@ describe('index content comparison', () => {
     return fullOf(out);
   };
 
-  it('detects a changed title and a changed tag list, ignores empty maps', async () => {
+  it('detects a changed tag list, ignores an empty one', async () => {
     const current = await base();
     const clone = (): CatalogIndex => structuredClone(current);
-
-    const renamed = clone();
-    renamed.extensions[0]!.titles = { themes: { [NIGHT]: 'Midnight' } };
-    expect(hasSameContent(current, renamed)).toBe(false);
 
     const tagged = clone();
     tagged.extensions[0]!.versions[0]!.tags = ['theme'];
     expect(hasSameContent(current, tagged)).toBe(false);
 
     const empties = clone();
-    empties.extensions[0]!.titles = { themes: {} };
     empties.extensions[0]!.versions[0]!.tags = [];
-    const bare = clone();
-    delete bare.extensions[0]!.titles;
-    expect(hasSameContent(bare, empties)).toBe(true);
+    expect(hasSameContent(current, empties)).toBe(true);
     expect(
       Object.keys(
         assembleIndex({
           generatedAt: current.generatedAt,
           extensions: empties.extensions,
           revoked: [],
-        }).extensions[0] ?? {},
+        }).extensions[0]?.versions[0] ?? {},
       ),
-    ).not.toContain('titles');
+    ).not.toContain('tags');
   });
 });

@@ -8,15 +8,10 @@ import { fileURLToPath } from 'node:url';
 import {
   ASSET_MIME,
   CATALOG_FILE_EXTENSIONS,
-  TITLED_POINTS,
   assetExtensionOf,
   compareSemver,
   iconDataUri,
   parseIndex,
-} from '@dolphy-app/extension-catalog';
-import type {
-  ContributionTitles,
-  TitledPoint,
 } from '@dolphy-app/extension-catalog';
 
 /** Версия приложения для e2e: `minAppVersion` проверяется только когда она задана. */
@@ -43,7 +38,7 @@ export const settingCatalogEnv = (): Record<string, string> => ({
 });
 
 export interface CatalogSource {
-  /** Каталог расширения с `extension.json` (версия, вклады и разрешения берутся из манифеста). */
+  /** Каталог расширения с `extension.json` (версия, вклады берутся из манифеста). */
   dir: string;
   name: string;
   description: string;
@@ -66,7 +61,6 @@ interface PublishedVersion {
   tags: string[];
   apiVersion: number;
   minAppVersion: string | null;
-  permissions: string[];
   /** Зависимости манифеста: запись версии индекса `dependencies`. */
   dependencies: { id: string; range?: string }[];
   files: PublishedFile[];
@@ -78,24 +72,6 @@ interface PublishedExtension {
   description: string;
   author: string;
   platforms: string[];
-  contributes: Record<
-    'exerciseTypes' | 'themes' | 'markdownRenderers' | 'gradePolicies',
-    string[]
-  > &
-    Partial<
-      Record<
-        | 'settings'
-        | 'events'
-        | 'commands'
-        | 'panels'
-        | 'widgets'
-        | 'importers'
-        | 'exporters',
-        string[]
-      >
-    >;
-  /** Названия вкладов из манифеста (запись индекса `titles`). */
-  titles: ContributionTitles;
   versions: PublishedVersion[];
 }
 
@@ -195,102 +171,8 @@ interface RawManifest {
   icon?: string;
   tags?: string[];
   minAppVersion?: string;
-  permissions?: string[];
   dependencies?: { id: string; range?: string }[];
-  contributes?: {
-    exerciseTypes?: { id: string; title?: string }[];
-    themes?: { id: string; label: string }[];
-    markdownRenderers?: { language: string; title?: string }[];
-    gradePolicies?: { id: string; label: string }[];
-    settings?: { id: string; label: string }[];
-    events?: { event: string }[];
-    commands?: { id: string; title: string }[];
-    panels?: { id: string; title: string }[];
-    widgets?: { id: string; title: string }[];
-    importers?: { id: string; title: string }[];
-    exporters?: { id: string; title: string }[];
-  };
 }
-
-const contributesOf = (
-  manifest: RawManifest,
-): PublishedExtension['contributes'] => {
-  const settings = (manifest.contributes?.settings ?? []).map(({ id }) => id);
-  const events = (manifest.contributes?.events ?? []).map(({ event }) => event);
-  const commands = (manifest.contributes?.commands ?? []).map(({ id }) => id);
-  const panels = (manifest.contributes?.panels ?? []).map(({ id }) => id);
-  const widgets = (manifest.contributes?.widgets ?? []).map(({ id }) => id);
-  const importers = (manifest.contributes?.importers ?? []).map(({ id }) => id);
-  const exporters = (manifest.contributes?.exporters ?? []).map(({ id }) => id);
-  return {
-    exerciseTypes: (manifest.contributes?.exerciseTypes ?? []).map(
-      ({ id }) => id,
-    ),
-    themes: (manifest.contributes?.themes ?? []).map(({ id }) => id),
-    markdownRenderers: (manifest.contributes?.markdownRenderers ?? []).map(
-      ({ language }) => language,
-    ),
-    gradePolicies: (manifest.contributes?.gradePolicies ?? []).map(
-      ({ id }) => id,
-    ),
-    ...(settings.length > 0 ? { settings } : {}),
-    ...(events.length > 0 ? { events } : {}),
-    ...(commands.length > 0 ? { commands } : {}),
-    ...(panels.length > 0 ? { panels } : {}),
-    ...(widgets.length > 0 ? { widgets } : {}),
-    ...(importers.length > 0 ? { importers } : {}),
-    ...(exporters.length > 0 ? { exporters } : {}),
-  };
-};
-
-/** `label`/`title` вкладов по точкам, как пишет `catalog build`; пустые точки опущены. */
-const titlesOf = (manifest: RawManifest): ContributionTitles => {
-  const contributes = manifest.contributes ?? {};
-  const byPoint: Record<TitledPoint, { id: string; title: string }[]> = {
-    exerciseTypes: (contributes.exerciseTypes ?? []).flatMap(({ id, title }) =>
-      title === undefined ? [] : [{ id, title }],
-    ),
-    markdownRenderers: (contributes.markdownRenderers ?? []).flatMap(
-      ({ language, title }) =>
-        title === undefined ? [] : [{ id: language, title }],
-    ),
-    themes: (contributes.themes ?? []).map(({ id, label }) => ({
-      id,
-      title: label,
-    })),
-    gradePolicies: (contributes.gradePolicies ?? []).map(({ id, label }) => ({
-      id,
-      title: label,
-    })),
-    settings: (contributes.settings ?? []).map(({ id, label }) => ({
-      id,
-      title: label,
-    })),
-    commands: (contributes.commands ?? []).map(({ id, title }) => ({
-      id,
-      title,
-    })),
-    widgets: (contributes.widgets ?? []).map(({ id, title }) => ({
-      id,
-      title,
-    })),
-    panels: (contributes.panels ?? []).map(({ id, title }) => ({ id, title })),
-    importers: (contributes.importers ?? []).map(({ id, title }) => ({
-      id,
-      title,
-    })),
-    exporters: (contributes.exporters ?? []).map(({ id, title }) => ({
-      id,
-      title,
-    })),
-  };
-  return Object.fromEntries(
-    TITLED_POINTS.filter((point) => byPoint[point].length > 0).map((point) => [
-      point,
-      Object.fromEntries(byPoint[point].map(({ id, title }) => [id, title])),
-    ]),
-  );
-};
 
 const etagOf = (body: string) =>
   `"${createHash('sha256').update(body).digest('hex').slice(0, 16)}"`;
@@ -329,7 +211,6 @@ export const startCatalogServer = async (
             ),
       apiVersion: manifest.apiVersion,
       minAppVersion: manifest.minAppVersion ?? null,
-      permissions: manifest.permissions ?? [],
       dependencies: manifest.dependencies ?? [],
       files: await readFiles(source.dir),
     };
@@ -344,8 +225,6 @@ export const startCatalogServer = async (
       description: source.description,
       author: source.author,
       platforms: source.platforms ?? [],
-      contributes: contributesOf(manifest),
-      titles: titlesOf(manifest),
       versions,
     });
   };
@@ -364,10 +243,6 @@ export const startCatalogServer = async (
         author: entry.author,
         source: `https://example.test/extensions/${entry.id}`,
         platforms: entry.platforms,
-        contributes: entry.contributes,
-        ...(Object.keys(entry.titles).length === 0
-          ? {}
-          : { titles: entry.titles }),
         ...(deprecations.has(entry.id)
           ? { deprecated: deprecations.get(entry.id) }
           : {}),
@@ -375,7 +250,6 @@ export const startCatalogServer = async (
           version: version.version,
           apiVersion: version.apiVersion,
           minAppVersion: version.minAppVersion,
-          permissions: version.permissions,
           publishedAt: '2026-01-01T00:00:00.000Z',
           baseUrl: `extensions/${entry.id}/${version.version}/`,
           files: version.files.map(({ path, bytes, sha256 }) => ({

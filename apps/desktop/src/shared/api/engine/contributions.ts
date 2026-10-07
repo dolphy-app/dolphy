@@ -9,18 +9,14 @@ import { CONTRIBUTIONS_KEY } from './keys.ts';
 /** Вклады до первого ответа движка (и при сбое первого чтения). */
 export const NO_CONTRIBUTIONS: ContributionsDto = {
   generation: 0,
+  clients: [],
   exerciseTypes: [],
-  themes: [],
-  markdownRenderers: [],
   gradePolicies: [],
   settings: [],
   commands: [],
-  widgets: [],
   schedules: [],
-  panels: [],
   importers: [],
   exporters: [],
-  messages: {},
 };
 
 export type ContributionsRef = Readonly<Ref<Readonly<ContributionsDto>>>;

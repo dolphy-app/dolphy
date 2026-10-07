@@ -66,7 +66,7 @@ describe('beginAttempt', () => {
       startedAt: t.clock.now(),
       exercise: {
         id: VERIFIABLE,
-        task: { type: 'dolphy.sql', element: 'fake-dolphy-sql' },
+        task: { type: 'dolphy.sql' },
       },
       view: {},
     });

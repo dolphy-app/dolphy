@@ -24,7 +24,6 @@ export const totalSize = (version: CatalogVersion): number =>
 
 export const toVersionDto = (version: CatalogVersion): CatalogVersionDto => ({
   version: version.version,
-  permissions: [...version.permissions],
   dependencies: (version.dependencies ?? []).map(({ id, range }) => ({
     id,
     range: range ?? null,
@@ -100,22 +99,7 @@ export const describeEntry = (
     author: entry.author,
     source: entry.source,
     platforms: [...entry.platforms],
-    contributes: {
-      exerciseTypes: [...entry.contributes.exerciseTypes],
-      themes: [...entry.contributes.themes],
-      markdownRenderers: [...entry.contributes.markdownRenderers],
-      gradePolicies: [...entry.contributes.gradePolicies],
-      settings: [...(entry.contributes.settings ?? [])],
-      events: [...(entry.contributes.events ?? [])],
-      commands: [...(entry.contributes.commands ?? [])],
-      panels: [...(entry.contributes.panels ?? [])],
-      widgets: [...(entry.contributes.widgets ?? [])],
-      schedules: [...(entry.contributes.schedules ?? [])],
-      importers: [...(entry.contributes.importers ?? [])],
-      exporters: [...(entry.contributes.exporters ?? [])],
-    },
     icon: shown?.icon ?? null,
-    titles: structuredClone(entry.titles ?? {}),
     tags: [...(shown?.tags ?? [])],
     installedVersion,
     versions: entry.versions.map((version) =>

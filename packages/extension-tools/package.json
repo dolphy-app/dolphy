@@ -2,7 +2,7 @@
   "name": "@dolphy-app/extension-tools",
   "version": "0.0.0",
   "private": true,
-  "description": "Tools for extension authors: dolphy-ext build, types and validate",
+  "description": "Tools for extension authors: dolphy-ext build, validate, lint and catalog",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
@@ -19,6 +19,7 @@
     "@dolphy-app/extension-api": "workspace:*",
     "@dolphy-app/extension-catalog": "workspace:*",
     "@dolphy-app/extension-host": "workspace:*",
+    "@vitejs/plugin-vue": "^6.0.7",
     "magic-string": "^0.30.21",
     "vite": "^8.0.16"
   },
@@ -28,7 +29,11 @@
     "@jridgewell/trace-mapping": "0.3.31",
     "@types/node": "^22.20.4",
     "ajv": "^8",
-    "typescript": "7.0.2"
+    "happy-dom": "^20.14.5",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "typescript": "7.0.2",
+    "vue": "^3.5.35"
   },
   "engines": {
     "node": ">=22.12"

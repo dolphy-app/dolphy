@@ -34,22 +34,40 @@ const courseFiles = (text) => {
   return files;
 };
 
-export default {
-  activate(ctx) {
-    ctx.importers.register('acme.transfers.words', ({ text }) => ({
-      files: courseFiles(text),
-    }));
-    ctx.importers.register('acme.transfers.hang', () => new Promise(() => {}));
-    ctx.exporters.register('acme.transfers.course', (input) => ({
+export const server = (s) => {
+  s.registerImporter({
+    id: 'acme.transfers.words',
+    title: 'Курс из списка слов',
+    accept: ['.words', '.txt'],
+    input: 'text',
+    run: ({ text }) => ({ files: courseFiles(text) }),
+  });
+  s.registerImporter({
+    id: 'acme.transfers.hang',
+    title: 'Зависший импорт',
+    accept: ['.hang'],
+    input: 'text',
+    run: () => new Promise(() => {}),
+  });
+  s.registerExporter({
+    id: 'acme.transfers.course',
+    title: 'Курс в JSON',
+    scope: 'course',
+    run: (input) => ({
       filename: `${input.courseId}.json`,
       text: JSON.stringify({
         title: input.title,
         files: Object.keys(input.files).sort(),
       }),
-    }));
-    ctx.exporters.register('acme.transfers.progress', async () => ({
+    }),
+  });
+  s.registerExporter({
+    id: 'acme.transfers.progress',
+    title: 'Серия в JSON',
+    scope: 'progress',
+    run: async () => ({
       filename: 'progress.json',
-      text: JSON.stringify({ streak: await ctx.stats.streak() }),
-    }));
-  },
+      text: JSON.stringify({ streak: await s.stats.streak() }),
+    }),
+  });
 };

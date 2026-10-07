@@ -164,7 +164,7 @@ export const watchAll = async (
   const failedFirst = new Set<string>();
   try {
     const firsts: Promise<void>[] = [];
-    for (const job of jobsOf(project, outDir)) {
+    for (const job of await jobsOf(project, outDir)) {
       const { watcher, first } = await watchJob(
         job,
         reporter,

@@ -4,8 +4,5 @@
   "apiVersion": 1,
   "description": "Контрольное расписание: срабатывает всегда, пока часы идут",
   "author": "acme",
-  "contributes": {
-    "schedules": [{ "id": "acme.control.hourly", "every": "hourly" }],
-    "commands": [{ "id": "acme.control.ping", "title": "Проверить связь" }]
-  }
+  "main": "./main.mjs"
 }

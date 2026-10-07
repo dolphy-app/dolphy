@@ -15,8 +15,6 @@ import { ASSET_LIMITS } from '@dolphy-app/extension-catalog';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   createExtensionAssetsShell,
-  frameCsp,
-  FRAME_PERMISSIONS_POLICY,
   SVG_CSP,
 } from '../electron/main/shells/extension-assets.ts';
 
@@ -195,7 +193,7 @@ describe('ресурсы расширения', () => {
       'extension.json',
       'README.md',
       'data/table.json',
-      // таблицы переводов читает движок при обнаружении; окну и рамкам они не отдаются
+      // таблицы переводов читает движок при обнаружении; окну они не отдаются
       'locales/en.json',
       'locales/ru.json',
       'notes.txt',
@@ -352,142 +350,15 @@ describe('ресурсы расширения', () => {
   });
 });
 
-describe('страница и рантайм изолированной рамки', () => {
-  it('__dolphy/frame.html: страница с CSP своего id, без чтения с диска', async () => {
+describe('служебные пути', () => {
+  it('страницы и рантайма рамки протокол не генерирует: 404 без чтения с диска', async () => {
     const { request, fetched } = setup();
-    const response = await request(
+    for (const url of [
       'dolphy-ext://acme.echo/__dolphy/frame.html',
-    );
-    expect(response.status).toBe(200);
-    expect(response.headers.get('Content-Type')).toBe(
-      'text/html; charset=utf-8',
-    );
-    expect(response.headers.get('Content-Security-Policy')).toBe(
-      frameCsp('acme.echo'),
-    );
-    expect(response.headers.get('Permissions-Policy')).toBe(
-      FRAME_PERMISSIONS_POLICY,
-    );
-    // каждая возможность закрыта для всех, включая саму страницу
-    for (const feature of ['camera', 'microphone', 'geolocation', 'usb']) {
-      expect(FRAME_PERMISSIONS_POLICY).toContain(`${feature}=()`);
-    }
-    expect(response.headers.get('Cache-Control')).toBe('no-cache');
-    const html = await response.text();
-    expect(html).toContain(
-      '<script type="module" src="dolphy-ext://acme.echo/__dolphy/frame.js"></script>',
-    );
-    expect(html).not.toMatch(/<script(?![^>]*\bsrc=)/);
-    expect(html).not.toContain('dolphy.sql');
-    expect(fetched).toEqual([]);
-  });
-
-  const directives = (csp: string) =>
-    new Map(
-      csp.split('; ').map((part) => {
-        const [name, ...values] = part.split(' ');
-        return [name, values.join(' ')];
-      }),
-    );
-
-  it.each(['acme.echo', 'dolphy', 'acme.my-ext', 'a-b.c-d.e1'])(
-    'CSP рамки %s: ресурсы только своего расширения, сеть, формы и base запрещены',
-    async (id) => {
-      const { request } = setup();
-      const header = (
-        await request(`dolphy-ext://${id}/__dolphy/frame.html`)
-      ).headers.get('Content-Security-Policy');
-      expect(header).toBe(frameCsp(id));
-      const own = `dolphy-ext://${id}`;
-      const csp = directives(frameCsp(id));
-      expect(csp.get('default-src')).toBe("'none'");
-      expect(csp.get('script-src')).toBe(own);
-      expect(csp.get('style-src')).toBe(`${own} 'unsafe-inline'`);
-      expect(csp.get('img-src')).toBe(`${own} data: blob:`);
-      expect(csp.get('font-src')).toBe(`${own} data:`);
-      expect(csp.get('connect-src')).toBe("'none'");
-      expect(csp.get('base-uri')).toBe("'none'");
-      expect(csp.get('form-action')).toBe("'none'");
-      expect(csp.size).toBe(8);
-      expect(frameCsp(id)).not.toContain('unsafe-eval');
-      // никакой схемы целиком: чужое расширение под ту же схему не подходит
-      expect(frameCsp(id)).not.toMatch(/dolphy-ext:(?!\/\/)/);
-    },
-  );
-
-  it('CSP разных расширений различается только id', () => {
-    expect(frameCsp('acme.a').replaceAll('acme.a', 'X')).toBe(
-      frameCsp('acme.b').replaceAll('acme.b', 'X'),
-    );
-    expect(frameCsp('acme.a')).not.toContain('acme.b');
-  });
-
-  it('__dolphy/frame.html для неверного id — 404', async () => {
-    const { request } = setup();
-    expect(
-      (await request('dolphy-ext://Bad_Id/__dolphy/frame.html')).status,
-    ).toBe(404);
-    expect(
-      (
-        await request(
-          'dolphy-ext://acme.echo%22%3E%3Cscript/__dolphy/frame.html',
-        )
-      ).status,
-    ).toBe(404);
-    expect(
-      (
-        await request(
-          'dolphy-ext://acme.echo%3B%20script-src%20*/__dolphy/frame.html',
-        )
-      ).status,
-    ).toBe(404);
-  });
-
-  it('__dolphy/frame.js: рантайм рамки одинаков для всех расширений, с CORS', async () => {
-    const { request, fetched } = setup();
-    const first = await request('dolphy-ext://acme.echo/__dolphy/frame.js');
-    const second = await request('dolphy-ext://dolphy.sql/__dolphy/frame.js');
-    expect(first.status).toBe(200);
-    expect(first.headers.get('Content-Type')).toBe('text/javascript');
-    expect(first.headers.get('Access-Control-Allow-Origin')).toBe('*');
-    const script = await first.text();
-    expect(script).toContain('dolphy-answer-change');
-    expect(
-      script
-        .trimEnd()
-        .endsWith('dolphyFrameRuntime(window, (url) => import(url));'),
-    ).toBe(true);
-    expect(await second.text()).toBe(script);
-    expect(fetched).toEqual([]);
-  });
-
-  it('путь __dolphy нельзя использовать для выхода и нельзя отдать из каталога расширения', async () => {
-    put(BUNDLED, 'acme.echo', '__dolphy/secret.mjs');
-    put(BUNDLED, 'acme.echo', '__dolphy/frame.mjs');
-    put(BUNDLED, '', 'secret.mjs');
-    put(BUNDLED, 'acme.echo', '__dolphy/logo.png', 'x');
-    const { request, fetched } = setup();
-    const urls = [
-      'dolphy-ext://acme.echo/__dolphy/secret.mjs',
-      'dolphy-ext://acme.echo/__dolphy/frame.mjs',
-      'dolphy-ext://acme.echo/__dolphy/logo.png',
-      'dolphy-ext://acme.echo/__dolphy/frame.json',
-      'dolphy-ext://acme.echo/__dolphy/frame.html/',
-      'dolphy-ext://acme.echo/__dolphy/',
-      'dolphy-ext://acme.echo/x%2F..%2F__dolphy%2Fsecret.mjs',
-      'dolphy-ext://acme.echo/..%2F__dolphy%2Fframe.js',
-      'dolphy-ext://acme.echo/__dolphy%2F..%2F..%2Fsecret.mjs',
-    ];
-    for (const url of urls) {
+      'dolphy-ext://acme.echo/__dolphy/frame.js',
+    ]) {
       expect((await request(url)).status, url).toBe(404);
     }
     expect(fetched).toEqual([]);
-  });
-
-  it('файлы расширения по-прежнему отдаются рядом со служебными путями', async () => {
-    put(BUNDLED, 'acme.echo', 'view.mjs');
-    const { request, fetched } = setup();
-    expect((await request('dolphy-ext://acme.echo/view.mjs')).status).toBe(200);
-    expect(fetched).toHaveLength(1);
   });
 });

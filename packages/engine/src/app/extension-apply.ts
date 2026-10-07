@@ -19,6 +19,12 @@ export interface ExtensionApply {
    * набора логируется, прежний набор остаётся, поколение не растёт.
    */
   reload(): Promise<void>;
+  /**
+   * Набор вкладов изменился без перезагрузки с диска (хост расширений
+   * перезапущен и заново зарегистрировал вклады): повышает поколение и
+   * публикует `contributions-changed`. После закрытия движка ничего не делает.
+   */
+  notifyChanged(): void;
 }
 
 export const createExtensionApply = (deps: {
@@ -32,6 +38,12 @@ export const createExtensionApply = (deps: {
   let running: Promise<void> | null = null;
   let queued: Promise<void> | null = null;
 
+  const notifyChanged = (): void => {
+    if (state.closed) return;
+    generation += 1;
+    bus.publish({ type: 'contributions-changed', generation });
+  };
+
   const apply = async (): Promise<void> => {
     if (state.closed) return;
     try {
@@ -40,8 +52,7 @@ export const createExtensionApply = (deps: {
       logger.error({ error }, 'extensions reload failed');
       return;
     }
-    generation += 1;
-    bus.publish({ type: 'contributions-changed', generation });
+    notifyChanged();
   };
 
   const start = (): Promise<void> => {
@@ -54,6 +65,7 @@ export const createExtensionApply = (deps: {
 
   return {
     generation: () => generation,
+    notifyChanged,
     reload() {
       if (running === null) return start();
       queued ??= running.then(() => {

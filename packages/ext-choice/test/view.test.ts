@@ -1,16 +1,25 @@
 // @vitest-environment happy-dom
-import { loadView } from '@dolphy-app/extension-sdk/testing';
-import type { LoadedView } from '@dolphy-app/extension-sdk/testing';
+import { createTestClient } from '@dolphy-app/extension-sdk/testing';
 import { afterEach, describe, expect, it } from 'vitest';
-import { views } from '../src/index.ts';
+import { nextTick } from 'vue';
+import { client } from '../src/index.ts';
+import { ChoiceAnswerView } from '../src/choice-view.ts';
+import { mountView as mount } from './mount-view.ts';
+import type { MountedView } from './mount-view.ts';
 
 const single = { multiple: false, options: ['a', 'b', 'c'] };
 const multi = { multiple: true, options: ['a', 'b', 'c', 'd'] };
 
-const loaded: LoadedView[] = [];
+const loaded: MountedView[] = [];
+
+/** Vue рисует на следующем тике: ждём его после каждого действия. */
+const settle = async () => {
+  await nextTick();
+  await nextTick();
+};
 
 const mountView = async (view: unknown, label?: string) => {
-  const result = await loadView(views, 'dolphy.choice', {
+  const result = await mount(ChoiceAnswerView, {
     view,
     ...(label === undefined ? {} : { label }),
   });
@@ -18,9 +27,27 @@ const mountView = async (view: unknown, label?: string) => {
   return result;
 };
 
-const inputs = (view: LoadedView) => view.queryAll<HTMLInputElement>('input');
+describe('client dolphy.choice', () => {
+  it('добавляет вид ответа для вида задания', async () => {
+    const running = await createTestClient(client, {
+      extensionId: 'dolphy.choice',
+    });
+    expect(running.answerViews.get('dolphy.choice')).toBe(ChoiceAnswerView);
+    await running.dispose();
+  });
+});
 
-const click = (input: HTMLInputElement) => input.click();
+const inputs = (view: MountedView) => view.queryAll<HTMLInputElement>('input');
+
+const click = async (input: HTMLInputElement) => {
+  input.click();
+  await settle();
+};
+
+const update = async (view: MountedView, props: Record<string, unknown>) => {
+  await view.update(props);
+  await settle();
+};
 
 afterEach(() => {
   for (const view of loaded.splice(0)) view.dispose();
@@ -29,17 +56,14 @@ afterEach(() => {
 describe('вид dolphy.choice', () => {
   it('рисует радиокнопки для одиночного выбора', async () => {
     const view = await mountView(single);
-    const radios = inputs(view);
-    expect(radios.map((input) => input.type)).toEqual([
+    expect(inputs(view).map((input) => input.type)).toEqual([
       'radio',
       'radio',
       'radio',
     ]);
-    expect(view.queryAll('label').map((label) => label.textContent)).toEqual([
-      'a',
-      'b',
-      'c',
-    ]);
+    expect(
+      view.queryAll('label').map((label) => label.textContent?.trim()),
+    ).toEqual(['a', 'b', 'c']);
   });
 
   it('рисует чекбоксы для множественного выбора', async () => {
@@ -57,20 +81,25 @@ describe('вид dolphy.choice', () => {
   it('радио: выбор заменяет предыдущий и complete = true', async () => {
     const view = await mountView(single);
     const [first, , third] = inputs(view);
-    click(first!);
-    click(third!);
+    await click(first!);
+    await click(third!);
     expect(view.changes).toEqual([
       { value: [0], complete: true },
       { value: [2], complete: true },
+    ]);
+    expect(inputs(view).map((input) => input.checked)).toEqual([
+      false,
+      false,
+      true,
     ]);
   });
 
   it('чекбоксы: индексы по возрастанию независимо от порядка кликов', async () => {
     const view = await mountView(multi);
     const boxes = inputs(view);
-    click(boxes[3]!);
-    click(boxes[1]!);
-    click(boxes[3]!);
+    await click(boxes[3]!);
+    await click(boxes[1]!);
+    await click(boxes[3]!);
     expect(view.changes.map((change) => change.value)).toEqual([
       [3],
       [1, 3],
@@ -81,14 +110,14 @@ describe('вид dolphy.choice', () => {
   it('снятие последнего чекбокса даёт complete = false', async () => {
     const view = await mountView(multi);
     const [first] = inputs(view);
-    click(first!);
-    click(first!);
+    await click(first!);
+    await click(first!);
     expect(view.changes.at(-1)).toEqual({ value: [], complete: false });
   });
 
   it('value восстанавливает выбор без событий', async () => {
     const view = await mountView(multi);
-    await view.update({ value: [0, 2, 99, 'x'] });
+    await update(view, { value: [0, 2, 99, 'x'] });
     expect(inputs(view).map((input) => input.checked)).toEqual([
       true,
       false,
@@ -100,32 +129,47 @@ describe('вид dolphy.choice', () => {
 
   it('disabled блокирует и разблокирует варианты, не сбрасывая выбор', async () => {
     const view = await mountView(multi);
-    click(inputs(view)[1]!);
-    await view.update({ disabled: true });
+    await click(inputs(view)[1]!);
+    await update(view, { disabled: true });
     expect(inputs(view).every((input) => input.disabled)).toBe(true);
     expect(inputs(view)[1]?.checked).toBe(true);
-    await view.update({ disabled: false });
+    await update(view, { disabled: false });
     expect(inputs(view).some((input) => input.disabled)).toBe(false);
   });
 
   it('disabled, выставленный до view, применяется к вариантам', async () => {
     const view = await mountView(undefined);
-    await view.update({ disabled: true });
-    await view.update({ view: single });
+    await update(view, { disabled: true });
+    await update(view, { view: single });
     expect(inputs(view).every((input) => input.disabled)).toBe(true);
   });
 
   it('смена view перерисовывает варианты', async () => {
     const view = await mountView(single);
-    await view.update({ view: multi });
+    await update(view, { view: multi });
     expect(inputs(view)).toHaveLength(4);
     expect(inputs(view)[0]?.type).toBe('checkbox');
   });
 
-  it('aria-label хоста попадает на fieldset внутри shadow DOM', async () => {
-    const view = await mountView(single, 'Ваш ответ');
-    expect(view.query('fieldset')?.getAttribute('aria-label')).toBe(
-      'Ваш ответ',
+  it('выбор, введённый пользователем, не стирается обновлением disabled', async () => {
+    const view = await mountView(single);
+    await click(inputs(view)[1]!);
+    await update(view, { disabled: true });
+    expect(inputs(view).map((input) => input.checked)).toEqual([
+      false,
+      true,
+      false,
+    ]);
+  });
+
+  it('prop label становится именем группы', async () => {
+    const radios = await mountView(single, 'Ваш ответ');
+    expect(
+      radios.query('[role="radiogroup"]')?.getAttribute('aria-label'),
+    ).toBe('Ваш ответ');
+    const boxes = await mountView(multi, 'Ваши ответы');
+    expect(boxes.query('[role="group"]')?.getAttribute('aria-label')).toBe(
+      'Ваши ответы',
     );
   });
 });

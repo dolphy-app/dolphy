@@ -19,7 +19,7 @@ export type CreateExerciseTypes = (
   roots: readonly string[],
 ) => Promise<CliExerciseTypes>;
 
-interface ResolvedExtensionLike {
+interface ExtensionCandidateLike {
   id: string;
 }
 
@@ -27,15 +27,15 @@ interface ExtensionHostModule {
   discoverExtensions(options: {
     roots: readonly { dir: string; origin: 'bundled' | 'user' }[];
     logger: Logger;
-  }): Promise<{ extensions: ResolvedExtensionLike[] }>;
+  }): Promise<{ extensions: ExtensionCandidateLike[] }>;
 }
 
 interface ExtensionHostLocalModule {
   createLocalExerciseTypes(options: {
-    extensions: readonly ResolvedExtensionLike[];
+    extensions: readonly ExtensionCandidateLike[];
     library: CourseSource;
     logger: Logger;
-  }): ExerciseTypes;
+  }): Promise<ExerciseTypes>;
 }
 
 /** Имена в переменных: без литерала `tsc` не пытается разрешить пакеты в этот проект. */
@@ -65,7 +65,7 @@ export const loadExerciseTypes: CreateExerciseTypes = async (
     roots: roots.map((dir) => ({ dir, origin: 'user' as const })),
     logger,
   });
-  const exerciseTypes = local.createLocalExerciseTypes({
+  const exerciseTypes = await local.createLocalExerciseTypes({
     extensions,
     library: source,
     logger,

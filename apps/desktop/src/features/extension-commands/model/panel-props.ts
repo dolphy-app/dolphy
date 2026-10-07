@@ -7,7 +7,7 @@ export const panelKey = (extensionId: string, panelId: string): string =>
 /**
  * Свойства открытой панели, присланные `openPanel(id, props)`. Реактивны:
  * повторный `openPanel` на уже открытую панель обновляет её без пересоздания
- * рамки. Страница панели убирает запись, когда закрывается.
+ * компонента. Страница панели убирает запись, когда закрывается.
  */
 export interface PanelProps {
   get(key: string): JsonValue | undefined;

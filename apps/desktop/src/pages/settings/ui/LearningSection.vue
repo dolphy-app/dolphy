@@ -29,7 +29,7 @@ const gradePolicyItems = computed(() =>
     title:
       label === null
         ? t('settings.learning.gradePolicy.passAtN.title')
-        : extensionText.of(label, extensionId ?? ''),
+        : extensionText.of(label),
     subtitle: extensionId ?? t('settings.learning.gradePolicy.builtin'),
   })),
 );

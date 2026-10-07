@@ -1,6 +1,6 @@
-import { loadExerciseType } from '@dolphy-app/extension-sdk/testing';
+import { createTestServer } from '@dolphy-app/extension-sdk/testing';
 import { afterEach, describe, expect, it } from 'vitest';
-import { host } from '../src/index.ts';
+import { server } from '../src/index.ts';
 import { childPids } from './helpers.ts';
 
 const disposables: { dispose(): Promise<void> }[] = [];
@@ -9,9 +9,11 @@ afterEach(async () => {
 });
 
 const load = async () => {
-  const type = await loadExerciseType(host, 'dolphy.js');
-  disposables.push(type);
-  return type;
+  const harness = await createTestServer(server, { extensionId: 'dolphy.js' });
+  disposables.push(harness);
+  return Object.assign(harness.exerciseType('dolphy.js'), {
+    dispose: () => harness.dispose(),
+  });
 };
 
 const tests = `

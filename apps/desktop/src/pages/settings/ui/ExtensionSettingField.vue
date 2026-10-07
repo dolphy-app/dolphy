@@ -6,7 +6,9 @@ import type {
   ExtensionSettingDefDto,
   JsonValue,
 } from '@dolphy-app/engine-contract';
+import { useExtensionText } from '@/shared/lib/extension-text.ts';
 import SettingListEditor from './SettingListEditor.vue';
+import { settingTextOf } from '../model/extension-settings-form.ts';
 import { parseNumberInput } from '../model/extension-settings.ts';
 import type {
   SettingError,
@@ -39,6 +41,7 @@ const emit = defineEmits<{
 }>();
 
 const { t, n } = useI18n();
+const extensionText = useExtensionText();
 
 // строка и число правятся черновиком и записываются по уходу из поля или Enter
 const draft = ref('');
@@ -106,12 +109,15 @@ const range = computed(() =>
     : null,
 );
 
-const hint = computed(() => {
-  const { description } = props.definition;
-  return [description, range.value]
+const text = computed(() => settingTextOf(props.definition, extensionText.of));
+const label = computed(() => text.value.label);
+const options = computed(() => text.value.options);
+
+const hint = computed(() =>
+  [text.value.description, range.value]
     .filter((part): part is string => part !== null)
-    .join(' ');
-});
+    .join(' '),
+);
 
 // отказ по границам заменяет подсказку, поэтому границы повторяются в тексте ошибки
 const errorMessages = computed(() => {
@@ -134,7 +140,7 @@ const errorMessages = computed(() => {
     <v-switch
       v-if="definition.type === 'boolean'"
       :model-value="value === true"
-      :label="definition.label"
+      :label="label"
       :hint="hint"
       :persistent-hint="hint !== ''"
       :error-messages="errorMessages"
@@ -148,7 +154,7 @@ const errorMessages = computed(() => {
     <v-text-field
       v-else-if="definition.type === 'string'"
       v-model="draft"
-      :label="definition.label"
+      :label="label"
       :hint="hint"
       :persistent-hint="hint !== ''"
       :error-messages="errorMessages"
@@ -164,7 +170,7 @@ const errorMessages = computed(() => {
     <v-textarea
       v-else-if="definition.type === 'text'"
       v-model="draft"
-      :label="definition.label"
+      :label="label"
       :hint="hint"
       :persistent-hint="hint !== ''"
       :error-messages="errorMessages"
@@ -188,7 +194,7 @@ const errorMessages = computed(() => {
         :value="pickerValue"
         :aria-label="
           t('settings.extensions.settingsDialog.color.picker', {
-            label: definition.label,
+            label,
           })
         "
         :data-testid="`setting-${definition.id}-picker`"
@@ -196,7 +202,7 @@ const errorMessages = computed(() => {
       />
       <v-text-field
         v-model="draft"
-        :label="definition.label"
+        :label="label"
         :hint="hint"
         :persistent-hint="hint !== ''"
         :error-messages="errorMessages"
@@ -212,7 +218,7 @@ const errorMessages = computed(() => {
     </div>
     <SettingListEditor
       v-else-if="definition.type === 'list'"
-      :label="definition.label"
+      :label="label"
       :items="Array.isArray(value) ? (value as string[]) : []"
       :max-items="definition.maxItems"
       :item-max-length="definition.itemMaxLength"
@@ -225,7 +231,7 @@ const errorMessages = computed(() => {
       v-else-if="definition.type === 'number'"
       v-model="draft"
       type="number"
-      :label="definition.label"
+      :label="label"
       :hint="hint"
       :persistent-hint="hint !== ''"
       :error-messages="errorMessages"
@@ -243,10 +249,10 @@ const errorMessages = computed(() => {
     <v-select
       v-else
       :model-value="value"
-      :items="definition.options"
-      item-title="label"
+      :items="options"
+      item-title="title"
       item-value="value"
-      :label="definition.label"
+      :label="label"
       :hint="hint"
       :persistent-hint="hint !== ''"
       :error-messages="errorMessages"

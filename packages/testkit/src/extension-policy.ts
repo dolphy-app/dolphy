@@ -5,7 +5,7 @@ import type {
 import type { ExtensionPolicy } from '@dolphy-app/engine/ports';
 
 export interface FakeExtensionPolicyOptions {
-  /** Id расширений из поставки: всегда включены и не изолированы. */
+  /** Id расширений из поставки: всегда включены. */
   bundled?: readonly string[];
   settings?: ExtensionSettingsDto;
   /** id → причина отзыва в каталоге: такое расширение отключено независимо от настроек. */
@@ -34,7 +34,6 @@ export const createFakeExtensionPolicy = (
   let settings: ExtensionSettingsDto = structuredClone(
     options.settings ?? {
       disabled: [],
-      trusted: [],
       checkUpdates: true,
       safeMode: false,
       notificationsOff: [],
@@ -63,7 +62,6 @@ export const createFakeExtensionPolicy = (
     isEnabled: (id) => isOn(id) && !unmet.has(id),
     dependencyIssues: (id) =>
       isOn(id) ? structuredClone(unmet.get(id) ?? []) : [],
-    isIsolated: (id) => !bundled.has(id) && !settings.trusted.includes(id),
     areSchedulesOn: (id) =>
       bundled.has(id) || !settings.schedulesOff.includes(id),
     safeMode,

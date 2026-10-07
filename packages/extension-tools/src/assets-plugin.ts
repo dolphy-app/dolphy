@@ -1,4 +1,4 @@
-import { statSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import type { Plugin } from 'vite';
 import type { JobState } from './shim.ts';
@@ -31,12 +31,32 @@ const isBig = (file: string): boolean => {
   }
 };
 
+/** A style sheet or a `<style>` block of a component (`X.vue?vue&type=style…`): the module ends up as a string in the bundle. */
+const VUE_STYLE_MODULE = /\.vue\?(?:.*&)?type=style(?:&|$)/;
+
+const isStyleModule = (id: string): boolean =>
+  STYLE_FILE.test(cleanId(id)) || VUE_STYLE_MODULE.test(id);
+
+/** `<style src="./x.css">` in the component `importer`: the component plugin resolves the file once as it is, to link it to the component, and then imports it as text. */
+const isStyleSourceOf = (importer: string, source: string): boolean => {
+  if (!importer.endsWith('.vue')) return false;
+  try {
+    const escaped = source.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`<style\\b[^>]*\\ssrc\\s*=\\s*(["'])${escaped}\\1`).test(
+      readFileSync(importer, 'utf8'),
+    );
+  } catch {
+    return false;
+  }
+};
+
 /**
  * Vite in library mode inlines every asset and has no place for a style sheet: the
- * plugin brings the two documented paths. An image or a font is a data URI up to
+ * plugin brings the documented paths. An image or a font is a data URI up to
  * `ASSETS_INLINE_LIMIT` and a file in `assets/` above it (an import with `?url` or
- * `new URL('./x.png', import.meta.url)`); a style sheet is imported as a string with
- * `?inline`, a plain `import './x.css'` is an error with the way out in the message.
+ * `new URL('./x.png', import.meta.url)`); a style sheet of the author is imported as a
+ * string with `?inline`, a plain `import './x.css'` is an error with the way out in the
+ * message.
  */
 export const assetsPlugin = (state: JobState): Plugin => ({
   name: 'dolphy-ext:assets',
@@ -67,14 +87,16 @@ export const assetsPlugin = (state: JobState): Plugin => ({
     const file = cleanId(resolved.id);
     const query = resolved.id.slice(file.length);
     if (STYLE_FILE.test(file)) {
-      if (TEXT_IMPORT.test(query)) return null;
+      if (TEXT_IMPORT.test(query) || isStyleSourceOf(importer, source)) {
+        return null;
+      }
       const message = `'${source}' is imported as a side-effect style sheet, which a bundle cannot carry: import it as text with import css from '${source}?inline' and add it to the page, or ship it as a file in assets/`;
       state.problem = message;
       return this.error(message);
     }
     if (!ASSET_FILE.test(file) || MARKED.test(query)) return null;
     // an image inside an inlined style sheet stays inline: a relative address means nothing in a string
-    if (STYLE_FILE.test(cleanId(importer)) || !isBig(file)) return null;
+    if (isStyleModule(importer) || !isBig(file)) return null;
     return {
       ...resolved,
       id: `${resolved.id}${query === '' ? '?' : '&'}no-inline`,

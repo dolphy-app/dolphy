@@ -1,6 +1,5 @@
 import { watch } from 'vue';
 import type { Ref, WatchStopHandle } from 'vue';
-import type { ThemeContributionDto } from '@dolphy-app/engine-contract';
 import type { ThemeDefinition } from 'vuetify';
 import {
   baseThemeOf,
@@ -8,6 +7,7 @@ import {
   toVuetifyTheme,
   vuetifyThemeName,
 } from './extension-themes.ts';
+import type { ClientTheme } from './extension-client-registrations.ts';
 
 /** Часть `vuetify.theme`, которой пользуется привязка. */
 export interface ThemeRegistry {
@@ -16,17 +16,17 @@ export interface ThemeRegistry {
 }
 
 /**
- * Держит темы расширений в реестре Vuetify в соответствии с вкладами и
- * применяет сохранённый выбор: новая тема появляется сразу, а у исчезнувшей
- * выбор откатывается на «Как в системе» до её удаления из реестра (иначе
- * Vuetify остался бы с неизвестным именем). Сохранённый id не меняется:
- * тема вернётся вместе с расширением. Синхронно, чтобы промежуточные
- * состояния не мигали.
+ * Держит темы расширений в реестре Vuetify в соответствии с реестром клиентских
+ * частей и применяет сохранённый выбор: пока тема не зарегистрирована (клиентская
+ * часть ещё грузится) или исчезла, выбор показывает «Как в системе» до её
+ * удаления из реестра (иначе Vuetify остался бы с неизвестным именем), а когда
+ * тема появляется, применяется. Сохранённый id не меняется. Синхронно, чтобы
+ * промежуточные состояния не мигали.
  */
 export const bindExtensionThemes = (
   registry: ThemeRegistry,
   saved: Readonly<Ref<string>>,
-  themes: () => readonly ThemeContributionDto[],
+  themes: () => readonly ClientTheme[],
 ): WatchStopHandle => {
   let registered = new Set<string>();
   return watch(

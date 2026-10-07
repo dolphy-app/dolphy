@@ -1,4 +1,4 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { runCli } from '../src/cli/run.ts';
@@ -16,6 +16,9 @@ const createIo = () => {
     stderr: () => err.join(''),
   };
 };
+
+const readManifest = async (file: string): Promise<Record<string, unknown>> =>
+  JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
 
 describe('runCli', () => {
   it('T-30 build: code 0 and a summary in stdout', async () => {
@@ -38,6 +41,13 @@ describe('runCli', () => {
     expect(cli.stderr()).toMatch(/^error .+: .*invalid extension id/);
   });
 
+  it('build of a project without src/index.ts: code 1, the missing entry in stderr', async () => {
+    const root = await copyProject('no-entry');
+    const cli = createIo();
+    expect(await runCli(['build', root], cli.io)).toBe(1);
+    expect(cli.stderr()).toContain("'src/index.ts' is not found");
+  });
+
   it('T-32 validate: ok and problems', async () => {
     const root = await copyProject('hello');
     const built = createIo();
@@ -48,71 +58,29 @@ describe('runCli', () => {
     expect(await runCli(['validate', dir], good.io)).toBe(0);
     expect(good.stdout()).toBe(`${dir}: ok\n`);
 
-    const bad = createIo();
-    expect(await runCli(['validate', root], bad.io)).toBe(1);
-    expect(bad.stderr()).toContain(`error ${root}: `);
-  });
-
-  it('validate: an unknown permission — an error with the field path, a known one passes', async () => {
-    const root = await copyProject('hello');
-    const built = createIo();
-    await runCli(['build', root], built.io);
-    const dir = path.join(root, 'dist-ext', 'acme.hello');
-    const manifestPath = path.join(dir, 'extension.json');
-    const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as object;
-
+    // манифест с ключом `contributes` валидатор отклоняет
     await writeFile(
-      manifestPath,
-      JSON.stringify({ ...manifest, permissions: ['network'] }),
-    );
-    const ok = createIo();
-    expect(await runCli(['validate', dir], ok.io)).toBe(0);
-
-    await writeFile(
-      manifestPath,
-      JSON.stringify({ ...manifest, permissions: ['disk.write'] }),
+      path.join(dir, 'extension.json'),
+      JSON.stringify({
+        ...JSON.parse(await readFile(path.join(dir, 'extension.json'), 'utf8')),
+        contributes: {},
+      }),
     );
     const bad = createIo();
     expect(await runCli(['validate', dir], bad.io)).toBe(1);
-    expect(bad.stderr()).toMatch(/permissions\.0: /);
+    expect(bad.stderr()).toContain(`error ${dir}: `);
   });
 
-  it('validate: importers and exporters pass; a progress exporter needs learning.stats; an upper-case accept is refused', async () => {
-    const root = await copyProject('typed-transfers');
+  it('validate: a built extension without its declared client file is refused', async () => {
+    const root = await copyProject('hello');
     const built = createIo();
     expect(await runCli(['build', root], built.io), built.stderr()).toBe(0);
-    const dir = path.join(root, 'dist-ext', 'acme.transfer');
-    const manifestPath = path.join(dir, 'extension.json');
-    const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as {
-      contributes: { importers: { accept: string[] }[] };
-    };
+    const dir = path.join(root, 'dist-ext', 'acme.hello');
+    await rm(path.join(dir, 'client.mjs'));
 
-    const ok = createIo();
-    expect(await runCli(['validate', dir], ok.io)).toBe(0);
-
-    await writeFile(
-      manifestPath,
-      JSON.stringify({ ...manifest, permissions: [] }),
-    );
-    const noStats = createIo();
-    expect(await runCli(['validate', dir], noStats.io)).toBe(1);
-    expect(noStats.stderr()).toMatch(/exporters\.1\.scope: .*learning\.stats/);
-
-    await writeFile(
-      manifestPath,
-      JSON.stringify({
-        ...manifest,
-        contributes: {
-          ...manifest.contributes,
-          importers: [
-            { ...manifest.contributes.importers[0], accept: ['.CSV'] },
-          ],
-        },
-      }),
-    );
-    const upper = createIo();
-    expect(await runCli(['validate', dir], upper.io)).toBe(1);
-    expect(upper.stderr()).toMatch(/importers\.0\.accept\.0: /);
+    const cli = createIo();
+    expect(await runCli(['validate', dir], cli.io)).toBe(1);
+    expect(cli.stderr()).toContain('client.mjs');
   });
 
   it('validate: dependencies with a range pass; itself, a repeat and a bad range are refused with the field path', async () => {
@@ -121,7 +89,7 @@ describe('runCli', () => {
     expect(await runCli(['build', root], built.io), built.stderr()).toBe(0);
     const dir = path.join(root, 'dist-ext', 'acme.hello');
     const manifestPath = path.join(dir, 'extension.json');
-    const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as object;
+    const manifest = await readManifest(manifestPath);
     const run = async (dependencies: unknown[]) => {
       await writeFile(
         manifestPath,
@@ -143,123 +111,26 @@ describe('runCli', () => {
     expect(range.err).toMatch(/dependencies\.0\.range: /);
   });
 
-  it('validate: `when` of a command, a panel and a widget is checked with the position of the problem', async () => {
-    const root = await copyProject('commands-panel');
-    const built = createIo();
-    expect(await runCli(['build', root], built.io), built.stderr()).toBe(0);
-    const dir = path.join(root, 'dist-ext', 'acme.commands-panel');
-    const manifestPath = path.join(dir, 'extension.json');
-    const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as {
-      contributes: {
-        commands: object[];
-        panels: object[];
-        widgets?: object[];
-      };
-    };
-    const withWhen = async (when: string) => {
-      const { commands, panels } = manifest.contributes;
-      await writeFile(
-        manifestPath,
-        JSON.stringify({
-          ...manifest,
-          contributes: {
-            commands: [{ ...commands[0], when }, commands[1]],
-            panels: [{ ...panels[0], when }],
-            widgets: [
-              {
-                id: 'acme.commands-panel.card',
-                title: 'Card',
-                slot: 'dailyPlan',
-                module: './panel.mjs',
-                when,
-              },
-            ],
-          },
-        }),
-      );
-      const cli = createIo();
-      return { code: await runCli(['validate', dir], cli.io), cli };
-    };
-
-    const ok = await withWhen("route == 'courses' && !(session.active)");
-    expect(ok.code, ok.cli.stderr()).toBe(0);
-
-    const bad = await withWhen("route == 'home'");
-    expect(bad.code).toBe(1);
-    for (const where of ['commands', 'panels', 'widgets']) {
-      expect(bad.cli.stderr()).toContain(
-        `contributes.${where}.0.when: invalid "when" (unknown value 'home' for 'route'`,
-      );
-    }
-    expect(bad.cli.stderr()).toContain(') at 9)');
-  });
-
-  it('validate: `keybinding` and `keybindings` are checked for every platform, with the path of the problem', async () => {
-    const root = await copyProject('commands-panel');
-    const built = createIo();
-    expect(await runCli(['build', root], built.io), built.stderr()).toBe(0);
-    const dir = path.join(root, 'dist-ext', 'acme.commands-panel');
-    const manifestPath = path.join(dir, 'extension.json');
-    const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as {
-      contributes: { commands: object[] };
-    };
-    const withBindings = async (binding: object) => {
-      const [first, ...rest] = manifest.contributes.commands;
-      await writeFile(
-        manifestPath,
-        JSON.stringify({
-          ...manifest,
-          contributes: {
-            ...manifest.contributes,
-            commands: [{ ...first, palette: true, ...binding }, ...rest],
-          },
-        }),
-      );
-      const cli = createIo();
-      return { code: await runCli(['validate', dir], cli.io), cli };
-    };
-
-    const ok = await withBindings({
-      keybinding: 'Ctrl+X',
-      keybindings: [
-        { key: 'Mod+Shift+L', mac: 'Mod+Alt+L', when: '!inputFocus' },
-        { key: 'Mod+K Mod+S' },
-      ],
-    });
-    expect(ok.code, ok.cli.stderr()).toBe(0);
-
-    const repeated = await withBindings({ keybinding: 'Mod+Ctrl+K' });
-    expect(repeated.code).toBe(1);
-    expect(repeated.cli.stderr()).toContain(
-      'contributes.commands.0.keybinding: invalid key',
-    );
-
-    const bare = await withBindings({ keybindings: [{ key: 'Shift+L' }] });
-    expect(bare.code).toBe(1);
-    expect(bare.cli.stderr()).toContain('contributes.commands.0.keybindings.0');
-
-    const platform = await withBindings({
-      keybindings: [{ key: 'Mod+L', mac: 'Mod+Cmd+L' }],
-    });
-    expect(platform.code).toBe(1);
-    expect(platform.cli.stderr()).toContain(
-      'contributes.commands.0.keybindings.0.mac: invalid key',
-    );
-  });
-
-  it('metadata and compatibility: build copies the manifest as is, validate checks the shape', async () => {
+  it('metadata and compatibility: build keeps the metadata and sets main and client, validate checks the shape', async () => {
     const root = await copyProject('with-metadata');
     const built = createIo();
     expect(await runCli(['build', root], built.io)).toBe(0);
     const dir = path.join(root, 'dist-ext', 'acme.meta');
-    expect(await readFile(path.join(dir, 'extension.json'), 'utf8')).toBe(
-      await readFile(path.join(root, 'extension.json'), 'utf8'),
-    );
+    const manifestPath = path.join(dir, 'extension.json');
+    const manifest = await readManifest(manifestPath);
+    expect(manifest).toMatchObject({
+      id: 'acme.meta',
+      name: 'Meta',
+      description: 'Extension with metadata',
+      author: 'octo-cat',
+      platforms: ['darwin', 'linux', 'win32'],
+      minAppVersion: '1.0.0',
+      main: null,
+      client: './client.mjs',
+    });
     const good = createIo();
     expect(await runCli(['validate', dir], good.io)).toBe(0);
 
-    const manifestPath = path.join(dir, 'extension.json');
-    const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as object;
     await writeFile(
       manifestPath,
       JSON.stringify({ ...manifest, minAppVersion: '1.0', platforms: ['bsd'] }),
@@ -270,34 +141,10 @@ describe('runCli', () => {
     expect(bad.stderr()).toMatch(/platforms\.0/);
   });
 
-  it('types: writes .dolphy/ids.d.ts without building, then reports it is up to date', async () => {
-    const root = await copyProject('commands-panel');
-    const file = path.join(root, '.dolphy', 'ids.d.ts');
-
-    const first = createIo();
-    expect(await runCli(['types', root], first.io)).toBe(0);
-    expect(first.stdout()).toBe('wrote .dolphy/ids.d.ts\n');
-    const text = await readFile(file, 'utf8');
-    expect(text).toContain(
-      "commands: 'acme.commands-panel.open' | 'acme.commands-panel.ping'",
-    );
-    expect(text).toContain("panels: 'acme.commands-panel.main'");
-    await expect(readFile(path.join(root, 'dist-ext'))).rejects.toThrow();
-
-    const second = createIo();
-    expect(await runCli(['types', root], second.io)).toBe(0);
-    expect(second.stdout()).toBe('.dolphy/ids.d.ts is up to date\n');
-    expect(second.stderr()).toBe('');
-  });
-
-  it('types of a broken manifest: code 1 and the problem in stderr, no file', async () => {
-    const root = await copyProject('bad-manifest');
+  it('the types command is not known: code 2 and the usage', async () => {
     const cli = createIo();
-    expect(await runCli(['types', root], cli.io)).toBe(1);
-    expect(cli.stderr()).toMatch(/^error .+: .*invalid extension id/);
-    await expect(
-      readFile(path.join(root, '.dolphy', 'ids.d.ts')),
-    ).rejects.toThrow();
+    expect(await runCli(['types', '.'], cli.io)).toBe(2);
+    expect(cli.stderr()).toContain('usage: dolphy-ext');
   });
 
   it.each([
@@ -307,8 +154,6 @@ describe('runCli', () => {
     [['build', 'a', 'b']],
     [['build', '--out']],
     [['validate']],
-    [['types', '--nope']],
-    [['types', 'a', 'b']],
   ])('T-33 invalid arguments %j — code 2', async (argv) => {
     const cli = createIo();
     expect(await runCli(argv, cli.io)).toBe(2);

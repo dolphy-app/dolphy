@@ -6,11 +6,17 @@ generator makes (`--template blank`); the recipes next to this file build on the
 same layout:
 
 - [Exercise type](recipe-exercise-type.md): a new kind of task with its own answer input.
-- [Theme](recipe-theme.md): colors, no code.
-- [Command and panel](recipe-command-panel.md): palette commands and a screen in an isolated frame.
+- [Theme](recipe-theme.md): colors, registered by the client part.
+- [Command and panel](recipe-command-panel.md): palette commands and a panel, a Vue single-file component (`.vue`) in the app window.
+- [A panel in React](recipe-react.md): the same panel drawn with React: `"frameworks": ["react"]`, `reactComponent`, hooks, tests with `mountForTest`.
+- [A component of any framework](recipe-mountable.md): `defineMountable` on plain DOM, the base for Svelte, Solid or Lit, and what `ctx` gives it.
 - [Events and storage](recipe-event-storage.md): react to learning events and keep data.
+- [Hooks](recipe-hooks.md): change or cancel a session start and the batch of exercises before the engine acts.
 - [Settings](recipe-settings.md): let the user configure the extension.
-- [Without a build](no-build.md): a hand-written `extension.json` and `main.mjs`, no TypeScript.
+- [Visibility conditions and dependencies](recipe-when-dependencies.md): show a command only where it makes sense, a widget in the daily plan, require another extension.
+- [Importer and exporter](recipe-import-export.md): bring a file in as a course, write a course out.
+- [Calls, engine and window](recipe-rpc-and-app.md): `defineRpc` between the parts, `engine` access, `useApp`.
+- [Without a build](no-build.md): a hand-written `extension.json`, `main.mjs` and `client.mjs`, no TypeScript.
 - [Debugging](debugging.md): where to look when something does not work.
 
 ## What you need
@@ -28,24 +34,26 @@ pnpm install
 ```
 
 `--id` is the extension id: lowercase letters, digits, dots and hyphens. Every
-id the extension declares (commands, panels, settings…) starts with it, so pick
-one that is yours (a publisher prefix, then a name). Without `--id` the id is the
-directory name in kebab-case. The `--template` values:
+id the extension registers (commands, panels, settings…) is the extension id or
+starts with it and a dot, so pick one that is yours (a publisher prefix, then a
+name). Without `--id` the id is the directory name in kebab-case. The
+`--template` values:
 
-| Template        | What you get                                                                   |
-| --------------- | ------------------------------------------------------------------------------ |
-| `exercise`      | a task type with an answer input and a setting (the default)                   |
-| `theme`         | a color theme, no code                                                         |
-| `command-panel` | palette commands and a panel                                                   |
-| `events`        | a learning event handler, storage, commands and a panel                        |
-| `blank`         | one palette command                                                            |
+| Template        | What you get                                                      |
+| --------------- | ----------------------------------------------------------------- |
+| `exercise`      | a task type with an answer input and a setting (the default)      |
+| `theme`         | a color theme                                                     |
+| `command-panel` | palette commands and a panel as a Vue single-file component      |
+| `react-panel`   | palette commands and a panel drawn with React                     |
+| `events`        | a learning event handler, storage, commands and a panel           |
+| `blank`         | one palette command                                               |
 
 An unknown name exits with code 2 and lists the available ones.
 
 ## 2. The files
 
-The project is two files that matter. The manifest declares what the extension
-adds, the code implements it.
+The project is two files that matter. The manifest says who the extension is,
+the code says what it adds.
 
 File `extension.json` (quick start):
 
@@ -58,61 +66,73 @@ File `extension.json` (quick start):
   "name": "Hello command",
   "description": "A command-palette command that shows a notification.",
   "author": "your-github-login",
-  "tags": ["productivity"],
-  "contributes": {
-    "commands": [{ "id": "acme.hello.hello", "title": "Say hello" }]
-  }
+  "tags": ["productivity"]
 }
 ```
 
 `$schema` gives editors completion and checking. `id` is the identity of the
 extension in the app and the catalog; it never changes after the first release.
 Replace `your-github-login` in `author` with your GitHub login before you
-publish. `contributes.commands` declares the command that appears in the palette.
+publish. The manifest declares no commands, panels or settings: the code
+registers them. The other keys are `platforms`, `minAppVersion`, `icon` and
+`dependencies`. `main` and `client` are written by the build.
 
 File `src/index.ts` (quick start):
 
 ```ts
-import { defineExtension, notify } from '@dolphy-app/extension-sdk';
+import { defineServer, notify } from '@dolphy-app/extension-sdk';
 
-// extension code: runs in the extension process of the app
-// the command id comes from extension.json: a misspelt id or a declared id
-// without a handler fails `pnpm typecheck`
-export const host = defineExtension({
-  commands: {
-    'acme.hello.hello': () => notify('Hello from acme.hello!'),
-  },
+// runs in the extension host: every call registers a contribution
+export const server = defineServer((s) => {
+  s.registerCommand({
+    id: 'acme.hello.hello',
+    title: { en: 'Say hello', ru: 'Поздороваться' },
+    run: () => notify('Hello from acme.hello!'),
+  });
 });
 ```
 
-`host` is the code that runs in the extension process of the app.
-`defineExtension` takes a handler for every command the manifest declares:
-`notify` returns a notification to the app. The ids are types: `pnpm typecheck`
-(and every build) writes `.dolphy/ids.d.ts` from `extension.json`, so a misspelt
-id, or a declared command without a handler, does not compile.
+`src/index.ts` exports up to two entries. `server` runs in the extension host
+(Node) and registers commands, exercise types, settings, event handlers,
+schedules, importers and exporters; `client` runs in the app window and adds
+panels, injected components, answer views, markdown renderers, themes and
+client commands. This project has only `server`. The host calls it when it
+loads the extension; if it throws, or does not finish in 10 seconds, the
+extension shows `load-failed` in Settings → Extensions and registers nothing
+(see [debugging](debugging.md)).
+
+`notify` returns a notification to the app. A text the user sees is a
+`LocalizedText`: a plain string, or `{ en, ru }` as here. An id is written in
+the code and must be the extension id or start with `acme.hello.`; the host
+refuses an id that is taken or does not carry the prefix.
+
+When both entries exist, keep each in its own file and re-export them from
+`src/index.ts` (the recipes do): `server` must not import `vue`, `vuetify` or a
+component, `client` must not import `node:*` modules, and the build reports a
+violation with the file and the rule.
 
 File `test/index.test.ts` (quick start):
 
 ```ts
-import { loadCommands } from '@dolphy-app/extension-sdk/testing';
+import { createTestServer } from '@dolphy-app/extension-sdk/testing';
 import { expect, it } from 'vitest';
-import { host } from '../src/index.ts';
+import { server } from '../src/index.ts';
 
 it('the hello command notifies', async () => {
-  const commands = await loadCommands(host, {
-    declaredCommands: ['acme.hello.hello'],
-  });
-  expect(await commands.run('acme.hello.hello')).toEqual({
+  const running = await createTestServer(server, { extensionId: 'acme.hello' });
+  expect(await running.commands.run('acme.hello.hello')).toEqual({
     kind: 'notify',
     text: 'Hello from acme.hello!',
   });
-  await commands.dispose();
+  await running.dispose();
 });
 ```
 
 The test runs the command the way the host does, without the app:
-`@dolphy-app/extension-sdk/testing` activates `host` with in-memory storage,
-settings and commands.
+`createTestServer` from `@dolphy-app/extension-sdk/testing` starts `server` on
+in-memory storage, settings and library, and `running.commands.run` applies the
+rules the host applies to a command result. `createTestClient` does the same for
+`client` (see the [command and panel recipe](recipe-command-panel.md)).
 
 ## 3. Build, check, test
 
@@ -120,13 +140,15 @@ settings and commands.
 pnpm build       # dolphy-ext build: writes dist-ext/acme.hello
 pnpm validate    # parses the built manifest the way the app does
 pnpm lint        # metadata and bundle checks the catalog review also runs
-pnpm typecheck   # dolphy-ext types, then tsc
+pnpm typecheck   # tsc
 pnpm test        # vitest
 ```
 
 `pnpm build` turns `src/index.ts` into the files the app loads. With this
-template that is `dist-ext/acme.hello/extension.json` and `main.mjs`. Keep
-`dist-ext` and `.dolphy` out of git; the generated `.gitignore` does it.
+template that is `dist-ext/acme.hello/extension.json` and `main.mjs`; the built
+manifest names it in `main`. A project that exports `client` also gets
+`client.mjs` and the `client` key. Keep `dist-ext` out of git; the generated
+`.gitignore` does it.
 
 ## 4. Try it in the app
 
@@ -137,7 +159,7 @@ app on the result:
 pnpm exec dolphy-ext dev
 ```
 
-The extension appears in Settings → Extensions with the origin "development",
+The extension appears in Settings → Extensions with the origin "Development",
 and the command appears in the command palette. Press Ctrl+C to stop the build
 and the app. Quit a running Dolphy first: the app has one instance, a second
 start does not pick up the extension directory. Where the app is looked up and
@@ -154,13 +176,13 @@ DOLPHY_DEV_EXTENSIONS=/path/to/my-extension/dist-ext pnpm dev
 ```
 
 Save a file: the build writes the new files and the app applies them without a
-restart. The window does not reload; answer inputs of extensions in development
-are recreated, so their state can be lost.
+restart. The window does not reload; the components of extensions in
+development are recreated, so their state can be lost.
 
-An extension that is not bundled with the app and not trusted runs in a
-restricted process: what the `permissions` of the manifest do not declare is
-unavailable. The test helpers do not reproduce that; try permission-dependent
-code in the app.
+The extension code runs without restrictions: files, processes, threads and the
+network are available. The test helpers run a handler in your process and do not
+reproduce the host (time limits, the process boundary); try such code in the
+app.
 
 ## 5. Next
 
@@ -168,5 +190,5 @@ code in the app.
 - Before a pull request to the extension catalog run `pnpm build`,
   `pnpm validate`, `pnpm lint`, `pnpm typecheck` and `pnpm test`: all must pass.
   The generated `.github/workflows/ci.yml` runs the same steps on every push.
-- Write in `README.md` what the extension does and what each permission is for;
-  the catalog review reads it.
+- Write in `README.md` what the extension does; the catalog
+  review reads it.

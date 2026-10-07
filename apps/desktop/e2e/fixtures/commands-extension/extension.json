@@ -2,40 +2,6 @@
   "id": "acme.commands",
   "version": "1.0.0",
   "apiVersion": 1,
-  "contributes": {
-    "commands": [
-      {
-        "id": "acme.commands.greet",
-        "title": "Поприветствовать",
-        "description": "Показывает уведомление",
-        "category": "Приветствия",
-        "keybinding": "Mod+Shift+G"
-      },
-      {
-        "id": "acme.commands.open",
-        "title": "Открыть панель приветствий",
-        "category": "Приветствия",
-        "keybindings": [
-          { "key": "Mod+Shift+O", "mac": "Mod+Alt+O" },
-          { "key": "Mod+Shift+P", "when": "page == 'settings'" }
-        ]
-      },
-      {
-        "id": "acme.commands.bump",
-        "title": "Прибавить счётчик",
-        "palette": false
-      },
-      {
-        "id": "acme.commands.boom",
-        "title": "Сломаться",
-        "category": "Сбои"
-      },
-      {
-        "id": "acme.commands.hang",
-        "title": "Зависнуть",
-        "category": "Сбои"
-      }
-    ],
-    "panels": [{ "id": "acme.commands.main", "title": "Приветствия" }]
-  }
+  "main": "./main.mjs",
+  "client": "./client.mjs"
 }

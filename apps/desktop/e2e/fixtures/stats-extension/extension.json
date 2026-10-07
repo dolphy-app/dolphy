@@ -5,13 +5,5 @@
   "name": "Habit tracker",
   "description": "Записывает серию дней и разбивку по дням",
   "author": "acme",
-  "permissions": ["learning.stats"],
-  "contributes": {
-    "commands": [
-      {
-        "id": "acme.stats.report",
-        "title": "Статистика: записать"
-      }
-    ]
-  }
+  "main": "./main.mjs"
 }

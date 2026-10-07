@@ -1,7 +1,15 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import {
+  mkdir,
+  readFile,
+  realpath,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { runCli } from '../src/cli/run.ts';
+import { buildExtension } from '../src/index.ts';
 import { bundleFindings } from '../src/lint/bundle.ts';
 import { formatLintFinding, lintProject } from '../src/lint/index.ts';
 import { manifestFindings } from '../src/lint/manifest.ts';
@@ -47,6 +55,25 @@ const builtWith = async (files: Record<string, string>): Promise<string> => {
   return dir;
 };
 
+/** `@dolphy-app/extension-sdk` and `zod` as in an author's `node_modules`. */
+const linkRpcDependencies = async (root: string): Promise<void> => {
+  const packages = fileURLToPath(new URL('../..', import.meta.url));
+  const modules = path.join(root, 'node_modules');
+  await mkdir(path.join(modules, '@dolphy-app'), { recursive: true });
+  for (const name of ['extension-sdk', 'extension-api']) {
+    await symlink(
+      path.join(packages, name),
+      path.join(modules, '@dolphy-app', name),
+      'dir',
+    );
+  }
+  await symlink(
+    await realpath(path.join(packages, 'extension-sdk/node_modules/zod')),
+    path.join(modules, 'zod'),
+    'dir',
+  );
+};
+
 describe('dolphy-ext lint: project', () => {
   it('a complete project with a clean build has no findings', async () => {
     expect(await lint(await readyProject('theme-only'))).toEqual([]);
@@ -64,7 +91,7 @@ describe('dolphy-ext lint: project', () => {
       "warning acme.night CHECK-003 name: 'name' is not set: the catalog requires it",
       "warning acme.night CHECK-003 author: 'author' is not set: the catalog requires it",
       'warning acme.night CHECK-019 description: description is shorter than 20 characters: say what the extension does',
-      "warning acme.night LINT-001 tags: 'tags' is not set: without it the catalog derives tags from contributions",
+      "warning acme.night LINT-001 tags: 'tags' is not set: the catalog lists the extension without tags",
     ]);
   });
 
@@ -87,11 +114,26 @@ export const probe = (code: string): unknown => globalThis.eval(code);
 globalThis.probe = probe;
 `,
     );
-    // the module is shared by the host and the view bundles
+    // the module is shared by the server and the client bundles
     expect(await lint(dir)).toEqual([
+      'warning acme.hello CHECK-022 client.mjs: dynamic code execution (eval or new Function)',
       'warning acme.hello CHECK-022 main.mjs: dynamic code execution (eval or new Function)',
-      'warning acme.hello CHECK-022 view.mjs: dynamic code execution (eval or new Function)',
     ]);
+  });
+
+  it('a build with zod (defineRpc) has no findings: zod only calls new Function("")', async () => {
+    const dir = await readyProject('zod-rpc');
+    await linkRpcDependencies(dir);
+    const { dir: built } = await buildExtension({
+      root: dir,
+      outDir: path.join(dir, 'out'),
+    });
+    // the build contains the probe that the rule has to skip
+    expect(await readFile(path.join(built, 'main.mjs'), 'utf8')).toContain(
+      'new Function("")',
+    );
+    expect(await lint(dir)).toEqual([]);
+    expect(await lint(dir, built)).toEqual([]);
   });
 
   it('--built checks the given directory instead of building', async () => {
@@ -118,8 +160,8 @@ globalThis.probe = probe;
 
 describe('dolphy-ext lint: bundle heuristics', () => {
   const file = (text: string, name = 'main.mjs') => [{ path: name, text }];
-  const rules = (text: string, permissions: string[] = []) =>
-    bundleFindings(file(text), permissions).map((item) => item.ruleId);
+  const rules = (text: string) =>
+    bundleFindings(file(text)).map((item) => item.ruleId);
 
   it('eval and new Function, but not identifiers that merely contain them', () => {
     expect(rules('const x = eval("1");')).toEqual(['CHECK-022']);
@@ -127,6 +169,30 @@ describe('dolphy-ext lint: bundle heuristics', () => {
       'CHECK-022',
     ]);
     expect(rules('const retrieval = evaluate(1); medieval(2);')).toEqual([]);
+  });
+
+  it('new Function("") with an empty string only is not dynamic code', () => {
+    for (const code of [
+      'new Function("")',
+      "new Function('')",
+      'new Function(``)',
+      'new  Function( "" )',
+      'try { new Function(""); } catch { allowed = false; }',
+    ]) {
+      expect(rules(code), code).toEqual([]);
+    }
+    for (const code of [
+      'new Function(code)',
+      'new Function("return 1")',
+      "new Function('a', 'return a')",
+      'new Function("", "return 1")',
+      'new Function(" ")',
+      'new Function("" + code)',
+      'eval("")',
+      'new Function(""); new Function(code);',
+    ]) {
+      expect(rules(code), code).toEqual(['CHECK-022']);
+    }
   });
 
   it('obfuscation: long lines in a big file, or many _0x identifiers', () => {
@@ -138,19 +204,9 @@ describe('dolphy-ext lint: bundle heuristics', () => {
     expect(rules(`var ${ids.slice(0, 19).join(', ')};`)).toEqual([]);
   });
 
-  it('URLs need the network permission; XML namespaces do not count', () => {
-    const code = 'fetch("https://example.com/api");';
-    expect(rules(code)).toEqual(['CHECK-024']);
-    expect(rules(code, ['network'])).toEqual([]);
-    expect(
-      rules('createElementNS("http://www.w3.org/2000/svg", "g");'),
-    ).toEqual([]);
-  });
-
   it('an embedded source map is an error', () => {
     const [finding] = bundleFindings(
       file('x();\n//# sourceMappingURL=data:application/json;base64,e30='),
-      [],
     );
     expect(finding?.ruleId).toBe('CHECK-025');
     expect(finding?.severity).toBe('error');
@@ -200,7 +256,7 @@ describe('dolphy-ext lint: CLI', () => {
   });
 
   it('a clean --built directory passes', async () => {
-    const built = await builtWith({ 'view.mjs': 'export {};' });
+    const built = await builtWith({ 'client.mjs': 'export {};' });
     const dir = await readyProject('theme-only');
     const result = await exec(['lint', dir, '--built', built]);
     expect(result).toEqual({ code: 0, stdout: '', stderr: '' });

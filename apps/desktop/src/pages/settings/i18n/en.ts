@@ -362,7 +362,12 @@ export const en: typeof ru = {
         events: 'Learning events',
         commands: 'Commands',
         panels: 'Panels',
-        widgets: 'Widgets',
+        injections: 'Injected interface',
+        importers: 'Importers',
+        exporters: 'Exporters',
+      },
+      clientFailed: {
+        title: 'The extension client part failed to load',
       },
       origin: {
         bundled: 'Bundled',
@@ -377,10 +382,6 @@ export const en: typeof ru = {
         'dependencies-unmet': 'Dependencies not met',
       },
       builtIn: 'Built in',
-      isolation: {
-        isolated: 'Isolated',
-        trusted: 'Trusted',
-      },
       enabledLabel: 'Enabled',
       notificationsLabel: 'Notifications',
       schedulesLabel: 'Schedule',
@@ -388,9 +389,6 @@ export const en: typeof ru = {
         daily: 'Every day at {at}',
         hourly: 'Every hour',
       },
-      trustLabel: 'Trust (no isolation)',
-      trustHint:
-        'A trusted extension runs without isolation: its code runs with the app’s rights and its elements live in the app window and can see its data. Trust only extensions you believe in.',
       dependencies: {
         title: 'Dependencies',
         status: {
@@ -403,27 +401,7 @@ export const en: typeof ru = {
         },
         hint: 'Dependencies are not installed automatically: install them yourself. Installing this extension is not blocked — it starts working once its dependencies are met.',
       },
-      permissionsTitle: 'Permissions',
-      permissionsNone: 'none requested',
-      permissions: {
-        learning: {
-          events: 'Learning events',
-          stats: 'Learning statistics',
-        },
-        library: { read: 'Read the course library' },
-        process: { spawn: 'Launch processes' },
-        worker: { threads: 'Threads' },
-        native: { addons: 'Native modules' },
-        network: 'Network',
-        notifications: 'System notifications',
-      },
-      networkCaveat:
-        'Network is declared only, not restricted: the extension can reach the network even when isolated.',
       switchFailed: 'Could not change the extension setting',
-      reload: {
-        message: 'The update will apply after the window is reloaded',
-        action: 'Reload window',
-      },
       tabs: {
         label: 'Extension sections',
         installed: 'Installed',
@@ -470,11 +448,6 @@ export const en: typeof ru = {
         'dependency-unmet':
           'Requires the extension “{id}”{range}, which is not loaded: its dependencies are not met',
         'dependency-cycle': 'Extensions depend on each other: {cycle}',
-        locale: {
-          'missing-key':
-            'No translation for "{key}" in locales/en.json: the label is shown as is',
-          'invalid-file': 'Translation file {file} is ignored: {reason}',
-        },
       },
       safeMode: {
         label: 'Safe mode',
@@ -660,10 +633,8 @@ export const en: typeof ru = {
         listLabel: 'Catalog extensions',
         searchLabel: 'Search the catalog',
         searchHint: 'Name, id, description or author',
-        kindsLabel: 'Filter by contribution kind',
         groupsLabel: 'Quick filters',
         tagsLabel: 'Filter by tag',
-        kindsCaption: 'Contribution kinds',
         moreFilters: 'More filters',
         chipCount: '{label}: {n}',
         refresh: 'Refresh catalog',
@@ -723,8 +694,6 @@ export const en: typeof ru = {
         versionChange: 'v{from} → v{to}',
         platforms: 'Platforms',
         size: 'Size',
-        isolation:
-          'The extension will run in isolation: its code and interface are separated from the app.',
         confirmInstall: 'Install',
         confirmUpdate: 'Update',
         cancel: 'Cancel',

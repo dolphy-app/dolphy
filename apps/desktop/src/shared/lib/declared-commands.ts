@@ -2,7 +2,7 @@ import type { ContributionsDto } from '@dolphy-app/engine-contract';
 
 /**
  * Команды расширения по текущим вкладам, в том числе скрытые из палитры
- * (`palette: false`): ровно то, что рамка его панели или виджета вправе вызвать.
+ * (`palette: false`): ровно то, что его панель или виджет вправе вызвать.
  */
 export const declaredCommands = (
   contributions: Readonly<Pick<ContributionsDto, 'commands'>>,

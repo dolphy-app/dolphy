@@ -38,7 +38,7 @@
     "@dolphy-app/extension-catalog": "workspace:*",
     "@dolphy-app/extension-host": "workspace:*",
     "@dolphy-app/extension-install": "workspace:*",
-    "@dolphy-app/extension-ui": "workspace:*",
+    "@dolphy-app/extension-sdk": "workspace:*",
     "@dolphy-app/keybindings": "workspace:*",
     "@electron/fuses": "1.8.0",
     "@fontsource/roboto": "^5.2.10",

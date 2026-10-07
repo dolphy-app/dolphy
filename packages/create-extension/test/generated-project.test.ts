@@ -1,4 +1,4 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { discoverExtensions } from '@dolphy-app/extension-host';
 import { buildExtension, validateExtension } from '@dolphy-app/extension-tools';
@@ -30,10 +30,11 @@ const toolsCli = path.join(
 );
 
 const BUILT_FILES: Record<string, string[]> = {
-  exercise: ['extension.json', 'main.mjs', 'view.mjs'],
-  theme: ['extension.json'],
-  'command-panel': ['extension.json', 'main.mjs', 'panel.mjs'],
-  events: ['extension.json', 'main.mjs', 'panel.mjs'],
+  exercise: ['client.mjs', 'extension.json', 'main.mjs'],
+  theme: ['client.mjs', 'extension.json'],
+  'command-panel': ['client.mjs', 'extension.json', 'main.mjs'],
+  'react-panel': ['client.mjs', 'extension.json', 'main.mjs'],
+  events: ['client.mjs', 'extension.json', 'main.mjs'],
   blank: ['extension.json', 'main.mjs'],
 };
 
@@ -48,10 +49,15 @@ describe.each(TEMPLATE_NAMES)('generated project: %s', (template) => {
       await readFile(path.join(built.dir, 'extension.json'), 'utf8'),
     ) as Record<string, unknown>;
     expect(builtManifest['$schema']).toEqual(expect.any(String));
+    expect(builtManifest['main']).toBe(
+      BUILT_FILES[template]?.includes('main.mjs') ? './main.mjs' : null,
+    );
+    expect(builtManifest['client']).toBe(
+      BUILT_FILES[template]?.includes('client.mjs') ? './client.mjs' : null,
+    );
     await expect(validateExtension(built.dir)).resolves.toEqual({
       ok: true,
       problems: [],
-      warnings: [],
     });
 
     const { extensions, diagnostics } = await discoverExtensions({
@@ -61,8 +67,25 @@ describe.each(TEMPLATE_NAMES)('generated project: %s', (template) => {
     expect(diagnostics).toEqual([]);
     expect(extensions.map((extension) => extension.id)).toEqual([id]);
     if (template === 'exercise') {
-      const view = await readFile(path.join(built.dir, 'view.mjs'), 'utf8');
-      expect(view).toContain(extensions[0]?.exerciseTypes[0]?.element);
+      const client = await readFile(path.join(built.dir, 'client.mjs'), 'utf8');
+      // Vue is the app's own: the bundle reads it from the host, it does not carry it
+      expect(client).toContain('__dolphy');
+      expect(client.length).toBeLessThan(20_000);
+      const main = await readFile(path.join(built.dir, 'main.mjs'), 'utf8');
+      expect(main).not.toContain('__dolphy');
+    }
+    if (template === 'command-panel') {
+      const client = await readFile(path.join(built.dir, 'client.mjs'), 'utf8');
+      // the single-file component: Vue and Vuetify are the host's, the styles go in as a tag
+      expect(client).toContain('__dolphy');
+      expect(client).toContain('data-dolphy-ext');
+      expect(client.length).toBeLessThan(20_000);
+    }
+    if (template === 'react-panel') {
+      const client = await readFile(path.join(built.dir, 'client.mjs'), 'utf8');
+      // React is the extension's own: the bundle carries it
+      expect(client).toContain('createRoot');
+      expect(client.length).toBeGreaterThan(200_000);
     }
 
     // no findings at all: a fresh project is clean for the catalog review
@@ -79,85 +102,5 @@ describe.each(TEMPLATE_NAMES)('generated project: %s', (template) => {
     const { code, output } = await vitest(dir);
     expect(output).toContain('Tests');
     expect(code, output).toBe(0);
-  });
-});
-
-describe('generated project (exercise): type errors', () => {
-  it('after the build tsc accepts the project with id types from extension.json', async () => {
-    const { dir } = await generate('acme-hello');
-    await buildExtension({ root: dir });
-    const ids = await readFile(path.join(dir, '.dolphy/ids.d.ts'), 'utf8');
-    expect(ids).toContain("commands: 'acme-hello.status'");
-    const { code, output } = await tsc(dir);
-    expect(code, output).toBe(0);
-  });
-
-  it('tsc rejects wrong ids and entries that diverge from the manifest', async () => {
-    const { dir } = await generate('acme-hello');
-    await buildExtension({ root: dir });
-    const lines = [
-      "import { defineExtension, inActivate } from '@dolphy-app/extension-sdk';",
-      "import type { ExtensionViews } from '@dolphy-app/extension-sdk';",
-      '',
-      'export const wrongIds = defineExtension({',
-      "  exerciseTypes: { 'acme-hello': inActivate },",
-      "  commands: { 'acme-hello.status': inActivate },",
-      '  activate(ctx) {',
-      "    ctx.commands.register('acme-hello.nope', () => undefined);", // 8
-      "    ctx.settings.get('acme-hello.nope');", // 9
-      "    const goal: string = ctx.settings.get('acme-hello.trim');", // 10
-      "    ctx.events.on('attempt.closed', () => undefined);", // 11
-      "    ctx.registerExerciseType('acme-hello.other', {", // 12
-      '      project: () => ({}),',
-      "      grade: () => ({ outcome: 'passed' }),",
-      '    });',
-      '    return void goal;',
-      '  },',
-      '});',
-      '',
-      'export const missingCommands = defineExtension({', // 20
-      "  exerciseTypes: { 'acme-hello': inActivate },",
-      '});',
-      '',
-      'export const extraCommand = defineExtension({',
-      "  exerciseTypes: { 'acme-hello': inActivate },",
-      "  commands: { 'acme-hello.status': inActivate, 'acme-hello.extra': inActivate },", // 26
-      '});',
-      '',
-      'export const missingExerciseTypes = defineExtension({', // 29
-      "  commands: { 'acme-hello.status': inActivate },",
-      '});',
-      '',
-      'export const extraView = {',
-      "  'acme-hello': 1 as never,",
-      "  'acme-hello.extra': 1 as never,", // 35
-      '} satisfies ExtensionViews;',
-      '',
-      'export const missingView = {} satisfies ExtensionViews;', // 38
-      '',
-    ];
-    await writeFile(path.join(dir, 'src/wrong.ts'), lines.join('\n'));
-
-    const { code, output } = await tsc(dir);
-    expect(code).toBe(1);
-    const diagnostics = output
-      .split('\n')
-      .map((line) =>
-        /^src\/wrong\.ts\((\d+),\d+\): error (TS\d+): (.*)$/.exec(line),
-      )
-      .filter((match) => match !== null)
-      .map(([, line, tsCode, text]) => `${line} ${tsCode} ${text}`);
-    expect(diagnostics, output).toEqual([
-      `8 TS2345 Argument of type '"acme-hello.nope"' is not assignable to parameter of type '"acme-hello.status"'.`,
-      `9 TS2345 Argument of type '"acme-hello.nope"' is not assignable to parameter of type '"acme-hello.trim"'.`,
-      `10 TS2322 Type 'boolean' is not assignable to type 'string'.`,
-      `11 TS2345 Argument of type '"attempt.closed"' is not assignable to parameter of type 'never'.`,
-      `12 TS2345 Argument of type '"acme-hello.other"' is not assignable to parameter of type '"acme-hello"'.`,
-      expect.stringMatching(/^20 TS2345 .*ExtensionDefinition/),
-      expect.stringMatching(/^26 TS2353 .*'acme-hello\.extra'/),
-      expect.stringMatching(/^29 TS2345 .*ExtensionDefinition/),
-      expect.stringMatching(/^35 TS2353 .*'acme-hello\.extra'/),
-      expect.stringMatching(/^38 TS2741 Property '"acme-hello"' is missing/),
-    ]);
   });
 });

@@ -101,7 +101,7 @@ export const ru = {
       subtitle: 'Где лежат курсы и какие папки движок пропускает.',
       state: {
         title: 'Состояние',
-        ready: 'Готова',
+        ready: 'Готово',
         failed: 'Есть ошибки',
       },
       reload: 'Перезагрузить',
@@ -333,6 +333,9 @@ export const ru = {
       version: 'Версия {version}',
       moreValues: 'Ещё {n}',
       fewerValues: 'Свернуть',
+      clientFailed: {
+        title: 'Клиентская часть расширения не загрузилась',
+      },
       tagsLabel: 'Теги',
       tags: {
         learning: 'Обучение',
@@ -362,7 +365,9 @@ export const ru = {
         events: 'События обучения',
         commands: 'Команды',
         panels: 'Панели',
-        widgets: 'Виджеты',
+        injections: 'Вставки в интерфейс',
+        importers: 'Импортёры',
+        exporters: 'Экспортёры',
       },
       origin: {
         bundled: 'Поставка',
@@ -377,10 +382,6 @@ export const ru = {
         'dependencies-unmet': 'Зависимости не выполнены',
       },
       builtIn: 'Встроенное',
-      isolation: {
-        isolated: 'Изолировано',
-        trusted: 'Доверено',
-      },
       enabledLabel: 'Включено',
       notificationsLabel: 'Уведомления',
       schedulesLabel: 'Расписание',
@@ -388,9 +389,6 @@ export const ru = {
         daily: 'Каждый день в {at}',
         hourly: 'Каждый час',
       },
-      trustLabel: 'Доверять (без изоляции)',
-      trustHint:
-        'Доверенное расширение работает без изоляции: его код исполняется с правами приложения, а его элементы — в окне приложения и видят его данные. Доверяйте только тем расширениям, которым верите.',
       dependencies: {
         title: 'Зависимости',
         status: {
@@ -403,27 +401,7 @@ export const ru = {
         },
         hint: 'Зависимости не устанавливаются сами: установите их вручную. Установка расширения не блокируется — оно заработает, когда зависимости будут выполнены.',
       },
-      permissionsTitle: 'Разрешения',
-      permissionsNone: 'не запрашивает',
-      permissions: {
-        library: { read: 'Чтение библиотеки курсов' },
-        learning: {
-          events: 'События обучения',
-          stats: 'Статистика обучения',
-        },
-        process: { spawn: 'Запуск процессов' },
-        worker: { threads: 'Потоки' },
-        native: { addons: 'Нативные модули' },
-        network: 'Сеть',
-        notifications: 'Системные уведомления',
-      },
-      networkCaveat:
-        'Сеть только объявлена, но не ограничивается: расширение может обращаться к ней, даже если изолировано.',
       switchFailed: 'Не удалось изменить настройку расширения',
-      reload: {
-        message: 'Обновление применится после перезагрузки окна',
-        action: 'Перезагрузить окно',
-      },
       tabs: {
         label: 'Разделы расширений',
         installed: 'Установленные',
@@ -470,11 +448,6 @@ export const ru = {
         'dependency-unmet':
           'Требуется расширение «{id}»{range}, но оно не загружено: его зависимости не выполнены',
         'dependency-cycle': 'Расширения зависят друг от друга: {cycle}',
-        locale: {
-          'missing-key':
-            'Нет перевода для «{key}» в locales/en.json: подпись показана как есть',
-          'invalid-file': 'Файл перевода {file} проигнорирован: {reason}',
-        },
       },
       safeMode: {
         label: 'Безопасный режим',
@@ -660,10 +633,8 @@ export const ru = {
         listLabel: 'Расширения из каталога',
         searchLabel: 'Поиск по каталогу',
         searchHint: 'Название, id, описание или автор',
-        kindsLabel: 'Фильтр по виду вклада',
         groupsLabel: 'Быстрые фильтры',
         tagsLabel: 'Фильтр по тегу',
-        kindsCaption: 'Виды вклада',
         moreFilters: 'Ещё фильтры',
         chipCount: '{label}: {n}',
         refresh: 'Обновить каталог',
@@ -722,8 +693,6 @@ export const ru = {
         versionChange: 'v{from} → v{to}',
         platforms: 'Платформы',
         size: 'Размер',
-        isolation:
-          'Расширение будет работать в изоляции: его код и интерфейс отделены от приложения.',
         confirmInstall: 'Установить',
         confirmUpdate: 'Обновить',
         cancel: 'Отмена',

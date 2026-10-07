@@ -45,15 +45,8 @@ const minimal = () => ({
   id: 'acme.quiz',
   version: '1.0.0',
   apiVersion: 1,
-  contributes: {
-    exerciseTypes: [
-      {
-        id: 'acme.quiz',
-        specSchema: { type: 'object' },
-        answerSchema: './schema/answer.json',
-      },
-    ],
-  },
+  main: './main.mjs',
+  client: './client.mjs',
 });
 
 describe('extension.schema.json', () => {
@@ -82,14 +75,17 @@ describe('extension.schema.json', () => {
     expect(validate({ ...minimal(), homepage: 'x' })).toBe(false);
   });
 
-  it('rejects an unknown contribution point', () => {
-    const manifest = minimal();
-    expect(validate(manifest)).toBe(true);
-    expect(
-      validate({
-        ...manifest,
-        contributes: { ...manifest.contributes, x: [] },
-      }),
-    ).toBe(false);
+  it('rejects contributes: contributions are registered in code', () => {
+    expect(validate({ ...minimal(), contributes: {} })).toBe(false);
+  });
+
+  it('accepts a manifest without main and client', () => {
+    const empty = Object.fromEntries(
+      Object.entries(minimal()).filter(
+        ([key]) => key !== 'main' && key !== 'client',
+      ),
+    );
+    expect(validate(empty), ajv.errorsText(validate.errors)).toBe(true);
+    expect(validate({ ...minimal(), main: null, client: null })).toBe(true);
   });
 });

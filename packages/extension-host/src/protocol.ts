@@ -1,17 +1,20 @@
 import type { ExerciseTypeErrorCause } from '@dolphy-app/engine/ports';
 import {
   EXTENSION_COMMAND_LIMITS,
+  EXTENSION_HOOK_NAMES,
   LEARNING_EVENT_NAMES,
 } from '@dolphy-app/extension-api';
 import type {
   ExportInput,
+  ExtensionHookName,
   JsonValue,
   LearningEventName,
   LearningEventPayloads,
+  ServerRegistration,
   SettingValue,
 } from '@dolphy-app/extension-api';
 import { z } from 'zod';
-import type { ResolvedExtension } from './discover.ts';
+import type { ExtensionCandidate } from './discover.ts';
 
 export type ExtRequest =
   | {
@@ -21,7 +24,6 @@ export type ExtRequest =
         type: string;
         exerciseId: string;
         spec: unknown;
-        isolated: boolean;
       };
     }
   | {
@@ -34,7 +36,6 @@ export type ExtRequest =
         answer: unknown;
         timeoutMs: number;
         authorMode: boolean;
-        isolated: boolean;
       };
     }
   | {
@@ -44,7 +45,6 @@ export type ExtRequest =
         type: string;
         exerciseId: string;
         spec: unknown;
-        isolated: boolean;
       };
     }
   | {
@@ -54,20 +54,20 @@ export type ExtRequest =
         policyId: string;
         verdicts: { outcome: 'passed' | 'failed' | 'error'; reason?: string }[];
         gaveUp: boolean;
-        isolated: boolean;
       };
     }
   | DeliverEventRequest
   | FireScheduleRequest
   | InvokeCommandRequest
+  | InvokeRpcRequest
   | RunImporterRequest
-  | RunExporterRequest;
+  | RunExporterRequest
+  | RunHookRequest;
 
 /**
  * Событие обучения расширению. Ответ `{ delivered }`: `false` — обработчика нет
- * (расширение не объявило событие или не подписалось). Лениво активирует
- * расширение; сбой и таймаут обработчика (2 с) — `ok: false`, клиент их только
- * логирует.
+ * (расширение не подписалось через `server.on`). Сбой и таймаут обработчика
+ * (2 с) — `ok: false`, клиент их только логирует.
  */
 export interface DeliverEventRequest {
   id: string;
@@ -76,14 +76,12 @@ export interface DeliverEventRequest {
     extensionId: string;
     name: LearningEventName;
     payload: LearningEventPayloads[LearningEventName];
-    isolated: boolean;
   };
 }
 
 /**
- * Срабатывание расписания (`ctx.schedule.on`). Лениво активирует расширение;
- * ответ `{ delivered }`: `false` — расписание не объявлено или обработчик не
- * подписан. Сбой обработчика — `handler-failed`, превышение 10 с —
+ * Срабатывание расписания (`server.schedule`). Ответ `{ delivered }`: `false` —
+ * расписания нет. Сбой обработчика — `handler-failed`, превышение 10 с —
  * `handler-timeout`; клиент их только учитывает и логирует.
  */
 export interface FireScheduleRequest {
@@ -92,14 +90,13 @@ export interface FireScheduleRequest {
   params: {
     extensionId: string;
     scheduleId: string;
-    isolated: boolean;
   };
 }
 
 /**
- * Вызов команды расширения (`ctx.commands.register`). Лениво активирует
- * расширение; `args` — JSON вызывающего (нет аргументов — ключа нет). Ответ —
- * `CommandOutcome`; неизвестная команда — `unknown-command`, сбой обработчика —
+ * Вызов команды расширения (`server.registerCommand`). `args` — JSON
+ * вызывающего (нет аргументов — ключа нет). Ответ — `CommandOutcome`;
+ * неизвестная команда — `unknown-command`, сбой обработчика —
  * `handler-failed`, превышение 10 с — `handler-timeout`.
  */
 export interface InvokeCommandRequest {
@@ -109,14 +106,51 @@ export interface InvokeCommandRequest {
     extensionId: string;
     commandId: string;
     args?: JsonValue;
-    isolated: boolean;
   };
 }
 
 /**
- * Запуск импортёра (`ctx.importers.register`): файл, который выбрал
+ * Вызов обработчика `server.handle`. `input` — JSON вызывающего (нет входа —
+ * ключа нет). Ответ — результат обработчика, проверенный `contract.output` и
+ * приведённый к JSON; неизвестное имя — `unknown-rpc`, вход не прошёл схему —
+ * `invalid-input`, сбой обработчика — `handler-failed`, превышение
+ * `EXTENSION_RPC_LIMITS.handlerMs` — `handler-timeout`, результат не прошёл
+ * схему или не JSON — `invalid-result`.
+ */
+export interface InvokeRpcRequest {
+  id: string;
+  method: 'invokeRpc';
+  params: {
+    extensionId: string;
+    name: string;
+    input?: unknown;
+  };
+}
+
+/**
+ * Кадр протокола `engine-rpc` одного расширения (`RpcRequest`, `RpcResponse`,
+ * `RpcPush`) внутри канала хоста. Идёт в обе стороны, без ответа: со стороны
+ * хоста — запросы клиента `extension:<id>` к движку, со стороны движка —
+ * ответы и события диспетчера.
+ */
+export interface EngineFrameNotice {
+  method: 'engineFrame';
+  params: { extensionId: string; frame: unknown };
+}
+
+/** Одна из сторон закрыла туннель расширения: другая закрывает свой конец. Без ответа. */
+export interface EngineDetachNotice {
+  method: 'engineDetach';
+  params: { extensionId: string };
+}
+
+/** Туннель кадров `engine-rpc` между клиентом расширения и диспетчером движка. */
+export type EngineTunnelMessage = EngineFrameNotice | EngineDetachNotice;
+
+/**
+ * Запуск импортёра (`server.registerImporter`): файл, который выбрал
  * пользователь, целиком в `text` (UTF-8) либо в `bytes` — по `input`
- * импортёра. Лениво активирует расширение. Ответ — `ImportResult`, уже
+ * импортёра. Ответ — `ImportResult`, уже
  * проверенный `normalizeImportResult`; неизвестный или незарегистрированный
  * импортёр — `unknown-importer`, сбой обработчика — `handler-failed`, срок
  * `EXTENSION_TRANSFER_LIMITS.handlerMs` — `handler-timeout`, неверный
@@ -129,7 +163,6 @@ export interface RunImporterRequest {
     extensionId: string;
     importerId: string;
     name: string;
-    isolated: boolean;
   } & ({ text: string } | { bytes: Uint8Array });
 }
 
@@ -145,7 +178,24 @@ export interface RunExporterRequest {
     extensionId: string;
     exporterId: string;
     input: ExportInput;
-    isolated: boolean;
+  };
+}
+
+/**
+ * Вызов хука `server.before`. `request` — запрос хука (схема
+ * `EXTENSION_HOOKS[name].request`). Ответ — результат обработчика, проверенный
+ * схемой ответа хука (`undefined` у хука без ответа); хук не зарегистрирован —
+ * `unknown-hook`, запрос не прошёл схему — `invalid-input`, сбой обработчика —
+ * `handler-failed`, превышение `EXTENSION_HOOK_LIMITS.timeoutMs` —
+ * `handler-timeout`, ответ не прошёл схему — `invalid-result`.
+ */
+export interface RunHookRequest {
+  id: string;
+  method: 'runHook';
+  params: {
+    extensionId: string;
+    name: ExtensionHookName;
+    request: unknown;
   };
 }
 
@@ -242,14 +292,29 @@ export type HostResponse =
   | { id: string; ok: false; error: HostFailure };
 
 /**
- * Замена набора расширений: движок присылает полный набор (хост сам их не
- * ищет). Ответ `ok: true` приходит, когда новый каталог уже действует;
- * вытеснение прежних активаций идёт после ответа.
+ * Замена набора расширений: движок присылает полный набор кандидатов (хост
+ * сам их не ищет). Хост сразу, параллельно по расширениям, загружает `main`
+ * каждого и вызывает `server`; ответ `ok: true` (`ReplaceExtensionsResult`)
+ * приходит, когда новый каталог уже действует; вытеснение прежних активаций
+ * идёт после ответа.
  */
 export interface ReplaceExtensionsRequest {
   id: string;
   method: 'replaceExtensions';
-  params: { extensions: ResolvedExtension[] };
+  params: { extensions: ExtensionCandidate[] };
+}
+
+/**
+ * Итог регистрации одного расширения: всё или ничего. Ошибка `server` или
+ * срок в 10 с — `ok: false` с текстом причины (движок показывает его как
+ * `load-failed`), вкладов у расширения нет.
+ */
+export type ExtensionRegistrationResult =
+  { ok: true; registration: ServerRegistration } | { ok: false; error: string };
+
+/** Результат `replaceExtensions`: итог регистрации по id каждого присланного расширения. */
+export interface ReplaceExtensionsResult {
+  registrations: Record<string, ExtensionRegistrationResult>;
 }
 
 /** Всё, что движок отправляет хосту расширений. */
@@ -260,8 +325,11 @@ export type ExtFailureCause =
   | Exclude<ExerciseTypeErrorCause, 'host-down' | 'timeout'>
   | 'unknown-policy'
   | 'unknown-command'
+  | 'unknown-rpc'
+  | 'invalid-input'
   | 'unknown-importer'
   | 'unknown-exporter'
+  | 'unknown-hook'
   | 'handler-timeout'
   | 'activation-timeout'
   | 'ipc-size'
@@ -298,20 +366,23 @@ const eventParams = z.strictObject({
   extensionId: z.string(),
   name: z.enum(LEARNING_EVENT_NAMES),
   payload: z.record(z.string(), z.unknown()),
-  isolated: z.boolean(),
 });
 
 const scheduleParams = z.strictObject({
   extensionId: z.string(),
   scheduleId: z.string(),
-  isolated: z.boolean(),
 });
 
 const commandParams = z.strictObject({
   extensionId: z.string(),
   commandId: z.string(),
   args: z.unknown().optional(),
-  isolated: z.boolean(),
+});
+
+const rpcParams = z.strictObject({
+  extensionId: z.string(),
+  name: z.string(),
+  input: z.unknown().optional(),
 });
 
 const bytesField = z.custom<Uint8Array>(
@@ -323,7 +394,6 @@ const importParams = {
   extensionId: z.string(),
   importerId: z.string(),
   name: z.string(),
-  isolated: z.boolean(),
 };
 
 const exportInput = z.discriminatedUnion('scope', [
@@ -340,7 +410,6 @@ const typed = {
   type: z.string(),
   exerciseId: z.string(),
   spec: z.unknown(),
-  isolated: z.boolean(),
 };
 
 export const extRequestSchema = z.discriminatedUnion('method', [
@@ -376,7 +445,6 @@ export const extRequestSchema = z.discriminatedUnion('method', [
         }),
       ),
       gaveUp: z.boolean(),
-      isolated: z.boolean(),
     }),
   }),
   z.strictObject({
@@ -396,6 +464,11 @@ export const extRequestSchema = z.discriminatedUnion('method', [
   }),
   z.strictObject({
     id: z.string(),
+    method: z.literal('invokeRpc'),
+    params: rpcParams,
+  }),
+  z.strictObject({
+    id: z.string(),
     method: z.literal('runImporter'),
     params: z.union([
       z.strictObject({ ...importParams, text: z.string() }),
@@ -409,7 +482,15 @@ export const extRequestSchema = z.discriminatedUnion('method', [
       extensionId: z.string(),
       exporterId: z.string(),
       input: exportInput,
-      isolated: z.boolean(),
+    }),
+  }),
+  z.strictObject({
+    id: z.string(),
+    method: z.literal('runHook'),
+    params: z.strictObject({
+      extensionId: z.string(),
+      name: z.enum(EXTENSION_HOOK_NAMES),
+      request: z.unknown(),
     }),
   }),
 ]);
@@ -554,7 +635,7 @@ export const hostResponseSchema = z.union([
   }),
 ]);
 
-const isResolvedExtension = (value: unknown): value is ResolvedExtension => {
+const isExtensionCandidate = (value: unknown): value is ExtensionCandidate => {
   if (typeof value !== 'object' || value === null) return false;
   const item = value as Record<string, unknown>;
   return (
@@ -565,23 +646,10 @@ const isResolvedExtension = (value: unknown): value is ResolvedExtension => {
     (item.origin === 'bundled' ||
       item.origin === 'user' ||
       item.origin === 'dev') &&
-    Array.isArray(item.permissions) &&
+    (item.mainPath === null || typeof item.mainPath === 'string') &&
+    (item.clientPath === null || typeof item.clientPath === 'string') &&
     Array.isArray(item.dependencies) &&
-    typeof item.messages === 'object' &&
-    item.messages !== null &&
-    Array.isArray(item.warnings) &&
-    Array.isArray(item.exerciseTypes) &&
-    Array.isArray(item.themes) &&
-    Array.isArray(item.markdownRenderers) &&
-    Array.isArray(item.gradePolicies) &&
-    Array.isArray(item.settings) &&
-    Array.isArray(item.events) &&
-    Array.isArray(item.commands) &&
-    Array.isArray(item.panels) &&
-    Array.isArray(item.widgets) &&
-    Array.isArray(item.schedules) &&
-    Array.isArray(item.importers) &&
-    Array.isArray(item.exporters)
+    Array.isArray(item.warnings)
   );
 };
 
@@ -590,24 +658,46 @@ const replaceExtensionsSchema = z.strictObject({
   id: z.string(),
   method: z.literal('replaceExtensions'),
   params: z.strictObject({
-    extensions: z.array(z.custom<ResolvedExtension>(isResolvedExtension)),
+    extensions: z.array(z.custom<ExtensionCandidate>(isExtensionCandidate)),
   }),
 });
+
+/** Кадры туннеля `engine-rpc`: форму кадра проверяет получатель протокола (диспетчер или клиент движка). */
+export const engineTunnelSchema = z.discriminatedUnion('method', [
+  z.strictObject({
+    method: z.literal('engineFrame'),
+    params: z.strictObject({ extensionId: z.string(), frame: z.unknown() }),
+  }),
+  z.strictObject({
+    method: z.literal('engineDetach'),
+    params: z.strictObject({ extensionId: z.string() }),
+  }),
+]);
 
 /** Всё, что хост расширений принимает по каналу. */
 export const extMessageSchema = z.union([
   extRequestSchema,
   replaceExtensionsSchema,
   settingChangedSchema,
+  engineTunnelSchema,
   hostResponseSchema,
 ]);
 
-/** Всё, что ограниченный процесс принимает от хоста (набор расширений ему не шлют). */
-export const childInboundSchema = z.union([
-  extRequestSchema,
-  settingChangedSchema,
-  hostResponseSchema,
-]);
+/** Ответ на `replaceExtensions`: итог по каждому расширению; форму регистрации проверил регистратор хоста. */
+export const replaceExtensionsResultSchema = z.strictObject({
+  registrations: z.record(
+    z.string(),
+    z.union([
+      z.strictObject({
+        ok: z.literal(true),
+        registration: z.custom<ServerRegistration>(
+          (value) => typeof value === 'object' && value !== null,
+        ),
+      }),
+      z.strictObject({ ok: z.literal(false), error: z.string() }),
+    ]),
+  ),
+});
 
 /** Результат правила оценки: целое 1–5 или `null`. */
 export const gradeValueSchema = z.union([z.literal([1, 2, 3, 4, 5]), z.null()]);
@@ -636,7 +726,7 @@ export const gradeResultSchema = z.discriminatedUnion('outcome', [
   }),
 ]);
 
-const isJsonValue = (value: unknown, depth = 0): boolean => {
+export const isJsonValue = (value: unknown, depth = 0): boolean => {
   if (depth > 64) return false;
   if (value === null || typeof value === 'string') return true;
   if (typeof value === 'boolean') return true;

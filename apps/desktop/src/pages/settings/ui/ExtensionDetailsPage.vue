@@ -6,7 +6,7 @@ import type {
   CatalogVersionDto,
   ExtensionInfoDto,
 } from '@dolphy-app/engine-contract';
-import { useContributions, useEngine } from '@/shared/api/engine';
+import { useEngine } from '@/shared/api/engine';
 import { ROUTE } from '@/shared/config/routes.ts';
 import { useExtensionText } from '@/shared/lib/extension-text.ts';
 import { targetFromEntry, targetFromUpdate } from '../lib/catalog.ts';
@@ -15,13 +15,12 @@ import { formatBytes } from '../lib/format.ts';
 import { useCatalogSource } from '../model/catalog-source.ts';
 import { useExtensionDetails } from '../model/extension-details.ts';
 import { useInstallContext } from '../model/install.ts';
-import { useReloadRequired } from '../model/reload-required.ts';
 import DeprecatedChip from './DeprecatedChip.vue';
+import ExtensionClientFailure from './ExtensionClientFailure.vue';
 import ExtensionContributions from './ExtensionContributions.vue';
 import ExtensionDeprecation from './ExtensionDeprecation.vue';
 import ExtensionHeading from './ExtensionHeading.vue';
 import ExtensionDependencies from './ExtensionDependencies.vue';
-import ExtensionPermissions from './ExtensionPermissions.vue';
 import ExtensionRemoveDialog from './ExtensionRemoveDialog.vue';
 import ExtensionTags from './ExtensionTags.vue';
 import ReadmeView from './ReadmeView.vue';
@@ -59,11 +58,6 @@ const fromOtherCatalog = computed(() =>
   ),
 );
 
-const reloadRequired = useReloadRequired(useContributions());
-const reloadWindow = () => {
-  location.reload();
-};
-
 const name = computed(() => {
   const view = details.value;
   if (view === null) return id.value;
@@ -74,12 +68,9 @@ const name = computed(() => {
 const description = computed(() => {
   const view = details.value;
   if (view === null) return null;
-  if (view.info !== null) {
-    return view.info.description === null
-      ? null
-      : extensionText.withTables(view.info.description, view.info.messages);
-  }
-  return view.entry?.description ?? null;
+  return view.info === null
+    ? (view.entry?.description ?? null)
+    : view.info.description;
 });
 
 const docsVersion = computed(() =>
@@ -158,23 +149,6 @@ const publishedDate = (value: string) => d(new Date(value), 'shortDate');
     >
       {{ t('settings.extensions.details.back') }}
     </v-btn>
-
-    <v-alert
-      v-if="reloadRequired"
-      type="info"
-      variant="tonal"
-      class="mb-6"
-      data-testid="extensions-reload"
-    >
-      <div class="d-flex align-center ga-3">
-        <span class="flex-grow-1">{{
-          t('settings.extensions.reload.message')
-        }}</span>
-        <v-btn variant="text" prepend-icon="mdi-reload" @click="reloadWindow">
-          {{ t('settings.extensions.reload.action') }}
-        </v-btn>
-      </div>
-    </v-alert>
 
     <div v-if="state === 'loading'" role="status" aria-busy="true">
       <span class="visually-hidden">{{
@@ -350,17 +324,15 @@ const publishedDate = (value: string) => d(new Date(value), 'shortDate');
           }}
         </v-alert>
 
-        <ExtensionPermissions
-          v-if="details.permissions !== null"
-          :permissions="details.permissions"
-        />
         <ExtensionDependencies :rows="details.dependencies" />
-        <ExtensionContributions
-          :contributes="details.contributes"
-          :titles="details.titles"
-          :name="name"
-          :messages="details.messages"
-        />
+        <template v-if="details.info !== null">
+          <ExtensionClientFailure :extension-id="details.info.id" />
+          <ExtensionContributions
+            :extension-id="details.info.id"
+            :contributes="details.info.contributes"
+            :name="name"
+          />
+        </template>
 
         <p v-if="details.sourceUrl !== null" class="text-body-medium mt-3">
           <a

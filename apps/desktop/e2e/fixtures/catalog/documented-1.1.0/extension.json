@@ -2,22 +2,8 @@
   "id": "acme.documented",
   "version": "1.1.0",
   "apiVersion": 1,
+  "client": "./client.mjs",
   "name": "Documented",
   "description": "Тема с README и журналом изменений",
-  "author": "acme",
-  "contributes": {
-    "themes": [
-      {
-        "id": "acme.documented",
-        "label": "Документ",
-        "dark": false,
-        "colors": {
-          "background": "#F5F7FF",
-          "surface": "#FFFFFF",
-          "primary": "#1D4ED8",
-          "on-primary": "#FFFFFF"
-        }
-      }
-    ]
-  }
+  "author": "acme"
 }

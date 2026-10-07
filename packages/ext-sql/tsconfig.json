@@ -9,7 +9,7 @@
     "lib": ["ES2023", "DOM"],
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
   },
-  "include": ["src", ".dolphy/ids.d.ts"],
+  "include": ["src"],
   "references": [
     {
       "path": "../extension-api"

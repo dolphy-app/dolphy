@@ -297,9 +297,9 @@ importers:
       '@dolphy-app/extension-install':
         specifier: workspace:*
         version: link:../../packages/extension-install
-      '@dolphy-app/extension-ui':
+      '@dolphy-app/extension-sdk':
         specifier: workspace:*
-        version: link:../../packages/extension-ui
+        version: link:../../packages/extension-sdk
       '@dolphy-app/keybindings':
         specifier: workspace:*
         version: link:../../packages/keybindings
@@ -317,7 +317,7 @@ importers:
         version: 1.4.7(pinia@4.0.3(@vue/devtools-api@8.2.1)(typescript@6.0.3)(vue@3.5.43(typescript@6.0.3)))(vue@3.5.43(typescript@6.0.3))
       '@storybook/addon-docs':
         specifier: ^10.6.1
-        version: 10.6.1(@types/react@19.3.0)(storybook@10.6.1(@types/react@19.3.0)(prettier@3.9.9)(react@19.3.0))
+        version: 10.6.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(storybook@10.6.1(@types/react@19.3.0)(prettier@3.9.9)(react@19.3.0))
       '@storybook/vue3-vite':
         specifier: ^10.6.1
         version: 10.6.1(storybook@10.6.1(@types/react@19.3.0)(prettier@3.9.9)(react@19.3.0))(typescript@6.0.3)(vite@8.3.1(@types/node@22.20.4)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))(vue@3.5.43(typescript@6.0.3))
@@ -543,10 +543,10 @@ importers:
         version: link:../extension-tools
       '@storybook/addon-docs':
         specifier: ^10.6.1
-        version: 10.6.1(@types/react@19.3.0)(storybook@10.6.1(@types/react@19.3.0)(prettier@3.9.9)(react@19.3.0))
-      '@storybook/html-vite':
+        version: 10.6.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(storybook@10.6.1(@types/react@19.3.0)(prettier@3.9.9)(react@19.3.0))
+      '@storybook/vue3-vite':
         specifier: ^10.6.1
-        version: 10.6.1(storybook@10.6.1(@types/react@19.3.0)(prettier@3.9.9)(react@19.3.0))(vite@8.3.1(@types/node@22.20.4)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
+        version: 10.6.1(storybook@10.6.1(@types/react@19.3.0)(prettier@3.9.9)(react@19.3.0))(typescript@7.0.2)(vite@8.3.1(@types/node@22.20.4)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))(vue@3.5.43(typescript@7.0.2))
       '@types/node':
         specifier: ^22.20.4
         version: 22.20.4
@@ -605,6 +605,9 @@ importers:
       typescript:
         specifier: 7.0.2
         version: 7.0.2
+      vue:
+        specifier: ^3.5.35
+        version: 3.5.43(typescript@7.0.2)
 
   packages/ext-math:
     dependencies:
@@ -630,6 +633,9 @@ importers:
       typescript:
         specifier: 7.0.2
         version: 7.0.2
+      vue:
+        specifier: ^3.5.35
+        version: 3.5.43(typescript@7.0.2)
 
   packages/ext-sql:
     dependencies:
@@ -667,8 +673,18 @@ importers:
       typescript:
         specifier: 7.0.2
         version: 7.0.2
+      vue:
+        specifier: ^3.5.35
+        version: 3.5.43(typescript@7.0.2)
+      vuetify:
+        specifier: ^4.0.1
+        version: 4.2.2(typescript@7.0.2)(vite-plugin-vuetify@2.1.3)(vue-i18n@11.4.12(vue@3.5.43(typescript@7.0.2)))(vue@3.5.43(typescript@7.0.2))
 
   packages/extension-api:
+    dependencies:
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
     devDependencies:
       '@types/node':
         specifier: ^22.20.4
@@ -701,6 +717,9 @@ importers:
       '@dolphy-app/engine-contract':
         specifier: workspace:*
         version: link:../engine-contract
+      '@dolphy-app/engine-rpc':
+        specifier: workspace:*
+        version: link:../engine-rpc
       '@dolphy-app/extension-api':
         specifier: workspace:*
         version: link:../extension-api
@@ -748,6 +767,9 @@ importers:
 
   packages/extension-sdk:
     dependencies:
+      '@dolphy-app/engine-contract':
+        specifier: workspace:*
+        version: link:../engine-contract
       '@dolphy-app/extension-api':
         specifier: workspace:*
         version: link:../extension-api
@@ -758,12 +780,30 @@ importers:
       '@types/node':
         specifier: ^22.20.4
         version: 22.20.4
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: ^19.3.0
+        version: 19.3.0(@types/react@19.3.0)
       happy-dom:
         specifier: ^20.14.5
         version: 20.14.5
+      react:
+        specifier: ^19.3.0
+        version: 19.3.0
+      react-dom:
+        specifier: ^19.3.0
+        version: 19.3.0(react@19.3.0)
       typescript:
         specifier: 7.0.2
         version: 7.0.2
+      vue:
+        specifier: ^3.5.35
+        version: 3.5.43(typescript@7.0.2)
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
 
   packages/extension-tools:
     dependencies:
@@ -776,6 +816,9 @@ importers:
       '@dolphy-app/extension-host':
         specifier: workspace:*
         version: link:../extension-host
+      '@vitejs/plugin-vue':
+        specifier: ^6.0.7
+        version: 6.0.9(vite@8.3.1(@types/node@22.20.4)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))(vue@3.5.43(typescript@7.0.2))
       magic-string:
         specifier: ^0.30.21
         version: 0.30.21
@@ -798,21 +841,21 @@ importers:
       ajv:
         specifier: ^8
         version: 8.20.0
-      typescript:
-        specifier: 7.0.2
-        version: 7.0.2
-
-  packages/extension-ui:
-    devDependencies:
-      '@types/node':
-        specifier: ^22.20.4
-        version: 22.20.4
       happy-dom:
         specifier: ^20.14.5
         version: 20.14.5
+      react:
+        specifier: ^19.3.0
+        version: 19.3.0
+      react-dom:
+        specifier: ^19.3.0
+        version: 19.3.0(react@19.3.0)
       typescript:
         specifier: 7.0.2
         version: 7.0.2
+      vue:
+        specifier: ^3.5.35
+        version: 3.5.43(typescript@7.0.2)
 
   packages/keybindings:
     devDependencies:
@@ -1857,17 +1900,6 @@ packages:
   '@storybook/global@5.0.0':
     resolution: {integrity: sha512-FcOqPAXACP0I3oJ/ws6/rrPT9WGhu915Cg8D02a9YxLo0DE9zI+a9A5gRGvmQ09fiWPukqI8ZAEoQEdWUKMQdQ==}
 
-  '@storybook/html-vite@10.6.1':
-    resolution: {integrity: sha512-fcAzae67pxegT0IZRM86KKridQ35tlvTDhpSEAb2KtsFRNgJI3FDMwtBklGTf/UDsNJRFJW3YQdiL21m3iUQ8g==}
-    peerDependencies:
-      storybook: ^10.6.1
-      vite: ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0
-
-  '@storybook/html@10.6.1':
-    resolution: {integrity: sha512-J6sgUP2dd5ufZiaahzr2jaIf1Jy5S0nGYFja1Aju2b+552mp2fKBpO4DkbL1G9F9dDhtOIvQn+Q7cswZTfhGoA==}
-    peerDependencies:
-      storybook: ^10.6.1
-
   '@storybook/icons@2.1.0':
     resolution: {integrity: sha512-Fxh9vYpX9bQqFeHRiY8h2ApeRGDzRSMLwJwNZ/AIRqnyOKHxRKL+yFe+ctEkVJmuptRE9u1Hrn8ZZNHyfDKKNg==}
     peerDependencies:
@@ -1987,6 +2019,11 @@ packages:
 
   '@types/normalize-package-data@2.4.4':
     resolution: {integrity: sha512-37i+OaWTh9qeK4LSHPsyRC7NahnGotNuZvjLSgcPzblpHB3rrCJxAOgI5gCdKm7coonsaX1Of0ILiTcnZjbfxA==}
+
+  '@types/react-dom@19.3.0':
+    resolution: {integrity: sha512-ZI7bU42mZXXKHn/qNLEw2IrbiINU7X5+vfgdixBHkCNpYWXjKgfQ/P+uyGb5CjOLB9UcnTeg3rylQtV2hym44Q==}
+    peerDependencies:
+      '@types/react': ^19.3.0
 
   '@types/react@19.3.0':
     resolution: {integrity: sha512-N0rFCuH9YoxG9/m61l9MfpJKfmLOVU0em7ipIz6TRgSSkvReLB9vL85GB+yr8Bs5leqpvg96JSwF4ZS1s4viQg==}
@@ -6726,11 +6763,11 @@ snapshots:
 
   '@sindresorhus/merge-streams@4.0.0': {}
 
-  '@storybook/addon-docs@10.6.1(@types/react@19.3.0)(storybook@10.6.1(@types/react@19.3.0)(prettier@3.9.9)(react@19.3.0))':
+  '@storybook/addon-docs@10.6.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(storybook@10.6.1(@types/react@19.3.0)(prettier@3.9.9)(react@19.3.0))':
     dependencies:
       '@mdx-js/react': 3.1.1(@types/react@19.3.0)(react@19.3.0)
       '@storybook/icons': 2.1.0(react@19.3.0)
-      '@storybook/react-dom-shim': 10.6.1(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(storybook@10.6.1(@types/react@19.3.0)(prettier@3.9.9)(react@19.3.0))
+      '@storybook/react-dom-shim': 10.6.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(storybook@10.6.1(@types/react@19.3.0)(prettier@3.9.9)(react@19.3.0))
       react: 19.3.0
       react-dom: 19.3.0(react@19.3.0)
       storybook: 10.6.1(@types/react@19.3.0)(prettier@3.9.9)(react@19.3.0)
@@ -6749,30 +6786,18 @@ snapshots:
 
   '@storybook/global@5.0.0': {}
 
-  '@storybook/html-vite@10.6.1(storybook@10.6.1(@types/react@19.3.0)(prettier@3.9.9)(react@19.3.0))(vite@8.3.1(@types/node@22.20.4)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))':
-    dependencies:
-      '@storybook/builder-vite': 10.6.1(storybook@10.6.1(@types/react@19.3.0)(prettier@3.9.9)(react@19.3.0))(vite@8.3.1(@types/node@22.20.4)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
-      '@storybook/html': 10.6.1(storybook@10.6.1(@types/react@19.3.0)(prettier@3.9.9)(react@19.3.0))
-      storybook: 10.6.1(@types/react@19.3.0)(prettier@3.9.9)(react@19.3.0)
-      vite: 8.3.1(@types/node@22.20.4)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
-
-  '@storybook/html@10.6.1(storybook@10.6.1(@types/react@19.3.0)(prettier@3.9.9)(react@19.3.0))':
-    dependencies:
-      '@storybook/global': 5.0.0
-      storybook: 10.6.1(@types/react@19.3.0)(prettier@3.9.9)(react@19.3.0)
-      ts-dedent: 2.3.0
-
   '@storybook/icons@2.1.0(react@19.3.0)':
     dependencies:
       react: 19.3.0
 
-  '@storybook/react-dom-shim@10.6.1(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(storybook@10.6.1(@types/react@19.3.0)(prettier@3.9.9)(react@19.3.0))':
+  '@storybook/react-dom-shim@10.6.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(storybook@10.6.1(@types/react@19.3.0)(prettier@3.9.9)(react@19.3.0))':
     dependencies:
       react: 19.3.0
       react-dom: 19.3.0(react@19.3.0)
       storybook: 10.6.1(@types/react@19.3.0)(prettier@3.9.9)(react@19.3.0)
     optionalDependencies:
       '@types/react': 19.3.0
+      '@types/react-dom': 19.3.0(@types/react@19.3.0)
 
   '@storybook/vue3-vite@10.6.1(storybook@10.6.1(@types/react@19.3.0)(prettier@3.9.9)(react@19.3.0))(typescript@6.0.3)(vite@8.3.1(@types/node@22.20.4)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))(vue@3.5.43(typescript@6.0.3))':
     dependencies:
@@ -6783,6 +6808,18 @@ snapshots:
       vite: 8.3.1(@types/node@22.20.4)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
     optionalDependencies:
       typescript: 6.0.3
+    transitivePeerDependencies:
+      - vue
+
+  '@storybook/vue3-vite@10.6.1(storybook@10.6.1(@types/react@19.3.0)(prettier@3.9.9)(react@19.3.0))(typescript@7.0.2)(vite@8.3.1(@types/node@22.20.4)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))(vue@3.5.43(typescript@7.0.2))':
+    dependencies:
+      '@storybook/builder-vite': 10.6.1(storybook@10.6.1(@types/react@19.3.0)(prettier@3.9.9)(react@19.3.0))(vite@8.3.1(@types/node@22.20.4)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
+      '@storybook/vue3': 10.6.1(storybook@10.6.1(@types/react@19.3.0)(prettier@3.9.9)(react@19.3.0))(typescript@7.0.2)(vue@3.5.43(typescript@7.0.2))
+      magic-string: 1.4.2
+      storybook: 10.6.1(@types/react@19.3.0)(prettier@3.9.9)(react@19.3.0)
+      vite: 8.3.1(@types/node@22.20.4)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
+    optionalDependencies:
+      typescript: 7.0.2
     transitivePeerDependencies:
       - vue
 
@@ -6799,6 +6836,20 @@ snapshots:
       vue-docgen-api: 4.79.2(vue@3.5.43(typescript@6.0.3))
     optionalDependencies:
       typescript: 6.0.3
+
+  '@storybook/vue3@10.6.1(storybook@10.6.1(@types/react@19.3.0)(prettier@3.9.9)(react@19.3.0))(typescript@7.0.2)(vue@3.5.43(typescript@7.0.2))':
+    dependencies:
+      '@storybook/global': 5.0.0
+      '@vue/compiler-dom': 3.5.43
+      '@vue/language-core': 3.3.11
+      storybook: 10.6.1(@types/react@19.3.0)(prettier@3.9.9)(react@19.3.0)
+      type-fest: 5.10.0
+      vue: 3.5.43(typescript@7.0.2)
+      vue-component-meta: 3.3.12(typescript@7.0.2)
+      vue-component-type-helpers: 3.3.12
+      vue-docgen-api: 4.79.2(vue@3.5.43(typescript@7.0.2))
+    optionalDependencies:
+      typescript: 7.0.2
 
   '@szmarczak/http-timer@4.0.6':
     dependencies:
@@ -6895,6 +6946,10 @@ snapshots:
       undici-types: 7.24.6
 
   '@types/normalize-package-data@2.4.4': {}
+
+  '@types/react-dom@19.3.0(@types/react@19.3.0)':
+    dependencies:
+      '@types/react': 19.3.0
 
   '@types/react@19.3.0':
     dependencies:
@@ -7069,6 +7124,12 @@ snapshots:
       vite: 8.3.1(@types/node@22.20.4)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
       vue: 3.5.43(typescript@6.0.3)
 
+  '@vitejs/plugin-vue@6.0.9(vite@8.3.1(@types/node@22.20.4)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))(vue@3.5.43(typescript@7.0.2))':
+    dependencies:
+      '@rolldown/pluginutils': 1.0.1
+      vite: 8.3.1(@types/node@22.20.4)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
+      vue: 3.5.43(typescript@7.0.2)
+
   '@vitest/coverage-v8@5.0.2(vitest@5.0.2)':
     dependencies:
       '@bcoe/v8-coverage': 1.0.2
@@ -7133,6 +7194,14 @@ snapshots:
       vscode-uri: 3.2.0
     optionalDependencies:
       typescript: 6.0.3
+
+  '@volar/typescript@2.4.28(typescript@7.0.2)':
+    dependencies:
+      '@volar/language-core': 2.4.28
+      path-browserify: 1.0.1
+      vscode-uri: 3.2.0
+    optionalDependencies:
+      typescript: 7.0.2
 
   '@vue-flow/core@1.48.2(vue@3.5.43(typescript@6.0.3))':
     dependencies:
@@ -10401,6 +10470,14 @@ snapshots:
     optionalDependencies:
       typescript: 6.0.3
 
+  vue-component-meta@3.3.12(typescript@7.0.2):
+    dependencies:
+      '@volar/typescript': 2.4.28(typescript@7.0.2)
+      '@vue/language-core': 3.3.12
+      path-browserify: 1.0.1
+    optionalDependencies:
+      typescript: 7.0.2
+
   vue-component-type-helpers@3.3.12: {}
 
   vue-demi@0.14.10(vue@3.5.43(typescript@6.0.3)):
@@ -10422,6 +10499,22 @@ snapshots:
       ts-map: 1.0.3
       vue: 3.5.43(typescript@6.0.3)
       vue-inbrowser-compiler-independent-utils: 4.71.1(vue@3.5.43(typescript@6.0.3))
+
+  vue-docgen-api@4.79.2(vue@3.5.43(typescript@7.0.2)):
+    dependencies:
+      '@babel/parser': 7.29.9
+      '@babel/types': 7.29.8
+      '@vue/compiler-dom': 3.5.43
+      '@vue/compiler-sfc': 3.5.43
+      ast-types: 0.16.3
+      esm-resolve: 1.0.11
+      hash-sum: 2.0.0
+      lru-cache: 8.0.5
+      pug: 3.0.4
+      recast: 0.23.21
+      ts-map: 1.0.3
+      vue: 3.5.43(typescript@7.0.2)
+      vue-inbrowser-compiler-independent-utils: 4.71.1(vue@3.5.43(typescript@7.0.2))
 
   vue-eslint-parser@10.4.1(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0):
     dependencies:
@@ -10455,6 +10548,10 @@ snapshots:
   vue-inbrowser-compiler-independent-utils@4.71.1(vue@3.5.43(typescript@6.0.3)):
     dependencies:
       vue: 3.5.43(typescript@6.0.3)
+
+  vue-inbrowser-compiler-independent-utils@4.71.1(vue@3.5.43(typescript@7.0.2)):
+    dependencies:
+      vue: 3.5.43(typescript@7.0.2)
 
   vue-router@5.3.1(@pinia/colada@1.4.7(pinia@4.0.3(@vue/devtools-api@8.2.1)(typescript@6.0.3)(vue@3.5.43(typescript@6.0.3)))(vue@3.5.43(typescript@6.0.3)))(@vue/compiler-sfc@3.5.43)(esbuild@0.28.2)(pinia@4.0.3(@vue/devtools-api@8.2.1)(typescript@6.0.3)(vue@3.5.43(typescript@6.0.3)))(rolldown@1.2.11)(vite@8.3.1(@types/node@22.20.4)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))(vue@3.5.43(typescript@6.0.3)):
     dependencies:

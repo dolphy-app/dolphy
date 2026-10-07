@@ -5,7 +5,7 @@
   "description": "The dolphy.choice extension: multiple-choice exercises",
   "type": "module",
   "scripts": {
-    "typecheck": "dolphy-ext types && tsc -b tsconfig.json tsconfig.test.json tsconfig.stories.json",
+    "typecheck": "tsc -b tsconfig.json tsconfig.test.json tsconfig.stories.json",
     "test": "vitest run",
     "build": "dolphy-ext build",
     "storybook": "storybook dev -p 6006",
@@ -18,7 +18,7 @@
   "devDependencies": {
     "@dolphy-app/extension-tools": "workspace:*",
     "@storybook/addon-docs": "^10.6.1",
-    "@storybook/html-vite": "^10.6.1",
+    "@storybook/vue3-vite": "^10.6.1",
     "@types/node": "^22.20.4",
     "happy-dom": "^20.14.5",
     "storybook": "^10.6.1",

@@ -8,6 +8,8 @@ import {
   createManifest,
   createRangeResolver,
   deriveDependencies,
+  derivePeerDependencies,
+  derivePeerDependenciesMeta,
   isValidVersion,
   packageOfSpecifier,
   renderReadme,
@@ -45,27 +47,109 @@ describe('руководство пакета SDK', () => {
   });
 });
 
+describe('derivePeerDependencies', () => {
+  it('диапазон peer берётся из peerDependencies исходного пакета', () => {
+    const peers = derivePeerDependencies({
+      spec: specOf('extension-sdk'),
+      source: {
+        peerDependencies: { vue: '^3.5', react: '^19', 'react-dom': '^19' },
+        devDependencies: { vue: '^3.5.35', react: '^19.3.0' },
+      },
+    });
+    assert.deepEqual(peers, { vue: '^3.5', react: '^19', 'react-dom': '^19' });
+  });
+
+  it('peer без объявления в исходном пакете — ошибка', () => {
+    assert.throws(
+      () =>
+        derivePeerDependencies({ spec: specOf('extension-sdk'), source: {} }),
+      /peer 'vue'/,
+    );
+  });
+
+  it('пакет без peers не получает peerDependencies', () => {
+    assert.deepEqual(
+      derivePeerDependencies({ spec: specOf('extension-api'), source: {} }),
+      {},
+    );
+  });
+
+  it('peer не попадает в dependencies', () => {
+    const dependencies = deriveDependencies({
+      spec: specOf('extension-sdk'),
+      imports: ['vue', 'react', 'react-dom/client', 'ajv'],
+      resolveRange: (name) => (name === 'ajv' ? '^8' : null),
+      version: '1.2.3',
+    });
+    assert.deepEqual(dependencies, { ajv: '^8' });
+  });
+
+  it('необязательность peer берётся из peerDependenciesMeta исходного пакета', () => {
+    const meta = derivePeerDependenciesMeta({
+      spec: specOf('extension-sdk'),
+      source: {
+        peerDependenciesMeta: {
+          react: { optional: true },
+          'not-a-peer': { optional: true },
+        },
+      },
+    });
+    assert.deepEqual(meta, { react: { optional: true } });
+    assert.deepEqual(
+      derivePeerDependenciesMeta({ spec: specOf('extension-api'), source: {} }),
+      {},
+    );
+  });
+});
+
 describe('createManifest', () => {
   it('пакет с типами: exports с types/default и верхний types', () => {
     const manifest = manifestOf('extension-sdk');
     assert.deepEqual(manifest.exports, {
       '.': { types: './dist/index.d.ts', default: './dist/index.js' },
-      './runtime': {
-        types: './dist/runtime.d.ts',
-        default: './dist/runtime.js',
+      './client': {
+        types: './dist/client.d.ts',
+        default: './dist/client.js',
       },
+      './rpc': { types: './dist/rpc.d.ts', default: './dist/rpc.js' },
       './testing': {
         types: './dist/testing.d.ts',
         default: './dist/testing.js',
       },
+      './react': { types: './dist/react.d.ts', default: './dist/react.js' },
     });
     assert.equal(manifest.types, './dist/index.d.ts');
     assert.equal(manifest.bin, undefined);
   });
 
-  it('extension-api открывает схему манифеста подпутём на dist/extension.schema.json', () => {
+  it('SDK объявляет vue, react и react-dom peer-зависимостями, react необязательны; остальные пакеты peer не пишут', () => {
+    const manifest = manifestOf('extension-sdk', {
+      peerDependencies: { vue: '^3.5', react: '^19', 'react-dom': '^19' },
+      peerDependenciesMeta: {
+        react: { optional: true },
+        'react-dom': { optional: true },
+      },
+    });
+    assert.deepEqual(manifest.peerDependencies, {
+      vue: '^3.5',
+      react: '^19',
+      'react-dom': '^19',
+    });
+    assert.deepEqual(manifest.peerDependenciesMeta, {
+      react: { optional: true },
+      'react-dom': { optional: true },
+    });
+    assert.equal(manifestOf('extension-api').peerDependencies, undefined);
+    assert.equal(manifestOf('extension-api').peerDependenciesMeta, undefined);
+  });
+
+  it('extension-api открывает hook-schemas и схему манифеста подпутём на dist/extension.schema.json', () => {
     assert.deepEqual(manifestOf('extension-api').exports, {
       '.': { types: './dist/index.d.ts', default: './dist/index.js' },
+      './hook-schemas': {
+        types: './dist/hook-schemas.d.ts',
+        default: './dist/hook-schemas.js',
+      },
       './extension.schema.json': './dist/extension.schema.json',
     });
   });

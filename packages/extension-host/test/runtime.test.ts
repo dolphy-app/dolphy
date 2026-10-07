@@ -1,9 +1,9 @@
 import { fileURLToPath } from 'node:url';
 import { ExerciseTypeError } from '@dolphy-app/engine/ports';
-import type { ExtensionModule } from '@dolphy-app/extension-api';
+import type { ServerEntry } from '@dolphy-app/extension-api';
 import { describe, expect, it, vi } from 'vitest';
 import { discoverExtensions } from '../src/discover.ts';
-import type { ResolvedExtension } from '../src/discover.ts';
+import type { ExtensionCandidate } from '../src/discover.ts';
 import {
   createLocalExerciseTypes,
   createLocalExtensionHost,
@@ -14,7 +14,7 @@ const fixtures = fileURLToPath(
   new URL('./fixtures/extensions', import.meta.url),
 );
 
-const loadFixtures = async (): Promise<ResolvedExtension[]> =>
+const loadFixtures = async (): Promise<ExtensionCandidate[]> =>
   (
     await discoverExtensions({
       roots: [{ dir: fixtures, origin: 'bundled' }],
@@ -30,135 +30,129 @@ const rejection = async (promise: Promise<unknown>): Promise<unknown> =>
     (error: unknown) => error,
   );
 
-describe('createExtensionRuntime (через local)', () => {
-  it('без запросов расширение не активируется, при нескольких — ровно один раз', async () => {
-    const extensions = await loadFixtures();
-    const activate = vi.fn(
-      (ctx: Parameters<ExtensionModule['activate']>[0]) => {
-        ctx.registerExerciseType('acme.echo', {
-          project: () => 1,
-          grade: () => ({ outcome: 'passed' }),
-        });
-      },
-    );
-    const types = createLocalExerciseTypes({
-      extensions,
-      library: nullLibrary,
-      logger: createLogger(),
-      modules: { 'acme.echo': { activate } },
-    });
-    expect(activate).not.toHaveBeenCalled();
-    const request = { type: 'acme.echo', exerciseId: 'e', spec: {} };
-    await Promise.all([types.project(request), types.project(request)]);
-    await types.project(request);
-    expect(activate).toHaveBeenCalledTimes(1);
-    await types.close();
-  });
+const echoSchemas = {
+  specSchema: { type: 'object' },
+  answerSchema: { type: 'string' },
+};
 
-  it('отказ активации запоминается и не повторяется', async () => {
-    const extensions = await loadFixtures();
-    const activate = vi.fn(() => {
-      throw new Error('boom');
-    });
-    const types = createLocalExerciseTypes({
-      extensions,
-      library: nullLibrary,
-      logger: createLogger(),
-      modules: { 'acme.echo': { activate } },
-    });
-    const request = { type: 'acme.echo', exerciseId: 'e', spec: {} };
-    for (let i = 0; i < 2; i++) {
-      const error = await rejection(types.project(request));
-      expect(error).toBeInstanceOf(ExerciseTypeError);
-      expect(error).toMatchObject({
-        cause: 'activation-failed',
-        message: 'boom',
+/** Хост из фикстур; `server` каждого расширения из `servers` подменяет его `main.mjs`. */
+const openHost = async (servers: Record<string, ServerEntry> = {}) => {
+  const logger = createLogger();
+  const host = await createLocalExtensionHost({
+    extensions: await loadFixtures(),
+    library: nullLibrary,
+    logger,
+    modules: Object.fromEntries(
+      Object.entries(servers).map(([id, server]) => [id, { server }]),
+    ),
+  });
+  return { host, logger };
+};
+
+const echo = { type: 'acme.echo', exerciseId: 'e', spec: {} };
+
+describe('виды заданий (через local)', () => {
+  it('server вызывается один раз при создании хоста, до первого запроса, и не повторяется на вызовах', async () => {
+    const server = vi.fn<ServerEntry>((s) => {
+      s.registerExerciseType({
+        id: 'acme.echo',
+        ...echoSchemas,
+        project: () => 1,
+        grade: () => ({ outcome: 'passed' }),
       });
-    }
-    expect(activate).toHaveBeenCalledTimes(1);
-    await types.close();
+    });
+    const { host } = await openHost({ 'acme.echo': server });
+    expect(server).toHaveBeenCalledTimes(1);
+    await Promise.all([
+      host.exerciseTypes.project(echo),
+      host.exerciseTypes.project(echo),
+    ]);
+    await host.exerciseTypes.project(echo);
+    expect(server).toHaveBeenCalledTimes(1);
+    await host.close();
   });
 
-  it('registerExerciseType с необъявленным видом бросает', async () => {
-    const extensions = await loadFixtures();
-    const thrown: unknown[] = [];
-    const types = createLocalExerciseTypes({
-      extensions,
-      library: nullLibrary,
-      logger: createLogger(),
-      modules: {
-        'acme.echo': {
-          activate(ctx) {
-            try {
-              ctx.registerExerciseType('acme.echo.other', {
-                project: () => 1,
-                grade: () => ({ outcome: 'passed' }),
-              });
-            } catch (error) {
-              thrown.push(error);
-            }
-          },
-        },
+  it('server бросает: у расширения нет вкладов, вид — unknown-type, причина в журнале', async () => {
+    const { host, logger } = await openHost({
+      'acme.echo': () => {
+        throw new Error('boom');
       },
     });
-    const error = await rejection(
-      types.project({ type: 'acme.echo', exerciseId: 'e', spec: {} }),
-    );
-    expect(String(thrown[0])).toContain('not declared');
-    // активация прошла, но заявленный вид не зарегистрирован
-    expect(error).toMatchObject({ cause: 'activation-failed' });
-    await types.close();
+    const error = await rejection(host.exerciseTypes.project(echo));
+    expect(error).toBeInstanceOf(ExerciseTypeError);
+    expect(error).toMatchObject({ cause: 'unknown-type' });
+    expect(JSON.stringify(logger.warn.mock.calls)).toContain('boom');
+    await host.close();
   });
 
-  it('вид, не зарегистрированный после активации → activation-failed', async () => {
-    const extensions = await loadFixtures();
-    const types = createLocalExerciseTypes({
-      extensions,
-      library: nullLibrary,
-      logger: createLogger(),
-      modules: { 'acme.echo': { activate() {} } },
+  it('вид с id вне пространства имён расширения: регистрация бросает, а не доходит до хоста', async () => {
+    const thrown: unknown[] = [];
+    const { host } = await openHost({
+      'acme.echo': (s) => {
+        try {
+          s.registerExerciseType({
+            id: 'other.type',
+            ...echoSchemas,
+            project: () => 1,
+            grade: () => ({ outcome: 'passed' }),
+          });
+        } catch (error) {
+          thrown.push(error);
+        }
+      },
     });
-    const error = await rejection(
-      types.project({ type: 'acme.echo', exerciseId: 'e', spec: {} }),
-    );
-    expect(error).toMatchObject({ cause: 'activation-failed' });
-    await types.close();
+    expect(String(thrown[0])).toContain("exercise type 'other.type'");
+    expect(await rejection(host.exerciseTypes.project(echo))).toMatchObject({
+      cause: 'unknown-type',
+    });
+    await host.close();
+  });
+
+  it('повторная регистрация того же вида бросает', async () => {
+    const thrown: unknown[] = [];
+    const { host } = await openHost({
+      'acme.echo': (s) => {
+        const reg = {
+          id: 'acme.echo',
+          ...echoSchemas,
+          project: () => 1,
+          grade: () => ({ outcome: 'passed' as const }),
+        };
+        s.registerExerciseType(reg);
+        try {
+          s.registerExerciseType(reg);
+        } catch (error) {
+          thrown.push(error);
+        }
+      },
+    });
+    expect(String(thrown[0])).toContain("duplicate exercise type 'acme.echo'");
+    expect(await host.exerciseTypes.project(echo)).toBe(1);
+    await host.close();
   });
 
   it('неизвестный вид → unknown-type', async () => {
-    const types = createLocalExerciseTypes({
-      extensions: await loadFixtures(),
-      library: nullLibrary,
-      logger: createLogger(),
-    });
+    const { host } = await openHost();
     const error = await rejection(
-      types.project({ type: 'nope', exerciseId: 'e', spec: {} }),
+      host.exerciseTypes.project({ type: 'nope', exerciseId: 'e', spec: {} }),
     );
     expect(error).toMatchObject({ cause: 'unknown-type' });
-    await types.close();
+    await host.close();
   });
 
   it('невалидный результат grade → invalid-result (вердикт error/internal)', async () => {
-    const extensions = await loadFixtures();
-    const types = createLocalExerciseTypes({
-      extensions,
-      library: nullLibrary,
-      logger: createLogger(),
-      modules: {
-        'acme.echo': {
-          activate(ctx) {
-            ctx.registerExerciseType('acme.echo', {
-              project: () => 1,
-              grade: () => ({ outcome: 'maybe' }) as never,
-            });
-          },
-        },
+    const { host } = await openHost({
+      'acme.echo': (s) => {
+        s.registerExerciseType({
+          id: 'acme.echo',
+          ...echoSchemas,
+          project: () => 1,
+          grade: () => ({ outcome: 'maybe' }) as never,
+        });
       },
     });
-    const verdict = await types.grade({
-      type: 'acme.echo',
-      exerciseId: 'e',
-      spec: {},
+    const verdict = await host.exerciseTypes.grade({
+      ...echo,
       answer: 'x',
       timeoutMs: 1000,
       authorMode: true,
@@ -167,145 +161,105 @@ describe('createExtensionRuntime (через local)', () => {
     expect((verdict as { feedback?: string }).feedback).toContain(
       'invalid result',
     );
-    await types.close();
+    await host.close();
   });
 
   it('исключение обработчика → handler-failed для project, error/internal для grade', async () => {
-    const extensions = await loadFixtures();
-    const types = createLocalExerciseTypes({
-      extensions,
-      library: nullLibrary,
-      logger: createLogger(),
-      modules: {
-        'acme.echo': {
-          activate(ctx) {
-            ctx.registerExerciseType('acme.echo', {
-              project: () => {
-                throw new Error('bad project');
-              },
-              grade: () => {
-                throw new Error('bad grade');
-              },
-            });
+    const { host } = await openHost({
+      'acme.echo': (s) => {
+        s.registerExerciseType({
+          id: 'acme.echo',
+          ...echoSchemas,
+          project: () => {
+            throw new Error('bad project');
           },
-        },
+          grade: () => {
+            throw new Error('bad grade');
+          },
+        });
       },
     });
-    const error = await rejection(
-      types.project({ type: 'acme.echo', exerciseId: 'e', spec: {} }),
-    );
-    expect(error).toMatchObject({
+    expect(await rejection(host.exerciseTypes.project(echo))).toMatchObject({
       cause: 'handler-failed',
       message: 'bad project',
     });
-    const request = {
-      type: 'acme.echo',
-      exerciseId: 'e',
-      spec: {},
-      answer: 'x',
-      timeoutMs: 1000,
-    };
-    const learner = await types.grade({ ...request, authorMode: false });
+    const request = { ...echo, answer: 'x', timeoutMs: 1000 };
+    const learner = await host.exerciseTypes.grade({
+      ...request,
+      authorMode: false,
+    });
     expect(learner).toMatchObject({ outcome: 'error', reason: 'internal' });
     expect(learner).not.toHaveProperty('feedback');
-    const author = await types.grade({ ...request, authorMode: true });
+    const author = await host.exerciseTypes.grade({
+      ...request,
+      authorMode: true,
+    });
     expect(author).toMatchObject({ feedback: 'bad grade' });
-    await types.close();
+    await host.close();
   });
 
   it('настоящий import() фикстуры: project/grade/referenceAnswer', async () => {
-    const types = createLocalExerciseTypes({
-      extensions: await loadFixtures(),
-      library: nullLibrary,
-      logger: createLogger(),
-    });
-    const base = {
-      type: 'acme.echo',
-      exerciseId: 'e',
-      spec: { expected: '42' },
-    };
-    expect(await types.project(base)).toEqual({ hint: 2 });
-    expect(await types.referenceAnswer(base)).toEqual({
+    const { host } = await openHost();
+    const base = { ...echo, spec: { expected: '42' } };
+    expect(await host.exerciseTypes.project(base)).toEqual({ hint: 2 });
+    expect(await host.exerciseTypes.referenceAnswer(base)).toEqual({
       found: true,
       answer: '42',
     });
     const grade = (answer: string) =>
-      types.grade({ ...base, answer, timeoutMs: 1000, authorMode: false });
+      host.exerciseTypes.grade({
+        ...base,
+        answer,
+        timeoutMs: 1000,
+        authorMode: false,
+      });
     expect(await grade('42')).toMatchObject({ outcome: 'passed' });
     expect(await grade('7')).toMatchObject({
       outcome: 'failed',
       reason: 'mismatch',
     });
-    await types.close();
+    await host.close();
   });
 
   it('referenceAnswer: found=false, если у вида нет эталона', async () => {
-    const types = createLocalExerciseTypes({
-      extensions: await loadFixtures(),
-      library: nullLibrary,
-      logger: createLogger(),
-    });
+    const { host } = await openHost();
     expect(
-      await types.referenceAnswer({
+      await host.exerciseTypes.referenceAnswer({
         type: 'acme.crash',
         exerciseId: 'e',
         spec: {},
       }),
     ).toEqual({ found: false });
-    await types.close();
+    await host.close();
   });
 
-  it('close() вызывает deactivate у активированных модулей', async () => {
-    const deactivate = vi.fn();
-    const types = createLocalExerciseTypes({
+  it('close() вызывает очистку, которую вернул server, ровно один раз', async () => {
+    const cleanup = vi.fn();
+    const types = await createLocalExerciseTypes({
       extensions: await loadFixtures(),
       library: nullLibrary,
       logger: createLogger(),
       modules: {
         'acme.echo': {
-          activate(ctx) {
-            ctx.registerExerciseType('acme.echo', {
+          server: (s) => {
+            s.registerExerciseType({
+              id: 'acme.echo',
+              ...echoSchemas,
               project: () => 1,
               grade: () => ({ outcome: 'passed' }),
             });
+            return cleanup;
           },
-          deactivate,
         },
       },
     });
+    expect(cleanup).not.toHaveBeenCalled();
     await types.close();
-    expect(deactivate).not.toHaveBeenCalled();
-    const second = createLocalExerciseTypes({
-      extensions: await loadFixtures(),
-      library: nullLibrary,
-      logger: createLogger(),
-      modules: {
-        'acme.echo': {
-          activate(ctx) {
-            ctx.registerExerciseType('acme.echo', {
-              project: () => 1,
-              grade: () => ({ outcome: 'passed' }),
-            });
-          },
-          deactivate,
-        },
-      },
-    });
-    await second.project({ type: 'acme.echo', exerciseId: 'e', spec: {} });
-    await second.close();
-    expect(deactivate).toHaveBeenCalledTimes(1);
+    expect(cleanup).toHaveBeenCalledTimes(1);
   });
 });
 
 describe('правила оценки (через local)', () => {
-  const open = async () => {
-    const extensions = await loadFixtures();
-    return createLocalExtensionHost({
-      extensions,
-      library: nullLibrary,
-      logger: createLogger(),
-    });
-  };
   const input = {
     verdicts: [
       {
@@ -318,10 +272,10 @@ describe('правила оценки (через local)', () => {
     gaveUp: false,
   };
 
-  it('list отдаёт объявленные правила; вычисление грузит настоящий main.mjs', async () => {
-    const host = await open();
-    expect(host.gradePolicies.list().map(({ id }) => id)).toContain(
-      'acme.policy.generous',
+  it('list отдаёт зарегистрированные правила; вычисление идёт в настоящий main.mjs', async () => {
+    const { host } = await openHost();
+    expect(host.gradePolicies.list().map(({ id }) => id)).toEqual(
+      expect.arrayContaining(['acme.policy.generous', 'acme.mixed.strict']),
     );
     expect(
       await host.gradePolicies.evaluate('acme.policy.generous', input),
@@ -341,54 +295,56 @@ describe('правила оценки (через local)', () => {
     await host.close();
   });
 
-  it('неверный результат, исключение, неизвестное и незарегистрированное правило → типизированные отказы', async () => {
-    const host = await open();
+  it('неверный результат, исключение и неизвестное правило → типизированные отказы', async () => {
+    const { host } = await openHost();
     const cause = async (id: string) =>
       ((await rejection(host.gradePolicies.evaluate(id, input))) as Error)
         .cause;
     expect(await cause('acme.policy.broken')).toBe('invalid-result');
     expect(await cause('acme.policy.throws')).toBe('handler-failed');
-    expect(await cause('acme.policy.forgotten')).toBe('handler-failed');
     expect(await cause('acme.nothing')).toBe('unknown-policy');
     await host.close();
   });
 
-  it('registerGradePolicy с необъявленным id бросает, отказ активации запоминается', async () => {
-    const extensions = await loadFixtures();
-    const activate = vi.fn(
-      (ctx: Parameters<ExtensionModule['activate']>[0]) => {
-        ctx.registerGradePolicy('acme.policy.undeclared', () => 5);
+  it('server бросает: правил у расширения нет', async () => {
+    const { host } = await openHost({
+      'acme.policy': (s) => {
+        s.registerGradePolicy({
+          id: 'acme.policy.generous',
+          label: 'Generous',
+          evaluate: () => 5,
+        });
+        throw new Error('late failure');
       },
-    );
-    const host = createLocalExtensionHost({
-      extensions,
-      library: nullLibrary,
-      logger: createLogger(),
-      modules: { 'acme.policy': { activate } },
     });
-    await rejection(host.gradePolicies.evaluate('acme.policy.generous', input));
-    await rejection(host.gradePolicies.evaluate('acme.policy.generous', input));
-    expect(activate).toHaveBeenCalledTimes(1);
+    expect(host.gradePolicies.list().map(({ id }) => id)).not.toContain(
+      'acme.policy.generous',
+    );
+    expect(
+      (
+        (await rejection(
+          host.gradePolicies.evaluate('acme.policy.generous', input),
+        )) as Error
+      ).cause,
+    ).toBe('unknown-policy');
     await host.close();
   });
 
-  it('виды заданий и правила одного расширения активируют его один раз', async () => {
-    const extensions = await loadFixtures();
-    const activate = vi.fn(
-      (ctx: Parameters<ExtensionModule['activate']>[0]) => {
-        ctx.registerExerciseType('acme.mixed', {
-          project: () => 1,
-          grade: () => ({ outcome: 'passed' }),
-        });
-        ctx.registerGradePolicy('acme.mixed.strict', () => 2);
-      },
-    );
-    const host = createLocalExtensionHost({
-      extensions,
-      library: nullLibrary,
-      logger: createLogger(),
-      modules: { 'acme.mixed': { activate } },
+  it('виды заданий и правила одного расширения регистрирует один вызов server', async () => {
+    const server = vi.fn<ServerEntry>((s) => {
+      s.registerExerciseType({
+        id: 'acme.mixed',
+        ...echoSchemas,
+        project: () => 1,
+        grade: () => ({ outcome: 'passed' }),
+      });
+      s.registerGradePolicy({
+        id: 'acme.mixed.strict',
+        label: 'Strict',
+        evaluate: () => 2,
+      });
     });
+    const { host } = await openHost({ 'acme.mixed': server });
     await host.exerciseTypes.project({
       type: 'acme.mixed',
       exerciseId: 'e',
@@ -397,7 +353,7 @@ describe('правила оценки (через local)', () => {
     expect(await host.gradePolicies.evaluate('acme.mixed.strict', input)).toBe(
       2,
     );
-    expect(activate).toHaveBeenCalledTimes(1);
+    expect(server).toHaveBeenCalledTimes(1);
     await host.close();
   });
 });

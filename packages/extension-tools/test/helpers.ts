@@ -1,5 +1,13 @@
 import { spawn } from 'node:child_process';
-import { cp, mkdir, mkdtemp, rm, symlink } from 'node:fs/promises';
+import {
+  cp,
+  mkdir,
+  mkdtemp,
+  readdir,
+  realpath,
+  rm,
+  symlink,
+} from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -24,19 +32,31 @@ export const makeTemp = async (): Promise<string> => {
   return dir;
 };
 
-/** Makes the SDK resolvable from a project in a temporary directory (in a real project it sits in node_modules). */
-export const linkSdk = async (root: string): Promise<void> => {
-  const scope = path.join(root, 'node_modules', '@dolphy-app');
-  await mkdir(scope, { recursive: true });
+/** Makes Vue resolvable from a project in a temporary directory (in a real project it sits in node_modules). */
+export const linkVue = async (root: string): Promise<void> => {
+  const sdk = fileURLToPath(new URL('../../extension-sdk', import.meta.url));
+  await mkdir(path.join(root, 'node_modules'), { recursive: true });
   await symlink(
-    fileURLToPath(new URL('../../extension-sdk', import.meta.url)),
-    path.join(scope, 'extension-sdk'),
+    await realpath(path.join(sdk, 'node_modules', 'vue')),
+    path.join(root, 'node_modules', 'vue'),
   );
+};
+
+/** Makes `react` and `react-dom` (devDependencies of this package) resolvable from a project in a temporary directory. */
+export const linkReact = async (root: string): Promise<void> => {
+  const own = fileURLToPath(new URL('..', import.meta.url));
+  await mkdir(path.join(root, 'node_modules'), { recursive: true });
+  for (const name of ['react', 'react-dom']) {
+    await symlink(
+      await realpath(path.join(own, 'node_modules', name)),
+      path.join(root, 'node_modules', name),
+    );
+  }
 };
 
 /**
  * Copy of a fixture project in a temporary directory (the build does not write to
- * the repository); the SDK is resolvable as in an author's project. `isLinked: false` — a copy
+ * the repository); Vue is resolvable as in an author's project. `isLinked: false` — a copy
  * without `node_modules`, e.g. to put the project into a catalog repository.
  */
 export const copyProject = async (
@@ -45,7 +65,7 @@ export const copyProject = async (
 ): Promise<string> => {
   const dir = path.join(await makeTemp(), name);
   await cp(path.join(projectsDir, name), dir, { recursive: true });
-  if (isLinked) await linkSdk(dir);
+  if (isLinked) await linkVue(dir);
   return dir;
 };
 
@@ -68,16 +88,35 @@ const tscBin = path.join(
   'bin',
   'tsc',
 );
+const vueTscBin = fileURLToPath(
+  new URL(
+    '../../../apps/desktop/node_modules/vue-tsc/bin/vue-tsc.js',
+    import.meta.url,
+  ),
+);
 
-/** `tsc --noEmit` in the project: the exit code (1 — diagnostics) and what it printed. */
-export const runTsc = (project: string) =>
-  new Promise<{ code: number | null; output: string }>((resolve, reject) => {
-    const child = spawn(process.execPath, [tscBin, '--noEmit'], {
-      cwd: project,
-    });
-    let output = '';
-    child.stdout.on('data', (chunk: Buffer) => void (output += chunk));
-    child.stderr.on('data', (chunk: Buffer) => void (output += chunk));
-    child.on('error', reject);
-    child.on('close', (code) => resolve({ code, output }));
-  });
+/**
+ * `tsc --noEmit` in the project (`vue-tsc --noEmit` when `src` has `.vue`
+ * files, which `tsc` does not look into): the exit code (1 — diagnostics) and
+ * what it printed.
+ */
+export const runTsc = async (project: string) => {
+  const entries = await readdir(path.join(project, 'src'), {
+    recursive: true,
+  }).catch(() => []);
+  const bin = entries.some((entry) => entry.endsWith('.vue'))
+    ? vueTscBin
+    : tscBin;
+  return new Promise<{ code: number | null; output: string }>(
+    (resolve, reject) => {
+      const child = spawn(process.execPath, [bin, '--noEmit'], {
+        cwd: project,
+      });
+      let output = '';
+      child.stdout.on('data', (chunk: Buffer) => void (output += chunk));
+      child.stderr.on('data', (chunk: Buffer) => void (output += chunk));
+      child.on('error', reject);
+      child.on('close', (code) => resolve({ code, output }));
+    },
+  );
+};

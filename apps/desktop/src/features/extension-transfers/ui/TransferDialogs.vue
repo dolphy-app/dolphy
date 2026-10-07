@@ -79,10 +79,7 @@ const importTitle = computed(() => {
   return current === null
     ? ''
     : t('transfers.import.title', {
-        title: extensionText.of(
-          current.importer.title,
-          current.importer.extensionId,
-        ),
+        title: extensionText.of(current.importer.title),
       });
 });
 const failureMessage = computed(() => {
@@ -151,10 +148,7 @@ const exportTitle = computed(() => {
   return current === null
     ? ''
     : t('transfers.export.title', {
-        title: extensionText.of(
-          current.exporter.title,
-          current.exporter.extensionId,
-        ),
+        title: extensionText.of(current.exporter.title),
       });
 });
 const chooseOpen = computed({

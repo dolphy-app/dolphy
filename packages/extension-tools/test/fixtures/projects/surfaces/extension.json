@@ -1,49 +1,5 @@
 {
   "id": "acme.surfaces",
   "version": "1.0.0",
-  "apiVersion": 1,
-  "contributes": {
-    "exerciseTypes": [
-      {
-        "id": "acme.surfaces.one",
-        "specSchema": { "type": "object" },
-        "answerSchema": { "type": "string" }
-      },
-      {
-        "id": "acme.surfaces.two",
-        "specSchema": { "type": "object" },
-        "answerSchema": { "type": "string" }
-      },
-      {
-        "id": "acme.surfaces.three",
-        "specSchema": { "type": "object" },
-        "answerSchema": { "type": "string" },
-        "renderer": "./view-three.mjs"
-      }
-    ],
-    "panels": [
-      { "id": "acme.surfaces.first", "title": "First" },
-      { "id": "acme.surfaces.second", "title": "Second" }
-    ],
-    "widgets": [
-      {
-        "id": "acme.surfaces.card",
-        "title": "Card",
-        "slot": "dailyPlan",
-        "minHeight": 100
-      },
-      {
-        "id": "acme.surfaces.gauge",
-        "title": "Gauge",
-        "slot": "dailyPlan",
-        "module": "./ui/gauge.js"
-      },
-      {
-        "id": "acme.surfaces.badge",
-        "title": "Badge",
-        "slot": "dailyPlan"
-      }
-    ],
-    "markdownRenderers": [{ "language": "alpha" }, { "language": "beta" }]
-  }
+  "apiVersion": 1
 }

@@ -3,7 +3,6 @@ import {
   CATALOG_SCHEMA_VERSION,
   FULL_INDEX_FILE,
   MAX_VERSIONS,
-  TITLED_POINTS,
   compareSemver,
   parseIndex,
 } from '@dolphy-app/extension-catalog';
@@ -12,7 +11,6 @@ import type {
   CatalogFile,
   CatalogIndex,
   CatalogVersion,
-  ContributionTitles,
 } from '@dolphy-app/extension-catalog';
 import { BuildError } from '../errors.ts';
 import { compareText } from './tree.ts';
@@ -39,7 +37,6 @@ const orderVersion = (version: CatalogVersion): CatalogVersion => ({
   version: version.version,
   apiVersion: version.apiVersion,
   minAppVersion: version.minAppVersion,
-  permissions: [...version.permissions],
   publishedAt: version.publishedAt,
   baseUrl: version.baseUrl,
   files: [...version.files].sort(byPath).map(orderFile),
@@ -57,35 +54,6 @@ const orderVersion = (version: CatalogVersion): CatalogVersion => ({
       }),
 });
 
-type OptionalKey =
-  | 'settings'
-  | 'events'
-  | 'commands'
-  | 'panels'
-  | 'widgets'
-  | 'schedules'
-  | 'importers'
-  | 'exporters';
-
-const optionalIds = (
-  key: OptionalKey,
-  ids: readonly string[] | undefined,
-): Partial<Record<OptionalKey, string[]>> =>
-  ids === undefined || ids.length === 0 ? {} : { [key]: [...ids] };
-
-const orderTitles = (
-  titles: ContributionTitles | undefined,
-): { titles?: ContributionTitles } => {
-  const ordered: ContributionTitles = {};
-  for (const point of TITLED_POINTS) {
-    const map = titles?.[point];
-    if (map !== undefined && Object.keys(map).length > 0) {
-      ordered[point] = { ...map };
-    }
-  }
-  return Object.keys(ordered).length > 0 ? { titles: ordered } : {};
-};
-
 const orderEntry = (entry: CatalogEntry): CatalogEntry => ({
   id: entry.id,
   name: entry.name,
@@ -93,21 +61,6 @@ const orderEntry = (entry: CatalogEntry): CatalogEntry => ({
   author: entry.author,
   source: entry.source,
   platforms: [...entry.platforms],
-  contributes: {
-    exerciseTypes: [...entry.contributes.exerciseTypes],
-    themes: [...entry.contributes.themes],
-    markdownRenderers: [...entry.contributes.markdownRenderers],
-    gradePolicies: [...entry.contributes.gradePolicies],
-    ...optionalIds('settings', entry.contributes.settings),
-    ...optionalIds('events', entry.contributes.events),
-    ...optionalIds('commands', entry.contributes.commands),
-    ...optionalIds('panels', entry.contributes.panels),
-    ...optionalIds('widgets', entry.contributes.widgets),
-    ...optionalIds('schedules', entry.contributes.schedules),
-    ...optionalIds('importers', entry.contributes.importers),
-    ...optionalIds('exporters', entry.contributes.exporters),
-  },
-  ...orderTitles(entry.titles),
   ...(entry.deprecated === undefined
     ? {}
     : {

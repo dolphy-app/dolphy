@@ -13,9 +13,8 @@ import { isFault } from './protocol.ts';
 export const EVENT_QUEUE_LIMIT = 100;
 
 /**
- * Срок доставки одного события, сверх которого движок его не ждёт. Включает
- * ленивую активацию расширения и запуск ограниченного процесса; сам обработчик
- * хост ограничивает двумя секундами (`EVENT_HANDLER_MS`).
+ * Срок доставки одного события, сверх которого движок его не ждёт; сам
+ * обработчик хост ограничивает двумя секундами (`EVENT_HANDLER_MS`).
  */
 export const EVENT_DELIVERY_MS = 10_000;
 
@@ -23,7 +22,7 @@ export interface EventDispatcherOptions {
   channel: HostChannel;
   /** Набор расширений движка: читается при каждом событии и перед каждой отправкой. */
   discovery: DiscoverySource;
-  /** Отключённое расширение событий не получает; `isIsolated` — режим исполнения на каждую отправку. */
+  /** Отключённое расширение событий не получает. */
   policy: ExtensionPolicy;
   logger: ExtensionLogger;
   queueLimit?: number;
@@ -59,7 +58,7 @@ export const createEventDispatcher = (
   const deliveryMs = options.deliveryMs ?? EVENT_DELIVERY_MS;
   const queues = new Map<string, Queue>();
 
-  /** Расширение по-прежнему должно получать это событие: есть, включено, объявило, имеет разрешение. */
+  /** Расширение по-прежнему должно получать это событие: есть, включено, подписалось. */
   const subscriber = (
     extensionId: string,
     name: LearningEvent['name'],
@@ -69,8 +68,7 @@ export const createEventDispatcher = (
       .extensions.find(({ id }) => id === extensionId);
     return extension !== undefined &&
       policy.isEnabled(extension.id) &&
-      extension.permissions.includes('learning.events') &&
-      extension.events.some(({ event }) => event === name)
+      extension.events.includes(name)
       ? extension
       : undefined;
   };
@@ -99,7 +97,6 @@ export const createEventDispatcher = (
             extensionId,
             name: event.name,
             payload: event.payload,
-            isolated: policy.isIsolated(extensionId),
           },
           deliveryMs,
           { restart: false },

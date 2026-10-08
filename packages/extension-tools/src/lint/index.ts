@@ -5,17 +5,19 @@ import { buildExtension } from '../index.ts';
 import { CatalogUsageError } from '../errors.ts';
 import { MANIFEST_FILE } from '../project.ts';
 import { bundleFindings, readBundleFiles } from './bundle.ts';
-import { manifestFindings } from './manifest.ts';
+import { declaredText, manifestFindings } from './manifest.ts';
 import type { RuleFinding } from './manifest.ts';
 
 export { bundleFindings, readBundleFiles } from './bundle.ts';
 export type { BundleFile } from './bundle.ts';
 export {
+  LOCALIZED_TEXT_MIN_APP_VERSION,
   MIN_DESCRIPTION_LENGTH,
+  declaredText,
   manifestFindings,
   shortDescription,
 } from './manifest.ts';
-export type { DeclaredFields, RuleFinding } from './manifest.ts';
+export type { DeclaredFields, DeclaredText, RuleFinding } from './manifest.ts';
 
 export interface LintOptions {
   /** Project directory. */
@@ -89,10 +91,11 @@ export const lintProject = async (
   const manifest = await readManifest(root);
   const extensionId = stringOrNull(manifest.id) ?? path.basename(root);
   const findings: RuleFinding[] = manifestFindings({
-    name: stringOrNull(manifest.name),
-    description: stringOrNull(manifest.description),
+    name: declaredText(manifest.name),
+    description: declaredText(manifest.description),
     author: stringOrNull(manifest.author),
     tags: Array.isArray(manifest.tags) ? manifest.tags : null,
+    minAppVersion: stringOrNull(manifest.minAppVersion),
   });
   const readme = await readFile(path.join(root, 'README.md'), 'utf8').catch(
     () => null,

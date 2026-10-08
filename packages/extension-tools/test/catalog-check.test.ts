@@ -80,6 +80,74 @@ describe('catalog check: rules', () => {
     await expectRule({ manifest: { name: 'x'.repeat(81) } }, 'CHECK-003');
   });
 
+  describe('a localized name and description', () => {
+    const localized = {
+      name: { en: 'Night', ru: 'Ночь' },
+      description: {
+        en: 'A dark theme for late evening lessons',
+        ru: 'Тёмная тема для вечерних занятий',
+      },
+      minAppVersion: '0.7.0',
+    };
+
+    it('both languages pass CHECK-003 and the manifest checks', async () => {
+      expect(await run(await single({ manifest: localized }))).toEqual([]);
+    });
+
+    it('CHECK-003 names the language that is empty or too long', async () => {
+      const line = async (manifest: Record<string, unknown>) =>
+        (await run(await single({ manifest: { ...localized, ...manifest } })))
+          .filter((item) => item.includes(' CHECK-003 '))
+          .join('\n');
+      expect(await line({ name: { en: 'Night', ru: '' } })).toContain(
+        "name.ru: 'name.ru' is empty",
+      );
+      expect(
+        await line({ name: { en: 'Night', ru: 'я'.repeat(81) } }),
+      ).toContain("name.ru: 'name.ru' is longer than 80 characters");
+      expect(
+        await line({ description: { en: 'x'.repeat(501), ru: 'Описание' } }),
+      ).toContain(
+        "description.en: 'description.en' is longer than 500 characters",
+      );
+      expect(await line({ name: { ru: 'Ночь' } })).toContain(
+        "name.en: 'name.en' is required for publication",
+      );
+    });
+
+    it('CHECK-019 measures each language of the description', async () => {
+      const hit = await expectRule(
+        {
+          manifest: {
+            ...localized,
+            description: { en: 'x'.repeat(20), ru: 'Коротко' },
+          },
+        },
+        'CHECK-019',
+        'warning',
+      );
+      expect(hit).toContain(' description.ru: ');
+    });
+
+    it.each([undefined, '0.6.0'])(
+      'CHECK-032: minAppVersion %s is below the first app that reads it',
+      async (minAppVersion) => {
+        const hit = await expectRule(
+          { manifest: { ...localized, minAppVersion } },
+          'CHECK-032',
+        );
+        expect(hit).toContain(' minAppVersion: ');
+        expect(hit).toContain('0.7.0');
+      },
+    );
+
+    it('CHECK-032: a name that is a string needs no minAppVersion', async () => {
+      expect(
+        await run(await single({ manifest: { minAppVersion: '0.5.0' } })),
+      ).toEqual([]);
+    });
+  });
+
   it('CHECK-004: README.md is required and non-empty', async () => {
     await expectRule({ files: { 'README.md': null } }, 'CHECK-004');
     await expectRule({ files: { 'README.md': '  \n' } }, 'CHECK-004');

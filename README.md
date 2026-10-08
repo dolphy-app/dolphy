@@ -81,6 +81,17 @@ Installers for macOS (`.dmg`), Windows (`.exe`) and Linux (`.AppImage`) are atta
 
 The installer doesn't include courses yet. A course is a folder; drop it into the app's `library` folder (inside its user-data directory) and press **Settings → Library → Reload**. The quickest way to see the app with real content is to run it from source with the sample courses.
 
+### First launch of an unsigned build
+
+- **macOS**: Gatekeeper reports _"Dolphy" Not Opened_ because the app isn't notarized. Click **Done** (not _Move to Trash_), then open **System Settings → Privacy & Security**, scroll down to the message about Dolphy and click **Open Anyway**. Or remove the quarantine flag from a terminal and open the app as usual:
+
+  ```sh
+  xattr -dr com.apple.quarantine /Applications/Dolphy.app
+  ```
+
+- **Windows**: SmartScreen shows _Windows protected your PC_. Click **More info → Run anyway**.
+- **Linux**: make the file executable (`chmod +x Dolphy-Linux-*.AppImage`) and run it.
+
 ## Try it from source
 
 Needs Node ≥ 22.12 and pnpm 12.9.1.

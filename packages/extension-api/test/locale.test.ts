@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveLocalizedText } from '../src/index.ts';
+import { localizedTexts, resolveLocalizedText } from '../src/index.ts';
 
 describe('resolveLocalizedText', () => {
   it('shows a plain string as is in every language', () => {
@@ -15,5 +15,16 @@ describe('resolveLocalizedText', () => {
   it('falls back to en for a missing or unknown language', () => {
     expect(resolveLocalizedText({ en: 'Plan' }, 'ru')).toBe('Plan');
     expect(resolveLocalizedText({ en: 'Plan', ru: 'План' }, 'de')).toBe('Plan');
+  });
+});
+
+describe('localizedTexts', () => {
+  it('lists the string, or every language the text has', () => {
+    expect(localizedTexts('Plan')).toEqual(['Plan']);
+    expect(localizedTexts({ en: 'Plan' })).toEqual(['Plan']);
+    expect(localizedTexts({ en: 'Plan', ru: 'План' })).toEqual([
+      'Plan',
+      'План',
+    ]);
   });
 });

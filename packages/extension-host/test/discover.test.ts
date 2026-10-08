@@ -423,6 +423,17 @@ describe('совместимость с приложением', () => {
     expect(any.extensions).toHaveLength(1);
   });
 
+  it('название и описание по языкам доходят до кандидата объектами', async () => {
+    const result = await discover({
+      name: { en: 'Quiz', ru: 'Опрос' },
+      description: { en: 'Questions', ru: 'Вопросы' },
+    });
+    expect(result.extensions[0]).toMatchObject({
+      name: { en: 'Quiz', ru: 'Опрос' },
+      description: { en: 'Questions', ru: 'Вопросы' },
+    });
+  });
+
   it('inspectExtensionDir применяет те же проверки', async () => {
     const root = await rootDir('inspect');
     await makeExtension(root, 'acme.i', { extra: { minAppVersion: '2.0.0' } });

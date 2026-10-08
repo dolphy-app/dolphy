@@ -462,6 +462,10 @@ export interface LearningEventPayloads {
 
 /** Most entries in `dependencies`. */
 export const MAX_EXTENSION_DEPENDENCIES = 16;
+/** Longest manifest `name` (each language of a localized name). */
+export const MAX_EXTENSION_NAME_LENGTH = 80;
+/** Longest manifest `description` (each language of a localized description). */
+export const MAX_EXTENSION_DESCRIPTION_LENGTH = 500;
 
 /**
  * Another extension this one needs (`dependencies`). The extension loads only
@@ -488,9 +492,10 @@ export interface ExtensionManifest {
   main: string | null;
   /** Built client part inside the extension (`./client.mjs`, exports `client`); `null` — no client part. */
   client: string | null;
-  /** Human-readable name; `null` if not set. */
-  name: string | null;
-  description: string | null;
+  /** Human-readable name; `null` if not set. A string, or texts by language. */
+  name: LocalizedText | null;
+  /** What the extension does; `null` if not set. A string, or texts by language. */
+  description: LocalizedText | null;
   /** GitHub login of the author; `null` if not set. */
   author: string | null;
   /** Empty means any platform. */
@@ -516,8 +521,10 @@ export interface ExtensionManifestInput {
   main?: string | null;
   /** Built client part (`DEFAULT_CLIENT`); no key or `null` — none. */
   client?: string | null;
-  name?: string;
-  description?: string;
+  /** 1–`MAX_EXTENSION_NAME_LENGTH` characters; a string, or `{ en, ru? }` with each text in that range. */
+  name?: LocalizedText;
+  /** 1–`MAX_EXTENSION_DESCRIPTION_LENGTH` characters; a string, or `{ en, ru? }` with each text in that range. */
+  description?: LocalizedText;
   author?: string;
   /** No key means any platform. */
   platforms?: ExtensionPlatform[];

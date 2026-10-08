@@ -19,3 +19,9 @@ export const resolveLocalizedText = (
   if (typeof text === 'string') return text;
   return (locale === 'ru' ? text.ru : undefined) ?? text.en;
 };
+
+/** Every language variant of `text` (for search): the string itself, or `en` and `ru` when present. */
+export const localizedTexts = (text: LocalizedText): string[] => {
+  if (typeof text === 'string') return [text];
+  return text.ru === undefined ? [text.en] : [text.en, text.ru];
+};

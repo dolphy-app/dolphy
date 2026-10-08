@@ -335,3 +335,78 @@ describe('catalog: dependencies of the shown version', () => {
     expect(byId['acme.plain']?.latest?.dependencies).toEqual([]);
   });
 });
+
+describe('catalog: Russian name and description of an entry', () => {
+  const translated = {
+    id: 'acme.quiz',
+    name: 'Quiz',
+    version: '1.1.0',
+    versions: ['1.1.0', '1.0.0'],
+    i18n: { ru: { name: 'Опрос', description: 'Описание на русском' } },
+  };
+
+  it('an entry with i18n.ru gives name and description as { en, ru }, one without — strings', async () => {
+    serveIndex(env.routes, [
+      translated,
+      { id: 'acme.plain', name: 'Plain', version: '1.0.0' },
+      {
+        id: 'acme.half',
+        name: 'Half',
+        version: '1.0.0',
+        i18n: { ru: { name: 'Половина' } },
+      },
+    ]);
+    const { entries } = await env.installer.catalog();
+    const byId = Object.fromEntries(entries.map((e) => [e.id, e]));
+    expect(byId['acme.quiz']).toMatchObject({
+      name: { en: 'Quiz', ru: 'Опрос' },
+      description: {
+        en: 'Description of acme.quiz',
+        ru: 'Описание на русском',
+      },
+    });
+    expect(byId['acme.plain']).toMatchObject({
+      name: 'Plain',
+      description: 'Description of acme.plain',
+    });
+    expect(byId['acme.half']).toMatchObject({
+      name: { en: 'Half', ru: 'Половина' },
+      description: 'Description of acme.half',
+    });
+  });
+
+  it('the list is sorted by the English name, the update and the alternative carry the localized name', async () => {
+    serveIndex(env.routes, [
+      translated,
+      { id: 'acme.apple', name: 'Apple', version: '1.0.0' },
+      {
+        id: 'acme.old',
+        name: 'Old',
+        version: '1.0.0',
+        deprecated: {
+          versions: null,
+          reason: 'Replaced',
+          alternatives: ['acme.quiz'],
+        },
+      },
+    ]);
+    await installFake(env.dir, 'acme.quiz', '1.0.0');
+    await installFake(env.dir, 'acme.old', '1.0.0');
+    const catalog = await env.installer.catalog();
+    expect(catalog.entries.map((e) => e.id)).toEqual([
+      'acme.apple',
+      'acme.old',
+      'acme.quiz',
+    ]);
+    expect(await env.installer.updates()).toEqual([
+      expect.objectContaining({
+        id: 'acme.quiz',
+        name: { en: 'Quiz', ru: 'Опрос' },
+      }),
+    ]);
+    expect(
+      env.installer.deprecationOf('acme.old', '1.0.0', CATALOG_URL)
+        ?.alternatives,
+    ).toEqual([{ id: 'acme.quiz', name: { en: 'Quiz', ru: 'Опрос' } }]);
+  });
+});

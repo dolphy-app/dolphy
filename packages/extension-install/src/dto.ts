@@ -3,6 +3,7 @@ import type {
   CatalogListedVersionDto,
   CatalogVersionDto,
   DeprecationDto,
+  LocalizedTextDto,
 } from '@dolphy-app/engine-contract';
 import {
   compareSemver,
@@ -33,8 +34,18 @@ export const toVersionDto = (version: CatalogVersion): CatalogVersionDto => ({
   minAppVersion: version.minAppVersion,
 });
 
+/** The text of an entry: the English string, or `{ en, ru }` when the index has a Russian one. */
+const textOf = (en: string, ru: string | undefined): LocalizedTextDto =>
+  ru === undefined ? en : { en, ru };
+
+export const entryName = (entry: CatalogEntry): LocalizedTextDto =>
+  textOf(entry.name, entry.i18n?.ru.name);
+
+export const entryDescription = (entry: CatalogEntry): LocalizedTextDto =>
+  textOf(entry.description, entry.i18n?.ru.description);
+
 /** Название записи индекса по id; `null` — записи нет. */
-export type NameOf = (id: string) => string | null;
+export type NameOf = (id: string) => LocalizedTextDto | null;
 
 export const toDeprecationDto = (
   deprecated: Deprecation,
@@ -94,8 +105,8 @@ export const describeEntry = (
     shown === undefined ? null : deprecationFor(entry, shown.version);
   const common = {
     id: entry.id,
-    name: entry.name,
-    description: entry.description,
+    name: entryName(entry),
+    description: entryDescription(entry),
     author: entry.author,
     source: entry.source,
     platforms: [...entry.platforms],

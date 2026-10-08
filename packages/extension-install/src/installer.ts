@@ -11,6 +11,7 @@ import type {
   ExtensionDocsDto,
   ExtensionUpdateDto,
   InstallResultDto,
+  LocalizedTextDto,
 } from '@dolphy-app/engine-contract';
 import {
   assertNotRolledBack,
@@ -38,6 +39,7 @@ import type { CachedIndex } from './cache.ts';
 import {
   CHANGELOG_FILE,
   describeEntry,
+  entryName,
   toDeprecationDto,
   toVersionDto,
 } from './dto.ts';
@@ -104,12 +106,17 @@ const shortMessage = (error: unknown): string =>
 const isValidId = (id: string): boolean =>
   id.length <= MAX_ID_LENGTH && EXTENSION_ID_PATTERN.test(id);
 
+/** Sorted by the English name: the engine does not know the language of the window. */
+const englishOf = (text: LocalizedTextDto): string =>
+  typeof text === 'string' ? text : text.en;
+
 const byName = (
-  a: { name: string; id: string },
-  b: { name: string; id: string },
+  a: { name: LocalizedTextDto; id: string },
+  b: { name: LocalizedTextDto; id: string },
 ) =>
-  a.name.toLowerCase().localeCompare(b.name.toLowerCase()) ||
-  a.id.localeCompare(b.id);
+  englishOf(a.name)
+    .toLowerCase()
+    .localeCompare(englishOf(b.name).toLowerCase()) || a.id.localeCompare(b.id);
 
 export const createExtensionInstaller = (
   options: InstallerOptions,
@@ -325,7 +332,7 @@ export const createExtensionInstaller = (
     error: string | null,
   ): Promise<CatalogDto> => {
     const names = new Map(
-      cached.index.extensions.map(({ id, name }) => [id, name]),
+      cached.index.extensions.map((entry) => [entry.id, entryName(entry)]),
     );
     const entries = await Promise.all(
       cached.index.extensions.map(async (entry) => {
@@ -600,7 +607,7 @@ export const createExtensionInstaller = (
             ? null
             : {
                 id: entry.id,
-                name: entry.name,
+                name: entryName(entry),
                 installed,
                 available: toVersionDto(available),
               };
@@ -867,7 +874,9 @@ export const createExtensionInstaller = (
     const deprecated =
       entry === undefined ? null : deprecationFor(entry, version);
     if (deprecated === null) return null;
-    const names = new Map(cached.index.extensions.map((e) => [e.id, e.name]));
+    const names = new Map(
+      cached.index.extensions.map((entry) => [entry.id, entryName(entry)]),
+    );
     return toDeprecationDto(deprecated, (other) => names.get(other) ?? null);
   };
 

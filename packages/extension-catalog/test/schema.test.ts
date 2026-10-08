@@ -320,3 +320,44 @@ describe('deprecated', () => {
     expect(() => parseDeprecatedList([item, item])).toThrow(/duplicate id/);
   });
 });
+
+describe('i18n of an entry', () => {
+  const withI18n = (i18n: unknown) => index([{ ...entry(), i18n }]);
+  const good = { ru: { name: 'Опрос', description: 'Вопросы с ответами' } };
+
+  it('строгий разбор принимает русские название и описание, вместе или порознь', () => {
+    expect(parseIndex(withI18n(good)).extensions[0]?.i18n).toEqual(good);
+    expect(
+      parseIndex(withI18n({ ru: { name: 'Опрос' } })).extensions[0]?.i18n,
+    ).toEqual({ ru: { name: 'Опрос' } });
+    expect(parseIndex(index()).extensions[0]?.i18n).toBeUndefined();
+  });
+
+  it('строгий разбор отвергает пустой объект, пустой и длинный текст, чужой язык и лишние ключи', () => {
+    for (const bad of [
+      {},
+      { ru: {} },
+      { ru: { name: '' } },
+      { ru: { name: 'я'.repeat(81) } },
+      { ru: { description: 'я'.repeat(501) } },
+      { ru: { name: 'Опрос' }, de: { name: 'Quiz' } },
+      { ru: { name: 'Опрос', title: 'x' } },
+      { en: { name: 'Quiz' } },
+      'Опрос',
+    ]) {
+      expect(issuesOf(withI18n(bad)), JSON.stringify(bad)).not.toEqual([]);
+    }
+  });
+
+  it('терпимый разбор читает русский текст и отбрасывает нечитаемое i18n, запись остаётся', () => {
+    expect(parseIndexLenient(withI18n(good)).index.extensions[0]?.i18n).toEqual(
+      good,
+    );
+    const broken = parseIndexLenient(withI18n({ ru: { name: '' } })).index;
+    expect(broken.extensions).toHaveLength(1);
+    expect(broken.extensions[0]?.i18n).toBeUndefined();
+    expect(parseIndexLenient(withI18n('Опрос')).index.extensions[0]?.name).toBe(
+      entry().name,
+    );
+  });
+});

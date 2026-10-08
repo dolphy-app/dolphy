@@ -4,8 +4,10 @@ import type {
   CatalogDto,
   CatalogEntryDto,
   InstallResultDto,
+  LocalizedTextDto,
   LearningEngine,
 } from '@dolphy-app/engine-contract';
+import { resolveLocalizedText } from '@dolphy-app/extension-api';
 import { createInstall } from '@/pages/settings/model/install.ts';
 import {
   createInstallLinks,
@@ -142,7 +144,14 @@ describe('createInstallLinks', () => {
     const install = effectScope().run(() => createInstall(engine))!;
     const notify = vi.fn<(message: InstallLinkMessage) => void>();
     const openPage = vi.fn<(id: string) => void>();
-    const links = createInstallLinks({ engine, install, notify, openPage });
+    const textOf = (text: LocalizedTextDto) => resolveLocalizedText(text, 'ru');
+    const links = createInstallLinks({
+      engine,
+      install,
+      notify,
+      textOf,
+      openPage,
+    });
     return { links, install, notify, openPage, installs, catalogCalls };
   };
 
@@ -194,6 +203,23 @@ describe('createInstallLinks', () => {
       params: { name: ID },
     });
     expect(elsewhere.install.phase.value).toBe('idle');
+  });
+
+  it('название в сообщении — на языке окна', async () => {
+    const { links, notify } = setup({
+      entries: [
+        catalogEntry(ID, {
+          name: { en: 'Sunrise', ru: 'Рассвет' },
+          status: 'installed',
+          installedVersion: '1.0.0',
+        }),
+      ],
+    });
+    await links.handle(ID);
+    expect(notify).toHaveBeenCalledWith({
+      key: 'upToDate',
+      params: { name: 'Рассвет', version: '1.0.0' },
+    });
   });
 
   it('несовместимое — причина в сообщении и страница расширения', async () => {

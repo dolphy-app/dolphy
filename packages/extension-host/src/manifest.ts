@@ -5,11 +5,14 @@ import {
   EXTENSION_TAGS,
   GITHUB_LOGIN_PATTERN,
   MAX_EXTENSION_DEPENDENCIES,
+  MAX_EXTENSION_DESCRIPTION_LENGTH,
+  MAX_EXTENSION_NAME_LENGTH,
 } from '@dolphy-app/extension-api';
 import type { ExtensionManifest } from '@dolphy-app/extension-api';
 import type { ExtensionDiagnosticDto } from '@dolphy-app/engine-contract';
 import { isSemver, parseRange } from '@dolphy-app/extension-catalog';
 import { z } from 'zod';
+import { localizedField } from './registrar-support.ts';
 
 /** Относительный путь внутри каталога расширения: без `..`, `\` и ведущего `/`. */
 const isSafeRelativePath = (value: string): boolean =>
@@ -54,8 +57,18 @@ export const manifestSchema = z
     apiVersion: z.literal(EXTENSION_API_VERSION),
     main: safePath(['.mjs']).nullable().optional(),
     client: safePath(['.mjs']).nullable().optional(),
-    name: z.string().min(1).max(80).optional(),
-    description: z.string().min(1).max(500).optional(),
+    name: localizedField(MAX_EXTENSION_NAME_LENGTH)
+      .meta({
+        description:
+          'Name shown in the app: a string, or { "en": "...", "ru": "..." } (en is required and is the fallback).',
+      })
+      .optional(),
+    description: localizedField(MAX_EXTENSION_DESCRIPTION_LENGTH)
+      .meta({
+        description:
+          'What the extension does: a string, or { "en": "...", "ru": "..." } (en is required and is the fallback).',
+      })
+      .optional(),
     author: z
       .string()
       .regex(GITHUB_LOGIN_PATTERN, 'must be a GitHub login')
@@ -152,10 +165,34 @@ const normalizeManifest = (
   icon: input.icon ?? null,
 });
 
-const zodIssues = (error: z.ZodError): string[] =>
-  error.issues.map(
-    (issue) => `${issue.path.join('.') || '/'}: ${issue.message}`,
+interface FlatIssue {
+  path: readonly PropertyKey[];
+  message: string;
+}
+
+/** A text field (`name`, `description`) is a string or an object: report the branch the value was meant for. */
+const flattenIssue = (
+  issue: z.core.$ZodIssue,
+  prefix: readonly PropertyKey[],
+): FlatIssue[] => {
+  const path = [...prefix, ...issue.path];
+  if (issue.code !== 'invalid_union') return [{ path, message: issue.message }];
+  const meant = issue.errors.find(
+    (branch) =>
+      !branch.some(
+        (item) => item.code === 'invalid_type' && item.path.length === 0,
+      ),
   );
+  if (meant === undefined) {
+    return [{ path, message: 'must be a string or { en, ru? }' }];
+  }
+  return meant.flatMap((item) => flattenIssue(item, path));
+};
+
+const zodIssues = (error: z.ZodError): string[] =>
+  error.issues
+    .flatMap((issue) => flattenIssue(issue, []))
+    .map(({ path, message }) => `${path.join('.') || '/'}: ${message}`);
 
 /** Разбор манифеста; ошибка — диагностика `manifest-invalid` (текст — `formatDiagnostic`). */
 export const parseManifest = (

@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ROUTE } from '@/shared/config/routes.ts';
+import { useExtensionText } from '@/shared/lib/extension-text.ts';
 import { formatBytes } from '../lib/format.ts';
 import type { InstallItemStatus } from '../model/install.ts';
 import { useInstallContext } from '../model/install.ts';
@@ -27,6 +28,7 @@ const STATUS_VIEW: Record<InstallItemStatus, StatusView> = {
 };
 
 const { t, locale } = useI18n();
+const extensionText = useExtensionText();
 const install = useInstallContext();
 const installed = useInstalledExtensions(useEngine());
 
@@ -59,7 +61,9 @@ const title = computed(() => {
     );
   }
   const key = isUpdate.value ? 'titleUpdate' : 'titleInstall';
-  return t(`settings.extensions.install.${key}`, { name: first.target.name });
+  return t(`settings.extensions.install.${key}`, {
+    name: extensionText.of(first.target.name),
+  });
 });
 
 const closeOnBackdrop = (open: boolean) => {
@@ -100,7 +104,7 @@ const closeOnBackdrop = (open: boolean) => {
                   v-if="install.items.value.length > 1 || isFinished"
                   class="name text-title-medium font-weight-bold"
                 >
-                  {{ item.target.name }}
+                  {{ extensionText.of(item.target.name) }}
                 </h3>
               </ExtensionHeading>
               <span class="id text-body-small text-medium-emphasis">
@@ -225,7 +229,7 @@ const closeOnBackdrop = (open: boolean) => {
                     prepend-icon="mdi-open-in-app"
                     :aria-label="
                       t('settings.extensions.install.whatsNew.openPageLabel', {
-                        name: item.target.name,
+                        name: extensionText.of(item.target.name),
                       })
                     "
                     :to="{

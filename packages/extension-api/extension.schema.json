@@ -30,14 +30,62 @@
       ]
     },
     "name": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 80
+      "description": "Name shown in the app: a string, or { \"en\": \"...\", \"ru\": \"...\" } (en is required and is the fallback).",
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        {
+          "type": "object",
+          "properties": {
+            "en": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "ru": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            }
+          },
+          "required": [
+            "en"
+          ],
+          "additionalProperties": false
+        }
+      ]
     },
     "description": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 500
+      "description": "What the extension does: a string, or { \"en\": \"...\", \"ru\": \"...\" } (en is required and is the fallback).",
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        {
+          "type": "object",
+          "properties": {
+            "en": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            },
+            "ru": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            }
+          },
+          "required": [
+            "en"
+          ],
+          "additionalProperties": false
+        }
+      ]
     },
     "author": {
       "type": "string",

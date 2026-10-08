@@ -6,6 +6,7 @@ import type {
   ExtensionLogger,
   ExtensionManifest,
   ExtensionPlatform,
+  LocalizedText,
   ExtensionTag,
   ServerRegistration,
 } from '@dolphy-app/extension-api';
@@ -43,8 +44,8 @@ export interface ExtensionCandidate {
   mainPath: string | null;
   /** Собранная клиентская часть (`client.mjs`); `null` — клиентской части нет. */
   clientPath: string | null;
-  name: string | null;
-  description: string | null;
+  name: LocalizedText | null;
+  description: LocalizedText | null;
   author: string | null;
   /** Пусто — любая платформа. */
   platforms: readonly ExtensionPlatform[];

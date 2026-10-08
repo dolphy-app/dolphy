@@ -4,6 +4,9 @@
   "apiVersion": 1,
   "main": "./main.mjs",
   "client": "./client.mjs",
-  "name": "Locale pack",
-  "description": "Everything translatable in one extension"
+  "name": { "en": "Locale pack", "ru": "Набор переводов" },
+  "description": {
+    "en": "Everything translatable in one extension",
+    "ru": "Всё, что можно перевести, в одном расширении"
+  }
 }

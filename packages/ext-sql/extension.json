@@ -2,8 +2,14 @@
   "id": "dolphy.sql",
   "version": "1.0.0",
   "apiVersion": 1,
-  "name": "SQL",
-  "description": "SQL exercises: your query runs on a sample database and its result is compared with the expected one.",
+  "name": {
+    "en": "SQL",
+    "ru": "SQL"
+  },
+  "description": {
+    "en": "SQL exercises: your query runs on a sample database and its result is compared with the expected one.",
+    "ru": "Задания на SQL: запрос выполняется на учебной базе, результат сравнивается с ожидаемым."
+  },
   "author": "dolphy-app",
   "tags": ["learning", "language"]
 }

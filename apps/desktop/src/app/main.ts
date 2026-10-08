@@ -1,7 +1,10 @@
 import { createApp } from 'vue';
 import { detectPlatform } from '@dolphy-app/keybindings';
 import { EngineCallError } from '@dolphy-app/engine-rpc/client';
-import { ENGINE_KEY as EXTENSION_ENGINE_KEY } from '@dolphy-app/extension-api';
+import {
+  ENGINE_KEY as EXTENSION_ENGINE_KEY,
+  resolveLocalizedText,
+} from '@dolphy-app/extension-api';
 import App from './App.vue';
 import { applyLocale, createDolphyI18n } from './providers/i18n.ts';
 import { createDolphyQuery } from './providers/query.ts';
@@ -222,6 +225,7 @@ const bootstrap = async () => {
           kind: 'notify',
           text: translate(`settings.extensions.link.${key}`, params),
         }),
+      textOf: (text) => resolveLocalizedText(text, i18n.global.locale.value),
       openPage: (id) =>
         void router.push({
           name: ROUTE.settingsExtensionDetails,

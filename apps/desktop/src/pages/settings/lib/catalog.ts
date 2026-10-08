@@ -6,7 +6,9 @@ import type {
   DeprecationDto,
   ExtensionInfoDto,
   ExtensionUpdateDto,
+  LocalizedTextDto,
 } from '@dolphy-app/engine-contract';
+import { localizedTexts } from '@dolphy-app/extension-api';
 import { satisfiesRange } from '@dolphy-app/extension-catalog/semver';
 import { GROUPS, TAGS, effectiveTags, groupsOf } from './tags.ts';
 import type { ExtensionTag, TagGroup } from './tags.ts';
@@ -35,14 +37,19 @@ const normalize = (text: string) => text.trim().toLowerCase();
 export const isListed = (entry: CatalogEntryDto): boolean =>
   entry.incompatible?.reason !== 'platform';
 
-/** Название, id, описание или автор содержат запрос без учёта регистра. */
+/** Название, id, описание (на любом языке) или автор содержат запрос без учёта регистра. */
 export const matchesQuery = (
   entry: CatalogEntryDto,
   query: string,
 ): boolean => {
   const needle = normalize(query);
   if (needle === '') return true;
-  const fields = [entry.name, entry.id, entry.description, entry.author];
+  const fields = [
+    ...localizedTexts(entry.name),
+    entry.id,
+    ...localizedTexts(entry.description),
+    entry.author,
+  ];
   return fields.some((field) => field.toLowerCase().includes(needle));
 };
 
@@ -168,7 +175,8 @@ export const deprecationFor = (
 /** Что показывает диалог перед установкой или обновлением. */
 export interface InstallTarget {
   id: string;
-  name: string;
+  /** Название на языках записи; язык выбирает окно (`useExtensionText().of`). */
+  name: LocalizedTextDto;
   author: string | null;
   /** Версия, которая будет установлена. */
   version: string;

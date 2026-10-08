@@ -436,11 +436,8 @@ export class Client {
 
   /** Тексты строк расширения `id` из списка «Расширения» (id может повторяться). */
   async readExtensions(id: string): Promise<string[]> {
-    const rows = this.extensionList()
-      .getByRole('listitem')
-      .filter({
-        has: this.page.getByRole('heading', { name: id, exact: true }),
-      });
+    // the heading shows the name of the manifest, not the id
+    const rows = this.extensionList().locator(`[data-extension-id="${id}"]`);
     await rows.first().waitFor({ timeout: TIMEOUT });
     return rows.allInnerTexts();
   }

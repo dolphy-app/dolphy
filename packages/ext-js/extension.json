@@ -2,8 +2,14 @@
   "id": "dolphy.js",
   "version": "1.0.0",
   "apiVersion": 1,
-  "name": "JavaScript",
-  "description": "Code exercises in JavaScript, checked by running your code against tests.",
+  "name": {
+    "en": "JavaScript",
+    "ru": "JavaScript"
+  },
+  "description": {
+    "en": "Code exercises in JavaScript, checked by running your code against tests.",
+    "ru": "Задания по JavaScript: решение проверяется запуском кода против тестов."
+  },
   "author": "dolphy-app",
   "tags": ["learning", "language"]
 }

@@ -7,6 +7,7 @@ import type {
 } from '@dolphy-app/engine-contract';
 import { useEngine } from '@/shared/api/engine';
 import { ROUTE } from '@/shared/config/routes.ts';
+import { useExtensionText } from '@/shared/lib/extension-text.ts';
 import { entryAction, entryTags, targetFromEntry } from '../lib/catalog.ts';
 import { GROUPS, TAGS } from '../lib/tags.ts';
 import type { ExtensionTag, TagGroup } from '../lib/tags.ts';
@@ -25,6 +26,7 @@ import FilterChip from './FilterChip.vue';
 const SKELETON_COUNT = 3;
 
 const { t, d } = useI18n();
+const extensionText = useExtensionText();
 const install = useInstallContext();
 const installed = useInstalledExtensions(useEngine());
 const {
@@ -306,7 +308,7 @@ onMounted(() => void open());
                     }"
                     :data-testid="`details-${entry.id}`"
                   >
-                    {{ entry.name }}
+                    {{ extensionText.of(entry.name) }}
                   </router-link>
                 </h3>
               </ExtensionHeading>
@@ -329,7 +331,9 @@ onMounted(() => void open());
               </span>
               <span class="id">@{{ entry.author }}</span>
             </p>
-            <p class="text-body-medium mt-2">{{ entry.description }}</p>
+            <p class="text-body-medium mt-2">
+              {{ extensionText.of(entry.description) }}
+            </p>
             <ExtensionTags :tags="entryTags(entry)" />
 
             <ExtensionDeprecation
@@ -354,7 +358,7 @@ onMounted(() => void open());
                   :disabled="install.phase.value === 'running'"
                   :aria-label="
                     t('settings.extensions.action.installLabel', {
-                      name: entry.name,
+                      name: extensionText.of(entry.name),
                       version: action.version.version,
                     })
                   "
@@ -374,7 +378,7 @@ onMounted(() => void open());
                   :aria-describedby="`elsewhere-${entry.id}`"
                   :aria-label="
                     t('settings.extensions.action.elsewhereLabel', {
-                      name: entry.name,
+                      name: extensionText.of(entry.name),
                     })
                   "
                   :data-testid="`install-${entry.id}`"
@@ -432,7 +436,7 @@ onMounted(() => void open());
                   :disabled="install.phase.value === 'running'"
                   :aria-label="
                     t('settings.extensions.action.updateLabel', {
-                      name: entry.name,
+                      name: extensionText.of(entry.name),
                       version: action.version.version,
                     })
                   "
@@ -456,7 +460,7 @@ onMounted(() => void open());
                   :aria-describedby="`incompatible-${entry.id}`"
                   :aria-label="
                     t('settings.extensions.action.installDisabledLabel', {
-                      name: entry.name,
+                      name: extensionText.of(entry.name),
                     })
                   "
                   :data-testid="`install-${entry.id}`"
@@ -488,7 +492,7 @@ onMounted(() => void open());
                   :disabled="install.phase.value === 'running'"
                   :aria-label="
                     t('settings.extensions.action.installFallbackLabel', {
-                      name: entry.name,
+                      name: extensionText.of(entry.name),
                       version: action.fallback.version,
                     })
                   "

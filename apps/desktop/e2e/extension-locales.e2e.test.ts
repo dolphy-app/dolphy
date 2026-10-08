@@ -4,7 +4,11 @@ import type { Locator, Page } from 'playwright-core';
 import { createWorkspace, launchApp } from './support/app.ts';
 import type { DolphyApp, Workspace } from './support/app.ts';
 import { Client } from './support/client.ts';
-import { MOD_KEY } from './support/keys.ts';
+import {
+  closePalette,
+  openPalette,
+  switchLanguage,
+} from './support/palette.ts';
 
 const ID = 'acme.locale';
 const TIMEOUT = 15_000;
@@ -37,52 +41,6 @@ const row = (page: Page): Locator =>
 const chips = (page: Page, point: string): Locator =>
   row(page).locator(`[data-point="${point}"] .v-chip`);
 
-const paletteOf = (page: Page) => {
-  const palette = page.getByTestId('command-palette');
-  return {
-    palette,
-    combobox: palette.locator('input[role="combobox"]'),
-    options: palette.getByRole('option'),
-  };
-};
-
-/** Палитра на любом языке интерфейса: находит команду и запускает её клавишей Enter. */
-const openPalette = async (page: Page, query: string) => {
-  const found = paletteOf(page);
-  await page.keyboard.press(`${MOD_KEY}+K`);
-  await found.combobox.waitFor({ timeout: TIMEOUT });
-  // Escape доходит до диалога, только когда переход закончился и поле поиска в фокусе
-  await expect
-    .poll(
-      () =>
-        page.evaluate(
-          () =>
-            document.activeElement?.getAttribute('role') === 'combobox' &&
-            document
-              .querySelector('.v-dialog .v-overlay__content')
-              ?.className.includes('transition') === false,
-        ),
-      { timeout: TIMEOUT },
-    )
-    .toBe(true);
-  await found.combobox.fill(query);
-  return found;
-};
-
-const closePalette = async (page: Page) => {
-  await page.keyboard.press('Escape');
-  await paletteOf(page).palette.waitFor({ state: 'hidden' });
-};
-
-const switchLanguage = async (page: Page, command: string) => {
-  const found = await openPalette(page, command);
-  await found.options
-    .filter({ hasText: command })
-    .first()
-    .click({ timeout: TIMEOUT });
-  await found.palette.waitFor({ state: 'hidden' });
-};
-
 const openDialog = async (page: Page): Promise<Locator> => {
   await row(page).getByTestId(`settings-${ID}`).click();
   const dialog = page.getByTestId('extension-settings');
@@ -98,6 +56,8 @@ const closeDialog = async (page: Page) => {
 };
 
 interface Labels {
+  name: string;
+  description: string;
   kind: string;
   theme: string;
   policy: string;
@@ -113,6 +73,8 @@ interface Labels {
 }
 
 const RU: Labels = {
+  name: 'Набор переводов',
+  description: 'Всё, что можно перевести, в одном расширении',
   kind: 'Вид с переводом',
   theme: 'Мох',
   policy: 'Правило с переводом',
@@ -129,6 +91,8 @@ const RU: Labels = {
 };
 
 const EN: Labels = {
+  name: 'Locale pack',
+  description: 'Everything translatable in one extension',
   kind: 'Locale kind',
   theme: 'Moss',
   policy: 'Locale policy',
@@ -143,8 +107,16 @@ const EN: Labels = {
   panel: 'Locale panel',
 };
 
-/** Список расширений: чипы вкладов на языке окна; рендерер markdown показывается языком блока. */
+/** Список расширений: название и описание манифеста, чипы вкладов на языке окна; рендерер markdown показывается языком блока. */
 const expectRow = async (page: Page, labels: Labels) => {
+  await expect
+    .poll(async () => (await row(page).locator('h3.name').innerText()).trim(), {
+      timeout: TIMEOUT,
+    })
+    .toBe(labels.name);
+  expect(await row(page).locator('p.text-body-medium').innerText()).toBe(
+    labels.description,
+  );
   const chipTexts = async (point: string) =>
     (await chips(page, point).allInnerTexts()).map((text) => text.trim());
   await expect
@@ -161,6 +133,9 @@ const expectRow = async (page: Page, labels: Labels) => {
 
 const expectDialog = async (page: Page, labels: Labels) => {
   const dialog = await openDialog(page);
+  expect(
+    await dialog.locator('#extension-settings-title').innerText(),
+  ).toContain(labels.name);
   expect(
     (await dialog.locator('h3').allInnerTexts()).map((text) => text.trim()),
   ).toEqual([labels.group]);
@@ -283,5 +258,80 @@ describe('локализация манифеста расширения', () =>
       .toBe('Multiple choice');
     expect(await chipText('dolphy.sql', 'exerciseTypes')).toBe('SQL query');
     expect(await chipText('dolphy.math', 'markdownRenderers')).toBe('math');
+  });
+
+  it('расширения из поставки показывают название и описание манифеста на языке окна, смена языка меняет их сразу', async () => {
+    workspace = await createWorkspace();
+    const client = await launch();
+    await client.openSettingsExtensions();
+    const shown = async (id: string) => {
+      const card = client.page.locator(`[data-extension-id="${id}"]`);
+      return [
+        (await card.locator('h3.name').innerText()).trim(),
+        (await card.locator('p.text-body-medium').first().innerText()).trim(),
+      ];
+    };
+    await client.page
+      .locator('[data-extension-id="dolphy.choice"] h3.name')
+      .waitFor({ timeout: TIMEOUT });
+    expect(await shown('dolphy.choice')).toEqual([
+      'Выбор из вариантов',
+      'Задания, где нужно выбрать верный ответ или ответы из списка.',
+    ]);
+    expect(await shown('dolphy.js')).toEqual([
+      'JavaScript',
+      'Задания на код на JavaScript: решение проверяется запуском кода против тестов.',
+    ]);
+    expect(await shown('dolphy.math')).toEqual([
+      'Математические формулы',
+      'Показывает математические формулы, записанные в LaTeX внутри Markdown.',
+    ]);
+    expect(await shown('dolphy.sql')).toEqual([
+      'SQL',
+      'Задания на SQL: запрос выполняется на учебной базе, результат сравнивается с ожидаемым.',
+    ]);
+    const stillSameWindow = await client.markWindow();
+
+    await switchLanguage(client.page, 'Язык: English');
+    await expect
+      .poll(async () => (await shown('dolphy.choice'))[0], { timeout: TIMEOUT })
+      .toBe('Multiple choice');
+    expect(await shown('dolphy.choice')).toEqual([
+      'Multiple choice',
+      'Exercises where you pick the correct answer or answers from a list.',
+    ]);
+    expect(await shown('dolphy.math')).toEqual([
+      'Math formulas',
+      'Renders math formulas written in LaTeX inside Markdown.',
+    ]);
+    expect(await shown('dolphy.sql')).toEqual([
+      'SQL',
+      'SQL exercises: your query runs on a sample database and its result is compared with the expected one.',
+    ]);
+    await stillSameWindow();
+  });
+
+  it('страница расширения показывает название и описание на языке окна и меняет их при смене языка', async () => {
+    workspace = await createWorkspace({ extensions: { [ID]: EXTENSION } });
+    const client = await launch();
+    await client.openSettingsExtensions();
+    await row(client.page).getByTestId(`details-${ID}`).click();
+    const page = client.page.getByTestId('extension-details');
+    await page.waitFor({ timeout: TIMEOUT });
+    // the description appears with the loaded details, the heading follows it
+    const shown = async () => {
+      const description = (
+        await page.locator('p.text-body-medium').first().innerText()
+      ).trim();
+      return [await page.getAttribute('aria-label'), description];
+    };
+    await expect
+      .poll(shown, { timeout: TIMEOUT })
+      .toEqual([RU.name, RU.description]);
+
+    await switchLanguage(client.page, 'Язык: English');
+    await expect
+      .poll(shown, { timeout: TIMEOUT })
+      .toEqual([EN.name, EN.description]);
   });
 });

@@ -7,6 +7,7 @@ import {
 import { parseIndex } from '@dolphy-app/extension-catalog';
 import type { CatalogIndex } from '@dolphy-app/extension-catalog';
 import { BuildError, CatalogUsageError } from '../errors.ts';
+import { declaredText } from '../lint/manifest.ts';
 import { createGithubChecker } from './github.ts';
 import type { GithubUserChecker } from './github.ts';
 import { RULES } from './rules.ts';
@@ -149,8 +150,8 @@ const readDeclared = async (
   return {
     raw,
     declared: {
-      name: stringOrNull(fields.name),
-      description: stringOrNull(fields.description),
+      name: declaredText(fields.name),
+      description: declaredText(fields.description),
       author: stringOrNull(fields.author),
       icon: stringOrNull(fields.icon),
     },

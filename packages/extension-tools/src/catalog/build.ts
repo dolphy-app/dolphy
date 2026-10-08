@@ -11,7 +11,11 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { formatDiagnostic, parseManifest } from '@dolphy-app/extension-host';
-import type { ExtensionManifest } from '@dolphy-app/extension-api';
+import { resolveLocalizedText } from '@dolphy-app/extension-api';
+import type {
+  ExtensionManifest,
+  LocalizedText,
+} from '@dolphy-app/extension-api';
 import {
   CATALOG_FILE_EXTENSIONS,
   MAX_FILES_V2,
@@ -183,10 +187,18 @@ const stage = async (
   };
 };
 
+/** The English text: the string itself or `en`; `''` — the field is not set. */
+const englishOf = (text: LocalizedText | null): string =>
+  text === null ? '' : resolveLocalizedText(text, 'en');
+
 const requirePublication = (staged: Staged): void => {
   const { name, description, author } = staged.manifest;
-  const missing = Object.entries({ name, description, author })
-    .filter(([, value]) => value === null || value.trim() === '')
+  const missing = Object.entries({
+    name: englishOf(name),
+    description: englishOf(description),
+    author: author ?? '',
+  })
+    .filter(([, value]) => value.trim() === '')
     .map(([key]) => key);
   if (missing.length > 0) {
     throw new BuildError(
@@ -194,6 +206,25 @@ const requirePublication = (staged: Staged): void => {
       staged.id,
     );
   }
+};
+
+/** The Russian text of a localized field; `undefined` — a string or no `ru`. */
+const russianOf = (text: LocalizedText | null): string | undefined =>
+  text === null || typeof text === 'string' ? undefined : text.ru;
+
+/** `i18n` of an entry: only the Russian texts the manifest has; none — no key. */
+const i18nOf = (manifest: ExtensionManifest): Pick<CatalogEntry, 'i18n'> => {
+  const name = russianOf(manifest.name);
+  const description = russianOf(manifest.description);
+  if (name === undefined && description === undefined) return {};
+  return {
+    i18n: {
+      ru: {
+        ...(name === undefined ? {} : { name }),
+        ...(description === undefined ? {} : { description }),
+      },
+    },
+  };
 };
 
 const versionDir = (out: string, staged: Staged): string =>
@@ -286,11 +317,12 @@ const entryOf = (
   );
   return {
     id: staged.id,
-    name: manifest.name ?? '',
-    description: manifest.description ?? '',
+    name: englishOf(manifest.name),
+    description: englishOf(manifest.description),
     author: manifest.author ?? '',
     source: `${sourceBase.replace(/\/+$/, '')}/${staged.id}`,
     platforms: [...manifest.platforms],
+    ...i18nOf(manifest),
     ...(previous?.deprecated === undefined
       ? {}
       : { deprecated: previous.deprecated }),

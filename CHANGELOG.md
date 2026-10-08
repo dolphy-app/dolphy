@@ -1,3 +1,21 @@
+# [0.7.0](https://github.com/dolphy-app/dolphy/compare/v0.6.0...v0.7.0) (2026-10-08)
+
+
+### Bug Fixes
+
+* **ext-js:** reword the Russian description ([48b42c9](https://github.com/dolphy-app/dolphy/commit/48b42c9b1cb13e104217ab51a2f4c2eed58dbce4))
+
+
+### Features
+
+* **desktop:** show the extension name and description in the window language ([63ade21](https://github.com/dolphy-app/dolphy/commit/63ade219a4e8b67295fe514852066ab164b1e4d8))
+* **engine-contract:** carry localized extension names in the contract ([02bf12d](https://github.com/dolphy-app/dolphy/commit/02bf12df754d737687e94d7b84c57a912e129cb0))
+* **extension-api:** make the extension name and description localizable ([17a58c4](https://github.com/dolphy-app/dolphy/commit/17a58c45e256b955055e57431fd18c2dab5dd065))
+* **extension-catalog:** add Russian texts to a catalog entry ([bd02239](https://github.com/dolphy-app/dolphy/commit/bd022394ec1c0c2fb3730b22acf856ca48f24fee))
+* **extension-tools:** check and build localized extension texts ([4b9a919](https://github.com/dolphy-app/dolphy/commit/4b9a919c4e73512b66aaac70b3e7c52f63bd0618))
+* give the bundled extensions a name and a description ([81e7209](https://github.com/dolphy-app/dolphy/commit/81e7209979273b4bf1b47aedf0c6cf0e90ec2137))
+* **repo:** localize the names of the bundled extensions ([cbf09b5](https://github.com/dolphy-app/dolphy/commit/cbf09b505ebb022dc674cad748a265a2011134a7))
+
 # [0.6.0](https://github.com/dolphy-app/dolphy/compare/v0.5.0...v0.6.0) (2026-10-08)
 
 

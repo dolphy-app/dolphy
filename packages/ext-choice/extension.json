@@ -1,5 +1,15 @@
 {
   "id": "dolphy.choice",
   "version": "1.0.0",
-  "apiVersion": 1
+  "apiVersion": 1,
+  "name": {
+    "en": "Multiple choice",
+    "ru": "Выбор из вариантов"
+  },
+  "description": {
+    "en": "Exercises where you pick the correct answer or answers from a list.",
+    "ru": "Задания, где нужно выбрать верный ответ или ответы из списка."
+  },
+  "author": "dolphy-app",
+  "tags": ["learning"]
 }

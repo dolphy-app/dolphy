@@ -1,6 +1,7 @@
 import type {
   CatalogEntryDto,
   LearningEngine,
+  LocalizedTextDto,
 } from '@dolphy-app/engine-contract';
 import { toEngineError } from '@/entities/repository';
 import { entryAction, targetFromEntry } from '../lib/catalog.ts';
@@ -12,11 +13,16 @@ export type InstallLinkOutcome =
   /** Диалог установки (или обновления) с подтверждением кнопкой. */
   | { kind: 'review'; target: InstallTarget }
   | { kind: 'not-found'; id: string }
-  | { kind: 'up-to-date'; name: string; version: string }
+  | { kind: 'up-to-date'; name: LocalizedTextDto; version: string }
   /** Расширение с этим id есть, но не из этого каталога. */
-  | { kind: 'elsewhere'; name: string }
+  | { kind: 'elsewhere'; name: LocalizedTextDto }
   /** Несовместимое: причину показывает страница расширения. */
-  | { kind: 'incompatible'; id: string; name: string; detail: string };
+  | {
+      kind: 'incompatible';
+      id: string;
+      name: LocalizedTextDto;
+      detail: string;
+    };
 
 /**
  * Что делать со ссылкой установки по записи каталога. Установка никогда не
@@ -56,6 +62,8 @@ export interface InstallLinksDeps {
   engine: LearningEngine;
   install: Pick<ExtensionInstall, 'phase' | 'review'>;
   notify(message: InstallLinkMessage): void;
+  /** Название на языке окна в момент ссылки. */
+  textOf(text: LocalizedTextDto): string;
   /** Открывает страницу расширения (несовместимое: причина — на странице). */
   openPage(id: string): void;
 }
@@ -75,6 +83,7 @@ export const createInstallLinks = ({
   engine,
   install,
   notify,
+  textOf,
   openPage,
 }: InstallLinksDeps): InstallLinks => {
   let latest = 0;
@@ -114,16 +123,16 @@ export const createInstallLinks = ({
       case 'up-to-date':
         notify({
           key: 'upToDate',
-          params: { name: outcome.name, version: outcome.version },
+          params: { name: textOf(outcome.name), version: outcome.version },
         });
         return;
       case 'elsewhere':
-        notify({ key: 'elsewhere', params: { name: outcome.name } });
+        notify({ key: 'elsewhere', params: { name: textOf(outcome.name) } });
         return;
       case 'incompatible':
         notify({
           key: 'incompatible',
-          params: { name: outcome.name, detail: outcome.detail },
+          params: { name: textOf(outcome.name), detail: outcome.detail },
         });
         openPage(outcome.id);
     }

@@ -4,11 +4,15 @@ import {
   DEFAULT_CLIENT,
   DEFAULT_MAIN,
   GITHUB_LOGIN_PATTERN,
+  MAX_EXTENSION_DESCRIPTION_LENGTH,
+  MAX_EXTENSION_NAME_LENGTH,
 } from '@dolphy-app/extension-api';
+import type { LocalizedText } from '@dolphy-app/extension-api';
 import { compareSemver, iconProblem } from '@dolphy-app/extension-catalog';
 import type { CatalogEntry } from '@dolphy-app/extension-catalog';
 import { bundleFindings, readBundleFiles } from '../lint/bundle.ts';
-import { shortDescription } from '../lint/manifest.ts';
+import { localizedTextNeedsApp, shortDescription } from '../lint/manifest.ts';
+import type { DeclaredText } from '../lint/manifest.ts';
 import { assetFindings } from './assets.ts';
 import type { GithubUserChecker } from './github.ts';
 import type { Tree } from './tree.ts';
@@ -24,16 +28,16 @@ export interface Finding {
 export interface CheckedManifest {
   id: string;
   version: string;
-  name: string | null;
-  description: string | null;
+  name: LocalizedText | null;
+  description: LocalizedText | null;
   author: string | null;
   minAppVersion: string | null;
 }
 
 /** Publication metadata from the raw `extension.json`; `null` — the file is not readable as JSON. */
 export interface DeclaredMetadata {
-  name: string | null;
-  description: string | null;
+  name: DeclaredText | null;
+  description: DeclaredText | null;
   author: string | null;
   /** `icon` path as written in the manifest. */
   icon: string | null;
@@ -107,8 +111,6 @@ const DEPENDENCY_FIELDS = [
 ] as const;
 const NON_REGISTRY_SPECIFIER =
   /^(git[+:@]|github:|gitlab:|bitbucket:|gist:|https?:|file:|link:|workspace:|portal:|patch:|\.{0,2}\/|[\w.-]+\/[\w.-]+(#.*)?$)/;
-const MAX_NAME_LENGTH = 80;
-const MAX_DESCRIPTION_LENGTH = 500;
 
 const error = (field: string, message: string): Finding => ({
   severity: 'error',
@@ -172,18 +174,41 @@ const textFinding = (
     : [];
 };
 
+/** A string, or an object with `en` (required) and `ru` (optional, but not empty when set): each text is checked as a string. */
+const localizedTextFindings = (
+  field: string,
+  text: DeclaredText | null,
+  maxLength: number,
+): Finding[] => {
+  const findings = textFinding(
+    text?.isLocalized === true ? `${field}.en` : field,
+    text?.en ?? null,
+    maxLength,
+  );
+  if (text?.ru === null || text === null) return findings;
+  const ruField = `${field}.ru`;
+  return text.ru.trim() === ''
+    ? [...findings, error(ruField, `'${ruField}' is empty`)]
+    : [...findings, ...textFinding(ruField, text.ru, maxLength)];
+};
+
 const publicationMetadata: CheckRule = {
   id: 'CHECK-003',
-  title: 'name, description and author are set',
+  title:
+    'name, description and author are set, each language of a localized name or description is within its limit',
   run: ({ declared }) =>
     declared === null
       ? []
       : [
-          ...textFinding('name', declared.name, MAX_NAME_LENGTH),
-          ...textFinding(
+          ...localizedTextFindings(
+            'name',
+            declared.name,
+            MAX_EXTENSION_NAME_LENGTH,
+          ),
+          ...localizedTextFindings(
             'description',
             declared.description,
-            MAX_DESCRIPTION_LENGTH,
+            MAX_EXTENSION_DESCRIPTION_LENGTH,
           ),
           ...textFinding('author', declared.author, Infinity),
         ],
@@ -429,11 +454,21 @@ const iconFile: CheckRule = {
 
 const shortDescriptionRule: CheckRule = {
   id: 'CHECK-019',
-  title: 'description is at least 20 characters',
+  title: 'description is at least 20 characters in each language',
   run: ({ declared }) =>
     shortDescription(declared?.description ?? null).map((finding) =>
       warning(finding.field, finding.message),
     ),
+};
+
+const localizedTextApp: CheckRule = {
+  id: 'CHECK-032',
+  title:
+    'a localized name or description needs minAppVersion 0.7.0 or newer (older apps reject the manifest)',
+  run: ({ declared, manifest }) =>
+    declared === null || manifest === null
+      ? []
+      : localizedTextNeedsApp(declared, manifest.minAppVersion),
 };
 
 export const MAX_CHANGELOG_BYTES = 64 * 1024;
@@ -592,4 +627,5 @@ export const RULES: readonly CheckRule[] = [
   bundleRule('CHECK-025', 'built code has no embedded source map'),
   builtParts,
   changelog,
+  localizedTextApp,
 ];

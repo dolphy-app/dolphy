@@ -181,6 +181,76 @@ describe('метаданные и совместимость', () => {
   });
 });
 
+describe('название и описание по языкам', () => {
+  const withMeta = (patch: Record<string, unknown>) => ({
+    ...valid(),
+    ...patch,
+  });
+
+  it('принимает объект с обоими языками', () => {
+    expect(
+      parseManifest(
+        withMeta({
+          name: { en: 'Quiz', ru: 'Опрос' },
+          description: { en: 'Questions', ru: 'Вопросы' },
+        }),
+      ),
+    ).toMatchObject({
+      ok: true,
+      manifest: {
+        name: { en: 'Quiz', ru: 'Опрос' },
+        description: { en: 'Questions', ru: 'Вопросы' },
+      },
+    });
+  });
+
+  it('принимает объект только с английским и смесь форм', () => {
+    expect(
+      parseManifest(withMeta({ name: { en: 'Quiz' }, description: 'Вопросы' })),
+    ).toMatchObject({
+      ok: true,
+      manifest: { name: { en: 'Quiz' }, description: 'Вопросы' },
+    });
+  });
+
+  it.each([
+    ['name', {}],
+    ['name', { ru: 'Опрос' }],
+    ['name', { en: '', ru: 'Опрос' }],
+    ['name', { en: 'Quiz', ru: '' }],
+    ['name', { en: 'Quiz', de: 'Quiz' }],
+    ['name', { en: 'x'.repeat(81), ru: 'Опрос' }],
+    ['name', { en: 'Quiz', ru: 'я'.repeat(81) }],
+    ['name', { en: 5 }],
+    ['description', { en: 'Questions', ru: 'я'.repeat(501) }],
+    ['description', { en: 'x'.repeat(501), ru: 'Вопросы' }],
+    ['description', { ru: 'Вопросы' }],
+    ['description', ['Questions']],
+  ])('отклоняет %s = %j', (key, value) => {
+    expect(parseManifest(withMeta({ [key]: value })).ok).toBe(false);
+  });
+
+  it('называет поле и язык в диагностике', () => {
+    expect(issues(withMeta({ name: { en: 'Quiz', ru: '' } }))).toContain(
+      'name.ru',
+    );
+    expect(issues(withMeta({ description: { ru: 'Вопросы' } }))).toContain(
+      'description.en',
+    );
+  });
+
+  it('граничные длины каждого языка принимаются', () => {
+    expect(
+      parseManifest(
+        withMeta({
+          name: { en: 'x'.repeat(80), ru: 'я'.repeat(80) },
+          description: { en: 'x'.repeat(500), ru: 'я'.repeat(500) },
+        }),
+      ).ok,
+    ).toBe(true);
+  });
+});
+
 describe('tags', () => {
   const withTags = (tags: unknown) => ({ ...valid(), tags });
 

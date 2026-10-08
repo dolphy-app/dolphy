@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 37 as const;
+export const CONTRACT_VERSION = 38 as const;
 /** Потолок `JSON.stringify(answer).length` на границе движка; длиннее — `INVALID_ARGUMENT` без обращения к расширению. */
 export const MAX_ANSWER_CHARS = 200_000 as const;
 /** Потолок файла импорта, суммарного размера присланного дерева и снимка курса для экспорта, байт (R3, R4, R7 спеки `extension-api-breadth-2`). */
@@ -1427,9 +1427,10 @@ export interface ExtensionInfoDto {
   diagnostics: ExtensionDiagnosticDto[];
   /** `false` у расширений из поставки, перекрытых и некорректных: переключатели недоступны. */
   toggleable: boolean;
-  /** Название из манифеста; `null` — не задано. */
-  name: string | null;
-  description: string | null;
+  /** Название из манифеста: строка или тексты по языкам (язык выбирает окно); `null` — не задано. */
+  name: LocalizedTextDto | null;
+  /** Описание из манифеста: строка или тексты по языкам; `null` — не задано. */
+  description: LocalizedTextDto | null;
   /** GitHub-логин автора из манифеста. */
   author: string | null;
   /** Зависимости из манифеста; `[]` — нет или манифест не прочитан. */
@@ -1461,8 +1462,8 @@ export interface ExtensionDependencyDto {
 /** Альтернатива устаревшему расширению; `name` берётся из индекса каталога. */
 export interface DeprecationAlternativeDto {
   id: string;
-  /** Название записи каталога; `null` — такой записи в индексе нет. */
-  name: string | null;
+  /** Название записи каталога: строка или тексты по языкам; `null` — такой записи в индексе нет. */
+  name: LocalizedTextDto | null;
 }
 
 /** Расширение помечено устаревшим в каталоге (`deprecated.json`). */
@@ -2233,8 +2234,9 @@ export interface CatalogIncompatibleDto {
 
 export interface CatalogEntryDto {
   id: string;
-  name: string;
-  description: string;
+  /** Английское название записи — строка; русское (`i18n.ru` индекса) — объект `{ en, ru }`. */
+  name: LocalizedTextDto;
+  description: LocalizedTextDto;
   author: string;
   /** Адрес исходников (страница в репозитории каталога). */
   source: string;
@@ -2272,7 +2274,7 @@ export interface CatalogDto {
 
 export interface ExtensionUpdateDto {
   id: string;
-  name: string;
+  name: LocalizedTextDto;
   installed: string;
   available: CatalogVersionDto;
 }

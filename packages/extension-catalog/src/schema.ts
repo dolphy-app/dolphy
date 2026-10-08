@@ -4,6 +4,8 @@ import {
   EXTENSION_TAGS,
   GITHUB_LOGIN_PATTERN,
   MAX_EXTENSION_DEPENDENCIES,
+  MAX_EXTENSION_DESCRIPTION_LENGTH,
+  MAX_EXTENSION_NAME_LENGTH,
 } from '@dolphy-app/extension-api';
 import type { ExtensionTag } from '@dolphy-app/extension-api';
 import { z } from 'zod';
@@ -317,13 +319,42 @@ const versionSchemaOf = (profile: Profile) =>
     dependencies: dependenciesSchemaOf(profile),
   });
 
+const russianTextShape = {
+  name: z.string().min(1).max(MAX_EXTENSION_NAME_LENGTH).optional(),
+  description: z
+    .string()
+    .min(1)
+    .max(MAX_EXTENSION_DESCRIPTION_LENGTH)
+    .optional(),
+};
+
+/** Russian `name` and `description` of an entry: at least one of them. */
+const strictRussianText = z
+  .strictObject(russianTextShape)
+  .refine(
+    ({ name, description }) => name !== undefined || description !== undefined,
+    'must set name or description',
+  );
+
+/**
+ * Translations of an entry (`i18n.ru`); the `name` and `description` of the entry stay the
+ * English strings, which the apps 0.5.0 and 0.6.0 read. The tolerant reader drops an
+ * unreadable `i18n`; the entry stays.
+ */
+const strictI18n = z.strictObject({ ru: strictRussianText });
+const tolerantI18n = z
+  .object({ ru: z.object(russianTextShape) })
+  .optional()
+  .catch(undefined);
+
 const entryHeadOf = (profile: Profile) => ({
   id: extensionId,
-  name: z.string().min(1).max(80),
-  description: z.string().min(1).max(500),
+  name: z.string().min(1).max(MAX_EXTENSION_NAME_LENGTH),
+  description: z.string().min(1).max(MAX_EXTENSION_DESCRIPTION_LENGTH),
   author: z.string().regex(GITHUB_LOGIN_PATTERN, 'must be a GitHub login'),
   source: httpsUrl,
   platforms: z.array(z.enum(EXTENSION_PLATFORMS)),
+  i18n: profile.strict ? strictI18n.optional() : tolerantI18n,
   deprecated: profile.strict ? strictDeprecated.optional() : tolerantDeprecated,
 });
 

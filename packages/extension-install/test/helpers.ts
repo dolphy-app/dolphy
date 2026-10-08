@@ -47,6 +47,8 @@ export interface ExtensionSpec {
   extraFiles?: Record<string, string | Uint8Array>;
   /** `tags` by version: they join the manifest and the version record of that version. */
   tags?: Record<string, string[]>;
+  /** `i18n` of the index entry: the Russian name and description. */
+  i18n?: { ru: { name?: string; description?: string } };
   /** `deprecated` of the index entry. */
   deprecated?: {
     versions: string | null;
@@ -89,6 +91,7 @@ export const rawEntry = (spec: ExtensionSpec): Record<string, unknown> => ({
   author: 'octo-cat',
   source: 'https://github.com/dolphy-app/dolphy-extensions',
   platforms: spec.platforms ?? [],
+  ...(spec.i18n === undefined ? {} : { i18n: spec.i18n }),
   ...(spec.deprecated === undefined ? {} : { deprecated: spec.deprecated }),
   versions: (spec.versions ?? [spec.version]).map((version) => ({
     version,

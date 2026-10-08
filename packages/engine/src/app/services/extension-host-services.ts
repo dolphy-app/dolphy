@@ -284,8 +284,9 @@ export const createExtensionHostServices = (
       show: async (extensionId, title, body) => {
         const info = notificationsOf(extensionId);
         const limits = EXTENSION_NOTIFICATION_LIMITS;
+        const { name } = info;
         const notification = {
-          source: info.name ?? info.id,
+          source: (typeof name === 'object' ? name?.en : name) ?? info.id,
           title: notificationText('title', title, limits.titleLength),
           body: notificationText('body', body, limits.bodyLength),
         };

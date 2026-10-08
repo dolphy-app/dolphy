@@ -61,6 +61,20 @@ const orderEntry = (entry: CatalogEntry): CatalogEntry => ({
   author: entry.author,
   source: entry.source,
   platforms: [...entry.platforms],
+  ...(entry.i18n === undefined
+    ? {}
+    : {
+        i18n: {
+          ru: {
+            ...(entry.i18n.ru.name === undefined
+              ? {}
+              : { name: entry.i18n.ru.name }),
+            ...(entry.i18n.ru.description === undefined
+              ? {}
+              : { description: entry.i18n.ru.description }),
+          },
+        },
+      }),
   ...(entry.deprecated === undefined
     ? {}
     : {

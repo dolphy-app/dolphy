@@ -664,3 +664,97 @@ describe('catalog build: dependencies', () => {
     );
   });
 });
+
+describe('catalog build: a localized name and description', () => {
+  const localized = {
+    name: { en: 'Night', ru: 'Ночь' },
+    description: {
+      en: 'A dark theme for late evening lessons',
+      ru: 'Тёмная тема для вечерних занятий',
+    },
+    minAppVersion: '0.7.0',
+  };
+
+  it('keeps the English strings in the entry for the apps that predate it and adds i18n.ru', async () => {
+    const repo = await createRepo([
+      { fixture: 'theme-only', manifest: localized },
+    ]);
+    const out = await makeTemp();
+    await publish(repo, out, [NIGHT]);
+    const text = await readFile(path.join(out, 'index.v2.json'), 'utf8');
+    const [entry] = JSON.parse(text).extensions;
+    expect(entry).toMatchObject({
+      name: 'Night',
+      description: 'A dark theme for late evening lessons',
+      i18n: {
+        ru: {
+          name: 'Ночь',
+          description: 'Тёмная тема для вечерних занятий',
+        },
+      },
+    });
+    expect(Object.keys(entry)).toEqual([
+      'id',
+      'name',
+      'description',
+      'author',
+      'source',
+      'platforms',
+      'i18n',
+      'versions',
+    ]);
+    expect(
+      (await readJson(
+        path.join(out, 'extensions', NIGHT, '1.0.0', 'extension.json'),
+      )) as Record<string, unknown>,
+    ).toMatchObject({
+      name: localized.name,
+      description: localized.description,
+    });
+  });
+
+  it('translates only the field that has a Russian text; no Russian text — no i18n', async () => {
+    const half = await createRepo([
+      {
+        fixture: 'theme-only',
+        manifest: {
+          ...localized,
+          description: { en: 'A dark theme for late evening lessons' },
+        },
+      },
+    ]);
+    const out = await makeTemp();
+    await publish(half, out, [NIGHT]);
+    const [entry] = (await indexOf(out)).extensions;
+    expect(entry?.description).toBe('A dark theme for late evening lessons');
+    expect(entry?.i18n).toEqual({ ru: { name: 'Ночь' } });
+
+    const onlyEnglish = await createRepo([
+      {
+        fixture: 'theme-only',
+        manifest: {
+          ...localized,
+          name: { en: 'Night' },
+          description: 'A dark theme for lessons',
+        },
+      },
+    ]);
+    const second = await makeTemp();
+    await publish(onlyEnglish, second, [NIGHT]);
+    expect((await indexOf(second)).extensions[0]?.i18n).toBeUndefined();
+  });
+
+  it('a rebuild of unchanged sources keeps the index as it is', async () => {
+    const repo = await createRepo([
+      { fixture: 'theme-only', manifest: localized },
+    ]);
+    const out = await makeTemp();
+    await publish(repo, out, [NIGHT]);
+    const before = await readFile(path.join(out, 'index.v2.json'), 'utf8');
+    const [result] = await publish(repo, out, [NIGHT]);
+    expect(result?.status).toBe('unchanged');
+    expect(await readFile(path.join(out, 'index.v2.json'), 'utf8')).toBe(
+      before,
+    );
+  });
+});

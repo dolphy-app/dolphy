@@ -88,4 +88,23 @@ describe('extension.schema.json', () => {
     expect(validate(empty), ajv.errorsText(validate.errors)).toBe(true);
     expect(validate({ ...minimal(), main: null, client: null })).toBe(true);
   });
+
+  it('accepts a name and a description as a string or as texts by language', () => {
+    const plain = { ...minimal(), name: 'Quiz', description: 'Questions' };
+    const localized = {
+      ...minimal(),
+      name: { en: 'Quiz', ru: 'Опрос' },
+      description: { en: 'Questions', ru: 'Вопросы' },
+    };
+    expect(validate(plain), ajv.errorsText(validate.errors)).toBe(true);
+    expect(validate(localized), ajv.errorsText(validate.errors)).toBe(true);
+  });
+
+  it('rejects a localized text without en, with another language or too long', () => {
+    const named = (name: unknown) => ({ ...minimal(), name });
+    expect(validate(named({ ru: 'Опрос' }))).toBe(false);
+    expect(validate(named({ en: 'Quiz', de: 'Quiz' }))).toBe(false);
+    expect(validate(named({ en: 'Quiz', ru: '' }))).toBe(false);
+    expect(validate(named({ en: 'Quiz', ru: 'я'.repeat(81) }))).toBe(false);
+  });
 });

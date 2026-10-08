@@ -1,5 +1,15 @@
 {
   "id": "dolphy.math",
   "version": "1.0.0",
-  "apiVersion": 1
+  "apiVersion": 1,
+  "name": {
+    "en": "Math formulas",
+    "ru": "Математические формулы"
+  },
+  "description": {
+    "en": "Renders math formulas written in LaTeX inside Markdown.",
+    "ru": "Показывает математические формулы, записанные в LaTeX внутри Markdown."
+  },
+  "author": "dolphy-app",
+  "tags": ["content"]
 }

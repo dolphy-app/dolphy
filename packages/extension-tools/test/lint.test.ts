@@ -12,7 +12,7 @@ import { runCli } from '../src/cli/run.ts';
 import { buildExtension } from '../src/index.ts';
 import { bundleFindings } from '../src/lint/bundle.ts';
 import { formatLintFinding, lintProject } from '../src/lint/index.ts';
-import { manifestFindings } from '../src/lint/manifest.ts';
+import { declaredText, manifestFindings } from '../src/lint/manifest.ts';
 import { copyProject, makeTemp } from './helpers.ts';
 
 const PUBLICATION = {
@@ -102,6 +102,25 @@ describe('dolphy-ext lint: project', () => {
         'error acme.night CHECK-004 README.md: README.md is missing or empty',
       ]);
     }
+  });
+
+  it('a project with a localized name and description is read and linted', async () => {
+    const dir = await readyProject('theme-only', {
+      name: { en: 'Night', ru: 'Ночь' },
+      description: {
+        en: 'A dark theme for late evening lessons',
+        ru: 'Тёмная тема для вечерних занятий',
+      },
+      minAppVersion: '0.7.0',
+    });
+    expect(await lint(dir)).toEqual([]);
+
+    const old = await readyProject('theme-only', {
+      name: { en: 'Night', ru: 'Ночь' },
+    });
+    expect(await lint(old)).toEqual([
+      'warning acme.night CHECK-032 minAppVersion: a localized name or description is rejected by apps before 0.7.0: set minAppVersion to 0.7.0 or newer',
+    ]);
   });
 
   it('finds code smells in the build of the project itself', async () => {
@@ -214,19 +233,66 @@ describe('dolphy-ext lint: bundle heuristics', () => {
 });
 
 describe('dolphy-ext lint: manifestFindings', () => {
+  const fields = {
+    name: declaredText('N'),
+    author: 'a',
+    tags: ['theme'],
+    description: declaredText('x'.repeat(20)),
+    minAppVersion: null,
+  };
+
   it('twenty characters are enough', () => {
-    const fields = {
-      name: 'N',
-      author: 'a',
-      tags: ['theme'],
-      description: 'x'.repeat(20),
-    };
     expect(manifestFindings(fields)).toEqual([]);
     expect(
-      manifestFindings({ ...fields, description: 'x'.repeat(19) }).map(
-        (item) => item.ruleId,
-      ),
+      manifestFindings({
+        ...fields,
+        description: declaredText('x'.repeat(19)),
+      }).map((item) => item.ruleId),
     ).toEqual(['CHECK-019']);
+  });
+
+  const localized = {
+    ...fields,
+    name: declaredText({ en: 'N', ru: 'Н' }),
+    description: declaredText({ en: 'x'.repeat(20), ru: 'я'.repeat(20) }),
+    minAppVersion: '0.7.0',
+  };
+
+  it('a localized name and description with minAppVersion 0.7.0 are clean', () => {
+    expect(manifestFindings(localized)).toEqual([]);
+  });
+
+  it('each language of a localized description is measured and named', () => {
+    const findings = manifestFindings({
+      ...localized,
+      description: declaredText({ en: 'x'.repeat(20), ru: 'коротко' }),
+    });
+    expect(findings.map((item) => `${item.ruleId} ${item.field}`)).toEqual([
+      'CHECK-019 description.ru',
+    ]);
+  });
+
+  it('a localized text without en is not set', () => {
+    const findings = manifestFindings({
+      ...localized,
+      name: declaredText({ ru: 'Н' }),
+    });
+    expect(findings.map((item) => `${item.ruleId} ${item.field}`)).toEqual([
+      'CHECK-003 name.en',
+    ]);
+  });
+
+  it.each([null, '0.6.0', '0.6.9'])(
+    'a localized text with minAppVersion %s warns that the old apps reject it',
+    (minAppVersion) => {
+      const findings = manifestFindings({ ...localized, minAppVersion });
+      expect(findings.map((item) => item.ruleId)).toEqual(['CHECK-032']);
+      expect(findings[0]?.field).toBe('minAppVersion');
+    },
+  );
+
+  it('plain strings need no minAppVersion', () => {
+    expect(manifestFindings({ ...fields, minAppVersion: '0.5.0' })).toEqual([]);
   });
 });
 

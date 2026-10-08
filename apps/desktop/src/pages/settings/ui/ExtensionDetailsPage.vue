@@ -62,15 +62,17 @@ const name = computed(() => {
   const view = details.value;
   if (view === null) return id.value;
   if (view.info !== null) return extensionText.nameOf(view.info);
-  return view.entry?.name ?? view.id;
+  return view.entry === null ? view.id : extensionText.of(view.entry.name);
 });
 
 const description = computed(() => {
   const view = details.value;
   if (view === null) return null;
-  return view.info === null
-    ? (view.entry?.description ?? null)
-    : view.info.description;
+  return extensionText.ofOptional(
+    view.info === null
+      ? (view.entry?.description ?? null)
+      : view.info.description,
+  );
 });
 
 const docsVersion = computed(() =>
@@ -109,7 +111,12 @@ const reviewUpdate = (installed: string, version: CatalogVersionDto) => {
   }
   install.review([
     targetFromUpdate(
-      { id: view.id, name: name.value, installed, available: version },
+      {
+        id: view.id,
+        name: view.info?.name ?? view.id,
+        installed,
+        available: version,
+      },
       view.info ?? undefined,
       undefined,
     ),

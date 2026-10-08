@@ -4,10 +4,12 @@ import type { LocalizedText } from '@dolphy-app/extension-api';
 
 /** Подписи расширения на текущем языке окна. */
 export interface ExtensionText {
-  /** Подпись вклада: строка как есть или текст языка окна (запасной — `en`). */
+  /** Подпись вклада или манифеста: строка как есть или текст языка окна (запасной — `en`). */
   of(text: LocalizedText): string;
-  /** Название расширения: `name` манифеста или id. */
-  nameOf(info: { id: string; name: string | null }): string;
+  /** То же для необязательной подписи (`description` манифеста); `null` — подписи нет. */
+  ofOptional(text: LocalizedText | null): string | null;
+  /** Название расширения: `name` манифеста на языке окна или id. */
+  nameOf(info: { id: string; name: LocalizedText | null }): string;
 }
 
 /**
@@ -16,8 +18,10 @@ export interface ExtensionText {
  */
 export const useExtensionText = (): ExtensionText => {
   const { locale } = useI18n();
+  const of = (text: LocalizedText) => resolveLocalizedText(text, locale.value);
   return {
-    of: (text) => resolveLocalizedText(text, locale.value),
-    nameOf: (info) => info.name ?? info.id,
+    of,
+    ofOptional: (text) => (text === null ? null : of(text)),
+    nameOf: (info) => (info.name === null ? info.id : of(info.name)),
   };
 };

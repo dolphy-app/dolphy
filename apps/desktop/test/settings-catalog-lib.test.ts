@@ -60,6 +60,22 @@ describe('filterEntries', () => {
     expect(names('  bob  ')).toEqual(['acme.quiz']);
   });
 
+  it('запись с названием и описанием по языкам находится по обоим языкам', () => {
+    const localized = catalogEntry('acme.moon', {
+      name: { en: 'Moonlight', ru: 'Лунный свет' },
+      description: { en: 'A calm dark theme', ru: 'Спокойная тёмная тема' },
+    });
+    const found = (query: string) =>
+      filterEntries([...ENTRIES, localized], { ...NO_FILTERS, query }).map(
+        (entry) => entry.id,
+      );
+    expect(found('moonlight')).toEqual(['acme.moon']);
+    expect(found('ЛУННЫЙ')).toEqual(['acme.moon']);
+    expect(found('calm dark')).toEqual(['acme.moon']);
+    expect(found('спокойная')).toEqual(['acme.moon']);
+    expect(found('acme.moon')).toEqual(['acme.moon']);
+  });
+
   it('пустой запрос оставляет все доступные на этой платформе', () => {
     expect(names('')).toEqual(['acme.sunrise', 'acme.quiz']);
   });

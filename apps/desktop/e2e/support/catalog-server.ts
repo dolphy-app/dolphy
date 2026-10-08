@@ -45,6 +45,8 @@ export interface CatalogSource {
   /** GitHub-логин. */
   author: string;
   platforms?: string[];
+  /** Русские название и описание записи индекса (`i18n.ru`); `name` и `description` остаются английскими строками. */
+  i18n?: { ru: { name?: string; description?: string } };
 }
 
 interface PublishedFile {
@@ -72,6 +74,7 @@ interface PublishedExtension {
   description: string;
   author: string;
   platforms: string[];
+  i18n: CatalogSource['i18n'];
   versions: PublishedVersion[];
 }
 
@@ -225,6 +228,7 @@ export const startCatalogServer = async (
       description: source.description,
       author: source.author,
       platforms: source.platforms ?? [],
+      i18n: source.i18n,
       versions,
     });
   };
@@ -243,6 +247,7 @@ export const startCatalogServer = async (
         author: entry.author,
         source: `https://example.test/extensions/${entry.id}`,
         platforms: entry.platforms,
+        ...(entry.i18n === undefined ? {} : { i18n: entry.i18n }),
         ...(deprecations.has(entry.id)
           ? { deprecated: deprecations.get(entry.id) }
           : {}),

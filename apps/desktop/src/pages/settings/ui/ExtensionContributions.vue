@@ -2,6 +2,7 @@
 import { computed, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { ExtensionContributesDto } from '@dolphy-app/engine-contract';
+import type { LocalizedText } from '@dolphy-app/extension-api';
 import { useContributions } from '@/shared/api/engine/contributions.ts';
 import { useExtensionClients } from '@/shared/lib/extension-clients.ts';
 import { useExtensionText } from '@/shared/lib/extension-text.ts';
@@ -17,7 +18,7 @@ const props = defineProps<{
   /** Серверные точки установленного расширения. */
   contributes: ExtensionContributesDto;
   /** Название расширения: единственная тема с таким же названием не повторяется. */
-  name: string | null;
+  name: LocalizedText | null;
 }>();
 
 const { t, te } = useI18n();
@@ -52,7 +53,9 @@ const groups = computed(() =>
     eventLabel,
   ),
 );
-const hidden = computed(() => hidesContributions(groups.value, props.name));
+const hidden = computed(() =>
+  hidesContributions(groups.value, extensionText.ofOptional(props.name)),
+);
 </script>
 
 <template>

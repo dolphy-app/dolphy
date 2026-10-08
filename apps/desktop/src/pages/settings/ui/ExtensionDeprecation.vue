@@ -2,6 +2,7 @@
 import { useI18n } from 'vue-i18n';
 import type { DeprecationDto } from '@dolphy-app/engine-contract';
 import { ROUTE } from '@/shared/config/routes.ts';
+import { useExtensionText } from '@/shared/lib/extension-text.ts';
 
 /**
  * Предупреждение «расширение устарело»: причина из `deprecated.json` каталога
@@ -12,6 +13,7 @@ defineProps<{ deprecation: DeprecationDto }>();
 defineEmits<{ navigate: [id: string] }>();
 
 const { t } = useI18n();
+const extensionText = useExtensionText();
 </script>
 
 <template>
@@ -56,13 +58,13 @@ const { t } = useI18n();
             }"
             :aria-label="
               t('settings.extensions.deprecated.alternativeLabel', {
-                name: alternative.name ?? alternative.id,
+                name: extensionText.nameOf(alternative),
               })
             "
             :data-testid="`alternative-${alternative.id}`"
             @click="$emit('navigate', alternative.id)"
           >
-            {{ alternative.name ?? alternative.id }}
+            {{ extensionText.nameOf(alternative) }}
           </router-link>
         </li>
       </ul>

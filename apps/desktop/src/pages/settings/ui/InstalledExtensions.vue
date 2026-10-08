@@ -532,7 +532,7 @@ watch(
               v-if="extension.description !== null"
               class="text-body-medium mt-2"
             >
-              {{ extension.description }}
+              {{ extensionText.of(extension.description) }}
             </p>
             <ExtensionTags :tags="effectiveTags(extension.tags)" />
 

@@ -174,6 +174,13 @@ export interface PanelRegistration {
   icon?: ExtensionIconName;
   /** Visibility condition (see `parseWhen`): while it is false the sidebar entry is hidden; the panel still opens with `openPanel`. */
   when?: string;
+  /**
+   * `false` removes the app's page header (back button, title and extension id): the panel fills the
+   * whole page and draws its own `<h1>`. The app moves focus to the panel container
+   * (`tabindex="-1"`, labelled with `title`) on entry. Loading, failed and unavailable states keep
+   * the header. Needs app 0.6.0 or later; defaults to `true`.
+   */
+  header?: boolean;
   /** The panel's component: a Vue component or a `Mountable` (`unknown`: this package does not depend on Vue). */
   component: unknown;
 }

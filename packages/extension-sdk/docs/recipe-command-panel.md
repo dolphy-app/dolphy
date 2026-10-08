@@ -149,6 +149,9 @@ void load();
   [recipe-mountable.md](recipe-mountable.md) and [recipe-react.md](recipe-react.md)).
   `vue` is the app's own instance, so the panel shares its theme and language.
   `openPanel('<id>', props)` of a command opens it.
+- `header: false` (app 0.6.0 and later) removes the app's page header (back
+  button, title, extension id): the panel fills the page and draws its own
+  `<h1>`. The app moves focus to the panel container, labelled with `title`.
 - A `.vue` file is built as it is: `<script setup lang="ts">`, `<template>`
   and `<style>`. Vuetify components are written as tags (`<v-btn>`,
   `<v-card>`) and Vuetify directives as `v-ripple`, with no import: the build

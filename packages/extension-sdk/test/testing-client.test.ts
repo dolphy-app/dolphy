@@ -10,6 +10,19 @@ import { createTestClient } from '../src/testing.ts';
 const component = defineComponent({});
 
 describe('createTestClient', () => {
+  it('records a panel header flag as registered', async () => {
+    const client = await createTestClient(
+      defineClient((c) => {
+        c.addPanel({ id: 'a.own', title: 'Own', header: false, component });
+        c.addPanel({ id: 'a.std', title: 'Std', component });
+      }),
+    );
+    expect(client.panels.map(({ header }) => header)).toEqual([
+      false,
+      undefined,
+    ]);
+  });
+
   it('records what the entry adds', async () => {
     const run = () => undefined;
     const client = await createTestClient(

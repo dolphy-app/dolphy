@@ -33,6 +33,7 @@ const panels: ClientPanel[] = [
     title: 'Панель',
     icon: 'puzzle',
     when: null,
+    header: true,
     component: textComponent('panel'),
   },
 ];

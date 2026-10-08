@@ -41,6 +41,8 @@ export interface ClientPanel {
   title: LocalizedText;
   icon: ExtensionIconName;
   when: string | null;
+  /** `false`: панель рисует заголовок страницы сама, шапки приложения нет. */
+  header: boolean;
   component: ExtensionComponent;
 }
 
@@ -227,6 +229,7 @@ const panelSchema = z.strictObject({
   title: text(titleLength),
   icon,
   when: when.optional(),
+  header: z.boolean().optional(),
   component,
 });
 
@@ -366,6 +369,7 @@ export const createClientContext = (
         title: reg.title,
         icon: reg.icon ?? DEFAULT_EXTENSION_ICON,
         when: reg.when ?? null,
+        header: reg.header ?? true,
         component: reg.component,
       });
     },

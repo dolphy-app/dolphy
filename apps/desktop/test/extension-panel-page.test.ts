@@ -37,6 +37,7 @@ const PANEL: ClientPanel = {
   title: { en: 'Cards', ru: 'Карточки' },
   icon: 'puzzle',
   when: null,
+  header: true,
   component: textComponent('panel-content', 'content'),
 };
 
@@ -114,6 +115,47 @@ describe('ExtensionPanelPage', () => {
     const { root } = await mountPage([PANEL]);
     expect(heading(root)).toBe('Карточки');
     expect(has(root, 'panel-content')).toBe(true);
+  });
+
+  it('панель с header: false: ни кнопки «Назад», ни заголовка приложения; фокус на контейнере с названием', async () => {
+    const { root } = await mountPage([{ ...PANEL, header: false }]);
+    expect(has(root, 'panel-back')).toBe(false);
+    expect(root.querySelector('h1')).toBeNull();
+    expect(root.textContent).not.toContain('acme.cards.main');
+    expect(has(root, 'panel-content')).toBe(true);
+    const body = root.querySelector<HTMLElement>(
+      '[data-testid="extension-panel-body"]',
+    );
+    expect(body?.getAttribute('tabindex')).toBe('-1');
+    expect(body?.getAttribute('role')).toBe('region');
+    expect(body?.getAttribute('aria-label')).toBe('Карточки');
+    expect(document.activeElement).toBe(body);
+  });
+
+  it('панель с шапкой: фокус на заголовке, контейнер без tabindex', async () => {
+    const { root } = await mountPage([PANEL]);
+    expect(has(root, 'panel-back')).toBe(true);
+    expect(document.activeElement).toBe(root.querySelector('h1'));
+    const body = root.querySelector('[data-testid="extension-panel-body"]');
+    expect(body?.hasAttribute('tabindex')).toBe(false);
+    expect(body?.hasAttribute('aria-label')).toBe(false);
+  });
+
+  it('панель без шапки догружается: до загрузки шапка есть, потом фокус на контейнере', async () => {
+    const { root, registered, stateMap } = await mountPage(
+      [],
+      [['acme.cards', { status: 'loading', error: null }]],
+    );
+    expect(has(root, 'panel-back')).toBe(true);
+    registered.value = [{ ...PANEL, header: false }];
+    stateMap.value = new Map([
+      ['acme.cards', { status: 'loaded', error: null }],
+    ]);
+    await flush();
+    expect(has(root, 'panel-back')).toBe(false);
+    expect(document.activeElement).toBe(
+      root.querySelector('[data-testid="extension-panel-body"]'),
+    );
   });
 
   it('клиентская часть ещё грузится — индикатор вместо «панель недоступна»; потом панель', async () => {

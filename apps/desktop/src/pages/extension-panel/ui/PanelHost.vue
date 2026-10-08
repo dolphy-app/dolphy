@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { computed, onErrorCaptured, provide, reactive, ref, watch } from 'vue';
+import {
+  computed,
+  onErrorCaptured,
+  provide,
+  reactive,
+  ref,
+  useTemplateRef,
+  watch,
+} from 'vue';
 import { useI18n } from 'vue-i18n';
 import { PANEL_HANDLE_KEY, isMountable } from '@dolphy-app/extension-api';
 import type { JsonValue, PanelHandle } from '@dolphy-app/extension-api';
@@ -17,8 +25,10 @@ const props = withDefaults(
     openProps?: JsonValue;
     /** Окружение панели: курс в фокусе; смена доходит без пересоздания. */
     context: { courseId: string | null };
+    /** Название панели без шапки приложения: контейнер получает роль области, метку и принимает фокус. */
+    label?: string;
   }>(),
-  { openProps: undefined },
+  { openProps: undefined, label: undefined },
 );
 
 const { t } = useI18n();
@@ -60,6 +70,9 @@ const mountProps = computed(() => ({
   context: { courseId: context.courseId },
 }));
 
+const body = useTemplateRef<HTMLElement>('body');
+defineExpose({ focus: () => body.value?.focus() });
+
 const failure = ref<string | null>(null);
 // повтор после сбоя рендера создаёт компонент заново
 const attempt = ref(0);
@@ -84,7 +97,14 @@ onErrorCaptured((error) => {
 </script>
 
 <template>
-  <div class="panel-body" data-testid="extension-panel-body">
+  <div
+    ref="body"
+    class="panel-body"
+    data-testid="extension-panel-body"
+    :role="label === undefined ? undefined : 'region'"
+    :aria-label="label"
+    :tabindex="label === undefined ? undefined : -1"
+  >
     <v-alert
       v-if="failure !== null"
       type="error"
@@ -127,6 +147,10 @@ onErrorCaptured((error) => {
 .panel-body {
   height: 100%;
   overflow: auto;
+}
+
+.panel-body:focus {
+  outline: none;
 }
 
 .caption {

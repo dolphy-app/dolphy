@@ -42,6 +42,7 @@ const panelOf = (extensionId: string, id: string): ClientPanel => ({
   title: id,
   icon: 'puzzle',
   when: null,
+  header: true,
   component: {},
 });
 

@@ -1,5 +1,9 @@
 {
   "id": "dolphy.choice",
   "version": "1.0.0",
-  "apiVersion": 1
+  "apiVersion": 1,
+  "name": "Multiple choice",
+  "description": "Exercises where you pick the correct answer or answers from a list.",
+  "author": "dolphy-app",
+  "tags": ["learning"]
 }

@@ -424,10 +424,13 @@ describe('совместимость с приложением', () => {
   });
 
   it('название и описание по языкам доходят до кандидата объектами', async () => {
-    const result = await discover({
-      name: { en: 'Quiz', ru: 'Опрос' },
-      description: { en: 'Questions', ru: 'Вопросы' },
-    });
+    const result = await discover(
+      {
+        name: { en: 'Quiz', ru: 'Опрос' },
+        description: { en: 'Questions', ru: 'Вопросы' },
+      },
+      { platform: 'linux' },
+    );
     expect(result.extensions[0]).toMatchObject({
       name: { en: 'Quiz', ru: 'Опрос' },
       description: { en: 'Questions', ru: 'Вопросы' },

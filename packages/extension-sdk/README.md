@@ -116,7 +116,7 @@ and `defineClient` return their argument unchanged and are marked
   return a cleanup function (or a `Disposable`), called when the extension is
   unloaded.
 - `defineClient(entry)` — `entry(client)` gets a `ClientContext` where the
-  components are Vue components: `addPanel({ id, title, component, icon?, when? })`,
+  components are Vue components: `addPanel({ id, title, component, icon?, when?, header? })`,
   `addInjection({ id, target, position?, component })`,
   `addAnswerView(exerciseTypeId, component)`,
   `addMarkdownRenderer(language, component)`, `addTheme(registration)`,

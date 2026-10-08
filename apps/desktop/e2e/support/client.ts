@@ -295,6 +295,12 @@ export class Client {
       name: RU.reveal,
       exact: true,
     });
+    const giveUp = this.page.getByRole('button', {
+      name: RU.giveUp,
+      exact: true,
+    });
+    // the exercise may not be drawn yet: `isVisible` does not wait
+    await reveal.or(giveUp).first().waitFor({ timeout: TIMEOUT });
     if (!(await reveal.isVisible())) {
       await this.giveUp();
       return;

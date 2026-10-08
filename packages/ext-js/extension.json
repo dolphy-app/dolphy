@@ -8,7 +8,7 @@
   },
   "description": {
     "en": "Code exercises in JavaScript, checked by running your code against tests.",
-    "ru": "Задания на код на JavaScript: решение проверяется запуском кода против тестов."
+    "ru": "Задания по JavaScript: решение проверяется запуском кода против тестов."
   },
   "author": "dolphy-app",
   "tags": ["learning", "language"]

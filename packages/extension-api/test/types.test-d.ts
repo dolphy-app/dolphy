@@ -266,6 +266,14 @@ describe('extension-api types', () => {
     const client = {} as ClientContext;
     expectTypeOf(client.addPanel).returns.toEqualTypeOf<Disposable>();
     client.addPanel({ id: 'a.panel', title: { en: 'Panel' }, component: {} });
+    client.addPanel({
+      id: 'a.own',
+      title: 'Own',
+      header: false,
+      component: {},
+    });
+    // @ts-expect-error header is a boolean
+    client.addPanel({ id: 'a.bad', title: 'Bad', header: 'no', component: {} });
     client.addInjection({
       id: 'a.plan',
       target: anchorSelector('dailyPlan'),

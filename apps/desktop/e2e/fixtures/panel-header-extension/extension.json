@@ -1,0 +1,6 @@
+{
+  "id": "acme.hdr",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "client": "./client.mjs"
+}

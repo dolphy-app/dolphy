@@ -1,3 +1,10 @@
+# [0.6.0](https://github.com/dolphy-app/dolphy/compare/v0.5.0...v0.6.0) (2026-10-08)
+
+
+### Features
+
+* **extension-api:** let a panel draw its own page header ([a9de023](https://github.com/dolphy-app/dolphy/commit/a9de023ebbd028099aafabe2bb153d9eff0d00e0))
+
 # [0.5.0](https://github.com/dolphy-app/dolphy/compare/v0.4.0...v0.5.0) (2026-10-07)
 
 

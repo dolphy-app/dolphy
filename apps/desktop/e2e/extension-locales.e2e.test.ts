@@ -280,7 +280,7 @@ describe('локализация манифеста расширения', () =>
     ]);
     expect(await shown('dolphy.js')).toEqual([
       'JavaScript',
-      'Задания на код на JavaScript: решение проверяется запуском кода против тестов.',
+      'Задания по JavaScript: решение проверяется запуском кода против тестов.',
     ]);
     expect(await shown('dolphy.math')).toEqual([
       'Математические формулы',

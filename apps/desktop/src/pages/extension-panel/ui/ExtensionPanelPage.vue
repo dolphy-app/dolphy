@@ -46,15 +46,22 @@ const panelTitle = computed(() =>
   resolved.value === null ? '' : extensionText.of(resolved.value.panel.title),
 );
 
-const heading = useTemplateRef<HTMLElement>('heading');
+// панель с `header: false` сама рисует заголовок: приложение шапку не показывает
+const ownHeader = computed(() => resolved.value?.panel.header === false);
 
-// заголовок страницы получает фокус при входе
+const heading = useTemplateRef<HTMLElement>('heading');
+const host = useTemplateRef<InstanceType<typeof PanelHost>>('host');
+
+// при входе фокус получает заголовок страницы, а без шапки — контейнер панели
 watch(
-  key,
-  async (_next, previous) => {
-    if (previous !== undefined) panelProps.clear(previous);
+  [key, () => (ownHeader.value ? resolved.value?.panel.key : null)],
+  async ([, bodyKey], [previous]) => {
+    if (previous !== undefined && previous !== key.value) {
+      panelProps.clear(previous);
+    }
     await nextTick();
-    heading.value?.focus();
+    if (bodyKey === null || bodyKey === undefined) heading.value?.focus();
+    else host.value?.focus();
   },
   { immediate: true, flush: 'post' },
 );
@@ -79,7 +86,7 @@ const back = () => {
 
 <template>
   <div class="panel-page">
-    <header class="header">
+    <header v-if="!ownHeader" class="header">
       <v-btn
         variant="text"
         prepend-icon="mdi-arrow-left"
@@ -98,11 +105,13 @@ const back = () => {
 
     <div v-if="resolved" class="panel-area">
       <PanelHost
+        ref="host"
         :key="resolved.panel.key"
         :panel="resolved.panel"
         :commands="resolved.commands"
         :open-props="panelProps.get(key)"
         :context="context"
+        :label="ownHeader ? panelTitle : undefined"
       />
     </div>
     <div

@@ -40,6 +40,7 @@ describe('реестр клиентских частей: загрузка', () 
             title: { en: 'A', ru: 'А' },
             icon: 'book',
             when: "route == 'courses'",
+            header: false,
             component: textComponent('a'),
           });
           c.addInjection({
@@ -73,8 +74,12 @@ describe('реестр клиентских частей: загрузка', () 
       extensionId: 'acme.a',
       icon: 'book',
       when: "route == 'courses'",
+      header: false,
     });
-    expect(registry.panels.value[1]?.icon).toBe('puzzle');
+    expect(registry.panels.value[1]).toMatchObject({
+      icon: 'puzzle',
+      header: true,
+    });
     expect(registry.injections.value).toMatchObject([
       {
         extensionId: 'acme.a',
@@ -225,6 +230,19 @@ describe('реестр клиентских частей: проверка ре�
         c.addPanel({ id: 'evil.p', title: 'P', component: textComponent('p') }),
       ),
     ).toContain("must be 'acme.a' or start with 'acme.a.'");
+  });
+
+  it('панель: header только булев', async () => {
+    expect(
+      await failing((c) =>
+        c.addPanel({
+          id: 'acme.a.p',
+          title: 'P',
+          header: 'no' as never,
+          component: textComponent('p'),
+        }),
+      ),
+    ).toContain('panel.header');
   });
 
   it('тема: встроенный id, чужие ключи цветов и неверный цвет отвергаются', async () => {

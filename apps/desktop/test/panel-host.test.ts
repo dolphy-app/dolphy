@@ -28,6 +28,7 @@ const panelOf = (component: unknown): ClientPanel => ({
   title: 'Cards',
   icon: 'puzzle',
   when: null,
+  header: true,
   component: component as ClientPanel['component'],
 });
 

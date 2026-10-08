@@ -107,6 +107,7 @@ describe('Mountable в панели', () => {
           title: 'Cards',
           icon: 'puzzle',
           when: null,
+          header: true,
           component: fake.mountable,
         },
         commands: new Set<string>(),

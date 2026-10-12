@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { updatesBadgeText, useExtensionUpdates } from '@/shared/api/engine';
+import logoUrl from '@/shared/assets/logo.svg';
 import { APP_NAME } from '@/shared/config/app.ts';
 import { extensionIconOf } from '@/shared/config/extension-icons.ts';
 import { ROUTE } from '@/shared/config/routes.ts';
@@ -48,9 +49,7 @@ const bottomItems = computed(() =>
 <template>
   <v-navigation-drawer permanent width="240" border="e" elevation="0">
     <div class="d-flex align-center ga-3 px-5 py-5">
-      <v-avatar color="primary" rounded="lg" size="36">
-        <v-icon icon="mdi-brain" />
-      </v-avatar>
+      <img :src="logoUrl" alt="" width="36" height="36" />
       <span class="text-title-large font-weight-bold">{{ APP_NAME }}</span>
     </div>
     <v-divider />
